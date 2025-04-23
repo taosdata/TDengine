@@ -1,0 +1,7247 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../..">
+      
+      
+        <link rel="next" href="../demo/">
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.12">
+    
+    
+      
+        <title>Datatype - TDengine Case List</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.2afb09e1.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#datatype.test_column_bigint" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="TDengine Case List" class="md-header__button md-logo" aria-label="TDengine Case List" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            TDengine Case List
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Datatype
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Welcome to TDengine Cases Docs
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
+          
+  
+  
+  Case list docs
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../util_funcs_docs/new_test_framework/utils/" class="md-tabs__link">
+          
+  
+  
+  Util funcs docs
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="TDengine Case List" class="md-nav__button md-logo" aria-label="TDengine Case List" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    TDengine Case List
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Welcome to TDengine Cases Docs
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Case list docs
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Case list docs
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Datatype
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Datatype
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_bigint" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_bigint
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_bigint">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bigint.TestBigIntColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestBigIntColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestBigIntColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bigint.TestBigIntColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bigint.TestBigIntColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bigint.TestBigIntColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bigint.TestBigIntColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bigint.TestBigIntColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_bool" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_bool
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_bool">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bool.TestBoolColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestBoolColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestBoolColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bool.TestBoolColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bool.TestBoolColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bool.TestBoolColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bool.TestBoolColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bool.TestBoolColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_double" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_double
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_double">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_double.TestDoubleColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestDoubleColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestDoubleColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_double.TestDoubleColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_double.TestDoubleColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_double.TestDoubleColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_double.TestDoubleColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_double.TestDoubleColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_float" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_float
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_float">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_float.TestFloatColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestFloatColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestFloatColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_float.TestFloatColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_float.TestFloatColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_float.TestFloatColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_float.TestFloatColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_float.TestFloatColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_geometry" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_geometry
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_geometry">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_geometry.TestGeometryColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestGeometryColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestGeometryColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_geometry.TestGeometryColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_geometry.TestGeometryColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_geometry.TestGeometryColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_geometry.TestGeometryColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_geometry.TestGeometryColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_int" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_int
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_int">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_int.TestIntColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestIntColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestIntColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_int.TestIntColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_int.TestIntColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_int.TestIntColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_int.TestIntColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_int.TestIntColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_json" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_json
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_json">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_json.TestJsonColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestJsonColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestJsonColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_json.TestJsonColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_json.TestJsonColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_json.TestJsonColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_json.TestJsonColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_json.TestJsonColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_nchar" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_nchar
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_nchar">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_nchar.TestNcharColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestNcharColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestNcharColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_nchar.TestNcharColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_nchar.TestNcharColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_nchar.TestNcharColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_nchar.TestNcharColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_nchar.TestNcharColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_smallint" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_smallint
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_smallint">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_smallint.TestSmallintColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestSmallintColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestSmallintColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_smallint.TestSmallintColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_smallint.TestSmallintColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_smallint.TestSmallintColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_smallint.TestSmallintColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_smallint.TestSmallintColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_timestamp" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_timestamp
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_timestamp">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_timestamp.TestTimestampColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestTimestampColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestTimestampColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_timestamp.TestTimestampColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_timestamp.TestTimestampColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_timestamp.TestTimestampColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_timestamp.TestTimestampColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_timestamp.TestTimestampColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_tinyint" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_tinyint
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_tinyint">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_tinyint.TestTinyintColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestTinyintColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestTinyintColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_tinyint.TestTinyintColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_tinyint.TestTinyintColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_tinyint.TestTinyintColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_tinyint.TestTinyintColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_tinyint.TestTinyintColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_uint" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_uint
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_uint">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_uint.TestUIntColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestUIntColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestUIntColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_uint.TestUIntColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_uint.TestUIntColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_uint.TestUIntColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_uint.TestUIntColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_uint.TestUIntColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_unsign" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_unsign
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_unsign">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_unsign.TestUnsignColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestUnsignColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestUnsignColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_unsign.TestUnsignColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_varbinary" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_varbinary
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_varbinary">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varbinary.TestVarbinaryColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestVarbinaryColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestVarbinaryColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varbinary.TestVarbinaryColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varbinary.TestVarbinaryColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varbinary.TestVarbinaryColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varbinary.TestVarbinaryColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varbinary.TestVarbinaryColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_varchar" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_varchar
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_varchar">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varchar.TestVarcharColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestVarcharColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestVarcharColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varchar.TestVarcharColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varchar.TestVarcharColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varchar.TestVarcharColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varchar.TestVarcharColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varchar.TestVarcharColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../demo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Demo
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stream/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Stream
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tmq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tmq
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tsim/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tsim
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_6" id="__nav_2_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Data write
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_6">
+            <span class="md-nav__icon md-icon"></span>
+            Data write
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data_write/sql_statement/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Sql statement
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_7" id="__nav_2_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    High availability
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_7">
+            <span class="md-nav__icon md-icon"></span>
+            High availability
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../high_availability/cluster_expansion_reduction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Cluster expansion reduction
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_8" id="__nav_2_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Metadata
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_8">
+            <span class="md-nav__icon md-icon"></span>
+            Metadata
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../metadata/db/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Db
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_9" id="__nav_2_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Stable
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_9">
+            <span class="md-nav__icon md-icon"></span>
+            Stable
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stable/tagmgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tagmgmt
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stable/tagquery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tagquery
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_10" id="__nav_2_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Storage
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_10">
+            <span class="md-nav__icon md-icon"></span>
+            Storage
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../storage/compress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Compress
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../storage/multilevel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Multilevel
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../storage/tsma/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tsma
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_11" id="__nav_2_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Tools
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_11">
+            <span class="md-nav__icon md-icon"></span>
+            Tools
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tools/benchmark/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Benchmark
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Util funcs docs
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Util funcs docs
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    New test framework
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            New test framework
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../util_funcs_docs/new_test_framework/utils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Utils
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_bigint" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_bigint
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_bigint">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bigint.TestBigIntColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestBigIntColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestBigIntColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bigint.TestBigIntColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bigint.TestBigIntColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bigint.TestBigIntColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bigint.TestBigIntColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bigint.TestBigIntColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_bool" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_bool
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_bool">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bool.TestBoolColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestBoolColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestBoolColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bool.TestBoolColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bool.TestBoolColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bool.TestBoolColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bool.TestBoolColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_bool.TestBoolColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_double" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_double
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_double">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_double.TestDoubleColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestDoubleColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestDoubleColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_double.TestDoubleColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_double.TestDoubleColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_double.TestDoubleColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_double.TestDoubleColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_double.TestDoubleColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_float" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_float
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_float">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_float.TestFloatColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestFloatColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestFloatColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_float.TestFloatColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_float.TestFloatColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_float.TestFloatColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_float.TestFloatColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_float.TestFloatColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_geometry" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_geometry
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_geometry">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_geometry.TestGeometryColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestGeometryColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestGeometryColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_geometry.TestGeometryColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_geometry.TestGeometryColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_geometry.TestGeometryColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_geometry.TestGeometryColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_geometry.TestGeometryColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_int" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_int
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_int">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_int.TestIntColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestIntColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestIntColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_int.TestIntColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_int.TestIntColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_int.TestIntColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_int.TestIntColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_int.TestIntColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_json" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_json
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_json">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_json.TestJsonColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestJsonColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestJsonColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_json.TestJsonColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_json.TestJsonColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_json.TestJsonColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_json.TestJsonColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_json.TestJsonColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_nchar" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_nchar
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_nchar">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_nchar.TestNcharColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestNcharColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestNcharColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_nchar.TestNcharColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_nchar.TestNcharColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_nchar.TestNcharColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_nchar.TestNcharColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_nchar.TestNcharColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_smallint" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_smallint
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_smallint">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_smallint.TestSmallintColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestSmallintColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestSmallintColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_smallint.TestSmallintColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_smallint.TestSmallintColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_smallint.TestSmallintColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_smallint.TestSmallintColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_smallint.TestSmallintColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_timestamp" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_timestamp
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_timestamp">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_timestamp.TestTimestampColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestTimestampColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestTimestampColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_timestamp.TestTimestampColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_timestamp.TestTimestampColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_timestamp.TestTimestampColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_timestamp.TestTimestampColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_timestamp.TestTimestampColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_tinyint" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_tinyint
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_tinyint">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_tinyint.TestTinyintColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestTinyintColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestTinyintColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_tinyint.TestTinyintColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_tinyint.TestTinyintColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_tinyint.TestTinyintColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_tinyint.TestTinyintColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_tinyint.TestTinyintColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_uint" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_uint
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_uint">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_uint.TestUIntColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestUIntColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestUIntColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_uint.TestUIntColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_uint.TestUIntColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_uint.TestUIntColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_uint.TestUIntColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_uint.TestUIntColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_unsign" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_unsign
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_unsign">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_unsign.TestUnsignColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestUnsignColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestUnsignColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_unsign.TestUnsignColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_varbinary" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_varbinary
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_varbinary">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varbinary.TestVarbinaryColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestVarbinaryColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestVarbinaryColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varbinary.TestVarbinaryColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varbinary.TestVarbinaryColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varbinary.TestVarbinaryColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varbinary.TestVarbinaryColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varbinary.TestVarbinaryColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datatype.test_column_varchar" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_column_varchar
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_column_varchar">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varchar.TestVarcharColumn" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestVarcharColumn
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestVarcharColumn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varchar.TestVarcharColumn.test_alter_tag_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      alter tag value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varchar.TestVarcharColumn.test_dynamic_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      dynamic create table
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varchar.TestVarcharColumn.test_illegal_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      illegal input
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varchar.TestVarcharColumn.test_insert_column_value" class="md-nav__link">
+    <span class="md-ellipsis">
+      insert column value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datatype.test_column_varchar.TestVarcharColumn.test_static_create_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      static create table
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+  <h1>Datatype</h1>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="datatype.test_column_bigint" class="doc doc-heading">
+            <code>datatype.test_column_bigint</code>
+
+
+<a href="#datatype.test_column_bigint" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="datatype.test_column_bigint.TestBigIntColumn" class="doc doc-heading">
+            <code>TestBigIntColumn</code>
+
+
+<a href="#datatype.test_column_bigint.TestBigIntColumn" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_bigint.TestBigIntColumn.test_alter_tag_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_alter_tag_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_bigint.TestBigIntColumn.test_alter_tag_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>alter tag value</p>
+<ol>
+<li>使用 bigint 作为超级表的标签列</li>
+<li>使用合法值、非法值修改子表的标签值</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Bigint</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_bigint.TestBigIntColumn.test_dynamic_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_dynamic_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_bigint.TestBigIntColumn.test_dynamic_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>dynamic create table</p>
+<ol>
+<li>使用 bigint 作为超级表的普通列、标签列</li>
+<li>使用合法值、非法值向子表中写入数据并自动建表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Bigint</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_bigint.TestBigIntColumn.test_illegal_input" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_illegal_input</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_bigint.TestBigIntColumn.test_illegal_input" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>illegal input</p>
+<ol>
+<li>使用 bigint 作为超级表的标签列</li>
+<li>使用非法标签值创建子表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Bigint</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_bigint.TestBigIntColumn.test_insert_column_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_insert_column_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_bigint.TestBigIntColumn.test_insert_column_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>insert column value</p>
+<ol>
+<li>使用 bigint 作为超级表的普通列、标签列</li>
+<li>当 bigint 作为普通列时，使用合法值、非法值向子表中写入数据</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Bigint</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_bigint.TestBigIntColumn.test_static_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_static_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_bigint.TestBigIntColumn.test_static_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>static create table</p>
+<ol>
+<li>使用 bigint 作为超级表的普通列、标签列</li>
+<li>当 bigint 作为标签列时，使用合法值、非法值创建子表</li>
+<li>当 bigint 作为标签列时，测试 show tags 的返回结果</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Bigint</li>
+<li>Tables:Create</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="datatype.test_column_bool" class="doc doc-heading">
+            <code>datatype.test_column_bool</code>
+
+
+<a href="#datatype.test_column_bool" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="datatype.test_column_bool.TestBoolColumn" class="doc doc-heading">
+            <code>TestBoolColumn</code>
+
+
+<a href="#datatype.test_column_bool.TestBoolColumn" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_bool.TestBoolColumn.test_alter_tag_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_alter_tag_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_bool.TestBoolColumn.test_alter_tag_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>alter tag value</p>
+<ol>
+<li>使用 bool 作为超级表的标签列</li>
+<li>使用合法值、非法值修改子表的标签值</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Bool</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_bool.TestBoolColumn.test_dynamic_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_dynamic_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_bool.TestBoolColumn.test_dynamic_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>dynamic create table</p>
+<ol>
+<li>使用 bool 作为超级表的普通列、标签列</li>
+<li>使用合法值、非法值向子表中写入数据并自动建表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Bool</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_bool.TestBoolColumn.test_illegal_input" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_illegal_input</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_bool.TestBoolColumn.test_illegal_input" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>illegal input</p>
+<ol>
+<li>使用 bool 作为超级表的标签列</li>
+<li>使用非法标签值创建子表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Bool</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_bool.TestBoolColumn.test_insert_column_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_insert_column_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_bool.TestBoolColumn.test_insert_column_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>insert column value</p>
+<ol>
+<li>使用 bool 作为超级表的普通列、标签列</li>
+<li>当 bool 作为普通列时，使用合法值、非法值向子表中写入数据</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Bool</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_bool.TestBoolColumn.test_static_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_static_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_bool.TestBoolColumn.test_static_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>static create table</p>
+<ol>
+<li>使用 bool 作为超级表的普通列、标签列</li>
+<li>当 bool 作为标签列时，使用合法值、非法值创建子表</li>
+<li>当 bool 作为标签列时，测试 show tags 的返回结果</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Bool</li>
+<li>Tables:Create</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="datatype.test_column_double" class="doc doc-heading">
+            <code>datatype.test_column_double</code>
+
+
+<a href="#datatype.test_column_double" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="datatype.test_column_double.TestDoubleColumn" class="doc doc-heading">
+            <code>TestDoubleColumn</code>
+
+
+<a href="#datatype.test_column_double.TestDoubleColumn" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_double.TestDoubleColumn.test_alter_tag_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_alter_tag_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_double.TestDoubleColumn.test_alter_tag_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>alter tag value</p>
+<ol>
+<li>使用 double 作为超级表的标签列</li>
+<li>使用合法值、非法值修改子表的标签值</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Double</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_double.TestDoubleColumn.test_dynamic_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_dynamic_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_double.TestDoubleColumn.test_dynamic_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>dynamic create table</p>
+<ol>
+<li>使用 double 作为超级表的普通列、标签列</li>
+<li>使用合法值、非法值向子表中写入数据并自动建表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Double</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_double.TestDoubleColumn.test_illegal_input" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_illegal_input</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_double.TestDoubleColumn.test_illegal_input" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>illegal input</p>
+<ol>
+<li>使用 double 作为超级表的标签列</li>
+<li>使用非法标签值创建子表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Double</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_double.TestDoubleColumn.test_insert_column_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_insert_column_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_double.TestDoubleColumn.test_insert_column_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>insert column value</p>
+<ol>
+<li>使用 double 作为超级表的普通列、标签列</li>
+<li>当 double 作为普通列时，使用合法值、非法值向子表中写入数据</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Double</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_double.TestDoubleColumn.test_static_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_static_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_double.TestDoubleColumn.test_static_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>static create table</p>
+<ol>
+<li>使用 double 作为超级表的普通列、标签列</li>
+<li>当 double 作为标签列时，使用合法值、非法值创建子表</li>
+<li>当 double 作为标签列时，测试 show tags 的返回结果</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Double</li>
+<li>Tables:Create</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="datatype.test_column_float" class="doc doc-heading">
+            <code>datatype.test_column_float</code>
+
+
+<a href="#datatype.test_column_float" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="datatype.test_column_float.TestFloatColumn" class="doc doc-heading">
+            <code>TestFloatColumn</code>
+
+
+<a href="#datatype.test_column_float.TestFloatColumn" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_float.TestFloatColumn.test_alter_tag_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_alter_tag_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_float.TestFloatColumn.test_alter_tag_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>alter tag value</p>
+<ol>
+<li>使用 float 作为超级表的标签列</li>
+<li>使用合法值、非法值修改子表的标签值</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Float</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_float.TestFloatColumn.test_dynamic_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_dynamic_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_float.TestFloatColumn.test_dynamic_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>dynamic create table</p>
+<ol>
+<li>使用 float 作为超级表的普通列、标签列</li>
+<li>使用合法值、非法值向子表中写入数据并自动建表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Float</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_float.TestFloatColumn.test_illegal_input" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_illegal_input</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_float.TestFloatColumn.test_illegal_input" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>illegal input</p>
+<ol>
+<li>使用 float 作为超级表的标签列</li>
+<li>使用非法标签值创建子表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Float</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_float.TestFloatColumn.test_insert_column_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_insert_column_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_float.TestFloatColumn.test_insert_column_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>insert column value</p>
+<ol>
+<li>使用 float 作为超级表的普通列、标签列</li>
+<li>当 float 作为普通列时，使用合法值、非法值向子表中写入数据</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Float</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_float.TestFloatColumn.test_static_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_static_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_float.TestFloatColumn.test_static_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>static create table</p>
+<ol>
+<li>使用 float 作为超级表的普通列、标签列</li>
+<li>当 float 作为标签列时，使用合法值、非法值创建子表</li>
+<li>当 float 作为标签列时，测试 show tags 的返回结果</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Float</li>
+<li>Tables:Create</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="datatype.test_column_geometry" class="doc doc-heading">
+            <code>datatype.test_column_geometry</code>
+
+
+<a href="#datatype.test_column_geometry" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="datatype.test_column_geometry.TestGeometryColumn" class="doc doc-heading">
+            <code>TestGeometryColumn</code>
+
+
+<a href="#datatype.test_column_geometry.TestGeometryColumn" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_geometry.TestGeometryColumn.test_alter_tag_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_alter_tag_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_geometry.TestGeometryColumn.test_alter_tag_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>alter tag value</p>
+<ol>
+<li>使用 geometry 作为超级表的标签列</li>
+<li>使用合法值、非法值修改子表的标签值</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Geometry</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_geometry.TestGeometryColumn.test_dynamic_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_dynamic_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_geometry.TestGeometryColumn.test_dynamic_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>dynamic create table</p>
+<ol>
+<li>使用 geometry 作为超级表的普通列、标签列</li>
+<li>使用合法值、非法值向子表中写入数据并自动建表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Geometry</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_geometry.TestGeometryColumn.test_illegal_input" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_illegal_input</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_geometry.TestGeometryColumn.test_illegal_input" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>illegal input</p>
+<ol>
+<li>使用 geometry 作为超级表的标签列</li>
+<li>使用非法标签值创建子表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Geometry</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_geometry.TestGeometryColumn.test_insert_column_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_insert_column_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_geometry.TestGeometryColumn.test_insert_column_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>insert column value</p>
+<ol>
+<li>使用 geometry 作为超级表的普通列、标签列</li>
+<li>当 geometry 作为普通列时，使用合法值、非法值向子表中写入数据</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Geometry</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_geometry.TestGeometryColumn.test_static_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_static_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_geometry.TestGeometryColumn.test_static_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>static create table</p>
+<ol>
+<li>使用 geometry 作为超级表的普通列、标签列</li>
+<li>当 geometry 作为标签列时，使用合法值、非法值创建子表</li>
+<li>当 geometry 作为标签列时，测试 show tags 的返回结果</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Geometry</li>
+<li>Tables:Create</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="datatype.test_column_int" class="doc doc-heading">
+            <code>datatype.test_column_int</code>
+
+
+<a href="#datatype.test_column_int" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="datatype.test_column_int.TestIntColumn" class="doc doc-heading">
+            <code>TestIntColumn</code>
+
+
+<a href="#datatype.test_column_int.TestIntColumn" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_int.TestIntColumn.test_alter_tag_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_alter_tag_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_int.TestIntColumn.test_alter_tag_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>alter tag value</p>
+<ol>
+<li>使用 int 作为超级表的标签列</li>
+<li>使用合法值、非法值修改子表的标签值</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Int</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_int.TestIntColumn.test_dynamic_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_dynamic_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_int.TestIntColumn.test_dynamic_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>dynamic create table</p>
+<ol>
+<li>使用 int 作为超级表的普通列、标签列</li>
+<li>使用合法值、非法值向子表中写入数据并自动建表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Int</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_int.TestIntColumn.test_illegal_input" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_illegal_input</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_int.TestIntColumn.test_illegal_input" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>illegal input</p>
+<ol>
+<li>使用 int 作为超级表的标签列</li>
+<li>使用非法标签值创建子表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Int</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_int.TestIntColumn.test_insert_column_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_insert_column_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_int.TestIntColumn.test_insert_column_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>insert column value</p>
+<ol>
+<li>使用 int 作为超级表的普通列、标签列</li>
+<li>当 int 作为普通列时，使用合法值、非法值向子表中写入数据</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Int</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_int.TestIntColumn.test_static_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_static_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_int.TestIntColumn.test_static_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>static create table</p>
+<ol>
+<li>使用 int 作为超级表的普通列、标签列</li>
+<li>当 int 作为标签列时，使用合法值、非法值创建子表</li>
+<li>当 int 作为标签列时，测试 show tags 的返回结果</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Int</li>
+<li>Tables:Create</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="datatype.test_column_json" class="doc doc-heading">
+            <code>datatype.test_column_json</code>
+
+
+<a href="#datatype.test_column_json" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="datatype.test_column_json.TestJsonColumn" class="doc doc-heading">
+            <code>TestJsonColumn</code>
+
+
+<a href="#datatype.test_column_json.TestJsonColumn" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_json.TestJsonColumn.test_alter_tag_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_alter_tag_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_json.TestJsonColumn.test_alter_tag_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>alter tag value</p>
+<ol>
+<li>使用 json 作为超级表的标签列</li>
+<li>使用合法值、非法值修改子表的标签值</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Json</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_json.TestJsonColumn.test_dynamic_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_dynamic_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_json.TestJsonColumn.test_dynamic_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>dynamic create table</p>
+<ol>
+<li>使用 json 作为超级表的普通列、标签列</li>
+<li>使用合法值、非法值向子表中写入数据并自动建表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Json</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_json.TestJsonColumn.test_illegal_input" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_illegal_input</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_json.TestJsonColumn.test_illegal_input" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>illegal input</p>
+<ol>
+<li>使用 json 作为超级表的标签列</li>
+<li>使用非法标签值创建子表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Json</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_json.TestJsonColumn.test_insert_column_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_insert_column_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_json.TestJsonColumn.test_insert_column_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>insert column value</p>
+<ol>
+<li>使用 json 作为超级表的普通列、标签列</li>
+<li>当 json 作为普通列时，使用合法值、非法值向子表中写入数据</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Json</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_json.TestJsonColumn.test_static_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_static_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_json.TestJsonColumn.test_static_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>static create table</p>
+<ol>
+<li>使用 json 作为超级表的普通列、标签列</li>
+<li>当 json 作为标签列时，使用合法值、非法值创建子表</li>
+<li>当 json 作为标签列时，测试 show tags 的返回结果</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Json</li>
+<li>Tables:Create</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="datatype.test_column_nchar" class="doc doc-heading">
+            <code>datatype.test_column_nchar</code>
+
+
+<a href="#datatype.test_column_nchar" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="datatype.test_column_nchar.TestNcharColumn" class="doc doc-heading">
+            <code>TestNcharColumn</code>
+
+
+<a href="#datatype.test_column_nchar.TestNcharColumn" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_nchar.TestNcharColumn.test_alter_tag_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_alter_tag_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_nchar.TestNcharColumn.test_alter_tag_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>alter tag value</p>
+<ol>
+<li>使用 nchar 作为超级表的标签列</li>
+<li>使用合法值、非法值修改子表的标签值</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Nchar</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_nchar.TestNcharColumn.test_dynamic_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_dynamic_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_nchar.TestNcharColumn.test_dynamic_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>dynamic create table</p>
+<ol>
+<li>使用 nchar 作为超级表的普通列、标签列</li>
+<li>使用合法值、非法值向子表中写入数据并自动建表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Nchar</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_nchar.TestNcharColumn.test_illegal_input" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_illegal_input</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_nchar.TestNcharColumn.test_illegal_input" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>illegal input</p>
+<ol>
+<li>使用 nchar 作为超级表的标签列</li>
+<li>使用非法标签值创建子表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Nchar</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_nchar.TestNcharColumn.test_insert_column_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_insert_column_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_nchar.TestNcharColumn.test_insert_column_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>insert column value</p>
+<ol>
+<li>使用 nchar 作为超级表的普通列、标签列</li>
+<li>当 nchar 作为普通列时，使用合法值、非法值向子表中写入数据</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Nchar</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_nchar.TestNcharColumn.test_static_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_static_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_nchar.TestNcharColumn.test_static_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>static create table</p>
+<ol>
+<li>使用 nchar 作为超级表的普通列、标签列</li>
+<li>当 nchar 作为标签列时，使用合法值、非法值创建子表</li>
+<li>当 nchar 作为标签列时，测试 show tags 的返回结果</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Nchar</li>
+<li>Tables:Create</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="datatype.test_column_smallint" class="doc doc-heading">
+            <code>datatype.test_column_smallint</code>
+
+
+<a href="#datatype.test_column_smallint" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="datatype.test_column_smallint.TestSmallintColumn" class="doc doc-heading">
+            <code>TestSmallintColumn</code>
+
+
+<a href="#datatype.test_column_smallint.TestSmallintColumn" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_smallint.TestSmallintColumn.test_alter_tag_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_alter_tag_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_smallint.TestSmallintColumn.test_alter_tag_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>alter tag value</p>
+<ol>
+<li>使用 smallint 作为超级表的标签列</li>
+<li>使用合法值、非法值修改子表的标签值</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Smallint</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_smallint.TestSmallintColumn.test_dynamic_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_dynamic_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_smallint.TestSmallintColumn.test_dynamic_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>dynamic create table</p>
+<ol>
+<li>使用 smallint 作为超级表的普通列、标签列</li>
+<li>使用合法值、非法值向子表中写入数据并自动建表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Smallint</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_smallint.TestSmallintColumn.test_illegal_input" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_illegal_input</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_smallint.TestSmallintColumn.test_illegal_input" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>illegal input</p>
+<ol>
+<li>使用 smallint 作为超级表的标签列</li>
+<li>使用非法标签值创建子表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Smallint</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_smallint.TestSmallintColumn.test_insert_column_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_insert_column_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_smallint.TestSmallintColumn.test_insert_column_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>insert column value</p>
+<ol>
+<li>使用 smallint 作为超级表的普通列、标签列</li>
+<li>当 smallint 作为普通列时，使用合法值、非法值向子表中写入数据</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Smallint</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_smallint.TestSmallintColumn.test_static_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_static_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_smallint.TestSmallintColumn.test_static_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>static create table</p>
+<ol>
+<li>使用 smallint 作为超级表的普通列、标签列</li>
+<li>当 smallint 作为标签列时，使用合法值、非法值创建子表</li>
+<li>当 smallint 作为标签列时，测试 show tags 的返回结果</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Smallint</li>
+<li>Tables:Create</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="datatype.test_column_timestamp" class="doc doc-heading">
+            <code>datatype.test_column_timestamp</code>
+
+
+<a href="#datatype.test_column_timestamp" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="datatype.test_column_timestamp.TestTimestampColumn" class="doc doc-heading">
+            <code>TestTimestampColumn</code>
+
+
+<a href="#datatype.test_column_timestamp.TestTimestampColumn" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_timestamp.TestTimestampColumn.test_alter_tag_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_alter_tag_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_timestamp.TestTimestampColumn.test_alter_tag_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>alter tag value</p>
+<ol>
+<li>使用 timestamp 作为超级表的标签列</li>
+<li>使用合法值、非法值修改子表的标签值</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Timestamp</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_timestamp.TestTimestampColumn.test_dynamic_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_dynamic_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_timestamp.TestTimestampColumn.test_dynamic_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>dynamic create table</p>
+<ol>
+<li>使用 timestamp 作为超级表的普通列、标签列</li>
+<li>使用合法值、非法值向子表中写入数据并自动建表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Timestamp</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_timestamp.TestTimestampColumn.test_illegal_input" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_illegal_input</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_timestamp.TestTimestampColumn.test_illegal_input" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>illegal input</p>
+<ol>
+<li>使用 timestamp 作为超级表的标签列</li>
+<li>使用非法标签值创建子表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Timestamp</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_timestamp.TestTimestampColumn.test_insert_column_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_insert_column_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_timestamp.TestTimestampColumn.test_insert_column_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>insert column value</p>
+<ol>
+<li>使用 timestamp 作为超级表的普通列、标签列</li>
+<li>当 timestamp 作为普通列时，使用合法值、非法值向子表中写入数据</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Timestamp</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_timestamp.TestTimestampColumn.test_static_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_static_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_timestamp.TestTimestampColumn.test_static_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>static create table</p>
+<ol>
+<li>使用 timestamp 作为超级表的普通列、标签列</li>
+<li>当 timestamp 作为标签列时，使用合法值、非法值创建子表</li>
+<li>当 timestamp 作为标签列时，测试 show tags 的返回结果</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Timestamp</li>
+<li>Tables:Create</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="datatype.test_column_tinyint" class="doc doc-heading">
+            <code>datatype.test_column_tinyint</code>
+
+
+<a href="#datatype.test_column_tinyint" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="datatype.test_column_tinyint.TestTinyintColumn" class="doc doc-heading">
+            <code>TestTinyintColumn</code>
+
+
+<a href="#datatype.test_column_tinyint.TestTinyintColumn" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_tinyint.TestTinyintColumn.test_alter_tag_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_alter_tag_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_tinyint.TestTinyintColumn.test_alter_tag_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>alter tag value</p>
+<ol>
+<li>使用 tinyint 作为超级表的标签列</li>
+<li>使用合法值、非法值修改子表的标签值</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Tinyint</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_tinyint.TestTinyintColumn.test_dynamic_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_dynamic_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_tinyint.TestTinyintColumn.test_dynamic_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>dynamic create table</p>
+<ol>
+<li>使用 tinyint 作为超级表的普通列、标签列</li>
+<li>使用合法值、非法值向子表中写入数据并自动建表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Tinyint</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_tinyint.TestTinyintColumn.test_illegal_input" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_illegal_input</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_tinyint.TestTinyintColumn.test_illegal_input" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>illegal input</p>
+<ol>
+<li>使用 tinyint 作为超级表的标签列</li>
+<li>使用非法标签值创建子表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Tinyint</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_tinyint.TestTinyintColumn.test_insert_column_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_insert_column_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_tinyint.TestTinyintColumn.test_insert_column_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>insert column value</p>
+<ol>
+<li>使用 tinyint 作为超级表的普通列、标签列</li>
+<li>当 tinyint 作为普通列时，使用合法值、非法值向子表中写入数据</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Tinyint</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_tinyint.TestTinyintColumn.test_static_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_static_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_tinyint.TestTinyintColumn.test_static_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>static create table</p>
+<ol>
+<li>使用 tinyint 作为超级表的普通列、标签列</li>
+<li>当 tinyint 作为标签列时，使用合法值、非法值创建子表</li>
+<li>当 tinyint 作为标签列时，测试 show tags 的返回结果</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Tinyint</li>
+<li>Tables:Create</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="datatype.test_column_uint" class="doc doc-heading">
+            <code>datatype.test_column_uint</code>
+
+
+<a href="#datatype.test_column_uint" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="datatype.test_column_uint.TestUIntColumn" class="doc doc-heading">
+            <code>TestUIntColumn</code>
+
+
+<a href="#datatype.test_column_uint.TestUIntColumn" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_uint.TestUIntColumn.test_alter_tag_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_alter_tag_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_uint.TestUIntColumn.test_alter_tag_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>alter tag value</p>
+<ol>
+<li>使用 uint 作为超级表的标签列</li>
+<li>使用合法值、非法值修改子表的标签值</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:UInt</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_uint.TestUIntColumn.test_dynamic_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_dynamic_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_uint.TestUIntColumn.test_dynamic_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>dynamic create table</p>
+<ol>
+<li>使用 uint 作为超级表的普通列、标签列</li>
+<li>使用合法值、非法值向子表中写入数据并自动建表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:UInt</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_uint.TestUIntColumn.test_illegal_input" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_illegal_input</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_uint.TestUIntColumn.test_illegal_input" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>illegal input</p>
+<ol>
+<li>使用 uint 作为超级表的标签列</li>
+<li>使用非法标签值创建子表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:UInt</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_uint.TestUIntColumn.test_insert_column_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_insert_column_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_uint.TestUIntColumn.test_insert_column_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>insert column value</p>
+<ol>
+<li>使用 uint 作为超级表的普通列、标签列</li>
+<li>当 uint 作为普通列时，使用合法值、非法值向子表中写入数据</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:UInt</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_uint.TestUIntColumn.test_static_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_static_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_uint.TestUIntColumn.test_static_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>static create table</p>
+<ol>
+<li>使用 uint 作为超级表的普通列、标签列</li>
+<li>当 uint 作为标签列时，使用合法值、非法值创建子表</li>
+<li>当 uint 作为标签列时，测试 show tags 的返回结果</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:UInt</li>
+<li>Tables:Create</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="datatype.test_column_unsign" class="doc doc-heading">
+            <code>datatype.test_column_unsign</code>
+
+
+<a href="#datatype.test_column_unsign" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="datatype.test_column_unsign.TestUnsignColumn" class="doc doc-heading">
+            <code>TestUnsignColumn</code>
+
+
+<a href="#datatype.test_column_unsign.TestUnsignColumn" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_unsign.TestUnsignColumn.test_static_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_static_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_unsign.TestUnsignColumn.test_static_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>static create table</p>
+<ol>
+<li>使用 unsign 作为超级表的普通列、标签列</li>
+<li>当 unsign 作为标签列时，使用合法值、非法值创建子表</li>
+<li>当 unsign 作为标签列时，测试 show tags 的返回结果</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Unsign</li>
+<li>Tables:Create</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="datatype.test_column_varbinary" class="doc doc-heading">
+            <code>datatype.test_column_varbinary</code>
+
+
+<a href="#datatype.test_column_varbinary" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="datatype.test_column_varbinary.TestVarbinaryColumn" class="doc doc-heading">
+            <code>TestVarbinaryColumn</code>
+
+
+<a href="#datatype.test_column_varbinary.TestVarbinaryColumn" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_varbinary.TestVarbinaryColumn.test_alter_tag_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_alter_tag_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_varbinary.TestVarbinaryColumn.test_alter_tag_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>alter tag value</p>
+<ol>
+<li>使用 varbinary 作为超级表的标签列</li>
+<li>使用合法值、非法值修改子表的标签值</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Varbinary</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_varbinary.TestVarbinaryColumn.test_dynamic_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_dynamic_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_varbinary.TestVarbinaryColumn.test_dynamic_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>dynamic create table</p>
+<ol>
+<li>使用 varbinary 作为超级表的普通列、标签列</li>
+<li>使用合法值、非法值向子表中写入数据并自动建表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Varbinary</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_varbinary.TestVarbinaryColumn.test_illegal_input" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_illegal_input</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_varbinary.TestVarbinaryColumn.test_illegal_input" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>illegal input</p>
+<ol>
+<li>使用 varbinary 作为超级表的标签列</li>
+<li>使用非法标签值创建子表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Varbinary</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_varbinary.TestVarbinaryColumn.test_insert_column_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_insert_column_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_varbinary.TestVarbinaryColumn.test_insert_column_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>insert column value</p>
+<ol>
+<li>使用 varbinary 作为超级表的普通列、标签列</li>
+<li>当 varbinary 作为普通列时，使用合法值、非法值向子表中写入数据</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Varbinary</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_varbinary.TestVarbinaryColumn.test_static_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_static_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_varbinary.TestVarbinaryColumn.test_static_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>static create table</p>
+<ol>
+<li>使用 varbinary 作为超级表的普通列、标签列</li>
+<li>当 varbinary 作为标签列时，使用合法值、非法值创建子表</li>
+<li>当 varbinary 作为标签列时，测试 show tags 的返回结果</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Varbinary</li>
+<li>Tables:Create</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="datatype.test_column_varchar" class="doc doc-heading">
+            <code>datatype.test_column_varchar</code>
+
+
+<a href="#datatype.test_column_varchar" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="datatype.test_column_varchar.TestVarcharColumn" class="doc doc-heading">
+            <code>TestVarcharColumn</code>
+
+
+<a href="#datatype.test_column_varchar.TestVarcharColumn" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_varchar.TestVarcharColumn.test_alter_tag_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_alter_tag_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_varchar.TestVarcharColumn.test_alter_tag_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>alter tag value</p>
+<ol>
+<li>使用 varchar 作为超级表的标签列</li>
+<li>使用合法值、非法值修改子表的标签值</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Varchar</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_varchar.TestVarcharColumn.test_dynamic_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_dynamic_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_varchar.TestVarcharColumn.test_dynamic_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>dynamic create table</p>
+<ol>
+<li>使用 varchar 作为超级表的普通列、标签列</li>
+<li>使用合法值、非法值向子表中写入数据并自动建表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Varchar</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_varchar.TestVarcharColumn.test_illegal_input" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_illegal_input</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_varchar.TestVarcharColumn.test_illegal_input" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>illegal input</p>
+<ol>
+<li>使用 varchar 作为超级表的标签列</li>
+<li>使用非法标签值创建子表</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Varchar</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_varchar.TestVarcharColumn.test_insert_column_value" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_insert_column_value</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_varchar.TestVarcharColumn.test_insert_column_value" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>insert column value</p>
+<ol>
+<li>使用 varchar 作为超级表的普通列、标签列</li>
+<li>当 varchar 作为普通列时，使用合法值、非法值向子表中写入数据</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Varchar</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="datatype.test_column_varchar.TestVarcharColumn.test_static_create_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_static_create_table</span><span class="p">()</span></code>  
+  
+<a href="#datatype.test_column_varchar.TestVarcharColumn.test_static_create_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>static create table</p>
+<ol>
+<li>使用 varchar 作为超级表的普通列、标签列</li>
+<li>当 varchar 作为标签列时，使用合法值、非法值创建子表</li>
+<li>当 varchar 作为标签列时，测试 show tags 的返回结果</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataTypes:Varchar</li>
+<li>Tables:Create</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-15 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tabs", "navigation.top"], "search": "../../assets/javascripts/workers/search.f8cc74c7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.c8b220af.min.js"></script>
+      
+    
+  </body>
+</html>
