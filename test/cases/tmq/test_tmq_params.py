@@ -17,23 +17,6 @@ class TestTmqParams:
         cls.snapshot_value_list = ["false"]
 
     def test_tmq_params(self):
-        """ undefine
-
-        undefine
-
-        Catalog:
-            - undefine
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-23 undefine
-
-        """
         paraDict = {'dbName':     'db1',
                     'dropFlag':   1,
                     'vgroups':    4,
