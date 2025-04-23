@@ -1,20 +1,20 @@
 #tsim test
-,,n,.,pytest cases/backup/tsim/test_tsim.py --tsim=tsim/query/timeline.sim --skip_deploy
-,,n,.,pytest cases/backup/tsim/test_tsim.py --tsim=tsim/dnode/balance_replica1.sim --skip_deploy
-,,y,.,./ci/pytest.sh pytest cases/dbackup/ata_write/sql_statement/test_insert_double.py
-,,y,.,./ci/pytest.sh pytest cases/backup/storage/compress/test_compress_basic.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/backup/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_stop.py -N 5 -M 3
-,,y,.,./ci/pytest.sh pytest cases/backup/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_stop.py -N 5 -M 3 -I False
-,,y,.,./ci/pytest.sh pytest cases/backup/high_availability/cluster_expansion_reduction/test_cluster_basic.py -N 5
-,,y,.,./ci/pytest.sh pytest cases/backup/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_add_1dnode.py -N 7 -M 3 -C 6
-,,y,.,./ci/pytest.sh pytest cases/backup/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_add_1dnode.py -N 7 -M 3 -C 6 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/backup/metadata/db/test_keep_time_offset.py
-,,y,.,./ci/pytest.sh pytest cases/backup/storage/tsma/test_tsma.py
-,,y,.,./ci/pytest.sh pytest cases/backup/storage/multilevel/test_mlevel_basic.py -N 3 -L 3 -D 2
-,,y,.,./ci/pytest.sh pytest cases/backup/stream/test_max_delay_interval.py
-,,y,.,./ci/pytest.sh pytest cases/backup/tmq/test_drop_lost_comsumers.py
-,,y,.,./ci/pytest.sh pytest cases/backup/tmq/test_tmq_params.py
-,,y,.,./ci/pytest.sh pytest cases/backup/tmq/test_tmq_params.py -R
+,,n,.,pytest cases/tsim/test_tsim.py --tsim=tsim/query/timeline.sim --skip_deploy
+,,n,.,pytest cases/tsim/test_tsim.py --tsim=tsim/dnode/balance_replica1.sim --skip_deploy
+,,y,.,./ci/pytest.sh pytest cases/data_write/sql_statement/test_insert_double.py
+,,y,.,./ci/pytest.sh pytest cases/storage/compress/test_compress_basic.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_stop.py -N 5 -M 3
+,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_stop.py -N 5 -M 3 -I False
+,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_cluster_basic.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_add_1dnode.py -N 7 -M 3 -C 6
+,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_add_1dnode.py -N 7 -M 3 -C 6 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/metadata/db/test_keep_time_offset.py
+,,y,.,./ci/pytest.sh pytest cases/storage/tsma/test_tsma.py
+,,y,.,./ci/pytest.sh pytest cases/storage/multilevel/test_mlevel_basic.py -N 3 -L 3 -D 2
+,,y,.,./ci/pytest.sh pytest cases/stream/test_max_delay_interval.py
+,,y,.,./ci/pytest.sh pytest cases/tmq/test_drop_lost_comsumers.py
+,,y,.,./ci/pytest.sh pytest cases/tmq/test_tmq_params.py
+,,y,.,./ci/pytest.sh pytest cases/tmq/test_tmq_params.py -R
 
 # 01-DataTypess
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_column_bigint.py
@@ -30,7 +30,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_column_tinyint.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_column_uint.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_column_unsign.py
-,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_column_varibinary.py
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_column_varbinary.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_column_varchar.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_const.py
