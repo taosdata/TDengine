@@ -35,7 +35,7 @@ IF(TD_WEBSOCKET)
                 COMMAND echo "hellohello"
                 COMMAND /bin/sh -c "echo $PATH"
                 COMMAND /bin/bash -c "echo $PATH"
-                ${CMAKE_COMMAND} -E env PATH=/home/runner/.cargo/bin:$ENV{PATH}
+                ${CMAKE_COMMAND} -E env PATH=$ENV{HOME}.cargo/bin:$ENV{PATH}
                 COMMAND /bin/sh -c "echo $PATH"
                 COMMAND /bin/bash -c "echo $PATH"
                 COMMAND cargo build --release --locked -p taos-ws-sys --features rustls
