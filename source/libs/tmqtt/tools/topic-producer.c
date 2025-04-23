@@ -21,7 +21,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#ifndef WINDOWS
 #include <unistd.h>
+#endif
 #include "taos.h"
 
 volatile int thread_stop = 0;
@@ -89,7 +91,11 @@ void* prepare_data(void* arg) {
               taos_errstr(pRes));
     }
     taos_free_result(pRes);
+#ifdef WINDOWS
+    Sleep(1000 * s);
+#else
     sleep(1);
+#endif
   }
   fprintf(stdout, "Prepare data thread exit\n");
   taos_close(pConn);
