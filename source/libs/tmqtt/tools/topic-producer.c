@@ -92,7 +92,7 @@ void* prepare_data(void* arg) {
     }
     taos_free_result(pRes);
 #ifdef WINDOWS
-    Sleep(1000 * s);
+    Sleep(1000);
 #else
     sleep(1);
 #endif
