@@ -1,0 +1,14 @@
+::: 04-SuperTables.columnquery.test_column_2
+::: 04-SuperTables.columnquery.test_column_3
+::: 04-SuperTables.columnquery.test_column_4
+::: 04-SuperTables.columnquery.test_column_5
+::: 04-SuperTables.columnquery.test_column_6
+::: 04-SuperTables.columnquery.test_column_bigint
+::: 04-SuperTables.columnquery.test_column_binary
+::: 04-SuperTables.columnquery.test_column_bool
+::: 04-SuperTables.columnquery.test_column_double
+::: 04-SuperTables.columnquery.test_column_float
+::: 04-SuperTables.columnquery.test_column_int
+::: 04-SuperTables.columnquery.test_column_smallint
+::: 04-SuperTables.columnquery.test_column_tinyint
+::: 04-SuperTables.columnquery.test_column_ubigint
