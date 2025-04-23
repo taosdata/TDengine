@@ -25,7 +25,7 @@ class TestIndexCreateDrop:
         Jira: None
 
         History:
-            - 2025-4-21 Simon Guan Migrated to new test framework, from tests/script/tsim/tagindex/add_index.sim
+            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/tagindex/add_index.sim
 
         """
 

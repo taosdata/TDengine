@@ -24,7 +24,7 @@ class TestSubTableAlter:
         Jira: None
 
         History:
-            - 2025-4-25 Simon Guan Migrated to new test framework, from tests/script/tsim/alter/cached_schema_after_alter.sim
+            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/alter/cached_schema_after_alter.sim
 
         """
 

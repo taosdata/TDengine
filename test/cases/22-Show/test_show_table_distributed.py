@@ -24,7 +24,7 @@ class TestShowTableDistributed:
         Jira: None
 
         History:
-            - 2025-4-23 Simon Guan Migrated to new test framework, from tests/script/tsim/compute/block_dist.sim
+            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/compute/block_dist.sim
 
         """
 
