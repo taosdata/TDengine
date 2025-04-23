@@ -65,7 +65,7 @@ class TestProjectSTableFilterColumnTagTimestamp:
         tb = tbPrefix + str(i)
 
         tdSql.query(
-            f"select a - ffrom {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select a - f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
 
         tdSql.query(
@@ -614,16 +614,13 @@ class TestProjectSTableFilterColumnTagTimestamp:
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, -1300.000000000)
 
-        tdSql.query(
+        tdSql.error(
             f"select (f - (a*b+c)*a +d +e))) * f  as zz from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
-        tdSql.query(
+        tdSql.error(
             f"select (f - (a*b+c)*a +d +e))) * 2f  as zz from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
-        tdSql.query(
+        tdSql.error(
             f"select (f - (a*b+c)*a +d +e))) ** f  as zz from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
-        tdLog.info(f"=============== clear")
-        tdSql.execute(f"drop database {db}")
-        tdSql.query(f"select * from information_schema.ins_databases")
-        tdSql.checkRows(2)
+
