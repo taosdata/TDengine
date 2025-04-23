@@ -619,3 +619,4 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000447 | white-noise data not processed                      | 白噪声数据不分析       |                                      |
 | 0x80000448 | Analysis internal error, not processed              | anode 出现内部错误   | 具体查看 server 端的日志 (taosanode.app.log) |
 | 0x80000449 | Analysis failed since not enough rows               | 预测分析输入数据行数太少   | 增加输入数据规模（预测至少 10 行记录）                |
+| 0x8000044A | Not support co-variate/multi-variate forecast       | 不支持协变量/多变量预测   | 更换使用的预测模型                            |

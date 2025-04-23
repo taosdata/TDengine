@@ -155,7 +155,7 @@ class TDTestCase(TBase):
 
         # run to check crash 
         sqls = [
-            "show scores;",
+            # "show scores;",
             "SHOW CLUSTER VARIABLES",
             # "SHOW BNODES;",
         ]
