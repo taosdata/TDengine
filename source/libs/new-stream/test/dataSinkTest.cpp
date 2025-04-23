@@ -353,6 +353,46 @@ TEST(dataSinkTest, moveStreamData) {
   destroyDataSinkManager2();
 }
 
+TEST(dataSinkTest, cancelStreamDataCacheIterateTest) {
+  int64_t streamId = 3;
+  int64_t taskId = 1;
+  int64_t groupID = 1;
+  int32_t cleanMode = DATA_CLEAN_IMMEDIATE;
+  void* pCache = NULL;
+  int32_t code = initStreamDataCache(streamId, taskId, cleanMode, &pCache);
+  ASSERT_EQ(code, 0);
+  SSDataBlock* pBlock1 = createTestBlock(0);
+  ASSERT_NE(pBlock1, nullptr);
+  TSKEY wstart = baseTestTime + 0;
+  TSKEY wend = baseTestTime + 100;
+  code = moveStreamDataCache(pCache, groupID, wstart, wend, pBlock1);
+  ASSERT_EQ(code, 0);
+  SSDataBlock* pBlock2 = createTestBlock(100);
+  ASSERT_NE(pBlock2, nullptr);
+  wstart = baseTestTime + 100;
+  wend = baseTestTime + 200;
+  code = moveStreamDataCache(pCache, groupID, wstart, wend, pBlock2);
+  ASSERT_EQ(code, 0);
+
+  void* pIter = NULL;
+  code = getStreamDataCache(pCache, groupID, baseTestTime, baseTestTime + 100, &pIter);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pIter, nullptr);
+  SSDataBlock* pBlock = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlock);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlock, nullptr);
+  ASSERT_NE(pIter, nullptr);
+  ASSERT_EQ(pBlock1, pBlock);
+  cancelStreamDataCacheIterate(&pIter);
+
+  blockDataDestroy(pBlock1); // pBlock1 has moveout, can destroy
+  // blockDataDestroy(pBlock2); // pBlock2 has not moveout, can not destroy
+
+  destroyDataSinkManager2();
+}
+
+
 int main(int argc, char **argv) {
   taos_init();
   ::testing::InitGoogleTest(&argc, argv);
