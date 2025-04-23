@@ -388,6 +388,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_TEMP_TABLE:
       code = makeNode(type, sizeof(STempTableNode), &pNode);
       break;
+    case QUERY_NODE_PLACE_HOLDER_TABLE:
+      code = makeNode(type, sizeof(SPlaceHolderTableNode), &pNode);
+      break;
     case QUERY_NODE_STREAM:
       code = makeNode(type, sizeof(SStreamNode), &pNode);
       break;
@@ -1165,6 +1168,12 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_TEMP_TABLE:
       nodesDestroyNode(((STempTableNode*)pNode)->pSubquery);
       break;
+    case QUERY_NODE_PLACE_HOLDER_TABLE: {
+      SPlaceHolderTableNode *pPlaceHolder = (SPlaceHolderTableNode*)pNode;
+      taosMemoryFreeClear(pPlaceHolder->pMeta);
+      taosMemoryFreeClear(pPlaceHolder->pVgroupList);
+      break;
+    }
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoin = (SJoinTableNode*)pNode;
       nodesDestroyNode(pJoin->pWindowOffset);

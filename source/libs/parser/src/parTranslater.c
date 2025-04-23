@@ -5643,7 +5643,7 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
           }
         }
         nodesDestroyNode(pPrimCond);
-      }      
+      }
       if (TSDB_CODE_SUCCESS == code) {
         pJoinTable->table.precision = calcJoinTablePrecision(pJoinTable);
         pJoinTable->table.singleTable = joinTableIsSingleTable(pJoinTable);
@@ -6761,26 +6761,6 @@ static int32_t translatePeriodWindow(STranslateContext* pCxt, SSelectStmt* pSele
   return code;
 }
 
-static int32_t translateExternalWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (!pCxt->createStreamQuery) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (pSelect->pWindow || pSelect->pPartitionByList || pSelect->pGroupByList || pSelect->pHaving || pSelect->pFill ||
-      !pSelect->pWhere || pSelect->pSlimit || pSelect->pOrderByList) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  // pwhere must have _wstart and _wend.
-  SExternalWindowNode *pExternalWindow = NULL;
-  int32_t code = nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, (SNode**)&pExternalWindow);
-  pExternalWindow->timezone = pCxt->pParseCxt->timezone;
-  pExternalWindow->timeRange.skey = INT64_MIN;
-  pExternalWindow->timeRange.ekey = INT64_MAX;
-
-  return code;
-}
-
 static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   switch (nodeType(pSelect->pWindow)) {
     case QUERY_NODE_STATE_WINDOW:
@@ -7565,8 +7545,8 @@ static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* 
       pInfo->pRealTable->tsmaTargetTbVgInfo = taosArrayInit(pInfo->pRealTable->pTsmas->size, POINTER_BYTES);
       if (!pInfo->pRealTable->tsmaTargetTbVgInfo) return terrno;
 
-      for (int32_t i = 0; i < pInfo->pRealTable->pTsmas->size; ++i) {
-        STableTSMAInfo* pTsma = taosArrayGetP(pInfo->pRealTable->pTsmas, i);
+      for (int32_t j = 0; j < pInfo->pRealTable->pTsmas->size; ++j) {
+        STableTSMAInfo* pTsma = taosArrayGetP(pInfo->pRealTable->pTsmas, j);
         SArray*         pTbNames = taosArrayInit(pInfo->aTbnames->size, POINTER_BYTES);
         if (!pTbNames) return terrno;
 
@@ -8264,9 +8244,6 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateWindow(pCxt, pSelect);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = translateExternalWindow(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateGroupBy(pCxt, pSelect);
@@ -12817,15 +12794,15 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
   PAR_ERR_JRET(qCreateQueryPlan(&calcCxt, &calcPlan, NULL));
 
   for (int32_t i = 0; i < taosArrayGetSize(pVgArray); i++) {
-    SStreamCalcScan *pCalcScan = taosArrayGet(pReq->calcScanPlanList, i);
+    SStreamCalcScan *pCalcScan = taosArrayGet(pVgArray, i);
     SSubplan        *pScanSubPlan = (SSubplan*)pCalcScan->scanPlan;
     SNode           *pTargetNode = (SNode*)pScanSubPlan->pNode;
     SNode           *pNode = NULL;
-    eliminateNodeFromList(pTargetNode, ((SPhysiNode*)pTargetNode)->pParent->pChildren);
+    PAR_ERR_JRET(eliminateNodeFromList(pTargetNode, ((SPhysiNode*)pTargetNode)->pParent->pChildren));
     ((SPhysiNode*)pTargetNode)->pParent = NULL;
 
     WHERE_EACH(pNode, pScanSubPlan->pParents) {
-      eliminateNodeFromList((SNode*)pScanSubPlan, ((SSubplan*)pNode)->pChildren);
+      PAR_ERR_JRET(eliminateNodeFromList((SNode*)pScanSubPlan, ((SSubplan*)pNode)->pChildren));
       WHERE_NEXT;
     }
     nodesDestroyList(pScanSubPlan->pParents);
@@ -12833,7 +12810,7 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
 
     SStreamCalcScan pNewScan = {0};
     TSWAP(pNewScan.vgList, pCalcScan->vgList);
-    nodesNodeToString(pCalcScan->scanPlan, false, (char**)&pNewScan.scanPlan, NULL);
+    PAR_ERR_JRET(nodesNodeToString(pCalcScan->scanPlan, false, (char**)&pNewScan.scanPlan, NULL));
     taosArrayPush(pReq->calcScanPlanList, &pNewScan);
   }
   nodesNodeToString((SNode*)calcPlan, false, (char**)&pReq->calcPlan, NULL);
