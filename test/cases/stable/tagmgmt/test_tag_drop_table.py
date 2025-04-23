@@ -12,7 +12,7 @@ class TestTagDropTable:
         1. 创建超级表
         2. 创建子表并写入数据
         3. 删除部分子表，确认生效
-        4. 使用标签进行查询，确保结果中不包含被删除的子表tests/script/tsim/tag/drop_tag.sim
+        4. 使用标签进行查询，确保结果中不包含被删除的子表
 
         Catalog:
             - SuperTable:Tags
@@ -24,7 +24,7 @@ class TestTagDropTable:
         Jira: None
 
         History:
-            - 2025-4-18 Simon Guan Migrated to new test framework
+            - 2025-4-18 Simon Guan Migrated to new test framework, from tests/script/tsim/tag/drop_tag.sim
 
         """
 
