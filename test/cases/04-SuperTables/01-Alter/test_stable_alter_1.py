@@ -19,7 +19,7 @@ class TestStableAlter1:
         8. rename tag
 
         Catalog:
-            - SuperTable:Columns
+            - SuperTables:Alter
 
         Since: v3.0.0.0
 
