@@ -240,11 +240,15 @@ int32_t streamCollectExprsForReplace(qTaskInfo_t tInfo, SArray* pExprs);
 int32_t streamClearStatesForOperators(qTaskInfo_t tInfo);
 int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppBlock, uint64_t *ts);
 void    streamDestroyExecTask(qTaskInfo_t tInfo);
-int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType, bool groupSort, SStorageAPI *storageAPI, void** pTableListInfo);
+int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType, bool groupSort,
+                                        SNode* pTagCond, SNode* pTagIndexCond, SStorageAPI *storageAPI, void** pTableListInfo);
 int32_t qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STableKeyInfo** pKeyInfo, int32_t* size);
 void    qStreamSetGroupId(void* pTableListInfo, SSDataBlock* pBlock);
 void    qStreamDestroyTableList(void* pTableListInfo);
 int32_t qStreamGetTableListGroupNum(const void* pTableList);
+int32_t qStreamGetGroupIndex(void* pTableListInfo, int64_t gid);
+int32_t qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo);
+bool    qStreamUidInTableList(void* pTableListInfo, uint64_t uid);
 
 #ifdef __cplusplus
 }
