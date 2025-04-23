@@ -9,10 +9,10 @@
       
       
       
-        <link rel="prev" href="../compress/">
+        <link rel="prev" href="../columnquery/">
       
       
-        <link rel="next" href="../tsma/">
+        <link rel="next" href="../tagquery/">
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
@@ -20,7 +20,7 @@
     
     
       
-        <title>Multilevel - TDengine Case List</title>
+        <title>Tagmgmt - TDengine Case List</title>
       
     
     
@@ -64,7 +64,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#storage.multilevel.test_mlevel_basic" class="md-skip">
+        <a href="#04-SuperTables.tagmgmt.test_tag_add" class="md-skip">
           Skip to content
         </a>
       
@@ -102,7 +102,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Multilevel
+              Tagmgmt
             
           </span>
         </div>
@@ -644,6 +644,8 @@
                 
   
   
+    
+  
   
   
     
@@ -654,11 +656,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_14" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_14" checked>
         
           
           <label class="md-nav__link" for="__nav_2_14" id="__nav_2_14_label" tabindex="0">
@@ -674,7 +676,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_14_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_14_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_2_14">
             <span class="md-nav__icon md-icon"></span>
             04 SuperTables
@@ -688,7 +690,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../04-SuperTables/columnquery/" class="md-nav__link">
+      <a href="../columnquery/" class="md-nav__link">
         
   
   
@@ -708,10 +710,30 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../04-SuperTables/tagmgmt/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Tagmgmt
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -722,6 +744,336 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_add" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_tag_add
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_tag_add">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_add.TestTagAdd" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestTagAdd
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestTagAdd">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_add.TestTagAdd.test_tag_add" class="md-nav__link">
+    <span class="md-ellipsis">
+      增加标签列
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_change" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_tag_change
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_tag_change">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_change.TestTagChange" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestTagChange
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestTagChange">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_change.TestTagChange.test_tag_change" class="md-nav__link">
+    <span class="md-ellipsis">
+      修改标签名
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_commit" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_tag_commit
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_tag_commit">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_commit.TestTagDrop" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestTagDrop
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestTagDrop">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_commit.TestTagDrop.test_tag_drop" class="md-nav__link">
+    <span class="md-ellipsis">
+      标签修改在重启后继续生效
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_create" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_tag_create
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_tag_create">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_create.TestTagCreate" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestTagCreate
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestTagCreate">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_create.TestTagCreate.test_tag_create" class="md-nav__link">
+    <span class="md-ellipsis">
+      创建标签列
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_drop" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_tag_drop
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_tag_drop">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_drop.TestTagDrop" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestTagDrop
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestTagDrop">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_drop.TestTagDrop.test_tag_drop" class="md-nav__link">
+    <span class="md-ellipsis">
+      删除标签列
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_drop_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_tag_drop_table
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_tag_drop_table">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_drop_table.TestTagDropTable" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestTagDropTable
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestTagDropTable">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_drop_table.TestTagDropTable.test_tag_drop_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      删除子表后的标签查询
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_set" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_tag_set
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_tag_set">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_set.TestTagSet" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestTagSet
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestTagSet">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_set.TestTagSet.test_tag_set" class="md-nav__link">
+    <span class="md-ellipsis">
+      修改标签值
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_set_multi" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_tag_set_multi
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_tag_set_multi">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_set_multi.TestTagChangeMulti" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestTagChangeMulti
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestTagChangeMulti">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_set_multi.TestTagChangeMulti.test_tag_change_multi" class="md-nav__link">
+    <span class="md-ellipsis">
+      同时修改多个标签值
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -734,7 +1086,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../04-SuperTables/tagquery/" class="md-nav__link">
+      <a href="../tagquery/" class="md-nav__link">
         
   
   
@@ -1476,8 +1828,6 @@
                 
   
   
-    
-  
   
   
     
@@ -1488,11 +1838,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_23" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_23" >
         
           
           <label class="md-nav__link" for="__nav_2_23" id="__nav_2_23_label" tabindex="0">
@@ -1508,7 +1858,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_23_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_23_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_2_23">
             <span class="md-nav__icon md-icon"></span>
             Storage
@@ -1522,7 +1872,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../compress/" class="md-nav__link">
+      <a href="../../storage/compress/" class="md-nav__link">
         
   
   
@@ -1542,30 +1892,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    Multilevel
-    
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../storage/multilevel/" class="md-nav__link">
         
   
   
@@ -1576,33 +1906,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#storage.multilevel.test_mlevel_basic" class="md-nav__link">
-    <span class="md-ellipsis">
-      test_mlevel_basic
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1615,7 +1918,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tsma/" class="md-nav__link">
+      <a href="../../storage/tsma/" class="md-nav__link">
         
   
   
@@ -2007,11 +2310,314 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#storage.multilevel.test_mlevel_basic" class="md-nav__link">
+  <a href="#04-SuperTables.tagmgmt.test_tag_add" class="md-nav__link">
     <span class="md-ellipsis">
-      test_mlevel_basic
+      test_tag_add
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="test_tag_add">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_add.TestTagAdd" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestTagAdd
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestTagAdd">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_add.TestTagAdd.test_tag_add" class="md-nav__link">
+    <span class="md-ellipsis">
+      增加标签列
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_change" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_tag_change
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_tag_change">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_change.TestTagChange" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestTagChange
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestTagChange">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_change.TestTagChange.test_tag_change" class="md-nav__link">
+    <span class="md-ellipsis">
+      修改标签名
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_commit" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_tag_commit
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_tag_commit">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_commit.TestTagDrop" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestTagDrop
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestTagDrop">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_commit.TestTagDrop.test_tag_drop" class="md-nav__link">
+    <span class="md-ellipsis">
+      标签修改在重启后继续生效
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_create" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_tag_create
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_tag_create">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_create.TestTagCreate" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestTagCreate
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestTagCreate">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_create.TestTagCreate.test_tag_create" class="md-nav__link">
+    <span class="md-ellipsis">
+      创建标签列
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_drop" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_tag_drop
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_tag_drop">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_drop.TestTagDrop" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestTagDrop
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestTagDrop">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_drop.TestTagDrop.test_tag_drop" class="md-nav__link">
+    <span class="md-ellipsis">
+      删除标签列
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_drop_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_tag_drop_table
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_tag_drop_table">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_drop_table.TestTagDropTable" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestTagDropTable
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestTagDropTable">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_drop_table.TestTagDropTable.test_tag_drop_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      删除子表后的标签查询
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_set" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_tag_set
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_tag_set">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_set.TestTagSet" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestTagSet
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestTagSet">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_set.TestTagSet.test_tag_set" class="md-nav__link">
+    <span class="md-ellipsis">
+      修改标签值
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_set_multi" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_tag_set_multi
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_tag_set_multi">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_set_multi.TestTagChangeMulti" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestTagChangeMulti
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestTagChangeMulti">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#04-SuperTables.tagmgmt.test_tag_set_multi.TestTagChangeMulti.test_tag_change_multi" class="md-nav__link">
+    <span class="md-ellipsis">
+      同时修改多个标签值
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2031,17 +2637,17 @@
 
 
 
-  <h1>Multilevel</h1>
+  <h1>Tagmgmt</h1>
 
 <div class="doc doc-object doc-module">
 
 
 
-<h2 id="storage.multilevel.test_mlevel_basic" class="doc doc-heading">
-            <code>storage.multilevel.test_mlevel_basic</code>
+<h2 id="04-SuperTables.tagmgmt.test_tag_add" class="doc doc-heading">
+            <code>04-SuperTables.tagmgmt.test_tag_add</code>
 
 
-<a href="#storage.multilevel.test_mlevel_basic" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#04-SuperTables.tagmgmt.test_tag_add" class="headerlink" title="Permanent link">&para;</a></h2>
 
     <div class="doc doc-contents first">
 
@@ -2061,6 +2667,913 @@
 
 
 
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="04-SuperTables.tagmgmt.test_tag_add.TestTagAdd" class="doc doc-heading">
+            <code>TestTagAdd</code>
+
+
+<a href="#04-SuperTables.tagmgmt.test_tag_add.TestTagAdd" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="04-SuperTables.tagmgmt.test_tag_add.TestTagAdd.test_tag_add" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_tag_add</span><span class="p">()</span></code>  
+  
+<a href="#04-SuperTables.tagmgmt.test_tag_add.TestTagAdd.test_tag_add" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>增加标签列</p>
+<ol>
+<li>创建超级表</li>
+<li>创建子表并写入数据</li>
+<li>增加标签列，确认生效</li>
+<li>使用增加的标签值进行查询</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>SuperTable:Tags</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-17 Simon Guan Migrated to new test framework, from tests/script/tsim/tag/add.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="04-SuperTables.tagmgmt.test_tag_change" class="doc doc-heading">
+            <code>04-SuperTables.tagmgmt.test_tag_change</code>
+
+
+<a href="#04-SuperTables.tagmgmt.test_tag_change" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="04-SuperTables.tagmgmt.test_tag_change.TestTagChange" class="doc doc-heading">
+            <code>TestTagChange</code>
+
+
+<a href="#04-SuperTables.tagmgmt.test_tag_change.TestTagChange" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="04-SuperTables.tagmgmt.test_tag_change.TestTagChange.test_tag_change" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_tag_change</span><span class="p">()</span></code>  
+  
+<a href="#04-SuperTables.tagmgmt.test_tag_change.TestTagChange.test_tag_change" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>修改标签名</p>
+<ol>
+<li>创建包含 bool、int 类型标签的超级表</li>
+<li>创建子表并写入数据</li>
+<li>修改标签名，确认生效</li>
+<li>使用修改后的标签名进行查询</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>SuperTable:Tags</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-17 Simon Guan Migrated to new test framework, from tests/script/tsim/tag/change.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="04-SuperTables.tagmgmt.test_tag_commit" class="doc doc-heading">
+            <code>04-SuperTables.tagmgmt.test_tag_commit</code>
+
+
+<a href="#04-SuperTables.tagmgmt.test_tag_commit" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="04-SuperTables.tagmgmt.test_tag_commit.TestTagDrop" class="doc doc-heading">
+            <code>TestTagDrop</code>
+
+
+<a href="#04-SuperTables.tagmgmt.test_tag_commit.TestTagDrop" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="04-SuperTables.tagmgmt.test_tag_commit.TestTagDrop.test_tag_drop" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_tag_drop</span><span class="p">()</span></code>  
+  
+<a href="#04-SuperTables.tagmgmt.test_tag_commit.TestTagDrop.test_tag_drop" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>标签修改在重启后继续生效</p>
+<ol>
+<li>创建超级表</li>
+<li>创建子表并写入数据</li>
+<li>对标签进行各种操作及查询</li>
+<li>使用 kill -9 方式强杀 taosd</li>
+<li>确保标签修改被保存到数据库</li>
+<li>确保之前的各种查询都能正常进行</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>SuperTable:Tags</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-18 Simon Guan Migrated to new test framework, from tests/script/tsim/tag/commit.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="04-SuperTables.tagmgmt.test_tag_create" class="doc doc-heading">
+            <code>04-SuperTables.tagmgmt.test_tag_create</code>
+
+
+<a href="#04-SuperTables.tagmgmt.test_tag_create" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="04-SuperTables.tagmgmt.test_tag_create.TestTagCreate" class="doc doc-heading">
+            <code>TestTagCreate</code>
+
+
+<a href="#04-SuperTables.tagmgmt.test_tag_create.TestTagCreate" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="04-SuperTables.tagmgmt.test_tag_create.TestTagCreate.test_tag_create" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_tag_create</span><span class="p">()</span></code>  
+  
+<a href="#04-SuperTables.tagmgmt.test_tag_create.TestTagCreate.test_tag_create" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>创建标签列</p>
+<ol>
+<li>创建包含多种标签类型的超级表</li>
+<li>创建子表并写入数据</li>
+<li>使用标签进行查询</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>SuperTable:Tags</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-18 Simon Guan Migrated to new test framework, from tests/script/tsim/tag/create.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="04-SuperTables.tagmgmt.test_tag_drop" class="doc doc-heading">
+            <code>04-SuperTables.tagmgmt.test_tag_drop</code>
+
+
+<a href="#04-SuperTables.tagmgmt.test_tag_drop" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="04-SuperTables.tagmgmt.test_tag_drop.TestTagDrop" class="doc doc-heading">
+            <code>TestTagDrop</code>
+
+
+<a href="#04-SuperTables.tagmgmt.test_tag_drop.TestTagDrop" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="04-SuperTables.tagmgmt.test_tag_drop.TestTagDrop.test_tag_drop" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_tag_drop</span><span class="p">()</span></code>  
+  
+<a href="#04-SuperTables.tagmgmt.test_tag_drop.TestTagDrop.test_tag_drop" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>删除标签列</p>
+<ol>
+<li>创建超级表</li>
+<li>创建子表并写入数据</li>
+<li>删除标签列，确认生效</li>
+<li>使用删除后的标签进行查询</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>SuperTable:Tags</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-18 Simon Guan Migrated to new test framework, from tests/script/tsim/tag/delete.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="04-SuperTables.tagmgmt.test_tag_drop_table" class="doc doc-heading">
+            <code>04-SuperTables.tagmgmt.test_tag_drop_table</code>
+
+
+<a href="#04-SuperTables.tagmgmt.test_tag_drop_table" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="04-SuperTables.tagmgmt.test_tag_drop_table.TestTagDropTable" class="doc doc-heading">
+            <code>TestTagDropTable</code>
+
+
+<a href="#04-SuperTables.tagmgmt.test_tag_drop_table.TestTagDropTable" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="04-SuperTables.tagmgmt.test_tag_drop_table.TestTagDropTable.test_tag_drop_table" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_tag_drop_table</span><span class="p">()</span></code>  
+  
+<a href="#04-SuperTables.tagmgmt.test_tag_drop_table.TestTagDropTable.test_tag_drop_table" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>删除子表后的标签查询</p>
+<ol>
+<li>创建超级表</li>
+<li>创建子表并写入数据</li>
+<li>删除部分子表，确认生效</li>
+<li>使用标签进行查询，确保结果中不包含被删除的子表tests/script/tsim/tag/drop_tag.sim</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>SuperTable:Tags</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-18 Simon Guan Migrated to new test framework</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="04-SuperTables.tagmgmt.test_tag_set" class="doc doc-heading">
+            <code>04-SuperTables.tagmgmt.test_tag_set</code>
+
+
+<a href="#04-SuperTables.tagmgmt.test_tag_set" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="04-SuperTables.tagmgmt.test_tag_set.TestTagSet" class="doc doc-heading">
+            <code>TestTagSet</code>
+
+
+<a href="#04-SuperTables.tagmgmt.test_tag_set.TestTagSet" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="04-SuperTables.tagmgmt.test_tag_set.TestTagSet.test_tag_set" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_tag_set</span><span class="p">()</span></code>  
+  
+<a href="#04-SuperTables.tagmgmt.test_tag_set.TestTagSet.test_tag_set" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>修改标签值</p>
+<ol>
+<li>创建包含 bool、int 类型标签的超级表</li>
+<li>创建子表并写入数据</li>
+<li>修改标签值，确认生效</li>
+<li>使用修改后的标签值进行查询</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>SuperTable:Tags</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-17 Simon Guan Migrated to new test framework, from tests/script/tsim/tag/set.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="04-SuperTables.tagmgmt.test_tag_set_multi" class="doc doc-heading">
+            <code>04-SuperTables.tagmgmt.test_tag_set_multi</code>
+
+
+<a href="#04-SuperTables.tagmgmt.test_tag_set_multi" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="04-SuperTables.tagmgmt.test_tag_set_multi.TestTagChangeMulti" class="doc doc-heading">
+            <code>TestTagChangeMulti</code>
+
+
+<a href="#04-SuperTables.tagmgmt.test_tag_set_multi.TestTagChangeMulti" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="04-SuperTables.tagmgmt.test_tag_set_multi.TestTagChangeMulti.test_tag_change_multi" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_tag_change_multi</span><span class="p">()</span></code>  
+  
+<a href="#04-SuperTables.tagmgmt.test_tag_set_multi.TestTagChangeMulti.test_tag_change_multi" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>同时修改多个标签值</p>
+<ol>
+<li>创建包含多个标签的超级表</li>
+<li>创建子表并写入数据</li>
+<li>同时修改多个标签的值，确认生效</li>
+<li>使用修改后的标签名进行查询</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>SuperTable:Tags</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-17 Simon Guan Migrated to new test framework, from tests/script/tsim/tag/change_multi_tag.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
 
 
 
