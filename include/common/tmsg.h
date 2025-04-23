@@ -5145,12 +5145,6 @@ typedef struct SStreamFirstTsRequest {
   int64_t               startTime;
 } SStreamFirstTsRequest;
 
-typedef struct SStreamFirstTsResponse {
-  int64_t   firstTs;
-  int64_t   ver;
-  int32_t   vgId;
-} SStreamFirstTsResponse;
-
 typedef struct SStreamTsdbMetaRequest {
   SStreamTriggerRequest base;
   int64_t               startTime;

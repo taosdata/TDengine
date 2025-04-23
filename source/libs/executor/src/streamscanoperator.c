@@ -1902,8 +1902,8 @@ int32_t qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STable
   return tableListGetGroupList(pTableListInfo, currentGroupId, pKeyInfo, size);
 }
 
-void qStreamSetGroupId(void* pTableListInfo, SSDataBlock* pBlock) {
-  pBlock->info.id.groupId = tableListGetTableGroupId(pTableListInfo, pBlock->info.id.uid);
+int64_t qStreamGetGroupId(void* pTableListInfo, int64_t uid) {
+  return tableListGetTableGroupId(pTableListInfo, uid);
 }
 
 int32_t qStreamGetGroupIndex(void* pTableListInfo, int64_t gid) {
