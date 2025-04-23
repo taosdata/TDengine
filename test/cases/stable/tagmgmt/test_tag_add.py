@@ -24,7 +24,7 @@ class TestTagAdd:
         Jira: None
 
         History:
-            - 2025-4-17 Simon Guan Migrated to new test framework
+            - 2025-4-17 Simon Guan Migrated to new test framework, from tests/script/tsim/tag/add.sim
 
         """
 

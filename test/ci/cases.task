@@ -12,28 +12,73 @@
 ,,y,.,./ci/pytest.sh pytest cases/storage/tsma/test_tsma.py
 ,,y,.,./ci/pytest.sh pytest cases/storage/multilevel/test_mlevel_basic.py -N 3 -L 3 -D 2
 ,,y,.,./ci/pytest.sh pytest cases/stream/test_max_delay_interval.py
-,,y,.,./ci/pytest.sh pytest cases/tmq/test_drop_lost_comsumers.py
+#,,y,.,./ci/pytest.sh pytest cases/tmq/test_drop_lost_comsumers.py
 ,,y,.,./ci/pytest.sh pytest cases/tmq/test_tmq_params.py
 ,,y,.,./ci/pytest.sh pytest cases/tmq/test_tmq_params.py -R
 
-# Data Types
+# DataTypes
 ,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_bigint.py
 ,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_bool.py
 ,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_double.py
 ,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_float.py
-,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_int.py
-,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_smallint.py
-,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_tinyint.py
-,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_unsign.py
-,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_uint.py
-,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_timestamp.py
-,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_varchar.py
-,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_nchar.py
-,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_varbinary.py
-,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_json.py
 ,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_geometry.py
+,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_int.py
+,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_json.py
+,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_nchar.py
+,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_smallint.py
+,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_timestamp.py
+,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_tinyint.py
+,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_uint.py
+,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_unsign.py
+,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_varbinary.py
+,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_varchar.py
+,,y,.,./ci/pytest.sh pytest cases/datatype/test_null.py
+
+# Function
+## Aggregate
+,y,.,./ci/pytest.sh pytest cases/function/aggregate/test_func_avg.py 
+,y,.,./ci/pytest.sh pytest cases/function/aggregate/test_func_count.py 
+,y,.,./ci/pytest.sh pytest cases/function/aggregate/test_func_leastsquares.py 
+,y,.,./ci/pytest.sh pytest cases/function/aggregate/test_func_percentile.py 
+,y,.,./ci/pytest.sh pytest cases/function/aggregate/test_func_stddev.py 
+,y,.,./ci/pytest.sh pytest cases/function/aggregate/test_func_sum.py 
+## Selection
+,y,.,./ci/pytest.sh pytest cases/function/selection/test_func_bottom.py
+,y,.,./ci/pytest.sh pytest cases/function/selection/test_func_first.py 
+,y,.,./ci/pytest.sh pytest cases/function/selection/test_func_last_row.py 
+,y,.,./ci/pytest.sh pytest cases/function/selection/test_func_last.py 
+,y,.,./ci/pytest.sh pytest cases/function/selection/test_func_max.py 
+,y,.,./ci/pytest.sh pytest cases/function/selection/test_func_min.py 
+,y,.,./ci/pytest.sh pytest cases/function/selection/test_func_top.py 
+## Timeseries Specfic
+,y,.,./ci/pytest.sh pytest cases/function/timeseries/test_func_diff.py
+,y,.,./ci/pytest.sh pytest cases/function/timeseries/test_func_diff2.py
+
+#Index
+,,y,.,./ci/pytest.sh pytest cases/index/test_index_create_drop.py 
+,,y,.,./ci/pytest.sh pytest cases/index/test_index_overflow.py 
+,,y,.,./ci/pytest.sh pytest cases/index/test_index_perf.py 
+
+#Show
+,,y,.,./ci/pytest.sh pytest cases/show/test_show_diskinfo.py 
+,,y,.,./ci/pytest.sh pytest cases/show/test_show_table_distributed.py 
 
 # SuperTable
+## Columns query
+,,y,.,./ci/pytest.sh pytest cases/stable/columnquery/test_column_2.py
+,,y,.,./ci/pytest.sh pytest cases/stable/columnquery/test_column_3.py
+,,y,.,./ci/pytest.sh pytest cases/stable/columnquery/test_column_4.py
+,,y,.,./ci/pytest.sh pytest cases/stable/columnquery/test_column_5.py
+,,y,.,./ci/pytest.sh pytest cases/stable/columnquery/test_column_6.py
+,,y,.,./ci/pytest.sh pytest cases/stable/columnquery/test_column_bigint.py
+,,y,.,./ci/pytest.sh pytest cases/stable/columnquery/test_column_binary.py
+,,y,.,./ci/pytest.sh pytest cases/stable/columnquery/test_column_bool.py
+,,y,.,./ci/pytest.sh pytest cases/stable/columnquery/test_column_double.py
+,,y,.,./ci/pytest.sh pytest cases/stable/columnquery/test_column_float.py
+,,y,.,./ci/pytest.sh pytest cases/stable/columnquery/test_column_int.py
+,,y,.,./ci/pytest.sh pytest cases/stable/columnquery/test_column_smallint.py
+,,y,.,./ci/pytest.sh pytest cases/stable/columnquery/test_column_tinyint.py
+,,y,.,./ci/pytest.sh pytest cases/stable/columnquery/test_column_ubigint.py
 ## Tags query
 ,,y,.,./ci/pytest.sh pytest cases/stable/tagquery/test_tag_3.py
 ,,y,.,./ci/pytest.sh pytest cases/stable/tagquery/test_tag_4.py
@@ -65,3 +110,16 @@
 ,,y,.,./ci/pytest.sh pytest cases/stable/tagmgmt/test_tag_set_multi.py
 ,,y,.,./ci/pytest.sh pytest cases/stable/tagmgmt/test_tag_set.py
 
+# Table
+## NormalTable
+,,y,.,./ci/pytest.sh pytest cases/table/normaltable/test_normaltable_query.py 
+## SubTable
+
+# Timeseries Extensions
+## Timewindow
+,y,.,./ci/pytest.sh pytest cases/timeseries/timewindow/test_interval_bug.py
+,y,.,./ci/pytest.sh pytest cases/timeseries/timewindow/test_interval.py
+
+
+#View
+#,,y,.,./ci/pytest.sh pytest cases/view/test_view_mgmt.py

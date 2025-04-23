@@ -23,7 +23,7 @@ class TestTagCreate:
         Jira: None
 
         History:
-            - 2025-4-18 Simon Guan Migrated to new test framework
+            - 2025-4-18 Simon Guan Migrated to new test framework, from tests/script/tsim/tag/create.sim
 
         """
 
