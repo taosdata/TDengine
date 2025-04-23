@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include "tcommon.h"
+#include "tdef.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,8 +31,10 @@ typedef enum {
   DATA_BLOCK_MOVED = 3,
 } SSaveStatus;
 typedef struct SWindowData {
-  int64_t     wstart;
-  int64_t     wend;
+  int64_t     wstart;  // start time of the window
+  int64_t     wend;    // end time of the window
+  TSKEY       start;   // start time of the data
+  TSKEY       end;     // end time of the data
   int64_t     dataLen;
   SSaveStatus saveMode;
   void*       pDataBuf;

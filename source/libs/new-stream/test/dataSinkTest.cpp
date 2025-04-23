@@ -151,6 +151,10 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   // Test invalid parameters
   int32_t code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 1);
   ASSERT_EQ(code, TSDB_CODE_STREAM_INTERNAL_ERROR);
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 1, 0);
+  ASSERT_EQ(code, TSDB_CODE_STREAM_INTERNAL_ERROR);
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 1);
+  ASSERT_EQ(code, TSDB_CODE_STREAM_INTERNAL_ERROR);
   code = moveStreamDataCache(pCache, groupID, wstart, wend, pBlock);
   ASSERT_EQ(code, TSDB_CODE_STREAM_INTERNAL_ERROR);
   code = moveStreamDataCache(NULL, groupID, wstart, wend, pBlock);
@@ -161,11 +165,13 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   // Test valid parameters
   code = initStreamDataCache(streamId, taskId, cleanMode, &pCache);
   ASSERT_EQ(code, 0);
-  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 1);
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
   ASSERT_EQ(code, 0);
   void* pIter = NULL;
 
   // Test invalid parameters
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 100);
+  ASSERT_NE(code, 0);
   code = getStreamDataCache(pCache, groupID, wend, wstart, &pIter);
   ASSERT_EQ(code, TSDB_CODE_STREAM_INTERNAL_ERROR);
   code = getStreamDataCache(NULL, groupID, wstart, wend, &pIter);
@@ -197,7 +203,7 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   pCache = NULL;
   code = initStreamDataCache(streamId, taskId, cleanMode, &pCache);
   ASSERT_EQ(code, 0);
-  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 1);
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
   ASSERT_EQ(code, 0);
   pIter = NULL;
   code = getStreamDataCache(pCache, groupID, wstart, wend, &pIter);
@@ -221,7 +227,7 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   pCache = NULL;
   code = initStreamDataCache(streamId, taskId, cleanMode, &pCache);
   ASSERT_EQ(code, 0);
-  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 1);
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
   ASSERT_EQ(code, 0);
   pIter = NULL;
   code = getStreamDataCache(pCache, groupID, wstart, wend, &pIter);
@@ -253,7 +259,7 @@ TEST(dataSinkTest, getSlidingStreamData) {
   // Test invalid parameters, cleanMode is DATA_CLEAN_EXPIRED, cannot call moveStreamDataCache
   code = moveStreamDataCache(pCache, groupID, wstart, wend, pBlock);
   ASSERT_EQ(code, TSDB_CODE_STREAM_INTERNAL_ERROR);
-  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 1);
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
   ASSERT_EQ(code, 0);
   blockDataDestroy(pBlock);
 
@@ -261,7 +267,7 @@ TEST(dataSinkTest, getSlidingStreamData) {
   cleanMode = DATA_CLEAN_EXPIRED;
   wstart = baseTestTime + 100;
   wend = baseTestTime + 200;
-  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 1);
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
   ASSERT_EQ(code, 0);
   void* pIter = NULL;
   blockDataDestroy(pBlock);
@@ -287,7 +293,7 @@ TEST(dataSinkTest, getSlidingStreamData) {
   cleanMode = DATA_CLEAN_EXPIRED;
   wstart = baseTestTime + 200;
   wend = baseTestTime + 300;
-  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 1);
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
   ASSERT_EQ(code, 0);
   pIter = NULL;
   code = getStreamDataCache(pCache, groupID, baseTestTime + 150, baseTestTime + 249, &pIter);
@@ -392,6 +398,63 @@ TEST(dataSinkTest, cancelStreamDataCacheIterateTest) {
   destroyDataSinkManager2();
 }
 
+TEST(dataSinkTest, putStreamDataRows) {
+  SSDataBlock* pBlock = createTestBlock(0);
+  ASSERT_NE(pBlock, nullptr);
+  int64_t streamId = 1;
+  int64_t taskId = 1;
+  int64_t groupID = 1;
+  int32_t cleanMode = DATA_CLEAN_EXPIRED;
+  TSKEY wstart = baseTestTime + 0;
+  TSKEY wend = baseTestTime + 100;
+  void* pCache = NULL;
+  int32_t code = initStreamDataCache(streamId, taskId, cleanMode, &pCache);
+  ASSERT_EQ(code, 0);
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 29);
+  ASSERT_EQ(code, 0);
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 30, 79);
+  ASSERT_EQ(code, 0);
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 80, 99);
+  ASSERT_EQ(code, 0);
+  blockDataDestroy(pBlock);
+
+  pBlock = createTestBlock(100);
+  cleanMode = DATA_CLEAN_EXPIRED;
+  wstart = baseTestTime + 100;
+  wend = baseTestTime + 200;
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 49);
+  ASSERT_EQ(code, 0);
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 50, 99);
+  ASSERT_EQ(code, 0);
+  void* pIter = NULL;
+  blockDataDestroy(pBlock);
+  code = getStreamDataCache(pCache, groupID, baseTestTime + 50, baseTestTime + 150, &pIter);
+  ASSERT_EQ(code, 0);
+  SSDataBlock* pBlock1 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlock1);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlock1, nullptr);
+  ASSERT_NE(pIter, nullptr);
+  int rows = pBlock1->info.rows;
+  ASSERT_EQ(rows, 30);
+  blockDataDestroy(pBlock1);
+  code = getNextStreamDataCache(&pIter, &pBlock1);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlock1, nullptr);
+  ASSERT_NE(pIter, nullptr);
+  rows = pBlock1->info.rows;
+  ASSERT_EQ(rows, 20);
+  blockDataDestroy(pBlock1);
+  code = getNextStreamDataCache(&pIter, &pBlock1);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlock1, nullptr);
+  ASSERT_NE(pIter, nullptr);
+  rows = pBlock1->info.rows;
+  ASSERT_EQ(rows, 50);
+  blockDataDestroy(pBlock1);
+
+  destroyDataSinkManager2();
+}
 
 int main(int argc, char **argv) {
   taos_init();

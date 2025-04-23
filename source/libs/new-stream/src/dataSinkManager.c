@@ -285,6 +285,14 @@ void destroyStreamDataCache(void* pCache) {}
 
 int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock,
                            int32_t startIndex, int32_t endIndex) {
+  if (wstart < 0 || wstart >= wend) {
+    stError("putStreamDataCache param invalid, wstart:%" PRId64 "wend:%" PRId64, wstart, wend);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  if (startIndex < 0 || startIndex >= endIndex) {
+    stError("putStreamDataCache param invalid, startIndex:%d endIndex:%d", startIndex, endIndex);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
   if (!isManagerReady()) {
     stError("DataSinkManager is not ready");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
@@ -325,7 +333,7 @@ int32_t getStreamDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY end
     stError("getStreamDataCache param invalid, pCache or pIter is NULL");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
-  if (start >= end) {
+  if (start < 0 || start >= end) {
     stError("getStreamDataCache param invalid, start > end");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
@@ -362,16 +370,11 @@ void getNextIterator(SGroupDSManager* pGroupData, void** pIter) {
     pResult->offset++;
     if (pResult->offset < taosArrayGetSize(pGroupData->windowDataInMem)) {
       SWindowData* pWindowData = *(SWindowData**)taosArrayGet(pGroupData->windowDataInMem, pResult->offset);
-      if ((pResult->reqStartTime >= pWindowData->wstart && pResult->reqStartTime <= pWindowData->wend) ||
-          (pResult->reqEndTime >= pWindowData->wstart && pResult->reqEndTime <= pWindowData->wend) ||
-          (pWindowData->wstart >= pResult->reqStartTime && pWindowData->wend <= pResult->reqEndTime)) {
+      if ((pResult->reqStartTime >= pWindowData->start && pResult->reqStartTime <= pWindowData->end) ||
+          (pResult->reqEndTime >= pWindowData->start && pResult->reqEndTime <= pWindowData->end) ||
+          (pWindowData->start >= pResult->reqStartTime && pWindowData->end <= pResult->reqEndTime)) {
         return;
-      } else if (pWindowData->wstart >= pResult->reqEndTime) {
-        goto _nodata;
       } else {
-        stError("failed to get data from cache, get timeRange %" PRId64 ":%" PRId64 " cache timeRange %" PRId64
-                ":%" PRId64,
-                pResult->reqStartTime, pResult->reqEndTime, pWindowData->wstart, pWindowData->wend);
         goto _nodata;
       }
     } else {
