@@ -1,0 +1,15 @@
+::: datatype.test_column_bigint
+::: datatype.test_column_bool
+::: datatype.test_column_double
+::: datatype.test_column_float
+::: datatype.test_column_geometry
+::: datatype.test_column_int
+::: datatype.test_column_json
+::: datatype.test_column_nchar
+::: datatype.test_column_smallint
+::: datatype.test_column_timestamp
+::: datatype.test_column_tinyint
+::: datatype.test_column_uint
+::: datatype.test_column_unsign
+::: datatype.test_column_varbinary
+::: datatype.test_column_varchar
