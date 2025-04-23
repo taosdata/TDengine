@@ -118,7 +118,6 @@ int32_t streamTrySchedExec(SStreamTask* pTask, bool chkptQueue) {
  // injection error for sched task failed
     if (x++ > 20) {
       x = -1000000;
-      stError("=================failed");
 // not reset the status may cause error
       streamTaskSetSchedStatusInactive(pTask);
       stInfo("s-task:%s set schedStatus inactive, since failed to sched task", pTask->id.idStr);
