@@ -35,7 +35,7 @@
                 {
                     "name": "meters",
                     "child_table_exists": "no",
-                    "childtable_count": 100000,
+                    "childtable_count": 3,
                     "childtable_prefix": "d",
                     "auto_create_table": "no",
                     "batch_create_tbl_num": 5,
@@ -43,7 +43,7 @@
                     "insert_mode": "taosc",
                     "non_stop_mode": "no",
                     "line_protocol": "line",
-                    "insert_rows": 99999999999999,
+                    "insert_rows": 1,
                     "interlace_rows": 1,
                     "insert_interval": 10000,
                     "start_timestamp": "now",

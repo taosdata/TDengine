@@ -184,7 +184,7 @@ int main(int argc, char* argv[]) {
     // conn mode
     if (setConnMode(g_arguments->connMode, g_arguments->dsn, true) != 0) {
         exitLog();
-        return -1;
+        return -1;be
     }
 
     // check condition for set config dir
