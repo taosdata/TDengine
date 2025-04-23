@@ -24,7 +24,7 @@ class TestShowDiskInfo:
         Jira: None
 
         History:
-            - 2025-4-23 Simon Guan Migrated to new test framework, from tests/script/tsim/compute/disk_usage.sim
+            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/compute/disk_usage.sim
 
         """
 
