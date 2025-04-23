@@ -75,6 +75,7 @@ target_link_libraries(
 #)
 
 # topic tool
+if(TD_LINUX)
 aux_source_directory(tools TOPICTOOL_SRC)
 
 add_executable(topic-test-tool ${TOPICTOOL_SRC})
@@ -90,6 +91,7 @@ target_include_directories(
 )
 
 SET_TARGET_PROPERTIES(topic-test-tool PROPERTIES OUTPUT_NAME topic-producer)
+endif()
 
 # test
 if(${BUILD_TEST})
