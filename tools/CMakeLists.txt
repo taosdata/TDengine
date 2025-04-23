@@ -32,6 +32,7 @@ IF(TD_WEBSOCKET)
             PATCH_COMMAND
                 COMMAND git clean -f -d
             BUILD_COMMAND
+                COMMAND which cargo
                 COMMAND echo "hellohello"
                 COMMAND /bin/sh -c "echo $PATH"
                 COMMAND /bin/bash -c "echo $PATH"
