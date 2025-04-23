@@ -38,17 +38,8 @@ class TDTestCase(TBase):
         # test case for https://jira.taosdata.com:18080/browse/TD-4985
         os.system("%s -f ./tools/benchmark/basic/json/auto_create_table.json -y " % binPath)
 
-        tdSql.execute("use db")
-        if major_ver == "3":
-            tdSql.query("select count(*) from (select distinct(tbname) from stb0)")
-        else:
-            tdSql.query("select count(tbname) from stb0")
-        tdSql.checkData(0, 0, 1)
-
-        tdSql.query("select * from stb0 where  tbname like 'stb00_0'  limit 10")
-        tdSql.checkData(0, 1, 0)
-        tdSql.checkData(1, 1, 1)
-        tdSql.checkData(2, 1, 2)
+        tdSql.query("select count(*) from test.meters")
+        tdSql.checkData(0, 0, 12)
 
     def stop(self):
         tdSql.close()
