@@ -13,3 +13,4 @@
 ::: datatype.test_column_unsign
 ::: datatype.test_column_varbinary
 ::: datatype.test_column_varchar
+::: datatype.test_null

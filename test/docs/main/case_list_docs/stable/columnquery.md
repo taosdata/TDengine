@@ -1,0 +1,14 @@
+::: stable.columnquery.test_column_2
+::: stable.columnquery.test_column_3
+::: stable.columnquery.test_column_4
+::: stable.columnquery.test_column_5
+::: stable.columnquery.test_column_6
+::: stable.columnquery.test_column_bigint
+::: stable.columnquery.test_column_binary
+::: stable.columnquery.test_column_bool
+::: stable.columnquery.test_column_double
+::: stable.columnquery.test_column_float
+::: stable.columnquery.test_column_int
+::: stable.columnquery.test_column_smallint
+::: stable.columnquery.test_column_tinyint
+::: stable.columnquery.test_column_ubigint
