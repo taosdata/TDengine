@@ -546,7 +546,6 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  int32_t   code;
   pthread_t thread_id;
 
   TAOS* pConn = init_env();
@@ -582,10 +581,10 @@ int main(int argc, char* argv[]) {
     return -1;
   }
 
-  if ((code = tmq_subscribe(tmq, topic_list))) {
+  if ((rc = tmq_subscribe(tmq, topic_list))) {
     fprintf(stderr,
             "Failed to subscribe topic_list, topic: %s, groupId: %s, clientId: %s, ErrCode: 0x%x, ErrMessage: %s.\n",
-            topic_name, config.group_id, config.client_id, code, tmq_err2str(code));
+            topic_name, config.group_id, config.client_id, rc, tmq_err2str(rc));
   } else {
     fprintf(stdout, "Subscribe topics successfully.\n");
   }
@@ -600,20 +599,20 @@ int main(int argc, char* argv[]) {
   // manual_commit(tmq);
 
   // unsubscribe the topic
-  code = tmq_unsubscribe(tmq);
-  if (code) {
+  rc = tmq_unsubscribe(tmq);
+  if (rc) {
     fprintf(stderr,
             "Failed to unsubscribe consumer, topic: %s, groupId: %s, clientId: %s, ErrCode: 0x%x, ErrMessage: %s.\n",
-            topic_name, config.group_id, config.client_id, code, tmq_err2str(code));
+            topic_name, config.group_id, config.client_id, rc, tmq_err2str(rc));
   } else {
     fprintf(stdout, "Consumer unsubscribed successfully.\n");
   }
 
   // close the consumer
-  code = tmq_consumer_close(tmq);
-  if (code) {
+  rc = tmq_consumer_close(tmq);
+  if (rc) {
     fprintf(stderr, "Failed to close consumer, topic: %s, groupId: %s, clientId: %s, ErrCode: 0x%x, ErrMessage: %s.\n",
-            topic_name, config.group_id, config.client_id, code, tmq_err2str(code));
+            topic_name, config.group_id, config.client_id, rc, tmq_err2str(rc));
   } else {
     fprintf(stdout, "Consumer closed successfully.\n");
   }
