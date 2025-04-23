@@ -7,6 +7,13 @@ project(
     "An open-source big data platform designed and optimized for the Internet of Things(IOT)"
 )
 
+
+EXECUTE_PROCESS(
+        COMMAND /bin/sh -c "echo \$PATH"
+        COMMAND /bin/bash -c "echo \$PATH"
+        COMMAND which cargo
+)
+
 # ref: https://cmake.org/cmake/help/latest/command/cmake_policy.html
 #     `CMake keeps policy settings on a stack`
 if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
