@@ -21,7 +21,7 @@
 #include "tarray.h"
 #include "tdef.h"
 
-static SDataSinkManager2 g_pDataSinkManager = {0};
+SDataSinkManager2 g_pDataSinkManager = {0};
 #define DATA_SINK_MAX_MEM_SIZE_DEFAULT (1024 * 1024 * 1024)  // 1G
 
 static void destroySStreamDataSinkManager(void* pData);
@@ -66,6 +66,7 @@ void destorySWindowDataPP(void* pData) {
   if (ppWindowData == NULL || (*ppWindowData) == NULL) {
     return;
   }
+  syncWindowDataMemSub(*ppWindowData);
   if ((*ppWindowData)->pDataBuf) {
     taosMemoryFree((*ppWindowData)->pDataBuf);
   }
@@ -77,6 +78,7 @@ void destorySWindowDataP(void* pData) {
   if (pWindowData == NULL) {
     return;
   }
+  syncWindowDataMemSub(pWindowData);
   if (pWindowData->pDataBuf) {
     taosMemoryFree(pWindowData->pDataBuf);
   }
@@ -445,3 +447,7 @@ int32_t destroyDataSinkManager2() {
   }
   return TSDB_CODE_SUCCESS;
 }
+
+void useMemSizeAdd(int64_t size) { atomic_fetch_add_64(&g_pDataSinkManager.usedMemSize, size); }
+
+void useMemSizeSub(int64_t size) { atomic_fetch_sub_64(&g_pDataSinkManager.usedMemSize, size); }

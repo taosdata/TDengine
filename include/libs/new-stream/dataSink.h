@@ -30,14 +30,17 @@ typedef enum {
   DATA_SAVEMODE_BUFF = 2,
   DATA_BLOCK_MOVED = 3,
 } SSaveStatus;
+
+typedef struct SGroupDSManager SGroupDSManager;
 typedef struct SWindowData {
-  int64_t     wstart;  // start time of the window
-  int64_t     wend;    // end time of the window
-  TSKEY       start;   // start time of the data
-  TSKEY       end;     // end time of the data
-  int64_t     dataLen;
-  SSaveStatus saveMode;
-  void*       pDataBuf;
+  int64_t          wstart;  // start time of the window
+  int64_t          wend;    // end time of the window
+  TSKEY            start;   // start time of the data
+  TSKEY            end;     // end time of the data
+  int64_t          dataLen;
+  SSaveStatus      saveMode;
+  SGroupDSManager* pGroupDataInfo;
+  void*            pDataBuf;
 } SWindowData;
 
 typedef struct DataSinkFileState {
@@ -63,6 +66,7 @@ typedef struct SDataSinkManager2 {
   int64_t   readDataFromFileTimes;
   SHashObj* DataSinkStreamTaskList;  // hash <streamId + taskId, SStreamTaskDSManager>
 } SDataSinkManager2;
+extern SDataSinkManager2 g_pDataSinkManager;
 
 typedef struct SStreamTaskDSManager {
   int64_t            streamId;
@@ -191,6 +195,8 @@ void destorySWindowDataPP(void* pData);
 
 void clearGroupExpiredDataInMem(SGroupDSManager* pGroupData, TSKEY start);
 
+void syncWindowDataMemAdd(SWindowData* pSWindowData);
+void syncWindowDataMemSub(SWindowData* pSWindowData);
 
 #ifdef __cplusplus
 }

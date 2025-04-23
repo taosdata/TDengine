@@ -16,11 +16,14 @@
 #include <stdint.h>
 #include <stdio.h>
 #include "dataSink.h"
+#include "osAtomic.h"
 #include "stream.h"
 #include "taoserror.h"
 #include "tarray.h"
 #include "tdatablock.h"
 #include "tdef.h"
+
+extern SDataSinkManager2 g_pDataSinkManager;
 
 int32_t writeToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSKEY wstart, TSKEY wend,
                      SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex) {
@@ -50,6 +53,7 @@ int32_t writeToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSK
     code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
+  pWindowData->pGroupDataInfo = pGroupDataInfo;
   pWindowData->wstart = wstart;
   pWindowData->wend = wend;
   code = getStreamBlockTS(pBlock, startIndex, &pWindowData->start);
@@ -72,8 +76,8 @@ int32_t writeToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSK
     code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
-  pGroupDataInfo->usedMemSize += dataEncodeBufSize;
   pGroupDataInfo->lastWstartInMem = wstart;
+  syncWindowDataMemAdd(pWindowData);
   return TSDB_CODE_SUCCESS;
 _end:
   if (pWindowData) {
@@ -101,6 +105,7 @@ int32_t moveToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSKE
     code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
+  pWindowData->pGroupDataInfo = pGroupDataInfo;
   pWindowData->wstart = wstart;
   pWindowData->wend = wend;
   code = getStreamBlockTS(pBlock, 0, &pWindowData->start);
@@ -123,8 +128,8 @@ int32_t moveToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSKE
     code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
-  pGroupDataInfo->usedMemSize += dataEncodeBufSize;
   pGroupDataInfo->lastWstartInMem = wstart;
+  syncWindowDataMemAdd(pWindowData);
   return TSDB_CODE_SUCCESS;
   _end:
   if (pWindowData) {
@@ -134,6 +139,7 @@ int32_t moveToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSKE
 }
 
 static void freeWindowsBufferImmediate(SWindowData* pWindowData) {
+  syncWindowDataMemSub(pWindowData);
   if (pWindowData->pDataBuf) {
     taosMemoryFree(pWindowData->pDataBuf);
     pWindowData->pDataBuf = NULL;
@@ -167,6 +173,7 @@ _end:
   } else {
     if (cleanMode == DATA_CLEAN_IMMEDIATE) {
       freeWindowsBufferImmediate(pWindowData);
+      // 不用立即释放 pwindow 本身的资源，占用空间少，且需要移动 group 上 window array 的数据表，batch 方式处理
     }
     *ppBlock = pBlock;
   }
@@ -271,4 +278,18 @@ void clearGroupExpiredDataInMem(SGroupDSManager* pGroupData, TSKEY start) {
   }
 
   taosArrayRemoveBatch(pGroupData->windowDataInMem, 0, deleteCount, destorySWindowDataPP);
+}
+
+void syncWindowDataMemAdd(SWindowData* pWindowData) {
+  int32_t size = pWindowData->dataLen;
+  atomic_add_fetch_64(&pWindowData->pGroupDataInfo->usedMemSize, size);
+  atomic_add_fetch_64(&pWindowData->pGroupDataInfo->pSinkManager->usedMemSize, size);
+  atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, size);
+}
+
+void syncWindowDataMemSub(SWindowData* pWindowData) {
+  int32_t size = pWindowData->dataLen;
+  atomic_sub_fetch_64(&pWindowData->pGroupDataInfo->usedMemSize, size);
+  atomic_sub_fetch_64(&pWindowData->pGroupDataInfo->pSinkManager->usedMemSize, size);
+  atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, size);
 }
