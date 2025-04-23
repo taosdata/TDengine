@@ -30,7 +30,7 @@ int32_t BUILDIN_CTZ(uint32_t val);
 #define BUILDIN_CTZL(val) __builtin_ctzll(val)
 #define BUILDIN_CLZ(val)  __builtin_clz(val)
 #define BUILDIN_CTZ(val)  __builtin_ctz(val)
-#elif defined(_TD_ARM_32)
+#elif defined(_TD_ARM_32) || defined(TD_ASTRA_32)
 #define BUILDIN_CLZL(val) __builtin_clzll(val)
 #define BUILDIN_CTZL(val) __builtin_ctzll(val)
 #define BUILDIN_CLZ(val)  __builtin_clz(val)
