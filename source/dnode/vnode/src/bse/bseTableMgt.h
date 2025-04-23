@@ -44,9 +44,18 @@ typedef struct {
 } STableReaderMgt;
 
 typedef struct {
+  SArray   *pMetaSet;
+  char      path[TSDB_FILENAME_LEN];
+  int64_t   offset;
+  TdFilePtr pFile;
+  SBse     *pBse;
+} STableMetaMgt;
+
+typedef struct {
   void            *pBse;
   STableBuilderMgt pBuilderMgt[1];
   STableReaderMgt  pReaderMgt[1];
+  STableMetaMgt    pTableMetMgt[1];
 } STableMgt;
 
 int32_t bseTableMgtCreate(SBse *pBse, void **pMgt);

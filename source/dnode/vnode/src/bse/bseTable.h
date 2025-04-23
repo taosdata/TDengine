@@ -90,13 +90,14 @@ int8_t  isGreaterSeqRange(SSeqRange *p, int64_t seq);
 typedef struct {
   char          name[TSDB_FILENAME_LEN];
   TdFilePtr     pDataFile;
+  TdFilePtr     pMetaFile;
   STableFooter  footer;
   SArray       *pSeqToBlock;
   SArray       *pMetaHandle;
   SBlockWrapper pBlockWrapper;
   int32_t       blockCap;
   int8_t        compressType;
-  int32_t       offset;
+  int64_t       offset;
   int32_t       blockId;
   SSeqRange     tableRange;
   SSeqRange     blockRange;
@@ -122,6 +123,20 @@ typedef struct {
 } STableReader;
 
 typedef struct {
+  char          name[TSDB_FILENAME_LEN];
+  TdFilePtr     pFile;
+  SArray       *pMetaSet;
+  SArray       *pMetaHandle;
+  SArray       *pIndexMeta;
+  STableFooter  footer;
+  int64_t       size;
+  void         *pTableMetaMgt;
+  void         *pBse;
+  SBlockWrapper pBlockWrapper;
+  int64_t       offset;
+} STableMeta;
+
+typedef struct {
   int64_t sseq;
   int64_t eseq;
   int64_t size;
@@ -144,6 +159,14 @@ void    tableReaderShouldPutToCache(STableReader *pReader, int8_t putInCache);
 int32_t tableReaderGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *len);
 int32_t tableReaderClose(STableReader *p);
 int32_t tableReaderGetMeta(STableReader *p, SArray **pMeta);
+
+int32_t tableMetaOpen(char *name, STableMeta **pMeta, void *pMetaMgt);
+int32_t tableMetaCommit(STableMeta *pMeta);
+int32_t tableMetaAppend(STableMeta *pMeta, SBlkHandle *pHandle);
+int32_t tableMetaGetBlkHandle(STableMeta *pMeta, int64_t seq, SBlkHandle **pHandle);
+void    tableMetaClose(STableMeta *p);
+int32_t tableMetaRecover(STableMeta *pMeta);
+
 //  int32_t tableReaderSeekToFirst(STableReader *p);
 //  int32_t tableReaderNext(STableReader *p, SBlock **pBlock);
 

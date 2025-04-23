@@ -35,6 +35,10 @@ static int32_t tableBuilderMgtPutBatch(STableBuilderMgt *pMgt, SBseBatch *pBatch
 static int32_t tableBuilderMgtClear(STableBuilderMgt *pMgt);
 static void    tableBuilderMgtDestroy(STableBuilderMgt *pMgt);
 
+static int32_t tableMetaMgtInit(STableMetaMgt *pMgt, SBse *pBse);
+static int32_t tableMetaMgtCommit(STableMetaMgt *pMgt, SBseLiveFileInfo *pInfo);
+static void    tableMetaClear(STableMetaMgt *pMgt);
+
 static void tableReaderFree(void *pReader);
 
 int32_t bseTableMgtCreate(SBse *pBse, void **pMgt) {
@@ -452,10 +456,10 @@ int32_t tableBuilderMgtCommit(STableBuilderMgt *pMgt, SBseLiveFileInfo *pInfo, i
   STableBuilder *pBuilder = NULL;
 
   taosThreadMutexLock(&pMgt->mutex);
-
-  flushIdx = pMgt->inUse;
-  pMgt->inUse = 1 - pMgt->inUse;
-  pBuilder = pMgt->p[flushIdx];
+  
+  // flushIdx = pMgt->inUse;
+  // pMgt->inUse = 1 - pMgt->inUse;
+  pBuilder = pMgt->p[pMgt->inUse];
 
   taosThreadMutexUnlock(&pMgt->mutex);
   if (pBuilder != NULL) {
@@ -477,4 +481,29 @@ void tableBuilderMgtDestroy(STableBuilderMgt *pMgt) {
     }
   }
   taosThreadMutexDestroy(&pMgt->mutex);
+}
+
+int32_t tableMetaMgtInit(STableMetaMgt *pMgt, SBse *pBse) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  pMgt->pBse = pBse;
+  pMgt->pMetaSet = taosArrayInit(1, sizeof(void *));
+  if (pMgt->pMetaSet == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
+
+_error:
+  if (code != 0) {
+    bseError("failed to init table meta mgt at line %d since %s", __LINE__, tstrerror(code));
+  }
+  return code;
+}
+static int32_t tableMetaMgtCommit(STableMetaMgt *pMgt, SBseLiveFileInfo *pInfo) {
+  int32_t code = 0;
+    
+  return code;
+}
+static void tableMetaClear(STableMetaMgt *pMgt) {
+  taosCloseFile(&pMgt->pFile);
+  return;
 }

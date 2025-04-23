@@ -183,11 +183,16 @@ int32_t tableBuilderOpenFile(STableBuilder *p) {
 
   char path[TSDB_FILENAME_LEN] = {0};
   bseBuildDataFullName(p->pBse, p->tableRange.sseq, path);
-
   bseBuildDataName(p->pBse, p->tableRange.sseq, p->name);
 
   p->pDataFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
   if (p->pDataFile == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
+
+  bseBuildMetaName(p->pBse, 0, path);
+  p->pMetaFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
+  if (p->pMetaFile == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
 
@@ -481,6 +486,30 @@ int32_t tableBuildGenCommitInfo(STableBuilder *p, SBseLiveFileInfo *pInfo) {
 
   return code;
 }
+
+int32_t tableBuilderFlushToMeta(STableBuilder *p, int8_t type) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  return code;
+}
+int32_t tableBuilderCommitUpdateMeta(STableBuilder *p) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  code = tableBuildAddMetaBlock(p);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  // code = tableBuilderFlushToMeta(p, BSE_TABLE_META_TYPE);
+  // TSDB_CHECK_CODE(code, lino, _error);
+
+_error:
+  if (code != 0) {
+    bseError("failed to commit table builder at line %d since %s ", lino, tstrerror(code));
+  } else {
+    bseInfo("succ to commit table %s", p->name);
+  }
+  return code;
+}
 int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -488,13 +517,13 @@ int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo) {
   code = tableBuilderFlush(p, BSE_TABLE_DATA_TYPE);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = tableBuildAddMetaBlock(p);
-  TSDB_CHECK_CODE(code, lino, _error);
+  // code = tableBuildAddMetaBlock(p);
+  // TSDB_CHECK_CODE(code, lino, _error);
 
-  code = tableBuilderFlush(p, BSE_TABLE_META_TYPE);
-  TSDB_CHECK_CODE(code, lino, _error);
+  // code = tableBuilderFlush(p, BSE_TABLE_META_TYPE);
+  // TSDB_CHECK_CODE(code, lino, _error);
 
-  code = tableBuildAddFooter(p);
+  // code = tableBuildAddFooter(p);
   TSDB_CHECK_CODE(code, lino, _error);
 
   tableBuildGenCommitInfo(p, pInfo);
@@ -523,7 +552,7 @@ int32_t tableBuilderClose(STableBuilder *p, int8_t commited) {
 }
 void tableBuilderClear(STableBuilder *p) {
   blockWrapperClear(&p->pBlockWrapper);
-  taosCloseFile(&p->pDataFile);
+  // taosCloseFile(&p->pDataFile);
   p->tableRange.sseq = -1;
   p->tableRange.eseq = -1;
   p->offset = 0;
@@ -1312,4 +1341,151 @@ int32_t blockWithMetaSeek(SBlockWithMeta *p, int64_t seq, uint8_t **pValue, int3
   memcpy(*pValue, data, *len);
 
   return code;
+}
+
+int32_t tableMetaOpen(char *name, STableMeta **pMeta, void *pBse) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  STableMeta *p = taosMemCalloc(1, sizeof(STableMeta));
+  if (p == NULL) {
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
+  memcpy(p->name, name, strlen(name));
+
+  p->pMetaHandle = taosArrayInit(128, sizeof(SBlkHandle));
+  if (p->pMetaHandle == NULL) {
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
+
+  code = blockWrapperInit(&p->pBlockWrapper, 4096);
+  p->pBse = (SBse *)pBse;
+
+  *pMeta = p;
+_error:
+  if (code != 0) {
+    bseError("failed to open table meta %s at line %d since %s", name, lino, tstrerror(code));
+    tableMetaClose(p);
+  }
+
+  return code;
+}
+int32_t tableMetaCommit(STableMeta *pMeta) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  int64_t offset = pMeta->offset;
+
+  int32_t size = taosArrayGetSize(pMeta->pMetaHandle) * sizeof(SBlkHandle);
+  blockWrapperResize(&pMeta->pBlockWrapper, size);
+
+  for (int32_t i = 0; i < taosArrayGetSize(pMeta->pMetaHandle); i++) {
+    SBlkHandle *pHandle = taosArrayGet(pMeta->pMetaHandle, i);
+    if (pHandle == NULL) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _error);
+    }
+    offset += metaBlockAdd(pMeta->pBlockWrapper.data, pHandle);
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
+
+  code = taosLSeekFile(pMeta->pFile, offset, SEEK_SET); 
+
+  
+_error:
+
+  return code;
+}
+
+int32_t tableMetaLoadFooter(STableMeta *pMeta) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  char footer[kEncodeLen] = {0};
+  code = taosLSeekFile(pMeta->pFile, -kEncodeLen, SEEK_END);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = taosReadFile(pMeta->pFile, footer, kEncodeLen);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = footerDecode(&pMeta->footer, footer);
+  TSDB_CHECK_CODE(code, lino, _error);
+_error:
+  if (code != 0) {
+    bseError("failed to load table meta footer %s at line %d since %s", pMeta->name, lino, tstrerror(code));
+    tableMetaClose(pMeta);
+  }
+  return code;
+}
+int32_t tableMetaLoaderMeta(STableMeta *pMeta) {
+  int32_t code = 0;
+  int64_t size = 0;
+  int32_t lino = 0;
+  char    footer[kEncodeLen] = {0};
+
+  if (!taosCheckExistFile(pMeta->name)) {
+    pMeta->pFile = taosOpenFile(pMeta->name, TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+    if (pMeta->pFile == NULL) {
+      TSDB_CHECK_CODE(code = terrno, lino, _error);
+    }
+    return code;
+  }
+
+  code = taosStatFile(pMeta->name, &size, NULL, NULL);
+  TSDB_CHECK_CODE(code, lino, _error);
+  if (size <= 0) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _error);
+  }
+  pMeta->pFile = taosOpenFile(pMeta->name, TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+  if (pMeta->pFile == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
+
+_error:
+  if (code != 0) {
+    bseError("failed to open table meta %s at line %d since %s", pMeta->name, lino, tstrerror(code));
+    tableMetaClose(pMeta);
+  }
+
+  return code;
+}
+int32_t tableMetaRecover(STableMeta *pMeta) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  char    path[TSDB_FILENAME_LEN] = {0};
+  bseBuildMetaName(pMeta->pBse, 0, path);
+
+  memcpy(pMeta->name, path, strlen(path));
+
+  bseBuildTempMetaName(pMeta->pBse, path);
+  code = taosRemoveFile(path);
+  if (code != 0) {
+    lino = __LINE__;
+    bseError("failed to rename table meta %s at line %d since %s", path, lino, tstrerror(code));
+    code = 0;
+  }
+
+_error:
+  if (code != 0) {
+    bseError("failed to open table meta %s at line %d since %s", path, lino, tstrerror(code));
+    tableMetaClose(pMeta);
+  }
+  return code;
+}
+
+int32_t tableMetaAppend(STableMeta *pMeta, SBlkHandle *pHandle) {
+  int32_t code = 0;
+  if (taosArrayPush(pMeta->pMetaHandle, pHandle) == NULL) {
+    return terrno;
+  }
+
+  return code;
+}
+int32_t tableMetaGetBlkHandle(STableMeta *pMeta, int64_t seq, SBlkHandle **pHandle) {
+  int32_t code = 0;
+  return code;
+}
+void tableMetaClose(STableMeta *p) {
+  if (p == NULL) return;
+  taosCloseFile(&p->pFile);
+  taosArrayDestroy(p->pMetaHandle);
+  taosMemoryFree(p);
 }

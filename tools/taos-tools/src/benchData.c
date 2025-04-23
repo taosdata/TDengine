@@ -51,9 +51,6 @@ const char *locations_sml[] = {"California.SanFrancisco", "California.LosAngles"
     //       so we use ANSI/GB18030 encoded file for the moment.
     #include "benchLocationsWin.h"
 #else
-#include "benchLocationsWin.h"
-#endif
-#else
 #include "benchLocations.h"
 #endif
 
