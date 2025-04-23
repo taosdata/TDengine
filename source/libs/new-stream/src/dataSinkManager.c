@@ -124,7 +124,7 @@ int32_t getFirstDataIter(SGroupDSManager* pGroupDataInfo, TSKEY start, TSKEY end
   return TSDB_CODE_SUCCESS;
 }
 
-static bool shouldWriteIntoFile(SStreamTaskDSManager* pStreamDataSink, int64_t groupId) {
+static bool shouldWriteIntoFile(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, bool isMove) {
   // 如果当前 task 已经开始在文件中写入数据，则继续写入文件，保证文件中数据时间总是大于内存中数据，并且数据连续
   // 为防止某个 task 一直在文件中写入数据，当内存使用小于 50% 时，读取这个任务所有文件数据迁入内存
   if (pStreamDataSink->pFile && pStreamDataSink->pFile->fileBlockUsedCount > 0) {
@@ -139,6 +139,12 @@ static bool shouldWriteIntoFile(SStreamTaskDSManager* pStreamDataSink, int64_t g
   if (g_pDataSinkManager.usedMemSize < g_pDataSinkManager.maxMemSize * 0.9 && pStreamDataSink->usedMemSize > 0) {
     return false;
   }
+
+  // 内存使用小于 90% 时，但是使用了 move 语义，认为已经写入了内存，继续写入内存中
+  if (g_pDataSinkManager.usedMemSize < g_pDataSinkManager.maxMemSize * 0.9 && isMove) {
+    return false;
+  }
+
   // 内存使用大于 70% 并且是新的 task，或者内存使用大于 90% 全部写入文件
   return true;
 }
@@ -188,6 +194,8 @@ int32_t createSGroupDSManager(int64_t groupId, SGroupDSManager** ppGroupDataInfo
     return terrno;
   }
   (*ppGroupDataInfo)->groupId = groupId;
+  (*ppGroupDataInfo)->windowDataInMem = NULL;
+  (*ppGroupDataInfo)->windowDataInFile = NULL;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -202,6 +210,34 @@ static void destroySGroupDSManager(void* pData) {
     pGroupData->windowDataInFile = NULL;
   }
   taosMemoryFreeClear(pGroupData);
+}
+
+int32_t getOrCreateSGroupDSManager(SStreamTaskDSManager* pStreamDataSink, int64_t groupId,
+                                   SGroupDSManager** ppGroupDataInfoMgr) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  SGroupDSManager*  pGroupDataInfo = NULL;
+  SGroupDSManager** ppGroupDIM =
+      (SGroupDSManager**)taosHashGet(pStreamDataSink->DataSinkGroupList, &groupId, sizeof(groupId));
+  if (ppGroupDIM == NULL) {
+    code = createSGroupDSManager(groupId, &pGroupDataInfo);
+    if (code != 0) {
+      stError("failed to create group data sink manager, err: %s", terrMsg);
+      return code;
+    }
+    pGroupDataInfo->pSinkManager = pStreamDataSink;
+    code = taosHashPut(pStreamDataSink->DataSinkGroupList, &groupId, sizeof(groupId), &pGroupDataInfo,
+                       sizeof(SGroupDSManager*));
+    if (code != 0) {
+      destroySGroupDSManager(&pGroupDataInfo);
+      stError("failed to put group data sink manager, err: %s", terrMsg);
+      return code;
+    }
+    *ppGroupDataInfoMgr = pGroupDataInfo;
+  } else {
+    *ppGroupDataInfoMgr = *ppGroupDIM;
+  }
+  return code;
 }
 
 // @brief 初始化数据缓存
@@ -253,10 +289,30 @@ int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY we
     stError("DataSinkManager is not ready");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
-  if (shouldWriteIntoFile((SStreamTaskDSManager*)pCache, groupId)) {
+  if (shouldWriteIntoFile((SStreamTaskDSManager*)pCache, groupId, false)) {
     return writeToFile((SStreamTaskDSManager*)pCache, groupId, wstart, wend, pBlock, startIndex, endIndex);
   } else {
     return writeToCache((SStreamTaskDSManager*)pCache, groupId, wstart, wend, pBlock, startIndex, endIndex);
+  }
+}
+
+int32_t moveStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock) {
+  if (!isManagerReady()) {
+    stError("DataSinkManager is not ready");
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  if (pCache == NULL) {
+    stError("moveStreamDataCache param invalid, pCache is NULL");
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  if (((SStreamTaskDSManager*)pCache)->cleanMode != DATA_CLEAN_IMMEDIATE) {
+    stError("moveStreamDataCache param invalid, cleanMode is not immediate");
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  if (shouldWriteIntoFile((SStreamTaskDSManager*)pCache, groupId, true)) {
+    return writeToFile((SStreamTaskDSManager*)pCache, groupId, wstart, wend, pBlock, 0, 1);
+  } else {
+    return moveToCache((SStreamTaskDSManager*)pCache, groupId, wstart, wend, pBlock);
   }
 }
 

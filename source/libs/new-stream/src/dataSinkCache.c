@@ -24,26 +24,13 @@
 
 int32_t writeToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSKEY wstart, TSKEY wend,
                      SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex) {
-  int32_t code = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
 
-  SGroupDSManager*  pGroupDataInfo = NULL;
-  SGroupDSManager** ppGroupDataInfo =
-      (SGroupDSManager**)taosHashGet(pStreamDataSink->DataSinkGroupList, &groupId, sizeof(groupId));
-  if (ppGroupDataInfo == NULL) {
-    code = createSGroupDSManager(groupId, &pGroupDataInfo);
-    if (code != 0) {
-      stError("failed to create group data sink manager, err: %s", terrMsg);
-      return code;
-    }
-    pGroupDataInfo->pSinkManager = pStreamDataSink;
-    code = taosHashPut(pStreamDataSink->DataSinkGroupList, &groupId, sizeof(groupId), &pGroupDataInfo,
-                       sizeof(SGroupDSManager*));
-    if (code != 0) {
-      taosMemoryFree(pGroupDataInfo);
-      return code;
-    }
-  } else {
-    pGroupDataInfo = *ppGroupDataInfo;
+  SGroupDSManager* pGroupDataInfo = NULL;
+  code = getOrCreateSGroupDSManager(pStreamDataSink, groupId, &pGroupDataInfo);
+  if (code != 0) {
+    stError("failed to get or create group data sink manager, err: %s", terrMsg);
+    return code;
   }
 
   size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -68,6 +55,7 @@ int32_t writeToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSK
   }
   pWindowData->wstart = wstart;
   pWindowData->wend = wend;
+  pWindowData->saveMode = DATA_SAVEMODE_BUFF;
   pWindowData->dataLen = dataEncodeBufSize;
   pWindowData->pDataBuf = buf;
   if (pGroupDataInfo->windowDataInMem == NULL) {
@@ -86,6 +74,43 @@ int32_t writeToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSK
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t moveToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSKEY wstart, TSKEY wend,
+                    SSDataBlock* pBlock) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  SGroupDSManager* pGroupDataInfo = NULL;
+  code = getOrCreateSGroupDSManager(pStreamDataSink, groupId, &pGroupDataInfo);
+  if (code != 0) {
+    stError("failed to get or create group data sink manager, err: %s", terrMsg);
+    return code;
+  }
+
+  size_t       dataEncodeBufSize = blockGetEncodeSize(pBlock);
+  SWindowData* pWindowData = (SWindowData*)taosMemoryCalloc(1, sizeof(SWindowData));
+  if (pWindowData == NULL) {
+    return terrno;
+  }
+  pWindowData->wstart = wstart;
+  pWindowData->wend = wend;
+  pWindowData->saveMode = DATA_SAVEMODE_BLOCK;
+  pWindowData->dataLen = dataEncodeBufSize;
+  pWindowData->pDataBuf = pBlock;
+  if (pGroupDataInfo->windowDataInMem == NULL) {
+    pGroupDataInfo->windowDataInMem = taosArrayInit(0, sizeof(SWindowData*));
+    if (pGroupDataInfo->windowDataInMem == NULL) {
+      // taosMemoryFree(pBlcok);
+      // When it fails, pBlock returns it to the caller for processing
+      return terrno;
+    }
+  }
+  if (taosArrayPush(pGroupDataInfo->windowDataInMem, &pWindowData) == NULL) {
+    return terrno;
+  }
+  pGroupDataInfo->usedMemSize += dataEncodeBufSize;
+  pGroupDataInfo->lastWstartInMem = wstart;
+  return TSDB_CODE_SUCCESS;
+}
+
 static void freeWindowsBufferImmediate(SWindowData* pWindowData) {
   if (pWindowData->pDataBuf) {
     taosMemoryFree(pWindowData->pDataBuf);
@@ -93,9 +118,14 @@ static void freeWindowsBufferImmediate(SWindowData* pWindowData) {
   }
   pWindowData->dataLen = 0;
 }
+static void windowsBufferMoveout(SWindowData* pWindowData) {
+  pWindowData->saveMode = DATA_BLOCK_MOVED;
+  pWindowData->pDataBuf = NULL;
+  pWindowData->dataLen = 0;
+}
 
-static int32_t getWindowDataInMem(SResultIter* pResult, SWindowData* pWindowData, SSDataBlock** ppBlock, SCleanMode cleanMode) {
-  int32_t      code = 0;
+static int32_t getBuffInMem(SResultIter* pResult, SWindowData* pWindowData, SSDataBlock** ppBlock, SCleanMode cleanMode) {
+  int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   if (pBlock == NULL) {
@@ -119,6 +149,25 @@ _end:
     *ppBlock = pBlock;
   }
   return code;
+}
+
+static int32_t getBlockInMem(SResultIter* pResult, SWindowData* pWindowData, SSDataBlock** ppBlock) {
+  *ppBlock = pWindowData->pDataBuf;
+  windowsBufferMoveout(pWindowData);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t getWindowDataInMem(SResultIter* pResult, SWindowData* pWindowData, SSDataBlock** ppBlock,
+                                  SCleanMode cleanMode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pWindowData->saveMode == DATA_SAVEMODE_BUFF) {
+    return getBuffInMem(pResult, pWindowData, ppBlock, cleanMode);
+  } else if (pWindowData->saveMode == DATA_BLOCK_MOVED) {
+    stError("failed to get data from cache, since block cache cannot be reread.");
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  } else {
+    return getBlockInMem(pWindowData->pDataBuf, pWindowData, ppBlock);
+  }
 }
 
 static int32_t getRangeInWindowBlock(SWindowData* pWindowData, TSKEY start, TSKEY end, SSDataBlock** ppBlock) {

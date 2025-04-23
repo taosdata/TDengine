@@ -24,11 +24,17 @@
 extern "C" {
 #endif
 
+typedef enum {
+  DATA_SAVEMODE_BLOCK = 1,
+  DATA_SAVEMODE_BUFF = 2,
+  DATA_BLOCK_MOVED = 3,
+} SSaveStatus;
 typedef struct SWindowData {
-  int64_t wstart;
-  int64_t wend;
-  int64_t dataLen;
-  void*   pDataBuf;
+  int64_t     wstart;
+  int64_t     wend;
+  int64_t     dataLen;
+  SSaveStatus saveMode;
+  void*       pDataBuf;
 } SWindowData;
 
 typedef struct DataSinkFileState {
@@ -115,6 +121,13 @@ void destroyStreamDataCache(void* pCache);
 int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock,
                            int32_t startIndex, int32_t endIndex);
 
+// @brief 向数据缓存中添加数据
+// @note 和 putStreamDataCache 区别是：
+//        1. 会移交 pBlock 的所有权
+//        2. 如果返回 success，pBlock 的内存释放由 Cache Sink 负责；
+//        3. 如果返回 error，pBlock 的内存释放由调用者负责；
+int32_t moveStreamDataCache(void *pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock *pBlock);
+
 // @brief 从数据缓存中读取数据
 // @param pCache 数据缓存,使用 StreamDataCacheInit 创建
 // @param groupId 数据的分组ID,实际上是 "<streamid>_<taskid>_<groupid>" 格式的字符串
@@ -158,12 +171,17 @@ int32_t writeToFile(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSKE
 // @brief 写入数据到内存
 int32_t writeToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSKEY wstart, TSKEY wend,
                      SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex);
+int32_t moveToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSKEY wstart, TSKEY wend,
+                     SSDataBlock* pBlock);
 
 // @brief 读取数据从内存
 int32_t readDataFromCache(SResultIter* pResult, SSDataBlock** ppBlock);
 
 // @brief 读取数据从文件
 int32_t createSGroupDSManager(int64_t groupId, SGroupDSManager** ppGroupDataInfo);
+
+int32_t getOrCreateSGroupDSManager(SStreamTaskDSManager* pStreamDataSink, int64_t groupId,
+                                   SGroupDSManager** ppGroupDataInfoMgr);
 
 void destorySWindowDataP(void* pData);
 void destorySWindowDataPP(void* pData);
