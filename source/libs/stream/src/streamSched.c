@@ -129,7 +129,7 @@ int32_t streamTrySchedExec(SStreamTask* pTask, bool chkptQueue) {
 
     code = streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pTask->id.streamId, pTask->id.taskId, 0, chkptQueue);
     if (code) {
-      streamTaskSetSchedStatusInactive(pTask);
+      int8_t unusedStatus = streamTaskSetSchedStatusInactive(pTask);
       stInfo("s-task:%s set schedStatus inactive, since failed to sched task", pTask->id.idStr);
     }
   } else {
