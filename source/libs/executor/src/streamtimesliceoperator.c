@@ -1594,6 +1594,8 @@ void doBuildTimeSlicePointResult(SStreamAggSupporter* pAggSup, STimeWindowAggSup
     } else {
       memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
     }
+    qDebug("%s partName:%s, groupId:%"PRIu64, __FUNCTION__, (char*)tbname, pKey->groupId);
+
     pAggSup->stateStore.streamStateFreeVal(tbname);
 
     SSlicePoint curPoint = {.key.ts = pKey->ts, .key.groupId = pKey->groupId};

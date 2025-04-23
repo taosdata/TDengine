@@ -1328,6 +1328,8 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
       pAPI->stateStore.streamStateFreeVal(tbname);
     }
   }
+  qTrace("numexprs:%d, partName:%s, groupId:%"PRIu64, pInfo->tbnameCalSup.numOfExprs, pDest->info.parTbName, pParInfo->groupId);
+
   taosArrayDestroy(pParInfo->rowIds);
   pParInfo->rowIds = NULL;
   pDest->info.dataLoad = 1;
@@ -1383,6 +1385,7 @@ int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTag
         memcpy(tbName, varDataVal(pData), len);
         code = pAPI->streamStatePutParName(pState, groupId, tbName);
         QUERY_CHECK_CODE(code, lino, _end);
+        qTrace("%s child_table_name tbName:%s, groupId%"PRIu64, __FUNCTION__, tbName, groupId);
       }
       memcpy(pTmpBlock->info.parTbName, tbName, len);
       pDestBlock->info.rows--;
@@ -1400,6 +1403,7 @@ int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTag
     } else {
       memcpy(pDestBlock->info.parTbName, pTmpBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
     }
+    qTrace("not get name from rocksdb, partName:%s, groupId:%"PRIu64, pDestBlock->info.parTbName, groupId);
 
     void* pGpIdCol = taosArrayGet(pDestBlock->pDataBlock, UD_GROUPID_COLUMN_INDEX);
     QUERY_CHECK_NULL(pGpIdCol, code, lino, _end, terrno);
@@ -1409,6 +1413,7 @@ int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTag
     blockDataDestroy(pTmpBlock);
   } else {
     memcpy(pSrcBlock->info.parTbName, pValue, TSDB_TABLE_NAME_LEN);
+    qTrace("get name from rocksdb, partName:%s, groupId:%"PRIu64, pSrcBlock->info.parTbName, groupId);
   }
   pAPI->streamStateFreeVal(pValue);
 

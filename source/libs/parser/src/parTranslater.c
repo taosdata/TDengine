@@ -5168,7 +5168,7 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
         tstrncpy(pRTNode->table.dbName, pMeta->colRef[i].refDbName, sizeof(pRTNode->table.dbName));
         tstrncpy(pRTNode->table.tableName, pMeta->colRef[i].refTableName, sizeof(pRTNode->table.tableName));
         tstrncpy(pRTNode->table.tableAlias, pMeta->colRef[i].refTableName, sizeof(pRTNode->table.tableAlias));
-        PAR_ERR_JRET(translateTable(pCxt, (SNode**)&pRTNode, NULL));
+        PAR_ERR_JRET(translateTable(pCxt, (SNode**)&pRTNode, false));
         PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRTNode));
         PAR_ERR_JRET(taosHashPut(pTableNameHash, tableNameKey, strlen(tableNameKey), NULL, 0));
       }
@@ -17662,7 +17662,10 @@ static int32_t rewriteDropVirtualTable(STranslateContext* pCxt, SQuery* pQuery) 
 
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
   PAR_ERR_JRET(buildDropVirtualTableVgroupHashmap(pCxt, pStmt, &name, &tableType, pVgroupHashmap));
-
+  if (0 == taosHashGetSize(pVgroupHashmap)) {
+    taosHashCleanup(pVgroupHashmap);
+    return TSDB_CODE_SUCCESS;
+  }
   PAR_ERR_JRET(serializeVgroupsDropTableBatch(pVgroupHashmap, &pBufArray));
   PAR_ERR_JRET(rewriteToVnodeModifyOpStmt(pQuery, pBufArray));
 

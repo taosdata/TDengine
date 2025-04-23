@@ -192,7 +192,7 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
         STR_TO_VARSTR(buf, "TAG");
         fillTagCol = 1;
       } else if (i == 1 && pMeta->schema[i].flags & COL_IS_KEY) {
-        STR_TO_VARSTR(buf, "PRIMARY KEY")
+        STR_TO_VARSTR(buf, "COMPOSITE KEY")
       } else {
         STR_TO_VARSTR(buf, "");
       }
@@ -608,7 +608,7 @@ static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
       *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
                         "%s`%s` %s", ((i > 0) ? ", " : ""), pSchema->name, type);
     } else {
-      char* pk = "PRIMARY KEY";
+      char* pk = "COMPOSITE KEY";
       *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
                         "%s`%s` %s %s", ((i > 0) ? ", " : ""), pSchema->name, type, pk);
     }

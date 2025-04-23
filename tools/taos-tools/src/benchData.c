@@ -39,9 +39,17 @@ const char *locations_sml[] = {"California.SanFrancisco", "California.LosAngles"
                                "California.Cupertino"};
 
 #ifdef WINDOWS
-#define ssize_t int
-#if _MSC_VER >= 1910
-#include "benchLocations.h"
+    // TODO: why define ssize_t in this way?
+    #define ssize_t int
+    // #if _MSC_VER >= 1910
+    //     #include "benchLocations.h"
+    // #else
+    //     #include "benchLocationsWin.h"
+    // #endif
+    // NOTE: benchLocations.h is UTF-8 encoded, while benchLocationsWin.h is ANSI/GB18030 encoded.
+    //       we don't want to use /utf-8 option in MSVC which will bring more considerations,
+    //       so we use ANSI/GB18030 encoded file for the moment.
+    #include "benchLocationsWin.h"
 #else
 #include "benchLocationsWin.h"
 #endif
