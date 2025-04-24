@@ -781,13 +781,13 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
 
-  int32_t sqlLen = pReq->sql == NULL ? 0 : (int32_t)strlen(pReq->sql);
-  int32_t nameLen = pReq->name == NULL ? 0 : (int32_t)strlen(pReq->name);
-  int32_t outDbLen = pReq->outDB == NULL ? 0 : (int32_t)strlen(pReq->outDB);
-  int32_t streamDBLen = pReq->streamDB == NULL ? 0 : (int32_t)strlen(pReq->streamDB);
-  int32_t triggerDBLen = pReq->triggerDB == NULL ? 0 : (int32_t)strlen(pReq->triggerDB);
-  int32_t triggerTblNameLen = pReq->triggerTblName == NULL ? 0 : (int32_t)strlen(pReq->triggerTblName);
-  int32_t outTblNameLen = pReq->outTblName == NULL ? 0 : (int32_t)strlen(pReq->outTblName);
+  int32_t sqlLen = pReq->sql == NULL ? 0 : (int32_t)strlen(pReq->sql) + 1;
+  int32_t nameLen = pReq->name == NULL ? 0 : (int32_t)strlen(pReq->name) + 1;
+  int32_t outDbLen = pReq->outDB == NULL ? 0 : (int32_t)strlen(pReq->outDB) + 1;
+  int32_t streamDBLen = pReq->streamDB == NULL ? 0 : (int32_t)strlen(pReq->streamDB) + 1;
+  int32_t triggerDBLen = pReq->triggerDB == NULL ? 0 : (int32_t)strlen(pReq->triggerDB) + 1;
+  int32_t triggerTblNameLen = pReq->triggerTblName == NULL ? 0 : (int32_t)strlen(pReq->triggerTblName) + 1;
+  int32_t outTblNameLen = pReq->outTblName == NULL ? 0 : (int32_t)strlen(pReq->outTblName) + 1;
 
   // name part
   TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->name, nameLen));
@@ -797,6 +797,13 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
   TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->triggerDB, triggerDBLen));
   TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->triggerTblName, triggerTblNameLen));
   TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->outTblName, outTblNameLen));
+
+  int32_t calcDbSize = (int32_t)taosArrayGetSize(pReq->calcDB);
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, calcDbSize));
+  for (int32_t i = 0; i < calcDbSize; ++i) {
+    const char *dbName = taosArrayGetP(pReq->calcDB, i);
+    TAOS_CHECK_EXIT((tEncodeCStr(&encoder, dbName)));
+  }
 
   // trigger control part
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->igExists));
@@ -880,8 +887,8 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->trigger.sliding.offset));
 
   // event trigger
-  int32_t eventWindowStartCondLen = pReq->trigger.event.startCond == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.event.startCond);
-  int32_t eventWindowEndCondLen = pReq->trigger.event.endCond == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.event.endCond);
+  int32_t eventWindowStartCondLen = pReq->trigger.event.startCond == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.event.startCond) + 1;
+  int32_t eventWindowEndCondLen = pReq->trigger.event.endCond == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.event.endCond) + 1;
 
   TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->trigger.event.startCond, eventWindowStartCondLen));
   TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->trigger.event.endCond, eventWindowEndCondLen));
@@ -889,7 +896,7 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->trigger.event.trueForDuration));
 
   // count trigger
-  int32_t countWindowCondColsLen = pReq->trigger.count.condCols == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.count.condCols);
+  int32_t countWindowCondColsLen = pReq->trigger.count.condCols == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.count.condCols) + 1;
   TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->trigger.count.condCols, countWindowCondColsLen));
 
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->trigger.count.countVal));
@@ -908,9 +915,9 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->triggerTblVgId));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->outTblVgId));
 
-  int32_t triggerPrevFilterLen = pReq->triggerPrevFilter == NULL ? 0 : (int32_t)strlen((char*)pReq->triggerPrevFilter);
-  int32_t triggerWalScanPlanLen = pReq->triggerWalScanPlan == NULL ? 0 : (int32_t)strlen((char*)pReq->triggerWalScanPlan);
-  int32_t triggerTsdbScanPlanLen = pReq->triggerTsdbScanPlan == NULL ? 0 : (int32_t)strlen((char*)pReq->triggerTsdbScanPlan);
+  int32_t triggerPrevFilterLen = pReq->triggerPrevFilter == NULL ? 0 : (int32_t)strlen((char*)pReq->triggerPrevFilter) + 1;
+  int32_t triggerWalScanPlanLen = pReq->triggerWalScanPlan == NULL ? 0 : (int32_t)strlen((char*)pReq->triggerWalScanPlan) + 1;
+  int32_t triggerTsdbScanPlanLen = pReq->triggerTsdbScanPlan == NULL ? 0 : (int32_t)strlen((char*)pReq->triggerTsdbScanPlan) + 1;
 
   TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->triggerPrevFilter, triggerPrevFilterLen));
   TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->triggerWalScanPlan, triggerWalScanPlanLen));
@@ -921,7 +928,7 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
   for (int32_t i = 0; i < calcScanPlanListSize; ++i) {
     SStreamCalcScan* pCalcScanPlan = (SStreamCalcScan*)taosArrayGet(pReq->calcScanPlanList, i);
     int32_t          vgListSize = (int32_t)taosArrayGetSize(pCalcScanPlan->vgList);
-    int32_t          scanPlanLen = pCalcScanPlan->scanPlan == NULL ? 0 : (int32_t)strlen((char*)pCalcScanPlan->scanPlan);
+    int32_t          scanPlanLen = pCalcScanPlan->scanPlan == NULL ? 0 : (int32_t)strlen((char*)pCalcScanPlan->scanPlan) + 1;
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, vgListSize));
     for (int32_t j = 0; j < vgListSize; ++j) {
       TAOS_CHECK_EXIT(tEncodeI32(&encoder, *(int32_t*)taosArrayGet(pCalcScanPlan->vgList, j)));
@@ -935,9 +942,9 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
     TAOS_CHECK_EXIT(tSerializeSVSubTablesRspImpl(&encoder, (SVSubTablesRsp*)taosArrayGet(pReq->pVSubTables, i)));
   }
 
-  int32_t calcPlanLen = pReq->calcPlan == NULL ? 0 : (int32_t)strlen((char*)pReq->calcPlan);
-  int32_t subTblNameExprLen = pReq->subTblNameExpr == NULL ? 0 : (int32_t)strlen((char*)pReq->subTblNameExpr);
-  int32_t tagValueExprLen = pReq->tagValueExpr == NULL ? 0 : (int32_t)strlen((char*)pReq->tagValueExpr);
+  int32_t calcPlanLen = pReq->calcPlan == NULL ? 0 : (int32_t)strlen((char*)pReq->calcPlan) + 1;
+  int32_t subTblNameExprLen = pReq->subTblNameExpr == NULL ? 0 : (int32_t)strlen((char*)pReq->subTblNameExpr) + 1;
+  int32_t tagValueExprLen = pReq->tagValueExpr == NULL ? 0 : (int32_t)strlen((char*)pReq->tagValueExpr) + 1;
 
   TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->calcPlan, calcPlanLen));
   TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->subTblNameExpr, subTblNameExprLen));
@@ -947,7 +954,7 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, forceOutColsSize));
   for (int32_t i = 0; i < forceOutColsSize; ++i) {
     SStreamOutCol *pCoutCol = (SStreamOutCol*)taosArrayGet(pReq->forceOutCols, i);
-    int32_t        exprLen = pCoutCol->expr == NULL ? 0 : (int32_t)strlen((char*)pCoutCol->expr);
+    int32_t        exprLen = pCoutCol->expr == NULL ? 0 : (int32_t)strlen((char*)pCoutCol->expr) + 1;
 
     TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pCoutCol->expr, exprLen));
     TAOS_CHECK_EXIT(tEncodeU8(&encoder, pCoutCol->type.type));
@@ -977,13 +984,32 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
   int32_t lino;
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(&decoder, (void**)&pReq->name, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(&decoder, (void**)&pReq->sql, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(&decoder, (void**)&pReq->outDB, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(&decoder, (void**)&pReq->streamDB, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(&decoder, (void**)&pReq->triggerDB, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(&decoder, (void**)&pReq->triggerTblName, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(&decoder, (void**)&pReq->outTblName, NULL));
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->name, NULL));
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->sql, NULL));
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->outDB, NULL));
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->streamDB, NULL));
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->triggerDB, NULL));
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->triggerTblName, NULL));
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->outTblName, NULL));
+
+  int32_t calcDbSize = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &calcDbSize));
+  pReq->calcDB = taosArrayInit(calcDbSize, POINTER_BYTES);
+  if (pReq->calcDB == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+  for (int32_t i = 0; i < calcDbSize; ++i) {
+    char *calcDb = NULL;
+    TAOS_CHECK_EXIT(tDecodeCStr(&decoder, &calcDb));
+    calcDb = taosStrndup(calcDb, TSDB_DB_FNAME_LEN);
+    if (calcDb == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    if (taosArrayPush(pReq->calcDB, &calcDb) == NULL) {
+      taosMemoryFree(calcDb);
+      TAOS_CHECK_EXIT(terrno);
+    }
+  }
 
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->igExists));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->triggerType));
@@ -1101,13 +1127,13 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
   int32_t eventWindowStartCondLen = pReq->trigger.event.startCond == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.event.startCond);
   int32_t eventWindowEndCondLen = pReq->trigger.event.endCond == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.event.endCond);
 
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(&decoder, (void**)&pReq->trigger.event.startCond, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(&decoder, (void**)&pReq->trigger.event.endCond, NULL));
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->trigger.event.startCond, NULL));
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->trigger.event.endCond, NULL));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->trigger.event.trueForDuration));
 
   // count trigger
   int32_t countWindowCondColsLen = pReq->trigger.count.condCols == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.count.condCols);
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(&decoder, (void**)&pReq->trigger.count.condCols, NULL));
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->trigger.count.condCols, NULL));
 
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->trigger.count.countVal));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->trigger.count.sliding));
@@ -1125,15 +1151,15 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->triggerTblVgId));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->outTblVgId));
 
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(&decoder, (void**)&pReq->triggerPrevFilter, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(&decoder, (void**)&pReq->triggerWalScanPlan, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(&decoder, (void**)&pReq->triggerTsdbScanPlan, NULL));
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->triggerPrevFilter, NULL));
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->triggerWalScanPlan, NULL));
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->triggerTsdbScanPlan, NULL));
 
   int32_t calcScanPlanListSize = 0;
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &calcScanPlanListSize));
   if (calcScanPlanListSize > 0) {
     pReq->calcScanPlanList = taosArrayInit(calcScanPlanListSize, sizeof(SStreamCalcScan));
-    if (pReq->partitionCols == NULL) {
+    if (pReq->calcScanPlanList == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
     for (int32_t i = 0; i < calcScanPlanListSize; ++i) {
@@ -1152,7 +1178,7 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
             TAOS_CHECK_EXIT(terrno);
           }
         }
-        TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(&decoder, (void**)&calcScan.scanPlan, NULL));
+        TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&calcScan.scanPlan, NULL));
       }
       taosArrayPush(pReq->calcScanPlanList, &calcScan);
     }
@@ -1176,9 +1202,9 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
     }
   }
 
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(&decoder, (void**)&pReq->calcPlan, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(&decoder, (void**)&pReq->subTblNameExpr, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(&decoder, (void**)&pReq->tagValueExpr, NULL));
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->calcPlan, NULL));
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->subTblNameExpr, NULL));
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->tagValueExpr, NULL));
 
   int32_t forceOutColsSize = 0;
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &forceOutColsSize));
@@ -1189,8 +1215,8 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
     }
     for (int32_t i = 0; i < forceOutColsSize; ++i) {
       SStreamOutCol outCol = {0};
-      int32_t       exprLen = 0;
-      TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(&decoder, (void**)&outCol.expr, &exprLen));
+      int64_t       exprLen = 0;
+      TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&outCol.expr, &exprLen));
       TAOS_CHECK_EXIT(tDecodeU8(&decoder, &outCol.type.type));
       TAOS_CHECK_EXIT(tDecodeU8(&decoder, &outCol.type.precision));
       TAOS_CHECK_EXIT(tDecodeU8(&decoder, &outCol.type.scale));
@@ -1255,14 +1281,6 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   if (NULL == pReq) {
     return;
   }
-//  taosMemoryFreeClear(pReq->sql);
-//  taosMemoryFreeClear(pReq->ast);
-//  taosArrayDestroy(pReq->pTags);
-//  taosArrayDestroy(pReq->fillNullCols);
-//  taosArrayDestroy(pReq->pVgroupVerList);
-//  taosArrayDestroy(pReq->pCols);
-//  taosArrayDestroyP(pReq->pNotifyAddrUrls, NULL);
-//  taosArrayDestroyEx(pReq->pVSubTables, tDestroySVSubTablesRsp);
 }
 
 static int32_t tEncodeStreamProgressReq(SEncoder *pEncoder, const SStreamProgressReq *pReq) {
