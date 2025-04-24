@@ -452,11 +452,10 @@ typedef struct SRangeAroundNode {
 
 typedef struct SSelectStmt {
   ENodeType     type;  // QUERY_NODE_SELECT_STMT
-  bool          isDistinct;
+  SNode*        pFromTable;
   STimeWindow   timeRange;
   SNodeList*    pProjectionList;
   SNodeList*    pProjectionBindList;
-  SNode*        pFromTable;
   SNode*        pWhere;
   SNodeList*    pPartitionByList;
   SNodeList*    pTags;      // for create stream
@@ -479,6 +478,7 @@ typedef struct SSelectStmt {
   ETimeLineMode timeLineCurMode;
   ETimeLineMode timeLineResMode;
   int32_t       lastProcessByRowFuncId;
+  bool          isDistinct;
   bool          timeLineFromOrderBy;
   bool          isEmptyResult;
   bool          isSubquery;
