@@ -51,14 +51,14 @@ IF(TD_WEBSOCKET)
                 COMMAND git clean -f -d
             BUILD_COMMAND
                 COMMAND echo "asdfasdf"
-                COMMAND /bin/sh -c "pwd"
-                COMMAND /bin/bash -c "pwd"
+                # COMMAND /bin/sh -c "pwd"
+                # COMMAND /bin/bash -c "pwd"
                 COMMAND which cargo
                 COMMAND echo "hellohello"
                 # COMMAND ${CMAKE_COMMAND} -E env PATH="$ENV{HOME}/.cargo/bin:$ENV{PATH}" cargo build
                 COMMAND /bin/sh -c "echo $PATH"
                 COMMAND /bin/bash -c "echo $PATH"
-                ${CMAKE_COMMAND} -E env PATH=$ENV{HOME}.cargo/bin:$ENV{PATH}
+                # ${CMAKE_COMMAND} -E env PATH=$ENV{HOME}.cargo/bin:$ENV{PATH}
                 COMMAND /bin/sh -c "echo $PATH"
                 COMMAND /bin/bash -c "echo $PATH"
                 COMMAND cargo build --release --locked -p taos-ws-sys --features rustls
