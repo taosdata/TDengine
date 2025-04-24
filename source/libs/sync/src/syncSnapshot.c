@@ -774,7 +774,7 @@ static int32_t syncNodeOnSnapshotPrep(SSyncNode *pSyncNode, SyncSnapshotSend *pM
       sInfo("failed to prepare snapshot, received a new snapshot preparation. restart receiver.");
       goto _START_RECEIVER;
     } else if (order == 0) {
-      sInfo("failed to prepare snapshot, received a duplicate snapshot preparation. send reply.");
+      sInfo("prepare snapshot, received a duplicate snapshot preparation. send reply.");
       goto _SEND_REPLY;
     } else {
       // ignore
@@ -1074,7 +1074,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
 
   // data
   if (pMsg->seq > SYNC_SNAPSHOT_SEQ_BEGIN && pMsg->seq < SYNC_SNAPSHOT_SEQ_END) {
-    sInfo("vgId:%d, begin snapshot receive. msg signature:(%" PRId64 ", %" PRId64 ")", pSyncNode->vgId, pMsg->term,
+    sDebug("vgId:%d, begin snapshot receive. msg signature:(%" PRId64 ", %" PRId64 ")", pSyncNode->vgId, pMsg->term,
           pMsg->startTime);
     code = syncNodeOnSnapshotReceive(pSyncNode, ppMsg);
     goto _out;
