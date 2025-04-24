@@ -61,7 +61,7 @@ IF(TD_WEBSOCKET)
                 # ${CMAKE_COMMAND} -E env PATH=/a/b/c:$ENV{HOME}.cargo/bin:$ENV{PATH} sh -c "echo $PATH"
                 COMMAND /bin/sh -c "echo $PATH"
                 COMMAND /bin/bash -c "echo $PATH"
-                COMMAND cargo build --release --locked -p taos-ws-sys --features rustls
+                COMMAND "${CMAKE_COMMAND}" -E env PATH=$ENV{HOME}/.cargo/bin:$ENV{PATH} cargo build --release --locked -p taos-ws-sys --features rustls
                 COMMAND echo "worldworld"
             INSTALL_COMMAND
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_dll} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ext_taosws_dll}
