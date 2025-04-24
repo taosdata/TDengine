@@ -106,11 +106,11 @@ TDgpt 支持单变量分析预测 (single-variable forecasting) 。3.3.6.4 版�
 使用协变量分析非常简单，使用如下语句即可调用协变量预测分析服务 (以下语句只能在 3.3.6.4 及以后的版本运行)。
 
 当 `forecast` 函数的输入单列的时候，自动调用单变量分析预测。多列输入的时候，第一列为固定的主变量，之后的输入数据列是协变量。
-所有的输入列均只能是数值类型。如下的 SQL 语句展示了调用 moirai 的协变量预测分析功能。
+所有的输入列均只能是数值类型。每次预测查询允许的输入的历史协变量数据（列）限制为 10 列，如下的 SQL 语句展示了调用 moirai 的协变量预测分析功能。
 
 ```sql
 ---- 第一列（val）为主变量，之后的列（past_co_val）为历史协变量，调用 moirai 基础时序模型
-select _frowts, forecast(val, post_co_val, 'algo=moirai') from foo;
+select _frowts, forecast(val, past_co_val, 'algo=moirai') from foo;
 ```
 
 
