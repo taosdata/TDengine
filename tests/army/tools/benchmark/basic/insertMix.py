@@ -70,9 +70,11 @@ class TDTestCase(TBase):
 
     def run(self):
         binPath = etool.benchMarkFile()
-        cmd = "%s -f ./tools/benchmark/basic//json/insertMix.json" % binPath
+        cmd = "%s -f ./tools/benchmark/basic/json/insertMix.json" % binPath
         self.insert(cmd)
-        cmd = "%s -f ./tools/benchmark/basic//json/insertMixOldRule.json" % binPath
+        cmd = "%s -f ./tools/benchmark/basic/json/insertMixOldRule.json" % binPath
+        self.insert(cmd)
+        cmd = "%s -f ./tools/benchmark/basic/json/insertMixAutoCreateTable.json" % binPath
         self.insert(cmd)
 
     def stop(self):
