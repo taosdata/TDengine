@@ -32,8 +32,10 @@ IF(TD_WEBSOCKET)
             PATCH_COMMAND
                 COMMAND git clean -f -d
             BUILD_COMMAND
+                COMMAND echo "asdfasdf"
                 COMMAND which cargo
                 COMMAND echo "hellohello"
+                COMMAND ${CMAKE_COMMAND} -E env PATH="$ENV{HOME}/.cargo/bin:$ENV{PATH}" cargo build
                 COMMAND /bin/sh -c "echo $PATH"
                 COMMAND /bin/bash -c "echo $PATH"
                 ${CMAKE_COMMAND} -E env PATH=$ENV{HOME}.cargo/bin:$ENV{PATH}
