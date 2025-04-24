@@ -79,8 +79,7 @@ static void stRunnerTaskExecMgrReleaseExec(SStreamRunnerTask* pTask, SStreamRunn
   taosThreadMutexUnlock(&pMgr->lock);
 }
 
-int32_t stRunnerTaskDeploy(SStreamRunnerTask** ppTask, const SStreamRunnerDeployMsg* pMsg) {
-  SStreamRunnerTask* pTask = taosMemoryCalloc(1, sizeof(SStreamRunnerTask));
+int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
   if (!pTask) {
     ST_TASK_ELOG("failed to allocate memory when deploy task, code:%s", tstrerror(terrno));
     return terrno;
@@ -151,7 +150,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, const char* pMsg, int32_t 
 }
 
 static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec) {
-  int32_t vgId = pTask->task.vgId;
+  int32_t vgId = pTask->task.nodeId;
   int64_t st = taosGetTimestampMs();
   int64_t streamId = pTask->task.streamId;
   int32_t taskId = pTask->task.taskId;

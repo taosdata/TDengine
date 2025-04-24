@@ -25,44 +25,6 @@
 extern "C" {
 #endif
 
-typedef struct SStreamRunnerTaskExecution {
-  const char* pPlan;
-  void*       pExecutor;
-  void*       notifyEventSup;
-} SStreamRunnerTaskExecution; // TODO wjm move back into Runner.c
-
-typedef struct SStreamRunnerTaskOutput {
-  struct SSDataBlock* pBlock;
-} SStreamRunnerTaskOutput;
-
-typedef struct SStreamRunnerTaskNotification {
-} SStreamRunnerTaskNotification;
-
-typedef struct SStreamRunnerTaskExecMgr {
-  SList*        pFreeExecs;
-  SList*        pRunningExecs;
-  TdThreadMutex lock;
-  bool          exit;
-} SStreamRunnerTaskExecMgr;
-
-typedef struct SStreamRunnerTask {
-  SStreamTask                   task;
-  SStreamRunnerTaskExecMgr      pExecMgr;
-  SStreamRunnerTaskOutput       output;
-  SStreamRunnerTaskNotification notification;
-  bool                          forceWindowClose;
-  const char*                   pPlan;
-  int32_t                       parallelExecutionNun;
-  SReadHandle                   handle;
-} SStreamRunnerTask;
-
-typedef struct SStreamRunnerDeployMsg {
-  SStreamTask           task;
-  const char*           pPlan;
-  SReadHandle           handle;
-  bool                  forceOutput;
-  const char*           pSubTableExpr;
-} SStreamRunnerDeployMsg;
 struct SStreamRunnerUndeployMsg;
 struct SStreamRunnerTaskStatus;
 

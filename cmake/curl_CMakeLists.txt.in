@@ -12,7 +12,7 @@ ExternalProject_Add(curl2
         BUILD_IN_SOURCE TRUE
         BUILD_ALWAYS 1
         UPDATE_COMMAND ""
-        CONFIGURE_COMMAND ${CONTRIB_CONFIG_ENV} ./configure --prefix=$ENV{HOME}/.cos-local.2 --with-ssl=$ENV{HOME}/.cos-local.2  --enable-websockets --enable-shared=no --disable-ldap --disable-ldaps --without-brotli --without-zstd --without-libidn2 --without-nghttp2 --without-libpsl --without-librtmp #--enable-debug
+        CONFIGURE_COMMAND ${CONTRIB_CONFIG_ENV} ./configure --prefix=$ENV{HOME}/.cos-local.2 --with-ssl=$ENV{HOME}/.cos-local.2  --enable-websockets --enable-shared=no --disable-ldap --disable-ldaps --without-brotli --without-zstd --without-libidn2 --without-nghttp2 --without-libpsl --without-librtmp --without-ssl
         BUILD_COMMAND make -j
         INSTALL_COMMAND make install
         TEST_COMMAND ""

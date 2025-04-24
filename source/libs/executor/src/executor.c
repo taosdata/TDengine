@@ -1587,7 +1587,7 @@ static int32_t streamDoNotification(qTaskInfo_t tInfo, const SSDataBlock* pBlock
   QUERY_CHECK_NULL(pSupp->pWindowEventHashMap, code, lino, _end, terrno);
   // TODO wjm pSupp->windowType = ???
 
-  code = addAggResultNotifyEvent(pBlock, NULL, NULL, pSupp, &stats);
+  //code = addAggResultNotifyEvent(pBlock, NULL, NULL, pSupp, &stats);
   if (code == 0) {
     code = buildNotifyEventBlock(tInfo, pSupp, &stats);
   }
