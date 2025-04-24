@@ -41,14 +41,15 @@ typedef struct {
   SBlockCache   *pBlockCache;
   TdThreadRwlock mutex;
   SBse          *pBse;
+
+  void *pMgt;
 } STableReaderMgt;
 
 typedef struct {
-  SArray   *pMetaSet;
   char      path[TSDB_FILENAME_LEN];
-  int64_t   offset;
-  TdFilePtr pFile;
   SBse     *pBse;
+
+  SBTableMeta *pTableMeta;
 } STableMetaMgt;
 
 typedef struct {
@@ -79,7 +80,9 @@ int32_t bseTableMgtSetBlockCacheSize(STableMgt *pMgt, int32_t cap);
 int32_t bseTableMgtSetTableCacheSize(STableMgt *pMgt, int32_t cap);
 
 int32_t blockWithMetaInit(SBlock *pBlock, SBlockWithMeta **pMeta);
+
 int32_t blockWithMetaCleanup(SBlockWithMeta *p);
+
 int32_t blockWithMetaSeek(SBlockWithMeta *p, int64_t seq, uint8_t **pValue, int32_t *len);
 #ifdef __cplusplus
 }

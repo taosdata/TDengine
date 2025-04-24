@@ -48,12 +48,12 @@ extern "C" {
 
 #define BSE_FILE_FULL_LEN TSDB_FILENAME_LEN
 
-void bseBuildDataFullName(SBse *pBse, int64_t ver, char *name);
+void bseBuildDataFullName(SBse *pBse, char *name, char *buf);
 void bseBuildIndexFullName(SBse *pBse, int64_t ver, char *name);
 void bseBuildLogFullName(SBse *pBse, int64_t ver, char *buf);
 void bseBuildCurrentName(SBse *pBse, char *name) ;
 void bseBuildTempCurrentName(SBse *pBse, char *name);
-void bseBuildMetaName(SBse *pBse, int ver, char *name);
+void bseBuildMetaName(SBse *pBse,char *name);
 void bseBuildTempMetaName(SBse *pBse, char *name);
 void bseBuildFullName(SBse *pBse, char *name, char *fullname);
 void bseBuildDataName(SBse *pBse, int64_t seq, char *name);

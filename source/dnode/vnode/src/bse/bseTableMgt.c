@@ -37,7 +37,7 @@ static void    tableBuilderMgtDestroy(STableBuilderMgt *pMgt);
 
 static int32_t tableMetaMgtInit(STableMetaMgt *pMgt, SBse *pBse);
 static int32_t tableMetaMgtCommit(STableMetaMgt *pMgt, SBseLiveFileInfo *pInfo);
-static void    tableMetaClear(STableMetaMgt *pMgt);
+static void    tableMetaMgtDestroy(STableMetaMgt *pMgt);
 
 static void tableReaderFree(void *pReader);
 
@@ -55,6 +55,9 @@ int32_t bseTableMgtCreate(SBse *pBse, void **pMgt) {
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = tableReaderMgtInit(p->pReaderMgt, pBse);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = tableMetaMgtInit(p->pTableMetMgt, pBse);
   TSDB_CHECK_CODE(code, lino, _error);
 
   *pMgt = p;
@@ -90,6 +93,8 @@ int32_t bseTableMgtCleanup(void *pMgt) {
   STableMgt *p = (STableMgt *)pMgt;
   tableBuilderMgtDestroy(p->pBuilderMgt);
   tableReaderMgtDestroy(p->pReaderMgt);
+  tableMetaMgtDestroy(p->pTableMetMgt);
+
   taosMemoryFree(p);
   return 0;
 }
@@ -237,7 +242,14 @@ int32_t compareFileInfoFunc(const void *a, const void *b) {
 
 int32_t findTargetTable(SArray *pFileList, int64_t seq) {
   SBseLiveFileInfo target = {.sseq = seq, .eseq = seq};
-  return taosArraySearchIdx(pFileList, &target, compareFileInfoFunc, TD_LE);
+  for (int32_t i = 0; i < taosArrayGetSize(pFileList); i++) {
+    SBseLiveFileInfo *p = taosArrayGet(pFileList, i);
+    SSeqRange         range = {.sseq = p->sseq, .eseq = p->eseq};
+    if (inSeqRange(&range, seq)) {
+      return i;
+    }
+  }
+  return -1;
 }
 int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t code = 0;
@@ -256,35 +268,11 @@ int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **p
   memcpy(&info, pInfo, sizeof(SBseLiveFileInfo));
   taosThreadRwlockUnlock(&pReaderMgt->mutex);
 
-  SSeqRange range = {.sseq = info.sseq, .eseq = info.eseq};
-  if (inSeqRange(&range, seq)) {
-    SCacheItem *pItem = NULL;
+  code = tableReaderOpen(info.name, &pReader, pReaderMgt);
+  TSDB_CHECK_CODE(code, lino, _error);
+  code = tableReaderGet(pReader, seq, pValue, len);
 
-    STableReader *pReader = NULL;
-    code = tableCacheGet(pReaderMgt->pTableCache, &range, &pItem);
-    if (code != 0) {
-      char name[TSDB_FILENAME_LEN] = {0};
-      bseBuildFullName((SBse *)pReaderMgt->pBse, info.name, name);
-
-      code = tableReaderOpen(name, &pReader, pReaderMgt);
-      TSDB_CHECK_CODE(code, lino, _error);
-
-      if (pReader->putInCache == 1) {
-        code = tableCachePut(pReaderMgt->pTableCache, &range, pReader);
-        if (code != 0) {
-          bseError("failed to put table reader to cache at lino %d since %s", lino, tstrerror(code));
-          TSDB_CHECK_CODE(code, lino, _error);
-        }
-      }
-    } else {
-      pReader = pItem->pItem;
-    }
-    code = tableReaderGet(pReader, seq, pValue, len);
-
-    if (pItem) bseCacheUnrefItem(pItem);
-
-    TSDB_CHECK_CODE(code, lino, _error);
-  }
+  TSDB_CHECK_CODE(code, lino, _error);
 _error:
   if (code != 0) {
     bseError("failed to seek table pReaderMgt at line %d since %s", lino, tstrerror(code));
@@ -431,13 +419,25 @@ int32_t tableBuilderMgtSeek(STableBuilderMgt *pMgt, int64_t seq, uint8_t **pValu
 
 int32_t tableBuilderMgtGetBuilder(STableBuilderMgt *pMgt, int64_t seq, STableBuilder **pBuilder) {
   int32_t code = 0;
-  char    path[TSDB_FILENAME_LEN] = {0};
+  char    name[TSDB_FILENAME_LEN] = {0};
 
   SBse *pBse = pMgt->pBse;
-  bseBuildDataName(pMgt->pBse, seq, path);
+  SBseCommitInfo *pCommitInfo = &pBse->commitInfo;
 
+
+  int64_t ts = taosGetTimestampSec();
+  if (taosArrayGetSize(pCommitInfo->pFileList)) {
+    SBseLiveFileInfo *pInfo = taosArrayGetLast(pCommitInfo->pFileList);
+    if ((ts - pInfo->timestamp) < pBse->retention) {
+      ts = pInfo->timestamp;
+    }
+  }
+
+  bseBuildDataName(pBse, ts, name); 
+
+  // truncate the file  
   STableBuilder *p = NULL;
-  code = tableBuilderOpen(path, &p, pBse);
+  code = tableBuilderOpen(name, &p, pBse);
   if (code != 0) {
     return code;
   }
@@ -465,7 +465,6 @@ int32_t tableBuilderMgtCommit(STableBuilderMgt *pMgt, SBseLiveFileInfo *pInfo, i
   if (pBuilder != NULL) {
     code = tableBuilderCommit(pBuilder, pInfo);
     TSDB_CHECK_CODE(code, lino, _error);
-
     *commited = 1;
   }
 _error:
@@ -487,10 +486,9 @@ int32_t tableMetaMgtInit(STableMetaMgt *pMgt, SBse *pBse) {
   int32_t code = 0;
   int32_t lino = 0;
   pMgt->pBse = pBse;
-  pMgt->pMetaSet = taosArrayInit(1, sizeof(void *));
-  if (pMgt->pMetaSet == NULL) {
-    TSDB_CHECK_CODE(code = terrno, lino, _error);
-  }
+
+  code = tableMetaOpen(NULL, &pMgt->pTableMeta, pMgt);
+  TSDB_CHECK_CODE(code, lino, _error);
 
 _error:
   if (code != 0) {
@@ -503,7 +501,14 @@ static int32_t tableMetaMgtCommit(STableMetaMgt *pMgt, SBseLiveFileInfo *pInfo) 
     
   return code;
 }
-static void tableMetaClear(STableMetaMgt *pMgt) {
-  taosCloseFile(&pMgt->pFile);
-  return;
+static void tableMetaMgtDestroy(STableMetaMgt *pMgt) {
+  if (pMgt->pTableMeta != NULL) {
+    tableMetaClose(pMgt->pTableMeta);
+    pMgt->pTableMeta = NULL;
+  }
+}
+
+static int32_t tableMetaSeek(STableMetaMgt *pMgt, int64_t seq, SMetaBlock *pBlock) {
+  int32_t code = 0;
+  return 0;
 }

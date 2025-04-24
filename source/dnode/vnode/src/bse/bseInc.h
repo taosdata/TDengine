@@ -57,6 +57,8 @@ struct SBse {
   SBatchMgt      batchMgt[1];
   void          *pTableMgt;
   SBseCommitInfo commitInfo;
+
+  int64_t retention;
 };
 
 struct SBseBatch {

@@ -41,8 +41,9 @@ static int32_t bseRawFileWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBse
   SSeqRange *range = &pMeta->range;
   bseBuildDataName(p->pBse, range->sseq, p->name);
 
+  char name[TSDB_FILENAME_LEN] = {0};
   char path[TSDB_FILENAME_LEN] = {0};
-  bseBuildDataFullName(p->pBse, range->sseq, path);
+  bseBuildDataFullName(p->pBse, name, path);
   p->pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
   if (p->pFile == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);

@@ -66,6 +66,15 @@ typedef struct {
 } SBlock;
 
 typedef struct {
+  int8_t    type;
+  int8_t    version;
+  int16_t   reserve;
+  int64_t   offset;
+  int64_t   size;
+  SSeqRange range;
+} SMetaBlock;
+
+typedef struct {
   SBlock *pBlock;
   SArray *pMeta;
 } SBlockWithMeta;
@@ -75,6 +84,7 @@ typedef struct {
   int32_t cap;
   int8_t  type;
   int64_t size;
+  int8_t  compressType;
 
   void *pCachItem;
 } SBlockWrapper;
@@ -84,15 +94,47 @@ void    blockWrapperCleanup(SBlockWrapper *p);
 int32_t blockWrapperResize(SBlockWrapper *p, int32_t cap);
 void    blockWrapperClear(SBlockWrapper *p);
 void    blockWrapperTransfer(SBlockWrapper *dst, SBlockWrapper *src);
+void    blockWrapperSetType(SBlockWrapper *p, int8_t type);
 int8_t  inSeqRange(SSeqRange *p, int64_t seq);
 int8_t  isGreaterSeqRange(SSeqRange *p, int64_t seq);
 
 typedef struct {
   char          name[TSDB_FILENAME_LEN];
-  TdFilePtr     pDataFile;
-  TdFilePtr     pMetaFile;
+  TdFilePtr     pFile;
   STableFooter  footer;
+  SArray       *pBlkHandle;
+  SArray       *pLastBlkHandle;
+  int64_t       offset;
+  int64_t       size;
+  int32_t       blockCap;
+  SArray       *pBlock;
+  SBlockWrapper blockWrapper;
+
+  void *pTableMeta;
+} SBtableMetaReader, SBtableMetaWriter;
+
+typedef struct {
+  int32_t            blkIdx;
+  SBlockWrapper      pBlockWrapper;
+  int8_t             isOver;
+  SBtableMetaReader *pReader;
+} SBtableMetaReaderIter;
+
+typedef struct {
+  char    name[TSDB_FILENAME_LEN];
+  int32_t blockCap;
+
+  SBse *pBse;
+
+  SBtableMetaWriter *pWriter;
+  SBtableMetaReader *pReader;
+  // SArray *pReaderBlkHandle;
+} SBTableMeta;
+typedef struct {
+  char             name[TSDB_FILENAME_LEN];
+  TdFilePtr        pDataFile;
   SArray       *pSeqToBlock;
+  SArray          *pMeta;
   SArray       *pMetaHandle;
   SBlockWrapper pBlockWrapper;
   int32_t       blockCap;
@@ -101,7 +143,7 @@ typedef struct {
   int32_t       blockId;
   SSeqRange     tableRange;
   SSeqRange     blockRange;
-
+  SBTableMeta     *pTableMeta;
   SBse   *pBse;
   int32_t nRef;
 
@@ -119,28 +161,17 @@ typedef struct {
   void   *pReaderMgt;
   int8_t  putInCache;
 
+  SBtableMetaReader *pMetaReader;
+  SBlockWrapper      blockWrapper;
   SSeqRange range;
 } STableReader;
-
-typedef struct {
-  char          name[TSDB_FILENAME_LEN];
-  TdFilePtr     pFile;
-  SArray       *pMetaSet;
-  SArray       *pMetaHandle;
-  SArray       *pIndexMeta;
-  STableFooter  footer;
-  int64_t       size;
-  void         *pTableMetaMgt;
-  void         *pBse;
-  SBlockWrapper pBlockWrapper;
-  int64_t       offset;
-} STableMeta;
 
 typedef struct {
   int64_t sseq;
   int64_t eseq;
   int64_t size;
   int32_t level;
+  int64_t timestamp;
   char    name[TSDB_FILENAME_LEN];
 } SBseLiveFileInfo;
 
@@ -152,7 +183,7 @@ int32_t tableBuilderFlush(STableBuilder *p, int8_t type);
 int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo);
 int32_t tableBuilderClose(STableBuilder *p, int8_t commited);
 void    tableBuilderClear(STableBuilder *p);
-int32_t tableBuilderOpenFile(STableBuilder *p);
+int32_t tableBuilderOpenFile(STableBuilder *p, char *name);
 
 int32_t tableReaderOpen(char *name, STableReader **pReader, void *pReaderMgt);
 void    tableReaderShouldPutToCache(STableReader *pReader, int8_t putInCache);
@@ -160,12 +191,13 @@ int32_t tableReaderGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *
 int32_t tableReaderClose(STableReader *p);
 int32_t tableReaderGetMeta(STableReader *p, SArray **pMeta);
 
-int32_t tableMetaOpen(char *name, STableMeta **pMeta, void *pMetaMgt);
-int32_t tableMetaCommit(STableMeta *pMeta);
-int32_t tableMetaAppend(STableMeta *pMeta, SBlkHandle *pHandle);
-int32_t tableMetaGetBlkHandle(STableMeta *pMeta, int64_t seq, SBlkHandle **pHandle);
-void    tableMetaClose(STableMeta *p);
-int32_t tableMetaRecover(STableMeta *pMeta);
+int32_t tableMetaOpen(char *name, SBTableMeta **pMeta, void *pMetaMgt);
+int32_t tableMetaCommit(SBTableMeta *pMeta, SArray *pBlock);
+int32_t tableMetaAppend(SBTableMeta *pMeta, SMetaBlock *pBlock);
+int32_t tableMetaWriterAppendBlock(SBtableMetaWriter *pMeta, SArray *pBlock);
+int32_t tableMetaReaderGetBlockMeta(SBtableMetaReader *pMeta, int64_t seq, SMetaBlock *pBlock);
+void    tableMetaClose(SBTableMeta *p);
+int32_t tableMetaRecover(SBTableMeta *pMeta);
 
 //  int32_t tableReaderSeekToFirst(STableReader *p);
 //  int32_t tableReaderNext(STableReader *p, SBlock **pBlock);

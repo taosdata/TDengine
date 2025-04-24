@@ -112,11 +112,11 @@ int32_t bseDecompressData(int8_t type, void *src, int32_t srcSize, void *dst, in
 }
 
 // build file path func
-void bseBuildDataFullName(SBse *pBse, int64_t ver, char *buf) {
+void bseBuildDataFullName(SBse *pBse, char *name, char *buf) {
   // build data file name
   // snprintf(name, strlen(name), "%s/%s020"."BSE_DATA_SUFFIX, ver, pBse->path);
   // sprintf(name, strlen(name), "%s/%020"."BSE_DATA_SUFFIX, ver, pBse->path);
-  TAOS_UNUSED(sprintf(buf, "%s/%" PRId64 ".%s", pBse->path, ver, BSE_DATA_SUFFIX));
+  TAOS_UNUSED(sprintf(buf, "%s/%s.%s", pBse->path, name, BSE_DATA_SUFFIX));
 }
 
 void bseBuildIndexFullName(SBse *pBse, int64_t ver, char *buf) {
@@ -135,7 +135,7 @@ void bseBuildTempCurrentName(SBse *pBse, char *name) {
   snprintf(name, BSE_FILE_FULL_LEN, "%s%sCURRENT.temp", pBse->path, TD_DIRSEP);
 }
 
-void bseBuildMetaName(SBse *pBse, int ver, char *name) {
+void bseBuildMetaName(SBse *pBse, char *name) {
   snprintf(name, BSE_FILE_FULL_LEN, "%s%sbse-ver-%s", pBse->path, TD_DIRSEP, BSE_META_SUFFIX);
 }
 void bseBuildTempMetaName(SBse *pBse, char *name) {
