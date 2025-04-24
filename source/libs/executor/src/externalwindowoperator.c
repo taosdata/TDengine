@@ -118,7 +118,6 @@ static int32_t mergeAlignedExternalWindowNext(SOperatorInfo* pOperator, SSDataBl
   return code;
 }
 
-
 int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SMergeAlignedIntervalPhysiNode* pPhynode,
                                                  SExecTaskInfo* pTaskInfo, SOperatorInfo** ppOptrOut) {
   int32_t code = 0;
@@ -169,8 +168,9 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SMe
   code = blockDataEnsureCapacity(pExtW->binfo.pRes, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _error);
   setOperatorInfo(pOperator, "MergeAlignedExternalWindowOperator", 0, false, OP_NOT_OPENED, pMlExtInfo, pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, 0 /*next fn*/, NULL, destroyMergeAlignedExternalWindowOperator,
-                                         optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, mergeAlignedExternalWindowNext, NULL,
+                                         destroyMergeAlignedExternalWindowOperator, optrDefaultBufFn, NULL,
+                                         optrDefaultGetNextExtFn, NULL);
 
   code = appendDownstream(pOperator, &pDownstream, 1);
   QUERY_CHECK_CODE(code, lino, _error);
@@ -520,6 +520,8 @@ static int32_t doMergeAlignExtWindowAgg(SOperatorInfo* pOperator, SResultRowInfo
     // TODO wjm
   }
 
+  STimeWindow win = *pWin;
+
   code = setSingleOutputTupleBuf(pResultRowInfo, pWin, &pMlExtInfo->pResultRow, pSup, &pExtW->aggSup);
   if (code != 0 || pMlExtInfo->pResultRow == NULL) {
     T_LONG_JMP(pTaskInfo->env, code);
@@ -528,10 +530,39 @@ static int32_t doMergeAlignExtWindowAgg(SOperatorInfo* pOperator, SResultRowInfo
   int32_t currPos = startPos;
 
   while (++currPos < pBlock->info.rows) {
+    if (tsCols[currPos] == pMlExtInfo->curTs) continue;
 
+    updateTimeWindowInfo(&pExtW->twAggSup.timeWindowData, &win, 0);// TODO wjm take care of win end key
+    code = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pExtW->twAggSup.timeWindowData, startPos, currPos - startPos, pBlock->info.rows, pSup->numOfExprs);
+    if (code != 0) {
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
+
+    finalizeResultRows(pExtW->aggSup.pResultBuf, &pResultRowInfo->cur, pSup, pResultBlock, pTaskInfo);
+    resetResultRow(pMlExtInfo->pResultRow, pExtW->aggSup.resultRowSize - sizeof(SResultRow));
+
+    pWin = getExtNextWindow(pOperator);
+    if (!pWin) break;
+    startPos = currPos;
+    code = setSingleOutputTupleBuf(pResultRowInfo, pWin, &pMlExtInfo->pResultRow, pSup, &pExtW->aggSup);
+    if (code != 0 || pMlExtInfo->pResultRow == NULL) {
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
+    pMlExtInfo->curTs = pWin->skey;
   }
 
+  updateTimeWindowInfo(&pExtW->twAggSup.timeWindowData, &win, 0);  // TODO wjm take care of win end key
+  code = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pExtW->twAggSup.timeWindowData, startPos,
+                                         currPos - startPos, pBlock->info.rows, pSup->numOfExprs);
+  if (code != 0) {
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
   return code;
+}
+
+static int32_t doMergeAlignExtWindowProject(SOperatorInfo* pOperator, SResultRowInfo* pResultRowInfo, SSDataBlock* pBlock,
+                                            SSDataBlock* pResultBlock) {
+  return blockDataMerge(pResultBlock, pBlock);
 }
 
 void doMergeAlignExternalWindow(SOperatorInfo* pOperator) {
@@ -556,7 +587,7 @@ void doMergeAlignExternalWindow(SOperatorInfo* pOperator) {
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (pExtW->scalarMode) {
-
+      code = doMergeAlignExtWindowProject(pOperator, &pExtW->binfo.resultRowInfo, pBlock, pRes);
     } else {
       code = doMergeAlignExtWindowAgg(pOperator, &pExtW->binfo.resultRowInfo, pBlock, pRes);
     }

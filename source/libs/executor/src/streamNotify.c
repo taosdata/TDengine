@@ -154,7 +154,6 @@ void destroyStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo) {
 
   blockDataDestroy(pBasicInfo->pDelRes);
   pBasicInfo->pDelRes = NULL;
-  taosArrayDestroyP(pBasicInfo->pUpdated, destroyFlusedPos);
   pBasicInfo->pUpdated = NULL;
 
   pBasicInfo->pTsDataState = NULL;
@@ -869,10 +868,6 @@ int32_t removeOutdatedNotifyEvents(STimeWindowAggSupp* pTwSup, SStreamNotifyEven
   while (pIter) {
     const SStreamNotifyEvent* pEvent = (const SStreamNotifyEvent*)pIter;
     pIter = taosHashIterate(sup->pWindowEventHashMap, pIter);
-    if (isOverdue(pEvent->win.ekey, pTwSup)) {
-      code = taosHashRemove(sup->pWindowEventHashMap, pEvent, NOTIFY_EVENT_KEY_SIZE);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
   }
 
   pNotifyEventStat->notifyEventHoldElems = taosHashGetSize(sup->pWindowEventHashMap);

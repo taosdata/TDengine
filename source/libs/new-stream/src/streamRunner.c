@@ -80,12 +80,9 @@ static void stRunnerTaskExecMgrReleaseExec(SStreamRunnerTask* pTask, SStreamRunn
 }
 
 int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
-  if (!pTask) {
-    ST_TASK_ELOG("failed to allocate memory when deploy task, code:%s", tstrerror(terrno));
-    return terrno;
-  }
   pTask->task = pMsg->task;
   pTask->pPlan = pMsg->pPlan;  // TODO wjm do we need to deep copy this char*
+  pTask->forceOutput = pMsg->forceOutput;
   //pTask->handle = pMsg->handle;
   int32_t code = stRunnerInitTaskExecMgr(pTask);
   if (code != 0) {
@@ -158,7 +155,8 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
 
   ST_TASK_DLOG("vgId:%d start to build stream task", vgId);
 
-  code = qCreateStreamExecTaskInfo(&pExec->pExecutor, (void*)pExec->pPlan, &pTask->handle, vgId, taskId);
+  SReadHandle handle = {0};
+  code = qCreateStreamExecTaskInfo(&pExec->pExecutor, (void*)pExec->pPlan, &handle, vgId, taskId);
   if (code) {
     ST_TASK_ELOG("failed to build task, code:%s", tstrerror(code));
     return code;

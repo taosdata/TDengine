@@ -69,7 +69,7 @@ typedef struct SStreamRunnerTask {
   SStreamRunnerTaskExecMgr      pExecMgr;
   SStreamRunnerTaskOutput       output;
   SStreamRunnerTaskNotification notification;
-  bool                          forceWindowClose;
+  bool                          forceOutput;
   const char*                   pPlan;
   int32_t                       parallelExecutionNun;
   SReadHandle                   handle;
