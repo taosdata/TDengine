@@ -1,6 +1,24 @@
 IF(TD_WEBSOCKET)
     MESSAGE("${Green} use libtaos-ws${ColourReset}")
 
+        EXECUTE_PROCESS(
+            COMMAND echo $ENV{PATH}
+            OUTPUT_VARIABLE path_output
+        )
+        message("path_output: ${path_output}")
+
+        EXECUTE_PROCESS(
+            COMMAND which cargo
+            OUTPUT_VARIABLE cargo_output
+        )
+        message("cargo_output: ${cargo_output}")
+
+        EXECUTE_PROCESS(
+            COMMAND echo $ENV{SHELL}
+            OUTPUT_VARIABLE shell_output
+        )
+        message("shell_output: ${shell_output}")
+
         if(${TD_LINUX})
             set(ext_taosws_dll      libtaosws.so)
             set(ext_taosws_lib_from libtaosws.a)
@@ -33,9 +51,11 @@ IF(TD_WEBSOCKET)
                 COMMAND git clean -f -d
             BUILD_COMMAND
                 COMMAND echo "asdfasdf"
+                COMMAND /bin/sh -c "pwd"
+                COMMAND /bin/bash -c "pwd"
                 COMMAND which cargo
                 COMMAND echo "hellohello"
-                COMMAND ${CMAKE_COMMAND} -E env PATH="$ENV{HOME}/.cargo/bin:$ENV{PATH}" cargo build
+                # COMMAND ${CMAKE_COMMAND} -E env PATH="$ENV{HOME}/.cargo/bin:$ENV{PATH}" cargo build
                 COMMAND /bin/sh -c "echo $PATH"
                 COMMAND /bin/bash -c "echo $PATH"
                 ${CMAKE_COMMAND} -E env PATH=$ENV{HOME}.cargo/bin:$ENV{PATH}
