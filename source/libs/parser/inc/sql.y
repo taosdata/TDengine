@@ -275,6 +275,7 @@ db_options(A) ::= db_options(B) PAGES NK_INTEGER(C).                            
 db_options(A) ::= db_options(B) PAGESIZE NK_INTEGER(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_PAGESIZE, &C); }
 db_options(A) ::= db_options(B) TSDB_PAGESIZE NK_INTEGER(C).                      { A = setDatabaseOption(pCxt, B, DB_OPTION_TSDB_PAGESIZE, &C); }
 db_options(A) ::= db_options(B) PRECISION NK_STRING(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_PRECISION, &C); }
+db_options(A) ::= db_options(B) REPLICAS NK_INTEGER(C).                            { A = setDatabaseOption(pCxt, B, DB_OPTION_REPLICA, &C); }
 db_options(A) ::= db_options(B) REPLICA NK_INTEGER(C).                            { A = setDatabaseOption(pCxt, B, DB_OPTION_REPLICA, &C); }
 //db_options(A) ::= db_options(B) STRICT NK_STRING(C).                              { A = setDatabaseOption(pCxt, B, DB_OPTION_STRICT, &C); }
 db_options(A) ::= db_options(B) VGROUPS NK_INTEGER(C).                            { A = setDatabaseOption(pCxt, B, DB_OPTION_VGROUPS, &C); }
@@ -327,6 +328,7 @@ alter_db_option(A) ::= KEEP integer_list(B).                                    
 alter_db_option(A) ::= KEEP variable_list(B).                                     { A.type = DB_OPTION_KEEP; A.pList = B; }
 alter_db_option(A) ::= PAGES NK_INTEGER(B).                                       { A.type = DB_OPTION_PAGES; A.val = B; }
 alter_db_option(A) ::= REPLICA NK_INTEGER(B).                                     { A.type = DB_OPTION_REPLICA; A.val = B; }
+alter_db_option(A) ::= REPLICAS NK_INTEGER(B).                                    { A.type = DB_OPTION_REPLICA; A.val = B; }
 //alter_db_option(A) ::= STRICT NK_STRING(B).                                       { A.type = DB_OPTION_STRICT; A.val = B; }
 alter_db_option(A) ::= WAL_LEVEL NK_INTEGER(B).                                   { A.type = DB_OPTION_WAL; A.val = B; }
 alter_db_option(A) ::= STT_TRIGGER NK_INTEGER(B).                                 { A.type = DB_OPTION_STT_TRIGGER; A.val = B; }
@@ -858,6 +860,7 @@ column_stream_def_list(A) ::= column_stream_def_list(B)
 column_stream_def(A) ::= column_name(B) stream_col_options(C).                    { A = createColumnDefNode(pCxt, &B, createDataType(TSDB_DATA_TYPE_NULL), C); }
 stream_col_options(A) ::= .                                                       { A = createDefaultColumnOptions(pCxt); }
 stream_col_options(A) ::= stream_col_options(B) PRIMARY KEY.                      { A = setColumnOptionsPK(pCxt, B); }
+stream_col_options(A) ::= stream_col_options(B) COMPOSITE KEY.                    { A = setColumnOptionsPK(pCxt, B); }
 //column_stream_def(A) ::= column_def(B).                                         { A = B; }
 
 %type tag_def_or_ref_opt                                                          { SNodeList* }
@@ -1872,6 +1875,7 @@ null_ordering_opt(A) ::= NULLS LAST.                                            
 
 column_options(A) ::= .                                                           { A = createDefaultColumnOptions(pCxt); }
 column_options(A) ::= column_options(B) PRIMARY KEY.                              { A = setColumnOptionsPK(pCxt, B); }
+column_options(A) ::= column_options(B) COMPOSITE KEY.                            { A = setColumnOptionsPK(pCxt, B); }
 column_options(A) ::= column_options(B) NK_ID(C) NK_STRING(D).                    { A = setColumnOptions(pCxt, B, &C, &D); }
 column_options(A) ::= column_options(B) FROM column_ref(C).                       { A = setColumnReference(pCxt, B, C); }
 

@@ -15,27 +15,42 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
+#include "pub.h"
+#include "bench.h"
+#include "benchLog.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-// lower
-char* strToLowerCopy(const char *str) {
-  if (str == NULL) {
-      return NULL;
-  }
-  size_t len = strlen(str);
-  char *result = (char*)malloc(len + 1);
-  if (result == NULL) {
-      return NULL;
-  }
-  for (size_t i = 0; i < len; i++) {
-      result[i] = tolower((unsigned char)str[i]);
-  }
-  result[len] = '\0';
-  return result;
+// benchMain.c global
+SArguments*    g_arguments;
+SQueryMetaInfo g_queryInfo;
+STmqMetaInfo   g_tmqInfo;
+bool           g_fail = false;
+uint64_t       g_memoryUsage = 0;
+tools_cJSON*   root;
+extern char    g_configDir[MAX_PATH_LEN];
+
+#define CLIENT_INFO_LEN   20
+static char     g_client_info[CLIENT_INFO_LEN] = {0};
+
+int32_t         g_majorVersionOfClient = 0;
+// set flag if command passed, see ARG_OPT_ ???
+uint64_t        g_argFlag = 0;
+
+// declare fun
+int getCodeFromResp(char *responseBuf);
+int getServerVersionRest(int16_t rest_port);
+void appendResultBufToFile(char *resultBuf, char * filePath);
+int32_t replaceChildTblName(char *inSql, char *outSql, int tblIndex);
+int32_t calcGroupIndex(char* dbName, char* tbName, int32_t groupCnt);
+void prompt(bool nonStopMode);
+void printErrCmdCodeStr(char *cmd, int32_t code, TAOS_RES *res);
+
+#ifdef __cplusplus
 }
-
-// pase dsn
-int32_t parseDsn(char* dsn, char **host, char **port, char **user, char **pwd);
+#endif
 
 TEST(jsonTest, strToLowerCopy) {
   // strToLowerCopy
@@ -63,8 +78,97 @@ TEST(jsonTest, strToLowerCopy) {
   ASSERT_EQ(p, nullptr);
 }
 
+// getCodeFromResp
+TEST(benchUtil, getCodeFromResp) {
+  int ret;
+  
+  // "{"
+  ret = getCodeFromResp((char *)"http response failed.");
+  ASSERT_EQ(ret, -1);
+
+  //  json format
+  ret = getCodeFromResp((char *)"{json valid test}");
+  ASSERT_EQ(ret, -1);
+
+  // code 
+  ret = getCodeFromResp((char *)"{\"code\":\"invalid code type\"}");
+  ASSERT_EQ(ret, -1);
+
+  // des
+  ret = getCodeFromResp((char *)"{\"code\":100, \"desc\":12}");
+  ASSERT_EQ(ret, -1);
+
+  // des
+  ret = getCodeFromResp((char *)"{\"code\":100, \"desc\":12}");
+  ASSERT_EQ(ret, -1);
+
+  // succ
+  ret = getCodeFromResp((char *)"{\"code\":100, \"desc\":\"desc valid\"}");
+  ASSERT_EQ(ret, 100);
+}
+
+TEST(benchUtil, convertHostToServAddr) {
+  struct sockaddr_in  serv_addr;
+  ASSERT_EQ(convertHostToServAddr(NULL, 0, &serv_addr), -1);
+  ASSERT_EQ(convertHostToServAddr((char *)"invalid.host", 0, &serv_addr), -1);
+}
+
+TEST(benchUtil, printErrCmdCodeStr) {
+  char msg[600];
+  memset(msg, 'a', sizeof(msg));
+  msg[sizeof(msg) - 1] = 0;
+  printErrCmdCodeStr(msg, 0, NULL);
+}
+
+// basic
+TEST(benchUtil, Base) {
+  int ret;
+  // check crash
+  engineError((char *)"util", (char *)"taos_connect", 1);
+
+  // append result to file
+  appendResultBufToFile((char *)"check null file", NULL);
+
+  // replaceChildTblName
+  char szOut[128] = "";
+  ret = replaceChildTblName((char *)"select * from xxx;", szOut, 0);
+  ASSERT_EQ(ret, -1);
+
+  // toolsGetTimestamp
+  int64_t now = 0;
+  now = toolsGetTimestamp(TSDB_TIME_PRECISION_MILLI);
+  ASSERT_GE(now, 1700000000000);
+  now = toolsGetTimestamp(TSDB_TIME_PRECISION_MICRO);
+  ASSERT_GE(now, 1700000000000000);
+  now = toolsGetTimestamp(TSDB_TIME_PRECISION_NANO);
+  ASSERT_GE(now, 1700000000000000000);
+
+  // calc groups
+  ret = calcGroupIndex(NULL, NULL, 5);
+  ASSERT_EQ(ret, -1);
+
+  // bench
+  ASSERT_EQ(benchCalloc(100000000000, 1000000000000, false), nullptr);
+
+  // close
+  closeBenchConn(NULL);
+}
+
+// main
 int main(int argc, char **argv) {
+  // init
+  initLog();
+  g_arguments = (SArguments *)calloc(1, sizeof(SArguments));
   printf("Hello world taosBenchmark unit test for C \n");
   testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+
+  // run
+  int ret =  RUN_ALL_TESTS();
+
+  // exit
+  exitLog();
+  free(g_arguments);
+  g_arguments = NULL;
+  return ret;
 }
+

@@ -91,6 +91,7 @@ The list of keywords is as follows:
 | COMPACT_INTERVAL     | 3.3.5.0+ |
 | COMPACT_TIME_OFFSET  | 3.3.5.0+ |
 | COMPACT_TIME_RANGE   | 3.3.5.0+ |
+| COMPOSITE            | 3.3.6.3+ |
 | CONCAT               | |
 | CONFLICT             | |
 | CONNECTION           | |
@@ -365,6 +366,7 @@ The list of keywords is as follows:
 | REM                  | |
 | REPLACE              | |
 | REPLICA              | |
+| REPLICAS             | 3.3.7.0+ |
 | RESET                | |
 | RESTORE              | |
 | RESTRICT             | |

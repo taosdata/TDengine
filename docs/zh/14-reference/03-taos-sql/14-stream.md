@@ -8,7 +8,7 @@ description: 流式计算的相关 SQL 的详细语法
 ## 创建流式计算
 
 ```sql
-CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, field2_name [PRIMARY KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery [notification_definition]
+CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, field2_name [COMPOSITE KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery [notification_definition]
 stream_options: {
  TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time | FORCE_WINDOW_CLOSE| CONTINUOUS_WINDOW_CLOSE [recalculate rec_time_val] ]
  WATERMARK      time
@@ -189,7 +189,7 @@ T = 最新事件时间 - watermark
 每次写入的数据都会以上述公式更新窗口关闭时间，并将窗口结束时间 < T 的所有打开的窗口关闭，若触发模式为 WINDOW_CLOSE 或 MAX_DELAY，则推送窗口聚合结果。
 
 
-![TDengine 流式计算窗口关闭示意图](./watermark.webp)
+![TDengine 流式计算窗口关闭示意图](./pic/watermark.webp)
 
 
 图中，纵轴表示不同时刻，对于不同时刻，我们画出其对应的 TDengine 收到的数据，即为横轴。
@@ -379,6 +379,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
           "eventTime": 1733284887097,
           "windowId": "window-id-67890",
           "windowType": "Time",
+          "groupId": "2650968222368530754",
           "windowStart": 1733284800000
         },
         {
@@ -387,6 +388,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
           "eventTime": 1733284887197,
           "windowId": "window-id-67890",
           "windowType": "Time",
+          "groupId": "2650968222368530754",
           "windowStart": 1733284800000,
           "windowEnd": 1733284860000,
           "result": {
@@ -405,6 +407,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
           "eventTime": 1733284887231,
           "windowId": "window-id-13579",
           "windowType": "Event",
+          "groupId": "7533998559487590581",
           "windowStart": 1733284800000,
           "triggerCondition": {
             "conditionIndex": 0,
@@ -420,6 +423,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
           "eventTime": 1733284887231,
           "windowId": "window-id-13579",
           "windowType": "Event",
+          "groupId": "7533998559487590581",
           "windowStart": 1733284800000,
           "windowEnd": 1733284810000,
           "triggerCondition": {
@@ -463,6 +467,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
 1. eventTime：长整型时间戳，表示事件生成时间，精确到毫秒，即：'00:00, Jan 1 1970 UTC' 以来的毫秒数。
 1. windowId：字符串类型，窗口的唯一标识符，确保打开和关闭事件的 ID 一致，便于外部系统将两者关联。如果 taosd 发生故障重启，部分事件可能会重复发送，会保证同一窗口的 windowId 保持不变。
 1. windowType：字符串类型，表示窗口类型，支持 Time、State、Session、Event、Count 五种类型。
+1. groupId: 字符串类型，是对应分组的唯一标识符，如果是按表分组，则与对应表的 uid 一致。
 
 #### 时间窗口相关字段
 

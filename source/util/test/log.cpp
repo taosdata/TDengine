@@ -58,6 +58,7 @@ static void *taosLogCrashMockFunc(void *param) {
 static void *taosLogCrashReportFunc(void *param) {
   printf("%s:%d entry\n", __func__, __LINE__);
   setThreadName("logCrashReportThread");
+  taosSsleep(2); // wait for logCrashMockFunc ready
   checkAndPrepareCrashInfo();
   printf("%s:%d end\n", __func__, __LINE__);
   return NULL;

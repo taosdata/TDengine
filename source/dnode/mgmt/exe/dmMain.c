@@ -546,7 +546,7 @@ int mainWindows(int argc, char **argv) {
 
   if ((code = dmInit()) != 0) {
     if (code == TSDB_CODE_NOT_FOUND) {
-      dError("failed to init dnode since unsupported platform, please visit https://www.taosdata.com for support");
+      dError("Initialization of dnode failed because your current operating system is not supported. For more information and supported platforms, please visit https://docs.taosdata.com/reference/supported/.");
     } else {
       dError("failed to init dnode since %s", tstrerror(code));
     }

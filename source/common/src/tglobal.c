@@ -81,7 +81,12 @@ int32_t tsQueryNoFetchTimeoutSec = 3600 * 5;
 
 int32_t tsNumOfRpcThreads = 1;
 int32_t tsNumOfRpcSessions = 30000;
+#ifdef WINDOWS
+int32_t tsShareConnLimit = 1;
+#else
 int32_t tsShareConnLimit = 10;
+#endif
+
 int32_t tsReadTimeout = 900;
 int32_t tsTimeToGetAvailableConn = 500000;
 
@@ -122,7 +127,7 @@ bool    tsEnableWhiteList = false;  // ip white list cfg
 // arbitrator
 int32_t tsArbHeartBeatIntervalSec = 2;
 int32_t tsArbCheckSyncIntervalSec = 3;
-int32_t tsArbSetAssignedTimeoutSec = 10;
+int32_t tsArbSetAssignedTimeoutSec = 14;
 
 // dnode
 int64_t tsDndStart = 0;
@@ -339,7 +344,7 @@ int32_t tsS3MigrateIntervalSec = 60 * 60;  // interval of s3migrate db in all vg
 bool    tsS3MigrateEnabled = 0;
 int32_t tsGrantHBInterval = 60;
 int32_t tsUptimeInterval = 300;    // seconds
-char    tsUdfdResFuncs[512] = "";  // taosudf resident funcs that teardown when taosudf exits
+char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udfd exits
 char    tsUdfdLdLibPath[512] = "";
 #ifdef USE_STREAM
 bool tsDisableStream = false;
@@ -2280,16 +2285,16 @@ int32_t tryLoadCfgFromDataDir(SConfig *pCfg) {
   SConfigItem *pItem = NULL;
   TAOS_CHECK_GET_CFG_ITEM(tsCfg, pItem, "forceReadConfig");
   tsForceReadConfig = pItem->i32;
+  code = readCfgFile(tsDataDir, true);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("failed to read global config from %s since %s", tsDataDir, tstrerror(code));
+    TAOS_RETURN(code);
+  }
   if (!tsForceReadConfig) {
     uInfo("load config from tsDataDir:%s", tsDataDir);
     code = readCfgFile(tsDataDir, false);
     if (code != TSDB_CODE_SUCCESS) {
       uError("failed to read local config from %s since %s", tsDataDir, tstrerror(code));
-      TAOS_RETURN(code);
-    }
-    code = readCfgFile(tsDataDir, true);
-    if (code != TSDB_CODE_SUCCESS) {
-      uError("failed to read global config from %s since %s", tsDataDir, tstrerror(code));
       TAOS_RETURN(code);
     }
   }
@@ -2451,6 +2456,10 @@ extern void tsdbAlterNumCompactThreads();
 static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = -1;
+
+  if (strcasecmp("timezone", name) == 0) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
 
   if (strcasecmp(name, "resetlog") == 0) {
     // trigger, no item in cfg
@@ -2633,7 +2642,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
   int32_t lino = 0;
 
   if (strcasecmp("charset", name) == 0 || strcasecmp("timezone", name) == 0) {
-    goto _out;
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
 
   cfgLock(pCfg);
@@ -3085,6 +3094,9 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
         if (cJSON_AddNumberToObject(dataDir, "primary", disk->primary) == NULL) goto _exit;
         if (cJSON_AddNumberToObject(dataDir, "disable", disk->disable) == NULL) goto _exit;
       }
+      continue;
+    }
+    if (strcasecmp(item->name, "forceReadConfig") == 0) {
       continue;
     }
     switch (item->dtype) {

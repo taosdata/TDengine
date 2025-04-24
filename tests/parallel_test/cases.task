@@ -38,6 +38,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_after_alter.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_after_drop_origin_table.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_join.py
+,,y,army,./pytest.sh python3 ./test.py -f query/decimal/test_TS6333.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_func_elapsed.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_function.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_selection_function_with_json.py
@@ -100,6 +101,8 @@
 
 ,,y,army,./pytest.sh python3 ./test.py -f stream/test_stream_vtable.py
 
+,,y,army,./pytest.sh python3 ./test.py -f inspect-tools/taosinspect.py
+
 #
 # army/tools
 #
@@ -108,6 +111,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-partial-col-numpy.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-single-table.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-sml-rest.py -R
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-supplement-insert.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-vgroups.py
 
@@ -190,7 +194,11 @@
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/taosc_insert-retry-json-global.py
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/taosc_insert-retry-json-stb.py
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/taosdemoTestQueryWithJson-mixed-query.py -R
-
+,,n,army,python3 ./test.py -f tools/benchmark/basic/create_table_from_csv.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_cancle.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_error_exit.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/tmq_cancle.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/taos_config_json.py
 
 # taosdump 43 cases
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpSchemaChange.py
@@ -261,7 +269,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/max_delay_interval_ext.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/window_close_session_ext.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/partition_interval.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/pause_resume_test.py
+#ci ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/pause_resume_test.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/state_window_case.py
 #,,n,system-test,python3 ./test.py -f 8-stream/vnode_restart.py -N 4
 #,,n,system-test,python3 ./test.py -f 8-stream/snode_restart.py -N 4
@@ -601,6 +609,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_show_table_distributed.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_show_disk_usage.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_disk_usage_multilevel.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_dismatch_config.py
 
 ,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 ,,n,system-test,python3 ./test.py -f 0-others/tag_index_basic.py

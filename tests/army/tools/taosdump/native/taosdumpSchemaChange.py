@@ -53,10 +53,10 @@ class TDTestCase(TBase):
         cmd = f"-D {db} -o {tmpdir}"
         rlist = self.taosdump(cmd)
         results = [
-            "OK: total 10 table(s) of stable: meters1 schema dumped.",
+            "OK: total 1 table(s) of stable: meters1 schema dumped.",
             "OK: total 20 table(s) of stable: meters2 schema dumped.",
             "OK: total 30 table(s) of stable: meters3 schema dumped.",
-            "OK: 6024 row(s) dumped out!"
+            "OK: 9132 row(s) dumped out!"
         ]
         self.checkManyString(rlist, results)
 
@@ -66,7 +66,7 @@ class TDTestCase(TBase):
         rlist = self.taosdump(cmd)
         results = [
             f"rename DB Name {db} to {newdb}",
-            f"OK: 6024 row(s) dumped in!"
+            f"OK: 9132 row(s) dumped in!"
         ]
         self.checkManyString(rlist, results)
 
@@ -126,6 +126,23 @@ class TDTestCase(TBase):
             [
                 f"select (bc) from    {db}.meters3", 
                 f"select (bc) from {newdb}.meters3"
+            ],
+            # meters4
+            [
+                f"select (ts) from    {db}.meters4", 
+                f"select (ts) from {newdb}.meters4"
+            ],
+            [
+                f"select sum(ti) from    {db}.meters4", 
+                f"select sum(ti) from {newdb}.meters4"
+            ],
+            [
+                f"select count(bc) from    {db}.meters4 where bc=1", 
+                f"select count(bc) from {newdb}.meters4 where bc=1"
+            ],
+            [
+                f"select (bin) from    {db}.meters4", 
+                f"select (bin) from {newdb}.meters4"
             ]
         ]
 
@@ -156,7 +173,7 @@ class TDTestCase(TBase):
 
         # new tag is null
         sql = f"select count(*) from {newdb}.meters1 where newtti is null"
-        tdSql.checkAgg(sql, 1000)
+        tdSql.checkAgg(sql, 100)
 
         sql = f"select count(*) from {newdb}.meters3 where newtdc is null"
         tdSql.checkAgg(sql, 2000)
@@ -203,6 +220,65 @@ class TDTestCase(TBase):
         # ntb
         self.checkCorrectNtb(db, newdb)
 
+    #
+    # ----------  specify table ------------
+    #
+
+    # clear env
+    def clearEvn(self, newdb, tmpdir):
+        # clear old
+        self.clearPath(tmpdir)
+
+        # des newdb re-create
+        command = "-f tools/taosdump/native/json/schemaChangeNew.json"
+        self.benchmark(command)        
+
+    # dump out specify
+    def dumpOutSpecify(self, db, tmpdir):
+        cmd = f"-o {tmpdir} {db} d0 meters2 meters3 meters4 ntbd1 ntbd2 ntbe1 ntbe2 ntbf1 ntbf2 ntbg1 ntbg2"
+        rlist = self.taosdump(cmd)
+        results = [
+            "OK: total 20 table(s) of stable: meters2 schema dumped.",
+            "OK: total 30 table(s) of stable: meters3 schema dumped.",
+            "OK: total 40 table(s) of stable: meters4 schema dumped.",
+            "OK: 9132 row(s) dumped out!"
+        ]
+        self.checkManyString(rlist, results)
+
+    def exceptNoSameCol(self, db, newdb, tmpdir):
+        # des newdb re-create
+        command = "-f tools/taosdump/native/json/schemaChangeNew.json"
+        self.benchmark(command)        
+
+        # re-create meters2 for no same column and tags
+        sqls = [
+            # meters2 no same col and tag
+            f"drop table {newdb}.meters2",
+            f"create table {newdb}.meters2(nts timestamp, age int) tags(area int)",
+            # meters3 one same col and no same tag
+            f"drop table {newdb}.meters3",
+            f"create table {newdb}.meters3(ts timestamp, fc float) tags(area int)"
+        ]
+        tdSql.executes(sqls)
+
+        # dumpIn
+        cmd = f'-W "{db}={newdb}" -i {tmpdir}'
+        rlist = self.taosdump(cmd)
+        results = [
+            f"rename DB Name {db} to {newdb}",
+            "backup data schema no same column with server table",
+            "new tag zero failed! oldt=",
+            "50 failures occurred to dump in",
+            "OK: 4132 row(s) dumped in!"
+        ]
+        self.checkManyString(rlist, results)
+
+        tdLog.info("check except no same column ...................... [OK]")
+
+    def testExcept(self, db, newdb, tmpdir):
+        # dump out , des table no same column
+        self.exceptNoSameCol(db, newdb, tmpdir)
+
     def run(self):
         # init
         db    = "dd"
@@ -215,6 +291,10 @@ class TDTestCase(TBase):
         # insert data
         self.insertData()
 
+        #
+        #  whole db dump out
+        #
+      
         # dump out 
         self.dumpOut(db, tmpdir)
 
@@ -224,6 +304,24 @@ class TDTestCase(TBase):
         # check result correct
         self.checkCorrect(db, newdb)
 
+        #
+        #  specify stable & single table dump out
+        #
+
+        # clear env
+        self.clearEvn(newdb, tmpdir)
+
+        # dump out specify table
+        self.dumpOutSpecify(db, tmpdir)
+
+        # dump in
+        self.dumpIn(db, newdb, tmpdir)
+
+        # check result correct specify table
+        self.checkCorrect(db, newdb)
+
+        # check except
+        self.testExcept(db, newdb, tmpdir)
 
     def stop(self):
         tdSql.close()

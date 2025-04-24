@@ -544,7 +544,7 @@ The `taosd_vnodes_role` table records virtual node role information.
 
 | field          | type      | is\_tag | comment                                               |
 | :------------- | :-------- | :------ | :---------------------------------------------------- |
-| start\_ts      | TIMESTAMP |         | sql start exec time in client, ms,primary key                     |
+| start\_ts      | TIMESTAMP |         | sql start exec time in client, ms, primary key                     |
 | request\_id    | UINT64_T  |         | sql request id, random hash              |
 | query\_time    | INT32_T   |         | sql exec time, ms                                   |
 | code           | INT32_T   |         | sql return code, 0 success                               |

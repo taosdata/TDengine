@@ -279,6 +279,27 @@ int32_t stopTableScanOperator(SOperatorInfo* pOperator, const char* pIdStr, SSto
   return p.code;
 }
 
+static ERetType doClearTbNameHashPtr(SOperatorInfo* pOperator, STraverParam* pParam, const char* pIdStr) {
+  SStorageAPI* pAPI = pParam->pParam;
+  if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL) {
+    SStreamFillOperatorInfo* pInfo = pOperator->info;
+    if (pInfo->pState != NULL) {
+      pInfo->pState->parNameMap = NULL;
+    }
+
+    qDebug("%s clear the parNameMap for fill operator", pIdStr);
+    return OPTR_FN_RET_ABORT;
+  }
+
+  return OPTR_FN_RET_CONTINUE;
+}
+
+int32_t clearParTbNameHashPtr(SOperatorInfo* pOperator, const char* pIdStr, SStorageAPI* pAPI) {
+  STraverParam p = {.pParam = pAPI};
+  traverseOperatorTree(pOperator, doClearTbNameHashPtr, &p, pIdStr);
+  return p.code;
+}
+
 int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SNode* pTagCond,
                        SNode* pTagIndexCond, const char* pUser, const char* dbname, SOperatorInfo** pOptrInfo,
                        EOPTR_EXEC_MODEL model) {

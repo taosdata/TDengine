@@ -185,6 +185,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x800003A5 | Snode not there                                                                              | 不存在                                        | 确认操作是否正确                                                                                |
 | 0x800003A8 | The replica of mnode cannot less than 1                                                      | mnode 少于 1                                    | 操作不允许                                                                                      |
 | 0x800003A9 | The replica of mnode cannot exceed 3                                                         | mnode 多于 1                                    | 操作不允许                                                                                      |
+| 0x800003AE | VGroup is offline                                                      | Vgroup 离线                                  | 检查 dnode 是否离线                                                                                     |
 | 0x800003B1 | No enough memory in dnode                                                                    | 内存不足                                      | 调整配置                                                                                        |
 | 0x800003B3 | Invalid dnode end point                                                                      | ep 配置不正确                                  | 确认操作是否正确                                                                                |
 | 0x800003B6 | Offline dnode exists                                                                         | Dnode offline                                 | 检查节点状态                                                                                    |
@@ -606,3 +607,4 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000447 | white-noise data not processed                      | 白噪声数据不分析       |                                      |
 | 0x80000448 | Analysis internal error, not processed              | anode 出现内部错误   | 具体查看 server 端的日志 (taosanode.app.log) |
 | 0x80000449 | Analysis failed since not enough rows               | 预测分析输入数据行数太少   | 增加输入数据规模（预测至少 10 行记录）                |
+| 0x8000044A | Not support co-variate/multi-variate forecast       | 不支持协变量/多变量预测   | 更换使用的预测模型                            |
