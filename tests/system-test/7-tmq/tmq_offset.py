@@ -28,7 +28,7 @@ class TDTestCase:
 
         if platform.system().lower() == 'windows':
             buildPath = tdCom.getBuildPath()
-            cmdStr1 = ' mintty -h never %s/build/bin/taosBenchmark -i 50 -B 1 -t 1000 -n 100000 -y '%(buildPath)
+            cmdStr1 = ' mintty -h never %s/build/bin/taosBenchmark -i 50 -v 1 -B 1 -t 1000 -n 100000 -y '%(buildPath)
             tdLog.info(cmdStr1)
             os.system(cmdStr1)
             time.sleep(15)
@@ -50,7 +50,7 @@ class TDTestCase:
             if os.system(cmdStr0) != 0:
                 tdLog.exit(cmdStr0)
 
-            cmdStr1 = '%s/build/bin/taosBenchmark -i 50 -B 1 -t 1000 -n 100000 -y &'%(buildPath)
+            cmdStr1 = '%s/build/bin/taosBenchmark -i 50 -v 1 -B 1 -t 1000 -n 100000 -y &'%(buildPath)
             tdLog.info(cmdStr1)
             os.system(cmdStr1)
             time.sleep(15)
