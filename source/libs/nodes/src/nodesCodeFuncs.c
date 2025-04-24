@@ -43,6 +43,8 @@ const char* nodesNodeName(ENodeType type) {
       return "RealTable";
     case QUERY_NODE_VIRTUAL_TABLE:
       return "VirtualTable";
+    case QUERY_NODE_PLACE_HOLDER_TABLE:
+      return "PlaceHolderTable";
     case QUERY_NODE_SLIDING_WINDOW :
       return "SlidingWindow";
     case QUERY_NODE_PERIOD_WINDOW:
@@ -5472,6 +5474,57 @@ static int32_t jsonToVirtualTableNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkPlaceHolderTableMetaSize = "MetaSize";
+static const char* jkPlaceHolderTableMeta = "Meta";
+static const char* jkPlaceHolderTableVgroupsInfoSize = "VgroupsInfoSize";
+static const char* jkPlaceHolderTableVgroupsInfo = "VgroupsInfo";
+static const char* jkPlaceHolderTablePlaceholderType = "PlaceHolderType";
+
+static int32_t placeHolderTableNodeToJson(const void* pObj, SJson* pJson) {
+  const SPlaceHolderTableNode* pNode = (const SPlaceHolderTableNode*)pObj;
+
+  int32_t code = tableNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkPlaceHolderTableMetaSize, TABLE_META_SIZE(pNode->pMeta));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkPlaceHolderTableMeta, tableMetaToJson, pNode->pMeta);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkPlaceHolderTableVgroupsInfoSize, VGROUPS_INFO_SIZE(pNode->pVgroupList));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkPlaceHolderTableVgroupsInfo, vgroupsInfoToJson, pNode->pVgroupList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkPlaceHolderTablePlaceholderType, pNode->placeholderType);
+  }
+  return code;
+}
+
+static int32_t jsonToPlaceHolderTableNode(const SJson* pJson, void* pObj) {
+  SPlaceHolderTableNode* pNode = (SPlaceHolderTableNode*)pObj;
+  int32_t                code = jsonToTableNode(pJson, pObj);
+  int32_t                objSize = 0;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkPlaceHolderTableMetaSize, &objSize);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonMakeObject(pJson, jkPlaceHolderTableMeta, jsonToTableMeta, (void**)&pNode->pMeta, objSize);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkPlaceHolderTableVgroupsInfoSize, &objSize);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonMakeObject(pJson, jkPlaceHolderTableVgroupsInfo, jsonToVgroupsInfo, (void**)&pNode->pVgroupList, objSize);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkPlaceHolderTablePlaceholderType, pNode->placeholderType, code);
+  }
+  return code;
+}
+
+
 static const char* jkSlidingWindowOffset = "Offset";
 static const char* jkSlidingWindowSlidingVal = "SlidingVal";
 
@@ -8928,6 +8981,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return joinTableNodeToJson(pObj, pJson);
     case QUERY_NODE_VIRTUAL_TABLE:
       return virtualTableNodeToJson(pObj, pJson);
+    case QUERY_NODE_PLACE_HOLDER_TABLE:
+      return placeHolderTableNodeToJson(pObj, pJson);
     case QUERY_NODE_SLIDING_WINDOW :
       return slidingWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_PERIOD_WINDOW:
@@ -9346,6 +9401,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToJoinTableNode(pJson, pObj);
     case QUERY_NODE_VIRTUAL_TABLE:
       return jsonToVirtualTableNode(pJson, pObj);
+    case QUERY_NODE_PLACE_HOLDER_TABLE:
+      return jsonToPlaceHolderTableNode(pJson, pObj);
     case QUERY_NODE_SLIDING_WINDOW :
       return jsonToSlidingWindowNode(pJson, pObj);
     case QUERY_NODE_PERIOD_WINDOW:
