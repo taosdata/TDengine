@@ -25,15 +25,12 @@
 
 extern SDataSinkManager2 g_pDataSinkManager;
 
-int32_t writeToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSKEY wstart, TSKEY wend,
+int32_t writeToCache(SStreamTaskDSManager* pStreamDataSink, SGroupDSManager* pGroupDataInfoMgr, TSKEY wstart, TSKEY wend,
                      SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
-  SGroupDSManager* pGroupDataInfo = NULL;
   SWindowData* pWindowData = NULL;
-  code = getOrCreateSGroupDSManager(pStreamDataSink, groupId, &pGroupDataInfo);
-  QUERY_CHECK_CODE(code, lino, _end);
 
   size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   size_t dataEncodeBufSize = blockGetEncodeSizeOfRows(pBlock, startIndex, endIndex);
@@ -53,7 +50,7 @@ int32_t writeToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSK
     code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
-  pWindowData->pGroupDataInfo = pGroupDataInfo;
+  pWindowData->pGroupDataInfoMgr = pGroupDataInfoMgr;
   pWindowData->wstart = wstart;
   pWindowData->wend = wend;
   code = getStreamBlockTS(pBlock, startIndex, &pWindowData->start);
@@ -65,18 +62,18 @@ int32_t writeToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSK
   pWindowData->saveMode = DATA_SAVEMODE_BUFF;
   pWindowData->dataLen = dataEncodeBufSize;
   pWindowData->pDataBuf = buf;
-  if (pGroupDataInfo->windowDataInMem == NULL) {
-    pGroupDataInfo->windowDataInMem = taosArrayInit(0, sizeof(SWindowData*));
-    if (pGroupDataInfo->windowDataInMem == NULL) {
+  if (pGroupDataInfoMgr->windowDataInMem == NULL) {
+    pGroupDataInfoMgr->windowDataInMem = taosArrayInit(0, sizeof(SWindowData*));
+    if (pGroupDataInfoMgr->windowDataInMem == NULL) {
       code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
-  if (taosArrayPush(pGroupDataInfo->windowDataInMem, &pWindowData) == NULL) {
+  if (taosArrayPush(pGroupDataInfoMgr->windowDataInMem, &pWindowData) == NULL) {
     code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
-  pGroupDataInfo->lastWstartInMem = wstart;
+  pGroupDataInfoMgr->lastWstartInMem = wstart;
   syncWindowDataMemAdd(pWindowData);
   return TSDB_CODE_SUCCESS;
 _end:
@@ -89,15 +86,11 @@ _end:
   return code;
 }
 
-int32_t moveToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSKEY wstart, TSKEY wend,
+int32_t moveToCache(SStreamTaskDSManager* pStreamDataSink, SGroupDSManager* pGroupDataInfoMgr, TSKEY wstart, TSKEY wend,
                     SSDataBlock* pBlock) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SWindowData* pWindowData = NULL;
-
-  SGroupDSManager* pGroupDataInfo = NULL;
-  code = getOrCreateSGroupDSManager(pStreamDataSink, groupId, &pGroupDataInfo);
-  QUERY_CHECK_CODE(code, lino, _end);
 
   size_t       dataEncodeBufSize = blockGetEncodeSize(pBlock);
   pWindowData = (SWindowData*)taosMemoryCalloc(1, sizeof(SWindowData));
@@ -105,7 +98,7 @@ int32_t moveToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSKE
     code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
-  pWindowData->pGroupDataInfo = pGroupDataInfo;
+  pWindowData->pGroupDataInfoMgr = pGroupDataInfoMgr;
   pWindowData->wstart = wstart;
   pWindowData->wend = wend;
   code = getStreamBlockTS(pBlock, 0, &pWindowData->start);
@@ -115,20 +108,20 @@ int32_t moveToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSKE
   pWindowData->saveMode = DATA_SAVEMODE_BLOCK;
   pWindowData->dataLen = dataEncodeBufSize;
   pWindowData->pDataBuf = pBlock;
-  if (pGroupDataInfo->windowDataInMem == NULL) {
-    pGroupDataInfo->windowDataInMem = taosArrayInit(0, sizeof(SWindowData*));
-    if (pGroupDataInfo->windowDataInMem == NULL) {
+  if (pGroupDataInfoMgr->windowDataInMem == NULL) {
+    pGroupDataInfoMgr->windowDataInMem = taosArrayInit(0, sizeof(SWindowData*));
+    if (pGroupDataInfoMgr->windowDataInMem == NULL) {
       // taosMemoryFree(pBlcok);
       // When it fails, pBlock returns it to the caller for processing
       code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
-  if (taosArrayPush(pGroupDataInfo->windowDataInMem, &pWindowData) == NULL) {
+  if (taosArrayPush(pGroupDataInfoMgr->windowDataInMem, &pWindowData) == NULL) {
     code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
-  pGroupDataInfo->lastWstartInMem = wstart;
+  pGroupDataInfoMgr->lastWstartInMem = wstart;
   syncWindowDataMemAdd(pWindowData);
   return TSDB_CODE_SUCCESS;
   _end:
@@ -282,14 +275,14 @@ void clearGroupExpiredDataInMem(SGroupDSManager* pGroupData, TSKEY start) {
 
 void syncWindowDataMemAdd(SWindowData* pWindowData) {
   int32_t size = pWindowData->dataLen;
-  atomic_add_fetch_64(&pWindowData->pGroupDataInfo->usedMemSize, size);
-  atomic_add_fetch_64(&pWindowData->pGroupDataInfo->pSinkManager->usedMemSize, size);
+  atomic_add_fetch_64(&pWindowData->pGroupDataInfoMgr->usedMemSize, size);
+  atomic_add_fetch_64(&pWindowData->pGroupDataInfoMgr->pSinkManager->usedMemSize, size);
   atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, size);
 }
 
 void syncWindowDataMemSub(SWindowData* pWindowData) {
   int32_t size = pWindowData->dataLen;
-  atomic_sub_fetch_64(&pWindowData->pGroupDataInfo->usedMemSize, size);
-  atomic_sub_fetch_64(&pWindowData->pGroupDataInfo->pSinkManager->usedMemSize, size);
+  atomic_sub_fetch_64(&pWindowData->pGroupDataInfoMgr->usedMemSize, size);
+  atomic_sub_fetch_64(&pWindowData->pGroupDataInfoMgr->pSinkManager->usedMemSize, size);
   atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, size);
 }

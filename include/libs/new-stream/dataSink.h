@@ -39,7 +39,7 @@ typedef struct SWindowData {
   TSKEY            end;     // end time of the data
   int64_t          dataLen;
   SSaveStatus      saveMode;
-  SGroupDSManager* pGroupDataInfo;
+  SGroupDSManager* pGroupDataInfoMgr;
   void*            pDataBuf;
 } SWindowData;
 
@@ -77,7 +77,7 @@ typedef struct SStreamTaskDSManager {
   DataSinkFileState* pFile;
 } SStreamTaskDSManager;
 
-typedef struct SGroupDSManager {
+struct SGroupDSManager {
   int64_t               groupId;
   int64_t               usedMemSize;
   int64_t               lastWstartInMem;
@@ -86,7 +86,7 @@ typedef struct SGroupDSManager {
   SArray*               windowDataInMem;   // array SWindowData <wstart, SSDataBlock*>
   SArray*               windowDataInFile;  // array SWindowData <wstart, start block num in file>
   SStreamTaskDSManager* pSinkManager;
-} SGroupDSManager;
+};
 
 typedef enum {
   DATA_SINK_MEM = 0,
@@ -164,6 +164,8 @@ void cancelStreamDataCacheIterate(void** pIter);
 // @brief 释放 DataSink 相关所有资源
 int32_t destroyDataSinkManager2();
 
+void setDataSinkMaxMemSize(int64_t maxMemSize);
+
 //----------------- **************************************   -----------------//
 //----------------- 以下函数 DataSink 内部调用，不提供于其他模块   -----------------//
 //----------------- **************************************   -----------------//
@@ -172,13 +174,13 @@ int32_t initDataSinkFileDir();
 int32_t initStreamDataSinkOnce();
 
 // @brief 写入数据到文件
-int32_t writeToFile(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSKEY wstart, TSKEY wend,
+int32_t writeToFile(SStreamTaskDSManager* pStreamDataSink, SGroupDSManager* pGroupDataInfoMgr, TSKEY wstart, TSKEY wend,
                     SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex);
 
 // @brief 写入数据到内存
-int32_t writeToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSKEY wstart, TSKEY wend,
+int32_t writeToCache(SStreamTaskDSManager* pStreamDataSink, SGroupDSManager* pGroupDataInfoMgr, TSKEY wstart, TSKEY wend,
                      SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex);
-int32_t moveToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSKEY wstart, TSKEY wend,
+int32_t moveToCache(SStreamTaskDSManager* pStreamDataSink, SGroupDSManager* pGroupDataInfoMgr, TSKEY wstart, TSKEY wend,
                      SSDataBlock* pBlock);
 
 // @brief 读取数据从内存

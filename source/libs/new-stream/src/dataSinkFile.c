@@ -84,7 +84,7 @@ static int32_t initStreamDataSinkFile(SStreamTaskDSManager* pStreamDataSink) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t writeToFile(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSKEY wstart, TSKEY wend,
+int32_t writeToFile(SStreamTaskDSManager* pStreamDataSink, SGroupDSManager* pGroupDataInfoMgr, TSKEY wstart, TSKEY wend,
                     SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex) {
   int32_t code = 0;
   if (!pStreamDataSink->pFile) {

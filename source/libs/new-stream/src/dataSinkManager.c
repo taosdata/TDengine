@@ -22,7 +22,15 @@
 #include "tdef.h"
 
 SDataSinkManager2 g_pDataSinkManager = {0};
-#define DATA_SINK_MAX_MEM_SIZE_DEFAULT (1024 * 1024 * 1024)  // 1G
+int64_t gDataSinkMaxMemSizeDefault = (1024 * 1024 * 1024);  // 1G
+
+void setDataSinkMaxMemSize(int64_t maxMemSize) {
+  if (maxMemSize >= 0) {
+    gDataSinkMaxMemSizeDefault = maxMemSize;
+    g_pDataSinkManager.maxMemSize = maxMemSize;
+  }
+  stInfo("set data sink max mem size to %" PRId64, gDataSinkMaxMemSizeDefault);
+}
 
 static void destroySStreamDataSinkManager(void* pData);
 int32_t     initStreamDataSinkOnce() {
@@ -39,7 +47,7 @@ int32_t     initStreamDataSinkOnce() {
   }
 
   g_pDataSinkManager.usedMemSize = 0;
-  g_pDataSinkManager.maxMemSize = DATA_SINK_MAX_MEM_SIZE_DEFAULT;
+  g_pDataSinkManager.maxMemSize = gDataSinkMaxMemSizeDefault;
   g_pDataSinkManager.fileBlockSize = 0;
   g_pDataSinkManager.readDataFromMemTimes = 0;
   g_pDataSinkManager.readDataFromFileTimes = 0;
@@ -287,6 +295,7 @@ void destroyStreamDataCache(void* pCache) {}
 
 int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock,
                            int32_t startIndex, int32_t endIndex) {
+  int32_t code = TSDB_CODE_SUCCESS;
   if (wstart < 0 || wstart >= wend) {
     stError("putStreamDataCache param invalid, wstart:%" PRId64 "wend:%" PRId64, wstart, wend);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
@@ -299,14 +308,22 @@ int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY we
     stError("DataSinkManager is not ready");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
-  if (shouldWriteIntoFile((SStreamTaskDSManager*)pCache, groupId, false)) {
-    return writeToFile((SStreamTaskDSManager*)pCache, groupId, wstart, wend, pBlock, startIndex, endIndex);
+  SStreamTaskDSManager* pStreamDataSink = (SStreamTaskDSManager*)pCache;
+  SGroupDSManager*      pGroupDataInfoMgr = NULL;
+  code = getOrCreateSGroupDSManager(pStreamDataSink, groupId, &pGroupDataInfoMgr);
+  if (code != 0) {
+    stError("failed to get or create group data sink manager, err: %s", terrMsg);
+    return code;
+  }
+  if (shouldWriteIntoFile(pStreamDataSink, groupId, false)) {
+    return writeToFile(pStreamDataSink, pGroupDataInfoMgr, wstart, wend, pBlock, startIndex, endIndex);
   } else {
-    return writeToCache((SStreamTaskDSManager*)pCache, groupId, wstart, wend, pBlock, startIndex, endIndex);
+    return writeToCache(pStreamDataSink, pGroupDataInfoMgr, wstart, wend, pBlock, startIndex, endIndex);
   }
 }
 
 int32_t moveStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock) {
+  int32_t code = TSDB_CODE_SUCCESS;
   if (!isManagerReady()) {
     stError("DataSinkManager is not ready");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
@@ -319,10 +336,17 @@ int32_t moveStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY w
     stError("moveStreamDataCache param invalid, cleanMode is not immediate");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
-  if (shouldWriteIntoFile((SStreamTaskDSManager*)pCache, groupId, true)) {
-    return writeToFile((SStreamTaskDSManager*)pCache, groupId, wstart, wend, pBlock, 0, 1);
+  SStreamTaskDSManager* pStreamDataSink = (SStreamTaskDSManager*)pCache;
+  SGroupDSManager*      pGroupDataInfoMgr = NULL;
+  code = getOrCreateSGroupDSManager(pStreamDataSink, groupId, &pGroupDataInfoMgr);
+  if (code != 0) {
+    stError("failed to get or create group data sink manager, err: %s", terrMsg);
+    return code;
+  }
+  if (shouldWriteIntoFile(pStreamDataSink, groupId, true)) {
+    return writeToFile(pStreamDataSink, pGroupDataInfoMgr, wstart, wend, pBlock, 0, 1);
   } else {
-    return moveToCache((SStreamTaskDSManager*)pCache, groupId, wstart, wend, pBlock);
+    return moveToCache(pStreamDataSink, pGroupDataInfoMgr, wstart, wend, pBlock);
   }
 }
 

@@ -4019,7 +4019,7 @@ int32_t blockEncodeAsRows(const SSDataBlock* pBlock, char* data, size_t dataBufl
     if (IS_VAR_DATA_TYPE(pColRes->info.type)) {
       metaSize = realRows * sizeof(int32_t);
       if(dataLen + metaSize > dataBuflen) goto _exit;
-      memcpy(data, pColRes->varmeta.offset + (startIndex * sizeof(int32_t)), metaSize);
+      memcpy(data, (char*)pColRes->varmeta.offset + (startIndex * sizeof(int32_t)), metaSize);
       resetVarDataOffset((int32_t*)data, realRows);
     } else {
       metaSize = BitmapLen(realRows);
