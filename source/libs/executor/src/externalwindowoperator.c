@@ -404,7 +404,6 @@ static bool hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
   ret = setExtWindowOutputBuf(pResultRowInfo, &win, &pResult, pInputBlock->info.id.groupId, pSup->pCtx,
                               numOfOutput, pSup->rowEntryInfoOffset, &pExtW->aggSup, pTaskInfo);
   if (ret != 0 || !pResult) T_LONG_JMP(pTaskInfo->env, ret);
-
   TSKEY   ekey = ascScan ? win.ekey : win.skey;
   int32_t forwardRows = getNumOfRowsInTimeWindow(&pInputBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL,
                                                  pExtW->binfo.inputTsOrder);
@@ -542,6 +541,19 @@ static int32_t externalWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
       }
       if (pExtW->binfo.pRes->info.rows > 0) break;
     }
+
+    code = setInputDataBlock(pSup, pBlock, pExtW->binfo.inputTsOrder, scanFlag, true);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    if (!pExtW->scalarMode) {
+      if (hashExternalWindowAgg(pOperator, pBlock)) break;
+    } else {
+      // scalar mode, no need to do agg, just output rows partitioned by window
+      code = hashExternalWindowProject(pOperator, pBlock);
+      if (code != 0) goto _end;
+    }
+
+    OPTR_SET_OPENED(pOperator);
   }
 
   pOperator->resultInfo.totalRows += pExtW->binfo.pRes->info.rows;
