@@ -3,6 +3,8 @@ build
 release
 .externals
 *.swp
+compile_commands.json
+.cache
 
 # TODO: rules need to be removed later
 source/util/src/version.c
