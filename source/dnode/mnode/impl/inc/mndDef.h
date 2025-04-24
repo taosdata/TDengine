@@ -26,9 +26,8 @@
 #include "tlog.h"
 #include "tmsg.h"
 #include "trpc.h"
-#include "tstream.h"
 #include "ttimer.h"
-
+#include "tconfig.h"
 #include "mnode.h"
 
 #ifdef __cplusplus
@@ -490,6 +489,31 @@ typedef struct {
   int32_t    learnerProgress;
 } SVnodeGid;
 
+typedef struct {
+  int32_t   vgId;
+  int64_t   createdTime;
+  int64_t   updateTime;
+  int32_t   version;
+  uint32_t  hashBegin;
+  uint32_t  hashEnd;
+  char      dbName[TSDB_DB_FNAME_LEN];
+  int64_t   dbUid;
+  int64_t   cacheUsage;
+  int64_t   numOfTables;
+  int64_t   numOfTimeSeries;
+  int64_t   totalStorage;
+  int64_t   compStorage;
+  int64_t   pointsWritten;
+  int8_t    compact;
+  int8_t    isTsma;
+  int8_t    replica;
+  SVnodeGid vnodeGid[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
+  void*     pTsma;
+  int32_t   numOfCachedTables;
+  int32_t   syncConfChangeVer;
+} SVgObj;
+
+
 
 typedef struct {
   char           name[TSDB_TABLE_FNAME_LEN];
@@ -757,31 +781,20 @@ typedef struct {
   //  SMqSubActionLogEntry* pLogEntry;
 } SMqRebOutputObj;
 
-#ifdef 1 //NEW_STREAM
 typedef struct {
   // static info
   SCMCreateStreamReq* pCreate;
   SRWLatch lock;
 
   // dynamic info
+  int8_t  paused;
   int64_t createTime;
   int64_t updateTime;
   int32_t version;
-  int32_t totalLevel;
-
-  int8_t  stopped;
-  int8_t  status;
-  int64_t streamDBId;
-  int64_t triggerDBId;
-  int64_t sourceDBId;
-  int64_t outDBId;
-
-  SArray* pTaskList;       // SArray<SArray<SStreamTask>>
-  SArray* pHTaskList;      // generate the results for already stored ts data
 
   SSHashObj*  pVTableMap;  // do not serialize
 } SStreamObj;
-#else
+#if 0
 typedef struct SStreamConf {
   int8_t  igExpired;
   int8_t  trigger;

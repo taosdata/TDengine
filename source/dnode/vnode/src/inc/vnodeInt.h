@@ -42,7 +42,7 @@
 #include "trbtree.h"
 #include "tref.h"
 #include "tskiplist.h"
-#include "tstream.h"
+#include "stream.h"
 #include "ttime.h"
 #include "ttimer.h"
 #include "wal.h"
@@ -240,20 +240,16 @@ int64_t tsdbGetEarliestTs(STsdb* pTsdb);
 
 // tq
 int32_t tqOpen(const char* path, SVnode* pVnode);
-void    tqNotifyClose(STQ*);
 void    tqClose(STQ*);
 int     tqPushMsg(STQ*, tmsg_t msgType);
 int     tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg);
 void    tqUnregisterPushHandle(STQ* pTq, void* pHandle);
 void    tqScanWalAsync(STQ* pTq);
 int32_t tqStopStreamTasksAsync(STQ* pTq);
-int32_t tqStopStreamAllTasksAsync(SStreamMeta* pMeta, SMsgCb* pMsgCb);
 int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessAllTaskStopReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskChkptReportRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskCheckpointReadyRsp(STQ* pTq, SRpcMsg* pMsg);
-
-int32_t tqScanWal(STQ* pTq);
 
 // injection error
 void streamMetaFreeTQDuringScanWalError(STQ* pTq);
@@ -582,8 +578,6 @@ struct SCompactInfo {
   int64_t     commitID;
   STimeWindow tw;
 };
-
-void initStorageAPI(SStorageAPI* pAPI);
 
 // a simple hash table impl
 typedef struct SVHashTable SVHashTable;

@@ -222,7 +222,7 @@ int32_t dmGetDnodeId(SDnodeData *pData);
 int32_t dmReadEps(SDnodeData *pData);
 int32_t dmWriteEps(SDnodeData *pData);
 void    dmUpdateEps(SDnodeData *pData, SArray *pDnodeEps);
-void    dmGetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet);
+void    dmGetMnodeEpSet(void *pData, SEpSet *pEpSet);
 void    dmEpSetToStr(char *buf, int32_t len, SEpSet *epSet);
 void    dmRotateMnodeEpSet(SDnodeData *pData);
 void    dmGetMnodeEpSetForRedirect(SDnodeData *pData, SRpcMsg *pMsg, SEpSet *pEpSet);

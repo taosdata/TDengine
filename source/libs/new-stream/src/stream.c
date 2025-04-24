@@ -22,14 +22,17 @@
 
 SStreamMgmtInfo gStreamMgmt = {0};
 
-void streamSetSnodeEnabled() {
+void streamSetSnodeEnabled(void) {
   gStreamMgmt.snodeId = gStreamMgmt.dnodeId;
 }
 
-void streamSetSnodeDisabled() {
+void streamSetSnodeDisabled(void) {
   gStreamMgmt.snodeId = INT32_MIN;
 }
 
+void streamCleanup(void) {
+  //STREAMTODO
+}
 
 int32_t streamInit(void* pDnode, int32_t dnodeId, getMnodeEpsetFromDnode cb) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -38,8 +41,6 @@ int32_t streamInit(void* pDnode, int32_t dnodeId, getMnodeEpsetFromDnode cb) {
   gStreamMgmt.dnodeId = dnodeId;
   gStreamMgmt.dnode = pDnode;
   gStreamMgmt.cb = cb;
-
-  initStorageAPI(&gStreamMgmt.api);
 
   gStreamMgmt.vgLeaders = taosArrayInit(20, sizeof(int32_t));
   TSDB_CHECK_NULL(gStreamMgmt.vgLeaders, code, lino, _exit, terrno);
@@ -79,7 +80,8 @@ void streamRemoveVnodeLeader(int32_t vgId) {
     taosArrayRemove(gStreamMgmt.vgLeaders, idx);
   }
   taosWUnLockLatch(&gStreamMgmt.vgLeadersLock);
-  stInfo("remove vgroup %d from vgroupLeader %s", vgId, (idx < 0) ? "failed", "succeed");
+  
+  stDebug("remove vgroup %d from vgroupLeader %s", vgId, (idx < 0) ? "failed" : "succeed");
 }
 
 void streamAddVnodeLeader(int32_t vgId) {

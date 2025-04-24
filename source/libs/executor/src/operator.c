@@ -373,32 +373,6 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     } else if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == type) {
       code = createExchangeOperatorInfo(pHandle ? pHandle->pMsgCb->clientRpc : NULL, (SExchangePhysiNode*)pPhyNode,
                                         pTaskInfo, &pOperator);
-    } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN == type) {
-      STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
-      STableListInfo*      pTableListInfo = tableListCreate();
-      if (!pTableListInfo) {
-        pTaskInfo->code = terrno;
-        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-        return terrno;
-      }
-
-      if (pHandle->vnode && (pTaskInfo->pSubplan->pVTables == NULL)) {
-        code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
-                                       pHandle, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo);
-        if (code) {
-          pTaskInfo->code = code;
-          tableListDestroy(pTableListInfo);
-          qError("failed to createScanTableListInfo, code:%s", tstrerror(code));
-          return code;
-        }
-      }
-
-      code = createStreamScanOperatorInfo(pHandle, pTableScanNode, pTagCond, pTableListInfo, pTaskInfo, &pOperator);
-      if (code) {
-        pTaskInfo->code = code;
-        tableListDestroy(pTableListInfo);
-        return code;
-      }
     } else if (QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == type) {
       SSystemTableScanPhysiNode* pSysScanPhyNode = (SSystemTableScanPhysiNode*)pPhyNode;
       code = createSysTableScanOperatorInfo(pHandle, pSysScanPhyNode, pUser, pTaskInfo, &pOperator);
@@ -562,29 +536,12 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
   } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL == type) {
     SIntervalPhysiNode* pIntervalPhyNode = (SIntervalPhysiNode*)pPhyNode;
     code = createIntervalOperatorInfo(ops[0], pIntervalPhyNode, pTaskInfo, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == type) {
-    code = createStreamSingleIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL == type) {
-    code = createStreamIntervalSliceOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL == type) {
     SMergeAlignedIntervalPhysiNode* pIntervalPhyNode = (SMergeAlignedIntervalPhysiNode*)pPhyNode;
     code = createMergeAlignedIntervalOperatorInfo(ops[0], pIntervalPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL == type) {
     SMergeIntervalPhysiNode* pIntervalPhyNode = (SMergeIntervalPhysiNode*)pPhyNode;
     code = createMergeIntervalOperatorInfo(ops[0], pIntervalPhyNode, pTaskInfo, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL == type) {
-    int32_t children = 0;
-    code = createStreamFinalIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, children, pHandle, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_INTERVAL == type) {
-    code = createSemiIntervalSliceOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL == type) {
-    int32_t children = pHandle->numOfVgroups;
-    code = createStreamFinalIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, children, pHandle, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL == type) {
-    int32_t children = pHandle->numOfVgroups;
-    code = createStreamFinalIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, children, pHandle, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_INTERVAL == type) {
-    code = createFinalIntervalSliceOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_SORT == type) {
     code = createSortOperatorInfo(ops[0], (SSortPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT == type) {
@@ -595,33 +552,17 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION == type) {
     SSessionWinodwPhysiNode* pSessionNode = (SSessionWinodwPhysiNode*)pPhyNode;
     code = createSessionAggOperatorInfo(ops[0], pSessionNode, pTaskInfo, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION == type) {
-    code = createStreamSessionAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION == type) {
-    int32_t children = 0;
-    code = createStreamFinalSessionAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, children, pHandle, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION == type) {
-    int32_t children = pHandle->numOfVgroups;
-    code = createStreamFinalSessionAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, children, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_PARTITION == type) {
     code = createPartitionOperatorInfo(ops[0], (SPartitionPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION == type) {
-    code = createStreamPartitionOperatorInfo(ops[0], (SStreamPartitionPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE == type) {
     SStateWinodwPhysiNode* pStateNode = (SStateWinodwPhysiNode*)pPhyNode;
     code = createStatewindowOperatorInfo(ops[0], pStateNode, pTaskInfo, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE == type) {
-    code = createStreamStateAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT == type) {
-    code = createStreamEventAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN == type) {
     code = createMergeJoinOperatorInfo(ops, size, (SSortMergeJoinPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN == type) {
     code = createHashJoinOperatorInfo(ops, size, (SHashJoinPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_FILL == type) {
     code = createFillOperatorInfo(ops[0], (SFillPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL == type) {
-    code = createStreamFillOperatorInfo(ops[0], (SStreamFillPhysiNode*)pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC == type) {
     code = createIndefinitOutputOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC == type) {
@@ -634,26 +575,10 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     code = createGroupCacheOperatorInfo(ops, size, (SGroupCachePhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL == type) {
     code = createDynQueryCtrlOperatorInfo(ops, size, (SDynQueryCtrlPhysiNode*)pPhyNode, pTaskInfo, pHandle, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT == type) {
-    code = createStreamCountAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT == type) {
     code = createCountwindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC == type) {
-    code = createStreamTimeSliceOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY == type) {
     code = createAnomalywindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SESSION == type) {
-    code = createSessionNonblockOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION == type) {
-    code = createSemiSessionNonblockOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION == type) {
-    code = createFinalSessionNonblockOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_STATE == type) {
-    code = createStateNonblockOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT == type) {
-    code = createEventNonblockOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT == type) {
-    //todo (liuyao) add
   } else if (QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN == type && model != OPTR_EXEC_MODEL_STREAM) {
     SVirtualScanPhysiNode* pVirtualTableScanNode = (SVirtualScanPhysiNode*)pPhyNode;
     // NOTE: this is an patch to fix the physical plan

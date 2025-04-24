@@ -404,30 +404,15 @@ void dumpStream(SSdb *pSdb, SJson *json) {
 
     SJson *item = tjsonCreateObject();
     RETRIEVE_CHECK_GOTO(tjsonAddItemToArray(items, item), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "name", mndGetDbStr(pObj->name)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "createTime", i642str(pObj->createTime)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "version", i642str(pObj->version)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "totalLevel", i642str(pObj->totalLevel)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "smaId", i642str(pObj->smaId)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "uid", i642str(pObj->uid)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(pObj->status)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "igExpired", i642str(pObj->conf.igExpired)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "trigger", i642str(pObj->conf.trigger)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "triggerParam", i642str(pObj->conf.triggerParam)), pObj, &lino,
-                        _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "watermark", i642str(pObj->conf.watermark)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "sourceDbUid", i642str(pObj->sourceDbUid)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "targetDbUid", i642str(pObj->targetDbUid)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "sourceDb", mndGetDbStr(pObj->sourceDb)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "targetDb", mndGetDbStr(pObj->targetDb)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "targetSTbName", mndGetStbStr(pObj->targetSTbName)), pObj, &lino,
-                        _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "targetStbUid", i642str(pObj->targetStbUid)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "fixedSinkVgId", i642str(pObj->fixedSinkVgId)), pObj, &lino,
-                        _OVER);
+
+    //STREAMTODO
+
     sdbRelease(pSdb, pObj);
   }
+  
 _OVER:
   if (code != 0) mError("failed to dump stream info at line:%d since %s", lino, tstrerror(code));
 }

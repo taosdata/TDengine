@@ -12,7 +12,7 @@ static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask) {
   code = taosThreadMutexInit(&pMgr->lock, 0);
   if (code != 0) {
     stError("failed to init stream runner task mgr mutex(%" PRId64 ", %" PRId64 "), code:%s",
-            pTask->streamTask.streamId, pTask->streamTask.taskId, tstrerror(code));
+            pTask->task.streamId, pTask->task.taskId, tstrerror(code));
     return code;
   }
   pMgr->pFreeExecs = tdListNew(sizeof(SStreamRunnerTaskExecution));
@@ -49,7 +49,6 @@ static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, SStreamR
   int32_t                   code = 0;
   taosThreadMutexLock(&pMgr->lock);
   if (pMgr->exit) {
-    stWarn("task has been undeployed:(%)" PRId64 ",%" PRId64 ")", pTask->streamTask.streamId, pTask->streamTask.taskId);
     code = TSDB_CODE_STREAM_TASK_NOT_EXIST;
   } else {
     if (pMgr->pFreeExecs->dl_neles_ > 0) {
@@ -57,8 +56,8 @@ static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, SStreamR
       tdListAppendNode(pTask->pExecMgr.pRunningExecs, pNode);
       *ppExec = (SStreamRunnerTaskExecution*)pNode->data;
     } else {
-      stError("too many exec tasks scheduled (%" PRId64 ",%" PRId64 ")", pTask->streamTask.streamId,
-          pTask->streamTask.taskId);
+      stError("too many exec tasks scheduled (%" PRId64 ",%" PRId64 ")", pTask->task.streamId,
+          pTask->task.taskId);
       code = TSDB_CODE_STREAM_TASK_IVLD_STATUS;
     }
   }
@@ -81,29 +80,21 @@ static void stRunnerTaskExecMgrReleaseExec(SStreamRunnerTask* pTask, SStreamRunn
   taosThreadMutexUnlock(&pMgr->lock);
 }
 
-int32_t stRunnerTaskDeploy(SStreamRunnerTask** ppTask, const SStreamRunnerDeployMsg* pMsg) {
-  SStreamRunnerTask* pTask = taosMemoryCalloc(1, sizeof(SStreamRunnerTask));
-  if (!pTask) {
-    stError("failed to allocate memory for stream task (%" PRId64 ", %" PRId64 "), code:%s", pMsg->task.streamId,
-            pMsg->task.taskId, tstrerror(terrno));
-    return terrno;
-  }
-  pTask->streamTask = pMsg->task;
+int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
+  //pTask->task = pMsg->task;
   pTask->pPlan = pMsg->pPlan;  // TODO wjm do we need to deep copy this char*
-  pTask->handle = pMsg->handle;
+  //pTask->handle = pMsg->handle;
   int32_t code = stRunnerInitTaskExecMgr(pTask);
   if (code != 0) {
-    stError("failed to init task exec mgr %" PRId64 ", %" PRId64 "), code:%s", pTask->streamTask.streamId,
-            pTask->streamTask.taskId, tstrerror(code));
-    taosMemoryFree(pTask);
+    stError("failed to init task exec mgr %" PRId64 ", %" PRId64 "), code:%s", pTask->task.streamId,
+            pTask->task.taskId, tstrerror(code));
     return code;
   }
 
-  *ppTask = pTask;
   return 0;
 }
 
-int32_t stRunnerTaskUndeploy(SStreamRunnerTask* pTask, const SStreamRunnerUndeployMsg* pMsg) {
+int32_t stRunnerTaskUndeploy(SStreamRunnerTask* pTask, const SStreamUndeployTaskMsg* pMsg) {
   taosMemoryFree(pTask);
   stRunnerDestroyTaskExecMgr(pTask);
   return 0;
@@ -113,8 +104,8 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, const char* pMsg, int32_t 
   SStreamRunnerTaskExecution* pExec = NULL;
   int32_t                     code = stRunnerTaskExecMgrAcquireExec(pTask, &pExec);
   if (code != 0) {
-    stError("failed to get task exec for stream: (%" PRId64 ", %" PRId64 "), code:%s", pTask->streamTask.streamId,
-            pTask->streamTask.taskId, tstrerror(code));
+    stError("failed to get task exec for stream: (%" PRId64 ", %" PRId64 "), code:%s", pTask->task.streamId,
+            pTask->task.taskId, tstrerror(code));
     return code;
   }
 
@@ -130,8 +121,8 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, const char* pMsg, int32_t 
     code = streamExecuteTask(pExec->pExecutor, &pBlock, &ts); // TODO wjm impl it
   }
   if (code != 0) {
-    stError("failed to exec task (%" PRId64 ", %" PRId64 ") code: %s", pTask->streamTask.streamId,
-            pTask->streamTask.taskId, tstrerror(code));
+    stError("failed to exec task (%" PRId64 ", %" PRId64 ") code: %s", pTask->task.streamId,
+            pTask->task.taskId, tstrerror(code));
   } else {
 
     if (pBlock && pBlock->info.rows > 0) {
@@ -143,17 +134,14 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, const char* pMsg, int32_t 
 }
 
 static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution *pExec) {
-  int32_t      vgId = pTask->streamTask.vgId;
+  int32_t      vgId = pTask->task.nodeId;
   int64_t      st = taosGetTimestampMs();
-  int64_t      streamId = pTask->streamTask.streamId;
-  int32_t      taskId = pTask->streamTask.taskId;
+  int64_t      streamId = pTask->task.streamId;
+  int32_t      taskId = pTask->task.taskId;
   int32_t      code = 0;
-
-  stDebug("s-task:(%" PRId64 ",%" PRId64 ") vgId:%d start to expand stream task", streamId, taskId, vgId);
 
   code = qCreateStreamExecTaskInfo(&pExec->pExecutor, (void*)pExec->pPlan, &pTask->handle, vgId, taskId);
   if (code) {
-    stError("s-task:(%"PRId64 ",%"PRId64") failed to expand task, code:%s", streamId, taskId, tstrerror(code));
     return code;
   }
 
@@ -164,14 +152,10 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
 
   //code = qSetStreamNotifyInfo(pTask->exec.pExecutor, pTask->notifyInfo.notifyEventTypes, pTask->notifyInfo.pSchemaWrapper, pTask->notifyInfo.stbFullName, IS_NEW_SUBTB_RULE(pTask), &pTask->notifyEventStat);
   if (code) {
-    stError("s-task:(%" PRId64 ",%" PRId64 ") failed to set stream notify info, code:%s", streamId, taskId,
-            tstrerror(code));
     return code;
   }
 
   double el = (taosGetTimestampMs() - st) / 1000.0;
-  stDebug("s-task:(%" PRId64 ",%" PRId64 ") vgId:%d expand stream task completed, elapsed time:%.2fsec", streamId,
-          taskId, vgId, el);
 
   return code;
 }

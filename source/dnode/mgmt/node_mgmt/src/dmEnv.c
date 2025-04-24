@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 // clang-format off
+#include "storageapi.h"
 #include "dmMgmt.h"
 #include "audit.h"
 #include "libs/function/tudf.h"
@@ -22,6 +23,7 @@
 #include "tcompare.h"
 #include "tcs.h"
 #include "tanalytics.h"
+#include "stream.h"
 // clang-format on
 
 #define DM_INIT_AUDIT()                       \
@@ -184,6 +186,7 @@ int32_t dmInit() {
 #if defined(USE_S3)
   if ((code = tcsInit()) != 0) return code;
 #endif  
+
   if ((code = streamInit(&pDnode->data, pDnode->data.dnodeId, dmGetMnodeEpSet)) != 0) return code;
 
   dInfo("dnode env is initialized");

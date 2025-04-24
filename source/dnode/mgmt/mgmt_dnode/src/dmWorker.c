@@ -17,6 +17,7 @@
 #include "dmInt.h"
 #include "tgrant.h"
 #include "thttp.h"
+#include "streamMsg.h"
 
 static void *dmStatusThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
@@ -616,6 +617,7 @@ int32_t dmDispatchStreamHbMsg(struct SDispatchWorkerPool* pPool, void* pParam, i
   SRpcMsg* pMsg = (SRpcMsg*)pParam;
   SStreamMsgGrpHeader* pHeader = (SStreamMsgGrpHeader*)pMsg->pCont;
   *pWorkerIdx = pHeader->streamGid % tsNumOfStreamMgmtThreads;
+  return TSDB_CODE_SUCCESS;
 }
 
 
@@ -678,7 +680,7 @@ int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
     dError("failed to start dnode-stream-mgmt worker since %s", tstrerror(code));
     return code;
   }
-  code = tDispatchWorkerAllocQueue(pStMgmtpool, pMgmt, (FItems)dmProcessStreamMgmtQueue, dmDispatchStreamHbMsg);
+  code = tDispatchWorkerAllocQueue(pStMgmtpool, pMgmt, (FItem)dmProcessStreamMgmtQueue, dmDispatchStreamHbMsg);
   if (code != 0) {
     dError("failed to allocate dnode-stream-mgmt worker queue since %s", tstrerror(code));
     return code;

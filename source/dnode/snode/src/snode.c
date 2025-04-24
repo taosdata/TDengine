@@ -14,10 +14,9 @@
  */
 
 #include "executor.h"
-#include "rsync.h"
 #include "sndInt.h"
-#include "tqCommon.h"
 #include "tuuid.h"
+#include "stream.h"
 
 // clang-format off
 #define sndError(...) do {  if (sndDebugFlag & DEBUG_ERROR) { taosPrintLog("SND ERROR ", DEBUG_ERROR, sndDebugFlag, __VA_ARGS__);}} while (0)
@@ -48,7 +47,7 @@ void sndClose(SSnode *pSnode) {
 
 int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
   switch (pMsg->msgType) {
-    case TDMT_STREAM_XXX:
+    //case TDMT_STREAM_XXX:
     default:
       sndError("invalid snode msg:%d", pMsg->msgType);
       return TSDB_CODE_INVALID_MSG;

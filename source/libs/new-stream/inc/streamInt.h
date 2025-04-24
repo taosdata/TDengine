@@ -21,6 +21,8 @@
 #include "trpc.h"
 #include "stream.h"
 #include "tref.h"
+#include "ttimer.h"
+#include "streamRunner.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -58,7 +60,7 @@ typedef struct SStreamMgmtInfo {
   void*                  dnode;
   int32_t                dnodeId;
   int32_t                snodeId;
-  SStorageAPI            api;
+//  SStorageAPI*           api;
   getMnodeEpsetFromDnode cb;
   SStreamHbInfo          hb;
 
@@ -73,6 +75,18 @@ typedef struct SStreamMgmtInfo {
   SRWLatch               snodeLock;
   SArray*                snodeTasks;                      // SArray<SStreamTask*>
 } SStreamMgmtInfo;
+
+extern SStreamMgmtInfo gStreamMgmt;
+
+int32_t streamTimerInit(void** ppTimer);
+int32_t streamHbInit(SStreamHbInfo* pHb);
+int32_t smDeployTasks(SStreamDeployActions* actions);
+int32_t smUndeployTasks(SStreamUndeployActions* actions);
+int32_t smStartTasks(SStreamStartActions* actions);
+void smUndeployAllTasks(void);
+void streamTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* pParam, void* pHandle, tmr_h* pTmrId, const char* pMsg);
+int32_t stmBuildStreamsStatus(SArray** ppStatus, int32_t gid);
+int32_t stmAddFetchStreamGid(void);
 
 
 #ifdef __cplusplus

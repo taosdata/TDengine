@@ -63,9 +63,3 @@ void streamTmrStop(tmr_h tmrId) {
   }
 }
 
-void streamCleanBeforeQuitTmr(SStreamTmrInfo* pInfo, void* param) {
-  pInfo->activeCounter = 0;
-  pInfo->launchChkptId = 0;
-  atomic_store_8(&pInfo->isActive, 0);
-  streamTaskFreeRefId(param);
-}

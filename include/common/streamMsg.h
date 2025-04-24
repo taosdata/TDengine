@@ -173,9 +173,174 @@ typedef struct SStreamTaskCheckpointReq {
 int32_t tEncodeStreamTaskCheckpointReq(SEncoder* pEncoder, const SStreamTaskCheckpointReq* pReq);
 int32_t tDecodeStreamTaskCheckpointReq(SDecoder* pDecoder, SStreamTaskCheckpointReq* pReq);
 
+typedef enum EStreamPlaceholder {
+  SP_NONE = 0,
+  SP_CURRENT_TS = 1,
+  SP_WSTART,
+  SP_WEND,
+  SP_WDURATION,
+  SP_WROWNUM,
+  SP_LOCALTIME,
+  SP_PARTITION_IDX,
+  SP_PARTITION_TBNAME,
+  SP_PARTITION_ROWS
+} EStreamPlaceholder;
+
+typedef struct SStreamOutCol {
+  void*              expr;
+  SDataType          type;
+} SStreamOutCol;
+
+typedef struct SSessionTrigger {
+  int16_t slotId;
+  int64_t sessionVal;
+} SSessionTrigger;
+
+typedef struct SStateWinTrigger {
+  int16_t slotId;
+  int64_t trueForDuration;
+} SStateWinTrigger;
+
+typedef struct SSlidingTrigger {
+  int64_t interval;
+  int64_t sliding;
+  int64_t offset;
+} SSlidingTrigger;
+
+typedef struct SEventTrigger {
+  void*   startCond;
+  void*   endCond;
+  int64_t trueForDuration;
+} SEventTrigger;
+
+typedef struct SCountTrigger {
+  int64_t    countVal;
+  int64_t    sliding;
+  void*      condCols;
+} SCountTrigger;
+
+typedef struct SPeriodTrigger {
+  int64_t period;
+  int64_t offset;
+} SPeriodTrigger;
+
+typedef union {
+  SSessionTrigger  session;
+  SStateWinTrigger stateWin;
+  SSlidingTrigger  sliding;
+  SEventTrigger    event;
+  SCountTrigger    count;
+  SPeriodTrigger   period;
+} SStreamTrigger;
+
+typedef struct {
+  SArray* vgList; // vgId, SArray<int32>
+  int8_t  readFromCache;
+  void*   scanPlan;
+} SStreamCalcScan;
+
+typedef struct {
+  char*    name;
+  int64_t  streamId;
+  char*    sql;
+  
+  char*   streamDB;
+  char*   triggerDB;
+  char*   outDB;
+  SArray* calcDB;          // char*
+  
+  char*   triggerTblName;  // table name
+  char*   outTblName;      // table name
+  
+  int8_t  igExists;
+  int8_t  triggerType;
+  int8_t  igDisorder;
+  int8_t  deleteReCalc;
+  int8_t  deleteOutTbl;
+  int8_t  fillHistory;
+  int8_t  fillHistoryFirst;
+  int8_t  calcNotifyOnly;
+  int8_t  lowLatencyCalc;
+  int8_t  forceOutput;
+
+  // notify options
+  SArray* pNotifyAddrUrls;
+  int32_t notifyEventTypes;
+  int32_t notifyErrorHandle;
+  int8_t  notifyHistory;
+
+  SArray*        outCols;  // array of TAOS_FIELD_E
+  SArray*        outTags;  // array of TAOS_FIELD_E
+  SArray*        partitionCols; // array of TAOS_FIELD_E
+  int64_t        maxDelay;    //precision is ms
+  int64_t        fillHistoryStartTime; // precision same with triggerDB, INT64_MIN for no value specified
+  int64_t        watermark;   // precision same with triggerDB
+  int64_t        expiredTime; // precision same with triggerDB
+  SStreamTrigger trigger;
+
+  int8_t   triggerTblType;
+  int8_t   outTblType;
+  int8_t   outStbExists;
+  uint64_t outStbUid;
+  int64_t  eventTypes;
+  int64_t  flags;
+  int64_t  tsmaId;
+
+  // only for child table and normal table
+  int32_t  triggerTblVgId;
+  int32_t  outTblVgId;
+
+  // reader part
+  void*     triggerPrevFilter;
+  void*     triggerWalScanPlan;
+  void*     triggerTsdbScanPlan;  // for trigger action
+  SArray*   calcScanPlanList;     // for calc action, SArray<SStreamCalcScan>
+
+  // trigger part
+  SArray*   pVSubTables; // array of SVSubTablesRsp
+  
+  // runner part
+  void*     calcPlan;      // for calc action
+  void*     subTblNameExpr;
+  void*     tagValueExpr;
+  SArray*   forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
+} SCMCreateStreamReq;
+
+
 typedef struct SStreamMsg {
   int32_t msgType;
 } SStreamMsg;
+
+
+typedef enum {
+  STREAM_STATUS_NA = 0,
+  STREAM_STATUS_INIT = 1,
+  STREAM_STATUS_RUNNING,
+  STREAM_STATUS_STOPPED,
+  STREAM_STATUS_FAILED,
+} EStreamStatus;
+
+typedef enum EStreamTaskType {
+  STREAM_READER_TASK = 0,
+  STREAM_TRIGGER_TASK,
+  STREAM_RUNNER_TASK,
+} EStreamTaskType;
+
+
+typedef struct SStreamTask {
+  EStreamTaskType type;
+  
+  /** KEEP TOGETHER **/
+  int64_t         streamId;  // ID of the stream
+  int64_t         taskId;    // ID of the current task
+  /** KEEP TOGETHER **/
+      
+  int32_t         nodeId;    // ID of the vgroup/snode
+  int64_t         sessionId;  // ID of the current session (real-time, historical, or recalculation)
+  int16_t         taskIdx;
+  EStreamStatus   status;
+} SStreamTask;
+
 
 typedef SStreamTask SStmTaskStatusMsg;
 
@@ -199,8 +364,9 @@ typedef struct {
 
 } SStreamTriggerDeployMsg;
 
-typedef struct {
-
+typedef struct SStreamRunnerDeployMsg {
+  const char*           pPlan;
+  bool                  forceWindowClose;
 } SStreamRunnerDeployMsg;
 
 typedef union {
@@ -340,6 +506,38 @@ typedef struct {
 
 int32_t tEncodeStreamTaskStopReq(SEncoder* pEncoder, const SStreamTaskStopReq* pReq);
 int32_t tDecodeStreamTaskStopReq(SDecoder* pDecoder, SStreamTaskStopReq* pReq);
+
+typedef struct SStreamProgressReq {
+  int64_t streamId;
+  int32_t vgId;
+  int32_t fetchIdx;
+  int32_t subFetchIdx;
+} SStreamProgressReq;
+
+int32_t tSerializeStreamProgressReq(void* buf, int32_t bufLen, const SStreamProgressReq* pReq);
+int32_t tDeserializeStreamProgressReq(void* buf, int32_t bufLen, SStreamProgressReq* pReq);
+
+typedef struct SStreamProgressRsp {
+  int64_t streamId;
+  int32_t vgId;
+  bool    fillHisFinished;
+  int64_t progressDelay;
+  int32_t fetchIdx;
+  int32_t subFetchIdx;
+} SStreamProgressRsp;
+
+int32_t tSerializeStreamProgressRsp(void* buf, int32_t bufLen, const SStreamProgressRsp* pRsp);
+int32_t tDeserializeSStreamProgressRsp(void* buf, int32_t bufLen, SStreamProgressRsp* pRsp);
+
+typedef struct {
+  int64_t streamId;
+} SCMCreateStreamRsp;
+
+int32_t tSerializeSCMCreateStreamReq(void* buf, int32_t bufLen, const SCMCreateStreamReq* pReq);
+int32_t tDeserializeSCMCreateStreamReq(void* buf, int32_t bufLen, SCMCreateStreamReq* pReq);
+void    tFreeSCMCreateStreamReq(SCMCreateStreamReq* pReq);
+
+
 
 #ifdef __cplusplus
 }

@@ -1093,11 +1093,11 @@ static void *tDispatchWorkerThreadFp(SDispatchWorker *pWorker) {
 
   setThreadName(pPool->name);
   pWorker->pid = taosGetSelfPthreadId();
-  uDebug("worker:%s:%d is running, thread:%08" PRId64, pPool->name, pWorker->id, pWorker->pid);
+  uDebug("worker:%s:%d is running, thread:%d", pPool->name, pWorker->id, pWorker->pid);
 
   while (1) {
     if (taosReadQitemFromQset(pWorker->qset, (void **)&msg, &qinfo) == 0) {
-      uInfo("worker:%s:%d qset:%p, got no message and exiting, thread:%08" PRId64, pPool->name, pWorker->id,
+      uInfo("worker:%s:%d qset:%p, got no message and exiting, thread:%d", pPool->name, pWorker->id,
             pWorker->qset, pWorker->pid);
       break;
     }
@@ -1199,7 +1199,7 @@ void tDispatchWorkerCleanup(SDispatchWorkerPool *pPool) {
   (void)taosThreadMutexDestroy(&pPool->poolLock);
 }
 
-int32_t tAddTaskIntoDispatchWorkerPool(SDispatchWorkerPool *pPool, SRpcMsg *pMsg) {
+int32_t tAddTaskIntoDispatchWorkerPool(SDispatchWorkerPool *pPool, void *pMsg) {
   int32_t code = 0;
   int32_t idx = 0;
   (void)taosThreadMutexLock(&pPool->poolLock);

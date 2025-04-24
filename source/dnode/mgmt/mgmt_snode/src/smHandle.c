@@ -76,9 +76,11 @@ SArray *smGetMsgHandles() {
   SArray *pArray = taosArrayInit(4, sizeof(SMgmtHandle));
   if (pArray == NULL) goto _OVER;
 
+/* STREAMTODO
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_xxx, smPutMsgToRunnerQueue, 1) == NULL) goto _OVER;
 
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_XXXX, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
+*/
 
   code = 0;
   

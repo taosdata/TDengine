@@ -26,6 +26,7 @@ extern "C" {
 #include "tcommon.h"
 #include "tglobal.h"
 #include "ttimer.h"
+#include "streamMsg.h"
 
 #define CTG_DEFAULT_CACHE_CLUSTER_NUMBER 6
 #define CTG_DEFAULT_CACHE_VGROUP_NUMBER  100

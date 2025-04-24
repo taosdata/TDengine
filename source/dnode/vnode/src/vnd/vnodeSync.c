@@ -16,10 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "sync.h"
 #include "tq.h"
-#include "tqCommon.h"
 #include "tsdb.h"
 #include "vnd.h"
-#include "tstream.h"
+#include "stream.h"
 
 #define BATCH_ENABLE 0
 
@@ -571,45 +570,6 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
 
   walApplyVer(pVnode->pWal, commitIdx);
   pVnode->restored = true;
-
-#ifdef USE_STREAM
-  SStreamMeta *pMeta = pVnode->pTq->pStreamMeta;
-  streamMetaWLock(pMeta);
-
-  if (pMeta->startInfo.tasksWillRestart) {
-    vInfo("vgId:%d, sync restore finished, stream tasks will be launched by other thread", vgId);
-    streamMetaWUnLock(pMeta);
-    return;
-  }
-
-  if (vnodeIsRoleLeader(pVnode)) {
-    // start to restore all stream tasks
-    if (tsDisableStream) {
-      vInfo("vgId:%d, sync restore finished, not launch stream tasks, since stream tasks are disabled", vgId);
-    } else {
-      vInfo("vgId:%d sync restore finished, start to launch stream task(s)", vgId);
-      if (pMeta->startInfo.startAllTasks == 1) {
-        pMeta->startInfo.restartCount += 1;
-        vDebug("vgId:%d in start tasks procedure, inc restartCounter by 1, remaining restart:%d", vgId,
-               pMeta->startInfo.restartCount);
-      } else {
-        pMeta->startInfo.startAllTasks = 1;
-        streamMetaWUnLock(pMeta);
-
-        tqInfo("vgId:%d stream task already loaded, start them", vgId);
-        int32_t code = streamTaskSchedTask(&pVnode->msgCb, TD_VID(pVnode), 0, 0, STREAM_EXEC_T_START_ALL_TASKS, false);
-        if (code != 0) {
-          tqError("vgId:%d failed to sched stream task, code:%s", vgId, tstrerror(code));
-        }
-        return;
-      }
-    }
-  } else {
-    vInfo("vgId:%d, sync restore finished, not launch stream tasks since not leader", vgId);
-  }
-
-  streamMetaWUnLock(pMeta);
-#endif
 }
 
 static void vnodeBecomeFollower(const SSyncFSM *pFsm) {

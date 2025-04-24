@@ -15,7 +15,7 @@
 
 #ifndef _TD_MND_STREAM_H_
 #define _TD_MND_STREAM_H_
-
+#include "stream.h"
 #include "mndInt.h"
 #include "mndTrans.h"
 
@@ -55,7 +55,7 @@ typedef struct SStmQNode {
   int64_t              streamId;
   char*                streamName;
   int32_t              action;
-  struct SStmtQNode*   next;
+  void*                next;
 } SStmQNode;
 
 typedef struct SStmActionQ {
@@ -158,7 +158,6 @@ void    mndReleaseStream(SMnode *pMnode, SStreamObj *pStream);
 int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 
 int32_t  mndGetNumOfStreams(SMnode *pMnode, char *dbName, int32_t *pNumOfStreams);
-int32_t  mndGetNumOfStreamTasks(const SStreamObj *pStream);
 int32_t  setTransAction(STrans *pTrans, void *pCont, int32_t contLen, int32_t msgType, const SEpSet *pEpset,
                         int32_t retryCode, int32_t acceptCode);
 int32_t  doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnConflct conflict, const char *name,
@@ -172,14 +171,19 @@ int32_t mndCheckForSnode(SMnode *pMnode, SDbObj *pSrcDb);
 int32_t mndProcessStreamHb(SRpcMsg *pReq);
 int32_t mndStreamSetDropAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t mndStreamSetDropActionFromList(SMnode *pMnode, STrans *pTrans, SArray *pList);
-int32_t mndStreamSetCheckpointAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask, int64_t checkpointId,
-                                     int8_t mndTrigger);
 int32_t mndStreamSetStopStreamTasksActions(SMnode* pMnode, STrans *pTrans, uint64_t dbUid);
 
-int32_t mndInitExecInfo();
-void    removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode);
-
+int32_t msmInitRuntimeInfo(SMnode *pMnode);
+int32_t mndStreamTransAppend(SStreamObj *pStream, STrans *pTrans, int32_t status);
+int32_t mndStreamCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnConflct conflict, const char *name, STrans **ppTrans);
 int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows);
+int32_t mndStreamCheckSnodeExists(SMnode *pMnode);
+void msmCleanStreamGrpCtx(SStreamHbMsg* pHb);
+int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, SMStreamHbRspMsg* pRsp);
+int32_t msmHandleGrantExpired(SMnode *pMnode);
+bool mndStreamActionDequeue(SStmActionQ* pQueue, SStmQNode **param);
+void msmHandleBecomeLeader(SMnode *pMnode);
+void msmHandleBecomeNotLeader(SMnode *pMnode);
 
 #ifdef __cplusplus
 }

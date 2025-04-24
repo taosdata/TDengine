@@ -16,8 +16,7 @@
 #include "tq.h"
 #include "osDef.h"
 #include "taoserror.h"
-#include "tqCommon.h"
-#include "tstream.h"
+#include "stream.h"
 #include "vnd.h"
 
 // 0: not init
@@ -118,7 +117,6 @@ int32_t tqInitialize(STQ* pTq) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  streamMetaLoadAllTasks(pTq->pStreamMeta);
   return tqMetaOpen(pTq);
 }
 
@@ -131,12 +129,7 @@ void tqClose(STQ* pTq) {
   int32_t vgId = 0;
   if (pTq->pVnode != NULL) {
     vgId = TD_VID(pTq->pVnode);
-  } else if (pTq->pStreamMeta != NULL) {
-    vgId = pTq->pStreamMeta->vgId;
   }
-
-  // close the stream meta firstly
-  streamMetaClose(pTq->pStreamMeta);
 
   void* pIter = taosHashIterate(pTq->pPushMgr, NULL);
   while (pIter) {
@@ -158,21 +151,7 @@ void tqClose(STQ* pTq) {
   tqMetaClose(pTq);
   qDebug("vgId:%d end to close tq", vgId);
 
-#if 0
-  streamMetaFreeTQDuringScanWalError(pTq);
-#endif
-
   taosMemoryFree(pTq);
-}
-
-void tqNotifyClose(STQ* pTq) {
-  if (pTq == NULL) {
-    return;
-  }
-
-  if (pTq->pStreamMeta != NULL) {
-    streamMetaNotifyClose(pTq->pStreamMeta);
-  }
 }
 
 void tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId) {

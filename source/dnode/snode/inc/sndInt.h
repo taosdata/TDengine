@@ -22,7 +22,6 @@
 #include "tmsg.h"
 #include "tqueue.h"
 #include "trpc.h"
-#include "tstream.h"
 
 #include "snode.h"
 #include "tworker.h"
@@ -35,7 +34,6 @@ struct SSnode {
   SMsgCb       msgCb;
 };
 
-void initStreamStateAPI(SStorageAPI* pAPI);
 
 #ifdef __cplusplus
 }

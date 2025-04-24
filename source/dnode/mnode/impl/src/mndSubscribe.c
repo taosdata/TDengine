@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "mndSubscribe.h"
 #include "mndConsumer.h"
-#include "mndScheduler.h"
 #include "mndShow.h"
 #include "mndTopic.h"
 #include "mndTrans.h"

@@ -15,6 +15,7 @@
 
 #include "metaTtl.h"
 #include "meta.h"
+#include "tdbInt.h"
 
 typedef struct {
   TTB   *pNewTtlIdx;

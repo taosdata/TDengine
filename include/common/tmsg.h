@@ -68,6 +68,34 @@ typedef uint16_t tmsg_t;
 #define TMSG_SEG_SEQ(TYPE)  ((TYPE)&0xff)
 #define TMSG_INDEX(TYPE)    (tMsgDict[TMSG_SEG_CODE(TYPE)] + TMSG_SEG_SEQ(TYPE))
 
+
+#define DECODESQL()                                                               \
+  do {                                                                            \
+    if (!tDecodeIsEnd(&decoder)) {                                                \
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->sqlLen));                       \
+      if (pReq->sqlLen > 0) {                                                     \
+        TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->sql, NULL)); \
+      }                                                                           \
+    }                                                                             \
+  } while (0)
+
+#define ENCODESQL()                                                                       \
+  do {                                                                                    \
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->sqlLen));                                  \
+    if (pReq->sqlLen > 0) {                                                               \
+      TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->sql, pReq->sqlLen)); \
+    }                                                                                     \
+  } while (0)
+
+#define FREESQL()                \
+  do {                           \
+    if (pReq->sql != NULL) {     \
+      taosMemoryFree(pReq->sql); \
+    }                            \
+    pReq->sql = NULL;            \
+  } while (0)
+
+
 static inline bool tmsgIsValid(tmsg_t type) {
   // static int8_t sz = sizeof(tMsgRangeDict) / sizeof(tMsgRangeDict[0]);
   int8_t maxSegIdx = TMSG_SEG_CODE(TDMT_MAX_MSG_MIN);
@@ -3135,152 +3163,12 @@ typedef struct {
 #define STREAM_CREATE_STABLE_TRUE     1
 #define STREAM_CREATE_STABLE_FALSE    0
 
-typedef struct SColLocation {
-  int16_t  slotId;
-  col_id_t colId;
-  int8_t   type;
-} SColLocation;
-
-#ifdef NEW_STREAM
-
-typedef enum EStreamPlaceholder {
-  SP_NONE = 0,
-  SP_CURRENT_TS = 1,
-  SP_WSTART,
-  SP_WEND,
-  SP_WDURATION,
-  SP_WROWNUM,
-  SP_LOCALTIME,
-  SP_PARTITION_IDX,
-  SP_PARTITION_TBNAME,
-  SP_PARTITION_ROWS
-} EStreamPlaceholder;
-
-typedef struct SStreamOutCol {
-  void*              expr;
-  SDataType          type;
-} SStreamOutCol;
-
-typedef struct SSessionTrigger {
-  int16_t slotId;
-  int64_t sessionVal;
-} SSessionTrigger;
-
-typedef struct SStateWinTrigger {
-  int16_t slotId;
-  int64_t trueForDuration;
-} SStateWinTrigger;
-
-typedef struct SSlidingTrigger {
-  int64_t interval;
-  int64_t sliding;
-  int64_t offset;
-} SSlidingTrigger;
-
-typedef struct SEventTrigger {
-  void*   startCond;
-  void*   endCond;
-  int64_t trueForDuration;
-} SEventTrigger;
-
-typedef struct SCountTrigger {
-  int64_t    countVal;
-  int64_t    sliding;
-  void*      condCols;
-} SCountTrigger;
-
-typedef struct SPeriodTrigger {
-  int64_t period;
-  int64_t offset;
-} SPeriodTrigger;
-
-typedef union {
-  SSessionTrigger  session;
-  SStateWinTrigger stateWin;
-  SSlidingTrigger  sliding;
-  SEventTrigger    event;
-  SCountTrigger    count;
-  SPeriodTrigger   period;
-} SStreamTrigger;
-
-typedef struct {
-  SArray* vgList; // vgId, SArray<int32>
-  int8_t  readFromCache;
-  void*   scanPlan;
-} SStreamCalcScan;
-
-typedef struct {
-  char*    name;
-  int64_t  streamId;
-  char*    sql;
-  
-  char*   streamDB;
-  char*   triggerDB;
-  char*   outDB;
-  
-  char*   triggerTblName;  // table name
-  char*   outTblName;      // table name
-  
-  int8_t  igExists;
-  int8_t  triggerType;
-  int8_t  igDisorder;
-  int8_t  deleteReCalc;
-  int8_t  deleteOutTbl;
-  int8_t  fillHistory;
-  int8_t  fillHistoryFirst;
-  int8_t  calcNotifyOnly;
-  int8_t  lowLatencyCalc;
-  int8_t  forceOutput;
-
-  // notify options
-  SArray* pNotifyAddrUrls;
-  int32_t notifyEventTypes;
-  int32_t notifyErrorHandle;
-  int8_t  notifyHistory;
-
-  SArray*        outCols;  // array of TAOS_FIELD_E
-  SArray*        outTags;  // array of TAOS_FIELD_E
-  SArray*        partitionCols; // array of TAOS_FIELD_E
-  int64_t        maxDelay;    //precision is ms
-  int64_t        fillHistoryStartTime; // precision same with triggerDB, INT64_MIN for no value specified
-  int64_t        watermark;   // precision same with triggerDB
-  int64_t        expiredTime; // precision same with triggerDB
-  SStreamTrigger trigger;
-
-  int8_t   triggerTblType;
-  int8_t   outTblType;
-  int8_t   outStbExists;
-  uint64_t outStbUid;
-  int64_t  eventTypes;
-  int64_t  flags;
-  int64_t  tsmaId;
-
-  // only for child table and normal table
-  int32_t  triggerTblVgId;
-  int32_t  outTblVgId;
-
-  // reader part
-  void*     triggerPrevFilter;
-  void*     triggerWalScanPlan;
-  void*     triggerTsdbScanPlan;  // for trigger action
-  SArray*   calcScanPlanList;     // for calc action, SArray<SStreamCalcScan>
-
-  // trigger part
-  SArray*   pVSubTables; // array of SVSubTablesRsp
-  
-  // runner part
-  void*     calcPlan;      // for calc action
-  void*     subTblNameExpr;
-  void*     tagValueExpr;
-  SArray*   forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
-} SCMCreateStreamReq;
-
 typedef struct SVgroupVer {
   int32_t vgId;
   int64_t ver;
 } SVgroupVer;
 
-#else
+#if 0
 typedef struct {
   char    name[TSDB_STREAM_FNAME_LEN];
   char    sourceDB[TSDB_DB_FNAME_LEN];
@@ -3337,14 +3225,6 @@ typedef struct STaskNotifyEventStat {
   double  notifyEventSendCostSec;  // time cost of send function
   int64_t notifyEventHoldElems;    // elements hold due to watermark
 } STaskNotifyEventStat;
-
-typedef struct {
-  int64_t streamId;
-} SCMCreateStreamRsp;
-
-int32_t tSerializeSCMCreateStreamReq(void* buf, int32_t bufLen, const SCMCreateStreamReq* pReq);
-int32_t tDeserializeSCMCreateStreamReq(void* buf, int32_t bufLen, SCMCreateStreamReq* pReq);
-void    tFreeSCMCreateStreamReq(SCMCreateStreamReq* pReq);
 
 enum {
   TOPIC_SUB_TYPE__DB = 1,
@@ -5045,28 +4925,6 @@ void    tFreeTableTSMAInfoRsp(STableTSMAInfoRsp* pRsp);
 #define tDeserializeTSMAHbRsp tDeserializeTableTSMAInfoRsp
 #define tFreeTSMAHbRsp        tFreeTableTSMAInfoRsp
 
-typedef struct SStreamProgressReq {
-  int64_t streamId;
-  int32_t vgId;
-  int32_t fetchIdx;
-  int32_t subFetchIdx;
-} SStreamProgressReq;
-
-int32_t tSerializeStreamProgressReq(void* buf, int32_t bufLen, const SStreamProgressReq* pReq);
-int32_t tDeserializeStreamProgressReq(void* buf, int32_t bufLen, SStreamProgressReq* pReq);
-
-typedef struct SStreamProgressRsp {
-  int64_t streamId;
-  int32_t vgId;
-  bool    fillHisFinished;
-  int64_t progressDelay;
-  int32_t fetchIdx;
-  int32_t subFetchIdx;
-} SStreamProgressRsp;
-
-int32_t tSerializeStreamProgressRsp(void* buf, int32_t bufLen, const SStreamProgressRsp* pRsp);
-int32_t tDeserializeSStreamProgressRsp(void* buf, int32_t bufLen, SStreamProgressRsp* pRsp);
-
 typedef struct SDropCtbWithTsmaSingleVgReq {
   SVgroupInfo vgInfo;
   SArray*     pTbs;  // SVDropTbReq
@@ -5220,6 +5078,10 @@ typedef struct SStreamCalculationRequest {
   SArray*               params;
   SArray*               groupColVals; // only provided at the first calculation of the group
 } SStreamCalculationRequest;
+
+int32_t tSerializeSVSubTablesRspImpl(SEncoder* pEncoder, SVSubTablesRsp *pRsp);
+int32_t tDeserializeSVSubTablesRspImpl(SDecoder* pDecoder, SVSubTablesRsp *pRsp);
+
 
 #pragma pack(pop)
 

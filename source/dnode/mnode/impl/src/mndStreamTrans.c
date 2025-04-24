@@ -102,7 +102,7 @@ _over:
 }
 
 int32_t mndStreamTransAppend(SStreamObj *pStream, STrans *pTrans, int32_t status) {
-  int64_t streadId = pStream->pCreate->streamId;
+  int64_t streamId = pStream->pCreate->streamId;
   SSdbRaw *pCommitRaw = mndStreamActionEncode(pStream);
   if (pCommitRaw == NULL) {
     mstError("failed to encode stream since %s", terrstr());

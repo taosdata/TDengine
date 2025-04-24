@@ -26,6 +26,7 @@ extern "C" {
 #include "tsimplehash.h"
 #include "tvariant.h"
 #include "ttypes.h"
+#include "streamMsg.h"
 
 #define TABLE_TOTAL_COL_NUM(pMeta) ((pMeta)->tableInfo.numOfColumns + (pMeta)->tableInfo.numOfTags)
 #define TABLE_META_SIZE(pMeta) \

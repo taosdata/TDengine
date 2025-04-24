@@ -692,7 +692,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       if (vnodeProcessBatchDeleteReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
     /* TQ */
-#if defined(USE_TQ) || defined(USE_STREAM)
+#if defined(USE_TQ)
     case TDMT_VND_TMQ_SUBSCRIBE:
       if (tqProcessSubscribeReq(pVnode->pTq, ver, pReq, len) < 0) {
         goto _err;
@@ -718,37 +718,6 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
         goto _err;
       }
       break;
-    case TDMT_STREAM_TASK_DROP: {
-    case TDMT_STREAM_CONSEN_CHKPT: {
-      if (pVnode->restored && (code = tqProcessTaskConsenChkptIdReq(pVnode->pTq, pMsg)) < 0) {
-        goto _err;
-      }
-
-    } break;
-    case TDMT_STREAM_TASK_PAUSE: {
-      if (pVnode->restored && vnodeIsLeader(pVnode) &&
-          (code = tqProcessTaskPauseReq(pVnode->pTq, ver, pMsg->pCont, pMsg->contLen)) < 0) {
-        goto _err;
-      }
-    } break;
-    case TDMT_STREAM_TASK_RESUME: {
-      if (pVnode->restored && vnodeIsLeader(pVnode) &&
-          (code = tqProcessTaskResumeReq(pVnode->pTq, ver, pMsg->pCont, pMsg->contLen)) < 0) {
-        goto _err;
-      }
-    } break;
-    case TDMT_VND_STREAM_TASK_RESET: {
-      if (pVnode->restored && vnodeIsLeader(pVnode) && (code = tqProcessTaskResetReq(pVnode->pTq, pMsg)) < 0) {
-        goto _err;
-      }
-
-    } break;
-    case TDMT_VND_STREAM_ALL_STOP: {
-      if (pVnode->restored && vnodeIsLeader(pVnode) && (code = tqProcessAllTaskStopReq(pVnode->pTq, pMsg)) < 0) {
-        goto _err;
-      }
-
-    } break;
 #endif
     case TDMT_VND_ALTER_CONFIRM:
       needCommit = pVnode->config.hashChange;
@@ -767,12 +736,6 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       break;
     case TDMT_VND_DROP_INDEX:
       vnodeProcessDropIndexReq(pVnode, ver, pReq, len, pRsp);
-      break;
-    case TDMT_VND_STREAM_CHECK_POINT_SOURCE:  // always return true
-      tqProcessTaskCheckPointSourceReq(pVnode->pTq, pMsg, pRsp);
-      break;
-    case TDMT_VND_STREAM_TASK_UPDATE:  // always return true
-      tqProcessTaskUpdateReq(pVnode->pTq, pMsg);
       break;
     case TDMT_VND_COMPACT:
       vnodeProcessCompactVnodeReq(pVnode, ver, pReq, len, pRsp);
@@ -932,81 +895,6 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return TSDB_CODE_APP_ERROR;
   }
 }
-#ifdef USE_STREAM
-int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
-  vTrace("vgId:%d, msg:%p in stream queue is processing", pVnode->config.vgId, pMsg);
-
-  // todo: NOTE: some command needs to run on follower, such as, stop_all_tasks
-  if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
-       pMsg->msgType == TDMT_VND_BATCH_META) &&
-      !syncIsReadyForRead(pVnode->sync)) {
-    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
-    return 0;
-  }
-
-  switch (pMsg->msgType) {
-    case TDMT_STREAM_TASK_RUN:
-    case TDMT_STREAM_RETRIEVE:
-    case TDMT_STREAM_RETRIEVE_RSP:
-    case TDMT_VND_GET_STREAM_PROGRESS:
-    default:
-      vError("unknown msg type:%d in stream queue", pMsg->msgType);
-      return TSDB_CODE_APP_ERROR;
-  }
-}
-
-int32_t vnodeProcessStreamCtrlMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
-  vTrace("vgId:%d, msg:%p in stream ctrl queue is processing", pVnode->config.vgId, pMsg);
-  if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
-       pMsg->msgType == TDMT_VND_BATCH_META) &&
-      !syncIsReadyForRead(pVnode->sync)) {
-    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
-    return 0;
-  }
-
-  switch (pMsg->msgType) {
-    case TDMT_STREAM_TASK_CHECKPOINT_READY_RSP:
-      return tqProcessTaskCheckpointReadyRsp(pVnode->pTq, pMsg);
-    case TDMT_MND_STREAM_CHKPT_REPORT_RSP:
-      return tqProcessTaskChkptReportRsp(pVnode->pTq, pMsg);
-    default:
-      vError("unknown msg type:%d in stream ctrl queue", pMsg->msgType);
-      return TSDB_CODE_APP_ERROR;
-  }
-}
-
-int32_t vnodeProcessStreamLongExecMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
-  vTrace("vgId:%d, msg:%p in stream long exec queue is processing", pVnode->config.vgId, pMsg);
-  if (!syncIsReadyForRead(pVnode->sync)) {
-    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
-    return 0;
-  }
-
-  switch (pMsg->msgType) {
-    case TDMT_VND_STREAM_SCAN_HISTORY:
-    default:
-      vError("unknown msg type:%d in stream long exec queue", pMsg->msgType);
-      return TSDB_CODE_APP_ERROR;
-  }
-}
-
-int32_t vnodeProcessStreamChkptMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
-  vTrace("vgId:%d, msg:%p in stream chkpt queue is processing", pVnode->config.vgId, pMsg);
-  if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
-       pMsg->msgType == TDMT_VND_BATCH_META) &&
-      !syncIsReadyForRead(pVnode->sync)) {
-    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
-    return 0;
-  }
-
-  switch (pMsg->msgType) {
-    case TDMT_STREAM_CHKPT_EXEC:
-    default:
-      vError("unknown msg type:%d in stream chkpt queue", pMsg->msgType);
-      return TSDB_CODE_APP_ERROR;
-  }
-}
-#endif
 
 void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
   int32_t code = tdProcessTSmaInsert(((SVnode *)pVnode)->pSma, smaId, (const char *)data);

@@ -40,16 +40,6 @@ typedef struct SStreamNotifyEvent {
   ((sizeof(((struct SStreamNotifyEvent*)0)->gid) + sizeof(((struct SStreamNotifyEvent*)0)->eventType)) + \
    sizeof(((struct SStreamNotifyEvent*)0)->win.skey))
 
-void setStreamOperatorState(SSteamOpBasicInfo* pBasicInfo, EStreamType type) {
-  if (type != STREAM_GET_ALL && type != STREAM_CHECKPOINT) {
-    BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, UPDATE_OPERATOR_INFO);
-  }
-}
-
-bool needSaveStreamOperatorInfo(SSteamOpBasicInfo* pBasicInfo) { return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, UPDATE_OPERATOR_INFO); }
-
-void saveStreamOperatorStateComplete(SSteamOpBasicInfo* pBasicInfo) { BIT_FLAG_UNSET_MASK(pBasicInfo->operatorFlag, UPDATE_OPERATOR_INFO); }
-
 static void destroyStreamWindowEvent(void* ptr) {
   SStreamNotifyEvent* pEvent = (SStreamNotifyEvent*)ptr;
   if (pEvent) {
@@ -153,26 +143,6 @@ _end:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
-}
-
-void setFillHistoryOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
-  BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, FILL_HISTORY_OPERATOR);
-}
-
-bool isHistoryOperator(SSteamOpBasicInfo* pBasicInfo) {
-  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, FILL_HISTORY_OPERATOR);
-}
-
-bool needBuildAllResult(SSteamOpBasicInfo* pBasicInfo) {
-  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, FILL_HISTORY_OPERATOR) || BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, SEMI_OPERATOR);
-}
-
-void setSemiOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
-  BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, SEMI_OPERATOR);
-}
-
-bool isSemiOperator(SSteamOpBasicInfo* pBasicInfo) {
-  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, SEMI_OPERATOR);
 }
 
 void destroyStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo) {
@@ -912,33 +882,5 @@ _end:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
-}
-
-void setFinalOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
-  BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, FINAL_OPERATOR);
-}
-
-bool isFinalOperator(SSteamOpBasicInfo* pBasicInfo) {
-  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, FINAL_OPERATOR);
-}
-
-void setRecalculateOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
-  BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, RECALCULATE_OPERATOR);
-}
-
-void unsetRecalculateOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
-  BIT_FLAG_UNSET_MASK(pBasicInfo->operatorFlag, RECALCULATE_OPERATOR);
-}
-
-bool isRecalculateOperator(SSteamOpBasicInfo* pBasicInfo) {
-  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, RECALCULATE_OPERATOR);
-}
-
-void setSingleOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
-  BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, SINGLE_OPERATOR);
-}
-
-bool isSingleOperator(SSteamOpBasicInfo* pBasicInfo) {
-  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, SINGLE_OPERATOR);
 }
 

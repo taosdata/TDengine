@@ -23,7 +23,6 @@
 #include "mndMnode.h"
 #include "mndPerfSchema.h"
 #include "mndPrivilege.h"
-#include "mndScheduler.h"
 #include "mndShow.h"
 #include "mndSma.h"
 #include "mndStb.h"
@@ -572,6 +571,7 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
     p->id = pStb->pCmpr[i].id;
   }
 
+/*
   if (req.rollup) {
     req.rsmaParam.maxdelay[0] = pStb->maxdelay[0];
     req.rsmaParam.maxdelay[1] = pStb->maxdelay[1];
@@ -592,6 +592,7 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
       }
     }
   }
+*/  
   req.pExtSchemas = pStb->pExtSchemas; // only reference to it.
   // get length
   int32_t ret = 0;
@@ -1679,6 +1680,7 @@ static int32_t mndCheckAlterColForStream(SMnode *pMnode, const char *stbFullName
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
     if (pIter == NULL) break;
 
+/* STREAMTODO
     SNode *pAst = NULL;
     if (nodesStringToNode(pStream->ast, &pAst) != 0) {
       code = TSDB_CODE_MND_INVALID_STREAM_OPTION;
@@ -1717,9 +1719,8 @@ static int32_t mndCheckAlterColForStream(SMnode *pMnode, const char *stbFullName
     }
 
   NEXT:
+*/  
     sdbRelease(pSdb, pStream);
-    nodesDestroyNode(pAst);
-    nodesDestroyList(pNodeList);
   }
   TAOS_RETURN(code);
 }
@@ -2991,46 +2992,13 @@ static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName,
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
     if (pIter == NULL) break;
 
-    if (pStream->targetStbUid == suid) {
+    if (pStream->pCreate->outStbUid == suid) {
       sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pStream);
       TAOS_RETURN(-1);
     }
 
-    SNode *pAst = NULL;
-    if (nodesStringToNode(pStream->ast, &pAst) != 0) {
-      code = TSDB_CODE_MND_INVALID_STREAM_OPTION;
-      mError("stream:%s, create ast error", pStream->name);
-      sdbCancelFetch(pSdb, pIter);
-      sdbRelease(pSdb, pStream);
-      TAOS_RETURN(code);
-    }
-
-    SNodeList *pNodeList = NULL;
-    if ((code = nodesCollectColumns((SSelectStmt *)pAst, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pNodeList)) !=
-        0) {
-      sdbCancelFetch(pSdb, pIter);
-      sdbRelease(pSdb, pStream);
-      TAOS_RETURN(code);
-    }
-    SNode *pNode = NULL;
-    FOREACH(pNode, pNodeList) {
-      SColumnNode *pCol = (SColumnNode *)pNode;
-
-      if (pCol->tableId == suid) {
-        sdbCancelFetch(pSdb, pIter);
-        sdbRelease(pSdb, pStream);
-        nodesDestroyNode(pAst);
-        nodesDestroyList(pNodeList);
-        TAOS_RETURN(-1);
-      } else {
-        goto NEXT;
-      }
-    }
-  NEXT:
     sdbRelease(pSdb, pStream);
-    nodesDestroyNode(pAst);
-    nodesDestroyList(pNodeList);
   }
   TAOS_RETURN(code);
 }

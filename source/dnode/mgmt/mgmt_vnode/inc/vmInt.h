@@ -78,11 +78,7 @@ typedef struct {
   SMultiWorker pSyncRdW;
   SMultiWorker pApplyW;
   STaosQueue  *pQueryQ;
-  STaosQueue  *pStreamQ;
-  STaosQueue  *pStreamCtrlQ;
-  STaosQueue  *pStreamLongExecQ;
   STaosQueue  *pFetchQ;
-  STaosQueue  *pMultiMgmQ;
   STaosQueue  *pStreamRunnerQ;
   STaosQueue  *pStreamReaderQ;
 } SVnodeObj;

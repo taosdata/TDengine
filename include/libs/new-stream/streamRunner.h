@@ -46,7 +46,7 @@ typedef struct SStreamRunnerTaskExecMgr {
 } SStreamRunnerTaskExecMgr;
 
 typedef struct SStreamRunnerTask {
-  SStreamTask                   streamTask;
+  SStreamTask                   task;
   SStreamRunnerTaskExecMgr      pExecMgr;
   SStreamRunnerTaskOutput       output;
   SStreamRunnerTaskNotification notification;
@@ -56,20 +56,12 @@ typedef struct SStreamRunnerTask {
   SReadHandle                   handle;
 } SStreamRunnerTask;
 
-typedef struct SStreamRunnerDeployMsg {
-  SStreamTask           task;
-  const char*           pPlan;
-  SReadHandle           handle;
-  bool                  forceWindowClose;
-} SStreamRunnerDeployMsg;
-struct SStreamRunnerUndeployMsg;
 struct SStreamRunnerTaskStatus;
 
-typedef struct SStreamRunnerUndeployMsg SStreamRunnerUndeployMsg;
 typedef struct SStreamRunnerTaskStatus  SStreamRunnerTaskStatus;
 
-int32_t stRunnerTaskDeploy(SStreamRunnerTask** pTask, const SStreamRunnerDeployMsg* pMsg);
-int32_t stRunnerTaskUndeploy(SStreamRunnerTask* pTask, const SStreamRunnerUndeployMsg* pMsg);
+int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg);
+int32_t stRunnerTaskUndeploy(SStreamRunnerTask* pTask, const SStreamUndeployTaskMsg* pMsg);
 int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, const char* pMsg, int32_t msgLen);
 
 #ifdef __cplusplus

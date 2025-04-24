@@ -97,23 +97,6 @@ int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray **tableList
  */
 int32_t qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId);
 
-int32_t qSetStreamOpOpen(qTaskInfo_t tinfo);
-
-int32_t qSetStreamNotifyInfo(qTaskInfo_t tinfo, int32_t eventTypes, const SSchemaWrapper* pSchemaWrapper,
-                             const char* stbFullName, bool newSubTableRule, STaskNotifyEventStat* pNotifyEventStat);
-
-void qSetStreamMergeInfo(qTaskInfo_t tinfo, SArray* pVTables);
-
-/**
- * Set multiple input data blocks for the stream scan.
- * @param tinfo
- * @param pBlocks
- * @param numOfInputBlock
- * @param type
- * @return
- */
-int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type);
-
 /**
  * Set block for sma
  * @param tinfo
@@ -232,7 +215,6 @@ int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRan
 int32_t qStreamRecoverFinish(qTaskInfo_t tinfo);
 bool    qStreamScanhistoryFinished(qTaskInfo_t tinfo);
 int32_t qStreamInfoResetTimewindowFilter(qTaskInfo_t tinfo);
-void    qResetTaskInfoCode(qTaskInfo_t tinfo);
 int32_t qGetStreamIntervalExecInfo(qTaskInfo_t tinfo, int64_t* pWaterMark, SInterval* pInterval, STimeWindow* pLastWindow, TSKEY* pRecInteral);
 int32_t qStreamOperatorReleaseState(qTaskInfo_t tInfo);
 int32_t qStreamOperatorReloadState(qTaskInfo_t tInfo);
@@ -244,6 +226,9 @@ int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t ui
 int32_t qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STableKeyInfo** pKeyInfo, int32_t* size);
 void    qStreamSetGroupId(void* pTableListInfo, SSDataBlock* pBlock);
 void    qStreamDestroyTableList(void* pTableListInfo);
+
+void initStorageAPI(SStorageAPI* pAPI);
+
 #ifdef __cplusplus
 }
 #endif

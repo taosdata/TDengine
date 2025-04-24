@@ -119,104 +119,6 @@ static void vmProcessQueryQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
-static void vmProcessStreamQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
-#ifdef USE_STREAM
-  SVnodeObj      *pVnode = pInfo->ahandle;
-  const STraceId *trace = &pMsg->info.traceId;
-
-  dGTrace("vgId:%d, msg:%p, get from vnode-stream queue", pVnode->vgId, pMsg);
-  int32_t code = vnodeProcessStreamMsg(pVnode->pImpl, pMsg, pInfo);
-  if (code != 0) {
-    terrno = code;
-    dGError("vgId:%d, msg:%p, failed to process stream msg %s since %s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType),
-            tstrerror(code));
-    vmSendRsp(pMsg, code);
-  }
-
-  dGTrace("vgId:%d, msg:%p, is freed, code:0x%x", pVnode->vgId, pMsg, code);
-  rpcFreeCont(pMsg->pCont);
-  taosFreeQitem(pMsg);
-#endif
-}
-
-static void vmProcessStreamCtrlQueue(SQueueInfo *pInfo, STaosQall* pQall, int32_t numOfItems) {
-#ifdef USE_STREAM
-  SVnodeObj *pVnode = pInfo->ahandle;
-  void      *pItem = NULL;
-  int32_t    code = 0;
-
-  while (1) {
-    if (taosGetQitem(pQall, &pItem) == 0) {
-      break;
-    }
-
-    SRpcMsg        *pMsg = pItem;
-    const STraceId *trace = &pMsg->info.traceId;
-
-    dGTrace("vgId:%d, msg:%p, get from vnode-stream-ctrl queue", pVnode->vgId, pMsg);
-    code = vnodeProcessStreamCtrlMsg(pVnode->pImpl, pMsg, pInfo);
-    if (code != 0) {
-      terrno = code;
-      dGError("vgId:%d, msg:%p, failed to process stream ctrl msg %s since %s", pVnode->vgId, pMsg,
-              TMSG_INFO(pMsg->msgType), tstrerror(code));
-      vmSendRsp(pMsg, code);
-    }
-
-    dGTrace("vgId:%d, msg:%p, is freed, code:0x%x", pVnode->vgId, pMsg, code);
-    rpcFreeCont(pMsg->pCont);
-    taosFreeQitem(pMsg);
-  }
-#endif
-}
-
-static void vmProcessStreamChkptQueue(SQueueInfo *pInfo, STaosQall* pQall, int32_t numOfItems) {
-  SVnodeObj *pVnode = pInfo->ahandle;
-  void      *pItem = NULL;
-  int32_t    code = 0;
-
-  while (1) {
-    if (taosGetQitem(pQall, &pItem) == 0) {
-      break;
-    }
-
-    SRpcMsg        *pMsg = pItem;
-    const STraceId *trace = &pMsg->info.traceId;
-
-    dGTrace("vgId:%d, msg:%p, get from vnode-stream-chkpt queue", pVnode->vgId, pMsg);
-    code = vnodeProcessStreamChkptMsg(pVnode->pImpl, pMsg, pInfo);
-    if (code != 0) {
-      terrno = code;
-      dGError("vgId:%d, msg:%p, failed to process stream chkpt msg %s since %s", pVnode->vgId, pMsg,
-              TMSG_INFO(pMsg->msgType), tstrerror(code));
-      vmSendRsp(pMsg, code);
-    }
-
-    dGTrace("vgId:%d, msg:%p, is freed, code:0x%x", pVnode->vgId, pMsg, code);
-    rpcFreeCont(pMsg->pCont);
-    taosFreeQitem(pMsg);
-  }
-}
-
-static void vmProcessStreamLongExecQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
-  SVnodeObj      *pVnode = pInfo->ahandle;
-  const STraceId *trace = &pMsg->info.traceId;
-  int32_t         code = 0;
-
-  dGTrace("vgId:%d, msg:%p, get from vnode-stream long-exec queue", pVnode->vgId, pMsg);
-
-  code = vnodeProcessStreamLongExecMsg(pVnode->pImpl, pMsg, pInfo);
-  if (code != 0) {
-    terrno = code;
-    dGError("vgId:%d, msg:%p, failed to process stream msg %s since %s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType),
-            tstrerror(code));
-    vmSendRsp(pMsg, code);
-  }
-
-  dGTrace("vgId:%d, msg:%p, is freed, code:0x%x", pVnode->vgId, pMsg, code);
-  rpcFreeCont(pMsg->pCont);
-  taosFreeQitem(pMsg);
-}
-
 static void vmProcessFetchQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   SVnodeObj *pVnode = pInfo->ahandle;
   SRpcMsg   *pMsg = NULL;
@@ -508,15 +410,11 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   pVnode->pFetchQ = tWWorkerAllocQueue(&pMgmt->fetchPool, pVnode, (FItems)vmProcessFetchQueue);
 
   // init stream msg processing queue family
-  pVnode->pStreamQ = tAutoQWorkerAllocQueue(&pMgmt->streamPool, pVnode, (FItem)vmProcessStreamQueue, 2);
-  pVnode->pStreamCtrlQ = tWWorkerAllocQueue(&pMgmt->streamCtrlPool, pVnode, (FItems)vmProcessStreamCtrlQueue);
-  pVnode->pStreamLongExecQ = tAutoQWorkerAllocQueue(&pMgmt->streamLongExecPool, pVnode, (FItem)vmProcessStreamLongExecQueue, 1);
   pVnode->pStreamRunnerQ = tWWorkerAllocQueue(&pMgmt->streamRunnerPool, pVnode, 0);// TODO wjm fp??
   pVnode->pStreamReaderQ = tWWorkerAllocQueue(&pMgmt->streamReaderPool, pVnode, 0);
 
   if (pVnode->pWriteW.queue == NULL || pVnode->pSyncW.queue == NULL || pVnode->pSyncRdW.queue == NULL ||
-      pVnode->pApplyW.queue == NULL || pVnode->pQueryQ == NULL || pVnode->pStreamQ == NULL || pVnode->pFetchQ == NULL ||
-      pVnode->pStreamCtrlQ == NULL || pVnode->pStreamLongExecQ == NULL || 
+      pVnode->pApplyW.queue == NULL || pVnode->pQueryQ == NULL || pVnode->pFetchQ == NULL ||
       !pVnode->pStreamRunnerQ || !pVnode->pStreamReaderQ) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -532,10 +430,6 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   dInfo("vgId:%d, query-queue:%p is alloced", pVnode->vgId, pVnode->pQueryQ);
   dInfo("vgId:%d, fetch-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pFetchQ,
         taosQueueGetThreadId(pVnode->pFetchQ));
-  dInfo("vgId:%d, stream-queue:%p is alloced", pVnode->vgId, pVnode->pStreamQ);
-  dInfo("vgId:%d, stream-long-exec-queue:%p is alloced", pVnode->vgId, pVnode->pStreamLongExecQ);
-  dInfo("vgId:%d, stream-ctrl-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pStreamCtrlQ,
-        taosQueueGetThreadId(pVnode->pStreamCtrlQ));
   dInfo("vgId:%d, stream-runner-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pStreamRunnerQ,
         taosQueueGetThreadId(pVnode->pStreamRunnerQ));
   dInfo("vgId:%d, stream-reader-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pStreamReaderQ,
@@ -545,18 +439,11 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
 
 void vmFreeQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   tQueryAutoQWorkerFreeQueue(&pMgmt->queryPool, pVnode->pQueryQ);
-  tAutoQWorkerFreeQueue(&pMgmt->streamPool, pVnode->pStreamQ);
-  tAutoQWorkerFreeQueue(&pMgmt->streamLongExecPool, pVnode->pStreamLongExecQ);
-  tWWorkerFreeQueue(&pMgmt->streamCtrlPool, pVnode->pStreamCtrlQ);
   tWWorkerFreeQueue(&pMgmt->fetchPool, pVnode->pFetchQ);
   tWWorkerFreeQueue(&pMgmt->streamRunnerPool, pVnode->pStreamRunnerQ);
   tWWorkerFreeQueue(&pMgmt->streamReaderPool, pVnode->pStreamReaderQ);
   pVnode->pQueryQ = NULL;
   pVnode->pFetchQ = NULL;
-
-  pVnode->pStreamQ = NULL;
-  pVnode->pStreamCtrlQ = NULL;
-  pVnode->pStreamLongExecQ = NULL;
 
   pVnode->pFetchQ = NULL;
   pVnode->pStreamRunnerQ = NULL;

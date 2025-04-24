@@ -17,84 +17,92 @@
 #include "streamInt.h"
 #include "tmisce.h"
 #include "tref.h"
-#include "tstream.h"
+#include "stream.h"
 #include "ttimer.h"
 #include "wal.h"
 
 static int32_t streamHbSendRequestMsg(SStreamHbMsg* pMsg, SEpSet* pEpset) {
   int32_t code = 0;
+  int32_t lino = 0;
   int32_t tlen = 0;
+  SEncoder encoder;
 
   tEncodeSize(tEncodeStreamHbMsg, pMsg, tlen, code);
-  if (code < 0) {
-    stError("vgId:%d encode stream hb msg failed, code:%s", tstrerror(code));
-    return TSDB_CODE_FAILED;
-  }
+  TAOS_CHECK_EXIT(code);
 
   void* buf = rpcMallocCont(tlen + sizeof(SStreamMsgGrpHeader));
-  if (buf == NULL) {
-    stError("vgId:%d encode stream hb msg failed, code:%s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    return TSDB_CODE_FAILED;
-  }
+  TSDB_CHECK_NULL(buf, code, lino, _exit, terrno);
 
   ((SStreamMsgGrpHeader *)buf)->streamGid = htonl(pMsg->streamGId);
   void *abuf = POINTER_SHIFT(buf, sizeof(SStreamMsgGrpHeader));
 
-  SEncoder encoder;
   tEncoderInit(&encoder, abuf, tlen);
-  if ((code = tEncodeStreamHbMsg(&encoder, pMsg)) < 0) {
-    rpcFreeCont(buf);
-    tEncoderClear(&encoder);
-    stError("vgId:%d encode stream hb msg failed, code:%s", tstrerror(code));
-    return TSDB_CODE_FAILED;
-  }
+  TAOS_CHECK_EXIT(tEncodeStreamHbMsg(&encoder, pMsg));
   tEncoderClear(&encoder);
 
-  stDebug("vgId:%d send hb to mnode, numOfTasks:%d msgId:%d", pMsg->numOfTasks, pMsg->msgId);
+  stDebug("try to send stream hb to mnode, gid:%d, snodeId:%d", pMsg->streamGId, pMsg->snodeId);
 
   SRpcMsg msg = {.msgType = TDMT_MND_STREAM_HEARTBEAT, .pCont = buf, .contLen = tlen};
   
-  return tmsgSendReq(pEpset, &msg);
+  TAOS_CHECK_EXIT(tmsgSendReq(pEpset, &msg));
+
+  return code;
+
+_exit:
+
+  rpcFreeCont(buf);
+  tEncoderClear(&encoder);
+
+  stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+
+  return code;
 }
 
 int32_t streamHbBuildRequestMsg(SStreamHbMsg* pMsg) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   
-  pMsg.dnodeId = gStreamMgmt.dnodeId;
-  pMsg.snodeId = gStreamMgmt.snodeId;
-  pMsg.streamGId = stmAddFetchStreamGid();
+  pMsg->dnodeId = gStreamMgmt.dnodeId;
+  pMsg->snodeId = gStreamMgmt.snodeId;
+  pMsg->streamGId = stmAddFetchStreamGid();
 
   taosRLockLatch(&gStreamMgmt.vgLeadersLock);
-  pMsg.pVgLeaders = taosArrayDup(gStreamMgmt.vgLeaders, NULL);
+  pMsg->pVgLeaders = taosArrayDup(gStreamMgmt.vgLeaders, NULL);
   taosRUnLockLatch(&gStreamMgmt.vgLeadersLock);
   
   TAOS_CHECK_EXIT(stmBuildStreamsStatus(&pMsg->pStreamStatus, pMsg->streamGId));
 
+  return code;
+  
 _exit:
+
+  stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
 
   return code;
 }
 
 void streamHbStart(void* param, void* tmrId) {
   int32_t code = 0;
+  int32_t lino = 0;
   SStreamHbMsg reqMsg = {0};
+  SEpSet epSet = {0};
   
   TAOS_CHECK_EXIT(streamHbBuildRequestMsg(&reqMsg));
 
-  TAOS_CHECK_EXIT(streamHbSendRequestMsg(reqMsg));
+  (*gStreamMgmt.cb)(gStreamMgmt.dnode, &epSet);
+  TAOS_CHECK_EXIT(streamHbSendRequestMsg(&reqMsg, &epSet));
 
 _exit:
 
-  streamTmrStart(streamHbStart, STREAM_HB_INTERVAL_MS, NULL, gStreamMgmt.timer, &gStreamMgmt.hb.hbTmr, 0, "stream-hb");
+  streamTmrStart(streamHbStart, STREAM_HB_INTERVAL_MS, NULL, gStreamMgmt.timer, &gStreamMgmt.hb.hbTmr, "stream-hb");
   
   if (code) {
-    stError("stream hb start failed, error:%s", tstrerror(code));
+    stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 }
 
-int32_t streamHbInit(int64_t* pRid, SStreamHbInfo* pHb) {
-  streamTmrStart(streamHbStart, STREAM_HB_INTERVAL_MS, NULL, gStreamMgmt.timer, &pHb->hbTmr, 0, "stream-hb");
+int32_t streamHbInit(SStreamHbInfo* pHb) {
+  streamTmrStart(streamHbStart, STREAM_HB_INTERVAL_MS, NULL, gStreamMgmt.timer, &pHb->hbTmr, "stream-hb");
   
   return TSDB_CODE_SUCCESS;
 }
@@ -125,6 +133,7 @@ int32_t streamHbHandleRspErr(int32_t errCode, int64_t currTs) {
 
 int32_t streamHbProcessRspMsg(SMStreamHbRspMsg* pRsp) {
   int32_t      code = 0;
+  int32_t      lino = 0;
 
   if (pRsp->deploy.streamList) {
     TAOS_CHECK_EXIT(smDeployTasks(&pRsp->deploy));
@@ -140,7 +149,9 @@ int32_t streamHbProcessRspMsg(SMStreamHbRspMsg* pRsp) {
 
 _exit:
 
-  stDebug("vgId:%d process hbMsg rsp, msgId:%d rsp confirmed", pRsp->msgId);
-
+  if (code) {
+    stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+  
   return code;
 }

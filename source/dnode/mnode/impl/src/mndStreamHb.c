@@ -59,6 +59,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   SStreamHbMsg req = {0};
   SMStreamHbRspMsg rsp = {0};
   int32_t      code = 0;
+  int32_t      lino = 0;
   SDecoder     decoder = {0};
   char*        msg = POINTER_SHIFT(pReq->pCont, sizeof(SStreamMsgGrpHeader));
   int32_t      len = pReq->contLen - sizeof(SStreamMsgGrpHeader);
@@ -79,7 +80,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   tDecoderClear(&decoder);
 
   stDebug("receive stream-hb grp %d from dnode:%d, snodeId:%d, vgLeaders:%d, streamStatus:%d", 
-      req.streamGId, req.dnodeId, req.snodeId, taosArrayGetSize(req.pVgLeaders), taosArrayGetSize(req.pStreamStatus));
+      req.streamGId, req.dnodeId, req.snodeId, (int32_t)taosArrayGetSize(req.pVgLeaders), (int32_t)taosArrayGetSize(req.pStreamStatus));
   
   (void)msmHandleStreamHbMsg(pMnode, currTs, &req, &rsp);
 

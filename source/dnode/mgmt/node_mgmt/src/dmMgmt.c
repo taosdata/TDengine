@@ -21,8 +21,8 @@
 #include "tcompression.h"
 #include "tglobal.h"
 #include "tgrant.h"
-#include "tstream.h"
 #include "tconv.h"
+#include "stream.h"
 
 static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
@@ -117,7 +117,7 @@ void dmCleanupDnode(SDnode *pDnode) {
 
   dmClearVars(pDnode);
   rpcCleanup();
-  streamMetaCleanup();
+  streamCleanup();
   indexCleanup();
   taosConvDestroy();
 

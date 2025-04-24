@@ -943,7 +943,7 @@ void scanWalOneVer(void* pVnode, SSDataBlock* pBlock, int64_t ver) {
   }
   void*   pBody = POINTER_SHIFT(pWalReader->pHead->head.body, sizeof(SSubmitReq2Msg));
   int32_t bodyLen = pWalReader->pHead->head.bodyLen - sizeof(SSubmitReq2Msg);
-  int64_t ver = pWalReader->pHead->head.version;
+  ver = pWalReader->pHead->head.version;
 
   SSubmitReq2 submit = {0};
   int32_t         nextBlk = 0;
@@ -1077,10 +1077,10 @@ int32_t vnodeProcessStreamReaderMsg(SVnode *pVnode, SRpcMsg *pMsg){
       code = vnodeProcessStreamWalTsDataReq(pVnode, pMsg);
       break;
     case TRIGGER_REQUEST_WAL_TRIGGER_DATA:
-      code = vnodeProcessStreamWalTriggerDataReq(pVnode, pMsg);
+      //code = vnodeProcessStreamWalTriggerDataReq(pVnode, pMsg);
       break;
     case TRIGGER_REQUEST_WAL_CALC_DATA:
-      code = vnodeProcessStreamWalCalcDataReq(pVnode, pMsg);
+      //code = vnodeProcessStreamWalCalcDataReq(pVnode, pMsg);
       break;
     default:
       code = TSDB_CODE_INVALID_MSG;

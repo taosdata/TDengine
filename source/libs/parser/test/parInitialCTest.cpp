@@ -516,6 +516,7 @@ TEST_F(ParserInitialCTest, createView) {
     expect.sql = taosStrdup(pSql);
   };
 
+/*STREAMTODO
   auto setStreamOptions =
       [&](int8_t createStb = STREAM_CREATE_STABLE_TRUE, int8_t triggerType = STREAM_TRIGGER_WINDOW_CLOSE,
           int64_t maxDelay = 0, int64_t watermark = 0, int8_t igExpired = STREAM_DEFAULT_IGNORE_EXPIRED,
@@ -528,6 +529,7 @@ TEST_F(ParserInitialCTest, createView) {
         expect.igExpired = igExpired;
         expect.igUpdate = igUpdate;
       };
+*/
 
   auto addTag = [&](const char* pFieldName, uint8_t type, int32_t bytes = 0) {
     SField field = {0};
@@ -579,7 +581,7 @@ TEST_F(ParserInitialCTest, createView) {
   });
 
   setCreateStreamReq("s1", "test", "create stream s1 into st3 as select count(*) from t1 interval(10s)", "st3");
-  setStreamOptions();
+  //setStreamOptions();
   run("CREATE STREAM s1 INTO st3 AS SELECT COUNT(*) FROM t1 INTERVAL(10S)");
   clearCreateStreamReq();
 
@@ -588,8 +590,8 @@ TEST_F(ParserInitialCTest, createView) {
       "create stream if not exists s1 trigger max_delay 20s watermark 10s ignore expired 0 fill_history 0 ignore "
       "update 1 into st3 as select count(*) from t1 interval(10s)",
       "st3", 1);
-  setStreamOptions(STREAM_CREATE_STABLE_TRUE, STREAM_TRIGGER_MAX_DELAY, 20 * MILLISECOND_PER_SECOND,
-                   10 * MILLISECOND_PER_SECOND, 0, 0, 1);
+  //setStreamOptions(STREAM_CREATE_STABLE_TRUE, STREAM_TRIGGER_MAX_DELAY, 20 * MILLISECOND_PER_SECOND,
+  //                 10 * MILLISECOND_PER_SECOND, 0, 0, 1);
   run("CREATE STREAM IF NOT EXISTS s1 TRIGGER MAX_DELAY 20s WATERMARK 10s IGNORE EXPIRED 0 FILL_HISTORY 0 IGNORE "
       "UPDATE 1 INTO st3 AS SELECT COUNT(*) FROM t1 INTERVAL(10S)");
   clearCreateStreamReq();
@@ -600,7 +602,7 @@ TEST_F(ParserInitialCTest, createView) {
                      "st3");
   addTag("tname", TSDB_DATA_TYPE_VARCHAR, 10 + VARSTR_HEADER_SIZE);
   addTag("id", TSDB_DATA_TYPE_INT);
-  setStreamOptions();
+  //setStreamOptions();
   run("CREATE STREAM s1 INTO st3 TAGS(tname VARCHAR(10), id INT) SUBTABLE(CONCAT('new-', tname)) "
       "AS SELECT _WSTART wstart, COUNT(*) cnt FROM st1 PARTITION BY TBNAME tname, tag1 id INTERVAL(10S)");
   clearCreateStreamReq();
@@ -610,7 +612,7 @@ TEST_F(ParserInitialCTest, createView) {
       "s1", "test",
       "create stream s1 into st1 tags(tag2) as select max(c1), c2 from t1 partition by tbname tag2 interval(10s)",
       "st1");
-  setStreamOptions(STREAM_CREATE_STABLE_FALSE);
+  //setStreamOptions(STREAM_CREATE_STABLE_FALSE);
   run("CREATE STREAM s1 INTO st1 TAGS(tag2) AS SELECT MAX(c1), c2 FROM t1 PARTITION BY TBNAME tag2 INTERVAL(10S)");
   clearCreateStreamReq();
 }
@@ -991,6 +993,7 @@ TEST_F(ParserInitialCTest, createStream) {
     expect.sql = taosStrdup(pSql);
   };
 
+/*
   auto setStreamOptions =
       [&](int8_t createStb = STREAM_CREATE_STABLE_TRUE, int8_t triggerType = STREAM_TRIGGER_WINDOW_CLOSE,
           int64_t maxDelay = 0, int64_t watermark = 0, int8_t igExpired = STREAM_DEFAULT_IGNORE_EXPIRED,
@@ -1003,7 +1006,7 @@ TEST_F(ParserInitialCTest, createStream) {
         expect.igExpired = igExpired;
         expect.igUpdate = igUpdate;
       };
-
+*/
   auto addTag = [&](const char* pFieldName, uint8_t type, int32_t bytes = 0) {
     SField field = {0};
     strcpy(field.name, pFieldName);
@@ -1054,7 +1057,7 @@ TEST_F(ParserInitialCTest, createStream) {
   });
 
   setCreateStreamReq("s1", "test", "create stream s1 into st3 as select count(*) from t1 interval(10s)", "st3");
-  setStreamOptions();
+  //setStreamOptions();
   run("CREATE STREAM s1 INTO st3 AS SELECT COUNT(*) FROM t1 INTERVAL(10S)");
   clearCreateStreamReq();
 
@@ -1063,7 +1066,7 @@ TEST_F(ParserInitialCTest, createStream) {
       "create stream if not exists s1 trigger max_delay 20s watermark 10s ignore expired 0 fill_history 0 ignore "
       "update 1 into st3 as select count(*) from t1 interval(10s)",
       "st3", 1);
-  setStreamOptions(STREAM_CREATE_STABLE_TRUE, STREAM_TRIGGER_MAX_DELAY, 20 * MILLISECOND_PER_SECOND,
+  //setStreamOptions(STREAM_CREATE_STABLE_TRUE, STREAM_TRIGGER_MAX_DELAY, 20 * MILLISECOND_PER_SECOND,
                    10 * MILLISECOND_PER_SECOND, 0, 0, 1);
   run("CREATE STREAM IF NOT EXISTS s1 TRIGGER MAX_DELAY 20s WATERMARK 10s IGNORE EXPIRED 0 FILL_HISTORY 0 IGNORE "
       "UPDATE 1 INTO st3 AS SELECT COUNT(*) FROM t1 INTERVAL(10S)");
@@ -1075,7 +1078,7 @@ TEST_F(ParserInitialCTest, createStream) {
                      "st3");
   addTag("tname", TSDB_DATA_TYPE_VARCHAR, 10 + VARSTR_HEADER_SIZE);
   addTag("id", TSDB_DATA_TYPE_INT);
-  setStreamOptions();
+  //setStreamOptions();
   run("CREATE STREAM s1 INTO st3 TAGS(tname VARCHAR(10), id INT) SUBTABLE(CONCAT('new-', tname)) "
       "AS SELECT _WSTART wstart, COUNT(*) cnt FROM st1 PARTITION BY TBNAME tname, tag1 id INTERVAL(10S)");
   clearCreateStreamReq();
@@ -1085,7 +1088,7 @@ TEST_F(ParserInitialCTest, createStream) {
       "s1", "test",
       "create stream s1 into st1 tags(tag2) as select max(c1), c2 from t1 partition by tbname tag2 interval(10s)",
       "st1");
-  setStreamOptions(STREAM_CREATE_STABLE_FALSE);
+  //setStreamOptions(STREAM_CREATE_STABLE_FALSE);
   run("CREATE STREAM s1 INTO st1 TAGS(tag2) AS SELECT MAX(c1), c2 FROM t1 PARTITION BY TBNAME tag2 INTERVAL(10S)");
   clearCreateStreamReq();
 }

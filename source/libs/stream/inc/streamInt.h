@@ -18,9 +18,8 @@
 
 #include "executor.h"
 #include "query.h"
-#include "streamBackendRocksdb.h"
 #include "trpc.h"
-#include "tstream.h"
+#include "stream.h"
 #include "tref.h"
 
 #ifdef __cplusplus
@@ -70,8 +69,6 @@ struct SActiveCheckpointInfo {
   SStreamTmrInfo chkptTriggerMsgTmr;
   SStreamTmrInfo chkptReadyMsgTmr;
 };
-
-void streamCleanBeforeQuitTmr(SStreamTmrInfo* pInfo, void* param);
 
 typedef struct {
   int8_t       type;

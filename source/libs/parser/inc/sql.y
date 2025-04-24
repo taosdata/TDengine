@@ -839,12 +839,14 @@ cmd ::= CREATE STREAM not_exists_opt(A) full_stream_name(B) stream_trigger(C)
 cmd ::= DROP STREAM exists_opt(A) stream_name(B).                                 { pCxt->pRootNode = createDropStreamStmt(pCxt, A, &B); }
 cmd ::= STOP STREAM exists_opt(A) stream_name(B).                                 { pCxt->pRootNode = createPauseStreamStmt(pCxt, A, &B); }
 cmd ::= START STREAM exists_opt(A) ignore_opt(C) stream_name(B).                  { pCxt->pRootNode = createResumeStreamStmt(pCxt, A, C, &B); }
-cmd ::= RECALCULATE STREAM stream_name(B) recalculate_range(C).                   { pCxt->pRootNode = createRecalcStreamStmt(pCxt, A, &B, C); }
+/*
+cmd ::= RECALCULATE STREAM stream_name(B) recalculate_range(C).                   { pCxt->pRootNode = createRecalcStreamStmt(pCxt, &B, C); }
 
 recalculate_range(A) ::= ALL.                                                     { A = createRecalcRange(pCxt, NULL, NULL); }
 recalculate_range(A) ::= FROM interval_sliding_duration_literal(B).               { A = createRecalcRange(pCxt, releaseRawExprNode(pCxt, B), NULL); }
 recalculate_range(A) ::= FROM interval_sliding_duration_literal(B)
     TO interval_sliding_duration_literal(C).                                      { A = createRecalcRange(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
+*/
 
 full_stream_name(A) ::= stream_name(B).                                           { A = createStreamNode(pCxt, NULL, &B); }
 full_stream_name(A) ::= db_name(B) NK_DOT stream_name(C).                         { A = createStreamNode(pCxt, &B, &C); }

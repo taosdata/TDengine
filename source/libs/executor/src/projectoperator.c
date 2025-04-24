@@ -18,7 +18,6 @@
 #include "functionMgt.h"
 #include "operator.h"
 #include "querytask.h"
-#include "streaminterval.h"
 #include "taoserror.h"
 #include "tdatablock.h"
 
@@ -172,9 +171,6 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = setRowTsColumnOutputInfo(pOperator->exprSupp.pCtx, numOfCols, &pInfo->pPseudoColInfo);
-  TSDB_CHECK_CODE(code, lino, _error);
-
-  code = initStreamFillOperatorColumnMapInfo(&pOperator->exprSupp, downstream);
   TSDB_CHECK_CODE(code, lino, _error);
 
   setOperatorInfo(pOperator, "ProjectOperator", QUERY_NODE_PHYSICAL_PLAN_PROJECT, false, OP_NOT_OPENED, pInfo,

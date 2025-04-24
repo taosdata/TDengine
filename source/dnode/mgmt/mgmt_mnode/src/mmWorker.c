@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
+#include "streamMsg.h"
 
 #define PROCESS_THRESHOLD (2000 * 1000)
 
@@ -102,6 +103,7 @@ static void mmProcessStreamHbMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SMnodeMgmt *pMgmt = pInfo->ahandle;
   pMsg->info.node = pMgmt->pMnode;
 
+  const STraceId *trace = &pMsg->info.traceId;
   dGTrace("msg:%p, get from mnode-stream-mgmt queue", pMsg);
 
   (void)mndProcessStreamHb(pMsg);
@@ -234,6 +236,7 @@ int32_t mmDispatchStreamHbMsg(struct SDispatchWorkerPool* pPool, void* pParam, i
   SRpcMsg* pMsg = (SRpcMsg*)pParam;
   SStreamMsgGrpHeader* pHeader = (SStreamMsgGrpHeader*)pMsg->pCont;
   *pWorkerIdx = pHeader->streamGid % tsNumOfMnodeStreamMgmtThreads;
+  return TSDB_CODE_SUCCESS;
 }
 
 
@@ -346,7 +349,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
     dError("failed to start mnode stream-mgmt worker since %s", tstrerror(code));
     return code;
   }
-  code = tDispatchWorkerAllocQueue(pPool, pMgmt, (FItems)mmProcessStreamHbMsg, mmDispatchStreamHbMsg);
+  code = tDispatchWorkerAllocQueue(pPool, pMgmt, (FItem)mmProcessStreamHbMsg, mmDispatchStreamHbMsg);
   if (code != 0) {
     dError("failed to start mnode stream-mgmt worker since %s", tstrerror(code));
     return code;

@@ -21,6 +21,7 @@
 #include "tanalytics.h"
 #include "tchecksum.h"
 #include "tutil.h"
+#include "stream.h"
 
 extern SConfig *tsCfg;
 
@@ -796,7 +797,7 @@ int32_t dmProcessStreamHbRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (code < 0) {
     code = TSDB_CODE_INVALID_MSG;
     tDecoderClear(&decoder);
-    tqError("fail to decode stream hb rsp msg, error:%s", tstrerror(code));
+    dError("fail to decode stream hb rsp msg, error:%s", tstrerror(code));
     return streamHbHandleRspErr(code, currTs);
   }
 

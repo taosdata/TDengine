@@ -22,34 +22,6 @@
 #include "tmisce.h"
 
 
-int32_t mndGetStreamObj(SMnode *pMnode, int64_t streamId, SStreamObj **pStream) {
-  void *pIter = NULL;
-  SSdb *pSdb = pMnode->pSdb;
-  *pStream = NULL;
-
-  SStreamObj *p = NULL;
-  while ((pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&p)) != NULL) {
-    if (p->uid == streamId) {
-      sdbCancelFetch(pSdb, pIter);
-      *pStream = p;
-      return TSDB_CODE_SUCCESS;
-    }
-    sdbRelease(pSdb, p);
-  }
-
-  return TSDB_CODE_STREAM_TASK_NOT_EXIST;
-}
-
-int32_t mndGetNumOfStreamTasks(const SStreamObj *pStream) {
-  int32_t num = 0;
-  for (int32_t i = 0; i < taosArrayGetSize(pStream->pTaskList); ++i) {
-    SArray *pLevel = taosArrayGetP(pStream->pTaskList, i);
-    num += taosArrayGetSize(pLevel);
-  }
-
-  return num;
-}
-
 int32_t mndGetNumOfStreams(SMnode *pMnode, char *dbName, int32_t *pNumOfStreams) {
   SSdb   *pSdb = pMnode->pSdb;
   SDbObj *pDb = mndAcquireDb(pMnode, dbName);
@@ -64,10 +36,11 @@ int32_t mndGetNumOfStreams(SMnode *pMnode, char *dbName, int32_t *pNumOfStreams)
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
     if (pIter == NULL) break;
 
+/* STREAMTODO
     if (pStream->sourceDbUid == pDb->uid) {
       numOfStreams++;
     }
-
+*/
     sdbRelease(pSdb, pStream);
   }
 
@@ -76,23 +49,20 @@ int32_t mndGetNumOfStreams(SMnode *pMnode, char *dbName, int32_t *pNumOfStreams)
   return 0;
 }
 
-static void mndShowStreamStatus(char *dst, int8_t status) {
-  if (status == STREAM_STATUS__NORMAL) {
-    tstrncpy(dst, "ready", MND_STREAM_TRIGGER_NAME_SIZE);
-  } else if (status == STREAM_STATUS__STOP) {
-    tstrncpy(dst, "stop", MND_STREAM_TRIGGER_NAME_SIZE);
-  } else if (status == STREAM_STATUS__FAILED) {
-    tstrncpy(dst, "failed", MND_STREAM_TRIGGER_NAME_SIZE);
-  } else if (status == STREAM_STATUS__RECOVER) {
-    tstrncpy(dst, "recover", MND_STREAM_TRIGGER_NAME_SIZE);
-  } else if (status == STREAM_STATUS__PAUSE) {
-    tstrncpy(dst, "paused", MND_STREAM_TRIGGER_NAME_SIZE);
-  } else if (status == STREAM_STATUS__INIT) {
-    tstrncpy(dst, "init", MND_STREAM_TRIGGER_NAME_SIZE);
+static void mndShowStreamStatus(char *dst, int8_t status, int32_t bufLen) {
+  if (status == STREAM_STATUS_INIT) {
+    tstrncpy(dst, "init", bufLen);
+  } else if (status == STREAM_STATUS_RUNNING) {
+    tstrncpy(dst, "running", bufLen);
+  } else if (status == STREAM_STATUS_STOPPED) {
+    tstrncpy(dst, "stopped", bufLen);
+  } else if (status == STREAM_STATUS_FAILED) {
+    tstrncpy(dst, "failed", bufLen);
   }
 }
 
 static void mndShowStreamTrigger(char *dst, SStreamObj *pStream) {
+  /*
   int8_t trigger = pStream->conf.trigger;
   if (trigger == STREAM_TRIGGER_AT_ONCE) {
     tstrncpy(dst, "at once", MND_STREAM_TRIGGER_NAME_SIZE);
@@ -103,22 +73,15 @@ static void mndShowStreamTrigger(char *dst, SStreamObj *pStream) {
   } else if (trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
     tstrncpy(dst, "force window close", MND_STREAM_TRIGGER_NAME_SIZE);
   }
+*/  
 }
 
-static void int64ToHexStr(int64_t id, char *pBuf, int32_t bufLen) {
-  memset(pBuf, 0, bufLen);
-  pBuf[2] = '0';
-  pBuf[3] = 'x';
-
-  int32_t len = tintToHex(id, &pBuf[4]);
-  varDataSetLen(pBuf, len + 2);
-}
-
-int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows) {
+int32_t mndStreamGenerateResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows) {
   int32_t code = 0;
   int32_t cols = 0;
   int32_t lino = 0;
 
+/* STREAMTODO
   char streamName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
   STR_WITH_MAXSIZE_TO_VARSTR(streamName, mndGetDbStr(pStream->name), sizeof(streamName));
   SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -275,6 +238,8 @@ _end:
   if (code) {
     mError("error happens when build stream attr result block, lino:%d, code:%s", lino, tstrerror(code));
   }
+*/
+
   return code;
 }
 

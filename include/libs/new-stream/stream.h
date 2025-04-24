@@ -21,43 +21,17 @@ extern "C" {
 #endif
 
 #include "tlog.h"
+#include "streamMsg.h"
 
 #define STREAM_MAX_GROUP_NUM 5
 #define STREAM_MAX_THREAD_NUM 5
 
 #define STREAM_ACT_MIN_DELAY_MSEC (STREAM_MAX_GROUP_NUM * 1000)
 
-typedef enum {
-  STREAM_STATUS_NA = 0,
-  STREAM_STATUS_INIT = 1,
-  STREAM_STATUS_RUNNING,
-  STREAM_STATUS_STOPPED,
-  STREAM_STATUS_FAILED,
-} EStreamStatus;
-
-typedef enum EStreamTaskType {
-  STREAM_READER_TASK = 0,
-  STREAM_TRIGGER_TASK,
-  STREAM_RUNNER_TASK,
-} EStreamTaskType;
 
 static const char *gTaskTypeStr[] = {"Reader", "Trigger", "Runner"};
 
 typedef void (*getMnodeEpsetFromDnode)(void* pDnode, SEpSet* pEpset);
-
-typedef struct SStreamTask {
-  EStreamTaskType type;
-  
-  /** KEEP TOGETHER **/
-  int64_t         streamId;  // ID of the stream
-  int64_t         taskId;    // ID of the current task
-  /** KEEP TOGETHER **/
-      
-  int32_t         nodeId;    // ID of the vgroup/snode
-  int64_t         sessionId;  // ID of the current session (real-time, historical, or recalculation)
-  int16_t         taskIdx;
-  EStreamStatus   status;
-} SStreamTask;
 
 typedef enum EStreamTriggerType {
   STREAM_PERIODIC_TRIGGER,
@@ -75,12 +49,6 @@ typedef struct SStreamTriggerTask {
   EStreamTriggerType type;
 } SStreamTriggerTask;
 
-typedef struct SStreamRunnerTask {
-  SStreamTask        task;
-
-} SStreamRunnerTask;
-
-
 #define STREAM_GID(_streamId) ((_streamId) % STREAM_MAX_GROUP_NUM)
 
 // clang-format off
@@ -93,28 +61,28 @@ typedef struct SStreamRunnerTask {
 // clang-format on
 
 #define ST_TASK_FLOG(param, ...)                                                                                      \
-  stFatal("TYPE: %s, VGID:%d, STREAM:%" PRIx64 ", TASK:%" PRId64 ", SESSION:%d " param,             \
-          gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->vgId, ((SStreamTask *)pTask)->streamId, \
+  stFatal("TYPE: %s, NODE:%d, STREAM:%" PRIx64 ", TASK:%" PRId64 ", SESSION:%" PRIx64 " " param,             \
+          gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, \
           ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->sessionId, __VA_ARGS__)
 #define ST_TASK_ELOG(param, ...)                                                                                      \
-  stError("TYPE: %s, VGID:%d, STREAM:%" PRIx64 ", TASK:%" PRId64 ", SESSION:%d " param,             \
-          gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->vgId, ((SStreamTask *)pTask)->streamId, \
+  stError("TYPE: %s, NODE:%d, STREAM:%" PRIx64 ", TASK:%" PRId64 ", SESSION:%" PRIx64 " " param,             \
+          gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, \
           ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->sessionId, __VA_ARGS__)
 #define ST_TASK_WLOG(param, ...)                                                                                     \
-  stWarn("TYPE: %s, VGID:%d, STREAM:%" PRIx64 ", TASK:%" PRId64 ", SESSION:%d " param,             \
-         gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->vgId, ((SStreamTask *)pTask)->streamId, \
+  stWarn("TYPE: %s, NODE:%d, STREAM:%" PRIx64 ", TASK:%" PRId64 ", SESSION:%" PRIx64 " " param,             \
+         gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, \
          ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->sessionId, __VA_ARGS__)
 #define ST_TASK_ILOG(param, ...)                                                                                     \
-  stInfo("TYPE: %s, VGID:%d, STREAM:%" PRIx64 ", TASK:%" PRId64 ", SESSION:%d " param,             \
-         gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->vgId, ((SStreamTask *)pTask)->streamId, \
+  stInfo("TYPE: %s, NODE:%d, STREAM:%" PRIx64 ", TASK:%" PRId64 ", SESSION:%" PRIx64 " " param,             \
+         gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, \
          ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->sessionId, __VA_ARGS__)
 #define ST_TASK_DLOG(param, ...)                                                                                      \
-  stDebug("TYPE: %s, VGID:%d, STREAM:%" PRIx64 ", TASK:%" PRId64 ", SESSION:%d " param,             \
-          gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->vgId, ((SStreamTask *)pTask)->streamId, \
+  stDebug("TYPE: %s, NODE:%d, STREAM:%" PRIx64 ", TASK:%" PRId64 ", SESSION:%" PRIx64 " " param,             \
+          gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, \
           ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->sessionId, __VA_ARGS__)
 #define ST_TASK_TLOG(param, ...)                                                                                      \
-  stTrace("TYPE: %s, VGID:%d, STREAM:%" PRIx64 ", TASK:%" PRId64 ", SESSION:%d " param,             \
-          gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->vgId, ((SStreamTask *)pTask)->streamId, \
+  stTrace("TYPE: %s, NODE:%d, STREAM:%" PRIx64 ", TASK:%" PRId64 ", SESSION:%" PRIx64 " " param,             \
+          gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, \
           ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->sessionId, __VA_ARGS__)
 
 #define mstFatal(param, ...) stFatal("STREAM:%" PRIx64 " " param, streamId, __VA_ARGS__)
@@ -123,6 +91,17 @@ typedef struct SStreamRunnerTask {
 #define mstInfo(param, ...) stInfo("STREAM:%" PRIx64 " " param, streamId, __VA_ARGS__)
 #define mstDebug(param, ...) stDebug("STREAM:%" PRIx64 " " param, streamId, __VA_ARGS__)
 #define mstTrace(param, ...) stTrace("STREAM:%" PRIx64 " " param, streamId, __VA_ARGS__)
+
+int32_t streamGetThreadIdx(int32_t threadNum, int64_t streamGId);
+void streamRemoveVnodeLeader(int32_t vgId);
+void streamAddVnodeLeader(int32_t vgId);
+void streamSetSnodeEnabled(void);
+void streamSetSnodeDisabled(void);
+int32_t streamHbProcessRspMsg(SMStreamHbRspMsg* pRsp);
+int32_t streamHbHandleRspErr(int32_t errCode, int64_t currTs);
+int32_t streamInit(void* pDnode, int32_t dnodeId, getMnodeEpsetFromDnode cb);
+void streamCleanup(void);
+
 
 #ifdef __cplusplus
 }

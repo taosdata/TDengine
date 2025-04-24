@@ -23,7 +23,6 @@
 #include "mndInfoSchema.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
-#include "mndScheduler.h"
 #include "mndShow.h"
 #include "mndStb.h"
 #include "mndStream.h"
@@ -1026,19 +1025,13 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
   }
 
   code = mndAcquireStream(pMnode, streamName, &pStream);
-  if (pStream == NULL || pStream->smaId != pSma->uid || code != 0) {
+  if (pStream == NULL || pStream->pCreate->streamId != pSma->uid || code != 0) {
     sdbRelease(pMnode->pSdb, pStream);
     goto _OVER;
   } else {
-    if ((code = mndStreamSetDropAction(pMnode, pTrans, pStream)) < 0) {
-      mError("stream:%s, failed to drop task since %s", pStream->name, tstrerror(code));
-      sdbRelease(pMnode->pSdb, pStream);
-      goto _OVER;
-    }
-
     // drop stream
-    if ((code = mndPersistTransLog(pStream, pTrans, SDB_STATUS_DROPPED)) < 0) {
-      mError("stream:%s, failed to drop log since %s", pStream->name, tstrerror(code));
+    if ((code = mndStreamTransAppend(pStream, pTrans, SDB_STATUS_DROPPED)) < 0) {
+      mError("stream:%s, failed to drop log since %s", pStream->pCreate->name, tstrerror(code));
       sdbRelease(pMnode->pSdb, pStream);
       goto _OVER;
     }
@@ -1089,14 +1082,8 @@ int32_t mndDropSmasByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *p
 
       SStreamObj *pStream = NULL;
       code = mndAcquireStream(pMnode, streamName, &pStream);
-      if ((pStream != NULL && pStream->smaId == pSma->uid) || code != 0) {
-        if ((code = mndStreamSetDropAction(pMnode, pTrans, pStream)) < 0) {
-          mError("stream:%s, failed to drop task since %s", pStream->name, terrstr());
-          mndReleaseStream(pMnode, pStream);
-          goto _OVER;
-        }
-
-        if ((code = mndPersistTransLog(pStream, pTrans, SDB_STATUS_DROPPED)) < 0) {
+      if ((pStream != NULL && pStream->pCreate->streamId == pSma->uid) || code != 0) {
+        if ((code = mndStreamTransAppend(pStream, pTrans, SDB_STATUS_DROPPED)) < 0) {
           mndReleaseStream(pMnode, pStream);
           goto _OVER;
         }
@@ -1567,6 +1554,9 @@ static void initSMAObj(SCreateTSMACxt *pCxt) {
 }
 
 static int32_t mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
+  int32_t           code = 0;
+  //STREAMTODO
+  /*
   tstrncpy(pCxt->pCreateStreamReq->name, pCxt->streamName, TSDB_STREAM_FNAME_LEN);
   tstrncpy(pCxt->pCreateStreamReq->sourceDB, pCxt->pDb->name, TSDB_DB_FNAME_LEN);
   tstrncpy(pCxt->pCreateStreamReq->targetStbFullName, pCxt->targetStbFullName, TSDB_TABLE_FNAME_LEN);
@@ -1600,7 +1590,6 @@ static int32_t mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
     return terrno;
   }
   SFieldWithOptions f = {0};
-  int32_t           code = 0;
   if (pCxt->pSrcStb) {
     for (int32_t idx = 0; idx < pCxt->pCreateStreamReq->numOfTags - 1; ++idx) {
       SSchema *pSchema = &pCxt->pSrcStb->pTags[idx];
@@ -1644,6 +1633,7 @@ static int32_t mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
       }
     }
   }
+  */
   return code;
 }
 
@@ -1654,7 +1644,6 @@ static int32_t mndCreateTSMABuildDropStreamReq(SCreateTSMACxt *pCxt) {
   if (!pCxt->pDropStreamReq->sql) {
     return terrno;
   }
-  pCxt->pDropStreamReq->sqlLen = strlen(pCxt->pDropStreamReq->sql);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1797,6 +1786,7 @@ static int32_t mndCreateTSMA(SCreateTSMACxt *pCxt) {
   pCxt->pProjects = pProjects;
 
   pCxt->pCreateStreamReq = &createStreamReq;
+/*  STREAMTODO
   if (pCxt->pCreateSmaReq->pVgroupVerList) {
     pCxt->pCreateStreamReq->pVgroupVerList = taosArrayDup(pCxt->pCreateSmaReq->pVgroupVerList, NULL);
     if (!pCxt->pCreateStreamReq->pVgroupVerList) {
@@ -1811,6 +1801,7 @@ static int32_t mndCreateTSMA(SCreateTSMACxt *pCxt) {
       goto _OVER;
     }
   }
+*/  
   pCxt->pDropStreamReq = &dropStreamReq;
   code = mndCreateTSMABuildCreateStreamReq(pCxt);
   if (TSDB_CODE_SUCCESS != code) {
@@ -2511,7 +2502,7 @@ static int32_t mndGetSomeTsmas(SMnode *pMnode, STableTSMAInfoRsp *pRsp, tsmaFilt
       TAOS_RETURN(code);
     }
 
-    int64_t streamId = pStream->uid;
+    int64_t streamId = pStream->pCreate->streamId;
     mndReleaseStream(pMnode, pStream);
 
     STableTSMAInfo *pTsma = taosMemoryCalloc(1, sizeof(STableTSMAInfo));
