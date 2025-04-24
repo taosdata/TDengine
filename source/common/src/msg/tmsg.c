@@ -13410,3 +13410,21 @@ void tDeleteMqBatchMetaRsp(SMqBatchMetaRsp *pRsp) {
 bool hasExtSchema(const SExtSchema *pExtSchema) {
   return pExtSchema->typeMod != 0;
 }
+
+int32_t tEncodeSStreamTsResponse(SEncoder *pEncoder, const SStreamTsResponse *pRsp) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pRsp->ver));
+  size_t size = taosArrayGetSize(pRsp->tsInfo);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, size));
+
+  for (int32_t i = 0; size > 0 && i < size; i++) {
+    STsInfo* tsInfo = (STsInfo *)taosArrayGet(pRsp->tsInfo, i);
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, tsInfo->gId));
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, tsInfo->ts));
+  }
+
+  _exit:
+    return code;
+}
