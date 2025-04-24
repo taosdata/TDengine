@@ -1085,8 +1085,6 @@ static int tdbFetchOvflPage(SPgno *pPgno, SPage **ppOfp, TXN *pTxn, SBTree *pBt)
     return ret;
   }
 
-  tdbPCacheRelease(pBt->pPager->pCache, *ppOfp, pTxn);
-
   return ret;
 }
 
@@ -1120,196 +1118,170 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
 
     *szPayload = nPayload;
     return 0;
+  }
+
+  // handle overflow case
+  // calc local storage size
+  int minLocal = pPage->minLocal;
+  int surplus = minLocal + (nPayload + nHeader - minLocal) % (maxLocal - sizeof(SPgno));
+  int nLocal = surplus <= maxLocal ? surplus : minLocal;
+
+  // int ofpCap = tdbPageCapacity(pBt->pageSize, sizeof(SIntHdr));
+
+  // fetch a new ofp and make it dirty
+  SPgno  pgno = 0;
+  SPage *ofp = NULL;
+
+  ret = tdbFetchOvflPage(&pgno, &ofp, pTxn, pBt);
+  if (ret < 0) {
+    return ret;
+  }
+
+  // local buffer for cell
+  SCell *pBuf = tdbRealloc(NULL, pBt->pageSize);
+  if (pBuf == NULL) {
+    tdbPCacheRelease(pBt->pPager->pCache, ofp, pTxn);
+    return ret;
+  }
+
+  int nLeft = nPayload;
+  int bytes;
+  int lastPage = 0;
+  if (nLocal >= nHeader + kLen + sizeof(SPgno)) {
+    // pack key to local
+    memcpy(pCell + nHeader, pKey, kLen);
+    nLeft -= kLen;
+    // pack partial val to local if any space left
+    if (nLocal > nHeader + kLen + sizeof(SPgno)) {
+      if (!(pVal != NULL && vLen != 0)) {
+        tdbFree(pBuf);
+        tdbPCacheRelease(pBt->pPager->pCache, ofp, pTxn);
+        return TSDB_CODE_FAILED;
+      }
+      memcpy(pCell + nHeader + kLen, pVal, nLocal - nHeader - kLen - sizeof(SPgno));
+      nLeft -= nLocal - nHeader - kLen - sizeof(SPgno);
+    }
+
+    // pack nextPgno
+    memcpy(pCell + nHeader + nPayload - nLeft, &pgno, sizeof(pgno));
+
   } else {
-    // handle overflow case
-    // calc local storage size
-    int minLocal = pPage->minLocal;
-    int surplus = minLocal + (nPayload + nHeader - minLocal) % (maxLocal - sizeof(SPgno));
-    int nLocal = surplus <= maxLocal ? surplus : minLocal;
 
-    // int ofpCap = tdbPageCapacity(pBt->pageSize, sizeof(SIntHdr));
+    int nLeftKey = kLen;
+    // pack partial key and nextPgno
+    memcpy(pCell + nHeader, pKey, nLocal - nHeader - sizeof(pgno));
+    nLeft -= nLocal - nHeader - sizeof(pgno);
+    nLeftKey -= nLocal - nHeader - sizeof(pgno);
 
-    // fetch a new ofp and make it dirty
-    SPgno  pgno = 0;
-    SPage *ofp = NULL, *nextOfp = NULL;
+    memcpy(pCell + nLocal - sizeof(pgno), &pgno, sizeof(pgno));
 
-    ret = tdbFetchOvflPage(&pgno, &ofp, pTxn, pBt);
-    if (ret < 0) {
-      return ret;
-    }
-
-    // local buffer for cell
-    SCell *pBuf = tdbRealloc(NULL, pBt->pageSize);
-    if (pBuf == NULL) {
-      return ret;
-    }
-
-    int nLeft = nPayload;
-    int bytes;
-    int lastPage = 0;
-    if (nLocal >= nHeader + kLen + sizeof(SPgno)) {
-      // pack key to local
-      memcpy(pCell + nHeader, pKey, kLen);
-      nLeft -= kLen;
-      // pack partial val to local if any space left
-      if (nLocal > nHeader + kLen + sizeof(SPgno)) {
-        if (!(pVal != NULL && vLen != 0)) {
-          tdbFree(pBuf);
-          return TSDB_CODE_FAILED;
-        }
-        memcpy(pCell + nHeader + kLen, pVal, nLocal - nHeader - kLen - sizeof(SPgno));
-        nLeft -= nLocal - nHeader - kLen - sizeof(SPgno);
+    size_t lastKeyPageSpace = 0;
+    // pack left key & val to ovpages
+    do {
+      // cal key to cpy
+      int lastKeyPage = 0;
+      if (nLeftKey <= ofp->maxLocal - sizeof(SPgno)) {
+        bytes = nLeftKey;
+        lastKeyPage = 1;
+        lastKeyPageSpace = ofp->maxLocal - sizeof(SPgno) - nLeftKey;
+      } else {
+        bytes = ofp->maxLocal - sizeof(SPgno);
       }
 
-      // pack nextPgno
-      memcpy(pCell + nHeader + nPayload - nLeft, &pgno, sizeof(pgno));
+      // cpy key
+      memcpy(pBuf, ((SCell *)pKey) + kLen - nLeftKey, bytes);
 
-      // pack left val data to ovpages
-      do {
-        lastPage = 0;
-        if (nLeft <= ofp->maxLocal - sizeof(SPgno)) {
-          bytes = nLeft;
-          lastPage = 1;
-        } else {
-          bytes = ofp->maxLocal - sizeof(SPgno);
-        }
+      SPage* nextOfp = NULL;
+      if (lastKeyPage) {
+        if (lastKeyPageSpace >= vLen) {
+          if (vLen > 0) {
+            memcpy(pBuf + kLen - nLeftKey, pVal, vLen);
 
-        // fetch next ofp if not last page
-        if (!lastPage) {
-          // fetch a new ofp and make it dirty
-          ret = tdbFetchOvflPage(&pgno, &nextOfp, pTxn, pBt);
-          if (ret < 0) {
-            tdbFree(pBuf);
-            return ret;
+            nLeft -= vLen;
           }
-        } else {
+
           pgno = 0;
-        }
-
-        memcpy(pBuf, ((SCell *)pVal) + vLen - nLeft, bytes);
-        memcpy(pBuf + bytes, &pgno, sizeof(pgno));
-
-        ret = tdbPageInsertCell(ofp, 0, pBuf, bytes + sizeof(pgno), 0);
-        if (ret < 0) {
-          tdbFree(pBuf);
-          return ret;
-        }
-
-        ofp = nextOfp;
-        nLeft -= bytes;
-      } while (nLeft > 0);
-    } else {
-      int nLeftKey = kLen;
-      // pack partial key and nextPgno
-      memcpy(pCell + nHeader, pKey, nLocal - nHeader - sizeof(pgno));
-      nLeft -= nLocal - nHeader - sizeof(pgno);
-      nLeftKey -= nLocal - nHeader - sizeof(pgno);
-
-      memcpy(pCell + nLocal - sizeof(pgno), &pgno, sizeof(pgno));
-
-      size_t lastKeyPageSpace = 0;
-      // pack left key & val to ovpages
-      do {
-        // cal key to cpy
-        int lastKeyPage = 0;
-        if (nLeftKey <= ofp->maxLocal - sizeof(SPgno)) {
-          bytes = nLeftKey;
-          lastKeyPage = 1;
-          lastKeyPageSpace = ofp->maxLocal - sizeof(SPgno) - nLeftKey;
         } else {
-          bytes = ofp->maxLocal - sizeof(SPgno);
-        }
+          memcpy(pBuf + kLen - nLeftKey, pVal, lastKeyPageSpace);
+          nLeft -= lastKeyPageSpace;
 
-        // cpy key
-        memcpy(pBuf, ((SCell *)pKey) + kLen - nLeftKey, bytes);
-
-        if (lastKeyPage) {
-          if (lastKeyPageSpace >= vLen) {
-            if (vLen > 0) {
-              memcpy(pBuf + kLen - nLeftKey, pVal, vLen);
-
-              nLeft -= vLen;
-            }
-
-            pgno = 0;
-          } else {
-            memcpy(pBuf + kLen - nLeftKey, pVal, lastKeyPageSpace);
-            nLeft -= lastKeyPageSpace;
-
-            // fetch next ofp, a new ofp and make it dirty
-            ret = tdbFetchOvflPage(&pgno, &nextOfp, pTxn, pBt);
-            if (ret < 0) {
-              tdbFree(pBuf);
-              return ret;
-            }
-          }
-        } else {
           // fetch next ofp, a new ofp and make it dirty
           ret = tdbFetchOvflPage(&pgno, &nextOfp, pTxn, pBt);
           if (ret < 0) {
+            tdbPCacheRelease(pBt->pPager->pCache, ofp, pTxn);
             tdbFree(pBuf);
             return ret;
           }
         }
-
-        memcpy(pBuf + bytes, &pgno, sizeof(pgno));
-
-        ret = tdbPageInsertCell(ofp, 0, pBuf, bytes + sizeof(pgno), 0);
-        if (ret < 0) {
-          return ret;
-        }
-
-        ofp = nextOfp;
-        nLeftKey -= bytes;
-        nLeft -= bytes;
-      } while (nLeftKey > 0);
-
-      while (nLeft > 0) {
-        // pack left val data to ovpages
-        lastPage = 0;
-        if (nLeft <= maxLocal - sizeof(SPgno)) {
-          bytes = nLeft;
-          lastPage = 1;
-        } else {
-          bytes = maxLocal - sizeof(SPgno);
-        }
-
-        // fetch next ofp if not last page
-        if (!lastPage) {
-          // fetch a new ofp and make it dirty
-          ret = tdbFetchOvflPage(&pgno, &nextOfp, pTxn, pBt);
-          if (ret < 0) {
-            tdbFree(pBuf);
-            return ret;
-          }
-        } else {
-          pgno = 0;
-        }
-
-        memcpy(pBuf, ((SCell *)pVal) + vLen - nLeft, bytes);
-        memcpy(pBuf + bytes, &pgno, sizeof(pgno));
-
-        if (ofp == NULL) {
-          tdbFree(pBuf);
-          return ret;
-        }
-
-        ret = tdbPageInsertCell(ofp, 0, pBuf, bytes + sizeof(pgno), 0);
+      } else {
+        // fetch next ofp, a new ofp and make it dirty
+        ret = tdbFetchOvflPage(&pgno, &nextOfp, pTxn, pBt);
         if (ret < 0) {
           tdbFree(pBuf);
+          tdbPCacheRelease(pBt->pPager->pCache, ofp, pTxn);
           return ret;
         }
-
-        ofp = nextOfp;
-        nLeft -= bytes;
       }
+
+      memcpy(pBuf + bytes, &pgno, sizeof(pgno));
+
+      ret = tdbPageInsertCell(ofp, 0, pBuf, bytes + sizeof(pgno), 0);
+      tdbPCacheRelease(pBt->pPager->pCache, ofp, pTxn);
+      if (ret < 0) {
+        return ret;
+      }
+
+      ofp = nextOfp;
+      nLeftKey -= bytes;
+      nLeft -= bytes;
+    } while (nLeftKey > 0);
+  }
+
+  while (nLeft > 0) {
+    SPage* nextOfp = NULL;
+
+    // pack left val data to ovpages
+    lastPage = 0;
+    if (nLeft <= ofp->maxLocal - sizeof(SPgno)) {
+      bytes = nLeft;
+      lastPage = 1;
+    } else {
+      bytes = ofp->maxLocal - sizeof(SPgno);
     }
 
-    // free local buffer
-    tdbFree(pBuf);
+    // fetch next ofp if not last page
+    if (!lastPage) {
+      // fetch a new ofp and make it dirty
+      ret = tdbFetchOvflPage(&pgno, &nextOfp, pTxn, pBt);
+      if (ret < 0) {
+        tdbFree(pBuf);
+        tdbPCacheRelease(pBt->pPager->pCache, ofp, pTxn);
+        return ret;
+      }
+    } else {
+      pgno = 0;
+    }
 
-    *szPayload = nLocal - nHeader;
+    memcpy(pBuf, ((SCell *)pVal) + vLen - nLeft, bytes);
+    memcpy(pBuf + bytes, &pgno, sizeof(pgno));
+
+    ret = tdbPageInsertCell(ofp, 0, pBuf, bytes + sizeof(pgno), 0);
+    tdbPCacheRelease(pBt->pPager->pCache, ofp, pTxn);
+    if (ret < 0) {
+      tdbFree(pBuf);
+      return ret;
+    }
+
+    ofp = nextOfp;
+    nLeft -= bytes;
   }
+
+  if (ofp) {
+    tdbPCacheRelease(pBt->pPager->pCache, ofp, pTxn);
+  }
+  // free local buffer
+  tdbFree(pBuf);
+  *szPayload = nLocal - nHeader;
 
   return 0;
 }
