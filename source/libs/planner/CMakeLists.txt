@@ -8,7 +8,7 @@ target_include_directories(
 
 target_link_libraries(
     planner
-    PRIVATE os util nodes catalog cjson parser function qcom scalar index
+    PRIVATE os util nodes catalog parser function qcom scalar index
     PUBLIC transport
 )
 

@@ -11,7 +11,7 @@ import wndata from './pic/white-noise-data.png'
 
 时序数据分析之前需要有预处理的过程，为减轻分析算法的负担，TDgpt 在将时序数据发给具体分析算法进行分析时，已经对数据做了预处理，整体的流程如下图所示。
 
-<figure style={{textAlign: "center"}}>
+<figure style={{textAlign:"center"}}>
 <img src={activity} alt="预处理流程"/>
 </figure>
 
@@ -20,7 +20,7 @@ TDgpt 首先对输入数据进行白噪声检查（White Noise Data check）, �
 
 ### 白噪声检查
 
-<figure style={{textAlign: "center"}}>
+<figure style={{textAlign:"center"}}>
 <img src={wndata} alt="white-noise-data"/>
 </figure>
 
