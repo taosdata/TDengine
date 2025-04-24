@@ -49,7 +49,7 @@ class EMSCenter(TDCase):
         for edge_host in self.edge_hosts:
                 # "from": f"taos+ws://{edge_host}:6041/{self.edge_db}?mode=all&schema=always&schema-polling-interval=5s&compression={self.compression_param}",
             case_data = {
-                "from": f"tmq+ws://{edge_host}:6041/{self.edge_db}?auto.offset.reset=earliest&client.id=test&experimental.snapshot.enable=true",
+                "from": f"tmq+ws://{edge_host}:6041/{self.edge_db}?auto.offset.reset=earliest&client.id=test&experimental.snapshot.enable=true&compression={self.compression_param}",
                 "to": f"taos+ws://{self.fqdn}:6041/{self.target_dbname}",
                 "labels": self.case_data_org["from"]["labels"]
             }

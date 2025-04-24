@@ -57,7 +57,7 @@ class Stop(TDCase):
         for task_info in task_list:
             task_id = task_info["id"]
             # stop task
-            self.tdRest.request(data=None, method='POST', url=f'http://{self.host}:6060/api/x/tasks/{task_id}/stop',header=headers)
+            # self.tdRest.request(data=None, method='POST', url=f'http://{self.host}:6060/api/x/tasks/{task_id}/stop',header=headers)
             # get task metrics
             task_metrics = self.tdRest.request(data=None, method='GET', url=f'http://{self.host}:6060/api/x/tasks/{task_id}/metrics',header=headers)
             task_metrics_dict[task_id] = task_metrics.json()
@@ -65,7 +65,7 @@ class Stop(TDCase):
         return task_metrics_dict
     def run(self) -> bool:
         # stop mqtt simulator
-        self.stop_mqtt_simulator()
+        # self.stop_mqtt_simulator()
         headers = {"Content-Type": "application/json"}
         task_url = f'http://{self.host}:6060/api/x/tasks'
         metrics_dict = self.stop_tasks_get_metrics(task_url=task_url,headers=headers)
@@ -75,7 +75,8 @@ class Stop(TDCase):
             "total_rows_per_second":0,
             "total_points_per_second":0,
             "total_written_rows":0,
-            "total_written_points":0
+            "total_written_points":0,
+            "mqtt_received_bytes": 0
         }
         tmq_summary_metrics = {
             "role": self.get_role(),
@@ -98,6 +99,10 @@ class Stop(TDCase):
                 query_summary_metrics["total_written_points"] += metrics_dict[task_id]["total"]["total_written_points"]
                 query_summary_metrics["total_written_rows"] += metrics_dict[task_id]["total"]["total_written_rows"]
                 query_summary_metrics["total_rows_per_second"] += metrics_dict[task_id]["total"]["total_rows_per_second"]
+                if "mqtt_received_bytes" in metrics_dict[task_id]["current"]:
+                    query_summary_metrics["mqtt_received_bytes"] += metrics_dict[task_id]["current"]["mqtt_received_bytes"]
+                else:
+                    query_summary_metrics["mqtt_received_bytes"] += 0
             else:
                 self.api_type = 1
                 tmq_summary_metrics["total_messages"] += metrics_dict[task_id]["total"]["total_messages"]
