@@ -1777,20 +1777,7 @@ void taosAutoMemoryFree(void *ptr) {
   }
 }
 
-int32_t taosMemoryPoolCfgUpdateReservedSize(int32_t newReservedSizeMB) {
-  if (!threadPoolEnabled) {
-    return TSDB_CODE_SUCCESS;
-  }
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (NULL == gMemPoolHandle || newReservedSizeMB < 0) {
-    uError("%s invalid input param, poolHandle:%p, newReservedSizeMB:%d", __FUNCTION__, gMemPoolHandle,
-           newReservedSizeMB);
-    MP_ERR_RET(TSDB_CODE_INVALID_PARA);
-  }
-  return mpUpdateReservedSize(gMemPoolHandle, newReservedSizeMB);
-}
-
-int32_t mpUpdateReservedSize(SMemPool* pPool, int32_t newReservedSizeMB) {
+static int32_t mpUpdateReservedSize(SMemPool* pPool, int32_t newReservedSizeMB) {
   int32_t code = TSDB_CODE_SUCCESS;
   int64_t sysAvailSize = 0;
   code = taosGetSysAvailMemory(&sysAvailSize);
@@ -1811,4 +1798,17 @@ int32_t mpUpdateReservedSize(SMemPool* pPool, int32_t newReservedSizeMB) {
   MP_UNLOCK(MP_WRITE, &pPool->cfgLock);
 
   return code;
+}
+
+int32_t taosMemoryPoolCfgUpdateReservedSize(int32_t newReservedSizeMB) {
+  if (!threadPoolEnabled) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (NULL == gMemPoolHandle || newReservedSizeMB < 0) {
+    uError("%s invalid input param, poolHandle:%p, newReservedSizeMB:%d", __FUNCTION__, gMemPoolHandle,
+           newReservedSizeMB);
+    MP_ERR_RET(TSDB_CODE_INVALID_PARA);
+  }
+  return mpUpdateReservedSize(gMemPoolHandle, newReservedSizeMB);
 }
