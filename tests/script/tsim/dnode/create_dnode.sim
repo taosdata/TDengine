@@ -36,6 +36,7 @@ if $data02 != leader then
   $cn = $cn + 1
   if $cn == 20 then
     return -1
+  endi
   goto step0
 endi
 
