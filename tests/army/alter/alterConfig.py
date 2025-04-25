@@ -196,8 +196,9 @@ class TDTestCase(TBase):
         tdSql.checkData(0, 1, "UTC (UTC, +0000)")
 
     def alter_memPoolReservedSizeMB_case(self):
-        tdSql.query("alter all dnodes 'minReservedMemorySize 100'")
-        tdSql.checkData(0, 1, "100")
+        tdSql.execute("alter all dnodes 'minReservedMemorySize 2048'")
+        tdSql.query("show dnode 1 variables like 'minReservedMemorySize'")
+        tdSql.checkData(0, 2, "2048")
 
         tdSql.error("alter all dnodes 'minReservedMemorySize 0'")
         tdSql.error("alter all dnodes 'minReservedMemorySize 100000000000'")

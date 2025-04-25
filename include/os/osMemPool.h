@@ -138,7 +138,8 @@ void    taosMemPoolGetUsedSizeEnd(void* poolHandle);
 int32_t taosMemPoolGetSessionStat(void* session, SMPStatDetail** ppStat, int64_t* allocSize, int64_t* maxAllocSize);
 void    taosMemPoolSchedTrim(void);
 int32_t taosMemoryPoolInit(mpReserveFailFp, mpReserveReachFp);
-int32_t taosMemPoolCfgUpdateReservedSize(void* poolHandle, int32_t newReservedSizeMB);
+int32_t taosMemoryPoolCfgUpdateReservedSize(int32_t newReservedSizeMB);
+
 
 #define taosMemPoolFreeClear(ptr)   \
   do {                             \
@@ -173,7 +174,6 @@ extern int8_t tsMemPoolFullFunc;
 #define taosMemorySize(_ptr) ((threadPoolEnabled && threadPoolSession) ? (taosMemPoolGetMemorySize(gMemPoolHandle, threadPoolSession, _ptr, (char*)__FILE__, __LINE__)) : (taosMemSize(_ptr)))
 #define taosMemoryTrim(_size, _trimed) ((threadPoolEnabled && threadPoolSession) ? (taosMemPoolTrim(gMemPoolHandle, threadPoolSession, _size, (char*)__FILE__, __LINE__, _trimed)) : (taosMemTrim(_size, _trimed)))
 #define taosMemoryMallocAlign(_alignment, _size) ((threadPoolEnabled && threadPoolSession) ? (taosMemPoolMallocAlign(gMemPoolHandle, threadPoolSession, _alignment, _size, (char*)__FILE__, __LINE__)) : (taosMemMallocAlign(_alignment, _size)))
-#define taosMemoryCfgUpdateReservedSize(_size) ((taosMemPoolCfgUpdateReservedSize(gMemPoolHandle, _size)))
 #else
 #define taosEnableMemPoolUsage(_session) 
 #define taosDisableMemPoolUsage() 

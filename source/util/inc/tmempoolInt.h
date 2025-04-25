@@ -521,6 +521,7 @@ void    mpUpdateAllocSize(SMemPool* pPool, SMPSession* pSession, int64_t size, i
 int32_t mpAddCacheGroup(SMemPool* pPool, SMPCacheGroupInfo* pInfo, SMPCacheGroup* pHead);
 int32_t mpMalloc(SMemPool* pPool, SMPSession* pSession, int64_t* size, uint32_t alignment, void** ppRes);
 void    mpSchedTrim(int64_t* loopTimes);
+int32_t mpUpdateReservedSize(SMemPool* pPool, int32_t newReservedSizeMB);
 
 #ifdef __cplusplus
 }

@@ -1777,32 +1777,35 @@ void taosAutoMemoryFree(void *ptr) {
   }
 }
 
-int32_t taosMemPoolCfgUpdateReservedSize(void* poolHandle, int32_t newReservedSizeMB) {
+int32_t taosMemoryPoolCfgUpdateReservedSize(int32_t newReservedSizeMB) {
   if (!threadPoolEnabled) {
     return TSDB_CODE_SUCCESS;
   }
   int32_t code = TSDB_CODE_SUCCESS;
-  if (NULL == poolHandle || newReservedSizeMB < 0) {
-    uError("%s invalid input param, poolHandle:%p, newReservedSizeMB:%d", __FUNCTION__, poolHandle, newReservedSizeMB);
+  if (NULL == gMemPoolHandle || newReservedSizeMB < 0) {
+    uError("%s invalid input param, poolHandle:%p, newReservedSizeMB:%d", __FUNCTION__, gMemPoolHandle,
+           newReservedSizeMB);
     MP_ERR_RET(TSDB_CODE_INVALID_PARA);
   }
+  return mpUpdateReservedSize(gMemPoolHandle, newReservedSizeMB);
+}
 
+int32_t mpUpdateReservedSize(SMemPool* pPool, int32_t newReservedSizeMB) {
+  int32_t code = TSDB_CODE_SUCCESS;
   int64_t sysAvailSize = 0;
   code = taosGetSysAvailMemory(&sysAvailSize);
   if (code || sysAvailSize < MP_MIN_MEM_POOL_SIZE) {
     uInfo("memory pool disabled since no enough system available memory, size: %" PRId64, sysAvailSize);
-    code = TSDB_CODE_SUCCESS;
-    return code;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   int64_t freeSizeAfterRes = sysAvailSize - newReservedSizeMB * 1048576UL;
   if (freeSizeAfterRes < MP_MIN_FREE_SIZE_AFTER_RESERVE) {
     uInfo("memory pool disabled since no enough system available memory after reservied, size: %" PRId64,
           freeSizeAfterRes);
-    return code;
+    return TSDB_CODE_INVALID_PARA;
   }
 
-  SMemPool* pPool = (SMemPool*)poolHandle;
   MP_LOCK(MP_WRITE, &pPool->cfgLock);
   pPool->cfg.reserveSize = newReservedSizeMB * 1048576UL;
   MP_UNLOCK(MP_WRITE, &pPool->cfgLock);
