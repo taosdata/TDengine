@@ -4946,6 +4946,90 @@ typedef struct SStreamTsResponse {
 
 int32_t tEncodeSStreamTsResponse(SEncoder *pEncoder, const SStreamTsResponse *pRsp);
 
+typedef struct SStreamFirstTsRequest {
+  SStreamTriggerRequest base;
+  int64_t               startTime;
+} SStreamFirstTsRequest;
+
+typedef struct SStreamTsdbMetaRequest {
+  SStreamTriggerRequest base;
+  int64_t               startTime;
+} SStreamTsdbMetaRequest;
+
+typedef struct SStreamTsdbMetaNextRequest {
+  SStreamTriggerRequest base;
+} SStreamTsdbMetaNextRequest;
+
+typedef struct SStreamTsdbTsDataRequest {
+  SStreamTriggerRequest base;
+  int64_t               uid;
+  int64_t               skey;
+  int64_t               ekey;
+} SStreamTsdbTsDataRequest;
+
+typedef struct SStreamTsdbTriggerDataRequest {
+  SStreamTriggerRequest base;
+  int64_t               startTime;
+} SStreamTsdbTriggerDataRequest;
+
+typedef struct SStreamTsdbTriggerDataNextRequest {
+  SStreamTriggerRequest base;
+} SStreamTsdbTriggerDataNextRequest;
+
+typedef struct SStreamTsdbCalcDataRequest {
+  SStreamTriggerRequest base;
+  int64_t               gid;
+  int64_t               skey;
+  int64_t               ekey;
+} SStreamTsdbCalcDataRequest;
+
+typedef struct SStreamTsdbCalcDataNextRequest {
+  SStreamTriggerRequest base;
+} SStreamTsdbCalcDataNextRequest;
+
+typedef struct SStreamWalMetaRequest {
+  SStreamTriggerRequest base;
+  int64_t               lastVer;
+} SStreamWalMetaRequest;
+
+typedef struct SStreamWalTsDataRequest {
+  SStreamTriggerRequest base;
+  int64_t               ver;
+} SStreamWalTsDataRequest;
+
+typedef struct SStreamWalTriggerDataRequest {
+  SStreamTriggerRequest base;
+  int64_t               ver;
+} SStreamWalTriggerDataRequest;
+
+typedef struct SStreamWalCalcDataRequest {
+  SStreamTriggerRequest base;
+  int64_t               ver;
+  int64_t               skey;
+  int64_t               ekey;
+} SStreamWalCalcDataRequest;
+
+typedef struct SStreamCalculationParam {
+  // These fields only have values when used in the statement, otherwise they are 0
+  int64_t currentTs;
+  int64_t wstart;
+  int64_t wend;
+  int64_t wduration;
+  int64_t wrownum;
+  int64_t triggerTime;
+
+  bool  needNotify;
+  char* extraNotifyContent;  // NULL if not available
+} SStreamCalculationParam;
+
+typedef struct SStreamCalculationRequest {
+  SStreamTriggerRequest base;
+  int64_t               gid;
+  SArray*               params; // Array<SStreamCalculationParam>
+  SArray*               groupColVals; // only provided at the first calculation of the group, Array<SValue>
+  bool                  resetFlag;
+} SStreamCalculationRequest;
+
 int32_t tSerializeSVSubTablesRspImpl(SEncoder* pEncoder, SVSubTablesRsp *pRsp);
 int32_t tDeserializeSVSubTablesRspImpl(SDecoder* pDecoder, SVSubTablesRsp *pRsp);
 

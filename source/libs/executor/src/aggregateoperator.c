@@ -71,7 +71,7 @@ static int32_t doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfO
 static void functionCtxSave(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus);
 static void functionCtxRestore(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus);
 
-static void resetAggregateOperatorState(SOperatorInfo* pOper);
+static int32_t resetAggregateOperatorState(SOperatorInfo* pOper);
 
 int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNode, SExecTaskInfo* pTaskInfo,
                                     SOperatorInfo** pOptrInfo) {
@@ -131,6 +131,7 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
                   !pAggNode->node.forceCreateNonBlockingOptr, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, getAggregateResultNext, NULL, destroyAggOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  setOperatorResetStateFn(pOperator, resetAggregateOperatorState);
 
   if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pTableScanInfo = downstream->info;
@@ -234,7 +235,7 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
     // there is an scalar expression that needs to be calculated before apply the group aggregation.
     if (pAggInfo->scalarExprSup.pExprInfo != NULL && !blockAllocated) {
       SExprSupp* pSup1 = &pAggInfo->scalarExprSup;
-      code = projectApplyFunctions(pSup1->pExprInfo, pBlock, pBlock, pSup1->pCtx, pSup1->numOfExprs, NULL);
+      code = projectApplyFunctions(pSup1->pExprInfo, pBlock, pBlock, pSup1->pCtx, pSup1->numOfExprs, NULL, pOperator->pTaskInfo->pStreamRuntimeInfo);
       if (code != TSDB_CODE_SUCCESS) {
         destroyDataBlockForEmptyInput(blockAllocated, &pBlock);
         T_LONG_JMP(pTaskInfo->env, code);
@@ -830,7 +831,7 @@ void functionCtxRestore(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus) {
   pCtx->input.startRowIndex = pStatus->startOffset;
 }
 
-static void resetAggregateOperatorState(SOperatorInfo* pOper) {
+static int32_t resetAggregateOperatorState(SOperatorInfo* pOper) {
   SAggOperatorInfo* pAgg = pOper->info;
   pAgg->groupKeyOptimized = false;
   pAgg->hasValidBlock = false;
@@ -838,6 +839,7 @@ static void resetAggregateOperatorState(SOperatorInfo* pOper) {
   pAgg->cleanGroupResInfo = false;
   pAgg->groupId = INT64_MAX;
   resetBasicOperatorState(&pAgg->binfo);
+  return 0;
 }
 
 void resetBasicOperatorState(SOptrBasicInfo *pBasicInfo) {

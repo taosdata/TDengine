@@ -62,6 +62,13 @@ typedef struct {
   bool               localExec;
 } SReadHandle;
 
+typedef struct {
+  const SArray* pPseudoCols;
+  const SArray* pPartCols;
+  int32_t       execId;
+  bool          resetFlag;
+} SStreamRuntimeInfo;
+
 // in queue mode, data streams are seperated by msg
 typedef enum {
   OPTR_EXEC_MODEL_BATCH = 0x1,
@@ -235,6 +242,9 @@ int32_t  qStreamGetGroupIndex(void* pTableListInfo, int64_t gid);
 int32_t  qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo);
 bool     qStreamUidInTableList(void* pTableListInfo, uint64_t uid);
 void     initStorageAPI(SStorageAPI* pAPI);
+
+int32_t streamCalcOutputTbName(SNode *pExpr, char *tbname, void *pPartColVals);
+void    streamSetTaskRuntimeInfo(qTaskInfo_t tinfo, SStreamRuntimeInfo* pRuntimeInfo);
 
 #ifdef __cplusplus
 }

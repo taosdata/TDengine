@@ -46,10 +46,13 @@ typedef struct SStreamTriggerTask {
 
 
 typedef struct SStreamRunnerTaskExecution {
-  const char* pPlan;
-  void*       pExecutor;
-  void*       notifyEventSup;
-} SStreamRunnerTaskExecution; // TODO wjm move back into Runner.c
+  const char         *pPlan;
+  void               *pExecutor;
+  void               *notifyEventSup;
+  void               *pQueryPlan;
+  SStreamRuntimeInfo  runtimeInfo;
+  char                tbname[TSDB_TABLE_NAME_LEN];
+} SStreamRunnerTaskExecution;
 
 typedef struct SStreamRunnerTaskOutput {
   struct SSDataBlock* pBlock;

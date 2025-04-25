@@ -82,6 +82,8 @@ typedef struct SExternalWindowOperator {
   SArray*            pWins;
   int32_t            winCurIdx;
   SArray*            pOutputBlocks;  // for each window, we have a list of blocks
+  int32_t            outputWinId;
+  SListNode*         pOutputBlockListNode;  // block index in block array used for output, TODO wjm remember to reset it
 } SExternalWindowOperator;
 
 typedef struct SMergeAlignedExternalWindowOperator {
@@ -459,12 +461,15 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
 
     if (pExtW->scalarSupp.pExprInfo) {
       SExprSupp* pExprSup = &pExtW->scalarSupp;
-      code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL);
+      code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL,
+                                   pOperator->pTaskInfo->pStreamRuntimeInfo);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
     code = setInputDataBlock(pSup, pBlock, pExtW->binfo.inputTsOrder, scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _end);
+
+
 
     if (!pExtW->scalarMode) {
       if (hashExternalWindowAgg(pOperator, pBlock)) break;
@@ -485,6 +490,68 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
+  return code;
+}
+
+static int32_t externalWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+  int32_t                  code = 0;
+  int32_t                  lino = 0;
+  SExternalWindowOperator* pExtW = pOperator->info;
+  SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
+
+  if (pOperator->status == OP_EXEC_DONE) {
+    *ppRes = NULL;
+    return code;
+  }
+
+  SSDataBlock* pBlock = pExtW->binfo.pRes;
+  code = pOperator->fpSet._openFn(pOperator);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  while (1) {
+    if (pExtW->scalarMode) {
+      if (pExtW->outputWinId >= taosArrayGetSize(pExtW->pOutputBlocks)) {
+        pBlock->info.rows = 0;
+        break;
+      }
+      SBlockList* pList = taosArrayGet(pExtW->pOutputBlocks, pExtW->outputWinId);
+      if (pExtW->pOutputBlockListNode == NULL) {
+        pExtW->pOutputBlockListNode = tdListGetHead(pList->pBlocks);
+      } else {
+        if (!pExtW->pOutputBlockListNode->dl_next_) {
+          pExtW->pOutputBlockListNode = NULL;
+          pExtW->outputWinId++;
+          continue;
+        }
+        pExtW->pOutputBlockListNode = pExtW->pOutputBlockListNode->dl_next_;
+      }
+
+      if (pExtW->pOutputBlockListNode) {
+        code = blockDataMerge(pBlock, *(SSDataBlock**)pExtW->pOutputBlockListNode->data);
+        if (code != 0) goto _end;
+      } else {
+        pBlock->info.rows = 0;
+      }
+      break;
+    } else {
+      doBuildResultDatablock(pOperator, &pExtW->binfo, &pExtW->groupResInfo, pExtW->aggSup.pResultBuf);
+      bool hasRemain = hasRemainResults(&pExtW->groupResInfo);
+      if (!hasRemain) {
+        setOperatorCompleted(pOperator);
+        break;
+      }
+      if (pExtW->binfo.pRes->info.rows > 0) break;
+    }
+  }
+
+  pOperator->resultInfo.totalRows += pExtW->binfo.pRes->info.rows;
+_end:
+  if (code != 0) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
+  (*ppRes) = (pExtW->binfo.pRes->info.rows == 0) ? NULL : pExtW->binfo.pRes;
   return code;
 }
 

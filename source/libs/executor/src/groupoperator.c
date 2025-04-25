@@ -477,7 +477,7 @@ static int32_t hashGroupbyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->scalarSup.pExprInfo != NULL) {
       code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
-                                   pInfo->scalarSup.numOfExprs, NULL);
+                                   pInfo->scalarSup.numOfExprs, NULL, pOperator->pTaskInfo->pStreamRuntimeInfo);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -1032,7 +1032,7 @@ static int32_t hashPartitionNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->scalarSup.pExprInfo != NULL) {
       code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
-                                   pInfo->scalarSup.numOfExprs, NULL);
+                                   pInfo->scalarSup.numOfExprs, NULL, pOperator->pTaskInfo->pStreamRuntimeInfo);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -1238,20 +1238,6 @@ int32_t setGroupResultOutputBuf(SOperatorInfo* pOperator, SOptrBasicInfo* binfo,
   }
 
   return setResultRowInitCtx(pResultRow, pCtx, numOfCols, pOperator->exprSupp.rowEntryInfoOffset);
-}
-
-uint64_t calGroupIdByData(SPartitionBySupporter* pParSup, SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t rowId) {
-  if (pExprSup->pExprInfo != NULL) {
-    int32_t code =
-        projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL);
-    if (code != TSDB_CODE_SUCCESS) {
-      qError("calaculate group id error, code:%d", code);
-    }
-  }
-  recordNewGroupKeys(pParSup->pGroupCols, pParSup->pGroupColVals, pBlock, rowId);
-  int32_t  len = buildGroupKeys(pParSup->keyBuf, pParSup->pGroupColVals);
-  uint64_t groupId = calcGroupId(pParSup->keyBuf, len);
-  return groupId;
 }
 
 SSDataBlock* buildCreateTableBlock(SExprSupp* tbName, SExprSupp* tag) {

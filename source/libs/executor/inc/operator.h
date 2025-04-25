@@ -36,18 +36,20 @@ typedef int32_t (*__optr_reqBuf_fn_t)(struct SOperatorInfo* pOptr);
 typedef int32_t (*__optr_get_ext_fn_t)(struct SOperatorInfo* pOptr, SOperatorParam* param, SSDataBlock** pRes);
 typedef int32_t (*__optr_notify_fn_t)(struct SOperatorInfo* pOptr, SOperatorParam* param);
 typedef void (*__optr_state_fn_t)(struct SOperatorInfo* pOptr);
+typedef int32_t (* __optr_reset_state_fn_t)(struct SOperatorInfo* pOptr);
 
 typedef struct SOperatorFpSet {
-  __optr_open_fn_t    _openFn;  // DO NOT invoke this function directly
-  __optr_fn_t         getNextFn;
-  __optr_fn_t         cleanupFn;  // call this function to release the allocated resources ASAP
-  __optr_close_fn_t   closeFn;
-  __optr_reqBuf_fn_t  reqBufFn;  // total used buffer for blocking operator
-  __optr_explain_fn_t getExplainFn;
-  __optr_get_ext_fn_t getNextExtFn;
-  __optr_notify_fn_t  notifyFn;
-  __optr_state_fn_t   releaseStreamStateFn;
-  __optr_state_fn_t   reloadStreamStateFn;
+  __optr_open_fn_t        _openFn;  // DO NOT invoke this function directly
+  __optr_fn_t             getNextFn;
+  __optr_fn_t             cleanupFn;  // call this function to release the allocated resources ASAP
+  __optr_close_fn_t       closeFn;
+  __optr_reqBuf_fn_t      reqBufFn;  // total used buffer for blocking operator
+  __optr_explain_fn_t     getExplainFn;
+  __optr_get_ext_fn_t     getNextExtFn;
+  __optr_notify_fn_t      notifyFn;
+  __optr_state_fn_t       releaseStreamStateFn;
+  __optr_state_fn_t       reloadStreamStateFn;
+  __optr_reset_state_fn_t resetStateFn;
 } SOperatorFpSet;
 
 enum {
@@ -157,6 +159,7 @@ SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, 
                                    __optr_close_fn_t closeFn, __optr_reqBuf_fn_t reqBufFn,
                                    __optr_explain_fn_t explain, __optr_get_ext_fn_t nextExtFn, __optr_notify_fn_t notifyFn);
 void           setOperatorStreamStateFn(SOperatorInfo* pOperator, __optr_state_fn_t relaseFn, __optr_state_fn_t reloadFn);
+void           setOperatorResetStateFn(SOperatorInfo* pOperator, __optr_reset_state_fn_t resetFn);
 int32_t        optrDummyOpenFn(SOperatorInfo* pOperator);
 int32_t        appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t num);
 void           setOperatorCompleted(SOperatorInfo* pOperator);

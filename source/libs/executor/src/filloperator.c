@@ -129,7 +129,7 @@ void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int
   SExprSupp*         pSup = &pOperator->exprSupp;
   code = setInputDataBlock(pSup, pBlock, order, scanFlag, false);
   QUERY_CHECK_CODE(code, lino, _end);
-  code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs, NULL);
+  code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs, NULL, pOperator->pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
   // reset the row value before applying the no-fill functions to the input data block, which is "pBlock" in this case.
@@ -139,7 +139,7 @@ void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int
   QUERY_CHECK_CODE(code, lino, _end);
 
   code = projectApplyFunctions(pNoFillSupp->pExprInfo, pInfo->pRes, pBlock, pNoFillSupp->pCtx, pNoFillSupp->numOfExprs,
-                               NULL);
+                               NULL, pOperator->pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
   if (pInfo->fillNullExprSupp.pExprInfo) {
@@ -147,7 +147,7 @@ void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int
     code = setInputDataBlock(&pInfo->fillNullExprSupp, pBlock, order, scanFlag, false);
     QUERY_CHECK_CODE(code, lino, _end);
     code = projectApplyFunctions(pInfo->fillNullExprSupp.pExprInfo, pInfo->pRes, pBlock, pInfo->fillNullExprSupp.pCtx,
-        pInfo->fillNullExprSupp.numOfExprs, NULL);
+        pInfo->fillNullExprSupp.numOfExprs, NULL, pOperator->pTaskInfo->pStreamRuntimeInfo);
   }
 
   pInfo->pRes->info.id.groupId = pBlock->info.id.groupId;

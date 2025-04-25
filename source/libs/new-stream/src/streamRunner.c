@@ -1,5 +1,6 @@
 #include "streamRunner.h"
 #include "executor.h"
+#include "plannodes.h"
 
 static const int32_t taskConcurrentExecutionNum = 4;  // TODO wjm make it configurable
 
@@ -8,6 +9,7 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
 static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask) {
   SStreamRunnerTaskExecMgr*  pMgr = &pTask->pExecMgr;
   SStreamRunnerTaskExecution exec = {.pExecutor = NULL, .pPlan = pTask->pPlan};
+  // decode plan into queryPlan
   int32_t                    code = 0;
   code = taosThreadMutexInit(&pMgr->lock, 0);
   if (code != 0) {
@@ -18,7 +20,11 @@ static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask) {
   if (!pMgr->pFreeExecs) return terrno;
 
   for (int32_t i = 0; i < taskConcurrentExecutionNum && code == 0; ++i) {
+    exec.runtimeInfo.execId = i;
     code = tdListAppend(pMgr->pFreeExecs, &exec);
+    if (code != 0) {
+      ST_TASK_ELOG("failed to append task exec mgr:%s", tstrerror(code));
+    }
   }
   if (code != 0) return code;
 
@@ -83,7 +89,6 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMs
   pTask->task = pMsg->task;
   pTask->pPlan = pMsg->pPlan;  // TODO wjm do we need to deep copy this char*
   pTask->forceOutput = pMsg->forceOutput;
-  //pTask->handle = pMsg->handle;
   int32_t code = stRunnerInitTaskExecMgr(pTask);
   if (code != 0) {
     ST_TASK_ELOG("failed to init task exec mgr code:%s", tstrerror(code));
@@ -108,20 +113,27 @@ int32_t stRunnerTaskUndeploy(SStreamRunnerTask* pTask, const SStreamUndeployTask
 
 int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, const char* pMsg, int32_t msgLen) {
   SStreamRunnerTaskExecution* pExec = NULL;
-  int32_t                     code = stRunnerTaskExecMgrAcquireExec(pTask, &pExec);
+
+  SStreamCalculationRequest req = {0};
+  // TODO wjm decode pMsg as SStreamCalculationRequest
+  int32_t code = stRunnerTaskExecMgrAcquireExec(pTask, &pExec);
   if (code != 0) {
     ST_TASK_ELOG("failed to get task exec for stream code:%s", tstrerror(code));
     return code;
   }
 
-  SStreamCalculationRequest req = {0};
-  // decode pMsg as SStreamCalculationRequest
-
+  pTask->task.sessionId = req.base.sessionId;
+  pExec->runtimeInfo.pPartCols = req.groupColVals;
+  pExec->runtimeInfo.pPseudoCols = req.params;
+  pExec->runtimeInfo.resetFlag = req.resetFlag;
   if (!pExec->pExecutor) {
     code = streamBuildTask(pTask, pExec->pExecutor);
   } else {
-    code = streamClearStatesForOperators(pExec->pExecutor);
+    if (req.resetFlag)
+      code = streamClearStatesForOperators(pExec->pExecutor);
   }
+
+  streamSetTaskRuntimeInfo(pExec->pExecutor, &pExec->runtimeInfo);
 
   SSDataBlock* pBlock = NULL;
   uint64_t     ts = 0;
@@ -133,11 +145,12 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, const char* pMsg, int32_t 
   } else {
     if (pBlock && pBlock->info.rows > 0) {
       char tbname[TSDB_TABLE_NAME_LEN] = {0};
-      code = streamCalcOutputTbName(pTask->pSubTableExpr, tbname, 0);
+      if (pExec->tbname[0] == '\0')
+        code = streamCalcOutputTbName(pTask->pSubTableExpr, tbname, &pExec->runtimeInfo);
       if (code != 0) {
         ST_TASK_ELOG("failed to calc output tbname: %s", tstrerror(code));
       } else {
-        // TODO wjm dump blocks to DataInserter
+        // TODO wjm dump blocks to DataInserter or return to caller
       }
     }
   }
