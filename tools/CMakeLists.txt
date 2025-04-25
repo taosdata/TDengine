@@ -21,7 +21,7 @@ IF(TD_WEBSOCKET)
         get_from_local_repo_if_exists("https://github.com/taosdata/taos-connector-rust.git")
         ExternalProject_Add(ext_taosws
             GIT_REPOSITORY ${_git_url}
-            GIT_TAG ver-3.3.6.0
+            GIT_TAG main
             GIT_SHALLOW TRUE
             BUILD_IN_SOURCE TRUE
             DEPENDS ${TAOS_LIB}
@@ -32,8 +32,7 @@ IF(TD_WEBSOCKET)
             PATCH_COMMAND
                 COMMAND git clean -f -d
             BUILD_COMMAND
-                # COMMAND cargo update        # TODO: why update?
-                COMMAND cargo build --release -p taos-ws-sys --features rustls
+                COMMAND cargo build --release --locked -p taos-ws-sys --features rustls
             INSTALL_COMMAND
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_dll} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ext_taosws_dll}
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_lib_from} ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/${ext_taosws_lib_to}
