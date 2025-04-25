@@ -50,6 +50,7 @@ IF(TD_WEBSOCKET)
             PATCH_COMMAND
                 COMMAND git clean -f -d
             BUILD_COMMAND
+                COMMAND free -h
                 COMMAND echo "asdfasdf"
                 # COMMAND /bin/sh -c "pwd"
                 # COMMAND /bin/bash -c "pwd"
@@ -64,9 +65,19 @@ IF(TD_WEBSOCKET)
                 COMMAND cargo build --release --locked -p taos-ws-sys --features rustls
                 COMMAND echo "worldworld"
             INSTALL_COMMAND
+                COMMAND echo "balabala"
+                COMMAND sh -c "pwd"
+                COMMAND "${CMAKE_COMMAND}" -E echo "Copying shared library: target/release/${ext_taosws_dll} -> ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ext_taosws_dll}"
+                COMMAND "${CMAKE_COMMAND}" -E echo "Copying static library: target/release/${ext_taosws_lib_from} -> ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/${ext_taosws_lib_to}"
+                COMMAND "${CMAKE_COMMAND}" -E echo "Copying header file: target/release/taosws.h -> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../include/taosws/taosws.h"
+
+                COMMAND echo 0
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_dll} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ext_taosws_dll}
+                COMMAND echo 1
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_lib_from} ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/${ext_taosws_lib_to}
+                COMMAND echo 2
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/taosws.h ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../include/taosws/taosws.h
+                COMMAND echo 3
             EXCLUDE_FROM_ALL TRUE
             VERBATIM
         )
