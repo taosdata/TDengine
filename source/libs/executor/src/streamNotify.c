@@ -122,19 +122,19 @@ int32_t initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo, const struct SOperato
   pBasicInfo->pSeDeleted = tSimpleHashInit(32, hashFn);
   
   const char* windowType = NULL;
-  if (IS_NORMAL_INTERVAL_OP(pOperator)) {
-    windowType = "Time";
-  } else if (IS_NORMAL_SESSION_OP(pOperator)) {
-    windowType = "Session";
-  } else if (IS_NORMAL_STATE_OP(pOperator)) {
-    windowType = "State";
-  } else if (IS_NORMAL_EVENT_OP(pOperator)) {
-    windowType = "Event";
-  } else if (IS_NORMAL_COUNT_OP(pOperator)) {
-    windowType = "Count";
-  } else {
-    return TSDB_CODE_SUCCESS;
-  }
+//  if (IS_NORMAL_INTERVAL_OP(pOperator)) {
+//    windowType = "Time";
+//  } else if (IS_NORMAL_SESSION_OP(pOperator)) {
+//    windowType = "Session";
+//  } else if (IS_NORMAL_STATE_OP(pOperator)) {
+//    windowType = "State";
+//  } else if (IS_NORMAL_EVENT_OP(pOperator)) {
+//    windowType = "Event";
+//  } else if (IS_NORMAL_COUNT_OP(pOperator)) {
+//    windowType = "Count";
+//  } else {
+//    return TSDB_CODE_SUCCESS;
+//  }
   code = initStreamNotifyEventSupp(&pBasicInfo->notifyEventSup, windowType, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _end);
 

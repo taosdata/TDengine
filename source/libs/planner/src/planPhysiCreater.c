@@ -985,14 +985,14 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
   if (pCxt->pPlanCxt->streamCalcQuery) {
     SStreamCalcScan pStreamCalcScan = {0};
     pStreamCalcScan.vgList = taosArrayInit(1, sizeof(int32_t));
-    SVgroupsInfo *info = pScanLogicNode->pVgroupList;
-    for (int32_t i = 0; i < info->numOfVgroups; i++) {
-      taosArrayPush(pStreamCalcScan.vgList, &info->vgroups[i].vgId);
+    if (pScanLogicNode->pVgroupList) {
+      taosArrayPush(pStreamCalcScan.vgList, &pScanLogicNode->pVgroupList->vgroups[0].vgId);
     }
     pStreamCalcScan.scanPlan = (void*)pSubplan;
     taosArrayPush(pCxt->pPlanCxt->pStreamCalcVgArray, &pStreamCalcScan);
+    taosHashPut(pCxt->pPlanCxt->pStreamCalcDbs, pScanLogicNode->tableName.dbname, strlen(pScanLogicNode->tableName.dbname), NULL, 0);
     if (pScanLogicNode->placeholderType == SP_PARTITION_ROWS) {
-      pSubplan->scanUseCache = true;
+      pStreamCalcScan.readFromCache = true;
     }
   }
 
@@ -2910,26 +2910,6 @@ static int32_t createPartitionPhysiNodeImpl(SPhysiPlanContext* pCxt, SNodeList* 
   nodesDestroyList(pPrecalcExprs);
   nodesDestroyList(pPartitionKeys);
 
-  return code;
-}
-
-static int32_t createStreamPartitionPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
-                                              SPartitionLogicNode* pPartLogicNode, SPhysiNode** pPhyNode) {
-  SStreamPartitionPhysiNode* pPart = NULL;
-  int32_t                    code = createPartitionPhysiNodeImpl(pCxt, pChildren, pPartLogicNode,
-                                                                 QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION, (SPhysiNode**)&pPart);
-  SDataBlockDescNode*        pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPartLogicNode->pTags, &pPart->pTags);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pPartLogicNode->pSubtable, &pPart->pSubtable);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    *pPhyNode = (SPhysiNode*)pPart;
-  } else {
-    nodesDestroyNode((SNode*)pPart);
-  }
   return code;
 }
 

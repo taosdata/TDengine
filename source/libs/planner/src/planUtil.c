@@ -229,6 +229,16 @@ static int32_t adjustIntervalDataRequirement(SWindowLogicNode* pWindow, EDataOrd
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t adjustExternalDataRequirement(SWindowLogicNode* pWindow, EDataOrderLevel requirement) {
+  // The lowest sort level of interval output data is DATA_ORDER_LEVEL_IN_GROUP
+  if (requirement < DATA_ORDER_LEVEL_IN_GROUP) {
+    requirement = DATA_ORDER_LEVEL_IN_GROUP;
+  }
+  // The sort level of interval input data is always DATA_ORDER_LEVEL_IN_BLOCK
+  pWindow->node.resultDataOrder = requirement;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t adjustSessionDataRequirement(SWindowLogicNode* pWindow, EDataOrderLevel requirement) {
   if (requirement <= pWindow->node.resultDataOrder) {
     return TSDB_CODE_SUCCESS;
@@ -288,6 +298,8 @@ static int32_t adjustWindowDataRequirement(SWindowLogicNode* pWindow, EDataOrder
       return adjustCountDataRequirement(pWindow, requirement);
     case WINDOW_TYPE_ANOMALY:
       return adjustAnomalyDataRequirement(pWindow, requirement);
+    case WINDOW_TYPE_EXTERNAL:
+      return adjustExternalDataRequirement(pWindow, requirement);
     default:
       break;
   }

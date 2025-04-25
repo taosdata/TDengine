@@ -43,6 +43,8 @@ const char* nodesNodeName(ENodeType type) {
       return "RealTable";
     case QUERY_NODE_VIRTUAL_TABLE:
       return "VirtualTable";
+    case QUERY_NODE_PLACE_HOLDER_TABLE:
+      return "PlaceHolderTable";
     case QUERY_NODE_SLIDING_WINDOW :
       return "SlidingWindow";
     case QUERY_NODE_PERIOD_WINDOW:
@@ -411,16 +413,10 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiTableCountScan";
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
       return "PhysiMergeEventWindow";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
-      return "PhysiStreamEventWindow";
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
       return "PhysiMergeCountWindow";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
-      return "PhysiStreamCountWindow";
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY:
       return "PhysiMergeAnomalyWindow";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_ANOMALY:
-      return "PhysiStreamAnomalyWindow";
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return "PhysiProject";
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
@@ -441,45 +437,18 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiHashInterval";
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
       return "PhysiMergeAlignedInterval";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
-      return "PhysiStreamInterval";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
-      return "PhysiStreamFinalInterval";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL:
-      return "PhysiStreamContinueInterval";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_INTERVAL:
-      return "PhysiStreamContinueFinalInterval";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
-      return "PhysiStreamContinueSemiInterval";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_INTERVAL:
-      return "PhysiStreamContinueSemiInterval";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL:
-      return "PhysiStreamMidInterval";
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL:
       return "PhysiFill";
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
       return "PhysiSessionWindow";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
-      return "PhysiStreamSessionWindow";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
-      return "PhysiStreamSemiSessionWindow";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
-      return "PhysiStreamFinalSessionWindow";
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
       return "PhysiStateWindow";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
-      return "PhysiStreamStateWindow";
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       return "PhysiPartition";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
-      return "PhysiStreamPartition";
     case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC:
       return "PhysiIndefRowsFunc";
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
       return "PhysiInterpFunc";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC:
-      return "PhysiStreamInterpFunc";
     case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
       return "PhysiForecastFunc";
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
@@ -500,18 +469,6 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiSubplan";
     case QUERY_NODE_PHYSICAL_PLAN:
       return "PhysiPlan";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SESSION:
-      return "PhysiStreamContinueSession";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION:
-      return "PhysiStreamContinueFinalSession";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION:
-      return "PhysiStreamContinueSemiSession";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_STATE:
-      return "PhysiStreamContinueState";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT:
-      return "PhysiStreamContinueEvent";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT:
-      return "PhysiStreamContinueCount";
     case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
       return "PhysiExternalWindow";
     default:
@@ -5472,6 +5429,57 @@ static int32_t jsonToVirtualTableNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkPlaceHolderTableMetaSize = "MetaSize";
+static const char* jkPlaceHolderTableMeta = "Meta";
+static const char* jkPlaceHolderTableVgroupsInfoSize = "VgroupsInfoSize";
+static const char* jkPlaceHolderTableVgroupsInfo = "VgroupsInfo";
+static const char* jkPlaceHolderTablePlaceholderType = "PlaceHolderType";
+
+static int32_t placeHolderTableNodeToJson(const void* pObj, SJson* pJson) {
+  const SPlaceHolderTableNode* pNode = (const SPlaceHolderTableNode*)pObj;
+
+  int32_t code = tableNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkPlaceHolderTableMetaSize, TABLE_META_SIZE(pNode->pMeta));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkPlaceHolderTableMeta, tableMetaToJson, pNode->pMeta);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkPlaceHolderTableVgroupsInfoSize, VGROUPS_INFO_SIZE(pNode->pVgroupList));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkPlaceHolderTableVgroupsInfo, vgroupsInfoToJson, pNode->pVgroupList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkPlaceHolderTablePlaceholderType, pNode->placeholderType);
+  }
+  return code;
+}
+
+static int32_t jsonToPlaceHolderTableNode(const SJson* pJson, void* pObj) {
+  SPlaceHolderTableNode* pNode = (SPlaceHolderTableNode*)pObj;
+  int32_t                code = jsonToTableNode(pJson, pObj);
+  int32_t                objSize = 0;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkPlaceHolderTableMetaSize, &objSize);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonMakeObject(pJson, jkPlaceHolderTableMeta, jsonToTableMeta, (void**)&pNode->pMeta, objSize);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkPlaceHolderTableVgroupsInfoSize, &objSize);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonMakeObject(pJson, jkPlaceHolderTableVgroupsInfo, jsonToVgroupsInfo, (void**)&pNode->pVgroupList, objSize);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkPlaceHolderTablePlaceholderType, pNode->placeholderType, code);
+  }
+  return code;
+}
+
+
 static const char* jkSlidingWindowOffset = "Offset";
 static const char* jkSlidingWindowSlidingVal = "SlidingVal";
 
@@ -8928,6 +8936,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return joinTableNodeToJson(pObj, pJson);
     case QUERY_NODE_VIRTUAL_TABLE:
       return virtualTableNodeToJson(pObj, pJson);
+    case QUERY_NODE_PLACE_HOLDER_TABLE:
+      return placeHolderTableNodeToJson(pObj, pJson);
     case QUERY_NODE_SLIDING_WINDOW :
       return slidingWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_PERIOD_WINDOW:
@@ -8941,7 +8951,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_STREAM_TAG_DEF:
       return streamTagDefNodeToJson(pObj, pJson);
     case QUERY_NODE_EXTERNAL_WINDOW:
-      return jsonToExternalWindowNode(pObj, pJson);
+      return externalWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_GROUPING_SET:
       return groupingSetNodeToJson(pObj, pJson);
     case QUERY_NODE_ORDER_BY_EXPR:
@@ -9259,47 +9269,24 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return physiSortNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_INTERVAL:
       return physiIntervalNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL:
       return physiFillNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION:
       return physiSessionWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_STATE:
       return physiStateWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT:
       return physiEventWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT:
       return physiCountWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY:
       return physiAnomalyWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       return physiPartitionNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
-      return physiStreamPartitionNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC:
       return physiIndefRowsFuncNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC:
       return physiInterpFuncNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
       return physiForecastFuncNodeToJson(pObj, pJson);
@@ -9346,6 +9333,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToJoinTableNode(pJson, pObj);
     case QUERY_NODE_VIRTUAL_TABLE:
       return jsonToVirtualTableNode(pJson, pObj);
+    case QUERY_NODE_PLACE_HOLDER_TABLE:
+      return jsonToPlaceHolderTableNode(pJson, pObj);
     case QUERY_NODE_SLIDING_WINDOW :
       return jsonToSlidingWindowNode(pJson, pObj);
     case QUERY_NODE_PERIOD_WINDOW:
@@ -9677,47 +9666,24 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToPhysiSortNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_INTERVAL:
       return jsonToPhysiIntervalNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL:
       return jsonToPhysiFillNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION:
       return jsonToPhysiSessionWindowNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_STATE:
       return jsonToPhysiStateWindowNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT:
       return jsonToPhysiEventWindowNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT:
       return jsonToPhysiCountWindowNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY:
       return jsonToPhysiAnomalyWindowNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       return jsonToPhysiPartitionNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
-      return jsonToPhysiStreamPartitionNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC:
       return jsonToPhysiIndefRowsFuncNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC:
       return jsonToPhysiInterpFuncNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
       return jsonToPhysiForecastFuncNode(pJson, pObj);

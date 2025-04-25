@@ -1812,13 +1812,20 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
       return createWindowLogicNodeByCount(pCxt, (SCountWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
     case QUERY_NODE_ANOMALY_WINDOW:
       return createWindowLogicNodeByAnomaly(pCxt, (SAnomalyWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
-    case QUERY_NODE_EXTERNAL_WINDOW:
-      return createWindowLogicNodeByExternal(pCxt, (SExternalWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
     default:
       break;
   }
 
   return TSDB_CODE_FAILED;
+}
+
+static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+  if (NULL != pSelect->pWindow || !pCxt->pPlanCxt->streamCalcQuery) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t code = nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, &pSelect->pWindow);
+
+  return createWindowLogicNodeByExternal(pCxt, (SExternalWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
 }
 
 typedef struct SCollectFillExprsCtx {
@@ -2279,6 +2286,9 @@ static int32_t createSelectFromLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createSelectRootLogicNode(pCxt, pSelect, createWindowLogicNode, &pRoot);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createSelectRootLogicNode(pCxt, pSelect, createExternalWindowLogicNode, &pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createSelectRootLogicNode(pCxt, pSelect, createFillLogicNode, &pRoot);

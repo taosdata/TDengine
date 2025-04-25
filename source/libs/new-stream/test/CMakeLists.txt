@@ -22,3 +22,11 @@ add_test(
   NAME streamRunnerTest
   COMMAND streamRunnerTest
 )
+
+ADD_EXECUTABLE(dataSinkTest dataSinkTest.cpp)
+TARGET_LINK_LIBRARIES(dataSinkTest PRIVATE os util ${TAOS_NATIVE_LIB_STATIC}  common  new-stream gtest pthread)
+
+add_test(
+    NAME dataSinkTest
+    COMMAND dataSinkTest
+)

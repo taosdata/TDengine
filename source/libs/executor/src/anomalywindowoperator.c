@@ -677,6 +677,12 @@ _OVER:
   return code;
 }
 
+static int32_t resetAnomalyWindowOperatorState(SOperatorInfo* pOper) {
+  SAnomalyWindowOperatorInfo* pAno = pOper->info;
+  resetBasicOperatorState(&pAno->binfo);
+  return 0;
+}
+
 #else
 
 int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode, SExecTaskInfo* pTaskInfo,
@@ -686,10 +692,4 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
 void destroyForecastInfo(void* param) {}
 
 #endif
-
-static int32_t resetAnomalyWindowOperatorState(SOperatorInfo* pOper) {
-  SAnomalyWindowOperatorInfo* pAno = pOper->info;
-  resetBasicOperatorState(&pAno->binfo);
-  return 0;
-}
 

@@ -388,6 +388,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_TEMP_TABLE:
       code = makeNode(type, sizeof(STempTableNode), &pNode);
       break;
+    case QUERY_NODE_PLACE_HOLDER_TABLE:
+      code = makeNode(type, sizeof(SPlaceHolderTableNode), &pNode);
+      break;
     case QUERY_NODE_STREAM:
       code = makeNode(type, sizeof(SStreamNode), &pNode);
       break;
@@ -486,6 +489,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_ANOMALY_WINDOW:
       code = makeNode(type, sizeof(SAnomalyWindowNode), &pNode);
+      break;
+    case QUERY_NODE_EXTERNAL_WINDOW:
+      code = makeNode(type, sizeof(SExternalWindowNode), &pNode);
       break;
     case QUERY_NODE_HINT:
       code = makeNode(type, sizeof(SHintNode), &pNode);
@@ -921,53 +927,17 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
       code = makeNode(type, sizeof(SMergeAlignedIntervalPhysiNode), &pNode);
       break;
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL:
-      code = makeNode(type, sizeof(SStreamIntervalPhysiNode), &pNode);
-      break;
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_INTERVAL:
-      code = makeNode(type, sizeof(SStreamFinalIntervalPhysiNode), &pNode);
-      break;
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_INTERVAL:
-      code = makeNode(type, sizeof(SStreamSemiIntervalPhysiNode), &pNode);
-      break;
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL:
-      code = makeNode(type, sizeof(SStreamMidIntervalPhysiNode), &pNode);
-      break;
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL:
       code = makeNode(type, sizeof(SFillPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
       code = makeNode(type, sizeof(SSessionWinodwPhysiNode), &pNode);
       break;
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SESSION:
-      code = makeNode(type, sizeof(SStreamSessionWinodwPhysiNode), &pNode);
-      break;
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION:
-      code = makeNode(type, sizeof(SStreamSemiSessionWinodwPhysiNode), &pNode);
-      break;
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION:
-      code = makeNode(type, sizeof(SStreamFinalSessionWinodwPhysiNode), &pNode);
-      break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
       code = makeNode(type, sizeof(SStateWinodwPhysiNode), &pNode);
       break;
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_STATE:
-      code = makeNode(type, sizeof(SStreamStateWinodwPhysiNode), &pNode);
-      break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
       code = makeNode(type, sizeof(SEventWinodwPhysiNode), &pNode);
-      break;
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT:
-      code = makeNode(type, sizeof(SStreamEventWinodwPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
       code = makeNode(type, sizeof(SCountWinodwPhysiNode), &pNode);
@@ -975,15 +945,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY:
       code = makeNode(type, sizeof(SAnomalyWindowPhysiNode), &pNode);
       break;
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT:
-      code = makeNode(type, sizeof(SStreamCountWinodwPhysiNode), &pNode);
-      break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       code = makeNode(type, sizeof(SPartitionPhysiNode), &pNode);
-      break;
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
-      code = makeNode(type, sizeof(SStreamPartitionPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC:
       code = makeNode(type, sizeof(SIndefRowsFuncPhysiNode), &pNode);
@@ -1018,11 +981,11 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_PHYSICAL_PLAN:
       code = makeNode(type, sizeof(SQueryPlan), &pNode);
       break;
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC:
-      code = makeNode(type, sizeof(SStreamInterpFuncPhysiNode), &pNode);
-      break;
     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
       code = makeNode(type, sizeof(SVirtualScanPhysiNode), &pNode);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+      code = makeNode(type, sizeof(SExternalWindowPhysiNode), &pNode);
       break;
     default:
       break;
@@ -1165,6 +1128,12 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_TEMP_TABLE:
       nodesDestroyNode(((STempTableNode*)pNode)->pSubquery);
       break;
+    case QUERY_NODE_PLACE_HOLDER_TABLE: {
+      SPlaceHolderTableNode *pPlaceHolder = (SPlaceHolderTableNode*)pNode;
+      taosMemoryFreeClear(pPlaceHolder->pMeta);
+      taosMemoryFreeClear(pPlaceHolder->pVgroupList);
+      break;
+    }
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoin = (SJoinTableNode*)pNode;
       nodesDestroyNode(pJoin->pWindowOffset);
@@ -1319,6 +1288,12 @@ void nodesDestroyNode(SNode* pNode) {
       SAnomalyWindowNode* pAnomaly = (SAnomalyWindowNode*)pNode;
       nodesDestroyNode(pAnomaly->pCol);
       break;
+    }
+    case QUERY_NODE_EXTERNAL_WINDOW: {
+      SExternalWindowNode* pExternal = (SExternalWindowNode*)pNode;
+      nodesDestroyList(pExternal->pAggFuncList);
+      nodesDestroyList(pExternal->pProjectionList);
+      taosMemoryFreeClear(pExternal->timezone);
     }
     case QUERY_NODE_HINT: {
       SHintNode* pHint = (SHintNode*)pNode;
@@ -1921,6 +1896,9 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pPhyNode->pSubtable);
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW: {
+      break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN: {
       SLastRowScanPhysiNode* pPhyNode = (SLastRowScanPhysiNode*)pNode;
@@ -2017,17 +1995,9 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_INTERVAL:
       destroyWinodwPhysiNode((SWindowPhysiNode*)pNode);
       break;
-    case QUERY_NODE_PHYSICAL_PLAN_FILL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL: {
+    case QUERY_NODE_PHYSICAL_PLAN_FILL: {
       SFillPhysiNode* pPhyNode = (SFillPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyList(pPhyNode->pFillExprs);
@@ -2038,34 +2008,22 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION:
       destroyWinodwPhysiNode((SWindowPhysiNode*)pNode);
       break;
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_STATE: {
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE: {
       SStateWinodwPhysiNode* pPhyNode = (SStateWinodwPhysiNode*)pNode;
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       nodesDestroyNode(pPhyNode->pStateKey);
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT: {
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT: {
       SEventWinodwPhysiNode* pPhyNode = (SEventWinodwPhysiNode*)pNode;
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       nodesDestroyNode(pPhyNode->pStartCond);
       nodesDestroyNode(pPhyNode->pEndCond);
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT: {
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT: {
       SCountWinodwPhysiNode* pPhyNode = (SCountWinodwPhysiNode*)pNode;
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       break;
@@ -2079,13 +2037,6 @@ void nodesDestroyNode(SNode* pNode) {
       destroyPartitionPhysiNode((SPartitionPhysiNode*)pNode);
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION: {
-      SStreamPartitionPhysiNode* pPhyNode = (SStreamPartitionPhysiNode*)pNode;
-      destroyPartitionPhysiNode((SPartitionPhysiNode*)pPhyNode);
-      nodesDestroyList(pPhyNode->pTags);
-      nodesDestroyNode(pPhyNode->pSubtable);
-      break;
-    }
     case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC: {
       SIndefRowsFuncPhysiNode* pPhyNode = (SIndefRowsFuncPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
@@ -2093,8 +2044,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pPhyNode->pFuncs);
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC: {
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC: {
       SInterpFuncPhysiNode* pPhyNode = (SInterpFuncPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyList(pPhyNode->pExprs);
