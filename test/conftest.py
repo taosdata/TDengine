@@ -249,7 +249,20 @@ def before_test_class(request):
         #tdSql_army.close()
         tdSql.close()
         request.cls.conn.close()
-        request.session.before_test.destroy(request.cls.yaml_file)
+        if_success = True
+        for item in request.session.items:
+            # 检查是否属于当前类
+            if item.cls is request.node.cls and hasattr(item, "rep_call"):
+                testLog.info(f"  {item.name}: {item.rep_call.outcome}")
+                if item.rep_call.outcome == "failed":
+                    testLog.info(f"    失败原因: {str(item.rep_call.longrepr)}")
+                    if_success = False
+                elif item.rep_call.outcome == "error":
+                    testLog.info(f"    错误原因: {str(item.rep_call.longrepr)}")
+                    if_success = False
+        if if_success:
+            testLog.info(f"successfully executed")
+            request.session.before_test.destroy(request.cls.yaml_file)
 
 @pytest.fixture(scope="class", autouse=True)
 def add_common_methods(request):
@@ -700,3 +713,10 @@ def pytest_collection_modifyitems(config, items):
                 
                 # 确保Allure能识别新参数
                 item.callspec = type('CallSpec', (), {'params': params, 'id': param_ids[0]})
+
+
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    rep = outcome.get_result()
+    setattr(item, "rep_" + rep.when, rep)
