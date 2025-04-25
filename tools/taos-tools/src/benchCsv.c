@@ -47,38 +47,33 @@ static int csvValidateParamTsFormat(const char* csv_ts_format) {
 
     char buffer[1024];
     size_t len = strftime(buffer, sizeof(buffer), csv_ts_format, &test_tm);
-    if (len == 0) {
-        return -1;
-    }
-
+    if (len > 0) {
 #ifdef _WIN32
-    const char* invalid_chars = "/\\:*?\"<>|";
+        const char* invalid_chars = "/\\:*?\"<>|";
 #else
-    const char* invalid_chars = "/\\?\"<>|";
+        const char* invalid_chars = "/\\?\"<>|";
 #endif
-    if (strpbrk(buffer, invalid_chars) != NULL) {
-        return -1;
-    }
-
-    int has_Y = 0, has_m = 0, has_d = 0;
-    const char* p = csv_ts_format;
-    while (*p) {
-        if (*p == '%') {
-            p++;
-            switch (*p) {
-                case 'Y': has_Y = 1; break;
-                case 'm': has_m = 1; break;
-                case 'd': has_d = 1; break;
+        if (strpbrk(buffer, invalid_chars) == NULL) {
+            int has_Y = 0, has_m = 0, has_d = 0;
+            const char* p = csv_ts_format;
+            while (*p) {
+                if (*p == '%') {
+                    p++;
+                    switch (*p) {
+                        case 'Y': has_Y = 1; break;
+                        case 'm': has_m = 1; break;
+                        case 'd': has_d = 1; break;
+                    }
+                }
+                p++;
+            }
+            if (has_Y > 0 && has_m > 0 && has_d > 0) {
+                return 0;
             }
         }
-        p++;
     }
  
-    if (has_Y == 0 || has_m == 0 || has_d == 0) {
-        return -1;
-    }
-
-    return 0;
+    return -1;
 }
 
 
@@ -89,14 +84,11 @@ static long csvValidateParamTsInterval(const char* csv_ts_interval) {
     errno = 0;
     const long num = strtol(csv_ts_interval, &endptr, 10);
     
-    if (errno == ERANGE ||
-        endptr == csv_ts_interval ||
-        num <= 0) {
+    if (errno == ERANGE || endptr == csv_ts_interval || num <= 0) {
         return -1;
     }
 
-    if (*endptr == '\0' ||
-        *(endptr + 1) != '\0') {
+    if (*endptr == '\0' || *(endptr + 1) != '\0') {
         return -1;
     }
 
@@ -590,33 +582,17 @@ static int csvExportCreateSql(CsvWriteMeta* write_meta) {
     int   length    = 0;
     FILE* fp        = NULL;
 
-
     length = snprintf(fullname, sizeof(fullname), "%s%s.txt", g_arguments->output_path, "create_stmt");
-    if (length <= 0 || length >= sizeof(fullname)) {
-        return -1;
+    if (length > 0 && length < sizeof(fullname)) {
+        fp = fopen(fullname, "w");
+        if (fp && csvExportCreateDbSql(write_meta, fp) == 0) {
+            if (csvExportCreateStbSql(write_meta, fp) == 0) {
+                succPrint("Export create sql to file: %s successfully.\n", fullname);
+                return 0;
+            }
+        }
     }
 
-    fp = fopen(fullname, "w");
-    if (!fp) {
-        return -1;
-    }
-
-
-    // export db
-    ret = csvExportCreateDbSql(write_meta, fp);
-    if (ret < 0) {
-        goto end;
-    }
-
-    // export stb
-    ret = csvExportCreateStbSql(write_meta, fp);
-    if (ret < 0) {
-        goto end;
-    }
-
-    succPrint("Export create sql to file: %s successfully.\n", fullname);
-
-end:
     if (fp) {
         fclose(fp);
     }
@@ -939,35 +915,30 @@ static CsvFileHandle* csvOpen(const char* filename, CsvCompressionLevel compress
     bool failed = false;
     
     fhdl = (CsvFileHandle*)benchCalloc(1, sizeof(CsvFileHandle), false);
-    if (!fhdl) {
-        errorPrint("Failed to malloc csv file handle. filename: %s, compress level: %d.\n",
-                filename, compress_level);
-        return NULL;
+    if (fhdl) {
+        if (compress_level == CSV_COMPRESS_NONE) {
+            fhdl->handle.fp = fopen(filename, "w");
+            failed = (!fhdl->handle.fp);
+        } else {
+            char mode[TINY_BUFF_LEN];
+            (void)snprintf(mode, sizeof(mode), "wb%d", compress_level);
+            fhdl->handle.gf = gzopen(filename, mode);
+            failed = (!fhdl->handle.gf);
+        }
+
+        if (failed){
+            fhdl->filename = filename;
+            fhdl->compress_level = compress_level;
+            fhdl->result = CSV_ERR_OK;
+            return fhdl;
+        }
     }
 
-    if (compress_level == CSV_COMPRESS_NONE) {
-        fhdl->handle.fp = fopen(filename, "w");
-        failed = (!fhdl->handle.fp);
-    } else {
-        char mode[TINY_BUFF_LEN];
-        (void)snprintf(mode, sizeof(mode), "wb%d", compress_level);
-        fhdl->handle.gf = gzopen(filename, mode);
-        failed = (!fhdl->handle.gf);
-    }
+    errorPrint("Failed to malloc csv file handle. filename: %s, compress level: %d.\n",
+        filename, compress_level);
+    return NULL;
 
-    if (failed) {
-        tmfree(fhdl);
-        errorPrint("Failed to open csv file handle. filename: %s, compress level: %d.\n",
-                filename, compress_level);
-        return NULL;
-    } else {
-        fhdl->filename = filename;
-        fhdl->compress_level = compress_level;
-        fhdl->result = CSV_ERR_OK;
-        return fhdl;
-    }
 }
-
 
 static CsvIoError csvWrite(CsvFileHandle* fhdl, const char* buf, size_t size) {
     if (fhdl->compress_level == CSV_COMPRESS_NONE) {
@@ -1030,9 +1001,7 @@ static int csvWriteFile(CsvFileHandle* fhdl, uint64_t ctb_idx, int64_t cur_ts, i
 
     ret = csvGenRowColData(cols_buf->buf, cols_buf->buf_size, stb, cur_ts, db->precision, ck);
     if (ret <= 0) {
-        errorPrint("Failed to generate csv column data. database: %s, super table: %s, naming type: %d, thread index: %zu, ctb index: %" PRIu64 ".\n",
-                db->dbName, stb->stbName, write_meta->naming_type, thread_meta->thread_id, ctb_idx);
-        return -1;
+        goto error;
     }
 
     cols_buf->length = ret;
@@ -1041,9 +1010,7 @@ static int csvWriteFile(CsvFileHandle* fhdl, uint64_t ctb_idx, int64_t cur_ts, i
     if (thread_meta->output_header) {
         ret = csvWrite(fhdl, write_meta->csv_header, write_meta->csv_header_length);
         if (ret != CSV_ERR_OK) {
-            errorPrint("Failed to write csv header data. database: %s, super table: %s, naming type: %d, thread index: %zu, ctb index: %" PRIu64 ".\n",
-                    db->dbName, stb->stbName, write_meta->naming_type, thread_meta->thread_id, ctb_idx);
-            return -1;
+            goto error;
         }
 
         thread_meta->output_header = false;
@@ -1052,28 +1019,28 @@ static int csvWriteFile(CsvFileHandle* fhdl, uint64_t ctb_idx, int64_t cur_ts, i
     // write columns
     ret = csvWrite(fhdl, cols_buf->buf, cols_buf->length);
     if (ret != CSV_ERR_OK) {
-        errorPrint("Failed to write csv column data. database: %s, super table: %s, naming type: %d, thread index: %zu, ctb index: %" PRIu64 ".\n",
-                db->dbName, stb->stbName, write_meta->naming_type, thread_meta->thread_id, ctb_idx);
-        return -1;
+        goto error;
     }
 
     // write tags
     ret = csvWrite(fhdl, tags_buf->buf, tags_buf->length);
     if (ret != CSV_ERR_OK) {
-        errorPrint("Failed to write csv tag data. database: %s, super table: %s, naming type: %d, thread index: %zu, ctb index: %" PRIu64 ".\n",
-                db->dbName, stb->stbName, write_meta->naming_type, thread_meta->thread_id, ctb_idx);
-        return -1;
+        goto error;
     }
 
     // write line break
     ret = csvWrite(fhdl, "\n", 1);
     if (ret != CSV_ERR_OK) {
-        errorPrint("Failed to write csv line break data. database: %s, super table: %s, naming type: %d, thread index: %zu, ctb index: %" PRIu64 ".\n",
-                db->dbName, stb->stbName, write_meta->naming_type, thread_meta->thread_id, ctb_idx);
-        return -1;
+        goto error;
     }
 
     return 0;
+
+error:
+    errorPrint("Failed to write csv line break data. database: %s, super table: %s, naming type: %d, thread index: %zu, ctb index: %" PRIu64 ".\n",
+        db->dbName, stb->stbName, write_meta->naming_type, thread_meta->thread_id, ctb_idx);
+    return -1;   
+
 }
 
 
@@ -1209,6 +1176,7 @@ static void* csvGenStbThread(void* arg) {
             thread_meta->thread_id, total_rows, total_rows * 1000.0 / print_ts_elapse);
 
 end:
+
     thread_meta->total_rows = total_rows;
     csvFreeCtbTagData(thread_meta, tags_buf_array);
     tmfree(buf);
@@ -1324,6 +1292,7 @@ static int csvGenStb(SDataBase* db, SSuperTable* stb) {
 
 
 static int csvWriteThread() {
+    const char* errorAction = NULL; 
     for (size_t i = 0; i < g_arguments->databases->size && !g_arguments->terminate; ++i) {
         // database
         SDataBase* db = benchArrayGet(g_arguments->databases, i);
@@ -1331,25 +1300,15 @@ static int csvWriteThread() {
             for (size_t j = 0; j < db->superTbls->size && !g_arguments->terminate; ++j) {
                 // stb
                 SSuperTable* stb = benchArrayGet(db->superTbls, j);
-                if (stb->insertRows == 0) {
-                    continue;
-                }
-
-                // parsing parameters
-                int ret = csvParseStbParameter(stb);
-                if (ret != 0) {
-                    errorPrint("Failed to parse csv parameter. database: %s, super table: %s, error code: %d.\n",
-                            db->dbName, stb->stbName, ret);
-                    return -1;
-                }
-
-                // gen csv
-                ret = csvGenStb(db, stb);
-                if(ret != 0) {
+                
+                if (stb->insertRows == 0) continue;
+            
+                if (csvParseStbParameter(stb) != 0 || csvGenStb(db, stb) != 0) {
                     errorPrint("Failed to generate csv files. database: %s, super table: %s, error code: %d.\n",
-                            db->dbName, stb->stbName, ret);
-                    return -1;
+                        db->dbName, stb->stbName, ret);
+                    return -1; 
                 }
+                
             }
         }
     }
