@@ -1123,8 +1123,6 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
   int surplus = minLocal + (nPayload + nHeader - minLocal) % (maxLocal - sizeof(SPgno));
   int nLocal = surplus <= maxLocal ? surplus : minLocal;
 
-  // int ofpCap = tdbPageCapacity(pBt->pageSize, sizeof(SIntHdr));
-
   // fetch a new ofp and make it dirty
   SPgno  pgno = 0;
   SPage *ofp = NULL;
@@ -1143,7 +1141,6 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
 
   int nLeft = nPayload;
   int bytes;
-  int lastPage = 0;
   if (nLocal >= nHeader + kLen + sizeof(SPgno)) {
     // pack key to local
     memcpy(pCell + nHeader, pKey, kLen);
@@ -1191,16 +1188,12 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
       SPage* nextOfp = NULL;
       if (lastKeyPage) {
         if (lastKeyPageSpace >= vLen) {
-          if (vLen > 0) {
-            memcpy(pBuf + kLen - nLeftKey, pVal, vLen);
-
-            nLeft -= vLen;
-          }
-
+          memcpy(pBuf + bytes, pVal, vLen);
+          bytes += vLen;
           pgno = 0;
         } else {
-          memcpy(pBuf + kLen - nLeftKey, pVal, lastKeyPageSpace);
-          nLeft -= lastKeyPageSpace;
+          memcpy(pBuf + bytes, pVal, lastKeyPageSpace);
+          bytes += lastKeyPageSpace;
 
           // fetch next ofp, a new ofp and make it dirty
           ret = tdbFetchOvflPage(&pgno, &nextOfp, pTxn, pBt);
@@ -1238,7 +1231,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
     SPage* nextOfp = NULL;
 
     // pack left val data to ovpages
-    lastPage = 0;
+    int lastPage = 0;
     if (nLeft <= ofp->maxLocal - sizeof(SPgno)) {
       bytes = nLeft;
       lastPage = 1;
