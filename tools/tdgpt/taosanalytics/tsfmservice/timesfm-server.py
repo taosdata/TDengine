@@ -1,6 +1,7 @@
 import torch
 from flask import Flask, request, jsonify
 import timesfm
+import numpy as np
 
 app = Flask(__name__)
 
@@ -33,7 +34,8 @@ def timesfm():
             }), 400
 
         input_data = data['input']
-        prediction_length = data['next_len']
+        prediction_length = data.get('next_len', 10)
+        interval = data.get('conf_interval', 0.95)   # confidence interval
 
         forecast_input = [
             input_data
@@ -44,12 +46,19 @@ def timesfm():
             forecast_input,
             freq=frequency_input,
         )
+
         pred_y = point_forecast[0][:prediction_length].tolist()
+        lower = np.percentile(experimental_quantile_forecast[0], (0.5 - interval / 2) * 100, axis=1)
+        upper = np.percentile(experimental_quantile_forecast[0], (0.5 + interval / 2) * 100, axis=1)
 
         response = {
             'status': 'success',
-            'output': pred_y
+            'output': pred_y,
+            'lower': lower[:prediction_length].tolist(),
+            'upper': upper[:prediction_length].tolist(),
+            'conf_interval': interval
         }
+
         return jsonify(response), 200
 
     except Exception as e:
