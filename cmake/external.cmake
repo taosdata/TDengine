@@ -177,11 +177,11 @@ INIT_EXT(ext_zlib
     CHK_NAME         ZLIB
 )
 # GIT_REPOSITORY https://github.com/taosdata-contrib/zlib.git
-# GIT_TAG        v1.2.11
+# GIT_TAG        v1.3.1
 get_from_local_repo_if_exists("https://github.com/madler/zlib.git")
 ExternalProject_Add(ext_zlib
     GIT_REPOSITORY ${_git_url}
-    GIT_TAG 5a82f71ed1dfc0bec044d9702463dbdf84ea3b71
+    GIT_TAG v1.3.1 
     GIT_SHALLOW TRUE
     PREFIX "${_base}"
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}        # if main project is built in Debug, ext_zlib is too
