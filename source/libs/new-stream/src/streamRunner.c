@@ -1,5 +1,6 @@
 #include "streamRunner.h"
 #include "executor.h"
+#include "plannodes.h"
 
 static const int32_t taskConcurrentExecutionNum = 4;  // TODO wjm make it configurable
 

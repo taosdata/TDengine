@@ -18,7 +18,6 @@
 #include "querytask.h"
 #include "tdatablock.h"
 
-<<<<<<< HEAD
 typedef struct SBlockList {
   const SSDataBlock* pSrcBlock;
   SList*             pBlocks;
@@ -189,17 +188,6 @@ _error:
 static int32_t doOpenExternalWindow(SOperatorInfo* pOperator);
 static void    destroyExternalWindowOperator(void* pOperator);
 
-=======
-typedef struct SExternalWindowOperator {
-  SOptrBasicInfo binfo;
-  SAggSupporter  aggSup;
-  SExprSupp      scalarSupp;
-  int32_t        primaryTsIndex;
-  bool           scalarMode;
-  SArray*        pWins;
-} SExternalWindowOperator;
-
->>>>>>> a144c51473 (new-stream: external window impl)
 int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SIntervalPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo,
                                      SOperatorInfo** pOptrOut) {
   QRY_PARAM_CHECK(pOptrOut);
@@ -217,7 +205,6 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SIntervalPhysiN
   QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
   initBasicInfo(&pExtW->binfo, pResBlock);
 
-<<<<<<< HEAD
   // pExtW->primaryTsIndex = slotId;
 
   if (pExtW->scalarMode) {
@@ -244,12 +231,6 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SIntervalPhysiN
 
   *pOptrOut = pOperator;
   return code;
-=======
-  if (pExtW->scalarMode) {
-  } else {
-  }
-
->>>>>>> a144c51473 (new-stream: external window impl)
 _error:
   destroyOperatorAndDownstreams(pOperator, &pDownstream, 1);
   pTaskInfo->code = code;
@@ -257,7 +238,6 @@ _error:
   return code;
 }
 
-<<<<<<< HEAD
 int64_t* extractTsCol(SSDataBlock* pBlock, int32_t primaryTsIndex, SExecTaskInfo* pTaskInfo) {
   TSKEY* tsCols = NULL;
 
@@ -459,16 +439,6 @@ static bool hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
       T_LONG_JMP(pTaskInfo->env, ret);
     }
   }
-=======
-static bool hashExternalWindow(SOperatorInfo* pOperator, SResultRowInfo* pResutlRowInfo, SSDataBlock* pInputBlock,
-                               int32_t scanFlag) {
-  SExternalWindowOperator* pExtW = (SExternalWindowOperator*)pOperator->info;
-  SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
-  SExprSupp*               pSup = &pOperator->exprSupp;
-
-  // get timewindow to calc
-  
->>>>>>> a144c51473 (new-stream: external window impl)
   return true;
 }
 
