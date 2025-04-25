@@ -126,6 +126,8 @@ typedef struct {
 
   SBse *pBse;
 
+  int64_t retentionTs;
+
   SBtableMetaWriter *pWriter;
   SBtableMetaReader *pReader;
   // SArray *pReaderBlkHandle;
@@ -146,6 +148,8 @@ typedef struct {
   SBTableMeta     *pTableMeta;
   SBse   *pBse;
   int32_t nRef;
+
+  int64_t retentionTs;
 
 } STableBuilder;
 
@@ -175,7 +179,7 @@ typedef struct {
   char    name[TSDB_FILENAME_LEN];
 } SBseLiveFileInfo;
 
-int32_t tableBuilderOpen(char *path, STableBuilder **pBuilder, SBse *pBse);
+int32_t tableBuilderOpen(int64_t timestamp, STableBuilder **pBuilder, SBse *pBse);
 int32_t tableBuilderPut(STableBuilder *p, int64_t *seq, uint8_t *value, int32_t len);
 int32_t tableBuilderPutBatch(STableBuilder *p, SBseBatch *pBatch);
 int32_t tableBuilderGet(STableBuilder *p, int64_t seq, uint8_t **value, int32_t *len);
@@ -185,7 +189,7 @@ int32_t tableBuilderClose(STableBuilder *p, int8_t commited);
 void    tableBuilderClear(STableBuilder *p);
 int32_t tableBuilderOpenFile(STableBuilder *p, char *name);
 
-int32_t tableReaderOpen(char *name, STableReader **pReader, void *pReaderMgt);
+int32_t tableReaderOpen(int64_t timestamp, STableReader **pReader, void *pReaderMgt);
 void    tableReaderShouldPutToCache(STableReader *pReader, int8_t putInCache);
 int32_t tableReaderGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *len);
 int32_t tableReaderClose(STableReader *p);

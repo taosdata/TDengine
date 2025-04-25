@@ -25,6 +25,8 @@
 extern "C" {
 #endif
 
+typedef struct SSubTableMgt SSubTableMgt;
+
 typedef struct {
   STableBuilder *p[2];
   int8_t         inUse;
@@ -33,6 +35,9 @@ typedef struct {
   SBse  *pBse;
 
   TdThreadMutex mutex;
+  int64_t       retenTs;
+
+  SSubTableMgt *pMgt;
 } STableBuilderMgt;
 
 typedef struct {
@@ -42,7 +47,8 @@ typedef struct {
   TdThreadRwlock mutex;
   SBse          *pBse;
 
-  void *pMgt;
+  SSubTableMgt *pMgt;
+  int64_t       retenTs;
 } STableReaderMgt;
 
 typedef struct {
@@ -50,14 +56,27 @@ typedef struct {
   SBse     *pBse;
 
   SBTableMeta *pTableMeta;
+  int64_t      retenTs;
+
+  SSubTableMgt *pMgt;
 } STableMetaMgt;
 
-typedef struct {
-  void            *pBse;
+typedef struct STableMgt STableMgt;
+
+struct SSubTableMgt {
+  STableMgt       *pTableMgt;
   STableBuilderMgt pBuilderMgt[1];
   STableReaderMgt  pReaderMgt[1];
-  STableMetaMgt    pTableMetMgt[1];
-} STableMgt;
+  STableMetaMgt    pTableMetaMgt[1];
+};
+
+struct STableMgt {
+  void *pBse;
+
+  SSubTableMgt *pCurrTableMgt;
+  int64_t       retionTs;
+  SHashObj     *pHashObj;
+};
 
 int32_t bseTableMgtCreate(SBse *pBse, void **pMgt);
 

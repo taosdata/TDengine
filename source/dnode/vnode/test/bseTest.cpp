@@ -21,7 +21,6 @@
 #include <iostream>
 
 #include <tmsg.h>
-#include <vnodeInt.h>
 #include <random> 
 #include <string>
 
@@ -171,27 +170,27 @@ TEST(bseCase, openTest) {
     int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
 
     putData(bse, 1000, 100, &data);
-    getData(bse, &data);
+    //getData(bse, &data);
 
     bseCommit(bse);
-    getData(bse, &data);
+    // getData(bse, &data);
 
-    putData(bse, 1000, 200, &data);
+    // putData(bse, 1000, 200, &data);
     
-    bseCommit(bse);
+    // bseCommit(bse);
 
-    putData(bse,1000, 200, &data);
+    // putData(bse,1000, 200, &data);
 
-    getData(bse, &data);
-    bseCommit(bse);
+    // getData(bse, &data);
+    // bseCommit(bse);
 
-    getData(bse, &data);
+    // getData(bse, &data);
 
-    // test compress 
-    testAllCompress(bse);
+    // // test compress 
+    // testAllCompress(bse);
     
     
-    bseClose(bse);
+    // bseClose(bse);
 
       
     

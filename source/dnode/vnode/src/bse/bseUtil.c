@@ -14,6 +14,7 @@
  */
 #include "bseUtil.h"
 #include "bseInc.h"
+#include "bseTable.h"
 #include "tcompression.h"
 // compress func set
 typedef int32_t (*compressFunc)(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
@@ -132,23 +133,23 @@ void bseBuildCurrentName(SBse *pBse, char *name) {
 }
 
 void bseBuildTempCurrentName(SBse *pBse, char *name) {
-  snprintf(name, BSE_FILE_FULL_LEN, "%s%sCURRENT.temp", pBse->path, TD_DIRSEP);
+  snprintf(name, BSE_FILE_FULL_LEN, "%s%sCURRENT-temp", pBse->path, TD_DIRSEP);
 }
 
 void bseBuildFullMetaName(SBse *pBse, char *name, char *path) {
   snprintf(path, BSE_FILE_FULL_LEN, "%s%s%s.%s", pBse->path, TD_DIRSEP, name, BSE_META_SUFFIX);
 }
 void bseBuildFullTempMetaName(SBse *pBse, char *name, char *path) {
-  snprintf(path, BSE_FILE_FULL_LEN, "%s%s%s.%s.tmp", pBse->path, TD_DIRSEP, name, BSE_META_SUFFIX);
+  snprintf(path, BSE_FILE_FULL_LEN, "%s%s%s.%s-temp", pBse->path, TD_DIRSEP, name, BSE_META_SUFFIX);
 }
 
 void bseBuildMetaName(int64_t ts, char *name) {
   // refactor later
-  snprintf(name, BSE_FILE_FULL_LEN, "%d-%s", ts, BSE_META_SUFFIX);
+  snprintf(name, BSE_FILE_FULL_LEN, "%d.%s", ts, BSE_META_SUFFIX);
 }
 void bseBuildTempMetaName(int64_t ts, char *name) {
   // refactor later
-  snprintf(name, BSE_FILE_FULL_LEN, "%d-%s.temp", ts, BSE_META_SUFFIX);
+  snprintf(name, BSE_FILE_FULL_LEN, "%d.%s-temp", ts, BSE_META_SUFFIX);
 }
 
 void bseBuildFullName(SBse *pBse, char *name, char *fullname) {
@@ -157,4 +158,30 @@ void bseBuildFullName(SBse *pBse, char *name, char *fullname) {
 
 void bseBuildDataName(SBse *pBse, int64_t ts, char *name) {
   snprintf(name, BSE_FILE_FULL_LEN, "%" PRId64 ".%s", ts, BSE_DATA_SUFFIX);
+}
+
+int32_t bseGetRetentionTs(SBse *pBse, int64_t seq, int64_t *retentionTs) {
+  int32_t code = 0;
+  int64_t tts = taosGetTimestampSec();
+
+  SBseCommitInfo *pCommitInfo = &pBse->commitInfo;
+  if (seq < 0) {
+    if (taosArrayGetSize(pCommitInfo->pFileList)) {
+      SBseLiveFileInfo *pInfo = taosArrayGetLast(pCommitInfo->pFileList);
+      if ((tts - pInfo->timestamp) < pBse->retention) {
+        tts = pInfo->timestamp;
+      }
+    }
+  } else {
+    for (int32_t i = 0; i < taosArrayGetSize(pCommitInfo->pFileList); i++) {
+      SBseLiveFileInfo *pInfo = taosArrayGet(pCommitInfo->pFileList, i);
+      if (pInfo->sseq <= seq && pInfo->eseq >= seq) {
+        tts = pInfo->timestamp;
+        break;
+      }
+    }
+  }
+
+  *retentionTs = tts;
+  return code;
 }
