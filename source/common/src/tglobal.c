@@ -2281,6 +2281,7 @@ int32_t readStypeConfigFile(const char *path) {
     code = terrno;
     goto _exit;
   }
+  buf[fileSize] = '\0';
 
   code = stypeConfigDeserialize(array, buf);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2342,7 +2343,7 @@ int32_t readCfgFile(const char *path, bool isGlobal) {
     uError("failed to read file:%s , config since %s", filename, tstrerror(code));
     goto _exit;
   }
-  buf[fileSize] = 0;
+  buf[fileSize] = '\0';  // 添加字符串结束符
   code = cfgDeserialize(array, buf, isGlobal);
   if (code != TSDB_CODE_SUCCESS) {
     uError("failed to deserialize config from %s since %s", filename, tstrerror(code));
@@ -3293,7 +3294,8 @@ int32_t taosPersistLocalConfig(const char *path) {
   int32_t   lino = 0;
   char     *buffer = NULL;
   TdFilePtr pFile = NULL;
-  char     *serialized = NULL;
+  char     *serializedCfg = NULL;
+  char     *serializedStype = NULL;
   char      filepath[CONFIG_FILE_LEN] = {0};
   char      filename[CONFIG_FILE_LEN] = {0};
   char      stypeFilename[CONFIG_FILE_LEN] = {0};
@@ -3321,16 +3323,16 @@ int32_t taosPersistLocalConfig(const char *path) {
     TAOS_RETURN(code);
   }
 
-  TAOS_CHECK_GOTO(localConfigSerialize(taosGetLocalCfg(tsCfg), &serialized), &lino, _exit);
-  if (taosWriteFile(pConfigFile, serialized, strlen(serialized)) < 0) {
+  TAOS_CHECK_GOTO(localConfigSerialize(taosGetLocalCfg(tsCfg), &serializedCfg), &lino, _exit);
+  if (taosWriteFile(pConfigFile, serializedCfg, strlen(serializedCfg)) < 0) {
     lino = __LINE__;
     code = TAOS_SYSTEM_ERROR(terrno);
     uError("failed to write file:%s since %s", filename, tstrerror(code));
     goto _exit;
   }
 
-  TAOS_CHECK_GOTO(stypeConfigSerialize(taosGetLocalCfg(tsCfg), &serialized), &lino, _exit);
-  if (taosWriteFile(pStypeFile, serialized, strlen(serialized)) < 0) {
+  TAOS_CHECK_GOTO(stypeConfigSerialize(taosGetLocalCfg(tsCfg), &serializedStype), &lino, _exit);
+  if (taosWriteFile(pStypeFile, serializedStype, strlen(serializedStype)) < 0) {
     lino = __LINE__;
     code = TAOS_SYSTEM_ERROR(terrno);
     uError("failed to write file:%s since %s", stypeFilename, tstrerror(code));
@@ -3342,7 +3344,9 @@ _exit:
     uError("failed to persist local config at line:%d, since %s", lino, tstrerror(code));
   }
   (void)taosCloseFile(&pConfigFile);
-  taosMemoryFree(serialized);
+  (void)taosCloseFile(&pStypeFile);
+  taosMemoryFree(serializedCfg);
+  taosMemoryFree(serializedStype);
   return code;
 }
 
