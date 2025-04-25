@@ -130,22 +130,16 @@ static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream) {
 
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream) {
   mInfo("stream:%s, perform delete action", pStream->pCreate->name);
-  taosWLockLatch(&pStream->lock);
   tFreeStreamObj(pStream);
-  taosWUnLockLatch(&pStream->lock);
   return 0;
 }
 
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStreamObj *pNewStream) {
   mTrace("stream:%s, perform update action", pOldStream->pCreate->name);
-  (void)atomic_exchange_32(&pOldStream->version, pNewStream->version);
 
-  taosWLockLatch(&pOldStream->lock);
-
-  pOldStream->paused = pNewStream->paused;
+  pOldStream->userStopped = pNewStream->userStopped;
   pOldStream->updateTime = pNewStream->updateTime;
   
-  taosWUnLockLatch(&pOldStream->lock);
   return 0;
 }
 
@@ -205,9 +199,10 @@ static int32_t mndStreamBuildObj(SMnode *pMnode, SStreamObj *pObj, SCMCreateStre
 
   pObj->pCreate = pCreate;
 
+  pObj->userStopped = false;
+  
   pObj->createTime = taosGetTimestampMs();
   pObj->updateTime = pObj->createTime;
-  pObj->version = 1;
 
   return code;
 }
@@ -628,7 +623,7 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
     return code;
   }
 
-  pStream->paused = true;
+  pStream->userStopped = true;
 
   // pause stream
   code = mndStreamTransAppend(pStream, pTrans, SDB_STATUS_READY);
@@ -683,7 +678,7 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
 
   int64_t streamId = pStream->pCreate->streamId;
 
-  pStream->paused = false;
+  pStream->userStopped = false;
   
   mstInfo("start to resume stream %s from pause", resumeReq.name);
 
@@ -880,13 +875,13 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  code = mndStreamValidateCreate(pMnode, pReq->info.conn.user, pCreate);
+  TSDB_CHECK_CODE(code, lino, _OVER);
+
   code = mndStreamBuildObj(pMnode, &streamObj, pCreate);
   TSDB_CHECK_CODE(code, lino, _OVER);
 
   pStream = &streamObj;
-
-  code = mndStreamValidateCreate(pMnode, pReq->info.conn.user, pCreate);
-  TSDB_CHECK_CODE(code, lino, _OVER);
 
   code = mndStreamCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_DB, MND_STREAM_CREATE_NAME, &pTrans);
   if (pTrans == NULL || code) {
@@ -953,14 +948,11 @@ int32_t mndInitStream(SMnode *pMnode) {
       .deleteFp = (SdbDeleteFp)mndStreamSeqActionDelete,
   };
 
-#ifdef NEW_STREAM
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STREAM, mndProcessCreateStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM, mndProcessDropStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_START_STREAM, mndProcessPauseStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_STOP_STREAM, mndProcessResumeStreamReq);
-
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_HEARTBEAT, mndProcessStreamHb);  
-#endif  
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndRetrieveStream);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndCancelGetNextStream);

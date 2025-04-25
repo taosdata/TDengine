@@ -135,6 +135,8 @@ int32_t streamHbProcessRspMsg(SMStreamHbRspMsg* pRsp) {
   int32_t      code = 0;
   int32_t      lino = 0;
 
+  stDebug("start to process stream hb rsp msg");
+
   if (pRsp->deploy.streamList) {
     TAOS_CHECK_EXIT(smDeployTasks(&pRsp->deploy));
   }
@@ -151,6 +153,8 @@ _exit:
 
   if (code) {
     stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  } else {
+    stDebug("end to process stream hb rsp msg");
   }
   
   return code;

@@ -43,9 +43,6 @@ static int32_t vnodeProcessStreamWalCalcDataReq(SVnode *pVnode, SRpcMsg *pRsp,);
 SHashObj *streamInfoMap = NULL;
 SHashObj *streamTaskMap = NULL;
 
-typedef struct SStreamReaderDeployMsg {
-  int64_t streamId;
-}SStreamReaderDeployMsg;
 
 typedef struct SStreamInfoObj{
   int32_t           order;

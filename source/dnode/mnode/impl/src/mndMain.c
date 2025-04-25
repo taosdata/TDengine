@@ -180,18 +180,6 @@ static void mndCalMqRebalance(SMnode *pMnode) {
   }
 }
 
-static void mndStreamConsensusChkpt(SMnode *pMnode) {
-  int32_t contLen = 0;
-  void   *pReq = mndBuildTimerMsg(&contLen);
-  if (pReq != NULL) {
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_CONSEN_TIMER, .pCont = pReq, .contLen = contLen};
-    // TODO check return value
-    if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
-      mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
-    }
-  }
-}
-
 static void mndPullupTelem(SMnode *pMnode) {
   mTrace("pullup telem msg");
   int32_t contLen = 0;
@@ -373,11 +361,6 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
 #ifdef USE_TOPIC
   if (sec % tsMqRebalanceInterval == 0) {
     mndCalMqRebalance(pMnode);
-  }
-#endif
-#ifdef USE_STREAM
-  if (sec % 5 == 0) {
-    mndStreamConsensusChkpt(pMnode);
   }
 #endif
   if (tsTelemInterval > 0 && sec % tsTelemInterval == 0) {

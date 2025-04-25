@@ -356,17 +356,25 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq);
 int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq);
 void    tCleanupStreamHbMsg(SStreamHbMsg* pMsg);
 
+
+typedef struct SStreamReaderDeployMsg {
+  int8_t  triggerReader;
+  void*   triggerWalScanPlan;
+  void*   triggerTsdbScanPlan;
+  void*   calcScanPlan;
+}SStreamReaderDeployMsg;
+
+
 typedef struct {
-
-} SStreamReaderDeployMsg;
-
-typedef struct {
-
+  SArray* pVSubTables;
 } SStreamTriggerDeployMsg;
 
 typedef struct SStreamRunnerDeployMsg {
-  const char*           pPlan;
-  bool                  forceWindowClose;
+  int32_t               flags;
+  void*                 pPlan;
+  void*                 subTblNameExpr;
+  void*                 tagValueExpr;
+  SArray*               forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
 } SStreamRunnerDeployMsg;
 
 typedef union {
@@ -536,6 +544,9 @@ typedef struct {
 int32_t tSerializeSCMCreateStreamReq(void* buf, int32_t bufLen, const SCMCreateStreamReq* pReq);
 int32_t tDeserializeSCMCreateStreamReq(void* buf, int32_t bufLen, SCMCreateStreamReq* pReq);
 void    tFreeSCMCreateStreamReq(SCMCreateStreamReq* pReq);
+
+int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStreamReq *pReq);
+int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamReq *pReq);
 
 
 
