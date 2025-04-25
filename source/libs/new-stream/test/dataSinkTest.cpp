@@ -33,7 +33,7 @@ SSDataBlock* createTestBlock(int64_t timeOffset) {
   blockDataAppendColInfo(b, &infoData1);
   blockDataEnsureCapacity(b, 100);
 
-  char* str = "the value of: %d";
+  const char* str = "the value of: %d";
   char  buf[128] = {0};
   char  varbuf[128] = {0};
 
@@ -448,7 +448,7 @@ TEST(dataSinkTest, putStreamDataRows) {
 }
 
 TEST(dataSinkTest, allWriteToFileTest) {
-  //setDataSinkMaxMemSize(0);
+  setDataSinkMaxMemSize(0);
   SSDataBlock* pBlock = createTestBlock(0);
   ASSERT_NE(pBlock, nullptr);
   int64_t streamId = 1;
@@ -478,8 +478,12 @@ TEST(dataSinkTest, allWriteToFileTest) {
   ASSERT_EQ(code, 0);
   void* pIter = NULL;
   blockDataDestroy(pBlock);
+  code = getStreamDataCache(pCache, groupID + 1, baseTestTime + 50, baseTestTime + 150, &pIter);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pIter, nullptr);
   code = getStreamDataCache(pCache, groupID, baseTestTime + 50, baseTestTime + 150, &pIter);
   ASSERT_EQ(code, 0);
+  ASSERT_NE(pIter, nullptr);
   SSDataBlock* pBlock1 = NULL;
   code = getNextStreamDataCache(&pIter, &pBlock1);
   ASSERT_EQ(code, 0);

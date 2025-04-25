@@ -17,9 +17,9 @@
 #define TDENGINE_DATA_SINK_H
 
 #include <stdint.h>
-#include <stdlib.h>
 #include "tcommon.h"
 #include "tdef.h"
+#include "thash.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,14 +43,43 @@ typedef struct SWindowData {
   void*            pDataBuf;
 } SWindowData;
 
-typedef struct DataSinkFileState {
-  char    fileName[FILENAME_MAX];
-  int64_t fileSize;
-  int64_t fileBlockCount;
-  int64_t fileBlockUsedCount;
-  SArray* freeBlockList;  // list of block num, might use bit array
-  void*   pFile;
-} DataSinkFileState;
+typedef struct SFileBlockInfo {
+  int64_t          groupDataStartOffSet;  // offset in file
+} SFileBlockInfo;
+
+typedef struct SWindowDataInFile {
+  int64_t          wstart;  // start time of the window
+  int64_t          wend;    // end time of the window
+  TSKEY            start;   // start time of the data
+  TSKEY            end;     // end time of the data
+  int64_t          dataLen;
+  int64_t          offset;  // offset in file
+  int64_t          groupDataStartOffSet;  // offset in file
+} SWindowDataInFile;
+
+typedef struct SGroupFileDataMgr {
+  int64_t          groupId;
+  int64_t          lastWstartInFile;
+  bool             hasDataInFile;
+  int64_t          allWindowDataLen;
+  int64_t          groupDataStartOffSet;  // offset in file
+  SArray*          windowDataInFile;  // array SWindowDataInFile <wstart, start block num in file>
+} SGroupFileDataMgr;
+
+typedef struct SDataSinkFileMgr {
+  char      fileName[FILENAME_MAX];
+  int64_t   fileSize;
+  int64_t   fileBlockCount;
+  int64_t   fileBlockUsedCount;
+  int64_t   fileGroupBlockMaxSize;
+  SArray*   freeBlockList;   // array: groupDataStartOffSet
+  SHashObj* groupBlockList;  // hash <groupId, SGroupFileDataMgr>
+
+  int64_t   readingGroupId;
+  int64_t   writingGroupId;
+  TdFilePtr readFilePtr;
+  TdFilePtr writeFilePtr;
+} SDataSinkFileMgr;
 
 typedef enum {
   DATA_CLEAN_IMMEDIATE = 1,
@@ -69,22 +98,19 @@ typedef struct SDataSinkManager2 {
 extern SDataSinkManager2 g_pDataSinkManager;
 
 typedef struct SStreamTaskDSManager {
-  int64_t            streamId;
-  int64_t            taskId;
-  int64_t            usedMemSize;
-  SCleanMode         cleanMode;
-  SHashObj*          DataSinkGroupList;  // hash <groupId, SGroupDSManager>
-  DataSinkFileState* pFile;
+  int64_t           streamId;
+  int64_t           taskId;
+  int64_t           usedMemSize;
+  SCleanMode        cleanMode;
+  SHashObj*         DataSinkGroupList;  // hash <groupId, SGroupDSManager>
+  SDataSinkFileMgr* pFileMgr;
 } SStreamTaskDSManager;
 
 struct SGroupDSManager {
   int64_t               groupId;
   int64_t               usedMemSize;
   int64_t               lastWstartInMem;
-  int64_t               lastWstartInFile;
-  bool                  hasDataInFile;
-  SArray*               windowDataInMem;   // array SWindowData <wstart, SSDataBlock*>
-  SArray*               windowDataInFile;  // array SWindowData <wstart, start block num in file>
+  SArray*               windowDataInMem;  // array SWindowData <wstart, SSDataBlock*>
   SStreamTaskDSManager* pSinkManager;
 };
 
@@ -93,18 +119,13 @@ typedef enum {
   DATA_SINK_FILE,
 } SDataSinkPos;
 typedef struct SResultIter {
-  SGroupDSManager* groupData;
-  int64_t          offset;   // array index, start from 0
-  SDataSinkPos     dataPos;  // 0 - data in mem, 1 - data in file
-  int64_t          reqStartTime;
-  int64_t          reqEndTime;
+  void*             groupData;
+  SDataSinkFileMgr* pFileMgr;  // when dataPos is 1, pFileMgr is not NULL
+  int64_t           offset;    // array index, start from 0
+  SDataSinkPos      dataPos;   // 0 - data in mem, 1 - data in file
+  int64_t           reqStartTime;
+  int64_t           reqEndTime;
 } SResultIter;
-
-typedef struct SDataSinkFileHeader {
-  int64_t startTime;
-  int64_t endTime;
-  int64_t dataLen;
-} SDataSinkFileHeader;
 
 // @brief 创建一个数据缓存
 // @param cleanMode 清理模式，具体含义如下:
@@ -174,7 +195,7 @@ int32_t initDataSinkFileDir();
 int32_t initStreamDataSinkOnce();
 
 // @brief 写入数据到文件
-int32_t writeToFile(SStreamTaskDSManager* pStreamDataSink, SGroupDSManager* pGroupDataInfoMgr, TSKEY wstart, TSKEY wend,
+int32_t writeToFile(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSKEY wstart, TSKEY wend,
                     SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex);
 
 // @brief 写入数据到内存
@@ -185,6 +206,17 @@ int32_t moveToCache(SStreamTaskDSManager* pStreamDataSink, SGroupDSManager* pGro
 
 // @brief 读取数据从内存
 int32_t readDataFromCache(SResultIter* pResult, SSDataBlock** ppBlock);
+int32_t getFirstDataIterFromCache(SStreamTaskDSManager* pStreamTaskDSMgr, int64_t groupId, TSKEY start, TSKEY end,
+                                  void** ppResult);
+int32_t readDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock);
+int32_t getFirstDataIterFromFile(SStreamTaskDSManager* pStreamTaskDSMgr, int64_t groupId, TSKEY start, TSKEY end,
+                                 void** ppResult);
+
+// @brief 从内存查找下一组数据位置
+// return false: 查询未结束, true: 查询已结束                                
+bool    setNextIteratorFromCache(SResultIter** ppResult);
+void    setNextIteratorFromFile(SResultIter** pIter);
+void    releaseDataIterator(void** pIter);
 
 // @brief 读取数据从文件
 int32_t createSGroupDSManager(int64_t groupId, SGroupDSManager** ppGroupDataInfo);
@@ -199,6 +231,8 @@ void clearGroupExpiredDataInMem(SGroupDSManager* pGroupData, TSKEY start);
 
 void syncWindowDataMemAdd(SWindowData* pSWindowData);
 void syncWindowDataMemSub(SWindowData* pSWindowData);
+
+void destroyStreamDataSinkFile(SDataSinkFileMgr** ppDaSinkFileMgr);
 
 #ifdef __cplusplus
 }
