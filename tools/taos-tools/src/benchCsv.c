@@ -1303,7 +1303,11 @@ static int csvWriteThread() {
                 
                 if (stb->insertRows == 0) continue;
             
-                if (csvParseStbParameter(stb) != 0 || csvGenStb(db, stb) != 0) {
+                int ret = csvParseStbParameter(stb);
+                if (ret == 0) {
+                    ret = csvGenStb(db, stb);
+                }
+                if (ret != 0) {
                     errorPrint("Failed to generate csv files. database: %s, super table: %s, error code: %d.\n",
                         db->dbName, stb->stbName, ret);
                     return -1; 
