@@ -1222,6 +1222,17 @@ static int32_t doInitReader(STableScanInfo* pInfo, SExecTaskInfo* pTaskInfo, SSt
   return code;
 }
 
+int compareColIdPair(const void* elem1, const void* elem2) {
+  SColIdPair* node1 = (SColIdPair*)elem1;
+  SColIdPair* node2 = (SColIdPair*)elem2;
+
+  if (node1->orgColId < node2->orgColId) {
+    return -1;
+  }
+
+  return node1->orgColId > node2->orgColId;
+}
+
 static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   int32_t                  code = 0;
   int32_t                  lino = 0;
@@ -1298,6 +1309,8 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
     blockDataDestroy(pInfo->pResBlock);
     pInfo->pResBlock = NULL;
   }
+  taosArraySort(pColArray, compareColIdPair);
+  taosArraySort(pBlockColArray, compareColIdPair);
   code = createOneDataBlockWithColArray(pInfo->pOrgBlock, pBlockColArray, &pInfo->pResBlock);
   QUERY_CHECK_CODE(code, lino, _return);
   code = initQueryTableDataCondWithColArray(&pInfo->base.cond, &pInfo->base.orgCond, &pInfo->base.readHandle, pColArray);
