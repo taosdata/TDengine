@@ -7,6 +7,8 @@ sql connect
 
 step0:
 
+$cn = 0
+
 print =============== select * from information_schema.ins_mnodes
 sql select * from information_schema.ins_mnodes;
 print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6]
@@ -20,6 +22,9 @@ endi
 
 if $data02 != leader then 
   sleep 1000
+  $cn = $cn + 1
+  if $cn == 20 then
+    return -1
   goto step0
 endi
 
