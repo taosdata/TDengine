@@ -1299,6 +1299,12 @@ end:
 }
 
 int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
+  vTrace("vgId:%d, msg:%p in stream reader queue is processing", pVnode->config.vgId, pMsg);
+  if (!syncIsReadyForRead(pVnode->sync)) {
+    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
+    return 0;
+  }
+
   int32_t                    code = 0;
   EStreamTriggerRequestType* type = (EStreamTriggerRequestType*)(pMsg->pCont);
   switch (*type) {
@@ -1333,8 +1339,8 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
       code = vnodeProcessStreamWalCalcDataReq(pVnode, pMsg);
       break;
     default:
-      code = TSDB_CODE_INVALID_MSG;
-      break;
+      vError("unknown msg type:%d in fetch queue", pMsg->msgType);
+      return TSDB_CODE_APP_ERROR;
   }
   return code;
 }
