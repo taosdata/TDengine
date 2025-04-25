@@ -42,7 +42,7 @@ static int32_t streamHbSendRequestMsg(SStreamHbMsg* pMsg, SEpSet* pEpset) {
 
   stDebug("try to send stream hb to mnode, gid:%d, snodeId:%d", pMsg->streamGId, pMsg->snodeId);
 
-  SRpcMsg msg = {.msgType = TDMT_MND_STREAM_HEARTBEAT, .pCont = buf, .contLen = tlen};
+  SRpcMsg msg = {.msgType = TDMT_MND_STREAM_HEARTBEAT, .pCont = buf, .contLen = tlen + sizeof(SStreamMsgGrpHeader)};
   
   TAOS_CHECK_EXIT(tmsgSendReq(pEpset, &msg));
 
