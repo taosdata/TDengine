@@ -135,16 +135,26 @@ void bseBuildTempCurrentName(SBse *pBse, char *name) {
   snprintf(name, BSE_FILE_FULL_LEN, "%s%sCURRENT.temp", pBse->path, TD_DIRSEP);
 }
 
-void bseBuildMetaName(SBse *pBse, char *name) {
-  snprintf(name, BSE_FILE_FULL_LEN, "%s%sbse-ver-%s", pBse->path, TD_DIRSEP, BSE_META_SUFFIX);
+void bseBuildFullMetaName(SBse *pBse, char *name, char *path) {
+  snprintf(path, BSE_FILE_FULL_LEN, "%s%s%s.%s", pBse->path, TD_DIRSEP, name, BSE_META_SUFFIX);
 }
-void bseBuildTempMetaName(SBse *pBse, char *name) {
-  snprintf(name, BSE_FILE_FULL_LEN, "%s%sbse-ver-%dtmp", pBse->path, TD_DIRSEP, BSE_META_SUFFIX);
+void bseBuildFullTempMetaName(SBse *pBse, char *name, char *path) {
+  snprintf(path, BSE_FILE_FULL_LEN, "%s%s%s.%s.tmp", pBse->path, TD_DIRSEP, name, BSE_META_SUFFIX);
 }
+
+void bseBuildMetaName(int64_t ts, char *name) {
+  // refactor later
+  snprintf(name, BSE_FILE_FULL_LEN, "%d-%s", ts, BSE_META_SUFFIX);
+}
+void bseBuildTempMetaName(int64_t ts, char *name) {
+  // refactor later
+  snprintf(name, BSE_FILE_FULL_LEN, "%d-%s.temp", ts, BSE_META_SUFFIX);
+}
+
 void bseBuildFullName(SBse *pBse, char *name, char *fullname) {
   snprintf(fullname, BSE_FILE_FULL_LEN, "%s%s%s", pBse->path, TD_DIRSEP, name);
 }
 
-void bseBuildDataName(SBse *pBse, int64_t seq, char *name) {
-  snprintf(name, BSE_FILE_FULL_LEN, "%" PRId64 ".%s", seq, BSE_DATA_SUFFIX);
+void bseBuildDataName(SBse *pBse, int64_t ts, char *name) {
+  snprintf(name, BSE_FILE_FULL_LEN, "%" PRId64 ".%s", ts, BSE_DATA_SUFFIX);
 }

@@ -53,10 +53,13 @@ void bseBuildIndexFullName(SBse *pBse, int64_t ver, char *name);
 void bseBuildLogFullName(SBse *pBse, int64_t ver, char *buf);
 void bseBuildCurrentName(SBse *pBse, char *name) ;
 void bseBuildTempCurrentName(SBse *pBse, char *name);
-void bseBuildMetaName(SBse *pBse,char *name);
-void bseBuildTempMetaName(SBse *pBse, char *name);
+void bseBuildFullMetaName(SBse *pBse,char *name, char *path);
+void bseBuildFullTempMetaName(SBse *pBse, char *name, char *path);
 void bseBuildFullName(SBse *pBse, char *name, char *fullname);
 void bseBuildDataName(SBse *pBse, int64_t seq, char *name);
+
+void bseBuildMetaName(int64_t ts, char *name); 
+void bseBuildTempMetaName(int64_t ts, char *name); 
 
 int32_t bseCompressData(int8_t type, void *src, int32_t srcSize, void *dst, int32_t *dstSize) ;
 int32_t bseDecompressData(int8_t type, void *src, int32_t srcSize, void *dst, int32_t *dstSize);

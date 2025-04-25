@@ -58,6 +58,7 @@ struct SBse {
   void          *pTableMgt;
   SBseCommitInfo commitInfo;
 
+  int64_t latestSt;
   int64_t retention;
 };
 

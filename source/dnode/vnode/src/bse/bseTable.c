@@ -55,12 +55,12 @@ static int8_t  blockGetType(SBlock *p);
 static int32_t blockSeekMeta(SBlock *p, int64_t seq, SMetaBlock *pMeta);
 static int32_t metaBlockAddIndex(SBlock *p, SBlkHandle *pInfo);
 
-int32_t tableMetaWriterInit(SBTableMeta *pMeta, SBtableMetaWriter **ppWriter);
+int32_t tableMetaWriterInit(SBTableMeta *pMeta, char *name, SBtableMetaWriter **ppWriter);
 int32_t tableMetaWriterCommit(SBtableMetaWriter *pMeta);
 void    tableMetaWriterClose(SBtableMetaWriter *p);
 int32_t tableMetaWriterAppendRamBlock(SBtableMetaWriter *pMeta, SBlockWrapper *pBlock, SBlkHandle *pBlkHandle);
 
-int32_t tableMetaReaderInit(SBTableMeta *pMeta, SBtableMetaReader **ppReader);
+int32_t tableMetaReaderInit(SBTableMeta *pMeta, char *name, SBtableMetaReader **ppReader);
 void    tableMetaReaderClose(SBtableMetaReader *p);
 int32_t tableMetaReaderLoadIndex(SBtableMetaReader *p);
 
@@ -190,7 +190,7 @@ int32_t tableBuilderOpen(char *name, STableBuilder **pBuilder, SBse *pBse) {
 
   tableBuilderResetBlockRange(p);
 
-  code = tableBuilderOpenFile(p, NULL);
+  code = tableBuilderOpenFile(p, name);
   *pBuilder = p;
 
   return code;
@@ -318,11 +318,6 @@ int32_t tableBuildUpdateRange(STableBuilder *p, SBlockItemInfo *pInfo) {
   SSeqRange *pRange = &p->tableRange;
   if (pRange->sseq == -1) {
     pRange->sseq = pInfo->seq;
-    // char name[TSDB_FILENAME_LEN] = {0};
-    // code = tableBuilderOpenFile(p, name);
-    if (code != 0) {
-      return code;
-    }
   }
   pRange->eseq = pInfo->seq;
   return code;
@@ -594,6 +589,7 @@ int32_t tableReaderOpen(char *name, STableReader **pReader, void *pReaderMgt) {
 
   char          meta[TSDB_FILENAME_LEN] = {0};
   char          data[TSDB_FILENAME_LEN] = {0};
+
   STableReader *p = taosMemCalloc(1, sizeof(STableReader));
   if (p == NULL) {
     TSDB_CHECK_CODE(terrno, lino, _error);
@@ -1319,24 +1315,20 @@ int32_t tableMetaCommit(SBTableMeta *pMeta, SArray *pBlock) {
   SBtableMetaReader     *pReader = NULL;
   SBtableMetaReaderIter *pIter = NULL;
 
-  char path[TSDB_FILENAME_LEN] = {0};
-  bseBuildTempMetaName(pMeta->pBse, path);
+  char tempMetaPath[TSDB_FILENAME_LEN] = {0};
+  char metaPath[TSDB_FILENAME_LEN] = {0};
+  //bseBuildFullTempMetaName(pMeta->pBse, pMeta->name, tempMetaPath);
 
   // refactor later
-  code = tableMetaWriterInit(pMeta, &pWriter);
+  code = tableMetaWriterInit(pMeta, tempMetaPath, &pWriter);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = tableMetaOpenFile(pWriter, 0, path);
+  code = tableMetaReaderInit(pMeta, metaPath, &pReader);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = tableMetaReaderInit(pMeta, &pReader);
-  TSDB_CHECK_CODE(code, lino, _error);
-
-  char path1[TSDB_FILENAME_LEN] = {0};
-  bseBuildMetaName(pMeta->pBse, path1);
-
-  code = tableMetaOpenFile(pReader, 1, path1);
-  TSDB_CHECK_CODE(code, lino, _error);
+  // bseBuildFullMetaName(pMeta->pBse, pMeta->name, metaPath);
+  // code = tableMetaOpenFile(pReader, 1, metaPath);
+  // TSDB_CHECK_CODE(code, lino, _error);
 
   code = tableMetaReaderOpenIter(pReader, &pIter);
   TSDB_CHECK_CODE(code, lino, _error);
@@ -1353,6 +1345,7 @@ int32_t tableMetaCommit(SBTableMeta *pMeta, SArray *pBlock) {
     code = tableMetaWriterAppendRamBlock(pWriter, &wrapper, &blkHandle);
     TSDB_CHECK_CODE(code, lino, _error);
   }
+
   tableMetaReaderIterClose(pIter);
 
   code = tableMetaWriterAppendBlock(pWriter, pBlock);
@@ -1361,7 +1354,7 @@ int32_t tableMetaCommit(SBTableMeta *pMeta, SArray *pBlock) {
   code = tableMetaWriterCommit(pWriter);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = taosRenameFile(path, path1);
+  code = taosRenameFile(tempMetaPath, metaPath);
   TSDB_CHECK_CODE(code, lino, _error);
 
 _error:
@@ -1663,11 +1656,11 @@ int32_t tableMetaRecover(SBTableMeta *pMeta) {
   int32_t code = 0;
   int32_t lino = 0;
   char    path[TSDB_FILENAME_LEN] = {0};
-  // bseBuildMetaName(pMeta->pBse, 0, path);
+  // bseBuildFullMetaName(pMeta->pBse, 0, path);
 
   // memcpy(pMeta->name, path, strlen(path));
 
-  // bseBuildTempMetaName(pMeta->pBse, path);
+  // bseBuildFullTempMetaName(pMeta->pBse, path);
   code = taosRemoveFile(path);
   if (code != 0) {
     lino = __LINE__;
@@ -1688,9 +1681,10 @@ void tableMetaClose(SBTableMeta *p) {
   taosMemoryFree(p);
 }
 
-int32_t tableMetaWriterInit(SBTableMeta *pMeta, SBtableMetaWriter **ppWriter) {
+int32_t tableMetaWriterInit(SBTableMeta *pMeta, char *name, SBtableMetaWriter **ppWriter) {
   int32_t code = 0;
   int32_t lino = 0;
+  char path[TSDB_FILENAME_LEN] = {0};
 
   SBtableMetaWriter *p = taosMemCalloc(1, sizeof(SBtableMetaWriter));
   if (p == NULL) {
@@ -1710,6 +1704,8 @@ int32_t tableMetaWriterInit(SBTableMeta *pMeta, SBtableMetaWriter **ppWriter) {
 
   p->pTableMeta = pMeta;
 
+  code = tableMetaOpenFile(p, 0, path);
+  TSDB_CHECK_CODE(code, lino, _error);
   *ppWriter = p;
 _error:
   if (code != 0) {
@@ -1726,10 +1722,11 @@ void tableMetaWriterClose(SBtableMetaWriter *p) {
   taosMemoryFree(p);
 }
 
-int32_t tableMetaReaderInit(SBTableMeta *pMeta, SBtableMetaReader **ppReader) {
+int32_t tableMetaReaderInit(SBTableMeta *pMeta, char *name, SBtableMetaReader **ppReader) {
   int32_t code = 0;
   int32_t lino = 0;
-  char    meta[TSDB_FILENAME_LEN] = {0};
+  char    path[TSDB_FILENAME_LEN] = {0};
+  bseBuildFullMetaName(pMeta->pBse, name, path);
 
   SBtableMetaReader *p = taosMemCalloc(1, sizeof(SBtableMetaReader));
   if (p == NULL) {
@@ -1746,9 +1743,9 @@ int32_t tableMetaReaderInit(SBTableMeta *pMeta, SBtableMetaReader **ppReader) {
 
   p->pTableMeta = pMeta;
 
-  bseBuildMetaName(NULL, meta);
+  //bseBuildFullMetaName(pMeta->pBse, pMeta->name, path);
 
-  code = tableMetaOpenFile(p, 1, meta);
+  code = tableMetaOpenFile(p, 1, path);
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = tableMetaReaderLoad(p);
