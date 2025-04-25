@@ -733,7 +733,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
           char* tmp = taosMemoryCalloc(1, varDataLen(data) + 1);
           if (tmp != NULL){
             memcpy(tmp, varDataVal(data), varDataLen(data));
-            qInfo("get tag value:%s, cid:%d, table name:%s, uid%"PRId64, tmp, tagVal.cid, val.pName, pBlock->info.id.uid);
+            qDebug("get tag value:%s, cid:%d, table name:%s, uid%"PRId64, tmp, tagVal.cid, val.pName, pBlock->info.id.uid);
             taosMemoryFree(tmp);
           }
           taosMemoryFree(data);
