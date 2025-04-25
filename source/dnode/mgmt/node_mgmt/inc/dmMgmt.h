@@ -117,7 +117,7 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper);
 int32_t dmStartNode(SMgmtWrapper *pWrapper);
 void    dmStopNode(SMgmtWrapper *pWrapper);
 void    dmCloseNode(SMgmtWrapper *pWrapper);
-int32_t dmRunDnode(SDnode *pDnode;
+int32_t dmRunDnode(SDnode *pDnode);
 
 // dmTransport.c
 int32_t dmInitServer(SDnode *pDnode);

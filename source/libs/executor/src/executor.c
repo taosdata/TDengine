@@ -1792,6 +1792,10 @@ void qStreamDestroyTableList(void* pTableListInfo) {
   tableListDestroy(pTableListInfo);
 }
 
+int64_t qStreamGetGroupId(void* pTableListInfo, int64_t uid){
+  return tableListGetTableGroupId(pTableListInfo, uid);
+}
+
 int32_t qStreamGetTableListGroupNum(const void* pTableList) {
   return ((STableListInfo*)pTableList)->numOfOuputGroups;
 }
