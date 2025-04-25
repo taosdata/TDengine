@@ -727,6 +727,9 @@ class TDTestCase:
         finally:
             consumer.close()
 
+        tdSql.execute(f'drop topic topic_all')
+        tdSql.execute(f'drop database d1')
+
     def run(self):
         self.consumeTest_6376()
         self.consume_TS_5067_Test()
