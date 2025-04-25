@@ -41,7 +41,7 @@
         <dependency>
             <groupId>org.apache.tomcat.embed</groupId>
             <artifactId>tomcat-embed-core</artifactId>
-            <version>9.0.98</version> <!-- 目标版本 -->
+            <version>9.0.99</version> <!-- 目标版本 -->
             <scope>provided</scope>
         </dependency>
         <dependency>
