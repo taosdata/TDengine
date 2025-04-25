@@ -6787,7 +6787,7 @@ _end:
   return code;
 }
 
-int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_t* suid) {
+int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_t* suid, SSchemaWrapper** pTagSchema) {
   SMetaReader mr = {0};
   metaReaderDoInit(&mr, pMeta, META_READER_LOCK);
   int32_t code = metaReaderGetTableEntryByUidCache(&mr, uid);
@@ -6818,6 +6818,7 @@ int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_
       metaReaderClear(&mr);
       return code;
     }
+    *pTagSchema = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaTag);
   } else {
     code = TSDB_CODE_INVALID_PARA;
     tsdbError("invalid mr.me.type:%d, code:%s", mr.me.type, tstrerror(code));
