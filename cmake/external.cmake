@@ -169,7 +169,7 @@ if(${TD_LINUX})
 elseif(${TD_DARWIN})
     set(ext_zlib_static libz.a)
 elseif(${TD_WINDOWS})
-    set(ext_zlib_static zs$<$<STREQUAL:${TD_CONFIG_NAME},Debug>:d>.lib)
+    set(ext_zlib_static zlibstatic$<$<STREQUAL:${TD_CONFIG_NAME},Debug>:d>.lib)
 endif()
 INIT_EXT(ext_zlib
     INC_DIR          include
