@@ -90,8 +90,8 @@ EOF
     sed -i "s|SF:/home/TDinternal/community/|SF:|g" $TDENGINE_DIR/coverage_tdengine.info
 
     # push result to coveralls.io
-    echo "push result to coveralls.io"
-    /usr/local/bin/coveralls-lcov $TDENGINE_DIR/coverage_tdengine.info -b $BRANCH -t WOjivt0JCvDfqHDpyBQXtqhYbOGANrrps
+    # echo "push result to coveralls.io"
+    # /usr/local/bin/coveralls-lcov $TDENGINE_DIR/coverage_tdengine.info -b $BRANCH -t WOjivt0JCvDfqHDpyBQXtqhYbOGANrrps
 
     # 确保 coverage_tdengine.info 文件不为空
     if [ ! -s $TDENGINE_DIR/coverage_tdengine.info ]; then
