@@ -177,11 +177,11 @@ INIT_EXT(ext_zlib
     CHK_NAME         ZLIB
 )
 # GIT_REPOSITORY https://github.com/taosdata-contrib/zlib.git
-# GIT_TAG        v1.2.11
+# GIT_TAG        v1.3.1
 get_from_local_repo_if_exists("https://github.com/madler/zlib.git")
 ExternalProject_Add(ext_zlib
     GIT_REPOSITORY ${_git_url}
-    GIT_TAG 5a82f71ed1dfc0bec044d9702463dbdf84ea3b71
+    GIT_TAG v1.3.1 
     GIT_SHALLOW TRUE
     PREFIX "${_base}"
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}        # if main project is built in Debug, ext_zlib is too
@@ -826,15 +826,10 @@ if(NOT ${TD_WINDOWS})       # {
         set(ext_ssl_static libssl.a)
         set(ext_crypto_static libcrypto.a)
     endif()
-    if(${TD_LINUX})
-      set(_lib lib64)
-    else()
-      set(_lib lib)
-    endif()
     INIT_EXT(ext_ssl
         INC_DIR          include
-        LIB              ${_lib}/${ext_ssl_static}
-                         ${_lib}/${ext_crypto_static}
+        LIB              lib/${ext_ssl_static}
+                         lib/${ext_crypto_static}
         # debugging github working flow
         # CHK_NAME         SSL
     )
@@ -853,7 +848,7 @@ if(NOT ${TD_WINDOWS})       # {
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
             # COMMAND ./Configure --prefix=$ENV{HOME}/.cos-local.2 no-shared
-            COMMAND ./Configure --prefix=${_ins} no-shared
+            COMMAND ./Configure --prefix=${_ins} no-shared --libdir=lib
         BUILD_COMMAND
             COMMAND make -j4
         INSTALL_COMMAND
