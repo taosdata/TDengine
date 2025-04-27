@@ -173,7 +173,7 @@ TEST(bseCase, openTest) {
     //getData(bse, &data);
 
     bseCommit(bse);
-    // getData(bse, &data);
+    getData(bse, &data);
 
     // putData(bse, 1000, 200, &data);
     

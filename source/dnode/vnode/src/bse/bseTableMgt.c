@@ -37,6 +37,8 @@ static int32_t tableBuilderMgtPutBatch(STableBuilderMgt *pMgt, SBseBatch *pBatch
 static int32_t tableBuilderMgtClear(STableBuilderMgt *pMgt);
 static void    tableBuilderMgtDestroy(STableBuilderMgt *pMgt);
 
+static int32_t tableBuilderMgtRecoverTable(STableBuilderMgt *pMgt, int64_t seq, STableBuilder **pBuilder, int64_t size);
+
 static int32_t tableMetaMgtInit(STableMetaMgt *pMgt, SBse *pBse, int64_t retention);
 static int32_t tableMetaMgtSetRetion(STableMetaMgt *pMgt, int64_t retention);
 static int32_t tableMetaMgtCommit(STableMetaMgt *pMgt, SBseLiveFileInfo *pInfo);
@@ -57,7 +59,6 @@ int32_t bseTableMgtCreate(SBse *pBse, void **pMgt) {
   }
   p->pBse = pBse;
   p->pHashObj = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
-  ;
   if (p->pHashObj == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
@@ -71,6 +72,13 @@ _error:
     bseTableMgtCleanup(p);
   }
   return code;
+}
+
+int32_t bseTableMgtSetLastRetentionTs(STableMgt *pMgt, int64_t retention) {
+  if (pMgt == NULL) return 0;
+
+  pMgt->retionTs = retention;
+  return 0;
 }
 
 static int32_t createSubTableMgt(int64_t retenTs, int32_t readOnly, STableMgt *pMgt, SSubTableMgt **pSubMgt) {
@@ -89,7 +97,7 @@ static int32_t createSubTableMgt(int64_t retenTs, int32_t readOnly, STableMgt *p
   code = tableReaderMgtInit(p->pReaderMgt, pMgt->pBse, retenTs);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  p->pBuilderMgt->pMgt = p;
+  p->pReaderMgt->pMgt = p;
 
   code = tableMetaMgtInit(p->pTableMetaMgt, pMgt->pBse, retenTs);
   TSDB_CHECK_CODE(code, lino, _error);
@@ -112,11 +120,11 @@ static void destroySubTableMgt(SSubTableMgt *p) {
   }
 }
 int32_t bseTableMgtGet(STableMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *len) {
+  if (pMgt == NULL) return 0;
+
   int32_t code = 0;
   int32_t lino = 0;
-
-  int32_t readOnly = 1;
-  if (pMgt == NULL) return 0;
+  int32_t       readOnly = 1;
   SSubTableMgt *pSubMgt = NULL;
 
   SBse *pBse = pMgt->pBse;
@@ -157,6 +165,26 @@ _error:
   return code;
 }
 
+int32_t bseTableMgtRecoverTable(STableMgt *pMgt, SBseLiveFileInfo *pInfo) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  if (pMgt == NULL) return 0;
+  SSubTableMgt *pSubMgt = NULL;
+
+  code = createSubTableMgt(pInfo->retentionTs, 0, pMgt, &pSubMgt);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = tableBuilderMgtRecoverTable(pSubMgt->pBuilderMgt, 0, NULL, pInfo->size);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+_error:
+  if (code != 0) {
+    bseError("failed to recover table at line %d since %s", lino, tstrerror(code));
+  }
+  destroySubTableMgt(pSubMgt);
+  return 0;
+}
+
 int32_t bseTableMgtCleanup(void *pMgt) {
   if (pMgt == NULL) return 0;
 
@@ -178,9 +206,13 @@ int32_t bseTableMgtAppend(STableMgt *pMgt, SBseBatch *pBatch) {
   int32_t code = 0;
   int32_t lino = 0;
 
+  SBse         *pBse = pMgt->pBse;
   SSubTableMgt *pSubMgt = pMgt->pCurrTableMgt;
 
   int64_t retionTs = taosGetTimestampSec();
+  if (pMgt->retionTs != 0) {
+    retionTs = pMgt->retionTs;
+  }
 
   if (pSubMgt == NULL) {
     code = createSubTableMgt(retionTs, 0, pMgt, &pMgt->pCurrTableMgt);
@@ -204,28 +236,21 @@ int32_t bseTableMgtGetLiveFileSet(STableMgt *pMgt, SArray **pList) {
   // return tableReadMgtGetAllLiveFileSet(pMgt->pReaderMgt, pList);
 }
 
-int32_t bseTableMgtCommit(STableMgt *pMgt, SArray **pLiveFileList) {
+int32_t bseTableMgtCommit(STableMgt *pMgt, SBseLiveFileInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
   int8_t  flushIdx = -1;
   int8_t  commited = 0;
 
-  SBseLiveFileInfo info = {0};
   SSubTableMgt    *pSubMgt = pMgt->pCurrTableMgt;
 
-  code = tableBuilderMgtCommit(pSubMgt->pBuilderMgt, &info, &commited);
+  code = tableBuilderMgtCommit(pSubMgt->pBuilderMgt, pInfo, &commited);
   TSDB_CHECK_CODE(code, lino, _error);
-
-  if (commited == 1) {
-    code = tableReaderMgtAddLiveFile(pSubMgt->pReaderMgt, &info);
-    TSDB_CHECK_CODE(code, lino, _error);
-  }
-
-  code = bseTableMgtGetLiveFileSet(pMgt, pLiveFileList);
-
 _error:
   if (code != 0) {
     bseError("failed to commit table at line %d since %s", lino, tstrerror(code));
+  } else {
+    bseInfo("succ to commit table");
   }
   return code;
 }
@@ -361,18 +386,8 @@ int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **p
 
   SBseLiveFileInfo info = {0};
   STableReader    *pReader = NULL;
-  taosThreadRwlockRdlock(&pReaderMgt->mutex);
-  int32_t idx = findTargetTable(pReaderMgt->pFileList, seq);
-  if (idx < 0 || idx >= taosArrayGetSize(pReaderMgt->pFileList)) {
-    taosThreadRwlockUnlock(&pReaderMgt->mutex);
-    TSDB_CHECK_CODE(code = TSDB_CODE_NOT_FOUND, lino, _error);
-  }
 
-  SBseLiveFileInfo *pInfo = taosArrayGet(pReaderMgt->pFileList, idx);
-  memcpy(&info, pInfo, sizeof(SBseLiveFileInfo));
-  taosThreadRwlockUnlock(&pReaderMgt->mutex);
-
-  code = tableReaderOpen(pInfo->timestamp, &pReader, pReaderMgt);
+  code = tableReaderOpen(pReaderMgt->retenTs, &pReader, pReaderMgt);
   TSDB_CHECK_CODE(code, lino, _error);
   code = tableReaderGet(pReader, seq, pValue, len);
 
@@ -556,6 +571,24 @@ _error:
   return code;
 }
 
+int32_t tableBuilderMgtRecoverTable(STableBuilderMgt *pMgt, int64_t seq, STableBuilder **pBuilder, int64_t size) {
+  int32_t        code = 0;
+  int32_t        lino = 0;
+  STableBuilder *pTable = NULL;
+
+  code = tableBuilderMgtGetBuilder(pMgt, seq, &pTable);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = tableBuilderTruncateFile(pTable, size);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+_error:
+  if (code != 0) {
+    bseError("failed to open table builder at line %d since %s", lino, tstrerror(code));
+  }
+
+  return code;
+}
 int32_t tableBuilderMgtCommit(STableBuilderMgt *pMgt, SBseLiveFileInfo *pInfo, int8_t *commited) {
   int32_t        code = 0;
   int32_t        lino = 0;
@@ -575,6 +608,13 @@ _error:
   if (code != 0) {
     bseError("failed to commit table builder at line %d since %s", lino, tstrerror(code));
   }
+  return code;
+}
+
+int32_t tableRecoverDataAndMeta(SBse *pBse, SBseLiveFileInfo *pInfo) {
+  int32_t lino = 0;
+
+  int32_t code = 0;
   return code;
 }
 void tableBuilderMgtDestroy(STableBuilderMgt *pMgt) {

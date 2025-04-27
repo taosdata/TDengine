@@ -121,6 +121,12 @@ typedef struct {
 } SBtableMetaReaderIter;
 
 typedef struct {
+  SSeqRange range;
+  int64_t   dataSize;
+  int64_t   retionTs;
+  int8_t    level;
+} STableCommitInfo;
+typedef struct {
   char    name[TSDB_FILENAME_LEN];
   int32_t blockCap;
 
@@ -130,6 +136,7 @@ typedef struct {
 
   SBtableMetaWriter *pWriter;
   SBtableMetaReader *pReader;
+  SSeqRange          range;
   // SArray *pReaderBlkHandle;
 } SBTableMeta;
 typedef struct {
@@ -175,7 +182,7 @@ typedef struct {
   int64_t eseq;
   int64_t size;
   int32_t level;
-  int64_t timestamp;
+  int64_t retentionTs;
   char    name[TSDB_FILENAME_LEN];
 } SBseLiveFileInfo;
 
@@ -187,6 +194,7 @@ int32_t tableBuilderFlush(STableBuilder *p, int8_t type);
 int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo);
 int32_t tableBuilderClose(STableBuilder *p, int8_t commited);
 void    tableBuilderClear(STableBuilder *p);
+int32_t tableBuilderTruncateFile(STableBuilder *p, int64_t size);
 int32_t tableBuilderOpenFile(STableBuilder *p, char *name);
 
 int32_t tableReaderOpen(int64_t timestamp, STableReader **pReader, void *pReaderMgt);

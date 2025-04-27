@@ -21,6 +21,8 @@
 #include "bseUtil.h"
 #include "cJSON.h"
 
+#define BSE_FMT_VER 0x1
+
 static void bseCfgSetDefault(SBseCfg *pCfg);
 
 static int32_t bseInitEnv(SBse *p);
@@ -30,7 +32,7 @@ static int32_t bseGenCommitInfo(SBse *pBse, SArray *pInfo);
 static int32_t bseCreateTableManager(SBse *p);
 static int32_t bseCommitDo(SBse *pBse, SArray *pFileSet);
 
-static int32_t bseInitCommitInfo(SBse *pBse, char *pCurrent, SBseCommitInfo *pInfo);
+static int32_t bseDeserialCommitInfo(SBse *pBse, char *pCurrent, SBseCommitInfo *pInfo);
 static int32_t bseSerailCommitInfo(SBse *pBse, SArray *fileSet, char **pBuf, int32_t *len);
 static int32_t bseReadCurrentFile(SBse *pBse, char **p, int64_t *len);
 static int32_t bseListAllFiles(const char *path, SArray *pFiles);
@@ -60,10 +62,10 @@ static int32_t bseSerailCommitInfo(SBse *pBse, SArray *fileSet, char **pBuf, int
     TSDB_CHECK_CODE(code, line, _err);
   }
 
+  cJSON_AddNumberToObject(pRoot, "fmtVer", pBse->commitInfo.fmtVer);
   cJSON_AddNumberToObject(pRoot, "vgId", pBse->cfg.vgId);
   cJSON_AddNumberToObject(pRoot, "commitVer", pBse->commitInfo.commitVer);
-  cJSON_AddNumberToObject(pRoot, "lastVer", pBse->commitInfo.lastVer);
-  cJSON_AddNumberToObject(pRoot, "lastSeq", pBse->commitInfo.lastSeq);
+  cJSON_AddNumberToObject(pRoot, "commitSeq", pBse->commitInfo.lastSeq);
   cJSON_AddItemToObject(pRoot, "fileSet", pFileSet);
 
   for (int32_t i = 0; i < taosArrayGetSize(fileSet); i++) {
@@ -73,7 +75,7 @@ static int32_t bseSerailCommitInfo(SBse *pBse, SArray *fileSet, char **pBuf, int
     cJSON_AddNumberToObject(pField, "endSeq", pInfo->eseq);
     cJSON_AddNumberToObject(pField, "size", pInfo->size);
     cJSON_AddNumberToObject(pField, "level", pInfo->level);
-    cJSON_AddStringToObject(pField, "name", pInfo->name);
+    cJSON_AddNumberToObject(pField, "retention", pInfo->retentionTs);
     cJSON_AddItemToArray(pFileSet, pField);
   }
 
@@ -90,6 +92,81 @@ _err:
   }
   cJSON_Delete(pRoot);
   pRoot = NULL;
+  return code;
+}
+int32_t bseDeserialCommitInfo(SBse *pBse, char *pCurrent, SBseCommitInfo *pInfo) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  cJSON  *pRoot = cJSON_Parse(pCurrent);
+  if (pRoot == NULL) {
+    bseError("vgId:%d, failed to parse current meta", pBse->cfg.vgId);
+    code = TSDB_CODE_FILE_CORRUPTED;
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
+
+  cJSON *item = cJSON_GetObjectItem(pRoot, "fmtVer");
+  if (item == NULL) {
+    bseError("vgId:%d, failed to get fmtVer from current meta", pBse->cfg.vgId);
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _error;
+  }
+  pInfo->fmtVer = item->valuedouble;
+
+  item = cJSON_GetObjectItem(pRoot, "vgId");
+  if (item == NULL) {
+    bseError("vgId:%d, failed to get vgId from current meta", pBse->cfg.vgId);
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _error;
+  }
+  pInfo->vgId = item->valuedouble;
+
+  item = cJSON_GetObjectItem(pRoot, "commitVer");
+  if (item == NULL) {
+    bseError("vgId:%d, failed to get commitVer from current meta", pBse->cfg.vgId);
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _error;
+  }
+  pInfo->commitVer = item->valuedouble;
+
+  item = cJSON_GetObjectItem(pRoot, "commitSeq");
+  if (item == NULL) {
+    bseError("vgId:%d, failed to get lastSeq from current meta", pBse->cfg.vgId);
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _error;
+  }
+  pInfo->lastSeq = item->valuedouble;
+
+  cJSON *pFiles = cJSON_GetObjectItem(pRoot, "fileSet");
+  cJSON *pField = NULL;
+  cJSON_ArrayForEach(pField, pFiles) {
+    cJSON *pStartSeq = cJSON_GetObjectItem(pField, "startSeq");
+    cJSON *pEndSeq = cJSON_GetObjectItem(pField, "endSeq");
+    cJSON *pFileSize = cJSON_GetObjectItem(pField, "size");
+    cJSON *pLevel = cJSON_GetObjectItem(pField, "level");
+    cJSON *pRetentionTs = cJSON_GetObjectItem(pField, "retention");
+    if (pStartSeq == NULL || pEndSeq == NULL || pFileSize == NULL || pLevel == NULL || pRetentionTs == NULL) {
+      bseError("vgId:%d, failed to get field from files", pBse->cfg.vgId);
+      code = TSDB_CODE_FILE_CORRUPTED;
+      goto _error;
+    }
+
+    SBseLiveFileInfo info = {0};
+    info.sseq = pStartSeq->valuedouble;
+    info.eseq = pEndSeq->valuedouble;
+    info.size = pFileSize->valuedouble;
+    info.level = pLevel->valuedouble;
+    info.retentionTs = pRetentionTs->valuedouble;
+
+    if (taosArrayPush(pInfo->pFileList, &info) == NULL) {
+      code = terrno;
+      goto _error;
+    }
+  }
+_error:
+  if (code != 0) {
+    bseError("vgId:%d failed to get commit info from current meta since %s", BSE_GET_VGID(pBse), tstrerror(code));
+  }
+  cJSON_Delete(pRoot);
   return code;
 }
 
@@ -134,80 +211,6 @@ _error:
     taosCloseFile(&fd);
     taosMemoryFree(pCurrent);
   }
-  return code;
-}
-
-int32_t bseInitCommitInfo(SBse *pBse, char *pCurrent, SBseCommitInfo *pInfo) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  cJSON  *pRoot = cJSON_Parse(pCurrent);
-  if (pRoot == NULL) {
-    bseError("vgId:%d, failed to parse current meta", pBse->cfg.vgId);
-    code = TSDB_CODE_FILE_CORRUPTED;
-    TSDB_CHECK_CODE(code, lino, _error);
-  }
-  cJSON *item = cJSON_GetObjectItem(pRoot, "vgId");
-  if (item == NULL) {
-    bseError("vgId:%d, failed to get vgId from current meta", pBse->cfg.vgId);
-    code = TSDB_CODE_FILE_CORRUPTED;
-    goto _error;
-  }
-  pInfo->vgId = item->valuedouble;
-
-  item = cJSON_GetObjectItem(pRoot, "commitVer");
-  if (item == NULL) {
-    bseError("vgId:%d, failed to get commitVer from current meta", pBse->cfg.vgId);
-    code = TSDB_CODE_FILE_CORRUPTED;
-    goto _error;
-  }
-  pInfo->commitVer = item->valuedouble;
-
-  item = cJSON_GetObjectItem(pRoot, "lastVer");
-  if (item == NULL) {
-    bseError("vgId:%d, failed to get lastVer from current meta", pBse->cfg.vgId);
-    code = TSDB_CODE_FILE_CORRUPTED;
-    goto _error;
-  }
-  pInfo->lastVer = item->valuedouble;
-
-  item = cJSON_GetObjectItem(pRoot, "lastSeq");
-  if (item == NULL) {
-    bseError("vgId:%d, failed to get lastSeq from current meta", pBse->cfg.vgId);
-    code = TSDB_CODE_FILE_CORRUPTED;
-    goto _error;
-  }
-  pInfo->lastSeq = item->valuedouble;
-
-  cJSON *pFiles = cJSON_GetObjectItem(pRoot, "fileSet");
-  cJSON *pField = NULL;
-  cJSON_ArrayForEach(pField, pFiles) {
-    cJSON *pStartSeq = cJSON_GetObjectItem(pField, "startSeq");
-    cJSON *pEndSeq = cJSON_GetObjectItem(pField, "endSeq");
-    cJSON *pFileSize = cJSON_GetObjectItem(pField, "size");
-    cJSON *pLevel = cJSON_GetObjectItem(pField, "level");
-    cJSON *pName = cJSON_GetObjectItem(pField, "name");
-    if (pStartSeq == NULL || pEndSeq == NULL || pFileSize == NULL || pLevel == NULL || pName == NULL) {
-      bseError("vgId:%d, failed to get field from files", pBse->cfg.vgId);
-      code = TSDB_CODE_FILE_CORRUPTED;
-      goto _error;
-    }
-    SBseLiveFileInfo info = {0};
-    info.sseq = pStartSeq->valuedouble;
-    info.eseq = pEndSeq->valuedouble;
-    info.size = pFileSize->valuedouble;
-    info.level = pLevel->valuedouble;
-    strncpy(info.name, pName->valuestring, sizeof(info.name));
-
-    if (taosArrayPush(pInfo->pFileList, &info) == NULL) {
-      code = terrno;
-      goto _error;
-    }
-  }
-_error:
-  if (code != 0) {
-    bseError("vgId:%d failed to get commit info from current meta since %s", BSE_GET_VGID(pBse), tstrerror(code));
-  }
-  cJSON_Delete(pRoot);
   return code;
 }
 
@@ -316,16 +319,24 @@ int32_t bseRecover(SBse *pBse, int8_t rmUnCommited) {
   if (len == 0) {
     bseInfo("vgId:%d, no current meta file found, no need to recover", BSE_GET_VGID(pBse));
   } else {
-    code = bseInitCommitInfo(pBse, pCurrent, &pBse->commitInfo);
+    code = bseDeserialCommitInfo(pBse, pCurrent, &pBse->commitInfo);
     TSDB_CHECK_CODE(code, lino, _error);
-  }
-  if (rmUnCommited) {
-    code = bseRemoveUnCommitFile(pBse);
-    TSDB_CHECK_CODE(code, lino, _error);
-  }
 
-  code = bseTableMgtUpdateLiveFileSet(pBse->pTableMgt, pBse->commitInfo.pFileList);
-  TSDB_CHECK_CODE(code, lino, _error);
+    if (pBse->commitInfo.fmtVer != BSE_FMT_VER) {
+      bseError("vgId:%d, current meta file version %d not match with %d", pBse->cfg.vgId,
+               pBse->commitInfo.fmtVer, BSE_FMT_VER);
+      code = TSDB_CODE_FILE_CORRUPTED;
+      goto _error;
+    }
+
+    if (taosArrayGetSize(pBse->commitInfo.pFileList) > 0) {
+      SBseLiveFileInfo *pLast = taosArrayGetLast(pBse->commitInfo.pFileList);
+      code = bseTableMgtRecoverTable(pBse->pTableMgt, pLast);
+      TSDB_CHECK_CODE(code, lino, _error);
+
+      code = bseTableMgtSetLastRetentionTs(pBse->pTableMgt, pLast->retentionTs);
+    }
+  }
 
   code = bseInitStartSeq(pBse);
   TSDB_CHECK_CODE(code, lino, _error);
@@ -372,6 +383,7 @@ int32_t bseCreateCommitInfo(SBse *pBse) {
   if (pCommit->pFileList == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pCommit->fmtVer = BSE_FMT_VER;
   return 0;
 }
 
@@ -834,6 +846,49 @@ _error:
   }
   return code;
 }
+
+int32_t bseUpdateCommitInfo(SBse *pBse, SBseLiveFileInfo *pInfo) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  taosThreadMutexLock(&pBse->mutex);
+  SBseCommitInfo *pCommit = &pBse->commitInfo;
+  if (taosArrayGetSize(pCommit->pFileList) == 0) {
+    if (taosArrayPush(pCommit->pFileList, pInfo) == NULL) {
+      TSDB_CHECK_CODE(code = terrno, lino, _error);
+    }
+  } else {
+    SBseLiveFileInfo *pLast = taosArrayGetLast(pCommit->pFileList);
+    if (pLast->retentionTs == pInfo->retentionTs) {
+      memcpy(pLast, pInfo, sizeof(SBseLiveFileInfo));
+    }
+  }
+_error:
+  if (code != 0) {
+    bseError("vgId:%d failed to update commit info since %s", BSE_GET_VGID(pBse), tstrerror(code));
+  }
+
+  taosThreadMutexUnlock(&pBse->mutex);
+  return code;
+}
+
+int32_t bseGetAliveFileList(SBse *pBse, SArray **pFileList) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SArray *p = taosArrayInit(4, sizeof(SBseLiveFileInfo));
+  taosThreadMutexLock(&pBse->mutex);
+  if (taosArrayAddAll(p, pBse->commitInfo.pFileList) == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
+
+  *pFileList = p;
+_error:
+  if (code != 0) {
+    bseError("vgId:%d failed to get alive file list since %s", BSE_GET_VGID(pBse), tstrerror(code));
+  }
+  taosThreadMutexUnlock(&pBse->mutex);
+  return code;
+}
 int32_t bseCommit(SBse *pBse) {
   // Generate static info and footer info;
   int64_t cost = 0;
@@ -842,7 +897,14 @@ int32_t bseCommit(SBse *pBse) {
   int64_t st = taosGetTimestampMs();
   SArray *pLiveFile = NULL;
 
-  code = bseTableMgtCommit(pBse->pTableMgt, &pLiveFile);
+  SBseLiveFileInfo info = {0};
+  code = bseTableMgtCommit(pBse->pTableMgt, &info);
+  TSDB_CHECK_CODE(code, line, _error);
+
+  code = bseUpdateCommitInfo(pBse, &info);
+  TSDB_CHECK_CODE(code, line, _error);
+
+  code = bseGetAliveFileList(pBse, &pLiveFile);
   TSDB_CHECK_CODE(code, line, _error);
 
   code = bseCommitDo(pBse, pLiveFile);
@@ -854,7 +916,7 @@ _error:
     bseWarn("vgId:%d bse commit cost %" PRId64 " ms", BSE_GET_VGID(pBse), cost);
   }
   if (code != 0) {
-    bseError("vgId:%d failed to commit at line %d since %s", BSE_GET_VGID(pBse), tstrerror(code));
+    bseError("vgId:%d failed to commit at line %d since %s", BSE_GET_VGID(pBse), line, tstrerror(code));
   }
   taosArrayDestroy(pLiveFile);
 

@@ -128,6 +128,11 @@ typedef void* bsequeue[2];
 /* Return the structure holding the given element. */
 #define BSE_QUEUE_DATA(e, type, field) ((type*)((void*)((char*)(e)-offsetof(type, field))))
 
+
+#define BSE_DATA_VER 0x1
+
+#define BSE_FMT_VER 0x1
+
 // clang-format on
 #ifdef __cplusplus
 }

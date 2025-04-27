@@ -79,12 +79,13 @@ struct STableMgt {
 };
 
 int32_t bseTableMgtCreate(SBse *pBse, void **pMgt);
+int32_t bseTableMgtSetLastRetentionTs(STableMgt *pMgt, int64_t retention);
 
 int32_t bseTableMgtGet(STableMgt *p, int64_t seq, uint8_t **pValue, int32_t *len);
 
 int32_t bseTableMgtCleanup(void *p);
 
-int32_t bseTableMgtCommit(STableMgt *pMgt, SArray **pLiveFileList);
+int32_t bseTableMgtCommit(STableMgt *pMgt, SBseLiveFileInfo *pInfo);
 
 int32_t bseTableMgtUpdateLiveFileSet(STableMgt *pMgt, SArray *pLiveFileList);
 
@@ -103,6 +104,8 @@ int32_t blockWithMetaInit(SBlock *pBlock, SBlockWithMeta **pMeta);
 int32_t blockWithMetaCleanup(SBlockWithMeta *p);
 
 int32_t blockWithMetaSeek(SBlockWithMeta *p, int64_t seq, uint8_t **pValue, int32_t *len);
+
+int32_t bseTableMgtRecoverTable(STableMgt *pMgt, SBseLiveFileInfo *pInfo);
 #ifdef __cplusplus
 }
 #endif

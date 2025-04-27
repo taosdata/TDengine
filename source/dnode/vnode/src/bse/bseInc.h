@@ -33,6 +33,7 @@ struct SBlockItemInfo {
   int64_t seq;
 };
 struct SBseCommitInfo {
+  int8_t  fmtVer;
   int32_t vgId;
   int64_t commitVer;
   int64_t lastVer;

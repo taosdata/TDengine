@@ -168,15 +168,15 @@ int32_t bseGetRetentionTs(SBse *pBse, int64_t seq, int64_t *retentionTs) {
   if (seq < 0) {
     if (taosArrayGetSize(pCommitInfo->pFileList)) {
       SBseLiveFileInfo *pInfo = taosArrayGetLast(pCommitInfo->pFileList);
-      if ((tts - pInfo->timestamp) < pBse->retention) {
-        tts = pInfo->timestamp;
+      if ((tts - pInfo->retentionTs) < pBse->retention) {
+        tts = pInfo->retentionTs;
       }
     }
   } else {
     for (int32_t i = 0; i < taosArrayGetSize(pCommitInfo->pFileList); i++) {
       SBseLiveFileInfo *pInfo = taosArrayGet(pCommitInfo->pFileList, i);
       if (pInfo->sseq <= seq && pInfo->eseq >= seq) {
-        tts = pInfo->timestamp;
+        tts = pInfo->retentionTs;
         break;
       }
     }
