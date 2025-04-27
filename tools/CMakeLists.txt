@@ -37,8 +37,9 @@ IF(TD_WEBSOCKET)
                 COMMAND which cargo
                 COMMAND echo cargo --version
                 COMMAND cargo --version
-                COMMAND false
+                # COMMAND false
                 COMMAND cargo build --release --locked -p taos-ws-sys --features rustls
+                COMMAND false
             INSTALL_COMMAND
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_dll} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ext_taosws_dll}
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_lib_from} ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/${ext_taosws_lib_to}
