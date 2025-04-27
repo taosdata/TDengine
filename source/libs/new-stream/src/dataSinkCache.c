@@ -33,6 +33,7 @@ int32_t writeToCache(SStreamTaskDSManager* pStreamDataSink, SGroupDSManager* pGr
   SWindowData* pWindowData = NULL;
 
   size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  // todo dataEncodeBufSize > real len
   size_t dataEncodeBufSize = blockGetEncodeSizeOfRows(pBlock, startIndex, endIndex);
   char*  buf = taosMemoryCalloc(1, dataEncodeBufSize);
   char*  pStart = buf;
@@ -103,7 +104,7 @@ int32_t moveToCache(SStreamTaskDSManager* pStreamDataSink, SGroupDSManager* pGro
   pWindowData->wend = wend;
   code = getStreamBlockTS(pBlock, 0, &pWindowData->start);
   QUERY_CHECK_CODE(code, lino, _end);
-  code = getStreamBlockTS(pBlock, pBlock->info.rows, &pWindowData->end);
+  code = getStreamBlockTS(pBlock, pBlock->info.rows - 1, &pWindowData->end);
   QUERY_CHECK_CODE(code, lino, _end);
   pWindowData->saveMode = DATA_SAVEMODE_BLOCK;
   pWindowData->dataLen = dataEncodeBufSize;
@@ -239,12 +240,20 @@ static int32_t getSlidingWindowDataInMem(SResultIter* pResult, SWindowData* pWin
   }
 }
 
-int32_t readDataFromCache(SResultIter* pResult, SSDataBlock** ppBlock) {
-  SGroupDSManager* pGroupData = pResult->groupData;
+int32_t readDataFromCache(SResultIter* pResult, SSDataBlock** ppBlock, bool* finished) {
+  SGroupDSManager* pGroupData = (SGroupDSManager*)pResult->groupData;
   SWindowData**    ppWindowData = (SWindowData**)taosArrayGet(pGroupData->windowDataInMem, pResult->offset);
   if (ppWindowData == NULL || *ppWindowData == NULL) {
     stError("failed to get data from cache, offset:%" PRId64, pResult->offset);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+
+  if ((*ppWindowData)->start > pResult->reqEndTime) {
+    *finished = true;
+    return TSDB_CODE_SUCCESS;
+  } else if ((*ppWindowData)->end < pResult->reqStartTime) {
+    *finished = false;  // 查看下一个窗口
+    return TSDB_CODE_SUCCESS;
   }
 
   if (pGroupData->pSinkManager->cleanMode == DATA_CLEAN_IMMEDIATE) {
@@ -270,6 +279,9 @@ void clearGroupExpiredDataInMem(SGroupDSManager* pGroupData, TSKEY start) {
     }
   }
 
+  if (deleteCount == 0) {
+    return;
+  }
   taosArrayRemoveBatch(pGroupData->windowDataInMem, 0, deleteCount, destorySWindowDataPP);
 }
 
@@ -285,4 +297,73 @@ void syncWindowDataMemSub(SWindowData* pWindowData) {
   atomic_sub_fetch_64(&pWindowData->pGroupDataInfoMgr->usedMemSize, size);
   atomic_sub_fetch_64(&pWindowData->pGroupDataInfoMgr->pSinkManager->usedMemSize, size);
   atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, size);
+}
+
+void clearGroupExpiredData(SGroupDSManager* pGroupData, TSKEY start) {
+  if (pGroupData->windowDataInMem == NULL) {
+    return;
+  }
+  clearGroupExpiredDataInMem(pGroupData, start);
+}
+
+SGroupDSManager* getGroupDataInfo(SStreamTaskDSManager* pStreamData, int64_t groupId) {
+  SGroupDSManager** ppGroupData =
+      (SGroupDSManager**)taosHashGet(pStreamData->DataSinkGroupList, &groupId, sizeof(groupId));
+  if (ppGroupData == NULL) {
+    return NULL;
+  }
+  return *ppGroupData;
+}
+
+int32_t getFirstDataIterFromCache(SStreamTaskDSManager* StreamTaskDSMgr, int64_t groupId, TSKEY start, TSKEY end, void** ppResult) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  SGroupDSManager* pGroupDataInfo = getGroupDataInfo(StreamTaskDSMgr, groupId);
+  if (pGroupDataInfo == NULL) {
+    *ppResult = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  clearGroupExpiredData(pGroupDataInfo, start);
+
+  if (!pGroupDataInfo->windowDataInMem || pGroupDataInfo->windowDataInMem->size == 0) {
+    *ppResult = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+  SResultIter* pResult = taosMemoryCalloc(1, sizeof(SResultIter));
+  if (ppResult == NULL) {
+    return terrno;
+  }
+  if (pGroupDataInfo->windowDataInMem && pGroupDataInfo->windowDataInMem->size != 0) {
+    pResult->groupData = pGroupDataInfo;
+    pResult->offset = 0;
+    pResult->dataPos = DATA_SINK_MEM;
+    pResult->groupId = groupId;
+    pResult->reqStartTime = start;
+    pResult->reqEndTime = end;
+    *ppResult = pResult;
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+bool setNextIteratorFromCache(SResultIter** ppResult) {
+  SResultIter*     pResult = *ppResult;
+  SGroupDSManager* pGroupData = (SGroupDSManager*)pResult->groupData;
+
+  pResult->offset++;
+  if (pResult->offset < taosArrayGetSize(pGroupData->windowDataInMem)) {
+    SWindowData* pWindowData = *(SWindowData**)taosArrayGet(pGroupData->windowDataInMem, pResult->offset);
+    if ((pResult->reqStartTime >= pWindowData->start && pResult->reqStartTime <= pWindowData->end) ||
+        (pResult->reqEndTime >= pWindowData->start && pResult->reqEndTime <= pWindowData->end) ||
+        (pWindowData->start >= pResult->reqStartTime && pWindowData->end <= pResult->reqEndTime)) {
+      return false;
+    } else {
+      releaseDataIterator((void**)ppResult);
+      *ppResult = NULL;
+      return false;  // 后续数据已超出时间范围，结束查找
+    }
+  }
+  // *ppResult = NULL;
+  return true;  // 内存没有数据，还需要查看文件
 }

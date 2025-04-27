@@ -12679,8 +12679,12 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SStreamTrigg
 
   PAR_ERR_JRET(getTableMeta(pCxt, pTriggerTable->table.dbName, pTriggerTable->table.tableName, &pTriggerTableMeta));
   PAR_ERR_JRET(createStreamReqBuildTriggerTable(pCxt, pTriggerTable, pReq));
-  PAR_ERR_JRET(streamColNodeToField(pTrigger->pPartitionList, (SArray**)&pReq->partitionCols));
-  PAR_ERR_JRET(createSimpleSelectStmtFromCols(pTriggerTable->table.dbName, pTriggerTable->table.tableName, 0, NULL, pTriggerSelect));
+  //PAR_ERR_JRET(streamColNodeToField(pTrigger->pPartitionList, &pReq->partitionCols));
+  translateExpr(pCxt, &pTriggerWindow);
+  SNodeList *pTriggerCols = NULL;
+  nodesMakeList(&pTriggerCols);
+  nodesCollectColumnsFromNode(pTriggerWindow, pTriggerTable->table.tableAlias, COLLECT_COL_TYPE_ALL, &pTriggerCols);
+  //PAR_ERR_JRET(createSimpleSelectStmtFromCols(pTriggerTable->table.dbName, pTriggerTable->table.tableName, 0, NULL, pTriggerSelect));
 
   (*pTriggerSelect)->pFromTable = pTrigger->pTrigerTable;
   (*pTriggerSelect)->pWindow = pTriggerWindow;
