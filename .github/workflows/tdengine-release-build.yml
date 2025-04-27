@@ -85,6 +85,7 @@ jobs:
 
       - name: Build and install TDengine
         run: |
+          ps
           echo $PATH
           which cargo
           cargo --version
@@ -96,7 +97,8 @@ jobs:
             -DWEBSOCKET=true \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_DEPENDENCY_TESTS=false
-          make -j 4
+          cmake --build . --target ext_taosws
+          # make -j 4
           sudo make install
           which taosd
           which taosadapter
