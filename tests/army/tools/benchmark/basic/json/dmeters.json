@@ -21,7 +21,7 @@
         {
             "dbinfo": {
                 "name": "dmeters",
-                "drop": "no",
+                "drop": "yes",
                 "vgroups": 4,
                 "duration": "5d",
                 "keep": "30d",
