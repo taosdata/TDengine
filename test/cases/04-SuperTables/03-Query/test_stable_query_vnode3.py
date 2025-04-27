@@ -6,16 +6,15 @@ import taos
 from new_test_framework.utils import tdLog, tdSql, cluster, sc, clusterComCheck
 
 
-class TestStableQuery1:
+class TestStableQueryVnode3:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_stable_query_1(self):
-        """query super table (multi dnodes) 1
+    def test_stable_query_vnode3(self):
+        """超级表查询（3 vnode）
 
-        1. insert data
-        2. query data
+        1. 待补充
 
         Catalog:
             - SuperTables:Query
@@ -27,21 +26,14 @@ class TestStableQuery1:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/stable/dnode3.sim
+            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/stable/vnode3.sim
 
         """
 
-        while 1:
-            if clusterComCheck.checkDnodes(3):
-                break
-        tdSql.query("show cluster alive;")
-        tdSql.checkData(0, 0, 1)
-
         tdLog.info(f"======================== dnode1 start")
-
-        dbPrefix = "r3v3_db"
-        tbPrefix = "r3v3_tb"
-        mtPrefix = "r3v3_mt"
+        dbPrefix = "v3_db"
+        tbPrefix = "v3_tb"
+        mtPrefix = "v3_mt"
         tbNum = 10
         rowNum = 20
         totalNum = 200
@@ -51,7 +43,7 @@ class TestStableQuery1:
         db = dbPrefix + str(i)
         mt = mtPrefix + str(i)
 
-        tdSql.execute(f"create database {db}")
+        tdSql.prepare(dbname=db, vgroups=3)
         tdSql.execute(f"use {db}")
         tdSql.execute(f"create table {mt} (ts timestamp, tbcol int) TAGS(tgcol int)")
 
@@ -59,6 +51,7 @@ class TestStableQuery1:
         while i < tbNum:
             tb = tbPrefix + str(i)
             tdSql.execute(f"create table {tb} using {mt} tags( {i} )")
+
             x = 0
             while x < rowNum:
                 val = x * 60000
@@ -68,7 +61,8 @@ class TestStableQuery1:
             i = i + 1
 
         tdSql.query(f"show vgroups")
-        tdSql.checkRows(2)
+        tdLog.info(f"vgroups ==> {tdSql.getRows()})")
+        tdSql.checkRows(3)
 
         tdLog.info(f"=============== step2")
         i = 1
@@ -111,7 +105,6 @@ class TestStableQuery1:
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step7")
-        tdLog.info(f"select count(*) from {mt}")
         tdSql.query(f"select count(*) from {mt}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, totalNum)
