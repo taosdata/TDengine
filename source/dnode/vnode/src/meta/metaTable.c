@@ -427,9 +427,12 @@ static int32_t metaDropTables(SMeta *pMeta, SArray *tbUids) {
   while ((pCtbDropped = tSimpleHashIterate(suidHash, pCtbDropped, &iter))) {
     tb_uid_t    *pSuid = tSimpleHashGetKey(pCtbDropped, NULL);
     int32_t      nCols = 0;
+    int8_t       flags = 0;
     SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
-    if (metaGetStbStats(pMeta->pVnode, *pSuid, NULL, &nCols) == 0) {
-      pStats->numOfTimeSeries -= *(int64_t *)pCtbDropped * (nCols - 1);
+    if (metaGetStbStats(pMeta->pVnode, *pSuid, NULL, &nCols, &flags) == 0) {
+      if (!TABLE_IS_VIRTUAL(flags)) {
+        pStats->numOfTimeSeries -= *(int64_t *)pCtbDropped * (nCols - 1);
+      }
     }
   }
   tSimpleHashCleanup(suidHash);
