@@ -306,8 +306,7 @@ int32_t stReaderStreamDeploy(SVnode* pVnode, SRpcMsg* pMsg) {
   SStreamInfoObj* info = createStreamInfo(deployMsg);
   STREAM_CHECK_NULL_GOTO(info, terrno);
 
-  // STREAM_CHECK_RET_GOTO(taosHashPut(streamInfoMap, &deployMsg->streamId, sizeof(deployMsg->streamId), &info,
-  // POINTER_BYTES));
+  STREAM_CHECK_RET_GOTO(taosHashPut(streamInfoMap, &deployMsg->streamId, sizeof(deployMsg->streamId), &info, POINTER_BYTES));
 
 end:
   if (code != 0) {
@@ -840,7 +839,7 @@ end:
   return code;
 }
 
-static void buildTSchema(STSchema *pTSchema, int32_t ver, col_id_t colId, int8_t type, int32_t bytes){
+static void buildTSchema(STSchema* pTSchema, int32_t ver, col_id_t colId, int8_t type, int32_t bytes) {
   pTSchema->numOfCols = 1;
   pTSchema->version = ver;
   pTSchema->columns[0].colId = colId;
@@ -853,12 +852,12 @@ int32_t retrieveWalMetaData(SSubmitTbData* pSubmitTbData, void* pTableList, SSDa
   int32_t code = 0;
   int32_t lino = 0;
 
-  int32_t ver = pSubmitTbData->sver;
-  int64_t uid = pSubmitTbData->uid;
-  int32_t numOfRows = 0;
-  int64_t skey = 0;
-  int64_t ekey = 0;
-  STSchema *pTSchema = NULL;
+  int32_t   ver = pSubmitTbData->sver;
+  int64_t   uid = pSubmitTbData->uid;
+  int32_t   numOfRows = 0;
+  int64_t   skey = 0;
+  int64_t   ekey = 0;
+  STSchema* pTSchema = NULL;
   STREAM_CHECK_CONDITION_GOTO(!qStreamUidInTableList(pTableList, uid), TDB_CODE_SUCCESS);
   int64_t gid = qStreamGetGroupId(pTableList, uid);
 
@@ -877,7 +876,7 @@ int32_t retrieveWalMetaData(SSubmitTbData* pSubmitTbData, void* pTableList, SSDa
     numOfRows = taosArrayGetSize(pSubmitTbData->aRowP);
     SRow* pRow = taosArrayGetP(pSubmitTbData->aRowP, 0);
     STREAM_CHECK_NULL_GOTO(pRow, terrno);
-    SColVal  colVal = {0};
+    SColVal colVal = {0};
     pTSchema = taosMemoryCalloc(1, sizeof(STSchema) + sizeof(STColumn));
     STREAM_CHECK_NULL_GOTO(pTSchema, terrno);
     buildTSchema(pTSchema, ver, PRIMARYKEY_TIMESTAMP_COL_ID, TSDB_DATA_TYPE_TIMESTAMP, LONG_BYTES);
@@ -903,11 +902,11 @@ int32_t retrieveWalData(SSubmitTbData* pSubmitTbData, void* pTableList, SSDataBl
   int32_t code = 0;
   int32_t lino = 0;
 
-  int32_t ver = pSubmitTbData->sver;
-  int64_t uid = pSubmitTbData->uid;
-  int32_t numOfRows = 0;
-  STSchema *pTSchemaTs = NULL;
-  STSchema *pTSchema = NULL;
+  int32_t   ver = pSubmitTbData->sver;
+  int64_t   uid = pSubmitTbData->uid;
+  int32_t   numOfRows = 0;
+  STSchema* pTSchemaTs = NULL;
+  STSchema* pTSchema = NULL;
   // code = blockDataEnsureCapacity(pBlock, numOfRows);
   // TSDB_CHECK_CODE(code, line, END);
 
@@ -948,8 +947,8 @@ int32_t retrieveWalData(SSubmitTbData* pSubmitTbData, void* pTableList, SSDataBl
           for (int32_t k = rowStart; k < rowEnd; k++) {
             SColVal colVal = {0};
             STREAM_CHECK_RET_GOTO(tColDataGetValue(pCol, k, &colVal));
-            STREAM_CHECK_RET_GOTO(
-                colDataSetVal(pColData, k, VALUE_GET_DATUM(&colVal.value, colVal.value.type), !COL_VAL_IS_VALUE(&colVal)));
+            STREAM_CHECK_RET_GOTO(colDataSetVal(pColData, k, VALUE_GET_DATUM(&colVal.value, colVal.value.type),
+                                                !COL_VAL_IS_VALUE(&colVal)));
           }
         }
       }
@@ -962,7 +961,7 @@ int32_t retrieveWalData(SSubmitTbData* pSubmitTbData, void* pTableList, SSDataBl
     for (int32_t j = 0; j < taosArrayGetSize(pSubmitTbData->aRowP); j++) {
       SRow* pRow = taosArrayGetP(pSubmitTbData->aRowP, j);
       STREAM_CHECK_NULL_GOTO(pRow, terrno);
-      SColVal  colVal = {0};
+      SColVal colVal = {0};
       STREAM_CHECK_RET_GOTO(tRowGet(pRow, pTSchemaTs, 0, &colVal));
       int64_t ts = VALUE_GET_TRIVIAL_DATUM(&colVal.value);
       if (ts < window->skey || ts > window->ekey) {
@@ -971,14 +970,14 @@ int32_t retrieveWalData(SSubmitTbData* pSubmitTbData, void* pTableList, SSDataBl
       for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {
         SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
         STREAM_CHECK_NULL_GOTO(pColData, terrno);
-        SColVal  colVal = {0};
+        SColVal colVal = {0};
         pTSchema = taosMemoryCalloc(1, sizeof(STSchema) + sizeof(STColumn));
         STREAM_CHECK_NULL_GOTO(pTSchema, terrno);
         buildTSchema(pTSchema, ver, pColData->info.colId, pColData->info.type, pColData->info.bytes);
         STREAM_CHECK_RET_GOTO(tRowGet(pRow, pTSchema, pColData->info.colId, &colVal));
         taosMemoryFreeClear(pTSchema);
-        STREAM_CHECK_RET_GOTO(
-            colDataSetVal(pColData, numOfRows++, VALUE_GET_DATUM(&colVal.value, colVal.value.type), !COL_VAL_IS_VALUE(&colVal)));
+        STREAM_CHECK_RET_GOTO(colDataSetVal(pColData, numOfRows++, VALUE_GET_DATUM(&colVal.value, colVal.value.type),
+                                            !COL_VAL_IS_VALUE(&colVal)));
       }
     }
   }
@@ -1005,8 +1004,8 @@ int32_t scanWal(void* pVnode, void* pTableList, SSDataBlock* pBlock, int64_t ver
   while (1) {
     STREAM_CHECK_CONDITION_GOTO(walNextValidMsg(pWalReader) < 0, TSDB_CODE_SUCCESS);
 
-    void*    data = POINTER_SHIFT(pWalReader->pHead->head.body, sizeof(SMsgHead));                                            \
-    int32_t  len = pWalReader->pHead->head.bodyLen - sizeof(SMsgHead); 
+    void*   data = POINTER_SHIFT(pWalReader->pHead->head.body, sizeof(SMsgHead));
+    int32_t len = pWalReader->pHead->head.bodyLen - sizeof(SMsgHead);
     int64_t ver = pWalReader->pHead->head.version;
 
     if (pWalReader->pHead->head.msgType == TDMT_VND_DELETE) {
