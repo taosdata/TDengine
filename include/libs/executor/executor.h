@@ -24,6 +24,8 @@ extern "C" {
 #include "storageapi.h"
 #include "tcommon.h"
 #include "tmsgcb.h"
+#include "storageapi.h"
+#include "functionMgt.h"
 
 typedef void* qTaskInfo_t;
 typedef void* DataSinkHandle;
@@ -63,10 +65,9 @@ typedef struct {
 } SReadHandle;
 
 typedef struct {
-  const SArray* pPseudoCols;
-  const SArray* pPartCols;
-  int32_t       execId;
-  bool          resetFlag;
+  SStreamRuntimeFuncInfo funcInfo;
+  int32_t                execId;
+  bool                   resetFlag;
 } SStreamRuntimeInfo;
 
 // in queue mode, data streams are seperated by msg

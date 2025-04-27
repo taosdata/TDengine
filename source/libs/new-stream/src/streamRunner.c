@@ -1,6 +1,5 @@
 #include "streamRunner.h"
 #include "executor.h"
-#include "plannodes.h"
 
 static const int32_t taskConcurrentExecutionNum = 4;  // TODO wjm make it configurable
 
@@ -111,6 +110,13 @@ int32_t stRunnerTaskUndeploy(SStreamRunnerTask* pTask, const SStreamUndeployTask
   return 0;
 }
 
+static int32_t streamResetTaskExec(SStreamRunnerTaskExecution* pExec) {
+  int32_t code = 0;
+  pExec->tbname[0] = '\0';
+  code = streamClearStatesForOperators(pExec->pExecutor);
+  return code;
+}
+
 int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, const char* pMsg, int32_t msgLen) {
   SStreamRunnerTaskExecution* pExec = NULL;
 
@@ -123,14 +129,14 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, const char* pMsg, int32_t 
   }
 
   pTask->task.sessionId = req.base.sessionId;
-  pExec->runtimeInfo.pPartCols = req.groupColVals;
-  pExec->runtimeInfo.pPseudoCols = req.params;
+  pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals = req.groupColVals;
+  pExec->runtimeInfo.funcInfo.pStreamPartColVals = req.params;
   pExec->runtimeInfo.resetFlag = req.resetFlag;
   if (!pExec->pExecutor) {
     code = streamBuildTask(pTask, pExec->pExecutor);
   } else {
     if (req.resetFlag)
-      code = streamClearStatesForOperators(pExec->pExecutor);
+      streamResetTaskExec(pExec);
   }
 
   streamSetTaskRuntimeInfo(pExec->pExecutor, &pExec->runtimeInfo);
@@ -138,15 +144,14 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, const char* pMsg, int32_t 
   SSDataBlock* pBlock = NULL;
   uint64_t     ts = 0;
   if (code == 0) {
-    code = streamExecuteTask(pExec->pExecutor, &pBlock, &ts);  // TODO wjm impl it
+    code = streamExecuteTask(pExec->pExecutor, &pBlock, &ts);
   }
   if (code != 0) {
     ST_TASK_ELOG("failed to exec task code: %s", tstrerror(code));
   } else {
     if (pBlock && pBlock->info.rows > 0) {
-      char tbname[TSDB_TABLE_NAME_LEN] = {0};
       if (pExec->tbname[0] == '\0')
-        code = streamCalcOutputTbName(pTask->pSubTableExpr, tbname, &pExec->runtimeInfo);
+        code = streamCalcOutputTbName(pTask->pSubTableExpr, pExec->tbname, &pExec->runtimeInfo.funcInfo);
       if (code != 0) {
         ST_TASK_ELOG("failed to calc output tbname: %s", tstrerror(code));
       } else {

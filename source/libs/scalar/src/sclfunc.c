@@ -4668,3 +4668,7 @@ int32_t leastFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   return greatestLeastImpl(pInput, inputNum, pOutput, OP_TYPE_LOWER_THAN);
 }
 
+int32_t streamPseudoScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  // TODO wjm just return the first param
+  return 0;
+}

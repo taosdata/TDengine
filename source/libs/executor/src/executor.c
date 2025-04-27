@@ -1770,7 +1770,7 @@ return tableListGetTableGroupId(pTableListInfo, uid) != -1;
 
 void streamDestroyExecTask(qTaskInfo_t tInfo) {}
 
-static int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, void* pExtraParams) {
+static int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamRuntimeFuncInfo* pExtraParams) {
   int32_t    code = 0;
   SNode*     pNode = 0;
   SNodeList* pList = NULL;
@@ -1845,7 +1845,7 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes) {
       code = colDataSetVal(pInfo, 0, p, ((SValueNode*)pNode)->isNull);
     } else {
       dst.columnData = pInfo;
-      code = streamCalcOneScalarExpr(pNode, &dst, pTaskInfo->pStreamRuntimeInfo);
+      code = streamCalcOneScalarExpr(pNode, &dst, &pTaskInfo->pStreamRuntimeInfo->funcInfo);
     }
     ++idx;
     if (code != 0) break;
@@ -1853,7 +1853,7 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes) {
   return code;
 }
 
-int32_t streamCalcOutputTbName(SNode *pExpr, char *tbname, void *pPartColVals) {
+int32_t streamCalcOutputTbName(SNode *pExpr, char *tbname, const SStreamRuntimeFuncInfo *pStreamRuntimeInfo) {
   int32_t      code = 0;
   const char*  pVal = NULL;
   SScalarParam dst = {0};
@@ -1880,7 +1880,7 @@ int32_t streamCalcOutputTbName(SNode *pExpr, char *tbname, void *pPartColVals) {
       SColumnInfoData colInfo =
           createColumnInfoData(((SExprNode*)pExpr)->resType.type, ((SExprNode*)pExpr)->resType.bytes, 0);
       dst.columnData = &colInfo;
-      code = streamCalcOneScalarExpr(pExpr, &dst, pPartColVals);
+      code = streamCalcOneScalarExpr(pExpr, &dst, pStreamRuntimeInfo);
       if (code == 0) {
         pVal = varDataVal(colDataGetVarData(dst.columnData, 0));
         len = varDataTLen(pVal);

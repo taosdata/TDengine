@@ -512,7 +512,7 @@ static int32_t sclInitStreamPseudoFuncParamList(int32_t funcId, SScalarParam **p
     return TSDB_CODE_INTERNAL_ERROR;
   }
 
-  code = fmSetStreamPseudoFuncParamVal(funcId, pParamNodes, pCtx->pStreamPseudoFuncVals);
+  code = fmSetStreamPseudoFuncParamVal(funcId, pParamNodes, pCtx->pStreamRuntimeFuncInfo);
   if (code != 0) {
     sclError("failed to set stream pseudo func param vals: %s", tstrerror(code));
     return code;
@@ -1948,7 +1948,7 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, co
   }
 
   int32_t    code = 0;
-  SScalarCtx ctx = {.code = 0, .pBlockList = pBlockList, .param = pDst ? pDst->param : NULL, .pStreamPseudoFuncVals = extraParam};
+  SScalarCtx ctx = {.code = 0, .pBlockList = pBlockList, .param = pDst ? pDst->param : NULL, .pStreamRuntimeFuncInfo = extraParam};
 
   // TODO: OPT performance
   ctx.pRes = taosHashInit(SCL_DEFAULT_OP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
