@@ -86,70 +86,47 @@ IF(NOT TD_DARWIN)
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
   )
 
-  target_link_libraries(idxTest
+  DEP_ext_gtest(idxTest)
+  target_link_libraries(idxTest PRIVATE
     os
     util
     common
-    gtest_main
     index
   )
-  target_link_libraries(idxFstTest
+  DEP_ext_gtest(idxFstTest)
+  target_link_libraries(idxFstTest PRIVATE
     os
     util
     common
-    gtest_main
     index
   )
-  target_link_libraries(idxFstUT
+  DEP_ext_gtest(idxFstUT)
+  target_link_libraries(idxFstUT PRIVATE
     os
     util
     common
-    gtest_main
     index
   )
-
-  target_link_libraries(idxTest
+  DEP_ext_gtest(idxUtilUT)
+  target_link_libraries(idxUtilUT PRIVATE
     os
     util
     common
-    gtest_main
-    index
-  )
-  target_link_libraries(idxFstTest
-    os
-    util
-    common
-    gtest_main
-    index
-  )
-  target_link_libraries(idxFstUT
-    os
-    util
-    common
-    gtest_main
     index
   )
 
-  target_link_libraries(idxUtilUT
+  DEP_ext_gtest(idxJsonUT)
+  target_link_libraries(idxJsonUT PRIVATE
     os
     util
     common
-    gtest_main
     index
   )
-
-  target_link_libraries(idxJsonUT
+  DEP_ext_gtest(idxFstUtilUT)
+  target_link_libraries(idxFstUtilUT PRIVATE
     os
     util
     common
-    gtest_main
-    index
-  )
-  target_link_libraries(idxFstUtilUT
-    os
-    util
-    common
-    gtest_main
     index
   )
 
