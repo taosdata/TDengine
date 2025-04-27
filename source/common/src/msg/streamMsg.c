@@ -23,6 +23,17 @@ typedef struct STaskId {
   int64_t taskId;
 } STaskId;
 
+typedef enum EWindowType {
+  WINDOW_TYPE_INTERVAL = 1,
+  WINDOW_TYPE_SESSION,
+  WINDOW_TYPE_STATE,
+  WINDOW_TYPE_EVENT,
+  WINDOW_TYPE_COUNT,
+  WINDOW_TYPE_ANOMALY,
+  WINDOW_TYPE_EXTERNAL,
+  WINDOW_TYPE_PERIOD
+} EWindowType;
+
 typedef struct STaskCkptInfo {
   int64_t latestId;          // saved checkpoint id
   int64_t latestVer;         // saved checkpoint ver
@@ -628,45 +639,51 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->expiredTime));
 
   switch (pMsg->triggerType) {
-    case QUERY_NODE_SESSION_WINDOW:
-        // session trigger
-        TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->trigger.session.slotId));
-        TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.session.sessionVal));
-        break;
-    case QUERY_NODE_STATE_WINDOW:
+    case QUERY_NODE_SESSION_WINDOW: {
+      // session trigger
+      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->trigger.session.slotId));
+      TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.session.sessionVal));
+      break;
+    }
+    case QUERY_NODE_STATE_WINDOW: {
       // state trigger
       TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->trigger.stateWin.slotId));
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.stateWin.trueForDuration));
       break;
-    case QUERY_NODE_INTERVAL_WINDOW:
+    }
+    case QUERY_NODE_INTERVAL_WINDOW: {
       // slide trigger
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.sliding.interval));
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.sliding.sliding));
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.sliding.offset));
       break;
-    case QUERY_NODE_EVENT_WINDOW:
+    }
+    case QUERY_NODE_EVENT_WINDOW: {
       // event trigger
       int32_t eventWindowStartCondLen = pMsg->trigger.event.startCond == NULL ? 0 : (int32_t)strlen((char*)pMsg->trigger.event.startCond) + 1;
       int32_t eventWindowEndCondLen = pMsg->trigger.event.endCond == NULL ? 0 : (int32_t)strlen((char*)pMsg->trigger.event.endCond) + 1;
-      
+
       TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pMsg->trigger.event.startCond, eventWindowStartCondLen));
       TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pMsg->trigger.event.endCond, eventWindowEndCondLen));
-      
+
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.event.trueForDuration));
       break;
-    case QUERY_NODE_COUNT_WINDOW:
+    }
+    case QUERY_NODE_COUNT_WINDOW: {
       // count trigger
       int32_t countWindowCondColsLen = pMsg->trigger.count.condCols == NULL ? 0 : (int32_t)strlen((char*)pMsg->trigger.count.condCols) + 1;
       TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pMsg->trigger.count.condCols, countWindowCondColsLen));
-      
+
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.count.countVal));
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.count.sliding));
       break;
-    case QUERY_NODE_PERIOD_WINDOW:
+    }
+    case QUERY_NODE_PERIOD_WINDOW: {
       // period trigger
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.period.period));
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.period.offset));
       break;
+    }
     default:
       TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
       break;
@@ -1457,6 +1474,13 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->notifyHistory));
 
   // out table part
+
+  // trigger cols and partition cols
+  int32_t triggerColsLen = pReq->triggerCols == NULL ? 0 : (int32_t)strlen((char*)pReq->triggerCols) + 1;
+  int32_t partitionColsLen = pReq->partitionCols == NULL ? 0 : (int32_t)strlen((char*)pReq->partitionCols) + 1;
+  TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->triggerCols, triggerColsLen));
+  TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->partitionCols, partitionColsLen));
+
   // out col
   int32_t outColSize = (int32_t )taosArrayGetSize(pReq->outCols);
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, outColSize));
@@ -1476,54 +1500,58 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
     TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pField->name));
   }
 
-  // partition col part
-  int32_t parColSize = (int32_t)taosArrayGetSize(pReq->partitionCols);
-  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, parColSize));
-  for (int32_t i = 0; i < parColSize; ++i) {
-    SField *pField = taosArrayGet(pReq->partitionCols, i);
-    TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pField->type));
-    TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pField->flags));
-    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pField->bytes));
-    TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pField->name));
-  }
-
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->maxDelay));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->fillHistoryStartTime));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->watermark));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->expiredTime));
 
-  // session trigger
-  TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pReq->trigger.session.slotId));
-  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.session.sessionVal));
+  switch (pReq->triggerType) {
+    case WINDOW_TYPE_SESSION: {
+      // session trigger
+      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pReq->trigger.session.slotId));
+      TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.session.sessionVal));
+      break;
+    }
+    case WINDOW_TYPE_STATE: {
+      // state trigger
+      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pReq->trigger.stateWin.slotId));
+      TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.stateWin.trueForDuration));
+      break;
+    }
+    case WINDOW_TYPE_INTERVAL: {
+      // slide trigger
+      TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.sliding.interval));
+      TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.sliding.sliding));
+      TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.sliding.offset));
+      break;
+    }
+    case WINDOW_TYPE_EVENT: {
+      // event trigger
+      int32_t eventWindowStartCondLen = pReq->trigger.event.startCond == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.event.startCond) + 1;
+      int32_t eventWindowEndCondLen = pReq->trigger.event.endCond == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.event.endCond) + 1;
 
-  // state trigger
-  TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pReq->trigger.stateWin.slotId));
-  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.stateWin.trueForDuration));
+      TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->trigger.event.startCond, eventWindowStartCondLen));
+      TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->trigger.event.endCond, eventWindowEndCondLen));
 
-  // slide trigger
-  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.sliding.interval));
-  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.sliding.sliding));
-  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.sliding.offset));
+      TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.event.trueForDuration));
+      break;
+    }
+    case WINDOW_TYPE_COUNT: {
+      // count trigger
+      int32_t countWindowCondColsLen = pReq->trigger.count.condCols == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.count.condCols) + 1;
+      TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->trigger.count.condCols, countWindowCondColsLen));
 
-  // event trigger
-  int32_t eventWindowStartCondLen = pReq->trigger.event.startCond == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.event.startCond) + 1;
-  int32_t eventWindowEndCondLen = pReq->trigger.event.endCond == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.event.endCond) + 1;
-
-  TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->trigger.event.startCond, eventWindowStartCondLen));
-  TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->trigger.event.endCond, eventWindowEndCondLen));
-
-  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.event.trueForDuration));
-
-  // count trigger
-  int32_t countWindowCondColsLen = pReq->trigger.count.condCols == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.count.condCols) + 1;
-  TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->trigger.count.condCols, countWindowCondColsLen));
-
-  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.count.countVal));
-  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.count.sliding));
-
-  // period trigger
-  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.period.period));
-  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.period.offset));
+      TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.count.countVal));
+      TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.count.sliding));
+      break;
+    }
+    case WINDOW_TYPE_PERIOD: {
+      // period trigger
+      TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.period.period));
+      TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.period.offset));
+      break;
+    }
+  }
 
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->triggerTblType));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->outTblType));
@@ -1534,10 +1562,7 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->triggerTblVgId));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->outTblVgId));
 
-  //int32_t triggerPrevFilterLen = pReq->triggerPrevFilter == NULL ? 0 : (int32_t)strlen((char*)pReq->triggerPrevFilter) + 1;
   int32_t triggerScanPlanLen = pReq->triggerScanPlan == NULL ? 0 : (int32_t)strlen((char*)pReq->triggerScanPlan) + 1;
-
-  //TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->triggerPrevFilter, triggerPrevFilterLen));
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->triggerScanPlan, triggerScanPlanLen));
 
   int32_t calcScanPlanListSize = (int32_t)taosArrayGetSize(pReq->calcScanPlanList);
@@ -1677,6 +1702,9 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->notifyErrorHandle));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->notifyHistory));
 
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->triggerCols, NULL));
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->partitionCols, NULL));
+
   int32_t outColSize = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &outColSize));
   if (outColSize > 0) {
@@ -1711,63 +1739,58 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
     }
   }
 
-  int32_t parColSize = 0;
-  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &parColSize));
-  if (parColSize > 0) {
-    pReq->partitionCols = taosArrayInit(parColSize, sizeof(SField));
-    if (pReq->partitionCols == NULL) {
-      TAOS_CHECK_EXIT(terrno);
-    }
-
-    for (int32_t i = 0; i < parColSize; ++i) {
-      SField field = {0};
-      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &field.type));
-      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &field.flags));
-      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &field.bytes));
-      TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, field.name));
-      if (taosArrayPush(pReq->partitionCols, &field) == NULL) {
-        TAOS_CHECK_EXIT(terrno);
-      }
-    }
-  }
-
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->maxDelay));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->fillHistoryStartTime));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->watermark));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->expiredTime));
 
-  // session trigger
-  TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pReq->trigger.session.slotId));
-  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.session.sessionVal));
+  switch (pReq->triggerType) {
+    case WINDOW_TYPE_SESSION: {
+      // session trigger
+      TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pReq->trigger.session.slotId));
+      TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.session.sessionVal));
+      break;
+    }
+      case WINDOW_TYPE_STATE: {
+        // state trigger
+        TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pReq->trigger.stateWin.slotId));
+        TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.stateWin.trueForDuration));
+        break;
+      }
+      case WINDOW_TYPE_INTERVAL: {
+        // slide trigger
+        TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.sliding.interval));
+        TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.sliding.sliding));
+        TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.sliding.offset));
+        break;
+      }
+      case WINDOW_TYPE_EVENT: {
+        // event trigger
+        int32_t eventWindowStartCondLen = pReq->trigger.event.startCond == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.event.startCond);
+        int32_t eventWindowEndCondLen = pReq->trigger.event.endCond == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.event.endCond);
 
-  // state trigger
-  TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pReq->trigger.stateWin.slotId));
-  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.stateWin.trueForDuration));
+        TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->trigger.event.startCond, NULL));
+        TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->trigger.event.endCond, NULL));
+        TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.event.trueForDuration));
+        break;
+      }
+      case WINDOW_TYPE_COUNT: {
+        int32_t countWindowCondColsLen = pReq->trigger.count.condCols == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.count.condCols);
+        TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->trigger.count.condCols, NULL));
 
-  // slide trigger
-  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.sliding.interval));
-  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.sliding.sliding));
-  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.sliding.offset));
-
-
-  // event trigger
-  int32_t eventWindowStartCondLen = pReq->trigger.event.startCond == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.event.startCond);
-  int32_t eventWindowEndCondLen = pReq->trigger.event.endCond == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.event.endCond);
-
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->trigger.event.startCond, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->trigger.event.endCond, NULL));
-  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.event.trueForDuration));
-
-  // count trigger
-  int32_t countWindowCondColsLen = pReq->trigger.count.condCols == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.count.condCols);
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->trigger.count.condCols, NULL));
-
-  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.count.countVal));
-  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.count.sliding));
-
-  // period trigger
-  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.period.period));
-  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.period.offset));
+        TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.count.countVal));
+        TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.count.sliding));
+        break;
+      }
+      case WINDOW_TYPE_PERIOD: {
+        // period trigger
+        TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.period.period));
+        TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.period.offset));
+        break;
+      }
+      default:
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
 
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->triggerTblType));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->outTblType));
@@ -1778,7 +1801,6 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->triggerTblVgId));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->outTblVgId));
 
-  //TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->triggerPrevFilter, NULL));
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->triggerScanPlan, NULL));
 
   int32_t calcScanPlanListSize = 0;

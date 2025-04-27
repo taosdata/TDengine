@@ -58,6 +58,9 @@ typedef struct SPlanContext {
   SNode*      streamTriggerScanSubplan;
   SArray*     pStreamCalcVgArray;
   SHashObj*   pStreamCalcDbs;
+  SNode*      pStreamTriggerWindow;
+  SNode*      pStreamTriggerPartition;
+  SNode*      pStreamTriggerFilter;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.

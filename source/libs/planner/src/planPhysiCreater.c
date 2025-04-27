@@ -455,7 +455,7 @@ static EDealRes doSetMultiTableSlotId(SNode* pNode, void* pContext) {
     if (pCxt->isVtb && !((SColumnNode*)pNode)->hasRef) {
       return DEAL_RES_CONTINUE;
     }
-    
+
     pCxt->errCode = getSlotKey(pNode, NULL, &name, &len, 16);
     if (TSDB_CODE_SUCCESS != pCxt->errCode) {
       return DEAL_RES_ERROR;
@@ -2556,12 +2556,16 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
   return code;
 }
 
-static ENodeType getIntervalOperatorType(EWindowAlgorithm windowAlgo) {
+static ENodeType getOperatorType(EWindowAlgorithm windowAlgo) {
   switch (windowAlgo) {
     case INTERVAL_ALGO_HASH:
       return QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL;
     case INTERVAL_ALGO_MERGE:
       return QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL;
+    case EXTERNAL_ALGO_HASH:
+      return QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL;
+    case EXTERNAL_ALGO_MERGE:
+      return QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL;
     default:
       break;
   }
@@ -2571,7 +2575,7 @@ static ENodeType getIntervalOperatorType(EWindowAlgorithm windowAlgo) {
 static int32_t createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                        SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
   SIntervalPhysiNode* pInterval = (SIntervalPhysiNode*)makePhysiNode(
-      pCxt, (SLogicNode*)pWindowLogicNode, getIntervalOperatorType(pWindowLogicNode->windowAlgo));
+      pCxt, (SLogicNode*)pWindowLogicNode, getOperatorType(pWindowLogicNode->windowAlgo));
   if (NULL == pInterval) {
     return terrno;
   }
@@ -2760,7 +2764,7 @@ static int32_t createAnomalyWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
 static int32_t createExternalWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                              SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
   SExternalWindowPhysiNode* pExternal = (SExternalWindowPhysiNode*)makePhysiNode(
-      pCxt, (SLogicNode*)pWindowLogicNode, QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW);
+      pCxt, (SLogicNode*)pWindowLogicNode, getOperatorType(pWindowLogicNode->windowAlgo));
   if (NULL == pExternal) {
     return terrno;
   }
@@ -2776,6 +2780,9 @@ static int32_t createExternalWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList*
 }
 static int32_t createWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SWindowLogicNode* pWindowLogicNode,
                                      SPhysiNode** pPhyNode) {
+  if (pCxt->pPlanCxt->streamTriggerQuery) {
+    pCxt->pPlanCxt->pStreamTriggerWindow = (SNode*)*pPhyNode;
+  }
   switch (pWindowLogicNode->winType) {
     case WINDOW_TYPE_INTERVAL:
       return createIntervalPhysiNode(pCxt, pChildren, pWindowLogicNode, pPhyNode);
@@ -2915,6 +2922,9 @@ static int32_t createPartitionPhysiNodeImpl(SPhysiPlanContext* pCxt, SNodeList* 
 
 static int32_t createPartitionPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                         SPartitionLogicNode* pPartLogicNode, SPhysiNode** pPhyNode) {
+  if (pCxt->pPlanCxt->streamTriggerQuery) {
+    pCxt->pPlanCxt->pStreamTriggerPartition = (SNode*)*pPhyNode;
+  }
   return createPartitionPhysiNodeImpl(pCxt, pChildren, pPartLogicNode, QUERY_NODE_PHYSICAL_PLAN_PARTITION, pPhyNode);
 }
 
