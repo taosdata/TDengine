@@ -378,13 +378,16 @@ static int32_t doGetVtableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, 
               }
               lastTs = *(int64_t*)pData;
             }
-            continue;
           }
           int32_t slotKey = blockId << 16 | i;
-          void *slotId = taosHashGet(pInfo->virtualScanInfo.dataSlotMap, &slotKey, sizeof(slotKey));
+          void*   slotId = taosHashGet(pInfo->virtualScanInfo.dataSlotMap, &slotKey, sizeof(slotKey));
           if (slotId == NULL) {
-            qError("failed to get slotId from dataSlotMap, blockId:%d, slotId:%d", blockId, i);
-            VTS_ERR_RET(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR);
+            if (i == 0) {
+              continue;
+            } else {
+              qError("failed to get slotId from dataSlotMap, blockId:%d, slotId:%d", blockId, i);
+              VTS_ERR_RET(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR);
+            }
           }
           VTS_ERR_RET(colDataSetVal(taosArrayGet(p->pDataBlock, *(int32_t *)slotId), rowNums, pData, false));
         }
