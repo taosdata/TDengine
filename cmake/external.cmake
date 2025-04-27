@@ -169,7 +169,7 @@ if(${TD_LINUX})
 elseif(${TD_DARWIN})
     set(ext_zlib_static libz.a)
 elseif(${TD_WINDOWS})
-    set(ext_zlib_static zs$<$<STREQUAL:${TD_CONFIG_NAME},Debug>:d>.lib)
+    set(ext_zlib_static zlibstatic$<$<STREQUAL:${TD_CONFIG_NAME},Debug>:d>.lib)
 endif()
 INIT_EXT(ext_zlib
     INC_DIR          include
@@ -451,6 +451,7 @@ ExternalProject_Add(ext_lz4
     GIT_SHALLOW TRUE
     PREFIX "${_base}"
     SOURCE_SUBDIR build/cmake
+    CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
     CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
@@ -484,6 +485,7 @@ ExternalProject_Add(ext_cjson
     GIT_TAG 12c4bf1986c288950a3d06da757109a6aa1ece38
     GIT_SHALLOW FALSE
     PREFIX "${_base}"
+    CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
     CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
@@ -523,6 +525,7 @@ ExternalProject_Add(ext_xz
     GIT_TAG v5.4.4
     GIT_SHALLOW TRUE
     PREFIX "${_base}"
+    CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
     CMAKE_ARGS -DBUILD_TESTING:BOOL=OFF
@@ -652,6 +655,7 @@ if(${BUILD_WITH_UV})        # {
         GIT_TAG v1.49.2
         GIT_SHALLOW TRUE
         PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
@@ -826,15 +830,10 @@ if(NOT ${TD_WINDOWS})       # {
         set(ext_ssl_static libssl.a)
         set(ext_crypto_static libcrypto.a)
     endif()
-    if(${TD_LINUX})
-      set(_lib lib64)
-    else()
-      set(_lib lib)
-    endif()
     INIT_EXT(ext_ssl
         INC_DIR          include
-        LIB              ${_lib}/${ext_ssl_static}
-                         ${_lib}/${ext_crypto_static}
+        LIB              lib/${ext_ssl_static}
+                         lib/${ext_crypto_static}
         # debugging github working flow
         # CHK_NAME         SSL
     )
@@ -853,7 +852,7 @@ if(NOT ${TD_WINDOWS})       # {
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
             # COMMAND ./Configure --prefix=$ENV{HOME}/.cos-local.2 no-shared
-            COMMAND ./Configure --prefix=${_ins} no-shared
+            COMMAND ./Configure --prefix=${_ins} no-shared --libdir=lib
         BUILD_COMMAND
             COMMAND make -j4
         INSTALL_COMMAND
@@ -933,6 +932,7 @@ if(${BUILD_GEOS})           # {
         GIT_TAG 3.12.0
         GIT_SHALLOW TRUE
         PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
@@ -1065,6 +1065,7 @@ if(${BUILD_PCRE2})          # {
         GIT_TAG pcre2-10.45
         GIT_SHALLOW TRUE
         PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -DPCRE2_BUILD_TESTS:BOOL=OFF
@@ -1183,6 +1184,7 @@ if(TD_TAOS_TOOLS)
         GIT_SHALLOW FALSE
         GIT_SUBMODULES ""
         PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
@@ -1234,6 +1236,7 @@ if(TD_TAOS_TOOLS)
         DEPENDS ext_zlib ext_jansson ext_snappy
         PREFIX "${_base}"
         SOURCE_SUBDIR lang/c
+        CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -DZLIB_INCLUDE_DIRS:STRING=${ext_zlib_install}/include
@@ -1286,6 +1289,7 @@ if(NOT ${TD_WINDOWS})        # {
         GIT_TAG v2.14.0
         GIT_SHALLOW TRUE
         PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
