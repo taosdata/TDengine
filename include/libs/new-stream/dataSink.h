@@ -93,7 +93,7 @@ typedef struct SDataSinkManager2 {
   int64_t   fileBlockSize;
   int64_t   readDataFromMemTimes;
   int64_t   readDataFromFileTimes;
-  SHashObj* DataSinkStreamTaskList;  // hash <streamId + taskId, SStreamTaskDSManager>
+  SHashObj* dataSinkStreamTaskList;  // hash <streamId + taskId, SStreamTaskDSManager>
 } SDataSinkManager2;
 extern SDataSinkManager2 g_pDataSinkManager;
 

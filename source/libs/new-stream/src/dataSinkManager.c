@@ -51,12 +51,12 @@ int32_t     initStreamDataSinkOnce() {
   g_pDataSinkManager.fileBlockSize = 0;
   g_pDataSinkManager.readDataFromMemTimes = 0;
   g_pDataSinkManager.readDataFromFileTimes = 0;
-  g_pDataSinkManager.DataSinkStreamTaskList =
+  g_pDataSinkManager.dataSinkStreamTaskList =
       taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
-  if (g_pDataSinkManager.DataSinkStreamTaskList == NULL) {
+  if (g_pDataSinkManager.dataSinkStreamTaskList == NULL) {
     return terrno;
   }
-  taosHashSetFreeFp(g_pDataSinkManager.DataSinkStreamTaskList, destroySStreamDataSinkManager);
+  taosHashSetFreeFp(g_pDataSinkManager.dataSinkStreamTaskList, destroySStreamDataSinkManager);
   return TSDB_CODE_SUCCESS;
 };
 
@@ -112,7 +112,7 @@ static bool shouldWriteIntoFile(SStreamTaskDSManager* pStreamDataSink, int64_t g
 }
 
 static bool isManagerReady() {
-  if (g_pDataSinkManager.DataSinkStreamTaskList != NULL) {
+  if (g_pDataSinkManager.dataSinkStreamTaskList != NULL) {
     return true;
   }
   return false;
@@ -206,7 +206,7 @@ int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int32_t cleanMode,
   char key[64] = {0};
   snprintf(key, sizeof(key), "%" PRId64 "_%" PRId64, streamId, taskId);
   SStreamTaskDSManager** ppStreamTaskDSManager =
-      (SStreamTaskDSManager**)taosHashGet(g_pDataSinkManager.DataSinkStreamTaskList, key, strlen(key));
+      (SStreamTaskDSManager**)taosHashGet(g_pDataSinkManager.dataSinkStreamTaskList, key, strlen(key));
   if (ppStreamTaskDSManager == NULL) {
     SStreamTaskDSManager* pStreamTaskDSManager = NULL;
     code = createStreamTaskDSManager(streamId, taskId, cleanMode, &pStreamTaskDSManager);
@@ -214,7 +214,7 @@ int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int32_t cleanMode,
       stError("failed to create stream task data sink manager, err: %s", terrMsg);
       return code;
     }
-    code = taosHashPut(g_pDataSinkManager.DataSinkStreamTaskList, key, strlen(key), &pStreamTaskDSManager,
+    code = taosHashPut(g_pDataSinkManager.dataSinkStreamTaskList, key, strlen(key), &pStreamTaskDSManager,
                        sizeof(SStreamTaskDSManager*));
     if (code != 0) {
       doDestoryStreamTaskDSManager(pStreamTaskDSManager);
@@ -400,9 +400,9 @@ void cancelStreamDataCacheIterate(void** pIter) { releaseDataIterator(pIter); }
 int32_t destroyDataSinkManager2() {
   int8_t flag = atomic_val_compare_exchange_8(&g_pDataSinkManager.status, 1, 0);
   if (flag == 1) {
-    if (g_pDataSinkManager.DataSinkStreamTaskList) {
-      taosHashCleanup(g_pDataSinkManager.DataSinkStreamTaskList);
-      g_pDataSinkManager.DataSinkStreamTaskList = NULL;
+    if (g_pDataSinkManager.dataSinkStreamTaskList) {
+      taosHashCleanup(g_pDataSinkManager.dataSinkStreamTaskList);
+      g_pDataSinkManager.dataSinkStreamTaskList = NULL;
     }
   }
   return TSDB_CODE_SUCCESS;
