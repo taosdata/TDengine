@@ -93,8 +93,8 @@ jobs:
             -DWEBSOCKET=true \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_DEPENDENCY_TESTS=false
-          # cmake --build . --target ext_taosws
-          make -j 1
+          cmake --build . --target ext_taosws
+          # make -j 1
           sudo make install
           which taosd
           which taosadapter
