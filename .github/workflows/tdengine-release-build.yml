@@ -85,10 +85,6 @@ jobs:
 
       - name: Build and install TDengine
         run: |
-          ps
-          echo $PATH
-          which cargo
-          cargo --version
           mkdir debug && cd debug
           cmake .. -DBUILD_TOOLS=true \
             -DBUILD_KEEPER=true \
