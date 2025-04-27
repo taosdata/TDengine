@@ -15,7 +15,7 @@ class TestSubTableAlter:
         4. Kill -9 then restart
 
         Catalog:
-            - Tables
+            - Table:SubTable:Alter
 
         Since: v3.0.0.0
 
