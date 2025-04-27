@@ -23,23 +23,17 @@ IF(TD_WEBSOCKET)
             GIT_REPOSITORY ${_git_url}
             GIT_TAG main
             GIT_SHALLOW TRUE
-            # BUILD_IN_SOURCE TRUE
+            BUILD_IN_SOURCE TRUE
             # DEPENDS ${TAOS_LIB}
             CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
             CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
             CONFIGURE_COMMAND
                 COMMAND "${CMAKE_COMMAND}" -E echo "taosws-rs no need cmake to config"
-            # PATCH_COMMAND
-            #     COMMAND git clean -f -d
+            PATCH_COMMAND
+                COMMAND git clean -f -d
             BUILD_COMMAND
-                COMMAND ps
-                COMMAND sh -c "echo $PATH"
                 COMMAND which cargo
-                COMMAND echo cargo --version
-                COMMAND cargo --version
-                # COMMAND false
                 COMMAND cargo build --release --locked -p taos-ws-sys --features rustls
-                COMMAND false
             INSTALL_COMMAND
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_dll} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ext_taosws_dll}
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_lib_from} ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/${ext_taosws_lib_to}
