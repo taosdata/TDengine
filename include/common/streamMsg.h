@@ -45,34 +45,6 @@ typedef struct SStreamUpstreamEpInfo {
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamUpstreamEpInfo* pInfo);
 int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamUpstreamEpInfo* pInfo);
 
-// mndTrigger: denote if this checkpoint is triggered by mnode or as requested from tasks when transfer-state finished
-typedef struct {
-  int64_t streamId;
-  int64_t checkpointId;
-  int32_t taskId;
-  int32_t nodeId;
-  SEpSet  mgmtEps;
-  int32_t mnodeId;
-  int32_t transId;
-  int8_t  mndTrigger;
-  int64_t expireTime;
-} SStreamCheckpointSourceReq;
-
-int32_t tEncodeStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckpointSourceReq* pReq);
-int32_t tDecodeStreamCheckpointSourceReq(SDecoder* pDecoder, SStreamCheckpointSourceReq* pReq);
-
-typedef struct {
-  int64_t streamId;
-  int64_t checkpointId;
-  int32_t taskId;
-  int32_t nodeId;
-  int32_t mnodeId;
-  int64_t expireTime;
-  int8_t  success;
-} SStreamCheckpointSourceRsp;
-
-int32_t tEncodeStreamCheckpointSourceRsp(SEncoder* pEncoder, const SStreamCheckpointSourceRsp* pRsp);
-
 typedef struct SStreamTaskNodeUpdateMsg {
   int32_t transId;  // to identify the msg
   int64_t streamId;
@@ -114,20 +86,6 @@ typedef struct {
 int32_t tEncodeStreamTaskCheckRsp(SEncoder* pEncoder, const SStreamTaskCheckRsp* pRsp);
 int32_t tDecodeStreamTaskCheckRsp(SDecoder* pDecoder, SStreamTaskCheckRsp* pRsp);
 
-typedef struct {
-  SMsgHead msgHead;
-  int64_t  streamId;
-  int64_t  checkpointId;
-  int32_t  downstreamTaskId;
-  int32_t  downstreamNodeId;
-  int32_t  upstreamTaskId;
-  int32_t  upstreamNodeId;
-  int32_t  childId;
-} SStreamCheckpointReadyMsg;
-
-int32_t tEncodeStreamCheckpointReadyMsg(SEncoder* pEncoder, const SStreamCheckpointReadyMsg* pRsp);
-int32_t tDecodeStreamCheckpointReadyMsg(SDecoder* pDecoder, SStreamCheckpointReadyMsg* pRsp);
-
 struct SStreamDispatchReq {
   int32_t type;
   int64_t stage;  // nodeId from upstream task
@@ -163,15 +121,6 @@ struct SStreamRetrieveReq {
 int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const struct SStreamRetrieveReq* pReq);
 int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, struct SStreamRetrieveReq* pReq);
 void    tCleanupStreamRetrieveReq(struct SStreamRetrieveReq* pReq);
-
-typedef struct SStreamTaskCheckpointReq {
-  int64_t streamId;
-  int32_t taskId;
-  int32_t nodeId;
-} SStreamTaskCheckpointReq;
-
-int32_t tEncodeStreamTaskCheckpointReq(SEncoder* pEncoder, const SStreamTaskCheckpointReq* pReq);
-int32_t tDecodeStreamTaskCheckpointReq(SDecoder* pDecoder, SStreamTaskCheckpointReq* pReq);
 
 typedef enum EStreamPlaceholder {
   SP_NONE = 0,
@@ -269,8 +218,8 @@ typedef struct {
   int8_t  notifyHistory;
 
   void*          triggerCols;  // nodelist of SColumnNode
-  SArray*        outCols;  // array of TAOS_FIELD_E
-  SArray*        outTags;  // array of TAOS_FIELD_E
+  SArray*        outCols;  // array of SFieldWithOptions
+  SArray*        outTags;  // array of SFieldWithOptions
   void*          partitionCols;  // nodelist of SColumnNode
   int64_t        maxDelay;    //precision is ms
   int64_t        fillHistoryStartTime; // precision same with triggerDB, INT64_MIN for no value specified
@@ -293,7 +242,7 @@ typedef struct {
   int32_t  outTblVgId;
 
   // reader part
-  void*     triggerPrevFilter;
+  //void*     triggerPrevFilter;
   void*     triggerScanPlan;      // block include all preFilter<>triggerPrevFilter/partitionCols<>subTblNameExpr+tagValueExpr/triggerCols<>triggerCond
   SArray*   calcScanPlanList;     // for calc action, SArray<SStreamCalcScan>
 
@@ -357,9 +306,7 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq);
 int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq);
 void    tCleanupStreamHbMsg(SStreamHbMsg* pMsg);
 
-
-typedef struct SStreamReaderDeployMsg {
-  int8_t  triggerReader;
+typedef struct {
   char*   triggerTblName;
   int64_t triggerTblUid;  // suid or uid
   int8_t  triggerTblType;
@@ -367,11 +314,33 @@ typedef struct SStreamReaderDeployMsg {
   int8_t  deleteOutTbl;
   void*   partitionCols; // nodelist of SColumnNode
   void*   triggerCols;   // nodelist of SColumnNode
-  void*   triggerPrevFilter;
+  //void*   triggerPrevFilter;
   void*   triggerScanPlan; 
+} SStreamReaderDeployFromTrigger;
+
+typedef struct {
   void*   calcScanPlan;
+} SStreamReaderDeployFromCalc;
+
+typedef union {
+  SStreamReaderDeployFromTrigger trigger;
+  SStreamReaderDeployFromCalc    calc;
+} SStreamReaderDeploy;
+
+typedef struct SStreamReaderDeployMsg {
+  int8_t              triggerReader;
+  SStreamReaderDeploy msg;
 }SStreamReaderDeployMsg;
 
+typedef struct SStreamTaskAddr {
+  int64_t taskId;
+  SEpSet  epset;
+} SStreamTaskAddr;
+
+typedef struct SStreamRunnerTarget {
+  SStreamTaskAddr addr;
+  int32_t         execReplica;
+} SStreamRunnerTarget;
 
 typedef struct {
   int8_t  triggerType;
@@ -395,12 +364,15 @@ typedef struct {
   int64_t  eventTypes;
   int64_t  placeHolderBitmap;
 
-  SArray* readerList;  // SArray<>
-  SArray* runnerList;  // SArray<>
+  SArray* readerList;  // SArray<SStreamTaskAddr>
+  SArray* runnerList;  // SArray<SStreamRunnerTarget>
+  
   SArray* pVSubTables;
 } SStreamTriggerDeployMsg;
 
 typedef struct SStreamRunnerDeployMsg {
+  int32_t               execReplica;
+  
   void*                 pPlan;
   char*                 outDBFName;
   char*                 outTblName;
@@ -411,8 +383,8 @@ typedef struct SStreamRunnerDeployMsg {
   SArray*               pNotifyAddrUrls;
   int32_t               notifyErrorHandle;
 
-  SArray*               outCols;  // array of TAOS_FIELD_E
-  SArray*               outTags;  // array of TAOS_FIELD_E
+  SArray*               outCols;  // array of SFieldWithOptions
+  SArray*               outTags;  // array of SFieldWithOptions
   uint64_t              outStbUid;
   
   void*                 subTblNameExpr;
@@ -433,9 +405,9 @@ typedef struct {
 
 typedef struct {
   int64_t         streamId;
-  SArray*         readerTasks;   // SArray<SStmTaskDeploy*>
+  SArray*         readerTasks;   // SArray<SStmTaskDeploy> in v/sNode and SArray<SStmTaskDeploy*> in mNode
   SStmTaskDeploy* triggerTask;
-  SArray*         runnerTasks;   // SArray<SStmTaskDeploy*>
+  SArray*         runnerTasks;   // SArray<SStmTaskDeploy> in v/sNode and SArray<SStmTaskDeploy*> in mNode
 } SStmStreamDeploy;
 
 typedef struct {
@@ -450,25 +422,26 @@ typedef struct {
 typedef struct {
   SStreamTask         task;
   SStreamStartTaskMsg startMsg;
-} SStreamTasksStart;
+} SStreamTaskStart;
 
 typedef struct {
-  SArray* taskList;      // SArray<SStreamTasksStart>
+  SArray* taskList;      // SArray<SStreamTaskStart>
 } SStreamStartActions;
 
 typedef struct {
   SStreamMsg  header;
-  
+  int8_t      doCheckpoint;
+  int8_t      doCleanup;
 } SStreamUndeployTaskMsg;
 
 typedef struct {
   SStreamTask             task;
   SStreamUndeployTaskMsg  undeployMsg;
-} SStreamTasksUndeploy;
+} SStreamTaskUndeploy;
 
 typedef struct {
-  bool    undeployAll;
-  SArray* taskList;      // SArray<SStreamTasksUndeploy>
+  int8_t  undeployAll;
+  SArray* taskList;      // SArray<SStreamTaskUndeploy>
 } SStreamUndeployActions;
 
 typedef struct {
@@ -481,64 +454,10 @@ typedef struct {
   SStreamDeployActions   deploy;
   SStreamStartActions    start;
   SStreamUndeployActions undeploy;
-  SArray*                nodesVerion;
 } SMStreamHbRspMsg;
 
 int32_t tEncodeStreamHbRsp(SEncoder* pEncoder, const SMStreamHbRspMsg* pRsp);
 int32_t tDecodeStreamHbRsp(SDecoder* pDecoder, SMStreamHbRspMsg* pRsp);
-
-typedef struct SRetrieveChkptTriggerReq {
-  SMsgHead head;
-  int64_t  streamId;
-  int64_t  checkpointId;
-  int32_t  upstreamNodeId;
-  int32_t  upstreamTaskId;
-  int32_t  downstreamNodeId;
-  int64_t  downstreamTaskId;
-} SRetrieveChkptTriggerReq;
-
-int32_t tEncodeRetrieveChkptTriggerReq(SEncoder* pEncoder, const SRetrieveChkptTriggerReq* pReq);
-int32_t tDecodeRetrieveChkptTriggerReq(SDecoder* pDecoder, SRetrieveChkptTriggerReq* pReq);
-
-typedef struct SCheckpointTriggerRsp {
-  int64_t streamId;
-  int64_t checkpointId;
-  int32_t upstreamTaskId;
-  int32_t taskId;
-  int32_t transId;
-  int32_t rspCode;
-} SCheckpointTriggerRsp;
-
-int32_t tEncodeCheckpointTriggerRsp(SEncoder* pEncoder, const SCheckpointTriggerRsp* pRsp);
-int32_t tDecodeCheckpointTriggerRsp(SDecoder* pDecoder, SCheckpointTriggerRsp* pRsp);
-
-typedef struct SCheckpointReport {
-  int64_t streamId;
-  int32_t taskId;
-  int32_t nodeId;
-  int64_t checkpointId;
-  int64_t checkpointVer;
-  int64_t checkpointTs;
-  int32_t transId;
-  int8_t  dropHTask;
-} SCheckpointReport;
-
-int32_t tEncodeStreamTaskChkptReport(SEncoder* pEncoder, const SCheckpointReport* pReq);
-int32_t tDecodeStreamTaskChkptReport(SDecoder* pDecoder, SCheckpointReport* pReq);
-
-typedef struct SRestoreCheckpointInfo {
-  SMsgHead head;
-  int64_t  startTs;
-  int64_t  streamId;
-  int64_t  checkpointId;   // latest checkpoint id
-  int32_t  transId;        // transaction id of the update the consensus-checkpointId transaction
-  int32_t  taskId;
-  int32_t  nodeId;
-  int32_t  term;
-} SRestoreCheckpointInfo;
-
-int32_t tEncodeRestoreCheckpointInfo(SEncoder* pEncoder, const SRestoreCheckpointInfo* pReq);
-int32_t tDecodeRestoreCheckpointInfo(SDecoder* pDecoder, SRestoreCheckpointInfo* pReq);
 
 typedef struct {
   SMsgHead head;

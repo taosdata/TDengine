@@ -12467,11 +12467,9 @@ static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, SStre
   pReq->fillHistoryFirst = (int8_t)pOptions->fillHistoryFirst;
   pReq->calcNotifyOnly = (int8_t)pOptions->calcNotifyOnly;
   pReq->lowLatencyCalc = (int8_t)pOptions->lowLatencyCalc;
-  pReq->forceOutput = (int8_t)pOptions->forceOutput;
   pReq->fillHistoryStartTime = pOptions->fillHistoryStartTime;
   pReq->expiredTime = pOptions->expiredTime;
   pReq->eventTypes = pOptions->pEventType;
-  PAR_ERR_RET(nodesNodeToString(pOptions->pPreFilter, false, (char**)&pReq->triggerPrevFilter, NULL));
   pReq->maxDelay = (NULL != pOptions->pMaxDelay ? ((SValueNode*)pOptions->pMaxDelay)->datum.i : 0);
   pReq->watermark = (NULL != pOptions->pWaterMark ? ((SValueNode*)pOptions->pWaterMark)->datum.i : 0);
 
@@ -12651,6 +12649,7 @@ static int32_t createStreamReqBuildTriggerWindow(STranslateContext* pCxt, SNode*
   if (pTriggerWindow == NULL) {
     return code;
   }
+  pReq->triggerType = nodeType(pTriggerWindow);
   switch(nodeType(pTriggerWindow)) {
     case QUERY_NODE_SESSION_WINDOW:
       return createStreamReqBuildTriggerSessionWindow(pCxt, (SSessionWindowNode*)pTriggerWindow, pReq, pMeta);
@@ -12680,7 +12679,7 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SStreamTrigg
 
   PAR_ERR_JRET(getTableMeta(pCxt, pTriggerTable->table.dbName, pTriggerTable->table.tableName, &pTriggerTableMeta));
   PAR_ERR_JRET(createStreamReqBuildTriggerTable(pCxt, pTriggerTable, pReq));
-  PAR_ERR_JRET(streamColNodeToField(pTrigger->pPartitionList, &pReq->partitionCols));
+  PAR_ERR_JRET(streamColNodeToField(pTrigger->pPartitionList, (SArray**)&pReq->partitionCols));
   PAR_ERR_JRET(createSimpleSelectStmtFromCols(pTriggerTable->table.dbName, pTriggerTable->table.tableName, 0, NULL, pTriggerSelect));
 
   (*pTriggerSelect)->pFromTable = pTrigger->pTrigerTable;
@@ -12715,10 +12714,7 @@ static int32_t createStreamReqBuildTriggerPlan(STranslateContext* pCxt, SSelectS
 
   PAR_ERR_JRET(qCreateQueryPlan(&cxt, &triggerPlan, NULL));
 
-  PAR_ERR_JRET(nodesNodeToString(cxt.streamTriggerScanSubplan, false, (char**)&pReq->triggerTsdbScanPlan, NULL));
-  if (needWalScan) {
-    PAR_ERR_JRET(nodesNodeToString(cxt.streamTriggerScanSubplan, false, (char**)&pReq->triggerWalScanPlan, NULL));
-  }
+  PAR_ERR_JRET(nodesNodeToString(cxt.streamTriggerScanSubplan, false, (char**)&pReq->triggerScanPlan, NULL));
 
 _return:
   nodesDestroyNode((SNode*)triggerPlan);
