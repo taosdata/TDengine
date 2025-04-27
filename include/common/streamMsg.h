@@ -218,9 +218,9 @@ typedef struct {
   int8_t  notifyHistory;
 
   void*          triggerCols;  // nodelist of SColumnNode
+  void*          partitionCols;  // nodelist of SColumnNode
   SArray*        outCols;  // array of SFieldWithOptions
   SArray*        outTags;  // array of SFieldWithOptions
-  void*          partitionCols;  // nodelist of SColumnNode
   int64_t        maxDelay;    //precision is ms
   int64_t        fillHistoryStartTime; // precision same with triggerDB, INT64_MIN for no value specified
   int64_t        watermark;   // precision same with triggerDB
@@ -242,7 +242,6 @@ typedef struct {
   int32_t  outTblVgId;
 
   // reader part
-  //void*     triggerPrevFilter;
   void*     triggerScanPlan;      // block include all preFilter<>triggerPrevFilter/partitionCols<>subTblNameExpr+tagValueExpr/triggerCols<>triggerCond
   SArray*   calcScanPlanList;     // for calc action, SArray<SStreamCalcScan>
 

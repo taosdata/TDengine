@@ -49,6 +49,7 @@ typedef struct STranslateContext {
   bool             dual;  // whether select stmt without from stmt, true for without.
   bool             skipCheck;
   bool             refTable;
+  bool             createStreamTrigger;
   bool             createStreamQuery;
   bool             createStreamOutTable;
   SNode*           createStreamTriggerTbl;

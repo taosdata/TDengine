@@ -985,6 +985,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SVirtualScanPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL:
       code = makeNode(type, sizeof(SExternalWindowPhysiNode), &pNode);
       break;
     default:

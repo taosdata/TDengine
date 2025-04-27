@@ -1545,6 +1545,7 @@ SNode* createIntervalWindowNodeExt(SAstCreateContext* pCxt, SNode* pInter, SNode
   }
   pInterval->pSliding = ((SSlidingWindowNode*)pSliding)->pSlidingVal;
   pInterval->pOffset = ((SSlidingWindowNode*)pSliding)->pOffset;
+  return (SNode*)pInterval;
 _err:
   nodesDestroyNode((SNode*)pInter);
   nodesDestroyNode((SNode*)pInterval);
