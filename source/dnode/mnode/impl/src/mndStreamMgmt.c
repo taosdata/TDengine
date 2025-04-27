@@ -360,8 +360,7 @@ int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, SStreamObj* pStream, v
   SStreamReaderDeployMsg* pMsg = &pDeploy->msg.reader;
   if (triggerReader) {
     pMsg->triggerReader = triggerReader;
-    pMsg->triggerWalScanPlan = pStream->pCreate->triggerWalScanPlan;
-    pMsg->triggerTsdbScanPlan = pStream->pCreate->triggerTsdbScanPlan;
+    pMsg->triggerScanPlan = pStream->pCreate->triggerScanPlan;
   } else {
     pMsg->triggerReader = triggerReader;
     pMsg->calcScanPlan = calcScanPlan;

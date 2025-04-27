@@ -899,7 +899,6 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->fillHistoryFirst));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->calcNotifyOnly));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->lowLatencyCalc));
-  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->forceOutput));
 
   // notify part
   int32_t addrSize = (int32_t)taosArrayGetSize(pReq->pNotifyAddrUrls);
@@ -1000,12 +999,10 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->outTblVgId));
 
   int32_t triggerPrevFilterLen = pReq->triggerPrevFilter == NULL ? 0 : (int32_t)strlen((char*)pReq->triggerPrevFilter) + 1;
-  int32_t triggerWalScanPlanLen = pReq->triggerWalScanPlan == NULL ? 0 : (int32_t)strlen((char*)pReq->triggerWalScanPlan) + 1;
-  int32_t triggerTsdbScanPlanLen = pReq->triggerTsdbScanPlan == NULL ? 0 : (int32_t)strlen((char*)pReq->triggerTsdbScanPlan) + 1;
+  int32_t triggerScanPlanLen = pReq->triggerScanPlan == NULL ? 0 : (int32_t)strlen((char*)pReq->triggerScanPlan) + 1;
 
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->triggerPrevFilter, triggerPrevFilterLen));
-  TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->triggerWalScanPlan, triggerWalScanPlanLen));
-  TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->triggerTsdbScanPlan, triggerTsdbScanPlanLen));
+  TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->triggerScanPlan, triggerScanPlanLen));
 
   int32_t calcScanPlanListSize = (int32_t)taosArrayGetSize(pReq->calcScanPlanList);
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, calcScanPlanListSize));
@@ -1120,7 +1117,6 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->fillHistoryFirst));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->calcNotifyOnly));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->lowLatencyCalc));
-  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->forceOutput));
 
   int32_t addrSize = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &addrSize));
@@ -1252,8 +1248,7 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->outTblVgId));
 
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->triggerPrevFilter, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->triggerWalScanPlan, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->triggerTsdbScanPlan, NULL));
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->triggerScanPlan, NULL));
 
   int32_t calcScanPlanListSize = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &calcScanPlanListSize));
