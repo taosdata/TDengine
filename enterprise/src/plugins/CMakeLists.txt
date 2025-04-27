@@ -57,7 +57,7 @@ IF(TD_BUILD_TAOSA_INTERNAL)
   )
 
   EXECUTE_PROCESS(
-    WORKING_DIRECTORY ${TD_COMMUNITY_DIR}/tools/taosadapter
+    WORKING_DIRECTORY ${TD_EXTERNALS_BASE_DIR}/build/taosadapter/src/ext_taosadapter
     COMMAND git rev-parse HEAD
     RESULT_VARIABLE commit_sha1
     OUTPUT_VARIABLE taosadapter_commit_sha1
@@ -74,54 +74,63 @@ IF(TD_BUILD_TAOSA_INTERNAL)
   EXECUTE_PROCESS(
     COMMAND cd ..
   )
+  
+  MESSAGE("Building taosAdapter internal")
+  INCLUDE(ExternalProject)
+  if(${TD_LINUX})
+      set(ext_taosadapter_static taosadapter.a)
+      set(taosadapter_exe        taosadapter)
+      set(_rpath                 "-Wl,-rpath=\$ORIGIN/../lib")
+      set(_shell_cmd             sh -c)
+  elseif(${TD_DARWIN})
+      set(ext_taosadapter_static taosadapter.a)
+      set(taosadapter_exe        taosadapter)
+      set(_rpath                 "-Wl,-rpath,\$ORIGIN/../lib")
+      set(_shell_cmd             sh -c)
+  elseif(${TD_WINDOWS})
+      set(ext_taosadapter_static taosadapter.lib)
+      set(taosadapter_exe        taosadapter.exe)
+      set(_rpath                 "")
+      set(_shell_cmd             cmd /c)
+  endif()
+  set(_cgo_cflags_list
+      "-I${CMAKE_CURRENT_SOURCE_DIR}/../../../community/include/client"
+  )
+  set(_cgo_ldflags_list
+      "-L${CMAKE_BINARY_DIR}/build/lib ${_rpath}"
+  )
+  set(_ldflags_list
+      "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}'"
+      "-X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+  )
+  string(JOIN " " _cgo_cflags ${_cgo_cflags_list})
+  string(JOIN " " _cgo_ldflags ${_cgo_ldflags_list})
+  string(JOIN " " _ldflags ${_ldflags_list})
 
-  IF(TD_WINDOWS)
-    MESSAGE("Building taosAdapter internal on Windows")
-    include(ExternalProject)
+  include(ExternalProject)
 
-    ExternalProject_Add(taosainternal
-      PREFIX "taosainternal"
-      SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosainternal
-      BUILD_ALWAYS off
-      DEPENDS ${TAOS_NATIVE_LIB}
-      BUILD_IN_SOURCE 1
-      CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
-      PATCH_COMMAND
-      COMMAND git clean -f -d
-      BUILD_COMMAND
-      COMMAND set CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../../../community/include/client
-      COMMAND set CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib
-      COMMAND go mod tidy
-      COMMAND go build -a -o taosadapter.exe -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.CUS_NAME=${TAOSA_CUS_NAME}' -X 'github.com/taosdata/taosadapter/v3/version.CUS_PROMPT=${TAOSA_CUS_PROMPT}' -X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
-      INSTALL_COMMAND
-      COMMAND cmake -E copy taosadapter.exe ${CMAKE_BINARY_DIR}/build/bin
-      COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
-      COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/taosadapter/example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/
-      COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/taosadapter/taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/
-    )
-  ELSE(TD_WINDOWS)
-    MESSAGE("Building taosAdapter internal on non-Windows")
-    include(ExternalProject)
+  ExternalProject_Add(taosainternal
+    PREFIX "taosainternal"
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosainternal
+    BUILD_ALWAYS off
+    DEPENDS ${TAOS_NATIVE_LIB}
+    BUILD_IN_SOURCE 1
+    CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
+    PATCH_COMMAND
+    COMMAND git clean -f -d
+    BUILD_COMMAND
+    COMMAND go mod tidy
+    COMMAND "${CMAKE_COMMAND}" -E env "CGO_CFLAGS=${_cgo_cflags}"
+                                      "CGO_LDFLAGS=${_cgo_ldflags}"
+            go build -a -o ${taosadapter_exe} -ldflags "${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}'"
 
-    ExternalProject_Add(taosainternal
-      PREFIX "taosainternal"
-      SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosainternal
-      BUILD_ALWAYS off
-      DEPENDS ${TAOS_NATIVE_LIB}
-      BUILD_IN_SOURCE 1
-      CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
-      PATCH_COMMAND
-      COMMAND git clean -f -d
-      BUILD_COMMAND
-      COMMAND go mod tidy
-      COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../../../community/include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib go build -a -o taosadapter -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.CUS_NAME=${TAOSA_CUS_NAME}' -X 'github.com/taosdata/taosadapter/v3/version.CUS_PROMPT=${TAOSA_CUS_PROMPT}' -X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
-      INSTALL_COMMAND
-      COMMAND cmake -E copy taosadapter ${CMAKE_BINARY_DIR}/build/bin/
-      COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
-      COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/taosadapter/example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/
-      COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/taosadapter/taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/
-    )
-  ENDIF(TD_WINDOWS)
+    INSTALL_COMMAND
+    COMMAND "${CMAKE_COMMAND}" -E echo "Copy taosadapter"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${taosadapter_exe} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${taosadapter_exe}
+    COMMAND "${CMAKE_COMMAND}" -E echo "Copy taosadapter.toml"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_EXTERNALS_BASE_DIR}/build/taosadapter/src/ext_taosadapter/example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/taosadapter.toml
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_EXTERNALS_BASE_DIR}/build/taosadapter/src/ext_taosadapter/taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/taosadapter.service
+  )
 ENDIF()
 
 IF("${BUILD_TAOSX}" MATCHES "true")
