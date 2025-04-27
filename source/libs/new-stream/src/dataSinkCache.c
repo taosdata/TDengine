@@ -104,7 +104,7 @@ int32_t moveToCache(SStreamTaskDSManager* pStreamDataSink, SGroupDSManager* pGro
   pWindowData->wend = wend;
   code = getStreamBlockTS(pBlock, 0, &pWindowData->start);
   QUERY_CHECK_CODE(code, lino, _end);
-  code = getStreamBlockTS(pBlock, pBlock->info.rows, &pWindowData->end);
+  code = getStreamBlockTS(pBlock, pBlock->info.rows - 1, &pWindowData->end);
   QUERY_CHECK_CODE(code, lino, _end);
   pWindowData->saveMode = DATA_SAVEMODE_BLOCK;
   pWindowData->dataLen = dataEncodeBufSize;
@@ -240,12 +240,20 @@ static int32_t getSlidingWindowDataInMem(SResultIter* pResult, SWindowData* pWin
   }
 }
 
-int32_t readDataFromCache(SResultIter* pResult, SSDataBlock** ppBlock) {
+int32_t readDataFromCache(SResultIter* pResult, SSDataBlock** ppBlock, bool* finished) {
   SGroupDSManager* pGroupData = (SGroupDSManager*)pResult->groupData;
   SWindowData**    ppWindowData = (SWindowData**)taosArrayGet(pGroupData->windowDataInMem, pResult->offset);
   if (ppWindowData == NULL || *ppWindowData == NULL) {
     stError("failed to get data from cache, offset:%" PRId64, pResult->offset);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+
+  if ((*ppWindowData)->start > pResult->reqEndTime) {
+    *finished = true;
+    return TSDB_CODE_SUCCESS;
+  } else if ((*ppWindowData)->end < pResult->reqStartTime) {
+    *finished = false;  // 查看下一个窗口
+    return TSDB_CODE_SUCCESS;
   }
 
   if (pGroupData->pSinkManager->cleanMode == DATA_CLEAN_IMMEDIATE) {
@@ -271,6 +279,9 @@ void clearGroupExpiredDataInMem(SGroupDSManager* pGroupData, TSKEY start) {
     }
   }
 
+  if (deleteCount == 0) {
+    return;
+  }
   taosArrayRemoveBatch(pGroupData->windowDataInMem, 0, deleteCount, destorySWindowDataPP);
 }
 
@@ -327,6 +338,7 @@ int32_t getFirstDataIterFromCache(SStreamTaskDSManager* StreamTaskDSMgr, int64_t
     pResult->groupData = pGroupDataInfo;
     pResult->offset = 0;
     pResult->dataPos = DATA_SINK_MEM;
+    pResult->groupId = groupId;
     pResult->reqStartTime = start;
     pResult->reqEndTime = end;
     *ppResult = pResult;
@@ -349,9 +361,9 @@ bool setNextIteratorFromCache(SResultIter** ppResult) {
     } else {
       releaseDataIterator((void**)ppResult);
       *ppResult = NULL;
-      return true;  // 后续数据已超出时间范围，结束查找
+      return false;  // 后续数据已超出时间范围，结束查找
     }
   }
-  *ppResult = NULL;
-  return false;  // 内存没有数据，还需要查看文件
+  // *ppResult = NULL;
+  return true;  // 内存没有数据，还需要查看文件
 }

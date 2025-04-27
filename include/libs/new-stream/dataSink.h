@@ -119,10 +119,11 @@ typedef enum {
   DATA_SINK_FILE,
 } SDataSinkPos;
 typedef struct SResultIter {
-  void*             groupData;
-  SDataSinkFileMgr* pFileMgr;  // when dataPos is 1, pFileMgr is not NULL
-  int64_t           offset;    // array index, start from 0
-  SDataSinkPos      dataPos;   // 0 - data in mem, 1 - data in file
+  void*             groupData;  // SGroupDSManager(data in mem) or SGroupFileDataMgr(data in file)
+  SDataSinkFileMgr* pFileMgr;   // when has data in file, pFileMgr is not NULL
+  int64_t           offset;     // array index, start from 0
+  SDataSinkPos      dataPos;    // 0 - data in mem, 1 - data in file
+  int64_t           groupId;
   int64_t           reqStartTime;
   int64_t           reqEndTime;
 } SResultIter;
@@ -205,15 +206,15 @@ int32_t moveToCache(SStreamTaskDSManager* pStreamDataSink, SGroupDSManager* pGro
                      SSDataBlock* pBlock);
 
 // @brief 读取数据从内存
-int32_t readDataFromCache(SResultIter* pResult, SSDataBlock** ppBlock);
+int32_t readDataFromCache(SResultIter* pResult, SSDataBlock** ppBlock, bool* finished);
 int32_t getFirstDataIterFromCache(SStreamTaskDSManager* pStreamTaskDSMgr, int64_t groupId, TSKEY start, TSKEY end,
                                   void** ppResult);
-int32_t readDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock);
-int32_t getFirstDataIterFromFile(SStreamTaskDSManager* pStreamTaskDSMgr, int64_t groupId, TSKEY start, TSKEY end,
+int32_t readDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, bool* finished);
+int32_t getFirstDataIterFromFile(SDataSinkFileMgr* pFileMgr, int64_t groupId, TSKEY start, TSKEY end,
                                  void** ppResult);
 
 // @brief 从内存查找下一组数据位置
-// return false: 查询未结束, true: 查询已结束                                
+// return true: 需要继续查看文件, false: 不需要继续查看文件                              
 bool    setNextIteratorFromCache(SResultIter** ppResult);
 void    setNextIteratorFromFile(SResultIter** pIter);
 void    releaseDataIterator(void** pIter);

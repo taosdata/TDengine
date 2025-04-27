@@ -318,11 +318,13 @@ int32_t getStreamDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY end
   }
 
   if (*pIter == NULL) {
-    code = getFirstDataIterFromFile((SStreamTaskDSManager*)pCache, groupId, start, end, pIter);
+    code = getFirstDataIterFromFile(((SStreamTaskDSManager*)pCache)->pFileMgr, groupId, start, end, pIter);
     if (code != 0) {
       stError("failed to get first data iterator from file, err: %s", terrMsg);
       return code;
     }
+  } else {
+    ((SResultIter*)*pIter)->pFileMgr = ((SStreamTaskDSManager*)pCache)->pFileMgr;
   }
   return code;
 }
@@ -345,8 +347,8 @@ void moveToNextIterator(void** pIter) {
   SResultIter* pResult = *(SResultIter**)pIter;
 
   if (pResult->dataPos == DATA_SINK_MEM) {
-    bool stopSearch = setNextIteratorFromCache((SResultIter**)pIter);
-    if (*pIter == NULL && !stopSearch) {
+    bool needSearchFile = setNextIteratorFromCache((SResultIter**)pIter);
+    if (needSearchFile) {
       pResult->dataPos = DATA_SINK_FILE;
       pResult->offset = -1;
     }
@@ -368,12 +370,18 @@ int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock) {
   if (pResult == NULL) {
     return TSDB_CODE_SUCCESS;
   }
+  bool finished = false;
   if (pResult->dataPos == DATA_SINK_MEM) {
-    code = readDataFromCache(pResult, ppBlock);
+    code = readDataFromCache(pResult, ppBlock, &finished);
     QUERY_CHECK_CODE(code, lino, _end);
   } else {
-    code = readDataFromFile(pResult, ppBlock);
+    code = readDataFromFile(pResult, ppBlock, &finished);
     QUERY_CHECK_CODE(code, lino, _end);
+  }
+  if(finished) {
+    releaseDataIterator(pIter);
+    *pIter = NULL;
+    return TSDB_CODE_SUCCESS;
   }
   moveToNextIterator(pIter);
 
@@ -381,6 +389,9 @@ int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock) {
     return getNextStreamDataCache(pIter, ppBlock);
   }
 _end:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to get next data from cache, err: %s, lineno:%d", terrMsg, lino);
+  }
   return code;
 }
 

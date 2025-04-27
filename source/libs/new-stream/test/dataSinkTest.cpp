@@ -96,11 +96,35 @@ bool compareBlock(SSDataBlock* b1, SSDataBlock* b2) {
 
 bool compareBlockRow(SSDataBlock* b1, SSDataBlock* b2, int32_t row1, int32_t row2) {
   for (int32_t i = 0; i < b1->pDataBlock->size; ++i) {
-    SColumnInfoData* p0 = (SColumnInfoData*)taosArrayGet(b1->pDataBlock, i);
-    SColumnInfoData* p1 = (SColumnInfoData*)taosArrayGet(b2->pDataBlock, i);
+    SColumnInfoData* p1 = (SColumnInfoData*)taosArrayGet(b1->pDataBlock, i);
+    SColumnInfoData* p2 = (SColumnInfoData*)taosArrayGet(b2->pDataBlock, i);
 
-    if (*(int32_t*)colDataGetData(p0, row1) != *(int32_t*)colDataGetData(p1, row2)) {
-      return false;
+    if(i == 0) {
+      if (*(int64_t*)colDataGetData(p1, row1) != *(int64_t*)colDataGetData(p2, row2)) {
+        return false;
+      }
+      continue;
+    } else {
+      if (colDataIsNull(p1, b1->info.rows, row1, NULL) != colDataIsNull(p2, b2->info.rows, row2, NULL)) {
+        return false;
+      }
+      if (colDataIsNull(p1, b1->info.rows, row1, NULL) == true) {
+        continue;
+      }
+      if (IS_VAR_DATA_TYPE(p1->info.type)) {
+        char* pData = colDataGetData(p1, row1);
+        char* pData2 = colDataGetData(p2, row2);
+        if (varDataLen(pData) != varDataLen(pData2)) {
+          return false;
+        }
+        if (memcmp(varDataVal(pData), varDataVal(pData2), varDataLen(pData)) != 0) {
+          return false;
+        }
+      } else {
+        if (*(int32_t*)colDataGetData(p1, row1) != *(int32_t*)colDataGetData(p2, row2)) {
+          return false;
+        }
+      }
     }
   }
   return true;
@@ -449,8 +473,8 @@ TEST(dataSinkTest, putStreamDataRows) {
 
 TEST(dataSinkTest, allWriteToFileTest) {
   setDataSinkMaxMemSize(0);
-  SSDataBlock* pBlock = createTestBlock(0);
-  ASSERT_NE(pBlock, nullptr);
+  SSDataBlock* pBlock1 = createTestBlock(0);
+  ASSERT_NE(pBlock1, nullptr);
   int64_t streamId = 1;
   int64_t taskId = 1;
   int64_t groupID = 1;
@@ -460,52 +484,69 @@ TEST(dataSinkTest, allWriteToFileTest) {
   void* pCache = NULL;
   int32_t code = initStreamDataCache(streamId, taskId, cleanMode, &pCache);
   ASSERT_EQ(code, 0);
-  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 29);
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock1, 0, 29);
   ASSERT_EQ(code, 0);
-  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 30, 79);
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock1, 30, 79);
   ASSERT_EQ(code, 0);
-  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 80, 99);
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock1, 80, 99);
   ASSERT_EQ(code, 0);
-  blockDataDestroy(pBlock);
 
-  pBlock = createTestBlock(100);
+  SSDataBlock* pBlock2 = createTestBlock(100);
   cleanMode = DATA_CLEAN_EXPIRED;
   wstart = baseTestTime + 100;
   wend = baseTestTime + 200;
-  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 49);
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock2, 0, 49);
   ASSERT_EQ(code, 0);
-  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 50, 99);
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock2, 50, 99);
   ASSERT_EQ(code, 0);
   void* pIter = NULL;
-  blockDataDestroy(pBlock);
-  code = getStreamDataCache(pCache, groupID + 1, baseTestTime + 50, baseTestTime + 150, &pIter);
+
+  int64_t notExistGroupID = groupID + 1;
+  code = getStreamDataCache(pCache, notExistGroupID, baseTestTime + 50, baseTestTime + 150, &pIter);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(pIter, nullptr);
   code = getStreamDataCache(pCache, groupID, baseTestTime + 50, baseTestTime + 150, &pIter);
   ASSERT_EQ(code, 0);
   ASSERT_NE(pIter, nullptr);
-  SSDataBlock* pBlock1 = NULL;
-  code = getNextStreamDataCache(&pIter, &pBlock1);
+  SSDataBlock* pBlock = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlock);
   ASSERT_EQ(code, 0);
-  ASSERT_NE(pBlock1, nullptr);
+  ASSERT_NE(pBlock, nullptr);
   ASSERT_NE(pIter, nullptr);
-  int rows = pBlock1->info.rows;
+  int rows = pBlock->info.rows;
   ASSERT_EQ(rows, 30);
-  blockDataDestroy(pBlock1);
-  code = getNextStreamDataCache(&pIter, &pBlock1);
+  ASSERT_EQ(compareBlockRow(pBlock, pBlock1, 0, 50), true);
+  ASSERT_EQ(compareBlockRow(pBlock, pBlock1, 1, 51), true);
+  ASSERT_EQ(compareBlockRow(pBlock, pBlock1, 2, 52), true);
+  ASSERT_EQ(compareBlockRow(pBlock, pBlock1, 29, 79), true);
+  blockDataDestroy(pBlock);
+
+  code = getNextStreamDataCache(&pIter, &pBlock);
   ASSERT_EQ(code, 0);
-  ASSERT_NE(pBlock1, nullptr);
+  ASSERT_NE(pBlock, nullptr);
   ASSERT_NE(pIter, nullptr);
-  rows = pBlock1->info.rows;
+  rows = pBlock->info.rows;
   ASSERT_EQ(rows, 20);
-  blockDataDestroy(pBlock1);
-  code = getNextStreamDataCache(&pIter, &pBlock1);
+  ASSERT_EQ(compareBlockRow(pBlock, pBlock1, 0, 80), true);
+  ASSERT_EQ(compareBlockRow(pBlock, pBlock1, 1, 81), true);
+  ASSERT_EQ(compareBlockRow(pBlock, pBlock1, 2, 82), true);
+  ASSERT_EQ(compareBlockRow(pBlock, pBlock1, 19, 99), true);
+  blockDataDestroy(pBlock);
+
+  code = getNextStreamDataCache(&pIter, &pBlock);
   ASSERT_EQ(code, 0);
-  ASSERT_NE(pBlock1, nullptr);
+  ASSERT_NE(pBlock, nullptr);
   ASSERT_NE(pIter, nullptr);
-  rows = pBlock1->info.rows;
+  rows = pBlock->info.rows;
   ASSERT_EQ(rows, 50);
+  ASSERT_EQ(compareBlockRow(pBlock, pBlock2, 0, 0), true);
+  ASSERT_EQ(compareBlockRow(pBlock, pBlock2, 1, 1), true);
+  ASSERT_EQ(compareBlockRow(pBlock, pBlock2, 2, 2), true);
+  ASSERT_EQ(compareBlockRow(pBlock, pBlock2, 49, 49), true);
+  blockDataDestroy(pBlock);
+
   blockDataDestroy(pBlock1);
+  blockDataDestroy(pBlock2);
 
   destroyDataSinkManager2();
 }
