@@ -13,6 +13,9 @@ on:
       - 'packaging/**'
       - 'tests/**'
       - '**/*.md'
+  pull_request:
+    branches:
+      - 'main'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -82,6 +85,9 @@ jobs:
 
       - name: Build and install TDengine
         run: |
+          echo $PATH
+          which cargo
+          cargo --version
           mkdir debug && cd debug
           cmake .. -DBUILD_TOOLS=true \
             -DBUILD_KEEPER=true \
