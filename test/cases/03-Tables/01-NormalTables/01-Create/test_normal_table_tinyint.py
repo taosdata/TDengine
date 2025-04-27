@@ -60,7 +60,7 @@ class TestNormalTableTinyint:
         tdSql.checkData(0, 1, 127)
 
         tdLog.info(f"=============== step4")
-        tdSql.execute(f"insert into {tb} values (now+4m, 128)")
+        tdSql.error(f"insert into {tb} values (now+4m, 128)")
         tdSql.execute(f"insert into {tb} values (now+5m, NULL)")
         tdSql.query(f"select * from {tb}")
         tdSql.checkRows(5)
