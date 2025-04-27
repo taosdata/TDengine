@@ -98,7 +98,9 @@ static int getSuperTableFromServerTaosc(
 
     if (fieldsNum < TSDB_MAX_DESCRIBE_METRIC || !fields) {
         errorPrint("%s", "failed to fetch fields\n");
-        goto ERROR;
+        taos_free_result(res);
+        closeBenchConn(conn);
+        return TSDB_CODE_FAILED;
     }
 
     while ((row = taos_fetch_row(res)) != NULL) {
@@ -109,13 +111,17 @@ static int getSuperTableFromServerTaosc(
         int32_t *lengths = taos_fetch_lengths(res);
         if (lengths == NULL) {
             errorPrint("%s", "failed to execute taos_fetch_length\n");
-            goto ERROR;
+            taos_free_result(res);
+            closeBenchConn(conn);
+            return TSDB_CODE_FAILED;
         }
         if (strncasecmp((char *) row[TSDB_DESCRIBE_METRIC_NOTE_INDEX], "tag",
                         strlen("tag")) == 0) {
             if (stbInfo->tags == NULL || stbInfo->tags->size == 0 || tag_count >= stbInfo->tags->size) {
                 errorPrint("%s", "existing stable tag mismatched with that defined in JSON\n");
-                goto ERROR;
+                taos_free_result(res);
+                closeBenchConn(conn);
+                return TSDB_CODE_FAILED;
             }
             uint8_t tagType = convertStringToDatatype(
                     (char *) row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
@@ -124,13 +130,17 @@ static int getSuperTableFromServerTaosc(
             if (!searchBArray(stbInfo->tags, tagName,
                               lengths[TSDB_DESCRIBE_METRIC_FIELD_INDEX], tagType)) {
                 errorPrint("existing stable tag:%s not found in JSON tags.\n", tagName);
-                goto ERROR;
+                taos_free_result(res);
+                closeBenchConn(conn);
+                return TSDB_CODE_FAILED;
             }
             tag_count += 1;
         } else {
             if (stbInfo->cols == NULL || stbInfo->cols->size == 0 || col_count >= stbInfo->cols->size) {
                 errorPrint("%s", "existing stable column mismatched with that defined in JSON\n");
-                goto ERROR;
+                taos_free_result(res);
+                closeBenchConn(conn);
+                return TSDB_CODE_FAILED;
             }
             uint8_t colType = convertStringToDatatype(
                     (char *) row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
@@ -139,7 +149,9 @@ static int getSuperTableFromServerTaosc(
             if (!searchBArray(stbInfo->cols, colName,
                               lengths[TSDB_DESCRIBE_METRIC_FIELD_INDEX], colType)) {
                 errorPrint("existing stable col:%s not found in JSON cols.\n", colName);
-                goto ERROR;
+                taos_free_result(res);
+                closeBenchConn(conn);
+                return TSDB_CODE_FAILED;
             }
             col_count += 1;
         }
@@ -157,11 +169,6 @@ static int getSuperTableFromServerTaosc(
     }
 
     return TSDB_CODE_SUCCESS;
-
-ERROR:
-    taos_free_result(res);
-    closeBenchConn(conn);
-    return TSDB_CODE_FAILED;
 }
 
 
@@ -394,26 +401,31 @@ skip:
                            " COMMENT '%s'", stbInfo->comment);
     }
     if (stbInfo->delay >= 0) {
-        length += snprintf(command + length, TSDB_MAX_ALLOWED_SQL_LEN - length, " DELAY %d",
+        length += snprintf(command + length,
+                           TSDB_MAX_ALLOWED_SQL_LEN - length, " DELAY %d",
                            stbInfo->delay);
     }
     if (stbInfo->file_factor >= 0) {
         length +=
-            snprintf(command + length, TSDB_MAX_ALLOWED_SQL_LEN - length, " FILE_FACTOR %f",
+            snprintf(command + length,
+                     TSDB_MAX_ALLOWED_SQL_LEN - length, " FILE_FACTOR %f",
                      (float)stbInfo->file_factor / 100);
     }
     if (stbInfo->rollup != NULL) {
-        length += snprintf(command + length, TSDB_MAX_ALLOWED_SQL_LEN - length,
+        length += snprintf(command + length,
+                           TSDB_MAX_ALLOWED_SQL_LEN - length,
                            " ROLLUP(%s)", stbInfo->rollup);
     }
 
     if (stbInfo->max_delay != NULL) {
-        length += snprintf(command + length, TSDB_MAX_ALLOWED_SQL_LEN - length,
+        length += snprintf(command + length,
+                           TSDB_MAX_ALLOWED_SQL_LEN - length,
                 " MAX_DELAY %s", stbInfo->max_delay);
     }
 
     if (stbInfo->watermark != NULL) {
-        length += snprintf(command + length, TSDB_MAX_ALLOWED_SQL_LEN - length,
+        length += snprintf(command + length,
+                           TSDB_MAX_ALLOWED_SQL_LEN - length,
                 " WATERMARK %s", stbInfo->watermark);
     }
 
@@ -431,11 +443,13 @@ skip:
         Field * col = benchArrayGet(stbInfo->cols, i);
         if (col->sma) {
             if (first_sma) {
-                n = snprintf(command + length, TSDB_MAX_ALLOWED_SQL_LEN - length,
+                n = snprintf(command + length,
+                                   TSDB_MAX_ALLOWED_SQL_LEN - length,
                         " SMA(%s", col->name);
                 first_sma = false;
             } else {
-                n = snprintf(command + length, TSDB_MAX_ALLOWED_SQL_LEN - length,
+                n = snprintf(command + length,
+                                   TSDB_MAX_ALLOWED_SQL_LEN - length,
                         ",%s", col->name);
             }
 
@@ -2914,70 +2928,56 @@ void *syncWriteProgressive(void *sarg) {
                 startTs = toolsGetTimestampUs();
                 int code = execInsert(pThreadInfo, generated, &delay3);
                 if (code) {
-                    generated = prepareProgressDataSml(
-                        pThreadInfo,
-                        childTbl,
-                        tableSeq, &timestamp, i, ttl, &pkCur, &pkCnt);
-
-                    if (generated < 0) {
+                    if (NO_IF_FAILED == stbInfo->continueIfFail) {
+                        warnPrint("The super table parameter "
+                                "continueIfFail: %d, STOP insertion!\n",
+                                stbInfo->continueIfFail);
                         g_fail = true;
                         goto free_of_progressive;
-                    }
-                    code = execInsert(pThreadInfo, generated, &delay3);
+                    } else if (YES_IF_FAILED == stbInfo->continueIfFail) {
+                        infoPrint("The super table parameter "
+                                "continueIfFail: %d, "
+                                "will continue to insert ..\n",
+                                stbInfo->continueIfFail);
+                    } else if (smart) {
+                        warnPrint("The super table parameter "
+                                "continueIfFail: %d, will create table "
+                                "then insert ..\n",
+                                stbInfo->continueIfFail);
 
-                    if (code) {
-                        if (NO_IF_FAILED == stbInfo->continueIfFail) {
-                            warnPrint("The super table parameter "
-                                    "continueIfFail: %d, STOP insertion!\n",
-                                    stbInfo->continueIfFail);
-                            g_fail = true;
-                            goto free_of_progressive;
-                        } else if (YES_IF_FAILED == stbInfo->continueIfFail) {
-                            infoPrint("The super table parameter "
-                                    "continueIfFail: %d, "
-                                    "will continue to insert ..\n",
-                                    stbInfo->continueIfFail);
-
-                        } else if (smart) {
-                            warnPrint("The super table parameter "
-                                    "continueIfFail: %d, will create table "
-                                    "then insert ..\n",
-                                    stbInfo->continueIfFail);
-
-                            // generator
-                            if (w == 0) {
-                                if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL)) {
-                                    g_fail = true;
-                                    goto free_of_progressive;
-                                }
-                            }
-
-                            code = smartContinueIfFail(
-                                    pThreadInfo,
-                                    childTbl, tagData, w, ttl);
-                            if (0 != code) {
+                        // generator
+                        if (w == 0) {
+                            if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL)) {
                                 g_fail = true;
                                 goto free_of_progressive;
                             }
+                        }
 
-                            // move next
-                            if (++w >= TAG_BATCH_COUNT) {
-                                // reset for gen again
-                                w = 0;
-                            }
-
-                            code = execInsert(pThreadInfo, generated, &delay3);
-                            if (code) {
-                                g_fail = true;
-                                goto free_of_progressive;
-                            }
-                        } else {
-                            warnPrint("Unknown super table parameter "
-                                    "continueIfFail: %d\n",
-                                    stbInfo->continueIfFail);
+                        code = smartContinueIfFail(
+                                pThreadInfo,
+                                childTbl, tagData, w, ttl);
+                        if (0 != code) {
                             g_fail = true;
                             goto free_of_progressive;
                         }
+
+                        // move next
+                        if (++w >= TAG_BATCH_COUNT) {
+                            // reset for gen again
+                            w = 0;
+                        }
+
+                        code = execInsert(pThreadInfo, generated, &delay3);
+                        if (code) {
+                            g_fail = true;
+                            goto free_of_progressive;
+                        }
+                    } else {
+                        warnPrint("Unknown super table parameter "
+                                "continueIfFail: %d\n",
+                                stbInfo->continueIfFail);
+                        g_fail = true;
+                        goto free_of_progressive;
                     }
                 }
                 endTs = toolsGetTimestampUs() + 1;
