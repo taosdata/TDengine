@@ -730,6 +730,12 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       } else if (pColInfoData->info.type != TSDB_DATA_TYPE_JSON) {
         code = colDataSetNItems(pColInfoData, 0, data, pBlock->info.rows, false);
         if (IS_VAR_DATA_TYPE(((const STagVal*)p)->type)) {
+          char* tmp = taosMemoryCalloc(1, varDataLen(data) + 1);
+          if (tmp != NULL){
+            memcpy(tmp, varDataVal(data), varDataLen(data));
+            qDebug("get tag value:%s, cid:%d, table name:%s, uid%"PRId64, tmp, tagVal.cid, val.pName, pBlock->info.id.uid);
+            taosMemoryFree(tmp);
+          }
           taosMemoryFree(data);
         }
         QUERY_CHECK_CODE(code, lino, _end);
