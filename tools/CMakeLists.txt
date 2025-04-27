@@ -35,6 +35,7 @@ IF(TD_WEBSOCKET)
                 COMMAND ps
                 COMMAND sh -c "echo $PATH"
                 COMMAND which cargo
+                COMMAND echo cargo --version
                 COMMAND cargo --version
                 COMMAND false
                 COMMAND cargo build --release --locked -p taos-ws-sys --features rustls
