@@ -173,6 +173,10 @@ taos
 taosd
 !test/requirements.txt
 .externals
+test/allure-results/*
+screenlog*
+test/env/ci_default.yaml
+test/run/*
 
 # usage
 # git config --global core.excludesfile .gitignore_global 

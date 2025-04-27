@@ -130,7 +130,7 @@ int32_t initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo, const struct SOperato
 
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pBasicInfo->pSeDeleted = tSimpleHashInit(32, hashFn);
-  
+
   const char* windowType = NULL;
   if (IS_NORMAL_INTERVAL_OP(pOperator)) {
     windowType = "Time";
@@ -706,11 +706,13 @@ int32_t addAggResultNotifyEvent(const SSDataBlock* pResultBlock, const SArray* p
     result = cJSON_CreateObject();
     QUERY_CHECK_NULL(result, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
     for (int32_t j = 0; j < pSchemaWrapper->nCols; ++j) {
-      const SSchema*         pCol = pSchemaWrapper->pSchema + j;
-      const SColumnInfoData* pColData = taosArrayGet(pResultBlock->pDataBlock, pCol->colId - 1);
-      code = jsonAddColumnField(pCol->name, pColData->info.type, colDataIsNull_s(pColData, i),
-                                colDataGetData(pColData, i), result);
-      QUERY_CHECK_CODE(code, lino, _end);
+      const SSchema* pCol = pSchemaWrapper->pSchema + j;
+      if (pCol->colId - 1 < taosArrayGetSize(pResultBlock->pDataBlock)) {
+        const SColumnInfoData* pColData = taosArrayGet(pResultBlock->pDataBlock, pCol->colId - 1);
+        code = jsonAddColumnField(pCol->name, pColData->info.type, colDataIsNull_s(pColData, i),
+                                  colDataGetData(pColData, i), result);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
     }
     JSON_CHECK_ADD_ITEM(pItem->pJson, "result", result);
     result = NULL;
@@ -944,4 +946,3 @@ void setSingleOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
 bool isSingleOperator(SSteamOpBasicInfo* pBasicInfo) {
   return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, SINGLE_OPERATOR);
 }
-
