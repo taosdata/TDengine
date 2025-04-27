@@ -77,22 +77,7 @@ ELSE()
     MESSAGE("")
     MESSAGE("${Green} use taosadapter as httpd, platform is ${PLATFORM_ARCH_STR} ${ColourReset}")
 
-    EXECUTE_PROCESS(
-        COMMAND git rev-parse --abbrev-ref HEAD
-        RESULT_VARIABLE result_taos_version
-        OUTPUT_VARIABLE taos_version
-    )
-
-    STRING(FIND ${taos_version} release is_release_branch)
-
-    IF("${is_release_branch}" STREQUAL "0")
-        STRING(SUBSTRING "${taos_version}" 12 -1 taos_version)
-        STRING(STRIP "${taos_version}" taos_version)
-    ELSE()
-        STRING(CONCAT taos_version "_branch_" "${taos_version}")
-        STRING(STRIP "${taos_version}" taos_version)
-    ENDIF()
-
+    SET(taos_version ${TD_VER_NUMBER})
     MESSAGE("CURRENT SOURCE DIR ${CMAKE_CURRENT_SOURCE_DIR}")
 
         MESSAGE("Building taosAdapter")
