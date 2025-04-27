@@ -61,7 +61,7 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
                               int *szCell, TXN *pTxn, SBTree *pBt);
 static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pDecoder, TXN *pTxn, SBTree *pBt);
 static int tdbBtreeBalance(SBTC *pBtc);
-static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int dropOfp, TXN *pTxn, SBTree *pBt);
+static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int *pFullSize);
 static int tdbBtcMoveDownward(SBTC *pBtc);
 static int tdbBtcMoveUpward(SBTC *pBtc);
 
@@ -234,11 +234,7 @@ int tdbBtreeDelete(SBTree *pBt, const void *pKey, int kLen, TXN *pTxn) {
     tdbError("tdb/btree-delete: btc open failed with ret: %d.", ret);
     return ret;
   }
-  /*
-  btc.coder.ofps = taosArrayInit(8, sizeof(SPage *));
-  // btc.coder.ofps = taosArrayInit(8, sizeof(SPgno));
-  //pBtc->coder.ofps = taosArrayInit(8, sizeof(SPage *));
-  */
+
   tdbTrace("tdb delete, btc: %p, pTxn: %p", &btc, pTxn);
 
   // move the cursor
@@ -260,18 +256,7 @@ int tdbBtreeDelete(SBTree *pBt, const void *pKey, int kLen, TXN *pTxn) {
     tdbBtcClose(&btc);
     return ret;
   }
-  /*
-  SArray *ofps = btc.coder.ofps;
-  if (ofps) {
-    for (int i = 0; i < TARRAY_SIZE(ofps); ++i) {
-      SPage *ofp = *(SPage **)taosArrayGet(ofps, i);
-      tdbPagerInsertFreePage(btc.pBt->pPager, ofp, btc.pTxn);
-    }
 
-    taosArrayDestroy(ofps);
-    btc.coder.ofps = NULL;
-  }
-  */
   tdbBtcClose(&btc);
   return 0;
 }
@@ -593,7 +578,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
       for (int i = 0; i < nOlds; i++) {
         if (sIdx + i < TDB_PAGE_TOTAL_CELLS(pParent)) {
           pCell = tdbPageGetCell(pParent, sIdx + i);
-          szDivCell[i] = tdbBtreeCellSize(pParent, pCell, 0, NULL, NULL);
+          szDivCell[i] = tdbBtreeCellSize(pParent, pCell, NULL);
           if ((pDivCell[i] = tdbOsMalloc(szDivCell[i])) == NULL) {
             return terrno;
           }
@@ -623,37 +608,10 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     for (int i = 0; i < nOlds; i++) {
       nCells = TDB_PAGE_TOTAL_CELLS(pParent);
       if (sIdx < nCells) {
-        bool destroyOfps = false;
-        if (!childNotLeaf) {
-          if (!pParent->pPager->ofps) {
-            pParent->pPager->ofps = taosArrayInit(8, sizeof(SPage *));
-            destroyOfps = true;
-          }
-        }
-
         ret = tdbPageDropCell(pParent, sIdx, pTxn, pBt);
         if (ret < 0) {
           tdbError("tdb/btree-balance: drop cell failed with ret: %d.", ret);
           return TSDB_CODE_FAILED;
-        }
-
-        if (!childNotLeaf) {
-          SArray *ofps = pParent->pPager->ofps;
-          if (ofps) {
-            for (int i = 0; i < TARRAY_SIZE(ofps); ++i) {
-              SPage *ofp = *(SPage **)taosArrayGet(ofps, i);
-              ret = tdbPagerInsertFreePage(pParent->pPager, ofp, pTxn);
-              if (ret < 0) {
-                tdbError("tdb/btree-balance: insert free page failed with ret: %d.", ret);
-                return TSDB_CODE_FAILED;
-              }
-            }
-
-            if (destroyOfps) {
-              taosArrayDestroy(ofps);
-              pParent->pPager->ofps = NULL;
-            }
-          }
         }
       } else {
         ((SIntHdr *)pParent->pData)->pgno = 0;
@@ -710,7 +668,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
       for (;;) {
         pCell = tdbPageGetCell(pOlds[infoNews[iNew - 1].iPage], infoNews[iNew - 1].oIdx);
 
-        szLCell = tdbBtreeCellSize(pOlds[infoNews[iNew - 1].iPage], pCell, 0, NULL, NULL);
+        szLCell = tdbBtreeCellSize(pOlds[infoNews[iNew - 1].iPage], pCell, NULL);
         if (!childNotLeaf) {
           szRCell = szLCell;
         } else {
@@ -728,7 +686,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
           }
 
           pCell = tdbPageGetCell(pPage, oIdx);
-          szRCell = tdbBtreeCellSize(pPage, pCell, 0, NULL, NULL);
+          szRCell = tdbBtreeCellSize(pPage, pCell, NULL);
         }
 
         if (!(infoNews[iNew - 1].cnt > 0)) {
@@ -835,7 +793,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
 
       for (int oIdx = 0; oIdx < TDB_PAGE_TOTAL_CELLS(pPage); oIdx++) {
         pCell = tdbPageGetCell(pPage, oIdx);
-        szCell = tdbBtreeCellSize(pPage, pCell, 0, NULL, NULL);
+        szCell = tdbBtreeCellSize(pPage, pCell, NULL);
 
         if (!(nNewCells <= infoNews[iNew].cnt)) {
           return TSDB_CODE_FAILED;
@@ -1101,6 +1059,45 @@ static int tdbLoadOvflPage(SPgno *pPgno, SPage **ppOfp, TXN *pTxn, SBTree *pBt) 
 
   return ret;
 }
+
+
+int tdbFreeOvflPage(SPgno pgno, int nSize, TXN *pTxn, SBTree *pBt) {
+  int ret = 0;
+
+  while (pgno != 0) {
+    SPage *ofp;
+    int    bytes;
+    int ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
+    if (ret < 0) {
+      return ret;
+    }
+
+    SCell *cell = tdbPageGetCell(ofp, 0);
+
+    if (nSize <= ofp->maxLocal - sizeof(SPgno)) {
+      bytes = nSize;
+    } else {
+      bytes = ofp->maxLocal - sizeof(SPgno);
+    }
+
+    // SPgno origPgno = pgno;
+    memcpy(&pgno, cell + bytes, sizeof(pgno));
+
+    ret = tdbPagerWrite(pBt->pPager, ofp);
+    if (ret < 0) {
+      tdbError("failed to write page since %s", terrstr());
+      return ret;
+    }
+
+    tdbPagerReturnPage(pBt->pPager, ofp, pTxn);
+    tdbPagerInsertFreePage(pBt->pPager, ofp, pTxn);
+
+    nSize -= bytes;
+  }
+
+  return ret;
+}
+
 
 // TDB_BTREE_CELL =====================
 static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const void *pKey, int kLen, const void *pVal,
@@ -1604,7 +1601,11 @@ static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pD
   return 0;
 }
 
-static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int dropOfp, TXN *pTxn, SBTree *pBt) {
+
+// tdbBtreeCellSize returns the bytes used of [pCell] in current page.
+// if [pFullSize] is not NULL, it will return the full size of the cell, which also includes
+// the bytes used of the [pCell] in the overflow pages.
+static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int *pFullSize) {
   u8  leaf;
   int kLen = 0, vLen = 0, nHeader = 0;
 
@@ -1635,63 +1636,25 @@ static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int dropOfp, TXN *
     // cell size should be at least the size of a free cell, otherwise it
     // cannot be added to the free list when dropped.
     if (nSize < pPage->pPageMethods->szFreeCell) {
-      return pPage->pPageMethods->szFreeCell;
+      nSize = pPage->pPageMethods->szFreeCell;
+    }
+    if (pFullSize) {
+      *pFullSize = nSize;
     }
     return nSize;
   }
 
   // handle overflow pages
+  if (pFullSize) {
+    *pFullSize = nSize;
+  }
+
   int maxLocal = pPage->maxLocal;
 
   // calc local storage size
   int minLocal = pPage->minLocal;
   int surplus = minLocal + (nSize - minLocal) % (maxLocal - sizeof(SPgno));
   int nLocal = surplus <= maxLocal ? surplus : minLocal;
-
-  if (!dropOfp) {
-    return nLocal;
-  }
-
-  // free ofp pages' cells
-  SPgno  pgno = *(SPgno *)(pCell + nLocal - sizeof(SPgno));
-  int    nLeft = nSize - nLocal + sizeof(SPgno);
-
-  while (pgno != 0) {
-    SPage *ofp;
-    int    bytes;
-    int ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
-    if (ret < 0) {
-      return ret;
-    }
-
-    SCell *ofpCell = tdbPageGetCell(ofp, 0);
-
-    if (nLeft <= ofp->maxLocal - sizeof(SPgno)) {
-      bytes = nLeft;
-    } else {
-      bytes = ofp->maxLocal - sizeof(SPgno);
-    }
-
-    // SPgno origPgno = pgno;
-    memcpy(&pgno, ofpCell + bytes, sizeof(pgno));
-
-    ret = tdbPagerWrite(pBt->pPager, ofp);
-    if (ret < 0) {
-      tdbError("failed to write page since %s", terrstr());
-      return ret;
-    }
-
-    SArray *ofps = pPage->pPager->ofps;
-    if (ofps) {
-      if (taosArrayPush(ofps, &ofp) == NULL) {
-        return terrno;
-      }
-    }
-
-    tdbPagerReturnPage(pPage->pPager, ofp, pTxn);
-
-    nLeft -= bytes;
-  }
 
   return nLocal;
 }
@@ -2238,34 +2201,9 @@ int tdbBtcDelete(SBTC *pBtc) {
     return ret;
   }
 
-  bool destroyOfps = false;
-  if (!pBtc->pPage->pPager->ofps) {
-    pBtc->pPage->pPager->ofps = taosArrayInit(8, sizeof(SPage *));
-    if (pBtc->pPage->pPager->ofps == NULL) {
-      return terrno;
-    }
-    destroyOfps = true;
-  }
-
   ret = tdbPageDropCell(pBtc->pPage, idx, pBtc->pTxn, pBtc->pBt);
   if (ret < 0) {
     tdbError("tdb/btc-delete: page drop cell failed with ret: %d.", ret);
-  }
-
-  SArray *ofps = pBtc->pPage->pPager->ofps;
-  if (ofps) {
-    for (int i = 0; i < TARRAY_SIZE(ofps); ++i) {
-      SPage *ofp = *(SPage **)taosArrayGet(ofps, i);
-      ret = tdbPagerInsertFreePage(pBtc->pPage->pPager, ofp, pBtc->pTxn);
-      if (ret < 0) {
-        tdbError("tdb/btc-delete: insert free page failed with ret: %d.", ret);
-      }
-    }
-
-    if (destroyOfps) {
-      taosArrayDestroy(ofps);
-      pBtc->pPage->pPager->ofps = NULL;
-    }
   }
 
   // update interior page or do balance
@@ -2410,13 +2348,7 @@ int tdbBtcUpsert(SBTC *pBtc, const void *pKey, int kLen, const void *pData, int 
     tdbError("tdb/btc-upsert: page insert/update cell failed with ret: %d.", ret);
     return ret;
   }
-  /*
-  bool destroyOfps = false;
-  if (!pBtc->pPage->pPager->ofps) {
-    pBtc->pPage->pPager->ofps = taosArrayInit(8, sizeof(SPage *));
-    destroyOfps = true;
-  }
-  */
+  
   // check balance
   if (pBtc->pPage->nOverflow > 0) {
     ret = tdbBtreeBalance(pBtc);
@@ -2425,20 +2357,7 @@ int tdbBtcUpsert(SBTC *pBtc, const void *pKey, int kLen, const void *pData, int 
       return ret;
     }
   }
-  /*
-  SArray *ofps = pBtc->pPage->pPager->ofps;
-  if (ofps) {
-    for (int i = 0; i < TARRAY_SIZE(ofps); ++i) {
-      SPage *ofp = *(SPage **)taosArrayGet(ofps, i);
-      tdbPagerInsertFreePage(pBtc->pPage->pPager, ofp, pBtc->pTxn);
-    }
-
-    if (destroyOfps) {
-      taosArrayDestroy(ofps);
-      pBtc->pPage->pPager->ofps = NULL;
-    }
-  }
-  */
+  
   return 0;
 }
 

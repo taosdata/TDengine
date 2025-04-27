@@ -153,6 +153,7 @@ int  tdbBtreeDelete(SBTree *pBt, const void *pKey, int kLen, TXN *pTxn);
 // int tdbBtreeUpsert(SBTree *pBt, const void *pKey, int nKey, const void *pData, int nData, TXN *pTxn);
 int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen);
 int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen);
+int tdbFreeOvflPage(SPgno pgno, int nSize, TXN *pTxn, SBTree *pBt);
 
 typedef struct {
   u8      flags;
@@ -277,7 +278,7 @@ struct SPage {
   int       vLen;  // value length of the page, -1 for unknown
   int       maxLocal;
   int       minLocal;
-  int (*xCellSize)(const SPage *, SCell *, int, TXN *pTxn, SBTree *pBt);
+  int (*xCellSize)(const SPage *, SCell *, int *);
   // Fields used by SPCache
   TDB_PCACHE_PAGE
 };
@@ -324,13 +325,13 @@ static inline int tdbTryLockPage(tdb_spinlock_t *pLock) {
 #define TDB_PAGE_FREE_SIZE(pPage)   (*(pPage)->pPageMethods->getFreeBytes)(pPage)
 #define TDB_PAGE_PGNO(pPage)        ((pPage)->pgid.pgno)
 #define TDB_BYTES_CELL_TAKEN(pPage, pCell) \
-  ((*(pPage)->xCellSize)(pPage, pCell, 0, NULL, NULL) + (pPage)->pPageMethods->szOffset)
+  ((*(pPage)->xCellSize)(pPage, pCell, NULL) + (pPage)->pPageMethods->szOffset)
 #define TDB_PAGE_OFFSET_SIZE(pPage) ((pPage)->pPageMethods->szOffset)
 
 int     tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t), void *arg);
 void    tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg);
-void    tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt));
-void    tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt));
+void    tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int *));
+void    tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int *));
 int     tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl);
 int     tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt);
 int     tdbPageUpdateCell(SPage *pPage, int idx, SCell *pCell, int szCell, TXN *pTxn, SBTree *pBt);
@@ -401,7 +402,6 @@ struct SPager {
   SRBTree rbt;
   // u8        inTran;
   TXN    *pActiveTxn;
-  SArray *ofps;
   SPager *pNext;      // used by TDB
   SPager *pHashNext;  // used by TDB
 #ifdef USE_MAINDB
