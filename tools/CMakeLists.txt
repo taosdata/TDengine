@@ -81,37 +81,38 @@ ELSE()
     MESSAGE("CURRENT SOURCE DIR ${CMAKE_CURRENT_SOURCE_DIR}")
 
         MESSAGE("Building taosAdapter")
+        set(_cgo_cflags_list
+                "-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client"
+        )
+        set(_cgo_ldflags_list
+                "-L${CMAKE_BINARY_DIR}/build/lib ${_rpath}"
+        )
+        set(_ldflags_list
+                "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}'"
+                "-X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+        )
+        string(JOIN " " _cgo_cflags ${_cgo_cflags_list})
+        string(JOIN " " _cgo_ldflags ${_cgo_ldflags_list})
+        string(JOIN " " _ldflags ${_ldflags_list})
         INCLUDE(ExternalProject)
         if(${TD_LINUX})
             set(ext_taosadapter_static taosadapter.a)
             set(taosadapter_exe        taosadapter)
             set(_rpath                 "-Wl,-rpath=\$ORIGIN/../lib")
-            set(_shell_cmd             sh -c)
+            set(_shell_cmd             sh -c "go build -a -ldflags \"${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=$(git rev-parse HEAD)'\"")
         elseif(${TD_DARWIN})
             set(ext_taosadapter_static taosadapter.a)
             set(taosadapter_exe        taosadapter)
             set(_rpath                 "-Wl,-rpath,\$ORIGIN/../lib")
-            set(_shell_cmd             sh -c)
+            set(_shell_cmd             sh -c "go build -a -ldflags \"${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=$(git rev-parse HEAD)'\"")
         elseif(${TD_WINDOWS})
             set(ext_taosadapter_static taosadapter.lib)
             set(taosadapter_exe        taosadapter.exe)
             set(_rpath                 "")
-            set(_shell_cmd             cmd /c)
+            set(_shell_cmd             cmd /c for /f %i in ('git rev-parse HEAD') do go build -a -ldflags "${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=%i'")
         endif()
-        set(_cgo_cflags_list
-            "-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client"
-        )
-        set(_cgo_ldflags_list
-            "-L${CMAKE_BINARY_DIR}/build/lib ${_rpath}"
-        )
-        set(_ldflags_list
-            "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}'"
-            "-X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
-        )
-        string(JOIN " " _cgo_cflags ${_cgo_cflags_list})
-        string(JOIN " " _cgo_ldflags ${_cgo_ldflags_list})
-        string(JOIN " " _ldflags ${_ldflags_list})
 
+        MESSAGE("BUILD COMMAND ${_shell_cmd}")
         # GIT_REPOSITORY https://github.com/taosdata/taosadapter.git
         # GIT_TAG 3.0
         INIT_EXT(taosadapter)
@@ -131,7 +132,7 @@ ELSE()
             BUILD_COMMAND
                 COMMAND "${CMAKE_COMMAND}" -E env "CGO_CFLAGS=${_cgo_cflags}"
                                                   "CGO_LDFLAGS=${_cgo_ldflags}"
-                        ${_shell_cmd} "go build -a -ldflags \"${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=$(git rev-parse HEAD)'\""
+                        ${_shell_cmd}
             INSTALL_COMMAND
                 # COMMAND "${CMAKE_COMMAND}" -E echo "Comparessing taosadapter.exe"
                 # COMMAND upx taosadapter || :
