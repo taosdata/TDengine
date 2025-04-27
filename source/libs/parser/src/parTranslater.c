@@ -12796,7 +12796,7 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
     PAR_ERR_JRET(terrno);
   }
 
-  if (pReq->forceOutput) {
+  /*if (pReq->forceOutput)*/ {
     pReq->forceOutCols = taosArrayInit(LIST_LENGTH(((SSelectStmt*)pStmt->pQuery)->pProjectionList), sizeof(SStreamOutCol));
     if (pReq->forceOutCols == NULL) {
       PAR_ERR_JRET(terrno);
