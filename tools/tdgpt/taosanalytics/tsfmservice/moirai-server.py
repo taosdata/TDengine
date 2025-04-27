@@ -42,7 +42,7 @@ def uni2ts():
 
         past_dynamic_real = data.get('past_dynamic_real', [])
 
-        if len(past_dynamic_real) == 0:  # uni-variate forecasting processing
+        if len(past_dynamic_real) == 0:  # single-variate forecasting processing
             resp = handle_singlevariate_forecast(input_data, prediction_length, interval)
         else: # co-variate forecasting processing
             resp = handle_covariate_forecast(input_data, prediction_length, interval, past_dynamic_real)
@@ -106,6 +106,7 @@ def handle_singlevariate_forecast(input_data, prediction_length, interval):
         'upper': res.quantile(0.5 + interval/2, dim=0).tolist(),
         'conf_interval':interval
     }
+
 
 def handle_covariate_forecast(input_data, prediction_length, interval, past_dynamic_real):
     """co-variate forecasting processing"""
