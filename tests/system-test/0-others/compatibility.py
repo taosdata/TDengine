@@ -1,11 +1,6 @@
 from urllib.parse import uses_relative
-import taos
-import taosws
-import sys
 import os
-import time
 import platform
-import inspect
 from taos.tmq import Consumer
 from taos.tmq import *
 from .compatibility_basic import cb
@@ -18,7 +13,6 @@ from util.dnodes import *
 from util.dnodes import TDDnodes
 from util.dnodes import TDDnode
 from util.cluster import *
-import subprocess
 
 # Define the list of base versions to test
 BASE_VERSIONS = ["3.2.0.0","3.3.3.0","3.3.4.0","3.3.5.0","3.3.6.0"]  # Add more versions as needed
@@ -100,7 +94,7 @@ class TDTestCase:
             cb.checkDataInNewVersion(base_version, bPath, cPath)
             cb.verifyBackticksInTaosSql()
 
-            tdLog.info(f"Compatibility test cycle with base version {base_version} completed successfully")
+            tdLog.printNoPrefix(f"Compatibility test cycle with base version {base_version} completed successfully")
 
     def stop(self):
         tdSql.close()
