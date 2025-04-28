@@ -71,15 +71,11 @@ ConsumerConfig config = {.enable_auto_commit = "true",
   "0.31000, 1.23, 2.381, 'abc', 'def', 'ghi')"
 */
 // clang-format off
-#define SQL_CREATE_TOPIC                                                                                              \
-  "CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, tbname, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, " \
-  "c13, c14, c15, c16, c17, c18, c19 FROM meters"
-#define SQL_CREATE_STABLE                                                                                              \
-  "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, c1 BOOL, c2 TINYINT, c3 SMALLINT, c4 INT, c5 BIGINT, c6 "   \
-  "FLOAT, c7 DOUBLE, c8 VARCHAR(255), c9 TIMESTAMP, c10 NCHAR(255), c11 TINYINT UNSIGNED, c12 SMALLINT UNSIGNED, c13 " \
-  "INT UNSIGNED, c14 BIGINT UNSIGNED, c15 VARBINARY(255), c16 DECIMAL(38, 10), c17 VARCHAR(255), c18 "                 \
-  "GEOMETRY(10240), c19 DECIMAL(18, 4)) tags(t1 JSON)"
-#define SQL_INSERT                                                                                                    \
+#define SQL_CREATE_TOPIC  \
+  "CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, tbname, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19 FROM meters"
+#define SQL_CREATE_STABLE  \
+  "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, c1 BOOL, c2 TINYINT, c3 SMALLINT, c4 INT, c5 BIGINT, c6 FLOAT, c7 DOUBLE, c8 binary(255), c9 TIMESTAMP, c10 NCHAR(255), c11 TINYINT UNSIGNED, c12 SMALLINT UNSIGNED, c13 INT UNSIGNED, c14 BIGINT UNSIGNED, c15 VARBINARY(255), c16 DECIMAL(38, 10), c17 VARCHAR(255), c18 GEOMETRY(10240), c19 DECIMAL(18, 4)) tags(t1 JSON)"
+#define SQL_INSERT  \
   "INSERT INTO power.d1001 USING power.meters TAGS('{\"k1\": \"v1\"}') VALUES (NOW + %da, true, -79, 25761, -83885, 7865351, 3848271.756357, 92575.506626, '8.0742e+19', 752424273771827, '3.082946351e+18', 57, 21219, 627629871, 84394301683266985, '-2.653889251096953e+18', -262609547807621769.7285797, '-7.694200485148515e+19', 'POINT(1.0 1.0)', 57823334285922.827)"
 // clang-format on
 
