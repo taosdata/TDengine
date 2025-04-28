@@ -364,19 +364,22 @@ int32_t compareFileInfoFunc(const void *a, const void *b) {
   SBseLiveFileInfo *p1 = (SBseLiveFileInfo *)a;
   SBseLiveFileInfo *p2 = (SBseLiveFileInfo *)b;
 
-  if (p1->sseq < p2->sseq) {
+  SSeqRange *pl = &p1->range;
+  SSeqRange *pr = &p2->range;
+
+  if (pl->sseq < pr->sseq) {
     return -1;
-  } else if (p1->sseq > p2->sseq) {
+  } else if (pl->sseq > pr->sseq) {
     return 1;
   }
   return 0;
 }
 
 int32_t findTargetTable(SArray *pFileList, int64_t seq) {
-  SBseLiveFileInfo target = {.sseq = seq, .eseq = seq};
+  SBseLiveFileInfo target = {.range = {.sseq = seq, .eseq = seq}};
   for (int32_t i = 0; i < taosArrayGetSize(pFileList); i++) {
     SBseLiveFileInfo *p = taosArrayGet(pFileList, i);
-    SSeqRange         range = {.sseq = p->sseq, .eseq = p->eseq};
+    SSeqRange         range = p->range;
     if (inSeqRange(&range, seq)) {
       return i;
     }

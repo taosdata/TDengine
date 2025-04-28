@@ -389,7 +389,6 @@ int32_t tableBuilderPut(STableBuilder *p, int64_t *seq, uint8_t *value, int32_t 
   TSDB_CHECK_CODE(code, lino, _error);
 
   // seqlen + valuelen + value
-
   int32_t extra = sizeof(*seq) + len + sizeof(len);
   if (blockEsimateSize(p->pBlockWrapper.data, extra) >= tableBuilderGetBlockSize(p)) {
     code = tableBuilderFlush(p, BSE_TABLE_DATA_TYPE);
@@ -457,8 +456,7 @@ int32_t tableBuildGenCommitInfo(STableBuilder *p, SBseLiveFileInfo *pInfo) {
   char    name[TSDB_FILENAME_LEN];
   sprintf(pInfo->name, "%s", p->name);
 
-  pInfo->sseq = p->tableRange.sseq;
-  pInfo->eseq = p->tableRange.eseq;
+  pInfo->range = p->tableRange;
   pInfo->size = p->offset;
   pInfo->level = 0;
 
@@ -494,8 +492,9 @@ int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo) {
   updateTableRange(p->pTableMeta, pMetaBlock);
 
   pInfo->level = 0;
-  pInfo->sseq = p->pTableMeta->range.sseq;
-  pInfo->eseq = p->pTableMeta->range.eseq;
+  pInfo->range = p->pTableMeta->range;
+  // pInfo->sseq = p->pTableMeta->range.sseq;
+  // pInfo->eseq = p->pTableMeta->range.eseq;
   pInfo->retentionTs = p->retentionTs;
   pInfo->size = p->offset;
 
@@ -958,7 +957,7 @@ _error:
   if (code != 0) {
     bseError("failed to flush table builder at line %d since %s", lino, tstrerror(code));
   } else {
-    bseInfo("flush at offset %d, size %d", pHandle->offset, len);
+    bseDebug("flush at offset %d, size %d", pHandle->offset, len);
   }
   return code;
 }
@@ -1014,7 +1013,7 @@ _error:
     bseError("failed to load block at lino %d since %s, read at offset %d, size:%d", lino, tstrerror(code),
              pHandle->offset, pHandle->size);
   } else {
-    bseInfo("read at offset %d, size %d", pHandle->offset, pHandle->size);
+    bseDebug("read at offset %d, size %d", pHandle->offset, pHandle->size);
   }
 
   blockWrapperCleanup(&pHelp);

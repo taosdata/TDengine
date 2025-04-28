@@ -71,8 +71,8 @@ static int32_t bseSerailCommitInfo(SBse *pBse, SArray *fileSet, char **pBuf, int
   for (int32_t i = 0; i < taosArrayGetSize(fileSet); i++) {
     SBseLiveFileInfo *pInfo = taosArrayGet(fileSet, i);
     cJSON            *pField = cJSON_CreateObject();
-    cJSON_AddNumberToObject(pField, "startSeq", pInfo->sseq);
-    cJSON_AddNumberToObject(pField, "endSeq", pInfo->eseq);
+    cJSON_AddNumberToObject(pField, "startSeq", pInfo->range.sseq);
+    cJSON_AddNumberToObject(pField, "endSeq", pInfo->range.eseq);
     cJSON_AddNumberToObject(pField, "size", pInfo->size);
     cJSON_AddNumberToObject(pField, "level", pInfo->level);
     cJSON_AddNumberToObject(pField, "retention", pInfo->retentionTs);
@@ -151,8 +151,8 @@ int32_t bseDeserialCommitInfo(SBse *pBse, char *pCurrent, SBseCommitInfo *pInfo)
     }
 
     SBseLiveFileInfo info = {0};
-    info.sseq = pStartSeq->valuedouble;
-    info.eseq = pEndSeq->valuedouble;
+    info.range.sseq = pStartSeq->valuedouble;
+    info.range.eseq = pEndSeq->valuedouble;
     info.size = pFileSize->valuedouble;
     info.level = pLevel->valuedouble;
     info.retentionTs = pRetentionTs->valuedouble;
@@ -301,7 +301,7 @@ int32_t bseInitStartSeq(SBse *pBse) {
 
   SBseLiveFileInfo *pLastFile = taosArrayGetLast(pBse->commitInfo.pFileList);
   if (pLastFile != NULL) {
-    lastSeq = pLastFile->eseq;
+    lastSeq = pLastFile->range.eseq;
   }
   pBse->seq = lastSeq + 1;
   return code;

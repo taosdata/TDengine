@@ -178,8 +178,9 @@ typedef struct {
 } STableReader;
 
 typedef struct {
-  int64_t sseq;
-  int64_t eseq;
+  SSeqRange range;
+  // int64_t sseq;
+  // int64_t eseq;
   int64_t size;
   int32_t level;
   int64_t retentionTs;
