@@ -24,7 +24,7 @@ IF(TD_WEBSOCKET)
             GIT_TAG main
             GIT_SHALLOW TRUE
             BUILD_IN_SOURCE TRUE
-            DEPENDS ${TAOS_LIB}
+            # DEPENDS ${TAOS_LIB}
             CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
             CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
             CONFIGURE_COMMAND
@@ -32,6 +32,9 @@ IF(TD_WEBSOCKET)
             PATCH_COMMAND
                 COMMAND git clean -f -d
             BUILD_COMMAND
+                COMMAND sh -c "echo PATH:$PATH"
+                COMMAND ls -a /home/runner/
+                COMMAND ls -a /home/runner/.cargo
                 COMMAND ls -a /home/runner/.cargo/bin
                 COMMAND echo "======================"
                 COMMAND ls -a /home/runner/.cargo/bin/cargo
