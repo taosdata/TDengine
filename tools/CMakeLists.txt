@@ -42,8 +42,6 @@ IF(TD_WEBSOCKET)
             VERBATIM
         )
         add_custom_target(build_ext_taosws ALL)
-        #add_dependencies(build_ext_taosws ext_taosws)
-        add_dependencies(${TAOS_LIB} ext_taosws)
 ENDIF()
 
 IF(TD_TAOS_TOOLS)

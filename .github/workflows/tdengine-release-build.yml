@@ -103,8 +103,8 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_DEPENDENCY_TESTS=false
 
-          make -j 4 ext_taosws
-          sudo make install
+          make -j 8
+          make install
           which taosd
           which taosadapter
           which taoskeeper
