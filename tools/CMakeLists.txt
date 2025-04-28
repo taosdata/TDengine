@@ -32,12 +32,12 @@ IF(TD_WEBSOCKET)
             PATCH_COMMAND
                 COMMAND git clean -f -d
             BUILD_COMMAND
-                # COMMAND sh -c "echo PATH:$PATH"
-                # COMMAND ls -a /home/runner/
-                # COMMAND ls -a /home/runner/.cargo
-                # COMMAND ls -a /home/runner/.cargo/bin
+                COMMAND sh -c "echo PATH:$PATH"
+                COMMAND ls -a /home/runner/
+                COMMAND ls -a /home/runner/.cargo
+                COMMAND ls -a /home/runner/.cargo/bin
                 COMMAND echo "======================"
-                # COMMAND ls -a /home/runner/.cargo/bin/cargo
+                COMMAND ls -a /home/runner/.cargo/bin/cargo
                 COMMAND cargo build --release --locked -p taos-ws-sys --features rustls
                 COMMAND echo "done======================="
             INSTALL_COMMAND
