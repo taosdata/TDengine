@@ -24,7 +24,7 @@ IF(TD_WEBSOCKET)
             GIT_TAG main
             GIT_SHALLOW TRUE
             BUILD_IN_SOURCE TRUE
-            DEPENDS ${TAOS_LIB}
+            #DEPENDS ${TAOS_LIB}
             CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
             CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
             CONFIGURE_COMMAND
@@ -32,6 +32,8 @@ IF(TD_WEBSOCKET)
             PATCH_COMMAND
                 COMMAND git clean -f -d
             BUILD_COMMAND
+                COMMAND sh -c "echo $PATH"
+                COMMAND bash -c "echo $PATH"
                 COMMAND cargo build --release --locked -p taos-ws-sys --features rustls
             INSTALL_COMMAND
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_dll} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ext_taosws_dll}

@@ -90,6 +90,11 @@ jobs:
       - name: Build and install TDengine
         run: |
           mkdir debug && cd debug
+          echo PATH= $PATH
+          which cargo
+          rustup --version
+          rustup toolchain list
+          cargo --version
           cmake .. -DBUILD_TOOLS=true \
             -DBUILD_KEEPER=true \
             -DBUILD_HTTP=false \
@@ -97,7 +102,8 @@ jobs:
             -DWEBSOCKET:STRING=true \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_DEPENDENCY_TESTS=false
-          make -j 4
+
+          make -j 4 ext_taosws
           sudo make install
           which taosd
           which taosadapter
