@@ -1246,8 +1246,10 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
       SPage* nextOfp = NULL;
       if (lastKeyPage) {
         if (lastKeyPageSpace >= vLen) {
-          memcpy(pBuf + bytes, pVal, vLen);
-          bytes += vLen;
+          if (vLen > 0) {
+            memcpy(pBuf + bytes, pVal, vLen);
+            bytes += vLen;
+          }
           pgno = 0;
         } else {
           memcpy(pBuf + bytes, pVal, lastKeyPageSpace);
