@@ -608,17 +608,9 @@ typedef struct SKillQueryStmt {
   char      queryId[TSDB_QUERY_ID_LEN];
 } SKillQueryStmt;
 
-typedef enum EStreamOptionsSetFlag {
-  SOPT_TRIGGER_TYPE_SET = BIT_FLAG_MASK(0),
-  SOPT_WATERMARK_SET = BIT_FLAG_MASK(1),
-  SOPT_DELETE_MARK_SET = BIT_FLAG_MASK(2),
-  SOPT_FILL_HISTORY_SET = BIT_FLAG_MASK(3),
-  SOPT_IGNORE_EXPIRED_SET = BIT_FLAG_MASK(4),
-  SOPT_IGNORE_UPDATE_SET = BIT_FLAG_MASK(5),
-} EStreamOptionsSetFlag;
 
 typedef struct SStreamTriggerOptions {
-  ENodeType type;
+  ENodeType type; // QUERY_NODE_STREAM_TRIGGER_OPTIONS
   SNode*    pPreFilter;
   SNode*    pWaterMark;
   SNode*    pMaxDelay;
@@ -635,27 +627,11 @@ typedef struct SStreamTriggerOptions {
   bool      forceOutput;
 } SStreamTriggerOptions;
 
-typedef enum EStreamNotifyOptionSetFlag {
-  SNOTIFY_OPT_ERROR_HANDLE_SET = BIT_FLAG_MASK(0),
-  SNOTIFY_OPT_NOTIFY_HISTORY_SET = BIT_FLAG_MASK(1),
-} EStreamNotifyOptionSetFlag;
-
 typedef enum EStreamNotifyEventType {
   SNOTIFY_EVENT_WINDOW_INVALIDATION = 0,
   SNOTIFY_EVENT_WINDOW_OPEN = BIT_FLAG_MASK(0),
   SNOTIFY_EVENT_WINDOW_CLOSE = BIT_FLAG_MASK(1),
 } EStreamNotifyEventType;
-
-typedef enum EStreamNotifyErrorHandleType {
-  SNOTIFY_ERROR_HANDLE_PAUSE,
-  SNOTIFY_ERROR_HANDLE_DROP,
-} EStreamNotifyErrorHandleType;
-
-typedef struct SStreamEventTypes {
-  ENodeType type;
-  bool      windowOpen;
-  bool      windowClose;
-} SStreamEventTypes;
 
 typedef struct SStreamNotifyOptions {
   ENodeType                    type;
@@ -676,7 +652,6 @@ typedef struct SCreateStreamStmt {
   SNode*                pSubtable;
   SNodeList*            pTags; // SStreamTagDefNode
   SNodeList*            pCols; // SColumnDefNode
-  SCMCreateStreamReq*   pReq;
 } SCreateStreamStmt;
 
 typedef struct SDropStreamStmt {

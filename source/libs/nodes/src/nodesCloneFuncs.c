@@ -529,8 +529,6 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(igCheckUpdate);
   CLONE_NODE_LIST_FIELD(pGroupTags);
   COPY_SCALAR_FIELD(groupSort);
-  CLONE_NODE_LIST_FIELD(pTags);
-  CLONE_NODE_FIELD(pSubtable);
   COPY_SCALAR_FIELD(cacheLastMode);
   COPY_SCALAR_FIELD(igLastNull);
   COPY_SCALAR_FIELD(groupOrderScan);
@@ -742,7 +740,6 @@ static int32_t logicInterpFuncCopy(const SInterpFuncLogicNode* pSrc, SInterpFunc
   COPY_SCALAR_FIELD(fillMode);
   CLONE_NODE_FIELD(pFillValues);
   CLONE_NODE_FIELD(pTimeSeries);
-  COPY_OBJECT_FIELD(streamNodeOption, sizeof(SStreamNodeOption));
   COPY_SCALAR_FIELD(rangeInterval);
   COPY_SCALAR_FIELD(rangeIntervalUnit);
   return TSDB_CODE_SUCCESS;

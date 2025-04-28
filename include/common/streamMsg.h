@@ -122,6 +122,24 @@ int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const struct SStreamRetriev
 int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, struct SStreamRetrieveReq* pReq);
 void    tCleanupStreamRetrieveReq(struct SStreamRetrieveReq* pReq);
 
+#define BIT_FLAG_MASK(n)               (1 << n)
+#define BIT_FLAG_SET_MASK(val, mask)   ((val) |= (mask))
+#define BIT_FLAG_UNSET_MASK(val, mask) ((val) &= ~(mask))
+#define BIT_FLAG_TEST_MASK(val, mask)  (((val) & (mask)) != 0)
+
+#define PLACE_HOLDER_NONE                  0
+#define PLACE_HOLDER_CURRENT_TS            BIT_FLAG_MASK(0)
+#define PLACE_HOLDER_WSTART                BIT_FLAG_MASK(1)
+#define PLACE_HOLDER_WEND                  BIT_FLAG_MASK(2)
+#define PLACE_HOLDER_WDURATION             BIT_FLAG_MASK(3)
+#define PLACE_HOLDER_WROWNUM               BIT_FLAG_MASK(4)
+#define PLACE_HOLDER_LOCALTIME             BIT_FLAG_MASK(5)
+#define PLACE_HOLDER_PARTITION_IDX         BIT_FLAG_MASK(6)
+#define PLACE_HOLDER_PARTITION_TBNAME      BIT_FLAG_MASK(7)
+#define PLACE_HOLDER_PARTITION_ROWS        BIT_FLAG_MASK(8)
+#define PLACE_HOLDER_GRPID                 BIT_FLAG_MASK(9)
+
+
 typedef enum EStreamPlaceholder {
   SP_NONE = 0,
   SP_CURRENT_TS = 1,
@@ -151,13 +169,15 @@ typedef struct SStateWinTrigger {
 } SStateWinTrigger;
 
 typedef struct SSlidingTrigger {
-  char    intervalUnit;
-  char    slidingUnit;
-  char    offsetUnit;
+  int8_t  intervalUnit;
+  int8_t  slidingUnit;
+  int8_t  offsetUnit;
+  int8_t  soffsetUnit;
   int8_t  precision;
   int64_t interval;
-  int64_t sliding;
   int64_t offset;
+  int64_t sliding;
+  int64_t soffset;
 } SSlidingTrigger;
 
 typedef struct SEventTrigger {

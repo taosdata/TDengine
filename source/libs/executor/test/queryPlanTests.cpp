@@ -2529,23 +2529,6 @@ SNode* qptCreatePartitionPhysiNode(int32_t nodeType) {
   return (SNode*)pPhysiNode;
 }
 
-SNode* qptCreateStreamPartitionPhysiNode(int32_t nodeType) {
-  SPhysiNode* pPhysiNode = qptCreatePhysiNode(nodeType);
-
-  SStreamPartitionPhysiNode* pPartition = (SStreamPartitionPhysiNode*)pPhysiNode;
-
-  qptCreatePartitionPhysiNodeImpl(&pPartition->part);
-
-  qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_CORRECT_HIGH_PROB() ? true : false, QPT_RAND_BOOL_V, 0, NULL);
-  qptMakeColumnList(&pPartition->pTags);
-
-  qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
-  qptMakeExprNode(&pPartition->pSubtable);
-
-  return (SNode*)pPhysiNode;
-}
-
-
 SNode* qptCreateIndefRowsFuncPhysiNode(int32_t nodeType) {
   SPhysiNode* pPhysiNode = qptCreatePhysiNode(nodeType);
 

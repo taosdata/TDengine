@@ -114,8 +114,6 @@ typedef struct SScanLogicNode {
   SArray*       pTsmaTargetTbInfo;
   SNodeList*    pGroupTags;
   bool          groupSort;
-  SNodeList*    pTags;      // for create stream
-  SNode*        pSubtable;  // for create stream
   int8_t        cacheLastMode;
   bool          hasNormalCols;  // neither tag column nor primary key tag column
   bool          sortPrimaryKey;
@@ -217,15 +215,6 @@ typedef struct SIndefRowsFuncLogicNode {
   bool       isTimeLineFunc;
 } SIndefRowsFuncLogicNode;
 
-typedef struct SStreamNodeOption {
-  int8_t  triggerType;
-  int64_t watermark;
-  int64_t deleteMark;
-  int8_t  igExpired;
-  int8_t  igCheckUpdate;
-  int8_t  destHasPrimaryKey;
-} SStreamNodeOption;
-
 typedef struct SInterpFuncLogicNode {
   SLogicNode    node;
   SNodeList*    pFuncs;
@@ -238,7 +227,6 @@ typedef struct SInterpFuncLogicNode {
   SNode*        pTimeSeries;  // SColumnNode
   int64_t       rangeInterval;
   int8_t        rangeIntervalUnit;
-  SStreamNodeOption streamNodeOption;
 } SInterpFuncLogicNode;
 
 typedef struct SForecastFuncLogicNode {
@@ -580,12 +568,9 @@ typedef struct SInterpFuncPhysiNode {
   EFillMode         fillMode;
   SNode*            pFillValues;  // SNodeListNode
   SNode*            pTimeSeries;  // SColumnNode
-  SStreamNodeOption streamNodeOption;
   int64_t       rangeInterval;
   int8_t        rangeIntervalUnit;
 } SInterpFuncPhysiNode;
-
-typedef SInterpFuncPhysiNode SStreamInterpFuncPhysiNode;
 
 typedef struct SForecastFuncPhysiNode {
   SPhysiNode node;
@@ -750,10 +735,6 @@ typedef struct SIntervalPhysiNode {
 
 typedef SIntervalPhysiNode SMergeIntervalPhysiNode;
 typedef SIntervalPhysiNode SMergeAlignedIntervalPhysiNode;
-typedef SIntervalPhysiNode SStreamIntervalPhysiNode;
-typedef SIntervalPhysiNode SStreamFinalIntervalPhysiNode;
-typedef SIntervalPhysiNode SStreamSemiIntervalPhysiNode;
-typedef SIntervalPhysiNode SStreamMidIntervalPhysiNode;
 
 typedef struct SFillPhysiNode {
   SPhysiNode  node;
@@ -766,8 +747,6 @@ typedef struct SFillPhysiNode {
   SNodeList*  pFillNullExprs;
 } SFillPhysiNode;
 
-typedef SFillPhysiNode SStreamFillPhysiNode;
-
 typedef struct SMultiTableIntervalPhysiNode {
   SIntervalPhysiNode interval;
   SNodeList*         pPartitionKeys;
@@ -778,17 +757,11 @@ typedef struct SSessionWinodwPhysiNode {
   int64_t          gap;
 } SSessionWinodwPhysiNode;
 
-typedef SSessionWinodwPhysiNode SStreamSessionWinodwPhysiNode;
-typedef SSessionWinodwPhysiNode SStreamSemiSessionWinodwPhysiNode;
-typedef SSessionWinodwPhysiNode SStreamFinalSessionWinodwPhysiNode;
-
 typedef struct SStateWinodwPhysiNode {
   SWindowPhysiNode window;
   SNode*           pStateKey;
   int64_t          trueForLimit;
 } SStateWinodwPhysiNode;
-
-typedef SStateWinodwPhysiNode SStreamStateWinodwPhysiNode;
 
 typedef struct SEventWinodwPhysiNode {
   SWindowPhysiNode window;
@@ -797,15 +770,11 @@ typedef struct SEventWinodwPhysiNode {
   int64_t          trueForLimit;
 } SEventWinodwPhysiNode;
 
-typedef SEventWinodwPhysiNode SStreamEventWinodwPhysiNode;
-
 typedef struct SCountWinodwPhysiNode {
   SWindowPhysiNode window;
   int64_t          windowCount;
   int64_t          windowSliding;
 } SCountWinodwPhysiNode;
-
-typedef SCountWinodwPhysiNode SStreamCountWinodwPhysiNode;
 
 typedef struct SAnomalyWindowPhysiNode {
   SWindowPhysiNode window;
@@ -838,12 +807,6 @@ typedef struct SPartitionPhysiNode {
   bool    needBlockOutputTsOrder;
   int32_t tsSlotId;
 } SPartitionPhysiNode;
-
-typedef struct SStreamPartitionPhysiNode {
-  SPartitionPhysiNode part;
-  SNodeList*          pTags;
-  SNode*              pSubtable;
-} SStreamPartitionPhysiNode;
 
 typedef struct SDataSinkNode {
   ENodeType           type;

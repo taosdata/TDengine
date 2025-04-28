@@ -421,9 +421,6 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_PERIOD_WINDOW:
       code = makeNode(type, sizeof(SPeriodWindowNode), &pNode);
       break;
-    case QUERY_NODE_STREAM_EVENT_TYPE:
-      code = makeNode(type, sizeof(SStreamEventTypes), &pNode);
-      break;
     case QUERY_NODE_STREAM_TRIGGER:
       code = makeNode(type, sizeof(SStreamTriggerNode), &pNode);
       break;
@@ -1342,8 +1339,6 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pFromTable);
       nodesDestroyNode(pStmt->pWhere);
       nodesDestroyList(pStmt->pPartitionByList);
-      nodesDestroyList(pStmt->pTags);
-      nodesDestroyNode(pStmt->pSubtable);
       nodesDestroyNode(pStmt->pWindow);
       nodesDestroyList(pStmt->pGroupByList);
       nodesDestroyNode(pStmt->pHaving);
@@ -1554,8 +1549,6 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pQuery);
       nodesDestroyList(pStmt->pTags);
       nodesDestroyNode(pStmt->pSubtable);
-      tFreeSCMCreateStreamReq(pStmt->pReq);
-      taosMemoryFreeClear(pStmt->pReq);
       break;
     }
     case QUERY_NODE_DROP_STREAM_STMT:                     // no pointer field
@@ -1735,8 +1728,6 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pTagIndexCond);
       taosArrayDestroyEx(pLogicNode->pSmaIndexes, destroySmaIndex);
       nodesDestroyList(pLogicNode->pGroupTags);
-      nodesDestroyList(pLogicNode->pTags);
-      nodesDestroyNode(pLogicNode->pSubtable);
       taosArrayDestroyEx(pLogicNode->pFuncTypes, destroyFuncParam);
       taosArrayDestroyP(pLogicNode->pTsmaTargetTbVgInfo, NULL);
       taosArrayDestroy(pLogicNode->pTsmaTargetTbInfo);

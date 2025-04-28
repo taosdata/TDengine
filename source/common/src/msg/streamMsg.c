@@ -1428,6 +1428,7 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
   int32_t code = 0;
   int32_t lino;
 
+  // name part
   int32_t sqlLen = pReq->sql == NULL ? 0 : (int32_t)strlen(pReq->sql) + 1;
   int32_t nameLen = pReq->name == NULL ? 0 : (int32_t)strlen(pReq->name) + 1;
   int32_t outDbLen = pReq->outDB == NULL ? 0 : (int32_t)strlen(pReq->outDB) + 1;
@@ -1438,7 +1439,6 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
 
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->streamId));
 
-  // name part
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->name, nameLen));
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->sql, sqlLen));
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->outDB, outDbLen));
@@ -1523,9 +1523,15 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
     }
     case WINDOW_TYPE_INTERVAL: {
       // slide trigger
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->trigger.sliding.intervalUnit));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->trigger.sliding.slidingUnit));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->trigger.sliding.offsetUnit));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->trigger.sliding.soffsetUnit));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->trigger.sliding.precision));
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.sliding.interval));
-      TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.sliding.sliding));
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.sliding.offset));
+      TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.sliding.sliding));
+      TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.sliding.soffset));
       break;
     }
     case WINDOW_TYPE_EVENT: {
@@ -1562,6 +1568,9 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->outStbExists));
   TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pReq->outStbUid));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->eventTypes));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->flags));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->tsmaId));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->placeHolderBitmap));
 
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->triggerTblVgId));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->outTblVgId));
@@ -1765,9 +1774,15 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
       }
       case WINDOW_TYPE_INTERVAL: {
         // slide trigger
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->trigger.sliding.intervalUnit));
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->trigger.sliding.slidingUnit));
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->trigger.sliding.offsetUnit));
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->trigger.sliding.soffsetUnit));
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->trigger.sliding.precision));
         TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.sliding.interval));
-        TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.sliding.sliding));
         TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.sliding.offset));
+        TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.sliding.sliding));
+        TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.sliding.soffset));
         break;
       }
       case WINDOW_TYPE_EVENT: {
@@ -1804,6 +1819,9 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->outStbExists));
   TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pReq->outStbUid));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->eventTypes));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->flags));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->tsmaId));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->placeHolderBitmap));
 
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->triggerTblVgId));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->outTblVgId));
