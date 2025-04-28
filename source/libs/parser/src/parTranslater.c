@@ -13051,6 +13051,16 @@ _return:
   return code;
 }
 
+static bool findNodeInList(SNode* pTarget, SNodeList* pList) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pList) {
+    if (nodesEqualNode(pNode, pTarget)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStreamStmt* pStmt,
                                             SSelectStmt* pTriggerSelect, SHashObj* pTriggerSlotHash,
                                             SCMCreateStreamReq* pReq) {
@@ -13130,9 +13140,14 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
       pScanSubPlan->pParents = NULL;
     }
 
-    FOREACH(pNode, calcPlan->pSubplans) {
-      SNodeListNode *pGroup = (SNodeListNode*)pNode;
-      PAR_ERR_JRET(eliminateNodeFromList((SNode*)pScanSubPlan, pGroup->pNodeList));
+    WHERE_EACH(pNode, calcPlan->pSubplans) {
+      SNodeListNode* pGroup = (SNodeListNode*)pNode;
+      if (findNodeInList((SNode*)pScanSubPlan, pGroup->pNodeList)) {
+        ERASE_NODE(calcPlan->pSubplans);
+        calcPlan->numOfSubplans--;
+        break;
+      }
+      WHERE_NEXT;
     }
 
     SStreamCalcScan pNewScan = {0};
