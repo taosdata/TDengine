@@ -97,7 +97,6 @@ jobs:
           # make ext_taosws
           make -j 4
           echo make done=======================
-          false
           sudo make install
           which taosd
           which taosadapter
