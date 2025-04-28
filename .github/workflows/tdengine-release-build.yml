@@ -13,6 +13,9 @@ on:
       - 'packaging/**'
       - 'tests/**'
       - '**/*.md'
+  pull_request:
+    branches:
+      - 'main'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -82,16 +85,26 @@ jobs:
 
       - name: Build and install TDengine
         run: |
+          echo "XPATH1:$PATH"
           mkdir debug && cd debug
+          echo "XPATH2:$PATH"
           cmake .. -DBUILD_TOOLS=true \
             -DBUILD_KEEPER=true \
             -DBUILD_HTTP=false \
-            -DBUILD_TEST=true \
+            -DBUILD_TEST=false \
             -DWEBSOCKET=true \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_DEPENDENCY_TESTS=false
+          # cmake --build . --target ext_taosws
+          # make ext_taosws
+          echo "XPATH3:$PATH"
           make -j 4
-          sudo make install
+          echo "XPATH4:$PATH"
+          echo make done=======================
+          # sudo make install
+          cd ..
+          sudo cmake --install debug --config Release
+          cd debug
           which taosd
           which taosadapter
           which taoskeeper

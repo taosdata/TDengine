@@ -32,7 +32,15 @@ IF(TD_WEBSOCKET)
             PATCH_COMMAND
                 COMMAND git clean -f -d
             BUILD_COMMAND
+                COMMAND sh -c "echo PATH:$PATH"
+                # COMMAND ls -a /home/runner/
+                # COMMAND ls -a /home/runner/.cargo
+                # COMMAND ls -a /home/runner/.cargo/bin
+                COMMAND which cargo
+                COMMAND echo "======================"
+                # COMMAND ls -a /home/runner/.cargo/bin/cargo
                 COMMAND cargo build --release --locked -p taos-ws-sys --features rustls
+                COMMAND echo "done======================="
             INSTALL_COMMAND
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_dll} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ext_taosws_dll}
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_lib_from} ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/${ext_taosws_lib_to}
