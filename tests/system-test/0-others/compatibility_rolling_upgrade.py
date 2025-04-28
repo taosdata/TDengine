@@ -80,9 +80,15 @@ class TDTestCase:
         tdSql.execute(f"CREATE DNODE 'test:6130'")
         tdSql.execute(f"CREATE DNODE 'test:6230'")
 
+        time.sleep(10)
+
         cb.prepareDataOnOldVersion(lastBigVersion, self.getBuildPath())
 
         cb.updateNewVersion(self.getBuildPath(),self.getDnodePath(),upgrade=True)
+
+        time.sleep(10)
+
+        cb.verifyData()
 
         cb.verifyBackticksInTaosSql()
 

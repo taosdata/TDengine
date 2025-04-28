@@ -84,7 +84,9 @@ class TDTestCase:
 
             cb.killAllDnodes()
 
-            cb.updateNewVersion(bPath,upgrade=False)
+            cb.updateNewVersion(bPath,cPaths=[],upgrade=False)
+
+            cb.verifyData()
 
             cb.verifyBackticksInTaosSql()
 

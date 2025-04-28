@@ -91,6 +91,18 @@ class CompatibilityBase:
         for dnodePath in dnodePaths:
             tdLog.info(f"start taosd: rm -rf {dnodePath}data/* && nohup /usr/bin/taosd -c {dnodePath}cfg/ &")
             os.system(f"rm -rf {dnodePath}data/* && nohup /usr/bin/taosd -c {dnodePath}cfg/ &")
+            os.system(f"killall taosadapter")
+            os.system(f"cp /etc/taos/taosadapter.toml {dnodePath}cfg/taosadapter.toml")
+            taosadapter_cfg = dnodePath + "cfg/taosadapter.toml"
+            taosadapter_log_path = dnodePath + "log/"
+            print(f"taosadapter_cfg:{taosadapter_cfg}, taosadapter_log_path:{taosadapter_log_path}")
+            self.alter_string_in_file(taosadapter_cfg,"#path = \"/var/log/taos\"",f"path = \"{taosadapter_log_path}\"")
+            self.alter_string_in_file(taosadapter_cfg,"taosConfigDir = \"\"",f"taosConfigDir = \"{dnodePath}cfg/\"")
+            print("/usr/bin/taosadapter --version")
+            os.system(f"/usr/bin/taosadapter --version")
+            print(f"LD_LIBRARY_PATH=/usr/lib -c {taosadapter_cfg} 2>&1 &")
+            os.system(f"LD_LIBRARY_PATH=/usr/lib /usr/bin/taosadapter -c {taosadapter_cfg} 2>&1 &")
+            time.sleep(5)
 
     # Modified installTaosd to accept version parameter
     def installTaosd(self, bPath, cPath, base_version):
@@ -268,8 +280,7 @@ class CompatibilityBase:
                 tdLog.info(f"kill taosd process, pid:{processPid}")
                 os.system(f"kill -9 {processPid}")
                 tdLog.info(f"start taosd in {cPaths[1]}")
-                os.system(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
-            
+                os.system(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")    
         else:
             tdLog.info("no upgrade mode")
             self.buildTaosd(bPath)
