@@ -62,8 +62,8 @@ int32_t streamHbBuildRequestMsg(SStreamHbMsg* pMsg, bool* skipHb) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   
-  pMsg->dnodeId = gStreamMgmt.dnodeId;
-  pMsg->snodeId = gStreamMgmt.snodeId;
+  pMsg->dnodeId = (*gStreamMgmt.getDnode)(gStreamMgmt.dnode);
+  pMsg->snodeId = pMsg->dnodeId;
   pMsg->streamGId = stmAddFetchStreamGid();
 
   TAOS_CHECK_EXIT(stmBuildStreamsStatus(&pMsg->pStreamStatus, pMsg->streamGId));
@@ -109,7 +109,7 @@ void streamHbStart(void* param, void* tmrId) {
     goto _exit;
   }
   
-  (*gStreamMgmt.cb)(gStreamMgmt.dnode, &epSet);
+  (*gStreamMgmt.getMnode)(gStreamMgmt.dnode, &epSet);
   TAOS_CHECK_EXIT(streamHbSendRequestMsg(&reqMsg, &epSet));
 
 _exit:

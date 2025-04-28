@@ -615,6 +615,9 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 
 int32_t dmDispatchStreamHbMsg(struct SDispatchWorkerPool* pPool, void* pParam, int32_t *pWorkerIdx) {
   SRpcMsg* pMsg = (SRpcMsg*)pParam;
+  if (pMsg->code) {
+    return pMsg->code;
+  }
   SStreamMsgGrpHeader* pHeader = (SStreamMsgGrpHeader*)pMsg->pCont;
   *pWorkerIdx = pHeader->streamGid % tsNumOfStreamMgmtThreads;
   return TSDB_CODE_SUCCESS;
@@ -629,7 +632,7 @@ static void dmProcessStreamMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 
   switch (pMsg->msgType) {
     case TDMT_MND_STREAM_HEARTBEAT_RSP:
-      //code = dmProcessStreamHbRsp(pMgmt, pMsg);
+      code = dmProcessStreamHbRsp(pMgmt, pMsg);
       break;
     default:
       code = TSDB_CODE_MSG_NOT_PROCESSED;

@@ -920,7 +920,6 @@ int32_t tEncodeStreamHbRsp(SEncoder* pEncoder, const SMStreamHbRspMsg* pRsp) {
       TAOS_CHECK_EXIT(tEncodeSStreamTaskUndeploy(pEncoder, pTask));
     }
   }
-
   
 _exit:
 

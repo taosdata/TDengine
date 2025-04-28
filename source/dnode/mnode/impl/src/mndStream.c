@@ -198,6 +198,7 @@ static int32_t mndStreamBuildObj(SMnode *pMnode, SStreamObj *pObj, SCMCreateStre
   int32_t     code = 0;
 
   pObj->pCreate = pCreate;
+  strncpy(pObj->name, pCreate->name, TSDB_STREAM_NAME_LEN);
 
   pObj->userStopped = false;
   
@@ -938,6 +939,7 @@ int32_t mndInitStream(SMnode *pMnode) {
       .updateFp = (SdbUpdateFp)mndStreamActionUpdate,
       .deleteFp = (SdbDeleteFp)mndStreamActionDelete,
   };
+/*
   SSdbTable tableSeq = {
       .sdbType = SDB_STREAM_SEQ,
       .keyType = SDB_KEY_BINARY,
@@ -947,7 +949,7 @@ int32_t mndInitStream(SMnode *pMnode) {
       .updateFp = (SdbUpdateFp)mndStreamSeqActionUpdate,
       .deleteFp = (SdbDeleteFp)mndStreamSeqActionDelete,
   };
-
+*/
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STREAM, mndProcessCreateStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM, mndProcessDropStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_START_STREAM, mndProcessPauseStreamReq);
@@ -969,7 +971,7 @@ int32_t mndInitStream(SMnode *pMnode) {
     return code;
   }
 
-  code = sdbSetTable(pMnode->pSdb, tableSeq);
+  //code = sdbSetTable(pMnode->pSdb, tableSeq);
   return code;
 }
 
