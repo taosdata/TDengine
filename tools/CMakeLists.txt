@@ -41,7 +41,6 @@ IF(TD_WEBSOCKET)
             EXCLUDE_FROM_ALL TRUE
             VERBATIM
         )
-        add_custom_target(build_ext_taosws ALL)
 ENDIF()
 
 IF(TD_TAOS_TOOLS)
