@@ -41,35 +41,63 @@ deletedDataSql = '''drop database if exists deldata;create database deldata dura
                             insert into deldata.ct1 values ( now()-0s, 0, 0, 0, 0, 0.0, 0.0, 0, 'binary0', 'nchar0', now()+0a ) ( now()-10s, 1, 11111, 111, 11, 1.11, 11.11, 1, 'binary1', 'nchar1', now()+1a ) ( now()-20s, 2, 22222, 222, 22, 2.22, 22.22, 0, 'binary2', 'nchar2', now()+2a ) ( now()-30s, 3, 33333, 333, 33, 3.33, 33.33, 1, 'binary3', 'nchar3', now()+3a );
                             delete from deldata.ct1;
                             insert into deldata.ct1 values ( now()-0s, 0, 0, 0, 0, 0.0, 0.0, 0, 'binary0', 'nchar0', now()+0a );
-                            flush database deldata;'''   
+                            flush database deldata;'''
+
+tableNumbers=100
+recordNumbers1=1000
+recordNumbers2=1000
 
 class CompatibilityBase:
         
     def checkProcessPid(self,processName):
+        tdLog.info(f"checkProcessPid {processName}")
         i=0
         while i<60:
-            print(f"wait stop {processName}")
+            tdLog.info(f"wait stop {processName}")
             processPid = subprocess.getstatusoutput(f'ps aux|grep {processName} |grep -v "grep"|awk \'{{print $2}}\'')[1]
-            print(f"times:{i},{processName}-pid:{processPid}")
+            tdLog.info(f"times:{i},{processName}-pid:{processPid}")
             if(processPid == ""):
                 break
             i += 1
             time.sleep(1)
         else:
-            print(f'this processName is not stopped in 60s')
-
-
+            tdLog.info(f'this processName is not stopped in 60s')
 
     # Modified installTaosd to accept version parameter
-    def installTaosd(self, bPath, cPath, base_version, package_type="community"):
+    def installTaosdForRollingUpgrade(self, dnodePaths, base_version):
+        packagePath = "/usr/local/src/"
+        packageType = "server"
+            
+        if platform.system() == "Linux" and platform.machine() == "aarch64":
+            packageName = "TDengine-"+ packageType + "-" + base_version + "-Linux-arm64.tar.gz"
+        else:
+            packageName = "TDengine-"+ packageType + "-" + base_version + "-Linux-x64.tar.gz"
+            
+        # Determine download URL
+        download_url = f"https://www.taosdata.com/assets-download/3.0/{packageName}"
+        tdLog.info(f"wget {download_url}")
+        
+        packageTPath = packageName.split("-Linux-")[0]
+        my_file = Path(f"{packagePath}/{packageName}")
+        if not my_file.exists():
+            print(f"{packageName} is not exists")
+            tdLog.info(f"cd {packagePath} && wget {download_url}")
+            os.system(f"cd {packagePath} && wget {download_url}")
+        else: 
+            print(f"{packageName} has been exists")
+            
+        os.system(f" cd {packagePath} && tar xvf {packageName} && cd {packageTPath} && ./install.sh -e no")
+        
+        for dnodePath in dnodePaths:
+            tdLog.info(f"start taosd: rm -rf {dnodePath}data/* && nohup /usr/bin/taosd -c {dnodePath}cfg/ &")
+            os.system(f"rm -rf {dnodePath}data/* && nohup /usr/bin/taosd -c {dnodePath}cfg/ &")
+
+    # Modified installTaosd to accept version parameter
+    def installTaosd(self, bPath, cPath, base_version):
         packagePath = "/usr/local/src/"
         dataPath = cPath + "/../data/"
         packageType = "server"
-        if package_type == "community" :
-            packageType = "server"
-        elif package_type == "enterprise":
-            packageType = "enterprise"
-            
+
         if platform.system() == "Linux" and platform.machine() == "aarch64":
             packageName = "TDengine-"+ packageType + "-" + base_version + "-Linux-arm64.tar.gz"
         else:
@@ -131,17 +159,22 @@ class CompatibilityBase:
         with open(file,"w",encoding="utf-8") as f:
             f.write(file_data)
 
-    def prepareDataOnOldVersion(self, base_version, bPath, cPath):
+    def killAllDnodes(self):
+        tdLog.info("kill all dnodes")
+        tdLog.info("kill taosd")
+        os.system(f"pkill -9 taosd")
+        tdLog.info("kill taos")
+        os.system(f"pkill -9 taos") 
+        tdLog.info("check taosd")
+        self.checkProcessPid("taosd")
+        tdLog.info("kill taosadapter")
+        os.system(f"pkill  -9   taosadapter")
+        tdLog.info("check taosadapter")
+        self.checkProcessPid("taosadapter")
+
+    def prepareDataOnOldVersion(self, base_version, bPath):
         dbname = "test"
         stb = f"{dbname}.meters"
-        # package_type = "enterprise"
-        package_type = "community"
-        self.installTaosd(bPath,cPath,base_version,package_type)
-        # os.system(f"echo 'debugFlag 143' >> {cPath}/taos.cfg ")
-        tableNumbers=100
-        recordNumbers1=1000
-        recordNumbers2=1000
-
         tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{base_version}")
         tdLog.info(f" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -t {tableNumbers} -n {recordNumbers1} -v 1 -O 5  -y ")
         os.system(f"LD_LIBRARY_PATH=/usr/lib taosBenchmark -t {tableNumbers} -n {recordNumbers1} -v 1 -O 5  -y  ")
@@ -168,10 +201,7 @@ class CompatibilityBase:
         os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;create stream power_stream trigger at_once  into power_stream_output_stb as select ts, concat_ws(\\".\\", location, tbname) as meter_location, current*voltage*cos(phase) as active_power, current*voltage*sin(phase) as reactive_power from meters partition by tbname;" ')
         os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show streams;" ')
 
-        self.alter_string_in_file("0-others/tmqBasic.json", "/etc/taos/", cPath)
-        # os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/tmqBasic.json -y ")
         # create db/stb/select topic
-
         db_topic = "db_test_topic"
         os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s  "create topic if not exists {db_topic} with meta as database test" ')
 
@@ -228,17 +258,25 @@ class CompatibilityBase:
         tdLog.info(f"new  client version  connect to old version taosd, commad return value:{cmd}")
         if os.system(cmd) == 0:
             raise Exception("failed to execute system command. cmd: %s" % cmd)
-                
-        os.system("pkill  -9  taosd")   # make sure all the data are saved in disk.
-        os.system("pkill  -9  taos") 
-        self.checkProcessPid("taosd")
-        os.system("pkill  -9   taosadapter")   # make sure all the data are saved in disk.
-        self.checkProcessPid("taosadapter")
-
-    def updateNewVersion(self, bPath, cPath):
+        
+    def updateNewVersion(self,bPath,cPaths,upgrade):
         tdLog.printNoPrefix("==========step2:update new version ")
-        self.buildTaosd(bPath)
-        tdDnodes.start(1)
+        if upgrade:
+            tdLog.info("upgrade mode")
+            processPid = subprocess.getstatusoutput(f'ps aux|grep taosd |grep -v "grep"|awk \'{{print $2}}\'')[1]
+            if processPid:
+                tdLog.info(f"kill taosd process, pid:{processPid}")
+                os.system(f"kill -9 {processPid}")
+                tdLog.info(f"start taosd in {cPaths[1]}")
+                os.system(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
+            
+        else:
+            tdLog.info("no upgrade mode")
+            self.buildTaosd(bPath)
+            tdDnodes.start(1)
+
+    def verifyData(self):
+        tdLog.printNoPrefix(f"==========step3:prepare and check data in new version-{nowServerVersion}")
         sleep(1)
         tdsql=tdCom.newTdSql()
         print(tdsql)
@@ -254,8 +292,7 @@ class CompatibilityBase:
         nowClientVersion=tdsql.queryResult[0][0]
         tdLog.info(f"New client version is {nowClientVersion}")
 
-    def checkDataInNewVersion(self, nowServerVersion, nowClientVersion):
-        tdLog.printNoPrefix(f"==========step3:prepare and check data in new version-{nowServerVersion}")
+        
         tdsql.query(f"select last(*) from curdb.meters")
         tdLog.info(tdsql.queryResult)
         tdsql.query(f"select * from db_all_insert_mode.sml_json")    

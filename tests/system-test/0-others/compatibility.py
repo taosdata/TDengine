@@ -10,8 +10,7 @@ from util.log import *
 from util.sql import *
 from util.cases import *
 from util.dnodes import *
-from util.dnodes import TDDnodes
-from util.dnodes import TDDnode
+from util.dnodes import tdDnodes
 from util.cluster import *
 
 # Define the list of base versions to test
@@ -29,17 +28,6 @@ class TDTestCase:
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
-        self.deletedDataSql= '''drop database if exists deldata;create database deldata duration 100 stt_trigger 1; ;use deldata;
-                            create table deldata.stb1 (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp) tags (t1 int);
-                            create table deldata.ct1 using deldata.stb1 tags ( 1 );
-                            insert into deldata.ct1 values ( now()-0s, 0, 0, 0, 0, 0.0, 0.0, 0, 'binary0', 'nchar0', now()+0a ) ( now()-10s, 1, 11111, 111, 11, 1.11, 11.11, 1, 'binary1', 'nchar1', now()+1a ) ( now()-20s, 2, 22222, 222, 22, 2.22, 22.22, 0, 'binary2', 'nchar2', now()+2a ) ( now()-30s, 3, 33333, 333, 33, 3.33, 33.33, 1, 'binary3', 'nchar3', now()+3a );
-                            select avg(c1) from deldata.ct1;
-                            delete from deldata.stb1;
-                            flush database deldata;
-                            insert into deldata.ct1 values ( now()-0s, 0, 0, 0, 0, 0.0, 0.0, 0, 'binary0', 'nchar0', now()+0a ) ( now()-10s, 1, 11111, 111, 11, 1.11, 11.11, 1, 'binary1', 'nchar1', now()+1a ) ( now()-20s, 2, 22222, 222, 22, 2.22, 22.22, 0, 'binary2', 'nchar2', now()+2a ) ( now()-30s, 3, 33333, 333, 33, 3.33, 33.33, 1, 'binary3', 'nchar3', now()+3a );
-                            delete from deldata.ct1;
-                            insert into deldata.ct1 values ( now()-0s, 0, 0, 0, 0, 0.0, 0.0, 0, 'binary0', 'nchar0', now()+0a );
-                            flush database deldata;'''   
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -89,9 +77,15 @@ class TDTestCase:
 
         for base_version in BASE_VERSIONS:
             tdLog.printNoPrefix(f"========== Start testing compatibility with base version {base_version} ==========")
-            cb.prepareDataOnOldVersion(base_version, bPath, cPath)
-            cb.updateNewVersion(bPath, cPath)
-            cb.checkDataInNewVersion(base_version, bPath, cPath)
+
+            cb.installTaosd(bPath,cPath,base_version)
+
+            cb.prepareDataOnOldVersion(base_version, bPath)
+
+            cb.killAllDnodes()
+
+            cb.updateNewVersion(bPath,upgrade=False)
+
             cb.verifyBackticksInTaosSql()
 
             tdLog.printNoPrefix(f"Compatibility test cycle with base version {base_version} completed successfully")
