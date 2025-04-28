@@ -14,7 +14,7 @@ class TestNormalTableAlter3:
         3. query data
 
         Catalog:
-            - Tables
+            - Table:NormalTable:Alter
 
         Since: v3.0.0.0
 

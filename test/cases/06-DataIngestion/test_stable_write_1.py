@@ -16,7 +16,7 @@ class TestStableWrite1:
         5. query data
 
         Catalog:
-            - SuperTables:Write
+            - DataIngestion
 
         Since: v3.0.0.0
 

@@ -7345,7 +7345,7 @@ static int32_t buildVnodeFilteredTbCount(SOperatorInfo* pOperator, STableCountSc
       QUERY_CHECK_CODE(code, lino, _end);
 
       int64_t numOfChildTables = 0;
-      code = pAPI->metaFn.getNumOfChildTables(pInfo->readHandle.vnode, uid, &numOfChildTables, NULL);
+      code = pAPI->metaFn.getNumOfChildTables(pInfo->readHandle.vnode, uid, &numOfChildTables, NULL, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
 
       code = fillTableCountScanDataBlock(pSupp, dbName, pSupp->stbNameFilter, numOfChildTables, pRes);
@@ -7418,7 +7418,7 @@ static int32_t buildVnodeGroupedStbTableCount(STableCountScanOperatorInfo* pInfo
   pRes->info.id.groupId = groupId;
 
   int64_t ctbNum = 0;
-  code = pAPI->metaFn.getNumOfChildTables(pInfo->readHandle.vnode, stbUid, &ctbNum, NULL);
+  code = pAPI->metaFn.getNumOfChildTables(pInfo->readHandle.vnode, stbUid, &ctbNum, NULL, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
   code = fillTableCountScanDataBlock(pSupp, dbName, varDataVal(stbName), ctbNum, pRes);
   QUERY_CHECK_CODE(code, lino, _end);

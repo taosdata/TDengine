@@ -2189,7 +2189,11 @@ const char* stmtErrstr2(TAOS_STMT2* stmt) {
 
   pStmt->exec.pRequest->code = terrno;
 
-  return taos_errstr(pStmt->exec.pRequest);
+  SRequestObj* pRequest = pStmt->exec.pRequest;
+  if (NULL != pRequest->msgBuf && (strlen(pRequest->msgBuf) > 0 || pRequest->code == TSDB_CODE_RPC_FQDN_ERROR)) {
+    return pRequest->msgBuf;
+  }
+  return (const char*)tstrerror(pRequest->code);
 }
 /*
 int stmtAffectedRows(TAOS_STMT* stmt) { return ((STscStmt2*)stmt)->affectedRows; }

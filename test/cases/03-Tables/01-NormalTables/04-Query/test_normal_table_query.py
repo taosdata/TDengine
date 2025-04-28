@@ -16,7 +16,7 @@ class TestNormalTableQuery:
         5. 字段筛选
 
         Catalog:
-            - Table:NormalTable
+            - Table:NormalTable:Query
 
         Since: v3.0.0.0
 
