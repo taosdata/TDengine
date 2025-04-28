@@ -607,7 +607,7 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
   return 0;
 }
 
-int tdbPagerFlushPage(SPager *pPager, TXN *pTxn) {
+int tdbPagerFlushPage(SPager *pPager, TXN *pTxn, bool *flushed) {
   SPage *pPage;
   i32    nRef;
   SPgno  maxPgno = pPager->dbOrigSize;
@@ -622,6 +622,8 @@ int tdbPagerFlushPage(SPager *pPager, TXN *pTxn) {
     if (nRef > 1) {
       continue;
     }
+
+    *flushed = true;
 
     SPgno pgno = TDB_PAGE_PGNO(pPage);
     if (pgno > maxPgno) {
@@ -679,6 +681,7 @@ int tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPa
   int    ret;
   SPgno  pgno;
   u8     loadPage;
+  bool   flushed = true;
 
   pgno = *ppgno;
   loadPage = 1;
@@ -701,8 +704,9 @@ int tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPa
   // fetch a page container
   memcpy(&pgid, pPager->fid, TDB_FILE_ID_LEN);
   pgid.pgno = pgno;
-  while ((pPage = tdbPCacheFetch(pPager->pCache, &pgid, pTxn)) == NULL) {
-    int32_t code = tdbPagerFlushPage(pPager, pTxn);
+  while ((pPage = tdbPCacheFetch(pPager->pCache, &pgid, pTxn, !flushed)) == NULL) {
+    flushed = false;
+    int32_t code = tdbPagerFlushPage(pPager, pTxn, &flushed);
     if (code) {
       tdbError("tdb/pager: %p, pPage: %p, flush page failed.", pPager, pPage);
       return code;

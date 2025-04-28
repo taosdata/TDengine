@@ -216,7 +216,7 @@ int tdbPagerRollback(SPager *pPager);
 int    tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache);
 void   tdbPCacheClose(SPCache *pCache);
 int    tdbPCacheAlter(SPCache *pCache, int32_t nPage);
-SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn);
+SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn, bool force);
 void   tdbPCacheRelease(SPCache *pCache, SPage *pPage, TXN *pTxn);
 void   tdbPCacheMarkFree(SPCache *pCache, SPage *pPage);
 void   tdbPCacheInvalidatePage(SPCache *pCache, SPager *pPager, SPgno pgno);

@@ -37,7 +37,7 @@ static inline uint32_t tdbPCachePageHash(const SPgid *pPgid) {
 }
 
 static int    tdbPCacheOpenImpl(SPCache *pCache);
-static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn);
+static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn, bool force);
 static void   tdbPCachePinPage(SPCache *pCache, SPage *pPage);
 static void   tdbPCacheRemovePageFromHash(SPCache *pCache, SPage *pPage);
 static void   tdbPCacheAddPageToHash(SPCache *pCache, SPage *pPage);
@@ -188,13 +188,13 @@ int tdbPCacheAlter(SPCache *pCache, int32_t nPage) {
   return code;
 }
 
-SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn) {
+SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn, bool force) {
   SPage *pPage;
   i32    nRef = 0;
 
   tdbPCacheLock(pCache);
 
-  pPage = tdbPCacheFetchImpl(pCache, pPgid, pTxn);
+  pPage = tdbPCacheFetchImpl(pCache, pPgid, pTxn, force);
   if (pPage) {
     nRef = tdbRefPage(pPage);
   }
@@ -296,7 +296,7 @@ void tdbPCacheRelease(SPCache *pCache, SPage *pPage, TXN *pTxn) {
 
 int tdbPCacheGetPageSize(SPCache *pCache) { return pCache->szPage; }
 
-static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn) {
+static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn, bool force) {
   int    ret = 0;
   SPage *pPage = NULL;
   SPage *pPageH = NULL;
@@ -343,7 +343,11 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
 
   // 4. Try a create new page
   if (!pPage && pTxn->xMalloc != NULL) {
-    ret = tdbPageCreate(pCache->szPage, &pPage, pTxn->xMalloc, pTxn->xArg);
+    if (force) {
+      ret = tdbPageCreate(pCache->szPage, &pPage, &tdbDefaultMalloc, pTxn->xArg);
+    } else {
+      ret = tdbPageCreate(pCache->szPage, &pPage, pTxn->xMalloc, pTxn->xArg);
+    }
     if (ret < 0 || pPage == NULL) {
       // when allocating from bufpool failed, it's time to flush cache.
       // tdbError("tdb/pcache: ret: %" PRId32 " pPage: %p, page create failed.", ret, pPage);

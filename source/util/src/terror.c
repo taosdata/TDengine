@@ -600,6 +600,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SYN_WRONG_REF,                "Sync got a wrong ref"
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_ID,               "Sync invalid id")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_RETURN_VALUE_NULL,        "Sync got a null return")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_WRONG_ROLE,               "Sync got a wrong role")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NOT_IN_RAFT_GROUP,        "Sync not in raft group")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_TERM_NOT_MATCH,           "Sync term not match current term")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INTERNAL_ERROR,           "Sync internal error")
 
 //tq
