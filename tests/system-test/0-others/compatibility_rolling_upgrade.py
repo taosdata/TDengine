@@ -17,6 +17,7 @@ import platform
 from taos.tmq import Consumer
 from taos.tmq import *
 from .compatibility_basic import cb
+import socket
 
 from pathlib import Path
 from util.log import *
@@ -72,13 +73,16 @@ class TDTestCase:
         return lastBigVersion
 
     def run(self):
+        hostname = socket.gethostname()
+        tdLog.info(f"hostname: {hostname}")
         lastBigVersion = self.getLastBigVersion()
 
         tdDnodes.stopAll()
         
         cb.installTaosdForRollingUpgrade(self.getDnodePath(), lastBigVersion)
-        tdSql.execute(f"CREATE DNODE 'test:6130'")
-        tdSql.execute(f"CREATE DNODE 'test:6230'")
+        
+        tdSql.execute(f"CREATE DNODE '{hostname}:6130'")
+        tdSql.execute(f"CREATE DNODE '{hostname}:6230'")
 
         time.sleep(10)
 
