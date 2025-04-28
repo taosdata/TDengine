@@ -32,6 +32,7 @@ void streamSetSnodeDisabled(void) {
 
 void streamCleanup(void) {
   //STREAMTODO
+  streamTriggerEnvCleanup();
 }
 
 int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode) {
@@ -57,6 +58,8 @@ int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode
   TAOS_CHECK_EXIT(streamTimerInit(&gStreamMgmt.timer));
 
   TAOS_CHECK_EXIT(streamHbInit(&gStreamMgmt.hb));
+
+  TAOS_CHECK_EXIT(streamTriggerEnvInit());
 
 _exit:
 

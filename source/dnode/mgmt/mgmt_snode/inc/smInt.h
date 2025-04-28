@@ -44,6 +44,7 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt);
 void    smStopWorker(SSnodeMgmt *pMgmt);
 int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pMsg);
 int32_t smPutMsgToRunnerQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t smPutMsgToTriggerQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

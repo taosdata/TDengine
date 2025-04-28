@@ -136,8 +136,8 @@ int32_t smDeployStreamTasks(SStmStreamDeploy* pDeploy) {
 
     SStreamTask* pTask = &pDeploy->triggerTask->task;
     stream.triggerTask->task = *pTask;
-    //STREAMTODO
-    //TAOS_CHECK_EXIT(stTriggerTaskDeploy(stream.triggerTask, &pDeploy->triggerTask->msg));
+
+    TAOS_CHECK_EXIT(stTriggerTaskDeploy(stream.triggerTask, &pDeploy->triggerTask->msg.trigger));
 
     TAOS_CHECK_EXIT(taosHashPut(gStreamMgmt.taskMap, &pTask->streamId, sizeof(pTask->streamId) + sizeof(pTask->taskId), &stream.triggerTask, POINTER_BYTES));
 
@@ -215,8 +215,7 @@ int32_t smStartStreamTasks(SStreamTaskStart* pStart) {
     goto _exit;
   }
 
-  //STREAMTODO
-  //TAOS_CHECK_EXIT(stTriggerTaskExecute(pTask, &pStart->startMsg));
+  TAOS_CHECK_EXIT(stTriggerTaskExecute((SStreamTriggerTask *)pTask, (SStreamMsg *)&pStart->startMsg));
 
   ST_TASK_DLOG("stream start succeed, tidx:%d", pTask->taskIdx);
 
@@ -276,11 +275,10 @@ int32_t smUndeployStreamTasks(SStreamTaskUndeploy* pUndeploy) {
   switch (pTask->type) {
     case STREAM_READER_TASK:
       //STREAMTODO
-      //TAOS_CHECK_EXIT(stReadderTaskUndeploy(pTask, &pUndeploy->undeployMsg));
+      // TAOS_CHECK_EXIT(stReadderTaskUndeploy(pTask, &pUndeploy->undeployMsg));
       break;
     case STREAM_TRIGGER_TASK:
-      //STREAMTODO
-      //TAOS_CHECK_EXIT(stTriggerTaskUndeploy(pTask, &pUndeploy->undeployMsg));
+      TAOS_CHECK_EXIT(stTriggerTaskUndeploy((SStreamTriggerTask *)pTask, &pUndeploy->undeployMsg));
       break;
     case STREAM_RUNNER_TASK:
       TAOS_CHECK_EXIT(stRunnerTaskUndeploy((SStreamRunnerTask*)pTask, &pUndeploy->undeployMsg));

@@ -151,6 +151,10 @@ typedef struct SStateWinTrigger {
 } SStateWinTrigger;
 
 typedef struct SSlidingTrigger {
+  char    intervalUnit;
+  char    slidingUnit;
+  char    offsetUnit;
+  int8_t  precision;
   int64_t interval;
   int64_t sliding;
   int64_t offset;
@@ -275,6 +279,7 @@ typedef enum EStreamTaskType {
   STREAM_RUNNER_TASK,
 } EStreamTaskType;
 
+static const char *gStreamTaskTypeStr[] = {"Reader", "Trigger", "Runner"};
 
 typedef struct SStreamTask {
   EStreamTaskType type;
@@ -509,7 +514,155 @@ void    tFreeSCMCreateStreamReq(SCMCreateStreamReq* pReq);
 int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStreamReq *pReq);
 int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamReq *pReq);
 
+typedef enum ESTriggerPullType {
+  STRIGGER_PULL_LAST_TS,
+  STRIGGER_PULL_FIRST_TS,
+  STRIGGER_PULL_TSDB_META,
+  STRIGGER_PULL_TSDB_META_NEXT,
+  STRIGGER_PULL_TSDB_TS_DATA,
+  STRIGGER_PULL_TSDB_TRIGGER_DATA,
+  STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT,
+  STRIGGER_PULL_TSDB_CALC_DATA,
+  STRIGGER_PULL_TSDB_CALC_DATA_NEXT,
+  STRIGGER_PULL_WAL_META,
+  STRIGGER_PULL_WAL_TS_DATA,
+  STRIGGER_PULL_WAL_TRIGGER_DATA,
+  STRIGGER_PULL_WAL_CALC_DATA,
+} ESTriggerPullType;
 
+typedef struct SSTriggerPullRequest {
+  ESTriggerPullType type;
+  int64_t           streamId;
+  int64_t           readerTaskId;
+  int64_t           sessionId;
+  int64_t           triggerTaskId;  // does not serialize
+} SSTriggerPullRequest;
+
+typedef struct SSTriggerLastTsRequest {
+  SSTriggerPullRequest base;
+} SSTriggerLastTsRequest;
+
+typedef struct SSTriggerFirstTsRequest {
+  SSTriggerPullRequest base;
+  int64_t              startTime;
+} SSTriggerFirstTsRequest;
+
+typedef struct SSTriggerTsdbMetaRequest {
+  SSTriggerPullRequest base;
+  int64_t              startTime;
+} SSTriggerTsdbMetaRequest;
+
+typedef struct SSTriggerTsdbMetaNextRequest {
+  SSTriggerPullRequest base;
+} SSTriggerTsdbMetaNextRequest;
+
+typedef struct SSTriggerTsdbTsDataRequest {
+  SSTriggerPullRequest base;
+  int64_t              uid;
+  int64_t              skey;
+  int64_t              ekey;
+} SSTriggerTsdbTsDataRequest;
+
+typedef struct SSTriggerTsdbTriggerDataRequest {
+  SSTriggerPullRequest base;
+  int64_t              startTime;
+} SSTriggerTsdbTriggerDataRequest;
+
+typedef struct SSTriggerTsdbTriggerDataNextRequest {
+  SSTriggerPullRequest base;
+} SSTriggerTsdbTriggerDataNextRequest;
+
+typedef struct SSTriggerTsdbCalcDataRequest {
+  SSTriggerPullRequest base;
+  int64_t              gid;
+  int64_t              skey;
+  int64_t              ekey;
+} SSTriggerTsdbCalcDataRequest;
+
+typedef struct SSTriggerTsdbCalcDataNextRequest {
+  SSTriggerPullRequest base;
+} SSTriggerTsdbCalcDataNextRequest;
+
+typedef struct SSTriggerWalMetaRequest {
+  SSTriggerPullRequest base;
+  int64_t              lastVer;
+} SSTriggerWalMetaRequest;
+
+typedef struct SSTriggerWalTsDataRequest {
+  SSTriggerPullRequest base;
+  int64_t              ver;
+} SSTriggerWalTsDataRequest;
+
+typedef struct SSTriggerWalTriggerDataRequest {
+  SSTriggerPullRequest base;
+  int64_t              ver;
+} SSTriggerWalTriggerDataRequest;
+
+typedef struct SSTriggerWalCalcDataRequest {
+  SSTriggerPullRequest base;
+  int64_t              ver;
+  int64_t              skey;
+  int64_t              ekey;
+} SSTriggerWalCalcDataRequest;
+
+typedef union SSTriggerPullRequestUnion {
+  SSTriggerPullRequest                base;
+  SSTriggerLastTsRequest              lastTsReq;
+  SSTriggerFirstTsRequest             firstTsReq;
+  SSTriggerTsdbMetaRequest            tsdbMetaReq;
+  SSTriggerTsdbMetaNextRequest        tsdbMetaNextReq;
+  SSTriggerTsdbTsDataRequest          tsdbTsDataReq;
+  SSTriggerTsdbTriggerDataRequest     tsdbTriggerDataReq;
+  SSTriggerTsdbTriggerDataNextRequest tsdbTriggerDataNextReq;
+  SSTriggerTsdbCalcDataRequest        tsdbCalcDataReq;
+  SSTriggerTsdbCalcDataNextRequest    tsdbCalcDataNextReq;
+  SSTriggerWalMetaRequest             walMetaReq;
+  SSTriggerWalTsDataRequest           walTsDataReq;
+  SSTriggerWalTriggerDataRequest      walTriggerDataReq;
+  SSTriggerWalCalcDataRequest         walCalcDataReq;
+} SSTriggerPullRequestUnion;
+
+int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTriggerPullRequest* pReq);
+int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullRequestUnion* pReq);
+
+typedef struct SSTriggerCalcParam {
+  // These fields only have values when used in the statement, otherwise they are 0
+  int64_t currentTs;
+  int64_t wstart;
+  int64_t wend;
+  int64_t wduration;
+  int64_t wrownum;
+  int64_t triggerTime;
+
+  int32_t notifyType;          // See also: ESTriggerEventType
+  char*   extraNotifyContent;  // NULL if not available
+} SSTriggerCalcParam;
+
+typedef struct SSTriggerCalcRequest {
+  int64_t streamId;
+  int64_t runnerTaskId;
+  int64_t sessionId;
+  int64_t triggerTaskId;  // does not serialize
+
+  int64_t gid;
+  SArray* params;
+  SArray* groupColVals;  // only provided at the first calculation of the group
+} SSTriggerCalcRequest;
+
+int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTriggerCalcRequest* pReq);
+int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalcRequest* pReq);
+void    tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq);
+
+typedef struct SSTriggerPullResponse {
+  int64_t           sessionId;
+  ESTriggerPullType reqType;
+  void*             pDataBlock;
+} SSTriggerPullResponse;
+
+typedef struct SSTriggerCalcResponse {
+  int64_t sessionId;
+  int32_t code;
+} SSTriggerCalcResponse;
 
 #ifdef __cplusplus
 }

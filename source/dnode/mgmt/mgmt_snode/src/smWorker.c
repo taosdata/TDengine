@@ -114,6 +114,9 @@ int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
     case STREAM_RUNNER_QUEUE:
       code = smPutMsgToRunnerQueue(pMgmt, pMsg);
       break;
+    case STREAM_TRIGGER_QUEUE:
+      code = smPutMsgToTriggerQueue(pMgmt, pMsg);
+      break;
     default:
       code = TSDB_CODE_INVALID_PARA;
       rpcFreeCont(pMsg->pCont);
@@ -128,4 +131,9 @@ int32_t smPutMsgToRunnerQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   return taosWriteQitem(pWorker->queue, pMsg);
+}
+
+int32_t smPutMsgToTriggerQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  dTrace("msg:%p, put into pool %s", pMsg, pMgmt->triggerWorkerPool.name);
+  return tAddTaskIntoDispatchWorkerPool(&pMgmt->triggerWorkerPool, pMsg);
 }

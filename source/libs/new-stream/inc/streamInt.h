@@ -23,6 +23,7 @@
 #include "tref.h"
 #include "ttimer.h"
 #include "streamRunner.h"
+#include "streamTriggerTask.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -92,6 +93,10 @@ void streamTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* pParam, void* 
 int32_t stmBuildStreamsStatus(SArray** ppStatus, int32_t gid);
 int32_t stmAddFetchStreamGid(void);
 
+// initialize global request limit of stream triggers
+int32_t streamTriggerEnvInit();
+void    streamTriggerEnvCleanup();
+int32_t streamTriggerKickCalc(); // todo(kjq): call the function when receive calc response
 
 #ifdef __cplusplus
 }
