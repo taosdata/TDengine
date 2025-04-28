@@ -53,7 +53,37 @@ ConsumerConfig config = {.enable_auto_commit = "true",
                          .td_connect_pass = "taosdata",
                          .auto_offset_reset = "latest"};
 
-void* prepare_data(void* arg) {
+#define SQL_CREATE_DB  "CREATE DATABASE power PRECISION 'ms' WAL_RETENTION_PERIOD 3600"
+#define SQL_DROP_DB    "DROP DATABASE IF EXISTS power"
+#define SQL_USE_DB     "USE power"
+#define SQL_DROP_TOPIC "DROP TOPIC IF EXISTS topic_meters"
+/*#define SQL_CREATE_TOPIC                                                                                             \
+  "CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, tbname, current, voltage, phase, groupid, location, deci, " \
+  "deci64,"                                                                                                          \
+  "bin, vc, nc, tbname "                                                                                             \
+  "FROM meters"
+#define SQL_CREATE_STABLE                                                                                             \
+  "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT, deci DECIMAL(8, " \
+  "6), deci64 decimal(20, 10), bin binary(20), vc varchar(20), nc nchar(20)) TAGS (groupId "                          \
+  "INT, location BINARY(24)) "
+#define SQL_INSERT                                                                                                  \
+  "INSERT INTO power.d1001 USING power.meters TAGS(2,'California.SanFrancisco') VALUES (NOW + %da, 10.30000, 219, " \
+  "0.31000, 1.23, 2.381, 'abc', 'def', 'ghi')"
+*/
+// clang-format off
+#define SQL_CREATE_TOPIC                                                                                              \
+  "CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, tbname, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, " \
+  "c13, c14, c15, c16, c17, c18, c19 FROM meters"
+#define SQL_CREATE_STABLE                                                                                              \
+  "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, c1 BOOL, c2 TINYINT, c3 SMALLINT, c4 INT, c5 BIGINT, c6 "   \
+  "FLOAT, c7 DOUBLE, c8 VARCHAR(255), c9 TIMESTAMP, c10 NCHAR(255), c11 TINYINT UNSIGNED, c12 SMALLINT UNSIGNED, c13 " \
+  "INT UNSIGNED, c14 BIGINT UNSIGNED, c15 VARBINARY(255), c16 DECIMAL(38, 10), c17 VARCHAR(255), c18 "                 \
+  "GEOMETRY(10240), c19 DECIMAL(18, 4)) tags(t1 JSON)"
+#define SQL_INSERT                                                                                                    \
+  "INSERT INTO power.d1001 USING power.meters TAGS('{\"k1\": \"v1\"}') VALUES (NOW + %da, true, -79, 25761, -83885, 7865351, 3848271.756357, 92575.506626, '8.0742e+19', 752424273771827, '3.082946351e+18', 57, 21219, 627629871, 84394301683266985, '-2.653889251096953e+18', -262609547807621769.7285797, '-7.694200485148515e+19', 'POINT(1.0 1.0)', 57823334285922.827)"
+// clang-format on
+
+static void* prep_data(void* arg) {
   const char* host = "localhost";
   const char* user = "root";
   const char* password = "taosdata";
@@ -74,13 +104,9 @@ void* prepare_data(void* arg) {
   int       i = 1;
 
   while (!thread_stop) {
-    char buf[200] = {0};
+    char buf[4096] = {0};
     i++;
-    snprintf(
-        buf, sizeof(buf),
-        "INSERT INTO power.d1001 USING power.meters TAGS(2,'California.SanFrancisco') VALUES (NOW + %da, 10.30000, "
-        "219, 0.31000)",
-        i);
+    snprintf(buf, sizeof(buf), SQL_INSERT, i);
 
     fprintf(stdout, "start to insert: %s\n", buf);
 
@@ -132,7 +158,7 @@ int32_t msg_process(TAOS_RES* msg) {
   return rows;
 }
 
-TAOS* init_env() {
+static TAOS* init_env() {
   const char* host = "localhost";
   const char* user = "root";
   const char* password = "taosdata";
@@ -153,7 +179,7 @@ TAOS* init_env() {
   // drop database if exists
   fprintf(stdout, "start to drop topic: topic_meters.\n");
 
-  pRes = taos_query(pConn, "DROP TOPIC IF EXISTS topic_meters");
+  pRes = taos_query(pConn, SQL_DROP_TOPIC);
   code = taos_errno(pRes);
   if (code != 0) {
     fprintf(stderr, "Failed to drop topic_meters, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
@@ -163,7 +189,7 @@ TAOS* init_env() {
 
   fprintf(stdout, "start to drop db power.\n");
 
-  pRes = taos_query(pConn, "DROP DATABASE IF EXISTS power");
+  pRes = taos_query(pConn, SQL_DROP_DB);
   code = taos_errno(pRes);
   if (code != 0) {
     fprintf(stderr, "Failed to drop database power, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
@@ -174,7 +200,7 @@ TAOS* init_env() {
   // create database
   fprintf(stdout, "start to create db power.\n");
 
-  pRes = taos_query(pConn, "CREATE DATABASE power PRECISION 'ms' WAL_RETENTION_PERIOD 3600");
+  pRes = taos_query(pConn, SQL_CREATE_DB);
   code = taos_errno(pRes);
   if (code != 0) {
     fprintf(stderr, "Failed to create power, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
@@ -185,10 +211,7 @@ TAOS* init_env() {
   // create super table
   fprintf(stdout, "start to create super table power.meters\n");
 
-  pRes = taos_query(
-      pConn,
-      "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS "
-      "(groupId INT, location BINARY(24))");
+  pRes = taos_query(pConn, SQL_CREATE_STABLE);
   code = taos_errno(pRes);
   if (code != 0) {
     fprintf(stderr, "Failed to create super table meters, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
@@ -208,7 +231,7 @@ void deinit_env(TAOS* pConn) {
   if (pConn) taos_close(pConn);
 }
 
-int32_t create_topic(TAOS* pConn) {
+int32_t create_topics(TAOS* pConn) {
   TAOS_RES* pRes;
   int       code = 0;
 
@@ -217,7 +240,7 @@ int32_t create_topic(TAOS* pConn) {
     return -1;
   }
 
-  pRes = taos_query(pConn, "USE power");
+  pRes = taos_query(pConn, SQL_USE_DB);
   code = taos_errno(pRes);
   if (taos_errno(pRes) != 0) {
     fprintf(stderr, "Failed to use power, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
@@ -225,10 +248,7 @@ int32_t create_topic(TAOS* pConn) {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(
-      pConn,
-      "CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, tbname, current, voltage, phase, groupid, location, "
-      "tbname FROM meters");
+  pRes = taos_query(pConn, SQL_CREATE_TOPIC);
   code = taos_errno(pRes);
   if (code != 0) {
     fprintf(stderr, "Failed to create topic topic_meters, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
@@ -258,7 +278,7 @@ int32_t drop_topic_with_connect(void) {
 
   TAOS_RES* pRes;
   // drop database if exists
-  pRes = taos_query(pConn, "DROP TOPIC IF EXISTS topic_meters");
+  pRes = taos_query(pConn, SQL_DROP_TOPIC);
   code = taos_errno(pRes);
   if (code != 0) {
     fprintf(stderr, "Failed to drop topic_meters, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
@@ -281,7 +301,7 @@ int32_t drop_topic_without_connect(TAOS* pConn) {
     return -1;
   }
 
-  pRes = taos_query(pConn, "USE power");
+  pRes = taos_query(pConn, SQL_USE_DB);
   code = taos_errno(pRes);
   if (taos_errno(pRes) != 0) {
     fprintf(stderr, "Failed to use power, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
@@ -289,7 +309,7 @@ int32_t drop_topic_without_connect(TAOS* pConn) {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "DROP TOPIC IF EXISTS topic_meters");
+  pRes = taos_query(pConn, SQL_DROP_TOPIC);
   code = taos_errno(pRes);
   if (code != 0) {
     fprintf(stderr, "Failed to drop topic topic_meters, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
@@ -494,7 +514,7 @@ int topic_create(void) {
 
   fprintf(stdout, "start to create topic.\n");
 
-  if (create_topic(pConn) < 0) {
+  if (create_topics(pConn) < 0) {
     fprintf(stderr, "Failed to create topic.\n");
     return -1;
   }
@@ -522,7 +542,7 @@ int topic_drop(void) {
 int topic_prep(void) {
   pthread_t thread_id;
 
-  if (pthread_create(&thread_id, NULL, &prepare_data, NULL)) {
+  if (pthread_create(&thread_id, NULL, &prep_data, NULL)) {
     fprintf(stderr, "Failed to create thread.\n");
     return -1;
   }
@@ -554,12 +574,12 @@ int main(int argc, char* argv[]) {
     return -1;
   }
 
-  if (create_topic(pConn) < 0) {
+  if (create_topics(pConn) < 0) {
     fprintf(stderr, "Failed to create topic.\n");
     return -1;
   }
 
-  if (pthread_create(&thread_id, NULL, &prepare_data, NULL)) {
+  if (pthread_create(&thread_id, NULL, &prep_data, NULL)) {
     fprintf(stderr, "Failed to create thread.\n");
     return -1;
   }
