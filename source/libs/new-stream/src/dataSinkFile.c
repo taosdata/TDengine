@@ -66,6 +66,10 @@ static int32_t createStreamDataSinkFileMgr(int64_t streamId, SDataSinkFileMgr** 
   pFileMgr->fileSize = 0;
   pFileMgr->fileGroupBlockMaxSize = gFileGroupBlockMaxSize;
   pFileMgr->freeBlockList = taosArrayInit(0, sizeof(int64_t));
+  pFileMgr->writingGroupId = -1;
+  pFileMgr->readingGroupId = -1;
+  pFileMgr->writeFilePtr = NULL;
+  pFileMgr->readFilePtr = NULL;
   if (pFileMgr->freeBlockList == NULL) {
     stError("failed to create free block list, err: %s", terrMsg);
     taosMemoryFreeClear(pFileMgr);
@@ -131,6 +135,17 @@ static int32_t openFileForWrite(SDataSinkFileMgr* pFileMgr) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t openFileForRead(SDataSinkFileMgr* pFileMgr) {
+  if (pFileMgr->readFilePtr == NULL) {
+    pFileMgr->readFilePtr = taosOpenFile(pFileMgr->fileName, TD_FILE_CREATE | TD_FILE_READ);
+    if (pFileMgr->readFilePtr == NULL) {
+      stError("open file %s failed, err: %s", pFileMgr->fileName, terrMsg);  
+      return terrno;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t createSGroupFileDataMgr(SGroupFileDataMgr** ppSGroupFileDataMgr, int64_t groupId,
                                        int64_t groupBlockOffset) {
   *ppSGroupFileDataMgr = (SGroupFileDataMgr*)taosMemoryCalloc(1, sizeof(SGroupFileDataMgr));
@@ -153,15 +168,17 @@ static int32_t createSGroupFileDataMgr(SGroupFileDataMgr** ppSGroupFileDataMgr, 
 }
 
 static void destroySGroupFileDataMgr(void* pData) {
-  SGroupFileDataMgr* pSGroupFileDataMgr = (SGroupFileDataMgr*)pData;
-  if (pSGroupFileDataMgr == NULL) {
+  SGroupFileDataMgr** ppSGroupFileDataMgr = (SGroupFileDataMgr**)pData;
+  if (ppSGroupFileDataMgr == NULL || *ppSGroupFileDataMgr == NULL) {
     return;
   }
+  SGroupFileDataMgr* pSGroupFileDataMgr = *ppSGroupFileDataMgr;
   if (pSGroupFileDataMgr->windowDataInFile) {
     taosArrayDestroy(pSGroupFileDataMgr->windowDataInFile);
     pSGroupFileDataMgr->windowDataInFile = NULL;
   }
   taosMemoryFree(pSGroupFileDataMgr);
+  *ppSGroupFileDataMgr = NULL;
 }
 
 static int64_t getFreeBlock(SDataSinkFileMgr* pFileMgr) {
@@ -173,6 +190,7 @@ static int64_t getFreeBlock(SDataSinkFileMgr* pFileMgr) {
     }
   }
   pFileMgr->fileBlockCount++;
+  pFileMgr->fileBlockUsedCount++;
   return (pFileMgr->fileBlockCount - 1) * pFileMgr->fileGroupBlockMaxSize;
 }
 
@@ -205,7 +223,7 @@ static int32_t createOrGetSGroupFileDataMgr(SDataSinkFileMgr* pFileMgr, int64_t 
   code =
       taosHashPut(pFileMgr->groupBlockList, &groupId, sizeof(groupId), &pSGroupFileDataMgr, sizeof(SGroupFileDataMgr*));
   if (code != 0) {
-    destroySGroupFileDataMgr(pSGroupFileDataMgr);
+    destroySGroupFileDataMgr(&pSGroupFileDataMgr);
     stError("failed to put group file data manager, err: %s", terrMsg);
     return code;
   }
@@ -230,6 +248,16 @@ static int32_t writeWindowDataIntoGroupFile(SDataSinkFileMgr* pFileMgr, SGroupFi
   if (pSGroupFileDataMgr->allWindowDataLen > 0) {  // 续写
     pWindowData->offset = pSGroupFileDataMgr->allWindowDataLen;
 
+    if (pFileMgr->writingGroupId != pSGroupFileDataMgr->groupId) {
+      stWarn("write data to groupId %" PRId64 " but writing groupId %" PRId64, pSGroupFileDataMgr->groupId,
+             pFileMgr->writingGroupId);
+      int64_t ret = taosLSeekFile(pFileMgr->writeFilePtr, pSGroupFileDataMgr->groupDataStartOffSet + pWindowData->offset, SEEK_SET);
+      if (ret < 0) {
+        code = terrno;
+        QUERY_CHECK_CODE(code, lino, _exit);
+      }
+    }
+
     int writeLen = taosWriteFile(pFileMgr->writeFilePtr, data, pWindowData->dataLen);
     if (writeLen != pWindowData->dataLen) {
       code = terrno;
@@ -237,8 +265,12 @@ static int32_t writeWindowDataIntoGroupFile(SDataSinkFileMgr* pFileMgr, SGroupFi
     }
   } else {  // 第一次写入
     pWindowData->offset = 0;
-    code = taosLSeekFile(pFileMgr->writeFilePtr, pSGroupFileDataMgr->groupDataStartOffSet, SEEK_SET);
-    QUERY_CHECK_CODE(code, lino, _exit);
+    int64_t ret = taosLSeekFile(pFileMgr->writeFilePtr, pSGroupFileDataMgr->groupDataStartOffSet, SEEK_SET);
+    if(ret < 0) {
+      code = terrno;
+      QUERY_CHECK_CODE(code, lino, _exit);
+    }
+
     int64_t writeLen = taosWriteFile(pFileMgr->writeFilePtr, data, pWindowData->dataLen);
     if(writeLen != pWindowData->dataLen) {
       code = terrno;
@@ -248,6 +280,7 @@ static int32_t writeWindowDataIntoGroupFile(SDataSinkFileMgr* pFileMgr, SGroupFi
   }
   pSGroupFileDataMgr->lastWstartInFile = pWindowData->wstart;
   pSGroupFileDataMgr->allWindowDataLen += pWindowData->dataLen;
+  pFileMgr->writingGroupId = pSGroupFileDataMgr->groupId;
   return TSDB_CODE_SUCCESS;
   _exit:
   if (code != TSDB_CODE_SUCCESS) {
@@ -335,8 +368,6 @@ int32_t writeToFile(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSKE
     return terrno;
   }
 
-  pStreamDataSink->pFileMgr->fileBlockCount++;
-  pStreamDataSink->pFileMgr->fileBlockUsedCount++;
   pStreamDataSink->pFileMgr->fileSize += len;
 
   return TSDB_CODE_SUCCESS;
@@ -359,7 +390,6 @@ void destorySWindowDataInFilePP(void* pData) {
   taosMemoryFree((*ppWindowData));
 }
 
-
 void clearGroupExpiredDataFile(SGroupFileDataMgr* pGroupData, TSKEY start) {
   if (pGroupData->windowDataInFile == NULL) {
     return;
@@ -375,16 +405,17 @@ void clearGroupExpiredDataFile(SGroupFileDataMgr* pGroupData, TSKEY start) {
       break;
     }
   }
-
-  taosArrayRemoveBatch(pGroupData->windowDataInFile, 0, deleteCount, destorySWindowDataInFilePP);
+  if (deleteCount > 0) {
+    taosArrayRemoveBatch(pGroupData->windowDataInFile, 0, deleteCount, destorySWindowDataInFilePP);
+  }
 }
 
-int32_t getFirstDataIterFromFile(SStreamTaskDSManager* pStreamTaskDSMgr, int64_t groupId, TSKEY start, TSKEY end,
+int32_t getFirstDataIterFromFile(SDataSinkFileMgr* pFileMgr, int64_t groupId, TSKEY start, TSKEY end,
                                  void** ppResult) {
   int32_t      code = TSDB_CODE_SUCCESS;
   SResultIter* pResult = NULL;
 
-  SDataSinkFileMgr* pFileMgr = pStreamTaskDSMgr->pFileMgr;
+  //SDataSinkFileMgr* pFileMgr = pStreamTaskDSMgr->pFileMgr;
   if (pFileMgr == NULL) {
     *ppResult = NULL;
     return TSDB_CODE_SUCCESS;
@@ -397,7 +428,9 @@ int32_t getFirstDataIterFromFile(SStreamTaskDSManager* pStreamTaskDSMgr, int64_t
   }
 
   SGroupFileDataMgr* pGroupData = *ppGroupData;
+
   clearGroupExpiredDataFile(pGroupData, start);
+  // todo 每次 clear file data 之后，如果没有数据了，需要回收 file block
 
   if (pGroupData->windowDataInFile == NULL) {
     *ppResult = NULL;
@@ -410,8 +443,17 @@ int32_t getFirstDataIterFromFile(SStreamTaskDSManager* pStreamTaskDSMgr, int64_t
     return TSDB_CODE_SUCCESS;
   }
 
-  code = taosLSeekFile(pFileMgr->readFilePtr, pWindowData->offset, SEEK_SET);
-  if (code != 0) {
+  if (!pFileMgr->readFilePtr) {
+    code = openFileForRead(pFileMgr);
+    if (code != 0) {
+      stError("failed to open file for read, err: %s", terrMsg);
+      return code;
+    }
+  }
+
+  int64_t ret = taosLSeekFile(pFileMgr->readFilePtr, pWindowData->groupDataStartOffSet + pWindowData->offset, SEEK_SET);
+  if (ret < 0) {
+    code = terrno;
     stError("failed to seek file, err: %s", terrMsg);
     return code;
   }
@@ -423,6 +465,7 @@ int32_t getFirstDataIterFromFile(SStreamTaskDSManager* pStreamTaskDSMgr, int64_t
   }
 
   pResult->pFileMgr = pFileMgr;
+  pResult->groupId = groupId;
   pResult->reqStartTime = start;
   pResult->reqEndTime = end;
   pResult->groupData = pGroupData;
@@ -430,12 +473,37 @@ int32_t getFirstDataIterFromFile(SStreamTaskDSManager* pStreamTaskDSMgr, int64_t
   pResult->dataPos = DATA_SINK_FILE;
   *ppResult = pResult;
 
-  *ppResult = NULL;
   return TSDB_CODE_SUCCESS;
 }
 
-void    setNextIteratorFromFile(SResultIter** pIter) {
+void setNextIteratorFromFile(SResultIter** ppResult) {
+  SResultIter*       pResult = *ppResult;
+  SGroupFileDataMgr* pGroupData = (SGroupFileDataMgr*)pResult->groupData;
 
+  if (pResult->offset == -1) {  // 查询内存结束，开始查询文件
+    releaseDataIterator((void**)ppResult);
+    *ppResult = NULL;
+    getFirstDataIterFromFile(pResult->pFileMgr, pResult->groupId, pResult->reqStartTime, pResult->reqEndTime,
+                             (void**)ppResult);
+    return;
+  } else {
+    pResult->offset++;
+  }
+  if (pResult->offset < taosArrayGetSize(pGroupData->windowDataInFile)) {
+    SWindowData* pWindowData = *(SWindowData**)taosArrayGet(pGroupData->windowDataInFile, pResult->offset);
+    if ((pResult->reqStartTime >= pWindowData->start && pResult->reqStartTime <= pWindowData->end) ||
+        (pResult->reqEndTime >= pWindowData->start && pResult->reqEndTime <= pWindowData->end) ||
+        (pWindowData->start >= pResult->reqStartTime && pWindowData->end <= pResult->reqEndTime)) {
+      return;
+    } else {
+      goto _end;
+      return;
+    }
+  }
+_end:
+  releaseDataIterator((void**)ppResult);
+  *ppResult = NULL;
+  return;
 }
 
 void syncWindowDataFileAdd(SWindowDataInFile* pWindowData) {
@@ -452,18 +520,7 @@ void syncWindowDataFileDel(SWindowDataInFile* pWindowData) {
   // atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, size);
 }
 
-int32_t openReadFilePtr(SDataSinkFileMgr* pFileMgr) {
-  if (pFileMgr->readFilePtr == NULL) {
-    pFileMgr->readFilePtr = taosOpenFile(pFileMgr->fileName, TD_FILE_READ);
-    if (pFileMgr->readFilePtr == NULL) {
-      stError("open file %s failed, err: %s", pFileMgr->fileName, terrMsg);
-      return terrno;
-    }
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t readDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock) {
+int32_t readDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, bool* finished) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SDataSinkFileMgr*  pFileMgr = pResult->pFileMgr;
@@ -472,11 +529,22 @@ int32_t readDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock) {
   if (pWindowData == NULL) {
     return TSDB_CODE_SUCCESS;
   }
-  code = openReadFilePtr(pFileMgr);
-  QUERY_CHECK_CODE(code, lino, _exit);
+
+  if (pWindowData->start > pResult->reqEndTime) {
+    *finished = true;
+    return TSDB_CODE_SUCCESS;
+  } else if (pWindowData->end < pResult->reqStartTime) {
+    pFileMgr->readingGroupId = -1; // 跳过读取文件中的数据，下次需要重新 taosLSeekFile
+    *finished = false;  // 查看下一个窗口
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (pFileMgr->readingGroupId != pGroupData->groupId) {
-    code = taosLSeekFile(pFileMgr->readFilePtr, pWindowData->offset, SEEK_SET);
-    QUERY_CHECK_CODE(code, lino, _exit);
+    int64_t ret = taosLSeekFile(pFileMgr->readFilePtr, pWindowData->groupDataStartOffSet + pWindowData->offset, SEEK_SET);
+    if (ret < 0) {
+      code = terrno;
+      QUERY_CHECK_CODE(code, lino, _exit);
+    }
   }
 
   char* buf = taosMemoryCalloc(1, pWindowData->dataLen);
@@ -495,11 +563,14 @@ int32_t readDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock) {
     return terrno;
   }
   QUERY_CHECK_CODE(code, lino, _exit);
-  code = blockSpecialDecodeLaterPart(pBlock, buf, pWindowData->wstart, pWindowData->wend);
+  code = blockSpecialDecodeLaterPart(pBlock, buf, pResult->reqStartTime, pResult->reqEndTime);
   QUERY_CHECK_CODE(code, lino, _exit);
+
+  *ppBlock = pBlock;
 
   // todo
   // 如果内存使用不超过 90%，buf 转移到内存进行管理
+
   return TSDB_CODE_SUCCESS;
 _exit:
   if (code != TSDB_CODE_SUCCESS) {

@@ -455,7 +455,7 @@ static EDealRes doSetMultiTableSlotId(SNode* pNode, void* pContext) {
     if (pCxt->isVtb && !((SColumnNode*)pNode)->hasRef) {
       return DEAL_RES_CONTINUE;
     }
-    
+
     pCxt->errCode = getSlotKey(pNode, NULL, &name, &len, 16);
     if (TSDB_CODE_SUCCESS != pCxt->errCode) {
       return DEAL_RES_ERROR;
@@ -979,6 +979,37 @@ static int32_t createTableMergeScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* 
 static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
                                    SPhysiNode** pPhyNode) {
   pCxt->hasScan = true;
+
+  switch (pScanLogicNode->scanType) {
+    case SCAN_TYPE_TAG:
+      PLAN_ERR_RET(createTagScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode));
+      break;
+    case SCAN_TYPE_BLOCK_INFO:
+      PLAN_ERR_RET(createSimpleScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode));
+      break;
+    case SCAN_TYPE_TABLE_COUNT:
+      PLAN_ERR_RET(createTableCountScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode));
+      break;
+    case SCAN_TYPE_LAST_ROW:
+      PLAN_ERR_RET(createLastRowScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode));
+      break;
+    case SCAN_TYPE_TABLE:
+      PLAN_ERR_RET(createTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode));
+      break;
+    case SCAN_TYPE_SYSTEM_TABLE:
+      PLAN_ERR_RET(createSystemTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode));
+      break;
+    case SCAN_TYPE_STREAM:
+      PLAN_ERR_RET(createStreamScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode));
+      break;
+    case SCAN_TYPE_TABLE_MERGE:
+      PLAN_ERR_RET(createTableMergeScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode));
+      break;
+    default:
+      PLAN_ERR_RET(TSDB_CODE_FAILED);
+      break;
+  }
+
   if (pCxt->pPlanCxt->streamTriggerQuery) {
     pCxt->pPlanCxt->streamTriggerScanSubplan = (SNode*)pSubplan;
   }
@@ -986,37 +1017,23 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
     SStreamCalcScan pStreamCalcScan = {0};
     pStreamCalcScan.vgList = taosArrayInit(1, sizeof(int32_t));
     if (pScanLogicNode->pVgroupList) {
-      taosArrayPush(pStreamCalcScan.vgList, &pScanLogicNode->pVgroupList->vgroups[0].vgId);
+      if (NULL == taosArrayPush(pStreamCalcScan.vgList, &pScanLogicNode->pVgroupList->vgroups[0].vgId)) {
+        PLAN_ERR_RET(terrno);
+      }
     }
     pStreamCalcScan.scanPlan = (void*)pSubplan;
-    taosArrayPush(pCxt->pPlanCxt->pStreamCalcVgArray, &pStreamCalcScan);
-    taosHashPut(pCxt->pPlanCxt->pStreamCalcDbs, pScanLogicNode->tableName.dbname, strlen(pScanLogicNode->tableName.dbname), NULL, 0);
+    if (NULL == taosArrayPush(pCxt->pPlanCxt->pStreamCalcVgArray, &pStreamCalcScan)) {
+      PLAN_ERR_RET(terrno);
+    }
+    char fullDbName[TSDB_DB_FNAME_LEN] = {0};
+    tNameGetFullDbName(&pScanLogicNode->tableName, fullDbName);
+    PLAN_ERR_RET(taosHashPut(pCxt->pPlanCxt->pStreamCalcDbs, fullDbName, TSDB_DB_FNAME_LEN, NULL, 0));
     if (pScanLogicNode->placeholderType == SP_PARTITION_ROWS) {
       pStreamCalcScan.readFromCache = true;
     }
   }
 
-  switch (pScanLogicNode->scanType) {
-    case SCAN_TYPE_TAG:
-      return createTagScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
-    case SCAN_TYPE_BLOCK_INFO:
-      return createSimpleScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
-    case SCAN_TYPE_TABLE_COUNT:
-      return createTableCountScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
-    case SCAN_TYPE_LAST_ROW:
-      return createLastRowScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
-    case SCAN_TYPE_TABLE:
-      return createTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
-    case SCAN_TYPE_SYSTEM_TABLE:
-      return createSystemTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
-    case SCAN_TYPE_STREAM:
-      return createStreamScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
-    case SCAN_TYPE_TABLE_MERGE:
-      return createTableMergeScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
-    default:
-      break;
-  }
-  return TSDB_CODE_FAILED;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t getJoinDataBlockDescNode(SNodeList* pChildren, int32_t idx, SDataBlockDescNode** ppDesc) {
@@ -2568,6 +2585,18 @@ static ENodeType getIntervalOperatorType(EWindowAlgorithm windowAlgo) {
   return QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL;
 }
 
+static ENodeType getExternalOperatorType(EWindowAlgorithm windowAlgo) {
+  switch (windowAlgo) {
+    case EXTERNAL_ALGO_HASH:
+      return QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL;
+    case EXTERNAL_ALGO_MERGE:
+      return QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL;
+    default:
+      break;
+  }
+  return QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL;
+}
+
 static int32_t createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                        SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
   SIntervalPhysiNode* pInterval = (SIntervalPhysiNode*)makePhysiNode(
@@ -2760,7 +2789,7 @@ static int32_t createAnomalyWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
 static int32_t createExternalWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                              SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
   SExternalWindowPhysiNode* pExternal = (SExternalWindowPhysiNode*)makePhysiNode(
-      pCxt, (SLogicNode*)pWindowLogicNode, QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW);
+      pCxt, (SLogicNode*)pWindowLogicNode, getExternalOperatorType(pWindowLogicNode->windowAlgo));
   if (NULL == pExternal) {
     return terrno;
   }
@@ -2776,6 +2805,9 @@ static int32_t createExternalWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList*
 }
 static int32_t createWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SWindowLogicNode* pWindowLogicNode,
                                      SPhysiNode** pPhyNode) {
+  if (pCxt->pPlanCxt->streamTriggerQuery) {
+    pCxt->pPlanCxt->pStreamTriggerWindow = (SNode*)*pPhyNode;
+  }
   switch (pWindowLogicNode->winType) {
     case WINDOW_TYPE_INTERVAL:
       return createIntervalPhysiNode(pCxt, pChildren, pWindowLogicNode, pPhyNode);
@@ -2915,6 +2947,9 @@ static int32_t createPartitionPhysiNodeImpl(SPhysiPlanContext* pCxt, SNodeList* 
 
 static int32_t createPartitionPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                         SPartitionLogicNode* pPartLogicNode, SPhysiNode** pPhyNode) {
+  if (pCxt->pPlanCxt->streamTriggerQuery) {
+    pCxt->pPlanCxt->pStreamTriggerPartition = (SNode*)*pPhyNode;
+  }
   return createPartitionPhysiNodeImpl(pCxt, pChildren, pPartLogicNode, QUERY_NODE_PHYSICAL_PLAN_PARTITION, pPhyNode);
 }
 

@@ -1545,6 +1545,7 @@ SNode* createIntervalWindowNodeExt(SAstCreateContext* pCxt, SNode* pInter, SNode
   }
   pInterval->pSliding = ((SSlidingWindowNode*)pSliding)->pSlidingVal;
   pInterval->pOffset = ((SSlidingWindowNode*)pSliding)->pOffset;
+  return (SNode*)pInterval;
 _err:
   nodesDestroyNode((SNode*)pInter);
   nodesDestroyNode((SNode*)pInterval);
@@ -4157,7 +4158,7 @@ SNode* createStreamTriggerOptions(SAstCreateContext* pCxt) {
   pOptions->pPreFilter = NULL;
   pOptions->pWaterMark = NULL;
   pOptions->pMaxDelay = NULL;
-  pOptions->pEventType = EVENT_NONE;
+  pOptions->pEventType = EVENT_WINDOW_CLOSE;
   pOptions->calcNotifyOnly = false;
   pOptions->deleteOutputTable = false;
   pOptions->deleteRecalc = false;

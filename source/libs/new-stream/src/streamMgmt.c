@@ -204,7 +204,7 @@ _exit:
 
 
 
-int32_t smStartStreamTasks(SStreamTasksStart* pStart) {
+int32_t smStartStreamTasks(SStreamTaskStart* pStart) {
   int64_t streamId = pStart->task.streamId;
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -253,7 +253,7 @@ void smRemoveTaskFromStreamMap(SStreamTask* pTask) {
 
 }
 
-int32_t smUndeployStreamTasks(SStreamTasksUndeploy* pUndeploy) {
+int32_t smUndeployStreamTasks(SStreamTaskUndeploy* pUndeploy) {
   int64_t streamId = pUndeploy->task.streamId;
   int64_t key[2] = {streamId, pUndeploy->task.taskId};
   int32_t code = TSDB_CODE_SUCCESS;
@@ -310,7 +310,7 @@ int32_t smStartTasks(SStreamStartActions* actions) {
   int32_t listNum = taosArrayGetSize(actions->taskList);
   
   for (int32_t i = 0; i < listNum; ++i) {
-    SStreamTasksStart* pStart = taosArrayGet(actions->taskList, i);
+    SStreamTaskStart* pStart = taosArrayGet(actions->taskList, i);
     streamId = pStart->task.streamId;
 
     TAOS_CHECK_EXIT(smStartStreamTasks(pStart));
@@ -336,7 +336,7 @@ int32_t smUndeployTasks(SStreamUndeployActions* actions) {
   int32_t listNum = taosArrayGetSize(actions->taskList);
   
   for (int32_t i = 0; i < listNum; ++i) {
-    SStreamTasksUndeploy* pUndeploy = taosArrayGet(actions->taskList, i);
+    SStreamTaskUndeploy* pUndeploy = taosArrayGet(actions->taskList, i);
     streamId = pUndeploy->task.streamId;
     
     TAOS_CHECK_EXIT(smUndeployStreamTasks(pUndeploy));

@@ -27,10 +27,17 @@ typedef enum {
   STM_ERR_TASK_NOT_EXISTS,
 } EStmStatusErrType;
 
+#define STREAM_RUNNER_MAX_DEPLOYS 
+#define STREAM_RUNNER_MAX_REPLICA 
+
 #define STREAM_ACT_DEPLOY (1 << 0)
 #define STREAM_ACT_UNDEPLOY (1 << 1)
 #define STREAM_ACT_START (1 << 2)
 #define STREAM_ACT_ERR_HANDLE (1 << 3)
+
+#define STREAM_FLAG_TRIGGER_READER (1 << 0)
+
+#define STREAM_IS_TRIGGER_READER(_flags) ((_flags) & STREAM_FLAG_TRIGGER_READER)
 
 #define MND_STREAM_RESERVE_SIZE      64
 #define MND_STREAM_VER_NUMBER        6
@@ -77,6 +84,7 @@ typedef struct SStmTaskId {
 
 typedef struct SStmTaskStatus {
   SStmTaskId    id;
+  int64_t       flags;
   EStreamStatus status;
   int64_t       lastUpTs;
 } SStmTaskStatus;
@@ -88,24 +96,22 @@ typedef struct SStmTaskSrcAddr {
   SEpSet  epset;
 } SStmTaskSrcAddr;
 
-typedef struct SStmReaderVgs {
-  int32_t readerNum[2]; // trigger's reader num, runner's reader num
-  SArray* triggerReaderVgs;   // vgId list, SArray<int32_t>
-  SArray* runnerReaderVgs;    // vgId list, SArray<int32_t>
-} SStmReaderVgs;
-
 typedef struct SStmStatus {
   int64_t           lastActTs;
-  SStmReaderVgs     readerVgs;
+  int32_t           readerNum[2];      // trigger reader num & calc reader num
   SArray*           readerList;        // SArray<SStmTaskStatus>
   SStmTaskStatus    triggerTask;
+  int32_t           runnerDeploys;
+  int32_t           runnerReplica;
+  SArray*           runnerTopIdx;      // top runner task index in runnerList, num is runnerDeploys
   SArray*           runnerList;        // SArray<SStmTaskStatus>
 } SStmStatus;
 
 typedef struct SStmSnodeTasksStatus {
+  int32_t  runnerThreadNum; // runner thread num in snode
   SRWLatch lock;
-  SArray*  triggerList;  // SArray<SStmTaskStatus*>
-  SArray*  runnerList;   // SArray<SStmTaskStatus*>
+  SArray*  triggerList;     // SArray<SStmTaskStatus*>
+  SArray*  runnerList;      // SArray<SStmTaskStatus*>
 } SStmSnodeTasksStatus;
 
 typedef struct SStmVgroupTasksStatus {
