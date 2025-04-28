@@ -99,6 +99,7 @@ jobs:
           # make ext_taosws
           echo "XPATH3:$PATH"
           make -j 4
+          echo "XPATH4:$PATH"
           echo make done=======================
           sudo make install
           which taosd
