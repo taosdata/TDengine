@@ -520,10 +520,10 @@ INIT_EXT(ext_xz
 )
 # GIT_REPOSITORY https://github.com/xz-mirror/xz.git
 # GIT_TAG v5.4.4
-get_from_local_repo_if_exists("https://github.com/xz-mirror/xz.git")
+get_from_local_repo_if_exists("https://github.com/tukaani-project/xz.git")
 ExternalProject_Add(ext_xz
     GIT_REPOSITORY ${_git_url}
-    GIT_TAG v5.4.4
+    GIT_TAG v5.8.1
     GIT_SHALLOW TRUE
     PREFIX "${_base}"
     CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
