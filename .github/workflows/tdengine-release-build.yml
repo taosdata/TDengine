@@ -89,7 +89,7 @@ jobs:
           cmake .. -DBUILD_TOOLS=true \
             -DBUILD_KEEPER=true \
             -DBUILD_HTTP=false \
-            -DBUILD_TEST=true \
+            -DBUILD_TEST=false \
             -DWEBSOCKET=true \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_DEPENDENCY_TESTS=false
