@@ -14,7 +14,7 @@ class TestNormalTableAlter1:
         3. modify column
 
         Catalog:
-            - Tables
+            - Table:NormalTable:Alter
 
         Since: v3.0.0.0
 

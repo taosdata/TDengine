@@ -15,7 +15,7 @@ class TestDataCommit:
         4. Kill -9 重启后再次查询
 
         Catalog:
-            - Tables
+            - DataIngestion
 
         Since: v3.0.0.0
 

@@ -41,7 +41,7 @@ void checkError(TAOS_STMT2* stmt, int code) {
   if (code != TSDB_CODE_SUCCESS) {
     STscStmt2* pStmt = (STscStmt2*)stmt;
     if (pStmt == nullptr || pStmt->sql.sqlStr == nullptr || pStmt->exec.pRequest == nullptr) {
-      printf("stmt api error\n  stats : %d\n  errstr : %s\n", pStmt->sql.status, taos_stmt_errstr(stmt));
+      printf("stmt api error\n  stats : %d\n  errstr : %s\n", pStmt->sql.status, taos_stmt2_error(stmt));
     } else {
       printf("stmt api error\n  sql : %s\n  stats : %d\n", pStmt->sql.sqlStr, pStmt->sql.status);
     }

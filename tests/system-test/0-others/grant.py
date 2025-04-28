@@ -150,7 +150,7 @@ class TDTestCase:
         raise Exception("Timeseries not equal within {maxRetry} seconds")
 
     def getTablesTimeSeries(self):
-        tdSql.query(f"select cast(sum(columns-1) as int) as tss from information_schema.ins_tables where db_name not in ('information_schema', 'performance_schema', 'audit')")
+        tdSql.query(f"select cast(sum(columns-1) as int) as tss from information_schema.ins_tables where db_name not in ('information_schema', 'performance_schema', 'audit') and type not like '%VIRTUAL%'")
         return int(tdSql.queryResult[0][0])
 
     def checkGrantsTimeSeries(self, prompt="", nExpectedTimeSeries=0, maxRetry=10):
@@ -187,22 +187,34 @@ class TDTestCase:
             tdSql.execute("create table db100.ntb101 (ts timestamp, c0 int,c1 bigint,c2 int,c3 float,c4 double)")
             tss_grant += 20
             self.checkGrantsTimeSeries("create tables and check", tss_grant)
+            tdSql.execute("create vtable db100.vntb100(ts timestamp, v0_0 int from db100.ntb100.c0, v0_1 int from db100.ntb101.c0)")
+            self.checkGrantsTimeSeries("create virtual normal tables and check", tss_grant)
+            tdSql.execute("create stable db100.vstb100(ts timestamp, c0 int, c1 int) tags(t0 int, t1 varchar(20)) virtual 1")
+            tdSql.execute("create vtable db100.vctb100(c0 from db100.ntb100.c0, c1 from db100.ntb101.c0) using db100.vstb100 tags(0, '0')")
+            self.checkGrantsTimeSeries("create virtual stb/ctb and check", tss_grant)
             tdSql.execute("alter table db100.stb100 add column c5 int")
             tdSql.execute("alter stable db100.stb100 add column c6 int")
             tdSql.execute("alter table db100.stb100 add tag t1 int")
             tss_grant += 4
             self.checkGrantsTimeSeries("add stable column and check", tss_grant)
+            tdSql.execute("alter table db100.vstb100 add column c5 int")
+            self.checkGrantsTimeSeries("add virtual stb/ctb column and check", tss_grant)
             tdSql.execute("create table db100.ctb102 using db100.stb100 tags(102, 102)")
             tdSql.execute("alter table db100.ctb100 set tag t0=1000")
             tdSql.execute("alter table db100.ntb100 add column c5 int")
             tss_grant += 8
             self.checkGrantsTimeSeries("add ntable column and check", tss_grant)
+            tdSql.execute("alter table db100.vntb100 add column c5 int")
+            self.checkGrantsTimeSeries("add virtual ntable column and check", tss_grant)
             tdSql.execute("alter table db100.stb100 drop column c5")
             tdSql.execute("alter table db100.stb100 drop tag t1")
             tdSql.execute("alter table db100.ntb100 drop column c0")
             tdSql.execute("alter table db100.stb100 drop column c0")
             tss_grant -= 7
             self.checkGrantsTimeSeries("drop stb/ntb column and check", tss_grant)
+            tdSql.execute("alter table db100.vstb100 drop column c5")
+            tdSql.execute("alter table db100.vntb100 drop column c5")
+            self.checkGrantsTimeSeries("drop virtual stb/ntb column and check", tss_grant)
             tdSql.execute("drop table db100.ctb100")
             tdSql.execute("drop table db100.ntb100")
             tss_grant -= 10
@@ -210,6 +222,11 @@ class TDTestCase:
             tdSql.execute("drop table db100.stb100")
             tss_grant -= 10
             self.checkGrantsTimeSeries("drop stb and check", tss_grant)
+            tdSql.execute("drop table db100.vctb100")
+            tdSql.execute("drop table db100.vntb100")
+            self.checkGrantsTimeSeries("drop virtual ctb/ntb and check", tss_grant)
+            tdSql.execute("drop table db100.vstb100")
+            self.checkGrantsTimeSeries("drop virtual stb and check", tss_grant)
             tdSql.execute("drop database db100")
             tss_grant -= 5
             self.checkGrantsTimeSeries("drop database and check", tss_grant)
