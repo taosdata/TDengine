@@ -516,10 +516,16 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild, TXN
 static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTxn) {
   int ret;
 
+  typedef struct {
+    int     kLen;
+    u8     *pKey;
+    int     vLen;
+    u8     *pVal;
+  } SDecodedCell;
+
   int    nOlds, pageIdx;
   SPage *pOlds[3] = {0};
-  SCell *pDivCell[3] = {0};
-  int    szDivCell[3];
+  SDecodedCell divCells[3] = {0};
   int    sIdx;
   u8     childNotLeaf;
   SPgno  rPgno;
@@ -577,18 +583,55 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     if (childNotLeaf) {
       for (int i = 0; i < nOlds; i++) {
         if (sIdx + i < TDB_PAGE_TOTAL_CELLS(pParent)) {
+          SCellDecoder cd = { 0 };
           pCell = tdbPageGetCell(pParent, sIdx + i);
-          szDivCell[i] = tdbBtreeCellSize(pParent, pCell, NULL);
-          if ((pDivCell[i] = tdbOsMalloc(szDivCell[i])) == NULL) {
-            return terrno;
+          ret = tdbBtreeDecodeCell(pParent, pCell, &cd, pTxn, pBt);
+          if (ret < 0) {
+            tdbError("tdb/btree-balance: decode cell failed with ret: %d.", ret);
+            return TSDB_CODE_FAILED;
           }
-          memcpy(pDivCell[i], pCell, szDivCell[i]);
+
+          divCells[i].kLen = cd.kLen;
+          if (TDB_CELLDECODER_FREE_KEY(&cd)) {
+            divCells[i].pKey = cd.pKey;
+          } else {
+            divCells[i].pKey = tdbRealloc(NULL, cd.kLen);
+            if (divCells[i].pKey == NULL) {
+              return terrno;
+            }
+            memcpy(divCells[i].pKey, cd.pKey, cd.kLen);
+          }
+
+          divCells[i].vLen = cd.vLen;
+          if (TDB_CELLDECODER_FREE_VAL(&cd)) {
+            divCells[i].pVal = cd.pVal;
+          } else {
+            divCells[i].pVal = tdbRealloc(NULL, cd.vLen);
+            if (divCells[i].pVal == NULL) {
+              return terrno;
+            }
+            memcpy(divCells[i].pVal, cd.pVal, cd.vLen);
+          }
         }
 
         if (i < nOlds - 1) {
-          ((SPgno *)pDivCell[i])[0] = ((SIntHdr *)pOlds[i]->pData)->pgno;
+          int szDivCell;
+          SCell* pDivCell = tdbOsMalloc(divCells[i].kLen + divCells[i].vLen + sizeof(SIntHdr));
+          if(pDivCell == NULL) {
+            return terrno;
+          }
+
+          ret = tdbBtreeEncodeCell(pOlds[i], divCells[i].pKey, divCells[i].kLen, divCells[i].pVal, divCells[i].vLen,
+                                   pDivCell, &szDivCell, pTxn, pBt);
+          if (ret < 0) {
+            tdbError("tdb/btree-balance: encode cell failed with ret: %d.", ret);
+            return TSDB_CODE_FAILED;
+          }
+
+          ((SPgno *)pDivCell)[0] = ((SIntHdr *)pOlds[i]->pData)->pgno;
           ((SIntHdr *)pOlds[i]->pData)->pgno = 0;
-          ret = tdbPageInsertCell(pOlds[i], TDB_PAGE_TOTAL_CELLS(pOlds[i]), pDivCell[i], szDivCell[i], 1);
+          ret = tdbPageInsertCell(pOlds[i], TDB_PAGE_TOTAL_CELLS(pOlds[i]), pDivCell, szDivCell, 1);
+          tdbOsFree(pDivCell);
           if (ret < 0) {
             tdbError("tdb/btree-balance: insert cell failed with ret: %d.", ret);
             return TSDB_CODE_FAILED;
@@ -907,8 +950,21 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
       if (pIntHdr->pgno == 0) {
         pIntHdr->pgno = TDB_PAGE_PGNO(pNews[nNews - 1]);
       } else {
-        ((SPgno *)pDivCell[nOlds - 1])[0] = TDB_PAGE_PGNO(pNews[nNews - 1]);
-        ret = tdbPageInsertCell(pParent, sIdx, pDivCell[nOlds - 1], szDivCell[nOlds - 1], 0);
+        int szDivCell;
+        SDecodedCell *pdc = &divCells[nOlds - 1];
+        SCell* pDivCell = tdbOsMalloc(pdc->kLen + pdc->vLen + sizeof(SIntHdr));
+        if(pDivCell == NULL) {
+          return terrno;
+        }
+
+        ret = tdbBtreeEncodeCell(pParent, pdc->pKey, pdc->kLen, pdc->pVal, pdc->vLen, pDivCell, &szDivCell, pTxn, pBt);
+        if (ret < 0) {
+          tdbError("tdb/btree-balance: encode cell failed with ret: %d.", ret);
+          return TSDB_CODE_FAILED;
+        }
+
+        ((SPgno *)pDivCell)[0] = TDB_PAGE_PGNO(pNews[nNews - 1]);
+        ret = tdbPageInsertCell(pParent, sIdx, pDivCell, szDivCell, 0);
         if (ret) {
           tdbError("tdb/btree-balance: insert cell failed with ret: %d.", ret);
           return TSDB_CODE_FAILED;
@@ -943,9 +999,12 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     }
   }
 
-  for (int i = 0; i < 3; i++) {
-    if (pDivCell[i]) {
-      tdbOsFree(pDivCell[i]);
+  for (int i = 0; i < sizeof(divCells) / sizeof(divCells[0]); i++) {
+    if (divCells[i].pKey) {
+      tdbFree(divCells[i].pKey);
+    }
+    if (divCells[i].pVal) {
+      tdbFree(divCells[i].pVal);
     }
   }
 
@@ -1080,7 +1139,6 @@ int tdbFreeOvflPage(SPgno pgno, int nSize, TXN *pTxn, SBTree *pBt) {
       bytes = ofp->maxLocal - sizeof(SPgno);
     }
 
-    // SPgno origPgno = pgno;
     memcpy(&pgno, cell + bytes, sizeof(pgno));
 
     ret = tdbPagerWrite(pBt->pPager, ofp);
@@ -1089,8 +1147,8 @@ int tdbFreeOvflPage(SPgno pgno, int nSize, TXN *pTxn, SBTree *pBt) {
       return ret;
     }
 
-    tdbPagerReturnPage(pBt->pPager, ofp, pTxn);
     tdbPagerInsertFreePage(pBt->pPager, ofp, pTxn);
+    tdbPagerReturnPage(pBt->pPager, ofp, pTxn);
 
     nSize -= bytes;
   }
@@ -1595,9 +1653,9 @@ static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pD
 }
 
 
-// tdbBtreeCellSize returns the bytes used of [pCell] in current page.
-// if [pFullSize] is not NULL, it will return the full size of the cell, which also includes
-// the bytes used of the [pCell] in the overflow pages.
+// tdbBtreeCellSize returns the local size (number of bytes in [pPage]) of [pCell].
+// if [pFullSize] is not NULL, it return the full size of the cell, which also includes
+// the number of bytes of [pCell] in the overflow pages.
 static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int *pFullSize) {
   u8  leaf;
   int kLen = 0, vLen = 0, nHeader = 0;

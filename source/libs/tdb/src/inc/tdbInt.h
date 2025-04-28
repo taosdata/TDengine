@@ -127,9 +127,7 @@ typedef struct {
   int     vLen;
   u8     *pVal;
   SPgno   pgno;
-  u8     *pBuf;
   u8      freeKV;
-  SArray *ofps;
 } SCellDecoder;
 
 struct SBTC {
