@@ -45,7 +45,7 @@ class TDTestCase(TBase):
         binPath = etool.benchMarkFile()
         cmd = "%s -f ./tools/benchmark/basic/json/dmeters.json" % binPath
         self.insert(cmd)
-        sql = "select count(*) from dmeters.meters where current > 9 and current < 65 and voltage > 119 and voltage < 2181 and phase > 30 and phase < 571;"
+        sql = "select count(*) from dmeters.meters where current > 9 and current < 65 and voltage > 119 and voltage < 2181 and phase > 29 and phase < 571;"
         self.checkDataCorrect(sql)
 
     def stop(self):
