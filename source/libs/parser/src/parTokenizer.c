@@ -361,6 +361,8 @@ static SKeyword keywordTable[] = {
     {"FORCE_WINDOW_CLOSE",   TK_FORCE_WINDOW_CLOSE},
     {"DISK_INFO",            TK_DISK_INFO},
     {"AUTO",                 TK_AUTO},
+    {"MEDIUMBLOB",           TK_MEDIUMBLOB},
+    {"BLOB",                 TK_BLOB},
     {"COLS",                 TK_COLS},
     {"NOTIFY",               TK_NOTIFY},
     {"ON_FAILURE",           TK_ON_FAILURE},

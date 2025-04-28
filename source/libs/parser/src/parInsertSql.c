@@ -13,13 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "decimal.h"
 #include "geosWrapper.h"
 #include "parInsertUtil.h"
 #include "parToken.h"
 #include "scalar.h"
 #include "tglobal.h"
 #include "ttime.h"
-#include "decimal.h"
 
 typedef struct SInsertParseContext {
   SParseContext* pComCxt;
@@ -107,8 +107,8 @@ static int32_t skipTableOptions(SInsertParseContext* pCxt, const char** pSql) {
 // pSql -> stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)
 static int32_t ignoreUsingClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   const char** pSql = &pStmt->pSql;
-  int32_t code = TSDB_CODE_SUCCESS;
-  SToken  token;
+  int32_t      code = TSDB_CODE_SUCCESS;
+  SToken       token;
   NEXT_TOKEN(*pSql, token);
 
   NEXT_TOKEN(*pSql, token);
@@ -273,8 +273,8 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, E
   return code;
 }
 
-static int32_t parseTimestampOrInterval(const char** end, SToken* pToken, int16_t timePrec, int64_t* ts, int64_t* interval,
-                                    SMsgBuf* pMsgBuf, bool* isTs, timezone_t tz) {
+static int32_t parseTimestampOrInterval(const char** end, SToken* pToken, int16_t timePrec, int64_t* ts,
+                                        int64_t* interval, SMsgBuf* pMsgBuf, bool* isTs, timezone_t tz) {
   if (pToken->type == TK_NOW) {
     *isTs = true;
     *ts = taosGetTimestamp(timePrec);
@@ -316,7 +316,8 @@ static int32_t parseTimestampOrInterval(const char** end, SToken* pToken, int16_
   return TSDB_CODE_SUCCESS;
 }
 
-static int parseTime(const char** end, SToken* pToken, int16_t timePrec, int64_t* time, SMsgBuf* pMsgBuf, timezone_t tz) {
+static int parseTime(const char** end, SToken* pToken, int16_t timePrec, int64_t* time, SMsgBuf* pMsgBuf,
+                     timezone_t tz) {
   int32_t     index = 0, i = 0;
   int64_t     interval = 0, tempInterval = 0;
   int64_t     ts = 0, tempTs = 0;
@@ -506,9 +507,45 @@ static int32_t parseVarbinary(SToken* pToken, uint8_t** pData, uint32_t* nData, 
   }
   return TSDB_CODE_SUCCESS;
 }
+static int32_t parseBlob(SToken* pToken, uint8_t** pData, uint32_t* nData, int32_t bytes) {
+  if (pToken->type != TK_NK_STRING) {
+    return TSDB_CODE_PAR_INVALID_VARBINARY;
+  }
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  uint32_t size = 0;
+  void*    data = NULL;
+  if (isHex(pToken->z + 1, pToken->n - 2)) {
+    if (!isValidateHex(pToken->z + 1, pToken->n - 2)) {
+      return TSDB_CODE_PAR_INVALID_VARBINARY;
+    }
+    if (taosHex2Ascii(pToken->z + 1, pToken->n - 2, &data, &size) < 0) {
+      TSDB_CHECK_CODE(code, lino, _error);
+    }
+  } else {
+    size = pToken->n;
+    data = taosMemoryCalloc(1, size);
+    if (data == NULL) {
+      TSDB_CHECK_CODE(code = terrno, lino, _error);
+    }
+    memcpy(data, pToken->z, size);
+  }
+  if (size + BLOBSTR_HEADER_SIZE > TSDB_MAX_BLOB_LEN) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_BLOB_VALUE_TOO_LONG, lino, _error);
+  }
+_error:
+  if (code != 0) {
+    taosMemoryFree(data);
+    uError("parseBlob failed at lino %d code: %s", lino, tstrerror(code));
+    return code;
+  }
+  *pData = data;
+  *nData = size;
+  return TSDB_CODE_SUCCESS;
+}
 
 static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema, int16_t timePrec, STagVal* val,
-                             SMsgBuf* pMsgBuf, timezone_t tz, void *charsetCxt) {
+                             SMsgBuf* pMsgBuf, timezone_t tz, void* charsetCxt) {
   int64_t  iv;
   uint64_t uv;
   char*    endptr = NULL;
@@ -738,6 +775,11 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
       val->i64 = iv;
       break;
     }
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
+    case TSDB_DATA_TYPE_BLOB: {
+      code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_BLOB_NOT_SUPPORT_TAG, pSchema->name);
+      break;
+    }
   }
 
   return code;
@@ -763,7 +805,7 @@ static int32_t parseBoundTagsClause(SInsertParseContext* pCxt, SVnodeModifyOpStm
 }
 
 int32_t parseTagValue(SMsgBuf* pMsgBuf, const char** pSql, uint8_t precision, SSchema* pTagSchema, SToken* pToken,
-                      SArray* pTagName, SArray* pTagVals, STag** pTag, timezone_t tz, void *charsetCxt) {
+                      SArray* pTagName, SArray* pTagVals, STag** pTag, timezone_t tz, void* charsetCxt) {
   bool isNull = isNullValue(pTagSchema->type, pToken);
   if (!isNull && pTagName) {
     if (NULL == taosArrayPush(pTagName, pTagSchema->name)) {
@@ -1013,7 +1055,8 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
       code = buildSyntaxErrMsg(&pCxt->msg, "not expected tags values ", token.z);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      code = parseTagValue(&pCxt->msg, &pStmt->pSql, precision, pTagSchema, &token, pTagName, pTagVals, &pTag, pCxt->pComCxt->timezone, pCxt->pComCxt->charsetCxt);
+      code = parseTagValue(&pCxt->msg, &pStmt->pSql, precision, pTagSchema, &token, pTagName, pTagVals, &pTag,
+                           pCxt->pComCxt->timezone, pCxt->pComCxt->charsetCxt);
     }
   }
 
@@ -1214,8 +1257,7 @@ static int32_t getTableMeta(SInsertParseContext* pCxt, SName* pTbName, STableMet
       *pMissCache = true;
     } else if (bUsingTable && TSDB_SUPER_TABLE != (*pTableMeta)->tableType) {
       code = buildInvalidOperationMsg(&pCxt->msg, "create table only from super table is allowed");
-    } else if (((*pTableMeta)->virtualStb) ||
-               TSDB_VIRTUAL_CHILD_TABLE == (*pTableMeta)->tableType ||
+    } else if (((*pTableMeta)->virtualStb) || TSDB_VIRTUAL_CHILD_TABLE == (*pTableMeta)->tableType ||
                TSDB_VIRTUAL_NORMAL_TABLE == (*pTableMeta)->tableType) {
       code = TSDB_CODE_VTABLE_NOT_SUPPORT_STMT;
     }
@@ -1331,7 +1373,7 @@ static int32_t preParseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpS
 }
 
 static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, bool* ctbCacheHit) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t     code = TSDB_CODE_SUCCESS;
   STableMeta* pStableMeta = NULL;
   STableMeta* pCtableMeta = NULL;
   if (pCxt->forceUpdate) {
@@ -1631,7 +1673,8 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       break;
     }
     case TSDB_DATA_TYPE_UTINYINT: {
-      int32_t code = toUIntegerEx(pToken->z, pToken->n, pToken->type, (uint64_t*)&VALUE_GET_TRIVIAL_DATUM(&pVal->value));
+      int32_t code =
+          toUIntegerEx(pToken->z, pToken->n, pToken->type, (uint64_t*)&VALUE_GET_TRIVIAL_DATUM(&pVal->value));
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid unsigned tinyint data", pToken->z);
       } else if (VALUE_GET_TRIVIAL_DATUM(&pVal->value) > UINT8_MAX) {
@@ -1804,6 +1847,13 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       }
       break;
     }
+    case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB: {
+      int32_t code = parseBlob(pToken, &pVal->value.pData, &pVal->value.nData, pSchema->bytes);
+      if (code != TSDB_CODE_SUCCESS) {
+        return generateSyntaxErrMsg(&pCxt->msg, code, pSchema->name);
+      }
+    } break;
     case TSDB_DATA_TYPE_DECIMAL: {
       if (!pExtSchema) {
         qError("Decimal type without ext schema info, cannot parse decimal values");
@@ -1812,7 +1862,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       uint8_t precision = 0, scale = 0;
       decimalFromTypeMod(pExtSchema->typeMod, &precision, &scale);
       Decimal128 dec = {0};
-      int32_t code = decimal128FromStr(pToken->z, pToken->n, precision, scale, &dec);
+      int32_t    code = decimal128FromStr(pToken->z, pToken->n, precision, scale, &dec);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
@@ -1834,7 +1884,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       uint8_t precision = 0, scale = 0;
       decimalFromTypeMod(pExtSchema->typeMod, &precision, &scale);
       Decimal64 dec = {0};
-      int32_t code = decimal64FromStr(pToken->z, pToken->n, precision, scale, &dec);
+      int32_t   code = decimal64FromStr(pToken->z, pToken->n, precision, scale, &dec);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
@@ -1845,6 +1895,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       break;
     }
     default:
+
       return TSDB_CODE_FAILED;
   }
 
@@ -1952,7 +2003,8 @@ static int32_t processCtbTagsAfterCtbName(SInsertParseContext* pCxt, SVnodeModif
 
       if (code == TSDB_CODE_SUCCESS) {
         code = parseTagValue(&pCxt->msg, NULL, precision, pTagSchema, pTagToken, pStbRowsCxt->aTagNames,
-                             pStbRowsCxt->aTagVals, &pStbRowsCxt->pTag, pCxt->pComCxt->timezone, pCxt->pComCxt->charsetCxt);
+                             pStbRowsCxt->aTagVals, &pStbRowsCxt->pTag, pCxt->pComCxt->timezone,
+                             pCxt->pComCxt->charsetCxt);
       }
     }
     if (code == TSDB_CODE_SUCCESS && !pStbRowsCxt->isJsonTag) {
@@ -2050,7 +2102,7 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
       if (pCols->pColIndex[i] < numOfCols) {
         const SSchema*    pSchema = &pSchemas[pCols->pColIndex[i]];
         const SSchemaExt* pExtSchema = pExtSchemas + pCols->pColIndex[i];
-        SColVal*       pVal = taosArrayGet(pStbRowsCxt->aColVals, pCols->pColIndex[i]);
+        SColVal*          pVal = taosArrayGet(pStbRowsCxt->aColVals, pCols->pColIndex[i]);
         code = parseValueToken(pCxt, ppSql, pToken, (SSchema*)pSchema, pExtSchema, precision, pVal);
         if (TK_NK_VARIABLE == pToken->type) {
           code = buildInvalidOperationMsg(&pCxt->msg, "not expected row value");
@@ -2243,8 +2295,8 @@ static int32_t parseStbBoundInfo(SVnodeModifyOpStmt* pStmt, SStbRowsDataContext*
 static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, const char** ppSql,
                               SStbRowsDataContext* pStbRowsCxt, bool* pGotRow, SToken* pToken,
                               STableDataCxt** ppTableDataCxt) {
-  bool    bFirstTable = false;
-  bool    setCtbName = false;
+  bool          bFirstTable = false;
+  bool          setCtbName = false;
   SBoundColInfo ctbCols = {0};
   int32_t code = getStbRowValues(pCxt, pStmt, ppSql, pStbRowsCxt, pGotRow, pToken, &bFirstTable, &setCtbName, &ctbCols);
 
@@ -2283,8 +2335,9 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
     }
   }
   if (code == TSDB_CODE_SUCCESS && !pCxt->isStmtBind) {
-    SRow** pRow = taosArrayReserve((*ppTableDataCxt)->pData->aRowP, 1);
-    code = tRowBuild(pStbRowsCxt->aColVals, (*ppTableDataCxt)->pSchema, pRow);
+    SRow**            pRow = taosArrayReserve((*ppTableDataCxt)->pData->aRowP, 1);
+    SRowBuildScanInfo sinfo = {0};
+    code = tRowBuild(pStbRowsCxt->aColVals, (*ppTableDataCxt)->pSchema, pRow, &sinfo);
     if (TSDB_CODE_SUCCESS == code) {
       SRowKey key;
       tRowGetKey(*pRow, &key);
@@ -2302,6 +2355,17 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   return code;
 }
 
+static int8_t schemaHasBlob(STSchema* pSchema) {
+  if (pSchema == NULL) {
+    return 0;
+  }
+  for (int i = 0; i < pSchema->numOfCols; ++i) {
+    if (IS_STR_DATA_BLOB(pSchema->columns[i].type)) {
+      return 1;
+    }
+  }
+  return 0;
+}
 static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataCxt* pTableCxt, bool* pGotRow,
                        SToken* pToken) {
   SBoundColInfo*    pCols = &pTableCxt->boundColsInfo;
@@ -2355,7 +2419,13 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
 
   if (TSDB_CODE_SUCCESS == code && !pCxt->isStmtBind) {
     SRow** pRow = taosArrayReserve(pTableCxt->pData->aRowP, 1);
-    code = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow);
+    if (schemaHasBlob(pTableCxt->pSchema)) {
+      SRowBuildScanInfo sinfo = {.hasBlob = 1};
+      code = tRowBuildWithBlob(pTableCxt->pValues, pTableCxt->pSchema, pRow, pTableCxt->pData->pBlobRow, &sinfo);
+    } else {
+      SRowBuildScanInfo sinfo = {0};
+      code = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow, &sinfo);
+    }
     if (TSDB_CODE_SUCCESS == code) {
       SRowKey key;
       tRowGetKey(*pRow, &key);
@@ -3384,8 +3454,8 @@ static int32_t buildInsertCatalogReq(SInsertParseContext* pCxt, SVnodeModifyOpSt
 static int32_t setNextStageInfo(SInsertParseContext* pCxt, SQuery* pQuery, SCatalogReq* pCatalogReq) {
   SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
   if (pCxt->missCache) {
-    parserDebug("QID:0x%" PRIx64 ", %d rows of %d tables will be inserted before obtain the cache", pCxt->pComCxt->requestId,
-                pStmt->totalRowsNum, pStmt->totalTbNum);
+    parserDebug("QID:0x%" PRIx64 ", %d rows of %d tables will be inserted before obtain the cache",
+                pCxt->pComCxt->requestId, pStmt->totalRowsNum, pStmt->totalTbNum);
 
     pQuery->execStage = QUERY_EXEC_STAGE_PARSE;
     return buildInsertCatalogReq(pCxt, pStmt, pCatalogReq);

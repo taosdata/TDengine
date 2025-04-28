@@ -374,7 +374,8 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
 
 _exit:
   if (code) {
-    vError("vgId:%d, %s:%d failed to vnodePreProcessSubmitTbData submit request since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+    vError("vgId:%d, %s:%d failed to vnodePreProcessSubmitTbData submit request since %s", TD_VID(pVnode), __func__,
+           lino, tstrerror(code));
   }
   return code;
 }
@@ -602,6 +603,66 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   return code;
 }
 
+static int32_t inline vnodeSubmitSubBlobData(SVnode *pVnode, SSubmitTbData *pSubmitTbData) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  int64_t    st = taosGetTimestampUs();
+  SBlobRow2 *pBlobRow = pSubmitTbData->pBlobRow;
+  int32_t    sz = taosArrayGetSize(pBlobRow->pSeqTable);
+
+  SBseBatch *pBatch = NULL;
+
+  code = bseBatchInit(pVnode->pBse, &pBatch, sz);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  SRow  **pRow = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
+  int32_t rowIdx = -1;
+  for (int32_t i = 0; i < sz; i++) {
+    int64_t     seq = 0;
+    SBlobValue *p = taosArrayGet(pBlobRow->pSeqTable, i);
+    code = bseBatchPut(pBatch, &seq, pBlobRow->data + p->offset, p->len);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    if (p->nextRow == 1) {
+      rowIdx++;
+    }
+    if (p->len == 0) {
+      continue;
+    }
+    SRow *row = taosArrayGetP(pSubmitTbData->aRowP, rowIdx);
+    if (row == NULL) {
+      break;
+    }
+    memcpy(row->data + p->dataOffset, (void *)&seq, sizeof(uint64_t));
+  }
+
+  code = bseCommitBatch(pVnode->pBse, pBatch);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  int64_t cost = taosGetTimestampUs() - st;
+  if (cost >= 500) {
+    vDebug("vgId:%d, %s, cost:%" PRId64 "us, rows:%d, size:%" PRId64 "", TD_VID(pVnode), __func__, cost, sz,
+           pBlobRow->len);
+  }
+_exit:
+  if (code != 0) {
+    vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t inline vnodeSubmitBlobData(SVnode *pVnode, SSubmitReq2 *pReq) {
+  int32_t code = 0;
+  for (int32_t i = 0; i < TARRAY_SIZE(pReq->aSubmitTbData); ++i) {
+    SSubmitTbData *pSubmitTbData = taosArrayGet(pReq->aSubmitTbData, i);
+    if (pSubmitTbData->flags & SUBMIT_REQ_WITH_BLOB) {
+      code = vnodeSubmitSubBlobData(pVnode, pSubmitTbData);
+    }
+  }
+  return code;
+}
+
 int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg *pRsp) {
   int32_t code = 0;
   void   *ptr = NULL;
@@ -691,7 +752,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_VND_BATCH_DEL:
       if (vnodeProcessBatchDeleteReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
-    /* TQ */
+      /* TQ */
 #if defined(USE_TQ) || defined(USE_STREAM)
     case TDMT_VND_TMQ_SUBSCRIBE:
       if (tqProcessSubscribeReq(pVnode->pTq, ver, pReq, len) < 0) {
@@ -1126,8 +1187,8 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
   }
 
   if (ttlReq.nUids != 0) {
-    vInfo("vgId:%d, process drop ttl table request, time:%d, ntbUids:%d", pVnode->config.vgId,
-          ttlReq.timestampSec, ttlReq.nUids);
+    vInfo("vgId:%d, process drop ttl table request, time:%d, ntbUids:%d", pVnode->config.vgId, ttlReq.timestampSec,
+          ttlReq.nUids);
   }
 
   if (ttlReq.nUids > 0) {
@@ -1529,7 +1590,8 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     vAlterTbRsp.pMeta = &vMetaRsp;
   }
 
-  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL || vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
+  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL ||
+      vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
     int64_t uid = metaGetTableEntryUidByName(pVnode->pMeta, vAlterTbReq.tbName);
     if (uid == 0) {
       vError("vgId:%d, %s failed at %s:%d since table %s not found", TD_VID(pVnode), __func__, __FILE__, __LINE__,
@@ -1537,8 +1599,8 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
       goto _exit;
     }
 
-    SArray* tbUids = taosArrayInit(4, sizeof(int64_t));
-    void* p = taosArrayPush(tbUids, &uid);
+    SArray *tbUids = taosArrayInit(4, sizeof(int64_t));
+    void   *p = taosArrayPush(tbUids, &uid);
     TSDB_CHECK_NULL(p, code, lino, _exit, terrno);
 
     vDebug("vgId:%d, remove tags value altered table:%s from query table list", TD_VID(pVnode), vAlterTbReq.tbName);
@@ -1804,8 +1866,14 @@ static int32_t vnodeCellValConvertToColVal(STColumn *pCol, SCellVal *pCellVal, S
   }
 
   if (IS_VAR_DATA_TYPE(pCol->type)) {
-    pColVal->value.nData = varDataLen(pCellVal->val);
-    pColVal->value.pData = (uint8_t *)varDataVal(pCellVal->val);
+    if (IS_STR_DATA_BLOB(pCol->type)) {
+      pColVal->value.nData = blobDataLen(pCellVal->val);
+      pColVal->value.pData = (uint8_t *)blobDataVal(pCellVal->val);
+
+    } else {
+      pColVal->value.nData = varDataLen(pCellVal->val);
+      pColVal->value.pData = (uint8_t *)varDataVal(pCellVal->val);
+    }
   } else if (TSDB_DATA_TYPE_FLOAT == pCol->type) {
     float f = GET_FLOAT_VAL(pCellVal->val);
     valueSetDatum(&pColVal->value, pCol->type, &f, sizeof(f));
@@ -1877,8 +1945,9 @@ static int32_t vnodeSubmitReqConvertToSubmitReq2(SVnode *pVnode, SSubmitReq *pRe
     while (TSDB_CODE_SUCCESS == code && (cxt.pRow = tGetSubmitBlkNext(&cxt.blkIter)) != NULL) {
       code = vnodeTSRowConvertToColValArray(&cxt);
       if (TSDB_CODE_SUCCESS == code) {
-        SRow **pNewRow = taosArrayReserve(cxt.pTbData->aRowP, 1);
-        code = tRowBuild(cxt.pColValues, cxt.pTbSchema, pNewRow);
+        SRow            **pNewRow = taosArrayReserve(cxt.pTbData->aRowP, 1);
+        SRowBuildScanInfo sinfo = {0};
+        code = tRowBuild(cxt.pColValues, cxt.pTbSchema, pNewRow, &sinfo);
       }
     }
     if (TSDB_CODE_SUCCESS == code) {
@@ -1919,7 +1988,9 @@ static int32_t vnodeRebuildSubmitReqMsg(SSubmitReq2 *pSubmitReq, void **ppMsg) {
 static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
                                      SRpcMsg *pOriginalMsg) {
   int32_t code = 0;
+  int32_t lino = 0;
   terrno = 0;
+  uint8_t hasBlob = 0;
 
   SSubmitReq2 *pSubmitReq = &(SSubmitReq2){0};
   SSubmitRsp2 *pSubmitRsp = &(SSubmitRsp2){0};
@@ -2048,6 +2119,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
         goto _exit;
       }
     }
+    if (pSubmitTbData->flags & SUBMIT_REQ_WITH_BLOB) hasBlob = 1;
 
     if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
       int32_t   nColData = TARRAY_SIZE(pSubmitTbData->aCol);
@@ -2122,6 +2194,10 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
       }
     }
 
+    if (hasBlob) {
+      code = vnodeSubmitBlobData(pVnode, pSubmitReq);
+      if (code) goto _exit;
+    }
     // insert data
     int32_t affectedRows;
     code = tsdbInsertTableData(pVnode->pTsdb, ver, pSubmitTbData, &affectedRows);
