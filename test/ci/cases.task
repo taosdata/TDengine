@@ -50,12 +50,22 @@
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_column_type.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_column_value.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_date.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_describe.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_double.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_float.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_hash.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_int.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_limit.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_multi.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_smallint.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_synatx.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_vgroup.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_tinyint.py 
 ### 02-Drop
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_delete_reuse1.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_delete_reuse2.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_delete_writing.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_drop.py
 ### 03-Alter
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normal_table_alter_1.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normal_table_alter_2.py
