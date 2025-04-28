@@ -101,7 +101,10 @@ jobs:
           make -j 4
           echo "XPATH4:$PATH"
           echo make done=======================
-          sudo make install
+          # sudo make install
+          cd ..
+          sudo cmake --install debug --config Release
+          cd debug
           which taosd
           which taosadapter
           which taoskeeper
