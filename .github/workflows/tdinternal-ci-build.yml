@@ -22,7 +22,6 @@ jobs:
     strategy:
       matrix:
         os:
-          - ubuntu-20.04
           - ubuntu-22.04
           - ubuntu-24.04
           # - macos-13
@@ -74,7 +73,7 @@ jobs:
           mkdir debug && cd debug
           cmake .. -DBUILD_TOOLS=true \
             -DBUILD_KEEPER=true \
-            -DBUILD_HTTP=false \
+            -DBUILD_HTTP=internal \
             -DBUILD_TEST=true \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_TAOSX=false \
