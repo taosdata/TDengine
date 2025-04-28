@@ -639,26 +639,26 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->expiredTime));
 
   switch (pMsg->triggerType) {
-    case QUERY_NODE_SESSION_WINDOW: {
+    case WINDOW_TYPE_SESSION: {
       // session trigger
       TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->trigger.session.slotId));
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.session.sessionVal));
       break;
     }
-    case QUERY_NODE_STATE_WINDOW: {
+    case WINDOW_TYPE_STATE: {
       // state trigger
       TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->trigger.stateWin.slotId));
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.stateWin.trueForDuration));
       break;
     }
-    case QUERY_NODE_INTERVAL_WINDOW: {
+    case WINDOW_TYPE_INTERVAL: {
       // slide trigger
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.sliding.interval));
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.sliding.sliding));
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.sliding.offset));
       break;
     }
-    case QUERY_NODE_EVENT_WINDOW: {
+    case WINDOW_TYPE_EVENT: {
       // event trigger
       int32_t eventWindowStartCondLen = pMsg->trigger.event.startCond == NULL ? 0 : (int32_t)strlen((char*)pMsg->trigger.event.startCond) + 1;
       int32_t eventWindowEndCondLen = pMsg->trigger.event.endCond == NULL ? 0 : (int32_t)strlen((char*)pMsg->trigger.event.endCond) + 1;
@@ -669,7 +669,7 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.event.trueForDuration));
       break;
     }
-    case QUERY_NODE_COUNT_WINDOW: {
+    case WINDOW_TYPE_COUNT: {
       // count trigger
       int32_t countWindowCondColsLen = pMsg->trigger.count.condCols == NULL ? 0 : (int32_t)strlen((char*)pMsg->trigger.count.condCols) + 1;
       TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pMsg->trigger.count.condCols, countWindowCondColsLen));
@@ -678,7 +678,7 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.count.sliding));
       break;
     }
-    case QUERY_NODE_PERIOD_WINDOW: {
+    case WINDOW_TYPE_PERIOD: {
       // period trigger
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.period.period));
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.period.offset));
@@ -1033,25 +1033,25 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->expiredTime));
 
   switch (pMsg->triggerType) {
-    case QUERY_NODE_SESSION_WINDOW:
+    case WINDOW_TYPE_SESSION:
       // session trigger
       TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pMsg->trigger.session.slotId));
       TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->trigger.session.sessionVal));
       break;
-    case QUERY_NODE_STATE_WINDOW:
+    case WINDOW_TYPE_STATE:
       // state trigger
       TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pMsg->trigger.stateWin.slotId));
       TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->trigger.stateWin.trueForDuration));
       break;
     
-    case QUERY_NODE_INTERVAL_WINDOW:
+    case WINDOW_TYPE_INTERVAL:
       // slide trigger
       TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->trigger.sliding.interval));
       TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->trigger.sliding.sliding));
       TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->trigger.sliding.offset));
       break;
     
-    case QUERY_NODE_EVENT_WINDOW:
+    case WINDOW_TYPE_EVENT:
       // event trigger
       TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->trigger.event.startCond, NULL));
       TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->trigger.event.endCond, NULL));
@@ -1059,7 +1059,7 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
       TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->trigger.event.trueForDuration));
       break;
     
-    case QUERY_NODE_COUNT_WINDOW:
+    case WINDOW_TYPE_COUNT:
       // count trigger
       TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->trigger.count.condCols, NULL));
       
@@ -1067,7 +1067,7 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
       TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->trigger.count.sliding));
       break;
     
-    case QUERY_NODE_PERIOD_WINDOW:
+    case WINDOW_TYPE_PERIOD:
       // period trigger
       TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->trigger.period.period));
       TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->trigger.period.offset));

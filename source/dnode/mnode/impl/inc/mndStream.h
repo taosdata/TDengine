@@ -29,7 +29,9 @@ typedef enum {
 
 typedef enum {
   MND_STM_PHASE_WATCH = 0,
-  MND_STM_PHASE_
+  MND_STM_PHASE_NORMAL,
+  MND_STM_PHASE_CLEANUP,
+  MND_STM_PHASE_DEPLOYALL
 } EMndStmPhase;
 
 #define MND_STREAM_REPORT_PERIOD  (STREAM_HB_INTERVAL_MS * STREAM_MAX_GROUP_NUM)
@@ -124,6 +126,7 @@ typedef struct SStmSnodeTasksStatus {
 
 typedef struct SStmVgroupTasksStatus {
   SRWLatch lock;
+  int32_t  leaderDnodeId;
   int64_t  streamVer;
   SArray*  taskList;       // SArray<SStmTaskStatus*>
 } SStmVgroupTasksStatus;

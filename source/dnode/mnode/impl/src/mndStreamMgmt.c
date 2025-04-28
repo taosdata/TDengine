@@ -388,7 +388,7 @@ int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan *plan, SStrea
   //TAOS_CHECK_EXIT(qSubPlanToString(plan, &pMsg->pPlan, NULL));
 
   pMsg->execReplica = replica;
-  TAOS_CHECK_EXIT(nodesNodeToString((SNode*)plan, false, (char**)&pMsg->pPlan, NULL));
+  pMsg->pPlan = plan;
   pMsg->outDBFName = pStream->pCreate->outDB;
   pMsg->outTblName = pStream->pCreate->outTblName;
   pMsg->outTblType = pStream->pCreate->outTblType;
@@ -835,6 +835,7 @@ int32_t msmUpdateRunnerPlans(SMnode* pMnode, SArray* pRunners, SStreamObj* pStre
   for (int32_t i = 0; i < runnerNum; ++i) {
     SStmTaskDeploy* pDeploy = taosArrayGet(pRunners, i);
     TAOS_CHECK_EXIT(msmUpdateRunnerPlan(pMnode, pRunners, i, pDeploy, pStream));
+    TAOS_CHECK_EXIT(nodesNodeToString((SNode*)pDeploy->msg.runner.pPlan, false, (char**)&pDeploy->msg.runner.pPlan, NULL));
   }
 
 _exit:
@@ -1765,7 +1766,7 @@ _exit:
   return code;  
 }
 
-int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, SMStreamHbRspMsg* pRsp) {
+int32_t msmHandleNormalHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, SMStreamHbRspMsg* pRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t tidx = streamGetThreadIdx(mStreamMgmt.threadNum, pHb->streamGId);
@@ -1800,6 +1801,46 @@ _exit:
 
   if (code) {
     stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+
+  return code;
+}
+
+
+int32_t msmHandleCleanupHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, SMStreamHbRspMsg* pRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t tidx = streamGetThreadIdx(mStreamMgmt.threadNum, pHb->streamGId);
+
+  TAOS_CHECK_EXIT(msmCheckUpdateDnodeTs(pMnode, currTs, pHb->dnodeId));
+  
+  if (taosArrayGetSize(pHb->pStreamStatus) > 0) {
+    pRsp->undeploy.undeployAll = 1;
+  }
+
+_exit:
+
+  if (code) {
+    stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+
+  return code;
+}
+
+
+int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, SMStreamHbRspMsg* pRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  
+  switch (mStreamMgmt.phase) {
+    case MND_STM_PHASE_WATCH:
+      break;
+    case MND_STM_PHASE_NORMAL:
+      return msmHandleNormalHbMsg(pMnode, currTs, pHb, pRsp);
+    case MND_STM_PHASE_CLEANUP:
+      return msmHandleCleanupHbMsg(pMnode, currTs, pHb, pRsp);
+    default:
+      stError("Invalid stream phase: %d", mStreamMgmt.phase);
+      return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
   }
 
   return code;
@@ -1908,6 +1949,7 @@ int32_t msmInitRuntimeInfo(SMnode *pMnode) {
 
   mStreamMgmt.lastTaskId = 1;
   mStreamMgmt.initialized = true;
+  mStreamMgmt.phase = MND_STM_PHASE_NORMAL;
 
   //taosHashSetFreeFp(mStreamMgmt.nodeMap, freeTaskList);
   //taosHashSetFreeFp(mStreamMgmt.streamMap, freeTaskList);
