@@ -88,7 +88,7 @@ class TDTestCase:
 
             cb.verifyData()
 
-            cb.verifyBackticksInTaosSql()
+            cb.verifyBackticksInTaosSql(bPath)
 
             tdLog.printNoPrefix(f"Compatibility test cycle with base version {base_version} completed successfully")
 

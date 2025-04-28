@@ -46,6 +46,14 @@ deletedDataSql = '''drop database if exists deldata;create database deldata dura
 tableNumbers=100
 recordNumbers1=1000
 recordNumbers2=1000
+first_consumer_rows=0
+
+topic_select_sql = "select current,voltage,phase from test.meters where voltage >= 10;"
+select_topic = "select_test_meters_topic"
+db_topic = "db_test_topic"
+stable_topic = "stable_test_meters_topic"
+dbname = "test"
+stb = f"{dbname}.meters"
 
 class CompatibilityBase:
         
@@ -185,8 +193,6 @@ class CompatibilityBase:
         self.checkProcessPid("taosadapter")
 
     def prepareDataOnOldVersion(self, base_version, bPath):
-        dbname = "test"
-        stb = f"{dbname}.meters"
         tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{base_version}")
         tdLog.info(f" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -t {tableNumbers} -n {recordNumbers1} -v 1 -O 5  -y ")
         os.system(f"LD_LIBRARY_PATH=/usr/lib taosBenchmark -t {tableNumbers} -n {recordNumbers1} -v 1 -O 5  -y  ")
@@ -214,14 +220,11 @@ class CompatibilityBase:
         os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show streams;" ')
 
         # create db/stb/select topic
-        db_topic = "db_test_topic"
         os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s  "create topic if not exists {db_topic} with meta as database test" ')
 
-        stable_topic = "stable_test_meters_topic"
         os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s  "create topic if not exists {stable_topic}  as stable test.meters where tbname like \\"d3\\";" ')
 
-        select_topic = "select_test_meters_topic"
-        topic_select_sql = "select current,voltage,phase from test.meters where voltage >= 10;"
+        
         os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s  "create topic if not exists {select_topic}  as {topic_select_sql}" ')
 
         os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show topics;" ')
@@ -240,7 +243,7 @@ class CompatibilityBase:
             consumer.subscribe([select_topic])
         except TmqError:
             tdLog.exit(f"subscribe error")
-        first_consumer_rows = 0
+        
         while True:
             message = consumer.poll(timeout=1.0)
             if message:
@@ -287,6 +290,7 @@ class CompatibilityBase:
             tdDnodes.start(1)
 
     def verifyData(self):
+
         tdLog.printNoPrefix(f"==========step3:prepare and check data in new version-{nowServerVersion}")
         sleep(1)
         tdsql=tdCom.newTdSql()
@@ -340,7 +344,7 @@ class CompatibilityBase:
         tdsql.execute("flush database deldata;")
         tdsql.query("select avg(c1) from deldata.ct1;")
 
-    def verifyBackticksInTaosSql(self):
+    def verifyBackticksInTaosSql(self,bPath):
         tdsql=tdCom.newTdSql()
         tdLog.printNoPrefix("==========step4:verify backticks in taos Sql-TD18542")
         tdsql.execute("drop database if exists db")

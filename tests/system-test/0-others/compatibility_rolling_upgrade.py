@@ -90,7 +90,7 @@ class TDTestCase:
 
         cb.verifyData()
 
-        cb.verifyBackticksInTaosSql()
+        cb.verifyBackticksInTaosSql(self.getBuildPath())
 
         
 
