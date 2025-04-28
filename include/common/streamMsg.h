@@ -308,7 +308,6 @@ void    tCleanupStreamHbMsg(SStreamHbMsg* pMsg);
 typedef struct {
   char*   triggerTblName;
   int64_t triggerTblUid;  // suid or uid
-  int64_t streamId;  // suid or uid
   int8_t  triggerTblType;
   int8_t  deleteReCalc;
   int8_t  deleteOutTbl;
