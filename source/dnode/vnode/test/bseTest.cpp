@@ -133,7 +133,9 @@ int32_t getDataAndValid(SBse *pBse, std::string &inStr, std::vector<int64_t> *se
             printf("failed to get key %d error code: %d\n", i, code);
         } else {
           if (strncmp((const char *)value, inStr.c_str(), len) != 0) {
-            ASSERT(0);    
+            ASSERT(0);
+          } else {
+            printf("succ to get key %"PRId64"\n",seq);
           }
         }
         taosMemoryFree(value);
@@ -169,25 +171,25 @@ TEST(bseCase, openTest) {
     
     int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
 
-    putData(bse, 1000, 100, &data);
-    //getData(bse, &data);
+    putData(bse, 1000, 1000, &data);
+    getData(bse, &data);
 
     bseCommit(bse);
     getData(bse, &data);
 
-    // putData(bse, 1000, 200, &data);
+    putData(bse, 1000, 200, &data);
     
-    // bseCommit(bse);
+    bseCommit(bse);
 
-    // putData(bse,1000, 200, &data);
+    putData(bse,1000, 200, &data);
 
-    // getData(bse, &data);
-    // bseCommit(bse);
+    getData(bse, &data);
+    bseCommit(bse);
 
-    // getData(bse, &data);
+    getData(bse, &data);
 
-    // // test compress 
-    // testAllCompress(bse);
+    //test compress 
+    testAllCompress(bse);
     
     
     bseClose(bse);

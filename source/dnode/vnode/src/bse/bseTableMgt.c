@@ -131,22 +131,24 @@ int32_t bseTableMgtGet(STableMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *
   SBse *pBse = pMgt->pBse;
 
   int64_t retenTs = 0;
-  code = bseGetRetentionTs(pMgt->pBse, seq, &retenTs);
-  if (code != 0) {
-    bseError("failed to get retention ts at line %d since %s", lino, tstrerror(code));
-    return code;
-  }
+  code = bseGetRetentionTsBySeq(pMgt->pBse, seq, &retenTs);
+  TSDB_CHECK_CODE(code, lino, _error);
 
-  SSubTableMgt **ppSubMgt = taosHashGet(pMgt->pHashObj, &retenTs, sizeof(retenTs));
-  if (ppSubMgt == NULL || *ppSubMgt == NULL) {
-    code = createSubTableMgt(retenTs, 0, pMgt, &pSubMgt);
-    TSDB_CHECK_CODE(code, lino, _error);
+  if (retenTs > 0) {
+    SSubTableMgt **ppSubMgt = taosHashGet(pMgt->pHashObj, &retenTs, sizeof(retenTs));
+    if (ppSubMgt == NULL || *ppSubMgt == NULL) {
+      code = createSubTableMgt(retenTs, 0, pMgt, &pSubMgt);
+      TSDB_CHECK_CODE(code, lino, _error);
 
-    code = taosHashPut(pMgt->pHashObj, &retenTs, sizeof(retenTs), &pSubMgt, sizeof(SSubTableMgt *));
-    TSDB_CHECK_CODE(code, lino, _error);
+      code = taosHashPut(pMgt->pHashObj, &retenTs, sizeof(retenTs), &pSubMgt, sizeof(SSubTableMgt *));
+      TSDB_CHECK_CODE(code, lino, _error);
 
+    } else {
+      pSubMgt = *ppSubMgt;
+    }
   } else {
-    pSubMgt = *ppSubMgt;
+    pSubMgt = pMgt->pCurrTableMgt;
+    readOnly = 0;
   }
 
   if (readOnly) {
@@ -379,8 +381,7 @@ int32_t findTargetTable(SArray *pFileList, int64_t seq) {
   SBseLiveFileInfo target = {.range = {.sseq = seq, .eseq = seq}};
   for (int32_t i = 0; i < taosArrayGetSize(pFileList); i++) {
     SBseLiveFileInfo *p = taosArrayGet(pFileList, i);
-    SSeqRange         range = p->range;
-    if (inSeqRange(&range, seq)) {
+    if (inSeqRange(&p->range, seq)) {
       return i;
     }
   }

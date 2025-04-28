@@ -134,11 +134,11 @@ int32_t tableBuilderSeekData(STableBuilder *p, SBlkHandle *pHandle, int64_t seq,
   code = blockSeek(blockWrapper.data, seq, pValue, len);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  blockWrapperCleanup(&blockWrapper);
 _error:
   if (code != 0) {
     bseError("failed to seek data from table builder at lino %d ince %s", lino, tstrerror(code));
   }
+  blockWrapperCleanup(&blockWrapper);
   return code;
 }
 
@@ -290,6 +290,7 @@ int32_t tableBuilderFlush(STableBuilder *p, int8_t type) {
     code = terrno;
     TSDB_CHECK_CODE(code, lino, _error);
   }
+  tableBuilderResetBlockRange(p);
 
 _error:
   if (code != 0) {
@@ -340,7 +341,7 @@ int32_t tableBuilderPutBatch(STableBuilder *p, SBseBatch *pBatch) {
       TSDB_CHECK_CODE(code, lino, _error);
     }
 
-    if (blockEsimateSize(p->pBlockWrapper.data, len + pInfo->size) <= tableBuilderGetBlockSize(p)) {
+    if (blockEsimateSize(p->pBlockWrapper.data, len + pInfo->size) < tableBuilderGetBlockSize(p)) {
       i++;
       len += pInfo->size;
       tableBuilderUpdateBlockRange(p, pInfo);
@@ -656,17 +657,35 @@ int32_t tableReaderGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *
   int32_t     code = 0;
   SMetaBlock  block = {0};
 
+  STableReaderMgt   *pMgt = (STableReaderMgt *)p->pReaderMgt;
   SBtableMetaReader *pMeta = p->pMetaReader;
+
   code = tableMetaReaderGetBlockMeta(pMeta, seq, &block);
   TSDB_CHECK_CODE(code, lino, _error);
 
+  SBlockWrapper wrapper = {0};
   SBlkHandle blkhandle = {.offset = block.offset, .size = block.size, .range = block.range};
 
-  code = tableLoadBlock(p->pDataFile, &blkhandle, &pMeta->blockWrapper);
+  SCacheItem *pItem = NULL;
+  code = blockCacheGet(pMgt->pBlockCache, &blkhandle.range, (void **)&pItem);
+  if (code != 0) {
+    blockWrapperInit(&wrapper, block.size + 16);
+    code = tableLoadBlock(p->pDataFile, &blkhandle, &wrapper);
+    TSDB_CHECK_CODE(code, lino, _error);
+
+    SBlock *pBlock = wrapper.data;
+    code = blockCachePut(pMgt->pBlockCache, &block.range, pBlock);
+  } else {
+    wrapper.data = pItem->pItem;
+    wrapper.pCachItem = pItem;
+  }
+
+  code = blockSeek(wrapper.data, seq, pValue, len);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = blockSeek(pMeta->blockWrapper.data, seq, pValue, len);
-  TSDB_CHECK_CODE(code, lino, _error);
+  if (wrapper.pCachItem != NULL) {
+    bseCacheUnrefItem(wrapper.pCachItem);
+  }
 
 _error:
   if (code != 0) {
@@ -1807,7 +1826,7 @@ int32_t tableMetaReaderGetBlockMeta(SBtableMetaReader *p, int64_t seq, SMetaBloc
   code = blockSeekMeta(p->blockWrapper.data, seq, pMetaBlock);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  if (pMetaBlock->range.sseq > seq || pMetaBlock->range.eseq < seq) {
+  if (!inSeqRange(&pMetaBlock->range, seq)) {
     code = TSDB_CODE_NOT_FOUND;
     TSDB_CHECK_CODE(code, lino, _error);
   }

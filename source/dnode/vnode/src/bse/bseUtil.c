@@ -160,26 +160,17 @@ void bseBuildDataName(SBse *pBse, int64_t ts, char *name) {
   snprintf(name, BSE_FILE_FULL_LEN, "%" PRId64 ".%s", ts, BSE_DATA_SUFFIX);
 }
 
-int32_t bseGetRetentionTs(SBse *pBse, int64_t seq, int64_t *retentionTs) {
+int32_t bseGetRetentionTsBySeq(SBse *pBse, int64_t seq, int64_t *retentionTs) {
   int32_t code = 0;
-  int64_t tts = taosGetTimestampSec();
+  int64_t tts = 0;
 
   SBseCommitInfo *pCommitInfo = &pBse->commitInfo;
-  if (seq < 0) {
-    if (taosArrayGetSize(pCommitInfo->pFileList)) {
-      SBseLiveFileInfo *pInfo = taosArrayGetLast(pCommitInfo->pFileList);
-      if ((tts - pInfo->retentionTs) < pBse->retention) {
-        tts = pInfo->retentionTs;
-      }
-    }
-  } else {
-    for (int32_t i = 0; i < taosArrayGetSize(pCommitInfo->pFileList); i++) {
-      SBseLiveFileInfo *pInfo = taosArrayGet(pCommitInfo->pFileList, i);
+  for (int32_t i = 0; i < taosArrayGetSize(pCommitInfo->pFileList); i++) {
+    SBseLiveFileInfo *pInfo = taosArrayGet(pCommitInfo->pFileList, i);
 
-      if (inSeqRange(&pInfo->range, seq)) {
-        tts = pInfo->retentionTs;
-        break;
-      }
+    if (inSeqRange(&pInfo->range, seq)) {
+      tts = pInfo->retentionTs;
+      break;
     }
   }
 
