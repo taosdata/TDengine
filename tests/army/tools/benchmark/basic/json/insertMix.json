@@ -42,7 +42,7 @@
                     "delete_ratio": 1,
                     "disorder_fill_interval": 300,
                     "update_fill_interval": 25,
-                    "generate_row_rule": 2,
+                    "generate_row_rule": 1,
                     "columns": [
                         { "type": "bool",        "name": "bc"},
                         { "type": "float",       "name": "fc",  "max": 1, "min": 0 },
