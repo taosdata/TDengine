@@ -1609,29 +1609,6 @@ static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** 
       *pFound = true;
       return TSDB_CODE_SUCCESS;
     }
-    // 先查找普通列
-    for (int32_t i = 0; i < pMeta->tableInfo.numOfColumns; ++i) {
-      if (0 == strcmp(pCol->colName, pMeta->schema[i].name) &&
-          !invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
-        setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, i, pCol, NULL);
-        setColumnPrimTs(pCxt, pCol, pTable);
-        *pFound = true;
-        return TSDB_CODE_SUCCESS;
-      }
-    }
-
-    // 再查找标签列
-    for (int32_t i = pMeta->tableInfo.numOfColumns; i < pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags;
-         ++i) {
-      if (0 == strcmp(pCol->colName, pMeta->schema[i].name) &&
-          !invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
-        setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, i - pMeta->tableInfo.numOfColumns, pCol,
-                              NULL);
-        pCol->colType = COLUMN_TYPE_TAG;
-        *pFound = true;
-        return TSDB_CODE_SUCCESS;
-      }
-    }
   }
 
   int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
