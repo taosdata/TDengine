@@ -1824,7 +1824,10 @@ static void *syncWriteInterlace(void *sarg) {
 
     // create bindv
     if(stbInfo->iface == STMT2_IFACE) {
-        int32_t tagCnt = stbInfo->autoTblCreating ? stbInfo->tags->size : 0; // todo
+        int32_t tagCnt = stbInfo->autoTblCreating ? stbInfo->tags->size : 0;
+        if (csvFile) {
+            tagCnt = 0;
+        }
         //int32_t tagCnt = stbInfo->tags->size;
         bindv = createBindV(nBatchTable,  tagCnt, stbInfo->cols->size + 1);
     }
@@ -2069,7 +2072,7 @@ static void *syncWriteInterlace(void *sarg) {
                     bindv->tbnames[i] = childTbl->name;
 
                     // tags
-                    if (stbInfo->autoTblCreating) {
+                    if (stbInfo->autoTblCreating && firstInsertTb) {
                         // create
                         if (w == 0) {
                             // recreate sample tags
@@ -2078,10 +2081,15 @@ static void *syncWriteInterlace(void *sarg) {
                             }
                         }
 
-                        // first insert table need bring tags
-                        if (firstInsertTb) {
+                        if (csvFile) {
+                            if (prepareStmt2(pThreadInfo->conn->stmt2, stbInfo, tagData, w, database->dbName)) {
+                                g_fail = true;
+                                goto free_of_interlace;
+                            }
+                        } else {
                             bindVTags(bindv, i, w, pThreadInfo->tagsStmt);
                         }
+                        
                     } else {
                         // if engine fix must bind tag bug , need remove this code
                         //if (firstInsertTb) {
