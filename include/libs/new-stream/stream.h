@@ -23,6 +23,8 @@ extern "C" {
 #include "tlog.h"
 #include "streamMsg.h"
 
+#define STREAM_HB_INTERVAL_MS             600
+
 #define STREAM_MAX_GROUP_NUM 5
 #define STREAM_MAX_THREAD_NUM 5
 

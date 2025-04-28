@@ -27,6 +27,14 @@ typedef enum {
   STM_ERR_TASK_NOT_EXISTS,
 } EStmStatusErrType;
 
+typedef enum {
+  MND_STM_PHASE_WATCH = 0,
+  MND_STM_PHASE_
+} EMndStmPhase;
+
+#define MND_STREAM_REPORT_PERIOD  (STREAM_HB_INTERVAL_MS * STREAM_MAX_GROUP_NUM)
+#define MND_STREAM_WATCH_DURATION (MND_STREAM_REPORT_PERIOD * 4)
+
 #define STREAM_RUNNER_MAX_DEPLOYS 
 #define STREAM_RUNNER_MAX_REPLICA 
 
@@ -150,6 +158,8 @@ typedef struct SStmRuntime {
   bool             initialized;
   bool             isLeader;
   int32_t          activeStreamNum;
+  int64_t          startTs;
+  EMndStmPhase     phase;
   
   int32_t           threadNum;
   SStmThreadCtx*    tCtx;
