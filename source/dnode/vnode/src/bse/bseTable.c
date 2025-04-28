@@ -519,15 +519,13 @@ int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo) {
   pInfo->retentionTs = p->retentionTs;
   pInfo->size = p->offset;
 
-  taosArrayDestroy(pMetaBlock);
-
-  return code;
 _error:
   if (code != 0) {
     bseError("failed to commit table builder at line %d since %s ", lino, tstrerror(code));
   } else {
     bseInfo("succ to commit table %s", p->name);
   }
+  taosArrayDestroy(pMetaBlock);
   return code;
 }
 
@@ -630,7 +628,7 @@ int32_t tableReaderOpen(int64_t retentionTs, STableReader **pReader, void *pRead
   char data[TSDB_FILENAME_LEN] = {0};
   char meta[TSDB_FILENAME_LEN] = {0};
 
-  char path[TSDB_FILENAME_LEN] = {0};
+  char dataPath[TSDB_FILENAME_LEN] = {0};
 
   char name[TSDB_FILENAME_LEN] = {0};
 
@@ -638,23 +636,21 @@ int32_t tableReaderOpen(int64_t retentionTs, STableReader **pReader, void *pRead
   int32_t lino = 0;
   int64_t size = 0;
 
+  STableReaderMgt *pMgt = (STableReaderMgt *)pReaderMgt;
+  SSubTableMgt    *pMeta = pMgt->pMgt;
+
   STableReader *p = taosMemCalloc(1, sizeof(STableReader));
   if (p == NULL) {
     TSDB_CHECK_CODE(terrno, lino, _error);
   }
 
-  STableReaderMgt *pMgt = (STableReaderMgt *)pReaderMgt;
-
-  SSubTableMgt *pMeta = pMgt->pMgt;
-
   p->blockCap = 1024;
-  memcpy(p->name, name, strlen(name));
-
   p->pReaderMgt = pReaderMgt;
   bseBuildDataName(pMgt->pBse, retentionTs, data);
+  memcpy(p->name, data, strlen(data));
 
-  bseBuildFullName(pMgt->pBse, data, path);
-  code = tableOpenFile(path, 1, &p->pDataFile, &size);
+  bseBuildFullName(pMgt->pBse, data, dataPath);
+  code = tableOpenFile(dataPath, 1, &p->pDataFile, &size);
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = blockWrapperInit(&p->blockWrapper, 1024);
@@ -664,7 +660,6 @@ int32_t tableReaderOpen(int64_t retentionTs, STableReader **pReader, void *pRead
   code = tableMetaReaderInit(pMeta->pTableMetaMgt->pTableMeta, meta, &p->pMetaReader);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  // p->putInCache = 1;
   *pReader = p;
 
 _error:
@@ -731,6 +726,7 @@ int32_t tableReaderClose(STableReader *p) {
 
   taosCloseFile(&p->pDataFile);
   tableMetaReaderClose(p->pMetaReader);
+  blockWrapperCleanup(&p->blockWrapper);
 
   taosMemoryFree(p);
   return code;
@@ -1375,8 +1371,6 @@ int32_t tableMetaCommit(SBTableMeta *pMeta, SArray *pBlock) {
     updateRange(&pMeta->range, &blkHandle.range);
   }
 
-  tableMetaReaderIterClose(pIter);
-
   code = tableMetaWriterAppendBlock(pWriter, pBlock);
   TSDB_CHECK_CODE(code, lino, _error);
 
@@ -1398,8 +1392,8 @@ int32_t tableMetaCommit(SBTableMeta *pMeta, SArray *pBlock) {
 _error:
   if (code != 0) {
     bseError("failed to commit table meta %s at line %d since %s", pMeta->name, lino, tstrerror(code));
-    tableMetaClose(pMeta);
   }
+  tableMetaReaderIterClose(pIter);
   tableMetaWriterClose(pWriter);
   tableMetaReaderClose(pReader);
 
@@ -1768,6 +1762,7 @@ void tableMetaWriterClose(SBtableMetaWriter *p) {
   taosCloseFile(&p->pFile);
   taosArrayDestroy(p->pBlkHandle);
   taosArrayDestroy(p->pBlock);
+  blockWrapperCleanup(&p->blockWrapper);
   taosMemoryFree(p);
 }
 
@@ -1808,6 +1803,7 @@ void tableMetaReaderClose(SBtableMetaReader *p) {
   if (p == NULL) return;
   taosCloseFile(&p->pFile);
   taosArrayDestroy(p->pBlkHandle);
+  blockWrapperCleanup(&p->blockWrapper);
   taosMemoryFree(p);
 }
 int32_t tableMetaReaderGetBlockMeta(SBtableMetaReader *p, int64_t seq, SMetaBlock *pMetaBlock) {
@@ -1925,9 +1921,8 @@ _error:
   if (code != 0) {
     bseError("failed to load table meta blk handle %s at line %d since %s", pIter->pReader->name, lino,
              tstrerror(code));
-    tableMetaReaderClose(pIter->pReader);
+    pIter->pReader = NULL;
   }
-
   return code;
 }
 

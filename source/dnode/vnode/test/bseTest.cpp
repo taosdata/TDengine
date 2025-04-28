@@ -190,7 +190,7 @@ TEST(bseCase, openTest) {
     // testAllCompress(bse);
     
     
-    // bseClose(bse);
+    bseClose(bse);
 
       
     

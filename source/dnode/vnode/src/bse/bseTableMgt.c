@@ -118,6 +118,7 @@ static void destroySubTableMgt(SSubTableMgt *p) {
     tableReaderMgtDestroy(p->pReaderMgt);
     tableMetaMgtDestroy(p->pTableMetaMgt);
   }
+  taosMemoryFree(p);
 }
 int32_t bseTableMgtGet(STableMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *len) {
   if (pMgt == NULL) return 0;
@@ -196,6 +197,8 @@ int32_t bseTableMgtCleanup(void *pMgt) {
     destroySubTableMgt(*ppSubMgt);
     pIter = taosHashIterate(p->pHashObj, pIter);
   }
+
+  destroySubTableMgt(p->pCurrTableMgt);
 
   taosHashCleanup(p->pHashObj);
   taosMemoryFree(p);
@@ -396,6 +399,8 @@ _error:
   if (code != 0) {
     bseError("failed to seek table pReaderMgt at line %d since %s", lino, tstrerror(code));
   }
+
+  tableReaderClose(pReader);
   return code;
 }
 

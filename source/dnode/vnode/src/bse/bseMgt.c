@@ -410,6 +410,8 @@ int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
   if (p == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _err);
   }
+
+  p->retention = 10 * 3600 * 24;
   p->cfg = *pCfg;
   bseCfgSetDefault(&p->cfg);
 
