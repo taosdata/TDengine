@@ -39,6 +39,7 @@ IF(TD_WEBSOCKET)
                 COMMAND echo "======================"
                 COMMAND ls -a /home/runner/.cargo/bin/cargo
                 COMMAND /home/runner/.cargo/bin/cargo build --release --locked -p taos-ws-sys --features rustls
+                COMMAND echo "done======================="
             INSTALL_COMMAND
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_dll} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ext_taosws_dll}
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_lib_from} ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/${ext_taosws_lib_to}
