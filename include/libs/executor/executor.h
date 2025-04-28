@@ -21,9 +21,9 @@ extern "C" {
 #endif
 
 #include "query.h"
+#include "storageapi.h"
 #include "tcommon.h"
 #include "tmsgcb.h"
-#include "storageapi.h"
 
 typedef void* qTaskInfo_t;
 typedef void* DataSinkHandle;
@@ -87,7 +87,7 @@ int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pInfo, void* msg, SReadHandle* re
 qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int32_t vgId, int32_t* numOfCols,
                                      uint64_t id);
 
-int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray **tableList, void* pTaskInfo);
+int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray** tableList, void* pTaskInfo);
 
 /**
  * set the task Id, usually used by message queue process
@@ -117,11 +117,11 @@ int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks,
  */
 int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd);
 
-bool   qIsDynamicExecTask(qTaskInfo_t tinfo);
+bool qIsDynamicExecTask(qTaskInfo_t tinfo);
 
-void   qDestroyOperatorParam(SOperatorParam* pParam);
+void qDestroyOperatorParam(SOperatorParam* pParam);
 
-void   qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam);
+void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam);
 
 /**
  * Create the exec task object according to task json
@@ -155,12 +155,13 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, int32_t dbN
  * @param handle
  * @return
  */
-int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bool* hasMore, SLocalFetch* pLocal, bool processOneBlock);
+int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bool* hasMore, SLocalFetch* pLocal,
+                     bool processOneBlock);
 
 int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pBlock, uint64_t* useconds);
 
 int32_t qExecutorInit(void);
-void qResetTaskCode(qTaskInfo_t tinfo);
+void    qResetTaskCode(qTaskInfo_t tinfo);
 
 void qCleanExecTaskBlockBuf(qTaskInfo_t tinfo);
 
@@ -204,35 +205,36 @@ SMqBatchMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo);
 
 const SSchemaWrapper* qExtractSchemaFromTask(qTaskInfo_t tinfo);
 
-const char*   qExtractTbnameFromTask(qTaskInfo_t tinfo);
+const char* qExtractTbnameFromTask(qTaskInfo_t tinfo);
 
 void* qExtractReaderFromStreamScanner(void* scanner);
 void  qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
 
-int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo);
-int32_t qStreamSourceScanParamForHistoryScanStep1(qTaskInfo_t tinfo, SVersionRange *pVerRange, STimeWindow* pWindow);
-int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRange *pVerRange, STimeWindow* pWindow);
-int32_t qStreamRecoverFinish(qTaskInfo_t tinfo);
-bool    qStreamScanhistoryFinished(qTaskInfo_t tinfo);
-int32_t qStreamInfoResetTimewindowFilter(qTaskInfo_t tinfo);
-int32_t qGetStreamIntervalExecInfo(qTaskInfo_t tinfo, int64_t* pWaterMark, SInterval* pInterval, STimeWindow* pLastWindow, TSKEY* pRecInteral);
-int32_t qStreamOperatorReleaseState(qTaskInfo_t tInfo);
-int32_t qStreamOperatorReloadState(qTaskInfo_t tInfo);
-int32_t streamCollectExprsForReplace(qTaskInfo_t tInfo, SArray* pExprs);
-int32_t streamClearStatesForOperators(qTaskInfo_t tInfo);
-int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppBlock, uint64_t *ts);
-void    streamDestroyExecTask(qTaskInfo_t tInfo);
-int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType, SNodeList* pGroupTags, 
-  bool groupSort, SNode* pTagCond, SNode* pTagIndexCond, SStorageAPI *storageAPI, void** pTableListInfo);
-int32_t qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STableKeyInfo** pKeyInfo, int32_t* size);
+int32_t  qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo);
+int32_t  qStreamSourceScanParamForHistoryScanStep1(qTaskInfo_t tinfo, SVersionRange* pVerRange, STimeWindow* pWindow);
+int32_t  qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRange* pVerRange, STimeWindow* pWindow);
+int32_t  qStreamRecoverFinish(qTaskInfo_t tinfo);
+bool     qStreamScanhistoryFinished(qTaskInfo_t tinfo);
+int32_t  qStreamInfoResetTimewindowFilter(qTaskInfo_t tinfo);
+int32_t  qGetStreamIntervalExecInfo(qTaskInfo_t tinfo, int64_t* pWaterMark, SInterval* pInterval,
+                                    STimeWindow* pLastWindow, TSKEY* pRecInteral);
+int32_t  qStreamOperatorReleaseState(qTaskInfo_t tInfo);
+int32_t  qStreamOperatorReloadState(qTaskInfo_t tInfo);
+int32_t  streamCollectExprsForReplace(qTaskInfo_t tInfo, SArray* pExprs);
+int32_t  streamClearStatesForOperators(qTaskInfo_t tInfo);
+int32_t  streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppBlock, uint64_t* ts);
+void     streamDestroyExecTask(qTaskInfo_t tInfo);
+int32_t  qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType,
+                                         SNodeList* pGroupTags, bool groupSort, SNode* pTagCond, SNode* pTagIndexCond,
+                                         SStorageAPI* storageAPI, void** pTableListInfo);
+int32_t  qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STableKeyInfo** pKeyInfo, int32_t* size);
 uint64_t qStreamGetGroupId(void* pTableListInfo, int64_t uid);
-void    qStreamDestroyTableList(void* pTableListInfo);
-int32_t qStreamGetTableListGroupNum(const void* pTableList);
-int32_t qStreamGetGroupIndex(void* pTableListInfo, int64_t gid);
-int32_t qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo);
-bool    qStreamUidInTableList(void* pTableListInfo, uint64_t uid);
-
-void initStorageAPI(SStorageAPI* pAPI);
+void     qStreamDestroyTableList(void* pTableListInfo);
+int32_t  qStreamGetTableListGroupNum(const void* pTableList);
+int32_t  qStreamGetGroupIndex(void* pTableListInfo, int64_t gid);
+int32_t  qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo);
+bool     qStreamUidInTableList(void* pTableListInfo, uint64_t uid);
+void     initStorageAPI(SStorageAPI* pAPI);
 
 #ifdef __cplusplus
 }
