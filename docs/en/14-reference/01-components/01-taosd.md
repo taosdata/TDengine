@@ -74,7 +74,7 @@ After modifying configuration file parameters, you need to restart the *taosd* s
 |queryBufferSize         |          |Supported, effective after restart|Not effective yet|
 |queryRspPolicy          |          |Supported, effective immediately  |Query response strategy|
 |queryUseMemoryPool      |          |Not supported                     |Whether query will use memory pool to manage memory, default value: 1 (on); 0: off, 1: on|
-|minReservedMemorySize   |          |Not supported                     |The minimum reserved system available memory size, all memory except reserved can be used for queries, unit: MB, default reserved size is 20% of system physical memory, value range 1024-1000000000|
+|minReservedMemorySize   |          |Supported, effective immediately  |The minimum reserved system available memory size, all memory except reserved can be used for queries, unit: MB, default reserved size is 20% of system physical memory, value range 1024-1000000000|
 |singleQueryMaxMemorySize|          |Not supported                     |The memory limit that a single query can use on a single node (dnode), exceeding this limit will return an error, unit: MB, default value: 0 (no limit), value range 0-1000000000|
 |filterScalarMode        |          |Not supported                     |Force scalar filter mode, 0: off; 1: on, default value 0|
 |queryRsmaTolerance      |          |Not supported                     |Internal parameter, tolerance time for determining which level of rsma data to query, in milliseconds|
@@ -544,7 +544,7 @@ The `taosd_vnodes_role` table records virtual node role information.
 
 | field          | type      | is\_tag | comment                                               |
 | :------------- | :-------- | :------ | :---------------------------------------------------- |
-| start\_ts      | TIMESTAMP |         | sql start exec time in client, ms,primary key                     |
+| start\_ts      | TIMESTAMP |         | sql start exec time in client, ms, primary key                     |
 | request\_id    | UINT64_T  |         | sql request id, random hash              |
 | query\_time    | INT32_T   |         | sql exec time, ms                                   |
 | code           | INT32_T   |         | sql return code, 0 success                               |

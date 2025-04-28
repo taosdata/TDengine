@@ -323,7 +323,7 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       // for stream interval
       if (pBlock->info.type == STREAM_RETRIEVE || pBlock->info.type == STREAM_DELETE_RESULT ||
           pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_CREATE_CHILD_TABLE ||
-          pBlock->info.type == STREAM_CHECKPOINT) {
+          pBlock->info.type == STREAM_CHECKPOINT || pBlock->info.type == STREAM_NOTIFY_EVENT) {
 
         *pResBlock = pBlock;
         return code;
@@ -878,6 +878,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
   if (pResult != pSrcBlock) {
     pResult->info.id.groupId = pSrcBlock->info.id.groupId;
     memcpy(pResult->info.parTbName, pSrcBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
+    qTrace("%s, parName:%s,groupId:%"PRIu64, __FUNCTION__, pSrcBlock->info.parTbName, pResult->info.id.groupId);
   }
 
   // if the source equals to the destination, it is to create a new column as the result of scalar

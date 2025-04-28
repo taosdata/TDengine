@@ -755,13 +755,17 @@ int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTe
     if (retry) {
       taosMsleep(10);
       if (code == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE) {
-        sGError(&rpcMsg.info.traceId,
-                "vgId:%d, index:%" PRId64 ", will retry to execute fsm after 10ms, last error is %s", pNode->vgId,
-                pEntry->index, tstrerror(code));
-      } else {
-        sGTrace(&rpcMsg.info.traceId,
-                "vgId:%d, index:%" PRId64 ", will retry to execute fsm after 10ms, last error is %s", pNode->vgId,
-                pEntry->index, tstrerror(code));
+        pNode->applyQueueErrorCount++;
+        if (pNode->applyQueueErrorCount == APPLY_QUEUE_ERROR_THRESHOLD) {
+          pNode->applyQueueErrorCount = 0;
+          sGWarn(&rpcMsg.info.traceId,
+                 "vgId:%d, index:%" PRId64 ", will retry to execute fsm after 10ms, last error is %s", pNode->vgId,
+                 pEntry->index, tstrerror(code));
+        } else {
+          sGTrace(&rpcMsg.info.traceId,
+                  "vgId:%d, index:%" PRId64 ", will retry to execute fsm after 10ms, last error is %s", pNode->vgId,
+                  pEntry->index, tstrerror(code));
+        }
       }
     }
   } while (retry);

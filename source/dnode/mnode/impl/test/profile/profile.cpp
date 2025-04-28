@@ -32,13 +32,15 @@ TEST_F(MndTestProfile, 01_ConnectMsg) {
   connectReq.pid = 1234;
 
   char passwd[] = "taosdata";
-  char secretEncrypt[TSDB_PASSWORD_LEN + 1] = {0};
+  char secretEncrypt[sizeof(connectReq.passwd)+1] = {0};
   taosEncryptPass_c((uint8_t*)passwd, strlen(passwd), secretEncrypt);
+  size_t n = strnlen(secretEncrypt, sizeof(secretEncrypt));
+  ASSERT_EQ(n, sizeof(connectReq.passwd));
 
   strcpy(connectReq.app, "mnode_test_profile");
   strcpy(connectReq.db, "");
   strcpy(connectReq.user, "root");
-  strcpy(connectReq.passwd, secretEncrypt);
+  memcpy(connectReq.passwd, secretEncrypt, sizeof(connectReq.passwd));
   strcpy(connectReq.sVer, td_version);
 
   int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
@@ -65,15 +67,17 @@ TEST_F(MndTestProfile, 01_ConnectMsg) {
 
 TEST_F(MndTestProfile, 02_ConnectMsg_NotExistDB) {
   char passwd[] = "taosdata";
-  char secretEncrypt[TSDB_PASSWORD_LEN + 1] = {0};
-  taosEncryptPass_c((uint8_t*)passwd, strlen(passwd), secretEncrypt);
-
   SConnectReq connectReq = {0};
+  char secretEncrypt[sizeof(connectReq.passwd)+1] = {0};
+  taosEncryptPass_c((uint8_t*)passwd, strlen(passwd), secretEncrypt);
+  size_t n = strnlen(secretEncrypt, sizeof(secretEncrypt));
+  ASSERT_EQ(n, sizeof(connectReq.passwd));
+
   connectReq.pid = 1234;
   strcpy(connectReq.app, "mnode_test_profile");
   strcpy(connectReq.db, "not_exist_db");
   strcpy(connectReq.user, "root");
-  strcpy(connectReq.passwd, secretEncrypt);
+  memcpy(connectReq.passwd, secretEncrypt, sizeof(connectReq.passwd));
   strcpy(connectReq.sVer, td_version);
 
   int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);

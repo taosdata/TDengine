@@ -617,7 +617,22 @@ func get_sub_table_name(stbName string, tagMap map[string]string) string {
 			return fmt.Sprintf("slowsql_%s_%s_%s_cluster_%s", tagMap["username"],
 				tagMap["duration"], tagMap["result"], tagMap["cluster_id"])
 		}
-
+	case "adapter_status":
+		if checkKeysExist(tagMap, "endpoint") {
+			subTableName := fmt.Sprintf("adapter_status_%s", tagMap["endpoint"])
+			if len(subTableName) <= util.MAX_TABLE_NAME_LEN {
+				return subTableName
+			}
+			return subTableName[0:util.MAX_TABLE_NAME_LEN]
+		}
+	case "adapter_conn_pool":
+		if checkKeysExist(tagMap, "endpoint", "user") {
+			subTableName := fmt.Sprintf("adapter_conn_pool_%s_%s", tagMap["endpoint"], tagMap["user"])
+			if len(subTableName) <= util.MAX_TABLE_NAME_LEN {
+				return subTableName
+			}
+			return fmt.Sprintf("adapter_conn_pool_%s_%s", tagMap["user"], util.GetMd5HexStr(tagMap["endpoint"]))
+		}
 	default:
 		return ""
 	}
@@ -694,6 +709,10 @@ func Init(key string) {
 
 // 初始化所有列序列
 func (gm *GeneralMetric) initColumnSeqMap() error {
+	for k := range gColumnSeqMap {
+		delete(gColumnSeqMap, k)
+	}
+
 	query := fmt.Sprintf(`
     select stable_name
     from information_schema.ins_stables
@@ -702,6 +721,7 @@ func (gm *GeneralMetric) initColumnSeqMap() error {
         stable_name like 'taos_%%'
         or stable_name like 'taosd_%%'
         or stable_name like 'taosx_%%'
+		or (stable_name like 'adapter_%%' and stable_name != 'adapter_requests')
     )
     order by stable_name asc;
 	`, gm.database)

@@ -62,6 +62,7 @@ taosBenchmark -f <json file>
 | -i/--insert-interval \<timeInterval> | 指定交错插入模式的插入间隔，单位为 ms，默认值为 0。只有当 `-B/--interlace-rows` 大于 0 时才起作用 |意味着数据插入线程在为每个子表插入隔行扫描记录后，会等待该值指定的时间间隔后再进行下一轮写入 |
 | -r/--rec-per-req \<rowNum>           | 每次向 TDengine 请求写入的数据行数，默认值为 30000  |
 | -t/--tables \<tableNum>              | 指定子表的数量，默认为 10000  |
+| -s/ --start-timestamp \<NUMBER>      | 每个子表数据开始时间，默认值为 1500000000000 |
 | -S/--timestampstep \<stepLength>     | 每个子表中插入数据的时间戳步长，单位是 ms，默认值是 1 |
 | -n/--records \<recordNum>            | 每个子表插入的记录数，默认值为 10000  |
 | -d/--database \<dbName>              | 所使用的数据库的名称，默认值为 test  |
@@ -237,7 +238,7 @@ taosBenchmark -f <json file>
 
 - **dec_max**：字符串类型，指定 DECIMAL 数据类型的列的最大值。当 max 无法表达足够的精度时，使用此字段。生成的值将小于最大值。
 
-- **precision**：数字的总位数（包括小数点前后的所有数字），仅适用于 DECIMAL 类型，其有效值范围为 0 至 38。。
+- **precision**：数字的总位数（包括小数点前后的所有数字），仅适用于 DECIMAL 类型，其有效值范围为 0 至 38。
 
 - **scale**：小数点右边的数字位数。对于 FLOAT 类型，scale 的有效范围是 0 至 6；对于 DOUBLE 类型，该范围是 0 至 15；而对于 DECIMAL 类型，scale 的有效范围是 0 至其 precision 值。
 

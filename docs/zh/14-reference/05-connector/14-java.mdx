@@ -33,6 +33,8 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 
 | taos-jdbcdriver 版本 |                                                                        主要变化                                                                        |   TDengine 版本    |
 | ------------------| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+|        3.6.2        | 1. 支持订阅数据库和超级表（不支持订阅元数据） <br/> 2. 解决了云服务订阅 bug <br/> 3. 优化了 setQueryTimeout 参数为 0 的实现    |   -  |
+|        3.6.1        | 解决 WebSocket 连接在小查询上的性能 bug     |   -  |
 |        3.6.0        | 在 WebSocket 连接上支持高效写入和 Decimal 数据类型     |   3.3.6.0 及更高版本  |
 |        3.5.3        | 在 WebSocket 连接上支持无符号数据类型     |  -  |
 |        3.5.2        | 解决了 WebSocket 查询结果集释放 bug     |  -  |
@@ -150,7 +152,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 | JSON              | java.lang.String     |仅在 tag 中支持|
 | VARBINARY         | byte[]               ||
 | GEOMETRY          | byte[]               ||
-| DECIMAL           | java.math.BigDecimal ||
+| DECIMAL           | java.math.BigDecimal |仅在 WebSocket 连接方式支持|
 
 **注意**：由于历史原因，TDengine 中的 BINARY 底层不是真正的二进制数据，已不建议使用。请用 VARBINARY 类型代替。  
 GEOMETRY 类型是 little endian 字节序的二进制数据，符合 WKB 规范。详细信息请参考 [数据类型](../../taos-sql/data-type/#数据类型)  

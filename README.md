@@ -86,7 +86,7 @@ At the moment, TDengine server supports running on Linux/MacOS systems. Any appl
 
 Starting from version 3.1.0.0, TDengine supports the Windows system exclusively in its Enterprise edition.
 
-If you want to compile taosAdapter or taosKeeper, you need to install Go 1.18 or above.
+If you want to compile taosAdapter or taosKeeper, you need to install Go 1.23 or above.
 
 ## 3.1 Prerequisites on Linux
 
@@ -119,7 +119,7 @@ yum install -y zlib-static xz-devel snappy-devel jansson-devel pkgconfig libatom
 
 <summary>Install required tools on macOS</summary>
 
-Please intall the dependencies with [brew](https://brew.sh/).
+Please install the dependencies with [brew](https://brew.sh/).
 
 ```bash
 brew install argp-standalone gflags pkgconfig
@@ -340,7 +340,7 @@ To create the test coverage report (in HTML format) locally, please run followin
 cd tests
 bash setup-lcov.sh -v 1.16 && ./run_local_coverage.sh -b main -c task 
 # on main branch and run cases in longtimeruning_cases.task 
-# for more infomation about options please refer to ./run_local_coverage.sh -h
+# for more information about options please refer to ./run_local_coverage.sh -h
 ```
 > **NOTE:**
 > Please note that the -b and -i options will recompile TDengine with the -DCOVER=true option, which may take a amount of time.

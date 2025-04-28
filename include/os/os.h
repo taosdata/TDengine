@@ -153,6 +153,14 @@ extern threadlocal bool tsEnableRandErr;
     }                                  \
   } while (0)
 
+// NOTE: use TD_ALWAYS_ASSERT to enforce assertion even in release build
+//       this is for test cases to use!!!
+#define TD_ALWAYS_ASSERT(pred)                                  \
+  if (!(pred)) {                                                \
+    fprintf(stderr, "Assertion `%s` failed.\n", #pred);         \
+    abort();                                                    \
+  }
+
 #ifdef __cplusplus
 }
 #endif

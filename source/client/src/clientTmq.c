@@ -1004,14 +1004,15 @@ int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
     taosWLockLatch(&tmq->lock);
     for (int32_t i = 0; i < taosArrayGetSize(rsp.topicPrivileges); i++) {
       STopicPrivilege* privilege = taosArrayGet(rsp.topicPrivileges, i);
-      if (privilege && privilege->noPrivilege == 1) {
-        int32_t topicNumCur = taosArrayGetSize(tmq->clientTopics);
-        for (int32_t j = 0; j < topicNumCur; j++) {
-          SMqClientTopic* pTopicCur = taosArrayGet(tmq->clientTopics, j);
-          if (pTopicCur && strcmp(pTopicCur->topicName, privilege->topic) == 0) {
-            tqInfoC("consumer:0x%" PRIx64 ", has no privilege, topic:%s", tmq->consumerId, privilege->topic);
-            pTopicCur->noPrivilege = 1;
-          }
+      if (privilege == NULL) {
+        continue;
+      }
+      int32_t topicNumCur = taosArrayGetSize(tmq->clientTopics);
+      for (int32_t j = 0; j < topicNumCur; j++) {
+        SMqClientTopic* pTopicCur = taosArrayGet(tmq->clientTopics, j);
+        if (pTopicCur && strcmp(pTopicCur->topicName, privilege->topic) == 0) {
+          tqInfoC("consumer:0x%" PRIx64 ", update noPrivilege:%d, topic:%s", tmq->consumerId, privilege->noPrivilege, privilege->topic);
+          pTopicCur->noPrivilege = privilege->noPrivilege;
         }
       }
     }
@@ -3046,7 +3047,6 @@ static int32_t tmqGetWalInfoCb(void* param, SDataBuf* pMsg, int32_t code) {
   SMqVgWalInfoParam* pParam = param;
   SMqVgCommon*       pCommon = pParam->pCommon;
 
-  int32_t total = atomic_add_fetch_32(&pCommon->numOfRsp, 1);
   if (code != TSDB_CODE_SUCCESS) {
     tqErrorC("consumer:0x%" PRIx64 " failed to get the wal info from vgId:%d for topic:%s", pCommon->consumerId,
              pParam->vgId, pCommon->pTopicName);
@@ -3078,6 +3078,7 @@ static int32_t tmqGetWalInfoCb(void* param, SDataBuf* pMsg, int32_t code) {
 
   END:
   pCommon->code = code;
+  int32_t total = atomic_add_fetch_32(&pCommon->numOfRsp, 1);
   if (total == pParam->totalReq) {
     if (tsem2_post(&pCommon->rsp) != 0) {
       tqErrorC("failed to post semaphore in get wal cb");
@@ -3097,11 +3098,12 @@ static void destroyCommonInfo(SMqVgCommon* pCommon) {
     return;
   }
   taosArrayDestroy(pCommon->pList);
+  pCommon->pList = NULL;
   if(tsem2_destroy(&pCommon->rsp) != 0) {
     tqErrorC("failed to destroy semaphore for topic:%s", pCommon->pTopicName);
   }
+  taosMemoryFreeClear(pCommon->pTopicName);
   (void)taosThreadMutexDestroy(&pCommon->mutex);
-  taosMemoryFree(pCommon->pTopicName);
   taosMemoryFree(pCommon);
 }
 
@@ -3435,7 +3437,6 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
       goto end;
     }
     pCommon->consumerId = tmq->consumerId;
-
     for (int32_t i = 0; i < (*numOfAssignment); ++i) {
       SMqClientVg* pClientVg = taosArrayGet(pTopic->vgs, i);
       if (pClientVg == NULL) {

@@ -17,6 +17,12 @@ anode 采用类动态加载模式，在启动的时候扫描特定目录内满�
 
 以下内容将说明如何将分析算法添加到 anode 中并能够通过 SQL 语句进行调用。
 
+## 环境准备
+
+建议进行进行分析模型开发的研发人员首先从 github 上克隆 [TDengine 社区版本](https://github.com/taosdata/tdengine) 源代码。
+在克隆到本地的源代码目录中，TDgpt 的源代码位于 `./tools/tdgpt` 。[PyCharm 社区版](https://www.jetbrains.com/pycharm/download)
+直接打开该目录即可以进行开发。
+
 ## 目录结构
 
 anode 的主要目录结构如下图所示
@@ -37,17 +43,17 @@ anode 的主要目录结构如下图所示
 └── venv -> /var/lib/taos/taosanode/venv
 ```
 
-| 目录            | 说明                                                                                          |
-| ------------- | ------------------------------------------------------------------------------------------- |
-| taosanalytics | 源代码目录，其下包含了算法具体保存目录 algo，放置杂项目录 misc，单元测试和集成测试目录 test。algo 目录下 ad 保存异常检测算法代码，fc 目录保存预测算法代码 |
-| venv          | Python 虚拟环境                                                                                 |
-| model         | 放置针对数据集完成的训练模型                                                                              |
-| cfg           | 配置文件目录                                                                                      |
+| 目录            | 说明                                                                                    |
+|---------------|---------------------------------------------------------------------------------------|
+| taosanalytics | 代码目录，包含模型代码保存目录 algo 和放置杂项目录 misc  <br/> 单元测试和集成测试目录 test <br/> 其下的 ad 目录存放异常检测算法代码，fc 目录存放预测算法代码 |
+| venv          | Python 虚拟环境                                                                           |
+| model         | 放置针对数据集完成的训练模型                                                                        |
+| cfg           | 配置文件目录                                                                                |
 
 ## 约定与限制
 
-- 异常检测算法的 Python 代码文件需放在 `./taos/algo/ad` 目录中
-- 预测算法 Python 代码文件需要放在 `./taos/algo/fc` 目录中
+- 异常检测算法 Python 代码文件需放在 `./taos/algo/ad` 目录中
+- 预测分析算法 Python 代码文件需放在 `./taos/algo/fc` 目录中
 
 ### 类命名规范
 
@@ -56,7 +62,7 @@ anode 采用算法自动加载模式，因此只识别符合命名约定的 Pyth
 ### 类继承约定
 
 - 异常检测算法需要从 `AbstractAnomalyDetectionService` 继承，并实现其核心抽象方法 `execute`
-- 预测算法需要从 `AbstractForecastService` 继承，同样需要实现其核心抽象方法 `execute`
+- 预测分析算法需要从 `AbstractForecastService` 继承，同样需要实现其核心抽象方法 `execute`
 
 ### 类属性初始化
 

@@ -432,6 +432,7 @@ int32_t metaStatsCacheUpsert(SMeta* pMeta, SMetaStbStats* pInfo) {
   if (*ppEntry) {  // update
     (*ppEntry)->info.ctbNum = pInfo->ctbNum;
     (*ppEntry)->info.colNum = pInfo->colNum;
+    (*ppEntry)->info.flags = pInfo->flags;
     (*ppEntry)->info.keep = pInfo->keep;
   } else {  // insert
     if (pCache->sStbStatsCache.nEntry >= pCache->sStbStatsCache.nBucket) {
@@ -685,6 +686,13 @@ _end:
             (int32_t)taosLRUCacheGetUsage(pCache), taosHashGetSize(pTableEntry));
 
   return code;
+}
+
+void metaCacheClear(SMeta* pMeta) {
+  metaWLock(pMeta);
+  metaCacheClose(pMeta);
+  metaCacheOpen(pMeta);
+  metaULock(pMeta);
 }
 
 // remove the lru cache that are expired due to the tags value update, or creating, or dropping, of child tables

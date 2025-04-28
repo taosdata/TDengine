@@ -393,7 +393,7 @@ taosAdapter 和 TDengine server 需要使用相同版本。请通过升级 TDeng
 
 使用命令 rmtaos 可以移除包括 taosAdapter 在内的 TDengine server 软件。
 
-## 监控指标
+## taosAdapter 监控指标
 
 taosAdapter 目前仅采集 RESTful/WebSocket 相关请求的监控指标，其他接口暂无监控指标。
 
@@ -403,7 +403,7 @@ taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosK
 
 | field              | type         | is\_tag | comment                     |
 |:-------------------|:-------------|:--------|:----------------------------|
-| ts                 | TIMESTAMP    |         | timestamp                   |
+| ts                 | TIMESTAMP    |         | 数据采集时间戳                     |
 | total              | INT UNSIGNED |         | 总请求数                        |
 | query              | INT UNSIGNED |         | 查询请求数                       |
 | write              | INT UNSIGNED |         | 写入请求数                       |
@@ -421,6 +421,37 @@ taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosK
 | write\_in\_process | INT UNSIGNED |         | 正在处理写入请求数                   |
 | endpoint           | VARCHAR      |         | 请求端点                        |
 | req\_type          | NCHAR        | TAG     | 请求类型：0 为 REST，1 为 WebSocket |
+
+`adapter_status` 表记录 taosAdapter 状态数据，字段如下：
+
+| field            | type      | is\_tag | comment                               |
+|:-----------------|:----------|:--------|:--------------------------------------|
+| _ts              | TIMESTAMP |         | 数据采集时间戳                               |
+| go_heap_sys      | DOUBLE    |         | Go 运行时系统分配的堆内存大小（字节）                  |
+| go_heap_inuse    | DOUBLE    |         | Go 运行时正在使用的堆内存大小（字节）                  |
+| go_stack_sys     | DOUBLE    |         | Go 运行时系统分配的栈内存大小（字节）                  |
+| go_stack_inuse   | DOUBLE    |         | Go 运行时正在使用的栈内存大小（字节）                  |
+| rss              | DOUBLE    |         | 进程实际占用的物理内存大小（字节）                     |
+| ws_query_conn    | DOUBLE    |         | `/rest/ws` 接口当前 WebSocket 连接数         |
+| ws_stmt_conn     | DOUBLE    |         | `/rest/stmt` 接口当前 WebSocket 连接数       |
+| ws_sml_conn      | DOUBLE    |         | `/rest/schemaless` 接口当前 WebSocket 连接数 |
+| ws_ws_conn       | DOUBLE    |         | `/ws` 接口当前 WebSocket 连接数              |
+| ws_tmq_conn      | DOUBLE    |         | `/rest/tmq` 接口当前 WebSocket 连接数        |
+| async_c_limit    | DOUBLE    |         | C 同步接口并发限制总数                          |
+| async_c_inflight | DOUBLE    |         | C 同步接口当前并发数                           |
+| sync_c_limit     | DOUBLE    |         | C 异步接口并发限制总数                          |
+| sync_c_inflight  | DOUBLE    |         | C 异步接口当前并发数                           |
+| endpoint         | NCHAR     | TAG     | 请求端点                                  |      
+
+`adapter_conn_pool` 表记录 taosAdapter 连接池监控数据，字段如下：
+
+| field            | type      | is\_tag | comment       |
+|:-----------------|:----------|:--------|:--------------|
+| _ts              | TIMESTAMP |         | 数据采集时间戳       |
+| conn_pool_total  | DOUBLE    |         | 连接池的最大连接数限制   |
+| conn_pool_in_use | DOUBLE    |         | 连接池当前正在使用的连接数 |
+| endpoint         | NCHAR     | TAG     | 请求端点          |
+| user             | NCHAR     | TAG     | 连接池所属的用户名     |
 
 ## httpd 升级为 taosAdapter 的变化
 

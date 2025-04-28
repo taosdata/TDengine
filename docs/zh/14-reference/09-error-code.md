@@ -185,6 +185,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x800003A5 | Snode not there                                                                              | 不存在                                        | 确认操作是否正确                                                                                |
 | 0x800003A8 | The replica of mnode cannot less than 1                                                      | mnode 少于 1                                    | 操作不允许                                                                                      |
 | 0x800003A9 | The replica of mnode cannot exceed 3                                                         | mnode 多于 1                                    | 操作不允许                                                                                      |
+| 0x800003AE | VGroup is offline                                                      | Vgroup 离线                                  | 检查 dnode 是否离线                                                                                     |
 | 0x800003B1 | No enough memory in dnode                                                                    | 内存不足                                      | 调整配置                                                                                        |
 | 0x800003B3 | Invalid dnode end point                                                                      | ep 配置不正确                                  | 确认操作是否正确                                                                                |
 | 0x800003B6 | Offline dnode exists                                                                         | Dnode offline                                 | 检查节点状态                                                                                    |
@@ -594,14 +595,16 @@ description: TDengine 服务端的错误码列表和详细说明
 
 ## TDgpt
 
-| 错误码     | 错误描述              | 可能的出错场景或者可能的原因                                                     | 建议用户采取的措施             |
-| ---------- | --------------------- | -------------------------------------------------------------------------------- | ------------------------------ |
-| 0x80000440 | Analysis service response is NULL | 分析服务返回错误                                                   | 检查服务端日志确认返回信息是否正确 |
-| 0x80000441 | Analysis service can't access     | 分析服务无法使用 |  检查 anoded 服务是否可用        |
-| 0x80000442 | Analysis algorithm is missing     | 未指定分析算法名称     |   增加算法名称        |
-| 0x80000443 | Analysis algorithm not loaded | 指定算法未加载   |   指定算法未加载   |
-| 0x80000444 | Analysis invalid buffer type  | 缓存数据格式不对  | 具体查看 server 端的错误日志     |
-| 0x80000445 | Analysis failed since anode return error            | anode 返回错误信息  | 请检查服务端日志确认问题原因     |
-| 0x80000446 | Analysis failed since too many input rows for anode | 输入数据太多   | 减小分析数据输入规模     |
-| 0x80000447 | white-noise data not processed                      | 白噪声数据不分析   |    |
-| 0x80000448 | Analysis internal error, not processed                 | anode 出现内部错误   | 具体查看 server 端的日志 (taosanode.app.log)   |
+| 错误码        | 错误描述                                                | 可能的出错场景或者可能的原因 | 建议用户采取的措施                            |
+|------------|-----------------------------------------------------|----------------|--------------------------------------|
+| 0x80000440 | Analysis service response is NULL                   | 分析服务返回错误       | 检查服务端日志确认返回信息是否正确                    |
+| 0x80000441 | Analysis service can't access                       | 分析服务无法使用       | 检查 anoded 服务是否可用                     |
+| 0x80000442 | Analysis algorithm is missing                       | 未指定分析算法名称      | 增加算法名称                               |
+| 0x80000443 | Analysis algorithm not loaded                       | 指定算法未加载        | 指定算法未加载                              |
+| 0x80000444 | Analysis invalid buffer type                        | 缓存数据格式不对       | 具体查看 server 端的错误日志                   |
+| 0x80000445 | Analysis failed since anode return error            | anode 返回错误信息   | 请检查服务端日志确认问题原因                       |
+| 0x80000446 | Analysis failed since too many input rows for anode | 输入数据太多         | 减小分析数据输入规模                           |
+| 0x80000447 | white-noise data not processed                      | 白噪声数据不分析       |                                      |
+| 0x80000448 | Analysis internal error, not processed              | anode 出现内部错误   | 具体查看 server 端的日志 (taosanode.app.log) |
+| 0x80000449 | Analysis failed since not enough rows               | 预测分析输入数据行数太少   | 增加输入数据规模（预测至少 10 行记录）                |
+| 0x8000044A | Not support co-variate/multi-variate forecast       | 不支持协变量/多变量预测   | 更换使用的预测模型                            |
