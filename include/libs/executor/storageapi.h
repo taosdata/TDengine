@@ -163,6 +163,7 @@ typedef struct {
   int64_t uid;
   int64_t ctbNum;
   int32_t colNum;
+  int8_t  flags;
   int64_t keep;
 } SMetaStbStats;
 
@@ -304,7 +305,7 @@ typedef struct SStoreMeta {
   int32_t (*getChildTableList)(void* pVnode, int64_t suid, SArray* list);
   int32_t (*storeGetTableList)(void* pVnode, int8_t type, SArray* pList);
   int32_t (*getTableSchema)(void* pVnode, int64_t uid, STSchema** pSchema, int64_t* suid);
-  int32_t (*getNumOfChildTables)(void* pVnode, int64_t uid, int64_t* numOfTables, int32_t* numOfCols);
+  int32_t (*getNumOfChildTables)(void* pVnode, int64_t uid, int64_t* numOfTables, int32_t* numOfCols, int8_t* flags);
   void (*getBasicInfo)(void* pVnode, const char** dbname, int32_t* vgId, int64_t* numOfTables,
                        int64_t* numOfNormalTables);
   int32_t (*getDBSize)(void* pVnode, SDbSizeStatisInfo* pInfo);
