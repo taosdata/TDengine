@@ -192,11 +192,11 @@ ExternalProject_Add(ext_zlib
     BUILD_COMMAND
         COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         COMMAND sh -c "echo ext_zlib: PATH:$PATH"
-        COMMAND ls -a /home/runner/.cargo/bin/cargo
+        COMMAND which cargo
     INSTALL_COMMAND
         COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
         COMMAND sh -c "echo ext_zlib: PATH:$PATH"
-        COMMAND ls -a /home/runner/.cargo/bin/cargo
+        COMMAND which cargo
     EXCLUDE_FROM_ALL TRUE
     VERBATIM
 )
@@ -392,11 +392,11 @@ if(${BUILD_TEST})           # {
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
             COMMAND sh -c "echo ext_gtest: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
             COMMAND sh -c "echo ext_gtest: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -435,7 +435,7 @@ if(${BUILD_TEST})           # {
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${ext_cppstub_source}/src/stub.h ${_ins}/include/stub.h
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${ext_cppstub_source}/${_platform_dir}/addr_any.h ${_ins}/include/addr_any.h
             COMMAND sh -c "echo ext_cppstub: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         # TODO: seems only .h files are exported
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
@@ -473,11 +473,11 @@ ExternalProject_Add(ext_lz4
     BUILD_COMMAND
         COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         COMMAND sh -c "echo ext_lz4: PATH:$PATH"
-        COMMAND ls -a /home/runner/.cargo/bin/cargo
+        COMMAND which cargo
     INSTALL_COMMAND
         COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
         COMMAND sh -c "echo ext_lz4: PATH:$PATH"
-        COMMAND ls -a /home/runner/.cargo/bin/cargo
+        COMMAND which cargo
     EXCLUDE_FROM_ALL TRUE
     VERBATIM
 )
@@ -516,11 +516,11 @@ ExternalProject_Add(ext_cjson
     BUILD_COMMAND
         COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         COMMAND sh -c "echo ext_cjson: PATH:$PATH"
-        COMMAND ls -a /home/runner/.cargo/bin/cargo
+        COMMAND which cargo
     INSTALL_COMMAND
         COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
         COMMAND sh -c "echo ext_cjson: PATH:$PATH"
-        COMMAND ls -a /home/runner/.cargo/bin/cargo
+        COMMAND which cargo
     EXCLUDE_FROM_ALL TRUE
     VERBATIM
 )
@@ -557,11 +557,11 @@ ExternalProject_Add(ext_xz
     BUILD_COMMAND
         COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         COMMAND sh -c "echo ext_xz: PATH:$PATH"
-        COMMAND ls -a /home/runner/.cargo/bin/cargo
+        COMMAND which cargo
     INSTALL_COMMAND
         COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
         COMMAND sh -c "echo ext_xz: PATH:$PATH"
-        COMMAND ls -a /home/runner/.cargo/bin/cargo
+        COMMAND which cargo
     EXCLUDE_FROM_ALL TRUE
     VERBATIM
 )
@@ -601,11 +601,11 @@ if(NOT ${TD_WINDOWS})        # {
         BUILD_COMMAND
             COMMAND make DESTDIR=${_ins}
             COMMAND sh -c "echo ext_xxhash: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         INSTALL_COMMAND
             COMMAND make DESTDIR=${_ins} install
             COMMAND sh -c "echo ext_xxhash: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -626,11 +626,11 @@ else()                       # }{
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
             COMMAND sh -c "echo ext_xxhash: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
             COMMAND sh -c "echo ext_xxhash: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -661,11 +661,11 @@ if(${TD_LINUX})
         BUILD_COMMAND
             COMMAND make DESTDIR=${_ins}
             COMMAND sh -c "echo ext_lzma2: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         INSTALL_COMMAND
             COMMAND make DESTDIR=${_ins} install
             COMMAND sh -c "echo ext_lzma2: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -703,11 +703,11 @@ if(${BUILD_WITH_UV})        # {
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
             COMMAND sh -c "echo ext_libuv: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
             COMMAND sh -c "echo ext_libuv: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -747,11 +747,11 @@ if(NOT ${TD_WINDOWS})       # {
             COMMAND "${CMAKE_COMMAND}" -E echo "-=${_c_flags}=-"
             COMMAND make "CFLAGS=${_c_flags}" DESTDIR=${_ins}
             COMMAND sh -c "echo ext_tz: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         INSTALL_COMMAND
             COMMAND make "CFLAGS=${_c_flags}" DESTDIR=${_ins} install
             COMMAND sh -c "echo ext_tz: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -787,21 +787,21 @@ if(${JEMALLOC_ENABLED})     # {
         PATCH_COMMAND
             COMMAND ./autogen.sh
             COMMAND sh -c "echo ext_jemalloc: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         CONFIGURE_COMMAND
             COMMAND ./configure -prefix=${_ins} --disable-initial-exec-tls     # NOTE: why disable-initial-exec-tls
                     CFLAGS=-Wno-missing-braces
                     CXXFLAGS=-Wno-missing-braces
             COMMAND sh -c "echo ext_jemalloc: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         BUILD_COMMAND
             COMMAND make
             COMMAND sh -c "echo ext_jemalloc: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         INSTALL_COMMAND
             COMMAND make install
             COMMAND sh -c "echo ext_jemalloc: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -909,15 +909,15 @@ if(NOT ${TD_WINDOWS})       # {
             # COMMAND ./Configure --prefix=$ENV{HOME}/.cos-local.2 no-shared
             COMMAND ./Configure --prefix=${_ins} no-shared --libdir=lib
             COMMAND sh -c "echo ext_ssl: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         BUILD_COMMAND
             COMMAND make -j4
             COMMAND sh -c "echo ext_ssl: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         INSTALL_COMMAND
             COMMAND make install_sw -j4
             COMMAND sh -c "echo ext_ssl: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -958,15 +958,15 @@ if(NOT ${TD_WINDOWS})       # {
                     --without-libidn2 --without-nghttp2 --without-libpsl
                     --without-librtmp #--enable-debug
             COMMAND sh -c "echo ext_curl: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         BUILD_COMMAND
             COMMAND make -j4
             COMMAND sh -c "echo ext_curl: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         INSTALL_COMMAND
             COMMAND make install
             COMMAND sh -c "echo ext_curl: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -1009,11 +1009,11 @@ if(${BUILD_GEOS})           # {
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
             COMMAND sh -c "echo ext_geos: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
             COMMAND sh -c "echo ext_geos: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -1067,14 +1067,14 @@ if(${BUILD_ADDR2LINE})      # {
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
             COMMAND sh -c "echo ext_dwarf: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different
                     "${ext_dwarf_source}/src/lib/libdwarf/dwarf.h"
                     "${ext_dwarf_install}/include/libdwarf/dwarf.h"
             COMMAND sh -c "echo ext_dwarf: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -1108,15 +1108,15 @@ if(${BUILD_ADDR2LINE})      # {
         PATCH_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${TD_SUPPORT_DIR}/in/addr2line.cmake" "${ext_addr2line_source}/CMakeLists.txt"
             COMMAND sh -c "echo ext_addr2line: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
             COMMAND sh -c "echo ext_addr2line: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
             COMMAND sh -c "echo ext_addr2line: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -1160,11 +1160,11 @@ if(${BUILD_PCRE2})          # {
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
             COMMAND sh -c "echo ext_pcre2: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
             COMMAND sh -c "echo ext_pcre2: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -1210,11 +1210,11 @@ if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})         # {
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
             COMMAND sh -c "echo ext_rocksdb: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
             COMMAND sh -c "echo ext_rocksdb: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -1249,11 +1249,11 @@ if(TD_TAOS_TOOLS)
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
             COMMAND sh -c "echo ext_jansson: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
             COMMAND sh -c "echo ext_jansson: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -1292,11 +1292,11 @@ if(TD_TAOS_TOOLS)
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
             COMMAND sh -c "echo ext_snappy: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
             COMMAND sh -c "echo ext_snappy: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -1356,15 +1356,15 @@ if(TD_TAOS_TOOLS)
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/in/avro.lang.c.tests.CMakeLists.txt.in      ${ext_avro_source}/lang/c/tests/CMakeLists.txt
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/in/avro.lang.c.tests.test_avro_data.c.in    ${ext_avro_source}/lang/c/tests/test_avro_data.c
             COMMAND sh -c "echo ext_avro: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
             COMMAND sh -c "echo ext_avro: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
             COMMAND sh -c "echo ext_avro: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -1405,11 +1405,11 @@ if(NOT ${TD_WINDOWS})        # {
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
             COMMAND sh -c "echo ext_libxml2: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
             COMMAND sh -c "echo ext_libxml2: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -1450,15 +1450,15 @@ if(NOT ${TD_WINDOWS})        # {
         PATCH_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/in/libs3.CMakeLists.txt.in ${ext_libs3_source}/CMakeLists.txt
             COMMAND sh -c "echo ext_libs3: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
             COMMAND sh -c "echo ext_libs3: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
             COMMAND sh -c "echo ext_libs3: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -1499,15 +1499,15 @@ if(NOT ${TD_WINDOWS})        # {
         PATCH_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${TD_SUPPORT_DIR}/in/azure.CMakeLists.txt.in" "${ext_azure_source}/CMakeLists.txt"
             COMMAND sh -c "echo ext_azure: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
             COMMAND sh -c "echo ext_azure: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
             COMMAND sh -c "echo ext_azure: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -1569,13 +1569,13 @@ if(NOT ${TD_WINDOWS})        # {
         COMMAND pwd
         COMMAND ./configure --prefix=${ext_mxml_source}/install --enable-shared=no
         COMMAND sh -c "echo ext_mxml: PATH:$PATH"
-        COMMAND ls -a /home/runner/.cargo/bin/cargo
+        COMMAND which cargo
         COMMAND make DESTDIR=${ext_mxml_source}/install
         COMMAND sh -c "echo ext_mxml: PATH:$PATH"
-        COMMAND ls -a /home/runner/.cargo/bin/cargo
+        COMMAND which cargo
         COMMAND make DESTDIR=${ext_mxml_source}/install install
         COMMAND sh -c "echo ext_mxml: PATH:$PATH"
-        COMMAND ls -a /home/runner/.cargo/bin/cargo
+        COMMAND which cargo
     )
 
     add_custom_target(ext_mxml_post
@@ -1616,15 +1616,15 @@ if(NOT ${TD_WINDOWS})        # {
         CONFIGURE_COMMAND
             COMMAND ./configure --prefix=${_ins} --enable-shared=no
             COMMAND sh -c "echo ext_apr: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         BUILD_COMMAND
             COMMAND make            # NOTE: do NOT specify DESTDIR=
             COMMAND sh -c "echo ext_apr: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         INSTALL_COMMAND
             COMMAND make install    # NOTE: do NOT specify DESTDIR=
             COMMAND sh -c "echo ext_apr: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -1659,15 +1659,15 @@ if(NOT ${TD_WINDOWS})        # {
         CONFIGURE_COMMAND
             COMMAND ./configure --prefix=${_ins} --enable-shared=no --with-apr=${ext_apr_install}
             COMMAND sh -c "echo ext_aprutil: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         BUILD_COMMAND
             COMMAND make            # NOTE: do NOT specify DESTDIR=
             COMMAND sh -c "echo ext_aprutil: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         INSTALL_COMMAND
             COMMAND make install    # NOTE: do NOT specify DESTDIR=
             COMMAND sh -c "echo ext_aprutil: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -1706,15 +1706,15 @@ if(NOT ${TD_WINDOWS})        # {
         PATCH_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${TD_SUPPORT_DIR}/in/cos.CMakeLists.txt.in" "${ext_cos_source}/CMakeLists.txt"
             COMMAND sh -c "echo ext_cos: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
             COMMAND sh -c "echo ext_cos: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
             COMMAND sh -c "echo ext_cos: PATH:$PATH"
-            COMMAND ls -a /home/runner/.cargo/bin/cargo
+            COMMAND which cargo
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
