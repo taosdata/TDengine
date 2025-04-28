@@ -290,8 +290,7 @@ class CompatibilityBase:
             tdDnodes.start(1)
 
     def verifyData(self):
-
-        tdLog.printNoPrefix(f"==========step3:prepare and check data in new version-{nowServerVersion}")
+        tdLog.printNoPrefix(f"==========step3:prepare and check data in new version")
         sleep(1)
         tdsql=tdCom.newTdSql()
         print(tdsql)
