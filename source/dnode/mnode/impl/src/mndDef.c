@@ -21,11 +21,11 @@
 int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   TAOS_CHECK_RETURN(tStartEncode(pEncoder));
 
-  //STREAMTODO
+  TAOS_CHECK_RETURN(tSerializeSCMCreateStreamReqImpl(pEncoder, pObj->pCreate));
 
+  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pObj->userStopped));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->createTime));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->updateTime));
-  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pObj->version));
 
   tEndEncode(pEncoder);
   return pEncoder->pos;
@@ -33,15 +33,25 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
 
 int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
   int32_t code = 0;
+  int32_t lino = 0;
   TAOS_CHECK_RETURN(tStartDecode(pDecoder));
 
-  //STREAMTODO
+  pObj->pCreate = taosMemoryCalloc(1, sizeof(*pObj->pCreate));
+  if (NULL == pObj) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+  
+  TAOS_CHECK_RETURN(tDeserializeSCMCreateStreamReqImpl(pDecoder, pObj->pCreate));
 
+  TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pObj->userStopped));
   TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pObj->createTime));
   TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pObj->updateTime));
-  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pObj->version));
+
+_exit:
 
   tEndDecode(pDecoder);
+  tDecoderClear(pDecoder);  
+  
   TAOS_RETURN(code);
 }
 
@@ -49,9 +59,6 @@ void tFreeStreamObj(SStreamObj *pStream) {
   tFreeSCMCreateStreamReq(pStream->pCreate);
 
   //STREAMTODO
-
-  tSimpleHashCleanup(pStream->pVTableMap);
-  pStream->pVTableMap = NULL;
 }
 
 SMqVgEp *tCloneSMqVgEp(const SMqVgEp *pVgEp) {

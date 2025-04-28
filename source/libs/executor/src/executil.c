@@ -2993,50 +2993,6 @@ char* getStreamOpName(uint16_t opType) {
       return "stream scan";
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return "project";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
-      return "interval single";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
-      return "interval final";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
-      return "interval semi";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL:
-      return "interval mid";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL:
-      return "stream fill";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
-      return "session single";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
-      return "session semi";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
-      return "session final";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
-      return "state single";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
-      return "stream partitionby";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
-      return "stream event";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
-      return "stream count";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC:
-      return "stream interp";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL:
-      return "interval continue";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_INTERVAL:
-      return "interval continue semi";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_INTERVAL:
-      return "interval continue final";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SESSION:
-      return "session continue";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION:
-      return "session continue semi";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION:
-      return "session continue final";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_STATE:
-      return "state continue";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT:
-      return "event continue";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT:
-      return "count continue";
   }
   return "error name";
 }

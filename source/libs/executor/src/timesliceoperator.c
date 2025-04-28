@@ -1415,12 +1415,8 @@ int64_t getMinWindowSize(struct SOperatorInfo* pOperator) {
   switch (pOperator->operatorType) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
       return ((SStateWindowOperatorInfo*)pOperator->info)->trueForLimit;
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
-      return ((SStreamStateAggOperatorInfo*)pOperator->info)->trueForLimit;
-      case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
       return ((SEventWindowOperatorInfo*)pOperator->info)->trueForLimit;
-      case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
-        return ((SStreamEventAggOperatorInfo*)pOperator->info)->trueForLimit;
     default:
       return 0;
   }

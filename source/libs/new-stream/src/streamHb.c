@@ -42,7 +42,7 @@ static int32_t streamHbSendRequestMsg(SStreamHbMsg* pMsg, SEpSet* pEpset) {
 
   stDebug("try to send stream hb to mnode, gid:%d, snodeId:%d", pMsg->streamGId, pMsg->snodeId);
 
-  SRpcMsg msg = {.msgType = TDMT_MND_STREAM_HEARTBEAT, .pCont = buf, .contLen = tlen};
+  SRpcMsg msg = {.msgType = TDMT_MND_STREAM_HEARTBEAT, .pCont = buf, .contLen = tlen + sizeof(SStreamMsgGrpHeader)};
   
   TAOS_CHECK_EXIT(tmsgSendReq(pEpset, &msg));
 
@@ -135,6 +135,8 @@ int32_t streamHbProcessRspMsg(SMStreamHbRspMsg* pRsp) {
   int32_t      code = 0;
   int32_t      lino = 0;
 
+  stDebug("start to process stream hb rsp msg");
+
   if (pRsp->deploy.streamList) {
     TAOS_CHECK_EXIT(smDeployTasks(&pRsp->deploy));
   }
@@ -151,6 +153,8 @@ _exit:
 
   if (code) {
     stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  } else {
+    stDebug("end to process stream hb rsp msg");
   }
   
   return code;

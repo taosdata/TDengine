@@ -1052,86 +1052,6 @@ int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo) {
 
   while (1) {
     int32_t type = pOperator->operatorType;
-    if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL || type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL ||
-        type == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL ||
-        type == QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL) {
-      SStreamIntervalOperatorInfo* pInfo = pOperator->info;
-      STimeWindowAggSupp*          pSup = &pInfo->twAggSup;
-
-      qInfo("save stream param for interval: %d,  %" PRId64, pSup->calTrigger, pSup->deleteMark);
-
-      pSup->calTriggerSaved = pSup->calTrigger;
-      pSup->deleteMarkSaved = pSup->deleteMark;
-      pSup->calTrigger = STREAM_TRIGGER_AT_ONCE;
-      pSup->deleteMark = INT64_MAX;
-      pInfo->ignoreExpiredDataSaved = pInfo->ignoreExpiredData;
-      pInfo->ignoreExpiredData = false;
-    } else if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION ||
-               type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION ||
-               type == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION) {
-      SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
-      STimeWindowAggSupp*            pSup = &pInfo->twAggSup;
-
-      qInfo("save stream param for session: %d,  %" PRId64, pSup->calTrigger, pSup->deleteMark);
-
-      pSup->calTriggerSaved = pSup->calTrigger;
-      pSup->deleteMarkSaved = pSup->deleteMark;
-      pSup->calTrigger = STREAM_TRIGGER_AT_ONCE;
-      pSup->deleteMark = INT64_MAX;
-      pInfo->ignoreExpiredDataSaved = pInfo->ignoreExpiredData;
-      pInfo->ignoreExpiredData = false;
-    } else if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE) {
-      SStreamStateAggOperatorInfo* pInfo = pOperator->info;
-      STimeWindowAggSupp*          pSup = &pInfo->twAggSup;
-
-      qInfo("save stream param for state: %d,  %" PRId64, pSup->calTrigger, pSup->deleteMark);
-
-      pSup->calTriggerSaved = pSup->calTrigger;
-      pSup->deleteMarkSaved = pSup->deleteMark;
-      pSup->calTrigger = STREAM_TRIGGER_AT_ONCE;
-      pSup->deleteMark = INT64_MAX;
-      pInfo->ignoreExpiredDataSaved = pInfo->ignoreExpiredData;
-      pInfo->ignoreExpiredData = false;
-    } else if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT) {
-      SStreamEventAggOperatorInfo* pInfo = pOperator->info;
-      STimeWindowAggSupp*          pSup = &pInfo->twAggSup;
-
-      qInfo("save stream param for state: %d,  %" PRId64, pSup->calTrigger, pSup->deleteMark);
-
-      pSup->calTriggerSaved = pSup->calTrigger;
-      pSup->deleteMarkSaved = pSup->deleteMark;
-      pSup->calTrigger = STREAM_TRIGGER_AT_ONCE;
-      pSup->deleteMark = INT64_MAX;
-      pInfo->ignoreExpiredDataSaved = pInfo->ignoreExpiredData;
-      pInfo->ignoreExpiredData = false;
-    } else if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT) {
-      SStreamCountAggOperatorInfo* pInfo = pOperator->info;
-      STimeWindowAggSupp*          pSup = &pInfo->twAggSup;
-
-      qInfo("save stream param for state: %d,  %" PRId64, pSup->calTrigger, pSup->deleteMark);
-
-      pSup->calTriggerSaved = pSup->calTrigger;
-      pSup->deleteMarkSaved = pSup->deleteMark;
-      pSup->calTrigger = STREAM_TRIGGER_AT_ONCE;
-      pSup->deleteMark = INT64_MAX;
-      pInfo->ignoreExpiredDataSaved = pInfo->ignoreExpiredData;
-      pInfo->ignoreExpiredData = false;
-      qInfo("save stream task:%s, param for state: %d", GET_TASKID(pTaskInfo), pInfo->ignoreExpiredData);
-    } else if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC) {
-      SStreamTimeSliceOperatorInfo* pInfo = pOperator->info;
-      STimeWindowAggSupp*           pSup = &pInfo->twAggSup;
-
-      qInfo("save stream param for state: %d,  %" PRId64, pSup->calTrigger, pSup->deleteMark);
-
-      pSup->calTriggerSaved = pSup->calTrigger;
-      pSup->deleteMarkSaved = pSup->deleteMark;
-      pSup->calTrigger = STREAM_TRIGGER_AT_ONCE;
-      pSup->deleteMark = INT64_MAX;
-      pInfo->ignoreExpiredDataSaved = pInfo->ignoreExpiredData;
-      pInfo->ignoreExpiredData = false;
-      qInfo("save stream task:%s, param for state: %d", GET_TASKID(pTaskInfo), pInfo->ignoreExpiredData);
-    }
-
     // iterate operator tree
     if (pOperator->numOfDownstream != 1 || pOperator->pDownstream[0] == NULL) {
       if (pOperator->numOfDownstream > 1) {
@@ -1745,8 +1665,8 @@ void    streamDestroyExecTask(qTaskInfo_t tInfo) {
 }
 
 
-int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType, bool groupSort,
-  SNode* pTagCond, SNode* pTagIndexCond, SStorageAPI *storageAPI, void** pTableListInfo){
+int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType, SNodeList* pGroupTags,
+  bool groupSort, SNode* pTagCond, SNode* pTagIndexCond, SStorageAPI *storageAPI, void** pTableListInfo){
   STableListInfo* pList = tableListCreate();
   if (pList == NULL){
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
@@ -1754,11 +1674,20 @@ int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t ui
   }
 
   SScanPhysiNode pScanNode = {.suid = suid, .uid = uid, .tableType = tableType};
-  SNodeList* pGroupTags = NULL;
   SReadHandle pHandle = {.vnode = pVnode};
   SExecTaskInfo pTaskInfo = {.id.str = "", .storageAPI = *storageAPI};
 
-  int32_t code = createScanTableListInfo(&pScanNode, pGroupTags, groupSort, &pHandle, pList, pTagCond, pTagIndexCond, &pTaskInfo);
+  SNodeList* list = NULL;
+  int32_t code = nodesMakeList(&list);
+  SColumnNode* pCol = NULL;
+  code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+  pCol->colId = 6;
+  strcpy(pCol->colName, "location");
+  pCol->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
+  pCol->node.resType.bytes = 26;
+  nodesListMakeAppend(&list, (SNode*)pCol);
+
+  code = createScanTableListInfo(&pScanNode, list, groupSort, &pHandle, pList, pTagCond, pTagIndexCond, &pTaskInfo);
   if (code != 0) {
     tableListDestroy(pList);
     qError("failed to createScanTableListInfo, code:%s", tstrerror(code));
@@ -1769,6 +1698,11 @@ int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t ui
 }
 
 int32_t qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STableKeyInfo** pKeyInfo, int32_t* size){
+  if (currentGroupId == -1) {
+    *size = taosArrayGetSize(((STableListInfo*)pTableListInfo)->pTableList);
+    *pKeyInfo = taosArrayGet(((STableListInfo*)pTableListInfo)->pTableList, 0);
+    return 0;
+  }
   return tableListGetGroupList(pTableListInfo, currentGroupId, pKeyInfo, size);
 }
 
@@ -1792,7 +1726,7 @@ void qStreamDestroyTableList(void* pTableListInfo) {
   tableListDestroy(pTableListInfo);
 }
 
-int64_t qStreamGetGroupId(void* pTableListInfo, int64_t uid){
+uint64_t qStreamGetGroupId(void* pTableListInfo, int64_t uid){
   return tableListGetTableGroupId(pTableListInfo, uid);
 }
 

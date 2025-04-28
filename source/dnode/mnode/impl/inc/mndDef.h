@@ -784,15 +784,11 @@ typedef struct {
 typedef struct {
   // static info
   SCMCreateStreamReq* pCreate;
-  SRWLatch lock;
 
   // dynamic info
-  int8_t  paused;
+  int8_t  userStopped;
   int64_t createTime;
   int64_t updateTime;
-  int32_t version;
-
-  SSHashObj*  pVTableMap;  // do not serialize
 } SStreamObj;
 #if 0
 typedef struct SStreamConf {

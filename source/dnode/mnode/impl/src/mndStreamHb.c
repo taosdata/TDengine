@@ -65,6 +65,8 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   int32_t      len = pReq->contLen - sizeof(SStreamMsgGrpHeader);
   int64_t      currTs = taosGetTimestampMs();
 
+  stDebug("start to process stream hb req msg");
+
   if ((code = grantCheckExpire(TSDB_GRANT_STREAMS)) < 0) {
     TAOS_CHECK_EXIT(msmHandleGrantExpired(pMnode));
   }
@@ -89,6 +91,8 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 _exit:
 
   mndStreamHbSendRsp(code, &pReq->info, &rsp);
+
+  stDebug("end to process stream hb req msg, code:%d", code);
 
   return code;
 }

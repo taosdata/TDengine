@@ -251,7 +251,7 @@ typedef struct {
   
   char*   triggerTblName;  // table name
   char*   outTblName;      // table name
-  
+
   int8_t  igExists;
   int8_t  triggerType;
   int8_t  igDisorder;
@@ -269,9 +269,10 @@ typedef struct {
   int32_t notifyErrorHandle;
   int8_t  notifyHistory;
 
+  void*          triggerCols;  // nodelist of SColumnNode
   SArray*        outCols;  // array of TAOS_FIELD_E
   SArray*        outTags;  // array of TAOS_FIELD_E
-  SArray*        partitionCols; // array of TAOS_FIELD_E
+  void*          partitionCols;  // nodelist of SColumnNode
   int64_t        maxDelay;    //precision is ms
   int64_t        fillHistoryStartTime; // precision same with triggerDB, INT64_MIN for no value specified
   int64_t        watermark;   // precision same with triggerDB
@@ -279,12 +280,14 @@ typedef struct {
   SStreamTrigger trigger;
 
   int8_t   triggerTblType;
+  uint64_t triggerTblUid;  // suid or uid
   int8_t   outTblType;
   int8_t   outStbExists;
   uint64_t outStbUid;
   int64_t  eventTypes;
   int64_t  flags;
   int64_t  tsmaId;
+  int64_t  placeHolderBitmap;
 
   // only for child table and normal table
   int32_t  triggerTblVgId;
@@ -292,8 +295,7 @@ typedef struct {
 
   // reader part
   void*     triggerPrevFilter;
-  void*     triggerWalScanPlan;
-  void*     triggerTsdbScanPlan;  // for trigger action
+  void*     triggerScanPlan;      // block include all preFilter<>triggerPrevFilter/partitionCols<>subTblNameExpr+tagValueExpr/triggerCols<>triggerCond
   SArray*   calcScanPlanList;     // for calc action, SArray<SStreamCalcScan>
 
   // trigger part
@@ -356,17 +358,68 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq);
 int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq);
 void    tCleanupStreamHbMsg(SStreamHbMsg* pMsg);
 
+
+typedef struct SStreamReaderDeployMsg {
+  int8_t  triggerReader;
+  char*   triggerTblName;
+  int64_t triggerTblUid;  // suid or uid
+  int64_t streamId;  // suid or uid
+  int8_t  triggerTblType;
+  int8_t  deleteReCalc;
+  int8_t  deleteOutTbl;
+  void*   partitionCols; // nodelist of SColumnNode
+  void*   triggerCols;   // nodelist of SColumnNode
+  void*   triggerPrevFilter;
+  void*   triggerScanPlan; 
+  void*   calcScanPlan;
+}SStreamReaderDeployMsg;
+
+
 typedef struct {
+  int8_t  triggerType;
+  int8_t  igDisorder;
+  int8_t  fillHistory;
+  int8_t  fillHistoryFirst;
+  int8_t  lowLatencyCalc;
 
-} SStreamReaderDeployMsg;
+  // notify options
+  SArray* pNotifyAddrUrls;
+  int32_t notifyEventTypes;
+  int32_t notifyErrorHandle;
+  int8_t  notifyHistory;
 
-typedef struct {
+  int64_t        maxDelay;    //precision is ms
+  int64_t        fillHistoryStartTime; // precision same with triggerDB, INT64_MIN for no value specified
+  int64_t        watermark;   // precision same with triggerDB
+  int64_t        expiredTime; // precision same with triggerDB
+  SStreamTrigger trigger;
 
+  int64_t  eventTypes;
+  int64_t  placeHolderBitmap;
+
+  SArray* readerList;  // SArray<>
+  SArray* runnerList;  // SArray<>
+  SArray* pVSubTables;
 } SStreamTriggerDeployMsg;
 
 typedef struct SStreamRunnerDeployMsg {
-  const char*           pPlan;
-  bool                  forceWindowClose;
+  void*                 pPlan;
+  char*                 outDBFName;
+  char*                 outTblName;
+  int8_t                outTblType;
+  int8_t                calcNotifyOnly;
+
+  // notify options
+  SArray*               pNotifyAddrUrls;
+  int32_t               notifyErrorHandle;
+
+  SArray*               outCols;  // array of TAOS_FIELD_E
+  SArray*               outTags;  // array of TAOS_FIELD_E
+  uint64_t              outStbUid;
+  
+  void*                 subTblNameExpr;
+  void*                 tagValueExpr;
+  SArray*               forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
 } SStreamRunnerDeployMsg;
 
 typedef union {
@@ -536,6 +589,9 @@ typedef struct {
 int32_t tSerializeSCMCreateStreamReq(void* buf, int32_t bufLen, const SCMCreateStreamReq* pReq);
 int32_t tDeserializeSCMCreateStreamReq(void* buf, int32_t bufLen, SCMCreateStreamReq* pReq);
 void    tFreeSCMCreateStreamReq(SCMCreateStreamReq* pReq);
+
+int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStreamReq *pReq);
+int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamReq *pReq);
 
 
 

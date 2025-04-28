@@ -38,6 +38,10 @@ typedef enum {
 #define MND_STREAM_DEFAULT_NUM       100
 #define MND_STREAM_DEFAULT_TASK_NUM  200
 
+#define MND_SET_RUNNER_TASKIDX(_level, _idx) (((_level) << 16) & (_idx))
+
+#define MND_GET_RUNNER_SUBPLANID(_id) ((_id) &0xFFFFFFFF)
+
 #define MND_STREAM_CREATE_NAME       "stream-create"
 #define MND_STREAM_PAUSE_NAME        "stream-pause"
 #define MND_STREAM_RESUME_NAME       "stream-resume"
@@ -68,7 +72,7 @@ typedef struct SStmActionQ {
 typedef struct SStmTaskId {
   int64_t taskId;
   int32_t nodeId;
-  int16_t taskIdx;
+  int32_t taskIdx;
 } SStmTaskId;
 
 typedef struct SStmTaskStatus {
@@ -77,12 +81,22 @@ typedef struct SStmTaskStatus {
   int64_t       lastUpTs;
 } SStmTaskStatus;
 
-typedef struct SStmReadersStatus {
-  SArray* vgList;   // SArray<SStmTaskStatus>, all readers from triger and calc list
-} SStmReadersStatus;
+typedef struct SStmTaskSrcAddr {
+  int64_t taskId;
+  int32_t vgId;
+  int32_t groupId;
+  SEpSet  epset;
+} SStmTaskSrcAddr;
+
+typedef struct SStmReaderVgs {
+  int32_t readerNum[2]; // trigger's reader num, runner's reader num
+  SArray* triggerReaderVgs;   // vgId list, SArray<int32_t>
+  SArray* runnerReaderVgs;    // vgId list, SArray<int32_t>
+} SStmReaderVgs;
 
 typedef struct SStmStatus {
   int64_t           lastActTs;
+  SStmReaderVgs     readerVgs;
   SArray*           readerList;        // SArray<SStmTaskStatus>
   SStmTaskStatus    triggerTask;
   SArray*           runnerList;        // SArray<SStmTaskStatus>
@@ -145,6 +159,8 @@ typedef struct SStmRuntime {
 
   int32_t          toDeployVgTaskNum;
   SHashObj*        toDeployVgMap;      // vgId => SStmVgroupTasksDeploy (only reader tasks)
+  int32_t          toUpdateRunnerNum;
+  SHashObj*        toUpdateRunnerMap;   // streamId + subplanId => SStmTaskSrcAddr (only scan's target runner tasks)
   int32_t          toDeploySnodeTaskNum;
   SHashObj*        toDeploySnodeMap;   // snodeId => SStmSnodeTasksDeploy (only trigger and runner tasks)
 } SStmRuntime;
