@@ -139,7 +139,7 @@ class TDSql:
         Raises:
             None
         """
-        tdLog.info(f"prepare database:{dbname}")
+        tdLog.debug(f"prepare database:{dbname}")
         s = 'reset query cache'
         try:
             self.cursor.execute(s)
@@ -150,11 +150,15 @@ class TDSql:
             self.cursor.execute(s)
         s = f'create database {dbname}'
         for k, v in kwargs.items():
-            s += f" {k} {v}"
+            if isinstance(v, str):
+                s += f" {k} \'{v}\'"
+            else:
+                s += f" {k} {v}"
         if "duration" not in kwargs:
             s += " duration 100"
         if "replica" not in kwargs:
             s += f" replica {self.replica}"
+        tdLog.debug(f"create database cmd: {s}")
         self.cursor.execute(s)
         s = f'use {dbname}'
         self.cursor.execute(s)
@@ -235,7 +239,7 @@ class TDSql:
                 if i == queryTimes:
                     caller = inspect.getframeinfo(inspect.stack()[1][0])
                     args = (caller.filename, caller.lineno, sql, repr(e))
-                    tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
+                    tdLog.error("%s(%d) failed: sql:%s, %s" % args)
                     raise Exception(repr(e))
                 i+=1
                 time.sleep(1)

@@ -4,7 +4,7 @@ import sys
 import os
 from new_test_framework import taostest
 import logging
-from new_test_framework.utils import tdSql, etool, testLog, BeforeTest, eutil
+from new_test_framework.utils import tdSql, etool, tdLog, BeforeTest, eutil
 
 import taos
 import taosws
@@ -49,8 +49,8 @@ def pytest_addoption(parser):
 
 
 def pytest_configure(config):
-    log_level = logging.DEBUG if config.getoption("--debug_log") else logging.INFO
-    logging.basicConfig(level=log_level, format='%(asctime)s [%(levelname)s]: %(message)s')
+    #log_level = logging.DEBUG if config.getoption("--debug_log") else logging.INFO
+    #logging.basicConfig(level=log_level, format='%(asctime)s [%(levelname)s]: %(message)s')
 
     config.addinivalue_line(
         "markers",
@@ -106,12 +106,12 @@ def before_test_session(request):
             raise pytest.UsageError(f"YAML file '{yaml_file_path}' does not exist.")
 
         request.session.before_test.get_config_from_yaml(request, yaml_file_path)
-        testLog.debug(f"taos_bin_path: {request.session.taos_bin_path}")
+        tdLog.debug(f"taos_bin_path: {request.session.taos_bin_path}")
         if request.session.taos_bin_path is None:
             raise pytest.UsageError("TAOS_BIN_PATH is not set")
     # 配置参数解析，存入session变量
     else:
-        testLog.debug(f"taos_bin_path: {request.session.taos_bin_path}")
+        tdLog.debug(f"taos_bin_path: {request.session.taos_bin_path}")
         if request.session.taos_bin_path is None:
             raise pytest.UsageError("TAOS_BIN_PATH is not set")
         if request.config.getoption("-N"):
@@ -166,7 +166,7 @@ def before_test_class(request):
     获取session中的配置，建立连接
     测试结束后断开连接，清理环境
     '''
-    testLog.debug(f"Current class name: {request.cls.__name__}")
+    tdLog.debug(f"Current class name: {request.cls.__name__}")
     
     # 获取用例中可能需要用到的session变量
     request.cls.yaml_file = request.session.yaml_file
@@ -196,7 +196,8 @@ def before_test_class(request):
         # 建立连接
         request.cls.conn = request.session.before_test.get_taos_conn(request)
         tdSql.init(request.cls.conn.cursor())
-        testLog.info(tdSql.query(f"show dnodes", row_tag=True))
+        tdSql.replica = request.session.replicaVar
+        tdLog.debug(tdSql.query(f"show dnodes", row_tag=True))
 
         # 为兼容老用例，初始化原框架连接
         #tdSql_pytest.init(request.cls.conn.cursor())
@@ -249,7 +250,32 @@ def before_test_class(request):
         #tdSql_army.close()
         tdSql.close()
         request.cls.conn.close()
-        request.session.before_test.destroy(request.cls.yaml_file)
+        if_success = True
+        tdLog.debug(f"{request.session.items}")
+        for item in request.session.items:
+            # 检查是否属于当前类
+            if item.cls is request.node.cls and (hasattr(item, "rep_call") or hasattr(item, "rep_setup") or hasattr(item, "rep_teardown")):
+                if hasattr(item, "rep_call") and item.rep_call.outcome == "failed":
+                    tdLog.debug(f"    失败原因: {str(item.rep_call.longrepr)}")
+                    if_success = False
+                if hasattr(item, "rep_setup") and item.rep_setup.outcome == "failed":
+                    tdLog.debug(f"    失败原因: {str(item.rep_setup.longrepr)}")
+                    if_success = False
+                if hasattr(item, "rep_teardown") and item.rep_teardown.outcome == "failed":
+                    tdLog.debug(f"    失败原因: {str(item.rep_teardown.longrepr)}")
+                    if_success = False
+                elif hasattr(item, "rep_call") and item.rep_call.outcome == "error":
+                    tdLog.debug(f"    错误原因: {str(item.rep_call.longrepr)}")
+                    if_success = False
+                if hasattr(item, "rep_teardown") and item.rep_teardown.outcome == "error":
+                    tdLog.debug(f"    错误原因: {str(item.rep_teardown.longrepr)}")
+                    if_success = False
+                if hasattr(item, "rep_setup") and item.rep_setup.outcome == "error":
+                    tdLog.debug(f"    错误原因: {str(item.rep_setup.longrepr)}")
+                    if_success = False
+        if if_success:
+            tdLog.info(f"successfully executed")
+            request.session.before_test.destroy(request.cls.yaml_file)
 
 @pytest.fixture(scope="class", autouse=True)
 def add_common_methods(request):
@@ -644,8 +670,8 @@ def pytest_collection_modifyitems(config, items):
                 tsim_name = f"{os.path.split(os.path.dirname(tsim_path))[-1]}_{os.path.splitext(os.path.basename(tsim_path))[0]}"
                 item.name = f"{tsim_name}"  # 有效，名称可以修改
                 item._nodeid = "::".join(item._nodeid.split('::')[:-1]) + f"::{tsim_name}"  # 有效，名称可以修改
-                testLog.debug(item.name)
-                testLog.debug(item._nodeid)
+                tdLog.debug(item.name)
+                tdLog.debug(item._nodeid)
                 params = {'params': tsim_name}  # 你的参数组合
                 param_ids = [tsim_name]  # 自定义参数ID
                 
@@ -685,8 +711,8 @@ def pytest_collection_modifyitems(config, items):
             if name_suffix != "":
                 item.name = f"{item.name}{name_suffix}"  # 有效，名称可以修改
                 item._nodeid = "::".join(item._nodeid.split('::')[:-1]) + f"::{item.name}"  # 有效，名称可以修改
-                testLog.debug(item.name)
-                testLog.debug(item._nodeid)
+                tdLog.debug(item.name)
+                tdLog.debug(item._nodeid)
                 params = {'params': name_suffix}  # 你的参数组合
                 param_ids = [name_suffix]  # 自定义参数ID
                 
@@ -700,3 +726,10 @@ def pytest_collection_modifyitems(config, items):
                 
                 # 确保Allure能识别新参数
                 item.callspec = type('CallSpec', (), {'params': params, 'id': param_ids[0]})
+
+
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    rep = outcome.get_result()
+    setattr(item, "rep_" + rep.when, rep)
