@@ -729,6 +729,7 @@ void cleanupAggSup(SAggSupporter* pAggSup) {
   taosMemoryFreeClear(pAggSup->keyBuf);
   tSimpleHashCleanup(pAggSup->pResultRowHashTable);
   destroyDiskbasedBuf(pAggSup->pResultBuf);
+  memset(pAggSup, 0, sizeof(SAggSupporter));
 }
 
 int32_t initAggSup(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols, size_t keyBufSize,
@@ -840,9 +841,4 @@ static int32_t resetAggregateOperatorState(SOperatorInfo* pOper) {
   pAgg->groupId = INT64_MAX;
   resetBasicOperatorState(&pAgg->binfo);
   return 0;
-}
-
-void resetBasicOperatorState(SOptrBasicInfo *pBasicInfo) {
-  blockDataCleanup(pBasicInfo->pRes);
-  initResultRowInfo(&pBasicInfo->resultRowInfo);
 }

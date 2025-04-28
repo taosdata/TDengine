@@ -68,6 +68,7 @@ typedef struct {
   SStreamRuntimeFuncInfo funcInfo;
   int32_t                execId;
   bool                   resetFlag;
+  const SArray*          pForceOutputCols;
 } SStreamRuntimeInfo;
 
 // in queue mode, data streams are seperated by msg

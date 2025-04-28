@@ -1813,8 +1813,8 @@ static int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const S
 
 int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tInfo;
+  const SArray*  pForceOutputCols = pTaskInfo->pStreamRuntimeInfo->pForceOutputCols;
   int32_t        code = 0;
-  SNodeList*     pExprs = NULL;
   SNode*         pNode = NULL;
   SScalarParam   dst = {0};
   if (pRes && *pRes && (*pRes)->info.rows > 0) return 0;
@@ -1824,9 +1824,11 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes) {
 
   if (code == 0 && (!(*pRes)->pDataBlock || (*pRes)->pDataBlock->size == 0)) {
     int32_t idx = 0;
-    FOREACH(pNode, pExprs) {
-      SExprNode* pExpr = (SExprNode*)pNode;
-      SColumnInfoData colInfo = createColumnInfoData(pExpr->resType.type, pExpr->resType.bytes, idx++);
+    for (int32_t i = 0; i <pForceOutputCols->size; ++i) {
+      SStreamOutCol *pCol = (SStreamOutCol*)taosArrayGet(pForceOutputCols, i);
+      SColumnInfoData colInfo = createColumnInfoData(pCol->type.type, pCol->type.bytes, idx++);
+      colInfo.info.precision = pCol->type.precision;
+      colInfo.info.scale = pCol->type.scale;
       code = blockDataAppendColInfo(*pRes, &colInfo);
       if (code != 0) break;
     }
@@ -1836,7 +1838,9 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes) {
 
   // loop all exprs for force output, execute all exprs
   int32_t idx = 0;
-  FOREACH(pNode, pExprs) {
+  for (int32_t i = 0; i < pForceOutputCols->size; ++i) {
+    SStreamOutCol* pCol = (SStreamOutCol*)taosArrayGet(pForceOutputCols, i);
+    pNode = pCol->expr;
     SColumnInfoData* pInfo = taosArrayGet((*pRes)->pDataBlock, idx);
     if (nodeType(pNode) == QUERY_NODE_VALUE) {
       void* p = nodesGetValueFromNode((SValueNode*)pNode);

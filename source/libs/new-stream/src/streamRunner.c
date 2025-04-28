@@ -49,7 +49,7 @@ static void stRunnerDestroyTaskExecMgr(SStreamRunnerTask* pTask) {
   taosThreadMutexUnlock(&pMgr->lock);
 }
 
-static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution** ppExec) {
+static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t execId, SStreamRunnerTaskExecution** ppExec) {
   SStreamRunnerTaskExecMgr* pMgr = &pTask->pExecMgr;
   int32_t                   code = 0;
   taosThreadMutexLock(&pMgr->lock);
@@ -57,13 +57,31 @@ static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, SStreamR
     code = TSDB_CODE_STREAM_TASK_NOT_EXIST;
     ST_TASK_WLOG("task has been undeployed: %s", tstrerror(code));
   } else {
-    if (pMgr->pFreeExecs->dl_neles_ > 0) {
-      SListNode* pNode = tdListPopHead(pMgr->pFreeExecs);
-      tdListAppendNode(pTask->pExecMgr.pRunningExecs, pNode);
-      *ppExec = (SStreamRunnerTaskExecution*)pNode->data;
+    if (execId == -1) {
+      if (pMgr->pFreeExecs->dl_neles_ > 0) {
+        SListNode* pNode = tdListPopHead(pMgr->pFreeExecs);
+        tdListAppendNode(pTask->pExecMgr.pRunningExecs, pNode);
+        *ppExec = (SStreamRunnerTaskExecution*)pNode->data;
+      } else {
+        code = TSDB_CODE_STREAM_TASK_IVLD_STATUS;
+        ST_TASK_ELOG("too many exec tasks scheduled: %s", tstrerror(code));
+      }
     } else {
-      code = TSDB_CODE_STREAM_TASK_IVLD_STATUS;
-      ST_TASK_ELOG("too many exec tasks scheduled: %s", tstrerror(code));
+      SListNode* pNode = tdListGetHead(pMgr->pFreeExecs);
+      while (pNode) {
+        SStreamRunnerTaskExecution* pExec = (SStreamRunnerTaskExecution*)pNode->data;
+        if (pExec->runtimeInfo.execId == execId) {
+          tdListPopNode(pMgr->pFreeExecs, pNode);
+          tdListAppendNode(pMgr->pRunningExecs, pNode);
+          *ppExec = pExec;
+          break;
+        }
+        pNode = pNode->dl_next_;
+      }
+      if (!*ppExec) {
+        code = TSDB_CODE_STREAM_TASK_IVLD_STATUS;
+        ST_TASK_ELOG("failed to get task exec, invalid execId:%d", execId);
+      }
     }
   }
   taosThreadMutexUnlock(&pMgr->lock);
@@ -86,16 +104,16 @@ static void stRunnerTaskExecMgrReleaseExec(SStreamRunnerTask* pTask, SStreamRunn
 }
 
 int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
-  pTask->task = pMsg->task;
   pTask->pPlan = pMsg->pPlan;  // TODO wjm do we need to deep copy this char*
-  pTask->forceOutput = pMsg->forceOutput;
+  pTask->forceOutput = pMsg->forceOutCols != NULL;
+  pTask->forceOutCols = pMsg->forceOutCols;
   int32_t code = stRunnerInitTaskExecMgr(pTask);
   if (code != 0) {
     ST_TASK_ELOG("failed to init task exec mgr code:%s", tstrerror(code));
     taosMemoryFree(pTask);
     return code;
   }
-  code = nodesStringToNode(pMsg->pSubTableExpr, (SNode**)&pTask->pSubTableExpr);
+  code = nodesStringToNode(pMsg->subTblNameExpr, (SNode**)&pTask->pSubTableExpr);
   if (code != 0) {
     ST_TASK_ELOG("failed to deserialize sub table expr: %s", tstrerror(code));
     taosMemoryFree(pTask);
@@ -106,7 +124,7 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMs
 }
 
 int32_t stRunnerTaskUndeploy(SStreamRunnerTask* pTask, const SStreamUndeployTaskMsg* pMsg) {
-  taosMemoryFree(pTask);
+  nodesDestroyNode(pTask->pSubTableExpr);
   stRunnerDestroyTaskExecMgr(pTask);
   return 0;
 }
@@ -123,7 +141,8 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, const char* pMsg, int32_t 
 
   SStreamCalculationRequest req = {0};
   // TODO wjm decode pMsg as SStreamCalculationRequest
-  int32_t code = stRunnerTaskExecMgrAcquireExec(pTask, &pExec);
+  int32_t execId = -1;
+  int32_t code = stRunnerTaskExecMgrAcquireExec(pTask, execId, &pExec);
   if (code != 0) {
     ST_TASK_ELOG("failed to get task exec for stream code:%s", tstrerror(code));
     return code;
@@ -133,6 +152,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, const char* pMsg, int32_t 
   pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals = req.groupColVals;
   pExec->runtimeInfo.funcInfo.pStreamPartColVals = req.params;
   pExec->runtimeInfo.resetFlag = req.resetFlag;
+  pExec->runtimeInfo.pForceOutputCols = pTask->forceOutCols;
   if (!pExec->pExecutor) {
     code = streamBuildTask(pTask, pExec->pExecutor);
   } else {
@@ -160,7 +180,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, const char* pMsg, int32_t 
       }
     }
   }
-  // free the block data
+  // free the block data?
   stRunnerTaskExecMgrReleaseExec(pTask, pExec);
   return code;
 }

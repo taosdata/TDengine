@@ -712,6 +712,8 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     req.taskId = pSource->taskId;
     req.queryId = pTaskInfo->id.queryId;
     req.execId = pSource->execId;
+    if (pTaskInfo->pStreamRuntimeInfo)
+      req.execId = pTaskInfo->pStreamRuntimeInfo->execId;
     if (pDataInfo->isVtbRefScan) {
       code = buildTableScanOperatorParamEx(&req.pOpParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType, pDataInfo->colMap, pDataInfo->tableSeq, &pDataInfo->window);
       taosArrayDestroy(pDataInfo->colMap->colMap);

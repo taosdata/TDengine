@@ -1083,6 +1083,7 @@ void cleanupExprSupp(SExprSupp* pSupp) {
   }
 
   taosMemoryFree(pSupp->rowEntryInfoOffset);
+  memset(pSupp, 0, sizeof(SExprSupp));
 }
 
 void cleanupBasicInfo(SOptrBasicInfo* pInfo) {

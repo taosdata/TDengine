@@ -80,6 +80,7 @@ typedef struct SOperatorInfo {
   int32_t                numOfDownstream;  // number of downstream. The value is always ONE expect for join operator
   int32_t                numOfRealDownstream;
   SOperatorFpSet         fpSet;
+  void*                  pPhyNode;
 } SOperatorInfo;
 
 // operator creater functions
@@ -188,6 +189,12 @@ void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, uint64_t groupId);
 void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, int32_t rowIndex, uint64_t groupId);
 
 void resetOperatorState(SOperatorInfo* pOper);
+
+int32_t resetAggSup(SExprSupp* pExprSupp, SAggSupporter* pSup, SOperatorInfo* pOperator, SExecTaskInfo* pTaskInfo,
+                    SNodeList* pNodeList, SNodeList* pGroupKeys, size_t keyBufSize, const char* pKey, void* pState,
+                    SFunctionStateStore* pStore);
+int32_t resetExprSupp(SExprSupp* pExprSupp, SOperatorInfo* pOperator, SExecTaskInfo* pTaskInfo, SNodeList* pNodeList,
+                      SNodeList* pGroupKeys, SFunctionStateStore* pStore);
 
 #ifdef __cplusplus
 }

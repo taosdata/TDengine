@@ -85,6 +85,7 @@ typedef struct SStreamRunnerTask {
   int32_t                       parallelExecutionNun;
   SReadHandle                   handle;
   void*                         pSubTableExpr;
+  SArray*                       forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
 } SStreamRunnerTask;
 
 
