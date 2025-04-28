@@ -95,7 +95,8 @@ jobs:
             -DBUILD_DEPENDENCY_TESTS=false
           # cmake --build . --target ext_taosws
           # make ext_taosws
-          make
+          make -j 4
+          echo make done=======================
           false
           sudo make install
           which taosd
