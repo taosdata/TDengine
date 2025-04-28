@@ -21,7 +21,7 @@ IF(TD_WEBSOCKET)
         get_from_local_repo_if_exists("https://github.com/taosdata/taos-connector-rust.git")
         ExternalProject_Add(ext_taosws
             GIT_REPOSITORY ${_git_url}
-            GIT_TAG main
+            GIT_TAG ver-3.3.6.5
             GIT_SHALLOW TRUE
             BUILD_IN_SOURCE TRUE
             DEPENDS ${TAOS_LIB}
@@ -62,7 +62,7 @@ ELSEIF(TD_BUILD_TAOSA_INTERNAL)
     ExternalProject_Add(ext_taosadapter
         GIT_REPOSITORY ${_git_url}
         PREFIX "${_base}"
-        GIT_TAG main
+        GIT_TAG ver-3.3.6.5
         GIT_SHALLOW TRUE
         BUILD_IN_SOURCE TRUE
         DEPENDS ${TAOS_NATIVE_LIB}
@@ -112,13 +112,13 @@ ELSE()
 
         MESSAGE("BUILD COMMAND ${_shell_cmd}")
         # GIT_REPOSITORY https://github.com/taosdata/taosadapter.git
-        # GIT_TAG 3.0
+        # GIT_TAG ver-3.3.6.5
         INIT_EXT(taosadapter)
         get_from_local_repo_if_exists("https://github.com/taosdata/taosadapter.git")
         ExternalProject_Add(ext_taosadapter
             GIT_REPOSITORY ${_git_url}
             PREFIX "${_base}"
-            GIT_TAG main
+            GIT_TAG ver-3.3.6.5
             GIT_SHALLOW TRUE
             BUILD_IN_SOURCE TRUE
             DEPENDS ${TAOS_NATIVE_LIB}
