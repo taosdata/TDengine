@@ -112,6 +112,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
 int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
+int32_t vnodeProcessStreamReaderMsg(SVnode *pVnode, SRpcMsg *pMsg);
 void    vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void    vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void    vnodeProposeCommitOnNeed(SVnode *pVnode, bool atExit);
@@ -164,14 +165,14 @@ typedef struct STsdbReader STsdbReader;
 
 int32_t  tsdbReaderOpen2(void *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
                          SSDataBlock *pResBlock, void **ppReader, const char *idstr, SHashObj **pIgnoreTables);
-int32_t  tsdbSetTableList2(STsdbReader *pReader, const void *pTableList, int32_t num);
+int32_t  tsdbSetTableList2(void *pReader, const void *pTableList, int32_t num);
 int32_t  tsdbReaderSetId(void *pReader, const char *idstr);
-void     tsdbReaderClose2(STsdbReader *pReader);
-int32_t  tsdbNextDataBlock2(STsdbReader *pReader, bool *hasNext);
+void     tsdbReaderClose2(void *pReader);
+int32_t  tsdbNextDataBlock2(void *pReader, bool *hasNext);
 int32_t  tsdbRetrieveDatablockSMA2(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave, bool *hasNullSMA);
-void     tsdbReleaseDataBlock2(STsdbReader *pReader);
-int32_t  tsdbRetrieveDataBlock2(STsdbReader *pReader, SSDataBlock **pBlock, SArray *pIdList);
-int32_t  tsdbReaderReset2(STsdbReader *pReader, SQueryTableDataCond *pCond);
+void     tsdbReleaseDataBlock2(void *pReader);
+int32_t  tsdbRetrieveDataBlock2(void *pReader, SSDataBlock **pBlock, SArray *pIdList);
+int32_t  tsdbReaderReset2(void *pReader, SQueryTableDataCond *pCond);
 int32_t  tsdbGetFileBlocksDistInfo2(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
 int64_t  tsdbGetNumOfRowsInMemTable2(STsdbReader *pHandle, uint32_t *rows);
 void    *tsdbGetIdx2(SMeta *pMeta);

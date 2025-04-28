@@ -4963,22 +4963,22 @@ typedef struct SStreamLastTsRequest {
   SStreamTriggerRequest base;
 } SStreamLastTsRequest;
 
-// typedef struct SStreamLastTsResponse {
-  // int64_t   lastTs;
-  // int64_t   ver;
-  // int32_t   vgId;
-// } SStreamLastTsResponse;
+typedef struct STsInfo {
+  uint64_t   gId;
+  int64_t   ts;
+} STsInfo;
+
+typedef struct SStreamTsResponse {
+  int64_t   ver;
+  SArray*   tsInfo;       //element is <STsInfo>
+} SStreamTsResponse;
+
+int32_t tEncodeSStreamTsResponse(SEncoder *pEncoder, const SStreamTsResponse *pRsp);
 
 typedef struct SStreamFirstTsRequest {
   SStreamTriggerRequest base;
   int64_t               startTime;
 } SStreamFirstTsRequest;
-
-typedef struct SStreamFirstTsResponse {
-  int64_t   firstTs;
-  int64_t   ver;
-  int32_t   vgId;
-} SStreamFirstTsResponse;
 
 typedef struct SStreamTsdbMetaRequest {
   SStreamTriggerRequest base;

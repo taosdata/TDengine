@@ -150,6 +150,37 @@ static void vmProcessFetchQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
   }
 }
 
+static void vmProcessStreamReaderQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
+  SVnodeObj *pVnode = pInfo->ahandle;
+  SRpcMsg   *pMsg = NULL;
+
+  for (int32_t i = 0; i < numOfMsgs; ++i) {
+    if (taosGetQitem(qall, (void **)&pMsg) == 0) continue;
+    const STraceId *trace = &pMsg->info.traceId;
+    dGTrace("vgId:%d, msg:%p, get from vnode-fetch queue", pVnode->vgId, pMsg);
+
+    terrno = 0;
+    int32_t code = vnodeProcessStreamReaderMsg(pVnode->pImpl, pMsg);
+    if (code != 0) {
+      if (code == -1 && terrno != 0) {
+        code = terrno;
+      }
+
+      if (code == 0) {
+        dGDebug("vgId:%d, msg:%p, success to stream reader since %s [vmProcessStreamReaderQueue]", pVnode->vgId, pMsg, terrstr());
+      } else {
+        dGError("vgId:%d, msg:%p, failed to stream reader since %s [vmProcessStreamReaderQueue]", pVnode->vgId, pMsg, terrstr());
+      }
+
+      vmSendRsp(pMsg, code);
+    }
+
+    dGTrace("vgId:%d, msg:%p, is freed, code:0x%x [vmProcessStreamReaderQueue]", pVnode->vgId, pMsg, code);
+    rpcFreeCont(pMsg->pCont);
+    taosFreeQitem(pMsg);
+  }
+}
+
 static void vmProcessSyncQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   SVnodeObj *pVnode = pInfo->ahandle;
   SRpcMsg   *pMsg = NULL;
@@ -411,7 +442,7 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
 
   // init stream msg processing queue family
   pVnode->pStreamRunnerQ = tWWorkerAllocQueue(&pMgmt->streamRunnerPool, pVnode, 0);// TODO wjm fp??
-  pVnode->pStreamReaderQ = tWWorkerAllocQueue(&pMgmt->streamReaderPool, pVnode, 0);
+  pVnode->pStreamReaderQ = tWWorkerAllocQueue(&pMgmt->streamReaderPool, pVnode, vmProcessStreamReaderQueue);
 
   if (pVnode->pWriteW.queue == NULL || pVnode->pSyncW.queue == NULL || pVnode->pSyncRdW.queue == NULL ||
       pVnode->pApplyW.queue == NULL || pVnode->pQueryQ == NULL || pVnode->pFetchQ == NULL ||
