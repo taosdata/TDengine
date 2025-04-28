@@ -510,7 +510,7 @@ if(${TD_LINUX})
 elseif(${TD_DARWIN})
     set(ext_xz_static liblzma.a)
 elseif(${TD_WINDOWS})
-    set(ext_xz_static liblzma.lib)
+    set(ext_xz_static lzma.lib)
 endif()
 INIT_EXT(ext_xz
     INC_DIR          include
