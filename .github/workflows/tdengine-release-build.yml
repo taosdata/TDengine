@@ -85,7 +85,9 @@ jobs:
 
       - name: Build and install TDengine
         run: |
+          echo "XPATH1:$PATH"
           mkdir debug && cd debug
+          echo "XPATH2:$PATH"
           cmake .. -DBUILD_TOOLS=true \
             -DBUILD_KEEPER=true \
             -DBUILD_HTTP=false \
@@ -95,6 +97,7 @@ jobs:
             -DBUILD_DEPENDENCY_TESTS=false
           # cmake --build . --target ext_taosws
           # make ext_taosws
+          echo "XPATH3:$PATH"
           make -j 4
           echo make done=======================
           sudo make install
