@@ -4158,7 +4158,7 @@ SNode* createStreamTriggerOptions(SAstCreateContext* pCxt) {
   pOptions->pPreFilter = NULL;
   pOptions->pWaterMark = NULL;
   pOptions->pMaxDelay = NULL;
-  pOptions->pEventType = EVENT_NONE;
+  pOptions->pEventType = EVENT_WINDOW_CLOSE;
   pOptions->calcNotifyOnly = false;
   pOptions->deleteOutputTable = false;
   pOptions->deleteRecalc = false;

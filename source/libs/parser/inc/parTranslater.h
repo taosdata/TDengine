@@ -50,7 +50,6 @@ typedef struct STranslateContext {
   bool             skipCheck;
   bool             refTable;
   bool             createStreamTrigger;
-  bool             createStreamQuery;
   bool             createStreamOutTable;
   SNode*           createStreamTriggerTbl;
   SNodeList*       createStreamTriggerPartitionList;

@@ -629,7 +629,7 @@ static void dmProcessStreamMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 
   switch (pMsg->msgType) {
     case TDMT_MND_STREAM_HEARTBEAT_RSP:
-      code = dmProcessStreamHbRsp(pMgmt, pMsg);
+      //code = dmProcessStreamHbRsp(pMgmt, pMsg);
       break;
     default:
       code = TSDB_CODE_MSG_NOT_PROCESSED;
