@@ -36,12 +36,10 @@ IF(TD_WEBSOCKET)
             INSTALL_COMMAND
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_dll} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ext_taosws_dll}
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_lib_from} ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/${ext_taosws_lib_to}
-                COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/taosws.h ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../include/taosws/taosws.h
+                COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/taosws.h ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../include/taosws.h
             EXCLUDE_FROM_ALL TRUE
             VERBATIM
         )
-        add_custom_target(build_ext_taosws ALL)
-        add_dependencies(build_ext_taosws ext_taosws)
 ENDIF()
 
 IF(TD_TAOS_TOOLS)
