@@ -11,9 +11,9 @@ Apache Spark 是开源的大规模数据处理引擎。它基于内存计算，�
 
 准备以下环境：
 
-- TDengine 3.3.6.0 以上版本集群已部署并正常运行（企业及社区版均可）。
+- TDengine 3.3.6.0 及以上版本集群已部署并正常运行（企业及社区版均可）。
 - taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../../reference/components/taosadapter)。
-- Spark 安装（如未安装，请下载并安装 [Spark 下载](https://spark.apache.org/downloads.html)）。
+- Spark 3.4.4 及以上版本（如未安装，请下载并安装 [Spark 下载](https://spark.apache.org/downloads.html)）。
 - 安装 JDBC 驱动。从 `maven.org` 下载 `TDengine JDBC` 连接器文件 `taos-jdbcdriver-3.6.2-dist.jar` 或以上版本。
 
 ## 配置数据源
@@ -56,5 +56,5 @@ SELECT tbname, ts, voltage,
 
 ## 示例源码
 示例为 JAVA 语言编写，编译运行参考示例源码目录下 README。
- (示例源码)(https://github.com/taosdata/tdengine-eco)
+ (示例源码)(https://github.com/taosdata/tdengine-eco/tree/main/spark)
 
