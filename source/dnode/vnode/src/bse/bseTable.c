@@ -207,26 +207,6 @@ _error:
   return code;
 }
 
-int32_t tableBuilderOpenFile(STableBuilder *p, char *name) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  int32_t offset = 0;
-
-  char path[TSDB_FILENAME_LEN] = {0};
-  bseBuildFullName(p->pBse, name, path);
-
-  p->pDataFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
-  if (p->pDataFile == NULL) {
-    TSDB_CHECK_CODE(code = terrno, lino, _error);
-  }
-
-_error:
-  if (code != 0) {
-    bseError("failed to reinit table builder at lino %d since %s", lino, tstrerror(code));
-  }
-  return code;
-}
-
 int32_t tableBuilderGetMetaBlock(STableBuilder *p, SArray **pMetaBlock) {
   int32_t code = 0;
   SArray *pBlock = taosArrayInit(8, sizeof(SMetaBlock));
@@ -1362,6 +1342,9 @@ int32_t tableMetaCommit(SBTableMeta *pMeta, SArray *pBlock) {
     code = tableMetaReaderIterNext(pIter, &wrapper, &blkHandle);
     TSDB_CHECK_CODE(code, lino, _error);
 
+    if (pIter->isOver) {
+      break;
+    }
     blockWrapperSetType(&wrapper, BSE_TABLE_META_TYPE);
 
     code = tableMetaWriterAppendRamBlock(pWriter, &wrapper, &blkHandle);

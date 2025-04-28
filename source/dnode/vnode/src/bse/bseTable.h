@@ -195,7 +195,6 @@ int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo);
 int32_t tableBuilderClose(STableBuilder *p, int8_t commited);
 void    tableBuilderClear(STableBuilder *p);
 int32_t tableBuilderTruncateFile(STableBuilder *p, int64_t size);
-int32_t tableBuilderOpenFile(STableBuilder *p, char *name);
 
 int32_t tableReaderOpen(int64_t timestamp, STableReader **pReader, void *pReaderMgt);
 void    tableReaderShouldPutToCache(STableReader *pReader, int8_t putInCache);
