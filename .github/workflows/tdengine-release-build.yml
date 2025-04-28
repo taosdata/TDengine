@@ -93,7 +93,8 @@ jobs:
             -DWEBSOCKET=true \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_DEPENDENCY_TESTS=false
-          cmake --build . --target ext_taosws
+          # cmake --build . --target ext_taosws
+          make ext_taosws
           false
           # make -j 1
           sudo make install
