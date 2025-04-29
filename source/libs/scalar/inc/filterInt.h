@@ -270,6 +270,7 @@ struct SFilterInfo {
   bool             isStrict;
 
   SFilterPCtx pctx;
+  const void*      pSclExtraParams;
 };
 
 #define FILTER_NO_MERGE_DATA_TYPE(t)                                                                 \

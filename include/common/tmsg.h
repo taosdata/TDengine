@@ -3012,14 +3012,20 @@ typedef struct SVTableScanOperatorParam {
   SArray*        pOpParamArray;  // SArray<SOperatorParam>
 } SVTableScanOperatorParam;
 
+struct SStreamRuntimeFuncInfo;
 typedef struct {
-  SMsgHead        header;
-  uint64_t        sId;
-  uint64_t        queryId;
-  uint64_t        clientId;
-  uint64_t        taskId;
-  int32_t         execId;
-  SOperatorParam* pOpParam;
+  SMsgHead                       header;
+  uint64_t                       sId;
+  uint64_t                       queryId;
+  uint64_t                       clientId;
+  uint64_t                       taskId;
+  int32_t                        execId;
+  SOperatorParam*                pOpParam;
+
+  // used for new-stream
+  struct SStreamRuntimeFuncInfo* pStRtFuncInfo;
+  bool                           reset;
+  // used for new-stream
 } SResFetchReq;
 
 int32_t tSerializeSResFetchReq(void* buf, int32_t bufLen, SResFetchReq* pReq);
@@ -4947,6 +4953,17 @@ int32_t tEncodeSStreamTsResponse(SEncoder *pEncoder, const SStreamTsResponse *pR
 
 int32_t tSerializeSVSubTablesRspImpl(SEncoder* pEncoder, SVSubTablesRsp *pRsp);
 int32_t tDeserializeSVSubTablesRspImpl(SDecoder* pDecoder, SVSubTablesRsp *pRsp);
+
+typedef struct SStreamRuntimeFuncInfo {
+  SArray* pStreamPesudoFuncVals; // Array<char*>
+  SArray* pStreamPartColVals;    // Array<char*>
+  SArray* pStreamPesudoFuncValNodes;
+  SArray* pStreamPartColValNodes;
+  int64_t groupId;
+} SStreamRuntimeFuncInfo;
+
+int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo);
+int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);
 
 #pragma pack(pop)
 

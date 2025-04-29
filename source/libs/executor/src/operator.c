@@ -43,6 +43,7 @@ SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, 
       .notifyFn = notifyFn,
       .releaseStreamStateFn = NULL,
       .reloadStreamStateFn = NULL,
+      .resetStateFn = NULL,
   };
 
   return fpSet;
@@ -51,6 +52,10 @@ SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, 
 void setOperatorStreamStateFn(SOperatorInfo* pOperator, __optr_state_fn_t relaseFn, __optr_state_fn_t reloadFn) {
   pOperator->fpSet.releaseStreamStateFn = relaseFn;
   pOperator->fpSet.reloadStreamStateFn = reloadFn;
+}
+
+void setOperatorResetStateFn(SOperatorInfo* pOperator, __optr_reset_state_fn_t resetFn) {
+  pOperator->fpSet.resetStateFn = resetFn;
 }
 
 int32_t optrDummyOpenFn(SOperatorInfo* pOperator) {
@@ -944,4 +949,47 @@ int16_t getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx) {
 
 void resetOperatorState(SOperatorInfo *pOper) {
   pOper->status = OP_NOT_OPENED;
+}
+
+void resetBasicOperatorState(SOptrBasicInfo *pBasicInfo) {
+  if (pBasicInfo->pRes) blockDataCleanup(pBasicInfo->pRes);
+  initResultRowInfo(&pBasicInfo->resultRowInfo);
+}
+
+int32_t resetAggSup(SExprSupp* pExprSupp, SAggSupporter* pSup, SOperatorInfo* pOperator, SExecTaskInfo* pTaskInfo,
+                    SNodeList* pNodeList, SNodeList* pGroupKeys, size_t keyBufSize, const char* pKey, void* pState,
+                    SFunctionStateStore* pStore) {
+  int32_t    code = 0, lino = 0, num = 0;
+  SExprInfo* pExprInfo = NULL;
+  cleanupAggSup(pSup);
+  cleanupExprSupp(pExprSupp);
+  code = createExprInfo(pNodeList, pGroupKeys, &pExprInfo, &num);
+  QUERY_CHECK_CODE(code, lino, _error);
+  code = initAggSup(pExprSupp, pSup, pExprInfo, num, keyBufSize, pKey, pState, pStore);
+  QUERY_CHECK_CODE(code, lino, _error);
+  return code;
+_error:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    pTaskInfo->code = code;
+  }
+  return code;
+}
+
+int32_t resetExprSupp(SExprSupp* pExprSupp, SOperatorInfo* pOperator, SExecTaskInfo* pTaskInfo, SNodeList* pNodeList,
+                      SNodeList* pGroupKeys, SFunctionStateStore* pStore) {
+  int32_t code = 0, lino = 0, num = 0;
+  SExprInfo* pExprInfo = NULL;
+  cleanupExprSupp(pExprSupp);
+  code = createExprInfo(pNodeList, pGroupKeys, &pExprInfo, &num);
+  QUERY_CHECK_CODE(code, lino, _error);
+  code = initExprSupp(pExprSupp, pExprInfo, num, pStore);
+  QUERY_CHECK_CODE(code, lino, _error);
+  return code;
+_error:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    pTaskInfo->code = code;
+  }
+  return code;
 }

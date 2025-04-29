@@ -86,7 +86,6 @@ _return:
   return code;
 }
 
-
 int32_t smDeployStreamTasks(SStmStreamDeploy* pDeploy) {
   int64_t streamId = pDeploy->streamId;
   int32_t gid = STREAM_GID(streamId);

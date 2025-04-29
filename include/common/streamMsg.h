@@ -663,10 +663,12 @@ typedef struct SSTriggerCalcRequest {
   int64_t runnerTaskId;
   int64_t sessionId;
   int64_t triggerTaskId;  // does not serialize
+  int32_t execId;
 
   int64_t gid;
   SArray* params;
   SArray* groupColVals;  // only provided at the first calculation of the group
+  bool    brandNew; // TODO wjm remove it
 } SSTriggerCalcRequest;
 
 int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTriggerCalcRequest* pReq);

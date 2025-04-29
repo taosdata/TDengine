@@ -25,44 +25,14 @@
 extern "C" {
 #endif
 
-typedef struct SStreamRunnerTaskExecution {
-  const char* pPlan;
-  void*       pExecutor;
-  void*       notifyEventSup;
-} SStreamRunnerTaskExecution; // TODO wjm move back into Runner.c
-
-typedef struct SStreamRunnerTaskOutput {
-  struct SSDataBlock* pBlock;
-} SStreamRunnerTaskOutput;
-
-typedef struct SStreamRunnerTaskNotification {
-} SStreamRunnerTaskNotification;
-
-typedef struct SStreamRunnerTaskExecMgr {
-  SList*        pFreeExecs;
-  SList*        pRunningExecs;
-  TdThreadMutex lock;
-  bool          exit;
-} SStreamRunnerTaskExecMgr;
-
-typedef struct SStreamRunnerTask {
-  SStreamTask                   task;
-  SStreamRunnerTaskExecMgr      pExecMgr;
-  SStreamRunnerTaskOutput       output;
-  SStreamRunnerTaskNotification notification;
-  bool                          forceWindowClose;
-  const char*                   pPlan;
-  int32_t                       parallelExecutionNun;
-  SReadHandle                   handle;
-} SStreamRunnerTask;
-
+struct SStreamRunnerUndeployMsg;
 struct SStreamRunnerTaskStatus;
 
 typedef struct SStreamRunnerTaskStatus  SStreamRunnerTaskStatus;
 
 int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg);
 int32_t stRunnerTaskUndeploy(SStreamRunnerTask* pTask, const SStreamUndeployTaskMsg* pMsg);
-int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, const char* pMsg, int32_t msgLen);
+int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq);
 
 #ifdef __cplusplus
 }

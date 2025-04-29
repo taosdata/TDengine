@@ -350,6 +350,20 @@ int32_t fmGetFuncId(const char* name);
 bool    fmIsMyStateFunc(int32_t funcId, int32_t stateFuncId);
 bool    fmIsCountLikeFunc(int32_t funcId);
 
+typedef enum SStreamPseudoFuncType {
+  STREAM_PSEUDO_FUNC_CURRENT_TS = 0,
+  STREAM_PSEUDO_FUNC_TWSTART = 1,
+  STREAM_PSEUDO_FUNC_TWEND = 2,
+  STREAM_PSEUDO_FUNC_TWDURATION = 3,
+  STREAM_PSEUDO_FUNC_TWROWNUM = 4,
+  STREAM_PSEUDO_FUNC_TGRPID = 6,
+  STREAM_PSEUDO_FUNC_TLOCALTIME = 5,
+} SStreamPseudoFuncType;
+
+int32_t fmGetStreamPseudoFuncType(int32_t funcId);
+int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo);
+const SValue* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo);
+
 #ifdef __cplusplus
 }
 #endif
