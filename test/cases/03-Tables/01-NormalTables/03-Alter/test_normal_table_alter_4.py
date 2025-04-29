@@ -16,7 +16,7 @@ class TestNormalTableAlter4:
         5. kill -9 then restart
 
         Catalog:
-            - Tables
+            - Table:NormalTable:Alter
 
         Since: v3.0.0.0
 

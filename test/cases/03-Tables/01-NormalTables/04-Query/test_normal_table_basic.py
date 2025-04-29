@@ -17,7 +17,7 @@ class TestNormalTableBasic:
         6. Kill -9 then restart
 
         Catalog:
-            - Tables
+            - Table:NormalTable:Query
 
         Since: v3.0.0.0
 

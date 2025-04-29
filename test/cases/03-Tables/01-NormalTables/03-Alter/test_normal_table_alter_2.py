@@ -18,7 +18,7 @@ class TestNormalTableAlter2:
         6. count
 
         Catalog:
-            - Tables
+            - Table:NormalTable:Alter
 
         Since: v3.0.0.0
 
