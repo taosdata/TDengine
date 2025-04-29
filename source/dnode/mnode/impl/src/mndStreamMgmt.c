@@ -43,10 +43,10 @@ static int32_t msmAddTaskToTaskMap(SMnode* pMnode, SStreamObj* pStream, SArray* 
   for (int32_t i = 0; i < taskNum; ++i) {
     SStmTaskStatus* pStatus = pTasks ? taosArrayGet(pTasks, i) : pTask;
     key[1] = pStatus->id.taskId;
-    TSDB_CHECK_CODE(taosHashPut(mStreamMgmt.taskMap, key, sizeof(key), &pStatus, POINTER_BYTES), lino, _return);
+    TAOS_CHECK_EXIT(taosHashPut(mStreamMgmt.taskMap, key, sizeof(key), &pStatus, POINTER_BYTES));
   }
   
-_return:
+_exit:
 
   if (code) {
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
@@ -939,10 +939,7 @@ int32_t msmBuildRunnerTasksImpl(SMnode* pMnode, SQueryPlan* pDag, SStmStatus* pI
 
         TSDB_CHECK_CODE(msmAddTaskToSnodeDeploy(mStreamMgmt.toDeploySnodeMap, &info, pStream, false), lino, _exit);
         
-        atomic_add_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);
-        
-        TSDB_CHECK_CODE(msmAddTaskToTaskMap(pMnode, pStream, pInfo->runnerList, NULL), lino, _exit);
-        TSDB_CHECK_CODE(msmAddTaskToSnodeMaps(pMnode, pStream, pInfo->runnerList, NULL, false), lino, _exit);
+        atomic_add_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);        
       }
 
       mstDebug("level %d initialized, taskNum:%d", i, taskNum);
@@ -958,6 +955,9 @@ int32_t msmBuildRunnerTasksImpl(SMnode* pMnode, SQueryPlan* pDag, SStmStatus* pI
     
     TAOS_CHECK_EXIT(msmUpdateRunnerPlans(pMnode, pSnodeDeploy->runnerList, pStream, totalTaskNum));
   }
+
+  TSDB_CHECK_CODE(msmAddTaskToTaskMap(pMnode, pStream, pInfo->runnerList, NULL), lino, _exit);
+  TSDB_CHECK_CODE(msmAddTaskToSnodeMaps(pMnode, pStream, pInfo->runnerList, NULL, false), lino, _exit);
 
 _exit:
 
@@ -1386,7 +1386,24 @@ _exit:
   return code;
 }
 
-int32_t msmAddHbRspDeploy(SHashObj* pStreams, int32_t gid, SMStreamHbRspMsg* pRsp) {
+int32_t msmUpdateStreamLastActTs(int64_t streamId, int64_t currTs) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SStmStatus* pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
+  TSDB_CHECK_NULL(pStatus, code, lino, _exit, terrno);
+  
+  pStatus->lastActTs = currTs;
+
+_exit:
+
+  if (code) {
+    stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+
+  return code;
+}
+
+int32_t msmAddHbRspDeploy(SHashObj* pStreams, int32_t gid, int64_t currTs, SMStreamHbRspMsg* pRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t streamNum = taosHashGetSize(pStreams);
@@ -1405,6 +1422,7 @@ int32_t msmAddHbRspDeploy(SHashObj* pStreams, int32_t gid, SMStreamHbRspMsg* pRs
     
     SStmStreamDeploy *pDeploy = (SStmStreamDeploy *)pIter;
     TSDB_CHECK_NULL(taosArrayPush(pRsp->deploy.streamList, pDeploy), code, lino, _exit, terrno);
+    TAOS_CHECK_EXIT(msmUpdateStreamLastActTs(pDeploy->streamId, currTs));
   }
   
 _exit:
@@ -1568,15 +1586,19 @@ void msmCleanStreamGrpCtx(SStreamHbMsg* pHb) {
   taosHashClear(mStreamMgmt.tCtx[tidx].deployStm[pHb->streamGId]);
 }
 
-void msmHandleAbnormalStatusUpdate(int32_t tidx, int32_t gid, SStmTaskStatusMsg* pMsg, int64_t currTs) {
+void msmHandleTaskAbnormalStatus(int32_t tidx, int32_t gid, SStmTaskStatusMsg* pMsg, int64_t currTs) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t action = 0;
   int64_t streamId = pMsg->streamId;
   SHashObj* pHash = mStreamMgmt.tCtx[tidx].actionStm[gid];
+  SStreamTask* pTask = (SStreamTask*)pMsg;
+
+  ST_TASK_DLOG("start to handle task abnormal status %d", pTask->status);
+  
   SStmStatus* pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
   if (NULL == pStatus) {
-    mstWarn("stream no longer exists in streamMap, try to undeploy it, TASK:%" PRId64 , pMsg->taskId);
+    ST_TASK_ELOG("stream no longer exists in streamMap, try to undeploy it, idx:%d", pMsg->taskIdx);
     action = STREAM_ACT_UNDEPLOY;
     TAOS_CHECK_EXIT(taosHashPut(pHash, &streamId, sizeof(streamId), &action, sizeof(action)));
   }
@@ -1584,15 +1606,18 @@ void msmHandleAbnormalStatusUpdate(int32_t tidx, int32_t gid, SStmTaskStatusMsg*
   switch (pMsg->status) {
     case STREAM_STATUS_INIT:
       if ((currTs - pStatus->lastActTs) < STREAM_ACT_MIN_DELAY_MSEC) {
+        ST_TASK_DLOG("task wait not enough between actions, currTs:%" PRId64 ", lastTs:%" PRId64, currTs, pStatus->lastActTs);
         return;
       }
 
       int32_t *pAction = taosHashGet(pHash, &streamId, sizeof(streamId));
       if (pAction) {
         *pAction |= STREAM_ACT_START;
+        ST_TASK_DLOG("task append START action, action:%x", *pAction);
       } else {
         action = STREAM_ACT_START;
         TAOS_CHECK_EXIT(taosHashPut(pHash, &streamId, sizeof(streamId), &action, sizeof(action)));
+        ST_TASK_DLOG("task add START action, action:%x", action);
       }
       break;
     case STREAM_STATUS_STOPPED:
@@ -1609,7 +1634,11 @@ _exit:
 }
 
 void msmHandleStatusUpdateErr(int32_t tidx, int32_t gid, EStmStatusErrType err, SStmTaskStatusMsg* pStatus) {
-  // TODO
+  SStreamTask* pTask = (SStreamTask*)pStatus;
+
+  ST_TASK_ILOG("start to handle task status update errot: %d", err);
+  
+  // STREAMTODO
 }
 
 int32_t msmHandleStreamStatusUpdate(SMnode* pMnode, int32_t tidx, int32_t gid, int64_t currTs, SArray* pStatusList) {
@@ -1631,7 +1660,7 @@ int32_t msmHandleStreamStatusUpdate(SMnode* pMnode, int32_t tidx, int32_t gid, i
     (*ppStatus)->lastUpTs = currTs;
     
     if (STREAM_STATUS_RUNNING != pStatus->status) {
-      msmHandleAbnormalStatusUpdate(tidx, gid, pStatus, currTs);
+      msmHandleTaskAbnormalStatus(tidx, gid, pStatus, currTs);
     }
   }
 
@@ -1800,7 +1829,7 @@ int32_t msmHandleNormalHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, 
   }
 
   if (taosHashGetSize(mStreamMgmt.tCtx[tidx].deployStm[pHb->streamGId]) > 0) {
-    TAOS_CHECK_EXIT(msmAddHbRspDeploy(mStreamMgmt.tCtx[tidx].deployStm[pHb->streamGId], pHb->streamGId, pRsp));
+    TAOS_CHECK_EXIT(msmAddHbRspDeploy(mStreamMgmt.tCtx[tidx].deployStm[pHb->streamGId], pHb->streamGId, currTs, pRsp));
   }
 
   if (taosArrayGetSize(pHb->pStreamStatus) > 0) {

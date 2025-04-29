@@ -43,6 +43,16 @@ int32_t stmAddStreamStatus(SArray** ppStatus, SStreamTasksInfo* pStream) {
     TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pReader->task), code, lino, _exit, terrno);
   }
 
+  if (pStream->triggerTask) {
+    TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pStream->triggerTask->task), code, lino, _exit, terrno);
+  }
+
+  taskNum = taosArrayGetSize(pStream->runnerList);
+  for (int32_t i = 0; i < taskNum; ++i) {
+    SStreamRunnerTask* pRunner = taosArrayGet(pStream->runnerList, i);
+    TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pRunner->task), code, lino, _exit, terrno);
+  }
+
   return code;
 
 _exit:

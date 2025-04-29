@@ -171,7 +171,7 @@ typedef struct SStmRuntime {
   int64_t          lastTaskId;
   int16_t          runnerMulti;
   
-  SHashObj*        streamMap;  // streamId => SStreamStatus
+  SHashObj*        streamMap;  // streamId => SStmStatus
   SHashObj*        taskMap;    // streamId + taskId => SStmTaskStatus*
   SHashObj*        vgroupMap;  // vgId => SStmVgroupTasksStatus (only reader tasks)
   SHashObj*        snodeMap;   // snodeId => SStmSnodeTasksStatus (only trigger and runner tasks)

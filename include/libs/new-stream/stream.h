@@ -28,7 +28,7 @@ extern "C" {
 #define STREAM_MAX_GROUP_NUM  5
 #define STREAM_MAX_THREAD_NUM 5
 
-#define STREAM_ACT_MIN_DELAY_MSEC (STREAM_MAX_GROUP_NUM * 1000)
+#define STREAM_ACT_MIN_DELAY_MSEC (STREAM_MAX_GROUP_NUM * STREAM_HB_INTERVAL_MS)
 
 typedef void (*getMnodeEpset_f)(void *pDnode, SEpSet *pEpset);
 typedef int32_t (*getDnodeId_f)(void *pData);

@@ -13176,6 +13176,9 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   SNode*                 pTriggerWindow = pTrigger->pTriggerWindow;
   SSelectStmt*           pTriggerSelect = NULL;
   SHashObj*              pTriggerSlotHash = NULL;
+
+  PAR_ERR_JRET(taosGetSystemUUIDU64(&pReq->streamId));
+  
   // name
   pReq->streamDB = taosMemoryMalloc(TSDB_DB_FNAME_LEN);
   pReq->name = taosStrdup(pStmt->streamName);
