@@ -701,6 +701,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../case_list_docs/03-Tables/01-NormalTables/02-Drop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02 Drop
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../case_list_docs/03-Tables/01-NormalTables/03-Alter/" class="md-nav__link">
         
   
@@ -2474,6 +2497,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#__init__.TDSql.checkKeyData" class="md-nav__link">
+    <span class="md-ellipsis">
+      checkKeyData
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#__init__.TDSql.checkNotEqual" class="md-nav__link">
     <span class="md-ellipsis">
       checkNotEqual
@@ -3689,6 +3721,15 @@
   <a href="#sql.TDSql.checkFirstValue" class="md-nav__link">
     <span class="md-ellipsis">
       checkFirstValue
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sql.TDSql.checkKeyData" class="md-nav__link">
+    <span class="md-ellipsis">
+      checkKeyData
     </span>
   </a>
   
@@ -4925,6 +4966,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#__init__.TDSql.checkKeyData" class="md-nav__link">
+    <span class="md-ellipsis">
+      checkKeyData
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#__init__.TDSql.checkNotEqual" class="md-nav__link">
     <span class="md-ellipsis">
       checkNotEqual
@@ -6140,6 +6190,15 @@
   <a href="#sql.TDSql.checkFirstValue" class="md-nav__link">
     <span class="md-ellipsis">
       checkFirstValue
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sql.TDSql.checkKeyData" class="md-nav__link">
+    <span class="md-ellipsis">
+      checkKeyData
     </span>
   </a>
   
@@ -12049,6 +12108,144 @@ or if the sql result does not match the expected data from CSV file.</p>
             <td>
               <div class="doc-md-description">
                 <p>If the first value in the result does not match the expected value.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="__init__.TDSql.checkKeyData" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">checkKeyData</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">col</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>  
+  
+<a href="#__init__.TDSql.checkKeyData" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>Checks if the data at the specified key matches the expected data.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>key</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The first column to be compared with.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>col</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The column index of the data to be checked.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>data</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The expected data to be compared with.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>show</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True, logs a message when the check is successful. Defaults to False.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>None</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="SystemExit">SystemExit</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the data of the specified key does not match the expected data.</p>
               </div>
             </td>
           </tr>
@@ -21968,6 +22165,144 @@ or if the sql result does not match the expected data from CSV file.</p>
             <td>
               <div class="doc-md-description">
                 <p>If the first value in the result does not match the expected value.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+        </div>
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="sql.TDSql.checkKeyData" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">checkKeyData</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">col</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>  
+  
+<a href="#sql.TDSql.checkKeyData" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>Checks if the data at the specified key matches the expected data.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>key</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The first column to be compared with.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>col</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The column index of the data to be checked.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>data</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The expected data to be compared with.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>show</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True, logs a message when the check is successful. Defaults to False.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>None</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="SystemExit">SystemExit</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the data of the specified key does not match the expected data.</p>
               </div>
             </td>
           </tr>
