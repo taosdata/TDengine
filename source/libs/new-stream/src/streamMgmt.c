@@ -121,7 +121,7 @@ int32_t smDeployStreamTasks(SStmStreamDeploy* pDeploy) {
       //TAOS_CHECK_EXIT(stReaderTaskDeploy(pTask, &pReader->msg));
 
       //STREAMTODO
-      //pTask->task.status = STREAM_STATUS_INIT;
+      pTask->task.status = STREAM_STATUS_INIT;
 
       TAOS_CHECK_EXIT(taosHashPut(gStreamMgmt.taskMap, &pTask->task.streamId, sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId), &pTask, POINTER_BYTES));
 
@@ -143,7 +143,7 @@ int32_t smDeployStreamTasks(SStmStreamDeploy* pDeploy) {
     TAOS_CHECK_EXIT(stTriggerTaskDeploy(stream.triggerTask, &pDeploy->triggerTask->msg.trigger));
 
     //STREAMTODO
-    //stream.triggerTask->task.status = STREAM_STATUS_INIT;
+    stream.triggerTask->task.status = STREAM_STATUS_INIT;
 
     TAOS_CHECK_EXIT(taosHashPut(gStreamMgmt.taskMap, &pTask->streamId, sizeof(pTask->streamId) + sizeof(pTask->taskId), &stream.triggerTask, POINTER_BYTES));
 
@@ -166,7 +166,7 @@ int32_t smDeployStreamTasks(SStmStreamDeploy* pDeploy) {
       TAOS_CHECK_EXIT(stRunnerTaskDeploy(pTask, &pRunner->msg.runner));
 
       //STREAMTODO
-      //pTask->task.status = STREAM_STATUS_INIT;
+      pTask->task.status = STREAM_STATUS_INIT;
 
       TAOS_CHECK_EXIT(taosHashPut(gStreamMgmt.taskMap, &pTask->task.streamId, sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId), &pTask, POINTER_BYTES));
 
@@ -218,11 +218,13 @@ int32_t smStartStreamTasks(SStreamTaskStart* pStart) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   
-  SStreamTask* pTask = taosHashGet(gStreamMgmt.taskMap, &pStart->task.streamId, sizeof(pStart->task.streamId) + sizeof(pStart->task.taskId));
-  if (NULL == pTask) {
+  SStreamTask** ppTask = taosHashGet(gStreamMgmt.taskMap, &pStart->task.streamId, sizeof(pStart->task.streamId) + sizeof(pStart->task.taskId));
+  if (NULL == ppTask) {
     mstError("stream not exists while try to start task %" PRId64, pStart->task.taskId);
     goto _exit;
   }
+
+  SStreamTask* pTask = *ppTask;
 
   TAOS_CHECK_EXIT(stTriggerTaskExecute((SStreamTriggerTask *)pTask, (SStreamMsg *)&pStart->startMsg));
 

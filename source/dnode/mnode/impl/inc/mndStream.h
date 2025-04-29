@@ -111,7 +111,7 @@ typedef struct SStmStatus {
   int64_t           lastActTs;
   int32_t           readerNum[2];      // trigger reader num & calc reader num
   SArray*           readerList;        // SArray<SStmTaskStatus>
-  SStmTaskStatus    triggerTask;
+  SStmTaskStatus*   triggerTask;
   int32_t           runnerDeploys;
   int32_t           runnerReplica;
   SArray*           runnerTopIdx;      // top runner task index in runnerList, num is runnerDeploys

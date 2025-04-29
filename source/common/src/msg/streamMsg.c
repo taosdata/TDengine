@@ -1436,6 +1436,8 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
   int32_t triggerTblNameLen = pReq->triggerTblName == NULL ? 0 : (int32_t)strlen(pReq->triggerTblName) + 1;
   int32_t outTblNameLen = pReq->outTblName == NULL ? 0 : (int32_t)strlen(pReq->outTblName) + 1;
 
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->streamId));
+
   // name part
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->name, nameLen));
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->sql, sqlLen));
@@ -1644,6 +1646,8 @@ _exit:
 int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamReq *pReq) {
   int32_t code = 0;
   int32_t lino;
+
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->streamId));
 
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->name, NULL));
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->sql, NULL));

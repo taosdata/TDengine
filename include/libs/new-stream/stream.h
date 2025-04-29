@@ -37,7 +37,7 @@ typedef struct SStreamReaderTask {
   SStreamTask task;
 } SStreamReaderTask;
 
-#define STREAM_GID(_streamId) ((_streamId) % STREAM_MAX_GROUP_NUM)
+#define STREAM_GID(_streamId) ((uint64_t)(_streamId) % STREAM_MAX_GROUP_NUM)
 
 // clang-format off
 #define stFatal(...) do { if (stDebugFlag & DEBUG_FATAL) { taosPrintLog("STM FATAL ", DEBUG_FATAL, 255,         __VA_ARGS__); }} while(0)
