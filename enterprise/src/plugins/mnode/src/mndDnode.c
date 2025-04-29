@@ -156,7 +156,7 @@ int32_t mndRestoreDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, int8_t
 
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) goto _OVER;
 
-  code = 0;
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS; //
 
 _OVER:
 
