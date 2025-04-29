@@ -391,14 +391,14 @@ int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **p
   int32_t code = 0;
   int32_t lino = 0;
 
-  SBseLiveFileInfo info = {0};
   STableReader    *pReader = NULL;
 
   code = tableReaderOpen(pReaderMgt->retenTs, &pReader, pReaderMgt);
   TSDB_CHECK_CODE(code, lino, _error);
-  code = tableReaderGet(pReader, seq, pValue, len);
 
+  code = tableReaderGet(pReader, seq, pValue, len);
   TSDB_CHECK_CODE(code, lino, _error);
+
 _error:
   if (code != 0) {
     bseError("failed to seek table pReaderMgt at line %d since %s", lino, tstrerror(code));
@@ -588,8 +588,11 @@ int32_t tableBuilderMgtRecoverTable(STableBuilderMgt *pMgt, int64_t seq, STableB
   code = tableBuilderMgtGetBuilder(pMgt, seq, &pTable);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = tableBuilderTruncateFile(pTable, size);
-  TSDB_CHECK_CODE(code, lino, _error);
+  if (pTable->offset > size) {
+    code = tableBuilderTruncateFile(pTable, size);
+    TSDB_CHECK_CODE(code, lino, _error);
+  } else {
+  }
 
 _error:
   if (code != 0) {

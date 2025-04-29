@@ -250,7 +250,7 @@ int32_t tableBuilderFlush(STableBuilder *p, int8_t type) {
   BLOCK_SET_ROW_SIZE(pBlk, BLOCK_ROW_SIZE(pBlk));
 
   if (compressType != kNoCompres) {
-    code = blockWrapperInit(&wrapper, len + 4);
+    code = blockWrapperInit(&wrapper, len + 16);
     TSDB_CHECK_CODE(code, lino, _error);
 
     int32_t compressSize = wrapper.cap;
@@ -277,6 +277,8 @@ int32_t tableBuilderFlush(STableBuilder *p, int8_t type) {
   handle.range = p->blockRange;
   bseDebug("bse block range sseq:%ld, eseq:%ld", p->blockRange.sseq, p->blockRange.eseq);
 
+  bseInfo("bse flush at offset %" PRId64 " len: %" PRId64 ", block range sseq:%ld, eseq:%ld", p->offset, len,
+          handle.range.sseq, handle.range.eseq);
   (void)taosLSeekFile(p->pDataFile, handle.offset, SEEK_SET);
 
   int32_t nwrite = taosWriteFile(p->pDataFile, (uint8_t *)pWrite, len);
@@ -484,6 +486,8 @@ int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo) {
   code = tableBuilderFlush(p, BSE_TABLE_DATA_TYPE);
   TSDB_CHECK_CODE(code, lino, _error);
 
+  taosFsyncFile(p->pDataFile);
+
   code = tableBuilderGetMetaBlock(p, &pMetaBlock);
   TSDB_CHECK_CODE(code, lino, _error);
 
@@ -494,8 +498,6 @@ int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo) {
 
   pInfo->level = 0;
   pInfo->range = p->pTableMeta->range;
-  // pInfo->sseq = p->pTableMeta->range.sseq;
-  // pInfo->eseq = p->pTableMeta->range.eseq;
   pInfo->retentionTs = p->retentionTs;
   pInfo->size = p->offset;
 
@@ -630,7 +632,7 @@ int32_t tableReaderOpen(int64_t retentionTs, STableReader **pReader, void *pRead
   memcpy(p->name, data, strlen(data));
 
   bseBuildFullName(pMgt->pBse, data, dataPath);
-  code = tableOpenFile(dataPath, 1, &p->pDataFile, &size);
+  code = tableOpenFile(dataPath, 1, &p->pDataFile, &p->fileSize);
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = blockWrapperInit(&p->blockWrapper, 1024);
@@ -670,8 +672,14 @@ int32_t tableReaderGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *
   code = blockCacheGet(pMgt->pBlockCache, &blkhandle.range, (void **)&pItem);
   if (code != 0) {
     blockWrapperInit(&wrapper, block.size + 16);
+    bseInfo("block size:%" PRId64 ", offset:%" PRId64 ", [sseq:%" PRId64 ", eseq:%" PRId64 "]", block.size,
+            block.offset, block.range.sseq, block.range.eseq);
+
     code = tableLoadBlock(p->pDataFile, &blkhandle, &wrapper);
-    TSDB_CHECK_CODE(code, lino, _error);
+    if (code != 0) {
+      blockWrapperCleanup(&wrapper);
+      TSDB_CHECK_CODE(code, lino, _error);
+    }
 
     SBlock *pBlock = wrapper.data;
     code = blockCachePut(pMgt->pBlockCache, &block.range, pBlock);
@@ -991,7 +999,8 @@ int32_t tableLoadBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBlk
   SBlockWrapper pHelp = {0};
 
   (void)taosLSeekFile(pFile, pHandle->offset, SEEK_SET);
-  int32_t nr = taosReadFile(pFile, pBlk, pHandle->size);
+
+  int32_t nr = taosReadFile(pFile, pRead, pHandle->size);
   if (nr != pHandle->size) {
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _error);
   }
@@ -1620,7 +1629,7 @@ int32_t tableOpenFile(char *name, int8_t read, TdFilePtr *pFile, int64_t *size) 
   if (read) {
     opt = TD_FILE_READ;
   } else {
-    opt = TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
+    opt = TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_APPEND;
   }
 
   if (!taosCheckExistFile(name)) {
@@ -1873,19 +1882,24 @@ _error:
 int32_t tableMetaReaderOpenIter(SBtableMetaReader *pReader, SBtableMetaReaderIter **pIter) {
   int32_t                code = 0;
   int32_t                lino = 0;
+
   SBtableMetaReaderIter *p = taosMemCalloc(1, sizeof(SBtableMetaReaderIter));
   if (p == NULL) {
     return terrno;
   }
   p->pReader = pReader;
-  if (blockWrapperInit(&p->pBlockWrapper, 1024) != 0) {
+
+  code = blockWrapperInit(&p->pBlockWrapper, 1024);
+  if (code != 0) {
     return code;
   }
+
   *pIter = p;
   if (taosArrayGetSize(pReader->pBlkHandle) == 0) {
     p->isOver = 1;
     return 0;
   }
+
   return 0;
 }
 

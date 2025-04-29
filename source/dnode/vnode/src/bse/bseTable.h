@@ -168,7 +168,7 @@ typedef struct {
   SArray      *pMetaHandle;
 
   int32_t blockCap;
-  int32_t fileSize;
+  int64_t fileSize;
   void   *pReaderMgt;
   int8_t  putInCache;
 

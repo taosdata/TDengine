@@ -54,7 +54,7 @@ static void initLog() {
     tsAsyncLog = 0;
 
     const char *path = TD_TMP_DIR_PATH "td";
-    taosRemoveDir(path);
+    //taosRemoveDir(path);
     taosMkDir(path);
     tstrncpy(tsLogDir, path, PATH_MAX);
     if (taosInitLog("taosdlog", 1, false) != 0) {
@@ -99,6 +99,7 @@ static int32_t getData(SBse *pBse, std::vector<int64_t> *data) {
         code = bseGet(pBse, seq, &value, &len);
         if (code != 0) {
             printf("failed to get key %d error code: %d\n", i, code);
+            ASSERT(0);
         } else {
           std::string str((char *)value, len);
           printf("get result %d: %s\n", i, str.c_str());
@@ -161,27 +162,30 @@ int32_t testAllCompress(SBse *bse) {
     }
     return 0;
 }
-TEST(bseCase, openTest) {
-    initLog();
-
+int32_t benchTest() {
     SBse *bse = NULL;
     std::vector<int64_t> data;
     SBseCfg cfg = {.vgId = 2};
 
-    
+    {
     int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
+    {
+        SBseCfg cfg = {.compressType = kNoCompres};
+        bseUpdateCfg(bse, &cfg);
 
-    putData(bse, 1000, 1000, &data);
-    getData(bse, &data);
+    }
+
+    putData(bse, 10000, 1000, &data);
+    //getData(bse, &data);
 
     bseCommit(bse);
     getData(bse, &data);
 
-    putData(bse, 1000, 200, &data);
+    putData(bse, 10000, 200, &data);
     
     bseCommit(bse);
 
-    putData(bse,1000, 200, &data);
+    putData(bse,10000, 200, &data);
 
     getData(bse, &data);
     bseCommit(bse);
@@ -191,11 +195,47 @@ TEST(bseCase, openTest) {
     //test compress 
     testAllCompress(bse);
     
-    
+    data.clear();
+    }
+
+    {
+    for (int32_t i = 0; i < 100000; i++) {
+       data.push_back(i + 1); 
+    }
+    getData(bse, &data);
+
     bseClose(bse);
 
-      
+    }
+    return 0;
+
+}
+int32_t funcTest() {
+    SBse *bse = NULL;
+    SBseCfg cfg = {.vgId = 2};
+    std::vector<int64_t> data;
+    int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
+    putData(bse, 10000, 1000, &data);
+    getData(bse, &data); 
+
+    bseCommit(bse); 
+    getData(bse, &data); 
     
+    bseClose(bse);
+    code = bseOpen("/tmp/bse", &cfg, &bse);
+    getData(bse, &data); 
+    bseClose(bse);
+
+    return 0;
+}
+TEST(bseCase, openTest) {
+    initLog();
+    //benchTest();
+    funcTest();
+
+    
+
+   
 }
 
 #pragma GCC diagnostic pop
