@@ -760,24 +760,73 @@ static bool mndBuildDnodesArrayFp(SMnode *pMnode, void *pObj, void *p1, void *p2
   return true;
 }
 
+static bool mndBuildDnodesListFp(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
+  SDnodeObj *pDnode = pObj;
+  SArray    *pArray = p1;
+
+  bool isMnode = mndIsMnode(pMnode, pDnode->id);
+  pDnode->numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
+
+  if (isMnode) {
+    pDnode->numOfOtherNodes++;
+  }
+
+  if (pDnode->numOfSupportVnodes > 0) {
+    if (taosArrayPush(pArray, pDnode) == NULL) return false;
+  }
+  return true;
+}
+
+// #ifdef TD_ENTERPRISE
+static int32_t mndBuildNodesCheckDualReplica(SMnode *pMnode, int32_t nDnodes, SArray *dnodeList, SArray **ppDnodeList) {
+  int32_t code = 0;
+  if (!grantCheckDualReplicaDnodes(pMnode)) {
+    TAOS_RETURN(code);
+  }
+  SSdb   *pSdb = pMnode->pSdb;
+  SArray *pDnodeList = taosArrayInit(nDnodes, sizeof(SDnodeObj));
+  if (pDnodeList == NULL) {
+    TAOS_RETURN(code = terrno);
+  }
+  sdbTraverse(pSdb, SDB_DNODE, mndResetDnodesArrayFp, NULL, NULL, NULL);
+  sdbTraverse(pSdb, SDB_DNODE, mndBuildDnodesListFp, pDnodeList, NULL, NULL);
+
+  int32_t dnodeListSize = taosArrayGetSize(dnodeList);
+  if (dnodeListSize <= 0) {
+    taosArrayDestroy(pDnodeList);
+    TAOS_RETURN(code);
+  }
+
+  TAOS_RETURN(code);
+}
+// #endif
+
 SArray *mndBuildDnodesArray(SMnode *pMnode, int32_t exceptDnodeId, SArray *dnodeList) {
   SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfDnodes = mndGetDnodeSize(pMnode);
+  SArray *pDnodeList = NULL;
 
   SArray *pArray = taosArrayInit(numOfDnodes, sizeof(SDnodeObj));
   if (pArray == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-
+#ifdef TD_ENTERPRISE
+  if (0 != mndBuildNodesCheckDualReplica(pMnode, numOfDnodes, dnodeList, &pDnodeList)) {
+    taosArrayDestroy(pArray);
+    return NULL;
+  }
+#endif
   sdbTraverse(pSdb, SDB_DNODE, mndResetDnodesArrayFp, NULL, NULL, NULL);
-  sdbTraverse(pSdb, SDB_DNODE, mndBuildDnodesArrayFp, pArray, &exceptDnodeId, dnodeList);
+  sdbTraverse(pSdb, SDB_DNODE, mndBuildDnodesArrayFp, pArray, &exceptDnodeId, pDnodeList ? pDnodeList : dnodeList);
 
   mDebug("build %d dnodes array", (int32_t)taosArrayGetSize(pArray));
   for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pArray); ++i) {
     SDnodeObj *pDnode = taosArrayGet(pArray, i);
     mDebug("dnode:%d, vnodes:%d others:%d", pDnode->id, pDnode->numOfVnodes, pDnode->numOfOtherNodes);
   }
+
+  taosArrayDestroy(pDnodeList);
   return pArray;
 }
 
