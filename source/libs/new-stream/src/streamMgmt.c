@@ -20,7 +20,7 @@
 #include "stream.h"
 #include "ttimer.h"
 #include "wal.h"
-
+#include "streamReader.h"
 
 
 static int32_t smAddTaskToVgroupMap(SStreamReaderTask* pTask) {
@@ -118,7 +118,7 @@ int32_t smDeployStreamTasks(SStmStreamDeploy* pDeploy) {
       SStmTaskDeploy* pReader = taosArrayGet(pDeploy->readerTasks, i);
       pTask->task = pReader->task;
       //STREAMTODO
-      //TAOS_CHECK_EXIT(stReaderTaskDeploy(pTask, &pReader->msg));
+      TAOS_CHECK_EXIT(stReaderTaskDeploy(pTask, &pReader->msg.reader));
 
       TAOS_CHECK_EXIT(taosHashPut(gStreamMgmt.taskMap, &pTask->task.streamId, sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId), &pTask, POINTER_BYTES));
 

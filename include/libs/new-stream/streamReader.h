@@ -100,7 +100,7 @@ int32_t createStreamTask(void* pVnode, SStreamReaderTaskInnerOptions* options, S
 SStreamReaderTaskInner* qStreamGetStreamInnerTask(int64_t streamId, int64_t sessionId, void* key, int32_t keySize);
 int32_t qStreamPutStreamInnerTask(int64_t streamId, int64_t sessionId, void* key, int32_t keySize, void* data, int32_t dataSize);
 int32_t qStreamRemoveStreamInnerTask(int64_t streamId, int64_t sessionId, void* key, int32_t keySize);
-
+int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMsg* pMsg);
 #ifdef __cplusplus
 }
 #endif

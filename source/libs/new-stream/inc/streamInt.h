@@ -91,7 +91,9 @@ void smUndeployAllTasks(void);
 void streamTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* pParam, void* pHandle, tmr_h* pTmrId, const char* pMsg);
 int32_t stmBuildStreamsStatus(SArray** ppStatus, int32_t gid);
 int32_t stmAddFetchStreamGid(void);
-
+// int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMsg* pMsg);
+int32_t stReaderTaskUndeploy(SStreamReaderTask* pTask, const SStreamUndeployTaskMsg* pMsg, taskUndeplyCallback cb);
+int32_t stReaderTaskExecute(SStreamReaderTask* pTask, SStreamMsg* pMsg);
 
 #ifdef __cplusplus
 }
