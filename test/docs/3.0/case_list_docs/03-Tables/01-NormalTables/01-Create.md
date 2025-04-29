@@ -13,3 +13,9 @@
 ::: 03-Tables.01-NormalTables.01-Create.test_normal_table_int
 ::: 03-Tables.01-NormalTables.01-Create.test_normal_table_smallint
 ::: 03-Tables.01-NormalTables.01-Create.test_normal_table_tinyint
+::: 03-Tables.01-NormalTables.01-Create.test_normal_table_describe
+::: 03-Tables.01-NormalTables.01-Create.test_normal_table_hash
+::: 03-Tables.01-NormalTables.01-Create.test_normal_table_limit
+::: 03-Tables.01-NormalTables.01-Create.test_normal_table_multi
+::: 03-Tables.01-NormalTables.01-Create.test_normal_table_synatx
+::: 03-Tables.01-NormalTables.01-Create.test_normal_table_vgroup
