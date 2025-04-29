@@ -48,3 +48,9 @@ tools/taosadapter
 *.DS_Store
 *.log
 *.vscode
+
+# test file when running test
+tests/**/__pycache__/**
+tests/**/*.txt
+tests/**/*.sql
+sim/*
