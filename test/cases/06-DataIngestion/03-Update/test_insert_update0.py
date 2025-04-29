@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestInsertUpdate0:
@@ -93,10 +93,9 @@ class TestInsertUpdate0:
         tdSql.checkData(2, 1, 60)
 
         # ==================== reboot to trigger commit data to file
-        # sc.dnodeStopAll()
-        # sc.dnodeStart(1)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         tdLog.info(f"=============== step3-2 query records of ct1 from file")
         tdSql.query(f"select * from ct1;")

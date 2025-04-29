@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestInsertUpdate2:
@@ -94,10 +94,9 @@ class TestInsertUpdate2:
         tdSql.checkData(0, 4, 1)
 
         tdLog.info(f"================== restart server to commit data into disk")
-        # sc.dnodeStopAll()
-        # sc.dnodeStart(1)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         tdLog.info(f"================== server restart completed")
 
@@ -107,10 +106,9 @@ class TestInsertUpdate2:
         tdSql.execute(f"insert into {tb2} (ts,c3) values ( {ts0} , 2)")
 
         tdLog.info(f"================== restart server to commit data into disk")
-        # sc.dnodeStopAll()
-        # sc.dnodeStart(1)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         tdLog.info(f"================== server restart completed")
 
@@ -145,10 +143,9 @@ class TestInsertUpdate2:
             i = i + 1
 
         tdLog.info(f"================== restart server to commit data into disk")
-        # sc.dnodeStopAll()
-        # sc.dnodeStart(1)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         tdLog.info(f"================== server restart completed")
 
@@ -162,10 +159,9 @@ class TestInsertUpdate2:
         tdSql.execute(f"insert into {tb2} (ts,c3,c8) values ( {tsN} , 100,200)")
 
         tdLog.info(f"================== restart server to commit data into disk")
-        # sc.dnodeStopAll()
-        # sc.dnodeStart(1)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         tdLog.info(f"================== server restart completed")
 

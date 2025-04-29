@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestInsertBackQuote:
@@ -12,7 +12,7 @@ class TestInsertBackQuote:
         1. create table
         2. insert data
         3. query data
-        4. kill -9 and restart
+        4. kill and restart
 
         Catalog:
             - DataIngestion
@@ -135,10 +135,9 @@ class TestInsertBackQuote:
             tdSql.checkData(0, 3, "TABle")
 
         tdLog.info(f"=============== stop and restart taosd")
-        # sc.dnodeStopAll()
-        # sc.dnodeStart(1)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         tdSql.query(f"select * from information_schema.ins_databases")
         tdLog.info(f"rows: {tdSql.getRows()})")

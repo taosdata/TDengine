@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestCompressAlterOption:
@@ -126,10 +126,9 @@ class TestCompressAlterOption:
         tdSql.checkRows(N)
 
         tdLog.info(f"=============== step4")
-        # sc.dnodeStopAll()
-        # sc.dnodeStart()
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         tdLog.info(f"=============== step5")
 

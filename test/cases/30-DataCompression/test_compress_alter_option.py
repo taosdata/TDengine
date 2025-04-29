@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestCompressAlterOption:
@@ -12,7 +12,7 @@ class TestCompressAlterOption:
         1. 创建一个包含 bool、tinyint、smallint、int、bigint、float、double、binary 数据类型的普通表
         2. 修改压缩参数
         3. 写入 2000 条记录
-        4. kill -9 停止 taosd
+        4. kill 停止 taosd
         5. 检查已写入数据的条数
         6. 再创建另外两个数据库
         7. 创建超级表
@@ -129,10 +129,9 @@ class TestCompressAlterOption:
         tdSql.checkRows(N)
 
         tdLog.info(f"=============== step4")
-        # sc.dnodeStopAll()
-        # sc.dnodeStart()
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         tdLog.info(f"=============== step5")
 

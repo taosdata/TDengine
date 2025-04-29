@@ -53,10 +53,9 @@ class TestShowAlive:
         tdLog.info(f"stop dnode3")
         tdLog.info(f"stop dnode4")
 
-        sc.dnodeStop(3)
-        sc.dnodeStop(4)
-        # system sh/exec.sh -n dnode3 -s stop -x SIGKILL
-        # system sh/exec.sh -n dnode4 -s stop -x SIGKILL
+        sc.dnodeForceStop(3)
+        sc.dnodeForceStop(4)
+        clusterComCheck.checkDnodes(2)
 
         clusterComCheck.checkClusterAlive(2, 20)
         clusterComCheck.checkDatabaseAlive("test", 2, 20)
@@ -67,8 +66,8 @@ class TestShowAlive:
         clusterComCheck.checkDatabaseAlive("test1", 1, 20)
 
         tdLog.info(f"stop dnode2")
-        sc.dnodeStop(2)
-        # system sh/exec.sh -n dnode2 -s stop -x SIGKILL
+        sc.dnodeForceStop(2)
+        clusterComCheck.checkDnodes(1)
 
         clusterComCheck.checkClusterAlive(2, 20)
         clusterComCheck.checkDatabaseAlive("test", 2, 20)
