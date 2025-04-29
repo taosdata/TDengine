@@ -823,7 +823,7 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
   }
 
   pStmt->taos = pObj;
-  if (taos->db != NULL && taos->db[0] != '\0') {
+  if (taos->db[0] != '\0') {
     pStmt->db = taosStrdup(taos->db);
   }
   pStmt->bInfo.needParse = true;
@@ -1431,7 +1431,7 @@ static int stmtFetchStbColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIEL
     pStmt->sql.autoCreateTbl = false;
     pStmt->bInfo.tagsCached = false;
     pStmt->bInfo.sname = (SName){0};
-    stmtCleanBindInfo(pStmt);
+    STMT_ERR_RET(stmtCleanBindInfo(pStmt));
   }
 
 _return:
