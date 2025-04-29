@@ -59,19 +59,19 @@ SELECT tbname, ts, voltage,
 
 
 ### 更多场景使用
-以下场景使用 TDengine SQL 无法支持，Spark 接 TDengine 数据源后即可使用 Spark SQL 支持到。
+以下列举了部分使用 TDengine SQL 受限，Spark 接 TDengine 后使用 Spark SQL 可支持到的功能:
 
 #### 跨数据库分析数据
-TDengine SQL 只支持在同一数据库中，不支持跨库数据分析，Spark 接 TDengine 数据源后亦可编写 Spark SQL 进行跨库数据分析。
+TDengine SQL 只支持在同一数据库中，不支持跨库数据分析，Spark 接 TDengine 数据源后，可编写 Spark SQL 进行跨库数据分析。
 
 #### 丰富数据集运算
-TDengine 对数据集只提供了并集操作(union all), Spark 接 TDengine 数据源后即可对数据集进行交集、差集等多种操作。
+TDengine 对数据集只提供了并集操作(union all), Spark 接 TDengine 数据源后，可对数据集进行交集、差集等多种操作。
 
 #### Where 可带子查询
 TDengine 不支持 Where 有子查询语句， Spark 接 TDengine 数据源后，可在 where 中使用子查询进行过滤操作。
 
 #### 支持普通列 JOIN
-TDengine 只支持时间主列的 JOIN, Spark 接 TDengine 数据源后, 可对普通列或标签列进行 JOIN 操作，突破只能对主时间列 JOIN 限制。
+TDengine 只支持时间主列的 JOIN, Spark 接 TDengine 数据源后, 可对普通列或标签列进行 JOIN 操作，突破只能对主时间列 JOIN 的限制。
 
 
 ## 示例源码
