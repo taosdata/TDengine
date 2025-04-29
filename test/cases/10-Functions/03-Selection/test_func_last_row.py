@@ -195,9 +195,7 @@ class TestFuncLastRow:
 
         tdLog.info(f"=======================> regresss bug in last_row query")
         tdSql.execute(f"drop database if exists db;")
-        tdSql.execute(f"create database if not exists db vgroups 1 cachemodel 'both';")
-
-        # tdSql.prepare("db", drop=True, cachemodel="both")
+        tdSql.prepare("db", cachemodel="both", vgroups=1)
 
         tdSql.execute(f"create table db.stb (ts timestamp, c0 bigint) tags(t1 int);")
         tdSql.execute(
