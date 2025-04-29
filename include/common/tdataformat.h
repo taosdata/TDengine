@@ -264,6 +264,8 @@ struct SValue {
 
 #define VALUE_GET_TRIVIAL_DATUM(pVal) ((pVal)->val)
 #define VALUE_SET_TRIVIAL_DATUM(pVal, v) (pVal)->val = v
+#define VALUE_GET_DATUM_LEN(pVal, type) \
+  (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_DECIMAL) ? (pVal)->nData : typeBytes[type]
 
 void valueSetDatum(SValue *pVal, int8_t type, void *pDatum, uint32_t len);
 void valueCloneDatum(SValue *pDst, const SValue *pSrc, int8_t type);

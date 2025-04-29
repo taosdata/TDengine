@@ -106,7 +106,6 @@ static void stRunnerTaskExecMgrReleaseExec(SStreamRunnerTask* pTask, SStreamRunn
 int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
   ST_TASK_ILOG("deploy runner task for %s.%s", pMsg->outDBFName, pMsg->outTblName);
   pTask->pPlan = pMsg->pPlan;  // TODO wjm do we need to deep copy this char*
-  pTask->forceOutput = pMsg->forceOutCols != NULL;
   pTask->forceOutCols = pMsg->forceOutCols;
   int32_t code = stRunnerInitTaskExecMgr(pTask);
   if (code != 0) {
@@ -137,27 +136,24 @@ static int32_t streamResetTaskExec(SStreamRunnerTaskExecution* pExec) {
   return code;
 }
 
-int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, const char* pMsg, int32_t msgLen) {
+int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq) {
   SStreamRunnerTaskExecution* pExec = NULL;
 
-  SStreamCalculationRequest req = {0};
-  // TODO wjm decode pMsg as SStreamCalculationRequest
-  int32_t execId = -1;
-  int32_t code = stRunnerTaskExecMgrAcquireExec(pTask, execId, &pExec);
+  int32_t code = stRunnerTaskExecMgrAcquireExec(pTask, pReq->execId, &pExec);
   if (code != 0) {
     ST_TASK_ELOG("failed to get task exec for stream code:%s", tstrerror(code));
     return code;
   }
 
-  pTask->task.sessionId = req.base.sessionId;
-  pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals = req.groupColVals;
-  pExec->runtimeInfo.funcInfo.pStreamPartColVals = req.params;
-  pExec->runtimeInfo.resetFlag = req.resetFlag;
+  pTask->task.sessionId = pReq->sessionId;
+  pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals = pReq->groupColVals;
+  pExec->runtimeInfo.funcInfo.pStreamPartColVals = pReq->params;
+  pExec->runtimeInfo.funcInfo.groupId = pReq->gid;
   pExec->runtimeInfo.pForceOutputCols = pTask->forceOutCols;
   if (!pExec->pExecutor) {
     code = streamBuildTask(pTask, pExec->pExecutor);
   } else {
-    if (req.resetFlag)
+    if (1) // TODO wjm
       streamResetTaskExec(pExec);
   }
 

@@ -362,12 +362,6 @@ typedef enum SStreamPseudoFuncType {
 } SStreamPseudoFuncType;
 
 int32_t fmGetStreamPseudoFuncType(int32_t funcId);
-
-typedef struct SStreamRuntimeFuncInfo {
-  SArray* pStreamPesudoFuncVals; // Array<SValue>
-  SArray* pStreamPartColVals;    // Array<SValue>
-} SStreamRuntimeFuncInfo;
-
 int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo);
 const SValue* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo);
 

@@ -1817,6 +1817,7 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes) {
   int32_t        code = 0;
   SNode*         pNode = NULL;
   SScalarParam   dst = {0};
+  if (!pForceOutputCols) return 0;
   if (pRes && *pRes && (*pRes)->info.rows > 0) return 0;
   if (!pRes) {
     code = createDataBlock(pRes);

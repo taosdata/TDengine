@@ -36,21 +36,9 @@ extern "C" {
 typedef void (*getMnodeEpset_f)(void *pDnode, SEpSet *pEpset);
 typedef int32_t (*getDnodeId_f)(void *pData);
 
-typedef enum EStreamTriggerType {
-  STREAM_PERIODIC_TRIGGER,
-  STERAM_COMMIT_TRIGGER,
-  STREAM_WINDOW_TRIGGER,
-} EStreamTriggerType;
-
 typedef struct SStreamReaderTask {
   SStreamTask task;
 } SStreamReaderTask;
-
-typedef struct SStreamTriggerTask {
-  SStreamTask        task;
-  EStreamTriggerType type;
-} SStreamTriggerTask;
-
 
 typedef struct SStreamRunnerTaskExecution {
   const char         *pPlan;
@@ -80,7 +68,6 @@ typedef struct SStreamRunnerTask {
   SStreamRunnerTaskExecMgr      pExecMgr;
   SStreamRunnerTaskOutput       output;
   SStreamRunnerTaskNotification notification;
-  bool                          forceOutput;
   const char*                   pPlan;
   int32_t                       parallelExecutionNun;
   SReadHandle                   handle;
