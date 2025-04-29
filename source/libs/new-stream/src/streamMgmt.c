@@ -35,7 +35,7 @@ static int32_t smAddTaskToVgroupMap(SStreamReaderTask* pTask) {
       vg.taskList = taosArrayInit(20, POINTER_BYTES);
       TSDB_CHECK_NULL(vg.taskList, code, lino, _return, terrno);
       TSDB_CHECK_NULL(taosArrayPush(vg.taskList, &pTask), code, lino, _return, terrno);
-      code = taosHashPut(gStreamMgmt.vgroupMap, &pTask->task.nodeId, sizeof(pTask->task.nodeId), &pTask, POINTER_BYTES);
+      code = taosHashPut(gStreamMgmt.vgroupMap, &pTask->task.nodeId, sizeof(pTask->task.nodeId), &vg, sizeof(vg));
       if (TSDB_CODE_SUCCESS == code) {
         return code;
       }
@@ -51,6 +51,7 @@ static int32_t smAddTaskToVgroupMap(SStreamReaderTask* pTask) {
     taosWLockLatch(&pVg->lock);
     if (NULL == taosArrayPush(pVg->taskList, &pTask)) {
       taosWUnLockLatch(&pVg->lock);
+      taosHashRelease(gStreamMgmt.vgroupMap, pVg);
       TSDB_CHECK_NULL(NULL, code, lino, _return, terrno);
     }
     taosWUnLockLatch(&pVg->lock);
@@ -61,8 +62,10 @@ static int32_t smAddTaskToVgroupMap(SStreamReaderTask* pTask) {
   
 _return:
 
-  mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
-
+  if (code) {
+    mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+  
   return code;
 }
 

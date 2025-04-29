@@ -593,6 +593,7 @@ int32_t tEncodeSStreamTaskAddr(SEncoder* pEncoder, const SStreamTaskAddr* pMsg) 
   int32_t lino;
 
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->taskId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pMsg->nodeId));
   TAOS_CHECK_EXIT(tEncodeSEpSet(pEncoder, &pMsg->epset));
 
 _exit:
@@ -983,6 +984,7 @@ int32_t tDecodeSStreamTaskAddr(SDecoder* pDecoder, SStreamTaskAddr* pMsg) {
   int32_t lino;
 
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->taskId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pMsg->nodeId));
   TAOS_CHECK_EXIT(tDecodeSEpSet(pDecoder, &pMsg->epset));
 
 _exit:

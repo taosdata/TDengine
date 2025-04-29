@@ -181,10 +181,11 @@ typedef struct SStmRuntime {
 
   int32_t          toDeployVgTaskNum;
   SHashObj*        toDeployVgMap;      // vgId => SStmVgroupTasksDeploy (only reader tasks)
-  int32_t          toUpdateRunnerNum;
-  SHashObj*        toUpdateRunnerMap;   // streamId + subplanId => SStmTaskSrcAddr (only scan's target runner tasks)
   int32_t          toDeploySnodeTaskNum;
   SHashObj*        toDeploySnodeMap;   // snodeId => SStmSnodeTasksDeploy (only trigger and runner tasks)
+
+  int32_t          toUpdateRunnerNum;
+  SHashObj*        toUpdateRunnerMap;   // streamId + subplanId => SStmTaskSrcAddr (only scan's target runner tasks)
 } SStmRuntime;
 
 extern SStmRuntime         mStreamMgmt;
@@ -216,6 +217,7 @@ int32_t mndStreamTransAppend(SStreamObj *pStream, STrans *pTrans, int32_t status
 int32_t mndStreamCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnConflct conflict, const char *name, STrans **ppTrans);
 int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows);
 int32_t mndStreamCheckSnodeExists(SMnode *pMnode);
+void msmClearStreamToDeployMaps(SStreamHbMsg* pHb);
 void msmCleanStreamGrpCtx(SStreamHbMsg* pHb);
 int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, SMStreamHbRspMsg* pRsp);
 int32_t msmHandleGrantExpired(SMnode *pMnode);

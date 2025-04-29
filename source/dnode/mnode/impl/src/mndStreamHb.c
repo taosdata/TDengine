@@ -81,7 +81,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   }
   tDecoderClear(&decoder);
 
-  stDebug("receive stream-hb grp %d from dnode:%d, snodeId:%d, vgLeaders:%d, streamStatus:%d", 
+  stDebug("start to process grp %d stream-hb from dnode:%d, snodeId:%d, vgLeaders:%d, streamStatus:%d", 
       req.streamGId, req.dnodeId, req.snodeId, (int32_t)taosArrayGetSize(req.pVgLeaders), (int32_t)taosArrayGetSize(req.pStreamStatus));
   
   (void)msmHandleStreamHbMsg(pMnode, currTs, &req, &rsp);
@@ -91,6 +91,7 @@ _exit:
   mndStreamHbSendRsp(code, &pReq->info, &rsp);
 
   msmCleanStreamGrpCtx(&req);
+  msmClearStreamToDeployMaps(&req);
 
   stDebug("end to process stream hb req msg, code:%d", code);
 

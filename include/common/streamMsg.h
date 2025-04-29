@@ -358,6 +358,7 @@ typedef struct SStreamReaderDeployMsg {
 
 typedef struct SStreamTaskAddr {
   int64_t taskId;
+  int32_t nodeId;
   SEpSet  epset;
 } SStreamTaskAddr;
 

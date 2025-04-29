@@ -818,7 +818,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     TAOS_RETURN(code);
   }
 
-  auditRecord(pReq, pMnode->clusterId, "dropStream", "", pStream->pCreate->streamDB, dropReq.sql, strlen(dropReq.sql));
+  auditRecord(pReq, pMnode->clusterId, "dropStream", "", pStream->pCreate->streamDB, NULL, 0);
 
   sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);

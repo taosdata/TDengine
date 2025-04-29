@@ -354,6 +354,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   for (int32_t i = 0; i < triggerReaderNum; ++i) {
     SStmTaskStatus* pStatus = taosArrayGet(pInfo->readerList, i);
     addr.taskId = pStatus->id.taskId;
+    addr.nodeId = pStatus->id.nodeId;
     addr.epset = mndGetVgroupEpsetById(pMnode, pStatus->id.nodeId);
     TSDB_CHECK_NULL(taosArrayPush(pMsg->readerList, &addr), code, lino, _exit, terrno);
   }
@@ -1012,6 +1013,9 @@ static int32_t msmBuildRunnerTasks(SMnode* pMnode, SStmStatus* pInfo, SStreamObj
 
   TAOS_CHECK_EXIT(msmBuildRunnerTasksImpl(pMnode, pPlan, pInfo, pStream));
 
+  taosHashClear(mStreamMgmt.toUpdateRunnerMap);
+  mStreamMgmt.toUpdateRunnerNum = 0;
+
 _exit:
 
   if (code) {
@@ -1250,6 +1254,7 @@ static int32_t msmAddTaskToStreamDeployMap(SHashObj* pHash, SStmTaskDeploy* pDep
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int64_t streamId = pDeploy->task.streamId;
+  SStreamTask* pTask = &pDeploy->task;
   SStmStreamDeploy streamDeploy = {0};
   SStmStreamDeploy* pStream = NULL;
    
@@ -1274,6 +1279,8 @@ static int32_t msmAddTaskToStreamDeployMap(SHashObj* pHash, SStmTaskDeploy* pDep
     
     break;
   }
+
+  ST_TASK_DLOG("task added to deployMap, taskIdx:%d", pTask->taskIdx);
   
 _exit:
 
@@ -1421,7 +1428,7 @@ int32_t msmAddHbRspDeploy(SHashObj* pStreams, int32_t gid, int64_t currTs, SMStr
   int32_t streamNum = taosHashGetSize(pStreams);
   void* pIter = NULL;
 
-  stDebug("start to add stream group %d deploy tasks, streamNum:%d", gid, taosHashGetSize(pStreams));
+  stDebug("start to add group %d deploy streams, streamNum:%d", gid, taosHashGetSize(pStreams));
   
   pRsp->deploy.streamList = taosArrayInit(streamNum, sizeof(SStmStreamDeploy));
   TSDB_CHECK_NULL(pRsp->deploy.streamList, code, lino, _exit, terrno);
@@ -1584,7 +1591,7 @@ void msmCleanDeployedSnodeTasks (int32_t snodeId) {
   taosHashRelease(mStreamMgmt.toDeploySnodeMap, pSnode);
 }
 
-void msmCleanStreamGrpCtx(SStreamHbMsg* pHb) {
+void msmClearStreamToDeployMaps(SStreamHbMsg* pHb) {
   if (atomic_load_32(&mStreamMgmt.toDeployVgTaskNum) > 0) {
     msmCleanDeployedVgTasks(pHb->pVgLeaders);
   }
@@ -1592,7 +1599,9 @@ void msmCleanStreamGrpCtx(SStreamHbMsg* pHb) {
   if (atomic_load_32(&mStreamMgmt.toDeploySnodeTaskNum) > 0) {
     msmCleanDeployedSnodeTasks(pHb->snodeId);
   }
+}
 
+void msmCleanStreamGrpCtx(SStreamHbMsg* pHb) {
   int32_t tidx = streamGetThreadIdx(mStreamMgmt.threadNum, pHb->streamGId);
   taosHashClear(mStreamMgmt.tCtx[tidx].actionStm[pHb->streamGId]);
   taosHashClear(mStreamMgmt.tCtx[tidx].deployStm[pHb->streamGId]);
