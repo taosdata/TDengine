@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, sc
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestSubTableAlter:
@@ -12,7 +12,7 @@ class TestSubTableAlter:
         1. add column
         2. insert data
         3. query data
-        4. Kill -9 then restart
+        4. kill then restart
 
         Catalog:
             - Table:SubTable:Alter
@@ -60,10 +60,10 @@ class TestSubTableAlter:
         tdSql.checkData(0, 2, 1)
 
         tdLog.info(f"================== restart server to commit data into disk")
-        # sc.dnodeStopAll()
-        # sc.dnodeStart()
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
+
         tdLog.info(f"================== server restart completed")
 
         tdSql.execute(f"use {db}")

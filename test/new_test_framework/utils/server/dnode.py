@@ -591,7 +591,7 @@ class TDDnode:
             tdLog.info("dnode:%d is stopped by kill -INT" % (self.index))
 
     def stoptaosd(self):
-        tdLog.debug("start to stop taosd on dnode: %d " % (self.index))
+        tdLog.info("start to stop taosd on dnode: %d " % (self.index))
         # print(self.asan,self.running,self.remoteIP,self.valgrind)
         if self.asan:
             stopCmd = "%s -s stop -n dnode%d" % (self.execPath, self.index)
@@ -648,8 +648,10 @@ class TDDnode:
             tdLog.info("dnode:%d is stopped by kill -INT" % (self.index))
 
     def forcestop(self):
+        tdLog.info("start to force stop taosd on dnode: %d " % (self.index))
+        
         if self.asan:
-            stopCmd = "%s -s stop -n dnode%d -x SIGKILL" + (self.execPath, self.index)
+            stopCmd = "%s -s stop -n dnode%d -x SIGKILL" % (self.execPath, self.index)
             tdLog.info("execute script: " + stopCmd)
             os.system(stopCmd)
             return
@@ -660,6 +662,7 @@ class TDDnode:
                 "tdDnodes.dnodes[%d].running=1\ntdDnodes.dnodes[%d].forcestop()"
                 % (self.index - 1, self.index - 1),
             )
+            tdLog.info("force stop dnode%d" % self.index)
             return
         if self.valgrind == 0:
             toBeKilled = "taosd"
@@ -667,10 +670,16 @@ class TDDnode:
             toBeKilled = "valgrind.bin"
 
         if self.running != 0:
-            psCmd = (
-                "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs"
-                % toBeKilled
-            )
+            if platform.system().lower() == "windows":
+                psCmd = (
+                    "for /f %%a in ('wmic process where \"name='taosd.exe' and CommandLine like '%%dnode%d%%'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)"
+                    % (self.index)
+                )
+            else:
+                psCmd = (
+                    "ps -ef|grep -w %s| grep dnode%d|grep -v grep | awk '{print $2}' | xargs"
+                    % (toBeKilled, self.index)
+                )
             processID = (
                 subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
             )
@@ -681,15 +690,17 @@ class TDDnode:
                     onlyKillOnceWindows == 0 and platform.system().lower() == "windows"
                 ):
                     killCmd = "kill -KILL %s > /dev/null 2>&1" % processID
+                    if platform.system().lower() == "windows":
+                        killCmd = "kill -KILL %s > nul 2>&1" % processID
                     os.system(killCmd)
                     onlyKillOnceWindows = 1
                 time.sleep(1)
                 processID = (
                     subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
                 )
-            for port in range(6030, 6041):
-                fuserCmd = "fuser -k -n tcp %d" % port
-                os.system(fuserCmd)
+            # for port in range(6030, 6041):
+            #     fuserCmd = "fuser -k -n tcp %d" % port
+            #     os.system(fuserCmd)
             if self.valgrind:
                 time.sleep(2)
 

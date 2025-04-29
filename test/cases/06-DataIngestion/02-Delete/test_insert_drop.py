@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, sc
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestInsertDrop:
@@ -59,10 +59,9 @@ class TestInsertDrop:
         tdLog.info(f"====== tables created")
 
         tdLog.info(f"================== restart server to commit data into disk")
-        # sc.dnodeStopAll()
-        # sc.dnodeStart(1)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         tdLog.info(f"================== server restart completed")
 
@@ -80,10 +79,10 @@ class TestInsertDrop:
             i = i + 1
 
         tdLog.info(f"================== restart server to commit data into disk")
-        # sc.dnodeStopAll()
-        # sc.dnodeStart(1)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
+
         tdLog.info(f"================== server restart completed")
 
         tdSql.execute(f"use {db}")

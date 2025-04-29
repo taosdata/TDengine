@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
 
 
 class TestNormalTableAlter1:

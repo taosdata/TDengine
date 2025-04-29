@@ -13,7 +13,7 @@ class TestNormalTableAlter4:
         2. insert data
         3. project query
         4. loop for 7 times
-        5. kill -9 then restart
+        5. kill then restart
 
         Catalog:
             - Table:NormalTable:Alter
@@ -316,10 +316,9 @@ class TestNormalTableAlter4:
         tdSql.checkData(7, 8, 11)
 
         tdLog.info(f"======== step9")
-        # sc.dnodeStopAll()
-        # sc.dnodeStart(1)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         tdSql.query(f"select * from tb order by ts asc")
         tdSql.checkRows(8)

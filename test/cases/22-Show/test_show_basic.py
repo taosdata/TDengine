@@ -100,14 +100,10 @@ class TestShowBasic:
         tdSql.checkRows(3)
 
         tdLog.info(f"==== stop dnode1 and dnode2, and restart dnodes")
-        # sc.dnodeStopAll()
-        # sc.dnodeStart(1)
-        # sc.dnodeStart(2)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode2 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
-        # system sh/exec.sh -n dnode2 -s start
-
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        sc.dnodeStop(2)
+        sc.dnodeStart(2)
         clusterComCheck.checkDnodes(2)
 
         tdLog.info(f"==== again run show / select of above")
