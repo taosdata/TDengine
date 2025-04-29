@@ -29,6 +29,7 @@
 #include "mnode.h"
 #include "os.h"
 #include "sdb.h"
+#include "tbase58.h"
 #include "tbase64.h"
 #include "tchecksum.h"
 #include "tdataformat.h"
@@ -2567,6 +2568,36 @@ _exit:
 
 static void mndCancelGetNextGrantFull(SMnode *pMnode, void *pIter) {}
 
+static const char *signStr[] = {"7418+=/~`4ad'f06923a{2x}", "#/?9\\03x3^#77!.387L", "!a@?23sf3X0)^&(0)"};
+int32_t grantGenerateSign(const char *input, const char **sign, int32_t nSign, char **ppOutput, int32_t *olen) {
+  int32_t code = 0, lino = 0;
+  if (input == NULL || sign == NULL || nSign < 0 || ppOutput == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
+  }
+
+  if (*ppOutput) {
+    taosMemoryFreeClear(*ppOutput);
+  }
+
+  T_MD5_CTX context;
+  tMD5Init(&context);
+  tMD5Update(&context, (uint8_t *)input, strlen(input));
+  for (int32_t i = 0; i < nSign; ++i) {
+    tMD5Update(&context, (uint8_t *)sign[i], strlen(sign[i]));
+  }
+  tMD5Final(&context);
+
+  TAOS_CHECK_EXIT(base58_encode((const uint8_t *)context.digest, sizeof(context.digest), ppOutput));
+
+  if (olen) *olen = strlen(*ppOutput);
+
+_exit:
+  if (code < 0) {
+    taosMemoryFreeClear(*ppOutput);
+  }
+  return code;
+}
+
 static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode *pMnode = pReq->info.node;
   SSdb   *pSdb = pMnode->pSdb;
@@ -2674,6 +2705,26 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       qBuf += tmpLen;
       qBuf[0] = 0;
       varDataSetLen(pBuf, POINTER_DISTANCE(qBuf, pBuf) - VARSTR_HEADER_SIZE);
+      COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
+    }
+
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+      qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+      char   *sign = NULL;
+      int32_t signLen = 0;
+      if (pGrant->nStates > 0 && pGrant->nActives > 0 &&
+          pGrant->states[pGrant->nStates - 1].state == GRANT_STATE_REVOKED) {
+        TAOS_CHECK_EXIT(grantGenerateSign(pGrant->actives[pGrant->nActives - 1].active, signStr, tListLen(signStr),
+                                          &sign, &signLen));
+        if (signLen > GRANT_ACTIVE_SIGN_LEN) {
+          taosMemoryFreeClear(sign);
+          TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_RANGE);
+        }
+      }
+
+      (void)snprintf(qBuf, GRANT_ACTIVE_SIGN_LEN + 1, "%s", sign ? sign : "");
+      taosMemoryFreeClear(sign);
+      varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
       COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
     }
 
