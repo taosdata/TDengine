@@ -572,7 +572,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
       vInfo("vgId:%d, no items to be applied, restore finish", pVnode->config.vgId);
       break;
     } else {
-      vInfo("vgId:%d, restore not finish since %" PRId64 " items to be applied. commit-index:%" PRId64
+      vDebug("vgId:%d, restore not finish since %" PRId64 " items to be applied. commit-index:%" PRId64
             ", applied-index:%" PRId64,
             vgId, commitIdx - appliedIdx, commitIdx, appliedIdx);
       taosMsleep(10);
