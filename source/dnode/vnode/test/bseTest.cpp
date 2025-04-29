@@ -219,12 +219,17 @@ int32_t funcTest() {
     getData(bse, &data); 
 
     bseCommit(bse); 
-    getData(bse, &data); 
-    
+
+    getData(bse, &data);
+
     bseClose(bse);
+
+    {
     code = bseOpen("/tmp/bse", &cfg, &bse);
     getData(bse, &data); 
     bseClose(bse);
+
+    }
 
     return 0;
 }
