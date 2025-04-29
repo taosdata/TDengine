@@ -2010,7 +2010,7 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
 
   fp(pStmt->options.userdata, res, code);
 
-  while (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady)) {
+  while (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady) && !pStmt->queue.stopQueue) {
     taosUsleep(1);
   }
   (void)stmtCleanExecInfo(pStmt, (code ? false : true), false);
@@ -2090,7 +2090,7 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     }
     pStmt->affectedRows += pStmt->exec.affectedRows;
 
-    while (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady)) {
+    while (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady) && !pStmt->queue.stopQueue) {
       taosUsleep(1);
     }
 
