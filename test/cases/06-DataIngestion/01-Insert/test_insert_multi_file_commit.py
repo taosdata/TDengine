@@ -7,12 +7,12 @@ class TestDataCommit:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_sub_table(self):
-        """子表创建、读写
+        """insert sub table (multi file)
 
-        1. 创建包含 256 列的超级表
-        2. 创建1个子表，分别写入跨越 50 个文件以上的数据
-        3. 进行投影查询、聚合查询
-        4. Kill -9 重启后再次查询
+        1. create stable with 256 columns
+        2. insert data with 50 files
+        3. query data
+        4. Kill -9 and restart
 
         Catalog:
             - DataIngestion
