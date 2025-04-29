@@ -8,7 +8,7 @@ import requests
 from taostest.util.rest import TDRest
 from typing import Dict, List
 import time
-class EMSQuery(TDCase):
+class EMSSummary(TDCase):
     def init(self):
         self._remote: Remote = Remote(self.logger)
         self.tdRest = TDRest(env_setting=self.env_setting)

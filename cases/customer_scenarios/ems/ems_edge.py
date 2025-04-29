@@ -41,8 +41,8 @@ class EMSEdge(TDCase):
             child_table_model = mqtt_parser[topic_id]["parser"]["model"]["name"]
             mqtt_parser[topic_id]["parser"]["model"]["using"] = f'site_{topic_id}_mqtt_{self.numbers_str}'
             mqtt_parser[topic_id]["parser"]["model"]["name"] = f"{child_table_model}_{self.numbers_str}"
-            cliend_id = self.tdCom.get_long_name(4, mode="numbers")
-            task_data["from"] = f'''mqtt://{hostname}:1883?version=5.0&client_id={cliend_id}&char_encoding=UTF_8&keep_alive=60&clean_session=true&topics={case_data_from["topics"][topic_id]}::0&topic_pattern={case_data_from["topic_patterns"][topic_id]}'''
+            client_id = self.tdCom.get_long_name(4, mode="numbers")
+            task_data["from"] = f'''mqtt://{hostname}:1883?version=5.0&client_id={client_id}&char_encoding=UTF_8&keep_alive=60&clean_session=true&topics={case_data_from["topics"][topic_id]}::0&topic_pattern={case_data_from["topic_patterns"][topic_id]}'''
             # mqtt_payload
             task_data["parser"] = mqtt_parser[topic_id]
             task_data["to"] = f"taos+ws://{hostname}:6041/{target_dbname}"

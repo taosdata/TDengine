@@ -36,21 +36,21 @@ class Start(TDCase):
             #mqtt_pub_interval= mqtt_client_config["spec"]["interval"]
             mqtt_pub_interval = self.workflow_config["source_interval"]
             exec_time = self.workflow_config["exec_time"]
-            self._remote.cmd(mqtt_host,f"nohup mqtt_pub --schema {mqtt_pub_path} --host {edge_host} --interval {mqtt_pub_interval}ms --exec-duration ${exec_time}s > mqtt_pub.log 2>&1 &")
+            self._remote.cmd(mqtt_host,f"nohup mqtt_pub --schema {mqtt_pub_path} --host {edge_host} --interval {mqtt_pub_interval}ms --exec-duration {exec_time}s > mqtt_pub.log 2>&1 &")
 
     def start_taosx_service(self,host):
         self._remote.cmd(host,"systemctl stop taos-explorer")
         self._remote.cmd(host,"systemctl start taos-explorer")
-        self._remote.cmd(host,"systemctl stop taosx")
-        self._remote.cmd(host,"systemctl start taosx")
+        # self._remote.cmd(host,"systemctl stop taosx")
+        # self._remote.cmd(host,"systemctl start taosx")
     def run(self) -> bool:
-
-        # start mqtt simulator
-        self.start_mqtt_simulator()
         # start taosx service
         taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
         taosx_host = taosd_setting["fqdn"][0]
         self.start_taosx_service(taosx_host)
+        # start mqtt simulator
+        self.start_mqtt_simulator()
+
 
     def cleanup(self):
         pass
