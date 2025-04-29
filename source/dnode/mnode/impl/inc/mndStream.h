@@ -111,7 +111,7 @@ typedef struct SStmStatus {
   int64_t           lastActTs;
   int32_t           readerNum[2];      // trigger reader num & calc reader num
   SArray*           readerList;        // SArray<SStmTaskStatus>
-  SStmTaskStatus    triggerTask;
+  SStmTaskStatus*   triggerTask;
   int32_t           runnerDeploys;
   int32_t           runnerReplica;
   SArray*           runnerTopIdx;      // top runner task index in runnerList, num is runnerDeploys
@@ -153,7 +153,6 @@ typedef struct SStmSnodeTasksDeploy {
 } SStmSnodeTasksDeploy;
 
 typedef struct SStmThreadCtx {
-  SStmActionQ*     actionQ;
   SHashObj*        deployStm[STREAM_MAX_GROUP_NUM];    // streamId => SStmStreamDeploy
   SHashObj*        actionStm[STREAM_MAX_GROUP_NUM];    // streamId => actions
 } SStmThreadCtx;
@@ -164,6 +163,9 @@ typedef struct SStmRuntime {
   int32_t          activeStreamNum;
   int64_t          startTs;
   EMndStmPhase     phase;
+
+  SRWLatch         actionQLock;
+  SStmActionQ*     actionQ;
   
   int32_t           threadNum;
   SStmThreadCtx*    tCtx;
@@ -171,7 +173,7 @@ typedef struct SStmRuntime {
   int64_t          lastTaskId;
   int16_t          runnerMulti;
   
-  SHashObj*        streamMap;  // streamId => SStreamStatus
+  SHashObj*        streamMap;  // streamId => SStmStatus
   SHashObj*        taskMap;    // streamId + taskId => SStmTaskStatus*
   SHashObj*        vgroupMap;  // vgId => SStmVgroupTasksStatus (only reader tasks)
   SHashObj*        snodeMap;   // snodeId => SStmSnodeTasksStatus (only trigger and runner tasks)

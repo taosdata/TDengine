@@ -620,9 +620,6 @@ static int32_t collectMetaKeyFromCreateStream(SCollectMetaKeyCxt* pCxt, SCreateS
   reserveTableMetaInCache(pCxt->pParseCxt->acctId, pTriggerTable->table.dbName, pTriggerTable->table.tableName, pCxt->pMetaCache);
   reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pTriggerTable->table.dbName, pTriggerTable->table.tableName, pCxt->pMetaCache);
   if (pStmt->pQuery) {
-    if (pStmt->pSubtable) {
-      PAR_ERR_RET(nodesCloneNode(pStmt->pSubtable, &((SSelectStmt*)pStmt->pQuery)->pSubtable));
-    }
     PAR_ERR_RET(collectMetaKeyFromQuery(pCxt, pStmt->pQuery));
   }
 

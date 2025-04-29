@@ -305,7 +305,6 @@ typedef enum ENodeType {
   QUERY_NODE_VIRTUAL_TABLE,
   QUERY_NODE_SLIDING_WINDOW,
   QUERY_NODE_PERIOD_WINDOW,
-  QUERY_NODE_STREAM_EVENT_TYPE,
   QUERY_NODE_STREAM_TRIGGER,
   QUERY_NODE_STREAM,
   QUERY_NODE_STREAM_TAG_DEF,
@@ -3013,14 +3012,20 @@ typedef struct SVTableScanOperatorParam {
   SArray*        pOpParamArray;  // SArray<SOperatorParam>
 } SVTableScanOperatorParam;
 
+struct SStreamRuntimeFuncInfo;
 typedef struct {
-  SMsgHead        header;
-  uint64_t        sId;
-  uint64_t        queryId;
-  uint64_t        clientId;
-  uint64_t        taskId;
-  int32_t         execId;
-  SOperatorParam* pOpParam;
+  SMsgHead                       header;
+  uint64_t                       sId;
+  uint64_t                       queryId;
+  uint64_t                       clientId;
+  uint64_t                       taskId;
+  int32_t                        execId;
+  SOperatorParam*                pOpParam;
+
+  // used for new-stream
+  struct SStreamRuntimeFuncInfo* pStRtFuncInfo;
+  bool                           reset;
+  // used for new-stream
 } SResFetchReq;
 
 int32_t tSerializeSResFetchReq(void* buf, int32_t bufLen, SResFetchReq* pReq);
@@ -4934,35 +4939,6 @@ void tFreeFetchTtlExpiredTbsRsp(void* p);
 void setDefaultOptionsForField(SFieldWithOptions* field);
 void setFieldWithOptions(SFieldWithOptions* fieldWithOptions, SField* field);
 
-typedef enum EStreamTriggerRequestType {
-  TRIGGER_REQUEST_NONE = 0,
-  TRIGGER_REQUEST_LAST_TS,
-  TRIGGER_REQUEST_FIRST_TS,
-  TRIGGER_REQUEST_TSDB_META,
-  TRIGGER_REQUEST_TSDB_META_NEXT,
-  TRIGGER_REQUEST_TSDB_TS_DATA,
-  TRIGGER_REQUEST_TSDB_TRIGGER_DATA,
-  TRIGGER_REQUEST_TSDB_TRIGGER_DATA_NEXT,
-  TRIGGER_REQUEST_TSDB_CALC_DATA,
-  TRIGGER_REQUEST_TSDB_CALC_DATA_NEXT,
-  TRIGGER_REQUEST_WAL_META,
-  TRIGGER_REQUEST_WAL_TS_DATA,
-  TRIGGER_REQUEST_WAL_TRIGGER_DATA,
-  TRIGGER_REQUEST_WAL_CALC_DATA,
-  TRIGGER_REQUEST_CALCULATION,
-  TRIGGER_REQUEST_MAX
-} EStreamTriggerRequestType;
-
-typedef struct SStreamTriggerRequest {
-  EStreamTriggerRequestType type;
-  int64_t                   streamId;
-  int64_t                   sessionId;
-} SStreamTriggerRequest;
-
-typedef struct SStreamLastTsRequest {
-  SStreamTriggerRequest base;
-} SStreamLastTsRequest;
-
 typedef struct STsInfo {
   uint64_t   gId;
   int64_t   ts;
@@ -4975,92 +4951,19 @@ typedef struct SStreamTsResponse {
 
 int32_t tEncodeSStreamTsResponse(SEncoder *pEncoder, const SStreamTsResponse *pRsp);
 
-typedef struct SStreamFirstTsRequest {
-  SStreamTriggerRequest base;
-  int64_t               startTime;
-} SStreamFirstTsRequest;
-
-typedef struct SStreamTsdbMetaRequest {
-  SStreamTriggerRequest base;
-  int64_t               startTime;
-} SStreamTsdbMetaRequest;
-
-typedef struct SStreamTsdbMetaNextRequest {
-  SStreamTriggerRequest base;
-} SStreamTsdbMetaNextRequest;
-
-typedef struct SStreamTsdbTsDataRequest {
-  SStreamTriggerRequest base;
-  int64_t               uid;
-  int64_t               skey;
-  int64_t               ekey;
-} SStreamTsdbTsDataRequest;
-
-typedef struct SStreamTsdbTriggerDataRequest {
-  SStreamTriggerRequest base;
-  int64_t               startTime;
-} SStreamTsdbTriggerDataRequest;
-
-typedef struct SStreamTsdbTriggerDataNextRequest {
-  SStreamTriggerRequest base;
-} SStreamTsdbTriggerDataNextRequest;
-
-typedef struct SStreamTsdbCalcDataRequest {
-  SStreamTriggerRequest base;
-  int64_t               gid;
-  int64_t               skey;
-  int64_t               ekey;
-} SStreamTsdbCalcDataRequest;
-
-typedef struct SStreamTsdbCalcDataNextRequest {
-  SStreamTriggerRequest base;
-} SStreamTsdbCalcDataNextRequest;
-
-typedef struct SStreamWalMetaRequest {
-  SStreamTriggerRequest base;
-  int64_t               lastVer;
-} SStreamWalMetaRequest;
-
-typedef struct SStreamWalTsDataRequest {
-  SStreamTriggerRequest base;
-  int64_t               ver;
-} SStreamWalTsDataRequest;
-
-typedef struct SStreamWalTriggerDataRequest {
-  SStreamTriggerRequest base;
-  int64_t               ver;
-} SStreamWalTriggerDataRequest;
-
-typedef struct SStreamWalCalcDataRequest {
-  SStreamTriggerRequest base;
-  int64_t               ver;
-  int64_t               skey;
-  int64_t               ekey;
-} SStreamWalCalcDataRequest;
-
-typedef struct SStreamCalculationParam {
-  // These fields only have values when used in the statement, otherwise they are 0
-  int64_t currentTs;
-  int64_t wstart;
-  int64_t wend;
-  int64_t wduration;
-  int64_t wrownum;
-  int64_t triggerTime;
-
-  bool  needNotify;
-  char* extraNotifyContent;  // NULL if not available
-} SStreamCalculationParam;
-
-typedef struct SStreamCalculationRequest {
-  SStreamTriggerRequest base;
-  int64_t               gid;
-  SArray*               params;
-  SArray*               groupColVals; // only provided at the first calculation of the group
-} SStreamCalculationRequest;
-
 int32_t tSerializeSVSubTablesRspImpl(SEncoder* pEncoder, SVSubTablesRsp *pRsp);
 int32_t tDeserializeSVSubTablesRspImpl(SDecoder* pDecoder, SVSubTablesRsp *pRsp);
 
+typedef struct SStreamRuntimeFuncInfo {
+  SArray* pStreamPesudoFuncVals; // Array<char*>
+  SArray* pStreamPartColVals;    // Array<char*>
+  SArray* pStreamPesudoFuncValNodes;
+  SArray* pStreamPartColValNodes;
+  int64_t groupId;
+} SStreamRuntimeFuncInfo;
+
+int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo);
+int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);
 
 #pragma pack(pop)
 

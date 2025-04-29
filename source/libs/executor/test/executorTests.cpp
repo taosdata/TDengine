@@ -15,6 +15,7 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
+#include "streamexecutorInt.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -1231,5 +1232,14 @@ TEST(testCase, time_interval_Operator_Test) {
   taosArrayDestroy(pOrderVal);
 }
 #endif
+
+TEST(streamExecutor, calcOutputTbName) {
+  SNode* pNode = NULL;
+  nodesMakeValueNodeFromInt64(1, &pNode);
+  SValueNode* pVal = (SValueNode*)pNode;
+  char tbname[128] = {0};
+  ASSERT_EQ(0, streamCalcOutputTbName(pNode, tbname, 0));
+  ASSERT_STREQ(tbname, "1");
+}
 
 #pragma GCC diagnosti

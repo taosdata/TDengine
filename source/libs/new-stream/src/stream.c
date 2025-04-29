@@ -19,6 +19,7 @@
 #include "tref.h"
 #include "stream.h"
 #include "ttimer.h"
+#include "dataSink.h"
 
 SStreamMgmtInfo gStreamMgmt = {0};
 
@@ -32,6 +33,8 @@ void streamSetSnodeDisabled(void) {
 
 void streamCleanup(void) {
   //STREAMTODO
+  streamTriggerEnvCleanup();
+  destroyDataSinkMgr();
 }
 
 int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode) {
@@ -57,6 +60,8 @@ int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode
   TAOS_CHECK_EXIT(streamTimerInit(&gStreamMgmt.timer));
 
   TAOS_CHECK_EXIT(streamHbInit(&gStreamMgmt.hb));
+
+  TAOS_CHECK_EXIT(streamTriggerEnvInit());
 
 _exit:
 
@@ -101,6 +106,22 @@ void streamAddVnodeLeader(int32_t vgId) {
   }
   taosWUnLockLatch(&gStreamMgmt.vgLeadersLock);
   stInfo("add vgroup %d to vgroupLeader %s, error:%s", vgId, p ? "succeed" : "failed", p ? "NULL" : tstrerror(terrno));
+}
+
+int32_t streamGetTask(int64_t streamId, int32_t taskId, SStreamTask** ppTask) {
+  char key[sizeof(streamId) + sizeof(taskId)];
+  *(int64_t*)key = streamId;
+  *(int32_t*)((int64_t*)key + 1) = taskId;
+  
+  SStreamTask** task = taosHashGet(gStreamMgmt.taskMap, key, sizeof(key));
+  if (NULL == task) {
+    stError("stream %" PRIx64 " task %d not exists in taskMap", streamId, taskId);
+    return TSDB_CODE_STREAM_TASK_NOT_EXIST;
+  }
+
+  *ppTask = *task;
+
+  return TSDB_CODE_SUCCESS;
 }
 
 

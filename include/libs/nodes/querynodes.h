@@ -219,7 +219,6 @@ typedef struct STableNode {
   uint8_t   precision;
   bool      singleTable;
   bool      inJoin;
-  bool      isPlaceHolder;
 } STableNode;
 
 typedef struct SStreamNode {
@@ -377,6 +376,7 @@ typedef struct SIntervalWindowNode {
   SNode*      pInterval;  // SValueNode
   SNode*      pOffset;    // SValueNode
   SNode*      pSliding;   // SValueNode
+  SNode*      pSOffset;   // SValueNode
   SNode*      pFill;
   STimeWindow timeRange;
   void*       timezone;
@@ -420,10 +420,10 @@ typedef struct SExternalWindowNode {
 
 typedef struct SStreamTriggerNode {
   ENodeType   type;
-  SNode*      pTriggerWindow;
+  SNode*      pTriggerWindow; // S.*WindowNode
   SNode*      pTrigerTable;
   SNode*      pOptions; // SStreamTriggerOptions
-  SNode*      pNotify;
+  SNode*      pNotify; // SStreamNotifyOptions
   SNodeList*  pPartitionList;
 } SStreamTriggerNode;
 
@@ -496,64 +496,69 @@ typedef struct SRangeAroundNode {
   SNode*    pInterval;
 } SRangeAroundNode;
 
+typedef struct STimeRangeNode {
+  ENodeType type;
+  SNode*    pStart;
+  SNode*    pEnd;
+} STimeRangeNode;
+
 typedef struct SSelectStmt {
-  ENodeType     type;  // QUERY_NODE_SELECT_STMT
-  bool          isDistinct;
-  STimeWindow   timeRange;
-  SNodeList*    pProjectionList;
-  SNodeList*    pProjectionBindList;
-  SNode*        pFromTable;
-  SNode*        pWhere;
-  SNodeList*    pPartitionByList;
-  SNodeList*    pTags;      // for create stream
-  SNode*        pSubtable;  // for create stream
-  SNode*        pWindow;
-  SNodeList*    pGroupByList;  // SGroupingSetNode
-  SNode*        pHaving;
-  SNode*        pRange;
-  SNode*        pRangeAround;
-  SNode*        pEvery;
-  SNode*        pFill;
-  SNodeList*    pOrderByList;  // SOrderByExprNode
-  SLimitNode*   pLimit;
-  SLimitNode*   pSlimit;
-  SNodeList*    pHint;
-  char          stmtName[TSDB_TABLE_NAME_LEN];
-  uint8_t       precision;
-  int32_t       selectFuncNum;
-  int32_t       returnRows;  // EFuncReturnRows
-  ETimeLineMode timeLineCurMode;
-  ETimeLineMode timeLineResMode;
-  int32_t       lastProcessByRowFuncId;
-  bool          timeLineFromOrderBy;
-  bool          isEmptyResult;
-  bool          isSubquery;
-  bool          hasAggFuncs;
-  bool          hasRepeatScanFuncs;
-  bool          hasIndefiniteRowsFunc;
-  bool          hasMultiRowsFunc;
-  bool          hasSelectFunc;
-  bool          hasSelectValFunc;
-  bool          hasOtherVectorFunc;
-  bool          hasUniqueFunc;
-  bool          hasTailFunc;
-  bool          hasInterpFunc;
-  bool          hasInterpPseudoColFunc;
-  bool          hasForecastFunc;
-  bool          hasForecastPseudoColFunc;
-  bool          hasLastRowFunc;
-  bool          hasLastFunc;
-  bool          hasTimeLineFunc;
-  bool          hasCountFunc;
-  bool          hasUdaf;
-  bool          hasStateKey;
-  bool          hasTwaOrElapsedFunc;
-  bool          onlyHasKeepOrderFunc;
-  bool          groupSort;
-  bool          tagScan;
-  bool          joinContains;
-  bool          mixSysTableAndActualTable;
-  bool          hasProject;
+  ENodeType       type;  // QUERY_NODE_SELECT_STMT
+  bool            isDistinct;
+  STimeWindow     timeRange;
+  STimeRangeNode* pTimeRange; // for create stream
+  SNodeList*      pProjectionList;
+  SNodeList*      pProjectionBindList;
+  SNode*          pFromTable;
+  SNode*          pWhere;
+  SNodeList*      pPartitionByList;
+  SNode*          pWindow;
+  SNodeList*      pGroupByList;  // SGroupingSetNode
+  SNode*          pHaving;
+  SNode*          pRange;
+  SNode*          pRangeAround;
+  SNode*          pEvery;
+  SNode*          pFill;
+  SNodeList*      pOrderByList;  // SOrderByExprNode
+  SLimitNode*     pLimit;
+  SLimitNode*     pSlimit;
+  SNodeList*      pHint;
+  char            stmtName[TSDB_TABLE_NAME_LEN];
+  uint8_t         precision;
+  int32_t         selectFuncNum;
+  int32_t         returnRows;  // EFuncReturnRows
+  ETimeLineMode   timeLineCurMode;
+  ETimeLineMode   timeLineResMode;
+  int32_t         lastProcessByRowFuncId;
+  bool            timeLineFromOrderBy;
+  bool            isEmptyResult;
+  bool            isSubquery;
+  bool            hasAggFuncs;
+  bool            hasRepeatScanFuncs;
+  bool            hasIndefiniteRowsFunc;
+  bool            hasMultiRowsFunc;
+  bool            hasSelectFunc;
+  bool            hasSelectValFunc;
+  bool            hasOtherVectorFunc;
+  bool            hasUniqueFunc;
+  bool            hasTailFunc;
+  bool            hasInterpFunc;
+  bool            hasInterpPseudoColFunc;
+  bool            hasForecastFunc;
+  bool            hasForecastPseudoColFunc;
+  bool            hasLastRowFunc;
+  bool            hasLastFunc;
+  bool            hasTimeLineFunc;
+  bool            hasCountFunc;
+  bool            hasUdaf;
+  bool            hasStateKey;
+  bool            hasTwaOrElapsedFunc;
+  bool            onlyHasKeepOrderFunc;
+  bool            groupSort;
+  bool            tagScan;
+  bool            joinContains;
+  bool            mixSysTableAndActualTable;
+  bool            hasProject;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;

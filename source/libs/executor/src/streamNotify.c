@@ -154,7 +154,6 @@ void destroyStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo) {
 
   blockDataDestroy(pBasicInfo->pDelRes);
   pBasicInfo->pDelRes = NULL;
-  taosArrayDestroyP(pBasicInfo->pUpdated, destroyFlusedPos);
   pBasicInfo->pUpdated = NULL;
 
   pBasicInfo->pTsDataState = NULL;
@@ -869,10 +868,6 @@ int32_t removeOutdatedNotifyEvents(STimeWindowAggSupp* pTwSup, SStreamNotifyEven
   while (pIter) {
     const SStreamNotifyEvent* pEvent = (const SStreamNotifyEvent*)pIter;
     pIter = taosHashIterate(sup->pWindowEventHashMap, pIter);
-    if (isOverdue(pEvent->win.ekey, pTwSup)) {
-      code = taosHashRemove(sup->pWindowEventHashMap, pEvent, NOTIFY_EVENT_KEY_SIZE);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
   }
 
   pNotifyEventStat->notifyEventHoldElems = taosHashGetSize(sup->pWindowEventHashMap);
@@ -884,3 +879,30 @@ _end:
   return code;
 }
 
+void setFinalOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
+  BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, FINAL_OPERATOR);
+}
+
+bool isFinalOperator(SSteamOpBasicInfo* pBasicInfo) {
+  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, FINAL_OPERATOR);
+}
+
+void setRecalculateOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
+  BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, RECALCULATE_OPERATOR);
+}
+
+void unsetRecalculateOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
+  BIT_FLAG_UNSET_MASK(pBasicInfo->operatorFlag, RECALCULATE_OPERATOR);
+}
+
+bool isRecalculateOperator(SSteamOpBasicInfo* pBasicInfo) {
+  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, RECALCULATE_OPERATOR);
+}
+
+void setSingleOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
+  BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, SINGLE_OPERATOR);
+}
+
+bool isSingleOperator(SSteamOpBasicInfo* pBasicInfo) {
+  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, SINGLE_OPERATOR);
+}

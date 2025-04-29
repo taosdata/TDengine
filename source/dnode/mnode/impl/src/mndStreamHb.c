@@ -48,7 +48,7 @@ void mndStreamHbSendRsp(int32_t code, SRpcHandleInfo *pRpcInfo, SMStreamHbRspMsg
   }
   tEncoderClear(&encoder);
 
-  SRpcMsg rsp = {.code = code, .info = *pRpcInfo, .contLen = tlen, .pCont = buf};
+  SRpcMsg rsp = {.code = code, .info = *pRpcInfo, .contLen = tlen + sizeof(SStreamMsgGrpHeader), .pCont = buf};
 
   tmsgSendRsp(&rsp);
   pRpcInfo->handle = NULL;  // disable auto rsp

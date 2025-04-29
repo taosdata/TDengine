@@ -471,8 +471,6 @@ void nodesWalkSelectStmtImpl(SSelectStmt* pSelect, ESqlClause clause, FNodeWalke
       nodesWalkExpr(pSelect->pWhere, walker, pContext);
     case SQL_CLAUSE_WHERE:
       nodesWalkExprs(pSelect->pPartitionByList, walker, pContext);
-      nodesWalkExprs(pSelect->pTags, walker, pContext);
-      nodesWalkExpr(pSelect->pSubtable, walker, pContext);
     case SQL_CLAUSE_PARTITION_BY:
       nodesWalkExpr(pSelect->pWindow, walker, pContext);
     case SQL_CLAUSE_WINDOW:
@@ -512,8 +510,6 @@ void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewrit
       nodesRewriteExpr(&(pSelect->pWhere), rewriter, pContext);
     case SQL_CLAUSE_WHERE:
       nodesRewriteExprs(pSelect->pPartitionByList, rewriter, pContext);
-      nodesRewriteExprs(pSelect->pTags, rewriter, pContext);
-      nodesRewriteExpr(&(pSelect->pSubtable), rewriter, pContext);
     case SQL_CLAUSE_PARTITION_BY:
       nodesRewriteExpr(&(pSelect->pWindow), rewriter, pContext);
     case SQL_CLAUSE_WINDOW:

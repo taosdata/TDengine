@@ -3862,46 +3862,6 @@ static int32_t msgToPhysiPartitionNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { PHY_STREAM_PARTITION_CODE_BASE_NODE = 1, PHY_STREAM_PARTITION_CODE_TAGS, PHY_STREAM_PARTITION_CODE_SUBTABLE };
-
-static int32_t physiStreamPartitionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
-  const SStreamPartitionPhysiNode* pNode = (const SStreamPartitionPhysiNode*)pObj;
-
-  int32_t code = tlvEncodeObj(pEncoder, PHY_STREAM_PARTITION_CODE_BASE_NODE, physiPartitionNodeToMsg, &pNode->part);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeObj(pEncoder, PHY_STREAM_PARTITION_CODE_TAGS, nodeListToMsg, pNode->pTags);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeObj(pEncoder, PHY_STREAM_PARTITION_CODE_SUBTABLE, nodeToMsg, pNode->pSubtable);
-  }
-
-  return code;
-}
-
-static int32_t msgToPhysiStreamPartitionNode(STlvDecoder* pDecoder, void* pObj) {
-  SStreamPartitionPhysiNode* pNode = (SStreamPartitionPhysiNode*)pObj;
-
-  int32_t code = TSDB_CODE_SUCCESS;
-  STlv*   pTlv = NULL;
-  tlvForEach(pDecoder, pTlv, code) {
-    switch (pTlv->type) {
-      case PHY_STREAM_PARTITION_CODE_BASE_NODE:
-        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiPartitionNode, &pNode->part);
-        break;
-      case PHY_STREAM_PARTITION_CODE_TAGS:
-        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pTags);
-        break;
-      case PHY_STREAM_PARTITION_CODE_SUBTABLE:
-        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pSubtable);
-        break;
-      default:
-        break;
-    }
-  }
-
-  return code;
-}
-
 enum { PHY_INDEF_ROWS_FUNC_CODE_BASE_NODE = 1, PHY_INDEF_ROWS_FUNC_CODE_EXPRS, PHY_INDEF_ROWS_FUNC_CODE_FUNCS };
 
 static int32_t physiIndefRowsFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {

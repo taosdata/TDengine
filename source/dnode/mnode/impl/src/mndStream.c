@@ -581,7 +581,7 @@ static void mndStreamPostAction(SMnode *pMnode, int64_t streamId, char* streamNa
   
   TAOS_STRCPY(pNode->streamName, streamName);
 
-  mndStreamActionEnqueue(mStreamMgmt.tCtx[streamGetThreadIdx(mStreamMgmt.threadNum, STREAM_GID(streamId))].actionQ, pNode);
+  mndStreamActionEnqueue(mStreamMgmt.actionQ, pNode);
 }
 
 static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {

@@ -919,16 +919,7 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   tstrncpy(pTableScan->pGroupIdName, pCxt->pPlanCxt->pGroupIdName, TSDB_COL_NAME_LEN);
   tstrncpy(pTableScan->pIsWindowFilledName, pCxt->pPlanCxt->pIsWindowFilledName, TSDB_COL_NAME_LEN);
 
-  code = createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTableScan, pPhyNode);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = setListSlotId(pCxt, pTableScan->scan.node.pOutputDataBlockDesc->dataBlockId, -1, pScanLogicNode->pTags,
-                         &pTableScan->pTags);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = setNodeSlotId(pCxt, pTableScan->scan.node.pOutputDataBlockDesc->dataBlockId, -1, pScanLogicNode->pSubtable,
-                         &pTableScan->pSubtable);
-  }
-  return code;
+  return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTableScan, pPhyNode);;
 }
 
 static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan,
@@ -2805,9 +2796,6 @@ static int32_t createExternalWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList*
 }
 static int32_t createWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SWindowLogicNode* pWindowLogicNode,
                                      SPhysiNode** pPhyNode) {
-  if (pCxt->pPlanCxt->streamTriggerQuery) {
-    pCxt->pPlanCxt->pStreamTriggerWindow = (SNode*)*pPhyNode;
-  }
   switch (pWindowLogicNode->winType) {
     case WINDOW_TYPE_INTERVAL:
       return createIntervalPhysiNode(pCxt, pChildren, pWindowLogicNode, pPhyNode);
@@ -2947,9 +2935,6 @@ static int32_t createPartitionPhysiNodeImpl(SPhysiPlanContext* pCxt, SNodeList* 
 
 static int32_t createPartitionPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                         SPartitionLogicNode* pPartLogicNode, SPhysiNode** pPhyNode) {
-  if (pCxt->pPlanCxt->streamTriggerQuery) {
-    pCxt->pPlanCxt->pStreamTriggerPartition = (SNode*)*pPhyNode;
-  }
   return createPartitionPhysiNodeImpl(pCxt, pChildren, pPartLogicNode, QUERY_NODE_PHYSICAL_PLAN_PARTITION, pPhyNode);
 }
 
