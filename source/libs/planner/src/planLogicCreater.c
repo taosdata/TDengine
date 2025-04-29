@@ -449,7 +449,7 @@ static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealT
 static bool needScanDefaultCol(EScanType scanType) { return SCAN_TYPE_TABLE_COUNT != scanType; }
 
 static int32_t updateScanNoPseudoRefAfterGrp(SSelectStmt* pSelect, SScanLogicNode* pScan, SRealTableNode* pRealTable) {
-  if (NULL == pScan->pScanPseudoCols || pScan->pScanPseudoCols->length <= 0 || NULL != pSelect->pTags || NULL != pSelect->pSubtable) {
+  if (NULL == pScan->pScanPseudoCols || pScan->pScanPseudoCols->length <= 0) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -542,14 +542,6 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   if (TSDB_CODE_SUCCESS == code && needScanDefaultCol(pScan->scanType)) {
     code = addDefaultScanCol(pRealTable, &pScan->pScanCols);
-  }
-
-  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pTags && NULL == pSelect->pPartitionByList) {
-    code = nodesCloneList(pSelect->pTags, &pScan->pTags);
-  }
-
-  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pSubtable && NULL == pSelect->pPartitionByList) {
-    code = nodesCloneNode(pSelect->pSubtable, &pScan->pSubtable);
   }
 
   // set output
@@ -1420,15 +1412,6 @@ static bool isInterpFunc(int32_t funcId) {
          fmisSelectGroupConstValueFunc(funcId);
 }
 
-static void initStreamOption(SLogicPlanContext* pCxt, SStreamNodeOption* pOption) {
-  pOption->triggerType = pCxt->pPlanCxt->triggerType;
-  pOption->watermark = pCxt->pPlanCxt->watermark;
-  pOption->deleteMark = pCxt->pPlanCxt->deleteMark;
-  pOption->igExpired = pCxt->pPlanCxt->igExpired;
-  pOption->igCheckUpdate = pCxt->pPlanCxt->igCheckUpdate;
-  pOption->destHasPrimaryKey = pCxt->pPlanCxt->destHasPrimaryKey;
-}
-
 static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (!pSelect->hasInterpFunc) {
     return TSDB_CODE_SUCCESS;
@@ -1480,10 +1463,6 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
     code = createColumnByRewriteExprs(pInterpFunc->pFuncs, &pInterpFunc->node.pTargets);
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    initStreamOption(pCxt, &pInterpFunc->streamNodeOption);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -1820,7 +1799,7 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
 }
 
 static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
-  if (NULL != pSelect->pWindow || !pCxt->pPlanCxt->streamCalcQuery) {
+  if (NULL != pSelect->pWindow || !pCxt->pPlanCxt->streamCalcQuery || !pSelect->pWhere) {
     return TSDB_CODE_SUCCESS;
   }
   int32_t code = nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, &pSelect->pWindow);
@@ -2194,16 +2173,6 @@ static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pS
     SColumnNode*         pTsCol = (SColumnNode*)pInterval->pCol;
     pPartition->pkTsColId = pTsCol->colId;
     pPartition->pkTsColTbId = pTsCol->tableId;
-  }
-
-  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pTags) {
-    pPartition->pTags = NULL;
-    code = nodesCloneList(pSelect->pTags, &pPartition->pTags);
-  }
-
-  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pSubtable) {
-    pPartition->pSubtable = NULL;
-    code = nodesCloneNode(pSelect->pSubtable, &pPartition->pSubtable);
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pHaving && !pSelect->hasAggFuncs && NULL == pSelect->pGroupByList &&

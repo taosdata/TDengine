@@ -213,8 +213,6 @@ bool fmIsForbidFillFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, 
 
 bool fmIsIntervalInterpoFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_INTERVAL_INTERPO_FUNC); }
 
-bool fmIsForbidStreamFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_FORBID_STREAM_FUNC); }
-
 bool fmIsSystemInfoFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_SYSTEM_INFO_FUNC); }
 
 bool fmIsImplicitTsFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_IMPLICIT_TS_FUNC); }
@@ -622,8 +620,7 @@ static int32_t fmCreateStateFunc(const SFunctionNode* pFunc, SFunctionNode** pSt
 }
 
 bool fmIsTSMASupportedFunc(func_id_t funcId) {
-  return isSpecificClassifyFunc(funcId, FUNC_MGT_TSMA_FUNC) &&
-         !isSpecificClassifyFunc(funcId, FUNC_MGT_FORBID_STREAM_FUNC);
+  return isSpecificClassifyFunc(funcId, FUNC_MGT_TSMA_FUNC);
 }
 
 int32_t fmCreateStateFuncs(SNodeList* pFuncs) {

@@ -1116,7 +1116,7 @@ static int32_t msmAddStreamTasksToMap(SMnode* pMnode, SStreamObj* pStream) {
 
   TAOS_CHECK_EXIT(taosHashPut(mStreamMgmt.streamMap, &streamId, sizeof(streamId), &info, sizeof(info)));
 
-  mstDebug("stream added to streamMap, readerNum:%d, runnerNum:%d", taosArrayGetSize(info.readerList), taosArrayGetSize(info.runnerList));
+  mstDebug("stream added to streamMap, readerNum:%d, runnerNum:%d", (int32_t)taosArrayGetSize(info.readerList), (int32_t)taosArrayGetSize(info.runnerList));
 
 _exit:
 

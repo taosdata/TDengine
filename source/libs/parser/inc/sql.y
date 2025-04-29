@@ -866,6 +866,8 @@ trigger_type(A) ::= PERIOD NK_LP duration_literal(B) offset_opt(C) NK_RP.       
 
 interval_opt(A) ::= .                                                                             { A = NULL; }
 interval_opt(A) ::= INTERVAL NK_LP interval_sliding_duration_literal(C) NK_RP.                    { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, C), NULL, NULL, NULL); }
+interval_opt(A) ::= INTERVAL NK_LP interval_sliding_duration_literal(C)
+                    NK_COMMA interval_sliding_duration_literal(D) NK_RP.                          { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D), NULL, NULL); }
 
 sliding_expr(A) ::= interval_sliding_duration_literal(B).                                         { A = createSlidingWindowNode(pCxt, releaseRawExprNode(pCxt, B), NULL); }
 sliding_expr(A) ::= interval_sliding_duration_literal(B) NK_COMMA duration_literal(C) NK_RP.      { A = createSlidingWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
