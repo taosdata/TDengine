@@ -158,7 +158,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_basic2.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_columns.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_commit_merge.py
-,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_multi_file_commit.py.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_multi_file_commit.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_query_block1_file.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_query_block1_memory.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_query_block2_file.py
