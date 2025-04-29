@@ -3,7 +3,7 @@ import sys
 import time
 import random
 import taos
-from new_test_framework.utils import tdLog, tdSql, cluster, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, cluster, sc, clusterComCheck
 
 
 class TestShowAlive:
