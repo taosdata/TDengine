@@ -86,13 +86,13 @@ class TDTestCase:
 
         time.sleep(10)
 
-        cb.prepareDataOnOldVersion(lastBigVersion, self.getBuildPath())
+        cb.prepareDataOnOldVersion(lastBigVersion, self.getBuildPath(),corss_major_version=False)
 
         cb.updateNewVersion(self.getBuildPath(),self.getDnodePath(),upgrade=True)
 
         time.sleep(10)
 
-        cb.verifyData()
+        cb.verifyData(corss_major_version=False)
 
         cb.verifyBackticksInTaosSql(self.getBuildPath())
 

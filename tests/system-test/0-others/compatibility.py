@@ -75,18 +75,24 @@ class TDTestCase:
         cPath = self.getCfgPath()
         tdLog.info(f"bPath:{bPath}, cPath:{cPath}")
 
+        # Get the last version defined in the list
+        last_version_in_list = BASE_VERSIONS[-1]
+        corss_major_version = True
         for base_version in BASE_VERSIONS:
+            if base_version == last_version_in_list:
+                corss_major_version = False
+
             tdLog.printNoPrefix(f"========== Start testing compatibility with base version {base_version} ==========")
 
             cb.installTaosd(bPath,cPath,base_version)
 
-            cb.prepareDataOnOldVersion(base_version, bPath)
+            cb.prepareDataOnOldVersion(base_version, bPath,corss_major_version)
 
             cb.killAllDnodes()
 
             cb.updateNewVersion(bPath,cPaths=[],upgrade=False)
 
-            cb.verifyData()
+            cb.verifyData(corss_major_version)
 
             cb.verifyBackticksInTaosSql(bPath)
 

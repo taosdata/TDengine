@@ -56,7 +56,7 @@ dbname = "test"
 stb = f"{dbname}.meters"
 
 class CompatibilityBase:
-        
+
     def checkProcessPid(self,processName):
         tdLog.info(f"checkProcessPid {processName}")
         i=0
@@ -192,7 +192,7 @@ class CompatibilityBase:
         tdLog.info("check taosadapter")
         self.checkProcessPid("taosadapter")
 
-    def prepareDataOnOldVersion(self, base_version, bPath):
+    def prepareDataOnOldVersion(self, base_version, bPath,corss_major_version):
         global dbname, stb, first_consumer_rows
         tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{base_version}")
         tdLog.info(f" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -t {tableNumbers} -n {recordNumbers1} -v 1 -O 5  -y ")
@@ -269,11 +269,11 @@ class CompatibilityBase:
         # add deleted  data
         os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s "{deletedDataSql}" ')
 
-
-        cmd = f" LD_LIBRARY_PATH={bPath}/build/lib  {bPath}/build/bin/taos -h localhost ;"
-        tdLog.info(f"new  client version  connect to old version taosd, commad return value:{cmd}")
-        if os.system(cmd) == 0:
-            raise Exception("failed to execute system command. cmd: %s" % cmd)
+        if corss_major_version:
+            cmd = f" LD_LIBRARY_PATH={bPath}/build/lib  {bPath}/build/bin/taos -h localhost ;"
+            tdLog.info(f"new  client version  connect to old version taosd, commad return value:{cmd}")
+            if os.system(cmd) == 0:
+                raise Exception("failed to execute system command. cmd: %s" % cmd)
         
     def updateNewVersion(self,bPath,cPaths,upgrade):
         tdLog.printNoPrefix("==========step2:update new version ")
@@ -290,15 +290,16 @@ class CompatibilityBase:
             self.buildTaosd(bPath)
             tdDnodes.start(1)
 
-    def verifyData(self):
+    def verifyData(self,corss_major_version):
         tdLog.printNoPrefix(f"==========step3:prepare and check data in new version")
         sleep(1)
         tdsql=tdCom.newTdSql()
         print(tdsql)
-        cmd = f" LD_LIBRARY_PATH=/usr/lib  taos -h localhost ;"
-        print(os.system(cmd))
-        if os.system(cmd) == 0:
-            raise Exception("failed to execute system command. cmd: %s" % cmd)
+        if corss_major_version:
+            cmd = f" LD_LIBRARY_PATH=/usr/lib  taos -h localhost ;"
+            print(os.system(cmd))
+            if os.system(cmd) == 0:
+                raise Exception("failed to execute system command. cmd: %s" % cmd)
         
         tdsql.query(f"SELECT SERVER_VERSION();")
         nowServerVersion=tdsql.queryResult[0][0]
