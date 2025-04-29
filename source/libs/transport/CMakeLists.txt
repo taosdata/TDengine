@@ -16,7 +16,9 @@ target_link_libraries(
 if(${BUILD_WITH_UV_TRANS})
   if(${BUILD_WITH_UV})
     DEP_ext_libuv(transport)
-    target_link_libraries(transport PRIVATE Threads::Threads)
+    if(TD_PTHREAD_TWEAK)       # {
+      target_link_libraries(transport PRIVATE pthread)
+    endif()                    # }
   endif()
 endif()
 
