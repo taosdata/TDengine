@@ -90,7 +90,7 @@ void streamOperatorReloadState(SOperatorInfo* pOperator) {
   }
 }
 
-static void resetProjectOperState(SOperatorInfo* pOper) {
+static int32_t resetProjectOperState(SOperatorInfo* pOper) {
   SProjectOperatorInfo* pProject = pOper->info;
   resetBasicOperatorState(&pProject->binfo);
   pProject->limitInfo.currentGroupId = 0;
@@ -99,6 +99,7 @@ static void resetProjectOperState(SOperatorInfo* pOper) {
   pProject->limitInfo.remainGroupOffset = pProject->limitInfo.slimit.offset;
   pProject->limitInfo.remainOffset = pProject->limitInfo.limit.offset;
   blockDataCleanup(pProject->pFinalRes);
+  return 0;
 }
 
 int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* pProjPhyNode, SExecTaskInfo* pTaskInfo,
@@ -178,6 +179,7 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doProjectOperation, NULL, destroyProjectOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamOperatorReleaseState, streamOperatorReloadState);
+  setOperatorResetStateFn(pOperator, resetProjectOperState);
 
   if (NULL != downstream) {
     code = appendDownstream(pOperator, &downstream, 1);
@@ -363,7 +365,7 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       QUERY_CHECK_CODE(code, lino, _end);
 
       code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
-                                   pProjectInfo->pPseudoColInfo);
+                                   pProjectInfo->pPseudoColInfo, pOperator->pTaskInfo->pStreamRuntimeInfo);
       QUERY_CHECK_CODE(code, lino, _end);
 
       status = doIngroupLimitOffset(pLimitInfo, pBlock->info.id.groupId, pInfo->pRes, pOperator);
@@ -543,7 +545,7 @@ static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOp
   SExprSupp* pScalarSup = &pIndefInfo->scalarSup;
   if (pScalarSup->pExprInfo != NULL) {
     code = projectApplyFunctions(pScalarSup->pExprInfo, pBlock, pBlock, pScalarSup->pCtx, pScalarSup->numOfExprs,
-                                 pIndefInfo->pPseudoColInfo);
+                                 pIndefInfo->pPseudoColInfo, pOperator->pTaskInfo->pStreamRuntimeInfo);
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
     }
@@ -560,7 +562,7 @@ static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOp
   }
 
   code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
-                               pIndefInfo->pPseudoColInfo);
+                               pIndefInfo->pPseudoColInfo, pOperator->pTaskInfo->pStreamRuntimeInfo);
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
@@ -791,7 +793,7 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
         SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
 
         SScalarParam dest = {.columnData = &idata};
-        code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest);
+        code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest, pOperator->pTaskInfo->pStreamRuntimeInfo);
         if (code != TSDB_CODE_SUCCESS) {
           taosArrayDestroy(pBlockList);
           return code;
@@ -847,7 +849,7 @@ static void setPseudoOutputColInfo(SSDataBlock* pResult, SqlFunctionCtx* pCtx, S
 }
 
 int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
-                              int32_t numOfOutput, SArray* pPseudoList) {
+                              int32_t numOfOutput, SArray* pPseudoList, const void* pExtraParams) {
   int32_t lino = 0;
   int32_t code = TSDB_CODE_SUCCESS;
   setPseudoOutputColInfo(pResult, pCtx, pPseudoList);
@@ -999,7 +1001,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
       SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
 
       SScalarParam dest = {.columnData = &idata};
-      code = scalarCalculate(pExpr[k].pExpr->_optrRoot.pRootNode, pBlockList, &dest);
+      code = scalarCalculate(pExpr[k].pExpr->_optrRoot.pRootNode, pBlockList, &dest, pExtraParams);
       if (code != TSDB_CODE_SUCCESS) {
         taosArrayDestroy(pBlockList);
         TSDB_CHECK_CODE(code, lino, _exit);
@@ -1138,7 +1140,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
 
         SScalarParam dest = {.columnData = &idata};
-        code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest);
+        code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest, pExtraParams);
         if (code != TSDB_CODE_SUCCESS) {
           taosArrayDestroy(pBlockList);
           TSDB_CHECK_CODE(code, lino, _exit);

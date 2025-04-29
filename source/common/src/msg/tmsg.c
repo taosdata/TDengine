@@ -9583,6 +9583,13 @@ int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) {
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, 0));
   }
   TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->clientId));
+  if (pReq->pStRtFuncInfo) {
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, 1));
+    TAOS_CHECK_EXIT(tSerializeStRtFuncInfo(&encoder, pReq->pStRtFuncInfo));
+  } else {
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, 0));
+  }
+  TAOS_CHECK_EXIT(tEncodeBool(&encoder, pReq->reset));
 
   tEndEncode(&encoder);
 
@@ -9636,6 +9643,20 @@ int32_t tDeserializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) 
     TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->clientId));
   } else {
     pReq->clientId = 0;
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    int32_t hasStRtFuncInfo = 0;
+    TAOS_CHECK_ERRNO(tDecodeI32(&decoder, &hasStRtFuncInfo));
+    if (hasStRtFuncInfo > 0) {
+      pReq->pStRtFuncInfo = taosMemoryCalloc(1, sizeof(SStreamRuntimeFuncInfo));;
+      if (NULL == pReq->pStRtFuncInfo) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      TAOS_CHECK_EXIT(tDeserializeStRtFuncInfo(&decoder, pReq->pStRtFuncInfo));
+    }
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeBool(&decoder, &pReq->reset));
   }
 
   tEndDecode(&decoder);
@@ -13427,4 +13448,70 @@ int32_t tEncodeSStreamTsResponse(SEncoder *pEncoder, const SStreamTsResponse *pR
 
   _exit:
     return code;
+}
+
+int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo) {
+  int32_t code = 0, lino = 0;
+  if (pInfo->pStreamPesudoFuncVals) {
+    int32_t size = taosArrayGetSize(pInfo->pStreamPesudoFuncVals);
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, size));
+    for (int32_t i = 0; i < size; ++i) {
+      const char* pVal = taosArrayGetP(pInfo->pStreamPesudoFuncVals, i);
+      TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pVal, strlen(pVal)));
+    }
+  } else {
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, 0));
+  }
+  if (pInfo->pStreamPartColVals) {
+    int32_t size = taosArrayGetSize(pInfo->pStreamPartColVals);
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, size));
+    for (int32_t i = 0; i < size; ++i) {
+      const char* pName = taosArrayGetP(pInfo->pStreamPartColVals, i);
+      TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pName, strlen(pName)));
+    }
+  } else {
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, 0));
+  }
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->groupId));
+_exit:
+  return code;
+}
+
+int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo) {
+  int32_t code = 0, lino = 0;
+  int32_t size = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &size));
+  if (size > 0) {
+    pInfo->pStreamPesudoFuncVals = taosArrayInit(size, sizeof(char*));
+    if (!pInfo->pStreamPesudoFuncVals) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    for (int32_t i = 0; i < size; ++i) {
+      char* pVal = NULL;
+      uint64_t len = 0;
+      TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pVal, &len));
+      if (taosArrayPush(pInfo->pStreamPesudoFuncVals, &pVal) == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+    }
+  }
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &size));
+  if (size > 0) {
+    pInfo->pStreamPartColVals = taosArrayInit(size, sizeof(char*));
+    if (!pInfo->pStreamPartColVals) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    for (int32_t i = 0; i < size; ++i) {
+      char* pName = NULL;
+      uint64_t len = 0;
+      TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pName, &len));
+      if (taosArrayPush(pInfo->pStreamPartColVals, &pName) == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+    }
+  }
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pInfo->groupId));
+
+_exit:
+  return code;
 }

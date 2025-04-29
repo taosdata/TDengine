@@ -22,6 +22,7 @@ extern "C" {
 
 #include "streamMsg.h"
 #include "tlog.h"
+#include "executor.h"
 
 #define STREAM_HB_INTERVAL_MS 600
 
@@ -36,6 +37,41 @@ typedef int32_t (*getDnodeId_f)(void *pData);
 typedef struct SStreamReaderTask {
   SStreamTask task;
 } SStreamReaderTask;
+
+typedef struct SStreamRunnerTaskExecution {
+  const char         *pPlan;
+  void               *pExecutor;
+  void               *notifyEventSup;
+  void               *pQueryPlan;
+  SStreamRuntimeInfo  runtimeInfo;
+  char                tbname[TSDB_TABLE_NAME_LEN];
+} SStreamRunnerTaskExecution;
+
+typedef struct SStreamRunnerTaskOutput {
+  struct SSDataBlock* pBlock;
+} SStreamRunnerTaskOutput;
+
+typedef struct SStreamRunnerTaskNotification {
+} SStreamRunnerTaskNotification;
+
+typedef struct SStreamRunnerTaskExecMgr {
+  SList*        pFreeExecs;
+  SList*        pRunningExecs;
+  TdThreadMutex lock;
+  bool          exit;
+} SStreamRunnerTaskExecMgr;
+
+typedef struct SStreamRunnerTask {
+  SStreamTask        task;
+  SStreamRunnerTaskExecMgr      pExecMgr;
+  SStreamRunnerTaskOutput       output;
+  SStreamRunnerTaskNotification notification;
+  const char*                   pPlan;
+  int32_t                       parallelExecutionNun;
+  SReadHandle                   handle;
+  void*                         pSubTableExpr;
+  SArray*                       forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
+} SStreamRunnerTask;
 
 #define STREAM_GID(_streamId) ((uint64_t)(_streamId) % STREAM_MAX_GROUP_NUM)
 

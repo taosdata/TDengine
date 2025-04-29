@@ -14,10 +14,12 @@
  */
 
 #include "executor.h"
+#include "cmdnodes.h"
 #include "executorInt.h"
 #include "operator.h"
 #include "planner.h"
 #include "querytask.h"
+#include "streamexecutorInt.h"
 #include "tdatablock.h"
 #include "tref.h"
 #include "trpc.h"
@@ -1557,7 +1559,9 @@ int32_t streamCollectExprsForReplace(qTaskInfo_t tInfo, SArray* pExprs) {
 
 int32_t clearStatesForOperator(SOperatorInfo* pOper) {
   int32_t code = 0;
-  pOper->status = OP_NOT_OPENED;
+  if (pOper->fpSet.resetStateFn) {
+    code = pOper->fpSet.resetStateFn(pOper);
+  }
   for (int32_t i = 0; i < pOper->numOfDownstream && code == 0; ++i) {
     code = clearStatesForOperator(pOper->pDownstream[i]);
   }
@@ -1572,9 +1576,32 @@ int32_t streamClearStatesForOperators(qTaskInfo_t tInfo) {
   return code;
 }
 
-static int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes) {
-  // loop all exprs for force output, execute all exprs
-  return 0;
+static int32_t streamDoNotification(qTaskInfo_t tInfo, const SSDataBlock* pBlock) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  if (!pBlock || pBlock->info.rows <= 0) return code;
+
+  EStreamNotifyEventType eventType = SNOTIFY_EVENT_WINDOW_CLOSE;
+  SStreamNotifyEventSupp* pSupp = NULL;
+  STaskNotifyEventStat stats = {0};
+  pSupp->pWindowEventHashMap =
+      taosHashInit(4096, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  QUERY_CHECK_NULL(pSupp->pWindowEventHashMap, code, lino, _end, terrno);
+  // TODO wjm pSupp->windowType = ???
+
+  //code = addAggResultNotifyEvent(pBlock, NULL, NULL, pSupp, &stats);
+  if (code == 0) {
+    code = buildNotifyEventBlock(tInfo, pSupp, &stats);
+  }
+  // add NotifyEvent
+  //
+  // build notify block
+  //
+  // send events
+
+  return code;
+_end:
+  return code;
 }
 
 int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** pRes, uint64_t *useconds) {
@@ -1628,14 +1655,21 @@ int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** pRes, uint64_t *useco
   if (code) {
     pTaskInfo->code = code;
     qError("%s failed at line %d, code:%s %s", __func__, __LINE__, tstrerror(code), GET_TASKID(pTaskInfo));
+  } else {
+    code = streamForceOutput(tInfo, pRes);
   }
-  code = streamForceOutput(tInfo, pRes);
   if (code) {
     pTaskInfo->code = code;
     qError("%s failed at line %d, code:%s %s", __func__, __LINE__, tstrerror(code), GET_TASKID(pTaskInfo));
+  } else {
+    code = blockDataCheck(*pRes);
   }
-
-  code = blockDataCheck(*pRes);
+  if (code) {
+    pTaskInfo->code = code;
+    qError("%s failed at line %d, code:%s %s", __func__, __LINE__, tstrerror(code), GET_TASKID(pTaskInfo));
+  } else {
+    code = streamDoNotification(tInfo, *pRes);
+  }
   if (code) {
     pTaskInfo->code = code;
     qError("%s failed at line %d, code:%s %s", __func__, __LINE__, tstrerror(code), GET_TASKID(pTaskInfo));
@@ -1660,8 +1694,9 @@ int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** pRes, uint64_t *useco
   return pTaskInfo->code;
 }
 
-void    streamDestroyExecTask(qTaskInfo_t tInfo) {
-
+void streamSetTaskRuntimeInfo(qTaskInfo_t tinfo, SStreamRuntimeInfo* pStreamRuntimeInfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  pTaskInfo->pStreamRuntimeInfo = pStreamRuntimeInfo;
 }
 
 int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType,
@@ -1728,5 +1763,144 @@ int32_t qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo) { return doFilter(
 
 bool qStreamUidInTableList(void* pTableListInfo, uint64_t uid) {
 return tableListGetTableGroupId(pTableListInfo, uid) != -1;
+}
+
+
+void streamDestroyExecTask(qTaskInfo_t tInfo) {}
+
+static int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamRuntimeFuncInfo* pExtraParams) {
+  int32_t    code = 0;
+  SNode*     pNode = 0;
+  SNodeList* pList = NULL;
+  SExprInfo* pExprInfo = NULL;
+  int32_t    numOfExprs = 1;
+  int32_t*   offset = 0;
+
+  code = nodesCloneNode(pExpr, &pNode);
+  if (code == 0) {
+    code = nodesMakeList(&pList);
+  }
+  if (code == 0) {
+    code = nodesListAppend(pList, pNode);
+  }
+  if (code == 0) {
+    pNode = NULL;
+    code = createExprInfo(pList, NULL, &pExprInfo, &numOfExprs);
+  }
+
+  if (code == 0) {
+    const char* pVal = NULL;
+    int32_t len = 0;
+    SNode* pSclNode = NULL;
+    switch (pExprInfo->pExpr->nodeType) {
+      case QUERY_NODE_FUNCTION:
+        pSclNode = (SNode*)pExprInfo->pExpr->_function.pFunctNode;
+        break;
+      case QUERY_NODE_OPERATOR:
+        pSclNode = pExprInfo->pExpr->_optrRoot.pRootNode;
+        break;
+      default:
+        code = TSDB_CODE_OPS_NOT_SUPPORT;
+        break;
+    }
+    if (code == 0) code = scalarCalculate(pSclNode, NULL, pDst, pExtraParams);
+  }
+
+  nodesDestroyList(pList);
+  destroyExprInfo(pExprInfo, numOfExprs);
+  return code;
+}
+
+int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tInfo;
+  const SArray*  pForceOutputCols = pTaskInfo->pStreamRuntimeInfo->pForceOutputCols;
+  int32_t        code = 0;
+  SNode*         pNode = NULL;
+  SScalarParam   dst = {0};
+  if (!pForceOutputCols) return 0;
+  if (pRes && *pRes && (*pRes)->info.rows > 0) return 0;
+  if (!pRes) {
+    code = createDataBlock(pRes);
+  }
+
+  if (code == 0 && (!(*pRes)->pDataBlock || (*pRes)->pDataBlock->size == 0)) {
+    int32_t idx = 0;
+    for (int32_t i = 0; i <pForceOutputCols->size; ++i) {
+      SStreamOutCol *pCol = (SStreamOutCol*)taosArrayGet(pForceOutputCols, i);
+      SColumnInfoData colInfo = createColumnInfoData(pCol->type.type, pCol->type.bytes, idx++);
+      colInfo.info.precision = pCol->type.precision;
+      colInfo.info.scale = pCol->type.scale;
+      code = blockDataAppendColInfo(*pRes, &colInfo);
+      if (code != 0) break;
+    }
+  }
+
+  blockDataEnsureCapacity(*pRes, 1);
+
+  // loop all exprs for force output, execute all exprs
+  int32_t idx = 0;
+  for (int32_t i = 0; i < pForceOutputCols->size; ++i) {
+    SStreamOutCol* pCol = (SStreamOutCol*)taosArrayGet(pForceOutputCols, i);
+    pNode = pCol->expr;
+    SColumnInfoData* pInfo = taosArrayGet((*pRes)->pDataBlock, idx);
+    if (nodeType(pNode) == QUERY_NODE_VALUE) {
+      void* p = nodesGetValueFromNode((SValueNode*)pNode);
+      code = colDataSetVal(pInfo, 0, p, ((SValueNode*)pNode)->isNull);
+    } else {
+      dst.columnData = pInfo;
+      code = streamCalcOneScalarExpr(pNode, &dst, &pTaskInfo->pStreamRuntimeInfo->funcInfo);
+    }
+    ++idx;
+    if (code != 0) break;
+  }
+  return code;
+}
+
+int32_t streamCalcOutputTbName(SNode *pExpr, char *tbname, const SStreamRuntimeFuncInfo *pStreamRuntimeInfo) {
+  int32_t      code = 0;
+  const char*  pVal = NULL;
+  SScalarParam dst = {0};
+  int32_t len = 0;
+  // execute the expr
+  switch (pExpr->type) {
+    case QUERY_NODE_VALUE: {
+      int32_t type = pExpr->type;
+      if (!IS_STR_DATA_TYPE(type)) {
+        qError("invalid sub tb expr with non-str type");
+        code = TSDB_CODE_INVALID_PARA;
+        break;
+      }
+      pVal = nodesGetValueFromNode((SValueNode*)pExpr);
+      len = strlen(pVal);
+    } break;
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode* pFunc = (SFunctionNode*)pExpr;
+      if (!IS_STR_DATA_TYPE(pFunc->node.resType.type)) {
+        qError("invalid sub tb expr with non-str type func");
+        code = TSDB_CODE_INVALID_PARA;
+        break;
+      }
+      SColumnInfoData colInfo =
+          createColumnInfoData(((SExprNode*)pExpr)->resType.type, ((SExprNode*)pExpr)->resType.bytes, 0);
+      dst.columnData = &colInfo;
+      code = streamCalcOneScalarExpr(pExpr, &dst, pStreamRuntimeInfo);
+      if (code == 0) {
+        pVal = varDataVal(colDataGetVarData(dst.columnData, 0));
+        len = varDataTLen(pVal);
+      }
+    } break;
+    default:
+      qError("wrong subtable expr with type: %d", pExpr->type);
+      code = TSDB_CODE_OPS_NOT_SUPPORT;
+      break;
+  }
+  if (code == 0) {
+    if (!pVal || len == 0) {
+      qError("tbname generated with no characters which is not allowed");
+      code = TSDB_CODE_INVALID_PARA;
+    }
+    tstrncpy(tbname, pVal, TSDB_TABLE_NAME_LEN);
+  }
+  return code;
 }
 

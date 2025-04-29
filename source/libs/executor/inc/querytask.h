@@ -105,6 +105,7 @@ struct SExecTaskInfo {
   SOperatorParam*       pOpParam;
   bool                  paramSet;
   SQueryAutoQWorkerPoolCB* pWorkerCb;
+  SStreamRuntimeInfo*      pStreamRuntimeInfo;
 };
 
 void    buildTaskId(uint64_t taskId, uint64_t queryId, char* dst);

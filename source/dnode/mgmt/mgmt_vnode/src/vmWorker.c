@@ -539,7 +539,7 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
 
   SWWorkerPool *pStreamRunnerPool = &pMgmt->streamRunnerPool;
   pStreamRunnerPool->name = "vnode-st-runner";
-  pStreamRunnerPool->max = tsNumOfStreamRunnerThreads;
+  pStreamRunnerPool->max = tsNumOfStreamRunnerThreads;// TODO wjm remove it
   if ((code = tWWorkerInit(pStreamRunnerPool)) != 0) return code;
 
   SWWorkerPool *pStreamReaderPool = &pMgmt->streamReaderPool;
