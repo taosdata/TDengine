@@ -477,7 +477,7 @@ make install
 <summary>Detailed steps to build on macOS</summary>
 
 
-Please install XCode command line tools and cmake. Verified with XCode 11.4+ on Catalina and MacOS Big Sur.
+Please install XCode command line tools and cmake. Verified with XCode 11.4+ on macOS Catalina and Big Sur.
 Clone TDinternal repository to a local directory (for example, /root).
 
 ```shell
