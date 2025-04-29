@@ -1098,14 +1098,14 @@ if __name__ == "__main__":
             if tdCustomer.Name == "TDengine":
                 process_build_taosws_32bit()
                 process_build_odbc()
-                process_add_enterprice_extent()
+                process_add_enterprise_extent()
                 process_package_client()
             else:
                 process_OEM_client_rename_process()
                 process_package_OEM_client()
         else:
             process_download_odbc()
-            process_add_enterprice_extent()
+            process_add_enterprise_extent()
             process_package_client()
 
         if only_client is False:
