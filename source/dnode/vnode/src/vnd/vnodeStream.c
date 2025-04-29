@@ -1023,6 +1023,29 @@ end:
   return code;
 }
 
+static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
+  int32_t      code = 0;
+  int32_t      lino = 0;
+  void*        buf = NULL;
+  size_t       size = 0;
+  SStreamReaderTask* pTask = NULL;
+  SSDataBlock* pBlock = NULL;
+  vDebug("vgId:%d %s start", TD_VID(pVnode), __func__);
+
+  SResFetchReq req = {0};
+  STREAM_CHECK_CONDITION_GOTO(tDeserializeSResFetchReq(pMsg->pCont, pMsg->contLen, &req) < 0, TSDB_CODE_QRY_INVALID_INPUT);
+  // STREAM_CHECK_RET_GOTO(streamGetTask(req.queryId, req.taskId, &pTask));
+  // STREAM_CHECK_RET_GOTO(((SExecTaskInfo*)(pTask->pExecutor))->pRoot->fpSet.getNextFn(((SExecTaskInfo*)(pTask->pExecutor))->pRoot->pRoot, pRes));
+  if (pBlock && pBlock->info.rows > 0) {
+    STREAM_CHECK_RET_GOTO(buildRsp(pBlock, &buf, &size));
+  }
+end:
+  PRINT_LOG_END(code, lino);
+  SRpcMsg rsp = {.info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
+  tmsgSendRsp(&rsp);
+  return code;
+}
+
 int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   vTrace("vgId:%d, msg:%p in stream reader queue is processing", pVnode->config.vgId, pMsg);
   // if (!syncIsReadyForRead(pVnode->sync)) {
@@ -1030,44 +1053,41 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
     // return 0;
   // }
 
-  int32_t                    code = 0;
-  ESTriggerPullType* type = (ESTriggerPullType*)(pMsg->pCont);
-  *type = STRIGGER_PULL_TSDB_META;
-  // stReaderStreamDeploy(pVnode, pMsg);
-  switch (*type) {
-    case STRIGGER_PULL_LAST_TS:
-      code = vnodeProcessStreamLastTsReq(pVnode, pMsg);
-      break;
-    case STRIGGER_PULL_FIRST_TS:
-      code = vnodeProcessStreamFirstTsReq(pVnode, pMsg);
-      break;
-    case STRIGGER_PULL_TSDB_META:
-      code = vnodeProcessStreamTsdbMetaReq(pVnode, pMsg);
-      break;
-    case STRIGGER_PULL_TSDB_TS_DATA:
-      code = vnodeProcessStreamTsDataReq(pVnode, pMsg);
-      break;
-    case STRIGGER_PULL_TSDB_TRIGGER_DATA:
-      code = vnodeProcessStreamTsdbTriggerDataReq(pVnode, pMsg);
-      break;
-    case STRIGGER_PULL_TSDB_CALC_DATA:
-      code = vnodeProcessStreamCalcDataReq(pVnode, pMsg);
-      break;
-    case STRIGGER_PULL_WAL_META:
-      code = vnodeProcessStreamWalMetaReq(pVnode, pMsg);
-      break;
-    case STRIGGER_PULL_WAL_TS_DATA:
-      code = vnodeProcessStreamWalTsDataReq(pVnode, pMsg);
-      break;
-    case STRIGGER_PULL_WAL_TRIGGER_DATA:
-      code = vnodeProcessStreamWalTriggerDataReq(pVnode, pMsg);
-      break;
-    case STRIGGER_PULL_WAL_CALC_DATA:
-      code = vnodeProcessStreamWalCalcDataReq(pVnode, pMsg);
-      break;
-    default:
-      vError("unknown msg type:%d in fetch queue", pMsg->msgType);
-      return TSDB_CODE_APP_ERROR;
-  }
-  return code;
+  if (pMsg->msgType == TDMT_STREAM_FETCH) {
+    return vnodeProcessStreamFetchMsg(pVnode, pMsg);
+  } else if (pMsg->msgType == TDMT_STREAM_TRIGGER_PULL) {
+    ESTriggerPullType* type = (ESTriggerPullType*)(pMsg->pCont);
+    *type = STRIGGER_PULL_TSDB_META;
+    // stReaderStreamDeploy(pVnode, pMsg);
+    switch (*type) {
+      case STRIGGER_PULL_LAST_TS:
+        return vnodeProcessStreamLastTsReq(pVnode, pMsg);
+      case STRIGGER_PULL_FIRST_TS:
+        return vnodeProcessStreamFirstTsReq(pVnode, pMsg);
+      case STRIGGER_PULL_TSDB_META:
+        return vnodeProcessStreamTsdbMetaReq(pVnode, pMsg);
+      case STRIGGER_PULL_TSDB_TS_DATA:
+        return vnodeProcessStreamTsDataReq(pVnode, pMsg);
+      case STRIGGER_PULL_TSDB_TRIGGER_DATA:
+        return vnodeProcessStreamTsdbTriggerDataReq(pVnode, pMsg);
+      case STRIGGER_PULL_TSDB_CALC_DATA:
+        return vnodeProcessStreamCalcDataReq(pVnode, pMsg);
+      case STRIGGER_PULL_WAL_META:
+        return vnodeProcessStreamWalMetaReq(pVnode, pMsg);
+      case STRIGGER_PULL_WAL_TS_DATA:
+        return vnodeProcessStreamWalTsDataReq(pVnode, pMsg);
+      case STRIGGER_PULL_WAL_TRIGGER_DATA:
+        return vnodeProcessStreamWalTriggerDataReq(pVnode, pMsg);
+      case STRIGGER_PULL_WAL_CALC_DATA:
+        return vnodeProcessStreamWalCalcDataReq(pVnode, pMsg);
+      default:
+        vError("unknown msg type:%d in fetch queue", pMsg->msgType);
+        return TSDB_CODE_APP_ERROR;
+    }
+  } else if (pMsg->msgType == TDMT_STREAM_TRIGGER_CALC) {
+    return 0;
+  } else  {
+    vError("unknown msg type:%d in stream reader queue", pMsg->msgType);
+    return TSDB_CODE_APP_ERROR;
+  }  
 }

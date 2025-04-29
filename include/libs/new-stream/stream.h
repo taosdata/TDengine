@@ -36,6 +36,7 @@ typedef int32_t (*getDnodeId_f)(void *pData);
 
 typedef struct SStreamReaderTask {
   SStreamTask task;
+  void*       pExecutor;
 } SStreamReaderTask;
 
 typedef struct SStreamRunnerTaskExecution {
