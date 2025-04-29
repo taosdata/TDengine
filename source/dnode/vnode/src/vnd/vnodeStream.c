@@ -167,9 +167,9 @@ static int32_t vnodeProcessStreamLastTsReq(SVnode* pVnode, SRpcMsg* pMsg) {
   size_t                  size = 0;
 
   vDebug("vgId:%d %s start", TD_VID(pVnode), __func__);
-  // STREAM_CHECK_CONDITION_GOTO(pMsg->contLen != sizeof(SStreamLastTsRequest), TSDB_CODE_INVALID_MSG);
+  // STREAM_CHECK_CONDITION_GOTO(pMsg->contLen != sizeof(SSTriggerLastTsRequest), TSDB_CODE_INVALID_MSG);
 
-  // SStreamLastTsRequest* lastTsReq = (SStreamLastTsRequest*)pMsg->pCont;
+  // SSTriggerLastTsRequest* lastTsReq = (SSTriggerLastTsRequest*)pMsg->pCont;
   SSTriggerLastTsRequest lastTsReq = {.base.streamId = 1};
   SStreamInfoObj**       sStreamInfo = taosHashGet(streamInfoMap, &lastTsReq.base.streamId, LONG_BYTES);
   STREAM_CHECK_NULL_GOTO(sStreamInfo, terrno);
@@ -365,10 +365,10 @@ static int32_t vnodeProcessStreamTsDataReq(SVnode* pVnode, SRpcMsg* pMsg) {
   SStreamReaderDeployMsg tmp= {.msg.trigger = {.triggerTblType = TD_SUPER_TABLE, .triggerTblUid = 2201650780113908789, }};
   stReaderTaskDeploy(&task, &tmp);
 
-  // STREAM_CHECK_CONDITION_GOTO(pMsg->contLen != sizeof(SStreamTsdbTsDataRequest), TSDB_CODE_INVALID_MSG);
-  // SStreamTsdbTsDataRequest* tsReq = (SStreamTsdbTsDataRequest*)pMsg->pCont;
-  SStreamTsdbTsDataRequest t = {.base.streamId = 1, .uid = 6676630383110389775, .skey = 1500000062017, .ekey = 1500000072018};
-  SStreamTsdbTsDataRequest* tsReq = &t;
+  // STREAM_CHECK_CONDITION_GOTO(pMsg->contLen != sizeof(SSTriggerTsdbTsDataRequest), TSDB_CODE_INVALID_MSG);
+  // SSTriggerTsdbTsDataRequest* tsReq = (SSTriggerTsdbTsDataRequest*)pMsg->pCont;
+  SSTriggerTsdbTsDataRequest t = {.base.streamId = 1, .uid = 6676630383110389775, .skey = 1500000062017, .ekey = 1500000072018};
+  SSTriggerTsdbTsDataRequest* tsReq = &t;
   
   SStreamInfoObj** sStreamInfo = taosHashGet(streamInfoMap, &tsReq->base.streamId, LONG_BYTES);
   STREAM_CHECK_NULL_GOTO(sStreamInfo, terrno);
@@ -425,17 +425,17 @@ static int32_t vnodeProcessStreamTsdbTriggerDataReq(SVnode* pVnode, SRpcMsg* pMs
   vDebug("vgId:%d %s start", TD_VID(pVnode), __func__);
 
 
-  // STREAM_CHECK_CONDITION_GOTO(pMsg->contLen != sizeof(SStreamTsdbTriggerDataRequest), TSDB_CODE_INVALID_MSG);
+  // STREAM_CHECK_CONDITION_GOTO(pMsg->contLen != sizeof(SSTriggerTsdbTriggerDataRequest), TSDB_CODE_INVALID_MSG);
 
   SStreamReaderTask task = {.task.streamId= 1};
   SStreamReaderDeployMsg tmp= {.msg.trigger = {.triggerTblType = TD_SUPER_TABLE, .triggerTblUid = 1906690787880907897, }};
   stReaderTaskDeploy(&task, &tmp);
 
-  SStreamTsdbTriggerDataRequest t = {.base.streamId = 1, .startTime = 1500000062017};
-  SStreamTsdbTriggerDataRequest* tDataReq = &t;
+  SSTriggerTsdbTriggerDataRequest t = {.base.streamId = 1, .startTime = 1500000062017};
+  SSTriggerTsdbTriggerDataRequest* tDataReq = &t;
 
-  // SStreamTsdbTriggerDataRequest* tDataReq = (SStreamTsdbTriggerDataRequest*)pMsg->pCont;
-  SStreamReaderTaskInner* pTask = qStreamGetStreamInnerTask(tDataReq->base.streamId, tDataReq->base.sessionId, tDataReq, sizeof(SStreamTsdbTriggerDataRequest));
+  // SSTriggerTsdbTriggerDataRequest* tDataReq = (SSTriggerTsdbTriggerDataRequest*)pMsg->pCont;
+  SStreamReaderTaskInner* pTask = qStreamGetStreamInnerTask(tDataReq->base.streamId, tDataReq->base.sessionId, tDataReq, sizeof(SSTriggerTsdbTriggerDataRequest));
 
   if (pTask == NULL) {
     SStreamInfoObj** sStreamInfo = taosHashGet(streamInfoMap, &tDataReq->base.streamId, LONG_BYTES);
@@ -452,7 +452,7 @@ static int32_t vnodeProcessStreamTsdbTriggerDataReq(SVnode* pVnode, SRpcMsg* pMs
     BUILD_OPTION(options,sStreamInfo,true,TSDB_ORDER_ASC,tDataReq->startTime,INT64_MAX,schemas,STREAM_SCAN_ALL,0);
     STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTask));
 
-    STREAM_CHECK_RET_GOTO(qStreamPutStreamInnerTask(tDataReq->base.streamId, tDataReq->base.sessionId, tDataReq, sizeof(SStreamTsdbTriggerDataRequest), &pTask, POINTER_BYTES));
+    STREAM_CHECK_RET_GOTO(qStreamPutStreamInnerTask(tDataReq->base.streamId, tDataReq->base.sessionId, tDataReq, sizeof(SSTriggerTsdbTriggerDataRequest), &pTask, POINTER_BYTES));
     taosArrayClear(schemas);
     STREAM_CHECK_RET_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_TIMESTAMP, LONG_BYTES, 0))  // ts
     // STREAM_CHECK_RET_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 1))  // ts
