@@ -310,8 +310,7 @@ class TDTestCase:
         self.s0_five_dnode_one_mnode()
         self.s1_check_timeseries()
         self.s2_check_show_grants_ungranted()
-        self.s3_check_show_grants_granted() 
-
+        self.s3_check_show_grants_granted()
 
     def stop(self):
         tdSql.close()
