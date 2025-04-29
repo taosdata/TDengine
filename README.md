@@ -279,7 +279,7 @@ List the software and tools required to work on the project.
 - node 22.3.0 (for taos-explorer)
 - python 3.8~3.10 (for test)
 
-You can  set up the prerequisite software by following the step-by-step instructions.
+Please follow the step-by-step instructions below to install the prerequisites.
 
 ### 3.3.1 Install the required package
 
