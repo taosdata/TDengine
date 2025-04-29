@@ -60,20 +60,18 @@ class ClusterComCheck:
             tdSql.query("select * from information_schema.ins_dnodes")
             tdLog.debug(tdSql.queryResult)
             tdLog.exit(
-                "cluster with %d dnodes not ready within %ds!"
-                % (dnodeNumbers, timeout)
+                "cluster with %d dnodes not ready within %ds!" % (dnodeNumbers, timeout)
             )
-            
+
     def checkClusterAlive(self, status, timeout=100):
         count = 0
 
         while count < timeout:
             tdSql.query("show cluster alive")
-            
+
             if tdSql.queryResult[0][0] == status:
                 tdLog.success(
-                    "show cluster alive return %d within %ds!"
-                    % (status, count)
+                    "show cluster alive return %d within %ds!" % (status, count)
                 )
                 return True
 
@@ -82,8 +80,7 @@ class ClusterComCheck:
 
         else:
             tdLog.exit(
-                "show cluster alive does not return %d within %ds!"
-                % (status, timeout)
+                "show cluster alive does not return %d within %ds!" % (status, timeout)
             )
 
     def checkDatabaseAlive(self, dbname, status, timeout=100):
@@ -91,11 +88,10 @@ class ClusterComCheck:
 
         while count < timeout:
             tdSql.query(f"show {dbname}.alive")
-            
+
             if tdSql.queryResult[0][0] == status:
                 tdLog.success(
-                    "show %s.alive return %d within %ds!"
-                    % (dbname, status, count)
+                    "show %s.alive return %d within %ds!" % (dbname, status, count)
                 )
                 return True
 
@@ -107,6 +103,84 @@ class ClusterComCheck:
                 "show %s.alive does not return %d within %ds!"
                 % (dbname, status, timeout)
             )
+
+    def checkDnodeSupportVnodes(self, dnodeIndex, vnodes, timeout=100):
+        count = 0
+
+        while count < timeout:
+            tdSql.query(
+                f"select * from information_schema.ins_dnodes where id = {dnodeIndex}"
+            )
+
+            if tdSql.queryResult[0][3] == vnodes:
+                tdLog.success(
+                    "dnode:%d supportVnodes==%d within %ds!"
+                    % (dnodeIndex, vnodes, count)
+                )
+                return True
+
+            time.sleep(1)
+            count += 1
+
+        else:
+            tdLog.exit(
+                "dnode:%d supportVnodes!=%d does not return within %ds!"
+                % (dnodeIndex, vnodes, timeout)
+            )
+
+    def checkTransactions(self, timeout=100):
+        count = 0
+
+        while count < timeout:
+            tdSql.query(f"show transactions")
+
+            if tdSql.queryRows == 0:
+                tdLog.success("show transactions return 0 rows within {count}s!")
+                return True
+
+            if count % 5 == 0:
+                tdLog.info(
+                    f"show transactions return {tdSql.queryRows} rows within {count}s!"
+                )
+            time.sleep(1)
+            count += 1
+
+        else:
+            tdLog.exit(f"show transactions not return 0 rows within {timeout}s!")
+
+    def checkDbReady(self, dbname, timeout=100):
+        count = 0
+
+        while count < timeout:
+            tdSql.query(f"show {dbname}.vgroups")
+
+            leaderNum = 0
+            for i in range(tdSql.queryRows):
+                if (
+                    tdSql.queryResult[i][4] == "leader"
+                    or tdSql.queryResult[i][7] == "leader"
+                    or tdSql.queryResult[i][10] == "leader"
+                ):
+                    leaderNum = leaderNum + 1
+                    tdLog.success(
+                        f"db:{dbname} vgId:{tdSql.queryResult[i][0]} has leader within {count}s!, {tdSql.queryResult[i][3]}:{tdSql.queryResult[i][4]}, {tdSql.queryResult[i][6]}:{tdSql.queryResult[i][7]}, {tdSql.queryResult[i][9]}:{tdSql.queryResult[i][10]}"
+                    )
+                else:
+                    tdLog.info(
+                        f"db:{dbname} vgId:{tdSql.queryResult[i][0]} no leader within {count}s!"
+                    )
+
+            if leaderNum == tdSql.queryRows:
+                tdLog.info(
+                    f"db:{dbname} vgroups:{tdSql.queryRows} has leader within {timeout}s!"
+                )
+                break
+
+            time.sleep(1)
+            count += 1
+
+        else:
+            tdLog.exit(f"{dbname} not ready within {timeout}s!")
 
     def checkDbRows(self, dbNumbers):
         dbNumbers = int(dbNumbers)
