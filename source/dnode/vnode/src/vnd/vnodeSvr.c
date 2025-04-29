@@ -829,7 +829,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
         vnodeRedirectRpcMsg(pVnode, pMsg, pMsg->code);
         return 0;
       }
-      (void)vnodeProcessStreamReaderMsg(pVnode, pMsg);
+      // (void)vnodeProcessStreamReaderMsg(pVnode, pMsg);
 
       return code;
     case TDMT_SCH_MERGE_QUERY:
