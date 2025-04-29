@@ -27,6 +27,17 @@ typedef enum {
   STM_ERR_TASK_NOT_EXISTS,
 } EStmStatusErrType;
 
+typedef enum {
+  MND_STM_PHASE_WATCH = 0,
+  MND_STM_PHASE_NORMAL,
+  MND_STM_PHASE_CLEANUP,
+  MND_STM_PHASE_DEPLOYALL
+} EMndStmPhase;
+
+#define MND_STREAM_RUNNER_DEPLOY_NUM 3
+#define MND_STREAM_REPORT_PERIOD  (STREAM_HB_INTERVAL_MS * STREAM_MAX_GROUP_NUM)
+#define MND_STREAM_WATCH_DURATION (MND_STREAM_REPORT_PERIOD * 4)
+
 #define STREAM_RUNNER_MAX_DEPLOYS 
 #define STREAM_RUNNER_MAX_REPLICA 
 
@@ -116,6 +127,7 @@ typedef struct SStmSnodeTasksStatus {
 
 typedef struct SStmVgroupTasksStatus {
   SRWLatch lock;
+  int32_t  leaderDnodeId;
   int64_t  streamVer;
   SArray*  taskList;       // SArray<SStmTaskStatus*>
 } SStmVgroupTasksStatus;
@@ -136,8 +148,8 @@ typedef struct SStmSnodeTasksDeploy {
   SRWLatch lock;
   int32_t  triggerDeployed;
   int32_t  runnerDeployed;
-  SArray*  triggerList;  // SArray<SStmTaskDeploy>
-  SArray*  runnerList;   // SArray<SStmTaskDeploy>
+  SArray*  triggerList;  // SArray<SStmTaskDeployExt>
+  SArray*  runnerList;   // SArray<SStmTaskDeployExt>
 } SStmSnodeTasksDeploy;
 
 typedef struct SStmThreadCtx {
@@ -150,6 +162,8 @@ typedef struct SStmRuntime {
   bool             initialized;
   bool             isLeader;
   int32_t          activeStreamNum;
+  int64_t          startTs;
+  EMndStmPhase     phase;
   
   int32_t           threadNum;
   SStmThreadCtx*    tCtx;

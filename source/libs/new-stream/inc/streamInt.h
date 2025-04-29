@@ -28,7 +28,6 @@
 extern "C" {
 #endif
 
-#define STREAM_HB_INTERVAL_MS             1000
 #define STREAM_GRP_STREAM_NUM             20
 #define STREAM_HB_ERR_HANDLE_MAX_DELAY    300000
 
@@ -60,10 +59,15 @@ typedef struct SStreamMgmtInfo {
   void*                  dnode;
   int32_t                dnodeId;
   int32_t                snodeId;
+  
 //  SStorageAPI*           api;
-  getMnodeEpsetFromDnode cb;
+  getMnodeEpset_f         getMnode;
+  getDnodeId_f            getDnode;
+  
   SStreamHbInfo          hb;
 
+  bool                   hbReported;
+  
   SRWLatch               vgLeadersLock;
   SArray*                vgLeaders;
 

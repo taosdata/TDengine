@@ -782,7 +782,7 @@ typedef struct {
 } SMqRebOutputObj;
 
 typedef struct {
-  // static info
+  char                name[TSDB_STREAM_NAME_LEN];
   SCMCreateStreamReq* pCreate;
 
   // dynamic info

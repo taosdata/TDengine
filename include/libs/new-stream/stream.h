@@ -23,6 +23,8 @@ extern "C" {
 #include "tlog.h"
 #include "streamMsg.h"
 
+#define STREAM_HB_INTERVAL_MS             600
+
 #define STREAM_MAX_GROUP_NUM 5
 #define STREAM_MAX_THREAD_NUM 5
 
@@ -31,7 +33,9 @@ extern "C" {
 
 static const char *gTaskTypeStr[] = {"Reader", "Trigger", "Runner"};
 
-typedef void (*getMnodeEpsetFromDnode)(void* pDnode, SEpSet* pEpset);
+typedef void (*getMnodeEpset_f)(void* pDnode, SEpSet* pEpset);
+typedef int32_t (*getDnodeId_f)(void *pData);
+
 
 typedef enum EStreamTriggerType {
   STREAM_PERIODIC_TRIGGER,
@@ -99,7 +103,7 @@ void streamSetSnodeEnabled(void);
 void streamSetSnodeDisabled(void);
 int32_t streamHbProcessRspMsg(SMStreamHbRspMsg* pRsp);
 int32_t streamHbHandleRspErr(int32_t errCode, int64_t currTs);
-int32_t streamInit(void* pDnode, int32_t dnodeId, getMnodeEpsetFromDnode cb);
+int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode);
 void streamCleanup(void);
 
 

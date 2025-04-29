@@ -34,16 +34,25 @@ void streamCleanup(void) {
   //STREAMTODO
 }
 
-int32_t streamInit(void* pDnode, int32_t dnodeId, getMnodeEpsetFromDnode cb) {
+int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
-  gStreamMgmt.dnodeId = dnodeId;
   gStreamMgmt.dnode = pDnode;
-  gStreamMgmt.cb = cb;
+  gStreamMgmt.getMnode = getMnode;
+  gStreamMgmt.getDnode = getDnode;
 
   gStreamMgmt.vgLeaders = taosArrayInit(20, sizeof(int32_t));
   TSDB_CHECK_NULL(gStreamMgmt.vgLeaders, code, lino, _exit, terrno);
+
+  gStreamMgmt.taskMap = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  TSDB_CHECK_NULL(gStreamMgmt.taskMap, code, lino, _exit, terrno);
+
+  gStreamMgmt.vgroupMap = taosHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  TSDB_CHECK_NULL(gStreamMgmt.vgroupMap, code, lino, _exit, terrno);
+
+  gStreamMgmt.snodeTasks = taosArrayInit(20, POINTER_BYTES);
+  TSDB_CHECK_NULL(gStreamMgmt.snodeTasks, code, lino, _exit, terrno);
   
   TAOS_CHECK_EXIT(streamTimerInit(&gStreamMgmt.timer));
 

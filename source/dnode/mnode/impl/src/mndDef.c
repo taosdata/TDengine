@@ -21,6 +21,7 @@
 int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   TAOS_CHECK_RETURN(tStartEncode(pEncoder));
 
+  TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pObj->name));
   TAOS_CHECK_RETURN(tSerializeSCMCreateStreamReqImpl(pEncoder, pObj->pCreate));
 
   TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pObj->userStopped));
@@ -36,6 +37,7 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
   int32_t lino = 0;
   TAOS_CHECK_RETURN(tStartDecode(pDecoder));
 
+  TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pObj->name));
   pObj->pCreate = taosMemoryCalloc(1, sizeof(*pObj->pCreate));
   if (NULL == pObj) {
     TAOS_CHECK_EXIT(terrno);

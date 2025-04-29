@@ -58,19 +58,35 @@ _exit:
   return code;
 }
 
-int32_t streamHbBuildRequestMsg(SStreamHbMsg* pMsg) {
+int32_t streamHbBuildRequestMsg(SStreamHbMsg* pMsg, bool* skipHb) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   
-  pMsg->dnodeId = gStreamMgmt.dnodeId;
-  pMsg->snodeId = gStreamMgmt.snodeId;
+  pMsg->dnodeId = (*gStreamMgmt.getDnode)(gStreamMgmt.dnode);
+  pMsg->snodeId = pMsg->dnodeId;
   pMsg->streamGId = stmAddFetchStreamGid();
+
+  TAOS_CHECK_EXIT(stmBuildStreamsStatus(&pMsg->pStreamStatus, pMsg->streamGId));
+
+  if (NULL == pMsg->pStreamStatus) {
+    if (0 != pMsg->streamGId || gStreamMgmt.hbReported) {
+      *skipHb = true;
+      
+      stTrace("no stream in streamGid %d, skip hb", pMsg->streamGId);
+      if (0 == pMsg->streamGId) {
+        gStreamMgmt.hbReported = false;
+      }
+      
+      return code;
+    }
+  } else {
+    gStreamMgmt.hbReported = true;
+  }
 
   taosRLockLatch(&gStreamMgmt.vgLeadersLock);
   pMsg->pVgLeaders = taosArrayDup(gStreamMgmt.vgLeaders, NULL);
   taosRUnLockLatch(&gStreamMgmt.vgLeadersLock);
   
-  TAOS_CHECK_EXIT(stmBuildStreamsStatus(&pMsg->pStreamStatus, pMsg->streamGId));
 
   return code;
   
@@ -84,12 +100,16 @@ _exit:
 void streamHbStart(void* param, void* tmrId) {
   int32_t code = 0;
   int32_t lino = 0;
+  bool    skipHb = false;
   SStreamHbMsg reqMsg = {0};
   SEpSet epSet = {0};
   
-  TAOS_CHECK_EXIT(streamHbBuildRequestMsg(&reqMsg));
-
-  (*gStreamMgmt.cb)(gStreamMgmt.dnode, &epSet);
+  TAOS_CHECK_EXIT(streamHbBuildRequestMsg(&reqMsg, &skipHb));
+  if (skipHb) {
+    goto _exit;
+  }
+  
+  (*gStreamMgmt.getMnode)(gStreamMgmt.dnode, &epSet);
   TAOS_CHECK_EXIT(streamHbSendRequestMsg(&reqMsg, &epSet));
 
 _exit:
