@@ -184,6 +184,16 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
     STREAM_CHECK_NULL_GOTO(info, terrno);
     STREAM_CHECK_RET_GOTO(
         taosHashPut(streamInfoMap, &pTask->task.streamId, sizeof(pTask->task.streamId), &info, POINTER_BYTES));
+  }else{
+    stDebug("calcScanPlan:%s", (char*)(pMsg->msg.calc.calcScanPlan));
+    int32_t vgId = pTask->task.nodeId;
+    int64_t streamId = pTask->task.streamId;
+    int32_t taskId = pTask->task.taskId;
+
+    ST_TASK_DLOG("vgId:%d start to build stream reader calc task", vgId);
+    SReadHandle handle = {0};
+    STREAM_CHECK_RET_GOTO(qCreateStreamExecTaskInfo(&pTask->pExecutor, pMsg->msg.calc.calcScanPlan, &handle, vgId, taskId));
+    STREAM_CHECK_RET_GOTO(qSetTaskId(pTask->pExecutor, taskId, streamId));
   }
 end:
   if (code != 0) {
