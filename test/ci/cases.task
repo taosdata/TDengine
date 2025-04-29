@@ -260,6 +260,8 @@
 # 21-PerformanceData
 
 # 22-Show
+,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_alive.py -N 4
+,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_basic.py -N 2
 ,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_diskinfo.py 
 ,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_table_distributed.py 
 
