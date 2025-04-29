@@ -7,7 +7,7 @@ class TestSubtableInsertRows:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_subtable_insert_rows(self):
-        """一条语句写入多条记录
+        """insert sub table with multi values
 
         1. 待补充
 

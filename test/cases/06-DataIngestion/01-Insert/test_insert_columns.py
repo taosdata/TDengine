@@ -1,13 +1,13 @@
 from new_test_framework.utils import tdLog, tdSql, sc
 
 
-class TestInsertDelete:
+class TestInsertColumns:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_insert_delete(self):
-        """delete sub table data
+    def test_insert_columns(self):
+        """insert sub table with columns
 
         1. create table
         2. insert data
@@ -23,7 +23,7 @@ class TestInsertDelete:
         Jira: None
 
         History:
-            - 2025-4-29 Simon Guan Migrated to new test framework, from tests/script/tsim/insert/delete0.sim
+            - 2025-4-29 Simon Guan Migrated to new test framework, from tests/script/tsim/insert/insert_stb.sim
 
         """
 
