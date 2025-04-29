@@ -525,6 +525,7 @@ int32_t grantUniqGenActiveCode(SGrantUniqObj *grant);
 int32_t grantUniqGenMachinesChksum(SArray *pMachines, uint32_t *pChecksum);
 int32_t grantUniqParseActiveCode(SGrantUniqObj *grant, SActiveCodeInfo *info);
 int32_t grantUniqMergeActiveCode(SGrantUniqObj *_new, SGrantUniqObj *old, SGrantUniqObj *merge);
+int32_t grantUniqGenSign(const char *input, int32_t ilen, char **ppOutput, int32_t *olen);
 void    tDestroyGrantUniqObj(SGrantUniqObj *pObj);
 void    tResetGrantUniqObj(SGrantUniqObj *pObj);
 
