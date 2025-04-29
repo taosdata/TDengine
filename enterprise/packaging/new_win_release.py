@@ -247,22 +247,24 @@ def get_latest_code():
     git_pull(install_info.community_dir, install_info.branch, f"release/ver-{td_version.version}")
 
     # pull taos-tools
-    tools_dir = os.path.join(install_info.community_dir, "tools", "taos-tools")
-    git_pull(tools_dir, install_info.branch, f"ver-{td_version.version}")
+    # Comment out the following two lines, as the taos-tools repository has been migrated to the TDengine repository. 2025-02-11
+    # tools_dir = os.path.join(install_info.community_dir, "tools", "taos-tools")
+    # git_pull(tools_dir, install_info.branch, f"ver-{td_version.version}")
 
-    # pull taosadapter
-    taosadapter_dir = os.path.join(install_info.community_dir, "tools", "taosadapter")
-    git_pull(taosadapter_dir, install_info.branch, f"ver-{td_version.version}")
+    # # pull taosadapter
+    # taosadapter_dir = os.path.join(install_info.community_dir, "tools", "taosadapter")
+    # git_pull(taosadapter_dir, install_info.branch, f"ver-{td_version.version}")
 
-    # pull taosws
-    taosws_dir = os.path.join(install_info.community_dir, "tools", "taosws-rs")
-    git_pull(taosws_dir, "main", f"ver-{td_version.version}")
+    # # pull taosws
+    # taosws_dir = os.path.join(install_info.community_dir, "tools", "taosws-rs")
+    # git_pull(taosws_dir, "main", f"ver-{td_version.version}")
 
 
 def init_release_dir():
     logging.info(f"init release directory {install_info.release_dir} ...")
     if os.path.exists(install_info.release_dir):
-        shutil.rmtree(install_info.release_dir)
+        os.system(f"rm -rf {install_info.release_dir} ")
+        # shutil.rmtree(install_info.release_dir)
     os.mkdir(install_info.release_dir)
     logging.info(f"init release directory {install_info.release_dir} done")
 
@@ -443,9 +445,8 @@ def process_build_keeper():
 
 
 def process_build_taosws_32bit():
-    taosws_dir = os.path.join(community_dir, "tools", "taosws-rs")
+    taosws_dir = os.path.join(install_info.release_dir, "community", "tools", "ext_taosws-prefix", "src", "ext_taosws")
     os.chdir(taosws_dir)
-
     build_dir = os.path.join(taosws_dir, "target", "i686-pc-windows-msvc")
 
     if (os.path.exists(build_dir)):
@@ -476,6 +477,9 @@ def process_build_taosws_32bit():
 def process_build_odbc():
     # only directory/main/3.0  has  taos-connector-odbc
     odbc_dir = os.path.join(directory, branch, "taos-connector-odbc")
+    if not os.path.exists(odbc_dir):
+        subprocess.check_call("git clone --depth 1 https://github.com/taosdata/taos-connector-jdbc {}" \
+                                .format(odbc_dir), shell=True)
     os.chdir(odbc_dir)
     os.system("git checkout main")
     os.system("git pull")
@@ -499,7 +503,7 @@ def process_build_odbc():
     os.system(
         "xcopy /YS {}\\win_odbc_install.ini {}\\taos_odbc\\x86".format(x86_template_dir, install_info.install_dir))
 
-    # build 64 bit ODBC    
+    # build 64 bit ODBC
 
     driver_dir = os.path.join(install_info.install_dir, "driver")
     x64_target_lib_dir = os.path.join(install_info.install_dir, "taos_odbc", "x64", "lib")
@@ -752,7 +756,7 @@ def process_OEM_client_rename_process():
     # iss_path = os.path.join(script_dir,"oem_release_cfg","oem.iss")
     # replace_iss_in_file(iss_path)
 
-    # add new client.bat replacing  for oem 
+    # add new client.bat replacing  for oem
     start_dir = os.path.join(script_dir, "oem_release_cfg")
     os.chdir(start_dir)
     replace_in_file("client.bat")
@@ -977,17 +981,52 @@ def testHanle(process):
         logging.info("Calling package oem client...")
         process_OEM_client_rename_process()
         process_package_OEM_client()
+    elif process == "packageoems":
+        logging.info("Calling package oem server...")
+        copy_taosx_files()
+        process_OEM_rename_process()
+        process_package_server()
     else:
         logging.info("Invalid input. Please enter valid input.")
 
 
-def set_win_dev_env():
-    output = os.popen('vcvarsall.bat x64 && set').read()
+def set_win_dev_env(vcvarsall_path=None):
+    """
+    设置 Windows 开发环境的环境变量。
 
-    for line in output.splitlines():
-        pair = line.split("=", 1)
-        if (len(pair) >= 2):
-            os.environ[pair[0]] = pair[1]
+    :param vcvarsall_path: 可选，指定 vcvarsall.bat 的路径。如果未提供，将使用默认路径。
+    """
+    # 如果未提供路径，使用默认路径
+    if vcvarsall_path is None:
+        vcvarsall_path = r"C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat"
+
+    # 检查路径是否存在
+    if not os.path.exists(vcvarsall_path):
+        logging.error(f"vcvarsall.bat not found at: {vcvarsall_path}")
+        raise FileNotFoundError(f"vcvarsall.bat not found at: {vcvarsall_path}")
+
+    try:
+        # 调用 vcvarsall.bat 并捕获输出
+        result = subprocess.run(
+            f'"{vcvarsall_path}" x64 && set',  # 调用 vcvarsall.bat 并设置环境变量
+            shell=True,  # 允许使用 shell 命令
+            check=True,  # 如果命令失败，抛出异常
+            stdout=subprocess.PIPE,  # 捕获标准输出
+            stderr=subprocess.PIPE,  # 捕获标准错误
+            text=True  # 将输出解码为字符串
+        )
+
+        # 解析输出并设置环境变量
+        output = result.stdout
+        for line in output.splitlines():
+            if "=" in line:
+                key, value = line.split("=", 1)
+                os.environ[key] = value
+        logging.info("Windows development environment variables set successfully.")
+    except subprocess.CalledProcessError as e:
+        # 捕获命令执行错误并打印详细信息
+        logging.error(f"Error executing vcvarsall.bat: {e.stderr}")
+        raise
 
 
 def os_check():
