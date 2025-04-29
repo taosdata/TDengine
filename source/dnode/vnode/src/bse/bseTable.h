@@ -46,6 +46,11 @@ enum {
 };
 
 typedef struct {
+  int64_t seq;
+  int64_t offset;
+} SBlockIndexMeta;
+
+typedef struct {
   uint64_t  offset;
   uint64_t  size;
   SSeqRange range;
@@ -95,8 +100,11 @@ int32_t blockWrapperResize(SBlockWrapper *p, int32_t cap);
 void    blockWrapperClear(SBlockWrapper *p);
 void    blockWrapperTransfer(SBlockWrapper *dst, SBlockWrapper *src);
 void    blockWrapperSetType(SBlockWrapper *p, int8_t type);
-int8_t  inSeqRange(SSeqRange *p, int64_t seq);
-int8_t  isGreaterSeqRange(SSeqRange *p, int64_t seq);
+
+int8_t seqRangeContains(SSeqRange *p, int64_t seq);
+void   seqRangeReset(SSeqRange *p);
+void   seqRangeUpdate(SSeqRange *dst, SSeqRange *src);
+int8_t seqRangeIsGreater(SSeqRange *p, int64_t seq);
 
 typedef struct {
   char          name[TSDB_FILENAME_LEN];
@@ -142,7 +150,6 @@ typedef struct {
 typedef struct {
   char             name[TSDB_FILENAME_LEN];
   TdFilePtr        pDataFile;
-  SArray       *pSeqToBlock;
   SArray          *pMeta;
   SArray       *pMetaHandle;
   SBlockWrapper pBlockWrapper;
@@ -164,7 +171,6 @@ typedef struct {
   char         name[TSDB_FILENAME_LEN];
   TdFilePtr    pDataFile;
   STableFooter footer;
-  SArray      *pSeqToBlock;
   SArray      *pMetaHandle;
 
   int32_t blockCap;
@@ -179,8 +185,6 @@ typedef struct {
 
 typedef struct {
   SSeqRange range;
-  // int64_t sseq;
-  // int64_t eseq;
   int64_t size;
   int32_t level;
   int64_t retentionTs;

@@ -17,21 +17,17 @@
 #include "bseSnapshot.h"
 #include "bseTableMgt.h"
 
-// block handle func
-static int32_t blkHandleEncode(SBlkHandle *pHandle, char *buf);
-static int32_t blkHandleDecode(SBlkHandle *pHandle, char *buf);
-
 // table footer func
 static int32_t footerEncode(STableFooter *pFooter, char *buf);
 static int32_t footerDecode(STableFooter *pFooter, char *buf);
 
-// table meta func
-
-static int32_t metaBlockEncode(SMetaBlock *pMeta, char *buf);
-static int32_t metaBlockDecode(SMetaBlock *pMeta, char *buf);
 // block handle func
 static int32_t blkHandleEncode(SBlkHandle *pHandle, char *buf);
 static int32_t blkHandleDecode(SBlkHandle *pHandle, char *buf);
+
+// table meta func
+static int32_t metaBlockEncode(SMetaBlock *pMeta, char *buf);
+static int32_t metaBlockDecode(SMetaBlock *pMeta, char *buf);
 
 static int32_t metaBlockAdd(SBlock *p, SMetaBlock *pMeta);
 static int32_t metaBlockGet(SBlock *p, SMetaBlock *pMeta);
@@ -68,18 +64,12 @@ int32_t tableMetaReaderOpenIter(SBtableMetaReader *pReader, SBtableMetaReaderIte
 int32_t tableMetaReaderIterNext(SBtableMetaReaderIter *pIter, SBlockWrapper *pDataWrapper, SBlkHandle *dstHandle);
 void    tableMetaReaderIterClose(SBtableMetaReaderIter *p);
 
-typedef struct {
-  int64_t seq;
-  int32_t offset;
-} blockIndexMeta;
-
 // STable builder func
 static int32_t tableBuilderGetBlockSize(STableBuilder *p);
-static void    tableBuilderUpdateBlockRange(STableBuilder *p, SBlockItemInfo *pInfo);
-static void    tableBuilderResetBlockRange(STableBuilder *p);
-static void    tableBuilderResetRange(STableBuilder *p);
 static int32_t tableBuilderLoadBlock(STableBuilder *p, SBlkHandle *pHandle, SBlockWrapper *pBlkWrapper);
-static int32_t tableBuilderSeekData(STableBuilder *p, SBlkHandle *pHandle, int64_t seq, uint8_t **pValue, int32_t *len);
+static int32_t tableBuilderSeek(STableBuilder *p, SBlkHandle *pHandle, int64_t seq, uint8_t **pValue, int32_t *len);
+static void    tableBuilderUpdateBlockRange(STableBuilder *p, SBlockItemInfo *pInfo);
+static void    tableBuildUpdateTableRange(STableBuilder *p, SBlockItemInfo *pInfo);
 
 // STable pReaderMgt func
 
@@ -94,7 +84,6 @@ static int32_t tableFlushBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapp
 static int32_t tableLoadBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBlk);
 static int32_t tableLoadRawBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBlk, int8_t checkSum);
 
-static void updateRange(SSeqRange *dst, SSeqRange *src);
 /*---block formate----*/
 //---datatype--|---len---|--data---|--rawdatasize---|--compressType---|---checksum---|
 #define BLOCK_ROW_SIZE_OFFSET(p)      (sizeof(SBlock) + (p)->len)
@@ -122,7 +111,7 @@ static void updateRange(SSeqRange *dst, SSeqRange *src);
     (type) = *(int8_t *)((char *)(p) + len - BLOCK_TAIL_LEN + sizeof(int32_t)); \
   } while (0);
 
-int32_t tableBuilderSeekData(STableBuilder *p, SBlkHandle *pHandle, int64_t seq, uint8_t **pValue, int32_t *len) {
+int32_t tableBuilderSeek(STableBuilder *p, SBlkHandle *pHandle, int64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -172,11 +161,6 @@ int32_t tableBuilderOpen(int64_t ts, STableBuilder **pBuilder, SBse *pBse) {
   p->retentionTs = ts;
   memcpy(p->name, name, strlen(name));
 
-  p->pSeqToBlock = taosArrayInit(128, sizeof(SSeqToBlk));
-  if (p->pSeqToBlock == NULL) {
-    TSDB_CHECK_CODE(terrno, lino, _error);
-  }
-
   p->pMetaHandle = taosArrayInit(128, sizeof(SBlkHandle));
   if (p->pMetaHandle == NULL) {
     TSDB_CHECK_CODE(terrno, lino, _error);
@@ -190,9 +174,9 @@ int32_t tableBuilderOpen(int64_t ts, STableBuilder **pBuilder, SBse *pBse) {
   p->compressType = BSE_GET_COMPRESS_TYPE(pBse);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  tableBuilderResetRange(p);
+  seqRangeReset(&p->tableRange);
+  seqRangeReset(&p->blockRange);
 
-  tableBuilderResetBlockRange(p);
   p->pBse = pBse;
 
   code = tableOpenFile(path, 0, &p->pDataFile, &p->offset);
@@ -273,12 +257,11 @@ int32_t tableBuilderFlush(STableBuilder *p, int8_t type) {
   code = taosCalcChecksumAppend(0, (uint8_t *)pWrite, len);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  SBlkHandle handle = {.size = len, .offset = p->offset};
-  handle.range = p->blockRange;
-  bseDebug("bse block range sseq:%ld, eseq:%ld", p->blockRange.sseq, p->blockRange.eseq);
+  SBlkHandle handle = {.size = len, .offset = p->offset, .range = p->blockRange};
 
-  bseInfo("bse flush at offset %" PRId64 " len: %" PRId64 ", block range sseq:%ld, eseq:%ld", p->offset, len,
-          handle.range.sseq, handle.range.eseq);
+  bseDebug("bse flush at offset %" PRId64 " len: %" PRId64 ", block range sseq:%ld, eseq:%ld", p->offset, len,
+           handle.range.sseq, handle.range.eseq);
+
   (void)taosLSeekFile(p->pDataFile, handle.offset, SEEK_SET);
 
   int32_t nwrite = taosWriteFile(p->pDataFile, (uint8_t *)pWrite, len);
@@ -292,7 +275,7 @@ int32_t tableBuilderFlush(STableBuilder *p, int8_t type) {
     code = terrno;
     TSDB_CHECK_CODE(code, lino, _error);
   }
-  tableBuilderResetBlockRange(p);
+  seqRangeReset(&p->blockRange);
 
 _error:
   if (code != 0) {
@@ -303,31 +286,14 @@ _error:
   return code;
 }
 
-int32_t tableBuildUpdateRange(STableBuilder *p, SBlockItemInfo *pInfo) {
-  int32_t    code = 0;
-  SSeqRange *pRange = &p->tableRange;
-  if (pRange->sseq == -1) {
-    pRange->sseq = pInfo->seq;
-  }
-  pRange->eseq = pInfo->seq;
-  return code;
-}
-void tableBuilderResetRange(STableBuilder *p) {
-  p->tableRange.sseq = -1;
-  p->tableRange.eseq = -1;
+void tableBuildUpdateTableRange(STableBuilder *p, SBlockItemInfo *pInfo) {
+  SSeqRange range = {.sseq = pInfo->seq, .eseq = pInfo->seq};
+  seqRangeUpdate(&p->tableRange, &range);
 }
 
 void tableBuilderUpdateBlockRange(STableBuilder *p, SBlockItemInfo *pInfo) {
-  SSeqRange *pRange = &p->blockRange;
-  if (pRange->sseq == -1) {
-    pRange->sseq = pInfo->seq;
-  }
-  pRange->eseq = pInfo->seq;
-}
-
-void tableBuilderResetBlockRange(STableBuilder *p) {
-  p->blockRange.sseq = -1;
-  p->blockRange.eseq = -1;
+  SSeqRange range = {.sseq = pInfo->seq, .eseq = pInfo->seq};
+  seqRangeUpdate(&p->blockRange, &range);
 }
 
 /*|seq len value|seq len value| seq len value| seq len value|*/
@@ -339,8 +305,7 @@ int32_t tableBuilderPutBatch(STableBuilder *p, SBseBatch *pBatch) {
   for (int32_t i = 0; i < taosArrayGetSize(pBatch->pSeq);) {
     SBlockItemInfo *pInfo = taosArrayGet(pBatch->pSeq, i);
     if (i == 0 || i == taosArrayGetSize(pBatch->pSeq) - 1) {
-      code = tableBuildUpdateRange(p, pInfo);
-      TSDB_CHECK_CODE(code, lino, _error);
+      tableBuildUpdateTableRange(p, pInfo);
     }
 
     if (blockEsimateSize(p->pBlockWrapper.data, len + pInfo->size) < tableBuilderGetBlockSize(p)) {
@@ -388,8 +353,7 @@ int32_t tableBuilderPut(STableBuilder *p, int64_t *seq, uint8_t *value, int32_t 
   int32_t        code = 0;
   int32_t        lino = 0;
   SBlockItemInfo info = {.size = len, .seq = *seq};
-  code = tableBuildUpdateRange(p, &info);
-  TSDB_CHECK_CODE(code, lino, _error);
+  tableBuildUpdateTableRange(p, &info);
 
   // seqlen + valuelen + value
   int32_t extra = sizeof(*seq) + len + sizeof(len);
@@ -430,7 +394,7 @@ int32_t tableBuilderGet(STableBuilder *p, int64_t seq, uint8_t **value, int32_t 
   SBlkHandle *pHandle = NULL;
   if (taosArrayGetSize(p->pMetaHandle) > 0) {
     pHandle = taosArrayGetLast(p->pMetaHandle);
-    if (isGreaterSeqRange(&pHandle->range, seq)) {
+    if (seqRangeIsGreater(&pHandle->range, seq)) {
       return blockSeek(p->pBlockWrapper.data, seq, value, len);
     } else {
       int32_t idx = findTargetBlock(p->pMetaHandle, seq);
@@ -438,7 +402,7 @@ int32_t tableBuilderGet(STableBuilder *p, int64_t seq, uint8_t **value, int32_t 
         return TSDB_CODE_NOT_FOUND;
       }
       pHandle = taosArrayGet(p->pMetaHandle, idx);
-      return tableBuilderSeekData(p, pHandle, seq, value, len);
+      return tableBuilderSeek(p, pHandle, seq, value, len);
     }
   } else {
     return blockSeek(p->pBlockWrapper.data, seq, value, len);
@@ -472,7 +436,7 @@ static void updateTableRange(SBTableMeta *pTableMeta, SArray *pMetaBlock) {
 
   for (int32_t i = 0; i < taosArrayGetSize(pMetaBlock); i++) {
     SMetaBlock *pMeta = taosArrayGet(pMetaBlock, i);
-    updateRange(&pTableMeta->range, &pMeta->range);
+    seqRangeUpdate(&pTableMeta->range, &pMeta->range);
   }
 }
 
@@ -516,7 +480,6 @@ int32_t tableBuilderGetBlockSize(STableBuilder *p) { return p->blockCap; }
 int32_t tableBuilderClose(STableBuilder *p, int8_t commited) {
   int32_t code = 0;
   blockWrapperCleanup(&p->pBlockWrapper);
-  taosArrayDestroy(p->pSeqToBlock);
   taosCloseFile(&p->pDataFile);
   taosArrayDestroy(p->pMetaHandle);
   taosMemoryFree(p);
@@ -524,12 +487,11 @@ int32_t tableBuilderClose(STableBuilder *p, int8_t commited) {
 }
 void tableBuilderClear(STableBuilder *p) {
   blockWrapperClear(&p->pBlockWrapper);
-  p->tableRange.sseq = -1;
-  p->tableRange.eseq = -1;
+  seqRangeReset(&p->tableRange);
+
   p->offset = 0;
   p->blockId = 0;
   p->blockCap = BSE_GET_BLOCK_SIZE(p->pBse);
-  taosArrayClear(p->pSeqToBlock);
   taosArrayClear(p->pMetaHandle);
   p->name[0] = 0;
 }
@@ -672,8 +634,8 @@ int32_t tableReaderGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *
   code = blockCacheGet(pMgt->pBlockCache, &blkhandle.range, (void **)&pItem);
   if (code != 0) {
     blockWrapperInit(&wrapper, block.size + 16);
-    bseInfo("block size:%" PRId64 ", offset:%" PRId64 ", [sseq:%" PRId64 ", eseq:%" PRId64 "]", block.size,
-            block.offset, block.range.sseq, block.range.eseq);
+    bseDebug("block size:%" PRId64 ", offset:%" PRId64 ", [sseq:%" PRId64 ", eseq:%" PRId64 "]", block.size,
+             block.offset, block.range.sseq, block.range.eseq);
 
     code = tableLoadBlock(p->pDataFile, &blkhandle, &wrapper);
     if (code != 0) {
@@ -728,7 +690,6 @@ int32_t tableReaderClose(STableReader *p) {
   int32_t code = 0;
 
   taosArrayDestroy(p->pMetaHandle);
-  taosArrayDestroy(p->pSeqToBlock);
 
   taosCloseFile(&p->pDataFile);
   tableMetaReaderClose(p->pMetaReader);
@@ -880,7 +841,7 @@ int32_t blockSeekMeta(SBlock *pBlock, int64_t seq, SMetaBlock *pMeta) {
     SMetaBlock meta = {0};
     int32_t    offset = metaBlockDecode(&meta, (char *)p);
     SSeqRange  range = meta.range;
-    if (inSeqRange(&range, seq)) {
+    if (seqRangeContains(&range, seq)) {
       memcpy(pMeta, &meta, sizeof(SMetaBlock));
       return 0;
     }
@@ -1074,9 +1035,21 @@ _error:
   return code;
 }
 
-int8_t inSeqRange(SSeqRange *p, int64_t seq) { return seq >= p->sseq && seq <= p->eseq; }
+int8_t seqRangeContains(SSeqRange *p, int64_t seq) { return seq >= p->sseq && seq <= p->eseq; }
 
-int8_t isGreaterSeqRange(SSeqRange *p, int64_t seq) { return seq > p->eseq; }
+void seqRangeReset(SSeqRange *p) {
+  p->sseq = -1;
+  p->eseq = -1;
+}
+
+int8_t seqRangeIsGreater(SSeqRange *p, int64_t seq) { return seq > p->eseq; }
+
+void seqRangeUpdate(SSeqRange *dst, SSeqRange *src) {
+  if (dst->sseq == -1) {
+    dst->sseq = src->sseq;
+  }
+  dst->eseq = src->eseq;
+}
 
 int32_t blockWrapperInit(SBlockWrapper *p, int32_t cap) {
   p->data = taosMemoryCalloc(1, cap);
@@ -1228,7 +1201,7 @@ int32_t blockWithMetaInit(SBlock *pBlock, SBlockWithMeta **pMeta) {
     return terrno;
   }
   p->pBlock = pBlock;
-  p->pMeta = taosArrayInit(8, sizeof(blockIndexMeta));
+  p->pMeta = taosArrayInit(8, sizeof(SBlockIndexMeta));
   if (p->pMeta == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
@@ -1238,7 +1211,7 @@ int32_t blockWithMetaInit(SBlock *pBlock, SBlockWithMeta **pMeta) {
   while (p2 - p1 < pBlock->len) {
     int64_t        k;
     int32_t        vlen = 0;
-    blockIndexMeta meta = {0};
+    SBlockIndexMeta meta = {0};
     int32_t        offset = 0;
     p2 = taosDecodeVariantI64((void **)p2, &k);
     offset = p2 - p1;
@@ -1269,8 +1242,8 @@ int32_t blockWithMetaCleanup(SBlockWithMeta *p) {
 }
 
 int comprareFunc(const void *pLeft, const void *pRight) {
-  blockIndexMeta *p1 = (blockIndexMeta *)pLeft;
-  blockIndexMeta *p2 = (blockIndexMeta *)pRight;
+  SBlockIndexMeta *p1 = (SBlockIndexMeta *)pLeft;
+  SBlockIndexMeta *p2 = (SBlockIndexMeta *)pRight;
   if (p1->seq > p2->seq) {
     return 1;
   } else if (p1->seq < p2->seq) {
@@ -1281,12 +1254,12 @@ int comprareFunc(const void *pLeft, const void *pRight) {
 
 int32_t blockWithMetaSeek(SBlockWithMeta *p, int64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t        code = 0;
-  blockIndexMeta key = {.seq = seq, .offset = 0};
+  SBlockIndexMeta key = {.seq = seq, .offset = 0};
   int32_t        idx = taosArraySearchIdx(p->pMeta, &seq, comprareFunc, TD_EQ);
   if (idx < 0) {
     return TSDB_CODE_NOT_FOUND;
   }
-  blockIndexMeta *pMeta = taosArrayGet(p->pMeta, idx);
+  SBlockIndexMeta *pMeta = taosArrayGet(p->pMeta, idx);
   if (pMeta == NULL) {
     return TSDB_CODE_NOT_FOUND;
   }
@@ -1331,12 +1304,6 @@ _error:
   return code;
 }
 
-void updateRange(SSeqRange *dst, SSeqRange *src) {
-  if (dst->sseq == -1) {
-    dst->sseq = src->sseq;
-  }
-  dst->eseq = src->eseq;
-}
 int32_t tableMetaCommit(SBTableMeta *pMeta, SArray *pBlock) {
   int32_t                code = 0;
   int32_t                lino = 0;
@@ -1378,7 +1345,7 @@ int32_t tableMetaCommit(SBTableMeta *pMeta, SArray *pBlock) {
 
     TSDB_CHECK_CODE(code, lino, _error);
 
-    updateRange(&pMeta->range, &blkHandle.range);
+    seqRangeUpdate(&pMeta->range, &blkHandle.range);
   }
 
   code = tableMetaWriterAppendBlock(pWriter, pBlock);
@@ -1835,7 +1802,7 @@ int32_t tableMetaReaderGetBlockMeta(SBtableMetaReader *p, int64_t seq, SMetaBloc
   code = blockSeekMeta(p->blockWrapper.data, seq, pMetaBlock);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  if (!inSeqRange(&pMetaBlock->range, seq)) {
+  if (!seqRangeContains(&pMetaBlock->range, seq)) {
     code = TSDB_CODE_NOT_FOUND;
     TSDB_CHECK_CODE(code, lino, _error);
   }
@@ -1922,6 +1889,7 @@ int32_t tableMetaReaderIterNext(SBtableMetaReaderIter *pIter, SBlockWrapper *pDa
 
   code = tableLoadBlock(pIter->pReader->pFile, pHandle, pWrapper);
   TSDB_CHECK_CODE(code, lino, _error);
+
   pIter->blkIdx++;
 
   if (blockGetType(pWrapper->data) != BSE_TABLE_META_TYPE) {

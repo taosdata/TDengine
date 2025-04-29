@@ -235,7 +235,7 @@ int32_t funcTest() {
 }
 TEST(bseCase, openTest) {
     initLog();
-    //benchTest();
+    benchTest();
     funcTest();
 
     

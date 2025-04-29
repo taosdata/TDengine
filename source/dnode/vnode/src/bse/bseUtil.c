@@ -167,7 +167,7 @@ int32_t bseGetRetentionTsBySeq(SBse *pBse, int64_t seq, int64_t *retentionTs) {
   SBseCommitInfo *pCommitInfo = &pBse->commitInfo;
   for (int32_t i = 0; i < taosArrayGetSize(pCommitInfo->pFileList); i++) {
     SBseLiveFileInfo *pInfo = taosArrayGet(pCommitInfo->pFileList, i);
-    if (inSeqRange(&pInfo->range, seq)) {
+    if (seqRangeContains(&pInfo->range, seq)) {
       tts = pInfo->retentionTs;
       break;
     }

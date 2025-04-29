@@ -96,7 +96,7 @@ int32_t lruCacheGet(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void **pE
 
 _error:
   if (code != 0) {
-    bseError("failed to get cache lru at line %d since %s", lino, tstrerror(code));
+    bseDebug("failed to get cache lru at line %d since %s", lino, tstrerror(code));
   }
   taosThreadMutexUnlock(&pCache->mutex);
   return code;
@@ -365,7 +365,7 @@ int32_t blockCacheGet(SBlockCache *pCache, SSeqRange *key, void **pBlock) {
 
 _error:
   if (code != 0) {
-    bseWarn("failed to get block cache at line %d since %s", lino, tstrerror(code));
+    bseDebug("failed to get block cache at line %d since %s", lino, tstrerror(code));
   }
   return code;
 }

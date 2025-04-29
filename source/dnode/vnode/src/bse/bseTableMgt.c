@@ -381,7 +381,7 @@ int32_t findTargetTable(SArray *pFileList, int64_t seq) {
   SBseLiveFileInfo target = {.range = {.sseq = seq, .eseq = seq}};
   for (int32_t i = 0; i < taosArrayGetSize(pFileList); i++) {
     SBseLiveFileInfo *p = taosArrayGet(pFileList, i);
-    if (inSeqRange(&p->range, seq)) {
+    if (seqRangeContains(&p->range, seq)) {
       return i;
     }
   }
@@ -546,7 +546,7 @@ int32_t tableBuilderMgtSeek(STableBuilderMgt *pMgt, int64_t seq, uint8_t **pValu
   pBuilder = pMgt->p[inUse];
   taosThreadMutexUnlock(&pMgt->mutex);
 
-  if (pBuilder && inSeqRange(&pBuilder->tableRange, seq)) {
+  if (pBuilder && seqRangeContains(&pBuilder->tableRange, seq)) {
     code = tableBuilderGet(pBuilder, seq, pValue, len);
   } else {
     code = TSDB_CODE_OUT_OF_RANGE;  //  continue to read from reader
