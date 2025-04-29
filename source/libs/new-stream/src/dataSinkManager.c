@@ -141,6 +141,9 @@ static void doDestoryStreamTaskDSManager(SStreamTaskDSManager* pStreamTaskDSMana
   if (pStreamTaskDSManager->pFileMgr) {
     destroyStreamDataSinkFile(&pStreamTaskDSManager->pFileMgr);
   }
+  if (pStreamTaskDSManager->usedMemSize > 0) {
+    atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pStreamTaskDSManager->usedMemSize);
+  }
   taosMemoryFreeClear(pStreamTaskDSManager);
 }
 
@@ -237,7 +240,19 @@ int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int32_t cleanMode,
 }
 
 // @brief 销毁数据缓存
-void destroyStreamDataCache(void* pCache) {}
+void destroyStreamDataCache(void* pCache) {
+  if (pCache == NULL) {
+    return;
+  }
+  SStreamTaskDSManager* pStreamDataSink = (SStreamTaskDSManager*)pCache;
+  char key[64] = {0};
+  snprintf(key, sizeof(key), "%" PRId64 "_%" PRId64, pStreamDataSink->streamId, pStreamDataSink->taskId);
+  SStreamTaskDSManager** ppStreamTaskDSManager =
+      (SStreamTaskDSManager**)taosHashGet(g_pDataSinkManager.dataSinkStreamTaskList, key, strlen(key));
+  if (ppStreamTaskDSManager != NULL) {
+    taosHashRemove(g_pDataSinkManager.dataSinkStreamTaskList, key, strlen(key));
+  }
+}
 
 int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock,
                            int32_t startIndex, int32_t endIndex) {
@@ -397,7 +412,7 @@ _end:
 
 void cancelStreamDataCacheIterate(void** pIter) { releaseDataIterator(pIter); }
 
-int32_t destroyDataSinkManager2() {
+int32_t destroyDataSinkMgr() {
   int8_t flag = atomic_val_compare_exchange_8(&g_pDataSinkManager.status, 1, 0);
   if (flag == 1) {
     if (g_pDataSinkManager.dataSinkStreamTaskList) {

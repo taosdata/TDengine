@@ -19,6 +19,7 @@
 #include "tref.h"
 #include "stream.h"
 #include "ttimer.h"
+#include "dataSink.h"
 
 SStreamMgmtInfo gStreamMgmt = {0};
 
@@ -33,6 +34,7 @@ void streamSetSnodeDisabled(void) {
 void streamCleanup(void) {
   //STREAMTODO
   streamTriggerEnvCleanup();
+  destroyDataSinkMgr();
 }
 
 int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode) {

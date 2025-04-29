@@ -17,6 +17,7 @@
 #define TDENGINE_DATA_SINK_H
 
 #include <stdint.h>
+#include "tarray.h"
 #include "tcommon.h"
 #include "tdef.h"
 #include "thash.h"
@@ -184,7 +185,7 @@ int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock);
 void cancelStreamDataCacheIterate(void** pIter);
 
 // @brief 释放 DataSink 相关所有资源
-int32_t destroyDataSinkManager2();
+int32_t destroyDataSinkMgr();
 
 void setDataSinkMaxMemSize(int64_t maxMemSize);
 
