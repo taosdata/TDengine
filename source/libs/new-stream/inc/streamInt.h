@@ -98,6 +98,10 @@ int32_t streamTriggerEnvInit();
 void    streamTriggerEnvCleanup();
 int32_t streamTriggerKickCalc(); // todo(kjq): call the function when receive calc response
 
+// int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMsg* pMsg);
+int32_t stReaderTaskUndeploy(SStreamReaderTask* pTask, const SStreamUndeployTaskMsg* pMsg, taskUndeplyCallback cb);
+int32_t stReaderTaskExecute(SStreamReaderTask* pTask, SStreamMsg* pMsg);
+
 #ifdef __cplusplus
 }
 #endif
