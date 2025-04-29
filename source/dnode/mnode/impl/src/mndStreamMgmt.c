@@ -1827,8 +1827,10 @@ int32_t msmHandleNormalHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, 
 
   TAOS_CHECK_EXIT(msmCheckUpdateDnodeTs(pMnode, currTs, pHb->dnodeId));
   
-  if (atomic_load_64(&mStreamMgmt.tCtx[tidx].actionQ->qRemainNum) > 0) {
-    TAOS_CHECK_EXIT(msmHandleStreamActions(pMnode, mStreamMgmt.tCtx[tidx].actionQ));
+  if (atomic_load_64(&mStreamMgmt.actionQ->qRemainNum) > 0 && 0 == taosWTryLockLatch(&mStreamMgmt.actionQLock)) {
+    code = msmHandleStreamActions(pMnode, mStreamMgmt.actionQ);
+    taosWUnLockLatch(&mStreamMgmt.actionQLock);
+    TAOS_CHECK_EXIT(code);
   }
 
   if (atomic_load_32(&mStreamMgmt.toDeployVgTaskNum) > 0) {
@@ -1928,20 +1930,21 @@ int32_t msmInitRuntimeInfo(SMnode *pMnode) {
     stError("failed to initialize the stream runtime tCtx, threadNum:%d, error:%s", mStreamMgmt.threadNum, tstrerror(code));
     goto _exit;
   }
+
+  mStreamMgmt.actionQ = taosMemoryCalloc(1, sizeof(SStmActionQ));
+  if (mStreamMgmt.actionQ == NULL) {
+    code = terrno;
+    mError("failed to initialize the stream runtime actionQ, error:%s", tstrerror(code));
+    goto _exit;
+  }
+  
+  mStreamMgmt.actionQ->head = taosMemoryCalloc(1, sizeof(SStmQNode));
+  TSDB_CHECK_NULL(mStreamMgmt.actionQ->head, code, lino, _exit, terrno);
+  
+  mStreamMgmt.actionQ->tail = mStreamMgmt.actionQ->head;
   
   for (int32_t i = 0; i < mStreamMgmt.threadNum; ++i) {
     SStmThreadCtx* pCtx = mStreamMgmt.tCtx + i;
-    pCtx->actionQ = taosMemoryCalloc(1, sizeof(SStmActionQ));
-    if (pCtx->actionQ == NULL) {
-      code = terrno;
-      mError("failed to initialize the stream runtime actionQ[%d], error:%s", i, tstrerror(code));
-      goto _exit;
-    }
-
-    pCtx->actionQ->head = taosMemoryCalloc(1, sizeof(SStmQNode));
-    TSDB_CHECK_NULL(pCtx->actionQ->head, code, lino, _exit, terrno);
-    
-    pCtx->actionQ->tail = pCtx->actionQ->head;
 
     for (int32_t m = 0; m < STREAM_MAX_GROUP_NUM; ++m) {
       pCtx->deployStm[m] = taosHashInit(snodeNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);

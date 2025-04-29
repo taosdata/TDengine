@@ -153,7 +153,6 @@ typedef struct SStmSnodeTasksDeploy {
 } SStmSnodeTasksDeploy;
 
 typedef struct SStmThreadCtx {
-  SStmActionQ*     actionQ;
   SHashObj*        deployStm[STREAM_MAX_GROUP_NUM];    // streamId => SStmStreamDeploy
   SHashObj*        actionStm[STREAM_MAX_GROUP_NUM];    // streamId => actions
 } SStmThreadCtx;
@@ -164,6 +163,9 @@ typedef struct SStmRuntime {
   int32_t          activeStreamNum;
   int64_t          startTs;
   EMndStmPhase     phase;
+
+  SRWLatch         actionQLock;
+  SStmActionQ*     actionQ;
   
   int32_t           threadNum;
   SStmThreadCtx*    tCtx;
