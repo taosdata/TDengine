@@ -104,6 +104,7 @@ static void stRunnerTaskExecMgrReleaseExec(SStreamRunnerTask* pTask, SStreamRunn
 }
 
 int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
+  ST_TASK_ILOG("deploy runner task for %s.%s", pMsg->outDBFName, pMsg->outTblName);
   pTask->pPlan = pMsg->pPlan;  // TODO wjm do we need to deep copy this char*
   pTask->forceOutput = pMsg->forceOutCols != NULL;
   pTask->forceOutCols = pMsg->forceOutCols;

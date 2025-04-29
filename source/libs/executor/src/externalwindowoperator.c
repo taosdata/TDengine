@@ -581,6 +581,7 @@ static int32_t externalWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
   int32_t                  lino = 0;
   SExternalWindowOperator* pExtW = pOperator->info;
   SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
+  SExprSupp*               pSup = &pOperator->exprSupp;
 
   if (pOperator->status == OP_EXEC_DONE) {
     *ppRes = NULL;
@@ -626,7 +627,7 @@ static int32_t externalWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
       if (pExtW->binfo.pRes->info.rows > 0) break;
     }
 
-    code = setInputDataBlock(pSup, pBlock, pExtW->binfo.inputTsOrder, scanFlag, true);
+    code = setInputDataBlock(pSup, pBlock, pExtW->binfo.inputTsOrder, MAIN_SCAN, true);
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (!pExtW->scalarMode) {
