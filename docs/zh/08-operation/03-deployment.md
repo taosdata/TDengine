@@ -277,7 +277,7 @@ Query OK, 1 rows in database (0.010654s)
 
 :::note
 
-- `v3.3.6.0` 版本后，默认的 `fqdn` 从 `buildkitsandbox` 变更为 `localhost`，如果是全新启动不会有任何问题，如果是升级启动，运行容器时需要将 `-e TAOS_FQDN` 和 `-h` 指定为之前的 `fqdn`，否则可能会无法启动。
+- `v3.3.6.0` 版本后，默认的 `fqdn` 从 `buildkitsandbox` 变更为 `localhost`，如果是全新启动不会有任何问题，如果是升级启动，运行容器时需要将 `-e TAOS_FQDN=<old_value>` 和 `-h <old_value>` 指定为之前的 `fqdn`，否则可能会无法启动。
   
 :::
 
