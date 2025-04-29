@@ -21,6 +21,7 @@ community_dir = os.path.join(internal_dir, "community")
 build_dir = os.path.join(community_dir, "debug")
 release_dir = os.path.join(community_dir, "release")
 odbc_build_type = "Release"
+vcvarsall_path = r"C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat"
 
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 logname = f"{timestamp}.log"
@@ -474,19 +475,40 @@ def process_build_taosws_32bit():
     logging.info("32bit taosws build done")
 
 
+def clone_repository(repo_url, target_dir):
+    """
+    克隆指定的 Git 仓库到目标目录。
+
+    :param repo_url: 仓库的 URL。
+    :param target_dir: 克隆到的目标目录。
+    """
+    try:
+        subprocess.run(
+            ["git", "clone", "--depth", "1", repo_url, target_dir],
+            check=True,  # 如果命令失败，抛出异常
+            stdout=subprocess.PIPE,  # 捕获标准输出
+            stderr=subprocess.PIPE,  # 捕获标准错误
+            text=True  # 将输出解码为字符串
+        )
+        logging.info(f"Successfully cloned repository: {repo_url} to {target_dir}")
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Failed to clone repository: {repo_url}. Error: {e.stderr}")
+        raise
+
 def process_build_odbc():
     # only directory/main/3.0  has  taos-connector-odbc
     odbc_dir = os.path.join(directory, branch, "taos-connector-odbc")
+    odbc_repo_url = "https://github.com/taosdata/taos-connector-odbc"
     if not os.path.exists(odbc_dir):
-        subprocess.check_call("git clone --depth 1 https://github.com/taosdata/taos-connector-jdbc {}" \
-                                .format(odbc_dir), shell=True)
+        clone_repository(odbc_repo_url, odbc_dir)
+        
     os.chdir(odbc_dir)
     os.system("git checkout main")
     os.system("git pull")
     logging.info("current path: {0}".format(os.getcwd()))
 
     # build 32 bit ODBC
-    os.system("vcvarsall.bat amd64_x86")
+    os.system(f'"{vcvarsall_path}" amd64_x86')
     logging.info("vcvarsall.bat amd64_x86")
     os.system("rm -rf .externals && rm -rf build32")
     os.system(
@@ -536,15 +558,17 @@ def process_download_odbc():
     subprocess.call(f"powershell -command \"Expand-Archive taos_odbc_install_files.zip {install_info.install_dir}\"")
 
 
-def process_add_enterprice_extent():
+def process_add_enterprise_extent():
     connector_install_dir = os.path.join(install_info.install_dir, "connector")
 
     if os.path.exists(connector_install_dir):
         shutil.rmtree(connector_install_dir)
     os.makedirs(connector_install_dir)
-
+    logging.info("start download connectors ...")
+    jdbc_connector_url = "https://github.com/taosdata/taos-connector-jdbc"
     subprocess.check_call("git clone --depth 1 https://github.com/taosdata/taos-connector-jdbc {}\\JDBC" \
                           .format(connector_install_dir), shell=True)
+    
     os.chdir(f"{connector_install_dir}\\JDBC")
     os.system("mvn clean package -Dmaven.test.skip=true")
     os.system("mv target/*.jar {}/".format(connector_install_dir))
@@ -967,7 +991,7 @@ def testHanle(process):
         process_install()
     elif process == "extent":
         logging.info("Calling install extent...")
-        process_add_enterprice_extent()
+        process_add_enterprise_extent()
     elif process == "package":
         logging.info("Calling package...")
         process_package()
@@ -990,15 +1014,12 @@ def testHanle(process):
         logging.info("Invalid input. Please enter valid input.")
 
 
-def set_win_dev_env(vcvarsall_path=None):
+def set_win_dev_env(vcvarsall_path):
     """
     设置 Windows 开发环境的环境变量。
 
-    :param vcvarsall_path: 可选，指定 vcvarsall.bat 的路径。如果未提供，将使用默认路径。
+    :param vcvarsall_path: 必选，指定 vcvarsall.bat 的路径。
     """
-    # 如果未提供路径，使用默认路径
-    if vcvarsall_path is None:
-        vcvarsall_path = r"C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat"
 
     # 检查路径是否存在
     if not os.path.exists(vcvarsall_path):
@@ -1034,12 +1055,11 @@ def os_check():
         logging.info("Failed! This script only for windows!")
         sys.exit(1)
     else:
-        set_win_dev_env()
+        set_win_dev_env(vcvarsall_path)
 
 
 if __name__ == "__main__":
     start_time = time.time()
-    set_win_dev_env()
     os_check()
     logging.info("Release tdengine on windows start...")
     parse_arguments()
