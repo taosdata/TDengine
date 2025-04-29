@@ -26,7 +26,7 @@ void mndStreamHbSendRsp(int32_t code, SRpcHandleInfo *pRpcInfo, SMStreamHbRspMsg
 
   tEncodeSize(tEncodeStreamHbRsp, pRsp, tlen, ret);
   if (ret < 0) {
-    stError("encode stream hb msg rsp failed, code:%s", tstrerror(code));
+    stError("encode stream hb msg rsp failed, code:%s", tstrerror(ret));
   }
 
   buf = rpcMallocCont(tlen + sizeof(SStreamMsgGrpHeader));
@@ -86,11 +86,11 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   
   (void)msmHandleStreamHbMsg(pMnode, currTs, &req, &rsp);
 
-  msmCleanStreamGrpCtx(&req);
-
 _exit:
 
   mndStreamHbSendRsp(code, &pReq->info, &rsp);
+
+  msmCleanStreamGrpCtx(&req);
 
   stDebug("end to process stream hb req msg, code:%d", code);
 

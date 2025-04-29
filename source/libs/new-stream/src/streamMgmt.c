@@ -124,7 +124,7 @@ int32_t smDeployStreamTasks(SStmStreamDeploy* pDeploy) {
 
       TAOS_CHECK_EXIT(smAddTaskToVgroupMap(pTask));
 
-      ST_TASK_DLOG("task deploy succeed, tidx:%d", pTask->task.taskIdx);      
+      ST_TASK_DLOG("reader task deploy succeed, tidx:%d", pTask->task.taskIdx);      
     }
 
     stream.taskNum += readerNum;
@@ -143,7 +143,7 @@ int32_t smDeployStreamTasks(SStmStreamDeploy* pDeploy) {
 
     //TAOS_CHECK_EXIT(smAddTaskToSnodeList(stream.triggerTask));
 
-    ST_TASK_DLOG("task deploy succeed, tidx:%d", pTask->taskIdx);      
+    ST_TASK_DLOG("trigger task deploy succeed, tidx:%d", pTask->taskIdx);      
 
     stream.taskNum++;
   }
@@ -161,7 +161,7 @@ int32_t smDeployStreamTasks(SStmStreamDeploy* pDeploy) {
 
       TAOS_CHECK_EXIT(taosHashPut(gStreamMgmt.taskMap, &pTask->task.streamId, sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId), &pTask, POINTER_BYTES));
 
-      ST_TASK_DLOG("task deploy succeed, tidx:%d", pTask->task.taskIdx);      
+      ST_TASK_DLOG("runner task deploy succeed, tidx:%d", pTask->task.taskIdx);      
     }
 
     stream.taskNum += runnerNum;    

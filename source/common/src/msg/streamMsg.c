@@ -512,14 +512,14 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
   int32_t statusNum = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &statusNum));
   if (statusNum > 0) {
-    pReq->pStreamStatus = taosArrayInit(statusNum, sizeof(SStmTaskStatusMsg));
+    pReq->pStreamStatus = taosArrayInit_s(sizeof(SStmTaskStatusMsg), statusNum);
     if (NULL == pReq->pStreamStatus) {
       code = terrno;
       goto _exit;
     }
   }
   for (int32_t i = 0; i < statusNum; ++i) {
-    SStmTaskStatusMsg* pTask = taosArrayReserve(pReq->pStreamStatus, i);
+    SStmTaskStatusMsg* pTask = taosArrayGet(pReq->pStreamStatus, i);
     if (NULL == pTask) {
       code = terrno;
       goto _exit;
@@ -753,14 +753,14 @@ int32_t tEncodeSStreamRunnerDeployMsg(SEncoder* pEncoder, const SStreamRunnerDep
   int32_t outColNum = (int32_t)taosArrayGetSize(pMsg->outCols);
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, outColNum));
   for (int32_t i = 0; i < outColNum; ++i) {
-    SFieldWithOptions *pCol = taosArrayGetP(pMsg->outCols, i);
+    SFieldWithOptions *pCol = taosArrayGet(pMsg->outCols, i);
     TAOS_CHECK_EXIT(tSerializeSFieldWithOptions(pEncoder, pCol));
   }
 
   int32_t outTagNum = (int32_t)taosArrayGetSize(pMsg->outTags);
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, outTagNum));
   for (int32_t i = 0; i < outTagNum; ++i) {
-    SFieldWithOptions *pTag = taosArrayGetP(pMsg->outTags, i);
+    SFieldWithOptions *pTag = taosArrayGet(pMsg->outTags, i);
     TAOS_CHECK_EXIT(tSerializeSFieldWithOptions(pEncoder, pTag));
   }
 
@@ -828,8 +828,10 @@ int32_t tEncodeSStmStreamDeploy(SEncoder* pEncoder, const SStmStreamDeploy* pStr
   }
 
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pStream->triggerTask ? 1 : 0));
-  TAOS_CHECK_EXIT(tEncodeSStmTaskDeploy(pEncoder, pStream->triggerTask));
-
+  if (pStream->triggerTask) {
+    TAOS_CHECK_EXIT(tEncodeSStmTaskDeploy(pEncoder, pStream->triggerTask));
+  }
+  
   int32_t runnerNum = taosArrayGetSize(pStream->runnerTasks);
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, runnerNum));
   for (int32_t i = 0; i < runnerNum; ++i) {
@@ -905,8 +907,8 @@ int32_t tEncodeStreamHbRsp(SEncoder* pEncoder, const SMStreamHbRspMsg* pRsp) {
   }
 
   int32_t startNum = taosArrayGetSize(pRsp->start.taskList);
-  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, deployNum));
-  for (int32_t i = 0; i < deployNum; ++i) {
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, startNum));
+  for (int32_t i = 0; i < startNum; ++i) {
     SStreamTaskStart* pTask = (SStreamTaskStart*)taosArrayGet(pRsp->start.taskList, i);
     TAOS_CHECK_EXIT(tEncodeSStreamTaskStart(pEncoder, pTask));
   }
@@ -1015,7 +1017,7 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
   int32_t addrSize = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &addrSize));
   if (addrSize > 0) {
-    pMsg->pNotifyAddrUrls = taosArrayInit_s(addrSize, POINTER_BYTES);
+    pMsg->pNotifyAddrUrls = taosArrayInit_s(POINTER_BYTES, addrSize);
     TSDB_CHECK_NULL(pMsg->pNotifyAddrUrls, code, lino, _exit, terrno);
   }
   for (int32_t i = 0; i < addrSize; ++i) {
@@ -1082,7 +1084,7 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
   int32_t readerNum = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &readerNum));
   if (readerNum > 0) {
-    pMsg->readerList = taosArrayInit_s(readerNum, sizeof(SStreamTaskAddr));
+    pMsg->readerList = taosArrayInit_s(sizeof(SStreamTaskAddr), readerNum);
     TSDB_CHECK_NULL(pMsg->readerList, code, lino, _exit, terrno);
   }
   for (int32_t i = 0; i < readerNum; ++i) {
@@ -1093,7 +1095,7 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
   int32_t runnerNum = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &runnerNum));
   if (runnerNum > 0) {
-    pMsg->runnerList = taosArrayInit_s(runnerNum, sizeof(SStreamRunnerTarget));
+    pMsg->runnerList = taosArrayInit_s(sizeof(SStreamRunnerTarget), runnerNum);
     TSDB_CHECK_NULL(pMsg->runnerList, code, lino, _exit, terrno);
   }
   for (int32_t i = 0; i < runnerNum; ++i) {
@@ -1142,7 +1144,7 @@ int32_t tDecodeSStreamRunnerDeployMsg(SDecoder* pDecoder, SStreamRunnerDeployMsg
   int32_t addrSize = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &addrSize));
   if (addrSize > 0) {
-    pMsg->pNotifyAddrUrls = taosArrayInit_s(addrSize, POINTER_BYTES);
+    pMsg->pNotifyAddrUrls = taosArrayInit_s(POINTER_BYTES, addrSize);
     TSDB_CHECK_NULL(pMsg->pNotifyAddrUrls, code, lino, _exit, terrno);
   }
   for (int32_t i = 0; i < addrSize; ++i) {
@@ -1154,7 +1156,7 @@ int32_t tDecodeSStreamRunnerDeployMsg(SDecoder* pDecoder, SStreamRunnerDeployMsg
   int32_t outColNum = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &outColNum));
   if (outColNum > 0) {
-    pMsg->outCols = taosArrayInit_s(outColNum, sizeof(SFieldWithOptions));
+    pMsg->outCols = taosArrayInit_s(sizeof(SFieldWithOptions), outColNum);
     TSDB_CHECK_NULL(pMsg->outCols, code, lino, _exit, terrno);
   }
   for (int32_t i = 0; i < outColNum; ++i) {
@@ -1165,7 +1167,7 @@ int32_t tDecodeSStreamRunnerDeployMsg(SDecoder* pDecoder, SStreamRunnerDeployMsg
   int32_t outTagNum = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &outTagNum));
   if (outTagNum > 0) {
-    pMsg->outTags = taosArrayInit_s(outTagNum, sizeof(SFieldWithOptions));
+    pMsg->outTags = taosArrayInit_s(sizeof(SFieldWithOptions), outTagNum);
     TSDB_CHECK_NULL(pMsg->outTags, code, lino, _exit, terrno);
   }
   for (int32_t i = 0; i < outTagNum; ++i) {
@@ -1181,7 +1183,7 @@ int32_t tDecodeSStreamRunnerDeployMsg(SDecoder* pDecoder, SStreamRunnerDeployMsg
   int32_t forceOutColsSize = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &forceOutColsSize));
   if (forceOutColsSize > 0) {
-    pMsg->forceOutCols = taosArrayInit_s(forceOutColsSize, sizeof(SStreamOutCol));
+    pMsg->forceOutCols = taosArrayInit_s(sizeof(SStreamOutCol), forceOutColsSize);
     TSDB_CHECK_NULL(pMsg->forceOutCols, code, lino, _exit, terrno);
   }
   for (int32_t i = 0; i < forceOutColsSize; ++i) {
@@ -1234,7 +1236,7 @@ int32_t tDecodeSStmStreamDeploy(SDecoder* pDecoder, SStmStreamDeploy* pStream) {
   int32_t readerNum = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &readerNum));
   if (readerNum > 0) {
-    pStream->readerTasks = taosArrayInit_s(readerNum, sizeof(SStmTaskDeploy));
+    pStream->readerTasks = taosArrayInit_s(sizeof(SStmTaskDeploy), readerNum);
     TSDB_CHECK_NULL(pStream->readerTasks, code, lino, _exit, terrno);
   }
   for (int32_t i = 0; i < readerNum; ++i) {
@@ -1253,7 +1255,7 @@ int32_t tDecodeSStmStreamDeploy(SDecoder* pDecoder, SStmStreamDeploy* pStream) {
   int32_t runnerNum = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &runnerNum));
   if (runnerNum > 0) {
-    pStream->runnerTasks = taosArrayInit_s(runnerNum, sizeof(SStmTaskDeploy));
+    pStream->runnerTasks = taosArrayInit_s(sizeof(SStmTaskDeploy), runnerNum);
     TSDB_CHECK_NULL(pStream->runnerTasks, code, lino, _exit, terrno);
   }
   for (int32_t i = 0; i < runnerNum; ++i) {
@@ -1329,7 +1331,7 @@ int32_t tDecodeStreamHbRsp(SDecoder* pDecoder, SMStreamHbRspMsg* pRsp) {
   int32_t deployNum = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &deployNum));
   if (deployNum > 0) {
-    pRsp->deploy.streamList = taosArrayInit_s(deployNum, sizeof(SStmStreamDeploy));
+    pRsp->deploy.streamList = taosArrayInit_s(sizeof(SStmStreamDeploy), deployNum);
     TSDB_CHECK_NULL(pRsp->deploy.streamList, code, lino, _exit, terrno);
   }
   for (int32_t i = 0; i < deployNum; ++i) {
@@ -1340,7 +1342,7 @@ int32_t tDecodeStreamHbRsp(SDecoder* pDecoder, SMStreamHbRspMsg* pRsp) {
   int32_t startNum = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &startNum));
   if (startNum > 0) {
-    pRsp->start.taskList = taosArrayInit_s(startNum, sizeof(SStreamTaskStart));
+    pRsp->start.taskList = taosArrayInit_s(sizeof(SStreamTaskStart), startNum);
     TSDB_CHECK_NULL(pRsp->start.taskList, code, lino, _exit, terrno);
   }
   for (int32_t i = 0; i < startNum; ++i) {
@@ -1353,7 +1355,7 @@ int32_t tDecodeStreamHbRsp(SDecoder* pDecoder, SMStreamHbRspMsg* pRsp) {
     int32_t undeployNum = 0;
     TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &undeployNum));
     if (undeployNum > 0) {
-      pRsp->undeploy.taskList = taosArrayInit_s(undeployNum, sizeof(SStreamTaskUndeploy));
+      pRsp->undeploy.taskList = taosArrayInit_s(sizeof(SStreamTaskUndeploy), undeployNum);
       TSDB_CHECK_NULL(pRsp->undeploy.taskList, code, lino, _exit, terrno);
     }
     for (int32_t i = 0; i < undeployNum; ++i) {
@@ -1708,7 +1710,7 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
   int32_t outColSize = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &outColSize));
   if (outColSize > 0) {
-    pReq->outCols = taosArrayInit_s(outColSize, sizeof(SFieldWithOptions));
+    pReq->outCols = taosArrayInit_s(sizeof(SFieldWithOptions), outColSize);
     if (pReq->outCols == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }

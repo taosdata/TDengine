@@ -34,6 +34,7 @@ typedef enum {
   MND_STM_PHASE_DEPLOYALL
 } EMndStmPhase;
 
+#define MND_STREAM_RUNNER_DEPLOY_NUM 3
 #define MND_STREAM_REPORT_PERIOD  (STREAM_HB_INTERVAL_MS * STREAM_MAX_GROUP_NUM)
 #define MND_STREAM_WATCH_DURATION (MND_STREAM_REPORT_PERIOD * 4)
 
@@ -147,8 +148,8 @@ typedef struct SStmSnodeTasksDeploy {
   SRWLatch lock;
   int32_t  triggerDeployed;
   int32_t  runnerDeployed;
-  SArray*  triggerList;  // SArray<SStmTaskDeploy>
-  SArray*  runnerList;   // SArray<SStmTaskDeploy>
+  SArray*  triggerList;  // SArray<SStmTaskDeployExt>
+  SArray*  runnerList;   // SArray<SStmTaskDeployExt>
 } SStmSnodeTasksDeploy;
 
 typedef struct SStmThreadCtx {
