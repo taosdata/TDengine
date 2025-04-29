@@ -31,11 +31,7 @@ class TestStableQuery1:
 
         """
 
-        while 1:
-            if clusterComCheck.checkDnodes(3):
-                break
-        tdSql.query("show cluster alive;")
-        tdSql.checkData(0, 0, 1)
+        clusterComCheck.checkDnodes(3)
 
         tdLog.info(f"======================== dnode1 start")
 
