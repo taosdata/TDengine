@@ -67,7 +67,7 @@ static int32_t msmAddTaskToVgroupMapImpl(SHashObj* pVgMap, SStmTaskStatus* pStat
       vg.taskList = taosArrayInit(20, POINTER_BYTES);
       TSDB_CHECK_NULL(vg.taskList, code, lino, _return, terrno);
       TSDB_CHECK_NULL(taosArrayPush(vg.taskList, &pState), code, lino, _return, terrno);
-      code = taosHashPut(pVgMap, &pState->id.nodeId, sizeof(pState->id.nodeId), &pState, POINTER_BYTES);
+      code = taosHashPut(pVgMap, &pState->id.nodeId, sizeof(pState->id.nodeId), &vg, sizeof(vg));
       if (TSDB_CODE_SUCCESS == code) {
         return code;
       }
@@ -83,6 +83,7 @@ static int32_t msmAddTaskToVgroupMapImpl(SHashObj* pVgMap, SStmTaskStatus* pStat
     taosWLockLatch(&pVg->lock);
     if (NULL == taosArrayPush(pVg->taskList, &pState)) {
       taosWUnLockLatch(&pVg->lock);
+      taosHashRelease(pVgMap, pVg);
       TSDB_CHECK_NULL(NULL, code, lino, _return, terrno);
     }
     taosWUnLockLatch(&pVg->lock);

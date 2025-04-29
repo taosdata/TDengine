@@ -13201,9 +13201,9 @@ _return:
 static int32_t translateDropStream(STranslateContext* pCxt, SDropStreamStmt* pStmt) {
   SMDropStreamReq dropReq = {0};
   SName           name;
-  int32_t         code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->streamName, strlen(pStmt->streamName));
-  if (TSDB_CODE_SUCCESS != code) return code;
-  (void)tNameGetFullDbName(&name, dropReq.name);
+  int32_t         code = TSDB_CODE_SUCCESS;
+  
+  (void)strncpy(dropReq.name, pStmt->streamName, sizeof(dropReq.name));
   dropReq.igNotExists = pStmt->ignoreNotExists;
   code = buildCmdMsg(pCxt, TDMT_MND_DROP_STREAM, (FSerializeFunc)tSerializeSMDropStreamReq, &dropReq);
   tFreeMDropStreamReq(&dropReq);
