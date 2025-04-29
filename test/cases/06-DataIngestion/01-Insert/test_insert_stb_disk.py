@@ -7,7 +7,7 @@ class TestStableWrite1:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stable_write_1(self):
-        """write super table 1
+        """insert sub table then query
 
         1. insert data
         2. query data
