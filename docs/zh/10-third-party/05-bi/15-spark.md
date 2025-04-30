@@ -25,9 +25,9 @@ Apache Spark 是开源大数据处理引擎，它基于内存计算，可用于�
 
 **第 2 步**，创建 Spark 会话实例，详见示例 createSpark()。
 
-**第 3 步**，建立 JDBC WebSocket 连接，数据准备，详见示例 prepareDemoData()。
+**第 3 步**，建立 JDBC WebSocket 连接，准备演示数据，详见示例 prepareDemoData()。
 
-**第 4 步**，验证从数据源可正确获取数据，详见示例 readTable()。
+**第 4 步**，验证从数据源可正确获取数据，详见示例 readFromTDengine()。
 
 
 ## 数据分析
@@ -37,7 +37,7 @@ Apache Spark 是开源大数据处理引擎，它基于内存计算，可用于�
 以上节 `配置数据源` 中写入智能电表数据为样例。
 
 ### 分析电压周变化率
-我们选择展示了一个在 TDengine 中不支持，spark 支持的数据处理样例，意在说明对接 spark 后对 TDengine 能力的扩展。
+我们选择展示了一个在 TDengine 中不支持，spark 支持的数据处理样例，意在说明对接 spark 后对 TDengine 能力的扩展。   
 LAG() 函数是 Spark 提供的获取当前行之前某行数据的函数，此函数在 TDengine 上并不支持，示例使用此函数进行了电压周变化率的分析。
 
 **第 1 步**，通过 TDengine SQL 获取数据并创建 Spark View, 详见 createSparkView()。
@@ -75,10 +75,11 @@ TDengine 只支持时间主列的 JOIN, Spark 接 TDengine 数据源后, 可对�
 
 
 ## 示例源码
-示例为 JAVA 语言编写，编译运行参考示例源码目录下 README。
+示例为 JAVA 语言编写，编译运行参考示例源码目录下 README。   
 示例以智能电表数据为例，演示如下内容：
-- 写入数据至 TDengine，详见 writeToTDengine()。
-- 读取 TDengine 数据到 Spark, 详见 readFromTDengine()。
-- 从 TDengine 订阅数据，详见 subscribeFromTDengine()。
+- 写入数据至 TDengine，见 writeToTDengine()。
+- 读取 TDengine 数据到 Spark, 见 readFromTDengine()。
+- 从 TDengine 订阅数据，见 subscribeFromTDengine()。
+- 使用 Spark SQL 分析电压周变化率， 见 analysisDataWithSpark()。
 
 [完整示例源码](https://github.com/taosdata/tdengine-eco/tree/main/spark)
