@@ -22,9 +22,7 @@
 #include "vnodeInt.h"
 
 #define GET_REQUEST_STREAM_INFO                                                                          \
-  SSTriggerPullRequestUnion req = {0};                                                                   \
-  STREAM_CHECK_RET_GOTO(tDserializeSTriggerPullRequest(pMsg->pCont, pMsg->contLen, &req))                \
-  SStreamReaderInfo* sStreamReaderInfo = qStreamGetReaderInfo(req.base.streamId, req.base.readerTaskId); \
+  SStreamReaderInfo* sStreamReaderInfo = qStreamGetReaderInfo(req->base.streamId, req->base.readerTaskId); \
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
 
 int64_t getSessionKey(int64_t session, int64_t type) { return (session | (type << 32)); }
@@ -466,7 +464,7 @@ end:
   return code;
 }
 
-static int32_t vnodeProcessStreamLastTsReq(SVnode* pVnode, SRpcMsg* pMsg) {
+static int32_t vnodeProcessStreamLastTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTriggerPullRequestUnion* req) {
   int32_t                 code = 0;
   int32_t                 lino = 0;
   SArray*                 schemas = NULL;
@@ -526,7 +524,7 @@ end:
   return code;
 }
 
-static int32_t vnodeProcessStreamFirstTsReq(SVnode* pVnode, SRpcMsg* pMsg) {
+static int32_t vnodeProcessStreamFirstTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTriggerPullRequestUnion* req) {
   int32_t                 code = 0;
   int32_t                 lino = 0;
   SArray*                 schemas = NULL;
@@ -544,7 +542,7 @@ static int32_t vnodeProcessStreamFirstTsReq(SVnode* pVnode, SRpcMsg* pMsg) {
   STREAM_CHECK_RET_GOTO(
       buildSchema(schemas, TSDB_DATA_TYPE_TIMESTAMP, LONG_BYTES, PRIMARYKEY_TIMESTAMP_COL_ID))  // first ts
 
-  BUILD_OPTION(options, sStreamReaderInfo, true, TSDB_ORDER_ASC, req.firstTsReq.startTime, INT64_MAX, schemas,
+  BUILD_OPTION(options, sStreamReaderInfo, true, TSDB_ORDER_ASC, req->firstTsReq.startTime, INT64_MAX, schemas,
                STREAM_SCAN_GROUP_ONE_BY_ONE, 0);
   STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTask));
 
@@ -583,7 +581,7 @@ end:
   return code;
 }
 
-static int32_t vnodeProcessStreamTsdbMetaReq(SVnode* pVnode, SRpcMsg* pMsg) {
+static int32_t vnodeProcessStreamTsdbMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTriggerPullRequestUnion* req) {
   int32_t code = 0;
   int32_t lino = 0;
   SArray* schemas = NULL;
@@ -593,9 +591,9 @@ static int32_t vnodeProcessStreamTsdbMetaReq(SVnode* pVnode, SRpcMsg* pMsg) {
   vDebug("vgId:%d %s start", TD_VID(pVnode), __func__);
   GET_REQUEST_STREAM_INFO
   SStreamReaderTaskInner* pTask = NULL;
-  int64_t                 key = getSessionKey(req.base.sessionId, STRIGGER_PULL_TSDB_META);
+  int64_t                 key = getSessionKey(req->base.sessionId, STRIGGER_PULL_TSDB_META);
 
-  if (req.base.type == STRIGGER_PULL_TSDB_META) {
+  if (req->base.type == STRIGGER_PULL_TSDB_META) {
     schemas = taosArrayInit(8, sizeof(SSchema));
     STREAM_CHECK_NULL_GOTO(schemas, terrno);
     int16_t colId = PRIMARYKEY_TIMESTAMP_COL_ID;
@@ -605,7 +603,7 @@ static int32_t vnodeProcessStreamTsdbMetaReq(SVnode* pVnode, SRpcMsg* pMsg) {
     STREAM_CHECK_RET_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_UBIGINT, LONG_BYTES, colId++))    // gid
     STREAM_CHECK_RET_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, colId++))     // nrows
 
-    BUILD_OPTION(options, sStreamReaderInfo, true, TSDB_ORDER_ASC, req.tsdbMetaReq.startTime, INT64_MAX, schemas,
+    BUILD_OPTION(options, sStreamReaderInfo, true, TSDB_ORDER_ASC, req->tsdbMetaReq.startTime, INT64_MAX, schemas,
                  STREAM_SCAN_ALL, 0);
     STREAM_CHECK_RET_GOTO(createDataBlockForStream(options.schemas, &pTask->pResBlockDst));
 
@@ -623,7 +621,7 @@ static int32_t vnodeProcessStreamTsdbMetaReq(SVnode* pVnode, SRpcMsg* pMsg) {
     bool hasNext = false;
     STREAM_CHECK_RET_GOTO(getTableDataInfo(pTask, &hasNext));
     if (!hasNext) {
-      if (req.base.type == STRIGGER_PULL_TSDB_META_NEXT) {
+      if (req->base.type == STRIGGER_PULL_TSDB_META_NEXT) {
         taosHashRemove(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES);
       }
       break;
@@ -656,7 +654,7 @@ end:
   return code;
 }
 
-static int32_t vnodeProcessStreamTsDataReq(SVnode* pVnode, SRpcMsg* pMsg) {
+static int32_t vnodeProcessStreamTsDataReq(SVnode* pVnode, SRpcMsg* pMsg, SSTriggerPullRequestUnion* req) {
   int32_t                 code = 0;
   int32_t                 lino = 0;
   SArray*                 schemas = NULL;
@@ -673,9 +671,9 @@ static int32_t vnodeProcessStreamTsDataReq(SVnode* pVnode, SRpcMsg* pMsg) {
   STREAM_CHECK_RET_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_TIMESTAMP, LONG_BYTES, PRIMARYKEY_TIMESTAMP_COL_ID))  // ts
   // STREAM_CHECK_RET_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 2))
 
-  BUILD_OPTION(options, sStreamReaderInfo, true, TSDB_ORDER_ASC, req.tsdbTsDataReq.skey, req.tsdbTsDataReq.ekey,
+  BUILD_OPTION(options, sStreamReaderInfo, true, TSDB_ORDER_ASC, req->tsdbTsDataReq.skey, req->tsdbTsDataReq.ekey,
                schemas, STREAM_SCAN_ALL, 0);
-  options.uid = req.tsdbTsDataReq.uid;
+  options.uid = req->tsdbTsDataReq.uid;
   options.tableType = TD_CHILD_TABLE;
   STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTask));
   taosArrayClear(schemas);
@@ -710,7 +708,7 @@ end:
   return code;
 }
 
-static int32_t vnodeProcessStreamTsdbTriggerDataReq(SVnode* pVnode, SRpcMsg* pMsg) {
+static int32_t vnodeProcessStreamTsdbTriggerDataReq(SVnode* pVnode, SRpcMsg* pMsg, SSTriggerPullRequestUnion* req) {
   int32_t code = 0;
   int32_t lino = 0;
   SArray* schemas = NULL;
@@ -721,9 +719,9 @@ static int32_t vnodeProcessStreamTsdbTriggerDataReq(SVnode* pVnode, SRpcMsg* pMs
 
   GET_REQUEST_STREAM_INFO
   SStreamReaderTaskInner* pTask = NULL;
-  int64_t                 key = getSessionKey(req.base.sessionId, STRIGGER_PULL_TSDB_TRIGGER_DATA);
+  int64_t                 key = getSessionKey(req->base.sessionId, STRIGGER_PULL_TSDB_TRIGGER_DATA);
 
-  if (req.base.type == STRIGGER_PULL_TSDB_TRIGGER_DATA) {
+  if (req->base.type == STRIGGER_PULL_TSDB_TRIGGER_DATA) {
     schemas = taosArrayInit(4, sizeof(SSchema));
     STREAM_CHECK_NULL_GOTO(schemas, terrno);
 
@@ -732,7 +730,7 @@ static int32_t vnodeProcessStreamTsdbTriggerDataReq(SVnode* pVnode, SRpcMsg* pMs
     // STREAM_CHECK_RET_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 2)) // trigger col
     // STREAM_CHECK_RET_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 3)) // uid
 
-    BUILD_OPTION(options, sStreamReaderInfo, true, TSDB_ORDER_ASC, req.tsdbTriggerDataReq.startTime, INT64_MAX, schemas,
+    BUILD_OPTION(options, sStreamReaderInfo, true, TSDB_ORDER_ASC, req->tsdbTriggerDataReq.startTime, INT64_MAX, schemas,
                  STREAM_SCAN_ALL, 0);
     STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTask));
     STREAM_CHECK_RET_GOTO(taosHashPut(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES, &pTask, sizeof(pTask)));
@@ -753,7 +751,7 @@ static int32_t vnodeProcessStreamTsdbTriggerDataReq(SVnode* pVnode, SRpcMsg* pMs
     bool hasNext = false;
     STREAM_CHECK_RET_GOTO(getTableDataInfo(pTask, &hasNext));
     if (!hasNext) {
-      if (req.base.type == STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT) {
+      if (req->base.type == STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT) {
         taosHashRemove(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES);
       }
       goto end;
@@ -784,7 +782,7 @@ end:
   return code;
 }
 
-static int32_t vnodeProcessStreamCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg) {
+static int32_t vnodeProcessStreamCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg, SSTriggerPullRequestUnion* req) {
   int32_t code = 0;
   int32_t lino = 0;
   SArray* schemas = NULL;
@@ -795,16 +793,16 @@ static int32_t vnodeProcessStreamCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg) {
 
   GET_REQUEST_STREAM_INFO
   SStreamReaderTaskInner* pTask = NULL;
-  int64_t                 key = getSessionKey(req.base.sessionId, STRIGGER_PULL_TSDB_CALC_DATA);
+  int64_t                 key = getSessionKey(req->base.sessionId, STRIGGER_PULL_TSDB_CALC_DATA);
 
-  if (req.base.type == STRIGGER_PULL_TSDB_CALC_DATA) {
+  if (req->base.type == STRIGGER_PULL_TSDB_CALC_DATA) {
     schemas = taosArrayInit(4, sizeof(SSchema));
     STREAM_CHECK_NULL_GOTO(schemas, terrno);
 
     STREAM_CHECK_RET_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_TIMESTAMP, LONG_BYTES, PRIMARYKEY_TIMESTAMP_COL_ID))
     STREAM_CHECK_RET_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 2))
-    BUILD_OPTION(options, sStreamReaderInfo, true, TSDB_ORDER_ASC, req.tsdbCalcDataReq.skey, req.tsdbCalcDataReq.ekey,
-                 schemas, STREAM_SCAN_ALL, req.tsdbCalcDataReq.gid);
+    BUILD_OPTION(options, sStreamReaderInfo, true, TSDB_ORDER_ASC, req->tsdbCalcDataReq.skey, req->tsdbCalcDataReq.ekey,
+                 schemas, STREAM_SCAN_ALL, req->tsdbCalcDataReq.gid);
     STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTask));
     STREAM_CHECK_RET_GOTO(taosHashPut(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES, &pTask, sizeof(pTask)));
 
@@ -824,7 +822,7 @@ static int32_t vnodeProcessStreamCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg) {
     bool hasNext = false;
     STREAM_CHECK_RET_GOTO(getTableDataInfo(pTask, &hasNext));
     if (!hasNext) {
-      if (req.base.type == STRIGGER_PULL_TSDB_CALC_DATA_NEXT) {
+      if (req->base.type == STRIGGER_PULL_TSDB_CALC_DATA_NEXT) {
         taosHashRemove(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES);
       }
       goto end;
@@ -850,7 +848,7 @@ end:
   return code;
 }
 
-static int32_t vnodeProcessStreamWalMetaReq(SVnode* pVnode, SRpcMsg* pMsg) {
+static int32_t vnodeProcessStreamWalMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTriggerPullRequestUnion* req) {
   int32_t      code = 0;
   int32_t      lino = 0;
   SArray*      schemas = NULL;
@@ -882,7 +880,7 @@ static int32_t vnodeProcessStreamWalMetaReq(SVnode* pVnode, SRpcMsg* pMsg) {
   STREAM_CHECK_RET_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 6))  // nrows
 
   STREAM_CHECK_RET_GOTO(createDataBlockForStream(schemas, &pBlock));
-  STREAM_CHECK_RET_GOTO(scanWal(pVnode, pTableList, pBlock, req.walMetaReq.lastVer));
+  STREAM_CHECK_RET_GOTO(scanWal(pVnode, pTableList, pBlock, req->walMetaReq.lastVer));
 
   vDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
   STREAM_CHECK_RET_GOTO(buildRsp(pBlock, &buf, &size));
@@ -898,7 +896,7 @@ end:
   return code;
 }
 
-static int32_t vnodeProcessStreamWalTsDataReq(SVnode* pVnode, SRpcMsg* pMsg) {
+static int32_t vnodeProcessStreamWalTsDataReq(SVnode* pVnode, SRpcMsg* pMsg, SSTriggerPullRequestUnion* req) {
   int32_t code = 0;
   int32_t lino = 0;
   SArray* schemas = NULL;
@@ -916,7 +914,7 @@ static int32_t vnodeProcessStreamWalTsDataReq(SVnode* pVnode, SRpcMsg* pMsg) {
   // STREAM_CHECK_RET_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 2))  // filter col
 
   STREAM_CHECK_RET_GOTO(
-      processWalVerData(pVnode, sStreamReaderInfo, schemas, req.walTsDataReq.ver, req.walTsDataReq.uid, NULL, &pBlock))
+      processWalVerData(pVnode, sStreamReaderInfo, schemas, req->walTsDataReq.ver, req->walTsDataReq.uid, NULL, &pBlock))
   vDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
   STREAM_CHECK_RET_GOTO(buildRsp(pBlock, &buf, &size));
 
@@ -929,7 +927,7 @@ end:
   return code;
 }
 
-static int32_t vnodeProcessStreamWalTriggerDataReq(SVnode* pVnode, SRpcMsg* pMsg) {
+static int32_t vnodeProcessStreamWalTriggerDataReq(SVnode* pVnode, SRpcMsg* pMsg, SSTriggerPullRequestUnion* req) {
   int32_t      code = 0;
   int32_t      lino = 0;
   SArray*      schemas = NULL;
@@ -946,8 +944,8 @@ static int32_t vnodeProcessStreamWalTriggerDataReq(SVnode* pVnode, SRpcMsg* pMsg
   STREAM_CHECK_RET_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 2))  // trigger col
   STREAM_CHECK_RET_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 3))  // filter col
 
-  STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, schemas, req.walTriggerDataReq.ver,
-                                          req.walTriggerDataReq.uid, NULL, &pBlock));
+  STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, schemas, req->walTriggerDataReq.ver,
+                                          req->walTriggerDataReq.uid, NULL, &pBlock));
 
   vDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
 
@@ -962,7 +960,7 @@ end:
   return code;
 }
 
-static int32_t vnodeProcessStreamWalCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg) {
+static int32_t vnodeProcessStreamWalCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg, SSTriggerPullRequestUnion* req) {
   int32_t      code = 0;
   int32_t      lino = 0;
   SArray*      schemas = NULL;
@@ -979,9 +977,9 @@ static int32_t vnodeProcessStreamWalCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg) {
   STREAM_CHECK_RET_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 2))  // trigger col
   STREAM_CHECK_RET_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 3))  // filter col
 
-  STimeWindow window = {.skey = req.walCalcDataReq.skey, .ekey = req.walCalcDataReq.ekey};
-  STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, schemas, req.walCalcDataReq.ver,
-                                          req.walCalcDataReq.uid, &window, &pBlock));
+  STimeWindow window = {.skey = req->walCalcDataReq.skey, .ekey = req->walCalcDataReq.ekey};
+  STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, schemas, req->walCalcDataReq.ver,
+                                          req->walCalcDataReq.uid, &window, &pBlock));
 
   vDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
 
@@ -1008,7 +1006,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   SResFetchReq req = {0};
   STREAM_CHECK_CONDITION_GOTO(tDeserializeSResFetchReq(pMsg->pCont, pMsg->contLen, &req) < 0,
                               TSDB_CODE_QRY_INVALID_INPUT);
-  // STREAM_CHECK_RET_GOTO(streamGetTask(req.queryId, req.taskId, &pTask));
+  // STREAM_CHECK_RET_GOTO(streamGetTask(req->queryId, req->taskId, &pTask));
   // STREAM_CHECK_RET_GOTO(((SExecTaskInfo*)(pTask->pExecutor))->pRoot->fpSet.getNextFn(((SExecTaskInfo*)(pTask->pExecutor))->pRoot->pRoot,
   // pRes));
   if (pBlock && pBlock->info.rows > 0) {
@@ -1032,31 +1030,37 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   if (pMsg->msgType == TDMT_STREAM_FETCH) {
     return vnodeProcessStreamFetchMsg(pVnode, pMsg);
   } else if (pMsg->msgType == TDMT_STREAM_TRIGGER_PULL) {
-    ESTriggerPullType* type = (ESTriggerPullType*)(pMsg->pCont);
-    switch (*type) {
+    void* pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+    int32_t len = pMsg->contLen - sizeof(SMsgHead);
+    SSTriggerPullRequestUnion req = {0};  
+    int32_t code = tDserializeSTriggerPullRequest(pReq, len, &req);                                                                 
+    if (code != 0){
+      return code;
+    }                
+    switch (req.base.type) {
       case STRIGGER_PULL_LAST_TS:
-        return vnodeProcessStreamLastTsReq(pVnode, pMsg);
+        return vnodeProcessStreamLastTsReq(pVnode, pMsg, &req);
       case STRIGGER_PULL_FIRST_TS:
-        return vnodeProcessStreamFirstTsReq(pVnode, pMsg);
+        return vnodeProcessStreamFirstTsReq(pVnode, pMsg, &req);
       case STRIGGER_PULL_TSDB_META:
       case STRIGGER_PULL_TSDB_META_NEXT:
-        return vnodeProcessStreamTsdbMetaReq(pVnode, pMsg);
+        return vnodeProcessStreamTsdbMetaReq(pVnode, pMsg, &req);
       case STRIGGER_PULL_TSDB_TS_DATA:
-        return vnodeProcessStreamTsDataReq(pVnode, pMsg);
+        return vnodeProcessStreamTsDataReq(pVnode, pMsg, &req);
       case STRIGGER_PULL_TSDB_TRIGGER_DATA:
       case STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT:
-        return vnodeProcessStreamTsdbTriggerDataReq(pVnode, pMsg);
+        return vnodeProcessStreamTsdbTriggerDataReq(pVnode, pMsg, &req);
       case STRIGGER_PULL_TSDB_CALC_DATA:
       case STRIGGER_PULL_TSDB_CALC_DATA_NEXT:
-        return vnodeProcessStreamCalcDataReq(pVnode, pMsg);
+        return vnodeProcessStreamCalcDataReq(pVnode, pMsg, &req);
       case STRIGGER_PULL_WAL_META:
-        return vnodeProcessStreamWalMetaReq(pVnode, pMsg);
+        return vnodeProcessStreamWalMetaReq(pVnode, pMsg, &req);
       case STRIGGER_PULL_WAL_TS_DATA:
-        return vnodeProcessStreamWalTsDataReq(pVnode, pMsg);
+        return vnodeProcessStreamWalTsDataReq(pVnode, pMsg, &req);
       case STRIGGER_PULL_WAL_TRIGGER_DATA:
-        return vnodeProcessStreamWalTriggerDataReq(pVnode, pMsg);
+        return vnodeProcessStreamWalTriggerDataReq(pVnode, pMsg, &req);
       case STRIGGER_PULL_WAL_CALC_DATA:
-        return vnodeProcessStreamWalCalcDataReq(pVnode, pMsg);
+        return vnodeProcessStreamWalCalcDataReq(pVnode, pMsg, &req);
       default:
         vError("unknown msg type:%d in fetch queue", pMsg->msgType);
         return TSDB_CODE_APP_ERROR;
