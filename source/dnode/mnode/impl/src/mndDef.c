@@ -24,7 +24,7 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pObj->name));
   TAOS_CHECK_RETURN(tSerializeSCMCreateStreamReqImpl(pEncoder, pObj->pCreate));
 
-  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pObj->userStopped));
+  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, atomic_load_8((int8_t*)&pObj->userStopped)));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->createTime));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->updateTime));
 

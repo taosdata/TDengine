@@ -21,8 +21,30 @@
 #include "taoserror.h"
 #include "tmisce.h"
 
+int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped) {
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  
+  while (1) {
+    SStreamObj *pStream = NULL;
+    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+    if (pIter == NULL) break;
 
-int32_t mndGetNumOfStreams(SMnode *pMnode, char *dbName, int32_t *pNumOfStreams) {
+    if (pStream->pCreate->streamId == streamId) {
+      *dropped = pStream->userDropped ? true : false;
+      sdbRelease(pSdb, pStream);
+      return TSDB_CODE_SUCCESS;
+    }
+    
+    sdbRelease(pSdb, pStream);
+  }
+
+  *dropped = true;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mstGetStreamsNumInDb(SMnode *pMnode, char *dbName, int32_t *pNumOfStreams) {
   SSdb   *pSdb = pMnode->pSdb;
   SDbObj *pDb = mndAcquireDb(pMnode, dbName);
   if (pDb == NULL) {
@@ -49,7 +71,7 @@ int32_t mndGetNumOfStreams(SMnode *pMnode, char *dbName, int32_t *pNumOfStreams)
   return 0;
 }
 
-static void mndShowStreamStatus(char *dst, int8_t status, int32_t bufLen) {
+static void mstShowStreamStatus(char *dst, int8_t status, int32_t bufLen) {
   if (status == STREAM_STATUS_INIT) {
     tstrncpy(dst, "init", bufLen);
   } else if (status == STREAM_STATUS_RUNNING) {
@@ -61,22 +83,7 @@ static void mndShowStreamStatus(char *dst, int8_t status, int32_t bufLen) {
   }
 }
 
-static void mndShowStreamTrigger(char *dst, SStreamObj *pStream) {
-  /*
-  int8_t trigger = pStream->conf.trigger;
-  if (trigger == STREAM_TRIGGER_AT_ONCE) {
-    tstrncpy(dst, "at once", MND_STREAM_TRIGGER_NAME_SIZE);
-  } else if (trigger == STREAM_TRIGGER_WINDOW_CLOSE) {
-    tstrncpy(dst, "window close", MND_STREAM_TRIGGER_NAME_SIZE);
-  } else if (trigger == STREAM_TRIGGER_MAX_DELAY) {
-    tstrncpy(dst, "max delay", MND_STREAM_TRIGGER_NAME_SIZE);
-  } else if (trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
-    tstrncpy(dst, "force window close", MND_STREAM_TRIGGER_NAME_SIZE);
-  }
-*/  
-}
-
-int32_t mndStreamGenerateResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows) {
+int32_t mstGenerateResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows) {
   int32_t code = 0;
   int32_t cols = 0;
   int32_t lino = 0;
@@ -243,7 +250,7 @@ _end:
   return code;
 }
 
-int32_t mndStreamCheckSnodeExists(SMnode *pMnode) {
+int32_t mstCheckSnodeExists(SMnode *pMnode) {
   SSdb      *pSdb = pMnode->pSdb;
   void      *pIter = NULL;
   SSnodeObj *pObj = NULL;
