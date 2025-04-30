@@ -898,7 +898,7 @@ SArray *mndBuildDnodesArray(SMnode *pMnode, int32_t exceptDnodeId, SArray *dnode
     SDnodeObj *pDnode = taosArrayGet(pArray, i);
     mDebug("dnode:%d, vnodes:%d others:%d", pDnode->id, pDnode->numOfVnodes, pDnode->numOfOtherNodes);
   }
-
+  taosArrayDestroy(pDnodeList);
   return pArray;
 }
 
