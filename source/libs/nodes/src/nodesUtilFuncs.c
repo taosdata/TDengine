@@ -391,6 +391,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_PLACE_HOLDER_TABLE:
       code = makeNode(type, sizeof(SPlaceHolderTableNode), &pNode);
       break;
+    case QUERY_NODE_TIME_RANGE:
+      code = makeNode(type, sizeof(STimeRangeNode), &pNode);
+      break;
     case QUERY_NODE_STREAM:
       code = makeNode(type, sizeof(SStreamNode), &pNode);
       break;
@@ -1131,6 +1134,12 @@ void nodesDestroyNode(SNode* pNode) {
       SPlaceHolderTableNode *pPlaceHolder = (SPlaceHolderTableNode*)pNode;
       taosMemoryFreeClear(pPlaceHolder->pMeta);
       taosMemoryFreeClear(pPlaceHolder->pVgroupList);
+      break;
+    }
+    case QUERY_NODE_TIME_RANGE: {
+      STimeRangeNode* pTimeRange = (STimeRangeNode*)pNode;
+      nodesDestroyNode((SNode*)pTimeRange->pStart);
+      nodesDestroyNode((SNode*)pTimeRange->pEnd);
       break;
     }
     case QUERY_NODE_JOIN_TABLE: {

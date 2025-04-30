@@ -119,6 +119,8 @@ const char* nodesNodeName(ENodeType type) {
       return "AnomalyWindow";
     case QUERY_NODE_STREAM_NOTIFY_OPTIONS:
       return "StreamNotifyOptions";
+    case QUERY_NODE_TIME_RANGE:
+      return "TimeRange";
     case QUERY_NODE_SET_OPERATOR:
       return "SetOperator";
     case QUERY_NODE_SELECT_STMT:
@@ -6738,6 +6740,30 @@ static int32_t jsonToSetOperator(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkTimeRangeStart = "start";
+static const char* jkTimeRangeEnd = "end";
+
+static int32_t timeRangeNodeToJson(const void* pObj, SJson* pJson) {
+  const STimeRangeNode* pNode = (const STimeRangeNode*)pObj;
+
+  int32_t code = tjsonAddObject(pJson, jkTimeRangeStart, nodeToJson, pNode->pStart);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkTimeRangeEnd, nodeToJson, pNode->pEnd);
+  }
+
+  return code;
+}
+
+static int32_t jsonToTimeRangeNode(const SJson* pJson, void* pObj) {
+  STimeRangeNode* pNode = (STimeRangeNode*)pObj;
+
+  int32_t code = jsonToNodeObject(pJson, jkTimeRangeStart, &pNode->pStart);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkTimeRangeEnd, &pNode->pEnd);
+  }
+  return code;
+}
+
 static const char* jkSelectStmtDistinct = "Distinct";
 static const char* jkSelectStmtProjections = "Projections";
 static const char* jkSelectStmtFrom = "From";
@@ -8932,6 +8958,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return streamNotifyOptionsToJson(pObj, pJson);
     case QUERY_NODE_SET_OPERATOR:
       return setOperatorToJson(pObj, pJson);
+    case QUERY_NODE_TIME_RANGE:
+      return timeRangeNodeToJson(pObj, pJson);
     case QUERY_NODE_SELECT_STMT:
       return selectStmtToJson(pObj, pJson);
     case QUERY_NODE_VNODE_MODIFY_STMT:
@@ -9329,6 +9357,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToStreamNotifyOptions(pJson, pObj);
     case QUERY_NODE_SET_OPERATOR:
       return jsonToSetOperator(pJson, pObj);
+    case QUERY_NODE_TIME_RANGE:
+      return jsonToTimeRangeNode(pJson, pObj);
     case QUERY_NODE_SELECT_STMT:
       return jsonToSelectStmt(pJson, pObj);
     case QUERY_NODE_VNODE_MODIFY_STMT:
