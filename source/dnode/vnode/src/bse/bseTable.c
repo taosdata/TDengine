@@ -1456,9 +1456,11 @@ int32_t tableMetaWriterFlushIndex(SBtableMetaWriter *pMeta) {
   int32_t   nWrite = 0;
   int64_t   lastOffset = pMeta->offset;
   int32_t   blkHandleSize = 0;
-  SSeqRange range = {0};
+
   int32_t   extra = 8;
   int32_t   size = taosArrayGetSize(pMeta->pBlkHandle) * sizeof(SBlkHandle);
+
+  SSeqRange range = {-1, -1};
 
   blockWrapperClear(&pMeta->blockWrapper);
   blockWrapperResize(&pMeta->blockWrapper, size + extra);
@@ -1470,13 +1472,7 @@ int32_t tableMetaWriterFlushIndex(SBtableMetaWriter *pMeta) {
     }
     blkHandleSize += metaBlockAddIndex(pMeta->blockWrapper.data, pHandle);
 
-    if (i == 0) {
-      range.sseq = pHandle->range.sseq;
-    }
-
-    if (i == taosArrayGetSize(pMeta->pBlkHandle) - 1) {
-      range.eseq = pHandle->range.eseq;
-    }
+    seqRangeUpdate(&range, &pHandle->range);
   }
 
   blockWrapperSetType(&pMeta->blockWrapper, BSE_TABLE_INDEX_TYPE);
