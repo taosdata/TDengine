@@ -636,6 +636,7 @@ typedef enum EStreamNotifyEventType {
 typedef struct SStreamNotifyOptions {
   ENodeType                    type;
   SNodeList*                   pAddrUrls;
+  SNode*                       pWhere;
   int64_t                      eventType;
   int64_t                      notifyType;
 } SStreamNotifyOptions;

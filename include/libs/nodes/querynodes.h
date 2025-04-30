@@ -497,7 +497,7 @@ typedef struct SRangeAroundNode {
 } SRangeAroundNode;
 
 typedef struct STimeRangeNode {
-  ENodeType type;
+  ENodeType type; // QUERY_NODE_TIME_RANGE
   SNode*    pStart;
   SNode*    pEnd;
 } STimeRangeNode;
@@ -506,7 +506,7 @@ typedef struct SSelectStmt {
   ENodeType       type;  // QUERY_NODE_SELECT_STMT
   bool            isDistinct;
   STimeWindow     timeRange;
-  STimeRangeNode* pTimeRange; // for create stream
+  SNode*          pTimeRange; // STimeRangeNode for create stream
   SNodeList*      pProjectionList;
   SNodeList*      pProjectionBindList;
   SNode*          pFromTable;

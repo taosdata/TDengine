@@ -898,6 +898,12 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
     nodesDestroyNode((SNode*)pTableScan);
     return code;
   }
+  code = nodesCloneNode(pScanLogicNode->pTimeRange, &pTableScan->pTimeRange);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pTableScan);
+    return code;
+  }
+
   pTableScan->groupSort = pScanLogicNode->groupSort;
   pTableScan->interval = pScanLogicNode->interval;
   pTableScan->offset = pScanLogicNode->offset;
