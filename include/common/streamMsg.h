@@ -127,18 +127,17 @@ void    tCleanupStreamRetrieveReq(struct SStreamRetrieveReq* pReq);
 #define BIT_FLAG_UNSET_MASK(val, mask) ((val) &= ~(mask))
 #define BIT_FLAG_TEST_MASK(val, mask)  (((val) & (mask)) != 0)
 
-#define PLACE_HOLDER_NONE                  0
-#define PLACE_HOLDER_CURRENT_TS            BIT_FLAG_MASK(0)
-#define PLACE_HOLDER_WSTART                BIT_FLAG_MASK(1)
-#define PLACE_HOLDER_WEND                  BIT_FLAG_MASK(2)
-#define PLACE_HOLDER_WDURATION             BIT_FLAG_MASK(3)
-#define PLACE_HOLDER_WROWNUM               BIT_FLAG_MASK(4)
-#define PLACE_HOLDER_LOCALTIME             BIT_FLAG_MASK(5)
-#define PLACE_HOLDER_PARTITION_IDX         BIT_FLAG_MASK(6)
-#define PLACE_HOLDER_PARTITION_TBNAME      BIT_FLAG_MASK(7)
-#define PLACE_HOLDER_PARTITION_ROWS        BIT_FLAG_MASK(8)
-#define PLACE_HOLDER_GRPID                 BIT_FLAG_MASK(9)
-
+#define PLACE_HOLDER_NONE             0
+#define PLACE_HOLDER_CURRENT_TS       BIT_FLAG_MASK(0)
+#define PLACE_HOLDER_WSTART           BIT_FLAG_MASK(1)
+#define PLACE_HOLDER_WEND             BIT_FLAG_MASK(2)
+#define PLACE_HOLDER_WDURATION        BIT_FLAG_MASK(3)
+#define PLACE_HOLDER_WROWNUM          BIT_FLAG_MASK(4)
+#define PLACE_HOLDER_LOCALTIME        BIT_FLAG_MASK(5)
+#define PLACE_HOLDER_PARTITION_IDX    BIT_FLAG_MASK(6)
+#define PLACE_HOLDER_PARTITION_TBNAME BIT_FLAG_MASK(7)
+#define PLACE_HOLDER_PARTITION_ROWS   BIT_FLAG_MASK(8)
+#define PLACE_HOLDER_GRPID            BIT_FLAG_MASK(9)
 
 typedef enum EStreamPlaceholder {
   SP_NONE = 0,
@@ -154,8 +153,8 @@ typedef enum EStreamPlaceholder {
 } EStreamPlaceholder;
 
 typedef struct SStreamOutCol {
-  void*              expr;
-  SDataType          type;
+  void*     expr;
+  SDataType type;
 } SStreamOutCol;
 
 typedef struct SSessionTrigger {
@@ -187,12 +186,15 @@ typedef struct SEventTrigger {
 } SEventTrigger;
 
 typedef struct SCountTrigger {
-  int64_t    countVal;
-  int64_t    sliding;
-  void*      condCols;
+  int64_t countVal;
+  int64_t sliding;
+  void*   condCols;
 } SCountTrigger;
 
 typedef struct SPeriodTrigger {
+  char    periodUnit;
+  char    offsetUnit;
+  int8_t  precision;
   int64_t period;
   int64_t offset;
 } SPeriodTrigger;
@@ -207,33 +209,33 @@ typedef union {
 } SStreamTrigger;
 
 typedef struct {
-  SArray* vgList; // vgId, SArray<int32>
+  SArray* vgList;  // vgId, SArray<int32>
   int8_t  readFromCache;
   void*   scanPlan;
 } SStreamCalcScan;
 
 typedef struct {
-  char*    name;
-  int64_t  streamId;
-  char*    sql;
-  
+  char*   name;
+  int64_t streamId;
+  char*   sql;
+
   char*   streamDB;
   char*   triggerDB;
   char*   outDB;
-  SArray* calcDB;          // char*
-  
-  char*   triggerTblName;  // table name
-  char*   outTblName;      // table name
+  SArray* calcDB;  // char*
 
-  int8_t  igExists;
-  int8_t  triggerType;
-  int8_t  igDisorder;
-  int8_t  deleteReCalc;
-  int8_t  deleteOutTbl;
-  int8_t  fillHistory;
-  int8_t  fillHistoryFirst;
-  int8_t  calcNotifyOnly;
-  int8_t  lowLatencyCalc;
+  char* triggerTblName;  // table name
+  char* outTblName;      // table name
+
+  int8_t igExists;
+  int8_t triggerType;
+  int8_t igDisorder;
+  int8_t deleteReCalc;
+  int8_t deleteOutTbl;
+  int8_t fillHistory;
+  int8_t fillHistoryFirst;
+  int8_t calcNotifyOnly;
+  int8_t lowLatencyCalc;
 
   // notify options
   SArray* pNotifyAddrUrls;
@@ -241,14 +243,14 @@ typedef struct {
   int32_t notifyErrorHandle;
   int8_t  notifyHistory;
 
-  void*          triggerCols;  // nodelist of SColumnNode
-  void*          partitionCols;  // nodelist of SColumnNode
-  SArray*        outCols;  // array of SFieldWithOptions
-  SArray*        outTags;  // array of SFieldWithOptions
-  int64_t        maxDelay;    //precision is ms
-  int64_t        fillHistoryStartTime; // precision same with triggerDB, INT64_MIN for no value specified
-  int64_t        watermark;   // precision same with triggerDB
-  int64_t        expiredTime; // precision same with triggerDB
+  void*          triggerCols;           // nodelist of SColumnNode
+  void*          partitionCols;         // nodelist of SColumnNode
+  SArray*        outCols;               // array of SFieldWithOptions
+  SArray*        outTags;               // array of SFieldWithOptions
+  int64_t        maxDelay;              // precision is ms
+  int64_t        fillHistoryStartTime;  // precision same with triggerDB, INT64_MIN for no value specified
+  int64_t        watermark;             // precision same with triggerDB
+  int64_t        expiredTime;           // precision same with triggerDB
   SStreamTrigger trigger;
 
   int8_t   triggerTblType;
@@ -262,28 +264,28 @@ typedef struct {
   int64_t  placeHolderBitmap;
 
   // only for child table and normal table
-  int32_t  triggerTblVgId;
-  int32_t  outTblVgId;
+  int32_t triggerTblVgId;
+  int32_t outTblVgId;
 
   // reader part
-  void*     triggerScanPlan;      // block include all preFilter<>triggerPrevFilter/partitionCols<>subTblNameExpr+tagValueExpr/triggerCols<>triggerCond
-  SArray*   calcScanPlanList;     // for calc action, SArray<SStreamCalcScan>
+  void*
+      triggerScanPlan;  // block include all
+                        // preFilter<>triggerPrevFilter/partitionCols<>subTblNameExpr+tagValueExpr/triggerCols<>triggerCond
+  SArray* calcScanPlanList;  // for calc action, SArray<SStreamCalcScan>
 
   // trigger part
-  SArray*   pVSubTables; // array of SVSubTablesRsp
-  
-  // runner part
-  void*     calcPlan;      // for calc action
-  void*     subTblNameExpr;
-  void*     tagValueExpr;
-  SArray*   forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
-} SCMCreateStreamReq;
+  SArray* pVSubTables;  // array of SVSubTablesRsp
 
+  // runner part
+  void*   calcPlan;  // for calc action
+  void*   subTblNameExpr;
+  void*   tagValueExpr;
+  SArray* forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
+} SCMCreateStreamReq;
 
 typedef struct SStreamMsg {
   int32_t msgType;
 } SStreamMsg;
-
 
 typedef enum {
   STREAM_STATUS_NA = 0,
@@ -299,22 +301,21 @@ typedef enum EStreamTaskType {
   STREAM_RUNNER_TASK,
 } EStreamTaskType;
 
-static const char *gStreamTaskTypeStr[] = {"Reader", "Trigger", "Runner"};
+static const char* gStreamTaskTypeStr[] = {"Reader", "Trigger", "Runner"};
 
 typedef struct SStreamTask {
   EStreamTaskType type;
-  
-  /** KEEP TOGETHER **/
-  int64_t         streamId;  // ID of the stream
-  int64_t         taskId;    // ID of the current task
-  /** KEEP TOGETHER **/
-      
-  int32_t         nodeId;    // ID of the vgroup/snode
-  int64_t         sessionId;  // ID of the current session (real-time, historical, or recalculation)
-  int16_t         taskIdx;
-  EStreamStatus   status;
-} SStreamTask;
 
+  /** KEEP TOGETHER **/
+  int64_t streamId;  // ID of the stream
+  int64_t taskId;    // ID of the current task
+  /** KEEP TOGETHER **/
+
+  int32_t       nodeId;     // ID of the vgroup/snode
+  int64_t       sessionId;  // ID of the current session (real-time, historical, or recalculation)
+  int16_t       taskIdx;
+  EStreamStatus status;
+} SStreamTask;
 
 typedef SStreamTask SStmTaskStatusMsg;
 
@@ -336,14 +337,14 @@ typedef struct {
   int8_t  triggerTblType;
   int8_t  deleteReCalc;
   int8_t  deleteOutTbl;
-  void*   partitionCols; // nodelist of SColumnNode
-  void*   triggerCols;   // nodelist of SColumnNode
-  //void*   triggerPrevFilter;
-  void*   triggerScanPlan; 
+  void*   partitionCols;  // nodelist of SColumnNode
+  void*   triggerCols;    // nodelist of SColumnNode
+  // void*   triggerPrevFilter;
+  void* triggerScanPlan;
 } SStreamReaderDeployFromTrigger;
 
 typedef struct {
-  void*   calcScanPlan;
+  void* calcScanPlan;
 } SStreamReaderDeployFromCalc;
 
 typedef union {
@@ -354,7 +355,7 @@ typedef union {
 typedef struct SStreamReaderDeployMsg {
   int8_t              triggerReader;
   SStreamReaderDeploy msg;
-}SStreamReaderDeployMsg;
+} SStreamReaderDeployMsg;
 
 typedef struct SStreamTaskAddr {
   int64_t taskId;
@@ -368,11 +369,11 @@ typedef struct SStreamRunnerTarget {
 } SStreamRunnerTarget;
 
 typedef struct {
-  int8_t  triggerType;
-  int8_t  igDisorder;
-  int8_t  fillHistory;
-  int8_t  fillHistoryFirst;
-  int8_t  lowLatencyCalc;
+  int8_t triggerType;
+  int8_t igDisorder;
+  int8_t fillHistory;
+  int8_t fillHistoryFirst;
+  int8_t lowLatencyCalc;
 
   // notify options
   SArray* pNotifyAddrUrls;
@@ -380,41 +381,41 @@ typedef struct {
   int32_t notifyErrorHandle;
   int8_t  notifyHistory;
 
-  int64_t        maxDelay;    //precision is ms
-  int64_t        fillHistoryStartTime; // precision same with triggerDB, INT64_MIN for no value specified
-  int64_t        watermark;   // precision same with triggerDB
-  int64_t        expiredTime; // precision same with triggerDB
+  int64_t        maxDelay;              // precision is ms
+  int64_t        fillHistoryStartTime;  // precision same with triggerDB, INT64_MIN for no value specified
+  int64_t        watermark;             // precision same with triggerDB
+  int64_t        expiredTime;           // precision same with triggerDB
   SStreamTrigger trigger;
 
-  int64_t  eventTypes;
-  int64_t  placeHolderBitmap;
+  int64_t eventTypes;
+  int64_t placeHolderBitmap;
 
   SArray* readerList;  // SArray<SStreamTaskAddr>
   SArray* runnerList;  // SArray<SStreamRunnerTarget>
-  
+
   SArray* pVSubTables;
 } SStreamTriggerDeployMsg;
 
 typedef struct SStreamRunnerDeployMsg {
-  int32_t               execReplica;
-  
-  void*                 pPlan;
-  char*                 outDBFName;
-  char*                 outTblName;
-  int8_t                outTblType;
-  int8_t                calcNotifyOnly;
+  int32_t execReplica;
+
+  void*  pPlan;
+  char*  outDBFName;
+  char*  outTblName;
+  int8_t outTblType;
+  int8_t calcNotifyOnly;
 
   // notify options
-  SArray*               pNotifyAddrUrls;
-  int32_t               notifyErrorHandle;
+  SArray* pNotifyAddrUrls;
+  int32_t notifyErrorHandle;
 
-  SArray*               outCols;  // array of SFieldWithOptions
-  SArray*               outTags;  // array of SFieldWithOptions
-  uint64_t              outStbUid;
-  
-  void*                 subTblNameExpr;
-  void*                 tagValueExpr;
-  SArray*               forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
+  SArray*  outCols;  // array of SFieldWithOptions
+  SArray*  outTags;  // array of SFieldWithOptions
+  uint64_t outStbUid;
+
+  void*   subTblNameExpr;
+  void*   tagValueExpr;
+  SArray* forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
 } SStreamRunnerDeployMsg;
 
 typedef union {
@@ -430,18 +431,18 @@ typedef struct {
 
 typedef struct {
   int64_t         streamId;
-  SArray*         readerTasks;   // SArray<SStmTaskDeploy> in v/sNode and SArray<SStmTaskDeploy*> in mNode
+  SArray*         readerTasks;  // SArray<SStmTaskDeploy> in v/sNode and SArray<SStmTaskDeploy*> in mNode
   SStmTaskDeploy* triggerTask;
-  SArray*         runnerTasks;   // SArray<SStmTaskDeploy> in v/sNode and SArray<SStmTaskDeploy*> in mNode
+  SArray*         runnerTasks;  // SArray<SStmTaskDeploy> in v/sNode and SArray<SStmTaskDeploy*> in mNode
 } SStmStreamDeploy;
 
 typedef struct {
-  SArray* streamList;      // SArray<SStmStreamDeploy>
+  SArray* streamList;  // SArray<SStmStreamDeploy>
 } SStreamDeployActions;
 
 typedef struct {
-  SStreamMsg  header;
-  
+  SStreamMsg header;
+
 } SStreamStartTaskMsg;
 
 typedef struct {
@@ -450,29 +451,28 @@ typedef struct {
 } SStreamTaskStart;
 
 typedef struct {
-  SArray* taskList;      // SArray<SStreamTaskStart>
+  SArray* taskList;  // SArray<SStreamTaskStart>
 } SStreamStartActions;
 
 typedef struct {
-  SStreamMsg  header;
-  int8_t      doCheckpoint;
-  int8_t      doCleanup;
+  SStreamMsg header;
+  int8_t     doCheckpoint;
+  int8_t     doCleanup;
 } SStreamUndeployTaskMsg;
 
 typedef struct {
-  SStreamTask             task;
-  SStreamUndeployTaskMsg  undeployMsg;
+  SStreamTask            task;
+  SStreamUndeployTaskMsg undeployMsg;
 } SStreamTaskUndeploy;
 
 typedef struct {
   int8_t  undeployAll;
-  SArray* taskList;      // SArray<SStreamTaskUndeploy>
+  SArray* taskList;  // SArray<SStreamTaskUndeploy>
 } SStreamUndeployActions;
 
 typedef struct {
   int32_t streamGid;
 } SStreamMsgGrpHeader;
-
 
 typedef struct {
   int32_t                streamGId;
@@ -532,8 +532,8 @@ int32_t tSerializeSCMCreateStreamReq(void* buf, int32_t bufLen, const SCMCreateS
 int32_t tDeserializeSCMCreateStreamReq(void* buf, int32_t bufLen, SCMCreateStreamReq* pReq);
 void    tFreeSCMCreateStreamReq(SCMCreateStreamReq* pReq);
 
-int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStreamReq *pReq);
-int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamReq *pReq);
+int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStreamReq* pReq);
+int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder* pDecoder, SCMCreateStreamReq* pReq);
 
 typedef enum ESTriggerPullType {
   STRIGGER_PULL_LAST_TS,
@@ -611,16 +611,19 @@ typedef struct SSTriggerWalMetaRequest {
 
 typedef struct SSTriggerWalTsDataRequest {
   SSTriggerPullRequest base;
+  int64_t              uid;
   int64_t              ver;
 } SSTriggerWalTsDataRequest;
 
 typedef struct SSTriggerWalTriggerDataRequest {
   SSTriggerPullRequest base;
+  int64_t              uid;
   int64_t              ver;
 } SSTriggerWalTriggerDataRequest;
 
 typedef struct SSTriggerWalCalcDataRequest {
   SSTriggerPullRequest base;
+  int64_t              uid;
   int64_t              ver;
   int64_t              skey;
   int64_t              ekey;
@@ -669,7 +672,7 @@ typedef struct SSTriggerCalcRequest {
   int64_t gid;
   SArray* params;
   SArray* groupColVals;  // only provided at the first calculation of the group
-  bool    brandNew; // TODO wjm remove it
+  bool    brandNew;      // TODO wjm remove it
 } SSTriggerCalcRequest;
 
 int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTriggerCalcRequest* pReq);
@@ -677,9 +680,7 @@ int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalc
 void    tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq);
 
 typedef struct SSTriggerPullResponse {
-  int64_t           sessionId;
-  ESTriggerPullType reqType;
-  void*             pDataBlock;
+  void* pDataBlock;
 } SSTriggerPullResponse;
 
 typedef struct SSTriggerCalcResponse {
