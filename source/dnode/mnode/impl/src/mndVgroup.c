@@ -738,6 +738,8 @@ static bool mndBuildDnodesArrayFp(SMnode *pMnode, void *pObj, void *p1, void *p2
       if (!inDnodeList) {
         return true;
       }
+    } else {
+      return true;  // TS-6191
     }
   }
 
@@ -782,7 +784,10 @@ static int32_t mndCompareDnodeVnodes1(SDnodeObj *pDnode1, SDnodeObj *pDnode2) {
   float d1Score = mndGetDnodeScore1(pDnode1, 0, 0.9);
   float d2Score = mndGetDnodeScore1(pDnode2, 0, 0.9);
   if (d1Score == d2Score) {
-    return 0;
+    if (pDnode1->id == pDnode2->id) {
+      return 0;
+    }
+    return pDnode1->id > pDnode2->id ? 1 : -1;
   }
   return d1Score > d2Score ? 1 : -1;
 }
@@ -868,6 +873,7 @@ static int32_t mndBuildNodesCheckDualReplica(SMnode *pMnode, int32_t nDnodes, SA
 SArray *mndBuildDnodesArray(SMnode *pMnode, int32_t exceptDnodeId, SArray *dnodeList) {
   SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfDnodes = mndGetDnodeSize(pMnode);
+  SArray *tDnodeList = NULL;
   SArray *pDnodeList = NULL;
 
   SArray *pArray = taosArrayInit(numOfDnodes, sizeof(SDnodeObj));
@@ -875,14 +881,17 @@ SArray *mndBuildDnodesArray(SMnode *pMnode, int32_t exceptDnodeId, SArray *dnode
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
+  if (taosArrayGetSize(dnodeList) > 0) {
+    tDnodeList = dnodeList;
+  }
 #ifdef TD_ENTERPRISE
-  if (0 != mndBuildNodesCheckDualReplica(pMnode, numOfDnodes, dnodeList, &pDnodeList)) {
+  if (0 != mndBuildNodesCheckDualReplica(pMnode, numOfDnodes, tDnodeList, &pDnodeList)) {
     taosArrayDestroy(pArray);
     return NULL;
   }
 #endif
   sdbTraverse(pSdb, SDB_DNODE, mndResetDnodesArrayFp, NULL, NULL, NULL);
-  sdbTraverse(pSdb, SDB_DNODE, mndBuildDnodesArrayFp, pArray, &exceptDnodeId, pDnodeList ? pDnodeList : dnodeList);
+  sdbTraverse(pSdb, SDB_DNODE, mndBuildDnodesArrayFp, pArray, &exceptDnodeId, pDnodeList ? pDnodeList : tDnodeList);
 
   mDebug("build %d dnodes array", (int32_t)taosArrayGetSize(pArray));
   for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pArray); ++i) {
@@ -890,7 +899,6 @@ SArray *mndBuildDnodesArray(SMnode *pMnode, int32_t exceptDnodeId, SArray *dnode
     mDebug("dnode:%d, vnodes:%d others:%d", pDnode->id, pDnode->numOfVnodes, pDnode->numOfOtherNodes);
   }
 
-  taosArrayDestroy(pDnodeList);
   return pArray;
 }
 
