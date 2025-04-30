@@ -211,12 +211,8 @@ int32_t tableMetaOpen(char *name, SBTableMeta **pMeta, void *pMetaMgt);
 int32_t tableMetaCommit(SBTableMeta *pMeta, SArray *pBlock);
 int32_t tableMetaAppend(SBTableMeta *pMeta, SMetaBlock *pBlock);
 int32_t tableMetaWriterAppendBlock(SBtableMetaWriter *pMeta, SArray *pBlock);
-int32_t tableMetaReaderGetBlockMeta(SBtableMetaReader *pMeta, int64_t seq, SMetaBlock *pBlock);
+int32_t tableMetaReaderLoadBlockMeta(SBtableMetaReader *pMeta, int64_t seq, SMetaBlock *pBlock);
 void    tableMetaClose(SBTableMeta *p);
-int32_t tableMetaRecover(SBTableMeta *pMeta);
-
-//  int32_t tableReaderSeekToFirst(STableReader *p);
-//  int32_t tableReaderNext(STableReader *p, SBlock **pBlock);
 
 typedef struct {
   STableReader *pReader;

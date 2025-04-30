@@ -624,7 +624,7 @@ int32_t tableReaderGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *
   STableReaderMgt   *pMgt = (STableReaderMgt *)p->pReaderMgt;
   SBtableMetaReader *pMeta = p->pMetaReader;
 
-  code = tableMetaReaderGetBlockMeta(pMeta, seq, &block);
+  code = tableMetaReaderLoadBlockMeta(pMeta, seq, &block);
   TSDB_CHECK_CODE(code, lino, _error);
 
   SBlockWrapper wrapper = {0};
@@ -840,15 +840,14 @@ int32_t blockSeekMeta(SBlock *pBlock, int64_t seq, SMetaBlock *pMeta) {
   while (len < pBlock->len) {
     SMetaBlock meta = {0};
     int32_t    offset = metaBlockDecode(&meta, (char *)p);
-    SSeqRange  range = meta.range;
-    if (seqRangeContains(&range, seq)) {
+    if (seqRangeContains(&meta.range, seq)) {
       memcpy(pMeta, &meta, sizeof(SMetaBlock));
       return 0;
     }
     len += offset;
     p += offset;
   }
-  return code;
+  return TSDB_CODE_NOT_FOUND;
 }
 int32_t metaBlockEncode(SMetaBlock *pMeta, char *buf) {
   char   *p = buf;
@@ -1667,29 +1666,6 @@ _error:
   return code;
 }
 
-int32_t tableMetaRecover(SBTableMeta *pMeta) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  char    path[TSDB_FILENAME_LEN] = {0};
-  // bseBuildFullMetaName(pMeta->pBse, 0, path);
-
-  // memcpy(pMeta->name, path, strlen(path));
-
-  // bseBuildFullTempMetaName(pMeta->pBse, path);
-  code = taosRemoveFile(path);
-  if (code != 0) {
-    lino = __LINE__;
-    bseError("failed to rename table meta %s at line %d since %s", path, lino, tstrerror(code));
-    code = 0;
-  }
-
-_error:
-  if (code != 0) {
-    bseError("failed to open table meta %s at line %d since %s", path, lino, tstrerror(code));
-    tableMetaClose(pMeta);
-  }
-  return code;
-}
 
 void tableMetaClose(SBTableMeta *p) {
   if (p == NULL) return;
@@ -1783,7 +1759,7 @@ void tableMetaReaderClose(SBtableMetaReader *p) {
   blockWrapperCleanup(&p->blockWrapper);
   taosMemoryFree(p);
 }
-int32_t tableMetaReaderGetBlockMeta(SBtableMetaReader *p, int64_t seq, SMetaBlock *pMetaBlock) {
+int32_t tableMetaReaderLoadBlockMeta(SBtableMetaReader *p, int64_t seq, SMetaBlock *pMetaBlock) {
   int32_t            code = 0;
   int32_t            lino = 0;
   SBtableMetaReader *pMeta = p;
@@ -1802,13 +1778,7 @@ int32_t tableMetaReaderGetBlockMeta(SBtableMetaReader *p, int64_t seq, SMetaBloc
   code = blockSeekMeta(p->blockWrapper.data, seq, pMetaBlock);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  if (!seqRangeContains(&pMetaBlock->range, seq)) {
-    code = TSDB_CODE_NOT_FOUND;
-    TSDB_CHECK_CODE(code, lino, _error);
-  }
-
 _error:
-
   return code;
 }
 int32_t tableMetaReaderLoadIndex(SBtableMetaReader *p) {

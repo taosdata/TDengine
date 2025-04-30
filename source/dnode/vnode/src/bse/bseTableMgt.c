@@ -591,9 +591,7 @@ int32_t tableBuilderMgtRecoverTable(STableBuilderMgt *pMgt, int64_t seq, STableB
   if (pTable->offset > size) {
     code = tableBuilderTruncateFile(pTable, size);
     TSDB_CHECK_CODE(code, lino, _error);
-  } else {
   }
-
 _error:
   if (code != 0) {
     bseError("failed to open table builder at line %d since %s", lino, tstrerror(code));
