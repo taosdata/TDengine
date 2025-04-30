@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestSTableAlter2:
@@ -15,7 +15,7 @@ class TestSTableAlter2:
         4. drop column
         5. describe sub table
         6. loop for 7 times
-        7. kill -9 then restart
+        7. kill then restart
 
         Catalog:
             - SuperTables:Alter
@@ -276,10 +276,9 @@ class TestSTableAlter2:
 
         tdLog.info(f"======== step9")
         tdLog.info(f"======== step10")
-        # sc.dnodeStopAll()
-        # sc.dnodeStart(1)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         tdSql.execute(f"use d2")
         tdSql.query(f"describe tb")

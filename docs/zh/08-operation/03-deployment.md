@@ -275,6 +275,13 @@ Query OK, 1 rows in database (0.010654s)
 
 ### 以指定的 hostname 和 port 启动 TDengine
 
+:::note
+
+- `v3.3.6.0` 版本后，默认的 `fqdn` 从 `buildkitsandbox` 变更为 `localhost`，如果是全新启动不会有任何问题，如果是升级启动，运行容器时需要将 `-e TAOS_FQDN=<old_value>` 和 `-h <old_value>` 指定为之前的 `fqdn`，否则可能会无法启动。
+  
+:::
+
+
 使用如下命令可以利用 TAOS_FQDN 环境变量或者 taos.cfg 中的 fqdn 配置项使 TDengine 在指定的 hostname 上建立连接。这种方式为部署 TDengine 提供了更大的灵活性。
 
 ```shell

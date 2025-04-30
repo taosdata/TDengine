@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestNormalTableAlter5:
@@ -13,7 +13,7 @@ class TestNormalTableAlter5:
         2. insert data
         3. project query
         4. loop for 7 times
-        5. kill -9 then restart
+        5. kill then restart
 
         Catalog:
             - Table:NormalTable:Alter
@@ -270,10 +270,9 @@ class TestNormalTableAlter5:
         tdSql.error(f"alter table tb drop column a")
 
         tdLog.info(f"======== step9")
-        # sc.dnodeStopAll()
-        # sc.dnodeStart(1)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         tdSql.query(f"select * from tb order by ts desc")
         tdSql.checkRows(7)

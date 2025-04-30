@@ -36,6 +36,14 @@
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null.py
 
 # 02-Databases
+## 01-Create
+## 02-Drop
+## 03-Alter
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_option.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_replicas_13.py -N 4
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_replicas_31.py -N 4
+## 04-Query
+## 05-Others
 
 # 03-Tables
 ## 01-NormalTables
@@ -50,12 +58,22 @@
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_column_type.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_column_value.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_date.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_describe.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_double.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_float.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_hash.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_int.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_limit.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_multi.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_smallint.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_synatx.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_vgroup.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_tinyint.py 
 ### 02-Drop
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_delete_reuse1.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_delete_reuse2.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_delete_writing.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_drop.py
 ### 03-Alter
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normal_table_alter_1.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normal_table_alter_2.py
@@ -141,9 +159,34 @@
 # 05-VirtualTables
 
 # 06-DataIngestion
-,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/test_multi_file_commit.py
-,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/test_stable_values.py
-,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/test_stable_write_1.py 
+## 01-Insert
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_basic.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_basic0.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_basic1.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_basic2.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_columns.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_commit_merge.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_multi_file_commit.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_query_block1_file.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_query_block1_memory.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_query_block2_file.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_query_block2_memory.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_query_file_memory.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_query_multi_file.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_stb_disk.py 
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_stb_values.py
+## 02-Delete
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Delete/test_insert_delete.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Delete/test_insert_drop.py
+## 03-Update
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-Update/test_insert_update0.py 
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-Update/test_insert_update1_sort_merge.py 
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-Update/test_insert_update2.py 
+## 04-Others
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/04-Others/test_insert_backquote.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/04-Others/test_insert_null.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/04-Others/test_insert_select.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/04-Others/test_wal_kill.py
 
 # 07-DataQuerying
 ## 01-Operator
@@ -226,6 +269,8 @@
 # 21-PerformanceData
 
 # 22-Show
+,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_alive.py -N 4
+,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_basic.py -N 2
 ,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_diskinfo.py 
 ,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_table_distributed.py 
 

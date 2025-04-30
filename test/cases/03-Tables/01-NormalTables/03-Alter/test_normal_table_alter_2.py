@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestNormalTableAlter2:
@@ -12,7 +12,7 @@ class TestNormalTableAlter2:
         1. add column
         2. insert data
         2. count new column
-        3. kill -9 then restart
+        3. kill then restart
         4. drop column
         5. insert data
         6. count
@@ -147,10 +147,9 @@ class TestNormalTableAlter2:
         tdSql.checkData(0, 7, 3)
 
         tdLog.info(f"============= step10")
-        # sc.dnodeStopAll()
-        # sc.dnodeStart(1)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         tdSql.query(
             f"select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from d1.tb;"
@@ -250,10 +249,9 @@ class TestNormalTableAlter2:
         tdSql.checkData(0, 0, 10)
 
         tdLog.info(f"============== step18")
-        # sc.dnodeStopAll()
-        # sc.dnodeStart(1)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         # sql select count(g) from tb
         # if $tdSql.getData(0,0) != 12 then

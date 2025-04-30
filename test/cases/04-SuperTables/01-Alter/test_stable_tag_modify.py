@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestStableTagModify:
@@ -76,10 +76,9 @@ class TestStableTagModify:
         tdSql.checkData(4, 1, "VARCHAR")
         tdSql.checkData(4, 2, 5)
 
-        # sc.dnodeStopAll()
-        # sc.dnodeStart(1)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         tdSql.query(f"describe db.ctb2")
         tdSql.checkRows(5)
