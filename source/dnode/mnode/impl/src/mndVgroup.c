@@ -788,7 +788,7 @@ static bool isDnodeInList(SArray *dnodeList, int32_t dnodeId) {
   return false;
 }
 
-// #ifdef TD_ENTERPRISE
+#ifdef TD_ENTERPRISE
 static float mndGetDnodeScore1(SDnodeObj *pDnode, int32_t additionDnodes, float ratio) {
   float totalDnodes = pDnode->numOfVnodes + (float)pDnode->numOfOtherNodes * ratio + additionDnodes;
   float result = totalDnodes / pDnode->numOfSupportVnodes;
@@ -804,6 +804,7 @@ static int32_t mndCompareDnodeVnodes1(SDnodeObj *pDnode1, SDnodeObj *pDnode2) {
   return d1Score > d2Score ? 1 : -1;
 }
 
+// TS-6191
 static int32_t mndBuildNodesCheckDualReplica(SMnode *pMnode, int32_t nDnodes, SArray *dnodeList, SArray **ppDnodeList) {
   int32_t code = 0;
   if (!grantCheckDualReplicaDnodes(pMnode)) {
@@ -814,6 +815,8 @@ static int32_t mndBuildNodesCheckDualReplica(SMnode *pMnode, int32_t nDnodes, SA
   if (pArray == NULL) {
     TAOS_RETURN(code = terrno);
   }
+  *ppDnodeList = pArray;
+
   sdbTraverse(pSdb, SDB_DNODE, mndResetDnodesArrayFp, NULL, NULL, NULL);
   sdbTraverse(pSdb, SDB_DNODE, mndBuildDnodesListFp, pArray, NULL, NULL);
 
@@ -837,7 +840,7 @@ static int32_t mndBuildNodesCheckDualReplica(SMnode *pMnode, int32_t nDnodes, SA
     }
     int32_t dnodeId = -1;
     if (nDnodesWithVnodes == 1) {
-      dnodeId = ((SDnodeObj *)TARRAY_GET_ELEM(dnodeList, 0))->id;  // record the dnodeId of the 1st dnode
+      dnodeId = ((SDnodeObj *)TARRAY_GET_ELEM(pArray, 0))->id;
     } else if (nDnodesWithVnodes >= 2) {
       // must select the dnodes from the 1st 2 dnodes
       taosArrayRemoveBatch(pArray, 2, arrSize - 2, NULL);
@@ -852,7 +855,7 @@ static int32_t mndBuildNodesCheckDualReplica(SMnode *pMnode, int32_t nDnodes, SA
     }
     if (nDnodesWithVnodes == 1) {
       SDnodeObj *pDnode = taosArrayGet(pArray, 0);
-      if (pDnode && (pDnode->id != dnodeId)) {  // the first dnode is not in dnodeList, remove the last one
+      if (pDnode && (pDnode->id != dnodeId)) {  // the first dnode is not in dnodeList, remove the last element
         taosArrayRemove(pArray, taosArrayGetSize(pArray) - 1);
       }
     }
@@ -860,7 +863,7 @@ static int32_t mndBuildNodesCheckDualReplica(SMnode *pMnode, int32_t nDnodes, SA
 
   TAOS_RETURN(code);
 }
-// #endif
+#endif
 
 SArray *mndBuildDnodesArray(SMnode *pMnode, int32_t exceptDnodeId, SArray *dnodeList) {
   SSdb   *pSdb = pMnode->pSdb;
