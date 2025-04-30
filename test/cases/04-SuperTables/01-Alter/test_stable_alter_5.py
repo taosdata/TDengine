@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestSTableAlter5:
@@ -12,7 +12,7 @@ class TestSTableAlter5:
         1. modify column
         2. insert data
         3. project query
-        4. kill -9 then restart
+        4. kill then restart
         5. project query
 
         Catalog:
@@ -83,10 +83,9 @@ class TestSTableAlter5:
 
         tdSql.checkData(5, 0, "t3")
 
-        # sc.dnodeStopAll()
-        # sc.dnodeStart(1)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         tdSql.query(f"select * from db.stb")
 

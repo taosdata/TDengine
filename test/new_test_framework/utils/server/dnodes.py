@@ -29,6 +29,7 @@ from ..log import *
 from .dnode import *
 from .simClient import *
 
+
 class TDDnodes:
     def __init__(self):
         self.dnodes = []
@@ -49,11 +50,11 @@ class TDDnodes:
         self.killValgrind = 0
         self.model = "single"
 
-    def init(self, path, binPath, remoteIP = ""):
+    def init(self, path, binPath, remoteIP=""):
         self.binPath = binPath
-        #binPath = self.dnodes[0].getPath() + "/../../../"
+        # binPath = self.dnodes[0].getPath() + "/../../../"
         # tdLog.debug("binPath %s" % (binPath))
-        #binPath = os.path.realpath(binPath)
+        # binPath = os.path.realpath(binPath)
         # tdLog.debug("binPath real path %s" % (binPath))
 
         if path == "":
@@ -75,12 +76,16 @@ class TDDnodes:
         self.asan = value
         if value:
             selfPath = os.path.dirname(os.path.realpath(__file__))
-            if ("community" in selfPath):
+            if "community" in selfPath:
                 self.stopDnodesPath = os.path.abspath(selfPath + "/../stop_dnodes.sh")
-                self.stopDnodesSigintPath = os.path.abspath(selfPath + "/../sigint_stop_dnodes.sh")
+                self.stopDnodesSigintPath = os.path.abspath(
+                    selfPath + "/../sigint_stop_dnodes.sh"
+                )
             else:
                 self.stopDnodesPath = os.path.abspath(selfPath + "/../stop_dnodes.sh")
-                self.stopDnodesSigintPath = os.path.abspath(selfPath + "/../sigint_stop_dnodes.sh")
+                self.stopDnodesSigintPath = os.path.abspath(
+                    selfPath + "/../sigint_stop_dnodes.sh"
+                )
             tdLog.info("run in address sanitizer mode")
 
     def setKillValgrind(self, value):
@@ -89,7 +94,7 @@ class TDDnodes:
     def deploy(self, index, *updatecfgDict):
         self.sim.setTestCluster(self.testCluster)
 
-        if (self.simDeployed == False):
+        if self.simDeployed == False:
             self.sim.deploy(updatecfgDict)
             self.simDeployed = True
 
@@ -160,37 +165,41 @@ class TDDnodes:
             return
 
     def killProcesser(self, processerName):
-        if platform.system().lower() == 'windows':
-            killCmd = ("wmic process where name=\"%s.exe\" call terminate > NUL 2>&1" % processerName)
-            psCmd = ("wmic process where name=\"%s.exe\" | findstr \"%s.exe\"" % (processerName, processerName))
+        if platform.system().lower() == "windows":
+            killCmd = (
+                'wmic process where name="%s.exe" call terminate > NUL 2>&1'
+                % processerName
+            )
+            psCmd = 'wmic process where name="%s.exe" | findstr "%s.exe"' % (
+                processerName,
+                processerName,
+            )
         else:
             killCmd = (
                 "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1"
                 % processerName
             )
-            psCmd = ("ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % processerName)
+            psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % processerName
 
         processID = ""
-        
-        try: 
+
+        try:
             processID = subprocess.check_output(psCmd, shell=True)
             while processID:
                 os.system(killCmd)
                 time.sleep(1)
-                try: 
+                try:
                     processID = subprocess.check_output(psCmd, shell=True)
                 except Exception as err:
                     processID = ""
-                    tdLog.debug('**** kill pid warn: {err}')
+                    tdLog.debug("**** kill pid warn: {err}")
         except Exception as err:
             processID = ""
-            tdLog.debug(f'**** find pid warn: {err}')        
-        
-
+            tdLog.debug(f"**** find pid warn: {err}")
 
     def stopAll(self):
         tdLog.info("stop all dnodes, asan:%d" % self.asan)
-        if platform.system().lower() != 'windows':
+        if platform.system().lower() != "windows":
             distro_id = distro.id()
         else:
             distro_id = "not alpine"
@@ -200,55 +209,70 @@ class TDDnodes:
             tdLog.info("execute finished")
             return
 
-        if (not self.dnodes[0].remoteIP == ""):
-            self.dnodes[0].remoteExec(self.dnodes[0].cfgDict, "for i in range(len(tdDnodes.dnodes)):\n    tdDnodes.dnodes[i].running=1\ntdDnodes.stopAll()")
+        if not self.dnodes[0].remoteIP == "":
+            self.dnodes[0].remoteExec(
+                self.dnodes[0].cfgDict,
+                "for i in range(len(tdDnodes.dnodes)):\n    tdDnodes.dnodes[i].running=1\ntdDnodes.stopAll()",
+            )
             return
         for i in range(len(self.dnodes)):
             self.dnodes[i].stop()
 
-
-        if (distro_id == "alpine"):
+        if distro_id == "alpine":
             psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
-            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
-            while(processID):
+            processID = (
+                subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+            )
+            while processID:
                 print(processID)
                 killCmd = "kill -9 %s > /dev/null 2>&1" % processID
                 os.system(killCmd)
                 time.sleep(1)
-                processID = subprocess.check_output(
-                    psCmd, shell=True).decode("utf-8").strip()
-        elif platform.system().lower() == 'windows':
+                processID = (
+                    subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+                )
+        elif platform.system().lower() == "windows":
             self.killProcesser("taosd")
             self.killProcesser("tmq_sim")
             self.killProcesser("taosBenchmark")
         else:
             psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
-            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+            processID = (
+                subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+            )
             if processID:
                 cmd = "sudo systemctl stop taosd"
                 os.system(cmd)
             # if os.system(cmd) != 0 :
             # tdLog.exit(cmd)
             psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
-            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
-            while(processID):
+            processID = (
+                subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+            )
+            while processID:
                 killCmd = "kill -9 %s > /dev/null 2>&1" % processID
                 os.system(killCmd)
                 time.sleep(1)
-                processID = subprocess.check_output(
-                    psCmd, shell=True).decode("utf-8").strip()
+                processID = (
+                    subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+                )
         if self.killValgrind == 1:
-            psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}' | xargs"
-            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
-            while(processID):
-                if platform.system().lower() == 'windows':
+            psCmd = (
+                "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}' | xargs"
+            )
+            processID = (
+                subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+            )
+            while processID:
+                if platform.system().lower() == "windows":
                     killCmd = "kill -TERM %s > nul 2>&1" % processID
                 else:
                     killCmd = "kill -TERM %s > /dev/null 2>&1" % processID
                 os.system(killCmd)
                 time.sleep(1)
-                processID = subprocess.check_output(
-                    psCmd, shell=True).decode("utf-8").strip()
+                processID = (
+                    subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+                )
 
         # if os.system(cmd) != 0 :
         # tdLog.exit(cmd)
@@ -281,11 +305,10 @@ class TDDnodes:
         self.check(index)
         return self.dnodes[index - 1].cfgPath
 
-
     def setLevelDisk(self, level, disk):
         for i in range(len(self.dnodes)):
             self.dnodes[i].level = int(level)
-            self.dnodes[i].disk  = int(disk)
+            self.dnodes[i].disk = int(disk)
 
 
 tdDnodes = TDDnodes()

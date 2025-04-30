@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestFuncSum:
@@ -123,7 +123,7 @@ class TestFuncSum:
         tdLog.info(f"=============== step9")
         tdSql.query(f"select sum(tbcol) as b from {mt} interval(1m)")
         tdLog.info(f"===> {tdSql.getData(1,0)}")
-        # tdSql.checkGreaterEqualThen(1, 0, 5)
+        tdSql.checkAssert(tdSql.getData(1, 0) >= 5)
 
         tdSql.query(f"select sum(tbcol) as b from {mt} interval(1d)")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
