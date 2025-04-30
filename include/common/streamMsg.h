@@ -613,14 +613,12 @@ typedef struct SSTriggerWalTsDataRequest {
   SSTriggerPullRequest base;
   int64_t              uid;
   int64_t              ver;
-  int64_t              uid;
 } SSTriggerWalTsDataRequest;
 
 typedef struct SSTriggerWalTriggerDataRequest {
   SSTriggerPullRequest base;
   int64_t              uid;
   int64_t              ver;
-  int64_t              uid;
 } SSTriggerWalTriggerDataRequest;
 
 typedef struct SSTriggerWalCalcDataRequest {
@@ -629,7 +627,6 @@ typedef struct SSTriggerWalCalcDataRequest {
   int64_t              ver;
   int64_t              skey;
   int64_t              ekey;
-  int64_t              uid;
 } SSTriggerWalCalcDataRequest;
 
 typedef union SSTriggerPullRequestUnion {
