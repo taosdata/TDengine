@@ -36,7 +36,8 @@ typedef int32_t (*getDnodeId_f)(void *pData);
 
 typedef struct SStreamReaderTask {
   SStreamTask task;
-  void*       pExecutor;
+  void*       triggerReaderContext;
+  void*       calcReaderContext;
 } SStreamReaderTask;
 
 typedef struct SStreamRunnerTaskExecution {
@@ -132,6 +133,7 @@ int32_t streamHbProcessRspMsg(SMStreamHbRspMsg *pRsp);
 int32_t streamHbHandleRspErr(int32_t errCode, int64_t currTs);
 int32_t streamInit(void *pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode);
 void    streamCleanup(void);
+int32_t streamGetTask(int64_t streamId, int32_t taskId, SStreamTask** ppTask);
 
 #ifdef __cplusplus
 }

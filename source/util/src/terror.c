@@ -919,7 +919,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_CROSS_DB,    "Virtual super table
 
 // NEW-STREAM
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INTERNAL_ERROR,      "mnode stream internal error")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_WAL_VER_NOT_DATA,           "wal version not data")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_WAL_VER_NOT_DATA,        "wal version is not data in stream reader task")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_NO_CONTEXT,              "No context in stream reader task")
 
 #ifdef TAOS_ERROR_C
 };
