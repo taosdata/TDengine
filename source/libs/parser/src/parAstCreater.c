@@ -1138,9 +1138,6 @@ SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNod
   if (0 == strncasecmp("_rowts", pFuncName->z, pFuncName->n) || 0 == strncasecmp("_c0", pFuncName->z, pFuncName->n)) {
     return createPrimaryKeyCol(pCxt, pFuncName);
   }
-  if (0 == strncasecmp("_tcurrent_ts", pFuncName->z, pFuncName->n) || 0 == strncasecmp("_twstart", pFuncName->z, pFuncName->n)) {
-    return createPrimaryKeyCol(pCxt, NULL);
-  }
   SFunctionNode* func = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
   CHECK_MAKE_NODE(func);
@@ -4271,7 +4268,7 @@ static bool validateNotifyUrl(const char* url) {
   return (host != NULL) && (*host != '\0') && (*host != '/');
 }
 
-SNode* createStreamNotifyOptions(SAstCreateContext* pCxt, SNodeList* pAddrUrls, int64_t eventType, int64_t notifyType) {
+SNode* createStreamNotifyOptions(SAstCreateContext* pCxt, SNodeList* pAddrUrls, int64_t eventType, SNode* pWhere, int64_t notifyType) {
   SNode* pNode = NULL;
   CHECK_PARSER_STATUS(pCxt);
 
@@ -4301,6 +4298,7 @@ SNode* createStreamNotifyOptions(SAstCreateContext* pCxt, SNodeList* pAddrUrls, 
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM_NOTIFY_OPTIONS, (SNode**)&pNotifyOptions);
   CHECK_MAKE_NODE(pNotifyOptions);
   pNotifyOptions->pAddrUrls = pAddrUrls;
+  pNotifyOptions->pWhere = pWhere;
   pNotifyOptions->eventType = eventType;
   pNotifyOptions->notifyType = notifyType;
   return (SNode*)pNotifyOptions;

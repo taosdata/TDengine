@@ -480,6 +480,13 @@ static int32_t virtualTableNodeCopy(const SVirtualTableNode * pSrc, SVirtualTabl
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t timeRangeNodeCopy(const STimeRangeNode* pSrc, STimeRangeNode* pDst) {
+  COPY_SCALAR_FIELD(type);
+  CLONE_NODE_FIELD(pStart);
+  CLONE_NODE_FIELD(pEnd);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
   CLONE_NODE_LIST_FIELD(pTargets);
   CLONE_NODE_FIELD(pConditions);
@@ -510,6 +517,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(scanType);
   COPY_OBJECT_FIELD(scanSeq[0], sizeof(uint8_t) * 2);
   COPY_OBJECT_FIELD(scanRange, sizeof(STimeWindow));
+  CLONE_NODE_FIELD(pTimeRange);
   COPY_OBJECT_FIELD(tableName, sizeof(SName));
   COPY_SCALAR_FIELD(showRewrite);
   COPY_SCALAR_FIELD(ratio);
@@ -831,6 +839,7 @@ static int32_t physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhy
   COPY_BASE_OBJECT_FIELD(scan, physiScanCopy);
   COPY_OBJECT_FIELD(scanSeq[0], sizeof(uint8_t) * 2);
   COPY_OBJECT_FIELD(scanRange, sizeof(STimeWindow));
+  CLONE_NODE_FIELD(pTimeRange);
   COPY_SCALAR_FIELD(ratio);
   COPY_SCALAR_FIELD(dataRequired);
   CLONE_NODE_LIST_FIELD(pDynamicScanFuncs);
@@ -1111,6 +1120,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_VIRTUAL_TABLE:
       code = virtualTableNodeCopy((const SVirtualTableNode*)pNode, (SVirtualTableNode*)pDst);
+      break;
+    case QUERY_NODE_TIME_RANGE:
+      code = timeRangeNodeCopy((const STimeRangeNode*)pNode, (STimeRangeNode*)pDst);
       break;
     case QUERY_NODE_SET_OPERATOR:
       code = setOperatorCopy((const SSetOperator*)pNode, (SSetOperator*)pDst);
