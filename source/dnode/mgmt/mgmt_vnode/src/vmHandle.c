@@ -1043,7 +1043,6 @@ SArray *vmGetMsgHandles() {
 
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_FETCH, vmPutMsgToStreamReaderQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_PULL, vmPutMsgToStreamReaderQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_CALC, vmPutMsgToStreamReaderQueue, 0) == NULL) goto _OVER;
   code = 0;
 
 _OVER:
