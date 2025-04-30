@@ -1080,6 +1080,7 @@ int32_t  taosGetErrSize();
 
 // NEW-STREAM
 #define TSDB_CODE_MND_STREAM_INTERNAL_ERROR      TAOS_DEF_ERROR_CODE(0, 0x7000)
+#define TSDB_CODE_MND_WAL_VER_NOT_DATA           TAOS_DEF_ERROR_CODE(0, 0x7001)
 
 #ifdef __cplusplus
 }

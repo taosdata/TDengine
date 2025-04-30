@@ -919,7 +919,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_CROSS_DB,    "Virtual super table
 
 // NEW-STREAM
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INTERNAL_ERROR,      "mnode stream internal error")
-
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_WAL_VER_NOT_DATA,           "wal version not data")
 
 #ifdef TAOS_ERROR_C
 };
