@@ -1119,8 +1119,6 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
         vError("unknown msg type:%d in fetch queue", pMsg->msgType);
         return TSDB_CODE_APP_ERROR;
     }
-  } else if (pMsg->msgType == TDMT_STREAM_TRIGGER_CALC) {
-    return 0;
   } else {
     vError("unknown msg type:%d in stream reader queue", pMsg->msgType);
     return TSDB_CODE_APP_ERROR;
