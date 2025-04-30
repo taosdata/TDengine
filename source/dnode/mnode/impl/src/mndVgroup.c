@@ -760,23 +760,6 @@ static bool mndBuildDnodesArrayFp(SMnode *pMnode, void *pObj, void *p1, void *p2
   return true;
 }
 
-static bool mndBuildDnodesListFp(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
-  SDnodeObj *pDnode = pObj;
-  SArray    *pArray = p1;
-
-  bool isMnode = mndIsMnode(pMnode, pDnode->id);
-  pDnode->numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
-
-  if (isMnode) {
-    pDnode->numOfOtherNodes++;
-  }
-
-  if (pDnode->numOfSupportVnodes > 0) {
-    if (taosArrayPush(pArray, pDnode) == NULL) return false;
-  }
-  return true;
-}
-
 static bool isDnodeInList(SArray *dnodeList, int32_t dnodeId) {
   int32_t dnodeListSize = taosArrayGetSize(dnodeList);
   for (int32_t i = 0; i < dnodeListSize; ++i) {
@@ -802,6 +785,23 @@ static int32_t mndCompareDnodeVnodes1(SDnodeObj *pDnode1, SDnodeObj *pDnode2) {
     return 0;
   }
   return d1Score > d2Score ? 1 : -1;
+}
+
+static bool mndBuildDnodesListFp(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
+  SDnodeObj *pDnode = pObj;
+  SArray    *pArray = p1;
+
+  bool isMnode = mndIsMnode(pMnode, pDnode->id);
+  pDnode->numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
+
+  if (isMnode) {
+    pDnode->numOfOtherNodes++;
+  }
+
+  if (pDnode->numOfSupportVnodes > 0) {
+    if (taosArrayPush(pArray, pDnode) == NULL) return false;
+  }
+  return true;
 }
 
 // TS-6191
