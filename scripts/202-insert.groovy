@@ -83,16 +83,16 @@ def build_package(internal_root, new_version, branch_name) {
     sh '''
         date
         rm -rf ${INTERNAL_ROOT}/community/debug
-		rm ${INTERNAL_ROOT}/enterprise/contrib/deps-download/CMakeCache.txt
-		rm ${INTERNAL_ROOT}/community/contrib/deps-download/CMakeCache.txt
+		rm -rf ${INTERNAL_ROOT}/enterprise/contrib/deps-download/CMakeCache.txt
+		rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/CMakeCache.txt
 		rm -rf ${INTERNAL_ROOT}/community/contrib/libs3
 		rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/libs3-prefix
 		cd ${INTERNAL_ROOT}/community/tests/ci
         time ./container_build_newmachine.sh -w ${WORK_DIR} -e
 		cd ${INTERNAL_ROOT}/community/tests/parallel_test
         time ./container_build.sh -w ${WORK_DIR} -e
-		rm ${INTERNAL_ROOT}/enterprise/contrib/deps-download/CMakeCache.txt
-		rm ${INTERNAL_ROOT}/community/contrib/deps-download/CMakeCache.txt
+		rm -rf ${INTERNAL_ROOT}/enterprise/contrib/deps-download/CMakeCache.txt
+		rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/CMakeCache.txt
 		rm -rf ${INTERNAL_ROOT}/community/contrib/libs3
 		rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/libs3-prefix
     '''
