@@ -1273,7 +1273,7 @@ class TDSql:
             if self.queryResult[i][col] == data:
                 row = i
 
-        tdLog.debug(f"find key:{key}, row:{row} col:{col}, data:{data}")
+        tdLog.info(f"find key:{key}, row:{row} col:{col}, data:{data}")
 
         if row == -1:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
