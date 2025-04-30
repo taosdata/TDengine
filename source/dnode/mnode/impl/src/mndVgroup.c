@@ -777,24 +777,85 @@ static bool mndBuildDnodesListFp(SMnode *pMnode, void *pObj, void *p1, void *p2,
   return true;
 }
 
+static bool isDnodeInList(SArray *dnodeList, int32_t dnodeId) {
+  int32_t dnodeListSize = taosArrayGetSize(dnodeList);
+  for (int32_t i = 0; i < dnodeListSize; ++i) {
+    int32_t id = *(int32_t *)TARRAY_GET_ELEM(dnodeList, i);
+    if (id == dnodeId) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // #ifdef TD_ENTERPRISE
+static float mndGetDnodeScore1(SDnodeObj *pDnode, int32_t additionDnodes, float ratio) {
+  float totalDnodes = pDnode->numOfVnodes + (float)pDnode->numOfOtherNodes * ratio + additionDnodes;
+  float result = totalDnodes / pDnode->numOfSupportVnodes;
+  return pDnode->numOfVnodes > 0 ? -result : result;
+}
+
+static int32_t mndCompareDnodeVnodes1(SDnodeObj *pDnode1, SDnodeObj *pDnode2) {
+  float d1Score = mndGetDnodeScore1(pDnode1, 0, 0.9);
+  float d2Score = mndGetDnodeScore1(pDnode2, 0, 0.9);
+  if (d1Score == d2Score) {
+    return 0;
+  }
+  return d1Score > d2Score ? 1 : -1;
+}
+
 static int32_t mndBuildNodesCheckDualReplica(SMnode *pMnode, int32_t nDnodes, SArray *dnodeList, SArray **ppDnodeList) {
   int32_t code = 0;
   if (!grantCheckDualReplicaDnodes(pMnode)) {
     TAOS_RETURN(code);
   }
   SSdb   *pSdb = pMnode->pSdb;
-  SArray *pDnodeList = taosArrayInit(nDnodes, sizeof(SDnodeObj));
-  if (pDnodeList == NULL) {
+  SArray *pArray = taosArrayInit(nDnodes, sizeof(SDnodeObj));
+  if (pArray == NULL) {
     TAOS_RETURN(code = terrno);
   }
   sdbTraverse(pSdb, SDB_DNODE, mndResetDnodesArrayFp, NULL, NULL, NULL);
-  sdbTraverse(pSdb, SDB_DNODE, mndBuildDnodesListFp, pDnodeList, NULL, NULL);
+  sdbTraverse(pSdb, SDB_DNODE, mndBuildDnodesListFp, pArray, NULL, NULL);
+
+  int32_t arrSize = taosArrayGetSize(pArray);
+  if (arrSize <= 0) {
+    TAOS_RETURN(code);
+  }
+  if (arrSize > 1) taosArraySort(pArray, (__compar_fn_t)mndCompareDnodeVnodes1);
 
   int32_t dnodeListSize = taosArrayGetSize(dnodeList);
   if (dnodeListSize <= 0) {
-    taosArrayDestroy(pDnodeList);
-    TAOS_RETURN(code);
+    if (arrSize > 2) taosArrayRemoveBatch(pArray, 2, arrSize - 2, NULL);
+  } else {
+    int32_t nDnodesWithVnodes = 0;
+    for (int32_t i = 0; i < arrSize; ++i) {
+      SDnodeObj *pDnode = TARRAY_GET_ELEM(pArray, i);
+      if (pDnode->numOfVnodes <= 0) {
+        break;
+      }
+      ++nDnodesWithVnodes;
+    }
+    int32_t dnodeId = -1;
+    if (nDnodesWithVnodes == 1) {
+      dnodeId = ((SDnodeObj *)TARRAY_GET_ELEM(dnodeList, 0))->id;  // record the dnodeId of the 1st dnode
+    } else if (nDnodesWithVnodes >= 2) {
+      // must select the dnodes from the 1st 2 dnodes
+      taosArrayRemoveBatch(pArray, 2, arrSize - 2, NULL);
+    }
+    for (int32_t i = 0; i < TARRAY_SIZE(pArray);) {
+      SDnodeObj *pDnode = taosArrayGet(pArray, i);
+      if (!isDnodeInList(dnodeList, pDnode->id)) {
+        taosArrayRemove(pArray, i);
+        continue;
+      }
+      ++i;
+    }
+    if (nDnodesWithVnodes == 1) {
+      SDnodeObj *pDnode = taosArrayGet(pArray, 0);
+      if (pDnode && (pDnode->id != dnodeId)) {  // the first dnode is not in dnodeList, remove the last one
+        taosArrayRemove(pArray, taosArrayGetSize(pArray) - 1);
+      }
+    }
   }
 
   TAOS_RETURN(code);
