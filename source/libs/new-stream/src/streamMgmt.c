@@ -144,9 +144,6 @@ int32_t smDeployStreamTasks(SStmStreamDeploy* pDeploy) {
 
     TAOS_CHECK_EXIT(stTriggerTaskDeploy(stream.triggerTask, &pDeploy->triggerTask->msg.trigger));
 
-    //STREAMTODO
-    //stream.triggerTask->task.status = STREAM_STATUS_INIT;
-
     TAOS_CHECK_EXIT(taosHashPut(gStreamMgmt.taskMap, &pTask->streamId, sizeof(pTask->streamId) + sizeof(pTask->taskId), &stream.triggerTask, POINTER_BYTES));
 
     //TAOS_CHECK_EXIT(smAddTaskToSnodeList(stream.triggerTask));
