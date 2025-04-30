@@ -25,6 +25,40 @@ class TestNormalTableDeleteReuse1:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/table/delete_reuse1.sim
+            - 2025-4-30 Simon Guan Migrated to new test framework, from tests/script/tsim/table/delete_reuse1.sim
 
         """
+
+        tdLog.info(f"======== step1")
+        tdSql.execute(f"create database d1 replica 1")
+        tdSql.execute(f"create table d1.t1 (ts timestamp, i int)")
+        tdSql.execute(f"insert into d1.t1 values(now, 1)")
+
+        tdSql.query(f"select * from d1.t1")
+        tdSql.checkRows(1)
+
+        tdLog.info(f"======== step2")
+        tdSql.execute(f"drop table d1.t1")
+        tdSql.error(f"insert into d1.t1 values(now, 2)")
+
+        tdLog.info(f"========= step3")
+        tdSql.execute(f"create table d1.t1 (ts timestamp, i int)")
+        tdSql.execute(f"insert into d1.t1 values(now, 2)")
+        tdSql.query(f"select * from d1.t1")
+        tdSql.checkRows(1)
+
+        tdSql.checkData(0, 1, 2)
+
+        tdLog.info(f"========= step4")
+        x = 0
+        while x < 20:
+
+            tdSql.execute(f"drop table d1.t1")
+            tdSql.error(f"insert into d1.t1 values(now, -1)")
+
+            tdSql.execute(f"create table d1.t1 (ts timestamp, i int)")
+            tdSql.execute(f"insert into d1.t1 values(now, {x} )")
+            tdSql.query(f"select * from d1.t1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, x)
+            x = x + 1
