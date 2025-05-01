@@ -12,29 +12,31 @@
 # senario 3: daily routine for development, after you have tried ./build.sh gen
 #   ./build.sh bld
 #   ./build.sh install
+#   ./build.sh start
 #   ./build.sh test
 #
 # senario 4: specify different options to build the systme
 #   # set xxx of type to yyy, and configure the build system
 #   ./build.sh gen -Dxxx:type=yyy
+#   # what types are valid: cmake --help-command set | less
 #
 #   # clear the xxx out of cmake cache, and let the build system automatically choose correct value for xxx
 #   ./build.sh gen -Uxxx
 #
-#   # combine all in one line of execution
+#   # combine all in one execution
 #   ./build.sh gen -Dxxx:type=yyy -Uzzz -Dmmm:type=nnn
 #
 # senario 5: list targets of this build system
 #   ./build.sh bld --target help
 #
-# senario 6: build specific target
+# senario 6: build specific target, taking `shell` as example:
 #   ./build.sh bld --target shell
 #
 # senario 7: checkout specific branch/tag of taosadapter.git and build upon
 #   ./build.sh gen -DTAOSADAPTER_GIT_TAG:STRING=ver-3.3.6.0
 #   ./build.sh bld
 #
-# senario 8: build taosadapter with specific go build options
+# senario 8: build taosadapter with specific go build options, taking `-a -x` as example:
 #   ./build.sh gen -DTAOSADAPTER_BUILD_OPTIONS:STRING="-a:-x"
 #   ./build.sh bld
 # end =========================
@@ -170,7 +172,7 @@ case $1 in
         echo 'to start:               ./build.sh start'
         echo 'to stop:                ./build.sh stop'
         echo 'Attention!!!!!!!!!!!:'
-        echo 'to purge, all the data file installed will be deleted too, take it at your own risk:'
+        echo 'to purge, all the data files will be deleted too, take it at your own risk:'
         echo '                        ./build.sh purge'
         ;;
 esac
