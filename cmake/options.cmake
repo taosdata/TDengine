@@ -8,6 +8,12 @@ option(
     OFF
 )
 
+# these are not boolean options, but are very much useful
+# TAOSADAPTER_BUILD_OPTIONS
+if(NOT DEFINED TAOSADAPTER_BUILD_OPTIONS)
+  set(TAOSADAPTER_BUILD_OPTIONS "" CACHE STRING "go build options to be used by taosadapter, separated by ':'" FORCE)
+endif()
+
 IF(${TD_WINDOWS})
     IF(NOT TD_ASTRA)
         MESSAGE("build pthread Win32")
