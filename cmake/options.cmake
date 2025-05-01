@@ -11,6 +11,12 @@ option(
 # TODO: tackle 'undefined pthread_atfork referenced by libuv.a' issue found on CentOS7.9/ubuntu 18
 option(TD_PTHREAD_TWEAK "tweaking pthread experimentally, especially for CentOS7.9 or ubuntu 18" OFF)
 
+# these are not boolean options, but are very much useful
+# TAOSADAPTER_BUILD_OPTIONS
+if(NOT DEFINED TAOSADAPTER_BUILD_OPTIONS)
+  set(TAOSADAPTER_BUILD_OPTIONS "" CACHE STRING "go build options to be used by taosadapter, separated by ':'" FORCE)
+endif()
+
 IF(${TD_WINDOWS})
     IF(NOT TD_ASTRA)
         MESSAGE("build pthread Win32")
