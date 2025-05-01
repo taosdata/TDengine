@@ -26,6 +26,7 @@ import ctypes
 import random
 import datetime
 import time
+import taos
 from tzlocal import get_localzone
 
 
@@ -137,6 +138,27 @@ class TDSql:
             None
         """
         self.cursor.close()
+
+    def connect(self, username, passwd="taosdata"):
+        """
+        Reconnect
+
+        Args:
+            username (str):The username used to log in to the cluster.
+            passwd (str, optional): The password used to log in to the cluster.
+
+        Returns:
+            None
+
+        Raises:
+            None
+
+        """
+
+        self.cursor.close()
+
+        testconn = taos.connect(user=username, password=passwd)
+        self.cursor = testconn.cursor()
 
     def prepare(self, dbname="db", drop=True, **kwargs):
         """
