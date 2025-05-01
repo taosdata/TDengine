@@ -57,6 +57,10 @@ IF(TD_BUILD_HTTP)
 ELSEIF(TD_BUILD_TAOSA_INTERNAL)
     MESSAGE("${Yellow} use taosa internal as httpd ${ColourReset}")
 
+    # NOTE: better not use INIT_EXT
+    #       because it's designed for external projects
+    #       in a specific way to cache compile artifacts of externals
+    # TODO: need to be adjusted
     INIT_EXT(taosadapter)
     get_from_local_repo_if_exists("https://github.com/taosdata/taosadapter.git")
     ExternalProject_Add(ext_taosadapter
@@ -75,7 +79,7 @@ ELSE()
     MESSAGE("")
     MESSAGE("${Green} use taosadapter as httpd, platform is ${PLATFORM_ARCH_STR} ${ColourReset}")
 
-    # NOTE: do NOTE remove these lines until we know they are not useful any longer!!!
+    # NOTE: do NOT remove these lines until we know they are not useful any longer!!!
     # EXECUTE_PROCESS(
     #     COMMAND git rev-parse --abbrev-ref HEAD
     #     RESULT_VARIABLE result_taos_version
@@ -99,21 +103,19 @@ ELSE()
     MESSAGE("Building taosAdapter")
 
     if(${TD_LINUX})
-        set(ext_taosadapter_static taosadapter.a)
         set(taosadapter_exe        taosadapter)
     elseif(${TD_DARWIN})
-        set(ext_taosadapter_static taosadapter.a)
         set(taosadapter_exe        taosadapter)
     elseif(${TD_WINDOWS})
-        set(ext_taosadapter_static taosadapter.lib)
         set(taosadapter_exe        taosadapter.exe)
     endif()
 
-    # NOTE: for taos.h, but what'bout others, such as taoserror.h!!!
-    # TODO: for TDengine.git, moving public headers, such as taoserror.h/taos.h, to the same public header directory!!!
+    # NOTE: for taos.h, but what'bout others, such as taoserror.h is possible!!!
+    # TODO: for TDengine.git, moving public headers, such as taoserror.h/taos.h, to a single public header directory?
     set(_taos_h_dir       "${CMAKE_CURRENT_SOURCE_DIR}/../include/client")
 
     # NOTE: where to find DSO built by ${TAOS_NATIVE_LIB}
+    # TODO: how would CMAKE_BINARY_DIR evaluate under TDinternal build?
     set(_taos_lib_dir     "${CMAKE_BINARY_DIR}/build/lib")
 
     # NOTE: CMakeLists.txt to be copied to taosadapter-src-tree, to make it builtable by cmake
@@ -129,13 +131,12 @@ ELSE()
     # NOTE: it's strongly suggested to use main branch of taosadapter.git during developping process
     #       and use by tag only when building release version
     #       thus we use _git_url literally
-    # TODO: switch among develop-build and release-build process, smoothly and safely?
     set(_git_url "https://github.com/taosdata/taosadapter.git")
 
     ExternalProject_Add(ext_taosadapter
         GIT_REPOSITORY ${_git_url}
-        GIT_TAG main
-        GIT_SHALLOW TRUE       # NOTE: if you specify branch other than main, please change this to FALSE
+        GIT_TAG     ${TAOSADAPTER_GIT_TAG_NAME}
+        GIT_SHALLOW ${TAOSADAPTER_GIT_TAG_SHALLOW}  # NOTE: if you specify branch other than main, please change this to FALSE
         BUILD_IN_SOURCE TRUE
         DEPENDS ${TAOS_NATIVE_LIB}
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
@@ -162,9 +163,11 @@ ELSE()
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ./taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/taosadapter.service
             # COMMAND "${CMAKE_COMMAND}" -E echo "Copy taosadapter-debug"
             # COMMAND "${CMAKE_COMMAND}" -E copy taosadapter-debug ${CMAKE_BINARY_DIR}/build/bin
-        EXCLUDE_FROM_ALL FALSE
+        EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
+    add_custom_target(build_ext_taosadapter ALL)
+    add_dependencies(build_ext_taosadapter ext_taosadapter)
 ENDIF()
 
 IF(TD_BUILD_KEEPER)

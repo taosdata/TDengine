@@ -1,8 +1,49 @@
 #!/bin/bash
 
+# beg =========================
+# senario 1: give it a try for the first time
+#   ./build.sh first-try
+#
+# senario 2: building release version, for internal use only, or take you own risk
+#            still under development
+#   TD_CONFIG=Release ./build.sh gen -DVERNUMBER=xxxx ....
+#   TD_CONFIG=Release ./build.sh bld
+#
+# senario 3: daily routine for development, after you have tried ./build.sh gen
+#   ./build.sh bld
+#   ./build.sh install
+#   ./build.sh test
+#
+# senario 4: specify different options to build the systme
+#   # set xxx of type to yyy, and configure the build system
+#   ./build.sh gen -Dxxx:type=yyy
+#
+#   # clear the xxx out of cmake cache, and let the build system automatically choose correct value for xxx
+#   ./build.sh gen -Uxxx
+#
+#   # combine all in one line of execution
+#   ./build.sh gen -Dxxx:type=yyy -Uzzz -Dmmm:type=nnn
+#
+# senario 5: list targets of this build system
+#   ./build.sh bld --target help
+#
+# senario 6: build specific target
+#   ./build.sh bld --target shell
+#
+# senario 7: checkout specific branch/tag of taosadapter.git and build upon
+#   ./build.sh gen -DTAOSADAPTER_GIT_TAG:STRING=ver-3.3.6.0
+#   ./build.sh bld
+#
+# senario 8: build taosadapter with specific go build options
+#   ./build.sh gen -DTAOSADAPTER_BUILD_OPTIONS:STRING="-a:-x"
+#   ./build.sh bld
+# end =========================
+
 # export TD_CONFIG=Debug/Release before calling this script
 
 TD_CONFIG=${TD_CONFIG:-Debug}
+
+_this_file=$0
 
 do_gen() {
   cmake -B debug -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG} \
@@ -62,6 +103,14 @@ do_purge() {
 }
 
 case $1 in
+    first-try)
+        shift 1
+        ./build.sh gen -DBUILD_TEST=false &&
+        ./build.sh bld &&
+        ./build.sh install &&
+        ./build.sh start &&
+        taos
+        ;;
     gen)
         shift 1
         do_gen "$@" &&
@@ -105,16 +154,24 @@ case $1 in
         do_purge &&
         echo ==Done==
         ;;
+    senarios)
+        shift 1
+        cat ${_this_file} | sed -n '/^# beg =========================$/,/^# end =========================$/p' | sed '1d;$d'
+        ;;
     *)
         echo 'env TD_CONFIG denotes which to build for: <Debug/Release>, Debug by default'
         echo ''
+        echo 'to show senarios:       ./build.sh senarios'
+        echo 'to give it a first try  ./build.sh first-try'
         echo 'to generate make files: ./build.sh gen [cmake options]'
         echo 'to build:               ./build.sh bld [cmake options for --build]'
         echo 'to install:             ./build.sh install [cmake options for --install]'
         echo 'to run test:            ./build.sh test [ctest options]'
         echo 'to start:               ./build.sh start'
         echo 'to stop:                ./build.sh stop'
-        echo 'to purge:               ./build.sh purge'
+        echo 'Attention!!!!!!!!!!!:'
+        echo 'to purge, all the data file installed will be deleted too, take it at your own risk:'
+        echo '                        ./build.sh purge'
         ;;
 esac
 
