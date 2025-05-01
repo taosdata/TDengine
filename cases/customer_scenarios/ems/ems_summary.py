@@ -23,7 +23,7 @@ class EMSSummary(TDCase):
         self.summary_log_path = f'{self.log_path}/summary'
         self._remote.cmd("localhost", [f'mkdir -p {self.detail_log_path}', f'mkdir -p {self.summary_log_path}'])
         self.timeout = 20  # Maximum wait time in seconds
-        self.retention_timeout = 300
+        self.retention_timeout = int(self.case_config["exec_time"])
         self.query_interval = 3
         self.retry_times = 3
         self.edge_dbname = "mqtt_datain"
@@ -84,6 +84,8 @@ class EMSSummary(TDCase):
     def validate_sync(self):
         edge_total = self.collect_edge_data()
         center_total = self._get_center_data()
+        self._remote._logger.info(f'init edge_total: {edge_total}')
+        self._remote._logger.info(f'init center_total: {center_total}')
 
         if edge_total == center_total:
             return [f"100%", center_total, edge_total]
@@ -92,8 +94,10 @@ class EMSSummary(TDCase):
         last_center_count = 0
         stable_counter = 0
 
-        while time.time() - start_time < self.timeout:
+        while time.time() - start_time < self.retention_timeout:
             current_center = self._get_center_data()
+            self._remote._logger.info(f'current edge data: {edge_total}')
+            self._remote._logger.info(f'current center data: {current_center}')
 
             if current_center == last_center_count:
                 stable_counter += 1
@@ -104,11 +108,14 @@ class EMSSummary(TDCase):
                 last_center_count = current_center
 
             completeness = current_center / edge_total if edge_total > 0 else 0
-            print(f"Current sync progress: {completeness*100}%")
-
+            self._remote._logger.info(f"Current sync progress: {completeness*100}%")
+            if int(completeness) == 1:
+                break
             time.sleep(self.query_interval)
 
         final_center = self._get_center_data()
+        if final_center != edge_total:
+            self._remote._logger.error(f"Migration was not completed within {self.retention_timeout} seconds, but the results were still printed.")
         ratio = final_center / edge_total if edge_total > 0 else 0
         return [f"{round(ratio*100, 2)}%", final_center, edge_total]
 
@@ -275,14 +282,14 @@ class EMSSummary(TDCase):
         pass
 
     def run(self):
-        insert_perf = self.get_insert_result()
-        query_perf = self.get_query_detail_result()
-        compression_ratio_disk_info = self.get_compression_ratio()
         data_retention_ratio, center_total_rows, edge_total_rows = self.validate_sync()
         data_retention_info = dict()
         data_retention_info["data_retention_ratio"] = data_retention_ratio
         data_retention_info["center_total_rows"] = center_total_rows
         data_retention_info["edge_total_rows"] = edge_total_rows
+        insert_perf = self.get_insert_result()
+        query_perf = self.get_query_detail_result()
+        compression_ratio_disk_info = self.get_compression_ratio()
         compression_data_size = self._get_compression_data()
         compression_ratio = f'{round(self.mqtt_received_bytes/(compression_data_size*1024), 2)}:1' if compression_data_size != 0 else 'Null'
         grafana_url = self.get_grafana_url()

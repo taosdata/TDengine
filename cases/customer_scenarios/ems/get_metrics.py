@@ -95,25 +95,25 @@ class Stop(TDCase):
             # query_summary_metrics["total_inserted_sqls"] += metrics_dict[task_id]["total"]["total_inserted_sqls"]
             if "total_points_per_second" in metrics_dict[task_id]["total"]:
                 self.api_type = 0
-                query_summary_metrics["total_points_per_second"] += round(metrics_dict[task_id]["total"]["total_points_per_second"])
-                query_summary_metrics["total_written_points"] += round(metrics_dict[task_id]["total"]["total_written_points"])
-                query_summary_metrics["total_written_rows"] += round(metrics_dict[task_id]["total"]["total_written_rows"])
-                query_summary_metrics["total_rows_per_second"] += round(metrics_dict[task_id]["total"]["total_rows_per_second"])
+                query_summary_metrics["total_points_per_second"] += round(metrics_dict[task_id]["total"]["total_points_per_second"], 2)
+                query_summary_metrics["total_written_points"] += round(metrics_dict[task_id]["total"]["total_written_points"], 2)
+                query_summary_metrics["total_written_rows"] += round(metrics_dict[task_id]["total"]["total_written_rows"], 2)
+                query_summary_metrics["total_rows_per_second"] += round(metrics_dict[task_id]["total"]["total_rows_per_second"], 2)
                 if "mqtt_received_bytes" in metrics_dict[task_id]["current"]:
-                    query_summary_metrics["mqtt_received_bytes"] += round(metrics_dict[task_id]["current"]["mqtt_received_bytes"])
+                    query_summary_metrics["mqtt_received_bytes"] += round(metrics_dict[task_id]["current"]["mqtt_received_bytes"], 2)
                 else:
                     query_summary_metrics["mqtt_received_bytes"] += 0
             else:
                 self.api_type = 1
-                tmq_summary_metrics["total_messages"] += round(metrics_dict[task_id]["total"]["total_messages"])
-                tmq_summary_metrics["total_execute_time"] += round(metrics_dict[task_id]["total"]["total_execute_time"])
-                tmq_summary_metrics["total_consume_cost_ms"] += round(metrics_dict[task_id]["total"]["total_consume_cost_ms"])
-                tmq_summary_metrics["total_messages_of_data"] += round(metrics_dict[task_id]["total"]["total_messages_of_data"])
-                tmq_summary_metrics["total_messages_of_meta"] += round(metrics_dict[task_id]["total"]["total_messages_of_meta"])
-                tmq_summary_metrics["total_out_of_range_rows"] += round(metrics_dict[task_id]["total"]["total_out_of_range_rows"])
-                tmq_summary_metrics["total_success_messages"] += round(metrics_dict[task_id]["total"]["total_success_messages"])
-                tmq_summary_metrics["total_write_cost_ms"] += round(metrics_dict[task_id]["total"]["total_write_cost_ms"])
-                tmq_summary_metrics["total_write_raw_cost_ms"] += round(metrics_dict[task_id]["total"]["total_write_raw_cost_ms"])
+                tmq_summary_metrics["total_messages"] += round(metrics_dict[task_id]["total"]["total_messages"], 2)
+                tmq_summary_metrics["total_execute_time"] += round(metrics_dict[task_id]["total"]["total_execute_time"], 2)
+                tmq_summary_metrics["total_consume_cost_ms"] += round(metrics_dict[task_id]["total"]["total_consume_cost_ms"], 2)
+                tmq_summary_metrics["total_messages_of_data"] += round(metrics_dict[task_id]["total"]["total_messages_of_data"], 2)
+                tmq_summary_metrics["total_messages_of_meta"] += round(metrics_dict[task_id]["total"]["total_messages_of_meta"], 2)
+                tmq_summary_metrics["total_out_of_range_rows"] += round(metrics_dict[task_id]["total"]["total_out_of_range_rows"], 2)
+                tmq_summary_metrics["total_success_messages"] += round(metrics_dict[task_id]["total"]["total_success_messages"], 2)
+                tmq_summary_metrics["total_write_cost_ms"] += round(metrics_dict[task_id]["total"]["total_write_cost_ms"], 2)
+                tmq_summary_metrics["total_write_raw_cost_ms"] += round(metrics_dict[task_id]["total"]["total_write_raw_cost_ms"], 2)
 
 
         with open(f'{self.log_path}/details/{self.host}.json', "w") as result_file:
