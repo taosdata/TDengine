@@ -1363,6 +1363,9 @@ static uint32_t crc32_table[] = {
   0x2D02EF8D
 };
 
+#define CRC32_TRUE  2212294583U
+#define CRC32_FALSE 4108050209U
+
 static uint32_t crc32(const uint8_t *data, size_t length) {
   const uint8_t *p = data;
   uint32_t crc = 0xFFFFFFFF;
@@ -1370,41 +1373,61 @@ static uint32_t crc32(const uint8_t *data, size_t length) {
   while (length--) {
     crc = crc32_table[(crc ^ (*p++)) & 0xFF] ^ (crc >> 8);
   }
-  
+
   return crc ^ 0xFFFFFFFF;
 }
 
 int32_t crc32Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput) {
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
-  
   int16_t inputType = GET_PARAM_TYPE(&pInput[0]);
   uint32_t *out = (uint32_t *) pOutputData->pData;
-  char *input;
-  size_t inputLen;
-  char *buf;
-  
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t bufLen = TMAX(MD5_OUTPUT_LEN + VARSTR_HEADER_SIZE + 1, pInputData->info.bytes);
+  char* pOutputBuf = taosMemoryMalloc(bufLen);
+  if (!pOutputBuf) {
+    qError("crc32 function alloc memory failed");
+    SCL_ERR_JRET(terrno);
+  }
+
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
       colDataSetNULL(pOutputData, i);
       continue;
     }
-  
-    input = colDataGetData(pInput[0].columnData, i);
-  
-    if (IS_NUMERIC_TYPE(inputType)) {
-      buf = input;
-      inputLen = 8;
-    } else {
-      buf = varDataVal(input);
-      inputLen = varDataLen(input);
+
+    char *input = colDataGetData(pInput[0].columnData, i);
+
+    if (inputType == TSDB_DATA_TYPE_BOOL) {
+      out[i] = *(int8_t *)input ? CRC32_TRUE : CRC32_FALSE;
+      continue;
     }
-  
-    out[i] = crc32(buf, inputLen);
+
+    if (IS_NUMERIC_TYPE(inputType)) {
+      if (IS_DECIMAL_TYPE(inputType)) {
+        uint8_t inputPrec = GET_PARAM_PRECISON(&pInput[0]), inputScale = GET_PARAM_SCALE(&pInput[0]);
+        SCL_ERR_JRET(decimalToStr(input, inputType, inputPrec, inputScale, pOutputBuf, bufLen));
+      } else {
+        NUM_TO_STRING(inputType, input, bufLen, pOutputBuf);
+      }
+      out[i] = crc32(pOutputBuf, strnlen(pOutputBuf, bufLen));
+    } else if (inputType == TSDB_DATA_TYPE_TIMESTAMP) {
+      /* The format used by MySQL in the conversion from timestamp to string */
+      char *format = "yyyy-mm-dd hh24:mi:ss";
+      SArray *formats = NULL;
+      SCL_ERR_JRET(taosTs2Char(format, &formats, *(int64_t *)input, 0, pOutputBuf, bufLen, pInput->tz));
+      out[i] = crc32(pOutputBuf, strlen(pOutputBuf));
+      taosArrayDestroy(formats);
+    } else {
+      out[i] = crc32(varDataVal(input), varDataLen(input));
+    }
   }
-  
+
+_return:
+  taosMemoryFree(pOutputBuf);
   pOutput->numOfRows = pInput->numOfRows;
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static void getAsciiChar(int32_t num, char **output) {
