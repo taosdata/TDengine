@@ -651,6 +651,7 @@ CRC32(expr)
 
 - If `expr` is NULL, it returns NULL.
 - if `expr` is the empty string, it returns 0.
+- According to MySQL specifications, if `expr` is a non string, it is interpreted as a string.
 - This function is multibyte safe.
 
 **Example**:
@@ -669,12 +670,17 @@ taos> select crc32("");
 taos> select crc32(123);
  crc32(123)  |
 ==============
-  2484621999 |
+  2286445522 |
 
 taos> select crc32(123.456);
  crc32(123.456) |
 =================
-     1517908201 |
+      844093190 |
+
+taos> select crc32(TO_TIMESTAMP("2000-01-01", "yyyy-mm-dd hh24:mi:ss"));
+ crc32(to_timestamp("2000-01-01", "yyyy-mm-dd hh24:mi:ss")) |
+=============================================================
+                                                 2274736693 |
 
 taos> select crc32("This is a string");
  crc32("This is a string") |

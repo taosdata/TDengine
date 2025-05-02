@@ -628,6 +628,7 @@ CRC32(expr)
 
 - 如果 expr 为 NULL，则返回 NULL。
 - 如果 expr 是空字符串，返回 0。
+- 根据 MySQL 规范，如果 `expr` 是非字符串，则将其解释为字符串。
 - 该函数是多字节安全的。
 
 **举例**:
@@ -646,12 +647,17 @@ taos> select crc32("");
 taos> select crc32(123);
  crc32(123)  |
 ==============
-  2484621999 |
+  2286445522 |
 
 taos> select crc32(123.456);
  crc32(123.456) |
 =================
-     1517908201 |
+      844093190 |
+
+taos> select crc32(TO_TIMESTAMP("2000-01-01", "yyyy-mm-dd hh24:mi:ss"));
+ crc32(to_timestamp("2000-01-01", "yyyy-mm-dd hh24:mi:ss")) |
+=============================================================
+                                                 2274736693 |
 
 taos> select crc32("This is a string");
  crc32("This is a string") |
