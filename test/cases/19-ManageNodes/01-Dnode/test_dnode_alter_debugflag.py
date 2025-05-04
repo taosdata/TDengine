@@ -14,7 +14,7 @@ class TestDnodeAlterDebugFlag:
         3. 修改不在线 dnode 参数（报错）
 
         Catalog:
-            - Tables
+            - ManageNodes:Dnode
 
         Since: v3.0.0.0
 

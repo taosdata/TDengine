@@ -1305,6 +1305,49 @@ class TDSql:
         if show:
             tdLog.info("check key successfully")
 
+    def expectKeyData(self, key, col, data, show=False):
+        """
+        Whether the data at the specified key matches the expected data.
+
+        Args:
+            key: The first column to be compared with.
+            col (int): The column index of the data to be checked.
+            data: The expected data to be compared with.
+            show (bool, optional): If True, logs a message when the check is successful. Defaults to False.
+
+        Returns:
+            Bool
+
+        Raises:
+            None
+        """
+
+        if col >= self.queryCols:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, col + 1, self.queryCols)
+            tdLog.info(
+                "%s(%d) failed: sql:%s, col:%d is larger than queryCols:%d" % args
+            )
+            return False
+
+        row = -1
+
+        for i in range(self.queryRows):
+            if self.queryResult[i][col] == data:
+                row = i
+
+        tdLog.info(f"find key:{key}, row:{row} col:{col}, data:{data}")
+
+        if row == -1:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, key, col)
+            return False
+
+        if show:
+            tdLog.info("check key successfully")
+
+        return True
+
     def checkAssert(self, assertVal, show=False):
         """
         Checks if the assertVal is true.
@@ -1322,7 +1365,7 @@ class TDSql:
 
         if assertVal != True:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, self.sql, assertVal)
+            args = (caller.filename, caller.lineno, self.sql)
             tdLog.exit("%s(%d) failed: sql:%s asserted" % args)
 
         if show:

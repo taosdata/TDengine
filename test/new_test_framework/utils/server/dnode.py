@@ -620,13 +620,11 @@ class TDDnode:
                 )
             else:
                 psCmd = (
-                    "ps -ef|grep -w %s| grep dnode%d|grep -v grep | awk '{print $2}' | xargs"
+                    "ps -ef | grep -w %s | grep dnode%d | grep -v grep | awk '{print $2}' | xargs"
                     % (toBeKilled, self.index)
                 )
-            processID = (
-                subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
-            )
-
+            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+            tdLog.info(f"psCmd:{psCmd}, processId:[{processID}]")
             onlyKillOnceWindows = 0
             while processID:
                 if not platform.system().lower() == "windows" or (
@@ -637,10 +635,12 @@ class TDDnode:
                         killCmd = "kill -INT %s > nul 2>&1" % processID
                     os.system(killCmd)
                     onlyKillOnceWindows = 1
+                    # tdLog.info(f"kill cmd:{killCmd}")
                 time.sleep(1)
                 processID = (
                     subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
                 )
+                tdLog.info(f"killed processID:{processID}")
             if self.valgrind:
                 time.sleep(2)
 
@@ -677,13 +677,14 @@ class TDDnode:
                 )
             else:
                 psCmd = (
-                    "ps -ef|grep -w %s| grep dnode%d|grep -v grep | awk '{print $2}' | xargs"
+                    "ps -ef | grep -w %s | grep dnode%d | grep -v grep | awk '{print $2}' | xargs"
                     % (toBeKilled, self.index)
                 )
             processID = (
                 subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
             )
 
+            tdLog.info(f"psCmd:{psCmd}, processId:[{processID}]")
             onlyKillOnceWindows = 0
             while processID:
                 if not platform.system().lower() == "windows" or (
@@ -694,10 +695,12 @@ class TDDnode:
                         killCmd = "kill -KILL %s > nul 2>&1" % processID
                     os.system(killCmd)
                     onlyKillOnceWindows = 1
+                    # tdLog.info(f"kill cmd:{killCmd}")
                 time.sleep(1)
                 processID = (
                     subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
                 )
+                tdLog.info(f"killed processID:{processID}")
             # for port in range(6030, 6041):
             #     fuserCmd = "fuser -k -n tcp %d" % port
             #     os.system(fuserCmd)
