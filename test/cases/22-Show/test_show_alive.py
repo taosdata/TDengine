@@ -48,7 +48,7 @@ class TestShowAlive:
         tdSql.execute(f"insert into t2 values(1648791222001,2,2,3);")
 
         clusterComCheck.checkClusterAlive(1, 20)
-        clusterComCheck.checkDatabaseAlive("test", 1, 20)
+        clusterComCheck.checkDbAlive("test", 1, 20)
 
         tdLog.info(f"stop dnode3")
         tdLog.info(f"stop dnode4")
@@ -58,17 +58,17 @@ class TestShowAlive:
         clusterComCheck.checkDnodes(2)
 
         clusterComCheck.checkClusterAlive(2, 20)
-        clusterComCheck.checkDatabaseAlive("test", 2, 20)
+        clusterComCheck.checkDbAlive("test", 2, 20)
 
         tdSql.execute(f"create database test1 vgroups 2;")
         clusterComCheck.checkClusterAlive(2, 20)
-        clusterComCheck.checkDatabaseAlive("test", 2, 20)
-        clusterComCheck.checkDatabaseAlive("test1", 1, 20)
+        clusterComCheck.checkDbAlive("test", 2, 20)
+        clusterComCheck.checkDbAlive("test1", 1, 20)
 
         tdLog.info(f"stop dnode2")
         sc.dnodeForceStop(2)
         clusterComCheck.checkDnodes(1)
 
         clusterComCheck.checkClusterAlive(2, 20)
-        clusterComCheck.checkDatabaseAlive("test", 2, 20)
-        clusterComCheck.checkDatabaseAlive("test1", 2, 20)
+        clusterComCheck.checkDbAlive("test", 2, 20)
+        clusterComCheck.checkDbAlive("test1", 2, 20)

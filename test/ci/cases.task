@@ -66,7 +66,21 @@
 ## 04-Query
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/04-Query/test_db_show_create_db.py 
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/04-Query/test_db_show_create_table.py
-## 05-Others
+## 05-Vnode
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_stable_balance_replica1.py -N 2
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_stable_dnode2_stop.py -N 2
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_stable_dnode2.py -N 2
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_stable_dnode3.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_stable_replica3_dnode6.py -N 6
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_stable_replica3_vnode3.py -N 4
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_vnode_replica3_basic.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_vnode_replica3_import.py -N 4
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_vnode_replica3_many.py -N 4
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_vnode_replica3_repeat.py -N 4
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_vnode_replica3_vgroup.py -N 4
+
+## 06-Disk
+## 07-Others
 
 # 03-Tables
 ## 01-NormalTables
@@ -299,6 +313,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/02-Mnode/test_mnode_basic4.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/02-Mnode/test_mnode_basic5.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/02-Mnode/test_mnode_basic6.py -N 4
+## 03-Qnode
+,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/03-Qnode/test_qnode_basic1.py -N 2
+## 04-Snode
+,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/04-Snode/test_snode_basic1.py -N 2
 
 # 20-Metadata
 
@@ -344,3 +362,4 @@
 # 40-Tools
 
 # 50-Others
+## 01-Valgrind

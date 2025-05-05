@@ -80,7 +80,7 @@ class ClusterComCheck:
                 "show cluster alive does not return %d within %ds!" % (status, timeout)
             )
 
-    def checkDatabaseAlive(self, dbname, status, timeout=100):
+    def checkDbAlive(self, dbname, status, timeout=100):
         count = 0
 
         while count < timeout:
@@ -169,7 +169,7 @@ class ClusterComCheck:
 
             if leaderNum == tdSql.queryRows:
                 tdLog.info(
-                    f"db:{dbname} vgroups:{tdSql.queryRows} has leader within {timeout}s!"
+                    f"db:{dbname} vgroups:{tdSql.queryRows} has leader within {count}s!"
                 )
                 break
 
@@ -251,7 +251,7 @@ class ClusterComCheck:
             tdSql.checkData(0, 0, rowsPerSTable)
         return
 
-    def checkMnodeStatus(self, mnodeNum, checkFollower = True):
+    def checkMnodeStatus(self, mnodeNum, checkFollower=True):
         tdLog.debug(f"check mnodes:{mnodeNum} status")
         count = 0
 
