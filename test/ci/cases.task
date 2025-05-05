@@ -95,20 +95,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_many.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_repeat.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_vgroup.py -N 4
-
-
-,,y,script,./test.sh -f tsim/dnode/create_dnode.sim
-,,y,script,./test.sh -f tsim/dnode/drop_dnode_force.sim
-,,y,script,./test.sh -f tsim/dnode/drop_dnode_has_mnode.sim
-,,y,script,./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica1.sim
-,,y,script,./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica3.sim
-,,y,script,./test.sh -f tsim/dnode/drop_dnode_has_qnode_snode.sim
-,,y,script,./test.sh -f tsim/dnode/drop_dnode_has_vnode_replica1.sim
-,,y,script,./test.sh -f tsim/dnode/drop_dnode_has_vnode_replica3.sim
-,,y,script,./test.sh -f tsim/dnode/offline_reason.sim
-,,y,script,./test.sh -f tsim/dnode/use_dropped_dnode.sim
-
-## 07-Others
+## 06-Others
 
 # 03-Tables
 ## 01-NormalTables
@@ -334,16 +321,16 @@
 # 19-ManageNodes
 ## 01-Dnode
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_alter_dnode_debugflag.py 
-,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_create_dnode.py 
-,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_force.py 
-,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_mnode.py 
-,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_multi_vnode_replica1.py 
-,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_multi_vnode_replica3.py 
-,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_qnode_snode.py 
-,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_vnode_replica1.py 
-,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_vnode_replica3.py 
-,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_offline_reason.py 
-,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_use_dropped_dnode.py 
+,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_create_dnode.py -N 2 -C 1
+,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_force.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_mnode.py -N 2
+,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_multi_vnode_replica1.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_multi_vnode_replica3.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_qnode_snode.py -N 2
+,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_vnode_replica1.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_vnode_replica3.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_offline_reason.py -N 2 -C 1
+#,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_use_dropped_dnode.py -N 3
 ## 02-Mnode
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/02-Mnode/test_mnode_basic1.py -N 2
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/02-Mnode/test_mnode_basic2.py -N 2
