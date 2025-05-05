@@ -591,7 +591,7 @@ class TDDnode:
             tdLog.info("dnode:%d is stopped by kill -INT" % (self.index))
 
     def stoptaosd(self):
-        tdLog.info("start to stop taosd on dnode: %d " % (self.index))
+        tdLog.info(f"start to stop taosd on dnode:{self.index}")
         # print(self.asan,self.running,self.remoteIP,self.valgrind)
         if self.asan:
             stopCmd = "%s -s stop -n dnode%d" % (self.execPath, self.index)
@@ -623,7 +623,9 @@ class TDDnode:
                     "ps -ef | grep -w %s | grep dnode%d | grep -v grep | awk '{print $2}' | xargs"
                     % (toBeKilled, self.index)
                 )
-            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+            processID = (
+                subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+            )
             tdLog.info(f"psCmd:{psCmd}, processId:[{processID}]")
             onlyKillOnceWindows = 0
             while processID:
@@ -648,8 +650,8 @@ class TDDnode:
             tdLog.info("dnode:%d is stopped by kill -INT" % (self.index))
 
     def forcestop(self):
-        tdLog.info("start to force stop taosd on dnode: %d " % (self.index))
-        
+        tdLog.info(f"start to force stop taosd on dnode:{self.index}")
+
         if self.asan:
             stopCmd = "%s -s stop -n dnode%d -x SIGKILL" % (self.execPath, self.index)
             tdLog.info("execute script: " + stopCmd)
