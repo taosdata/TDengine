@@ -78,8 +78,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_vnode_replica3_many.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_vnode_replica3_repeat.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_vnode_replica3_vgroup.py -N 4
-
-## 06-Disk
+## 06-Sync
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/06-Sync/test_sync_3Replica1VgElect.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/06-Sync/test_sync_3Replica5VgElect.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/06-Sync/test_sync_vnodesnapshot_rsma.py -N 4
 ## 07-Others
 
 # 03-Tables
@@ -363,3 +365,15 @@
 
 # 50-Others
 ## 01-Valgrind
+,,y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_basic1.py
+,,y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_basic2.py
+,,y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_basic3.py
+,,y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_basic4.py
+,,y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_checkerror1.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_checkerror2.py
+,,y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_checkerror3.py
+,,y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_checkerror4.py
+,,y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_checkerror5.py
+,,y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_checkerror6.py
+,,y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_checkerror7.py
+,,y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_checkerror8.py
