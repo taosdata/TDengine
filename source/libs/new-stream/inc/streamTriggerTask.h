@@ -159,6 +159,7 @@ typedef struct SSTriggerRealtimeContext {
 
   ESTriggerRequestStatus    pullStatus;
   SSTriggerPullRequestUnion pullReq;
+  SSDataBlock              *pullResDataBlock[STRIGGER_PULL_TYPE_MAX];
 
   ESTriggerRequestStatus  calcStatus;
   SSTriggerCalcRequest    calcReq;
@@ -215,6 +216,7 @@ typedef struct SStreamTriggerTask {
   int32_t                   calcParamLimit;  // max number of params in each calculation request
   int32_t                   nextSessionId;
   SSTriggerRealtimeContext *pRealtimeCtx;
+  volatile int32_t         *pCalcExecCount;
 } SStreamTriggerTask;
 
 // interfaces called by stream trigger thread

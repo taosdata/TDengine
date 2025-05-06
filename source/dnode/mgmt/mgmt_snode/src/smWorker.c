@@ -83,9 +83,6 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 static int32_t smDispatchStreamTriggerRsp(struct SDispatchWorkerPool *pPool, void *pParam, int32_t *pWorkerIdx) {
   int32_t code = TSDB_CODE_SUCCESS;
   SRpcMsg *pMsg = (SRpcMsg *)pParam;
-  if (pMsg->code) {
-    return pMsg->code;
-  }
   switch (pMsg->msgType) {
     case TDMT_STREAM_TRIGGER_PULL_RSP: {
       SSTriggerPullRequest *pReq = pMsg->info.ahandle;
