@@ -40,8 +40,8 @@ typedef enum EStreamTriggerType {
 
 typedef enum ESTriggerEventType {
   STRIGGER_EVENT_WINDOW_NONE = 0,
-  STRIGGER_EVENT_WINDOW_OPEN = 1 << 0,
-  STRIGGER_EVENT_WINDOW_CLOSE = 1 << 1,
+  STRIGGER_EVENT_WINDOW_CLOSE = 1 << 0,
+  STRIGGER_EVENT_WINDOW_OPEN = 1 << 1,
 } ESTriggerEventType;
 
 typedef enum ESTriggerGroupStatus {
@@ -56,23 +56,24 @@ typedef enum ESTriggerWindowStatus {
   STRIGGER_WINDOW_CLOSED,
 } ESTriggerWindowStatus;
 
-typedef enum ESTriggerCalcStatus {
-  STRIGGER_CALC_IDLE = 0,
-  STRIGGER_CALC_TO_RUN,
-  STRIGGER_CALC_RUNNING,
-} ESTriggerCalcStatus;
+typedef enum ESTriggerRequestStatus {
+  STRIGGER_REQUEST_IDLE = 0,
+  STRIGGER_REQUEST_TO_RUN,
+  STRIGGER_REQUEST_RUNNING,
+} ESTriggerRequestStatus;
 
 typedef TRINGBUF(int64_t) TWstartBuf;
 
 /// structure definitions for trigger real-time calculation
 
 typedef struct SSTriggerWalMetaStat {
-  int64_t readerTaskId;
+  int64_t vgroupId;
   int64_t numHoldMetas;
   int64_t threshold;
 } SSTriggerWalMetaStat;
 
 typedef struct SSTriggerWalMeta {
+  int64_t vgId;
   int64_t uid;
   int64_t skey;
   int64_t ekey;
@@ -84,6 +85,7 @@ typedef struct SSTriggerRealtimeGroup {
   struct SSTriggerRealtimeContext *pContext;
   int64_t                          groupId;
   ESTriggerGroupStatus             status;
+  SSDataBlock                     *pWalMetaData;
   union {
     SSTriggerWalMetaStat *pMetaStat;   // for single table per group
     SSHashObj            *pMetaStats;  // for multiple tables per group
@@ -103,6 +105,8 @@ typedef struct SSTriggerRealtimeGroup {
     SValue     stateVal;   // for state window
   };
 } SSTriggerRealtimeGroup;
+
+typedef TRINGBUF(SSTriggerRealtimeGroup *) TSSTriggerRealtimeGroupBuf;
 
 typedef struct SSTriggerWalMetaNode {
   SSTriggerWalMeta            *pMeta;
@@ -144,24 +148,23 @@ typedef struct SSTriggerWalProgress {
 typedef struct SSTriggerRealtimeContext {
   struct SStreamTriggerTask *pTask;
   int64_t                    sessionId;
-  SSHashObj                 *pReaderWalProgress;
-  int32_t                    curReaderIdx;
+
+  SSHashObj *pReaderWalProgress;
+  int32_t    curReaderIdx;
+
   SSDataBlock               *pWalMetaData;  // wal meta pull response
-  union {
-    SSTriggerPullRequest           base;
-    SSTriggerWalMetaRequest        walMetaReq;
-    SSTriggerWalTsDataRequest      walTsReq;
-    SSTriggerWalTriggerDataRequest walTriggerDataReq;
-    SSTriggerWalCalcDataRequest    walCalcDataReq;
-  } pullReq;
+  SSHashObj                 *pGroups;
+  TSSTriggerRealtimeGroupBuf groupsToCheck;
+  SSTriggerWalMetaMerger    *pMerger;
 
-  SSHashObj              *pGroups;
-  SSTriggerRealtimeGroup *pCurGroup;
-  SSTriggerWalMetaMerger *pMerger;
+  ESTriggerRequestStatus    pullStatus;
+  SSTriggerPullRequestUnion pullReq;
 
-  ESTriggerCalcStatus     calcStatus;
+  ESTriggerRequestStatus  calcStatus;
   SSTriggerCalcRequest    calcReq;
   SSTriggerRealtimeGroup *pCalcGroup;
+  void                   *pCalcDataCache;
+
 } SSTriggerRealtimeContext;
 
 typedef struct SStreamTriggerTask {
@@ -185,11 +188,11 @@ typedef struct SStreamTriggerTask {
       int64_t      eventTrueFor;
     };
   };
+  int64_t primaryTsIndex;
   int64_t maxDelay;  // precision is ms
   int64_t fillHistoryStartTime;
   int64_t watermark;
   int64_t expiredTime;
-  int64_t primaryTsIndex;
   bool    ignoreDisorder;
   bool    fillHistory;
   bool    fillHistoryFirst;
@@ -207,17 +210,15 @@ typedef struct SStreamTriggerTask {
   bool singleTableGroup;
   bool needRowNumber;
   bool needCacheData;
-  bool needWend;
 
   // runtime info
-  // default: 10, todo(kjq): adjust dynamically
   int32_t                   calcParamLimit;  // max number of params in each calculation request
+  int32_t                   nextSessionId;
   SSTriggerRealtimeContext *pRealtimeCtx;
 } SStreamTriggerTask;
 
 // interfaces called by stream trigger thread
-int32_t stTriggerTaskProcessPullRsp(SStreamTriggerTask *pTask, SSTriggerPullResponse *pRsp);
-int32_t stTriggerTaskProcessCalcRsp(SStreamTriggerTask *pTask, SSTriggerCalcResponse *pRsp);
+int32_t stTriggerChooseRunner(SStreamTriggerTask *pTask, SStreamRunnerTarget **ppRunner);
 int32_t stTriggerTaskMarkRecalc(SStreamTriggerTask *pTask, int64_t groupId, int64_t skey, int64_t ekey);
 
 // interfaces called by stream mgmt thread

@@ -2450,8 +2450,13 @@ _exit:
 
 void tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq) {
   if (pReq != NULL) {
-    taosArrayClearP(pReq->params, tDestroySSTriggerCalcParam);
-    taosArrayClearP(pReq->groupColVals, tDestroySValue);
-    taosMemoryFreeClear(pReq);
+    if (pReq->params != NULL) {
+      taosArrayClearP(pReq->params, tDestroySSTriggerCalcParam);
+      pReq->params = NULL;
+    }
+    if (pReq->groupColVals != NULL) {
+      taosArrayClearP(pReq->groupColVals, tDestroySValue);
+      pReq->groupColVals = NULL;
+    }
   }
 }

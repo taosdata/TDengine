@@ -49,6 +49,7 @@ typedef struct STranslateContext {
   bool             skipCheck;
   bool             refTable;
   int64_t          placeHolderBitmap;
+  bool             createStreamCalc;
   bool             createStreamTrigger;
   bool             createStreamOutTable;
   SNode*           createStreamTriggerTbl;

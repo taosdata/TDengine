@@ -123,7 +123,7 @@ int32_t smDeployStreamTasks(SStmStreamDeploy* pDeploy) {
       TAOS_CHECK_EXIT(stReaderTaskDeploy(pTask, &pReader->msg.reader));
 
       //STREAMTODO
-      //pTask->task.status = STREAM_STATUS_INIT;
+      pTask->task.status = STREAM_STATUS_INIT;
 
       TAOS_CHECK_EXIT(taosHashPut(gStreamMgmt.taskMap, &pTask->task.streamId, sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId), &pTask, POINTER_BYTES));
 
@@ -143,9 +143,6 @@ int32_t smDeployStreamTasks(SStmStreamDeploy* pDeploy) {
     stream.triggerTask->task = *pTask;
 
     TAOS_CHECK_EXIT(stTriggerTaskDeploy(stream.triggerTask, &pDeploy->triggerTask->msg.trigger));
-
-    //STREAMTODO
-    //stream.triggerTask->task.status = STREAM_STATUS_INIT;
 
     TAOS_CHECK_EXIT(taosHashPut(gStreamMgmt.taskMap, &pTask->streamId, sizeof(pTask->streamId) + sizeof(pTask->taskId), &stream.triggerTask, POINTER_BYTES));
 
@@ -168,7 +165,7 @@ int32_t smDeployStreamTasks(SStmStreamDeploy* pDeploy) {
       TAOS_CHECK_EXIT(stRunnerTaskDeploy(pTask, &pRunner->msg.runner));
 
       //STREAMTODO
-      //pTask->task.status = STREAM_STATUS_INIT;
+      pTask->task.status = STREAM_STATUS_INIT;
 
       TAOS_CHECK_EXIT(taosHashPut(gStreamMgmt.taskMap, &pTask->task.streamId, sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId), &pTask, POINTER_BYTES));
 

@@ -81,53 +81,54 @@ typedef enum EScanType {
 } EScanType;
 
 typedef struct SScanLogicNode {
-  SLogicNode    node;
-  SNodeList*    pScanCols;
-  SNodeList*    pScanPseudoCols;
-  int8_t        tableType;
-  uint64_t      tableId;
-  uint64_t      stableId;
-  SVgroupsInfo* pVgroupList;
-  EScanType     scanType;
-  uint8_t       scanSeq[2];  // first is scan count, and second is reverse scan count
-  STimeWindow   scanRange;
-  SName         tableName;
-  bool          showRewrite;
-  double        ratio;
-  SNodeList*    pDynamicScanFuncs;
-  int32_t       dataRequired;
-  int64_t       interval;
-  int64_t       offset;
-  int64_t       sliding;
-  int8_t        intervalUnit;
-  int8_t        slidingUnit;
-  SNode*        pTagCond;
-  SNode*        pTagIndexCond;
-  int8_t        triggerType;
-  int64_t       watermark;
-  int64_t       deleteMark;
-  int8_t        igExpired;
-  int8_t        igCheckUpdate;
-  SArray*       pSmaIndexes;
-  SArray*       pTsmas;
-  SArray*       pTsmaTargetTbVgInfo;
-  SArray*       pTsmaTargetTbInfo;
-  SNodeList*    pGroupTags;
-  bool          groupSort;
-  int8_t        cacheLastMode;
-  bool          hasNormalCols;  // neither tag column nor primary key tag column
-  bool          sortPrimaryKey;
-  bool          igLastNull;
-  bool          groupOrderScan;
-  bool          onlyMetaCtbIdx;    // for tag scan with no tbname
-  bool          filesetDelimited;  // returned blocks delimited by fileset
-  bool          isCountByTag;      // true if selectstmt hasCountFunc & part by tag/tbname
-  SArray*       pFuncTypes;        // for last, last_row
-  bool          paraTablesSort;    // for table merge scan
-  bool          smallDataTsSort;   // disable row id sort for table merge scan
-  bool          needSplit;
-  bool          noPseudoRefAfterGrp;  // no pseudo columns referenced ater group/partition clause
-  bool          virtualStableScan;
+  SLogicNode         node;
+  SNodeList*         pScanCols;
+  SNodeList*         pScanPseudoCols;
+  int8_t             tableType;
+  uint64_t           tableId;
+  uint64_t           stableId;
+  SVgroupsInfo*      pVgroupList;
+  EScanType          scanType;
+  uint8_t            scanSeq[2];  // first is scan count, and second is reverse scan count
+  STimeWindow        scanRange;
+  SNode*             pTimeRange;  // for create stream
+  SName              tableName;
+  bool               showRewrite;
+  double             ratio;
+  SNodeList*         pDynamicScanFuncs;
+  int32_t            dataRequired;
+  int64_t            interval;
+  int64_t            offset;
+  int64_t            sliding;
+  int8_t             intervalUnit;
+  int8_t             slidingUnit;
+  SNode*             pTagCond;
+  SNode*             pTagIndexCond;
+  int8_t             triggerType;
+  int64_t            watermark;
+  int64_t            deleteMark;
+  int8_t             igExpired;
+  int8_t             igCheckUpdate;
+  SArray*            pSmaIndexes;
+  SArray*            pTsmas;
+  SArray*            pTsmaTargetTbVgInfo;
+  SArray*            pTsmaTargetTbInfo;
+  SNodeList*         pGroupTags;
+  bool               groupSort;
+  int8_t             cacheLastMode;
+  bool               hasNormalCols;  // neither tag column nor primary key tag column
+  bool               sortPrimaryKey;
+  bool               igLastNull;
+  bool               groupOrderScan;
+  bool               onlyMetaCtbIdx;    // for tag scan with no tbname
+  bool               filesetDelimited;  // returned blocks delimited by fileset
+  bool               isCountByTag;      // true if selectstmt hasCountFunc & part by tag/tbname
+  SArray*            pFuncTypes;        // for last, last_row
+  bool               paraTablesSort;    // for table merge scan
+  bool               smallDataTsSort;   // disable row id sort for table merge scan
+  bool               needSplit;
+  bool               noPseudoRefAfterGrp;  // no pseudo columns referenced ater group/partition clause
+  bool               virtualStableScan;
   EStreamPlaceholder placeholderType;
 } SScanLogicNode;
 
@@ -511,6 +512,7 @@ typedef struct STableScanPhysiNode {
   SScanPhysiNode scan;
   uint8_t        scanSeq[2];  // first is scan count, and second is reverse scan count
   STimeWindow    scanRange;
+  SNode*         pTimeRange;  // for create stream
   double         ratio;
   int32_t        dataRequired;
   SNodeList*     pDynamicScanFuncs;
