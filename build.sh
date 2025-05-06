@@ -77,7 +77,7 @@ case $1 in
     install)
         shift 1
         do_stop
-        sudo cmake --install debug --config ${TD_CONFIG} "$@" &&
+        cmake --install debug --config ${TD_CONFIG} "$@" &&
         echo "Installed for '${TD_CONFIG}'" &&
         echo "If you wanna start taosd, run like this:" &&
         echo "./build.sh start" &&
