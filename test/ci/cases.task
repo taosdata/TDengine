@@ -209,6 +209,19 @@
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Create/test_stable_refcount.py 
 
 # 05-VirtualTables
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_create.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_alter.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_drop.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_meta.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_create.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_select.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_alter_drop.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_drop_origin_table.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_join.py
 
 # 06-DataIngestion
 ## 01-Insert
