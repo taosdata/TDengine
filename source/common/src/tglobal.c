@@ -2070,9 +2070,9 @@ _exit:
 }
 
 static int32_t taosCheckGlobalCfg() {
-  uint32_t ipv4 = 0;
+  SIpAddr addr = {0};
   uInfo("check global fqdn:%s and port:%u", tsLocalFqdn, tsServerPort);
-  int32_t code = taosGetIpv4FromFqdn(tsLocalFqdn, &ipv4);
+  int32_t code = taosGetIpFromFqdn(tsLocalFqdn, &addr);
   if (code) {
     uError("failed to get ip from fqdn:%s since %s, can not be initialized", tsLocalFqdn, tstrerror(code));
     TAOS_RETURN(TSDB_CODE_RPC_FQDN_ERROR);
