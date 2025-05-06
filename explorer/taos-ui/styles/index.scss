@@ -1,0 +1,55 @@
+.page-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  padding: 20px 30px;
+  /* stylelint-disable-next-line scss/at-extend-no-missing-placeholder */
+  @extend .block-border;
+}
+
+.block-border {
+  background-color: #fff;
+  border: 1px solid #e3e4e6;
+  border-radius: 4px;
+}
+
+// 这里是专门用于pre代码块添加复制按钮的样式
+.pre-code {
+  position: relative;
+
+  .copy-btn {
+    position: absolute;
+    top: 5px;
+    right: 10px;
+    display: none;
+    padding: 2px 5px;
+    font-size: 12px;
+    color: rgb(25.8789% 34.8999% 80.7785%);
+    cursor: pointer;
+    background: #fff;
+    border: none;
+  }
+
+  .hljs-string,
+  .hljs-subst {
+    color: rgb(25.8789% 34.8999% 80.7785%);
+  }
+
+  &:hover {
+    .copy-btn {
+      display: block !important;
+    }
+  }
+}
+
+.el-popper {
+  max-width: 600px;
+  font-size: 14px;
+}
