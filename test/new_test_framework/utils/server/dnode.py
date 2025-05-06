@@ -591,7 +591,7 @@ class TDDnode:
             tdLog.info("dnode:%d is stopped by kill -INT" % (self.index))
 
     def stoptaosd(self):
-        tdLog.info("start to stop taosd on dnode: %d " % (self.index))
+        tdLog.info(f"start to stop taosd on dnode:{self.index}")
         # print(self.asan,self.running,self.remoteIP,self.valgrind)
         if self.asan:
             stopCmd = "%s -s stop -n dnode%d" % (self.execPath, self.index)
@@ -620,13 +620,13 @@ class TDDnode:
                 )
             else:
                 psCmd = (
-                    "ps -ef|grep -w %s| grep dnode%d|grep -v grep | awk '{print $2}' | xargs"
+                    "ps -ef | grep -w %s | grep dnode%d | grep -v grep | awk '{print $2}' | xargs"
                     % (toBeKilled, self.index)
                 )
             processID = (
                 subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
             )
-
+            tdLog.info(f"psCmd:{psCmd}, processId:[{processID}]")
             onlyKillOnceWindows = 0
             while processID:
                 if not platform.system().lower() == "windows" or (
@@ -637,10 +637,12 @@ class TDDnode:
                         killCmd = "kill -INT %s > nul 2>&1" % processID
                     os.system(killCmd)
                     onlyKillOnceWindows = 1
+                    # tdLog.info(f"kill cmd:{killCmd}")
                 time.sleep(1)
                 processID = (
                     subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
                 )
+                tdLog.info(f"killed processID:{processID}")
             if self.valgrind:
                 time.sleep(2)
 
@@ -648,8 +650,8 @@ class TDDnode:
             tdLog.info("dnode:%d is stopped by kill -INT" % (self.index))
 
     def forcestop(self):
-        tdLog.info("start to force stop taosd on dnode: %d " % (self.index))
-        
+        tdLog.info(f"start to force stop taosd on dnode:{self.index}")
+
         if self.asan:
             stopCmd = "%s -s stop -n dnode%d -x SIGKILL" % (self.execPath, self.index)
             tdLog.info("execute script: " + stopCmd)
@@ -677,13 +679,14 @@ class TDDnode:
                 )
             else:
                 psCmd = (
-                    "ps -ef|grep -w %s| grep dnode%d|grep -v grep | awk '{print $2}' | xargs"
+                    "ps -ef | grep -w %s | grep dnode%d | grep -v grep | awk '{print $2}' | xargs"
                     % (toBeKilled, self.index)
                 )
             processID = (
                 subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
             )
 
+            tdLog.info(f"psCmd:{psCmd}, processId:[{processID}]")
             onlyKillOnceWindows = 0
             while processID:
                 if not platform.system().lower() == "windows" or (
@@ -694,10 +697,12 @@ class TDDnode:
                         killCmd = "kill -KILL %s > nul 2>&1" % processID
                     os.system(killCmd)
                     onlyKillOnceWindows = 1
+                    # tdLog.info(f"kill cmd:{killCmd}")
                 time.sleep(1)
                 processID = (
                     subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
                 )
+                tdLog.info(f"killed processID:{processID}")
             # for port in range(6030, 6041):
             #     fuserCmd = "fuser -k -n tcp %d" % port
             #     os.system(fuserCmd)

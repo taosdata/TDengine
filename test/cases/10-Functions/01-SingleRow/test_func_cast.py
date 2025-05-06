@@ -22,7 +22,7 @@ class TestFuncCast:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/scalar/scalar.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/scalar/scalar.sim
 
         """
 

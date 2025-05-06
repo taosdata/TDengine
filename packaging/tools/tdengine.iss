@@ -20,7 +20,7 @@
 ;#define MyAppInstallName "TDengine"
 [Setup]
 VersionInfoVersion={#MyAppVersion}
-AppId={A0F7A93C-79C4-485D-B2B8-F0D03DF42FAB}
+AppId={{A0F7A93C-79C4-485D-B2B8-F0D03DF42FAB}
 AppName={#CusName}
 AppVersion={#MyAppVersion}
 ;AppVerName={#MyAppName} {#MyAppVersion}

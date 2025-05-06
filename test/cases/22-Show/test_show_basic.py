@@ -27,7 +27,7 @@ class TestShowBasic:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/show/basic.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/show/basic.sim
 
         """
 

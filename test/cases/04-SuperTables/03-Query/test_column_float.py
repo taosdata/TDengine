@@ -23,7 +23,7 @@ class TestColumnFloat:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/field/float.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/field/float.sim
 
         """
 
