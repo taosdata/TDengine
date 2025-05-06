@@ -270,7 +270,7 @@ void smRemoveTriggerTask(SStreamTask* pTask) {
 void smRemoveTaskFromMaps(void* param) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  SStreamTask* pTask = (SStreamTask*)param;
+  SStreamTask* pTask = *(SStreamTask**)param;
   int32_t gid = STREAM_GID(pTask->streamId);
   SHashObj* pGrp = gStreamMgmt.stmGrp[gid];
   
@@ -308,7 +308,7 @@ void smRemoveTaskFromMaps(void* param) {
 
 _exit:
 
-  taosHashRelease(gStreamMgmt.taskMap, pTask);
+  taosHashRelease(gStreamMgmt.taskMap, param);
 }
 
 int32_t smUndeployStreamTasks(SStreamTaskUndeploy* pUndeploy) {
@@ -330,13 +330,13 @@ int32_t smUndeployStreamTasks(SStreamTaskUndeploy* pUndeploy) {
 
   switch (pTask->type) {
     case STREAM_READER_TASK:
-      TAOS_CHECK_EXIT(stReaderTaskUndeploy((SStreamReaderTask*)*ppTask, &pUndeploy->undeployMsg, smRemoveTaskFromMaps));
+      TAOS_CHECK_EXIT(stReaderTaskUndeploy((SStreamReaderTask**)ppTask, &pUndeploy->undeployMsg, smRemoveTaskFromMaps));
       break;
     case STREAM_TRIGGER_TASK:
-      TAOS_CHECK_EXIT(stTriggerTaskUndeploy((SStreamTriggerTask *)*ppTask, &pUndeploy->undeployMsg, smRemoveTaskFromMaps));
+      TAOS_CHECK_EXIT(stTriggerTaskUndeploy((SStreamTriggerTask**)ppTask, &pUndeploy->undeployMsg, smRemoveTaskFromMaps));
       break;
     case STREAM_RUNNER_TASK:
-      TAOS_CHECK_EXIT(stRunnerTaskUndeploy((SStreamRunnerTask*)*ppTask, &pUndeploy->undeployMsg, smRemoveTaskFromMaps));
+      TAOS_CHECK_EXIT(stRunnerTaskUndeploy((SStreamRunnerTask**)ppTask, &pUndeploy->undeployMsg, smRemoveTaskFromMaps));
       break;
     default:
       TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);

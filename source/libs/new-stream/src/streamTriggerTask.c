@@ -2255,29 +2255,30 @@ _end:
   return code;
 }
 
-int32_t stTriggerTaskUndeploy(SStreamTriggerTask *pTask, const SStreamUndeployTaskMsg *pMsg, taskUndeplyCallback cb) {
+int32_t stTriggerTaskUndeploy(SStreamTriggerTask **ppTask, const SStreamUndeployTaskMsg *pMsg, taskUndeplyCallback cb) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  SStreamTriggerTask* pTask = *ppTask;
 
   // todo(kjq): do checkpoint/cleanup according to pMsg
 
-  if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
-    if (pTask->pStartCond != NULL) {
-      filterFreeInfo(pTask->pStartCond);
-      pTask->pStartCond = NULL;
+  if ((*ppTask)->triggerType == STREAM_TRIGGER_EVENT) {
+    if ((*ppTask)->pStartCond != NULL) {
+      filterFreeInfo((*ppTask)->pStartCond);
+      (*ppTask)->pStartCond = NULL;
     }
-    if (pTask->pEndCond != NULL) {
-      filterFreeInfo(pTask->pEndCond);
-      pTask->pEndCond = NULL;
+    if ((*ppTask)->pEndCond != NULL) {
+      filterFreeInfo((*ppTask)->pEndCond);
+      (*ppTask)->pEndCond = NULL;
     }
   }
 
-  if (pTask->pRealtimeCtx != NULL) {
-    strtcDestroy(&pTask->pRealtimeCtx);
+  if ((*ppTask)->pRealtimeCtx != NULL) {
+    strtcDestroy(&(*ppTask)->pRealtimeCtx);
   }
 
-  if (pTask->pCalcExecCount != NULL) {
-    taosMemFreeClear(pTask->pCalcExecCount);
+  if ((*ppTask)->pCalcExecCount != NULL) {
+    taosMemFreeClear((*ppTask)->pCalcExecCount);
   }
 
 _end:
@@ -2285,7 +2286,7 @@ _end:
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 
-  (*cb)(pTask);
+  (*cb)(ppTask);
 
   return code;
 }

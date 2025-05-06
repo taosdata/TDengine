@@ -200,21 +200,21 @@ end:
   return code;
 }
 
-int32_t stReaderTaskUndeploy(SStreamReaderTask* pTask, const SStreamUndeployTaskMsg* pMsg, taskUndeplyCallback cb) {
+int32_t stReaderTaskUndeploy(SStreamReaderTask** ppTask, const SStreamUndeployTaskMsg* pMsg, taskUndeplyCallback cb) {
   int32_t code = 0;
   int32_t lino = 0;
-  STREAM_CHECK_NULL_GOTO(pTask, TSDB_CODE_INVALID_PARA);
+  STREAM_CHECK_NULL_GOTO(ppTask, TSDB_CODE_INVALID_PARA);
   STREAM_CHECK_NULL_GOTO(pMsg, TSDB_CODE_INVALID_PARA);
-  if (pTask->triggerReader == 1) {
-    releaseStreamInfo(pTask->info.triggerReaderInfo);
+  if ((*ppTask)->triggerReader == 1) {
+    releaseStreamInfo((*ppTask)->info.triggerReaderInfo);
   } else {
-    taosMemoryFreeClear(pTask->info.calcReaderInfo.calcScanPlan);
-    qDestroyTask(pTask->info.calcReaderInfo.pTaskInfo);
+    taosMemoryFreeClear((*ppTask)->info.calcReaderInfo.calcScanPlan);
+    qDestroyTask((*ppTask)->info.calcReaderInfo.pTaskInfo);
   }
   
 end:
   PRINT_LOG_END(code, lino);
-  (*cb)(pTask);
+  (*cb)(ppTask);
   
   return code;
 }
