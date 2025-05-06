@@ -1,0 +1,31 @@
+{
+  // 想了解更多的信息, 请访问：https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch Chrome for uss",
+      "request": "launch",
+      "type": "chrome",
+      "url": "http://localhost:8080",
+      "webRoot": "${workspaceFolder}/uss"
+    },
+    {
+      "name": "Launch Chrome for oss",
+      "request": "launch",
+      "type": "chrome",
+      "url": "http://localhost:9527",
+      "webRoot": "${workspaceFolder}/oss"
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug Current Test File",
+      "autoAttachChildProcesses": true,
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**"],
+      "program": "${workspaceRoot}/node_modules/vitest/vitest.mjs",
+      "args": ["run", "${relativeFile}"],
+      "smartStep": true,
+      "console": "integratedTerminal"
+    }
+  ]
+}
