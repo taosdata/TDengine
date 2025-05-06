@@ -45,6 +45,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_basic6.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_commit.py -N 2
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_create_all_options.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_create.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_dnodelist.py -N 5
 #,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_keep.py -N 2
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_len.py
@@ -60,6 +61,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_delete_writing1.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_delete_writing2.py
 ## 03-Alter
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_option_keep1.py
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_option_keep2.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_option.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_replicas_13.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_replicas_31.py -N 4
@@ -137,6 +140,8 @@
 ### 04-Query
 ## 02-SubTables
 ### 01-Create
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_autocreate_tb_drop_tb.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_autocreate_tb.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_autocreate.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_batchcreate.py 
 ### 02-Drop
@@ -147,6 +152,9 @@
 
 # 04-SuperTables
 ## 01-Alter
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_parser_alter_column.py 
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_parser_alter_stable.py 
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_parser_alter1.py 
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_stable_alter_1.py 
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_stable_alter_2.py 
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_stable_alter_3.py 
@@ -239,6 +247,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/04-Update/test_insert_update1_sort_merge.py 
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/04-Update/test_insert_update2.py 
 ## 05-Others
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_commit.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_backquote.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_null.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_select.py
@@ -246,21 +255,34 @@
 
 # 07-DataQuerying
 ## 01-Operator
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_operator_and_or.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_operator_in.py 
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_operator_casewhen.py 
-## 02-Project
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Project/test_project_column_1.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Project/test_project_column_7.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Project/test_project_stable_filter_column.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Project/test_project_stable_filter_column_tag_timestamp.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Project/test_project_stable_filter_no.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Project/test_project_stable_filter_tag.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Project/test_project_stable_filter_timestamp.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Project/test_project_table_filter_column.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Project/test_project_table_filter_column_timestamp.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Project/test_project_table_filter_no.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Project/test_project_table_filter_timestamp.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_and_or.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_arithmetic.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_between_and.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_case_when.py 
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_in.py 
+## 02-Condition
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Condition/test_condition_scl.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Condition/test_condition.py
+## 03-GroupBy
+## 04-OrderBy
+## 05-Aliase
+## 06-Expression
+## 07-Limit
+## 08-SubQuery
+## 09-ProjectQuery
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_column_1.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_column_7.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_stable_filter_column.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_stable_filter_column_tag_timestamp.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_stable_filter_no.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_stable_filter_tag.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_stable_filter_timestamp.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_table_filter_column.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_table_filter_column_timestamp.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_table_filter_no.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_table_filter_timestamp.py
+## 10-QueryList
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/10-QueryList/test_const_col.py
 
 # 08-TagIndices
 ,,y,.,./ci/pytest.sh pytest cases/08-TagIndices/test_index_create_drop.py 
@@ -313,6 +335,7 @@
 # 15-JsonDataTypes
 
 # 16-EscapeCharacters
+,y,.,./ci/pytest.sh pytest cases/16-EscapeCharacters/test_binary_escape_character.py
 
 # 17-NameLimits
 
@@ -400,3 +423,4 @@
 ,,y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_checkerror6.py
 ,,y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_checkerror7.py
 ,,y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_checkerror8.py
+

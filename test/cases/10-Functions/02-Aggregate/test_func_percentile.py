@@ -23,7 +23,7 @@ class TestFuncPercentile:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/compute/percentile.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/compute/percentile.sim
 
         """
 

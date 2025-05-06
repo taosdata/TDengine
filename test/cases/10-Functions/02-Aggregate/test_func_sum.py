@@ -24,7 +24,7 @@ class TestFuncSum:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/compute/sum.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/compute/sum.sim
 
         """
 

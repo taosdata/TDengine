@@ -27,7 +27,7 @@ class TestStableMetrics:
         Jira: None
 
         History:
-            - 2025-4-30 Simon Guan Migrated to new test framework, from tests/script/tsim/stable/metrics.sim
+            - 2025-4-30 Simon Guan Migrated from tsim/stable/metrics.sim
 
         """
 
