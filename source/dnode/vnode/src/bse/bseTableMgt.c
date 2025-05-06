@@ -41,7 +41,6 @@ static int32_t tableBuilderMgtRecoverTable(STableBuilderMgt *pMgt, int64_t seq, 
 
 static int32_t tableMetaMgtInit(STableMetaMgt *pMgt, SBse *pBse, int64_t retention);
 static int32_t tableMetaMgtSetRetion(STableMetaMgt *pMgt, int64_t retention);
-static int32_t tableMetaMgtCommit(STableMetaMgt *pMgt, SBseLiveFileInfo *pInfo);
 static void    tableMetaMgtDestroy(STableMetaMgt *pMgt);
 
 static void tableReaderFree(void *pReader);
@@ -172,6 +171,7 @@ int32_t bseTableMgtRecoverTable(STableMgt *pMgt, SBseLiveFileInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
   if (pMgt == NULL) return 0;
+
   SSubTableMgt *pSubMgt = NULL;
 
   code = createSubTableMgt(pInfo->retentionTs, 0, pMgt, &pSubMgt);
@@ -652,11 +652,6 @@ _error:
   if (code != 0) {
     bseError("failed to init table meta mgt at line %d since %s", lino, tstrerror(code));
   }
-  return code;
-}
-static int32_t tableMetaMgtCommit(STableMetaMgt *pMgt, SBseLiveFileInfo *pInfo) {
-  int32_t code = 0;
-
   return code;
 }
 

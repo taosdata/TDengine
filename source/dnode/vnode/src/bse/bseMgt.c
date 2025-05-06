@@ -995,39 +995,6 @@ int32_t bseUpdateCfg(SBse *pBse, SBseCfg *pCfg) {
   return code;
 }
 
-int32_t bseReload(SBse *pBse, SBseSnapWriter *writer) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  taosThreadMutexLock(&pBse->mutex);
-
-  code = bseTableMgtClear(pBse->pTableMgt);
-  TSDB_CHECK_CODE(code, lino, _error);
-
-  code = removeUnCommitFile(pBse, pBse->commitInfo.pFileList, writer->pFileSet);
-  TSDB_CHECK_CODE(code, lino, _error);
-
-  taosArrayDestroy(pBse->commitInfo.pFileList);
-
-  code = bseTableMgtUpdateLiveFileSet(pBse->pTableMgt, writer->pFileSet);
-  TSDB_CHECK_CODE(code, lino, _error);
-
-  code = bseGenCommitInfo(pBse, writer->pFileSet);
-  TSDB_CHECK_CODE(code, lino, _error);
-
-  code = bseTableMgtGetLiveFileSet(pBse->pTableMgt, &pBse->commitInfo.pFileList);
-  TSDB_CHECK_CODE(code, lino, _error);
-
-  code = bseInitStartSeq(pBse);
-  TSDB_CHECK_CODE(code, lino, _error);
-
-_error:
-  if (code != 0) {
-    bseError("failed to reload bse since %s", tstrerror(code));
-  }
-  taosThreadMutexUnlock(&pBse->mutex);
-  return code;
-}
-
 int32_t bseUpdatCfgNoLock(SBse *pBse, SBseCfg *pCfg) {
   int32_t code = 0;
   if (pCfg == NULL) {

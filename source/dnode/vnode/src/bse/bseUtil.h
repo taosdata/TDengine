@@ -67,23 +67,20 @@ int32_t bseDecompressData(int8_t type, void *src, int32_t srcSize, void *dst, in
 int32_t bseGetRetentionTsBySeq(SBse *pBse, int64_t seq, int64_t *retentionTs);
 
 typedef void* bsequeue[2];
-/* Private macros. */
 #define BSE_QUEUE_NEXT(q) (*(bsequeue**)&((*(q))[0]))
 #define BSE_QUEUE_PREV(q) (*(bsequeue**)&((*(q))[1]))
 
 #define BSE_QUEUE_PREV_NEXT(q) (BSE_QUEUE_NEXT(BSE_QUEUE_PREV(q)))
 #define BSE_QUEUE_NEXT_PREV(q) (BSE_QUEUE_PREV(BSE_QUEUE_NEXT(q)))
-/* Initialize an empty queue. */
+
 #define BSE_QUEUE_INIT(q)    \
   {                      \
     BSE_QUEUE_NEXT(q) = (q); \
     BSE_QUEUE_PREV(q) = (q); \
   }
 
-/* Return true if the queue has no element. */
 #define BSE_QUEUE_IS_EMPTY(q) ((const bsequeue*)(q) == (const bsequeue*)BSE_QUEUE_NEXT(q))
 
-/* Insert an element at the back of a queue. */
 #define BSE_QUEUE_PUSH(q, e)           \
   {                                \
     BSE_QUEUE_NEXT(e) = (q);           \
@@ -92,8 +89,6 @@ typedef void* bsequeue[2];
     BSE_QUEUE_PREV(q) = (e);           \
   }
 
-/* Remove the given element from the queue. Any element can be removed at any *
- * time. */
 #define BSE_QUEUE_REMOVE(e)                 \
   {                                     \
     BSE_QUEUE_PREV_NEXT(e) = BSE_QUEUE_NEXT(e); \
@@ -130,7 +125,6 @@ typedef void* bsequeue[2];
 
 
 #define BSE_DATA_VER 0x1
-
 #define BSE_FMT_VER 0x1
 
 // clang-format on

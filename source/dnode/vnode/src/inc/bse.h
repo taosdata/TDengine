@@ -97,7 +97,6 @@ int32_t bseStopSnapshot(SBse *pBse);
 int32_t bseCompact(SBse *pBse);
 int32_t bseDelete(SBse *pBse, SSeqRange range);
 int32_t bseCommitBatch(SBse *pBse, SBseBatch *pBatch);
-int32_t bseReload(SBse *pBse, SBseSnapWriter *writer);
 
 #ifdef __cplusplus
 }
