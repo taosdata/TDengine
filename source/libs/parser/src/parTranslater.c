@@ -13100,7 +13100,6 @@ static int32_t replaceSubPlanFromList(SNode* pTarget, SNodeList* pList) {
       int64_t subplanId = (int64_t)((SSubplan*)pTarget)->id.groupId << 32 | ((SSubplan*)pTarget)->id.subplanId;
       PAR_ERR_RET(nodesMakeValueNodeFromInt64(subplanId, &pValue));
       REPLACE_NODE(pValue);
-      nodesDestroyNode(pNode);
       break;
     }
   }
@@ -13215,7 +13214,6 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
       FOREACH(pNode, pScanSubPlan->pParents) {
         PAR_ERR_JRET(replaceSubPlanFromList((SNode*)pScanSubPlan, ((SSubplan*)pNode)->pChildren));
       }
-      nodesDestroyList(pScanSubPlan->pParents);
       pScanSubPlan->pParents = NULL;
     }
 
