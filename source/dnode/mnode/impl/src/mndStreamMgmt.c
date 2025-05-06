@@ -44,6 +44,7 @@ static int32_t msmSTAddToTaskMap(SMnode* pMnode, SStreamObj* pStream, SArray* pT
     SStmTaskStatus* pStatus = pTasks ? taosArrayGet(pTasks, i) : pTask;
     key[1] = pStatus->id.taskId;
     TAOS_CHECK_EXIT(taosHashPut(mStreamMgmt.taskMap, key, sizeof(key), &pStatus, POINTER_BYTES));
+    mstDebug("task %d tidx %d added to taskMap", pStatus->id.taskId, pStatus->id.taskIdx);
   }
   
 _exit:
@@ -70,7 +71,7 @@ static int32_t msmSTAddToVgroupMapImpl(SHashObj* pVgMap, SStmTaskStatus* pStatus
       TSDB_CHECK_NULL(taosArrayPush(vg.taskList, &ext), code, lino, _return, terrno);
       code = taosHashPut(pVgMap, &pStatus->id.nodeId, sizeof(pStatus->id.nodeId), &vg, sizeof(vg));
       if (TSDB_CODE_SUCCESS == code) {
-        return code;
+        goto _return;
       }
 
       if (TSDB_CODE_DUP_KEY != code) {
@@ -97,6 +98,8 @@ _return:
 
   if (code) {
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  } else {
+    mstDebug("task %d tidx %d added to vgroupMap", pStatus->id.taskId, pStatus->id.taskIdx);
   }
 
   return code;
@@ -176,7 +179,7 @@ static int32_t msmSTAddToSnodeMapImpl(SHashObj* pHash, SStmTaskStatus* pStatus, 
       
       code = taosHashPut(pHash, &pStatus->id.nodeId, sizeof(pStatus->id.nodeId), &snode, sizeof(snode));
       if (TSDB_CODE_SUCCESS == code) {
-        return code;
+        goto _return;
       }
 
       if (TSDB_CODE_DUP_KEY != code) {
@@ -212,6 +215,8 @@ _return:
 
   if (code) {
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  } else {
+    mstDebug("task %d tidx %d added to snodeMap, snodeId:%d", pStatus->id.taskId, pStatus->id.taskIdx, pStatus->id.nodeId);
   }
 
   return code;
@@ -225,7 +230,9 @@ static int32_t msmTDAddSnodeTask(SHashObj* pHash, SStmTaskDeploy* pDeploy, SStre
   int64_t streamId = pStream->pCreate->streamId;
   SStmSnodeTasksDeploy snode = {0};
   SStmTaskDeployExt ext;
+  SStreamTask* pTask = &pDeploy->task;
   SArray** ppList = triggerTask ? &snode.triggerList : &snode.runnerList;
+
   while (true) {
     SStmSnodeTasksDeploy* pSnode = taosHashAcquire(pHash, &pDeploy->task.nodeId, sizeof(pDeploy->task.nodeId));
     if (NULL == pSnode) {
@@ -238,7 +245,7 @@ static int32_t msmTDAddSnodeTask(SHashObj* pHash, SStmTaskDeploy* pDeploy, SStre
 
       code = taosHashPut(pHash, &pDeploy->task.nodeId, sizeof(pDeploy->task.nodeId), &snode, sizeof(snode));
       if (TSDB_CODE_SUCCESS == code) {
-        return code;
+        goto _return;
       }
 
       if (TSDB_CODE_DUP_KEY != code) {
@@ -277,6 +284,8 @@ _return:
 
   if (code) {
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  } else {
+    ST_TASK_DLOG("task added to toDeploySnodeMap, tidx:%d", pTask->taskIdx);
   }
 
   return code;
@@ -404,7 +413,8 @@ int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan *plan, SStrea
   //TAOS_CHECK_EXIT(qSubPlanToString(plan, &pMsg->pPlan, NULL));
 
   pMsg->execReplica = replica;
-  TAOS_CHECK_EXIT(nodesCloneNode((SNode*)plan, (SNode**)&pMsg->pPlan));
+  //TAOS_CHECK_EXIT(nodesCloneNode((SNode*)plan, (SNode**)&pMsg->pPlan));
+  pMsg->pPlan = plan;
   pMsg->outDBFName = pStream->pCreate->outDB;
   pMsg->outTblName = pStream->pCreate->outTblName;
   pMsg->outTblType = pStream->pCreate->outTblType;
@@ -854,6 +864,9 @@ int32_t msmUpdateRunnerPlans(SMnode* pMnode, SArray* pRunners, SStreamObj* pStre
     SStmTaskDeployExt* pExt = taosArrayGet(pRunners, i);
     TAOS_CHECK_EXIT(msmUpdateRunnerPlan(pMnode, pRunners, i, &pExt->deploy, pStream));
     TAOS_CHECK_EXIT(nodesNodeToString((SNode*)pExt->deploy.msg.runner.pPlan, false, (char**)&pExt->deploy.msg.runner.pPlan, NULL));
+
+    SStreamTask* pTask = &pExt->deploy.task;
+    ST_TASK_DLOG("runner task plan:%s", pExt->deploy.msg.runner.pPlan);
   }
 
 _exit:
@@ -964,6 +977,8 @@ int32_t msmBuildRunnerTasksImpl(SMnode* pMnode, SQueryPlan* pDag, SStmStatus* pI
     TSDB_CHECK_NULL(pSnodeDeploy, code, lino, _exit, terrno);
     
     TAOS_CHECK_EXIT(msmUpdateRunnerPlans(pMnode, pSnodeDeploy->runnerList, pStream, totalTaskNum));
+
+    TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pDag));
   }
 
   TSDB_CHECK_CODE(msmSTAddToTaskMap(pMnode, pStream, pInfo->runnerList, NULL), lino, _exit);
@@ -1126,7 +1141,8 @@ static int32_t msmDeployStreamTasks(SMnode* pMnode, SStreamObj* pStream) {
 
   TAOS_CHECK_EXIT(taosHashPut(mStreamMgmt.streamMap, &streamId, sizeof(streamId), &info, sizeof(info)));
 
-  mstDebug("stream added to streamMap, readerNum:%d, runnerNum:%d", (int32_t)taosArrayGetSize(info.readerList), (int32_t)taosArrayGetSize(info.runnerList));
+  mstDebug("stream added to streamMap, readerNum:%d, triggerNum:%d, runnerNum:%d", 
+      (int32_t)taosArrayGetSize(info.readerList), info.triggerTask ? 1 : 0, (int32_t)taosArrayGetSize(info.runnerList));
 
 _exit:
 
@@ -1437,7 +1453,7 @@ static int32_t msmGrpAddDeployTask(SHashObj* pHash, SStmTaskDeploy* pDeploy) {
       TAOS_CHECK_EXIT(msmInitStreamDeploy(&streamDeploy, pDeploy));
       code = taosHashPut(pHash, &streamId, sizeof(streamId), &streamDeploy, sizeof(streamDeploy));
       if (TSDB_CODE_SUCCESS == code) {
-        return code;
+        goto _exit;
       }
 
       if (TSDB_CODE_DUP_KEY != code) {
@@ -1460,7 +1476,7 @@ _exit:
   if (code) {
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   } else {
-    ST_TASK_DLOG("task added to deployMap, taskIdx:%d", pTask->taskIdx);
+    ST_TASK_DLOG("task added to GRP deployMap, taskIdx:%d", pTask->taskIdx);
   }
 
   return code;
@@ -1615,6 +1631,10 @@ int32_t msmRspAddStreamsDeploy(SStmGrpCtx* pCtx) {
     SStmStreamDeploy *pDeploy = (SStmStreamDeploy *)pIter;
     TSDB_CHECK_NULL(taosArrayPush(pCtx->pRsp->deploy.streamList, pDeploy), code, lino, _exit, terrno);
     TAOS_CHECK_EXIT(msmUpdateStreamLastActTs(pDeploy->streamId, pCtx->currTs));
+
+    int64_t streamId = pDeploy->streamId;
+    mstDebug("stream DEPLOY added to dnode %d hb rsp, readerTasks:%d, triggerTask:%d, runnerTasks:%d", 
+        pCtx->pReq->dnodeId, taosArrayGetSize(pDeploy->readerTasks), pDeploy->triggerTask ? 1 : 0, taosArrayGetSize(pDeploy->runnerTasks));
   }
   
 _exit:
@@ -1986,6 +2006,8 @@ void msmRspAddStreamStart(int64_t streamId, SMStreamHbRspMsg* pRsp, int32_t stre
 
   TSDB_CHECK_NULL(taosArrayPush(pRsp->start.taskList, &start), code, lino, _exit, terrno);
 
+  mstDebug("stream START added to dnode %d hb rsp, triggerTaskId:%d", id->nodeId, id->taskId);
+
   return;
 
 _exit:
@@ -2011,6 +2033,8 @@ void msmRspAddStreamUndeploy(int64_t streamId, SMStreamHbRspMsg* pRsp, SStmActio
     undeploy.undeployMsg.doCleanup = pAction->undeploy.doCleanup;
 
     TSDB_CHECK_NULL(taosArrayPush(pRsp->undeploy.taskList, &undeploy), code, lino, _exit, terrno);
+
+    ST_TASK_DLOG("task UNDEPLOY added to hb rsp, doCheckpoint:%d, doCleanup:%d", undeploy.undeployMsg.doCheckpoint, undeploy.undeployMsg.doCleanup);
   }
 
   return;

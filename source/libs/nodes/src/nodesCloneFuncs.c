@@ -950,6 +950,32 @@ static int32_t physiDeleterCopy(const SDataDeleterNode* pSrc, SDataDeleterNode* 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t physiSubplanCopy(const SSubplan* pSrc, SSubplan* pDst) {
+  COPY_SCALAR_FIELD(type);
+  COPY_OBJECT_FIELD(id, sizeof(SSubplanId));
+  COPY_SCALAR_FIELD(subplanType);
+  COPY_SCALAR_FIELD(msgType);
+  COPY_SCALAR_FIELD(level);
+  COPY_CHAR_ARRAY_FIELD(dbFName);
+  COPY_CHAR_ARRAY_FIELD(user);
+  COPY_OBJECT_FIELD(execNode, sizeof(SQueryNodeAddr));
+  CLONE_NODE_LIST_FIELD(pChildren);
+  CLONE_NODE_LIST_FIELD(pParents);
+  CLONE_NODE_FIELD(pNode);
+  CLONE_NODE_FIELD(pDataSink);
+  CLONE_NODE_FIELD(pTagCond);
+  CLONE_NODE_FIELD(pTagIndexCond);
+  //STREAMTODO pVTables
+  COPY_SCALAR_FIELD(showRewrite);
+  COPY_SCALAR_FIELD(isView);
+  COPY_SCALAR_FIELD(isAudit);
+  COPY_SCALAR_FIELD(dynamicRowThreshold);
+  COPY_SCALAR_FIELD(rowsThreshold);
+  COPY_SCALAR_FIELD(processOneBlock);
+  return TSDB_CODE_SUCCESS;
+}
+
+
 static int32_t dataBlockDescCopy(const SDataBlockDescNode* pSrc, SDataBlockDescNode* pDst) {
   COPY_SCALAR_FIELD(dataBlockId);
   CLONE_NODE_LIST_FIELD(pSlots);
@@ -1216,6 +1242,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_DELETE:
       code = physiDeleterCopy((const SDataDeleterNode*)pNode, (SDataDeleterNode*)pDst);
+      break;
+    case QUERY_NODE_PHYSICAL_SUBPLAN:
+      code = physiSubplanCopy((const SSubplan*)pNode, (SSubplan*)pDst);
       break;
     default:
       break;

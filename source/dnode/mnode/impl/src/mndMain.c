@@ -389,11 +389,15 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   }
 #endif
 }
+
 void mndDoTimerCheckTask(SMnode *pMnode, int64_t sec) {
   if (sec % (tsStatusInterval * 5) == 0) {
     mndCheckDnodeOffline(pMnode);
   }
   if (sec % (MNODE_TIMEOUT_SEC / 2) == 0) {
+    mndSyncCheckTimeout(pMnode);
+  }
+  if (sec % MND_STREAM_HEALTH_CHECK_PERIOD_SEC == 0) {
     mndSyncCheckTimeout(pMnode);
   }
 }
