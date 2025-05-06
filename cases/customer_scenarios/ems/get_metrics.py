@@ -30,6 +30,7 @@ class Stop(TDCase):
         self.start_time = self.workflow_config["start_time"]
         self.tdRest = TDRest(env_setting=self.env_setting)
         self.test_start_time = self.workflow_config["test_start_time"]
+        self.grafana_ip = self.workflow_config["grafana_ip"]
         self.host = self.taosd_setting["fqdn"][0]
         self.log_path = f'{os.environ["TEST_ROOT"]}/run/workflow_logs/{self.workflow_config["test_start_time"]}'
         self.api_type = 0
@@ -122,7 +123,7 @@ class Stop(TDCase):
             json.dump(query_summary_metrics, result_file, indent=4) if self.api_type ==0 else json.dump(tmq_summary_metrics, result_file, indent=4)
         end_time = datetime.utcnow()
         url = (
-            f'http://grafana.tdengine.net:3000/d/{self.workflow_config["grafana_datasource_name"]}'
+            f'http://{self.grafana_ip}:3000/d/{self.workflow_config["grafana_datasource_name"]}'
             f"?var-interval=10m&orgId=1&from={self.start_time}&to={end_time.isoformat(timespec='milliseconds')}Z"
             f"&timezone=browser&var-processes=$__all&refresh=5s"
         )
