@@ -47,8 +47,8 @@ typedef struct SSvrConn {
   uint32_t clientIp;
   uint16_t port;
 
-  char src[32];
-  char dst[32];
+  char src[IP_RESERVE_CAP];
+  char dst[IP_RESERVE_CAP];
 
   int64_t refId;
   int     spi;

@@ -83,12 +83,10 @@ typedef struct SCliConn {
   HeapNode node;  // for heap
   int8_t   inHeap;
   int32_t  reqRefCnt;
-  uint32_t clientIp;
-  uint32_t serverIp;
 
   char* dstAddr;
-  char  src[32];
-  char  dst[32];
+  char  src[IP_RESERVE_CAP];
+  char  dst[IP_RESERVE_CAP];
 
   char*   ipStr;
   int32_t port;
@@ -244,7 +242,7 @@ static FORCE_INLINE int32_t cliMayCvtFqdnToIp(SReqEpSet* pEpSet, const SCvtAddr*
 
 static FORCE_INLINE int32_t cliBuildExceptResp(SCliThrd* thrd, SCliReq* pReq, STransMsg* resp);
 
-static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, uint32_t* ipaddr);
+static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, SIpAddr* ipaddr);
 static FORCE_INLINE int32_t cliUpdateFqdnCache(SHashObj* cache, char* fqdn);
 
 static FORCE_INLINE void cliMayUpdateFqdnCache(SHashObj* cache, char* dst);
@@ -1608,7 +1606,7 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
   int32_t lino = 0;
   STrans* pInst = pThrd->pInst;
 
-  uint32_t ipaddr;
+  SIpAddr  ipaddr;
   int32_t  code = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, conn->ipStr, &ipaddr);
   if (code != 0) {
     TAOS_CHECK_GOTO(code, &lino, _exception1);
@@ -1694,13 +1692,6 @@ int32_t cliConnSetSockInfo(SCliConn* pConn) {
     return code;
   }
   transSockInfo2Str(&sockname, pConn->src);
-
-  struct sockaddr_in addr = *(struct sockaddr_in*)&sockname;
-  struct sockaddr_in saddr = *(struct sockaddr_in*)&peername;
-
-  pConn->clientIp = addr.sin_addr.s_addr;
-  pConn->serverIp = saddr.sin_addr.s_addr;
-
   return 0;
 };
 
@@ -1862,23 +1853,25 @@ FORCE_INLINE int32_t cliBuildExceptResp(SCliThrd* pThrd, SCliReq* pReq, STransMs
   return 0;
 }
 
-static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, uint32_t* ip) {
+static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, SIpAddr* ip) {
   int32_t   code = 0;
-  uint32_t  addr = 0;
+  // uint32_t  addr = 0;
   size_t    len = strlen(fqdn);
-  uint32_t* v = taosHashGet(cache, fqdn, len);
+  SIpAddr   ipAddr = {0};
+
+  SIpAddr* v = taosHashGet(cache, fqdn, len);
   if (v == NULL) {
-    code = taosGetIpv4FromFqdn(fqdn, &addr);
+    code = taosGetIpFromFqdn(fqdn, &ipAddr);
     if (code != 0) {
       code = TSDB_CODE_RPC_FQDN_ERROR;
       tError("failed to get ip from fqdn:%s since %s", fqdn, tstrerror(code));
       return code;
     }
 
-    if ((code = taosHashPut(cache, fqdn, len, &addr, sizeof(addr)) != 0)) {
+    if ((code = taosHashPut(cache, fqdn, len, &ipAddr, sizeof(ipAddr)) != 0)) {
       return code;
     }
-    *ip = addr;
+    *ip = ipAddr;
   } else {
     *ip = *v;
   }
@@ -1886,17 +1879,14 @@ static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, u
 }
 static FORCE_INLINE int32_t cliUpdateFqdnCache(SHashObj* cache, char* fqdn) {
   // impl later
-  uint32_t addr = 0;
-  int32_t  code = taosGetIpv4FromFqdn(fqdn, &addr);
+  SIpAddr addr = {0};
+  int32_t code = taosGetIpFromFqdn(fqdn, &addr);
   if (code == 0) {
     size_t    len = strlen(fqdn);
-    uint32_t* v = taosHashGet(cache, fqdn, len);
+    SIpAddr*  v = taosHashGet(cache, fqdn, len);
     if (v != NULL) {
-      if (addr != *v) {
-        char old[TSDB_FQDN_LEN] = {0}, new[TSDB_FQDN_LEN] = {0};
-        taosInetNtoa(old, *v);
-        taosInetNtoa(new, addr);
-        tWarn("update ip of fqdn:%s, old:%s, new:%s", fqdn, old, new);
+      if (!taosIpAddrIsEqual(v, &addr)) {
+        tWarn("update ip of fqdn:%s, old:%s, new:%s", fqdn, IP_ADDR_STR(v), &addr);
         code = taosHashPut(cache, fqdn, len, &addr, sizeof(addr));
       }
     } else {
@@ -1917,7 +1907,7 @@ static void cliMayUpdateFqdnCache(SHashObj* cache, char* dst) {
     if (dst[i] == ':') break;
   }
   if (i > 0) {
-    char fqdn[TSDB_FQDN_LEN] = {0};
+    char fqdn[TSDB_FQDN_LEN + 1] = {0};
     memcpy(fqdn, dst, i);
     TAOS_UNUSED(cliUpdateFqdnCache(cache, fqdn));
   }

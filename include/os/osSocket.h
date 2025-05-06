@@ -170,6 +170,23 @@ const char *taosInetNtop(struct in_addr ipInt, char *dstStr, int32_t len);
 uint64_t taosHton64(uint64_t val);
 uint64_t taosNtoh64(uint64_t val);
 
+typedef struct {
+  int8_t type;
+  union {
+    char ipv6[INET6_ADDRSTRLEN];
+    char ipv4[INET_ADDRSTRLEN];
+  };
+} SIpAddr;
+
+int32_t taosGetIpv6FromFqdn(const char *fqdn, SIpAddr *ip);
+
+int32_t taosGetIpFromFqdn(const char *fqdn, SIpAddr *addr);
+
+#define IP_ADDR_STR(ip) ((ip)->type == 0 ? (ip)->ipv4 : (ip)->ipv6)
+
+#define IP_RESERVE_CAP (128 + 16)
+
+int8_t taosIpAddrIsEqual(SIpAddr *ip1, SIpAddr *ip2);
 #ifdef __cplusplus
 }
 #endif
