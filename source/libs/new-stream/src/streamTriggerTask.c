@@ -1995,9 +1995,9 @@ static int32_t strtcProcessPullRsp(SSTriggerRealtimeContext *pContext, SSDataBlo
     case STRIGGER_PULL_WAL_META: {
       QUERY_CHECK_CONDITION(TRINGBUF_IS_EMPTY(&pContext->groupsToCheck), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       pContext->pWalMetaData = pResDataBlock;
-      SColumnInfoData *pGidCol = TARRAY_GET_ELEM(pResDataBlock->pDataBlock, 1);
-      int32_t          numNewMeta = blockDataGetNumOfRows(pResDataBlock);
+      int32_t numNewMeta = blockDataGetNumOfRows(pResDataBlock);
       for (int32_t i = 0; i < numNewMeta; ++i) {
+        SColumnInfoData        *pGidCol = TARRAY_GET_ELEM(pResDataBlock->pDataBlock, 1);
         int64_t                 gid = *(int64_t *)colDataGetNumData(pGidCol, i);
         void                   *px = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
         SSTriggerRealtimeGroup *pGroup = NULL;
