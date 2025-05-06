@@ -202,10 +202,9 @@ def before_test_class(request):
         #tdSql_pytest.init(request.cls.conn.cursor())
         #tdSql_army.init(request.cls.conn.cursor())
 
-        # 处理-C参数，如果-C参数小于denodes_num，则drop多余的dnode
-        if request.session.create_dnode_num < request.session.denodes_num: 
-            for i in range(request.session.create_dnode_num + 1, request.session.denodes_num + 1):
-                tdSql.execute(f"drop dnode {i}")
+        # 处理 -C 参数，如果未设置 -C 参数，create_dnode_num 和 -N 参数相同
+        for i in range(1, request.session.create_dnode_num):
+            tdSql.execute(f"create dnode localhost port {6030+i*100}")
 
         # 处理-Q参数，如果-Q参数不等于1，则创建qnode，并设置queryPolicy
         if request.session.query_policy != 1:

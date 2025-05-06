@@ -241,6 +241,8 @@ nohup python chronos-server.py > service_output.out 2>&1 &
 
 ```shell
 pip install timesfm
+pip install torch==2.4.1
+pip install jax
 pip intall flask
 ```
 

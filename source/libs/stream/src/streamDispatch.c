@@ -1378,7 +1378,7 @@ int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask) {
   stDebug("s-task:%s level:%d checkpoint-ready msg sent to all %d upstreams", id, pTask->info.taskLevel, num);
 
   // start to check if checkpoint ready msg has successfully received by upstream tasks.
-  if (pTask->info.taskLevel == TASK_LEVEL__SINK || pTask->info.taskLevel == TASK_LEVEL__AGG) {
+  if (pTask->info.taskLevel == TASK_LEVEL__SINK || pTask->info.taskLevel == TASK_LEVEL__AGG || pTask->info.taskLevel == TASK_LEVEL__MERGE) {
     SStreamTmrInfo* pTmrInfo = &pActiveInfo->chkptReadyMsgTmr;
 
     int8_t old = atomic_val_compare_exchange_8(&pTmrInfo->isActive, 0, 1);

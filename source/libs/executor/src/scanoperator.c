@@ -1222,6 +1222,17 @@ static int32_t doInitReader(STableScanInfo* pInfo, SExecTaskInfo* pTaskInfo, SSt
   return code;
 }
 
+int compareColIdPair(const void* elem1, const void* elem2) {
+  SColIdPair* node1 = (SColIdPair*)elem1;
+  SColIdPair* node2 = (SColIdPair*)elem2;
+
+  if (node1->orgColId < node2->orgColId) {
+    return -1;
+  }
+
+  return node1->orgColId > node2->orgColId;
+}
+
 static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   int32_t                  code = 0;
   int32_t                  lino = 0;
@@ -1298,6 +1309,8 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
     blockDataDestroy(pInfo->pResBlock);
     pInfo->pResBlock = NULL;
   }
+  taosArraySort(pColArray, compareColIdPair);
+  taosArraySort(pBlockColArray, compareColIdPair);
   code = createOneDataBlockWithColArray(pInfo->pOrgBlock, pBlockColArray, &pInfo->pResBlock);
   QUERY_CHECK_CODE(code, lino, _return);
   code = initQueryTableDataCondWithColArray(&pInfo->base.cond, &pInfo->base.orgCond, &pInfo->base.readHandle, pColArray);
@@ -7332,7 +7345,7 @@ static int32_t buildVnodeFilteredTbCount(SOperatorInfo* pOperator, STableCountSc
       QUERY_CHECK_CODE(code, lino, _end);
 
       int64_t numOfChildTables = 0;
-      code = pAPI->metaFn.getNumOfChildTables(pInfo->readHandle.vnode, uid, &numOfChildTables, NULL);
+      code = pAPI->metaFn.getNumOfChildTables(pInfo->readHandle.vnode, uid, &numOfChildTables, NULL, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
 
       code = fillTableCountScanDataBlock(pSupp, dbName, pSupp->stbNameFilter, numOfChildTables, pRes);
@@ -7405,7 +7418,7 @@ static int32_t buildVnodeGroupedStbTableCount(STableCountScanOperatorInfo* pInfo
   pRes->info.id.groupId = groupId;
 
   int64_t ctbNum = 0;
-  code = pAPI->metaFn.getNumOfChildTables(pInfo->readHandle.vnode, stbUid, &ctbNum, NULL);
+  code = pAPI->metaFn.getNumOfChildTables(pInfo->readHandle.vnode, stbUid, &ctbNum, NULL, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
   code = fillTableCountScanDataBlock(pSupp, dbName, varDataVal(stbName), ctbNum, pRes);
   QUERY_CHECK_CODE(code, lino, _end);
