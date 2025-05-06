@@ -95,6 +95,7 @@ def build_package(internal_root, new_version, branch_name) {
 		rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/CMakeCache.txt
 		rm -rf ${INTERNAL_ROOT}/community/contrib/libs3
 		rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/libs3-prefix
+        rm -rf ${INTERNAL_ROOT}/.externals/build/*
     '''
 }
 def check_cases_to_run() {
