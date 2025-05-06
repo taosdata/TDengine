@@ -747,61 +747,32 @@ void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn) {
 }
 
 int tdbPagerInsertFreePage(SPager *pPager, SPage *pPage, TXN *pTxn) {
-  int   code = 0;
-  SPgno pgno = TDB_PAGE_PGNO(pPage);
+  int tdbTbPushFreePage(TTB *pTb, SPage *pPage, TXN *pTxn);
 
-  tdbTrace("tdb/insert-free-page: tbc recycle page: %d.", pgno);
-  code = tdbTbInsert(pPager->pEnv->pFreeDb, &pgno, sizeof(pgno), NULL, 0, pTxn);
+  tdbTrace("tdb/insert-free-page: tbc recycle page: %d.", TDB_PAGE_PGNO(pPage));
+  int code = tdbTbPushFreePage(pPager->pEnv->pFreeDb, pPage, pTxn);
   if (code < 0) {
-    tdbError("tdb/insert-free-page: tb insert failed with ret: %d.", code);
+    tdbError("tdb/insert-free-page: tb push failed with ret: %d.", code);
     return code;
   }
 
   pPage->pPager = NULL;
-
   return code;
 }
 
 static int tdbPagerRemoveFreePage(SPager *pPager, SPgno *pPgno, TXN *pTxn) {
-  int  code = 0;
-  TBC *pCur;
+  int tdbTbPopFreePage(TTB *pTb, SPgno* pgno, TXN *pTxn);
 
+  int  code = 0;
   if (!pPager->pEnv->pFreeDb) {
     return code;
   }
 
-  code = tdbTbcOpen(pPager->pEnv->pFreeDb, &pCur, pTxn);
-  if (code < 0) {
-    return code;
-  }
-
-  code = tdbTbcMoveToFirst(pCur);
+  code = tdbTbPopFreePage(pPager->pEnv->pFreeDb, pPgno, pTxn);
   if (code) {
-    tdbError("tdb/remove-free-page: moveto first failed with ret: %d.", code);
-    tdbTbcClose(pCur);
-    return 0;
+    tdbError("tdb/remove-free-page: pop failed with ret: %d.", code);
   }
 
-  void *pKey = NULL;
-  int   nKey = 0;
-
-  code = tdbTbcGet(pCur, (const void **)&pKey, &nKey, NULL, NULL);
-  if (code < 0) {
-    // tdbError("tdb/remove-free-page: tbc get failed with ret: %d.", code);
-    tdbTbcClose(pCur);
-    return 0;
-  }
-
-  *pPgno = *(SPgno *)pKey;
-  tdbTrace("tdb/remove-free-page: tbc get page: %d.", *pPgno);
-
-  code = tdbTbcDelete(pCur);
-  if (code < 0) {
-    tdbError("tdb/remove-free-page: tbc delete failed with ret: %d.", code);
-    tdbTbcClose(pCur);
-    return 0;
-  }
-  tdbTbcClose(pCur);
   return 0;
 }
 

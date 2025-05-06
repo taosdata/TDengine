@@ -389,6 +389,135 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
   return 0;
 }
 
+// push & pop are only for free page management, they are using the b-tree as a stack.
+// never call them for other purpose
+int tdbBtreePushFreePage(SBTree *pBt, SPage *pPage, TXN* pTxn) {
+  // always insert at the beginning of root page
+  SPage *pRoot = NULL;
+  SBtreeInitPageArg arg = {.pBt = pBt, .flags = TDB_BTREE_ROOT | TDB_BTREE_LEAF};
+  int ret = tdbPagerFetchPage(pBt->pPager, &pBt->root, &pRoot, tdbBtreeInitPage, &arg, pTxn);
+  if (ret < 0) {
+    tdbError("tdb/btree-push-free-page: fetch root page failed with ret: %d.", ret);
+    return ret;
+  }
+
+  // mark dirty
+  ret = tdbPagerWrite(pBt->pPager, pRoot);
+  if (ret < 0) {
+    tdbError("tdb/btree-push-free-page: failed to mark root page dirty since %s", terrstr());
+    tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
+    return ret;
+  }
+
+  SPgno pgno = TDB_PAGE_PGNO(pPage), prev = 0;
+  int szCell = sizeof(pgno);
+
+  // if there's not enough space for the new cell, save the value of the first cell and drop it
+  if (TDB_PAGE_FREE_SIZE(pRoot) < szCell + TDB_PAGE_OFFSET_SIZE(pRoot)) {
+    prev = *((SPgno*)tdbPageGetCell(pRoot, 0));
+    ret = tdbPageDropCell(pRoot, 0, pTxn, pBt);
+    if (ret < 0) {
+      tdbError("tdb/btree-push-free-page: drop cell failed with ret: %d.", ret);
+      tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
+      return ret;
+    }
+  }
+
+  // insert the new cell
+  ret = tdbPageInsertCell(pRoot, 0, (SCell*)&pgno, szCell, 0);
+  if (ret < 0) {
+    tdbError("tdb/btree-push-free-page: insert cell failed with ret: %d.", ret);
+    tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
+    return ret;
+  }
+  
+  // if there's not enough space for another new cell, save the value of the previous first cell
+  // to [pPage->pData], this makes the free pages a linked list based stack.
+  if (TDB_PAGE_FREE_SIZE(pRoot) < szCell + TDB_PAGE_OFFSET_SIZE(pRoot)) {
+    // mark the page dirty
+    ret = tdbPagerWrite(pBt->pPager, pPage);
+    if (ret < 0) {
+      tdbError("tdb/btree-push-free-page: failed to mark page dirty since %s", terrstr());
+      tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
+      return ret;
+    }
+    *((SPgno*)pPage->pData) = prev;
+  }
+
+  tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
+  return 0;
+}
+
+// tdbBtreePopFreePage don't want the page data to be modified, so use a different init function.
+static int initForFreePagePop(SPage *pPage, void *arg, int init) {
+  SBTree* pBt = ((SBtreeInitPageArg *)arg)->pBt;
+  pPage->pPager = pBt->pPager;
+  return 0;
+}
+
+int tdbBtreePopFreePage(SBTree *pBt, SPgno *pgno, TXN* pTxn) {
+  SPage* pRoot = NULL;
+  SBtreeInitPageArg arg = {.pBt = pBt, .flags = TDB_BTREE_ROOT | TDB_BTREE_LEAF};
+  int ret = tdbPagerFetchPage(pBt->pPager, &pBt->root, &pRoot, tdbBtreeInitPage, &arg, pTxn);
+  if (ret < 0) {
+    tdbError("tdb/btree-pop-free-page: fetch root page failed with ret: %d.", ret);
+    return ret;
+  }
+
+  if (TDB_PAGE_TOTAL_CELLS(pRoot) == 0) {
+    *pgno = 0;
+    tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
+    return 0;
+  }
+
+  // mark dirty
+  ret = tdbPagerWrite(pBt->pPager, pRoot);
+  if (ret < 0) {
+    tdbError("tdb/btree-pop-free-page: failed to mark root page dirty since %s", terrstr());
+    tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
+    return ret;
+  }
+
+  *pgno = *((SPgno*)tdbPageGetCell(pRoot, 0));
+
+  SPgno next = 0;
+  int szCell = sizeof(next);
+  // if there's not enough space for a new cell, then the free pages is a linked list based stack,
+  // we need to fetch the first page to get the page number of the next free page.
+  if (TDB_PAGE_FREE_SIZE(pRoot) < (szCell + TDB_PAGE_OFFSET_SIZE(pRoot))) {
+    SPage* pPage = NULL;
+    ret = tdbPagerFetchPage(pBt->pPager, pgno, &pPage, initForFreePagePop, &arg, pTxn);
+    if (ret < 0) {
+      tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
+      tdbError("tdb/btree-pop-free-page: fetch page failed with ret: %d.", ret);
+      return ret;
+    }
+    next = *((SPgno*)pPage->pData);
+    tdbPagerReturnPage(pBt->pPager, pPage, pTxn);
+  }
+
+  // drop the first cell
+  ret = tdbPageDropCell(pRoot, 0, pTxn, pBt);
+  if (ret < 0) {
+    tdbError("tdb/btree-pop-free-page: drop cell failed with ret: %d.", ret);
+    tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
+    return ret;
+  }
+
+  // if we have a next page, insert a new cell at index 0 to make it the first free page.
+  if (next != 0) {
+    ret = tdbPageInsertCell(pRoot, 0, (SCell*)&next, szCell, 0);
+    if (ret < 0) {
+      tdbError("tdb/btree-pop-free-page: insert cell failed with ret: %d.", ret);
+      tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
+      return ret;
+    }
+  }
+
+  tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
+  return 0;
+}
+
 static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2) {
   int mlen;
   int cret;
@@ -624,6 +753,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
           ret = tdbBtreeEncodeCell(pOlds[i], divCells[i].pKey, divCells[i].kLen, divCells[i].pVal, divCells[i].vLen,
                                    pDivCell, &szDivCell, pTxn, pBt);
           if (ret < 0) {
+            tdbOsFree(pDivCell);
             tdbError("tdb/btree-balance: encode cell failed with ret: %d.", ret);
             return TSDB_CODE_FAILED;
           }
@@ -876,20 +1006,20 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
               pgno = TDB_PAGE_PGNO(pNews[iNew]);
               ret = tdbBtreeEncodeCell(pParent, cd.pKey, cd.kLen, (void *)&pgno, sizeof(SPgno), pNewCell, &szNewCell,
                                        pTxn, pBt);
+              if (TDB_CELLDECODER_FREE_VAL(&cd)) {
+                tdbFree(cd.pVal);
+                cd.pVal = NULL;
+              }
               if (ret < 0) {
+                tdbOsFree(pNewCell);
                 tdbError("tdb/btree-balance: encode cell failed with ret: %d.", ret);
                 return TSDB_CODE_FAILED;
               }
               ret = tdbPageInsertCell(pParent, sIdx++, pNewCell, szNewCell, 0);
+              tdbOsFree(pNewCell);
               if (ret) {
                 tdbError("tdb/btree-balance: insert cell failed with ret: %d.", ret);
                 return TSDB_CODE_FAILED;
-              }
-              tdbOsFree(pNewCell);
-
-              if (TDB_CELLDECODER_FREE_VAL(&cd)) {
-                tdbFree(cd.pVal);
-                cd.pVal = NULL;
               }
             }
 
@@ -959,12 +1089,14 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
 
         ret = tdbBtreeEncodeCell(pParent, pdc->pKey, pdc->kLen, pdc->pVal, pdc->vLen, pDivCell, &szDivCell, pTxn, pBt);
         if (ret < 0) {
+          tdbOsFree(pDivCell);
           tdbError("tdb/btree-balance: encode cell failed with ret: %d.", ret);
           return TSDB_CODE_FAILED;
         }
 
         ((SPgno *)pDivCell)[0] = TDB_PAGE_PGNO(pNews[nNews - 1]);
         ret = tdbPageInsertCell(pParent, sIdx, pDivCell, szDivCell, 0);
+        tdbOsFree(pDivCell);
         if (ret) {
           tdbError("tdb/btree-balance: insert cell failed with ret: %d.", ret);
           return TSDB_CODE_FAILED;
@@ -2401,7 +2533,7 @@ int tdbBtcUpsert(SBTC *pBtc, const void *pKey, int kLen, const void *pData, int 
     tdbError("tdb/btc-upsert: page insert/update cell failed with ret: %d.", ret);
     return ret;
   }
-  
+
   // check balance
   if (pBtc->pPage->nOverflow > 0) {
     ret = tdbBtreeBalance(pBtc);

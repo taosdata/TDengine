@@ -153,6 +153,12 @@ int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen
 int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen);
 int tdbFreeOvflPage(SPgno pgno, int nSize, TXN *pTxn, SBTree *pBt);
 
+// push & pop are only for free page management, they are using the b-tree as a stack.
+// never call them for other purpose
+int tdbBtreePushFreePage(SBTree *pBt, SPage *pPage, TXN *pTxn);
+int tdbBtreePopFreePage(SBTree *pBt, SPgno* pgno, TXN *pTxn);
+
+
 typedef struct {
   u8      flags;
   SBTree *pBt;
