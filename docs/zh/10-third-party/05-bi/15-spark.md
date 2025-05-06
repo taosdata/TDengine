@@ -4,7 +4,7 @@ title: 与 Spark 集成
 toc_max_heading_level: 5
 ---
 
-Apache Spark 是开源大数据处理引擎，它基于内存计算，可用于批、流处理、机器学习、图计算等多种场景，支持 MapReduce 计算模型及丰富计算操作符、函数等，在大超大规模数据上具有强大的分布式处理计算能力。
+[Apache Spark](https://spark.apache.org/) 是开源大数据处理引擎，它基于内存计算，可用于批、流处理、机器学习、图计算等多种场景，支持 MapReduce 计算模型及丰富计算操作符、函数等，在大超大规模数据上具有强大的分布式处理计算能力。
 
 通过 `TDengine Java connector` 连接器，Spark 可快速读取 TDengine 数据， 利用 Spark 强大引擎，扩展 TDengine 数据处理计算能力，同时通过 `TDengine Java connector` 连接器， Spark 亦可把数据写入 TDengine 及从 TDengine 订阅数据。
 
@@ -18,27 +18,67 @@ Apache Spark 是开源大数据处理引擎，它基于内存计算，可用于�
 - 安装 JDBC 驱动。从 `maven.org` 下载 `TDengine JDBC` 连接器文件 `taos-jdbcdriver-3.6.2-dist.jar` 或以上版本。
 
 ## 配置数据源
+使用 JDBC WebSocket 连接至 TDengine 数据源，连接 URL 格式为：
+``` sql
+`jdbc:TAOS-WS://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&timezone={timezone}]`  
+```
+详细参数介绍见：[URL 参数介绍]（../../../reference/connector/java/#url-规范）
+driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”
 
-下面以 JAVA 语言编写 Spark 任务，通过 `spark-submit` 提交任务执行为例，介绍对接过程，后附完整示例代码。
+以下示例创建 Spark 实例并连接到本机 TDengine 服务：
+``` java
+    // create spark instance
+    SparkSession spark = SparkSession.builder()
+		.appName("appSparkTest")
+		.master("local[*]")
+		.getOrCreate();
+  
+    // connect TDengine and create reader
+    String url      = "jdbc:TAOS-WS://localhost:6041/test?user=root&password=taosdata";
+    String driver   = "com.taosdata.jdbc.ws.WebSocketDriver";
+    DataFrameReader dataFrameReader = spark.read()
+               .format("jdbc")
+               .option("url", url)
+               .option("driver", driver);
 
-**第 1 步**，注册 TDengine 语法方言， 详见示例 registerDialect()。
+```
 
-**第 2 步**，创建 Spark 会话实例，详见示例 createSpark()。
 
-**第 3 步**，建立 JDBC WebSocket 连接，准备演示数据，详见示例 prepareDemoData()。
+## 数据接入
+数据接入需注册 TDengine 方言，方言中主要处理反引号，数据类型映射与 JDBC 相同, 无需额外处理，参见：[JDBC 数据类型映射]（../../../reference/connector/java/#数据类型映射）
 
-**第 4 步**，验证从数据源可正确获取数据，详见示例 readFromTDengine()。
+下面以 JAVA 语言编写 Spark 任务，通过 `spark-submit` 提交任务执行为例，介绍数据接入，后附完整示例代码。
+
+### 数据写入
+数据写入使用参数绑定完成，核心代码如下，详细参见示例： writeToTDengine
+``` java
+  String sql = String.format("INSERT INTO test.d%d using test.meters tags(%d,'location%d') VALUES (?,?,?,?) ", i, i, i);
+  PreparedStatement preparedStatement = connection.prepareStatement(sql);
+```
+
+### 数据读取
+数据读取通过表映射方式读取，详细参见示例： readFromTDengine
+``` java
+  Dataset<Row> df = reader.option("dbtable", dbtable).load();
+  df.show();
+```
+
+### 数据订阅
+数据订阅使用 JDBC 标准数据订阅方法，详细参见示例： subscribeFromTDengine
+``` java
+   List<String> topics = Collections.singletonList("topic_meters");
+   consumer.subscribe(topics);
+```
 
 
 ## 数据分析
 
 ### 数据准备
 
-以上节 `配置数据源` 中写入智能电表数据为样例。
+以智能电表数据为样例，生成一个超级表，两个子表，每个子表写入 20 条数据，电压数据生成在 100 ~ 120 范围内随机数
 
 ### 分析电压周变化率
-我们选择展示了一个在 TDengine 中不支持，spark 支持的数据处理样例，意在说明对接 spark 后对 TDengine 能力的扩展。   
-LAG() 函数是 Spark 提供的获取当前行之前某行数据的函数，此函数在 TDengine 上并不支持，示例使用此函数进行了电压周变化率的分析。
+LAG() 函数是 Spark 提供获取当前行之前某行数据的函数，示例使用此函数进行电压周变化率分析。
 
 **第 1 步**，通过 TDengine SQL 获取数据并创建 Spark View, 详见 createSparkView()。
 ``` sql
@@ -58,28 +98,18 @@ SELECT tbname, ts, voltage,
 ![spark-result](./spark-result.png)
 
 
-### 更多场景使用
-以下列举了部分使用 TDengine SQL 受限，Spark 接 TDengine 后使用 Spark SQL 可支持到的功能:
+### 更多场景
+ Spark 接 TDengine 数据源后，可扩展 TDengine 更多数据处理能力：
 
-#### 跨数据库分析数据
-TDengine SQL 只支持在同一数据库中，不支持跨库数据分析，Spark 接 TDengine 数据源后，可编写 Spark SQL 进行跨库数据分析。
+- 跨数据库数据分析
 
-#### 丰富数据集运算
-TDengine 对数据集只提供了并集操作(union all), Spark 接 TDengine 数据源后，可对数据集进行交集、差集等多种操作。
+- 数据集交集、并集、差集运算
 
-#### Where 可带子查询
-TDengine 不支持 Where 有子查询语句， Spark 接 TDengine 数据源后，可在 where 中使用子查询进行过滤操作。
+- Where 带子查询进行过滤
 
-#### 支持普通列 JOIN
-TDengine 只支持时间主列的 JOIN, Spark 接 TDengine 数据源后, 可对普通列或标签列进行 JOIN 操作，突破只能对主时间列 JOIN 的限制。
+- 支持普通列 JOIN 操作等等
 
 
 ## 示例源码
-示例为 JAVA 语言编写，编译运行参考示例源码目录下 README。   
-示例以智能电表数据为例，演示如下内容：
-- 写入数据至 TDengine，见 writeToTDengine()。
-- 读取 TDengine 数据到 Spark, 见 readFromTDengine()。
-- 从 TDengine 订阅数据，见 subscribeFromTDengine()。
-- 使用 Spark SQL 分析电压周变化率， 见 analysisDataWithSpark()。
-
+示例为 JAVA 语言编写，编译运行参考示例源码目录下 README。    
 [完整示例源码](https://github.com/taosdata/tdengine-eco/tree/main/spark)
