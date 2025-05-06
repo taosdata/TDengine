@@ -19,7 +19,7 @@
 const props = withDefaults(
   defineProps<{
     config: Record<string, any>;
-    modelValue: string,
+    modelValue: string;
     options: Record<string, any>;
   }>(),
   {}
@@ -32,7 +32,7 @@ const regexInputValue = /^(\d+)([a-zA-Z%]+)$/;
 // watch(
 //   () => props.modelValue,
 //   newVal => {
-    
+
 //   }
 // );
 onMounted(() => {
@@ -47,9 +47,8 @@ onMounted(() => {
 
 const emit = defineEmits(['update:modelValue']);
 const onChange = () => {
-  emit('update:modelValue', `${val.value}${unit.value}`)
-}
-
+  emit('update:modelValue', `${val.value}${unit.value}`);
+};
 </script>
 <style scoped lang="scss">
 .input-number-with-select {

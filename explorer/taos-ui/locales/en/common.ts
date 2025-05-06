@@ -13,7 +13,6 @@ export default {
   copy: 'Copy',
   dataType: 'Data Type',
   level: 'Level',
-  compositeKey: 'TDengine uses the timestamp as the primary key, but in scenarios where timestamps may be identical, you can choose another column to form a composite key with the timestamp.',
   notEmptyTemp: '{0} can not be empty',
   value: 'Value',
   share: 'Share',

@@ -630,8 +630,17 @@ class Node {
     if (null === this.parent) {
       return this.data?.id ? this.data.id : null;
     } else {
-      const parentIDPath = this.parent.getNodeIDPath();
-      return `${parentIDPath ? parentIDPath : ''}${this.data?.id ? '/' + this.data.id : ''}`;
+      const parentIDPath = this.parent.getNodeIDPath() ?? false;
+      const id = this.data?.id ?? false;
+      return `${parentIDPath ? parentIDPath : ''}${id != null ? '/' + this.data.id : ''}`;
+    }
+  }
+
+  getRootIDPath(): number {
+    if (!this.parent?.data?.id) {
+      return this.data?.id ? this.data.id : null;
+    } else {
+      return this.parent.getRootIDPath();
     }
   }
 }

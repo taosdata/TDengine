@@ -212,13 +212,13 @@ function setFormData() {
     formData.name = props.stbName!;
     formData.columns = data.columns;
     formData.columns.forEach(c => {
-      c.origin_length = c.length
+      c.origin_length = c.length;
     });
     formData.tags = data.tags;
     formData.tags.forEach(t => {
       t.origin_field = t.field;
       t.origin_length = t.length;
-    })
+    });
   });
 }
 
@@ -232,10 +232,10 @@ async function typeChange(data: ColumnStruct, type: 'column' | 'tag') {
       const params: changeStbStructData = {
         operation: 'modify ' + type,
         first_field: data.origin_field || data.field,
-        second_field: composeType(data),
+        second_field: composeType(data)
       };
       loading.value = true;
-      await changeStableStruct(params, formData.name, currentSelectedDb.value)
+      await changeStableStruct(params, formData.name, currentSelectedDb.value);
     }
 
     if (type === 'tag' && data.origin_field !== data.field) {
@@ -245,9 +245,9 @@ async function typeChange(data: ColumnStruct, type: 'column' | 'tag') {
         second_field: `\`${data.field}\``
       };
       loading.value = true;
-      await changeStableStruct(params, formData.name, currentSelectedDb.value)
+      await changeStableStruct(params, formData.name, currentSelectedDb.value);
     }
-    
+
     if (loading.value === true) {
       ElMessage.success(t('msg.modifySuccess'));
       setFormData();
