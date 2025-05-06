@@ -1,0 +1,253 @@
+topic6:
+  parser:
+    global:
+      cache: {}
+      archive: {}
+      primary_timestamp_overflow: archive
+      primary_timestamp_null: archive
+      table_name_length_overflow: archive
+      table_name_contains_illegal_char:
+        replace_to: ""
+      variable_not_exist_in_table_name_template:
+        replace_to: ""
+      field_name_length_overflow: archive
+    parse:
+      payload:
+        json: ""
+    model:
+      name: "site_${site_controller_id}"
+      using: site
+      tags:
+        - site_controller_id
+      columns:
+        - ts
+        - "${point_name}"
+    mutate:
+      - extract:
+          data_type:
+            convert:
+              boolean_integer: bool
+              float: double
+              string: "varchar(128)"
+              integer: int
+      - map:
+          ts:
+            cast: ts
+            as: "TIMESTAMP(ms)"
+          "${point_name}":
+            cast: value
+            as: "${data_type}"
+          site_controller_id:
+            cast: site_controller_id
+            as: "VARCHAR(20)"
+    s_model:
+      name: site
+      columns:
+        - name: ts
+          length: 8
+          type: TIMESTAMP
+        - name: "${point_name}"
+          length: 8
+          type: "${data_type}"
+      tags:
+        - name: site_controller_id
+          length: 20
+          type: "VARCHAR(20)"
+
+topic7:
+  parser:
+    global:
+      cache: {}
+      archive: {}
+      primary_timestamp_overflow: archive
+      primary_timestamp_null: archive
+      table_name_length_overflow: archive
+      table_name_contains_illegal_char:
+        replace_to: ""
+      variable_not_exist_in_table_name_template:
+        replace_to: ""
+      field_name_length_overflow: archive
+    parse:
+      payload:
+        json: ""
+    model:
+      name: "site_${source_device_type}_${site_controller_id}_${source_device_id}"
+      using: "site_${source_device_type}"
+      tags:
+        - site_controller_id
+        - source_device_id
+      columns:
+        - ts
+        - "${point_name}"
+    mutate:
+      - extract:
+          data_type:
+            convert:
+              boolean_integer: bool
+              float: double
+              string: "varchar(128)"
+              integer: int
+      - map:
+          ts:
+            cast: ts
+            as: "TIMESTAMP(ms)"
+          "${point_name}":
+            cast: value
+            as: "${data_type}"
+          site_controller_id:
+            cast: site_controller_id
+            as: "VARCHAR(20)"
+          source_device_id:
+            cast: source_device_id
+            as: "VARCHAR(20)"
+    s_model:
+      name: "site_${source_device_type}"
+      columns:
+        - name: ts
+          length: 8
+          type: TIMESTAMP
+        - name: "${point_name}"
+          length: 8
+          type: "${data_type}"
+      tags:
+        - name: site_controller_id
+          length: 20
+          type: "VARCHAR(20)"
+        - name: source_device_id
+          length: 20
+          type: "VARCHAR(20)"
+
+topic8:
+  parser:
+    global:
+      cache: {}
+      archive: {}
+      primary_timestamp_overflow: archive
+      primary_timestamp_null: archive
+      table_name_length_overflow: archive
+      table_name_contains_illegal_char:
+        replace_to: ""
+      variable_not_exist_in_table_name_template:
+        replace_to: ""
+      field_name_length_overflow: archive
+    parse:
+      payload:
+        json: ""
+    model:
+      name: "unit_${site_controller_id}_${unit_controller_id}"
+      using: unit
+      tags:
+        - site_controller_id
+        - unit_controller_id
+      columns:
+        - ts
+        - "${point_name}"
+    mutate:
+      - extract:
+          data_type:
+            convert:
+              boolean_integer: bool
+              float: double
+              string: "varchar(128)"
+              integer: int
+      - map:
+          ts:
+            cast: ts
+            as: "TIMESTAMP(ms)"
+          "${point_name}":
+            cast: value
+            as: "${data_type}"
+          site_controller_id:
+            cast: site_controller_id
+            as: "VARCHAR(20)"
+          unit_controller_id:
+            cast: unit_controller_id
+            as: "VARCHAR(20)"
+    s_model:
+      name: unit
+      columns:
+        - name: ts
+          length: 8
+          type: TIMESTAMP
+        - name: "${point_name}"
+          length: 8
+          type: "${data_type}"
+      tags:
+        - name: site_controller_id
+          length: 20
+          type: "VARCHAR(20)"
+        - name: unit_controller_id
+          length: 20
+          type: "VARCHAR(20)"
+
+topic9:
+  parser:
+    global:
+      cache: {}
+      archive: {}
+      primary_timestamp_overflow: archive
+      primary_timestamp_null: archive
+      table_name_length_overflow: archive
+      table_name_contains_illegal_char:
+        replace_to: ""
+      variable_not_exist_in_table_name_template:
+        replace_to: ""
+      field_name_length_overflow: archive
+    parse:
+      payload:
+        json: ""
+    model:
+      name: "unit_${source_device_type}_${site_controller_id}_${unit_controller_id}_${source_device_id}"
+      using: "unit_${source_device_type}"
+      tags:
+        - site_controller_id
+        - unit_controller_id
+        - source_device_id
+      columns:
+        - ts
+        - "${point_name}"
+    mutate:
+      - extract:
+          data_type:
+            convert:
+              boolean_integer: bool
+              float: double
+              string: "varchar(128)"
+              integer: int
+
+      - map:
+          ts:
+            cast: ts
+            as: "TIMESTAMP(ms)"
+          "${point_name}":
+            cast: value
+            as: "${data_type}"
+          site_controller_id:
+            cast: site_controller_id
+            as: "VARCHAR(20)"
+          unit_controller_id:
+            cast: unit_controller_id
+            as: "VARCHAR(20)"
+          source_device_id:
+            cast: source_device_id
+            as: "VARCHAR(20)"
+    s_model:
+      name: "unit_${source_device_type}"
+      columns:
+        - name: ts
+          length: 8
+          type: TIMESTAMP
+        - name: "${point_name}"
+          length: 8
+          type: "${data_type}"
+      tags:
+        - name: site_controller_id
+          length: 20
+          type: "VARCHAR(20)"
+        - name: unit_controller_id
+          length: 20
+          type: "VARCHAR(20)"
+        - name: source_device_id
+          length: 20
+          type: "VARCHAR(20)"
+
