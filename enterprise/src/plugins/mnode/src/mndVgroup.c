@@ -134,7 +134,7 @@ int32_t mndProcessSplitVgroupMsgImp(SRpcMsg *pReq) {
   }
 
   int32_t numOfStreams = 0;
-  code = mndGetNumOfStreams(pMnode, pVgroup->dbName, &numOfStreams);
+  code = mstGetStreamsNumInDb(pMnode, pVgroup->dbName, &numOfStreams);
   if (numOfStreams > 0) {
     code = TSDB_CODE_OPS_NOT_SUPPORT;
     mError("vgId:%d, db:%s, stream exists, split vgroup not allowed", req.vgId, pVgroup->dbName);

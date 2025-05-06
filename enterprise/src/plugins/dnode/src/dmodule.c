@@ -579,7 +579,7 @@ int32_t dmInitModule(SDnode *pDnode) {
   TAOS_CHECK_GOTO(dmInitServer(pDnode), &lino, _exit);
 
   TAOS_CHECK_GOTO(dmInitClient(pDnode), &lino, _exit);
-
+  
 _exit:
   if (code != 0) {
     dError("failed to init module at line %d since %s", lino, tstrerror(code));
