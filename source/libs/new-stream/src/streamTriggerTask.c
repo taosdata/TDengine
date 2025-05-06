@@ -691,7 +691,7 @@ static int32_t strtgInit(SSTriggerRealtimeGroup *pGroup, struct SSTriggerRealtim
   pGroup->pContext = pContext;
   pGroup->groupId = groupId;
   pGroup->maxMetaDelta = 100;    // todo(kjq): adjust dynamically
-  pGroup->minMetaThreshold = 0;  // todo(kjq): adjust dynamically
+  pGroup->minMetaThreshold = 1;  // todo(kjq): adjust dynamically
   pGroup->oldThreshold = INT64_MIN;
   pGroup->newThreshold = INT64_MIN;
   pGroup->pMetas = taosArrayInit(0, sizeof(SSTriggerWalMeta));
@@ -1136,6 +1136,7 @@ static int32_t strtgCloseCurrentWindow(SSTriggerRealtimeGroup *pGroup) {
         .wduration = pWindow->ekey - pWindow->skey,
         .wrownum = (pTask->triggerType == STREAM_TRIGGER_COUNT) ? pTask->windowCount : pGroup->nrowsInWindow,
         .triggerTime = taosGetTimestampNs(),
+        .notifyType = STRIGGER_EVENT_WINDOW_CLOSE,
         // todo(kjq): add extraNotifyContent here
     };
     void *px = taosArrayPush(pReq->params, &param);
@@ -2028,7 +2029,7 @@ static int32_t strtcProcessPullRsp(SSTriggerRealtimeContext *pContext, SSDataBlo
             tSimpleHashGet(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int64_t));
         QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
         pProgress->lastScanVer = *(int64_t *)colDataGetNumData(pVerCol, numNewMeta - 1);
-        // todo(kjq): update latestVer
+        pProgress->latestVer = pResDataBlock->info.id.groupId;
       }
 
       code = strtcResumeCheck(pContext);
@@ -2285,7 +2286,7 @@ _end:
   }
 
   (*cb)(pTask);
-  
+
   return code;
 }
 
