@@ -2,18 +2,18 @@ import time
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
 
 
-class TestStableReplica3Dnode6:
+class TestStableDnode3:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_stable_replica3_dnode6(self):
-        """stable replica3 dnode6
+    def test_stable_dnode3(self):
+        """stable dnode3
 
         1. -
 
         Catalog:
-            - Database:Vnode
+            - DataBase:Sync
 
         Since: v3.0.0.0
 
@@ -22,44 +22,62 @@ class TestStableReplica3Dnode6:
         Jira: None
 
         History:
-            - 2025-5-5 Simon Guan Migrated to new test framework, from tsim/vnode/stable_replica3_dnode6.sim
+            - 2025-5-5 Simon Guan Migrated to new test framework, from tsim/vnode/stable_dnode3.sim
+
+        """
+
+import time
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
+
+
+class TestStableDnode2:
+
+    def setup_class(cls):
+        tdLog.debug(f"start to execute {__file__}")
+
+    def test_stable_dnode2(self):
+        """stable dnode2
+
+        1. -
+
+        Catalog:
+            - DataBase:Sync
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-5-5 Simon Guan Migrated to new test framework, from tsim/vnode/stable_dnode2.sim
 
         """
 
         tdLog.info(f"========== step1")
-        clusterComCheck.checkDnodes(6)
+        clusterComCheck.checkDnodes(3)
         tdSql.execute(f"alter dnode 1 'supportVnodes' '4'")
         tdSql.execute(f"alter dnode 2 'supportVnodes' '4'")
         tdSql.execute(f"alter dnode 3 'supportVnodes' '4'")
-        tdSql.execute(f"alter dnode 4 'supportVnodes' '4'")
-        tdSql.execute(f"alter dnode 5 'supportVnodes' '4'")
-        tdSql.execute(f"alter dnode 6 'supportVnodes' '4'")
         clusterComCheck.checkDnodeSupportVnodes(1, 4)
         clusterComCheck.checkDnodeSupportVnodes(2, 4)
         clusterComCheck.checkDnodeSupportVnodes(3, 4)
-        clusterComCheck.checkDnodeSupportVnodes(4, 4)
-        clusterComCheck.checkDnodeSupportVnodes(5, 4)
-        clusterComCheck.checkDnodeSupportVnodes(6, 4)
-        clusterComCheck.checkDnodes(6)
+        clusterComCheck.checkDnodes(3)
 
         tdLog.info(f"======================== dnode1 start")
-        dbPrefix = "r3d6_db"
-        tbPrefix = "r3d6_tb"
-        mtPrefix = "r3d6_mt"
+        dbPrefix = "d3_db"
+        tbPrefix = "d3_tb"
+        mtPrefix = "d3_mt"
         tbNum = 10
         rowNum = 20
         totalNum = 200
-
-        tdSql.query(f"select * from information_schema.ins_dnodes;")
-        tdLog.info(f"dnodes ==> {tdSql.getRows()})")
-        tdSql.checkRows(6)
 
         tdLog.info(f"=============== step1")
         i = 0
         db = dbPrefix + str(i)
         mt = mtPrefix + str(i)
 
-        tdSql.execute(f"create database {db} replica 3 vgroups 3")
+        tdSql.execute(f"create database {db} vgroups 3")
         tdSql.execute(f"use {db}")
         tdSql.execute(f"create table {mt} (ts timestamp, tbcol int) TAGS(tgcol int)")
 
@@ -118,7 +136,6 @@ class TestStableReplica3Dnode6:
         )
         tdLog.info(f"===> {tdSql.getData(0,1)}")
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step7")
@@ -146,6 +163,9 @@ class TestStableReplica3Dnode6:
         tdSql.checkData(0, 0, 25)
 
         tdLog.info(f"=============== step9")
+        tdSql.query(f"select _wstart, count(tbcol) as b from {mt} interval(1m)")
+        tdLog.info(f"===> {tdSql.getData(0,1)}")
+        tdSql.checkData(0, 1, 10)
 
         tdSql.query(f"select _wstart, count(tbcol) as b from {mt} interval(1d)")
         tdLog.info(f"===> {tdSql.getData(0,1)}")
@@ -155,5 +175,9 @@ class TestStableReplica3Dnode6:
         tdSql.query(f"select count(tbcol) as b from {mt} group by tgcol")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, rowNum)
-
         tdSql.checkRows(tbNum)
+
+        tdLog.info(f"=============== clear")
+        tdSql.execute(f"drop database {db}")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(2)

@@ -2,18 +2,18 @@ import time
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
 
 
-class TestStableDnode2Stop:
+class TestStableDnode2:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_stable_dnode2_stop(self):
-        """stable dnode2 stop
+    def test_stable_dnode2(self):
+        """stable dnode2
 
         1. -
 
         Catalog:
-            - Database:Vnode
+            - DataBase:Sync
 
         Since: v3.0.0.0
 
@@ -22,7 +22,7 @@ class TestStableDnode2Stop:
         Jira: None
 
         History:
-            - 2025-5-5 Simon Guan Migrated to new test framework, from tsim/vnode/stable_dnode2_stop.sim
+            - 2025-5-5 Simon Guan Migrated to new test framework, from tsim/vnode/stable_dnode2.sim
 
         """
 
@@ -35,20 +35,14 @@ class TestStableDnode2Stop:
 
         clusterComCheck.checkDnodes(2)
 
-        tdLog.info(f"========== step1")
-
         tdLog.info(f"======================== dnode1 start")
 
-        dbPrefix = "d2s_db"
-        tbPrefix = "d2s_tb"
-        mtPrefix = "d2s_mt"
+        dbPrefix = "d2_db"
+        tbPrefix = "d2_tb"
+        mtPrefix = "d2_mt"
         tbNum = 10
         rowNum = 20
         totalNum = 200
-
-        tdSql.query(f"select * from information_schema.ins_dnodes;")
-        tdLog.info(f"dnodes ==> {tdSql.getRows()})")
-        tdSql.checkRows(2)
 
         tdLog.info(f"=============== step1")
         i = 0
@@ -77,48 +71,68 @@ class TestStableDnode2Stop:
         tdLog.info(f"vgroups ==> {tdSql.getRows()})")
         tdSql.checkRows(3)
 
-        sc.dnodeStop(2)
-        clusterComCheck.checkDnodes(1)
-
         tdLog.info(f"=============== step2")
-        tdSql.error(f"select count(*) from {mt}")
-        tdSql.error(f"select count(tbcol) from {mt}")
+        i = 1
+        tb = tbPrefix + str(i)
 
-        sc.dnodeStart(2)
-        clusterComCheck.checkDnodes(2)
+        tdSql.query(f"select count(*) from {tb}")
+        tdSql.checkData(0, 0, rowNum)
 
-        tdSql.query(f"select * from information_schema.ins_dnodes")
-        tdSql.checkRows(2)
-        tdSql.checkKeyData(1, 4, "ready")
-        tdSql.checkKeyData(2, 4, "ready")
+        tdSql.query(f"select count(tbcol) from {tb}")
+        tdSql.checkData(0, 0, rowNum)
 
         tdLog.info(f"=============== step3")
+        tdSql.query(f"select count(tbcol) from {tb} where ts <= 1519833840000")
+        tdSql.checkData(0, 0, 5)
+
+        tdLog.info(f"=============== step4")
+        tdSql.query(f"select count(tbcol) as b from {tb}")
+        tdSql.checkData(0, 0, rowNum)
+
+        tdLog.info(f"=============== step5")
+        tdSql.query(f"select _wstart, count(tbcol) as b from {tb} interval(1m)")
+        tdSql.checkData(0, 1, 1)
+
+        tdSql.query(f"select _wstart, count(tbcol) as b from {tb} interval(1d)")
+        tdSql.checkData(0, 1, rowNum)
+
+        tdLog.info(f"=============== step6")
+        tdSql.query(
+            f"select _wstart, count(tbcol) as b from {tb} where ts <= 1519833840000 interval(1m)"
+        )
+
+        tdSql.checkData(0, 1, 1)
+
+        tdSql.checkRows(5)
+
+        tdLog.info(f"=============== step7")
+        tdSql.query(f"select count(*) from {mt}")
+        tdSql.checkData(0, 0, totalNum)
+
+        tdSql.query(f"select count(tbcol) from {mt}")
+        tdSql.checkData(0, 0, totalNum)
+
+        tdLog.info(f"=============== step8")
         tdSql.query(f"select count(tbcol) as c from {mt} where ts <= 1519833840000")
-        tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 50)
 
         tdSql.query(f"select count(tbcol) as c from {mt} where tgcol < 5")
-        tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 100)
 
         tdSql.query(
             f"select count(tbcol) as c from {mt} where tgcol < 5 and ts <= 1519833840000"
         )
-        tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 25)
 
-        tdLog.info(f"=============== step4")
+        tdLog.info(f"=============== step9")
         tdSql.query(f"select _wstart, count(tbcol) as b from {mt} interval(1m)")
-        tdLog.info(f"===> {tdSql.getData(0,1)}")
         tdSql.checkData(0, 1, 10)
 
         tdSql.query(f"select _wstart, count(tbcol) as b from {mt} interval(1d)")
-        tdLog.info(f"===> {tdSql.getData(0,1)}")
         tdSql.checkData(0, 1, 200)
 
-        tdLog.info(f"=============== step5")
+        tdLog.info(f"=============== step10")
         tdSql.query(f"select count(tbcol) as b from {mt} group by tgcol")
-        tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, rowNum)
         tdSql.checkRows(tbNum)
 

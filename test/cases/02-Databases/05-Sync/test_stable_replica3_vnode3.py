@@ -2,18 +2,18 @@ import time
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
 
 
-class TestStableDnode3:
+class TestStableReplica3Vnode3:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_stable_dnode3(self):
-        """stable dnode3
+    def test_stable_replica3_vnode3(self):
+        """stable replica3 vnode3
 
         1. -
 
         Catalog:
-            - Database:Vnode
+            - DataBase:Sync
 
         Since: v3.0.0.0
 
@@ -22,52 +22,26 @@ class TestStableDnode3:
         Jira: None
 
         History:
-            - 2025-5-5 Simon Guan Migrated to new test framework, from tsim/vnode/stable_dnode3.sim
-
-        """
-
-import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
-
-
-class TestStableDnode2:
-
-    def setup_class(cls):
-        tdLog.debug(f"start to execute {__file__}")
-
-    def test_stable_dnode2(self):
-        """stable dnode2
-
-        1. -
-
-        Catalog:
-            - Database:Vnode
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-5-5 Simon Guan Migrated to new test framework, from tsim/vnode/stable_dnode2.sim
+            - 2025-5-5 Simon Guan Migrated to new test framework, from tsim/vnode/stable_replica3_vnode3.sim
 
         """
 
         tdLog.info(f"========== step1")
-        clusterComCheck.checkDnodes(3)
+        clusterComCheck.checkDnodes(4)
         tdSql.execute(f"alter dnode 1 'supportVnodes' '4'")
         tdSql.execute(f"alter dnode 2 'supportVnodes' '4'")
         tdSql.execute(f"alter dnode 3 'supportVnodes' '4'")
+        tdSql.execute(f"alter dnode 4 'supportVnodes' '4'")
         clusterComCheck.checkDnodeSupportVnodes(1, 4)
         clusterComCheck.checkDnodeSupportVnodes(2, 4)
         clusterComCheck.checkDnodeSupportVnodes(3, 4)
-        clusterComCheck.checkDnodes(3)
+        clusterComCheck.checkDnodeSupportVnodes(4, 4)
+        clusterComCheck.checkDnodes(4)
 
         tdLog.info(f"======================== dnode1 start")
-        dbPrefix = "d3_db"
-        tbPrefix = "d3_tb"
-        mtPrefix = "d3_mt"
+        dbPrefix = "r3v3_db"
+        tbPrefix = "r3v3_tb"
+        mtPrefix = "r3v3_mt"
         tbNum = 10
         rowNum = 20
         totalNum = 200
@@ -77,7 +51,7 @@ class TestStableDnode2:
         db = dbPrefix + str(i)
         mt = mtPrefix + str(i)
 
-        tdSql.execute(f"create database {db} vgroups 3")
+        tdSql.execute(f"create database {db} replica 3 vgroups 3")
         tdSql.execute(f"use {db}")
         tdSql.execute(f"create table {mt} (ts timestamp, tbcol int) TAGS(tgcol int)")
 
@@ -136,9 +110,11 @@ class TestStableDnode2:
         )
         tdLog.info(f"===> {tdSql.getData(0,1)}")
         tdSql.checkData(0, 1, 1)
+
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step7")
+        tdLog.info(f"select count(*) from {mt}")
         tdSql.query(f"select count(*) from {mt}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, totalNum)
@@ -175,9 +151,5 @@ class TestStableDnode2:
         tdSql.query(f"select count(tbcol) as b from {mt} group by tgcol")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, rowNum)
-        tdSql.checkRows(tbNum)
 
-        tdLog.info(f"=============== clear")
-        tdSql.execute(f"drop database {db}")
-        tdSql.query(f"select * from information_schema.ins_databases")
-        tdSql.checkRows(2)
+        tdSql.checkRows(tbNum)

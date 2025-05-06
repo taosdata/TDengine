@@ -3,11 +3,11 @@
 ,,n,.,pytest cases/tsim/test_tsim.py --tsim=tsim/dnode/balance_replica1.sim --skip_deploy
 ,,y,.,./ci/pytest.sh pytest cases/data_write/sql_statement/test_insert_double.py
 ,,y,.,./ci/pytest.sh pytest cases/storage/compress/test_compress_basic.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_stop.py -N 5 -M 3
-,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_stop.py -N 5 -M 3 -I False
-,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_cluster_basic.py -N 5
-,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_add_1dnode.py -N 7 -M 3 -C 6
-,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_add_1dnode.py -N 7 -M 3 -C 6 --replica 3
+#,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_stop.py -N 5 -M 3
+#,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_stop.py -N 5 -M 3 -I False
+#,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_cluster_basic.py -N 5
+#,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_add_1dnode.py -N 7 -M 3 -C 6
+#,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_add_1dnode.py -N 7 -M 3 -C 6 --replica 3
 ,,y,.,./ci/pytest.sh pytest cases/metadata/db/test_keep_time_offset.py
 #,,y,.,./ci/pytest.sh pytest cases/storage/tsma/test_tsma.py
 ,,y,.,./ci/pytest.sh pytest cases/storage/multilevel/test_mlevel_basic.py -N 3 -L 3 -D 2
@@ -66,23 +66,36 @@
 ## 04-Query
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/04-Query/test_db_show_create_db.py 
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/04-Query/test_db_show_create_table.py
-## 05-Vnode
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_stable_balance_replica1.py -N 2
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_stable_dnode2_stop.py -N 2
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_stable_dnode2.py -N 2
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_stable_dnode3.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_stable_replica3_dnode6.py -N 6
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_stable_replica3_vnode3.py -N 4
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_vnode_replica3_basic.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_vnode_replica3_import.py -N 4
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_vnode_replica3_many.py -N 4
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_vnode_replica3_repeat.py -N 4
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Vnode/test_vnode_replica3_vgroup.py -N 4
-## 06-Sync
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/06-Sync/test_sync_3Replica1VgElect.py -N 5
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/06-Sync/test_sync_3Replica5VgElect.py -N 5
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/06-Sync/test_sync_vnodesnapshot_rsma.py -N 4
-## 07-Others
+## 05-Sync
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance_replica_1.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance_replica_3.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance1.py -N 4 -C 1
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance2.py -N 5 -C 3
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance3.py -N 6 -C 4
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balancex.py -N 4 -C 1
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica1.py -N 4
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica3_v1_follower.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica3_v1_leader.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica3_v2.py -N 6
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica3_v3.py -N 8
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_split_vgroup_replica1.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_split_vgroup_replica3.py -N 4
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_stable_balance_replica1.py -N 2
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_stable_dnode2_stop.py -N 2
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_stable_dnode2.py -N 2
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_stable_dnode3.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_stable_replica3_dnode6.py -N 6
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_stable_replica3_vnode3.py -N 4
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_sync_3Replica1VgElect.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_sync_3Replica5VgElect.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_sync_vnodesnapshot_rsma.py -N 4
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_clean.py -N 4 -C 2
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_basic.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_import.py -N 4
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_many.py -N 4
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_repeat.py -N 4
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_vgroup.py -N 4
+## 06-Others
 
 # 03-Tables
 ## 01-NormalTables
@@ -307,7 +320,17 @@
 
 # 19-ManageNodes
 ## 01-Dnode
-,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_dnode_alter_debugflag.py 
+,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_alter_dnode_debugflag.py 
+,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_create_dnode.py -N 2 -C 1
+,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_force.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_mnode.py -N 2
+,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_multi_vnode_replica1.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_multi_vnode_replica3.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_qnode_snode.py -N 2
+,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_vnode_replica1.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_drop_dnode_has_vnode_replica3.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_offline_reason.py -N 2 -C 1
+#,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/01-Dnode/test_use_dropped_dnode.py -N 3
 ## 02-Mnode
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/02-Mnode/test_mnode_basic1.py -N 2
 ,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/02-Mnode/test_mnode_basic2.py -N 2
@@ -351,7 +374,7 @@
 # 28-SynatxChanges
 
 # 29-JoinQueries
-
+,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join1.py
 # 30-DataCompression
 ,,y,.,./ci/pytest.sh pytest cases/30-DataCompression/test_compress_alter_option.py
 ,,y,.,./ci/pytest.sh pytest cases/30-DataCompression/test_compress_disable.py

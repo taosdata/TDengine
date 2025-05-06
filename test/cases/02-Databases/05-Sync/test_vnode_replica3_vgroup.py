@@ -13,7 +13,7 @@ class TestVnodeReplica3Vgroup:
         1. -
 
         Catalog:
-            - Database:Vnode
+            - DataBase:Sync
 
         Since: v3.0.0.0
 
