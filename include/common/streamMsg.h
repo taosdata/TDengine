@@ -549,6 +549,7 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_WAL_TS_DATA,
   STRIGGER_PULL_WAL_TRIGGER_DATA,
   STRIGGER_PULL_WAL_CALC_DATA,
+  STRIGGER_PULL_TYPE_MAX,
 } ESTriggerPullType;
 
 typedef struct SSTriggerPullRequest {
@@ -670,7 +671,7 @@ typedef struct SSTriggerCalcRequest {
   int32_t execId;
 
   int64_t gid;
-  SArray* params;
+  SArray* params;        // SArray<SSTriggerCalcParam>
   SArray* groupColVals;  // only provided at the first calculation of the group
   bool    brandNew;      // TODO wjm remove it
 } SSTriggerCalcRequest;
