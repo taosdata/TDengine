@@ -200,6 +200,7 @@ static int32_t mndStreamBuildObj(SMnode *pMnode, SStreamObj *pObj, SCMCreateStre
   pObj->pCreate = pCreate;
   strncpy(pObj->name, pCreate->name, TSDB_STREAM_NAME_LEN);
 
+  pObj->userDropped = 0;
   pObj->userStopped = 0;
   
   pObj->createTime = taosGetTimestampMs();
@@ -788,7 +789,9 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     }
   }
 
-  atomic_store_8(&pStream->userStopped, 1);
+  mstInfo("start to drop stream %s", pStream->pCreate->name);
+
+  atomic_store_8(&pStream->userDropped, 1);
 
   msmUndeployStream(pMnode, streamId, pStream->pCreate->name);
 

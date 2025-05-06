@@ -175,9 +175,13 @@ typedef struct SStmGrpCtx {
   SStreamHbMsg*     pReq;
   SMStreamHbRspMsg* pRsp;
 
+  int32_t           tidx;
+
   // status update
-  int32_t taskNum;
-  
+  int32_t          taskNum;
+
+  SHashObj*        deployStm;
+  SHashObj*        actionStm;
 } SStmGrpCtx;
 
 typedef struct SStmThreadCtx {
@@ -257,6 +261,7 @@ bool mndStreamActionDequeue(SStmActionQ* pQueue, SStmQNode **param);
 void msmHandleBecomeLeader(SMnode *pMnode);
 void msmHandleBecomeNotLeader(SMnode *pMnode);
 int32_t msmUndeployStream(SMnode* pMnode, int64_t streamId, char* streamName);
+int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped);
 
 #ifdef __cplusplus
 }
