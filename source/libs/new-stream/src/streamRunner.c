@@ -110,22 +110,27 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMs
   int32_t code = stRunnerInitTaskExecMgr(pTask);
   if (code != 0) {
     ST_TASK_ELOG("failed to init task exec mgr code:%s", tstrerror(code));
-    taosMemoryFree(pTask);
+    pTask->task.status = STREAM_STATUS_FAILED;
     return code;
   }
   code = nodesStringToNode(pMsg->subTblNameExpr, (SNode**)&pTask->pSubTableExpr);
   if (code != 0) {
     ST_TASK_ELOG("failed to deserialize sub table expr: %s", tstrerror(code));
-    taosMemoryFree(pTask);
+    pTask->task.status = STREAM_STATUS_FAILED;
     return code;
   }
+
+  pTask->task.status = STREAM_STATUS_INIT;
 
   return 0;
 }
 
-int32_t stRunnerTaskUndeploy(SStreamRunnerTask* pTask, const SStreamUndeployTaskMsg* pMsg) {
+int32_t stRunnerTaskUndeploy(SStreamRunnerTask* pTask, const SStreamUndeployTaskMsg* pMsg, taskUndeplyCallback cb) {
   nodesDestroyNode(pTask->pSubTableExpr);
   stRunnerDestroyTaskExecMgr(pTask);
+
+  (*cb)(pTask);
+
   return 0;
 }
 

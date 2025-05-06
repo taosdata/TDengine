@@ -186,8 +186,17 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
     pTask->info.calcReaderInfo.calcScanPlan = taosStrdup(pMsg->msg.calc.calcScanPlan);
     STREAM_CHECK_NULL_GOTO(pTask->info.calcReaderInfo.calcScanPlan, terrno);
   }
+
+  pTask->task.status = STREAM_STATUS_INIT;
+  
 end:
+
   PRINT_LOG_END(code, lino);
+
+  if (code) {
+    pTask->task.status = STREAM_STATUS_FAILED;
+  }
+
   return code;
 }
 
@@ -201,6 +210,8 @@ int32_t stReaderTaskUndeploy(SStreamReaderTask* pTask, const SStreamUndeployTask
   qDestroyTask(pTask->info.calcReaderInfo.pTaskInfo);
 end:
   PRINT_LOG_END(code, lino);
+  (*cb)(pTask);
+  
   return code;
 }
 // int32_t stReaderTaskExecute(SStreamReaderTask* pTask, SStreamMsg* pMsg);

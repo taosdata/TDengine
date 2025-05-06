@@ -105,7 +105,11 @@ void streamAddVnodeLeader(int32_t vgId) {
     taosArraySort(gStreamMgmt.vgLeaders, streamVgIdSort);
   }
   taosWUnLockLatch(&gStreamMgmt.vgLeadersLock);
-  stInfo("add vgroup %d to vgroupLeader %s, error:%s", vgId, p ? "succeed" : "failed", p ? "NULL" : tstrerror(terrno));
+  if (p) {
+    stInfo("add vgroup %d to vgroupLeader succeed", vgId);
+  } else {
+    stError("add vgroup %d to vgroupLeader failed, error:%s", vgId, tstrerror(terrno));
+  }
 }
 
 int32_t streamGetTask(int64_t streamId, int64_t taskId, SStreamTask** ppTask) {

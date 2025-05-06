@@ -137,7 +137,7 @@ static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream) {
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStreamObj *pNewStream) {
   mTrace("stream:%s, perform update action", pOldStream->pCreate->name);
 
-  pOldStream->userStopped = pNewStream->userStopped;
+  atomic_store_8(&pOldStream->userStopped, atomic_load_8(&pNewStream->userStopped));
   pOldStream->updateTime = pNewStream->updateTime;
   
   return 0;
@@ -200,7 +200,8 @@ static int32_t mndStreamBuildObj(SMnode *pMnode, SStreamObj *pObj, SCMCreateStre
   pObj->pCreate = pCreate;
   strncpy(pObj->name, pCreate->name, TSDB_STREAM_NAME_LEN);
 
-  pObj->userStopped = false;
+  pObj->userDropped = 0;
+  pObj->userStopped = 0;
   
   pObj->createTime = taosGetTimestampMs();
   pObj->updateTime = pObj->createTime;
@@ -624,7 +625,7 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
     return code;
   }
 
-  pStream->userStopped = true;
+  atomic_store_8(&pStream->userStopped, 1);
 
   // pause stream
   code = mndStreamTransAppend(pStream, pTrans, SDB_STATUS_READY);
@@ -679,7 +680,7 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
 
   int64_t streamId = pStream->pCreate->streamId;
 
-  pStream->userStopped = false;
+  atomic_store_8(&pStream->userStopped, 0);
   
   mstInfo("start to resume stream %s from pause", resumeReq.name);
 
@@ -788,7 +789,11 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     }
   }
 
-  mndStreamPostAction(pMnode, streamId, pStream->pCreate->name, STREAM_ACT_UNDEPLOY);
+  mstInfo("start to drop stream %s", pStream->pCreate->name);
+
+  atomic_store_8(&pStream->userDropped, 1);
+
+  msmUndeployStream(pMnode, streamId, pStream->pCreate->name);
 
   STrans *pTrans = NULL;
   code = mndStreamCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_DROP_NAME, &pTrans);
@@ -855,7 +860,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
   mstInfo("start to create stream %s, sql:%s", pCreate->name, pCreate->sql);
 
-  code = mndStreamCheckSnodeExists(pMnode);
+  code = mstCheckSnodeExists(pMnode);
   TSDB_CHECK_CODE(code, lino, _OVER);
   
   code = mndAcquireStream(pMnode, pCreate->name, &pStream);

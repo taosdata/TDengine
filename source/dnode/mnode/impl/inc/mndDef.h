@@ -786,6 +786,7 @@ typedef struct {
   SCMCreateStreamReq* pCreate;
 
   // dynamic info
+  int8_t  userDropped;
   int8_t  userStopped;
   int64_t createTime;
   int64_t updateTime;
