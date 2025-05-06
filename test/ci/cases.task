@@ -259,6 +259,7 @@
 # 07-DataQuerying
 ## 01-Operator
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_and_or.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_arithmetic_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_arithmetic.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_between_and.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_case_when.py 
@@ -267,6 +268,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Condition/test_condition_scl.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Condition/test_condition.py
 ## 03-GroupBy
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby_basic.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby.py
 ## 04-OrderBy
 ## 05-Aliase
 ## 06-Expression
@@ -287,6 +290,8 @@
 ## 10-QueryList
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/10-QueryList/test_const_col.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/10-QueryList/test_distinct.py
+## 11-Interp
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/11-Interp/test_interp.py
 
 # 08-TagIndices
 ,,y,.,./ci/pytest.sh pytest cases/08-TagIndices/test_index_create_drop.py 
@@ -310,6 +315,7 @@
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_sum.py 
 ## 03-Selection
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_bottom.py
+,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_first_last.py
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_first.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_lru.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_row.py 
@@ -330,6 +336,7 @@
 ,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/02-Fill/test_fill.py
 ## 03-TimeWindow
 ,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_bug.py
+,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_function.py
 ,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval.py
 
 # 12-DataSubscription
