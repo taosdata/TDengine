@@ -21,7 +21,7 @@ class TestConstCol:
         Jira: None
 
         History:
-            - 2025-5-6 Simon Guan Migrated from ctsim/parser/constCol.sim
+            - 2025-5-6 Simon Guan Migrated from tsim/parser/constCol.sim
 
         """
 
