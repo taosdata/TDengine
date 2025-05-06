@@ -20,9 +20,9 @@ toc_max_heading_level: 5
 ## 配置数据源
 使用 JDBC WebSocket 连接至 TDengine 数据源，连接 URL 格式为：
 ``` sql
-`jdbc:TAOS-WS://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&timezone={timezone}]`  
+jdbc:TAOS-WS://[host_name]:[port]/[database_name]?[user={user}|&password={password}]
 ```
-详细参数介绍见：[URL 参数介绍]（../../../reference/connector/java/#url-规范）
+详细参数介绍见：[URL 参数介绍](../../../reference/connector/java/#url-规范)
 driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”
 
 以下示例创建 Spark 实例并连接到本机 TDengine 服务：
@@ -45,7 +45,7 @@ driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”
 
 
 ## 数据接入
-数据接入需注册 TDengine 方言，方言中主要处理反引号，数据类型映射与 JDBC 相同, 无需额外处理，参见：[JDBC 数据类型映射]（../../../reference/connector/java/#数据类型映射）
+数据接入需注册 TDengine 方言，方言中主要处理反引号，数据类型映射与 JDBC 相同, 无需额外处理，参见：[JDBC 数据类型映射](../../../reference/connector/java/#数据类型映射)
 
 下面以 JAVA 语言编写 Spark 任务，通过 `spark-submit` 提交任务执行为例，介绍数据接入，后附完整示例代码。
 
