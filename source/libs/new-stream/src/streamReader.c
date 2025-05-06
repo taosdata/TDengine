@@ -205,9 +205,13 @@ int32_t stReaderTaskUndeploy(SStreamReaderTask* pTask, const SStreamUndeployTask
   int32_t lino = 0;
   STREAM_CHECK_NULL_GOTO(pTask, TSDB_CODE_INVALID_PARA);
   STREAM_CHECK_NULL_GOTO(pMsg, TSDB_CODE_INVALID_PARA);
-  releaseStreamInfo(pTask->info.triggerReaderInfo);
-  taosMemoryFreeClear(pTask->info.calcReaderInfo.calcScanPlan);
-  qDestroyTask(pTask->info.calcReaderInfo.pTaskInfo);
+  if (pTask->triggerReader == 1) {
+    releaseStreamInfo(pTask->info.triggerReaderInfo);
+  } else {
+    taosMemoryFreeClear(pTask->info.calcReaderInfo.calcScanPlan);
+    qDestroyTask(pTask->info.calcReaderInfo.pTaskInfo);
+  }
+  
 end:
   PRINT_LOG_END(code, lino);
   (*cb)(pTask);
