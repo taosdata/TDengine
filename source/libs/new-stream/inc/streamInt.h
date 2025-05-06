@@ -16,6 +16,7 @@
 #ifndef TDENGINE_STREAM_INT_H
 #define TDENGINE_STREAM_INT_H
 
+
 #include "executor.h"
 #include "query.h"
 #include "trpc.h"
@@ -32,8 +33,6 @@ extern "C" {
 #define STREAM_GRP_STREAM_NUM             20
 #define STREAM_HB_ERR_HANDLE_MAX_DELAY    300000
 
-typedef void (*taskUndeplyCallback)(void*);
-
 typedef struct SStreamHbInfo {
   int32_t      lastErrCode;
   int64_t      lastErrTs;
@@ -43,6 +42,7 @@ typedef struct SStreamHbInfo {
 
 typedef struct SStreamTasksInfo {
   int32_t             taskNum;
+  int32_t             undeployedNum;
   SArray*             readerList;        // SArray<SStreamReaderTask>
   SStreamTriggerTask* triggerTask;
   SArray*             runnerList;        // SArray<SStreamRunnerTask>
@@ -65,7 +65,7 @@ typedef struct SStreamMgmtInfo {
   getMnodeEpset_f         getMnode;
   getDnodeId_f            getDnode;
   
-  SStreamHbInfo          hb;
+  SStreamHbInfo           hb;
 
   bool                   hbReported;
   

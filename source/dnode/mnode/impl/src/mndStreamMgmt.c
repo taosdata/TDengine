@@ -107,6 +107,7 @@ static int32_t msmTDAddToVgroupMap(SHashObj* pVgMap, SStmTaskDeploy* pDeploy, SS
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
   SStmVgroupTasksDeploy vg = {0};
+  SStreamTask* pTask = &pDeploy->task;
   SStmTaskDeployExt ext = {0};
   ext.deploy = *pDeploy;
 
@@ -118,7 +119,7 @@ static int32_t msmTDAddToVgroupMap(SHashObj* pVgMap, SStmTaskDeploy* pDeploy, SS
       TSDB_CHECK_NULL(taosArrayPush(vg.taskList, &ext), code, lino, _return, terrno);
       code = taosHashPut(pVgMap, &pDeploy->task.nodeId, sizeof(pDeploy->task.nodeId), &vg, sizeof(SStmVgroupTasksDeploy));
       if (TSDB_CODE_SUCCESS == code) {
-        return code;
+        goto _return;
       }
 
       if (TSDB_CODE_DUP_KEY != code) {
@@ -145,7 +146,8 @@ _return:
   if (code) {
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   } else {
-    atomic_add_fetch_32(&mStreamMgmt.toDeployVgTaskNum, 1);
+    int32_t num = atomic_add_fetch_32(&mStreamMgmt.toDeployVgTaskNum, 1);
+    ST_TASK_DLOG("task added to toDeployVgTaskNum, vgToDeployTaskNum:%d", num);
   }
 
   return code;
@@ -377,7 +379,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
     
     SStreamRunnerTarget runner;
     runner.addr.taskId = pStatus->id.taskId;
-    runner.addr.epset = mndGetVgroupEpsetById(pMnode, pStatus->id.nodeId);
+    runner.addr.epset = mndGetDnodeEpsetById(pMnode, pStatus->id.nodeId);
     runner.execReplica = pInfo->runnerReplica; 
     TSDB_CHECK_NULL(taosArrayPush(pMsg->runnerList, &runner), code, lino, _exit, terrno);
   }
@@ -1450,8 +1452,6 @@ static int32_t msmGrpAddDeployTask(SHashObj* pHash, SStmTaskDeploy* pDeploy) {
     
     break;
   }
-
-  ST_TASK_DLOG("task added to deployMap, taskIdx:%d", pTask->taskIdx);
   
 _exit:
 
@@ -1459,6 +1459,8 @@ _exit:
 
   if (code) {
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  } else {
+    ST_TASK_DLOG("task added to deployMap, taskIdx:%d", pTask->taskIdx);
   }
 
   return code;

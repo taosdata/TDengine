@@ -33,6 +33,7 @@ extern "C" {
 
 typedef void (*getMnodeEpset_f)(void *pDnode, SEpSet *pEpset);
 typedef int32_t (*getDnodeId_f)(void *pData);
+typedef void (*taskUndeplyCallback)(void*);
 
 typedef struct SStreamReaderTask {
   SStreamTask task;

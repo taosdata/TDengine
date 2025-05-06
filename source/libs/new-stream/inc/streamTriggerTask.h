@@ -223,7 +223,7 @@ int32_t stTriggerTaskMarkRecalc(SStreamTriggerTask *pTask, int64_t groupId, int6
 
 // interfaces called by stream mgmt thread
 int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, const SStreamTriggerDeployMsg *pMsg);
-int32_t stTriggerTaskUndeploy(SStreamTriggerTask *pTask, const SStreamUndeployTaskMsg *pMsg);
+int32_t stTriggerTaskUndeploy(SStreamTriggerTask *pTask, const SStreamUndeployTaskMsg *pMsg, taskUndeplyCallback cb);
 int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg);
 
 #ifdef __cplusplus

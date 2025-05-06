@@ -185,8 +185,17 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
     // STREAM_CHECK_RET_GOTO(qCreateStreamExecTaskInfo(&pTask->calcReaderContext, pMsg->msg.calc.calcScanPlan, &handle, vgId, taskId));
     // STREAM_CHECK_RET_GOTO(qSetTaskId(pTask->calcReaderContext, taskId, streamId));
   }
+
+  pTask->task.status = STREAM_STATUS_INIT;
+  
 end:
+
   PRINT_LOG_END(code, lino);
+
+  if (code) {
+    pTask->task.status = STREAM_STATUS_FAILED;
+  }
+
   return code;
 }
 
@@ -199,6 +208,8 @@ int32_t stReaderTaskUndeploy(SStreamReaderTask* pTask, const SStreamUndeployTask
   qDestroyTask(pTask->calcReaderContext);
 end:
   PRINT_LOG_END(code, lino);
+  (*cb)(pTask);
+  
   return code;
 }
 // int32_t stReaderTaskExecute(SStreamReaderTask* pTask, SStreamMsg* pMsg);

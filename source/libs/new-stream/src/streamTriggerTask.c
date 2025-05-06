@@ -2209,7 +2209,7 @@ _end:
   return code;
 }
 
-int32_t stTriggerTaskUndeploy(SStreamTriggerTask *pTask, const SStreamUndeployTaskMsg *pMsg) {
+int32_t stTriggerTaskUndeploy(SStreamTriggerTask *pTask, const SStreamUndeployTaskMsg *pMsg, taskUndeplyCallback cb) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
@@ -2234,6 +2234,9 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
+
+  (*cb)(pTask);
+  
   return code;
 }
 
