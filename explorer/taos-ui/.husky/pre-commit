@@ -1,6 +1,0 @@
-#!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
-
-echo "husky lint-staged start"
-pnpm  lint-staged
-echo "husky lint-staged end"
