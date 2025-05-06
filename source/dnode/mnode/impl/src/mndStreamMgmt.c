@@ -2258,6 +2258,10 @@ void msmHandleBecomeNotLeader(SMnode *pMnode) {
 }
 
 
+void msmHealthCheck(SMnode *pMnode) {
+
+}
+
 int32_t msmInitRuntimeInfo(SMnode *pMnode) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
