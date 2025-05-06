@@ -23,7 +23,7 @@ class TestTag3:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/tag/3.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/tag/3.sim
 
         """
 

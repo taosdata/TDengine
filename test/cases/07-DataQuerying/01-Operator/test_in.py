@@ -1,20 +1,21 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestOperatorAndOr:
+class TestIn:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_operator_and_or(self):
-        """And、Or 运算符
+    def test_in(self):
+        """In 运算符
 
         1. 创建多种数据类型的超级表和子表
         2. 写入数据
-        3. 对普通数据列的 timestamp、int 等类型执行 and+or 混合筛选
+        3. 对普通数据列的 timestamp、int 等类型执行 in 查询
+        4. 对标签数据列的 bool、int 等类型执行 in 查询
 
         Catalog:
-            - Query:Project
+            - Query:Operator
 
         Since: v3.0.0.0
 
@@ -23,7 +24,7 @@ class TestOperatorAndOr:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/scalar/filter.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/scalar/in.sim
 
         """
 
@@ -91,5 +92,78 @@ class TestOperatorAndOr:
             f"insert into tb3 values ('2022-07-10 16:33:05', false, 5, 5, 5, 5, 5, 5, 5, 5, 5.0, 5.0, 'e', 'e');"
         )
 
-        tdSql.query(f"select * from st1 where (ttiny > 2 or ftiny < 5) and ftiny > 2;")
-        tdSql.checkRows(7)
+        tdSql.query(
+            f"select * from tb1 where fts in ('2022-07-10 16:31:01', '2022-07-10 16:31:03', 1657441865000);"
+        )
+        tdSql.checkRows(3)
+
+        tdSql.query(
+            f"explain verbose true select * from tb1 where tts in ('2022-07-10 16:31:01', '2022-07-10 16:31:03', 1657441865000);"
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(
+            2, 0, "      Time Range: [-9223372036854775808, 9223372036854775807]"
+        )
+
+        tdSql.query(f"select * from tb1 where fbool in (0, 3);")
+        tdSql.checkRows(3)
+
+        tdSql.query(f"select * from tb1 where ftiny in (257);")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select * from tb1 where ftiny in (2, 257);")
+        tdSql.checkRows(1)
+
+        tdSql.query(f"select * from tb1 where futiny in (0, 257);")
+        tdSql.checkRows(0)
+
+        tdSql.query(
+            f"select * from st1 where tts in ('2022-07-10 16:31:00', '2022-07-10 16:33:00', 1657441865000);"
+        )
+        tdSql.checkRows(10)
+
+        tdSql.query(f"select * from st1 where tbool in (0, 3);")
+        tdSql.checkRows(5)
+
+        tdSql.query(f"select * from st1 where ttiny in (257);")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select * from st1 where ttiny in (2, 257);")
+        tdSql.checkRows(5)
+
+        tdSql.query(f"select * from st1 where tutiny in (0, 257);")
+        tdSql.checkRows(0)
+
+        tdSql.query(
+            f"explain verbose true select * from tb1 where fts in ('2022-07-10 16:31:00', '2022-07-10 16:33:00', 1657441840000);"
+        )
+        tdSql.checkRows(4)
+        tdSql.checkData(2, 0, "      Time Range: [1657441840000, 1657441980000]")
+
+        tdSql.query(
+            f"explain verbose true select * from tb1 where fts in ('2022-07-10 16:31:00', '2022-07-10 16:33:00', 1657441840000, true);"
+        )
+        tdSql.checkRows(4)
+        tdSql.checkData(2, 0, "      Time Range: [1, 1657441980000]")
+
+        tdSql.query(
+            f"explain verbose true select * from tb1 where fts in ('2022-07-10 16:31:00', '2022-07-10 16:33:00', 1657441840000, false);"
+        )
+        tdSql.checkRows(4)
+        tdSql.checkData(2, 0, "      Time Range: [0, 1657441980000]")
+
+        tdSql.query(
+            f"explain verbose true select * from tb1 where fts in ('2022-07-10 16:31:00', '2022-07-10 16:33:00', 1657441840000, 1.02);"
+        )
+        tdSql.checkRows(4)
+        tdSql.checkData(2, 0, "      Time Range: [1, 1657441980000]")
+
+        tdSql.query(
+            f"explain verbose true select * from tb1 where fts in ('2022-07-10 16:31:00', '2022-07-10 16:33:00', 1657441840000, -1.02);"
+        )
+        tdSql.checkRows(4)
+        tdSql.checkData(2, 0, "      Time Range: [-1, 1657441980000]")
+
+        tdSql.error(
+            f"explain verbose true select * from tb1 where fts in ('2022-07-10 16:31:00', '2022-07-10 16:33:00', 1657441840000, 'abc');"
+        )

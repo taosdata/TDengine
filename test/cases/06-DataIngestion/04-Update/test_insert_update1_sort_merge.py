@@ -23,7 +23,7 @@ class TestInsertUpdate1:
         Jira: None
 
         History:
-            - 2025-4-29 Simon Guan Migrated to new test framework, from tests/script/tsim/insert/update1_sort_merge.sim
+            - 2025-4-29 Simon Guan Migrated from tsim/insert/update1_sort_merge.sim
 
         """
 

@@ -23,7 +23,7 @@ class TestFuncTruncate:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/scalar/tsConvert.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/scalar/tsConvert.sim
 
         """
 

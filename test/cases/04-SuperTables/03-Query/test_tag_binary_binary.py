@@ -23,7 +23,7 @@ class TestTagBinaryBinary:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/tag/binary_binary.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/tag/binary_binary.sim
 
         """
 

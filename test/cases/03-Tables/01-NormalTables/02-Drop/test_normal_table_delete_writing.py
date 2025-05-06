@@ -26,7 +26,7 @@ class TestNormalTableDeleteWriting:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/table/delete_writing.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/table/delete_writing.sim
 
         """
 

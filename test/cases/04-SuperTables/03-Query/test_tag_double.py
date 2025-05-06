@@ -23,7 +23,7 @@ class TestTagDouble:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/tag/double.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/tag/double.sim
 
         """
 

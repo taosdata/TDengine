@@ -407,66 +407,38 @@ class TestJoin1:
             f"select a.col1, b.col1 from sta a left join sta b on a.ts = b.ts and a.ts < '2023-11-17 16:29:02' and b.ts < '2023-11-17 16:29:01' order by a.col1, b.col1;"
         )
         tdSql.checkRows(10)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(1, 1, 2)
-
         tdSql.checkData(2, 0, 2)
-
         tdSql.checkData(2, 1, 1)
-
         tdSql.checkData(3, 0, 2)
-
         tdSql.checkData(3, 1, 2)
-
         tdSql.checkData(4, 0, 3)
-
         tdSql.checkData(4, 1, None)
-
         tdSql.checkData(5, 0, 3)
-
         tdSql.checkData(5, 1, None)
-
         tdSql.checkData(6, 0, 4)
-
         tdSql.checkData(6, 1, None)
-
         tdSql.checkData(7, 0, 5)
-
         tdSql.checkData(7, 1, None)
-
         tdSql.checkData(8, 0, 5)
-
         tdSql.checkData(8, 1, None)
-
         tdSql.checkData(9, 0, 7)
-
         tdSql.checkData(9, 1, None)
 
         tdSql.query(
             f"select a.col1, b.col1 from sta a left join sta b on a.ts = b.ts where a.ts < '2023-11-17 16:29:02' and b.ts < '2023-11-17 16:29:01' order by a.col1, b.col1;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(1, 1, 2)
-
         tdSql.checkData(2, 0, 2)
-
         tdSql.checkData(2, 1, 1)
-
         tdSql.checkData(3, 0, 2)
-
         tdSql.checkData(3, 1, 2)
 
         tdSql.query(f"select a.col1, b.col1 from sta a left join sta b on a.ts = b.ts;")
@@ -476,125 +448,82 @@ class TestJoin1:
             f"select a.col1, b.col1 from tba1 a left join tba2 b on a.ts = b.ts order by a.col1, b.col1;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(0, 1, 2)
-
         tdSql.checkData(1, 0, 3)
-
         tdSql.checkData(1, 1, None)
-
         tdSql.checkData(2, 0, 4)
-
         tdSql.checkData(2, 1, 5)
-
         tdSql.checkData(3, 0, 5)
-
         tdSql.checkData(3, 1, None)
 
         tdSql.query(
             f"select a.col1, b.col1 from tba2 a left join tba1 b on a.ts = b.ts order by a.col1, b.col1;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(1, 0, 3)
-
         tdSql.checkData(1, 1, None)
-
         tdSql.checkData(2, 0, 5)
-
         tdSql.checkData(2, 1, 4)
-
         tdSql.checkData(3, 0, 7)
-
         tdSql.checkData(3, 1, None)
 
         tdSql.query(
             f"select a.ts, b.ts from tba2 a left join tba1 b on a.ts = b.ts order by a.ts desc;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 1, None)
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:00")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left join sta b on a.ts=b.ts order by a.ts desc;"
         )
         tdSql.checkRows(12)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:04")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left join tba2 b on a.ts=b.ts order by b.ts desc;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(2, 1, None)
-
         tdSql.checkData(3, 1, None)
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left join tba2 b on a.ts=b.ts order by b.ts desc, a.ts desc;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(2, 1, None)
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(3, 1, None)
 
         tdSql.query(f"select count(*) from tba1 a left join tba2 b on a.ts=b.ts;")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 4)
 
         tdSql.query(f"select count(a.*) from tba1 a left join tba2 b on a.ts=b.ts;")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 4)
 
         tdSql.query(f"select count(b.*) from tba1 a left join tba2 b on a.ts=b.ts;")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 2)
 
     def right_join(self):
@@ -604,66 +533,38 @@ class TestJoin1:
             f"select a.col1, b.col1 from sta a right join sta b on a.ts = b.ts and a.ts < '2023-11-17 16:29:02' and b.ts < '2023-11-17 16:29:01' order by b.col1, a.col1;"
         )
         tdSql.checkRows(10)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(1, 0, 2)
-
         tdSql.checkData(1, 1, 1)
-
         tdSql.checkData(2, 0, 1)
-
         tdSql.checkData(2, 1, 2)
-
         tdSql.checkData(3, 0, 2)
-
         tdSql.checkData(3, 1, 2)
-
         tdSql.checkData(4, 0, None)
-
         tdSql.checkData(4, 1, 3)
-
         tdSql.checkData(5, 0, None)
-
         tdSql.checkData(5, 1, 3)
-
         tdSql.checkData(6, 0, None)
-
         tdSql.checkData(6, 1, 4)
-
         tdSql.checkData(7, 0, None)
-
         tdSql.checkData(7, 1, 5)
-
         tdSql.checkData(8, 0, None)
-
         tdSql.checkData(8, 1, 5)
-
         tdSql.checkData(9, 0, None)
-
         tdSql.checkData(9, 1, 7)
 
         tdSql.query(
             f"select a.col1, b.col1 from sta a right join sta b on a.ts = b.ts where a.ts < '2023-11-17 16:29:02' and b.ts < '2023-11-17 16:29:01' order by a.col1, b.col1;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(1, 1, 2)
-
         tdSql.checkData(2, 0, 2)
-
         tdSql.checkData(2, 1, 1)
-
         tdSql.checkData(3, 0, 2)
-
         tdSql.checkData(3, 1, 2)
 
         tdSql.query(
@@ -675,57 +576,38 @@ class TestJoin1:
             f"select a.col1, b.col1 from tba1 a right join tba2 b on a.ts = b.ts order by a.col1, b.col1;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, None)
-
         tdSql.checkData(0, 1, 3)
-
         tdSql.checkData(1, 0, None)
-
         tdSql.checkData(1, 1, 7)
-
         tdSql.checkData(2, 0, 1)
-
         tdSql.checkData(2, 1, 2)
-
         tdSql.checkData(3, 0, 4)
-
         tdSql.checkData(3, 1, 5)
 
         tdSql.query(
             f"select a.col1, b.col1 from tba2 a right join tba1 b on a.ts = b.ts order by a.col1, b.col1;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, None)
-
         tdSql.checkData(0, 1, 3)
-
         tdSql.checkData(1, 0, None)
-
         tdSql.checkData(1, 1, 5)
-
         tdSql.checkData(2, 0, 2)
-
         tdSql.checkData(2, 1, 1)
-
         tdSql.checkData(3, 0, 5)
-
         tdSql.checkData(3, 1, 4)
 
         tdSql.query(f"select count(*) from tba1 a right join tba2 b on a.ts=b.ts;")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 4)
 
         tdSql.query(f"select count(a.*) from tba1 a right join tba2 b on a.ts=b.ts;")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 2)
 
         tdSql.query(f"select count(b.*) from tba1 a right join tba2 b on a.ts=b.ts;")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 4)
 
     def full_join(self):
@@ -735,38 +617,24 @@ class TestJoin1:
             f"select a.col1, b.col1 from sta a full join sta b on a.ts = b.ts and a.ts < '2023-11-17 16:29:02' and b.ts < '2023-11-17 16:29:01' order by a.col1, b.col1;"
         )
         tdSql.checkRows(16)
-
         tdSql.checkData(0, 0, None)
-
         tdSql.checkData(0, 1, 3)
-
         tdSql.checkData(1, 0, None)
-
         tdSql.checkData(1, 1, 3)
-
         tdSql.checkData(2, 0, None)
-
         tdSql.checkData(2, 1, 4)
 
         tdSql.query(
             f"select a.col1, b.col1 from sta a full join sta b on a.ts = b.ts where a.ts < '2023-11-17 16:29:02' and b.ts < '2023-11-17 16:29:01' order by a.col1, b.col1;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(1, 1, 2)
-
         tdSql.checkData(2, 0, 2)
-
         tdSql.checkData(2, 1, 1)
-
         tdSql.checkData(3, 0, 2)
-
         tdSql.checkData(3, 1, 2)
 
         tdSql.query(f"select a.col1, b.col1 from sta a full join sta b on a.ts = b.ts;")
@@ -776,144 +644,89 @@ class TestJoin1:
             f"select a.col1, b.col1 from tba1 a full join tba2 b on a.ts = b.ts order by a.col1, b.col1;"
         )
         tdSql.checkRows(6)
-
         tdSql.checkData(0, 0, None)
-
         tdSql.checkData(0, 1, 3)
-
         tdSql.checkData(1, 0, None)
-
         tdSql.checkData(1, 1, 7)
-
         tdSql.checkData(2, 0, 1)
-
         tdSql.checkData(2, 1, 2)
-
         tdSql.checkData(3, 0, 3)
-
         tdSql.checkData(3, 1, None)
-
         tdSql.checkData(4, 0, 4)
-
         tdSql.checkData(4, 1, 5)
-
         tdSql.checkData(5, 0, 5)
-
         tdSql.checkData(5, 1, None)
 
         tdSql.query(
             f"select a.col1, b.col1 from tba2 a full join tba1 b on a.ts = b.ts order by a.col1, b.col1;"
         )
         tdSql.checkRows(6)
-
         tdSql.checkData(0, 0, None)
-
         tdSql.checkData(0, 1, 3)
-
         tdSql.checkData(1, 0, None)
-
         tdSql.checkData(1, 1, 5)
-
         tdSql.checkData(2, 0, 2)
-
         tdSql.checkData(2, 1, 1)
-
         tdSql.checkData(3, 0, 3)
-
         tdSql.checkData(3, 1, None)
-
         tdSql.checkData(4, 0, 5)
-
         tdSql.checkData(4, 1, 4)
-
         tdSql.checkData(5, 0, 7)
-
         tdSql.checkData(5, 1, None)
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a full join tba2 b on a.ts = b.ts and a.ts < '2023-11-17 16:29:03' and b.ts < '2023-11-17 16:29:03' order by a.ts;"
         )
         tdSql.checkRows(7)
-
         tdSql.checkData(0, 0, None)
-
         tdSql.checkData(1, 0, None)
-
         tdSql.checkData(2, 0, None)
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(4, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(5, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(6, 0, "2023-11-17 16:29:04")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a full join tba2 b on a.ts = b.ts and a.ts < '2023-11-17 16:29:03' and b.ts < '2023-11-17 16:29:03' order by b.ts desc;"
         )
         tdSql.checkRows(7)
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(4, 1, None)
-
         tdSql.checkData(5, 1, None)
-
         tdSql.checkData(6, 1, None)
 
         tdSql.query(
             f"select b.ts, a.ts from tba1 a full join tba2 b on a.ts = b.ts and a.ts < '2023-11-17 16:29:03' and b.ts < '2023-11-17 16:29:03' order by b.ts desc, a.ts;"
         )
         tdSql.checkRows(7)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(4, 0, None)
-
         tdSql.checkData(5, 0, None)
-
         tdSql.checkData(6, 0, None)
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 1, None)
-
         tdSql.checkData(2, 1, None)
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(4, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(5, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(6, 1, "2023-11-17 16:29:04")
 
         tdSql.query(f"select count(*) from tba1 a full join tba2 b on a.ts=b.ts;")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 6)
 
         tdSql.query(f"select count(a.*) from tba1 a full join tba2 b on a.ts=b.ts;")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 4)
 
         tdSql.query(f"select count(b.*) from tba1 a full join tba2 b on a.ts=b.ts;")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 4)
 
     def left_semi_join(self):
@@ -923,26 +736,18 @@ class TestJoin1:
             f"select a.ts, b.ts from sta a left semi join sta b on a.ts = b.ts and a.ts < '2023-11-17 16:29:02' order by a.ts"
         )
         tdSql.checkRows(3)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:01")
 
         tdSql.query(
             f"select a.col1, b.col1 from sta a left semi join sta b on a.ts = b.ts where a.ts < '2023-11-17 16:29:02' and b.ts < '2023-11-17 16:29:01' order by a.col1;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 2)
 
         tdSql.query(
@@ -954,78 +759,54 @@ class TestJoin1:
             f"select a.col1, b.col1 from tba1 a left semi join tba2 b on a.ts = b.ts order by a.col1;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(0, 1, 2)
-
         tdSql.checkData(1, 0, 4)
-
         tdSql.checkData(1, 1, 5)
 
         tdSql.query(
             f"select a.col1, b.col1 from tba2 a left semi join tba1 b on a.ts = b.ts order by a.col1;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(1, 0, 5)
-
         tdSql.checkData(1, 1, 4)
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left semi join tba2 b on a.ts = b.ts order by a.ts desc;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:00")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left semi join sta b on a.ts = b.ts order by a.ts desc;"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:04")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left semi join tba2 b on a.ts = b.ts order by b.ts desc;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:00")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left semi join tba2 b on a.ts = b.ts order by b.ts desc, a.ts;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:00")
 
         tdSql.error(
@@ -1045,26 +826,18 @@ class TestJoin1:
             f"select a.ts, b.ts from sta a right semi join sta b on a.ts = b.ts and b.ts < '2023-11-17 16:29:02' order by a.ts"
         )
         tdSql.checkRows(3)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:01")
 
         tdSql.query(
             f"select a.col1, b.col1 from sta a right semi join sta b on a.ts = b.ts where a.ts < '2023-11-17 16:29:02' and b.ts < '2023-11-17 16:29:01' order by b.col1;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(1, 1, 2)
 
         tdSql.query(
@@ -1076,26 +849,18 @@ class TestJoin1:
             f"select a.col1, b.col1 from tba1 a right semi join tba2 b on a.ts = b.ts order by b.col1;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(0, 1, 2)
-
         tdSql.checkData(1, 0, 4)
-
         tdSql.checkData(1, 1, 5)
 
         tdSql.query(
             f"select a.col1, b.col1 from tba2 a right semi join tba1 b on a.ts = b.ts order by a.col1;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(1, 0, 5)
-
         tdSql.checkData(1, 1, 4)
 
     def left_anti_join(self):
@@ -1105,34 +870,22 @@ class TestJoin1:
             f"select a.ts, b.ts from sta a left anti join sta b on a.ts = b.ts and a.ts < '2023-11-17 16:29:02' order by a.ts"
         )
         tdSql.checkRows(5)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(1, 1, None)
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, None)
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, None)
-
         tdSql.checkData(4, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(4, 1, None)
 
         tdSql.query(
             f"select a.col1, b.col1 from sta a left anti join sta b on a.ts = b.ts and a.col1 != b.col1 where a.ts < '2023-11-17 16:29:02' order by a.col1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 3)
-
         tdSql.checkData(0, 1, None)
 
         tdSql.query(
@@ -1144,102 +897,66 @@ class TestJoin1:
             f"select a.ts, b.ts from tba1 a left anti join tba2 b on a.ts = b.ts order by a.ts;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 1, None)
 
         tdSql.query(
             f"select a.col1, b.col1 from tba2 a left anti join tba1 b on a.ts = b.ts order by a.col1;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 3)
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 0, 7)
-
         tdSql.checkData(1, 1, None)
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left anti join tba2 b on a.ts = b.ts order by a.ts desc;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, None)
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left anti join sta b on a.ts = b.ts and b.ts < '2023-11-17 16:29:03.000' order by a.ts desc;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 1, None)
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, None)
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 1, None)
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left anti join sta b on a.ts = b.ts and b.ts < '2023-11-17 16:29:03.000' order by b.ts desc;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(1, 1, None)
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(2, 1, None)
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(3, 1, None)
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left anti join sta b on a.ts = b.ts and b.ts < '2023-11-17 16:29:03.000' order by a.ts desc, b.ts;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 1, None)
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, None)
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 1, None)
 
     def right_anti_join(self):
@@ -1249,25 +966,15 @@ class TestJoin1:
             f"select a.ts, b.ts from sta a right anti join sta b on a.ts = b.ts and a.ts < '2023-11-17 16:29:02' order by a.ts"
         )
         tdSql.checkRows(5)
-
         tdSql.checkData(0, 0, None)
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 0, None)
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 0, None)
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, None)
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(4, 0, None)
-
         tdSql.checkData(4, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
@@ -1279,9 +986,7 @@ class TestJoin1:
             f"select a.col1, b.col1 from sta a right anti join sta b on a.ts = b.ts and a.col1 != b.col1 where b.ts < '2023-11-17 16:29:02' order by a.col1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, None)
-
         tdSql.checkData(0, 1, 3)
 
         tdSql.query(
@@ -1293,26 +998,18 @@ class TestJoin1:
             f"select a.ts, b.ts from tba1 a right anti join tba2 b on a.ts = b.ts order by a.ts;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, None)
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(1, 0, None)
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.col1, b.col1 from tba2 a right anti join tba1 b on a.ts = b.ts order by a.col1;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, None)
-
         tdSql.checkData(0, 1, 3)
-
         tdSql.checkData(1, 0, None)
-
         tdSql.checkData(1, 1, 5)
 
     def left_asof_join(self):
@@ -1335,605 +1032,365 @@ class TestJoin1:
             f"select a.col1, b.col1 from sta a left asof join sta b on a.ts = b.ts where a.ts < '2023-11-17 16:29:02' and b.ts < '2023-11-17 16:29:01' order by a.col1, b.col1;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 2)
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left asof join tba2 b on a.ts = b.ts;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, None)
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, None)
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left asof join tba2 b on b.ts = a.ts;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, None)
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, None)
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left asof join tba2 b on a.ts >= b.ts ;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:03")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left asof join tba2 b on b.ts <= a.ts ;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:03")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left asof join tba2 b on a.ts > b.ts ;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:03")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left asof join tba2 b on b.ts < a.ts ;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:03")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left asof join tba2 b on a.ts <= b.ts ;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left asof join tba2 b on b.ts >= a.ts ;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left asof join tba2 b on a.ts < b.ts ;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left asof join tba2 b on b.ts > a.ts ;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from tba2 a left asof join tba1 b on a.ts >= b.ts;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:04")
 
         tdSql.query(
             f"select a.ts, b.ts from tba2 a left asof join tba1 b on a.ts > b.ts;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:04")
 
         tdSql.query(
             f"select a.ts, b.ts from tba2 a left asof join tba1 b on a.ts <= b.ts;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(3, 1, None)
 
         tdSql.query(
             f"select a.ts, b.ts from tba2 a left asof join tba1 b on a.ts < b.ts;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(3, 1, None)
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left asof join tba2 b on a.ts > b.ts jlimit 2"
         )
         tdSql.checkRows(7)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(4, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(4, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(5, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(5, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(6, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(6, 1, "2023-11-17 16:29:03")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left asof join tba2 b on a.ts > b.ts and a.col1=b.col1 jlimit 2 order by a.ts"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, None)
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:03")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left asof join tba2 b on a.ts > b.ts and a.col1=b.col1 jlimit 2 order by a.ts desc;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(1, 1, None)
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(3, 1, None)
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left asof join tba2 b on a.ts > b.ts and a.col1=b.col1 jlimit 2 order by b.ts desc;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 1, None)
-
         tdSql.checkData(3, 1, None)
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left asof join tba2 b on a.ts > b.ts and a.col1=b.col1 jlimit 2 order by b.ts desc, a.ts;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:03")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left asof join sta b on a.ts > b.ts and a.col1=b.col1 jlimit 2 order by a.ts"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 1, None)
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 1, None)
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(4, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(4, 1, None)
-
         tdSql.checkData(5, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(5, 1, None)
-
         tdSql.checkData(6, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(6, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(7, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(7, 1, None)
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left asof join sta b on a.ts >= b.ts and a.col1=b.col1 jlimit 2 order by a.ts, b.ts;"
         )
         tdSql.checkRows(10)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(4, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(4, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(5, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(5, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(6, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(6, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(7, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(7, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(8, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(8, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(9, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(9, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left asof join sta b on a.ts < b.ts and a.col1=b.col1 jlimit 2 order by a.ts, b.ts"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 1, None)
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(3, 1, None)
-
         tdSql.checkData(4, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(4, 1, None)
-
         tdSql.checkData(5, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(5, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(6, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(6, 1, None)
-
         tdSql.checkData(7, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(7, 1, None)
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left asof join sta b on a.ts <= b.ts and a.col1=b.col1 jlimit 2 order by a.ts, b.ts"
         )
         tdSql.checkRows(10)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(4, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(4, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(5, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(5, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(6, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(6, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(7, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(7, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(8, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(8, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(9, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(9, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left asof join sta b on a.ts = b.ts and a.col1=b.col1 jlimit 2 order by a.ts, b.ts"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(4, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(4, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(5, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(5, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(6, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(6, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(7, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(7, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
@@ -1945,115 +1402,70 @@ class TestJoin1:
             f"select a.ts, b.ts from sta a left asof join sta b on a.ts <= b.ts and a.t1=b.t1 and a.col1=b.col1 jlimit 2 order by a.t1, a.ts, b.ts;"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(4, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(4, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(5, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(5, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(6, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(6, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(7, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(7, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left asof join sta b on a.ts <= b.ts and a.t1=b.t1 and a.col1=b.col1 jlimit 2 where a.ts > '2023-11-17 16:29:00.000' order by a.t1, a.ts, b.ts;"
         )
         tdSql.checkRows(6)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(4, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(4, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(5, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(5, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select count(*) from sta a left asof join sta b on a.ts <= b.ts and a.t1=b.t1 and a.col1=b.col1 jlimit 2 where a.ts > '2023-11-17 16:29:00.000';"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 6)
 
         tdSql.query(
             f"select _wstart, count(*) from sta a left asof join sta b on a.ts <= b.ts and a.t1=b.t1 and a.col1=b.col1 jlimit 2 interval(1s);"
         )
         tdSql.checkRows(6)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, 2)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(1, 1, 1)
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(2, 1, 1)
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 1, 2)
-
         tdSql.checkData(4, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(4, 1, 1)
-
         tdSql.checkData(5, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(5, 1, 1)
 
         tdSql.query(
             f"select _wstart, count(*) from sta a left asof join sta b on a.ts <= b.ts and a.t1=b.t1 and a.col1=b.col1 jlimit 2 interval(1s) having(count(*) > 1);"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, 2)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(1, 1, 2)
 
         tdSql.query(f"select a.ts, b.ts from sta a left asof join sta b;")
@@ -2076,34 +1488,22 @@ class TestJoin1:
             f"select a.ts, b.ts from sta a left asof join sta b order by a.ts desc;"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:04")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left asof join sta b jlimit 2 order by a.ts desc;"
         )
         tdSql.checkRows(16)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:03")
 
         tdSql.query(
@@ -2115,140 +1515,95 @@ class TestJoin1:
             f"select a.ts, b.ts from sta a left asof join sta b on a.ts > b.ts order by a.ts desc;"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:03")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left asof join sta b on a.ts > b.ts jlimit 2 order by a.ts desc;"
         )
         tdSql.checkRows(14)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:03")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left asof join sta b on a.ts <= b.ts order by a.ts desc;"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:04")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left asof join sta b on a.ts <= b.ts jlimit 2 order by a.ts desc;"
         )
         tdSql.checkRows(15)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left asof join sta b on a.ts < b.ts order by a.ts desc;"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left asof join sta b on a.ts < b.ts jlimit 2 order by a.ts desc;"
         )
         tdSql.checkRows(14)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left asof join sta b on a.ts < b.ts jlimit 2 order by b.ts desc;"
         )
         tdSql.checkRows(14)
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(4, 1, "2023-11-17 16:29:04")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left asof join sta b on a.ts < b.ts jlimit 2 order by b.ts desc, a.ts;"
         )
         tdSql.checkRows(14)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(4, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(5, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(6, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(7, 0, "2023-11-17 16:29:02")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left asof join sta b on a.ts = b.ts order by a.ts desc;"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:04")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left asof join sta b on a.ts = b.ts jlimit 2 order by a.ts desc;"
         )
         tdSql.checkRows(12)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:04")
 
         tdSql.error(f"select a.ts, b.ts from sta a asof join sta b on a.ts = b.ts;")
@@ -2301,332 +1656,206 @@ class TestJoin1:
             f"select a.col1, b.col1 from sta a right asof join sta b on a.ts = b.ts where a.ts < '2023-11-17 16:29:02' and b.ts < '2023-11-17 16:29:01' order by b.col1;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(1, 1, 2)
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a right asof join tba2 b on a.ts = b.ts;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, None)
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, None)
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a right asof join tba2 b on b.ts = a.ts;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, None)
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, None)
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a right asof join tba2 b on a.ts >= b.ts ;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, None)
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a right asof join tba2 b on b.ts <= a.ts ;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, None)
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a right asof join tba2 b on a.ts > b.ts ;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, None)
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a right asof join tba2 b on b.ts < a.ts ;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, None)
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a right asof join tba2 b on a.ts <= b.ts ;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a right asof join tba2 b on b.ts >= a.ts ;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a right asof join tba2 b on a.ts < b.ts ;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, None)
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a right asof join tba2 b on b.ts > a.ts ;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, None)
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from tba2 a right asof join tba1 b on a.ts >= b.ts;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:04")
 
         tdSql.query(
             f"select a.ts, b.ts from tba2 a right asof join tba1 b on a.ts > b.ts;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:04")
 
         tdSql.query(
             f"select a.ts, b.ts from tba2 a right asof join tba1 b on a.ts <= b.ts;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:04")
 
         tdSql.query(
             f"select a.ts, b.ts from tba2 a right asof join tba1 b on a.ts < b.ts;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, None)
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:04")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a right asof join tba2 b on a.ts > b.ts jlimit 2"
         )
         tdSql.checkRows(6)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(4, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(4, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(5, 0, None)
-
         tdSql.checkData(5, 1, "2023-11-17 16:29:05")
 
     def left_win_join(self):
@@ -2660,104 +1889,62 @@ class TestJoin1:
             f"select a.col1, b.col1 from sta a left window join sta b window_offset(-1s, 1s) where a.ts < '2023-11-17 16:29:02' and b.ts < '2023-11-17 16:29:01' order by a.col1, b.col1;"
         )
         tdSql.checkRows(6)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(1, 1, 2)
-
         tdSql.checkData(2, 0, 2)
-
         tdSql.checkData(2, 1, 1)
-
         tdSql.checkData(3, 0, 2)
-
         tdSql.checkData(3, 1, 2)
-
         tdSql.checkData(4, 0, 3)
-
         tdSql.checkData(4, 1, 1)
-
         tdSql.checkData(5, 0, 3)
-
         tdSql.checkData(5, 1, 2)
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left window join tba2 b window_offset(-1s, 1s)"
         )
         tdSql.checkRows(7)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(4, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(4, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(5, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(5, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(6, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(6, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left window join tba2 b window_offset(-1s, 1s) jlimit 1;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:03")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a left window join tba2 b window_offset(-1a, 1a) jlimit 1;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, None)
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, None)
 
         tdSql.query(
@@ -2779,65 +1966,45 @@ class TestJoin1:
             f"select count(*) from sta a left window join sta b window_offset(-1s, 1s);"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, 3)
-
         tdSql.checkData(1, 0, 3)
 
         tdSql.query(
             f"select a.ts, count(*) from sta a left window join sta b window_offset(-1s, 1s);"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, 3)
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 1, 4)
 
         tdSql.query(
             f"select a.ts, count(*) from sta a left window join sta b window_offset(-1s, 1s) where b.col1 between 2 and 4;"
         )
         tdSql.checkRows(7)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, 2)
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 1, 3)
 
         tdSql.query(
             f"select a.ts, count(*) from sta a left window join sta b window_offset(-1s, 1s) where b.col1 between 2 and 4 having(count(*) != 2);"
         )
         tdSql.checkRows(3)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(0, 1, 3)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, 3)
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(2, 1, 1)
 
         tdSql.query(
             f"select a.ts, count(*) from sta a left window join sta b window_offset(-1s, 1s) where b.col1 between 2 and 4 having(count(*) != 2) order by count(*);"
         )
         tdSql.checkRows(3)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(1, 1, 3)
-
         tdSql.checkData(2, 1, 3)
 
         tdSql.query(
@@ -2849,56 +2016,33 @@ class TestJoin1:
             f"select a.ts from sta a left window join sta b window_offset(-1s, 1s) where b.col1 between 2 and 4 order by count(*), a.ts;"
         )
         tdSql.checkRows(7)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(4, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(5, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(6, 0, "2023-11-17 16:29:02")
 
         tdSql.query(
             f"select a.ts, count(*),last(b.ts) from sta a left window join sta b window_offset(-1s, 1s);"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 2, "2023-11-17 16:29:01")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 2, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 2, "2023-11-17 16:29:02")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(3, 2, "2023-11-17 16:29:03")
-
         tdSql.checkData(4, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(4, 2, "2023-11-17 16:29:04")
-
         tdSql.checkData(5, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(5, 2, "2023-11-17 16:29:04")
-
         tdSql.checkData(6, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(6, 2, "2023-11-17 16:29:05")
-
         tdSql.checkData(7, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(7, 2, "2023-11-17 16:29:05")
 
         tdSql.query(
@@ -2910,467 +2054,291 @@ class TestJoin1:
             f"select timetruncate(a.ts, 1m), count(*) from sta a left window join sta b window_offset(-1s, 1s);"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, 3)
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(2, 1, 4)
 
         tdSql.query(
             f"select a.ts+1s, count(*) from sta a left window join sta b window_offset(-1s, 1s);"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(0, 1, 3)
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(2, 1, 4)
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left window join sta b on a.col1=b.col1 window_offset(-1s, 1s) order by a.col1, a.ts;"
         )
         tdSql.checkRows(12)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:01")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left window join sta b on a.t1=b.t1 window_offset(-1s, 1s) order by a.t1, a.ts, b.ts;"
         )
         tdSql.checkRows(14)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(4, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(4, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(5, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(5, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(6, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(6, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(7, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(7, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(8, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(8, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(9, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(9, 1, "2023-11-17 16:29:01")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left window join sta b on a.t1=b.t1 and a.col1=b.col1 window_offset(-1s, 1s) order by a.t1, a.ts, b.ts;"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(4, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(4, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(5, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(5, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(6, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(6, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(7, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(7, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left window join sta b on a.t1=b.t1 and a.col1=b.col1 window_offset(-2s, -1s) order by a.t1, a.ts, b.ts;"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, None)
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, None)
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, None)
-
         tdSql.checkData(4, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(4, 1, None)
-
         tdSql.checkData(5, 0, "2023-11-17 16:29:01")
-
         tdSql.checkData(5, 1, None)
-
         tdSql.checkData(6, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(6, 1, None)
-
         tdSql.checkData(7, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(7, 1, None)
 
         tdSql.query(
             f"SELECT a.ts, count(b.*) FROM tba1 a LEFT WINDOW JOIN tba2 b ON a.col1 = b.col1 WINDOW_OFFSET(-1s, 1s) where a.col1 > 1 order by a.ts;"
         )
         tdSql.checkRows(3)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(1, 1, 0)
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(2, 1, 1)
 
         tdSql.query(
             f"SELECT a.ts, count(b.*) FROM tba1 a LEFT WINDOW JOIN tba2 b ON a.col1 = b.col1 WINDOW_OFFSET(-1s, 1s) order by a.col1;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, 0)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, 1)
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, 0)
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, 1)
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left window join sta b window_offset(-2s, -1s) order by a.ts desc;"
         )
         tdSql.checkRows(17)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left window join sta b window_offset(-2s, -1s) jlimit 1 order by a.ts desc;"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:01")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left window join sta b window_offset(-2s, -1s) jlimit 1;"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(5, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(5, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(6, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(6, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(7, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(7, 1, "2023-11-17 16:29:03")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left window join sta b window_offset(0s, 0s) order by a.ts desc;"
         )
         tdSql.checkRows(12)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left window join sta b window_offset(-1s, 1s) order by a.ts desc;"
         )
         tdSql.checkRows(28)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left window join sta b window_offset(1s, 2s) order by a.ts desc;"
         )
         tdSql.checkRows(16)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left window join sta b window_offset(1s, 2s) jlimit 1 order by a.ts desc;"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:04")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left window join sta b window_offset(1s, 2s) order by b.ts desc;"
         )
         tdSql.checkRows(16)
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(4, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(5, 1, "2023-11-17 16:29:04")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left window join sta b window_offset(1s, 2s) order by b.ts;"
         )
         tdSql.checkRows(16)
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(4, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(5, 1, "2023-11-17 16:29:02")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left window join sta b on a.t1=b.t1 window_offset(-2s, -1s) order by a.ts desc, b.ts;"
         )
         tdSql.checkRows(9)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:02")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left window join sta b on a.t1=b.t1 window_offset(0s, 0s) order by a.ts desc;"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left window join sta b on a.t1=b.t1 window_offset(-1s, 1s) order by a.ts desc, b.ts desc;"
         )
         tdSql.checkRows(14)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:04")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:04")
 
         tdSql.query(
             f"select a.ts, b.ts from sta a left window join sta b on a.t1=b.t1 window_offset(1s, 2s) order by a.ts desc, b.ts desc;"
         )
         tdSql.checkRows(9)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 1, None)
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:04")
 
         tdSql.query(
             f"select count(*) from sta a left window join sta b on a.t1=b.t1 window_offset(1s, 2s) order by a.ts desc;"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 1)
-
         tdSql.checkData(3, 0, 1)
-
         tdSql.checkData(4, 0, 2)
-
         tdSql.checkData(5, 0, 1)
-
         tdSql.checkData(6, 0, 1)
-
         tdSql.checkData(7, 0, 1)
 
         tdSql.query(
             f"select count(b.ts) from sta a left window join sta b on a.t1=b.t1 window_offset(1s, 2s) order by a.ts desc;"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, 0)
-
         tdSql.checkData(1, 0, 0)
-
         tdSql.checkData(2, 0, 1)
-
         tdSql.checkData(3, 0, 1)
-
         tdSql.checkData(4, 0, 2)
-
         tdSql.checkData(5, 0, 1)
-
         tdSql.checkData(6, 0, 1)
-
         tdSql.checkData(7, 0, 1)
 
         tdSql.query(
@@ -3452,175 +2420,105 @@ class TestJoin1:
             f"select a.col1, b.col1 from sta a right window join sta b window_offset(-1s, 1s) where a.ts < '2023-11-17 16:29:02' and b.ts < '2023-11-17 16:29:01' order by a.col1, b.col1;"
         )
         tdSql.checkRows(6)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(0, 1, 1)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(1, 1, 2)
-
         tdSql.checkData(2, 0, 2)
-
         tdSql.checkData(2, 1, 1)
-
         tdSql.checkData(3, 0, 2)
-
         tdSql.checkData(3, 1, 2)
-
         tdSql.checkData(4, 0, 3)
-
         tdSql.checkData(4, 1, 1)
-
         tdSql.checkData(5, 0, 3)
-
         tdSql.checkData(5, 1, 2)
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a right window join tba2 b window_offset(-1s, 1s)"
         )
         tdSql.checkRows(7)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(4, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(4, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(5, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(5, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(6, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(6, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a right window join tba2 b window_offset(-1s, 1s) order by b.ts desc;"
         )
         tdSql.checkRows(7)
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(4, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(5, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(6, 1, "2023-11-17 16:29:00")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a right window join tba2 b window_offset(-1s, 1s) order by a.ts desc;"
         )
         tdSql.checkRows(7)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(4, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(5, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(6, 0, "2023-11-17 16:29:00")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a right window join tba2 b window_offset(-1s, 1s) order by b.ts desc, a.ts;"
         )
         tdSql.checkRows(7)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:05")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(4, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(4, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(5, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(5, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(6, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(6, 1, "2023-11-17 16:29:00")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a right window join tba2 b window_offset(-1s, 1s) jlimit 1;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:02")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:04")
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
             f"select a.ts, b.ts from tba1 a right window join tba2 b window_offset(-1a, 1a) jlimit 1;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(0, 1, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, None)
-
         tdSql.checkData(1, 1, "2023-11-17 16:29:01")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, None)
-
         tdSql.checkData(3, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
@@ -3748,13 +2646,9 @@ class TestJoin1:
             f"select sta1.ts, sta2.ts from sta1 full join sta2 on timetruncate(sta1.ts, 1a) = timetruncate(sta2.ts, 1a);"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, "2023-10-16 09:10:11.001")
-
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(1, 0, None)
-
         tdSql.checkData(1, 1, "2023-10-16 09:10:11.002")
 
         tdSql.query(
@@ -3776,99 +2670,67 @@ class TestJoin1:
             f"select sta1.ts, sta2.ts from sta1 full join sta2 on timetruncate(sta1.ts, 1h) = timetruncate(sta2.ts, 1h) order by timetruncate(sta1.ts, 1s) desc, timetruncate(sta2.ts, 1s);"
         )
         tdSql.checkRows(16)
-
         tdSql.checkData(0, 0, "2023-10-16 09:10:14.001")
-
         tdSql.checkData(0, 1, "2023-10-16 09:10:11.002")
 
         tdSql.query(
             f"select sta1.ts, sta2.ts from sta1 full join sta2 on timetruncate(sta1.ts, 1h) = timetruncate(sta2.ts, 1h, 0) order by timetruncate(sta1.ts, 1s) desc, timetruncate(sta2.ts, 1s);"
         )
         tdSql.checkRows(16)
-
         tdSql.checkData(0, 0, "2023-10-16 09:10:14.001")
-
         tdSql.checkData(0, 1, "2023-10-16 09:10:11.002")
 
         tdSql.query(
             f"select sta1.ts, sta2.ts from sta1 full join sta2 on timetruncate(sta1.ts, 1d) = timetruncate(sta2.ts, 1d, 0) order by timetruncate(sta1.ts, 1s) desc, timetruncate(sta2.ts, 1s);"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, "2023-10-16 09:10:14.001")
-
         tdSql.checkData(0, 1, None)
 
         tdSql.query(
             f"select sta1.ts,timetruncate(sta1.ts, 1d), sta2.ts, timetruncate(sta2.ts, 1d, 0) from sta1 left asof join sta2 on timetruncate(sta1.ts, 1d) >= timetruncate(sta2.ts, 1d, 0) order by timetruncate(sta1.ts, 1s) desc, timetruncate(sta2.ts, 1s);"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-10-16 09:10:14.001")
-
         tdSql.checkData(0, 2, None)
-
         tdSql.checkData(1, 0, "2023-10-16 09:10:13.001")
-
         tdSql.checkData(1, 2, None)
 
         tdSql.query(
             f"select sta1.ts,timetruncate(sta1.ts, 1d, 0), sta2.ts, timetruncate(sta2.ts, 1d, 1) from sta1 left asof join sta2 on timetruncate(sta1.ts, 1d, 0) >= timetruncate(sta2.ts, 1d, 1) jlimit 4 order by timetruncate(sta1.ts, 1s) desc, timetruncate(sta2.ts, 1s);"
         )
         tdSql.checkRows(16)
-
         tdSql.checkData(0, 0, "2023-10-16 09:10:14.001")
-
         tdSql.checkData(0, 2, "2023-10-16 09:10:11.002")
-
         tdSql.checkData(1, 0, "2023-10-16 09:10:14.001")
-
         tdSql.checkData(1, 2, "2023-10-16 09:10:12.002")
 
         tdSql.query(
             f"select sta1.ts, sta2.ts from sta1 left asof join sta2 on timetruncate(sta1.ts, 1s, 0) > timetruncate(sta2.ts, 1s, 1) jlimit 4 order by timetruncate(sta1.ts, 1s) desc, timetruncate(sta2.ts, 1s);"
         )
         tdSql.checkRows(7)
-
         tdSql.checkData(0, 0, "2023-10-16 09:10:14.001")
-
         tdSql.checkData(0, 1, "2023-10-16 09:10:11.002")
-
         tdSql.checkData(1, 0, "2023-10-16 09:10:14.001")
-
         tdSql.checkData(1, 1, "2023-10-16 09:10:12.002")
-
         tdSql.checkData(2, 0, "2023-10-16 09:10:14.001")
-
         tdSql.checkData(2, 1, "2023-10-16 09:10:13.002")
-
         tdSql.checkData(3, 0, "2023-10-16 09:10:13.001")
-
         tdSql.checkData(3, 1, "2023-10-16 09:10:11.002")
-
         tdSql.checkData(4, 0, "2023-10-16 09:10:13.001")
-
         tdSql.checkData(4, 1, "2023-10-16 09:10:12.002")
-
         tdSql.checkData(5, 0, "2023-10-16 09:10:12.001")
-
         tdSql.checkData(5, 1, "2023-10-16 09:10:11.002")
-
         tdSql.checkData(6, 0, "2023-10-16 09:10:11.001")
-
         tdSql.checkData(6, 1, None)
 
         tdSql.query(
             f"select sta1.ts,timetruncate(sta1.ts, 1w, 0), sta2.ts,timetruncate(sta2.ts, 1w, 1) from sta1 left asof join sta2 on timetruncate(sta1.ts, 1w, 0) > timetruncate(sta2.ts, 1w, 1) jlimit 4 order by timetruncate(sta1.ts, 1s) desc, timetruncate(sta2.ts, 1s);"
         )
         tdSql.checkRows(16)
-
         tdSql.checkData(0, 0, "2023-10-16 09:10:14.001")
-
         tdSql.checkData(0, 2, "2023-10-16 09:10:11.002")
-
         tdSql.checkData(1, 0, "2023-10-16 09:10:14.001")
-
         tdSql.checkData(1, 2, "2023-10-16 09:10:12.002")
 
         tdSql.error(
@@ -3908,20 +2770,15 @@ class TestJoin1:
             f"select count(*),last(a.col1) from sta a join sta b on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 where a.ts = b.ts and a.col1 > 2;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 7)
-
         tdSql.checkData(0, 1, 7)
 
         tdSql.query(
             f"select first(b.col1),count(b.t1),last(a.col1) from sta a join sta b on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null where a.ts = b.ts and b.col1 > 3 and a.t1 != 1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 5)
-
         tdSql.checkData(0, 1, 2)
-
         tdSql.checkData(0, 2, 7)
 
         tdSql.query(
@@ -3957,7 +2814,6 @@ class TestJoin1:
             f"select a.tbname from sta a join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, "tba2")
 
         tdSql.error(
@@ -4016,7 +2872,6 @@ class TestJoin1:
             f"select a.tbname from sta a join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, "tba2")
 
         tdSql.error(
@@ -4081,9 +2936,7 @@ class TestJoin1:
             f"select count(*),last(a.col1) from sta a left join sta b on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 and a.ts = b.ts and a.col1 > 2;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 9)
-
         tdSql.checkData(0, 1, 7)
 
         tdSql.error(
@@ -4093,13 +2946,9 @@ class TestJoin1:
             f"select first(b.col1),count(b.t1),last(a.col1),count(*) from sta a left join sta b on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null and a.ts = b.ts and b.col1 > 3 and a.t1 != 1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 5)
-
         tdSql.checkData(0, 1, 2)
-
         tdSql.checkData(0, 2, 7)
-
         tdSql.checkData(0, 3, 8)
 
         tdSql.query(
@@ -4125,7 +2974,6 @@ class TestJoin1:
             f"select count(b.ts) from sta a left join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 8)
 
         tdSql.query(
@@ -4137,7 +2985,6 @@ class TestJoin1:
             f"select count(b.col1) from sta a left join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 2)
 
         tdSql.query(
@@ -4149,7 +2996,6 @@ class TestJoin1:
             f"select count(b.ts) from sta a left join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 4)
 
         tdSql.query(
@@ -4161,7 +3007,6 @@ class TestJoin1:
             f"select count(b.*) from sta a left join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 1)
 
         tdSql.error(
@@ -4176,7 +3021,6 @@ class TestJoin1:
             f"select count(b.ts) from sta a left join sta b on a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 3)
 
         tdSql.query(
@@ -4188,7 +3032,6 @@ class TestJoin1:
             f"select count(b.col1) from sta a left join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 5)
 
         tdSql.query(
@@ -4200,7 +3043,6 @@ class TestJoin1:
             f"select count(b.col1) from sta a left join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 0)
 
         tdSql.query(
@@ -4212,7 +3054,6 @@ class TestJoin1:
             f"select count(b.ts) from sta a left join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 6)
 
         tdSql.error(
@@ -4297,9 +3138,7 @@ class TestJoin1:
             f"select count(*),last(a.col1) from sta a left semi join sta b on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 and a.ts = b.ts and a.col1 > 2;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 6)
-
         tdSql.checkData(0, 1, 7)
 
         tdSql.error(
@@ -4309,13 +3148,9 @@ class TestJoin1:
             f"select first(b.col1),count(b.t1),last(a.col1),count(*) from sta a left semi join sta b on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null and a.ts = b.ts and b.col1 > 3 and a.t1 != 1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 5)
-
         tdSql.checkData(0, 1, 2)
-
         tdSql.checkData(0, 2, 7)
-
         tdSql.checkData(0, 3, 2)
 
         tdSql.query(
@@ -4341,7 +3176,6 @@ class TestJoin1:
             f"select count(b.ts) from sta a left semi join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 8)
 
         tdSql.query(
@@ -4353,7 +3187,6 @@ class TestJoin1:
             f"select count(b.col1) from sta a left semi join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 2)
 
         tdSql.query(
@@ -4365,7 +3198,6 @@ class TestJoin1:
             f"select count(b.ts) from sta a left semi join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 4)
 
         tdSql.query(
@@ -4377,7 +3209,6 @@ class TestJoin1:
             f"select count(b.*) from sta a left semi join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 1)
 
         tdSql.error(
@@ -4392,7 +3223,6 @@ class TestJoin1:
             f"select count(b.ts) from sta a left semi join sta b on a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 3)
 
         tdSql.query(
@@ -4404,7 +3234,6 @@ class TestJoin1:
             f"select count(b.col1) from sta a left semi join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 5)
 
         tdSql.query(
@@ -4416,7 +3245,6 @@ class TestJoin1:
             f"select count(b.col1) from sta a left semi join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 0)
 
         tdSql.query(
@@ -4428,7 +3256,6 @@ class TestJoin1:
             f"select count(b.ts) from sta a left semi join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 6)
 
         tdSql.error(
@@ -4513,9 +3340,7 @@ class TestJoin1:
             f"select count(*),count(a.col1) from sta a left anti join sta b on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 and a.ts = b.ts and a.col1 > 2;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(0, 1, 2)
 
         tdSql.error(
@@ -4525,13 +3350,9 @@ class TestJoin1:
             f"select first(b.col1),count(b.t1),last(a.col1),count(*) from sta a left anti join sta b on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null and a.ts = b.ts and b.col1 > 3 and a.t1 != 1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, None)
-
         tdSql.checkData(0, 1, 0)
-
         tdSql.checkData(0, 2, 5)
-
         tdSql.checkData(0, 3, 6)
 
         tdSql.query(
@@ -4557,7 +3378,6 @@ class TestJoin1:
             f"select count(b.ts) from sta a left anti join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 0)
 
         tdSql.query(
@@ -4569,7 +3389,6 @@ class TestJoin1:
             f"select count(b.col1) from sta a left anti join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 0)
 
         tdSql.query(
@@ -4581,7 +3400,6 @@ class TestJoin1:
             f"select count(b.ts) from sta a left anti join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 0)
 
         tdSql.query(
@@ -4593,7 +3411,6 @@ class TestJoin1:
             f"select count(b.*) from sta a left anti join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 0)
 
         tdSql.error(
@@ -4608,7 +3425,6 @@ class TestJoin1:
             f"select count(b.ts) from sta a left anti join sta b on a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 0)
 
         tdSql.query(
@@ -4620,7 +3436,6 @@ class TestJoin1:
             f"select count(b.col1) from sta a left anti join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 0)
 
         tdSql.query(
@@ -4632,7 +3447,6 @@ class TestJoin1:
             f"select count(b.col1) from sta a left anti join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 0)
 
         tdSql.query(
@@ -4644,7 +3458,6 @@ class TestJoin1:
             f"select count(b.ts) from sta a left anti join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 0)
 
         tdSql.error(
@@ -4761,7 +3574,6 @@ class TestJoin1:
             f"select count(b.col1) from sta a left asof join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 2)
 
         tdSql.error(
@@ -4798,7 +3610,6 @@ class TestJoin1:
             f"select count(b.col1) from sta a left asof join sta b on a.t1 = b.t1 and a.ts = b.ts where (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 5)
 
         tdSql.query(
@@ -4810,7 +3621,6 @@ class TestJoin1:
             f"select count(b.ts) from sta a left asof join sta b on a.t1 = b.t1 and a.ts = b.ts where (a.col1 < 3 or b.col1 > 3);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 6)
 
         tdSql.query(
@@ -4947,9 +3757,7 @@ class TestJoin1:
             f"select a.ts from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where a.col1 < 3 or a.col1 > 4 having(count(a.ts) > 1);"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
 
         tdSql.error(
@@ -4965,15 +3773,10 @@ class TestJoin1:
             f"select count(b.col1),a.t1,a.ts from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where a.col1 < 3 or a.col1 > 4 order by 2,3;"
         )
         tdSql.checkRows(5)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 2)
-
         tdSql.checkData(2, 0, 2)
-
         tdSql.checkData(3, 0, 1)
-
         tdSql.checkData(4, 0, 1)
 
         tdSql.error(
@@ -4983,15 +3786,10 @@ class TestJoin1:
             f"select count(b.col1) c from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where a.col1 < 3 or a.col1 > 4 order by a.col1, c;"
         )
         tdSql.checkRows(5)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 2)
-
         tdSql.checkData(2, 0, 1)
-
         tdSql.checkData(3, 0, 2)
-
         tdSql.checkData(4, 0, 1)
 
         tdSql.query(
@@ -5028,20 +3826,15 @@ class TestJoin1:
             f"select count(b.col1) from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where a.tbname > 'tba1';"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, 2)
-
         tdSql.checkData(2, 0, 1)
-
         tdSql.checkData(3, 0, 1)
 
         tdSql.query(
             f"select count(b.col1) from sta a left window join tba2 b on a.t1 = b.t1 window_offset(-1s, 1s) where b.tbname < 'tba2';"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 0)
 
         tdSql.query(
@@ -5078,21 +3871,13 @@ class TestJoin1:
             f"select count(b.col1) from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) order by a.tbname, a.ts;"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 2)
-
         tdSql.checkData(2, 0, 3)
-
         tdSql.checkData(3, 0, 2)
-
         tdSql.checkData(4, 0, 2)
-
         tdSql.checkData(5, 0, 2)
-
         tdSql.checkData(6, 0, 1)
-
         tdSql.checkData(7, 0, 1)
 
         tdSql.query(
@@ -5104,21 +3889,13 @@ class TestJoin1:
             f"select count(b.col1) from sta a left window join tba2 b on a.t1 = b.t1 window_offset(-1s, 1s) order by b.tbname, a.ts;"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, 0)
-
         tdSql.checkData(1, 0, 0)
-
         tdSql.checkData(2, 0, 0)
-
         tdSql.checkData(3, 0, 0)
-
         tdSql.checkData(4, 0, 2)
-
         tdSql.checkData(5, 0, 2)
-
         tdSql.checkData(6, 0, 1)
-
         tdSql.checkData(7, 0, 1)
 
         tdSql.error(
@@ -5224,11 +4001,8 @@ class TestJoin1:
             f"select distinct count(b.col1) c from sta a left window join tba2 b on a.t1 = b.t1 window_offset(-1s, 1s) order by c;"
         )
         tdSql.checkRows(3)
-
         tdSql.checkData(0, 0, 0)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 2)
 
     def join_scalar2(self):
@@ -5402,9 +4176,7 @@ class TestJoin1:
             f"select count(*),last(a.col1) from sta b right join sta a on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 and a.ts = b.ts and a.col1 > 2;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 9)
-
         tdSql.checkData(0, 1, 7)
 
         tdSql.error(
@@ -5414,13 +4186,9 @@ class TestJoin1:
             f"select first(b.col1),count(b.t1),last(a.col1),count(*) from sta b right join sta a on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null and a.ts = b.ts and b.col1 > 3 and a.t1 != 1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 5)
-
         tdSql.checkData(0, 1, 2)
-
         tdSql.checkData(0, 2, 7)
-
         tdSql.checkData(0, 3, 8)
 
         tdSql.query(
@@ -5446,7 +4214,6 @@ class TestJoin1:
             f"select count(b.ts) from sta b right join sta a on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 8)
 
         tdSql.query(
@@ -5458,7 +4225,6 @@ class TestJoin1:
             f"select count(b.col1) from sta b right join sta a on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 2)
 
         tdSql.query(
@@ -5470,7 +4236,6 @@ class TestJoin1:
             f"select count(b.ts) from sta b right join sta a on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 4)
 
         tdSql.query(
@@ -5482,7 +4247,6 @@ class TestJoin1:
             f"select count(b.*) from sta b right join sta a on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 1)
 
         tdSql.error(
@@ -5497,7 +4261,6 @@ class TestJoin1:
             f"select count(b.ts) from sta b right join sta a on a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 3)
 
         tdSql.query(
@@ -5509,7 +4272,6 @@ class TestJoin1:
             f"select count(b.col1) from sta b right join sta a on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 5)
 
         tdSql.query(
@@ -5521,7 +4283,6 @@ class TestJoin1:
             f"select count(b.col1) from sta b right join sta a on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 0)
 
         tdSql.query(
@@ -5533,7 +4294,6 @@ class TestJoin1:
             f"select count(b.ts) from sta b right join sta a on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 6)
 
         tdSql.error(
@@ -5618,9 +4378,7 @@ class TestJoin1:
             f"select count(*),last(a.col1) from sta b right semi join sta a on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 and a.ts = b.ts and a.col1 > 2;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 6)
-
         tdSql.checkData(0, 1, 7)
 
         tdSql.error(
@@ -5630,13 +4388,9 @@ class TestJoin1:
             f"select first(b.col1),count(b.t1),last(a.col1),count(*) from sta b right semi join sta a on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null and a.ts = b.ts and b.col1 > 3 and a.t1 != 1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 5)
-
         tdSql.checkData(0, 1, 2)
-
         tdSql.checkData(0, 2, 7)
-
         tdSql.checkData(0, 3, 2)
 
         tdSql.query(
@@ -5662,7 +4416,6 @@ class TestJoin1:
             f"select count(b.ts) from sta b right semi join sta a on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 8)
 
         tdSql.query(
@@ -5674,7 +4427,6 @@ class TestJoin1:
             f"select count(b.col1) from sta b right semi join sta a on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 2)
 
         tdSql.query(
@@ -5686,7 +4438,6 @@ class TestJoin1:
             f"select count(b.ts) from sta b right semi join sta a on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 4)
 
         tdSql.query(
@@ -5698,7 +4449,6 @@ class TestJoin1:
             f"select count(b.*) from sta b right semi join sta a on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 1)
 
         tdSql.error(
@@ -5713,7 +4463,6 @@ class TestJoin1:
             f"select count(b.ts) from sta b right semi join sta a on a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 3)
 
         tdSql.query(
@@ -5725,7 +4474,6 @@ class TestJoin1:
             f"select count(b.col1) from sta b right semi join sta a on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 5)
 
         tdSql.query(
@@ -5737,7 +4485,6 @@ class TestJoin1:
             f"select count(b.col1) from sta b right semi join sta a on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 0)
 
         tdSql.query(
@@ -5749,7 +4496,6 @@ class TestJoin1:
             f"select count(b.ts) from sta b right semi join sta a on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 6)
 
         tdSql.error(
@@ -5834,9 +4580,7 @@ class TestJoin1:
             f"select count(*),count(a.col1) from sta b right anti join sta a on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 and a.ts = b.ts and a.col1 > 2;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(0, 1, 2)
 
         tdSql.error(
@@ -5846,13 +4590,9 @@ class TestJoin1:
             f"select first(b.col1),count(b.t1),last(a.col1),count(*) from sta b right anti join sta a on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null and a.ts = b.ts and b.col1 > 3 and a.t1 != 1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, None)
-
         tdSql.checkData(0, 1, 0)
-
         tdSql.checkData(0, 2, 5)
-
         tdSql.checkData(0, 3, 6)
 
         tdSql.query(
@@ -5878,7 +4618,6 @@ class TestJoin1:
             f"select count(b.ts) from sta b right anti join sta a on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 0)
 
         tdSql.query(
@@ -5890,7 +4629,6 @@ class TestJoin1:
             f"select count(b.col1) from sta b right anti join sta a on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 0)
 
         tdSql.query(
@@ -5902,7 +4640,6 @@ class TestJoin1:
             f"select count(b.ts) from sta b right anti join sta a on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 0)
 
         tdSql.query(
@@ -5914,7 +4651,6 @@ class TestJoin1:
             f"select count(b.*) from sta b right anti join sta a on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 0)
 
         tdSql.error(
@@ -5929,7 +4665,6 @@ class TestJoin1:
             f"select count(b.ts) from sta b right anti join sta a on a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 0)
 
         tdSql.query(
@@ -5941,7 +4676,6 @@ class TestJoin1:
             f"select count(b.col1) from sta b right anti join sta a on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 0)
 
         tdSql.query(
@@ -5953,7 +4687,6 @@ class TestJoin1:
             f"select count(b.col1) from sta b right anti join sta a on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 0)
 
         tdSql.query(
@@ -5965,7 +4698,6 @@ class TestJoin1:
             f"select count(b.ts) from sta b right anti join sta a on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 0)
 
         tdSql.error(
@@ -6082,7 +4814,6 @@ class TestJoin1:
             f"select count(b.col1) from sta b right asof join sta a on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 2)
 
         tdSql.error(
@@ -6119,7 +4850,6 @@ class TestJoin1:
             f"select count(b.col1) from sta b right asof join sta a on a.t1 = b.t1 and a.ts = b.ts where (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 5)
 
         tdSql.query(
@@ -6131,7 +4861,6 @@ class TestJoin1:
             f"select count(b.ts) from sta b right asof join sta a on a.t1 = b.t1 and a.ts = b.ts where (a.col1 < 3 or b.col1 > 3);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 6)
 
         tdSql.query(
@@ -6268,9 +4997,7 @@ class TestJoin1:
             f"select a.ts from sta b right window join sta a on a.t1 = b.t1 window_offset(-1s, 1s) where a.col1 < 3 or a.col1 > 4 having(count(a.ts) > 1);"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:04")
 
         tdSql.error(
@@ -6286,15 +5013,10 @@ class TestJoin1:
             f"select count(b.col1),a.t1,a.ts from sta b right window join sta a on a.t1 = b.t1 window_offset(-1s, 1s) where a.col1 < 3 or a.col1 > 4 order by 2,3;"
         )
         tdSql.checkRows(5)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 2)
-
         tdSql.checkData(2, 0, 2)
-
         tdSql.checkData(3, 0, 1)
-
         tdSql.checkData(4, 0, 1)
 
         tdSql.error(
@@ -6304,15 +5026,10 @@ class TestJoin1:
             f"select count(b.col1) c from sta b right window join sta a on a.t1 = b.t1 window_offset(-1s, 1s) where a.col1 < 3 or a.col1 > 4 order by a.col1, c;"
         )
         tdSql.checkRows(5)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 2)
-
         tdSql.checkData(2, 0, 1)
-
         tdSql.checkData(3, 0, 2)
-
         tdSql.checkData(4, 0, 1)
 
         tdSql.query(
@@ -6349,20 +5066,15 @@ class TestJoin1:
             f"select count(b.col1) from sta b right window join sta a on a.t1 = b.t1 window_offset(-1s, 1s) where a.tbname > 'tba1';"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, 2)
-
         tdSql.checkData(2, 0, 1)
-
         tdSql.checkData(3, 0, 1)
 
         tdSql.query(
             f"select count(b.col1) from tba2 b right window join sta a on a.t1 = b.t1 window_offset(-1s, 1s) where b.tbname < 'tba2';"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 0)
 
         tdSql.query(
@@ -6399,42 +5111,26 @@ class TestJoin1:
             f"select count(b.col1) from sta b right window join sta a on a.t1 = b.t1 window_offset(-1s, 1s) order by a.tbname, a.ts;"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 2)
-
         tdSql.checkData(2, 0, 3)
-
         tdSql.checkData(3, 0, 2)
-
         tdSql.checkData(4, 0, 2)
-
         tdSql.checkData(5, 0, 2)
-
         tdSql.checkData(6, 0, 1)
-
         tdSql.checkData(7, 0, 1)
 
         tdSql.query(
             f"select count(b.col1) from tba2 b right window join sta a on a.t1 = b.t1 window_offset(-1s, 1s) order by b.tbname, a.ts;"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, 0)
-
         tdSql.checkData(1, 0, 0)
-
         tdSql.checkData(2, 0, 0)
-
         tdSql.checkData(3, 0, 0)
-
         tdSql.checkData(4, 0, 2)
-
         tdSql.checkData(5, 0, 2)
-
         tdSql.checkData(6, 0, 1)
-
         tdSql.checkData(7, 0, 1)
 
         tdSql.error(
@@ -6507,11 +5203,8 @@ class TestJoin1:
             f"select distinct count(b.col1) c from tba2 b right window join sta a on a.t1 = b.t1 window_offset(-1s, 1s) order by c;"
         )
         tdSql.checkRows(3)
-
         tdSql.checkData(0, 0, 0)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 2)
 
     def join_timeline(self):
@@ -6522,7 +5215,6 @@ class TestJoin1:
             f"select sum(a.col1) c1 from sta a join sta b on a.ts = b.ts and a.t1 = b.t1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 30)
 
         tdSql.error(
@@ -6535,31 +5227,23 @@ class TestJoin1:
             f"select tail(b.col1, 1) from sta a join sta b on a.ts = b.ts and a.t1 = b.t1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 7)
 
         tdSql.query(
             f"select tail(b.col1, 1) from sta a join sta b on a.ts = b.ts and a.t1 = b.t1 and a.t1 > 0;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 7)
 
         tdSql.query(
             f"select count(a.col1) c1 from sta a join sta b on a.ts = b.ts and a.t1 = b.t1 interval(1s);"
         )
         tdSql.checkRows(6)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 1)
-
         tdSql.checkData(3, 0, 2)
-
         tdSql.checkData(4, 0, 1)
-
         tdSql.checkData(5, 0, 1)
 
         tdSql.error(
@@ -6578,51 +5262,39 @@ class TestJoin1:
         # inner join + no join group
         tdSql.query(f"select sum(a.col1) c1 from sta a join sta b on a.ts = b.ts;")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 42)
 
         tdSql.query(f"select diff(a.col1) c1 from tba1 a join tba2 b on a.ts = b.ts;")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 3)
 
         tdSql.error(f"select csum(b.col1) from sta a join sta b on a.ts = b.ts;")
         tdSql.query(f"select csum(b.col1) from tba1 a join tba2 b on a.ts = b.ts;")
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, 7)
 
         tdSql.query(
             f"select count(a.col1) c1 from sta a join sta b on a.ts = b.ts interval(1s);"
         )
         tdSql.checkRows(6)
-
         tdSql.checkData(0, 0, 4)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 1)
-
         tdSql.checkData(3, 0, 4)
-
         tdSql.checkData(4, 0, 1)
-
         tdSql.checkData(5, 0, 1)
 
         tdSql.query(
             f"select count(a.col1) c1 from sta a join sta b on a.ts = b.ts session(a.ts, 1s);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 12)
 
         tdSql.query(
             f"select count(a.col1) c1 from sta a join sta b on a.ts = b.ts session(b.ts, 1s);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 12)
 
         tdSql.query(
@@ -6632,61 +5304,45 @@ class TestJoin1:
         # left join
         tdSql.query(f"select sum(a.col1) c1 from sta a left join sta b on a.ts = b.ts;")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 42)
 
         tdSql.query(
             f"select diff(a.col1) c1 from tba1 a left join tba2 b on a.ts = b.ts;"
         )
         tdSql.checkRows(3)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 1)
 
         tdSql.query(
             f"select diff(b.col1) c1 from tba1 a left join tba2 b on a.ts = b.ts;"
         )
         tdSql.checkRows(3)
-
         tdSql.checkData(0, 0, None)
-
         tdSql.checkData(1, 0, 3)
-
         tdSql.checkData(2, 0, None)
 
         tdSql.error(f"select csum(b.col1) from sta a left join sta b on a.ts = b.ts;")
         tdSql.query(f"select csum(b.col1) from tba1 a left join tba2 b on a.ts = b.ts;")
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, 7)
 
         tdSql.query(
             f"select count(a.col1) c1 from sta a left join sta b on a.ts = b.ts interval(1s);"
         )
         tdSql.checkRows(6)
-
         tdSql.checkData(0, 0, 4)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 1)
-
         tdSql.checkData(3, 0, 4)
-
         tdSql.checkData(4, 0, 1)
-
         tdSql.checkData(5, 0, 1)
 
         tdSql.query(
             f"select count(a.col1) c1 from sta a left join sta b on a.ts = b.ts session(a.ts, 1s);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 12)
 
         tdSql.error(
@@ -6702,21 +5358,18 @@ class TestJoin1:
             f"select sum(a.col1) c1 from sta a left semi join sta b on a.ts = b.ts;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 30)
 
         tdSql.query(
             f"select diff(a.col1) c1 from tba1 a left semi join tba2 b on a.ts = b.ts;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 3)
 
         tdSql.query(
             f"select diff(b.col1) c1 from tba1 a left semi join tba2 b on a.ts = b.ts;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 3)
 
         tdSql.error(
@@ -6726,40 +5379,30 @@ class TestJoin1:
             f"select csum(b.col1) from tba1 a left semi join tba2 b on a.ts = b.ts;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, 7)
 
         tdSql.query(
             f"select count(a.col1) c1 from sta a left semi join sta b on a.ts = b.ts interval(1s);"
         )
         tdSql.checkRows(6)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 1)
-
         tdSql.checkData(3, 0, 2)
-
         tdSql.checkData(4, 0, 1)
-
         tdSql.checkData(5, 0, 1)
 
         tdSql.query(
             f"select count(a.col1) c1 from sta a left semi join sta b on a.ts = b.ts session(a.ts, 1s);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 8)
 
         tdSql.query(
             f"select count(a.col1) c1 from sta a left semi join sta b on a.ts = b.ts session(b.ts, 1s);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 8)
 
         tdSql.query(
@@ -6776,7 +5419,6 @@ class TestJoin1:
             f"select diff(a.col1) c1 from tba1 a left anti join tba2 b on a.ts = b.ts;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 2)
 
         # ???????
@@ -6803,9 +5445,7 @@ class TestJoin1:
             f"select count(a.col1) c1 from tba1 a left anti join tba2 b on a.ts = b.ts interval(1s);"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 1)
 
         tdSql.query(
@@ -6817,9 +5457,7 @@ class TestJoin1:
             f"select count(a.col1) c1 from tba1 a left anti join tba2 b on a.ts = b.ts session(a.ts, 1s);"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 1)
 
         tdSql.error(
@@ -6835,7 +5473,6 @@ class TestJoin1:
             f"select sum(a.col1) c1 from sta a left asof join sta b on a.ts > b.ts and a.t1 = b.t1;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 30)
 
         tdSql.error(
@@ -6856,17 +5493,11 @@ class TestJoin1:
             f"select count(a.col1) c1 from sta a left asof join sta b on a.ts > b.ts and a.t1 = b.t1 interval(1s);"
         )
         tdSql.checkRows(6)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 1)
-
         tdSql.checkData(3, 0, 2)
-
         tdSql.checkData(4, 0, 1)
-
         tdSql.checkData(5, 0, 1)
 
         tdSql.error(
@@ -6885,7 +5516,6 @@ class TestJoin1:
             f"select sum(a.col1) c1 from sta a left asof join sta b on a.ts > b.ts;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 30)
 
         tdSql.error(
@@ -6895,68 +5525,49 @@ class TestJoin1:
             f"select diff(a.col1) c1 from tba1 a left asof join tba2 b on a.ts > b.ts;"
         )
         tdSql.checkRows(3)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 1)
 
         tdSql.query(
             f"select diff(b.col1) c1 from tba1 a left asof join tba2 b on a.ts > b.ts;"
         )
         tdSql.checkRows(3)
-
         tdSql.checkData(0, 0, None)
-
         tdSql.checkData(1, 0, 0)
-
         tdSql.checkData(2, 0, 2)
 
         tdSql.query(
             f"select csum(a.col1) from tba1 a left asof join tba2 b on a.ts > b.ts;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 4)
-
         tdSql.checkData(2, 0, 8)
-
         tdSql.checkData(3, 0, 13)
 
         tdSql.query(
             f"select csum(b.col1) from tba1 a left asof join tba2 b on a.ts > b.ts;"
         )
         tdSql.checkRows(3)
-
         tdSql.checkData(0, 0, 3)
-
         tdSql.checkData(1, 0, 6)
-
         tdSql.checkData(2, 0, 11)
 
         tdSql.query(
             f"select count(a.col1) c1 from tba1 a left asof join tba2 b on a.ts > b.ts interval(1s);"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 1)
-
         tdSql.checkData(3, 0, 1)
 
         tdSql.query(
             f"select count(a.col1) c1 from tba1 a left asof join tba2 b on a.ts > b.ts session(a.ts, 1s);"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 3)
 
         tdSql.error(
@@ -6972,21 +5583,13 @@ class TestJoin1:
             f"select sum(a.col1) c1 from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s);"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, 4)
-
         tdSql.checkData(1, 0, 6)
-
         tdSql.checkData(2, 0, 5)
-
         tdSql.checkData(3, 0, 7)
-
         tdSql.checkData(4, 0, 1)
-
         tdSql.checkData(5, 0, 6)
-
         tdSql.checkData(6, 0, 12)
-
         tdSql.checkData(7, 0, 10)
 
         tdSql.error(
@@ -7014,21 +5617,13 @@ class TestJoin1:
             f"select sum(a.col1) c1 from sta a left window join sta b window_offset(-1s, 1s) order by c1;"
         )
         tdSql.checkRows(8)
-
         tdSql.checkData(0, 0, 3)
-
         tdSql.checkData(1, 0, 6)
-
         tdSql.checkData(2, 0, 12)
-
         tdSql.checkData(3, 0, 12)
-
         tdSql.checkData(4, 0, 14)
-
         tdSql.checkData(5, 0, 16)
-
         tdSql.checkData(6, 0, 20)
-
         tdSql.checkData(7, 0, 20)
 
         tdSql.error(
@@ -7048,19 +5643,12 @@ class TestJoin1:
             f"select diff(b.col1) c1 from sta a left window join tba1 b window_offset(-1s, 1s);"
         )
         tdSql.checkRows(7)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 1)
-
         tdSql.checkData(3, 0, 1)
-
         tdSql.checkData(4, 0, 1)
-
         tdSql.checkData(5, 0, 1)
-
         tdSql.checkData(6, 0, 1)
 
         tdSql.error(
@@ -7073,32 +5661,21 @@ class TestJoin1:
             f"select csum(a.col1) from tba1 a left window join tba2 b window_offset(-1s, 0s);"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 3)
-
         tdSql.checkData(2, 0, 4)
-
         tdSql.checkData(3, 0, 5)
 
         tdSql.query(
             f"select csum(b.col1) from tba1 a left window join tba2 b window_offset(-1s, 1s);"
         )
         tdSql.checkRows(7)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, 5)
-
         tdSql.checkData(2, 0, 3)
-
         tdSql.checkData(3, 0, 8)
-
         tdSql.checkData(4, 0, 5)
-
         tdSql.checkData(5, 0, 5)
-
         tdSql.checkData(6, 0, 12)
 
         tdSql.error(
@@ -7117,7 +5694,6 @@ class TestJoin1:
         # full join
         tdSql.query(f"select sum(a.col1) c1 from sta a full join sta b on a.ts = b.ts;")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 42)
 
         tdSql.error(
@@ -7160,7 +5736,6 @@ class TestJoin1:
             f"select tail(col1, 1) from (select b.col1, a.ts from sta a join sta b on a.ts = b.ts and a.t1 = b.t1 and a.t1 > 0 order by b.ts) c;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 7)
 
         tdSql.error(
@@ -7188,7 +5763,6 @@ class TestJoin1:
             f"select a.ts from (select last(tba1.ts) as ts from tba1, tba2 where tba1.ts = tba2.ts) as a join (select ts from tba2) as tba2 on a.ts = tba2.ts;"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:03")
 
         # left join + non join
@@ -7299,13 +5873,9 @@ class TestJoin1:
             f"select a.ts from (select tba1.ts from tba1 join tba2 on tba1.ts=tba2.ts) a join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-
         tdSql.checkData(2, 0, "2023-11-17 16:29:03")
-
         tdSql.checkData(3, 0, "2023-11-17 16:29:03")
 
         tdSql.query(
@@ -7753,28 +6323,24 @@ class TestJoin1:
             f"select sum(c1) from (select a.col1 c1 from sta a join sta b on a.ts = b.ts and a.t1 = b.t1);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 30)
 
         tdSql.query(
             f"select sum(c1) from (select a.col1 c1 from sta a join sta b on a.ts = b.ts);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 42)
 
         tdSql.query(
             f"select diff(c1) from (select a.ts, a.col1 c1 from tba1 a join sta b on a.ts = b.ts where b.t1 > 1);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 3)
 
         tdSql.query(
             f"select diff(c1) from (select a.ts, a.col1 c1 from tba1 a left join sta b on a.ts = b.ts where b.t1 > 1);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 3)
 
         tdSql.query(
@@ -7801,51 +6367,38 @@ class TestJoin1:
             f"select diff(c1) from (select b.col1 c1, a.ts from sta a join sta b on a.ts = b.ts and a.t1 = b.t1 where a.t1 > 1 order by a.ts);"
         )
         tdSql.checkRows(3)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 2)
-
         tdSql.checkData(2, 0, 2)
 
         tdSql.query(
             f"select count(c1) from (select a.ts, a.col1 c1 from tba1 a join sta b on a.ts = b.ts) interval(1s);"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 2)
-
         tdSql.checkData(3, 0, 1)
 
         tdSql.query(
             f"select count(c1) from (select a.ts ts1, a.col1 c1 from tba1 a join sta b on a.ts = b.ts) c session(c.ts1, 1s);"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, 4)
 
         tdSql.query(
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a join sta b on a.ts = b.ts) c session(c.ts, 1s);"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, 4)
 
         tdSql.query(
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a join sta b on a.ts = b.ts partition by a.col1 order by a.ts) c session(c.ts, 1s);"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, 4)
 
         tdSql.error(
@@ -7875,11 +6428,8 @@ class TestJoin1:
             f"select diff(c1) from (select a.ts, a.col1 c1 from tba1 a left join tba2 b on a.ts = b.ts);"
         )
         tdSql.checkRows(3)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 1)
 
         tdSql.error(
@@ -7892,11 +6442,8 @@ class TestJoin1:
             f"select diff(c1) from (select a.ts, b.col1 c1 from tba1 a left join tba2 b on a.ts = b.ts);"
         )
         tdSql.checkRows(3)
-
         tdSql.checkData(0, 0, None)
-
         tdSql.checkData(1, 0, 3)
-
         tdSql.checkData(2, 0, None)
 
         tdSql.error(
@@ -7912,13 +6459,9 @@ class TestJoin1:
             f"select count(c1) from (select a.ts, a.col1 c1 from tba1 a left join sta b on a.ts = b.ts) interval(1s);"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 2)
-
         tdSql.checkData(3, 0, 1)
 
         tdSql.error(
@@ -7931,9 +6474,7 @@ class TestJoin1:
             f"select count(c1) from (select a.ts ts1, a.col1 c1 from tba1 a left join sta b on a.ts = b.ts) c session(c.ts1, 1s);"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, 4)
 
         # timeline + left semi join
@@ -7941,7 +6482,6 @@ class TestJoin1:
             f"select diff(c1) from (select a.ts, a.col1 c1 from tba1 a left semi join tba2 b on a.ts = b.ts);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 3)
 
         tdSql.error(
@@ -7951,14 +6491,12 @@ class TestJoin1:
             f"select diff(c1) from (select b.ts, b.col1 c1 from tba1 a left semi join tba2 b on a.ts = b.ts);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 3)
 
         tdSql.query(
             f"select diff(c1) from (select a.ts, b.col1 c1 from tba1 a left semi join tba2 b on a.ts = b.ts);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 3)
 
         tdSql.error(
@@ -7968,66 +6506,48 @@ class TestJoin1:
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a left semi join sta b on a.ts = b.ts) interval(1s);"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 1)
-
         tdSql.checkData(3, 0, 1)
 
         tdSql.query(
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a left semi join sta b on a.ts = b.ts order by b.ts) interval(1s);"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 1)
-
         tdSql.checkData(3, 0, 1)
 
         tdSql.query(
             f"select count(c1) from (select a.ts, a.col1 c1 from tba1 a left semi join sta b on a.ts = b.ts) interval(1s);"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 1)
-
         tdSql.checkData(3, 0, 1)
 
         tdSql.query(
             f"select count(c1) from (select b.ts ts1, a.col1 c1 from tba1 a left semi join sta b on a.ts = b.ts) c session(c.ts1, 1s);"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 3)
 
         tdSql.query(
             f"select count(c1) from (select b.ts ts1, a.col1 c1 from tba1 a left semi join sta b on a.ts = b.ts order by ts1) c session(c.ts1, 1s);"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 3)
 
         tdSql.query(
             f"select count(c1) from (select a.ts ts1, a.col1 c1 from tba1 a left semi join sta b on a.ts = b.ts) c session(c.ts1, 1s);"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 3)
 
         # timeline + left anti join
@@ -8035,7 +6555,6 @@ class TestJoin1:
             f"select diff(c1) from (select a.ts, a.col1 c1 from tba1 a left anti join tba2 b on a.ts = b.ts);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 2)
 
         tdSql.error(
@@ -8098,11 +6617,8 @@ class TestJoin1:
             f"select diff(c1) from (select a.ts, a.col1 c1 from tba1 a left asof join tba2 b);"
         )
         tdSql.checkRows(3)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 1)
 
         tdSql.error(
@@ -8119,11 +6635,8 @@ class TestJoin1:
             f"select diff(c1) from (select b.ts, b.col1 c1,a.ts from tba1 a left asof join tba2 b on a.ts = b.ts);"
         )
         tdSql.checkRows(3)
-
         tdSql.checkData(0, 0, None)
-
         tdSql.checkData(1, 0, 3)
-
         tdSql.checkData(2, 0, None)
 
         tdSql.error(
@@ -8139,39 +6652,27 @@ class TestJoin1:
             f"select count(c1) from (select a.ts, a.col1 c1 from tba1 a left asof join sta b on a.col1 = b.col1) interval(1s);"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 1)
-
         tdSql.checkData(3, 0, 1)
 
         tdSql.query(
             f"select count(c1) from (select a.ts, a.col1 c1 from tba1 a left asof join sta b on a.ts = b.ts) interval(1s);"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 1)
-
         tdSql.checkData(3, 0, 1)
 
         tdSql.query(
             f"select count(c1) from (select a.col1 c1,a.ts from tba1 a left asof join sta b on a.ts = b.ts) interval(1s);"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 1)
-
         tdSql.checkData(3, 0, 1)
 
         tdSql.error(
@@ -8187,9 +6688,7 @@ class TestJoin1:
             f"select count(c1) from (select a.ts ts1, a.col1 c1 from tba1 a left asof join sta b on a.ts = b.ts) c session(c.ts1, 1s);"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 3)
 
         tdSql.error(
@@ -8199,7 +6698,6 @@ class TestJoin1:
             f"select count(c1) from (select a.col1 c1, timetruncate(a.ts, 1d) ts1 from tba1 a left asof join sta b on a.ts = b.ts) c session(c.ts1, 1s);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 4)
 
         tdSql.error(
@@ -8209,9 +6707,7 @@ class TestJoin1:
             f"select count(c1) from (select a.col1 c1, a.ts + 1s ts1 from tba1 a left asof join sta b on a.ts = b.ts) c session(c.ts1, 1s);"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 3)
 
         # timeline + left window join
@@ -8219,11 +6715,8 @@ class TestJoin1:
             f"select diff(c1) from (select a.ts, a.col1 c1 from tba1 a left window join tba2 b window_offset(1s,1s));"
         )
         tdSql.checkRows(3)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(2, 0, 1)
 
         tdSql.error(
@@ -8240,11 +6733,8 @@ class TestJoin1:
             f"select diff(c1) from (select b.ts, b.col1 c1,a.ts from tba1 a left window join tba2 b window_offset(1s,1s));"
         )
         tdSql.checkRows(3)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(1, 0, None)
-
         tdSql.checkData(2, 0, 2)
 
         tdSql.error(
@@ -8260,39 +6750,27 @@ class TestJoin1:
             f"select count(c1) from (select a.ts, a.col1 c1 from tba1 a left window join sta b on a.col1 = b.col1 window_offset(-1s,1s)) interval(1s);"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 1)
-
         tdSql.checkData(1, 0, 2)
-
         tdSql.checkData(2, 0, 1)
-
         tdSql.checkData(3, 0, 2)
 
         tdSql.query(
             f"select count(c1) from (select a.ts, a.col1 c1 from tba1 a left window join sta b window_offset(-1s,1s)) interval(1s);"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 3)
-
         tdSql.checkData(1, 0, 4)
-
         tdSql.checkData(2, 0, 4)
-
         tdSql.checkData(3, 0, 4)
 
         tdSql.query(
             f"select count(c1) from (select a.col1 c1,a.ts from tba1 a left window join sta b window_offset(-1s,1s)) interval(1s);"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 0, 3)
-
         tdSql.checkData(1, 0, 4)
-
         tdSql.checkData(2, 0, 4)
-
         tdSql.checkData(3, 0, 4)
 
         tdSql.error(
@@ -8308,9 +6786,7 @@ class TestJoin1:
             f"select count(c1) from (select a.ts ts1, a.col1 c1 from tba1 a left window join sta b window_offset(-1s,1s)) c session(c.ts1, 1s);"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 3)
-
         tdSql.checkData(1, 0, 12)
 
         tdSql.error(
@@ -8320,7 +6796,6 @@ class TestJoin1:
             f"select count(c1) from (select a.col1 c1, timetruncate(a.ts, 1d) ts1 from tba1 a left window join sta b window_offset(-1s,1s)) c session(c.ts1, 1s);"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 15)
 
         tdSql.error(
@@ -8330,9 +6805,7 @@ class TestJoin1:
             f"select count(c1) from (select a.col1 c1, a.ts + 1s ts1 from tba1 a left window join sta b window_offset(-1s,1s)) c session(c.ts1, 1s);"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 3)
-
         tdSql.checkData(1, 0, 12)
 
         # timeline + full join
@@ -11685,26 +10158,18 @@ class TestJoin1:
             f"select a.ts, a.t->'tag1', b.ts, b.t->'tag1' from stc1 a left asof join stc2 b on a.t->'tag1' = b.t->'tag1';"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 2, None)
-
         tdSql.checkData(1, 2, None)
-
         tdSql.checkData(2, 2, None)
-
         tdSql.checkData(3, 2, None)
 
         tdSql.query(
             f"select a.ts, a.t->'tag1', b.ts, b.t->'tag1' from stc1 a left asof join stc2 b on a.t->'tag2' = b.t->'tag2';"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 2, "2023-10-16 09:10:11.000")
-
         tdSql.checkData(1, 2, "2023-10-16 09:10:12.000")
-
         tdSql.checkData(2, 2, "2023-10-16 09:10:11.000")
-
         tdSql.checkData(3, 2, "2023-10-16 09:10:12.000")
 
         tdSql.query(
@@ -11716,28 +10181,18 @@ class TestJoin1:
             f"select a.ts, a.t->'tag1', b.ts, b.t->'tag1' from stc1 a left window join stc2 b on a.t->'tag1' = b.t->'tag1' window_offset(0s, 1s);"
         )
         tdSql.checkRows(4)
-
         tdSql.checkData(0, 2, None)
-
         tdSql.checkData(1, 2, None)
-
         tdSql.checkData(2, 2, None)
-
         tdSql.checkData(3, 2, None)
 
         tdSql.query(
             f"select a.ts, a.t->'tag1', b.ts, b.t->'tag1' from stc1 a left window join stc2 b on a.t->'tag2' = b.t->'tag2' window_offset(0s, 1s);"
         )
         tdSql.checkRows(6)
-
         tdSql.checkData(0, 2, "2023-10-16 09:10:11.000")
-
         tdSql.checkData(1, 2, "2023-10-16 09:10:12.000")
-
         tdSql.checkData(2, 2, "2023-10-16 09:10:12.000")
-
         tdSql.checkData(3, 2, "2023-10-16 09:10:11.000")
-
         tdSql.checkData(4, 2, "2023-10-16 09:10:12.000")
-
         tdSql.checkData(5, 2, "2023-10-16 09:10:12.000")

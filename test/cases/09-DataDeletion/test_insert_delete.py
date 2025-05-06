@@ -23,7 +23,7 @@ class TestInsertDelete:
         Jira: None
 
         History:
-            - 2025-4-29 Simon Guan Migrated to new test framework, from tests/script/tsim/insert/delete0.sim
+            - 2025-4-29 Simon Guan Migrated from tsim/insert/delete0.sim
 
         """
 

@@ -1,12 +1,12 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestOperatorCaseWhen:
+class TestCaseWhen:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_operator_case_when(self):
+    def test_case_when(self):
         """And Or 运算符
 
         1. 创建多种数据类型的超级表和子表
@@ -15,7 +15,7 @@ class TestOperatorCaseWhen:
         4. case when 结果中包含聚合函数
 
         Catalog:
-            - Query:Project
+            - Query:Operator
 
         Since: v3.0.0.0
 
@@ -24,7 +24,7 @@ class TestOperatorCaseWhen:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/scalar/caseWhen.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/scalar/caseWhen.sim
 
         """
 
