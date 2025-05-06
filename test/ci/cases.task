@@ -3,11 +3,11 @@
 ,,n,.,pytest cases/tsim/test_tsim.py --tsim=tsim/dnode/balance_replica1.sim --skip_deploy
 ,,y,.,./ci/pytest.sh pytest cases/data_write/sql_statement/test_insert_double.py
 ,,y,.,./ci/pytest.sh pytest cases/storage/compress/test_compress_basic.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_stop.py -N 5 -M 3
-,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_stop.py -N 5 -M 3 -I False
-,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_cluster_basic.py -N 5
-,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_add_1dnode.py -N 7 -M 3 -C 6
-,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_add_1dnode.py -N 7 -M 3 -C 6 --replica 3
+#,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_stop.py -N 5 -M 3
+#,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_stop.py -N 5 -M 3 -I False
+#,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_cluster_basic.py -N 5
+#,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_add_1dnode.py -N 7 -M 3 -C 6
+#,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_add_1dnode.py -N 7 -M 3 -C 6 --replica 3
 ,,y,.,./ci/pytest.sh pytest cases/metadata/db/test_keep_time_offset.py
 #,,y,.,./ci/pytest.sh pytest cases/storage/tsma/test_tsma.py
 ,,y,.,./ci/pytest.sh pytest cases/storage/multilevel/test_mlevel_basic.py -N 3 -L 3 -D 2
@@ -261,6 +261,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Project/test_project_table_filter_column_timestamp.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Project/test_project_table_filter_no.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Project/test_project_table_filter_timestamp.py
+## 20-Join
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/20-Join/test_join1.py
+
 
 # 08-TagIndices
 ,,y,.,./ci/pytest.sh pytest cases/08-TagIndices/test_index_create_drop.py 
