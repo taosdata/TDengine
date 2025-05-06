@@ -1865,6 +1865,112 @@ _end:
   }
   return code;
 }
+
+static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
+
+  SStreamScanInfo* pInfo = pOperator->info;
+  const char*      id = GET_TASKID(pTaskInfo);
+
+  qDebug("start to exec queue scan, %s", id);
+
+  if (isTaskKilled(pTaskInfo)) {
+    (*ppRes) = NULL;
+    return pTaskInfo->code;
+  }
+
+  if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_DATA) {
+    while (1) {
+      SSDataBlock* pResult = NULL;
+      code = doTableScanNext(pInfo->pTableScanOp, &pResult);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      if (pResult && pResult->info.rows > 0) {
+        bool hasPrimaryKey = pAPI->tqReaderFn.tqGetTablePrimaryKey(pInfo->tqReader);
+        code = processPrimaryKey(pResult, hasPrimaryKey, &pTaskInfo->streamInfo.currentOffset);
+        QUERY_CHECK_CODE(code, lino, _end);
+        qDebug("tmqsnap doQueueScan get data utid:%" PRId64, pResult->info.id.uid);
+        if (pResult->info.rows > 0) {
+          (*ppRes) = pResult;
+          return code;
+        }
+      } else {
+        break;
+      }
+    }
+
+    STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
+    pAPI->tsdReader.tsdReaderClose(pTSInfo->base.dataReader);
+
+    pTSInfo->base.dataReader = NULL;
+    int64_t validVer = pTaskInfo->streamInfo.snapshotVer + 1;
+    qDebug("queue scan tsdb over, switch to wal ver %" PRId64, validVer);
+    if (pAPI->tqReaderFn.tqReaderSeek(pInfo->tqReader, validVer, pTaskInfo->id.str) < 0) {
+      (*ppRes) = NULL;
+      return code;
+    }
+
+    tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, validVer);
+  }
+
+  if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__LOG) {
+    while (1) {
+      bool hasResult =
+          pAPI->tqReaderFn.tqReaderNextBlockInWal(pInfo->tqReader, id, pTaskInfo->streamInfo.sourceExcluded);
+
+      SSDataBlock*       pRes = pAPI->tqReaderFn.tqGetResultBlock(pInfo->tqReader);
+      struct SWalReader* pWalReader = pAPI->tqReaderFn.tqReaderGetWalReader(pInfo->tqReader);
+
+      // curVersion move to next
+      tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pWalReader->curVersion);
+
+      // use ts to pass time when replay, because ts not used if type is log
+      pTaskInfo->streamInfo.currentOffset.ts = pAPI->tqReaderFn.tqGetResultBlockTime(pInfo->tqReader);
+
+      if (hasResult) {
+        qDebug("doQueueScan get data from log %" PRId64 " rows, version:%" PRId64, pRes->info.rows,
+               pTaskInfo->streamInfo.currentOffset.version);
+        blockDataCleanup(pInfo->pRes);
+        STimeWindow defaultWindow = {.skey = INT64_MIN, .ekey = INT64_MAX};
+        // code = setBlockIntoRes(pInfo, pRes, &defaultWindow, true);
+        QUERY_CHECK_CODE(code, lino, _end);
+        qDebug("doQueueScan after filter get data from log %" PRId64 " rows, version:%" PRId64, pInfo->pRes->info.rows,
+               pTaskInfo->streamInfo.currentOffset.version);
+        if (pInfo->pRes->info.rows > 0) {
+          (*ppRes) = pInfo->pRes;
+          return code;
+        }
+      } else {
+        qDebug("doQueueScan get none from log, return, version:%" PRId64, pTaskInfo->streamInfo.currentOffset.version);
+        (*ppRes) = NULL;
+        return code;
+      }
+    }
+  } else {
+    qError("unexpected streamInfo prepare type: %d", pTaskInfo->streamInfo.currentOffset.type);
+    (*ppRes) = NULL;
+    return code;
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
+  (*ppRes) = NULL;
+  return code;
+}
+
+static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
+  SSDataBlock* pRes = NULL;
+  int32_t      code = doQueueScanNext(pOperator, &pRes);
+  return pRes;
+}
+
 int32_t extractTableIdList(const STableListInfo* pTableListInfo, SArray** ppArrayRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;

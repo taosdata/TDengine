@@ -36,8 +36,14 @@ typedef int32_t (*getDnodeId_f)(void *pData);
 
 typedef struct SStreamReaderTask {
   SStreamTask task;
-  void*       triggerReaderContext;
-  void*       calcReaderContext;
+  int8_t      triggerReader;
+  union {
+    void* triggerReaderInfo;
+    struct {
+      void*       calcScanPlan;
+      qTaskInfo_t pTaskInfo;
+    } calcReaderInfo;
+  } info;
 } SStreamReaderTask;
 
 typedef struct SStreamRunnerTaskExecution {

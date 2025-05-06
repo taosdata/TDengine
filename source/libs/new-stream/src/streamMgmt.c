@@ -285,7 +285,7 @@ int32_t smUndeployStreamTasks(SStreamTaskUndeploy* pUndeploy) {
   switch (pTask->type) {
     case STREAM_READER_TASK:
       //STREAMTODO
-      // TAOS_CHECK_EXIT(stReadderTaskUndeploy(pTask, &pUndeploy->undeployMsg));
+      TAOS_CHECK_EXIT(stReaderTaskUndeploy((SStreamReaderTask *)pTask, &pUndeploy->undeployMsg, NULL));
       break;
     case STREAM_TRIGGER_TASK:
       TAOS_CHECK_EXIT(stTriggerTaskUndeploy((SStreamTriggerTask *)pTask, &pUndeploy->undeployMsg));
