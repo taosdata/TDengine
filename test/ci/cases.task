@@ -63,7 +63,6 @@
 ## 03-Alter
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_option_keep1.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_option_keep2.py
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_parser_alter1.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_option.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_replicas_13.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_replicas_31.py -N 4
@@ -155,6 +154,7 @@
 ## 01-Alter
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_parser_alter_column.py 
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_parser_alter_stable.py 
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_parser_alter1.py 
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_stable_alter_1.py 
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_stable_alter_2.py 
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_stable_alter_3.py 
