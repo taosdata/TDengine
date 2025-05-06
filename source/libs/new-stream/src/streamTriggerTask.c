@@ -2345,6 +2345,8 @@ int32_t streamTriggerProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp) {
         } else {
           // todo(kjq): handle error code
         }
+        default:
+          break;
       }
     }
   } else if (pRsp->msgType == TDMT_STREAM_TRIGGER_CALC_RSP) {
