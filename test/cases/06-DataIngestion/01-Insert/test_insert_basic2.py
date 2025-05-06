@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestInsertBasic:
@@ -23,7 +23,7 @@ class TestInsertBasic:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/insert/basic2.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/insert/basic2.sim
 
         """
 
@@ -131,10 +131,9 @@ class TestInsertBasic:
         tdSql.checkData(4, 5, 30.000000000)
 
         # ==================== reboot to trigger commit data to file
-        # sc.dnodeStopAll()
-        # sc.dnodeStart(1)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         tdLog.info(f"=============== step3-2 query records of ct1 from file")
         tdSql.query(f"select * from ct1;")

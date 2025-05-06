@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestSubtableInsertRows:
@@ -21,7 +21,7 @@ class TestSubtableInsertRows:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/stable/values.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/stable/values.sim
 
         """
 

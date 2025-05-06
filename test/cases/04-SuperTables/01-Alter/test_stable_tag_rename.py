@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestStableTagRename:
@@ -24,7 +24,7 @@ class TestStableTagRename:
         Jira: None
 
         History:
-            - 2025-4-30 Simon Guan Migrated to new test framework, from tests/script/tsim/stable/tag_rename.sim
+            - 2025-4-30 Simon Guan Migrated from tsim/stable/tag_rename.sim
 
         """
 
@@ -72,10 +72,9 @@ class TestStableTagRename:
         tdSql.checkData(4, 1, "VARCHAR")
         tdSql.checkData(4, 2, 4)
 
-        # sc.dnodeStopAll()
-        # sc.dnodeStart(1)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         tdSql.query(f"describe db.ctb")
         tdSql.checkRows(5)

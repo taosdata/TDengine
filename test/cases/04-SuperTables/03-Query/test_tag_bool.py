@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestTagBool:
@@ -23,7 +23,7 @@ class TestTagBool:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/tag/bool.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/tag/bool.sim
 
         """
 

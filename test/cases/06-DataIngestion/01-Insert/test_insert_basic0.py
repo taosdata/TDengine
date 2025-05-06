@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestInsertBasic0:
@@ -23,7 +23,7 @@ class TestInsertBasic0:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/insert/basic0.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/insert/basic0.sim
 
         """
 
@@ -254,10 +254,9 @@ class TestInsertBasic0:
 
         # ===================================================================
         tdLog.info(f"=============== stop and restart taosd, then again do query above")
-        # sc.dnodeStopAll()
-        # sc.dnodeStart(1)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         tdLog.info(f"=============== query data from child table")
         tdSql.query(f"select * from ct1")

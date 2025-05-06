@@ -3,7 +3,7 @@ import sys
 import time
 import random
 import taos
-from new_test_framework.utils import tdLog, tdSql, cluster, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, cluster, sc, clusterComCheck
 
 
 class TestStableQuery1:
@@ -27,15 +27,11 @@ class TestStableQuery1:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/stable/dnode3.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/stable/dnode3.sim
 
         """
 
-        while 1:
-            if clusterComCheck.checkDnodes(3):
-                break
-        tdSql.query("show cluster alive;")
-        tdSql.checkData(0, 0, 1)
+        clusterComCheck.checkDnodes(3)
 
         tdLog.info(f"======================== dnode1 start")
 

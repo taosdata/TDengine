@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestNormalTableTinyint:
@@ -23,7 +23,7 @@ class TestNormalTableTinyint:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/table/tinyint.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/table/tinyint.sim
 
         """
 

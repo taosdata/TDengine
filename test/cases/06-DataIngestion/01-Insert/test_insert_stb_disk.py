@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestStableWrite1:
@@ -11,7 +11,7 @@ class TestStableWrite1:
 
         1. insert data
         2. query data
-        3. kill -9 then restart
+        3. kill then restart
         4. insert data
         5. query data
 
@@ -25,7 +25,7 @@ class TestStableWrite1:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/stable/disk.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/stable/disk.sim
 
         """
 
@@ -65,10 +65,9 @@ class TestStableWrite1:
         tdLog.info(f"select count(tbcol) from {mt} ===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, totalNum)
 
-        # sc.dnodeStopAll()
-        # sc.dnodeStart(1)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         tdSql.execute(f"use {db}")
         tdSql.query(f"show vgroups")

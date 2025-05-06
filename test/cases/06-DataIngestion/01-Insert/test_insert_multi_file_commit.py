@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestDataCommit:
@@ -12,7 +12,7 @@ class TestDataCommit:
         1. create stable with 256 columns
         2. insert data with 50 files
         3. query data
-        4. Kill -9 and restart
+        4. kill and restart
 
         Catalog:
             - DataIngestion
@@ -24,7 +24,7 @@ class TestDataCommit:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/column/commit.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/column/commit.sim
 
         """
 
@@ -111,10 +111,9 @@ class TestDataCommit:
         tdSql.checkData(0, 9, 10)
 
         tdLog.info(f"=============== step4")
-        # sc.dnodeStop(1)
-        # sc.dnodeStart(1)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         tdLog.info(f"=============== step5")
         tdSql.query(f"select * from d3.mt")

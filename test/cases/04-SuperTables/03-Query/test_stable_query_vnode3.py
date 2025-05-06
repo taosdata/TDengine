@@ -3,7 +3,7 @@ import sys
 import time
 import random
 import taos
-from new_test_framework.utils import tdLog, tdSql, cluster, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, cluster, sc, clusterComCheck
 
 
 class TestStableQueryVnode3:
@@ -26,7 +26,7 @@ class TestStableQueryVnode3:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/stable/vnode3.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/stable/vnode3.sim
 
         """
 

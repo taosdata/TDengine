@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestColumn4:
@@ -24,7 +24,7 @@ class TestColumn4:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/field/4.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/field/4.sim
 
         """
 

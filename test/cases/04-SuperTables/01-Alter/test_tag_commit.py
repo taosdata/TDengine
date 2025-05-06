@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, cluster, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, cluster, sc, clusterComCheck
 
 
 class TestTagDrop:
@@ -12,7 +12,7 @@ class TestTagDrop:
         1. 创建超级表
         2. 创建子表并写入数据
         3. 对标签进行各种操作及查询
-        4. 使用 kill -9 方式强杀 taosd
+        4. 重启 taosd
         5. 确保标签修改被保存到数据库
         6. 确保之前的各种查询都能正常进行
 
@@ -26,7 +26,7 @@ class TestTagDrop:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/tag/commit.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/tag/commit.sim
 
         """
 

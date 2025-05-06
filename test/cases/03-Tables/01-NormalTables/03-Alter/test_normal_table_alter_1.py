@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
 
 
 class TestNormalTableAlter1:
@@ -23,7 +23,7 @@ class TestNormalTableAlter1:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/alter/table.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/alter/table.sim
 
         """
 
@@ -241,10 +241,9 @@ class TestNormalTableAlter1:
         tdLog.info(f"======== step9")
         tdLog.info(f"======== step10")
 
-        # sc.dnodeStopAll()
-        # sc.dnodeStart(1)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         tdSql.execute(f"use d1")
         tdSql.query(f"describe tb")

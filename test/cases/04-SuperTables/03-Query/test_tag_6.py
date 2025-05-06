@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestTag6:
@@ -23,7 +23,7 @@ class TestTag6:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/tag/6.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/tag/6.sim
 
         """
 

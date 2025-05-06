@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestStableRefcount:
@@ -25,7 +25,7 @@ class TestStableRefcount:
         Jira: None
 
         History:
-            - 2025-4-30 Simon Guan Migrated to new test framework, from tests/script/tsim/stable/refcount.sim
+            - 2025-4-30 Simon Guan Migrated from tsim/stable/refcount.sim
 
         """
 
