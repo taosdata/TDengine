@@ -88,8 +88,10 @@ def build_package(internal_root, new_version, branch_name) {
 		rm -rf ${INTERNAL_ROOT}/community/contrib/libs3
 		rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/libs3-prefix
 		cd ${INTERNAL_ROOT}/community/tests/ci
+        rm -rf ${INTERNAL_ROOT}/.externals/build/*
         time ./container_build_newmachine.sh -w ${WORK_DIR} -e
 		cd ${INTERNAL_ROOT}/community/tests/parallel_test
+        rm -rf ${INTERNAL_ROOT}/.externals/build/*
         time ./container_build.sh -w ${WORK_DIR} -e
 		rm -rf ${INTERNAL_ROOT}/enterprise/contrib/deps-download/CMakeCache.txt
 		rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/CMakeCache.txt
