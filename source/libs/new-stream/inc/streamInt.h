@@ -96,7 +96,6 @@ int32_t stmAddFetchStreamGid(void);
 // initialize global request limit of stream triggers
 int32_t streamTriggerEnvInit();
 void    streamTriggerEnvCleanup();
-int32_t streamTriggerKickCalc(); // todo(kjq): call the function when receive calc response
 
 int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMsg* pMsg);
 int32_t stReaderTaskUndeploy(SStreamReaderTask* pTask, const SStreamUndeployTaskMsg* pMsg, taskUndeplyCallback cb);

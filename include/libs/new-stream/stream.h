@@ -133,7 +133,9 @@ int32_t streamHbProcessRspMsg(SMStreamHbRspMsg *pRsp);
 int32_t streamHbHandleRspErr(int32_t errCode, int64_t currTs);
 int32_t streamInit(void *pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode);
 void    streamCleanup(void);
-int32_t streamGetTask(int64_t streamId, int32_t taskId, SStreamTask** ppTask);
+int32_t streamGetTask(int64_t streamId, int64_t taskId, SStreamTask** ppTask);
+int32_t streamTriggerKickCalc();
+int32_t streamTriggerProcessRsp(SStreamTask *pTask, SRpcMsg *pRsp);
 
 #ifdef __cplusplus
 }

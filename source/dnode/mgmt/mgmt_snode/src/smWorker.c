@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "smInt.h"
+#include "stream.h"
 
 static inline void smSendRsp(SRpcMsg *pMsg, int32_t code) {
   SRpcMsg rsp = {
@@ -42,6 +43,75 @@ static void smProcessRunnerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
+static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
+  SSnodeMgmt *pMgmt = pInfo->ahandle;
+  STraceId   *trace = &pMsg->info.traceId;
+  dGTrace("msg:%p, get from snode-stream-trigger queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  switch (pMsg->msgType) {
+    case TDMT_STREAM_TRIGGER_PULL_RSP: {
+      SStreamTask *pTask = NULL;
+      SSTriggerPullRequest *pReq = pMsg->info.ahandle;
+      code = streamGetTask(pReq->streamId, pReq->triggerTaskId, &pTask);
+      if (code == TSDB_CODE_SUCCESS) {
+        code = streamTriggerProcessRsp(pTask, pMsg);
+      }
+      break;
+    }
+    case TDMT_STREAM_TRIGGER_CALC_RSP: {
+      SStreamTask *pTask = NULL;
+      SSTriggerCalcRequest *pReq = pMsg->info.ahandle;
+      code = streamGetTask(pReq->streamId, pReq->triggerTaskId, &pTask);
+      if (code == TSDB_CODE_SUCCESS) {
+        code = streamTriggerProcessRsp(pTask, pMsg);
+      }
+      break;
+    }
+    default: {
+      dError("msg:%p, invalid msg type %d in snode-stream-trigger queue", pMsg, pMsg->msgType);
+      code = TSDB_CODE_INVALID_PARA;
+      break;
+    }
+  }
+
+  dTrace("msg:%p, is freed, code:%d", pMsg, code);
+  rpcFreeCont(pMsg->pCont);
+  taosFreeQitem(pMsg);
+}
+
+static int32_t smDispatchStreamTriggerRsp(struct SDispatchWorkerPool *pPool, void *pParam, int32_t *pWorkerIdx) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SRpcMsg *pMsg = (SRpcMsg *)pParam;
+  if (pMsg->code) {
+    return pMsg->code;
+  }
+  switch (pMsg->msgType) {
+    case TDMT_STREAM_TRIGGER_PULL_RSP: {
+      SSTriggerPullRequest *pReq = pMsg->info.ahandle;
+      int64_t               buf[] = {pReq->streamId, pReq->triggerTaskId, pReq->sessionId};
+      uint32_t              hashVal = MurmurHash3_32((const char *)buf, sizeof(buf));
+      *pWorkerIdx = hashVal % tsNumOfStreamTriggerThreads;
+      break;
+    }
+
+    case TDMT_STREAM_TRIGGER_CALC_RSP: {
+      SSTriggerCalcRequest *pReq = pMsg->info.ahandle;
+      int64_t               buf[] = {pReq->streamId, pReq->triggerTaskId, pReq->sessionId};
+      uint32_t              hashVal = MurmurHash3_32((const char *)buf, sizeof(buf));
+      *pWorkerIdx = hashVal % tsNumOfStreamTriggerThreads;
+      code = streamTriggerKickCalc();
+      break;
+    }
+
+    default: {
+      code = TSDB_CODE_MSG_NOT_PROCESSED;
+      break;
+    }
+  }
+  return code;
+}
+
 int32_t smStartWorker(SSnodeMgmt *pMgmt) {
   int32_t code = 0;
 
@@ -66,7 +136,7 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
     dError("failed to start snode stream-trigger worker since %s", tstrerror(code));
     return code;
   }
-  code = tDispatchWorkerAllocQueue(pTriggerPool, pMgmt, NULL, NULL); // TODO wjm set fp
+  code = tDispatchWorkerAllocQueue(pTriggerPool, pMgmt, (FItem)smProcessStreamTriggerQueue, smDispatchStreamTriggerRsp);
   if (code != 0) {
     dError("failed to start snode stream-trigger worker since %s", tstrerror(code));
     return code;

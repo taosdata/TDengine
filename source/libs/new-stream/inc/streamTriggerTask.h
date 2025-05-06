@@ -210,7 +210,6 @@ typedef struct SStreamTriggerTask {
   bool singleTableGroup;
   bool needRowNumber;
   bool needCacheData;
-  bool needWend;
 
   // runtime info
   int32_t                   calcParamLimit;  // max number of params in each calculation request
@@ -220,8 +219,6 @@ typedef struct SStreamTriggerTask {
 
 // interfaces called by stream trigger thread
 int32_t stTriggerChooseRunner(SStreamTriggerTask *pTask, SStreamRunnerTarget **ppRunner);
-int32_t stTriggerTaskProcessPullRsp(SStreamTriggerTask *pTask, SSTriggerPullResponse *pRsp);
-int32_t stTriggerTaskProcessCalcRsp(SStreamTriggerTask *pTask, SSTriggerCalcResponse *pRsp);
 int32_t stTriggerTaskMarkRecalc(SStreamTriggerTask *pTask, int64_t groupId, int64_t skey, int64_t ekey);
 
 // interfaces called by stream mgmt thread

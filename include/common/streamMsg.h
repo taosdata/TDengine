@@ -679,15 +679,6 @@ int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTrigger
 int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalcRequest* pReq);
 void    tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq);
 
-typedef struct SSTriggerPullResponse {
-  void* pDataBlock;
-} SSTriggerPullResponse;
-
-typedef struct SSTriggerCalcResponse {
-  int64_t sessionId;
-  int32_t code;
-} SSTriggerCalcResponse;
-
 #ifdef __cplusplus
 }
 #endif
