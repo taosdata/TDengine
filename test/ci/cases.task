@@ -144,6 +144,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_autocreate_tb.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_autocreate.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_batchcreate.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_create_tb.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_create_with_tag_name.py 
 ### 02-Drop
 ### 03-Alter
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/03-Alter/test_sub_table_alter.py
@@ -152,6 +154,7 @@
 
 # 04-SuperTables
 ## 01-Create
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_create_mt.py
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_metrics.py
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_refcount.py 
 ## 02-Drop
@@ -283,6 +286,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_table_filter_timestamp.py
 ## 10-QueryList
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/10-QueryList/test_const_col.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/10-QueryList/test_distinct.py
 
 # 08-TagIndices
 ,,y,.,./ci/pytest.sh pytest cases/08-TagIndices/test_index_create_drop.py 
@@ -338,6 +342,7 @@
 ,y,.,./ci/pytest.sh pytest cases/16-EscapeCharacters/test_binary_escape_character.py
 
 # 17-NameLimits
+,y,.,./ci/pytest.sh pytest cases/17-NameLimits/test_dbtbname_validate.py
 
 # 18-ReservedKeywords
 
