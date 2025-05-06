@@ -16,13 +16,19 @@ from taostest.util.common import TDCom
 from taostest.util.remote import Remote
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
+import json
 class Start(TDCase):
     def init(self):
-        start_time = datetime.utcnow()
         self.tdCom = TDCom(self.tdSql)
         self._remote: Remote = Remote(self.logger)
-        self.workflow_config = self.tdCom.load_workflow_json(self._remote, f'{os.environ["TEST_ROOT"]}/env/workflow_config.json')
+        self.env_root = os.path.join(os.environ["TEST_ROOT"], "env")
+        self.case_config = json.load(open(os.path.join(self.env_root, "workflow_config.json")))
+        self.start_time = datetime.utcnow() - timedelta(minutes=5)
+        self.start_time_str = f"{self.start_time.isoformat(timespec='milliseconds')}Z"
+        self.case_config["start_time"] = self.start_time_str
+        with open(os.path.join(self.env_root, "workflow_config.json"), "w") as config_file:
+            json.dump(self.case_config, config_file, indent=4)
         pass
 
     def start_mqtt_simulator(self):
@@ -34,8 +40,8 @@ class Start(TDCase):
             # mqtt_pub_path = mqtt_client_config["spec"]["config"]
             mqtt_pub_path = mqtt_client_config["spec"]["config_file"]
             #mqtt_pub_interval= mqtt_client_config["spec"]["interval"]
-            mqtt_pub_interval = self.workflow_config["source_interval"]
-            exec_time = self.workflow_config["exec_time"]
+            mqtt_pub_interval = self.case_config["source_interval"]
+            exec_time = self.case_config["exec_time"]
             self._remote.cmd(mqtt_host,f"nohup mqtt_pub --schema {mqtt_pub_path} --host {edge_host} --interval {mqtt_pub_interval}ms --exec-duration {exec_time}s > mqtt_pub.log 2>&1 &")
 
     def start_taosx_service(self,host):

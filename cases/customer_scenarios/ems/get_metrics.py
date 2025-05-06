@@ -17,7 +17,7 @@ from taostest.util.common import TDCom
 from taostest.util.remote import Remote
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from taostest.util.rest import TDRest
 
 class Stop(TDCase):
@@ -121,7 +121,7 @@ class Stop(TDCase):
             json.dump(metrics_dict, result_file, indent=4)
         with open(f'{self.log_path}/summary/{self.host}-mqtt-perf-result.json', "w") as result_file:
             json.dump(query_summary_metrics, result_file, indent=4) if self.api_type ==0 else json.dump(tmq_summary_metrics, result_file, indent=4)
-        end_time = datetime.utcnow()
+        end_time = datetime.utcnow() + timedelta(minutes=5)
         url = (
             f'http://{self.grafana_ip}:3000/d/{self.workflow_config["grafana_datasource_name"]}'
             f"?var-interval=10m&orgId=1&from={self.start_time}&to={end_time.isoformat(timespec='milliseconds')}Z"

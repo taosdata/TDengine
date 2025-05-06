@@ -26,11 +26,6 @@ class EMSCenter(TDCase):
             self.compression_param = self.case_config["enable_compression"]
         else:
             self.compression_param = ""
-        self.start_time = datetime.utcnow()
-        self.start_time_str = f"{self.start_time.isoformat(timespec='milliseconds')}Z"
-        self.case_config["start_time"] = self.start_time_str
-        with open(os.path.join(self.env_root, "workflow_config.json"), "w") as config_file:
-            json.dump(self.case_config, config_file, indent=4)
 
     def cleanup(self) -> None:
         pass
