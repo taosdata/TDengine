@@ -1923,7 +1923,9 @@ void msmHandleStatusUpdateErr(SStmGrpCtx* pCtx, EStmErrType err, SStmTaskStatusM
 
 _exit:
 
-  ST_TASK_ELOG("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  if (code) {
+    ST_TASK_ELOG("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
 }
 
 int32_t msmHandleStreamStatusUpdate(SStmGrpCtx* pCtx) {
