@@ -261,9 +261,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Project/test_project_table_filter_column_timestamp.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Project/test_project_table_filter_no.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Project/test_project_table_filter_timestamp.py
-## 20-Join
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/20-Join/test_join1.py
-
 
 # 08-TagIndices
 ,,y,.,./ci/pytest.sh pytest cases/08-TagIndices/test_index_create_drop.py 
@@ -377,7 +374,7 @@
 # 28-SynatxChanges
 
 # 29-JoinQueries
-
+,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join1.py
 # 30-DataCompression
 ,,y,.,./ci/pytest.sh pytest cases/30-DataCompression/test_compress_alter_option.py
 ,,y,.,./ci/pytest.sh pytest cases/30-DataCompression/test_compress_disable.py
