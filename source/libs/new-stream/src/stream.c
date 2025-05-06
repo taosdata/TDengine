@@ -113,7 +113,7 @@ int32_t streamGetTask(int64_t streamId, int64_t taskId, SStreamTask** ppTask) {
 
   SStreamTask** task = taosHashGet(gStreamMgmt.taskMap, key, sizeof(key));
   if (NULL == task) {
-    stError("stream %" PRIx64 " task %d not exists in taskMap", streamId, taskId);
+    stError("stream %" PRIx64 " task %" PRIx64 " not exists in taskMap", streamId, taskId);
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   }
 
