@@ -884,7 +884,7 @@ static int32_t strtgAddNewMeta(SSTriggerRealtimeGroup *pGroup) {
           if (skey != *(int64_t *)colDataGetNumData(pSkeyCol, i)) {
             SET_TRIGGER_META_SKEY_INACCURATE(pMeta);
           } else {
-            pMeta->nrows = *(int32_t *)colDataGetNumData(pNrowsCol, i);
+            pMeta->nrows = *(int64_t *)colDataGetNumData(pNrowsCol, i);
           }
           pStat->threshold = TMAX(pStat->threshold, ekey - pTask->watermark);
           pStat->numHoldMetas++;
