@@ -80,25 +80,25 @@ def build_package(internal_root, new_version, branch_name) {
         . $HOME/.cargo/env
         ./new_ver_release.sh -v cluster -n ''' + new_version + ''' -V stable -d no -l full -b ''' + branch_name + ''' -c x64 -s 1 | tee ../ver-3.0.0.100.txt
     '''
-    // sh '''
-    //     date
-    //     rm -rf ${INTERNAL_ROOT}/community/debug
-	// 	rm -rf ${INTERNAL_ROOT}/enterprise/contrib/deps-download/CMakeCache.txt
-	// 	rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/CMakeCache.txt
-	// 	rm -rf ${INTERNAL_ROOT}/community/contrib/libs3
-	// 	rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/libs3-prefix
-	// 	cd ${INTERNAL_ROOT}/community/tests/ci
-    //     rm -rf ${INTERNAL_ROOT}/.externals/build/*
-    //     time ./container_build_newmachine.sh -w ${WORK_DIR} -e
-	// 	cd ${INTERNAL_ROOT}/community/tests/parallel_test
-    //     rm -rf ${INTERNAL_ROOT}/.externals/build/*
-    //     time ./container_build.sh -w ${WORK_DIR} -e
-	// 	rm -rf ${INTERNAL_ROOT}/enterprise/contrib/deps-download/CMakeCache.txt
-	// 	rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/CMakeCache.txt
-	// 	rm -rf ${INTERNAL_ROOT}/community/contrib/libs3
-	// 	rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/libs3-prefix
-    //     rm -rf ${INTERNAL_ROOT}/.externals/build/*
-    // '''
+    sh '''
+        date
+        rm -rf ${INTERNAL_ROOT}/community/debug
+		rm -rf ${INTERNAL_ROOT}/enterprise/contrib/deps-download/CMakeCache.txt
+		rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/CMakeCache.txt
+		rm -rf ${INTERNAL_ROOT}/community/contrib/libs3
+		rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/libs3-prefix
+		cd ${INTERNAL_ROOT}/community/tests/ci
+        rm -rf ${INTERNAL_ROOT}/.externals/build/*
+        time ./container_build_newmachine.sh -w ${WORK_DIR} -e
+		cd ${INTERNAL_ROOT}/community/tests/parallel_test
+        rm -rf ${INTERNAL_ROOT}/.externals/build/*
+        time ./container_build.sh -w ${WORK_DIR} -e
+		rm -rf ${INTERNAL_ROOT}/enterprise/contrib/deps-download/CMakeCache.txt
+		rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/CMakeCache.txt
+		rm -rf ${INTERNAL_ROOT}/community/contrib/libs3
+		rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/libs3-prefix
+        rm -rf ${INTERNAL_ROOT}/.externals/build/*
+    '''
 }
 def check_cases_to_run() {
     def exitValue = 0
@@ -186,13 +186,13 @@ def run_cases(case_list_file, host_config_file, replicas, query_policy, extra_fl
                 cd $TESTNG_ROOT/scripts
                 source /tmp/${JOB_NAME}.env
                 time ./run.sh -m ''' + host_config_file + ''' -t ''' + case_list_file + ''' -l ${WORK_DIR}/testnglog/''' + date_tag + ''' ''' + extra_flag + ''' -v ${NEW_VERSION} -w ${FILE_WEB_SERVER}'''  + date_tag +   '''   
-                // time ./run.sh -m ''' + host_config_file + ''' -t ''' + case_list_file + ''' -l ${WORK_DIR}/testnglog/''' + date_tag + ''' ''' + extra_flag + ''' -v ${NEW_VERSION} -w ${FILE_WEB_SERVER}'''  + date_tag + ''' -f  '''  + send2feishu + '''
             '''
         }
         /*sh '''
             echo "collecting sql ..."
             cd $TESTNG_ROOT/cases/stability/query
             ./collect.sh -l ${WORK_DIR}/testnglog/''' + date_tag + ''' -t $TESTNG_ROOT/cases/stability/query/sql.txt -f "Query" -p "^select"
+            time ./run.sh -m ''' + host_config_file + ''' -t ''' + case_list_file + ''' -l ${WORK_DIR}/testnglog/''' + date_tag + ''' ''' + extra_flag + ''' -v ${NEW_VERSION} -w ${FILE_WEB_SERVER}'''  + date_tag + ''' -f  '''  + send2feishu + '''
         '''*/
     } else {
         echo "no case to run"
