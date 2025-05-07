@@ -18,7 +18,7 @@ class TestNull:
         7. 进行投影查询
 
         Catalog:
-            - Function:Aggregate
+            - DataTypes
 
         Since: v3.0.0.0
 
