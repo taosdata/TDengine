@@ -263,6 +263,7 @@ void msmHandleBecomeLeader(SMnode *pMnode);
 void msmHandleBecomeNotLeader(SMnode *pMnode);
 int32_t msmUndeployStream(SMnode* pMnode, int64_t streamId, char* streamName);
 int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped);
+void msmHealthCheck(SMnode *pMnode);
 
 #ifdef __cplusplus
 }

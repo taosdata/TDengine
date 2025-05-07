@@ -127,6 +127,7 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMs
 
 int32_t stRunnerTaskUndeploy(SStreamRunnerTask** ppTask, const SStreamUndeployTaskMsg* pMsg, taskUndeplyCallback cb) {
   nodesDestroyNode((*ppTask)->pSubTableExpr);
+  (*ppTask)->pSubTableExpr = NULL;
   stRunnerDestroyTaskExecMgr(*ppTask);
 
   (*cb)(ppTask);

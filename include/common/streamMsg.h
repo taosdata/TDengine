@@ -315,6 +315,8 @@ typedef struct SStreamTask {
   int64_t       sessionId;  // ID of the current session (real-time, historical, or recalculation)
   int16_t       taskIdx;
   EStreamStatus status;
+
+  SRWLatch      lock;      // concurrent undeloy
 } SStreamTask;
 
 typedef SStreamTask SStmTaskStatusMsg;

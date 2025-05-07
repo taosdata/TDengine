@@ -42,7 +42,7 @@ typedef struct SStreamHbInfo {
 
 typedef struct SStreamTasksInfo {
   int32_t             taskNum;
-  int32_t             undeployedNum;
+  
   SArray*             readerList;        // SArray<SStreamReaderTask>
   SStreamTriggerTask* triggerTask;
   SArray*             runnerList;        // SArray<SStreamRunnerTask>
