@@ -372,6 +372,9 @@ static int32_t stmtCleanExecInfo(STscStmt2* pStmt, bool keepTable, bool deepClea
       pStmt->exec.pBlockHash = NULL;
 
       if (NULL != pStmt->exec.pCurrBlock) {
+        if (pStmt->exec.pCurrBlock->pData->pCreateTbReq != NULL) {
+          tdDestroySVCreateTbReq(pStmt->exec.pCurrBlock->pData->pCreateTbReq);
+        }
         taosMemoryFreeClear(pStmt->exec.pCurrBlock->pData);
         qDestroyStmtDataBlock(pStmt->exec.pCurrBlock);
         pStmt->exec.pCurrBlock = NULL;
@@ -2189,8 +2192,10 @@ int stmtClose2(TAOS_STMT2* stmt) {
             pStmt->seqIds[STMT_ADD_BATCH], pStmt->seqIds[STMT_EXECUTE], pStmt->stat.setTbNameUs,
             pStmt->stat.bindDataUs1, pStmt->stat.bindDataUs2, pStmt->stat.bindDataUs3, pStmt->stat.bindDataUs4,
             pStmt->stat.addBatchUs, pStmt->stat.execWaitUs, pStmt->stat.execUseUs);
+  if (pStmt->sql.stbInterlaceMode) {
+    pStmt->bInfo.tagsCached = false;
+  }
 
-  pStmt->bInfo.tagsCached = false;
   STMT_ERR_RET(stmtCleanSQLInfo(pStmt));
 
   if (pStmt->options.asyncExecFn) {
