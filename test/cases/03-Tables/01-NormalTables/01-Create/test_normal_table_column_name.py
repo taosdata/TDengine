@@ -23,7 +23,7 @@ class TestNormalTableColumnName:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/table/column_name.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/table/column_name.sim
 
         """
 

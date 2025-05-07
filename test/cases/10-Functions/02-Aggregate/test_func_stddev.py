@@ -23,7 +23,7 @@ class TestFuncStddev:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/compute/stddev.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/compute/stddev.sim
 
         """
 

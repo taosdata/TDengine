@@ -97,17 +97,20 @@ ELSE()
             set(ext_taosadapter_static taosadapter.a)
             set(taosadapter_exe        taosadapter)
             set(_rpath                 "-Wl,-rpath=\$ORIGIN/../lib")
-            set(_shell_cmd             sh -c "go build -a -ldflags \"${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=$(git rev-parse HEAD)'\"")
+            # NOTE: remove -a for the moment, add it later if any problem found to be related
+            set(_shell_cmd             sh -c "go build -ldflags \"${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=$(git rev-parse HEAD)'\"")
         elseif(${TD_DARWIN})
             set(ext_taosadapter_static taosadapter.a)
             set(taosadapter_exe        taosadapter)
             set(_rpath                 "-Wl,-rpath,\$ORIGIN/../lib")
-            set(_shell_cmd             sh -c "go build -a -ldflags \"${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=$(git rev-parse HEAD)'\"")
+            # NOTE: remove -a for the moment, add it later if any problem found to be related
+            set(_shell_cmd             sh -c "go build -ldflags \"${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=$(git rev-parse HEAD)'\"")
         elseif(${TD_WINDOWS})
             set(ext_taosadapter_static taosadapter.lib)
             set(taosadapter_exe        taosadapter.exe)
             set(_rpath                 "")
-            set(_shell_cmd             cmd /c for /f %i in ('git rev-parse HEAD') do go build -a -ldflags "${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=%i'")
+            # NOTE: remove -a for the moment, add it later if any problem found to be related
+            set(_shell_cmd             cmd /c for /f %i in ('git rev-parse HEAD') do go build -ldflags "${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=%i'")
         endif()
 
         MESSAGE("BUILD COMMAND ${_shell_cmd}")
@@ -195,7 +198,9 @@ IF(TD_BUILD_KEEPER)
             PATCH_COMMAND
             COMMAND git clean -f -d
             BUILD_COMMAND
-            COMMAND go build -a -ldflags "${_ldflags}"
+            # NOTE: remove -a for the moment, add it later if any problem found to be related
+            # TODO: tweak the pitfall, that fail to rebuild even source file is modified
+            COMMAND go build -ldflags "${_ldflags}"
             INSTALL_COMMAND
             COMMAND cmake -E echo "Copy taoskeeper"
             COMMAND cmake -E copy_if_different ${taoskeeper_exe} ${CMAKE_BINARY_DIR}/build/bin/${taoskeeper_exe}
