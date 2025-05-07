@@ -135,14 +135,14 @@ void transSockInfo2Str(struct sockaddr* sockname, char* dst) {
   char     buf[IP_RESERVE_CAP] = {0};
   uint16_t port = 0;
   if (sockname->sa_family == AF_INET) {
-    struct sockaddr_in addr = *(struct sockaddr_in*)sockname;
-    int                r = uv_ip4_name(&addr, (char*)buf, sizeof(buf));
+    struct sockaddr_in* addr = (struct sockaddr_in*)sockname;
+    int                 r = uv_ip4_name(addr, (char*)buf, sizeof(buf));
 
-    port = ntohs(addr.sin_port);
+    port = ntohs(addr->sin_port);
   } else if (sockname->sa_family == AF_INET6) {
-    struct sockaddr_in6 addr = *(struct sockaddr_in6*)sockname;
-    uv_ip6_name(&addr, buf, sizeof(buf));
-    port = ntohs(addr.sin6_port);
+    struct sockaddr_in6* addr = (struct sockaddr_in6*)sockname;
+    uv_ip6_name(addr, buf, sizeof(buf));
+    port = ntohs(addr->sin6_port);
   }
   sprintf(dst, "%s:%d", buf, port);
 }

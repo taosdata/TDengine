@@ -33,8 +33,7 @@ extern "C" {
 extern int32_t tsRpcHeadSize;
 
 typedef struct {
-  uint32_t clientIp;
-  uint16_t clientPort;
+  SIpAddr  cliAddr;
   int64_t  applyIndex;
   uint64_t applyTerm;
   char     user[TSDB_USER_LEN];

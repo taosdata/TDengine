@@ -351,7 +351,7 @@ int32_t taosGetIpv6FromFqdn(const char *fqdn, SIpAddr *pAddr) {
 
 #if defined(LINUX)
   struct addrinfo hints = {0};
-  hints.ai_family = AF_INET6;
+  hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
 
   struct addrinfo *result = NULL;
@@ -551,14 +551,15 @@ int32_t taosIgnSIGPIPE() {
  * Set TCP connection timeout per-socket level.
  * ref [https://github.com/libuv/help/issues/54]
  */
-int32_t taosCreateSocketWithTimeout(uint32_t timeout) {
+int32_t taosCreateSocketWithTimeout(uint32_t timeout, int8_t t) {
 #if defined(WINDOWS)
   SOCKET fd;
 #else
   int fd;
 #endif
+  int32_t type = t == 0 ? AF_INET : AF_INET6;
 
-  if ((fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
+  if ((fd = socket(type, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }

@@ -27,7 +27,7 @@
 #define epoll_ctl    EPOLL_CTL_FUNC_TAOS_FORBID
 #define epoll_wait   EPOLL_WAIT_FUNC_TAOS_FORBID
 #define inet_ntoa    INET_NTOA_FUNC_TAOS_FORBID
-#define inet_addr    INET_ADDR_FUNC_TAOS_FORBID
+// #define inet_addr    INET_ADDR_FUNC_TAOS_FORBID
 #endif
 
 #if defined(WINDOWS)
@@ -148,7 +148,7 @@ int32_t taosWinSocketInit();
 /*
  * set timeout(ms)
  */
-int32_t taosCreateSocketWithTimeout(uint32_t timeout);
+int32_t taosCreateSocketWithTimeout(uint32_t timeout, int8_t type);
 
 TdSocketPtr       taosOpenUdpSocket(uint32_t localIp, uint16_t localPort);
 TdSocketPtr       taosOpenTcpClientSocket(uint32_t ip, uint16_t port, uint32_t localIp);
@@ -176,6 +176,7 @@ typedef struct {
     char ipv6[INET6_ADDRSTRLEN];
     char ipv4[INET_ADDRSTRLEN];
   };
+  uint16_t port;
 } SIpAddr;
 
 int32_t taosGetIpv6FromFqdn(const char *fqdn, SIpAddr *ip);
