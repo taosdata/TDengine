@@ -27,7 +27,17 @@ int32_t stmAddFetchStreamGid(void) {
   return gStreamMgmt.stmGrpIdx;
 }
 
-int32_t stmAddStreamStatus(SArray** ppStatus, SStreamTasksInfo* pStream) {
+
+
+int32_t stmAddStreamStatus(SArray** ppStatus, SStreamTasksInfo* pStream, int64_t streamId, int32_t gid) {
+  if (taosArrayGetSize(pStream->undeployReaders) > 0) {
+    smHandleRemovedTask(pStream, streamId, gid, true);
+  }
+
+  if (taosArrayGetSize(pStream->undeployRunners) > 0) {
+    smHandleRemovedTask(pStream, streamId, gid, false);
+  }
+
   if (pStream->taskNum <= 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -77,8 +87,9 @@ int32_t stmBuildStreamsStatus(SArray** ppStatus, int32_t gid) {
     }
 
     SStreamTasksInfo* pStream = (SStreamTasksInfo*)pIter;
+    int64_t* streamId = taosHashGetKey(pIter, NULL);
 
-    stmAddStreamStatus(ppStatus, pStream);
+    stmAddStreamStatus(ppStatus, pStream, *streamId, gid);
   }
 
   return code;

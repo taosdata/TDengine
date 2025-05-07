@@ -268,9 +268,8 @@ typedef struct {
   int32_t outTblVgId;
 
   // reader part
-  void*
-      triggerScanPlan;  // block include all
-                        // preFilter<>triggerPrevFilter/partitionCols<>subTblNameExpr+tagValueExpr/triggerCols<>triggerCond
+  void* triggerScanPlan;  // block include all
+                          // preFilter<>triggerPrevFilter/partitionCols<>subTblNameExpr+tagValueExpr/triggerCols<>triggerCond
   SArray* calcScanPlanList;  // for calc action, SArray<SStreamCalcScan>
 
   // trigger part
