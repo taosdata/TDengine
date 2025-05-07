@@ -1,13 +1,13 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestJoin1:
+class TestJoinFull:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_join_1(self):
-        """Join Test 1
+    def test_join_full(self):
+        """Join Test Full
 
         1. test full_join
         2. test inner_join
@@ -39,7 +39,7 @@ class TestJoin1:
         Jira: None
 
         History:
-            - 2025-5-6 Simon Guan migrated from tsim/join/join()
+            - 2025-5-6 Simon Guan migrated from tsim/join/join.sim
 
         """
 
