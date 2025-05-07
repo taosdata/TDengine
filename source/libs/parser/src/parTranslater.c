@@ -13220,6 +13220,7 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
     WHERE_EACH(pNode, calcPlan->pSubplans) {
       SNodeListNode* pGroup = (SNodeListNode*)pNode;
       if (findNodeInList((SNode*)pScanSubPlan, pGroup->pNodeList)) {
+        REPLACE_NODE(NULL);
         ERASE_NODE(calcPlan->pSubplans);
         calcPlan->numOfSubplans--;
         break;
