@@ -41,11 +41,20 @@ static FORCE_INLINE int32_t stmtAllocQNodeFromBuf(STableBufInfo* pTblBuf, void**
 static bool stmtDequeue(STscStmt2* pStmt, SStmtQNode** param) {
   int i = 0;
   while (0 == atomic_load_64((int64_t*)&pStmt->queue.qRemainNum)) {
+    if (pStmt->queue.stopQueue) {
+      STMT2_DLOG_E("stmt stopQueue,but remainNum is 0");
+      return false;
+    }
     if (i < 10) {
       taosUsleep(1);
       i++;
     } else {
       (void)taosThreadMutexLock(&pStmt->queue.mutex);
+      if (pStmt->queue.stopQueue) {
+        (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
+        STMT2_DLOG_E("stmt stopQueue,but remainNum is 0");
+        return false;
+      }
       if (0 == atomic_load_64((int64_t*)&pStmt->queue.qRemainNum)) {
         (void)taosThreadCondWait(&pStmt->queue.waitCond, &pStmt->queue.mutex);
       }
@@ -53,6 +62,7 @@ static bool stmtDequeue(STscStmt2* pStmt, SStmtQNode** param) {
     }
   }
   if (pStmt->queue.stopQueue) {
+    STMT2_DLOG_E("stmt stopQueue");
     return false;
   }
   SStmtQNode* orig = pStmt->queue.head;
@@ -88,7 +98,7 @@ static int32_t stmtCreateRequest(STscStmt2* pStmt) {
     }
     pStmt->exec.pRequest->type = RES_TYPE__QUERY;
     if (pStmt->db != NULL) {
-      taosMemoryFreeClear(pStmt->exec.pRequest->pDb); 
+      taosMemoryFreeClear(pStmt->exec.pRequest->pDb);
       pStmt->exec.pRequest->pDb = taosStrdup(pStmt->db);
     }
     if (TSDB_CODE_SUCCESS == code) {
@@ -429,7 +439,7 @@ static void stmtFreeTbCols(void* buf) {
 }
 
 static int32_t stmtCleanSQLInfo(STscStmt2* pStmt) {
-  STMT_DLOG_E("start to free SQL info");
+  STMT2_DLOG_E("start to free SQL info");
 
   taosMemoryFreeClear(pStmt->db);
   taosMemoryFree(pStmt->sql.pBindInfo);
@@ -466,8 +476,12 @@ static int32_t stmtCleanSQLInfo(STscStmt2* pStmt) {
   taosArrayDestroyEx(pStmt->sql.siInfo.tbBuf.pBufList, stmtFreeTbBuf);
   taosMemoryFree(pStmt->sql.siInfo.pTSchema);
   qDestroyStmtDataBlock(pStmt->sql.siInfo.pDataCtx);
-  taosArrayDestroyEx(pStmt->sql.siInfo.pTableCols, stmtFreeTbCols);
-
+  if (pStmt->sql.siInfo.tableColsReady) {
+    taosArrayDestroyEx(pStmt->sql.siInfo.pTableCols, stmtFreeTbCols);
+    pStmt->sql.siInfo.pTableCols = NULL;
+  } else {
+    STMT2_DLOG_E("stmt close tableCols not ready, skip free");
+  }
   (void)memset(&pStmt->sql, 0, sizeof(pStmt->sql));
   pStmt->sql.siInfo.tableColsReady = true;
 
@@ -705,29 +719,30 @@ static int32_t stmtAsyncOutput(STscStmt2* pStmt, void* param) {
 }
 
 static void* stmtBindThreadFunc(void* param) {
-  setThreadName("stmtBind");
-
+  setThreadName("stmt2Bind");
   qInfo("stmt bind thread started");
 
   STscStmt2* pStmt = (STscStmt2*)param;
 
   while (true) {
     if (pStmt->queue.stopQueue) {
+      STMT2_DLOG_E("stmt bind thread received stop signal");
       break;
     }
 
     SStmtQNode* asyncParam = NULL;
     if (!stmtDequeue(pStmt, &asyncParam)) {
+      STMT2_DLOG_E("stmt dequeue failed, continue");
       continue;
     }
 
-    if (stmtAsyncOutput(pStmt, asyncParam) != 0) {
-      qError("stmt async output failed");
+    int ret = stmtAsyncOutput(pStmt, asyncParam);
+    if (ret != 0) {
+      STMT2_ELOG("stmtAsyncOutput failed, reason:%s", tstrerror(ret));
     }
   }
 
   qInfo("stmt bind thread stopped");
-
   return NULL;
 }
 
@@ -808,7 +823,7 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
   }
 
   pStmt->taos = pObj;
-  if (taos->db != NULL && taos->db[0] != '\0') {
+  if (taos->db[0] != '\0') {
     pStmt->db = taosStrdup(taos->db);
   }
   pStmt->bInfo.needParse = true;
@@ -903,9 +918,8 @@ static int32_t stmtResetStbInterlaceCache(STscStmt2* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   if (pStmt->bindThreadInUse) {
-    pStmt->queue.stopQueue = true;
-
     (void)taosThreadMutexLock(&pStmt->queue.mutex);
+    pStmt->queue.stopQueue = true;
     (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
     (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
     (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
@@ -1376,8 +1390,8 @@ static int stmtFetchColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIELD_E
 }
 
 static int stmtFetchStbColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIELD_ALL** fields) {
-  int32_t    code = 0;
-  int32_t    preCode = pStmt->errCode;
+  int32_t code = 0;
+  int32_t preCode = pStmt->errCode;
 
   if (pStmt->errCode != TSDB_CODE_SUCCESS) {
     return pStmt->errCode;
@@ -1417,7 +1431,7 @@ static int stmtFetchStbColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIEL
     pStmt->sql.autoCreateTbl = false;
     pStmt->bInfo.tagsCached = false;
     pStmt->bInfo.sname = (SName){0};
-    stmtCleanBindInfo(pStmt);
+    STMT_ERR_RET(stmtCleanBindInfo(pStmt));
   }
 
 _return:
@@ -1814,7 +1828,8 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
     }
 
     code = qBindStmtSingleColValue2(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf,
-                                    pStmt->exec.pRequest->msgBufLen, colIdx, pStmt->bInfo.sBindRowNum, pStmt->taos->optionInfo.charsetCxt);
+                                    pStmt->exec.pRequest->msgBufLen, colIdx, pStmt->bInfo.sBindRowNum,
+                                    pStmt->taos->optionInfo.charsetCxt);
     if (code) {
       tscError("qBindStmtSingleColValue failed, error:%s", tstrerror(code));
       STMT_ERR_RET(code);
@@ -2010,7 +2025,7 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
 
   fp(pStmt->options.userdata, res, code);
 
-  while (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady)) {
+  while (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady) && !pStmt->queue.stopQueue) {
     taosUsleep(1);
   }
   (void)stmtCleanExecInfo(pStmt, (code ? false : true), false);
@@ -2090,7 +2105,7 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     }
     pStmt->affectedRows += pStmt->exec.affectedRows;
 
-    while (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady)) {
+    while (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady) && !pStmt->queue.stopQueue) {
       taosUsleep(1);
     }
 
@@ -2128,9 +2143,8 @@ int stmtClose2(TAOS_STMT2* stmt) {
   STMT_DLOG_E("start to free stmt");
 
   if (pStmt->bindThreadInUse) {
-    pStmt->queue.stopQueue = true;
-
     (void)taosThreadMutexLock(&pStmt->queue.mutex);
+    pStmt->queue.stopQueue = true;
     (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
     (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
     (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
