@@ -136,7 +136,8 @@ void transSockInfo2Str(struct sockaddr* sockname, char* dst) {
   uint16_t port = 0;
   if (sockname->sa_family == AF_INET) {
     struct sockaddr_in* addr = (struct sockaddr_in*)sockname;
-    int                 r = uv_ip4_name(addr, (char*)buf, sizeof(buf));
+
+    int r = uv_ip4_name(addr, (char*)buf, sizeof(buf));
 
     port = ntohs(addr->sin_port);
   } else if (sockname->sa_family == AF_INET6) {

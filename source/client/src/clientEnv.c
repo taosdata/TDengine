@@ -376,6 +376,7 @@ int32_t openTransporter(const char *user, const char *auth, int32_t numOfThread,
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.startReadTimer = 1;
   rpcInit.readTimeout = tsReadTimeout;
+  rpcInit.ipv6 = tsIpv6Support;
 
   int32_t code = taosVersionStrToInt(td_version, &rpcInit.compatibilityVer);
   if (TSDB_CODE_SUCCESS != code) {

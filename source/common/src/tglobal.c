@@ -89,6 +89,7 @@ int32_t tsShareConnLimit = 10;
 
 int32_t tsReadTimeout = 900;
 int32_t tsTimeToGetAvailableConn = 500000;
+int32_t tsIpv6Support = 1;
 
 int32_t tsNumOfQueryThreads = 0;
 int32_t tsNumOfCommitThreads = 2;

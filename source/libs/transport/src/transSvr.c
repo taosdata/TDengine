@@ -127,8 +127,9 @@ typedef struct SServerObj {
   uint32_t    ip;
   uint32_t    port;
   uv_async_t* pAcceptAsync;  // just to quit from from accept thread
-
+  SIpAddr     addr;
   bool inited;
+  int8_t      ipv6;
 } SServerObj;
 
 SIpWhiteListTab* uvWhiteListCreate();
@@ -1161,9 +1162,6 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     TAOS_UNUSED(transSockInfo2Str((struct sockaddr*)&peername, pConn->dst));
     TAOS_UNUSED(transSockInfo2Str((struct sockaddr*)&sockname, pConn->src));
 
-    struct sockaddr_in addr = *(struct sockaddr_in*)&peername;
-    struct sockaddr_in saddr = *(struct sockaddr_in*)&sockname;
-
     uvGetSockInfo((struct sockaddr*)&peername, &pConn->clientIp);
     uvGetSockInfo((struct sockaddr*)&sockname, &pConn->serverIp);
 
@@ -1283,15 +1281,28 @@ static int32_t addHandleToAcceptloop(void* arg) {
   }
   srv->pAcceptAsync->data = srv;
 
-  struct sockaddr_in6 bind_addr;
-  if ((code = uv_ip6_addr("::", srv->port, &bind_addr)) != 0) {
-    tError("failed to bind addr since %s", uv_err_name(code));
-    return TSDB_CODE_THIRDPARTY_ERROR;
-  }
+  if (srv->ipv6) {
+    struct sockaddr_in6 bind_addr;
+    if ((code = uv_ip6_addr("::", srv->port, &bind_addr)) != 0) {
+      tError("failed to bind addr since %s", uv_err_name(code));
+      return TSDB_CODE_THIRDPARTY_ERROR;
+    }
 
-  if ((code = uv_tcp_bind(&srv->server, (const struct sockaddr*)&bind_addr, 0)) != 0) {
-    tError("failed to bind since %s", uv_err_name(code));
-    return TSDB_CODE_THIRDPARTY_ERROR;
+    if ((code = uv_tcp_bind(&srv->server, (const struct sockaddr*)&bind_addr, 1)) != 0) {
+      tError("failed to bind since %s", uv_err_name(code));
+      return TSDB_CODE_THIRDPARTY_ERROR;
+    }
+  } else {
+    struct sockaddr_in bind_addr;
+    if ((code = uv_ip4_addr("0.0.0.0", srv->port, &bind_addr)) != 0) {
+      tError("failed to bind addr since %s", uv_err_name(code));
+      return TSDB_CODE_THIRDPARTY_ERROR;
+    }
+
+    if ((code = uv_tcp_bind(&srv->server, (const struct sockaddr*)&bind_addr, 0)) != 0) {
+      tError("failed to bind since %s", uv_err_name(code));
+      return TSDB_CODE_THIRDPARTY_ERROR;
+    }
   }
   if ((code = uv_listen((uv_stream_t*)&srv->server, 4096 * 2, uvOnAcceptCb)) != 0) {
     tError("failed to listen since %s", uv_err_name(code));
@@ -1520,7 +1531,7 @@ static void uvPipeListenCb(uv_stream_t* handle, int status) {
   srv->numOfWorkerReady++;
 }
 
-void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit) {
+void* transInitServer(SIpAddr* addr, char* label, int numOfThreads, void* fp, void* pInit) {
   int32_t code = 0;
 
   SServerObj* srv = taosMemoryCalloc(1, sizeof(SServerObj));
@@ -1530,8 +1541,12 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     return NULL;
   }
 
-  srv->ip = ip;
-  srv->port = port;
+  STrans* pInst = (STrans*)pInit;
+
+  srv->ipv6 = pInst->ipv6;
+  srv->addr = *addr;
+  srv->ip = 0;
+  srv->port = addr->port;
   srv->numOfThreads = numOfThreads;
   srv->workerIdx = 0;
   srv->numOfWorkerReady = 0;
@@ -2119,7 +2134,7 @@ int32_t transRegisterMsg(const STransMsg *msg) {
 }
 int32_t transSetIpWhiteList(void *thandle, void *arg, FilteFunc *func) { return 0; }
 
-void *transInitServer(uint32_t ip, uint32_t port, char *label, int numOfThreads, void *fp, void *pInit) { return NULL; }
+void *transInitServer(SIpAddr *pAddr, char *label, int numOfThreads, void *fp, void *pInit) { return NULL; }
 void  transCloseServer(void *arg) {
   // impl later
   return;

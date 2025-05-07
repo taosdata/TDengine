@@ -2657,6 +2657,7 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.readTimeout = tsReadTimeout;
+  rpcInit.ipv6 = tsIpv6Support;
   if (TSDB_CODE_SUCCESS != taosVersionStrToInt(td_version, &rpcInit.compatibilityVer)) {
     tscError("faild to convert taos version from str to int, errcode:%s", terrstr());
     goto _OVER;

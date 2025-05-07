@@ -133,6 +133,7 @@ typedef struct SRpcInit {
   int8_t  notWaitAvaliableConn;  // 1: wait to get, 0: no wait
   int8_t  startReadTimer;
   int64_t readTimeout;  // s
+  int8_t  ipv6;
 
   void *parent;
 } SRpcInit;

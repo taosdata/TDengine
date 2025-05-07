@@ -745,7 +745,6 @@ void cliHandleResp(SCliConn* conn) {
   if (cliMayRecycleConn(conn)) {
     return;
   }
-  // cliConnCheckTimoutMsg(conn);
 
   cliConnMayUpdateTimer(conn, pInst->readTimeout * 1000);
 }
@@ -1696,25 +1695,25 @@ _exception2:
 }
 
 int32_t cliConnSetSockInfo(SCliConn* pConn) {
-  struct sockaddr peername, sockname;
+  struct sockaddr_storage peername, sockname;
   int             addrlen = sizeof(peername);
 
-  int32_t code = uv_tcp_getpeername((uv_tcp_t*)pConn->stream, &peername, &addrlen);
+  int32_t code = uv_tcp_getpeername((uv_tcp_t*)pConn->stream, (struct sockaddr*)&peername, &addrlen);
   if (code != 0) {
     tWarn("failed to get perrname since %s", uv_err_name(code));
     code = TSDB_CODE_THIRDPARTY_ERROR;
     return code;
   }
-  transSockInfo2Str(&peername, pConn->dst);
+  transSockInfo2Str((struct sockaddr*)&peername, pConn->dst);
 
   addrlen = sizeof(sockname);
-  code = uv_tcp_getsockname((uv_tcp_t*)pConn->stream, &sockname, &addrlen);
+  code = uv_tcp_getsockname((uv_tcp_t*)pConn->stream, (struct sockaddr*)&sockname, &addrlen);
   if (code != 0) {
     tWarn("failed to get sock name since %s", uv_err_name(code));
     code = TSDB_CODE_THIRDPARTY_ERROR;
     return code;
   }
-  transSockInfo2Str(&sockname, pConn->src);
+  transSockInfo2Str((struct sockaddr*)&sockname, pConn->src);
   return 0;
 };
 
@@ -2221,7 +2220,7 @@ static void* cliWorkThread(void* arg) {
   return NULL;
 }
 
-void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInstRef) {
+void* transInitClient(SIpAddr* pAddr, char* label, int numOfThreads, void* fp, void* pInstRef) {
   int32_t  code = 0;
   SCliObj* cli = taosMemoryCalloc(1, sizeof(SCliObj));
   if (cli == NULL) {
