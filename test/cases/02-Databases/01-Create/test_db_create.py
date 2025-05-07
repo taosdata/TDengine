@@ -22,7 +22,7 @@ class TestDatabaseCreate:
         Jira: None
 
         History:
-            - 2025-4-30 Simon Guan Migrated to new test framework, from tsim/parser/create_db.sim
+            - 2025-4-30 Simon Guan Migrated from tsim/parser/create_db.sim
         """
 
         tdLog.info(f"======================== dnode1 start")

@@ -241,8 +241,13 @@
 ## 02-Import
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Import/test_import_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Import/test_import_commit.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Import/test_import_commit1.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Import/test_import_commit2.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Import/test_import_commit3.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Import/test_import_file.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Import/test_import_large.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Import/test_import_replica1.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Import/test_import.py
 ## 03-Drop
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-Drop/test_insert_drop.py
 ## 04-Update
@@ -292,6 +297,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/10-QueryList/test_distinct.py
 ## 11-Interp
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/11-Interp/test_interp.py
+## 12-Having
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_having_child.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_having.py
 
 # 08-TagIndices
 ,,y,.,./ci/pytest.sh pytest cases/08-TagIndices/test_index_create_drop.py 

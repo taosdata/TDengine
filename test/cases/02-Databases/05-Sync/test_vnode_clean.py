@@ -22,7 +22,7 @@ class TestVnodeClean:
         Jira: None
 
         History:
-            - 2025-5-6 Simon Guan Migrated to new test framework, from tsim/dnode/vnode_clean.sim
+            - 2025-5-6 Simon Guan Migrated from tsim/dnode/vnode_clean.sim
 
         """
 

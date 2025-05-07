@@ -22,7 +22,7 @@ class TestOfflineReason:
         Jira: None
 
         History:
-            - 2025-5-6 Simon Guan Migrated to new test framework, from tsim/dnode/offline_reason.sim
+            - 2025-5-6 Simon Guan Migrated from tsim/dnode/offline_reason.sim
 
         """
 

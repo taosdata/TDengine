@@ -22,7 +22,7 @@ class TestDatabaseShowCreateTable:
         Jira: None
 
         History:
-            - 2025-4-30 Simon Guan Migrated to new test framework, from tsim/db/show_create_table.sim
+            - 2025-4-30 Simon Guan Migrated from tsim/db/show_create_table.sim
 
         """
 

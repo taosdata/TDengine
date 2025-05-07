@@ -21,7 +21,7 @@ class TestDatabaseAlterReplica13:
         Jira: None
 
         History:
-            - 2025-4-30 Simon Guan Migrated to new test framework, from tsim/db/alter_replica_31.sim
+            - 2025-4-30 Simon Guan Migrated from tsim/db/alter_replica_31.sim
 
         """
 
