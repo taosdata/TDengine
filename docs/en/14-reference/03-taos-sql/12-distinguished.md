@@ -130,7 +130,7 @@ The forward sliding time of SLIDING cannot exceed the time range of one window. 
 SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
 ```
 
-The INTERVAL clause allows the use of the AUTO keyword to specify the window offset. If the WHERE condition provides a clear applicable start time limit, the required offset will be automatically calculated, dividing the time window from that point; otherwise, it defaults to an offset of 0. Here are some simple examples:
+The INTERVAL clause allows the use of the AUTO keyword to specify the window offset (Supported in version 3.3.5.0 and later). If the WHERE condition provides a clear applicable start time limit, the required offset will be automatically calculated, dividing the time window from that point; otherwise, it defaults to an offset of 0. Here are some simple examples:
 
 ```sql
 -- With a start time limit, divide the time window from '2018-10-03 14:38:05'

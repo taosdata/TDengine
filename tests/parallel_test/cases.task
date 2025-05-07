@@ -37,6 +37,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db_stb.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_after_alter.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_after_drop_origin_table.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_schema_is_old.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_join.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/decimal/test_TS6333.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_func_elapsed.py
@@ -174,11 +175,9 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosdemoTestInsertWithJsonStmt-otherPara.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosdemoTestQueryWithJson.py -R
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/telnet_tcp.py -R
-
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmqBasic.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmq_case.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/websiteCase.py
-
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/cloud/cloud-test.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/ws/websocket.py -R
 
@@ -199,6 +198,8 @@
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_error_exit.py
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/tmq_cancle.py
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/taos_config_json.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_data.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_auto_create_table_json.py
 
 # taosdump 43 cases
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpSchemaChange.py
@@ -528,6 +529,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_taosx.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts5466.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_td33504.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts6392.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts5906.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/td-32187.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/td-33225.py

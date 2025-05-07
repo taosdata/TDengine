@@ -91,7 +91,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_DEPENDENCY_TESTS=false
           make -j 4
-          sudo make install
+          make install
           which taosd
           which taosadapter
           which taoskeeper
