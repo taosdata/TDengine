@@ -372,9 +372,6 @@ static int32_t stmtCleanExecInfo(STscStmt2* pStmt, bool keepTable, bool deepClea
       pStmt->exec.pBlockHash = NULL;
 
       if (NULL != pStmt->exec.pCurrBlock) {
-        if (pStmt->exec.pCurrBlock->pData->pCreateTbReq != NULL) {
-          tdDestroySVCreateTbReq(pStmt->exec.pCurrBlock->pData->pCreateTbReq);
-        }
         taosMemoryFreeClear(pStmt->exec.pCurrBlock->pData);
         qDestroyStmtDataBlock(pStmt->exec.pCurrBlock);
         pStmt->exec.pCurrBlock = NULL;
