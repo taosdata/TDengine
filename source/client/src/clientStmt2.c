@@ -480,7 +480,8 @@ static int32_t stmtCleanSQLInfo(STscStmt2* pStmt) {
     taosArrayDestroyEx(pStmt->sql.siInfo.pTableCols, stmtFreeTbCols);
     pStmt->sql.siInfo.pTableCols = NULL;
   } else {
-    STMT2_DLOG_E("stmt close tableCols not ready, skip free");
+    taosArrayDestroy(pStmt->sql.siInfo.pTableCols);
+    STMT2_DLOG_E("stmt close tableCols not ready, skip free pTableCols elements");
   }
   (void)memset(&pStmt->sql, 0, sizeof(pStmt->sql));
   pStmt->sql.siInfo.tableColsReady = true;
@@ -895,22 +896,28 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
 }
 
 static int stmtSetDbName2(TAOS_STMT2* stmt, const char* dbName) {
+  if (dbName == NULL || dbName[0] == '\0') {
+    return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+  }
   STscStmt2* pStmt = (STscStmt2*)stmt;
 
   STMT2_DLOG("dbname is specified in sql:%s", dbName);
-
-  pStmt->db = taosStrdup(dbName);
-  (void)strdequote(pStmt->db);
+  if (pStmt->db == NULL || pStmt->db[0] == '\0') {
+    STMT2_DLOG("dbname not set by taosconnect, set by sql:%s", dbName);
+    pStmt->db = taosStrdup(dbName);
+    (void)strdequote(pStmt->db);
+  }
   STMT_ERR_RET(stmtCreateRequest(pStmt));
 
   // The SQL statement specifies a database name, overriding the previously specified database
   taosMemoryFreeClear(pStmt->exec.pRequest->pDb);
-  pStmt->exec.pRequest->pDb = taosStrdup(pStmt->db);
+  pStmt->exec.pRequest->pDb = taosStrdup(dbName);
+  (void)strdequote(pStmt->exec.pRequest->pDb);
   if (pStmt->exec.pRequest->pDb == NULL) {
     return terrno;
   }
   if (pStmt->sql.stbInterlaceMode) {
-    pStmt->sql.siInfo.dbname = pStmt->db;
+    pStmt->sql.siInfo.dbname = pStmt->exec.pRequest->pDb;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1059,6 +1066,7 @@ static int32_t stmtResetStmtForPrepare(STscStmt2* pStmt) {
   }
 
   if (stbInterlaceMode) {
+    STMT2_DLOG_E("reprepare for inter");
     STMT_ERR_RET(stmtResetStbInterlaceCache(pStmt));
   }
 
@@ -2182,6 +2190,7 @@ int stmtClose2(TAOS_STMT2* stmt) {
             pStmt->stat.bindDataUs1, pStmt->stat.bindDataUs2, pStmt->stat.bindDataUs3, pStmt->stat.bindDataUs4,
             pStmt->stat.addBatchUs, pStmt->stat.execWaitUs, pStmt->stat.execUseUs);
 
+  pStmt->bInfo.tagsCached = false;
   STMT_ERR_RET(stmtCleanSQLInfo(pStmt));
 
   if (pStmt->options.asyncExecFn) {
