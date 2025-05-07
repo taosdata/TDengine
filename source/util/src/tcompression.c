@@ -1058,7 +1058,6 @@ int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, ch
   return opos;
 }
 #else
-#if 1
 int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, char *const output) {
   int32_t byte_limit = nelements * DOUBLE_BYTES + 1;
   int32_t nElements = nelements & ~(DOUBLE_BYTES - 1);
@@ -1076,27 +1075,6 @@ int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, ch
   output[0] = 0;
   return byte_limit;
 }
-#else
-int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, char *const output) {
-  int32_t byte_limit = nelements * DOUBLE_BYTES + 1;
-  int32_t nElements = nelements & ~(DOUBLE_BYTES - 1);
-  int32_t remainder = nelements - nElements;
-
-  char *const pOutput = output + 1;
-  int32_t     opos = 0;
-  while (true) {
-    if (++opos >= byte_limit) {
-      output[0] = 1;
-      memcpy(output + 1, input, byte_limit - 1);
-      return byte_limit;
-    }
-    
-  }
-
-  output[0] = 0;
-  return byte_limit;
-}
-#endif
 #endif
 
 FORCE_INLINE uint64_t decodeDoubleValue(const char *const input, int32_t *const ipos, uint8_t flag) {
