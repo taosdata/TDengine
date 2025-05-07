@@ -567,7 +567,7 @@ pub async fn flat_write_with_sql(
                                     .filter(|c| !actual_columns.contains(c.name.as_str()))
                                     .map(|c| {
                                         format!(
-                                            "ALTER TABLE {stable_name} ADD COLUMN `{}` {};",
+                                            "ALTER TABLE `{stable_name}` ADD COLUMN `{}` {};",
                                             c.name, c.r#type
                                         )
                                     })

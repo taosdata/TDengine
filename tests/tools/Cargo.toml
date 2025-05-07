@@ -23,7 +23,7 @@ rayon.workspace = true
 rdkafka = { version = "0.36.2", features = ["cmake-build"] }
 serde = { workspace = true, features = ["derive"] }
 rumqttc.workspace = true
-serde_json = "1.0.132"
+serde_json = { version = "1.0.132", features = ["raw_value"] }
 serde_with.workspace = true
 snafu.workspace = true
 snap = "1.1.1"
@@ -40,6 +40,12 @@ parquet = { workspace = true }
 bytes = { workspace = true }
 signal-hook = "0.3.17"
 socket2 = "0.5.8"
+
+num-traits = "0.2"
+num-integer = "0.1"
+num-bigint = "0.4"
+faststr.workspace = true
+paste = "1"
 
 [lints]
 workspace = true
