@@ -1969,9 +1969,9 @@ static int32_t strtcResumeCheck(SSTriggerRealtimeContext *pContext) {
       code = strtcSendCalcReq(pContext);
       QUERY_CHECK_CODE(code, lino, _end);
     }
-    if (pCurGroup->status != STRIGGER_GROUP_WAITING_META) {
-      // waiting for trigger data or calc rsp
-      break;
+    if (pContext->calcStatus == STRIGGER_REQUEST_TO_RUN || pCurGroup->status != STRIGGER_GROUP_WAITING_META) {
+      // waiting for trigger data, calc data or calc rsp
+      goto _end;
     }
     TRINGBUF_DEQUEUE(&pContext->groupsToCheck);
   }
