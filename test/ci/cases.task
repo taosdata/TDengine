@@ -290,6 +290,8 @@
 ## 04-OrderBy
 ## 05-Aliase
 ## 06-Limit
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/06-Limit/test_limit1.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/06-Limit/test_limit2.py
 ## 07-Slimit
 ## 08-SubQuery
 ## 09-SelectList
