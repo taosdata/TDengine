@@ -970,6 +970,9 @@ void encodeDoubleValue(uint64_t diff, uint8_t flag, char *const output, int32_t 
   }
 }
 
+#define BIT_STREAM_SPLIT
+
+#ifndef BIT_STREAM_SPLIT
 int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, char *const output) {
   int32_t byte_limit = nelements * DOUBLE_BYTES + 1;
   int32_t opos = 1;
@@ -981,6 +984,7 @@ int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, ch
   double *istream = (double *)input;
 
   // Main loop
+  int32_t j = 0;
   for (int32_t i = 0; i < nelements; i++) {
     union {
       double   real;
@@ -1053,6 +1057,27 @@ int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, ch
   output[0] = 0;
   return opos;
 }
+#else
+int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, char *const output) {
+  int32_t     byte_limit = nelements * DOUBLE_BYTES + 1;
+  int32_t     nElements = (nelements / DOUBLE_BYTES) * DOUBLE_BYTES;
+
+  char *const pOutput = output + 1;
+  int32_t     k = -1;
+  for (int32_t i = 0; i < DOUBLE_BYTES; ++i) {
+    for (int32_t j = 0; j < nElements; ++j) {
+      pOutput[++k] = *(input + j * DOUBLE_BYTES + i);
+    }
+  }
+  int32_t remainder = nelements - nElements;
+  if (remainder > 0) {
+    memcpy(pOutput + nElements * DOUBLE_BYTES, input + nElements * DOUBLE_BYTES, remainder * DOUBLE_BYTES);
+  }
+
+  output[0] = nElements > 0 ? 0 : 1;
+  return byte_limit;
+}
+#endif
 
 FORCE_INLINE uint64_t decodeDoubleValue(const char *const input, int32_t *const ipos, uint8_t flag) {
   int32_t longBytes = LONG_BYTES;
@@ -1096,6 +1121,7 @@ static int32_t tsDecompressDoubleImpHelper(const char *input, int32_t nelements,
   return nelements * DOUBLE_BYTES;
 }
 
+#ifndef BIT_STREAM_SPLIT
 int32_t tsDecompressDoubleImp(const char *const input, int32_t ninput, const int32_t nelements, char *const output) {
   // return the result directly if there is no compression
   if (input[0] == 1) {
@@ -1115,6 +1141,31 @@ int32_t tsDecompressDoubleImp(const char *const input, int32_t ninput, const int
   // use implementation without SIMD instructions by default
   return tsDecompressDoubleImpHelper(input + 1, nelements, output);
 }
+#else
+int32_t tsDecompressDoubleImp(const char *const input, int32_t ninput, const int32_t nelements, char *const output) {
+  // return the result directly if there is no compression
+  if (input[0] == 1) {
+    memcpy(output, input + 1, nelements * DOUBLE_BYTES);
+    return nelements * DOUBLE_BYTES;
+  }
+
+  const int32_t     nElements = (nelements / DOUBLE_BYTES) * DOUBLE_BYTES;
+  const int32_t     remainder = nelements - nElements;
+  const char *const pInput = input + 1;
+
+  for (int32_t j = 0; j < nElements; ++j) {
+    for (int32_t i = 0; i < DOUBLE_BYTES; ++i) {
+      output[j * DOUBLE_BYTES + i] = pInput[i * nElements + j];
+    }
+  }
+
+  if (remainder > 0) {
+    memcpy(output + nElements * DOUBLE_BYTES, pInput + nElements * DOUBLE_BYTES, remainder * DOUBLE_BYTES);
+  }
+
+  return nelements * DOUBLE_BYTES;
+}
+#endif
 
 /* --------------------------------------------Float Compression ---------------------------------------------- */
 void encodeFloatValue(uint32_t diff, uint8_t flag, char *const output, int32_t *const pos) {
