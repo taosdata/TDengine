@@ -115,7 +115,7 @@ static int32_t buildRsp(SSDataBlock* pBlock, void** data, size_t* size) {
   int32_t code = 0;
   int32_t lino = 0;
   void*   buf =  NULL;
-  STREAM_CHECK_CONDITION_GOTO(pBlock == NULL && pBlock->info.rows == 0, TSDB_CODE_STREAM_NO_DATA);
+  STREAM_CHECK_CONDITION_GOTO(pBlock == NULL || pBlock->info.rows == 0, TSDB_CODE_STREAM_NO_DATA);
   size_t  dataEncodeSize = blockGetEncodeSize(pBlock);
   buf = rpcMallocCont(dataEncodeSize);
   STREAM_CHECK_NULL_GOTO(buf, terrno);
@@ -172,12 +172,11 @@ static void buildTSchema(STSchema* pTSchema, int32_t ver, col_id_t colId, int8_t
   pTSchema->columns[0].bytes = bytes;
 }
 
-int32_t retrieveWalMetaData(SSubmitTbData* pSubmitTbData, void* pTableList, SSDataBlock* pBlock) {
+int32_t retrieveWalMetaData(SSubmitTbData* pSubmitTbData, void* pTableList, SSDataBlock* pBlock, int64_t ver) {
   vDebug("stream reader retrieve data block %p", pSubmitTbData);
   int32_t code = 0;
   int32_t lino = 0;
 
-  int32_t   ver = pSubmitTbData->sver;
   int64_t   uid = pSubmitTbData->uid;
   int32_t   numOfRows = 0;
   int64_t   skey = 0;
@@ -204,7 +203,7 @@ int32_t retrieveWalMetaData(SSubmitTbData* pSubmitTbData, void* pTableList, SSDa
     SColVal colVal = {0};
     pTSchema = taosMemoryCalloc(1, sizeof(STSchema) + sizeof(STColumn));
     STREAM_CHECK_NULL_GOTO(pTSchema, terrno);
-    buildTSchema(pTSchema, ver, PRIMARYKEY_TIMESTAMP_COL_ID, TSDB_DATA_TYPE_TIMESTAMP, LONG_BYTES);
+    buildTSchema(pTSchema, pSubmitTbData->sver, PRIMARYKEY_TIMESTAMP_COL_ID, TSDB_DATA_TYPE_TIMESTAMP, LONG_BYTES);
     STREAM_CHECK_RET_GOTO(tRowGet(pRow, pTSchema, 0, &colVal));
     skey = VALUE_GET_TRIVIAL_DATUM(&colVal.value);
     pRow = taosArrayGetP(pSubmitTbData->aRowP, numOfRows - 1);
@@ -298,7 +297,8 @@ int32_t retrieveWalData(SSubmitTbData* pSubmitTbData, void* pTableList, SSDataBl
         pTSchema = taosMemoryCalloc(1, sizeof(STSchema) + sizeof(STColumn));
         STREAM_CHECK_NULL_GOTO(pTSchema, terrno);
         buildTSchema(pTSchema, ver, pColData->info.colId, pColData->info.type, pColData->info.bytes);
-        STREAM_CHECK_RET_GOTO(tRowGet(pRow, pTSchema, pColData->info.colId, &colVal));
+        // STREAM_CHECK_RET_GOTO(tRowGet(pRow, pTSchema, pColData->info.colId, &colVal));
+        STREAM_CHECK_RET_GOTO(tRowGet(pRow, pTSchema, 0, &colVal));
         taosMemoryFreeClear(pTSchema);
         STREAM_CHECK_RET_GOTO(colDataSetVal(pColData, numOfRows, VALUE_GET_DATUM(&colVal.value, colVal.value.type),
                                             !COL_VAL_IS_VALUE(&colVal)));
@@ -370,7 +370,7 @@ int32_t scanWal(SVnode* pVnode, void* pTableList, SSDataBlock* pBlock, int64_t v
       vDebug("stream reader next data block %d/%d", nextBlk, numOfBlocks);
       SSubmitTbData* pSubmitTbData = taosArrayGet(submit.aSubmitTbData, nextBlk);
       STREAM_CHECK_NULL_GOTO(pSubmitTbData, terrno);
-      STREAM_CHECK_RET_GOTO(retrieveWalMetaData(pSubmitTbData, pTableList, pBlock));
+      STREAM_CHECK_RET_GOTO(retrieveWalMetaData(pSubmitTbData, pTableList, pBlock, ver));
     }
     tDestroySubmitReq(&submit, TSDB_MSG_FLG_DECODE);
   }
@@ -862,7 +862,7 @@ static int32_t vnodeProcessStreamWalMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   SStorageAPI  api = {0};
   void*        pTableList = NULL;
 
-  vDebug("vgId:%d %s start", TD_VID(pVnode), __func__);
+  vDebug("vgId:%d %s start, request paras lastVer:%"PRId64, TD_VID(pVnode), __func__, req->walMetaReq.lastVer);
 
   SStreamTriggerReaderInfo* sStreamReaderInfo = qStreamGetReaderInfo(req->base.streamId, req->base.readerTaskId);
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
@@ -974,7 +974,8 @@ static int32_t vnodeProcessStreamWalCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg, S
   void*        buf = NULL;
   size_t       size = 0;
   SSDataBlock* pBlock = NULL;
-  vDebug("vgId:%d %s start", TD_VID(pVnode), __func__);
+  vDebug("vgId:%d %s start, request skey:%"PRId64",ekey:%"PRId64 ",uid:%"PRId64",ver:%"PRId64, TD_VID(pVnode), __func__,
+  req->walCalcDataReq.skey, req->walCalcDataReq.ekey, req->walCalcDataReq.uid, req->walCalcDataReq.ver);
 
   SStreamTriggerReaderInfo* sStreamReaderInfo = qStreamGetReaderInfo(req->base.streamId, req->base.readerTaskId);
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
@@ -982,8 +983,8 @@ static int32_t vnodeProcessStreamWalCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg, S
   schemas = taosArrayInit(4, sizeof(SSchema));
   STREAM_CHECK_NULL_GOTO(schemas, terrno);
   STREAM_CHECK_RET_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 1))  // ts
-  STREAM_CHECK_RET_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 2))  // trigger col
-  STREAM_CHECK_RET_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 3))  // filter col
+  // STREAM_CHECK_RET_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 2))  // trigger col
+  // STREAM_CHECK_RET_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 3))  // filter col
 
   STimeWindow window = {.skey = req->walCalcDataReq.skey, .ekey = req->walCalcDataReq.ekey};
   STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, schemas, req->walCalcDataReq.ver,

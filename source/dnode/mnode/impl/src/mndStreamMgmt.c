@@ -1657,7 +1657,7 @@ int32_t msmRspAddStreamsDeploy(SStmGrpCtx* pCtx) {
     TAOS_CHECK_EXIT(msmUpdateStreamLastActTs(pDeploy->streamId, pCtx->currTs));
 
     int64_t streamId = pDeploy->streamId;
-    mstDebug("stream DEPLOY added to dnode %d hb rsp, readerTasks:%"PRIu64", triggerTask:%d, runnerTasks:%"PRIu64, 
+    mstDebug("stream DEPLOY added to dnode %d hb rsp, readerTasks:%zu, triggerTask:%d, runnerTasks:%zu", 
         pCtx->pReq->dnodeId, taosArrayGetSize(pDeploy->readerTasks), pDeploy->triggerTask ? 1 : 0, taosArrayGetSize(pDeploy->runnerTasks));
   }
   

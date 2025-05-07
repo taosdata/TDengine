@@ -99,7 +99,7 @@ int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
   if (pTask->pRealtimeCtx->sessionId == sessionId) {
     *ppCache = pTask->pRealtimeCtx->pCalcDataCache;
   } else {
-    stError("sessionId %ld not match with task %ld", sessionId, pTask->pRealtimeCtx->sessionId);
+    stError("sessionId %" PRId64 " not match with task %"PRId64, sessionId, pTask->pRealtimeCtx->sessionId);
     code = TSDB_CODE_INTERNAL_ERROR;
     QUERY_CHECK_CODE(code, lino, _end);
   }
