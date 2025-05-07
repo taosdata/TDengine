@@ -15,7 +15,7 @@ class TestProjectSTableFilterColumn:
         4. 增加普通列筛选
 
         Catalog:
-            - Query:Project
+            - Query:Filter
 
         Since: v3.0.0.0
 

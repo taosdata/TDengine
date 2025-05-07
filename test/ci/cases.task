@@ -272,37 +272,44 @@
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_case_when.py 
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_in.py 
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_like.py 
-## 02-Condition
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Condition/test_condition_scl.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Condition/test_condition.py
+## 02-Filter
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_condition_scl.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_condition.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_stable_filter_column.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_stable_filter_column_tag_timestamp.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_stable_filter_no.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_stable_filter_tag.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_stable_filter_timestamp.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_table_filter_column.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_table_filter_column_timestamp.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_table_filter_no.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_table_filter_timestamp.py
 ## 03-GroupBy
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby.py
 ## 04-OrderBy
 ## 05-Aliase
-## 06-Expression
-## 07-Limit
+## 06-Limit
+## 07-Slimit
 ## 08-SubQuery
-## 09-ProjectQuery
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_column_1.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_column_7.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_stable_filter_column.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_stable_filter_column_tag_timestamp.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_stable_filter_no.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_stable_filter_tag.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_stable_filter_timestamp.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_table_filter_column.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_table_filter_column_timestamp.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_table_filter_no.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_table_filter_timestamp.py
-## 10-QueryList
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/10-QueryList/test_const_col.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/10-QueryList/test_distinct.py
+## 09-SelectList
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_column_1.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_column_7.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_const_col.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_distinct.py
+
+## 10-Union
 ## 11-Interp
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/11-Interp/test_interp.py
 ## 12-Having
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_having_child.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_having.py
+## 13-Distinct
+## 14-Explain
+## 15-Hints
+## 16-Psedocolumn
+## 17-Tags
+## 18-Regexp
 
 # 08-TagIndices
 ,,y,.,./ci/pytest.sh pytest cases/08-TagIndices/test_index_create_drop.py 

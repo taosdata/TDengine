@@ -14,7 +14,7 @@ class TestProjectSTableFilterNo:
         3. 对超级表进行投影查询、四则运算
 
         Catalog:
-            - Query:Project
+            - Query:Filter
 
         Since: v3.0.0.0
 

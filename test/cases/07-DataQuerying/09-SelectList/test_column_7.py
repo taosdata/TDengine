@@ -16,7 +16,7 @@ class TestProjectColumn7:
         5. 增加排序
 
         Catalog:
-            - Query:Project
+            - Query:SelectList
 
         Since: v3.0.0.0
 

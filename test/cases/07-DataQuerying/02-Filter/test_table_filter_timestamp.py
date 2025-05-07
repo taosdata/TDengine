@@ -14,7 +14,7 @@ class TestProjectTableFilterTimestamp:
         3. 对子表进行投影查询、四则运算，带有时间戳筛选条件
 
         Catalog:
-            - Query:Project
+            - Query:Filter
 
         Since: v3.0.0.0
 

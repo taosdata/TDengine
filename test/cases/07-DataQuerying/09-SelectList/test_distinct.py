@@ -12,7 +12,7 @@ class TestDistinct:
         1. -
 
         Catalog:
-            - Query:QueryList
+            - Query:SelectList
 
         Since: v3.0.0.0
 
