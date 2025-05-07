@@ -140,6 +140,7 @@ typedef struct SStmVgroupTasksStatus {
 
 typedef struct SStmTaskDeployExt {
   bool           deployed;
+  bool           lowestRunner;
   SStmTaskDeploy deploy;
 } SStmTaskDeployExt;
 
@@ -221,8 +222,8 @@ typedef struct SStmRuntime {
   SHashObj*        toDeploySnodeMap;   // snodeId => SStmSnodeTasksDeploy (only trigger and runner tasks)
 
   // UP
-  int32_t          toUpdateRunnerNum;
-  SHashObj*        toUpdateRunnerMap;   // streamId + subplanId => SStmTaskSrcAddr (only scan's target runner tasks)
+  int32_t          toUpdateScanNum;
+  SHashObj*        toUpdateScanMap;   // streamId + subplanId => SStmTaskSrcAddr (only scan's target runner tasks)
 } SStmRuntime;
 
 extern SStmRuntime         mStreamMgmt;
