@@ -450,8 +450,11 @@ static int32_t mndRetrieveXnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false), pSdb, pObj);
 
+    char mqtt_ep[TSDB_EP_LEN] = {0};
     char ep[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(ep, pObj->pDnode->ep, pShow->pMeta->pSchemas[cols].bytes);
+
+    TAOS_UNUSED(tsnprintf(mqtt_ep, TSDB_EP_LEN - 1, "%s:%hu", pObj->pDnode->fqdn, tsMqttPort));
+    STR_WITH_MAXSIZE_TO_VARSTR(ep, mqtt_ep, pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)ep, false), pSdb, pObj);
