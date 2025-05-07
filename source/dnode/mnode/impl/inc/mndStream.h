@@ -181,6 +181,10 @@ typedef struct SStmGrpCtx {
   // status update
   int32_t          taskNum;
 
+  // reserved for trigger task deploy
+  int64_t          triggerTaskId;
+  int32_t          triggerNodeId;
+  
   SHashObj*        deployStm;
   SHashObj*        actionStm;
 } SStmGrpCtx;
