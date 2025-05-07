@@ -2,12 +2,10 @@
 #include "executor.h"
 #include "plannodes.h"
 
-static const int32_t taskConcurrentExecutionNum = 4;  // TODO wjm make it configurable
-
 static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pTaskExec);
 
 static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask) {
-  SStreamRunnerTaskExecMgr*  pMgr = &pTask->pExecMgr;
+  SStreamRunnerTaskExecMgr*  pMgr = &pTask->execMgr;
   SStreamRunnerTaskExecution exec = {.pExecutor = NULL, .pPlan = pTask->pPlan};
   // decode plan into queryPlan
   int32_t                    code = 0;
@@ -19,7 +17,7 @@ static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask) {
   pMgr->pFreeExecs = tdListNew(sizeof(SStreamRunnerTaskExecution));
   if (!pMgr->pFreeExecs) return terrno;
 
-  for (int32_t i = 0; i < taskConcurrentExecutionNum && code == 0; ++i) {
+  for (int32_t i = 0; i < pTask->parallelExecutionNun && code == 0; ++i) {
     exec.runtimeInfo.execId = i;
     code = tdListAppend(pMgr->pFreeExecs, &exec);
     if (code != 0) {
@@ -40,9 +38,9 @@ static void stRunnerDestroyTaskExecution(void* pExec) {
 }
 
 static void stRunnerDestroyTaskExecMgr(SStreamRunnerTask* pTask) {
-  SStreamRunnerTaskExecMgr* pMgr = &pTask->pExecMgr;
-  pMgr->exit = true;
+  SStreamRunnerTaskExecMgr* pMgr = &pTask->execMgr;
   taosThreadMutexLock(&pMgr->lock);
+  pMgr->exit = true;
   if (pMgr->pFreeExecs->dl_neles_ > 0) {
     tdListFreeP(pMgr->pFreeExecs, stRunnerDestroyTaskExecution);
   }
@@ -50,7 +48,7 @@ static void stRunnerDestroyTaskExecMgr(SStreamRunnerTask* pTask) {
 }
 
 static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t execId, SStreamRunnerTaskExecution** ppExec) {
-  SStreamRunnerTaskExecMgr* pMgr = &pTask->pExecMgr;
+  SStreamRunnerTaskExecMgr* pMgr = &pTask->execMgr;
   int32_t                   code = 0;
   taosThreadMutexLock(&pMgr->lock);
   if (pMgr->exit) {
@@ -60,7 +58,7 @@ static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t 
     if (execId == -1) {
       if (pMgr->pFreeExecs->dl_neles_ > 0) {
         SListNode* pNode = tdListPopHead(pMgr->pFreeExecs);
-        tdListAppendNode(pTask->pExecMgr.pRunningExecs, pNode);
+        tdListAppendNode(pTask->execMgr.pRunningExecs, pNode);
         *ppExec = (SStreamRunnerTaskExecution*)pNode->data;
       } else {
         code = TSDB_CODE_STREAM_TASK_IVLD_STATUS;
@@ -89,11 +87,17 @@ static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t 
 }
 
 static void stRunnerTaskExecMgrReleaseExec(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec) {
-  SStreamRunnerTaskExecMgr* pMgr = &pTask->pExecMgr;
+  SStreamRunnerTaskExecMgr* pMgr = &pTask->execMgr;
   taosThreadMutexLock(&pMgr->lock);
   if (pMgr->exit) {
     if (pMgr->pRunningExecs->dl_neles_ == 1) {
       tdListFreeP(pMgr->pRunningExecs, stRunnerDestroyTaskExecution);
+      // TODO destroy Mgr
+    } else {
+      SListNode* pNode = listNode(pExec);
+      pNode = tdListPopNode(pMgr->pRunningExecs, pNode);
+      stRunnerDestroyTaskExecution(pNode->data);
+      taosMemoryFreeClear(pNode);
     }
   } else {
     SListNode* pNode = listNode(pExec);
@@ -103,10 +107,31 @@ static void stRunnerTaskExecMgrReleaseExec(SStreamRunnerTask* pTask, SStreamRunn
   taosThreadMutexUnlock(&pMgr->lock);
 }
 
+void init_rt_info(SStreamRuntimeFuncInfo* pRtInfo) {
+  pRtInfo->groupId = 1231231;
+}
+
+void test_scalar_calc(SStreamRunnerTask* pTask) {
+  char tbname[128]= {0};
+  SStreamRuntimeFuncInfo rtInfo = {0};
+  init_rt_info(&rtInfo);
+  int32_t code = streamCalcOutputTbName(pTask->pSubTableExpr, tbname, &rtInfo);
+
+  SSTriggerCalcRequest req = {0};
+  req.streamId = pTask->task.streamId;
+  req.triggerTaskId = pTask->task.taskId;
+  req.sessionId = 0;
+  req.execId = -1;
+  req.gid = 123123;
+  req.brandNew = true;
+  //code = stRunnerTaskExecute(pTask, &req);
+}
+
 int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
   ST_TASK_ILOG("deploy runner task for %s.%s", pMsg->outDBFName, pMsg->outTblName);
   pTask->pPlan = pMsg->pPlan;  // TODO wjm do we need to deep copy this char*
   pTask->forceOutCols = pMsg->forceOutCols;
+  pTask->parallelExecutionNun = pMsg->execReplica;
   int32_t code = stRunnerInitTaskExecMgr(pTask);
   if (code != 0) {
     ST_TASK_ELOG("failed to init task exec mgr code:%s", tstrerror(code));
@@ -121,12 +146,15 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMs
   }
 
   pTask->task.status = STREAM_STATUS_INIT;
+  test_scalar_calc(pTask);
 
   return 0;
 }
 
 int32_t stRunnerTaskUndeploy(SStreamRunnerTask** ppTask, const SStreamUndeployTaskMsg* pMsg, taskUndeplyCallback cb) {
+  if ((*ppTask)->execMgr.exit) return 0;
   nodesDestroyNode((*ppTask)->pSubTableExpr);
+  (*ppTask)->pSubTableExpr = NULL;
   stRunnerDestroyTaskExecMgr(*ppTask);
 
   (*cb)(ppTask);
@@ -151,14 +179,14 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   }
 
   pTask->task.sessionId = pReq->sessionId;
-  pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals = pReq->groupColVals;
-  pExec->runtimeInfo.funcInfo.pStreamPartColVals = pReq->params;
+  pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals = pReq->params;
+  pExec->runtimeInfo.funcInfo.pStreamPartColVals = pReq->groupColVals;
   pExec->runtimeInfo.funcInfo.groupId = pReq->gid;
   pExec->runtimeInfo.pForceOutputCols = pTask->forceOutCols;
   if (!pExec->pExecutor) {
-    code = streamBuildTask(pTask, pExec->pExecutor);
+    code = streamBuildTask(pTask, pExec);
   } else {
-    if (1) // TODO wjm
+    if (pReq->brandNew) // TODO wjm
       streamResetTaskExec(pExec);
   }
 
@@ -196,7 +224,7 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
 
   ST_TASK_DLOG("vgId:%d start to build stream task", vgId);
 
-  SReadHandle handle = {0};
+  SReadHandle handle = {.pMsgCb = pTask->pMsgCb};
   code = qCreateStreamExecTaskInfo(&pExec->pExecutor, (void*)pExec->pPlan, &handle, vgId, taskId);
   if (code) {
     ST_TASK_ELOG("failed to build task, code:%s", tstrerror(code));

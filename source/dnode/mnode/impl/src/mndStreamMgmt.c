@@ -44,7 +44,7 @@ static int32_t msmSTAddToTaskMap(SMnode* pMnode, SStreamObj* pStream, SArray* pT
     SStmTaskStatus* pStatus = pTasks ? taosArrayGet(pTasks, i) : pTask;
     key[1] = pStatus->id.taskId;
     TAOS_CHECK_EXIT(taosHashPut(mStreamMgmt.taskMap, key, sizeof(key), &pStatus, POINTER_BYTES));
-    mstDebug("task %"PRIx64" tidx %d added to taskMap", pStatus->id.taskId, pStatus->id.taskIdx);
+    mstDebug("task %"PRId64" tidx %d added to taskMap", pStatus->id.taskId, pStatus->id.taskIdx);
   }
   
 _exit:
@@ -99,7 +99,7 @@ _return:
   if (code) {
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   } else {
-    mstDebug("task %" PRIx64 " tidx %d added to vgroupMap", pStatus->id.taskId, pStatus->id.taskIdx);
+    mstDebug("task %"PRId64" tidx %d added to vgroupMap", pStatus->id.taskId, pStatus->id.taskIdx);
   }
 
   return code;
@@ -216,7 +216,7 @@ _return:
   if (code) {
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   } else {
-    mstDebug("task %"PRIx64" tidx %d added to snodeMap, snodeId:%d", pStatus->id.taskId, pStatus->id.taskIdx, pStatus->id.nodeId);
+    mstDebug("task %"PRId64" tidx %d added to snodeMap, snodeId:%d", pStatus->id.taskId, pStatus->id.taskIdx, pStatus->id.nodeId);
   }
 
   return code;
@@ -890,7 +890,7 @@ int32_t msmUpdateRunnerPlans(SMnode* pMnode, SArray* pRunners, SStreamObj* pStre
     TAOS_CHECK_EXIT(nodesNodeToString((SNode*)pExt->deploy.msg.runner.pPlan, false, (char**)&pExt->deploy.msg.runner.pPlan, NULL));
 
     SStreamTask* pTask = &pExt->deploy.task;
-    ST_TASK_DLOG("runner task plan:%s", (char*)pExt->deploy.msg.runner.pPlan);
+    ST_TASK_DLOG("runner task plan:%s", (const char*)pExt->deploy.msg.runner.pPlan);
   }
 
 _exit:
@@ -1657,8 +1657,8 @@ int32_t msmRspAddStreamsDeploy(SStmGrpCtx* pCtx) {
     TAOS_CHECK_EXIT(msmUpdateStreamLastActTs(pDeploy->streamId, pCtx->currTs));
 
     int64_t streamId = pDeploy->streamId;
-    mstDebug("stream DEPLOY added to dnode %d hb rsp, readerTasks:%d, triggerTask:%d, runnerTasks:%d", 
-        pCtx->pReq->dnodeId, (int32_t)taosArrayGetSize(pDeploy->readerTasks), pDeploy->triggerTask ? 1 : 0, (int32_t)taosArrayGetSize(pDeploy->runnerTasks));
+    mstDebug("stream DEPLOY added to dnode %d hb rsp, readerTasks:%"PRIu64", triggerTask:%d, runnerTasks:%"PRIu64, 
+        pCtx->pReq->dnodeId, taosArrayGetSize(pDeploy->readerTasks), pDeploy->triggerTask ? 1 : 0, taosArrayGetSize(pDeploy->runnerTasks));
   }
   
 _exit:
@@ -2032,7 +2032,7 @@ void msmRspAddStreamStart(int64_t streamId, SMStreamHbRspMsg* pRsp, int32_t stre
 
   TSDB_CHECK_NULL(taosArrayPush(pRsp->start.taskList, &start), code, lino, _exit, terrno);
 
-  mstDebug("stream START added to dnode %d hb rsp, triggerTaskId:%"PRIx64, id->nodeId, id->taskId);
+  mstDebug("stream START added to dnode %d hb rsp, triggerTaskId:%"PRId64, id->nodeId, id->taskId);
 
   return;
 

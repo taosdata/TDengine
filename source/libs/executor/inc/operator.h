@@ -154,6 +154,9 @@ int32_t createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32_t numO
 int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, SReadHandle* readHandle, STableListInfo* pTableListInfo, int32_t numOfDownstream, SVirtualScanPhysiNode * pJoinNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo);
 
 int32_t createStreamVtableMergeOperatorInfo(SOperatorInfo* pDownstream, SReadHandle* pHandle, SVirtualScanPhysiNode* pVirtualScanNode, SNode* pTagCond, STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo, SOperatorInfo** pInfo);
+int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrOut);
+int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo, SOperatorInfo** ppOptrOut);
+
 // clang-format on
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,

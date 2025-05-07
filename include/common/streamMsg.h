@@ -680,6 +680,18 @@ int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTrigger
 int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalcRequest* pReq);
 void    tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq);
 
+typedef struct SStreamRuntimeFuncInfo {
+  SArray* pStreamPesudoFuncVals;
+  SArray* pStreamPartColVals;
+  SArray* pStreamPesudoFuncValNodes;
+  SArray* pStreamPartColValNodes;
+  int64_t groupId;
+} SStreamRuntimeFuncInfo;
+
+int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo);
+int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);
+
+
 #ifdef __cplusplus
 }
 #endif

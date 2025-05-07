@@ -539,8 +539,9 @@ _return:
 }
 
 int32_t sclInitParamList(SScalarParam **pParams, SNodeList *pParamList, SScalarCtx *ctx, int32_t *paramNum,
-                         int32_t *rowNum) {
-  //if (isStreamPseudoFunc(funcId)) return sclInitStreamPseudoFuncParamList(func_id_t, pParams, pParamList, ctx, paramNum, rowNum);
+                         int32_t *rowNum, int32_t funcId) {
+  if (fmIsPlaceHolderFunc(funcId))
+    return sclInitStreamPseudoFuncParamList(funcId, pParams, pParamList, ctx, paramNum, rowNum);
   int32_t code = 0;
   if (NULL == pParamList) {
     if (ctx->pBlockList) {
@@ -839,7 +840,7 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
   int32_t       rowNum = 0;
   int32_t       paramNum = 0;
   int32_t       code = 0;
-  SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &paramNum, &rowNum));
+  SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &paramNum, &rowNum, node->funcId));
   setTzCharset(params, node->tz, node->charsetCxt);
 
   if (fmIsUserDefinedFunc(node->funcId)) {
@@ -899,7 +900,7 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
   int32_t       rowNum = 0;
   int32_t       paramNum = 0;
   int32_t       code = 0;
-  SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &paramNum, &rowNum));
+  SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &paramNum, &rowNum, -1));
   if (NULL == params) {
     output->numOfRows = 0;
     return TSDB_CODE_SUCCESS;
