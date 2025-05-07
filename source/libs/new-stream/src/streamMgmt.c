@@ -296,9 +296,18 @@ void smRemoveTaskPostCheck(int64_t streamId, SStreamTasksInfo* pStream, bool* is
   *isLastTask = false;
 }
 
-void smRemoveReaderFromList(int64_t streamId, SStreamTasksInfo* pStream, SStreamTask* pTask, bool* isLastTask) {
-  int32_t readerNum = taosArrayGetSize(pStream->readerList);
-  
+void smHandleRemovedTask(SStreamTasksInfo* pStream, int64_t streamId, int32_t gid, bool isReader) {
+  SRWLatch* pLock = isReader ? &pStream->undeployReadersLock : &pStream->undeployRunnersLock;
+  SArray** ppArray = isReader ? &pStream->undeployReaders : &pStream->undeployRunners;
+  SRWLatch* pSrcLock = isReader ? &pStream->readerListLock : &pStream->runnerListLock;
+  SArray* pSrc = isReader ? &pStream->undeployReaders : &pStream->undeployRunners;
+
+  taosWLockLatch(pLock);
+  int32_t num = taosArrayGetSize(*ppArray);
+  for (int32_t i = 0; i < num; ++i) {
+    int32_t* taskId = taosArrayGet(*ppArray, i);
+    for (int32_t m = 0; m < )
+  }
 }
 
 void smRemoveTaskFromMaps(void* param) {
@@ -326,18 +335,39 @@ void smRemoveTaskFromMaps(void* param) {
   bool isLastTask = false;
   switch (pTask->type){
     case STREAM_READER_TASK:
-      smRemoveReaderFromList(pTask->streamId, pStream, pTask, &isLastTask);
+      if (NULL == pStream->undeployReaders) {
+        int32_t num = taosArrayGetSize(pStream->readerList);
+        SArray* pReaders = taosArrayInit(num, sizeof(int32_t));
+        TSDB_CHECK_NULL(pReaders, code, lino, _exit, terrno);
+        if (NULL != atomic_val_compare_exchange_ptr(&pStream->undeployReaders, NULL, pReaders)) {
+          taosArrayDestroy(pReaders);
+        }
+      }
+      taosWLockLatch(&pStream->undeployReadersLock);
+      taosArrayPush(pStream->undeployReaders, &pTask->taskId);
+      taosWUnLockLatch(&pStream->undeployReadersLock);
       break;
     case STREAM_TRIGGER_TASK:
+      taosWLockLatch(&pStream->triggerTaskLock);
       if (pStream->triggerTask->task.taskId != pTask->taskId) {
         ST_TASK_ELOG("trigger task mismatch with current trigger taskId:%d", pStream->triggerTask->task.taskId);
         goto _exit;
       }
       taosMemoryFreeClear(pStream->triggerTask);
-      smRemoveTaskPostCheck(pTask->streamId, pStream, &isLastTask);
+      taosWUnLockLatch(&pStream->triggerTaskLock);
       break;
     case STREAM_RUNNER_TASK:
-      smRemoveRunnerFromList(pTask->streamId, pStream, pTask, &isLastTask);
+      if (NULL == pStream->undeployRunners) {
+        int32_t num = taosArrayGetSize(pStream->runnerList);
+        SArray* pRunners = taosArrayInit(num, sizeof(int32_t));
+        TSDB_CHECK_NULL(pRunners, code, lino, _exit, terrno);
+        if (NULL != atomic_val_compare_exchange_ptr(&pStream->undeployRunners, NULL, pRunners)) {
+          taosArrayDestroy(pRunners);
+        }
+      }
+      taosWLockLatch(&pStream->undeployRunnersLock);
+      taosArrayPush(pStream->undeployRunners, &pTask->taskId);
+      taosWUnLockLatch(&pStream->undeployRunnersLock);
       break;
     default:
       ST_TASK_ELOG("Invalid task type:%d", pTask->type);
@@ -351,6 +381,12 @@ void smRemoveTaskFromMaps(void* param) {
   }  
 
 _exit:
+
+  if (code) {
+    mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  } else {
+    ST_TASK_DLOG("task pre-removed from stream task list, tidx:%d", pTask->taskIdx);
+  }
 
   taosHashRelease(pGrp, pStream);
 
