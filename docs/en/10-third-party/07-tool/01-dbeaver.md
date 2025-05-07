@@ -21,7 +21,7 @@ Using DBeaver to manage TDengine requires the following preparations.
 
 ## Using DBeaver to Access Internally Deployed TDengine
 
-1. Launch the DBeaver application, click the button or menu item to "Connect to Database", then select TDengine in the time-series category.
+1. Launch the DBeaver application, click the button or menu item to "New Database Connection", then select TDengine in the time-series category.
 
    <figure>
    <Image img={imgStep01} alt=""/>
