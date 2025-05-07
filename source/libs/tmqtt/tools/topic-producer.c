@@ -53,7 +53,7 @@ ConsumerConfig config = {.enable_auto_commit = "true",
                          .td_connect_pass = "taosdata",
                          .auto_offset_reset = "latest"};
 
-#define SQL_CREATE_DB  "CREATE DATABASE power PRECISION 'ms' WAL_RETENTION_PERIOD 3600"
+#define SQL_CREATE_DB  "CREATE DATABASE power PRECISION 'us' WAL_RETENTION_PERIOD 3600"
 #define SQL_DROP_DB    "DROP DATABASE IF EXISTS power"
 #define SQL_USE_DB     "USE power"
 #define SQL_DROP_TOPIC "DROP TOPIC IF EXISTS topic_meters"
@@ -76,7 +76,7 @@ ConsumerConfig config = {.enable_auto_commit = "true",
 #define SQL_CREATE_STABLE  \
   "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, c1 BOOL, c2 TINYINT, c3 SMALLINT, c4 INT, c5 BIGINT, c6 FLOAT, c7 DOUBLE, c8 binary(255), c9 TIMESTAMP, c10 NCHAR(255), c11 TINYINT UNSIGNED, c12 SMALLINT UNSIGNED, c13 INT UNSIGNED, c14 BIGINT UNSIGNED, c15 VARBINARY(255), c16 DECIMAL(38, 10), c17 VARCHAR(255), c18 GEOMETRY(10240), c19 DECIMAL(18, 4)) tags(t1 JSON)"
 #define SQL_INSERT  \
-  "INSERT INTO power.d1001 USING power.meters TAGS('{\"k1\": \"v1\"}') VALUES (NOW + %da, true, -79, 25761, -83885, 7865351, 3848271.756357, 92575.506626, '8.0742e+19', 752424273771827, '3.082946351e+18', 57, 21219, 627629871, 84394301683266985, '-2.653889251096953e+18', -262609547807621769.7285797, '-7.694200485148515e+19', 'POINT(1.0 1.0)', 57823334285922.827)"
+  "INSERT INTO power.d1001 USING power.meters TAGS('{\"k1\": \"v1\"}') VALUES (NOW + %du, true, -79, 25761, -83885, 7865351, 3848271.756357, 92575.506626, '8.0742e+19', 752424273771827, '3.082946351e+18', 57, 21219, 627629871, 84394301683266985, '-2.653889251096953e+18', -262609547807621769.7285797, '-7.694200485148515e+19', 'POINT(1.0 1.0)', 57823334285922.827)"
 // clang-format on
 
 static void* prep_data(void* arg) {
@@ -116,7 +116,7 @@ static void* prep_data(void* arg) {
 #ifdef WINDOWS
     Sleep(1000);
 #else
-    sleep(1);
+    usleep(1);
 #endif
   }
   fprintf(stdout, "Prepare data thread exit\n");
