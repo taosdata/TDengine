@@ -22,7 +22,7 @@
 #include "tcommon.h"
 #include "tcompare.h"
 #include "tdatablock.h"
-#include "tfill.h"
+//#include "tfill.h"
 #include "ttime.h"
 
 #ifdef USE_ANALYTICS
@@ -70,7 +70,7 @@ typedef struct SForecastOperatorInfo {
   SForecastSupp forecastSupp;
 } SForecastOperatorInfo;
 
-static void destroyForecastInfo(void* param);
+static void    destroyForecastInfo(void* param);
 static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id);
 
 static FORCE_INLINE int32_t forecastEnsureBlockCapacity(SSDataBlock* pBlock, int32_t newRowsNum) {

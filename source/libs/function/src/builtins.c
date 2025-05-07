@@ -1296,6 +1296,12 @@ static int32_t translateForecastConf(SFunctionNode* pFunc, char* pErrBuf, int32_
 
 static EFuncReturnRows forecastEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
 
+static int32_t translateImputation(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return 0;
+}
+
+static EFuncReturnRows imputationEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_INDEFINITE; }
+
 static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
   uint8_t colType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
@@ -5712,7 +5718,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc  = NULL,
     .estimateReturnRowsFunc = forecastEstReturnRows,
   },
-    {
+  {
     .name = "_frowts",
     .type = FUNCTION_TYPE_FORECAST_ROWTS,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_FORECAST_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
@@ -5840,7 +5846,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = NULL,
     .finalizeFunc = NULL,
   },
-    {
+  {
     .name = "_iswindowfilled",
     .type = FUNCTION_TYPE_IS_WINDOW_FILLED,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
@@ -5853,6 +5859,29 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = NULL,
     .sprocessFunc = isWinFilledFunction,
     .finalizeFunc = NULL,
+  },
+  {
+    .name = "imputation",
+    .type = FUNCTION_TYPE_IMPUTATION,
+    .classification = FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = -1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE | FUNC_PARAM_SUPPORT_DOUBLE_TYPE | FUNC_PARAM_SUPPORT_UBIGINT_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE}},
+    .translateFunc = translateImputation,
+    .getEnvFunc    = getSelectivityFuncEnv,
+    .initFunc      = functionSetup,
+    .processFunc   = NULL,
+    .finalizeFunc  = NULL,
+    .estimateReturnRowsFunc = imputationEstReturnRows,
   },
 };
 // clang-format on
