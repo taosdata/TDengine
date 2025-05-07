@@ -22,8 +22,10 @@ toc_max_heading_level: 5
 ``` sql
 jdbc:TAOS-WS://[host_name]:[port]/[database_name]?[user={user}|&password={password}]
 ```
-详细参数介绍见：[URL 参数介绍](../../../reference/connector/java/#url-规范)
-driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”
+
+详细参数见：[URL 参数介绍](../../../reference/connector/java/#url-规范)。
+
+driverClass 指定为 “com.taosdata.jdbc.ws.WebSocketDriver”。
 
 以下示例创建 Spark 实例并连接到本机 TDengine 服务：
 ``` java
@@ -43,39 +45,192 @@ driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”
 
 ```
 
+## 数据交互
 
-## 数据接入
 数据接入需注册 TDengine 方言，方言中主要处理反引号，数据类型映射与 JDBC 相同, 无需额外处理，参见：[JDBC 数据类型映射](../../../reference/connector/java/#数据类型映射)
 
 下面以 JAVA 语言编写 Spark 任务，通过 `spark-submit` 提交任务执行为例，介绍数据接入，后附完整示例代码。
 
 ### 数据写入
-数据写入使用参数绑定完成，核心代码如下，详细参见示例： writeToTDengine
+
+数据写入使用参数绑定，分三步完成：
+
+**第 1 步**， 创建连接。
 ``` java
+  // create connect
+  String url = "jdbc:TAOS-WS://localhost:6041/test?user=root&password=taosdata";
+  Connection connection = DriverManager.getConnection(url);
+```
+
+**第 2 步**， 绑定数据并提交。
+``` java
+  // bind param
   String sql = String.format("INSERT INTO test.d%d using test.meters tags(%d,'location%d') VALUES (?,?,?,?) ", i, i, i);
   PreparedStatement preparedStatement = connection.prepareStatement(sql);
+  for (int j = 0; j < insertRows; j++) {
+      float current = (float)(10  + rand.nextInt(100) * 0.01);
+      float phase   = (float)(1   + rand.nextInt(100) * 0.0001);
+      int   voltage = (int)  (100 + rand.nextInt(20));
+
+      preparedStatement.setTimestamp(1, new Timestamp(ts + j));
+      preparedStatement.setFloat(2, current);
+      preparedStatement.setInt(3, voltage);
+      preparedStatement.setFloat(4, phase);
+      // submit
+      preparedStatement.executeUpdate();
+  }
 ```
+
+**第 3 步**， 关闭连接。
+``` java
+connection.close();
+```
+
+参见示例： writeToTDengine。
 
 ### 数据读取
-数据读取通过表映射方式读取，详细参见示例： readFromTDengine
+
+数据读取通过表映射方式读取，分四步完成：
+
+**第 1 步**， 创建 Spark 交互实例。
 ``` java
-  Dataset<Row> df = reader.option("dbtable", dbtable).load();
-  df.show();
+  // create connect
+  SparkSession spark = SparkSession.builder()
+      .appName("appSparkTest")
+      .master("local[*]")
+      .getOrCreate();
 ```
+
+**第 2 步**， 创建数据读取器。
+``` java
+  // create reader
+  String url = "jdbc:TAOS-WS://localhost:6041/test?user=root&password=taosdata";
+  int    timeout  = 60; // seconds
+  DataFrameReader reader = spark.read()
+      .format("jdbc") 
+      .option("url", url)
+      .option("driver", driver)
+      .option("queryTimeout", timeout);
+
+```
+
+**第 3 步**， 映射表，显示表内数据。
+``` java
+  // map table
+  Dataset<Row> df = reader.option("dbtable", dbtable).load();
+  df.show(Integer.MAX_VALUE, 40, false);
+  df.close()
+```
+
+**第 4 步**， 关闭交互。
+``` java
+  spark.stop();
+```
+
+参见示例： readFromTDengine。
 
 ### 数据订阅
-数据订阅使用 JDBC 标准数据订阅方法，详细参见示例： subscribeFromTDengine
+
+数据订阅使用 JDBC 标准数据订阅方法，分三步完成：
+
+**第 1 步**， 创建消费者。
 ``` java
-   List<String> topics = Collections.singletonList("topic_meters");
-   consumer.subscribe(topics);
+  // create consumer
+  TaosConsumer<ResultBean> consumer = getConsumer();
+
+  // getConsumer
+  public static TaosConsumer<ResultBean> getConsumer() throws Exception {
+
+      Properties config = new Properties();
+      config.setProperty("td.connect.type", "ws");
+      config.setProperty("bootstrap.servers", "localhost:6041");
+      config.setProperty("auto.offset.reset", "earliest");
+      config.setProperty("msg.with.table.name", "true");
+      config.setProperty("enable.auto.commit", "true");
+      config.setProperty("auto.commit.interval.ms", "1000");
+      config.setProperty("group.id", "group1");
+      config.setProperty("client.id", "clinet1");
+      config.setProperty("td.connect.user", "root");
+      config.setProperty("td.connect.pass", "taosdata");
+      config.setProperty("value.deserializer", "com.taosdata.java.SparkTest$ResultDeserializer");
+      config.setProperty("value.deserializer.encoding", "UTF-8");
+
+      try {
+          TaosConsumer<ResultBean> consumer= new TaosConsumer<>(config);
+          System.out.printf("Create consumer successfully, host: %s, groupId: %s, clientId: %s%n",
+                  config.getProperty("bootstrap.servers"),
+                  config.getProperty("group.id"),
+                  config.getProperty("client.id"));
+          return consumer;
+      } catch (Exception ex) {
+          // please refer to the JDBC specifications for detailed exceptions info
+          System.out.printf("Failed to create websocket consumer, host: %s, groupId: %s, clientId: %s, %sErrMessage: %s%n",
+                  config.getProperty("bootstrap.servers"),
+                  config.getProperty("group.id"),
+                  config.getProperty("client.id"),
+                  ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
+                  ex.getMessage());
+          // Print stack trace for context in examples. Use logging in production.
+          ex.printStackTrace();
+          throw ex;
+      }
+  }
 ```
 
+**第 2 步**， 订阅主题，消费数据。
+``` java
+    // poll data from server
+    pollExample(consumer);
+
+    // pollExample
+    public static void pollExample(TaosConsumer<ResultBean> consumer) throws SQLException, JsonProcessingException {
+        List<String> topics = Collections.singletonList("topic_meters");
+        try {
+            // subscribe to the topics
+            consumer.subscribe(topics);
+            System.out.println("Subscribe topics successfully.");
+            for (int i = 0; i < 100; i++) {
+                // poll data
+                ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
+                for (ConsumerRecord<ResultBean> record : records) {
+                    ResultBean bean = record.value();
+                    // Add your data processing logic here
+                    System.out.println("data: " + JsonUtil.getObjectMapper().writeValueAsString(bean));
+                }
+            }
+        } catch (Exception ex) {
+            // please refer to the JDBC specifications for detailed exceptions info
+            System.out.printf("Failed to poll data, topic: %s, groupId: %s, clientId: %s, %sErrMessage: %s%n",
+                    topics.get(0),
+                    groupId,
+                    clientId,
+                    ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
+                    ex.getMessage());
+            // Print stack trace for context in examples. Use logging in production.
+            ex.printStackTrace();
+            throw ex;
+        }
+    } 
+
+```
+
+**第 3 步**， 取消订阅，释放资源。
+``` java
+  // close
+  consumer.unsubscribe();
+  consumer.close();
+```
+
+详细参见示例： subscribeFromTDengine。
 
 ## 数据分析
 
+### 场景介绍
+示例场景为一个家庭使用的智能电表，数据存储在 TDengine, 分析单台智能电表每周用电的电压变化情况。
+
 ### 数据准备
 
-以智能电表数据为样例，生成一个超级表，两个子表，每个子表写入 20 条数据，电压数据生成在 100 ~ 120 范围内随机数
+生成一个超级表，一个子表，每天会固定产生一条数据，生成三周数据共 21 条，电压数据在 210 ~ 230 范围内随机变化
 
 ### 分析电压周变化率
 LAG() 函数是 Spark 提供获取当前行之前某行数据的函数，示例使用此函数进行电压周变化率分析。
