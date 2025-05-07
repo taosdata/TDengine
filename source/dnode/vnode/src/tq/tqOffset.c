@@ -39,6 +39,26 @@ END:
   return code;
 }
 
+int32_t tqCommitOffset(void* p){
+  STQ* pTq = (STQ*)p;
+  int32_t code = TDB_CODE_SUCCESS;
+  void      *pIter = NULL;
+  while ((pIter = taosHashIterate(pTq->pOffset, pIter))) {
+    STqOffset* offset = (STqOffset*)pIter;
+    int32_t ret = tqMetaSaveOffset(pTq, offset);
+    if (ret != TDB_CODE_SUCCESS) {
+      code = ret;
+      tqError("tq commit offset error subkey:%s, vgId:%d", offset->subKey, pTq->pVnode->config.vgId);
+    }else{
+      if (offset->val.type == TMQ_OFFSET__LOG) {
+        tqInfo("tq commit offset success subkey:%s vgId:%d, offset(type:log) version:%" PRId64, offset->subKey, pTq->pVnode->config.vgId,
+          offset->val.version);
+      }
+    }
+  }
+  return code;
+}
+
 int32_t tqOffsetRestoreFromFile(STQ* pTq, char* name) {
   int32_t    code = TDB_CODE_SUCCESS;
   int32_t    lino = 0;
@@ -85,11 +105,8 @@ int32_t tqOffsetRestoreFromFile(STQ* pTq, char* name) {
     pMemBuf = NULL;
   }
 
-  while ((pIter = taosHashIterate(pTq->pOffset, pIter))) {
-    STqOffset* offset = (STqOffset*)pIter;
-    code = tqMetaSaveOffset(pTq, offset);
-    TSDB_CHECK_CODE(code, lino, END);
-  }
+  code = tqCommitOffset(pTq);
+  TSDB_CHECK_CODE(code, lino, END);
 
 END:
   if (code != 0){
