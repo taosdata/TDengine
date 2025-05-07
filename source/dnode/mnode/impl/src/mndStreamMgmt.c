@@ -44,7 +44,7 @@ static int32_t msmSTAddToTaskMap(SMnode* pMnode, SStreamObj* pStream, SArray* pT
     SStmTaskStatus* pStatus = pTasks ? taosArrayGet(pTasks, i) : pTask;
     key[1] = pStatus->id.taskId;
     TAOS_CHECK_EXIT(taosHashPut(mStreamMgmt.taskMap, key, sizeof(key), &pStatus, POINTER_BYTES));
-    mstDebug("task %lld tidx %d added to taskMap", pStatus->id.taskId, pStatus->id.taskIdx);
+    mstDebug("task %"PRIx64" tidx %d added to taskMap", pStatus->id.taskId, pStatus->id.taskIdx);
   }
   
 _exit:
@@ -99,7 +99,7 @@ _return:
   if (code) {
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   } else {
-    mstDebug("task %lld tidx %d added to vgroupMap", pStatus->id.taskId, pStatus->id.taskIdx);
+    mstDebug("task %" PRIx64 " tidx %d added to vgroupMap", pStatus->id.taskId, pStatus->id.taskIdx);
   }
 
   return code;
@@ -216,7 +216,7 @@ _return:
   if (code) {
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   } else {
-    mstDebug("task %lld tidx %d added to snodeMap, snodeId:%d", pStatus->id.taskId, pStatus->id.taskIdx, pStatus->id.nodeId);
+    mstDebug("task %"PRIx64" tidx %d added to snodeMap, snodeId:%d", pStatus->id.taskId, pStatus->id.taskIdx, pStatus->id.nodeId);
   }
 
   return code;
@@ -2008,7 +2008,7 @@ void msmRspAddStreamStart(int64_t streamId, SMStreamHbRspMsg* pRsp, int32_t stre
 
   TSDB_CHECK_NULL(taosArrayPush(pRsp->start.taskList, &start), code, lino, _exit, terrno);
 
-  mstDebug("stream START added to dnode %d hb rsp, triggerTaskId:%lld", id->nodeId, id->taskId);
+  mstDebug("stream START added to dnode %d hb rsp, triggerTaskId:%"PRIx64, id->nodeId, id->taskId);
 
   return;
 
