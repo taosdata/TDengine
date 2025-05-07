@@ -296,6 +296,11 @@ void smRemoveTaskPostCheck(int64_t streamId, SStreamTasksInfo* pStream, bool* is
   *isLastTask = false;
 }
 
+void smRemoveReaderFromList(int64_t streamId, SStreamTasksInfo* pStream, SStreamTask* pTask, bool* isLastTask) {
+  int32_t readerNum = taosArrayGetSize(pStream->readerList);
+  
+}
+
 void smRemoveTaskFromMaps(void* param) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
