@@ -1058,6 +1058,7 @@ int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, ch
   return opos;
 }
 #else
+#if 1
 int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, char *const output) {
   int32_t byte_limit = nelements * DOUBLE_BYTES + 1;
   int32_t nElements = nelements & ~(DOUBLE_BYTES - 1);
@@ -1065,19 +1066,37 @@ int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, ch
 
   char *const pOutput = output + 1;
   int32_t     k = -1;
+
   for (int32_t i = 0; i < DOUBLE_BYTES; ++i) {
-    for (int32_t j = 0; j < nElements; ++j) {
-      pOutput[++k] = *(input + j * DOUBLE_BYTES + i);
+    for (int32_t j = 0; j < nelements; ++j) {
+      pOutput[++k] = input[j * DOUBLE_BYTES + i];
     }
   }
 
-  if (remainder > 0) {
-    memcpy(pOutput + nElements * DOUBLE_BYTES, input + nElements * DOUBLE_BYTES, remainder * DOUBLE_BYTES);
-  }
-
-  output[0] = nElements > 0 ? 0 : 1;
+  output[0] = 0;
   return byte_limit;
 }
+#else
+int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, char *const output) {
+  int32_t byte_limit = nelements * DOUBLE_BYTES + 1;
+  int32_t nElements = nelements & ~(DOUBLE_BYTES - 1);
+  int32_t remainder = nelements - nElements;
+
+  char *const pOutput = output + 1;
+  int32_t     opos = 0;
+  while (true) {
+    if (++opos >= byte_limit) {
+      output[0] = 1;
+      memcpy(output + 1, input, byte_limit - 1);
+      return byte_limit;
+    }
+    
+  }
+
+  output[0] = 0;
+  return byte_limit;
+}
+#endif
 #endif
 
 FORCE_INLINE uint64_t decodeDoubleValue(const char *const input, int32_t *const ipos, uint8_t flag) {
@@ -1150,18 +1169,12 @@ int32_t tsDecompressDoubleImp(const char *const input, int32_t ninput, const int
     return nelements * DOUBLE_BYTES;
   }
 
-  const int32_t     nElements = nelements & ~(DOUBLE_BYTES - 1);
-  const int32_t     remainder = nelements - nElements;
   const char *const pInput = input + 1;
-
-  for (int32_t j = 0; j < nElements; ++j) {
-    for (int32_t i = 0; i < DOUBLE_BYTES; ++i) {
-      output[j * DOUBLE_BYTES + i] = pInput[i * nElements + j];
+  int32_t           k = -1;
+  for (int32_t i = 0; i < DOUBLE_BYTES; ++i) {
+    for (int32_t j = 0; j < nelements; ++j) {
+      output[j * DOUBLE_BYTES + i] = pInput[++k];
     }
-  }
-
-  if (remainder > 0) {
-    memcpy(output + nElements * DOUBLE_BYTES, pInput + nElements * DOUBLE_BYTES, remainder * DOUBLE_BYTES);
   }
 
   return nelements * DOUBLE_BYTES;
