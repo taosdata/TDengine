@@ -365,7 +365,7 @@ class TDTestCase:
             self.prepareCfg(dnodePath, {"serverPort": 10050,
                 "dataDir": dnodePath + os.sep + "data",
                 "logDir": dnodePath + os.sep + "log",
-                "logKeepDays": "3" })
+                "logKeepDays": "-3" })
         except Exception as e:
              raise Exception(f"Failed to prepare configuration for {dnodePath}: {e}")
 

@@ -964,6 +964,45 @@ class TDSql:
         if(show):         
             tdLog.info("check successfully")
 
+    def checkKeyData(self, key, col, data, show=False):
+        """
+        Checks if the data at the specified key matches the expected data.
+
+        Args:
+            key: The first column to be compared with.
+            col (int): The column index of the data to be checked.
+            data: The expected data to be compared with.
+            show (bool, optional): If True, logs a message when the check is successful. Defaults to False.
+
+        Returns:
+            None
+
+        Raises:
+            SystemExit: If the data of the specified key does not match the expected data.
+        """
+
+        if col >= self.queryCols:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, col + 1, self.queryCols)
+            tdLog.exit(
+                "%s(%d) failed: sql:%s, col:%d is larger than queryCols:%d" % args
+            )
+
+        row = -1
+
+        for i in range(self.queryRows):
+            if self.queryResult[i][col] == data:
+                row = i
+
+        tdLog.debug(f"find key:{key}, row:{row} col:{col}, data:{data}")
+
+        if row == -1:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, key, col)
+            tdLog.exit("%s(%d) failed: sql:%s key:%s col:%d not found" % args)
+
+        return self.checkData(row, col, data)
+
     def checkDataMem(self, sql, mem):
         """
         Executes a SQL query and checks if the result matches the expected data.
