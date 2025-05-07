@@ -271,6 +271,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_between_and.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_case_when.py 
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_in.py 
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_like.py 
 ## 02-Condition
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Condition/test_condition_scl.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Condition/test_condition.py
@@ -327,9 +328,14 @@
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_bottom.py
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_first_last.py
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_first.py 
+,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_basic.py 
+,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_both.py 
+,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_cache.py 
+,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_groupby.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_lru.py 
-,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_row.py 
-,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last.py 
+,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_row1.py 
+,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_row2.py 
+,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_row3.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_max.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_min.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_top.py 
