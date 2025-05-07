@@ -1775,13 +1775,20 @@ static int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const S
   SExprInfo* pExprInfo = NULL;
   int32_t    numOfExprs = 1;
   int32_t*   offset = 0;
+  STargetNode* pTargetNode = NULL;
+  code = nodesMakeNode(QUERY_NODE_TARGET, (SNode**)&pTargetNode);
+  if (code == 0) code = nodesCloneNode(pExpr, &pNode);
 
-  code = nodesCloneNode(pExpr, &pNode);
+  if (code == 0) {
+    pTargetNode->dataBlockId = 0;
+    pTargetNode->pExpr = pNode;
+    pTargetNode->slotId = 0;
+  }
   if (code == 0) {
     code = nodesMakeList(&pList);
   }
   if (code == 0) {
-    code = nodesListAppend(pList, pNode);
+    code = nodesListAppend(pList, (SNode*)pTargetNode);
   }
   if (code == 0) {
     pNode = NULL;
@@ -1803,7 +1810,11 @@ static int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const S
         code = TSDB_CODE_OPS_NOT_SUPPORT;
         break;
     }
-    if (code == 0) code = scalarCalculate(pSclNode, NULL, pDst, pExtraParams);
+    SArray* pBlockList = taosArrayInit(2, POINTER_BYTES);
+    SSDataBlock block = {0};
+    SSDataBlock* pBlock = &block;
+    taosArrayPush(pBlockList, &pBlock);
+    if (code == 0) code = scalarCalculate(pSclNode, pBlockList, pDst, pExtraParams);
   }
 
   nodesDestroyList(pList);
@@ -1886,7 +1897,7 @@ int32_t streamCalcOutputTbName(SNode *pExpr, char *tbname, const SStreamRuntimeF
       code = streamCalcOneScalarExpr(pExpr, &dst, pStreamRuntimeInfo);
       if (code == 0) {
         pVal = varDataVal(colDataGetVarData(dst.columnData, 0));
-        len = varDataTLen(pVal);
+        len = varDataLen(colDataGetVarData(dst.columnData, 0));
       }
     } break;
     default:
@@ -1899,7 +1910,7 @@ int32_t streamCalcOutputTbName(SNode *pExpr, char *tbname, const SStreamRuntimeF
       qError("tbname generated with no characters which is not allowed");
       code = TSDB_CODE_INVALID_PARA;
     }
-    tstrncpy(tbname, pVal, TSDB_TABLE_NAME_LEN);
+    memcpy(tbname, pVal, len);
   }
   return code;
 }

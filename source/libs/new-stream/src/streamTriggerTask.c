@@ -1922,7 +1922,7 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
   QUERY_CHECK_NULL(msg.pCont, code, lino, _end, terrno);
   SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
   pMsgHead->contLen = htonl(msg.contLen);
-  pMsgHead->vgId = SNODE_HANDLE;
+  pMsgHead->vgId = htonl(SNODE_HANDLE);
   int32_t tlen = tSerializeSTriggerCalcRequest(msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pReq);
   QUERY_CHECK_CONDITION(tlen == msg.contLen - sizeof(SMsgHead), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   code = tmsgSendReq(&pRunner->addr.epset, &msg);

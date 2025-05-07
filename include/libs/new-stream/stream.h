@@ -72,12 +72,12 @@ typedef struct SStreamRunnerTaskExecMgr {
 
 typedef struct SStreamRunnerTask {
   SStreamTask        task;
-  SStreamRunnerTaskExecMgr      pExecMgr;
+  SStreamRunnerTaskExecMgr      execMgr;
   SStreamRunnerTaskOutput       output;
   SStreamRunnerTaskNotification notification;
   const char*                   pPlan;
   int32_t                       parallelExecutionNun;
-  SReadHandle                   handle;
+  void*                         pMsgCb;
   void*                         pSubTableExpr;
   SArray*                       forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
 } SStreamRunnerTask;

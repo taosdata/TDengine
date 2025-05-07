@@ -156,8 +156,9 @@ int32_t resetMergeAlignedExternalWindowOperator(SOperatorInfo* pOperator) {
   return code;
 }
 
-int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SMergeAlignedIntervalPhysiNode* pPhynode,
+int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNode,
                                                  SExecTaskInfo* pTaskInfo, SOperatorInfo** ppOptrOut) {
+  SMergeAlignedIntervalPhysiNode* pPhynode = (SMergeAlignedIntervalPhysiNode*)pNode;
   int32_t code = 0;
   int32_t lino = 0;
   SMergeAlignedExternalWindowOperator* pMlExtInfo = taosMemoryCalloc(1, sizeof(SMergeAlignedExternalWindowOperator));
@@ -251,8 +252,9 @@ static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
   return code;
 }
 
-int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SExternalWindowPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo,
+int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNode, SExecTaskInfo* pTaskInfo,
                                      SOperatorInfo** pOptrOut) {
+  SExternalWindowPhysiNode* pPhynode = (SExternalWindowPhysiNode*)pNode;
   QRY_PARAM_CHECK(pOptrOut);
   int32_t                  code = 0;
   int32_t                  lino = 0;

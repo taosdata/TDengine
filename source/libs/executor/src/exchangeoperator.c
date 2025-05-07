@@ -717,8 +717,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       req.execId = pTaskInfo->pStreamRuntimeInfo->execId;
       req.pStRtFuncInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
       if (!pDataInfo->fetchSent) {
-        pDataInfo->fetchSent = true;
-        req.reset = true;
+        req.reset = pDataInfo->fetchSent = true;
       }
     }
     if (pDataInfo->isVtbRefScan) {
