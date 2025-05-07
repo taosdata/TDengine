@@ -984,7 +984,6 @@ int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, ch
   double *istream = (double *)input;
 
   // Main loop
-  int32_t j = 0;
   for (int32_t i = 0; i < nelements; i++) {
     union {
       double   real;
