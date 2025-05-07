@@ -86,7 +86,7 @@ driverClass 指定为 “com.taosdata.jdbc.ws.WebSocketDriver”。
 connection.close();
 ```
 
-参见示例： writeToTDengine。
+详细参见示例： writeToTDengine()。
 
 ### 数据读取
 
@@ -127,7 +127,7 @@ connection.close();
   spark.stop();
 ```
 
-参见示例： readFromTDengine。
+详细参见示例： readFromTDengine()。
 
 ### 数据订阅
 
@@ -221,7 +221,7 @@ connection.close();
   consumer.close();
 ```
 
-详细参见示例： subscribeFromTDengine。
+详细参见示例： subscribeFromTDengine()。
 
 ## 数据分析
 
@@ -252,18 +252,7 @@ SELECT tbname, ts, voltage,
 
 ![spark-result](./spark-result.png)
 
-
-### 更多场景
- Spark 接 TDengine 数据源后，可扩展 TDengine 更多数据处理能力：
-
-- 跨数据库数据分析
-
-- 数据集交集、并集、差集运算
-
-- Where 带子查询进行过滤
-
-- 支持普通列 JOIN 操作等等
-
+Spark 接入 TDengine 数据源后，可进一步支持跨数据库分析、数据集交 / 并 / 差运算、带 WHERE 子查询过滤、普通列 JOIN 等复杂数据处理功能。
 
 ## 示例源码
 示例为 JAVA 语言编写，编译运行参考示例源码目录下 README。    
