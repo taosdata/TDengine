@@ -771,14 +771,14 @@ _exit:
   return code;
 }
 
-int32_t msmUpdatePlanSourceAddr(SSubplan* plan, int64_t clientId, SStmTaskSrcAddr* pSrc) {
+int32_t msmUpdatePlanSourceAddr(SSubplan* plan, int64_t clientId, SStmTaskSrcAddr* pSrc, int32_t msgType) {
   SDownstreamSourceNode source = {
       .type = QUERY_NODE_DOWNSTREAM_SOURCE,
       .clientId = clientId,
       .taskId = pSrc->taskId,
       .sId = 0,
       .execId = 0,
-      .fetchMsgType = TDMT_STREAM_FETCH,
+      .fetchMsgType = msgType,
       .localExec = false,
   };
 
@@ -829,7 +829,7 @@ int32_t msmUpdateLowestPlanSourceAddr(SSubplan* pPlan, SStmTaskDeploy* pDeploy, 
       TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
     }
 
-    TAOS_CHECK_EXIT(msmUpdatePlanSourceAddr(pPlan, pDeploy->task.taskId, pAddr));
+    TAOS_CHECK_EXIT(msmUpdatePlanSourceAddr(pPlan, pDeploy->task.taskId, pAddr, TDMT_STREAM_FETCH));
   }
 
 _exit:
@@ -866,7 +866,7 @@ int32_t msmUpdateRunnerPlan(SMnode* pMnode, SArray* pRunners, int32_t beginIdx, 
   FOREACH(pNode, pPlan->pParents) {
     SSubplan* pSubplan = (SSubplan*)pNode;
     TAOS_CHECK_EXIT(msmGetTaskIdFromSubplanId(pStream, pRunners, beginIdx, pSubplan->id.subplanId, &parentTaskId));
-    TAOS_CHECK_EXIT(msmUpdatePlanSourceAddr(pSubplan, parentTaskId, &addr));
+    TAOS_CHECK_EXIT(msmUpdatePlanSourceAddr(pSubplan, parentTaskId, &addr, TDMT_STREAM_FETCH_FROM_RUNNER));
   }
   
 _exit:
