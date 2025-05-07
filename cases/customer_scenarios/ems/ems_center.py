@@ -26,11 +26,6 @@ class EMSCenter(TDCase):
             self.compression_param = self.case_config["enable_compression"]
         else:
             self.compression_param = ""
-        self.start_time = datetime.utcnow()
-        self.start_time_str = f"{self.start_time.isoformat(timespec='milliseconds')}Z"
-        self.case_config["start_time"] = self.start_time_str
-        with open(os.path.join(self.env_root, "workflow_config.json"), "w") as config_file:
-            json.dump(self.case_config, config_file, indent=4)
 
     def cleanup(self) -> None:
         pass
@@ -49,7 +44,7 @@ class EMSCenter(TDCase):
         for edge_host in self.edge_hosts:
                 # "from": f"taos+ws://{edge_host}:6041/{self.edge_db}?mode=all&schema=always&schema-polling-interval=5s&compression={self.compression_param}",
             case_data = {
-                "from": f"tmq+ws://{edge_host}:6041/{self.edge_db}?auto.offset.reset=earliest&client.id=test&experimental.snapshot.enable=true",
+                "from": f"tmq+ws://{edge_host}:6041/{self.edge_db}?auto.offset.reset=earliest&client.id=test&experimental.snapshot.enable=true&compression={self.compression_param}",
                 "to": f"taos+ws://{self.fqdn}:6041/{self.target_dbname}",
                 "labels": self.case_data_org["from"]["labels"]
             }

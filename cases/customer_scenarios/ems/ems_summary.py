@@ -6,8 +6,9 @@ from taostest.util.common import TDCom
 import re
 import requests
 from taostest.util.rest import TDRest
+from typing import Dict, List
 import time
-class EMSQuery(TDCase):
+class EMSSummary(TDCase):
     def init(self):
         self._remote: Remote = Remote(self.logger)
         self.tdRest = TDRest(env_setting=self.env_setting)
@@ -22,18 +23,111 @@ class EMSQuery(TDCase):
         self.summary_log_path = f'{self.log_path}/summary'
         self._remote.cmd("localhost", [f'mkdir -p {self.detail_log_path}', f'mkdir -p {self.summary_log_path}'])
         self.timeout = 20  # Maximum wait time in seconds
-        self.dbname = "center_db"
+        self.retention_timeout = int(self.case_config["exec_time"])
+        self.query_interval = 3
+        self.retry_times = 3
+        self.edge_dbname = "mqtt_datain"
+        self.center_dbname = "center_db"
+        self.stable_data = {}
         self.report_file = f'{self.log_path}/perf_report_{self.case_config["test_start_time"]}.txt'
+        self.edge_host_list = self.case_config["edge_dnode_hosts"]
+        self.center_first_ep_host = self.case_config["center_dnode_hosts"][0]
+        self.taosd_url = f'http://{self.center_first_ep_host}:6041/rest/sql'
+        self.taosd_headers = {"Authorization": "Basic cm9vdDp0YW9zZGF0YQ=="}
+        self.mqtt_received_bytes = 0
         self.test_robot_url = (
     "https://open.feishu.cn/open-apis/bot/v2/hook/11e9e452-34a0-4c88-b014-10e21cb521dd"
 )
 
+    def _execute_query(self, node: str, sql: str) -> Dict:
+        url = f"http://{node}:6041/rest/sql"
+        for _ in range(self.retry_times):
+            try:
+                resp = requests.post(url, data=sql, headers=self.taosd_headers, timeout=self.timeout)
+                if resp.status_code == 200:
+                    return resp.json()
+            except Exception as e:
+                print(f"Query failed on {node}: {str(e)}")
+                time.sleep(self.query_interval)
+        return {"code": -1, "desc": "Max retries exceeded"}
+
+    def _get_stables(self, node: str, dbname: str) -> List[str]:
+        sql = f"SHOW {dbname}.STABLES"
+        result = self._execute_query(node, sql)
+        if result.get("code") == 0:
+            return [row[0] for row in result.get("data", [])]
+        return []
+
+    def _get_table_count(self, node: str, stable: str, dbname: str) -> int:
+        sql = f"SELECT COUNT(*) FROM {dbname}.`{stable}`"
+        result = self._execute_query(node, sql)
+        if result.get("code") == 0 and result.get("data"):
+            return int(result["data"][0][0])
+        return 0
+
+    def _get_compression_data(self) -> float:
+        sql = f'select sum(data1+data2+data3) from information_schema.ins_disk_usage where db_name = "{self.center_dbname}";'
+        result = self._execute_query(self.center_first_ep_host, sql)
+        if result.get("code") == 0 and result.get("data"):
+            return float(result["data"][0][0])
+        return 0
+
+    def collect_edge_data(self):
+        total = 0
+        for node in self.edge_host_list:
+            stables = self._get_stables(node, self.edge_dbname)
+            node_total = sum(self._get_table_count(node, stable, self.edge_dbname) for stable in stables)
+            self.stable_data[node] = {"stables": stables, "count": node_total}
+            total += node_total
+        return total
+
+    def validate_sync(self):
+        edge_total = self.collect_edge_data()
+        center_total = self._get_center_data()
+        self._remote._logger.info(f'init edge_total: {edge_total}')
+        self._remote._logger.info(f'init center_total: {center_total}')
+
+        if edge_total == center_total:
+            return [f"100%", center_total, edge_total]
+
+        start_time = time.time()
+        last_center_count = 0
+        stable_counter = 0
+
+        while time.time() - start_time < self.retention_timeout:
+            current_center = self._get_center_data()
+            self._remote._logger.info(f'current edge data: {edge_total}')
+            self._remote._logger.info(f'current center data: {current_center}')
+
+            if current_center == last_center_count:
+                stable_counter += 1
+                if stable_counter >= 10:
+                    break
+            else:
+                stable_counter = 0
+                last_center_count = current_center
+
+            completeness = current_center / edge_total if edge_total > 0 else 0
+            self._remote._logger.info(f"Current sync progress: {completeness*100}%")
+            if int(completeness) == 1:
+                break
+            time.sleep(self.query_interval)
+
+        final_center = self._get_center_data()
+        if final_center != edge_total:
+            self._remote._logger.error(f"Migration was not completed within {self.retention_timeout} seconds, but the results were still printed.")
+        ratio = final_center / edge_total if edge_total > 0 else 0
+        return [f"{round(ratio*100, 2)}%", final_center, edge_total]
+
+    def _get_center_data(self) -> int:
+        stables = self._get_stables(self.center_first_ep_host, self.center_dbname)
+        return sum(self._get_table_count(self.center_first_ep_host, stable, self.center_dbname) for stable in stables)
 
     def get_query_detail_result(self):
         query_log = f'{self.log_path}/details/query_result.txt'
         with open(query_log, 'r') as file:
             log_content = file.read()
-        query_pattern = r"complete query with (\d+) threads and (\d+) query delay avg:\s+([\d.]+)s min:\s+([\d.]+)s max:\s+([\d.]+)s p90:\s+([\d.]+)s p95:\s+([\d.]+)s p99:\s+([\d.]+)s SQL command: (.+);"
+        query_pattern = r"complete query with (\d+) threads and (\d+)(?: sql \d+ spend [\d.]+s QPS: [\d.]+)? query delay avg:\s+([\d.]+)s min:\s+([\d.]+)s max:\s+([\d.]+)s p90:\s+([\d.]+)s p95:\s+([\d.]+)s p99:\s+([\d.]+)s SQL command: (.+?);"
         total_pattern = r"Spend ([\d.]+) second completed total queries: (\d+), the QPS of all threads:\s+([\d.]+)"
 
         query_matches = re.findall(query_pattern, log_content)
@@ -81,13 +175,16 @@ class EMSQuery(TDCase):
                 file_path = os.path.join(self.summary_log_path, filename)
                 with open(file_path, 'r') as json_file:
                     data = json.load(json_file)
+                    if "mqtt_received_bytes" in data:
+                        self.mqtt_received_bytes += data["mqtt_received_bytes"]
+                        del data["mqtt_received_bytes"]
                     insert_res_list.append(data)
         return insert_res_list
 
     # def get_compression_ratio(self):
-    #     self.tdRest.request(f'flush database {self.dbname};')
+    #     self.tdRest.request(f'flush database {self.center_dbname};')
     #     # self.tdRest.request(data=f"show table distributed center_db.site_topic6_mqtt_u2_193;")
-    #     self.tdRest.request(f'show {self.dbname}.disk_info;')
+    #     self.tdRest.request(f'show {self.center_dbname}.disk_info;')
 
     #     query_res = self.tdRest.resp['data'][0][0]
     #     compression_ratio = query_res.split("=")[1].replace("[", "").replace("]", "") + "%"
@@ -96,7 +193,7 @@ class EMSQuery(TDCase):
     def get_compression_ratio(self):
 
         # Flush the database first
-        self.tdRest.request(f'flush database {self.dbname};')
+        self.tdRest.request(f'flush database {self.center_dbname};')
 
         # Retry logic with self.timeout
         start_time = time.time()
@@ -107,7 +204,7 @@ class EMSQuery(TDCase):
 
         while time.time() - start_time < self.timeout:
             # Query disk info
-            self.tdRest.request(f'show {self.dbname}.disk_info;')
+            self.tdRest.request(f'show {self.center_dbname}.disk_info;')
 
             # Check response structure and data
             if self.tdRest.resp.get('code') == 0 and self.tdRest.resp.get('data'):
@@ -185,9 +282,16 @@ class EMSQuery(TDCase):
         pass
 
     def run(self):
+        data_retention_ratio, center_total_rows, edge_total_rows = self.validate_sync()
+        data_retention_info = dict()
+        data_retention_info["data_retention_ratio"] = data_retention_ratio
+        data_retention_info["center_total_rows"] = center_total_rows
+        data_retention_info["edge_total_rows"] = edge_total_rows
         insert_perf = self.get_insert_result()
         query_perf = self.get_query_detail_result()
-        compression_ratio = self.get_compression_ratio()
+        compression_ratio_disk_info = self.get_compression_ratio()
+        compression_data_size = self._get_compression_data()
+        compression_ratio = f'{round(self.mqtt_received_bytes/(compression_data_size*1024), 2)}:1' if compression_data_size != 0 else 'Null'
         grafana_url = self.get_grafana_url()
         test_specs = self.get_test_specs()
         final_res_dict = {
@@ -195,6 +299,7 @@ class EMSQuery(TDCase):
             "Insert Performance": insert_perf,
             "Query Performance": query_perf,
             "Compression Ratio": compression_ratio,
+            "Data Retention Info": data_retention_info,
             "Grafana URL": grafana_url
         }
 
