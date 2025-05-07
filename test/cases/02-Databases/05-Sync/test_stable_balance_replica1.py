@@ -22,7 +22,7 @@ class TestStableBalanceReplica1:
         Jira: None
 
         History:
-            - 2025-5-5 Simon Guan Migrated to new test framework, from tsim/vnode/stable_balance_replica1.sim
+            - 2025-5-5 Simon Guan Migrated from tsim/vnode/stable_balance_replica1.sim
 
         """
 

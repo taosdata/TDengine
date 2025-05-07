@@ -22,7 +22,7 @@ class TestDatabaseRepeat:
         Jira: None
 
         History:
-            - 2025-4-30 Simon Guan Migrated to new test framework, from tsim/db/repeat.sim
+            - 2025-4-30 Simon Guan Migrated from tsim/db/repeat.sim
 
         """
 

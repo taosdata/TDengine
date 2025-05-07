@@ -22,7 +22,7 @@ class TestVnodeReplica3Vgroup:
         Jira: None
 
         History:
-            - 2025-5-5 Simon Guan Migrated to new test framework, from tsim/vnode/replica3_vgroup.sim
+            - 2025-5-5 Simon Guan Migrated from tsim/vnode/replica3_vgroup.sim
 
         """
 
