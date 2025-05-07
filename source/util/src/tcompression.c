@@ -1060,9 +1060,6 @@ int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, ch
 #else
 int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, char *const output) {
   int32_t byte_limit = nelements * DOUBLE_BYTES + 1;
-  int32_t nElements = nelements & ~(DOUBLE_BYTES - 1);
-  int32_t remainder = nelements - nElements;
-
   char *const pOutput = output + 1;
   int32_t     k = -1;
 
