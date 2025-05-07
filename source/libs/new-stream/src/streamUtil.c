@@ -84,3 +84,29 @@ int32_t stmBuildStreamsStatus(SArray** ppStatus, int32_t gid) {
   return code;
 }
 
+int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, void** ppCache) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask* pTask = NULL;
+
+  *ppCache = NULL;
+
+  code = streamGetTask(streamId, taskId, (SStreamTask**)&pTask);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  QUERY_CHECK_CONDITION(pTask->task.type == STREAM_TRIGGER_TASK, code, lino, _end, TSDB_CODE_STREAM_TASK_NOT_EXIST);
+
+  if (pTask->pRealtimeCtx->sessionId == sessionId) {
+    *ppCache = pTask->pRealtimeCtx->pCalcDataCache;
+  } else {
+    stError("sessionId %ld not match with task %ld", sessionId, pTask->pRealtimeCtx->sessionId);
+    code = TSDB_CODE_INTERNAL_ERROR;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
