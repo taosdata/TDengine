@@ -34,29 +34,36 @@ typedef struct SSubmitRes {
   SSubmitRsp2* pRsp;
 } SSubmitRes;
 
+typedef enum {
+  AUTO_CREATE_TABLE_UNKNOWN = 0,
+  AUTO_CREATE_TABLE_STABLE,
+  AUTO_CREATE_TABLE_STREAM_STABLE,
+  AUTO_CREATE_TABLE_STREAM_NORMAL,
+} AUTO_CREATE_TABLE_MODE;
+
 typedef struct SDataInserterHandle {
-  SDataSinkHandle     sink;
-  SDataSinkManager*   pManager;
-  STSchema*           pSchema;
-  SQueryInserterNode* pNode;
-  SSubmitRes          submitRes;
-  SInserterParam*     pParam;
-  SArray*             pDataBlocks;
-  SHashObj*           pCols;
-  int32_t             status;
-  bool                queryEnd;
-  bool                fullOrderColList;
-  uint64_t            useconds;
-  uint64_t            cachedSize;
-  uint64_t            flags;
-  TdThreadMutex       mutex;
-  tsem_t              ready;
-  bool                explain;
-  bool                isStbInserter;
-  SSchemaWrapper*     pTagSchema;
-  const char*         dbFName;
-  SHashObj*           dbVgInfoMap;  // 存储数据库和vgroup信息的映射
-  SUseDbRsp*          pRsp;         // 用于存储数据库信息响应
+  SDataSinkHandle        sink;
+  SDataSinkManager*      pManager;
+  STSchema*              pSchema;
+  SQueryInserterNode*    pNode;
+  SSubmitRes             submitRes;
+  SInserterParam*        pParam;
+  SArray*                pDataBlocks;
+  SHashObj*              pCols;
+  int32_t                status;
+  bool                   queryEnd;
+  bool                   fullOrderColList;
+  uint64_t               useconds;
+  uint64_t               cachedSize;
+  uint64_t               flags;
+  TdThreadMutex          mutex;
+  tsem_t                 ready;
+  bool                   explain;
+  AUTO_CREATE_TABLE_MODE autoCreateTableMode;
+  SSchemaWrapper*        pTagSchema;
+  const char*            dbFName;
+  SHashObj*              dbVgInfoMap;  // 存储数据库和vgroup信息的映射
+  SUseDbRsp*             pRsp;         // 用于存储数据库信息响应
   // SExecTaskInfo*      pTaskInfo;    // 用于存储任务信息
 } SDataInserterHandle;
 
@@ -468,7 +475,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
     goto _end;
   }
 
-  if (pInserter->isStbInserter) {
+  if (pInserter->autoCreateTableMode == AUTO_CREATE_TABLE_STABLE) {
     if (!pTagVals && !(pTagVals = taosArrayInit(colNum, sizeof(STagVal)))) {
       taosArrayDestroy(tbData.aRowP);
       goto _end;
@@ -483,7 +490,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
 
     int32_t offset = 0;
     // 处理超级表的tbname和tags
-    if (pInserter->isStbInserter) {
+    if (pInserter->autoCreateTableMode == AUTO_CREATE_TABLE_STABLE) {
       taosArrayClear(pTagVals);
       tbData.uid = 0;
       *uid = 0;
@@ -900,7 +907,7 @@ int32_t createDataInserter(SDataSinkManager* pManager, SDataSinkNode** ppDataSin
   pManager->pAPI->metaFn.getBasicInfo(inserter->pParam->readHandle->vnode, &inserter->dbFName, NULL, NULL, NULL);
 
   if (pInserterNode->tableType == TSDB_SUPER_TABLE) {
-    inserter->isStbInserter = true;
+    inserter->autoCreateTableMode = AUTO_CREATE_TABLE_STABLE;
   }
 
   if (pInserterNode->stableId != suid) {
