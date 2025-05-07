@@ -1602,24 +1602,47 @@ static void cliDestroyBatch(SCliBatch* pBatch) {
   taosMemoryFree(pBatch);
 }
 
+int32_t cliBuildSockByIpType(SIpAddr* ipAddr, struct sockaddr* addr) {
+  if (ipAddr->type == 0) {
+    struct sockaddr_in* addr4 = (struct sockaddr_in*)addr;
+    addr4->sin_family = AF_UNSPEC;
+    addr4->sin_port = htons(ipAddr->port);
+    addr4->sin_addr.s_addr = inet_addr(ipAddr->ipv4);
+  } else {
+    struct sockaddr_in6* addr6 = (struct sockaddr_in6*)addr;
+    addr6->sin6_family = AF_INET6;
+    addr6->sin6_port = htons(ipAddr->port);
+    inet_pton(AF_INET6, ipAddr->ipv6, &addr6->sin6_addr);
+  }
+  return 0;
+}
 static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
   int32_t lino = 0;
   STrans* pInst = pThrd->pInst;
+  int8_t  type = 0;
+
+  struct sockaddr_in6 addr6;
+  struct sockaddr_in  addr4;
+  struct sockaddr*    addr;
 
   SIpAddr  ipaddr;
   int32_t  code = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, conn->ipStr, &ipaddr);
   if (code != 0) {
     TAOS_CHECK_GOTO(code, &lino, _exception1);
   }
+  ipaddr.port = conn->port;
+  type = ipaddr.type;
 
-  struct sockaddr_in addr;
-  addr.sin_family = AF_INET;
-  addr.sin_addr.s_addr = ipaddr;
-  addr.sin_port = (uint16_t)htons(conn->port);
+  if (type == 0) {
+    addr = (struct sockaddr*)(&addr4);
+  } else {
+    addr = (struct sockaddr*)(&addr6);
+  }
+  cliBuildSockByIpType(&ipaddr, (struct sockaddr*)addr);
 
   tTrace("%s conn:%p, try to connect to %s", pInst->label, conn, conn->dstAddr);
 
-  int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 10);
+  int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 10, type);
   if (fd < 0) {
     TAOS_CHECK_GOTO(terrno, &lino, _exception1);
   }
@@ -1645,7 +1668,7 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
     conn->list->totalSize += 1;
   }
 
-  ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
+  ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)addr, cliConnCb);
   if (ret != 0) {
     tError("failed connect to %s since %s", conn->dstAddr, uv_err_name(ret));
     cliMayUpdateFqdnCache(pThrd->fqdn2ipCache, conn->dstAddr);
