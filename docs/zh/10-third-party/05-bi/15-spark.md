@@ -117,7 +117,9 @@ connection.close();
 **第 3 步**， 映射表，显示表内数据。
 ``` java
   // map table
+  String dbtable = "test.meters";
   Dataset<Row> df = reader.option("dbtable", dbtable).load();
+  // show
   df.show(Integer.MAX_VALUE, 40, false);
   df.close()
 ```
