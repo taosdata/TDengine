@@ -1,21 +1,20 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestProjectSTableFilterTag:
+class TestProjectTableFilterNo:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_project_stable_filter_tag(self):
-        """超级表投影查询(标签列筛选)
+    def test_project_table_filter_no(self):
+        """子表投影查询(无筛选条件)
 
         1. 创建包含 7 个普通数据列和 1 个标签列的超级表，数据列包括 bool、smallint、tinyint、float、double、int、binary
         2. 创建子表并写入数据
-        3. 对超级表进行投影查询、四则运算
-        4. 增加标签列筛选
+        3. 对子表进行投影查询、四则运算
 
         Catalog:
-            - Query:Project
+            - Query:Filter
 
         Since: v3.0.0.0
 
@@ -24,13 +23,13 @@ class TestProjectSTableFilterTag:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated from tsim/vector/metrics_tag.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/vector/table_query.sim
 
         """
 
-        dbPrefix = "m_mtg_db"
-        tbPrefix = "m_mtg_tb"
-        mtPrefix = "m_mtg_mt"
+        dbPrefix = "m_tq_db"
+        tbPrefix = "m_tq_tb"
+        mtPrefix = "m_tq_mt"
 
         tbNum = 10
         rowNum = 21
@@ -58,91 +57,92 @@ class TestProjectSTableFilterTag:
                     f"insert into {tb} values (now + {ms} , {x} , {x} , {x} , {x} ,  {x} , 10 , '11' , true )"
                 )
                 x = x + 1
+
             i = i + 1
 
         tdLog.info(f"=============== step2")
         i = 1
         tb = tbPrefix + str(i)
 
-        tdSql.query(f"select a - f from {mt}")
+        tdSql.query(f"select a - f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, -9.000000000)
 
-        tdSql.query(f"select f - a from {mt} where tgcol = 5")
+        tdSql.query(f"select f - a from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 9.000000000)
 
-        tdSql.query(f"select b - f from {mt} where tgcol = 5")
+        tdSql.query(f"select b - f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, -9.000000000)
 
-        tdSql.query(f"select f - b from {mt} where tgcol = 5")
+        tdSql.query(f"select f - b from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 9.000000000)
 
-        tdSql.query(f"select c - f from {mt} where tgcol = 5")
+        tdSql.query(f"select c - f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, -9.000000000)
 
-        tdSql.query(f"select d - f from {mt} where tgcol = 5")
+        tdSql.query(f"select d - f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, -9.000000000)
 
-        tdSql.query(f"select e - f from {mt} where tgcol = 5")
+        tdSql.query(f"select e - f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, -9.000000000)
 
-        tdSql.query(f"select f - f from {mt} where tgcol = 5")
+        tdSql.query(f"select f - f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.000000000)
 
-        tdSql.query(f"select g - f from {mt} where tgcol = 5")
+        tdSql.query(f"select g - f from {tb}")
 
-        tdSql.query(f"select h - f from {mt} where tgcol = 5")
+        tdSql.query(f"select h - f from {tb}")
 
-        tdSql.query(f"select ts - f from {mt} where tgcol = 5")
+        tdSql.query(f"select ts - f from {tb}")
 
-        tdSql.query(f"select a - e from {mt} where tgcol = 5")
+        tdSql.query(f"select a - e from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.000000000)
 
-        tdSql.query(f"select b - e from {mt} where tgcol = 5")
+        tdSql.query(f"select b - e from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.000000000)
 
-        tdSql.query(f"select c - e from {mt} where tgcol = 5")
+        tdSql.query(f"select c - e from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.000000000)
 
-        tdSql.query(f"select d - e from {mt} where tgcol = 5")
+        tdSql.query(f"select d - e from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.000000000)
 
-        tdSql.query(f"select a - d from {mt} where tgcol = 5")
+        tdSql.query(f"select a - d from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.000000000)
 
-        tdSql.query(f"select b - d from {mt} where tgcol = 5")
+        tdSql.query(f"select b - d from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.000000000)
 
-        tdSql.query(f"select c - d from {mt} where tgcol = 5")
+        tdSql.query(f"select c - d from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.000000000)
 
-        tdSql.query(f"select a - c from {mt} where tgcol = 5")
+        tdSql.query(f"select a - c from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.000000000)
 
-        tdSql.query(f"select b - c from {mt} where tgcol = 5")
+        tdSql.query(f"select b - c from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.000000000)
 
-        tdSql.query(f"select a - b from {mt} where tgcol = 5")
+        tdSql.query(f"select a - b from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.000000000)
 
-        tdSql.query(f"select b - a from {mt} where tgcol = 5")
+        tdSql.query(f"select b - a from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.000000000)
 
@@ -150,79 +150,79 @@ class TestProjectSTableFilterTag:
         i = 1
         tb = tbPrefix + str(i)
 
-        tdSql.query(f"select a +f from {mt} where tgcol = 5")
+        tdSql.query(f"select a + f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 11.000000000)
 
-        tdSql.query(f"select f +a from {mt} where tgcol = 5")
+        tdSql.query(f"select f + a from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 11.000000000)
 
-        tdSql.query(f"select b +f from {mt} where tgcol = 5")
+        tdSql.query(f"select b + f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 11.000000000)
 
-        tdSql.query(f"select f +b from {mt} where tgcol = 5")
+        tdSql.query(f"select f + b from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 11.000000000)
 
-        tdSql.query(f"select c +f from {mt} where tgcol = 5")
+        tdSql.query(f"select c + f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 11.000000000)
 
-        tdSql.query(f"select d +f from {mt} where tgcol = 5")
+        tdSql.query(f"select d + f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 11.000000000)
 
-        tdSql.query(f"select e +f from {mt} where tgcol = 5")
+        tdSql.query(f"select e + f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 11.000000000)
 
-        tdSql.query(f"select f +f from {mt} where tgcol = 5")
+        tdSql.query(f"select f + f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 20.000000000)
 
-        tdSql.query(f"select a +e from {mt} where tgcol = 5")
+        tdSql.query(f"select a + e from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 2.000000000)
 
-        tdSql.query(f"select b +e from {mt} where tgcol = 5")
+        tdSql.query(f"select b + e from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 2.000000000)
 
-        tdSql.query(f"select c +e from {mt} where tgcol = 5")
+        tdSql.query(f"select c + e from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 2.000000000)
 
-        tdSql.query(f"select d +e from {mt} where tgcol = 5")
+        tdSql.query(f"select d + e from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 2.000000000)
 
-        tdSql.query(f"select a +d from {mt} where tgcol = 5")
+        tdSql.query(f"select a + d from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 2.000000000)
 
-        tdSql.query(f"select b +d from {mt} where tgcol = 5")
+        tdSql.query(f"select b + d from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 2.000000000)
 
-        tdSql.query(f"select c +d from {mt} where tgcol = 5")
+        tdSql.query(f"select c + d from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 2.000000000)
 
-        tdSql.query(f"select a +c from {mt} where tgcol = 5")
+        tdSql.query(f"select a + c from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 2.000000000)
 
-        tdSql.query(f"select b +c from {mt} where tgcol = 5")
+        tdSql.query(f"select b + c from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 2.000000000)
 
-        tdSql.query(f"select a +b from {mt} where tgcol = 5")
+        tdSql.query(f"select a + b from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 2.000000000)
 
-        tdSql.query(f"select b +a from {mt} where tgcol = 5")
+        tdSql.query(f"select b + a from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 2.000000000)
 
@@ -230,79 +230,79 @@ class TestProjectSTableFilterTag:
         i = 1
         tb = tbPrefix + str(i)
 
-        tdSql.query(f"select a * f from {mt} where tgcol = 5")
+        tdSql.query(f"select a * f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 10.000000000)
 
-        tdSql.query(f"select f * a from {mt} where tgcol = 5")
+        tdSql.query(f"select f * a from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 10.000000000)
 
-        tdSql.query(f"select b * f from {mt} where tgcol = 5")
+        tdSql.query(f"select b * f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 10.000000000)
 
-        tdSql.query(f"select f * b from {mt} where tgcol = 5")
+        tdSql.query(f"select f * b from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 10.000000000)
 
-        tdSql.query(f"select c * f from {mt} where tgcol = 5")
+        tdSql.query(f"select c * f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 10.000000000)
 
-        tdSql.query(f"select d * f from {mt} where tgcol = 5")
+        tdSql.query(f"select d * f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 10.000000000)
 
-        tdSql.query(f"select e * f from {mt} where tgcol = 5")
+        tdSql.query(f"select e * f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 10.000000000)
 
-        tdSql.query(f"select f * f from {mt} where tgcol = 5")
+        tdSql.query(f"select f * f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 100.000000000)
 
-        tdSql.query(f"select a * e from {mt} where tgcol = 5")
+        tdSql.query(f"select a * e from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
-        tdSql.query(f"select b * e from {mt} where tgcol = 5")
+        tdSql.query(f"select b * e from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
-        tdSql.query(f"select c * e from {mt} where tgcol = 5")
+        tdSql.query(f"select c * e from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
-        tdSql.query(f"select d * e from {mt} where tgcol = 5")
+        tdSql.query(f"select d * e from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
-        tdSql.query(f"select a * d from {mt} where tgcol = 5")
+        tdSql.query(f"select a * d from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
-        tdSql.query(f"select b * d from {mt} where tgcol = 5")
+        tdSql.query(f"select b * d from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
-        tdSql.query(f"select c * d from {mt} where tgcol = 5")
+        tdSql.query(f"select c * d from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
-        tdSql.query(f"select a * c from {mt} where tgcol = 5")
+        tdSql.query(f"select a * c from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
-        tdSql.query(f"select b * c from {mt} where tgcol = 5")
+        tdSql.query(f"select b * c from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
-        tdSql.query(f"select a * b from {mt} where tgcol = 5")
+        tdSql.query(f"select a * b from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
-        tdSql.query(f"select b * a from {mt} where tgcol = 5")
+        tdSql.query(f"select b * a from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
@@ -310,79 +310,79 @@ class TestProjectSTableFilterTag:
         i = 1
         tb = tbPrefix + str(i)
 
-        tdSql.query(f"select a / f from {mt} where tgcol = 5")
+        tdSql.query(f"select a / f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.100000000)
 
-        tdSql.query(f"select f / a from {mt} where tgcol = 5")
+        tdSql.query(f"select f / a from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 10.000000000)
 
-        tdSql.query(f"select b / f from {mt} where tgcol = 5")
+        tdSql.query(f"select b / f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.100000000)
 
-        tdSql.query(f"select f / b from {mt} where tgcol = 5")
+        tdSql.query(f"select f / b from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 10.000000000)
 
-        tdSql.query(f"select c / f from {mt} where tgcol = 5")
+        tdSql.query(f"select c / f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.100000000)
 
-        tdSql.query(f"select d / f from {mt} where tgcol = 5")
+        tdSql.query(f"select d / f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.100000000)
 
-        tdSql.query(f"select e / f from {mt} where tgcol = 5")
+        tdSql.query(f"select e / f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.100000000)
 
-        tdSql.query(f"select f / f from {mt} where tgcol = 5")
+        tdSql.query(f"select f / f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
-        tdSql.query(f"select a / e from {mt} where tgcol = 5")
+        tdSql.query(f"select a / e from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
-        tdSql.query(f"select b / e from {mt} where tgcol = 5")
+        tdSql.query(f"select b / e from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
-        tdSql.query(f"select c / e from {mt} where tgcol = 5")
+        tdSql.query(f"select c / e from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
-        tdSql.query(f"select d / e from {mt} where tgcol = 5")
+        tdSql.query(f"select d / e from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
-        tdSql.query(f"select a / d from {mt} where tgcol = 5")
+        tdSql.query(f"select a / d from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
-        tdSql.query(f"select b / d from {mt} where tgcol = 5")
+        tdSql.query(f"select b / d from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
-        tdSql.query(f"select c / d from {mt} where tgcol = 5")
+        tdSql.query(f"select c / d from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
-        tdSql.query(f"select a / c from {mt} where tgcol = 5")
+        tdSql.query(f"select a / c from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
-        tdSql.query(f"select b / c from {mt} where tgcol = 5")
+        tdSql.query(f"select b / c from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
-        tdSql.query(f"select a / b from {mt} where tgcol = 5")
+        tdSql.query(f"select a / b from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
-        tdSql.query(f"select b / a from {mt} where tgcol = 5")
+        tdSql.query(f"select b / a from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
@@ -390,61 +390,55 @@ class TestProjectSTableFilterTag:
         i = 1
         tb = tbPrefix + str(i)
 
-        tdSql.query(f"select (a+b+c+d+e) / f from {mt} where tgcol = 5")
+        tdSql.query(f"select (a+ b+ c+ d+ e) / f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.500000000)
 
-        tdSql.query(f"select f / (a+b+c+d+e) from {mt} where tgcol = 5")
+        tdSql.query(f"select f / (a+ b+ c+ d+ e) from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 2.000000000)
 
-        tdSql.query(f"select (a+b+c+d+e) * f from {mt} where tgcol = 5")
+        tdSql.query(f"select (a+ b+ c+ d+ e) * f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 50.000000000)
 
-        tdSql.query(f"select f * (a+b+c+d+e) from {mt} where tgcol = 5")
+        tdSql.query(f"select f * (a+ b+ c+ d+ e) from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 50.000000000)
 
-        tdSql.query(f"select (a+b+c+d+e) - f from {mt} where tgcol = 5")
+        tdSql.query(f"select (a+ b+ c+ d+ e) - f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, -5.000000000)
 
-        tdSql.query(f"select f - (a+b+c+d+e) from {mt} where tgcol = 5")
+        tdSql.query(f"select f - (a+ b+ c+ d+ e) from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 5.000000000)
 
-        tdSql.query(f"select (f - (a+b+c+d+e)) / f from {mt} where tgcol = 5")
+        tdSql.query(f"select (f - (a+ b+ c+ d+ e)) / f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.500000000)
 
-        tdSql.query(f"select (f - (a+b+c+d+e)) * f from {mt} where tgcol = 5")
+        tdSql.query(f"select (f - (a+ b+ c+ d+ e)) * f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 50.000000000)
 
-        tdSql.query(f"select (f - (a+b+c+d+e)) +f from {mt} where tgcol = 5")
+        tdSql.query(f"select (f - (a+ b+ c+ d+ e)) + f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 15.000000000)
 
-        tdSql.query(f"select (f - (a+b+c+d+e)) - f from {mt} where tgcol = 5")
+        tdSql.query(f"select (f - (a+ b+ c+ d+ e)) - f from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, -5.000000000)
 
-        tdSql.query(
-            f"select (f - (a*b+c)*a +d +e) * f  as zz from {mt} where tgcol = 5"
-        )
+        tdSql.query(f"select (f - (a*b+ c)*a + d + e) * f  as zz from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 100.000000000)
 
-        tdSql.error(
-            f"select (f - (a*b+c)*a +d +e))) * f  as zz from {mt} where tgcol = 5"
-        )
-        tdSql.error(
-            f"select (f - (a*b+c)*a +d +e))) * 2f  as zz from {mt} where tgcol = 5"
-        )
-        tdSql.error(
-            f"select (f - (a*b+c)*a +d +e))) ** f  as zz from {mt} where tgcol = 5"
-        )
+        tdSql.error(f"select (f - (a*b+ c)*a + d + e))) * f  as zz from {tb}")
+
+        tdSql.error(f"select (f - (a*b+ c)*a + d + e))) * 2f  as zz from {tb}")
+
+        tdSql.error(f"select (f - (a*b+ c)*a + d + e))) ** f  as zz from {tb}")
 
         tdLog.info(f"=============== clear")
         tdSql.execute(f"drop database {db}")

@@ -12,7 +12,7 @@ class TestCondition:
         1. -
 
         Catalog:
-            - Query:Condition
+            - - Query:Filter
 
         Since: v3.0.0.0
 

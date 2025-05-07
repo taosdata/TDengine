@@ -1,13 +1,13 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestFuncLastRow:
+class TestFuncLastRow1:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_func_lastrow(self):
-        """Last_Row 函数
+    def test_func_last_row1(self):
+        """Last_Row 1
 
         1. 创建包含一个 Int 普通数据列的超级表
         2. 创建子表并写入数据

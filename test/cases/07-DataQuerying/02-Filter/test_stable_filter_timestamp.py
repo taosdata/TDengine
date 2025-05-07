@@ -1,21 +1,21 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestProjectSTableFilterColumnTagTimestamp:
+class TestProjectSTableFilterTimestamp:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_project_stable_filter_column_tag_timestamp(self):
-        """超级表投影查询(标签列+普通列+时间戳筛选)
+    def test_project_stable_filter_timestamp(self):
+        """超级表投影查询(时间戳筛选)
 
         1. 创建包含 7 个普通数据列和 1 个标签列的超级表，数据列包括 bool、smallint、tinyint、float、double、int、binary
         2. 创建子表并写入数据
         3. 对超级表进行投影查询、四则运算
-        4. 增加标签列+普通列+时间戳筛选
+        4. 增加时间戳筛选
 
         Catalog:
-            - Query:Project
+            - Query:Filter
 
         Since: v3.0.0.0
 
@@ -24,13 +24,13 @@ class TestProjectSTableFilterColumnTagTimestamp:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated from tsim/vector/metrics_mix.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/vector/metrics_time.sim
 
         """
 
-        dbPrefix = "m_mx_db"
-        tbPrefix = "m_mx_tb"
-        mtPrefix = "m_mx_mt"
+        dbPrefix = "m_mt_db"
+        tbPrefix = "m_mt_tb"
+        mtPrefix = "m_mt_mt"
 
         tbNum = 10
         rowNum = 21
@@ -65,131 +65,127 @@ class TestProjectSTableFilterColumnTagTimestamp:
         tb = tbPrefix + str(i)
 
         tdSql.query(
-            f"select a - f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
-        )
-
-        tdSql.query(
-            f"select a -f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select a - f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, -5.000000000)
 
         tdSql.query(
-            f"select f - a from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select f - a from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 5.000000000)
 
         tdSql.query(
-            f"select b - f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select b - f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, -5.000000000)
 
         tdSql.query(
-            f"select f - b from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select f - b from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 5.000000000)
 
         tdSql.query(
-            f"select c - f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select c - f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, -5.000000000)
 
         tdSql.query(
-            f"select d - f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select d - f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, -5.000000000)
 
         tdSql.query(
-            f"select e - f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select e - f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, -5.000000000)
 
         tdSql.query(
-            f"select f - f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select f - f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.000000000)
 
         tdSql.query(
-            f"select g - f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select g - f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
 
         tdSql.query(
-            f"select h - f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select h - f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
 
         tdSql.query(
-            f"select ts - f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select ts - f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
 
         tdSql.query(
-            f"select a - e from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
-        )
-        tdLog.info(f"===> {tdSql.getData(0,0)}")
-        tdSql.checkData(0, 0, 0.000000000)
-
-        tdSql.query(
-            f"select b - e from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select a - e from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.000000000)
 
         tdSql.query(
-            f"select c - e from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select b - e from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.000000000)
 
         tdSql.query(
-            f"select d - e from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select c - e from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.000000000)
 
         tdSql.query(
-            f"select a - d from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select d - e from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.000000000)
 
         tdSql.query(
-            f"select b - d from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select a - d from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.000000000)
 
         tdSql.query(
-            f"select c - d from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select b - d from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.000000000)
 
         tdSql.query(
-            f"select a - c from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select c - d from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.000000000)
 
         tdSql.query(
-            f"select b - c from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select a - c from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.000000000)
 
         tdSql.query(
-            f"select a - b from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select b - c from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.000000000)
 
         tdSql.query(
-            f"select b - a from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select a - b from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
+        )
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 0.000000000)
+
+        tdSql.query(
+            f"select b - a from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.000000000)
@@ -198,115 +194,115 @@ class TestProjectSTableFilterColumnTagTimestamp:
         i = 1
 
         tdSql.query(
-            f"select a +f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select a + f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 15.000000000)
 
         tdSql.query(
-            f"select f +a from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select f + a from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 15.000000000)
 
         tdSql.query(
-            f"select b +f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select b + f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 15.000000000)
 
         tdSql.query(
-            f"select f +b from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select f + b from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 15.000000000)
 
         tdSql.query(
-            f"select c +f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select c + f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 15.000000000)
 
         tdSql.query(
-            f"select d +f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select d + f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 15.000000000)
 
         tdSql.query(
-            f"select e +f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select e + f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 15.000000000)
 
         tdSql.query(
-            f"select f +f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select f + f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 20.000000000)
 
         tdSql.query(
-            f"select a +e from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select a + e from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 10.000000000)
 
         tdSql.query(
-            f"select b +e from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select b + e from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 10.000000000)
 
         tdSql.query(
-            f"select c +e from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select c + e from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 10.000000000)
 
         tdSql.query(
-            f"select d +e from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select d + e from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 10.000000000)
 
         tdSql.query(
-            f"select a +d from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select a + d from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 10.000000000)
 
         tdSql.query(
-            f"select b +d from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select b + d from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 10.000000000)
 
         tdSql.query(
-            f"select c +d from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select c + d from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 10.000000000)
 
         tdSql.query(
-            f"select a +c from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select a + c from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 10.000000000)
 
         tdSql.query(
-            f"select b +c from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select b + c from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 10.000000000)
 
         tdSql.query(
-            f"select a +b from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select a + b from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 10.000000000)
 
         tdSql.query(
-            f"select b +a from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select b + a from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 10.000000000)
@@ -315,115 +311,115 @@ class TestProjectSTableFilterColumnTagTimestamp:
         i = 1
 
         tdSql.query(
-            f"select a * f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select a * f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 50.000000000)
 
         tdSql.query(
-            f"select f * a from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select f * a from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 50.000000000)
 
         tdSql.query(
-            f"select b * f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select b * f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 50.000000000)
 
         tdSql.query(
-            f"select f * b from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select f * b from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 50.000000000)
 
         tdSql.query(
-            f"select c * f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select c * f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 50.000000000)
 
         tdSql.query(
-            f"select d * f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select d * f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 50.000000000)
 
         tdSql.query(
-            f"select e * f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select e * f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 50.000000000)
 
         tdSql.query(
-            f"select f * f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select f * f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 100.000000000)
 
         tdSql.query(
-            f"select a * e from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select a * e from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 25.000000000)
 
         tdSql.query(
-            f"select b * e from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select b * e from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 25.000000000)
 
         tdSql.query(
-            f"select c * e from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select c * e from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 25.000000000)
 
         tdSql.query(
-            f"select d * e from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select d * e from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 25.000000000)
 
         tdSql.query(
-            f"select a * d from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select a * d from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 25.000000000)
 
         tdSql.query(
-            f"select b * d from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select b * d from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 25.000000000)
 
         tdSql.query(
-            f"select c * d from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select c * d from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 25.000000000)
 
         tdSql.query(
-            f"select a * c from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select a * c from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 25.000000000)
 
         tdSql.query(
-            f"select b * c from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select b * c from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 25.000000000)
 
         tdSql.query(
-            f"select a * b from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select a * b from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 25.000000000)
 
         tdSql.query(
-            f"select b * a from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select b * a from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 25.000000000)
@@ -432,115 +428,115 @@ class TestProjectSTableFilterColumnTagTimestamp:
         i = 1
 
         tdSql.query(
-            f"select a / f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select a / f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.500000000)
 
         tdSql.query(
-            f"select f / a from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select f / a from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 2.000000000)
 
         tdSql.query(
-            f"select b / f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select b / f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.500000000)
 
         tdSql.query(
-            f"select f / b from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select f / b from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 2.000000000)
 
         tdSql.query(
-            f"select c / f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select c / f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.500000000)
 
         tdSql.query(
-            f"select d / f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select d / f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.500000000)
 
         tdSql.query(
-            f"select e / f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select e / f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.500000000)
 
         tdSql.query(
-            f"select f / f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select f / f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
         tdSql.query(
-            f"select a / e from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select a / e from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
         tdSql.query(
-            f"select b / e from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select b / e from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
         tdSql.query(
-            f"select c / e from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select c / e from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
         tdSql.query(
-            f"select d / e from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select d / e from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
         tdSql.query(
-            f"select a / d from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select a / d from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
         tdSql.query(
-            f"select b / d from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select b / d from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
         tdSql.query(
-            f"select c / d from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select c / d from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
         tdSql.query(
-            f"select a / c from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select a / c from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
         tdSql.query(
-            f"select b / c from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select b / c from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
         tdSql.query(
-            f"select a / b from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select a / b from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
 
         tdSql.query(
-            f"select b / a from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select b / a from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 1.000000000)
@@ -549,78 +545,82 @@ class TestProjectSTableFilterColumnTagTimestamp:
         i = 1
 
         tdSql.query(
-            f"select (a+b+c+d+e) / f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select (a+ b+ c+ d+ e) / f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 2.500000000)
 
         tdSql.query(
-            f"select f / (a+b+c+d+e) from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select f / (a+ b+ c+ d+ e) from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 0.400000000)
 
         tdSql.query(
-            f"select (a+b+c+d+e) * f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select (a+ b+ c+ d+ e) * f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 250.000000000)
 
         tdSql.query(
-            f"select f * (a+b+c+d+e) from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select f * (a+ b+ c+ d+ e) from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 250.000000000)
 
         tdSql.query(
-            f"select (a+b+c+d+e) - f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select (a+ b+ c+ d+ e) - f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 15.000000000)
 
         tdSql.query(
-            f"select f - (a+b+c+d+e) from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select f - (a+ b+ c+ d+ e) from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, -15.000000000)
 
         tdSql.query(
-            f"select (f - (a+b+c+d+e)) / f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select (f - (a+ b+ c+ d+ e)) / f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, -1.500000000)
 
         tdSql.query(
-            f"select (f - (a+b+c+d+e)) * f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select (f - (a+ b+ c+ d+ e)) * f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, -150.000000000)
 
         tdSql.query(
-            f"select (f - (a+b+c+d+e)) +f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select (f - (a+ b+ c+ d+ e)) + f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, -5.000000000)
 
         tdSql.query(
-            f"select (f - (a+b+c+d+e)) - f from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select (f - (a+ b+ c+ d+ e)) - f from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, -25.000000000)
 
         tdSql.query(
-            f"select (f - (a*b+c)*a +d +e) * f  as zz from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select (f - (a*b+ c)*a + d + e) * f  as zz from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, -1300.000000000)
 
         tdSql.error(
-            f"select (f - (a*b+c)*a +d +e))) * f  as zz from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select (f - (a*b+ c)*a + d + e))) * f  as zz from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdSql.error(
-            f"select (f - (a*b+c)*a +d +e))) * 2f  as zz from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select (f - (a*b+ c)*a + d + e))) * 2f  as zz from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
         tdSql.error(
-            f"select (f - (a*b+c)*a +d +e))) ** f  as zz from {mt} where a = 5 and tgcol = 5 and ts > now + 4m and ts < now + 6m"
+            f"select (f - (a*b+ c)*a + d + e))) ** f  as zz from {mt} where tgcol = 5 and ts > now + 4m and ts < now + 6m"
         )
 
+        tdLog.info(f"=============== clear")
+        tdSql.execute(f"drop database {db}")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(2)
