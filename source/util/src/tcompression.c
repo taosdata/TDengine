@@ -1059,8 +1059,9 @@ int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, ch
 }
 #else
 int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, char *const output) {
-  int32_t     byte_limit = nelements * DOUBLE_BYTES + 1;
-  int32_t     nElements = (nelements / DOUBLE_BYTES) * DOUBLE_BYTES;
+  int32_t byte_limit = nelements * DOUBLE_BYTES + 1;
+  int32_t nElements = nelements & ~(DOUBLE_BYTES - 1);
+  int32_t remainder = nelements - nElements;
 
   char *const pOutput = output + 1;
   int32_t     k = -1;
@@ -1069,7 +1070,7 @@ int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, ch
       pOutput[++k] = *(input + j * DOUBLE_BYTES + i);
     }
   }
-  int32_t remainder = nelements - nElements;
+
   if (remainder > 0) {
     memcpy(pOutput + nElements * DOUBLE_BYTES, input + nElements * DOUBLE_BYTES, remainder * DOUBLE_BYTES);
   }
@@ -1149,7 +1150,7 @@ int32_t tsDecompressDoubleImp(const char *const input, int32_t ninput, const int
     return nelements * DOUBLE_BYTES;
   }
 
-  const int32_t     nElements = (nelements / DOUBLE_BYTES) * DOUBLE_BYTES;
+  const int32_t     nElements = nelements & ~(DOUBLE_BYTES - 1);
   const int32_t     remainder = nelements - nElements;
   const char *const pInput = input + 1;
 
