@@ -267,7 +267,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
   mDebug("consumer:0x%" PRIx64 " receive hb pollFlag:%d pollStatus:%d", consumerId, req.pollFlag, pConsumer->pollStatus);
   if (req.pollFlag == 1){
     atomic_store_32(&pConsumer->pollStatus, 0);
-    pConsumer->pollTime = taosGetTimestampSec();
+    pConsumer->pollTime = taosGetTimestampMs();
   }
 
   storeOffsetRows(pMnode, &req, pConsumer);

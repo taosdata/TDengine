@@ -28,6 +28,7 @@
 #define tqInfoC(...)  do { if (cDebugFlag & DEBUG_INFO  || tqClientDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ  INFO  ", DEBUG_INFO,  tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
 #define tqDebugC(...) do { if (cDebugFlag & DEBUG_DEBUG || tqClientDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ  DEBUG ", DEBUG_DEBUG, tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
 
+#define EMPTY_BLOCK_POLL_IDLE_DURATION 10
 #define DEFAULT_AUTO_COMMIT_INTERVAL   5000
 #define DEFAULT_HEARTBEAT_INTERVAL     3000
 #define DEFAULT_ASKEP_INTERVAL         1000
@@ -172,6 +173,7 @@ typedef struct {
   int32_t       vgId;
   int32_t       vgStatus;
   int32_t       vgSkipCnt;            // here used to mark the slow vgroups
+  int64_t       emptyBlockReceiveTs;  // once empty block is received, idle for ignoreCnt then start to poll data
   int64_t       blockReceiveTs;       // once empty block is received, idle for ignoreCnt then start to poll data
   int64_t       blockSleepForReplay;  // once empty block is received, idle for ignoreCnt then start to poll data
   bool          seekUpdated;          // offset is updated by seek operator, therefore, not update by vnode rsp.
@@ -1224,6 +1226,7 @@ static void initClientTopicFromRsp(SMqClientTopic* pTopic, SMqSubTopicEp* pTopic
         .epSet = pVgEp->epSet,
         .vgStatus = pInfo ? pInfo->vgStatus : TMQ_VG_STATUS__IDLE,
         .vgSkipCnt = 0,
+        .emptyBlockReceiveTs = 0,
         .blockReceiveTs = 0,
         .blockSleepForReplay = 0,
         .numOfRows = pInfo ? pInfo->numOfRows : 0,
@@ -2310,7 +2313,15 @@ static int32_t tmqPollImpl(tmq_t* tmq) {
       if (pVg == NULL) {
         continue;
       }
-      int64_t elapsed = taosGetTimestampMs() - pVg->blockReceiveTs;
+
+      int64_t elapsed = taosGetTimestampMs() - pVg->emptyBlockReceiveTs;
+      if (elapsed < EMPTY_BLOCK_POLL_IDLE_DURATION && elapsed >= 0) {  // less than 10ms
+        tqDebugC("consumer:0x%" PRIx64 " epoch %d, vgId:%d idle for 10ms before start next poll", tmq->consumerId,
+                 tmq->epoch, pVg->vgId);
+        continue;
+      }
+
+      elapsed = taosGetTimestampMs() - pVg->blockReceiveTs;
       if (tmq->replayEnable && elapsed < pVg->blockSleepForReplay && elapsed >= 0) {
         tqDebugC("consumer:0x%" PRIx64 " epoch %d, vgId:%d idle for %" PRId64 "ms before start next poll when replay",
                  tmq->consumerId, tmq->epoch, pVg->vgId, pVg->blockSleepForReplay);
@@ -2406,6 +2417,7 @@ static int32_t processMqRspError(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
   SMqClientVg* pVg = NULL;
   getVgInfo(tmq, pollRspWrapper->topicName, pollRspWrapper->vgId, &pVg);
   if (pVg) {
+    pVg->emptyBlockReceiveTs = taosGetTimestampMs();
     atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
   }
   taosWUnLockLatch(&tmq->lock);
@@ -2481,6 +2493,7 @@ static SMqRspObj* processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
     char buf[TSDB_OFFSET_LEN] = {0};
     tFormatOffset(buf, TSDB_OFFSET_LEN, &pollRspWrapper->rspOffset);
     if (pollRspWrapper->dataRsp.blockNum == 0) {
+      pVg->emptyBlockReceiveTs = taosGetTimestampMs();
       tqDebugC("consumer:0x%" PRIx64 " empty block received, vgId:%d, offset:%s, vg total:%" PRId64
                    ", total:%" PRId64 ", QID:0x%" PRIx64,
                tmq->consumerId, pVg->vgId, buf, pVg->numOfRows, tmq->totalRows, pollRspWrapper->reqId);
@@ -2507,6 +2520,7 @@ static SMqRspObj* processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
           }
         }
       }
+      pVg->emptyBlockReceiveTs = 0;
       tqDebugC("consumer:0x%" PRIx64 " process poll rsp, vgId:%d, offset:%s, blocks:%d, rows:%" PRId64
                    ", vg total:%" PRId64 ", total:%" PRId64 ", QID:0x%" PRIx64,
                tmq->consumerId, pVg->vgId, buf, pRspObj->dataRsp.blockNum, numOfRows, pVg->numOfRows, tmq->totalRows,
