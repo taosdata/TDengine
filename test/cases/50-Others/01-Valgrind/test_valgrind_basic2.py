@@ -22,7 +22,7 @@ class TestValgrindBasic2:
         Jira: None
 
         History:
-            - 2025-5-5 Simon Guan Migrated to new test framework, from tsim/valgrind/basic2.sim
+            - 2025-5-5 Simon Guan Migrated from tsim/valgrind/basic2.sim
 
         """
 

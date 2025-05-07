@@ -22,7 +22,7 @@ class TestMnodeBasic6:
         Jira: None
 
         History:
-            - 2025-5-5 Simon Guan Migrated to new test framework, from tsim/mnode/basic6.sim
+            - 2025-5-5 Simon Guan Migrated from tsim/mnode/basic6.sim
 
         """
         clusterComCheck.checkDnodes(4)

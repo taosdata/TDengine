@@ -144,6 +144,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_autocreate_tb.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_autocreate.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_batchcreate.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_create_tb.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_create_with_tag_name.py 
 ### 02-Drop
 ### 03-Alter
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/03-Alter/test_sub_table_alter.py
@@ -151,70 +153,71 @@
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/04-Query/test_sub_table_basic.py
 
 # 04-SuperTables
-## 01-Alter
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_parser_alter_column.py 
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_parser_alter_stable.py 
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_parser_alter1.py 
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_stable_alter_1.py 
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_stable_alter_2.py 
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_stable_alter_3.py 
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_stable_alter_4.py 
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_stable_alter_5.py 
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_stable_tag_add.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_stable_tag_drop.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_stable_tag_modify.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_stable_tag_rename.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_tag_add.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_tag_change.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_tag_commit.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_tag_create.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_tag_drop.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_tag_drop_table.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_tag_set_multi.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Alter/test_tag_set.py
+## 01-Create
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_create_mt.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_metrics.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_refcount.py 
 ## 02-Drop
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/02-Drop/test_stable_drop_basic3.py
-## 03-Query
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_column_2.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_column_3.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_column_4.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_column_5.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_column_6.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_column_bigint.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_column_binary.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_column_bool.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_column_double.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_column_float.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_column_int.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_column_smallint.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_column_tinyint.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_column_ubigint.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_stable_query_dnode3.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_stable_query_vnode3.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_stable_tag_filter_2.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_tag_3.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_tag_4.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_tag_5.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_tag_6.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_tag_bigint.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_tag_binary_binary.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_tag_binary.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_tag_bool_binary.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_tag_bool_int.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_tag_bool.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_tag_column.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_tag_double.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_tag_filter.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_tag_float.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_tag_int_binary.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_tag_int_float.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_tag_int.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_tag_smallint.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_tag_tbname_in.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Query/test_tag_tinyint.py
-## 04-Create
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Create/test_stable_metrics.py
-,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Create/test_stable_refcount.py 
+## 03-Alter
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_parser_alter_column.py 
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_parser_alter_stable.py 
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_parser_alter1.py 
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_1.py 
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_2.py 
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_3.py 
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_4.py 
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_5.py 
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_tag_add.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_tag_drop.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_tag_modify.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_tag_rename.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_tag_add.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_tag_change.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_tag_commit.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_tag_create.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_tag_drop.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_tag_drop_table.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_tag_set_multi.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_tag_set.py
+## 04-Query
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_2.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_3.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_4.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_5.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_6.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_bigint.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_binary.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_bool.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_double.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_float.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_int.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_smallint.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_tinyint.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_column_ubigint.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_dnode3.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_vnode3.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_tag_filter_2.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_3.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_4.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_5.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_6.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_bigint.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_binary_binary.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_binary.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_bool_binary.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_bool_int.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_bool.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_column.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_double.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_filter.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_float.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_int_binary.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_int_float.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_int.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_smallint.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_tbname_in.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_tinyint.py
 
 # 05-VirtualTables
 
@@ -235,11 +238,18 @@
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_query_multi_file.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_stb_disk.py 
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_stb_values.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_tb_multi.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_tb.py
 ## 02-Import
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Import/test_import_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Import/test_import_commit.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Import/test_import_commit1.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Import/test_import_commit2.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Import/test_import_commit3.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Import/test_import_file.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Import/test_import_large.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Import/test_import_replica1.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Import/test_import.py
 ## 03-Drop
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-Drop/test_insert_drop.py
 ## 04-Update
@@ -256,33 +266,52 @@
 # 07-DataQuerying
 ## 01-Operator
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_and_or.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_arithmetic_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_arithmetic.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_between_and.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_case_when.py 
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_in.py 
-## 02-Condition
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Condition/test_condition_scl.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Condition/test_condition.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_like.py 
+## 02-Filter
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_condition_scl.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_condition.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_stable_filter_column.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_stable_filter_column_tag_timestamp.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_stable_filter_no.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_stable_filter_tag.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_stable_filter_timestamp.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_table_filter_column.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_table_filter_column_timestamp.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_table_filter_no.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_table_filter_timestamp.py
 ## 03-GroupBy
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby_basic.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby.py
 ## 04-OrderBy
 ## 05-Aliase
-## 06-Expression
-## 07-Limit
+## 06-Limit
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/06-Limit/test_limit1.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/06-Limit/test_limit2.py
+## 07-Slimit
 ## 08-SubQuery
-## 09-ProjectQuery
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_column_1.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_column_7.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_stable_filter_column.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_stable_filter_column_tag_timestamp.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_stable_filter_no.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_stable_filter_tag.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_stable_filter_timestamp.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_table_filter_column.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_table_filter_column_timestamp.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_table_filter_no.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-ProjectQuery/test_project_table_filter_timestamp.py
-## 10-QueryList
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/10-QueryList/test_const_col.py
+## 09-SelectList
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_column_1.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_column_7.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_const_col.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_distinct.py
+
+## 10-Union
+## 11-Interp
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/11-Interp/test_interp.py
+## 12-Having
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_having_child.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_having.py
+## 13-Distinct
+## 14-Explain
+## 15-Hints
+## 16-Psedocolumn
+## 17-Tags
+## 18-Regexp
 
 # 08-TagIndices
 ,,y,.,./ci/pytest.sh pytest cases/08-TagIndices/test_index_create_drop.py 
@@ -306,10 +335,16 @@
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_sum.py 
 ## 03-Selection
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_bottom.py
+,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_first_last.py
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_first.py 
+,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_basic.py 
+,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_both.py 
+,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_cache.py 
+,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_groupby.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_lru.py 
-,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_row.py 
-,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last.py 
+,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_row1.py 
+,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_row2.py 
+,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_row3.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_max.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_min.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_top.py 
@@ -318,13 +353,16 @@
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/04-TimeseriesSpecfic/test_func_diff2.py
 
 # 11-TimeSeriesExtensions
-## 01-DataPartition
-## 11-WindowPartition
-## 12-RulesForWindow
-## 13-FillClause
-## 14-TimeWindow
-,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/14-TimeWindow/test_interval_bug.py
-,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/14-TimeWindow/test_interval.py
+## 01-PartitionBy
+## 02-Fill
+,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/02-Fill/test_fill_force.py
+,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/02-Fill/test_fill_stb.py
+,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/02-Fill/test_fill_us.py
+,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/02-Fill/test_fill.py
+## 03-TimeWindow
+,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_bug.py
+,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_function.py
+,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval.py
 
 # 12-DataSubscription
 
@@ -338,6 +376,7 @@
 ,y,.,./ci/pytest.sh pytest cases/16-EscapeCharacters/test_binary_escape_character.py
 
 # 17-NameLimits
+,y,.,./ci/pytest.sh pytest cases/17-NameLimits/test_dbtbname_validate.py
 
 # 18-ReservedKeywords
 
@@ -397,7 +436,11 @@
 # 28-SynatxChanges
 
 # 29-JoinQueries
-,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join1.py
+,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join_full.py
+,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join_manyblocks.py
+,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join_multitables.py
+,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join_multivnode.py
+,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join.py
 # 30-DataCompression
 ,,y,.,./ci/pytest.sh pytest cases/30-DataCompression/test_compress_alter_option.py
 ,,y,.,./ci/pytest.sh pytest cases/30-DataCompression/test_compress_disable.py

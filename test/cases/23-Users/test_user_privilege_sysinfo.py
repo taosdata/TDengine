@@ -22,7 +22,7 @@ class TestUserPrivilegeSysinfo:
         Jira: None
 
         History:
-            - 2025-4-30 Simon Guan Migrated to new test framework, from tsim/user/privilege_sysinfo.sim
+            - 2025-4-30 Simon Guan Migrated from tsim/user/privilege_sysinfo.sim
 
         """
 
