@@ -73,7 +73,7 @@ typedef struct SSTriggerWalMetaStat {
 } SSTriggerWalMetaStat;
 
 typedef struct SSTriggerWalMeta {
-  int64_t vgId;
+  int32_t vgId;
   int64_t uid;
   int64_t skey;
   int64_t ekey;

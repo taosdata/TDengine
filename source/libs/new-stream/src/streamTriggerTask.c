@@ -1693,7 +1693,7 @@ static int32_t strtcInit(SSTriggerRealtimeContext *pContext, SStreamTriggerTask 
   for (int32_t i = 0; i < numReaders; ++i) {
     SStreamTaskAddr     *pReader = taosArrayGet(pTask->readerList, i);
     SSTriggerWalProgress progress = {.pTaskAddr = pReader};
-    code = tSimpleHashPut(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int64_t), &progress,
+    code = tSimpleHashPut(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int32_t), &progress,
                           sizeof(SSTriggerWalProgress));
     QUERY_CHECK_CODE(code, lino, _end);
   }
@@ -1778,7 +1778,7 @@ static int32_t strtcSendPullReq(SSTriggerRealtimeContext *pContext, ESTriggerPul
     case STRIGGER_PULL_WAL_TS_DATA: {
       SSTriggerWalMeta          *pMeta = param;
       SSTriggerWalTsDataRequest *pReq = &pContext->pullReq.walTsDataReq;
-      SSTriggerWalProgress *pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pMeta->vgId, sizeof(int64_t));
+      SSTriggerWalProgress *pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pMeta->vgId, sizeof(int32_t));
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       pReader = pProgress->pTaskAddr;
       QUERY_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -1788,7 +1788,7 @@ static int32_t strtcSendPullReq(SSTriggerRealtimeContext *pContext, ESTriggerPul
     case STRIGGER_PULL_WAL_TRIGGER_DATA: {
       SSTriggerWalMeta               *pMeta = param;
       SSTriggerWalTriggerDataRequest *pReq = &pContext->pullReq.walTriggerDataReq;
-      SSTriggerWalProgress *pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pMeta->vgId, sizeof(int64_t));
+      SSTriggerWalProgress *pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pMeta->vgId, sizeof(int32_t));
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       pReader = pProgress->pTaskAddr;
       QUERY_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -1798,7 +1798,7 @@ static int32_t strtcSendPullReq(SSTriggerRealtimeContext *pContext, ESTriggerPul
     case STRIGGER_PULL_WAL_CALC_DATA: {
       SSTriggerWalMeta            *pMeta = param;
       SSTriggerWalCalcDataRequest *pReq = &pContext->pullReq.walCalcDataReq;
-      SSTriggerWalProgress *pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pMeta->vgId, sizeof(int64_t));
+      SSTriggerWalProgress *pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pMeta->vgId, sizeof(int32_t));
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       pReader = pProgress->pTaskAddr;
       QUERY_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -1945,7 +1945,7 @@ static int32_t strtcPullNewMeta(SSTriggerRealtimeContext *pContext) {
   int32_t numReader = taosArrayGetSize(pTask->readerList);
   pContext->curReaderIdx = (pContext->curReaderIdx + 1) % numReader;
   SStreamTaskAddr      *pReader = TARRAY_GET_ELEM(pTask->readerList, pContext->curReaderIdx);
-  SSTriggerWalProgress *pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int64_t));
+  SSTriggerWalProgress *pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int32_t));
   QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   strtcSendPullReq(pContext, STRIGGER_PULL_WAL_META, pProgress);
 
@@ -2030,7 +2030,7 @@ static int32_t strtcProcessPullRsp(SSTriggerRealtimeContext *pContext, SSDataBlo
         SColumnInfoData      *pVerCol = TARRAY_GET_ELEM(pResDataBlock->pDataBlock, 5);
         SStreamTaskAddr      *pReader = TARRAY_GET_ELEM(pTask->readerList, pContext->curReaderIdx);
         SSTriggerWalProgress *pProgress =
-            tSimpleHashGet(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int64_t));
+            tSimpleHashGet(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int32_t));
         QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
         pProgress->lastScanVer = *(int64_t *)colDataGetNumData(pVerCol, numNewMeta - 1);
         pProgress->latestVer = pResDataBlock->info.id.groupId;
@@ -2237,7 +2237,8 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, const SStreamTriggerDeplo
 
   pTask->singleTableGroup = pMsg->placeHolderBitmap & (1 << 7) || true;  // todo(kjq): fix here
   pTask->needRowNumber = pMsg->placeHolderBitmap & (1 << 4);
-  pTask->needCacheData = pMsg->placeHolderBitmap & (1 << 8);
+  // pTask->needCacheData = pMsg->placeHolderBitmap & (1 << 8); todo(kjq): fix here
+  pTask->needCacheData = true;
 
   pTask->calcParamLimit = 10;  // todo(kjq): adjust dynamically
   pTask->nextSessionId = 1;
