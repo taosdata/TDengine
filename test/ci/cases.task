@@ -148,6 +148,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/01-Create/test_sub_table_create_with_tag_name.py 
 ### 02-Drop
 ### 03-Alter
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/03-Alter/test_set_tag_vals.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/03-Alter/test_sub_table_alter.py
 ### 04-Query
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/04-Query/test_sub_table_basic.py
@@ -298,8 +299,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_column_1.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_column_7.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_const_col.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_distinct.py
-
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/09-SelectList/test_select_res_num.py
 ## 10-Union
 ## 11-Interp
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/11-Interp/test_interp.py
@@ -307,11 +307,17 @@
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_having_child.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_having.py
 ## 13-Distinct
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/13-Distinct/test_distinct.py
 ## 14-Explain
 ## 15-Hints
 ## 16-Psedocolumn
 ## 17-Tags
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/17-Tags/test_select_distinct_tag.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/17-Tags/test_select_with_tags.py
 ## 18-Regexp
+## 99-Others
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/99-Others/test_select_across_vnodes.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/99-Others/test_select_from_cache_disk.py
 
 # 08-TagIndices
 ,,y,.,./ci/pytest.sh pytest cases/08-TagIndices/test_index_create_drop.py 
@@ -323,6 +329,7 @@
 
 # 10-Functions
 ## 01-SingleRow
+,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_single_row_in_tb.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_cast.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_truncate.py 
 
@@ -363,6 +370,7 @@
 ,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_bug.py
 ,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_function.py
 ,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval.py
+,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_sliding.py
 
 # 12-DataSubscription
 
