@@ -2456,6 +2456,7 @@ int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTrigger
 
   TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(&encoder, pReq->params));
   TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(&encoder, pReq->groupColVals));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->createTable));
 
   tEndEncode(&encoder);
 
@@ -2485,6 +2486,7 @@ int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalc
 
   TAOS_CHECK_EXIT(tDeserializeSTriggerCalcParam(&decoder, &pReq->params));
   TAOS_CHECK_EXIT(tDeserializeStriggerGroupColVals(&decoder, &pReq->groupColVals));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->createTable));
 
   tEndDecode(&decoder);
 
