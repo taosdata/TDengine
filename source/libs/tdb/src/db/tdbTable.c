@@ -225,8 +225,12 @@ int tdbTbPGet(TTB *pTb, const void *pKey, int kLen, void **ppKey, int *pkLen, vo
   return tdbBtreePGet(pTb->pBt, pKey, kLen, ppKey, pkLen, ppVal, vLen);
 }
 
-// push & pop are only for free page managment, they are using the b-tree as a stack.
-// don't use them for other purpose
+// tdbTbToStack, tdbTbPushFreePage, tdbTbPopFreePage are only for free page management,
+// they are using the b-tree as a stack, never call them for other purpose
+int tdbTbToStack(TTB *pTb) {
+  return tdbBtreeToStack(pTb->pBt);
+}
+
 int tdbTbPushFreePage(TTB *pTb, SPage* pPage, TXN *pTxn) {
   return tdbBtreePushFreePage(pTb->pBt, pPage, pTxn);
 }

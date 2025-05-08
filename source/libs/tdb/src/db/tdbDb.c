@@ -84,6 +84,12 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, i
   if (ret < 0) {
     return ret;
   }
+
+  int tdbTbToStack(TTB *pTb);
+  ret = tdbTbToStack(pDb->pFreeDb);
+  if (ret < 0) {
+    return ret;
+  }
 #endif
 
   *ppDb = pDb;

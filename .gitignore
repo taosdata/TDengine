@@ -5,6 +5,7 @@ release
 *.swp
 compile_commands.json
 .cache
+*.pyc
 
 # TODO: rules need to be removed later
 source/util/src/version.c
