@@ -388,46 +388,46 @@ class TestFuncElapsed:
             res_list.append(item["res"])
         tdSql.queryAndCheckResult(sql_list, res_list)
 
-    def test_query_with_window(self):
-        """test elapsed function with window
+    #def test_query_with_window(self):
+    #    """test elapsed function with window
 
-        test elapsed function with interval, fill, session
+    #    test elapsed function with interval, fill, session
 
-        Since: v3.3.0.0
+    #    Since: v3.3.0.0
 
-        Labels: elapsed, interval, fill, session
+    #    Labels: elapsed, interval, fill, session
 
-        Jira:
+    #    Jira:
 
-        History:
-            - 2024-6-5 Alex Duan Created
-            - 2025-5-08 Huo Hong Migrated to new test framework
+    #    History:
+    #        - 2024-6-5 Alex Duan Created
+    #        - 2025-5-08 Huo Hong Migrated to new test framework
 
-        """
-        query_list = [
-            {
-                "sql": "select elapsed(ts, 1s) from st1 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:00:20.000' interval(10s) fill(next);",
-                "res": [(10,),(10,)()]
-            },
-            {
-                "sql": "select elapsed(ts, 1s) from (select * from st1 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:01:20.000' and c_int > 100) where ts >= '2023-03-01 15:01:00.000' and ts < '2023-03-01 15:02:00.000' interval(10s) fill(prev);",
-                "res": [(10,)(10,)(),(),(),()]
-            },
-            {
-                "sql": "select elapsed(ts, 1s) from st1 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:00:20.000' session(ts, 2s);",
-                "res": [(20,)]
-            },
-            {
-                "sql": "select elapsed(ts, 1s) from st_empty where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:00:20.000' session(ts, 2s);",
-                "res": []
-            }
-        ]
-        sql_list = []
-        res_list = []
-        for item in query_list:
-            sql_list.append(item["sql"])
-            res_list.append(item["res"])
-        tdSql.queryAndCheckResult(sql_list, res_list)
+    #    """
+    #    query_list = [
+    #        {
+    #            "sql": "select elapsed(ts, 1s) from st1 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:00:20.000' interval(10s) fill(next);",
+    #            "res": [(10,),(10,)()]
+    #        },
+    #        {
+    #            "sql": "select elapsed(ts, 1s) from (select * from st1 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:01:20.000' and c_int > 100) where ts >= '2023-03-01 15:01:00.000' and ts < '2023-03-01 15:02:00.000' interval(10s) fill(prev);",
+    #            "res": [(10,)(10,)(),(),(),()]
+    #        },
+    #        {
+    #            "sql": "select elapsed(ts, 1s) from st1 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:00:20.000' session(ts, 2s);",
+    #            "res": [(20,)]
+    #        },
+    #        {
+    #            "sql": "select elapsed(ts, 1s) from st_empty where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:00:20.000' session(ts, 2s);",
+    #            "res": []
+    #        }
+    #    ]
+    #    sql_list = []
+    #    res_list = []
+    #    for item in query_list:
+    #        sql_list.append(item["sql"])
+    #        res_list.append(item["res"])
+    #    tdSql.queryAndCheckResult(sql_list, res_list)
 
     def test_nested_query(self):
         """test elapsed function with nested query

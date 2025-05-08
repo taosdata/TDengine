@@ -43,8 +43,8 @@ class TestResinfo:
         """
         tdLog.info(f"insert data.")
         # taosBenchmark run
-        resinfoIntFile = etool.curFile(__file__, "../../../../source/libs/function/inc/functionResInfoInt.h")
-        resinfoFile = etool.curFile(__file__, "../../../../include/libs/function/functionResInfo.h")
+        resinfoIntFile = etool.curFile(__file__, "../../../source/libs/function/inc/functionResInfoInt.h")
+        resinfoFile = etool.curFile(__file__, "../../../include/libs/function/functionResInfo.h")
         current_hash = self.get_file_hash(resinfoIntFile)
         tdLog.info(current_hash)
         if current_hash != initial_hash_resinfoInt:

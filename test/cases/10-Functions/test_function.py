@@ -10,7 +10,7 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-from new_test_framework.utils import tdLog, tdSql, etool, inspect
+from new_test_framework.utils import tdLog, tdSql, etool, inspect, tdCom
 
 class TestFunction:
     updatecfgDict = {

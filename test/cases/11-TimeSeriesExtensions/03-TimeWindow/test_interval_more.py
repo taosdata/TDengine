@@ -57,6 +57,7 @@ class TestIntervalMore:
             - 2025-5-08 Huo Hong Migrated to new test framework
 
         """
+        tdLog.info("test normal query.")
         self.create_streams()
         # read sql from .sql file and execute
         tdLog.info("test normal query.")

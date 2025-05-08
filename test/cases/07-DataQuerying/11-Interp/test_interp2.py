@@ -12,7 +12,7 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 
-class TestInterp:
+class TestInterp2:
     updatecfgDict = {
         "keepColumnName": "1",
         "ttlChangeOnWrite": "1",
