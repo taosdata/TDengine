@@ -1569,6 +1569,7 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->outTblType));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->outStbExists));
   TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pReq->outStbUid));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->outStbSversion));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->eventTypes));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->flags));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->tsmaId));
@@ -1820,6 +1821,7 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->outTblType));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->outStbExists));
   TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pReq->outStbUid));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->outStbSversion));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->eventTypes));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->flags));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->tsmaId));

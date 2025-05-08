@@ -12737,6 +12737,7 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
       pReq->outStbExists = false;
       pReq->outTblType = TSDB_SUPER_TABLE;
       pReq->outStbUid = 0;
+      pReq->outStbSversion = 1;
       if (!pStmt->pTags) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                        "Out table in stream with partition must be created with tags");
@@ -12746,6 +12747,7 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
       pReq->outStbExists = false;
       pReq->outTblType = TSDB_NORMAL_TABLE;
       pReq->outStbUid = 0;
+      pReq->outStbSversion = 1;
       if (pStmt->pTags) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                        "Out table in stream without partition must not be created with tags");
@@ -12759,6 +12761,7 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
       pReq->outStbExists = true;
       pReq->outTblType = TSDB_SUPER_TABLE;
       pReq->outStbUid = pMeta->suid;
+      pReq->outStbSversion = pMeta->sversion;
       if (pStmt->pTags) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                        "Out table in stream with partition must not be created with tags when exists");
@@ -12769,6 +12772,7 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
       pReq->outStbExists = false;
       pReq->outTblType = TSDB_NORMAL_TABLE;
       pReq->outStbUid = 0;
+      pReq->outStbSversion = 1;
       if (pStmt->pTags) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                        "Out table in stream without partition must not be created with tags");
