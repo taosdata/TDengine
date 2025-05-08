@@ -217,7 +217,9 @@ IF(TD_BUILD_KEEPER)
             PATCH_COMMAND
             COMMAND git clean -f -d
             BUILD_COMMAND
-            COMMAND go build -a -ldflags "${_ldflags}"
+            # NOTE: remove -a for the moment, add it later if any problem found to be related
+            # TODO: tweak the pitfall, that fail to rebuild even source file is modified
+            COMMAND go build -ldflags "${_ldflags}"
             INSTALL_COMMAND
             COMMAND cmake -E echo "Copy taoskeeper"
             COMMAND cmake -E copy_if_different ${taoskeeper_exe} ${CMAKE_BINARY_DIR}/build/bin/${taoskeeper_exe}

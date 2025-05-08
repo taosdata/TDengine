@@ -23,7 +23,7 @@ class TestNormalTableBasic2:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/table/basic2.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/table/basic2.sim
 
         """
 

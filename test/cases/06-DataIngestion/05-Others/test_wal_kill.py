@@ -6,7 +6,7 @@ class TestWalKill:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_wal_lill(self):
+    def test_wal_kill(self):
         """wal kill
 
         1. create table
@@ -24,7 +24,7 @@ class TestWalKill:
         Jira: None
 
         History:
-            - 2025-4-29 Simon Guan Migrated to new test framework, from tests/script/tsim/wal/kill.sim
+            - 2025-4-29 Simon Guan Migrated from tests/script/tsim/wal/kill.sim
 
         """
         tdLog.info(f"============== deploy")

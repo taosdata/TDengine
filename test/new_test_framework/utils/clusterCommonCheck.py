@@ -36,7 +36,7 @@ class ClusterComCheck:
         tdSql.init(conn.cursor())
         # tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
-    def checkDnodes(self, dnodeNumbers, timeout=100):
+    def checkDnodes(self, dnodeNum, timeout=100):
         count = 0
 
         while count < timeout:
@@ -46,12 +46,11 @@ class ClusterComCheck:
                 if tdSql.queryResult[i][4] == "ready":
                     status += 1
 
-            if status == dnodeNumbers:
-                tdLog.success(
-                    "cluster with %d dnodes is ready within %ds!"
-                    % (dnodeNumbers, count + 1)
-                )
+            if status == dnodeNum:
+                tdLog.success(f"{dnodeNum} dnodes ready within {count}s!")
                 return True
+            else:
+                tdLog.info(f"{dnodeNum} dnodes not ready, {status}:{tdSql.queryRows}")
 
             time.sleep(1)
             count += 1
@@ -59,9 +58,7 @@ class ClusterComCheck:
         else:
             tdSql.query("select * from information_schema.ins_dnodes")
             tdLog.debug(tdSql.queryResult)
-            tdLog.exit(
-                "cluster with %d dnodes not ready within %ds!" % (dnodeNumbers, timeout)
-            )
+            tdLog.exit(f"{dnodeNum} dnodes not ready within {timeout}s!")
 
     def checkClusterAlive(self, status, timeout=100):
         count = 0
@@ -83,7 +80,7 @@ class ClusterComCheck:
                 "show cluster alive does not return %d within %ds!" % (status, timeout)
             )
 
-    def checkDatabaseAlive(self, dbname, status, timeout=100):
+    def checkDbAlive(self, dbname, status, timeout=100):
         count = 0
 
         while count < timeout:
@@ -172,7 +169,7 @@ class ClusterComCheck:
 
             if leaderNum == tdSql.queryRows:
                 tdLog.info(
-                    f"db:{dbname} vgroups:{tdSql.queryRows} has leader within {timeout}s!"
+                    f"db:{dbname} vgroups:{tdSql.queryRows} has leader within {count}s!"
                 )
                 break
 
@@ -254,103 +251,79 @@ class ClusterComCheck:
             tdSql.checkData(0, 0, rowsPerSTable)
         return
 
-    def checkMnodeStatus(self, mnodeNums):
-        self.mnodeNums = int(mnodeNums)
-        # self.leaderDnode=int(leaderDnode)
-        tdLog.debug("start to check status of mnodes")
+    def checkMnodeStatus(self, mnodeNum, checkFollower=True):
+        tdLog.debug(f"check mnodes:{mnodeNum} status")
         count = 0
 
-        while count < 10:
+        while count < 30:
             time.sleep(1)
             tdSql.query("select * from information_schema.ins_mnodes;")
-            if tdSql.checkRows(self.mnodeNums):
-                tdLog.success("cluster has %d mnodes" % self.mnodeNums)
+            if tdSql.checkRows(mnodeNum):
+                tdLog.success("cluster has %d mnodes" % mnodeNum)
 
-            if self.mnodeNums == 1:
-                if (
-                    tdSql.queryResult[0][2] == "leader"
-                    and tdSql.queryResult[0][3] == "ready"
-                ):
-                    tdLog.success("%d mnodes is ready in 10s" % self.mnodeNums)
+            if mnodeNum == 1:
+                tdLog.info(f"{tdSql.queryResult[0][2]}")
+                if tdSql.queryResult[0][2] == "leader":
+                    tdLog.success(f"{mnodeNum} mnodes ready in {count}s")
                     return True
                 count += 1
-            elif self.mnodeNums == 3:
-                if (
-                    tdSql.queryResult[0][2] == "leader"
-                    and tdSql.queryResult[0][3] == "ready"
-                ):
-                    if (
-                        tdSql.queryResult[1][2] == "follower"
-                        and tdSql.queryResult[1][3] == "ready"
-                    ):
-                        if (
-                            tdSql.queryResult[2][2] == "follower"
-                            and tdSql.queryResult[2][3] == "ready"
-                        ):
-                            tdLog.success("%d mnodes is ready in 10s" % self.mnodeNums)
+            elif mnodeNum == 3:
+                tdLog.info(
+                    f"{tdSql.queryResult[0][2]}, {tdSql.queryResult[1][2]}, {tdSql.queryResult[2][2]}"
+                )
+                if tdSql.queryResult[0][2] == "leader":
+                    if not checkFollower:
+                        tdLog.success(f"{mnodeNum} mnodes ready in {count}s")
+                        return True
+                    elif tdSql.queryResult[1][2] == "follower":
+                        if tdSql.queryResult[2][2] == "follower":
+                            tdLog.success(f"{mnodeNum} mnodes ready in {count}s")
                             return True
-                elif (
-                    tdSql.queryResult[1][2] == "leader"
-                    and tdSql.queryResult[1][3] == "ready"
-                ):
-                    if (
-                        tdSql.queryResult[0][2] == "follower"
-                        and tdSql.queryResult[0][3] == "ready"
-                    ):
-                        if (
-                            tdSql.queryResult[2][2] == "follower"
-                            and tdSql.queryResult[2][3] == "ready"
-                        ):
-                            tdLog.success("%d mnodes is ready in 10s" % self.mnodeNums)
+                elif tdSql.queryResult[1][2] == "leader":
+                    if not checkFollower:
+                        tdLog.success(f"{mnodeNum} mnodes ready in {count}s")
+                        return True
+                    elif tdSql.queryResult[0][2] == "follower":
+                        if tdSql.queryResult[2][2] == "follower":
+                            tdLog.success(f"{mnodeNum} mnodes ready in {count}s")
                             return True
-                elif (
-                    tdSql.queryResult[2][2] == "leader"
-                    and tdSql.queryResult[2][3] == "ready"
-                ):
-                    if (
-                        tdSql.queryResult[0][2] == "follower"
-                        and tdSql.queryResult[0][3] == "ready"
-                    ):
-                        if (
-                            tdSql.queryResult[1][2] == "follower"
-                            and tdSql.queryResult[1][3] == "ready"
-                        ):
-                            tdLog.success("%d mnodes is ready in 10s" % self.mnodeNums)
+                elif tdSql.queryResult[2][2] == "leader":
+                    if not checkFollower:
+                        tdLog.success(f"{mnodeNum} mnodes ready in {count}s")
+                        return True
+                    elif tdSql.queryResult[0][2] == "follower":
+                        if tdSql.queryResult[1][2] == "follower":
+                            tdLog.success(f"{mnodeNum} mnodes ready in {count}s")
                             return True
                 count += 1
-            elif self.mnodeNums == 2:
-                if (
-                    tdSql.queryResult[0][2] == "leader"
-                    and tdSql.queryResult[0][3] == "ready"
-                ):
-                    if (
-                        tdSql.queryResult[1][2] == "follower"
-                        and tdSql.queryResult[1][3] == "ready"
-                    ):
-                        tdLog.success("%d mnodes is ready in 10s" % self.mnodeNums)
+            elif mnodeNum == 2:
+                tdLog.info(f"{tdSql.queryResult[0][2]}, {tdSql.queryResult[1][2]}")
+                if tdSql.queryResult[0][2] == "leader":
+                    if not checkFollower:
+                        tdLog.success(f"{mnodeNum} mnodes ready in {count}s")
                         return True
-                elif (
-                    tdSql.queryResult[1][2] == "leader"
-                    and tdSql.queryResult[1][3] == "ready"
-                ):
-                    if (
-                        tdSql.queryResult[0][2] == "follower"
-                        and tdSql.queryResult[0][3] == "ready"
-                    ):
-                        tdLog.success("%d mnodes is ready in 10s" % self.mnodeNums)
+                    elif tdSql.queryResult[1][2] == "follower":
+                        tdLog.success(f"{mnodeNum} mnodes ready in {count}s")
+                        return True
+                elif tdSql.queryResult[1][2] == "leader":
+                    if not checkFollower:
+                        tdLog.success(f"{mnodeNum} mnodes ready in {count}s")
+                        return True
+                    elif tdSql.queryResult[0][2] == "follower":
+                        tdLog.success(f"{mnodeNum} mnodes ready in {count}s")
                         return True
                 count += 1
         else:
             tdLog.debug(tdSql.queryResult)
-            tdLog.exit("cluster of %d  mnodes is not ready in 10s " % self.mnodeNums)
+            tdLog.exit(f"{mnodeNum} mnodes not ready in {count}s")
 
-    def check3mnodeoff(self, offlineDnodeNo, mnodeNums=3):
+    def check3mnodeoff(self, offlineDnodeNo, mnodeNum=3):
         count = 0
-        while count < 10:
+        while count < 30:
             time.sleep(1)
             tdSql.query("select * from information_schema.ins_mnodes;")
-            if tdSql.checkRows(mnodeNums):
-                tdLog.success("cluster has %d mnodes" % self.mnodeNums)
+            if tdSql.checkRows(mnodeNum):
+                tdLog.success("cluster has %d mnodes" % mnodeNum)
             else:
                 tdLog.exit("mnode number is correct")
             if offlineDnodeNo == 1:
@@ -408,13 +381,13 @@ class ClusterComCheck:
             tdLog.debug(tdSql.queryResult)
             tdLog.exit(f"stop mnodes  on dnode {offlineDnodeNo}  failed in 10s ")
 
-    def check3mnode2off(self, mnodeNums=3):
+    def check3mnode2off(self, mnodeNum=3):
         count = 0
-        while count < 10:
+        while count < 30:
             time.sleep(1)
             tdSql.query("select * from information_schema.ins_mnodes;")
-            if tdSql.checkRows(mnodeNums):
-                tdLog.success("cluster has %d mnodes" % self.mnodeNums)
+            if tdSql.checkRows(mnodeNum):
+                tdLog.success("cluster has %d mnodes" % mnodeNum)
             else:
                 tdLog.exit("mnode number is correct")
             if tdSql.queryResult[0][2] == "leader":

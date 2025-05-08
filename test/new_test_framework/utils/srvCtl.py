@@ -48,6 +48,19 @@ class srvCtl:
             return clusterDnodes.starttaosd(idx)
 
         return tdDnodes.starttaosd(idx)
+    
+    def dnodeStartAll(self):
+        """
+        Starts all dnodes.
+
+        Returns:
+            bool: True if all dnodes were started successfully, False otherwise.
+        """
+        if clusterDnodes.getModel() == 'cluster':
+            for dnode in clusterDnodes.dnodes:
+                clusterDnodes.starttaosd(dnode.index)
+        else:
+            return tdDnodes.starttaosd(1)
 
     # stop idx base is 1 
     def dnodeStop(self, idx):
