@@ -2338,6 +2338,9 @@ void tDestroySSTriggerCalcParam(void* ptr) {
   if (pParam && pParam->extraNotifyContent != NULL) {
     taosMemoryFreeClear(pParam->extraNotifyContent);
   }
+  if (pParam && pParam->resultNotifyContent != NULL) {
+    taosMemoryFreeClear(pParam->resultNotifyContent);
+  }
 }
 
 static void tDestroySValue(void* ptr) {
