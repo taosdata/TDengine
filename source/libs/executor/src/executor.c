@@ -269,7 +269,7 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
     goto _error;
   }
 
-  if (!streamInserterParam) {
+  if (streamInserterParam) {
     pInserterParam = taosMemoryCalloc(1, sizeof(SInserterParam));
     if (NULL == pInserterParam) {
       qError("failed to taosMemoryCalloc, code:%s, %s", tstrerror(terrno), (*pTask)->id.str);
