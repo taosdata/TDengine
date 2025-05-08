@@ -432,6 +432,7 @@ int32_t metaStatsCacheUpsert(SMeta* pMeta, SMetaStbStats* pInfo) {
   if (*ppEntry) {  // update
     (*ppEntry)->info.ctbNum = pInfo->ctbNum;
     (*ppEntry)->info.colNum = pInfo->colNum;
+    (*ppEntry)->info.flags = pInfo->flags;
     (*ppEntry)->info.keep = pInfo->keep;
   } else {  // insert
     if (pCache->sStbStatsCache.nEntry >= pCache->sStbStatsCache.nBucket) {

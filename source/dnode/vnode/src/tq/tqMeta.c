@@ -283,9 +283,7 @@ static int tqMetaInitHandle(STQ* pTq, STqHandle* handle) {
   int32_t vgId = TD_VID(pVnode);
 
   handle->pRef = walOpenRef(pVnode->pWal);
-
   TQ_NULL_GO_TO_END(handle->pRef);
-  TQ_ERR_GO_TO_END(walSetRefVer(handle->pRef, handle->snapshotVer));
 
   SReadHandle reader = {
       .vnode = pVnode,
@@ -455,15 +453,16 @@ int32_t tqMetaGetHandle(STQ* pTq, const char* key, STqHandle** pHandle) {
       return TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST;
     }
     STqHandle handle = {0};
-    if (tqMetaRestoreHandle(pTq, data, vLen >= 0 ? vLen : 0, &handle) != 0) {
+    int32_t code = tqMetaRestoreHandle(pTq, data, vLen >= 0 ? vLen : 0, &handle);
+    if (code != 0) {
       tdbFree(data);
       tqDestroyTqHandle(&handle);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return code;
     }
     tdbFree(data);
     *pHandle = taosHashGet(pTq->pHandle, key, strlen(key));
     if (*pHandle == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   } else {
     *pHandle = data;

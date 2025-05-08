@@ -108,9 +108,30 @@ void streamSetupScheduleTrigger(SStreamTask* pTask) {
   }
 }
 
+#if 0
+int32_t x = 0;
+#endif
+
 int32_t streamTrySchedExec(SStreamTask* pTask, bool chkptQueue) {
+  int32_t code = 0;
+
   if (streamTaskSetSchedStatusWait(pTask)) {
-    return streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pTask->id.streamId, pTask->id.taskId, 0, chkptQueue);
+#if 0
+ // injection error for sched task failed
+    if (x++ > 20) {
+      x = -1000000;
+// not reset the status may cause error
+      streamTaskSetSchedStatusInactive(pTask);
+      stInfo("s-task:%s set schedStatus inactive, since failed to sched task", pTask->id.idStr);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+#endif
+
+    code = streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pTask->id.streamId, pTask->id.taskId, 0, chkptQueue);
+    if (code) {
+      int8_t unusedStatus = streamTaskSetSchedStatusInactive(pTask);
+      stInfo("s-task:%s set schedStatus inactive, since failed to sched task", pTask->id.idStr);
+    }
   } else {
     if (chkptQueue) {
       stWarn("s-task:%s not launch task in chkpt queue, may delay checkpoint procedure", pTask->id.idStr);
@@ -119,7 +140,7 @@ int32_t streamTrySchedExec(SStreamTask* pTask, bool chkptQueue) {
     }
   }
 
-  return 0;
+  return code;
 }
 
 int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int32_t taskId, int32_t execType, bool chkptExec) {

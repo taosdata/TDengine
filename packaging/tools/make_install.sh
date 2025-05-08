@@ -237,7 +237,7 @@ function install_bin() {
 
 function install_jemalloc() {
   if [ "$osType" != "Darwin" ]; then
-    /usr/bin/install -c -d /usr/local/bin
+    ${csudo}/usr/bin/install -c -d /usr/local/bin
 
     if [ -f "${binary_dir}/build/bin/jemalloc-config" ]; then
       ${csudo}/usr/bin/install -c -m 755 ${binary_dir}/build/bin/jemalloc-config /usr/local/bin

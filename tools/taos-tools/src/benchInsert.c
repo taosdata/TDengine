@@ -1824,7 +1824,10 @@ static void *syncWriteInterlace(void *sarg) {
 
     // create bindv
     if(stbInfo->iface == STMT2_IFACE) {
-        int32_t tagCnt = stbInfo->autoTblCreating ? stbInfo->tags->size : 0; // todo
+        int32_t tagCnt = stbInfo->autoTblCreating ? stbInfo->tags->size : 0;
+        if (csvFile) {
+            tagCnt = 0;
+        }
         //int32_t tagCnt = stbInfo->tags->size;
         bindv = createBindV(nBatchTable,  tagCnt, stbInfo->cols->size + 1);
     }
@@ -2086,7 +2089,6 @@ static void *syncWriteInterlace(void *sarg) {
                         }
                     
                         bindVTags(bindv, i, w, pThreadInfo->tagsStmt);
-                        
                     }
 
                     // cols
