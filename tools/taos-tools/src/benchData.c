@@ -2226,7 +2226,6 @@ uint32_t bindParamBatch(threadInfo *pThreadInfo,
         pThreadInfo->stmtBind = true;
         memset(pThreadInfo->bindParams, 0,
             (sizeof(TAOS_MULTI_BIND) * (columnCount + 1)));
-        // memset(pThreadInfo->is_null, 0, batch);
 
         for (int c = 0; c <= columnCount; c++) {
             TAOS_MULTI_BIND *param =
@@ -2724,7 +2723,6 @@ uint32_t bindVColsProgressive(TAOS_STMT2_BINDV *bindv, int32_t tbIndex,
 
     // clear
     memset(pThreadInfo->bindParams, 0, sizeof(TAOS_STMT2_BIND) * (columnCount + 1));
-    // memset(pThreadInfo->is_null, 0, batch);
     debugPrint("stmt2 bindVColsProgressive child=%s batch=%d pos=%" PRId64 "\n", childTbl->name, batch, pos);
     // loop cols
     for (int c = 0; c <= columnCount; c++) {

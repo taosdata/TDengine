@@ -3832,7 +3832,6 @@ void *genInsertTheadInfo(void* arg) {
             pThreadInfo->bind_ts       = benchCalloc(1, sizeof(int64_t), true);
             
             pThreadInfo->bindParams    = benchCalloc(1, unit * (stbInfo->cols->size + 1), true);
-            // pThreadInfo->is_null       = benchCalloc(1, g_arguments->reqPerReq, true);
             // have ts columns, so size + 1
             pThreadInfo->lengths       = benchCalloc(stbInfo->cols->size + 1, sizeof(int32_t*), true);
             for(int32_t c = 0; c <= stbInfo->cols->size; c++) {
@@ -4218,7 +4217,6 @@ int32_t exitInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
                 tmfree(pThreadInfo->bind_ts);
                 tmfree(pThreadInfo->bind_ts_array);
                 tmfree(pThreadInfo->bindParams);
-                // tmfree(pThreadInfo->is_null);
                 
                 // free tagsStmt
                 BArray *tags = pThreadInfo->tagsStmt;
