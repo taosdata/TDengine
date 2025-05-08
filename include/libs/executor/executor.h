@@ -90,7 +90,6 @@ typedef enum {
   OPTR_EXEC_MODEL_QUEUE = 0x3,
 } EOPTR_EXEC_MODEL;
 
-int32_t qResetStreamExecTask(qTaskInfo_t* pTaskInfo);
 /**
  * Create the exec task for stream mode
  * @param pMsg
