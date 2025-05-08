@@ -16,6 +16,7 @@
 #ifndef _DATA_SINK_MGT_H
 #define _DATA_SINK_MGT_H
 
+#include <stdint.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -58,10 +59,12 @@ typedef enum {
 } AUTO_CREATE_TABLE_MODE;
 
 typedef struct SStreamInserterParam {
-  AUTO_CREATE_TABLE_MODE autoCreateTableMode;
-  STSchema*              pSchema;
-  SSchemaWrapper*        pTagSchema;
-  const char*            dbFName;
+  STSchema*       pSchema;
+  SSchemaWrapper* pTagSchema;
+  int64_t         suid;
+  const char*     tbname;
+  int8_t          tbType;
+  const char*     dbFName;
 } SStreamInserterParam;
 
 typedef struct SInserterParam {
@@ -81,8 +84,14 @@ typedef struct SDataSinkMgtCfg {
 
 int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg, SStorageAPI* pAPI, void** ppSinkManager);
 
+typedef struct SStreamDataInserterData {
+  bool        isAutoCreateTable;
+  const char* tbName;
+} SStreamDataInserterData;
+
 typedef struct SInputData {
   const struct SSDataBlock* pData;
+  SStreamDataInserterData*  pStreamDataInserterData;
 } SInputData;
 
 typedef struct SOutputData {
