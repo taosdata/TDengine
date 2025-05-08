@@ -1101,14 +1101,14 @@ static int32_t strtgOpenNewWindow(SSTriggerRealtimeGroup *pGroup, int64_t ts, ch
   }
 
   SSTriggerCalcParam param = {
-    .currentTs = pWindow->skey,
-    .wstart = pWindow->skey,
-    .wend = pWindow->ekey,
-    .wduration = pWindow->ekey - pWindow->skey,
-    .wrownum = 0,
-    .triggerTime = taosGetTimestampNs(),
-    .notifyType = STRIGGER_EVENT_WINDOW_OPEN,
-    .extraNotifyContent = pExtraNotifyContent,
+      .currentTs = pWindow->skey,
+      .wstart = pWindow->skey,
+      .wend = pWindow->ekey,
+      .wduration = pWindow->ekey - pWindow->skey,
+      .wrownum = 0,
+      .triggerTime = taosGetTimestampNs(),
+      .notifyType = STRIGGER_EVENT_WINDOW_OPEN,
+      .extraNotifyContent = pExtraNotifyContent,
   };
   if (pTask->calcEventType & STRIGGER_EVENT_WINDOW_OPEN) {
     SSTriggerCalcRequest *pReq = &pContext->calcReq;
@@ -2056,6 +2056,13 @@ static int32_t strtcResumeCheck(SSTriggerRealtimeContext *pContext) {
     SSTriggerRealtimeGroup *pCurGroup = TRINGBUF_FIRST(&pContext->groupsToCheck);
     code = strtgResumeCheck(pCurGroup);
     QUERY_CHECK_CODE(code, lino, _end);
+    if (TARRAY_SIZE(pContext->pNotifyParams) > 0) {
+      code = streamSendNotifyContent(&pTask->task, pTask->triggerType, pCurGroup->groupId, pTask->pNotifyAddrUrls,
+                                     pTask->notifyErrorHandle, TARRAY_DATA(pContext->pNotifyParams),
+                                     TARRAY_SIZE(pContext->pNotifyParams));
+      QUERY_CHECK_CODE(code, lino, _end);
+      taosArrayClearP(pContext->pNotifyParams, tDestroySSTriggerCalcParam);
+    }
     if (pContext->calcStatus == STRIGGER_REQUEST_TO_RUN) {
       code = strtcSendCalcReq(pContext);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -2330,8 +2337,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, const SStreamTriggerDeplo
 
   pTask->singleVnodePerGroup = taosArrayGetSize(pTask->readerList) == 1 || pMsg->placeHolderBitmap & (1 << 7);
   pTask->needRowNumber = pMsg->placeHolderBitmap & (1 << 4);
-  // pTask->needCacheData = pMsg->placeHolderBitmap & (1 << 8); todo(kjq): fix here
-  pTask->needCacheData = true;
+  pTask->needCacheData = pMsg->placeHolderBitmap & (1 << 8);
 
   pTask->calcParamLimit = 10;  // todo(kjq): adjust dynamically
   pTask->nextSessionId = 1;
