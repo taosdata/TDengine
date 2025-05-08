@@ -293,6 +293,18 @@ _return:
   return code;
 }
 
+void* msmSearchCalcCacheScanPlan(SArray* pList) {
+  int32_t num = taosArrayGetSize(pList);
+  for (int32_t i = 0; i < num; ++i) {
+    SStreamCalcScan* pScan = taosArrayGet(pList, i);
+    if (pScan->readFromCache) {
+      return pScan->scanPlan;
+    }
+  }
+
+  return NULL;
+}
+
 int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, SStreamObj* pStream, void* calcScanPlan, bool triggerReader) {
   SStreamReaderDeployMsg* pMsg = &pDeploy->msg.reader;
   pMsg->triggerReader = triggerReader;
@@ -308,6 +320,7 @@ int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, SStreamObj* pStream, v
     pTrigger->triggerCols = pStream->pCreate->triggerCols;
     //pTrigger->triggerPrevFilter = pStream->pCreate->triggerPrevFilter;
     pTrigger->triggerScanPlan = pStream->pCreate->triggerScanPlan;
+    pTrigger->calcCacheScanPlan = msmSearchCalcCacheScanPlan(pStream->pCreate->calcScanPlanList);
   } else {
     SStreamReaderDeployFromCalc* pCalc = &pMsg->msg.calc;
     pCalc->calcScanPlan = calcScanPlan;

@@ -342,6 +342,7 @@ typedef struct {
   void*   triggerCols;    // nodelist of SColumnNode
   // void*   triggerPrevFilter;
   void* triggerScanPlan;
+  void* calcCacheScanPlan;
 } SStreamReaderDeployFromTrigger;
 
 typedef struct {
