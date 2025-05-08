@@ -321,8 +321,6 @@ class TDTestCase:
             tdSql.checkRows(3)
 
             self.genClusterInfo(check=False)
-            # tdLog.info(f"sleep 86400 seconds")
-            # time.sleep(86400)
             process = subprocess.Popen(f'{self.workPath}{os.sep}grantTest 2', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             output, error = process.communicate()
             output = output.decode(encoding="utf-8")
