@@ -293,6 +293,18 @@ _return:
   return code;
 }
 
+void* msmSearchCalcCacheScanPlan(SArray* pList) {
+  int32_t num = taosArrayGetSize(pList);
+  for (int32_t i = 0; i < num; ++i) {
+    SStreamCalcScan* pScan = taosArrayGet(pList, i);
+    if (pScan->readFromCache) {
+      return pScan->scanPlan;
+    }
+  }
+
+  return NULL;
+}
+
 int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, SStreamObj* pStream, void* calcScanPlan, bool triggerReader) {
   SStreamReaderDeployMsg* pMsg = &pDeploy->msg.reader;
   pMsg->triggerReader = triggerReader;
@@ -308,6 +320,7 @@ int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, SStreamObj* pStream, v
     pTrigger->triggerCols = pStream->pCreate->triggerCols;
     //pTrigger->triggerPrevFilter = pStream->pCreate->triggerPrevFilter;
     pTrigger->triggerScanPlan = pStream->pCreate->triggerScanPlan;
+    pTrigger->calcCacheScanPlan = msmSearchCalcCacheScanPlan(pStream->pCreate->calcScanPlanList);
   } else {
     SStreamReaderDeployFromCalc* pCalc = &pMsg->msg.calc;
     pCalc->calcScanPlan = calcScanPlan;
@@ -407,7 +420,7 @@ _exit:
 }
 
 
-int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan *plan, SStreamObj* pStream, int32_t replica) {
+int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan *plan, SStreamObj* pStream, int32_t replica, bool topPlan) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
@@ -421,11 +434,13 @@ int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan *plan, SStrea
   pMsg->outTblName = pStream->pCreate->outTblName;
   pMsg->outTblType = pStream->pCreate->outTblType;
   pMsg->calcNotifyOnly = pStream->pCreate->calcNotifyOnly;
+  pMsg->topPlan = topPlan;
   pMsg->pNotifyAddrUrls = pStream->pCreate->pNotifyAddrUrls;
   pMsg->notifyErrorHandle = pStream->pCreate->notifyErrorHandle;
   pMsg->outCols = pStream->pCreate->outCols;
   pMsg->outTags = pStream->pCreate->outTags;
   pMsg->outStbUid = pStream->pCreate->outStbUid;
+  pMsg->outStbSversion = pStream->pCreate->outStbSversion;
   
   pMsg->subTblNameExpr = pStream->pCreate->subTblNameExpr;
   pMsg->tagValueExpr = pStream->pCreate->tagValueExpr;
@@ -982,7 +997,7 @@ int32_t msmBuildRunnerTasksImpl(SMnode* pMnode, SQueryPlan* pDag, SStmStatus* pI
         info.task.taskId = state.id.taskId;
         info.task.nodeId = state.id.nodeId;
         info.task.taskIdx = state.id.taskIdx;
-        TSDB_CHECK_CODE(msmBuildRunnerDeployInfo(&info, plan, pStream, pInfo->runnerReplica), lino, _exit);
+        TSDB_CHECK_CODE(msmBuildRunnerDeployInfo(&info, plan, pStream, pInfo->runnerReplica, 0 == i), lino, _exit);
 
         TSDB_CHECK_CODE(msmTDAddSnodeTask(mStreamMgmt.toDeploySnodeMap, &info, pStream, false, i == lowestLevelIdx), lino, _exit);
         

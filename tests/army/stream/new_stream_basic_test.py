@@ -33,7 +33,7 @@ def main():
     elif opt == "state":
         template = template.replace(placeholder, "state_window (id)")
     elif opt == "session":
-        template = template.replace(placeholder, "session (id, 1s)")
+        template = template.replace(placeholder, "session (ts, 1s)")
     elif opt == "count":
         template = template.replace(placeholder, "count_window (1)")
     elif opt == "event":

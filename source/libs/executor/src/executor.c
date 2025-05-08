@@ -269,20 +269,21 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
     goto _error;
   }
 
-  pInserterParam = taosMemoryCalloc(1, sizeof(SInserterParam));
-  if (NULL == pInserterParam) {
-    qError("failed to taosMemoryCalloc, code:%s, %s", tstrerror(terrno), (*pTask)->id.str);
-    code = terrno;
-    goto _error;
-  }
-  pInserterParam->readHandle = readHandle;
-  pInserterParam->streamInserterParam = streamInserterParam;
+  if (streamInserterParam) {
+    pInserterParam = taosMemoryCalloc(1, sizeof(SInserterParam));
+    if (NULL == pInserterParam) {
+      qError("failed to taosMemoryCalloc, code:%s, %s", tstrerror(terrno), (*pTask)->id.str);
+      code = terrno;
+      goto _error;
+    }
+    pInserterParam->readHandle = readHandle;
+    pInserterParam->streamInserterParam = streamInserterParam;
 
-  code = createStreamDataInserter(pSinkManager, handle, pInserterParam);
-  if (code) {
-    qError("failed to createStreamDataInserter, code:%s, %s", tstrerror(code), (*pTask)->id.str);
+    code = createStreamDataInserter(pSinkManager, handle, pInserterParam);
+    if (code) {
+      qError("failed to createStreamDataInserter, code:%s, %s", tstrerror(code), (*pTask)->id.str);
+    }
   }
-
   qDebug("subplan task create completed, TID:0x%" PRIx64 " QID:0x%" PRIx64 " code:%s", taskId, pSubplan->id.queryId,
          tstrerror(code));
 
@@ -314,8 +315,8 @@ int32_t qResetStreamExecTask(qTaskInfo_t* pTaskInfo){
   return code;
 }
 
-int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle* readers, int32_t vgId,
-                                  int32_t taskId) {
+int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle* readers,
+                                  SStreamInserterParam* pInserterParams, int32_t vgId, int32_t taskId) {
   if (msg == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -327,9 +328,9 @@ int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-  SStreamInserterParam* streamInserterParam = {0};
   // todo: add stream inserter param
-  code = qCreateStreamExecTask(readers, vgId, taskId, pPlan, pTaskInfo, NULL, 0, NULL, OPTR_EXEC_MODEL_STREAM, streamInserterParam);
+  code = qCreateStreamExecTask(readers, vgId, taskId, pPlan, pTaskInfo, &pInserterParams->pSinkHandle, 0, NULL,
+                               OPTR_EXEC_MODEL_STREAM, pInserterParams);
   if (code != TSDB_CODE_SUCCESS) {
     qDestroyTask(*pTaskInfo);
     return code;
@@ -1659,6 +1660,7 @@ int32_t clearStatesForOperator(SOperatorInfo* pOper) {
   if (pOper->fpSet.resetStateFn) {
     code = pOper->fpSet.resetStateFn(pOper);
   }
+  pOper->status = OP_NOT_OPENED;
   for (int32_t i = 0; i < pOper->numOfDownstream && code == 0; ++i) {
     code = clearStatesForOperator(pOper->pDownstream[i]);
   }
@@ -1677,6 +1679,7 @@ static int32_t streamDoNotification(qTaskInfo_t tInfo, const SSDataBlock* pBlock
   int32_t code = 0;
   int32_t lino = 0;
   if (!pBlock || pBlock->info.rows <= 0) return code;
+  return 0;
 
   EStreamNotifyEventType  eventType = SNOTIFY_EVENT_WINDOW_CLOSE;
   SStreamNotifyEventSupp* pSupp = NULL;

@@ -236,6 +236,9 @@ void syncWindowDataMemSub(SWindowData* pSWindowData);
 
 void destroyStreamDataSinkFile(SDataSinkFileMgr** ppDaSinkFileMgr);
 
+int32_t initInserterGrpInfo();
+void    destroyInserterGrpInfo();
+
 #ifdef __cplusplus
 }
 #endif

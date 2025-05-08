@@ -922,6 +922,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INTERNAL_ERROR,      "Mnode stream intern
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_WAL_VER_NOT_DATA,        "Wal version is not data in stream reader task")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_NO_CONTEXT,              "No context in stream reader task")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_NO_DATA,                 "No data in stream reader task")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND, "Insert table info not found")
 
 #ifdef TAOS_ERROR_C
 };

@@ -58,15 +58,6 @@ typedef enum {
   AUTO_CREATE_TABLE_STREAM_NORMAL,
 } AUTO_CREATE_TABLE_MODE;
 
-typedef struct SStreamInserterParam {
-  STSchema*       pSchema;
-  SSchemaWrapper* pTagSchema;
-  int64_t         suid;
-  const char*     tbname;
-  int8_t          tbType;
-  const char*     dbFName;
-} SStreamInserterParam;
-
 typedef struct SInserterParam {
   SReadHandle*          readHandle;
   SStreamInserterParam* streamInserterParam;
@@ -84,14 +75,15 @@ typedef struct SDataSinkMgtCfg {
 
 int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg, SStorageAPI* pAPI, void** ppSinkManager);
 
-typedef struct SStreamDataInserterData {
+typedef struct SStreamDataInserterInfo {
   bool        isAutoCreateTable;
+  int64_t     groupId;
   const char* tbName;
-} SStreamDataInserterData;
+} SStreamDataInserterInfo;
 
 typedef struct SInputData {
   const struct SSDataBlock* pData;
-  SStreamDataInserterData*  pStreamDataInserterData;
+  SStreamDataInserterInfo*  pStreamDataInserterInfo;
 } SInputData;
 
 typedef struct SOutputData {

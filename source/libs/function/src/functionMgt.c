@@ -738,63 +738,6 @@ bool fmIsGroupIdFunc(int32_t funcId) {
   return FUNCTION_TYPE_GROUP_ID == funcMgtBuiltins[funcId].type;
 }
 
-int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, const SStreamRuntimeFuncInfo* pStreamRuntimeInfo) {
-  if (!pStreamRuntimeInfo) {
-    uError("internal error, should have pVals for stream pseudo funcs");
-    return TSDB_CODE_INTERNAL_ERROR;
-  }
-  int32_t code = 0;
-  SArray *pVals1 = NULL, *pVals2 = NULL;
-  SNode* pFirstParam = NULL;
-  if (STREAM_PSEUDO_FUNC_TGRPID == fmGetStreamPseudoFuncType(funcId)) {
-    SValue v = {0};
-    v.type = TSDB_DATA_TYPE_BIGINT;
-    v.val = pStreamRuntimeInfo->groupId;
-    pFirstParam = nodesListGetNode(pParamNodes, 0);
-    if (nodeType(pFirstParam) != QUERY_NODE_VALUE) {
-      uError("invalid param node type: %d for func: %d", nodeType(pFirstParam), funcId);
-      return TSDB_CODE_INTERNAL_ERROR;
-    }
-    code = nodesSetValueNodeValue((SValueNode*)pFirstParam, VALUE_GET_DATUM(&v, pFirstParam->type));
-    if (code != 0) {
-      uError("failed to set value node value: %s", tstrerror(code));
-      return code;
-    }
-  } else if (1) {
-    // twstart, twend, groupid ...
-    const SValue* pVal = fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
-    pFirstParam = nodesListGetNode(pParamNodes, 0);
-    if (nodeType(pFirstParam) != QUERY_NODE_VALUE) {
-      uError("invalid param node type: %d for func: %d", nodeType(pFirstParam), funcId);
-      return TSDB_CODE_INTERNAL_ERROR;
-    }
-    code = nodesSetValueNodeValue((SValueNode*)pFirstParam, VALUE_GET_DATUM(pVal, pFirstParam->type));
-    if (code != 0) {
-      uError("failed to set value node value: %s", tstrerror(code));
-      return code;
-    }
-  } else {
-    SNode* pSecondParam = nodesListGetNode(pParamNodes, 1);
-    if (nodeType(pSecondParam) != QUERY_NODE_VALUE) {
-      uError("invalid param node type: %d for func: %d", nodeType(pSecondParam), funcId);
-      return TSDB_CODE_INTERNAL_ERROR;
-    }
-    int32_t idx = ((SValueNode*)pSecondParam)->datum.i;
-    const SValue* pVal = taosArrayGet(pVals2, idx);
-    int32_t code = nodesSetValueNodeValue((SValueNode*)pFirstParam, VALUE_GET_DATUM(pVal, pFirstParam->type));
-  }
-  return code;
-}
-const SValue* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo) {
-  int32_t idx = fmGetStreamPseudoFuncType(funcId);
-  if (idx < 0 || idx >= pStreamRuntimeFuncInfo->pStreamPesudoFuncVals->size) {
-    uError("failed to get stream pesudo func val, invalid funcId: %d, idx: %d", funcId, idx);
-    return NULL;
-  }
-  const SValue* pVal = taosArrayGet(pStreamRuntimeFuncInfo->pStreamPesudoFuncVals, idx);
-  return pVal;
-}
-
 int32_t fmGetStreamPseudoFuncType(int32_t funcId) {
   switch (funcMgtBuiltins[funcId].type) {
     case FUNCTION_TYPE_TCURRENT_TS:
@@ -815,4 +758,83 @@ int32_t fmGetStreamPseudoFuncType(int32_t funcId) {
       break;
   }
   return -1;
+}
+
+void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo) {
+  int32_t idx = fmGetStreamPseudoFuncType(funcId);
+  if (idx < 0 || idx >= pStreamRuntimeFuncInfo->pStreamPesudoFuncVals->size) {
+    uError("failed to get stream pesudo func val, invalid funcId: %d, idx: %d", funcId, idx);
+    return NULL;
+  }
+  SSTriggerCalcParam *pParams = taosArrayGet(pStreamRuntimeFuncInfo->pStreamPesudoFuncVals, pStreamRuntimeFuncInfo->curIdx);
+  switch (funcMgtBuiltins[funcId].type) {
+    case FUNCTION_TYPE_TCURRENT_TS:
+      return &pParams->currentTs;
+    case FUNCTION_TYPE_TWSTART:
+      return &pParams->wstart;
+    case FUNCTION_TYPE_TWEND:
+      return &pParams->wend;
+    case FUNCTION_TYPE_TWDURATION:
+      return &pParams->wduration;
+    case FUNCTION_TYPE_TWROWNUM:
+      return &pParams->wrownum;
+    default:
+      break;
+  }
+  return NULL;
+}
+
+int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, const SStreamRuntimeFuncInfo* pStreamRuntimeInfo) {
+  if (!pStreamRuntimeInfo) {
+    uError("internal error, should have pVals for stream pseudo funcs");
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+  int32_t code = 0;
+  SArray *pVals1 = NULL, *pVals2 = NULL;
+  SNode* pFirstParam = NULL;
+  int32_t t = fmGetStreamPseudoFuncType(funcId);
+  if (STREAM_PSEUDO_FUNC_TGRPID == t) {
+    SValue v = {0};
+    v.type = TSDB_DATA_TYPE_BIGINT;
+    v.val = pStreamRuntimeInfo->groupId;
+    pFirstParam = nodesListGetNode(pParamNodes, 0);
+    if (nodeType(pFirstParam) != QUERY_NODE_VALUE) {
+      uError("invalid param node type: %d for func: %d", nodeType(pFirstParam), funcId);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+    code = nodesSetValueNodeValue((SValueNode*)pFirstParam, VALUE_GET_DATUM(&v, pFirstParam->type));
+    if (code != 0) {
+      uError("failed to set value node value: %s", tstrerror(code));
+      return code;
+    }
+  } else if (t == STREAM_PSEUDO_FUNC_TLOCALTIME) {
+    // TODO wjm impl
+  } else if (1) {
+    // twstart, twend
+    void* pVal = fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
+    pFirstParam = nodesListGetNode(pParamNodes, 0);
+    if (nodeType(pFirstParam) != QUERY_NODE_VALUE) {
+      uError("invalid param node type: %d for func: %d", nodeType(pFirstParam), funcId);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+    if (!pVal) {
+      uError("failed to set stream pseudo func param val, NULL val for funcId: %d", funcId);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+    code = nodesSetValueNodeValue((SValueNode*)pFirstParam, pVal);
+    if (code != 0) {
+      uError("failed to set value node value: %s", tstrerror(code));
+      return code;
+    }
+  } else {
+    SNode* pSecondParam = nodesListGetNode(pParamNodes, 1);
+    if (nodeType(pSecondParam) != QUERY_NODE_VALUE) {
+      uError("invalid param node type: %d for func: %d", nodeType(pSecondParam), funcId);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+    int32_t idx = ((SValueNode*)pSecondParam)->datum.i;
+    const SValue* pVal = taosArrayGet(pVals2, idx);
+    int32_t code = nodesSetValueNodeValue((SValueNode*)pFirstParam, VALUE_GET_DATUM(pVal, pFirstParam->type));
+  }
+  return code;
 }

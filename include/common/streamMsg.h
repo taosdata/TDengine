@@ -258,6 +258,7 @@ typedef struct {
   int8_t   outTblType;
   int8_t   outStbExists;
   uint64_t outStbUid;
+  int32_t  outStbSversion;
   int64_t  eventTypes;
   int64_t  flags;
   int64_t  tsmaId;
@@ -341,6 +342,7 @@ typedef struct {
   void*   triggerCols;    // nodelist of SColumnNode
   // void*   triggerPrevFilter;
   void* triggerScanPlan;
+  void* calcCacheScanPlan;
 } SStreamReaderDeployFromTrigger;
 
 typedef struct {
@@ -404,6 +406,7 @@ typedef struct SStreamRunnerDeployMsg {
   char*  outTblName;
   int8_t outTblType;
   int8_t calcNotifyOnly;
+  int8_t topPlan;
 
   // notify options
   SArray* pNotifyAddrUrls;
@@ -412,6 +415,7 @@ typedef struct SStreamRunnerDeployMsg {
   SArray*  outCols;  // array of SFieldWithOptions
   SArray*  outTags;  // array of SFieldWithOptions
   uint64_t outStbUid;
+  int64_t  outStbSversion;
 
   void*   subTblNameExpr;
   void*   tagValueExpr;
@@ -675,6 +679,7 @@ typedef struct SSTriggerCalcRequest {
   SArray* params;        // SArray<SSTriggerCalcParam>
   SArray* groupColVals;  // only provided at the first calculation of the group
   bool    brandNew;      // TODO wjm remove it
+  int8_t  createTable;
 } SSTriggerCalcRequest;
 
 int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTriggerCalcRequest* pReq);
@@ -688,6 +693,7 @@ typedef struct SStreamRuntimeFuncInfo {
   SArray* pStreamPesudoFuncValNodes;
   SArray* pStreamPartColValNodes;
   int64_t groupId;
+  int32_t curIdx;
 } SStreamRuntimeFuncInfo;
 
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo);

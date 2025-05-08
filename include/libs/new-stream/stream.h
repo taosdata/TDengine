@@ -44,19 +44,31 @@ typedef struct SStreamReaderTask {
 } SStreamReaderTask;
 
 typedef struct SStreamRunnerTaskExecution {
-  const char         *pPlan;
-  void               *pExecutor;
-  void               *notifyEventSup;
-  void               *pQueryPlan;
-  SStreamRuntimeInfo  runtimeInfo;
-  char                tbname[TSDB_TABLE_NAME_LEN];
+  const char        *pPlan;
+  void              *pExecutor;
+  void              *notifyEventSup;
+  void              *pQueryPlan;
+  SStreamRuntimeInfo runtimeInfo;
+  char               tbname[TSDB_TABLE_NAME_LEN];
+  void              *pSinkHandle;
 } SStreamRunnerTaskExecution;
 
 typedef struct SStreamRunnerTaskOutput {
-  struct SSDataBlock* pBlock;
+  struct SSDataBlock *pBlock;
+  char                outDbFName[TSDB_DB_FNAME_LEN];
+  char                outTbName[TSDB_TABLE_NAME_LEN];
+  int8_t              outTblType;
+  SArray             *outCols;  // array of SFieldWithOptions
+  SArray             *outTags;  // array of SFieldWithOptions
+  uint64_t            outStbUid;
+  int32_t             outStbVersion;
 } SStreamRunnerTaskOutput;
 
 typedef struct SStreamRunnerTaskNotification {
+  int8_t calcNotifyOnly;
+  // notify options
+  SArray* pNotifyAddrUrls;
+  int32_t notifyErrorHandle;
 } SStreamRunnerTaskNotification;
 
 typedef struct SStreamRunnerTaskExecMgr {
@@ -76,6 +88,7 @@ typedef struct SStreamRunnerTask {
   void*                         pMsgCb;
   void*                         pSubTableExpr;
   SArray*                       forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
+  bool                          topTask;
 } SStreamRunnerTask;
 
 #define STREAM_GID(_streamId) ((uint64_t)(_streamId) % STREAM_MAX_GROUP_NUM)
