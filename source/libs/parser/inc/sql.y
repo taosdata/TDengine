@@ -858,7 +858,7 @@ stream_trigger(A) ::= trigger_type(B) trigger_table_opt(C) stream_partition_by_o
 
 /***** trigger type *****/
 
-trigger_type(A) ::= SESSION NK_LP NK_LP column_reference(B) NK_COMMA interval_sliding_duration_literal(C) NK_RP.            { A = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
+trigger_type(A) ::= SESSION NK_LP column_reference(B) NK_COMMA interval_sliding_duration_literal(C) NK_RP.            { A = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
 trigger_type(A) ::= STATE_WINDOW NK_LP expr_or_subquery(B) NK_RP true_for_opt(C).                                           { A = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, B), C); }
 trigger_type(A) ::= interval_opt(B) SLIDING NK_LP sliding_expr(C) NK_RP.                                                    { A = createIntervalWindowNodeExt(pCxt, B, C); }
 trigger_type(A) ::= EVENT_WINDOW NK_LP START WITH search_condition(B) END WITH search_condition(C) NK_RP true_for_opt(D).   { A = createEventWindowNode(pCxt, B, C, D); }

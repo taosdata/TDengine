@@ -1872,6 +1872,7 @@ static int32_t strtcSendPullReq(SSTriggerRealtimeContext *pContext, ESTriggerPul
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       pReader = pProgress->pTaskAddr;
       QUERY_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      pReq->uid = pMeta->uid;
       pReq->ver = pMeta->ver;
       break;
     }
@@ -1882,6 +1883,7 @@ static int32_t strtcSendPullReq(SSTriggerRealtimeContext *pContext, ESTriggerPul
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       pReader = pProgress->pTaskAddr;
       QUERY_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      pReq->uid = pMeta->uid;
       pReq->ver = pMeta->ver;
       break;
     }
