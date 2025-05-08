@@ -493,7 +493,7 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
                 // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                 // 0x0118: invalid parameter
                 let desc = to
-                    .describe(table)
+                    .describe(new_table_name)
                     .await
                     .map_err(|err| anyhow::format_err!("Describe table {table} error: {err}"))?;
                 let fields: HashMap<_, Ty> = block
@@ -4343,6 +4343,67 @@ mod tests {
         // table nTb2 should be created
         let _ = taos2.exec(format!("desc `{}`.`nTb2`", db2)).await?;
         let _ = taos2.exec(format!("desc `{}`.`>♑1`", db2)).await?;
+
+        taos1
+            .exec_many([
+                format!("drop database if exists `{db1}`"),
+                format!("drop database if exists `{db2}`"),
+            ])
+            .await?;
+        crate::core_metrics::clear_metrics(tid).await;
+        Ok(())
+    }
+
+    /// Test synchronize with table rename and mismatch table schema.
+    ///
+    /// Close https://jira.taosdata.com:18080/browse/TS-6449
+    ///
+    /// This test case is used to test the rename-table action.
+    ///
+    /// - Source: table nTb1(ts timestamp, v1 double)
+    /// - Sink: table nTb2(ts timestamp, v1 float)
+    #[tokio::test]
+    async fn test_ts6449_with_taos() -> anyhow::Result<()> {
+        let builder = TaosBuilder::from_dsn("taos:///")?;
+        let taos1 = builder.build().await?;
+        let taos2 = builder.build().await?;
+        let db_prefix = "test_ts6449_";
+        let db1 = format!("{}1", db_prefix);
+        let db2 = format!("{}2", db_prefix);
+        let tid = 6449;
+        taos1
+            .exec_many([
+                format!("drop database if exists `{db1}`"),
+                format!("create database `{db1}`"),
+                format!("use {db1}"),
+                "create table `nTb1` (ts timestamp, v1 double)".to_string(),
+                "insert into `nTb1` values(now, 1)".to_string(),
+            ])
+            .await?;
+        taos2
+            .exec_many([
+                format!("drop database if exists `{db2}`"),
+                format!("create database `{db2}`"),
+                format!("use {db2}"),
+                "create table `nTb2` (ts timestamp, v1 float)".to_string(),
+            ])
+            .await?;
+
+        let source: Dsn = format!("taos:///{db1}").parse()?;
+
+        let sink: Dsn = format!("taos:///{db2}").parse()?;
+        let _ = QueryOpts {
+            ..Default::default()
+        };
+        let actions = vec![Action::from_str("rename-table:map:nTb1,nTb2").unwrap(); 1];
+
+        crate::core_metrics::clear_metrics(tid).await;
+        let _ = crate::core_metrics::init_task_metrics(&source, &sink, tid, None).await;
+
+        legacy_to_taos(source, actions, sink, CancellationToken::new(), Some(tid)).await?;
+
+        // table nTb2 should be created
+        let _ = taos2.exec(format!("desc `{}`.`nTb2`", db2)).await?;
 
         taos1
             .exec_many([
