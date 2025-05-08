@@ -41,7 +41,7 @@
                         { "type": "smallint",    "name": "si" },
                         { "type": "int",         "name": "ic" },
                         { "type": "bigint",      "name": "bi" },
-                        { "type": "tinyint unsigned",    "name": "uti"},
+                        { "type": "utinyint",    "name": "uti"},
                         { "type": "usmallint",   "name": "usi"},
                         { "type": "uint",        "name": "ui" },
                         { "type": "ubigint",     "name": "ubi"},
