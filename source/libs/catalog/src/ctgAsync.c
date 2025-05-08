@@ -1823,6 +1823,7 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
       pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
     }
     pOut->tbMeta->numOfColRefs = pOut->vctbMeta->numOfColRefs;
+    pOut->tbMeta->rversion = pOut->vctbMeta->rversion;
     taosMemoryFreeClear(pOut->vctbMeta);
   }
 
@@ -2036,6 +2037,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
       pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
     }
     pOut->tbMeta->numOfColRefs = pOut->vctbMeta->numOfColRefs;
+    pOut->tbMeta->rversion = pOut->vctbMeta->rversion;
     taosMemoryFreeClear(pOut->vctbMeta);
   }
   /*
@@ -2259,6 +2261,7 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
       pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
     }
     pOut->tbMeta->numOfColRefs = pOut->vctbMeta->numOfColRefs;
+    pOut->tbMeta->rversion = pOut->vctbMeta->rversion;
     taosMemoryFreeClear(pOut->vctbMeta);
   }
 
