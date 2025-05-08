@@ -282,6 +282,7 @@ bool fmIsInterpFunc(int32_t funcId);
 bool fmIsLastRowFunc(int32_t funcId);
 bool fmIsLastFunc(int32_t funcId);
 bool fmIsForecastFunc(int32_t funcId);
+bool fmIsImputationFunc(int32_t funcId);
 bool fmIsNotNullOutputFunc(int32_t funcId);
 bool fmIsSelectValueFunc(int32_t funcId);
 bool fmIsSystemInfoFunc(int32_t funcId);

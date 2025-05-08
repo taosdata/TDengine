@@ -1163,6 +1163,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
     case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
       code = logicForecastFuncCopy((const SForecastFuncLogicNode*)pNode, (SForecastFuncLogicNode*)pDst);
       break;
+    case QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC:
+      code = logicForecastFuncCopy((const SForecastFuncLogicNode*)pNode, (SForecastFuncLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       code = logicGroupCacheCopy((const SGroupCacheLogicNode*)pNode, (SGroupCacheLogicNode*)pDst);
       break;

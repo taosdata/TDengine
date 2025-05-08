@@ -49,7 +49,6 @@ typedef struct {
  int64_t            timeout;
  int8_t             wncheck;
  SImputationSupp    imputatSup;
- SSDataBlock*       pRes;
 // SColumn            anomalyCol;
 // SStateKeys         anomalyKey;
 } SImputationOperatorInfo;
@@ -70,7 +69,7 @@ int32_t createImputationOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phys
   int32_t                 numOfExprs = 0;
   const char*             id = GET_TASKID(pTaskInfo);
   SHashObj*               pHashMap = NULL;
-  SForecastFuncPhysiNode* pForecastPhyNode = (SForecastFuncPhysiNode*)physiNode;
+  SImputationFuncPhysiNode* pForecastPhyNode = (SImputationFuncPhysiNode*)physiNode;
   SExprSupp*              pExprSup = NULL;
   SImputationSupp*        pSupp = NULL;
 
@@ -82,7 +81,7 @@ int32_t createImputationOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phys
   }
 
   pSupp = &pInfo->imputatSup;
-  pForecastPhyNode = (SForecastFuncPhysiNode*)physiNode;
+  pForecastPhyNode = (SImputationFuncPhysiNode*)physiNode;
   pExprSup = &pOperator->exprSupp;
 
   code = createExprInfo(pForecastPhyNode->pFuncs, NULL, &pExprInfo, &numOfExprs);
@@ -119,15 +118,15 @@ int32_t createImputationOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phys
   
   initResultSizeInfo(&pOperator->resultInfo, 4096);
 
-  pInfo->pRes = createDataBlockFromDescNode(physiNode->pOutputDataBlockDesc);
-  QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
+  pInfo->binfo.pRes = createDataBlockFromDescNode(physiNode->pOutputDataBlockDesc);
+  QUERY_CHECK_NULL(pInfo->binfo.pRes, code, lino, _error, terrno);
 
-  setOperatorInfo(pOperator, "ImputationOperator", QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC, false, OP_NOT_OPENED, pInfo,
+  setOperatorInfo(pOperator, "ImputationOperator", QUERY_NODE_PHYSICAL_PLAN_IMPUTATION_FUNC, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, imputationNext, NULL, imputatDestroyOperatorInfo, optrDefaultBufFn,
                                          NULL, optrDefaultGetNextExtFn, NULL);
 
-  code = blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
+  code = blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _error);
 
   code = appendDownstream(pOperator, &downstream, 1);
@@ -213,7 +212,7 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
-  (*ppRes) = (pBInfo->pRes->info.rows == 0) ? NULL : pBInfo->pRes;
+  (*ppRes) = /*(pBInfo->pRes->info.rows == 0) ? NULL : */pBInfo->pRes;
   return code;
 }
 

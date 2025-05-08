@@ -369,6 +369,8 @@ const char* nodesNodeName(ENodeType type) {
       return "LogicInterpFunc";
     case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
       return "LogicForecastFunc";
+    case QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC:
+      return "LogicImputationFunc";
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       return "LogicGroupCache";
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
@@ -470,6 +472,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiStreamInterpFunc";
     case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
       return "PhysiForecastFunc";
+    case QUERY_NODE_PHYSICAL_PLAN_IMPUTATION_FUNC:
+      return "PhysiImputationFunc";
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return "PhysiDispatch";
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
@@ -1526,6 +1530,7 @@ static int32_t jsonToLogicInterpFuncNode(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkForecastFuncLogicPlanFuncs = "Funcs";
+static const char* jkImputationFuncLogicPlanFuncs = "Funcs";
 
 static int32_t logicForecastFuncNodeToJson(const void* pObj, SJson* pJson) {
   const SForecastFuncLogicNode* pNode = (const SForecastFuncLogicNode*)pObj;
@@ -1544,6 +1549,28 @@ static int32_t jsonToLogicForecastFuncNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToLogicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkForecastFuncLogicPlanFuncs, &pNode->pFuncs);
+  }
+
+  return code;
+}
+
+static int32_t logicImputationFuncNodeToJson(const void* pObj, SJson* pJson) {
+  const SImputationFuncLogicNode* pNode = (const SImputationFuncLogicNode*)pObj;
+
+  int32_t code = logicPlanNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkImputationFuncLogicPlanFuncs, pNode->pFuncs);
+  }
+
+  return code;
+}
+
+static int32_t jsonToLogicImputationFuncNode(const SJson* pJson, void* pObj) {
+  SImputationFuncLogicNode* pNode = (SImputationFuncLogicNode*)pObj;
+
+  int32_t code = jsonToLogicPlanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkImputationFuncLogicPlanFuncs, &pNode->pFuncs);
   }
 
   return code;
@@ -9114,6 +9141,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return logicInterpFuncNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
       return logicForecastFuncNodeToJson(pObj, pJson);
+    case QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC:
+      return logicImputationFuncNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       return logicGroupCacheNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
@@ -9197,6 +9226,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC:
       return physiInterpFuncNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
+      return physiForecastFuncNodeToJson(pObj, pJson);
+    case QUERY_NODE_PHYSICAL_PLAN_IMPUTATION_FUNC:
       return physiForecastFuncNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return physiDispatchNodeToJson(pObj, pJson);
@@ -9517,6 +9548,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
       return jsonToLogicInterpFuncNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
+      return jsonToLogicImputationFuncNode(pJson, pObj);
+    case QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC:
       return jsonToLogicForecastFuncNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       return jsonToLogicGroupCacheNode(pJson, pObj);
@@ -9600,6 +9633,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC:
       return jsonToPhysiInterpFuncNode(pJson, pObj);
+    case QUERY_NODE_PHYSICAL_PLAN_IMPUTATION_FUNC:
     case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
       return jsonToPhysiForecastFuncNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:

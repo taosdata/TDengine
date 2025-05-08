@@ -2338,6 +2338,50 @@ static int32_t createForecastFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* p
   return code;
 }
 
+static int32_t createImputationFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
+                                             SImputationFuncLogicNode* pFuncLogicNode, SPhysiNode** pPhyNode) {
+  SImputationFuncPhysiNode* pImputationFunc =
+      (SImputationFuncPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pFuncLogicNode, QUERY_NODE_PHYSICAL_PLAN_IMPUTATION_FUNC);
+  if (NULL == pImputationFunc) {
+    return terrno;
+  }
+
+  SNodeList* pPrecalcExprs = NULL;
+  SNodeList* pFuncs = NULL;
+  int32_t    code = rewritePrecalcExprs(pCxt, pFuncLogicNode->pFuncs, &pPrecalcExprs, &pFuncs);
+
+  SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
+  // push down expression to pOutputDataBlockDesc of child node
+  if (TSDB_CODE_SUCCESS == code && NULL != pPrecalcExprs) {
+    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPrecalcExprs, &pImputationFunc->pExprs);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = pushdownDataBlockSlots(pCxt, pImputationFunc->pExprs, pChildTupe);
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pFuncs, &pImputationFunc->pFuncs);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = addDataBlockSlots(pCxt, pImputationFunc->pFuncs, pImputationFunc->node.pOutputDataBlockDesc);
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setConditionsSlotId(pCxt, (const SLogicNode*)pFuncLogicNode, (SPhysiNode*)pImputationFunc);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pPhyNode = (SPhysiNode*)pImputationFunc;
+  } else {
+    nodesDestroyNode((SNode*)pImputationFunc);
+  }
+
+  nodesDestroyList(pPrecalcExprs);
+  nodesDestroyList(pFuncs);
+
+  return code;
+}
+
 static bool projectCanMergeDataBlock(SProjectLogicNode* pProject) {
   if (GROUP_ACTION_KEEP == pProject->node.groupAction) {
     return false;
@@ -3113,6 +3157,8 @@ static int32_t doCreatePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
       return createIndefRowsFuncPhysiNode(pCxt, pChildren, (SIndefRowsFuncLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
       return createInterpFuncPhysiNode(pCxt, pChildren, (SInterpFuncLogicNode*)pLogicNode, pPhyNode);
+    case QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC:
+      return createImputationFuncPhysiNode(pCxt, pChildren, (SImputationFuncLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
       return createForecastFuncPhysiNode(pCxt, pChildren, (SForecastFuncLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_MERGE:

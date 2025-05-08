@@ -385,6 +385,7 @@ int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requir
       code = adjustInterpDataRequirement((SInterpFuncLogicNode*)pNode, requirement);
       break;
     case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
+    case QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC:
       code = adjustForecastDataRequirement((SForecastFuncLogicNode*)pNode, requirement);
       break;
     default:

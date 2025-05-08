@@ -1563,6 +1563,45 @@ static int32_t createForecastFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
   return code;
 }
 
+static bool isImputationFunc(int32_t funcId) {
+  return fmIsImputationFunc(funcId) || fmIsGroupKeyFunc(funcId) || fmisSelectGroupConstValueFunc(funcId);
+}
+
+static int32_t createImputationFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+  if (!pSelect->hasImputationFunc) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SImputationFuncLogicNode * pImputatFunc = NULL;
+  int32_t                 code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC, (SNode**)&pImputatFunc);
+  if (NULL == pImputatFunc) {
+    return code;
+  }
+
+  pImputatFunc->node.groupAction = getGroupAction(pCxt, pSelect);
+  pImputatFunc->node.requireDataOrder = getRequireDataOrder(true, pSelect);
+  pImputatFunc->node.resultDataOrder = pImputatFunc->node.requireDataOrder;
+
+  // interp functions and _group_key functions
+  code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, NULL, isImputationFunc, &pImputatFunc->pFuncs);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteExprsForSelect(pImputatFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT, NULL);
+  }
+
+  // set the output
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createColumnByRewriteExprs(pImputatFunc->pFuncs, &pImputatFunc->node.pTargets);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pLogicNode = (SLogicNode*)pImputatFunc;
+  } else {
+    nodesDestroyNode((SNode*)pImputatFunc);
+  }
+
+  return code;
+}
+
 static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SWindowLogicNode* pWindow,
                                              SLogicNode** pLogicNode) {
   if (pCxt->pPlanCxt->streamQuery) {
@@ -2327,6 +2366,9 @@ static int32_t createSelectFromLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createSelectRootLogicNode(pCxt, pSelect, createForecastFuncLogicNode, &pRoot);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createSelectRootLogicNode(pCxt, pSelect, createImputationFuncLogicNode, &pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createSelectRootLogicNode(pCxt, pSelect, createDistinctLogicNode, &pRoot);
