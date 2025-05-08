@@ -3972,7 +3972,7 @@ int32_t initInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
     int threadCnt = 0;
     uint64_t * bind_ts_array = benchCalloc(1, sizeof(int64_t)*g_arguments->prepared_rand, true);
     initTsArray(bind_ts_array, stbInfo);
-
+    
 
     for (int32_t i = 0; i < nthreads && !g_arguments->terminate; i++) {
         // set table
@@ -4020,6 +4020,8 @@ int32_t initInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
         pthread_join(pids[i], NULL);
     }
 
+    tmfree(bind_ts_array);
+    
     if (g_fail) {
        return -1;
     }
