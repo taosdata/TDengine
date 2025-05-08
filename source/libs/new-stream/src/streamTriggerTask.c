@@ -2004,6 +2004,7 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
   QUERY_CHECK_CODE(code, lino, _end);
   pReq->runnerTaskId = pRunner->addr.taskId;
   pReq->gid = pContext->pCalcGroup->groupId;
+  pReq->createTable = true;  // todo(kjq): only create table at first time
 
   // serialize and send request
   SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_CALC};
