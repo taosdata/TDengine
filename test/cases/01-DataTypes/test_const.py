@@ -12,7 +12,7 @@ class TestConst:
         1. 执行仅包含常量的查询语句
 
         Catalog:
-            - Function:Aggregate
+            - DataTypes
 
         Since: v3.0.0.0
 

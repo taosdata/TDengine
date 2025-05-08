@@ -14,7 +14,7 @@ class TestInsertDrop:
         3. query data
 
         Catalog:
-            - DataIngestion
+            - DataIngestion:Delete
 
         Since: v3.0.0.0
 
