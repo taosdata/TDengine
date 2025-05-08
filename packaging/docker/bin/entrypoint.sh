@@ -17,22 +17,22 @@ DISABLE_EXPLORER=${TAOS_DISABLE_EXPLORER:-0}
 unset TAOS_DISABLE_EXPLORER
 
 # Get DATA_DIR from taosd -C
-DATA_DIR=$(taosd -C | awk '/^(default|cfg_file)[[:space:]]+dataDir[[:space:]]+/ {print $NF; exit}' | sed 's|/*$||')
+DATA_DIR=$(taosd -C|grep -E 'dataDir\s+(\S+)' -o |head -n1|sed 's/dataDir *//')
 DATA_DIR=${DATA_DIR:-/var/lib/taos}
 
 # Get FQDN from taosd -C
-FQDN=$(taosd -C | awk '/^(default|cfg_file)[[:space:]]+fqdn[[:space:]]+/ {print $NF; exit}' | sed 's|/*$||')
+FQDN=$(taosd -C|grep -E 'fqdn\s+(\S+)' -o |head -n1|sed 's/fqdn *//')
 # ensure the fqdn is resolved as localhost
 grep "$FQDN" /etc/hosts >/dev/null || echo "127.0.0.1 $FQDN" >>/etc/hosts
 
 # Get first ep from taosd -C
-FIRSET_EP=$(taosd -C | awk '/^(default|cfg_file)[[:space:]]+firstEp[[:space:]]+/ {print $NF; exit}' | sed 's|/*$||')
+FIRSET_EP=$(taosd -C|grep -E 'firstEp\s+(\S+)' -o |head -n1|sed 's/firstEp *//')
 # parse first ep host and port
 FIRST_EP_HOST=${FIRSET_EP%:*}
 FIRST_EP_PORT=${FIRSET_EP#*:}
 
 # in case of custom server port
-SERVER_PORT=$(taosd -C | awk '/^(default|cfg_file)[[:space:]]+serverPort[[:space:]]+/ {print $NF; exit}' | sed 's|/*$||')
+SERVER_PORT=$(taosd -C|grep -E 'serverPort\s+(\S+)' -o |head -n1|sed 's/serverPort *//')
 SERVER_PORT=${SERVER_PORT:-6030}
 
 set +e
