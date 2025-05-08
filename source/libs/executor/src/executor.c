@@ -295,8 +295,8 @@ _error:
   return code;
 }
 
-int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle* readers, int32_t vgId,
-                                  int32_t taskId) {
+int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle* readers,
+                                  SStreamInserterParam* pInserterParams, int32_t vgId, int32_t taskId) {
   if (msg == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -308,9 +308,9 @@ int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-  SStreamInserterParam* streamInserterParam = {0};
   // todo: add stream inserter param
-  code = qCreateStreamExecTask(readers, vgId, taskId, pPlan, pTaskInfo, NULL, 0, NULL, OPTR_EXEC_MODEL_STREAM, streamInserterParam);
+  code = qCreateStreamExecTask(readers, vgId, taskId, pPlan, pTaskInfo, &pInserterParams->pSinkHandle, 0, NULL,
+                               OPTR_EXEC_MODEL_STREAM, pInserterParams);
   if (code != TSDB_CODE_SUCCESS) {
     qDestroyTask(*pTaskInfo);
     return code;
@@ -1658,6 +1658,7 @@ static int32_t streamDoNotification(qTaskInfo_t tInfo, const SSDataBlock* pBlock
   int32_t code = 0;
   int32_t lino = 0;
   if (!pBlock || pBlock->info.rows <= 0) return code;
+  return 0;
 
   EStreamNotifyEventType  eventType = SNOTIFY_EVENT_WINDOW_CLOSE;
   SStreamNotifyEventSupp* pSupp = NULL;

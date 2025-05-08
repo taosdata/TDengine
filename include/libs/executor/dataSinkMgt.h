@@ -58,15 +58,6 @@ typedef enum {
   AUTO_CREATE_TABLE_STREAM_NORMAL,
 } AUTO_CREATE_TABLE_MODE;
 
-typedef struct SStreamInserterParam {
-  STSchema*       pSchema;
-  SSchemaWrapper* pTagSchema;
-  int64_t         suid;
-  const char*     tbname;
-  int8_t          tbType;
-  const char*     dbFName;
-} SStreamInserterParam;
-
 typedef struct SInserterParam {
   SReadHandle*          readHandle;
   SStreamInserterParam* streamInserterParam;

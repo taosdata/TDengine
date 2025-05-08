@@ -64,11 +64,22 @@ typedef struct {
   bool               localExec;
 } SReadHandle;
 
+typedef struct SStreamInserterParam {
+  SArray*         pFields; // SArray<SFieldWithOptions>
+  SArray*         pTagFields;
+  int64_t         suid;
+  const char*     tbname;
+  int8_t          tbType;
+  const char*     dbFName;
+  void*           pSinkHandle;
+} SStreamInserterParam;
+
 typedef struct {
   SStreamRuntimeFuncInfo funcInfo;
   int32_t                execId;
   bool                   resetFlag;
   const SArray*          pForceOutputCols;
+  SStreamInserterParam   inserterParams;
 } SStreamRuntimeInfo;
 
 // in queue mode, data streams are seperated by msg
@@ -85,7 +96,7 @@ typedef enum {
  * @param vgId
  * @return
  */
-int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pInfo, void* msg, SReadHandle* readers, int32_t vgId, int32_t taskId);
+int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pInfo, void* msg, SReadHandle* readers, SStreamInserterParam* pInsertParams, int32_t vgId, int32_t taskId);
 
 /**
  * Create the exec task for queue mode
