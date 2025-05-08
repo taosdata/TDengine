@@ -743,6 +743,7 @@ int32_t tEncodeSStreamRunnerDeployMsg(SEncoder* pEncoder, const SStreamRunnerDep
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pMsg->outTblName, NULL == pMsg->outTblName ? 0 : (int32_t)strlen(pMsg->outTblName) + 1));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->outTblType));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->calcNotifyOnly));
+  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->topPlan));
 
   int32_t addrSize = (int32_t)taosArrayGetSize(pMsg->pNotifyAddrUrls);
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, addrSize));
@@ -767,6 +768,7 @@ int32_t tEncodeSStreamRunnerDeployMsg(SEncoder* pEncoder, const SStreamRunnerDep
   }
 
   TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pMsg->outStbUid));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->outStbSversion));
 
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pMsg->subTblNameExpr, NULL == pMsg->subTblNameExpr ? 0 : (int32_t)strlen(pMsg->subTblNameExpr) + 1));
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pMsg->tagValueExpr, NULL == pMsg->tagValueExpr ? 0 : (int32_t)strlen(pMsg->tagValueExpr) + 1));
@@ -1144,6 +1146,7 @@ int32_t tDecodeSStreamRunnerDeployMsg(SDecoder* pDecoder, SStreamRunnerDeployMsg
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->outTblName, NULL));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->outTblType));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->calcNotifyOnly));
+  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->topPlan));
 
   int32_t addrSize = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &addrSize));
@@ -1180,6 +1183,7 @@ int32_t tDecodeSStreamRunnerDeployMsg(SDecoder* pDecoder, SStreamRunnerDeployMsg
   }
 
   TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pMsg->outStbUid));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->outStbSversion));
 
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->subTblNameExpr, NULL));
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->tagValueExpr, NULL));

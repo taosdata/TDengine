@@ -406,6 +406,7 @@ typedef struct SStreamRunnerDeployMsg {
   char*  outTblName;
   int8_t outTblType;
   int8_t calcNotifyOnly;
+  int8_t topPlan;
 
   // notify options
   SArray* pNotifyAddrUrls;
@@ -414,6 +415,7 @@ typedef struct SStreamRunnerDeployMsg {
   SArray*  outCols;  // array of SFieldWithOptions
   SArray*  outTags;  // array of SFieldWithOptions
   uint64_t outStbUid;
+  int64_t  outStbSversion;
 
   void*   subTblNameExpr;
   void*   tagValueExpr;
