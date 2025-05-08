@@ -22,6 +22,7 @@ import datetime
 from .epath import *
 from .eos import *
 from .log import *
+from .sql import tdSql
 
 # taosdump
 def taosDumpFile():
@@ -81,7 +82,10 @@ def benchMark(command = "", json = "") :
 
     # run
     if command != "":
-        exe(bmFile + " " + command + " -y")
+        if "-a" in command or "--replica" in command:
+            exe(bmFile + " " + command + " -y")
+        else:
+            exe(bmFile + " " + command + f" -y -a {tdSql.replica}")
     if json != "":
         cmd = f"{bmFile} -f {json}"
         print(cmd)
