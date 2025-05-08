@@ -304,6 +304,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby2.py
 ## 04-OrderBy
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/04-OrderBy/test_multi_orderby.py
 ## 05-Aliase
 ## 06-Limit
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/06-Limit/test_limit1.py
@@ -366,8 +367,8 @@
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_single_row_in_tb.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_cast.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_char_scalar.py 
+,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_scalar.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_truncate.py 
-
 ## 02-Aggregate
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_apercentile.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_avg.py 
@@ -399,6 +400,7 @@
 
 # 11-TimeSeriesExtensions
 ## 01-PartitionBy
+,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/01-PartitionBy/test_partitonby.py
 ## 02-Fill
 ,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/02-Fill/test_fill_force.py
 ,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/02-Fill/test_fill_stb.py
@@ -409,13 +411,17 @@
 #,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_empty_range_scl.py
 ,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_empty_range.py
 ,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_function.py
+,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_offset.py
 ,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval.py
+,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval2.py
 ,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_sliding.py
 ## 04-StateWindow
 ## 05-EventWindow
 ,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/05-EventWindow/test_event.py
 ## 06-SessionWindow
 ## 07-CountWindow
+,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/07-CountWindow/test_count_sliding.py
+,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/07-CountWindow/test_count.py
 
 # 12-DataSubscription
 
@@ -490,9 +496,12 @@
 
 # 29-JoinQueries
 ,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join_full.py
+,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join_interval.py
 ,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join_manyblocks.py
 ,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join_multitables.py
 ,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join_multivnode.py
+,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join_pk.py
+,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join_order.py
 ,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join.py
 # 30-DataCompression
 ,,y,.,./ci/pytest.sh pytest cases/30-DataCompression/test_compress_alter_option.py
