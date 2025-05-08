@@ -410,13 +410,19 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
 
   temp = cJSON_PrintUnformatted(obj);
   QUERY_CHECK_NULL(temp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  taosStringBuilderAppendString(pBuilder, temp);
 
   if (pParam->extraNotifyContent != NULL) {
-    taosStringBuilderAppendStringLen(pBuilder, temp, strlen(temp) - 1);
+    pBuilder->pos -= 1;
     taosStringBuilderAppendChar(pBuilder, ',');
     taosStringBuilderAppendStringLen(pBuilder, pParam->extraNotifyContent + 1, strlen(pParam->extraNotifyContent) - 1);
-  } else {
-    taosStringBuilderAppendString(pBuilder, temp);
+  }
+
+  if (pParam->resultNotifyContent != NULL) {
+    pBuilder->pos -= 1;
+    taosStringBuilderAppendChar(pBuilder, ',');
+    taosStringBuilderAppendStringLen(pBuilder, pParam->resultNotifyContent + 1,
+                                     strlen(pParam->resultNotifyContent) - 1);
   }
 
 _end:
@@ -493,8 +499,20 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, int32_t triggerType, int64_t
   const char*    msgTail = "]}]}";
   char*          msg = NULL;
   CURL*          conn = NULL;
+  bool           shouldNotify = false;
 
   if (nParam <= 0 || taosArrayGetSize(pNotifyAddrUrls) <= 0) {
+    goto _end;
+  }
+
+  for (int32_t i = 0; i < nParam; ++i) {
+    if (pParams[i].notifyType != STRIGGER_EVENT_WINDOW_NONE) {
+      shouldNotify = true;
+      break;
+    }
+  }
+
+  if (!shouldNotify) {
     goto _end;
   }
 
@@ -505,6 +523,9 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, int32_t triggerType, int64_t
   QUERY_CHECK_CODE(code, lino, _end);
   sb.pos -= msgTailLen;
   for (int32_t i = 0; i < nParam; ++i) {
+    if (pParams[i].notifyType == STRIGGER_EVENT_WINDOW_NONE) {
+      continue;
+    }
     code = streamAppendNotifyContent(triggerType, groupId, &pParams[i], &sb);
     QUERY_CHECK_CODE(code, lino, _end);
     taosStringBuilderAppendChar(&sb, ',');
