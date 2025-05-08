@@ -168,8 +168,7 @@ class TDTestCase:
 
     def clearEnv(self):
         if os.path.exists(self.infoPath):
-            # os.remove(self.infoPath)
-            tdLog.info(f"remove {self.infoPath}")
+            os.remove(self.infoPath)
 
     def s1_check_timeseries(self):
         # check cluster alive
@@ -181,7 +180,7 @@ class TDTestCase:
 
         # check timeseries
         tss_grant = 5
-        for i in range(0, 1):
+        for i in range(0, 3):
             tdLog.printNoPrefix(f"======== test timeseries: loop{i}")
             self.checkGrantsTimeSeries("initial check", tss_grant)
             tdSql.execute("create database if not exists db100")
