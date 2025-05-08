@@ -673,7 +673,7 @@ static int32_t stwmMetaListSkipNrow(SSTriggerWalMetaMerger *pMerger, SSTriggerWa
       pList->nextIdx = -1;
       pList->pDataBlock = NULL;
     } else {
-      *pNeedFetch = false;
+      *pNeedFetch = true;
     }
   }
 
@@ -1392,7 +1392,7 @@ static int32_t strtgDoCheck(SSTriggerRealtimeGroup *pGroup) {
             code = strtgCloseCurrentWindow(pGroup, NULL);
             QUERY_CHECK_CODE(code, lino, _end);
             pGroup->nrowsInWindow -= pTask->windowSliding;
-            if (TRINGBUF_IS_EMPTY(&pGroup->wstartBuf)) {
+            if (!TRINGBUF_IS_EMPTY(&pGroup->wstartBuf)) {
               int64_t wstart = TRINGBUF_FIRST(&pGroup->wstartBuf);
               TRINGBUF_DEQUEUE(&pGroup->wstartBuf);
               code = strtgOpenNewWindow(pGroup, wstart, NULL);
@@ -1582,6 +1582,27 @@ static int32_t strtgDoCheck(SSTriggerRealtimeGroup *pGroup) {
           SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pTask->primaryTsIndex);
           for (int32_t i = startIdx; i < endIdx; ++i) {
             int64_t ts = *(int64_t *)colDataGetNumData(pTsCol, i);
+            if (pGroup->winStatus != STRIGGER_WINDOW_OPENED) {
+              if (ps == NULL) {
+                SFilterColumnParam param = {.numOfCols = TARRAY_SIZE(pDataBlock->pDataBlock),
+                                            .pDataBlock = pDataBlock->pDataBlock};
+                code = filterSetDataFromSlotId(pContext->pStartCond, &param);
+                QUERY_CHECK_CODE(code, lino, _end);
+                int32_t status = 0;
+                code = filterExecute(pContext->pStartCond, pDataBlock, &ps, NULL, param.numOfCols, &status);
+                QUERY_CHECK_CODE(code, lino, _end);
+              }
+              if (*(bool *)colDataGetNumData(ps, i)) {
+                if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
+                  code = streamBuildEventNotifyContent(pDataBlock, pTask->pStartCondCols, i, &pExtraNotifyContent);
+                  QUERY_CHECK_CODE(code, lino, _end);
+                }
+                code = strtgOpenNewWindow(pGroup, ts, pExtraNotifyContent);
+                QUERY_CHECK_CODE(code, lino, _end);
+                pExtraNotifyContent = NULL;
+                pGroup->nrowsInWindow = 1;
+              }
+            }
             if (pGroup->winStatus == STRIGGER_WINDOW_OPENED) {
               pGroup->curWindow.ekey = ts;
               if (pe == NULL) {
@@ -1598,26 +1619,12 @@ static int32_t strtgDoCheck(SSTriggerRealtimeGroup *pGroup) {
                   code = streamBuildEventNotifyContent(pDataBlock, pTask->pEndCondCols, i, &pExtraNotifyContent);
                   QUERY_CHECK_CODE(code, lino, _end);
                 }
-                code = strtgCloseCurrentWindow(pGroup, NULL);
+                code = strtgCloseCurrentWindow(pGroup, pExtraNotifyContent);
                 QUERY_CHECK_CODE(code, lino, _end);
-              }
-            } else {
-              if (ps == NULL) {
-                SFilterColumnParam param = {.numOfCols = TARRAY_SIZE(pDataBlock->pDataBlock),
-                                            .pDataBlock = pDataBlock->pDataBlock};
-                code = filterSetDataFromSlotId(pContext->pStartCond, &param);
-                QUERY_CHECK_CODE(code, lino, _end);
-                int32_t status = 0;
-                code = filterExecute(pContext->pStartCond, pDataBlock, &ps, NULL, param.numOfCols, &status);
-              }
-              if (*(bool *)colDataGetNumData(ps, i)) {
-                if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
-                  code = streamBuildEventNotifyContent(pDataBlock, pTask->pStartCondCols, i, &pExtraNotifyContent);
-                  QUERY_CHECK_CODE(code, lino, _end);
-                }
-                code = strtgOpenNewWindow(pGroup, ts, NULL);
-                QUERY_CHECK_CODE(code, lino, _end);
-                pGroup->nrowsInWindow = 1;
+                pExtraNotifyContent = NULL;
+                pGroup->nrowsInWindow = 0;
+              } else {
+                pGroup->nrowsInWindow++;
               }
             }
           }
@@ -2296,7 +2303,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, const SStreamTriggerDeplo
       pTask->triggerType = STREAM_TRIGGER_COUNT;
       const SCountTrigger *pCount = &pMsg->trigger.count;
       pTask->windowCount = pCount->countVal;
-      pTask->windowSliding = pCount->sliding;
+      pTask->windowSliding = pCount->sliding > 0 ? pCount->sliding : pCount->countVal;
       break;
     }
     case WINDOW_TYPE_PERIOD: {
