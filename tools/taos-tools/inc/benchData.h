@@ -29,8 +29,8 @@ int generateRandData(SSuperTable *stbInfo, char *sampleDataBuf,
         int lenOfOneRow, BArray * fields, int64_t loop,
         bool tag, BArray *childCols);
 // prepare
-int prepareStmt (TAOS_STMT  *stmt,  SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char *db);
-int prepareStmt2(TAOS_STMT2 *stmt2, SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char *db);
+int prepareStmt (TAOS_STMT  *stmt,  SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char *db, char *tableName);
+int prepareStmt2(TAOS_STMT2 *stmt2, SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char *db, char *tableName);
 
 uint32_t bindParamBatch(threadInfo *pThreadInfo,
         uint32_t batch, int64_t startTime, int64_t pos,

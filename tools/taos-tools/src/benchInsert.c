@@ -1692,7 +1692,7 @@ int32_t reConnectStmt2(threadInfo * pThreadInfo, int32_t w) {
     }
 
     // prepare
-    code = prepareStmt2(pThreadInfo->conn->stmt2, pThreadInfo->stbInfo, NULL, w, pThreadInfo->dbInfo->dbName);
+    code = prepareStmt2(pThreadInfo->conn->stmt2, pThreadInfo->stbInfo, NULL, w, pThreadInfo->dbInfo->dbName, NULL);
     if (code != 0) {
         return code;
     }
@@ -1832,22 +1832,23 @@ static void *syncWriteInterlace(void *sarg) {
         bindv = createBindV(nBatchTable,  tagCnt, stbInfo->cols->size + 1);
     }
 
-    bool oldInitStmt = stbInfo->autoTblCreating;
     // not auto create table call once
-    if(stbInfo->iface == STMT_IFACE && !oldInitStmt) {
-        debugPrint("call prepareStmt for stable:%s\n", stbInfo->stbName);
-        if (prepareStmt(pThreadInfo->conn->stmt, stbInfo, tagData, w, database->dbName)) {
-            g_fail = true;
-            goto free_of_interlace;
+    if (stbInfo->autoTblCreating) {
+        if(stbInfo->iface == STMT_IFACE) {
+            debugPrint("call prepareStmt for stable:%s\n", stbInfo->stbName);
+            if (prepareStmt(pThreadInfo->conn->stmt, stbInfo, tagData, w, database->dbName, NULL)) {
+                g_fail = true;
+                goto free_of_interlace;
+            }
+        }
+        else if (stbInfo->iface == STMT2_IFACE) {
+            // only prepare once
+            if (prepareStmt2(pThreadInfo->conn->stmt2, stbInfo, NULL, w, database->dbName, NULL)) {
+                g_fail = true;
+                goto free_of_interlace;
+            }
         }
     }
-    else if (stbInfo->iface == STMT2_IFACE) {
-        // only prepare once
-        if (prepareStmt2(pThreadInfo->conn->stmt2, stbInfo, NULL, w, database->dbName)) {
-            g_fail = true;
-            goto free_of_interlace;
-        }
-    }    
 
     while (insertRows > 0) {
         int64_t tmp_total_insert_rows = 0;
@@ -2018,16 +2019,16 @@ static void *syncWriteInterlace(void *sarg) {
                     }
 
                     // generator
-                    if (stbInfo->autoTblCreating && w == 0) {
-                        if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL)) {
-                            goto free_of_interlace;
+                    if (stbInfo->autoTblCreating) {
+                        if (w == 0) {
+                            if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL)) {
+                                goto free_of_interlace;
+                            }
                         }
-                    }
-                    
-                    // old must call prepareStmt for each table
-                    if (oldInitStmt) {
+
+                    } else {
                         debugPrint("call prepareStmt for stable:%s\n", stbInfo->stbName);
-                        if (prepareStmt(pThreadInfo->conn->stmt, stbInfo, tagData, w, database->dbName)) {
+                        if (prepareStmt(pThreadInfo->conn->stmt, stbInfo, tagData, w, database->dbName, escapedTbName)) {
                             g_fail = true;
                             goto free_of_interlace;
                         }
@@ -2091,10 +2092,11 @@ static void *syncWriteInterlace(void *sarg) {
                         }
                         
                     } else {
-                        // if engine fix must bind tag bug , need remove this code
-                        //if (firstInsertTb) {
-                        //    bindVTags(bindv, i, 0, stbInfo->tags);
-                        //}
+                        debugPrint("call prepareStmt for stable:%s\n", stbInfo->stbName);
+                        if (prepareStmt2(pThreadInfo->conn->stmt2, stbInfo, tagData, w, database->dbName, childTbl->name)) {
+                            g_fail = true;
+                            goto free_of_interlace;
+                        }
                     }
 
                     // cols
@@ -2340,10 +2342,10 @@ static int32_t prepareProgressDataStmt(
     char escapedTbName[TSDB_TABLE_NAME_LEN + 2] = "\0";
     if (g_arguments->escape_character) {
         snprintf(escapedTbName, TSDB_TABLE_NAME_LEN + 2,
-                 "`%s`", childTbl->name);
+            "`%s`.`%s`", pThreadInfo->dbInfo->dbName, childTbl->name);
     } else {
-        snprintf(escapedTbName, TSDB_TABLE_NAME_LEN, "%s",
-                 childTbl->name);
+        snprintf(escapedTbName, TSDB_TABLE_NAME_LEN, "%s.%s",
+            pThreadInfo->dbInfo->dbName, childTbl->name);
     }
     int64_t start = toolsGetTimestampUs();
     if (taos_stmt_set_tbname(pThreadInfo->conn->stmt,
@@ -2802,18 +2804,19 @@ void *syncWriteProgressive(void *sarg) {
         tagData = benchCalloc(TAG_BATCH_COUNT, stbInfo->lenOfTags, false);
     }
 
-    bool oldInitStmt = stbInfo->autoTblCreating;
     // stmt.  not auto table create call on stmt
-    if (stbInfo->iface == STMT_IFACE && !oldInitStmt) {
-        if (prepareStmt(pThreadInfo->conn->stmt, stbInfo, tagData, w, database->dbName)) {
-            g_fail = true;
-            goto free_of_progressive;
-        }
-    }
-    else if (stbInfo->iface == STMT2_IFACE && !stbInfo->autoTblCreating) {
-        if (prepareStmt2(pThreadInfo->conn->stmt2, stbInfo, tagData, w, database->dbName)) {
-            g_fail = true;
-            goto free_of_progressive;
+    bool isNative = workingMode(g_arguments->connMode, g_arguments->dsn) == CONN_MODE_NATIVE;
+    if (isNative && !stbInfo->autoTblCreating) {
+        if (stbInfo->iface == STMT_IFACE) {
+            if (prepareStmt(pThreadInfo->conn->stmt, stbInfo, tagData, w, database->dbName, NULL)) {
+                g_fail = true;
+                goto free_of_progressive;
+            }
+        } else if (stbInfo->iface == STMT2_IFACE) {
+            if (prepareStmt2(pThreadInfo->conn->stmt2, stbInfo, tagData, w, database->dbName, NULL)) {
+                g_fail = true;
+                goto free_of_progressive;
+            }
         }
     }
     
@@ -2858,19 +2861,34 @@ void *syncWriteProgressive(void *sarg) {
         }
 
         // old init stmt must call for each table
-        if (stbInfo->iface == STMT_IFACE && oldInitStmt) {
-            if (prepareStmt(pThreadInfo->conn->stmt, stbInfo, tagData, w, database->dbName)) {
-                g_fail = true;
-                goto free_of_progressive;
+        if (stbInfo->autoTblCreating) {
+            if (stbInfo->iface == STMT_IFACE) {
+                if (prepareStmt(pThreadInfo->conn->stmt, stbInfo, tagData, w, database->dbName, NULL)) {
+                    g_fail = true;
+                    goto free_of_progressive;
+                }
             }
-        }
-        else if (stbInfo->iface == STMT2_IFACE && stbInfo->autoTblCreating) {
-            if (prepareStmt2(pThreadInfo->conn->stmt2, stbInfo, tagData, w, database->dbName)) {
-                g_fail = true;
-                goto free_of_progressive;
+            else if (stbInfo->iface == STMT2_IFACE) {
+                if (prepareStmt2(pThreadInfo->conn->stmt2, stbInfo, tagData, w, database->dbName, NULL)) {
+                    g_fail = true;
+                    goto free_of_progressive;
+                }
+            }        
+        } else if(!isNative) {
+            if (stbInfo->iface == STMT_IFACE) {
+                if (prepareStmt(pThreadInfo->conn->stmt, stbInfo, tagData, w, database->dbName, childTbl->name)) {
+                    g_fail = true;
+                    goto free_of_progressive;
+                }
             }
+            else if (stbInfo->iface == STMT2_IFACE) {
+                if (prepareStmt2(pThreadInfo->conn->stmt2, stbInfo, tagData, w, database->dbName, childTbl->name)) {
+                    g_fail = true;
+                    goto free_of_progressive;
+                }
+            } 
         }
-        
+            
         if(stmt || smart || acreate) {
             // move next
             if (++w >= TAG_BATCH_COUNT) {
