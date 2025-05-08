@@ -101,7 +101,14 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
 int32_t stReaderTaskUndeploy(SStreamReaderTask** ppTask, const SStreamUndeployTaskMsg* pMsg, taskUndeplyCallback cb);
 int32_t stReaderTaskExecute(SStreamReaderTask* pTask, SStreamMsg* pMsg);
 
-int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, void **ppCache);
+int32_t streamBuildStateNotifyContent(ESTriggerEventType eventType, int16_t dataType, const char* pFromState,
+                                      const char* pToState, char** ppContent);
+int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t rowIdx,
+                                      char** ppContent);
+int32_t streamSendNotifyContent(SStreamTask* pTask, int32_t triggerType, int64_t groupId, const SArray* pNotifyAddrUrls,
+                                int32_t errorHandle, const SSTriggerCalcParam* pParams, int32_t nParam);
+
+int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, void** ppCache);
 
 #ifdef __cplusplus
 }

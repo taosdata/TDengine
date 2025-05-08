@@ -2321,7 +2321,7 @@ _exit:
   return code;
 }
 
-static void tDestroySSTriggerCalcParam(void* ptr) {
+void tDestroySSTriggerCalcParam(void* ptr) {
   SSTriggerCalcParam* pParam = ptr;
   if (pParam && pParam->extraNotifyContent != NULL) {
     taosMemoryFreeClear(pParam->extraNotifyContent);
@@ -2439,6 +2439,7 @@ int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTrigger
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->streamId));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->runnerTaskId));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->sessionId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->triggerType));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->gid));
 
   TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(&encoder, pReq->params));
@@ -2467,6 +2468,7 @@ int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalc
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->streamId));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->runnerTaskId));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->sessionId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->triggerType));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->gid));
 
   TAOS_CHECK_EXIT(tDeserializeSTriggerCalcParam(&decoder, &pReq->params));
@@ -2482,11 +2484,11 @@ _exit:
 void tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq) {
   if (pReq != NULL) {
     if (pReq->params != NULL) {
-      taosArrayClearP(pReq->params, tDestroySSTriggerCalcParam);
+      taosArrayDestroyP(pReq->params, tDestroySSTriggerCalcParam);
       pReq->params = NULL;
     }
     if (pReq->groupColVals != NULL) {
-      taosArrayClearP(pReq->groupColVals, tDestroySValue);
+      taosArrayDestroyP(pReq->groupColVals, tDestroySValue);
       pReq->groupColVals = NULL;
     }
   }

@@ -667,6 +667,7 @@ typedef struct SSTriggerCalcRequest {
   int64_t streamId;
   int64_t runnerTaskId;
   int64_t sessionId;
+  int32_t triggerType;    // See also: EStreamTriggerType
   int64_t triggerTaskId;  // does not serialize
   int32_t execId;
 
@@ -678,6 +679,7 @@ typedef struct SSTriggerCalcRequest {
 
 int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTriggerCalcRequest* pReq);
 int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalcRequest* pReq);
+void    tDestroySSTriggerCalcParam(void* ptr);
 void    tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq);
 
 typedef struct SStreamRuntimeFuncInfo {
