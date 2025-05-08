@@ -278,6 +278,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_arithmetic_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_arithmetic.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_between_and.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_case_when_sum.py 
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_case_when.py 
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_in.py 
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_like.py 
@@ -300,6 +301,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby_top.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby2.py
 ## 04-OrderBy
 ## 05-Aliase
 ## 06-Limit
@@ -330,6 +332,8 @@
 ## 13-Distinct
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/13-Distinct/test_distinct.py
 ## 14-Explain
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/14-Explain/test_explain.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/14-Explain/test_explain_tsorder.py
 ## 15-Hints
 ## 16-Psedocolumn
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/16-PsedoColumn/test_tbname_in.py
@@ -360,6 +364,7 @@
 ## 01-SingleRow
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_single_row_in_tb.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_cast.py 
+,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_char_scalar.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_truncate.py 
 
 ## 02-Aggregate
@@ -368,6 +373,7 @@
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_count.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_leastsquares.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_percentile.py 
+,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_spread.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_stddev.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_sum.py 
 ## 03-Selection
@@ -399,9 +405,16 @@
 ,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/02-Fill/test_fill.py
 ## 03-TimeWindow
 ,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_bug.py
+#,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_empty_range_scl.py
+,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_empty_range.py
 ,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_function.py
 ,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval.py
 ,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_sliding.py
+## 04-StateWindow
+## 05-EventWindow
+,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/05-EventWindow/test_event.py
+## 06-SessionWindow
+## 07-CountWindow
 
 # 12-DataSubscription
 
