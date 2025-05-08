@@ -1896,7 +1896,7 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
         }
         // todo(kjq): put data to cache with specific window start and end time
         code = putStreamDataCache(pContext->pCalcDataCache, pGroup->groupId, startTime, endTime, pDataBlock, startIdx,
-                                  endIdx);
+                                  endIdx - 1);
         QUERY_CHECK_CODE(code, lino, _end);
         if (needFree) {
           blockDataDestroy(pDataBlock);
@@ -2262,9 +2262,9 @@ _end:
 }
 
 int32_t stTriggerTaskUndeploy(SStreamTriggerTask **ppTask, const SStreamUndeployTaskMsg *pMsg, taskUndeplyCallback cb) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  SStreamTriggerTask* pTask = *ppTask;
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask *pTask = *ppTask;
 
   // todo(kjq): do checkpoint/cleanup according to pMsg
 
