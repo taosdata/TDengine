@@ -3987,7 +3987,7 @@ int32_t initInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
         pThreadInfo->pos        = 0;
         pThreadInfo->samplePos  = 0;
         pThreadInfo->totalInsertRows = 0;
-        if (STMT2_IFACE == stbInfo->iface || STMT_IFACE == stbInfo->iface)
+        if (STMT2_IFACE == stbInfo->iface || STMT_IFACE == stbInfo->iface) {
             pThreadInfo->bind_ts_array = benchCalloc(1, sizeof(int64_t)*g_arguments->prepared_rand, true);
             memcpy(pThreadInfo->bind_ts_array, bind_ts_array, sizeof(int64_t)*g_arguments->prepared_rand);
             
