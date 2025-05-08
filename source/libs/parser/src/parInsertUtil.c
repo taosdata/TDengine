@@ -622,7 +622,7 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
     pTbCtx->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
     vgId = (int32_t)ctbReq->uid;
     uid = 0;
-    pTbCtx->pMeta->vgId=(int32_t)ctbReq->uid;
+    pTbCtx->pMeta->vgId = (int32_t)ctbReq->uid;
     ctbReq->uid = 0;
     pTbCtx->pData->pCreateTbReq = ctbReq;
     code = TSDB_CODE_SUCCESS;

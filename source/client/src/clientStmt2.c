@@ -903,6 +903,7 @@ static int stmtSetDbName2(TAOS_STMT2* stmt, const char* dbName) {
 
   STMT2_DLOG("dbname is specified in sql:%s", dbName);
   if (pStmt->db == NULL || pStmt->db[0] == '\0') {
+    taosMemoryFreeClear(pStmt->db);
     STMT2_DLOG("dbname not set by taosconnect, set by sql:%s", dbName);
     pStmt->db = taosStrdup(dbName);
     (void)strdequote(pStmt->db);
