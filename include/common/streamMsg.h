@@ -258,7 +258,7 @@ typedef struct {
   int8_t   outTblType;
   int8_t   outStbExists;
   uint64_t outStbUid;
-  int64_t  outStbSversion;
+  int32_t  outStbSversion;
   int64_t  eventTypes;
   int64_t  flags;
   int64_t  tsmaId;
