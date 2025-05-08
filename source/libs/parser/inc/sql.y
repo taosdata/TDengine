@@ -599,6 +599,10 @@ col_name_list(A) ::= col_name_list(B) NK_COMMA col_name(C).                     
 
 col_name(A) ::= column_name(B).                                                   { A = createColumnNode(pCxt, NULL, &B); }
 
+/************************************************ create/drop mount ********************************************/
+cmd ::= CREATE MOUNT not_exists_opt(A) mount_name(B) ON DNODE NK_INTEGER(C) FROM NK_STRING(D). { pCxt->pRootNode = createCreateMountStmt(pCxt, A, &B, &C, &D); }
+cmd ::= DROP MOUNT exists_opt(A) mount_name(B).                                   { pCxt->pRootNode = createDropMountStmt(pCxt, A, &B); }
+
 /************************************************ show ****************************************************************/
 cmd ::= SHOW DNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DNODES_STMT); }
 cmd ::= SHOW USERS.                                                               { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USERS_STMT); }
@@ -1209,6 +1213,10 @@ literal_list(A) ::= literal_list(B) NK_COMMA signed_literal(C).                 
 %type db_name                                                                     { SToken }
 %destructor db_name                                                               { }
 db_name(A) ::= NK_ID(B).                                                          { A = B; }
+
+%type mount_name                                                                  { SToken }
+%destructor mount_name                                                            { }
+mount_name(A) ::= NK_ID(B).                                                       { A = B; }
 
 %type table_name                                                                  { SToken }
 %destructor table_name                                                            { }
