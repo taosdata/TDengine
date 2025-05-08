@@ -65,14 +65,14 @@ typedef struct {
 } SReadHandle;
 
 typedef struct SStreamInserterParam {
-  SArray*         pFields; // SArray<SFieldWithOptions>
-  SArray*         pTagFields;
-  int64_t         suid;
-  int32_t         sver;
-  const char*     tbname;
-  int8_t          tbType;
-  const char*     dbFName;
-  void*           pSinkHandle;
+  SArray* pFields;  // SArray<SFieldWithOptions>
+  SArray* pTagFields;
+  int64_t suid;
+  int32_t sver;
+  char*   tbname;
+  int8_t  tbType;
+  char*   dbFName;
+  void*   pSinkHandle;
 } SStreamInserterParam;
 
 typedef struct {
@@ -277,6 +277,8 @@ extern SGlobalExecInfo gExecInfo;
 
 void    gExecInfoInit(void* pDnode, getDnodeId_f getDnodeId, getMnodeEpset_f getMnode);
 int32_t getCurrentMnodeEpset(SEpSet* pEpSet);
+int32_t cloneStreamInserterParam(SStreamInserterParam** pDst, SStreamInserterParam* pSrc);
+void    destoryStreamInserterParam(SStreamInserterParam* pParam);
 
 #ifdef __cplusplus
 }
