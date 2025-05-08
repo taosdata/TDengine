@@ -2084,16 +2084,9 @@ static void *syncWriteInterlace(void *sarg) {
                                 goto free_of_interlace;
                             }
                         }
+                    
+                        bindVTags(bindv, i, w, pThreadInfo->tagsStmt);
                         
-                        // first insert table need bring tags
-                        if (firstInsertTb) {
-                            bindVTags(bindv, i, w, pThreadInfo->tagsStmt);
-                        }
-                    } else {
-                        // if engine fix must bind tag bug , need remove this code
-                        //if (firstInsertTb) {
-                        //    bindVTags(bindv, i, 0, stbInfo->tags);
-                        //}
                     }
 
                     // cols
