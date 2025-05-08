@@ -299,6 +299,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_tags_filter.py
 ## 03-GroupBy
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby_basic.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby_distinct.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby_top.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby2.py

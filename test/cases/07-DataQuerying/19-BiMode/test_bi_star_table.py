@@ -9,7 +9,7 @@ class TestBiStarTable:
     def test_bi_star_table(self):
         """Bi Star Table
 
-        1. -
+        1.
 
         Catalog:
             - Query:BiMode
@@ -29,8 +29,12 @@ class TestBiStarTable:
         tdSql.execute(f"create database db1 vgroups 3;")
         tdSql.execute(f"create database db1;")
         tdSql.execute(f"use db1;")
-        tdSql.execute(f"create stable sta (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);")
-        tdSql.execute(f"create stable stb (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);")
+        tdSql.execute(
+            f"create stable sta (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);"
+        )
+        tdSql.execute(
+            f"create stable stb (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);"
+        )
         tdSql.execute(f"create table tba1 using sta tags(1, 1, 1);")
         tdSql.execute(f"create table tba2 using sta tags(2, 2, 2);")
         tdSql.execute(f'insert into tba1 values(now, 1, "1");')
@@ -39,12 +43,16 @@ class TestBiStarTable:
         tdSql.execute(f"create database db2 vgroups 3;")
         tdSql.execute(f"create database db2;")
         tdSql.execute(f"use db2;")
-        tdSql.execute(f"create stable sta (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);")
-        tdSql.execute(f"create stable stb (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);")
+        tdSql.execute(
+            f"create stable sta (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);"
+        )
+        tdSql.execute(
+            f"create stable stb (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);"
+        )
         tdSql.execute(f"create table tba1 using sta tags(1, 1, 1);")
         tdSql.execute(f"create table tba2 using sta tags(2, 2, 2);")
 
-set_bi_mode 1
+        # set_bi_mode 1
         tdSql.query(f"select * from db1.sta order by ts;")
         tdSql.checkCols(7)
 
@@ -90,6 +98,6 @@ set_bi_mode 1
         tdSql.query(f"select * from (select f1 from db1.sta);")
         tdSql.checkCols(1)
 
-set_bi_mode 0
+        # set_bi_mode 0
         tdSql.query(f"select * from db1.sta order by ts;")
         tdSql.checkCols(6)
