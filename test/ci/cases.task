@@ -338,6 +338,11 @@
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/17-Tags/test_select_with_tags.py
 ## 18-Regexp
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/18-Regexp/test_regex.py
+## 19-BiMode
+#,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/19-BiMode/test_bi_star_table.py
+#,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/19-BiMode/test_bi_tag_scan.py
+#,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/19-BiMode/test_bi_tbname_col.py
+
 ## 99-Others
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/99-Others/test_select_across_vnodes.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/99-Others/test_select_from_cache_disk.py
@@ -358,6 +363,7 @@
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_truncate.py 
 
 ## 02-Aggregate
+,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_apercentile.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_avg.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_count.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_leastsquares.py 

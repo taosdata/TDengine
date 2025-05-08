@@ -86,11 +86,11 @@ class TestNullChar:
         #  print === expect 0.00000, actually $tdSql.getData(3,4)
         #  return -1
         # endi
-        tdSql.checkData(3, 5, None)
+        tdSql.checkData(3, 5, "NULL")
 
         tdSql.checkData(3, 6, None)
 
-        tdSql.checkData(3, 9, None)
+        tdSql.checkData(3, 9, "NULL")
 
         #### case 1: tag NULL, or 'NULL'
         tdSql.execute(
@@ -104,7 +104,7 @@ class TestNullChar:
 
         tdSql.checkData(0, 0, None)
 
-        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 1, "NULL")
 
         tdSql.checkData(0, 2, 102)
 
@@ -143,7 +143,7 @@ class TestNullChar:
         tdSql.query(f"select tag1,tag2,tag3,tag5 from st4")
         tdSql.checkRows(1)
 
-        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 0, "NULL")
 
         tdSql.checkData(0, 1, "123aBc")
 
@@ -156,7 +156,7 @@ class TestNullChar:
         tdSql.query(f"select tag1,tag2,tag3,tag5 from st5")
         tdSql.checkRows(1)
 
-        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 0, "NULL")
 
         tdSql.checkData(0, 1, "123aBc")
 
@@ -224,7 +224,7 @@ class TestNullChar:
         tdSql.query(
             f"select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41"
         )
-        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 0, "NULL")
 
         tdSql.execute(f"alter table st41 set tag tag_binary = NULL")
         tdSql.query(
@@ -254,7 +254,7 @@ class TestNullChar:
         tdSql.query(
             f"select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41"
         )
-        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 1, "NULL")
 
         tdSql.execute(f"alter table st41 set tag tag_nchar = NULL")
         # sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
