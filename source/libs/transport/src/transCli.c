@@ -1604,7 +1604,7 @@ static void cliDestroyBatch(SCliBatch* pBatch) {
 int32_t cliBuildSockByIpType(SIpAddr* ipAddr, struct sockaddr* addr) {
   if (ipAddr->type == 0) {
     struct sockaddr_in* addr4 = (struct sockaddr_in*)addr;
-    addr4->sin_family = AF_UNSPEC;
+    addr4->sin_family = AF_INET;
     addr4->sin_port = htons(ipAddr->port);
     addr4->sin_addr.s_addr = inet_addr(ipAddr->ipv4);
   } else {
