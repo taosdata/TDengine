@@ -1641,6 +1641,7 @@ int32_t clearStatesForOperator(SOperatorInfo* pOper) {
   if (pOper->fpSet.resetStateFn) {
     code = pOper->fpSet.resetStateFn(pOper);
   }
+  pOper->status = OP_NOT_OPENED;
   for (int32_t i = 0; i < pOper->numOfDownstream && code == 0; ++i) {
     code = clearStatesForOperator(pOper->pDownstream[i]);
   }

@@ -403,8 +403,7 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
   return initDataSource(numOfSources, pInfo, id);
 }
 
-void resetExchangeOperState(SOperatorInfo* pOper) {
-}
+int32_t resetExchangeOperState(SOperatorInfo* pOper);
 
 int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNode, SExecTaskInfo* pTaskInfo,
                                    SOperatorInfo** pOptrInfo) {
@@ -450,6 +449,7 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
 
   pOperator->fpSet = createOperatorFpSet(prepareLoadRemoteData, loadRemoteDataNext, NULL, destroyExchangeOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  setOperatorResetStateFn(pOperator, resetExchangeOperState);
   *pOptrInfo = pOperator;
   return TSDB_CODE_SUCCESS;
 
@@ -1382,4 +1382,18 @@ static int32_t exchangeWait(SOperatorInfo* pOperator, SExchangeInfo* pExchangeIn
     }
   }
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t resetExchangeOperState(SOperatorInfo* pOper) {
+  SExchangeInfo* pInfo = pOper->info;
+  pInfo->current = 0;
+  pInfo->loadInfo.totalElapsed = 0;
+  pInfo->loadInfo.totalRows = 0;
+  pInfo->loadInfo.totalSize = 0;
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pSourceDataInfo); ++i) {
+    SSourceDataInfo* pDataInfo = taosArrayGet(pInfo->pSourceDataInfo, i);
+    pDataInfo->fetchSent = false;
+    pDataInfo->code = 0;
+  }
+  return 0;
 }

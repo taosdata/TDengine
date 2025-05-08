@@ -61,6 +61,7 @@ typedef struct SStreamRunnerTaskOutput {
   SArray             *outCols;  // array of SFieldWithOptions
   SArray             *outTags;  // array of SFieldWithOptions
   uint64_t            outStbUid;
+  int32_t             outStbVersion;
 } SStreamRunnerTaskOutput;
 
 typedef struct SStreamRunnerTaskNotification {
@@ -87,6 +88,7 @@ typedef struct SStreamRunnerTask {
   void*                         pMsgCb;
   void*                         pSubTableExpr;
   SArray*                       forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
+  bool                          topTask;
 } SStreamRunnerTask;
 
 #define STREAM_GID(_streamId) ((uint64_t)(_streamId) % STREAM_MAX_GROUP_NUM)

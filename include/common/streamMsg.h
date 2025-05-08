@@ -693,6 +693,7 @@ typedef struct SStreamRuntimeFuncInfo {
   SArray* pStreamPesudoFuncValNodes;
   SArray* pStreamPartColValNodes;
   int64_t groupId;
+  int32_t curIdx;
 } SStreamRuntimeFuncInfo;
 
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo);
