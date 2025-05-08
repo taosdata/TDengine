@@ -2,8 +2,6 @@ name: Label PR by Team
 description: Label PR based on team membership
 
 on:
-  pull_request:
-    types: [opened]
   pull_request_target:
     types: [opened]
 jobs:
