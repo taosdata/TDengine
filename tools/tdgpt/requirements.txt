@@ -44,7 +44,7 @@ statsmodels==0.14.4
 sympy==1.12
 threadpoolctl==3.5.0
 --find-links https://download.pytorch.org/whl/torch/
-torch==2.4.1+cpu
+torch==2.7.0
 typing_extensions==4.13.0
 urllib3==2.2.3
 transformers==4.40.0
