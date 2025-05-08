@@ -3,7 +3,7 @@ build
 release
 .externals
 *.swp
-
+sim
 # TODO: rules need to be removed later
 source/util/src/version.c
 
