@@ -117,7 +117,7 @@ static int32_t buildFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int
   void*   buf =  NULL;
   STREAM_CHECK_CONDITION_GOTO(pBlock == NULL || pBlock->info.rows == 0, TSDB_CODE_STREAM_NO_DATA);
 
-  size_t dataEncodeBufSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
+  size_t dataEncodeBufSize = sizeof(SRetrieveTableRsp) + INT_BYTES * 2 + blockGetEncodeSize(pBlock);
   buf = rpcMallocCont(dataEncodeBufSize);
   STREAM_CHECK_NULL_GOTO(buf, terrno);
 
@@ -126,8 +126,10 @@ static int32_t buildFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int
   pRetrieve->precision = precision;
   pRetrieve->compressed = 0;
   pRetrieve->numOfRows = htobe64((int64_t)pBlock->info.rows);
+  pRetrieve->numOfBlocks = htonl(1);
 
-  int32_t actualLen = blockEncode(pBlock, pRetrieve->data, dataEncodeBufSize - sizeof(SRetrieveTableRsp), taosArrayGetSize(pBlock->pDataBlock));
+  int32_t actualLen = blockEncode(pBlock, pRetrieve->data + INT_BYTES * 2, dataEncodeBufSize - sizeof(SRetrieveTableRsp) - INT_BYTES * 2
+  , taosArrayGetSize(pBlock->pDataBlock));
   STREAM_CHECK_CONDITION_GOTO(actualLen < 0, terrno);
   *data = buf;
   *size = dataEncodeBufSize;
