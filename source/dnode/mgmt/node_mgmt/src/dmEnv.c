@@ -187,6 +187,7 @@ int32_t dmInit() {
   if ((code = tcsInit()) != 0) return code;
 #endif  
 
+  gExecInfoInit(&pDnode->data, (getDnodeId_f)dmGetDnodeId, dmGetMnodeEpSet);
   if ((code = streamInit(&pDnode->data, (getDnodeId_f)dmGetDnodeId, dmGetMnodeEpSet)) != 0) return code;
 
   dInfo("dnode env is initialized");

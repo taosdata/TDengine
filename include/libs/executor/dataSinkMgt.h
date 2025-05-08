@@ -50,8 +50,23 @@ typedef struct SDeleterParam {
   SArray*  pUidList;
 } SDeleterParam;
 
+typedef enum {
+  AUTO_CREATE_TABLE_UNKNOWN = 0,
+  AUTO_CREATE_TABLE_STABLE,
+  AUTO_CREATE_TABLE_STREAM_STABLE,
+  AUTO_CREATE_TABLE_STREAM_NORMAL,
+} AUTO_CREATE_TABLE_MODE;
+
+typedef struct SStreamInserterParam {
+  AUTO_CREATE_TABLE_MODE autoCreateTableMode;
+  STSchema*              pSchema;
+  SSchemaWrapper*        pTagSchema;
+  const char*            dbFName;
+} SStreamInserterParam;
+
 typedef struct SInserterParam {
-  SReadHandle* readHandle;
+  SReadHandle*          readHandle;
+  SStreamInserterParam* streamInserterParam;
 } SInserterParam;
 
 typedef struct SDataSinkStat {

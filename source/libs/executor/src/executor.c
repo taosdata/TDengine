@@ -14,10 +14,12 @@
  */
 
 #include "executor.h"
+#include <stdint.h>
 #include "cmdnodes.h"
 #include "executorInt.h"
 #include "operator.h"
 #include "planner.h"
+#include "query.h"
 #include "querytask.h"
 #include "streamexecutorInt.h"
 #include "tdatablock.h"
@@ -25,11 +27,28 @@
 #include "trpc.h"
 #include "tudf.h"
 #include "wal.h"
-
+#include "dataSinkInt.h"
 #include "storageapi.h"
 
 static TdThreadOnce initPoolOnce = PTHREAD_ONCE_INIT;
 int32_t             exchangeObjRefPool = -1;
+SGlobalExecInfo     gExecInfo = {0};
+
+void gExecInfoInit(void* pDnode, getDnodeId_f getDnodeId, getMnodeEpset_f getMnode) {
+  gExecInfo.dnode = pDnode;
+  gExecInfo.getMnode = getMnode;
+  gExecInfo.getDnodeId = getDnodeId;
+  return;
+}
+
+int32_t getCurrentMnodeEpset(SEpSet *pEpSet) {
+  if(gExecInfo.dnode == NULL || gExecInfo.getMnode == NULL) {
+    qError("gExecInfo is not initialized");
+    return TSDB_CODE_APP_ERROR;
+  }
+  gExecInfo.getMnode(gExecInfo.dnode, pEpSet);
+  return TSDB_CODE_SUCCESS;
+}
 
 static void cleanupRefPool() {
   int32_t ref = atomic_val_compare_exchange_32(&exchangeObjRefPool, exchangeObjRefPool, 0);
@@ -224,6 +243,58 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int3
   return pTaskInfo;
 }
 
+static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
+                                     qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, int8_t compressResult, char* sql,
+                                     EOPTR_EXEC_MODEL model, SStreamInserterParam* streamInserterParam) {
+  if (pSubplan == NULL || pTaskInfo == NULL || handle == NULL) {
+    qError("invalid parameter, pSubplan:%p, pTaskInfo:%p, handle:%p", pSubplan, pTaskInfo, handle);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  SInserterParam* pInserterParam = NULL;
+  SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
+  (void)taosThreadOnce(&initPoolOnce, initRefPool);
+  qDebug("start to create task, TID:0x%" PRIx64 " QID:0x%" PRIx64 ", vgId:%d", taskId, pSubplan->id.queryId, vgId);
+
+  int32_t code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model);
+  if (code != TSDB_CODE_SUCCESS || NULL == *pTask) {
+    qError("failed to createExecTaskInfo, code:%s", tstrerror(code));
+    goto _error;
+  }
+
+  SDataSinkMgtCfg cfg = {.maxDataBlockNum = 500, .maxDataBlockNumPerQuery = 50, .compress = compressResult};
+  void*           pSinkManager = NULL;
+  code = dsDataSinkMgtInit(&cfg, &(*pTask)->storageAPI, &pSinkManager);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to dsDataSinkMgtInit, code:%s, %s", tstrerror(code), (*pTask)->id.str);
+    goto _error;
+  }
+
+  pInserterParam = taosMemoryCalloc(1, sizeof(SInserterParam));
+  if (NULL == pInserterParam) {
+    qError("failed to taosMemoryCalloc, code:%s, %s", tstrerror(terrno), (*pTask)->id.str);
+    code = terrno;
+    goto _error;
+  }
+  pInserterParam->readHandle = readHandle;
+  pInserterParam->streamInserterParam = streamInserterParam;
+
+  code = createStreamDataInserter(pSinkManager, handle, pInserterParam);
+  if (code) {
+    qError("failed to createStreamDataInserter, code:%s, %s", tstrerror(code), (*pTask)->id.str);
+  }
+
+  qDebug("subplan task create completed, TID:0x%" PRIx64 " QID:0x%" PRIx64 " code:%s", taskId, pSubplan->id.queryId,
+         tstrerror(code));
+
+_error:
+  if (code != TSDB_CODE_SUCCESS) {
+    if (pInserterParam != NULL) {
+      taosMemoryFree(pInserterParam);
+    }
+  }
+  return code;
+}
+
 int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle* readers, int32_t vgId,
                                   int32_t taskId) {
   if (msg == NULL) {
@@ -237,8 +308,9 @@ int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-
-  code = qCreateExecTask(readers, vgId, taskId, pPlan, pTaskInfo, NULL, 0, NULL, OPTR_EXEC_MODEL_STREAM);
+  SStreamInserterParam* streamInserterParam = {0};
+  // todo: add stream inserter param
+  code = qCreateStreamExecTask(readers, vgId, taskId, pPlan, pTaskInfo, NULL, 0, NULL, OPTR_EXEC_MODEL_STREAM, streamInserterParam);
   if (code != TSDB_CODE_SUCCESS) {
     qDestroyTask(*pTaskInfo);
     return code;

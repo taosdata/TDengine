@@ -248,6 +248,24 @@ void     initStorageAPI(SStorageAPI* pAPI);
 int32_t streamCalcOutputTbName(SNode *pExpr, char *tbname, const SStreamRuntimeFuncInfo *pPartColVals);
 void    streamSetTaskRuntimeInfo(qTaskInfo_t tinfo, SStreamRuntimeInfo* pRuntimeInfo);
 
+typedef void (*getMnodeEpset_f)(void *pDnode, SEpSet *pEpset);
+typedef int32_t (*getDnodeId_f)(void *pData);
+typedef void (*taskUndeplyCallback)(void*);
+
+typedef struct SGlobalExecInfo {
+  void*           dnode;
+  int32_t         dnodeId;
+  int32_t         snodeId;
+  getMnodeEpset_f getMnode;
+  getDnodeId_f    getDnodeId;
+
+} SGlobalExecInfo;
+
+extern SGlobalExecInfo gExecInfo;
+
+void    gExecInfoInit(void* pDnode, getDnodeId_f getDnodeId, getMnodeEpset_f getMnode);
+int32_t getCurrentMnodeEpset(SEpSet* pEpSet);
+
 #ifdef __cplusplus
 }
 #endif

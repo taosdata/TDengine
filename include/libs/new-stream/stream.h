@@ -31,10 +31,6 @@ extern "C" {
 
 #define STREAM_ACT_MIN_DELAY_MSEC (STREAM_MAX_GROUP_NUM * STREAM_HB_INTERVAL_MS)
 
-typedef void (*getMnodeEpset_f)(void *pDnode, SEpSet *pEpset);
-typedef int32_t (*getDnodeId_f)(void *pData);
-typedef void (*taskUndeplyCallback)(void*);
-
 typedef struct SStreamReaderTask {
   SStreamTask task;
   int8_t      triggerReader;
