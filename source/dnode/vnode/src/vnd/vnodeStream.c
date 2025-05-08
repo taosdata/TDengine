@@ -111,6 +111,33 @@ end:
   return code;
 }
 
+static int32_t buildFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int8_t precision) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  void*   buf =  NULL;
+  STREAM_CHECK_CONDITION_GOTO(pBlock == NULL || pBlock->info.rows == 0, TSDB_CODE_STREAM_NO_DATA);
+
+  size_t dataEncodeBufSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
+  buf = rpcMallocCont(dataEncodeBufSize);
+  STREAM_CHECK_NULL_GOTO(buf, terrno);
+
+  SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)buf;
+  pRetrieve->version = 0;
+  pRetrieve->precision = precision;
+  pRetrieve->compressed = 0;
+  pRetrieve->numOfRows = htobe64((int64_t)pBlock->info.rows);
+
+  int32_t actualLen = blockEncode(pBlock, pRetrieve->data, dataEncodeBufSize - sizeof(SRetrieveTableRsp), taosArrayGetSize(pBlock->pDataBlock));
+  STREAM_CHECK_CONDITION_GOTO(actualLen < 0, terrno);
+  *data = buf;
+  *size = dataEncodeBufSize;
+  buf = NULL;
+
+end:
+  rpcFreeCont(buf);
+  return code;
+}
+
 static int32_t buildRsp(SSDataBlock* pBlock, void** data, size_t* size) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -120,7 +147,7 @@ static int32_t buildRsp(SSDataBlock* pBlock, void** data, size_t* size) {
   buf = rpcMallocCont(dataEncodeSize);
   STREAM_CHECK_NULL_GOTO(buf, terrno);
   int32_t actualLen = blockEncode(pBlock, buf, dataEncodeSize, taosArrayGetSize(pBlock->pDataBlock));
-  STREAM_CHECK_CONDITION_GOTO(actualLen < 0, TSDB_CODE_INVALID_PARA);
+  STREAM_CHECK_CONDITION_GOTO(actualLen < 0, terrno);
   *data = buf;
   *size = dataEncodeSize;
   buf = NULL;
@@ -1033,7 +1060,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   uint64_t ts = 0;
   // qStreamSetOpen(task);
   STREAM_CHECK_RET_GOTO(qExecTask(pTask->info.calcReaderInfo.pTaskInfo, &pBlock, &ts));
-  STREAM_CHECK_RET_GOTO(buildRsp(pBlock, &buf, &size));
+  STREAM_CHECK_RET_GOTO(buildFetchRsp(pBlock, &buf, &size, pVnode->config.tsdbCfg.precision));
 end:
   PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {.info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
