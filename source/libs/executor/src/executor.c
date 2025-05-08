@@ -269,20 +269,21 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
     goto _error;
   }
 
-  pInserterParam = taosMemoryCalloc(1, sizeof(SInserterParam));
-  if (NULL == pInserterParam) {
-    qError("failed to taosMemoryCalloc, code:%s, %s", tstrerror(terrno), (*pTask)->id.str);
-    code = terrno;
-    goto _error;
-  }
-  pInserterParam->readHandle = readHandle;
-  pInserterParam->streamInserterParam = streamInserterParam;
+  if (!streamInserterParam) {
+    pInserterParam = taosMemoryCalloc(1, sizeof(SInserterParam));
+    if (NULL == pInserterParam) {
+      qError("failed to taosMemoryCalloc, code:%s, %s", tstrerror(terrno), (*pTask)->id.str);
+      code = terrno;
+      goto _error;
+    }
+    pInserterParam->readHandle = readHandle;
+    pInserterParam->streamInserterParam = streamInserterParam;
 
-  code = createStreamDataInserter(pSinkManager, handle, pInserterParam);
-  if (code) {
-    qError("failed to createStreamDataInserter, code:%s, %s", tstrerror(code), (*pTask)->id.str);
+    code = createStreamDataInserter(pSinkManager, handle, pInserterParam);
+    if (code) {
+      qError("failed to createStreamDataInserter, code:%s, %s", tstrerror(code), (*pTask)->id.str);
+    }
   }
-
   qDebug("subplan task create completed, TID:0x%" PRIx64 " QID:0x%" PRIx64 " code:%s", taskId, pSubplan->id.queryId,
          tstrerror(code));
 

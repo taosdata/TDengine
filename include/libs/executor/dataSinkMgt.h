@@ -75,14 +75,15 @@ typedef struct SDataSinkMgtCfg {
 
 int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg, SStorageAPI* pAPI, void** ppSinkManager);
 
-typedef struct SStreamDataInserterData {
+typedef struct SStreamDataInserterInfo {
   bool        isAutoCreateTable;
+  int64_t     groupId;
   const char* tbName;
-} SStreamDataInserterData;
+} SStreamDataInserterInfo;
 
 typedef struct SInputData {
   const struct SSDataBlock* pData;
-  SStreamDataInserterData*  pStreamDataInserterData;
+  SStreamDataInserterInfo*  pStreamDataInserterInfo;
 } SInputData;
 
 typedef struct SOutputData {

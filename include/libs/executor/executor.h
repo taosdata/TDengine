@@ -68,6 +68,7 @@ typedef struct SStreamInserterParam {
   SArray*         pFields; // SArray<SFieldWithOptions>
   SArray*         pTagFields;
   int64_t         suid;
+  int32_t         sver;
   const char*     tbname;
   int8_t          tbType;
   const char*     dbFName;

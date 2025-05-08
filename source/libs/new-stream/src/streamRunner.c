@@ -192,8 +192,8 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
     if (code != 0) {
       ST_TASK_ELOG("failed to calc output tbname: %s", tstrerror(code));
     } else {
-      SStreamDataInserterData d = {.tbName = pExec->tbname, .isAutoCreateTable = true};
-      SInputData              input = {.pData = pBlock, .pStreamDataInserterData = &d};
+      SStreamDataInserterInfo d = {.tbName = pExec->tbname, .isAutoCreateTable = true};
+      SInputData              input = {.pData = pBlock, .pStreamDataInserterInfo = &d};
       bool                    cont = false;
       code = dsPutDataBlock(pExec->pSinkHandle, &input, &cont);
     }
