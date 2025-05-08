@@ -21,7 +21,7 @@ class TestUnionPrecision:
         Jira: None
 
         History:
-            - 2025-5-8 Simon Guan Migrated from tsim/parser/union_precision.sim
+            - 2025-5-8 Simon Guan Migrated from tsim/query/union_precision.sim
 
         """
 

@@ -26,34 +26,6 @@ class TestStableDnode3:
 
         """
 
-import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
-
-
-class TestStableDnode2:
-
-    def setup_class(cls):
-        tdLog.debug(f"start to execute {__file__}")
-
-    def test_stable_dnode2(self):
-        """stable dnode2
-
-        1. -
-
-        Catalog:
-            - DataBase:Sync
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-5-5 Simon Guan Migrated from tsim/vnode/stable_dnode2.sim
-
-        """
-
         tdLog.info(f"========== step1")
         clusterComCheck.checkDnodes(3)
         tdSql.execute(f"alter dnode 1 'supportVnodes' '4'")

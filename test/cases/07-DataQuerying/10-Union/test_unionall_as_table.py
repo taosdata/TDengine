@@ -21,7 +21,7 @@ class TestUnionAllAsTable:
         Jira: None
 
         History:
-            - 2025-5-8 Simon Guan Migrated from tsim/parser/unionall_as_table.sim
+            - 2025-5-8 Simon Guan Migrated from tsim/query/unionall_as_table.sim
 
         """
 

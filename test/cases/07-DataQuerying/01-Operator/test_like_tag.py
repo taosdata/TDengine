@@ -21,7 +21,7 @@ class TestLikeTag:
         Jira: None
 
         History:
-            - 2025-5-10 Simon Guan Migrated from  tsim/query/tagLikeFilter.sim
+            - 2025-5-10 Simon Guan Migrated from tsim/query/tagLikeFilter.sim
 
         """
 
