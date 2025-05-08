@@ -1620,9 +1620,10 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
   STrans* pInst = pThrd->pInst;
   int8_t  type = 0;
 
-  struct sockaddr_in6 addr6;
-  struct sockaddr_in  addr4;
-  struct sockaddr*    addr;
+  // struct sockaddr_in6 addr6;
+  // struct sockaddr_in  addr4;
+  // struct sockaddr*    addr;
+  struct sockaddr_storage addr;
 
   SIpAddr  ipaddr;
   int32_t  code = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, conn->ipStr, &ipaddr);
@@ -1632,12 +1633,12 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
   ipaddr.port = conn->port;
   type = ipaddr.type;
 
-  if (type == 0) {
-    addr = (struct sockaddr*)(&addr4);
-  } else {
-    addr = (struct sockaddr*)(&addr6);
-  }
-  cliBuildSockByIpType(&ipaddr, (struct sockaddr*)addr);
+  // if (type == 0) {
+  //   addr = (struct sockaddr*)(&addr4);
+  // } else {
+  //   addr = (struct sockaddr*)(&addr6);
+  // }
+  cliBuildSockByIpType(&ipaddr, (struct sockaddr*)&addr);
 
   tTrace("%s conn:%p, try to connect to %s", pInst->label, conn, conn->dstAddr);
 
@@ -1667,7 +1668,7 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
     conn->list->totalSize += 1;
   }
 
-  ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)addr, cliConnCb);
+  ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
   if (ret != 0) {
     tError("failed connect to %s since %s", conn->dstAddr, uv_err_name(ret));
     cliMayUpdateFqdnCache(pThrd->fqdn2ipCache, conn->dstAddr);
@@ -1716,21 +1717,6 @@ int32_t cliConnSetSockInfo(SCliConn* pConn) {
   transSockInfo2Str((struct sockaddr*)&sockname, pConn->src);
   return 0;
 };
-
-// static int32_t cliBuildExeceptMsg(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
-//   SCliThrd* pThrd = pConn->hostThrd;
-//   STrans*   pInst = pThrd->pInst;
-//   memset(pResp, 0, sizeof(STransMsg));
-//   STransMsg resp = {0};
-//   resp.contLen = 0;
-//   resp.pCont = NULL;
-//   resp.msgType = pReq->msg.msgType + 1;
-//   resp.info.ahandle = pReq->ctx->ahandle;
-//   resp.info.traceId = pReq->msg.info.traceId;
-//   resp.info.hasEpSet = false;
-//   resp.info.cliVer = pInst->compatibilityVer;
-//   return 0;
-// }
 
 bool filteGetAll(void* q, void* arg) { return true; }
 void cliConnCb(uv_connect_t* req, int status) {
