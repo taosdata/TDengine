@@ -237,10 +237,6 @@ TEST(bseCase, openTest) {
     initLog();
     benchTest();
     funcTest();
-
-    
-
-   
 }
 
 #pragma GCC diagnostic pop

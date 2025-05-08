@@ -21,15 +21,11 @@
 static int32_t tableReaderMgtInit(STableReaderMgt *pReader, SBse *pBse, int64_t retention);
 static int32_t tableReaderMgtSetRetion(STableReaderMgt *pReader, int64_t retention);
 static int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **pValue, int32_t *len);
-static int32_t tableReaderMgtAddLiveFile(STableReaderMgt *pReader, SBseLiveFileInfo *pInfo);
-static int32_t tableReaderMgtRemveLiveFile(STableReaderMgt *pReader, SBseLiveFileInfo *pInfo);
-static int32_t tableReaderMgtAddLiveFileSet(STableReaderMgt *pReader, SArray *pFileSet);
-static int32_t tableReadMgtGetAllLiveFileSet(STableReaderMgt *pReader, SArray **pList);
 static int32_t tableReaderMgtClear(STableReaderMgt *pReader);
 static void    tableReaderMgtDestroy(STableReaderMgt *pReader);
 
 static int32_t tableBuilderMgtInit(STableBuilderMgt *pMgt, SBse *pBse, int64_t retention);
-static int32_t tableBuilderMgtSetRetion(STableBuilderMgt *pMgt, int64_t retention);
+static void    tableBuilderMgtSetRetion(STableBuilderMgt *pMgt, int64_t retention);
 static int32_t tableBuilderMgtGetBuilder(STableBuilderMgt *pMgt, int64_t seq, STableBuilder **p);
 static int32_t tableBuilderMgtCommit(STableBuilderMgt *pMgt, SBseLiveFileInfo *pInfo, int8_t *commited);
 static int32_t tableBuilderMgtSeek(STableBuilderMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *len);
@@ -238,7 +234,6 @@ _error:
 int32_t bseTableMgtGetLiveFileSet(STableMgt *pMgt, SArray **pList) {
   int32_t code = 0;
   return code;
-  // return tableReadMgtGetAllLiveFileSet(pMgt->pReaderMgt, pList);
 }
 
 int32_t bseTableMgtCommit(STableMgt *pMgt, SBseLiveFileInfo *pInfo) {
@@ -263,7 +258,6 @@ _error:
 int32_t bseTableMgtUpdateLiveFileSet(STableMgt *pMgt, SArray *pLiveFileSet) {
   int32_t code = 0;
   return code;
-  // return tableReaderMgtAddLiveFileSet(pMgt->pReaderMgt, pLiveFileSet);
 }
 
 int32_t bseTableMgtSetBlockCacheSize(STableMgt *pMgt, int32_t cap) {
@@ -311,10 +305,6 @@ int32_t tableReaderMgtInit(STableReaderMgt *pReader, SBse *pBse, int64_t retenti
 
   taosThreadRwlockInit(&pReader->mutex, NULL);
 
-  pReader->pFileList = taosArrayInit(128, sizeof(SBseLiveFileInfo));
-  if (pReader->pFileList == NULL) {
-    TSDB_CHECK_CODE(code = terrno, lino, _error);
-  }
   int32_t cap = BSE_GET_BLOCK_SIZE(pBse);
 
   code = blockCacheOpen(48, blockFree, &pReader->pBlockCache);
@@ -345,7 +335,6 @@ int32_t tableReaderMgtClear(STableReaderMgt *pReader) {
   int32_t code = 0;
 
   taosThreadRwlockWrlock(&pReader->mutex);
-  taosArrayClear(pReader->pFileList);
 
   (void)(tableCacheClear(pReader->pTableCache));
 
@@ -356,37 +345,11 @@ int32_t tableReaderMgtClear(STableReaderMgt *pReader) {
 }
 
 void tableReaderMgtDestroy(STableReaderMgt *pReader) {
-  taosArrayDestroy(pReader->pFileList);
   tableCacheClose(pReader->pTableCache);
   blockCacheClose(pReader->pBlockCache);
   taosThreadRwlockDestroy(&pReader->mutex);
 }
 
-int32_t compareFileInfoFunc(const void *a, const void *b) {
-  SBseLiveFileInfo *p1 = (SBseLiveFileInfo *)a;
-  SBseLiveFileInfo *p2 = (SBseLiveFileInfo *)b;
-
-  SSeqRange *pl = &p1->range;
-  SSeqRange *pr = &p2->range;
-
-  if (pl->sseq < pr->sseq) {
-    return -1;
-  } else if (pl->sseq > pr->sseq) {
-    return 1;
-  }
-  return 0;
-}
-
-int32_t findTargetTable(SArray *pFileList, int64_t seq) {
-  SBseLiveFileInfo target = {.range = {.sseq = seq, .eseq = seq}};
-  for (int32_t i = 0; i < taosArrayGetSize(pFileList); i++) {
-    SBseLiveFileInfo *p = taosArrayGet(pFileList, i);
-    if (seqRangeContains(&p->range, seq)) {
-      return i;
-    }
-  }
-  return -1;
-}
 int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -405,73 +368,6 @@ _error:
   }
 
   tableReaderClose(pReader);
-  return code;
-}
-
-int32_t tableReaderMgtAddLiveFile(STableReaderMgt *pReader, SBseLiveFileInfo *pInfo) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  taosThreadRwlockWrlock(&pReader->mutex);
-  if (taosArrayPush(pReader->pFileList, pInfo) == NULL) {
-    code = terrno;
-  }
-  taosThreadRwlockUnlock(&pReader->mutex);
-  return code;
-}
-
-int32_t tableReaderMgtRemveLiveFile(STableReaderMgt *pReader, SBseLiveFileInfo *pInfo) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  taosThreadRwlockWrlock(&pReader->mutex);
-  for (int32_t i = 0; i < taosArrayGetSize(pReader->pFileList); i++) {
-    SBseLiveFileInfo *p = taosArrayGet(pReader->pFileList, i);
-    if (strcmp(p->name, pInfo->name) == 0) {
-      taosArrayRemove(pReader->pFileList, i);
-      break;
-    }
-  }
-  taosThreadRwlockUnlock(&pReader->mutex);
-  return code;
-}
-
-int32_t tableReaderMgtAddLiveFileSet(STableReaderMgt *pReader, SArray *pFileSet) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  int64_t lastSeq = 0;
-
-  taosThreadRwlockWrlock(&pReader->mutex);
-  if (taosArrayAddAll(pReader->pFileList, pFileSet) == NULL) {
-    TSDB_CHECK_CODE(code = terrno, lino, _error);
-  }
-_error:
-  if (code != 0) {
-    bseError("failed to recover table pReaderMgt at line %d since %s", lino, tstrerror(code));
-  }
-  taosThreadRwlockUnlock(&pReader->mutex);
-  return code;
-}
-
-int32_t tableReadMgtGetAllLiveFileSet(STableReaderMgt *pReader, SArray **pList) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  SArray *res = taosArrayInit(128, sizeof(SBseLiveFileInfo));
-  if (res == NULL) {
-    TSDB_CHECK_CODE(code = terrno, lino, _error);
-  }
-
-  taosThreadRwlockRdlock(&pReader->mutex);
-  if (taosArrayAddAll(res, pReader->pFileList) == NULL) {
-    taosThreadRwlockUnlock(&pReader->mutex);
-    TSDB_CHECK_CODE(code = terrno, lino, _error);
-  }
-
-  taosThreadRwlockUnlock(&pReader->mutex);
-_error:
-  if (code != 0) {
-    bseError("failed to get live file list at line %d since %s", lino, tstrerror(code));
-  }
-  *pList = res;
   return code;
 }
 
@@ -506,13 +402,7 @@ int32_t tableBuilderMgtClear(STableBuilderMgt *pMgt) {
   return code;
 }
 
-int32_t tableBuilderMgtSetRetion(STableBuilderMgt *pMgt, int64_t retention) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  pMgt->retenTs = retention;
-  return code;
-}
+void tableBuilderMgtSetRetion(STableBuilderMgt *pMgt, int64_t retention) { pMgt->retenTs = retention; }
 
 int32_t tableBuilderMgtPutBatch(STableBuilderMgt *pMgt, SBseBatch *pBatch) {
   int32_t code = 0;
@@ -589,7 +479,7 @@ int32_t tableBuilderMgtRecoverTable(STableBuilderMgt *pMgt, int64_t seq, STableB
   TSDB_CHECK_CODE(code, lino, _error);
 
   if (pTable->offset > size) {
-    code = tableBuilderTruncateFile(pTable, size);
+    code = tableBuilderTruncFile(pTable, size);
     TSDB_CHECK_CODE(code, lino, _error);
   }
 _error:
@@ -621,12 +511,6 @@ _error:
   return code;
 }
 
-int32_t tableRecoverDataAndMeta(SBse *pBse, SBseLiveFileInfo *pInfo) {
-  int32_t lino = 0;
-
-  int32_t code = 0;
-  return code;
-}
 void tableBuilderMgtDestroy(STableBuilderMgt *pMgt) {
   for (int32_t i = 0; i < 2; i++) {
     if (pMgt->p[i] != NULL) {
@@ -667,9 +551,4 @@ static void tableMetaMgtDestroy(STableMetaMgt *pMgt) {
     tableMetaClose(pMgt->pTableMeta);
     pMgt->pTableMeta = NULL;
   }
-}
-
-static int32_t tableMetaSeek(STableMetaMgt *pMgt, int64_t seq, SMetaBlock *pBlock) {
-  int32_t code = 0;
-  return 0;
 }

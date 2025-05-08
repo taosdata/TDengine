@@ -332,7 +332,7 @@ _error:
   return code;
 }
 
-int32_t tableBuilderTruncateFile(STableBuilder *p, int64_t size) {
+int32_t tableBuilderTruncFile(STableBuilder *p, int64_t size) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -410,25 +410,6 @@ int32_t tableBuilderGet(STableBuilder *p, int64_t seq, uint8_t **value, int32_t 
   return TSDB_CODE_NOT_FOUND;
 }
 
-int32_t tableBuildResizeBuf(STableBuilder *p, int32_t size) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  code = blockWrapperResize(&p->pBlockWrapper, size);
-  return code;
-}
-
-int32_t tableBuildGenCommitInfo(STableBuilder *p, SBseLiveFileInfo *pInfo) {
-  int32_t code = 0;
-  char    name[TSDB_FILENAME_LEN];
-  sprintf(pInfo->name, "%s", p->name);
-
-  pInfo->range = p->tableRange;
-  pInfo->size = p->offset;
-  pInfo->level = 0;
-
-  return code;
-}
 static void updateTableRange(SBTableMeta *pTableMeta, SArray *pMetaBlock) {
   if (pMetaBlock == NULL) {
     return;
@@ -484,16 +465,6 @@ int32_t tableBuilderClose(STableBuilder *p, int8_t commited) {
   taosArrayDestroy(p->pMetaHandle);
   taosMemoryFree(p);
   return code;
-}
-void tableBuilderClear(STableBuilder *p) {
-  blockWrapperClear(&p->pBlockWrapper);
-  seqRangeReset(&p->tableRange);
-
-  p->offset = 0;
-  p->blockId = 0;
-  p->blockCap = BSE_GET_BLOCK_SIZE(p->pBse);
-  taosArrayClear(p->pMetaHandle);
-  p->name[0] = 0;
 }
 
 static void addSnapshotToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, int8_t fileType, int8_t blockType,
@@ -574,8 +545,6 @@ int32_t tableReaderOpen(int64_t retentionTs, STableReader **pReader, void *pRead
 
   char dataPath[TSDB_FILENAME_LEN] = {0};
 
-  char name[TSDB_FILENAME_LEN] = {0};
-
   int32_t code = 0;
   int32_t lino = 0;
   int64_t size = 0;
@@ -609,7 +578,7 @@ int32_t tableReaderOpen(int64_t retentionTs, STableReader **pReader, void *pRead
 _error:
   if (code != 0) {
     tableReaderClose(p);
-    bseError("failed to open table pReaderMgt file %s at line %d since %s", name, lino, tstrerror(code));
+    bseError("failed to open table pReaderMgt at line %d since %s", lino, tstrerror(code));
   }
   return code;
 }
@@ -659,7 +628,7 @@ int32_t tableReaderGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *
 
 _error:
   if (code != 0) {
-    bseError("failed to get table reader data at line %d since %s", code, tstrerror(code));
+    bseError("failed to get table reader data at line %d since %s", lino, tstrerror(code));
   }
   return code;
 }

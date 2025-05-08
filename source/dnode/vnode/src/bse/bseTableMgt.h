@@ -41,7 +41,6 @@ typedef struct {
 } STableBuilderMgt;
 
 typedef struct {
-  SArray        *pFileList;
   STableCache   *pTableCache;
   SBlockCache   *pBlockCache;
   TdThreadRwlock mutex;
