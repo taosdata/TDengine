@@ -168,7 +168,7 @@ typedef struct SSTriggerRealtimeContext {
   SSTriggerCalcRequest    calcReq;
   SSTriggerRealtimeGroup *pCalcGroup;
   void                   *pCalcDataCache;
-
+  void                   *pCalcDataCacheIter;
 } SSTriggerRealtimeContext;
 
 typedef struct SStreamTriggerTask {

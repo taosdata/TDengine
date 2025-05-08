@@ -14,6 +14,7 @@
  */
 
 #include "cJSON.h"
+#include "dataSink.h"
 #include "streamInt.h"
 #include "tdatablock.h"
 #include "tstrbuild.h"
@@ -582,12 +583,13 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, int32_t triggerType, int64_t
 }
 #endif
 
-int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, void** ppCache) {
+int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int64_t groupId, TSKEY start,
+                            TSKEY end, void*** pppIter) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask* pTask = NULL;
 
-  *ppCache = NULL;
+  *pppIter = NULL;
 
   code = streamGetTask(streamId, taskId, (SStreamTask**)&pTask);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -595,7 +597,11 @@ int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
   QUERY_CHECK_CONDITION(pTask->task.type == STREAM_TRIGGER_TASK, code, lino, _end, TSDB_CODE_STREAM_TASK_NOT_EXIST);
 
   if (pTask->pRealtimeCtx->sessionId == sessionId) {
-    *ppCache = pTask->pRealtimeCtx->pCalcDataCache;
+    if (pTask->pRealtimeCtx->pCalcDataCacheIter == NULL) {
+      code = getStreamDataCache(pTask->pRealtimeCtx->pCalcDataCache, groupId, start, end, &pTask->pRealtimeCtx->pCalcDataCacheIter);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    *pppIter = &pTask->pRealtimeCtx->pCalcDataCacheIter;
   } else {
     stError("sessionId %" PRId64 " not match with task %" PRId64, sessionId, pTask->pRealtimeCtx->sessionId);
     code = TSDB_CODE_INTERNAL_ERROR;

@@ -108,7 +108,8 @@ int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNod
 int32_t streamSendNotifyContent(SStreamTask* pTask, int32_t triggerType, int64_t groupId, const SArray* pNotifyAddrUrls,
                                 int32_t errorHandle, const SSTriggerCalcParam* pParams, int32_t nParam);
 
-int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, void** ppCache);
+int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int64_t groupId, TSKEY start,
+                            TSKEY end, void*** pppIter);
 
 #ifdef __cplusplus
 }
