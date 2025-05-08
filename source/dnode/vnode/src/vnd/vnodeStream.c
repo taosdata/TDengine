@@ -352,7 +352,7 @@ end:
   return code;
 }
 
-int32_t scanWal(SVnode* pVnode, void* pTableList, SSDataBlock* pBlock, int64_t ver) {
+int32_t scanWal(SVnode* pVnode, void* pTableList, SSDataBlock* pBlock, int64_t lastVer, int8_t deleteData, int8_t deleteTb) {
   int32_t     code = 0;
   int32_t     lino = 0;
   SSubmitReq2 submit = {0};
@@ -360,7 +360,8 @@ int32_t scanWal(SVnode* pVnode, void* pTableList, SSDataBlock* pBlock, int64_t v
 
   SWalReader* pWalReader = walOpenReader(pVnode->pWal, NULL, 0);
   STREAM_CHECK_NULL_GOTO(pWalReader, terrno);
-  STREAM_CHECK_RET_GOTO(walReaderSeekVer(pWalReader, ver));
+  STREAM_CHECK_RET_GOTO(walReaderSeekVer(pWalReader, lastVer + 1));
+  pBlock->info.id.groupId = walGetLastVer(pWalReader->pWal);
 
   while (1) {
     STREAM_CHECK_CONDITION_GOTO(walNextValidMsg(pWalReader) < 0, TSDB_CODE_SUCCESS);
@@ -370,6 +371,7 @@ int32_t scanWal(SVnode* pVnode, void* pTableList, SSDataBlock* pBlock, int64_t v
     int64_t ver = pWalReader->pHead->head.version;
 
     if (pWalReader->pHead->head.msgType == TDMT_VND_DELETE) {
+      if (deleteData == 0) continue;
       SDeleteRes req = {0};
       tDecoderInit(&decoder, data, len);
       STREAM_CHECK_RET_GOTO(tDecodeDeleteRes(&decoder, &req));
@@ -377,8 +379,10 @@ int32_t scanWal(SVnode* pVnode, void* pTableList, SSDataBlock* pBlock, int64_t v
       uint64_t gid = qStreamGetGroupId(pTableList, req.suid);
       if (gid == -1) continue;
       STREAM_CHECK_RET_GOTO(buildWalMetaBlock(pBlock, WAL_DELETE_DATA, gid, req.suid, req.skey, req.ekey, ver, 1));
-
+      pBlock->info.rows++;
+      continue;
     } else if (pWalReader->pHead->head.msgType == TDMT_VND_DROP_TABLE) {
+      if (deleteTb == 0) continue;
       SVDropTbBatchReq req = {0};
       tDecoderInit(&decoder, data, len);
       STREAM_CHECK_RET_GOTO(tDecodeSVDropTbBatchReq(&decoder, &req));
@@ -389,7 +393,9 @@ int32_t scanWal(SVnode* pVnode, void* pTableList, SSDataBlock* pBlock, int64_t v
         uint64_t gid = qStreamGetGroupId(pTableList, pDropTbReq->uid);
         if (gid == -1) continue;
         STREAM_CHECK_RET_GOTO(buildWalMetaBlock(pBlock, WAL_DELETE_TABLE, gid, pDropTbReq->uid, 0, 0, ver, 1));
+        pBlock->info.rows++;
       }
+      continue;
     } else if (pWalReader->pHead->head.msgType != TDMT_VND_SUBMIT) {
       continue;
     }
@@ -921,7 +927,8 @@ static int32_t vnodeProcessStreamWalMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   STREAM_CHECK_RET_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 6))  // nrows
 
   STREAM_CHECK_RET_GOTO(createDataBlockForStream(schemas, &pBlock));
-  STREAM_CHECK_RET_GOTO(scanWal(pVnode, pTableList, pBlock, req->walMetaReq.lastVer));
+  STREAM_CHECK_RET_GOTO(scanWal(pVnode, pTableList, pBlock, req->walMetaReq.lastVer, 
+    sStreamReaderInfo->deleteReCalc, sStreamReaderInfo->deleteOutTbl));
 
   vDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
   STREAM_CHECK_RET_GOTO(buildRsp(pBlock, &buf, &size));
@@ -1065,6 +1072,9 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
     initStorageAPI(&handle.api);
     STREAM_CHECK_RET_GOTO(qCreateStreamExecTaskInfo(&pTask->info.calcReaderInfo.pTaskInfo, pTask->info.calcReaderInfo.calcScanPlan, &handle, NULL, vgId, taskId));
     STREAM_CHECK_RET_GOTO(qSetTaskId(pTask->info.calcReaderInfo.pTaskInfo, taskId, streamId));
+  }
+  if (req.reset) {
+    STREAM_CHECK_RET_GOTO(qResetStreamExecTask(pTask->info.calcReaderInfo.pTaskInfo));
   }
   uint64_t ts = 0;
   // qStreamSetOpen(task);
