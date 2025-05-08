@@ -297,6 +297,7 @@ static SKeyword keywordTable[] = {
     {"TRANSACTION",          TK_TRANSACTION},
     {"TRANSACTIONS",         TK_TRANSACTIONS},
     {"TRIM",                 TK_TRIM},
+    {"TROWS",                TK_TROWS},
     {"TSDB_PAGESIZE",        TK_TSDB_PAGESIZE},
     {"TSERIES",              TK_TSERIES},
     {"TSMA",                 TK_TSMA},
