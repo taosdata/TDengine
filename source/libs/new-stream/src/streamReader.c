@@ -150,6 +150,8 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(const SStreamReaderDeplo
   sStreamReaderInfo->pTagIndexCond = NULL;
   sStreamReaderInfo->pConditions = NULL;
   sStreamReaderInfo->pGroupTags = pMsg->msg.trigger.partitionCols;
+  sStreamReaderInfo->deleteReCalc = pMsg->msg.trigger.deleteReCalc;
+  sStreamReaderInfo->deleteOutTbl = pMsg->msg.trigger.deleteOutTbl;
 
   SNode *pAst = NULL;
   STREAM_CHECK_RET_GOTO(nodesStringToNode(pMsg->msg.trigger.triggerScanPlan, &pAst));

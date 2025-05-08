@@ -295,6 +295,25 @@ _error:
   return code;
 }
 
+int32_t qResetStreamExecTask(qTaskInfo_t* pTaskInfo){
+  SExecTaskInfo* taskInfo = (SExecTaskInfo*)(pTaskInfo);
+  SOperatorInfo* pOperator = taskInfo->pRoot;
+  const char*    id = GET_TASKID(taskInfo);
+  int32_t code = extractOperatorInTree(pOperator, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, id, &pOperator);
+  if (pOperator == NULL || code != 0) {
+    return code;
+  }
+  SStreamScanInfo* pInfo = pOperator->info;
+  STableScanInfo*  pScanInfo = pInfo->pTableScanOp->info;
+  STableScanBase*  pScanBaseInfo = &pScanInfo->base;
+  code = taskInfo->storageAPI.tsdReader.tsdReaderResetStatus(pScanBaseInfo->dataReader, &pScanBaseInfo->cond);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    return code;
+  }
+  return code;
+}
+
 int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle* readers, int32_t vgId,
                                   int32_t taskId) {
   if (msg == NULL) {
