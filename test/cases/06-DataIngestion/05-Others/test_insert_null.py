@@ -23,7 +23,7 @@ class TestInsertNull:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/insert/null.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/insert/null.sim
 
         """
 

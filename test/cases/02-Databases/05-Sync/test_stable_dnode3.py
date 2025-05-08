@@ -22,7 +22,7 @@ class TestStableDnode3:
         Jira: None
 
         History:
-            - 2025-5-5 Simon Guan Migrated to new test framework, from tsim/vnode/stable_dnode3.sim
+            - 2025-5-5 Simon Guan Migrated from tsim/vnode/stable_dnode3.sim
 
         """
 
@@ -50,7 +50,7 @@ class TestStableDnode2:
         Jira: None
 
         History:
-            - 2025-5-5 Simon Guan Migrated to new test framework, from tsim/vnode/stable_dnode2.sim
+            - 2025-5-5 Simon Guan Migrated from tsim/vnode/stable_dnode2.sim
 
         """
 

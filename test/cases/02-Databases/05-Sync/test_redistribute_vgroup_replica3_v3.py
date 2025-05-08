@@ -22,7 +22,7 @@ class TestRedistributeVgroupReplica3V3:
         Jira: None
 
         History:
-            - 2025-5-6 Simon Guan Migrated to new test framework, from tsim/dnode/redistribute_vgroup_replica3_v3.sim
+            - 2025-5-6 Simon Guan Migrated from tsim/dnode/redistribute_vgroup_replica3_v3.sim
 
         """
 
