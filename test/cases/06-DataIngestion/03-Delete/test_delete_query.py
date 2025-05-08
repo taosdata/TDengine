@@ -21,7 +21,7 @@ class TestDelete:
         Jira: None
 
         History:
-            - 2025-5-8 Simon Guan Migrated from delete_and_query.sim
+            - 2025-5-8 Simon Guan Migrated from tsim/query/delete_and_query.sim
 
         """
 

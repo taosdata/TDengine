@@ -1,6 +1,3 @@
-#tsim test
-,,n,.,pytest cases/tsim/test_tsim.py --tsim=tsim/query/timeline.sim --skip_deploy
-,,n,.,pytest cases/tsim/test_tsim.py --tsim=tsim/dnode/balance_replica1.sim --skip_deploy
 ,,y,.,./ci/pytest.sh pytest cases/data_write/sql_statement/test_insert_double.py
 ,,y,.,./ci/pytest.sh pytest cases/storage/compress/test_compress_basic.py -N 3
 #,,y,.,./ci/pytest.sh pytest cases/high_availability/cluster_expansion_reduction/test_5dnode_3mnode_stop.py -N 5 -M 3
