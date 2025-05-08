@@ -3971,7 +3971,7 @@ int32_t initInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
     pthread_t   *pids  = benchCalloc(1, nthreads * sizeof(pthread_t),  true);
     int threadCnt = 0;
     uint64_t * bind_ts_array = NULL;
-    if (STMT2_IFACE == stbInfo->iface) {
+    if (STMT2_IFACE == stbInfo->iface || STMT_IFACE == stbInfo->iface) {
         bind_ts_array = benchCalloc(1, sizeof(int64_t)*g_arguments->prepared_rand, true);
         initTsArray(bind_ts_array, stbInfo);
     }
@@ -3987,7 +3987,7 @@ int32_t initInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
         pThreadInfo->pos        = 0;
         pThreadInfo->samplePos  = 0;
         pThreadInfo->totalInsertRows = 0;
-        if (STMT2_IFACE == stbInfo->iface) {
+        if (STMT2_IFACE == stbInfo->iface || STMT_IFACE == stbInfo->iface)
             pThreadInfo->bind_ts_array = benchCalloc(1, sizeof(int64_t)*g_arguments->prepared_rand, true);
             memcpy(pThreadInfo->bind_ts_array, bind_ts_array, sizeof(int64_t)*g_arguments->prepared_rand);
             
@@ -4022,7 +4022,7 @@ int32_t initInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
         infoPrint("init pthread_join %d ...\n", i);
         pthread_join(pids[i], NULL);
     }
-    
+
     if (bind_ts_array) {
         tmfree(bind_ts_array);
     }
