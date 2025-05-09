@@ -197,7 +197,7 @@ ExternalProject_Add(ext_zlib
     EXCLUDE_FROM_ALL TRUE
     VERBATIM
 )
-add_dependencies(build_externals ext_zlib)     # this is for github workflow in cache-mi/ss step.
+add_dependencies(build_externals ext_zlib)     # this is for github workflow in cache-miss step.
 
 # pthread
 if(${BUILD_PTHREAD})        # {
