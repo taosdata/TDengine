@@ -1020,7 +1020,10 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
     goto _end;
   }
   tbData.suid = pInsertParam->suid;
-  tbData.sver = pInsertParam->sver;
+  tbData.sver = 0;
+  if (pInsertParam->tbType == TSDB_SUPER_TABLE) {
+    tbData.sver = pInsertParam->sver;
+  }
   if (pInserterInfo->isAutoCreateTable) {
     tbData.flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
     tbData.uid = 0;
