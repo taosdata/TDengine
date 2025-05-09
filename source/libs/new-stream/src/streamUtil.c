@@ -300,6 +300,15 @@ _end:
   return code;
 }
 
+int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** ppContent) {
+  int32_t code = 0, lino = 0;
+  cJSON*  results = NULL;
+  results = cJSON_CreateObject();
+  QUERY_CHECK_NULL(results, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+_end:
+  return code;
+}
+
 static int32_t streamAppendNotifyHeader(const char* streamName, SStringBuilder* pBuilder) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;

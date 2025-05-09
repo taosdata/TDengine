@@ -1,8 +1,10 @@
 #include "streamRunner.h"
+#include "dataSink.h"
 #include "dataSinkMgt.h"
 #include "executor.h"
 #include "plannodes.h"
 #include "tdatablock.h"
+#include "streamInt.h"
 
 static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pTaskExec);
 
@@ -218,6 +220,8 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   pExec->runtimeInfo.funcInfo.groupId = pReq->gid;
   pExec->runtimeInfo.pForceOutputCols = pTask->forceOutCols;
   pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals = pReq->params;
+  pExec->runtimeInfo.funcInfo.groupId = pReq->gid;
+  pExec->runtimeInfo.funcInfo.sessionId = pReq->sessionId;
 
   int32_t calcNum = taosArrayGetSize(pReq->params);
   if (!pExec->pExecutor) {
@@ -300,5 +304,15 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
   double el = (taosGetTimestampMs() - st) / 1000.0;
   ST_TASK_DLOG("expand stream task completed, elapsed time:%.2fsec", el);
 
+  return code;
+}
+
+int32_t stRunnerFetchDataFromCache(SStreamCacheReadInfo* pInfo) {
+  void** ppIter;
+  int32_t code = readStreamDataCache(pInfo->taskInfo.streamId, pInfo->taskInfo.taskId, pInfo->taskInfo.sessionId,
+                                     pInfo->gid, pInfo->start, pInfo->end, &ppIter);
+  if (code == 0) {
+    code = getNextStreamDataCache(ppIter, &pInfo->pBlock);
+  }
   return code;
 }

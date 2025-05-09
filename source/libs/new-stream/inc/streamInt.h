@@ -105,6 +105,7 @@ int32_t streamBuildStateNotifyContent(ESTriggerEventType eventType, int16_t data
                                       const char* pToState, char** ppContent);
 int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t rowIdx,
                                       char** ppContent);
+int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** ppContent);
 int32_t streamSendNotifyContent(SStreamTask* pTask, int32_t triggerType, int64_t groupId, const SArray* pNotifyAddrUrls,
                                 int32_t errorHandle, const SSTriggerCalcParam* pParams, int32_t nParam);
 
