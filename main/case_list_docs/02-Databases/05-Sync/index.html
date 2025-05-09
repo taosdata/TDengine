@@ -1,0 +1,8031 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../04-Query/">
+      
+      
+        <link rel="next" href="../06-Precision/">
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.9">
+    
+    
+      
+        <title>05 Sync - TDengine Case List</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.4af4bdda.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#02-Databases.05-Sync.test_balance1" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="TDengine Case List" class="md-header__button md-logo" aria-label="TDengine Case List" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            TDengine Case List
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              05 Sync
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../.." class="md-tabs__link">
+        
+  
+    
+  
+  Welcome to TDengine Cases Docs
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../01-DataTypes/" class="md-tabs__link">
+          
+  
+  Case list docs
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../util_funcs_docs/new_test_framework/utils/" class="md-tabs__link">
+          
+  
+  Util funcs docs
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="TDengine Case List" class="md-nav__button md-logo" aria-label="TDengine Case List" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    TDengine Case List
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Welcome to TDengine Cases Docs
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+      
+        
+        
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Case list docs
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Case list docs
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../01-DataTypes/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    01 DataTypes
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../08-TagIndices/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    08 TagIndices
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../09-DataDeletion/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    09 DataDeletion
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../12-DataSubscription/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    12 DataSubscription
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../16-EscapeCharacters/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    16 EscapeCharacters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../17-NameLimits/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    17 NameLimits
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../20-Metadata/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    20 Metadata
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../22-Show/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    22 Show
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../23-Users/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    23 Users
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../25-UDFs/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    25 UDFs
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../29-JoinQueries/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    29 JoinQueries
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../30-DataCompression/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    30 DataCompression
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../31-Views/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    31 Views
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_14" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2_14" id="__nav_2_14_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    02 Databases
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_14_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2_14">
+            <span class="md-nav__icon md-icon"></span>
+            02 Databases
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../01-Create/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    01 Create
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../02-Drop/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    02 Drop
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../03-Alter/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    03 Alter
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../04-Query/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    04 Query
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    05 Sync
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    05 Sync
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance1" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_balance1
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_balance1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance1.TestBalance1" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestBalance1
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestBalance1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance1.TestBalance1.test_balance_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      balance 1
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance2" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_balance2
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_balance2">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance2.TestBalance2" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestBalance2
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestBalance2">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance2.TestBalance2.test_balance_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      balance 2
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance3" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_balance3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_balance3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance3.TestBalance3" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestBalance3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestBalance3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance3.TestBalance3.test_balance_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      balance 3
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance_replica_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_balance_replica_1
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_balance_replica_1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance_replica_1.TestBalanceReplica1" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestBalanceReplica1
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestBalanceReplica1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance_replica_1.TestBalanceReplica1.test_balance_replica_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      balance replica 1
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance_replica_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_balance_replica_3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_balance_replica_3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance_replica_3.TestBalanceReplica3" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestBalanceReplica3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestBalanceReplica3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance_replica_3.TestBalanceReplica3.test_balance_replica_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      balance replica 3
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balancex" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_balancex
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_balancex">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balancex.TestBalancex" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestBalancex
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestBalancex">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balancex.TestBalancex.test_balance_x" class="md-nav__link">
+    <span class="md-ellipsis">
+      balance x
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica1" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_redistribute_vgroup_replica1
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_redistribute_vgroup_replica1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica1.TestRedistributeVgroupReplica1" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestRedistributeVgroupReplica1
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestRedistributeVgroupReplica1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica1.TestRedistributeVgroupReplica1.test_redistribute_vgroup_replica1" class="md-nav__link">
+    <span class="md-ellipsis">
+      redistribute vgroup replica 1
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_follower" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_redistribute_vgroup_replica3_v1_follower
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_redistribute_vgroup_replica3_v1_follower">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_follower.TestRedistributeVgroupReplica3V1Follower" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestRedistributeVgroupReplica3V1Follower
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestRedistributeVgroupReplica3V1Follower">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_follower.TestRedistributeVgroupReplica3V1Follower.test_redistribute_vgroup_replica3_v1_follower" class="md-nav__link">
+    <span class="md-ellipsis">
+      redistribute vgroup replica3 v1 follower
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_leader" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_redistribute_vgroup_replica3_v1_leader
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_redistribute_vgroup_replica3_v1_leader">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_leader.TestRedistributeVgroupReplica3V1Leader" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestRedistributeVgroupReplica3V1Leader
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestRedistributeVgroupReplica3V1Leader">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_leader.TestRedistributeVgroupReplica3V1Leader.test_redistribute_vgroup_replica3_v1_leader" class="md-nav__link">
+    <span class="md-ellipsis">
+      redistribute vgroup replica3 v1 leader
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v2" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_redistribute_vgroup_replica3_v2
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_redistribute_vgroup_replica3_v2">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v2.TestRedistributeVgroupReplica3V2" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestRedistributeVgroupReplica3V2
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestRedistributeVgroupReplica3V2">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v2.TestRedistributeVgroupReplica3V2.test_redistribute_vgroup_replica3_v2" class="md-nav__link">
+    <span class="md-ellipsis">
+      redistribute vgroup replica3 v2
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v3" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_redistribute_vgroup_replica3_v3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_redistribute_vgroup_replica3_v3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v3.TestRedistributeVgroupReplica3V3" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestRedistributeVgroupReplica3V3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestRedistributeVgroupReplica3V3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v3.TestRedistributeVgroupReplica3V3.test_redistribute_vgroup_replica3_v3" class="md-nav__link">
+    <span class="md-ellipsis">
+      redistribute vgroup replica3 v3
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_split_vgroup_replica1" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_split_vgroup_replica1
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_split_vgroup_replica1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_split_vgroup_replica1.TestSplitVgroupReplica1" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestSplitVgroupReplica1
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestSplitVgroupReplica1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_split_vgroup_replica1.TestSplitVgroupReplica1.test_split_vgroup_replica1" class="md-nav__link">
+    <span class="md-ellipsis">
+      split vgroup replica 1
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_split_vgroup_replica3" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_split_vgroup_replica3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_split_vgroup_replica3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_split_vgroup_replica3.TestSplitVgroupReplica3" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestSplitVgroupReplica3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestSplitVgroupReplica3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_split_vgroup_replica3.TestSplitVgroupReplica3.test_split_vgroup_replica3" class="md-nav__link">
+    <span class="md-ellipsis">
+      split vgroup replica3
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_balance_replica1" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_stable_balance_replica1
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_stable_balance_replica1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_balance_replica1.TestStableBalanceReplica1" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestStableBalanceReplica1
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestStableBalanceReplica1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_balance_replica1.TestStableBalanceReplica1.test_stable_balance_replica1" class="md-nav__link">
+    <span class="md-ellipsis">
+      stable balance replica1
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_dnode2" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_stable_dnode2
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_stable_dnode2">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_dnode2.TestStableDnode2" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestStableDnode2
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestStableDnode2">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_dnode2.TestStableDnode2.test_stable_dnode2" class="md-nav__link">
+    <span class="md-ellipsis">
+      stable dnode2
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_dnode2_stop" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_stable_dnode2_stop
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_stable_dnode2_stop">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_dnode2_stop.TestStableDnode2Stop" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestStableDnode2Stop
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestStableDnode2Stop">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_dnode2_stop.TestStableDnode2Stop.test_stable_dnode2_stop" class="md-nav__link">
+    <span class="md-ellipsis">
+      stable dnode2 stop
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_dnode3" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_stable_dnode3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_stable_dnode3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_dnode3.TestStableDnode3" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestStableDnode3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestStableDnode3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_dnode3.TestStableDnode3.test_stable_dnode3" class="md-nav__link">
+    <span class="md-ellipsis">
+      stable dnode3
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_replica3_dnode6" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_stable_replica3_dnode6
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_stable_replica3_dnode6">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_replica3_dnode6.TestStableReplica3Dnode6" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestStableReplica3Dnode6
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestStableReplica3Dnode6">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_replica3_dnode6.TestStableReplica3Dnode6.test_stable_replica3_dnode6" class="md-nav__link">
+    <span class="md-ellipsis">
+      stable replica3 dnode6
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_replica3_vnode3" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_stable_replica3_vnode3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_stable_replica3_vnode3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_replica3_vnode3.TestStableReplica3Vnode3" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestStableReplica3Vnode3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestStableReplica3Vnode3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_replica3_vnode3.TestStableReplica3Vnode3.test_stable_replica3_vnode3" class="md-nav__link">
+    <span class="md-ellipsis">
+      stable replica3 vnode3
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_sync_3Replica1VgElect" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_sync_3Replica1VgElect
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_sync_3Replica1VgElect">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_sync_3Replica1VgElect.TestSync3Replica1VgElect" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestSync3Replica1VgElect
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestSync3Replica1VgElect">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_sync_3Replica1VgElect.TestSync3Replica1VgElect.test_sync_3Replica1VgElect" class="md-nav__link">
+    <span class="md-ellipsis">
+      sync 3Replica1VgElect
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_sync_3Replica5VgElect" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_sync_3Replica5VgElect
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_sync_3Replica5VgElect">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_sync_3Replica5VgElect.TestSync3Replica5VgElect" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestSync3Replica5VgElect
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestSync3Replica5VgElect">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_sync_3Replica5VgElect.TestSync3Replica5VgElect.test_sync_3Replica5VgElect" class="md-nav__link">
+    <span class="md-ellipsis">
+      sync 3Replica5VgElect
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_sync_vnodesnapshot_rsma" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_sync_vnodesnapshot_rsma
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_sync_vnodesnapshot_rsma">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_sync_vnodesnapshot_rsma.TestSyncVnodeSnapshotRsma" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestSyncVnodeSnapshotRsma
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestSyncVnodeSnapshotRsma">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_sync_vnodesnapshot_rsma.TestSyncVnodeSnapshotRsma.test_sync_vnode_snapshot_rsma" class="md-nav__link">
+    <span class="md-ellipsis">
+      sync vnode snapshot rsma
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_clean" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_vnode_clean
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_vnode_clean">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_clean.TestVnodeClean" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestVnodeClean
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestVnodeClean">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_clean.TestVnodeClean.test_vnode_clean" class="md-nav__link">
+    <span class="md-ellipsis">
+      vnode clean
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_basic" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_vnode_replica3_basic
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_vnode_replica3_basic">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_basic.TestVnodeReplica3Basic" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestVnodeReplica3Basic
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestVnodeReplica3Basic">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_basic.TestVnodeReplica3Basic.test_vnode_replica3_basic" class="md-nav__link">
+    <span class="md-ellipsis">
+      vnode replica3 basic
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_import" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_vnode_replica3_import
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_vnode_replica3_import">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_import.TestVnodeReplica3Import" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestVnodeReplica3Import
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestVnodeReplica3Import">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_import.TestVnodeReplica3Import.test_vnode_replica3_import" class="md-nav__link">
+    <span class="md-ellipsis">
+      vnode replica3 import
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_many" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_vnode_replica3_many
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_vnode_replica3_many">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_many.TestVnodeReplica3Many" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestVnodeReplica3Many
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestVnodeReplica3Many">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_many.TestVnodeReplica3Many.test_vnode_replica3_many" class="md-nav__link">
+    <span class="md-ellipsis">
+      vnode replica3 many
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_repeat" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_vnode_replica3_repeat
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_vnode_replica3_repeat">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_repeat.TestVnodeReplica3Repeat" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestVnodeReplica3Repeat
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestVnodeReplica3Repeat">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_repeat.TestVnodeReplica3Repeat.test_vnode_replica3_repeat" class="md-nav__link">
+    <span class="md-ellipsis">
+      vnode replica3 repeat
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_vgroup" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_vnode_replica3_vgroup
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_vnode_replica3_vgroup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_vgroup.TestVnodeReplica3Vgroup" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestVnodeReplica3Vgroup
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestVnodeReplica3Vgroup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_vgroup.TestVnodeReplica3Vgroup.test_vnode_replica3_vgroup" class="md-nav__link">
+    <span class="md-ellipsis">
+      vnode replica3 vgroup
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../06-Precision/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    06 Precision
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../07-Flush/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    07 Flush
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_15" id="__nav_2_15_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    03 Tables
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_15_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_15">
+            <span class="md-nav__icon md-icon"></span>
+            03 Tables
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_15_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_15_1" id="__nav_2_15_1_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    01 NormalTables
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_2_15_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_15_1">
+            <span class="md-nav__icon md-icon"></span>
+            01 NormalTables
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../03-Tables/01-NormalTables/01-Create/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    01 Create
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../03-Tables/01-NormalTables/02-Drop/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    02 Drop
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../03-Tables/01-NormalTables/03-Alter/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    03 Alter
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../03-Tables/01-NormalTables/04-Query/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    04 Query
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_15_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_15_2" id="__nav_2_15_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    02 SubTables
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_2_15_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_15_2">
+            <span class="md-nav__icon md-icon"></span>
+            02 SubTables
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../03-Tables/02-SubTables/01-Create/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    01 Create
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../03-Tables/02-SubTables/03-Alter/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    03 Alter
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../03-Tables/02-SubTables/04-Query/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    04 Query
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_16" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_16" id="__nav_2_16_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    04 SuperTables
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_16_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_16">
+            <span class="md-nav__icon md-icon"></span>
+            04 SuperTables
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../04-SuperTables/01-Create/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    01 Create
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../04-SuperTables/02-Drop/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    02 Drop
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../04-SuperTables/03-Alter/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    03 Alter
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../04-SuperTables/04-Query/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    04 Query
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_17" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_17" id="__nav_2_17_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    06 DataIngestion
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_17_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_17">
+            <span class="md-nav__icon md-icon"></span>
+            06 DataIngestion
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../06-DataIngestion/01-Insert/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    01 Insert
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../06-DataIngestion/02-Import/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    02 Import
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../06-DataIngestion/03-Delete/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    03 Delete
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../06-DataIngestion/04-Update/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    04 Update
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../06-DataIngestion/05-Others/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    05 Others
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_18" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_18" id="__nav_2_18_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    07 DataQuerying
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_18_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_18">
+            <span class="md-nav__icon md-icon"></span>
+            07 DataQuerying
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../07-DataQuerying/01-Operator/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    01 Operator
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../07-DataQuerying/02-Filter/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    02 Filter
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../07-DataQuerying/03-GroupBy/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    03 GroupBy
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../07-DataQuerying/04-OrderBy/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    04 OrderBy
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../07-DataQuerying/06-Limit/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    06 Limit
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../07-DataQuerying/07-SLimit/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    07 SLimit
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../07-DataQuerying/08-SubQuery/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    08 SubQuery
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../07-DataQuerying/09-SelectList/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    09 SelectList
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../07-DataQuerying/10-Union/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    10 Union
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../07-DataQuerying/11-Interp/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    11 Interp
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../07-DataQuerying/12-Having/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    12 Having
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../07-DataQuerying/13-Distinct/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    13 Distinct
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../07-DataQuerying/14-Explain/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    14 Explain
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../07-DataQuerying/16-PsedoColumn/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    16 PsedoColumn
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../07-DataQuerying/17-Tags/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    17 Tags
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../07-DataQuerying/18-Regexp/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    18 Regexp
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../07-DataQuerying/19-BiMode/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    19 BiMode
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../07-DataQuerying/99-Others/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    99 Others
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_19" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_19" id="__nav_2_19_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    10 Functions
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_19_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_19">
+            <span class="md-nav__icon md-icon"></span>
+            10 Functions
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../10-Functions/01-SingleRow/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    01 SingleRow
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../10-Functions/02-Aggregate/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    02 Aggregate
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../10-Functions/03-Selection/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    03 Selection
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../10-Functions/04-TimeseriesSpecfic/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    04 TimeseriesSpecfic
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_20" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_20" id="__nav_2_20_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    11 TimeSeriesExtensions
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_20_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_20">
+            <span class="md-nav__icon md-icon"></span>
+            11 TimeSeriesExtensions
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../11-TimeSeriesExtensions/01-PartitionBy/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    01 PartitionBy
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../11-TimeSeriesExtensions/02-Fill/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    02 Fill
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../11-TimeSeriesExtensions/03-TimeWindow/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    03 TimeWindow
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../11-TimeSeriesExtensions/05-EventWindow/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    05 EventWindow
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../11-TimeSeriesExtensions/06-SessionWindow/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    06 SessionWindow
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../11-TimeSeriesExtensions/07-CountWindow/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    07 CountWindow
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_21" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_21" id="__nav_2_21_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    19 ManageNodes
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_21_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_21">
+            <span class="md-nav__icon md-icon"></span>
+            19 ManageNodes
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../19-ManageNodes/01-Dnode/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    01 Dnode
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../19-ManageNodes/02-Mnode/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    02 Mnode
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../19-ManageNodes/03-Qnode/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    03 Qnode
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../19-ManageNodes/04-Snode/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    04 Snode
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_22" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_22" id="__nav_2_22_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    50 Others
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_22_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_22">
+            <span class="md-nav__icon md-icon"></span>
+            50 Others
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../50-Others/01-Valgrind/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    01 Valgrind
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Util funcs docs
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Util funcs docs
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    New test framework
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            New test framework
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../util_funcs_docs/new_test_framework/utils/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Utils
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance1" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_balance1
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_balance1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance1.TestBalance1" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestBalance1
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestBalance1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance1.TestBalance1.test_balance_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      balance 1
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance2" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_balance2
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_balance2">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance2.TestBalance2" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestBalance2
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestBalance2">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance2.TestBalance2.test_balance_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      balance 2
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance3" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_balance3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_balance3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance3.TestBalance3" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestBalance3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestBalance3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance3.TestBalance3.test_balance_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      balance 3
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance_replica_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_balance_replica_1
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_balance_replica_1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance_replica_1.TestBalanceReplica1" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestBalanceReplica1
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestBalanceReplica1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance_replica_1.TestBalanceReplica1.test_balance_replica_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      balance replica 1
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance_replica_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_balance_replica_3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_balance_replica_3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance_replica_3.TestBalanceReplica3" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestBalanceReplica3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestBalanceReplica3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balance_replica_3.TestBalanceReplica3.test_balance_replica_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      balance replica 3
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balancex" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_balancex
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_balancex">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balancex.TestBalancex" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestBalancex
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestBalancex">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_balancex.TestBalancex.test_balance_x" class="md-nav__link">
+    <span class="md-ellipsis">
+      balance x
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica1" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_redistribute_vgroup_replica1
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_redistribute_vgroup_replica1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica1.TestRedistributeVgroupReplica1" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestRedistributeVgroupReplica1
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestRedistributeVgroupReplica1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica1.TestRedistributeVgroupReplica1.test_redistribute_vgroup_replica1" class="md-nav__link">
+    <span class="md-ellipsis">
+      redistribute vgroup replica 1
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_follower" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_redistribute_vgroup_replica3_v1_follower
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_redistribute_vgroup_replica3_v1_follower">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_follower.TestRedistributeVgroupReplica3V1Follower" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestRedistributeVgroupReplica3V1Follower
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestRedistributeVgroupReplica3V1Follower">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_follower.TestRedistributeVgroupReplica3V1Follower.test_redistribute_vgroup_replica3_v1_follower" class="md-nav__link">
+    <span class="md-ellipsis">
+      redistribute vgroup replica3 v1 follower
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_leader" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_redistribute_vgroup_replica3_v1_leader
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_redistribute_vgroup_replica3_v1_leader">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_leader.TestRedistributeVgroupReplica3V1Leader" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestRedistributeVgroupReplica3V1Leader
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestRedistributeVgroupReplica3V1Leader">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_leader.TestRedistributeVgroupReplica3V1Leader.test_redistribute_vgroup_replica3_v1_leader" class="md-nav__link">
+    <span class="md-ellipsis">
+      redistribute vgroup replica3 v1 leader
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v2" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_redistribute_vgroup_replica3_v2
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_redistribute_vgroup_replica3_v2">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v2.TestRedistributeVgroupReplica3V2" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestRedistributeVgroupReplica3V2
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestRedistributeVgroupReplica3V2">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v2.TestRedistributeVgroupReplica3V2.test_redistribute_vgroup_replica3_v2" class="md-nav__link">
+    <span class="md-ellipsis">
+      redistribute vgroup replica3 v2
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v3" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_redistribute_vgroup_replica3_v3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_redistribute_vgroup_replica3_v3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v3.TestRedistributeVgroupReplica3V3" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestRedistributeVgroupReplica3V3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestRedistributeVgroupReplica3V3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v3.TestRedistributeVgroupReplica3V3.test_redistribute_vgroup_replica3_v3" class="md-nav__link">
+    <span class="md-ellipsis">
+      redistribute vgroup replica3 v3
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_split_vgroup_replica1" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_split_vgroup_replica1
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_split_vgroup_replica1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_split_vgroup_replica1.TestSplitVgroupReplica1" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestSplitVgroupReplica1
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestSplitVgroupReplica1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_split_vgroup_replica1.TestSplitVgroupReplica1.test_split_vgroup_replica1" class="md-nav__link">
+    <span class="md-ellipsis">
+      split vgroup replica 1
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_split_vgroup_replica3" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_split_vgroup_replica3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_split_vgroup_replica3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_split_vgroup_replica3.TestSplitVgroupReplica3" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestSplitVgroupReplica3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestSplitVgroupReplica3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_split_vgroup_replica3.TestSplitVgroupReplica3.test_split_vgroup_replica3" class="md-nav__link">
+    <span class="md-ellipsis">
+      split vgroup replica3
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_balance_replica1" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_stable_balance_replica1
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_stable_balance_replica1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_balance_replica1.TestStableBalanceReplica1" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestStableBalanceReplica1
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestStableBalanceReplica1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_balance_replica1.TestStableBalanceReplica1.test_stable_balance_replica1" class="md-nav__link">
+    <span class="md-ellipsis">
+      stable balance replica1
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_dnode2" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_stable_dnode2
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_stable_dnode2">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_dnode2.TestStableDnode2" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestStableDnode2
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestStableDnode2">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_dnode2.TestStableDnode2.test_stable_dnode2" class="md-nav__link">
+    <span class="md-ellipsis">
+      stable dnode2
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_dnode2_stop" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_stable_dnode2_stop
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_stable_dnode2_stop">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_dnode2_stop.TestStableDnode2Stop" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestStableDnode2Stop
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestStableDnode2Stop">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_dnode2_stop.TestStableDnode2Stop.test_stable_dnode2_stop" class="md-nav__link">
+    <span class="md-ellipsis">
+      stable dnode2 stop
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_dnode3" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_stable_dnode3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_stable_dnode3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_dnode3.TestStableDnode3" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestStableDnode3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestStableDnode3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_dnode3.TestStableDnode3.test_stable_dnode3" class="md-nav__link">
+    <span class="md-ellipsis">
+      stable dnode3
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_replica3_dnode6" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_stable_replica3_dnode6
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_stable_replica3_dnode6">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_replica3_dnode6.TestStableReplica3Dnode6" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestStableReplica3Dnode6
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestStableReplica3Dnode6">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_replica3_dnode6.TestStableReplica3Dnode6.test_stable_replica3_dnode6" class="md-nav__link">
+    <span class="md-ellipsis">
+      stable replica3 dnode6
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_replica3_vnode3" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_stable_replica3_vnode3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_stable_replica3_vnode3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_replica3_vnode3.TestStableReplica3Vnode3" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestStableReplica3Vnode3
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestStableReplica3Vnode3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_stable_replica3_vnode3.TestStableReplica3Vnode3.test_stable_replica3_vnode3" class="md-nav__link">
+    <span class="md-ellipsis">
+      stable replica3 vnode3
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_sync_3Replica1VgElect" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_sync_3Replica1VgElect
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_sync_3Replica1VgElect">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_sync_3Replica1VgElect.TestSync3Replica1VgElect" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestSync3Replica1VgElect
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestSync3Replica1VgElect">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_sync_3Replica1VgElect.TestSync3Replica1VgElect.test_sync_3Replica1VgElect" class="md-nav__link">
+    <span class="md-ellipsis">
+      sync 3Replica1VgElect
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_sync_3Replica5VgElect" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_sync_3Replica5VgElect
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_sync_3Replica5VgElect">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_sync_3Replica5VgElect.TestSync3Replica5VgElect" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestSync3Replica5VgElect
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestSync3Replica5VgElect">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_sync_3Replica5VgElect.TestSync3Replica5VgElect.test_sync_3Replica5VgElect" class="md-nav__link">
+    <span class="md-ellipsis">
+      sync 3Replica5VgElect
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_sync_vnodesnapshot_rsma" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_sync_vnodesnapshot_rsma
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_sync_vnodesnapshot_rsma">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_sync_vnodesnapshot_rsma.TestSyncVnodeSnapshotRsma" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestSyncVnodeSnapshotRsma
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestSyncVnodeSnapshotRsma">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_sync_vnodesnapshot_rsma.TestSyncVnodeSnapshotRsma.test_sync_vnode_snapshot_rsma" class="md-nav__link">
+    <span class="md-ellipsis">
+      sync vnode snapshot rsma
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_clean" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_vnode_clean
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_vnode_clean">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_clean.TestVnodeClean" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestVnodeClean
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestVnodeClean">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_clean.TestVnodeClean.test_vnode_clean" class="md-nav__link">
+    <span class="md-ellipsis">
+      vnode clean
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_basic" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_vnode_replica3_basic
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_vnode_replica3_basic">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_basic.TestVnodeReplica3Basic" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestVnodeReplica3Basic
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestVnodeReplica3Basic">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_basic.TestVnodeReplica3Basic.test_vnode_replica3_basic" class="md-nav__link">
+    <span class="md-ellipsis">
+      vnode replica3 basic
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_import" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_vnode_replica3_import
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_vnode_replica3_import">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_import.TestVnodeReplica3Import" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestVnodeReplica3Import
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestVnodeReplica3Import">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_import.TestVnodeReplica3Import.test_vnode_replica3_import" class="md-nav__link">
+    <span class="md-ellipsis">
+      vnode replica3 import
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_many" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_vnode_replica3_many
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_vnode_replica3_many">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_many.TestVnodeReplica3Many" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestVnodeReplica3Many
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestVnodeReplica3Many">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_many.TestVnodeReplica3Many.test_vnode_replica3_many" class="md-nav__link">
+    <span class="md-ellipsis">
+      vnode replica3 many
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_repeat" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_vnode_replica3_repeat
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_vnode_replica3_repeat">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_repeat.TestVnodeReplica3Repeat" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestVnodeReplica3Repeat
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestVnodeReplica3Repeat">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_repeat.TestVnodeReplica3Repeat.test_vnode_replica3_repeat" class="md-nav__link">
+    <span class="md-ellipsis">
+      vnode replica3 repeat
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_vgroup" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_vnode_replica3_vgroup
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_vnode_replica3_vgroup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_vgroup.TestVnodeReplica3Vgroup" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestVnodeReplica3Vgroup
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestVnodeReplica3Vgroup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#02-Databases.05-Sync.test_vnode_replica3_vgroup.TestVnodeReplica3Vgroup.test_vnode_replica3_vgroup" class="md-nav__link">
+    <span class="md-ellipsis">
+      vnode replica3 vgroup
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+  <h1>05 Sync</h1>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_balance1" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_balance1</code>
+
+
+<a href="#02-Databases.05-Sync.test_balance1" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_balance1.TestBalance1" class="doc doc-heading">
+            <code>TestBalance1</code>
+
+
+<a href="#02-Databases.05-Sync.test_balance1.TestBalance1" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_balance1.TestBalance1.test_balance_1" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_balance_1</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_balance1.TestBalance1.test_balance_1" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>balance 1</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>Database:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-6 Simon Guan Migrated from tsim/dnode/balance1.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_balance2" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_balance2</code>
+
+
+<a href="#02-Databases.05-Sync.test_balance2" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_balance2.TestBalance2" class="doc doc-heading">
+            <code>TestBalance2</code>
+
+
+<a href="#02-Databases.05-Sync.test_balance2.TestBalance2" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_balance2.TestBalance2.test_balance_2" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_balance_2</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_balance2.TestBalance2.test_balance_2" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>balance 2</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>Database:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-6 Simon Guan Migrated from tsim/dnode/balance2.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_balance3" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_balance3</code>
+
+
+<a href="#02-Databases.05-Sync.test_balance3" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_balance3.TestBalance3" class="doc doc-heading">
+            <code>TestBalance3</code>
+
+
+<a href="#02-Databases.05-Sync.test_balance3.TestBalance3" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_balance3.TestBalance3.test_balance_3" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_balance_3</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_balance3.TestBalance3.test_balance_3" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>balance 3</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>Database:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-6 Simon Guan Migrated from tsim/dnode/balance3.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_balance_replica_1" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_balance_replica_1</code>
+
+
+<a href="#02-Databases.05-Sync.test_balance_replica_1" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_balance_replica_1.TestBalanceReplica1" class="doc doc-heading">
+            <code>TestBalanceReplica1</code>
+
+
+<a href="#02-Databases.05-Sync.test_balance_replica_1.TestBalanceReplica1" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_balance_replica_1.TestBalanceReplica1.test_balance_replica_1" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_balance_replica_1</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_balance_replica_1.TestBalanceReplica1.test_balance_replica_1" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>balance replica 1</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>Database:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-6 Simon Guan Migrated from tsim/dnode/balance_replica1.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_balance_replica_3" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_balance_replica_3</code>
+
+
+<a href="#02-Databases.05-Sync.test_balance_replica_3" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_balance_replica_3.TestBalanceReplica3" class="doc doc-heading">
+            <code>TestBalanceReplica3</code>
+
+
+<a href="#02-Databases.05-Sync.test_balance_replica_3.TestBalanceReplica3" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_balance_replica_3.TestBalanceReplica3.test_balance_replica_3" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_balance_replica_3</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_balance_replica_3.TestBalanceReplica3.test_balance_replica_3" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>balance replica 3</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>Database:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-6 Simon Guan Migrated from tsim/dnode/balance_replica3.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_balancex" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_balancex</code>
+
+
+<a href="#02-Databases.05-Sync.test_balancex" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_balancex.TestBalancex" class="doc doc-heading">
+            <code>TestBalancex</code>
+
+
+<a href="#02-Databases.05-Sync.test_balancex.TestBalancex" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_balancex.TestBalancex.test_balance_x" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_balance_x</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_balancex.TestBalancex.test_balance_x" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>balance x</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>Database:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-6 Simon Guan Migrated from tsim/dnode/balancex.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_redistribute_vgroup_replica1" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_redistribute_vgroup_replica1</code>
+
+
+<a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica1" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_redistribute_vgroup_replica1.TestRedistributeVgroupReplica1" class="doc doc-heading">
+            <code>TestRedistributeVgroupReplica1</code>
+
+
+<a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica1.TestRedistributeVgroupReplica1" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_redistribute_vgroup_replica1.TestRedistributeVgroupReplica1.test_redistribute_vgroup_replica1" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_redistribute_vgroup_replica1</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica1.TestRedistributeVgroupReplica1.test_redistribute_vgroup_replica1" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>redistribute vgroup replica 1</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>Database:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-6 Simon Guan Migrated from tsim/dnode/redistribute_vgroup_replica1.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_follower" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_follower</code>
+
+
+<a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_follower" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_follower.TestRedistributeVgroupReplica3V1Follower" class="doc doc-heading">
+            <code>TestRedistributeVgroupReplica3V1Follower</code>
+
+
+<a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_follower.TestRedistributeVgroupReplica3V1Follower" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_follower.TestRedistributeVgroupReplica3V1Follower.test_redistribute_vgroup_replica3_v1_follower" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_redistribute_vgroup_replica3_v1_follower</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_follower.TestRedistributeVgroupReplica3V1Follower.test_redistribute_vgroup_replica3_v1_follower" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>redistribute vgroup replica3 v1 follower</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>Database:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-6 Simon Guan Migrated from tsim/dnode/redistribute_vgroup_replica3_v1_follower.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_leader" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_leader</code>
+
+
+<a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_leader" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_leader.TestRedistributeVgroupReplica3V1Leader" class="doc doc-heading">
+            <code>TestRedistributeVgroupReplica3V1Leader</code>
+
+
+<a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_leader.TestRedistributeVgroupReplica3V1Leader" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_leader.TestRedistributeVgroupReplica3V1Leader.test_redistribute_vgroup_replica3_v1_leader" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_redistribute_vgroup_replica3_v1_leader</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_leader.TestRedistributeVgroupReplica3V1Leader.test_redistribute_vgroup_replica3_v1_leader" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>redistribute vgroup replica3 v1 leader</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>Database:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-6 Simon Guan Migrated from tsim/dnode/redistribute_vgroup_replica3_v1_leader.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_redistribute_vgroup_replica3_v2" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_redistribute_vgroup_replica3_v2</code>
+
+
+<a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v2" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_redistribute_vgroup_replica3_v2.TestRedistributeVgroupReplica3V2" class="doc doc-heading">
+            <code>TestRedistributeVgroupReplica3V2</code>
+
+
+<a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v2.TestRedistributeVgroupReplica3V2" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_redistribute_vgroup_replica3_v2.TestRedistributeVgroupReplica3V2.test_redistribute_vgroup_replica3_v2" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_redistribute_vgroup_replica3_v2</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v2.TestRedistributeVgroupReplica3V2.test_redistribute_vgroup_replica3_v2" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>redistribute vgroup replica3 v2</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>Database:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-6 Simon Guan Migrated from tsim/dnode/redistribute_vgroup_replica3_v2.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_redistribute_vgroup_replica3_v3" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_redistribute_vgroup_replica3_v3</code>
+
+
+<a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v3" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_redistribute_vgroup_replica3_v3.TestRedistributeVgroupReplica3V3" class="doc doc-heading">
+            <code>TestRedistributeVgroupReplica3V3</code>
+
+
+<a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v3.TestRedistributeVgroupReplica3V3" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_redistribute_vgroup_replica3_v3.TestRedistributeVgroupReplica3V3.test_redistribute_vgroup_replica3_v3" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_redistribute_vgroup_replica3_v3</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v3.TestRedistributeVgroupReplica3V3.test_redistribute_vgroup_replica3_v3" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>redistribute vgroup replica3 v3</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>Database:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-6 Simon Guan Migrated from tsim/dnode/redistribute_vgroup_replica3_v3.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_split_vgroup_replica1" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_split_vgroup_replica1</code>
+
+
+<a href="#02-Databases.05-Sync.test_split_vgroup_replica1" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_split_vgroup_replica1.TestSplitVgroupReplica1" class="doc doc-heading">
+            <code>TestSplitVgroupReplica1</code>
+
+
+<a href="#02-Databases.05-Sync.test_split_vgroup_replica1.TestSplitVgroupReplica1" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_split_vgroup_replica1.TestSplitVgroupReplica1.test_split_vgroup_replica1" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_split_vgroup_replica1</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_split_vgroup_replica1.TestSplitVgroupReplica1.test_split_vgroup_replica1" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>split vgroup replica 1</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>Database:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-6 Simon Guan Migrated from tsim/dnode/split_vgroup_replica1.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_split_vgroup_replica3" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_split_vgroup_replica3</code>
+
+
+<a href="#02-Databases.05-Sync.test_split_vgroup_replica3" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_split_vgroup_replica3.TestSplitVgroupReplica3" class="doc doc-heading">
+            <code>TestSplitVgroupReplica3</code>
+
+
+<a href="#02-Databases.05-Sync.test_split_vgroup_replica3.TestSplitVgroupReplica3" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_split_vgroup_replica3.TestSplitVgroupReplica3.test_split_vgroup_replica3" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_split_vgroup_replica3</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_split_vgroup_replica3.TestSplitVgroupReplica3.test_split_vgroup_replica3" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>split vgroup replica3</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>Database:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-6 Simon Guan Migrated from tsim/dnode/split_vgroup_replica3.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_stable_balance_replica1" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_stable_balance_replica1</code>
+
+
+<a href="#02-Databases.05-Sync.test_stable_balance_replica1" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_stable_balance_replica1.TestStableBalanceReplica1" class="doc doc-heading">
+            <code>TestStableBalanceReplica1</code>
+
+
+<a href="#02-Databases.05-Sync.test_stable_balance_replica1.TestStableBalanceReplica1" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_stable_balance_replica1.TestStableBalanceReplica1.test_stable_balance_replica1" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_stable_balance_replica1</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_stable_balance_replica1.TestStableBalanceReplica1.test_stable_balance_replica1" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>stable balance replica1</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataBase:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-5 Simon Guan Migrated from tsim/vnode/stable_balance_replica1.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_stable_dnode2" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_stable_dnode2</code>
+
+
+<a href="#02-Databases.05-Sync.test_stable_dnode2" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_stable_dnode2.TestStableDnode2" class="doc doc-heading">
+            <code>TestStableDnode2</code>
+
+
+<a href="#02-Databases.05-Sync.test_stable_dnode2.TestStableDnode2" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_stable_dnode2.TestStableDnode2.test_stable_dnode2" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_stable_dnode2</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_stable_dnode2.TestStableDnode2.test_stable_dnode2" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>stable dnode2</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataBase:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-5 Simon Guan Migrated from tsim/vnode/stable_dnode2.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_stable_dnode2_stop" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_stable_dnode2_stop</code>
+
+
+<a href="#02-Databases.05-Sync.test_stable_dnode2_stop" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_stable_dnode2_stop.TestStableDnode2Stop" class="doc doc-heading">
+            <code>TestStableDnode2Stop</code>
+
+
+<a href="#02-Databases.05-Sync.test_stable_dnode2_stop.TestStableDnode2Stop" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_stable_dnode2_stop.TestStableDnode2Stop.test_stable_dnode2_stop" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_stable_dnode2_stop</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_stable_dnode2_stop.TestStableDnode2Stop.test_stable_dnode2_stop" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>stable dnode2 stop</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataBase:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-5 Simon Guan Migrated from tsim/vnode/stable_dnode2_stop.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_stable_dnode3" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_stable_dnode3</code>
+
+
+<a href="#02-Databases.05-Sync.test_stable_dnode3" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_stable_dnode3.TestStableDnode3" class="doc doc-heading">
+            <code>TestStableDnode3</code>
+
+
+<a href="#02-Databases.05-Sync.test_stable_dnode3.TestStableDnode3" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_stable_dnode3.TestStableDnode3.test_stable_dnode3" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_stable_dnode3</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_stable_dnode3.TestStableDnode3.test_stable_dnode3" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>stable dnode3</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataBase:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-5 Simon Guan Migrated from tsim/vnode/stable_dnode3.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_stable_replica3_dnode6" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_stable_replica3_dnode6</code>
+
+
+<a href="#02-Databases.05-Sync.test_stable_replica3_dnode6" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_stable_replica3_dnode6.TestStableReplica3Dnode6" class="doc doc-heading">
+            <code>TestStableReplica3Dnode6</code>
+
+
+<a href="#02-Databases.05-Sync.test_stable_replica3_dnode6.TestStableReplica3Dnode6" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_stable_replica3_dnode6.TestStableReplica3Dnode6.test_stable_replica3_dnode6" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_stable_replica3_dnode6</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_stable_replica3_dnode6.TestStableReplica3Dnode6.test_stable_replica3_dnode6" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>stable replica3 dnode6</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataBase:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-5 Simon Guan Migrated from tsim/vnode/stable_replica3_dnode6.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_stable_replica3_vnode3" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_stable_replica3_vnode3</code>
+
+
+<a href="#02-Databases.05-Sync.test_stable_replica3_vnode3" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_stable_replica3_vnode3.TestStableReplica3Vnode3" class="doc doc-heading">
+            <code>TestStableReplica3Vnode3</code>
+
+
+<a href="#02-Databases.05-Sync.test_stable_replica3_vnode3.TestStableReplica3Vnode3" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_stable_replica3_vnode3.TestStableReplica3Vnode3.test_stable_replica3_vnode3" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_stable_replica3_vnode3</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_stable_replica3_vnode3.TestStableReplica3Vnode3.test_stable_replica3_vnode3" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>stable replica3 vnode3</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataBase:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-5 Simon Guan Migrated from tsim/vnode/stable_replica3_vnode3.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_sync_3Replica1VgElect" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_sync_3Replica1VgElect</code>
+
+
+<a href="#02-Databases.05-Sync.test_sync_3Replica1VgElect" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_sync_3Replica1VgElect.TestSync3Replica1VgElect" class="doc doc-heading">
+            <code>TestSync3Replica1VgElect</code>
+
+
+<a href="#02-Databases.05-Sync.test_sync_3Replica1VgElect.TestSync3Replica1VgElect" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_sync_3Replica1VgElect.TestSync3Replica1VgElect.test_sync_3Replica1VgElect" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_sync_3Replica1VgElect</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_sync_3Replica1VgElect.TestSync3Replica1VgElect.test_sync_3Replica1VgElect" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>sync 3Replica1VgElect</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>Database:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-5 Simon Guan Migrated from tsim/sync/3Replica1VgElect.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_sync_3Replica5VgElect" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_sync_3Replica5VgElect</code>
+
+
+<a href="#02-Databases.05-Sync.test_sync_3Replica5VgElect" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_sync_3Replica5VgElect.TestSync3Replica5VgElect" class="doc doc-heading">
+            <code>TestSync3Replica5VgElect</code>
+
+
+<a href="#02-Databases.05-Sync.test_sync_3Replica5VgElect.TestSync3Replica5VgElect" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_sync_3Replica5VgElect.TestSync3Replica5VgElect.test_sync_3Replica5VgElect" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_sync_3Replica5VgElect</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_sync_3Replica5VgElect.TestSync3Replica5VgElect.test_sync_3Replica5VgElect" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>sync 3Replica5VgElect</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>Database:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-5 Simon Guan Migrated from tsim/sync/3Replica5VgElect.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_sync_vnodesnapshot_rsma" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_sync_vnodesnapshot_rsma</code>
+
+
+<a href="#02-Databases.05-Sync.test_sync_vnodesnapshot_rsma" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_sync_vnodesnapshot_rsma.TestSyncVnodeSnapshotRsma" class="doc doc-heading">
+            <code>TestSyncVnodeSnapshotRsma</code>
+
+
+<a href="#02-Databases.05-Sync.test_sync_vnodesnapshot_rsma.TestSyncVnodeSnapshotRsma" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_sync_vnodesnapshot_rsma.TestSyncVnodeSnapshotRsma.test_sync_vnode_snapshot_rsma" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_sync_vnode_snapshot_rsma</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_sync_vnodesnapshot_rsma.TestSyncVnodeSnapshotRsma.test_sync_vnode_snapshot_rsma" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>sync vnode snapshot rsma</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>Database:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-5 Simon Guan Migrated from tsim/sync/vnodesnapshot-rsma-test.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_vnode_clean" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_vnode_clean</code>
+
+
+<a href="#02-Databases.05-Sync.test_vnode_clean" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_vnode_clean.TestVnodeClean" class="doc doc-heading">
+            <code>TestVnodeClean</code>
+
+
+<a href="#02-Databases.05-Sync.test_vnode_clean.TestVnodeClean" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_vnode_clean.TestVnodeClean.test_vnode_clean" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_vnode_clean</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_vnode_clean.TestVnodeClean.test_vnode_clean" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>vnode clean</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>Database:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-6 Simon Guan Migrated from tsim/dnode/vnode_clean.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_vnode_replica3_basic" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_vnode_replica3_basic</code>
+
+
+<a href="#02-Databases.05-Sync.test_vnode_replica3_basic" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_vnode_replica3_basic.TestVnodeReplica3Basic" class="doc doc-heading">
+            <code>TestVnodeReplica3Basic</code>
+
+
+<a href="#02-Databases.05-Sync.test_vnode_replica3_basic.TestVnodeReplica3Basic" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_vnode_replica3_basic.TestVnodeReplica3Basic.test_vnode_replica3_basic" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_vnode_replica3_basic</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_vnode_replica3_basic.TestVnodeReplica3Basic.test_vnode_replica3_basic" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>vnode replica3 basic</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataBase:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-5 Simon Guan Migrated from tsim/vnode/replica3_basic.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_vnode_replica3_import" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_vnode_replica3_import</code>
+
+
+<a href="#02-Databases.05-Sync.test_vnode_replica3_import" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_vnode_replica3_import.TestVnodeReplica3Import" class="doc doc-heading">
+            <code>TestVnodeReplica3Import</code>
+
+
+<a href="#02-Databases.05-Sync.test_vnode_replica3_import.TestVnodeReplica3Import" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_vnode_replica3_import.TestVnodeReplica3Import.test_vnode_replica3_import" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_vnode_replica3_import</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_vnode_replica3_import.TestVnodeReplica3Import.test_vnode_replica3_import" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>vnode replica3 import</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataBase:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-5 Simon Guan Migrated from tsim/vnode/replica3_import.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_vnode_replica3_many" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_vnode_replica3_many</code>
+
+
+<a href="#02-Databases.05-Sync.test_vnode_replica3_many" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_vnode_replica3_many.TestVnodeReplica3Many" class="doc doc-heading">
+            <code>TestVnodeReplica3Many</code>
+
+
+<a href="#02-Databases.05-Sync.test_vnode_replica3_many.TestVnodeReplica3Many" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_vnode_replica3_many.TestVnodeReplica3Many.test_vnode_replica3_many" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_vnode_replica3_many</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_vnode_replica3_many.TestVnodeReplica3Many.test_vnode_replica3_many" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>vnode replica3 many</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataBase:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-5 Simon Guan Migrated from tsim/vnode/replica3_many.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_vnode_replica3_repeat" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_vnode_replica3_repeat</code>
+
+
+<a href="#02-Databases.05-Sync.test_vnode_replica3_repeat" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_vnode_replica3_repeat.TestVnodeReplica3Repeat" class="doc doc-heading">
+            <code>TestVnodeReplica3Repeat</code>
+
+
+<a href="#02-Databases.05-Sync.test_vnode_replica3_repeat.TestVnodeReplica3Repeat" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_vnode_replica3_repeat.TestVnodeReplica3Repeat.test_vnode_replica3_repeat" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_vnode_replica3_repeat</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_vnode_replica3_repeat.TestVnodeReplica3Repeat.test_vnode_replica3_repeat" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>vnode replica3 repeat</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataBase:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-5 Simon Guan Migrated from tsim/vnode/replica3_repeat.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="02-Databases.05-Sync.test_vnode_replica3_vgroup" class="doc doc-heading">
+            <code>02-Databases.05-Sync.test_vnode_replica3_vgroup</code>
+
+
+<a href="#02-Databases.05-Sync.test_vnode_replica3_vgroup" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="02-Databases.05-Sync.test_vnode_replica3_vgroup.TestVnodeReplica3Vgroup" class="doc doc-heading">
+            <code>TestVnodeReplica3Vgroup</code>
+
+
+<a href="#02-Databases.05-Sync.test_vnode_replica3_vgroup.TestVnodeReplica3Vgroup" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="02-Databases.05-Sync.test_vnode_replica3_vgroup.TestVnodeReplica3Vgroup.test_vnode_replica3_vgroup" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_vnode_replica3_vgroup</span><span class="p">()</span></code>  
+  
+<a href="#02-Databases.05-Sync.test_vnode_replica3_vgroup.TestVnodeReplica3Vgroup.test_vnode_replica3_vgroup" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>vnode replica3 vgroup</p>
+<ol>
+<li>-</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>DataBase:Sync</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-5-5 Simon Guan Migrated from tsim/vnode/replica3_vgroup.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "../../..", "features": ["navigation.tabs", "navigation.top"], "search": "../../../assets/javascripts/workers/search.f8cc74c7.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.c8b220af.min.js"></script>
+      
+    
+  </body>
+</html>
