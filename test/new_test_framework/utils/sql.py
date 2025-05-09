@@ -1501,6 +1501,9 @@ class TDSql:
             tdLog.info("check key successfully")
 
     def printResult(self):
+        tdLog.info(
+            f"print result, rows:{self.queryRows}, cols:{self.queryCols}, sql:{self.sql}"
+        )
         for r in range(self.queryRows):
             for c in range(self.queryCols):
                 tdLog.info(f"data[{r}][{c}]=[{self.queryResult[r][c]}]")
