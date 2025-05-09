@@ -1,0 +1,15 @@
+::: 07-DataQuerying.02-Filter.test_condition
+::: 07-DataQuerying.02-Filter.test_condition_scl
+::: 07-DataQuerying.02-Filter.test_filter_timestamp
+::: 07-DataQuerying.02-Filter.test_filter_where
+::: 07-DataQuerying.02-Filter.test_filter_where_complex
+::: 07-DataQuerying.02-Filter.test_stable_filter_column
+::: 07-DataQuerying.02-Filter.test_stable_filter_column_tag_timestamp
+::: 07-DataQuerying.02-Filter.test_stable_filter_no
+::: 07-DataQuerying.02-Filter.test_stable_filter_tag
+::: 07-DataQuerying.02-Filter.test_stable_filter_timestamp
+::: 07-DataQuerying.02-Filter.test_table_filter_column
+::: 07-DataQuerying.02-Filter.test_table_filter_column_timestamp
+::: 07-DataQuerying.02-Filter.test_table_filter_no
+::: 07-DataQuerying.02-Filter.test_table_filter_timestamp
+::: 07-DataQuerying.02-Filter.test_tags_filter
