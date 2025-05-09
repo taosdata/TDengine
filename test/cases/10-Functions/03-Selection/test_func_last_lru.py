@@ -1,13 +1,13 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestFuncLast:
+class TestFuncLastLru:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_func_last(self):
-        """Last 函数（内存不足、多 Vgroup、复杂查询）
+    def test_func_last_lru(self):
+        """Last Lru（内存不足、多 Vgroup、复杂查询）
 
         1. 创建内存不足的数据库
         2. 创建超级表、子表、写入数据
@@ -27,7 +27,7 @@ class TestFuncLast:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/query/cache_last.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/query/cache_last.sim
 
         """
 

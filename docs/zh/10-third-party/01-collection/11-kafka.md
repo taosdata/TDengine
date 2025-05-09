@@ -30,7 +30,7 @@ TDengine Source Connector 用于把数据实时地从 TDengine 读出来发送�
 - 在任意目录下执行：
 
     ```shell
-    curl -O https://archive.apache.org/dist/kafka/3.4.0/kafka_2.13-3.4.0.tgz
+    curl -O https://dlcdn.apache.org/kafka/4.0.0/kafka_2.13-4.0.0.tgz
     tar xzf kafka_2.13-3.4.0.tgz -C /opt/
     ln -s /opt/kafka_2.13-3.4.0 /opt/kafka
     ```

@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestJsonColumn:
@@ -25,7 +25,7 @@ class TestJsonColumn:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/parser/columnValue_json.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/parser/columnValue_json.sim
 
         """
 

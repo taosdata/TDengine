@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestCompressNormalTable:
@@ -13,7 +13,7 @@ class TestCompressNormalTable:
         2. 写入 2000 条记录
         3. 再创建另外两个数据库
         4. 分别写入不同的 2000 条记录
-        5. kill -9 停止 taosd
+        5. kill 停止 taosd
         6. 检查已写入数据的条数
 
 
@@ -27,7 +27,7 @@ class TestCompressNormalTable:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/compress/compress.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/compress/compress.sim
 
         """
 
