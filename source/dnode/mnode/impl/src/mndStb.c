@@ -2453,6 +2453,11 @@ static int32_t mndAlterStbImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbOb
   }
 
   mInfo("trans:%d, used to alter stb:%s", pTrans->id, pStb->name);
+  for (int i = 0; i < pStb->numOfTags; i++) {
+    SSchema pTag = pStb->pTags[i];
+    mInfo("mndAlterStbImp: pDb->name: %s, pStb->name: %s, tag: %s,bytes: %d", pDb->name, pStb->name, pTag.name,
+          pTag.bytes);
+  }
   mndTransSetDbName(pTrans, pDb->name, pStb->name);
   TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
 

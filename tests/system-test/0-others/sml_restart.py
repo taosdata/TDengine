@@ -21,6 +21,9 @@ import subprocess
 
 BASEVERSION = "3.2.0.0"
 class TDTestCase:
+    updatecfgDict = {'debugFlag': 135, 'asynclog': 0}
+    clientCfgDict = {'debugFlag': 135, 'asynclog': 0}
+    updatecfgDict["clientCfg"] = clientCfgDict
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")

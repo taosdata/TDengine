@@ -434,7 +434,7 @@ class TDDnode:
             self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].deployed=1\ntdDnodes.dnodes[%d].logDir=\"%%s/sim/dnode%%d/log\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.dnodes[%d].cfgDir=\"%%s/sim/dnode%%d/cfg\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.start(%d)"%(self.index-1,self.index-1,self.index-1,self.index,self.index-1,self.index-1,self.index,self.index))
             self.running = 1
         else:
-            os.system("rm -rf %s/taosdlog.0"%self.logDir)
+            # os.system("rm -rf %s/taosdlog.0"%self.logDir)
             if os.system(cmd) != 0:
                 tdLog.exit(cmd)
             self.running = 1
