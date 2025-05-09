@@ -1,0 +1,29 @@
+
+taos> use test;
+Database changed.
+
+taos> select count(*) from tb\G;
+*************************** 1.row ***************************
+count(*): 3
+
+taos> select last(*) from tb\G;
+*************************** 1.row ***************************
+last(ts): 2022-05-17 00:01:08.000
+last(c0): 3
+last(c1): 3
+last(c2): cde
+
+taos> select last_row(*) from tb\G;
+*************************** 1.row ***************************
+last_row(ts): 2022-05-17 00:01:08.000
+last_row(c0): 3
+last_row(c1): 3
+last_row(c2): cde
+
+taos> select first(*) from tb\G;
+*************************** 1.row ***************************
+first(ts): 2022-05-15 00:01:08.000
+first(c0): 1
+first(c1): 1
+first(c2): abc
+
