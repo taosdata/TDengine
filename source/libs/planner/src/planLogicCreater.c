@@ -1762,6 +1762,25 @@ static int32_t createWindowLogicNodeByExternal(SLogicPlanContext* pCxt, SExterna
   pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
   pWindow->isPartTb = 0;
   pWindow->timeRange = pExternal->timeRange;
+  pWindow->pTspk = NULL;
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pCxt->pCurrRoot->pTargets) {
+    if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+      SColumnNode* pCol = (SColumnNode*)pNode;
+      if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        PLAN_ERR_RET(nodesCloneNode(pNode, &pWindow->pTspk));
+        break;
+      }
+    }
+  }
+
+  if (pWindow->pTspk == NULL) {
+    nodesDestroyNode((SNode*)pWindow);
+    planError("External window can not find timestamp column");
+    // TODO(smj): proper error code;
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
 
   code = createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
   if (!pWindow->pFuncs) {
@@ -1795,6 +1814,8 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
       return createWindowLogicNodeByCount(pCxt, (SCountWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
     case QUERY_NODE_ANOMALY_WINDOW:
       return createWindowLogicNodeByAnomaly(pCxt, (SAnomalyWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
+    case QUERY_NODE_EXTERNAL_WINDOW:
+      return TSDB_CODE_SUCCESS;
     default:
       break;
   }
@@ -2255,13 +2276,13 @@ static int32_t createSelectFromLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   SLogicNode* pRoot = NULL;
   int32_t     code = createLogicNodeByTable(pCxt, pSelect, pSelect->pFromTable, &pRoot);
   if (TSDB_CODE_SUCCESS == code) {
+    code = createSelectRootLogicNode(pCxt, pSelect, createExternalWindowLogicNode, &pRoot);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = createSelectRootLogicNode(pCxt, pSelect, createPartitionLogicNode, &pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createSelectRootLogicNode(pCxt, pSelect, createWindowLogicNode, &pRoot);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = createSelectRootLogicNode(pCxt, pSelect, createExternalWindowLogicNode, &pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createSelectRootLogicNode(pCxt, pSelect, createFillLogicNode, &pRoot);

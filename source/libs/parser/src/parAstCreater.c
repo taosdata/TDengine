@@ -4314,8 +4314,11 @@ SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode*
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_STREAM_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
 
-  tstrncpy(pStmt->targetDbName, ((SRealTableNode*)pIntoTable)->table.dbName, TSDB_DB_NAME_LEN);
-  tstrncpy(pStmt->targetTabName, ((SRealTableNode*)pIntoTable)->table.tableName, TSDB_TABLE_NAME_LEN);
+  if (pIntoTable) {
+    tstrncpy(pStmt->targetDbName, ((SRealTableNode*)pIntoTable)->table.dbName, TSDB_DB_NAME_LEN);
+    tstrncpy(pStmt->targetTabName, ((SRealTableNode*)pIntoTable)->table.tableName, TSDB_TABLE_NAME_LEN);
+  }
+
   tstrncpy(pStmt->streamDbName, ((SStreamNode*)pStream)->dbName, TSDB_DB_NAME_LEN);
   tstrncpy(pStmt->streamName, ((SStreamNode*)pStream)->streamName, TSDB_STREAM_NAME_LEN);
   nodesDestroyNode(pIntoTable);

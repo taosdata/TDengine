@@ -12238,9 +12238,33 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
   if (NULL == pStmt->pQuery) {
     return TSDB_CODE_SUCCESS;
   }
+  SStreamTriggerNode*    pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
+  SStreamTriggerOptions* pTriggerOptions = (SStreamTriggerOptions*)pTrigger->pOptions;
 
+  // TODO(smj) : proper error code
   if (QUERY_NODE_SELECT_STMT != nodeType(pStmt->pQuery)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
+  }
+
+  if (pTrigger->pTrigerTable == NULL && nodeType(pTrigger->pTriggerWindow) != QUERY_NODE_PERIOD_WINDOW) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
+  }
+
+  if (pTrigger->pPartitionList == NULL && pStmt->pSubtable) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "cannot specify output_subtable when no partition in trigger");
+  }
+
+  if (pTrigger->pPartitionList == NULL && pStmt->pTags) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "cannot specify out table's tags when no partition in trigger");
+  }
+
+  if (strlen(pStmt->targetDbName) == 0 && strlen(pStmt->targetTabName) == 0) {
+    if ((pTrigger->pNotify && !pStmt->pQuery) || (pTriggerOptions->calcNotifyOnly)) {
+      // *only notify no query* or *query res only notify no save*
+      // out table can be null. do nothing here.
+    } else {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Out table in stream must be specified");
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -12503,9 +12527,6 @@ static int32_t createStreamReqBuildOutSubtable(STranslateContext* pCxt, SNode* p
                                                char** subTblNameExpr) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pSubtableExpr = NULL;
-  if (NULL == pPartitionByList && pSubtable) {
-    PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY));
-  }
   if (pSubtable) {
     pSubtableExpr = pSubtable;
   } else {
@@ -12730,6 +12751,11 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
                                             SCMCreateStreamReq* pReq) {
   int32_t         code = TSDB_CODE_SUCCESS;
   STableMeta*     pMeta = NULL;
+
+  if (strlen(pStmt->targetDbName) == 0 && strlen(pStmt->targetTabName) == 0) {
+    return code;
+  }
+
   code = getTableMeta(pCxt, pStmt->targetDbName, pStmt->targetTabName, &pMeta);
   if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
     if (((SStreamTriggerNode*)pStmt->pTrigger)->pPartitionList) {
@@ -12987,14 +13013,27 @@ static int32_t createStreamReqSetDefaultOutCols(STranslateContext* pCxt, SCreate
                                                 SNodeList* pCalcProjection, SCMCreateStreamReq* pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode = NULL;
+  int32_t index = 1;
 
   if (pStmt->pCols) {
+    if (LIST_LENGTH(pStmt->pCols) < TSDB_MIN_COLUMNS) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "The number of columns in stream output must be greater than 1"));
+    }
+    SExprNode *pExpr = (SExprNode*)nodesListGetNode(pStmt->pCols, 0);
+    if (pExpr->resType.type != TSDB_DATA_TYPE_TIMESTAMP) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "The first column of stream output must be timestamp"));
+    }
     return code;
   }
 
   FOREACH(pNode, pCalcProjection) {
     SExprNode*      pExpr = (SExprNode*)pNode;
     SColumnDefNode* pColDef = NULL;
+    if (index == 0) {
+      if (pExpr->resType.type != TSDB_DATA_TYPE_TIMESTAMP) {
+        PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "The first column of stream output must be timestamp"));
+      }
+    }
     PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN_DEF, (SNode**)&pColDef));
     tstrncpy(pColDef->colName, pExpr->aliasName, TSDB_COL_NAME_LEN);
     pColDef->dataType.type = pExpr->resType.type;
@@ -13002,6 +13041,10 @@ static int32_t createStreamReqSetDefaultOutCols(STranslateContext* pCxt, SCreate
     pColDef->dataType.precision = pExpr->resType.precision;
     pColDef->dataType.scale = pExpr->resType.scale;
     PAR_ERR_JRET(nodesListMakeAppend(&pStmt->pCols, (SNode*)pColDef));
+  }
+
+  if (LIST_LENGTH(pCalcProjection) < TSDB_MIN_COLUMNS) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "The number of columns in stream output must be greater than 1"));
   }
 
   return code;
@@ -13092,6 +13135,19 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
   SQueryPlan*     pTriggerPlan = NULL;
 
   PAR_ERR_JRET(getTableMeta(pCxt, pTriggerTable->table.dbName, pTriggerTable->table.tableName, &pTriggerTableMeta));
+
+  switch (pTriggerTableMeta->tableType) {
+    case TSDB_SUPER_TABLE:
+    case TSDB_CHILD_TABLE:
+    case TSDB_NORMAL_TABLE:
+    case TSDB_VIRTUAL_CHILD_TABLE:
+    case TSDB_VIRTUAL_NORMAL_TABLE:
+      break;
+    default:
+      parserError("Invalid trigger table type %d", pTriggerTableMeta->tableType);
+      PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY));
+  }
+
   PAR_ERR_JRET(getTableVgId(pCxt, pTriggerTable->table.dbName, pTriggerTable->table.tableName, &pReq->triggerTblVgId));
   PAR_ERR_JRET(createStreamReqBuildTriggerTable(pCxt, pTriggerTable, pTriggerTableMeta, pReq));
   PAR_ERR_JRET(createSimpleSelectStmtFromCols(pTriggerTable->table.dbName, pTriggerTable->table.tableName, 0, NULL, pTriggerSelect));
@@ -13105,6 +13161,15 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
 
   PAR_ERR_JRET(translateExpr(pCxt, &pTriggerWindow));
   PAR_ERR_JRET(translateExprList(pCxt, pTriggerPartition));
+
+  SNode *pNode = NULL;
+  FOREACH(pNode, pTriggerPartition) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (pCol->colType != COLUMN_TYPE_TAG && pCol->colType != COLUMN_TYPE_TBNAME) {
+      parserError("only tag and tbname can be used in partition");
+      PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY));
+    }
+  }
 
   PAR_ERR_JRET(createStreamReqBuildTriggerPlan(pCxt, *pTriggerSelect, pReq, pTriggerSlotHash, pTriggerWindow, pTriggerPartition));
   PAR_ERR_JRET(createStreamReqBuildTriggerWindow(pCxt, pTriggerWindow, pTriggerTableMeta, pReq));
@@ -13194,6 +13259,18 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
   PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerSelect->pFromTable, (SSelectStmt*)pStmt->pQuery));
 
   pReq->placeHolderBitmap = pCxt->placeHolderBitmap;
+
+  if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, SP_CURRENT_TS)) {
+    if (pReq->triggerType != WINDOW_TYPE_INTERVAL) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "_tcurrent_ts can only be used in sliding window"));
+    }
+  }
+  if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, SP_WSTART) || BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, SP_WEND) ||
+      BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, SP_WDURATION) || BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, SP_WROWNUM)) {
+    if (pReq->triggerType == WINDOW_TYPE_PERIOD || (pReq->triggerType == WINDOW_TYPE_INTERVAL && pReq->trigger.sliding.interval == 0)) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "_twstart/_twend/_twduration/_twrownum can only be used in event window"));
+    }
+  }
 
   pVgArray = taosArrayInit(1, sizeof(SStreamCalcScan));
   pDbs = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
