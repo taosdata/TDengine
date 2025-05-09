@@ -17,65 +17,64 @@ target_include_directories(
 
 target_link_libraries(
     _xnode_mgmt_mqtt
-    PRIVATE os
-    PRIVATE util
-    PRIVATE common
-    PRIVATE nodes
-    PRIVATE transport
+    PRIVATE os util common nodes transport
 )
 
 # taosmqtt
-#find_path(HAVE_SYS_EPOLL_H sys/epoll.h)
-#if (HAVE_SYS_EPOLL_H)
-#	add_definitions("-DWITH_EPOLL")
-#endif()
-#
-#add_executable(taosmqtt ${TAOSMQTT_SRC}
-#  lib/net_ttq.c
-#  lib/packet_datatypes.c
-#  lib/packet_ttq.c
-#  lib/send_ttq.c
-#  lib/send_publish.c
-#  lib/property_ttq.c
-#  lib/alias_ttq.c
-#  lib/memory_ttq.c
-#  lib/misc_ttq.c
-#  lib/util_ttq.c
-#  lib/time_ttq.c
-#  lib/strings_ttq.c
-#  lib/utf8_ttq.c
-#  lib/util_topic.c
-#)
-#
-#target_compile_definitions(taosmqtt PRIVATE WITH_BROKER)
-#
-#if(${TD_DARWIN})
-#    target_compile_options(taosmqtt PRIVATE -Wno-error=deprecated-non-prototype)
-#endif()
-#
-#target_include_directories(
-#    taosmqtt
-#    PUBLIC
-#    "${TD_SOURCE_DIR}/include/libs/tmqtt"
-#    "${TD_SOURCE_DIR}/contrib/libuv/include"
-#    "${TD_SOURCE_DIR}/include/util"
-#    "${TD_SOURCE_DIR}/include/common"
-#    "${TD_SOURCE_DIR}/include/libs/transport"
-#    "${TD_SOURCE_DIR}/include/client"
-#    "${TD_SOURCE_DIR}/include/libs/tmqtt"
-#    "${TD_SOURCE_DIR}/include/dnode/xnode"
-#    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-#    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/lib"
-#    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src"
-#)
-#
-#target_link_libraries(
-#    taosmqtt
-#    PRIVATE util common ${TAOS_NATIVE_LIB_STATIC}
-#)
+find_path(HAVE_SYS_EPOLL_H sys/epoll.h)
+if (HAVE_SYS_EPOLL_H)
+	add_definitions("-DWITH_EPOLL")
+endif()
+
+
+add_executable(taosmqtt ${TAOSMQTT_SRC}
+  lib/net_ttq.c
+  lib/packet_datatypes.c
+  lib/packet_ttq.c
+  lib/send_ttq.c
+  lib/send_publish.c
+  lib/property_ttq.c
+  lib/memory_ttq.c
+  lib/misc_ttq.c
+  lib/util_ttq.c
+  lib/time_ttq.c
+  lib/strings_ttq.c
+  lib/utf8_ttq.c
+  lib/util_topic.c
+)
+
+DEP_ext_cjson(common)
+
+target_compile_definitions(taosmqtt PRIVATE WITH_BROKER)
+
+if(${TD_DARWIN})
+    target_compile_options(taosmqtt PRIVATE -Wno-error=deprecated-non-prototype)
+endif()
+
+target_include_directories(
+    taosmqtt
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/"
+    "${TD_SOURCE_DIR}/include/libs/tmqtt"
+    "${TD_SOURCE_DIR}/contrib/libuv/include"
+    "${TD_SOURCE_DIR}/include/util"
+    "${TD_SOURCE_DIR}/include/common"
+    "${TD_SOURCE_DIR}/include/libs/transport"
+    "${TD_SOURCE_DIR}/include/client"
+    "${TD_SOURCE_DIR}/include/libs/tmqtt"
+    "${TD_SOURCE_DIR}/include/dnode/xnode"
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/lib"
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+
+target_link_libraries(
+    taosmqtt
+    PRIVATE util common ${TAOS_NATIVE_LIB_STATIC}
+)
 
 # topic tool
-if(TD_LINUX)
+if(TD_LINUX) # for pthread
 aux_source_directory(tools TOPICTOOL_SRC)
 
 add_executable(topic-test-tool ${TOPICTOOL_SRC})

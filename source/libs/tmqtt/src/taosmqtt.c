@@ -1,0 +1,328 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#define ALLOW_FORBID_FUNC
+
+#ifndef WIN32
+#include <grp.h>
+#include <pwd.h>
+#include <signal.h>
+#include <sys/time.h>
+#include <unistd.h>
+#endif
+
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+
+#include "memory_ttq.h"
+#include "misc_ttq.h"
+#include "tmqtt_broker_int.h"
+#include "util_ttq.h"
+
+#include "version.h"
+
+struct tmqtt_db db;
+
+static struct tmqtt__listener_sock *listensock = NULL;
+static int                          listensock_count = 0;
+static int                          listensock_index = 0;
+
+#ifdef WITH_PERSISTENCE
+bool flag_db_backup = false;
+#endif
+
+bool flag_reload = false;
+bool flag_tree_print = false;
+int  run;
+
+void listener__set_defaults(struct tmqtt__listener *listener) {
+  // listener->security_options.allow_anonymous = -1;
+  // listener->security_options.allow_zero_length_clientid = true;
+  listener->protocol = mp_mqtt;
+  listener->max_connections = -1;
+  // listener->max_qos = 2;
+  listener->max_qos = 1;
+  listener->max_topic_alias = 10;
+}
+
+static int listeners__start_single_mqtt(struct tmqtt__listener *listener) {
+  int                          i;
+  struct tmqtt__listener_sock *listensock_new;
+
+  if (net__socket_listen(listener)) {
+    return 1;
+  }
+  listensock_count += listener->sock_count;
+  listensock_new = tmqtt__realloc(listensock, sizeof(struct tmqtt__listener_sock) * (size_t)listensock_count);
+  if (!listensock_new) {
+    return 1;
+  }
+  listensock = listensock_new;
+
+  for (i = 0; i < listener->sock_count; i++) {
+    if (listener->socks[i] == INVALID_SOCKET) {
+      return 1;
+    }
+    listensock[listensock_index].sock = listener->socks[i];
+    listensock[listensock_index].listener = listener;
+#ifdef WITH_EPOLL
+    listensock[listensock_index].ident = id_listener;
+#endif
+    listensock_index++;
+  }
+  return TTQ_ERR_SUCCESS;
+}
+
+static int listeners__add_local(const char *host, uint16_t port) {
+  struct tmqtt__listener *listeners;
+
+  listeners = db.config->listeners;
+
+  listener__set_defaults(&listeners[db.config->listener_count]);
+  // listeners[db.config->listener_count].security_options.allow_anonymous = true;
+  listeners[db.config->listener_count].port = port;
+  listeners[db.config->listener_count].host = tmqtt__strdup(host);
+  if (listeners[db.config->listener_count].host == NULL) {
+    return TTQ_ERR_NOMEM;
+  }
+
+  if (listeners__start_single_mqtt(&listeners[db.config->listener_count])) {
+    tmqtt__free(listeners[db.config->listener_count].host);
+    listeners[db.config->listener_count].host = NULL;
+    return TTQ_ERR_UNKNOWN;
+  }
+
+  db.config->listener_count++;
+  return TTQ_ERR_SUCCESS;
+}
+
+static int listeners__start(void) {
+  // extern char             tsLocalFqdn[];
+  extern uint16_t         tsMqttPort;
+  struct tmqtt__listener *listeners;
+  int                     rc;
+
+  listensock_count = 0;
+
+  listeners = tmqtt__realloc(db.config->listeners, 2 * sizeof(struct tmqtt__listener));
+  if (listeners == NULL) {
+    return TTQ_ERR_NOMEM;
+  }
+  memset(listeners, 0, 2 * sizeof(struct tmqtt__listener));
+
+  db.config->listener_count = 0;
+  db.config->listeners = listeners;
+
+  // rc = listeners__add_local(tsLocalFqdn, tsMqttPort);
+  rc = listeners__add_local("0.0.0.0", tsMqttPort);
+  if (TTQ_ERR_SUCCESS != rc) {
+    tmqtt__free(db.config->listeners);
+  }
+
+  return rc;
+}
+
+static void listeners__stop(void) {
+  int i;
+
+  for (i = 0; i < listensock_count; i++) {
+    if (listensock[i].sock != INVALID_SOCKET) {
+      COMPAT_CLOSE(listensock[i].sock);
+    }
+  }
+
+  tmqtt__free(listensock);
+
+  tmqtt__free(db.config->listeners[db.config->listener_count - 1].host);
+  tmqtt__free(db.config->listeners[db.config->listener_count - 1].socks);
+  tmqtt__free(db.config->listeners);
+}
+
+static void ttq_rand_init(void) {
+  struct timeval tv;
+
+  gettimeofday(&tv, NULL);
+  srand((unsigned int)(tv.tv_sec + tv.tv_usec));
+}
+
+void config__init(struct tmqtt__config *config) {
+  memset(config, 0, sizeof(struct tmqtt__config));
+  // config__init_reload(config);
+
+  config->daemon = false;
+  memset(&config->default_listener, 0, sizeof(struct tmqtt__listener));
+  listener__set_defaults(&config->default_listener);
+}
+
+void config__cleanup(struct tmqtt__config *config) {}
+int  config__parse_args(struct tmqtt__config *config, int argc, char *argv[]) { return TTQ_ERR_SUCCESS; }
+
+static int ttq_db_open(struct tmqtt__config *config) {
+  int rc;
+
+  memset(&db, 0, sizeof(struct tmqtt_db));
+  db.now_s = tmqtt_time();
+  db.now_real_s = time(NULL);
+
+  db.config = config;
+  rc = db__open(config);
+  if (rc != TTQ_ERR_SUCCESS) {
+    ttq_log(NULL, TTQ_LOG_ERR, "Error: Couldn't open database.");
+  }
+
+  return rc;
+}
+
+static void ttq_log_starting(void) {
+  // ttq_log(NULL, TTQ_LOG_INFO, "tmqtt version %s starting", VERSION);
+  ttq_log(NULL, TTQ_LOG_INFO, "tmqtt version %s starting", td_version);
+  if (db.config_file) {
+    ttq_log(NULL, TTQ_LOG_INFO, "Config loaded from %s.", db.config_file);
+  } else {
+    ttq_log(NULL, TTQ_LOG_INFO, "Using default config.");
+  }
+}
+
+static void ttq_log_running(void) {
+  // ttq_log(NULL, TTQ_LOG_INFO, "tmqtt version %s running", VERSION);
+  ttq_log(NULL, TTQ_LOG_INFO, "tmqtt version %s running", td_version);
+}
+
+static void ttq_log_stopping(void) {
+  // ttq_log(NULL, TTQ_LOG_INFO, "tmqtt version %s terminating", VERSION);
+  ttq_log(NULL, TTQ_LOG_INFO, "tmqtt version %s terminating", td_version);
+}
+
+static int ttq_security_start(void) {
+  /*
+  int rc;
+
+  rc = tmqtt_security_module_init();
+  if (rc) return rc;
+
+  return tmqtt_security_init(false);
+  */
+  return 0;
+}
+
+static void ttq_cxt_init(void) {
+  /*
+  int           rc;
+  struct tmqtt *ctxt, *ctxt_tmp;
+
+  HASH_ITER(hh_id, db.contexts_by_id, ctxt, ctxt_tmp) {
+    if (ctxt && !ctxt->clean_start && ctxt->username) {
+      rc = acl__find_acls(ctxt);
+      if (rc) {
+        ttq_log(NULL, TTQ_LOG_WARNING,
+                    "Failed to associate persisted user %s with ACLs, "
+                    "likely due to changed ports while using a per_listener_settings configuration.",
+                    ctxt->username);
+      }
+    }
+  }
+  */
+}
+
+static void ttq_cxt_cleanup(void) {
+  struct tmqtt *ctxt, *ctxt_tmp;
+
+  HASH_ITER(hh_id, db.contexts_by_id, ctxt, ctxt_tmp) {
+#ifdef WITH_WEBSOCKETS
+    if (!ctxt->wsi)
+#endif
+    {
+      context__cleanup(ctxt, true);
+    }
+  }
+  HASH_ITER(hh_sock, db.contexts_by_sock, ctxt, ctxt_tmp) { context__cleanup(ctxt, true); }
+
+  context__free_disused();
+}
+
+static int ttq_init(int argc, char *argv[], struct tmqtt__config *config) {
+  int rc;
+
+  ttq_rand_init();
+  net__broker_init();
+
+  config__init(config);
+  rc = config__parse_args(config, argc, argv);
+  if (rc != TTQ_ERR_SUCCESS) return rc;
+
+  rc = ttq_db_open(config);
+  if (rc != TTQ_ERR_SUCCESS) {
+    ttq_log(NULL, TTQ_LOG_ERR, "Error: Couldn't open database.");
+    return rc;
+  }
+
+  // Initialise logging only after the database initialised in case logging to topics
+  if (log__init(config)) {
+    rc = 1;
+    return rc;
+  }
+
+  ttq_log_starting();
+
+  rc = ttq_security_start();
+  if (rc) return rc;
+
+  ttq_cxt_init();
+
+  if (listeners__start()) return 1;
+
+  rc = ttq_mux_init(listensock, listensock_count);
+  if (rc) return rc;
+
+  ttq_log_running();
+
+  run = 1;
+
+  return rc;
+}
+
+static void ttq_cleanup(void) {
+  ttq_mux_cleanup();
+
+  ttq_log_stopping();
+
+#ifdef WITH_PERSISTENCE
+  persist__backup(true);
+#endif
+
+  session_expiry__remove_all();
+  ttq_cxt_cleanup();
+  listeners__stop();
+  db__close();
+  // tmqtt_security_module_cleanup();
+  log__close(db.config);
+  config__cleanup(db.config);
+  net__broker_cleanup();
+}
+
+int ttq_main(int argc, char *argv[]) {
+  struct tmqtt__config config;
+  int                  rc;
+
+  rc = ttq_init(argc, argv, &config);
+  if (rc) return rc;
+
+  rc = ttq_main_loop(listensock, listensock_count);
+
+  ttq_cleanup();
+
+  return rc;
+}
