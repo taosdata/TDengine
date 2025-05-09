@@ -105,6 +105,7 @@ class TDSql:
         self.affectedRows = 0
         self.csvLine = 0
         self.replica = 1
+
     def init(self, cursor, log=False):
         """
         Initializes the TDSql instance with a database cursor and optionally enables logging.
@@ -178,7 +179,7 @@ class TDSql:
             None
         """
         tdLog.debug(f"prepare database:{dbname}")
-        s = 'reset query cache'
+        s = "reset query cache"
         try:
             self.cursor.execute(s)
         except:
@@ -189,7 +190,7 @@ class TDSql:
         s = f"create database {dbname}"
         for k, v in kwargs.items():
             if isinstance(v, str):
-                s += f" {k} \'{v}\'"
+                s += f" {k} '{v}'"
             else:
                 s += f" {k} {v}"
 
@@ -861,38 +862,37 @@ class TDSql:
         """
         return self.checkEqual(self.queryRows, expectedRows)
 
-
     def checkRowsV2(
         self,
         expectedRows: int,
         operator: Literal["<", "<=", ">", ">=", "==", "!="] = "==",
-        show: bool = True
+        show: bool = True,
     ) -> bool:
         """
         Verify if the number of rows returned by SQL query meets the expected condition.
-        
+
         Args:
             expectedRows : int
                 The expected number of rows to compare against
             operator : str, optional
-                Comparison operator ('<', '<=', '>', '>=', '==', '!='), 
+                Comparison operator ('<', '<=', '>', '>=', '==', '!='),
                 defaults to '<'
             show : bool, optional
                 Whether to print the verification result, defaults to True
-                
+
         Returns:
             bool
-                True if the actual row count meets the expected condition, 
+                True if the actual row count meets the expected condition,
                 False otherwise
-                
+
         Raises:
             ValueError: If invalid operator is provided
-            
+
         Usage:
             assert checker.checkRows(15, operator="<")  # Verify if less than 15 rows
         """
         actualRows = self.queryRows
-        
+
         try:
             # Perform comparison based on operator
             if operator == "<":
@@ -911,13 +911,14 @@ class TDSql:
                 raise ValueError(f"Unsupported comparison operator: {operator}")
 
             if show:
-                tdLog.info(f"Actual rows: {actualRows}, expected rows: {expectedRows}, comparison: {operator}, result: {'PASS' if result else 'FAIL'}")
+                tdLog.info(
+                    f"Actual rows: {actualRows}, expected rows: {expectedRows}, comparison: {operator}, result: {'PASS' if result else 'FAIL'}"
+                )
             return result
 
         except Exception as e:
             tdLog.error(f"checkRows failed: {str(e)}")
             return False
-
 
     def checkRows_not_exited(self, expectedRows):
         """
@@ -1328,7 +1329,6 @@ class TDSql:
         if show:
             tdLog.info("check successfully")
 
-
     def checkDataV2(self, row, col, data, show=False, operator="==") -> bool:
         """
         Compare the data at the specified row and column with the expected data.
@@ -1348,12 +1348,16 @@ class TDSql:
         if row >= self.queryRows:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, self.sql, row + 1, self.queryRows)
-            tdLog.error("%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args)
+            tdLog.error(
+                "%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args
+            )
             return False
         if col >= self.queryCols:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, self.sql, col + 1, self.queryCols)
-            tdLog.error("%s(%d) failed: sql:%s, col:%d is larger than queryCols:%d" % args)
+            tdLog.error(
+                "%s(%d) failed: sql:%s, col:%d is larger than queryCols:%d" % args
+            )
             return False
         self.checkRowCol(row, col)
 
@@ -1366,7 +1370,7 @@ class TDSql:
                 """将任意时间格式转换为纳秒级时间戳"""
                 if value is None:
                     return None
-                    
+
                 # 处理数值时间戳
                 if isinstance(value, (int, float)):
                     if value > 1e18:
@@ -1379,7 +1383,7 @@ class TDSql:
                         return int(value * 1000000)
                     else:
                         return int(value * 1000000000)
-                        
+
                 # 处理字符串时间
                 elif isinstance(value, str):
                     if value.isdigit():
@@ -1393,22 +1397,26 @@ class TDSql:
                             return int(value) * 1000000000
                     try:
                         # 解析常规SQL格式（支持纳秒）
-                        pattern = r'(\d{4}-\d{2}-\d{2})\s(\d{2}:\d{2}:\d{2})(\.\d+)?'
+                        pattern = r"(\d{4}-\d{2}-\d{2})\s(\d{2}:\d{2}:\d{2})(\.\d+)?"
                         time_match = re.match(pattern, value)
                         if time_match:
                             date_part, time_part, nano_part = time_match.groups()
-                            nano = int(nano_part[1:].ljust(9, '0')[:9] if nano_part else 0)
+                            nano = int(
+                                nano_part[1:].ljust(9, "0")[:9] if nano_part else 0
+                            )
                             dt_str = f"{date_part or '1970-01-01'} {time_part}"
                             dt = datetime.datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
                             return int(dt.timestamp()) * 1000000000 + nano
                     except Exception:
                         pass
                     raise ValueError(f"无法解析的时间字符串: {value}")
-                    
+
                 # 处理datetime对象
                 elif isinstance(value, datetime.datetime):
-                    return int(value.timestamp()) * 1000000000 + value.microsecond * 1000
-                    
+                    return (
+                        int(value.timestamp()) * 1000000000 + value.microsecond * 1000
+                    )
+
                 raise TypeError(f"不支持的类型: {type(value)}")
 
             # 转换实际值和预期值
@@ -1420,36 +1428,37 @@ class TDSql:
             else:
                 converted_actual = actual_value
                 converted_expected = data
-            
+
             # 处理None值比较
             if converted_actual is None or converted_expected is None:
-                result = (converted_actual == converted_expected)
-                if operator != '==' and operator != '!=':
+                result = converted_actual == converted_expected
+                if operator != "==" and operator != "!=":
                     raise ValueError("None values can only be compared with == or !=")
-                result = (result if operator == '==' else not result)
+                result = result if operator == "==" else not result
             else:
                 # 根据操作符进行比较
-                if operator == '<':
+                if operator == "<":
                     result = converted_actual < converted_expected
-                elif operator == '<=':
+                elif operator == "<=":
                     result = converted_actual <= converted_expected
-                elif operator == '>':
+                elif operator == ">":
                     result = converted_actual > converted_expected
-                elif operator == '>=':
+                elif operator == ">=":
                     result = converted_actual >= converted_expected
-                elif operator == '==':
+                elif operator == "==":
                     result = converted_actual == converted_expected
-                elif operator == '!=':
+                elif operator == "!=":
                     result = converted_actual != converted_expected
                 else:
                     raise ValueError(f"Unsupported operator: {operator}")
             if show:
-                tdLog.info(f"Data at row {row}, col {col} actual value={actual_value}, operator={operator}, expected value={data}, result={result}")
+                tdLog.info(
+                    f"Data at row {row}, col {col} actual value={actual_value}, operator={operator}, expected value={data}, result={result}"
+                )
             return result
         except Exception as e:
             tdLog.error(f"Error comparing data at row {row}, col {col}: {e}")
             return False
-
 
     def checkKeyData(self, key, col, data, show=False):
         """
@@ -1490,6 +1499,14 @@ class TDSql:
 
         if show:
             tdLog.info("check key successfully")
+
+    def printResult(self):
+        tdLog.info(
+            f"print result, rows:{self.queryRows}, cols:{self.queryCols}, sql:{self.sql}"
+        )
+        for r in range(self.queryRows):
+            for c in range(self.queryCols):
+                tdLog.info(f"data[{r}][{c}]=[{self.queryResult[r][c]}]")
 
     def expectKeyData(self, key, col, data, show=False):
         """
@@ -1556,7 +1573,6 @@ class TDSql:
 
         if show:
             tdLog.info("check assert successfully")
-
 
     def checkDataMem(self, sql, mem):
         """
@@ -2253,7 +2269,6 @@ class TDSql:
             )
             useful_trans_dnodes_list = cluset_dnodes_list.copy()
 
-
     def pause(self):
         """
         Pause the execution of the program and wait for enter key. Used for debugging.
@@ -2264,7 +2279,7 @@ class TDSql:
         Raises:
             None
         """
-        if os.name == 'nt':  # Windows
+        if os.name == "nt":  # Windows
             os.system("pause")  # 显示 "按任意键继续..."
         else:  # Linux/macOS
             input("press enter to continue...")
