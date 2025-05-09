@@ -1087,7 +1087,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   STREAM_CHECK_RET_GOTO(buildFetchRsp(pBlock, &buf, &size, pVnode->config.tsdbCfg.precision));
 end:
   PRINT_LOG_END(code, lino);
-  SRpcMsg rsp = {.info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
+  SRpcMsg rsp = {.info = pMsg->info, .msgType = TDMT_STREAM_FETCH_RSP, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
   return code;
 }
