@@ -92,7 +92,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
   STREAM_CHECK_RET_GOTO(createDataBlockForStream(options->schemas, &pTask->pResBlock));
   STREAM_CHECK_RET_GOTO(filterInitFromNode(options->pConditions, &pTask->pFilterInfo, 0));
   STREAM_CHECK_RET_GOTO(qStreamCreateTableListForReader(pVnode, options->suid, options->uid, options->tableType,
-                                                        options->pGroupTags, options->groupSort, options->pTagCond,
+                                                        options->partitionCols, options->groupSort, options->pTagCond,
                                                         options->pTagIndexCond, &pTask->api, &pTask->pTableList));
   if (options->gid != 0) {
     int32_t index = qStreamGetGroupIndex(pTask->pTableList, options->gid);
@@ -128,12 +128,40 @@ static void releaseStreamInfo(void* p) {
   if (pInfo == NULL) return;
   taosHashCleanup(pInfo->streamTaskMap);
   pInfo->streamTaskMap = NULL;
+  nodesDestroyList(pInfo->partitionCols);
+  taosArrayDestroy(pInfo->triggerCols);
+  taosArrayDestroy(pInfo->calcCols);
   taosMemoryFree(pInfo);
+}
+
+static int32_t compareSlotId(SNode* pNode1, SNode* pNode2) {
+  SColumnNode* pC1 = (SColumnNode*)pNode1;
+  SColumnNode* pC2 = (SColumnNode*)pNode2;
+  if (pC1->slotId < pC2->slotId)
+    return -1;
+  else if (pC1->slotId > pC2->slotId)
+    return 1;
+  else {
+    return 0;
+  }
+}
+
+int32_t qStreamBuildSchema(SArray* schemas, int8_t type, int32_t bytes, col_id_t colId) {
+  SSchema* pSchema = taosArrayReserve(schemas, 1);
+  if (pSchema == NULL) {
+    return terrno;
+  }
+  pSchema->type = type;
+  pSchema->bytes = bytes;
+  pSchema->colId = colId;
+  return 0;
 }
 
 static SStreamTriggerReaderInfo* createStreamReaderInfo(const SStreamReaderDeployMsg* pMsg) {
   int32_t         code = 0;
   int32_t         lino = 0;
+  SNodeList*      triggerCols = NULL;
+
   SStreamTriggerReaderInfo* sStreamReaderInfo = taosMemoryCalloc(1, sizeof(SStreamTriggerReaderInfo));
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
 
@@ -149,10 +177,20 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(const SStreamReaderDeplo
   sStreamReaderInfo->pTagCond = NULL;
   sStreamReaderInfo->pTagIndexCond = NULL;
   sStreamReaderInfo->pConditions = NULL;
-  sStreamReaderInfo->pGroupTags = pMsg->msg.trigger.partitionCols;
-  sStreamReaderInfo->triggerCols = pMsg->msg.trigger.triggerCols;
+  STREAM_CHECK_RET_GOTO(nodesStringToList(pMsg->msg.trigger.partitionCols, &sStreamReaderInfo->partitionCols));
   sStreamReaderInfo->deleteReCalc = pMsg->msg.trigger.deleteReCalc;
   sStreamReaderInfo->deleteOutTbl = pMsg->msg.trigger.deleteOutTbl;
+  // pMsg->msg.trigger.calcCacheScanPlan;
+  STREAM_CHECK_RET_GOTO(nodesStringToList(pMsg->msg.trigger.triggerCols, &triggerCols));
+  sStreamReaderInfo->triggerCols = taosArrayInit(LIST_LENGTH(triggerCols), sizeof(SSchema));
+  STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->triggerCols, terrno);
+  nodesSortList(&triggerCols, compareSlotId);
+  SNode* nodeItem = NULL;
+  FOREACH(nodeItem, triggerCols) {
+    SColumnNode *valueNode = (SColumnNode *)nodeItem;
+    STREAM_CHECK_RET_GOTO(qStreamBuildSchema(sStreamReaderInfo->triggerCols, valueNode->node.resType.type,
+                      valueNode->node.resType.bytes, valueNode->colId));
+  }
 
   SNode *pAst = NULL;
   STREAM_CHECK_RET_GOTO(nodesStringToNode(pMsg->msg.trigger.triggerScanPlan, &pAst));
@@ -165,6 +203,7 @@ end:
     releaseStreamInfo(sStreamReaderInfo);
     sStreamReaderInfo = NULL;
   }
+  nodesDestroyList(triggerCols);
   return sStreamReaderInfo;
 }
 
