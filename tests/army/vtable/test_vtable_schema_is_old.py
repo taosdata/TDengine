@@ -20,11 +20,10 @@ from frame.caseBase import *
 from frame.common import *
 import time
 
-
 class TDTestCase(TBase):
 
     def test_unorderd_vtable_column_and_origin_table_column(self):
-        tdLog.info(f"prepare org tables.")
+        tdLog.info(f"run test_unorderd_vtable_column_and_origin_table_column")
 
         tdSql.execute("drop database if exists test_vtable_schema_is_old_origin;")
         tdSql.execute("create database test_vtable_schema_is_old_origin;")
@@ -53,7 +52,7 @@ class TDTestCase(TBase):
         tdSql.checkRows(1)
 
     def test_vtable_multi_columns_use_ts_column(self):
-        tdLog.info(f"prepare org tables.")
+        tdLog.info(f"run test_vtable_multi_columns_use_ts_column")
 
         tdSql.execute("drop database if exists test_vtable_schema_is_old_origin_1;")
         tdSql.execute("create database test_vtable_schema_is_old_origin_1;")
@@ -79,12 +78,44 @@ class TDTestCase(TBase):
         tdSql.checkData(0, 1, '2020-10-10 11:11:11')
         tdSql.checkData(0, 2, '2020-10-10 11:11:11')
         tdSql.checkData(0, 3, '2020-10-10 11:11:11')
+
+    def test_vstable_origin_table_column_has_same_prefix(self):
+        # TS-6448
+        tdLog.info(f"run test_vstable_origin_table_column_has_same_prefix")
+
+        tdSql.execute("drop database if exists test_vtable_schema_is_old_origin_2;")
+        tdSql.execute("create database test_vtable_schema_is_old_origin_2;")
+        tdSql.execute("use test_vtable_schema_is_old_origin_2;")
+
+        tdSql.execute("create stable th0(t timestamp,th float,w bool)tags(location varchar(64));")
+        tdSql.execute("create table t117 using th0 tags('t117');")
+        tdSql.execute("insert into t117 values(now,25.9,0)(now+1a,25.9,0);")
+
+        tdSql.execute("create table h117 using th0 tags('h117');")
+        tdSql.execute("insert into h117 values(now,50.2,0)(now+1a,50.2,0);")
+
+        tdSql.execute("create table warning6(ts timestamp, warning bool);")
+
+        tdSql.execute("create stable history(ts timestamp,t float,h float,tw bool,hw bool,w bool)tags(locations varchar(128)) virtual 1")
+
+        tdSql.execute("create vtable history0("
+                      "t from t117.th,"
+                      "h from h117.th,"
+                      "tw from t117.w,"
+                      "hw from h117.w,"
+                      "w from warning6.warning) "
+                      "using history "
+                      "tags('0');")
+
+        tdSql.query("select * from history;")
+        tdSql.checkRows(4)
+
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
 
         self.test_unorderd_vtable_column_and_origin_table_column()
         self.test_vtable_multi_columns_use_ts_column()
-
+        self.test_vstable_origin_table_column_has_same_prefix()
         tdLog.success(f"{__file__} successfully executed")
 
 

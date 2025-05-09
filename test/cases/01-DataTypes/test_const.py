@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestConst:
@@ -12,7 +12,7 @@ class TestConst:
         1. 执行仅包含常量的查询语句
 
         Catalog:
-            - Function:Aggregate
+            - DataTypes
 
         Since: v3.0.0.0
 
@@ -21,7 +21,7 @@ class TestConst:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/query/const.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/query/const.sim
 
         """
 

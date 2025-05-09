@@ -95,7 +95,6 @@ macro(INIT_EXT name)               # {
             add_definitions(-D_${name})
             if("z${name}" STREQUAL "zext_gtest")
                 target_compile_features(${tgt} PUBLIC cxx_std_11)
-                find_package(Threads REQUIRED)
                 target_link_libraries(${tgt} PRIVATE Threads::Threads)
             endif()
         else()
@@ -510,7 +509,7 @@ if(${TD_LINUX})
 elseif(${TD_DARWIN})
     set(ext_xz_static liblzma.a)
 elseif(${TD_WINDOWS})
-    set(ext_xz_static liblzma.lib)
+    set(ext_xz_static lzma.lib)
 endif()
 INIT_EXT(ext_xz
     INC_DIR          include
@@ -520,10 +519,10 @@ INIT_EXT(ext_xz
 )
 # GIT_REPOSITORY https://github.com/xz-mirror/xz.git
 # GIT_TAG v5.4.4
-get_from_local_repo_if_exists("https://github.com/xz-mirror/xz.git")
+get_from_local_repo_if_exists("https://github.com/tukaani-project/xz.git")
 ExternalProject_Add(ext_xz
     GIT_REPOSITORY ${_git_url}
-    GIT_TAG v5.4.4
+    GIT_TAG v5.8.1
     GIT_SHALLOW TRUE
     PREFIX "${_base}"
     CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib

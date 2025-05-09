@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, cluster, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, cluster, sc, clusterComCheck
 
 
 class TestIndexOverflow:
@@ -24,7 +24,7 @@ class TestIndexOverflow:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/tagindex/indexOverflow.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/tagindex/indexOverflow.sim
 
         """
 
