@@ -225,9 +225,9 @@ int tdbTbPGet(TTB *pTb, const void *pKey, int kLen, void **ppKey, int *pkLen, vo
   return tdbBtreePGet(pTb->pBt, pKey, kLen, ppKey, pkLen, ppVal, vLen);
 }
 
-// tdbTbToStack, tdbTbPushFreePage, tdbTbPopFreePage are only for free page management,
+// tdbTbBtreeToStack, tdbTbPushFreePage, tdbTbPopFreePage are only for free page management,
 // they are using the b-tree as a stack, never call them for other purpose
-int tdbTbToStack(TTB *pTb) {
+int tdbTbBtreeToStack(TTB *pTb) {
   return tdbBtreeToStack(pTb->pBt);
 }
 

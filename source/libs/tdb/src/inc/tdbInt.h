@@ -154,7 +154,8 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
 int tdbFreeOvflPage(SPgno pgno, int nSize, TXN *pTxn, SBTree *pBt);
 
 // these 3 functions are only for free page management, they are using the b-tree as a stack.
-// never call them for other purpose
+// they should only be called on the b-tree of the free page table, never call them for other
+// purpose.
 int tdbBtreeToStack(SBTree *pBt);
 int tdbBtreePushFreePage(SBTree *pBt, SPage *pPage, TXN *pTxn);
 int tdbBtreePopFreePage(SBTree *pBt, SPgno* pgno, TXN *pTxn);

@@ -392,13 +392,14 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
 }
 
 // tdbBtreeToStack, tdbBtreePushFreePage, tdbBtreePopFreePage are only for free page management,
-// they are using the b-tree as a stack, never call them for other purpose
+// they should only be called on the b-tree of the free page table, never call them for other
+// purpose.
 static int btreeToStack(SBTree* pBt, TXN* pTxn) {
   SPage *pRoot = NULL;
   SBtreeInitPageArg arg = {.pBt = pBt, .flags = TDB_BTREE_ROOT | TDB_BTREE_LEAF};
   int ret = tdbPagerFetchPage(pBt->pPager, &pBt->root, &pRoot, tdbBtreeInitPage, &arg, pTxn);
   if (ret < 0) {
-    tdbError("tdb/btree-to-stack: fetch root page failed with ret: %d.", ret);
+    
     return ret;
   }
 
@@ -408,7 +409,6 @@ static int btreeToStack(SBTree* pBt, TXN* pTxn) {
     return 0;
   }
 
-  // mark dirty
   ret = tdbPagerWrite(pBt->pPager, pRoot);
   if (ret < 0) {
     tdbError("tdb/btree-to-stack: failed to mark root page dirty since %s", terrstr());
@@ -416,84 +416,66 @@ static int btreeToStack(SBTree* pBt, TXN* pTxn) {
     return ret;
   }
 
-  int szCell = sizeof(SPgno);
-  // if the root page is leaf and still have enough space for a new cell.
-  if (TDB_BTREE_PAGE_IS_LEAF(pRoot) && TDB_PAGE_FREE_SIZE(pRoot) >= szCell + TDB_PAGE_OFFSET_SIZE(pRoot)) {
-    // mark the root page as free page management page, then upgrade is complete.
+  // if root page is not a leaf page, it means a re-balance is alreay happened and the
+  // data is already corrupted, we have no way to recover from this, so discard all
+  // existing free pages. note, discarding free pages only 'fixes' the corruption of the
+  // free page table, but there can still be data corruption in other places.
+  //
+  // and there's another case: the b-tree has been re-balanced more than once, the root
+  // page becomes a non-leaf page and then a leaf page again, this also means data
+  // corruption, it is a rare case, but we are unable to detect and handle it correctly.
+  if (!TDB_BTREE_PAGE_IS_LEAF(pRoot)) {
+    tdbWarn("tdb/btree-to-stack: root page is not a leaf page, all existing free pages are discarded");
+    tdbBtreeInitPage(pRoot, &arg, 0); // re-initialize the root page
     TDB_BTREE_PAGE_SET_FLAGS(pRoot, TDB_BTREE_STACK|TDB_BTREE_LEAF|TDB_BTREE_ROOT);
     tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
     return 0;
   }
 
-  SArray *pgnos = taosArrayInit(2048, sizeof(SPgno));
-  if (pgnos == NULL) {
+  // if the root page still have enough space for a new cell, then we only need to
+  // mark it as a stack.
+  if (TDB_PAGE_FREE_SIZE(pRoot) >= sizeof(SPgno) + TDB_PAGE_OFFSET_SIZE(pRoot)) {
+    TDB_BTREE_PAGE_SET_FLAGS(pRoot, TDB_BTREE_STACK|TDB_BTREE_LEAF|TDB_BTREE_ROOT);
     tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
-    tdbError("tdb/btree-to-stack: taosArrayInit failed.");
-    return terrno;
+    tdbInfo("tdb/btree-to-stack: btree has been marked as a stack.");
+    return 0;
   }
 
-  // traverse the b-tree to get all page numbers of the free pages.
-  // BUG: except the root page, all other pages of the b-tree become free pages after
-  //      the conversion, but they are lost.
-  SBTC btc;
-  ret = tdbBtcOpen(&btc, pBt, pTxn);
-  if (ret) {
-    tdbError("tdb/btree-to-stack: btc open failed with ret: %d.", ret);
-    return ret;
-  }
-
-  ret = tdbBtcMoveToFirst(&btc);
+  // the root page is full, we need to construct the linked list for extra free pages.
+  SPgno pgno = *((SPgno*)tdbPageGetCell(pRoot, 0));
+  SPage *pPage = NULL;
+  ret = tdbPagerFetchPage(pBt->pPager, &pgno, &pPage, tdbBtreeInitPage, &arg, pTxn);
   if (ret < 0) {
-    tdbError("tdb/btree-to-stack: btc move to first failed with ret: %d.", ret);
+    tdbError("tdb/btree-to-stack: fetch free page %d failed with ret: %d.", pgno, ret);
     tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
-    taosArrayDestroy(pgnos);
-    tdbBtcClose(&btc);
     return ret;
   }
 
-  void* pKey = NULL;
-  while( 1 ) {
-    int kLen = 0;
-    ret = tdbBtreeNext(&btc, &pKey, &kLen, NULL, NULL);
-    if (ret < 0) {
-      break;
-    }
-
-    if (kLen != sizeof(SPgno)) {
-      tdbError("tdb/btree-to-stack: key length is not %" PRIu64 ", but %d.", sizeof(SPgno), kLen);
-      break;
-    }
-
-    taosArrayPush(pgnos, pKey);
-  }
-  tdbFree(pKey);
-  tdbBtcClose(&btc);
-
-  // re-initialize the root page
-  tdbBtreeInitPage(pRoot, &arg, 0);
-
-  for (int i = 0; i < taosArrayGetSize(pgnos); i++) {
-    SPgno pgno = *(SPgno*)taosArrayGet(pgnos, i);
-    SPage *pPage = NULL;
-    ret = tdbPagerFetchPage(pBt->pPager, &pgno, &pPage, tdbBtreeInitPage, &arg, pTxn);
-    if (ret < 0) {
-      tdbError("tdb/btree-to-stack: fetch page %d failed with ret: %d.", pgno, ret);
-      taosArrayDestroy(pgnos);
-      tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
-      return ret;
-    }
-
-    tdbBtreePushFreePage(pBt, pPage, pTxn);
+  ret = tdbPagerWrite(pBt->pPager, pPage);
+  if (ret < 0) {
+    tdbError("tdb/btree-to-stack: failed to mark free page %d dirty since %s", pgno, terrstr());
+    tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
+    tdbPagerReturnPage(pBt->pPager, pPage, pTxn);
+    return ret;
   }
 
-  taosArrayDestroy(pgnos);
+  // in the linked list, [pPage->pData] holds the next free page number, and 0 means
+  // there's no next free page.
+  *((SPgno*)pPage->pData) = 0;
+  tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
 
   // mark the root page as free page management page, then upgrade is complete.
   TDB_BTREE_PAGE_SET_FLAGS(pRoot, TDB_BTREE_STACK|TDB_BTREE_LEAF|TDB_BTREE_ROOT);
   tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
+  tdbInfo("tdb/btree-to-stack: btree has been converted to a stack.");
+
   return 0;
 }
 
+// convert the btree to a stack, after this function, cells of the root page of the btree
+// will be used to store page numbers of free pages, and when there's not enough space for
+// a new cell(a new free page number), more free pages become a linked list based stack,
+// and the first cell of the root page becomes the head of the stack.
 int tdbBtreeToStack(SBTree *pBt) {
   TDB* pEnv = pBt->pPager->pEnv;
   TXN* pTxn = NULL;
@@ -502,7 +484,6 @@ int tdbBtreeToStack(SBTree *pBt) {
   if (ret < 0) {
     return ret;
   }
-
 
   ret = btreeToStack(pBt, pTxn);
   if (ret < 0) {
@@ -517,7 +498,6 @@ int tdbBtreeToStack(SBTree *pBt) {
 }
 
 int tdbBtreePushFreePage(SBTree *pBt, SPage *pPage, TXN* pTxn) {
-  // always insert at the beginning of root page
   SPage *pRoot = NULL;
   SBtreeInitPageArg arg = {.pBt = pBt, .flags = TDB_BTREE_ROOT | TDB_BTREE_LEAF};
   int ret = tdbPagerFetchPage(pBt->pPager, &pBt->root, &pRoot, tdbBtreeInitPage, &arg, pTxn);
@@ -526,7 +506,6 @@ int tdbBtreePushFreePage(SBTree *pBt, SPage *pPage, TXN* pTxn) {
     return ret;
   }
 
-  // mark dirty
   ret = tdbPagerWrite(pBt->pPager, pRoot);
   if (ret < 0) {
     tdbError("tdb/btree-push-free-page: failed to mark root page dirty since %s", terrstr());
@@ -537,7 +516,9 @@ int tdbBtreePushFreePage(SBTree *pBt, SPage *pPage, TXN* pTxn) {
   SPgno pgno = TDB_PAGE_PGNO(pPage), prev = 0;
   int szCell = sizeof(pgno);
 
-  // if there's not enough space for the new cell, save the value of the first cell and drop it
+  // if there's not enough space for the new cell, then we need to push the new pgno to the
+  // linked list based stack, so save the content of the stack head (the 1st cell of the root page)
+  // and drop it.
   if (TDB_PAGE_FREE_SIZE(pRoot) < szCell + TDB_PAGE_OFFSET_SIZE(pRoot)) {
     prev = *((SPgno*)tdbPageGetCell(pRoot, 0));
     ret = tdbPageDropCell(pRoot, 0, pTxn, pBt);
@@ -548,7 +529,7 @@ int tdbBtreePushFreePage(SBTree *pBt, SPage *pPage, TXN* pTxn) {
     }
   }
 
-  // insert the new cell
+  // insert the new cell, it becomes the new stack head.
   ret = tdbPageInsertCell(pRoot, 0, (SCell*)&pgno, szCell, 0);
   if (ret < 0) {
     tdbError("tdb/btree-push-free-page: insert cell failed with ret: %d.", ret);
@@ -556,8 +537,8 @@ int tdbBtreePushFreePage(SBTree *pBt, SPage *pPage, TXN* pTxn) {
     return ret;
   }
   
-  // if there's not enough space for another new cell, save the value of the previous first cell
-  // to [pPage->pData], this makes the free pages a linked list based stack.
+  // if there's not enough space for another new cell, save the value of the previous stack head
+  // to [pPage->pData], this finishes the push operation to the linked list based stack.
   if (TDB_PAGE_FREE_SIZE(pRoot) < szCell + TDB_PAGE_OFFSET_SIZE(pRoot)) {
     // mark the page dirty
     ret = tdbPagerWrite(pBt->pPager, pPage);
@@ -589,7 +570,6 @@ int tdbBtreePopFreePage(SBTree *pBt, SPgno *pgno, TXN* pTxn) {
     return 0;
   }
 
-  // mark dirty
   ret = tdbPagerWrite(pBt->pPager, pRoot);
   if (ret < 0) {
     tdbError("tdb/btree-pop-free-page: failed to mark root page dirty since %s", terrstr());
@@ -602,7 +582,7 @@ int tdbBtreePopFreePage(SBTree *pBt, SPgno *pgno, TXN* pTxn) {
   SPgno next = 0;
   int szCell = sizeof(next);
   // if there's not enough space for a new cell, then the free pages is a linked list based stack,
-  // we need to fetch the first page to get the page number of the next free page.
+  // we need to fetch the first free page to get the page number of the next free page.
   if (TDB_PAGE_FREE_SIZE(pRoot) < (szCell + TDB_PAGE_OFFSET_SIZE(pRoot))) {
     SPage* pPage = NULL;
     ret = tdbPagerFetchFreePage(pBt->pPager, *pgno, &pPage, pTxn);
@@ -623,7 +603,7 @@ int tdbBtreePopFreePage(SBTree *pBt, SPgno *pgno, TXN* pTxn) {
     return ret;
   }
 
-  // if we have a next page, insert a new cell at index 0 to make it the first free page.
+  // if we have a next page, insert a new cell at index 0 to make it the stack head.
   if (next != 0) {
     ret = tdbPageInsertCell(pRoot, 0, (SCell*)&next, szCell, 0);
     if (ret < 0) {
