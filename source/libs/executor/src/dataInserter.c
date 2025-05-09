@@ -70,6 +70,7 @@ typedef struct SDataInserterHandle {
 
 typedef struct SSubmitRspParam {
   SDataInserterHandle* pInserter;
+  void*                putParam;
 } SSubmitRspParam;
 
 int32_t initInserterGrpInfo() {
@@ -92,6 +93,43 @@ void destroyInserterGrpInfo() {
     taosHashCleanup(gStreamGrpTableHash);
     gStreamGrpTableHash = NULL;
   }
+}
+
+
+static int32_t getCreateResTableId(const SSubmitRes* pSubmitRes, int64_t* uid) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (!pSubmitRes->pRsp) {
+    stError("create table response is NULL");
+    return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+  }
+  if (pSubmitRes->pRsp->aCreateTbRsp->size != 1) {
+    stError("create table response size is not 1");
+    return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+  }
+  SVCreateTbRsp* pCreateTbRsp = taosArrayGet(pSubmitRes->pRsp->aCreateTbRsp, 0);
+  if (pCreateTbRsp->code != 0) {
+    stError("create table failed, code:%d", pCreateTbRsp->code);
+    return pCreateTbRsp->code;
+  }
+  if (pCreateTbRsp->pMeta->tuid == 0) {
+    stError("create table uid is 0");
+    return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+  }
+  *uid = pCreateTbRsp->pMeta->tuid;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t saveCreateGrpTableInfo(int64_t groupId, const SSubmitRes* pSubmitRes) {
+  int64_t uid = -1;
+  int32_t code = getCreateResTableId(pSubmitRes, &uid);
+  if (code) {
+    return code;
+  }
+  code = taosHashPut(gStreamGrpTableHash, &groupId, sizeof(groupId), &uid, sizeof(uid));
+  if (code) {
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
@@ -136,6 +174,11 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
           goto _return;
         }
       }
+    }
+
+    if(pParam->putParam != NULL && ((SStreamDataInserterInfo*)pParam->putParam)->isAutoCreateTable) {
+      ((SStreamDataInserterInfo*)pParam->putParam)->isAutoCreateTable = false;
+      saveCreateGrpTableInfo(((SStreamDataInserterInfo*)pParam->putParam)->groupId, &pInserter->submitRes);
     }
 
     pInserter->submitRes.affectedRows += pInserter->submitRes.pRsp->affectedRows;
@@ -410,7 +453,7 @@ _return:
   return code;
 }
 
-static int32_t sendSubmitRequest(SDataInserterHandle* pInserter, void* pMsg, int32_t msgLen, void* pTransporter,
+static int32_t sendSubmitRequest(SDataInserterHandle* pInserter, void* putParam, void* pMsg, int32_t msgLen, void* pTransporter,
                                  SEpSet* pEpset) {
   // send the fetch remote task result reques
   SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
@@ -426,6 +469,7 @@ static int32_t sendSubmitRequest(SDataInserterHandle* pInserter, void* pMsg, int
     return terrno;
   }
   pParam->pInserter = pInserter;
+  pParam->putParam = putParam;
 
   pMsgSendInfo->param = pParam;
   pMsgSendInfo->paramFreeFp = taosAutoMemoryFree;
@@ -1160,7 +1204,7 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
 
     taosArrayClear(pInserter->pDataBlocks);
 
-    code = sendSubmitRequest(pInserter, pMsg, msgLen, pInserter->pParam->readHandle->pMsgCb->clientRpc,
+    code = sendSubmitRequest(pInserter, NULL, pMsg, msgLen, pInserter->pParam->readHandle->pMsgCb->clientRpc,
                              &pInserter->pNode->epSet);
     if (code) {
       return code;
@@ -1175,42 +1219,6 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
 
   *pContinue = true;
 
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t getCreateResTableId(const SSubmitRes* pSubmitRes, int64_t* uid) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (!pSubmitRes->pRsp) {
-    stError("create table response is NULL");
-    return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
-  }
-  if (pSubmitRes->pRsp->aCreateTbRsp->size != 1) {
-    stError("create table response size is not 1");
-    return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
-  }
-  SVCreateTbRsp* pCreateTbRsp = taosArrayGet(pSubmitRes->pRsp->aCreateTbRsp, 0);
-  if (pCreateTbRsp->code != 0) {
-    stError("create table failed, code:%d", pCreateTbRsp->code);
-    return pCreateTbRsp->code;
-  }
-  if (pCreateTbRsp->pMeta->tuid == 0) {
-    stError("create table uid is 0");
-    return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
-  }
-  *uid = pCreateTbRsp->pMeta->tuid;
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t saveCreateGrpTableInfo(int64_t groupId, const SSubmitRes* pSubmitRes) {
-  int64_t uid = -1;
-  int32_t code = getCreateResTableId(pSubmitRes, &uid);
-  if (code) {
-    return code;
-  }
-  code = taosHashPut(gStreamGrpTableHash, &groupId, sizeof(groupId), &uid, sizeof(uid));
-  if (code) {
-    return code;
-  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1235,7 +1243,7 @@ static int32_t putStreamDataBlock(SDataSinkHandle* pHandle, const SInputData* pI
 
     taosArrayClear(pInserter->pDataBlocks);
 
-    code = sendSubmitRequest(pInserter, pMsg, msgLen, pInserter->pParam->readHandle->pMsgCb->clientRpc, &epSet);
+    code = sendSubmitRequest(pInserter, pInput->pStreamDataInserterInfo, pMsg, msgLen, pInserter->pParam->readHandle->pMsgCb->clientRpc, &epSet);
     if (code) {
       return code;
     }
@@ -1244,12 +1252,6 @@ static int32_t putStreamDataBlock(SDataSinkHandle* pHandle, const SInputData* pI
 
     if (pInserter->submitRes.code) {
       return pInserter->submitRes.code;
-    }
-    if (pInput->pStreamDataInserterInfo->isAutoCreateTable) {
-      code = saveCreateGrpTableInfo(pInput->pStreamDataInserterInfo->groupId, &pInserter->submitRes);
-      if (code) {
-        return code;
-      }
     }
   }
 

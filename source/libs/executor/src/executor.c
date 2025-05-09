@@ -256,9 +256,14 @@ static int32_t checkInsertParam(SStreamInserterParam* streamInserterParam) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  if (streamInserterParam->tbname == NULL || streamInserterParam->dbFName == NULL ||
-      strlen(streamInserterParam->tbname) == 0 || strlen(streamInserterParam->dbFName) == 0) {
+  if ( streamInserterParam->dbFName == NULL || strlen(streamInserterParam->dbFName) == 0) {
     stError("insertParam: invalid db/table name");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (streamInserterParam->suid <= 0 &&
+      (streamInserterParam->tbname == NULL || strlen(streamInserterParam->tbname) == 0)) {
+    stError("insertParam: invalid table name, suid:%" PRIx64 "", streamInserterParam->suid);
     return TSDB_CODE_INVALID_PARA;
   }
 

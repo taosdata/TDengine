@@ -16,6 +16,7 @@
 #ifndef _TD_EXECUTOR_H_
 #define _TD_EXECUTOR_H_
 
+#include <stdint.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
