@@ -1818,14 +1818,19 @@ static int32_t grantCheckDnodes() {
   if (gStatus.limitDnodes == GRANT_UNIQ_UNLIMITED) {
     return 0;
   }
-  int32_t limitDnodes = gStatus.limitDnodes;
+  int32_t limitDnodes = (int32_t)gStatus.limitDnodes;
   if (grantHandle.pMnode) {
-    if (grantCheckDualReplicaDnodes(grantHandle.pMnode)) limitDnodes = 3;  // TS-6191
+    if (grantCheckDualReplicaDnodes(grantHandle.pMnode)) {
+      limitDnodes = 3;  // TS-6191
+    } else {
+      gStatus.curDnodes = grantGetClusterCurDnodes(grantHandle.pMnode);
+    }
   }
   if (gStatus.curDnodes < limitDnodes) {
     return 0;
   }
-  uError("grant failed to create dnode, exist:%d, reason:grant dnode limited", (int32_t)gStatus.curDnodes);
+  uError("grant failed to create dnode, exist:%d, limit:%d, reason:grant dnode limited", (int32_t)gStatus.curDnodes,
+         limitDnodes);
   return TSDB_CODE_GRANT_DNODE_LIMITED;
 }
 
@@ -2163,9 +2168,9 @@ int32_t grantGetDnodeSizeWithVnodes(SMnode *pMnode, int32_t dnodeSize) {
 }
 
 bool grantCheckDualReplicaDnodes(void *pMnode) {
-  if ((2 == gStatus.limitDnodes) && gStatus.dualReplicaHADefined) { // TS-6191: perform check regardless of dual replica's expiration status.
-    int32_t curDnodes = grantGetClusterCurDnodes(pMnode);
-    if (curDnodes >= 2) {
+  if ((2 == gStatus.limitDnodes) &&
+      gStatus.dualReplicaHADefined) {  // TS-6191: perform check regardless of dual replica's expiration status.
+    if ((gStatus.curDnodes = grantGetClusterCurDnodes(pMnode)) >= 2) {
       return true;
     }
   }
