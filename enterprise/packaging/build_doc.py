@@ -3,7 +3,7 @@ Utility script to build the documentation for the TDengine
 you can run this script with the following command:
 generate oem zip and pdf :python3 build_doc.py -sb -sp -ozf -fu -cn LCIotDB -cp lc 
 generate all zip and pdf :python3 build_doc.py -ezf
-generate all zip and pdf without uploading zip : python3 build_doc.py -ezf -nu:
+generate all zip and pdf without preparing, building and uploading zip : python3 build_doc.py -ezf -nu -sp -sb
 """
 
 
@@ -257,7 +257,7 @@ def build_oem_pdf(enterprise_path):
         os.chdir(enterprise_path)
         print(f"Changed directory to {enterprise_path}")          
         # Run the build script
-        subprocess.run("python3 build.py pdf oem {no_upload_arm} ", shell=True, check=True)
+        subprocess.run("python3 build.py pdf oem", shell=True, check=True)
     except subprocess.CalledProcessError as e:
         logger.error(f"Error: {e}")
 
