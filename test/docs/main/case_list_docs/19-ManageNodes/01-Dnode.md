@@ -1,0 +1,11 @@
+::: 19-ManageNodes.01-Dnode.test_alter_dnode_debugflag
+::: 19-ManageNodes.01-Dnode.test_create_dnode
+::: 19-ManageNodes.01-Dnode.test_drop_dnode_force
+::: 19-ManageNodes.01-Dnode.test_drop_dnode_has_mnode
+::: 19-ManageNodes.01-Dnode.test_drop_dnode_has_multi_vnode_replica1
+::: 19-ManageNodes.01-Dnode.test_drop_dnode_has_multi_vnode_replica3
+::: 19-ManageNodes.01-Dnode.test_drop_dnode_has_qnode_snode
+::: 19-ManageNodes.01-Dnode.test_drop_dnode_has_vnode_replica1
+::: 19-ManageNodes.01-Dnode.test_drop_dnode_has_vnode_replica3
+::: 19-ManageNodes.01-Dnode.test_offline_reason
+::: 19-ManageNodes.01-Dnode.test_use_dropped_dnode

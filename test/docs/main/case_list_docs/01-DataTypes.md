@@ -13,4 +13,7 @@
 ::: 01-DataTypes.test_column_unsign
 ::: 01-DataTypes.test_column_varbinary
 ::: 01-DataTypes.test_column_varchar
+::: 01-DataTypes.test_const
+::: 01-DataTypes.test_nchar
 ::: 01-DataTypes.test_null
+::: 01-DataTypes.test_null_char

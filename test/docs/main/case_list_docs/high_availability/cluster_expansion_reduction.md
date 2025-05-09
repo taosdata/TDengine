@@ -1,3 +1,0 @@
-::: high_availability.cluster_expansion_reduction.test_5dnode_3mnode_stop
-::: high_availability.cluster_expansion_reduction.test_cluster_basic
-::: high_availability.cluster_expansion_reduction.test_5dnode_3mnode_add_1dnode

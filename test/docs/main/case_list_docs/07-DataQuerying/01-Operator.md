@@ -1,0 +1,9 @@
+::: 07-DataQuerying.01-Operator.test_and_or
+::: 07-DataQuerying.01-Operator.test_arithmetic
+::: 07-DataQuerying.01-Operator.test_arithmetic_basic
+::: 07-DataQuerying.01-Operator.test_between_and
+::: 07-DataQuerying.01-Operator.test_case_when
+::: 07-DataQuerying.01-Operator.test_case_when_sum
+::: 07-DataQuerying.01-Operator.test_in
+::: 07-DataQuerying.01-Operator.test_like
+::: 07-DataQuerying.01-Operator.test_like_tag
