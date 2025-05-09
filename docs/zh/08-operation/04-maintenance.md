@@ -32,7 +32,7 @@ kill compact compact_id;
 - compact 会合并多个 STT 文件
 - 可通过 start with 关键字指定 compact 数据的起始时间
 - 可通过 end with 关键字指定 compact 数据的终止时间
-- 可通过 `META_ONLY` 关键字指定只 compact 元数据。元数据默认情况下不会 compact。
+- 可通过 `META_ONLY` 关键字指定只 compact 元数据。元数据默认情况下不会 compact。元数据压缩会阻塞写入和查询，且被压缩数据库应该停止写入和查询
 - compact 命令会返回 compact 任务的 ID
 - compact 任务会在后台异步执行，可以通过 show compacts 命令查看 compact 任务的进度
 - show 命令会返回 compact 任务的 ID，可以通过 kill compact 命令终止 compact 任务
