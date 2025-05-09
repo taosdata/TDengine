@@ -241,7 +241,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
       ST_TASK_ELOG("failed to exec task code: %s", tstrerror(code));
     } else {
       if (pTask->topTask) {
-        code = stRunnerOutputBlock(pTask, pExec, pBlock, pReq->createTable);
+        code = stRunnerOutputBlock(pTask, pExec, pBlock, i == 0 ? pReq->createTable : false);
       } else {
         if (pBlock) {
           code = createOneDataBlock(pBlock, true, &pTask->output.pBlock);
