@@ -91,7 +91,6 @@ typedef struct SExternalWindowOperator {
   int32_t            primaryTsIndex;
   bool               scalarMode;
   SArray*            pWins;
-  int32_t            winCurIdx;
   SArray*            pOutputBlocks;  // for each window, we have a list of blocks
   int32_t            outputWinId;
   SListNode*         pOutputBlockListNode;  // block index in block array used for output, TODO wjm remember to reset it
@@ -229,7 +228,6 @@ static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
   SExternalWindowPhysiNode* pPhynode = (SExternalWindowPhysiNode*)pOperator->pPhyNode;
   resetBasicOperatorState(&pExtW->binfo);
   pExtW->outputWinId = 0;
-  pExtW->winCurIdx = 0;
   taosArrayDestroyEx(pExtW->pOutputBlocks, blockListDestroy);
   pExtW->pOutputBlockListNode = NULL;
   initResultSizeInfo(&pOperator->resultInfo, 512);
@@ -271,6 +269,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
   initBasicInfo(&pExtW->binfo, pResBlock);
 
   pExtW->primaryTsIndex = ((SColumnNode*)pPhynode->window.pTspk)->slotId;
+  pExtW->scalarMode = pPhynode->window.pProjs != NULL;
 
   if (pExtW->scalarMode) {
   } else {
@@ -353,12 +352,21 @@ int64_t* extractTsCol(SSDataBlock* pBlock, int32_t primaryTsIndex, SExecTaskInfo
   return tsCols;
 }
 
+static int32_t getExtWinCurIdx(SOperatorInfo* pOperator) {
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  return pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx;
+}
+
+static void incExtWinCurIdx(SOperatorInfo* pOperator) {
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx++;
+}
+
 static const STimeWindow* getExtWindow(SExternalWindowOperator* pExtW, TSKEY ts) {
   // TODO wjm handle desc order
   for (int32_t i = 0; i < pExtW->pWins->size; ++i) {
     const STimeWindow* pWin = taosArrayGet(pExtW->pWins, i);
     if (ts >= pWin->skey && ts < pWin->ekey) {
-      pExtW->winCurIdx = i;
       return pWin;
     }
   }
@@ -367,9 +375,9 @@ static const STimeWindow* getExtWindow(SExternalWindowOperator* pExtW, TSKEY ts)
 
 static const STimeWindow* getExtNextWindow(SOperatorInfo* pOperator) {
   SExternalWindowOperator* pExtW = pOperator->info;
-  if (pExtW->winCurIdx + 1 >= pExtW->pWins->size) return NULL;
-  pExtW->winCurIdx++;
-  return taosArrayGet(pExtW->pWins, pExtW->winCurIdx);
+  if (getExtWinCurIdx(pOperator) + 1 >= pExtW->pWins->size) return NULL;
+  incExtWinCurIdx(pOperator);
+  return taosArrayGet(pExtW->pWins, getExtWinCurIdx(pOperator));
 }
 
 static int32_t getNextStartPos(STimeWindow win, const SDataBlockInfo* pBlockInfo, int32_t lastEndPos, int32_t order) {
@@ -418,7 +426,7 @@ static SSDataBlock* extWindowGetOutputBlock(SOperatorInfo* pOperator, int32_t wi
 static int32_t extWindowCopyRows(SOperatorInfo* pOperator, SSDataBlock* pInputBlock, int32_t startPos,
                                  int32_t forwardRows) {
   SExternalWindowOperator* pExtW = pOperator->info;
-  SSDataBlock*             pResBlock = extWindowGetOutputBlock(pOperator, pExtW->winCurIdx);
+  SSDataBlock*             pResBlock = extWindowGetOutputBlock(pOperator, getExtWinCurIdx(pOperator));
   if (!pResBlock) {
     qError("failed to get output block for ext window:%s", tstrerror(terrno));
     return terrno;

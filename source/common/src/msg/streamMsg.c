@@ -2518,6 +2518,7 @@ int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo*
   TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(pEncoder, pInfo->pStreamPesudoFuncVals));
   TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(pEncoder, pInfo->pStreamPartColVals));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->groupId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pInfo->curIdx));
 _exit:
   return code;
 }
@@ -2528,7 +2529,7 @@ int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pIn
   TAOS_CHECK_EXIT(tDeserializeSTriggerCalcParam(pDecoder, &pInfo->pStreamPesudoFuncVals));
   TAOS_CHECK_EXIT(tDeserializeStriggerGroupColVals(pDecoder, &pInfo->pStreamPartColVals));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pInfo->groupId));
-
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pInfo->curIdx));
 _exit:
   return code;
 }
