@@ -355,20 +355,6 @@ pub async fn opc_to_taos(
     Ok(())
 }
 
-fn csv_string_record_from_iter<I>(iter: I) -> String
-where
-    I: IntoIterator<Item = String>,
-{
-    let record = csv_lib::StringRecord::from_iter(iter);
-
-    let mut writer = Vec::new();
-    let mut wtr = csv_lib::Writer::from_writer(&mut writer);
-    wtr.write_record(&record).unwrap();
-    wtr.flush().unwrap();
-    drop(wtr);
-    String::from_utf8_lossy(&writer).trim().to_string()
-}
-
 /// OPC UA: <table_prefix>_{ns}_{id}_<table_suffix>
 /// OPC DA: <table_prefix>_{tag_name/TagName}_<table_suffix>
 fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> String {
@@ -1015,5 +1001,22 @@ panic: (*logrus.Entry) 0xc00034aaf0
 panic: (*logrus.Entry) 0xc00034aaf0"#.to_string();
         let res = filter_opc_log(log).await;
         assert_eq!(res, expect);
+    }
+
+    /// # Example
+    /// ```shell
+    /// OPC_SERVER="192.168.2.16:53530/OPCUA/SimulationServer" PLUGINS_HOME=/Users/yangzy/RustProjects/taosx/plugins LOGS_HOME=/Users/yangzy/taosx/log cargo nextest run -p taosx-core test_opc_datasets_by_command --nocapture --retries 0
+    /// ```
+    #[tokio::test]
+    async fn test_opc_datasets_by_command() {
+        if let Ok(opc_server) = std::env::var("OPC_SERVER") {
+            let dsn = format!("opcua://{opc_server}?browse_name_pattern=\"数据块_1\".\"Tag\\d+\"",)
+                .into_dsn()
+                .unwrap();
+            let config = OPCConfig::from_dsn_point_mode(&dsn).unwrap();
+
+            let datasets = opc_datasets_by_command(&config).await.unwrap();
+            dbg!(&datasets);
+        }
     }
 }
