@@ -367,3 +367,34 @@ bool setNextIteratorFromCache(SResultIter** ppResult) {
   // *ppResult = NULL;
   return true;  // 内存没有数据，还需要查看文件
 }
+
+int32_t buildSlidingWindowInMem(SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex,
+                                SSlidingWindowInMem** ppSlidingWinInMem) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  size_t  numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+
+  // todo dataEncodeBufSize > real len
+  size_t dataEncodeBufSize = blockGetEncodeSizeOfRows(pBlock, startIndex, endIndex);
+  char*  buf = taosMemoryCalloc(1, dataEncodeBufSize + sizeof(SSlidingWindowInMem));
+  if (buf == NULL) {
+    return terrno;
+  }
+  *ppSlidingWinInMem = (SSlidingWindowInMem*)buf;
+  code = getStreamBlockTS(pBlock, endIndex, &(*ppSlidingWinInMem)->endTime);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  char*   pStart = buf + sizeof(SSlidingWindowInMem);
+  int32_t len = 0;
+  code = blockEncodeAsRows(pBlock, pStart, dataEncodeBufSize, numOfCols, startIndex, endIndex, &len);
+  QUERY_CHECK_CODE(code, lino, _end);
+  (*ppSlidingWinInMem)->dataLen = dataEncodeBufSize;
+
+  return TSDB_CODE_SUCCESS;
+_end:
+  stError("failed to encode data since %s, lineno:%d", tstrerror(code), lino);
+  if (buf) {
+    taosMemoryFree(buf);
+  }
+  return code;
+}
