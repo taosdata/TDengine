@@ -204,7 +204,7 @@ int32_t smDeployTasks(SStmStreamDeploy* pDeploy) {
   } else {
     SStreamTasksInfo stream = {0};
 
-    code = smAddTasksToStreamMap(pDeploy, pStream);
+    code = smAddTasksToStreamMap(pDeploy, &stream);
     if (TSDB_CODE_SUCCESS != code) {
       stmDestroySStreamTasksInfo(&stream);
       TAOS_CHECK_EXIT(code);
