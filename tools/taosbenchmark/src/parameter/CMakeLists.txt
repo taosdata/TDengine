@@ -11,7 +11,7 @@ find_package(nlohmann_json 3.2.0 REQUIRED)
 
 
 # 添加主库
-add_library(ParameterContext STATIC ParameterContext.cpp)
+add_library(ParameterContext STATIC ConfigData.cpp ParameterContext.cpp)
 
 # 包含头文件目录
 target_include_directories(ParameterContext PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -20,17 +20,31 @@ target_include_directories(ParameterContext PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(ParameterContext PRIVATE nlohmann_json::nlohmann_json)
 
 
-# 添加测试可执行文件
-add_executable(ParameterContextTest
-    test/ParameterContextTest.cpp
+# TestConfigData
+add_executable(TestConfigData
+    test/TestConfigData.cpp
 )
 
-# 链接主库和依赖
-target_link_libraries(ParameterContextTest
+target_link_libraries(TestConfigData
+    PRIVATE
+    ParameterContext
+)
+
+# TestParameterContext
+add_executable(TestParameterContext
+    test/TestParameterContext.cpp
+)
+
+target_link_libraries(TestParameterContext
     PRIVATE
     ParameterContext
     nlohmann_json::nlohmann_json
 )
+
+
+
+
+
 
 # # 添加可执行文件
 # add_executable(ParameterContext main.cpp)
