@@ -579,6 +579,10 @@ pub async fn point_records_to_sql(
             .into_value()
             .to_string()
             .context("invalid id value")?;
+        let point_id_sql = id_column_view
+            .get(i)
+            .ok_or(anyhow::anyhow!("id not found"))?
+            .to_sql_value();
 
         let mapping = config.get_point_mapping(&point_id)?;
         if mapping.is_none() {
@@ -760,8 +764,8 @@ pub async fn point_records_to_sql(
                 map.insert(
                     child_table_name.clone(),
                     format!(
-                        "(`point_id`, `point_name`) TAGS (\"{point_id}\", {})",
-                        &point_name
+                        "(`point_id`, `point_name`) TAGS ({}, {})",
+                        &point_id_sql, &point_name
                     ),
                 );
             } else {
@@ -769,8 +773,8 @@ pub async fn point_records_to_sql(
                 map.insert(
                     child_table_name.clone(),
                     format!(
-                        "(`point_id`, `point_name`) TAGS (\"{point_id}\", {})",
-                        &point_name
+                        "(`point_id`, `point_name`) TAGS ({}, {})",
+                        &point_id_sql, &point_name
                     ),
                 );
                 child_table_create_sql_map.insert(stable_name.clone(), map);
@@ -1047,7 +1051,7 @@ mod tests {
         std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
 
         // CSV 不包含 request_ts ，RecordBatch 不包含 request
-        let message = mock_point_message(false);
+        let message = mock_point_message();
         let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-utf8.csv").unwrap();
         let parser = CsvParser::from_dsn(&dsn).unwrap();
         let config = parser.parse().await.unwrap();
@@ -1064,7 +1068,7 @@ mod tests {
         );
 
         // CSV 包含 request_ts，RecordBatch 不包含 request
-        let message = mock_point_message(false);
+        let message = mock_point_message();
         let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-3.3.6.0.csv").unwrap();
         let parser = CsvParser::from_dsn(&dsn).unwrap();
         let config = parser.parse().await.unwrap();
@@ -1081,7 +1085,7 @@ mod tests {
         );
 
         // CSV 包含 request_ts，RecordBatch 包含 request
-        let message = mock_point_message(true);
+        let message = mock_point_message_2();
         let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-3.3.6.0.csv").unwrap();
         let parser = CsvParser::from_dsn(&dsn).unwrap();
         let config = parser.parse().await.unwrap();
@@ -1096,12 +1100,23 @@ mod tests {
             sql,
             "insert into `t_3_1005` (`ts`,`val`,`quality`,`qts`,`rts`) VALUES (1700000000000,1,0,1700000000000,1700000000000) `t_3_1006` (`ts`,`val`,`quality`,`qts`,`rts`) VALUES (1700000000000,2,1,1700000000000,1700000000000)  `t_3_1007` (`ts`,`val`,`quality`,`qts`,`rts`) VALUES (1700000000000,3,0,1700000000000,1700000000000) "
         );
+
+        // ns=3;s="数据块_1"."Tag1"
+        let message = mock_point_message_3();
+        let (s, _t) = point_records_to_sql(message, &config, taos::Precision::Millisecond)
+            .await
+            .unwrap();
+        assert_eq!(s.len(), 1);
+        let opc_int = s.get("opc_int").unwrap();
+        assert_eq!(opc_int.len(), 1);
+        let sql = opc_int[0].sql.clone();
+        assert_eq!(sql, "insert into `t_3_\"数据块_1\"_\"Tag101\"` (`ts`,`val`,`quality`,`qts`,`rts`) VALUES (1600000000000,11,1,1600000000000,1600000000000) `t_3_\"数据块_1\"_\"Tag101\"` (`ts`,`val`,`quality`,`qts`,`rts`) VALUES (1700000000000,22,1,1700000000000,1700000000000)  `t_3_\"数据块_1\"_\"Tag101\"` (`ts`,`val`,`quality`,`qts`,`rts`) VALUES (1800000000000,33,1,1800000000000,1800000000000) ");
     }
 
     #[tokio::test]
     async fn test_handle_transform() {
         std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
-        let message = mock_point_message(false);
+        let message = mock_point_message();
 
         let start = Instant::now();
 
@@ -1147,7 +1162,87 @@ mod tests {
         assert_eq!(rts, vec![1700028800000, 1700028800000, 1700028800000]);
     }
 
-    fn mock_point_message(with_qts: bool) -> RecordMessage {
+    fn mock_point_message() -> RecordMessage {
+        let fields = mock_fields(false);
+
+        let r = RecordBatch::try_new(
+            Arc::new(Schema::new(fields)),
+            vec![
+                Arc::new(StringArray::from(vec![
+                    "ns=3;i=1005",
+                    "ns=3;i=1006",
+                    "ns=3;i=1007",
+                ])),
+                Arc::new(StringArray::from(vec!["标签5", "标签6", "标签7"])),
+                Arc::new(
+                    TimestampMillisecondArray::from(vec![
+                        1700000000000,
+                        1700000000000,
+                        1700000000000,
+                    ])
+                    .with_timezone_opt::<&str>(None),
+                ),
+                Arc::new(
+                    TimestampMillisecondArray::from(vec![
+                        1700000000000,
+                        1700000000000,
+                        1700000000000,
+                    ])
+                    .with_timezone_opt::<&str>(None),
+                ),
+                Arc::new(Int32Array::from(vec![1, 2, 3])),
+                Arc::new(Int64Array::from(vec![0, 1, 0])),
+            ],
+        )
+        .unwrap();
+        RecordMessage::from_record(r)
+    }
+
+    fn mock_point_message_2() -> RecordMessage {
+        let fields = mock_fields(true);
+
+        let r = RecordBatch::try_new(
+            Arc::new(Schema::new(fields)),
+            vec![
+                Arc::new(StringArray::from(vec![
+                    "ns=3;i=1005",
+                    "ns=3;i=1006",
+                    "ns=3;i=1007",
+                ])),
+                Arc::new(StringArray::from(vec!["标签5", "标签6", "标签7"])),
+                Arc::new(
+                    TimestampMillisecondArray::from(vec![
+                        1700000000000,
+                        1700000000000,
+                        1700000000000,
+                    ])
+                    .with_timezone_opt::<&str>(None),
+                ),
+                Arc::new(
+                    TimestampMillisecondArray::from(vec![
+                        1700000000000,
+                        1700000000000,
+                        1700000000000,
+                    ])
+                    .with_timezone_opt::<&str>(None),
+                ),
+                Arc::new(Int32Array::from(vec![1, 2, 3])),
+                Arc::new(Int64Array::from(vec![0, 1, 0])),
+                Arc::new(
+                    TimestampMillisecondArray::from(vec![
+                        1700000000000,
+                        1700000000000,
+                        1700000000000,
+                    ])
+                    .with_timezone_opt::<&str>(None),
+                ),
+            ],
+        )
+        .unwrap();
+        RecordMessage::from_record(r)
+    }
+
+    fn mock_fields(with_qts: bool) -> Vec<Field> {
         let mut fields = vec![
             Field::new("id", DataType::Utf8, false),
             Field::new("name", DataType::Utf8, false),
@@ -1165,41 +1260,60 @@ mod tests {
             Field::new("status", DataType::Int64, false),
         ];
         if with_qts {
-            let f = Field::new(
+            fields.push(Field::new(
                 "request",
                 DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, None),
                 false,
-            );
-            fields.push(f);
+            ));
         }
+        fields
+    }
 
-        let mut rows: Vec<ArrayRef> = vec![
-            Arc::new(StringArray::from(vec![
-                "ns=3;i=1005",
-                "ns=3;i=1006",
-                "ns=3;i=1007",
-            ])),
-            Arc::new(StringArray::from(vec!["标签5", "标签6", "标签7"])),
-            Arc::new(
-                TimestampMillisecondArray::from(vec![1700000000000, 1700000000000, 1700000000000])
-                    .with_timezone_opt::<&str>(None),
-            ),
-            Arc::new(
-                TimestampMillisecondArray::from(vec![1700000000000, 1700000000000, 1700000000000])
-                    .with_timezone_opt::<&str>(None),
-            ),
-            Arc::new(Int32Array::from(vec![1, 2, 3])),
-            Arc::new(Int64Array::from(vec![0, 1, 0])),
-        ];
-        if with_qts {
-            let r = Arc::new(
-                TimestampMillisecondArray::from(vec![1700000000000, 1700000000000, 1700000000000])
-                    .with_timezone_opt::<&str>(None),
-            );
-            rows.push(r);
-        }
+    fn mock_point_message_3() -> RecordMessage {
+        let fields = mock_fields(true);
 
-        let r = RecordBatch::try_new(Arc::new(Schema::new(fields)), rows).unwrap();
+        let r = RecordBatch::try_new(
+            Arc::new(Schema::new(fields)),
+            vec![
+                Arc::new(StringArray::from(vec![
+                    "ns=3;s=\"数据块_1\".\"Tag101\"",
+                    "ns=3;s=\"数据块_1\".\"Tag101\"",
+                    "ns=3;s=\"数据块_1\".\"Tag101\"",
+                ])),
+                Arc::new(StringArray::from(vec![
+                    "\"数据块_1\".\"Tag101\"",
+                    "\"数据块_1\".\"Tag101\"",
+                    "\"数据块_1\".\"Tag101\"",
+                ])),
+                Arc::new(
+                    TimestampMillisecondArray::from(vec![
+                        1600000000000,
+                        1700000000000,
+                        1800000000000,
+                    ])
+                    .with_timezone_opt::<&str>(None),
+                ),
+                Arc::new(
+                    TimestampMillisecondArray::from(vec![
+                        1600000000000,
+                        1700000000000,
+                        1800000000000,
+                    ])
+                    .with_timezone_opt::<&str>(None),
+                ),
+                Arc::new(Int32Array::from(vec![11, 22, 33])),
+                Arc::new(Int64Array::from(vec![1, 1, 1])),
+                Arc::new(
+                    TimestampMillisecondArray::from(vec![
+                        1600000000000,
+                        1700000000000,
+                        1800000000000,
+                    ])
+                    .with_timezone_opt::<&str>(None),
+                ),
+            ],
+        )
+        .unwrap();
         RecordMessage::from_record(r)
     }
 }
