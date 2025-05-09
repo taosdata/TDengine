@@ -462,7 +462,7 @@ static int btreeToStack(SBTree* pBt, TXN* pTxn) {
   // in the linked list, [pPage->pData] holds the next free page number, and 0 means
   // there's no next free page.
   *((SPgno*)pPage->pData) = 0;
-  tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
+  tdbPagerReturnPage(pBt->pPager, pPage, pTxn);
 
   // mark the root page as free page management page, then upgrade is complete.
   TDB_BTREE_PAGE_SET_FLAGS(pRoot, TDB_BTREE_STACK|TDB_BTREE_LEAF|TDB_BTREE_ROOT);
