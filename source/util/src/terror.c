@@ -383,6 +383,14 @@ TAOS_DEFINE_ERROR(TSDB_CODE_ANA_INTERNAL_ERROR,          "Analysis internal erro
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_NOT_ENOUGH_ROWS,   "Analysis failed since not enough rows")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_NOT_SUPPORT_FORECAST,    "Not support co-variate/multi-variate forecast")
 
+// xnode
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_ALREADY_EXIST,      "Xnode already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_ALREADY_DEPLOYED,       "Xnode already deployed")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_NOT_DEPLOYED,           "Xnode not deployed")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NOT_EXIST,          "Xnode not there")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_NOT_FOUND,              "Xnode not found")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_UV_EXEC_FAILURE,        "Xnode exec launch failed")
+
 // mnode-sma
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_NOT_EXIST,            "sma not exist")
