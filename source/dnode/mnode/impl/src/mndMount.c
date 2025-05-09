@@ -83,73 +83,73 @@ SSdbRaw *mndMountActionEncode(SMountObj *pDb) {
 
   int32_t  size = sizeof(SDbObj) + pDb->cfg.numOfRetensions * sizeof(SRetention) + DB_RESERVE_SIZE;
   SSdbRaw *pRaw = sdbAllocRaw(SDB_DB, DB_VER_NUMBER, size);
-  if (pRaw == NULL) goto _OVER;
+  if (pRaw == NULL) goto _exit;
 
   int32_t dataPos = 0;
-  SDB_SET_BINARY(pRaw, dataPos, pDb->name, TSDB_DB_FNAME_LEN, _OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pDb->acct, TSDB_USER_LEN, _OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pDb->createUser, TSDB_USER_LEN, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pDb->createdTime, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pDb->updateTime, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pDb->uid, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfgVersion, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->vgVersion, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.numOfVgroups, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.numOfStables, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.buffer, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.pageSize, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.pages, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.cacheLastSize, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysPerFile, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep0, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep1, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep2, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.minRows, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.maxRows, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.walFsyncPeriod, _OVER)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.walLevel, _OVER)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.precision, _OVER)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.compression, _OVER)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.replications, _OVER)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.strict, _OVER)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.cacheLast, _OVER)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.hashMethod, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.numOfRetensions, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pDb->name, TSDB_DB_FNAME_LEN, _exit)
+  SDB_SET_BINARY(pRaw, dataPos, pDb->acct, TSDB_USER_LEN, _exit)
+  SDB_SET_BINARY(pRaw, dataPos, pDb->createUser, TSDB_USER_LEN, _exit)
+  SDB_SET_INT64(pRaw, dataPos, pDb->createdTime, _exit)
+  SDB_SET_INT64(pRaw, dataPos, pDb->updateTime, _exit)
+  SDB_SET_INT64(pRaw, dataPos, pDb->uid, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfgVersion, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->vgVersion, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.numOfVgroups, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.numOfStables, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.buffer, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.pageSize, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.pages, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.cacheLastSize, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysPerFile, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep0, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep1, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep2, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.minRows, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.maxRows, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.walFsyncPeriod, _exit)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.walLevel, _exit)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.precision, _exit)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.compression, _exit)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.replications, _exit)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.strict, _exit)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.cacheLast, _exit)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.hashMethod, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.numOfRetensions, _exit)
   for (int32_t i = 0; i < pDb->cfg.numOfRetensions; ++i) {
     SRetention *pRetension = taosArrayGet(pDb->cfg.pRetensions, i);
-    SDB_SET_INT64(pRaw, dataPos, pRetension->freq, _OVER)
-    SDB_SET_INT64(pRaw, dataPos, pRetension->keep, _OVER)
-    SDB_SET_INT8(pRaw, dataPos, pRetension->freqUnit, _OVER)
-    SDB_SET_INT8(pRaw, dataPos, pRetension->keepUnit, _OVER)
+    SDB_SET_INT64(pRaw, dataPos, pRetension->freq, _exit)
+    SDB_SET_INT64(pRaw, dataPos, pRetension->keep, _exit)
+    SDB_SET_INT8(pRaw, dataPos, pRetension->freqUnit, _exit)
+    SDB_SET_INT8(pRaw, dataPos, pRetension->keepUnit, _exit)
   }
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.schemaless, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.walRetentionPeriod, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pDb->cfg.walRetentionSize, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.walRollPeriod, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pDb->cfg.walSegmentSize, _OVER)
-  SDB_SET_INT16(pRaw, dataPos, pDb->cfg.sstTrigger, _OVER)
-  SDB_SET_INT16(pRaw, dataPos, pDb->cfg.hashPrefix, _OVER)
-  SDB_SET_INT16(pRaw, dataPos, pDb->cfg.hashSuffix, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.tsdbPageSize, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pDb->compactStartTime, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.keepTimeOffset, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.s3ChunkSize, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.s3KeepLocal, _OVER)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.s3Compact, _OVER)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.withArbitrator, _OVER)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.encryptAlgorithm, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->tsmaVersion, _OVER);
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.compactTimeOffset, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactStartTime, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactEndTime, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactInterval, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.schemaless, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.walRetentionPeriod, _exit)
+  SDB_SET_INT64(pRaw, dataPos, pDb->cfg.walRetentionSize, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.walRollPeriod, _exit)
+  SDB_SET_INT64(pRaw, dataPos, pDb->cfg.walSegmentSize, _exit)
+  SDB_SET_INT16(pRaw, dataPos, pDb->cfg.sstTrigger, _exit)
+  SDB_SET_INT16(pRaw, dataPos, pDb->cfg.hashPrefix, _exit)
+  SDB_SET_INT16(pRaw, dataPos, pDb->cfg.hashSuffix, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.tsdbPageSize, _exit)
+  SDB_SET_INT64(pRaw, dataPos, pDb->compactStartTime, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.keepTimeOffset, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.s3ChunkSize, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.s3KeepLocal, _exit)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.s3Compact, _exit)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.withArbitrator, _exit)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.encryptAlgorithm, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->tsmaVersion, _exit);
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.compactTimeOffset, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactStartTime, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactEndTime, _exit)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactInterval, _exit)
 
-  SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
-  SDB_SET_DATALEN(pRaw, dataPos, _OVER)
+  SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _exit)
+  SDB_SET_DATALEN(pRaw, dataPos, _exit)
 
   terrno = 0;
 
-_OVER:
+_exit:
   if (terrno != 0) {
     mError("db:%s, failed to encode to raw:%p since %s", pDb->name, pRaw, terrstr());
     sdbFreeRaw(pRaw);
@@ -171,86 +171,86 @@ static SSdbRow *mndMountActionDecode(SSdbRaw *pRaw) {
   SDbObj  *pDb = NULL;
 
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _exit;
 
   if (sver != DB_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
-    goto _OVER;
+    goto _exit;
   }
 
   pRow = sdbAllocRow(sizeof(SDbObj));
-  if (pRow == NULL) goto _OVER;
+  if (pRow == NULL) goto _exit;
 
   pDb = sdbGetRowObj(pRow);
-  if (pDb == NULL) goto _OVER;
+  if (pDb == NULL) goto _exit;
 
   int32_t dataPos = 0;
-  SDB_GET_BINARY(pRaw, dataPos, pDb->name, TSDB_DB_FNAME_LEN, _OVER)
-  SDB_GET_BINARY(pRaw, dataPos, pDb->acct, TSDB_USER_LEN, _OVER)
-  SDB_GET_BINARY(pRaw, dataPos, pDb->createUser, TSDB_USER_LEN, _OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pDb->createdTime, _OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pDb->updateTime, _OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pDb->uid, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfgVersion, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->vgVersion, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.numOfVgroups, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.numOfStables, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.buffer, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.pageSize, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.pages, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.cacheLastSize, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysPerFile, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysToKeep0, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysToKeep1, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysToKeep2, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.minRows, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.maxRows, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.walFsyncPeriod, _OVER)
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.walLevel, _OVER)
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.precision, _OVER)
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.compression, _OVER)
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.replications, _OVER)
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.strict, _OVER)
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.cacheLast, _OVER)
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.hashMethod, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.numOfRetensions, _OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pDb->name, TSDB_DB_FNAME_LEN, _exit)
+  SDB_GET_BINARY(pRaw, dataPos, pDb->acct, TSDB_USER_LEN, _exit)
+  SDB_GET_BINARY(pRaw, dataPos, pDb->createUser, TSDB_USER_LEN, _exit)
+  SDB_GET_INT64(pRaw, dataPos, &pDb->createdTime, _exit)
+  SDB_GET_INT64(pRaw, dataPos, &pDb->updateTime, _exit)
+  SDB_GET_INT64(pRaw, dataPos, &pDb->uid, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfgVersion, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->vgVersion, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.numOfVgroups, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.numOfStables, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.buffer, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.pageSize, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.pages, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.cacheLastSize, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysPerFile, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysToKeep0, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysToKeep1, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysToKeep2, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.minRows, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.maxRows, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.walFsyncPeriod, _exit)
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.walLevel, _exit)
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.precision, _exit)
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.compression, _exit)
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.replications, _exit)
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.strict, _exit)
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.cacheLast, _exit)
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.hashMethod, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.numOfRetensions, _exit)
   if (pDb->cfg.numOfRetensions > 0) {
     pDb->cfg.pRetensions = taosArrayInit(pDb->cfg.numOfRetensions, sizeof(SRetention));
-    if (pDb->cfg.pRetensions == NULL) goto _OVER;
+    if (pDb->cfg.pRetensions == NULL) goto _exit;
     for (int32_t i = 0; i < pDb->cfg.numOfRetensions; ++i) {
       SRetention retention = {0};
-      SDB_GET_INT64(pRaw, dataPos, &retention.freq, _OVER)
-      SDB_GET_INT64(pRaw, dataPos, &retention.keep, _OVER)
-      SDB_GET_INT8(pRaw, dataPos, &retention.freqUnit, _OVER)
-      SDB_GET_INT8(pRaw, dataPos, &retention.keepUnit, _OVER)
+      SDB_GET_INT64(pRaw, dataPos, &retention.freq, _exit)
+      SDB_GET_INT64(pRaw, dataPos, &retention.keep, _exit)
+      SDB_GET_INT8(pRaw, dataPos, &retention.freqUnit, _exit)
+      SDB_GET_INT8(pRaw, dataPos, &retention.keepUnit, _exit)
       if (taosArrayPush(pDb->cfg.pRetensions, &retention) == NULL) {
-        goto _OVER;
+        goto _exit;
       }
     }
   }
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.schemaless, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.walRetentionPeriod, _OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pDb->cfg.walRetentionSize, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.walRollPeriod, _OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pDb->cfg.walSegmentSize, _OVER)
-  SDB_GET_INT16(pRaw, dataPos, &pDb->cfg.sstTrigger, _OVER)
-  SDB_GET_INT16(pRaw, dataPos, &pDb->cfg.hashPrefix, _OVER)
-  SDB_GET_INT16(pRaw, dataPos, &pDb->cfg.hashSuffix, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.tsdbPageSize, _OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pDb->compactStartTime, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.keepTimeOffset, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.s3ChunkSize, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.s3KeepLocal, _OVER)
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.s3Compact, _OVER)
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.withArbitrator, _OVER)
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.encryptAlgorithm, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->tsmaVersion, _OVER);
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.compactTimeOffset, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactStartTime, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactEndTime, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactInterval, _OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.schemaless, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.walRetentionPeriod, _exit)
+  SDB_GET_INT64(pRaw, dataPos, &pDb->cfg.walRetentionSize, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.walRollPeriod, _exit)
+  SDB_GET_INT64(pRaw, dataPos, &pDb->cfg.walSegmentSize, _exit)
+  SDB_GET_INT16(pRaw, dataPos, &pDb->cfg.sstTrigger, _exit)
+  SDB_GET_INT16(pRaw, dataPos, &pDb->cfg.hashPrefix, _exit)
+  SDB_GET_INT16(pRaw, dataPos, &pDb->cfg.hashSuffix, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.tsdbPageSize, _exit)
+  SDB_GET_INT64(pRaw, dataPos, &pDb->compactStartTime, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.keepTimeOffset, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.s3ChunkSize, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.s3KeepLocal, _exit)
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.s3Compact, _exit)
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.withArbitrator, _exit)
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.encryptAlgorithm, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->tsmaVersion, _exit);
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.compactTimeOffset, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactStartTime, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactEndTime, _exit)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactInterval, _exit)
 
-  SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
+  SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _exit)
   taosInitRWLatch(&pDb->lock);
 
   if (pDb->cfg.s3ChunkSize == 0) {
@@ -276,7 +276,7 @@ static SSdbRow *mndMountActionDecode(SSdbRaw *pRaw) {
 
   terrno = 0;
 
-_OVER:
+_exit:
   if (terrno != 0) {
     mError("db:%s, failed to decode from raw:%p since %s", pDb == NULL ? "null" : pDb->name, pRaw, terrstr());
     taosMemoryFreeClear(pRow);
@@ -300,13 +300,13 @@ static int32_t mndNewMountActionValidate(SMnode *pMnode, STrans *pTrans, SSdbRaw
   if (pRow == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
-    goto _OVER;
+    goto _exit;
   }
   pNewDb = sdbGetRowObj(pRow);
   if (pNewDb == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
-    goto _OVER;
+    goto _exit;
   }
 
   SDbObj *pOldDb = sdbAcquire(pMnode->pSdb, SDB_DB, pNewDb->name);
@@ -315,11 +315,11 @@ static int32_t mndNewMountActionValidate(SMnode *pMnode, STrans *pTrans, SSdbRaw
     sdbRelease(pMnode->pSdb, pOldDb);
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
-    goto _OVER;
+    goto _exit;
   }
 
   code = 0;
-_OVER:
+_exit:
   if (pNewDb) mndDbActionDelete(pSdb, pNewDb);
   taosMemoryFreeClear(pRow);
   return code;
@@ -840,11 +840,11 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   // add database privileges for user
   SUserObj *pNewUserDuped = NULL;
   if (!pUser->superUser) {
-    TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUserObj), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUserObj), NULL, _exit);
     TAOS_CHECK_GOTO(taosHashPut(newUserObj.readDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name, TSDB_FILENAME_LEN),
-                    NULL, _OVER);
+                    NULL, _exit);
     TAOS_CHECK_GOTO(taosHashPut(newUserObj.writeDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name, TSDB_FILENAME_LEN),
-                    NULL, _OVER);
+                    NULL, _exit);
     pNewUserDuped = &newUserObj;
   }
 
@@ -852,24 +852,24 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   if (pTrans == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
-    goto _OVER;
+    goto _exit;
   }
   // mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to create db:%s", pTrans->id, pCreate->db);
 
   mndTransSetDbName(pTrans, dbObj.name, NULL);
-  TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _exit);
 
   mndTransSetOper(pTrans, MND_OPER_CREATE_DB);
-  TAOS_CHECK_GOTO(mndSetCreateDbPrepareAction(pMnode, pTrans, &dbObj), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateDbRedoActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetNewVgPrepareActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateDbUndoLogs(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups, pNewUserDuped), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateDbUndoActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetCreateDbPrepareAction(pMnode, pTrans, &dbObj), NULL, _exit);
+  TAOS_CHECK_GOTO(mndSetCreateDbRedoActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _exit);
+  TAOS_CHECK_GOTO(mndSetNewVgPrepareActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _exit);
+  TAOS_CHECK_GOTO(mndSetCreateDbUndoLogs(pMnode, pTrans, &dbObj, pVgroups), NULL, _exit);
+  TAOS_CHECK_GOTO(mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups, pNewUserDuped), NULL, _exit);
+  TAOS_CHECK_GOTO(mndSetCreateDbUndoActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _exit);
+  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _exit);
 
-_OVER:
+_exit:
   taosMemoryFree(pVgroups);
   mndUserFreeObj(&newUserObj);
   mndTransDrop(pTrans);
@@ -929,68 +929,46 @@ int32_t mndCheckDbDnodeList(SMnode *pMnode, char *db, char *dnodeListStr, SArray
 }
 #endif
 #endif
+
 static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
-    fprintf(stderr, "mndProcessCreateMountReq\n");
-    return 0;
-#if 0
-  SMnode      *pMnode = pReq->info.node;
-  int32_t      code = -1;
-  int32_t      lino = 0;
-  SDbObj      *pDb = NULL;
-  SUserObj    *pUser = NULL;
-  SCreateDbReq createReq = {0};
-  SArray      *dnodeList = NULL;
+  int32_t         code = -1, lino = 0;
+  SMnode         *pMnode = pReq->info.node;
+  SMountObj      *pMount = NULL;
+  SUserObj       *pUser = NULL;
+  SCreateMountReq createReq = {0};
 
-  dnodeList = taosArrayInit(mndGetDnodeSize(pMnode), sizeof(int32_t));
-  TSDB_CHECK_NULL(dnodeList, code, lino, _OVER, TSDB_CODE_OUT_OF_MEMORY);
+  TAOS_CHECK_EXIT(tDeserializeSCreateDbReq(pReq->pCont, pReq->contLen, &createReq));
+  mInfo("mount:%s, start to create on dnode %d from %s", createReq.mountName, createReq.dnodeId, createReq.mountPath);
 
-  TAOS_CHECK_GOTO(tDeserializeSCreateDbReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
-#ifdef WINDOWS
-  if (taosArrayGetSize(createReq.pRetensions) > 0) {
-    terrno = TSDB_CODE_MND_INVALID_PLATFORM;
-    goto _OVER;
-  }
-#endif
-  mInfo("db:%s, start to create, vgroups:%d", createReq.db, createReq.numOfVgroups);
-
-  pDb = mndAcquireDb(pMnode, createReq.db);
-  if (pDb != NULL) {
+  if ((pMount = mndAcquireMount(pMnode, createReq.mountName))) {
     if (createReq.ignoreExist) {
-      mInfo("db:%s, already exist, ignore exist is set", createReq.db);
+      mInfo("mount:%s, already exist, ignore exist is set", createReq.mountName);
       code = 0;
-      goto _OVER;
+      goto _exit;
     } else {
-      code = TSDB_CODE_MND_DB_ALREADY_EXIST;
-      goto _OVER;
+      code = TSDB_CODE_MND_MOUNT_ALREADY_EXIST;
+      goto _exit;
     }
   } else {
-    if (terrno == TSDB_CODE_MND_DB_IN_CREATING) {
-      code = terrno;
-      goto _OVER;
-    } else if (terrno == TSDB_CODE_MND_DB_IN_DROPPING) {
-      goto _OVER;
-    } else if (terrno == TSDB_CODE_MND_DB_NOT_EXIST) {
+    if ((code = terrno) == TSDB_CODE_MND_DB_NOT_EXIST) {
       // continue
-    } else {  // TSDB_CODE_APP_ERROR
-      goto _OVER;
+    } else {  // TSDB_CODE_MND_MOUNT_IN_CREATING | TSDB_CODE_MND_DB_IN_DROPPING | TSDB_CODE_APP_ERROR
+      goto _exit;
     }
   }
 
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, NULL), &lino, _OVER);
+  // mount operation share db privilege
+  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, NULL));
+  TAOS_CHECK_EXIT(grantCheck(TSDB_GRANT_DB));
+  TAOS_CHECK_EXIT(grantCheck(TSDB_GRANT_MOUNT));
 
-  TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DB), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckDbEncryptKey(pMnode, &createReq), &lino, _exit);
 
-  if (createReq.replications == 2) {
-    TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DUAL_REPLICA_HA), &lino, _OVER);
-  }
+  TAOS_CHECK_GOTO(mndCheckDbDnodeList(pMnode, createReq.db, createReq.dnodeListStr, dnodeList), &lino, _exit);
 
-  TAOS_CHECK_GOTO(mndCheckDbEncryptKey(pMnode, &createReq), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser), &lino, _exit);
 
-  TAOS_CHECK_GOTO(mndCheckDbDnodeList(pMnode, createReq.db, createReq.dnodeListStr, dnodeList), &lino, _OVER);
-
-  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser), &lino, _OVER);
-
-  TAOS_CHECK_GOTO(mndCreateDb(pMnode, pReq, &createReq, pUser, dnodeList), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCreateDb(pMnode, pReq, &createReq, pUser, dnodeList), &lino, _exit);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   SName name = {0};
@@ -999,7 +977,7 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
 
   auditRecord(pReq, pMnode->clusterId, "createDB", name.dbname, "", createReq.sql, createReq.sqlLen);
 
-_OVER:
+_exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to create at line:%d since %s", createReq.db, lino, tstrerror(code));
   }
@@ -1010,7 +988,6 @@ _OVER:
   taosArrayDestroy(dnodeList);
 
   TAOS_RETURN(code);
-#endif
 }
 
 #if 0
@@ -1068,14 +1045,14 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
   SDbCfgReq cfgReq = {0};
   SDbCfgRsp cfgRsp = {0};
 
-  TAOS_CHECK_GOTO(tDeserializeSDbCfgReq(pReq->pCont, pReq->contLen, &cfgReq), NULL, _OVER);
+  TAOS_CHECK_GOTO(tDeserializeSDbCfgReq(pReq->pCont, pReq->contLen, &cfgReq), NULL, _exit);
 
   if (strcasecmp(cfgReq.db, TSDB_INFORMATION_SCHEMA_DB) && strcasecmp(cfgReq.db, TSDB_PERFORMANCE_SCHEMA_DB)) {
     pDb = mndAcquireDb(pMnode, cfgReq.db);
     if (pDb == NULL) {
       code = TSDB_CODE_MND_RETURN_VALUE_NULL;
       if (terrno != 0) code = terrno;
-      goto _OVER;
+      goto _exit;
     }
 
     mndDumpDbCfgInfo(&cfgRsp, pDb);
@@ -1086,13 +1063,13 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
   if (pRsp == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
-    goto _OVER;
+    goto _exit;
   }
 
   int32_t ret = 0;
   if ((ret = tSerializeSDbCfgRsp(pRsp, contLen, &cfgRsp)) < 0) {
     code = ret;
-    goto _OVER;
+    goto _exit;
   }
 
   pReq->info.rsp = pRsp;
@@ -1100,7 +1077,7 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
 
   code = 0;
 
-_OVER:
+_exit:
 
   tFreeSDbCfgRsp(&cfgRsp);
 
@@ -1308,40 +1285,40 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   if (pTrans == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
-    goto _OVER;
+    goto _exit;
   }
 
   mInfo("trans:%d start to drop db:%s", pTrans->id, pDb->name);
 
   mndTransSetDbName(pTrans, pDb->name, NULL);
-  TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _exit);
 
   if (mndTopicExistsForDb(pMnode, pDb)) {
     code = TSDB_CODE_MND_TOPIC_MUST_BE_DELETED;
-    goto _OVER;
+    goto _exit;
   }
 
-  TAOS_CHECK_GOTO(mndSetDropDbPrepareLogs(pMnode, pTrans, pDb), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetDropDbCommitLogs(pMnode, pTrans, pDb), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDropStreamByDb(pMnode, pTrans, pDb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetDropDbPrepareLogs(pMnode, pTrans, pDb), NULL, _exit);
+  TAOS_CHECK_GOTO(mndSetDropDbCommitLogs(pMnode, pTrans, pDb), NULL, _exit);
+  TAOS_CHECK_GOTO(mndDropStreamByDb(pMnode, pTrans, pDb), NULL, _exit);
 #ifdef TD_ENTERPRISE
-  TAOS_CHECK_GOTO(mndDropViewByDb(pMnode, pTrans, pDb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDropViewByDb(pMnode, pTrans, pDb), NULL, _exit);
 #endif
-  TAOS_CHECK_GOTO(mndDropSmasByDb(pMnode, pTrans, pDb), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDropIdxsByDb(pMnode, pTrans, pDb), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndStreamSetStopStreamTasksActions(pMnode, pTrans, pDb->uid), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetDropDbRedoActions(pMnode, pTrans, pDb), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndUserRemoveDb(pMnode, pTrans, pDb->name), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDropSmasByDb(pMnode, pTrans, pDb), NULL, _exit);
+  TAOS_CHECK_GOTO(mndDropIdxsByDb(pMnode, pTrans, pDb), NULL, _exit);
+  TAOS_CHECK_GOTO(mndStreamSetStopStreamTasksActions(pMnode, pTrans, pDb->uid), NULL, _exit);
+  TAOS_CHECK_GOTO(mndSetDropDbRedoActions(pMnode, pTrans, pDb), NULL, _exit);
+  TAOS_CHECK_GOTO(mndUserRemoveDb(pMnode, pTrans, pDb->name), NULL, _exit);
 
   int32_t rspLen = 0;
   void   *pRsp = NULL;
-  TAOS_CHECK_GOTO(mndBuildDropDbRsp(pDb, &rspLen, &pRsp, false), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndBuildDropDbRsp(pDb, &rspLen, &pRsp, false), NULL, _exit);
   mndTransSetRpcRsp(pTrans, pRsp, rspLen);
 
-  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _exit);
   code = 0;
 
-_OVER:
+_exit:
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
 }
@@ -1355,7 +1332,7 @@ static int32_t mndProcessDropMountReq(SRpcMsg *pReq) {
   SDbObj    *pDb = NULL;
   SDropDbReq dropReq = {0};
 
-  TAOS_CHECK_GOTO(tDeserializeSDropDbReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
+  TAOS_CHECK_GOTO(tDeserializeSDropDbReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _exit);
 
   mInfo("db:%s, start to drop", dropReq.db);
 
@@ -1366,10 +1343,10 @@ static int32_t mndProcessDropMountReq(SRpcMsg *pReq) {
     if (dropReq.ignoreNotExists) {
       code = mndBuildDropDbRsp(pDb, &pReq->info.rspLen, &pReq->info.rsp, true);
     }
-    goto _OVER;
+    goto _exit;
   }
 
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_DB, pDb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_DB, pDb), NULL, _exit);
 
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
@@ -1394,7 +1371,7 @@ static int32_t mndProcessDropMountReq(SRpcMsg *pReq) {
       code = TSDB_CODE_MND_VGROUP_OFFLINE;
       sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);
-      goto _OVER;
+      goto _exit;
     }
 
     sdbRelease(pSdb, pVgroup);
@@ -1411,7 +1388,7 @@ static int32_t mndProcessDropMountReq(SRpcMsg *pReq) {
 
   auditRecord(pReq, pMnode->clusterId, "dropDB", name.dbname, "", dropReq.sql, dropReq.sqlLen);
 
-_OVER:
+_exit:
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to drop since %s", dropReq.db, terrstr());
   }
@@ -1524,7 +1501,7 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
   SUseDbReq usedbReq = {0};
   SUseDbRsp usedbRsp = {0};
 
-  TAOS_CHECK_GOTO(tDeserializeSUseDbReq(pReq->pCont, pReq->contLen, &usedbReq), NULL, _OVER);
+  TAOS_CHECK_GOTO(tDeserializeSUseDbReq(pReq->pCont, pReq->contLen, &usedbReq), NULL, _exit);
 
   char *p = strchr(usedbReq.db, '.');
   if (p && ((0 == strcmp(p + 1, TSDB_INFORMATION_SCHEMA_DB) || (0 == strcmp(p + 1, TSDB_PERFORMANCE_SCHEMA_DB))))) {
@@ -1532,7 +1509,7 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
     int32_t vgVersion = mndGetGlobalVgroupVersion(pMnode);
     if (usedbReq.vgVersion < vgVersion) {
       usedbRsp.pVgroupInfos = taosArrayInit(10, sizeof(SVgroupInfo));
-      if (usedbRsp.pVgroupInfos == NULL) goto _OVER;
+      if (usedbRsp.pVgroupInfos == NULL) goto _exit;
 
       mndBuildDBVgroupInfo(NULL, pMnode, usedbRsp.pVgroupInfos);
       usedbRsp.vgVersion = vgVersion++;
@@ -1551,11 +1528,11 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
 
       code = TSDB_CODE_MND_RETURN_VALUE_NULL;
       if (terrno != 0) code = terrno;
-      goto _OVER;
+      goto _exit;
     } else {
-      TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_USE_DB, pDb), NULL, _OVER);
+      TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_USE_DB, pDb), NULL, _exit);
 
-      TAOS_CHECK_GOTO(mndExtractDbInfo(pMnode, pDb, &usedbRsp, &usedbReq), NULL, _OVER);
+      TAOS_CHECK_GOTO(mndExtractDbInfo(pMnode, pDb, &usedbRsp, &usedbReq), NULL, _exit);
 
       mDebug("db:%s, process usedb req vgVersion:%d stateTs:%" PRId64 ", rsp vgVersion:%d stateTs:%" PRId64,
              usedbReq.db, usedbReq.vgVersion, usedbReq.stateTs, usedbRsp.vgVersion, usedbRsp.stateTs);
@@ -1568,19 +1545,19 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
   if (pRsp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     code = -1;
-    goto _OVER;
+    goto _exit;
   }
 
   int32_t ret = 0;
   if ((ret = tSerializeSUseDbRsp(pRsp, contLen, &usedbRsp)) < 0) {
     code = ret;
-    goto _OVER;
+    goto _exit;
   }
 
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = contLen;
 
-_OVER:
+_exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to process use db req since %s", usedbReq.db, tstrerror(code));
   }
@@ -1891,40 +1868,40 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     for (int32_t i = 0; i < pShow->numOfColumns; ++i) {
       SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, i);
       if (i == 0) {
-        TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, buf, false), &lino, _OVER);
+        TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, buf, false), &lino, _exit);
       } else if (i == 1) {
-        TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->createdTime, false), &lino, _OVER);
+        TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->createdTime, false), &lino, _exit);
       } else if (i == 3) {
-        TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&numOfTables, false), &lino, _OVER);
+        TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&numOfTables, false), &lino, _exit);
       } else if (i == 14) {
-        TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, precVstr, false), &lino, _OVER);
+        TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, precVstr, false), &lino, _exit);
       } else if (i == 15) {
-        TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, statusVstr, false), &lino, _OVER);
+        TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, statusVstr, false), &lino, _exit);
       } else {
         colDataSetNULL(pColInfo, rows);
       }
     }
   } else {
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, buf, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, buf, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->createdTime, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->createdTime, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.numOfVgroups, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.numOfVgroups, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&numOfTables, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&numOfTables, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.replications, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.replications, false), &lino, _exit);
 
     const char *strictStr = pDb->cfg.strict ? "on" : "off";
     char        strictVstr[24] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(strictVstr, strictStr, 24);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)strictVstr, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)strictVstr, false), &lino, _exit);
 
     char    durationStr[128] = {0};
     char    durationVstr[128] = {0};
@@ -1933,7 +1910,7 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
 
     varDataSetLen(durationVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)durationVstr, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)durationVstr, false), &lino, _exit);
 
     char keepVstr[128] = {0};
     char keep0Str[32] = {0};
@@ -1951,67 +1928,67 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     }
     varDataSetLen(keepVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)keepVstr, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)keepVstr, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.buffer, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.buffer, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.pageSize, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.pageSize, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.pages, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.pages, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.minRows, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.minRows, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.maxRows, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.maxRows, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.compression, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.compression, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)precVstr, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)precVstr, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)statusVstr, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)statusVstr, false), &lino, _exit);
 
     char *rentensionVstr = buildRetension(pDb->cfg.pRetensions);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (rentensionVstr == NULL) {
       colDataSetNULL(pColInfo, rows);
     } else {
-      TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)rentensionVstr, false), &lino, _OVER);
+      TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)rentensionVstr, false), &lino, _exit);
       taosMemoryFree(rentensionVstr);
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.numOfStables, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.numOfStables, false), &lino, _exit);
 
     const char *cacheModelStr = getCacheModelStr(pDb->cfg.cacheLast);
     char        cacheModelVstr[24] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(cacheModelVstr, cacheModelStr, 24);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)cacheModelVstr, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)cacheModelVstr, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.cacheLastSize, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.cacheLastSize, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walLevel, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walLevel, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walFsyncPeriod, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walFsyncPeriod, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRetentionPeriod, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRetentionPeriod, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRetentionSize, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRetentionSize, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.sstTrigger, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.sstTrigger, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     int16_t hashPrefix = pDb->cfg.hashPrefix;
@@ -2020,42 +1997,42 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     } else if (hashPrefix < 0) {
       hashPrefix = pDb->cfg.hashPrefix + strlen(pDb->name) + 1;
     }
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&hashPrefix, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&hashPrefix, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.hashSuffix, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.hashSuffix, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.tsdbPageSize, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.tsdbPageSize, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.keepTimeOffset, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.keepTimeOffset, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.s3ChunkSize, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.s3ChunkSize, false), &lino, _exit);
 
     char keeplocalVstr[128] = {0};
     len = tsnprintf(&keeplocalVstr[VARSTR_HEADER_SIZE], sizeof(keeplocalVstr), "%dm", pDb->cfg.s3KeepLocal);
     varDataSetLen(keeplocalVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)keeplocalVstr, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)keeplocalVstr, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.s3Compact, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.s3Compact, false), &lino, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.withArbitrator, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.withArbitrator, false), &lino, _exit);
 
     const char *encryptAlgorithmStr = getEncryptAlgorithmStr(pDb->cfg.encryptAlgorithm);
     char        encryptAlgorithmVStr[24] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(encryptAlgorithmVStr, encryptAlgorithmStr, 24);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)encryptAlgorithmVStr, false), &lino, _OVER);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)encryptAlgorithmVStr, false), &lino, _exit);
 
     TAOS_UNUSED(formatDurationOrKeep(durationStr, sizeof(durationStr), pDb->cfg.compactInterval));
     STR_WITH_MAXSIZE_TO_VARSTR(durationVstr, durationStr, sizeof(durationVstr));
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
-      TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)durationVstr, false), &lino, _OVER);
+      TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)durationVstr, false), &lino, _exit);
     }
 
     len = formatDurationOrKeep(durationStr, sizeof(durationStr), pDb->cfg.compactStartTime);
@@ -2063,16 +2040,16 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     TAOS_UNUSED(snprintf(durationStr + len, sizeof(durationStr) - len, ",%s", durationVstr));
     STR_WITH_MAXSIZE_TO_VARSTR(durationVstr, durationStr, sizeof(durationVstr));
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
-      TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)durationVstr, false), &lino, _OVER);
+      TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)durationVstr, false), &lino, _exit);
     }
 
     TAOS_UNUSED(snprintf(durationStr, sizeof(durationStr), "%dh", pDb->cfg.compactTimeOffset));
     STR_WITH_MAXSIZE_TO_VARSTR(durationVstr, durationStr, sizeof(durationVstr));
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
-      TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)durationVstr, false), &lino, _OVER);
+      TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)durationVstr, false), &lino, _exit);
     }
   }
-_OVER:
+_exit:
   if (code != 0) mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
   taosMemoryFree(buf);
 }
