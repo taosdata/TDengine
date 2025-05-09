@@ -341,6 +341,10 @@ const char* nodesNodeName(ENodeType type) {
       return "CreateViewStmt";
     case QUERY_NODE_DROP_VIEW_STMT:
       return "DropViewStmt";
+    case QUERY_NODE_CREATE_MOUNT_STMT:
+      return "CreateMountStmt";
+    case QUERY_NODE_DROP_MOUNT_STMT:
+      return "DropMountStmt";
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return "LogicScan";
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -6961,6 +6965,66 @@ static int32_t jsonToS3MigrateDatabaseStmt(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkMountStmtMountName = "MountName";
+static const char* jkMountStmtIgnoreExists = "IgnoreExists";
+static const char* jkMountStmtIgnoreNotExists = "IgnoreNotExists";
+static const char* jkMountStmtDnode = "Dnode";
+static const char* jkMountStmtMountPath = "MountPath";
+
+static int32_t createMountStmtToJson(const void* pObj, SJson* pJson) {
+  const SCreateMountStmt* pNode = (const SCreateMountStmt*)pObj;
+
+  int32_t code = tjsonAddStringToObject(pJson, jkMountStmtMountName, pNode->mountName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkMountStmtIgnoreExists, pNode->ignoreExists);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkMountStmtDnode, pNode->dnodeId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonAddStringToObject(pJson, jkMountStmtMountPath, pNode->mountPath);
+  }
+
+  return code;
+}
+
+static int32_t jsonToCreateMountStmt(const SJson* pJson, void* pObj) {
+  SCreateMountStmt* pNode = (SCreateMountStmt*)pObj;
+
+  int32_t code = tjsonGetStringValue(pJson, jkMountStmtMountName, pNode->mountName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkMountStmtIgnoreExists, &pNode->ignoreExists);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkMountStmtDnode, pNode->dnodeId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkMountStmtMountPath, pNode->mountPath);
+  }
+
+  return code;
+}
+
+static int32_t dropMountStmtToJson(const void* pObj, SJson* pJson) {
+  const SDropMountStmt* pNode = (const SDropMountStmt*)pObj;
+
+  int32_t code = tjsonAddStringToObject(pJson, jkMountStmtMountName, pNode->mountName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkMountStmtIgnoreExists, &pNode->ignoreNotExists);
+  }
+  return code;
+}
+
+static int32_t jsonToDropMountStmt(const SJson* pJson, void* pObj) {
+  SDropMountStmt* pNode = (SDropMountStmt*)pObj;
+
+  int32_t code = tjsonGetStringValue(pJson, jkMountStmtMountName, pNode->mountName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkMountStmtIgnoreNotExists, &pNode->ignoreNotExists);
+  }
+  return code;
+}
+
 static const char* jkCreateTableStmtDbName = "DbName";
 static const char* jkCreateTableStmtTableName = "TableName";
 static const char* jkCreateTableStmtIgnoreExists = "IgnoreExists";
@@ -9007,6 +9071,10 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return revokeStmtToJson(pObj, pJson);
     case QUERY_NODE_ALTER_CLUSTER_STMT:
       return alterClusterStmtToJson(pObj, pJson);
+    case QUERY_NODE_CREATE_MOUNT_STMT:
+      return createDatabaseStmtToJson(pObj, pJson);
+    case QUERY_NODE_DROP_MOUNT_STMT:
+      return createDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_DNODES_STMT:
       return showDnodesStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_MNODES_STMT:

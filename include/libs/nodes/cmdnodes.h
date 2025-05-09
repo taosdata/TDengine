@@ -179,13 +179,13 @@ typedef struct SCreateMountStmt {
   ENodeType type;
   int32_t   dnodeId;
   bool      ignoreExists;
-  char      mountName[TSDB_DB_NAME_LEN];
+  char      mountName[TSDB_MOUNT_NAME_LEN];
   char      mountPath[TSDB_MOUNT_PATH_LEN];
 } SCreateMountStmt;
 
 typedef struct SDropMountStmt {
   ENodeType type;
-  char      mountName[TSDB_DB_NAME_LEN];
+  char      mountName[TSDB_MOUNT_NAME_LEN];
   bool      ignoreNotExists;
 } SDropMountStmt;
 

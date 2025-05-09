@@ -9771,6 +9771,38 @@ static int32_t translateS3MigrateDatabase(STranslateContext* pCxt, SS3MigrateDat
   return buildCmdMsg(pCxt, TDMT_MND_S3MIGRATE_DB, (FSerializeFunc)tSerializeSS3MigrateDbReq, &req);
 }
 
+static int32_t translateCreateMount(STranslateContext* pCxt, SCreateMountStmt* pStmt) {
+  // SCreateDbReq createReq = {0};
+  // int32_t      code = checkCreateDatabase(pCxt, pStmt);
+  // if (TSDB_CODE_SUCCESS == code) {
+  //   code = buildCreateDbReq(pCxt, pStmt, &createReq);
+  // }
+  // if (TSDB_CODE_SUCCESS == code) {
+  //   code = buildCmdMsg(pCxt, TDMT_MND_CREATE_DB, (FSerializeFunc)tSerializeSCreateDbReq, &createReq);
+  // }
+  // tFreeSCreateDbReq(&createReq);
+  // return code;
+  return 0;
+}
+
+static int32_t translateDropMount(STranslateContext* pCxt, SDropMountStmt* pStmt) {
+  // if (IS_SYS_DBNAME(pStmt->dbName)) {
+  //   return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "Cannot drop system database: `%s`",
+  //                                  pStmt->dbName);
+  // }
+  // SDropDbReq dropReq = {0};
+  // SName      name = {0};
+  // int32_t    code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
+  // if (TSDB_CODE_SUCCESS != code) return code;
+  // (void)tNameGetFullDbName(&name, dropReq.db);
+  // dropReq.ignoreNotExists = pStmt->ignoreNotExists;
+
+  // code = buildCmdMsg(pCxt, TDMT_MND_DROP_DB, (FSerializeFunc)tSerializeSDropDbReq, &dropReq);
+  // tFreeSDropDbReq(&dropReq);
+  // return code;
+  return 0;
+}
+
 static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray, bool calBytes, bool virtualTable) {
   *pArray = taosArrayInit(LIST_LENGTH(pList), sizeof(SFieldWithOptions));
   if (!pArray) return terrno;
@@ -14848,6 +14880,12 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_ALTER_TABLE_STMT:
     case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
       code = translateAlterSuperTable(pCxt, (SAlterTableStmt*)pNode);
+      break;
+    case QUERY_NODE_CREATE_MOUNT_STMT:
+      code = translateCreateMount(pCxt, (SCreateMountStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_MOUNT_STMT:
+      code = translateDropMount(pCxt, (SDropMountStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_USER_STMT:
       code = translateCreateUser(pCxt, (SCreateUserStmt*)pNode);
