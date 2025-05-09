@@ -2440,20 +2440,20 @@ int32_t streamTriggerProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp) {
       case STRIGGER_PULL_WAL_TS_DATA:
       case STRIGGER_PULL_WAL_TRIGGER_DATA:
       case STRIGGER_PULL_WAL_CALC_DATA: {
-        if (pRsp->code == TSDB_CODE_SUCCESS || pRsp->code == TSDB_CODE_STREAM_NO_DATA) {
+        if (pRsp->code == TSDB_CODE_SUCCESS) {
           SSDataBlock *pResBlock = pContext->pullResDataBlock[pReq->type];
           if (pResBlock == NULL) {
             pResBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
             QUERY_CHECK_NULL(pResBlock, code, lino, _end, terrno);
             pContext->pullResDataBlock[pReq->type] = pResBlock;
           }
-          if (pRsp->code == TSDB_CODE_SUCCESS) {
+          if (pRsp->contLen == 0){
+            blockDataEmpty(pResBlock);
+          } else {
             const char *pEnd = pRsp->pCont;
             code = blockDecode(pResBlock, pRsp->pCont, &pEnd);
             QUERY_CHECK_CODE(code, lino, _end);
             QUERY_CHECK_CONDITION(pEnd == pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-          } else if (pRsp->code == TSDB_CODE_STREAM_NO_DATA) {
-            blockDataEmpty(pResBlock);
           }
           code = strtcProcessPullRsp(pContext, pResBlock);
           QUERY_CHECK_CODE(code, lino, _end);

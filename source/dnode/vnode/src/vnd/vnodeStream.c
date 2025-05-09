@@ -151,7 +151,7 @@ static int32_t buildRsp(SSDataBlock* pBlock, void** data, size_t* size) {
   int32_t code = 0;
   int32_t lino = 0;
   void*   buf =  NULL;
-  STREAM_CHECK_CONDITION_GOTO(pBlock == NULL || pBlock->info.rows == 0, TSDB_CODE_STREAM_NO_DATA);
+  STREAM_CHECK_CONDITION_GOTO(pBlock == NULL || pBlock->info.rows == 0, TSDB_CODE_SUCCESS);
   size_t  dataEncodeSize = blockGetEncodeSize(pBlock);
   buf = rpcMallocCont(dataEncodeSize);
   STREAM_CHECK_NULL_GOTO(buf, terrno);
