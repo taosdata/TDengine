@@ -942,6 +942,9 @@ static int32_t buildTSchmaFromInserter(SStreamInserterParam* pInsertParam, STSch
     return terrno;
   }
   pTSchema->version = 0;  // todo
+  pTSchema->numOfCols = numOfCols;
+  pTSchema->tlen = 0;
+  pTSchema->flen = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
     SFieldWithOptions* pField = taosArrayGet(pInsertParam->pFields, i);
     if (NULL == pField) {
@@ -989,6 +992,7 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
   int32_t      numOfBlks = 0;
 
   int32_t code = TSDB_CODE_SUCCESS;
+  SStreamInserterParam* pInsertParam = pInserter->pParam->streamInserterParam;
 
   if (NULL == pReq) {
     if (!(pReq = taosMemoryCalloc(1, sizeof(SSubmitReq2)))) {
@@ -999,11 +1003,14 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
       goto _end;
     }
   }
-  STSchema* pTSchema = NULL;
-  code = buildTSchmaFromInserter(pInserter->pParam->streamInserterParam, &pTSchema);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _end;
+
+  if(pInsertParam->pSchema == NULL) {
+    code = buildTSchmaFromInserter(pInserter->pParam->streamInserterParam, &pInsertParam->pSchema);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _end;
+    }
   }
+  STSchema* pTSchema = pInsertParam->pSchema;
 
   int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
   int32_t rows = pDataBlock->info.rows;
@@ -1012,7 +1019,6 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
   if (!(tbData.aRowP = taosArrayInit(rows, sizeof(SRow*)))) {
     goto _end;
   }
-  SStreamInserterParam* pInsertParam = pInserter->pParam->streamInserterParam;
   tbData.suid = pInsertParam->suid;
   tbData.sver = pInsertParam->sver;
   if (pInserterInfo->isAutoCreateTable) {
@@ -1041,11 +1047,13 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
   int64_t lastTs = TSKEY_MIN;
   bool    needSortMerge = false;
 
+  *vgId = pInsertParam->vgid;
   if (pInserterInfo->isAutoCreateTable && pInsertParam->tbType == TSDB_NORMAL_TABLE) {
     code = buildNormalTableCreateReq(pInserter, pInsertParam, &tbData, vgId);
     if (code != TSDB_CODE_SUCCESS) {
       goto _end;
     }
+    pInsertParam->vgid = *vgId;
   }
 
   for (int32_t j = 0; j < rows; ++j) {  // iterate by row

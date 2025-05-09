@@ -2036,6 +2036,10 @@ void destoryStreamInserterParam(SStreamInserterParam* pParam) {
       taosArrayDestroy(pParam->pTagFields);
       pParam->pTagFields = NULL;
     }
+    if (pParam->pSchema) {
+      taosMemFree(pParam->pSchema);
+      pParam->pSchema = NULL;
+    }
     taosMemFree(pParam);
   }
 }
