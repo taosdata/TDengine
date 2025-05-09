@@ -49,10 +49,13 @@ typedef struct SStreamTriggerReaderInfo {
   uint64_t    suid;
   uint64_t    uid;
   int8_t      tableType;
+  int8_t      deleteReCalc;
+  int8_t      deleteOutTbl;
   SNode*      pTagCond;
   SNode*      pTagIndexCond;
   SNode*      pConditions;
   SNodeList*  pGroupTags;
+  SNodeList*  triggerCols;
   SHashObj*   streamTaskMap;
 } SStreamTriggerReaderInfo;
 

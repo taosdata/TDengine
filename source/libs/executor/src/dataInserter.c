@@ -13,33 +13,34 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stdatomic.h>
+#include <stdint.h>
 #include "dataSinkInt.h"
 #include "dataSinkMgt.h"
 #include "executorInt.h"
 #include "functionMgt.h"
+#include "libs/new-stream/stream.h"
 #include "planner.h"
 #include "query.h"
 #include "querytask.h"
 #include "storageapi.h"
+#include "taoserror.h"
+#include "tarray.h"
 #include "tcompression.h"
 #include "tdatablock.h"
 #include "tglobal.h"
+#include "thash.h"
+#include "tmsg.h"
 #include "tqueue.h"
+#include "executor.h"
 
 extern SDataSinkStat gDataSinkStat;
-
+SHashObj* gStreamGrpTableHash = NULL;
 typedef struct SSubmitRes {
   int64_t      affectedRows;
   int32_t      code;
   SSubmitRsp2* pRsp;
 } SSubmitRes;
-
-typedef enum {
-  AUTO_CREATE_TABLE_UNKNOWN = 0,
-  AUTO_CREATE_TABLE_STABLE,
-  AUTO_CREATE_TABLE_STREAM_STABLE,
-  AUTO_CREATE_TABLE_STREAM_NORMAL,
-} AUTO_CREATE_TABLE_MODE;
 
 typedef struct SDataInserterHandle {
   SDataSinkHandle        sink;
@@ -69,7 +70,67 @@ typedef struct SDataInserterHandle {
 
 typedef struct SSubmitRspParam {
   SDataInserterHandle* pInserter;
+  void*                putParam;
 } SSubmitRspParam;
+
+int32_t initInserterGrpInfo() {
+  static int8_t initGrpInfo = 0;
+  int8_t        flag = atomic_val_compare_exchange_8(&initGrpInfo, 0, 1);
+  if (flag != 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  gStreamGrpTableHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+  if (NULL == gStreamGrpTableHash) {
+    qError("failed to create stream group table hash");
+    return terrno;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+void destroyInserterGrpInfo() {
+  if (gStreamGrpTableHash) {
+    taosHashCleanup(gStreamGrpTableHash);
+    gStreamGrpTableHash = NULL;
+  }
+}
+
+
+static int32_t getCreateResTableId(const SSubmitRes* pSubmitRes, int64_t* uid) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (!pSubmitRes->pRsp) {
+    stError("create table response is NULL");
+    return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+  }
+  if (pSubmitRes->pRsp->aCreateTbRsp->size != 1) {
+    stError("create table response size is not 1");
+    return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+  }
+  SVCreateTbRsp* pCreateTbRsp = taosArrayGet(pSubmitRes->pRsp->aCreateTbRsp, 0);
+  if (pCreateTbRsp->code != 0) {
+    stError("create table failed, code:%d", pCreateTbRsp->code);
+    return pCreateTbRsp->code;
+  }
+  if (pCreateTbRsp->pMeta->tuid == 0) {
+    stError("create table uid is 0");
+    return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+  }
+  *uid = pCreateTbRsp->pMeta->tuid;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t saveCreateGrpTableInfo(int64_t groupId, const SSubmitRes* pSubmitRes) {
+  int64_t uid = -1;
+  int32_t code = getCreateResTableId(pSubmitRes, &uid);
+  if (code) {
+    return code;
+  }
+  code = taosHashPut(gStreamGrpTableHash, &groupId, sizeof(groupId), &uid, sizeof(uid));
+  if (code) {
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
 
 int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
   SSubmitRspParam*     pParam = (SSubmitRspParam*)param;
@@ -113,6 +174,11 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
           goto _return;
         }
       }
+    }
+
+    if(pParam->putParam != NULL && ((SStreamDataInserterInfo*)pParam->putParam)->isAutoCreateTable) {
+      ((SStreamDataInserterInfo*)pParam->putParam)->isAutoCreateTable = false;
+      saveCreateGrpTableInfo(((SStreamDataInserterInfo*)pParam->putParam)->groupId, &pInserter->submitRes);
     }
 
     pInserter->submitRes.affectedRows += pInserter->submitRes.pRsp->affectedRows;
@@ -218,9 +284,13 @@ static int32_t buildDbVgInfoMapForInserter(SDataInserterHandle* pInserter, SRead
   SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   QUERY_CHECK_NULL(pMsgSendInfo, code, lino, _return, terrno);
 
+  SEpSet pEpSet = {0};
+  QUERY_CHECK_CODE(getCurrentMnodeEpset(&pEpSet), lino, _return);
+
   // 设置消息参数
   pMsgSendInfo->param = pInserter;
   pMsgSendInfo->msgInfo.pData = buf1;
+  buf1 = NULL;  // buf1 所有权转移给 pMsgSendInfo, 不再需要释放
   pMsgSendInfo->msgInfo.len = contLen;
   pMsgSendInfo->msgType = TDMT_MND_GET_DB_INFO;
   pMsgSendInfo->fp = processUseDbRspForInserter;
@@ -230,7 +300,7 @@ static int32_t buildDbVgInfoMapForInserter(SDataInserterHandle* pInserter, SRead
   tsem_init(&pInserter->ready, 0, 0);
 
   // 异步发送消息到服务器
-  code = asyncSendMsgToServer(pHandle->pMsgCb->clientRpc, &pInserter->pNode->epSet, NULL, pMsgSendInfo);
+  code = asyncSendMsgToServer(pHandle->pMsgCb->clientRpc, &pEpSet, NULL, pMsgSendInfo);
   QUERY_CHECK_CODE(code, lino, _return);
 
   // 等待响应
@@ -383,7 +453,7 @@ _return:
   return code;
 }
 
-static int32_t sendSubmitRequest(SDataInserterHandle* pInserter, void* pMsg, int32_t msgLen, void* pTransporter,
+static int32_t sendSubmitRequest(SDataInserterHandle* pInserter, void* putParam, void* pMsg, int32_t msgLen, void* pTransporter,
                                  SEpSet* pEpset) {
   // send the fetch remote task result reques
   SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
@@ -399,6 +469,7 @@ static int32_t sendSubmitRequest(SDataInserterHandle* pInserter, void* pMsg, int
     return terrno;
   }
   pParam->pInserter = pInserter;
+  pParam->putParam = putParam;
 
   pMsgSendInfo->param = pParam;
   pMsgSendInfo->paramFreeFp = taosAutoMemoryFree;
@@ -789,6 +860,335 @@ int32_t dataBlocksToSubmitReq(SDataInserterHandle* pInserter, void** pMsg, int32
   return code;
 }
 
+static int32_t getStreamTableId(int64_t groupId, int64_t* uid) {
+  int64_t* pGroupId = taosHashGet(gStreamGrpTableHash, &groupId, sizeof(groupId));
+  if (NULL == pGroupId) {
+    return TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND;
+  }
+  *uid = *pGroupId;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t buildNormalTableCreateReq(SDataInserterHandle* pInserter,  SStreamInserterParam* pInsertParam, SSubmitTbData* tbData, int32_t* vgId) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  tbData->suid = 0;
+
+  tbData->pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
+  if (NULL == tbData->pCreateTbReq) {
+    goto _end;
+  }
+  tbData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
+  tbData->pCreateTbReq->type = TSDB_NORMAL_TABLE;
+  tbData->pCreateTbReq->uid = 0;
+
+  SDBVgInfo* dbInfo = NULL;
+  code = inserterGetDbVgInfo(pInserter, pInsertParam->dbFName, &dbInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _end;
+  }
+
+  tbData->pCreateTbReq->name = taosStrdup(pInsertParam->tbname);
+  if (!tbData->pCreateTbReq->name) return terrno;
+  char tbFullName[TSDB_TABLE_FNAME_LEN];
+  snprintf(tbFullName, TSDB_TABLE_FNAME_LEN, "%s.%s", pInsertParam->dbFName, pInsertParam->tbname);
+
+
+  code = inserterGetVgId(dbInfo, tbFullName, vgId);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    goto _end;
+  }
+
+  int32_t numOfCols = pInsertParam->pFields->size;
+  tbData->pCreateTbReq->ntb.schemaRow.nCols = numOfCols;
+  tbData->pCreateTbReq->ntb.schemaRow.version = 0;  // todo
+
+  tbData->pCreateTbReq->ntb.schemaRow.pSchema = taosMemoryCalloc(numOfCols, sizeof(SSchema));
+  if (NULL == tbData->pCreateTbReq->ntb.schemaRow.pSchema) {
+    goto _end;
+  }
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SFieldWithOptions* pField = taosArrayGet(pInsertParam->pFields, i);
+    if (NULL == pField) {
+      terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      goto _end;
+    }
+    tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].colId = i + 1;
+    tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].type = pField->type;
+    tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].bytes = pField->bytes;
+    tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].flags = pField->flags;
+    if(i == 0 && pField->type != TSDB_DATA_TYPE_TIMESTAMP) {
+      terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      qError("buildNormalTableCreateReq, the first column must be timestamp.");
+      goto _end;
+    }
+    if (i == 0) {
+      tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].flags |= COL_IS_KEY;
+    }
+    snprintf(tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].name, TSDB_COL_NAME_LEN, "c%d", i);
+  }
+  return TSDB_CODE_SUCCESS;
+  _end:
+  return code;
+}
+
+static int32_t buildTSchmaFromInserter(SStreamInserterParam* pInsertParam, STSchema** ppTSchema) {
+  int32_t   code = TSDB_CODE_SUCCESS;
+  STSchema* pTSchema = taosMemoryCalloc(1, sizeof(STSchema) + sizeof(STColumn) * pInsertParam->pFields->size);
+  if (NULL == pTSchema) {
+    return terrno;
+  }
+  pTSchema->version = 0;  // todo
+  for (int32_t i = 0; i < pInsertParam->pFields->size; ++i) {
+    SFieldWithOptions* pField = taosArrayGet(pInsertParam->pFields, i);
+    if (NULL == pField) {
+      terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      goto _end;
+    }
+    pTSchema->columns[i].colId = i + 1;
+    pTSchema->columns[i].type = pField->type;
+    pTSchema->columns[i].flags = pField->flags;
+    pTSchema->columns[i].bytes = pField->bytes;
+    pTSchema->columns[i].offset = -1; // todo check
+  }
+  pTSchema->columns[0].flags |= COL_IS_KEY;
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pTSchema);
+    *ppTSchema = NULL;
+  } else {
+    *ppTSchema = pTSchema;
+  }
+  return code;
+}
+
+// todo 和 buildStreamSubmitReqFromBlock 总的公共部分提取接口，待其他修改稳定后进行防止多人修改冲突
+int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDataInserterInfo* pInserterInfo, SSubmitReq2** ppReq,
+                                      const SSDataBlock* pDataBlock, int32_t* vgId) {
+  SSubmitReq2* pReq = *ppReq;
+  SArray*      pVals = NULL;
+  SArray*      pTagVals = NULL;
+  int32_t      numOfBlks = 0;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (NULL == pReq) {
+    if (!(pReq = taosMemoryCalloc(1, sizeof(SSubmitReq2)))) {
+      goto _end;
+    }
+
+    if (!(pReq->aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData)))) {
+      goto _end;
+    }
+  }
+  STSchema* pTSchema = NULL;
+  code = buildTSchmaFromInserter(pInserter->pParam->streamInserterParam, &pTSchema);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _end;
+  }
+
+  int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
+  int32_t rows = pDataBlock->info.rows;
+
+  SSubmitTbData tbData = {0};
+  if (!(tbData.aRowP = taosArrayInit(rows, sizeof(SRow*)))) {
+    goto _end;
+  }
+  SStreamInserterParam* pInsertParam = pInserter->pParam->streamInserterParam;
+  tbData.suid = pInsertParam->suid;
+  tbData.sver = pInsertParam->sver;
+  if (pInserterInfo->isAutoCreateTable) {
+    tbData.flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
+    tbData.uid = 0;
+  } else {
+    code = getStreamTableId(pInserterInfo->groupId, &tbData.uid);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _end;
+    }
+  }
+
+  if (!pVals && !(pVals = taosArrayInit(colNum, sizeof(SColVal)))) {
+    taosArrayDestroy(tbData.aRowP);
+    goto _end;
+  }
+
+  if (pInserter->autoCreateTableMode == AUTO_CREATE_TABLE_STABLE) {
+    if (!pTagVals && !(pTagVals = taosArrayInit(colNum, sizeof(STagVal)))) {
+      taosArrayDestroy(tbData.aRowP);
+      goto _end;
+    }
+  }
+
+  int32_t numOfCols = pInsertParam->pFields->size;
+  int64_t lastTs = TSKEY_MIN;
+  bool    needSortMerge = false;
+
+  if (pInserterInfo->isAutoCreateTable && pInsertParam->tbType == TSDB_NORMAL_TABLE) {
+    code = buildNormalTableCreateReq(pInserter, pInsertParam, &tbData, vgId);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _end;
+    }
+  }
+
+  for (int32_t j = 0; j < rows; ++j) {  // iterate by row
+    taosArrayClear(pVals);
+
+    int32_t offset = 0;
+
+    for (int32_t k = 0; k < numOfCols; ++k) {  // iterate by column
+      int16_t colIdx = k + 1;
+
+      SFieldWithOptions* pCol = taosArrayGet(pInsertParam->pFields, k);
+
+      SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
+      if (NULL == pColInfoData) {
+        terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        goto _end;
+      }
+      void* var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
+
+      switch (pColInfoData->info.type) {
+        case TSDB_DATA_TYPE_NCHAR:
+        case TSDB_DATA_TYPE_VARBINARY:
+        case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
+          if (pColInfoData->info.type != pCol->type) {
+            qError("column:%d type:%d in block dismatch with schema col:%d type:%d", k, pColInfoData->info.type, k,
+                   pCol->type);
+            terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+            goto _end;
+          }
+          if (colDataIsNull_s(pColInfoData, j)) {
+            SColVal cv = COL_VAL_NULL(colIdx, pCol->type);
+            if (NULL == taosArrayPush(pVals, &cv)) {
+              goto _end;
+            }
+          } else {
+            void*  data = colDataGetVarData(pColInfoData, j);
+            SValue sv = (SValue){
+                .type = pCol->type, .nData = varDataLen(data), .pData = varDataVal(data)};  // address copy, no value
+            SColVal cv = COL_VAL_VALUE(colIdx, sv);
+            if (NULL == taosArrayPush(pVals, &cv)) {
+              goto _end;
+            }
+          }
+          break;
+        }
+        case TSDB_DATA_TYPE_BLOB:
+        case TSDB_DATA_TYPE_JSON:
+        case TSDB_DATA_TYPE_MEDIUMBLOB:
+          qError("the column type %" PRIi16 " is defined but not implemented yet", pColInfoData->info.type);
+          terrno = TSDB_CODE_APP_ERROR;
+          goto _end;
+          break;
+        default:
+          if (pColInfoData->info.type < TSDB_DATA_TYPE_MAX && pColInfoData->info.type > TSDB_DATA_TYPE_NULL) {
+            if (colDataIsNull_s(pColInfoData, j)) {
+              if (PRIMARYKEY_TIMESTAMP_COL_ID == colIdx) {
+                qError("Primary timestamp column should not be null");
+                terrno = TSDB_CODE_PAR_INCORRECT_TIMESTAMP_VAL;
+                goto _end;
+              }
+
+              SColVal cv = COL_VAL_NULL(colIdx, pCol->type);  // should use pCol->type
+              if (NULL == taosArrayPush(pVals, &cv)) {
+                goto _end;
+              }
+            } else {
+              if (PRIMARYKEY_TIMESTAMP_COL_ID == colIdx && !needSortMerge) {
+                if (*(int64_t*)var <= lastTs) {
+                  needSortMerge = true;
+                } else {
+                  lastTs = *(int64_t*)var;
+                }
+              }
+
+              SValue sv = {.type = pCol->type};
+              valueSetDatum(&sv, sv.type, var, tDataTypes[pCol->type].bytes);
+              SColVal cv = COL_VAL_VALUE(colIdx, sv);
+              if (NULL == taosArrayPush(pVals, &cv)) {
+                goto _end;
+              }
+            }
+          } else {
+            uError("the column type %" PRIi16 " is undefined\n", pColInfoData->info.type);
+            terrno = TSDB_CODE_APP_ERROR;
+            goto _end;
+          }
+          break;
+      }
+    }
+
+    SRow* pRow = NULL;
+    if ((terrno = tRowBuild(pVals, pTSchema, &pRow)) < 0) {
+      tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
+      goto _end;
+    }
+    if (NULL == taosArrayPush(tbData.aRowP, &pRow)) {
+      goto _end;
+    }
+  }
+
+  if (needSortMerge) {
+    if ((tRowSort(tbData.aRowP) != TSDB_CODE_SUCCESS) ||
+        (terrno = tRowMerge(tbData.aRowP, (STSchema*)pTSchema, 0)) != 0) {
+      goto _end;
+    }
+  }
+
+  if (NULL == taosArrayPush(pReq->aSubmitTbData, &tbData)) {
+    goto _end;
+  }
+
+_end:
+  taosArrayDestroy(pTagVals);
+  taosArrayDestroy(pVals);
+  if (terrno != 0) {
+    *ppReq = NULL;
+    if (pReq) {
+      tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
+      taosMemoryFree(pReq);
+    }
+
+    return terrno;
+  }
+  *ppReq = pReq;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t streamDataBlocksToSubmitReq(SDataInserterHandle* pInserter, SStreamDataInserterInfo* pInserterInfo, void** pMsg, int32_t* msgLen) {
+  const SArray*   pBlocks = pInserter->pDataBlocks;
+  const STSchema* pTSchema = pInserter->pSchema;
+  int32_t         vgId = 0;
+
+  int32_t      sz = taosArrayGetSize(pBlocks);
+  int32_t      code = 0;
+  SSubmitReq2* pReq = NULL;
+
+  for (int32_t i = 0; i < sz; i++) {
+    SSDataBlock* pDataBlock = taosArrayGetP(pBlocks, i);  // pDataBlock select查询到的结果
+    if (NULL == pDataBlock) {
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    code = buildStreamSubmitReqFromBlock(pInserter, pInserterInfo, &pReq, pDataBlock, &vgId);
+    if (code) {
+      if (pReq) {
+        tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
+        taosMemoryFree(pReq);
+      }
+
+      return code;
+    }
+  }
+
+  code = submitReqToMsg(vgId, pReq, pMsg, msgLen);
+  tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
+  taosMemoryFree(pReq);
+
+  return code;
+}
+
 static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue) {
   SDataInserterHandle* pInserter = (SDataInserterHandle*)pHandle;
   if (!pInserter->explain) {
@@ -804,8 +1204,46 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
 
     taosArrayClear(pInserter->pDataBlocks);
 
-    code = sendSubmitRequest(pInserter, pMsg, msgLen, pInserter->pParam->readHandle->pMsgCb->clientRpc,
+    code = sendSubmitRequest(pInserter, NULL, pMsg, msgLen, pInserter->pParam->readHandle->pMsgCb->clientRpc,
                              &pInserter->pNode->epSet);
+    if (code) {
+      return code;
+    }
+
+    QRY_ERR_RET(tsem_wait(&pInserter->ready));
+
+    if (pInserter->submitRes.code) {
+      return pInserter->submitRes.code;
+    }
+  }
+
+  *pContinue = true;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t putStreamDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue) {
+  SDataInserterHandle* pInserter = (SDataInserterHandle*)pHandle;
+  if (!pInserter->explain) {
+    int32_t code = TSDB_CODE_SUCCESS;
+    if (NULL == taosArrayPush(pInserter->pDataBlocks, &pInput->pData)) {
+      return terrno;
+    }
+    void*   pMsg = NULL;
+    int32_t msgLen = 0;
+    SEpSet  epSet = {0};
+    code = getCurrentMnodeEpset(&epSet);
+    if (code) {
+      return code;
+    }
+    code = streamDataBlocksToSubmitReq(pInserter, pInput->pStreamDataInserterInfo, &pMsg, &msgLen);
+    if (code) {
+      return code;
+    }
+
+    taosArrayClear(pInserter->pDataBlocks);
+
+    code = sendSubmitRequest(pInserter, pInput->pStreamDataInserterInfo, pMsg, msgLen, pInserter->pParam->readHandle->pMsgCb->clientRpc, &epSet);
     if (code) {
       return code;
     }
@@ -841,6 +1279,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   (void)atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pInserter->cachedSize);
   taosArrayDestroy(pInserter->pDataBlocks);
   taosMemoryFree(pInserter->pSchema);
+  destoryStreamInserterParam(pInserter->pParam->streamInserterParam);
   taosMemoryFree(pInserter->pParam);
   taosHashCleanup(pInserter->pCols);
   nodesDestroyNode((SNode *)pInserter->pNode);
@@ -965,6 +1404,57 @@ _return:
 
   nodesDestroyNode((SNode *)*ppDataSink);
   *ppDataSink = NULL;
+
+  return terrno;
+}
+
+int32_t createStreamDataInserter(SDataSinkManager* pManager, DataSinkHandle* pHandle, void* pParam) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  SDataInserterHandle* inserter = taosMemoryCalloc(1, sizeof(SDataInserterHandle));
+  if (NULL == inserter) {
+    taosMemoryFree(pParam);
+    goto _return;
+  }
+
+  inserter->sink.fPut = putStreamDataBlock;
+  inserter->sink.fEndPut = endPut;
+  inserter->sink.fGetLen = getDataLength;
+  inserter->sink.fGetData = NULL;
+  inserter->sink.fDestroy = destroyDataSinker;
+  inserter->sink.fGetCacheSize = getCacheSize;
+  inserter->sink.fGetFlags = getSinkFlags;
+  inserter->pManager = pManager;
+  inserter->pNode = NULL;
+  inserter->pParam = pParam;
+  inserter->status = DS_BUF_EMPTY;
+  inserter->queryEnd = false;
+  inserter->explain = false;
+
+  // todo get inserter->pSchema, inserter->pTagSchema
+  // todo get inserter->dbFName
+  // inserter->fullOrderColList inserter->pCols  应该可以不需要，仅使用 inserter->pSchema
+
+  inserter->pDataBlocks = taosArrayInit(1, POINTER_BYTES);
+  if (NULL == inserter->pDataBlocks) {
+    goto _return;
+  }
+  QRY_ERR_JRET(taosThreadMutexInit(&inserter->mutex, NULL));
+  QRY_ERR_JRET(tsem_init(&inserter->ready, 0, 0));
+
+  inserter->dbVgInfoMap = NULL;
+
+  *pHandle = inserter;
+  return TSDB_CODE_SUCCESS;
+
+_return:
+
+  if (inserter) {
+    (void)destroyDataSinker((SDataSinkHandle*)inserter);
+    taosMemoryFree(inserter);
+  } else {
+    taosMemoryFree(pManager);
+  }
 
   return terrno;
 }

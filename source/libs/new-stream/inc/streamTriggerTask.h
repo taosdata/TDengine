@@ -73,7 +73,7 @@ typedef struct SSTriggerWalMetaStat {
 } SSTriggerWalMetaStat;
 
 typedef struct SSTriggerWalMeta {
-  int64_t vgId;
+  int32_t vgId;
   int64_t uid;
   int64_t skey;
   int64_t ekey;
@@ -156,6 +156,9 @@ typedef struct SSTriggerRealtimeContext {
   SSHashObj                 *pGroups;
   TSSTriggerRealtimeGroupBuf groupsToCheck;
   SSTriggerWalMetaMerger    *pMerger;
+  SFilterInfo               *pStartCond;
+  SFilterInfo               *pEndCond;
+  SArray                    *pNotifyParams;  // SArray<SSTriggerCalcParam>
 
   ESTriggerRequestStatus    pullStatus;
   SSTriggerPullRequestUnion pullReq;
@@ -165,7 +168,7 @@ typedef struct SSTriggerRealtimeContext {
   SSTriggerCalcRequest    calcReq;
   SSTriggerRealtimeGroup *pCalcGroup;
   void                   *pCalcDataCache;
-
+  void                   *pCalcDataCacheIter;
 } SSTriggerRealtimeContext;
 
 typedef struct SStreamTriggerTask {
@@ -184,9 +187,11 @@ typedef struct SStreamTriggerTask {
       int64_t stateTrueFor;
     };
     struct {  // for event window
-      SFilterInfo *pStartCond;
-      SFilterInfo *pEndCond;
-      int64_t      eventTrueFor;
+      SNode     *pStartCond;
+      SNode     *pEndCond;
+      SNodeList *pStartCondCols;
+      SNodeList *pEndCondCols;
+      int64_t    eventTrueFor;
     };
   };
   int64_t primaryTsIndex;
@@ -208,7 +213,7 @@ typedef struct SStreamTriggerTask {
   SArray *readerList;  // SArray<SStreamTaskAddr>
   SArray *runnerList;  // SArray<SStreamRunnerTarget>
   // extra info
-  bool singleTableGroup;
+  bool singleVnodePerGroup;
   bool needRowNumber;
   bool needCacheData;
 

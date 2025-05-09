@@ -16,6 +16,7 @@
 #ifndef _TD_EXECUTOR_H_
 #define _TD_EXECUTOR_H_
 
+#include <stdint.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -64,11 +65,23 @@ typedef struct {
   bool               localExec;
 } SReadHandle;
 
+typedef struct SStreamInserterParam {
+  SArray* pFields;  // SArray<SFieldWithOptions>
+  SArray* pTagFields;
+  int64_t suid;
+  int32_t sver;
+  char*   tbname;
+  int8_t  tbType;
+  char*   dbFName;
+  void*   pSinkHandle;
+} SStreamInserterParam;
+
 typedef struct {
   SStreamRuntimeFuncInfo funcInfo;
   int32_t                execId;
   bool                   resetFlag;
   const SArray*          pForceOutputCols;
+  SStreamInserterParam   inserterParams;
 } SStreamRuntimeInfo;
 
 // in queue mode, data streams are seperated by msg
@@ -85,7 +98,7 @@ typedef enum {
  * @param vgId
  * @return
  */
-int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pInfo, void* msg, SReadHandle* readers, int32_t vgId, int32_t taskId);
+int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pInfo, void* msg, SReadHandle* readers, SStreamInserterParam* pInsertParams, int32_t vgId, int32_t taskId);
 
 /**
  * Create the exec task for queue mode
@@ -247,6 +260,26 @@ void     initStorageAPI(SStorageAPI* pAPI);
 
 int32_t streamCalcOutputTbName(SNode *pExpr, char *tbname, const SStreamRuntimeFuncInfo *pPartColVals);
 void    streamSetTaskRuntimeInfo(qTaskInfo_t tinfo, SStreamRuntimeInfo* pRuntimeInfo);
+
+typedef void (*getMnodeEpset_f)(void *pDnode, SEpSet *pEpset);
+typedef int32_t (*getDnodeId_f)(void *pData);
+typedef void (*taskUndeplyCallback)(void*);
+
+typedef struct SGlobalExecInfo {
+  void*           dnode;
+  int32_t         dnodeId;
+  int32_t         snodeId;
+  getMnodeEpset_f getMnode;
+  getDnodeId_f    getDnodeId;
+
+} SGlobalExecInfo;
+
+extern SGlobalExecInfo gExecInfo;
+
+void    gExecInfoInit(void* pDnode, getDnodeId_f getDnodeId, getMnodeEpset_f getMnode);
+int32_t getCurrentMnodeEpset(SEpSet* pEpSet);
+int32_t cloneStreamInserterParam(SStreamInserterParam** pDst, SStreamInserterParam* pSrc);
+void    destoryStreamInserterParam(SStreamInserterParam* pParam);
 
 #ifdef __cplusplus
 }

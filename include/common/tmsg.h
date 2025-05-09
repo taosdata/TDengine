@@ -523,6 +523,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW,
   QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL,
   QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_INSERT,
 } ENodeType;
 
 typedef struct {
@@ -1053,7 +1054,7 @@ static FORCE_INLINE int32_t tDecodeSSchemaWrapperEx(SDecoder* pDecoder, SSchemaW
   TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pSW->nCols));
   TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pSW->version));
 
-  pSW->pSchema = (SSchema*)tDecoderMalloc(pDecoder, pSW->nCols * sizeof(SSchema));
+  pSW->pSchema = (SSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SSchema));
   if (pSW->pSchema == NULL) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }

@@ -150,6 +150,9 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(const SStreamReaderDeplo
   sStreamReaderInfo->pTagIndexCond = NULL;
   sStreamReaderInfo->pConditions = NULL;
   sStreamReaderInfo->pGroupTags = pMsg->msg.trigger.partitionCols;
+  sStreamReaderInfo->triggerCols = pMsg->msg.trigger.triggerCols;
+  sStreamReaderInfo->deleteReCalc = pMsg->msg.trigger.deleteReCalc;
+  sStreamReaderInfo->deleteOutTbl = pMsg->msg.trigger.deleteOutTbl;
 
   SNode *pAst = NULL;
   STREAM_CHECK_RET_GOTO(nodesStringToNode(pMsg->msg.trigger.triggerScanPlan, &pAst));
@@ -185,6 +188,7 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
     // ST_TASK_DLOG("vgId:%d start to build stream reader calc task", vgId);
     pTask->info.calcReaderInfo.calcScanPlan = taosStrdup(pMsg->msg.calc.calcScanPlan);
     STREAM_CHECK_NULL_GOTO(pTask->info.calcReaderInfo.calcScanPlan, terrno);
+    pTask->info.calcReaderInfo.pTaskInfo = NULL;
   }
 
   pTask->task.status = STREAM_STATUS_INIT;

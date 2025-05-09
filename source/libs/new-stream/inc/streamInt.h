@@ -118,6 +118,15 @@ void smHandleRemovedTask(SStreamTasksInfo* pStream, int64_t streamId, int32_t gi
 void smUndeployVgTasks(int32_t vgId);
 int32_t smDeployStreams(SStreamDeployActions* actions);
 void stmDestroySStreamTasksInfo(SStreamTasksInfo* p);
+int32_t streamBuildStateNotifyContent(ESTriggerEventType eventType, int16_t dataType, const char* pFromState,
+                                      const char* pToState, char** ppContent);
+int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t rowIdx,
+                                      char** ppContent);
+int32_t streamSendNotifyContent(SStreamTask* pTask, int32_t triggerType, int64_t groupId, const SArray* pNotifyAddrUrls,
+                                int32_t errorHandle, const SSTriggerCalcParam* pParams, int32_t nParam);
+
+int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int64_t groupId, TSKEY start,
+                            TSKEY end, void*** pppIter);
 
 #ifdef __cplusplus
 }
