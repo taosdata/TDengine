@@ -651,7 +651,7 @@ CRC32(expr)
 
 - If `expr` is NULL, it returns NULL.
 - if `expr` is the empty string, it returns 0.
-- According to MySQL specifications, if `expr` is a non string, it is interpreted as a string.
+- if `expr` is a non string, it is interpreted as a string.
 - This function is multibyte safe.
 
 **Example**:
