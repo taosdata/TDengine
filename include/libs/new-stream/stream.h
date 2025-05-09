@@ -41,6 +41,7 @@ typedef struct SStreamReaderTask {
       qTaskInfo_t pTaskInfo;
     } calcReaderInfo;
   } info;
+  SStreamRuntimeInfo rtInfo;
 } SStreamReaderTask;
 
 typedef struct SStreamRunnerTaskExecution {

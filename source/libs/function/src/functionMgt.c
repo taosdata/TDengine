@@ -763,11 +763,6 @@ int32_t fmGetStreamPseudoFuncType(int32_t funcId) {
 }
 
 void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo) {
-  int32_t idx = fmGetStreamPseudoFuncType(funcId);
-  if (idx < 0 || idx >= pStreamRuntimeFuncInfo->pStreamPesudoFuncVals->size) {
-    uError("failed to get stream pesudo func val, invalid funcId: %d, idx: %d", funcId, idx);
-    return NULL;
-  }
   SSTriggerCalcParam *pParams = taosArrayGet(pStreamRuntimeFuncInfo->pStreamPesudoFuncVals, pStreamRuntimeFuncInfo->curIdx);
   switch (funcMgtBuiltins[funcId].type) {
     case FUNCTION_TYPE_TCURRENT_TS:

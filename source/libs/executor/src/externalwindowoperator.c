@@ -229,6 +229,8 @@ static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
   resetBasicOperatorState(&pExtW->binfo);
   pExtW->outputWinId = 0;
   taosArrayDestroyEx(pExtW->pOutputBlocks, blockListDestroy);
+  taosArrayDestroy(pExtW->pWins);
+  pExtW->pWins = NULL;
   pExtW->pOutputBlockListNode = NULL;
   initResultSizeInfo(&pOperator->resultInfo, 512);
   int32_t code = blockDataEnsureCapacity(pExtW->binfo.pRes, pOperator->resultInfo.capacity);
@@ -258,6 +260,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
   int32_t                  lino = 0;
   SExternalWindowOperator* pExtW = taosMemoryCalloc(1, sizeof(SExternalWindowOperator));
   SOperatorInfo*           pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+  pOperator->pPhyNode = pNode;
   if (!pExtW || !pOperator) {
     code = terrno;
     lino = __LINE__;
@@ -548,6 +551,17 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
   int32_t scanFlag = MAIN_SCAN;
   int64_t st = taosGetTimestampUs();
 
+  if (!pExtW->pWins) {
+    size_t size = taosArrayGetSize(pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPesudoFuncVals);
+    pExtW->pWins = taosArrayInit(size, sizeof(STimeWindow));
+    if (!pExtW->pWins) QUERY_CHECK_CODE(terrno, lino, _end);
+    for (int32_t i = 0; i < size; ++i) {
+      SSTriggerCalcParam* pParam = taosArrayGet(pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPesudoFuncVals, i);
+      STimeWindow win = {.skey = pParam->wstart, .ekey = pParam->wend};
+      (void)taosArrayPush(pExtW->pWins, &win);
+    }
+  }
+
   while (1) {
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) break;
@@ -555,7 +569,7 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
     if (pExtW->scalarSupp.pExprInfo) {
       SExprSupp* pExprSup = &pExtW->scalarSupp;
       code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL,
-                                   pOperator->pTaskInfo->pStreamRuntimeInfo);
+                                   &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 

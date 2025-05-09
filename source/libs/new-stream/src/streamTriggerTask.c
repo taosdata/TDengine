@@ -1782,9 +1782,9 @@ static int32_t strtcInit(SSTriggerRealtimeContext *pContext, SStreamTriggerTask 
   QUERY_CHECK_CODE(code, lino, _end);
 
   if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
-    code = filterInitFromNode(pTask->pStartCond, &pContext->pStartCond, 0);
+    code = filterInitFromNode(pTask->pStartCond, &pContext->pStartCond, 0, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
-    code = filterInitFromNode(pTask->pEndCond, &pContext->pEndCond, 0);
+    code = filterInitFromNode(pTask->pEndCond, &pContext->pEndCond, 0, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 

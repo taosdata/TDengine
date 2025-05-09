@@ -50,7 +50,7 @@ typedef struct SFilterColumnParam {
   SArray *pDataBlock;
 } SFilterColumnParam;
 
-extern int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pinfo, uint32_t options);
+extern int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pinfo, uint32_t options, void* pSclExtraParams);
 extern int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SColumnDataAgg *statis,
                              int16_t numOfCols, int32_t *pFilterResStatus);
 extern int32_t filterSetDataFromSlotId(SFilterInfo *info, void *param);
