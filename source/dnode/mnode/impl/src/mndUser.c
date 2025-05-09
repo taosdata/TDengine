@@ -249,52 +249,6 @@ bool isRangeInWhiteList(SIpWhiteList *pList, SIpV4Range *range) {
   }
   return false;
 }
-#if 0
-int32_t ipWhiteUpdateForAllUser(SIpWhiteList *pList) {
-  (void)taosThreadRwlockWrlock(&ipWhiteMgt.rw);
-
-  SHashObj *pIpWhiteTab = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), 1, HASH_ENTRY_LOCK);
-  void     *pIter = taosHashIterate(ipWhiteMgt.pIpWhiteTab, NULL);
-
-  while (pIter) {
-    SIpWhiteList *p = *(SIpWhiteList **)pIter;
-    SIpWhiteList *clone = cloneIpWhiteList(pList);
-    int32_t       idx = 0;
-    for (int i = 0; i < pList->num; i++) {
-      SIpV4Range *e = &pList->pIpRange[i];
-      if (!isRangeInWhiteList(p, e)) {
-        clone->pIpRange[idx] = *e;
-        idx++;
-      }
-    }
-    clone->num = idx;
-
-    SIpWhiteList *val = NULL;
-    if (clone->num != 0) {
-      int32_t sz = clone->num + p->num;
-      val = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sz * sizeof(SIpV4Range));
-      (void)memcpy(val->pIpRange, p->pIpRange, sizeof(SIpV4Range) * p->num);
-      (void)memcpy(((char *)val->pIpRange) + sizeof(SIpV4Range) * p->num, (char *)clone->pIpRange,
-             sizeof(SIpV4Range) * clone->num);
-
-    } else {
-      val = cloneIpWhiteList(p);
-    }
-    taosMemoryFree(clone);
-
-    size_t klen;
-    void  *key = taosHashGetKey(pIter, &klen);
-    taosHashPut(pIpWhiteTab, key, klen, val, sizeof(void *));
-  }
-
-  destroyIpWhiteTab(ipWhiteMgt.pIpWhiteTab);
-
-  ipWhiteMgt.pIpWhiteTab = pIpWhiteTab;
-  ipWhiteMgt.ver++;
-  (void)taosThreadRwlockUnlock(&ipWhiteMgt.rw);
-  return 0;
-}
-#endif
 
 static int32_t ipWhiteMgtUpdateAll(SMnode *pMnode) {
   SHashObj *pNew = NULL;
@@ -308,16 +262,6 @@ static int32_t ipWhiteMgtUpdateAll(SMnode *pMnode) {
   destroyIpWhiteTab(pOld);
   TAOS_RETURN(0);
 }
-
-#if 0
-void ipWhiteMgtUpdate2(SMnode *pMnode) {
-  (void)taosThreadRwlockWrlock(&ipWhiteMgt.rw);
-
-  ipWhiteMgtUpdateAll(pMnode);
-
-  (void)taosThreadRwlockUnlock(&ipWhiteMgt.rw);
-}
-#endif
 
 int64_t mndGetIpWhiteVer(SMnode *pMnode) {
   int64_t ver = 0;
