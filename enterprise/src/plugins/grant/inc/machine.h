@@ -363,16 +363,16 @@ typedef struct {
   union {
     int64_t p1;
     struct {
-      int64_t basicExpireSec : 40;
-      int64_t limitDnodes : 16;
-      int64_t expired : 1;
-      int64_t multiTierExpired : 1;
-      int64_t streamExpired : 1;
-      int64_t subscriptionExpired : 1;
-      int64_t auditExpired : 1;
-      int64_t csvExpired : 1;
-      int64_t viewExpired : 1;
-      int64_t placeHolder : 1;
+      int64_t  basicExpireSec : 40;
+      int64_t  limitDnodes : 16;
+      uint64_t expired : 1;
+      uint64_t  multiTierExpired : 1;
+      uint64_t streamExpired : 1;
+      uint64_t subscriptionExpired : 1;
+      uint64_t auditExpired : 1;
+      uint64_t csvExpired : 1;
+      uint64_t viewExpired : 1;
+      uint64_t placeHolder : 1;
     };
   };
   union {
@@ -397,11 +397,12 @@ typedef struct {
     struct {
       int64_t multiTierExpireSec : 40;
       int64_t curDnodes : 16;
-      int64_t objectStorageExpired : 1;
-      int64_t dualReplicaHAExpired : 1;
-      int64_t dbEncryptionExpired : 1;
-      int64_t tdGptExpired : 1;  // since 3.3.6.0
-      int64_t reserve2 : 4;
+      uint64_t objectStorageExpired : 1;
+      uint64_t dualReplicaHAExpired : 1;
+      uint64_t dbEncryptionExpired : 1;
+      uint64_t tdGptExpired : 1;  // since 3.3.6.0
+      uint64_t dualReplicaHADefined : 1;
+      int64_t reserve2 : 3;
     };
   };
   union {
@@ -417,10 +418,10 @@ typedef struct {
     struct {
       int64_t csvExpireSec : 40;
       int64_t curSubscriptions : 16;
-      int64_t checkUpTime : 1;
-      int64_t checkMachineCode : 1;
-      int64_t checkHistoricalActive : 1;
-      int64_t skipOldActiveIfParseFail : 1;
+      uint64_t checkUpTime : 1;
+      uint64_t checkMachineCode : 1;
+      uint64_t checkHistoricalActive : 1;
+      uint64_t skipOldActiveIfParseFail : 1;
       int64_t reserve4 : 4;
     };
   };
