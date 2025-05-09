@@ -400,6 +400,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_COMPACT_ID,       "Invalid compact id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COMPACT_DETAIL_NOT_EXIST, "compact detail doesn't exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COMPACT_ALREADY_EXIST,    "compact already exist")
 
+// mnode-mount
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_NOT_EXIST,          "Mount not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_IN_CREATING,        "Mount in creating status")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_IN_DROPPING,        "Mount in dropping status")
+
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_OFFLINE,                "Dnode is offline")
 TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_NOT_FOUND,              "Mnode not found")

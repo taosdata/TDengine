@@ -29,6 +29,7 @@
 #include "mndIndex.h"
 #include "mndInfoSchema.h"
 #include "mndMnode.h"
+#include "mndMount.h"
 #include "mndPerfSchema.h"
 #include "mndPrivilege.h"
 #include "mndProfile.h"
@@ -652,6 +653,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-infos", mndInitInfos, mndCleanupInfos));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-perfs", mndInitPerfs, mndCleanupPerfs));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-db", mndInitDb, mndCleanupDb));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-mount", mndInitMount, mndCleanupMount));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-func", mndInitFunc, mndCleanupFunc));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-view", mndInitView, mndCleanupView));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-compact", mndInitCompact, mndCleanupCompact));

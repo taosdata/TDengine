@@ -475,6 +475,23 @@ typedef struct {
 } SDbObj;
 
 typedef struct {
+  char     name[TSDB_MOUNT_NAME_LEN];
+  char     path[TSDB_MOUNT_PATH_LEN];
+  char     acct[TSDB_USER_LEN];
+  char     createUser[TSDB_USER_LEN];
+  int64_t  createdTime;
+  int64_t  updateTime;
+  int64_t  uid;
+  int32_t  dnodeId;
+  SRWLatch lock;
+  // dbInfo
+  int64_t dbStateTs;
+  int64_t dbUid;
+  char    dbName[TSDB_DB_FNAME_LEN];
+  SDbCfg  dbCfg;
+} SMountObj;
+
+typedef struct {
   int32_t    dnodeId;
   ESyncState syncState;
   int64_t    syncTerm;
