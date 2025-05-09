@@ -561,14 +561,16 @@ bool mndStreamActionDequeue(SStmActionQ* pQueue, SStmQNode **param) {
 }
 
 void mndStreamActionEnqueue(SStmActionQ* pQueue, SStmQNode* param) {
+  taosWLockLatch(&pQueue->lock);
   pQueue->tail->next = param;
   pQueue->tail = param;
+  taosWUnLockLatch(&pQueue->lock);
 
   atomic_add_fetch_64(&pQueue->qRemainNum, 1);
 }
 
 
-static void mndStreamPostAction(SMnode *pMnode, int64_t streamId, char* streamName, int32_t action) {
+void mndStreamPostAction(SMnode *pMnode, int64_t streamId, char* streamName, int32_t action) {
   SStmQNode *pNode = taosMemoryMalloc(sizeof(SStmQNode) + strlen(streamName) + 1);
   if (NULL == pNode) {
     return;

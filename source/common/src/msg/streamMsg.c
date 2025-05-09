@@ -2295,63 +2295,28 @@ _exit:
   return code;
 }
 
-int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTriggerCalcRequest* pReq) {
-  SEncoder encoder = {0};
-  int32_t  code = TSDB_CODE_SUCCESS;
-  int32_t  lino = 0;
-  int32_t  tlen = 0;
-
-  tEncoderInit(&encoder, buf, bufLen);
-  TAOS_CHECK_EXIT(tStartEncode(&encoder));
-
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->streamId));
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->runnerTaskId));
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->sessionId));
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->gid));
-
-  int32_t size = taosArrayGetSize(pReq->params);
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, size));
+static int32_t tSerializeSTriggerCalcParam(SEncoder* pEncoder, SArray* pParams) {
+  int32_t size = taosArrayGetSize(pParams);
+  int32_t code = 0;
+  int32_t lino = 0;
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, size));
   for (int32_t i = 0; i < size; ++i) {
-    SSTriggerCalcParam* param = taosArrayGet(pReq->params, i);
+    SSTriggerCalcParam* param = taosArrayGet(pParams, i);
     if (param == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
-    TAOS_CHECK_EXIT(tEncodeI64(&encoder, param->currentTs));
-    TAOS_CHECK_EXIT(tEncodeI64(&encoder, param->wstart));
-    TAOS_CHECK_EXIT(tEncodeI64(&encoder, param->wend));
-    TAOS_CHECK_EXIT(tEncodeI64(&encoder, param->wduration));
-    TAOS_CHECK_EXIT(tEncodeI64(&encoder, param->wrownum));
-    TAOS_CHECK_EXIT(tEncodeI64(&encoder, param->triggerTime));
-    TAOS_CHECK_EXIT(tEncodeI32(&encoder, param->notifyType));
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->currentTs));
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->wstart));
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->wend));
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->wduration));
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->wrownum));
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->triggerTime));
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, param->notifyType));
     uint32_t len = (param->extraNotifyContent != NULL) ? strlen(param->extraNotifyContent) : 0;
-    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (uint8_t*)param->extraNotifyContent, len));
+    TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, (uint8_t*)param->extraNotifyContent, len));
   }
-
-  size = taosArrayGetSize(pReq->groupColVals);
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, size));
-  for (int32_t i = 0; i < size; ++i) {
-    SValue* pValue = taosArrayGet(pReq->groupColVals, i);
-    if (pValue == NULL) {
-      TAOS_CHECK_EXIT(terrno);
-    }
-    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pValue->type));
-    if (IS_VAR_DATA_TYPE(pValue->type)) {
-      TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pValue->pData, pValue->nData));
-    } else {
-      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pValue->val));
-    }
-  }
-
-  tEndEncode(&encoder);
-
 _exit:
-  if (code != TSDB_CODE_SUCCESS) {
-    tlen = code;
-  } else {
-    tlen = encoder.pos;
-  }
-  tEncoderClear(&encoder);
-  return tlen;
+  return code;
 }
 
 static void tDestroySSTriggerCalcParam(void* ptr) {
@@ -2369,6 +2334,126 @@ static void tDestroySValue(void* ptr) {
   }
 }
 
+
+static int32_t tDeserializeSTriggerCalcParam(SDecoder* pDecoder, SArray**ppParams) {
+  int32_t size = 0, code = 0, lino = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &size));
+  taosArrayClearP(*ppParams, tDestroySSTriggerCalcParam);
+  SArray* pParams = NULL;
+  if (size > 0) {
+    if (*ppParams == NULL) {
+      *ppParams = taosArrayInit(size, sizeof(SSTriggerCalcParam));
+      if (*ppParams == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+    } else {
+      TAOS_CHECK_EXIT(taosArrayEnsureCap(*ppParams, size));
+    }
+    TARRAY_SIZE(*ppParams) = size;
+  }
+  for (int32_t i = 0; i < size; ++i) {
+    SSTriggerCalcParam* param = taosArrayGet(*ppParams, i);
+    if (param == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->currentTs));
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->wstart));
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->wend));
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->wduration));
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->wrownum));
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->triggerTime));
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &param->notifyType));
+    uint64_t len = 0;
+    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&param->extraNotifyContent, &len));
+  }
+
+_exit:
+  return code;
+}
+
+static int32_t tSerializeStriggerGroupColVals(SEncoder* pEncoder, SArray* pGroupColVals) {
+  int32_t size = 0, code = 0, lino = 0;
+  size = taosArrayGetSize(pGroupColVals);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, size));
+  for (int32_t i = 0; i < size; ++i) {
+    SValue* pValue = taosArrayGet(pGroupColVals, i);
+    if (pValue == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pValue->type));
+    if (IS_VAR_DATA_TYPE(pValue->type)) {
+      TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pValue->pData, pValue->nData));
+    } else {
+      TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pValue->val));
+    }
+  }
+_exit:
+  return code;
+}
+
+static int32_t tDeserializeStriggerGroupColVals(SDecoder* pDecoder, SArray** ppGroupColVals) {
+  int32_t size = 0, code = 0, lino = 0;
+
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &size));
+  taosArrayClearP(*ppGroupColVals, tDestroySValue);
+  if (size > 0) {
+    if (*ppGroupColVals == NULL) {
+      *ppGroupColVals = taosArrayInit(size, sizeof(SValue));
+      if (*ppGroupColVals == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+    } else {
+      TAOS_CHECK_EXIT(taosArrayEnsureCap(*ppGroupColVals, size));
+    }
+    TARRAY_SIZE(*ppGroupColVals) = size;
+  }
+  for (int32_t i = 0; i < size; ++i) {
+    SValue* pValue = taosArrayGet(*ppGroupColVals, i);
+    if (pValue == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pValue->type));
+    if (IS_VAR_DATA_TYPE(pValue->type)) {
+      uint64_t len = 0;
+      TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pValue->pData, &len));
+      pValue->nData = len;
+    } else {
+      TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pValue->val));
+    }
+  }
+_exit:
+  return code;
+}
+
+int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTriggerCalcRequest* pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  int32_t  tlen = 0;
+
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->streamId));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->runnerTaskId));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->sessionId));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->gid));
+
+  TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(&encoder, pReq->params));
+  TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(&encoder, pReq->groupColVals));
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
 int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalcRequest* pReq) {
   SDecoder decoder = {0};
   int32_t  code = TSDB_CODE_SUCCESS;
@@ -2382,64 +2467,8 @@ int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalc
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->sessionId));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->gid));
 
-  int32_t size = 0;
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &size));
-  taosArrayClearP(pReq->params, tDestroySSTriggerCalcParam);
-  if (size > 0) {
-    if (pReq->params == NULL) {
-      pReq->params = taosArrayInit(size, sizeof(SSTriggerCalcParam));
-      if (pReq->params == NULL) {
-        TAOS_CHECK_EXIT(terrno);
-      }
-    } else {
-      TAOS_CHECK_EXIT(taosArrayEnsureCap(pReq->params, size));
-    }
-    TARRAY_SIZE(pReq->params) = size;
-  }
-  for (int32_t i = 0; i < size; ++i) {
-    SSTriggerCalcParam* param = taosArrayGet(pReq->params, i);
-    if (param == NULL) {
-      TAOS_CHECK_EXIT(terrno);
-    }
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &param->currentTs));
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &param->wstart));
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &param->wend));
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &param->wduration));
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &param->wrownum));
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &param->triggerTime));
-    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &param->notifyType));
-    uint64_t len = 0;
-    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&param->extraNotifyContent, &len));
-  }
-
-  size = 0;
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &size));
-  taosArrayClearP(pReq->groupColVals, tDestroySValue);
-  if (size > 0) {
-    if (pReq->groupColVals == NULL) {
-      pReq->groupColVals = taosArrayInit(size, sizeof(SValue));
-      if (pReq->groupColVals == NULL) {
-        TAOS_CHECK_EXIT(terrno);
-      }
-    } else {
-      TAOS_CHECK_EXIT(taosArrayEnsureCap(pReq->groupColVals, size));
-    }
-    TARRAY_SIZE(pReq->groupColVals) = size;
-  }
-  for (int32_t i = 0; i < size; ++i) {
-    SValue* pValue = taosArrayGet(pReq->groupColVals, i);
-    if (pValue == NULL) {
-      TAOS_CHECK_EXIT(terrno);
-    }
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pValue->type));
-    if (IS_VAR_DATA_TYPE(pValue->type)) {
-      uint64_t len = 0;
-      TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pValue->pData, &len));
-      pValue->nData = len;
-    } else {
-      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pValue->val));
-    }
-  }
+  TAOS_CHECK_EXIT(tDeserializeSTriggerCalcParam(&decoder, &pReq->params));
+  TAOS_CHECK_EXIT(tDeserializeStriggerGroupColVals(&decoder, &pReq->groupColVals));
 
   tEndDecode(&decoder);
 
@@ -2459,4 +2488,24 @@ void tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq) {
       pReq->groupColVals = NULL;
     }
   }
+}
+
+int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo) {
+  int32_t code = 0, lino = 0;
+  TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(pEncoder, pInfo->pStreamPesudoFuncVals));
+  TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(pEncoder, pInfo->pStreamPartColVals));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->groupId));
+_exit:
+  return code;
+}
+
+int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo) {
+  int32_t code = 0, lino = 0;
+  int32_t size = 0;
+  TAOS_CHECK_EXIT(tDeserializeSTriggerCalcParam(pDecoder, &pInfo->pStreamPesudoFuncVals));
+  TAOS_CHECK_EXIT(tDeserializeStriggerGroupColVals(pDecoder, &pInfo->pStreamPartColVals));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pInfo->groupId));
+
+_exit:
+  return code;
 }

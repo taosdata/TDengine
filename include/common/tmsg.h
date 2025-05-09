@@ -4955,17 +4955,6 @@ int32_t tEncodeSStreamTsResponse(SEncoder *pEncoder, const SStreamTsResponse *pR
 int32_t tSerializeSVSubTablesRspImpl(SEncoder* pEncoder, SVSubTablesRsp *pRsp);
 int32_t tDeserializeSVSubTablesRspImpl(SDecoder* pDecoder, SVSubTablesRsp *pRsp);
 
-typedef struct SStreamRuntimeFuncInfo {
-  SArray* pStreamPesudoFuncVals; // Array<char*>
-  SArray* pStreamPartColVals;    // Array<char*>
-  SArray* pStreamPesudoFuncValNodes;
-  SArray* pStreamPartColValNodes;
-  int64_t groupId;
-} SStreamRuntimeFuncInfo;
-
-int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo);
-int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);
-
 #pragma pack(pop)
 
 #ifdef __cplusplus

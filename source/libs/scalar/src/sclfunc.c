@@ -4670,5 +4670,6 @@ int32_t leastFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
 
 int32_t streamPseudoScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   // TODO wjm just return the first param
+  TSWAP(pInput->columnData, pOutput->columnData);
   return 0;
 }

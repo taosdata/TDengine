@@ -268,8 +268,8 @@ typedef struct {
   int32_t outTblVgId;
 
   // reader part
-  void* triggerScanPlan;  // block include all
-                          // preFilter<>triggerPrevFilter/partitionCols<>subTblNameExpr+tagValueExpr/triggerCols<>triggerCond
+  void*   triggerScanPlan;   // block include all
+                             // preFilter<>triggerPrevFilter/partitionCols<>subTblNameExpr+tagValueExpr/triggerCols<>triggerCond/calcRows
   SArray* calcScanPlanList;  // for calc action, SArray<SStreamCalcScan>
 
   // trigger part
@@ -293,6 +293,8 @@ typedef enum {
   STREAM_STATUS_STOPPED,
   STREAM_STATUS_FAILED,
 } EStreamStatus;
+
+static const char* gStreamStatusStr[] = {"Not Ready", "Ready", "Running", "Stopped", "Failed"};
 
 typedef enum EStreamTaskType {
   STREAM_READER_TASK = 0,
@@ -680,6 +682,18 @@ typedef struct SSTriggerCalcRequest {
 int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTriggerCalcRequest* pReq);
 int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalcRequest* pReq);
 void    tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq);
+
+typedef struct SStreamRuntimeFuncInfo {
+  SArray* pStreamPesudoFuncVals;
+  SArray* pStreamPartColVals;
+  SArray* pStreamPesudoFuncValNodes;
+  SArray* pStreamPartColValNodes;
+  int64_t groupId;
+} SStreamRuntimeFuncInfo;
+
+int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo);
+int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);
+
 
 #ifdef __cplusplus
 }

@@ -95,20 +95,30 @@ void streamRemoveVnodeLeader(int32_t vgId) {
   }
   taosWUnLockLatch(&gStreamMgmt.vgLeadersLock);
   
-  stDebug("remove vgroup %d from vgroupLeader %s", vgId, (idx < 0) ? "failed" : "succeed");
+  if (idx >= 0) {
+    stInfo("remove vgroup %d from vgroupLeaders succeed", vgId);
+  } else {
+    stWarn("remove vgroup %d from vgroupLeaders failed since not exists", vgId);
+  }
+
+  smUndeployVgTasks(vgId);
 }
 
 void streamAddVnodeLeader(int32_t vgId) {
+  int32_t code = TSDB_CODE_SUCCESS;
   taosWLockLatch(&gStreamMgmt.vgLeadersLock);
   void* p = taosArrayPush(gStreamMgmt.vgLeaders, &vgId);
   if (p) {
     taosArraySort(gStreamMgmt.vgLeaders, streamVgIdSort);
+  } else {
+    code = terrno;
   }
   taosWUnLockLatch(&gStreamMgmt.vgLeadersLock);
+  
   if (p) {
-    stInfo("add vgroup %d to vgroupLeader succeed", vgId);
+    stInfo("add vgroup %d to vgroupLeaders succeed", vgId);
   } else {
-    stError("add vgroup %d to vgroupLeader failed, error:%s", vgId, tstrerror(terrno));
+    stError("add vgroup %d to vgroupLeaders failed, error:%s", vgId, tstrerror(code));
   }
 }
 

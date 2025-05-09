@@ -30,6 +30,8 @@ int32_t stmAddFetchStreamGid(void) {
 
 
 int32_t stmAddStreamStatus(SArray** ppStatus, SStreamTasksInfo* pStream, int64_t streamId, int32_t gid) {
+  taosWLockLatch(&pStream->taskLock);
+
   if (taosArrayGetSize(pStream->undeployReaders) > 0) {
     smHandleRemovedTask(pStream, streamId, gid, true);
   }
@@ -39,22 +41,30 @@ int32_t stmAddStreamStatus(SArray** ppStatus, SStreamTasksInfo* pStream, int64_t
   }
 
   if (pStream->taskNum <= 0) {
-    return TSDB_CODE_SUCCESS;
+    mstDebug("ignore stream status update since stream taskNum %d is invalid", pStream->taskNum);
+    goto _exit;
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  *ppStatus = taosArrayInit(pStream->taskNum, sizeof(SStmTaskStatusMsg));
-  TSDB_CHECK_NULL(*ppStatus, code, lino, _exit, terrno);
+  
+  if (NULL == *ppStatus) {
+    *ppStatus = taosArrayInit(pStream->taskNum, sizeof(SStmTaskStatusMsg));
+    TSDB_CHECK_NULL(*ppStatus, code, lino, _exit, terrno);
+  }
 
+  int32_t origTaskNum = taosArrayGetSize(*ppStatus);
   int32_t taskNum = taosArrayGetSize(pStream->readerList);
   for (int32_t i = 0; i < taskNum; ++i) {
     SStreamReaderTask* pReader = taosArrayGet(pStream->readerList, i);
     TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pReader->task), code, lino, _exit, terrno);
   }
 
+  mstDebug("%d reader tasks status added to hb", taskNum);
+
   if (pStream->triggerTask) {
     TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pStream->triggerTask->task), code, lino, _exit, terrno);
+    mstDebug("%d trigger tasks status added to hb", 1);
   }
 
   taskNum = taosArrayGetSize(pStream->runnerList);
@@ -63,12 +73,18 @@ int32_t stmAddStreamStatus(SArray** ppStatus, SStreamTasksInfo* pStream, int64_t
     TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pRunner->task), code, lino, _exit, terrno);
   }
 
-  return code;
+  mstDebug("%d runner tasks status added to hb", taskNum);
+
+  mstDebug("total %d:%d tasks status added to hb", taosArrayGetSize(*ppStatus) - origTaskNum, pStream->taskNum);
 
 _exit:
 
-  stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  taosWUnLockLatch(&pStream->taskLock);
 
+  if (code) {
+    stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+  
   return code;
 }
 
@@ -95,3 +111,33 @@ int32_t stmBuildStreamsStatus(SArray** ppStatus, int32_t gid) {
   return code;
 }
 
+void stmDestroySStreamTasksInfo(SStreamTasksInfo* p) {
+  // STREAMTODO
+}
+
+int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, void** ppCache) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask* pTask = NULL;
+
+  *ppCache = NULL;
+
+  code = streamGetTask(streamId, taskId, (SStreamTask**)&pTask);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  QUERY_CHECK_CONDITION(pTask->task.type == STREAM_TRIGGER_TASK, code, lino, _end, TSDB_CODE_STREAM_TASK_NOT_EXIST);
+
+  if (pTask->pRealtimeCtx->sessionId == sessionId) {
+    *ppCache = pTask->pRealtimeCtx->pCalcDataCache;
+  } else {
+    stError("sessionId %ld not match with task %ld", sessionId, pTask->pRealtimeCtx->sessionId);
+    code = TSDB_CODE_INTERNAL_ERROR;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}

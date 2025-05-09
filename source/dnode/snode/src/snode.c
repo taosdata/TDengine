@@ -46,16 +46,17 @@ void sndClose(SSnode *pSnode) {
   taosMemoryFree(pSnode);
 }
 
-static int32_t handleTriggerCalcReq(const char* pMsg, int32_t msgLen) {
+static int32_t handleTriggerCalcReq(SSnode* pSnode, const char* pMsg, int32_t msgLen) {
   SSTriggerCalcRequest req = {0};
   SStreamRunnerTask* pTask = NULL;
   int32_t code = tDeserializeSTriggerCalcRequest((void*)pMsg, msgLen, &req);
   if (code == 0) {
-    //code = streamGetTask(req.streamId, req.runnerTaskId, &pTask);
+    code = streamGetTask(req.streamId, req.runnerTaskId, (SStreamTask**)&pTask);
   }
   if (code == 0) {
     req.brandNew = true;
     req.execId = -1;
+    pTask->pMsgCb = &pSnode->msgCb;
     code = stRunnerTaskExecute(pTask, &req);
   }
   return code;
@@ -66,7 +67,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   SResFetchReq req = {0};
   SSTriggerCalcRequest calcReq = {0};
   SStreamRunnerTask* pTask = NULL;
-  code = tDeserializeSResFetchReq(pRpcMsg->pCont, pRpcMsg->contLen, &req);
+  code = tDeserializeSResFetchReq(POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead)), pRpcMsg->contLen - sizeof(SMsgHead), &req);
   if (code == 0) {
     //code =  make one strigger calc req
     calcReq.streamId = req.queryId;
@@ -78,7 +79,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, SRpcMsg* pRpcMsg) {
     calcReq.gid = req.pStRtFuncInfo->groupId;
   }
   if (code == 0) {
-    // code = streamGetTask(calcReq.streamId, calcReq.runnerTaskId, &pTask);
+    code = streamGetTask(calcReq.streamId, calcReq.runnerTaskId, (SStreamTask**)&pTask);
   }
   if (code == 0) {
     code = stRunnerTaskExecute(pTask, &calcReq);
@@ -90,10 +91,13 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
   int32_t code = 0;
   switch (pMsg->msgType) {
     case TDMT_STREAM_TRIGGER_CALC:
-      code = handleTriggerCalcReq(pMsg->pCont, pMsg->contLen);
+      code = handleTriggerCalcReq(pSnode, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead));
       break;
-    case TDMT_STREAM_FETCH:
+    case TDMT_STREAM_FETCH_FROM_RUNNER:
       code = handleStreamFetchData(pSnode, pMsg);
+      break;
+    case TDMT_STREAM_FETCH_FROM_CACHE:
+
       break;
     default:
       sndError("invalid snode msg:%d", pMsg->msgType);

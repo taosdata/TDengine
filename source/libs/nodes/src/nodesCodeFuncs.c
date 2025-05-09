@@ -4179,6 +4179,8 @@ static const char* jkSubplanType = "SubplanType";
 static const char* jkSubplanMsgType = "MsgType";
 static const char* jkSubplanLevel = "Level";
 static const char* jkSubplanDbFName = "DbFName";
+static const char* jkSubplanParent = "Parent";
+static const char* jkSubplanChildren = "Child";
 static const char* jkSubplanUser = "User";
 static const char* jkSubplanNodeAddr = "NodeAddr";
 static const char* jkSubplanRootNode = "RootNode";
@@ -4214,6 +4216,9 @@ static int32_t subplanToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkSubplanNodeAddr, queryNodeAddrToJson, &pNode->execNode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkSubplanChildren, pNode->pChildren);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkSubplanRootNode, nodeToJson, pNode->pNode);
@@ -4366,6 +4371,9 @@ static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
     code = tjsonToObject(pJson, jkSubplanNodeAddr, jsonToQueryNodeAddr, &pNode->execNode);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkSubplanChildren, &pNode->pChildren);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkSubplanRootNode, (SNode**)&pNode->pNode);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -4395,6 +4403,15 @@ static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkSubplanDynamicRowsThreshold, &pNode->dynamicRowThreshold);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* pChild = NULL;
+    FOREACH(pChild, pNode->pChildren) {
+      if (nodeType(pChild) == QUERY_NODE_PHYSICAL_SUBPLAN) {
+        SSubplan* pSubplan = (SSubplan*)pChild;
+        code = nodesListMakeAppend(&pSubplan->pParents, (SNode*)pNode);
+      }
+    }
+  }
 
   return code;
 }
@@ -4411,9 +4428,58 @@ static int32_t planToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddIntegerToObject(pJson, jkPlanNumOfSubplans, pNode->numOfSubplans);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodeListToJson(pJson, jkPlanSubplans, pNode->pSubplans);
+    code = tjsonAddObject(pJson, jkPlanSubplans, nodeToJson, nodesListGetNode(pNode->pSubplans, 0));
   }
 
+  return code;
+}
+
+static int32_t pushSubplan(SNode* pSubplan, int32_t level, SNodeList* pSubplans) {
+  SNodeListNode* pGroup = NULL;
+  if (level >= LIST_LENGTH(pSubplans)) {
+    pGroup = NULL;
+    int32_t code = nodesMakeNode(QUERY_NODE_NODE_LIST, (SNode**)&pGroup);
+    if (NULL == pGroup) {
+      return code;
+    }
+    if (TSDB_CODE_SUCCESS != nodesListStrictAppend(pSubplans, (SNode*)pGroup)) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  } else {
+    pGroup = (SNodeListNode*)nodesListGetNode(pSubplans, level);
+  }
+  if (NULL == pGroup->pNodeList) {
+    int32_t code = nodesMakeList(&pGroup->pNodeList);
+    if (NULL == pGroup->pNodeList) {
+      return code;
+    }
+  }
+  return nodesListAppend(pGroup->pNodeList, (SNode*)pSubplan);
+}
+
+static int32_t buildSubplan(SSubplan* pSubplan, SQueryPlan* pQueryPlan) {
+  int32_t   code = TSDB_CODE_SUCCESS;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = pushSubplan((SNode*)pSubplan, pSubplan->level, pQueryPlan->pSubplans);
+    ++(pQueryPlan->numOfSubplans);
+  }
+
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pSubplan);
+    return code;
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* pChild = NULL;
+    FOREACH(pChild, pSubplan->pChildren) {
+      if (nodeType(pChild) == QUERY_NODE_PHYSICAL_SUBPLAN) {
+        code = buildSubplan((SSubplan*)pChild, pQueryPlan);
+        if (TSDB_CODE_SUCCESS != code) {
+          break;
+        }
+      }
+    }
+  }
   return code;
 }
 
@@ -4421,11 +4487,33 @@ static int32_t jsonToPlan(const SJson* pJson, void* pObj) {
   SQueryPlan* pNode = (SQueryPlan*)pObj;
 
   int32_t code = tjsonGetUBigIntValue(pJson, jkPlanQueryId, &pNode->queryId);
+  int32_t numOfSubplan = 0;
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetIntValue(pJson, jkPlanNumOfSubplans, &pNode->numOfSubplans);
+    code = tjsonGetIntValue(pJson, jkPlanNumOfSubplans, &numOfSubplan);
+  }
+  SNodeListNode *pTopSubplan = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkPlanSubplans, (SNode**)&pTopSubplan);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeList(pJson, jkPlanSubplans, &pNode->pSubplans);
+    code = nodesMakeList(&pNode->pSubplans);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* pGroupItem = NULL;
+    FOREACH(pGroupItem, pTopSubplan->pNodeList) {
+      if (nodeType(pGroupItem) == QUERY_NODE_PHYSICAL_SUBPLAN) {
+        code = buildSubplan((SSubplan*)pGroupItem, pNode);
+        if (TSDB_CODE_SUCCESS != code) {
+          break;
+        }
+      }
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (numOfSubplan != pNode->numOfSubplans) {
+      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+      nodesError("%s toNode error numOfSubplan %d != %d", nodesNodeName(pNode->type), numOfSubplan, pNode->numOfSubplans);
+    }
   }
 
   return code;

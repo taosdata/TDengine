@@ -41,15 +41,14 @@ typedef struct SStreamHbInfo {
 } SStreamHbInfo;
 
 typedef struct SStreamTasksInfo {
+  SRWLatch            taskLock;
   int32_t             taskNum;
   
-  SRWLatch            readerListLock;
   SArray*             readerList;        // SArray<SStreamReaderTask>
   
   SRWLatch            triggerTaskLock;
   SStreamTriggerTask* triggerTask;
   
-  SRWLatch            runnerListLock;
   SArray*             runnerList;        // SArray<SStreamRunnerTask>
 
 
@@ -98,7 +97,7 @@ extern SStreamMgmtInfo gStreamMgmt;
 
 int32_t streamTimerInit(void** ppTimer);
 int32_t streamHbInit(SStreamHbInfo* pHb);
-int32_t smDeployTasks(SStreamDeployActions* actions);
+int32_t smDeployTasks(SStmStreamDeploy* pDeploy);
 int32_t smUndeployTasks(SStreamUndeployActions* actions);
 int32_t smStartTasks(SStreamStartActions* actions);
 void smUndeployAllTasks(void);
@@ -113,6 +112,12 @@ void    streamTriggerEnvCleanup();
 int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMsg* pMsg);
 int32_t stReaderTaskUndeploy(SStreamReaderTask** ppTask, const SStreamUndeployTaskMsg* pMsg, taskUndeplyCallback cb);
 int32_t stReaderTaskExecute(SStreamReaderTask* pTask, SStreamMsg* pMsg);
+
+int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, void **ppCache);
+void smHandleRemovedTask(SStreamTasksInfo* pStream, int64_t streamId, int32_t gid, bool isReader);
+void smUndeployVgTasks(int32_t vgId);
+int32_t smDeployStreams(SStreamDeployActions* actions);
+void stmDestroySStreamTasksInfo(SStreamTasksInfo* p);
 
 #ifdef __cplusplus
 }

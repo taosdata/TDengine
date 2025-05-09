@@ -158,7 +158,7 @@ int32_t streamHbProcessRspMsg(SMStreamHbRspMsg* pRsp) {
   stDebug("start to process stream hb rsp msg");
 
   if (pRsp->deploy.streamList) {
-    TAOS_CHECK_EXIT(smDeployTasks(&pRsp->deploy));
+    TAOS_CHECK_EXIT(smDeployStreams(&pRsp->deploy));
   }
 
   if (pRsp->start.taskList) {

@@ -68,6 +68,7 @@ typedef enum {
 #define MND_STREAM_STOP_NAME         "stream-stop"
 
 #define GOT_SNODE(_snodeId) ((_snodeId) != INT32_MIN)
+#define STREAM_IS_RUNNING(_status) (STREAM_STATUS_RUNNING == (_status))
 
 typedef struct SVgroupChangeInfo {
   SHashObj *pDBMap;
@@ -83,8 +84,9 @@ typedef struct SStmQNode {
 
 typedef struct SStmActionQ {
   bool          stopQueue;
-  SStmQNode* head;
-  SStmQNode* tail;
+  SRWLatch      lock;
+  SStmQNode*    head;
+  SStmQNode*    tail;
   uint64_t      qRemainNum;
 } SStmActionQ;
 
@@ -102,6 +104,7 @@ typedef struct SStmTaskStatus {
 } SStmTaskStatus;
 
 typedef struct SStmTaskSrcAddr {
+  bool    isFromCache;
   int64_t taskId;
   int32_t vgId;
   int32_t groupId;
@@ -140,6 +143,7 @@ typedef struct SStmVgroupTasksStatus {
 
 typedef struct SStmTaskDeployExt {
   bool           deployed;
+  bool           lowestRunner;
   SStmTaskDeploy deploy;
 } SStmTaskDeployExt;
 
@@ -195,6 +199,12 @@ typedef struct SStmThreadCtx {
   SHashObj*        actionStm[STREAM_MAX_GROUP_NUM];    // streamId => SStmAction
 } SStmThreadCtx;
 
+typedef struct SStmHealthCheckCtx {
+  int64_t currentTs;
+  int32_t validStreamNum;
+  
+} SStmHealthCheckCtx;
+
 typedef struct SStmRuntime {
   bool             initialized;
   bool             isLeader;
@@ -221,12 +231,17 @@ typedef struct SStmRuntime {
   // TD
   int32_t          toDeployVgTaskNum;
   SHashObj*        toDeployVgMap;      // vgId => SStmVgroupTasksDeploy (only reader tasks)
+  SHashObj*        deployedVgMap;      // vgId => SStmVgroupTasksDeploy (only reader tasks)
   int32_t          toDeploySnodeTaskNum;
   SHashObj*        toDeploySnodeMap;   // snodeId => SStmSnodeTasksDeploy (only trigger and runner tasks)
+  SHashObj*        deployedSnodeMap;   // snodeId => SStmSnodeTasksDeploy (only trigger and runner tasks)
 
   // UP
-  int32_t          toUpdateRunnerNum;
-  SHashObj*        toUpdateRunnerMap;   // streamId + subplanId => SStmTaskSrcAddr (only scan's target runner tasks)
+  int32_t          toUpdateScanNum;
+  SHashObj*        toUpdateScanMap;   // streamId + subplanId => SStmTaskSrcAddr (only scan's target runner tasks)
+
+  // HEALTH
+  SStmHealthCheckCtx healthCtx;
 } SStmRuntime;
 
 extern SStmRuntime         mStreamMgmt;
@@ -268,6 +283,7 @@ void msmHandleBecomeNotLeader(SMnode *pMnode);
 int32_t msmUndeployStream(SMnode* pMnode, int64_t streamId, char* streamName);
 int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped);
 void msmHealthCheck(SMnode *pMnode);
+void mndStreamPostAction(SMnode *pMnode, int64_t streamId, char* streamName, int32_t action);
 
 #ifdef __cplusplus
 }
