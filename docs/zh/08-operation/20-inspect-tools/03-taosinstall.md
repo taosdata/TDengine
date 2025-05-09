@@ -33,6 +33,7 @@ Options:
   -m, --model [local|ssh]  connection model, default: local
   -f, --config TEXT        Full path of test config file  [required]
   -b, --backend BOOLEAN    Run process in backend. default: False
+  -cm, --check-md5 BOOLEAN  check md5 of package, default is True
   -l, --list TEXT          list of test hostnames, Separate with commas. None
                            by default
   -w, --workers INTEGER    concurrency, default is 50
@@ -46,6 +47,7 @@ Options:
 - `model`：安装工具运行模式，分为 local 和 ssh。安装环境的多节点间支持 SSH 通信，可选择 ssh 模式，在任意节点上运行安装工具，会依次对所有节点环境完成安装操作。反之，节点间不支持 SSH 通信时，可选择 local 模式，仅对工具运行所在机器完成安装操作，默认为 local 模式。
 - `config`：安装工具加载的配置文件，其具体配置方式详见 **配置文件使用说明** 章节。不配置 config 参数时配置文件默认路径为工具运行当前目录。
 - `backend`：后台运行安装工具，选择 True 后安装工具在自动在后台运行，默认为 False。
+- `check-md5`: 安装前检查安装包的 MD5 值，默认为 True.
 - `workers`：集群安装部署时的并发数量，会影响同时向多节点服务文件的并发数，需根据机器资源情况调整，默认是 50。
 - `list`：指定部署 TDengine 的机器，前提是配置文件中指定的 firstep 安装完成并服务运行部正常，该参数是预留给安装中断后继续安装剩余节点的场景使用，默认值为 None。
 - `set-hostname`：根据配置文件的 FQDN 更新集群节点的 hostname。不配置则不更新 hostname。
@@ -57,24 +59,25 @@ Options:
 
 | **No** | **安装步骤** | **详细说明** |
 |:-------|:------------|:-----------|
-| 1 | **复制安装包**   | 复制安装包到集群个节点（local 安装模式跳过该步骤） |
-| 2 | **安装 TDengine** | 安装 TDengine |
-| 3 | **更新 taos 配置**   | 基于预配置的 taosd 参数更新 taos.cfg，除了预配置的静态参数，还动态更新 firstEp、secondEp、fqdn、minReservedMemorySize |
-| 4 | **启动 taosd 服务**   | 通过 sytstemctl 启动 taosd 服务 |   
-| 5 | **更新 taosadapter 配置**   | 基于预配置的 taosadapter 参数更新 taosadapter.toml | 
-| 6 | **启动 taosadapter 服务**   | 通过 sytstemctl 启动 taosadapter 服务 | 
-| 7 | **创建集群所有 dnode**   | 数据库初始化 dnode | 
-| 8 | **创建 mnode**   | 在 firstEp、secondEp 和 node3 上创建 monde（local 安装模式跳过该步骤） | 
-| 9 | **更新 taosadapter 的 instanceId**   | 更新 taosadapter 的 instanceId 并重启 taosadapter 服务 | 
-| 10| **更新 taoskeeper 配置**   | 基于预配置的 taoskeeper 参数更新 taoskeeper.toml 并更新 instanceId | 
-| 11| **启动 taoskeeper 服务**   | 通过 sytstemctl 启动 taoskeeper 服务 |
-| 12| **更新 taosx 配置**   | 基于预配置的 taosx 参数更新 taosx.toml 并更新 instanceId | 
-| 13| **启动 taosx 服务**   | 通过 sytstemctl 启动 taosx 服务 |
-| 14| **更新 taos-explorer 配置**   | 基于预配置的 taos-explorer 参数更新 explorer.toml 并更新 instanceId | 
-| 15| **启动 taos-explorer 服务**   | 通过 sytstemctl 启动 taos-explorer 服务 |
-| 16| **创建监控用户**   | 数据库创建 monitor 用户 |
-| 17| **更新 taoskeeper 配置**   | 更新 taoskeeper 配置文件中连接数据库的用户为 monitor |
-| 18| **启动 taoskeeper 服务**   | 通过 sytstemctl 启动 taoskeeper 服务 |
+| 1 | **检查MD5**   | 检查安装包的 MD5 值（可选项） |
+| 2 | **复制安装包**   | 复制安装包到集群个节点（local 安装模式跳过该步骤） |
+| 3 | **安装 TDengine** | 安装 TDengine |
+| 4 | **更新 taos 配置**   | 基于预配置的 taosd 参数更新 taos.cfg，除了预配置的静态参数，还动态更新 firstEp、secondEp、fqdn、minReservedMemorySize |
+| 5 | **启动 taosd 服务**   | 通过 sytstemctl 启动 taosd 服务 |   
+| 6 | **更新 taosadapter 配置**   | 基于预配置的 taosadapter 参数更新 taosadapter.toml | 
+| 7 | **启动 taosadapter 服务**   | 通过 sytstemctl 启动 taosadapter 服务 | 
+| 8 | **创建集群所有 dnode**   | 数据库初始化 dnode | 
+| 9 | **创建 mnode**   | 在 firstEp、secondEp 和 node3 上创建 monde（local 安装模式跳过该步骤） | 
+| 10| **更新 taosadapter 的 instanceId**   | 更新 taosadapter 的 instanceId 并重启 taosadapter 服务 | 
+| 11| **更新 taoskeeper 配置**   | 基于预配置的 taoskeeper 参数更新 taoskeeper.toml 并更新 instanceId | 
+| 12| **启动 taoskeeper 服务**   | 通过 sytstemctl 启动 taoskeeper 服务 |
+| 13| **更新 taosx 配置**   | 基于预配置的 taosx 参数更新 taosx.toml 并更新 instanceId | 
+| 14| **启动 taosx 服务**   | 通过 sytstemctl 启动 taosx 服务 |
+| 15| **更新 taos-explorer 配置**   | 基于预配置的 taos-explorer 参数更新 explorer.toml 并更新 instanceId | 
+| 16| **启动 taos-explorer 服务**   | 通过 sytstemctl 启动 taos-explorer 服务 |
+| 17| **创建监控用户**   | 数据库创建 monitor 用户 |
+| 18| **更新 taoskeeper 配置**   | 更新 taoskeeper 配置文件中连接数据库的用户为 monitor |
+| 19| **启动 taoskeeper 服务**   | 通过 sytstemctl 启动 taoskeeper 服务 |
 
 ### 升级功能
 工具支持通过 help 参数查看支持的语法
@@ -162,7 +165,8 @@ dnode3=192.168.0.3||fqdn=tdengine3||username=root||username=123456||port=22
 
 # TDengine 安装包在本地所在全路径
 [local_pack]
-3.3.4.10=/path_to_file/TDengine-enterprise-3.3.4.10-Linux-x64.tar.gz
+package=/path_to_file/TDengine-enterprise-3.3.x.x-Linux-x64.tar.gz
+md5 = 317f88bf13aa21706ae8c2d4f919d30f
 
 # oem 版本的版本名称，默认不使用
 # [oem]
