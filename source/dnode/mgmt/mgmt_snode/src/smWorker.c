@@ -53,6 +53,11 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_STREAM_TRIGGER_PULL_RSP: {
       SStreamTask *pTask = NULL;
       SSTriggerPullRequest *pReq = pMsg->info.ahandle;
+      if (pReq == NULL) {
+        code = TSDB_CODE_INVALID_PARA;
+        dError("msg:%p, invalid pull request in snode-stream-trigger queue", pMsg);
+        break;
+      }
       code = streamGetTask(pReq->streamId, pReq->triggerTaskId, &pTask);
       if (code == TSDB_CODE_SUCCESS) {
         code = streamTriggerProcessRsp(pTask, pMsg);
