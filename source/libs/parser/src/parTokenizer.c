@@ -179,6 +179,7 @@ static SKeyword keywordTable[] = {
     {"MODIFY",               TK_MODIFY},
     {"MODULES",              TK_MODULES},
     {"MOUNT",                TK_MOUNT},
+    {"MOUNTS",               TK_MOUNTS},
     {"NORMAL",               TK_NORMAL},
     {"NCHAR",                TK_NCHAR},
     {"NEXT",                 TK_NEXT},

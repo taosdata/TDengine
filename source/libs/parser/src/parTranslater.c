@@ -398,6 +398,13 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"table_name"}
   },
+  {
+    .showType = QUERY_NODE_SHOW_MOUNTS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_MOUNTS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
 };
 // clang-format on
 
@@ -9821,7 +9828,7 @@ static int32_t translateDropMount(STranslateContext* pCxt, SDropMountStmt* pStmt
   TAOS_UNUSED(snprintf(dropReq.mountName, sizeof(dropReq.mountName), "%s", pStmt->mountName));
   dropReq.ignoreNotExists = pStmt->ignoreNotExists;
 
-  code = buildCmdMsg(pCxt, TDMT_MND_DROP_DB, (FSerializeFunc)tSerializeSDropDbReq, &dropReq);
+  code = buildCmdMsg(pCxt, TDMT_MND_DROP_MOUNT, (FSerializeFunc)tSerializeSDropMountReq, &dropReq);
   tFreeSDropMountReq(&dropReq);
   return code;
 }
@@ -15797,6 +15804,8 @@ static int32_t addShowKindCond(const SShowStmt* pShow, SSelectStmt* pSelect) {
         PAR_ERR_RET(addShowUserDatabasesCond(pSelect));
       } else if (pShow->showKind == SHOW_KIND_DATABASES_SYSTEM) {
         PAR_ERR_RET(addShowSystemDatabasesCond(pSelect));
+      } else if (pShow->showKind == SHOW_KIND_DATABASES_MOUNT) {
+        PAR_RET(TSDB_CODE_SUCCESS); // TODO: MOUNT
       } else {
         PAR_RET(TSDB_CODE_SUCCESS);
       }
@@ -19258,6 +19267,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
+    case QUERY_NODE_SHOW_MOUNTS_STMT:
       code = rewriteShow(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_VTABLES_STMT:

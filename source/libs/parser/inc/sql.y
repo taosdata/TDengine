@@ -640,6 +640,7 @@ cmd ::= SHOW GRANTS.                                                            
 cmd ::= SHOW GRANTS FULL.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_GRANTS_FULL_STMT); }
 cmd ::= SHOW GRANTS LOGS.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_GRANTS_LOGS_STMT); }
 cmd ::= SHOW CLUSTER MACHINES.                                                    { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT); }
+cmd ::= SHOW MOUNTS.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_MOUNTS_STMT); }
 cmd ::= SHOW CREATE DATABASE db_name(A).                                          { pCxt->pRootNode = createShowCreateDatabaseStmt(pCxt, &A); }
 cmd ::= SHOW CREATE TABLE full_table_name(A).                                     { pCxt->pRootNode = createShowCreateTableStmt(pCxt, QUERY_NODE_SHOW_CREATE_TABLE_STMT, A); }
 cmd ::= SHOW CREATE VTABLE full_table_name(A).                                    { pCxt->pRootNode = createShowCreateVTableStmt(pCxt, QUERY_NODE_SHOW_CREATE_VTABLE_STMT, A); }
@@ -717,6 +718,7 @@ tag_item(A) ::= column_name(B) AS column_alias(C).                              
 db_kind_opt(A) ::= .                                                              { A = SHOW_KIND_ALL; }
 db_kind_opt(A) ::= USER.                                                          { A = SHOW_KIND_DATABASES_USER; }
 db_kind_opt(A) ::= SYSTEM.                                                        { A = SHOW_KIND_DATABASES_SYSTEM; }
+db_kind_opt(A) ::= MOUNT.                                                         { A = SHOW_KIND_DATABASES_MOUNT; }
 
 
 /************************************************ tsma ********************************************************/

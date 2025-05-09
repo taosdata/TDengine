@@ -325,6 +325,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowEncryptionsStmt";
     case QUERY_NODE_SHOW_USAGE_STMT:
       return "ShowUsageStmt";
+    case QUERY_NODE_SHOW_MOUNTS_STMT:
+      return "ShowMountsStmt";
     case QUERY_NODE_DELETE_STMT:
       return "DeleteStmt";
     case QUERY_NODE_INSERT_STMT:
@@ -8482,6 +8484,8 @@ static int32_t jsonToShowEncryptionsStmt(const SJson* pJson, void* pObj) { retur
 
 static int32_t showUsageStmtStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
 static int32_t jsonToShowUsageStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
+static int32_t showMountsStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
+static int32_t jsonToShowMountsStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
 
 static const char* jkShowDnodeVariablesStmtDnodeId = "DnodeId";
 static const char* jkShowDnodeVariablesStmtLikePattern = "LikePattern";
@@ -9148,6 +9152,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return showTableTagsStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_USAGE_STMT:
       return showUsageStmtStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_MOUNTS_STMT:
+      return showMountsStmtToJson(pObj, pJson);
     case QUERY_NODE_DELETE_STMT:
       return deleteStmtToJson(pObj, pJson);
     case QUERY_NODE_INSERT_STMT:
@@ -9544,6 +9550,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToShowTableTagsStmt(pJson, pObj);
     case QUERY_NODE_SHOW_USAGE_STMT:
       return jsonToShowUsageStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_MOUNTS_STMT:
+      return jsonToShowMountsStmt(pJson, pObj);
     case QUERY_NODE_DELETE_STMT:
       return jsonToDeleteStmt(pJson, pObj);
     case QUERY_NODE_INSERT_STMT:
