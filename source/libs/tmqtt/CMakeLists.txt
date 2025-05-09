@@ -21,6 +21,7 @@ target_link_libraries(
 )
 
 # taosmqtt
+if(TD_LINUX)
 find_path(HAVE_SYS_EPOLL_H sys/epoll.h)
 if (HAVE_SYS_EPOLL_H)
 	add_definitions("-DWITH_EPOLL")
@@ -74,7 +75,6 @@ target_link_libraries(
 )
 
 # topic tool
-if(TD_LINUX) # for pthread
 aux_source_directory(tools TOPICTOOL_SRC)
 
 add_executable(topic-test-tool ${TOPICTOOL_SRC})
