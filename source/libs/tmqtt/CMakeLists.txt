@@ -11,7 +11,6 @@ target_include_directories(
     "${TD_SOURCE_DIR}/include/libs/tmqtt"
     "${TD_SOURCE_DIR}/include/util"
     "${TD_SOURCE_DIR}/include/common"
-    "${TD_SOURCE_DIR}/contrib/libuv/include"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
@@ -44,7 +43,8 @@ add_executable(taosmqtt ${TAOSMQTT_SRC}
   lib/util_topic.c
 )
 
-DEP_ext_cjson(common)
+DEP_ext_cjson(taosmqtt)
+DEP_ext_libuv(taosmqtt)
 
 target_compile_definitions(taosmqtt PRIVATE WITH_BROKER)
 
@@ -57,7 +57,6 @@ target_include_directories(
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/"
     "${TD_SOURCE_DIR}/include/libs/tmqtt"
-    "${TD_SOURCE_DIR}/contrib/libuv/include"
     "${TD_SOURCE_DIR}/include/util"
     "${TD_SOURCE_DIR}/include/common"
     "${TD_SOURCE_DIR}/include/libs/transport"
