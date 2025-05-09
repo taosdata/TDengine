@@ -178,8 +178,6 @@ class TestPercentile:
 
         Labels: percentile
 
-        Jira:
-
         History:
             - 2024-11-1 Jing Sima Created
             - 2025-5-08 Huo Hong Migrated to new test framework

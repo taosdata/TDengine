@@ -50,8 +50,6 @@ class TestIntervalMore:
 
         Labels: interval
 
-        Jira:
-
         History:
             - 2024-9-14 Jinqing Kuang Created
             - 2025-5-08 Huo Hong Migrated to new test framework

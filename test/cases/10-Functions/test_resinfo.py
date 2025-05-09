@@ -34,8 +34,6 @@ class TestResinfo:
 
         Labels: decimal
 
-        Jira:
-
         History:
             - 2024-9-26 Jing Sima Created
             - 2025-5-08 Huo Hong Migrated to new test framework

@@ -55,8 +55,6 @@ class TestFuncElapsed:
 
         Labels: elapsed
 
-        Jira:
-
         History:
             - 2024-6-5 Alex Duan Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -111,8 +109,6 @@ class TestFuncElapsed:
         Since: v3.3.0.0
 
         Labels: elapsed
-
-        Jira:
 
         History:
             - 2024-9-14 Feng Chao Created
@@ -218,8 +214,6 @@ class TestFuncElapsed:
 
         Labels: elapsed
 
-        Jira:
-
         History:
             - 2024-6-5 Alex Duan Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -250,8 +244,6 @@ class TestFuncElapsed:
         Since: v3.3.0.0
 
         Labels: elapsed
-
-        Jira:
 
         History:
             - 2024-6-5 Alex Duan Created
@@ -319,8 +311,6 @@ class TestFuncElapsed:
         Since: v3.3.0.0
 
         Labels: elapsed
-
-        Jira:
 
         History:
             - 2024-6-5 Alex Duan Created
@@ -397,8 +387,6 @@ class TestFuncElapsed:
 
     #    Labels: elapsed, interval, fill, session
 
-    #    Jira:
-
     #    History:
     #        - 2024-6-5 Alex Duan Created
     #        - 2025-5-08 Huo Hong Migrated to new test framework
@@ -437,8 +425,6 @@ class TestFuncElapsed:
         Since: v3.3.0.0
 
         Labels: elapsed
-
-        Jira:
 
         History:
             - 2024-6-5 Alex Duan Created
@@ -482,8 +468,6 @@ class TestFuncElapsed:
         Since: v3.3.0.0
 
         Labels: elapsed
-
-        Jira:
 
         History:
             - 2024-6-5 Alex Duan Created

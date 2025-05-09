@@ -11,8 +11,6 @@ class TestConcat:
 
         Labels: concat
 
-        Jira:
-
         History:
             - 2024-8-8 Youhao Li Created
             - 2025-5-08 Huo Hong Migrated to new test framework

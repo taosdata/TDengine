@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-from new_test_framework.utils import tdLog, tdSql, datetime
+from new_test_framework.utils import tdLog, tdSql
+import datetime
 
 
 class TestCast:
@@ -571,8 +572,6 @@ class TestCast:
         Since: v3.3.0.0
 
         Labels: cast
-
-        Jira:
 
         History:
             - 2024-9-14 Feng Chao Created

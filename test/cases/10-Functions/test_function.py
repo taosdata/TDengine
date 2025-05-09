@@ -433,10 +433,6 @@ class TestFunction:
 
         Since: v3.3.0.0
 
-        Labels:
-
-        Jira:
-
         History:
             - 2024-9-28 qevolg Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -464,9 +460,7 @@ class TestFunction:
 
         Since: v3.3.0.0
 
-        Labels:
-
-        Jira:
+        Labels: function
 
         History:
             - 2024-9-28 qevolg Created
@@ -490,9 +484,7 @@ class TestFunction:
 
         Since: v3.3.0.0
 
-        Labels:
-
-        Jira:
+        Labels: function
 
         History:
             - 2024-9-28 qevolg Created
@@ -512,9 +504,7 @@ class TestFunction:
 
         Since: v3.3.0.0
 
-        Labels:
-
-        Jira:
+        Labels:function
 
         History:
             - 2024-9-28 qevolg Created
@@ -535,9 +525,7 @@ class TestFunction:
 
         Since: v3.3.0.0
 
-        Labels:
-
-        Jira:
+        Labels:function
 
         History:
             - 2024-9-28 qevolg Created
