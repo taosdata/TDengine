@@ -1097,7 +1097,7 @@ static void destroyHashJoinOperator(void* param) {
   taosMemoryFreeClear(param);
 }
 
-int32_t hJoinHandleConds(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinNode) {
+int32_t hJoinHandleConds(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo) {
   switch (pJoin->joinType) {
     case JOIN_TYPE_INNER: {
       SNode* pCond = NULL;
@@ -1109,18 +1109,20 @@ int32_t hJoinHandleConds(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinNod
       } else if (pJoinNode->node.pConditions != NULL) {
         pCond = pJoinNode->node.pConditions;
       }
-      
-      HJ_ERR_RET(filterInitFromNode(pCond, &pJoin->pFinFilter, 0));
+
+      HJ_ERR_RET(filterInitFromNode(pCond, &pJoin->pFinFilter, 0, &pTaskInfo->pStreamRuntimeInfo));
       break;
     }
     case JOIN_TYPE_LEFT:
     case JOIN_TYPE_RIGHT:
     case JOIN_TYPE_FULL:
       if (pJoinNode->pFullOnCond != NULL) {
-        HJ_ERR_RET(filterInitFromNode(pJoinNode->pFullOnCond, &pJoin->pPreFilter, 0));
+        HJ_ERR_RET(filterInitFromNode(pJoinNode->pFullOnCond, &pJoin->pPreFilter, 0,
+                                      &pTaskInfo->pStreamRuntimeInfo));
       }
       if (pJoinNode->node.pConditions != NULL) {
-        HJ_ERR_RET(filterInitFromNode(pJoinNode->node.pConditions, &pJoin->pFinFilter, 0));
+        HJ_ERR_RET(filterInitFromNode(pJoinNode->node.pConditions, &pJoin->pFinFilter, 0,
+                                      &pTaskInfo->pStreamRuntimeInfo));
       }
       break;
     default:
@@ -1212,7 +1214,7 @@ int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDow
     goto _return;
   }
 
-  HJ_ERR_JRET(hJoinHandleConds(pInfo, pJoinNode));
+  HJ_ERR_JRET(hJoinHandleConds(pInfo, pJoinNode, pTaskInfo));
 
   HJ_ERR_JRET(hJoinInitResBlocks(pInfo, pJoinNode));
 

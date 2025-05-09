@@ -1840,7 +1840,7 @@ void destroyMergeJoinOperator(void* param) {
   taosMemoryFreeClear(pJoin);
 }
 
-int32_t mJoinHandleConds(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode) {
+int32_t mJoinHandleConds(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo) {
   switch (pJoin->joinType) {
     case JOIN_TYPE_INNER: {
       SNode* pCond = NULL;
@@ -1852,21 +1852,24 @@ int32_t mJoinHandleConds(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJo
       } else if (pJoinNode->node.pConditions != NULL) {
         pCond = pJoinNode->node.pConditions;
       }
-      
-      MJ_ERR_RET(filterInitFromNode(pCond, &pJoin->pFinFilter, 0));
+
+      MJ_ERR_RET(filterInitFromNode(pCond, &pJoin->pFinFilter, 0, &pTaskInfo->pStreamRuntimeInfo));
       break;
     }
     case JOIN_TYPE_LEFT:
     case JOIN_TYPE_RIGHT:
     case JOIN_TYPE_FULL:
       if (pJoinNode->pFullOnCond != NULL) {
-        MJ_ERR_RET(filterInitFromNode(pJoinNode->pFullOnCond, &pJoin->pFPreFilter, 0));
+        MJ_ERR_RET(filterInitFromNode(pJoinNode->pFullOnCond, &pJoin->pFPreFilter, 0,
+                                      &pTaskInfo->pStreamRuntimeInfo));
       }
       if (pJoinNode->pColOnCond != NULL) {
-        MJ_ERR_RET(filterInitFromNode(pJoinNode->pColOnCond, &pJoin->pPreFilter, 0));
+        MJ_ERR_RET(
+            filterInitFromNode(pJoinNode->pColOnCond, &pJoin->pPreFilter, 0, &pTaskInfo->pStreamRuntimeInfo));
       }
       if (pJoinNode->node.pConditions != NULL) {
-        MJ_ERR_RET(filterInitFromNode(pJoinNode->node.pConditions, &pJoin->pFinFilter, 0));
+        MJ_ERR_RET(filterInitFromNode(pJoinNode->node.pConditions, &pJoin->pFinFilter, 0,
+                                      &pTaskInfo->pStreamRuntimeInfo));
       }
       break;
     default:
@@ -1944,7 +1947,7 @@ int32_t createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDo
 
   mJoinSetBuildAndProbeTable(pInfo, pJoinNode);
 
-  MJ_ERR_JRET(mJoinHandleConds(pInfo, pJoinNode));
+  MJ_ERR_JRET(mJoinHandleConds(pInfo, pJoinNode, pTaskInfo));
 
   MJ_ERR_JRET(mJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 0, &pJoinNode->inputStat[0], newDownstreams));
   MJ_ERR_JRET(mJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 1, &pJoinNode->inputStat[1], newDownstreams));

@@ -482,7 +482,7 @@ static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStre
   SSDataBlock* pBlock2 = NULL;
 
   if (sStreamInfo->pConditions != NULL) {
-    STREAM_CHECK_RET_GOTO(filterInitFromNode(sStreamInfo->pConditions, &pFilterInfo, 0));
+    STREAM_CHECK_RET_GOTO(filterInitFromNode(sStreamInfo->pConditions, &pFilterInfo, 0, NULL));
   }
 
   initStorageAPI(&api);
@@ -1073,9 +1073,11 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
     int32_t vgId = pTask->task.nodeId;
     int64_t streamId = pTask->task.streamId;
     int32_t taskId = pTask->task.taskId;
+    pTask->rtInfo.funcInfo = *req.pStRtFuncInfo;
 
     initStorageAPI(&handle.api);
     STREAM_CHECK_RET_GOTO(qCreateStreamExecTaskInfo(&pTask->info.calcReaderInfo.pTaskInfo, pTask->info.calcReaderInfo.calcScanPlan, &handle, NULL, vgId, taskId));
+    streamSetTaskRuntimeInfo(pTask->info.calcReaderInfo.pTaskInfo, &pTask->rtInfo);
     STREAM_CHECK_RET_GOTO(qSetTaskId(pTask->info.calcReaderInfo.pTaskInfo, taskId, streamId));
   }
 

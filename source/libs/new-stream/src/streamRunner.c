@@ -164,7 +164,7 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMs
   }
 
   pTask->task.status = STREAM_STATUS_INIT;
-  test_scalar_calc(pTask);
+  //test_scalar_calc(pTask);
 
   return 0;
 }
