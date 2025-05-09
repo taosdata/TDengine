@@ -295,17 +295,17 @@ static int log__vprintf(unsigned int priority, const char *fmt, va_list va) {
 #endif
     switch (get_xnd_level(priority)) {
       case DEBUG_ERROR:
-        xndError(log_line);
+        xndError("%s", log_line);
         break;
       case DEBUG_INFO:
-        xndInfo(log_line);
+        xndInfo("%s", log_line);
         break;
       case DEBUG_TRACE:
-        xndTrace(log_line);
+        xndTrace("%s", log_line);
         break;
       case DEBUG_DEBUG:
       default:
-        xndDebug(log_line);
+        xndDebug("%s", log_line);
         break;
     }
   }
