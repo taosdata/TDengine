@@ -9427,6 +9427,23 @@ static int32_t checkCreateDatabase(STranslateContext* pCxt, SCreateDatabaseStmt*
   return checkDatabaseOptions(pCxt, pStmt->dbName, pStmt->pOptions);
 }
 
+static int32_t checkCreateMount(STranslateContext* pCxt, SCreateMountStmt* pStmt) {
+  if (NULL != strchr(pStmt->mountName, '_')) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME,
+                                   "The mount name cannot contain '_'");
+  }
+  if (IS_SYS_DBNAME(pStmt->mountName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                   "The mount name cannot equal system database: `%s`", pStmt->mountName);
+  }
+
+  if (!pStmt->mountPath || pStmt->mountPath[0] == '\0') {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_INPUT, "The mount path is invalid");
+  }
+
+  return checkRangeOption(pCxt, TSDB_CODE_OUT_OF_RANGE, "dnodeId", pStmt->dnodeId, 1, INT32_MAX, false);
+}
+
 #define FILL_CMD_SQL(sql, sqlLen, pCmdReq, CMD_TYPE, genericCmd) \
   CMD_TYPE* pCmdReq = genericCmd;                                \
   char*     cmdSql = taosMemoryMalloc(sqlLen);                   \
@@ -9458,7 +9475,14 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCompactDbReq, pReq);
       break;
     }
-
+    case TDMT_MND_CREATE_MOUNT: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateMountReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_MOUNT: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SDropMountReq, pReq);
+      break;
+    } 
     case TDMT_MND_TMQ_DROP_TOPIC: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropTopicReq, pReq);
       break;
@@ -9772,35 +9796,34 @@ static int32_t translateS3MigrateDatabase(STranslateContext* pCxt, SS3MigrateDat
 }
 
 static int32_t translateCreateMount(STranslateContext* pCxt, SCreateMountStmt* pStmt) {
-  // SCreateDbReq createReq = {0};
-  // int32_t      code = checkCreateDatabase(pCxt, pStmt);
-  // if (TSDB_CODE_SUCCESS == code) {
-  //   code = buildCreateDbReq(pCxt, pStmt, &createReq);
-  // }
-  // if (TSDB_CODE_SUCCESS == code) {
-  //   code = buildCmdMsg(pCxt, TDMT_MND_CREATE_DB, (FSerializeFunc)tSerializeSCreateDbReq, &createReq);
-  // }
-  // tFreeSCreateDbReq(&createReq);
-  // return code;
-  return 0;
+  SCreateMountReq createReq = {0};
+  int32_t         code = checkCreateMount(pCxt, pStmt);
+
+  createReq.dnodeId = pStmt->dnodeId;
+  createReq.ignoreExist = pStmt->ignoreExists;
+  TAOS_UNUSED(snprintf(createReq.mountName, sizeof(createReq.mountName), "%s", pStmt->mountName));
+  TAOS_UNUSED(snprintf(createReq.mountPath, sizeof(createReq.mountPath), "%s", pStmt->mountPath));
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_MOUNT, (FSerializeFunc)tSerializeSCreateMountReq, &createReq);
+  }
+  tFreeSCreateMountReq(&createReq);
+  return code;
 }
 
 static int32_t translateDropMount(STranslateContext* pCxt, SDropMountStmt* pStmt) {
-  // if (IS_SYS_DBNAME(pStmt->dbName)) {
-  //   return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "Cannot drop system database: `%s`",
-  //                                  pStmt->dbName);
-  // }
-  // SDropDbReq dropReq = {0};
-  // SName      name = {0};
-  // int32_t    code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
-  // if (TSDB_CODE_SUCCESS != code) return code;
-  // (void)tNameGetFullDbName(&name, dropReq.db);
-  // dropReq.ignoreNotExists = pStmt->ignoreNotExists;
+  if (!pStmt->mountName || pStmt->mountName[0] == '\0' || IS_SYS_DBNAME(pStmt->mountName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "Invalid mount name: `%s`",
+                                   pStmt->mountName ? pStmt->mountName : "NULL");
+  }
+  int32_t       code = 0;
+  SDropMountReq dropReq = {0};
+  TAOS_UNUSED(snprintf(dropReq.mountName, sizeof(dropReq.mountName), "%s", pStmt->mountName));
+  dropReq.ignoreNotExists = pStmt->ignoreNotExists;
 
-  // code = buildCmdMsg(pCxt, TDMT_MND_DROP_DB, (FSerializeFunc)tSerializeSDropDbReq, &dropReq);
-  // tFreeSDropDbReq(&dropReq);
-  // return code;
-  return 0;
+  code = buildCmdMsg(pCxt, TDMT_MND_DROP_DB, (FSerializeFunc)tSerializeSDropDbReq, &dropReq);
+  tFreeSDropMountReq(&dropReq);
+  return code;
 }
 
 static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray, bool calBytes, bool virtualTable) {

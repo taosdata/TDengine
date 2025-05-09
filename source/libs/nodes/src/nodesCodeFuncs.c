@@ -6996,7 +6996,7 @@ static int32_t jsonToCreateMountStmt(const SJson* pJson, void* pObj) {
     code = tjsonGetBoolValue(pJson, jkMountStmtIgnoreExists, &pNode->ignoreExists);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetIntValue(pJson, jkMountStmtDnode, pNode->dnodeId);
+    code = tjsonGetIntValue(pJson, jkMountStmtDnode, &pNode->dnodeId);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetStringValue(pJson, jkMountStmtMountPath, pNode->mountPath);
@@ -7010,7 +7010,7 @@ static int32_t dropMountStmtToJson(const void* pObj, SJson* pJson) {
 
   int32_t code = tjsonAddStringToObject(pJson, jkMountStmtMountName, pNode->mountName);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBoolValue(pJson, jkMountStmtIgnoreExists, &pNode->ignoreNotExists);
+    code = tjsonAddBoolToObject(pJson, jkMountStmtIgnoreNotExists, pNode->ignoreNotExists);
   }
   return code;
 }
