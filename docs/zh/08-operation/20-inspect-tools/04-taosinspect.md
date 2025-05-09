@@ -45,19 +45,21 @@ Options:
 #                                                      #
 ########################################################
 
-# 安装部署TDengine的环境信息，支持免密登录和SSH登录两种方式，当环境配置了免密登录后不用配置password信息。除此外还支持从TDengine自动获取集群信息，该模式下不需配置集群几点的ip和FQDN，仅需要配置连接各节点的用户信息（免密时不用配置password信息）
+# 安装部署TDengine的环境信息，支持免密登录和SSH登录两种方式，当环境配置了免密登录后不用配置password信息。
+# 除此外还支持从TDengine自动获取集群信息，该模式下不需配置集群节点的ip和FQDN，仅需要配置连接各节点的用户信息（免密时不用配置password信息）
+# 配置方式1、2和3不可配置
 [test_env]
-# 通过TDengine获取集群信息
+# 配置方式1: 通过TDengine获取集群信息
 username=root
 password=123456
 port=22
 
-# 节点间通过SSH协议访问
+# 配置方式2: 节点间通过SSH协议访问
 # firstep=192.168.0.1||fqdn=tdengine1||username=root||password=123456||port=22
 # secondep=192.168.0.2||fqdn=tdengine2||username=root||password=123456||port=22
 # dnode3=192.168.0.3||fqdn=tdengine3||username=root||username=123456||port=22
 
-# 节点间配置免密登录
+# 配置方式3: 节点间配置免密登录
 # firstep=192.168.0.1||fqdn=tdengine1||username=root||port=22
 # secondep=192.168.0.2||fqdn=tdengine2||username=root||port=22
 # dnode3=192.168.0.3||fqdn=tdengine3||username=root||port=22
