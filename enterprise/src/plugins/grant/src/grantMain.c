@@ -904,6 +904,7 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
 // #else
           GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.dualReplicaHAExpireSec, 86400, dftExpireSec,
                                grantHandle.showOpts[GRANT_OPT_DUAL_REPLICA_HA]);
+          gStatus.dualReplicaHADefined = 1;
 // #endif
         } break;
         case GRANT_OPT_DB_ENCRYPTION: {
@@ -1511,45 +1512,18 @@ static int32_t grantGetClusterCurCores(SMnode *pMnode) {
 }
 
 static int16_t grantGetClusterCurStreams(SMnode *pMnode) {
-  SSdb       *pSdb = pMnode->pSdb;
-  SStreamObj *pStream = NULL;
-  void       *pIter = NULL;
-  int16_t     numOfStreams = 0;
-
-  while ((pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream))) {
-    ++numOfStreams;
-    sdbRelease(pSdb, pStream);
-  }
-
-  return numOfStreams;
+  SSdb *pSdb = pMnode->pSdb;
+  return (int16_t)sdbGetSize(pSdb, SDB_STREAM);
 }
 
 static int16_t grantGetClusterCurTopics(SMnode *pMnode) {
-  SSdb        *pSdb = pMnode->pSdb;
-  SMqTopicObj *pTopic = NULL;
-  void        *pIter = NULL;
-  int16_t      numOfTopics = 0;
-
-  while ((pIter = sdbFetch(pSdb, SDB_TOPIC, pIter, (void **)&pTopic))) {
-    ++numOfTopics;
-    sdbRelease(pSdb, pTopic);
-  }
-
-  return numOfTopics;
+  SSdb *pSdb = pMnode->pSdb;
+  return (int16_t)sdbGetSize(pSdb, SDB_TOPIC);
 }
 
 static int32_t grantGetClusterCurViews(SMnode *pMnode) {
-  SSdb     *pSdb = pMnode->pSdb;
-  SViewObj *pView = NULL;
-  void     *pIter = NULL;
-  int32_t   numOfViews = 0;
-
-  while ((pIter = sdbFetch(pSdb, SDB_VIEW, pIter, (void **)&pView))) {
-    ++numOfViews;
-    sdbRelease(pSdb, pView);
-  }
-
-  return numOfViews;
+  SSdb *pSdb = pMnode->pSdb;
+  return sdbGetSize(pSdb, SDB_VIEW);
 }
 
 /**
@@ -1755,6 +1729,7 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
 // #ifndef ASSERT_NOT_CORE
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.dualReplicaHAExpireSec, optExpireSec, gStatus.dualReplicaHAExpired, optExpired,
                             GRANT_OPT_DUAL_REPLICA_HA);
+    gStatus.dualReplicaHADefined = 0;
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.dbEncryptionExpireSec, optExpireSec, gStatus.dbEncryptionExpired, optExpired,
                             GRANT_OPT_DB_ENCRYPTION);
 // #else  // release version
@@ -1843,11 +1818,19 @@ static int32_t grantCheckDnodes() {
   if (gStatus.limitDnodes == GRANT_UNIQ_UNLIMITED) {
     return 0;
   }
-  if (grantHandle.pMnode) gStatus.curDnodes = grantGetClusterCurDnodes(grantHandle.pMnode);
-  if (gStatus.curDnodes < gStatus.limitDnodes) {
+  int32_t limitDnodes = (int32_t)gStatus.limitDnodes;
+  if (grantHandle.pMnode) {
+    if (grantCheckDualReplicaDnodes(grantHandle.pMnode)) {
+      limitDnodes = 3;  // TS-6191
+    } else {
+      gStatus.curDnodes = grantGetClusterCurDnodes(grantHandle.pMnode);
+    }
+  }
+  if (gStatus.curDnodes < limitDnodes) {
     return 0;
   }
-  uError("grant failed to create dnode, exist:%d, reason:grant dnode limited", (int32_t)gStatus.curDnodes);
+  uError("grant failed to create dnode, exist:%d, limit:%d, reason:grant dnode limited", (int32_t)gStatus.curDnodes,
+         limitDnodes);
   return TSDB_CODE_GRANT_DNODE_LIMITED;
 }
 
@@ -2120,8 +2103,9 @@ static int32_t grantCheckGrantItems(SMnode *pMnode, SGrantUniqObj *pObj) {
     GRANT_CHECK_ERROR_LOG("time series", gStatus.curTimeSeries, pObj->limitTimeSeries);
     return TSDB_CODE_GRANT_TIMESERIES_LIMITED;
   }
+  gStatus.curDnodes = grantGetClusterCurDnodes(pMnode);  // this value would be used in later check
   if ((pObj->limitDnodes > GRANT_UNIQ_UNLIMITED) &&
-      ((gStatus.curDnodes = grantGetClusterCurDnodes(pMnode)) > pObj->limitDnodes)) {
+      (gStatus.curDnodes > (pObj->limitDnodes + 1))) {  // TS-6191: fast fail path
     GRANT_CHECK_ERROR_LOG("dnodes", gStatus.curDnodes, pObj->limitDnodes);
     return TSDB_CODE_GRANT_DNODE_LIMITED;
   }
@@ -2146,6 +2130,85 @@ static int32_t grantCheckGrantItems(SMnode *pMnode, SGrantUniqObj *pObj) {
       ((gStatus.curViews = grantGetClusterCurViews(pMnode)) > pObj->limitViews)) {
     GRANT_CHECK_ERROR_LOG("views", gStatus.curViews, pObj->limitViews);
     return TSDB_CODE_GRANT_VIEW_LIMITED;
+  }
+
+  return 0;
+}
+
+static bool grantGetDnodeNumFp(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
+  SVgObj    *pVgroup = pObj;
+  SSHashObj *pHash = (SSHashObj *)p1;
+  int32_t    dnodeSize = *(int32_t *)p2;
+
+  for (int32_t v = 0; v < pVgroup->replica; ++v) {
+    int32_t dnodeId = pVgroup->vnodeGid[v].dnodeId;
+    if (!tSimpleHashGet(pHash, &dnodeId, sizeof(int32_t))) {
+      if (0 != tSimpleHashPut(pHash, &dnodeId, sizeof(int32_t), NULL, 0)) {
+        break;
+      }
+      if (tSimpleHashGetSize(pHash) >= dnodeSize) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+int32_t grantGetDnodeSizeWithVnodes(SMnode *pMnode, int32_t dnodeSize) {
+  int32_t    result = 0;
+  SSHashObj *pHash = NULL;
+  if (!(pHash = tSimpleHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT)))) {
+    return result;
+  }
+  sdbTraverse(pMnode->pSdb, SDB_VGROUP, grantGetDnodeNumFp, pHash, &dnodeSize, NULL);
+  result = tSimpleHashGetSize(pHash);
+  tSimpleHashCleanup(pHash);
+  return result;
+}
+
+bool grantCheckDualReplicaDnodes(void *pMnode) {
+  if ((2 == gStatus.limitDnodes) &&
+      gStatus.dualReplicaHADefined) {  // TS-6191: perform check regardless of dual replica's expiration status.
+    if ((gStatus.curDnodes = grantGetClusterCurDnodes(pMnode)) >= 2) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool grantGetOptItem(SGrantUniqObj *pObj, SGrantOpt opt, SGrantItemI64 *pItem) {
+  int32_t nVariantGrantItems = taosArrayGetSize(pObj->pItemI64);
+  if (nVariantGrantItems > 0) {
+    for (int32_t i = 0; i < nVariantGrantItems; ++i) {
+      SGrantItemI64 *pItemI64 = TARRAY_GET_ELEM(pObj->pItemI64, i);
+      if (pItemI64->index == GRANT_OPT_DUAL_REPLICA_HA) {
+        if (pItem) *pItem = *pItemI64;
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+static int32_t grantCheckGrantItemsAfterMerge(SMnode *pMnode, SGrantUniqObj *pObj) {
+  // TS-6191
+  SGrantItemI64 grantItem = {0};
+  if ((2 == pObj->limitDnodes) && grantGetOptItem(pObj, GRANT_OPT_DUAL_REPLICA_HA, &grantItem) &&
+      (grantItem.expire > GRANT_UNIQ_UNDEFINED)) {
+    if (gStatus.curDnodes > 3) {
+      GRANT_CHECK_ERROR_LOG("dnodes", gStatus.curDnodes, pObj->limitDnodes);
+      return TSDB_CODE_GRANT_DNODE_LIMITED;
+    } else if (gStatus.curDnodes == 3) {
+      int32_t nDnodesWithVnodes = grantGetDnodeSizeWithVnodes(pMnode, gStatus.curDnodes);
+      if (nDnodesWithVnodes > 2) {
+        GRANT_CHECK_ERROR_LOG("dnodes with vnodes", nDnodesWithVnodes, pObj->limitDnodes);
+        return TSDB_CODE_GRANT_DNODE_LIMITED;
+      }
+    }
+  } else if ((pObj->limitDnodes > GRANT_UNIQ_UNLIMITED) && (gStatus.curDnodes > pObj->limitDnodes)) {
+    GRANT_CHECK_ERROR_LOG("dnodes", gStatus.curDnodes, pObj->limitDnodes);
+    return TSDB_CODE_GRANT_DNODE_LIMITED;
   }
 
   return 0;
@@ -2316,6 +2379,8 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
   TAOS_CHECK_EXIT(grantUniqMergeActiveCode(&oldObj, &newObj, &mergeObj));
 
   TAOS_CHECK_EXIT(grantOptExpireDaysCheck(pMnode, mergeObj.granted ? &mergeObj : &newObj, pObj->upgradeTime));
+
+  TAOS_CHECK_EXIT(grantCheckGrantItemsAfterMerge(pMnode, mergeObj.granted ? &mergeObj : &newObj));
 
   if (mergeObj.granted) {
     *mergeActive = mergeObj.active;
