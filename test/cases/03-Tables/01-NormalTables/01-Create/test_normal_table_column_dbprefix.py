@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestNormalTableColumnDbPrefix:
@@ -23,7 +23,7 @@ class TestNormalTableColumnDbPrefix:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/table/db.table.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/table/db.table.sim
 
         """
 

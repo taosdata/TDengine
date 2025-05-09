@@ -900,9 +900,9 @@ static int32_t mndProcessAnalAlgoReq(SRpcMsg *pReq) {
             }
           }
         }
-
-        sdbRelease(pSdb, pAnode);
       }
+
+      sdbRelease(pSdb, pAnode);
     }
   }
 

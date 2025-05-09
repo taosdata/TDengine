@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, cluster, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, cluster, sc, clusterComCheck
 
 
 class TestIndexPerf:
@@ -25,7 +25,7 @@ class TestIndexPerf:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/tagindex/perf.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/tagindex/perf.sim
 
         """
 

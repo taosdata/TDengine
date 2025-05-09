@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestNormalTableBasic:
@@ -14,7 +14,7 @@ class TestNormalTableBasic:
         3. project query
         4. filter query
         5. aggregate query
-        6. Kill -9 then restart
+        6. kill then restart
 
         Catalog:
             - Table:NormalTable:Query
@@ -26,7 +26,7 @@ class TestNormalTableBasic:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/column/table.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/column/table.sim
 
         """
 
@@ -150,10 +150,9 @@ class TestNormalTableBasic:
         tdSql.checkData(0, 7, 2.872281323)
 
         tdLog.info(f"=============== step4")
-        # sc.dnodeStop(1)
-        # sc.dnodeStart(1)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         tdLog.info(f"==============  step5")
 

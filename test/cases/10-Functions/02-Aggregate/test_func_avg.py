@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestFuncAvg:
@@ -24,7 +24,7 @@ class TestFuncAvg:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/compute/avg.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/compute/avg.sim
 
         """
 

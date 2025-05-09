@@ -794,7 +794,6 @@ static int tdbPagerRemoveFreePage(SPager *pPager, SPgno *pPgno, TXN *pTxn) {
 
   *pPgno = *(SPgno *)pKey;
   tdbTrace("tdb/remove-free-page: tbc get page: %d.", *pPgno);
-  // printf("tdb/remove-free-page: tbc get page: %d.\n", *pPgno);
 
   code = tdbTbcDelete(pCur);
   if (code < 0) {
