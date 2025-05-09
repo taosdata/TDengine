@@ -171,8 +171,6 @@ static void vmProcessStreamReaderQueue(SQueueInfo *pInfo, STaosQall *qall, int32
       } else {
         dGError("vgId:%d, msg:%p, failed to stream reader since %s [vmProcessStreamReaderQueue]", pVnode->vgId, pMsg, terrstr());
       }
-
-      vmSendRsp(pMsg, code);
     }
 
     dGTrace("vgId:%d, msg:%p, is freed, code:0x%x [vmProcessStreamReaderQueue]", pVnode->vgId, pMsg, code);
