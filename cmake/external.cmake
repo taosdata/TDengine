@@ -22,7 +22,7 @@ add_custom_target(build_externals)
 
 macro(INIT_DIRS name)              # {
     set(_base            "${TD_EXTERNALS_BASE_DIR}/build/${name}")                      # where all source and build stuffs locate
-    set(_ins             "${TD_EXTERNALS_BASE_DIR}/install/${name}/${TD_CONFIG_NAME}")  # where all installed stuffs locate
+    set(_ins             "${TD_EXTERNALS_BASE_DIR}/install/${TD_CONFIG_NAME}/${name}")  # where all installed stuffs locate
     set(${name}_base     "${_base}")
     set(${name}_source   "${_base}/src/${name}")
     set(${name}_build    "${_base}/src/${name}-build")
@@ -188,10 +188,16 @@ ExternalProject_Add(ext_zlib
     CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON            # linking consistent
     CMAKE_ARGS -DZLIB_BUILD_SHARED:BOOL=OFF
     CMAKE_ARGS -DZLIB_BUILD_TESTING:BOOL=OFF
+    PATCH_COMMAND
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/in/zlib.CMakeLists.txt.in ${ext_zlib_source}/CMakeLists.txt
+    BUILD_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+    INSTALL_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
     EXCLUDE_FROM_ALL TRUE
     VERBATIM
 )
-add_dependencies(build_externals ext_zlib)     # this is for github workflow in cache-miss step.
+add_dependencies(build_externals ext_zlib)     # this is for github workflow in cache-mi/ss step.
 
 # pthread
 if(${BUILD_PTHREAD})        # {
