@@ -22,7 +22,7 @@ class TestDbFlush:
         Jira: None
 
         History:
-            - 2025-5-8 Simon Guan Migrated from tsim/parser//ts-6314.sim
+            - 2025-5-8 Simon Guan Migrated from tsim/parser/ts-6314.sim
 
         """
 
