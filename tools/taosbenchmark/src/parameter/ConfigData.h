@@ -37,7 +37,7 @@ using JobVariant = std::variant<InsertJobConfig, QueryJobConfig, SubscribeJobCon
 // 顶层配置
 struct ConfigData {
     GlobalConfig global;
-    int job_concurrency = 1;
+    int concurrency = 1;
     std::vector<JobVariant> jobs;
 };
 

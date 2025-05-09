@@ -4,28 +4,13 @@
 #include "ConfigData.h"
 // #include "ParamDescriptor.h"
 
-#include <nlohmann/json.hpp>
+#include <yaml-cpp/yaml.h>
 #include <unordered_map>
 #include <vector>
 #include <string>
 #include <optional>
 #include <variant>
 
-// class ParameterContext {
-// private:
-//     std::unordered_map<std::string, ParamEntry> current_params;
-//     std::unordered_map<std::string, ParamDescriptor> descriptors;
-
-// public:
-//     ParameterContext();
-//     void register_param(const ParamDescriptor& desc);
-//     void merge_json(const nlohmann::json& config);
-//     void merge_commandline(int argc, char* argv[]);
-//     void validate();
-//     // Other methods...
-// };
-
-using json = nlohmann::json;
 
 class ParameterContext {
 public:
@@ -34,7 +19,7 @@ public:
     // 合并参数来源
     void merge_commandline(int argc, char* argv[]);
     void merge_environment_vars();
-    void merge_json(const json& config);
+    void merge_yaml(const YAML::Node& config); 
 
     // 获取参数
     // template <typename T>
@@ -51,10 +36,12 @@ private:
     std::unordered_map<std::string, std::string> env_params;
 
     // 辅助方法
-    void parse_jobs(const json& jobs_json);
-    void parse_insert_job(const json& job);
-    void parse_query_job(const json& job);
-    void parse_subscribe_job(const json& job);
+    void parse_jobs(const YAML::Node& jobs_yaml);
+    void parse_insert_job(const YAML::Node& job);
+    void parse_query_job(const YAML::Node& job);
+    void parse_subscribe_job(const YAML::Node& job);
+
+    // void validate();
 };
 
 #endif // PARAMETER_CONTEXT_H

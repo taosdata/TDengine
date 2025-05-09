@@ -8,11 +8,11 @@ int main() {
 
     // 测试 1: 标准带端口和查询参数
     try {
-        config.parse_dsn("http://127.0.0.1:6041?user=admin&password=Taos123!");
+        config.parse_dsn("http://127.0.0.1:6041?token=ea7f89ae7c8359f247a5");
         assert(config.host == "127.0.0.1");
         assert(config.port == 6041);
-        assert(config.user == "admin");
-        assert(config.password == "Taos123!");
+        assert(config.user == "token");
+        assert(config.password == "ea7f89ae7c8359f247a5");
     } catch (const std::exception& e) {
         std::cerr << "Test 1 failed: " << e.what() << "\n";
         return 1;
@@ -20,10 +20,11 @@ int main() {
 
     // 测试 2: 无端口，使用默认值
     try {
-        config.parse_dsn("https://gw.cloud.taosdata.com?token=abcdef123456");
+        config.parse_dsn("https://gw.cloud.taosdata.com?token=5445e0a753cd0a522473");
         assert(config.host == "gw.cloud.taosdata.com");
         assert(config.port == 6041);  // 保留之前的值，未重置
-        assert(config.password == "abcdef123456");  // token 映射到 password
+        assert(config.user == "token");
+        assert(config.password == "5445e0a753cd0a522473");
     } catch (const std::exception& e) {
         std::cerr << "Test 2 failed: " << e.what() << "\n";
         return 1;

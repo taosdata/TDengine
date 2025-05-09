@@ -69,14 +69,11 @@ void GlobalConfig::parse_dsn(const std::string& input_dsn) {
             if (eq_pos == std::string::npos) continue;  // 忽略无效格式
 
             const std::string key = to_lower(pair.substr(0, eq_pos));
-            std::string value = pair.substr(eq_pos + 1);
+            std::string value = to_lower(pair.substr(eq_pos + 1));
 
             // 根据 key 映射到对应字段
-            if (key == "user") {
-                user = value;
-            } else if (key == "password" || key == "token") {
-                password = value;  // token 视为 password
-            }
+            user = key;
+            password = value;
         }
     }
 }

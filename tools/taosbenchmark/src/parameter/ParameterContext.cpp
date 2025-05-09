@@ -46,30 +46,31 @@ void ParameterContext::merge_environment_vars() {
     }
 }
 
-void ParameterContext::merge_json(const json& config) {
+void ParameterContext::merge_yaml(const YAML::Node& config) {
     // 解析全局配置
-    if (config.contains("global")) {
+    if (config["global"]) {
         const auto& global = config["global"];
-        if (global.contains("host")) config_data.global.host = global["host"];
-        if (global.contains("port")) config_data.global.port = global["port"];
-        if (global.contains("user")) config_data.global.user = global["user"];
-        if (global.contains("password")) config_data.global.password = global["password"];
+        if (global["host"]) config_data.global.host = global["host"].as<std::string>();
+        if (global["port"]) config_data.global.port = global["port"].as<int>();
+        if (global["user"]) config_data.global.user = global["user"].as<std::string>();
+        if (global["password"]) config_data.global.password = global["password"].as<std::string>();
+        if (global["dsn"]) config_data.global.parse_dsn(global["dsn"].as<std::string>());
     }
 
     // 解析作业并发数
-    if (config.contains("job_concurrency")) {
-        config_data.job_concurrency = config["job_concurrency"];
+    if (config["concurrency"]) {
+        config_data.concurrency = config["concurrency"].as<int>();
     }
 
     // 解析作业列表
-    if (config.contains("jobs")) {
+    if (config["jobs"]) {
         parse_jobs(config["jobs"]);
     }
 }
 
-void ParameterContext::parse_jobs(const json& jobs_json) {
-    for (const auto& job : jobs_json) {
-        std::string job_type = job["job_type"];
+void ParameterContext::parse_jobs(const YAML::Node& jobs_yaml) {
+    for (const auto& job : jobs_yaml) {
+        std::string job_type = job["job_type"].as<std::string>();
         if (job_type == "insert") {
             parse_insert_job(job);
         } else if (job_type == "query") {
@@ -82,27 +83,26 @@ void ParameterContext::parse_jobs(const json& jobs_json) {
     }
 }
 
-
-void ParameterContext::parse_insert_job(const json& job) {
+void ParameterContext::parse_insert_job(const YAML::Node& job) {
     InsertJobConfig insert_job;
-    insert_job.job_name = job["job_name"];
-    insert_job.source.source_type = job["source"]["source_type"];
+    insert_job.job_name = job["job_name"].as<std::string>();
+    insert_job.source.source_type = job["source"]["source_type"].as<std::string>();
     // 继续解析其他字段...
     config_data.jobs.push_back(insert_job);
 }
 
-void ParameterContext::parse_query_job(const json& job) {
+void ParameterContext::parse_query_job(const YAML::Node& job) {
     QueryJobConfig query_job;
-    query_job.job_name = job["job_name"];
-    query_job.source.connection.host = job["source"]["connection"]["host"];
+    query_job.job_name = job["job_name"].as<std::string>();
+    query_job.source.connection.host = job["source"]["connection"]["host"].as<std::string>();
     // 继续解析其他字段...
     config_data.jobs.push_back(query_job);
 }
 
-void ParameterContext::parse_subscribe_job(const json& job) {
+void ParameterContext::parse_subscribe_job(const YAML::Node& job) {
     SubscribeJobConfig subscribe_job;
-    subscribe_job.job_name = job["job_name"];
-    subscribe_job.source.connection.host = job["source"]["connection"]["host"];
+    subscribe_job.job_name = job["job_name"].as<std::string>();
+    subscribe_job.source.connection.host = job["source"]["connection"]["host"].as<std::string>();
     // 继续解析其他字段...
     config_data.jobs.push_back(subscribe_job);
 }

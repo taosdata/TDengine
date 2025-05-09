@@ -8,7 +8,7 @@
         "user": "root",
         "password": "taosdata"
     },
-    "job_concurrency" : 3,
+    "concurrency" : 3,
     "jobs" : [
         {
             "job_type" : "insert",
