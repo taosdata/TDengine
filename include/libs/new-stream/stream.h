@@ -91,6 +91,13 @@ typedef struct SStreamRunnerTask {
   bool                          topTask;
 } SStreamRunnerTask;
 
+typedef struct SStreamCacheReadInfo {
+  SStreamTask taskInfo;
+  int64_t     gid;
+  TSKEY       start;
+  TSKEY       end;
+} SStreamCacheReadInfo;
+
 #define STREAM_GID(_streamId) ((uint64_t)(_streamId) % STREAM_MAX_GROUP_NUM)
 
 // clang-format off

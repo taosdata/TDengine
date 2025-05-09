@@ -33,6 +33,7 @@ typedef struct SStreamRunnerTaskStatus  SStreamRunnerTaskStatus;
 int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg);
 int32_t stRunnerTaskUndeploy(SStreamRunnerTask** ppTask, const SStreamUndeployTaskMsg* pMsg, taskUndeplyCallback cb);
 int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq);
+int32_t stRunnerFetchDataFromCache(SStreamCacheReadInfo* pInfo);
 
 #ifdef __cplusplus
 }

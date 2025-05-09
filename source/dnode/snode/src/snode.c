@@ -143,6 +143,23 @@ static int32_t handleStreamFetchData(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   return code;
 }
 
+static int32_t handleStreamFetchFromCache(SSnode* pSnode, SRpcMsg* pRpcMsg) {
+  int32_t code = 0;
+  SResFetchReq req = {0};
+  SStreamCacheReadInfo readInfo = {0};
+  code = tDeserializeSResFetchReq(POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead)), pRpcMsg->contLen - sizeof(SMsgHead), &req);
+  if (code == 0) {
+    readInfo.taskInfo.streamId = req.queryId;
+    readInfo.taskInfo.taskId = req.taskId;
+    readInfo.taskInfo.sessionId = req.pStRtFuncInfo->sessionId;
+    readInfo.gid = req.pStRtFuncInfo->groupId;
+    SSTriggerCalcParam* pParam = taosArrayGet(req.pStRtFuncInfo->pStreamPesudoFuncVals, req.pStRtFuncInfo->curIdx);
+    readInfo.start = pParam->wstart;
+    readInfo.end = pParam->wend;
+  }
+  return code;
+}
+
 int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
   int32_t code = 0;
   switch (pMsg->msgType) {
@@ -152,6 +169,8 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
     case TDMT_STREAM_FETCH_FROM_RUNNER:
       code = handleStreamFetchData(pSnode, pMsg);
       break;
+    case TDMT_STREAM_FETCH_FROM_CACHE:
+      code = handleStreamFetchFromCache(pSnode, pMsg);
     default:
       sndError("invalid snode msg:%d", pMsg->msgType);
       return TSDB_CODE_INVALID_MSG;

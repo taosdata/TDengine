@@ -229,8 +229,8 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
 
   streamSetTaskRuntimeInfo(pExec->pExecutor, &pExec->runtimeInfo);
 
-  for (int32_t i = 0; i < calcNum; ++i) {
-    pExec->runtimeInfo.funcInfo.curIdx = i;
+  pExec->runtimeInfo.funcInfo.curIdx = 0;
+  for (; pExec->runtimeInfo.funcInfo.curIdx++ < calcNum; ++pExec->runtimeInfo.funcInfo.curIdx) {
 
     SSDataBlock* pBlock = NULL;
     uint64_t     ts = 0;
@@ -241,7 +241,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
       ST_TASK_ELOG("failed to exec task code: %s", tstrerror(code));
     } else {
       if (pTask->topTask) {
-        code = stRunnerOutputBlock(pTask, pExec, pBlock, i == 0 ? pReq->createTable : false);
+        code = stRunnerOutputBlock(pTask, pExec, pBlock, pExec->runtimeInfo.funcInfo.curIdx == 0 ? pReq->createTable : false);
       } else {
         if (pBlock) {
           code = createOneDataBlock(pBlock, true, &pTask->output.pBlock);
