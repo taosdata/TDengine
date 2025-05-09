@@ -16,6 +16,7 @@
 #ifndef _TD_EXECUTOR_H_
 #define _TD_EXECUTOR_H_
 
+#include <stdint.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -65,14 +66,14 @@ typedef struct {
 } SReadHandle;
 
 typedef struct SStreamInserterParam {
-  SArray*         pFields; // SArray<SFieldWithOptions>
-  SArray*         pTagFields;
-  int64_t         suid;
-  int32_t         sver;
-  const char*     tbname;
-  int8_t          tbType;
-  const char*     dbFName;
-  void*           pSinkHandle;
+  SArray* pFields;  // SArray<SFieldWithOptions>
+  SArray* pTagFields;
+  int64_t suid;
+  int32_t sver;
+  char*   tbname;
+  int8_t  tbType;
+  char*   dbFName;
+  void*   pSinkHandle;
 } SStreamInserterParam;
 
 typedef struct {
@@ -90,7 +91,6 @@ typedef enum {
   OPTR_EXEC_MODEL_QUEUE = 0x3,
 } EOPTR_EXEC_MODEL;
 
-int32_t qResetStreamExecTask(qTaskInfo_t* pTaskInfo);
 /**
  * Create the exec task for stream mode
  * @param pMsg
@@ -278,6 +278,8 @@ extern SGlobalExecInfo gExecInfo;
 
 void    gExecInfoInit(void* pDnode, getDnodeId_f getDnodeId, getMnodeEpset_f getMnode);
 int32_t getCurrentMnodeEpset(SEpSet* pEpSet);
+int32_t cloneStreamInserterParam(SStreamInserterParam** pDst, SStreamInserterParam* pSrc);
+void    destoryStreamInserterParam(SStreamInserterParam* pParam);
 
 #ifdef __cplusplus
 }

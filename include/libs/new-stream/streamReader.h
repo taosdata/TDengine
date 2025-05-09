@@ -55,6 +55,7 @@ typedef struct SStreamTriggerReaderInfo {
   SNode*      pTagIndexCond;
   SNode*      pConditions;
   SNodeList*  pGroupTags;
+  SNodeList*  triggerCols;
   SHashObj*   streamTaskMap;
 } SStreamTriggerReaderInfo;
 

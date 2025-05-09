@@ -360,8 +360,8 @@ int32_t scanWal(SVnode* pVnode, void* pTableList, SSDataBlock* pBlock, int64_t l
 
   SWalReader* pWalReader = walOpenReader(pVnode->pWal, NULL, 0);
   STREAM_CHECK_NULL_GOTO(pWalReader, terrno);
-  STREAM_CHECK_RET_GOTO(walReaderSeekVer(pWalReader, lastVer + 1));
   pBlock->info.id.groupId = walGetLastVer(pWalReader->pWal);
+  STREAM_CHECK_RET_GOTO(walReaderSeekVer(pWalReader, lastVer + 1));
 
   while (1) {
     STREAM_CHECK_CONDITION_GOTO(walNextValidMsg(pWalReader) < 0, TSDB_CODE_SUCCESS);
@@ -421,6 +421,10 @@ end:
   tDestroySubmitReq(&submit, TSDB_MSG_FLG_DECODE);
   walCloseReader(pWalReader);
   tDecoderClear(&decoder);
+  if (code == TSDB_CODE_WAL_LOG_NOT_EXIST){
+    code = TSDB_CODE_SUCCESS;
+    terrno = TSDB_CODE_SUCCESS;
+  }
   PRINT_LOG_END(code, lino);
   return code;
 }
@@ -1060,7 +1064,8 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
                               TSDB_CODE_QRY_INVALID_INPUT);
   STREAM_CHECK_RET_GOTO(streamGetTask(req.queryId, req.taskId, (SStreamTask**)&pTask));
   STREAM_CHECK_CONDITION_GOTO(pTask->triggerReader != 0, TSDB_CODE_INVALID_PARA);
-  if (pTask->info.calcReaderInfo.pTaskInfo == NULL){
+  if (req.reset || pTask->info.calcReaderInfo.pTaskInfo == NULL) {
+    qDestroyTask(pTask->info.calcReaderInfo.pTaskInfo);
     SReadHandle handle = {
       .vnode = pVnode,
     };
@@ -1073,12 +1078,12 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
     STREAM_CHECK_RET_GOTO(qCreateStreamExecTaskInfo(&pTask->info.calcReaderInfo.pTaskInfo, pTask->info.calcReaderInfo.calcScanPlan, &handle, NULL, vgId, taskId));
     STREAM_CHECK_RET_GOTO(qSetTaskId(pTask->info.calcReaderInfo.pTaskInfo, taskId, streamId));
   }
-  if (req.reset) {
-    STREAM_CHECK_RET_GOTO(qResetStreamExecTask(pTask->info.calcReaderInfo.pTaskInfo));
-  }
+
   uint64_t ts = 0;
   // qStreamSetOpen(task);
   STREAM_CHECK_RET_GOTO(qExecTask(pTask->info.calcReaderInfo.pTaskInfo, &pBlock, &ts));
+
+  vDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock != NULL ? pBlock->info.rows : -1);
   STREAM_CHECK_RET_GOTO(buildFetchRsp(pBlock, &buf, &size, pVnode->config.tsdbCfg.precision));
 end:
   PRINT_LOG_END(code, lino);

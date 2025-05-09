@@ -241,7 +241,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
       ST_TASK_ELOG("failed to exec task code: %s", tstrerror(code));
     } else {
       if (pTask->topTask) {
-        //code = stRunnerOutputBlock(pTask, pExec, pBlock, pReq->createTable);
+        code = stRunnerOutputBlock(pTask, pExec, pBlock, pReq->createTable);
       } else {
         if (pBlock) {
           code = createOneDataBlock(pBlock, true, &pTask->output.pBlock);
@@ -270,7 +270,7 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
   SReadHandle handle = {.pMsgCb = pTask->pMsgCb};
   if (pTask->topTask) {
     SStreamInserterParam params = {.dbFName = pTask->output.outDbFName,
-      .tbname = pTask->output.outTbName,
+      .tbname =  pExec->tbname,
       .pFields = pTask->output.outCols,
       .pTagFields = pTask->output.outTags,
       .suid = pTask->output.outStbUid,

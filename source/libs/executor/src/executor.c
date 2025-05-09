@@ -17,7 +17,10 @@
 #include <stdint.h>
 #include "cmdnodes.h"
 #include "executorInt.h"
+#include "libs/new-stream/stream.h"
 #include "operator.h"
+#include "osMemPool.h"
+#include "osMemory.h"
 #include "planner.h"
 #include "query.h"
 #include "querytask.h"
@@ -243,6 +246,30 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int3
   return pTaskInfo;
 }
 
+static int32_t checkInsertParam(SStreamInserterParam* streamInserterParam) {
+  if (streamInserterParam == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (streamInserterParam->tbType == TSDB_CHILD_TABLE && streamInserterParam->suid <= 0) {
+    stError("insertParam: invalid suid:%" PRIx64 " for child table", streamInserterParam->suid);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if ( streamInserterParam->dbFName == NULL || strlen(streamInserterParam->dbFName) == 0) {
+    stError("insertParam: invalid db/table name");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (streamInserterParam->suid <= 0 &&
+      (streamInserterParam->tbname == NULL || strlen(streamInserterParam->tbname) == 0)) {
+    stError("insertParam: invalid table name, suid:%" PRIx64 "", streamInserterParam->suid);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
                                      qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, int8_t compressResult, char* sql,
                                      EOPTR_EXEC_MODEL model, SStreamInserterParam* streamInserterParam) {
@@ -250,12 +277,17 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
     qError("invalid parameter, pSubplan:%p, pTaskInfo:%p, handle:%p", pSubplan, pTaskInfo, handle);
     return TSDB_CODE_INVALID_PARA;
   }
+  int32_t code = checkInsertParam(streamInserterParam);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("invalid stream inserter param, code:%s", tstrerror(code));
+    return code;
+  }
   SInserterParam* pInserterParam = NULL;
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
   (void)taosThreadOnce(&initPoolOnce, initRefPool);
   qDebug("start to create task, TID:0x%" PRIx64 " QID:0x%" PRIx64 ", vgId:%d", taskId, pSubplan->id.queryId, vgId);
 
-  int32_t code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model);
+  code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model);
   if (code != TSDB_CODE_SUCCESS || NULL == *pTask) {
     qError("failed to createExecTaskInfo, code:%s", tstrerror(code));
     goto _error;
@@ -276,8 +308,9 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
       code = terrno;
       goto _error;
     }
-    pInserterParam->readHandle = readHandle;
-    pInserterParam->streamInserterParam = streamInserterParam;
+    pInserterParam->readHandle = taosMemCalloc(1, sizeof(SReadHandle));
+    pInserterParam->readHandle->pMsgCb = readHandle->pMsgCb;
+    cloneStreamInserterParam(&pInserterParam->streamInserterParam, streamInserterParam);
 
     code = createStreamDataInserter(pSinkManager, handle, pInserterParam);
     if (code) {
@@ -292,25 +325,6 @@ _error:
     if (pInserterParam != NULL) {
       taosMemoryFree(pInserterParam);
     }
-  }
-  return code;
-}
-
-int32_t qResetStreamExecTask(qTaskInfo_t* pTaskInfo){
-  SExecTaskInfo* taskInfo = (SExecTaskInfo*)(pTaskInfo);
-  SOperatorInfo* pOperator = taskInfo->pRoot;
-  const char*    id = GET_TASKID(taskInfo);
-  int32_t code = extractOperatorInTree(pOperator, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, id, &pOperator);
-  if (pOperator == NULL || code != 0) {
-    return code;
-  }
-  SStreamScanInfo* pInfo = pOperator->info;
-  STableScanInfo*  pScanInfo = pInfo->pTableScanOp->info;
-  STableScanBase*  pScanBaseInfo = &pScanInfo->base;
-  code = taskInfo->storageAPI.tsdReader.tsdReaderResetStatus(pScanBaseInfo->dataReader, &pScanBaseInfo->cond);
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-    return code;
   }
   return code;
 }
@@ -2000,6 +2014,79 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, const SStreamRuntimeF
       code = TSDB_CODE_INVALID_PARA;
     }
     memcpy(tbname, pVal, len);
+  }
+  return code;
+}
+
+void destoryStreamInserterParam(SStreamInserterParam* pParam) {
+  if (pParam) {
+    if (pParam->tbname) {
+      taosMemFree(pParam->tbname);
+      pParam->tbname = NULL;
+    }
+    if (pParam->dbFName) {
+      taosMemFree(pParam->dbFName);
+      pParam->dbFName = NULL;
+    }
+    if (pParam->pFields) {
+      taosArrayDestroy(pParam->pFields);
+      pParam->pFields = NULL;
+    }
+    if (pParam->pTagFields) {
+      taosArrayDestroy(pParam->pTagFields);
+      pParam->pTagFields = NULL;
+    }
+    taosMemFree(pParam);
+  }
+}
+
+int32_t cloneStreamInserterParam(SStreamInserterParam** ppDst, SStreamInserterParam* pSrc) {
+  int32_t code = 0;
+  if (ppDst == NULL || pSrc == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *ppDst = (SStreamInserterParam*)taosMemoryCalloc(1, sizeof(SStreamInserterParam));
+  if (*ppDst == NULL) {
+    return terrno;
+  }
+  (*ppDst)->suid = pSrc->suid;
+  (*ppDst)->sver = pSrc->sver;
+  (*ppDst)->tbType = pSrc->tbType;
+  (*ppDst)->tbname = taosStrdup(pSrc->tbname);
+  if ((*ppDst)->tbname == NULL) {
+    code = terrno;
+    goto _err;
+  }
+  (*ppDst)->dbFName = taosStrdup(pSrc->dbFName);
+  if ((*ppDst)->dbFName == NULL) {
+    code = terrno;
+    goto _err;
+  }
+  (*ppDst)->pSinkHandle = pSrc->pSinkHandle;   // don't need clone and free
+
+  if (pSrc->pFields && pSrc->pFields->size > 0) {
+    (*ppDst)->pFields = taosArrayDup(pSrc->pFields, NULL);
+    if ((*ppDst)->pFields == NULL) {
+      code = terrno;
+      goto _err;
+    }
+  } else {
+    (*ppDst)->pFields = NULL;
+  }
+  if (pSrc->pTagFields && pSrc->pTagFields->size > 0) {
+    (*ppDst)->pTagFields = taosArrayDup(pSrc->pTagFields, NULL);
+    if ((*ppDst)->pTagFields == NULL) {
+      code = terrno;
+      goto _err;
+    }
+  } else {
+    (*ppDst)->pTagFields = NULL;
+  }
+
+_err:
+  if (code != 0 && *ppDst) {
+    destoryStreamInserterParam(*ppDst);
+    *ppDst = NULL;
   }
   return code;
 }

@@ -86,6 +86,9 @@ static int32_t smDispatchStreamTriggerRsp(struct SDispatchWorkerPool *pPool, voi
   switch (pMsg->msgType) {
     case TDMT_STREAM_TRIGGER_PULL_RSP: {
       SSTriggerPullRequest *pReq = pMsg->info.ahandle;
+      if (pReq == NULL){
+        break;
+      }
       int64_t               buf[] = {pReq->streamId, pReq->triggerTaskId, pReq->sessionId};
       uint32_t              hashVal = MurmurHash3_32((const char *)buf, sizeof(buf));
       *pWorkerIdx = hashVal % tsNumOfStreamTriggerThreads;
