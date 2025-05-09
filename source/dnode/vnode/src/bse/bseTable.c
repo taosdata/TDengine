@@ -52,7 +52,7 @@ static int32_t metaBlockAddIndex(SBlock *p, SBlkHandle *pInfo);
 int32_t tableMetaWriterInit(SBTableMeta *pMeta, char *name, SBtableMetaWriter **ppWriter);
 int32_t tableMetaWriterCommit(SBtableMetaWriter *pMeta);
 void    tableMetaWriterClose(SBtableMetaWriter *p);
-int32_t tableMetaWriterAppendRamBlock(SBtableMetaWriter *pMeta, SBlockWrapper *pBlock, SBlkHandle *pBlkHandle);
+int32_t tableMetaWriteAppendRawBlock(SBtableMetaWriter *pMeta, SBlockWrapper *pBlock, SBlkHandle *pBlkHandle);
 
 int32_t tableMetaReaderInit(SBTableMeta *pMeta, char *name, SBtableMetaReader **ppReader);
 void    tableMetaReaderClose(SBtableMetaReader *p);
@@ -431,7 +431,8 @@ int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo) {
   code = tableBuilderFlush(p, BSE_TABLE_DATA_TYPE);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  taosFsyncFile(p->pDataFile);
+  code = taosFsyncFile(p->pDataFile);
+  TSDB_CHECK_CODE(code, lino, _error);
 
   code = tableBuilderGetMetaBlock(p, &pMetaBlock);
   TSDB_CHECK_CODE(code, lino, _error);
@@ -1307,9 +1308,10 @@ int32_t tableMetaCommit(SBTableMeta *pMeta, SArray *pBlock) {
     if (pIter->isOver) {
       break;
     }
+
     blockWrapperSetType(&wrapper, BSE_TABLE_META_TYPE);
 
-    code = tableMetaWriterAppendRamBlock(pWriter, &wrapper, &blkHandle);
+    code = tableMetaWriteAppendRawBlock(pWriter, &wrapper, &blkHandle);
 
     TSDB_CHECK_CODE(code, lino, _error);
 
@@ -1505,7 +1507,7 @@ _error:
   }
   return code;
 }
-int32_t tableMetaWriterAppendRamBlock(SBtableMetaWriter *pMeta, SBlockWrapper *pBlock, SBlkHandle *pBlkHandle) {
+int32_t tableMetaWriteAppendRawBlock(SBtableMetaWriter *pMeta, SBlockWrapper *pBlock, SBlkHandle *pBlkHandle) {
   int32_t code = 0;
   int32_t lino = 0;
 

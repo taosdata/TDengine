@@ -986,10 +986,6 @@ int32_t bseUpdateCfg(SBse *pBse, SBseCfg *pCfg) {
 
   if (pCfg->blockCacheSize >= 0) {
     pBse->cfg.blockCacheSize = pCfg->blockCacheSize;
-    // code = bseTableMgtSetCacheSize(pBse->pTableMgt, pCfg->tableCacheSize);
-    // if (code != 0) {
-    //   bseError("failed to set table cache size since %s", tstrerror(code));
-    // }
   }
   taosThreadMutexUnlock(&pBse->mutex);
   return code;
@@ -1018,10 +1014,6 @@ int32_t bseUpdatCfgNoLock(SBse *pBse, SBseCfg *pCfg) {
 
   if (pCfg->blockCacheSize >= 0) {
     pBse->cfg.blockCacheSize = pCfg->blockCacheSize;
-    // code = bseTableMgtSetCacheSize(pBse->pTableMgt, pCfg->tableCacheSize);
-    // if (code != 0) {
-    //   bseError("failed to set table cache size since %s", tstrerror(code));
-    // }
   }
   return code;
 }

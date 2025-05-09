@@ -69,16 +69,24 @@ struct SSubTableMgt {
   STableMetaMgt    pTableMetaMgt[1];
 };
 
-struct STableMgt {
-  void *pBse;
+typedef struct {
+  SBlockCache   *pBlockCache;
+  STableCache   *pTableCache;
+  TdThreadRwlock mutex;
+} SCacheMgt;
 
+struct STableMgt {
+  void         *pBse;
   SSubTableMgt *pCurrTableMgt;
   int64_t       retionTs;
   SHashObj     *pHashObj;
+  SCacheMgt    *pCacheMgt;
 };
 
 int32_t bseTableMgtCreate(SBse *pBse, void **pMgt);
 int32_t bseTableMgtSetLastRetentionTs(STableMgt *pMgt, int64_t retention);
+
+int32_t bseTableMgtCreateCache(STableMgt *pMgt);
 
 int32_t bseTableMgtGet(STableMgt *p, int64_t seq, uint8_t **pValue, int32_t *len);
 
