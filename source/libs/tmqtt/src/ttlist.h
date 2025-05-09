@@ -1,8 +1,6 @@
 #ifndef TTLIST_H
 #define TTLIST_H
 
-#include <assert.h>
-
 #if !defined(LDECLTYPE) && !defined(NO_DECLTYPE)
 #if defined(_MSC_VER)                        /* MS compiler */
 #if _MSC_VER >= 1600 && defined(__cplusplus) /* VS2010 or newer in C++ mode */
@@ -457,9 +455,7 @@
 #define LL_REPLACE_ELEM2(head, el, add, next)      \
   do {                                             \
     LDECLTYPE(head) _tmp;                          \
-    assert((head) != NULL);                        \
-    assert((el) != NULL);                          \
-    assert((add) != NULL);                         \
+                                                   \
     (add)->next = (el)->next;                      \
     if ((head) == (el)) {                          \
       (head) = (add);                              \
@@ -480,8 +476,7 @@
   do {                                               \
     if (el) {                                        \
       LDECLTYPE(head) _tmp;                          \
-      assert((head) != NULL);                        \
-      assert((add) != NULL);                         \
+                                                     \
       (add)->next = (el);                            \
       if ((head) == (el)) {                          \
         (head) = (add);                              \
@@ -504,8 +499,6 @@
 #define LL_APPEND_ELEM2(head, el, add, next) \
   do {                                       \
     if (el) {                                \
-      assert((head) != NULL);                \
-      assert((add) != NULL);                 \
       (add)->next = (el)->next;              \
       (el)->next = (add);                    \
     } else {                                 \
@@ -586,9 +579,6 @@
 #undef LL_REPLACE_ELEM2
 #define LL_REPLACE_ELEM2(head, el, add, next)                    \
   do {                                                           \
-    assert((head) != NULL);                                      \
-    assert((el) != NULL);                                        \
-    assert((add) != NULL);                                       \
     if ((head) == (el)) {                                        \
       (head) = (add);                                            \
     } else {                                                     \
@@ -607,8 +597,6 @@
 #define LL_PREPEND_ELEM2(head, el, add, next)                      \
   do {                                                             \
     if (el) {                                                      \
-      assert((head) != NULL);                                      \
-      assert((add) != NULL);                                       \
       if ((head) == (el)) {                                        \
         (head) = (add);                                            \
       } else {                                                     \
@@ -712,8 +700,6 @@
 
 #define DL_DELETE2(head, del, prev, next) \
   do {                                    \
-    assert((head) != NULL);               \
-    assert((del)->prev != NULL);          \
     if ((del)->prev == (del)) {           \
       (head) = NULL;                      \
     } else if ((del) == (head)) {         \
@@ -754,9 +740,6 @@
 
 #define DL_REPLACE_ELEM2(head, el, add, prev, next) \
   do {                                              \
-    assert((head) != NULL);                         \
-    assert((el) != NULL);                           \
-    assert((add) != NULL);                          \
     if ((head) == (el)) {                           \
       (head) = (add);                               \
       (add)->next = (el)->next;                     \
@@ -783,8 +766,6 @@
 #define DL_PREPEND_ELEM2(head, el, add, prev, next) \
   do {                                              \
     if (el) {                                       \
-      assert((head) != NULL);                       \
-      assert((add) != NULL);                        \
       (add)->next = (el);                           \
       (add)->prev = (el)->prev;                     \
       (el)->prev = (add);                           \
@@ -803,8 +784,6 @@
 #define DL_APPEND_ELEM2(head, el, add, prev, next) \
   do {                                             \
     if (el) {                                      \
-      assert((head) != NULL);                      \
-      assert((add) != NULL);                       \
       (add)->next = (el)->next;                    \
       (add)->prev = (el);                          \
       (el)->next = (add);                          \
@@ -969,9 +948,6 @@
 
 #define CDL_REPLACE_ELEM2(head, el, add, prev, next) \
   do {                                               \
-    assert((head) != NULL);                          \
-    assert((el) != NULL);                            \
-    assert((add) != NULL);                           \
     if ((el)->next == (el)) {                        \
       (add)->next = (add);                           \
       (add)->prev = (add);                           \
@@ -992,8 +968,6 @@
 #define CDL_PREPEND_ELEM2(head, el, add, prev, next) \
   do {                                               \
     if (el) {                                        \
-      assert((head) != NULL);                        \
-      assert((add) != NULL);                         \
       (add)->next = (el);                            \
       (add)->prev = (el)->prev;                      \
       (el)->prev = (add);                            \
@@ -1011,8 +985,6 @@
 #define CDL_APPEND_ELEM2(head, el, add, prev, next) \
   do {                                              \
     if (el) {                                       \
-      assert((head) != NULL);                       \
-      assert((add) != NULL);                        \
       (add)->next = (el)->next;                     \
       (add)->prev = (el);                           \
       (el)->next = (add);                           \

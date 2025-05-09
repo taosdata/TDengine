@@ -246,7 +246,7 @@ bool tmq_ctx_topic_exists(struct tmq_ctx* context, const char* topic_name, const
   char        port_str[16] = {0};
   tmq_list_t* topic_list = NULL;
 
-  assert(context->conn);
+  
 
   snprintf(consumer_client_id, sizeof(consumer_client_id), "_cid-%s-%d", cid, global.dnode_id);
   // snprintf(group_id, sizeof(group_id), "_xnd-gid-%d", global.dnode_id);
@@ -309,7 +309,7 @@ bool tmq_ctx_unsub_topic(struct tmq_ctx* context, const char* topic_name, const 
   char        port_str[16] = {0};
   tmq_list_t* topic_list = NULL;
 
-  assert(context->conn);
+  
 
   snprintf(consumer_client_id, sizeof(consumer_client_id), "_cid-%s-%d", cid, global.dnode_id);
   // snprintf(group_id, sizeof(group_id), "_xnd-gid-%d", global.dnode_id);

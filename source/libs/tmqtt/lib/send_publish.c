@@ -15,7 +15,6 @@
 
 #include "send_ttq.h"
 
-#include <assert.h>
 #include <string.h>
 
 #include "tmqtt_broker_int.h"
@@ -44,7 +43,6 @@ int send__publish(struct tmqtt *ttq, uint16_t mid, const char *topic, uint32_t p
   char                       *topic_temp = NULL;
 #endif
 #endif
-  assert(ttq);
 
 #if defined(WITH_BROKER) && defined(WITH_WEBSOCKETS)
   if (ttq->sock == INVALID_SOCKET && !ttq->wsi) return TTQ_ERR_NO_CONN;
@@ -107,7 +105,7 @@ int send__publish(struct tmqtt *ttq, uint16_t mid, const char *topic, uint32_t p
             mapped_topic = topic_temp;
           }
           ttq_log(NULL, TTQ_LOG_DEBUG, "Sending PUBLISH to %s (d%d, q%d, r%d, m%d, '%s', ... (%ld bytes))",
-                      SAFE_PRINT(ttq->id), dup, qos, retain, mid, mapped_topic, (long)payloadlen);
+                  SAFE_PRINT(ttq->id), dup, qos, retain, mid, mapped_topic, (long)payloadlen);
           G_PUB_BYTES_SENT_INC(payloadlen);
           rc = send__real_publish(ttq, mid, mapped_topic, payloadlen, payload, qos, retain, dup, cmsg_props,
                                   store_props, expiry_interval);
@@ -118,12 +116,12 @@ int send__publish(struct tmqtt *ttq, uint16_t mid, const char *topic, uint32_t p
     }
   }
 #endif
-  ttq_log(NULL, TTQ_LOG_DEBUG, "Sending PUBLISH to %s (d%d, q%d, r%d, m%d, '%s', ... (%ld bytes))",
-              SAFE_PRINT(ttq->id), dup, qos, retain, mid, topic, (long)payloadlen);
+  ttq_log(NULL, TTQ_LOG_DEBUG, "Sending PUBLISH to %s (d%d, q%d, r%d, m%d, '%s', ... (%ld bytes))", SAFE_PRINT(ttq->id),
+          dup, qos, retain, mid, topic, (long)payloadlen);
   G_PUB_BYTES_SENT_INC(payloadlen);
 #else
   ttq_log(ttq, TTQ_LOG_DEBUG, "Client %s sending PUBLISH (d%d, q%d, r%d, m%d, '%s', ... (%ld bytes))",
-              SAFE_PRINT(ttq->id), dup, qos, retain, mid, topic, (long)payloadlen);
+          SAFE_PRINT(ttq->id), dup, qos, retain, mid, topic, (long)payloadlen);
 #endif
 
   return send__real_publish(ttq, mid, topic, payloadlen, payload, qos, retain, dup, cmsg_props, store_props,
@@ -138,8 +136,6 @@ int send__real_publish(struct tmqtt *ttq, uint16_t mid, const char *topic, uint3
   unsigned int          proplen = 0, varbytes;
   int                   rc;
   tmqtt_property        expiry_prop;
-
-  assert(ttq);
 
   if (topic) {
     packetlen = 2 + (unsigned int)strlen(topic) + payloadlen;
@@ -173,7 +169,7 @@ int send__real_publish(struct tmqtt *ttq, uint16_t mid, const char *topic, uint3
   if (packet__check_oversize(ttq, packetlen)) {
 #ifdef WITH_BROKER
     ttq_log(NULL, TTQ_LOG_NOTICE, "Dropping too large outgoing PUBLISH for %s (%d bytes)", SAFE_PRINT(ttq->id),
-                packetlen);
+            packetlen);
 #else
     ttq_log(ttq, TTQ_LOG_NOTICE, "Dropping too large outgoing PUBLISH (%d bytes)", packetlen);
 #endif

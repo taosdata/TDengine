@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <assert.h>
 #include <ctype.h>
 #include <string.h>
 
@@ -63,7 +62,6 @@ int tmqtt__check_keepalive(struct tmqtt *ttq) {
 #endif
   enum tmqtt_client_state state;
 
-  assert(ttq);
 #ifdef WITH_BROKER
   now = db.now_s;
 #else
@@ -137,7 +135,6 @@ uint16_t tmqtt__mid_generate(struct tmqtt *ttq) {
    * used as a mid.
    */
   uint16_t mid;
-  assert(ttq);
 
   ttq_pthread_mutex_lock(&ttq->mid_mutex);
   ttq->last_mid++;

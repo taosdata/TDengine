@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <assert.h>
 #include <errno.h>
 #include <string.h>
 #include <time.h>
@@ -27,7 +26,6 @@
 #include "ttq_systree.h"
 
 int packet__read_byte(struct tmqtt__packet *packet, uint8_t *byte) {
-  assert(packet);
   if (packet->pos + 1 > packet->remaining_length) return TTQ_ERR_MALFORMED_PACKET;
 
   *byte = packet->payload[packet->pos];
@@ -37,15 +35,11 @@ int packet__read_byte(struct tmqtt__packet *packet, uint8_t *byte) {
 }
 
 void packet__write_byte(struct tmqtt__packet *packet, uint8_t byte) {
-  assert(packet);
-  assert(packet->pos + 1 <= packet->packet_length);
-
   packet->payload[packet->pos] = byte;
   packet->pos++;
 }
 
 int packet__read_bytes(struct tmqtt__packet *packet, void *bytes, uint32_t count) {
-  assert(packet);
   if (packet->pos + count > packet->remaining_length) return TTQ_ERR_MALFORMED_PACKET;
 
   memcpy(bytes, &(packet->payload[packet->pos]), count);
@@ -55,9 +49,6 @@ int packet__read_bytes(struct tmqtt__packet *packet, void *bytes, uint32_t count
 }
 
 void packet__write_bytes(struct tmqtt__packet *packet, const void *bytes, uint32_t count) {
-  assert(packet);
-  assert(packet->pos + count <= packet->packet_length);
-
   if (count > 0) {
     memcpy(&(packet->payload[packet->pos]), bytes, count);
     packet->pos += count;
@@ -68,7 +59,6 @@ int packet__read_binary(struct tmqtt__packet *packet, uint8_t **data, uint16_t *
   uint16_t slen;
   int      rc;
 
-  assert(packet);
   rc = packet__read_uint16(packet, &slen);
   if (rc) return rc;
 
@@ -111,7 +101,6 @@ int packet__read_string(struct tmqtt__packet *packet, char **str, uint16_t *leng
 }
 
 void packet__write_string(struct tmqtt__packet *packet, const char *str, uint16_t length) {
-  assert(packet);
   packet__write_uint16(packet, length);
   packet__write_bytes(packet, str, length);
 }
@@ -119,7 +108,6 @@ void packet__write_string(struct tmqtt__packet *packet, const char *str, uint16_
 int packet__read_uint16(struct tmqtt__packet *packet, uint16_t *word) {
   uint8_t msb, lsb;
 
-  assert(packet);
   if (packet->pos + 2 > packet->remaining_length) return TTQ_ERR_MALFORMED_PACKET;
 
   msb = packet->payload[packet->pos];
@@ -141,7 +129,6 @@ int packet__read_uint32(struct tmqtt__packet *packet, uint32_t *word) {
   uint32_t val = 0;
   int      i;
 
-  assert(packet);
   if (packet->pos + 4 > packet->remaining_length) return TTQ_ERR_MALFORMED_PACKET;
 
   for (i = 0; i < 4; i++) {

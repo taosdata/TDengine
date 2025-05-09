@@ -15,7 +15,6 @@
 
 #include "send_ttq.h"
 
-#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -35,8 +34,6 @@
 
 int send__pingreq(struct tmqtt *ttq) {
   int rc;
-
-  assert(ttq);
 
   ttq_log(NULL, TTQ_LOG_DEBUG, "Sending PINGREQ to %s", SAFE_PRINT(ttq->id));
 
@@ -91,7 +88,6 @@ int send__command_with_mid(struct tmqtt *ttq, uint8_t command, uint16_t mid, boo
   struct tmqtt__packet *packet = NULL;
   int                   rc;
 
-  assert(ttq);
   packet = tmqtt__calloc(1, sizeof(struct tmqtt__packet));
   if (!packet) return TTQ_ERR_NOMEM;
 
@@ -136,7 +132,6 @@ int send__simple_command(struct tmqtt *ttq, uint8_t command) {
   struct tmqtt__packet *packet = NULL;
   int                   rc;
 
-  assert(ttq);
   packet = tmqtt__calloc(1, sizeof(struct tmqtt__packet));
   if (!packet) return TTQ_ERR_NOMEM;
 
@@ -155,8 +150,6 @@ int send__simple_command(struct tmqtt *ttq, uint8_t command) {
 int ttq_send_disconnect(struct tmqtt *ttq, uint8_t reason_code, const tmqtt_property *properties) {
   struct tmqtt__packet *packet = NULL;
   int                   rc;
-
-  assert(ttq);
 
   ttq_log(ttq, TTQ_LOG_DEBUG, "Sending DISCONNECT to %s (rc%d)", SAFE_PRINT(ttq->id), reason_code);
 

@@ -15,7 +15,6 @@
 
 #include "tmqtt_broker_int.h"
 
-#include <assert.h>
 #include <stdio.h>
 #include <ttlist.h>
 
@@ -417,7 +416,6 @@ int db__message_insert(struct tmqtt *context, uint16_t mid, enum tmqtt_msg_direc
   int                      i;
   char                   **dest_ids;
 
-  assert(stored);
   if (!context) return TTQ_ERR_INVAL;
   if (!context->id)
     return TTQ_ERR_SUCCESS; /* Protect against unlikely "client is disconnected but not entirely freed" scenario */
@@ -512,7 +510,6 @@ int db__message_insert(struct tmqtt *context, uint16_t mid, enum tmqtt_msg_direc
       return 2;
     }
   }
-  assert(state != ttq_ms_invalid);
 
 #ifdef WITH_PERSISTENCE
   if (state == ttq_ms_queued) {
@@ -706,8 +703,6 @@ int db__messages_easy_queue(struct tmqtt *context, const char *topic, uint8_t qo
  * Likewise payload and properties. */
 int db__message_store(const struct tmqtt *source, struct tmqtt_msg_store *stored, uint32_t message_expiry_interval,
                       dbid_t store_id, enum tmqtt_msg_origin origin) {
-  assert(stored);
-
   if (source && source->id) {
     stored->source_id = tmqtt__strdup(source->id);
   } else {

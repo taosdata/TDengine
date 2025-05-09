@@ -46,7 +46,6 @@
 
 #include "tmqtt_broker_int.h"
 
-#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -542,8 +541,6 @@ struct tmqtt__subhier *sub__add_hier_entry(struct tmqtt__subhier *parent, struct
                                            const char *topic, uint16_t len) {
   struct tmqtt__subhier *child;
 
-  assert(sibling);
-
   child = tmqtt__calloc(1, sizeof(struct tmqtt__subhier));
   if (!child) {
     ttq_log(NULL, TTQ_LOG_ERR, "Error: Out of memory.");
@@ -571,8 +568,6 @@ int sub__add(struct tmqtt *context, const char *sub, uint8_t qos, uint32_t ident
   char                  *local_sub;
   char                 **topics;
   size_t                 topiclen;
-
-  assert(sub);
 
   rc = sub__topic_tokenise(sub, &local_sub, &topics, &sharename);
   if (rc) return rc;
@@ -622,8 +617,6 @@ int sub__remove(struct tmqtt *context, const char *sub, uint8_t *reason) {
   char                  *local_sub = NULL;
   char                 **topics = NULL;
 
-  assert(sub);
-
   rc = sub__topic_tokenise(sub, &local_sub, &topics, &sharename);
   if (rc) return rc;
 
@@ -650,8 +643,6 @@ int sub__messages_queue(const char *source_id, const char *topic, uint8_t qos, i
   struct tmqtt__subhier *subhier;
   char                 **split_topics = NULL;
   char                  *local_topic = NULL;
-
-  assert(topic);
 
   if (sub__topic_tokenise(topic, &local_topic, &split_topics, NULL)) return 1;
 

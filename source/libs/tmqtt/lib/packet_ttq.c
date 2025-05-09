@@ -15,7 +15,6 @@
 
 #include "packet_ttq.h"
 
-#include <assert.h>
 #include <errno.h>
 #include <string.h>
 
@@ -32,8 +31,6 @@ int packet__alloc(struct tmqtt__packet *packet) {
   uint8_t  remaining_bytes[5], byte;
   uint32_t remaining_length;
   int      i;
-
-  assert(packet);
 
   remaining_length = packet->remaining_length;
   packet->payload = NULL;
@@ -115,9 +112,6 @@ void packet__cleanup_all(struct tmqtt *ttq) {
 }
 
 int packet__queue(struct tmqtt *ttq, struct tmqtt__packet *packet) {
-  assert(ttq);
-  assert(packet);
-
   packet->pos = 0;
   packet->to_process = packet->packet_length;
 

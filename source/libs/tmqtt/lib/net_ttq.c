@@ -16,7 +16,6 @@
 #include "net_ttq.h"
 
 #define _GNU_SOURCE
-#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -172,7 +171,6 @@ int net__socket_close(struct tmqtt *ttq) {
   struct tmqtt *ttq_found;
 #endif
 
-  assert(ttq);
 #ifdef WITH_TLS
 #ifdef WITH_WEBSOCKETS
   if (!ttq->wsi)
@@ -535,19 +533,19 @@ static int net__tls_load_ca(struct tmqtt *ttq) {
 #ifdef WITH_BROKER
       if (ttq->tls_cafile && ttq->tls_capath) {
         ttq_log(ttq, TTQ_LOG_ERR,
-                    "Error: Unable to load CA certificates, check bridge_cafile \"%s\" and bridge_capath \"%s\".",
-                    ttq->tls_cafile, ttq->tls_capath);
+                "Error: Unable to load CA certificates, check bridge_cafile \"%s\" and bridge_capath \"%s\".",
+                ttq->tls_cafile, ttq->tls_capath);
       } else if (ttq->tls_cafile) {
         ttq_log(ttq, TTQ_LOG_ERR, "Error: Unable to load CA certificates, check bridge_cafile \"%s\".",
-                    ttq->tls_cafile);
+                ttq->tls_cafile);
       } else {
         ttq_log(ttq, TTQ_LOG_ERR, "Error: Unable to load CA certificates, check bridge_capath \"%s\".",
-                    ttq->tls_capath);
+                ttq->tls_capath);
       }
 #else
       if (ttq->tls_cafile && ttq->tls_capath) {
         ttq_log(ttq, TTQ_LOG_ERR, "Error: Unable to load CA certificates, check cafile \"%s\" and capath \"%s\".",
-                    ttq->tls_cafile, ttq->tls_capath);
+                ttq->tls_cafile, ttq->tls_capath);
       } else if (ttq->tls_cafile) {
         ttq_log(ttq, TTQ_LOG_ERR, "Error: Unable to load CA certificates, check cafile \"%s\".", ttq->tls_cafile);
       } else {
@@ -562,8 +560,7 @@ static int net__tls_load_ca(struct tmqtt *ttq) {
     ret = SSL_CTX_load_verify_file(ttq->ssl_ctx, ttq->tls_cafile);
     if (ret == 0) {
 #ifdef WITH_BROKER
-      ttq_log(ttq, TTQ_LOG_ERR, "Error: Unable to load CA certificates, check bridge_cafile \"%s\".",
-                  ttq->tls_cafile);
+      ttq_log(ttq, TTQ_LOG_ERR, "Error: Unable to load CA certificates, check bridge_cafile \"%s\".", ttq->tls_cafile);
 #else
       ttq_log(ttq, TTQ_LOG_ERR, "Error: Unable to load CA certificates, check cafile \"%s\".", ttq->tls_cafile);
 #endif
@@ -574,8 +571,7 @@ static int net__tls_load_ca(struct tmqtt *ttq) {
     ret = SSL_CTX_load_verify_dir(ttq->ssl_ctx, ttq->tls_capath);
     if (ret == 0) {
 #ifdef WITH_BROKER
-      ttq_log(ttq, TTQ_LOG_ERR, "Error: Unable to load CA certificates, check bridge_capath \"%s\".",
-                  ttq->tls_capath);
+      ttq_log(ttq, TTQ_LOG_ERR, "Error: Unable to load CA certificates, check bridge_capath \"%s\".", ttq->tls_capath);
 #else
       ttq_log(ttq, TTQ_LOG_ERR, "Error: Unable to load CA certificates, check capath \"%s\".", ttq->tls_capath);
 #endif
@@ -602,8 +598,8 @@ static int net__init_ssl_ctx(struct tmqtt *ttq) {
       return TTQ_ERR_SUCCESS;
     } else if (!ttq->tls_cafile && !ttq->tls_capath && !ttq->tls_psk) {
       ttq_log(ttq, TTQ_LOG_ERR,
-                  "Error: If you use TTQ_OPT_SSL_CTX then TTQ_OPT_SSL_CTX_WITH_DEFAULTS must be true, or at least "
-                  "one of cafile, capath or psk must be specified.");
+              "Error: If you use TTQ_OPT_SSL_CTX then TTQ_OPT_SSL_CTX_WITH_DEFAULTS must be true, or at least "
+              "one of cafile, capath or psk must be specified.");
       return TTQ_ERR_INVAL;
     }
   }
@@ -722,7 +718,7 @@ static int net__init_ssl_ctx(struct tmqtt *ttq) {
         if (ret != 1) {
 #ifdef WITH_BROKER
           ttq_log(ttq, TTQ_LOG_ERR, "Error: Unable to load client certificate, check bridge_certfile \"%s\".",
-                      ttq->tls_certfile);
+                  ttq->tls_certfile);
 #else
           ttq_log(ttq, TTQ_LOG_ERR, "Error: Unable to load client certificate \"%s\".", ttq->tls_certfile);
 #endif
@@ -771,7 +767,7 @@ static int net__init_ssl_ctx(struct tmqtt *ttq) {
           if (ret != 1) {
 #ifdef WITH_BROKER
             ttq_log(ttq, TTQ_LOG_ERR, "Error: Unable to load client key file, check bridge_keyfile \"%s\".",
-                        ttq->tls_keyfile);
+                    ttq->tls_keyfile);
 #else
             ttq_log(ttq, TTQ_LOG_ERR, "Error: Unable to load client key file \"%s\".", ttq->tls_keyfile);
 #endif
@@ -916,7 +912,7 @@ ssize_t net__read(struct tmqtt *ttq, void *buf, size_t count) {
 #ifdef WITH_TLS
   int ret;
 #endif
-  assert(ttq);
+
   errno = 0;
 #ifdef WITH_TLS
   if (ttq->ssl) {
@@ -946,7 +942,6 @@ ssize_t net__write(struct tmqtt *ttq, const void *buf, size_t count) {
 #ifdef WITH_TLS
   int ret;
 #endif
-  assert(ttq);
 
   errno = 0;
 #ifdef WITH_TLS

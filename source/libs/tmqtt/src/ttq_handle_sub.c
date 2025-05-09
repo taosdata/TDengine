@@ -15,7 +15,6 @@
 
 #include "tmqtt_broker_int.h"
 
-#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -182,8 +181,7 @@ int ttq_handle_sub(struct tmqtt *context) {
         }
       }
       if (qos > 2) {
-        ttq_log(NULL, TTQ_LOG_INFO, "Invalid QoS in subscription command from %s, disconnecting.",
-                    context->address);
+        ttq_log(NULL, TTQ_LOG_INFO, "Invalid QoS in subscription command from %s, disconnecting.", context->address);
         tmqtt__free(sub);
         tmqtt__free(payload);
         return TTQ_ERR_MALFORMED_PACKET;
@@ -327,7 +325,6 @@ static int ttq_send_unsuback(struct tmqtt *ttq, uint16_t mid, int reason_code_co
   struct tmqtt__packet *packet = NULL;
   int                   rc;
 
-  assert(ttq);
   packet = tmqtt__calloc(1, sizeof(struct tmqtt__packet));
   if (!packet) return TTQ_ERR_NOMEM;
 
