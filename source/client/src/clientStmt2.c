@@ -926,7 +926,13 @@ static int32_t stmtResetStbInterlaceCache(STscStmt2* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   if (pStmt->bindThreadInUse) {
+    while (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady)) {
+      taosUsleep(1);
+    }
     (void)taosThreadMutexLock(&pStmt->queue.mutex);
+    if (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady)) {
+      pStmt->sql.siInfo.tableColsReady = true;
+    }
     pStmt->queue.stopQueue = true;
     (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
     (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
@@ -2152,7 +2158,13 @@ int stmtClose2(TAOS_STMT2* stmt) {
   STMT_DLOG_E("start to free stmt");
 
   if (pStmt->bindThreadInUse) {
+    while (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady)) {
+      taosUsleep(1);
+    }
     (void)taosThreadMutexLock(&pStmt->queue.mutex);
+    if (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady)) {
+      pStmt->sql.siInfo.tableColsReady = true;
+    }
     pStmt->queue.stopQueue = true;
     (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
     (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
