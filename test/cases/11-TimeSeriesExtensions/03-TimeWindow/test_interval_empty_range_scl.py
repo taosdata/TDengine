@@ -2,6 +2,7 @@ from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestIntervalEmptyRangeScl:
+    updatecfgDict = {'filterScalarMode': 1}
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -24,7 +25,6 @@ class TestIntervalEmptyRangeScl:
             - 2025-5-8 Simon Guan Migrated from tsim/query/emptyTsRange_scl.sim
 
         """
-        # system sh/cfg.sh -n dnode1 -c filterScalarMode -v 1
 
         tdSql.execute(f"drop database if exists db1;")
         tdSql.execute(f"create database if not exists db1;")

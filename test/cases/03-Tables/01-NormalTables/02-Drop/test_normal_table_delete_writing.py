@@ -1,4 +1,5 @@
 import time
+import threading
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
@@ -37,15 +38,26 @@ class TestNormalTableDeleteWriting:
         tdSql.execute(f"insert into db.tb values(now, 1)")
 
         tdLog.info(f"======== start back")
-        # run_back tsim/table/back_insert.sim
-
+        self.running = True
+        self.threadId = threading.Thread(target=self.threadLoop)
+        self.threadId.start()
+        
         tdLog.info(f"======== step1")
-        x = 1
-        while x < 10:
-
+        for x in range(10):
             tdLog.info(f"drop table times {x}")
             tdSql.execute(f"drop table db.tb ")
             time.sleep(1)
             tdSql.execute(f"create table db.tb (ts timestamp, i int)")
             time.sleep(1)
+        self.running = False
+        self.threadId.join()
+
+    def threadLoop(self):
+        tdLog.info(f"thread is running ")
+        x = 1
+        while self.running:
+            result = tdSql.is_err_sql(f"insert into db.tb values(now, {x})")
+            tdLog.info(f"execute result:{result}, times:{x}")
             x = x + 1
+            time.sleep(0.1)
+        tdLog.info(f"thread is stopped ")
