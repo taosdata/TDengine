@@ -144,10 +144,31 @@ jobs:
         run: |
           choco install jom --yes
 
-      - name: Check hostname
-        if: runner.os != 'Windows'
+      - name: Check hostname on Linux
+        if: runner.os == 'Linux'
         run: |
           hostname
+          echo hostname -f
+          hostname -f
+          echo hostname -i
+          hostname -i
+          echo hostname -I
+          hostname -I
+          echo hostname -y
+          hostname -y
+          echo ping -c 4 $(hostname)
+          ping -c 4 $(hostname)
+
+      - name: Check hostname on Linux
+        if: runner.os == 'macOS'
+        run: |
+          hostname
+          echo hostname -f
+          hostname -f
+          echo hostname -s
+          hostname -s
+          echo hostname -d
+          hostname -d
           echo ping -c 4 $(hostname)
           ping -c 4 $(hostname)
 
