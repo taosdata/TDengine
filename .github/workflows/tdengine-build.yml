@@ -222,7 +222,12 @@ jobs:
           taos -V
           ./build.sh start
           pgrep -l taos
+          echo "cat /var/log/taos/taosdlog.0"
+          cat /var/log/taos/taosdlog.0
+          echo "sleep 6"
           sleep 6     # NOTE: wait for taosd initialization to complete
+          echo "cat /var/log/taos/taosdlog.0"
+          cat /var/log/taos/taosdlog.0
           pgrep -l taos
           taos -s "show databases"
           taos -s "show dnodes"
