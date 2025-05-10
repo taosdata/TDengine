@@ -33,6 +33,9 @@ if $rows != 3 then
   return -1
 endi
 
+print ===================== not support _wstart filter
+sql_error create stream s_error into str_dst_st as select _wend, count(*) a from stb where _wstart > '2025-1-1' interval(30s);
+
 sql create stream s1 trigger at_once into outstb as select _wstart, min(k), max(k), sum(k) as sum_alias from ct1 interval(10m)
 
 run tsim/stream/checkTaskStatus.sim
