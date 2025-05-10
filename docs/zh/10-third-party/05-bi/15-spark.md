@@ -195,7 +195,7 @@ connection.close();
   }  
 ```
 
-**第 3 步**， 订阅主题，消费到数据放至 spark 中。
+**第 3 步**， 订阅主题，消费到数据放至 spark 中并显示。
 ``` java
     // poll
     pollExample(spark, consumer);
@@ -263,7 +263,7 @@ connection.close();
   spark.stop();
 ```
 
-[示例源码](https://github.com/taosdata/tdengine-eco/blob/main/spark/src/main/java/com/taosdata/java/Subscribe.java)
+[示例源码](https://github.com/taosdata/tdengine-eco/blob/main/spark/src/main/java/com/taosdata/java/DemoSubscribe.java)
 
 ## 数据分析
 
@@ -286,7 +286,8 @@ select tbname,* from test.meters where tbname='d0'
 ``` sql
 SELECT tbname, ts, voltage,
       (LAG(voltage, 7) OVER (ORDER BY tbname)) AS voltage_last_week, 
-      "CONCAT(ROUND(((voltage - (LAG(voltage, 7) OVER (ORDER BY tbname))) / (LAG(voltage, 7) OVER (ORDER BY tbname)) * 100), 1),'%') AS weekly_growth_rate " +
+      "CONCAT(ROUND(((voltage - (LAG(voltage, 7) OVER (ORDER BY tbname))) / (LAG(voltage, 7)
+      OVER (ORDER BY tbname)) * 100), 1),'%') AS weekly_growth_rate ",
       FROM sparkMeters
 ```
 
