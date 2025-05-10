@@ -2,12 +2,12 @@
 #define TDENGINE_STREAM_READER_H
 
 #include <stdint.h>
+#include "executor.h"
+#include "filter.h"
+#include "plannodes.h"
 #include "stream.h"
 #include "streamMsg.h"
-#include "executor.h"
 #include "tdatablock.h"
-#include "filter.h"
-#include  "plannodes.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,33 +36,35 @@ extern "C" {
     goto end;                                 \
   }
 
-#define PRINT_LOG_END(code, lino)                                             \
-  if (code != 0) {                                                            \
+#define PRINT_LOG_END(code, lino)                                              \
+  if (code != 0) {                                                             \
     stError("%s failed at line %d since %s", __func__, lino, tstrerror(code)); \
-  } else {                                                                    \
+  } else {                                                                     \
     stDebug("%s done success", __func__);                                      \
   }
 
 typedef struct SStreamTriggerReaderInfo {
-  int32_t     order;
-  SArray*     schemas;
-  STimeWindow twindows;
-  uint64_t    suid;
-  uint64_t    uid;
-  int8_t      tableType;
-  int8_t      deleteReCalc;
-  int8_t      deleteOutTbl;
-  SNode*      pTagCond;
-  SNode*      pTagIndexCond;
-  SNode*      pConditions;
-  SNodeList*  partitionCols;
-  SNodeList*     triggerCols;
-  SNodeList*     calcCols;
-  SHashObj*   streamTaskMap;
-  SSubplan*   triggerAst;
-  SSubplan*   calcAst;
+  int32_t      order;
+  SArray*      schemas;
+  STimeWindow  twindows;
+  uint64_t     suid;
+  uint64_t     uid;
+  int8_t       tableType;
+  int8_t       deleteReCalc;
+  int8_t       deleteOutTbl;
+  SNode*       pTagCond;
+  SNode*       pTagIndexCond;
+  SNode*       pConditions;
+  SNodeList*   partitionCols;
+  SNodeList*   triggerCols;
+  SNodeList*   calcCols;
+  SHashObj*    streamTaskMap;
+  SSubplan*    triggerAst;
+  SSubplan*    calcAst;
   SSDataBlock* triggerResBlock;
   SSDataBlock* calcResBlock;
+  STSchema*    triggerSchema;
+  STSchema*    calcSchema;
 } SStreamTriggerReaderInfo;
 
 typedef struct SStreamCalcReaderInfo {
@@ -92,25 +94,27 @@ typedef struct SStreamTriggerReaderTaskInnerOptions {
 } SStreamTriggerReaderTaskInnerOptions;
 
 typedef struct SStreamReaderTaskInner {
-  int64_t                       streamId;
-  int64_t                       sessionId;
-  SStorageAPI                   api;
-  void*                         pReader;
-  SHashObj*                     pIgnoreTables;
-  SSDataBlock*                  pResBlock;
-  SSDataBlock*                  pResBlockDst;
+  int64_t                              streamId;
+  int64_t                              sessionId;
+  SStorageAPI                          api;
+  void*                                pReader;
+  SHashObj*                            pIgnoreTables;
+  SSDataBlock*                         pResBlock;
+  SSDataBlock*                         pResBlockDst;
   SStreamTriggerReaderTaskInnerOptions options;
-  void*                         pTableList;
-  int32_t                       currentGroupIndex;
-  SFilterInfo*                  pFilterInfo;
-  char*                         idStr;
+  void*                                pTableList;
+  int32_t                              currentGroupIndex;
+  SFilterInfo*                         pFilterInfo;
+  char*                                idStr;
 } SStreamReaderTaskInner;
 
-int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order, void* schemas, bool isSchema, STimeWindow twindows, uint64_t suid);
+int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order, void* schemas, bool isSchema,
+                                      STimeWindow twindows, uint64_t suid);
 int32_t createDataBlockForStream(SArray* schemas, SSDataBlock** pBlockRet);
 int32_t qStreamBuildSchema(SArray* schemas, int8_t type, int32_t bytes, col_id_t colId);
 void    releaseStreamTask(void* p);
-int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* options, SStreamReaderTaskInner** ppTask, SSDataBlock* pResBlock);
+int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* options, SStreamReaderTaskInner** ppTask,
+                         SSDataBlock* pResBlock);
 void*   qStreamGetReaderInfo(int64_t streamId, int64_t taskId);
 #ifdef __cplusplus
 }

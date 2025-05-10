@@ -199,7 +199,7 @@ int32_t convertFillType(int32_t mode);
 int32_t resultrowComparAsc(const void* p1, const void* p2);
 int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified, SStorageAPI* pAPI);
 char*   getStreamOpName(uint16_t opType);
-void    printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr);
+
 void    printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr);
 
 TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols);
