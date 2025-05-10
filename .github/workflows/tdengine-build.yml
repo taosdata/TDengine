@@ -156,10 +156,12 @@ jobs:
           hostname -I || true
           echo hostname -y
           hostname -y || true
+          echo ip addr
+          ip addr || true
           echo ping -c 4 $(hostname)
           ping -c 4 $(hostname)
 
-      - name: Check hostname on Linux
+      - name: Check hostname on macOS
         if: runner.os == 'macOS'
         run: |
           hostname
