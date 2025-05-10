@@ -319,7 +319,6 @@ async function handleDetailData(id: string | number) {
   if (data.parser?.parser?.global) {
     recoverWriteConfig(sourceForm.data.write_config, data.parser.parser.global);
   }
-  
 
   if (data.parser) {
     transformerState.transformerParserData = data.parser;
@@ -441,7 +440,7 @@ async function submit() {
         from_json: formatFromData(sourceForm),
         name: sourceForm.name,
         to: toUrl.value,
-        labels: labels.value,
+        labels: labels.value
       } as paramsProps;
 
       const health = getAdvancedHealth(sourceForm.data['advanced_options']);

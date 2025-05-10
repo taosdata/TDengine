@@ -184,7 +184,7 @@ export default {
               description: '元数据轮询间隔，用于同步过程中的元数据变更检测。',
               field: 'schema-polling-interval',
               placeholder: '输入范围为[0,60000]整数',
-              defaultValue: "5s",
+              defaultValue: '5s',
               pattern: null,
               patternMsg: '只能输入正整数或者0',
               grid_two: false,

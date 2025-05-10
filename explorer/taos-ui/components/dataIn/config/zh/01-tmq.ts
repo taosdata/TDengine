@@ -253,67 +253,70 @@ export default {
           max: 10000
         },
         {
-          field: "num.of.consumers",
-          label: "消费者数量",
+          field: 'num.of.consumers',
+          label: '消费者数量',
           hint: {
-            type: "integer",
+            type: 'integer',
             min: 0,
-            max: 1000,
+            max: 1000
           },
           type: 'number',
-          description: "消费者数量",
-          defaultValue: "0",
+          description: '消费者数量',
+          defaultValue: '0'
         },
         {
-          field: "num.of.writers",
-          label: "写入线程数",
+          field: 'num.of.writers',
+          label: '写入线程数',
           hint: {
-            type: "integer",
+            type: 'integer',
             min: 0,
-            max: 1000,
+            max: 1000
           },
           type: 'number',
-          description: "写入线程数",
-          defaultValue: "0",
+          description: '写入线程数',
+          defaultValue: '0'
         },
         {
-          field: "prefer",
-          label: "写入偏好",
-          options: [{
-            label: "auto",
-            value: "auto"
-          }, {
-            label: "raw",
-            value: "raw"
-          }],
+          field: 'prefer',
+          label: '写入偏好',
+          options: [
+            {
+              label: 'auto',
+              value: 'auto'
+            },
+            {
+              label: 'raw',
+              value: 'raw'
+            }
+          ],
           type: 'select',
-          description: "写入偏好，auto: 根据读取的数据程序自动选择",
-          defaultValue: "auto",
+          description: '写入偏好，auto: 根据读取的数据程序自动选择',
+          defaultValue: 'auto'
         },
         {
-          field: "commit.chunk.size",
-          label: "缓冲区大小",
+          field: 'commit.chunk.size',
+          label: '缓冲区大小',
           hint: {
-            type: "integer",
+            type: 'integer',
             min: 0,
-            max: 1000000000,
+            max: 1000000000
           },
           type: 'number',
-          description: "缓冲区大小",
-          defaultValue: "0",
+          description: '缓冲区大小',
+          defaultValue: '0'
         },
         {
-          field: "commit.interval.ms",
-          label: "Commit 间隔(毫秒)",
+          field: 'commit.interval.ms',
+          label: 'Commit 间隔(毫秒)',
           hint: {
-            type: "integer",
+            type: 'integer',
             min: 0,
-            max: 1000000,
+            max: 1000000
           },
           type: 'number',
-          description: "Commit 间隔(毫秒)",
-          defaultValue: "0",
-        },
+          description: 'Commit 间隔(毫秒)',
+          defaultValue: '0'
+        }
       ]
     }
   ]

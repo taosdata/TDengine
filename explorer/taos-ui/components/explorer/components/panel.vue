@@ -96,7 +96,7 @@ function exportAll() {
     );
     return;
   }
-  
+
   ElMessageBox.confirm(t('explorer.exportConfirm'), t('common.tips')).then(() => {
     loading.value = true;
     if (project.isCloud) {
@@ -116,7 +116,6 @@ function exportAll() {
         loading.value = false;
       }
     }
-    
   });
 }
 function logSortChange() {

@@ -1,5 +1,6 @@
 use crate::s3::{S3Config, S3_ENABLE};
 use crate::tmq::generate_hash;
+use crate::utils::constants::VERSION_3_3_6;
 use crate::utils::sql::connect_taos_root;
 use crate::{get_data_dir, utils};
 use anyhow::{anyhow, bail, Context};
@@ -131,7 +132,7 @@ impl BackupConfig {
         }
     }
 
-    pub fn to_tmq_dsn(&self) -> Dsn {
+    pub async fn to_tmq_dsn(&self) -> anyhow::Result<Dsn> {
         let mut dsn = Dsn {
             subject: Some(self.topic.clone()),
             ..self.raw_from.clone()
@@ -170,7 +171,13 @@ impl BackupConfig {
             }
         }
 
-        dsn
+        let version = semver::Version::parse(&self.server_version.split('.').take(3).join("."))
+            .context(format!("invalid server version: {}", &self.server_version))?;
+        if version >= VERSION_3_3_6 {
+            dsn.set("msg.consume.rawdata", "1");
+        }
+
+        Ok(dsn)
     }
 
     async fn get_vgroups(&self) -> anyhow::Result<usize> {
@@ -194,7 +201,7 @@ impl BackupConfig {
 
     /// 按照 jobs 数量创建 consumer
     pub async fn create_consumer(&self) -> anyhow::Result<Vec<Consumer>> {
-        let from = self.to_tmq_dsn();
+        let from = self.to_tmq_dsn().await.context("failed to build tmq dsn")?;
         tracing::info!("create consumer with dsn: {}", &from);
 
         // 使用 vgroups 数量创建 consumer
@@ -558,8 +565,8 @@ mod tests {
         assert_eq!(config.backup_dir, Path::new("/tmp").canonicalize().unwrap());
     }
 
-    #[test]
-    fn test_backup_config_to_tmq_dsn_remove_items() {
+    #[tokio::test]
+    async fn test_backup_config_to_tmq_dsn_remove_items() {
         let config = BackupConfig {
             raw_from:
                 "tmq://host:6030/db?retry_interval=1&interval=2&max_retry=3&upcoming=2025-12-12"
@@ -568,7 +575,7 @@ mod tests {
             topic: "abc".to_string(),
             task_id: None,
             raw_to: Default::default(),
-            server_version: Default::default(),
+            server_version: "3.3.3.3".to_string(),
             database: Default::default(),
             stable: None,
             self_repeat: false,
@@ -592,22 +599,22 @@ mod tests {
         assert!(config.raw_from.get("max_retry").is_some());
         assert!(config.raw_from.get("upcoming").is_some());
         // when
-        let dsn = config.to_tmq_dsn();
+        let dsn = config.to_tmq_dsn().await.unwrap();
         assert!(dsn.get("retry_interval").is_none());
         assert!(dsn.get("interval").is_none());
         assert!(dsn.get("max_retry").is_none());
         assert!(dsn.get("upcoming").is_none());
     }
 
-    #[test]
-    fn test_backup_config_to_tmq_dsn() {
+    #[tokio::test]
+    async fn test_backup_config_to_tmq_dsn() {
         // 使用 tmq，不设置 compression 参数
         let config = BackupConfig {
             raw_from: "tmq://host:6030/db".into_dsn().unwrap(),
             topic: "abc".to_string(),
             task_id: None,
             raw_to: Default::default(),
-            server_version: Default::default(),
+            server_version: "3.3.3.3".to_string(),
             database: Default::default(),
             stable: None,
             self_repeat: false,
@@ -626,7 +633,7 @@ mod tests {
             backup_retention_size: None,
         };
         // when
-        let dsn = config.to_tmq_dsn();
+        let dsn = config.to_tmq_dsn().await.unwrap();
         // then
         assert_eq!("abc", dsn.get("group.id").unwrap());
         assert_eq!("earliest", dsn.get("auto.offset.reset").unwrap());
@@ -639,7 +646,7 @@ mod tests {
             topic: "abc".to_string(),
             task_id: None,
             raw_to: Default::default(),
-            server_version: Default::default(),
+            server_version: "3.3.3.3".to_string(),
             database: Default::default(),
             stable: None,
             self_repeat: false,
@@ -658,7 +665,7 @@ mod tests {
             backup_retention_size: None,
         };
         // when
-        let dsn = config.to_tmq_dsn();
+        let dsn = config.to_tmq_dsn().await.unwrap();
         // then
         assert_eq!("abc", dsn.get("group.id").unwrap());
         assert_eq!("earliest", dsn.get("auto.offset.reset").unwrap());
@@ -671,7 +678,7 @@ mod tests {
             topic: "abc".to_string(),
             task_id: None,
             raw_to: Default::default(),
-            server_version: Default::default(),
+            server_version: "3.3.3.3".to_string(),
             database: Default::default(),
             stable: None,
             self_repeat: false,
@@ -690,7 +697,7 @@ mod tests {
             backup_retention_size: None,
         };
         // when
-        let dsn = config.to_tmq_dsn();
+        let dsn = config.to_tmq_dsn().await.unwrap();
         // then
         assert_eq!("abc", dsn.get("group.id").unwrap());
         assert_eq!("earliest", dsn.get("auto.offset.reset").unwrap());
@@ -703,7 +710,7 @@ mod tests {
             topic: "abc".to_string(),
             task_id: None,
             raw_to: Default::default(),
-            server_version: Default::default(),
+            server_version: "3.3.3.3".to_string(),
             database: Default::default(),
             stable: None,
             self_repeat: false,
@@ -722,7 +729,7 @@ mod tests {
             backup_retention_size: None,
         };
         // when
-        let dsn = config.to_tmq_dsn();
+        let dsn = config.to_tmq_dsn().await.unwrap();
         // then
         assert_eq!("abc", dsn.get("group.id").unwrap());
         assert_eq!("earliest", dsn.get("auto.offset.reset").unwrap());
@@ -735,7 +742,7 @@ mod tests {
             topic: "abc".to_string(),
             task_id: None,
             raw_to: Default::default(),
-            server_version: Default::default(),
+            server_version: "3.3.3.3".to_string(),
             database: Default::default(),
             stable: None,
             self_repeat: false,
@@ -754,7 +761,7 @@ mod tests {
             backup_retention_size: None,
         };
         // when
-        let dsn = config.to_tmq_dsn();
+        let dsn = config.to_tmq_dsn().await.unwrap();
         // then
         assert_eq!("abc", dsn.get("group.id").unwrap());
         assert_eq!("earliest", dsn.get("auto.offset.reset").unwrap());
@@ -769,7 +776,7 @@ mod tests {
             topic: "abc".to_string(),
             task_id: None,
             raw_to: Default::default(),
-            server_version: Default::default(),
+            server_version: "3.3.3.3".to_string(),
             database: Default::default(),
             stable: None,
             self_repeat: false,
@@ -788,7 +795,7 @@ mod tests {
             backup_retention_size: None,
         };
         // when
-        let dsn = config.to_tmq_dsn();
+        let dsn = config.to_tmq_dsn().await.unwrap();
         // then
         assert_eq!("abc", dsn.get("group.id").unwrap());
         assert_eq!("earliest", dsn.get("auto.offset.reset").unwrap());

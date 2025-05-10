@@ -371,7 +371,7 @@ export default {
     expre_input: 'exp1;exp2;exp3',
     expre_regex: '请输入正则表达式',
     expre_join: '请输入 join 字符',
-    expre_convert: "json 字符串，key 为当前值，value 为转换后的值",
+    expre_convert: 'json 字符串，key 为当前值，value 为转换后的值',
     filter_input: '请输入筛选表达式',
     st_input: '请输入超级表名称',
     create_st: '创建超级表',

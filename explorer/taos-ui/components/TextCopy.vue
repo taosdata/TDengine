@@ -1,5 +1,5 @@
 <template>
-  <div class="group relative leading-[40px] no-wrap flex items-center cursor-pointer">
+  <div class="group relative no-wrap flex items-center cursor-pointer">
     {{ text }}
     <el-button
       :class="{

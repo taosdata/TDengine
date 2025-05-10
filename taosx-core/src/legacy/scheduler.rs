@@ -331,7 +331,7 @@ async fn worker(
                                 );
                                 if retries > 0 {
                                     retries -= 1;
-                                    std::thread::sleep(std::time::Duration::from_secs(1));
+                                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                                     continue;
                                 } else {
                                     tracing::debug!(
@@ -433,28 +433,56 @@ async fn worker(
                                             err
                                         );
                                         let err_string = err.to_string();
-                                        if (err_string.contains("0xE00")
-                                            || err_string.contains("channel closed"))
-                                            && retries > 0
+                                        if err_string.contains("0xE00")
+                                            || err_string.contains("channel closed")
                                         {
-                                            // 0xE00: connection error
-                                            from = source.get().await?;
-                                            to = target.get().await?;
-                                            retries -= 1;
                                             tracing::warn!("[worker:{worker}] sync table {table} error: {err}, retrying ... {retries} times left");
+                                            // 0xE00: connection error
+                                            if let Ok(new_connection) = source.get().await {
+                                                from = new_connection;
+                                            }
+                                            if let Ok(new_connection) = target.get().await {
+                                                to = new_connection;
+                                            }
+                                            retries -= 1;
                                             continue;
-                                        } else if err_string.contains("0x263F")
-                                            || err_string.contains("Column does not exist")
+                                        } else if (err_string.contains("0x263F")
+                                            || err_string.contains("Column does not exist"))
+                                            && retries > 0
                                         {
                                             // 0x263F: invalid columns number
                                             tracing::info!("[worker:{worker}] sync table {table} error 0x263F: {err:?}, add column");
-                                            let st = stable.as_ref().map(|s| s.as_str());
-                                            if let Some(stable) = st {
-                                                sync_add_column(&from, &to, stable, remap.as_ref())
-                                                    .await?;
-                                            } else {
-                                                sync_add_column(&from, &to, &table, remap.as_ref())
-                                                    .await?;
+                                            match stable.as_ref().map(|s| s.as_str()) {
+                                                Some(stable) => {
+                                                    if let Err(err) = sync_add_column(
+                                                        &from,
+                                                        &to,
+                                                        stable,
+                                                        remap.as_ref(),
+                                                    )
+                                                    .await
+                                                    {
+                                                        tracing::error!(
+                                                        "[worker:{worker}] sync table {table} add column error: {err:#}"
+                                                    );
+                                                        retries -= 1;
+                                                    }
+                                                }
+                                                None => {
+                                                    if let Err(err) = sync_add_column(
+                                                        &from,
+                                                        &to,
+                                                        &table,
+                                                        remap.as_ref(),
+                                                    )
+                                                    .await
+                                                    {
+                                                        tracing::error!(
+                                                        "[worker:{worker}] sync table {table} add column error: {err:#}"
+                                                    );
+                                                        retries -= 1;
+                                                    }
+                                                }
                                             }
                                             continue;
                                         }
@@ -474,10 +502,8 @@ async fn worker(
                                                 query.time_range,
                                                 format!("{err:?}").replace("\n", " ")
                                             );
-
                                             chunk_err = Some(format!("{err:?}").to_string());
                                         }
-
                                         break 'chunks;
                                     }
                                 };
@@ -573,33 +599,45 @@ async fn worker(
                         }
                         Err(err) => {
                             let err_string = err.to_string();
-                            // tracing::error!("err_string: {err_string}");
-                            if (err_string.contains("0xE00")
-                                || err_string.contains("channel closed"))
-                                && retries > 0
+                            // 对于 connection error，持续重连
+                            if err_string.contains("0xE00") || err_string.contains("channel closed")
                             {
                                 // 0xE00: connection error
-                                from = source.get().await?;
-                                to = target.get().await?;
-                                retries -= 1;
                                 tracing::warn!(
                                     "[worker:{worker}] sync table {table} error: {err}, retrying ... {retries} times left"
                                 );
+                                if let Ok(new_connection) = source.get().await {
+                                    from = new_connection;
+                                }
+                                if let Ok(new_connection) = target.get().await {
+                                    to = new_connection;
+                                }
                                 continue;
-                            } else if err_string.contains("0x263F")
-                                || err_string.contains("Column does not exist")
+                            } else if (err_string.contains("0x263F")
+                                || err_string.contains("Column does not exist"))
+                                && retries > 0
                             {
-                                // 0x263F: invalid columns number
+                                // 0x263F: invalid columns number，尝试加列，最多重试 5 次
                                 tracing::info!(
                                     "[worker:{worker}] sync table {table} err 0x263F: {err:?}, add column"
                                 );
-                                sync_add_column(&from, &to, &table, remap.as_ref()).await?;
+
+                                if let Err(err) =
+                                    sync_add_column(&from, &to, &table, remap.as_ref()).await
+                                {
+                                    tracing::error!(
+                                        "[worker:{worker}] sync table {table} add column error: {err:#}"
+                                    );
+                                    retries -= 1;
+                                }
                                 continue;
                             }
 
+                            // 对于其他错误无法处理的错误，记录到日志，跳过
                             tracing::error!(
                                 "[worker:{worker}] sync table {table} error: {err:?}, continue next"
                                         );
+
                             if let Some(path) = opts.fails_to.as_ref() {
                                 path.lock().await.write_fmt(format_args!(
                                     "data\t{}\t{:?}\t{}\n",
@@ -614,7 +652,6 @@ async fn worker(
                                     query.time_range,
                                     format!("{err:?}").replace("\n", " ")
                                 );
-
                                 chunk_err = Some(format!("{err:?}").to_string());
                             }
                             break;

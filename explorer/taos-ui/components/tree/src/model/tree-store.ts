@@ -111,10 +111,16 @@ export default class TreeStore {
     }
   }
 
-  changeRoot(newRoot: TreeData) {
+  changeRoot(newRoot: TreeData, toRoot?: boolean) {
     const exitedChild: Node = this.getNode(newRoot?.length > 0 ? newRoot[0] : null);
     if (exitedChild) {
-      this.root.setDataAndUpdateChildren(newRoot, [exitedChild]);
+      let children = [];
+      if (toRoot && newRoot?.length > 0) {
+        children = newRoot.map(item => this.getNode(item));
+      } else {
+        children = [exitedChild];
+      }
+      this.root.setDataAndUpdateChildren(newRoot, children);
     } else {
       this.setData(newRoot);
     }
@@ -390,7 +396,7 @@ export default class TreeStore {
   }
 
   setUserCurrentNode(node: Node, shouldAutoExpandParent = true): void {
-    const key = node[this.key];
+    const key = node.data[this.key];
     const currNode = this.nodesMap[key];
     this.setCurrentNode(currNode);
     if (shouldAutoExpandParent && this.currentNode.level > 1) {

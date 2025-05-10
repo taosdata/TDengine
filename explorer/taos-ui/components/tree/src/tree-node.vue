@@ -289,6 +289,9 @@ export default defineComponent({
 
     const handleExpandIconClick = () => {
       if (props.node.isLeaf) return;
+      if (tree.props.iconClickChangeCurrentNode) {
+        handleCurrentChange(tree.store, tree.ctx.emit, () => tree.store.value.setCurrentNode(props.node));
+      }
       if (expanded.value) {
         tree.ctx.emit('node-collapse', props.node.data, props.node, instance);
         props.node.collapse();

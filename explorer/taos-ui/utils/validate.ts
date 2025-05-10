@@ -4,6 +4,27 @@ import { TDengineSqlKeywrods, AggregationFn } from 'constants1/index';
 
 const toString = Object.prototype.toString;
 
+/**
+ * @description 检查权限是否存在于权限列表中，支持多个权限匹配，支持匹配全部或者匹配一个即可通过检查
+ * @author 阿宾
+ * @date 17/07/2024
+ * @export
+ * @param {(string | string[])} privilege
+ * @param {string[]} privilegeList
+ * @param {boolean} [matchAll=false]
+ * @returns {*}
+ */
+export function checkPrivilege(privilege: string | string[], privilegeList: string[], matchAll = true) {
+  if (isArray(privilege)) {
+    if (matchAll) {
+      return privilege.every(item => privilegeList.includes(item));
+    } else {
+      return privilege.some(item => privilegeList.includes(item));
+    }
+  }
+  return privilegeList.includes(privilege);
+}
+
 export function is(val: unknown, type: string) {
   return toString.call(val) === `[object ${type}]`;
 }

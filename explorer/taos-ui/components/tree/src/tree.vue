@@ -80,6 +80,11 @@ export default defineComponent({
       type: Boolean,
       default: true
     },
+    // 当 icon 点击时，是否切换当前选中的节点
+    iconClickChangeCurrentNode: {
+      type: Boolean,
+      default: false
+    },
     checkOnClickNode: Boolean,
     checkDescendants: {
       type: Boolean,
@@ -146,6 +151,10 @@ export default defineComponent({
     pageSize: {
       type: Number,
       default: 10
+    },
+    showChildrenLeftLine: {
+      type: Boolean,
+      default: false
     }
   },
   emits: [
@@ -367,7 +376,7 @@ export default defineComponent({
     };
 
     // 根据当前节点的key,获取当前节点的所有层级相对父元素 node 路径列表
-    const getNodePathNodeListByKey = (key: TreeKey | TreeData = store.value.currentNode.key): Node[] => {
+    const getNodePathNodeListByKey = (key: TreeKey | TreeData = store.value.currentNode?.key): Node[] => {
       const currentNode = store.value.getNode(key);
       if (!currentNode) return [];
       const path = [currentNode];
@@ -378,7 +387,7 @@ export default defineComponent({
       }
       return path.reverse();
     };
-    const getNodePathByKey = (key: TreeKey | TreeData = store.value.currentNode.key): TreeData => {
+    const getNodePathByKey = (key: TreeKey | TreeData = store.value.currentNode?.key): TreeData => {
       const currentNode = store.value.getNode(key);
       if (!currentNode) return [];
       const path = [currentNode.data];
@@ -389,7 +398,6 @@ export default defineComponent({
       }
       return path.reverse();
     };
-
     provide('RootTree', {
       ctx,
       props,

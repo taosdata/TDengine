@@ -74,23 +74,20 @@
           >
             <el-option v-for="item in levelList" :key="item.value" v-bind="item"></el-option>
           </el-select> </el-tooltip
+        ><el-tag
+          v-if="isCanSetPrimaryKey && !isEdit"
+          size="large"
+          effect="plain"
+          type="info"
+          class="primary-key-checkbox"
         >
-        <el-tooltip placement="top" effect="light" :open-delay="100" :content="t('common.compositeKey')">
-          <el-tag
-            v-if="isCanSetPrimaryKey && !isEdit"
-            size="large"
-            effect="plain"
-            type="info"
-            class="primary-key-checkbox"
+          <el-checkbox
+            v-model="currentValue.primaryKey"
+            :disabled="isEdit || parmaryKeyType.findIndex(item => item.value.includes(currentValue.type)) == -1"
+            @change="valueChange"
+            >PRIMARY KEY</el-checkbox
           >
-            <el-checkbox
-              v-model="currentValue.primaryKey"
-              :disabled="isEdit || parmaryKeyType.findIndex(item => item.value.includes(currentValue.type)) == -1"
-              @change="valueChange"
-              >Composite Key<el-icon><QuestionFilled /></el-icon></el-checkbox
-            >
-          </el-tag>
-        </el-tooltip>
+        </el-tag>
       </template>
       <el-input
         v-model="currentValue.field"
@@ -164,13 +161,13 @@ const btnDisabled = computed(() =>
     : !props.modelValue.field || !VariableTableColumnType.includes(props.modelValue.type)
 );
 const currentValue: any = reactive({
-  "field":"",
-  "primaryKey" : false,
-  "type": "TIMESTAMP",
-  "length": 8,
-  "compress": "lz4",
-  "encode": "simple8b",
-  "level": "medium",
+  field: '',
+  primaryKey: false,
+  type: 'TIMESTAMP',
+  length: 8,
+  compress: 'lz4',
+  encode: 'simple8b',
+  level: 'medium'
 });
 
 const emits = defineEmits([
@@ -183,22 +180,21 @@ const emits = defineEmits([
   'typeChange'
 ]);
 
-
 const valueChange = () => {
   const updateValue: any = {};
-    for (const key in props.modelValue) {
-      updateValue[key] = currentValue[key];
-    }
-    emits('update:modelValue', updateValue);
+  for (const key in props.modelValue) {
+    updateValue[key] = currentValue[key];
+  }
+  emits('update:modelValue', updateValue);
 };
 const fieldChange = () => {
-  errorText.value = ''
+  errorText.value = '';
   valueChange();
 };
 
 watch(
   () => props.modelValue,
-  (newval) => {
+  newval => {
     for (const key in newval) {
       currentValue[key] = newval[key];
     }
@@ -230,10 +226,7 @@ function typeChange(val: string) {
     currentValue.compress = defaultCompress;
     currentValue.level = 'medium';
     // 如果不支持 primary key
-    if (
-      currentValue.primaryKey &&
-      parmaryKeyType.findIndex(item => item.value.includes(currentValue.type)) == -1
-    ) {
+    if (currentValue.primaryKey && parmaryKeyType.findIndex(item => item.value.includes(currentValue.type)) == -1) {
       currentValue.primaryKey = false;
     }
   }
@@ -244,7 +237,6 @@ function validName() {
     errorText.value = t('explorer.tdKewordTip', [props.modelValue.field]);
   }
 }
-
 </script>
 
 <style scoped lang="scss">
@@ -267,7 +259,6 @@ $height: 32px;
 .column-prepend-btn {
   display: flex;
   flex-shrink: 0;
-
 
   .custom-length {
     flex-shrink: 0;

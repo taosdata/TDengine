@@ -5,8 +5,8 @@
         <div class="first-row">
           <span class="db-and-arrow">{{ record.database }}></span>
           <span
-            v-dompurify-html="getParsedSQL(record.sql)"
-            style="color: #1652f0; cursor: pointer"
+            v-dompurify-html="record.sql"
+            style="color: #1652f0; white-space: pre; cursor: pointer"
             @click="addSql(record.sql)"
           ></span>
         </div>
@@ -76,9 +76,7 @@ function getExecTimeText(record: Recordable) {
   }
   return `(${t('common.execute')}: ${executTime} ms; ${t('common.network')}: ${networkTime} ms; ${t('common.total')}: ${totalTime} ms)`;
 }
-function getParsedSQL(sql: string) {
-  return sql.replace(/\n/g, '<br/>').replace(/\s/g, '&ensp;');
-}
+
 function addSql(sql: string) {
   sqlProvider.addSql('\n' + sql);
 }
