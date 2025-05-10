@@ -294,20 +294,19 @@ class CompatibilityBase:
         tdsql.query("select * from information_schema.ins_tags where db_name = 'db_all_insert_mode'")
         for i in range(tdsql.queryRows):
             tag_type = tdsql.queryResult[i][4]
-            tdLog.info(f"tag_type:{tag_type}")
             if "NCHAR" not in tag_type:
                 continue
             
             tag_size =  int(tag_type.split('(')[1].split(')')[0])
             tag_value = tdsql.queryResult[i][5]
-            tdLog.info(f"tag_value:{tag_value}, tag_size:{tag_size}")
             if len(tag_value) > tag_size:
                 new_tag_size = tag_size
-                while new_tag_size >= len(tag_value):
+                while new_tag_size < len(tag_value):
                     new_tag_size = new_tag_size * 2
                 db_name = tdsql.queryResult[i][1]
                 stable_name = tdsql.queryResult[i][2]
                 tag_name = tdsql.queryResult[i][3]
+                tdLog.info(f"ALTER STABLE {db_name}.{stable_name} MODIFY TAG {tag_name} nchar({new_tag_size})")
                 tdsql.execute(f"ALTER STABLE {db_name}.{stable_name} MODIFY TAG {tag_name} nchar({new_tag_size})")
 
 
