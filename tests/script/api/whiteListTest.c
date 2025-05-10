@@ -174,7 +174,7 @@ void createUsers(TAOS *taos, const char *host) {
     sprintf(qstr, "alter user %s add host '%d.%d.%d.%d/24'", users[i], i, i, i, i);
     queryDB(taos, qstr);
 
-    taos_fetch_whitelist_a(taosu[i], __taos_async_whitelist_cb, __taos_async_whitelist_ipv6_cb, users[i]);
+    taos_fetch_whitelist_a(taosu[i], __taos_async_whitelist_cb, users[i]);
   }
 
 }

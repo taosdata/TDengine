@@ -322,10 +322,13 @@ DLL_EXPORT int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param
 typedef void (*__taos_async_whitelist_fn_t)(void *param, int code, TAOS *taos, int numOfWhiteLists,
                                             uint64_t *pWhiteLists);
 
-typedef void (*__taos_async_whitelist_ipv6_fn_t)(void *param, int code, TAOS *taos, int numOfWhiteLists,
-                                                 char **pWhiteLists);
-DLL_EXPORT void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, __taos_async_whitelist_ipv6_fn_t fp2,
-                                       void *param);
+typedef void (*__taos_async_whitelist_dual_stack_fn_t)(void *param, int code, TAOS *taos, int numOfWhiteLists,
+                                                       char **pWhiteLists);
+
+DLL_EXPORT void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *param);
+
+DLL_EXPORT void taos_fetch_whitelist_dual_stack_a(TAOS *taos, __taos_async_whitelist_dual_stack_fn_t fp, void *param);
+
 /* ---- end ---- */
 
 typedef enum {
