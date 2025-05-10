@@ -1058,10 +1058,11 @@ static int32_t isAllTaskPaused(SStreamObj *pStream, bool *pRes) {
 
     if (pe->status != TASK_STATUS__PAUSE) {
       isPaused = false;
-      mInfo("stream:0x%" PRIx64 " taskId:%x, status:%d not paused, stream status not paused", pe->id.streamId,
-            pe->id.taskId, pe->status);
+      mInfo("stream:0x%" PRIx64 " taskId:0x%" PRIx64 ", status:%d not paused, stream status not paused",
+            pe->id.streamId, pe->id.taskId, pe->status);
     } else {
-      mInfo("stream:0x%" PRIx64 " taskId:%x, status: paused, stream status paused", pe->id.streamId, pe->id.taskId);
+      mInfo("stream:0x%" PRIx64 " taskId:0x%" PRIx64 ", status: paused, stream status paused", pe->id.streamId,
+            pe->id.taskId);
     }
 
     num += 1;
