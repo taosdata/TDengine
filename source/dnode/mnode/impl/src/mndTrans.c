@@ -2526,8 +2526,10 @@ int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans) {
     TAOS_RETURN(TSDB_CODE_MND_TRANS_INVALID_STAGE);
   }
 
-  if(pTrans->ableToBeKilled == false){
-    return TSDB_CODE_MND_TRANS_NOT_ABLE_TO_kILLED;
+  if(!tsForceKillTrans){
+    if(pTrans->ableToBeKilled == false){
+      return TSDB_CODE_MND_TRANS_NOT_ABLE_TO_kILLED;
+    }
   }
   
   if(pTrans->killMode == TRN_KILL_MODE_SKIP){
@@ -2563,7 +2565,7 @@ static int32_t mndProcessKillTransReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mInfo("trans:%d, start to kill", killReq.transId);
+  mInfo("trans:%d, start to kill, force:%d", killReq.transId, tsForceKillTrans);
   if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_KILL_TRANS)) != 0) {
     goto _OVER;
   }
