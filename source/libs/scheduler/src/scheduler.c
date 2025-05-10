@@ -214,6 +214,7 @@ void schedulerDestroy(void) {
     }
     taosHashCleanup(schMgmt.hbConnections);
     schMgmt.hbConnections = NULL;
+    qInfo("hbConnections cleanup");
   }
   SCH_UNLOCK(SCH_WRITE, &schMgmt.hbLock);
 

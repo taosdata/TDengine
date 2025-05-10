@@ -481,6 +481,9 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_TASK_WLOG(param, ...)                                                                                   \
   qWarn("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriousId, SCH_CLIENT_ID(pTask), \
         SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
+#define SCH_TASK_ILOG(param, ...)                                                                                   \
+  qInfo("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriousId, SCH_CLIENT_ID(pTask), \
+          SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 
 #define SCH_SET_ERRNO(_err)                     \
   do {                                          \

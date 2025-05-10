@@ -106,6 +106,8 @@ void schCleanClusterHb(void *pTrans) {
       code = taosHashRemove(schMgmt.hbConnections, pEpId, sizeof(SQueryNodeEpId));
       if (code) {
         qError("taosHashRemove hb connection failed, error:%s", tstrerror(code));
+      } else {
+        qInfo("hb cleaned from hbConnections for epId:%d", pEpId->nodeId);
       }
     }
 
@@ -132,6 +134,8 @@ int32_t schRemoveHbConnection(SSchJob *pJob, SSchTask *pTask, SQueryNodeEpId *ep
     code = taosHashRemove(schMgmt.hbConnections, epId, sizeof(SQueryNodeEpId));
     if (code) {
       SCH_TASK_WLOG("taosHashRemove hb connection failed, error:%s", tstrerror(code));
+    } else {
+      SCH_TASK_ILOG("hb mark removed from hbConnections, epId:%d", epId->nodeId);
     }
   }
   SCH_UNLOCK(SCH_WRITE, &schMgmt.hbLock);
@@ -159,8 +163,10 @@ int32_t schAddHbConnection(SSchJob *pJob, SSchTask *pTask, SQueryNodeEpId *epId,
       return TSDB_CODE_SUCCESS;
     }
 
-    qError("taosHashPut hb trans failed, nodeId:%d, fqdn:%s, port:%d", epId->nodeId, epId->ep.fqdn, epId->ep.port);
+    qError("taosHashPut hb trans %p failed, nodeId:%d, fqdn:%s, port:%d", hb.trans.pTrans, epId->nodeId, epId->ep.fqdn, epId->ep.port);
     SCH_ERR_RET(code);
+  } else {
+    qInfo("pTrans %p add to hbConnections for epId:%d", hb.trans.pTrans, epId->nodeId);
   }
 
   SCH_UNLOCK(SCH_WRITE, &schMgmt.hbLock);
@@ -254,7 +260,7 @@ int32_t schEnsureHbConnection(SSchJob *pJob, SSchTask *pTask) {
   TAOS_STRCPY(epId.ep.fqdn, pEp->fqdn);
   epId.ep.port = pEp->port;
 
-  SCH_ERR_RET(schRegisterHbConnection(pJob, pTask, &epId));
+  (void)schRegisterHbConnection(pJob, pTask, &epId);
 
   pTask->registerdHb = true;
 
@@ -278,7 +284,7 @@ int32_t schUpdateHbConnection(SQueryNodeEpId *epId, SSchTrans *trans) {
   SCH_UNLOCK(SCH_WRITE, &hb->lock);
   SCH_UNLOCK(SCH_READ, &schMgmt.hbLock);
 
-  qDebug("hb connection updated, nodeId:%d, fqdn:%s, port:%d, pTrans:%p, pHandle:%p", epId->nodeId, epId->ep.fqdn,
+  qInfo("hb connection updated, nodeId:%d, fqdn:%s, port:%d, pTrans:%p, pHandle:%p", epId->nodeId, epId->ep.fqdn,
          epId->ep.port, trans->pTrans, trans->pHandle);
 
   return TSDB_CODE_SUCCESS;

@@ -1074,6 +1074,9 @@ int32_t schBuildAndSendHbMsg(SQueryNodeEpId *nodeEpId, SArray *taskAction) {
   SCH_LOCK(SCH_WRITE, &hb->lock);
   code = schCloneHbRpcCtx(&hb->rpcCtx, &rpcCtx);
   TAOS_MEMCPY(&trans, &hb->trans, sizeof(trans));
+  if (NULL == hb->trans.pTrans) {
+    qError("NULL pTrans got from hbConnections for epId:%d", nodeEpId->nodeId);
+  }
   SCH_UNLOCK(SCH_WRITE, &hb->lock);
   SCH_UNLOCK(SCH_READ, &schMgmt.hbLock);
 
