@@ -222,7 +222,7 @@ class TDTestCase:
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
         tdLog.info(len(tdSql.queryResult))
-        tdSql.checkEqual(True, len(tdSql.queryResult) in range(320, 324))
+        tdSql.checkEqual(True, len(tdSql.queryResult) in range(325, 326))
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
         tdSql.checkEqual(61, len(tdSql.queryResult))
 

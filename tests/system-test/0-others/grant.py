@@ -166,6 +166,10 @@ class TDTestCase:
             time.sleep(1)
         raise Exception(f"{prompt}: tss_grant: {tss_grant} != nExpectedTimeSeries: {nExpectedTimeSeries}")
 
+    def clearEnv(self):
+        if os.path.exists(self.infoPath):
+            os.remove(self.infoPath)
+
     def s1_check_timeseries(self):
         # check cluster alive
         tdLog.printNoPrefix("======== test cluster alive: ")
@@ -231,8 +235,7 @@ class TDTestCase:
             tss_grant -= 5
             self.checkGrantsTimeSeries("drop database and check", tss_grant)
 
-    def s2_check_show_grants_ungranted(self):
-        tdLog.printNoPrefix("======== test show grants ungranted: ")
+    def genClusterInfo(self, check=False):
         self.infoPath = os.path.join(self.workPath, ".clusterInfo")
         infoFile = open(self.infoPath, "w")
         try:
@@ -245,27 +248,36 @@ class TDTestCase:
             tdSql.query(f'show grants;')
             tdSql.checkEqual(len(tdSql.queryResult), 1)
             infoFile.write(";".join(map(str,tdSql.queryResult[0])) + "\n")
-            tdLog.info(f"show grants: {tdSql.queryResult[0]}")
-            expireTimeStr=tdSql.queryResult[0][1]
-            serviceTimeStr=tdSql.queryResult[0][2]
-            tdLog.info(f"expireTimeStr: {expireTimeStr}, serviceTimeStr: {serviceTimeStr}")
-            expireTime = time.mktime(time.strptime(expireTimeStr, "%Y-%m-%d %H:%M:%S"))
-            serviceTime = time.mktime(time.strptime(serviceTimeStr, "%Y-%m-%d %H:%M:%S"))
-            tdLog.info(f"expireTime: {expireTime}, serviceTime: {serviceTime}")
-            tdSql.checkEqual(True, abs(expireTime - serviceTime - 864000) < 15)
-            tdSql.query(f'show grants full;')
-            nGrantItems = 32
-            tdSql.checkEqual(len(tdSql.queryResult), nGrantItems)
-            tdSql.checkEqual(tdSql.queryResult[0][2], serviceTimeStr)
-            for i in range(1, nGrantItems):
-                tdSql.checkEqual(tdSql.queryResult[i][2], expireTimeStr)
-
+            if check:
+                expireTimeStr=tdSql.queryResult[0][1]
+                serviceTimeStr=tdSql.queryResult[0][2]
+                tdLog.info(f"expireTimeStr: {expireTimeStr}, serviceTimeStr: {serviceTimeStr}")
+                expireTime = time.mktime(time.strptime(expireTimeStr, "%Y-%m-%d %H:%M:%S"))
+                serviceTime = time.mktime(time.strptime(serviceTimeStr, "%Y-%m-%d %H:%M:%S"))
+                tdLog.info(f"expireTime: {expireTime}, serviceTime: {serviceTime}")
+                tdSql.checkEqual(True, abs(expireTime - serviceTime - 864000) < 15)
+                tdSql.query(f'show grants full;')
+                nGrantItems = 32
+                tdSql.checkEqual(len(tdSql.queryResult), nGrantItems)
+                tdSql.checkEqual(tdSql.queryResult[0][2], serviceTimeStr)
+                for i in range(1, nGrantItems):
+                    tdSql.checkEqual(tdSql.queryResult[i][2], expireTimeStr)
             if infoFile:
                 infoFile.flush()
 
+        except Exception as e:
+            raise Exception(repr(e))
+        finally:
+            if infoFile:
+                infoFile.close()
+
+    def s2_check_show_grants_ungranted(self):
+        tdLog.printNoPrefix("======== test show grants ungranted: ")
+        self.infoPath = os.path.join(self.workPath, ".clusterInfo")
+        try:
+            self.genClusterInfo(check=True)
             files_and_dirs = os.listdir(f'{self.workPath}')
             print(f"files_and_dirs: {files_and_dirs}")
-
             process = subprocess.Popen(f'{self.workPath}{os.sep}grantTest', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             output, error = process.communicate() 
             output = output.decode(encoding="utf-8")
@@ -280,12 +292,8 @@ class TDTestCase:
                     fields  = line.split(":")
                     tdSql.error(f"{fields[2]}", int(fields[1]), fields[3])
         except Exception as e:
-            if os.path.exists(self.infoPath):
-                os.remove(self.infoPath)
+            self.clearEnv()
             raise Exception(repr(e))
-        finally:
-            if infoFile:
-                infoFile.close()
 
     def s3_check_show_grants_granted(self):
         tdLog.printNoPrefix("======== test show grants granted: ")
@@ -299,10 +307,31 @@ class TDTestCase:
             print(f"output:\n{output}")
             tdSql.checkEqual(process.returncode, 0)
         except Exception as e:
+            self.clearEnv()
             raise Exception(repr(e))
-        finally:
-            if os.path.exists(self.infoPath):
-                os.remove(self.infoPath)
+
+    def s4_ts6191_check_dual_replica(self):
+        tdLog.printNoPrefix("======== test dual replica: ")
+        try:
+            tdSql.query("select * from information_schema.ins_dnodes;")
+            tdSql.checkRows(5)
+            for i in range(4, 6):
+                tdSql.execute(f"drop dnode {i}")
+            tdSql.query("select * from information_schema.ins_dnodes;")
+            tdSql.checkRows(3)
+
+            self.genClusterInfo(check=False)
+            process = subprocess.Popen(f'{self.workPath}{os.sep}grantTest 2', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            output, error = process.communicate()
+            output = output.decode(encoding="utf-8")
+            error = error.decode(encoding="utf-8")
+            print(f"code: {process.returncode}")
+            print(f"error:\n{error}")
+            print(f"output:\n{output}")
+            tdSql.checkEqual(process.returncode, 0)
+        except Exception as e:
+            self.clearEnv()
+            raise Exception(repr(e))
 
     def run(self):
         # print(self.master_dnode.cfgDict)
@@ -310,10 +339,11 @@ class TDTestCase:
         self.s0_five_dnode_one_mnode()
         self.s1_check_timeseries()
         self.s2_check_show_grants_ungranted()
-        self.s3_check_show_grants_granted() 
-
+        self.s3_check_show_grants_granted()
+        self.s4_ts6191_check_dual_replica()
 
     def stop(self):
+        self.clearEnv()
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
