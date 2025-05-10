@@ -220,6 +220,8 @@ jobs:
           taosadapter -V
           taosBenchmark -V
           taos -V
+          echo "find port 6030"
+          lsof -i :6030
           nohup taosd >> taosd.log &
           nohup taosadapter >> taosa.log &
           pgrep -l taos
