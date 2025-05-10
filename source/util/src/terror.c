@@ -923,6 +923,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_WAL_VER_NOT_DATA,        "Wal version is not 
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_NO_CONTEXT,              "No context in stream reader task")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_NO_DATA,                 "No data in stream reader task")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND, "Insert table info not found")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INSERT_SCHEMA_NOT_MATCH, "Insert table info not match")
 
 #ifdef TAOS_ERROR_C
 };

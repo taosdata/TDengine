@@ -1599,6 +1599,7 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
     for (int32_t j = 0; j < vgListSize; ++j) {
       TAOS_CHECK_EXIT(tEncodeI32(pEncoder, *(int32_t*)taosArrayGet(pCalcScanPlan->vgList, j)));
     }
+    TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pCalcScanPlan->readFromCache));
     TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pCalcScanPlan->scanPlan, scanPlanLen));
   }
 
@@ -1863,6 +1864,7 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
             TAOS_CHECK_EXIT(terrno);
           }
         }
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &calcScan.readFromCache));
         TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&calcScan.scanPlan, NULL));
       }
       taosArrayPush(pReq->calcScanPlanList, &calcScan);
@@ -2518,6 +2520,9 @@ int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo*
   TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(pEncoder, pInfo->pStreamPesudoFuncVals));
   TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(pEncoder, pInfo->pStreamPartColVals));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->groupId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pInfo->curIdx));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->sessionId));
+  TAOS_CHECK_EXIT(tEncodeBool(pEncoder, pInfo->withExternalWindow));
 _exit:
   return code;
 }
@@ -2528,7 +2533,9 @@ int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pIn
   TAOS_CHECK_EXIT(tDeserializeSTriggerCalcParam(pDecoder, &pInfo->pStreamPesudoFuncVals));
   TAOS_CHECK_EXIT(tDeserializeStriggerGroupColVals(pDecoder, &pInfo->pStreamPartColVals));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pInfo->groupId));
-
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pInfo->curIdx));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pInfo->sessionId));
+  TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &pInfo->withExternalWindow));
 _exit:
   return code;
 }

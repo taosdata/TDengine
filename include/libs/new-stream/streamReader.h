@@ -54,8 +54,9 @@ typedef struct SStreamTriggerReaderInfo {
   SNode*      pTagCond;
   SNode*      pTagIndexCond;
   SNode*      pConditions;
-  SNodeList*  pGroupTags;
-  SNodeList*  triggerCols;
+  SNodeList*  partitionCols;
+  SArray*     triggerCols;
+  SArray*     calcCols;
   SHashObj*   streamTaskMap;
 } SStreamTriggerReaderInfo;
 
@@ -81,7 +82,7 @@ typedef struct SStreamTriggerReaderTaskInnerOptions {
   SNode*      pTagCond;
   SNode*      pTagIndexCond;
   SNode*      pConditions;
-  SNodeList*  pGroupTags;
+  SNodeList*  partitionCols;
 } SStreamTriggerReaderTaskInnerOptions;
 
 typedef struct SStreamReaderTaskInner {
@@ -101,6 +102,7 @@ typedef struct SStreamReaderTaskInner {
 
 int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order, SArray* schemas, STimeWindow twindows, uint64_t suid);
 int32_t createDataBlockForStream(SArray* schemas, SSDataBlock** pBlockRet);
+int32_t qStreamBuildSchema(SArray* schemas, int8_t type, int32_t bytes, col_id_t colId);
 void    releaseStreamTask(void* p);
 int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* options, SStreamReaderTaskInner** ppTask);
 void*   qStreamGetReaderInfo(int64_t streamId, int64_t taskId);

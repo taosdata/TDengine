@@ -106,7 +106,8 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
       createSqlFunctionCtx(pOperator->exprSupp.pExprInfo, numOfCols, &pOperator->exprSupp.rowEntryInfoOffset, &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_NULL(pOperator->exprSupp.pCtx, code, lino, _error, terrno);
   initResultSizeInfo(&pOperator->resultInfo, 1024);
-  code = filterInitFromNode((SNode*)pSortNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  code = filterInitFromNode((SNode*)pSortNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
+                            &pTaskInfo->pStreamRuntimeInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -365,7 +366,8 @@ void applyScalarFunction(SSDataBlock* pBlock, void* param) {
   SSortOperatorInfo* pSort = pOperator->info;
   if (pOperator->exprSupp.pExprInfo != NULL && pOperator->exprSupp.numOfExprs > 0) {
     int32_t code = projectApplyFunctions(pOperator->exprSupp.pExprInfo, pBlock, pBlock, pOperator->exprSupp.pCtx,
-                                         pOperator->exprSupp.numOfExprs, NULL, pOperator->pTaskInfo->pStreamRuntimeInfo);
+                                         pOperator->exprSupp.numOfExprs, NULL,
+                                         &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pOperator->pTaskInfo->env, code);
     }

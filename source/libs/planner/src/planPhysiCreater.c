@@ -1019,15 +1019,15 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
       }
     }
     pStreamCalcScan.scanPlan = (void*)pSubplan;
+    if (pScanLogicNode->placeholderType == SP_PARTITION_ROWS) {
+      pStreamCalcScan.readFromCache = true;
+    }
     if (NULL == taosArrayPush(pCxt->pPlanCxt->pStreamCalcVgArray, &pStreamCalcScan)) {
       PLAN_ERR_RET(terrno);
     }
     char fullDbName[TSDB_DB_FNAME_LEN] = {0};
     tNameGetFullDbName(&pScanLogicNode->tableName, fullDbName);
     PLAN_ERR_RET(taosHashPut(pCxt->pPlanCxt->pStreamCalcDbs, fullDbName, TSDB_DB_FNAME_LEN, NULL, 0));
-    if (pScanLogicNode->placeholderType == SP_PARTITION_ROWS) {
-      pStreamCalcScan.readFromCache = true;
-    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2800,6 +2800,7 @@ static int32_t createExternalWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList*
 
   return code;
 }
+
 static int32_t createWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SWindowLogicNode* pWindowLogicNode,
                                      SPhysiNode** pPhyNode) {
   switch (pWindowLogicNode->winType) {

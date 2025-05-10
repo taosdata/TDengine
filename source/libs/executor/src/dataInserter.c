@@ -111,8 +111,8 @@ static int32_t getCreateResTableId(const SSubmitRes* pSubmitRes, int64_t* uid) {
     stError("create table failed, code:%d", pCreateTbRsp->code);
     return pCreateTbRsp->code;
   }
-  if (pCreateTbRsp->pMeta->tuid == 0) {
-    stError("create table uid is 0");
+  if (!pCreateTbRsp->pMeta || pCreateTbRsp->pMeta->tuid == 0) {
+    stError("create table can not get tuid");
     return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
   }
   *uid = pCreateTbRsp->pMeta->tuid;
@@ -176,8 +176,7 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
       }
     }
 
-    if(pParam->putParam != NULL && ((SStreamDataInserterInfo*)pParam->putParam)->isAutoCreateTable) {
-      ((SStreamDataInserterInfo*)pParam->putParam)->isAutoCreateTable = false;
+    if (pParam->putParam != NULL && ((SStreamDataInserterInfo*)pParam->putParam)->isAutoCreateTable) {
       saveCreateGrpTableInfo(((SStreamDataInserterInfo*)pParam->putParam)->groupId, &pInserter->submitRes);
     }
 
@@ -926,21 +925,27 @@ int32_t buildNormalTableCreateReq(SDataInserterHandle* pInserter,  SStreamInsert
     if (i == 0) {
       tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].flags |= COL_IS_KEY;
     }
-    snprintf(tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].name, TSDB_COL_NAME_LEN, "c%d", i);
+    snprintf(tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].name, TSDB_COL_NAME_LEN, "%s", pField->name);
   }
   return TSDB_CODE_SUCCESS;
   _end:
   return code;
 }
 
+// reference tBuildTSchema funciton
 static int32_t buildTSchmaFromInserter(SStreamInserterParam* pInsertParam, STSchema** ppTSchema) {
-  int32_t   code = TSDB_CODE_SUCCESS;
-  STSchema* pTSchema = taosMemoryCalloc(1, sizeof(STSchema) + sizeof(STColumn) * pInsertParam->pFields->size);
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  int32_t   numOfCols = pInsertParam->pFields->size;
+  STSchema* pTSchema = taosMemoryCalloc(1, sizeof(STSchema) + sizeof(STColumn) * numOfCols);
   if (NULL == pTSchema) {
     return terrno;
   }
   pTSchema->version = 0;  // todo
-  for (int32_t i = 0; i < pInsertParam->pFields->size; ++i) {
+  pTSchema->numOfCols = numOfCols;
+  pTSchema->tlen = 0;
+  pTSchema->flen = 0;
+  for (int32_t i = 0; i < numOfCols; ++i) {
     SFieldWithOptions* pField = taosArrayGet(pInsertParam->pFields, i);
     if (NULL == pField) {
       terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
@@ -950,9 +955,24 @@ static int32_t buildTSchmaFromInserter(SStreamInserterParam* pInsertParam, STSch
     pTSchema->columns[i].type = pField->type;
     pTSchema->columns[i].flags = pField->flags;
     pTSchema->columns[i].bytes = pField->bytes;
-    pTSchema->columns[i].offset = -1; // todo check
+    pTSchema->columns[i].offset = pTSchema->flen;
+
+    if (IS_VAR_DATA_TYPE(pField->type)) {
+      pTSchema->columns[i].bytes = pField->bytes;
+      pTSchema->tlen += (TYPE_BYTES[pField->type] + pField->bytes);
+    } else {
+      pTSchema->columns[i].bytes = TYPE_BYTES[pField->type];
+      pTSchema->tlen += TYPE_BYTES[pField->type];
+    }
+
+    pTSchema->flen += TYPE_BYTES[pField->type];
   }
   pTSchema->columns[0].flags |= COL_IS_KEY;
+
+#if 1
+  pTSchema->tlen += (int32_t)TD_BITMAP_BYTES(numOfCols);
+#endif
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pTSchema);
@@ -972,6 +992,7 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
   int32_t      numOfBlks = 0;
 
   int32_t code = TSDB_CODE_SUCCESS;
+  SStreamInserterParam* pInsertParam = pInserter->pParam->streamInserterParam;
 
   if (NULL == pReq) {
     if (!(pReq = taosMemoryCalloc(1, sizeof(SSubmitReq2)))) {
@@ -982,11 +1003,14 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
       goto _end;
     }
   }
-  STSchema* pTSchema = NULL;
-  code = buildTSchmaFromInserter(pInserter->pParam->streamInserterParam, &pTSchema);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _end;
+
+  if(pInsertParam->pSchema == NULL) {
+    code = buildTSchmaFromInserter(pInserter->pParam->streamInserterParam, &pInsertParam->pSchema);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _end;
+    }
   }
+  STSchema* pTSchema = pInsertParam->pSchema;
 
   int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
   int32_t rows = pDataBlock->info.rows;
@@ -995,9 +1019,11 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
   if (!(tbData.aRowP = taosArrayInit(rows, sizeof(SRow*)))) {
     goto _end;
   }
-  SStreamInserterParam* pInsertParam = pInserter->pParam->streamInserterParam;
   tbData.suid = pInsertParam->suid;
-  tbData.sver = pInsertParam->sver;
+  tbData.sver = 0;
+  if (pInsertParam->tbType == TSDB_SUPER_TABLE) {
+    tbData.sver = pInsertParam->sver;
+  }
   if (pInserterInfo->isAutoCreateTable) {
     tbData.flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
     tbData.uid = 0;
@@ -1024,11 +1050,13 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
   int64_t lastTs = TSKEY_MIN;
   bool    needSortMerge = false;
 
+  *vgId = pInsertParam->vgid;
   if (pInserterInfo->isAutoCreateTable && pInsertParam->tbType == TSDB_NORMAL_TABLE) {
     code = buildNormalTableCreateReq(pInserter, pInsertParam, &tbData, vgId);
     if (code != TSDB_CODE_SUCCESS) {
       goto _end;
     }
+    pInsertParam->vgid = *vgId;
   }
 
   for (int32_t j = 0; j < rows; ++j) {  // iterate by row

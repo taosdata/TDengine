@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
 
+import argparse
 import os
 import sys
 import subprocess
 
 def main():
-    valid_option_val = ["interval", "state", "session", "count", "event"]
+    valid_window_type = ["interval", "state", "session", "count", "event"]
 
-    if len(sys.argv) != 2:
-        print("Usage: ./new_stream_basic_test.py <option>")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Generate and execute a SQL test script.")
+    parser.add_argument("window_type", choices=valid_window_type, help="Type of window to use in the SQL script.")
+    parser.add_argument("--cache", action="store_true", help="Enable cache for the SQL script.")
 
-    opt = sys.argv[1]
-
-    if opt not in valid_option_val:
-        print(f"Invalid option: {opt}. Valid options are: {', '.join(valid_option_val)}")
-        sys.exit(1)
+    args = parser.parse_args()
+    window_type = args.window_type
+    cache = args.cache
 
     try:
         with open("basic_test.template", "r") as f:
@@ -28,16 +27,22 @@ def main():
         sys.exit(1)
 
     placeholder = "%WINDOW%"
-    if opt == "interval":
+    if window_type == "interval":
         template = template.replace(placeholder, "interval (1s) sliding (1s)")
-    elif opt == "state":
+    elif window_type == "state":
         template = template.replace(placeholder, "state_window (id)")
-    elif opt == "session":
+    elif window_type == "session":
         template = template.replace(placeholder, "session (ts, 1s)")
-    elif opt == "count":
+    elif window_type == "count":
         template = template.replace(placeholder, "count_window (1)")
-    elif opt == "event":
+    elif window_type == "event":
         template = template.replace(placeholder, "event_window (start with id > 0 end with id > 0)")
+
+    placeholder = "%SOURCE_TABLE%"
+    if cache:
+        template = template.replace(placeholder, "%%trows")
+    else:
+        template = template.replace(placeholder, "stream_query")
 
     try:
         with open("basic_test.sql", "w") as f:

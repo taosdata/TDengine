@@ -2197,7 +2197,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     if (pExpr->pExpr->nodeType == QUERY_NODE_FUNCTION) {
       SFuncExecEnv env = {0};
       pCtx->functionId = pExpr->pExpr->_function.pFunctNode->funcId;
-      pCtx->isPseudoFunc = fmIsWindowPseudoColumnFunc(pCtx->functionId);
+      pCtx->isPseudoFunc = fmIsWindowPseudoColumnFunc(pCtx->functionId) || fmIsPlaceHolderFunc(pCtx->functionId);
       pCtx->isNotNullFunc = fmIsNotNullOutputFunc(pCtx->functionId);
 
       bool isUdaf = fmIsUserDefinedFunc(pCtx->functionId);

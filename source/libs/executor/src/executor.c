@@ -1918,6 +1918,7 @@ static int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const S
     SSDataBlock* pBlock = &block;
     taosArrayPush(pBlockList, &pBlock);
     if (code == 0) code = scalarCalculate(pSclNode, pBlockList, pDst, pExtraParams);
+    taosArrayDestroy(pBlockList);
   }
 
   nodesDestroyList(pList);
@@ -2035,6 +2036,10 @@ void destoryStreamInserterParam(SStreamInserterParam* pParam) {
     if (pParam->pTagFields) {
       taosArrayDestroy(pParam->pTagFields);
       pParam->pTagFields = NULL;
+    }
+    if (pParam->pSchema) {
+      taosMemFree(pParam->pSchema);
+      pParam->pSchema = NULL;
     }
     taosMemFree(pParam);
   }

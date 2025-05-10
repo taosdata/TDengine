@@ -55,6 +55,7 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       SSTriggerPullRequest *pReq = pMsg->info.ahandle;
       if (pReq == NULL) {
         code = TSDB_CODE_INVALID_PARA;
+        dError("msg:%p, invalid pull request in snode-stream-trigger queue", pMsg);
         break;
       }
       code = streamGetTask(pReq->streamId, pReq->triggerTaskId, &pTask);
@@ -125,6 +126,7 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
       .name = "snode-stream-runner",
       .fp = (FItem)smProcessRunnerQueue,
       .param = pMgmt,
+      .poolType = QUERY_AUTO_QWORKER_POOL,
   };
 
   if ((code = tSingleWorkerInit(&pMgmt->runnerWorker, &cfg)) != 0) {

@@ -66,14 +66,16 @@ typedef struct {
 } SReadHandle;
 
 typedef struct SStreamInserterParam {
-  SArray* pFields;  // SArray<SFieldWithOptions>
-  SArray* pTagFields;
-  int64_t suid;
-  int32_t sver;
-  char*   tbname;
-  int8_t  tbType;
-  char*   dbFName;
-  void*   pSinkHandle;
+  SArray*   pFields;  // SArray<SFieldWithOptions>
+  SArray*   pTagFields;
+  int64_t   suid;
+  int32_t   sver;
+  char*     tbname;
+  int8_t    tbType;
+  char*     dbFName;
+  void*     pSinkHandle;
+  int32_t   vgid;
+  STSchema* pSchema;
 } SStreamInserterParam;
 
 typedef struct {

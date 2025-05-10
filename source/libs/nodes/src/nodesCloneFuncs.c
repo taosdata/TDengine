@@ -549,6 +549,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(needSplit);
   COPY_SCALAR_FIELD(noPseudoRefAfterGrp);
   COPY_SCALAR_FIELD(virtualStableScan);
+  COPY_SCALAR_FIELD(placeholderType);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -696,6 +697,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   CLONE_NODE_FIELD(pAnomalyExpr);
   COPY_CHAR_ARRAY_FIELD(anomalyOpt);
   COPY_SCALAR_FIELD(recalculateInterval);
+  CLONE_NODE_LIST_FIELD(pProjs);
   return TSDB_CODE_SUCCESS;
 }
 

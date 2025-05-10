@@ -60,10 +60,8 @@ static int32_t handleTriggerCalcReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
     pTask->pMsgCb = &pSnode->msgCb;
     code = stRunnerTaskExecute(pTask, &req);
   }
-  if (code != 0) {
-    SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_TRIGGER_CALC_RSP, .contLen = 0, .pCont = NULL, .info = pRpcMsg->info};
-    rpcSendResponse(&rsp);
-  }
+  SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_TRIGGER_CALC_RSP, .contLen = 0, .pCont = NULL, .info = pRpcMsg->info};
+  rpcSendResponse(&rsp);
   return code;
 }
 
@@ -136,10 +134,35 @@ static int32_t handleStreamFetchData(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   if (code == 0) {
     code = buildFetchRsp(pTask->output.pBlock, &buf, &size, 0);
   }
-  if (code != 0) {
-    SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_FETCH_FROM_RUNNER_RSP, .contLen = size, .pCont = buf, .info = pRpcMsg->info};
-    tmsgSendRsp(&rsp);
+  SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_FETCH_FROM_RUNNER_RSP, .contLen = size, .pCont = buf, .info = pRpcMsg->info};
+  tmsgSendRsp(&rsp);
+  return code;
+}
+
+static int32_t handleStreamFetchFromCache(SSnode* pSnode, SRpcMsg* pRpcMsg) {
+  int32_t code = 0;
+  SResFetchReq req = {0};
+  SStreamCacheReadInfo readInfo = {0};
+  code = tDeserializeSResFetchReq(POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead)), pRpcMsg->contLen - sizeof(SMsgHead), &req);
+  if (code == 0) {
+    readInfo.taskInfo.streamId = req.queryId;
+    readInfo.taskInfo.taskId = req.taskId;
+    readInfo.taskInfo.sessionId = req.pStRtFuncInfo->sessionId;
+    readInfo.gid = req.pStRtFuncInfo->groupId;
+    SSTriggerCalcParam* pParam = taosArrayGet(req.pStRtFuncInfo->pStreamPesudoFuncVals, req.pStRtFuncInfo->curIdx);
+    readInfo.start = pParam->wstart;
+    readInfo.end = pParam->wend;
+    code = stRunnerFetchDataFromCache(&readInfo);
   }
+  void* buf = NULL;
+  size_t size = 0;
+  if (code == 0) {
+    code = buildFetchRsp(readInfo.pBlock, &buf, &size, 0);
+    blockDataCleanup(readInfo.pBlock);
+    readInfo.pBlock = NULL;
+  }
+  SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_FETCH_FROM_CACHE_RSP, .contLen = size, .pCont = buf, .info = pRpcMsg->info};
+  tmsgSendRsp(&rsp);
   return code;
 }
 
@@ -153,8 +176,7 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
       code = handleStreamFetchData(pSnode, pMsg);
       break;
     case TDMT_STREAM_FETCH_FROM_CACHE:
-
-      break;
+      code = handleStreamFetchFromCache(pSnode, pMsg);
     default:
       sndError("invalid snode msg:%d", pMsg->msgType);
       return TSDB_CODE_INVALID_MSG;
