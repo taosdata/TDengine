@@ -79,7 +79,7 @@ if exist %binary_dir%\\build\\lib\\taosws.lib (
 )
 if exist %binary_dir%\\build\\bin\\taosws.dll (
     copy %binary_dir%\\build\\bin\\taosws.dll %target_dir%\\ > nul
-    copy %source_dir%\\tools\\taosws-rs\\target\\release\\taosws.h %target_dir%\\include > nul
+    copy %binary_dir%\\build\\include\\taosws.h %target_dir%\\include > nul
 )
 if exist %binary_dir%\\build\\bin\\taosdump.exe (
     copy %binary_dir%\\build\\bin\\taosdump.exe %target_dir% > nul

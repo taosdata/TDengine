@@ -97,6 +97,7 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
 int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t substrIdxFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
+int32_t crc32Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
 
 /* Conversion functions */
 int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
