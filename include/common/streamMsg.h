@@ -696,6 +696,7 @@ typedef struct SStreamRuntimeFuncInfo {
   int64_t groupId;
   int32_t curIdx;
   int64_t sessionId;
+  bool    withExternalWindow;
 } SStreamRuntimeFuncInfo;
 
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo);
