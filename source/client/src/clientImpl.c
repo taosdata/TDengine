@@ -223,7 +223,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
                      SRequestObj** pRequest, int64_t reqid) {
   int32_t code = createRequest(connId, TSDB_SQL_SELECT, reqid, pRequest);
   if (TSDB_CODE_SUCCESS != code) {
-    tscError("failed to malloc sqlObj, %s", sql);
+    tscError("failed to malloc sqlObj, %s since %s", sql, tstrerror(code));
     return code;
   }
 
@@ -2892,7 +2892,7 @@ int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, 
   return TSDB_CODE_SUCCESS;
 
 _return:
-
+  
   terrno = TSDB_CODE_TSC_INVALID_OPERATION;
 
   pIter = taosHashIterate(pHash, NULL);

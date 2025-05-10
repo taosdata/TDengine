@@ -93,16 +93,16 @@ DEFINE_TYPE_FROM_DECIMAL_FUNCS(extern, Decimal128);
         break;                                                            \
       case TSDB_DATA_TYPE_TIMESTAMP:                                      \
       case TSDB_DATA_TYPE_BIGINT:                                         \
-        (_v) = (_finalType)(GET_INT64_VAL(_data));                        \
+        taosSetLInt64Alignedx((_v), taosGetPInt64Alignedx(_data));        \
         break;                                                            \
       case TSDB_DATA_TYPE_UBIGINT:                                        \
-        (_v) = (_finalType)(GET_UINT64_VAL(_data));                       \
+        taosSetLUInt64Alignedx((_v), taosGetPUInt64Alignedx(_data));      \
         break;                                                            \
       case TSDB_DATA_TYPE_FLOAT:                                          \
         (_v) = (_finalType)GET_FLOAT_VAL(_data);                          \
         break;                                                            \
       case TSDB_DATA_TYPE_DOUBLE:                                         \
-        (_v) = (_finalType)GET_DOUBLE_VAL(_data);                         \
+        taosSetLDoubleAlignedx((_v), taosGetPDoubleAlignedx(_data));      \
         break;                                                            \
       case TSDB_DATA_TYPE_UINT:                                           \
         (_v) = (_finalType)GET_UINT32_VAL(_data);                         \
