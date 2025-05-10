@@ -1,22 +1,24 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestBoolColumn:
+class TestDatatypeBool:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
         tdSql.prepare(dbname="db", drop=True)
 
-    def test_static_create_table(self):
-        """static create table
+    def test_datatype_bool(self):
+        """bool datatype
 
-        1. 使用 bool 作为超级表的普通列、标签列
-        2. 当 bool 作为标签列时，使用合法值、非法值创建子表
-        3. 当 bool 作为标签列时，测试 show tags 的返回结果
+        1. create table
+        2. insert data
+        3. auto create table
+        4. alter tag value
+        5. illegal input
 
         Catalog:
-            - DataTypes:Bool
-            - Tables:Create
+            - DataTypes
+            - Tables:SubTables:Create
 
         Since: v3.0.0.0
 
@@ -25,14 +27,18 @@ class TestBoolColumn:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated from tsim/parser/columnValue_bool.sim
+            - 2025-5-12 Simon Guan Migrated from tsim/parser/columnValue_bool.sim
 
         """
+        self.create_table()
+        self.insert_data()
+        self.auto_create_table()
+        self.alter_tag_value()
+        self.illegal_input()
 
+    def create_table(self):
         tdLog.info(f"create super table")
-        tdSql.execute(
-            f"create table mt_bool (ts timestamp, c bool) tags(tagname bool)"
-        )
+        tdSql.execute(f"create table mt_bool (ts timestamp, c bool) tags(tagname bool)")
 
         tdLog.info(f"case 0: static create table for test tag values")
 
@@ -173,26 +179,7 @@ class TestBoolColumn:
         tdSql.query(f"show tags from st_bool_34")
         tdSql.checkData(0, 5, "false")
 
-    def test_insert_column_value(self):
-        """insert column value
-
-        1. 使用 bool 作为超级表的普通列、标签列
-        2. 当 bool 作为普通列时，使用合法值、非法值向子表中写入数据
-
-        Catalog:
-            - DataTypes:Bool
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def insert_data(self):
         tdLog.info(f"case 1: insert values for test column values")
 
         tdSql.execute(f"insert into st_bool_0 values(now, NULL)")
@@ -350,26 +337,7 @@ class TestBoolColumn:
         tdSql.query(f"select * from st_bool_34")
         tdSql.checkData(0, 1, 0)
 
-    def test_dynamic_create_table(self):
-        """dynamic create table
-
-        1. 使用 bool 作为超级表的普通列、标签列
-        2. 使用合法值、非法值向子表中写入数据并自动建表
-
-        Catalog:
-            - DataTypes:Bool
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def auto_create_table(self):
         tdLog.info(f"case 2: dynamic create table for test tag values")
 
         tdSql.execute(
@@ -481,18 +449,14 @@ class TestBoolColumn:
         tdSql.query(f"select * from st_bool_127")
         tdSql.checkData(0, 1, 0)
 
-        tdSql.execute(
-            f"insert into st_bool_128 using mt_bool tags(0) values(now, 0)"
-        )
+        tdSql.execute(f"insert into st_bool_128 using mt_bool tags(0) values(now, 0)")
         tdSql.query(f"show tags from st_bool_128")
         tdSql.checkData(0, 5, "false")
 
         tdSql.query(f"select * from st_bool_128")
         tdSql.checkData(0, 1, 0)
 
-        tdSql.execute(
-            f"insert into st_bool_129 using mt_bool tags(1) values(now, 1)"
-        )
+        tdSql.execute(f"insert into st_bool_129 using mt_bool tags(1) values(now, 1)")
         tdSql.query(f"show tags from st_bool_129")
         tdSql.checkData(0, 5, "true")
 
@@ -508,9 +472,7 @@ class TestBoolColumn:
         tdSql.query(f"select * from st_bool_130")
         tdSql.checkData(0, 1, 1)
 
-        tdSql.execute(
-            f"insert into st_bool_131 using mt_bool tags(-3) values(now, -3)"
-        )
+        tdSql.execute(f"insert into st_bool_131 using mt_bool tags(-3) values(now, -3)")
         tdSql.query(f"show tags from st_bool_131")
         tdSql.checkData(0, 5, "true")
 
@@ -676,26 +638,7 @@ class TestBoolColumn:
         tdSql.query(f"select * from st_bool_234")
         tdSql.checkData(0, 1, 0)
 
-    def test_alter_tag_value(self):
-        """alter tag value
-
-        1. 使用 bool 作为超级表的标签列
-        2. 使用合法值、非法值修改子表的标签值
-
-        Catalog:
-            - DataTypes:Bool
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def alter_tag_value(self):
         tdLog.info(f"case 3: alter tag value")
 
         tdSql.execute(f"alter table st_bool_16 set tag tagname=+300")
@@ -770,7 +713,7 @@ class TestBoolColumn:
         tdSql.query(f"show tags from st_bool_34")
         tdSql.checkData(0, 5, "false")
 
-    def test_illegal_input(self):
+    def illegal_input(self):
         """illegal input
 
         1. 使用 bool 作为超级表的标签列
@@ -816,31 +759,19 @@ class TestBoolColumn:
         tdSql.error(f'insert into st_bool_g5 values(now, " ")')
         tdSql.error(f"insert into st_bool_g6 values(now, '')")
 
-        tdSql.error(
-            f"insert into st_bool_h0 using mt_bool tags(123abc) values(now, 1)"
-        )
+        tdSql.error(f"insert into st_bool_h0 using mt_bool tags(123abc) values(now, 1)")
         tdSql.error(
             f'insert into st_bool_h1 using mt_bool tags("123abc") values(now, 1)'
         )
         tdSql.execute(
             f'insert into st_bool_h2 using mt_bool tags("123") values(now, 1)'
         )
-        tdSql.error(
-            f"insert into st_bool_h3 using mt_bool tags(abc) values(now, 1)"
-        )
-        tdSql.error(
-            f'insert into st_bool_h4 using mt_bool tags("abc") values(now, 1)'
-        )
-        tdSql.error(
-            f'insert into st_bool_h5 using mt_bool tags(" ") values(now, 1)'
-        )
-        tdSql.error(
-            f"insert into st_bool_h6 using mt_bool tags(" ") values(now, 1)"
-        )
+        tdSql.error(f"insert into st_bool_h3 using mt_bool tags(abc) values(now, 1)")
+        tdSql.error(f'insert into st_bool_h4 using mt_bool tags("abc") values(now, 1)')
+        tdSql.error(f'insert into st_bool_h5 using mt_bool tags(" ") values(now, 1)')
+        tdSql.error(f"insert into st_bool_h6 using mt_bool tags(" ") values(now, 1)")
 
-        tdSql.error(
-            f"insert into st_bool_h0 using mt_bool tags(1) values(now, 123abc)"
-        )
+        tdSql.error(f"insert into st_bool_h0 using mt_bool tags(1) values(now, 123abc)")
         tdSql.error(
             f'insert into st_bool_h1 using mt_bool tags(1) values(now, "123abc")'
         )
@@ -848,9 +779,7 @@ class TestBoolColumn:
             f'insert into st_bool_h2 using mt_bool tags(1) values(now, "123")'
         )
         tdSql.error(f"insert into st_bool_h3 using mt_bool tags(1) values(now, abc)")
-        tdSql.error(
-            f'insert into st_bool_h4 using mt_bool tags(1) values(now, "abc")'
-        )
+        tdSql.error(f'insert into st_bool_h4 using mt_bool tags(1) values(now, "abc")')
         tdSql.error(f'insert into st_bool_h5 using mt_bool tags(1) values(now, " ")')
         tdSql.error(f"insert into st_bool_h6 using mt_bool tags(1) values(now, '')")
 

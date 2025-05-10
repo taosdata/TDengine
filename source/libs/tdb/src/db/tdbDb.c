@@ -84,6 +84,17 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, i
   if (ret < 0) {
     return ret;
   }
+
+  // if the underlying data structure is a btree, it will do re-balance when there are too many pages,
+  // the re-balance process include allocate and deallocate of free pages, this is ok for other tables,
+  // but not for the free page table, because it is for free pages management, allocate/deallocate of
+  // free pages during re-balance result in data corruption. so convert it to a linked list based stack
+  // to avoid re-balance.
+  int tdbTbBtreeToStack(TTB *pTb);
+  ret = tdbTbBtreeToStack(pDb->pFreeDb);
+  if (ret < 0) {
+    return ret;
+  }
 #endif
 
   *ppDb = pDb;

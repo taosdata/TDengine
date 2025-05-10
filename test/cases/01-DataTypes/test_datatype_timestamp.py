@@ -1,22 +1,24 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestTimestampColumn:
+class TestDatatypeTimestamp:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
         tdSql.prepare(dbname="db", drop=True)
 
-    def test_static_create_table(self):
-        """static create table
+    def test_datatype_timestamp(self):
+        """timestamp datatype
 
-        1. 使用 timestamp 作为超级表的普通列、标签列
-        2. 当 timestamp 作为标签列时，使用合法值、非法值创建子表
-        3. 当 timestamp 作为标签列时，测试 show tags 的返回结果
+        1. create table
+        2. insert data
+        3. auto create table
+        4. alter tag value
+        5. illegal input
 
         Catalog:
-            - DataTypes:Timestamp
-            - Tables:Create
+            - DataTypes
+            - Tables:SubTables:Create
 
         Since: v3.0.0.0
 
@@ -25,10 +27,16 @@ class TestTimestampColumn:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated from tsim/parser/columnValue_timestamp.sim
+            - 2025-5-12 Simon Guan Migrated from tsim/parser/columnValue_timestamp.sim
 
         """
+        self.create_table()
+        self.insert_data()
+        self.auto_create_table()
+        self.alter_tag_value()
+        self.illegal_input()
 
+    def create_table(self):
         tdLog.info(f"create super table")
         tdSql.execute(
             f"create table mt_timestamp (ts timestamp, c timestamp) tags(tagname timestamp)"
@@ -141,21 +149,15 @@ class TestTimestampColumn:
         tdSql.query(f"show tags from st_timestamp_24")
         tdSql.checkData(0, 5, 86400000)
 
-        tdSql.execute(
-            f'create table st_timestamp_25 using mt_timestamp tags("-0" -1s)'
-        )
+        tdSql.execute(f'create table st_timestamp_25 using mt_timestamp tags("-0" -1s)')
         tdSql.query(f"show tags from st_timestamp_25")
         tdSql.checkData(0, 5, -1000)
 
-        tdSql.execute(
-            f"create table st_timestamp_26 using mt_timestamp tags(0b01 -1a)"
-        )
+        tdSql.execute(f"create table st_timestamp_26 using mt_timestamp tags(0b01 -1a)")
         tdSql.query(f"show tags from st_timestamp_26")
         tdSql.checkData(0, 5, 0)
 
-        tdSql.execute(
-            f"create table st_timestamp_27 using mt_timestamp tags(0b01 -1s)"
-        )
+        tdSql.execute(f"create table st_timestamp_27 using mt_timestamp tags(0b01 -1s)")
         tdSql.query(f"show tags from st_timestamp_27")
         tdSql.checkData(0, 5, -999)
 
@@ -165,9 +167,7 @@ class TestTimestampColumn:
         tdSql.query(f"show tags from st_timestamp_28")
         tdSql.checkData(0, 5, 1)
 
-        tdSql.execute(
-            f"create table st_timestamp_29 using mt_timestamp tags(0x01 +1b)"
-        )
+        tdSql.execute(f"create table st_timestamp_29 using mt_timestamp tags(0x01 +1b)")
         tdSql.query(f"show tags from st_timestamp_29")
         tdSql.checkData(0, 5, 1)
 
@@ -191,46 +191,27 @@ class TestTimestampColumn:
 
         tdSql.execute(f"create table st_timestamp_33 using mt_timestamp tags(now +1b)")
         tdSql.query(f"show tags from st_timestamp_33")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.execute(
             f'create table st_timestamp_34 using mt_timestamp tags("now()" +1b)'
         )
         tdSql.query(f"show tags from st_timestamp_34")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.execute(
             f"create table st_timestamp_35 using mt_timestamp tags(today() +1d)"
         )
         tdSql.query(f"show tags from st_timestamp_35")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.execute(
             f'create table st_timestamp_36 using mt_timestamp tags("today()" +1d)'
         )
         tdSql.query(f"show tags from st_timestamp_36")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
-    def test_insert_column_value(self):
-        """insert column value
-
-        1. 使用 timestamp 作为超级表的普通列、标签列
-        2. 当 timestamp 作为普通列时，使用合法值、非法值向子表中写入数据
-
-        Catalog:
-            - DataTypes:Timestamp
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def insert_data(self):
         tdLog.info(f"case 1: insert values for test column values")
 
         tdSql.execute(f"insert into st_timestamp_0 values(now,NULL)")
@@ -367,40 +348,21 @@ class TestTimestampColumn:
 
         tdSql.execute(f"insert into st_timestamp_33 values(now,now +1b)")
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_33")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
         tdSql.execute(f'insert into st_timestamp_34 values(now,"now()" +1b)')
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_34")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
         tdSql.execute(f"insert into st_timestamp_35 values(now,today() +1d)")
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_35")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
         tdSql.execute(f'insert into st_timestamp_36 values(now,"today()" +1d)')
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_36")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
-    def test_dynamic_create_table(self):
-        """dynamic create table
-
-        1. 使用 timestamp 作为超级表的普通列、标签列
-        2. 使用合法值、非法值向子表中写入数据并自动建表
-
-        Catalog:
-            - DataTypes:Timestamp
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def auto_create_table(self):
         tdLog.info(f"case 2: dynamic create table for test tag values")
         tdSql.execute(
             f"insert into st_timestamp_100 using mt_timestamp tags(NULL) values(now, NULL)"
@@ -697,58 +659,39 @@ class TestTimestampColumn:
             f"insert into st_timestamp_1033 using mt_timestamp tags(now+1b) values(now,now +1b)"
         )
         tdSql.query(f"show tags from st_timestamp_1033")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_1033")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
         tdSql.execute(
             f'insert into st_timestamp_1034 using mt_timestamp tags("now" +1b) values(now,"now()" +1b)'
         )
         tdSql.query(f"show tags from st_timestamp_1034")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_1034")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
         tdSql.execute(
             f"insert into st_timestamp_1035 using mt_timestamp tags(today() + 1d) values(now,today() +1d)"
         )
         tdSql.query(f"show tags from st_timestamp_1035")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_1035")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
         tdSql.execute(
             f'insert into st_timestamp_1036 using mt_timestamp tags("today" +1d) values(now,"today()" +1d)'
         )
         tdSql.query(f"show tags from st_timestamp_1036")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_1036")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
-    def test_alter_tag_value(self):
-        """alter tag value
-
-        1. 使用 timestamp 作为超级表的标签列
-        2. 使用合法值、非法值修改子表的标签值
-
-        Catalog:
-            - DataTypes:Timestamp
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def alter_tag_value(self):
         tdLog.info(f"case 3: alter tag value")
         tdSql.execute(f"alter table st_timestamp_0 set tag tagname=NULL")
         tdSql.query(f"show tags from st_timestamp_0")
@@ -884,40 +827,21 @@ class TestTimestampColumn:
 
         tdSql.execute(f"alter table st_timestamp_33 set tag tagname=now +1b")
         tdSql.query(f"show tags from st_timestamp_33")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.execute(f'alter table st_timestamp_34 set tag tagname="now()" +1b')
         tdSql.query(f"show tags from st_timestamp_34")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.execute(f"alter table st_timestamp_35 set tag tagname=today( ) +1d")
         tdSql.query(f"show tags from st_timestamp_35")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.execute(f'alter table st_timestamp_36 set tag tagname="today()" +1d')
         tdSql.query(f"show tags from st_timestamp_36")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
-    def test_illegal_input(self):
-        """illegal input
-
-        1. 使用 timestamp 作为超级表的标签列
-        2. 使用非法标签值创建子表
-
-        Catalog:
-            - DataTypes:Timestamp
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def illegal_input(self):
         tdLog.info(f"case 4: illegal input")
 
         tdSql.error(f"create table st_timestamp_e0 using mt_timestamp tags(123abc)")
@@ -928,9 +852,7 @@ class TestTimestampColumn:
             f"create table st_timestamp_e0 using mt_timestamp tags(now()+1d+1s)"
         )
         tdSql.error(f"create table st_timestamp_e0 using mt_timestamp tags(1+1y)")
-        tdSql.error(
-            f"create table st_timestamp_e0 using mt_timestamp tags(0x01+1b+1a)"
-        )
+        tdSql.error(f"create table st_timestamp_e0 using mt_timestamp tags(0x01+1b+1a)")
         tdSql.error(f'create table st_timestamp_e0 using mt_timestamp tags(" ")')
         tdSql.error(f"create table st_timestamp_e0 using mt_timestamp tags('')")
         tdSql.error(f'create table st_timestamp_104 using mt_timestamp tags("-123.1")')
@@ -949,12 +871,8 @@ class TestTimestampColumn:
         tdSql.error(
             f"create table st_timestamp_111 using mt_timestamp tags( +0.1235e3 )"
         )
-        tdSql.error(
-            f"create table st_timestamp_112 using mt_timestamp tags(-0.11e-30)"
-        )
-        tdSql.error(
-            f"create table st_timestamp_113 using mt_timestamp tags(-1.1e-307)"
-        )
+        tdSql.error(f"create table st_timestamp_112 using mt_timestamp tags(-0.11e-30)")
+        tdSql.error(f"create table st_timestamp_113 using mt_timestamp tags(-1.1e-307)")
         tdSql.execute(
             f"create table st_timestamp_114 using mt_timestamp tags(9223372036854775807)"
         )
