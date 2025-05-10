@@ -776,7 +776,26 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
       pCtx[k].input.colDataSMAIsSet = false;
     }
 
-    if (pCtx[k].isPseudoFunc) {
+    if (fmIsPlaceHolderFunc(pCtx[k].functionId)) {
+      SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(&pCtx[k]);
+      char* p = GET_ROWCELL_INTERBUF(pEntryInfo);
+
+      SColumnInfoData idata = {0};
+      idata.info.type = pCtx[k].pExpr->base.resSchema.type;
+      idata.info.bytes = pCtx[k].pExpr->base.resSchema.bytes;
+      idata.info.precision = pCtx[k].pExpr->base.resSchema.precision;
+      idata.info.scale = pCtx[k].pExpr->base.resSchema.scale;
+      idata.pData = p;
+
+      const void* val = fmGetStreamPesudoFuncVal(pCtx[k].functionId, &taskInfo->pStreamRuntimeInfo->funcInfo);
+      colDataSetInt64(&idata, 0, (void*)val);
+      if (code != 0) {
+        qError("col set data failed at %d, code: %s", __LINE__, tstrerror(code));
+        taskInfo->code = code;
+        return code;
+      }
+      pEntryInfo->numOfRes = 1;
+    } else if (pCtx[k].isPseudoFunc) {
       SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(&pCtx[k]);
 
       char* p = GET_ROWCELL_INTERBUF(pEntryInfo);

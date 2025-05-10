@@ -362,6 +362,8 @@ typedef enum SStreamPseudoFuncType {
 } SStreamPseudoFuncType;
 
 int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, const SStreamRuntimeFuncInfo* pStreamRuntimeInfo);
+
+const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo);
 #ifdef __cplusplus
 }
 #endif

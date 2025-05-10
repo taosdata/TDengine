@@ -24,7 +24,7 @@ typedef struct SBlockList {
   int32_t            blockRowNumThreshold;
 } SBlockList;
 
-static int32_t blockListinit(SBlockList* pBlockList, int32_t threshold) {
+static int32_t blockListInit(SBlockList* pBlockList, int32_t threshold) {
   pBlockList->pBlocks = tdListNew(sizeof(SSDataBlock*));
   if (!pBlockList->pBlocks) {
     return terrno;
@@ -272,7 +272,9 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
   initBasicInfo(&pExtW->binfo, pResBlock);
 
   pExtW->primaryTsIndex = ((SColumnNode*)pPhynode->window.pTspk)->slotId;
-  pExtW->scalarMode = pPhynode->window.pProjs != NULL;
+  pExtW->scalarMode = pPhynode->window.pFuncs->length == 1; // TODO wjm scalar mode
+  pExtW->binfo.inputTsOrder = pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC; // TODO wjm set inputtsOrdeer
+  pExtW->binfo.outputTsOrder = pExtW->binfo.inputTsOrder;
 
   if (pExtW->scalarMode) {
   } else {
@@ -365,7 +367,8 @@ static void incExtWinCurIdx(SOperatorInfo* pOperator) {
   pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx++;
 }
 
-static const STimeWindow* getExtWindow(SExternalWindowOperator* pExtW, TSKEY ts) {
+static const STimeWindow* getExtWindow(SOperatorInfo* pOperator, TSKEY ts) {
+  SExternalWindowOperator* pExtW = pOperator->info;
   // TODO wjm handle desc order
   for (int32_t i = 0; i < pExtW->pWins->size; ++i) {
     const STimeWindow* pWin = taosArrayGet(pExtW->pWins, i);
@@ -378,9 +381,9 @@ static const STimeWindow* getExtWindow(SExternalWindowOperator* pExtW, TSKEY ts)
 
 static const STimeWindow* getExtNextWindow(SOperatorInfo* pOperator) {
   SExternalWindowOperator* pExtW = pOperator->info;
-  if (getExtWinCurIdx(pOperator) + 1 >= pExtW->pWins->size) return NULL;
-  incExtWinCurIdx(pOperator);
-  return taosArrayGet(pExtW->pWins, getExtWinCurIdx(pOperator));
+  int32_t curIdx = getExtWinCurIdx(pOperator);
+  if (curIdx + 1 >= pExtW->pWins->size) return NULL;
+  return taosArrayGet(pExtW->pWins, curIdx + 1);
 }
 
 static int32_t getNextStartPos(STimeWindow win, const SDataBlockInfo* pBlockInfo, int32_t lastEndPos, int32_t order) {
@@ -434,7 +437,7 @@ static int32_t extWindowCopyRows(SOperatorInfo* pOperator, SSDataBlock* pInputBl
     qError("failed to get output block for ext window:%s", tstrerror(terrno));
     return terrno;
   }
-  int32_t rowsToCopy = pResBlock->info.capacity - pResBlock->info.rows;
+  int32_t rowsToCopy = TMIN(pResBlock->info.capacity - pResBlock->info.rows, forwardRows);
   int32_t code = 0;
   if (rowsToCopy > 0) {
     code = blockDataMergeNRows(pResBlock, pInputBlock, startPos, rowsToCopy);
@@ -455,7 +458,7 @@ static int32_t hashExternalWindowProject(SOperatorInfo* pOperator, SSDataBlock* 
   SqlFunctionCtx*          pCtx = NULL;
   int64_t*                 tsCol = extractTsCol(pInputBlock, pExtW->primaryTsIndex, pTaskInfo);
   TSKEY                    ts = getStartTsKey(&pInputBlock->info.window, tsCol);
-  const STimeWindow*       pWin = getExtWindow(pExtW, ts);
+  const STimeWindow*       pWin = getExtWindow(pOperator, ts);
   bool                     ascScan = pExtW->binfo.inputTsOrder == TSDB_ORDER_ASC;
   int32_t                  tsOrder = pExtW->binfo.inputTsOrder;
   int32_t startPos = 0;  // TODO wjm filter out somerows not in current window, and do it for hashExternalWindowAgg
@@ -464,6 +467,14 @@ static int32_t hashExternalWindowProject(SOperatorInfo* pOperator, SSDataBlock* 
   int32_t forwardRows =
       getNumOfRowsInTimeWindow(&pInputBlock->info, tsCol, startPos, ekey, binarySearchForKey, NULL, tsOrder);
 
+
+  if (pExtW->scalarSupp.pExprInfo) {
+    SExprSupp* pExprSup = &pExtW->scalarSupp;
+    int32_t    code =
+      projectApplyFunctions(pExprSup->pExprInfo, pInputBlock, pInputBlock, pExprSup->pCtx, pExprSup->numOfExprs,
+          NULL, &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
+    if (code != 0) return code;
+  }
   int32_t code = extWindowCopyRows(pOperator, pInputBlock, startPos, forwardRows);
 
   while (code == 0 && pInputBlock->info.rows > startPos + forwardRows) {
@@ -493,7 +504,7 @@ static bool hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
   int32_t                  ret = 0;
   // TODO wjm handle limit, test desc order
 
-  const STimeWindow* pWin = getExtWindow(pExtW, ts);
+  const STimeWindow* pWin = getExtWindow(pOperator, ts);
   if (pWin) {
     // TODO wjm handle null
   }
@@ -521,6 +532,7 @@ static bool hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
       win = *pWin;
     startPos = getNextStartPos(win, &pInputBlock->info, prevEndPos, pExtW->binfo.inputTsOrder);
     if (startPos < 0) break;
+    incExtWinCurIdx(pOperator);
 
     ekey = ascScan ? win.ekey : win.skey;
     forwardRows = getNumOfRowsInTimeWindow(&pInputBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL,
@@ -555,10 +567,17 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
     size_t size = taosArrayGetSize(pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPesudoFuncVals);
     pExtW->pWins = taosArrayInit(size, sizeof(STimeWindow));
     if (!pExtW->pWins) QUERY_CHECK_CODE(terrno, lino, _end);
+    pExtW->pOutputBlocks = taosArrayInit(size, sizeof(SBlockList));
+    if (!pExtW->pOutputBlocks) QUERY_CHECK_CODE(terrno, lino, _end);
     for (int32_t i = 0; i < size; ++i) {
       SSTriggerCalcParam* pParam = taosArrayGet(pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPesudoFuncVals, i);
       STimeWindow win = {.skey = pParam->wstart, .ekey = pParam->wend};
       (void)taosArrayPush(pExtW->pWins, &win);
+
+      SBlockList bl = {.pSrcBlock = pExtW->binfo.pRes, .pBlocks = 0, .blockRowNumThreshold = 4096};
+      code = blockListInit(&bl, 4096);
+      if (code != 0) QUERY_CHECK_CODE(code, lino, _end);
+      (void)taosArrayPush(pExtW->pOutputBlocks, &bl);
     }
   }
 
@@ -705,7 +724,7 @@ static int32_t doMergeAlignExtWindowAgg(SOperatorInfo* pOperator, SResultRowInfo
   int64_t* tsCols = extractTsCol(pBlock, pExtW->primaryTsIndex, pTaskInfo);
   TSKEY ts = getStartTsKey(&pBlock->info.window, tsCols);
 
-  const STimeWindow *pWin = getExtWindow(pExtW, ts);
+  const STimeWindow *pWin = getExtWindow(pOperator, ts);
   if (!pWin) {
     // TODO wjm
   }

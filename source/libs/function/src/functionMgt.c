@@ -762,7 +762,7 @@ int32_t fmGetStreamPseudoFuncType(int32_t funcId) {
   return -1;
 }
 
-void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo) {
+const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo) {
   SSTriggerCalcParam *pParams = taosArrayGet(pStreamRuntimeFuncInfo->pStreamPesudoFuncVals, pStreamRuntimeFuncInfo->curIdx);
   switch (funcMgtBuiltins[funcId].type) {
     case FUNCTION_TYPE_TCURRENT_TS:
@@ -775,6 +775,8 @@ void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pSt
       return &pParams->wduration;
     case FUNCTION_TYPE_TWROWNUM:
       return &pParams->wrownum;
+    case FUNCTION_TYPE_GROUP_ID:
+      return &pStreamRuntimeFuncInfo->groupId;
     default:
       break;
   }
@@ -793,7 +795,7 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
   if (STREAM_PSEUDO_FUNC_TGRPID == t) {
     SValue v = {0};
     v.type = TSDB_DATA_TYPE_BIGINT;
-    v.val = pStreamRuntimeInfo->groupId;
+    v.val = *(int64_t*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
     pFirstParam = nodesListGetNode(pParamNodes, 0);
     if (nodeType(pFirstParam) != QUERY_NODE_VALUE) {
       uError("invalid param node type: %d for func: %d", nodeType(pFirstParam), funcId);
@@ -808,7 +810,7 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
     // TODO wjm impl
   } else if (1) {
     // twstart, twend
-    void* pVal = fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
+    const void* pVal = fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
     pFirstParam = nodesListGetNode(pParamNodes, 0);
     if (nodeType(pFirstParam) != QUERY_NODE_VALUE) {
       uError("invalid param node type: %d for func: %d", nodeType(pFirstParam), funcId);
@@ -818,7 +820,7 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
       uError("failed to set stream pseudo func param val, NULL val for funcId: %d", funcId);
       return TSDB_CODE_INTERNAL_ERROR;
     }
-    code = nodesSetValueNodeValue((SValueNode*)pFirstParam, pVal);
+    code = nodesSetValueNodeValue((SValueNode*)pFirstParam, (void*)pVal);
     if (code != 0) {
       uError("failed to set value node value: %s", tstrerror(code));
       return code;

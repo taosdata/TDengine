@@ -234,7 +234,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   streamSetTaskRuntimeInfo(pExec->pExecutor, &pExec->runtimeInfo);
 
   pExec->runtimeInfo.funcInfo.curIdx = 0;
-  for (; pExec->runtimeInfo.funcInfo.curIdx++ < calcNum; ++pExec->runtimeInfo.funcInfo.curIdx) {
+  for (; pExec->runtimeInfo.funcInfo.curIdx < calcNum; ++pExec->runtimeInfo.funcInfo.curIdx) {
 
     SSDataBlock* pBlock = NULL;
     uint64_t     ts = 0;
