@@ -194,6 +194,7 @@ typedef struct STbSVersion {
   char*   tbFName;
   int32_t sver;
   int32_t tver;
+  int32_t rver; // virtual table's column ref's version
 } STbSVersion;
 
 typedef struct SUserAuthVersion {

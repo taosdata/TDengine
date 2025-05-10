@@ -2704,6 +2704,7 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
   stbObj.pExtSchemas = NULL;
   stbObj.updateTime = taosGetTimestampMs();
   stbObj.lock = 0;
+  stbObj.virtualStb = pOld->virtualStb;
   bool updateTagIndex = false;
   switch (pAlter->alterType) {
     case TSDB_ALTER_TABLE_ADD_TAG:

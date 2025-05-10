@@ -153,6 +153,13 @@ int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen
 int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen);
 int tdbFreeOvflPage(SPgno pgno, int nSize, TXN *pTxn, SBTree *pBt);
 
+// these 3 functions are only for free page management, they are using the b-tree as a stack.
+// they should only be called on the b-tree of the free page table, never call them for other
+// purpose.
+int tdbBtreeToStack(SBTree *pBt);
+int tdbBtreePushFreePage(SBTree *pBt, SPage *pPage, TXN *pTxn);
+int tdbBtreePopFreePage(SBTree *pBt, SPgno* pgno, TXN *pTxn);
+
 typedef struct {
   u8      flags;
   SBTree *pBt;
@@ -189,6 +196,7 @@ int  tdbPagerAbort(SPager *pPager, TXN *pTxn);
 int  tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *, int), void *arg,
                        TXN *pTxn);
 void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn);
+int tdbPagerFetchFreePage(SPager *pPager, SPgno pgno, SPage **ppPage, TXN *pTxn);
 int  tdbPagerInsertFreePage(SPager *pPager, SPage *pPage, TXN *pTxn);
 // int  tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
 int tdbPagerRestoreJournals(SPager *pPager);
@@ -215,7 +223,7 @@ int tdbPagerRollback(SPager *pPager);
 int    tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache);
 void   tdbPCacheClose(SPCache *pCache);
 int    tdbPCacheAlter(SPCache *pCache, int32_t nPage);
-SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn, bool force);
+SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn, bool force, bool* loaded);
 void   tdbPCacheRelease(SPCache *pCache, SPage *pPage, TXN *pTxn);
 void   tdbPCacheMarkFree(SPCache *pCache, SPage *pPage);
 void   tdbPCacheInvalidatePage(SPCache *pCache, SPager *pPager, SPgno pgno);
