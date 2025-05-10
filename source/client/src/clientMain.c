@@ -363,6 +363,7 @@ int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)
 typedef struct SFetchWhiteListInfo {
   int64_t                     connId;
   __taos_async_whitelist_fn_t userCbFn;
+  __taos_async_whitelist_ipv6_fn_t userCbFn2;
   void                       *userParam;
 } SFetchWhiteListInfo;
 
@@ -399,7 +400,10 @@ int32_t fetchWhiteListCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
     pWhiteLists[i] = ((uint64_t)wlRsp.pWhiteLists[i].mask << 32) | wlRsp.pWhiteLists[i].ip;
   }
 
+ // ipv4  
   pInfo->userCbFn(pInfo->userParam, code, taos, wlRsp.numWhiteLists, pWhiteLists);
+// ipv6
+  pInfo->userCbFn2(pInfo->userParam, code, taos, wlRsp.numWhiteLists, NULL);
 
   taosMemoryFree(pWhiteLists);
   taosMemoryFree(pMsg->pData);
@@ -409,7 +413,8 @@ int32_t fetchWhiteListCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
   return code;
 }
 
-void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *param) {
+void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, __taos_async_whitelist_ipv6_fn_t fp2,
+                            void *param) {
   if (NULL == taos) {
     fp(param, TSDB_CODE_INVALID_PARA, taos, 0, NULL);
     return;
@@ -456,6 +461,8 @@ void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *pa
 
   pParam->connId = connId;
   pParam->userCbFn = fp;
+  pParam->userCbFn2 = fp2;
+
   pParam->userParam = param;
   SMsgSendInfo *pSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (pSendInfo == NULL) {
