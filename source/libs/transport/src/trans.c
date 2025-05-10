@@ -100,6 +100,8 @@ void* rpcOpen(const SRpcInit* pInit) {
     if ((code = transValidLocalFqdn(pInit->localFqdn, &ip)) != 0) {
       tError("invalid fqdn:%s, errmsg:%s", pInit->localFqdn, tstrerror(code));
       TAOS_CHECK_GOTO(code, NULL, _end);
+    } else {
+      tInfo("fqdn:%s => ip:0x%" PRIx32 "", pInit->localFqdn, ip);
     }
   }
 
