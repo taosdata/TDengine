@@ -14,7 +14,7 @@ toc_max_heading_level: 5
 
 - TDengine 3.3.6.0 及以上版本集群已部署并正常运行（企业及社区版均可）。
 - taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../../reference/components/taosadapter)。
-- Spark 3.4.0 及以上版本（ [Spark 下载](https://spark.apache.org/downloads.html)）。
+- Spark 3.3.2 及以上版本（ [Spark 下载](https://spark.apache.org/downloads.html)）。
 - 安装 JDBC 驱动。从 `maven.org` 下载 `TDengine JDBC` 连接器文件 `taos-jdbcdriver-3.6.2-dist.jar` 或以上版本。
 
 ## 配置数据源
