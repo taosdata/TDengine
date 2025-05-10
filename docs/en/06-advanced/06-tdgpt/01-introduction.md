@@ -17,7 +17,7 @@ The rapid development of artificial intelligence (AI) has brought new opportunit
 
 # Technical Features
 TDgpt is an external agent that integrates seamlessly with TDengine’s main process taosd. It allows time-series analysis services to be embedded directly into TDengine’s query execution flow.
-TDgpt is a stateless platform that includes the classic statsmodels library of statistical analysis models as well as embedded frameworks such as Torch and Keras for machine and deep learning. In addition, it can directly invoke TDengine’s proprietary foundation model TDtsfm through request forwarding and adaptation.
+TDgpt is a stateless platform that includes the classic statsmodels library of statistical analysis models as well as embedded frameworks such as PyTorch and Keras for machine and deep learning. In addition, it can directly invoke TDengine’s proprietary foundation model TDtsfm through request forwarding and adaptation.
 
 As an analytics agent, TDgpt will also support integration with third-party time-series model-as-a-service (MaaS) platforms in the future. By modifying just a single parameter (algo), you will be able to access cutting-edge time-series model services.
 TDgpt is an open system to which you can easily add your own algorithms for forecasting, anomaly detection, imputation, and classification. Once added, the new algorithms can be used simply by changing the corresponding parameters in the SQL statement,
@@ -28,7 +28,7 @@ TDgpt is composed of one or more stateless analysis nodes, called AI nodes (anod
 TDgpt provides a unified interface and invocation method for different types of analysis algorithms. Based on user-specified parameters, it calls advanced algorithm packages and other analytical tools, then returns the results to TDengine’s main process (taosd) in a predefined format.
 TDgpt consists of four main components:
 -- Built-in analytics libraries: Includes libraries such as statsmodels, pyculiarity, and pmdarima, offering ready-to-use models for forecasting and anomaly detection.
--- Built-in machine learning libraries: Includes libraries like Torch, Keras, and Scikit-learn to run pre-trained machine and deep learning models within TDgpt’s process space. The training process can be managed using end-to-end open-source ML frameworks such as Merlion or Kats, and trained models can be deployed by uploading them to a designated TDgpt directory.
+-- Built-in machine learning libraries: Includes libraries like PyTorch, Keras, and Scikit-learn to run pre-trained machine and deep learning models within TDgpt’s process space. The training process can be managed using end-to-end open-source ML frameworks such as Merlion or Kats, and trained models can be deployed by uploading them to a designated TDgpt directory.
 - Request adapter for general-purpose LLMs: Converts time-series forecasting requests into prompts for general-purpose LLMs such as Llama in a MaaS manner. (Note: This functionality is not open source.)
 - Adapter for locally deployed time-series models: Sends requests directly to models like Time-MoE and TDtsfm that are specifically designed for time-series data. Compared to general-purpose LLMs, these models do not require prompt engineering, are lighter-weight, and are easier to deploy locally with lower hardware requirements. In addition, the adapter can also connect to cloud-based time-series MaaS systems such as TimeGPT, enabling localized analysis powered by cloud-hosted models.
 
@@ -62,13 +62,13 @@ TDengine Enterprise includes a tool that evaluates the effectiveness of differen
 
 # Model Management
 
-Trained models for machine learning frameworks such as Torch, TensorFlow, and Keras must be placed in the designated directory on the anode. The anode automatically detects and loads models from this directory.
+Trained models for machine learning frameworks such as PyTorch, TensorFlow, and Keras must be placed in the designated directory on the anode. The anode automatically detects and loads models from this directory.
 TDengine Enterprise includes a model manager that integrates seamlessly with open-source end-to-end ML frameworks for time-series data such as Merlion and Kats.
 
 Processing Performance
 
 Time-series analytics is a CPU-intensive workflow. Using a more powerful CPU or GPU can improve performance.
-Machine and deep learning models in TDgpt are run through torch, and you can use standard methods of improving performance, for example deploying TDgpt on a machine with more RAM and uing a torch model that can use GPUs.
+Machine and deep learning models in TDgpt are run through PyTorch, and you can use standard methods of improving performance, for example deploying TDgpt on a machine with more RAM and uing a torch model that can use GPUs.
 You can add different algorithms and models to different anodes to enable concurrent processing.
 
 # Operations and Maintenance
@@ -86,7 +86,7 @@ TDgpt is deployed as a Flask service through uWSGI. You can monitor its status b
 
 [4] Keras: https://keras.io/guides/
 
-[5] Torch: https://pytorch.org/
+[5] PyTorch: https://pytorch.org/
 
 [6] Scikit-learn: https://scikit-learn.org/stable/index.html
 
