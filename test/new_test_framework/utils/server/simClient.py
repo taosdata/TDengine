@@ -106,8 +106,8 @@ class TDSimClient:
             self.cfg(key, value)
 
         try:
-            if bool(updatecfgDict) and updatecfgDict[0] and updatecfgDict[0][0]:
-                clientCfg = dict (updatecfgDict[0][0].get('clientCfg'))
+            if bool(updatecfgDict) and updatecfgDict[0] and "clientCfg" in updatecfgDict[0]:
+                clientCfg = dict (updatecfgDict[0].get('clientCfg'))
                 for key, value in clientCfg.items():
                     self.cfg(key, value)
         except Exception:

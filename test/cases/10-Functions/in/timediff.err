@@ -1,0 +1,5 @@
+select timediff();
+select timediff(, '2022-01-01 08:00:01',1s);
+select timediff('2022-01-01 08:00:00', ,1s);
+select timediff('2022-01-01 08:00:00', '2022-01-01 08:00:01',);
+select timediff(1720769589123, 1720769529123, 2s);

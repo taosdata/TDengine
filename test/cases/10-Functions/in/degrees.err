@@ -1,0 +1,2 @@
+select degrees();
+select degrees('abc');

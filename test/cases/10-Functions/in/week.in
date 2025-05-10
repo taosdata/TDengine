@@ -1,0 +1,93 @@
+select WEEK('2020-01-01 00:00:00')
+select WEEK('2020-01-01 00:00:00', 0)
+select WEEK('2020-01-01 00:00:00', 1)
+select WEEK('2020-01-01 00:00:00', 2)
+select WEEK('2020-01-01 00:00:00', 3)
+select WEEK('2020-01-01 00:00:00', 4)
+select WEEK('2020-01-01 00:00:00', 5)
+select WEEK('2020-01-01 00:00:00', 6)
+select WEEK('2020-01-01 00:00:00', 7)
+select WEEK('2021-01-01 00:00:00')
+select WEEK('2021-01-01 00:00:00', 0)
+select WEEK('2021-01-01 00:00:00', 1)
+select WEEK('2021-01-01 00:00:00', 2)
+select WEEK('2021-01-01 00:00:00', 3)
+select WEEK('2021-01-01 00:00:00', 4)
+select WEEK('2021-01-01 00:00:00', 5)
+select WEEK('2021-01-01 00:00:00', 6)
+select WEEK('2021-01-01 00:00:00', 7)
+select WEEK('1998-01-01 00:00:00')
+select WEEK('1998-01-01 00:00:00', 0)
+select WEEK('1998-01-01 00:00:00', 1)
+select WEEK('1998-01-01 00:00:00', 2)
+select WEEK('1998-01-01 00:00:00', 3)
+select WEEK('1998-01-01 00:00:00', 4)
+select WEEK('1998-01-01 00:00:00', 5)
+select WEEK('1998-01-01 00:00:00', 6)
+select WEEK('1998-01-01 00:00:00', 7)
+select WEEK('1998-12-31 00:00:00')
+select WEEK('1998-12-31 00:00:00', 0)
+select WEEK('1998-12-31 00:00:00', 1)
+select WEEK('1998-12-31 00:00:00', 2)
+select WEEK('1998-12-31 00:00:00', 3)
+select WEEK('1998-12-31 00:00:00', 4)
+select WEEK('1998-12-31 00:00:00', 5)
+select WEEK('1998-12-31 00:00:00', 6)
+select WEEK('1998-12-31 00:00:00', 7)
+select WEEK('2000-01-06 00:00:00')
+select WEEK('2000-01-06 00:00:00', 0)
+select WEEK('2000-01-06 00:00:00', 1)
+select WEEK('2000-01-06 00:00:00', 2)
+select WEEK('2000-01-06 00:00:00', 3)
+select WEEK('2000-01-06 00:00:00', 4)
+select WEEK('2000-01-06 00:00:00', 5)
+select WEEK('2000-01-06 00:00:00', 6)
+select WEEK('2000-01-06 00:00:00', 7)
+select WEEK(1725095657)
+select WEEK(1725095657, 0)
+select WEEK(1725095657, 1)
+select WEEK(1725095657, 2)
+select WEEK(1725095657, 3)
+select WEEK(1725095657, 4)
+select WEEK(1725095657, 5)
+select WEEK(1725095657, 6)
+select WEEK(ts) from ts_4893.meters order by ts limit 10
+select WEEK(ts, 0) from ts_4893.meters order by ts limit 10
+select WEEK(ts, 1) from ts_4893.meters order by ts limit 10
+select WEEK(ts, 2) from ts_4893.meters order by ts limit 10
+select WEEK(ts, 3) from ts_4893.meters order by ts limit 10
+select WEEK(ts, 4) from ts_4893.meters order by ts limit 10
+select WEEK(ts, 5) from ts_4893.meters order by ts limit 10
+select WEEK(ts, 6) from ts_4893.meters order by ts limit 10
+select WEEK(ts, 7) from ts_4893.meters order by ts limit 10
+select week(123)
+select week('2000-01-01',0)
+select week('2000-01-01',1)
+select week('2000-01-01',2)
+select week('2000-01-01',3)
+select week('2000-01-01',4)
+select week('2000-01-01',5)
+select week('2000-01-01',6)
+select week('2000-01-01',7)
+select week(1721020591,0)
+select week('2020-01-01 00:00:00', 2)
+select week(ts) from ts_4893.d0 order by ts limit 10
+select week(ts) from ts_4893.meters order by ts limit 10
+select week(null, 0)
+select week('abc')
+select week('1721020591', 0)
+select week('1721020666229', 0)
+select week('20200101', 2)
+select week('11/01/31', 2)
+select week('20/01/01', 2)
+select week('01/01/2020', 2)
+select week('01-JAN-20', 2)
+select week('2023-09-25')
+select week('9999-12-31')
+select week('2024-02-29 00:00:00')
+select week(ts) from ts_4893.meters limit 1
+select week(name) from ts_4893.meters limit 1
+select week(ts), dayofweek(ts) from ts_4893.meters limit 1
+select week(timediff(ts, '2024-10-10 09:36:50.172')) from ts_4893.meters limit 1
+select id, week(ts) from ts_4893.meters where id = 1 limit 1
+select groupid, sum(week(ts)) from ts_4893.meters group by groupid order by groupid

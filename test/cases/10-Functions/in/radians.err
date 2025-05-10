@@ -1,0 +1,2 @@
+select radians();
+select radians('abc');

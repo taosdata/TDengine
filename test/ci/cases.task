@@ -32,6 +32,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_varchar.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null_column.py
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_ts6333.py
 
 # 02-Databases
 ## 01-Create
@@ -224,6 +225,19 @@
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_tag_tinyint.py
 
 # 05-VirtualTables
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_create.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_alter.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_drop.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_meta.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_create.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_select.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_alter_drop.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_drop_origin_table.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_join.py
 
 # 06-DataIngestion
 ## 01-Insert
@@ -338,11 +352,14 @@
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/10-Union/test_unionall_as_table.py
 ## 11-Interp
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/11-Interp/test_interp.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/11-Interp/test_interp2.py
 ## 12-Having
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_having_agg.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_having_child.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_having_complex.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_having.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_having_with_interval_and_fill.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_query_accuracy.py
 ## 13-Distinct
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/13-Distinct/test_distinct.py
 ## 14-Explain
@@ -383,6 +400,8 @@
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_scalar_null.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_scalar.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_truncate.py 
+,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_cast.py 
+
 ## 02-Aggregate
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_apercentile.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_avg.py 
@@ -393,6 +412,10 @@
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_stddev.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_stddev2.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_sum.py 
+,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_sum.py
+,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_elapsed.py
+,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_percentile.py
+
 ## 03-Selection
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_bottom.py
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_first_last.py
@@ -411,6 +434,8 @@
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_multires.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_top.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_topbot.py 
+,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_paramnum.py
+,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_selection_function_with_json.py
 ## 04-TimeseriesSpecfic
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/04-TimeseriesSpecfic/test_func_diff.py
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/04-TimeseriesSpecfic/test_func_diff2.py

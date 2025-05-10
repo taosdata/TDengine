@@ -1,0 +1,70 @@
+select * from test_vtable_select.vtb_virtual_ctb_full limit 100;
+select * from test_vtable_select.vtb_virtual_ctb_half_full limit 100;
+select * from test_vtable_select.vtb_virtual_ctb_empty limit 100;
+select ts from test_vtable_select.vtb_virtual_ctb_full limit 100;
+select ts from test_vtable_select.vtb_virtual_ctb_half_full limit 100;
+select ts from test_vtable_select.vtb_virtual_ctb_empty limit 100;
+
+select u_tinyint_col from test_vtable_select.vtb_virtual_ctb_full limit 100;
+select u_tinyint_col, u_smallint_col from test_vtable_select.vtb_virtual_ctb_full limit 100;
+select u_tinyint_col, u_smallint_col, u_int_col from test_vtable_select.vtb_virtual_ctb_full limit 100;
+select u_tinyint_col, u_smallint_col, u_int_col, u_bigint_col from test_vtable_select.vtb_virtual_ctb_full limit 100;
+select u_tinyint_col, u_smallint_col, u_int_col, u_bigint_col, float_col from test_vtable_select.vtb_virtual_ctb_full limit 100;
+select u_tinyint_col, u_smallint_col, u_int_col, u_bigint_col, float_col, double_col from test_vtable_select.vtb_virtual_ctb_full limit 100;
+select u_tinyint_col, u_smallint_col, u_int_col, u_bigint_col, float_col, double_col, bool_col from test_vtable_select.vtb_virtual_ctb_full limit 100;
+select u_tinyint_col, u_smallint_col, u_int_col, u_bigint_col, float_col, double_col, bool_col, binary_16_col from test_vtable_select.vtb_virtual_ctb_full limit 100;
+select u_tinyint_col, u_smallint_col, u_int_col, u_bigint_col, float_col, double_col, bool_col, binary_16_col, nchar_16_col from test_vtable_select.vtb_virtual_ctb_full limit 100;
+
+select u_tinyint_col from test_vtable_select.vtb_virtual_ctb_half_full limit 100;
+select u_tinyint_col, u_smallint_col from test_vtable_select.vtb_virtual_ctb_half_full limit 100;
+select u_tinyint_col, u_smallint_col, u_int_col from test_vtable_select.vtb_virtual_ctb_half_full limit 100;
+select u_tinyint_col, u_smallint_col, u_int_col, u_bigint_col from test_vtable_select.vtb_virtual_ctb_half_full limit 100;
+select u_tinyint_col, u_smallint_col, u_int_col, u_bigint_col, float_col from test_vtable_select.vtb_virtual_ctb_half_full limit 100;
+select u_tinyint_col, u_smallint_col, u_int_col, u_bigint_col, float_col, double_col from test_vtable_select.vtb_virtual_ctb_half_full limit 100;
+select u_tinyint_col, u_smallint_col, u_int_col, u_bigint_col, float_col, double_col, bool_col from test_vtable_select.vtb_virtual_ctb_half_full limit 100;
+select u_tinyint_col, u_smallint_col, u_int_col, u_bigint_col, float_col, double_col, bool_col, binary_16_col from test_vtable_select.vtb_virtual_ctb_half_full limit 100;
+select u_tinyint_col, u_smallint_col, u_int_col, u_bigint_col, float_col, double_col, bool_col, binary_16_col, nchar_16_col from test_vtable_select.vtb_virtual_ctb_half_full limit 100;
+select ts, u_tinyint_col from test_vtable_select.vtb_virtual_ctb_full limit 100;
+select double_col from test_vtable_select.vtb_virtual_ctb_half_full;
+select double_col from test_vtable_select.vtb_virtual_ctb_empty;
+
+select int_tag from test_vtable_select.vtb_virtual_ctb_full limit 100;
+select int_tag, bool_tag, float_tag, double_tag, nchar_32_tag, binary_32_tag from test_vtable_select.vtb_virtual_ctb_full limit 100;
+select int_tag, bool_tag, * from test_vtable_select.vtb_virtual_ctb_full limit 100;
+select int_tag, bool_tag, ts from test_vtable_select.vtb_virtual_ctb_full limit 100;
+select int_tag, bool_tag, u_tinyint_col from test_vtable_select.vtb_virtual_ctb_full limit 100;
+select int_tag, bool_tag, u_tinyint_col, u_smallint_col from test_vtable_select.vtb_virtual_ctb_full limit 100;
+select int_tag, bool_tag, u_tinyint_col, u_smallint_col, u_int_col from test_vtable_select.vtb_virtual_ctb_full limit 100;
+
+select tbname, int_tag from test_vtable_select.vtb_virtual_ctb_full limit 100;
+select tbname, int_tag, bool_tag, float_tag, double_tag, nchar_32_tag, binary_32_tag from test_vtable_select.vtb_virtual_ctb_full limit 100;
+select tbname, int_tag, bool_tag, * from test_vtable_select.vtb_virtual_ctb_full limit 100;
+select tbname, int_tag, bool_tag, ts from test_vtable_select.vtb_virtual_ctb_full limit 100;
+select tbname, int_tag, bool_tag, u_tinyint_col from test_vtable_select.vtb_virtual_ctb_full limit 100;
+select tbname, int_tag, bool_tag, u_tinyint_col, u_smallint_col from test_vtable_select.vtb_virtual_ctb_full limit 100;
+select tbname, int_tag, bool_tag, u_tinyint_col, u_smallint_col, u_int_col from test_vtable_select.vtb_virtual_ctb_full limit 100;
+
+select tbname, int_tag from test_vtable_select.vtb_virtual_ctb_half_full limit 100;
+select tbname, int_tag, bool_tag, float_tag, double_tag, nchar_32_tag, binary_32_tag from test_vtable_select.vtb_virtual_ctb_half_full limit 100;
+select tbname, int_tag, bool_tag, * from test_vtable_select.vtb_virtual_ctb_half_full limit 100;
+select tbname, int_tag, bool_tag, ts from test_vtable_select.vtb_virtual_ctb_half_full limit 100;
+select tbname, int_tag, bool_tag, u_tinyint_col from test_vtable_select.vtb_virtual_ctb_half_full limit 100;
+select tbname, int_tag, bool_tag, u_tinyint_col, u_smallint_col from test_vtable_select.vtb_virtual_ctb_half_full limit 100;
+select tbname, int_tag, bool_tag, u_tinyint_col, u_smallint_col, u_int_col from test_vtable_select.vtb_virtual_ctb_half_full limit 100;
+
+select tbname, int_tag from test_vtable_select.vtb_virtual_ctb_empty limit 100;
+select tbname, int_tag, bool_tag, float_tag, double_tag, nchar_32_tag, binary_32_tag from test_vtable_select.vtb_virtual_ctb_empty limit 100;
+select tbname, int_tag, bool_tag, * from test_vtable_select.vtb_virtual_ctb_empty limit 100;
+select tbname, int_tag, bool_tag, ts from test_vtable_select.vtb_virtual_ctb_empty limit 100;
+select tbname, int_tag, bool_tag, u_tinyint_col from test_vtable_select.vtb_virtual_ctb_empty limit 100;
+select tbname, int_tag, bool_tag, u_tinyint_col, u_smallint_col from test_vtable_select.vtb_virtual_ctb_empty limit 100;
+select tbname, int_tag, bool_tag, u_tinyint_col, u_smallint_col, u_int_col from test_vtable_select.vtb_virtual_ctb_empty limit 100;
+
+
+select count(*) from (select int_tag from test_vtable_select.vtb_virtual_ctb_full);
+select count(*) from (select int_tag, bool_tag, float_tag, double_tag, nchar_32_tag, binary_32_tag from test_vtable_select.vtb_virtual_ctb_full);
+select count(*) from (select int_tag, bool_tag, * from test_vtable_select.vtb_virtual_ctb_full);
+select count(*) from (select int_tag, bool_tag, ts from test_vtable_select.vtb_virtual_ctb_full);
+select count(*) from (select int_tag, bool_tag, u_tinyint_col from test_vtable_select.vtb_virtual_ctb_full);
+select count(*) from (select int_tag, bool_tag, u_tinyint_col, u_smallint_col from test_vtable_select.vtb_virtual_ctb_full);
+select count(*) from (select int_tag, bool_tag, u_tinyint_col, u_smallint_col, u_int_col from test_vtable_select.vtb_virtual_ctb_full);

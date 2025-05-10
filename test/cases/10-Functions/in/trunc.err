@@ -1,0 +1,6 @@
+select truncate();
+select truncate(99.99,);
+select truncate(, 3);
+select truncate(99.99);
+select truncate('12', 2);
+select truncate(12, '1');
