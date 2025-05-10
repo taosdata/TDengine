@@ -1597,6 +1597,7 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
     for (int32_t j = 0; j < vgListSize; ++j) {
       TAOS_CHECK_EXIT(tEncodeI32(pEncoder, *(int32_t*)taosArrayGet(pCalcScanPlan->vgList, j)));
     }
+    TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pCalcScanPlan->readFromCache));
     TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pCalcScanPlan->scanPlan, scanPlanLen));
   }
 
@@ -1861,6 +1862,7 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
             TAOS_CHECK_EXIT(terrno);
           }
         }
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &calcScan.readFromCache));
         TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&calcScan.scanPlan, NULL));
       }
       taosArrayPush(pReq->calcScanPlanList, &calcScan);
