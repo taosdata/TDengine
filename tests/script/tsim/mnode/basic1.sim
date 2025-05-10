@@ -5,7 +5,8 @@ system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
 sql connect
 
-print =============== select * from information_schema.ins_dnodes
+print =============== select * from information_schema.ins_mnodes
+sleep 1000
 sql select * from information_schema.ins_mnodes;
 if $rows != 1 then 
   return -1
@@ -16,6 +17,7 @@ if $data00 != 1 then
 endi
 
 if $data02 != leader then 
+  print $data02
   return -1
 endi
 

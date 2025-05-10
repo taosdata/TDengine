@@ -80,7 +80,7 @@ B+ Tree 的页结构如下图所示：
 
 在 MemTable 中，数据采用了 Red-Black Tree（红黑树）和 SkipList 相结合的索引方式。不同表的数据索引存储在 Red-Black Tree 中，而同一张表的数据索引则存储在 SkipList 中。这种设计方式充分利用了时序数据的特点，提高了数据的存储和访问效率。
 
-Red-Black Tree 是一种自平衡的二叉树，它通过对节点进行着色和旋转操作来保持树的平衡，从而确保了查询、插入和删除操作的时间复杂度为 O(logn)。在 MemTable 中，Red-Black Tree 用于存储不同表
+Red-Black Tree 是一种自平衡的二叉树，它通过对节点进行着色和旋转操作来保持树的平衡，从而确保了查询、插入和删除操作的时间复杂度为 O(logn)。在 MemTable 中，Red-Black Tree 用于存储不同表的数据索引。
 
 SkipList 是一种基于有序链表的数据结构，它通过在链表的基础上添加多级索引来实现快速查找。SkipList 的查询、插入和删除操作的时间复杂度为 O(logn)，与 Red-Black Tree 相当。在 MemTable 中，SkipList 用于存储同一张表的数据索引，这样可以快速定位到特定时间范围内的数据，为时序数据的查询和写入提供高效支持。
 

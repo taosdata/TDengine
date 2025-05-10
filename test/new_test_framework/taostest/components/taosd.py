@@ -115,11 +115,8 @@ class TaosD:
                 start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']} 2>{error_output}"
             else:
                 start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']}  "
-        self._remote.cmd(cfg["fqdn"],
-                         ["ulimit -n 1048576",
-                          start_cmd,
-                          "sleep 0.1",
-                          "taos -c {0} -s \"{1}\";".format(dnode["config_dir"], createDnode)])
+
+        self._remote.cmd(cfg["fqdn"], ["ulimit -n 1048576", start_cmd])
         
         if self.taosd_valgrind == 0:
             time.sleep(0.1)

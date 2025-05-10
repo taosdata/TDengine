@@ -42,12 +42,17 @@ const char* locations_sml[] = {
     "California.SantaClara", "California.Cupertino"};
 
 #ifdef WINDOWS
+    // TODO: why define ssize_t in this way?
     #define ssize_t int
-    #if _MSC_VER >= 1910
-        #include "benchLocations.h"
-    #else
-        #include "benchLocationsWin.h"
-    #endif
+    // #if _MSC_VER >= 1910
+    //     #include "benchLocations.h"
+    // #else
+    //     #include "benchLocationsWin.h"
+    // #endif
+    // NOTE: benchLocations.h is UTF-8 encoded, while benchLocationsWin.h is ANSI/GB18030 encoded.
+    //       we don't want to use /utf-8 option in MSVC which will bring more considerations,
+    //       so we use ANSI/GB18030 encoded file for the moment.
+    #include "benchLocationsWin.h"
 #else
     #include "benchLocations.h"
 #endif
@@ -2033,7 +2038,7 @@ int prepareSampleData(SDataBase* database, SSuperTable* stbInfo) {
         // check valid
         if(stbInfo->partialColFrom >= stbInfo->cols->size) {
             stbInfo->partialColFrom = 0;
-            infoPrint("stbInfo->partialColFrom(%d) is large than stbInfo->cols->size(%"PRIu64") \n ",stbInfo->partialColFrom,stbInfo->cols->size);
+            infoPrint("stbInfo->partialColFrom(%d) is large than stbInfo->cols->size(%zd) \n ",stbInfo->partialColFrom,stbInfo->cols->size);
         }
 
         if (stbInfo->partialColFrom + stbInfo->partialColNum > stbInfo->cols->size) {
@@ -2221,7 +2226,6 @@ uint32_t bindParamBatch(threadInfo *pThreadInfo,
         pThreadInfo->stmtBind = true;
         memset(pThreadInfo->bindParams, 0,
             (sizeof(TAOS_MULTI_BIND) * (columnCount + 1)));
-        memset(pThreadInfo->is_null, 0, batch);
 
         for (int c = 0; c <= columnCount; c++) {
             TAOS_MULTI_BIND *param =
@@ -2719,7 +2723,6 @@ uint32_t bindVColsProgressive(TAOS_STMT2_BINDV *bindv, int32_t tbIndex,
 
     // clear
     memset(pThreadInfo->bindParams, 0, sizeof(TAOS_STMT2_BIND) * (columnCount + 1));
-    memset(pThreadInfo->is_null, 0, batch);
     debugPrint("stmt2 bindVColsProgressive child=%s batch=%d pos=%" PRId64 "\n", childTbl->name, batch, pos);
     // loop cols
     for (int c = 0; c <= columnCount; c++) {

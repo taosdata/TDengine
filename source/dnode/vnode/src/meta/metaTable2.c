@@ -1927,6 +1927,7 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
   tstrncpy(pColRef->refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pColRef->refColName, pReq->refColName, TSDB_COL_NAME_LEN);
   pSchema->version++;
+  pEntry->colRef.version++;
 
   // do handle entry
   code = metaHandleEntry2(pMeta, pEntry);
@@ -2025,6 +2026,7 @@ int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
   pColRef->hasRef = false;
   pColRef->id = pSchema->pSchema[iColumn].colId;
   pSchema->version++;
+  pEntry->colRef.version++;
 
   // do handle entry
   code = metaHandleEntry2(pMeta, pEntry);

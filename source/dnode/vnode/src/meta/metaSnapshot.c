@@ -417,6 +417,13 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
         tDecoderClear(&dc);
         continue;
       }
+    } else if (ctx->subType == TOPIC_SUB_TYPE__DB) {
+      if (me.type == TSDB_VIRTUAL_NORMAL_TABLE ||
+          me.type == TSDB_VIRTUAL_CHILD_TABLE ||
+          TABLE_IS_VIRTUAL(me.flags)) {
+        tDecoderClear(&dc);
+        continue;
+      }
     }
 
     if (taosArrayPush(ctx->idList, &tmp->uid) == NULL) {
@@ -464,6 +471,13 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
     if (ctx->subType == TOPIC_SUB_TYPE__TABLE) {
       if ((me.uid != ctx->suid && me.type == TSDB_SUPER_TABLE) ||
           (me.ctbEntry.suid != ctx->suid && me.type == TSDB_CHILD_TABLE)) {
+        tDecoderClear(&dc);
+        continue;
+      }
+    } else if (ctx->subType == TOPIC_SUB_TYPE__DB) {
+      if (me.type == TSDB_VIRTUAL_NORMAL_TABLE ||
+          me.type == TSDB_VIRTUAL_CHILD_TABLE ||
+          TABLE_IS_VIRTUAL(me.flags)) {
         tDecoderClear(&dc);
         continue;
       }
@@ -732,7 +746,7 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     ret = buildNormalChildTableInfo(&req, pBuf, contLen);
     *type = TDMT_VND_CREATE_TABLE;
     taosArrayDestroy(tagName);
-  } else if (ctx->subType == TOPIC_SUB_TYPE__DB) {
+  } else if (ctx->subType == TOPIC_SUB_TYPE__DB && me.type == TSDB_NORMAL_TABLE) {
     SVCreateTbReq req = {0};
     req.type = TSDB_NORMAL_TABLE;
     req.name = me.name;
