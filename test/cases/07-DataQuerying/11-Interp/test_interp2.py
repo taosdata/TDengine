@@ -65,8 +65,6 @@ class TestInterp2:
 
         Labels: interp
 
-        Jira:
-
         History:
             - 2024-10-30 Jing Sima Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -88,8 +86,6 @@ class TestInterp2:
         Since: v3.3.0.0
 
         Labels: interp
-
-        Jira:
 
         History:
             - 2024-10-30 Jing Sima Created
