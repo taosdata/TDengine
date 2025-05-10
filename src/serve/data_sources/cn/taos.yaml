@@ -1,8 +1,8 @@
 ---
 id: taos
-name: TDengine 2.x
+name: TDengine Query Migration
 description: |
-  从旧版本 TDengine (2.x) 迁移到当前集群。
+  从旧版本 TDengine (2.x/3.x) 迁移到当前集群。
 type: uri
 protocol:
   display: 连接协议

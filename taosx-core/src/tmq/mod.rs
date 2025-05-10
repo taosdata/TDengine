@@ -240,7 +240,7 @@ pub(crate) async fn check_tmq_dsn(
     let builder = TaosBuilder::from_dsn(&from)?;
     let version = builder.server_version().await?;
     if version.starts_with("2.") {
-        bail!("tmq does not support TDengine 2.x");
+        bail!("tmq does not support TDengine Query");
     }
 
     let source = builder.build().await?;
@@ -1088,7 +1088,7 @@ mod tests {
         assert!(!dsv.valid);
         assert!(!dsv.support);
         assert_eq!("tmq", dsv.data_source);
-        assert_eq!("failed to check dsn: tmq+ws://192.168.1.40:6041/tmq_test?group.id=test_tmq_is_valid, cause: tmq does not support TDengine 2.x", dsv.message.unwrap());
+        assert_eq!("failed to check dsn: tmq+ws://192.168.1.40:6041/tmq_test?group.id=test_tmq_is_valid, cause: tmq does not support TDengine Query", dsv.message.unwrap());
 
         // TDengine 3.X non-exist topic
         let dsn =
