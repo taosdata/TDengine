@@ -163,7 +163,7 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
   SMergeAlignedExternalWindowOperator* pMlExtInfo = taosMemoryCalloc(1, sizeof(SMergeAlignedExternalWindowOperator));
   SOperatorInfo*                       pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
 
-  pTaskInfo->pStreamRuntimeInfo->funcInfo.withExternalWindow = true;
+  //pTaskInfo->pStreamRuntimeInfo->funcInfo.withExternalWindow = true;
   if (!pMlExtInfo || !pOperator) {
     code = terrno;
     goto _error;
@@ -267,7 +267,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     lino = __LINE__;
     goto _error;
   }
-  pTaskInfo->pStreamRuntimeInfo->funcInfo.withExternalWindow = true;
+  //pTaskInfo->pStreamRuntimeInfo->funcInfo.withExternalWindow = true;
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pPhynode->window.node.pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
@@ -587,17 +587,8 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) break;
 
-    if (pExtW->scalarSupp.pExprInfo) {
-      SExprSupp* pExprSup = &pExtW->scalarSupp;
-      code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL,
-                                   &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
-
     code = setInputDataBlock(pSup, pBlock, pExtW->binfo.inputTsOrder, scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _end);
-
-
 
     if (!pExtW->scalarMode) {
       if (hashExternalWindowAgg(pOperator, pBlock)) break;
@@ -605,6 +596,13 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
       // scalar mode, no need to do agg, just output rows partitioned by window
       code = hashExternalWindowProject(pOperator, pBlock);
       if (code != 0) goto _end;
+    }
+
+    if (pExtW->scalarSupp.pExprInfo) {
+      SExprSupp* pExprSup = &pExtW->scalarSupp;
+      code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL,
+                                   &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     OPTR_SET_OPENED(pOperator);
