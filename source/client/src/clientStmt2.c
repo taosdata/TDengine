@@ -61,29 +61,49 @@ static bool stmtDequeue(STscStmt2* pStmt, SStmtQNode** param) {
       (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
     }
   }
-  if (pStmt->queue.stopQueue) {
-    STMT2_DLOG_E("stmt stopQueue");
+
+  if (pStmt->queue.stopQueue && 0 == atomic_load_64((int64_t*)&pStmt->queue.qRemainNum)) {
+    STMT2_DLOG_E("stmt stopQueue and queue is empty");
     return false;
   }
-  SStmtQNode* orig = pStmt->queue.head;
+
+  (void)taosThreadMutexLock(&pStmt->queue.mutex);
+  if (pStmt->queue.head == pStmt->queue.tail) {
+    (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
+    STMT2_ELOG_E("stmt bind queue is empty");
+    return false;
+  }
+
   SStmtQNode* node = pStmt->queue.head->next;
-  pStmt->queue.head = pStmt->queue.head->next;
+  pStmt->queue.head->next = node->next;
+  if (pStmt->queue.tail == node) {
+    pStmt->queue.tail = pStmt->queue.head;
+  }
+  node->next = NULL;
   *param = node;
 
   (void)atomic_sub_fetch_64((int64_t*)&pStmt->queue.qRemainNum, 1);
+  (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
 
   return true;
 }
 
 static void stmtEnqueue(STscStmt2* pStmt, SStmtQNode* param) {
-  pStmt->queue.tail->next = param;
-  pStmt->queue.tail = param;
+  if (param == NULL) {
+    return;
+  }
 
-  pStmt->stat.bindDataNum++;
+  param->next = NULL;
 
   (void)taosThreadMutexLock(&pStmt->queue.mutex);
+
+  pStmt->queue.tail->next = param;
+  pStmt->queue.tail = param;
+  pStmt->stat.bindDataNum++;
+
   (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
   (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
+
   (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
 }
 
@@ -476,13 +496,9 @@ static int32_t stmtCleanSQLInfo(STscStmt2* pStmt) {
   taosArrayDestroyEx(pStmt->sql.siInfo.tbBuf.pBufList, stmtFreeTbBuf);
   taosMemoryFree(pStmt->sql.siInfo.pTSchema);
   qDestroyStmtDataBlock(pStmt->sql.siInfo.pDataCtx);
-  if (pStmt->sql.siInfo.tableColsReady) {
-    taosArrayDestroyEx(pStmt->sql.siInfo.pTableCols, stmtFreeTbCols);
-    pStmt->sql.siInfo.pTableCols = NULL;
-  } else {
-    taosArrayDestroy(pStmt->sql.siInfo.pTableCols);
-    STMT2_DLOG_E("stmt close tableCols not ready, skip free pTableCols elements");
-  }
+  taosArrayDestroyEx(pStmt->sql.siInfo.pTableCols, stmtFreeTbCols);
+  pStmt->sql.siInfo.pTableCols = NULL;
+
   (void)memset(&pStmt->sql, 0, sizeof(pStmt->sql));
   pStmt->sql.siInfo.tableColsReady = true;
 
@@ -721,19 +737,18 @@ static int32_t stmtAsyncOutput(STscStmt2* pStmt, void* param) {
 
 static void* stmtBindThreadFunc(void* param) {
   setThreadName("stmt2Bind");
-  qInfo("stmt bind thread started");
+  qInfo("stmt2 bind thread started");
 
   STscStmt2* pStmt = (STscStmt2*)param;
 
   while (true) {
-    if (pStmt->queue.stopQueue) {
-      STMT2_DLOG_E("stmt bind thread received stop signal");
-      break;
-    }
-
     SStmtQNode* asyncParam = NULL;
+
     if (!stmtDequeue(pStmt, &asyncParam)) {
-      STMT2_DLOG_E("stmt dequeue failed, continue");
+      if (pStmt->queue.stopQueue && 0 == atomic_load_64((int64_t*)&pStmt->queue.qRemainNum)) {
+        STMT2_DLOG_E("queue is empty and stopQueue is set, thread will exit");
+        break;
+      }
       continue;
     }
 
@@ -743,7 +758,7 @@ static void* stmtBindThreadFunc(void* param) {
     }
   }
 
-  qInfo("stmt bind thread stopped");
+  qInfo("stmt2 bind thread stopped");
   return NULL;
 }
 
@@ -929,11 +944,7 @@ static int32_t stmtResetStbInterlaceCache(STscStmt2* pStmt) {
       taosUsleep(1);
     }
     (void)taosThreadMutexLock(&pStmt->queue.mutex);
-    if (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady)) {
-      pStmt->sql.siInfo.tableColsReady = true;
-    }
     pStmt->queue.stopQueue = true;
-    (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
     (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
     (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
 
@@ -1507,6 +1518,10 @@ static int32_t stmtAppendTablePostHandle(STscStmt2* pStmt, SStmtQNode* param) {
 
   (void)atomic_add_fetch_64(&pStmt->sql.siInfo.tbRemainNum, 1);
 
+  if (pStmt->queue.stopQueue) {
+    STMT_DLOG_E("stmt bind thread is stopped,cannot enqueue bind request");
+    return TSDB_CODE_TSC_STMT_API_ERROR;
+  }
   stmtEnqueue(pStmt, param);
 
   return TSDB_CODE_SUCCESS;
@@ -1599,6 +1614,11 @@ static int stmtAddBatch2(TAOS_STMT2* stmt) {
 
     if (pStmt->sql.autoCreateTbl) {
       pStmt->bInfo.tagsCached = true;
+    }
+
+    if (pStmt->queue.stopQueue) {
+      STMT_DLOG_E("stmt bind thread is stopped,cannot enqueue bind request");
+      return TSDB_CODE_TSC_STMT_API_ERROR;
     }
 
     stmtEnqueue(pStmt, param);
@@ -2039,7 +2059,7 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
 
   fp(pStmt->options.userdata, res, code);
 
-  while (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady) && !pStmt->queue.stopQueue) {
+  while (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady)) {
     taosUsleep(1);
   }
   (void)stmtCleanExecInfo(pStmt, (code ? false : true), false);
@@ -2080,7 +2100,6 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
         taosUsleep(1);
       }
       pStmt->stat.execWaitUs += taosGetTimestampUs() - startTs;
-
       STMT_ERR_RET(qBuildStmtFinOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, pStmt->sql.siInfo.pVgroupList));
       taosHashCleanup(pStmt->sql.siInfo.pVgroupHash);
       pStmt->sql.siInfo.pVgroupHash = NULL;
@@ -2119,7 +2138,7 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     }
     pStmt->affectedRows += pStmt->exec.affectedRows;
 
-    while (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady) && !pStmt->queue.stopQueue) {
+    while (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady)) {
       taosUsleep(1);
     }
 
@@ -2161,11 +2180,7 @@ int stmtClose2(TAOS_STMT2* stmt) {
       taosUsleep(1);
     }
     (void)taosThreadMutexLock(&pStmt->queue.mutex);
-    if (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady)) {
-      pStmt->sql.siInfo.tableColsReady = true;
-    }
     pStmt->queue.stopQueue = true;
-    (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
     (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
     (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
 
