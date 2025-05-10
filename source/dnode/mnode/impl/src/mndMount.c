@@ -957,35 +957,30 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
     }
   }
 
-  // mount operation share db privilege
+  // mount operation share the privileges of db
   TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, NULL));
-  TAOS_CHECK_EXIT(grantCheck(TSDB_GRANT_DB));
-  TAOS_CHECK_EXIT(grantCheck(TSDB_GRANT_MOUNT));
+  TAOS_CHECK_EXIT(grantCheck(TSDB_GRANT_MOUNT));  // TODO: implement when the plan is ready
 
-  TAOS_CHECK_GOTO(mndCheckDbEncryptKey(pMnode, &createReq), &lino, _exit);
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
 
-  TAOS_CHECK_GOTO(mndCheckDbDnodeList(pMnode, createReq.db, createReq.dnodeListStr, dnodeList), &lino, _exit);
-
-  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser), &lino, _exit);
-
-  TAOS_CHECK_GOTO(mndCreateDb(pMnode, pReq, &createReq, pUser, dnodeList), &lino, _exit);
+  TAOS_CHECK_EXIT(mndCreateDb(pMnode, pReq, &createReq, pUser, dnodeList));
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   SName name = {0};
   if (tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB) < 0)
     mError("db:%s, failed to parse db name", createReq.db);
 
-  auditRecord(pReq, pMnode->clusterId, "createDB", name.dbname, "", createReq.sql, createReq.sqlLen);
+  auditRecord(pReq, pMnode->clusterId, "createMount", name.dbname, "", createReq.sql, createReq.sqlLen);
 
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("db:%s, failed to create at line:%d since %s", createReq.db, lino, tstrerror(code));
+    mError("mount:%s, dnode:%d, path:%s, failed to create at line:%d since %s", createReq.mountName, createReq.dnodeId,
+           createReq.mountPath, lino, tstrerror(code));
   }
 
-  mndReleaseDb(pMnode, pDb);
+  mndReleaseMount(pMnode, pMount);
   mndReleaseUser(pMnode, pUser);
-  tFreeSCreateDbReq(&createReq);
-  taosArrayDestroy(dnodeList);
+  tFreeSCreateMountReq(&createReq);
 
   TAOS_RETURN(code);
 }
