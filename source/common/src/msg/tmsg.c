@@ -506,7 +506,7 @@ int32_t tSerializeSClientHbBatchReq(void *buf, int32_t bufLen, const SClientHbBa
     TAOS_CHECK_EXIT(tSerializeSClientHbReq(&encoder, pReq));
   }
 
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pBatchReq->ipWhiteList));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pBatchReq->ipWhiteListVer));
   tEndEncode(&encoder);
 
 _exit:
@@ -545,7 +545,7 @@ int32_t tDeserializeSClientHbBatchReq(void *buf, int32_t bufLen, SClientHbBatchR
   }
 
   if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pBatchReq->ipWhiteList));
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pBatchReq->ipWhiteListVer));
   }
 
   tEndDecode(&decoder);
@@ -2053,7 +2053,7 @@ void tFreeSAuditReq(SAuditReq *pReq) { taosMemoryFreeClear(pReq->pSql); }
 SIpWhiteList *cloneIpWhiteList(SIpWhiteList *pIpWhiteList) {
   if (pIpWhiteList == NULL) return NULL;
 
-  int32_t       sz = sizeof(SIpWhiteList) + pIpWhiteList->num * sizeof(SIpV4Range);
+  int32_t       sz = sizeof(SIpWhiteList) + pIpWhiteList->num * sizeof(SIpRange);
   SIpWhiteList *pNew = taosMemoryCalloc(1, sz);
   if (pNew) {
     memcpy(pNew, pIpWhiteList, sz);
@@ -2152,9 +2152,17 @@ int32_t tSerializeSUpdateIpWhite(void *buf, int32_t bufLen, SUpdateIpWhite *pReq
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pUser->user));
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pUser->numOfRange));
     for (int j = 0; j < pUser->numOfRange; j++) {
-      SIpV4Range *pRange = &pUser->pIpRanges[j];
-      TAOS_CHECK_EXIT(tEncodeU32(&encoder, pRange->ip));
-      TAOS_CHECK_EXIT(tEncodeU32(&encoder, pRange->mask));
+      SIpRange *pRange = &pUser->pIpRanges[j];
+      if (pRange->type == 0) {
+        SIpV4Range *pIp4 = (SIpV4Range *)&pRange->ipV4;
+        TAOS_CHECK_EXIT(tEncodeU32(&encoder, pIp4->ip));
+        TAOS_CHECK_EXIT(tEncodeU32(&encoder, pIp4->mask));
+      } else {
+        SIpV6Range *pIp6 = (SIpV6Range *)&pRange->ipV6;
+        TAOS_CHECK_EXIT(tEncodeU64(&encoder, pIp6->addr[0]));
+        TAOS_CHECK_EXIT(tEncodeU64(&encoder, pIp6->addr[1]));
+        TAOS_CHECK_EXIT(tEncodeU32(&encoder, pIp6->mask));
+      }
     }
   }
 
@@ -2189,13 +2197,21 @@ int32_t tDeserializeSUpdateIpWhite(void *buf, int32_t bufLen, SUpdateIpWhite *pR
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pUserWhite->user));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pUserWhite->numOfRange));
 
-    if ((pUserWhite->pIpRanges = taosMemoryCalloc(1, pUserWhite->numOfRange * sizeof(SIpV4Range))) == NULL) {
+    if ((pUserWhite->pIpRanges = taosMemoryCalloc(1, pUserWhite->numOfRange * sizeof(SIpRange))) == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
     for (int j = 0; j < pUserWhite->numOfRange; j++) {
-      SIpV4Range *pRange = &pUserWhite->pIpRanges[j];
-      TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pRange->ip));
-      TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pRange->mask));
+      SIpRange *pRange = &pUserWhite->pIpRanges[j];
+      if (pRange->type == 0) {
+        SIpV4Range *pIp4 = (SIpV4Range *)&pRange->ipV4;
+        TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pIp4->ip));
+        TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pIp4->mask));
+      } else {
+        SIpV6Range *pIp6 = (SIpV6Range *)&pRange->ipV6;
+        TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pIp6->addr[0]));
+        TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pIp6->addr[1]));
+        TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pIp6->mask));
+      }
     }
   }
 
@@ -3107,8 +3123,136 @@ _exit:
   tDecoderClear(&decoder);
   return code;
 }
-
 void tFreeSGetUserWhiteListRsp(SGetUserWhiteListRsp *pRsp) { taosMemoryFree(pRsp->pWhiteLists); }
+
+int32_t tSerializeSGetUserWhiteListRsp2(void *buf, int32_t bufLen, SGetUserWhiteListRsp2 *pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->user));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->numWhiteLists));
+  for (int i = 0; i < pRsp->numWhiteLists; ++i) {
+    SIpRange *range = &pRsp->pWhiteLists[i];
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, range->type));
+    if (range->type == 0) {
+      SIpV4Range *ipv4 = &range->ipV4;
+      TAOS_CHECK_EXIT(tEncodeU32(&encoder, ipv4->ip));
+      TAOS_CHECK_EXIT(tEncodeU32(&encoder, ipv4->mask));
+    } else {
+      SIpV6Range *ipv6 = &range->ipV6;
+      TAOS_CHECK_EXIT(tEncodeU64(&encoder, ipv6->addr[0]));
+      TAOS_CHECK_EXIT(tEncodeU64(&encoder, ipv6->addr[1]));
+      TAOS_CHECK_EXIT(tEncodeU32(&encoder, ipv6->mask));
+    }
+  }
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+int32_t tDeserializeSGetUserWhiteListRsp2(void *buf, int32_t bufLen, SGetUserWhiteListRsp2 *pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->user));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->numWhiteLists));
+  pRsp->pWhiteLists = taosMemoryMalloc(pRsp->numWhiteLists * sizeof(SIpRange));
+  if (pRsp->pWhiteLists == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+  for (int32_t i = 0; i < pRsp->numWhiteLists; ++i) {
+    SIpRange *range = &pRsp->pWhiteLists[i];
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &(range->type)));
+    if (range->type == 0) {
+      SIpV4Range *ipv4 = &range->ipV4;
+      TAOS_CHECK_EXIT(tDecodeU32(&decoder, &(ipv4->ip)));
+      TAOS_CHECK_EXIT(tDecodeU32(&decoder, &(ipv4->mask)));
+    } else {
+      SIpV6Range *ipv6 = &range->ipV6;
+      TAOS_CHECK_EXIT(tDecodeU64(&decoder, &(ipv6->addr[0])));
+      TAOS_CHECK_EXIT(tDecodeU64(&decoder, &(ipv6->addr[1])));
+      TAOS_CHECK_EXIT(tDecodeU32(&decoder, &(ipv6->mask)));
+    }
+  }
+
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tIpStrToUint(const SIpAddr *addr, SIpRange *range) {
+  int32_t code = 0;
+  range->type = addr->type;
+  const char *buf = IP_ADDR_STR(addr);
+  if (addr->type == 0) {
+    struct in_addr taddr;
+    if (inet_pton(AF_INET, buf, &taddr) <= 0) {
+      code = TSDB_CODE_THIRDPARTY_ERROR;
+    }
+
+    SIpV4Range *ipv4 = &range->ipV4;
+    ipv4->mask = addr->mask;
+  } else if (addr->type == 1) {
+    struct in6_addr taddr;
+    if (inet_pton(AF_INET6, buf, &(taddr)) <= 0) {
+      code = TSDB_CODE_THIRDPARTY_ERROR;
+    }
+
+    SIpV6Range *ipv6 = &range->ipV6;
+    memcpy(&ipv6->addr[0], taddr.s6_addr, 8);
+    memcpy(&ipv6->addr[1], taddr.s6_addr + 8, 8);
+
+    ipv6->mask = addr->mask;
+  }
+  return code;
+}
+
+int32_t tIpUintToStr(const SIpRange *range, SIpAddr *addr) {
+  int32_t code = 0;
+  addr->type = range->type;
+  if (addr->type == 0) {
+    struct in_addr taddr;
+    memcpy(&taddr.s_addr, &range->ipV4.ip, sizeof(taddr.s_addr));
+    if (inet_ntop(AF_INET, &taddr, addr->ipv4, sizeof(addr->ipv4)) == NULL) {
+      code = TSDB_CODE_THIRDPARTY_ERROR;
+    }
+    addr->mask = range->ipV4.mask;
+  } else {
+    struct in6_addr taddr;
+    memcpy(taddr.s6_addr, &range->ipV6.addr[0], 8);
+    memcpy(taddr.s6_addr + 8, &range->ipV6.addr[1], 8);
+    if (inet_ntop(AF_INET6, &taddr, addr->ipv6, sizeof(addr->ipv6)) == NULL) {
+      code = TSDB_CODE_THIRDPARTY_ERROR;
+    }
+    addr->mask = range->ipV6.mask;
+  }
+
+  return code;
+}
+ void tIpRangeSetMask(SIpRange *range, uint32_t mask) {
+  if (range->type == 0) {
+    SIpV4Range *p4 = (SIpV4Range *)&range->ipV4;
+    p4->mask = mask;
+  } else {
+    SIpV6Range *p6 = (SIpV6Range *)&range->ipV6;
+    p6->mask = mask;
+  }
+}
+void tFreeSGetUserWhiteListRsp2(SGetUserWhiteListRsp2 *pRsp) { taosMemoryFree(pRsp->pWhiteLists); }
 
 int32_t tSerializeSMCfgClusterReq(void *buf, int32_t bufLen, SMCfgClusterReq *pReq) {
   SEncoder encoder = {0};

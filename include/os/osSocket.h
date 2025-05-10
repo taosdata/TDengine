@@ -152,7 +152,7 @@ int32_t taosCreateSocketWithTimeout(uint32_t timeout, int8_t type);
 
 TdSocketPtr       taosOpenUdpSocket(uint32_t localIp, uint16_t localPort);
 TdSocketPtr       taosOpenTcpClientSocket(uint32_t ip, uint16_t port, uint32_t localIp);
-bool              taosValidIpAndPort(uint32_t ip, uint16_t port);
+int8_t            taosValidIpAndPort(uint32_t ip, uint16_t port);
 TdSocketServerPtr taosOpenTcpServerSocket(uint32_t ip, uint16_t port);
 int32_t           taosKeepTcpAlive(TdSocketPtr pSocket);
 TdSocketPtr       taosAcceptTcpConnectSocket(TdSocketServerPtr pServerSocket, struct sockaddr *destAddr, int *addrLen);
@@ -176,6 +176,7 @@ typedef struct {
     char ipv6[INET6_ADDRSTRLEN];
     char ipv4[INET_ADDRSTRLEN];
   };
+  uint16_t mask;  
   uint16_t port;
 } SIpAddr;
 
@@ -185,7 +186,7 @@ int32_t taosGetIpFromFqdn(const char *fqdn, SIpAddr *addr);
 
 #define IP_ADDR_STR(ip) ((ip)->type == 0 ? (ip)->ipv4 : (ip)->ipv6)
 
-#define IP_RESERVE_CAP (128 + 16)
+#define IP_RESERVE_CAP (128 + 32)
 
 int8_t taosIpAddrIsEqual(SIpAddr *ip1, SIpAddr *ip2);
 #ifdef __cplusplus

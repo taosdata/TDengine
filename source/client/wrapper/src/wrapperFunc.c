@@ -579,7 +579,7 @@ int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)
   return (*fp_taos_set_notify_cb)(taos, fp, param, type);
 }
 
-void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *param) {
+void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t2 fp, void *param) {
   CHECK_VOID(fp_taos_fetch_whitelist_a);
   return (*fp_taos_fetch_whitelist_a)(taos, fp, param);
 }

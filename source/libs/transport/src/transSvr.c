@@ -227,12 +227,18 @@ static void uvHandleActivityTimeout(uv_timer_t* handle) {
   tDebug("%p timeout since no activity", conn);
 }
 
-static bool uvCheckIp(SIpV4Range* pRange, int32_t ip) {
+static bool uvCheckIp(SIpRange* pRange, int32_t ip) {
   // impl later
   SubnetUtils subnet = {0};
-  if (subnetInit(&subnet, pRange) != 0) {
-    return false;
+  if (pRange->type == 0) {
+    SIpV4Range range4 = pRange->ipV4;
+    if (subnetInit(&subnet, &range4) != 0) {
+      return false;
+    }
+  } else if (pRange->type == 1) {
+    return true;
   }
+
   return subnetCheckIp(&subnet, ip);
 }
 SIpWhiteListTab* uvWhiteListCreate() {
@@ -361,7 +367,7 @@ bool uvWhiteListFilte(SIpWhiteListTab* pWhite, char* user, uint32_t ip, int64_t 
 
   SIpWhiteList* pIpWhiteList = pUserList->pList;
   for (int i = 0; i < pIpWhiteList->num; i++) {
-    SIpV4Range* range = &pIpWhiteList->pIpRange[i];
+    SIpRange* range = &pIpWhiteList->pIpRange[i];
     if (uvCheckIp(range, ip)) {
       valid = true;
       break;

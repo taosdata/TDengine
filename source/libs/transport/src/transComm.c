@@ -891,28 +891,24 @@ int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) {
 }
 
 int32_t transUtilSWhiteListToStr(SIpWhiteList* pList, char** ppBuf) {
+  int32_t code = 0;
   if (pList->num == 0) {
     *ppBuf = NULL;
     return 0;
   }
 
   int32_t len = 0;
-  char*   pBuf = taosMemoryCalloc(1, pList->num * 36);
+  char*   pBuf = taosMemoryCalloc(1, pList->num * IP_RESERVE_CAP);
   if (pBuf == NULL) {
     return terrno;
   }
 
   for (int i = 0; i < pList->num; i++) {
-    SIpV4Range* pRange = &pList->pIpRange[i];
+    SIpRange* pRange = &pList->pIpRange[i];
+    SIpAddr   addr = {0};
+    code = tIpUintToStr(pRange, &addr);
 
-    char tbuf[32] = {0};
-    int  tlen = transUtilSIpRangeToStr(pRange, tbuf);
-    if (tlen < 0) {
-      taosMemoryFree(pBuf);
-      return tlen;
-    }
-
-    len += sprintf(pBuf + len, "%s,", tbuf);
+    len += sprintf(pBuf + len, "%s,", IP_ADDR_STR(&addr));
   }
   if (len > 0) {
     pBuf[len - 1] = 0;

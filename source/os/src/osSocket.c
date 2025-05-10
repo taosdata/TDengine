@@ -179,7 +179,7 @@ const char *taosInetNtop(struct in_addr ipInt, char *dstStr, int32_t len) {
 
 #define TCP_CONN_TIMEOUT 3000  // conn timeout
 
-bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
+int8_t taosValidIpAndPort(uint32_t ip, uint16_t port) {
   struct sockaddr_in serverAdd;
   SocketFd           fd;
   int32_t            reuse;
@@ -199,13 +199,13 @@ bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
   fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
   if (-1 == fd) {  // exception
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
-    return false;
+    return 0;
   }
 
   TdSocketPtr pSocket = (TdSocketPtr)taosMemoryMalloc(sizeof(TdSocket));
   if (pSocket == NULL) {
     TAOS_SKIP_ERROR(taosCloseSocketNoCheck1(fd));
-    return false;
+    return 0;
   }
   pSocket->refId = 0;
   pSocket->fd = fd;
@@ -214,19 +214,19 @@ bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
   reuse = 1;
   if (taosSetSockOpt(pSocket, SOL_SOCKET, SO_REUSEADDR, (void *)&reuse, sizeof(reuse)) < 0) {
     TAOS_SKIP_ERROR(taosCloseSocket(&pSocket));
-    return false;
+    return 0;
   }
 
   /* bind socket to server address */
   if (-1 == bind(pSocket->fd, (struct sockaddr *)&serverAdd, sizeof(serverAdd))) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
     TAOS_SKIP_ERROR(taosCloseSocket(&pSocket));
-    return false;
+    return 0;
   }
 
   TAOS_SKIP_ERROR(taosCloseSocket(&pSocket));
 
-  return true;
+  return 1;
 }
 
 int32_t taosBlockSIGPIPE() {

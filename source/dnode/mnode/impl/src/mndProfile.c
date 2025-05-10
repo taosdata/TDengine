@@ -707,7 +707,7 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
 
   SConnPreparedObj obj = {0};
   obj.totalDnodes = mndGetDnodeSize(pMnode);
-  obj.ipWhiteListVer = batchReq.ipWhiteList;
+  obj.ipWhiteListVer = batchReq.ipWhiteListVer;
   TAOS_CHECK_RETURN(mndGetOnlineDnodeNum(pMnode, &obj.onlineDnodes));
   mndGetMnodeEpSet(pMnode, &obj.epSet);
   TAOS_CHECK_RETURN(mndCreateQnodeList(pMnode, &obj.pQnodeList, -1));

@@ -362,54 +362,66 @@ int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)
 
 typedef struct SFetchWhiteListInfo {
   int64_t                     connId;
-  __taos_async_whitelist_fn_t userCbFn;
+  __taos_async_whitelist_fn_t2 userCbFn;
   void                       *userParam;
 } SFetchWhiteListInfo;
 
 int32_t fetchWhiteListCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
+  int32_t               lino = 0;
   SFetchWhiteListInfo *pInfo = (SFetchWhiteListInfo *)param;
   TAOS                *taos = &pInfo->connId;
+  char                **pWhiteLists = NULL;
+  SGetUserWhiteListRsp2 wlRsp = {0};
+
   if (code != TSDB_CODE_SUCCESS) {
     pInfo->userCbFn(pInfo->userParam, code, taos, 0, NULL);
-    taosMemoryFree(pMsg->pData);
-    taosMemoryFree(pMsg->pEpSet);
-    taosMemoryFree(pInfo);
-    return code;
+    TSDB_CHECK_CODE(code, lino, _error);
   }
 
-  SGetUserWhiteListRsp wlRsp;
-  if (TSDB_CODE_SUCCESS != tDeserializeSGetUserWhiteListRsp(pMsg->pData, pMsg->len, &wlRsp)) {
-    taosMemoryFree(pMsg->pData);
-    taosMemoryFree(pMsg->pEpSet);
-    taosMemoryFree(pInfo);
-    tFreeSGetUserWhiteListRsp(&wlRsp);
-    return terrno;
+  if ((code = tDeserializeSGetUserWhiteListRsp2(pMsg->pData, pMsg->len, &wlRsp)) != TSDB_CODE_SUCCESS) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
 
-  uint64_t *pWhiteLists = taosMemoryMalloc(wlRsp.numWhiteLists * sizeof(uint64_t));
+  pWhiteLists = taosMemoryCalloc(wlRsp.numWhiteLists, sizeof(char *));
   if (pWhiteLists == NULL) {
-    taosMemoryFree(pMsg->pData);
-    taosMemoryFree(pMsg->pEpSet);
-    taosMemoryFree(pInfo);
-    tFreeSGetUserWhiteListRsp(&wlRsp);
-    return terrno;
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
 
   for (int i = 0; i < wlRsp.numWhiteLists; ++i) {
-    pWhiteLists[i] = ((uint64_t)wlRsp.pWhiteLists[i].mask << 32) | wlRsp.pWhiteLists[i].ip;
+    char *t = taosMemCalloc(1, IP_RESERVE_CAP);
+    if (t == NULL) {
+      TSDB_CHECK_CODE(code = terrno, lino, _error);
+    }
+
+    SIpRange *range = &wlRsp.pWhiteLists[i];
+    SIpAddr   addr = {0};
+
+    code = tIpUintToStr(range, &addr);
+    TSDB_CHECK_CODE(code, lino, _error);
+
+    if (snprintf(t, IP_RESERVE_CAP, "%s/%d", IP_ADDR_STR(&addr), addr.mask) >= IP_RESERVE_CAP) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_RANGE, lino, _error);
+    }
+    pWhiteLists[i] = t;
   }
 
   pInfo->userCbFn(pInfo->userParam, code, taos, wlRsp.numWhiteLists, pWhiteLists);
+_error:
 
+  if (pWhiteLists != NULL) {
+    for (int i = 0; i < wlRsp.numWhiteLists; ++i) {
+      taosMemoryFree(pWhiteLists[i]);
+    }
+  }
   taosMemoryFree(pWhiteLists);
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
   taosMemoryFree(pInfo);
-  tFreeSGetUserWhiteListRsp(&wlRsp);
+  tFreeSGetUserWhiteListRsp2(&wlRsp);
   return code;
 }
 
-void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *param) {
+void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t2 fp, void *param) {
   if (NULL == taos) {
     fp(param, TSDB_CODE_INVALID_PARA, taos, 0, NULL);
     return;

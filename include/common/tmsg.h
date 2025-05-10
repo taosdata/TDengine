@@ -1204,10 +1204,28 @@ typedef struct SIpV4Range {
   uint32_t mask;
 } SIpV4Range;
 
+typedef struct SIpv6Range {
+  uint64_t addr[2];
+  uint32_t mask;
+} SIpV6Range;
+
+typedef struct {
+  int8_t type;
+  union {
+    SIpV4Range ipV4;
+    SIpV6Range ipV6;
+  };
+} SIpRange;
+
 typedef struct {
   int32_t    num;
-  SIpV4Range pIpRange[];
+  SIpRange   pIpRange[];
 } SIpWhiteList;
+
+typedef struct {
+  int32_t  num;
+  SIpRange ranges[];
+} SIpWhiteList2;
 
 SIpWhiteList* cloneIpWhiteList(SIpWhiteList* pIpWhiteList);
 typedef struct {
@@ -1234,7 +1252,7 @@ typedef struct {
   int64_t     ver;
   char        user[TSDB_USER_LEN];
   int32_t     numOfRange;
-  SIpV4Range* pIpRanges;
+  SIpRange*   pIpRanges;
 } SUpdateUserIpWhite;
 typedef struct {
   int64_t             ver;
@@ -1346,9 +1364,24 @@ typedef struct {
   SIpV4Range* pWhiteLists;
 } SGetUserWhiteListRsp;
 
+typedef struct {
+  char    user[TSDB_USER_LEN];
+  int32_t numWhiteLists;
+
+  SIpRange* pWhiteLists;
+} SGetUserWhiteListRsp2;
+
+int32_t tIpStrToUint(const SIpAddr* addr, SIpRange* range);
+int32_t tIpUintToStr(const SIpRange* range, SIpAddr* addr);
+void    tIpRangeSetMask(SIpRange* range, uint32_t mask);
+
 int32_t tSerializeSGetUserWhiteListRsp(void* buf, int32_t bufLen, SGetUserWhiteListRsp* pRsp);
 int32_t tDeserializeSGetUserWhiteListRsp(void* buf, int32_t bufLen, SGetUserWhiteListRsp* pRsp);
 void    tFreeSGetUserWhiteListRsp(SGetUserWhiteListRsp* pRsp);
+
+int32_t tSerializeSGetUserWhiteListRsp2(void* buf, int32_t bufLen, SGetUserWhiteListRsp2* pRsp);
+int32_t tDeserializeSGetUserWhiteListRsp2(void* buf, int32_t bufLen, SGetUserWhiteListRsp2* pRsp);
+void    tFreeSGetUserWhiteListRsp2(SGetUserWhiteListRsp2* pRsp);
 
 /*
  * for client side struct, only column id, type, bytes are necessary
@@ -3781,7 +3814,7 @@ typedef struct {
 typedef struct {
   int64_t reqId;
   SArray* reqs;  // SArray<SClientHbReq>
-  int64_t ipWhiteList;
+  int64_t ipWhiteListVer;
 } SClientHbBatchReq;
 
 typedef struct {
