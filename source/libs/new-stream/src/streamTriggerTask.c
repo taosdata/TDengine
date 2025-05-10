@@ -2479,6 +2479,11 @@ static int32_t sthcProcessPullRsp(SSTriggerHistoryContext *pContext, SSDataBlock
         pGroup->pTsdbMetaData = pResDataBlock;
       }
     }
+    default: {
+      ST_TASK_ELOG("invalid trigger pull type %d for history calc", pReq->type);
+      code = TSDB_CODE_INVALID_PARA;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
   }
 
 _end:

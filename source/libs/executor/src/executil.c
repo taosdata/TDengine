@@ -365,7 +365,8 @@ SArray* createSortInfo(SNodeList* pNodeList) {
   return pList;
 }
 
-SSDataBlock* createDataBlockFromDescNode(SDataBlockDescNode* pNode) {
+SSDataBlock* createDataBlockFromDescNode(void* p) {
+  SDataBlockDescNode* pNode = (SDataBlockDescNode*)p;
   int32_t      numOfCols = LIST_LENGTH(pNode->pSlots);
   SSDataBlock* pBlock = NULL;
   int32_t      code = createDataBlock(&pBlock);
@@ -711,22 +712,8 @@ _end:
   return code;
 }
 
-int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInfo* pTableListInfo, uint8_t* digest,
-                                   SStorageAPI* pAPI, bool initRemainGroups) {
-  int32_t      code = TSDB_CODE_SUCCESS;
-  int32_t      lino = 0;
-  SArray*      pBlockList = NULL;
-  SSDataBlock* pResBlock = NULL;
-  void*        keyBuf = NULL;
-  SArray*      groupData = NULL;
-  SArray*      pUidTagList = NULL;
-  SArray*      tableList = NULL;
-
-  int32_t rows = taosArrayGetSize(pTableListInfo->pTableList);
-  if (rows == 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-
+int32_t qGetColumnsFromNodeList(void* data, bool isList, SArray** pColList) {
+  int32_t code = TSDB_CODE_SUCCESS;
   tagFilterAssist ctx = {0};
   ctx.colHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), false, HASH_NO_LOCK);
   if (ctx.colHash == NULL) {
@@ -741,15 +728,49 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
     goto end;
   }
 
-  SNode* pNode = NULL;
-  FOREACH(pNode, group) {
+  if (isList) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, (SNodeList*)data) {
+      nodesRewriteExprPostOrder(&pNode, getColumn, (void*)&ctx);
+      if (TSDB_CODE_SUCCESS != ctx.code) {
+        code = ctx.code;
+        goto end;
+      }
+      REPLACE_NODE(pNode);
+    }
+  } else {
+    SNode* pNode = (SNode*)data;
     nodesRewriteExprPostOrder(&pNode, getColumn, (void*)&ctx);
     if (TSDB_CODE_SUCCESS != ctx.code) {
       code = ctx.code;
       goto end;
     }
-    REPLACE_NODE(pNode);
   }
+  
+  if (pColList != NULL) *pColList = ctx.cInfoList;
+  ctx.cInfoList = NULL;
+
+end:
+  taosHashCleanup(ctx.colHash);
+  taosArrayDestroy(ctx.cInfoList);
+  return code;
+}
+
+int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInfo* pTableListInfo, uint8_t* digest,
+                                   SStorageAPI* pAPI, bool initRemainGroups) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  SArray*      pBlockList = NULL;
+  SSDataBlock* pResBlock = NULL;
+  void*        keyBuf = NULL;
+  SArray*      groupData = NULL;
+  SArray*      pUidTagList = NULL;
+  SArray*      tableList = NULL;
+
+  int32_t rows = taosArrayGetSize(pTableListInfo->pTableList);
+  if (rows == 0) {
+    return TSDB_CODE_SUCCESS;
+  } 
 
   T_MD5_CTX context = {0};
   if (tsTagFilterCache) {
@@ -793,8 +814,15 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
     goto end;
   }
 
+  SArray* pColList = NULL;
+  code = qGetColumnsFromNodeList(group, true, &pColList); 
+  if (code != TSDB_CODE_SUCCESS) {
+    goto end;
+  }
+
   int32_t numOfTables = taosArrayGetSize(pUidTagList);
-  pResBlock = createTagValBlockForFilter(ctx.cInfoList, numOfTables, pUidTagList, pVnode, pAPI);
+  pResBlock = createTagValBlockForFilter(pColList, numOfTables, pUidTagList, pVnode, pAPI);
+  taosArrayDestroy(pColList);
   if (pResBlock == NULL) {
     code = terrno;
     goto end;
@@ -812,6 +840,7 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
   groupData = taosArrayInit(2, POINTER_BYTES);
   QUERY_CHECK_NULL(groupData, code, lino, end, terrno);
 
+  SNode* pNode = NULL;
   FOREACH(pNode, group) {
     SScalarParam output = {0};
 
@@ -947,8 +976,6 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
 
 end:
   taosMemoryFreeClear(keyBuf);
-  taosHashCleanup(ctx.colHash);
-  taosArrayDestroy(ctx.cInfoList);
   blockDataDestroy(pResBlock);
   taosArrayDestroy(pBlockList);
   taosArrayDestroyEx(pUidTagList, freeItem);
@@ -1358,25 +1385,6 @@ static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SN
   SScalarParam output = {0};
   SArray*      pUidTagList = NULL;
 
-  tagFilterAssist ctx = {0};
-  ctx.colHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), false, HASH_NO_LOCK);
-  if (ctx.colHash == NULL) {
-    code = terrno;
-    QUERY_CHECK_CODE(code, lino, end);
-  }
-
-  ctx.cInfoList = taosArrayInit(4, sizeof(SColumnInfo));
-  if (ctx.cInfoList == NULL) {
-    code = terrno;
-    QUERY_CHECK_CODE(code, lino, end);
-  }
-
-  nodesRewriteExprPostOrder(&pTagCond, getColumn, (void*)&ctx);
-  if (TSDB_CODE_SUCCESS != ctx.code) {
-    terrno = code = ctx.code;
-    goto end;
-  }
-
   SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
 
   //  int64_t stt = taosGetTimestampUs();
@@ -1421,7 +1429,13 @@ static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SN
     goto end;
   }
 
-  pResBlock = createTagValBlockForFilter(ctx.cInfoList, numOfTables, pUidTagList, pVnode, pAPI);
+  SArray* pColList = NULL;
+  code = qGetColumnsFromNodeList(pTagCond, false, &pColList); 
+  if (code != TSDB_CODE_SUCCESS) {
+    goto end;
+  }
+  pResBlock = createTagValBlockForFilter(pColList, numOfTables, pUidTagList, pVnode, pAPI);
+  taosArrayDestroy(pColList);
   if (pResBlock == NULL) {
     code = terrno;
     QUERY_CHECK_CODE(code, lino, end);
@@ -1459,8 +1473,6 @@ end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
-  taosHashCleanup(ctx.colHash);
-  taosArrayDestroy(ctx.cInfoList);
   blockDataDestroy(pResBlock);
   taosArrayDestroy(pBlockList);
   taosArrayDestroyEx(pUidTagList, freeItem);

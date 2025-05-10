@@ -83,7 +83,7 @@ int32_t stmAddStreamStatus(SArray** ppStatus, SStreamTasksInfo* pStream, int64_t
 
   mstDebug("%d runner tasks status added to hb", taskNum);
 
-  mstDebug("total %d:%d tasks status added to hb", taosArrayGetSize(*ppStatus) - origTaskNum, pStream->taskNum);
+  mstDebug("total %zu:%d tasks status added to hb", taosArrayGetSize(*ppStatus) - origTaskNum, pStream->taskNum);
 
 _exit:
 

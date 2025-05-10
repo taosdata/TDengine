@@ -1334,7 +1334,7 @@ static int32_t msmLaunchTaskDepolyAction(SStmGrpCtx* pCtx, SStmTaskAction* pActi
       if (!isTriggerReader) {
         scanPlan = taosArrayGet(pStream->pCreate->calcScanPlanList, pAction->id.taskIdx);
         if (NULL == scanPlan) {
-          mstError("fail to get TASK:%" PRId64 " scanPlan, taskIdx:%d, scanPlanNum:%d", 
+          mstError("fail to get TASK:%" PRId64 " scanPlan, taskIdx:%d, scanPlanNum:%zu", 
               pAction->id.taskId, pAction->id.taskIdx, taosArrayGetSize(pStream->pCreate->calcScanPlanList));
           TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
         }
@@ -2060,7 +2060,7 @@ int32_t msmHandleTaskAbnormalStatus(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pMsg) {
       }
 
       if (STREAM_IS_RUNNING(pStatus->triggerTask->status)) {
-        ST_TASK_DLOG("stream already running, ignore status: %", gStreamStatusStr[pTask->status]);
+        ST_TASK_DLOG("stream already running, ignore status: %s", gStreamStatusStr[pTask->status]);
       } else {
         TAOS_CHECK_EXIT(msmGrpAddActionStart(pCtx->actionStm, streamId));
       }

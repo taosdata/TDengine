@@ -7,6 +7,7 @@
 #include "executor.h"
 #include "tdatablock.h"
 #include "filter.h"
+#include  "plannodes.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -55,9 +56,13 @@ typedef struct SStreamTriggerReaderInfo {
   SNode*      pTagIndexCond;
   SNode*      pConditions;
   SNodeList*  partitionCols;
-  SArray*     triggerCols;
-  SArray*     calcCols;
+  SNodeList*     triggerCols;
+  SNodeList*     calcCols;
   SHashObj*   streamTaskMap;
+  SSubplan*   triggerAst;
+  SSubplan*   calcAst;
+  SSDataBlock* triggerResBlock;
+  SSDataBlock* calcResBlock;
 } SStreamTriggerReaderInfo;
 
 typedef struct SStreamCalcReaderInfo {
@@ -71,7 +76,8 @@ typedef enum { WAL_SUBMIT_DATA = 0, WAL_DELETE_DATA, WAL_DELETE_TABLE } ESWalTyp
 
 typedef struct SStreamTriggerReaderTaskInnerOptions {
   int32_t     order;
-  SArray*     schemas;
+  void*       schemas;
+  bool        isSchema;
   STimeWindow twindows;
   uint64_t    suid;
   uint64_t    uid;
@@ -100,11 +106,11 @@ typedef struct SStreamReaderTaskInner {
   char*                         idStr;
 } SStreamReaderTaskInner;
 
-int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order, SArray* schemas, STimeWindow twindows, uint64_t suid);
+int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order, void* schemas, bool isSchema, STimeWindow twindows, uint64_t suid);
 int32_t createDataBlockForStream(SArray* schemas, SSDataBlock** pBlockRet);
 int32_t qStreamBuildSchema(SArray* schemas, int8_t type, int32_t bytes, col_id_t colId);
 void    releaseStreamTask(void* p);
-int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* options, SStreamReaderTaskInner** ppTask);
+int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* options, SStreamReaderTaskInner** ppTask, SSDataBlock* pResBlock);
 void*   qStreamGetReaderInfo(int64_t streamId, int64_t taskId);
 #ifdef __cplusplus
 }
