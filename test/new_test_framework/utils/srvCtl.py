@@ -103,7 +103,10 @@ class srvCtl:
         Returns:
             bool: True if the dnode was cleared successfully, False otherwise.
         """
-        tdLog.info(f"redeploy dnode:{idx}")
+        if clusterDnodes.getModel() == "cluster":
+            return clusterDnodes.dnodeClearData(idx)
+
+        return tdDnodes.dnodeClearData(idx)
 
     def dnodeStopAll(self):
         """

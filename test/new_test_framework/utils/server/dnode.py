@@ -21,6 +21,7 @@ from time import sleep
 import base64
 import json
 import copy
+import shutil
 from fabric2 import Connection
 from shutil import which
 
@@ -711,6 +712,36 @@ class TDDnode:
 
             self.running = 0
             tdLog.info("dnode:%d is stopped by kill -KILL" % (self.index))
+
+
+    def dnodeClearData(self):
+        """
+        Clear dnode's data (Remove all data files).
+
+        Returns:
+            bool: True if the dnode was cleared successfully, False otherwise.
+        """
+        tdLog.debug(f"dnodeClearData on dnode:{self.index}")
+        try:
+            tdLog.info(f"dataDir:{self.dataDir}")
+            if type(self.dataDir) == list:
+                for data_dir in self.dataDir:
+                    if " " in data_dir:
+                        data_path = data_dir.split(" ")[0]
+                    else: 
+                        data_path = data_dir
+                    if os.path.exists(data_path):
+                        shutil.rmtree(data_path)
+            else:
+                if os.path.exists(self.dataDir):
+                    shutil.rmtree(self.dataDir)
+
+        except Exception as e:
+            tdLog.error(f"dnodeClearData failed: error delete {data_path}: {e}")
+            return False
+        tdLog.info(f"dnodeClearData successful on dnode:{self.index}")
+        return True
+
 
     def startIP(self):
         cmd = "sudo ifconfig lo:%d 192.168.0.%d up" % (self.index, self.index)

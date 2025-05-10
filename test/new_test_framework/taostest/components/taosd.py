@@ -342,7 +342,7 @@ class TaosD:
                             self._remote.cmd(fqdn, killCmd)
                     else:
                         killCmd = [
-                            "ps -ef | grep -wi %s | grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1" % nodeDict["name"]]
+                            f"ps -ef | grep -wi {nodeDict['name']} | grep {i['config_dir']} | grep -v grep | awk '{{print $2}}' | xargs kill -9 > /dev/null"]
                         self._remote.cmd(fqdn, killCmd)
                     if self.taosd_valgrind and not self.taosc_valgrind:
                         killCmd = [
