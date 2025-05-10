@@ -542,7 +542,7 @@ static int32_t msmBuildTriggerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStream
   pInfo->triggerTask->id.nodeId = pCtx->triggerNodeId;
   pInfo->triggerTask->id.taskIdx = 0;
   pInfo->triggerTask->type = STREAM_TRIGGER_TASK;
-  pInfo->triggerTask->lastUpTs = INT64_MIN;
+  pInfo->triggerTask->lastUpTs = pCtx->currTs;
 
   SStmTaskDeploy info = {0};
   info.task.type = pInfo->triggerTask->type;
@@ -573,7 +573,7 @@ static int32_t msmTDAddReaderTriggerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, S
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
   SSdb   *pSdb = pCtx->pMnode->pSdb;
-  SStmTaskStatus state = {{INT64_MIN, 1, INT32_MIN, 0}, STREAM_READER_TASK, 0, 0, INT64_MIN};
+  SStmTaskStatus state = {{INT64_MIN, 1, INT32_MIN, 0}, STREAM_READER_TASK, 0, 0, pCtx->currTs};
   SArray* pReader = pInfo->readerList;
   
   switch (pStream->pCreate->triggerTblType) {
@@ -717,7 +717,7 @@ static int32_t msmTDAddReaderRunnerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SS
   int32_t lino = 0;
   int32_t calcTasksNum = taosArrayGetSize(pStream->pCreate->calcScanPlanList);
   int64_t streamId = pStream->pCreate->streamId;
-  SStmTaskStatus state = {{INT64_MIN, 1, INT32_MIN, 0}, STREAM_READER_TASK, 0, 0, INT64_MIN};
+  SStmTaskStatus state = {{INT64_MIN, 1, INT32_MIN, 0}, STREAM_READER_TASK, 0, 0, pCtx->currTs};
   SArray* pReader = pInfo->readerList;
   
   for (int32_t i = 0; i < calcTasksNum; ++i) {
@@ -972,7 +972,7 @@ int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* 
   SNodeListNode *plans = NULL;
   int32_t        taskNum = 0;
   int32_t        totalTaskNum = 0;
-  SStmTaskStatus state = {{INT64_MIN, 1, INT32_MIN, 0}, STREAM_RUNNER_TASK, 0, 0, INT64_MIN};
+  SStmTaskStatus state = {{INT64_MIN, 1, INT32_MIN, 0}, STREAM_RUNNER_TASK, 0, 0, pCtx->currTs};
 
   plans = (SNodeListNode *)nodesListGetNode(pDag->pSubplans, 0);
   if (QUERY_NODE_NODE_LIST != nodeType(plans)) {
@@ -1344,10 +1344,15 @@ static int32_t msmLaunchTaskDepolyAction(SStmGrpCtx* pCtx, SStmTaskAction* pActi
       TAOS_CHECK_EXIT(msmTDAddToVgroupMap(mStreamMgmt.toDeployVgMap, &info, streamId));
       break;
     }
-    case STREAM_TRIGGER_TASK:
-    case STREAM_RUNNER_TASK:
+    case STREAM_TRIGGER_TASK:{
+      break;
+    }
+    case STREAM_RUNNER_TASK: {
+      break;
+    }
     default:
-      // STREAMTODO
+      mstError("TASK:%" PRId64 " invalid task type:%d", pAction->id.taskId, pAction->type);
+      TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
       break;
   }
 
@@ -2060,7 +2065,7 @@ int32_t msmHandleTaskAbnormalStatus(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pMsg) {
       }
 
       if (STREAM_IS_RUNNING(pStatus->triggerTask->status)) {
-        ST_TASK_DLOG("stream already running, ignore status: %", gStreamStatusStr[pTask->status]);
+        ST_TASK_DLOG("stream already running, ignore status: %s", gStreamStatusStr[pTask->status]);
       } else {
         TAOS_CHECK_EXIT(msmGrpAddActionStart(pCtx->actionStm, streamId));
       }
@@ -2525,7 +2530,7 @@ void msmCheckTaskStatusInList(SArray* pList) {
     }
   
     int64_t streamId = pTask->streamId;
-    mstInfo("TASK:%" PRId64 " status not updated for %" PRId64 "ms, will try to add to toDeploy list", 
+    mstInfo("TASK:%" PRId64 " status not updated for %" PRId64 "ms, will try to redeploy it", 
         pTask->status->id.taskId, noUpTs);
         
     mndStreamPostTaskAction(mStreamMgmt.actionQ, streamId, &pTask->status->id, STREAM_ACT_DEPLOY, pTask->status->flags, pTask->status->type);
@@ -2552,6 +2557,32 @@ void msmCheckVgTasksStatus(SMnode *pMnode) {
   }
 }
 
+void msmReDeploySnodeTasks(SMnode *pMnode, SArray* pList) {
+  int32_t taskNum = taosArrayGetSize(pList);
+  for (int32_t i = 0; i < taskNum; ++i) {
+    SStmTaskStatusExt* pExt = taosArrayGet(pList, i);
+
+    int64_t streamId = pExt->streamId;
+    mstInfo("TASK:%" PRId64 " will try to redeploy since snode lost", pExt->status->id.taskId);
+        
+    mndStreamPostTaskAction(mStreamMgmt.actionQ, streamId, &pExt->status->id, STREAM_ACT_DEPLOY, pExt->status->flags, pExt->status->type);
+  }
+}
+
+void msmHandleSnodeLost(SMnode *pMnode, SStmSnodeTasksStatus* pSnode) {
+  pSnode->runnerThreadNum = -1;
+
+  if (pSnode->runnerList && taosArrayGetSize(pSnode->runnerList) > 0) {
+    msmReDeploySnodeTasks(SMnode * pMnode, pSnode->runnerList);
+    taosArrayClear(pSnode->runnerList);
+  }  
+
+  if (pSnode->triggerList && taosArrayGetSize(pSnode->triggerList) > 0) {
+    msmReDeploySnodeTasks(SMnode * pMnode, pSnode->triggerList);
+    taosArrayClear(pSnode->triggerList);
+  }
+}
+
 void msmCheckSnodeTasksStatus(SMnode *pMnode) {
   void* pIter = NULL;
   
@@ -2569,7 +2600,8 @@ void msmCheckSnodeTasksStatus(SMnode *pMnode) {
     SStmSnodeTasksStatus* pSnode = (SStmSnodeTasksStatus*)pIter;
     int64_t snodeNoUpTs = mStreamMgmt.healthCtx.currentTs - pSnode->lastUpTs;
     if (snodeNoUpTs >= MND_STREAM_WATCH_DURATION) {
-
+      msmHandleSnodeLost(pMnode, pSnode);
+      continue;
     }
 
     msmCheckTaskStatusInList(pSnode->triggerList);

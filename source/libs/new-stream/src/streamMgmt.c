@@ -323,7 +323,7 @@ void smRemoveTaskPostCheck(int64_t streamId, SStreamTasksInfo* pStream, bool* is
       taskRemains = true;
     }
     if (pStream->triggerTask) {
-      mstError("trigger task remain while taskNum %d", readerNum, remainTasks);
+      mstError("trigger task remain while taskNum %d", readerNum);
       taskRemains = true;
     }
     if (runnerNum > 0) {
