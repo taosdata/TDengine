@@ -13035,7 +13035,7 @@ static int32_t createStreamReqSetDefaultOutCols(STranslateContext* pCxt, SCreate
       }
     }
     PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN_DEF, (SNode**)&pColDef));
-    tstrncpy(pColDef->colName, pExpr->aliasName, TSDB_COL_NAME_LEN);
+    tstrncpy(pColDef->colName, pExpr->userAlias, TSDB_COL_NAME_LEN);
     pColDef->dataType.type = pExpr->resType.type;
     pColDef->dataType.bytes = pExpr->resType.bytes;
     pColDef->dataType.precision = pExpr->resType.precision;
