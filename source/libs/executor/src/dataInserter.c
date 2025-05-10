@@ -925,7 +925,7 @@ int32_t buildNormalTableCreateReq(SDataInserterHandle* pInserter,  SStreamInsert
     if (i == 0) {
       tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].flags |= COL_IS_KEY;
     }
-    snprintf(tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].name, TSDB_COL_NAME_LEN, "c%d", i);
+    snprintf(tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].name, TSDB_COL_NAME_LEN, "%s", pField->name);
   }
   return TSDB_CODE_SUCCESS;
   _end:
