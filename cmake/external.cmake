@@ -22,7 +22,7 @@ add_custom_target(build_externals)
 
 macro(INIT_DIRS name)              # {
     set(_base            "${TD_EXTERNALS_BASE_DIR}/build/${name}")                      # where all source and build stuffs locate
-    set(_ins             "${TD_EXTERNALS_BASE_DIR}/install/${name}/${TD_CONFIG_NAME}")  # where all installed stuffs locate
+    set(_ins             "${TD_EXTERNALS_BASE_DIR}/install/${TD_CONFIG_NAME}/${name}")  # where all installed stuffs locate
     set(${name}_base     "${_base}")
     set(${name}_source   "${_base}/src/${name}")
     set(${name}_build    "${_base}/src/${name}-build")
@@ -188,6 +188,12 @@ ExternalProject_Add(ext_zlib
     CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON            # linking consistent
     CMAKE_ARGS -DZLIB_BUILD_SHARED:BOOL=OFF
     CMAKE_ARGS -DZLIB_BUILD_TESTING:BOOL=OFF
+    PATCH_COMMAND
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/in/zlib.CMakeLists.txt.in ${ext_zlib_source}/CMakeLists.txt
+    BUILD_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+    INSTALL_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
     EXCLUDE_FROM_ALL TRUE
     VERBATIM
 )
@@ -555,51 +561,26 @@ elseif(${TD_WINDOWS})
     set(ext_xxhash_static xxhash.lib)
 endif()
 get_from_local_repo_if_exists("https://github.com/Cyan4973/xxHash.git")
-if(NOT ${TD_WINDOWS})        # {
-    INIT_EXT(ext_xxhash
-        INC_DIR          "usr/local/include"
-        LIB              "usr/local/lib/${ext_xxhash_static}"
-    )
-    ExternalProject_Add(ext_xxhash
-        GIT_REPOSITORY ${_git_url}
-        GIT_TAG de9d6577907d4f4f8153e96b0cb0cbdf7df649bb
-        GIT_SHALLOW FALSE
-        PREFIX "${_base}"
-        BUILD_IN_SOURCE TRUE
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
-        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-        PATCH_COMMAND
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/in/xxhash.Makefile Makefile
-        CONFIGURE_COMMAND ""
-        BUILD_COMMAND
-            COMMAND make DESTDIR=${_ins}
-        INSTALL_COMMAND
-            COMMAND make DESTDIR=${_ins} install
-        EXCLUDE_FROM_ALL TRUE
-        VERBATIM
-    )
-else()                       # }{
-    INIT_EXT(ext_xxhash
-        INC_DIR          "include"
-        LIB              "lib/${ext_xxhash_static}"
-    )
-    ExternalProject_Add(ext_xxhash
-        GIT_REPOSITORY ${_git_url}
-        GIT_TAG de9d6577907d4f4f8153e96b0cb0cbdf7df649bb
-        GIT_SHALLOW FALSE
-        PREFIX "${_base}"
-        SOURCE_SUBDIR cmake_unofficial
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
-        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-        CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
-        BUILD_COMMAND
-            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
-        INSTALL_COMMAND
-            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-        EXCLUDE_FROM_ALL TRUE
-        VERBATIM
-    )
-endif()                      # }
+INIT_EXT(ext_xxhash
+    INC_DIR          "include"
+    LIB              "lib/${ext_xxhash_static}"
+)
+ExternalProject_Add(ext_xxhash
+    GIT_REPOSITORY ${_git_url}
+    GIT_TAG de9d6577907d4f4f8153e96b0cb0cbdf7df649bb
+    GIT_SHALLOW FALSE
+    PREFIX "${_base}"
+    SOURCE_SUBDIR cmake_unofficial
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
+    BUILD_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+    INSTALL_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+    EXCLUDE_FROM_ALL TRUE
+    VERBATIM
+)
 add_dependencies(build_externals ext_xxhash)     # this is for github workflow in cache-miss step.
 
 # lzma2
