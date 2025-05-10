@@ -549,7 +549,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/30-DataCompression/test_compress_normal_table.py
 
 # 31-Views
-# ,,y,.,./ci/pytest.sh pytest cases/31-Views/test_view_mgmt.py
+,,y,.,./ci/pytest.sh pytest cases/31-Views/test_view_mgmt.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Views/test_view_nested_join.py
 
 # 40-Tools

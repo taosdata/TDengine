@@ -141,21 +141,15 @@ class TestTimestampColumn:
         tdSql.query(f"show tags from st_timestamp_24")
         tdSql.checkData(0, 5, 86400000)
 
-        tdSql.execute(
-            f'create table st_timestamp_25 using mt_timestamp tags("-0" -1s)'
-        )
+        tdSql.execute(f'create table st_timestamp_25 using mt_timestamp tags("-0" -1s)')
         tdSql.query(f"show tags from st_timestamp_25")
         tdSql.checkData(0, 5, -1000)
 
-        tdSql.execute(
-            f"create table st_timestamp_26 using mt_timestamp tags(0b01 -1a)"
-        )
+        tdSql.execute(f"create table st_timestamp_26 using mt_timestamp tags(0b01 -1a)")
         tdSql.query(f"show tags from st_timestamp_26")
         tdSql.checkData(0, 5, 0)
 
-        tdSql.execute(
-            f"create table st_timestamp_27 using mt_timestamp tags(0b01 -1s)"
-        )
+        tdSql.execute(f"create table st_timestamp_27 using mt_timestamp tags(0b01 -1s)")
         tdSql.query(f"show tags from st_timestamp_27")
         tdSql.checkData(0, 5, -999)
 
@@ -165,9 +159,7 @@ class TestTimestampColumn:
         tdSql.query(f"show tags from st_timestamp_28")
         tdSql.checkData(0, 5, 1)
 
-        tdSql.execute(
-            f"create table st_timestamp_29 using mt_timestamp tags(0x01 +1b)"
-        )
+        tdSql.execute(f"create table st_timestamp_29 using mt_timestamp tags(0x01 +1b)")
         tdSql.query(f"show tags from st_timestamp_29")
         tdSql.checkData(0, 5, 1)
 
@@ -191,25 +183,25 @@ class TestTimestampColumn:
 
         tdSql.execute(f"create table st_timestamp_33 using mt_timestamp tags(now +1b)")
         tdSql.query(f"show tags from st_timestamp_33")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.execute(
             f'create table st_timestamp_34 using mt_timestamp tags("now()" +1b)'
         )
         tdSql.query(f"show tags from st_timestamp_34")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.execute(
             f"create table st_timestamp_35 using mt_timestamp tags(today() +1d)"
         )
         tdSql.query(f"show tags from st_timestamp_35")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.execute(
             f'create table st_timestamp_36 using mt_timestamp tags("today()" +1d)'
         )
         tdSql.query(f"show tags from st_timestamp_36")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
     def test_insert_column_value(self):
         """insert column value
@@ -367,19 +359,19 @@ class TestTimestampColumn:
 
         tdSql.execute(f"insert into st_timestamp_33 values(now,now +1b)")
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_33")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
         tdSql.execute(f'insert into st_timestamp_34 values(now,"now()" +1b)')
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_34")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
         tdSql.execute(f"insert into st_timestamp_35 values(now,today() +1d)")
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_35")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
         tdSql.execute(f'insert into st_timestamp_36 values(now,"today()" +1d)')
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_36")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
     def test_dynamic_create_table(self):
         """dynamic create table
@@ -697,37 +689,37 @@ class TestTimestampColumn:
             f"insert into st_timestamp_1033 using mt_timestamp tags(now+1b) values(now,now +1b)"
         )
         tdSql.query(f"show tags from st_timestamp_1033")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_1033")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
         tdSql.execute(
             f'insert into st_timestamp_1034 using mt_timestamp tags("now" +1b) values(now,"now()" +1b)'
         )
         tdSql.query(f"show tags from st_timestamp_1034")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_1034")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
         tdSql.execute(
             f"insert into st_timestamp_1035 using mt_timestamp tags(today() + 1d) values(now,today() +1d)"
         )
         tdSql.query(f"show tags from st_timestamp_1035")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_1035")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
         tdSql.execute(
             f'insert into st_timestamp_1036 using mt_timestamp tags("today" +1d) values(now,"today()" +1d)'
         )
         tdSql.query(f"show tags from st_timestamp_1036")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_1036")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
     def test_alter_tag_value(self):
         """alter tag value
@@ -884,19 +876,19 @@ class TestTimestampColumn:
 
         tdSql.execute(f"alter table st_timestamp_33 set tag tagname=now +1b")
         tdSql.query(f"show tags from st_timestamp_33")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.execute(f'alter table st_timestamp_34 set tag tagname="now()" +1b')
         tdSql.query(f"show tags from st_timestamp_34")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.execute(f"alter table st_timestamp_35 set tag tagname=today( ) +1d")
         tdSql.query(f"show tags from st_timestamp_35")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.execute(f'alter table st_timestamp_36 set tag tagname="today()" +1d')
         tdSql.query(f"show tags from st_timestamp_36")
-        # tdSql.checkGreaterEqualThan(0, 5, 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
     def test_illegal_input(self):
         """illegal input
@@ -928,9 +920,7 @@ class TestTimestampColumn:
             f"create table st_timestamp_e0 using mt_timestamp tags(now()+1d+1s)"
         )
         tdSql.error(f"create table st_timestamp_e0 using mt_timestamp tags(1+1y)")
-        tdSql.error(
-            f"create table st_timestamp_e0 using mt_timestamp tags(0x01+1b+1a)"
-        )
+        tdSql.error(f"create table st_timestamp_e0 using mt_timestamp tags(0x01+1b+1a)")
         tdSql.error(f'create table st_timestamp_e0 using mt_timestamp tags(" ")')
         tdSql.error(f"create table st_timestamp_e0 using mt_timestamp tags('')")
         tdSql.error(f'create table st_timestamp_104 using mt_timestamp tags("-123.1")')
@@ -949,12 +939,8 @@ class TestTimestampColumn:
         tdSql.error(
             f"create table st_timestamp_111 using mt_timestamp tags( +0.1235e3 )"
         )
-        tdSql.error(
-            f"create table st_timestamp_112 using mt_timestamp tags(-0.11e-30)"
-        )
-        tdSql.error(
-            f"create table st_timestamp_113 using mt_timestamp tags(-1.1e-307)"
-        )
+        tdSql.error(f"create table st_timestamp_112 using mt_timestamp tags(-0.11e-30)")
+        tdSql.error(f"create table st_timestamp_113 using mt_timestamp tags(-1.1e-307)")
         tdSql.execute(
             f"create table st_timestamp_114 using mt_timestamp tags(9223372036854775807)"
         )
