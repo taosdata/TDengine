@@ -59,19 +59,18 @@
           >{{ startCase(t('dataIn.delete') + t('dataIn.task')) }}</el-button
         >
       </el-tooltip>
-      
+
       <el-button
-          link
-          type="primary"
-          size="default"
-          icon="Sell"
-          :disabled="isDisabled || dataInProps.isCommunity"
-          @click="handleExportTask"
-          >{{ startCase(t('dataIn.export') + t('dataIn.task')) }}</el-button
-        >
+        link
+        type="primary"
+        size="default"
+        icon="Sell"
+        :disabled="isDisabled || dataInProps.isCommunity"
+        @click="handleExportTask"
+        >{{ startCase(t('dataIn.export') + t('dataIn.task')) }}</el-button
+      >
 
-      <task-import @importOK="refresh" />
-
+      <task-import @import-o-k="refresh" />
     </PageTitle>
     <div>
       <el-table
@@ -277,7 +276,12 @@
                 @click="del(scope.row)"
               ></el-button>
             </el-tooltip>
-            <el-tooltip v-if="scope.row.from.type === 'kafka'" placement="bottom" effect="light" :content="t('dataIn.tipForSkip')">
+            <el-tooltip
+              v-if="scope.row.from.type === 'kafka'"
+              placement="bottom"
+              effect="light"
+              :content="t('dataIn.tipForSkip')"
+            >
               <el-button
                 plain
                 size="small"
@@ -313,15 +317,14 @@
 
   <el-dialog v-model="dlgConfirmSeek2End" :title="$t('tips')" width="700px">
     <div>
-      <div style="font-size: 16px;margin-bottom: 10px">
+      <div style="margin-bottom: 10px; font-size: 16px">
         {{ t('dataIn.skip2Latest', [taskToSeek.name]) }}
       </div>
       <div>
         <el-checkbox v-model="isRecoverHistoryData" style="margin-left: 10px">
           {{ t('dataIn.redoPiledupData') }}
-          </el-checkbox>  
+        </el-checkbox>
       </div>
-      
     </div>
 
     <template #footer>
@@ -334,7 +337,6 @@
       </div>
     </template>
   </el-dialog>
-
 </template>
 <script setup lang="ts">
 import { startCase } from 'lodash-es';
@@ -350,7 +352,7 @@ import { downloadByData } from '../../../../utils/files';
 import Metrics from './metrics.vue';
 import Activities from '../../components/activities.vue';
 import PageTitle from '../../components/pageTitle.vue';
-import TaskImport from '../../components/task-import.vue'
+import TaskImport from '../../components/task-import.vue';
 import { ElMessage } from 'element-plus';
 import { getDataInProps } from '../../model/useDataIn';
 import { useActivitySubscription, ActivitieProps } from '../../model/useWebSoket';
@@ -384,7 +386,7 @@ const maxHeight = ref(500);
 const permitStartStatus = ['created', 'failed', 'stopped', 'suspended', 'completed'];
 const permitStopStatus = ['queued', 'running', 'interrupted', 'waiting', 'resumed'];
 const showErrStatus = ['waiting', 'suspending', 'suspended', 'failed', 'interrupted'];
-const permitDeleteStatus = ['created', 'completed', 'stopped', ' failed', 'interrupted', 'ticked'];
+const permitDeleteStatus = ['completed', 'stopped', ' failed', 'interrupted', 'ticked'];
 const showHealthStatus = ['running', 'stopping', 'waiting', 'resumed'];
 const multipleSelection = ref<any[]>([]);
 import { isEn } from 'config';
@@ -606,8 +608,8 @@ async function handleExportTask() {
     downloadByData(res as BlobPart, `datain-tasks-${ids.join()}.json`);
     setTimeout(() => {
       requestIng.value = false;
-    }, 1000)
-    
+    }, 1000);
+
     dataSourceTableRef.value.clearSelection();
   } catch (err) {
     return Promise.reject(err);
@@ -889,10 +891,7 @@ const skipToLatest = async () => {
     isRecoverHistoryData.value = false;
     await refresh();
   }
-  
 };
-
-
 </script>
 <style lang="scss">
 .el-tooltip__popper {

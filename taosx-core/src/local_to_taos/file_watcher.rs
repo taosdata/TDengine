@@ -40,16 +40,8 @@ impl From<LocalRestoreConfig> for FileWatcher {
         let backup_dir = config.backup_dir.clone();
 
         let name_filter = Some(Box::new(move |file_name: &str| {
-            // 文件名以topic开头，以.z结尾
-            if !file_name.starts_with(
-                config
-                    .backup_obj
-                    .topic
-                    .as_ref()
-                    .expect("topic not found")
-                    .as_str(),
-            ) || !file_name.ends_with(".z")
-            {
+            // 文件名以.z结尾
+            if !file_name.ends_with(".z") {
                 return false;
             }
             // 如果有from条件，那么，文件的时间戳必须大于等于start_from条件

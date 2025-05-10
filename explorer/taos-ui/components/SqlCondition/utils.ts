@@ -52,6 +52,7 @@ export function generateConditionString(data: DataItem[], fields: Field[], isTag
           `(${generateConditionString(item.children, fields, isTag)})` + (index == len - 1 ? '' : ` ${item.connector} `)
         );
       } else {
+        if (!item.field || !item.value) return '';
         const connector = index == len - 1 ? '' : ' ' + item.connector;
         const value = getFieldVlaue(item, fields);
         if (isTag) {
@@ -137,7 +138,6 @@ function tokenize(condition: string): string[] {
 function parseTokens(tokens: string[]): DataItem[] {
   const result: DataItem[] = [];
   let currentConnector: 'AND' | 'OR' = 'AND';
-
   while (tokens.length > 0) {
     const originToken = tokens[0];
     const token = tokens.shift()?.toUpperCase();
@@ -157,7 +157,7 @@ function parseTokens(tokens: string[]): DataItem[] {
       currentConnector = token;
     } else {
       const field = originToken;
-      const operator = tokens.shift()!.toUpperCase();
+      const operator = tokens.shift()?.toUpperCase() ?? '';
       let value: string | (number | string)[] = '';
 
       if (operator === 'BETWEEN') {

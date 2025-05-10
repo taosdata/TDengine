@@ -81,17 +81,22 @@ export const loadMore = {
         console.log('找不到容器');
         return;
       }
+
       el.handler = debounce(function () {
         const { scrollTop, scrollHeight, clientHeight, scrollLeft, scrollWidth, clientWidth } = targetEl;
         let disabled = el.getAttribute('load-more-disabled');
-        disabled = vnode.disabled || disabled;
+        disabled = vnode.props?.disabled || disabled;
+
+        // 水平滚动检查
         if (scrollWidth <= scrollLeft + clientWidth + distance) {
           if (disabled) return;
-          func1 && func1();
+          func1?.(); // 使用可选链
         }
+
+        // 垂直滚动检查
         if (scrollHeight <= scrollTop + clientHeight + distance) {
           if (disabled) return;
-          func && func();
+          func?.(); // 使用可选链
         }
       }, delay);
 
@@ -99,29 +104,24 @@ export const loadMore = {
     } else {
       el.handler = debounce(function () {
         const { scrollTop, scrollHeight, clientHeight } = el;
-        if (scrollHeight === scrollTop + clientHeight) {
-          binding.value && binding.value();
+        if (scrollHeight <= scrollTop + clientHeight + 100) {
+          binding.value?.(); // 使用可选链
         }
       }, 200);
       el.addEventListener('scroll', el.handler);
     }
     immediate && el.handler();
   },
+
   unmounted(el: LoadMoreEl, binding: DirectiveBinding) {
-    const { arg } = binding;
-    // 使用更丰富的功能，支持父组件的指令作用在指定的子组件上
-    if (arg === 'expand') {
-      /**
-       * target 目标DOM节点的类名
-       * offset 触发加载的距离阈值，单位为px
-       * method 触发的方法
-       * delay 防抖时延，单位为ms
-       */
+    const { expand } = binding.modifiers;
+
+    if (expand) {
       const { target } = binding.value;
       if (typeof target !== 'string') return;
-      let targetEl = el.querySelector(target);
-      targetEl && targetEl.removeEventListener('scroll', el.handler!);
-      targetEl = null;
+
+      const targetEl = el.querySelector(target);
+      targetEl?.removeEventListener('scroll', el.handler!); // 使用可选链
     } else {
       el.removeEventListener('scroll', el.handler!);
     }

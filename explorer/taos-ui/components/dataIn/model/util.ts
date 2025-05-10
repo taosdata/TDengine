@@ -287,11 +287,11 @@ export function formatFromData(from: Recordable) {
 
 // 将配置数据合入为 from.data 参数，也就是3.3.6.0版本之前的 dsn 字符串的 对象表达形式
 function mergeToFromData(data: Recordable, fromData: Recordable, fullNameMap: any = {}, parentKey?: string) {
-  if (data["only-choose-one$"] && typeof data[data["only-choose-one$"]] === 'object') {
-    mergeToFromData(data[data["only-choose-one$"]], fromData, fullNameMap, data["only-choose-one$"]);
+  if (data['only-choose-one$'] && typeof data[data['only-choose-one$']] === 'object') {
+    mergeToFromData(data[data['only-choose-one$']], fromData, fullNameMap, data['only-choose-one$']);
     return;
   }
-  
+
   const keys = Object.getOwnPropertyNames(data);
 
   keys.forEach(key => {
@@ -506,7 +506,7 @@ export const dataInMockData = [
     id: 1,
     name: 'td3-demo',
     localname: 'td3',
-    localtype: 'TDengine 3.x',
+    localtype: 'TDengine Data Subscription',
     target: 'targetDatabse',
     created_at: '2024-03-27T10:34:15.994Z',
     finished_at: '2024-03-27T21:20:51.681Z',

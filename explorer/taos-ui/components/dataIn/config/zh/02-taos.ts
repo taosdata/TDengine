@@ -1,8 +1,8 @@
 export default {
-  name: 'TDengine 2.x',
+  name: 'TDengine 查询',
   id: 'taos',
   type: 'uri',
-  description: '从旧版本 TDengine (2.x) 迁移到当前集群。\n',
+  description: '从旧版本 TDengine (2.4+, 3.0+) 迁移到当前集群。\n',
   config: [
     {
       label: '连接配置',
@@ -184,7 +184,7 @@ export default {
               description: '元数据轮询间隔，用于同步过程中的元数据变更检测。',
               field: 'schema-polling-interval',
               placeholder: '输入范围为[0,60000]整数',
-              defaultValue: "5s",
+              defaultValue: '5s',
               pattern: null,
               patternMsg: '只能输入正整数或者0',
               grid_two: false,

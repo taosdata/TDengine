@@ -51,7 +51,6 @@
             style="min-width: 60px"
           >
           </el-input>
-          
           <el-tag
             v-if="index == 1 && version_gt_3300 && activeType == 'sqlCreate'"
             effect="plain"
@@ -61,11 +60,8 @@
             <el-checkbox
               v-model="column.primaryKey"
               :disabled="parmaryKeyType.findIndex(item => column.type.startsWith(item.value)) == -1"
-              >Composite Key
-                <el-tooltip placement="top" effect="light" :open-delay="100" :content="t('common.compositeKey')">
-                  <el-icon><QuestionFilled /></el-icon>
-                </el-tooltip>
-            </el-checkbox>
+              >PRIMARY KEY</el-checkbox
+            >
           </el-tag>
           <el-tooltip
             v-if="version_gt_3300 && activeType == 'sqlCreate'"

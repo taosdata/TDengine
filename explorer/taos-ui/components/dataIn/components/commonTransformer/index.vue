@@ -410,7 +410,7 @@
                       v-model="scope.row.exprname"
                       size="default"
                       class="mapping-rule-select"
-                      style="width: 110px;min-width:110px;"
+                      style="width: 110px; min-width: 110px"
                       @change="changeCurrentMapExpr(scope)"
                     >
                       <el-option v-for="item in mappingTypes" :key="item" :label="item" :value="item">{{
@@ -1767,22 +1767,10 @@ async function createTemplateStableSucc(stbName: string) {
   getSTbaleList(false, true);
   closeDialog();
 }
-
-function formatWithBackticks(name: any): string {
-  const strName = String(name);
-
-  if (strName.startsWith('`') && strName.endsWith('`')) {
-    return strName;
-  }
-
-  return `\`${strName}\``;
-}
-
 //获取初始化的stables
 async function getInitStables() {
   if (!sourceForm.targetDB) return;
-  const dbName = formatWithBackticks(sourceForm.targetDB);
-  const sql = `show  ${dbName}.stables `;
+  const sql = `show  \`${sourceForm.targetDB}\`.stables `;
 
   executeSqlFn!(sql, false)
     .then(data => {

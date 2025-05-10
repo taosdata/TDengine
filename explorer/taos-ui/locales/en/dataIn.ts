@@ -142,7 +142,8 @@ export default {
   task: ' Task',
   importEmpty: 'The import task list is empty',
   batchOperateTip: 'Select the task that you want to {0}',
-  skip2Latest: 'Do you want to skip the piled-up data for the task [{0}] and start consuming the latest real-time data?',
+  skip2Latest:
+    'Do you want to skip the piled-up data for the task [{0}] and start consuming the latest real-time data?',
   redoPiledupData: 'Re-entering the data will create a new task to consume the piled-up data.',
   tipForSkip: 'After skipping the piled-up data, the task will start consuming data from the latest time point.',
   noTaskOperateTip: 'None of the currently selected tasks can be {0}ed',

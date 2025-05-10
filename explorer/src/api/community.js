@@ -21,7 +21,7 @@ export function getDataSources(lang) {
       {
         "id": "tmq",
         "type": "uri",
-        "name": "TDengine 3.x",
+        "name": "TDengine Data Subscription",
         "license_id": "td3.0",
         "description": "TMQ data source is a read-only data source for TDengine.\n\n## Protocols\n\nThe following protocols are supported.\n\n- ws: websocket protocol with plain HTTP connection.\n- wss: websocket protocol with TLS http connection.\n\nWithout protocol settings, TMQ will use the TDengine native connection.\n\n## Subject\n\nA TMQ data source can subscribe to data from a database or a specified table. The table must be specified in the \"database.tablename\" format.\n",
         "options": {
@@ -161,9 +161,9 @@ export function getDataSources(lang) {
       {
         "id": "taos",
         "type": "uri",
-        "name": "TDengine 2.x",
+        "name": "TDengine Query",
         "license_id": "td2.6",
-        "description": "The TDengine 2.x data source can be used to migrate data from previous version to current cluster.\n\n## Protocols\n\nThe supported protocols are:\n\n- ws: websocket protocol with plain HTTP connection.\n- wss: websocket protocol with TLS http connection.\n\nIf a protocol setting is not specified, a TDengine native connection will be used.\n",
+        "description": "The TDengine Query data source can be used to migrate data from previous version to current cluster.\n\n## Protocols\n\nThe supported protocols are:\n\n- ws: websocket protocol with plain HTTP connection.\n- wss: websocket protocol with TLS http connection.\n\nIf a protocol setting is not specified, a TDengine native connection will be used.\n",
         "options": {
           "host": {
             "required": true,
@@ -4610,7 +4610,7 @@ export function getDataSources(lang) {
       {
         "id": "tmq",
         "type": "uri",
-        "name": "TDengine 3.x",
+        "name": "TDengine 数据订阅",
         "license_id": "td3.0",
         "description": "使用 TMQ 进行 TDengine 指定从数据库或超级表的订阅。\n\n支持使用原生连接或 WebSocket 连接（使用 HTTP 或 HTTPS 协议）。默认使用原生连接。\n\n使用 `database` 方式指定数据库名，或 `database.table` 方式指定订阅一个超级表或普通表。\n",
         "options": {
@@ -4742,9 +4742,9 @@ export function getDataSources(lang) {
       {
         "id": "taos",
         "type": "uri",
-        "name": "TDengine 2.x",
+        "name": "TDengine Query",
         "license_id": "td2.6",
-        "description": "从旧版本 TDengine (2.x) 迁移到当前集群。\n",
+        "description": "从旧版本 TDengine (2.4+, 3.0+) 迁移到当前集群。\n",
         "options": {
           "host": {
             "required": true,
