@@ -22,16 +22,19 @@
 extern "C" {
 #endif
 
-int32_t     mndInitMount(SMnode *pMnode);
-void        mndCleanupMount(SMnode *pMnode);
-SDbObj     *mndAcquireMount(SMnode *pMnode, const char *db);
-void        mndReleaseMount(SMnode *pMnode, SDbObj *pDb);
-int32_t     mndValidateMountInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, void **ppRsp, int32_t *pRspLen);
-int32_t     mndExtractMountInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUseDbReq *pReq);
-bool        mndIsMountReady(SMnode *pMnode, SDbObj *pDb);
-void        mndBuildMountDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList);
-bool        mndMountIsExist(SMnode *pMnode, const char *db);
+int32_t mndInitMount(SMnode *pMnode);
+void    mndCleanupMount(SMnode *pMnode);
+SDbObj *mndAcquireMount(SMnode *pMnode, const char *db);
+void    mndReleaseMount(SMnode *pMnode, SDbObj *pDb);
+int32_t mndValidateMountInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, void **ppRsp, int32_t *pRspLen);
+int32_t mndExtractMountInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUseDbReq *pReq);
+bool    mndIsMountReady(SMnode *pMnode, SDbObj *pDb);
+bool    mndMountIsExist(SMnode *pMnode, const char *db);
+void    mndBuildMountDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList);
+void    mndMountFreeObj(SMountObj *pObj);
+
 const char *mndGetMountStr(const char *src);
+
 
 #ifdef __cplusplus
 }

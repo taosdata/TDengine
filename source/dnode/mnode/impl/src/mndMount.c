@@ -334,6 +334,7 @@ static int32_t mndMountActionInsert(SSdb *pSdb, SMountObj *pObj) {
 
 static int32_t mndMountActionDelete(SSdb *pSdb, SMountObj *pObj) {
   mTrace("mount:%s, perform delete action, row:%p", pObj->name, pObj);
+  mndMountFreeObj(pObj);
   return 0;
 }
 
@@ -341,7 +342,7 @@ static int32_t mndMountActionUpdate(SSdb *pSdb, SMountObj *pOld, SMountObj *pNew
   mTrace("mount:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
   taosWLockLatch(&pOld->lock);
   pOld->updateTime = pNew->updateTime;
-  pOld->dbCfg = pNew->dbCfg;
+  ASSERT(0); // TODO
   taosWUnLockLatch(&pOld->lock);
   return 0;
 }
@@ -592,16 +593,16 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
 }
 #endif
 
-#if 0
-static int32_t mndSetCreateDbPrepareAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
-  SSdbRaw *pDbRaw = mndDbActionEncode(pDb);
+
+static int32_t mndSetCreateMountPrepareAction(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
+  SSdbRaw *pDbRaw = mndMountActionEncode(pObj);
   if (pDbRaw == NULL) return -1;
 
   if (mndTransAppendPrepareLog(pTrans, pDbRaw) != 0) return -1;
   if (sdbSetRawStatus(pDbRaw, SDB_STATUS_CREATING) != 0) return -1;
   return 0;
 }
-
+#if 0
 static int32_t mndSetNewVgPrepareActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
   for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
     if (mndAddNewVgPrepareAction(pMnode, pTrans, (pVgroups + v)) != 0) return -1;
@@ -722,8 +723,8 @@ static int32_t mndSetCreateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *
 
   TAOS_RETURN(code);
 }
-
-static int32_t mndSetCreateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
+#endif
+static int32_t mndSetCreateMountRedoActions(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
   int32_t code = 0;
   for (int32_t vg = 0; vg < pDb->cfg.numOfVgroups; ++vg) {
     SVgObj *pVgroup = pVgroups + vg;
@@ -736,7 +737,7 @@ static int32_t mndSetCreateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
 
   TAOS_RETURN(code);
 }
-
+#if 0
 static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
   int32_t code = 0;
   for (int32_t vg = 0; vg < pDb->cfg.numOfVgroups; ++vg) {
@@ -750,124 +751,79 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
 
   TAOS_RETURN(code);
 }
+#endif
+static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SCreateMountReq *pCreate, SUserObj *pUser) {
+  int32_t   code = 0, lino = 0;
+  SUserObj  newUserObj = {0};
+  SMountObj mntObj = {0};
+  (void)memcpy(mntObj.name, pCreate->mountName, TSDB_MOUNT_NAME_LEN);
+  (void)memcpy(mntObj.acct, pUser->acct, TSDB_USER_LEN);
+  mntObj.createdTime = taosGetTimestampMs();
+  mntObj.updateTime = mntObj.createdTime;
+  mntObj.uid = mndGenerateUid(mntObj.name, TSDB_MOUNT_NAME_LEN);
+  (void)memcpy(mntObj.createUser, pUser->user, TSDB_USER_LEN);
+  // dbCfg
+  // mntObj.dbCfg = pCreate->dbCfg;
+  // mntObj.dbName = pCreate->dbName;
+  // mntObj.dbUid = pCreate->dbUid;
+  // mndSetDefaultDbCfg(&dbObj.cfg);
 
-static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate, SUserObj *pUser, SArray *dnodeList) {
-  int32_t  code = 0;
-  SUserObj newUserObj = {0};
-  SDbObj   dbObj = {0};
-  (void)memcpy(dbObj.name, pCreate->db, TSDB_DB_FNAME_LEN);
-  (void)memcpy(dbObj.acct, pUser->acct, TSDB_USER_LEN);
-  dbObj.createdTime = taosGetTimestampMs();
-  dbObj.updateTime = dbObj.createdTime;
-  dbObj.uid = mndGenerateUid(dbObj.name, TSDB_DB_FNAME_LEN);
-  dbObj.cfgVersion = 1;
-  dbObj.vgVersion = 1;
-  dbObj.tsmaVersion = 1;
-  (void)memcpy(dbObj.createUser, pUser->user, TSDB_USER_LEN);
-  dbObj.cfg = (SDbCfg){
-      .numOfVgroups = pCreate->numOfVgroups,
-      .numOfStables = pCreate->numOfStables,
-      .buffer = pCreate->buffer,
-      .pageSize = pCreate->pageSize,
-      .pages = pCreate->pages,
-      .cacheLastSize = pCreate->cacheLastSize,
-      .daysPerFile = pCreate->daysPerFile,
-      .daysToKeep0 = pCreate->daysToKeep0,
-      .daysToKeep1 = pCreate->daysToKeep1,
-      .daysToKeep2 = pCreate->daysToKeep2,
-      .keepTimeOffset = pCreate->keepTimeOffset,
-      .minRows = pCreate->minRows,
-      .maxRows = pCreate->maxRows,
-      .walFsyncPeriod = pCreate->walFsyncPeriod,
-      .walLevel = pCreate->walLevel,
-      .precision = pCreate->precision,
-      .compression = pCreate->compression,
-      .replications = pCreate->replications,
-      .strict = pCreate->strict,
-      .cacheLast = pCreate->cacheLast,
-      .hashMethod = 1,
-      .schemaless = pCreate->schemaless,
-      .walRetentionPeriod = pCreate->walRetentionPeriod,
-      .walRetentionSize = pCreate->walRetentionSize,
-      .walRollPeriod = pCreate->walRollPeriod,
-      .walSegmentSize = pCreate->walSegmentSize,
-      .sstTrigger = pCreate->sstTrigger,
-      .hashPrefix = pCreate->hashPrefix,
-      .hashSuffix = pCreate->hashSuffix,
-      .s3ChunkSize = pCreate->s3ChunkSize,
-      .s3KeepLocal = pCreate->s3KeepLocal,
-      .s3Compact = pCreate->s3Compact,
-      .tsdbPageSize = pCreate->tsdbPageSize,
-      .withArbitrator = pCreate->withArbitrator,
-      .encryptAlgorithm = pCreate->encryptAlgorithm,
-      .compactInterval = pCreate->compactInterval,
-      .compactStartTime = pCreate->compactStartTime,
-      .compactEndTime = pCreate->compactEndTime,
-      .compactTimeOffset = pCreate->compactTimeOffset,
-  };
+  // if ((code = mndCheckDbName(dbObj.name, pUser)) != 0) {
+  //   mError("db:%s, failed to create, check db name failed, since %s", pCreate->db, terrstr());
+  //   TAOS_RETURN(code);
+  // }
 
-  dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
-  dbObj.cfg.pRetensions = pCreate->pRetensions;
+  // if ((code = mndCheckDbCfg(pMnode, &dbObj.cfg)) != 0) {
+  //   mError("db:%s, failed to create, check db cfg failed, since %s", pCreate->db, terrstr());
+  //   TAOS_RETURN(code);
+  // }
 
-  mndSetDefaultDbCfg(&dbObj.cfg);
+  // if (dbObj.cfg.hashPrefix > 0) {
+  //   int32_t dbLen = strlen(dbObj.name) + 1;
+  //   mInfo("db:%s, hashPrefix adjust from %d to %d", dbObj.name, dbObj.cfg.hashPrefix, dbObj.cfg.hashPrefix + dbLen);
+  //   dbObj.cfg.hashPrefix += dbLen;
+  // } else if (dbObj.cfg.hashPrefix < 0) {
+  //   int32_t dbLen = strlen(dbObj.name) + 1;
+  //   mInfo("db:%s, hashPrefix adjust from %d to %d", dbObj.name, dbObj.cfg.hashPrefix, dbObj.cfg.hashPrefix - dbLen);
+  //   dbObj.cfg.hashPrefix -= dbLen;
+  // }
 
-  if ((code = mndCheckDbName(dbObj.name, pUser)) != 0) {
-    mError("db:%s, failed to create, check db name failed, since %s", pCreate->db, terrstr());
-    TAOS_RETURN(code);
-  }
-
-  if ((code = mndCheckDbCfg(pMnode, &dbObj.cfg)) != 0) {
-    mError("db:%s, failed to create, check db cfg failed, since %s", pCreate->db, terrstr());
-    TAOS_RETURN(code);
-  }
-
-  if (dbObj.cfg.hashPrefix > 0) {
-    int32_t dbLen = strlen(dbObj.name) + 1;
-    mInfo("db:%s, hashPrefix adjust from %d to %d", dbObj.name, dbObj.cfg.hashPrefix, dbObj.cfg.hashPrefix + dbLen);
-    dbObj.cfg.hashPrefix += dbLen;
-  } else if (dbObj.cfg.hashPrefix < 0) {
-    int32_t dbLen = strlen(dbObj.name) + 1;
-    mInfo("db:%s, hashPrefix adjust from %d to %d", dbObj.name, dbObj.cfg.hashPrefix, dbObj.cfg.hashPrefix - dbLen);
-    dbObj.cfg.hashPrefix -= dbLen;
-  }
-
-  SVgObj *pVgroups = NULL;
-  if ((code = mndAllocVgroup(pMnode, &dbObj, &pVgroups, dnodeList)) != 0) {
-    mError("db:%s, failed to create, alloc vgroup failed, since %s", pCreate->db, terrstr());
-    TAOS_RETURN(code);
-  }
+  // SVgObj *pVgroups = NULL;
+  // if ((code = mndAllocVgroup(pMnode, &dbObj, &pVgroups, dnodeList)) != 0) {
+  //   mError("db:%s, failed to create, alloc vgroup failed, since %s", pCreate->db, terrstr());
+  //   TAOS_RETURN(code);
+  // }
 
   // add database privileges for user
-  SUserObj *pNewUserDuped = NULL;
-  if (!pUser->superUser) {
-    TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUserObj), NULL, _exit);
-    TAOS_CHECK_GOTO(taosHashPut(newUserObj.readDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name, TSDB_FILENAME_LEN),
-                    NULL, _exit);
-    TAOS_CHECK_GOTO(taosHashPut(newUserObj.writeDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name, TSDB_FILENAME_LEN),
-                    NULL, _exit);
-    pNewUserDuped = &newUserObj;
-  }
+  // SUserObj *pNewUserDuped = NULL;
+  // if (!pUser->superUser) {
+  //   TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUserObj), NULL, _exit);
+  //   TAOS_CHECK_GOTO(taosHashPut(newUserObj.readDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name, TSDB_FILENAME_LEN),
+  //                   NULL, _exit);
+  //   TAOS_CHECK_GOTO(taosHashPut(newUserObj.writeDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name, TSDB_FILENAME_LEN),
+  //                   NULL, _exit);
+  //   pNewUserDuped = &newUserObj;
+  // }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "create-db");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "create-mount");
   if (pTrans == NULL) {
-    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
+    code = terrno != 0 ? terrno : TSDB_CODE_MND_RETURN_VALUE_NULL;
     goto _exit;
   }
   // mndTransSetSerial(pTrans);
-  mInfo("trans:%d, used to create db:%s", pTrans->id, pCreate->db);
+  mInfo("trans:%d, used to create db:%s", pTrans->id, pCreate->mountName);
 
-  mndTransSetDbName(pTrans, dbObj.name, NULL);
-  TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _exit);
+  mndTransSetDbName(pTrans, mntObj.name, NULL);
+  TAOS_CHECK_EXIT(mndTransCheckConflict(pMnode, pTrans));
 
   mndTransSetOper(pTrans, MND_OPER_CREATE_DB);
-  TAOS_CHECK_GOTO(mndSetCreateDbPrepareAction(pMnode, pTrans, &dbObj), NULL, _exit);
-  TAOS_CHECK_GOTO(mndSetCreateDbRedoActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _exit);
-  TAOS_CHECK_GOTO(mndSetNewVgPrepareActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _exit);
-  TAOS_CHECK_GOTO(mndSetCreateDbUndoLogs(pMnode, pTrans, &dbObj, pVgroups), NULL, _exit);
-  TAOS_CHECK_GOTO(mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups, pNewUserDuped), NULL, _exit);
-  TAOS_CHECK_GOTO(mndSetCreateDbUndoActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _exit);
-  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _exit);
+  TAOS_CHECK_EXIT(mndSetCreateMountPrepareAction(pMnode, pTrans, &mntObj));
+  TAOS_CHECK_EXIT(mndSetCreateMountRedoActions(pMnode, pTrans, &mntObj));
+  TAOS_CHECK_EXIT(mndSetNewVgPrepareActions(pMnode, pTrans, &mntObj, pVgroups));
+  // TAOS_CHECK_EXIT(mndSetCreateDbUndoLogs(pMnode, pTrans, &mntObj, pVgroups));
+  // TAOS_CHECK_EXIT(mndSetCreateDbCommitLogs(pMnode, pTrans, &mntObj, pVgroups, pNewUserDuped));
+  // TAOS_CHECK_EXIT(mndSetCreateDbUndoActions(pMnode, pTrans, &mntObj, pVgroups));
+  TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 
 _exit:
   taosMemoryFree(pVgroups);
@@ -875,7 +831,7 @@ _exit:
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
 }
-
+#if 0
 static int32_t mndCheckDbEncryptKey(SMnode *pMnode, SCreateDbReq *pReq) {
   int32_t    code = 0;
   SSdb      *pSdb = pMnode->pSdb;
@@ -937,7 +893,7 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
   SUserObj       *pUser = NULL;
   SCreateMountReq createReq = {0};
 
-  TAOS_CHECK_EXIT(tDeserializeSCreateDbReq(pReq->pCont, pReq->contLen, &createReq));
+  TAOS_CHECK_EXIT(tDeserializeSCreateMountReq(pReq->pCont, pReq->contLen, &createReq));
   mInfo("mount:%s, start to create on dnode %d from %s", createReq.mountName, createReq.dnodeId, createReq.mountPath);
 
   if ((pMount = mndAcquireMount(pMnode, createReq.mountName))) {
@@ -963,14 +919,14 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
 
-  TAOS_CHECK_EXIT(mndCreateDb(pMnode, pReq, &createReq, pUser, dnodeList));
+  TAOS_CHECK_EXIT(mndCreateMount(pMnode, pReq, &createReq, pUser));
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  SName name = {0};
-  if (tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB) < 0)
-    mError("db:%s, failed to parse db name", createReq.db);
+  // SName name = {0};
+  // if (tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB) < 0)
+  //   mError("db:%s, failed to parse db name", createReq.db);
 
-  auditRecord(pReq, pMnode->clusterId, "createMount", name.dbname, "", createReq.sql, createReq.sqlLen);
+  auditRecord(pReq, pMnode->clusterId, "createMount", createReq.mountName, "", createReq.sql, createReq.sqlLen);
 
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -2135,4 +2091,15 @@ static int32_t mndRetrieveMounts(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void mndCancelGetNextMount(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetchByType(pSdb, pIter, SDB_MOUNT);
+}
+
+void mndMountFreeObj(SMountObj *pObj) {
+  taosMemoryFreeClear(pObj->dnodeId);
+  taosMemoryFreeClear(pObj->dbObj);
+  if (pObj->paths) {
+    for (int32_t i = 0; i < pObj->nMounts; ++i) {
+      taosMemoryFreeClear(pObj->paths[i]);
+    }
+    taosMemoryFreeClear(pObj->paths);
+  }
 }

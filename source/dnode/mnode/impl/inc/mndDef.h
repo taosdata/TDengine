@@ -475,20 +475,24 @@ typedef struct {
 } SDbObj;
 
 typedef struct {
+  int64_t uid;
+  char    name[TSDB_DB_FNAME_LEN];
+  SDbCfg  cfg;
+} SMountDbObj;
+
+typedef struct {
   char     name[TSDB_MOUNT_NAME_LEN];
-  char     path[TSDB_MOUNT_PATH_LEN];
   char     acct[TSDB_USER_LEN];
   char     createUser[TSDB_USER_LEN];
   int64_t  createdTime;
   int64_t  updateTime;
   int64_t  uid;
-  int32_t  dnodeId;
+  int32_t  nMounts;
+  int32_t* dnodeId;
+  char**   paths;
+  SMountDbObj* dbObj;
   SRWLatch lock;
-  // dbInfo
-  int64_t dbStateTs;
-  int64_t dbUid;
-  char    dbName[TSDB_DB_FNAME_LEN];
-  SDbCfg  dbCfg;
+  // int64_t stateTs; // TODO mayby remove it
 } SMountObj;
 
 typedef struct {
