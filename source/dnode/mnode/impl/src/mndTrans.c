@@ -2021,7 +2021,7 @@ static int32_t mndTransExecuteActionsSerialGroup(SMnode *pMnode, STrans *pTrans,
         pTrans->id, mndTransStr(pTrans->stage), pAction->id, action, numOfActions, groupId, pAction->actionType,
         pAction->msgSent, pAction->msgReceived, pTrans->actionPos);
 
-    code = mndTransExecSingleAction(pMnode, pTrans, pAction, topHalf);
+    code = mndTransExecSingleAction(pMnode, pTrans, pAction, topHalf, false);
     if (code == 0) {
       if (pAction->msgSent) {
         if (pAction->msgReceived) {
