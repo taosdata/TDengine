@@ -14,6 +14,7 @@
  */
 
 #include "streamMsg.h"
+#include "tdatablock.h"
 #include "tmsg.h"
 #include "os.h"
 #include "tcommon.h"
@@ -2537,5 +2538,85 @@ int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pIn
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pInfo->sessionId));
   TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &pInfo->withExternalWindow));
 _exit:
+  return code;
+}
+
+int32_t tSerializeSStreamTsResponse(void* buf, int32_t bufLen, const SStreamTsResponse* pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  int32_t  tlen = 0;
+
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->ver));
+  int32_t size = taosArrayGetSize(pRsp->tsInfo);
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, size));
+  for (int32_t i = 0; i < size; ++i) {
+    STsInfo* tsInfo = taosArrayGet(pRsp->tsInfo, i);
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, tsInfo->gId));
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, tsInfo->ts));
+  }
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSStreamTsResponse(void* buf, int32_t bufLen, void *pBlock) {
+  SDecoder decoder = {0};
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  SSDataBlock *pResBlock = pBlock;
+
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, (int64_t*)&pResBlock->info.id.groupId));
+  int32_t numOfCols = 2;
+  if (pResBlock->pDataBlock == NULL) {
+    pResBlock->pDataBlock = taosArrayInit_s(sizeof(SColumnInfoData), numOfCols);
+    if (pResBlock->pDataBlock == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    for (int32_t i = 0; i< numOfCols; ++i) {
+      SColumnInfoData *pColInfoData = taosArrayGet(pResBlock->pDataBlock, i);
+      if (pColInfoData == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      pColInfoData->info.type = TSDB_DATA_TYPE_BIGINT;
+      pColInfoData->info.bytes = sizeof(int64_t);
+    }
+  }
+  int32_t numOfRows = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &numOfRows));
+  TAOS_CHECK_EXIT(blockDataEnsureCapacity(pResBlock, numOfRows));
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    for (int32_t j = 0; j < numOfCols; ++j) {
+      SColumnInfoData *pColInfoData = taosArrayGet(pResBlock->pDataBlock, j);
+      if (pColInfoData == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      int64_t value = 0;
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &value));
+      colDataSetInt64(pColInfoData, i, &value);
+    }
+  }
+
+  pResBlock->info.dataLoad = 1;
+  pResBlock->info.rows = numOfRows;
+
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
   return code;
 }

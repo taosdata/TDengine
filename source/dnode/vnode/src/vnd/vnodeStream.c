@@ -80,18 +80,13 @@ static int32_t getTableData(SStreamReaderTaskInner* pTask, SSDataBlock** ppRes) 
 static int32_t buildTsRsp(const SStreamTsResponse* tsRsp, void** data, size_t* size) {
   int32_t code = 0;
   int32_t lino = 0;
-  int32_t len = 0;
   void*   buf = NULL;
-  tEncodeSize(tEncodeSStreamTsResponse, tsRsp, len, code);
-  STREAM_CHECK_CONDITION_GOTO(code < 0, TSDB_CODE_INVALID_PARA);
+  int32_t len = tSerializeSStreamTsResponse(NULL, 0, tsRsp);
+  STREAM_CHECK_CONDITION_GOTO(len <= 0, TSDB_CODE_INVALID_PARA);
   buf = rpcMallocCont(len);
   STREAM_CHECK_NULL_GOTO(buf, terrno);
-
-  SEncoder encoder = {0};
-  tEncoderInit(&encoder, buf, len);
-  code = tEncodeSStreamTsResponse(&encoder, tsRsp);
-  tEncoderClear(&encoder);
-  STREAM_CHECK_CONDITION_GOTO(code < 0, TSDB_CODE_INVALID_PARA);
+  int32_t actLen = tSerializeSStreamTsResponse(buf, len, tsRsp);
+  STREAM_CHECK_CONDITION_GOTO(actLen != len, TSDB_CODE_INVALID_PARA);
   *data = buf;
   *size = len;
   buf = NULL;

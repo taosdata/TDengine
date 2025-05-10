@@ -4941,18 +4941,6 @@ void tFreeFetchTtlExpiredTbsRsp(void* p);
 void setDefaultOptionsForField(SFieldWithOptions* field);
 void setFieldWithOptions(SFieldWithOptions* fieldWithOptions, SField* field);
 
-typedef struct STsInfo {
-  uint64_t   gId;
-  int64_t   ts;
-} STsInfo;
-
-typedef struct SStreamTsResponse {
-  int64_t   ver;
-  SArray*   tsInfo;       //element is <STsInfo>
-} SStreamTsResponse;
-
-int32_t tEncodeSStreamTsResponse(SEncoder *pEncoder, const SStreamTsResponse *pRsp);
-
 int32_t tSerializeSVSubTablesRspImpl(SEncoder* pEncoder, SVSubTablesRsp *pRsp);
 int32_t tDeserializeSVSubTablesRspImpl(SDecoder* pDecoder, SVSubTablesRsp *pRsp);
 

@@ -706,6 +706,18 @@ typedef struct SStreamRuntimeFuncInfo {
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo);
 int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);
 
+typedef struct STsInfo {
+  int64_t gId;
+  int64_t  ts;
+} STsInfo;
+
+typedef struct SStreamTsResponse {
+  int64_t ver;
+  SArray* tsInfo;  // SArray<STsInfo>
+} SStreamTsResponse;
+
+int32_t tSerializeSStreamTsResponse(void* buf, int32_t bufLen, const SStreamTsResponse* pRsp);
+int32_t tDeserializeSStreamTsResponse(void* buf, int32_t bufLen, void *pBlock);
 
 #ifdef __cplusplus
 }

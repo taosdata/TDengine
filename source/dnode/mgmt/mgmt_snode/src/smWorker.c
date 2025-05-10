@@ -92,6 +92,8 @@ static int32_t smDispatchStreamTriggerRsp(struct SDispatchWorkerPool *pPool, voi
     case TDMT_STREAM_TRIGGER_PULL_RSP: {
       SSTriggerPullRequest *pReq = pMsg->info.ahandle;
       if (pReq == NULL){
+        dError("msg:%p, invalid trigger-pull-resp without request ahandle", pMsg);
+        code = TSDB_CODE_MSG_NOT_PROCESSED;
         break;
       }
       int64_t               buf[] = {pReq->streamId, pReq->triggerTaskId, pReq->sessionId};
