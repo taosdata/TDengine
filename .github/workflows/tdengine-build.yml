@@ -144,6 +144,13 @@ jobs:
         run: |
           choco install jom --yes
 
+      - name: Check hostname
+        if: runner.os != 'Windows'
+        run: |
+          hostname
+          echo ping -c 4 $(hostname)
+          ping -c 4 $(hostname)
+
       - name: Cache externals built
         uses: actions/cache@v4
         id: cache-ext
