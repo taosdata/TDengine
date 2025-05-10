@@ -22,7 +22,7 @@ class TestStableDnode2Stop:
         Jira: None
 
         History:
-            - 2025-5-5 Simon Guan Migrated to new test framework, from tsim/vnode/stable_dnode2_stop.sim
+            - 2025-5-5 Simon Guan Migrated from tsim/vnode/stable_dnode2_stop.sim
 
         """
 

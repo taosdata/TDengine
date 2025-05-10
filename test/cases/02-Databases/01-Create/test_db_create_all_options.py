@@ -22,7 +22,7 @@ class TestDatabaseCreateAllOptions:
         Jira: None
 
         History:
-            - 2025-4-30 Simon Guan Migrated to new test framework, from tsim/db/create_all_options.sim
+            - 2025-4-30 Simon Guan Migrated from tsim/db/create_all_options.sim
 
         """
 

@@ -22,7 +22,7 @@ class TestSync3Replica5VgElect:
         Jira: None
 
         History:
-            - 2025-5-5 Simon Guan Migrated to new test framework, from tsim/sync/3Replica5VgElect.sim
+            - 2025-5-5 Simon Guan Migrated from tsim/sync/3Replica5VgElect.sim
 
         """
 

@@ -22,7 +22,7 @@ class TestStableReplica3Dnode6:
         Jira: None
 
         History:
-            - 2025-5-5 Simon Guan Migrated to new test framework, from tsim/vnode/stable_replica3_dnode6.sim
+            - 2025-5-5 Simon Guan Migrated from tsim/vnode/stable_replica3_dnode6.sim
 
         """
 

@@ -22,7 +22,7 @@ class TestDatabaseBasic3:
         Jira: None
 
         History:
-            - 2025-4-30 Simon Guan Migrated to new test framework, from tsim/db/basic3.sim
+            - 2025-4-30 Simon Guan Migrated from tsim/db/basic3.sim
 
         """
 
