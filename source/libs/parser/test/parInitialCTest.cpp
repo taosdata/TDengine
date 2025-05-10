@@ -951,6 +951,8 @@ TEST_F(ParserInitialCTest, createStream) {
   useDb("root", "test");
 
   SCMCreateStreamReq expect = {0};
+  SNodeList*         pTriggerCols = nullptr;
+  SNodeList*         pPartitionCols = nullptr;
 
   auto clearCreateStreamReq = [&]() {
     tFreeSCMCreateStreamReq(&expect);
@@ -974,13 +976,98 @@ TEST_F(ParserInitialCTest, createStream) {
     ASSERT_TRUE(taosArrayPush(expect.calcDB, &tmpCalcDb));
   };
 
-  auto addTag = [&](const char* pFieldName, uint8_t type, int32_t bytes = 0) {
-    SField field = {0};
-    strcpy(field.name, pFieldName);
-    field.type = type;
-    field.bytes = bytes > 0 ? bytes : tDataTypes[type].bytes;
-    field.flags |= COL_SMA_ON;
+  auto setCreateStreamOption = [&](int8_t igExists, int8_t triggerType, int8_t igDisorder, int8_t deleteReCalc,
+    int8_t deleteOutTbl, int8_t fillHistory, int8_t fillHistoryFirst, int8_t calcNotifyOnly, int8_t lowLatencyCalc,
+    int64_t maxDelay, int64_t fillHistoryStartTime, int64_t watermark, int64_t expiredTime, int8_t triggerTblType,
+    uint64_t triggerTblUid, int8_t outTblType, int8_t outStbExists, uint64_t outStbUid, int32_t outStbSversion,
+    int64_t eventTypes, int64_t flags, int64_t tsmaId, int64_t placeHolderBitmap){
+    expect.igExists = igExists;
+    expect.triggerType = triggerType;
+    expect.igDisorder = igDisorder;
+    expect.deleteReCalc = deleteReCalc;
+    expect.deleteOutTbl = deleteOutTbl;
+    expect.fillHistory = fillHistory;
+    expect.fillHistoryFirst = fillHistoryFirst;
+    expect.calcNotifyOnly = calcNotifyOnly;
+    expect.lowLatencyCalc = lowLatencyCalc;
+    expect.maxDelay = maxDelay;
+    expect.fillHistoryStartTime = fillHistoryStartTime;
+    expect.watermark = watermark;
+    expect.expiredTime = expiredTime;
+    expect.triggerTblType = triggerTblType;
+    expect.triggerTblUid = triggerTblUid;
+    expect.outTblType = outTblType;
+    expect.outStbExists = outStbExists;
+    expect.outStbUid = outStbUid;
+    expect.outStbSversion = outStbSversion;
+    expect.eventTypes = eventTypes;
+    expect.flags = flags;
+    expect.tsmaId = tsmaId;
+    expect.placeHolderBitmap = placeHolderBitmap;
+  };
 
+  SArray*        outCols;               // array of SFieldWithOptions
+  SArray*        outTags;               // array of SFieldWithOptions
+  SStreamTrigger trigger;
+
+  auto addCreateStreamTriggerCols = [&](uint8_t type, uint8_t precision, uint8_t scale, int32_t bytes, uint64_t tableId,
+    int8_t tableType, col_id_t colId, EColumnType colType, const char* dbName, const char* tableName,
+    const char* tableAlias, const char* colName, int16_t slotId) {
+    SColumnNode *pCol = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol), TSDB_CODE_SUCCESS);
+    pCol->node.resType.type = type;
+    pCol->node.resType.precision = precision;
+    pCol->node.resType.scale = scale;
+    pCol->node.resType.bytes = bytes;
+    pCol->tableId = tableId;
+    pCol->tableType = tableType;
+    pCol->colId = colId;
+    pCol->colType = colType;
+    tstrncpy(pCol->dbName, dbName, sizeof(pCol->dbName));
+    tstrncpy(pCol->colName, colName, sizeof(pCol->colName));
+    tstrncpy(pCol->tableName, tableName, sizeof(pCol->tableName));
+    tstrncpy(pCol->tableAlias, tableAlias, sizeof(pCol->tableAlias));
+    pCol->slotId = slotId;
+
+    ASSERT_EQ(nodesListMakeAppend(&pTriggerCols, (SNode*)pCol), TSDB_CODE_SUCCESS);
+  };
+
+  auto addCreateStreamPartitionCols = [&](uint8_t type, uint8_t precision, uint8_t scale, int32_t bytes, uint64_t tableId,
+    int8_t tableType, col_id_t colId, EColumnType colType, const char* dbName, const char* tableName,
+    const char* tableAlias, const char* colName, int16_t slotId) {
+    SColumnNode *pCol = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol), TSDB_CODE_SUCCESS);
+    pCol->node.resType.type = type;
+    pCol->node.resType.precision = precision;
+    pCol->node.resType.scale = scale;
+    pCol->node.resType.bytes = bytes;
+    pCol->tableId = tableId;
+    pCol->tableType = tableType;
+    pCol->colId = colId;
+    pCol->colType = colType;
+    tstrncpy(pCol->dbName, dbName, sizeof(pCol->dbName));
+    tstrncpy(pCol->colName, colName, sizeof(pCol->colName));
+    tstrncpy(pCol->tableName, tableName, sizeof(pCol->tableName));
+    tstrncpy(pCol->tableAlias, tableAlias, sizeof(pCol->tableAlias));
+    pCol->slotId = slotId;
+
+    ASSERT_EQ(nodesListMakeAppend(&pPartitionCols, (SNode*)pCol), TSDB_CODE_SUCCESS);
+  };
+
+
+  auto addCreateStreamNotifyUrl = [&](const char* pUrl) {
+    if (nullptr == expect.pNotifyAddrUrls) {
+      expect.pNotifyAddrUrls = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+      ASSERT_TRUE(expect.pNotifyAddrUrls != nullptr);
+    }
+    char *tmpUrl = taosStrdup(pUrl);
+    ASSERT_TRUE(taosArrayPush(expect.calcDB, &tmpUrl));
+  };
+
+  auto setCreateStreamNotify = [&](int8_t notifyEventTypes, int8_t notifyErrorHandle, int8_t notifyHistory) {
+    expect.notifyEventTypes = notifyEventTypes;
+    expect.notifyErrorHandle = notifyErrorHandle;
+    expect.notifyHistory = notifyHistory;
   };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
@@ -988,6 +1075,7 @@ TEST_F(ParserInitialCTest, createStream) {
     SCMCreateStreamReq req = {0};
     ASSERT_TRUE(TSDB_CODE_SUCCESS ==
                 tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    // stream name part
     ASSERT_NE(req.streamId, 0);
     ASSERT_EQ(std::string(req.name), std::string(expect.name));
     ASSERT_EQ(std::string(req.sql), std::string(expect.sql));
@@ -996,13 +1084,113 @@ TEST_F(ParserInitialCTest, createStream) {
     ASSERT_EQ(std::string(req.outDB), std::string(expect.outDB));
     ASSERT_EQ(std::string(req.triggerTblName), std::string(expect.triggerTblName));
     ASSERT_EQ(std::string(req.outTblName), std::string(expect.outTblName));
+    ASSERT_EQ(taosArrayGetSize(req.calcDB), taosArrayGetSize(expect.calcDB));
+    for (int32_t i = 0; i < taosArrayGetSize(req.calcDB); i++) {
+      char *pCalcDb = (char*)taosArrayGetP(req.calcDB, i);
+      char *pExpectCalcDb = (char*)taosArrayGetP(expect.calcDB, i);
+      ASSERT_EQ(std::string(pCalcDb), std::string(pExpectCalcDb));
+    }
+
+    // stream trigger option part
     ASSERT_EQ(req.igExists, expect.igExists);
+    ASSERT_EQ(req.triggerType, expect.triggerType);
+    ASSERT_EQ(req.igDisorder, expect.igDisorder);
+    ASSERT_EQ(req.deleteReCalc, expect.deleteReCalc);
+    ASSERT_EQ(req.deleteOutTbl, expect.deleteOutTbl);
+    ASSERT_EQ(req.fillHistory, expect.fillHistory);
+    ASSERT_EQ(req.fillHistoryFirst, expect.fillHistoryFirst);
+    ASSERT_EQ(req.calcNotifyOnly, expect.calcNotifyOnly);
+    ASSERT_EQ(req.lowLatencyCalc, expect.lowLatencyCalc);
+
+    // stream notify part
+    ASSERT_EQ(taosArrayGetSize(req.pNotifyAddrUrls), taosArrayGetSize(expect.pNotifyAddrUrls));
+    for (int32_t i = 0; i < taosArrayGetSize(req.pNotifyAddrUrls); i++) {
+      char *pUrl = (char*)taosArrayGetP(req.pNotifyAddrUrls, i);
+      char *pExpectUrl = (char*)taosArrayGetP(expect.pNotifyAddrUrls, i);
+      ASSERT_EQ(std::string(pUrl), std::string(pExpectUrl));
+    }
+    ASSERT_EQ(req.notifyEventTypes, expect.notifyEventTypes);
+    ASSERT_EQ(req.notifyErrorHandle, expect.notifyErrorHandle);
+    ASSERT_EQ(req.notifyHistory, expect.notifyHistory);
+
+    ASSERT_EQ(req.maxDelay, expect.maxDelay);
+    ASSERT_EQ(req.fillHistoryStartTime, expect.fillHistoryStartTime);
+    ASSERT_EQ(req.watermark, expect.watermark);
+    ASSERT_EQ(req.expiredTime, expect.expiredTime);
+    ASSERT_EQ(req.triggerTblType, expect.triggerTblType);
+    ASSERT_EQ(req.triggerTblUid, expect.triggerTblUid);
+    ASSERT_EQ(req.outTblType, expect.outTblType);
+    ASSERT_EQ(req.outStbExists, expect.outStbExists);
+    ASSERT_EQ(req.outStbUid, expect.outStbUid);
+    ASSERT_EQ(req.outStbSversion, expect.outStbSversion);
+    ASSERT_EQ(req.eventTypes, expect.eventTypes);
+    ASSERT_EQ(req.flags, expect.flags);
+    ASSERT_EQ(req.tsmaId, expect.tsmaId);
+    ASSERT_EQ(req.placeHolderBitmap, expect.placeHolderBitmap);
+
+    SNodeList* pReqTriggerColList = nullptr;
+    ASSERT_EQ(nodesStringToList((char*)req.triggerCols, &pReqTriggerColList), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(LIST_LENGTH(pReqTriggerColList), LIST_LENGTH(pReqTriggerColList));
+    SNode *pReqNode, *pExpectNode = nullptr;
+    FORBOTH(pReqNode, pReqTriggerColList, pExpectNode, pTriggerCols) {
+      ASSERT_EQ(nodeType(pReqNode), nodeType(pExpectNode));
+      auto* pReqCol = (SColumnNode*)pReqNode;
+      auto* pExpectCol = (SColumnNode*)pExpectNode;
+      ASSERT_EQ(pReqCol->node.resType.type, pExpectCol->node.resType.type);
+      ASSERT_EQ(pReqCol->node.resType.precision, pExpectCol->node.resType.precision);
+      ASSERT_EQ(pReqCol->node.resType.scale, pExpectCol->node.resType.scale);
+      ASSERT_EQ(pReqCol->node.resType.bytes, pExpectCol->node.resType.bytes);
+      ASSERT_EQ(pReqCol->tableId, pExpectCol->tableId);
+      ASSERT_EQ(pReqCol->tableType, pExpectCol->tableType);
+      ASSERT_EQ(pReqCol->colId, pExpectCol->colId);
+      ASSERT_EQ(pReqCol->colType, pExpectCol->colType);
+      ASSERT_EQ(std::string(pReqCol->dbName), std::string(pExpectCol->dbName));
+      ASSERT_EQ(std::string(pReqCol->colName), std::string(pExpectCol->colName));
+      ASSERT_EQ(std::string(pReqCol->tableName), std::string(pExpectCol->tableName));
+      ASSERT_EQ(std::string(pReqCol->tableAlias), std::string(pExpectCol->tableAlias));
+    }
+
+    SNodeList* pReqPartitionColList = nullptr;
+    ASSERT_EQ(nodesStringToList((char*)req.partitionCols, &pReqPartitionColList), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(LIST_LENGTH(pPartitionCols), LIST_LENGTH(pReqPartitionColList));
+    FORBOTH(pReqNode, pReqPartitionColList, pExpectNode, pPartitionCols) {
+      ASSERT_EQ(nodeType(pReqNode), nodeType(pExpectNode));
+      auto* pReqCol = (SColumnNode*)pReqNode;
+      auto* pExpectCol = (SColumnNode*)pExpectNode;
+      ASSERT_EQ(pReqCol->node.resType.type, pExpectCol->node.resType.type);
+      ASSERT_EQ(pReqCol->node.resType.precision, pExpectCol->node.resType.precision);
+      ASSERT_EQ(pReqCol->node.resType.scale, pExpectCol->node.resType.scale);
+      ASSERT_EQ(pReqCol->node.resType.bytes, pExpectCol->node.resType.bytes);
+      ASSERT_EQ(pReqCol->tableId, pExpectCol->tableId);
+      ASSERT_EQ(pReqCol->tableType, pExpectCol->tableType);
+      ASSERT_EQ(pReqCol->colId, pExpectCol->colId);
+      ASSERT_EQ(pReqCol->colType, pExpectCol->colType);
+      ASSERT_EQ(std::string(pReqCol->dbName), std::string(pExpectCol->dbName));
+      ASSERT_EQ(std::string(pReqCol->colName), std::string(pExpectCol->colName));
+      ASSERT_EQ(std::string(pReqCol->tableName), std::string(pExpectCol->tableName));
+      ASSERT_EQ(std::string(pReqCol->tableAlias), std::string(pExpectCol->tableAlias));
+    }
+
     tFreeSCMCreateStreamReq(&req);
   });
 
-  setCreateStreamReq("s1", "0.test", "0.test", "0.test", "0.test", "t1", "stream_out", "create stream s1 interval(1s) sliding(1s) from t1 into stream_out as select avg(c1) from t2");
-  run("create stream s1 interval(1s) sliding(1s) from t1 into stream_out as select avg(c1) from t2");
+  typedef enum ETriggerType {
+    WINDOW_TYPE_INTERVAL = 1,
+    WINDOW_TYPE_SESSION,
+    WINDOW_TYPE_STATE,
+    WINDOW_TYPE_EVENT,
+    WINDOW_TYPE_COUNT,
+    WINDOW_TYPE_ANOMALY,
+    WINDOW_TYPE_EXTERNAL,
+    WINDOW_TYPE_PERIOD
+  } ETriggerType;
+
+  setCreateStreamReq("s1", "0.test", "0.test", "0.test", "0.test", "t1", "stream_out", "create stream s1 interval(1s) sliding(1s) from t1 into stream_out as select now, avg(c1) from t2");
+  setCreateStreamOption(0, ETriggerType::WINDOW_TYPE_INTERVAL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, TSDB_NORMAL_TABLE, 9, TSDB_NORMAL_TABLE, 0, 0, 1, 1, 0, 0, 0);
+  addCreateStreamTriggerCols(9, 0, 0, 8, 9, TSDB_NORMAL_TABLE, 1, EColumnType::COLUMN_TYPE_COLUMN, "test", "t1", "t1", "ts", 0);
+  run("create stream s1 interval(1s) sliding(1s) from t1 into stream_out as select now, avg(c1) from t2");
   clearCreateStreamReq();
+
 
 }
 
