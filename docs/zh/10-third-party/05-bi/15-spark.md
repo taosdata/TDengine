@@ -31,9 +31,9 @@ driverClass 指定为 “com.taosdata.jdbc.ws.WebSocketDriver”。
 ``` java
   // create spark instance
   SparkSession spark = SparkSession.builder()
-		  .appName("appSparkTest")
-		  .master("local[*]")
-		  .getOrCreate();
+      .appName("appSparkTest")
+      .master("local[*]")
+      .getOrCreate();
   
   // connect TDengine and create reader
   String url     = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata";
@@ -140,7 +140,7 @@ connection.close();
 
 ### 数据订阅
 
-数据订阅使用 JDBC 标准数据订阅方法，分三步完成：
+数据订阅使用 JDBC 标准数据订阅方法，分四步完成：
 
 **第 1 步**， 创建 spark 交互实例。
 ``` java
@@ -201,7 +201,8 @@ connection.close();
     pollExample(spark, consumer);
 
     // pollExample
-    public static void pollExample(SparkSession spark, TaosConsumer<ResultBean> consumer) throws SQLException, JsonProcessingException {
+    public static void pollExample(SparkSession spark, TaosConsumer<ResultBean> consumer) 
+                                  throws SQLException, JsonProcessingException {
         List<String> topics = Collections.singletonList("topic_meters");
         List<Row> data = new ArrayList<>();
 
@@ -218,8 +219,6 @@ connection.close();
                 for (ConsumerRecord<ResultBean> record : records) {
                     ResultBean bean = record.value();
                     // Add your data processing logic here
-                    // System.out.println("data: " + JsonUtil.getObjectMapper().writeValueAsString(bean));
-
                     // covert bean to row
                     data.add(RowFactory.create(
                         bean.getTs(),
