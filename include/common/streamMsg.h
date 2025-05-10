@@ -313,6 +313,7 @@ typedef struct SStreamTask {
   int64_t taskId;    // ID of the current task
   /** KEEP TOGETHER **/
 
+  int64_t       seriousId;  // task deploy idx
   int32_t       nodeId;     // ID of the vgroup/snode
   int64_t       sessionId;  // ID of the current session (real-time, historical, or recalculation)
   int16_t       taskIdx;

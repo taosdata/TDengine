@@ -543,50 +543,6 @@ static void doSendQuickRsp(SRpcHandleInfo *pInfo, int32_t msgSize, int32_t vgId,
   }
 }
 
-bool mndStreamActionDequeue(SStmActionQ* pQueue, SStmQNode **param) {
-  while (0 == atomic_load_64(&pQueue->qRemainNum)) {
-    return false;
-  }
-
-  SStmQNode *orig = pQueue->head;
-
-  SStmQNode *node = pQueue->head->next;
-  pQueue->head = pQueue->head->next;
-
-  *param = node;
-
-  atomic_sub_fetch_64(&pQueue->qRemainNum, 1);
-
-  return true;
-}
-
-void mndStreamActionEnqueue(SStmActionQ* pQueue, SStmQNode* param) {
-  taosWLockLatch(&pQueue->lock);
-  pQueue->tail->next = param;
-  pQueue->tail = param;
-  taosWUnLockLatch(&pQueue->lock);
-
-  atomic_add_fetch_64(&pQueue->qRemainNum, 1);
-}
-
-
-void mndStreamPostAction(SMnode *pMnode, int64_t streamId, char* streamName, int32_t action) {
-  SStmQNode *pNode = taosMemoryMalloc(sizeof(SStmQNode) + strlen(streamName) + 1);
-  if (NULL == pNode) {
-    return;
-  }
-
-  pNode->streamId = streamId;
-  pNode->streamName = (char*)(pNode + 1);
-  pNode->action = action;
-  
-  pNode->next = NULL;
-  
-  TAOS_STRCPY(pNode->streamName, streamName);
-
-  mndStreamActionEnqueue(mStreamMgmt.actionQ, pNode);
-}
-
 static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
@@ -645,7 +601,7 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
     return code;
   }
 
-  mndStreamPostAction(pMnode, streamId, pStream->pCreate->name, STREAM_ACT_UNDEPLOY);
+  mndStreamPostAction(mStreamMgmt.actionQ, streamId, pStream->pCreate->name, STREAM_ACT_UNDEPLOY);
 
   sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);
@@ -717,7 +673,7 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
     return code;
   }
 
-  mndStreamPostAction(pMnode, streamId, pStream->pCreate->name, STREAM_ACT_DEPLOY);
+  mndStreamPostAction(mStreamMgmt.actionQ, streamId, pStream->pCreate->name, STREAM_ACT_DEPLOY);
 
   sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);
@@ -919,7 +875,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
   auditRecord(pReq, pMnode->clusterId, "createStream", pCreate->streamDB, pCreate->name, pCreate->sql, strlen(pCreate->sql));
 
-  mndStreamPostAction(pMnode, streamId, pStream->pCreate->name, STREAM_ACT_DEPLOY);
+  mndStreamPostAction(mStreamMgmt.actionQ, streamId, pStream->pCreate->name, STREAM_ACT_DEPLOY);
 
 _OVER:
 

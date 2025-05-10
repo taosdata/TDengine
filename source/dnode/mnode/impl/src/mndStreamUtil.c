@@ -268,3 +268,73 @@ int32_t mstCheckSnodeExists(SMnode *pMnode) {
 
   return TSDB_CODE_SNODE_NOT_DEPLOYED;
 }
+
+
+bool mndStreamActionDequeue(SStmActionQ* pQueue, SStmQNode **param) {
+  while (0 == atomic_load_64(&pQueue->qRemainNum)) {
+    return false;
+  }
+
+  SStmQNode *orig = pQueue->head;
+
+  SStmQNode *node = pQueue->head->next;
+  pQueue->head = pQueue->head->next;
+
+  *param = node;
+
+  atomic_sub_fetch_64(&pQueue->qRemainNum, 1);
+
+  return true;
+}
+
+void mndStreamActionEnqueue(SStmActionQ* pQueue, SStmQNode* param) {
+  taosWLockLatch(&pQueue->lock);
+  pQueue->tail->next = param;
+  pQueue->tail = param;
+  taosWUnLockLatch(&pQueue->lock);
+
+  atomic_add_fetch_64(&pQueue->qRemainNum, 1);
+}
+
+
+void mndStreamPostAction(SStmActionQ*       actionQ, int64_t streamId, char* streamName, int32_t action) {
+  SStmQNode *pNode = taosMemoryMalloc(sizeof(SStmQNode));
+  if (NULL == pNode) {
+    mstError("%s failed at line %d, error:%s", __FUNCTION__, __LINE__, tstrerror(terrno));
+    return;
+  }
+
+  pNode->type = action;
+  pNode->streamAct = true;
+  pNode->action.stream.streamId = streamId;
+  TAOS_STRCPY(pNode->action.stream.streamName, streamName);
+  
+  pNode->next = NULL;
+  
+
+  mndStreamActionEnqueue(actionQ, pNode);
+}
+
+void mndStreamPostTaskAction(SStmActionQ*        actionQ, int64_t streamId, SStmTaskId* pId, int32_t action, int64_t flags, EStreamTaskType type) {
+  SStmQNode *pNode = taosMemoryMalloc(sizeof(SStmQNode));
+  if (NULL == pNode) {
+    mstError("%s failed at line %d, error:%s", __FUNCTION__, __LINE__, tstrerror(terrno));
+    return;
+  }
+
+  pNode->type = action;
+  pNode->streamAct = false;
+  pNode->action.task.streamId = streamId;
+  pNode->action.task.id.taskId = pId->taskId;
+  pNode->action.task.id.seriousId = pId->seriousId;
+  pNode->action.task.id.nodeId = pId->nodeId;
+  pNode->action.task.id.taskIdx = pId->taskIdx;
+  pNode->action.task.type = type;
+  pNode->action.task.flag = flags;
+  
+  pNode->next = NULL;
+
+  mndStreamActionEnqueue(actionQ, pNode);
+}
+
+

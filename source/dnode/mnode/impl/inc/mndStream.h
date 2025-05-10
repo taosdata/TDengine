@@ -35,9 +35,10 @@ typedef enum {
 } EMndStmPhase;
 
 #define MND_STREAM_RUNNER_DEPLOY_NUM 3
+#define MND_STREAM_ISOLATION_PERIOD_NUM 3
 #define MND_STREAM_REPORT_PERIOD  (STREAM_HB_INTERVAL_MS * STREAM_MAX_GROUP_NUM)
-#define MND_STREAM_WATCH_DURATION (MND_STREAM_REPORT_PERIOD * 3)
-#define MND_STREAM_HEALTH_CHECK_PERIOD_SEC (MND_STREAM_WATCH_DURATION / 1000)
+#define MND_STREAM_WATCH_DURATION (MND_STREAM_REPORT_PERIOD * MND_STREAM_ISOLATION_PERIOD_NUM)
+#define MND_STREAM_HEALTH_CHECK_PERIOD_SEC (MND_STREAM_REPORT_PERIOD / 1000)
 
 #define STREAM_RUNNER_MAX_DEPLOYS 
 #define STREAM_RUNNER_MAX_REPLICA 
@@ -70,15 +71,38 @@ typedef enum {
 #define GOT_SNODE(_snodeId) ((_snodeId) != INT32_MIN)
 #define STREAM_IS_RUNNING(_status) (STREAM_STATUS_RUNNING == (_status))
 
-typedef struct SVgroupChangeInfo {
-  SHashObj *pDBMap;
-  SArray   *pUpdateNodeList;  // SArray<SNodeUpdateInfo>
-} SVgroupChangeInfo;
+typedef struct SStmStreamAction {
+  int64_t              streamId;
+  char                 streamName[TSDB_STREAM_FNAME_LEN];
+} SStmStreamAction;
+
+
+typedef struct SStmTaskId {
+  int64_t taskId;      // KEEP IT FIRST
+  int64_t seriousId;
+  int32_t nodeId;
+  int32_t taskIdx;
+} SStmTaskId;
+
+typedef struct SStmTaskAction {
+  // KEEP IT TOGETHER
+  int64_t    streamId; 
+  SStmTaskId id;
+  // KEEP IT TOGETHER
+
+  EStreamTaskType type;
+  int64_t    flag;
+} SStmTaskAction;
+
+typedef union {
+  SStmStreamAction stream;
+  SStmTaskAction   task;
+} SStmQAction;
 
 typedef struct SStmQNode {
-  int64_t              streamId;
-  char*                streamName;
-  int32_t              action;
+  int32_t              type;
+  bool                 streamAct;
+  SStmQAction          action;
   void*                next;
 } SStmQNode;
 
@@ -90,17 +114,19 @@ typedef struct SStmActionQ {
   uint64_t      qRemainNum;
 } SStmActionQ;
 
-typedef struct SStmTaskId {
-  int64_t taskId;
-  int32_t nodeId;
-  int32_t taskIdx;
-} SStmTaskId;
+
+typedef struct SVgroupChangeInfo {
+  SHashObj *pDBMap;
+  SArray   *pUpdateNodeList;  // SArray<SNodeUpdateInfo>
+} SVgroupChangeInfo;
+
 
 typedef struct SStmTaskStatus {
-  SStmTaskId    id;
-  int64_t       flags;
-  EStreamStatus status;
-  int64_t       lastUpTs;
+  SStmTaskId      id;
+  EStreamTaskType type;
+  int64_t         flags;
+  EStreamStatus   status;
+  int64_t         lastUpTs;
 } SStmTaskStatus;
 
 typedef struct SStmTaskSrcAddr {
@@ -112,6 +138,7 @@ typedef struct SStmTaskSrcAddr {
 } SStmTaskSrcAddr;
 
 typedef struct SStmStatus {
+  char*             streamName;
   int64_t           lastActTs;
   int32_t           readerNum[2];      // trigger reader num & calc reader num
   SArray*           readerList;        // SArray<SStmTaskStatus>
@@ -129,6 +156,7 @@ typedef struct SStmTaskStatusExt{
 
 typedef struct SStmSnodeTasksStatus {
   int32_t  runnerThreadNum; // runner thread num in snode
+  int64_t  lastUpTs;
   SRWLatch lock;
   SArray*  triggerList;     // SArray<SStmTaskStatusExt>
   SArray*  runnerList;      // SArray<SStmTaskStatusExt>
@@ -141,25 +169,25 @@ typedef struct SStmVgroupTasksStatus {
   SArray*  taskList;       // SArray<SStmTaskStatusExt>
 } SStmVgroupTasksStatus;
 
-typedef struct SStmTaskDeployExt {
-  bool           deployed;
-  bool           lowestRunner;
-  SStmTaskDeploy deploy;
-} SStmTaskDeployExt;
+typedef struct SStmTaskToDeployExt {
+  bool            deployed;
+  bool            lowestRunner;
+  SStmTaskDeploy  deploy;
+} SStmTaskToDeployExt;
 
-typedef struct SStmVgroupTasksDeploy {
+typedef struct SStmVgTasksToDeploy {
   SRWLatch lock;
   int64_t  streamVer;
   int32_t  deployed;
-  SArray*  taskList;       // SArray<SStmTaskDeployExt>
-} SStmVgroupTasksDeploy;
+  SArray*  taskList;       // SArray<SStmTaskToDeployExt>
+} SStmVgTasksToDeploy;
 
 typedef struct SStmSnodeTasksDeploy {
   SRWLatch lock;
   int32_t  triggerDeployed;
   int32_t  runnerDeployed;
-  SArray*  triggerList;  // SArray<SStmTaskDeployExt>
-  SArray*  runnerList;   // SArray<SStmTaskDeployExt>
+  SArray*  triggerList;  // SArray<SStmTaskToDeployExt>
+  SArray*  runnerList;   // SArray<SStmTaskToDeployExt>
 } SStmSnodeTasksDeploy;
 
 typedef struct SStmStreamUndeploy{
@@ -200,6 +228,8 @@ typedef struct SStmThreadCtx {
 } SStmThreadCtx;
 
 typedef struct SStmHealthCheckCtx {
+  int32_t slotIdx;
+  
   int64_t currentTs;
   int32_t validStreamNum;
   
@@ -230,11 +260,9 @@ typedef struct SStmRuntime {
 
   // TD
   int32_t          toDeployVgTaskNum;
-  SHashObj*        toDeployVgMap;      // vgId => SStmVgroupTasksDeploy (only reader tasks)
-  SHashObj*        deployedVgMap;      // vgId => SStmVgroupTasksDeploy (only reader tasks)
+  SHashObj*        toDeployVgMap;        // vgId => SStmVgTasksToDeploy (only reader tasks)
   int32_t          toDeploySnodeTaskNum;
-  SHashObj*        toDeploySnodeMap;   // snodeId => SStmSnodeTasksDeploy (only trigger and runner tasks)
-  SHashObj*        deployedSnodeMap;   // snodeId => SStmSnodeTasksDeploy (only trigger and runner tasks)
+  SHashObj*        toDeploySnodeMap;     // snodeId => SStmSnodeTasksDeploy (only trigger and runner tasks)
 
   // UP
   int32_t          toUpdateScanNum;
@@ -283,7 +311,8 @@ void msmHandleBecomeNotLeader(SMnode *pMnode);
 int32_t msmUndeployStream(SMnode* pMnode, int64_t streamId, char* streamName);
 int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped);
 void msmHealthCheck(SMnode *pMnode);
-void mndStreamPostAction(SMnode *pMnode, int64_t streamId, char* streamName, int32_t action);
+void mndStreamPostAction(SStmActionQ*       actionQ, int64_t streamId, char* streamName, int32_t action);
+void mndStreamPostTaskAction(SStmActionQ*       actionQ, int64_t streamId, SStmTaskId* pId, int32_t action, int64_t flags, EStreamTaskType type);
 
 #ifdef __cplusplus
 }

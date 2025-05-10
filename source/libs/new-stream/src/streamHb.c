@@ -65,7 +65,7 @@ int32_t streamHbBuildRequestMsg(SStreamHbMsg* pMsg, bool* skipHb) {
   int32_t lino = 0;
   
   pMsg->dnodeId = (*gStreamMgmt.getDnode)(gStreamMgmt.dnode);
-  pMsg->snodeId = pMsg->dnodeId;
+  pMsg->snodeId = gStreamMgmt.snodeId;
   pMsg->streamGId = stmAddFetchStreamGid();
 
   TAOS_CHECK_EXIT(stmBuildStreamsStatus(&pMsg->pStreamStatus, pMsg->streamGId));
