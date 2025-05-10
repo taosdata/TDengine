@@ -110,6 +110,18 @@ class TDTestCase(TBase):
         tdSql.execute("ALTER TABLE stb KEEP 5d")
         tdSql.query("SHOW CREATE TABLE stb")
         tdSql.checkData(0, 1, "CREATE STABLE `stb` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `a` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `b` FLOAT ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `c` VARCHAR(10) ENCODE 'disabled' COMPRESS 'zstd' LEVEL 'medium') TAGS (`e_id` INT) KEEP 7200m")
+
+    def check_stb_keep_ins_table(self):
+        tdLog.info(f"check stb keep ins table")
+        tdSql.execute("CREATE DATABASE res_test")
+        tdSql.execute("USE res_test")
+        tdSql.execute("CREATE STABLE stb (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT)")
+        tdSql.query("SELECT * FROM information_schema.ins_stables where db_name = 'res_test'")
+        tdSql.checkData(0, 12, "-1")
+        tdSql.execute("ALTER TABLE stb KEEP 10d")
+        tdSql.query("SELECT * FROM information_schema.ins_stables where db_name = 'res_test'")
+        tdSql.checkData(0, 12, "14400")
+        
         
     # run
     def run(self):
@@ -138,6 +150,9 @@ class TDTestCase(TBase):
 
         # check stb keep show create
         self.chceck_stb_keep_show_create()
+
+        # check stb keep ins table
+        self.check_stb_keep_ins_table()
 
         tdLog.success(f"{__file__} successfully executed")
 
