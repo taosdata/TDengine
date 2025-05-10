@@ -1008,18 +1008,18 @@ function updateProduct() {
     [ -f ${configDir}/${adapterName}.toml ] && [ -f ${installDir}/bin/${adapterName} ] &&
       echo -e "${GREEN_DARK}To configure ${adapterName} ${NC}\t: edit ${configDir}/${adapterName}.toml"
     echo -e "${GREEN_DARK}To configure ${explorerName} ${NC}\t: edit ${configDir}/explorer.toml"
-    echo -e "${GREEN_DARK}To configure ${clientName}x ${NC}\t: edit ${configDir}/taosx.toml"
+    echo -e "${GREEN_DARK}To configure ${clientName}x ${NC}\t: edit ${configDir}/${clientName}x.toml"
     
-
     echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ${csudo} ${serverName} -c ${configDir}/  ${NC}"
     [ -f ${installDir}/bin/${clientName}adapter ] &&
-    echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${clientName}adapter -c ${configDir}/  ${NC}"
+    echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${clientName}adapter -c ${configDir}/${adapterName}.toml  ${NC}"
 
-    echo -e "${GREEN_DARK}To start ${clientName}keeper ${NC}\t\t: ${csudo} ${clientName}keeper -c ${configDir}/  ${NC}"
+    echo -e "${GREEN_DARK}To start ${clientName}keeper ${NC}\t\t: ${csudo} ${clientName}keeper -c ${configDir}/${clientName}keeper.toml  ${NC}"
     if [ "$verMode" == "cluster" ]; then
-      echo -e "${GREEN_DARK}To start ${clientName}x ${NC}\t\t\t: ${csudo}  ${clientName}x -c ${configDir}/  ${NC}"
+      echo -e "${GREEN_DARK}To start ${clientName}x ${NC}\t\t\t: ${csudo}  ${clientName}x -c ${configDir}/${clientName}x.toml  ${NC}"
     fi
-    echo -e "${GREEN_DARK}To start ${clientName}-explorer ${NC}\t\t: ${csudo} ${clientName}-explorer -c ${configDir}/ ${NC}"
+    echo -e "${GREEN_DARK}To start ${clientName}-explorer ${NC}\t\t: ${csudo} ${clientName}-explorer -C ${configDir}/explorer.toml ${NC}"
+
 
     echo
     echo "${productName} is updated successfully!"
@@ -1119,7 +1119,7 @@ function installProduct() {
     if [ "$verMode" == "cluster" ]; then
       echo -e "${GREEN_DARK}To start ${clientName}x ${NC}\t\t\t: ${csudo}  ${clientName}x -c ${configDir}/${clientName}x.toml  ${NC}"
     fi
-    echo -e "${GREEN_DARK}To start ${clientName}-explorer ${NC}\t\t: ${csudo} ${clientName}-explorer -c ${configDir}/explorer.toml ${NC}"
+    echo -e "${GREEN_DARK}To start ${clientName}-explorer ${NC}\t\t: ${csudo} ${clientName}-explorer -C ${configDir}/explorer.toml ${NC}"
 
 
     echo
