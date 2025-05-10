@@ -29,19 +29,19 @@ driverClass 指定为 “com.taosdata.jdbc.ws.WebSocketDriver”。
 
 以下示例创建 Spark 实例并连接到本机 TDengine 服务：
 ``` java
-    // create spark instance
-    SparkSession spark = SparkSession.builder()
-		.appName("appSparkTest")
-		.master("local[*]")
-		.getOrCreate();
+  // create spark instance
+  SparkSession spark = SparkSession.builder()
+		  .appName("appSparkTest")
+		  .master("local[*]")
+		  .getOrCreate();
   
-    // connect TDengine and create reader
-    String url      = "jdbc:TAOS-WS://localhost:6041/test?user=root&password=taosdata";
-    String driver   = "com.taosdata.jdbc.ws.WebSocketDriver";
-    DataFrameReader dataFrameReader = spark.read()
-               .format("jdbc")
-               .option("url", url)
-               .option("driver", driver);
+  // connect TDengine and create reader
+  String url     = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata";
+  String driver  = "com.taosdata.jdbc.ws.WebSocketDriver";
+  DataFrameReader dataFrameReader = spark.read()
+      .format("jdbc")
+      .option("url", url)
+      .option("driver", driver);
 
 ```
 
@@ -58,7 +58,7 @@ driverClass 指定为 “com.taosdata.jdbc.ws.WebSocketDriver”。
 **第 1 步**， 创建连接。
 ``` java
   // create connect
-  String url = "jdbc:TAOS-WS://localhost:6041/test?user=root&password=taosdata";
+  String url = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata";
   Connection connection = DriverManager.getConnection(url);
 ```
 
@@ -73,20 +73,27 @@ driverClass 指定为 “com.taosdata.jdbc.ws.WebSocketDriver”。
       int   voltage = (int)  (100 + rand.nextInt(20));
 
       preparedStatement.setTimestamp(1, new Timestamp(ts + j));
-      preparedStatement.setFloat(2, current);
-      preparedStatement.setInt(3, voltage);
-      preparedStatement.setFloat(4, phase);
-      // submit
-      preparedStatement.executeUpdate();
+      preparedStatement.setFloat    (2, current);
+      preparedStatement.setInt      (3, voltage);
+      preparedStatement.setFloat    (4, phase);
+      // add batch
+      preparedStatement.addBatch();
   }
+
+  // submit
+  preparedStatement.executeUpdate();
+  // close statement
+  preparedStatement.close();
+
 ```
 
 **第 3 步**， 关闭连接。
 ``` java
+// close
 connection.close();
 ```
 
-详细参见示例： writeToTDengine()。
+[示例源码](https://github.com/taosdata/tdengine-eco/blob/main/spark/src/main/java/com/taosdata/java/DemoWrite.java)
 
 ### 数据读取
 
@@ -104,7 +111,7 @@ connection.close();
 **第 2 步**， 创建数据读取器。
 ``` java
   // create reader
-  String url = "jdbc:TAOS-WS://localhost:6041/test?user=root&password=taosdata";
+  String url = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata";
   int    timeout  = 60; // seconds
   DataFrameReader reader = spark.read()
       .format("jdbc") 
@@ -129,35 +136,44 @@ connection.close();
   spark.stop();
 ```
 
-详细参见示例： readFromTDengine()。
+[示例源码](https://github.com/taosdata/tdengine-eco/blob/main/spark/src/main/java/com/taosdata/java/DemoRead.java)
 
 ### 数据订阅
 
 数据订阅使用 JDBC 标准数据订阅方法，分三步完成：
 
-**第 1 步**， 创建消费者。
+**第 1 步**， 创建 spark 交互实例。
+``` java
+  SparkSession spark = SparkSession.builder()
+      .appName("appSparkTest")
+      .master("local[*]")
+      .getOrCreate();
+```            
+
+**第 2 步**， 创建消费者。
 ``` java
   // create consumer
   TaosConsumer<ResultBean> consumer = getConsumer();
 
   // getConsumer
   public static TaosConsumer<ResultBean> getConsumer() throws Exception {
-
+      // property
       Properties config = new Properties();
-      config.setProperty("td.connect.type", "ws");
-      config.setProperty("bootstrap.servers", "localhost:6041");
-      config.setProperty("auto.offset.reset", "earliest");
-      config.setProperty("msg.with.table.name", "true");
-      config.setProperty("enable.auto.commit", "true");
-      config.setProperty("auto.commit.interval.ms", "1000");
-      config.setProperty("group.id", "group1");
-      config.setProperty("client.id", "clinet1");
-      config.setProperty("td.connect.user", "root");
-      config.setProperty("td.connect.pass", "taosdata");
-      config.setProperty("value.deserializer", "com.taosdata.java.SparkTest$ResultDeserializer");
+      config.setProperty("td.connect.type",             "ws");
+      config.setProperty("bootstrap.servers",           "localhost:6041");
+      config.setProperty("auto.offset.reset",           "earliest");
+      config.setProperty("msg.with.table.name",         "true");
+      config.setProperty("enable.auto.commit",          "true");
+      config.setProperty("auto.commit.interval.ms",     "1000");
+      config.setProperty("group.id",                    "group1");
+      config.setProperty("client.id",                   "clinet1");
+      config.setProperty("td.connect.user",             "root");
+      config.setProperty("td.connect.pass",             "taosdata");
+      config.setProperty("value.deserializer",          "com.taosdata.java.DemoSubscribe$ResultDeserializer");
       config.setProperty("value.deserializer.encoding", "UTF-8");
 
       try {
+          // new consumer
           TaosConsumer<ResultBean> consumer= new TaosConsumer<>(config);
           System.out.printf("Create consumer successfully, host: %s, groupId: %s, clientId: %s%n",
                   config.getProperty("bootstrap.servers"),
@@ -176,19 +192,24 @@ connection.close();
           ex.printStackTrace();
           throw ex;
       }
-  }
+  }  
 ```
 
-**第 2 步**， 订阅主题，消费数据。
+**第 3 步**， 订阅主题，消费到数据放至 spark 中。
 ``` java
-    // poll data from server
-    pollExample(consumer);
+    // poll
+    pollExample(spark, consumer);
 
     // pollExample
-    public static void pollExample(TaosConsumer<ResultBean> consumer) throws SQLException, JsonProcessingException {
+    public static void pollExample(SparkSession spark, TaosConsumer<ResultBean> consumer) throws SQLException, JsonProcessingException {
         List<String> topics = Collections.singletonList("topic_meters");
+        List<Row> data = new ArrayList<>();
+
+        //
+        // obtain data
+        //
         try {
-            // subscribe to the topics
+            // subscribe  topics
             consumer.subscribe(topics);
             System.out.println("Subscribe topics successfully.");
             for (int i = 0; i < 100; i++) {
@@ -197,33 +218,52 @@ connection.close();
                 for (ConsumerRecord<ResultBean> record : records) {
                     ResultBean bean = record.value();
                     // Add your data processing logic here
-                    System.out.println("data: " + JsonUtil.getObjectMapper().writeValueAsString(bean));
+                    // System.out.println("data: " + JsonUtil.getObjectMapper().writeValueAsString(bean));
+
+                    // covert bean to row
+                    data.add(RowFactory.create(
+                        bean.getTs(),
+                        bean.getCurrent(),
+                        bean.getVoltage(),
+                        bean.getPhase(),
+                        bean.getGroupid(),
+                        bean.getLocation()
+                    ));
+                    
                 }
             }
+
         } catch (Exception ex) {
-            // please refer to the JDBC specifications for detailed exceptions info
-            System.out.printf("Failed to poll data, topic: %s, groupId: %s, clientId: %s, %sErrMessage: %s%n",
+            // catch except
+            System.out.printf("Failed to poll data, topic: %s, %sErrMessage: %s%n",
                     topics.get(0),
-                    groupId,
-                    clientId,
                     ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
                     ex.getMessage());
-            // Print stack trace for context in examples. Use logging in production.
             ex.printStackTrace();
-            throw ex;
         }
-    } 
 
+        //
+        // put to spark dataframe and show
+        //
+        StructType schema = generateSchema();
+        Dataset<Row> df   = spark.createDataFrame(data, schema);
+
+        // show
+        System.out.println("----------------- below is subscribe data ----------------");
+        df.show(Integer.MAX_VALUE, 40, false);
+    }
 ```
 
-**第 3 步**， 取消订阅，释放资源。
+**第 4 步**， 取消订阅，释放资源。
 ``` java
   // close
   consumer.unsubscribe();
   consumer.close();
+  // stop
+  spark.stop();
 ```
 
-详细参见示例： subscribeFromTDengine()。
+[示例源码](https://github.com/taosdata/tdengine-eco/blob/main/spark/src/main/java/com/taosdata/java/Subscribe.java)
 
 ## 数据分析
 
@@ -246,7 +286,7 @@ select tbname,* from test.meters where tbname='d0'
 ``` sql
 SELECT tbname, ts, voltage,
       (LAG(voltage, 7) OVER (ORDER BY tbname)) AS voltage_last_week, 
-      CONCAT(ROUND(((voltage - voltage_last_week)/voltage_last_week * 100), 1),'%') AS weekly_growth_rate
+      "CONCAT(ROUND(((voltage - (LAG(voltage, 7) OVER (ORDER BY tbname))) / (LAG(voltage, 7) OVER (ORDER BY tbname)) * 100), 1),'%') AS weekly_growth_rate " +
       FROM sparkMeters
 ```
 
