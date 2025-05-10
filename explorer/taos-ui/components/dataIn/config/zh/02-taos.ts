@@ -1,8 +1,8 @@
 export default {
-  name: 'TDengine 2.x',
+  name: 'TDengine 查询',
   id: 'taos',
   type: 'uri',
-  description: '从旧版本 TDengine (2.x) 迁移到当前集群。\n',
+  description: '从旧版本 TDengine (2.4+, 3.0+) 迁移到当前集群。\n',
   config: [
     {
       label: '连接配置',

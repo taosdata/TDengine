@@ -1,9 +1,9 @@
 export default {
-  name: 'TDengine 2.x',
+  name: 'TDengine Query',
   id: 'taos',
   type: 'uri',
   description:
-    'The TDengine 2.x data source can be used to migrate data from previous version to current cluster.\n\n## Protocols\n\nThe supported protocols are:\n\n- ws: websocket protocol with plain HTTP connection.\n- wss: websocket protocol with TLS http connection.\n\nIf a protocol setting is not specified, a TDengine native connection will be used.\n',
+    'The TDengine Query data source can be used to migrate data from previous version to current cluster.\n\n## Protocols\n\nThe supported protocols are:\n\n- ws: websocket protocol with plain HTTP connection.\n- wss: websocket protocol with TLS http connection.\n\nIf a protocol setting is not specified, a TDengine native connection will be used.\n',
   config: [
     {
       label: 'Connection Configuration',

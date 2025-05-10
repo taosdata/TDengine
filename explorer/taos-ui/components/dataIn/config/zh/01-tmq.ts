@@ -1,5 +1,5 @@
 export default {
-  name: 'TDengine 3.x',
+  name: 'TDengine 数据订阅',
   id: 'tmq',
   type: 'uri',
   description:
