@@ -220,17 +220,19 @@ jobs:
           taosadapter -V
           taosBenchmark -V
           taos -V
+          ip addr 
+          hostname 
           echo "find port 6030"
-          lsof -i :6030 >/dev/null 2>&1 || true 
+          lsof -i :6030 || true 
           nohup taosd >> taosd.log &
           nohup taosadapter >> taosa.log &
           pgrep -l taos
           echo "find port 6030 once again 1"
-          lsof -i :6030 >/dev/null 2>&1 || true
+          lsof -i :6030  || true
           sleep 30     # NOTE: wait for taosd initialization to complete
           pgrep -l taos
           echo "find port 6030 once again 2"
-          lsof -i :6030 >/dev/null 2>&1 || true
+          lsof -i :6030 || true
           cat taosd.log
           taos -s "show databases"
           taos -s "show dnodes"
