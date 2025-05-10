@@ -70,7 +70,6 @@ typedef struct SStreamVgReaderTasks {
 typedef struct SStreamMgmtInfo {
   void*                  timer;
   void*                  dnode;
-  int32_t                dnodeId;
   int32_t                snodeId;
   
 //  SStorageAPI*           api;
