@@ -1539,6 +1539,9 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
 }
 
 void blockDataCleanup(SSDataBlock* pDataBlock) {
+  if(pDataBlock == NULL) {
+    return;
+  }
   blockDataEmpty(pDataBlock);
   SDataBlockInfo* pInfo = &pDataBlock->info;
   pInfo->id.uid = 0;
