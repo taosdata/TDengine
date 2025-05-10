@@ -2412,10 +2412,10 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
       streamMutexLock(&execInfo.lock);
 
       code = refreshNodeListFromExistedStreams(pMnode, execInfo.pNodeList);
-      int32_t num = (int)taosArrayGetSize(execInfo.pNodeList);
+      int32_t num1 = (int)taosArrayGetSize(execInfo.pNodeList);
       if (code == 0) {
         execInfo.ts = ts;
-        mDebug("create trans successfully, update cached node list, numOfNodes:%d", num);
+        mDebug("create trans successfully, update cached node list, numOfNodes:%d", num1);
       }
 
       streamMutexUnlock(&execInfo.lock);
