@@ -1061,8 +1061,7 @@ static int32_t isAllTaskPaused(SStreamObj *pStream, bool *pRes) {
       mInfo("stream:0x%" PRIx64 " taskId:%x, status:%d not paused, stream status not paused", pe->id.streamId,
             pe->id.taskId, pe->status);
     } else {
-      mInfo("stream:0x%" PRIx64 " taskId:%x, status: paused, stream status paused", pe->id.streamId,
-            pe->id.taskId, pe->status);
+      mInfo("stream:0x%" PRIx64 " taskId:%x, status: paused, stream status paused", pe->id.streamId, pe->id.taskId);
     }
 
     num += 1;
