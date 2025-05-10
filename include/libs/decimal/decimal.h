@@ -33,10 +33,10 @@ typedef struct Decimal64 {
 #define DECIMAL64_SET_VALUE(pDec, val) (*(int64_t*)((pDec)->words)) = (int64_t)(val)
 #define DECIMAL64_CLONE(pDst, pFrom)   ((Decimal64*)(pDst))->words[0] = ((Decimal64*)(pFrom))->words[0]
 
-static const Decimal64 decimal64Zero = {0};
-static const Decimal64 decimal64Two = {2};
-static const Decimal64 decimal64Min = {(uint64_t)-999999999999999999LL};
-static const Decimal64 decimal64Max = {(uint64_t)999999999999999999LL};
+static const Decimal64 decimal64Zero = {{0}};
+static const Decimal64 decimal64Two = {{2}};
+static const Decimal64 decimal64Min = {{(uint64_t)-999999999999999999LL}};
+static const Decimal64 decimal64Max = {{(uint64_t)999999999999999999LL}};
 #define DECIMAL64_ZERO decimal64Zero
 #define DECIMAL64_MAX decimal64Max
 #define DECIMAL64_MIN decimal64Min
@@ -49,7 +49,7 @@ typedef struct Decimal128 {
 #define decimalFromStr decimal128FromStr
 #define makeDecimal    makeDecimal128
 
-#define DEFINE_DECIMAL128(lo, hi) {lo, hi}
+#define DEFINE_DECIMAL128(lo, hi) {{lo, hi}}
 static const Decimal128 decimal128Zero = DEFINE_DECIMAL128(0, 0);
 static const Decimal128 decimal128Two = DEFINE_DECIMAL128(2, 0);
 static const Decimal128 decimal128Max = DEFINE_DECIMAL128(687399551400673280ULL - 1, 5421010862427522170LL);

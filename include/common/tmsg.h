@@ -1257,18 +1257,18 @@ int32_t tDeserializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteR
 typedef struct {
   int32_t dnodeId;
   int64_t analVer;
-} SRetrieveAnalAlgoReq;
+} SRetrieveAnalyticsAlgoReq;
 
 typedef struct {
   int64_t   ver;
   SHashObj* hash;  // algoname:algotype -> SAnalUrl
-} SRetrieveAnalAlgoRsp;
+} SRetrieveAnalyticAlgoRsp;
 
-int32_t tSerializeRetrieveAnalAlgoReq(void* buf, int32_t bufLen, SRetrieveAnalAlgoReq* pReq);
-int32_t tDeserializeRetrieveAnalAlgoReq(void* buf, int32_t bufLen, SRetrieveAnalAlgoReq* pReq);
-int32_t tSerializeRetrieveAnalAlgoRsp(void* buf, int32_t bufLen, SRetrieveAnalAlgoRsp* pRsp);
-int32_t tDeserializeRetrieveAnalAlgoRsp(void* buf, int32_t bufLen, SRetrieveAnalAlgoRsp* pRsp);
-void    tFreeRetrieveAnalAlgoRsp(SRetrieveAnalAlgoRsp* pRsp);
+int32_t tSerializeRetrieveAnalyticAlgoReq(void* buf, int32_t bufLen, SRetrieveAnalyticsAlgoReq* pReq);
+int32_t tDeserializeRetrieveAnalyticAlgoReq(void* buf, int32_t bufLen, SRetrieveAnalyticsAlgoReq* pReq);
+int32_t tSerializeRetrieveAnalyticAlgoRsp(void* buf, int32_t bufLen, SRetrieveAnalyticAlgoRsp* pRsp);
+int32_t tDeserializeRetrieveAnalyticAlgoRsp(void* buf, int32_t bufLen, SRetrieveAnalyticAlgoRsp* pRsp);
+void    tFreeRetrieveAnalyticAlgoRsp(SRetrieveAnalyticAlgoRsp* pRsp);
 
 typedef struct {
   int8_t alterType;
@@ -1468,6 +1468,22 @@ int32_t tSerializeSVSubTablesRsp(void *buf, int32_t bufLen, SVSubTablesRsp *pRsp
 int32_t tDeserializeSVSubTablesRsp(void *buf, int32_t bufLen, SVSubTablesRsp *pRsp);
 void tDestroySVSubTablesRsp(void* rsp);
 
+typedef struct {
+  SMsgHead header;
+  tb_uid_t suid;
+} SVStbRefDbsReq;
+
+int32_t tSerializeSVStbRefDbsReq(void *buf, int32_t bufLen, SVStbRefDbsReq *pReq);
+int32_t tDeserializeSVStbRefDbsReq(void *buf, int32_t bufLen, SVStbRefDbsReq *pReq);
+
+typedef struct {
+  int32_t  vgId;
+  SArray*  pDbs;   // SArray<char* (db name)>
+} SVStbRefDbsRsp;
+
+int32_t tSerializeSVStbRefDbsRsp(void *buf, int32_t bufLen, SVStbRefDbsRsp *pRsp);
+int32_t tDeserializeSVStbRefDbsRsp(void *buf, int32_t bufLen, SVStbRefDbsRsp *pRsp);
+void tDestroySVStbRefDbsRsp(void* rsp);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
@@ -1753,8 +1769,13 @@ int32_t tSerializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 int32_t tDeserializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 void    tFreeSQnodeListRsp(SQnodeListRsp* pRsp);
 
+typedef struct SDNodeAddr {
+  int32_t nodeId;  // dnodeId
+  SEpSet  epSet;
+} SDNodeAddr;
+
 typedef struct {
-  SArray* dnodeList;  // SArray<SEpSet>
+  SArray* dnodeList;  // SArray<SDNodeAddr>
 } SDnodeListRsp;
 
 int32_t tSerializeSDnodeListRsp(void* buf, int32_t bufLen, SDnodeListRsp* pRsp);

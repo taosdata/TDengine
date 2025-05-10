@@ -4,7 +4,7 @@ slug: /advanced-features/stream-processing
 ---
 
 import Image from '@theme/IdealImage';
-import watermarkImg from '../assets/stream-processing-01.png';
+import watermarkImg from '../assets/stream-processing-01-watermark.webp';
 
 In the processing of time-series data, it is often necessary to clean and preprocess the raw data before using a time-series database for long-term storage. Moreover, it is common to use the original time-series data to generate new time-series data through calculations. In traditional time-series data solutions, it is often necessary to deploy systems like Kafka, Flink, etc., for stream processing. However, the complexity of stream processing systems brings high development and operational costs.
 
@@ -13,6 +13,8 @@ TDengine's stream computing engine provides the capability to process data strea
 Stream computing can include data filtering, scalar function computations (including UDFs), and window aggregation (supporting sliding windows, session windows, and state windows). It can use supertables, subtables, and basic tables as source tables, writing into destination supertables. When creating a stream, the destination supertable is automatically created, and newly inserted data is processed and written into it as defined by the stream. Using the `partition by` clause, partitions can be divided by table name or tags, and different partitions will be written into different subtables of the destination supertable.
 
 TDengine's stream computing can support aggregation of supertables distributed across multiple nodes and can handle out-of-order data writing. It provides a watermark mechanism to measure the degree of tolerance for data disorder and offers an `ignore expired` configuration option to decide the handling strategy for out-of-order data — either discard or recalculate.
+
+Tips: Stream computing does not supported in windows platform.
 
 Below is a detailed introduction to the specific methods used in stream computing.
 
@@ -143,7 +145,7 @@ When creating a stream, you can specify the trigger mode of stream computing thr
 2. WINDOW_CLOSE: Triggered when the window closes (the closing of the window is determined by the event time, can be used in conjunction with watermark).
 3. MAX_DELAY time: If the window closes, computation is triggered. If the window has not closed, and the duration since it has not closed exceeds the time specified by max delay, computation is triggered.
 4. FORCE_WINDOW_CLOSE: Based on the current time of the operating system, only the results of the currently closed window are calculated and pushed out. The window is only calculated once at the moment of closure, and will not be recalculated subsequently. This mode currently only supports INTERVAL windows (does support sliding); In this mode, FILL_HISTORY is automatically set to 0, IGNORE EXPIRED is automatically set to 1 and IGNORE UPDATE is automatically set to 1; FILL only supports PREV, NULL, NONE, VALUE.
-   - This mode can be used to implement continuous queries, such as creating a stream that queries the number of data entries in the past 10 seconds window every 1 second。SQL as follows:
+   - This mode can be used to implement continuous queries, such as creating a stream that queries the number of data entries in the past 10 seconds window every 1 second. SQL as follows:
    ```sql
    create stream if not exists continuous_query_s trigger force_window_close into continuous_query as select count(*) from power.meters interval(10s) sliding(1s)
    ```

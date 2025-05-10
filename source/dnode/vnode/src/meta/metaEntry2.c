@@ -1374,7 +1374,7 @@ static int32_t metaHandleChildTableCreate(SMeta *pMeta, const SMetaEntry *pEntry
 
     if (!metaTbInFilterCache(pMeta, pSuperEntry->name, 1)) {
       int32_t nCols = 0;
-      int32_t ret = metaGetStbStats(pMeta->pVnode, pSuperEntry->uid, 0, &nCols);
+      int32_t ret = metaGetStbStats(pMeta->pVnode, pSuperEntry->uid, 0, &nCols, 0);
       if (ret < 0) {
         metaErr(TD_VID(pMeta->pVnode), ret);
       }
@@ -1477,6 +1477,11 @@ static int32_t metaHandleVirtualChildTableCreateImpl(SMeta *pMeta, const SMetaEn
     }
 
     ret = metaTbGroupCacheClear(pMeta, pSuperEntry->uid);
+    if (ret < 0) {
+      metaErr(TD_VID(pMeta->pVnode), ret);
+    }
+
+    ret = metaRefDbsCacheClear(pMeta, pSuperEntry->uid);
     if (ret < 0) {
       metaErr(TD_VID(pMeta->pVnode), ret);
     }
@@ -1673,7 +1678,7 @@ static int32_t metaHandleChildTableDrop(SMeta *pMeta, const SMetaEntry *pEntry, 
   if (!metaTbInFilterCache(pMeta, pSuper->name, 1)) {
     int32_t      nCols = 0;
     SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
-    if (metaGetStbStats(pMeta->pVnode, pSuper->uid, NULL, &nCols) == 0) {
+    if (metaGetStbStats(pMeta->pVnode, pSuper->uid, NULL, &nCols, 0) == 0) {
       pStats->numOfTimeSeries -= nCols - 1;
     }
   }
@@ -1816,6 +1821,12 @@ static int32_t metaHandleVirtualChildTableDropImpl(SMeta *pMeta, const SMetaHand
   if (ret < 0) {
     metaErr(TD_VID(pMeta->pVnode), ret);
   }
+
+  ret = metaRefDbsCacheClear(pMeta, pSuper->uid);
+  if (ret < 0) {
+    metaErr(TD_VID(pMeta->pVnode), ret);
+  }
+
   return code;
 }
 
@@ -2029,6 +2040,10 @@ static int32_t metaHandleVirtualChildTableUpdateImpl(SMeta *pMeta, const SMetaHa
   if (metaTbGroupCacheClear(pMeta, pSuperEntry->uid) < 0) {
     metaErr(TD_VID(pMeta->pVnode), code);
   }
+
+  if (metaRefDbsCacheClear(pMeta, pSuperEntry->uid) < 0) {
+    metaErr(TD_VID(pMeta->pVnode), code);
+  }
   return code;
 }
 
@@ -2127,7 +2142,7 @@ static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
   int     nCols = pEntry->stbEntry.schemaRow.nCols;
   int     onCols = pOldEntry->stbEntry.schemaRow.nCols;
   int32_t deltaCol = nCols - onCols;
-  bool    updStat = deltaCol != 0 && !metaTbInFilterCache(pMeta, pEntry->name, 1);
+  bool    updStat = deltaCol != 0 && !TABLE_IS_VIRTUAL(pEntry->flags) && !metaTbInFilterCache(pMeta, pEntry->name, 1);
 
   if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
     STsdb  *pTsdb = pMeta->pVnode->pTsdb;
@@ -2177,7 +2192,7 @@ static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
   }
   if (updStat) {
     int64_t ctbNum = 0;
-    int32_t ret = metaGetStbStats(pMeta->pVnode, pEntry->uid, &ctbNum, NULL);
+    int32_t ret = metaGetStbStats(pMeta->pVnode, pEntry->uid, &ctbNum, 0, 0);
     if (ret < 0) {
       metaError("vgId:%d, failed to get stb stats:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pEntry->name,
                 pEntry->uid, tstrerror(ret));
@@ -2413,7 +2428,7 @@ static int32_t metaHandleSuperTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) 
   }
 
   // do other stuff
-  metaUpdTimeSeriesNum(pMeta);
+  // metaUpdTimeSeriesNum(pMeta);
 
   // free resource and return
   taosArrayDestroy(childList);

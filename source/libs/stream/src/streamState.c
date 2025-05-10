@@ -469,7 +469,7 @@ int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, void
       if (!pos->pRowBuff) {
         goto _end;
       }
-      code = streamStateSessionPut_rocksdb(pState, key, pos->pRowBuff, vLen);
+      code = streamStateSessionPut_rocksdb(pState, key, pos->pRowBuff, getFileStateRowSize(pState->pFileState));
       QUERY_CHECK_CODE(code, lino, _end);
 
       streamStateReleaseBuf(pState, pos, true);
@@ -582,6 +582,7 @@ int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char 
   }
 
 _end:
+  qTrace("%s tbname:%s, groupId:%"PRId64, __func__, tbname, groupId);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -605,10 +606,14 @@ int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal
     (*pWinCode) = streamStateGetParName_rocksdb(pState, groupId, pVal);
     if ((*pWinCode) == TSDB_CODE_SUCCESS && tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {
       code = tSimpleHashPut(pState->parNameMap, &groupId, sizeof(int64_t), *pVal, TSDB_TABLE_NAME_LEN);
+      qDebug("put into parNameMap, total size:%d, groupId:%" PRId64 ", name:%s", tSimpleHashGetSize(pState->parNameMap),
+             groupId, (char*) (*pVal));
+
       QUERY_CHECK_CODE(code, lino, _end);
     }
     goto _end;
   }
+
   *pVal = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
   if (!(*pVal)) {
     code = terrno;
@@ -619,6 +624,7 @@ int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal
   (*pWinCode) = TSDB_CODE_SUCCESS;
 
 _end:
+  qTrace("%s tbname:%s, groupId:%"PRId64, __func__, (char*)(*pVal), groupId);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }

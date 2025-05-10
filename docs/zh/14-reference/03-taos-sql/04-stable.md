@@ -13,7 +13,7 @@ create_definition:
     col_name column_definition
  
 column_definition:
-    type_name [PRIMARY KEY] [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL 'level_type']
+    type_name [COMPOSITE KEY] [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL 'level_type']
 
 table_options:
     table_option ...
@@ -28,8 +28,8 @@ table_option: {
 
 **使用说明**
 1. 超级表中列的最大个数为 4096，需要注意，这里的 4096 是包含 TAG 列在内的，最小个数为 3，包含一个时间戳主键、一个 TAG 列和一个数据列。
-2. 除时间戳主键列之外，还可以通过 PRIMARY KEY 关键字指定第二列为额外的主键列，该列与时间戳列共同组成复合主键。当设置了复合主键时，两条记录的时间戳列与 PRIMARY KEY 列都相同，才会被认为是重复记录，数据库只保留最新的一条；否则视为两条记录，全部保留。注意：被指定为主键列的第二列必须为整型或字符串类型（varchar）。
-3. TAGS语法指定超级表的标签列，标签列需要遵循以下约定：
+2. 除时间戳主键列之外，还可以通过 COMPOSITE KEY 关键字指定第二列为额外的主键列，该列与时间戳列共同组成复合主键。当设置了复合主键时，两条记录的时间戳列与 COMPOSITE KEY 列都相同，才会被认为是重复记录，数据库只保留最新的一条；否则视为两条记录，全部保留。注意：被指定为主键列的第二列必须为整型或字符串类型（varchar）。
+3. TAGS 语法指定超级表的标签列，标签列需要遵循以下约定：
     - TAGS 中的 TIMESTAMP 列写入数据时需要提供给定值，而暂不支持四则运算，例如 NOW + 10s 这类表达式。
     - TAGS 列名不能与其他列名相同。
     - TAGS 列名不能为预留关键字。
@@ -193,7 +193,7 @@ ALTER STABLE stb_name MODIFY COLUMN col_name data_type(length);
 ALTER STABLE stb_name ADD TAG tag_name tag_type;
 ```
 
-为 STable 增加一个新的标签，并指定新标签的类型。标签总数不能超过 128 个，总长度不超过 16KB 。
+为 STable 增加一个新的标签，并指定新标签的类型。标签总数不能超过 128 个，总长度不超过 16KB。
 
 ### 删除标签
 

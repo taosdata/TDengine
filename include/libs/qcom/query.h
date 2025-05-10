@@ -252,6 +252,8 @@ typedef struct STableColsData {
   char    tbName[TSDB_TABLE_NAME_LEN];
   SArray* aCol;
   bool    getFromHash;
+  bool    isOrdered;
+  bool    isDuplicateTs;
 } STableColsData;
 
 typedef struct STableVgUid {

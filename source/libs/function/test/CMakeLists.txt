@@ -1,5 +1,4 @@
 include_directories("${TD_SOURCE_DIR}/include/libs/function")
-include_directories("${TD_SOURCE_DIR}/contrib/libuv/include")
 include_directories("${TD_SOURCE_DIR}/include/util")
 include_directories("${TD_SOURCE_DIR}/include/common")
 include_directories("${TD_SOURCE_DIR}/include/client")
@@ -9,7 +8,6 @@ include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../inc")
 add_executable(runUdf runUdf.c)
 target_link_libraries(
     runUdf
-    PUBLIC uv_a
     PRIVATE os util common nodes function
 )
 

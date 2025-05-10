@@ -29,10 +29,12 @@ class AbstractAnalyticsService(AnalyticsService, ABC):
         self.list = None
         self.ts_list = None
 
+
     def set_input_list(self, input_list: list, input_ts_list: list = None):
         """ set the input list """
         self.list = input_list
         self.ts_list = input_ts_list
+
 
     def set_params(self, params: dict) -> None:
         """set the parameters for current algo """
@@ -51,12 +53,19 @@ class AbstractAnomalyDetectionService(AbstractAnalyticsService, ABC):
      inherent from this class"""
 
     def __init__(self):
+        self.valid_code = 1
         super().__init__()
         self.type = "anomaly-detection"
 
     def input_is_empty(self):
         """ check if the input list is empty or None """
         return (self.list is None) or (len(self.list) == 0)
+
+    def set_params(self, params: dict) -> None:
+        super().set_params(params)
+
+        if "valid_code" in params:
+            self.valid_code = int(params["valid_code"])
 
 
 class AbstractForecastService(AbstractAnalyticsService, ABC):
@@ -70,14 +79,29 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
         self.period = 0
         self.start_ts = 0
         self.time_step = 0
-        self.fc_rows = 0
+        self.rows = 0
 
         self.return_conf = 1
-        self.conf = 0.05
+        self.conf = 0.95
+
+        self.past_dynamic_real = []
+        self.dynamic_real = []
+
+    def set_input_data(self, input_list: list, input_ts_list: list = None, past_dynamic_real_list: list = None,
+                       dynamic_real_list: list = None):
+        """ set the input data """
+        if past_dynamic_real_list is not None:
+            self.past_dynamic_real = past_dynamic_real_list
+
+        if dynamic_real_list is not None:
+            self.dynamic_real = dynamic_real_list
+
+        self.set_input_list(input_list, input_ts_list)
+
 
     def set_params(self, params: dict) -> None:
-        if not {'start_ts', 'time_step', 'fc_rows'}.issubset(params.keys()):
-            raise ValueError('params are missing, start_ts, time_step, fc_rows are all required')
+        if not {'start_ts', 'time_step', 'rows'}.issubset(params.keys()):
+            raise ValueError('params are missing, start_ts, time_step, rows are all required')
 
         self.start_ts = int(params['start_ts'])
 
@@ -86,25 +110,25 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
         if self.time_step <= 0:
             raise ValueError('time_step should be greater than 0')
 
-        self.fc_rows = int(params['fc_rows'])
+        self.rows = int(params['rows'])
 
-        if self.fc_rows <= 0:
+        if self.rows <= 0:
             raise ValueError('fc rows is not specified yet')
 
         self.period = int(params['period']) if 'period' in params else 0
         if self.period < 0:
             raise ValueError("periods should be greater than 0")
 
-        self.conf = float(params['conf']) if 'conf' in params else 95
+        self.conf = float(params['conf']) if 'conf' in params else 0.95
 
-        self.conf = 1.0 - self.conf / 100.0
+        # self.conf = 1.0 - self.conf / 100.0
         if self.conf < 0 or self.conf >= 1.0:
-            raise ValueError("invalid value of conf, should between 0 and 100")
+            raise ValueError("invalid value of conf, should between 0 and 1.0")
 
         self.return_conf = int(params['return_conf']) if 'return_conf' in params else 1
 
     def get_params(self):
         return {
             "period": self.period, "start": self.start_ts, "every": self.time_step,
-            "forecast_rows": self.fc_rows, "return_conf": self.return_conf, "conf": self.conf
+            "forecast_rows": self.rows, "return_conf": self.return_conf, "conf": self.conf
         }

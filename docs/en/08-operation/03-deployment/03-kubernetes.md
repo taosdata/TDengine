@@ -613,8 +613,8 @@ The following is a simple example of deploying a single-node TDengine cluster us
 name: "tdengine"
 
 image:
-  repository: image.cloud.taosdata.com/  # Leave a trailing slash for the repository, or "" for no repository
-  server: taosx/integrated:3.3.5.1-b0a54bdd
+  repository:
+  server: tdengine/tdengine-ee
 
 # Set timezone here, not in taoscfg
 timezone: "Asia/Shanghai"
@@ -748,8 +748,8 @@ The following is an example of deploying a TDengine cluster with tiered storage 
 name: "tdengine"
 
 image:
-  repository: image.cloud.taosdata.com/  # Leave a trailing slash for the repository, or "" for no repository
-  server: taosx/integrated:3.3.5.1-b0a54bdd
+  repository:
+  server: tdengine/tdengine-ee
 
 # Set timezone here, not in taoscfg
 timezone: "Asia/Shanghai"
@@ -827,8 +827,8 @@ TDengine support 2-replica deployment with an arbitrator, which can be configure
 name: "tdengine"
 
 image:
-  repository: image.cloud.taosdata.com/  # Leave a trailing slash for the repository, or "" for no repository
-  server: taosx/integrated:3.3.5.1-b0a54bdd
+  repository:
+  server: tdengine/tdengine-ee
 
 # Set timezone here, not in taoscfg
 timezone: "Asia/Shanghai"
@@ -894,8 +894,8 @@ You can see that the configuration is similar to the first one, with the additio
 name: "tdengine"
 
 image:
-  repository: image.cloud.taosdata.com/ # Leave a trailing slash for the repository, or "" for no repository
-  server: taosx/integrated:3.3.5.1-b0a54bdd
+  repository:
+  server: tdengine/tdengine-ee
 
 # Set timezone here, not in taoscfg
 timezone: "Asia/Shanghai"

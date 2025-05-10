@@ -55,6 +55,7 @@ void initArgument(SShellArgs *pArgs) {
 }
 
 int main(int argc, char *argv[]) {
+  int code  = 0;
 #if !defined(WINDOWS)
   taosSetSignal(SIGBUS, shellCrashHandler);
 #endif
@@ -92,19 +93,34 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  if (shell.args.is_dump_config) {
-    shellDumpConfig();
-    return 0;
-  }
-
   if (getDsnEnv() != 0) {
     return -1;
   }
 
+  // first taos_option(TSDB_OPTION_DRIVER ...) no load driver
   if (setConnMode(shell.args.connMode, shell.args.dsn, false)) {
     return -1;
   }
 
+  // second taos_option(TSDB_OPTION_CONFIGDIR ...) set configDir global
+  if (configDirShell[0] != 0) {
+    code = taos_options(TSDB_OPTION_CONFIGDIR, configDirShell);
+    if (code) {
+      fprintf(stderr, "failed to set config dir:%s  code:[0x%08X]\r\n", configDirShell, code);
+      return -1;
+    }
+    //printf("Load with input config dir:%s\n", configDirShell);
+  }  
+
+#ifndef TD_ASTRA
+  // dump config
+  if (shell.args.is_dump_config) {
+    shellDumpConfig();
+    return 0;
+  }
+#endif
+
+  // taos_init
   if (taos_init() != 0) {
     fprintf(stderr, "failed to init shell since %s [0x%08X]\r\n", taos_errstr(NULL), taos_errno(NULL));
     return -1;
@@ -114,12 +130,6 @@ int main(int argc, char *argv[]) {
   taos_set_hb_quit(1);
 
 #ifndef TD_ASTRA
-  if (shell.args.is_dump_config) {
-    shellDumpConfig();
-    taos_cleanup();
-    return 0;
-  }
-
   if (shell.args.is_startup || shell.args.is_check) {
     shellCheckServerStatus();
     taos_cleanup();

@@ -40,7 +40,7 @@ class _HoltWintersService(AbstractForecastService):
 
     def __do_forecast_helper(self, source_data, fc_rows):
         """ do holt winters impl """
-        if self.trend_option is None:
+        if self.trend_option is None and self.seasonal_option is None:
             fitted_model = SimpleExpSmoothing(source_data).fit()
         else:
             if self.period == 0 or self.seasonal_option is None:
@@ -52,7 +52,7 @@ class _HoltWintersService(AbstractForecastService):
                     trend=self.trend_option,
                     seasonal=self.seasonal_option,
                     seasonal_periods=self.period
-                ).fit()
+                ).fit(optimized = True, method='TNC')
 
         fc = fitted_model.forecast(fc_rows)
 
@@ -66,11 +66,11 @@ class _HoltWintersService(AbstractForecastService):
         if self.list is None or len(self.list) < self.period:
             raise ValueError("number of input data is less than the periods")
 
-        if self.fc_rows <= 0:
+        if self.rows <= 0:
             raise ValueError("fc rows is not specified yet")
 
-        res, mse = self.__do_forecast_helper(self.list, self.fc_rows)
-        insert_ts_list(res, self.start_ts, self.time_step, self.fc_rows)
+        res, mse = self.__do_forecast_helper(self.list, self.rows)
+        insert_ts_list(res, self.start_ts, self.time_step, self.rows)
 
         # add the conf range if required
         return {

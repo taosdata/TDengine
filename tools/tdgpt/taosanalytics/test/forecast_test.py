@@ -41,10 +41,10 @@ class ForecastTest(unittest.TestCase):
         s.set_input_list(data, ts)
         self.assertRaises(ValueError, s.execute)
 
-        s.set_params({"fc_rows": 10, "start_ts": 171000000, "time_step": 86400 * 30})
+        s.set_params({"rows": 10, "start_ts": 171000000, "time_step": 86400 * 30})
 
         r = s.execute()
-        draw_fc_results(data, len(r["res"]) > 2, r["res"], len(r["res"][0]), "holtwinters")
+        draw_fc_results(data, len(r["res"]) > 2, s.conf, r["res"], "holtwinters")
 
     def test_holt_winters_forecast_2(self):
         """test holt winters with valid parameters"""
@@ -54,14 +54,14 @@ class ForecastTest(unittest.TestCase):
         s.set_input_list(data, ts)
         s.set_params(
             {
-                "fc_rows": 10, "trend": 'mul', "seasonal": 'mul', "start_ts": 171000000,
+                "rows": 10, "trend": 'mul', "seasonal": 'mul', "start_ts": 171000000,
                 "time_step": 86400 * 30, "period": 12
             }
         )
 
         r = s.execute()
 
-        draw_fc_results(data, len(r["res"]) > 2, r["res"], len(r["res"][0]), "holtwinters")
+        draw_fc_results(data, len(r["res"]) > 2, s.conf, r["res"], "holtwinters")
 
     def test_holt_winter_invalid_params(self):
         """parameters validation check"""
@@ -71,28 +71,28 @@ class ForecastTest(unittest.TestCase):
 
         self.assertRaises(ValueError, s.set_params, {"trend": "mul"})
 
-        self.assertRaises(ValueError, s.set_params, {"trend": "mul", "fc_rows": 10})
+        self.assertRaises(ValueError, s.set_params, {"trend": "mul", "rows": 10})
 
         self.assertRaises(ValueError, s.set_params, {"trend": "multi"})
 
         self.assertRaises(ValueError, s.set_params, {"seasonal": "additive"})
 
         self.assertRaises(ValueError, s.set_params, {
-            "fc_rows": 10, "trend": 'multi', "seasonal": 'addi', "start_ts": 171000000,
+            "rows": 10, "trend": 'multi', "seasonal": 'addi', "start_ts": 171000000,
             "time_step": 86400 * 30, "period": 12}
                           )
 
         self.assertRaises(ValueError, s.set_params,
-                          {"fc_rows": 10, "trend": 'mul', "seasonal": 'add', "time_step": 86400 * 30, "period": 12}
+                          {"rows": 10, "trend": 'mul', "seasonal": 'add', "time_step": 86400 * 30, "period": 12}
                           )
 
-        s.set_params({"fc_rows": 10, "start_ts": 171000000, "time_step": 86400 * 30})
+        s.set_params({"rows": 10, "start_ts": 171000000, "time_step": 86400 * 30})
 
-        self.assertRaises(ValueError, s.set_params, {"fc_rows": 'abc', "start_ts": 171000000, "time_step": 86400 * 30})
+        self.assertRaises(ValueError, s.set_params, {"rows": 'abc', "start_ts": 171000000, "time_step": 86400 * 30})
 
-        self.assertRaises(ValueError, s.set_params, {"fc_rows": 10, "start_ts": "aaa", "time_step": "30"})
+        self.assertRaises(ValueError, s.set_params, {"rows": 10, "start_ts": "aaa", "time_step": "30"})
 
-        self.assertRaises(ValueError, s.set_params, {"fc_rows": 10, "start_ts": 171000000, "time_step": 0})
+        self.assertRaises(ValueError, s.set_params, {"rows": 10, "start_ts": 171000000, "time_step": 0})
 
     def test_arima(self):
         """arima algorithm check"""
@@ -103,13 +103,13 @@ class ForecastTest(unittest.TestCase):
         self.assertRaises(ValueError, s.execute)
 
         s.set_params(
-            {"fc_rows": 10, "start_ts": 171000000, "time_step": 86400 * 30, "period": 12,
+            {"rows": 10, "start_ts": 171000000, "time_step": 86400 * 30, "period": 12,
              "start_p": 0, "max_p": 10, "start_q": 0, "max_q": 10}
         )
         r = s.execute()
 
         rows = len(r["res"][0])
-        draw_fc_results(data, len(r["res"]) > 1, r["res"], rows, "arima")
+        draw_fc_results(data, len(r["res"]) > 1, s.conf, r["res"], "arima")
 
 
     def test_gpt_fc(self):
@@ -120,7 +120,7 @@ class ForecastTest(unittest.TestCase):
         # s = loader.get_service("td_gpt_fc")
         # s.set_input_list(data, ts)
         #
-        # s.set_params({"host":'192.168.2.90:5000/ds_predict', 'fc_rows': 10, 'start_ts': 171000000, 'time_step': 86400*30})
+        # s.set_params({"host":'192.168.2.90:5000/ds_predict', 'rows': 10, 'start_ts': 171000000, 'time_step': 86400*30})
         # r = s.execute()
         #
         # rows = len(r["res"][0])

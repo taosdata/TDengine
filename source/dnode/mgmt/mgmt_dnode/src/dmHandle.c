@@ -98,15 +98,15 @@ static void dmMayShouldUpdateAnalFunc(SDnodeMgmt *pMgmt, int64_t newVer) {
   if (oldVer == newVer) return;
   dDebug("analysis on dnode ver:%" PRId64 ", status ver:%" PRId64, oldVer, newVer);
 
-  SRetrieveAnalAlgoReq req = {.dnodeId = pMgmt->pData->dnodeId, .analVer = oldVer};
-  int32_t              contLen = tSerializeRetrieveAnalAlgoReq(NULL, 0, &req);
+  SRetrieveAnalyticsAlgoReq req = {.dnodeId = pMgmt->pData->dnodeId, .analVer = oldVer};
+  int32_t              contLen = tSerializeRetrieveAnalyticAlgoReq(NULL, 0, &req);
   if (contLen < 0) {
     dError("failed to serialize analysis function ver request since %s", tstrerror(contLen));
     return;
   }
 
   void *pHead = rpcMallocCont(contLen);
-  contLen = tSerializeRetrieveAnalAlgoReq(pHead, contLen, &req);
+  contLen = tSerializeRetrieveAnalyticAlgoReq(pHead, contLen, &req);
   if (contLen < 0) {
     rpcFreeCont(pHead);
     dError("failed to serialize analysis function ver request since %s", tstrerror(contLen));
@@ -270,7 +270,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   code =
       rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusInterval * 5 * 1000);
   if (code != 0) {
-    dError("failed to SendRecv with timeout %d status req since %s", tsStatusInterval * 5 * 1000, tstrerror(code));
+    dError("failed to SendRecv status req with timeout %d since %s", tsStatusInterval * 5 * 1000, tstrerror(code));
     return;
   }
 
@@ -308,23 +308,6 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
     bool needUpdate = false;
     if (pRsp->pCont != NULL && pRsp->contLen > 0 &&
         tDeserializeSConfigRsp(pRsp->pCont, pRsp->contLen, &configRsp) == 0) {
-      // Try to use cfg file in current dnode.
-      if (configRsp.forceReadConfig) {
-        if (configRsp.isConifgVerified) {
-          uInfo("force read config and check config verified");
-          code = taosPersistGlobalConfig(taosGetGlobalCfg(tsCfg), pMgmt->path, configRsp.cver);
-          if (code != TSDB_CODE_SUCCESS) {
-            dError("failed to persist global config since %s", tstrerror(code));
-            goto _exit;
-          }
-          needUpdate = true;
-        } else {
-          // log the difference configurations
-          printConfigNotMatch(configRsp.array);
-          needStop = true;
-          goto _exit;
-        }
-      }
       // Try to use cfg from mnode sdb.
       if (!configRsp.isVersionVerified) {
         uInfo("config version not verified, update config");

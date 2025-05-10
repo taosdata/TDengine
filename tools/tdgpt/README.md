@@ -10,8 +10,7 @@
 1. [Testing](#8-testing)
 1. [Releasing](#9-releasing)
 1. [CI/CD](#10-cicd)
-1. [Coverage](#11-coverage)
-1. [Contributing](#12-contributing)
+1. [Contributing](#11-contributing)
 
 # 1. Introduction
 
@@ -93,7 +92,6 @@ The taosanode will be installed as an system service, but will not automatic sta
 systemctl start taosanoded
 ```
 
-
 ## 6.2 Configure the Service
 taosanode provides the RESTFul service powered by `uWSGI`. You can config the options to tune the 
 performance by changing the default configuration file `taosanode.ini` located in `/etc/taos`, which is also the configuration directory for `taosd` service.
@@ -123,10 +121,7 @@ For the complete list of taosanode Releases, please see Releases.
 
 We use Github Actions for CI/CD workflow configuration. Please refer to the workflow definition yaml file in [.github/workflows](../../.github/workflows/) for details.
 
-# 11 Coverage
-
-
-# 12 Contributing
+# 11 Contributing
 
 Guidelines for contributing to the project:
 

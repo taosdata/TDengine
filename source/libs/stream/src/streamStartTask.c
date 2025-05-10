@@ -158,9 +158,17 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
     pMeta->startInfo.curStage = START_MARK_REQ_CHKPID;
     SStartTaskStageInfo info = {.stage = pMeta->startInfo.curStage, .ts = now};
 
-    taosArrayPush(pMeta->startInfo.pStagesList, &info);
-    stDebug("vgId:%d %d task(s) 0 stage -> mark_req stage, reqTs:%" PRId64 " numOfStageHist:%d", pMeta->vgId, numOfConsensusChkptIdTasks,
-            info.ts, (int32_t)taosArrayGetSize(pMeta->startInfo.pStagesList));
+    void*   p = taosArrayPush(pMeta->startInfo.pStagesList, &info);
+    int32_t num = (int32_t)taosArrayGetSize(pMeta->startInfo.pStagesList);
+
+    if (p != NULL) {
+      stDebug("vgId:%d %d task(s) 0 stage -> mark_req stage, reqTs:%" PRId64 " numOfStageHist:%d", pMeta->vgId,
+              numOfConsensusChkptIdTasks, info.ts, num);
+    } else {
+      stError("vgId:%d %d task(s) 0 stage -> mark_req stage, reqTs:%" PRId64
+              " numOfStageHist:%d, FAILED, out of memory",
+              pMeta->vgId, numOfConsensusChkptIdTasks, info.ts, num);
+    }
   }
 
   // prepare the fill-history task before starting all stream tasks, to avoid fill-history tasks are started without
@@ -186,7 +194,9 @@ int32_t prepareBeforeStartTasks(SStreamMeta* pMeta, SArray** pList, int64_t now)
   taosHashClear(pInfo->pReadyTaskSet);
   taosHashClear(pInfo->pFailedTaskSet);
   taosArrayClear(pInfo->pStagesList);
+  taosArrayClear(pInfo->pRecvChkptIdTasks);
 
+  pInfo->partialTasksStarted = false;
   pInfo->curStage = 0;
   pInfo->startTs = now;
 
@@ -198,11 +208,13 @@ void streamMetaResetStartInfo(STaskStartInfo* pStartInfo, int32_t vgId) {
   taosHashClear(pStartInfo->pReadyTaskSet);
   taosHashClear(pStartInfo->pFailedTaskSet);
   taosArrayClear(pStartInfo->pStagesList);
+  taosArrayClear(pStartInfo->pRecvChkptIdTasks);
 
   pStartInfo->tasksWillRestart = 0;
   pStartInfo->readyTs = 0;
   pStartInfo->elapsedTime = 0;
   pStartInfo->curStage = 0;
+  pStartInfo->partialTasksStarted = false;
 
   // reset the sentinel flag value to be 0
   pStartInfo->startAllTasks = 0;
@@ -230,8 +242,8 @@ static void streamMetaLogLaunchTasksInfo(SStreamMeta* pMeta, int32_t numOfTotal,
   displayStatusInfo(pMeta, pStartInfo->pFailedTaskSet, false);
 }
 
-int32_t streamMetaAddTaskLaunchResultNoLock(SStreamMeta* pMeta, int64_t streamId, int32_t taskId,
-                                                   int64_t startTs, int64_t endTs, bool ready) {
+int32_t streamMetaAddTaskLaunchResultNoLock(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, int64_t startTs,
+                                            int64_t endTs, bool ready) {
   STaskStartInfo* pStartInfo = &pMeta->startInfo;
   STaskId         id = {.streamId = streamId, .taskId = taskId};
   int32_t         vgId = pMeta->vgId;
@@ -274,15 +286,26 @@ int32_t streamMetaAddTaskLaunchResultNoLock(SStreamMeta* pMeta, int64_t streamId
   int32_t numOfSucc = taosHashGetSize(pStartInfo->pReadyTaskSet);
   int32_t numOfRecv = numOfSucc + taosHashGetSize(pStartInfo->pFailedTaskSet);
 
-  allRsp = allCheckDownstreamRsp(pMeta, pStartInfo, numOfTotal);
+  if (pStartInfo->partialTasksStarted) {
+    int32_t newTotal = taosArrayGetSize(pStartInfo->pRecvChkptIdTasks);
+    stDebug(
+        "vgId:%d start all tasks procedure is interrupted by transId:%d, wait for partial tasks rsp. recv check "
+        "downstream results, s-task:0x%x succ:%d, received:%d results, waited for tasks:%d, total tasks:%d",
+        vgId, pMeta->updateInfo.activeTransId, taskId, ready, numOfRecv, newTotal, numOfTotal);
+
+    allRsp = allCheckDownstreamRspPartial(pStartInfo, newTotal, pMeta->vgId);
+  } else {
+    allRsp = allCheckDownstreamRsp(pMeta, pStartInfo, numOfTotal);
+  }
+
   if (allRsp) {
     streamMetaLogLaunchTasksInfo(pMeta, numOfTotal, taskId, ready);
     streamMetaResetStartInfo(pStartInfo, vgId);
 
     code = pStartInfo->completeFn(pMeta);
   } else {
-    stDebug("vgId:%d recv check downstream results, s-task:0x%x succ:%d, received:%d, total:%d", vgId, taskId, ready,
-            numOfRecv, numOfTotal);
+    stDebug("vgId:%d recv check downstream results, s-task:0x%x succ:%d, received:%d results, total:%d", vgId, taskId,
+            ready, numOfRecv, numOfTotal);
   }
 
   return code;
@@ -312,7 +335,27 @@ bool allCheckDownstreamRsp(SStreamMeta* pMeta, STaskStartInfo* pStartInfo, int32
     if (px == NULL) {
       px = taosHashGet(pStartInfo->pFailedTaskSet, &idx, sizeof(idx));
       if (px == NULL) {
-        stDebug("vgId:%d s-task:0x%x start result not rsp yet", pMeta->vgId, (int32_t) idx.taskId);
+        stDebug("vgId:%d s-task:0x%x start result not rsp yet", pMeta->vgId, (int32_t)idx.taskId);
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+bool allCheckDownstreamRspPartial(STaskStartInfo* pStartInfo, int32_t num, int32_t vgId) {
+  for (int32_t i = 0; i < num; ++i) {
+    STaskId* pTaskId = taosArrayGet(pStartInfo->pRecvChkptIdTasks, i);
+    if (pTaskId == NULL) {
+      continue;
+    }
+
+    void* px = taosHashGet(pStartInfo->pReadyTaskSet, pTaskId, sizeof(STaskId));
+    if (px == NULL) {
+      px = taosHashGet(pStartInfo->pFailedTaskSet, pTaskId, sizeof(STaskId));
+      if (px == NULL) {
+        stDebug("vgId:%d s-task:0x%x start result not rsp yet", vgId, (int32_t)pTaskId->taskId);
         return false;
       }
     }
@@ -362,20 +405,37 @@ int32_t streamMetaInitStartInfo(STaskStartInfo* pStartInfo) {
     return terrno;
   }
 
+  pStartInfo->pRecvChkptIdTasks = taosArrayInit(4, sizeof(STaskId));
+  if (pStartInfo->pRecvChkptIdTasks == NULL) {
+    return terrno;
+  }
+
+  pStartInfo->partialTasksStarted = false;
   return 0;
 }
 
 void streamMetaClearStartInfo(STaskStartInfo* pStartInfo) {
+  streamMetaClearStartInfoPartial(pStartInfo);
+
+  pStartInfo->startAllTasks = 0;
+  pStartInfo->tasksWillRestart = 0;
+  pStartInfo->restartCount = 0;
+}
+
+void streamMetaClearStartInfoPartial(STaskStartInfo* pStartInfo) {
   taosHashCleanup(pStartInfo->pReadyTaskSet);
   taosHashCleanup(pStartInfo->pFailedTaskSet);
   taosArrayDestroy(pStartInfo->pStagesList);
+  taosArrayDestroy(pStartInfo->pRecvChkptIdTasks);
+
+  pStartInfo->pReadyTaskSet = NULL;
+  pStartInfo->pFailedTaskSet = NULL;
+  pStartInfo->pStagesList = NULL;
+  pStartInfo->pRecvChkptIdTasks = NULL;
 
   pStartInfo->readyTs = 0;
   pStartInfo->elapsedTime = 0;
   pStartInfo->startTs = 0;
-  pStartInfo->startAllTasks = 0;
-  pStartInfo->tasksWillRestart = 0;
-  pStartInfo->restartCount = 0;
 }
 
 int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {

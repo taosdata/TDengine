@@ -143,6 +143,18 @@ int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskNodeUpda
 
   // todo this new attribute will be result in being incompatible with previous version
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pMsg->transId));
+
+  int32_t numOfTasks = taosArrayGetSize(pMsg->pTaskList);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, numOfTasks));
+
+  for (int32_t i = 0; i < numOfTasks; ++i) {
+    int32_t* pId = taosArrayGet(pMsg->pTaskList, i);
+    if (pId == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, *(int32_t*)pId));
+  }
+
   tEndEncode(pEncoder);
 _exit:
   if (code) {
@@ -162,10 +174,10 @@ int32_t tDecodeStreamTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskNodeUpdateMsg*
 
   int32_t size = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &size));
+
   pMsg->pNodeList = taosArrayInit(size, sizeof(SNodeUpdateInfo));
-  if (pMsg->pNodeList == NULL) {
-    TAOS_CHECK_EXIT(terrno);
-  }
+  TSDB_CHECK_NULL(pMsg->pNodeList, code, lino, _exit, terrno);
+
   for (int32_t i = 0; i < size; ++i) {
     SNodeUpdateInfo info = {0};
     TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &info.nodeId));
@@ -179,9 +191,31 @@ int32_t tDecodeStreamTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskNodeUpdateMsg*
 
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pMsg->transId));
 
+  // number of tasks
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &size));
+  pMsg->pTaskList = taosArrayInit(size, sizeof(int32_t));
+  if (pMsg->pTaskList == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+
+  for (int32_t i = 0; i < size; ++i) {
+    int32_t id = 0;
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &id));
+    if (taosArrayPush(pMsg->pTaskList, &id) == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+  }
+
   tEndDecode(pDecoder);
 _exit:
   return code;
+}
+
+void tDestroyNodeUpdateMsg(SStreamTaskNodeUpdateMsg* pMsg) {
+  taosArrayDestroy(pMsg->pNodeList);
+  taosArrayDestroy(pMsg->pTaskList);
+  pMsg->pNodeList = NULL;
+  pMsg->pTaskList = NULL;
 }
 
 int32_t tEncodeStreamTaskCheckReq(SEncoder* pEncoder, const SStreamTaskCheckReq* pReq) {

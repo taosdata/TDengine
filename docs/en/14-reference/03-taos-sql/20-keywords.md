@@ -91,6 +91,7 @@ The list of keywords is as follows:
 | COMPACT_INTERVAL     | 3.3.5.0+ |
 | COMPACT_TIME_OFFSET  | 3.3.5.0+ |
 | COMPACT_TIME_RANGE   | 3.3.5.0+ |
+| COMPOSITE            | 3.3.6.3+ |
 | CONCAT               | |
 | CONFLICT             | |
 | CONNECTION           | |
@@ -99,6 +100,7 @@ The list of keywords is as follows:
 | CONSUMER             | |
 | CONSUMERS            | |
 | CONTAINS             | |
+| CONTINUOUS_WINDOW_CLOSE | 3.3.6.0+ |
 | COPY                 | |
 | COUNT                | |
 | COUNT_WINDOW         | |
@@ -113,7 +115,7 @@ The list of keywords is as follows:
 | DATABASE             | |
 | DATABASES            | |
 | DBS                  | |
-| DECIMAL              | |
+| DECIMAL              | 3.3.6.0+ |
 | DEFERRED             | |
 | DELETE               | |
 | DELETE_MARK          | |
@@ -364,6 +366,7 @@ The list of keywords is as follows:
 | REM                  | |
 | REPLACE              | |
 | REPLICA              | |
+| REPLICAS             | 3.3.7.0+ |
 | RESET                | |
 | RESTORE              | |
 | RESTRICT             | |

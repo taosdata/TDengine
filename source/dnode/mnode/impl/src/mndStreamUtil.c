@@ -738,6 +738,7 @@ int32_t mndScanCheckpointReportInfo(SRpcMsg *pReq) {
   int32_t code = 0;
   int32_t lino = 0;
   SArray *pDropped = NULL;
+  int64_t ts = 0;
 
   mDebug("start to scan checkpoint report info");
 
@@ -819,13 +820,17 @@ int32_t mndScanCheckpointReportInfo(SRpcMsg *pReq) {
   }
 
 _end:
+
+  ts = taosGetTimestampMs();
+  execInfo.chkptReportScanTs = ts;
+
   streamMutexUnlock(&execInfo.lock);
 
   if (pDropped != NULL) {
     taosArrayDestroy(pDropped);
   }
 
-  mDebug("end to scan checkpoint report info")
+  mDebug("end to scan checkpoint report info, ts:%"PRId64, ts);
   return code;
 }
 
@@ -842,20 +847,17 @@ int32_t mndCreateSetConsensusChkptIdTrans(SMnode *pMnode, SStreamObj *pStream, i
 
   code = mndStreamRegisterTrans(pTrans, MND_STREAM_CHKPT_CONSEN_NAME, pStream->uid);
   if (code) {
-    sdbRelease(pMnode->pSdb, pStream);
     return code;
   }
 
   code = mndStreamSetChkptIdAction(pMnode, pTrans, pStream, checkpointId, pList);
   if (code != 0) {
-    sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return code;
   }
 
   code = mndPersistTransLog(pStream, pTrans, SDB_STATUS_READY);
   if (code) {
-    sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return code;
   }
@@ -865,14 +867,11 @@ int32_t mndCreateSetConsensusChkptIdTrans(SMnode *pMnode, SStreamObj *pStream, i
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("trans:%d, failed to prepare set consensus-chkptId trans for stream:0x%" PRId64 " since %s", pTrans->id,
            pStream->uid, tstrerror(code));
-    sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return code;
   }
 
-  sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);
-
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 

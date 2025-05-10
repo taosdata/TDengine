@@ -5,6 +5,7 @@
 from matplotlib import pyplot as plt
 from taosanalytics.conf import app_logger, conf
 from taosanalytics.servicemgmt import loader
+from taosanalytics.util import convert_results_to_windows
 
 
 def do_ad_check(input_list, ts_list, algo_name, params):
@@ -22,17 +23,19 @@ def do_ad_check(input_list, ts_list, algo_name, params):
 
     res = s.execute()
 
-    n_error = abs(sum(filter(lambda x: x == -1, res)))
+    n_error = abs(sum(filter(lambda x: x != s.valid_code, res)))
     app_logger.log_inst.debug("There are %d in input, and %d anomaly points found: %s",
                               len(input_list),
                               n_error,
                               res)
 
-    draw_ad_results(input_list, res, algo_name)
-    return res
+    # draw_ad_results(input_list, res, algo_name, s.valid_code)
+
+    ano_window = convert_results_to_windows(res, ts_list, s.valid_code)
+    return res, ano_window
 
 
-def draw_ad_results(input_list, res, fig_name):
+def draw_ad_results(input_list, res, fig_name, valid_code):
     """ draw the detected anomaly points """
 
     # not in debug, do not visualize the anomaly detection result
@@ -41,9 +44,8 @@ def draw_ad_results(input_list, res, fig_name):
 
     plt.clf()
     for index, val in enumerate(res):
-        if val != -1:
-            continue
-        plt.scatter(index, input_list[index], marker='o', color='r', alpha=0.5, s=100, zorder=3)
+        if val != valid_code:
+            plt.scatter(index, input_list[index], marker='o', color='r', alpha=0.5, s=100, zorder=3)
 
     plt.plot(input_list, label='sample')
     plt.savefig(fig_name)

@@ -94,7 +94,7 @@ void   *vnodeGetIvtIdx(void *pVnode);
 
 int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num);
 int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num);
-int32_t vnodeGetStbKeep(SVnode *pVnode, tb_uid_t suid, int64_t *keep);
+int32_t vnodeGetStbInfo(SVnode *pVnode, tb_uid_t suid, int64_t *keep, int8_t *flags);
 int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num);
 int32_t vnodeGetAllCtbNum(SVnode *pVnode, int64_t *num);
 
@@ -150,7 +150,10 @@ int32_t  metaPutTbToFilterCache(SMeta *pMeta, const void *key, int8_t type);
 int32_t  metaSizeOfTbFilterCache(SMeta *pMeta, int8_t type);
 int32_t  metaInitTbFilterCache(SMeta *pMeta);
 
-int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t *numOfCols);
+int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t *numOfCols, int8_t *flags);
+
+int32_t metaGetCachedRefDbs(void* pVnode, tb_uid_t suid, SArray* pList);
+int32_t metaPutRefDbsToCache(void* pVnode, tb_uid_t suid, SArray* pList);
 
 // tsdb
 typedef struct STsdbReader STsdbReader;

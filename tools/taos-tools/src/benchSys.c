@@ -104,23 +104,13 @@ int32_t benchParseArgsNoArgp(int argc, char* argv[]) {
             return -1;
         }
 
-        if (   key[1] == 'f' || key[1] == 'c'
-            || key[1] == 'h' || key[1] == 'P'
-            || key[1] == 'I' || key[1] == 'u'
-            || key[1] == 'p' || key[1] == 'o'
-            || key[1] == 'T' || key[1] == 'i'
-            || key[1] == 'S' || key[1] == 'B'
-            || key[1] == 'r' || key[1] == 't'
-            || key[1] == 'n' || key[1] == 'L'
-            || key[1] == 'd' || key[1] == 'l'
-            || key[1] == 'A' || key[1] == 'b'
-            || key[1] == 'w' || key[1] == 'm'
-            || key[1] == 'R' || key[1] == 'O'
-            || key[1] == 'a' || key[1] == 'F'
-            || key[1] == 'k' || key[1] == 'z'
-            || key[1] == 'W' || key[1] == 'v'
-            || key[1] == 'X' || key[1] == 'Z'
-        ) {
+        if (key[1] == 'E' || key[1] == 'C'
+            || key[1] == 'N' || key[1] == 'M'
+            || key[1] == 'x' || key[1] == 'y'
+            || key[1] == 'g' || key[1] == 'G'
+            || key[1] == 'V' || key[1] == 'Q') {
+            benchParseSingleOpt(key[1], NULL);
+        } else {
             // check input value
             if (i + 1 >= argc) {
                 errorPrint("option %s requires an argument\r\n", key);
@@ -131,17 +121,12 @@ int32_t benchParseArgsNoArgp(int argc, char* argv[]) {
                 errorPrint("option %s requires an argument\r\n", key);
                 return -1;
             }
-            benchParseSingleOpt(key[1], val);
+            
+            if (benchParseSingleOpt(key[1], val)) {
+                errorPrint("Invalid option %s\r\n", key);
+                return -1;
+            }
             i++;
-        } else if (key[1] == 'E' || key[1] == 'C'
-                || key[1] == 'N' || key[1] == 'M'
-                || key[1] == 'x' || key[1] == 'y'
-                || key[1] == 'g' || key[1] == 'G'
-                || key[1] == 'V' || key[1] == 'Q') {
-            benchParseSingleOpt(key[1], NULL);
-        } else {
-            errorPrint("Invalid option %s\r\n", key);
-            return -1;
         }
     }
     return 0;
@@ -235,7 +220,6 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
 
         case 'h':
             g_arguments->host = arg;
-            g_arguments->host_auto = false;
             break;
 
         case 'P':
@@ -248,8 +232,6 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
                            "Invalid -P: %s, will auto set to default(6030)\n",
                            arg);
                 g_arguments->port = DEFAULT_PORT;
-            } else {
-                g_arguments->port_auto = false;
             }
             g_arguments->port_inputted = true;
             break;
@@ -261,6 +243,8 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
                 stbInfo->iface = STMT_IFACE;
             } else if (0 == strcasecmp(arg, "stmt2")) {
                 stbInfo->iface = STMT2_IFACE;
+            } else if (0 == strcasecmp(arg, "rest")) {
+                stbInfo->iface = REST_IFACE;
             } else if (0 == strcasecmp(arg, "sml")
                     || 0 == strcasecmp(arg, "sml-line")) {
                 stbInfo->iface = SML_IFACE;
@@ -273,6 +257,19 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
                 stbInfo->lineProtocol = TSDB_SML_JSON_PROTOCOL;
             } else if (0 == strcasecmp(arg, "sml-taosjson")) {
                 stbInfo->iface = SML_IFACE;
+                stbInfo->lineProtocol = SML_JSON_TAOS_FORMAT;
+            } else if (0 == strcasecmp(arg, "sml-rest")
+                   || (0 == strcasecmp(arg, "sml-rest-line"))) {
+                stbInfo->iface        = SML_REST_IFACE;
+                stbInfo->lineProtocol = TSDB_SML_LINE_PROTOCOL;
+            } else if (0 == strcasecmp(arg, "sml-rest-telnet")) {
+                stbInfo->iface        = SML_REST_IFACE;
+                stbInfo->lineProtocol = TSDB_SML_TELNET_PROTOCOL;
+            } else if (0 == strcasecmp(arg, "sml-rest-json")) {
+                stbInfo->iface        = SML_REST_IFACE;
+                stbInfo->lineProtocol = TSDB_SML_JSON_PROTOCOL;
+            } else if (0 == strcasecmp(arg, "sml-rest-taosjson")) {
+                stbInfo->iface        = SML_REST_IFACE;
                 stbInfo->lineProtocol = SML_JSON_TAOS_FORMAT;
             } else {
                 errorPrint(
@@ -292,7 +289,7 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
             break;
 
         case 'c':
-            tstrncpy(g_configDir, arg, TSDB_FILENAME_LEN);
+            TOOLS_STRNCPY(g_configDir, arg, TSDB_FILENAME_LEN);
             g_arguments->cfg_inputted = true;
             break;
 

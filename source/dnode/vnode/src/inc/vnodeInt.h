@@ -181,6 +181,8 @@ int             metaAlterCache(SMeta* pMeta, int32_t nPage);
 
 int32_t metaUidCacheClear(SMeta* pMeta, uint64_t suid);
 int32_t metaTbGroupCacheClear(SMeta* pMeta, uint64_t suid);
+int32_t metaRefDbsCacheClear(SMeta* pMeta, uint64_t suid);
+void    metaCacheClear(SMeta* pMeta);
 
 int32_t metaAddIndexToSuperTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int32_t metaDropIndexFromSuperTable(SMeta* pMeta, int64_t version, SDropIndexReq* pReq);
@@ -513,6 +515,7 @@ struct SVnode {
   int64_t       blockSeq;
   SQHandle*     pQuery;
   SVMonitorObj  monitor;
+  uint32_t      applyQueueErrorCount;
 
   // Notification Handles
   SStreamNotifyHandleMap* pNotifyHandleMap;

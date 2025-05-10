@@ -23,7 +23,8 @@ class RestfulTest(TestCase):
         """ test asscess default main page """
         response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.content_length, len("TDengine© Time Series Data Analytics Platform (ver 1.0.1)") + 1)
+        self.assertEqual(response.content_length,
+                         len("TDgpt - TDengine© Time-Series Data Analytics Platform (ver 3.3.6.0)") + 1)
 
     def test_load_status(self):
         """ test load the server status """
@@ -90,7 +91,7 @@ class RestfulTest(TestCase):
             "wncheck": 1,
             "return_conf": 1,
             "forecast_rows": 10,
-            "conf": 95,
+            "conf": 0.95,
             "start": 1577808096000,
             "every": 1000,
             "rows": 96,

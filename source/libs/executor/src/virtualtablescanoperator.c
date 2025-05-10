@@ -118,8 +118,7 @@ int32_t virtualScanloadNextDataBlockFromParam(void* param, SSDataBlock** ppBlock
 
   VTS_ERR_JRET(blockDataCheck(pRes));
   if ((pRes)) {
-    qInfo("load from downstream, blockId:%d", pCtx->blockId);
-    //printDataBlock(pRes, "load from downstream", "task");
+    qDebug("%s load from downstream, blockId:%d", __func__, pCtx->blockId);
     (pRes)->info.id.blockId = pCtx->blockId;
     getTimeWindowOfBlock(pRes, pCtx->tsSlotId, &pCtx->window.skey, &pCtx->window.ekey);
     VTS_ERR_JRET(createOneDataBlock(pRes, true, &pCtx->pIntermediateBlock));
@@ -379,13 +378,16 @@ static int32_t doGetVtableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, 
               }
               lastTs = *(int64_t*)pData;
             }
-            continue;
           }
           int32_t slotKey = blockId << 16 | i;
-          void *slotId = taosHashGet(pInfo->virtualScanInfo.dataSlotMap, &slotKey, sizeof(slotKey));
+          void*   slotId = taosHashGet(pInfo->virtualScanInfo.dataSlotMap, &slotKey, sizeof(slotKey));
           if (slotId == NULL) {
-            qError("failed to get slotId from dataSlotMap, blockId:%d, slotId:%d", blockId, i);
-            VTS_ERR_RET(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR);
+            if (i == 0) {
+              continue;
+            } else {
+              qError("failed to get slotId from dataSlotMap, blockId:%d, slotId:%d", blockId, i);
+              VTS_ERR_RET(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR);
+            }
           }
           VTS_ERR_RET(colDataSetVal(taosArrayGet(p->pDataBlock, *(int32_t *)slotId), rowNums, pData, false));
         }
@@ -824,31 +826,30 @@ static int32_t doStreamVtableMergeNext(SOperatorInfo* pOperator, SSDataBlock** p
       break;
     }
 
-    int32_t inputNCols = taosArrayGetSize(pBlock->pDataBlock);
-    int32_t resNCols = taosArrayGetSize(pResBlock->pDataBlock);
-    QUERY_CHECK_CONDITION(inputNCols <= resNCols, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    for (int32_t i = 0; i < inputNCols; ++i) {
-      SColumnInfoData *p1 = taosArrayGet(pResBlock->pDataBlock, i);
-      QUERY_CHECK_NULL(p1, code, lino, _end, terrno);
-      SColumnInfoData *p2 = taosArrayGet(pBlock->pDataBlock, i);
-      QUERY_CHECK_CODE(code, lino, _end);
-      QUERY_CHECK_CONDITION(p1->info.type == p2->info.type, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-      QUERY_CHECK_CONDITION(p1->info.bytes == p2->info.bytes, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    }
-    for (int32_t i = inputNCols; i < resNCols; ++i) {
-      SColumnInfoData *p = taosArrayGet(pResBlock->pDataBlock, i);
-      QUERY_CHECK_NULL(p, code, lino, _end, terrno);
-      SColumnInfoData colInfo = {.hasNull = true, .info = p->info};
-      code = blockDataAppendColInfo(pBlock, &colInfo);
-      QUERY_CHECK_CODE(code, lino, _end);
-      SColumnInfoData* pNewCol = taosArrayGet(pBlock->pDataBlock, i);
-      QUERY_CHECK_NULL(pNewCol, code, lino, _end, terrno);
-      code = colInfoDataEnsureCapacity(pNewCol, pBlock->info.rows, false);
-      QUERY_CHECK_CODE(code, lino, _end);
-      colDataSetNNULL(pNewCol, 0, pBlock->info.rows);
-    }
-
     if (pBlock->info.type == STREAM_NORMAL) {
+      int32_t inputNCols = taosArrayGetSize(pBlock->pDataBlock);
+      int32_t resNCols = taosArrayGetSize(pResBlock->pDataBlock);
+      QUERY_CHECK_CONDITION(inputNCols <= resNCols, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      for (int32_t i = 0; i < inputNCols; ++i) {
+        SColumnInfoData* p1 = taosArrayGet(pResBlock->pDataBlock, i);
+        QUERY_CHECK_NULL(p1, code, lino, _end, terrno);
+        SColumnInfoData* p2 = taosArrayGet(pBlock->pDataBlock, i);
+        QUERY_CHECK_CODE(code, lino, _end);
+        QUERY_CHECK_CONDITION(p1->info.type == p2->info.type, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        QUERY_CHECK_CONDITION(p1->info.bytes == p2->info.bytes, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      }
+      for (int32_t i = inputNCols; i < resNCols; ++i) {
+        SColumnInfoData* p = taosArrayGet(pResBlock->pDataBlock, i);
+        QUERY_CHECK_NULL(p, code, lino, _end, terrno);
+        SColumnInfoData colInfo = {.hasNull = true, .info = p->info};
+        code = blockDataAppendColInfo(pBlock, &colInfo);
+        QUERY_CHECK_CODE(code, lino, _end);
+        SColumnInfoData* pNewCol = taosArrayGet(pBlock->pDataBlock, i);
+        QUERY_CHECK_NULL(pNewCol, code, lino, _end, terrno);
+        code = colInfoDataEnsureCapacity(pNewCol, pBlock->info.rows, false);
+        QUERY_CHECK_CODE(code, lino, _end);
+        colDataSetNNULL(pNewCol, 0, pBlock->info.rows);
+      }
       SStreamVtableMergeHandle** ppHandle =
           taosHashGet(pInfo->pVtableMergeHandles, &pBlock->info.id.uid, sizeof(int64_t));
       if (ppHandle == NULL) {
@@ -859,7 +860,10 @@ static int32_t doStreamVtableMergeNext(SOperatorInfo* pOperator, SSDataBlock** p
       code = streamVtableMergeAddBlock(*ppHandle, pBlock, id);
       QUERY_CHECK_CODE(code, lino, _end);
     } else if (pBlock->info.type == STREAM_CHECKPOINT) {
-      // todo(kjq): serialize checkpoint
+      code = copyDataBlock(pInfo->pCheckpointRes, pBlock);
+      QUERY_CHECK_CODE(code, lino, _end);
+      (*ppRes) = pInfo->pCheckpointRes;
+      goto _end;
     } else {
       qError("unexpected block type %d, id:%s", pBlock->info.type, id);
       code = TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR;

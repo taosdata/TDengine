@@ -482,7 +482,7 @@ TEST_F(ParserInitialCTest, createFunction) {
       file << 123 << "abc" << '\n';
       file.close();
     }
-    ~udfFile() { assert(0 == remove(path_.c_str())); }
+    ~udfFile() { TD_ALWAYS_ASSERT(0 == remove(path_.c_str())); }
     std::string path_;
   } udffile("udf");
 

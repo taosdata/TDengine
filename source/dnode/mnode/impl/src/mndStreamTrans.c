@@ -127,7 +127,7 @@ static int32_t doStreamTransConflictCheck(SMnode *pMnode, int64_t streamId, cons
 
     if (strcmp(tInfo.name, MND_STREAM_CHECKPOINT_NAME) == 0) {
       if ((strcmp(pTransName, MND_STREAM_DROP_NAME) != 0) && (strcmp(pTransName, MND_STREAM_TASK_RESET_NAME) != 0) &&
-          (strcmp(pTransName, MND_STREAM_RESTART_NAME) != 0)) {
+          (strcmp(pTransName, MND_STREAM_STOP_NAME) != 0)) {
         mWarn("conflict with other transId:%d streamUid:0x%" PRIx64 ", trans:%s", tInfo.transId, tInfo.streamId,
               tInfo.name);
         return TSDB_CODE_MND_TRANS_CONFLICT;
@@ -138,7 +138,7 @@ static int32_t doStreamTransConflictCheck(SMnode *pMnode, int64_t streamId, cons
                (strcmp(tInfo.name, MND_STREAM_TASK_RESET_NAME) == 0) ||
                (strcmp(tInfo.name, MND_STREAM_TASK_UPDATE_NAME) == 0) ||
                (strcmp(tInfo.name, MND_STREAM_CHKPT_CONSEN_NAME) == 0) ||
-               strcmp(tInfo.name, MND_STREAM_RESTART_NAME) == 0) {
+               strcmp(tInfo.name, MND_STREAM_STOP_NAME) == 0) {
       mWarn("conflict with other transId:%d streamUid:0x%" PRIx64 ", trans:%s", tInfo.transId, tInfo.streamId,
             tInfo.name);
       return TSDB_CODE_MND_TRANS_CONFLICT;
@@ -210,6 +210,7 @@ int32_t doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnCo
   }
 
   mInfo("stream:0x%" PRIx64 " start to build trans %s, transId:%d", pStream->uid, pMsg, p->id);
+  p->ableToBeKilled = true;
 
   mndTransSetDbName(p, pStream->sourceDb, pStream->targetSTbName);
   if ((code = mndTransCheckConflict(pMnode, p)) != 0) {
@@ -404,7 +405,7 @@ void killChkptAndResetStreamTask(SMnode *pMnode, SArray* pLongChkpts) {
              pTrans->streamId, pTrans->transId, p->checkpointId);
 
       code = mndCreateStreamResetStatusTrans(pMnode, p, p->checkpointId);
-      if (code) {
+      if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
         mError("stream:%s 0x%"PRIx64" failed to create reset stream task, code:%s", p->name, p->uid, tstrerror(code));
       }
       sdbRelease(pMnode->pSdb, p);

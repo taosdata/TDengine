@@ -426,11 +426,15 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
     } else {
       if (contLen < 0) {
         code = terrno;
+        wError("vgId:%d, failed to read WAL record head, index:%" PRId64 ", from log file since %s",
+               pReader->pWal->cfg.vgId, ver, tstrerror(code));
       } else {
         code = TSDB_CODE_WAL_FILE_CORRUPTED;
+        wError("vgId:%d, failed to read WAL record head, index:%" PRId64 ", not enough bytes read, readLen:%" PRId64
+               ", "
+               "expectedLen:%d",
+               pReader->pWal->cfg.vgId, ver, contLen, (int32_t)sizeof(SWalCkHead));
       }
-      wError("vgId:%d, failed to read WAL record head, index:%" PRId64 ", from log file since %s",
-             pReader->pWal->cfg.vgId, ver, tstrerror(code));
       TAOS_UNUSED(taosThreadMutexUnlock(&pReader->mutex));
       TAOS_RETURN(code);
     }

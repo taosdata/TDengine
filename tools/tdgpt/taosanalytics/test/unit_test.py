@@ -17,7 +17,7 @@ class UtilTest(unittest.TestCase):
     def test_generate_anomaly_window(self):
         # Test case 1: Normal input
         wins = convert_results_to_windows([1, 1, 1, 1, 1, 1, -1, -1, -1, 1, 1, -1],
-                                          [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+                                          [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], 1)
         print(f"The result window is:{wins}")
 
         # Assert the number of windows
@@ -30,15 +30,15 @@ class UtilTest(unittest.TestCase):
         self.assertListEqual(wins[1], [12, 12])
 
         # Test case 2: Anomaly input list is empty
-        wins = convert_results_to_windows([], [1, 2])
+        wins = convert_results_to_windows([], [1, 2], 1)
         self.assertListEqual(wins, [])
 
         # Test case 3: Anomaly input list is None
-        wins = convert_results_to_windows([], None)
+        wins = convert_results_to_windows([], None, 1)
         self.assertListEqual(wins, [])
 
         # Test case 4: Timestamp list is None
-        wins = convert_results_to_windows(None, [])
+        wins = convert_results_to_windows(None, [], 1)
         self.assertListEqual(wins, [])
 
     def test_validate_input_data(self):
@@ -65,7 +65,7 @@ class UtilTest(unittest.TestCase):
     def test_is_stationary(self):
         """test whether data is stationary or not"""
         st = is_stationary([1, 2, 3, 4, 5, 7, 5, 1, 54, 3, 6, 87, 45, 14, 24])
-        self.assertEquals(st, False)
+        self.assertEqual(st, False)
 
     def test_parse_options(self):
         """test case for parse key/value string into k/v pair"""
@@ -99,7 +99,7 @@ class ServiceTest(unittest.TestCase):
             if item["type"] == "anomaly-detection":
                 self.assertEqual(len(item["algo"]), 6)
             else:
-                self.assertEqual(len(item["algo"]), 4)
+                self.assertEqual(len(item["algo"]), 7)
 
 
 if __name__ == '__main__':

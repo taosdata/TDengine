@@ -79,10 +79,12 @@ typedef struct SStreamTaskNodeUpdateMsg {
   int64_t streamId;
   int32_t taskId;
   SArray* pNodeList;  // SArray<SNodeUpdateInfo>
+  SArray* pTaskList;  // SArray<int32_t>, taskId list
 } SStreamTaskNodeUpdateMsg;
 
 int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskNodeUpdateMsg* pMsg);
 int32_t tDecodeStreamTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskNodeUpdateMsg* pMsg);
+void    tDestroyNodeUpdateMsg(SStreamTaskNodeUpdateMsg* pMsg);
 
 typedef struct {
   int64_t reqId;

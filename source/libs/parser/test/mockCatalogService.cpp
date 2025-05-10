@@ -46,9 +46,9 @@ class TableBuilder : public ITableBuilder {
     schema()->vgId = vgid;
 
     SVgroupInfo vgroup = {vgid, 0, 0, {0}, 0};
-    assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(&vgroup.epSet, "dnode_1", 6030));
-    assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(&vgroup.epSet, "dnode_2", 6030));
-    assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(&vgroup.epSet, "dnode_3", 6030));
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == addEpIntoEpSet(&vgroup.epSet, "dnode_1", 6030));
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == addEpIntoEpSet(&vgroup.epSet, "dnode_2", 6030));
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == addEpIntoEpSet(&vgroup.epSet, "dnode_3", 6030));
     vgroup.epSet.inUse = 0;
 
     (void)meta_->vgs.emplace_back(vgroup);
@@ -196,7 +196,7 @@ class MockCatalogServiceImpl {
   }
 
   int32_t catalogGetDnodeList(SArray** pDnodes) const {
-    *pDnodes = taosArrayInit(dnode_.size(), sizeof(SEpSet));
+    *pDnodes = taosArrayInit(dnode_.size(), sizeof(SDNodeAddr));
     if (!pDnodes) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -358,9 +358,11 @@ class MockCatalogServiceImpl {
   }
 
   void createDnode(int32_t dnodeId, const string& host, int16_t port) {
-    SEpSet epSet = {0};
-    assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(&epSet, host.c_str(), port));
-    dnode_.insert(std::make_pair(dnodeId, epSet));
+    SDNodeAddr dnode = {0};
+    dnode.nodeId = dnodeId;
+    dnode.epSet = {0};
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == addEpIntoEpSet(&dnode.epSet, host.c_str(), port));
+    dnode_.insert(std::make_pair(dnodeId, dnode));
   }
 
   void createDatabase(const string& db, bool rollup, int8_t cacheLast, int8_t precision) {
@@ -378,15 +380,15 @@ class MockCatalogServiceImpl {
   typedef std::map<string, TableMetaCache>                 DbMetaCache;
   typedef std::map<string, std::shared_ptr<SFuncInfo>>     UdfMetaCache;
   typedef std::map<string, std::vector<STableIndexInfo>>   IndexMetaCache;
-  typedef std::map<int32_t, SEpSet>                        DnodeCache;
+  typedef std::map<int32_t, SDNodeAddr>                    DnodeCache;
   typedef std::map<string, SDbCfgInfo>                     DbCfgCache;
 
   uint64_t getNextId() { return id_++; }
 
   void genEpSet(SEpSet* pEpSet) {
-    assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(pEpSet, "dnode_1", 6030));
-    assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(pEpSet, "dnode_2", 6030));
-    assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(pEpSet, "dnode_3", 6030));
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == addEpIntoEpSet(pEpSet, "dnode_1", 6030));
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == addEpIntoEpSet(pEpSet, "dnode_2", 6030));
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == addEpIntoEpSet(pEpSet, "dnode_3", 6030));
     pEpSet->inUse = 0;
   }
 

@@ -41,21 +41,23 @@
 
 # 1. 简介
 
-TDengine 是一款开源、高性能、云原生的时序数据库 (Time-Series Database, TSDB)。TDengine 能被广泛运用于物联网、工业互联网、车联网、IT 运维、金融等领域。除核心的时序数据库功能外，TDengine 还提供缓存、数据订阅、流式计算等功能，是一极简的时序数据处理平台，最大程度的减小系统设计的复杂度，降低研发和运营成本。与其他时序数据库相比，TDengine 的主要优势如下：
+TDengine 是一款开源、高性能、云原生、AI 驱动的时序数据库 (Time-Series Database, TSDB)。TDengine 能被广泛运用于物联网、工业互联网、车联网、IT 运维、金融等领域。除核心的时序数据库功能外，TDengine 还提供缓存、数据订阅、流式计算、AI 智能体等功能，是一极简的时序数据处理平台，最大程度的减小系统设计的复杂度，降低研发和运营成本。与其他时序数据库相比，TDengine 的主要优势如下：
 
 - **高性能**：通过创新的存储引擎设计，无论是数据写入还是查询，TDengine 的性能比通用数据库快 10 倍以上，也远超其他时序数据库，存储空间不及通用数据库的 1/10。
 
 - **云原生**：通过原生分布式的设计，充分利用云平台的优势，TDengine 提供了水平扩展能力，具备弹性、韧性和可观测性，支持 k8s 部署，可运行在公有云、私有云和混合云上。
 
-- **极简时序数据平台**：TDengine 内建消息队列、缓存、流式计算等功能，应用无需再集成 Kafka/Redis/HBase/Spark 等软件，大幅降低系统的复杂度，降低应用开发和运营成本。
+- **极简时序数据平台**：TDengine 内建消息队列、缓存、流式计算、AI 智能体等功能，应用无需再集成 Kafka/Redis/HBase/Spark 等软件，大幅降低系统的复杂度，降低应用开发和运营成本。
 
-- **分析能力**：支持 SQL，同时为时序数据特有的分析提供SQL扩展。通过超级表、存储计算分离、分区分片、预计算、自定义函数等技术，TDengine 具备强大的分析能力。
+- **分析能力**：支持 SQL，同时为时序数据特有的分析提供 SQL 扩展。通过超级表、存储计算分离、分区分片、预计算、自定义函数以及 AI Agent 等技术，TDengine 具备强大的分析能力。
 
-- **简单易用**：无任何依赖，安装、集群几秒搞定；提供REST以及各种语言连接器，与众多第三方工具无缝集成；提供命令行程序，便于管理和即席查询；提供各种运维工具。
+- **AI智能体**：内置时序数据智能体 TDgpt, 无缝连接时序数据基础模型、大语言模型、机器学习、传统统计算法等，提供时序数据预测、异常检测、数据补全和数据分类的功能。
+
+- **简单易用**：无任何依赖，安装、集群几秒搞定；提供 REST 以及各种语言连接器，与众多第三方工具无缝集成；提供命令行程序，便于管理和即席查询；提供各种运维工具。
 
 - **核心开源**：TDengine 的核心代码包括集群功能全部开源，截止到 2022 年 8 月 1 日，全球超过 135.9k 个运行实例，GitHub Star 18.7k，Fork 4.4k，社区活跃。
 
-了解TDengine高级功能的完整列表，请 [点击](https://tdengine.com/tdengine/)。体验 TDengine 最简单的方式是通过 [TDengine云平台](https://cloud.tdengine.com)。
+了解TDengine高级功能的完整列表，请 [点击](https://tdengine.com/tdengine/)。体验 TDengine 最简单的方式是通过 [TDengine云平台](https://cloud.tdengine.com)。对最新发布的 TDengine 组件 TDgpt，请访问 [TDgpt README](./tools/tdgpt/README.md) 了解细节。
 
 # 2. 文档
 
@@ -67,9 +69,9 @@ TDengine 是一款开源、高性能、云原生的时序数据库 (Time-Series 
 
 # 3. 前置条件
 
-TDengine 目前可以在 Linux、 Windows、macOS 等平台上安装和运行。任何 OS 的应用也可以选择 taosAdapter 的 RESTful 接口连接服务端 taosd。CPU 支持 X64、ARM64，后续会支持 MIPS64、Alpha64、ARM32、RISC-V 等 CPU 架构。目前不支持使用交叉编译器构建。
+TDengine 目前可以在 Linux 和 macOS 平台上安装和运行 (企业版支持 Windows)。任何 OS 的应用也可以选择 taosAdapter 的 RESTful 接口连接服务端 taosd。CPU 支持 X64、ARM64，后续会支持 MIPS64、Alpha64、ARM32、RISC-V 等 CPU 架构。目前不支持使用交叉编译器构建。
 
-如果你想要编译 taosAdapter 或者 taosKeeper，需要安装 Go 1.18 及以上版本。
+如果你想要编译 taosAdapter 或者 taosKeeper，需要安装 Go 1.23 及以上版本。
 
 ## 3.1 Linux 系统
 
@@ -387,7 +389,7 @@ TDengine 构建检查工作流可以在参考 [Github Action](https://github.com
 cd tests
 bash setup-lcov.sh -v 1.16 && ./run_local_coverage.sh -b main -c task 
 # on main branch and run cases in longtimeruning_cases.task 
-# for more infomation about options please refer to ./run_local_coverage.sh -h
+# for more information about options please refer to ./run_local_coverage.sh -h
 ```
 > **注意**：
 > 请注意，-b 和 -i 选项将使用 -DCOVER=true 选项重新编译 TDengine，这可能需要花费一些时间。

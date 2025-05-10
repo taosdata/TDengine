@@ -22,9 +22,12 @@ emailName="taosdata.com"
 tarName="package.tar.gz"
 logDir="/var/log/${PREFIX}/${PRODUCTPREFIX}"
 moduleDir="/var/lib/${PREFIX}/${PRODUCTPREFIX}/model"
+resourceDir="/var/lib/${PREFIX}/${PRODUCTPREFIX}/resource"
 venvDir="/var/lib/${PREFIX}/${PRODUCTPREFIX}/venv"
 global_conf_dir="/etc/${PREFIX}"
 installDir="/usr/local/${PREFIX}/${PRODUCTPREFIX}"
+tar_td_model_name="tdtsfm.tar.gz"
+tar_xhs_model_name="timer-moe.tar.gz"
 
 python_minor_ver=0  #check the python version
 bin_link_dir="/usr/bin"
@@ -155,6 +158,13 @@ function kill_process() {
   fi
 }
 
+function kill_model_service() {
+  for script in stop-tdtsfm.sh stop-timer-moe.sh; do
+    script_path="${installDir}/bin/${script}"
+    [ -f "${script_path}" ] && ${csudo}bash "${script_path}" || :
+  done
+}
+
 function install_main_path() {
   #create install main dir and all sub dir
   if [ ! -z "${install_main_dir}" ]; then
@@ -172,9 +182,24 @@ function install_bin_and_lib() {
   ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin
   ${csudo}cp -r ${script_dir}/lib/* ${install_main_dir}/lib/
 
-  if [[ ! -e "${bin_link_dir}/rmtaosanode" ]]; then
-    ${csudo}ln -s ${install_main_dir}/bin/uninstall.sh ${bin_link_dir}/rmtaosanode
-  fi
+  # Handle rmtaosanode separately
+  [ -L "${bin_link_dir}/rmtaosanode" ] && ${csudo}rm -rf "${bin_link_dir}/rmtaosanode" || :
+  ${csudo}ln -s "${install_main_dir}/bin/uninstall.sh" "${bin_link_dir}/rmtaosanode"
+
+  # Create an array of link names and target scripts
+  declare -A links=(
+    ["start-tdtsfm"]="${install_main_dir}/bin/start-tdtsfm.sh"
+    ["stop-tdtsfm"]="${install_main_dir}/bin/stop-tdtsfm.sh"
+    ["start-timer-moe"]="${install_main_dir}/bin/start-timer-moe.sh"
+    ["stop-timer-moe"]="${install_main_dir}/bin/stop-timer-moe.sh"
+  )
+
+  # Iterate over the array and create/remove links as needed
+  for link in "${!links[@]}"; do
+    target="${links[$link]}"
+    [ -L "${bin_link_dir}/${link}" ] && ${csudo}rm -rf "${bin_link_dir}/${link}" || :
+    ${csudo}ln -s "${target}" "${bin_link_dir}/${link}"
+  done
 }
 
 function add_newHostname_to_hosts() {
@@ -374,6 +399,14 @@ function install_log() {
 function install_module() {
   ${csudo}mkdir -p ${moduleDir} && ${csudo}chmod 777 ${moduleDir}
   ${csudo}ln -sf ${moduleDir} ${install_main_dir}/model
+  [ -f "${script_dir}/model/${tar_td_model_name}" ] && cp -r ${script_dir}/model/* ${moduleDir}/ || : 
+}
+
+function install_resource() {
+  ${csudo}mkdir -p ${resourceDir} && ${csudo}chmod 777 ${resourceDir}
+  ${csudo}ln -sf ${resourceDir} ${install_main_dir}/resource
+
+  ${csudo}cp ${script_dir}/resource/*.sql ${install_main_dir}/resource/
 }
 
 function install_anode_venv() {
@@ -401,6 +434,9 @@ function install_anode_venv() {
   ${csudo}${venvDir}/bin/pip3 install torch --index-url https://download.pytorch.org/whl/cpu
   ${csudo}${venvDir}/bin/pip3 install --upgrade keras
   ${csudo}${venvDir}/bin/pip3 install requests
+  ${csudo}${venvDir}/bin/pip3 install taospy
+  ${csudo}${venvDir}/bin/pip3 install transformers==4.40.0
+  ${csudo}${venvDir}/bin/pip3 install accelerate
 
   echo -e "Install python library for venv completed!"
 }
@@ -620,6 +656,7 @@ function updateProduct() {
   install_main_path
   install_log
   install_module
+  install_resource
   install_config
 
   if [ -z $1 ]; then
@@ -661,6 +698,9 @@ function installProduct() {
   fi
 
   tar -zxf ${tarName}
+ 
+  [ -f "${script_dir}/model/${tar_td_model_name}" ]  && tar -zxf ${script_dir}/model/${tar_td_model_name} -C ${script_dir}/model || :
+  [ -f "${script_dir}/model/${tar_xhs_model_name}" ] && tar -zxf ${script_dir}/model/${tar_xhs_model_name} -C ${script_dir}/model || :
 
   echo "Start to install ${productName}..."
 
@@ -668,8 +708,12 @@ function installProduct() {
   install_log
   install_anode_config
   install_module
-
+  install_resource
+  
+  
   install_bin_and_lib
+  kill_model_service
+
   if ! is_container; then
     install_services
   fi

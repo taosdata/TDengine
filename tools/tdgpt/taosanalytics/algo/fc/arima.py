@@ -68,8 +68,7 @@ class _ArimaService(AbstractForecastService):
         fc = model.predict(n_periods=fc_rows, return_conf_int=self.return_conf,
                            alpha=self.conf)
 
-        res1 = [fc[0].tolist(), fc[1][:, 0].tolist(),
-                fc[1][:, 1].tolist()] if self.return_conf else [fc.tolist()]
+        res1 = [fc[0].tolist(), fc[1][:, 0].tolist(), fc[1][:, 1].tolist()] if self.return_conf else [fc.tolist()]
 
         return (
             res1,
@@ -86,11 +85,11 @@ class _ArimaService(AbstractForecastService):
         if len(self.list) > 3000:
             raise ValueError("number of input data is too large")
 
-        if self.fc_rows <= 0:
+        if self.rows <= 0:
             raise ValueError("fc rows is not specified yet")
 
-        res, mse, model_info = self.__do_forecast_helper(self.fc_rows)
-        insert_ts_list(res, self.start_ts, self.time_step, self.fc_rows)
+        res, mse, model_info = self.__do_forecast_helper(self.rows)
+        insert_ts_list(res, self.start_ts, self.time_step, self.rows)
 
         return {
             "mse": mse,

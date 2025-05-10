@@ -23,6 +23,8 @@ extern "C" {
 #include <stdbool.h>
 #include <time.h>
 
+#define ALLOW_FORBID_FUNC
+#include "os.h"
 
 #define TINY_BUFF_LEN                   8
 #define SMALL_BUFF_LEN                  20
@@ -42,36 +44,115 @@ extern "C" {
 #define TSDB_CODE_FAILED                -1   // unknown or needn't tell detail error
 
 // NULL definition
+#ifndef TSDB_DATA_BOOL_NULL
 #define TSDB_DATA_BOOL_NULL             0x02
+#endif
+
+#ifndef TSDB_DATA_TINYINT_NULL
 #define TSDB_DATA_TINYINT_NULL          0x80
+#endif
+
+#ifndef TSDB_DATA_SMALLINT_NULL
 #define TSDB_DATA_SMALLINT_NULL         0x8000
+#endif
+
+#ifndef TSDB_DATA_INT_NULL
 #define TSDB_DATA_INT_NULL              0x80000000L
+#endif
+
+#ifndef TSDB_DATA_BIGINT_NULL
 #define TSDB_DATA_BIGINT_NULL           0x8000000000000000L
+#endif
+
+#ifndef TSDB_DATA_TIMESTAMP_NULL
 #define TSDB_DATA_TIMESTAMP_NULL        TSDB_DATA_BIGINT_NULL
+#endif
 
-#define TSDB_DATA_FLOAT_NULL            0x7FF00000              // it is an NAN
-#define TSDB_DATA_DOUBLE_NULL           0x7FFFFF0000000000L     // an NAN
+#ifndef TSDB_DATA_FLOAT_NULL
+#define TSDB_DATA_FLOAT_NULL            0x7FF00000              /* it is an NAN */
+#endif
+
+#ifndef TSDB_DATA_DOUBLE_NULL
+#define TSDB_DATA_DOUBLE_NULL           0x7FFFFF0000000000L    /* an NAN */
+#endif
+
+#ifndef TSDB_DATA_NCHAR_NULL
 #define TSDB_DATA_NCHAR_NULL            0xFFFFFFFF
+#endif
+
+#ifndef TSDB_DATA_BINARY_NULL
 #define TSDB_DATA_BINARY_NULL           0xFF
+#endif
+
+#ifndef TSDB_DATA_JSON_PLACEHOLDER
 #define TSDB_DATA_JSON_PLACEHOLDER      0x7F
+#endif
+
+#ifndef TSDB_DATA_JSON_NULL
 #define TSDB_DATA_JSON_NULL             0xFFFFFFFF
+#endif
+
+#ifndef TSDB_DATA_JSON_null
 #define TSDB_DATA_JSON_null             0xFFFFFFFE
+#endif
+
+#ifndef TSDB_DATA_JSON_NOT_NULL
 #define TSDB_DATA_JSON_NOT_NULL         0x01
+#endif
+
+#ifndef TSDB_DATA_JSON_CAN_NOT_COMPARE
 #define TSDB_DATA_JSON_CAN_NOT_COMPARE  0x7FFFFFFF
+#endif
 
+#ifndef TSDB_DATA_UTINYINT_NULL
 #define TSDB_DATA_UTINYINT_NULL         0xFF
-#define TSDB_DATA_USMALLINT_NULL        0xFFFF
-#define TSDB_DATA_UINT_NULL             0xFFFFFFFF
-#define TSDB_DATA_UBIGINT_NULL          0xFFFFFFFFFFFFFFFFL
+#endif
 
+#ifndef TSDB_DATA_USMALLINT_NULL
+#define TSDB_DATA_USMALLINT_NULL        0xFFFF
+#endif
+
+#ifndef TSDB_DATA_UINT_NULL
+#define TSDB_DATA_UINT_NULL             0xFFFFFFFF
+#endif
+
+#ifndef TSDB_DATA_UBIGINT_NULL
+#define TSDB_DATA_UBIGINT_NULL          0xFFFFFFFFFFFFFFFFL
+#endif
+
+
+#ifndef GET_INT8_VAL
 #define GET_INT8_VAL(x)    (*(int8_t *)(x))
+#endif
+
+#ifndef GET_INT16_VAL
 #define GET_INT16_VAL(x)   (*(int16_t *)(x))
+#endif
+
+#ifndef GET_INT32_VAL
 #define GET_INT32_VAL(x)   (*(int32_t *)(x))
+#endif
+
+#ifndef GET_INT64_VAL
 #define GET_INT64_VAL(x)   (*(int64_t *)(x))
-#define GET_UINT8_VAL(x)   (*(uint8_t*) (x))
+#endif
+
+#ifndef GET_UINT8_VAL
+#define GET_UINT8_VAL(x)   (*(uint8_t*)(x))
+#endif
+
+#ifndef GET_UINT16_VAL
 #define GET_UINT16_VAL(x)  (*(uint16_t *)(x))
+#endif
+
+#ifndef GET_UINT32_VAL
 #define GET_UINT32_VAL(x)  (*(uint32_t *)(x))
+#endif
+
+#ifndef GET_UINT64_VAL
 #define GET_UINT64_VAL(x)  (*(uint64_t *)(x))
+#endif
+
 
 #define TSDB_DEFAULT_USER               "root"
 #define TSDB_DEFAULT_PASS               "taosdata"
@@ -88,7 +169,9 @@ extern "C" {
 #define TSDB_DB_NAME_LEN                65
 
 #define TSDB_COL_NAME_LEN               65
-#define TSDB_MAX_ALLOWED_SQL_LEN        (1*1024*1024u)          // sql length should be less than 1mb
+#ifndef TSDB_MAX_ALLOWED_SQL_LEN
+#define TSDB_MAX_ALLOWED_SQL_LEN        (1*1024*1024u) /* sql length should be less than 1mb */
+#endif
 
 #define TSDB_MAX_BYTES_PER_ROW          65531
 #define TSDB_MAX_TAGS                   128
@@ -169,19 +252,6 @@ int64_t toolsGetTimestampMs();
 int64_t toolsGetTimestampUs();
 int64_t toolsGetTimestampNs();
 
-#ifdef WINDOWS
-typedef struct {
-    int   we_wordc;
-    char *we_wordv[1];
-    int   we_offs;
-    char  wordPos[1025];
-} wordexp_t;
-int  wordexp(char *words, wordexp_t *pwordexp, int flags);
-void wordfree(wordexp_t *pwordexp);
-
-char *strsep(char **stringp, const char *delim);
-#endif
-
 typedef struct TdDir      *TdDirPtr;
 typedef struct TdDirEntry *TdDirEntryPtr;
 
@@ -200,19 +270,20 @@ int32_t       toolsCloseDir(TdDirPtr *ppDir);
         *(__pN)=strlen(*(__pLine));                                     \
     } while(0)
 
-#define tstrncpy(dst, src, size)       \
-    do {                               \
-        strncpy((dst), (src), (size)-1); \
-        (dst)[(size)-1] = 0;           \
+#define TOOLS_STRNCPY(dst, src, size)                                   \
+    do {                                                                \
+        strncpy((dst), (src), (size)-1);                                \
+        (dst)[(size)-1] = 0;                                            \
     } while (0)
 
+
 #ifdef RELEASE
-    #define ASSERT(x)   do { \
+    #define TOOLS_ASSERT(x)   do { \
         if (!(x)) errorPrint("%s() LN%d, %s\n", \
             __func__, __LINE__, "assertion");} while(0)
 #else
     #include <assert.h>
-    #define ASSERT(x)   do { assert(x); } while(0)
+    #define TOOLS_ASSERT(x)   do { assert(x); } while(0)
 #endif // RELEASE
 
 #ifdef WINDOWS

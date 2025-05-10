@@ -172,7 +172,7 @@ function install_bin() {
   ${csudo}rm -f ${bin_link_dir}/taosadapter || :
   ${csudo}rm -f ${bin_link_dir}/taoskeeper || :
   ${csudo}rm -f ${bin_link_dir}/taosudf || :
-  ${csudo}rm -f ${bin_link_dir}/taosdemo || :
+  ${csudo}rm -f ${bin_link_dir}/taosBenchmark || :
   ${csudo}rm -f ${bin_link_dir}/taosdump || :
   ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
 
@@ -182,7 +182,6 @@ function install_bin() {
 
     ${csudo}cp -r ${binary_dir}/build/bin/${clientName} ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosBenchmark ] && ${csudo}cp -r ${binary_dir}/build/bin/taosBenchmark ${install_main_dir}/bin || :
-    [ -f ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -sf ${install_main_dir}/bin/taosBenchmark ${install_main_dir}/bin/taosdemo > /dev/null 2>&1 || :
     [ -f ${binary_dir}/build/bin/taosdump ] && ${csudo}cp -r ${binary_dir}/build/bin/taosdump ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosadapter ] && ${csudo}cp -r ${binary_dir}/build/bin/taosadapter ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taoskeeper ] && ${csudo}cp -r ${binary_dir}/build/bin/taoskeeper ${install_main_dir}/bin || :
@@ -203,7 +202,7 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/taoskeeper ] && ${csudo}ln -s ${install_main_dir}/bin/taoskeeper ${bin_link_dir}/taoskeeper > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosudf ] && ${csudo}ln -s ${install_main_dir}/bin/taosudf ${bin_link_dir}/taosudf > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump > /dev/null 2>&1 || :
-    [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo}ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo > /dev/null 2>&1 || :
+    [ -x ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -s ${install_main_dir}/bin/taosBenchmark ${bin_link_dir}/taosBenchmark > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosx ] && ${csudo}ln -s ${install_main_dir}/bin/taosx ${bin_link_dir}/taosx > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/perfMonitor ] && ${csudo}ln -s ${install_main_dir}/bin/perfMonitor ${bin_link_dir}/perfMonitor > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core > /dev/null 2>&1 || :
@@ -212,7 +211,6 @@ function install_bin() {
 
     ${csudo}cp -r ${binary_dir}/build/bin/${clientName} ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosBenchmark ] && ${csudo}cp -r ${binary_dir}/build/bin/taosBenchmark ${install_main_dir}/bin || :
-    [ -f ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -sf ${install_main_dir}/bin/taosBenchmark ${install_main_dir}/bin/taosdemo > /dev/null 2>&1 || :
     [ -f ${binary_dir}/build/bin/taosdump ] && ${csudo}cp -r ${binary_dir}/build/bin/taosdump ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosadapter ] && ${csudo}cp -r ${binary_dir}/build/bin/taosadapter ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taoskeeper ] && ${csudo}cp -r ${binary_dir}/build/bin/taoskeeper ${install_main_dir}/bin || :
@@ -230,7 +228,7 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/taoskeeper ] && ${csudo}ln -s ${install_main_dir}/bin/taoskeeper ${bin_link_dir}/taoskeeper > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosudf ] && ${csudo}ln -s ${install_main_dir}/bin/taosudf ${bin_link_dir}/taosudf > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump > /dev/null 2>&1 || :
-    [ -f ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -sf ${install_main_dir}/bin/taosBenchmark ${install_main_dir}/bin/taosdemo > /dev/null 2>&1 || :
+    [ -f ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -sf ${install_main_dir}/bin/taosBenchmark ${bin_link_dir}/taosBenchmark > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosx ] && ${csudo}ln -s ${install_main_dir}/bin/taosx ${bin_link_dir}/taosx > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/*explorer ] && ${csudo}ln -s ${install_main_dir}/bin/*explorer ${bin_link_dir}/*explorer > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} > /dev/null 2>&1 || :
@@ -239,7 +237,7 @@ function install_bin() {
 
 function install_jemalloc() {
   if [ "$osType" != "Darwin" ]; then
-    /usr/bin/install -c -d /usr/local/bin
+    ${csudo}/usr/bin/install -c -d /usr/local/bin
 
     if [ -f "${binary_dir}/build/bin/jemalloc-config" ]; then
       ${csudo}/usr/bin/install -c -m 755 ${binary_dir}/build/bin/jemalloc-config /usr/local/bin
@@ -438,8 +436,9 @@ function install_config() {
     ${csudo}chmod 644 ${cfg_install_dir}/${configFile}
     ${csudo}cp -f ${script_dir}/../cfg/${configFile} \
       ${cfg_install_dir}/${configFile}.${verNumber}
-    ${csudo}ln -s ${cfg_install_dir}/${configFile} \
-      ${install_main_dir}/cfg/${configFile} > /dev/null 2>&1
+    # remove ln operation to fix TD-34510
+    #${csudo}ln -s ${cfg_install_dir}/${configFile} \
+    #  ${install_main_dir}/cfg/${configFile} > /dev/null 2>&1
   else
     ${csudo}cp -f ${script_dir}/../cfg/${configFile} \
       ${cfg_install_dir}/${configFile}.${verNumber}
@@ -458,9 +457,10 @@ function install_taosadapter_config() {
     [ -f ${binary_dir}/test/cfg/taosadapter.toml ] &&
       ${csudo}cp -f ${binary_dir}/test/cfg/taosadapter.toml \
         ${cfg_install_dir}/taosadapter.toml.${verNumber} || :
-    [ -f ${cfg_install_dir}/taosadapter.toml ] &&
-      ${csudo}ln -s ${cfg_install_dir}/taosadapter.toml \
-        ${install_main_dir}/cfg/taosadapter.toml > /dev/null 2>&1 || :
+    # remove ln operation to fix TD-34510
+    #[ -f ${cfg_install_dir}/taosadapter.toml ] &&
+      #${csudo}ln -s ${cfg_install_dir}/taosadapter.toml \
+      #  ${install_main_dir}/cfg/taosadapter.toml > /dev/null 2>&1 || :
   else
     if [ -f "${binary_dir}/test/cfg/taosadapter.toml" ]; then
       ${csudo}cp -f ${binary_dir}/test/cfg/taosadapter.toml \
@@ -481,9 +481,10 @@ function install_taoskeeper_config() {
     [ -f ${binary_dir}/test/cfg/taoskeeper.toml ] &&
       ${csudo}cp -f ${binary_dir}/test/cfg/taoskeeper.toml \
         ${cfg_install_dir}/taoskeeper.toml.${verNumber} || :
-    [ -f ${cfg_install_dir}/taoskeeper.toml ] &&
-      ${csudo}ln -s ${cfg_install_dir}/taoskeeper.toml \
-        ${install_main_dir}/cfg/taoskeeper.toml > /dev/null 2>&1 || :
+    # remove ln operation to fix TD-34510
+    #[ -f ${cfg_install_dir}/taoskeeper.toml ] &&
+    #  ${csudo}ln -s ${cfg_install_dir}/taoskeeper.toml \
+    #    ${install_main_dir}/cfg/taoskeeper.toml > /dev/null 2>&1 || :
   else
     if [ -f "${binary_dir}/test/cfg/taoskeeper.toml" ]; then
       ${csudo}cp -f ${binary_dir}/test/cfg/taoskeeper.toml \

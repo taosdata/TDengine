@@ -109,6 +109,9 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->metaGetCachedTbGroup = metaGetCachedTbGroup;
   pMeta->metaPutTbGroupToCache = metaPutTbGroupToCache;
 
+  pMeta->metaGetCachedRefDbs = metaGetCachedRefDbs;
+  pMeta->metaPutRefDbsToCache = metaPutRefDbsToCache;
+
   pMeta->openCtbCursor = metaOpenCtbCursor;
   pMeta->resumeCtbCursor = metaResumeCtbCursor;
   pMeta->pauseCtbCursor = metaPauseCtbCursor;

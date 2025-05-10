@@ -393,9 +393,9 @@ static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
   char metaTempDir[TSDB_FILENAME_LEN] = {0};
   char metaBackupDir[TSDB_FILENAME_LEN] = {0};
 
-  vnodeGetMetaPath(pVnode, metaDir, VNODE_META_DIR);
-  vnodeGetMetaPath(pVnode, metaTempDir, VNODE_META_TMP_DIR);
-  vnodeGetMetaPath(pVnode, metaBackupDir, VNODE_META_BACKUP_DIR);
+  vnodeGetMetaPath(pVnode, VNODE_META_DIR, metaDir);
+  vnodeGetMetaPath(pVnode, VNODE_META_TMP_DIR, metaTempDir);
+  vnodeGetMetaPath(pVnode, VNODE_META_BACKUP_DIR, metaBackupDir);
 
   metaClose(ppMeta);
   if (taosRenameFile(metaDir, metaBackupDir) != 0) {

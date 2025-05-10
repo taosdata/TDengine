@@ -182,6 +182,27 @@ class TDTestCase(TBase):
         tdSql.execute("alter dnode 1 'rpcQueueMemoryAllowed' '15242880'")
         tdSql.execute("alter dnode 1 'syncLogBufferMemoryAllowed' '115728640'")
 
+    def alter_timezone_case(self):
+        tdSql.execute("alter local 'timezone UTC'")
+        tdSql.execute("alter all dnodes 'timezone UTC'")
+        # forbidden to alter one dnode timezone
+        tdSql.error("alter dnode 1 'timezone UTC'")
+        
+        tdSql.query("show local variables like 'timezone'")
+        tdSql.checkData(0, 1, "UTC (UTC, +0000)")
+        tdSql.query("show dnode 1 variables like 'timezone'")
+        tdSql.checkData(0, 2, "UTC (UTC, +0000)")
+        tdSql.query("show variables like 'timezone'")
+        tdSql.checkData(0, 1, "UTC (UTC, +0000)")
+
+    def alter_memPoolReservedSizeMB_case(self):
+        tdSql.execute("alter all dnodes 'minReservedMemorySize 2048'")
+        tdSql.query("show dnode 1 variables like 'minReservedMemorySize'")
+        tdSql.checkData(0, 2, "2048")
+
+        tdSql.error("alter all dnodes 'minReservedMemorySize 0'")
+        tdSql.error("alter all dnodes 'minReservedMemorySize 100000000000'")
+
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
@@ -198,6 +219,10 @@ class TDTestCase(TBase):
         self.alter_err_case()
         self.alter_dnode_1_case()
 
+        #TS-6363
+        self.alter_memPoolReservedSizeMB_case()
+
+        self.alter_timezone_case()
         tdLog.success(f"{__file__} successfully executed")
 
 

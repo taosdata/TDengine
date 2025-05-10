@@ -29,6 +29,9 @@ sql connect sysinfo0
 
 print =============== check oper
 sql_error create user u1 pass 'u1'
+sql show anodes;
+sql show d2.disk_info;
+sql select * from INFORMATION_SCHEMA.INS_DISK_USAGE where db_name = 'db'
 sql_error drop user sysinfo1
 sql_error alter user sysinfo0 pass '1'
 sql_error alter user sysinfo0 enable 0

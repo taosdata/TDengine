@@ -5,6 +5,7 @@ WORKDIR /root
 ARG pkgFile
 ARG dirName
 ARG cpuType
+
 RUN echo ${pkgFile} && echo ${dirName}
 
 COPY ${pkgFile} /root/

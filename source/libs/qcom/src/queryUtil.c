@@ -219,6 +219,9 @@ void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
     return;
   }
 
+  
+  qDebug("ahandle %p freed, QID:0x%" PRIx64, pMsgBody, pMsgBody->requestId);
+  
   taosMemoryFreeClear(pMsgBody->target.dbFName);
   taosMemoryFreeClear(pMsgBody->msgInfo.pData);
   if (pMsgBody->paramFreeFp) {
