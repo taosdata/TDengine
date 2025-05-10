@@ -220,10 +220,12 @@ jobs:
           taosadapter -V
           taosBenchmark -V
           taos -V
-          ./build.sh start
+          nohup taosd >> taosd.log &
+          nohup taosadapter >> taosa.log &
           pgrep -l taos
-          sleep 6     # NOTE: wait for taosd initialization to complete
+          sleep 30     # NOTE: wait for taosd initialization to complete
           pgrep -l taos
+          cat taosd.log
           taos -s "show databases"
           taos -s "show dnodes"
 
