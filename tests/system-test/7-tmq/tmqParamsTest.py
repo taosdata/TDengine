@@ -106,7 +106,7 @@ class TDTestCase:
                             while True:
                                 res = consumer.poll(3)
                                 tdSql.query('show consumers;')
-                                consumer_info = tdSql.queryResult[0][-1]
+                                consumer_info = tdSql.queryResult[0][-2]
                                 if offset_value == "latest":
                                     if not res and stop_flag == 1:
                                         break
