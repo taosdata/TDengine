@@ -13,7 +13,7 @@ use std::{
     collections::BTreeMap,
     ops::Range,
     str::FromStr,
-    sync::Arc,
+    sync::{Arc, LazyLock},
 };
 
 use anyhow::Context;
@@ -1820,7 +1820,8 @@ pub fn pivot(
     common_fields: &[&str],
 ) -> anyhow::Result<Vec<RecordBatch>> {
     let ts_field_name = ts_field.name();
-    let df = SessionContext::new()
+    static SESSION_CONTEXT: LazyLock<SessionContext> = LazyLock::new(SessionContext::new);
+    let df = SESSION_CONTEXT
         .read_batch(batch)
         .context("build datafusion context error")?;
     let window = row_number()
