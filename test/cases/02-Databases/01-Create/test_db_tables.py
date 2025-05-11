@@ -22,7 +22,7 @@ class TestDatabaseTables:
         Jira: None
 
         History:
-            - 2025-4-30 Simon Guan Migrated from tsim/db/tables.sim
+            - 2025-5-12 Simon Guan Migrated from tsim/db/tables.sim
 
         """
 
