@@ -8,9 +8,11 @@ class TestDatabaseTablePrefixSuffix:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_table_prefix_suffix(self):
-        """create db with table prefix suffix
+        """create database use table prefix and suffix
 
-        1. -
+        1. create database use TABLE_PREFIX and TABLE_SUFFIX options
+        2. create tables
+        3. verify that the table distribution in the vgroup meets expectations.
 
         Catalog:
             - Database:Create
@@ -43,9 +45,7 @@ class TestDatabaseTablePrefixSuffix:
             f"select count(*) a from information_schema.ins_tables where db_name='db1' group by vgroup_id having(count(*) > 0) order by a;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 4)
-
         tdSql.checkData(1, 0, 5)
 
         tdSql.execute(f"drop database if exists db1;")
@@ -67,9 +67,7 @@ class TestDatabaseTablePrefixSuffix:
             f"select count(*) a from information_schema.ins_tables where db_name='db2' group by vgroup_id having(count(*) > 0) order by a;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 4)
-
         tdSql.checkData(1, 0, 5)
 
         tdSql.execute(f"drop database if exists db2;")
@@ -91,9 +89,7 @@ class TestDatabaseTablePrefixSuffix:
             f"select count(*) a from information_schema.ins_tables where db_name='db3' group by vgroup_id having(count(*) > 0) order by a;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 4)
-
         tdSql.checkData(1, 0, 5)
 
         tdSql.execute(f"drop database if exists db3;")
@@ -115,9 +111,7 @@ class TestDatabaseTablePrefixSuffix:
             f"select count(*) a from information_schema.ins_tables where db_name='db4' group by vgroup_id having(count(*) > 0) order by a;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 4)
-
         tdSql.checkData(1, 0, 5)
 
         tdSql.execute(f"drop database if exists db4;")
@@ -139,9 +133,7 @@ class TestDatabaseTablePrefixSuffix:
             f"select count(*) a from information_schema.ins_tables where db_name='db5' group by vgroup_id having(count(*) > 0) order by a;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 4)
-
         tdSql.checkData(1, 0, 5)
 
         tdSql.execute(f"drop database if exists db5;")
@@ -163,9 +155,7 @@ class TestDatabaseTablePrefixSuffix:
             f"select count(*) a from information_schema.ins_tables where db_name='db6' group by vgroup_id having(count(*) > 0) order by a;"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 4)
-
         tdSql.checkData(1, 0, 5)
 
         tdSql.execute(f"drop database if exists db6;")

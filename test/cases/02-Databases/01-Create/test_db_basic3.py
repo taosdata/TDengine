@@ -8,9 +8,11 @@ class TestDatabaseBasic3:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_basic3(self):
-        """db basic3
+        """create database 3
 
-        1. -
+        1. create database
+        2. create normal table with db. as the prefix
+        3. show tables use db. as the prefix
 
         Catalog:
             - Database:Create
@@ -35,9 +37,7 @@ class TestDatabaseBasic3:
 
         tdSql.query(f"select * from information_schema.ins_databases")
         tdSql.checkRows(3)
-
         tdSql.checkData(2, 0, "d1")
-
         tdSql.checkData(2, 2, 2)
 
         tdSql.query(f"show d1.tables")

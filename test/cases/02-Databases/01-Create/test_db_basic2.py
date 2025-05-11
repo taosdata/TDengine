@@ -8,9 +8,14 @@ class TestDatabaseBasic2:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_basic2(self):
-        """db basic2
+        """create database 2
 
-        1. -
+        1. create database
+        2. create super table
+        3. create child table
+        4. create normal table
+        5. show tables
+        6. drop database
 
         Catalog:
             - Database:Create
@@ -54,16 +59,8 @@ class TestDatabaseBasic2:
 
         tdSql.query(f"select * from information_schema.ins_databases")
         tdLog.info(f"rows: {tdSql.getRows()})")
-        tdLog.info(
-            f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)}"
-        )
-        tdLog.info(
-            f"{tdSql.getData(1,0)} {tdSql.getData(1,1)} {tdSql.getData(1,2)} {tdSql.getData(1,3)}"
-        )
         tdSql.checkRows(3)
-
         tdSql.checkData(2, 0, "d1")
-
         tdSql.checkData(2, 2, 2)
 
         tdSql.query(f"show tables")

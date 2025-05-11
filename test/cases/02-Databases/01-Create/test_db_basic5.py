@@ -8,9 +8,14 @@ class TestDatabaseBasic5:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_basic5(self):
-        """db basic5
+        """create database 5
 
-        1. -
+        1. create database
+        2. create super table
+        3. create child table
+        4. show stables
+        5. show tables
+        6. drop database and test again
 
         Catalog:
             - Database:Create

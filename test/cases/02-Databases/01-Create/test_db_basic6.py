@@ -8,9 +8,11 @@ class TestDatabaseBasic6:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_basic6(self):
-        """db basic6
+        """create database 6
 
-        1. -
+        1. create database use options such as replcai, duraiton, keep, minrows
+        2. select from information_schema.ins_databases and check result
+        3. repeatedly perform operations such as create database, drop database, create table, and writing data
 
         Catalog:
             - Database:Create
@@ -96,12 +98,10 @@ class TestDatabaseBasic6:
 
             tdSql.query(f"show stables")
             tdSql.checkRows(1)
-
             tdSql.checkData(0, 0, st)
 
             tdSql.query(f"show tables")
             tdSql.checkRows(1)
-
             tdSql.checkData(0, 0, tb)
 
             i = i + 1

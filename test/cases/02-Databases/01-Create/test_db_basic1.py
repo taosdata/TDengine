@@ -8,9 +8,11 @@ class TestDatabaseBasic1:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_basic1(self):
-        """db basic1
+        """create database 1
 
-        1. -
+        1. creat database use vgroup option
+        2. show vgroups
+        3. show vnodes
 
         Catalog:
             - Database:Create
@@ -116,7 +118,6 @@ class TestDatabaseBasic1:
         tdSql.checkData(0, 2, 4)
 
         tdLog.info(f"=============== restart")
-
         sc.dnodeForceStop(1)
         sc.dnodeStart(1)
 
@@ -128,7 +129,6 @@ class TestDatabaseBasic1:
 
         tdSql.execute(f"use d4")
         tdSql.query(f"show vgroups")
-
         tdSql.checkRows(4)
 
         tdLog.info(f"=============== create databases")
