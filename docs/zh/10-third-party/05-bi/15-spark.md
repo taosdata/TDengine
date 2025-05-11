@@ -63,28 +63,39 @@ driverClass 指定为 “com.taosdata.jdbc.ws.WebSocketDriver”。
 ```
 
 **第 2 步**， 绑定数据并提交。
+下面示例直接写入超级表，并使用了批量绑定方式，提高写入效率。
 ``` java
   // bind param
-  String sql = String.format("INSERT INTO test.d%d using test.meters tags(%d,'location%d') VALUES (?,?,?,?) ", i, i, i);
-  PreparedStatement preparedStatement = connection.prepareStatement(sql);
-  for (int j = 0; j < insertRows; j++) {
-      float current = (float)(10  + rand.nextInt(100) * 0.01);
-      float phase   = (float)(1   + rand.nextInt(100) * 0.0001);
-      int   voltage = (int)  (100 + rand.nextInt(20));
+  int childTb    = 1;
+  int insertRows = 21;
+  for (int i = 0; i < childTb; i++ ) {
+      String sql = "INSERT INTO test.meters(tbname, groupid, location, ts, current, voltage, phase) " +
+          "VALUES (?,?,?,?,?,?,?)";
+      System.out.printf("prepare sql:%s\n", sql);
+      PreparedStatement preparedStatement = connection.prepareStatement(sql);
+      for (int j = 0; j < insertRows; j++) {
+          float current = (float)(10  + rand.nextInt(100) * 0.01);
+          float phase   = (float)(1   + rand.nextInt(100) * 0.0001);
+          int   voltage = (int)  (210 + rand.nextInt(20));
 
-      preparedStatement.setTimestamp(1, new Timestamp(ts + j));
-      preparedStatement.setFloat    (2, current);
-      preparedStatement.setInt      (3, voltage);
-      preparedStatement.setFloat    (4, phase);
-      // add batch
-      preparedStatement.addBatch();
+          preparedStatement.setString   (1, String.format("d%d", i));        // tbname
+          preparedStatement.setInt      (2, i);                              // groupid
+          preparedStatement.setString   (3, String.format("location%d", i)); // location
+
+          preparedStatement.setTimestamp(4, new Timestamp(ts + j));
+          preparedStatement.setFloat    (5, current);
+          preparedStatement.setInt      (6, voltage);
+          preparedStatement.setFloat    (7, phase);
+          // add batch
+          preparedStatement.addBatch();
+
+      }
+      // submit
+      preparedStatement.executeUpdate();
+
+      // close statement
+      preparedStatement.close();
   }
-
-  // submit
-  preparedStatement.executeUpdate();
-  // close statement
-  preparedStatement.close();
-
 ```
 
 **第 3 步**， 关闭连接。
@@ -182,7 +193,8 @@ connection.close();
           return consumer;
       } catch (Exception ex) {
           // please refer to the JDBC specifications for detailed exceptions info
-          System.out.printf("Failed to create websocket consumer, host: %s, groupId: %s, clientId: %s, %sErrMessage: %s%n",
+          System.out.printf("Failed to create websocket consumer, " + 
+                  "host: %s, groupId: %s, clientId: %s, %sErrMessage: %s%n",
                   config.getProperty("bootstrap.servers"),
                   config.getProperty("group.id"),
                   config.getProperty("client.id"),
