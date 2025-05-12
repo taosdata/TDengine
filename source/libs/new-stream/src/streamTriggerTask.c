@@ -2054,7 +2054,8 @@ static int32_t strtcPullNewMeta(SSTriggerRealtimeContext *pContext) {
   SStreamTaskAddr      *pReader = TARRAY_GET_ELEM(pTask->readerList, pContext->curReaderIdx);
   SSTriggerWalProgress *pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int32_t));
   QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-  strtcSendPullReq(pContext, STRIGGER_PULL_WAL_META, pProgress);
+  code = strtcSendPullReq(pContext, STRIGGER_PULL_WAL_META, pProgress);
+  QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -2143,7 +2144,7 @@ static int32_t strtcProcessPullRsp(SSTriggerRealtimeContext *pContext, SSDataBlo
       pContext->curReaderIdx++;
       if (pContext->curReaderIdx == taosArrayGetSize(pTask->readerList)) {
         pContext->curReaderIdx = -1;
-        if (pTask->fillHistoryFirst) {
+        if (pTask->fillHistory && pTask->fillHistoryFirst) {
           QUERY_CHECK_NULL(pTask->pHistoryCtx, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
           pTask->pHistoryCtx->curReaderIdx = 0;
           code = sthcSendPullReq(pTask->pHistoryCtx, STRIGGER_PULL_FIRST_TS, pReader);
@@ -2453,14 +2454,14 @@ static int32_t sthcProcessPullRsp(SSTriggerHistoryContext *pContext, SSDataBlock
 
   switch (pReq->type) {
     case STRIGGER_PULL_FIRST_TS: {
-      SStreamTaskAddr       *pReader = TARRAY_GET_ELEM(pTask->readerList, pContext->curReaderIdx);
-      int32_t                numOfRows = blockDataGetNumOfRows(pResDataBlock);
+      SStreamTaskAddr *pReader = TARRAY_GET_ELEM(pTask->readerList, pContext->curReaderIdx);
+      int32_t          numOfRows = blockDataGetNumOfRows(pResDataBlock);
       for (int32_t i = 0; i < numOfRows; ++i) {
-        SColumnInfoData *pGidCol = TARRAY_GET_ELEM(pResDataBlock->pDataBlock, 0);
-        SColumnInfoData *pTsCol = TARRAY_GET_ELEM(pResDataBlock->pDataBlock, 1);
-        int64_t          gid = *(int64_t *)colDataGetNumData(pGidCol, i);
-        int64_t          ts = *(int64_t *)colDataGetNumData(pTsCol, i);
-        void *px = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
+        SColumnInfoData       *pGidCol = TARRAY_GET_ELEM(pResDataBlock->pDataBlock, 0);
+        SColumnInfoData       *pTsCol = TARRAY_GET_ELEM(pResDataBlock->pDataBlock, 1);
+        int64_t                gid = *(int64_t *)colDataGetNumData(pGidCol, i);
+        int64_t                ts = *(int64_t *)colDataGetNumData(pTsCol, i);
+        void                  *px = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
         SSTriggerHistoryGroup *pGroup = NULL;
         if (px == NULL) {
           pGroup = taosMemoryCalloc(1, sizeof(SSTriggerHistoryGroup));
@@ -2478,6 +2479,7 @@ static int32_t sthcProcessPullRsp(SSTriggerHistoryContext *pContext, SSDataBlock
         }
         pGroup->pTsdbMetaData = pResDataBlock;
       }
+      break;
     }
     default: {
       ST_TASK_ELOG("invalid trigger pull type %d for history calc", pReq->type);
@@ -2735,20 +2737,55 @@ _end:
 }
 
 int32_t streamTriggerProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp) {
-  int32_t                   code = 0;
-  int32_t                   lino = 0;
-  SStreamTriggerTask       *pTask = (SStreamTriggerTask *)pStreamTask;
-  SSTriggerRealtimeContext *pContext = pTask->pRealtimeCtx;
+  int32_t             code = 0;
+  int32_t             lino = 0;
+  SStreamTriggerTask *pTask = (SStreamTriggerTask *)pStreamTask;
 
   if (pRsp->msgType == TDMT_STREAM_TRIGGER_PULL_RSP) {
     SSTriggerPullRequest *pReq = pRsp->info.ahandle;
-    QUERY_CHECK_CONDITION(pReq == &pContext->pullReq.base, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
     switch (pReq->type) {
+      case STRIGGER_PULL_FIRST_TS:
+      case STRIGGER_PULL_TSDB_META:
+      case STRIGGER_PULL_TSDB_META_NEXT:
+      case STRIGGER_PULL_TSDB_TS_DATA:
+      case STRIGGER_PULL_TSDB_TRIGGER_DATA:
+      case STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT:
+      case STRIGGER_PULL_TSDB_CALC_DATA:
+      case STRIGGER_PULL_TSDB_CALC_DATA_NEXT: {
+        SSTriggerHistoryContext *pContext = pTask->pHistoryCtx;
+        QUERY_CHECK_CONDITION(pReq == &pContext->pullReq.base, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        if (pRsp->code == TSDB_CODE_SUCCESS) {
+          SSDataBlock *pResBlock = pContext->pullResDataBlock[pReq->type];
+          if (pResBlock == NULL) {
+            pResBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+            QUERY_CHECK_NULL(pResBlock, code, lino, _end, terrno);
+            pContext->pullResDataBlock[pReq->type] = pResBlock;
+          }
+          if (pRsp->contLen == 0) {
+            blockDataEmpty(pResBlock);
+          } else if (pReq->type == STRIGGER_PULL_FIRST_TS) {
+            code = tDeserializeSStreamTsResponse(pRsp->pCont, pRsp->contLen, pResBlock);
+            QUERY_CHECK_CODE(code, lino, _end);
+          } else {
+            const char *pEnd = pRsp->pCont;
+            code = blockDecode(pResBlock, pRsp->pCont, &pEnd);
+            QUERY_CHECK_CODE(code, lino, _end);
+            QUERY_CHECK_CONDITION(pEnd == pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+          }
+          code = sthcProcessPullRsp(pContext, pResBlock);
+          QUERY_CHECK_CODE(code, lino, _end);
+        } else {
+          // todo(kjq): handle error code
+        }
+        break;
+      }
       case STRIGGER_PULL_LAST_TS:
       case STRIGGER_PULL_WAL_META:
       case STRIGGER_PULL_WAL_TS_DATA:
       case STRIGGER_PULL_WAL_TRIGGER_DATA:
       case STRIGGER_PULL_WAL_CALC_DATA: {
+        SSTriggerRealtimeContext *pContext = pTask->pRealtimeCtx;
+        QUERY_CHECK_CONDITION(pReq == &pContext->pullReq.base, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
         if (pRsp->code == TSDB_CODE_SUCCESS) {
           SSDataBlock *pResBlock = pContext->pullResDataBlock[pReq->type];
           if (pResBlock == NULL) {
@@ -2772,14 +2809,20 @@ int32_t streamTriggerProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp) {
         } else {
           // todo(kjq): handle error code
         }
-        default:
-          break;
+        break;
+      }
+      default: {
+        ST_TASK_ELOG("invalid stream trigger pull type %d", pReq->type);
+        code = TSDB_CODE_INVALID_PARA;
+        QUERY_CHECK_CODE(code, lino, _end);
       }
     }
   } else if (pRsp->msgType == TDMT_STREAM_TRIGGER_CALC_RSP) {
-    SSTriggerCalcRequest *pReq = pRsp->info.ahandle;
+    SSTriggerCalcRequest     *pReq = pRsp->info.ahandle;
+    SSTriggerRealtimeContext *pContext = pTask->pRealtimeCtx;
     QUERY_CHECK_CONDITION(pReq == &pContext->calcReq, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
     if (pRsp->code == TSDB_CODE_SUCCESS) {
+      taosArrayClearP(pReq->params, tDestroySSTriggerCalcParam);
       code = strtcProcessCalcRsp(pContext, pRsp->code);
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
