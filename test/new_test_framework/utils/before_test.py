@@ -477,6 +477,7 @@ class BeforeTest:
         tdDnodes.sim.logDir = os.path.join(tdDnodes.sim.path,"psim","log")
         tdDnodes.sim.cfgDir = os.path.join(tdDnodes.sim.path,"psim","cfg")
         tdDnodes.sim.cfgPath = os.path.join(tdDnodes.sim.path,"psim","cfg","taos.cfg")
+        tdDnodes.sim.deploy(request.cls.updatecfgDict if hasattr(request.cls, "updatecfgDict") else {})
         tdDnodes.simDeployed = True
         tdDnodes.setLevelDisk(request.session.level, request.session.disk)
         for i in range(dnode_nums):
@@ -515,6 +516,8 @@ class BeforeTest:
        
     def update_cfg(self, updatecfgDict):
         for key, value in updatecfgDict.items():
+            if key == "clientCfg":
+                continue
             for dnode in self.request.session.yaml_data["settings"][0]["spec"]["dnodes"]:
                 dnode["config"][key] = value
         with open(os.path.join(self.root_dir, 'env', 'ci_default.yaml'), 'w') as file:
