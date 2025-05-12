@@ -1344,7 +1344,7 @@ static int32_t strtgDoCheck(SSTriggerRealtimeGroup *pGroup) {
               }
             }
             if (needFree) {
-              blockDataDestroy(pDataBlock);
+              blockDataCleanup(pDataBlock);
               pDataBlock = NULL;
             }
           }
@@ -1542,7 +1542,7 @@ static int32_t strtgDoCheck(SSTriggerRealtimeGroup *pGroup) {
             pGroup->nrowsInWindow++;
           }
           if (needFree) {
-            blockDataDestroy(pDataBlock);
+            blockDataCleanup(pDataBlock);
             pDataBlock = NULL;
           }
         }
@@ -1640,7 +1640,7 @@ static int32_t strtgDoCheck(SSTriggerRealtimeGroup *pGroup) {
             }
           }
           if (needFree) {
-            blockDataDestroy(pDataBlock);
+            blockDataCleanup(pDataBlock);
             pDataBlock = NULL;
           }
         }
@@ -2008,7 +2008,7 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
                                   endIdx - 1);
         QUERY_CHECK_CODE(code, lino, _end);
         if (needFree) {
-          blockDataDestroy(pDataBlock);
+          blockDataCleanup(pDataBlock);
           pDataBlock = NULL;
         }
       }
