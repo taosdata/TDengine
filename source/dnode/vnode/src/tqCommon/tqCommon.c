@@ -335,10 +335,10 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
 
   if (updateTasks < numOfTasks) {
     if (isLeader) {
-      tqDebug("vgId:%d closed tasks:%d, unclosed:%d, all tasks will be started when nodeEp update completed", vgId,
+      tqInfo("vgId:%d closed tasks:%d, unclosed:%d, all tasks will be started when nodeEp update completed", vgId,
               updateTasks, (numOfTasks - updateTasks));
     } else {
-      tqDebug("vgId:%d closed tasks:%d, unclosed:%d, follower not restart tasks", vgId, updateTasks,
+      tqInfo("vgId:%d closed tasks:%d, unclosed:%d, follower not restart tasks", vgId, updateTasks,
               (numOfTasks - updateTasks));
     }
   } else {
@@ -355,7 +355,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
       if (!restored) {
         tqDebug("vgId:%d vnode restore not completed, not start all tasks", vgId);
       } else {
-        tqDebug("vgId:%d all %d task(s) nodeEp updated and closed, transId:%d", vgId, numOfTasks, req.transId);
+        tqInfo("vgId:%d all %d task(s) nodeEp updated and closed, transId:%d", vgId, numOfTasks, req.transId);
 #if 0
       taosMSleep(5000);// for test purpose, to trigger the leader election
 #endif

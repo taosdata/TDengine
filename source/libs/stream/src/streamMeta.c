@@ -1587,7 +1587,7 @@ void streamMetaClearSetUpdateTaskListComplete(SStreamMeta* pMeta) {
   pInfo->activeTransId = -1;
   pInfo->completeTs = taosGetTimestampMs();
 
-  stDebug("vgId:%d set the nodeEp update complete, ts:%" PRId64
+  stInfo("vgId:%d set the nodeEp update complete, ts:%" PRId64
           ", complete transId:%d->%d, update Tasks:%d reset active transId",
           pMeta->vgId, pInfo->completeTs, prev, pInfo->completeTransId, num);
 }
