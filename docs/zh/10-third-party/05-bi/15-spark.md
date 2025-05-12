@@ -6,7 +6,7 @@ toc_max_heading_level: 5
 
 [Apache Spark](https://spark.apache.org/) 是开源大数据处理引擎，它基于内存计算，可用于批、流处理、机器学习、图计算等多种场景，支持 MapReduce 计算模型及丰富计算操作符、函数等，在大超大规模数据上具有强大的分布式处理计算能力。
 
-通过 `TDengine Java connector` 连接器，Spark 可快速读取 TDengine 数据， 利用 Spark 强大引擎，扩展 TDengine 数据处理计算能力，同时通过 `TDengine Java connector` 连接器， Spark 亦可把数据写入 TDengine 及从 TDengine 订阅数据。
+通过 `TDengine Java connector` 连接器，Spark 可快速读取 TDengine 数据，利用 Spark 强大引擎，扩展 TDengine 数据处理计算能力，同时通过 `TDengine Java connector` 连接器，Spark 亦可把数据写入 TDengine 及从 TDengine 订阅数据。
 
 ## 前置条件 
 
@@ -25,7 +25,7 @@ jdbc:TAOS-WS://[host_name]:[port]/[database_name]?[user={user}|&password={passwo
 
 详细参数见：[URL 参数介绍](../../../reference/connector/java/#url-规范)。
 
-driverClass 指定为 “com.taosdata.jdbc.ws.WebSocketDriver”。
+driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”。
 
 以下示例创建 Spark 实例并连接到本机 TDengine 服务：
 ``` java
@@ -55,14 +55,14 @@ driverClass 指定为 “com.taosdata.jdbc.ws.WebSocketDriver”。
 
 数据写入使用参数绑定，分三步完成：
 
-**第 1 步**， 创建连接。
+1. 创建连接。
 ``` java
   // create connect
   String url = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata";
   Connection connection = DriverManager.getConnection(url);
 ```
 
-**第 2 步**， 绑定数据并提交。
+2. 绑定数据并提交。
 下面示例直接写入超级表，并使用了批量绑定方式，提高写入效率。
 ``` java
   int childTb    = 1;
@@ -101,7 +101,7 @@ driverClass 指定为 “com.taosdata.jdbc.ws.WebSocketDriver”。
 
 ```
 
-**第 3 步**， 关闭连接。
+3. 关闭连接。
 ``` java
  // close
  connection.close();
