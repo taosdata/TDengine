@@ -14,6 +14,7 @@
 
 #include "transComm.h"
 
+
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
 #ifndef TD_ASTRA_RPC
