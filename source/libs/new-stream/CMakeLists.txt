@@ -8,6 +8,11 @@ target_include_directories(
     PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
+if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
+  DEP_ext_rocksdb(new-stream)
+else()
+  target_link_libraries(new-stream PRIVATE rocksdb)
+endif()
 
 target_link_libraries(
     new-stream

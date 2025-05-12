@@ -390,7 +390,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   }
 
   if (NULL == pInfo->runnerTopIdx) {
-    mstDebug("no runner topIdx, skip set trigger's runner list, num:%d", taosArrayGetSize(pInfo->runnerList));
+    mstDebug("no runner topIdx, skip set trigger's runner list, num:%d", (int32_t)taosArrayGetSize(pInfo->runnerList));
     return code;
   }
 
@@ -2693,7 +2693,7 @@ void msmReDeploySnodeRunnerTasks(SMnode *pMnode, SArray* pList) {
   for (int32_t i = 0; i < taskNum; ++i) {
     SStmTaskStatusExt* pExt = taosArrayGet(pList, i);
     if (lastStreamId == pExt->streamId && lastDeployId == pExt->status->id.deployId) {
-      mstDebug("TASK:%" PRId64 " deployId:%d stream already exists in streamRunners, ignore it", pExt->status->id.deployId, pExt->status->id.taskId);
+      mstDebug("deployId:%d stream already exists in streamRunners, ignore it", pExt->status->id.deployId);
       continue;
     }
     

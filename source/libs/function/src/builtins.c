@@ -5781,7 +5781,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "forecast",
     .type = FUNCTION_TYPE_FORECAST,
     .classification = FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
+                      FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = -1,
                    .paramInfoPattern = 1,

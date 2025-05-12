@@ -7776,7 +7776,6 @@ static int32_t setTableVgroupsFromEqualTbnameCond(STranslateContext* pCxt, SSele
 }
 
 static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  int32_t code = TSDB_CODE_SUCCESS;
   pCxt->currClause = SQL_CLAUSE_WHERE;
   int32_t code = translateExpr(pCxt, &pSelect->pWhere);
   if (TSDB_CODE_SUCCESS == code) {
