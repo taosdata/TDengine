@@ -224,9 +224,8 @@ jobs:
           pgrep -l taos
           sleep 6     # NOTE: wait for taosd initialization to complete
           pgrep -l taos
-          taos -h $(hostname)  -s  "set rpcDebugFlag 135; show databases"  || true
-          cat /var/log/taos/taos.log*
-          taos  -h $(hostname)  -s "show dnodes"
+          taos -h $(hostname)  -s  "show databases"
+          taos -h $(hostname)  -s "show dnodes"
 
       - name: Run tests with taosBenchmark
         if: runner.os != 'Windows'
