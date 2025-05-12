@@ -450,7 +450,7 @@ int32_t scanWalOneVer(SVnode* pVnode, void* pTableList, SSDataBlock* pBlock, SSD
       continue;
     }
     STREAM_CHECK_RET_GOTO(retrieveWalData(pSubmitTbData, pTableList, pBlock, schemas, window));
-    printDataBlock(pBlock, "wal data block", "task id");
+    printDataBlock(pBlock, "scanWalOneVer", "task id");
     blockDataMerge(pBlockRet, pBlock);
     blockDataCleanup(pBlock);
   }
@@ -1095,7 +1095,53 @@ static int32_t vnodeProcessStreamWalCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg, S
 
   vDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
 
+  printDataBlock(pBlock, "vnodeProcessStreamWalCalcDataReq", "task id");
   STREAM_CHECK_RET_GOTO(buildRsp(pBlock, &buf, &size));
+
+end:
+  PRINT_LOG_END(code, lino);
+  SRpcMsg rsp = {
+      .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
+  tmsgSendRsp(&rsp);
+
+  blockDataDestroy(pBlock);
+  // if (sStreamReaderInfo->pConditions != NULL) {
+  //   taosArrayDestroy(schemas);
+  // }
+  return code;
+}
+
+static int32_t vnodeProcessStreamGroupColValueReq(SVnode* pVnode, SRpcMsg* pMsg, SSTriggerPullRequestUnion* req) {
+  int32_t      code = 0;
+  int32_t      lino = 0;
+  void*        buf = NULL;
+  size_t       size = 0;
+  SSDataBlock* pBlock = NULL;
+  // SArray*      schemas = NULL;
+
+  vDebug("vgId:%d %s start, request gid:%" PRId64, TD_VID(pVnode),
+         __func__, req->groupColValueReq.gid);
+
+  SStreamTriggerReaderInfo* sStreamReaderInfo = qStreamGetReaderInfo(req->base.streamId, req->base.readerTaskId);
+  STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
+  // STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->calcCols, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
+
+  // if (sStreamReaderInfo->pConditions != NULL) {
+  //   schemas = taosArrayDup(sStreamReaderInfo->calcCols, NULL);
+  //   STREAM_CHECK_RET_GOTO(mergeConditionToSchemas(sStreamReaderInfo->pConditions, schemas));
+  // } else {
+  //   schemas = sStreamReaderInfo->calcCols;
+  // }
+
+  // STimeWindow window = {.skey = req->walCalcDataReq.skey, .ekey = req->walCalcDataReq.ekey};
+  // STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, sStreamReaderInfo->calcResBlock,
+  //                                         sStreamReaderInfo->calcSchema, req->walCalcDataReq.ver,
+  //                                         req->walCalcDataReq.uid, &window, &pBlock));
+
+  // vDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
+
+  // printDataBlock(pBlock, "vnodeProcessStreamWalCalcDataReq", "task id");
+  // STREAM_CHECK_RET_GOTO(buildRsp(pBlock, &buf, &size));
 
 end:
   PRINT_LOG_END(code, lino);
@@ -1206,6 +1252,9 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
         break;
       case STRIGGER_PULL_WAL_CALC_DATA:
         code = vnodeProcessStreamWalCalcDataReq(pVnode, pMsg, &req);
+        break;
+      case STRIGGER_PULL_GROUP_COL_VALUE:
+        code = vnodeProcessStreamGroupColValueReq(pVnode, pMsg, &req);
         break;
       default:
         vError("unknown inner msg type:%d in stream reader queue", req.base.type);
