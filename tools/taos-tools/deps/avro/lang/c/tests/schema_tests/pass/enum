@@ -1,0 +1,4 @@
+{ "type": "enum",
+  "name": "three_stooges",
+  "symbols" : [ "Moe", "Larry", "Curly" ]
+}

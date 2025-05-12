@@ -1,0 +1,17 @@
+
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create database d
+sql use d
+sql create table st(ts timestamp, v int) tags(lj json)
+sql insert into ct1 using st tags('{"instance":"200"}') values(now, 1)(now+1s, 2);
+sql insert into ct2 using st tags('{"instance":"200"}') values(now+2s, 3)(now+3s, 4);
+sql select to_char(ts, 'yyyy-mm-dd hh24:mi:ss') as time, irate(v) from st group by to_char(ts, 'yyyy-mm-dd hh24:mi:ss'), lj->'instance' order by time;
+print $data01
+if $data01 != 0.000000000 then
+  return -1
+endi
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

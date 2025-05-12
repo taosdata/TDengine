@@ -1,120 +1,352 @@
-[![TDengine](TDenginelogo.png)](https://www.taosdata.com)
+<p align="center">
+  <a href="https://tdengine.com" target="_blank">
+  <img
+    src="docs/assets/tdengine.svg"
+    alt="TDengine"
+    width="500"
+  />
+  </a>
+</p>
 
-# What is TDengine？
+[![TDengine Release Build](https://github.com/taosdata/TDengine/actions/workflows/tdengine-release-build.yml/badge.svg)](https://github.com/taosdata/TDengine/actions/workflows/tdengine-release-build.yml)
+[![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=3.0)](https://coveralls.io/github/taosdata/TDengine?branch=3.0)
+[![GitHub commit activity](https://img.shields.io/github/commit-activity/m/taosdata/tdengine)](https://github.com/feici02/TDengine/commits/main/)
+<br />
+[![GitHub Release](https://img.shields.io/github/v/release/taosdata/tdengine)](https://github.com/taosdata/TDengine/releases)
+[![GitHub License](https://img.shields.io/github/license/taosdata/tdengine)](https://github.com/taosdata/TDengine/blob/main/LICENSE)
+[![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
+<br />
+[![Twitter Follow](https://img.shields.io/twitter/follow/tdenginedb?label=TDengine&style=social)](https://twitter.com/tdenginedb)
+[![YouTube Channel](https://img.shields.io/badge/Subscribe_@tdengine--white?logo=youtube&style=social)](https://www.youtube.com/@tdengine)
+[![Discord Community](https://img.shields.io/badge/Join_Discord--white?logo=discord&style=social)](https://discord.com/invite/VZdSuUg4pS)
+[![LinkedIn](https://img.shields.io/badge/Follow_LinkedIn--white?logo=linkedin&style=social)](https://www.linkedin.com/company/tdengine)
+[![StackOverflow](https://img.shields.io/badge/Ask_StackOverflow--white?logo=stackoverflow&style=social&logoColor=orange)](https://stackoverflow.com/questions/tagged/tdengine)
 
-TDengine is an open-sourced big data platform under [GNU AGPL v3.0](http://www.gnu.org/licenses/agpl-3.0.html), designed and optimized for the Internet of Things (IoT), Connected Cars, Industrial IoT, and IT Infrastructure and Application Monitoring. Besides the 10x faster time-series database, it provides caching, stream computing, message queuing and other functionalities to reduce the complexity and cost of development and operation.
+English | [简体中文](README-CN.md) | [TDengine Cloud](https://cloud.tdengine.com) | [Learn more about TSDB](https://tdengine.com/time-series-database/)
 
-- **10x Faster on Insert/Query Speeds**: Through the innovative design on storage, on a single-core machine, over 20K requests can be processed, millions of data points can be ingested, and over 10 million data points can be retrieved in a second. It is 10 times faster than other databases.
+# Table of Contents
 
-- **1/5 Hardware/Cloud Service Costs**: Compared with typical big data solutions, less than 1/5 of computing resources are required. Via column-based storage and tuned compression algorithms for different data types, less than 1/10 of storage space is needed.
+1. [Introduction](#1-introduction)
+1. [Documentation](#2-documentation)
+1. [Prerequisites](#3-prerequisites)
+    - [3.1 Prerequisites On Linux](#31-prerequisites-on-linux)
+    - [3.2 Prerequisites On macOS](#32-prerequisites-on-macos)
+    - [3.3 Prerequisites On Windows](#33-prerequisites-on-windows)
+    - [3.4 Clone the repo](#34-clone-the-repo) 
+1. [Building](#4-building)
+    - [4.1 Build on Linux](#41-build-on-linux)
+    - [4.2 Build on macOS](#42-build-on-macos)
+    - [4.3 Build On Windows](#43-build-on-windows) 
+1. [Packaging](#5-packaging)
+1. [Installation](#6-installation)
+    - [6.1 Install on Linux](#61-install-on-linux)
+    - [6.2 Install on macOS](#62-install-on-macos)
+    - [6.3 Install on Windows](#63-install-on-windows)
+1. [Running](#7-running)
+    - [7.1 Run TDengine on Linux](#71-run-tdengine-on-linux)
+    - [7.2 Run TDengine on macOS](#72-run-tdengine-on-macos)
+    - [7.3 Run TDengine on Windows](#73-run-tdengine-on-windows)
+1. [Testing](#8-testing)
+1. [Releasing](#9-releasing)
+1. [Workflow](#10-workflow)
+1. [Coverage](#11-coverage)
+1. [Contributing](#12-contributing)
 
-- **Full Stack for Time-Series Data**: By integrating a database with message queuing, caching, and stream computing features together, it is no longer necessary to integrate Kafka/Redis/HBase/Spark or other software. It makes the system architecture much simpler and more robust.
+# 1. Introduction
 
-- **Powerful Data Analysis**: Whether it is 10 years or one minute ago, data can be queried just by specifying the time range. Data can be aggregated over time, multiple time streams or both. Ad Hoc queries or analyses can be executed via TDengine shell, Python, R or Matlab.
+TDengine is an open source, high-performance, cloud native and AI powered [time-series database](https://tdengine.com/tsdb/) designed for Internet of Things (IoT), Connected Cars, and Industrial IoT. It enables efficient, real-time data ingestion, processing, and analysis of TB and even PB scale data per day, generated by billions of sensors and data collectors. TDengine differentiates itself from other time-series databases with the following advantages:
 
-- **Seamless Integration with Other Tools**: Telegraf, Grafana, Matlab, R, and other tools can be integrated with TDengine without a line of code. MQTT, OPC, Hadoop, Spark, and many others will be integrated soon.
+- **[High Performance](https://tdengine.com/tdengine/high-performance-time-series-database/)**: TDengine is the only time-series database to solve the high cardinality issue to support billions of data collection points while out performing other time-series databases for data ingestion, querying and data compression.
 
-- **Zero Management, No Learning Curve**: It takes only seconds to download, install, and run it successfully; there are no other dependencies. Automatic partitioning on tables or DBs. Standard SQL is used, with C/C++, Python, JDBC, Go and RESTful connectors.
+- **[Simplified Solution](https://tdengine.com/tdengine/simplified-time-series-data-solution/)**: Through built-in caching, stream processing, data subscription and AI agent features, TDengine provides a simplified solution for time-series data processing. It reduces system design complexity and operation costs significantly.
 
-# Documentation
-For user manual, system design and architecture, engineering blogs, refer to [TDengine Documentation](https://www.taosdata.com/en/documentation/)
- for details. The documentation from our website can also be downloaded locally from *documentation/tdenginedocs-en* or *documentation/tdenginedocs-cn*.
+- **[Cloud Native](https://tdengine.com/tdengine/cloud-native-time-series-database/)**: Through native distributed design, sharding and partitioning, separation of compute and storage, RAFT, support for kubernetes deployment and full observability, TDengine is a cloud native Time-Series Database and can be deployed on public, private or hybrid clouds.
 
-# Building
-At the moment, TDengine only supports building and running on Linux systems. You can choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) or from the source code. This quick guide is for installation from the source only.
+- **[AI Powered](https://tdengine.com/tdengine/tdgpt/)**: Through the built in AI agent TDgpt, TDengine can connect to a variety of time series foundation model, large language model, machine learning and traditional algorithms to provide time series data forecasting, anomly detection, imputation and classification. 
 
-To build TDengine, use [CMake](https://cmake.org/) 2.8 or higher versions in the project directory. Install CMake for example on Ubuntu:
+- **[Ease of Use](https://tdengine.com/tdengine/easy-time-series-data-platform/)**: For administrators, TDengine significantly reduces the effort to deploy and maintain. For developers, it provides a simple interface, simplified solution and seamless integrations for third party tools. For data users, it gives easy data access.
+
+- **[Easy Data Analytics](https://tdengine.com/tdengine/time-series-data-analytics-made-easy/)**: Through super tables, storage and compute separation, data partitioning by time interval, pre-computation and AI agent, TDengine makes it easy to explore, format, and get access to data in a highly efficient way.
+
+- **[Open Source](https://tdengine.com/tdengine/open-source-time-series-database/)**: TDengine’s core modules, including cluster feature and AI agent, are all available under open source licenses. It has gathered 23.7k stars on GitHub. There is an active developer community, and over 730k running instances worldwide.
+
+For a full list of TDengine competitive advantages, please [check here](https://tdengine.com/tdengine/). The easiest way to experience TDengine is through [TDengine Cloud](https://cloud.tdengine.com). For the latest TDengine component TDgpt, please refer to [TDgpt README](./tools/tdgpt/README.md) for details.
+
+# 2. Documentation
+
+For user manual, system design and architecture, please refer to [TDengine Documentation](https://docs.tdengine.com) ([TDengine 文档](https://docs.taosdata.com))
+
+You can choose to install TDengine via [container](https://docs.tdengine.com/get-started/deploy-in-docker/), [installation package](https://docs.tdengine.com/get-started/deploy-from-package/), [Kubernetes](https://docs.tdengine.com/operations-and-maintenance/deploy-your-cluster/#kubernetes-deployment) or try [fully managed service](https://cloud.tdengine.com/) without installation. This quick guide is for developers who want to contribute, build, release and test TDengine by themselves. 
+
+For contributing/building/testing TDengine Connectors, please check the following repositories: [JDBC Connector](https://github.com/taosdata/taos-connector-jdbc), [Go Connector](https://github.com/taosdata/driver-go), [Python Connector](https://github.com/taosdata/taos-connector-python), [Node.js Connector](https://github.com/taosdata/taos-connector-node), [C# Connector](https://github.com/taosdata/taos-connector-dotnet), [Rust Connector](https://github.com/taosdata/taos-connector-rust).
+
+# 3. Prerequisites
+
+At the moment, TDengine server supports running on Linux/MacOS systems. Any application can also choose the RESTful interface provided by taosAdapter to connect the taosd service. TDengine supports X64/ARM64 CPU, and it will support MIPS64, Alpha64, ARM32, RISC-V and other CPU architectures in the future. Right now we don't support build with cross-compiling environment.
+
+Starting from version 3.1.0.0, TDengine supports the Windows system exclusively in its Enterprise edition.
+
+If you want to compile taosAdapter or taosKeeper, you need to install Go 1.23 or above.
+
+## 3.1 Prerequisites on Linux
+
+<details>
+
+<summary>Install required tools on Linux</summary>
+
+### For Ubuntu 18.04、20.04、22.04
+
+```bash
+sudo apt-get update
+sudo apt-get install -y gcc cmake build-essential git libjansson-dev \
+  libsnappy-dev liblzma-dev zlib1g-dev pkg-config
 ```
-sudo apt-get install -y cmake build-essential
+
+### For CentOS 8
+
+```bash
+sudo yum update
+yum install -y epel-release gcc gcc-c++ make cmake git perl dnf-plugins-core 
+yum config-manager --set-enabled powertools
+yum install -y zlib-static xz-devel snappy-devel jansson-devel pkgconfig libatomic-static libstdc++-static 
 ```
 
-To compile and package the JDBC driver source code, you should have a Java jdk-8 or higher and Apache Maven 2.7 or higher installed. 
-To install openjdk-8 on Ubuntu:
-```
-sudo apt-get install openjdk-8-jdk
-```
-To install Apache Maven on Ubuntu:
-```
-sudo apt-get install maven
+</details>
+
+## 3.2 Prerequisites on macOS
+
+<details>
+
+<summary>Install required tools on macOS</summary>
+
+Please install the dependencies with [brew](https://brew.sh/).
+
+```bash
+brew install argp-standalone gflags pkgconfig
 ```
 
-Build TDengine:
-```cmd
+</details>
 
-mkdir build && cd build
+## 3.3 Prerequisites on Windows
+
+Not available for community edition.
+
+## 3.4 Clone the repo
+
+Clone the repository to the target machine:
+
+```bash
+git clone https://github.com/taosdata/TDengine.git
+cd TDengine
+```
+
+</details>
+
+# 4. Building
+
+TDengine provide a few useful tools such as taosBenchmark (was named taosdemo) and taosdump. They were part of TDengine. By default, TDengine compiling does not include taosTools. You can use `cmake .. -DBUILD_TOOLS=true` to make them be compiled with TDengine.
+
+TDengine requires [GCC](https://gcc.gnu.org/) 9.3.1 or higher and [CMake](https://cmake.org/) 3.18.0 or higher for building.
+
+## 4.1 Build on Linux
+
+<details>
+
+<summary>Detailed steps to build on Linux</summary>
+
+You can run the bash script `build.sh` to build both TDengine and taosTools including taosBenchmark and taosdump as below:
+
+```bash
+./build.sh
+```
+
+It equals to execute following commands:
+
+```bash
+mkdir debug && cd debug
+cmake .. -DBUILD_TOOLS=true -DBUILD_CONTRIB=true
+make
+```
+
+If you want to compile taosAdapter, you need to add the `-DBUILD_HTTP=false` option.
+
+If you want to compile taosKeeper, you need to add the `-DBUILD_KEEPER=true` option.
+
+You can use Jemalloc as memory allocator instead of glibc:
+
+```bash
+cmake .. -DJEMALLOC_ENABLED=ON
+```
+
+TDengine build script can auto-detect the host machine's architecture on x86, x86-64, arm64 platform.
+You can also specify architecture manually by CPUTYPE option:
+
+```bash
+cmake .. -DCPUTYPE=aarch64 && cmake --build .
+```
+
+</details>
+
+## 4.2 Build on macOS
+
+<details>
+
+<summary>Detailed steps to build on macOS</summary>
+
+Please install XCode command line tools and cmake. Verified with XCode 11.4+ on Catalina and Big Sur.
+
+```shell
+mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
 
-# Quick Run
-To quickly start a TDengine server after building, run the command below in terminal:
-```cmd
-./build/bin/taosd -c test/cfg
-```
-In another terminal, use the TDengine shell to connect the server:
-```
-./build/bin/taos -c test/cfg
-```
-option "-c test/cfg" specifies the system configuration file directory. 
+If you want to compile taosAdapter, you need to add the `-DBUILD_HTTP=false` option.
 
-# Installing
+If you want to compile taosKeeper, you need to add the `-DBUILD_KEEPER=true` option.
+
+</details>
+
+## 4.3 Build on Windows
+
+Not available for community edition.
+
+# 5. Packaging
+
+The TDengine community installer can NOT be created by this repository only, due to some component dependencies. We are still working on this improvement.
+
+# 6. Installation
+
+## 6.1 Install on Linux
+
+<details>
+
+<summary>Detailed steps to install on Linux</summary>
+
 After building successfully, TDengine can be installed by:
-```cmd
-make install
-```
-Users can find more information about directories installed on the system in the [directory and files](https://www.taosdata.com/en/documentation/administrator/#Directory-and-Files) section. It should be noted that installing from source code does not configure service management for TDengine.
-Users can also choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) for it.
 
-To start the service after installation, in a terminal, use:
-```cmd
-taosd
+```bash
+sudo make install
 ```
 
-Then users can use the [TDengine shell](https://www.taosdata.com/en/getting-started/#TDengine-Shell) to connect the TDengine server. In a terminal, use:
-```cmd
+Installing from source code will also configure service management for TDengine. Users can also choose to [install from packages](https://docs.tdengine.com/get-started/deploy-from-package/) for it.
+
+</details>
+
+## 6.2 Install on macOS
+
+<details>
+
+<summary>Detailed steps to install on macOS</summary>
+
+After building successfully, TDengine can be installed by:
+
+```bash
+sudo make install
+```
+
+</details>
+
+## 6.3 Install on Windows
+
+Not available for community edition.
+
+# 7. Running
+
+## 7.1 Run TDengine on Linux
+
+<details>
+
+<summary>Detailed steps to run on Linux</summary>
+
+To start the service after installation on linux, in a terminal, use:
+
+```bash
+sudo systemctl start taosd
+```
+
+Then users can use the TDengine CLI to connect the TDengine server. In a terminal, use:
+
+```bash
 taos
 ```
 
-If TDengine shell connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
+If TDengine CLI connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
 
-# Try TDengine
-It is easy to run SQL commands from TDengine shell which is the same as other SQL databases.
-```sql
-create database db;
-use db;
-create table t (ts timestamp, a int);
-insert into t values ('2019-07-15 00:00:00', 1);
-insert into t values ('2019-07-15 01:00:00', 2);
-select * from t;
-drop database db;
+If you don't want to run TDengine as a service, you can run it in current shell. For example, to quickly start a TDengine server after building, run the command below in terminal: (We take Linux as an example, command on Windows will be `taosd.exe`)
+
+```bash
+./build/bin/taosd -c test/cfg
 ```
 
-# Developing with TDengine
-### Official Connectors
+In another terminal, use the TDengine CLI to connect the server:
 
-TDengine provides abundant developing tools for users to develop on TDengine. Follow the links below to find your desired connectors and relevant documentation.
+```bash
+./build/bin/taos -c test/cfg
+```
 
-- [Java](https://www.taosdata.com/en/documentation/connector/#Java-Connector)
-- [C/C++](https://www.taosdata.com/en/documentation/connector/#C/C++-Connector)
-- [Python](https://www.taosdata.com/en/documentation/connector/#Python-Connector)
-- [Go](https://www.taosdata.com/en/documentation/connector/#Go-Connector)
-- [RESTful API](https://www.taosdata.com/en/documentation/connector/#RESTful-Connector)
-- [Node.js](https://www.taosdata.com/en/documentation/connector/#Node.js-Connector)
+Option `-c test/cfg` specifies the system configuration file directory.
 
-### Third Party Connectors
+</details>
 
-The TDengine community has also kindly built some of their own connectors! Follow the links below to find the source code for them.
+## 7.2 Run TDengine on macOS
 
-- [Rust Connector](https://github.com/taosdata/TDengine/tree/master/tests/examples/rust)
-- [.Net Core Connector](https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos)
+<details>
 
-# TDengine Roadmap
-- Support event-driven stream computing
-- Support user defined functions
-- Support MQTT connection
-- Support OPC connection
-- Support Hadoop, Spark connections
-- Support Tableau and other BI tools
+<summary>Detailed steps to run on macOS</summary>
 
-# Contribute to TDengine
+To start the service after installation on macOS, double-click the /applications/TDengine to start the program, or in a terminal, use:
 
-Please follow the [contribution guidelines](CONTRIBUTING.md) to contribute to the project.
+```bash
+sudo launchctl start com.tdengine.taosd
+```
+
+Then users can use the TDengine CLI to connect the TDengine server. In a terminal, use:
+
+```bash
+taos
+```
+
+If TDengine CLI connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
+
+</details>
+
+
+## 7.3 Run TDengine on Windows
+
+Not available for community edition.
+
+# 8. Testing
+
+For how to run different types of tests on TDengine, please see [Testing TDengine](./tests/README.md).
+
+# 9. Releasing
+
+For the complete list of TDengine Releases, please see [Releases](https://github.com/taosdata/TDengine/releases).
+
+# 10. Workflow
+
+TDengine build check workflow can be found in this [Github Action](https://github.com/taosdata/TDengine/actions/workflows/taosd-ci-build.yml). More workflows will be available soon.
+
+# 11. Coverage
+
+Latest TDengine test coverage report can be found on [coveralls.io](https://coveralls.io/github/taosdata/TDengine)
+
+<details>
+
+<summary>How to run the coverage report locally?</summary>
+To create the test coverage report (in HTML format) locally, please run following commands:
+
+```bash
+cd tests
+bash setup-lcov.sh -v 1.16 && ./run_local_coverage.sh -b main -c task 
+# on main branch and run cases in longtimeruning_cases.task 
+# for more information about options please refer to ./run_local_coverage.sh -h
+```
+> **NOTE:**
+> Please note that the -b and -i options will recompile TDengine with the -DCOVER=true option, which may take a amount of time.
+
+</details>
+
+# 12. Contributing
+
+Please follow the [contribution guidelines](CONTRIBUTING.md) to contribute to TDengine.

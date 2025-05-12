@@ -1,0 +1,58 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = sav_db
+$tbPrefix = sav_tb
+$stbPrefix = sav_stb
+$tbNum = 20
+$rowNum = 10
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 600000
+print ========== alter.sim
+$i = 0
+$db = $dbPrefix
+$stb = $stbPrefix
+
+sql drop database if exists $db
+sql create database $db
+sql use $db
+print ====== create tables
+sql create table $stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 smallint, c6 tinyint, c7 bool, c8 binary(10), c9 nchar(10)) tags(t1 int, t2 int)
+
+$i = 0
+$ts = $ts0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $stb tags( $i , 0 )
+  sql insert into $tb (ts, c1) values (now, 1);
+  $i = $i + 1
+endw
+
+print ====== table created
+
+#### select distinct tag
+sql select distinct t1 from $stb
+if $rows != $tbNum then
+  return -1
+endi
+
+#### select distinct tag
+sql select distinct t2 from $stb
+if $rows != 1 then
+  print $rows
+  return -1
+endi
+
+#### unsupport sql
+sql_error select distinct t1, t2 from &stb
+
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -1,0 +1,21 @@
+[Unit]
+Description=taosd - TDengine time series database core service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/taosd
+ExecStartPre=/usr/local/taos/bin/startPre.sh
+TimeoutStopSec=1000000s
+LimitNOFILE=1048576
+LimitNPROC=infinity
+LimitCORE=infinity
+TimeoutStartSec=0
+StandardOutput=null
+Restart=always
+StartLimitBurst=3
+StartLimitInterval=900s
+
+[Install]
+WantedBy=multi-user.target

@@ -1,10 +1,10 @@
 #!/bin/bash
 #
-# taosd      This shell script takes care of starting and stopping TDEngine.
+# taosd      This shell script takes care of starting and stopping TDengine.
 #
 # chkconfig: 2345 99 01
-# description: TDEngine is a districuted, scalable, high-performance Time Series Database
-#              (TSDB). More than just a pure database, TDEngine also provides the ability
+# description: TDengine is a districuted, scalable, high-performance Time Series Database
+#              (TSDB). More than just a pure database, TDengine also provides the ability
 #              to do stream computing, aggregation etc.
 #
 #
@@ -13,8 +13,8 @@
 # Required-Start: $network $local_fs $remote_fs
 # Required-Stop: $network $local_fs $remote_fs
 # Short-Description: start and stop taosd
-# Description: TDEngine is a districuted, scalable, high-performance Time Series Database
-#              (TSDB). More than just a pure database, TDEngine also provides the ability
+# Description: TDengine is a districuted, scalable, high-performance Time Series Database
+#              (TSDB). More than just a pure database, TDengine also provides the ability
 #              to do stream computing, aggregation etc.
 ### END INIT INFO
 
@@ -26,7 +26,7 @@ MAX_OPEN_FILES=65535
 
 # Default program options
 NAME=taosd
-PROG=/usr/local/bin/taos/taosd
+PROG=/usr/local/taos/bin/taosd
 USER=root
 GROUP=root
 

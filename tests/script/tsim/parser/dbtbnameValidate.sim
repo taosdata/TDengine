@@ -1,0 +1,118 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ========== db name and table name check in create and drop, describe
+sql create database abc keep 36500
+sql_error create database 'abc123'
+sql_error create database '_ab1234'
+sql_error create database 'ABC123'
+sql_error create database '_ABC123'
+sql_error create database 'aABb123 '
+sql_error create database ' xyz '
+sql_error create database ' XYZ '
+
+sql_error use 'abc123'
+sql_error use '_ab1234'
+sql_error use 'ABC123'
+sql_error use '_ABC123'
+sql_error use 'aABb123'
+sql_error use ' xyz '
+sql_error use ' XYZ '
+
+sql_error drop database if exists 'abc123'
+sql_error drop database if exists '_ab1234'
+sql_error drop database if exists 'ABC123'
+sql_error drop database if exists '_ABC123'
+sql_error drop database if exists 'aABb123'
+sql_error drop database if exists ' xyz '
+sql_error drop database if exists ' XYZ '
+
+sql use abc
+sql create table  abc.cc    (ts timestamp, c int)
+sql_error create table 'abc.Dd'   (ts timestamp, c int)
+sql_error create table 'abc'.ee   (ts timestamp, c int)
+sql_error create table 'abc'.'FF' (ts timestamp, c int)
+sql_error create table  abc.'gG'  (ts timestamp, c int)
+sql_error create table  table.'a1'  (ts timestamp, c int)
+sql_error create table 'table'.'b1' (ts timestamp, c int)
+sql_error create table 'table'.'b1' (ts timestamp, c int)
+
+sql create table mt (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 smallint, c6 tinyint, c7 bool, c8 binary(10), c9 nchar(10)) tags(t1 int, t2 nchar(20), t3 binary(20), t4 bigint, t5 smallint, t6 double)
+sql create table sub_001 using mt tags ( 1 , 'tag_nchar' , 'tag_bianry' , 4 , 5 , 6.1 )
+sql_error create table sub_002 using mt tags( 2 , tag_nchar , tag_bianry , 4 , 5 , 6.2 )
+sql insert into sub_dy_tbl using mt tags ( 3 , 'tag_nchar' , 'tag_bianry' , 4 , 5 , 6.3 ) values (now, 1, 2, 3.01, 4.02, 5, 6, true, 'binary_8', 'nchar_9')
+
+sql describe abc.cc
+sql_error describe 'abc.Dd'
+sql_error describe 'abc'.ee
+sql_error describe 'abc'.'FF'
+sql_error describe abc.'gG'
+
+sql describe cc
+sql_error describe 'Dd'
+sql_error describe ee
+sql_error describe 'FF'
+sql_error describe 'gG'
+
+sql describe mt
+sql describe sub_001
+sql describe sub_dy_tbl
+
+sql_error describe Dd
+sql_error describe FF
+sql_error describe gG
+
+sql drop table abc.cc
+sql_error drop table  'abc.Dd'
+sql_error drop table  'abc'.ee
+sql_error drop table  'abc'.'FF'
+sql_error drop table  abc.'gG'
+
+sql drop table   sub_001
+sql drop table   sub_dy_tbl
+sql drop table   mt
+
+print ========== insert data by multi-format
+sql create table abc.tk_mt (ts timestamp, a int, b binary(16), c bool, d float, e double, f nchar(16)) tags (t1 int, t2 binary(16))
+
+sql create table abc.tk_subt001 using tk_mt tags(1, 'subt001')
+sql insert into abc.tk_subt001                  values (now-1w, 3, 'binary_3', true,  1.003, 2.003, 'nchar_3')
+sql insert into abc.tk_subt001 (ts, a, c, e, f) values (now-1d, 4,             false,        2.004, 'nchar_4')
+sql insert into abc.tk_subt001 (ts, a, c, e, f) values (now-1h, 5,             false,        2.005, 'nchar_5')
+sql insert into abc.tk_subt001 (ts, b, d)       values (now-1m,    'binary_6',        1.006)
+sql insert into abc.tk_subt001 (ts, b, d)       values (now-1s,    'binary_7',        1.007)
+sql insert into abc.tk_subt001 (ts, b, d)       values (now-1a,    'binary_8',        1.008)
+sql select * from tk_subt001
+if $rows != 6 then
+  print ==== expect rows is 6, but actually is $rows
+  return -1
+endi
+
+sql insert into abc.tk_subt002 using tk_mt tags (22, 'subt002x')   values (now+1s, 2001, 'binary_2001', true,  2001.001, 2001.001, 'nchar_2001')
+sql insert into abc.tk_subt002 using tk_mt tags (2, 'subt002')   values (now+1m, 2002, 'binary_2002', false, 2002.001, 2002.001, 'nchar_2002')
+sql insert into abc.tk_subt002 using tk_mt tags (2, 'subt002')   values (now+1h, 2003, 'binary_2003', false, 2003.001, 2003.001, 'nchar_2003')
+sql insert into abc.tk_subt002 using tk_mt tags (2, 'subt002')   values (now+1d, 2004, 'binary_2004', true,  2004.001, 2004.001, 'nchar_2004')
+sql insert into abc.tk_subt002 using tk_mt tags (2, 'subt002')   values (now+1w, 2005, 'binary_2005', false, 2005.001, 2005.001, 'nchar_2005')
+sql select * from tk_subt002
+if $rows != 5 then
+  print ==== expect rows is 5, but actually is $rows
+  return -1
+endi
+
+sql insert into abc.tk_subt003 (ts, a, c, e, f) using tk_mt tags (3, 'subt003')    values (now-38d, 3004,                false, 3004.001,           'nchar_3004')
+sql insert into abc.tk_subt003 (ts, a, c, e, f) using tk_mt tags (3, 'subt003')    values (now-37d, 3005,                false, 3005.001,           'nchar_3005')
+sql insert into abc.tk_subt003                                                     values (now-36d, 3006, 'binary_3006', true,  3006.001, 3006.001, 'nchar_3006')
+sql insert into abc.tk_subt003 (ts, a, c, e, f) using tk_mt tags (33, 'subt003x')  values (now-35d, 3007,                false, 3007.001,           'nchar_3007')
+sql select * from tk_subt003
+if $rows != 4 then
+  print ==== expect rows is 4, but actually is $rows
+  return -1
+endi
+
+print ================>td-4147
+sql_error create table tx(ts timestamp, a1234_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789 int)
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

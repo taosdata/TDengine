@@ -1,0 +1,79 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c supportVnodes -v 1
+
+print ========== step1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create database abc1 vgroups 1;
+sql use abc1;
+sql create table st1(ts timestamp, k int) tags(a int);
+sql create table t1 using st1 tags(1);
+sql create table t2 using st1 tags(2);
+sql insert into t1 values(now, 1);
+
+sql create stream str1 trigger at_once into str_dst1 as select count(*) from st1 interval(30s);
+sql create stream str2 trigger at_once into str_dst2 as select count(*) from st1 interval(30s);
+sql create stream str3 trigger at_once into str_dst3 as select count(*) from st1 interval(30s);
+
+print ============== create 3 streams, check the concurrently checkpoint
+sleep 180000
+
+sql select task_id, checkpoint_id from information_schema.ins_stream_tasks order by checkpoint_id;
+
+print $data01  $data11  $data21
+if $data01 == $data11 then
+    print not allowed 2 checkpoint start completed
+    return -1
+endi
+
+if $data11 == $data21 then
+   print not allowed 2 checkpoints start concurrently
+   return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+
+print ========== concurrent checkpoint is set 2
+
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c concurrentCheckpoint -v 2
+
+system sh/exec.sh -n dnode1 -s start
+
+print ========== step2
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create database abc1 vgroups 1;
+sql use abc1;
+sql create table st1(ts timestamp, k int) tags(a int);
+sql create table t1 using st1 tags(1);
+sql create table t2 using st1 tags(2);
+sql insert into t1 values(now, 1);
+
+sql create stream str1 trigger at_once into str_dst1 as select count(*) from st1 interval(30s);
+sql create stream str2 trigger at_once into str_dst2 as select count(*) from st1 interval(30s);
+sql create stream str3 trigger at_once into str_dst3 as select count(*) from st1 interval(30s);
+
+print ============== create 3 streams, check the concurrently checkpoint
+sleep 180000
+
+sql select count(*) a, checkpoint_id from information_schema.ins_stream_tasks group by checkpoint_id order by a;
+print $data00  $data01
+print $data10  $data11
+
+if $data00 != 1 then
+    print expect 1, actual $data00
+    return -1
+endi
+
+if $data10 != 2 then
+   print expect 2, actual $data10
+   return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT

@@ -1,0 +1,17 @@
+#### Using a Unified Interface for Database Access
+
+```go title="Native Connection"
+{{#include docs/examples/go/connect/cgoexample/main.go}}
+```
+
+```go title="REST Connection"
+{{#include docs/examples/go/connect/restexample/main.go}}
+```
+
+#### Using Advanced Wrappers
+
+You can also use the `af` package from driver-go to establish connections. This module encapsulates advanced features of TDengine, such as parameter binding, subscription, etc.
+
+```go title="Establishing Native Connection Using af Package"
+{{#include docs/examples/go/connect/afconn/main.go}}
+```

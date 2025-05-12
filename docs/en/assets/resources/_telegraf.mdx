@@ -1,0 +1,24 @@
+In the Telegraf configuration file (default location /etc/telegraf/telegraf.conf), add the configuration for the outputs.http output module:
+
+```
+[[outputs.http]]
+  url = "http://<taosAdapter's host>:<REST service port>/influxdb/v1/write?db=<database name>"
+  ...
+  username = "<TDengine's username>"
+  password = "<TDengine's password>"
+  ...
+```
+
+Where \<taosAdapter's host> should be filled with the domain name or IP address of the server running the taosAdapter service, \<REST service port> should be filled with the port of the REST service (default is 6041), \<TDengine's username> and \<TDengine's password> should be filled with the actual configuration of the running TDengine, and \<database name> should be filled with the database name where you want to save Telegraf data in TDengine.
+
+Example as follows:
+
+```
+[[outputs.http]]
+  url = "http://127.0.0.1:6041/influxdb/v1/write?db=telegraf"
+  method = "POST"
+  timeout = "5s"
+  username = "root"
+  password = "taosdata"
+  data_format = "influx"
+```

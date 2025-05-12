@@ -1,0 +1,339 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+
+print =============== create database
+sql create database `database`
+sql create database `DataBase`
+sql select * from information_schema.ins_databases
+print rows: $rows
+print $data00  $data01
+print $data10  $data11
+print $data20  $data21
+if $rows != 4 then
+  return -1
+endi
+if $data20 != database then
+  return -1
+endi
+if $data30 != DataBase then
+  return -1
+endi
+if $data00 != information_schema then
+  return -1
+endi
+
+$dbCnt = 0
+while $dbCnt < 2
+    if $dbCnt == 0 then
+        sql use `database`
+    else
+        sql use `DataBase`
+    endi
+
+    $dbCnt = $dbCnt + 1
+
+    print =============== create super table, include all type
+    print notes: after nchar show ok, modify binary to nchar
+    sql create table `stable` (`timestamp` timestamp, `int` int, `binary` binary(16), `nchar` nchar(16)) tags (`float` float, `Binary` binary(16), `Nchar` nchar(16))
+    sql create table `Stable` (`timestamp` timestamp, `int` int, `Binary` binary(32), `Nchar` nchar(32)) tags (`float` float, `binary` binary(16), `nchar` nchar(16))
+
+    sql show stables
+    print rows: $rows
+    print $data00  $data01
+    print $data10  $data11
+    if $rows != 2 then
+      return -1
+    endi
+    if $data00 != Stable then
+        if $data00 != stable then
+          return -1
+        endi
+    endi
+    if $data10 != Stable then
+        if $data10 != stable then
+          return -1
+        endi
+    endi
+
+    print =============== create child table
+    sql create table `table` using `stable` tags(100.0, 'stable+table', 'stable+table')
+    sql create table `Table` using `stable` tags(100.1, 'stable+Table', 'stable+Table')
+
+    sql create table `TAble` using `Stable` tags(100.0, 'Stable+TAble', 'Stable+TAble')
+    sql create table `TABle` using `Stable` tags(100.1, 'Stable+TABle', 'Stable+TABle')
+
+    sql show tables
+    print rows: $rows
+    print $data00  $data01
+    print $data10  $data11
+    print $data20  $data21
+    print $data30  $data31
+    if $rows != 4 then
+      return -1
+    endi
+
+    print =============== insert data
+    sql insert into `table` values(now+0s, 10, 'table', 'table')(now+1s, 11, 'table', 'table')
+    sql insert into `Table` values(now+0s, 20, 'Table', 'Table')(now+1s, 21, 'Table', 'Table')
+    sql insert into `TAble` values(now+0s, 30, 'TAble', 'TAble')(now+1s, 31, 'TAble', 'TAble')
+    sql insert into `TABle` values(now+0s, 40, 'TABle', 'TABle')(now+4s, 41, 'TABle', 'TABle')
+
+    print =============== query data
+    sql select * from `table`
+    print rows: $rows
+    print $data00 $data01 $data02 $data03
+    print $data10 $data11 $data12 $data13
+    if $rows != 2 then
+      return -1
+    endi
+    if $data01 != 10 then
+      return -1
+    endi
+    if $data02 != table then
+      return -1
+    endi
+    if $data03 != table then
+      print expect table, actual $data03
+      return -1
+    endi
+
+
+    print =================> 1
+    sql select * from `Table`
+    print rows: $rows
+    print $data00 $data01 $data02 $data03
+    print $data10 $data11 $data12 $data13
+    if $rows != 2 then
+      return -1
+    endi
+    if $data01 != 20 then
+      return -1
+    endi
+    if $data02 != Table then
+      return -1
+    endi
+    if $data03 != Table then
+      return -1
+    endi
+
+    print ================>2
+    sql select * from `TAble`
+    print rows: $rows
+    print $data00 $data01 $data02 $data03
+    print $data10 $data11 $data12 $data13
+    if $rows != 2 then
+      return -1
+    endi
+    if $data01 != 30 then
+      return -1
+    endi
+    if $data02 != TAble then
+      return -1
+    endi
+    if $data03 != TAble then
+      return -1
+    endi
+
+    sql select * from `TABle`
+    print rows: $rows
+    print $data00 $data01 $data02 $data03
+    print $data10 $data11 $data12 $data13
+    if $rows != 2 then
+      return -1
+    endi
+    if $data01 != 40 then
+      return -1
+    endi
+    if $data02 != TABle then
+      return -1
+    endi
+    if $data03 != TABle then
+      return -1
+    endi
+
+    #print =============== query data from st, but not support select * from super table, waiting fix
+    #sql select count(*) from `stable`
+    #print rows: $rows
+    #print $data00 $data01 $data02 $data03
+    #if $rows != 1 then
+    #  return -1
+    #endi
+    #if $data00 != 4 then
+    #  return -1
+    #endi
+    #sql select count(*) from `Stable`
+    #print rows: $rows
+    #print $data00 $data01 $data02 $data03
+    #if $rows != 1 then
+    #  return -1
+    #endi
+    #if $data00 != 4 then
+    #  return -1
+    #endi
+    #sql select * from `stable`
+    #if $rows != 4 then
+    #  return -1
+    #endi
+
+endw
+
+print =============== stop and restart taosd
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+
+sql select * from information_schema.ins_databases
+print rows: $rows
+print $data00  $data01
+print $data10  $data11
+print $data20  $data21
+if $rows != 4 then
+  return -1
+endi
+if $data20 != database then
+  return -1
+endi
+if $data30 != DataBase then
+  return -1
+endi
+if $data00 != information_schema then
+  return -1
+endi
+
+$dbCnt = 0
+while $dbCnt < 2
+    if $dbCnt == 0 then
+        sql use `database`
+    else
+        sql use `DataBase`
+    endi
+
+    $dbCnt = $dbCnt + 1
+
+    sql show stables
+    print rows: $rows
+    print $data00  $data01
+    print $data10  $data11
+    if $rows != 2 then
+      return -1
+    endi
+    if $data00 != Stable then
+        if $data00 != stable then
+          return -1
+        endi
+    endi
+    if $data10 != Stable then
+        if $data10 != stable then
+          return -1
+        endi
+    endi
+
+    sql show tables
+    print rows: $rows
+    print $data00  $data01
+    print $data10  $data11
+    print $data20  $data21
+    print $data30  $data31
+    if $rows != 4 then
+      return -1
+    endi
+
+    print =============== query data
+    sql select * from `table`
+    print rows: $rows
+    print $data00 $data01 $data02 $data03
+    print $data10 $data11 $data12 $data13
+    if $rows != 2 then
+      return -1
+    endi
+    if $data01 != 10 then
+      return -1
+    endi
+    if $data02 != table then
+      return -1
+    endi
+    if $data03 != table then
+      return -1
+    endi
+
+    sql select * from `Table`
+    print rows: $rows
+    print $data00 $data01 $data02 $data03
+    print $data10 $data11 $data12 $data13
+    if $rows != 2 then
+      return -1
+    endi
+    if $data01 != 20 then
+      return -1
+    endi
+    if $data02 != Table then
+      return -1
+    endi
+    if $data03 != Table then
+      return -1
+    endi
+
+    sql select * from `TAble`
+    print rows: $rows
+    print $data00 $data01 $data02 $data03
+    print $data10 $data11 $data12 $data13
+    if $rows != 2 then
+      return -1
+    endi
+    if $data01 != 30 then
+      return -1
+    endi
+    if $data02 != TAble then
+      return -1
+    endi
+    if $data03 != TAble then
+      return -1
+    endi
+
+    sql select * from `TABle`
+    print rows: $rows
+    print $data00 $data01 $data02 $data03
+    print $data10 $data11 $data12 $data13
+    if $rows != 2 then
+      return -1
+    endi
+    if $data01 != 40 then
+      return -1
+    endi
+    if $data02 != TABle then
+      return -1
+    endi
+    if $data03 != TABle then
+      return -1
+    endi
+
+    #print =============== query data from st, but not support select * from super table, waiting fix
+    #sql select count(*) from `stable`
+    #print rows: $rows
+    #print $data00 $data01 $data02 $data03
+    #if $rows != 1 then
+    #  return -1
+    #endi
+    #if $data00 != 4 then
+    #  return -1
+    #endi
+    #sql select count(*) from `Stable`
+    #print rows: $rows
+    #print $data00 $data01 $data02 $data03
+    #if $rows != 1 then
+    #  return -1
+    #endi
+    #if $data00 != 4 then
+    #  return -1
+    #endi
+    #sql select * from `stable`
+    #if $rows != 4 then
+    #  return -1
+    #endi
+
+endw
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

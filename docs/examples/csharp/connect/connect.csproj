@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <StartupObject>TDengineExample.ConnectExample</StartupObject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TDengine.Connector" Version="3.1.*" />
+  </ItemGroup>
+
+</Project>

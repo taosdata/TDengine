@@ -1,0 +1,59 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "thread_count": 1,
+    "create_table_thread_count": 1,
+    "confirm_parameter_prompt": "no",
+    "num_of_records_per_req": 2000,
+    "prepared_rand": 100000,
+    "escape_character": "yes",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "dbrate",
+                "drop": "yes",
+                "vgroups": 1,
+                "stt_trigger": 1,
+                "wal_retention_size": 1,
+                "wal_retention_period": 1
+            },
+            "super_tables": [
+                {
+                    "name": "meters",
+                    "child_table_exists": "no",
+                    "childtable_count": 1,
+                    "childtable_prefix": "d",
+                    "data_source": "sample",
+                    "insert_mode": "taosc",
+                    "insert_rows": 100000,
+                    "timestamp_step": 1,
+                    "start_timestamp": "2020-10-01 00:00:00.000",
+                    "sample_file": "./json/d0_10w.csv",
+                    "use_sample_ts": "yes",        
+                    "columns": [
+                        { "type": "bool",        "name": "bc", "compress":"@COMPRESS"},
+                        { "type": "float",       "name": "fc", "compress":"@COMPRESS"},
+                        { "type": "double",      "name": "dc", "compress":"@COMPRESS"},
+                        { "type": "tinyint",     "name": "ti", "compress":"@COMPRESS"},
+                        { "type": "smallint",    "name": "si", "compress":"@COMPRESS"},
+                        { "type": "int",         "name": "ic", "compress":"@COMPRESS"},
+                        { "type": "bigint",      "name": "bi", "compress":"@COMPRESS"},
+                        { "type": "utinyint",    "name": "uti","compress":"@COMPRESS"},
+                        { "type": "usmallint",   "name": "usi","compress":"@COMPRESS"},
+                        { "type": "uint",        "name": "ui", "compress":"@COMPRESS"},
+                        { "type": "ubigint",     "name": "ubi","compress":"@COMPRESS"},
+                        { "type": "binary",      "name": "bin", "len": 32, "compress":"@COMPRESS"},
+                        { "type": "nchar",       "name": "nch", "len": 64, "compress":"@COMPRESS"}                        
+                    ],
+                    "tags": [
+                        {"type": "TINYINT", "name": "groupid", "max": 10, "min": 1}
+                    ]
+                }
+            ]
+        }
+    ]
+}

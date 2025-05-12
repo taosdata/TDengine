@@ -1,1 +1,0 @@
-# TDengine python client interface

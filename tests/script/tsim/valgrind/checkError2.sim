@@ -1,0 +1,109 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c debugflag -v 131
+system sh/exec.sh -n dnode1 -s start -v
+sql connect
+
+print =============== step1: create drop select * from information_schema.ins_dnodes
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ---> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ---> $data00 $data01 $data02 $data03 $data04 $data05
+if $rows != 1 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step1
+endi
+
+print =============== step2: create db
+sql create database d1 vgroups 2 buffer 3
+sql select * from information_schema.ins_databases
+sql use d1
+sql show vgroups
+
+print =============== step3: create show stable
+sql create table if not exists stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned)
+sql show stables
+if $rows != 1 then 
+  return -1
+endi
+
+print =============== step4: create show table
+sql create table ct1 using stb tags(1000)
+sql create table ct2 using stb tags(2000)
+sql create table ct3 using stb tags(3000)
+sql show tables
+if $rows != 3 then 
+  return -1
+endi
+
+print =============== step5: insert data (null / update)
+sql insert into ct1 values(now+0s, 10, 2.0, 3.0)
+sql insert into ct1 values(now+1s, 11, 2.1, NULL)(now+2s, -12, -2.2, -3.2)(now+3s, -13, -2.3, -3.3)
+sql insert into ct2 values(now+0s, 10, 2.0, 3.0)
+sql insert into ct2 values(now+1s, 11, 2.1, 3.1)(now+2s, -12, -2.2, -3.2)(now+3s, -13, -2.3, -3.3)
+sql insert into ct3 values('2021-01-01 00:00:00.000', NULL, NULL, 3.0)
+sql insert into ct3 values('2022-03-02 16:59:00.010', 3  , 4, 5), ('2022-03-02 16:59:00.010', 33 , 4, 5), ('2022-04-01 16:59:00.011', 4,  4, 5), ('2022-04-01 16:59:00.011', 6,  4, 5), ('2022-03-06 16:59:00.013', 8,  4, 5);
+sql insert into ct3 values('2022-03-02 16:59:00.010', 103, 1, 2), ('2022-03-02 16:59:00.010', 303, 3, 4), ('2022-04-01 16:59:00.011', 40, 5, 6), ('2022-04-01 16:59:00.011', 60, 4, 5), ('2022-03-06 16:59:00.013', 80, 4, 5);
+
+print =============== step6: query data
+sql select * from ct1
+sql select * from stb
+sql select c1, c2, c3 from ct1
+sql select ts, c1, c2, c3 from stb
+sql select * from ct1 where ts < now -1d and ts > now +1d 
+sql select * from stb where ts < now -1d and ts > now +1d 
+sql select * from ct1 where ts < now -1d and ts > now +1d order by ts desc 
+sql select * from stb where ts < now -1d and ts > now +1d order by ts desc 
+sql select * from ct1 where t1 between 1000 and 2500
+sql select * from stb where t1 between 1000 and 2500
+
+print =============== step7: count
+sql select count(*) from ct1;
+sql select count(*) from stb;
+sql select count(ts), count(c1), count(c2), count(c3) from ct1
+sql select count(ts), count(c1), count(c2), count(c3) from stb
+sql select count(*) from ct1 where ts < now -1d and ts > now +1d 
+sql select count(*) from stb where ts < now -1d and ts > now +1d
+
+print =============== step8: func
+sql select first(ts), first(c1), first(c2), first(c3) from ct1
+sql select min(c1), min(c2), min(c3) from ct1
+sql select max(c1), max(c2), max(c3) from ct1
+sql select sum(c1), sum(c2), sum(c3) from ct1
+
+print =============== step9: insert select
+sql create table ct4 using stb tags(4000);
+sql insert into ct4 select * from ct1;
+sql select * from ct4;
+sql insert into ct4 select ts,c1,c2,c3 from stb;
+
+sql create table tb1 (ts timestamp, c1 int, c2 float, c3 double);
+sql insert into tb1 (ts, c1, c2, c3) select * from ct1;
+sql select * from tb1;
+
+sql create table tb2 (ts timestamp, f1 binary(10), c1 int, c2 double);
+sql insert into tb2 (c2, c1, ts) select c2+1, c1, ts+3 from ct2;
+sql select * from tb2;
+
+_OVER:
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+print =============== check
+$null=
+
+system_content sh/checkValgrind.sh -n dnode1 
+print cmd return result ----> [ $system_content ]
+if $system_content > 0 then
+  return -1
+endi 
+
+if $system_content == $null then
+  return -1
+endi 

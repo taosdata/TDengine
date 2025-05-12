@@ -1,0 +1,29 @@
+
+#======================b1-start===============
+
+# ---- mnode
+./test.sh -f tsim/mnode/basic1.sim
+./test.sh -f tsim/mnode/basic2.sim
+./test.sh -f tsim/mnode/basic3.sim
+./test.sh -f tsim/mnode/basic4.sim
+./test.sh -f tsim/mnode/basic5.sim
+
+# --- vnode
+# unsupport ./test.sh -f tsim/vnode/replica3_basic.sim
+# unsupport ./test.sh -f tsim/vnode/replica3_repeat.sim
+# unsupport ./test.sh -f tsim/vnode/replica3_vgroup.sim
+# unsupport ./test.sh -f tsim/vnode/replica3_many.sim
+# unsupport ./test.sh -f tsim/vnode/replica3_import.sim
+# unsupport ./test.sh -f tsim/vnode/stable_balance_replica1.sim
+# unsupport ./test.sh -f tsim/vnode/stable_dnode2_stop.sim
+./test.sh -f tsim/vnode/stable_dnode2.sim
+./test.sh -f tsim/vnode/stable_dnode3.sim
+./test.sh -f tsim/vnode/stable_replica3_dnode6.sim
+./test.sh -f tsim/vnode/stable_replica3_vnode3.sim
+
+# --- sync
+# jira ./test.sh -f tsim/sync/3Replica1VgElect.sim
+./test.sh -f tsim/sync/3Replica5VgElect.sim
+./test.sh -f tsim/sync/oneReplica1VgElect.sim
+./test.sh -f tsim/sync/oneReplica5VgElect.sim
+

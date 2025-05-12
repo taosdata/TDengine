@@ -1,0 +1,121 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbNamme = d0
+print =============== create database
+sql create database $dbNamme vgroups 1
+sql select * from information_schema.ins_databases
+print $data00 $data01 $data02
+if $rows != 3 then
+  return -1
+endi
+
+sql use $dbNamme
+
+print =============== create super table
+sql create table if not exists stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double) tags (t1 int)
+
+sql show stables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== create child table
+sql create table ct0 using stb tags(1000)
+#sql create table ct1 using stb tags(2000)
+#sql create table ct3 using stb tags(3000)
+
+sql show tables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== insert data
+
+$tbPrefix = ct
+$tbNum = 1
+$rowNum = 10
+$tstart = 1640966400000  # 2022-01-01 00:00:00.000
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+
+  $x = 0
+  while $x < $rowNum
+    $c2 = $x + 10
+    $c3 = $x * 10
+    $c4 = $x - 10
+
+    sql insert into $tb values ($tstart , $x , $c2 ,  $c3 , $c4 )
+    $tstart = $tstart + 1
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+  $tstart = 1640966400000
+endw
+
+
+$loop_test = 0
+loop_test_pos:
+
+sql select ts, c2-c1, c3/c1, c4+c1, c1*9, c1%3 from ct0
+print ===> rows: $rows
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+print ===> $data30 $data31 $data32 $data33 $data34 $data35
+if $rows != 10 then
+ return -1
+endi
+
+if $data01 != 10.000000000 then
+ return -1
+endi
+if $data02 != NULL then
+ return -1
+endi
+if $data03 != -10.000000000 then
+ return -1
+endi
+
+if $data91 != 10.000000000 then
+ return -1
+endi
+if $data92 != 10.000000000 then
+ return -1
+endi
+if $data93 != 8.000000000 then
+ return -1
+endi
+
+if $loop_test == 0 then
+  print =============== stop and restart taosd
+  system sh/exec.sh -n dnode1 -s stop -x SIGINT
+  system sh/exec.sh -n dnode1 -s start
+
+  $loop_cnt = 0
+  check_dnode_ready_0:
+	$loop_cnt = $loop_cnt + 1
+	sleep 200
+	if $loop_cnt == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+  sql select * from information_schema.ins_dnodes
+  print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
+  if $data00 != 1 then
+    return -1
+  endi
+  if $data04 != ready then
+    goto check_dnode_ready_0
+  endi
+
+  $loop_test = 1
+  goto loop_test_pos
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

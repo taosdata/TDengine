@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<something-else-entirely>
+    <proxool>
+        <!-- Alias for the data source -->
+        <alias>ds</alias>
+         <!-- URL connection string -->
+        <driver-url>jdbc:TAOS-RS://127.0.0.1:6041/log</driver-url>
+        <!-- Driver class -->
+        <driver-class>com.taosdata.jdbc.rs.RestfulDriver</driver-class>
+        
+        <driver-properties>
+            <property name="user" value="root"/>
+            <property name="password" value="taosdata"/>
+        </driver-properties>
+         <!-- Maximum connection count (default is 5). If this number is exceeded, new requests will be queued. The maximum number of queued requests is determined by maximum-new-connections -->
+        <maximum-connection-count>100</maximum-connection-count>
+         <!-- Defines the maximum number of connections in the connection pool -->
+        <maximum-active-time>100</maximum-active-time>
+        <!-- Minimum number of idle connections to maintain (default is 2) -->
+        <prototype-count>1</prototype-count>
+        <!-- Minimum connection count (default is 2) -->
+        <minimum-connection-count>5</minimum-connection-count>
+         <!-- Interval (in milliseconds) for Proxool to automatically check the status of each connection. Idle connections are immediately reclaimed, and timed-out connections are destroyed. Default is 30 seconds -->
+        <house-keeping-sleep-time>30000</house-keeping-sleep-time>
+        <!-- Test statement used to maintain the connection -->
+        <house-keeping-test-sql>select server_version()</house-keeping-test-sql>
+    </proxool>
+</something-else-entirely>

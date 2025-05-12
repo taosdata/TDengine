@@ -8,7 +8,7 @@ read -p "Please enter link directory such as /var/lib/taos/tsdb: " linkDir
 
 while true; do
     if [ ! -d $linkDir ]; then
-        read -p "Paht not exists, please enter the correct link path:" linkDir
+        read -p "Path not exists, please enter the correct link path:" linkDir
         continue
     fi
     break
@@ -17,7 +17,7 @@ done
 declare -A dirHash
 
 for linkFile in $(find -L $linkDir -xtype l); do
-    targetFile=$(readlink -m $linkFile)
+    targetFile=$(readlink -f $linkFile)
     echo "targetFile: ${targetFile}"
     # TODO : Extract directory part and basename part
     dirName=$(dirname $(dirname ${targetFile}))
@@ -28,12 +28,12 @@ for linkFile in $(find -L $linkDir -xtype l); do
     if [ -z "${dirHash["$dirName"]}" ]; then
         read -p "Please enter the directory to replace ${dirName}:" newDir
 
-        read -p "Do you want to replcace all[y/N]?" replcaceAll
-        if [[ ( "${replcaceAll}" == "y") || ( "${replcaceAll}" == "Y") ]]; then
+        read -p "Do you want to replace all[y/N]?" replaceAll
+        if [[ ( "${replaceAll}" == "y") || ( "${replaceAll}" == "Y") ]]; then
             dirHash["$dirName"]="$newDir"
         fi
     fi
 
-    # Replcace the file
+    # Replace the file
     ln -sf "${newDir}/${baseName}" "${linkFile}"
 done

@@ -1,0 +1,103 @@
+------------------------------------------------------------------------
+Start TDengine Testing Case ...
+BUILD_DIR: /root/yihao/work/TDengine/debug
+SIM_DIR  : /root/yihao/work/TDengine/sim
+CODE_DIR : /root/yihao/work/TDengine/tests/script
+CFG_DIR  : /root/yihao/work/TDengine/sim/tsim/cfg
+ASAN_DIR  : /root/yihao/work/TDengine/sim/asan
+------------------------------------------------------------------------
+ExcuteCmd: /root/yihao/work/TDengine/debug/build/bin/tsim -c /root/yihao/work/TDengine/sim/tsim/cfg -f tsim/stream/state0.sim
+AsanDir: /root/yihao/work/TDengine/sim/asan/tsim.asan
+08/18 17:00:43.118420 00438970 SIM simulator is running ...
+Executing deploy.sh
+SCRIPT_DIR: /root/yihao/work/TDengine/tests/script
+------------ start dnode1
+nohup /root/yihao/work/TDengine/debug/build/bin/taosd -c /root/yihao/work/TDengine/sim/dnode1/cfg > /dev/null 2>&1 &
+08/18 17:00:43.288417 00438970 SIM script:tsim/stream/state0.sim, sleep 50ms begin
+08/18 17:00:43.338486 00438970 SIM script:tsim/stream/state0.sim, sleep 50ms finished
+08/18 17:00:43.679227 00438970 SIM script:tsim/stream/state0.sim, =============== create database
+08/18 17:00:45.450379 00438970 SIM script:tsim/stream/state0.sim, information_schema 23-08-18 17:00:43.491 NULL
+08/18 17:00:45.454189 00438970 SIM script:tsim/stream/state0.sim, create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(a)  c4, min(c) c5, max(id) c from t1 state_window(a);
+08/18 17:00:45.610789 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms begin
+08/18 17:00:46.610955 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms finished
+08/18 17:00:46.611228 00438970 SIM script:tsim/stream/state0.sim, =====rows=0
+08/18 17:00:46.627080 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms begin
+08/18 17:00:47.627254 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms finished
+08/18 17:00:47.637364 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms begin
+08/18 17:00:48.637446 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms finished
+08/18 17:00:48.684845 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms begin
+08/18 17:00:49.685055 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms finished
+08/18 17:00:49.685390 00438970 SIM script:tsim/stream/state0.sim, =====rows=0
+08/18 17:00:49.712001 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms begin
+08/18 17:00:50.712137 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms finished
+08/18 17:00:50.713185 00438970 SIM script:tsim/stream/state0.sim, loop1 end
+08/18 17:00:50.737435 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms begin
+08/18 17:00:51.737618 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms finished
+08/18 17:00:51.738003 00438970 SIM script:tsim/stream/state0.sim, =====data21=null
+08/18 17:00:51.764834 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms begin
+08/18 17:00:52.764971 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms finished
+08/18 17:00:52.805578 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms begin
+08/18 17:00:53.805742 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms finished
+08/18 17:00:53.806044 00438970 SIM script:tsim/stream/state0.sim, =====data26=null
+08/18 17:00:53.828622 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms begin
+08/18 17:00:54.828756 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms finished
+08/18 17:00:54.890423 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms begin
+08/18 17:00:55.890533 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms finished
+08/18 17:00:55.890839 00438970 SIM script:tsim/stream/state0.sim, =====data21=null
+08/18 17:00:55.917818 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms begin
+08/18 17:00:56.918008 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms finished
+08/18 17:00:56.966614 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms begin
+08/18 17:00:57.966809 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms finished
+08/18 17:00:57.967085 00438970 SIM script:tsim/stream/state0.sim, ====loop4=rows=0
+08/18 17:00:57.993757 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms begin
+08/18 17:00:58.993936 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms finished
+08/18 17:00:58.994839 00438970 SIM script:tsim/stream/state0.sim, loop4 end
+08/18 17:00:59.678915 00438970 SIM script:tsim/stream/state0.sim, information_schema 23-08-18 17:00:43.491 NULL
+08/18 17:00:59.698124 00438970 SIM script:tsim/stream/state0.sim, create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(a)  c4, min(c) c5, max(id) c from t1 state_window(a);
+08/18 17:00:59.862389 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms begin
+08/18 17:01:00.862605 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms finished
+08/18 17:01:01.584856 00438970 SIM script:tsim/stream/state0.sim, create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt3 as select  _wstart, count(*) c1, sum(b) c3 from t1 state_window(a);
+08/18 17:01:01.778514 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms begin
+08/18 17:01:02.778699 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms finished
+08/18 17:01:09.536746 00438970 SIM script:tsim/stream/state0.sim, create stream if not exists streams4 trigger window_close IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt4 as select _wstart AS startts, min(c1),count(c1) from t1 state_window(c1);
+08/18 17:01:09.789267 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms begin
+08/18 17:01:10.789450 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms finished
+08/18 17:01:10.863370 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms begin
+08/18 17:01:11.863556 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms finished
+08/18 17:01:11.909184 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms begin
+08/18 17:01:12.909288 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms finished
+08/18 17:01:12.936362 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms begin
+08/18 17:01:13.936494 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms finished
+08/18 17:01:15.301064 00438970 SIM script:tsim/stream/state0.sim, create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select _wstart c1, count(*) c2, max(a) c3 from tb state_window(a);
+08/18 17:01:15.466754 00438970 SIM script:tsim/stream/state0.sim, data00:null
+08/18 17:01:15.466768 00438970 SIM script:tsim/stream/state0.sim, data01:null
+08/18 17:01:15.489373 00438970 SIM script:tsim/stream/state0.sim, data00:null
+08/18 17:01:15.489392 00438970 SIM script:tsim/stream/state0.sim, data01:null
+08/18 17:01:15.511826 00438970 SIM script:tsim/stream/state0.sim, data00:null
+08/18 17:01:15.511841 00438970 SIM script:tsim/stream/state0.sim, data01:null
+08/18 17:01:15.522397 00438970 SIM script:tsim/stream/state0.sim, data00:null
+08/18 17:01:15.522416 00438970 SIM script:tsim/stream/state0.sim, data01:null
+08/18 17:01:15.526939 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms begin
+08/18 17:01:16.527119 00438970 SIM script:tsim/stream/state0.sim, sleep 1000ms finished
+08/18 17:01:16.542936 00438970 SIM script:tsim/stream/state0.sim, state0 end
+------------ stop dnode1
+try to kill by signal SIGINT
+try to kill by signal SIGINT
+try to kill by signal SIGINT
+try to kill by signal SIGINT
+08/18 17:01:20.674086 00438970 SIM script:tsim/stream/state0.sim, return cmd execute with:1
+08/18 17:01:20.674103 00438970 SIM script:[44;32;1mtsim/stream/state0.sim[0m, [44;32;1msuccess[0m
+08/18 17:01:20.674165 00438970 SIM script:tsim/stream/state0.sim, background script num:0, stop them
+08/18 17:01:20.674521 00438970 SIM ----------------------------------------------------------------------
+08/18 17:01:20.674528 00438970 SIM Simulation Test Done, [44;32;1m1[0m Passed:
+
+08/18 17:01:20.674534 00438970 SIM thread is stopped
+08/18 17:01:20.674537 00438970 SIM execute result 0
+Execute result: 0
+Killing taosd processes 
+[44;32;1masan error_num: 0[0m
+[44;32;1masan memory_leak: 0[0m
+[44;32;1masan indirect_leak: 0[0m
+[44;32;1masan runtime error: 0[0m
+[44;32;1masan python error: 0[0m
+[44;32;1mno asan errors[0m

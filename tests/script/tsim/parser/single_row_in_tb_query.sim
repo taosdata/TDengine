@@ -1,0 +1,198 @@
+sql connect
+
+$dbPrefix = sr_db
+$tbPrefix = sr_tb
+$stbPrefix = sr_stb
+$ts0 = 1537146000000
+print ========== single_row_in_tb_query.sim
+$db = $dbPrefix
+$stb = $stbPrefix
+
+sql use $db
+$tb1 = $tbPrefix . 1
+
+sql select first(ts, c1) from $stb where ts >= $ts0 and ts < now group by t1
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @18-09-17 09:00:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+
+sql select last(ts, c1) from $stb where ts >= $ts0 and ts < now group by t1
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @18-09-17 09:00:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+
+sql select first(ts, c1), last(c1) from $stb where ts >= $ts0 and ts < now group by t1
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @18-09-17 09:00:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+
+sql select first(ts, c1), last(c2) from $stb where ts >= $ts0 and ts < now group by t1
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @18-09-17 09:00:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 2 then
+  return -1
+endi
+
+sql select first(ts, c1) from $tb1 where ts >= $ts0 and ts < now
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @18-09-17 09:00:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+
+sql select last(ts, c1) from $tb1 where ts >= $ts0 and ts < now
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @18-09-17 09:00:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+
+sql select first(ts, c1), last(c1) from $tb1 where ts >= $ts0 and ts < now
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @18-09-17 09:00:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+
+sql select first(ts, c1), last(c2) from $tb1 where ts >= $ts0 and ts < now
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @18-09-17 09:00:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 2 then
+  return -1
+endi
+
+#### query a STable and using where clause
+sql select first(ts,c1), last(ts,c1), spread(c1), t1 from $stb where ts >= $ts0 and ts < '2018-09-20 00:00:00.000' group by t1
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @18-09-17 09:00:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != @18-09-17 09:00:00.000@ then
+  return -1
+endi
+if $data03 != 1 then
+  return -1
+endi
+if $data04 != 0.000000000 then
+  print expect: 0.00000000 , actual: $data04
+  return -1
+endi
+if $data05 != 1 then
+  return -1
+endi
+
+sql select _wstart, first(c1), last(c1) from sr_stb where ts >= 1537146000000 and ts < '2018-09-20 00:00:00.000' partition by t1 interval(1d)
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @18-09-17 00:00:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+
+sql select max(c1), min(c1), sum(c1), avg(c1), count(c1), t1 from $stb where c1 > 0 group by t1
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != 1.000000000 then
+  return -1
+endi
+if $data04 != 1 then
+  return -1
+endi
+if $data05 != 1 then
+  return -1
+endi
+
+sql select _wstart, first(ts,c1), last(ts,c1) from $tb1 where ts >= $ts0 and ts < '2018-09-20 00:00:00.000' interval(1d)
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @18-09-17 00:00:00.000@ then
+  return -1
+endi
+if $data01 != @18-09-17 09:00:00.000@ then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != @18-09-17 09:00:00.000@ then
+  return -1
+endi
+if $data04 != 1 then
+  return -1
+endi
+
+print ===============>safty check TD-4927
+sql select first(ts, c1) from sr_stb where ts<1 group by t1;
+sql select first(ts, c1) from sr_stb where ts>0 and ts<1;

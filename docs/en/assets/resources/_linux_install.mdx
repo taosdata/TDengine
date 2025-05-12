@@ -1,0 +1,28 @@
+import PkgListV3 from "/components/PkgListV3";
+
+1. Download the client installation package
+  
+  <PkgListV3 type={1} sys="Linux" />
+
+2. Unzip the software package
+
+   Place the package in any directory where the current user has read and write access, then execute the following command: `tar -xzvf TDengine-client-VERSION.tar.gz`
+   Replace VERSION with the actual version string.
+3. Run the installation script
+
+   After unzipping the package, you will see the following files (directories) in the unzipped directory:
+   - _install_client.sh_: Installation script, used for applying the driver
+   - _package.tar.gz_: Application driver installation package
+   - _driver_: TDengine application driver
+   - _examples_: Sample programs for various programming languages (c/C#/go/JDBC/MATLAB/python/R)
+   Run install_client.sh to install.
+4. Configure taos.cfg
+
+   Edit the `taos.cfg` file (default path /etc/taos/taos.cfg), change `firstEP` to the End Point of the TDengine server, for example: `h1.tdengine.com:6030`
+
+:::tip
+
+1. If the TDengine service is not deployed on this machine and only the application driver is installed, then only `firstEP` needs to be configured in `taos.cfg`, there is no need to configure `FQDN` on this machine.
+2. To prevent the "Unable to resolve FQDN" error when connecting to the server, it is recommended to ensure that the `/etc/hosts` file on your machine is configured with the correct FQDN value of the server, or that the DNS service is properly configured.
+
+:::

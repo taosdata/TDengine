@@ -1,0 +1,95 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$i = 0
+$dbPrefix = lm_do_db
+$tbPrefix = lm_do_tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+print =============== step1
+sql create database $db
+sql use $db
+sql create table $tb (ts timestamp, speed double) 
+#sql insert into $tb values (now, -1.79E+308) -x step1
+#	return -1
+#step1:
+
+print =============== step2
+#sql insert into $tb values (now+1a, 1.79E+308) -x step2
+#	return -1
+#step2:
+
+sql select * from $tb order by ts desc
+if $rows != 0 then 
+  return -1
+endi
+
+print =============== step3
+sql insert into $tb values (now+2a, 2.85)
+sql select * from $tb order by ts desc
+if $rows != 1 then 
+  return -1
+endi
+if $data01 != 2.850000000 then 
+  return -1
+endi
+
+print =============== step4
+sql insert into $tb values (now+3a, 3.4)
+sql select * from $tb order by ts desc
+if $rows != 2 then 
+  return -1
+endi
+if $data01 != 3.400000000 then 
+  return -1
+endi
+
+print =============== step5
+sql insert into $tb values (now+4a, a2) -x step51
+  return -1
+step51:
+sql insert into $tb values (now+4a, 0)
+sql select * from $tb order by ts desc
+if $rows != 3 then 
+  return -1
+endi
+if $data01 != 0.000000000 then 
+  return -1
+endi
+
+print =============== step6
+sql insert into $tb values (now+5a, 2a) -x step6
+  return -1
+step6:
+sql insert into $tb values(now+5a, 2)
+sql select * from $tb order by ts desc
+if $rows != 4 then 
+  return -1
+endi
+if $data01 != 2.000000000 then 
+  return -1
+endi
+
+print =============== step7
+sql insert into $tb values (now+6a, 2a'1) -x step7
+  return -1
+step7:
+sql insert into $tb values(now+6a, 2)
+sql select * from $tb order by ts desc
+if $rows != 5 then 
+  return -1
+endi
+if $data01 != 2.000000000 then 
+  return -1
+endi
+
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

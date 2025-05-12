@@ -1,0 +1,205 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$db = tf_db
+$tbNum = 10
+$rowNum = 5
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 600000
+print ========== tags_filter.sim
+$i = 0
+
+sql drop database if exists $db
+sql create database $db
+sql use $db
+##### filter tags that contains special characters
+sql create table stb (ts timestamp, c1 int) tags (t1 binary(10))
+sql create table tb1 using stb tags('*')
+sql create table tb2 using stb tags('%')
+sql create table tb3 using stb tags('')
+sql create table tb4 using stb tags('\'')
+
+sql insert into tb1 values ( $ts0 , 1)
+sql insert into tb2 values ( $ts0 , 2)
+sql insert into tb3 values ( $ts0 , 3)
+sql insert into tb4 values ( $ts0 , 4)
+
+sql select * from stb where t1 = '*'
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+
+sql select * from stb where t1 = '%'
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+
+sql select * from stb where t1 = ''
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 3 then
+  return -1
+endi
+
+sql select * from stb where t1 = '\''
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 4 then
+  return -1
+endi
+
+sql select * from stb where t1 like '*'
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+
+sql select * from stb where t1 > '1'
+sql select * from stb where t1 > 'a'
+
+print =====================> TD-2685
+sql_error select t1, count(t1) from stb;
+
+## wildcard '%'
+#sql select * from stb where t1 like '%'
+#if $rows != 1 then
+#  return -1
+#endi
+#if $data01 != 2 then
+#  return -1
+#endi
+
+sql select * from stb where t1 like ''
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 3 then
+  return -1
+endi
+
+sql select * from stb where t1 like '\''
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 4 then
+  return -1
+endi
+
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then
+  return -1
+endi
+
+print ============tbase-1328
+
+sql drop database if exists testselectwheretags;
+sql CREATE DATABASE IF NOT EXISTS testselectwheretags;
+sql USE testselectwheretags;
+sql CREATE TABLE IF NOT EXISTS st1 (ts TIMESTAMP, v1 INT, v2 FLOAT, v3 BOOL) TAGS (farm NCHAR(2), period NCHAR(2), line NCHAR(2), unit INT);
+sql CREATE TABLE IF NOT EXISTS a01 USING st1 TAGS ('2', 'c', '2', 2);
+sql CREATE TABLE IF NOT EXISTS a02 USING st1 TAGS ('1', 'c', 'a', 1);
+sql CREATE TABLE IF NOT EXISTS a03 USING st1 TAGS ('1', 'c', '02', 1);
+sql INSERT INTO a01 VALUES (1574872693209, 3, 3.000000, 1);
+sql INSERT INTO a02 VALUES (1574872683933, 2, 2.000000, 1);
+sql INSERT INTO a03 VALUES (1574872683933, 2, 2.000000, 1);
+
+sql select * from st1 where line='02';
+if $rows != 1 then
+  return -1
+endi
+
+sql CREATE TABLE IF NOT EXISTS st2 (ts TIMESTAMP, v1 INT, v2 FLOAT) TAGS (farm BINARY(2), period BINARY(2), line BINARY(2));
+
+sql CREATE TABLE IF NOT EXISTS b01 USING st2 TAGS ('01', '01', '01');
+sql CREATE TABLE IF NOT EXISTS b02 USING st2 TAGS ('01', '01', '01');
+sql CREATE TABLE IF NOT EXISTS b03 USING st2 TAGS ('01', '02', '01');
+sql CREATE TABLE IF NOT EXISTS b04 USING st2 TAGS ('01', '01', '02');
+
+sql INSERT INTO b03 VALUES (1576043322749, 3, 3.000000);
+sql INSERT INTO b03 VALUES (1576043323596, 3, 3.000000);
+
+sql INSERT INTO b02 VALUES (1576043315169, 2, 2.000000);
+sql INSERT INTO b02 VALUES (1576043316295, 2, 2.000000);
+sql INSERT INTO b02 VALUES (1576043317167, 2, 2.000000);
+
+sql INSERT INTO b01 VALUES (1576043305972, 1, 1.000000);
+sql INSERT INTO b01 VALUES (1576043308513, 1, 1.000000);
+
+sql select * from st2 where period='02';
+if $rows != 2 then
+  return -1
+endi
+
+sql select sum(v2) from st2 group by farm,period,line;
+if $rows != 2 then
+  return -1
+endi
+
+print ==================>td-2424
+sql create table t1(ts timestamp, k float)
+sql insert into t1 values(now, 8.001)
+sql select * from t1 where k=8.001
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from t1 where k<8.001
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from t1 where k<=8.001
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from t1 where k>8.001
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from t1 where k>=8.001
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from t1 where k<>8.001
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from t1 where k>=8.001 and k<=8.001
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from t1 where k>=8.0009999 and k<=8.001
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from t1 where k>8.001 and k<=8.001
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from t1 where k>=8.001 and k<8.001
+if $rows != 0 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

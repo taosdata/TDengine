@@ -1,0 +1,177 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$i = 0
+$dbPrefix = tb_1m_db
+$tbPrefix = tb_1m_tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+print =============== step1
+sql drop database -x step1
+step1:
+sql create database $db
+sql use $db
+
+sql create table $tb (ts timestamp, speed int)
+
+#commit to file will trigger if insert 82 rows
+
+$N = 82
+
+print =============== step 1
+$x = $N
+$y = $N / 2
+while $x > $y
+  $z = $x * 60000
+  $ms = 1601481600000 - $z
+
+  $xt = - . $x
+  sql insert into $tb values ($ms , -$x )
+  $x = $x - 1
+endw
+
+sql select * from $tb
+print sql select * from $tb -> $rows points
+if $rows != $y then
+  return -1
+endi
+
+$x = $N / 2
+$y = $N
+while $x < $y
+  $z = $x * 60000
+  $ms = 1601481600000 + $z
+
+  sql insert into $tb values ($ms , $x )
+  $x = $x + 1
+endw
+sql select * from $tb
+print sql select * from $tb -> $rows points
+if $rows != $N then
+  return -1
+endi
+
+print =============== step 2
+
+$N1 = $N + 1
+$result1 = $N / 2
+$result2 = $N
+$step = $N1 * 60000
+
+$start1 = 1601481600000 -  $step
+$start2 = 1601481600000
+$start3 = 1601481600000 + $step
+$end1 = 1601481600000 -  $step
+$end2 = 1601481600000
+$end3 = 1601481600000 +  $step
+
+sql select * from $tb where ts < $start1 and ts > $end1
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start1 and ts > $end2
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start1 and ts > $end3
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start2 and ts > $end1
+print select * from $tb where ts < $start2 and ts > $end1 ->  $rows points
+if $rows != $result1 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start2 and ts > $end2
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start2 and ts > $end3
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start3 and ts > $end1
+print sql select * from $tb where ts < $start3 and ts > $end1 -> $rows points
+if $rows != $result2 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start3 and ts > $end2
+print sql select * from $tb where ts < $start3 and ts > $end2 -> $rows points
+if $rows != $result1 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start3 and ts > $end3
+if $rows != 0 then
+  return -1
+endi
+
+print ================= order by ts desc
+
+sql select * from $tb where ts < $start1 and ts > $end1 order by ts desc
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start1 and ts > $end2 order by ts desc
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start1 and ts > $end3 order by ts desc
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start2 and ts > $end1 order by ts desc
+print select * from $tb where ts < $start2 and ts > $end1  order by ts desc  ->  $rows points
+if $rows != $result1 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start2 and ts > $end2  order by ts desc
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start2 and ts > $end3 order by ts desc
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start3 and ts > $end1 order by ts desc
+print sql select * from $tb where ts < $start3 and ts > $end1  order by ts desc  -> $rows points
+if $rows != $result2 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start3 and ts > $end2 order by ts desc
+print sql select * from $tb where ts < $start3 and ts > $end2  order by ts desc  -> $rows points
+if $rows != $result1 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start3 and ts > $end3   order by ts desc
+if $rows != 0 then
+  return -1
+endi
+
+clear:
+
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

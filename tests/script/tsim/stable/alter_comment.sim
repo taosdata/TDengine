@@ -1,0 +1,170 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ========== create stable
+sql create database db
+sql use db
+sql create table db.stb (ts timestamp, c1 int, c2 binary(4)) tags(t1 int, t2 float, t3 binary(16)) comment "abd"
+
+sql select * from information_schema.ins_stables where db_name = 'db'
+if $rows != 1 then
+  return -1
+endi
+if $data[0][3] != 3 then
+  return -1
+endi
+if $data[0][4] != 3 then
+  return -1
+endi
+if $data[0][6] != abd then
+  return -1
+endi
+
+print ========== add column
+sql_error alter table db.stb add column ts int
+sql_error alter table db.stb add column c1 int
+sql_error alter table db.stb add column c2 int
+sql_error alter table db.stb add column t1 int
+sql_error alter table db.stb add column t2 int
+sql_error alter table db.stb add column t3 int
+sql alter table db.stb add column c3 int
+sql alter table db.stb add column c4 bigint
+sql alter table db.stb add column c5 binary(12)
+
+sql select * from information_schema.ins_stables where db_name = 'db'
+if $rows != 1 then
+  return -1
+endi
+if $data[0][3] != 6 then
+  return -1
+endi
+if $data[0][4] != 3 then
+  return -1
+endi
+
+print ========== drop column
+sql_error alter table db.stb drop column ts
+sql_error alter table db.stb drop column c6
+sql_error alter table db.stb drop column c7
+sql_error alter table db.stb drop column t1
+sql_error alter table db.stb drop column t2
+sql_error alter table db.stb drop column t3
+sql alter table db.stb drop column c1
+sql alter table db.stb drop column c4
+
+sql select * from information_schema.ins_stables where db_name = 'db'
+if $rows != 1 then
+  return -1
+endi
+if $data[0][3] != 4 then
+  return -1
+endi
+if $data[0][4] != 3 then
+  return -1
+endi
+
+print ========== update column
+sql_error alter table db.stb MODIFY column ts binary(20)
+sql_error alter table db.stb MODIFY column c6 binary(20)
+sql_error alter table db.stb MODIFY column t1 binary(20)
+sql_error alter table db.stb MODIFY column t3 binary(20)
+sql_error alter table db.stb MODIFY column c2 binary(3)
+sql alter table db.stb MODIFY column c2 binary(32)
+
+sql select * from information_schema.ins_stables where db_name = 'db'
+if $rows != 1 then
+  return -1
+endi
+if $data[0][3] != 4 then
+  return -1
+endi
+if $data[0][4] != 3 then
+  return -1
+endi
+
+print ========== rename column
+sql_error alter table db.stb rename column ts tx
+sql_error alter table db.stb rename column c2 cx
+
+print ========== add tag
+sql_error alter table db.stb add tag ts int
+sql_error alter table db.stb add tag c2 int
+sql_error alter table db.stb add tag t1 int
+sql_error alter table db.stb add tag t2 int
+sql_error alter table db.stb add tag t3 int
+sql alter table db.stb add tag t4 bigint
+sql alter table db.stb add tag c1 int
+sql alter table db.stb add tag t5 binary(12)
+
+sql select * from information_schema.ins_stables where db_name = 'db'
+if $rows != 1 then
+  return -1
+endi
+#ts c2 c3 c5
+if $data[0][3] != 4 then
+  return -1
+endi
+#t1 t2 t3 t4 c1 t5
+if $data[0][4] != 6 then
+  return -1
+endi
+
+print ========== drop tag
+sql_error alter table db.stb drop tag ts
+sql_error alter table db.stb drop tag c2
+sql_error alter table db.stb drop tag c3
+sql_error alter table db.stb drop tag tx
+sql alter table db.stb drop tag c1
+sql alter table db.stb drop tag t5
+
+sql select * from information_schema.ins_stables where db_name = 'db'
+if $rows != 1 then
+  return -1
+endi
+#ts c2 c3 c5
+if $data[0][3] != 4 then
+  return -1
+endi
+#t1 t2 t3 t4
+if $data[0][4] != 4 then
+  return -1
+endi
+
+print ========== update tag
+sql_error alter table db.stb MODIFY tag ts binary(20)
+sql_error alter table db.stb MODIFY tag c2 binary(20)
+sql_error alter table db.stb MODIFY tag t1 binary(20)
+sql_error alter table db.stb MODIFY tag tx binary(20)
+sql alter table db.stb MODIFY tag t3 binary(32)
+
+sql select * from information_schema.ins_stables where db_name = 'db'
+if $rows != 1 then
+  return -1
+endi
+if $data[0][3] != 4 then
+  return -1
+endi
+if $data[0][4] != 4 then
+  return -1
+endi
+
+print ========== rename tag
+#t1 t2 t3 t4
+
+sql_error alter table db.stb rename tag ts tx
+sql_error alter table db.stb rename tag c2 cx
+sql alter table db.stb rename tag t1 tx
+
+print ========== alter common
+sql alter table db.stb comment 'abcde' ;
+sql_error alter table db.stb ttl 10 ;
+
+sql select * from information_schema.ins_stables where db_name = 'db';
+if $data[0][6] != abcde then
+  return -1
+endi
+
+return
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

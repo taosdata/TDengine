@@ -1,0 +1,2 @@
+select count(*) from test.d0
+select * from test.meters

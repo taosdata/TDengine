@@ -1,0 +1,188 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======================== dnode1 start
+
+$dbPrefix = fi_in_db
+$tbPrefix = fi_in_tb
+$mtPrefix = fi_in_mt
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+
+print create_tb test
+print =============== set up
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+
+sql create database $db
+sql use $db
+
+# case1: case_insensitivity test
+print =========== create_tb.sim case1: case_insensitivity test
+sql CREATE TABLE $tb (TS TIMESTAMP, COL1 INT, COL2 BIGINT, COL3 FLOAT, COL4 DOUBLE, COL5 BINARY(10), COL6 BOOL, COL7 SMALLINT, COL8 TINYINT, COL9 NCHAR(10));
+sql show tables
+
+if $rows != 1 then
+  return -1
+endi
+print data00 = $data00
+if $data00 != $tb then
+  return -1
+endi
+sql DROP TABLE $tb
+sql show tables
+
+if $rows != 0 then
+  return -1
+endi
+print case_insensitivity test passed
+
+# case2: illegal_table_name test
+print =========== create_tb.sim case2: illegal_table_name test
+$illegal_tb1 = 1db
+$illegal_tb2 = d@b
+
+sql_error create table $illegal_db1 (ts timestamp, tcol int)
+sql_error create table $illegal_db2 (ts timestamp, tcol int)
+print illegal_table_name test passed
+
+# case3: illegal_data_types
+print ========== create_tb.sim case3: illegal_data_types test
+$i_ts = time # illegal ts
+$i_binary = binary # illegal binary
+$i_bigint = long # illegal bigint
+$i_smallint = short # illegal smallint
+$i_tinyint = byte # illegal tinyint
+$i_binary2 = varchar(20) # illegal string
+$nchar = nchar # unspecified nchar length
+
+sql_error create table $tb (ts $i_ts , col int)
+sql_error create table $tb (ts timestamp, col $i_binary )
+sql_error create table $tb (ts timestamp, col $i_bigint )
+sql_error create table $tb (ts timestamp, col $i_smallint )
+sql_error create table $tb (ts timestamp, col $i_tinyint )
+sql create table $tb (ts timestamp, col $i_binary2 )
+sql drop table $tb
+sql_error create table $tb (ts timestamp, col $nchar )
+sql create table $tb (ts timestamp, col nchar(20))
+sql show tables
+if $rows != 1 then
+  return -1
+endi
+if $data00 != $tb then
+  return -1
+endi
+sql drop table $tb
+print illegal data type test passed
+
+# case4: illegal_column_names
+# Only frequently used key words are tested here
+print ========== create_tb.sim case4: illegal_column_names
+$tb_ = table
+$tbs = tables
+$db_ = database
+$dbs = databases
+$ses = session
+$int = int
+$bint = bigint
+$binary = binary
+$str = string
+$tag = tag
+$tags = tags
+$sint = smallint
+$tint = tinyint
+$nchar = nchar
+
+sql_error create table $tb (ts timestamp, $tb_ int)
+sql_error create table $tb (ts timestamp, $tbs int)
+sql_error create table $tb (ts timestamp, $db_ int)
+sql_error create table $tb (ts timestamp, $dbs int)
+sql_error create table $tb (ts timestamp, $ses int)
+sql_error create table $tb (ts timestamp, $int int)
+sql_error create table $tb (ts timestamp, $bint int)
+sql_error create table $tb (ts timestamp, $binary int)
+sql create table $tb (ts timestamp, $str int)
+sql drop table $tb
+sql_error create table $tb (ts timestamp, $tag int)
+sql_error create table $tb (ts timestamp, $tags int)
+sql_error create table $tb (ts timestamp, $sint int)
+sql_error create table $tb (ts timestamp, $tint int)
+sql_error create table $tb (ts timestamp, $nchar int)
+
+# too long column name
+sql_error create table $tb (ts timestamp, abcde_123456789_123456789_123456789_123456789_123456789_123456789 int)
+sql_error create table tx(ts timestamp, k int) tags(abcd5_123456789_123456789_123456789_123456789_123456789_123456789 int)
+print illegal_column_names test passed
+
+# case5: chinese_char_in_table_support
+print ========== create_tb.sim case5: chinese_char_in_table_support test
+
+$CN_char = 涛思
+$tb1 = tb1
+sql_error create table $CN_char (ts timestamp, col1 int)
+#sql show tables
+#if $rows != 1 then
+#  return -1
+#endi
+#print expected: $CN_char
+#print returned: $data00
+#if $data00 != $CN_char then
+#  return -1
+#endi
+#sql drop table $CN_char
+
+sql_error create table $tb1 (ts timestamp, $CN_char int)
+#print expected: $tb1
+#print returned: $data10
+#sql show tables
+#if $rows != 1 then
+#  return -1
+#endi
+#if $data00 != $tb1 then
+#  return -1
+#endi
+#sql describe $tb1
+##print expected $CN_char
+##print returned $data10
+#if $data10 != $CN_char then
+#  return -1
+#endi
+#sql drop table $tb1
+print chinese_char_in_table_support test passed
+
+# case6: table_already_exists
+print ========== create_tb.sim case6: table_already_exists
+sql create table tbs (ts timestamp, col int)
+sql insert into tbs values (now, 1)
+sql_error create table tbs (ts timestamp, col bool)
+#sql_error create table tb (ts timestamp, col bool)
+print table_already_exists test passed
+
+# case7: table_name_length_exceeds_limit
+print ========== create_tb.sim case7: table_name_length_exceeds_limit
+$tbname32 = _32_aaaabbbbccccddddaaaabbbbcccc
+$tbname64 = _64_aaaabbbbccccddddaaaabbbbccccddddaaaabbbbccccddddaaaabbbbcccc
+$tbname63 = _63_aaaabbbbccccddddaaaabbbbccccddddaaaabbbbccccddddaaaabbbbccc
+$tbname65 = _65_aaaabbbbccccddddaaaabbbbccccddddaaaabbbbccccddddaaaabbbbcccca1111111111111111111111111111111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+sql create table $tbname32 (ts timestamp, col int)
+sql insert into $tbname32 values (now, 1)
+sql create table $tbname64 (ts timestamp, col int)
+sql insert into $tbname64 values (now, 1)
+sql create table $tbname63 (ts timestamp, col int)
+sql insert into $tbname63 values (now, 1)
+sql_error create table $tbname65 (ts timestamp, col int)
+#sql_error create table tb (ts timestamp, col bool)
+print table_already_exists test passed
+
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -1,0 +1,6 @@
+add_subdirectory(os)
+add_subdirectory(util)
+add_subdirectory(common)
+add_subdirectory(libs)
+add_subdirectory(client)
+add_subdirectory(dnode)

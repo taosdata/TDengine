@@ -1,0 +1,72 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create database db
+sql use db
+sql create table tb1(ts timestamp, i int, j float, k double)
+
+print ================= step1
+
+$i = 0
+$timestamp = 1564641700000
+while $i < 1000
+  
+  $val = 10 * $i
+  $val = $val + 2
+  $ts = $timestamp + 200
+  sql insert into tb1 values ( $ts , $val , $val , $val ) 
+  
+  $val = 10 * $i
+  $val = $val + 3
+  $ts = $timestamp + 300
+  sql insert into tb1 values ( $ts , $val , $val , $val ) 
+  
+  $val = 10 * $i
+  $val = $val + 4
+  $ts = $timestamp + 400
+  sql insert into tb1 values ( $ts , $val , $val , $val ) 
+  
+  $val = 10 * $i
+  $val = $val + 5
+  $ts = $timestamp + 500
+  sql insert into tb1 values ( $ts , $val , $val , $val ) 
+  
+  $val = 10 * $i
+  $val = $val + 6
+  $ts = $timestamp + 600
+  sql insert into tb1 values ( $ts , $val , $val , $val ) 
+  
+  $val = 10 * $i
+  $val = $val + 7
+  $ts = $timestamp + 700
+  sql insert into tb1 values ( $ts , $val , $val , $val ) 
+  
+  $val = 10 * $i
+  $val = $val + 8
+  $ts = $timestamp + 800
+  sql insert into tb1 values ( $ts , $val , $val , $val ) 
+  
+  $val = 10 * $i
+  $val = $val + 9
+  $ts = $timestamp + 900
+  sql insert into tb1 values ( $ts , $val , $val , $val ) 
+  
+  $val = 10 * $i
+  $val = $val + 1
+  $ts = $timestamp + 100
+  sql import into tb1 values ( $ts , $val , $val , $val ) 
+  
+  $val = 10 * $i
+  $val = $val + 0
+  $ts = $timestamp + 0
+  sql import into tb1 values ( $ts , $val , $val , $val ) 
+  
+  $timestamp = $timestamp + 1000
+  $i = $i + 1
+endw 
+
+print ================= step2
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

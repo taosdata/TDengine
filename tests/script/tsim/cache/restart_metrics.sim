@@ -1,0 +1,84 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======================== dnode1 start
+$i = 0
+$dbPrefix = ca_rm_db
+$tbPrefix = ca_rm_tb
+$mtPrefix = ca_rm_mt
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+$mt = $mtPrefix . $i
+
+print =============== step1
+sql create database $db
+sql use $db
+
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol binary(100))
+sql create table $tb using $mt tags( "1" )
+sql insert into $tb values (now, 1)
+
+sql select * from $tb
+#print ===>rows $rows, data $data01
+
+if $rows != 1 then
+  print expect 1, actual: $rows
+  return -1
+endi
+
+if $data01 != 1 then
+  print expect 1 actual: $data01
+  return -1
+endi  
+
+sql select * from $mt
+print ===>rows $rows, data $data01
+if $rows != 1 then
+  return -1
+endi  
+if $data01 != 1 then
+  return -1
+endi  
+
+print =============== step2
+system sh/exec.sh -n dnode1 -s stop
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+
+print =============== step3
+sql reset query cache
+
+print =============== step4
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, tbcol bool) TAGS(tgcol int)
+sql create table $tb using $mt tags( 3 )
+sql insert into $tb values (now, 2)
+
+sql select * from $tb
+print ===>rows $rows, data $data01
+if $rows != 1 then
+  return -1
+endi
+
+if $data01 != 1 then
+  print expect 1, actual $data01
+  return -1
+endi  
+
+sql select * from $mt
+print ===>rows $rows, data $data01
+if $rows != 1 then
+  return -1
+endi  
+if $data01 != 1 then
+  return -1
+endi  
+if $data02 != 3 then
+  print expect 3 actual: $data02
+  return -1
+endi 
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

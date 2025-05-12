@@ -1,0 +1,41 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ========== alter_stable.sim
+
+$db = demodb
+sql drop database if exists $db
+sql create database $db
+sql use $db
+
+##### alter stable test : rename tag name
+# case-1  rename tag name: new name inclue old name
+sql create table mt1 (ts timestamp, c1 int) tags (a int)
+sql alter table mt1 rename tag a abcd
+sql alter table mt1 rename tag abcd a
+sql_error alter table mt1 rename tag a 1
+
+sql_error create table mtx1 (ts timestamp, c1 int) tags (123 int)
+
+sql_error create table mt2 (ts timestamp, c1 int) tags (abc012345678901234567890123456789012345678901234567890123456789def int)
+sql create table mt3 (ts timestamp, c1 int) tags (abc012345678901234567890123456789012345678901234567890123456789 int)
+sql_error alter table mt3 rename tag abc012345678901234567890123456789012345678901234567890123456789 abcdefg012345678901234567890123456789012345678901234567890123456789
+sql alter table mt3 rename tag abc012345678901234567890123456789012345678901234567890123456789 abcdefg0123456789012345678901234567890123456789
+
+# case-2 set tag value
+sql create table mt4 (ts timestamp, c1 int) tags (name binary(16), len int)
+sql create table tb1 using mt4 tags ("beijing", 100)
+sql alter table tb1 set tag name = "shanghai"
+sql alter table tb1 set tag name = ""
+sql alter table tb1 set tag name = "shenzhen"
+sql alter table tb1 set tag len = 379
+
+# case TD-5594
+sql create stable st5520(ts timestamp, f int) tags(t0 bool, t1 nchar(4093), t2 nchar(1))
+sql_error alter stable st5520 modify tag t2 nchar(2);
+# test end
+sql drop database $db
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

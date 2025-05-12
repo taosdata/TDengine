@@ -1,0 +1,230 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+
+system sh/cfg.sh -n dnode1 -c supportVnodes -v 0
+
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+system sh/exec.sh -n dnode4 -s start
+
+sql connect
+sql create dnode $hostname port 7200
+sql create dnode $hostname port 7300
+sql create dnode $hostname port 7400
+
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+print ===> $data30 $data31 $data32 $data33 $data34 $data35
+if $rows != 4 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step1
+endi
+if $data(2)[4] != ready then
+  goto step1
+endi
+if $data(3)[4] != ready then
+  goto step1
+endi
+if $data(4)[4] != ready then
+  goto step1
+endi
+
+$vgroups = 1
+$replica = 1
+
+print ============= create database
+sql create database db1 replica $replica vgroups $vgroups
+
+$loop_cnt = 0
+check_db_ready:
+$loop_cnt = $loop_cnt + 1
+sleep 200
+if $loop_cnt == 100 then
+  print ====> db1 not ready!
+	return -1
+endi
+sql select * from information_schema.ins_databases
+print ===> rows: $rows
+print $data(db1)[0] $data(db)[1] $data(db)[2] $data(db)[3] $data(db)[4] $data(db)[5] $data(db)[6] $data(db)[7] $data(db)[8] $data(db)[9] $data(db)[10] $data(db)[11] $data(db)[12]
+print $data(db)[13] $data(db)[14] $data(db)[15] $data(db)[16] $data(db)[17] $data(db)[18] $data(db)[19] $data(db)[20]
+if $rows != 3 then
+  return -1
+endi
+if $data(db1)[15] != ready then
+  goto check_db_ready
+endi
+
+sql use db1
+
+$loop_cnt = 0
+check_vg_ready:
+$loop_cnt = $loop_cnt + 1
+sleep 200
+if $loop_cnt == 300 then
+  print ====> vgroups not ready!
+	return -1
+endi
+sql show vgroups
+print ===> rows: $rows
+print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6] $data[0][7] $data[0][8] $data[0][9] $data[0][6] $data[0][11] $data[0][12] $data[0][13]
+if $rows != $vgroups then
+  return -1
+endi
+if $data[0][4] == leader then
+   print ---- vgroup $data[0][0] leader locate on dnode $data[0][3] 
+   goto vg_ready
+elif $data[0][6] == leader then
+   print ---- vgroup $data[0][0] leader locate on dnode $data[0][5] 
+   goto vg_ready
+elif $data[0][8] == leader then
+   print ---- vgroup $data[0][0] leader locate on dnode $data[0][7] 
+   goto vg_ready
+else
+   goto check_vg_ready
+endi
+
+vg_ready:
+print ====>  create stable/child table
+sql create table stb (ts timestamp, c1 int, c2 float, c3 binary(10)) tags (t1 int)
+
+sql show stables
+if $rows != 1 then 
+  return -1
+endi
+
+
+$ctbPrefix = ctb
+$ntbPrefix = ntb
+$tbNum    = 10
+$i = 0
+while $i < $tbNum
+  $ctb = $ctbPrefix . $i
+  sql create table $ctb using stb tags( $i )
+  $ntb = $ntbPrefix . $i
+  sql create table $ntb (ts timestamp, c1 int, c2 float, c3 binary(10))
+  $i = $i + 1
+endw
+
+$totalTblNum = $tbNum * 2
+sleep 1000
+sql show tables
+print ====> expect $totalTblNum and infinsert $rows  in fact 
+if $rows != $totalTblNum then 
+  return -1
+endi
+
+start_switch_leader:
+
+$switch_loop_cnt = 0
+switch_leader_to_offine_loop:
+
+print ====> finde vnode of leader, and stop the dnode where the vnode is located, and query stb/ntb count(*)
+sql show vgroups
+print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6] $data[0][7] $data[0][8] $data[0][9] $data[0][6] $data[0][11] $data[0][12] $data[0][13]
+if $data[0][4] == leader then
+  $dnodeId = $data[0][3]
+elif $data[0][6] == leader then
+  $dnodeId = $data[0][5]
+elif $data[0][8] == leader then
+  $dnodeId = $data[0][7]
+else 
+   print ====> no leader vnode!!!
+  return -1 
+endi
+
+$dnodeId = dnode . $dnodeId
+print ====> stop $dnodeId
+system sh/exec.sh -n $dnodeId -s stop -x SIGINT
+#print ====> start $dnodeId
+#system sh/exec.sh -n $dnodeId -s start
+
+$loop_cnt = 0
+check_vg_ready_2:
+$loop_cnt = $loop_cnt + 1
+sleep 200
+if $loop_cnt == 300 then
+  print ====> vgroups switch fail!!!
+	return -1
+endi
+sql show vgroups
+print ===> rows: $rows
+print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6] $data[0][7] $data[0][8] $data[0][9] $data[0][6] $data[0][11] $data[0][12] $data[0][13]
+if $rows != $vgroups then
+  return -1
+endi
+
+if $data[0][4] == offline then
+  print ---- vgroup $dnodeId leader switch to offline
+  goto vg_offline_1
+elif $data[0][6] == offline then
+  print ---- vgroup $dnodeId leader switch to offline
+  goto vg_offline_1
+elif $data[0][8] == offline then
+  print ---- vgroup $dnodeId leader switch to offline
+  goto vg_offline_1
+else 
+  goto check_vg_ready_2
+endi   
+
+vg_offline_1:
+
+print ====> start $dnodeId
+system sh/exec.sh -n $dnodeId -s start
+
+$loop_cnt1= 0
+check_vg1_ready:
+$loop_cnt1 = $loop_cnt1 + 1
+sleep 200
+if $loop_cnt1 == 300 then
+  print ====> vgroups not ready!
+	return -1
+endi
+sql show vgroups
+print ===> rows: $rows
+print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6] $data[0][7] $data[0][8] $data[0][9] $data[0][6] $data[0][11] $data[0][12] $data[0][13]
+if $rows != $vgroups then
+  return -1
+endi
+if $data[0][4] == leader then
+   print ---- vgroup $data[0][0] leader locate on dnode $data[0][3] 
+   goto countinu_loop
+elif $data[0][6] == leader then
+   print ---- vgroup $data[0][0] leader locate on dnode $data[0][5] 
+   goto countinu_loop
+elif $data[0][8] == leader then
+   print ---- vgroup $data[0][0] leader locate on dnode $data[0][7] 
+   goto countinu_loop
+else
+   goto check_vg1_ready
+endi
+
+countinu_loop:
+
+$switch_loop_cnt = $switch_loop_cnt + 1
+print  $switch_loop_cnt
+if $switch_loop_cnt < 4 then
+  goto switch_leader_to_offine_loop
+endi
+
+stop_leader_to_offine_loop:
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
+system sh/exec.sh -n dnode4 -s stop -x SIGINT

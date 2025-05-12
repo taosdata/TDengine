@@ -1,0 +1,86 @@
+$db = testdb
+sql use $db
+print "test tb1"
+
+sql select last_row(f1, f2, f3, f4) from st2
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 6 then
+  return -1
+endi
+if $data01 != NULL then
+  print expect NULL actual: $data02
+  return -1
+endi
+if $data02 != NULL then
+  print expect NULL actual: $data02
+  return -1
+endi
+if $data03 != @70-01-01 07:59:57.000@ then
+  return -1
+endi
+
+sql select last_row(*) from st2
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-12 10:10:12.000@ then
+  print $data00
+  return -1
+endi
+if $data01 != 6 then
+  return -1
+endi
+if $data02 != NULL then
+  print expect NULL actual: $data02
+  return -1
+endi
+if $data03 != NULL then
+  print expect NULL actual: $data02
+  return -1
+endi
+if $data04 != @70-01-01 07:59:57.000@ then
+  return -1
+endi
+
+sql select last(f1, f2, f3, f4) from st2
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 6 then
+  return -1
+endi
+if $data01 != 37.000000000 then
+  print expect 37.000000000 actual: $data02
+  return -1
+endi
+if $data02 != 27 then
+  return -1
+endi
+if $data03 != @70-01-01 07:59:57.000@ then
+  return -1
+endi
+
+sql select last(*) from st2
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-12 10:10:12.000@ then
+  print $data00
+  return -1
+endi
+if $data01 != 6 then
+  return -1
+endi
+if $data02 != 37.000000000 then
+  print expect 37.000000000 actual: $data02
+  return -1
+endi
+if $data03 != 27 then
+  return -1
+endi
+if $data04 != @70-01-01 07:59:57.000@ then
+  return -1
+endi
+

@@ -1,0 +1,16 @@
+all:
+	gcc node10000.c -I ../../include/ ../../.libs/libraft.a -o node10000 -luv -llz4 -lpthread -g
+	gcc node10001.c -I ../../include/ ../../.libs/libraft.a -o node10001 -luv -llz4 -lpthread -g
+	gcc node10002.c -I ../../include/ ../../.libs/libraft.a -o node10002 -luv -llz4 -lpthread -g
+	gcc node10000_restart.c -I ../../include/ ../../.libs/libraft.a -o node10000_restart -luv -llz4 -lpthread -g
+	gcc node10001_restart.c -I ../../include/ ../../.libs/libraft.a -o node10001_restart -luv -llz4 -lpthread -g
+	gcc node10002_restart.c -I ../../include/ ../../.libs/libraft.a -o node10002_restart -luv -llz4 -lpthread -g
+clean:
+	rm -f node10000
+	rm -f node10001
+	rm -f node10002
+	rm -f node10000_restart
+	rm -f node10001_restart
+	rm -f node10002_restart
+	sh clear.sh
+

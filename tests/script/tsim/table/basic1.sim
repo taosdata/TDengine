@@ -1,0 +1,303 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+#=========== TD-14042 start
+sql create database db1;
+sql create database db2;
+sql create database db3;
+
+sql use db1;
+sql create table st1 (ts timestamp, i int) tags (j int);
+sql create table tb1 using st1 tags(1);
+
+sql use db2;
+sql create table st2 (ts timestamp, i int) tags (j int);
+sql create table tb2 using st2 tags(1);
+
+sql use db3;
+sql create table st3 (ts timestamp, i int) tags (j int);
+sql create table tb3 using st3 tags(1);
+
+sql show tables
+if $rows != 1 then 
+  return -1
+endi
+#=========== TD-14042 end
+
+print =============== create database
+sql create database d1
+sql select * from information_schema.ins_databases
+if $rows != 6 then
+  return -1
+endi
+
+print $data00 $data01 $data02
+
+sql use d1
+
+print =============== create super table
+sql create table st (ts timestamp, i int) tags (j int)
+sql create table if not exists st (ts timestamp, i int) tags (j int)
+sql create table if not exists st (ts timestamp, i int) tags (j int)
+sql show stables
+if $rows != 1 then 
+  return -1
+endi
+
+print $data00 $data01 $data02
+
+sql create table st2 (ts timestamp, i float) tags (j int)
+sql show stables
+if $rows != 2 then 
+  return -1
+endi
+
+print $data00 $data01 $data02
+print $data10 $data11 $data12
+
+sql drop table st2
+
+sql show stables
+if $rows != 1 then 
+  return -1
+endi
+
+print $data00 $data01 $data02
+print $data10 $data11 $data12
+
+print =============== create child table
+sql create table c1 using st tags(1)
+sql create table c2 using st tags(2) 
+
+sql show tables
+if $rows != 2 then 
+  return -1
+endi
+
+sql create table c3 using st tags(3) c4 using st tags(4) c5 using st tags(5) c6 using st tags(6) c7 using st tags(7)
+
+sql show tables
+if $rows != 7 then 
+  return -1
+endi
+
+print $data00 $data01 $data02
+print $data10 $data11 $data12
+print $data20 $data21 $data22
+
+print =============== create normal table
+sql create database ndb
+sql use ndb
+sql create table nt0 (ts timestamp, i int)
+# sql create table if not exists nt0 (ts timestamp, i int)
+sql create table nt1 (ts timestamp, i int)
+# sql create table if not exists nt1 (ts timestamp, i int)
+sql create table if not exists nt3 (ts timestamp, i int)
+
+sql show tables
+if $rows != 3 then 
+  return -1
+endi
+
+sql insert into nt0 values(now+1s, 1)(now+2s, 2)(now+3s, 3)
+sql insert into nt1 values(now+1s, 1)(now+2s, 2)(now+3s, 3)
+
+sql select * from nt1
+if $rows != 3 then 
+  return -1
+endi
+
+print $data00 $data01
+print $data10 $data11
+print $data20 $data21
+
+if $data01 != 1 then 
+  return -1
+endi
+
+if $data11 != 2 then 
+  return -1
+endi
+
+if $data21 != 3 then 
+  return -1
+endi
+
+
+print =============== insert data
+sql use d1
+sql insert into c1 values(now+1s, 1)
+sql insert into c1 values(now+2s, 2)
+sql insert into c1 values(now+3s, 3)
+sql insert into c2 values(now+1s, 1)
+sql insert into c2 values(now+2s, 2)
+sql insert into c2 values(now+3s, 3)
+sql insert into c3 values(now+1s, 1)
+sql insert into c3 values(now+2s, 2)
+sql insert into c3 values(now+3s, 3)
+sql insert into c4 values(now+1s, 1)
+sql insert into c4 values(now+2s, 2)
+sql insert into c4 values(now+3s, 3)
+sql insert into c5 values(now+1s, 1)
+sql insert into c5 values(now+2s, 2)
+sql insert into c5 values(now+3s, 3)
+sql insert into c6 values(now+1s, 1)
+sql insert into c6 values(now+2s, 2)
+sql insert into c6 values(now+3s, 3)
+sql insert into c7 values(now+1s, 1)
+sql insert into c7 values(now+2s, 2)
+sql insert into c7 values(now+3s, 3)
+
+print =============== query data
+sql select * from c1
+if $rows != 3 then 
+  return -1
+endi
+
+print $data00 $data01
+print $data10 $data11
+print $data20 $data21
+
+if $data01 != 1 then 
+  return -1
+endi
+
+if $data11 != 2 then 
+  return -1
+endi
+
+if $data21 != 3 then 
+  return -1
+endi
+
+sql select * from c2
+if $rows != 3 then 
+  return -1
+endi
+
+sql select * from c3
+if $rows != 3 then 
+  return -1
+endi
+
+sql select * from c4
+if $rows != 3 then 
+  return -1
+endi
+
+sql select * from c5
+if $rows != 3 then 
+  return -1
+endi
+
+sql select * from c6
+if $rows != 3 then 
+  return -1
+endi
+
+sql select * from c7
+if $rows != 3 then 
+  return -1
+endi
+
+print =============== query data from st
+print ==============select * against super will cause crash.
+sql select ts from st
+if $rows != 21 then
+  print expect 21, actual $rows
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+
+print =============== query data
+sql select * from c1
+print rows: $rows
+print $data00 $data01
+print $data10 $data11
+print $data20 $data21
+if $rows != 3 then 
+  print $rows
+  return -1
+endi
+
+print $data00 $data01
+print $data10 $data11
+print $data20 $data21
+
+if $data01 != 1 then 
+  return -1
+endi
+
+if $data11 != 2 then 
+  return -1
+endi
+
+if $data21 != 3 then 
+  return -1
+endi
+
+sql select * from c2
+if $rows != 3 then 
+  return -1
+endi
+
+sql select * from c3
+if $rows != 3 then 
+  return -1
+endi
+
+sql select * from c4
+if $rows != 3 then 
+  return -1
+endi
+
+sql select * from c5
+if $rows != 3 then 
+  return -1
+endi
+
+sql select * from c6
+if $rows != 3 then 
+  return -1
+endi
+
+sql select * from c7
+if $rows != 3 then 
+  return -1
+endi
+
+print =============== query data from st
+sql select ts from st
+if $rows != 21 then 
+  return -1
+endi
+
+print =============== query data from normal table after restart dnode
+sql use ndb
+sql select * from nt1
+if $rows != 3 then
+  print expect 3, actual: $rows
+  return -1
+endi
+
+print $data00 $data01
+print $data10 $data11
+print $data20 $data21
+
+if $data01 != 1 then 
+  return -1
+endi
+
+if $data11 != 2 then 
+  return -1
+endi
+
+if $data21 != 3 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

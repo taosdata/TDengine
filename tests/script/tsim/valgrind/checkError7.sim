@@ -1,0 +1,77 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start -v
+sql connect
+
+print ======================== create stable
+sql create database d1
+sql use d1
+
+$x = 0
+while $x < 5
+  $tb = d1.s . $x
+  print create table $tb (ts timestamp, i int) tags (j int)
+  sql create table $tb (ts timestamp, i int) tags (j int)
+  $x = $x + 1
+endw
+
+print ======================== describe stables
+# TODO : create stable error
+$m = 0
+while $m < 5
+  $tb = s . $m
+  $filter = ' . $tb
+  $filter = $filter . '
+  sql show stables like $filter
+  print sql : show stables like $filter
+  if $rows != 1 then
+    print expect 1, actual: $rows
+    return -1
+  endi
+  $m = $m + 1
+endw
+
+
+print ======================== show stables
+
+sql show d1.stables
+
+print num of stables is $rows
+if $rows != 5 then
+  return -1
+endi
+
+print ======================== create table
+
+$x = 0
+while $x < 42
+  $tb = d1.t . $x
+  print create table $tb using d1.s0 tags( $x )
+  sql create table $tb using d1.s0 tags( $x )
+  $x = $x + 1
+endw
+
+print ======================== show stables
+
+sql show d1.tables
+
+print num of tables is $rows
+if $rows != 42 then
+  return -1
+endi
+
+
+_OVER:
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+print =============== check
+$null=
+
+system_content sh/checkValgrind.sh -n dnode1 
+print cmd return result ----> [ $system_content ]
+if $system_content > 0 then
+  return -1
+endi 
+
+if $system_content == $null then
+  return -1
+endi 

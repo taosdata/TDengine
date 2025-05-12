@@ -1,0 +1,317 @@
+sql connect
+
+$dbPrefix = first_db
+$tbPrefix = first_tb
+$stbPrefix = first_stb
+$tbNum = 10
+$rowNum = 2000
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 60000
+print ========== first_last_query.sim
+$i = 0
+$db = $dbPrefix . $i
+$stb = $stbPrefix . $i
+
+print use $db
+sql use $db
+
+##### select first/last from table
+## TBASE-331
+print ====== select first/last from table
+$tb = $tbPrefix . 0
+print select first(*) from $tb
+sql select first(*) from $tb
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @18-09-17 08:59:00.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data02 != 0 then
+  return -1
+endi
+print data03 = $data03
+if $data03 != 0.00000 then
+  print expect 0.00000, actual: $data03
+  return -1
+endi
+if $data04 != 0.000000000 then
+  return -1
+endi
+if $data05 != 0 then
+  return -1
+endi
+if $data06 != 0 then
+  return -1
+endi
+if $data07 != 1 then
+  return -1
+endi
+if $data08 != BINARY then
+  print expect BINARY, actual: $data08
+  return -1
+endi
+#if $data09 != NULL then
+if $data09 != NCHAR then
+  return -1
+endi
+
+print select last(*) from $tb
+sql select last(*) from $tb
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @18-09-18 01:40:00.000@ then
+  return -1
+endi
+
+if $data01 != 999 then
+  return -1
+endi
+
+if $data02 != 999 then
+  return -1
+endi
+
+if $data03 != 999.00000 then
+  return -1
+endi
+
+if $data04 != 999.000000000 then
+  return -1
+endi
+
+#if $data05 != NULL then
+if $data05 != 999 then
+  return -1
+endi
+#if $data06 != NULL then
+if $data06 != 103 then
+  return -1
+endi
+#if $data07 != NULL then
+if $data07 != 1 then
+  return -1
+endi
+#if $data08 != NULL then
+if $data08 != BINARY then
+  return -1
+endi
+#if $data09 != NULL then
+if $data09 != NCHAR then
+  return -1
+endi
+
+### test if first works for committed data. An 'order by ts desc' clause should be present, and queried data should come from at least 2 file blocks
+$tb = $tbPrefix . 9
+sql select first(ts), first(c1) from $tb where ts < '2018-10-17 10:00:00.000'
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @18-09-17 09:00:00.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+
+$tb = $tbPrefix . 9
+sql select first(ts), first(c1) from $tb where ts < '2018-10-17 10:00:00.000'
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @18-09-17 09:00:00.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+
+print =============> add check for out of range first/last query
+sql select first(ts),last(ts) from first_tb4 where ts>'2018-9-18 1:40:01';
+if $row != 0 then
+  return -1
+endi
+
+sql select first(ts),last(ts) from first_tb4 where ts<'2018-9-17 8:50:0';
+if $row != 0 then
+  return -1
+endi
+
+#first/last mix up query
+#select first(size),last(size) from stest interval(1d) group by tbname;
+print =====================>td-1477
+
+sql create table stest(ts timestamp,size INT,filenum INT) tags (appname binary(500),tenant binary(500));
+sql insert into test1 using stest tags('test1','aaa') values ('2020-09-04 16:53:54.003',210,3);
+sql insert into test2 using stest tags('test1','aaa') values ('2020-09-04 16:53:56.003',210,3);
+sql insert into test11 using stest tags('test11','bbb') values ('2020-09-04 16:53:57.003',210,3);
+sql insert into test12 using stest tags('test11','bbb') values ('2020-09-04 16:53:58.003',210,3);
+sql insert into test21 using stest tags('test21','ccc') values ('2020-09-04 16:53:59.003',210,3);
+sql insert into test22 using stest tags('test21','ccc') values ('2020-09-04 16:54:54.003',210,3);
+sql select sum(size), appname from stest group by appname order by appname;;
+if $rows != 3 then
+  return -1
+endi
+
+if $data00 != 420 then
+  return -1
+endi
+if $data10 != 420 then
+  return -1
+endi
+if $data20 != 420 then
+  return -1
+endi
+
+if $data01 != @test1@ then
+  return -1
+endi
+if $data11 != @test11@ then
+  return -1
+endi
+if $data21 != @test21@ then
+  return -1
+endi
+
+sql select _wstart, sum(size), appname from stest partition by appname interval(1d)  order by appname;
+if $rows != 3 then
+ return -1
+endi
+
+#2020-09-04 00:00:00.000 |                   420 | test1                          |
+#2020-09-04 00:00:00.000 |                   420 | test11                         |
+#2020-09-04 00:00:00.000 |                   420 | test21                         |
+if $data00 != @20-09-04 00:00:00.000@ then
+ return -1
+endi
+
+if $data10 != @20-09-04 00:00:00.000@ then
+ return -1
+endi
+
+if $data20 != @20-09-04 00:00:00.000@ then
+ return -1
+endi
+
+if $data01 != 420 then
+ print expect 420 , actual $data01
+ return -1
+endi
+
+if $data11 != 420 then
+ return -1
+endi
+
+if $data21 != 420 then
+ return -1
+endi
+
+if $data02 != @test1@ then
+return -1
+endi
+if $data12 != @test11@ then
+return -1
+endi
+if $data22 != @test21@ then
+return -1
+endi
+
+print ===================>td-1477, one table has only one block occurs this bug.
+sql select _wstart, first(size), count(*), LAST(SIZE), tbname from stest where tbname in ('test1', 'test2') partition by tbname interval(1d) order by tbname asc;
+if $rows != 2 then
+ return -1
+endi
+
+if $data00 != @20-09-04 00:00:00.000@ then
+  return -1
+endi
+
+if $data01 != 210 then
+  return -1
+endi
+
+if $data02 != 1 then
+  return -1
+endi
+
+if $data03 != 210 then
+ return -1
+endi
+
+if $data04 != @test1@ then
+  return -1
+endi
+
+if $data10 != @20-09-04 00:00:00.000@ then
+  return -1
+endi
+
+if $data11 != 210 then
+  return -1
+endi
+
+if $data12 != 1 then
+  return -1
+endi
+
+if $data13 != 210 then
+ return -1
+endi
+
+if $data14 != @test2@ then
+  print expect test2 , actual: $data14
+  return -1
+endi
+
+sql drop table stest
+
+print ===================>td-3779
+sql create table m1(ts timestamp, k int) tags(a int);
+sql create table tm0 using m1 tags(1);
+sql create table tm1 using m1 tags(2);
+sql insert into tm0 values('2020-3-1 1:1:1', 112);
+sql insert into tm1 values('2020-1-1 1:1:1', 1)('2020-3-1 0:1:1', 421);
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+
+print ================== server restart completed
+sql connect
+sql use first_db0;
+
+sql select last(*), tbname from m1 group by tbname order by tbname;
+print $data00 $data01 $data02 $data10 $data11 $data12
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != @20-03-01 01:01:01.000@ then
+  print data00 $data00 != 20-03-01 01:01:01.000@
+  return -1
+endi
+
+if $data01 != 112 then
+  return -1
+endi
+
+if $data02 != @tm0@ then
+  return -1
+endi
+
+if $data10 != @20-03-01 00:01:01.000@ then
+  return -1
+endi
+
+if $data11 != 421 then
+  return -1
+endi
+
+if $data12 != @tm1@ then
+  return -1
+endi
+
+sql drop table m1

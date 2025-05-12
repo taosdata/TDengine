@@ -1,0 +1,8 @@
+sql connect
+sql use testa;
+
+sql create view view1 as select * from sta1;
+sql_error CREATE STREAM s1 INTO s1t AS SELECT _wstart, count(*) FROM view1 PARTITION BY f INTERVAL(1m);
+
+sql drop view view1;
+

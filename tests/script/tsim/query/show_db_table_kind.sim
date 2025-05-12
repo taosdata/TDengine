@@ -1,0 +1,107 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql drop database if exists db1;
+sql create database db1 vgroups 3;
+sql create database db1;
+sql use db1;
+sql create stable sta (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);
+sql create stable stb (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);
+sql create table tba1 using sta tags(1, 1, 1);
+sql create table tba2 using sta tags(2, 2, 2);
+sql create table tba3 using sta tags(3, 3, 3);
+sql create table tba4 using sta tags(3, 3, 3);
+sql create table tba5 using sta tags(3, 3, 3);
+sql create table tba6 using sta tags(3, 3, 3);
+sql create table tba7 using sta tags(3, 3, 3);
+sql create table tba8 using sta tags(3, 3, 3);
+sql create table tbb1 using stb tags(4, 4, 4);
+sql create table tbb2 using stb tags(5, 5, 5);
+sql create table tbb3 using stb tags(6, 6, 6);
+sql create table tbb4 using stb tags(4, 4, 4);
+sql create table tbb5 using stb tags(5, 5, 5);
+sql create table tbb6 using stb tags(6, 6, 6);
+sql create table tbb7 using stb tags(7, 7, 7);
+sql create table tbb8 using stb tags(8, 8, 8);
+sql create table tbn1 (ts timestamp, f1 int);
+sql create database db2 vgroups 3;
+sql create database db2;
+sql use db2;
+sql create stable sta (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);
+sql create stable stb (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);
+sql create table tba1 using sta tags(1, 1, 1);
+sql create table tba2 using sta tags(2, 2, 2);
+sql create table tbb1 using stb tags(4, 4, 4);
+sql create table tbb2 using stb tags(5, 5, 5);
+sql create table tbb3 using stb tags(6, 6, 6);
+
+sql show user databases;
+print $rows
+if $rows != 2 then
+  return -1
+endi
+
+sql show system databases;
+print $rows
+if $rows != 2 then
+  return -1
+endi
+
+sql show databases;
+print $rows
+if $rows != 4 then
+  return -1
+endi
+
+sql use db1
+
+sql show tables
+print $rows
+if $rows != 17 then
+  return -1
+endi
+
+sql show normal tables;
+print $rows
+if $rows != 1 then
+  return -1
+endi
+print $data00
+if $data00 != @tbn1@ then
+  return -1
+endi
+
+sql show child tables;
+print $rows
+if $rows != 16 then
+  return -1
+endi
+
+sql show db2.tables;
+print $rows
+if $rows != 5 then
+  return -1
+endi
+sql show normal db2.tables
+print $rows
+if $rows != 0 then
+  return -1
+endi
+sql show child db2.tables
+print $rows
+if $rows != 5 then
+  return -1
+endi
+sql show child db2.tables like '%'
+print $rows
+if $rows != 5 then
+  return -1
+endi
+sql show normal db2.tables like '%'
+print $rows
+if $rows != 0 then
+  return -1
+endi
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

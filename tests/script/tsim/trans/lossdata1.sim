@@ -1,0 +1,33 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c transPullupInterval -v 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======= backup sdbdata
+system sh/exec.sh -n dnode1 -s stop
+system cp ../../../../sim/dnode1/data/mnode/data/sdb.data  ../../../../sim/dnode1/data/mnode/data/sdb.data.bak1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print =============== create user1
+sql create user user1 PASS 'use@##r1$*'
+sql create user user2 PASS 'use&*r2$*'
+sql select * from information_schema.ins_users
+if $rows != 3 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop
+
+print ======= restore backup data
+system cp ../../../../sim/dnode1/data/mnode/data/sdb.data.bak1  ../../../../sim/dnode1/data/mnode/data/sdb.data
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql select * from information_schema.ins_users
+if $rows != 3 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop 

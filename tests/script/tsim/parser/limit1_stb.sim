@@ -1,0 +1,496 @@
+sql connect
+
+$dbPrefix = lm1_db
+$tbPrefix = lm1_tb
+$stbPrefix = lm1_stb
+$tbNum = 10
+$rowNum = 1000
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 600000
+print ========== limit1.sim
+$i = 0
+$db = $dbPrefix . $i
+$stb = $stbPrefix . $i
+$tsu = $rowNum * $delta
+$tsu = $tsu - $delta
+$tsu = $tsu + $ts0
+
+print ====== use db
+sql use $db
+
+#### select from supertable
+
+### select from stb + limit offset
+sql select * from $stb limit 5
+if $rows != 5 then
+  return -1
+endi
+sql select * from $stb limit 5 offset 1
+if $rows != 5 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data41 != 5 then
+  return -1
+endi
+$val = $totalNum - 1
+sql select * from $stb limit $totalNum offset 1
+if $rows != $val then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data41 != 5 then
+  return -1
+endi
+
+##TBASE-352
+$offset = $tbNum * $rowNum
+$offset = $offset - 1
+sql select * from $stb order by ts limit 2 offset $offset
+if $rows != 1 then
+  return -1
+endi
+
+$offset = $tbNum * $rowNum
+$offset = $offset / 2
+$offset = $offset - 1
+sql select * from $stb limit 2 offset $offset
+if $rows != 2 then
+  return -1
+endi
+#if $data00 != @18-11-25 19:30:00.000@ then
+#  return -1
+#endi
+#if $data01 != 9 then
+#  return -1
+#endi
+#if $data02 != 9 then
+#  return -1
+#endi
+#if $data03 != 9.00000 then
+#  return -1
+#endi
+#if $data04 != 9.000000000 then
+#  return -1
+#endi
+#if $data05 != 9 then
+#  return -1
+#endi
+#if $data06 != 9 then
+#  return -1
+#endi
+#if $data07 != 1 then
+#  return -1
+#endi
+#if $data08 != binary9 then
+#  return -1
+#endi
+#if $data09 != nchar9 then
+#  return -1
+#endi
+#if $data10 != @18-09-17 09:00:00.000@ then
+#  return -1
+#endi
+#if $data11 != 0 then
+#  return -1
+#endi
+#if $data12 != NULL then
+#  return -1
+#endi
+#if $data13 != 0.00000 then
+#  return -1
+#endi
+#if $data14 != NULL then
+#  return -1
+#endi
+#if $data15 != 0 then
+#  return -1
+#endi
+#if $data16 != 0 then
+#  return -1
+#endi
+#if $data17 != 1 then
+#  return -1
+#endi
+#if $data18 != binary0 then
+#  return -1
+#endi
+#if $data19 != nchar0 then
+#  return -1
+#endi
+
+### offset >= rowsInFileBlock
+##TBASE-352
+$limit = $totalNum / 2
+$offset = $totalNum
+sql select * from $stb limit $limit offset $offset
+if $rows != 0 then
+  return -1
+endi
+
+$offset = $offset - 1
+sql select * from $stb limit $limit offset $offset
+if $rows != 1 then
+  return -1
+endi
+$limit = $totalNum / 2
+$offset = $totalNum / 2
+$offset = $offset - 1
+sql select * from $stb limit $limit offset $offset
+if $rows != $limit then
+  return -1
+endi
+$offset = $totalNum / 2
+$offset = $offset + 1
+sql select * from $stb limit $limit offset $offset
+$val = $limit - 1
+if $rows != $val then
+  return -1
+endi
+
+sql select ts, c1, c2, c3, c4, c5, c6, c7, c8, c9 from $stb limit 1 offset 0;
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+sql select ts, c1, c2, c3, c4, c5, c6, c7, c8, c9 from $stb limit 1 offset 1;
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+sql select ts, c1, c2, c3, c4, c5, c6, c7, c8, c9 from $stb order by ts limit 1 offset 4;
+if $rows != 1 then
+  return -1
+endi
+
+### select from supertable + where + limit offset
+sql select * from $stb where ts > '2018-09-17 09:30:00.000' and ts < '2018-09-17 10:30:00.000' limit 5 offset 1
+if $rows != 5 then
+  return -1
+endi
+
+$offset = $totalNum / 2
+sql select * from $stb where ts >= $ts0 and ts <= $tsu limit 5 offset $offset
+if $rows != 5 then
+  return -1
+endi
+#if $data00 != @18-09-17 09:00:00.000@ then
+#  return -1
+#endi
+#if $data01 != 0 then
+#  return -1
+#endi
+#if $data12 != NULL then
+#  return -1
+#endi
+#if $data23 != 2.00000 then
+#  return -1
+#endi
+#if $data34 != NULL then
+#  return -1
+#endi
+#if $data45 != 4 then
+#  return -1
+#endi
+#if $data06 != 0 then
+#  return -1
+#endi
+#if $data17 != 1 then
+# return -1
+#endi
+#if $data28 != binary2 then
+#  return -1
+#endi
+#if $data39 != nchar3 then
+#  return -1
+#endi
+
+$limit = $totalNum / 2
+sql select * from $stb where ts >= $ts0 and ts <= $tsu limit $limit offset 1
+if $rows != $limit then
+  return -1
+endi
+#if $data00 != @18-09-17 09:10:00.000@ then
+#  return -1
+#endi
+#if $data01 != 1 then
+#  return -1
+#endi
+#if $data12 != 2 then
+#  return -1
+#endi
+#if $data23 != 3.00000 then
+#  return -1
+#endi
+#if $data34 != 4.000000000 then
+#  return -1
+#endi
+#if $data45 != 5 then
+#  return -1
+#endi
+#if $data06 != 1 then
+#  return -1
+#endi
+#if $data17 != 1 then
+#  return -1
+#endi
+#if $data28 != binary3 then
+#  return -1
+#endi
+#if $data39 != nchar4 then
+#  return -1
+#endi
+
+sql select max(c1), min(c2), avg(c3), sum(c5), spread(c6), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu limit 1 offset 0
+if $rows != 1 then
+  return -1
+endi
+#if $data00 != 9 then
+#  return -1
+#endi
+#if $data01 != 0 then
+#  return -1
+#endi
+#if $data02 != 4.500000000 then
+#  return -1
+#endi
+#$val = 45 * $rowNum
+#if $data03 != $val then
+#  return -1
+#endi
+#if $data04 != 9.000000000 then
+#  return -1
+#endi
+#if $data05 != 1 then
+#  return -1
+#endi
+#if $data06 != binary9 then
+#  return -1
+#endi
+#if $data07 != nchar0 then
+#  return -1
+#endi
+
+sql select max(c1), min(c2), avg(c3), sum(c5), spread(c6), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu and c1 > 1 and c2 < 9 and c3 > 2 and c4 < 8 and c5 > 3 and c6 < 7 and c7 != 0 and c8 like '%5' and t1 > 3 and t1 < 6 limit 1 offset 0;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 5 then
+  return -1
+endi
+if $data01 != 5 then
+  return -1
+endi
+if $data02 != 5.000000000 then
+  return -1
+endi
+$val = 5 * $rowNum
+$val = $val / 10
+if $data03 != $val then
+  return -1
+endi
+if $data04 != 0.000000000 then
+  return -1
+endi
+if $data05 != 1 then
+  return -1
+endi
+if $data06 != binary5 then
+  return -1
+endi
+if $data07 != nchar5 then
+  return -1
+endi
+
+$limit = $totalNum
+$offset = $totalNum
+sql select max(c1), min(c2), avg(c3), sum(c5), spread(c6), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu and t1 > 3 and t1 < 6 limit $limit offset $offset
+if $rows != 0 then
+  return -1
+endi
+
+## TBASE-353
+$limit = $totalNum / 2
+sql select max(c1), min(c2), avg(c3), sum(c5), spread(c6), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu and t1 > 1 and t1 < 8 group by t1 order by t1 asc limit $limit offset 1
+if $rows != 5 then
+  return -1
+endi
+
+$limit = $totalNum / 2
+sql select max(c1), min(c2), avg(c3), count(c4), sum(c5), spread(c6), first(c7), last(c8), first(c9),t1 from $stb where ts >= $ts0 and ts <= $tsu and t1 > 1 and t1 < 8 group by t1 order by t1 asc limit $limit offset 0
+if $rows != 6 then
+  print expect 6, actual:$rows
+  return -1
+endi
+if $data00 != 9 then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data03 != $rowNum then
+  return -1
+endi
+if $data09 != 2 then
+  return -1
+endi
+$val = 9 * $rowNum
+$val = $val / 2
+if $data14 != $val then
+  return -1
+endi
+if $data19 != 3 then
+  return -1
+endi
+if $data25 != 9.000000000 then
+  return -1
+endi
+if $data26 != 1 then
+  return -1
+endi
+if $data31 != NULL then
+  return -1
+endi
+if $data42 != 4.500000000 then
+  return -1
+endi
+if $data33 != 0 then
+  return -1
+endi
+if $data43 != 0 then
+  return -1
+endi
+if $data59 != 7 then
+  return -1
+endi
+
+$limit = $totalNum / 2
+sql select max(c1), min(c2), avg(c3), sum(c5), spread(c6), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu and t1 > 1 and t1 < 8 group by t1 order by t1 desc limit $limit offset 1
+if $rows != 5 then
+  return -1
+endi
+
+$limit = $totalNum / 2
+sql select max(c1), min(c2), avg(c3), count(c4), sum(c5), spread(c6), first(c7), last(c8), first(c9),t1 from $stb where ts >= $ts0 and ts <= $tsu and t1 > 1 and t1 < 8 group by t1 order by t1 desc limit $limit offset 0
+if $rows != 6 then
+  return -1
+endi
+if $data00 != 9 then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+if $data12 != 4.500000000 then
+  return -1
+endi
+if $data23 != 0 then
+  return -1
+endi
+if $data09 != 7 then
+  return -1
+endi
+$val = 9 * $rowNum
+$val = $val / 2
+if $data14 != $val then
+  return -1
+endi
+if $data19 != 6 then
+  return -1
+endi
+if $data25 != 9.000000000 then
+  return -1
+endi
+if $data26 != 1 then
+  return -1
+endi
+if $data31 != 0 then
+  return -1
+endi
+if $data32 != 4.500000000 then
+  return -1
+endi
+if $data33 != $rowNum then
+  return -1
+endi
+$val = 9 * $rowNum
+$val = $val / 2
+if $data44 != $val then
+  return -1
+endi
+if $data59 != 2 then
+  return -1
+endi
+
+### supertable aggregation + where + interval + limit offset
+## TBASE-355
+sql select _wstart, max(c1), min(c2), avg(c3), count(c4), sum(c5), spread(c6), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu and t1 > 1 and t1 < 8 interval(5m) limit 5 offset 1
+if $rows != 5 then
+  return -1
+endi
+if $data00 != @18-09-17 09:10:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data07 != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+
+### [TBASE-361]
+$offset = $rowNum / 2
+$offset = $offset + 1
+print === select _wstart, max(c1), min(c2), avg(c3), count(c4), sum(c5), spread(c6), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu and t1 > 1 and t1 < 8 interval(5m) limit $offset offset $offset
+sql select _wstart, max(c1), min(c2), avg(c3), count(c4), sum(c5), spread(c6), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu and t1 > 1 and t1 < 8 interval(5m) limit $offset offset $offset
+$val = $rowNum - $offset
+if $rows != $val then
+  print expect $val, actual:$rows
+  return -1
+endi
+if $data00 != @18-09-20 20:30:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+
+## supertable aggregation + where + interval + group by order by tag + limit offset
+sql select _wstart, max(c1), min(c2), avg(c3), sum(c5), spread(c6), first(c7), last(c8), first(c9),t1 from $stb where ts >= $ts0 and ts <= $tsu and t1 > 1 and t1 < 5 and c1 > 0 and c2 < 9 and c3 > 1 and c4 < 7 and c5 > 4 partition by t1  interval(5m) order by t1 desc, max(c1) asc limit 2 offset 0
+if $rows != 2 then
+  return -1
+endi
+if $data01 != 5 then
+  return -1
+endi
+if $data09 != 4 then
+  return -1
+endi
+
+sql select _wstart, max(c1), min(c2), avg(c3), sum(c5), spread(c6), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu and t1 > 1 and t1 < 5 and c1 > 0 and c2 < 9 and c3 > 1 and c4 < 7 and c5 > 4 partition by t1 interval(5m) order by t1 desc limit 2 offset 1
+if $rows != 2 then
+  return -1
+endi
+
+print === select max(c1), min(c2), avg(c3), sum(c5), spread(c6), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu and t1 > 1 and t1 < 5 and c1 > 0 and c2 < 9 and c3 > 1 and c4 < 7 and c5 > 4 partition by t1 interval(5m) limit 1 offset 0
+sql select max(c1), min(c2), avg(c3), sum(c5), spread(c6), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu and t1 > 1 and t1 < 5 and c1 > 0 and c2 < 9 and c3 > 1 and c4 < 7 and c5 > 4 partition by t1 interval(5m) limit 1 offset 0
+if $rows != 3 then
+  return -1
+endi
+
+sql select max(c1), min(c2), avg(c3), sum(c5), spread(c6), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu and t1 > 1 and t1 < 8 and c1 > 0 and c2 < 9 and c3 > 4 and c4 < 7 and c5 > 4 partition by t1  interval(5m)  limit 2 offset 0
+if $rows != 6 then
+  return -1
+endi

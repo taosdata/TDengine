@@ -1,0 +1,113 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql drop database if exists db1;
+sql create database db1 vgroups 1;
+sql use db1;
+sql create stable sta (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);
+sql create table tba1 using sta tags(1, 1, 1);
+sql create table tba2 using sta tags(2, 2, 2);
+sql create table tba3 using sta tags(3, 3, 3);
+sql create table tba4 using sta tags(4, 4, 4);
+sql create table tba5 using sta tags(5, 5, 5);
+sql create table tba6 using sta tags(6, 6, 6);
+sql create table tba7 using sta tags(7, 7, 7);
+sql create table tba8 using sta tags(8, 8, 8);
+sql create index index1 on sta (t2);
+sql insert into tba1 values ('2022-04-26 15:15:01', 1, "a");
+sql insert into tba1 values ('2022-04-26 15:15:02', 11, "a");
+sql insert into tba2 values ('2022-04-26 15:15:01', 2, "a");
+sql insert into tba2 values ('2022-04-26 15:15:02', 22, "a");
+sql insert into tba3 values ('2022-04-26 15:15:01', 3, "a");
+sql insert into tba4 values ('2022-04-26 15:15:01', 4, "a");
+sql insert into tba5 values ('2022-04-26 15:15:01', 5, "a");
+sql insert into tba6 values ('2022-04-26 15:15:01', 6, "a");
+sql insert into tba7 values ('2022-04-26 15:15:01', 7, "a");
+sql insert into tba8 values ('2022-04-26 15:15:01', 8, "a");
+
+sql select t1,count(*) from sta group by t1 limit 1;
+if $rows != 8 then
+  return -1
+endi
+sql select t1,count(*) from sta group by t1 slimit 1;
+if $rows != 1 then
+  return -1
+endi
+sql select f1,count(*) from sta group by f1 limit 1;
+if $rows != 10 then
+  return -1
+endi
+sql select f1,count(*) from sta group by f1 slimit 1;
+if $rows != 1 then
+  return -1
+endi
+sql select t1,f1,count(*) from sta group by t1, f1 limit 1;
+if $rows != 10 then
+  return -1
+endi
+sql select t1,f1,count(*) from sta group by t1, f1 slimit 1;
+if $rows != 1 then
+  return -1
+endi
+sql select t1,f1,count(*) from sta group by f1, t1 limit 1;
+if $rows != 10 then
+  return -1
+endi
+sql select t1,f1,count(*) from sta group by f1, t1 slimit 1;
+if $rows != 1 then
+  return -1
+endi
+
+sql select t1,count(*) from sta group by t1 order by t1 limit 1;
+if $rows != 1 then
+  return -1
+endi
+sql select t1,count(*) from sta group by t1 order by t1 slimit 1;
+if $rows != 8 then
+  return -1
+endi
+sql select f1,count(*) from sta group by f1 order by f1 limit 1;
+if $rows != 1 then
+  return -1
+endi
+sql select f1,count(*) from sta group by f1 order by f1 slimit 1;
+if $rows != 10 then
+  return -1
+endi
+sql select t1,f1,count(*) from sta group by t1, f1 order by t1,f1 limit 1;
+if $rows != 1 then
+  return -1
+endi
+sql select t1,f1,count(*) from sta group by t1, f1 order by t1,f1 slimit 1;
+if $rows != 10 then
+  return -1
+endi
+sql select t1,f1,count(*) from sta group by f1, t1 order by f1,t1 limit 1;
+if $rows != 1 then
+  return -1
+endi
+sql select t1,f1,count(*) from sta group by f1, t1 order by f1,t1 slimit 1;
+if $rows != 10 then
+  return -1
+endi
+
+sql select t1,count(*) from sta group by t1 slimit 1 limit 1;
+if $rows != 1 then
+  return -1
+endi
+sql select f1,count(*) from sta group by f1 slimit 1 limit 1;
+if $rows != 1 then
+  return -1
+endi
+sql select t1,f1,count(*) from sta group by t1, f1 slimit 1 limit 1;
+if $rows != 1 then
+  return -1
+endi
+sql select t1,f1,count(*) from sta group by f1, t1 slimit 1 limit 1;
+if $rows != 1 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

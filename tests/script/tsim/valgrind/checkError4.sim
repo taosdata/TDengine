@@ -1,0 +1,94 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c debugflag -v 131
+system sh/exec.sh -n dnode1 -s start -v
+sql connect
+
+print =============== step1: create drop select * from information_schema.ins_dnodes
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ---> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ---> $data00 $data01 $data02 $data03 $data04 $data05
+if $rows != 1 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step1
+endi
+
+print =============== step2: create db
+sql create database d1 vgroups 2 buffer 3
+sql create database d2 vgroups 2 buffer 3
+sql select * from information_schema.ins_databases;
+sql show d1.vgroups;
+
+print =============== step3: create show stable
+sql create table if not exists d1.stb1 (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned)
+sql create table if not exists d1.stb2 (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned)
+sql create table if not exists d2.stb1 (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned)
+sql show d1.stables
+sql show d2.stables
+
+print =============== step4: create show table
+sql create table d1.ct1 using d1.stb1 tags(1000)
+sql create table d1.ct2 using d1.stb1 tags(2000)
+sql create table d1.ct3 using d1.stb2 tags(3000)
+sql create table d2.ct1 using d2.stb1 tags(1000)
+sql create table d2.ct2 using d2.stb1 tags(2000)
+sql show d1.tables
+sql show d2.tables
+
+print =============== step5: insert data
+sql insert into d1.ct1 values(now+0s, 10, 2.0, 3.0)
+sql insert into d2.ct1 values(now+1s, 11, 2.1, 3.1)(now+2s, -12, -2.2, -3.2)(now+3s, -13, -2.3, -3.3)
+sql insert into d1.ct2 values(now+0s, 10, 2.0, 3.0)
+sql insert into d2.ct2 values(now+1s, 11, 2.1, 3.1)(now+2s, -12, -2.2, -3.2)(now+3s, -13, -2.3, -3.3)
+sql insert into d1.ct3 values('2021-01-01 00:00:00.000', 10, 2.0, 3.0)
+
+print =============== step6: create db
+sql drop table d1.ct1
+sql drop table d1.stb2
+sql drop database d1
+sql drop database d2
+
+print =============== step7: repeat
+sql create database d1 vgroups 2 buffer 3
+sql create database d2 vgroups 2 buffer 3
+sql create table if not exists d1.stb1 (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned)
+sql create table if not exists d1.stb2 (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned)
+sql create table if not exists d2.stb1 (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned)
+sql create table d1.ct1 using d1.stb1 tags(1000)
+sql create table d1.ct2 using d1.stb1 tags(2000)
+sql create table d1.ct3 using d1.stb2 tags(3000)
+sql create table d2.ct1 using d2.stb1 tags(1000)
+sql create table d2.ct2 using d2.stb1 tags(2000)
+sql insert into d1.ct1 values(now+0s, 10, 2.0, 3.0)
+sql insert into d2.ct1 values(now+1s, 11, 2.1, 3.1)(now+2s, -12, -2.2, -3.2)(now+3s, -13, -2.3, -3.3)
+sql insert into d1.ct2 values(now+0s, 10, 2.0, 3.0)
+sql insert into d2.ct2 values(now+1s, 11, 2.1, 3.1)(now+2s, -12, -2.2, -3.2)(now+3s, -13, -2.3, -3.3)
+sql insert into d1.ct3 values('2021-01-01 00:00:00.000', 10, 2.0, 3.0)
+sql drop table d1.ct1
+sql drop table d1.stb2
+sql drop database d1
+sql drop database d2
+
+_OVER:
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+print =============== check
+$null=
+
+system_content sh/checkValgrind.sh -n dnode1 
+print cmd return result ----> [ $system_content ]
+if $system_content > 0 then
+  return -1
+endi 
+
+if $system_content == $null then
+  return -1
+endi 

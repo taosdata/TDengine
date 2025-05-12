@@ -1,3 +1,14 @@
+taos-1.6.4.0 (Release on 2019-12-01)
+Bug fixed:
+    1.Look for possible causes of file corruption and fix them
+    2.Encapsulate memory allocation functions to reduce the possibility of crashes
+    3.Increase Arm64 compilation options
+    4.Remove most of the warnings in the code
+    5.Provide a variety of connector usage documents
+    6.Network connection can be selected in udp and tcp
+    7.Allow the maximum number of Tags to be 32
+    8.Bugs reported by the user
+
 taos-1.5.2.6 (Release on 2019-05-13)
 Bug fixed:
     - Nchar strings sometimes were wrongly truncated on Window
@@ -61,7 +72,7 @@ New Features:
  
 taos-1.4.13 (Released on 2018-12-14)
 Bugs Fixed:
-    - Clients failed to connect to server due to unexpected and invalid packets recieved by the server.
+    - Clients failed to connect to server due to unexpected and invalid packets received by the server.
 Features Added:
     - Add support to HikariCP in TSDB JDBC driver.
 

@@ -1,5 +1,5 @@
 Package: tdengine
-Version: 1.0.0
+Version: 3.0.0
 Section: utils
 Priority: optional
 #Essential: no
@@ -11,4 +11,3 @@ Maintainer: support@taosdata.com
 Provides: taosdata
 Homepage: http://taosdata.com
 Description: Big Data Platform Designed and Optimized for IoT.
-

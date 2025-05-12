@@ -1,0 +1,155 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c debugflag -v 131
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = m_di_db
+$tbPrefix = m_di_tb
+$mtPrefix = m_di_mt
+$tbNum = 2
+$rowNum = 10000
+$totalNum = 20000
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 nchar(5), c9 binary(10)) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+
+  $x = 0
+  while $x < $rowNum
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+
+    $tinyint = $x / 128
+    sql insert into $tb values ($ms , $x , $x , $x , $x , $tinyint , $x , $x , $x , $x )
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+endw
+
+print =============== step2
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select diff(c1) from $tb
+print ===> $data10
+if $data10 != 1 then
+  return -1
+endi
+sql select diff(c2) from $tb
+print ===> $data10
+if $data10 != 1.000000000 then
+  return -1
+endi
+sql select diff(c3) from $tb
+print ===> $data10
+if $data10 != 1 then
+  return -1
+endi
+sql select diff(c4) from $tb
+print ===> $data10
+if $data10 != 1 then
+  return -1
+endi
+sql select diff(c5) from $tb
+print ===> $data10
+if $data10 != 0 then
+  return -1
+endi
+sql select diff(c6) from $tb
+print ===> $data10
+if $data10 != 1.000000000 then
+  return -1
+endi
+
+sql select diff(c7) from $tb
+sql_error select diff(c8) from $tb
+sql_error select diff(c9) from $tb
+sql select diff(c1), diff(c2) from $tb
+
+sql select 2+diff(c1) from $tb
+sql select diff(c1+2) from $tb
+sql_error select diff(c1) from $tb where ts > 0 and ts < now + 100m interval(10m)
+#sql select diff(c1) from $mt
+sql_error select diff(diff(c1)) from $tb
+sql_error select diff(c1) from m_di_tb1 where c2 like '2%'
+
+print =============== step3
+sql select diff(c1) from $tb where c1 > 5
+print ===> $data10
+if $data10 != 1 then
+  return -1
+endi
+sql select diff(c2) from $tb where c2 > 5
+print ===> $data10
+if $data10 != 1.000000000 then
+  return -1
+endi
+sql select diff(c3) from $tb where c3 > 5
+print ===> $data10
+if $data10 != 1 then
+  return -1
+endi
+sql select diff(c4) from $tb where c4 > 5
+print ===> $data10
+if $data10 != 1 then
+  return -1
+endi
+sql select diff(c5) from $tb where c5 > 5
+print ===> $data10
+if $data10 != 0 then
+  return -1
+endi
+sql select diff(c6) from $tb where c6 > 5
+print ===> $data10
+if $data10 != 1.000000000 then
+  return -1
+endi
+
+print =============== step4
+sql select diff(c1) from $tb where c1 > 5 and c2 < $rowNum
+print ===> $data10
+if $data10 != 1 then
+  return -1
+endi
+
+sql select diff(c1) from $tb where c9 like '%9' and c1 <= 20
+if $rows != 1 then
+  return -1
+endi
+print ===> $data10
+if $data00 != 10 then
+  return -1
+endi
+
+print =============== step5
+sql select diff(c1) as b from $tb interval(1m) -x step5
+  return -1
+step5:
+
+print =============== step6
+sql select diff(c1) as b from $tb where ts < now + 4m interval(1m) -x step6
+  return -1
+step6:
+
+print =============== clear
+#sql drop database $db
+#sql select * from information_schema.ins_databases
+#if $rows != 2 then
+#  return -1
+#endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

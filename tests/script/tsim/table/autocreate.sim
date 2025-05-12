@@ -1,0 +1,104 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print =============== create database
+sql create database db
+sql select * from information_schema.ins_databases
+if $rows != 3 then 
+  return -1
+endi
+
+print $data00 $data01 $data02
+
+print =============== create super table
+sql create table db.st1 (ts timestamp, i int) tags (j int)
+sql create table db.st2 (ts timestamp, i int, j int) tags (t1 int, t2 int, t3 int)
+sql select * from information_schema.ins_stables where db_name = 'db'
+if $rows != 2 then 
+  return -1
+endi
+
+print $data00 $data01 $data02
+
+print =============== create child table
+sql insert into db.c1 using db.st1 tags(1) values(now, 1);
+sql insert into db.c2 using db.st1 tags(2) values(now, 2);
+sql insert into db.c3 using db.st1 tags(3) values(now, 3);
+sql insert into db.c4 using db.st1 tags(4) values(now, 4);
+sql insert into db.c1 using db.st1 tags(1) values(now+1s, 1);
+sql insert into db.c2 using db.st1 tags(2) values(now+1s, 2);
+sql insert into db.c3 using db.st1 tags(3) values(now+1s, 3);
+sql insert into db.c4 using db.st1 tags(4) values(now+1s, 4);
+
+sql select * from information_schema.ins_tables where db_name = 'db'
+if $rows != 4 then 
+  return -1
+endi
+
+sql select * from db.c1
+if $rows != 2 then 
+  return -1
+endi
+
+sql select * from db.c2
+if $rows != 2 then 
+  return -1
+endi
+
+sql select * from db.c3
+if $rows != 2 then 
+  return -1
+endi
+
+sql select * from db.c4
+if $rows != 2 then 
+  return -1
+endi
+
+sql select * from db.st1
+if $rows != 8 then 
+  return -1
+endi
+
+print =============== insert data
+sql insert into db.s1 using db.st2 tags(1, 1, 1) values(now, 1, 2);
+sql insert into db.s2 using db.st2 tags(2, 2, 2) values(now, 2, 3);
+sql insert into db.s3 using db.st2 tags(3, 3, 3) values(now, 3, 4);
+sql insert into db.s4 using db.st2 tags(4, 4, 4) values(now, 4, 5);
+sql insert into db.s1 using db.st2 tags(1, 1, 1) values(now+1s, 1, 2);
+sql insert into db.s2 using db.st2 tags(2, 2, 2) values(now+1s, 2, 3);
+sql insert into db.s3 using db.st2 tags(3, 3, 3) values(now+1s, 3, 4);
+sql insert into db.s4 using db.st2 tags(4, 4, 4) values(now+1s, 4, 5);
+sql insert into db.s1 using db.st2 tags(1, 1, 1) values(now+2s, 1, 2);
+sql insert into db.s2 using db.st2 tags(2, 2, 2) values(now+2s, 2, 3);
+sql insert into db.s3 using db.st2 tags(3, 3, 3) values(now+2s, 3, 4);
+sql insert into db.s4 using db.st2 tags(4, 4, 4) values(now+2s, 4, 5);
+
+sql select * from information_schema.ins_tables where db_name = 'db'
+if $rows != 8 then 
+  return -1
+endi
+
+sql select * from db.s1
+if $rows != 3 then 
+  return -1
+endi
+
+sql select * from db.s2
+if $rows != 3 then 
+  return -1
+endi
+
+sql select * from db.s3
+if $rows != 3 then 
+  return -1
+endi
+
+sql select * from db.s4
+if $rows != 3 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

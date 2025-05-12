@@ -1,0 +1,104 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = intp_db
+$tbPrefix = intp_tb
+$stbPrefix = intp_stb
+$tbNum = 4
+$rowNum = 1000
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 600000
+print ========== interp.sim
+$i = 0
+$db = $dbPrefix . $i
+$stb = $stbPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+print ====== create tables
+sql use $db
+sql create table $stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 smallint, c6 tinyint, c7 bool, c8 binary(10), c9 nchar(10)) tags(t1 int)
+
+$i = 0
+$ts = $ts0
+$halfNum = $tbNum / 2
+while $i < $halfNum
+  $tbId = $i + $halfNum
+  $tb = $tbPrefix . $i
+  $tb1 = $tbPrefix . $tbId
+  sql create table $tb using $stb tags( $i )
+  sql create table $tb1 using $stb tags( $tbId )
+
+  $x = 0
+  while $x < $rowNum
+    $xs = $x * $delta
+    $ts = $ts0 + $xs
+    $c = $x / 10
+    $c = $c * 10
+    $c = $x - $c
+    $binary = 'binary . $c
+    $binary = $binary . '
+    $nchar = 'nchar . $c
+    $nchar = $nchar . '
+    sql insert into $tb values ( $ts , $c , $c , $c , $c , $c , $c , true, $binary , $nchar )  $tb1 values ( $ts , $c , NULL , $c , NULL , $c , $c , true, $binary , $nchar )
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+endw
+print ====== tables created
+
+sql create table ap1 (ts timestamp, pav float);
+sql INSERT INTO ap1 VALUES ('2021-07-25 02:19:54.100',1) ('2021-07-25 02:19:54.200',2) ('2021-07-25 02:19:54.300',3) ('2021-07-25 02:19:56.500',4) ('2021-07-25 02:19:57.500',5) ('2021-07-25 02:19:57.600',6) ('2021-07-25 02:19:57.900',7) ('2021-07-25 02:19:58.100',8) ('2021-07-25 02:19:58.300',9) ('2021-07-25 02:19:59.100',10) ('2021-07-25 02:19:59.300',11) ('2021-07-25 02:19:59.500',12) ('2021-07-25 02:19:59.700',13) ('2021-07-25 02:19:59.900',14) ('2021-07-25 02:20:05.000', 20) ('2021-07-25 02:25:00.000', 10000);
+
+run tsim/parser/interp_test.sim
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+
+run tsim/parser/interp_test.sim
+
+print ================= TD-5931
+sql create stable st5931(ts timestamp, f int) tags(t int)
+sql create table ct5931 using st5931 tags(1)
+sql create table nt5931(ts timestamp, f int)
+sql_error select interp(*) from nt5931 where ts=now
+sql_error select interp(*) from st5931 where ts=now
+sql_error select interp(*) from ct5931 where ts=now
+
+sql create stable sta (ts timestamp, f1 double, f2 binary(200)) tags(t1 int);
+sql create table tba1 using sta tags(1);
+sql insert into tba1 values ('2022-04-26 15:15:01', -3.0, "a");
+sql insert into tba1 values ('2022-04-26 15:15:05', 3.0, "b");
+sql select a from (select interp(f1) as a from tba1 where ts >= '2022-04-26 15:15:01' and ts <= '2022-04-26 15:15:05' range('2022-04-26 15:15:01','2022-04-26 15:15:05') every(1s) fill(linear)) where a > 0;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 1.500000000 then
+  return -1
+endi
+if $data10 != 3.000000000 then
+  return -1
+endi
+
+sql select a from (select interp(f1+1) as a from tba1 where ts >= '2022-04-26 15:15:01' and ts <= '2022-04-26 15:15:05' range('2022-04-26 15:15:01','2022-04-26 15:15:05') every(1s) fill(linear)) where a > 0;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 1.000000000 then
+  return -1
+endi
+if $data10 != 2.500000000 then
+  return -1
+endi
+if $data20 != 4.000000000 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -1,0 +1,59 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ============================ dnode1 start
+
+sql create database d1
+sql create table d1.t1(ts timestamp, i int)
+
+sql create database d2
+sql create table d2.t1(ts timestamp, i int)
+
+sql create database d3
+sql create table d3.t1(ts timestamp, i int)
+
+sql create database d4
+sql create table d4.t1(ts timestamp, i int)
+
+sql drop database d1
+sql drop database d2
+sql drop database d3
+sql drop database d4
+
+sql create database d5
+sql create table d5.t1(ts timestamp, i int)
+
+sql create database d6
+sql create table d6.t1(ts timestamp, i int)
+
+sql create database d7
+sql create table d7.t1(ts timestamp, i int)
+
+sql create database d8
+sql create table d8.t1(ts timestamp, i int)
+
+sql drop database d5
+sql drop database d6
+sql drop database d7
+sql drop database d8
+
+sql create database d9;
+sql create table d9.t1(ts timestamp, i int)
+
+sql create database d10;
+sql create table d10.t1(ts timestamp, i int)
+
+sql create database d11
+sql create table d11.t1(ts timestamp, i int)
+
+sql create database d12
+sql create table d12.t1(ts timestamp, i int)
+
+sql drop database d9
+sql drop database d10
+sql drop database d11
+sql drop database d12
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

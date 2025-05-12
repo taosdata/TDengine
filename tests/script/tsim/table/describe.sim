@@ -1,0 +1,46 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$i = 0
+$dbPrefix = de_in_db
+$tbPrefix = de_in_tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+print =============== step1
+sql create database $db
+sql use $db
+sql create table $tb (ts timestamp, speed int)
+
+sql describe $tb
+if $rows != 2 then 
+  return -1
+endi
+if $data00 != ts then 
+  return -1
+endi
+if $data01 != TIMESTAMP then 
+  return -1
+endi
+if $data02 != 8 then 
+  return -1
+endi
+if $data10 != speed then 
+  return -1
+endi
+if $data11 != INT then 
+  return -1
+endi
+if $data12 != 4 then 
+  return -1
+endi
+
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then 
+  return -1
+endi
+ 
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -1,0 +1,182 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql drop database if exists db1;
+sql create database db1 vgroups 5 TABLE_PREFIX 1 TABLE_SUFFIX 2;
+sql use db1;
+sql create table atb1aa (ts timestamp, f1 int);
+sql create table btb1bb (ts timestamp, f1 int);
+sql create table ctb1cc (ts timestamp, f1 int);
+sql create table dtb1dd (ts timestamp, f1 int);
+sql create table atb2aa (ts timestamp, f1 int);
+sql create table btb2bb (ts timestamp, f1 int);
+sql create table ctb2cc (ts timestamp, f1 int);
+sql create table dtb2dd (ts timestamp, f1 int);
+sql create table etb2ee (ts timestamp, f1 int);
+sql show create database db1;
+sql select count(*) a from information_schema.ins_tables where db_name='db1' group by vgroup_id having(count(*) > 0) order by a;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
+if $data10 != 5 then
+  return -1
+endi
+sql drop database if exists db1;
+ 
+sql drop database if exists db2;
+sql create database db2 vgroups 5 TABLE_PREFIX -1 TABLE_SUFFIX -2;
+sql use db2;
+sql create table taaa11 (ts timestamp, f1 int);
+sql create table tbbb11 (ts timestamp, f1 int);
+sql create table tccc11 (ts timestamp, f1 int);
+sql create table tddd11 (ts timestamp, f1 int);
+sql create table taaa22 (ts timestamp, f1 int);
+sql create table tbbb22 (ts timestamp, f1 int);
+sql create table tccc22 (ts timestamp, f1 int);
+sql create table tddd22 (ts timestamp, f1 int);
+sql create table teee22 (ts timestamp, f1 int);
+sql show create database db2;
+sql select count(*) a from information_schema.ins_tables where db_name='db2' group by vgroup_id having(count(*) > 0) order by a;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
+if $data10 != 5 then
+  return -1
+endi
+sql drop database if exists db2;
+ 
+sql drop database if exists db3;
+sql create database db3 vgroups 5 TABLE_PREFIX -1;
+sql use db3;
+sql create table taaa11 (ts timestamp, f1 int);
+sql create table tbbb11 (ts timestamp, f1 int);
+sql create table tccc11 (ts timestamp, f1 int);
+sql create table tddd11 (ts timestamp, f1 int);
+sql create table zaaa22 (ts timestamp, f1 int);
+sql create table zbbb22 (ts timestamp, f1 int);
+sql create table zccc22 (ts timestamp, f1 int);
+sql create table zddd22 (ts timestamp, f1 int);
+sql create table zeee22 (ts timestamp, f1 int);
+sql show create database db3;
+sql select count(*) a from information_schema.ins_tables where db_name='db3' group by vgroup_id having(count(*) > 0) order by a;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
+if $data10 != 5 then
+  return -1
+endi
+sql drop database if exists db3;
+ 
+sql drop database if exists db4;
+sql create database db4 vgroups 5 TABLE_SUFFIX -2;
+sql use db4;
+sql create table taaa11 (ts timestamp, f1 int);
+sql create table tbbb11 (ts timestamp, f1 int);
+sql create table tccc11 (ts timestamp, f1 int);
+sql create table tddd11 (ts timestamp, f1 int);
+sql create table zaaa22 (ts timestamp, f1 int);
+sql create table zbbb22 (ts timestamp, f1 int);
+sql create table zccc22 (ts timestamp, f1 int);
+sql create table zddd22 (ts timestamp, f1 int);
+sql create table zeee22 (ts timestamp, f1 int);
+sql show create database db4;
+sql select count(*) a from information_schema.ins_tables where db_name='db4' group by vgroup_id having(count(*) > 0) order by a;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
+if $data10 != 5 then
+  return -1
+endi
+sql drop database if exists db4;
+ 
+sql drop database if exists db5;
+sql create database db5 vgroups 5 TABLE_PREFIX 1;
+sql use db5;
+sql create table taaa11 (ts timestamp, f1 int);
+sql create table baaa11 (ts timestamp, f1 int);
+sql create table caaa11 (ts timestamp, f1 int);
+sql create table daaa11 (ts timestamp, f1 int);
+sql create table faaa11 (ts timestamp, f1 int);
+sql create table gbbb11 (ts timestamp, f1 int);
+sql create table hbbb11 (ts timestamp, f1 int);
+sql create table ibbb11 (ts timestamp, f1 int);
+sql create table jbbb11 (ts timestamp, f1 int);
+sql show create database db5;
+sql select count(*) a from information_schema.ins_tables where db_name='db5' group by vgroup_id having(count(*) > 0) order by a;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
+if $data10 != 5 then
+  return -1
+endi
+sql drop database if exists db5;
+ 
+sql drop database if exists db6;
+sql create database db6 vgroups 5 TABLE_SUFFIX 2;
+sql use db6;
+sql create table taaa11 (ts timestamp, f1 int);
+sql create table taaa12 (ts timestamp, f1 int);
+sql create table taaa13 (ts timestamp, f1 int);
+sql create table taaa14 (ts timestamp, f1 int);
+sql create table tbbb23 (ts timestamp, f1 int);
+sql create table tbbb24 (ts timestamp, f1 int);
+sql create table tbbb31 (ts timestamp, f1 int);
+sql create table tbbb32 (ts timestamp, f1 int);
+sql create table tbbb33 (ts timestamp, f1 int);
+sql show create database db6;
+sql select count(*) a from information_schema.ins_tables where db_name='db6' group by vgroup_id having(count(*) > 0) order by a;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
+if $data10 != 5 then
+  return -1
+endi
+sql drop database if exists db6;
+ 
+sql drop database if exists db7;
+sql create database db7 vgroups 5 TABLE_PREFIX -100 TABLE_SUFFIX -92;
+sql use db7;
+sql create table taaa11 (ts timestamp, f1 int);
+sql create table taaa12 (ts timestamp, f1 int);
+sql create table taaa13 (ts timestamp, f1 int);
+sql create table tbbb21 (ts timestamp, f1 int);
+sql create table tbbb22 (ts timestamp, f1 int);
+sql create table tbbb23 (ts timestamp, f1 int);
+sql create table tbbb24 (ts timestamp, f1 int);
+sql create table tccc31 (ts timestamp, f1 int);
+sql create table tccc32 (ts timestamp, f1 int);
+sql create table tccc33 (ts timestamp, f1 int);
+sql create table tddd24 (ts timestamp, f1 int);
+sql create table tddd31 (ts timestamp, f1 int);
+sql create table tddd32 (ts timestamp, f1 int);
+sql create table tddd33 (ts timestamp, f1 int);
+sql show create database db7;
+sql select count(*) a from information_schema.ins_tables where db_name='db7' group by vgroup_id having(count(*) > 0) order by a;
+sql drop database if exists db7;
+
+sql_error create database db8 vgroups 5 TABLE_PREFIX -1 TABLE_SUFFIX 2;
+sql_error create database db8 vgroups 5 TABLE_PREFIX 191 TABLE_SUFFIX 192;
+sql_error create database db8 vgroups 5 TABLE_PREFIX -192 TABLE_SUFFIX -191;
+sql_error create database db8 vgroups 5 TABLE_PREFIX 100 TABLE_SUFFIX 92;
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

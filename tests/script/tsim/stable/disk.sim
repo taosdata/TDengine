@@ -1,0 +1,191 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======================== dnode1 start
+$dbPrefix = d_db
+$tbPrefix = d_tb
+$mtPrefix = d_mt
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+
+  $x = 0
+  while $x < $rowNum
+    $val = $x * 60000
+    $ms = 1519833600000 + $val
+    sql insert into $tb values ($ms , $x )
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+endw
+
+sql show vgroups
+print vgroups ==> $rows
+if $rows != 2 then
+  return -1
+endi
+
+sql select count(tbcol) from $mt
+print select count(tbcol) from $mt ===> $data00
+if $data00 != $totalNum then
+  print expect $totalNum , actual: $data00
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql use $db
+sql show vgroups
+print vgroups ==> $rows
+if $rows != 2 then
+  return -1
+endi
+
+print =============== step2
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select count(tbcol) from $tb
+print ===> $data00
+if $data00 != $rowNum then
+  return -1
+endi
+
+sql select count(tbcol) from $tb
+print ===> $data00
+if $data00 != $rowNum then
+  return -1
+endi
+
+print =============== step3
+sql select count(tbcol) from $tb where ts <= 1519833840000
+print ===> $data00
+if $data00 != 5 then
+  return -1
+endi
+
+print =============== step4
+sql select count(tbcol) as b from $tb
+print ===> $data00
+if $data00 != $rowNum then
+  return -1
+endi
+
+print =============== step5
+sql select count(tbcol) as b from $tb interval(1m)
+print ===> $data00
+if $data00 != 1 then
+  return -1
+endi
+
+sql select count(tbcol) as b from $tb interval(1d)
+print ===> $data00
+if $data00 != $rowNum then
+  return -1
+endi
+
+print =============== step6
+sql select count(tbcol) as b from $tb where ts <= 1519833840000 interval(1m)
+print ===> $data00
+if $data00 != 1 then
+  return -1
+endi
+if $rows != 5 then
+  return -1
+endi
+
+print =============== step7
+sql select count(*) from $mt
+print select count(*) from $mt ===> $data00
+if $data00 != $totalNum then
+  return -1
+endi
+
+print ==========> block opt will cause this crash, table scan need to fix this during plan gen ===============>
+sql select count(tbcol) from $mt
+print ===> $data00
+if $data00 != $totalNum then
+  return -1
+endi
+
+print =============== step8
+sql select count(tbcol) as c from $mt where ts <= 1519833840000
+print ===> $data00
+if $data00 != 50 then
+  return -1
+endi
+
+sql select count(tbcol) as c from $mt where tgcol < 5
+print ===> $data00
+if $data00 != 100 then
+  return -1
+endi
+
+sql select count(tbcol) as c from $mt where tgcol < 5 and ts <= 1519833840000
+print ===> $data00
+if $data00 != 25 then
+  return -1
+endi
+
+print =============== step9
+sql select count(tbcol) as b from $mt interval(1m)
+print select count(tbcol) as b from $mt interval(1m) ===> $data01
+if $data00 != 10 then
+  return -1
+endi
+
+sql select count(tbcol) as b from $mt interval(1d)
+print ===> $data02
+if $data00 != 200 then
+  return -1
+endi
+
+print =============== step10
+print select count(tbcol) as b from $mt group by tgcol
+sql select count(tbcol) as b from $mt group by tgcol
+print ===> $data00
+if $data00 != $rowNum then
+  return -1
+endi
+
+if $rows != $tbNum then
+  return -1
+endi
+
+print =============== step11
+sql select count(tbcol) as b from $mt  where ts <= 1519833840000 partition by tgcol interval(1m)
+print ===> $data01
+if $data00 != 1 then
+  return -1
+endi
+if $rows != 50 then
+  return -1
+endi
+
+print =============== clear
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -1,0 +1,172 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+sql connect
+
+print =============== step1: create dnodes
+sql create dnode $hostname port 7200
+sql create dnode $hostname port 7300
+
+$x = 0
+step1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 5 then
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes -x step1
+if $data(1)[4] != ready then
+  goto step1
+endi
+if $data(2)[4] != ready then
+  goto step1
+endi
+
+print =============== step2: create mnode 2
+sql create mnode on dnode 2
+sql_error create mnode on dnode 3
+
+system sh/exec.sh -n dnode3 -s start
+
+$x = 0
+step2: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 5 then
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes -x step2
+if $data(1)[4] != ready then
+  goto step2
+endi
+if $data(2)[4] != ready then
+  goto step2
+endi
+if $data(3)[4] != ready then
+  goto step2
+endi
+
+print =============== step4: create mnode 3
+sql create mnode on dnode 3
+
+$x = 0
+step4: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+sql select * from information_schema.ins_mnodes -x step4
+print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] 
+print $data[1][0] $data[1][1] $data[1][2] $data[1][3] $data[1][4] 
+print $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4]
+
+$leaderNum = 0
+if $data(1)[2] == leader then
+  $leaderNum = 1
+endi
+if $data(2)[2] == leader then
+  $leaderNum = 1
+endi
+if  $leaderNum == 0 then
+  goto step4
+endi
+if $data(3)[2] != follower then
+  goto step4
+endi
+if $data(1)[3] != ready then
+  goto step4
+endi
+if $data(2)[3] != ready then
+  goto step4
+endi
+if $data(3)[3] != ready then
+  goto step4
+endi
+
+print =============== step5: drop mnode 3 and stop dnode3
+system sh/exec.sh -n dnode3 -s stop -x SIGKILL
+sql_error drop mnode on dnode 3
+
+$x = 0
+step5: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+sql select * from information_schema.ins_mnodes -x step5
+print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] 
+print $data[1][0] $data[1][1] $data[1][2] $data[1][3] $data[1][4] 
+print $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4]
+
+$leaderNum = 0
+if $data(1)[2] == leader then
+  $leaderNum = 1
+endi
+if $data(2)[2] == leader then
+  $leaderNum = 1
+endi
+if  $leaderNum == 0 then
+  goto step5
+endi
+if $data(3)[2] != offline then
+  goto step5
+endi
+if $data(1)[3] != ready then
+  goto step5
+endi
+if $data(2)[3] != ready then
+  goto step5
+endi
+
+print =============== step6: start dnode3
+system sh/exec.sh -n dnode3 -s start
+sql drop mnode on dnode 1 -x step60
+step60:
+
+$x = 0
+step6: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+sql select * from information_schema.ins_mnodes -x step6
+print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] 
+print $data[1][0] $data[1][1] $data[1][2] $data[1][3] $data[1][4] 
+print $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4]
+
+if $rows != 2 then 
+  goto step6
+endi
+$leaderNum = 0
+if $data(1)[2] == leader then
+  $leaderNum = 1
+endi
+if $data(2)[2] == leader then
+  $leaderNum = 1
+endi
+if  $leaderNum == 0 then
+  goto step6
+endi
+if $data(3)[2] != null then
+  goto step6
+endi
+if $data(1)[3] != ready then
+  goto step6
+endi
+if $data(2)[3] != ready then
+  goto step6
+endi
+if $data(3)[3] != null then
+  goto step6
+endi
+
+system sh/exec.sh -n dnode1 -s stop
+system sh/exec.sh -n dnode2 -s stop
+system sh/exec.sh -n dnode3 -s stop
+system sh/exec.sh -n dnode4 -s stop

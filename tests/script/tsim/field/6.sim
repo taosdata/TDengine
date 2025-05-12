@@ -1,0 +1,987 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======================== dnode1 start
+
+$dbPrefix = db
+$tbPrefix = tb
+$mtPrefix = st
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, tbcol1 smallint, tbcol2 bigint, tbcol3 smallint, tbcol4 bigint, tbcol5 float, tbcol6 bool) TAGS(tgcol1 smallint, tgcol2 bigint, tgcol3 smallint, tgcol4 bigint, tgcol5 float, tgcol6 bool)
+
+$i = 0
+while $i < 5
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( 0, 0, 0, 0, 0, 0 )  
+  $x = 0
+  while $x < $rowNum
+    $ms = $x . m 
+    sql insert into $tb values (1626739200000 + $ms , 0, 0, 0, 0, 0, 0 ) 
+    $x = $x + 1
+  endw  
+  $i = $i + 1
+endw 
+while $i < 10
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( 1, 1, 1, 1, 1, 1 )  
+  $x = 0
+  while $x < $rowNum
+    $ms = $x . m 
+    sql insert into $tb values (1626739200000 + $ms , 1, 1, 1, 1, 1, 1  ) 
+    $x = $x + 1
+  endw  
+  $i = $i + 1
+endw 
+
+print =============== step2
+sql select * from $mt
+if $rows != $totalNum then 
+  return -1
+endi
+
+sql select * from $mt where ts < 1626739440001
+if $rows != 50 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001
+if $rows != 150 then 
+  return -1
+endi
+sql select * from $mt where ts = 1626739440001
+if $rows != 0 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001
+if $rows != 10 then 
+  return -1
+endi
+
+print =============== step3
+sql select * from $mt where tbcol1 = 0
+if $rows != 100 then 
+  return -1
+endi
+sql select * from $mt where tbcol1 <> 0
+if $rows != 100 then 
+  return -1
+endi
+sql select * from $mt where tbcol1 = 1
+if $rows != 100 then 
+  return -1
+endi
+sql select * from $mt where tbcol1 <> 1
+if $rows != 100 then 
+  return -1
+endi
+sql select * from $mt where tbcol1 = 1
+if $rows != 100 then 
+  return -1
+endi
+sql select * from $mt where tbcol1 <> 1
+if $rows != 100 then 
+  return -1
+endi
+sql select * from $mt where tbcol1 = 0
+if $rows != 100 then 
+  return -1
+endi
+sql select * from $mt where tbcol1 <> 0
+if $rows != 100 then 
+  return -1
+endi
+
+print =============== step4
+sql select * from $mt where tbcol2 = 0
+if $rows != 100 then 
+  return -1
+endi
+sql select * from $mt where tbcol2 <> 0
+if $rows != 100 then 
+  return -1
+endi
+sql select * from $mt where tbcol2 = 1
+if $rows != 100 then 
+  return -1
+endi
+sql select * from $mt where tbcol2 <> 1
+if $rows != 100 then 
+  return -1
+endi
+
+print =============== step5
+sql select * from $mt where tbcol3 = 0
+if $rows != 100 then 
+  return -1
+endi
+sql select * from $mt where tbcol3 <> 0
+if $rows != 100 then 
+  return -1
+endi
+sql select * from $mt where tbcol3 = 1
+if $rows != 100 then 
+  return -1
+endi
+sql select * from $mt where tbcol3 <> 1
+if $rows != 100 then 
+  return -1
+endi
+
+print =============== step6
+sql select * from $mt where tbcol4 = 0
+if $rows != 100 then 
+  return -1
+endi
+sql select * from $mt where tbcol4 <> 0
+if $rows != 100 then 
+  return -1
+endi
+sql select * from $mt where tbcol4 = 1
+if $rows != 100 then 
+  return -1
+endi
+sql select * from $mt where tbcol4 <> 1
+if $rows != 100 then 
+  return -1
+endi
+
+print =============== step7
+sql select * from $mt where tbcol5 = 0
+if $rows != 100 then 
+  return -1
+endi
+sql select * from $mt where tbcol5 <> 0
+if $rows != 100 then 
+  return -1
+endi
+sql select * from $mt where tbcol5 = 1
+if $rows != 100 then 
+  return -1
+endi
+sql select * from $mt where tbcol5 <> 1
+if $rows != 100 then 
+  return -1
+endi
+
+print =============== step8
+sql select * from $mt where tbcol6 = 0
+if $rows != 100 then 
+  return -1
+endi
+sql select * from $mt where tbcol6 <> 0
+if $rows != 100 then 
+  return -1
+endi
+sql select * from $mt where tbcol6 = 1
+if $rows != 100 then 
+  return -1
+endi
+sql select * from $mt where tbcol6 <> 1
+if $rows != 100 then 
+  return -1
+endi
+
+print =============== step9
+sql select * from $mt where ts > 1626739440001 and tbcol1 = 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol1 <> 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol1 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol1 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol1 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol1 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol1 <> 0
+if $rows != 5 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol1 <> 0 and ts < 1626739500001
+if $rows != 5 then 
+  return -1
+endi
+
+print =============== step10
+sql select * from $mt where ts > 1626739440001 and tbcol2 = 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol2 <> 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol2 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol2 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol2 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol2 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol2 <> 0
+if $rows != 5 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol2 <> 0 and ts < 1626739500001
+if $rows != 5 then 
+  return -1
+endi
+
+print =============== step11
+sql select * from $mt where ts > 1626739440001 and tbcol3 = 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol3 <> 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol3 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol3 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol3 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol3 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol3 <> 0
+if $rows != 5 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol3 <> 0 and ts < 1626739500001
+if $rows != 5 then 
+  return -1
+endi
+
+print =============== step12
+sql select * from $mt where ts > 1626739440001 and tbcol4 = 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol4 <> 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol4 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol4 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol4 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol4 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol4 <> 0
+if $rows != 5 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol4 <> 0 and ts < 1626739500001
+if $rows != 5 then 
+  return -1
+endi
+
+print =============== step13
+sql select * from $mt where ts > 1626739440001 and tbcol5 = 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol5 <> 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol5 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol5 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol5 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol5 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol5 <> 0
+if $rows != 5 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol5 <> 0 and ts < 1626739500001
+if $rows != 5 then 
+  return -1
+endi
+
+print =============== step14
+sql select * from $mt where ts > 1626739440001 and tbcol6 = 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol6 <> 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol6 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol6 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol6 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol6 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol6 <> 0
+if $rows != 5 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol6 <> 0 and ts < 1626739500001
+if $rows != 5 then 
+  return -1
+endi
+
+print =============== step15
+sql select * from $mt where ts > 1626739440001 and tbcol2 = 1 and tbcol1 = 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol2 <> 1 and tbcol1 <> 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol2 = 0 and tbcol1 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol2 <> 0 and tbcol1 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol2 = 0 and tbcol1 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol2 <> 0 and tbcol1 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol2 <> 0 and tbcol1 <> 0
+if $rows != 5 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol2 <> 0 and ts < 1626739500001 and ts < 1626739500001 and tbcol1 <> 0
+if $rows != 5 then 
+  return -1
+endi
+
+print =============== step16
+sql select * from $mt where ts > 1626739440001 and tbcol3 = 1 and tbcol2 = 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol3 <> 1 and tbcol2 <> 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol3 = 0 and tbcol2 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol3 <> 0 and tbcol2 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol3 = 0 and tbcol2 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol3 <> 0 and tbcol2 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol3 <> 0 and tbcol2 <> 0
+if $rows != 5 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol3 <> 0 and ts < 1626739500001 and ts < 1626739500001 and tbcol2 <> 0
+if $rows != 5 then 
+  return -1
+endi
+
+print =============== step17
+sql select * from $mt where ts > 1626739440001 and tbcol3 = 1 and tbcol4 = 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol3 <> 1 and tbcol4 <> 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol3 = 0 and tbcol4 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol3 <> 0 and tbcol4 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol3 = 0 and tbcol4 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol3 <> 0 and tbcol4 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol3 <> 0 and tbcol4 <> 0
+if $rows != 5 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol3 <> 0 and ts < 1626739500001 and ts < 1626739500001 and tbcol4 <> 0
+if $rows != 5 then 
+  return -1
+endi
+
+print =============== step18
+sql select * from $mt where ts > 1626739440001 and tbcol5 = 1 and tbcol4 = 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol5 <> 1 and tbcol4 <> 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol5 = 0 and tbcol4 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol5 <> 0 and tbcol4 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol5 = 0 and tbcol4 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol5 <> 0 and tbcol4 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol5 <> 0 and tbcol4 <> 0
+if $rows != 5 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol5 <> 0 and ts < 1626739500001 and ts < 1626739500001 and tbcol4 <> 0
+if $rows != 5 then 
+  return -1
+endi
+
+print =============== step19
+sql select * from $mt where ts > 1626739440001 and tbcol5 = 1 and tbcol6 = 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol5 <> 1 and tbcol6 <> 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol5 = 0 and tbcol6 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol5 <> 0 and tbcol6 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol5 = 0 and tbcol6 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol5 <> 0 and tbcol6 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol5 <> 0 and tbcol6 <> 0
+if $rows != 5 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol5 <> 0 and ts < 1626739500001 and ts < 1626739500001 and tbcol6 <> 0
+if $rows != 5 then 
+  return -1
+endi
+
+print =============== step20
+sql select * from $mt where ts > 1626739440001 and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol1 <> 1 and tbcol2 <> 1  and tbcol3 <> 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol1 = 0 and tbcol2 = 0 and tbcol3 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol1 <> 0 and tbcol2 <> 0 and tbcol3 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol1 = 0 and tbcol2 = 0 and tbcol3 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol1 <> 0 and tbcol2 <> 0 and tbcol3 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol1 <> 0 and tbcol2 <> 0  and tbcol3 <> 0
+if $rows != 5 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol1 <> 0 and ts < 1626739500001 and ts < 1626739500001 and tbcol2 <> 0  and tbcol3 <> 0
+if $rows != 5 then 
+  return -1
+endi
+
+print =============== step21
+sql select * from $mt where ts > 1626739440001 and tbcol4 = 1 and tbcol2 = 1 and tbcol3 = 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol4 <> 1 and tbcol2 <> 1  and tbcol3 <> 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol4 <> 0 and tbcol2 <> 0  and tbcol3 <> 0
+if $rows != 5 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol4 <> 0 and ts < 1626739500001 and ts < 1626739500001 and tbcol2 <> 0  and tbcol3 <> 0
+if $rows != 5 then 
+  return -1
+endi
+
+print =============== step22
+sql select * from $mt where ts > 1626739440001 and tbcol4 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol1 = 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol4 <> 1 and tbcol2 <> 1  and tbcol3 <> 1 and tbcol1 <> 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0 and tbcol1 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0 and tbcol1 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0 and tbcol1 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0 and tbcol1 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol4 <> 0 and tbcol2 <> 0  and tbcol3 <> 0 and tbcol1 <> 0
+if $rows != 5 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol4 <> 0 and ts < 1626739500001 and ts < 1626739500001 and tbcol2 <> 0  and tbcol3 <> 0 and tbcol1 <> 0
+if $rows != 5 then 
+  return -1
+endi
+
+print =============== step23
+sql select * from $mt where ts > 1626739440001 and tbcol4 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol1 = 1 and tbcol5 = 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol4 <> 1 and tbcol2 <> 1  and tbcol3 <> 1 and tbcol1 <> 1 and tbcol5 <> 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0 and tbcol1 = 0 and tbcol5 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0 and tbcol1 = 0 and tbcol5 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol4 <> 0 and tbcol2 <> 0  and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0
+if $rows != 5 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol4 <> 0 and ts < 1626739500001 and ts < 1626739500001 and tbcol2 <> 0  and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0
+if $rows != 5 then 
+  return -1
+endi
+
+print =============== step24
+sql select * from $mt where ts > 1626739440001 and tbcol4 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol1 = 1 and tbcol5 = 1 and tbcol6 = 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol4 <> 1 and tbcol2 <> 1  and tbcol3 <> 1 and tbcol1 <> 1 and tbcol5 <> 1 and tbcol6 <> 1
+if $rows != 75 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0 and tbcol1 = 0 and tbcol5 = 0 and tbcol6 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts < 1626739440001 and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0 and tbcol6 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0 and tbcol1 = 0 and tbcol5 = 0 and tbcol6 = 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts <= 1626739440001 and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0 and tbcol6 <> 0
+if $rows != 25 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol4 <> 0 and tbcol2 <> 0  and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0 and tbcol6 <> 0
+if $rows != 5 then 
+  return -1
+endi
+sql select * from $mt where ts > 1626739440001 and tbcol4 <> 0 and ts < 1626739500001 and ts < 1626739500001 and tbcol2 <> 0  and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0 and tbcol6 <> 0
+if $rows != 5 then 
+  return -1
+endi
+
+print =============== step25
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 200 then 
+  return -1
+endi
+
+print =============== step26
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1  and tbcol4 = 1
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1  and tbcol4 = 1  and tbcol5 = 1
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1  and tbcol4 = 1  and tbcol5 = 1 and tbcol6 = 1
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+print =============== step27
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 50 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 25 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1 
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 25 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 25 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 25 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1 and tbcol5 = 1
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 25 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1 and tbcol5 = 1 and tbcol6 = 1
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 25 then 
+  return -1
+endi
+
+print =============== step28
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt group by tgcol1 order by count(tbcol1) desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt group by tgcol2 order by count(tbcol1) desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt group by tgcol3 order by count(tbcol1) desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt group by tgcol4 order by count(tbcol1) desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt group by tgcol5 order by count(tbcol1) desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt group by tgcol6 order by count(tbcol1) desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+print =============== step29
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 group by tgcol1 order by count(tbcol1) desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1  group by tgcol1 order by count(tbcol1) desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 group by tgcol1 order by count(tbcol1) desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1 group by tgcol1 order by count(tbcol1) desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1 and tbcol5 = 1 group by tgcol1 order by count(tbcol1) desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1 and tbcol5 = 1  and tbcol6 = 1 group by tgcol1 order by count(tbcol1) desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+print =============== step30
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 group by tgcol2 order by count(tbcol1) desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 25 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 group by tgcol2 order by count(tbcol1) desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 25 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1  group by tgcol2 order by count(tbcol1) desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 25 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 group by tgcol2 order by count(tbcol1) desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 25 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1 group by tgcol2 order by count(tbcol1) desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 25 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1  and tbcol5 = 1 group by tgcol2 order by count(tbcol1) desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 25 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1  and tbcol5 = 1 and tbcol6 = 1 group by tgcol2 order by count(tbcol1) desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 25 then 
+  return -1
+endi
+
+print =============== step31
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 partition by tgcol1 interval(1d) order by tgcol1 desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 partition by tgcol2 interval(1d) order by tgcol2 desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 partition by tgcol3 interval(1d) order by tgcol3 desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1 partition by tgcol4 interval(1d) order by tgcol4 desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1  and tbcol5 = 1 partition by tgcol5 interval(1d) order by tgcol5 desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1  and tbcol5 = 1  and tbcol6 = 1 partition by tgcol6 interval(1d) order by tgcol6 desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
+if $data00 != 100 then 
+  return -1
+endi
+
+print =============== clear
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

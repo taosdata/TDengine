@@ -1,0 +1,72 @@
+sql connect
+sql use testa;
+
+print == create view sta1
+sql create view sta1 as select * from stv;
+sql select * from sta1;
+if $rows != 4 then
+  return -1
+endi
+sql desc sta1;
+if $rows != 4 then
+  return -1
+endi
+sql show create table sta1;
+sql show create view sta1;
+sql create view view1 as select * from sta1;
+sql select * from view1;
+if $rows != 4 then
+  return -1
+endi
+
+print == drop view sta1
+sql reset query cache
+sql drop view sta1;
+sql select * from sta1;
+if $rows != 4 then
+  return -1
+endi
+sql desc sta1;
+if $rows != 4 then
+  return -1
+endi
+sql show create table sta1;
+sql_error show create view sta1;
+sql select * from view1;
+if $rows != 4 then
+  return -1
+endi
+
+print == create view sta1, drop table sta1
+sql reset query cache
+sql create view sta1 as select * from stv;
+sql drop table sta1;
+sql select * from sta1;
+if $rows != 1 then
+  return -1
+endi
+sql desc sta1;
+if $rows != 3 then
+  print $rows
+  return -1
+endi
+sql_error show create table sta1;
+sql show create view sta1;
+sql select * from view1;
+if $rows != 1 then
+  return -1
+endi
+sql desc view1;
+if $rows != 3 then
+  return -1
+endi
+
+print == restore data
+sql drop view sta1;
+sql drop view view1;
+sql create table sta1(ts timestamp, f int, g int) tags (t int);
+sql insert into cta11 using sta1 tags(1) values('2023-10-16 09:10:11', 100111, 1001110);
+sql insert into cta12 using sta1 tags(2) values('2023-10-16 09:10:12', 100112, 1001120);
+sql insert into cta13 using sta1 tags(3) values('2023-10-16 09:10:13', 100113, 1001130);
+sql insert into cta14 using sta1 tags(4) values('2023-10-16 09:10:14', 100114, 1001140);
+

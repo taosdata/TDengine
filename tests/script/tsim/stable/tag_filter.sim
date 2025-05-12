@@ -1,0 +1,151 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ========== prepare stb and ctb
+sql create database db vgroups 1
+sql create table db.stb (ts timestamp, c1 int, c2 binary(4)) tags(t1 int, t2 binary(16)) comment "abd"
+
+
+sql create table db.ctb1 using db.stb tags(1, "102")
+sql insert into db.ctb1 values(now, 1, "2")
+
+sql create table db.ctb2 using db.stb tags(2, "102")
+sql insert into db.ctb2 values(now, 2, "2")
+
+sql create table db.ctb3 using db.stb tags(3, "102")
+sql insert into db.ctb3 values(now, 3, "2")
+
+sql create table db.ctb4 using db.stb tags(4, "102")
+sql insert into db.ctb4 values(now, 4, "2")
+
+sql create table db.ctb5 using db.stb tags(5, "102")
+sql insert into db.ctb5 values(now, 5, "2")
+
+sql create table db.ctb6 using db.stb tags(6, "102")
+sql insert into db.ctb6 values(now, 6, "2")
+
+sql select * from db.stb where t1 = 1
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from db.stb where t1 < 1
+if $rows != 0 then
+  return -=1
+endi
+
+sql select * from db.stb where t1 < 2
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from db.stb where t1 <= 2
+if $rows != 2 then
+  return -1
+endi
+
+sql select * from db.stb where t1 >= 1
+if $rows != 6 then
+  return -1
+endi
+
+sql select * from db.stb where t1 > 1
+if $rows != 5 then
+  return -1
+endi
+
+sql select * from db.stb where t1 between 1 and 1
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from db.stb where t1 between 1 and 6
+if $rows != 6 then
+  return -1
+endi
+
+sql select * from db.stb where t1 between 1 and 7
+if $rows != 6 then
+  return -1
+endi
+
+
+print ========== prepare stbBin and ctbBin
+sql create table db.stbBin (ts timestamp, c1 int, c2 binary(4)) tags(t1 binary(16))
+
+
+sql create table db.ctbBin using db.stbBin tags("a")
+sql insert into db.ctbBin values(now, 1, "2")
+
+sql create table db.ctbBin1 using db.stbBin tags("b")
+sql insert into db.ctbBin1 values(now, 2, "2")
+
+sql create table db.ctbBin2 using db.stbBin tags("c")
+sql insert into db.ctbBin2 values(now, 3, "2")
+
+sql create table db.ctbBin3 using db.stbBin tags("d")
+sql insert into db.ctbBin3 values(now, 4, "2")
+
+sql select * from db.stbBin where t1 = "a"
+if $rows != 1 then
+  return -1
+endi
+
+
+sql select * from db.stbBin where t1 < "a"
+if $rows != 0 then
+  return -=1
+endi
+
+sql select * from db.stbBin where t1 < "b"
+if $rows != 1 then
+  return -1
+endi
+
+
+sql select * from db.stbBin where t1 between "a" and "e"
+if $rows != 4 then
+  return -1
+endi
+
+
+print ========== prepare stbNc and ctbNc
+sql create table db.stbNc (ts timestamp, c1 int, c2 binary(4)) tags(t1 nchar(16))
+
+
+sql create table db.ctbNc using db.stbNc tags("a")
+sql insert into db.ctbNc values(now, 1, "2")
+
+sql create table db.ctbNc1 using db.stbNc tags("b")
+sql insert into db.ctbNc1 values(now, 2, "2")
+
+sql create table db.ctbNc2 using db.stbNc tags("c")
+sql insert into db.ctbNc2 values(now, 3, "2")
+
+sql create table db.ctbNc3 using db.stbNc tags("d")
+sql insert into db.ctbNc3 values(now, 4, "2")
+
+sql select * from db.stbNc where t1 = "a"
+if $rows != 1 then
+  return -1
+endi
+
+
+sql select * from db.stbNc where t1 < "a"
+if $rows != 0 then
+  return -=1
+endi
+
+sql select * from db.stbNc where t1 < "b"
+if $rows != 1 then
+  return -1
+endi
+
+
+sql select * from db.stbNc where t1 between "a" and "e"
+if $rows != 4 then
+  return -1
+endi
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

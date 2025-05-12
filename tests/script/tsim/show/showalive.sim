@@ -1,0 +1,209 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+system sh/exec.sh -n dnode4 -s start
+
+sleep 1000
+
+sql connect
+
+
+print =============== add dnode into cluster
+sql create dnode $hostname1 port 7200
+sql create dnode $hostname2 port 7300
+sql create dnode $hostname3 port 7400
+sql create dnode $hostname4 port 7500
+
+sleep 1000
+
+$loop_count = 0
+
+loop00:
+
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+print 0 show cluster alive;
+sql show cluster alive;
+
+print res------------------------
+print $data00 $data01
+print $data10 $data11
+
+if $data00 != 1 then
+  print =====data00=$data00
+  goto loop00
+endi
+
+
+print =============== create database, stable, table
+sql create database test  vgroups 6;
+sql use test;
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+sql insert into t1 values(1648791211000,1,2,3);
+sql insert into t1 values(1648791222001,2,2,3);
+sql insert into t2 values(1648791211000,1,2,3);
+sql insert into t2 values(1648791222001,2,2,3);
+
+$loop_count = 0
+
+loop0:
+
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+print show cluster alive;
+sql show cluster alive;
+
+print res------------------------
+print $data00 $data01
+print $data10 $data11
+
+if $rows != 1 then
+  print =====rows=$rows
+  goto loop0
+endi
+
+if $data00 != 1 then
+  print =====data00=$data00
+  goto loop0
+endi
+
+print show test.alive;
+sql show test.alive;
+
+print res------------------------
+print $data00 $data01
+print $data10 $data11
+
+if $rows != 1 then
+  print =====rows=$rows
+  goto loop0
+endi
+
+if $data00 != 1 then
+  print =====data00=$data00
+  goto loop0
+endi
+
+print stop dnode3
+print stop dnode4
+system sh/exec.sh -n dnode3 -s stop -x SIGKILL
+system sh/exec.sh -n dnode4 -s stop -x SIGKILL
+
+$loop_count = 0
+
+loop1:
+
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+print show cluster alive;
+sql show cluster alive;
+
+if $data00 != 2 then
+  print =====data00=$data00
+  goto loop1
+endi
+
+print show test.alive
+sql show test.alive;
+
+if $data00 != 2 then
+  print =====data00=$data00
+  goto loop1
+endi
+
+
+sql create database test1  vgroups 2;
+
+$loop_count = 0
+
+loop2:
+
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+print show cluster alive;
+sql show cluster alive;
+
+if $data00 != 2 then
+  goto loop2
+endi
+
+print show test1.alive;
+sql show test1.alive;
+
+if $data00 != 1 then
+  print =====data00=$data00
+  goto loop2
+endi
+
+print stop dnode2
+
+system sh/exec.sh -n dnode2 -s stop -x SIGKILL
+
+
+$loop_count = 0
+
+loop3:
+
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+
+print show cluster alive;
+sql show cluster alive;
+
+if $data00 != 2 then
+  print =====data00=$data00
+  goto loop3
+endi
+
+print show test.alive;
+sql show test.alive;
+
+if $data00 != 2 then
+  print =====data00=$data00
+  goto loop3
+endi
+
+sql show test1.alive;
+
+if $data00 != 2 then
+  print =====data00=$data00
+  goto loop3
+endi
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
+system sh/exec.sh -n dnode4 -s stop -x SIGINT

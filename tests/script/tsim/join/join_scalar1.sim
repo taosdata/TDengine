@@ -1,0 +1,1223 @@
+sql connect
+sql use test0;
+
+# timetruncate
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on timetruncate(a.ts, 1h) = timetruncate(b.ts, 1h);
+if $rows != 64 then
+  return -1
+endi
+
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on timetruncate(a.ts, 1h) = timetruncate(b.ts, 1h);
+if $rows != 64 then
+  return -1
+endi
+
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on timetruncate(a.ts, 1h) = timetruncate(b.ts, 1h) and a.col1=b.col1;
+if $rows != 12 then
+  return -1
+endi
+
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on timetruncate(a.ts, 1m) = b.ts;
+if $rows != 16 then
+  return -1
+endi
+
+sql select a.ts, b.col1 from sta a left join sta b on timetruncate(b.ts, 1h) = a.ts;
+if $rows != 8 then
+  return -1
+endi
+
+sql select a.ts, b.col1,timetruncate(a.col1, 1h) from sta a left join sta b on a.ts = b.ts and timetruncate(a.col1, 1h) = timetruncate(a.col1, 1h);
+if $rows != 12 then
+  return -1
+endi
+
+sql select a.ts, b.col1 from sta a left semi join sta b on timetruncate(a.ts, 1h) = timetruncate(b.ts, 1h);
+if $rows != 8 then
+  return -1
+endi
+
+sql select a.ts, b.col1 from sta a left anti join sta b on timetruncate(a.ts, 1h) = timetruncate(b.ts, 1h);
+if $rows != 0 then
+  return -1
+endi
+
+sql select a.ts, b.col1 from sta a left asof join sta b on timetruncate(a.ts, 1h) > timetruncate(b.ts, 1h);
+if $rows != 8 then
+  return -1
+endi
+sql select a.ts, b.col1 from sta a left asof join sta b on timetruncate(a.ts, 1h) >= timetruncate(b.ts, 1h) jlimit 0;
+if $rows != 0 then
+  return -1
+endi
+sql select a.ts, b.col1 from sta a left asof join sta b on timetruncate(a.ts, 1h) >= timetruncate(b.ts, 1h) jlimit 2;
+if $rows != 16 then
+  return -1
+endi
+sql select a.ts, b.col1 from sta a left asof join sta b on timetruncate(a.ts, 1h) >= timetruncate(b.ts, 1h) jlimit 8;
+if $rows != 64 then
+  return -1
+endi
+sql select a.ts, b.col1 from sta a left asof join sta b on timetruncate(a.ts, 1h) >= timetruncate(b.ts, 1h) jlimit 9;
+if $rows != 64 then
+  return -1
+endi
+
+sql select a.ts, b.ts from sta a left asof join sta b on a.col1 =b.col1 and timetruncate(a.ts, 1h) > timetruncate(b.ts, 1h) jlimit 2;
+if $rows != 8 then
+  return -1
+endi
+
+sql select a.ts, b.ts from sta a left asof join sta b on timetruncate(a.ts, 1h) >= timetruncate(b.ts, 1h) jlimit 2 where timetruncate(a.ts, 1h) >= timetruncate(b.ts, 1h);
+if $rows != 16 then
+  return -1
+endi
+
+sql_error select a.ts, b.ts from sta a left asof join sta b on a.ts=b.ts and a.ts=b.ts;
+sql_error select a.ts, b.ts from sta a left asof join sta b on timetruncate(a.ts, 1h) > timetruncate(b.ts, 1h) and timetruncate(a.ts, 1h) > timetruncate(b.ts, 1h);
+sql_error select a.ts, b.ts from sta a left asof join sta b on timetruncate(a.ts, 1h) >= timetruncate(b.ts, 1h) and a.ts > timetruncate(b.ts, 1s) jlimit 2;
+sql_error select a.ts, b.ts from sta a left asof join sta b on a.ts > timetruncate(b.ts, 1s) and timetruncate(a.ts, 1h) >= timetruncate(b.ts, 1h) jlimit 2;
+sql_error select a.ts, b.ts from sta a left asof join sta b on timetruncate(a.ts, 1h) >= timetruncate(b.ts, 1h) and a.ts =b.col1 jlimit 2;
+sql_error select a.ts, b.col1 from sta a left join sta b on timetruncate(b.ts, 1h) + 1 = a.ts;
+sql_error select a.ts, b.col1 from sta a left join sta b on timetruncate(b.ts, 1h) = a.ts + 1;
+sql_error select a.ts, b.col1 from sta a left join sta b on b.ts + 1 = a.ts + 1;
+
+sql use testa;
+
+sql select sta1.ts, sta2.ts from sta1 full join sta2 on timetruncate(sta1.ts, 1a) = timetruncate(sta2.ts, 1a);
+if $rows != 8 then
+  return -1
+endi
+if $data00 != @23-10-16 09:10:11.001@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+if $data10 != NULL then
+  return -1
+endi
+if $data11 != @23-10-16 09:10:11.002@ then
+  return -1
+endi
+
+sql select sta1.ts, sta2.ts from sta1 full join sta2 on timetruncate(sta1.ts, 1a) = timetruncate(sta2.ts, 1a) and sta1.ts=sta2.ts;
+if $rows != 8 then
+  return -1
+endi
+
+sql select sta1.ts, sta2.ts from sta1 full join sta2 on timetruncate(sta1.ts, 1s) = timetruncate(sta2.ts, 1s);
+if $rows != 4 then
+  return -1
+endi
+sql select sta1.ts, sta2.ts from sta1 full join sta2 on timetruncate(sta1.ts, 1m) = timetruncate(sta2.ts, 1m);
+if $rows != 16 then
+  return -1
+endi
+sql select sta1.ts, sta2.ts from sta1 full join sta2 on timetruncate(sta1.ts, 1h) = timetruncate(sta2.ts, 1h) order by timetruncate(sta1.ts, 1s) desc, timetruncate(sta2.ts, 1s);
+if $rows != 16 then
+  return -1
+endi
+if $data00 != @23-10-16 09:10:14.001@ then
+  return -1
+endi
+if $data01 != @23-10-16 09:10:11.002@ then
+  return -1
+endi
+
+sql select sta1.ts, sta2.ts from sta1 full join sta2 on timetruncate(sta1.ts, 1h) = timetruncate(sta2.ts, 1h, 0) order by timetruncate(sta1.ts, 1s) desc, timetruncate(sta2.ts, 1s);
+if $rows != 16 then
+  return -1
+endi
+if $data00 != @23-10-16 09:10:14.001@ then
+  return -1
+endi
+if $data01 != @23-10-16 09:10:11.002@ then
+  return -1
+endi
+sql select sta1.ts, sta2.ts from sta1 full join sta2 on timetruncate(sta1.ts, 1d) = timetruncate(sta2.ts, 1d, 0) order by timetruncate(sta1.ts, 1s) desc, timetruncate(sta2.ts, 1s);
+if $rows != 8 then
+  return -1
+endi
+if $data00 != @23-10-16 09:10:14.001@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+sql select sta1.ts,timetruncate(sta1.ts, 1d), sta2.ts, timetruncate(sta2.ts, 1d, 0) from sta1 left asof join sta2 on timetruncate(sta1.ts, 1d) >= timetruncate(sta2.ts, 1d, 0) order by timetruncate(sta1.ts, 1s) desc, timetruncate(sta2.ts, 1s);
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @23-10-16 09:10:14.001@ then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+if $data10 != @23-10-16 09:10:13.001@ then
+  return -1
+endi
+if $data12 != NULL then
+  return -1
+endi
+sql select sta1.ts,timetruncate(sta1.ts, 1d, 0), sta2.ts, timetruncate(sta2.ts, 1d, 1) from sta1 left asof join sta2 on timetruncate(sta1.ts, 1d, 0) >= timetruncate(sta2.ts, 1d, 1) jlimit 4 order by timetruncate(sta1.ts, 1s) desc, timetruncate(sta2.ts, 1s);
+if $rows != 16 then
+  return -1
+endi
+if $data00 != @23-10-16 09:10:14.001@ then
+  return -1
+endi
+if $data02 != @23-10-16 09:10:11.002@ then
+  return -1
+endi
+if $data10 != @23-10-16 09:10:14.001@ then
+  return -1
+endi
+if $data12 != @23-10-16 09:10:12.002@ then
+  return -1
+endi
+sql select sta1.ts, sta2.ts from sta1 left asof join sta2 on timetruncate(sta1.ts, 1s, 0) > timetruncate(sta2.ts, 1s, 1) jlimit 4 order by timetruncate(sta1.ts, 1s) desc, timetruncate(sta2.ts, 1s);
+if $rows != 7 then
+  return -1
+endi
+if $data00 != @23-10-16 09:10:14.001@ then
+  return -1
+endi
+if $data01 != @23-10-16 09:10:11.002@ then
+  return -1
+endi
+if $data10 != @23-10-16 09:10:14.001@ then
+  return -1
+endi
+if $data11 != @23-10-16 09:10:12.002@ then
+  return -1
+endi
+if $data20 != @23-10-16 09:10:14.001@ then
+  return -1
+endi
+if $data21 != @23-10-16 09:10:13.002@ then
+  return -1
+endi
+if $data30 != @23-10-16 09:10:13.001@ then
+  return -1
+endi
+if $data31 != @23-10-16 09:10:11.002@ then
+  return -1
+endi
+if $data40 != @23-10-16 09:10:13.001@ then
+  return -1
+endi
+if $data41 != @23-10-16 09:10:12.002@ then
+  return -1
+endi
+if $data50 != @23-10-16 09:10:12.001@ then
+  return -1
+endi
+if $data51 != @23-10-16 09:10:11.002@ then
+  return -1
+endi
+if $data60 != @23-10-16 09:10:11.001@ then
+  return -1
+endi
+if $data61 != NULL then
+  return -1
+endi
+
+sql select sta1.ts,timetruncate(sta1.ts, 1w, 0), sta2.ts,timetruncate(sta2.ts, 1w, 1) from sta1 left asof join sta2 on timetruncate(sta1.ts, 1w, 0) > timetruncate(sta2.ts, 1w, 1) jlimit 4 order by timetruncate(sta1.ts, 1s) desc, timetruncate(sta2.ts, 1s);
+if $rows != 16 then
+  return -1
+endi
+if $data00 != @23-10-16 09:10:14.001@ then
+  return -1
+endi
+if $data02 != @23-10-16 09:10:11.002@ then
+  return -1
+endi
+if $data10 != @23-10-16 09:10:14.001@ then
+  return -1
+endi
+if $data12 != @23-10-16 09:10:12.002@ then
+  return -1
+endi
+
+sql_error select count(*) from sta1 left window join sta2 on timetruncate(sta1.ts, 1h) = timetruncate(sta2.ts, 1h) window_offset(-1s, 1s);
+
+
+
+##### conditions
+sql use test0;
+
+#inner join
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on timetruncate(a.ts, 1h) = timetruncate(b.ts, 1h) where a.ts = b.ts;
+if $rows != 12 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on timetruncate(a.ts, 1h) = timetruncate(b.ts, 1h) where a.ts = b.ts or a.ts != b.ts;
+if $rows != 64 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1h);
+if $rows != 0 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on a.t1 = b.t1 where a.ts = b.ts;
+if $rows != 8 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on a.t1 = b.t1 or a.col1 = b.col1 where a.ts = b.ts;
+if $rows != 8 then
+  return -1
+endi
+sql select count(*),last(a.col1) from sta a join sta b on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 where a.ts = b.ts and a.col1 > 2;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 7 then
+  return -1
+endi
+if $data01 != 7 then
+  return -1
+endi
+sql select first(b.col1),count(b.t1),last(a.col1) from sta a join sta b on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null where a.ts = b.ts and b.col1 > 3 and a.t1 != 1;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 5 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data02 != 7 then
+  return -1
+endi
+
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;
+if $rows != 8 then
+  return -1
+endi
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;
+if $rows != 8 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;
+if $rows != 2 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;
+if $rows != 4 then
+  return -1
+endi
+sql select a.tbname from sta a join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != tba2 then
+  return -1
+endi
+sql_error select a.tbname from sta a join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;
+if $rows != 3 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;
+if $rows != 5 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;
+if $rows != 0 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);
+if $rows != 6 then
+  return -1
+endi
+
+
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;
+if $rows != 8 then
+  return -1
+endi
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a join sta b where (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;
+if $rows != 8 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;
+if $rows != 2 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;
+if $rows != 4 then
+  return -1
+endi
+sql select a.tbname from sta a join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != tba2 then
+  return -1
+endi
+sql_error select a.tbname from sta a join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b where a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;
+if $rows != 3 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;
+if $rows != 5 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;
+if $rows != 0 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);
+if $rows != 6 then
+  return -1
+endi
+
+
+#left join
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on timetruncate(a.ts, 1h) = timetruncate(b.ts, 1h) where a.ts = b.ts;
+if $rows != 12 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on timetruncate(a.ts, 1h) = timetruncate(b.ts, 1h) where a.ts = b.ts or a.ts != b.ts;
+if $rows != 64 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1h);
+if $rows != 8 then
+  return -1
+endi
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on a.t1 = b.t1 where a.ts = b.ts;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on a.t1 = b.t1 and a.ts = b.ts;
+if $rows != 8 then
+  return -1
+endi
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on a.t1 = b.t1 or a.col1 = b.col1 where a.ts = b.ts;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;
+if $rows != 8 then
+  return -1
+endi
+sql_error select count(*),last(a.col1) from sta a left join sta b on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 where a.ts = b.ts and a.col1 > 2;
+sql select count(*),last(a.col1) from sta a left join sta b on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 and a.ts = b.ts and a.col1 > 2;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 9 then
+  return -1
+endi
+if $data01 != 7 then
+  return -1
+endi
+sql_error select first(b.col1),count(b.t1),last(a.col1) from sta a left join sta b on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null where a.ts = b.ts and b.col1 > 3 and a.t1 != 1;
+sql select first(b.col1),count(b.t1),last(a.col1),count(*) from sta a left join sta b on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null and a.ts = b.ts and b.col1 > 3 and a.t1 != 1;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 5 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data02 != 7 then
+  return -1
+endi
+if $data03 != 8 then
+  return -1
+endi
+
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;
+if $rows != 8 then
+  return -1
+endi
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;
+if $rows != 8 then
+  return -1
+endi
+sql select count(b.ts) from sta a left join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 8 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;
+if $rows != 8 then
+  return -1
+endi
+sql select count(b.col1) from sta a left join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 2 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;
+if $rows != 8 then
+  return -1
+endi
+sql select count(b.ts) from sta a left join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
+sql select a.tbname from sta a left join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;
+if $rows != 8 then
+  return -1
+endi
+sql select count(b.*) from sta a left join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 1 then
+  return -1
+endi
+sql_error select a.tbname from sta a left join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;
+if $rows != 8 then
+  return -1
+endi
+sql select count(b.ts) from sta a left join sta b on a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 3 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;
+if $rows != 8 then
+  return -1
+endi
+sql select count(b.col1) from sta a left join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 5 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;
+if $rows != 8 then
+  return -1
+endi
+sql select count(b.col1) from sta a left join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);
+if $rows != 8 then
+  return -1
+endi
+sql select count(b.ts) from sta a left join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 6 then
+  return -1
+endi
+
+
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;
+sql_error select a.tbname from sta a left join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;
+sql_error select a.tbname from sta a left join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);
+
+
+
+#left semi join
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on timetruncate(a.ts, 1h) = timetruncate(b.ts, 1h) where a.ts = b.ts;
+if $rows != 2 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on timetruncate(a.ts, 1h) = timetruncate(b.ts, 1h) where a.ts = b.ts or a.ts != b.ts;
+if $rows != 8 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1h);
+if $rows != 0 then
+  return -1
+endi
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on a.t1 = b.t1 where a.ts = b.ts;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on a.t1 = b.t1 and a.ts = b.ts;
+if $rows != 8 then
+  return -1
+endi
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on a.t1 = b.t1 or a.col1 = b.col1 where a.ts = b.ts;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;
+if $rows != 8 then
+  return -1
+endi
+sql_error select count(*),last(a.col1) from sta a left semi join sta b on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 where a.ts = b.ts and a.col1 > 2;
+sql select count(*),last(a.col1) from sta a left semi join sta b on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 and a.ts = b.ts and a.col1 > 2;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 6 then
+  return -1
+endi
+if $data01 != 7 then
+  return -1
+endi
+sql_error select first(b.col1),count(b.t1),last(a.col1) from sta a left semi join sta b on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null where a.ts = b.ts and b.col1 > 3 and a.t1 != 1;
+sql select first(b.col1),count(b.t1),last(a.col1),count(*) from sta a left semi join sta b on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null and a.ts = b.ts and b.col1 > 3 and a.t1 != 1;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 5 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data02 != 7 then
+  return -1
+endi
+if $data03 != 2 then
+  return -1
+endi
+
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;
+if $rows != 8 then
+  return -1
+endi
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;
+if $rows != 8 then
+  return -1
+endi
+sql select count(b.ts) from sta a left semi join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 8 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;
+if $rows != 2 then
+  return -1
+endi
+sql select count(b.col1) from sta a left semi join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 2 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;
+if $rows != 4 then
+  return -1
+endi
+sql select count(b.ts) from sta a left semi join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
+sql select a.tbname from sta a left semi join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;
+if $rows != 1 then
+  return -1
+endi
+sql select count(b.*) from sta a left semi join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 1 then
+  return -1
+endi
+sql_error select a.tbname from sta a left semi join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;
+if $rows != 3 then
+  return -1
+endi
+sql select count(b.ts) from sta a left semi join sta b on a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 3 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;
+if $rows != 5 then
+  return -1
+endi
+sql select count(b.col1) from sta a left semi join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 5 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;
+if $rows != 0 then
+  return -1
+endi
+sql select count(b.col1) from sta a left semi join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);
+if $rows != 6 then
+  return -1
+endi
+sql select count(b.ts) from sta a left semi join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 6 then
+  return -1
+endi
+
+
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;
+sql_error select a.tbname from sta a left semi join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;
+sql_error select a.tbname from sta a left semi join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);
+
+
+#left anti join
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on timetruncate(a.ts, 1h) = timetruncate(b.ts, 1h) where a.ts = b.ts;
+if $rows != 0 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on timetruncate(a.ts, 1h) = timetruncate(b.ts, 1h) where a.ts = b.ts or a.ts != b.ts;
+if $rows != 0 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1h);
+if $rows != 8 then
+  return -1
+endi
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on a.t1 = b.t1 where a.ts = b.ts;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on a.t1 = b.t1 and a.ts = b.ts;
+if $rows != 0 then
+  return -1
+endi
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on a.t1 = b.t1 or a.col1 = b.col1 where a.ts = b.ts;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;
+if $rows != 0 then
+  return -1
+endi
+sql_error select count(*),last(a.col1) from sta a left anti join sta b on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 where a.ts = b.ts and a.col1 > 2;
+sql select count(*),count(a.col1) from sta a left anti join sta b on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 and a.ts = b.ts and a.col1 > 2;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 2 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+sql_error select first(b.col1),count(b.t1),last(a.col1) from sta a left anti join sta b on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null where a.ts = b.ts and b.col1 > 3 and a.t1 != 1;
+sql select first(b.col1),count(b.t1),last(a.col1),count(*) from sta a left anti join sta b on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null and a.ts = b.ts and b.col1 > 3 and a.t1 != 1;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != NULL then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data02 != 5 then
+  return -1
+endi
+if $data03 != 6 then
+  return -1
+endi
+
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;
+if $rows != 0 then
+  return -1
+endi
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;
+if $rows != 0 then
+  return -1
+endi
+sql select count(b.ts) from sta a left anti join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;
+if $rows != 6 then
+  return -1
+endi
+sql select count(b.col1) from sta a left anti join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;
+if $rows != 4 then
+  return -1
+endi
+sql select count(b.ts) from sta a left anti join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+sql select a.tbname from sta a left anti join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;
+if $rows != 7 then
+  return -1
+endi
+sql select count(b.*) from sta a left anti join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+sql_error select a.tbname from sta a left anti join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;
+if $rows != 5 then
+  return -1
+endi
+sql select count(b.ts) from sta a left anti join sta b on a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;
+if $rows != 3 then
+  return -1
+endi
+sql select count(b.col1) from sta a left anti join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;
+if $rows != 8 then
+  return -1
+endi
+sql select count(b.col1) from sta a left anti join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);
+if $rows != 2 then
+  return -1
+endi
+sql select count(b.ts) from sta a left anti join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+
+
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;
+sql_error select a.tbname from sta a left anti join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;
+sql_error select a.tbname from sta a left anti join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);
+
+
+#left asof join
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b on timetruncate(a.ts, 1h) = timetruncate(b.ts, 1h) where a.ts = b.ts;
+if $rows != 2 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b on timetruncate(a.ts, 1h) = timetruncate(b.ts, 1h) where a.ts = b.ts or a.ts != b.ts;
+if $rows != 8 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1h);
+if $rows != 8 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b on a.t1 = b.t1 where a.ts = b.ts;
+if $rows != 8 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b on a.t1 = b.t1 and a.ts = b.ts;
+if $rows != 8 then
+  return -1
+endi
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b on a.t1 = b.t1 or a.col1 = b.col1 where a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b on a.ts >= b.ts and a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;
+sql_error select count(*),last(a.col1) from sta a left asof join sta b on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 where a.ts = b.ts and a.col1 > 2;
+sql_error select count(*),count(a.col1) from sta a left asof join sta b on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 and a.ts = b.ts and a.col1 > 2;
+sql_error select first(b.col1),count(b.t1),last(a.col1) from sta a left asof join sta b on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null where a.ts = b.ts and b.col1 > 3 and a.t1 != 1;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b on (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;
+sql_error select count(b.ts) from sta a left asof join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;
+if $rows != 8 then
+  return -1
+endi
+sql select count(b.col1) from sta a left asof join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 2 then
+  return -1
+endi
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts where b.col1 > 1 or a.col1 > 2;
+if $rows != 7 then
+  return -1
+endi
+sql_error select a.tbname from sta a left asof join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;
+sql select a.tbname from sta a left asof join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts where a.col1 = b.col1 + 1;
+sql_error select a.tbname from sta a left asof join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b on a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b on a.t1 = b.t1 and a.ts = b.ts where a.col1 > 2 and b.col1 < 5;
+if $rows != 3 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b on a.t1 = b.t1 and a.ts = b.ts where (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;
+if $rows != 5 then
+  return -1
+endi
+sql select count(b.col1) from sta a left asof join sta b on a.t1 = b.t1 and a.ts = b.ts where (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 5 then
+  return -1
+endi
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b on a.t1 = b.t1 and a.ts = b.ts where (a.col1 < 3 or b.col1 > 3);
+if $rows != 6 then
+  return -1
+endi
+sql select count(b.ts) from sta a left asof join sta b on a.t1 = b.t1 and a.ts = b.ts where (a.col1 < 3 or b.col1 > 3);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 6 then
+  return -1
+endi
+
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b where (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;
+sql select a.tbname from sta a left asof join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;
+sql_error select a.tbname from sta a left asof join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b where a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left asof join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);
+
+
+#left window join
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b on timetruncate(a.ts, 1h) = timetruncate(b.ts, 1h) window_offset(-1s, 1s) where a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1h) window_offset(-1s, 1s);
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where a.ts = b.ts;
+if $rows != 8 then
+  return -1
+endi
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b on a.t1 = b.t1 and a.ts = b.ts window_offset(-1s, 1s);
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b on a.t1 = b.t1 or a.col1 = b.col1 window_offset(-1s, 1s) where a.ts = b.ts;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b on a.ts >= b.ts and a.ts = b.ts window_offset(-1s, 1s);
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts window_offset(-1s, 1s);
+sql_error select count(*),last(a.col1) from sta a left window join sta b on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 window_offset(-1s, 1s) where a.ts = b.ts and a.col1 > 2;
+sql_error select count(*),count(a.col1) from sta a left window join sta b on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 and a.ts = b.ts and a.col1 > 2  window_offset(-1s, 1s);
+sql_error select first(b.col1),count(b.t1),last(a.col1) from sta a left window join sta b on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null window_offset(-1s, 1s) where a.ts = b.ts and b.col1 > 3 and a.t1 != 1;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts window_offset(-1s, 1s);
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b on (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts  window_offset(-1s, 1s);
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts window_offset(-1s, 1s);
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts) window_offset(-1s, 1s);
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts window_offset(-1s, 1s);
+sql_error select count(b.ts) from sta a left window join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts window_offset(-1s, 1s);
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 window_offset(-1s, 1s);
+sql select count(b.col1) from sta a left window join sta b on a.t1 = b.t1 and a.col1 = b.col1 window_offset(-1s, 1s);
+if $rows != 8 then
+  return -1
+endi
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b on a.t1 = b.t1 and b.col1 > 1 window_offset(-1s, 1s);
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where b.col1 > 1 or a.col1 > 2;
+if $rows != 13 then
+  return -1
+endi
+sql_error select a.tbname from sta a left window join sta b on a.t1 = b.t1 and a.col1 = b.col1 + 1 window_offset(-1s, 1s);
+sql_error select a.tbname from sta a left window join sta b on a.t1 = b.t1 and count(a.col1) = 1;
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b on a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5 window_offset(-1s, 1s);
+sql_error select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b on a.t1 = b.t1 and a.ts = b.ts window_offset(-1s, 1s) where a.col1 > 2 and b.col1 < 5;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;
+if $rows != 7 then
+  return -1
+endi
+sql select a.ts from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where (a.col1 < 3 or a.col1 > 4) and b.col1 is not null having(count(a.ts) > 0);
+sql select a.ts from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where a.col1 < 3 or a.col1 > 4 having(count(a.ts) > 1);
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:00.000@ then
+  return -1
+endi
+if $data10 != @23-11-17 16:29:04.000@ then
+  return -1
+endi
+sql_error select a.ts from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where a.col1 < 3 or a.col1 > 4 having(count(a.ts) > 1) order by b.col1;
+sql_error select a.ts from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where a.col1 < 3 or a.col1 > 4 having(count(a.ts) > 1) order by b.tbname;
+sql select count(b.col1) from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;
+sql select count(b.col1),a.t1,a.ts from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where a.col1 < 3 or a.col1 > 4 order by 2,3;
+if $rows != 5 then
+  return -1
+endi
+if $data00 != 1 then
+  return -1
+endi
+if $data10 != 2 then
+  return -1
+endi
+if $data20 != 2 then
+  return -1
+endi
+if $data30 != 1 then
+  return -1
+endi
+if $data40 != 1 then
+  return -1
+endi
+sql_error select count(b.col1) from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where a.col1 < 3 or a.col1 > 4 order by b.col1;
+sql select count(b.col1) c from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where a.col1 < 3 or a.col1 > 4 order by a.col1, c;
+if $rows != 5 then
+  return -1
+endi
+if $data00 != 1 then
+  return -1
+endi
+if $data10 != 2 then
+  return -1
+endi
+if $data20 != 1 then
+  return -1
+endi
+if $data30 != 2 then
+  return -1
+endi
+if $data40 != 1 then
+  return -1
+endi
+sql select count(b.col1) from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where a.ts > 0 and b.col1 is not null;
+sql select count(b.col1) from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where b.ts > 0;
+sql select count(b.col1) from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where b.tbname > 'a';
+sql select count(b.col1) from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where b.t1 > 1;
+sql select count(b.col1) from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where b.col1 > 1;
+sql select count(b.col1) from sta a left window join sta b on a.col1 = b.col1 window_offset(-1s, 1s) where b.col1 > 1;
+sql select count(b.col1) from sta a left window join tba1 b window_offset(-1s, 1s) where b.tbname > 'a';
+sql select count(b.col1) from sta a left window join tba1 b window_offset(-1s, 1s) where b.t1 > 1;
+sql select count(b.col1) from sta a left window join tba1 b window_offset(-1s, 1s) where b.col1 > 1;
+sql select count(b.col1) from sta a left window join tba1 b on a.col1 = b.col1 window_offset(-1s, 1s) where b.col1 > 1;
+sql select count(b.col1) from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where a.tbname > 'tba1';
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 2 then
+  return -1
+endi
+if $data10 != 2 then
+  return -1
+endi
+if $data20 != 1 then
+  return -1
+endi
+if $data30 != 1 then
+  return -1
+endi
+sql select count(b.col1) from sta a left window join tba2 b on a.t1 = b.t1 window_offset(-1s, 1s) where b.tbname < 'tba2';
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+sql select count(b.col1) from sta a left window join tba2 b window_offset(-1s, 1s) where b.tbname < 'tba2';
+sql select count(b.col1) from sta a left window join tba2 b window_offset(-1s, 1s) where b.t1 < 2;
+sql select count(b.col1) from sta a left window join tba2 b window_offset(-1s, 1s) where b.col1 < 1;
+sql_error select count(b.col1) from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) order by b.tbname;
+sql_error select count(b.col1) from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) order by b.col1;
+sql select count(b.col1) from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) order by b.t1;
+sql_error select count(b.col1) from sta a left window join sta b window_offset(-1s, 1s) order by b.t1;
+sql select count(b.col1) from sta a left window join tba1 b window_offset(-1s, 1s) order by b.tbname;
+sql_error select count(b.col1) from sta a left window join tba1 b window_offset(-1s, 1s) order by b.col1;
+sql select count(b.col1) from sta a left window join tba1 b window_offset(-1s, 1s) order by b.t1;
+sql select count(b.col1) from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) order by a.tbname, a.ts;
+if $rows != 8 then
+  return -1
+endi
+if $data00 != 1 then
+  return -1
+endi
+if $data10 != 2 then
+  return -1
+endi
+if $data20 != 3 then
+  return -1
+endi
+if $data30 != 2 then
+  return -1
+endi
+if $data40 != 2 then
+  return -1
+endi
+if $data50 != 2 then
+  return -1
+endi
+if $data60 != 1 then
+  return -1
+endi
+if $data70 != 1 then
+  return -1
+endi
+sql select count(b.col1) from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) jlimit 0 order by a.tbname, a.ts;
+if $rows != 0 then
+  return -1
+endi
+sql select count(b.col1) from sta a left window join tba2 b on a.t1 = b.t1 window_offset(-1s, 1s) order by b.tbname, a.ts;
+if $rows != 8 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+if $data10 != 0 then
+  return -1
+endi
+if $data20 != 0 then
+  return -1
+endi
+if $data30 != 0 then
+  return -1
+endi
+if $data40 != 2 then
+  return -1
+endi
+if $data50 != 2 then
+  return -1
+endi
+if $data60 != 1 then
+  return -1
+endi
+if $data70 != 1 then
+  return -1
+endi
+
+sql_error select count(b.col1), b.tbname from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s);
+sql select count(b.col1), b.t1 from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s);
+sql_error select count(b.col1), b.col1 from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s);
+sql select count(b.col1), b.col1 from sta a left window join sta b on a.col1 = b.col1 window_offset(-1s, 1s);
+sql select count(b.col1), b.tbname from sta a left window join tba1 b on a.t1 = b.t1 window_offset(-1s, 1s);
+sql select count(b.col1), b.t1 from sta a left window join tba1 b on a.t1 = b.t1 window_offset(-1s, 1s);
+sql select count(b.col1), b.t1 from sta a left window join tba1 b window_offset(-1s, 1s);
+sql_error select count(b.col1), b.col1 from sta a left window join tba1 b on a.t1 = b.t1 window_offset(-1s, 1s);
+sql select count(b.col1), b.col1 from sta a left window join tba1 b on a.col1 = b.col1 window_offset(-1s, 1s);
+sql select count(b.col1), b.col1 from sta a left window join sta b on a.col1 = b.col1 window_offset(-1s, 1s);
+sql select count(b.col1), a.tbname from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s);
+sql select count(b.col1), a.col1 from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s);
+sql select count(b.col1), a.t1 from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s);
+sql select count(b.col1), b.tbname from sta a left window join tba2 b on a.t1 = b.t1 window_offset(-1s, 1s);
+sql select first(b.col1) from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where b.ts > 0;
+sql select first(a.col1) from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where b.ts > 0;
+sql select count(b.col1) from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where a.ts > 0;
+sql select count(b.col1) from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where a.col1 > 0;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b window_offset(-1s, 1s) where (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b window_offset(-1s, 1s) where (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b window_offset(-1s, 1s) where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b window_offset(-1s, 1s) where (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b window_offset(-1s, 1s) where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b window_offset(-1s, 1s) where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b window_offset(-1s, 1s) where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b window_offset(-1s, 1s) where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;
+sql select a.tbname from sta a left window join sta b window_offset(-1s, 1s) where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;
+sql_error select a.tbname from sta a left window join sta b window_offset(-1s, 1s) where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b window_offset(-1s, 1s) where a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b window_offset(-1s, 1s) where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b window_offset(-1s, 1s) where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left window join sta b window_offset(-1s, 1s) where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);
+sql_error select distinct count(b.col1) from sta a left window join tba2 b on a.t1 = b.t1 window_offset(-1s, 1s) order by b.tbname, a.ts;
+sql select distinct count(b.col1) c from sta a left window join tba2 b on a.t1 = b.t1 window_offset(-1s, 1s) order by c;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+if $data20 != 2 then
+  return -1
+endi
+
+

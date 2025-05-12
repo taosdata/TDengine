@@ -1,0 +1,29 @@
+python3 ./test.py -f multi-level/mlevel_basic.py -N 3 -L 3 -D 2
+python3 ./test.py -f db-encrypt/basic.py
+python3 ./test.py -f s3/s3Basic.py -N 3
+python3 ./test.py -f cluster/snapshot.py -N 3 -L 3 -D 2
+python3 ./test.py -f query/function/test_func_elapsed.py
+python3 ./test.py -f query/function/concat.py
+python3 ./test.py -f query/function/cast.py
+python3 ./test.py -f query/test_join.py
+python3 ./test.py -f query/test_compare.py
+python3 ./test.py -f insert/test_column_tag_boundary.py
+python3 ./test.py -f query/fill/fill_desc.py -N 3 -L 3 -D 2
+python3 ./test.py -f query/fill/fill_null.py
+python3 ./test.py -f cluster/incSnapshot.py -N 3
+python3 ./test.py -f query/query_basic.py -N 3
+python3 ./test.py -f query/accuracy/test_query_accuracy.py
+python3 ./test.py -f insert/insert_basic.py -N 3
+python3 ./test.py -f cluster/splitVgroupByLearner.py -N 3
+python3 ./test.py -f authorith/authBasic.py -N 3
+python3 ./test.py -f cmdline/fullopt.py
+python3 ./test.py -f query/show.py -N 3
+python3 ./test.py -f alter/alterConfig.py -N 3
+python3 ./test.py -f query/subquery/subqueryBugs.py -N 3
+python3 ./test.py -f storage/oneStageComp.py -N 3 -L 3 -D 1
+python3 ./test.py -f storage/compressBasic.py -N 3
+python3 ./test.py -f grant/grantBugs.py -N 3
+python3 ./test.py -f query/queryBugs.py -N 3
+python3 ./test.py -f tmq/tmqBugs.py -N 3
+python3 ./test.py -f query/fill/fill_compare_asc_desc.py
+python3 ./test.py -f query/last/test_last.py

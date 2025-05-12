@@ -1,0 +1,231 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = db
+$tbPrefix = tb
+$stbPrefix = stb
+$tbNum = 100
+$rowNum = 100
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 600000
+$tsu = $rowNum * $delta
+$tsu = $tsu - $delta
+$tsu = $tsu + $ts0
+
+print ========== alter_tg.sim
+$i = 0
+$db = $dbPrefix . $i
+$stb = $stbPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+print ====== create $tbNum tables
+sql use $db
+sql create table $stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 smallint, c6 tinyint, c7 bool, c8 binary(10), c9 nchar(10)) tags(t1 binary(9), t2 binary(8))
+
+$i = 0
+$ts = $ts0
+$halfNum = $tbNum / 2
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  $tgstr = 'tb . $i
+  $tgstr = $tgstr . '
+  $tgstr1 = 'usr . $i1
+  $tgstr1 = $tgstr1 . '
+  sql create table $tb using $stb tags( $tgstr , $tgstr1 )
+
+  $x = 0
+  while $x < $rowNum
+    $xs = $x * $delta
+    $ts = $ts0 + $xs
+    $c = $x / 10
+    $c = $c * 10
+    $c = $x - $c
+    $binary = 'binary . $c
+    $binary = $binary . '
+    $nchar = 'nchar . $c
+    $nchar = $nchar . '
+    sql insert into $tb values ( $ts , $c , $c , $c , $c , $c , $c , true, $binary , $nchar )
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+endw
+
+print ====== tables created
+sql show tables
+if $rows != $tbNum then
+  return -1
+endi
+
+print ================== alter table add tags
+sql alter table $stb add tag t3 int
+sql alter table $stb add tag t4 binary(60)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql insert into $tb (ts, c1) values (now-100a, $i )
+  sql alter table $tb set tag t3 = $i
+  sql insert into $tb (ts, c1) values (now, $i )
+
+  $name = ' . $i
+  $name = $name . '
+  sql alter table $tb set tag t4 = $name
+  $i = $i + 1
+endw
+
+print ================== all tags have been changed!
+sql reset query cache
+sql select tbname from $stb where t3 = 'NULL'
+
+print ================== set tag to NULL
+sql create table stb1_tg (ts timestamp, c1 int) tags(t1 int,t2 bigint,t3 double,t4 float,t5 smallint,t6 tinyint)
+sql create table stb2_tg (ts timestamp, c1 int) tags(t1 bool,t2 binary(10), t3 nchar(10))
+sql create table tb1_tg1 using stb1_tg tags(1,2,3,4,5,6)
+sql create table tb1_tg2 using stb2_tg tags(true, 'tb1_tg2', '表1标签2')
+sql insert into tb1_tg1 values (now,1)
+sql insert into tb1_tg2 values (now,1)
+
+sql select * from stb1_tg
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != 2 then
+  return -1
+endi
+if $data04 != 3.000000000 then
+  return -1
+endi
+if $data05 != 4.00000 then
+  return -1
+endi
+if $data06 != 5 then
+  return -1
+endi
+if $data07 != 6 then
+  return -1
+endi
+
+sql select * from stb2_tg
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != tb1_tg2 then
+  return -1
+endi
+if $data04 != 表1标签2 then
+  return -1
+endi
+
+sql alter table tb1_tg1 set tag t1 = -1
+sql alter table tb1_tg1 set tag t2 = -2
+sql alter table tb1_tg1 set tag t3 = -3
+sql alter table tb1_tg1 set tag t4 = -4
+sql alter table tb1_tg1 set tag t5 = -5
+sql alter table tb1_tg1 set tag t6 = -6
+sql alter table tb1_tg2 set tag t1 = false
+sql alter table tb1_tg2 set tag t2 = 'binary2'
+sql alter table tb1_tg2 set tag t3 = '涛思'
+sql reset query cache
+
+sql select * from stb1_tg
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+if $rows != 1 then
+  return -1
+endi
+if $data02 != -1 then
+  return -1
+endi
+if $data03 != -2 then
+  return -1
+endi
+if $data04 != -3.000000000 then
+  return -1
+endi
+if $data05 != -4.00000 then
+  return -1
+endi
+if $data06 != -5 then
+  return -1
+endi
+if $data07 != -6 then
+  return -1
+endi
+
+sql select * from stb2_tg
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+if $data02 != 0 then
+  return -1
+endi
+if $data03 != binary2 then
+  return -1
+endi
+if $data04 != 涛思 then
+  return -1
+endi
+
+sql alter table tb1_tg1 set tag t1 = NULL
+sql alter table tb1_tg1 set tag t2 = NULL
+sql alter table tb1_tg1 set tag t3 = NULL
+sql alter table tb1_tg1 set tag t4 = NULL
+sql alter table tb1_tg1 set tag t5 = NULL
+sql alter table tb1_tg1 set tag t6 = NULL
+sql alter table tb1_tg2 set tag t1 = NULL
+sql alter table tb1_tg2 set tag t2 = NULL
+sql alter table tb1_tg2 set tag t3 = NULL
+sql reset query cache
+
+sql select * from stb1_tg
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+if $rows != 1 then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+if $data03 != NULL then
+  return -1
+endi
+if $data04 != NULL then
+  return -1
+endi
+if $data05 != NULL then
+  return -1
+endi
+if $data06 != NULL then
+  return -1
+endi
+if $data07 != NULL then
+  return -1
+endi
+
+sql select * from stb2_tg
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+if $data02 != NULL then
+  return -1
+endi
+if $data03 != NULL then
+  return -1
+endi
+if $data04 != NULL then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

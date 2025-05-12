@@ -7,8 +7,7 @@ set -e
 # set -x
 
 # -----------------------Variables definition---------------------
-script_dir=$(dirname $(readlink -m "$0"))
-verinfo=$(cat ${script_dir}/../../src/util/src/version.c | grep " version" | cut -d '"' -f2)
+verinfo=$(cat $1 | grep " version" | cut -d '"' -f2)
 verinfo=$(echo $verinfo | tr "\n" " ")
 len=$(echo ${#verinfo})
 len=$((len-1))

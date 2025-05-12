@@ -1,0 +1,493 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print =============== create database
+sql create database d0
+sql select * from information_schema.ins_databases
+if $rows != 3 then
+  return -1
+endi
+
+print $data00 $data01 $data02
+
+sql use d0
+
+print =============== create super table, include column type for count/sum/min/max/first
+sql create table if not exists stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned)
+
+sql show stables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== create child table
+sql create table ct1 using stb tags(1000)
+sql create table ct2 using stb tags(2000)
+sql create table ct3 using stb tags(3000)
+
+sql show tables
+if $rows != 3 then
+  return -1
+endi
+
+print =============== insert data, mode1: one row one table in sql
+print =============== insert data, mode1: mulit rows one table in sql
+#print =============== insert data, mode1: one rows mulit table in sql
+#print =============== insert data, mode1: mulit rows mulit table in sql
+sql insert into ct1 values(now+0s, 10, 2.0, 3.0)
+sql insert into ct1 values(now+1s, 11, 2.1, 3.1)(now+2s, -12, -2.2, -3.2)(now+3s, -13, -2.3, -3.3)
+sql insert into ct2 values(now+0s, 10, 2.0, 3.0)
+sql insert into ct2 values(now+1s, 11, 2.1, 3.1)(now+2s, -12, -2.2, -3.2)(now+3s, -13, -2.3, -3.3)
+sql insert into ct3 values('2021-01-01 00:00:00.000', 10, 2.0, 3.0)
+
+#===================================================================
+#===================================================================
+print =============== query data from child table
+sql select * from ct1
+print rows: $rows
+print $data00  $data01 $data02 $data03
+print $data10  $data11 $data12 $data13
+print $data20  $data21 $data22 $data23
+print $data30  $data31 $data32 $data33
+if $rows != 4 then
+  return -1
+endi
+if $data01 != 10 then
+  print expect 10, actual: $data01
+  return -1
+endi
+if $data02 != 2.00000 then
+  return -1
+endi
+if $data03 != 3.000000000 then
+  return -1
+endi
+
+print =============== select count(*) from child table
+sql select count(*) from ct1
+print rows: $rows
+print $data00  $data01 $data02 $data03
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
+
+print =============== select count(column) from child table
+sql select count(ts), count(c1), count(c2), count(c3) from ct1
+print rows: $rows
+print $data00  $data01 $data02 $data03
+if $data00 != 4 then
+  return -1
+endi
+if $data01 != 4 then
+  return -1
+endi
+if $data02 != 4 then
+  return -1
+endi
+if $data03 != 4 then
+  return -1
+endi
+
+#print =============== select first(*)/first(column) from child table
+sql select first(*) from ct1
+print ====> select first(*) from ct1
+print rows: $rows
+print $data00  $data01 $data02 $data03
+
+sql select first(ts), first(c1), first(c2), first(c3) from ct1
+print ====> select first(ts), first(c1), first(c2), first(c3) from ct1
+print rows: $rows
+print $data00  $data01 $data02 $data03
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 10 then
+  return -1
+endi
+if $data02 != 2.00000 then
+  return -1
+endi
+if $data03 != 3.000000000 then
+  return -1
+endi
+
+print =============== select min(column) from child table
+sql select min(c1), min(c2), min(c3) from ct1
+print rows: $rows
+print $data00  $data01 $data02 $data03
+if $rows != 1 then
+  return -1
+endi
+if $data00 != -13 then
+  return -1
+endi
+if $data01 != -2.30000 then
+  print expect -2.30000, actual: $data01
+  return -1
+endi
+if $data02 != -3.300000000 then
+  return -1
+endi
+
+print =============== select max(column) from child table
+sql select max(c1), max(c2), max(c3) from ct1
+print $data00 $data01 $data02  $data03
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 11 then
+  return -1
+endi
+if $data01 != 2.10000 then
+  return -1
+endi
+if $data02 != 3.100000000 then
+  return -1
+endi
+
+print =============== select sum(column) from child table
+sql select sum(c1), sum(c2), sum(c3) from ct1
+print $data00 $data01 $data02  $data03
+if $rows != 1 then
+  return -1
+endi
+if $data00 != -4 then
+  return -1
+endi
+if $data01 != -0.400000095 then
+  return -1
+endi
+if $data02 != -0.400000000 then
+  return -1
+endi
+
+print =============== select column without timestamp, from child table
+sql select c1, c2, c3 from ct1
+print rows: $rows
+print $data00 $data01 $data02
+print $data10 $data11 $data12
+print $data20 $data21 $data22
+print $data30 $data31 $data32
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 10 then
+  return -1
+endi
+if $data01 != 2.00000 then
+  return -1
+endi
+if $data02 != 3.000000000 then
+  return -1
+endi
+if $data10 != 11 then
+  return -1
+endi
+if $data11 != 2.10000 then
+  return -1
+endi
+if $data12 != 3.100000000 then
+  return -1
+endi
+if $data30 != -13 then
+  return -1
+endi
+if $data31 != -2.30000 then
+  return -1
+endi
+if $data32 != -3.300000000 then
+  return -1
+endi
+#===================================================================
+
+#print =============== query data from stb
+sql select * from stb
+print $rows
+if $rows != 9 then
+  return -1
+endi
+
+#print =============== select count(*) from supter table
+sql select count(*) from stb
+print $data00 $data01 $data02
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 9 then
+  return -1
+endi
+
+print =============== select count(column) from supter table
+sql select ts, c1, c2, c3 from stb
+print rows: $rows
+print $data00 $data01 $data02  $data03
+print $data10 $data11 $data12  $data13
+print $data20 $data21 $data22  $data23
+print $data30 $data31 $data32  $data33
+print $data40 $data41 $data42  $data43
+print $data50 $data51 $data52  $data53
+print $data60 $data61 $data62  $data63
+print $data70 $data71 $data72  $data73
+print $data80 $data81 $data82  $data83
+if $rows != 9 then
+  return -1
+endi
+
+# The order of data from different sub tables in the super table is random,
+# so this detection may fail randomly
+if $data01 != 10 then
+  return -1
+endi
+if $data02 != 2.00000 then
+  return -1
+endi
+if $data03 != 3.000000000 then
+  return -1
+endi
+
+#print =============== select count(column) from supter table
+sql select count(ts), count(c1), count(c2), count(c3) from stb
+print rows: $rows
+print $data00 $data01 $data02  $data03
+if $data00 != 9 then
+  return -1
+endi
+if $data01 != 9 then
+  return -1
+endi
+if $data02 != 9 then
+  return -1
+endi
+if $data03 != 9 then
+  return -1
+endi
+
+#===================================================================
+print =============== stop and restart taosd, then again do query above
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+
+print =============== query data from child table
+sql select * from ct1
+print rows: $rows
+print $data00  $data01 $data02 $data03
+print $data10  $data11 $data12 $data13
+print $data20  $data21 $data22 $data23
+print $data30  $data31 $data32 $data33
+if $rows != 4 then
+  return -1
+endi
+if $data01 != 10 then
+  return -1
+endi
+if $data02 != 2.00000 then
+  return -1
+endi
+if $data03 != 3.000000000 then
+  return -1
+endi
+
+print =============== select count(*) from child table
+sql select count(*) from ct1
+print rows: $rows
+print $data00  $data01 $data02 $data03
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
+
+print =============== select count(column) from child table
+sql select count(ts), count(c1), count(c2), count(c3) from ct1
+print rows: $rows
+print $data00  $data01 $data02 $data03
+if $data00 != 4 then
+  return -1
+endi
+if $data01 != 4 then
+  return -1
+endi
+if $data02 != 4 then
+  return -1
+endi
+if $data03 != 4 then
+  return -1
+endi
+
+#print =============== select first(*)/first(column) from child table
+sql select first(*) from ct1
+print ====> select first(*) from ct1
+print rows: $rows
+print $data00  $data01 $data02 $data03
+
+sql select first(ts), first(c1), first(c2), first(c3) from ct1
+print ====> select first(ts), first(c1), first(c2), first(c3) from ct1
+print rows: $rows
+print $data00  $data01 $data02 $data03
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 10 then
+  return -1
+endi
+if $data02 != 2.00000 then
+  return -1
+endi
+if $data03 != 3.000000000 then
+  return -1
+endi
+
+print =============== select min(column) from child table
+sql select min(c1), min(c2), min(c3) from ct1
+print rows: $rows
+print $data00  $data01 $data02 $data03
+if $rows != 1 then
+  return -1
+endi
+if $data00 != -13 then
+  return -1
+endi
+if $data01 != -2.30000 then
+  return -1
+endi
+if $data02 != -3.300000000 then
+  return -1
+endi
+
+print =============== select max(column) from child table
+sql select max(c1), max(c2), max(c3) from ct1
+print $data00 $data01 $data02  $data03
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 11 then
+  return -1
+endi
+if $data01 != 2.10000 then
+  return -1
+endi
+if $data02 != 3.100000000 then
+  return -1
+endi
+
+print =============== select sum(column) from child table
+sql select sum(c1), sum(c2), sum(c3) from ct1
+print $data00 $data01 $data02  $data03
+if $rows != 1 then
+  return -1
+endi
+if $data00 != -4 then
+  return -1
+endi
+if $data01 != -0.400000095 then
+  return -1
+endi
+if $data02 != -0.400000000 then
+  return -1
+endi
+
+print =============== select column without timestamp, from child table
+sql select c1, c2, c3 from ct1
+print rows: $rows
+print $data00 $data01 $data02
+print $data10 $data11 $data12
+print $data20 $data21 $data22
+print $data30 $data31 $data32
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 10 then
+  return -1
+endi
+if $data01 != 2.00000 then
+  return -1
+endi
+if $data02 != 3.000000000 then
+  return -1
+endi
+if $data10 != 11 then
+  return -1
+endi
+if $data11 != 2.10000 then
+  return -1
+endi
+if $data12 != 3.100000000 then
+  return -1
+endi
+if $data30 != -13 then
+  return -1
+endi
+if $data31 != -2.30000 then
+  return -1
+endi
+if $data32 != -3.300000000 then
+  return -1
+endi
+
+#===================================================================
+print =============== query data from stb
+sql select * from stb
+if $rows != 9 then
+  return -1
+endi
+
+print =============== select count(*) from supter table
+sql select count(*) from stb
+print $data00 $data01 $data02
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 9 then
+  return -1
+endi
+
+print =============== select count(column) from supter table
+sql select ts, c1, c2, c3 from stb
+print rows: $rows
+print $data00 $data01 $data02  $data03
+print $data10 $data11 $data12  $data13
+print $data20 $data21 $data22  $data23
+print $data30 $data31 $data32  $data33
+print $data40 $data41 $data42  $data43
+print $data50 $data51 $data52  $data53
+print $data60 $data61 $data62  $data63
+print $data70 $data71 $data72  $data73
+print $data80 $data81 $data82  $data83
+if $rows != 9 then
+  return -1
+endi
+# The order of data from different sub tables in the super table is random,
+# so this detection may fail randomly
+if $data01 != 10 then
+  return -1
+endi
+if $data02 != 2.00000 then
+  return -1
+endi
+if $data03 != 3.000000000 then
+  return -1
+endi
+
+#print =============== select count(column) from supter table
+sql select count(ts), count(c1), count(c2), count(c3) from stb
+print $data00 $data01 $data02  $data03
+if $data00 != 9 then
+  return -1
+endi
+if $data01 != 9 then
+  return -1
+endi
+if $data02 != 9 then
+  return -1
+endi
+if $data03 != 9 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

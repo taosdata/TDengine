@@ -1,0 +1,81 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+system sh/deploy.sh -n dnode5 -i 5
+system sh/deploy.sh -n dnode6 -i 6
+system sh/deploy.sh -n dnode7 -i 7
+system sh/cfg.sh -n dnode1 -c supportVnodes -v 0
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+system sh/exec.sh -n dnode4 -s start
+sql connect
+
+print =============== step1: create dnodes
+sql create dnode $hostname port 7200
+sql create dnode $hostname port 7300
+sql create dnode $hostname port 7400
+sql create dnode $hostname port 7500
+sql create dnode $hostname port 7600
+sql create dnode $hostname port 7700
+
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> rows: $rows 
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+print ===> $data30 $data31 $data32 $data33 $data24 $data35
+if $rows != 7 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step1
+endi
+if $data(2)[4] != ready then
+  goto step1
+endi
+if $data(3)[4] != ready then
+  goto step1
+endi
+if $data(4)[4] != ready then
+  goto step1
+endi
+
+return 
+print =============== step2: create database
+sql create database db vgroups 1 replica 3
+
+sql use db;
+sql create table stb (ts timestamp, c int) tags (t int);
+sql create table t0 using stb tags (0);
+$x = 0
+while $x < 28
+  sql insert into t0 values(now, 1);
+  $x = $x + 1
+endw
+
+sql select * from information_schema.ins_stables where db_name = 'db';
+sql select * from information_schema.ins_tables where db_name = 'db';
+sql show db.vgroups;
+
+system sh/exec.sh -n dnode1 -s stop
+system sh/exec.sh -n dnode2 -s stop
+system sh/exec.sh -n dnode3 -s stop
+system sh/exec.sh -n dnode4 -s stop
+
+return
+print ======== start back
+run_back tmp/back.sim
+
+sleep 2000
+return -1

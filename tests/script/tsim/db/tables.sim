@@ -1,0 +1,128 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print =============== step2
+sql create database db
+sql select * from information_schema.ins_databases
+print $rows $data07
+
+if $rows != 3 then
+  return -1
+endi
+
+print =============== step3
+sql use db
+sql create table t1 (ts timestamp, i int)
+sql create table t2 (ts timestamp, i int)
+sql create table t3 (ts timestamp, i int)
+sql create table t4 (ts timestamp, i int)
+sql create table t11 (ts timestamp, i int)
+sql create table t12 (ts timestamp, i int)
+sql create table t13 (ts timestamp, i int)
+sql create table t14 (ts timestamp, i int)
+sql create table t21 (ts timestamp, i int)
+sql create table t22 (ts timestamp, i int)
+sql create table t23 (ts timestamp, i int)
+sql create table t24 (ts timestamp, i int)
+sql create table t31 (ts timestamp, i int)
+sql create table t32 (ts timestamp, i int)
+sql create table t33 (ts timestamp, i int)
+sql create table t34 (ts timestamp, i int)
+
+print =============== step4
+sql insert into t1 values(now, 1)
+sql insert into t2 values(now, 2)
+sql insert into t3 values(now, 3)
+sql insert into t4 values(now, 4)
+sql insert into t11 values(now, 1)
+sql insert into t22 values(now, 2)
+sql insert into t33 values(now, 3)
+sql insert into t34 values(now, 4)
+
+print =============== step5
+sql select * from t1
+if $data01 != 1 then
+  return -1
+endi
+
+sql select * from t2
+if $data01 != 2 then
+  return -1
+endi
+
+sql select * from t3
+if $data01 != 3 then
+  return -1
+endi
+
+sql select * from t4
+if $data01 != 4 then
+  return -1
+endi
+
+print =============== step6
+sql drop database db
+sql reset query cache
+
+print =============== step7
+sql create database db
+sql select * from information_schema.ins_databases
+print $rows $data07
+
+if $rows != 3 then
+  return -1
+endi
+
+print =============== step8
+sql use db
+sql create table t1 (ts timestamp, i int)
+sql create table t2 (ts timestamp, i int)
+sql create table t3 (ts timestamp, i int)
+sql create table t4 (ts timestamp, i int)
+sql create table t11 (ts timestamp, i int)
+sql create table t12 (ts timestamp, i int)
+sql create table t13 (ts timestamp, i int)
+sql create table t14 (ts timestamp, i int)
+sql create table t21 (ts timestamp, i int)
+sql create table t22 (ts timestamp, i int)
+sql create table t23 (ts timestamp, i int)
+sql create table t24 (ts timestamp, i int)
+sql create table t31 (ts timestamp, i int)
+sql create table t32 (ts timestamp, i int)
+sql create table t33 (ts timestamp, i int)
+sql create table t34 (ts timestamp, i int)
+
+print =============== step9
+sql insert into t1 values(now, 1)
+sql insert into t2 values(now, 2)
+sql insert into t3 values(now, 3)
+sql insert into t4 values(now, 4)
+sql insert into t11 values(now, 1)
+sql insert into t22 values(now, 2)
+sql insert into t33 values(now, 3)
+sql insert into t34 values(now, 4)
+
+print =============== step10
+sql select * from t1
+if $data01 != 1 then
+  return -1
+endi
+
+sql select * from t2
+if $data01 != 2 then
+  return -1
+endi
+
+sql select * from t3
+if $data01 != 3 then
+  return -1
+endi
+
+sql select * from t4
+if $data01 != 4 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

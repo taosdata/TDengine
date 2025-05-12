@@ -1,0 +1,169 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = m_mi_db
+$tbPrefix = m_mi_tb
+$mtPrefix = m_mi_mt
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+
+  $x = 0
+  while $x < $rowNum
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+
+    sql insert into $tb values ($ms , $x )
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+endw
+
+print =============== step2
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select min(tbcol) from $tb
+print ===> $data00
+if $data00 != 0 then
+  return -1
+endi
+
+print =============== step3
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+
+sql select min(tbcol) from $tb where ts < $ms
+print ===> $data00
+if $data00 != 0 then
+  return -1
+endi
+
+print =============== step4
+sql select min(tbcol) as b from $tb
+print ===> $data00
+if $data00 != 0 then
+  return -1
+endi
+
+print =============== step5
+sql select min(tbcol) as b from $tb interval(1m)
+print ===> $data10
+if $data10 != 1 then
+  return -1
+endi
+
+sql select min(tbcol) as b from $tb interval(1d)
+print ===> $data00
+if $data00 != 0 then
+  return -1
+endi
+
+print =============== step6
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+
+sql select min(tbcol) as b from $tb where ts <= $ms interval(1m)
+print select min(tbcol) as b from $tb where ts <= $ms interval(1m)
+print ===> $data10
+if $data10 != 1 then
+  return -1
+endi
+if $rows != 5 then
+  return -1
+endi
+
+print =============== step7
+sql select min(tbcol) from $mt
+print ===> $data00
+if $data00 != 0 then
+  return -1
+endi
+
+print =============== step8
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+sql select min(tbcol) as c from $mt where ts < $ms
+print ===> $data00
+if $data00 != 0 then
+  return -1
+endi
+
+sql select min(tbcol) as c from $mt where tgcol < 5
+print ===> $data00
+if $data00 != 0 then
+  return -1
+endi
+
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+sql select min(tbcol) as c from $mt where tgcol < 5 and ts <= $ms
+print ===> $data00
+if $data00 != 0 then
+  return -1
+endi
+
+print =============== step9
+sql select min(tbcol) as b from $mt interval(1m)
+print ===> $data10
+if $data10 != 1 then
+  return -1
+endi
+
+sql select min(tbcol) as b from $mt interval(1d)
+print ===> $data00
+if $data00 != 0 then
+  return -1
+endi
+
+print =============== step10
+sql select min(tbcol) as b from $mt group by tgcol
+print ===> $data00
+if $data00 != 0 then
+  return -1
+endi
+
+if $rows != $tbNum then
+  return -1
+endi
+
+print =============== step11
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+sql select min(tbcol) as b from $mt  where ts <= $ms partition by tgcol interval(1m)
+print ===> $data10
+if $data10 != 1 then
+  return -1
+endi
+print ===> $rows
+if $rows != 50 then
+  return -1
+endi
+
+print =============== clear
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

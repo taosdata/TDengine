@@ -1,0 +1,136 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = db
+$tbPrefix1 = tba
+$tbPrefix2 = tbb
+$mtPrefix = stb
+$tbNum = 10
+$rowNum = 2
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt1 = $mtPrefix . $i
+$i = 1
+$mt2 = $mtPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db vgroups 3
+sql use $db
+sql create table $mt1 (ts timestamp, f1 int) TAGS(tag1 int, tag2 binary(500))
+sql create table tb0 using $mt1 tags(0, 'a');
+sql create table tb1 using $mt1 tags(1, 'b');
+sql create table tb2 using $mt1 tags(2, 'a');
+sql create table tb3 using $mt1 tags(3, 'a');
+sql create table tb4 using $mt1 tags(4, 'b');
+sql create table tb5 using $mt1 tags(5, 'a');
+sql create table tb6 using $mt1 tags(6, 'b');
+sql create table tb7 using $mt1 tags(7, 'b');
+
+sql select * from $mt1 partition by tag1,tag2 limit 1;
+if $rows != 0 then
+  return -1
+endi
+
+sql insert into tb0 values ('2022-04-26 15:15:08', 1);
+sql insert into tb1 values ('2022-04-26 15:15:07', 2);
+sql insert into tb2 values ('2022-04-26 15:15:06', 3);
+sql insert into tb3 values ('2022-04-26 15:15:05', 4);
+sql insert into tb4 values ('2022-04-26 15:15:04', 5);
+sql insert into tb5 values ('2022-04-26 15:15:03', 6);
+sql insert into tb6 values ('2022-04-26 15:15:02', 7);
+sql insert into tb7 values ('2022-04-26 15:15:01', 8);
+
+sql select _wstart as ts, count(*) from $mt1 partition by tag1 interval(1s) order by _wstart;
+if $rows != 8 then
+  return -1
+endi
+if $data00 != @22-04-26 15:15:01.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data10 != @22-04-26 15:15:02.000@ then
+  return -1
+endi
+if $data11 != 1 then
+  return -1
+endi
+if $data20 != @22-04-26 15:15:03.000@ then
+  return -1
+endi
+if $data21 != 1 then
+  return -1
+endi
+if $data30 != @22-04-26 15:15:04.000@ then
+  return -1
+endi
+if $data31 != 1 then
+  return -1
+endi
+if $data40 != @22-04-26 15:15:05.000@ then
+  return -1
+endi
+if $data41 != 1 then
+  return -1
+endi
+if $data50 != @22-04-26 15:15:06.000@ then
+  return -1
+endi
+if $data51 != 1 then
+  return -1
+endi
+if $data60 != @22-04-26 15:15:07.000@ then
+  return -1
+endi
+if $data61 != 1 then
+  return -1
+endi
+if $data70 != @22-04-26 15:15:08.000@ then
+  return -1
+endi
+if $data71 != 1 then
+  return -1
+endi
+sql select * from (select _wstart as ts, count(*) from $mt1 partition by tag1 interval(1s) order by _wstart) order by ts;
+sql select _wstart as ts, count(*) from $mt1 interval(1s) order by _wstart;
+sql select * from (select _wstart as ts, count(*) from $mt1 interval(1s) order by _wstart) order by ts;
+sql select diff(a) from (select _wstart as ts, count(*) a from $mt1 interval(1s) order by _wstart);
+sql select diff(a) from (select _wstart as ts, count(*) a from $mt1 partition by tag1 interval(1s) order by _wstart);
+
+sql insert into tb0 values (now, 0);
+sql insert into tb1 values (now, 1);
+sql insert into tb2 values (now, 2);
+sql insert into tb3 values (now, 3);
+sql insert into tb4 values (now, 4);
+sql insert into tb5 values (now, 5);
+sql insert into tb6 values (now, 6);
+sql insert into tb7 values (now, 7);
+
+sql select * from (select 1 from $mt1 where ts is not null partition by tbname limit 1);
+if $rows != 8 then
+  return -1
+endi
+
+sql select count(*) from (select ts from $mt1 where ts is not null partition by tbname slimit 2);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
+
+sql select count(*) from (select ts from $mt1 where ts is not null partition by tbname limit 2);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 16 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

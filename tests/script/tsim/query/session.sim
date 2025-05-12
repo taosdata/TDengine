@@ -1,0 +1,324 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$vgroups  = 4
+$dbNamme  = d0
+
+print ====> create database $dbNamme vgroups $vgroups
+sql create database $dbNamme vgroups $vgroups
+sql select * from information_schema.ins_databases
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+print $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
+#print $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
+
+sql use $dbNamme
+
+print =============== create super table, child table and insert data
+sql create table if not exists st (ts timestamp, tagtype int) tags(dev nchar(50), tag2 binary(16))
+sql create table if not exists dev_001 using st tags("dev_01", "tag_01")
+sql create table if not exists dev_002 using st tags("dev_02", "tag_02")
+
+sql INSERT INTO dev_001 VALUES('2020-05-13 10:00:00.000', 1)
+sql INSERT INTO dev_001 VALUES('2020-05-13 10:00:00.005', 2)
+sql INSERT INTO dev_001 VALUES('2020-05-13 10:00:00.011', 3)
+sql INSERT INTO dev_001 VALUES('2020-05-13 10:00:01.011', 4)
+sql INSERT INTO dev_001 VALUES('2020-05-13 10:00:01.611', 5)
+sql INSERT INTO dev_001 VALUES('2020-05-13 10:00:02.612', 6)
+sql INSERT INTO dev_001 VALUES('2020-05-13 10:01:02.612', 7)
+sql INSERT INTO dev_001 VALUES('2020-05-13 10:02:02.612', 8)
+sql INSERT INTO dev_001 VALUES('2020-05-13 10:03:02.613', 9)
+sql INSERT INTO dev_001 VALUES('2020-05-13 11:00:00.000', 10)
+sql INSERT INTO dev_001 VALUES('2020-05-13 12:00:00.000', 11)
+sql INSERT INTO dev_001 VALUES('2020-05-13 13:00:00.001', 12)
+sql INSERT INTO dev_001 VALUES('2020-05-14 13:00:00.001', 13)
+sql INSERT INTO dev_001 VALUES('2020-05-15 14:00:00.000', 14)
+sql INSERT INTO dev_001 VALUES('2020-05-20 10:00:00.000', 15)
+sql INSERT INTO dev_001 VALUES('2020-05-27 10:00:00.001', 16)
+
+sql INSERT INTO dev_002 VALUES('2020-05-13 10:00:00.000', 1)
+sql INSERT INTO dev_002 VALUES('2020-05-13 10:00:00.005', 2)
+sql INSERT INTO dev_002 VALUES('2020-05-13 10:00:00.009', 3)
+sql INSERT INTO dev_002 VALUES('2020-05-13 10:00:00.0021', 4)
+sql INSERT INTO dev_002 VALUES('2020-05-13 10:00:00.031', 5)
+sql INSERT INTO dev_002 VALUES('2020-05-13 10:00:00.036', 6)
+sql INSERT INTO dev_002 VALUES('2020-05-13 10:00:00.51', 7)
+
+# vnode does not return the precision of the table
+print ====> create database d1 precision 'us'
+sql create database d1 precision 'us'
+sql use d1
+sql create table dev_001 (ts timestamp ,i timestamp ,j int)
+sql insert into dev_001 values(1623046993681000,now,1)(1623046993681001,now+1s,2)(1623046993681002,now+2s,3)(1623046993681004,now+5s,4)
+sql create table secondts(ts timestamp,t2 timestamp,i int)
+sql insert into secondts values(1623046993681000,now,1)(1623046993681001,now+1s,2)(1623046993681002,now+2s,3)(1623046993681004,now+5s,4)
+
+$loop_test = 0
+loop_test_pos:
+
+sql use $dbNamme
+
+# session(ts,5a)
+print ====> select count(*) from dev_001 session(ts,5a)
+sql select _wstart, count(*) from dev_001 session(ts,5a)
+print ====> rows: $rows
+print ====> $data00 $data01 $data02 $data03 $data04 $data05
+print ====> $data10 $data11 $data12 $data13 $data14 $data15
+print ====> $data20 $data21 $data22 $data23 $data24 $data25
+print ====> $data30 $data31 $data32 $data33 $data34 $data35
+print ====> $data40 $data41 $data42 $data43 $data44 $data45
+print ====> $data50 $data51 $data52 $data53 $data54 $data55
+print ====> $data60 $data61 $data62 $data63 $data64 $data65
+print ====> $data70 $data71 $data72 $data73 $data74 $data75
+print ====> $data80 $data81 $data82 $data83 $data84 $data85
+print ====> $data90 $data91 $data92 $data93 $data94 $data95
+if $rows != 15 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+
+#
+#print ====> select count(*) from (select * from dev_001) session(ts,5a)
+#sql select _wstart, count(*) from (select * from dev_001) session(ts,5a)
+#if $rows != 15 then
+#  return -1
+#endi
+#if $data01 != 2 then
+#  return -1
+#endi
+
+print ====> select count(*) from dev_001 session(ts,1s)
+sql select _wstart, count(*) from dev_001 session(ts,1s)
+if $rows != 12 then
+  return -1
+endi
+if $data01 != 5 then
+  return -1
+endi
+
+#print ====> select count(*) from (select * from dev_001) session(ts,1s)
+#sql select _wstart, count(*) from (select * from dev_001) session(ts,1s)
+#if $rows != 12 then
+#  return -1
+#endi
+#if $data01 != 5 then
+#  return -1
+#endi
+
+print ====> select count(*) from dev_001 session(ts,1000a)
+sql select _wstart, count(*) from dev_001 session(ts,1000a)
+if $rows != 12 then
+  return -1
+endi
+if $data01 != 5 then
+  return -1
+endi
+
+#print ====> select count(*) from  (select * from dev_001) session(ts,1000a)
+#sql select _wstart, count(*) from  (select * from dev_001) session(ts,1000a)
+#if $rows != 12 then
+#  return -1
+#endi
+#if $data01 != 5 then
+#  return -1
+#endi
+
+print ====> select count(*) from dev_001 session(ts,1m)
+sql select _wstart, count(*) from dev_001 session(ts,1m)
+if $rows != 9 then
+  return -1
+endi
+if $data01 != 8 then
+  return -1
+endi
+
+#print ====> select count(*) from (select * from dev_001) session(ts,1m)
+#sql select _wstart, count(*) from (select * from dev_001) session(ts,1m)
+#if $rows != 9 then
+#  return -1
+#endi
+#if $data01 != 8 then
+#  return -1
+#endi
+
+print ====> select count(*) from dev_001 session(ts,1h)
+sql select _wstart, count(*) from dev_001 session(ts,1h)
+if $rows != 6 then
+  return -1
+endi
+if $data01 != 11 then
+  return -1
+endi
+
+#print ====> select count(*) from (select * from dev_001) session(ts,1h)
+#sql select _wstart, count(*) from (select * from dev_001) session(ts,1h)
+#if $rows != 6 then
+#  return -1
+#endi
+#if $data01 != 11 then
+#  return -1
+#endi
+
+print ====> select count(*) from dev_001 session(ts,1d)
+sql select _wstart, count(*) from dev_001 session(ts,1d)
+if $rows != 4 then
+  return -1
+endi
+if $data01 != 13 then
+  return -1
+endi
+
+#print ====> select count(*) from (select * from dev_001) session(ts,1d)
+#sql select _wstart, count(*) from (select * from dev_001) session(ts,1d)
+#if $rows != 4 then
+#  return -1
+#endi
+#if $data01 != 13 then
+#  return -1
+#endi
+
+print ====> select count(*) from dev_001 session(ts,1w)
+sql select _wstart, count(*) from dev_001 session(ts,1w)
+if $rows != 2 then
+  return -1
+endi
+if $data01 != 15 then
+  return -1
+endi
+
+#print ====> select count(*) from (select * from dev_001) session(ts,1w)
+#sql select _wstart, count(*) from (select * from dev_001) session(ts,1w)
+#if $rows != 2 then
+#  return -1
+#endi
+#if $data01 != 15 then
+#  return -1
+#endi
+
+
+#print ====> leastsquares not supported yet.
+#print ====> select count(*),first(tagtype),last(tagtype),avg(tagtype),sum(tagtype),min(tagtype),max(tagtype),leastsquares(tagtype, 1, 1),spread(tagtype),stddev(tagtype),percentile(tagtype,0)  from dev_001 where ts <'2020-05-20 0:0:0' session(ts,1d)
+#sql select count(*),first(tagtype),last(tagtype),avg(tagtype),sum(tagtype),min(tagtype),max(tagtype),leastsquares(tagtype, 1, 1),spread(tagtype),stddev(tagtype),percentile(tagtype,0)  from dev_001 where ts <'2020-05-20 0:0:0' session(ts,1d)
+#if $rows != 2 then
+#  return -1
+#endi
+#if $data01 != 13 then
+#  return -1
+#endi
+#if $data02 != 1 then
+#  return -1
+#endi
+#if $data03 != 13 then
+#  return -1
+#endi
+#if $data04 != 7 then
+#  return -1
+#endi
+#if $data05 != 91 then
+#  return -1
+#endi
+#if $data06 != 1 then
+#  return -1
+#endi
+#if $data07 != 13 then
+#  return -1
+#endi
+#if $data08 != @{slop:1.000000, intercept:0.000000}@ then
+#  return -1
+#endi
+#if $data09 != 12 then
+#  return -1
+#endi
+# $data0-10 != 3.741657387
+# $data0-11 !=  1
+# $data1-11 !=  14
+
+#print ====> select count(*),first(tagtype),last(tagtype),avg(tagtype),sum(tagtype),min(tagtype),max(tagtype),leastsquares(tagtype, 1, 1) from (select * from dev_001 where ts <'2020-05-20 0:0:0') session(ts,1d)
+#sql select count(*),first(tagtype),last(tagtype),avg(tagtype),sum(tagtype),min(tagtype),max(tagtype),leastsquares(tagtype, 1, 1) from (select * from dev_001 where ts <'2020-05-20 0:0:0') session(ts,1d)
+#if $rows != 2 then
+#  return -1
+#endi
+#if $data01 != 13 then
+#  return -1
+#endi
+#if $data02 != 1 then
+#  return -1
+#endi
+#if $data03 != 13 then
+#  return -1
+#endi
+#if $data04 != 7 then
+#  return -1
+#endi
+#if $data05 != 91 then
+#  return -1
+#endi
+#if $data06 != 1 then
+#  return -1
+#endi
+#if $data07 != 13 then
+#  return -1
+#endi
+#if $data08 != @{slop:1.000000, intercept:0.000000}@ then
+#  return -1
+#endi
+
+print ================> syntax error check not active ================> reactive
+sql_error select * from dev_001 session(ts,1w)
+print disable this temporarily, session can not be directly applied to super table.
+#sql_error select count(*) from st session(ts,1w)
+sql_error select count(*) from dev_001 group by tagtype session(ts,1w)
+sql_error sql select count(*) from dev_001 session(ts,1n)
+sql_error sql select count(*) from dev_001 session(ts,1y)
+sql_error sql select count(*) from dev_001 session(ts,0s)
+sql_error select count(*) from dev_001 session(i,1y)
+sql_error select count(*) from dev_001 session(ts,1d) where ts <'2020-05-20 0:0:0'
+
+#print ====> select count(*) from dev_001 session(ts,1u)
+#sql select _wstart, count(*) from dev_001 session(ts,1u)
+#print rows: $rows
+#print $data00 $data01 $data02 $data03
+#print $data10 $data11 $data12 $data13
+#print $data20 $data21 $data22 $data23
+#print $data30 $data31 $data32 $data33
+#if $rows != 4 then
+#  print expect 2, actual: $rows
+#  return -1
+#endi
+#if $data01 != 1 then
+#  return -1
+#endi
+
+sql_error select count(*) from dev_001 session(i,1s)
+sql_error select count(*) from secondts session(t2,2s)
+
+if $loop_test == 0 then
+  print =============== stop and restart taosd
+  system sh/exec.sh -n dnode1 -s stop -x SIGINT
+  system sh/exec.sh -n dnode1 -s start
+
+  $loop_cnt = 0
+  check_dnode_ready_0:
+  	$loop_cnt = $loop_cnt + 1
+  	sleep 200
+  	if $loop_cnt == 10 then
+  	  print ====> dnode not ready!
+  		return -1
+  	endi
+  sql select * from information_schema.ins_dnodes
+  print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
+  if $data00 != 1 then
+    return -1
+  endi
+  if $data04 != ready then
+    goto check_dnode_ready_0
+  endi
+
+  $loop_test = 1
+  goto loop_test_pos
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

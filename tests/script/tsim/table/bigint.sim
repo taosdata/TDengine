@@ -1,0 +1,70 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$i = 0
+$dbPrefix = lm_bi_db
+$tbPrefix = lm_bi_tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+print =============== step1
+sql create database $db
+sql use $db
+sql create table $tb (ts timestamp, speed bigint) 
+
+#sql insert into $tb values (now, -9223372036854775809)
+sql insert into $tb values (now, -9223372036854770000)
+sql select * from $tb
+if $rows != 1 then 
+  return -1
+endi
+#if $data01 != -9223372036854775808 then 
+if $data01 != -9223372036854770000 then 
+  return -1
+endi
+
+print =============== step2
+#sql insert into $tb values (now+1a, -9223372036854775808)
+sql insert into $tb values (now+1a, -9223372036854770000)
+sql select * from $tb
+if $rows != 2 then 
+  return -1
+endi
+#if $data01 != -9223372036854775808 then 
+if $data01 != -9223372036854770000 then 
+  return -1
+endi
+
+print =============== step3
+#sql insert into $tb values (now+1a, 9223372036854775807)
+sql insert into $tb values (now+2a, 9223372036854770000)
+sql select * from $tb order by ts desc
+if $rows != 3 then 
+  return -1
+endi
+#if $data01 != 9223372036854775807 then 
+if $data01 != 9223372036854770000 then 
+  return -1
+endi
+
+print =============== step4
+#sql insert into $tb values (now+1a, 9223372036854775808)
+sql insert into $tb values (now+3a, 9223372036854770000)
+sql select * from $tb order by ts desc
+if $rows != 4 then 
+  return -1
+endi
+#if $data01 != 9223372036854775807 then 
+if $data01 != 9223372036854770000 then 
+  return -1
+endi
+
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

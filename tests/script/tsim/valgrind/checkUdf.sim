@@ -1,0 +1,165 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c udf -v 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======== step1 udf 
+system sh/copy_udf.sh
+sql create database udf vgroups 3;
+sql use udf;
+sql select * from information_schema.ins_databases;
+
+sql create table t (ts timestamp, f int);
+sql insert into t values(now, 1)(now+1s, 2);
+
+system_content printf %OS%
+if $system_content == Windows_NT then
+  sql create function udf1 as 'C:\\Windows\\Temp\\udf1.dll' outputtype int;
+  sql create aggregate function udf2 as 'C:\\Windows\\Temp\\udf2.dll' outputtype double bufSize 8;
+else
+  sql create function udf1 as '/tmp/udf/libudf1.so' outputtype int;
+  sql create aggregate function udf2 as '/tmp/udf/libudf2.so' outputtype double bufSize 8;
+endi
+sql show functions;
+if $rows != 2 then
+  return -1
+endi
+sql select udf1(f) from t;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 1 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+
+sql select udf2(f) from t;
+if $rows != 1 then
+  print expect 1, actual $rows
+  return -1
+endi
+if $data00 != 2.236067977 then
+  return -1
+endi
+
+sql create table t2 (ts timestamp, f1 int, f2 int);
+sql insert into t2 values(now, 0, 0)(now+1s, 1, 1);
+sql select udf1(f1, f2) from t2;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 1 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+
+sql select udf2(f1, f2) from t2;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 1.414213562 then
+  return -1
+endi
+
+sql insert into t2 values(now+2s, 1, null)(now+3s, null, 2);
+sql select udf1(f1, f2) from t2;
+print $rows , $data00 , $data10 , $data20 , $data30
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 1 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+
+if $data20 != NULL then
+  return -1
+endi
+
+if $data30 != NULL then
+  return -1
+endi
+
+sql select udf2(f1, f2) from t2;
+print $rows, $data00
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 2.645751311 then
+  return -1
+endi
+
+sql insert into t2 values(now+4s, 4, 8)(now+5s, 5, 9);
+sql select udf2(f1-f2), udf2(f1+f2) from t2;
+print $rows , $data00 , $data01
+if $rows != 1 then
+  return -1;
+endi
+if $data00 != 5.656854249 then
+  return -1
+endi
+if $data01 != 18.547236991 then
+  return -1
+endi
+
+sql select udf2(udf1(f2-f1)), udf2(udf1(f2/f1)) from t2;
+print $rows , $data00 , $data01
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 2.000000000 then
+  return -1
+endi
+if $data01 != 1.732050808 then
+  return -1
+endi
+
+sql select udf2(f2) from udf.t2 group by 1-udf1(f1) order by 1-udf1(f1)
+print $rows , $data00 , $data10
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 2.000000000 then
+  print expect 2.000000000 , actual: $data00
+  return -1
+endi
+if $data10 != 12.083045974 then
+  return -1
+endi
+
+sql drop function udf1;
+sql show functions;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @udf2@ then
+  return -1
+  endi
+sql drop function udf2;
+sql show functions;
+if $rows != 0 then
+  return -1
+endi
+
+_OVER:
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+print =============== check
+$null=
+
+system_content sh/checkValgrind.sh -n dnode1 
+print cmd return result ----> [ $system_content ]
+if $system_content > 0 then
+  return -1
+endi 
+
+if $system_content == $null then
+  return -1
+endi 
+

@@ -1,0 +1,28 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c debugflag -v 131
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create database d1;
+sql create table d1.t1(ts timestamp, test binary(1000));
+sql insert into d1.t1 values (now , '1' )
+
+sql create database d2;
+sql create table d2.t2(ts timestamp, test binary(1000));
+sql insert into d2.t2 values (now , '1' )
+
+sql create database db
+sql use db
+sql create table tb (ts timestamp, test binary(1000))
+
+$x = 0
+while $x < 10000
+  $ms = $x . s
+  sql insert into tb values (now + $ms , '1' )
+  $x = $x + 1
+endw
+
+sql select * from tb
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

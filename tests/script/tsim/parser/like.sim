@@ -1,0 +1,72 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======================== dnode1 start
+
+$db = testdb
+sql drop database if exists $db
+sql create database $db cachemodel 'last_value'
+sql use $db
+
+$table1 = table_name
+$table2 = tablexname
+
+sql create table $table1 (ts timestamp, b binary(20))
+sql create table $table2 (ts timestamp, b binary(20))
+
+sql insert into $table1 values(now,    "table_name")
+sql insert into $table1 values(now-3m, "tablexname")
+sql insert into $table1 values(now-2m, "tablexxx")
+sql insert into $table1 values(now-1m, "table")
+
+sql select b from $table1
+if $rows != 4 then
+  return -1
+endi
+
+sql select b from $table1 where b like 'table_name'
+if $rows != 2 then
+  return -1
+endi
+
+sql select b from $table1 where b like 'table\_name'
+if $rows != 1 then
+  return -1
+endi
+
+sql show tables;
+if $rows != 2 then
+  return -1
+endi
+
+sql show tables like 'table_name'
+if $rows != 2 then
+  return -1
+endi
+
+sql show tables like 'table\_name'
+if $rows != 1 then
+  return -1
+endi
+
+$view1 = view1_name
+$view2 = view2_name
+
+sql CREATE VIEW $view1 as select * from $table1
+sql CREATE VIEW $view2 AS select * from $table2
+
+sql show views like 'view%'
+if $rows != 2 then
+  return -1
+endi
+
+sql show views like 'view1%'
+if $rows != 1 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+
+

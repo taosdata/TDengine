@@ -1,0 +1,112 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======================== dnode1 start
+sql create database vdb0
+sql create table vdb0.mt (ts timestamp, tbcol int) TAGS(tgcol int)
+
+sql create table vdb0.vtb00 using vdb0.mt tags( 0 )
+sql create table vdb0.vtb01 using vdb0.mt tags( 0 )
+
+sql create database vdb1
+sql create table vdb1.mt (ts timestamp, tbcol int) TAGS(tgcol int)
+sql_error create table vdb1.vtb10 using vdb0.mt tags( 1 )
+sql_error create table vdb1.vtb11 using vdb0.mt tags( 1 )
+sql create table vdb1.vtb10 using vdb1.mt tags( 1 )
+sql create table vdb1.vtb11 using vdb1.mt tags( 1 )
+
+sql create database vdb2
+sql create table vdb2.mt (ts timestamp, tbcol int) TAGS(tgcol int)
+sql_error create table vdb2.vtb20 using vdb0.mt tags( 2 )
+sql_error create table vdb2.vtb21 using vdb0.mt tags( 2 )
+sql create table vdb2.vtb20 using vdb2.mt tags( 2 )
+sql create table vdb2.vtb21 using vdb2.mt tags( 2 )
+
+sql create database vdb3
+sql create table vdb3.mt (ts timestamp, tbcol int) TAGS(tgcol int)
+sql_error create table vdb3.vtb20 using vdb0.mt tags( 2 )
+sql_error create table vdb3.vtb21 using vdb0.mt tags( 2 )
+sql create table vdb3.vtb30 using vdb3.mt tags( 3 )
+sql create table vdb3.vtb31 using vdb3.mt tags( 3 )
+
+print =============== step2
+sql insert into vdb0.vtb00 values (1519833600000 , 10) (1519833600001, 20) (1519833600002, 30)
+sql insert into vdb0.vtb01 values (1519833600000 , 10) (1519833600001, 20) (1519833600002, 30)
+sql insert into vdb1.vtb10 values (1519833600000 , 11) (1519833600001, 21) (1519833600002, 31)
+sql insert into vdb1.vtb11 values (1519833600000 , 11) (1519833600001, 21) (1519833600002, 31)
+sql insert into vdb2.vtb20 values (1519833600000 , 12) (1519833600001, 22) (1519833600002, 32)
+sql insert into vdb2.vtb21 values (1519833600000 , 12) (1519833600001, 22) (1519833600002, 32)
+sql insert into vdb3.vtb30 values (1519833600000 , 13) (1519833600001, 23) (1519833600002, 33)
+sql insert into vdb3.vtb31 values (1519833600000 , 13) (1519833600001, 23) (1519833600002, 33)
+sql select * from vdb0.mt
+sql select ts from vdb0.mt
+
+if $rows != 6 then
+  return -1
+endi
+
+print =============== step3
+sql insert into vdb0.vtb00 values (1519833600003 , 40) (1519833600005, 50) (1519833600004, 60)
+sql insert into vdb0.vtb01 values (1519833600003 , 40) (1519833600005, 50) (1519833600004, 60)
+sql insert into vdb1.vtb10 values (1519833600003 , 41) (1519833600005, 51) (1519833600004, 61)
+sql insert into vdb1.vtb11 values (1519833600003 , 41) (1519833600005, 51) (1519833600004, 61)
+sql insert into vdb2.vtb20 values (1519833600003 , 42) (1519833600005, 52) (1519833600004, 62)
+sql insert into vdb2.vtb21 values (1519833600003 , 42) (1519833600005, 52) (1519833600004, 62)
+sql insert into vdb3.vtb30 values (1519833600003 , 43) (1519833600005, 53) (1519833600004, 63)
+sql insert into vdb3.vtb31 values (1519833600003 , 43) (1519833600005, 53) (1519833600004, 63)
+sql select * from vdb0.mt
+sql select ts from vdb0.mt
+
+if $rows != 12 then
+  return -1
+endi
+
+print =============== step4
+sql insert into vdb0.vtb00 values(1519833600006, 60) (1519833600007, 70) vdb0.vtb01 values(1519833600006, 60) (1519833600007, 70)
+sql insert into vdb1.vtb10 values(1519833600006, 61) (1519833600007, 71) vdb1.vtb11 values(1519833600006, 61) (1519833600007, 71)
+sql insert into vdb2.vtb20 values(1519833600006, 62) (1519833600007, 72) vdb2.vtb21 values(1519833600006, 62) (1519833600007, 72)
+sql insert into vdb3.vtb30 values(1519833600006, 63) (1519833600007, 73) vdb3.vtb31 values(1519833600006, 63) (1519833600007, 73)
+sql select * from vdb0.mt
+sql select ts from vdb0.mt
+
+if $rows != 16 then
+  return -1
+endi
+
+print =============== step5
+sql insert into vdb0.vtb00 values(1519833600008, 80) (1519833600007, 70) vdb0.vtb01 values(1519833600006, 80) (1519833600007, 70)
+sql insert into vdb1.vtb10 values(1519833600008, 81) (1519833600007, 71) vdb1.vtb11 values(1519833600006, 81) (1519833600007, 71)
+sql insert into vdb2.vtb20 values(1519833600008, 82) (1519833600007, 72) vdb2.vtb21 values(1519833600006, 82) (1519833600007, 72)
+sql insert into vdb3.vtb30 values(1519833600008, 83) (1519833600007, 73) vdb3.vtb31 values(1519833600006, 83) (1519833600007, 73)
+sql select * from vdb0.mt
+sql select ts from vdb0.mt
+
+if $rows != 17 then
+  return -1
+endi
+
+print =============== step6
+sql insert into vdb0.vtb00 values(1519833600009, 90) (1519833600010, 100) vdb1.vtb10 values(1519833600009, 90) (1519833600010, 100) vdb2.vtb20 values(1519833600009, 90) (1519833600010, 100) vdb3.vtb30 values(1519833600009, 90) (1519833600010, 100)
+sql insert into vdb0.vtb01 values(1519833600009, 90) (1519833600010, 100) vdb1.vtb11 values(1519833600009, 90) (1519833600010, 100) vdb2.vtb21 values(1519833600009, 90) (1519833600010, 100) vdb3.vtb31 values(1519833600009, 90) (1519833600010, 100)
+
+sql select * from vdb0.mt
+sql select ts from vdb0.mt
+
+if $rows != 21 then
+  return -1
+endi
+
+print =============== step7
+sql insert into vdb0.vtb00 values(1519833600012, 120) (1519833600011, 110) vdb1.vtb10 values(1519833600012, 120) (1519833600011, 110) vdb2.vtb20 values(1519833600012, 120) (1519833600011, 110) vdb3.vtb30 values(1519833600012, 120) (1519833600011, 110)
+sql insert into vdb0.vtb01 values(1519833600012, 120) (1519833600011, 110) vdb1.vtb11 values(1519833600012, 120) (1519833600011, 110) vdb2.vtb21 values(1519833600012, 120) (1519833600011, 110) vdb3.vtb31 values(1519833600012, 120) (1519833600011, 110)
+
+sql select * from vdb0.mt
+sql select ts from vdb0.mt
+
+if $rows != 25 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -1,0 +1,156 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c debugflag -v 131
+system sh/exec.sh -n dnode1 -s start -v
+sql connect
+
+print =============== step1: create drop select * from information_schema.ins_dnodes
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ---> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ---> $data00 $data01 $data02 $data03 $data04 $data05
+if $rows != 1 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step1
+endi
+
+print =============== step2: create db
+sql create database db
+sql use db
+sql create table db.stb (ts timestamp, c1 int, c2 binary(4)) tags(t1 int, t2 float, t3 binary(16)) comment "abd"
+sql create table db.c1 using db.stb tags(101, 102, "103")
+
+print =============== step3: alter stb
+sql_error alter table db.stb add column ts int
+sql alter table db.stb add column c3 int
+sql alter table db.stb add column c4 bigint
+sql alter table db.stb add column c5 binary(12)
+sql alter table db.stb drop column c1
+sql alter table db.stb drop column c4
+sql alter table db.stb MODIFY column c2 binary(32)
+sql alter table db.stb add tag t4 bigint
+sql alter table db.stb add tag c1 int  
+sql alter table db.stb add tag t5 binary(12)
+sql alter table db.stb drop tag c1
+sql alter table db.stb drop tag t5
+sql alter table db.stb MODIFY tag t3 binary(32)
+sql alter table db.stb rename tag t1 tx
+sql alter table db.stb comment 'abcde' ;
+sql drop table db.stb
+
+print =============== step4: alter tb
+sql create table tb (ts timestamp, a int)
+sql insert into tb values(now-28d, -28)
+sql select count(a) from tb
+sql alter table tb add column b smallint
+sql insert into tb values(now-25d, -25, 0)
+sql select count(b) from tb
+sql alter table tb add column c tinyint
+sql insert into tb values(now-22d, -22, 3, 0)
+sql select count(c) from tb
+sql alter table tb add column d int
+sql insert into tb values(now-19d, -19, 6, 0, 0)
+sql select count(d) from tb
+sql alter table tb add column e bigint
+sql alter table tb add column f float
+sql alter table tb add column g double
+sql alter table tb add column h binary(10)
+sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from tb
+sql select * from tb order by ts desc
+
+print =============== step5: alter stb and insert data
+sql create table stb (ts timestamp, c1 int, c2 binary(4)) tags(t1 int, t2 float, t3 binary(16)) comment "abd"
+sql select * from information_schema.ins_stables where db_name = 'db'
+sql describe stb
+sql_error alter table stb add column ts int
+
+sql create table db.ctb using db.stb tags(101, 102, "103")
+sql insert into db.ctb values(now, 1, "2")
+sql select * from information_schema.ins_tables where db_name = 'db'
+sql select * from db.stb
+sql select * from tb
+
+sql alter table stb add column c3 int
+sql describe stb
+sql select * from db.stb
+sql select * from tb
+sql insert into db.ctb values(now+1s, 1, 2, 3)
+sql select * from db.stb
+
+sql alter table db.stb add column c4 bigint
+sql select * from db.stb
+sql insert into db.ctb values(now+2s, 1, 2, 3, 4)
+
+sql alter table db.stb drop column c1
+sql reset query cache
+sql select * from tb
+sql insert into db.ctb values(now+3s, 2, 3, 4)
+sql select * from db.stb
+
+sql alter table db.stb add tag t4 bigint
+sql select * from db.stb
+sql select * from db.stb
+sql_error create table db.ctb2 using db.stb tags(101, "102")
+sql create table db.ctb2 using db.stb tags(101, 102, "103", 104)
+sql insert into db.ctb2 values(now, 1, 2, 3) 
+
+print =============== step6: query data
+sql select * from db.stb where tbname = 'ctb2';
+sql alter table ctb2 set tag t1=1;
+sql alter table ctb2 set tag t3='3';
+sql select * from db.stb where t1 = 1;
+
+print =============== step7: normal table
+sql create database d1 replica 1 duration 7 keep 50 
+sql use d1
+sql create table tb (ts timestamp, a int)
+sql insert into tb values(now-28d, -28)
+sql alter table tb add column b smallint
+sql insert into tb values(now-25d, -25, 0)
+sql alter table tb add column c tinyint
+sql insert into tb values(now-22d, -22, 3, 0)
+sql alter table tb add column d int
+sql insert into tb values(now-19d, -19, 6, 0, 0)
+sql alter table tb add column e bigint
+sql insert into tb values(now-16d, -16, 9, 0, 0, 0)
+sql alter table tb add column f float
+sql insert into tb values(now-13d, -13, 12, 0, 0, 0, 0)
+sql alter table tb add column g double
+sql insert into tb values(now-10d, -10, 15, 0, 0, 0, 0, 0)
+sql alter table tb add column h binary(10)
+sql insert into tb values(now-7d, -7, 18, 0, 0, 0, 0, 0, '0')
+sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from d1.tb;
+sql alter table tb drop column a
+sql insert into tb values(now-4d, 1, 1, 1, 1, 1, 1, '1')
+sql alter table tb drop column b
+sql insert into tb values(now-3d, 1, 1, 1, 1, 1, '1')
+sql alter table tb drop column c
+sql insert into tb values(now-2d, 1, 1, 1, 1, '1')
+sql alter table tb drop column d
+sql insert into tb values(now-1d, 1, 1, 1, '1')
+sql alter table tb drop column e
+sql insert into tb values(now, 1, 1, '1')
+sql select count(h) from tb
+
+_OVER:
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+print =============== check
+$null=
+
+system_content sh/checkValgrind.sh -n dnode1 
+print cmd return result ----> [ $system_content ]
+if $system_content > 0 then
+  return -1
+endi 
+
+if $system_content == $null then
+  return -1
+endi 

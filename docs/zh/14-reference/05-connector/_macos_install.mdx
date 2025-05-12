@@ -1,0 +1,17 @@
+import PkgListV3 from "/components/PkgListV3";
+
+1. 下载客户端安装包
+
+   <PkgListV3 type={8} sys="macOS" />
+
+2. 执行安装程序，按提示选择默认值，完成安装。如果安装被阻止，可以右键或者按 Ctrl 点击安装包，选择 `打开`。
+3. 配置 taos.cfg
+
+   编辑 `taos.cfg` 文件（默认路径/etc/taos/taos.cfg），将 `firstEP` 修改为 TDengine 服务器的 End Point，例如：`h1.tdengine.com:6030`
+
+:::tip
+
+1. 如本机没有部署 TDengine 服务，仅安装了应用驱动，则 `taos.cfg` 中仅需配置 `firstEP`，无需在本机配置 `FQDN`。
+2. 为防止与服务器端连接时出现“Unable to resolve FQDN”错误，建议确认本机的 `/etc/hosts` 文件已经配置了服务器正确的 FQDN 值，或配置好了 DNS 服务。
+
+:::

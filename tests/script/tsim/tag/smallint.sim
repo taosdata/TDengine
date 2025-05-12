@@ -1,0 +1,237 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======================== dnode1 start
+
+$dbPrefix = ta_sm_db
+$tbPrefix = ta_sm_tb
+$mtPrefix = ta_sm_mt
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol smallint)
+
+$i = 0
+while $i < 5
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( 0 )
+  $x = 0
+  while $x < $rowNum
+    $ms = $x . m
+    sql insert into $tb values (now + $ms , $x )
+    $x = $x + 1
+  endw
+  $i = $i + 1
+endw
+while $i < 10
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( 1 )
+  $x = 0
+  while $x < $rowNum
+    $ms = $x . m
+    sql insert into $tb values (now + $ms , $x )
+    $x = $x + 1
+  endw
+  $i = $i + 1
+endw
+
+print =============== step2
+sql select * from $tb
+if $rows != $rowNum then
+  return -1
+endi
+sql select * from $tb where ts < now + 4m
+if $rows != 5 then
+  return -1
+endi
+sql select * from $tb where ts <= now + 4m
+if $rows != 5 then
+  return -1
+endi
+sql select * from $tb where ts > now + 4m
+if $rows != 15 then
+  return -1
+endi
+sql select * from $tb where ts >= now + 4m
+if $rows != 15 then
+  return -1
+endi
+sql select * from $tb where ts > now + 4m and ts < now + 5m
+if $rows != 1 then
+  return -1
+endi
+sql select * from $tb where ts < now + 4m and ts > now + 5m
+if $rows != 0 then
+  return -1
+endi
+sql select * from $tb where ts > 100000 and ts < 100000
+if $rows != 0 then
+  return -1
+endi
+sql select * from $tb where ts > now + 4m and ts < now + 3m
+if $rows != 0 then
+  return -1
+endi
+sql select * from $tb where ts > now + 4m and ts > now + 5m and ts < now + 6m
+if $rows != 1 then
+  return -1
+endi
+
+print =============== step3
+sql select * from $mt
+if $rows != $totalNum then
+  return -1
+endi
+
+sql select * from $mt where ts < now + 4m
+if $rows != 50 then
+  return -1
+endi
+sql select * from $mt where ts > now + 4m
+if $rows != 150 then
+  return -1
+endi
+sql select * from $mt where ts = now + 4m
+if $rows != 0 then
+  return -1
+endi
+sql select * from $mt where ts > now + 4m and ts < now + 5m
+if $rows != 10 then
+  return -1
+endi
+
+print =============== step4
+sql select * from $mt where tgcol = 0
+if $rows != 100 then
+  return -1
+endi
+sql select * from $mt where tgcol <> 0
+if $rows != 100 then
+  return -1
+endi
+sql select * from $mt where tgcol = 1
+if $rows != 100 then
+  return -1
+endi
+sql select * from $mt where tgcol <> 1
+if $rows != 100 then
+  return -1
+endi
+sql select * from $mt where tgcol = 1
+if $rows != 100 then
+  return -1
+endi
+sql select * from $mt where tgcol <> 1
+if $rows != 100 then
+  return -1
+endi
+sql select * from $mt where tgcol = 0
+if $rows != 100 then
+  return -1
+endi
+sql select * from $mt where tgcol <> 0
+if $rows != 100 then
+  return -1
+endi
+
+print =============== step5
+sql select * from $mt where ts > now + 4m and tgcol = 1
+if $rows != 75 then
+  return -1
+endi
+sql select * from $mt where ts > now + 4m and tgcol <> 1
+if $rows != 75 then
+  return -1
+endi
+sql select * from $mt where ts < now + 4m and tgcol = 0
+if $rows != 25 then
+  return -1
+endi
+sql select * from $mt where ts < now + 4m and tgcol <> 0
+if $rows != 25 then
+  return -1
+endi
+sql select * from $mt where ts <= now + 4m and tgcol = 0
+if $rows != 25 then
+  return -1
+endi
+sql select * from $mt where ts <= now + 4m and tgcol <> 0
+if $rows != 25 then
+  return -1
+endi
+sql select * from $mt where ts > now + 4m and ts < now + 5m and tgcol <> 0
+if $rows != 5 then
+  return -1
+endi
+sql select * from $mt where ts > now + 4m and tgcol <> 0 and ts < now + 5m
+if $rows != 5 then
+  return -1
+endi
+
+print =============== step6
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06
+if $data00 != 200 then
+  return -1
+endi
+
+print =============== step7
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol = 1
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06
+if $data00 != 100 then
+  return -1
+endi
+
+print =============== step8
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where ts < now + 4m
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06
+if $data00 != 50 then
+  return -1
+endi
+
+print =============== step9
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt group by tgcol
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06
+if $data00 != 100 then
+  return -1
+endi
+
+print =============== step10
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol = 1 group by tgcol
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06
+if $data00 != 100 then
+  return -1
+endi
+
+print =============== step11
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where ts < now + 4m group by tgcol
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06
+if $data00 != 25 then
+  return -1
+endi
+
+print =============== step12
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt partition by tgcol interval(1d)
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06
+if $data00 != 100 then
+  return -1
+endi
+
+print =============== clear
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
