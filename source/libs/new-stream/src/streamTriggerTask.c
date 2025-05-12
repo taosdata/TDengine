@@ -1838,7 +1838,7 @@ static void strtcDestroy(void *ptr) {
   }
 
   if (pContext->pNotifyParams != NULL) {
-    taosArrayDestroyP(pContext->pNotifyParams, tDestroySSTriggerCalcParam);
+    taosArrayDestroyEx(pContext->pNotifyParams, tDestroySSTriggerCalcParam);
     pContext->pNotifyParams = NULL;
   }
 
@@ -2078,7 +2078,7 @@ static int32_t strtcResumeCheck(SSTriggerRealtimeContext *pContext) {
                                      pTask->notifyErrorHandle, TARRAY_DATA(pContext->pNotifyParams),
                                      TARRAY_SIZE(pContext->pNotifyParams));
       QUERY_CHECK_CODE(code, lino, _end);
-      taosArrayClearP(pContext->pNotifyParams, tDestroySSTriggerCalcParam);
+      taosArrayClearEx(pContext->pNotifyParams, tDestroySSTriggerCalcParam);
     }
     if (pContext->calcStatus == STRIGGER_REQUEST_TO_RUN) {
       code = strtcSendCalcReq(pContext);
@@ -2374,7 +2374,7 @@ static void sthcDestroy(void *ptr) {
   }
 
   if (pContext->pNotifyParams != NULL) {
-    taosArrayDestroyP(pContext->pNotifyParams, tDestroySSTriggerCalcParam);
+    taosArrayDestroyEx(pContext->pNotifyParams, tDestroySSTriggerCalcParam);
     pContext->pNotifyParams = NULL;
   }
 
@@ -2822,7 +2822,7 @@ int32_t streamTriggerProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp) {
     SSTriggerRealtimeContext *pContext = pTask->pRealtimeCtx;
     QUERY_CHECK_CONDITION(pReq == &pContext->calcReq, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
     if (pRsp->code == TSDB_CODE_SUCCESS) {
-      taosArrayClearP(pReq->params, tDestroySSTriggerCalcParam);
+      taosArrayClearEx(pReq->params, tDestroySSTriggerCalcParam);
       code = strtcProcessCalcRsp(pContext, pRsp->code);
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
