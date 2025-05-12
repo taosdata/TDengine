@@ -346,7 +346,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
       // always return true
       streamMetaWUnLock(pMeta);
       taosArrayDestroy(req.pNodeList);
-      tqError("vgId:%d commit meta failed, code:%s not restart the stream tasks", vgId);
+      tqError("vgId:%d commit meta failed, code:%s not restart the stream tasks", vgId, tstrerror(code));
       return TSDB_CODE_SUCCESS;
     }
 
