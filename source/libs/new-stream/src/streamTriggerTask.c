@@ -2415,7 +2415,7 @@ static int32_t sthcSendPullReq(SSTriggerHistoryContext *pContext, ESTriggerPullT
 
   SSTriggerPullRequest *pReq = &pContext->pullReq.base;
   pReq->type = type;
-  pReq->readerTaskId = pReader->nodeId;
+  pReq->readerTaskId = pReader->taskId;
 
   // serialize and send request
   SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_PULL};
