@@ -79,6 +79,7 @@ typedef struct SStmStreamAction {
 
 typedef struct SStmTaskId {
   int64_t taskId;      // KEEP IT FIRST
+  int32_t deployId;    // only for runner task
   int64_t seriousId;
   int32_t nodeId;
   int32_t taskIdx;
@@ -172,6 +173,7 @@ typedef struct SStmVgroupTasksStatus {
 typedef struct SStmTaskToDeployExt {
   bool            deployed;
   bool            lowestRunner;
+  int32_t         deployId;     // only for runner task
   SStmTaskDeploy  deploy;
 } SStmTaskToDeployExt;
 
@@ -228,11 +230,12 @@ typedef struct SStmThreadCtx {
 } SStmThreadCtx;
 
 typedef struct SStmHealthCheckCtx {
-  int32_t slotIdx;
+  int32_t   slotIdx;
   
-  int64_t currentTs;
-  int32_t validStreamNum;
-  
+  int64_t   currentTs;
+  int32_t   validStreamNum;
+
+  SHashObj* streamRunners;     // streamId => deploy num
 } SStmHealthCheckCtx;
 
 typedef struct SStmRuntime {

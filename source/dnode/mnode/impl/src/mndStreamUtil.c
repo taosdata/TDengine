@@ -325,10 +325,9 @@ void mndStreamPostTaskAction(SStmActionQ*        actionQ, int64_t streamId, SStm
   pNode->type = action;
   pNode->streamAct = false;
   pNode->action.task.streamId = streamId;
-  pNode->action.task.id.taskId = pId->taskId;
-  pNode->action.task.id.seriousId = pId->seriousId;
-  pNode->action.task.id.nodeId = pId->nodeId;
-  pNode->action.task.id.taskIdx = pId->taskIdx;
+  if (pId) {
+    pNode->action.task.id = *pId;
+  }
   pNode->action.task.type = type;
   pNode->action.task.flag = flags;
   
