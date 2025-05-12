@@ -354,9 +354,9 @@ int32_t writeToFile(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSKE
 
   pWindowData->wstart = wstart;
   pWindowData->wend = wend;
-  code = getStreamBlockTS(pBlock, startIndex, &pWindowData->start);
+  code = getStreamBlockTS(pBlock, startIndex, pStreamDataSink->tsSlotId, &pWindowData->start);
   QUERY_CHECK_CODE(code, lino, _end);
-  code = getStreamBlockTS(pBlock, endIndex, &pWindowData->end);
+  code = getStreamBlockTS(pBlock, endIndex, pStreamDataSink->tsSlotId, &pWindowData->end);
   QUERY_CHECK_CODE(code, lino, _end);
   pWindowData->dataLen = dataEncodeBufSize;
 
@@ -524,7 +524,7 @@ void syncWindowDataFileDel(SWindowDataInFile* pWindowData) {
   // atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, size);
 }
 
-int32_t readDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, bool* finished) {
+int32_t readDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, int32_t tsColSlotId, bool* finished) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SDataSinkFileMgr*  pFileMgr = pResult->pFileMgr;
@@ -567,7 +567,7 @@ int32_t readDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, bool* fini
     return terrno;
   }
   QUERY_CHECK_CODE(code, lino, _exit);
-  code = blockSpecialDecodeLaterPart(pBlock, buf, pResult->reqStartTime, pResult->reqEndTime);
+  code = blockSpecialDecodeLaterPart(pBlock, buf, tsColSlotId, pResult->reqStartTime, pResult->reqEndTime);
   QUERY_CHECK_CODE(code, lino, _exit);
 
   *ppBlock = pBlock;

@@ -54,10 +54,10 @@ int32_t writeToCache(SStreamTaskDSManager* pStreamDataSink, SGroupDSManager* pGr
   pWindowData->pGroupDataInfoMgr = pGroupDataInfoMgr;
   pWindowData->wstart = wstart;
   pWindowData->wend = wend;
-  code = getStreamBlockTS(pBlock, startIndex, &pWindowData->start);
+  code = getStreamBlockTS(pBlock, startIndex, pStreamDataSink->tsSlotId, &pWindowData->start);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  code = getStreamBlockTS(pBlock, endIndex, &pWindowData->end);
+  code = getStreamBlockTS(pBlock, endIndex, pStreamDataSink->tsSlotId, &pWindowData->end);
   QUERY_CHECK_CODE(code, lino, _end);
 
   pWindowData->saveMode = DATA_SAVEMODE_BUFF;
@@ -102,9 +102,9 @@ int32_t moveToCache(SStreamTaskDSManager* pStreamDataSink, SGroupDSManager* pGro
   pWindowData->pGroupDataInfoMgr = pGroupDataInfoMgr;
   pWindowData->wstart = wstart;
   pWindowData->wend = wend;
-  code = getStreamBlockTS(pBlock, 0, &pWindowData->start);
+  code = getStreamBlockTS(pBlock, 0, pStreamDataSink->tsSlotId, &pWindowData->start);
   QUERY_CHECK_CODE(code, lino, _end);
-  code = getStreamBlockTS(pBlock, pBlock->info.rows - 1, &pWindowData->end);
+  code = getStreamBlockTS(pBlock, pBlock->info.rows - 1, pStreamDataSink->tsSlotId, &pWindowData->end);
   QUERY_CHECK_CODE(code, lino, _end);
   pWindowData->saveMode = DATA_SAVEMODE_BLOCK;
   pWindowData->dataLen = dataEncodeBufSize;
@@ -193,7 +193,7 @@ static int32_t getWindowDataInMem(SResultIter* pResult, SWindowData* pWindowData
   }
 }
 
-static int32_t getRangeInWindowBlock(SWindowData* pWindowData, TSKEY start, TSKEY end, SSDataBlock** ppBlock) {
+static int32_t getRangeInWindowBlock(SWindowData* pWindowData, int32_t tsColSlotId, TSKEY start, TSKEY end, SSDataBlock** ppBlock) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
@@ -202,7 +202,7 @@ static int32_t getRangeInWindowBlock(SWindowData* pWindowData, TSKEY start, TSKE
   }
   QUERY_CHECK_CODE(code, lino, _end);
 
-  code = blockSpecialDecodeLaterPart(pBlock, pWindowData->pDataBuf, start, end);
+  code = blockSpecialDecodeLaterPart(pBlock, pWindowData->pDataBuf, tsColSlotId, start, end);
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
@@ -222,21 +222,26 @@ _end:
   return code;
 }
 
-static int32_t getSlidingWindowLaterDataInMem(SWindowData* pWindowData, TSKEY start, SSDataBlock** ppBlock) {
-  return getRangeInWindowBlock(pWindowData, start, INT64_MAX, ppBlock);
+static int32_t getSlidingWindowLaterDataInMem(SWindowData* pWindowData, int32_t tsColSlotId, TSKEY start,
+                                              SSDataBlock** ppBlock) {
+  return getRangeInWindowBlock(pWindowData, tsColSlotId, start, INT64_MAX, ppBlock);
 }
 
-static int32_t getSlidingWindowEarlierDataInMem(SWindowData* pWindowData, TSKEY end, SSDataBlock** ppBlock) {
-  return getRangeInWindowBlock(pWindowData, INT64_MIN, end, ppBlock);
+static int32_t getSlidingWindowEarlierDataInMem(SWindowData* pWindowData, int32_t tsColSlotId, TSKEY end,
+                                                SSDataBlock** ppBlock) {
+  return getRangeInWindowBlock(pWindowData, tsColSlotId, INT64_MIN, end, ppBlock);
 }
 
-static int32_t getSlidingWindowDataInMem(SResultIter* pResult, SWindowData* pWindowData, SSDataBlock** ppBlock) {
+static int32_t getSlidingWindowDataInMem(SResultIter* pResult, SGroupDSManager* pGroupData, SWindowData* pWindowData,
+                                         SSDataBlock** ppBlock) {
   if (pWindowData->wstart >= pResult->reqStartTime && pWindowData->wend <= pResult->reqEndTime) {
     return getWindowDataInMem(pResult, pWindowData, ppBlock, DATA_CLEAN_EXPIRED);
   } else if (pResult->reqStartTime >= pWindowData->wstart && pResult->reqStartTime <= pWindowData->wend) {
-    return getSlidingWindowLaterDataInMem(pWindowData, pResult->reqStartTime, ppBlock);
+    return getSlidingWindowLaterDataInMem(pWindowData, pGroupData->pSinkManager->tsSlotId, pResult->reqStartTime,
+                                          ppBlock);
   } else {  // (pResult->reqEndTime >= pWindowData->wstart && pResult->reqEndTime <= pWindowData->wend)
-    return getSlidingWindowEarlierDataInMem(pWindowData, pResult->reqEndTime, ppBlock);
+    return getSlidingWindowEarlierDataInMem(pWindowData, pGroupData->pSinkManager->tsSlotId, pResult->reqEndTime,
+                                            ppBlock);
   }
 }
 
@@ -259,7 +264,7 @@ int32_t readDataFromCache(SResultIter* pResult, SSDataBlock** ppBlock, bool* fin
   if (pGroupData->pSinkManager->cleanMode == DATA_CLEAN_IMMEDIATE) {
     return getWindowDataInMem(pResult, *ppWindowData, ppBlock, DATA_CLEAN_IMMEDIATE);
   } else {
-    return getSlidingWindowDataInMem(pResult, *ppWindowData, ppBlock);
+    return getSlidingWindowDataInMem(pResult, pGroupData, *ppWindowData, ppBlock);
   }
 }
 
@@ -272,7 +277,7 @@ void clearGroupExpiredDataInMem(SGroupDSManager* pGroupData, TSKEY start) {
   int     deleteCount = 0;
   for (int i = 0; i < size; ++i) {
     SWindowData* pWindowData = *(SWindowData**)taosArrayGet(pGroupData->windowDataInMem, i);
-    if (pWindowData && pWindowData->wend <= start) {
+    if (pWindowData && (pWindowData->wend <= start) || pWindowData->pDataBuf == NULL) {
       deleteCount++;
     } else {
       break;
@@ -341,6 +346,7 @@ int32_t getFirstDataIterFromCache(SStreamTaskDSManager* StreamTaskDSMgr, int64_t
     pResult->groupId = groupId;
     pResult->reqStartTime = start;
     pResult->reqEndTime = end;
+    pResult->tsColSlotId = StreamTaskDSMgr->tsSlotId;
     *ppResult = pResult;
     return code;
   }

@@ -118,7 +118,7 @@ static bool isManagerReady() {
   return false;
 }
 
-static int32_t createStreamTaskDSManager(int64_t streamId, int64_t taskId, int32_t cleanMode,
+static int32_t createStreamTaskDSManager(int64_t streamId, int64_t taskId, int32_t tsSlotId, int32_t cleanMode,
                                             SStreamTaskDSManager** ppStreamDataSink) {
   SStreamTaskDSManager* pStreamDataSink = taosMemoryCalloc(1, sizeof(SStreamTaskDSManager));
   if (pStreamDataSink == NULL) {
@@ -126,6 +126,8 @@ static int32_t createStreamTaskDSManager(int64_t streamId, int64_t taskId, int32
   }
   pStreamDataSink->streamId = streamId;
   pStreamDataSink->taskId = taskId;
+  pStreamDataSink->usedMemSize = 0;
+  pStreamDataSink->tsSlotId = tsSlotId;
   pStreamDataSink->cleanMode = cleanMode;
   pStreamDataSink->pFileMgr = NULL;
 
@@ -212,7 +214,7 @@ int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int32_t cleanMode,
       (SStreamTaskDSManager**)taosHashGet(g_pDataSinkManager.dataSinkStreamTaskList, key, strlen(key));
   if (ppStreamTaskDSManager == NULL) {
     SStreamTaskDSManager* pStreamTaskDSManager = NULL;
-    code = createStreamTaskDSManager(streamId, taskId, cleanMode, &pStreamTaskDSManager);
+    code = createStreamTaskDSManager(streamId, taskId, tsSlotId, cleanMode, &pStreamTaskDSManager);
     if (code != 0) {
       stError("failed to create stream task data sink manager, err: %s", terrMsg);
       return code;
@@ -390,10 +392,10 @@ int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock) {
     code = readDataFromCache(pResult, ppBlock, &finished);
     QUERY_CHECK_CODE(code, lino, _end);
   } else {
-    code = readDataFromFile(pResult, ppBlock, &finished);
+    code = readDataFromFile(pResult, ppBlock, pResult->tsColSlotId, &finished);
     QUERY_CHECK_CODE(code, lino, _end);
   }
-  if(finished) {
+  if (finished) {
     releaseDataIterator(pIter);
     *pIter = NULL;
     return TSDB_CODE_SUCCESS;
