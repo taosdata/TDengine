@@ -47,7 +47,7 @@ driverClass 指定为 “com.taosdata.jdbc.ws.WebSocketDriver”。
 
 ## 数据交互
 
-数据接入需注册 TDengine 方言，方言中主要处理反引号，数据类型映射与 JDBC 相同, 无需额外处理，参见：[JDBC 数据类型映射](../../../reference/connector/java/#数据类型映射)
+数据接入需注册 TDengine 方言，方言中主要处理反引号，数据类型映射与 JDBC 相同，无需额外处理，参见：[JDBC 数据类型映射](../../../reference/connector/java/#数据类型映射)
 
 下面以 JAVA 语言编写 Spark 任务，通过 `spark-submit` 提交任务执行为例，介绍数据接入，后附完整示例代码。
 
