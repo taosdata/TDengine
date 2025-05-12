@@ -224,16 +224,16 @@ jobs:
           pgrep -l taos
           sleep 6     # NOTE: wait for taosd initialization to complete
           pgrep -l taos
-          taos -h $(hostname)  -s  " alter local 'rpcDebugFlag 135'  ;show databases;" || true 
+          taos -h 127.0.0.1  -s  " alter local 'rpcDebugFlag 135'  ;show databases;" || true 
           cat /var/log/taos/taoslog* 
-          taos -h $(hostname)  -s "show dnodes"
+          taos -h 127.0.0.1  -s "show dnodes"
 
       - name: Run tests with taosBenchmark
         if: runner.os != 'Windows'
         run: |
-          taos  -h $(hostname) -s "show databases"
-          taosBenchmark -t 10 -n 10 -s 1744951233012 -h $(hostname)  -y 
-          taos  -h $(hostname) -s "select count(*) from test.meters"
+          taos  -h 127.0.0.1 -s "show databases"
+          taosBenchmark -t 10 -n 10 -s 1744951233012 -h 127.0.0.1  -y 
+          taos  -h 127.0.0.1 -s "select count(*) from test.meters"
 
       - name: Clean up  on Linux and macOS
         if: runner.os != 'Windows'
