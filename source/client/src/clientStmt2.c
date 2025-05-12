@@ -1039,6 +1039,9 @@ static int32_t stmtResetStmtForPrepare(STscStmt2* pStmt) {
     return terrno;
   }
 
+  if (pStmt->sql.stbInterlaceMode) {
+    pStmt->bInfo.tagsCached = false;
+  }
   STMT_ERR_RET(stmtCleanExecInfo(pStmt, false, true));
 
   if (pStmt->exec.pRequest) {
