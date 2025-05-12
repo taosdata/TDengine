@@ -263,6 +263,7 @@ typedef struct {
   int64_t  flags;
   int64_t  tsmaId;
   int64_t  placeHolderBitmap;
+  int16_t  tsSlotId; // only used when using %%trows
 
   // only for child table and normal table
   int32_t triggerTblVgId;
