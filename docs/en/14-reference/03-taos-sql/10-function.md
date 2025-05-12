@@ -632,6 +632,81 @@ taos> select radians(180);
          3.141592653589793 |
 ```
 
+#### CRC32
+
+```sql
+CRC32(expr)
+```
+**Function Description**: Returns the unsigned 32-bit integer that represents the Cyclic Redundancy Check (CRC).
+
+**Return Type**: INT UNSIGNED. 
+
+**Applicable Data Types**: Suitable for any type.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- If `expr` is NULL, it returns NULL.
+- if `expr` is the empty string, it returns 0.
+- if `expr` is a non string, it is interpreted as a string.
+- This function is multibyte safe.
+
+**Example**:
+
+```sql
+taos> select crc32(NULL);
+ crc32(null) |
+==============
+ NULL        |
+
+taos> select crc32("");
+  crc32("")  |
+==============
+           0 |
+
+taos> select crc32(123);
+ crc32(123)  |
+==============
+  2286445522 |
+
+taos> select crc32(123.456);
+ crc32(123.456) |
+=================
+      844093190 |
+
+taos> select crc32(TO_TIMESTAMP("2000-01-01", "yyyy-mm-dd hh24:mi:ss"));
+ crc32(to_timestamp("2000-01-01", "yyyy-mm-dd hh24:mi:ss")) |
+=============================================================
+                                                 2274736693 |
+
+taos> select crc32("This is a string");
+ crc32("This is a string") |
+============================
+                 141976383 |
+
+taos> select crc32("这是一个字符串");
+ crc32("这是一个字符串") |
+========================
+            1902862441 |
+
+taos> select crc32(col_name) from ins_columns limit 10;
+ crc32(col_name) |
+==================
+      3208210256 |
+      3292663675 |
+      3081158046 |
+      1063017838 |
+      2063623452 |
+      3996452140 |
+      2559042119 |
+      3485334036 |
+      3208210256 |
+      3292663675 |
+```
+
 ### String Functions
 
 The input parameters for string functions are of string type, and the return results are of numeric type or string type.

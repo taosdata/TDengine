@@ -35,7 +35,11 @@ table_option: {
     - TAGS can have up to 128 columns, at least 1, with a total length not exceeding 16 KB.
 4. For the use of `ENCODE` and `COMPRESS`, please refer to [Column Compression](../manage-data-compression/)
 5. For explanations of parameters in table_option, please refer to [Table SQL Description](../manage-tables/)
-6. Regarding the keep parameter in table_option, it only takes effect for super tables. For detailed explanation of the keep parameter, please refer to [Database Description](02-database.md). The only difference is that the super table's keep parameter does not immediately affect query results, but only takes effect after compaction.
+6. Regarding the keep parameter in table_option, it only takes effect for supertables. For detailed information on the keep parameter, refer to Database Description. However, the keep parameter for supertables differs from the keep parameter for databases in the following ways:
+    - The supertable's keep parameter does not immediately affect query results. Data is only cleaned up and becomes invisible to queries after compaction is complete.
+    - The supertable's keep parameter must be less than the database's keep parameter.
+    - A flush operation must be performed before compaction; otherwise, the keep setting may not take effect.
+    - After compaction, if you use ALTER STABLE to change the keep value and then compact again, some data may not be cleaned up correctly. This depends on whether new data has been written to the corresponding files since the last compaction.
 
 ## View Supertables
 

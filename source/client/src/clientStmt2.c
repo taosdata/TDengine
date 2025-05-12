@@ -2300,6 +2300,11 @@ _return:
     code = TSDB_CODE_TSC_STMT_TBNAME_ERROR;
   }
 
+  if (code != TSDB_CODE_SUCCESS) {
+    taos_free_result(pStmt->exec.pRequest);
+    pStmt->exec.pRequest = NULL;
+  }
+
   pStmt->errCode = preCode;
 
   return code;
@@ -2350,7 +2355,10 @@ int stmtGetParamNum2(TAOS_STMT2* stmt, int* nums) {
   }
 
 _return:
-
+  if (code != TSDB_CODE_SUCCESS) {
+    taos_free_result(pStmt->exec.pRequest);
+    pStmt->exec.pRequest = NULL;
+  }
   pStmt->errCode = preCode;
 
   return code;

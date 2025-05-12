@@ -58,8 +58,11 @@ int32_t syncNodeReplicateReset(SSyncNode* pNode, SRaftId* pDestId) {
 
 int32_t syncNodeReplicate(SSyncNode* pNode) {
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
-  (void)taosThreadMutexLock(&pBuf->mutex);
-  int32_t ret = syncNodeReplicateWithoutLock(pNode);
+  int32_t         ret = 0;
+  if ((ret = taosThreadMutexTryLock(&pBuf->mutex)) != 0) {
+    return ret;
+  }
+  ret = syncNodeReplicateWithoutLock(pNode);
   (void)taosThreadMutexUnlock(&pBuf->mutex);
 
   TAOS_RETURN(ret);
