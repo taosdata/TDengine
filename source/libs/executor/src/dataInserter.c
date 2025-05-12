@@ -211,6 +211,7 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
 
       SDecoder coder = {0};
       tDecoderInit(&coder, pMsg->pData, pMsg->len);
+      pCoder = &coder;
       code = tDecodeSSubmitRsp2(&coder, pInserter->submitRes.pRsp);
       if (code) {
         taosMemoryFree(pInserter->submitRes.pRsp);
