@@ -4084,7 +4084,7 @@ _exit:
 
 int32_t getTsColDataOffset(SSDataBlock* pBlock, int32_t* colLen, int32_t numOfRows, int32_t tsColSlotId, int32_t* pOffset) {
   *pOffset = 0;
-  for (int32_t i = 0; i < tsColSlotId; ++i) {
+  for (int32_t i = 0; i <= tsColSlotId; ++i) {
     int oneColsLen = htonl(colLen[i]);
     if (oneColsLen < 0) {
       uError("block decode colLen:%d error, colIdx:%d", oneColsLen, i);

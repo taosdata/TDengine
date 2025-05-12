@@ -179,7 +179,7 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   ASSERT_EQ(code, TSDB_CODE_STREAM_INTERNAL_ERROR);
 
   // Test valid parameters
-  code = initStreamDataCache(streamId, taskId, cleanMode, &pCache);
+  code = initStreamDataCache(streamId, taskId, cleanMode, 0, &pCache);
   ASSERT_EQ(code, 0);
   code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
   ASSERT_EQ(code, 0);
@@ -217,7 +217,7 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   wstart = baseTestTime1 + 100;
   wend = baseTestTime1 + 200;
   pCache = NULL;
-  code = initStreamDataCache(streamId, taskId, cleanMode, &pCache);
+  code = initStreamDataCache(streamId, taskId, cleanMode, 0, &pCache);
   ASSERT_EQ(code, 0);
   code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
   ASSERT_EQ(code, 0);
@@ -241,7 +241,7 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   wstart = baseTestTime1 + 0;
   wend = baseTestTime1 + 100;
   pCache = NULL;
-  code = initStreamDataCache(streamId, taskId, cleanMode, &pCache);
+  code = initStreamDataCache(streamId, taskId, cleanMode, 0, &pCache);
   ASSERT_EQ(code, 0);
   code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
   ASSERT_EQ(code, 0);
@@ -270,7 +270,7 @@ TEST(dataSinkTest, getSlidingStreamData) {
   TSKEY   wstart = baseTestTime1 + 0;
   TSKEY   wend = baseTestTime1 + 100;
   void*   pCache = NULL;
-  int32_t code = initStreamDataCache(streamId, taskId, cleanMode, &pCache);
+  int32_t code = initStreamDataCache(streamId, taskId, cleanMode, 0, &pCache);
   ASSERT_EQ(code, 0);
   // Test invalid parameters, cleanMode is DATA_CLEAN_EXPIRED, cannot call moveStreamDataCache
   code = moveStreamDataCache(pCache, groupID, wstart, wend, pBlock);
@@ -346,7 +346,7 @@ TEST(dataSinkTest, moveStreamData) {
   TSKEY   wstart = baseTestTime1 + 0;
   TSKEY   wend = baseTestTime1 + 100;
   void*   pCache = NULL;
-  int32_t code = initStreamDataCache(streamId, taskId, cleanMode, &pCache);
+  int32_t code = initStreamDataCache(streamId, taskId, cleanMode, 0, &pCache);
   ASSERT_EQ(code, 0);
   code = moveStreamDataCache(pCache, groupID, wstart, wend, pBlock);
   ASSERT_EQ(code, 0);
@@ -366,11 +366,8 @@ TEST(dataSinkTest, moveStreamData) {
 
   code = getStreamDataCache(pCache, groupID, baseTestTime1, baseTestTime1 + 100, &pIter);
   ASSERT_EQ(code, 0);
-  ASSERT_NE(pIter, nullptr);
+  ASSERT_EQ(pIter, nullptr);
   pBlock1 = NULL;
-  code = getNextStreamDataCache(&pIter, &pBlock1);
-  ASSERT_EQ(code, TSDB_CODE_STREAM_INTERNAL_ERROR);
-  ASSERT_EQ(pBlock1, nullptr);
 
   destroyDataSinkMgr();
 }
@@ -381,7 +378,7 @@ TEST(dataSinkTest, cancelStreamDataCacheIterateTest) {
   int64_t groupID = 1;
   int32_t cleanMode = DATA_CLEAN_IMMEDIATE;
   void*   pCache = NULL;
-  int32_t code = initStreamDataCache(streamId, taskId, cleanMode, &pCache);
+  int32_t code = initStreamDataCache(streamId, taskId, cleanMode, 0, &pCache);
   ASSERT_EQ(code, 0);
   SSDataBlock* pBlock1 = createTestBlock(baseTestTime1, 0);
   ASSERT_NE(pBlock1, nullptr);
@@ -424,7 +421,7 @@ TEST(dataSinkTest, putStreamDataRows) {
   TSKEY   wstart = baseTestTime1 + 0;
   TSKEY   wend = baseTestTime1 + 100;
   void*   pCache = NULL;
-  int32_t code = initStreamDataCache(streamId, taskId, cleanMode, &pCache);
+  int32_t code = initStreamDataCache(streamId, taskId, cleanMode, 0, &pCache);
   ASSERT_EQ(code, 0);
   code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 29);
   ASSERT_EQ(code, 0);
@@ -483,7 +480,7 @@ TEST(dataSinkTest, allWriteToFileTest) {
   TSKEY   wstart = baseTestTime1 + 0;
   TSKEY   wend = baseTestTime1 + 100;
   void*   pCache1 = NULL;
-  int32_t code = initStreamDataCache(streamId, taskId, cleanMode, &pCache1);
+  int32_t code = initStreamDataCache(streamId, taskId, cleanMode, 0, &pCache1);
   ASSERT_EQ(code, 0);
   code = putStreamDataCache(pCache1, groupID, wstart, wend, pBlock11, 0, 29);
   ASSERT_EQ(code, 0);
@@ -501,7 +498,7 @@ TEST(dataSinkTest, allWriteToFileTest) {
   TSKEY   wstart2 = baseTestTime2 + 0;
   TSKEY   wend2 = baseTestTime2 + 100;
   void*   pCache2 = NULL;
-  code = initStreamDataCache(streamId2, taskId2, cleanMode2, &pCache2);
+  code = initStreamDataCache(streamId2, taskId2, cleanMode2, 0, &pCache2);
   ASSERT_EQ(code, 0);
   code = putStreamDataCache(pCache2, groupID2, wstart2, wend2, pBlock21, 0, 29);
   ASSERT_EQ(code, 0);
@@ -611,7 +608,7 @@ TEST(dataSinkTest, allWriteMultiStreamToFileTest) {
   TSKEY   wstart = baseTestTime1 + 0;
   TSKEY   wend = baseTestTime1 + 100;
   void*   pCache1 = NULL;
-  int32_t code = initStreamDataCache(streamId, taskId, cleanMode, &pCache1);
+  int32_t code = initStreamDataCache(streamId, taskId, cleanMode, 0, &pCache1);
   ASSERT_EQ(code, 0);
   code = putStreamDataCache(pCache1, groupID, wstart, wend, pBlock11, 0, 29);
   ASSERT_EQ(code, 0);
@@ -629,7 +626,7 @@ TEST(dataSinkTest, allWriteMultiStreamToFileTest) {
   TSKEY   wstart2 = baseTestTime2 + 0;
   TSKEY   wend2 = baseTestTime2 + 100;
   void*   pCache2 = NULL;
-  code = initStreamDataCache(streamId2, taskId2, cleanMode2, &pCache2);
+  code = initStreamDataCache(streamId2, taskId2, cleanMode2, 0, &pCache2);
   ASSERT_EQ(code, 0);
   code = putStreamDataCache(pCache2, groupID2, wstart2, wend2, pBlock21, 0, 29);
   ASSERT_EQ(code, 0);
