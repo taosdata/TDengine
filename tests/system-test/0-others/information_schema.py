@@ -276,7 +276,6 @@ class TDTestCase:
             'subscription':'Subscription',
             'view':'View',
             'audit':'Audit',
-            'csv':'CSV',
             'storage':'Multi-Tier Storage',
             'backup_restore':'Data Backup & Restore',
             'object_storage':'Object Storage',
@@ -300,6 +299,7 @@ class TDTestCase:
             'mssql':'SqlServer',
             'mongodb':'MongoDB',
             'csv':'CSV',
+            'sparkplugb':"SparkplugB",
         }
 
         tdSql.execute('drop database if exists db2')
