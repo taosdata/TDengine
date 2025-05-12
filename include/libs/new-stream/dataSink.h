@@ -103,6 +103,7 @@ typedef struct SStreamTaskDSManager {
   int64_t           taskId;
   int64_t           usedMemSize;
   SCleanMode        cleanMode;
+  int32_t           tsSlotId;
   SHashObj*         DataSinkGroupList;  // hash <groupId, SGroupDSManager>
   SDataSinkFileMgr* pFileMgr;
 } SStreamTaskDSManager;
@@ -120,10 +121,11 @@ typedef enum {
   DATA_SINK_FILE,
 } SDataSinkPos;
 typedef struct SResultIter {
-  void*             groupData;  // SGroupDSManager(data in mem) or SGroupFileDataMgr(data in file)
-  SDataSinkFileMgr* pFileMgr;   // when has data in file, pFileMgr is not NULL
-  int64_t           offset;     // array index, start from 0
-  SDataSinkPos      dataPos;    // 0 - data in mem, 1 - data in file
+  void*             groupData;    // SGroupDSManager(data in mem) or SGroupFileDataMgr(data in file)
+  SDataSinkFileMgr* pFileMgr;     // when has data in file, pFileMgr is not NULL
+  int32_t           tsColSlotId;  // ts column slot id
+  int64_t           offset;       // array index, start from 0
+  SDataSinkPos      dataPos;      // 0 - data in mem, 1 - data in file
   int64_t           groupId;
   int64_t           reqStartTime;
   int64_t           reqEndTime;
@@ -210,7 +212,7 @@ int32_t moveToCache(SStreamTaskDSManager* pStreamDataSink, SGroupDSManager* pGro
 int32_t readDataFromCache(SResultIter* pResult, SSDataBlock** ppBlock, bool* finished);
 int32_t getFirstDataIterFromCache(SStreamTaskDSManager* pStreamTaskDSMgr, int64_t groupId, TSKEY start, TSKEY end,
                                   void** ppResult);
-int32_t readDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, bool* finished);
+int32_t readDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, int32_t tsColSlotId, bool* finished);
 int32_t getFirstDataIterFromFile(SDataSinkFileMgr* pFileMgr, int64_t groupId, TSKEY start, TSKEY end,
                                  void** ppResult);
 

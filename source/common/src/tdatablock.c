@@ -4082,7 +4082,36 @@ _exit:
   return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
 }
 
-int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, TSKEY start, TSKEY end) {
+int32_t getTsColDataOffset(SSDataBlock* pBlock, int32_t* colLen, int32_t numOfRows, int32_t tsColSlotId, int32_t* pOffset) {
+  *pOffset = 0;
+  for (int32_t i = 0; i < tsColSlotId; ++i) {
+    int oneColsLen = htonl(colLen[i]);
+    if (oneColsLen < 0) {
+      uError("block decode colLen:%d error, colIdx:%d", oneColsLen, i);
+      terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      return terrno;
+    }
+
+    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+    if (pColInfoData == NULL) {
+      return terrno;
+    }
+
+    if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+      *pOffset += sizeof(int32_t) * numOfRows;
+    } else {
+      *pOffset += BitmapLen(numOfRows);
+    }
+    if (i != tsColSlotId) {
+      *pOffset += oneColsLen;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, int32_t tsColSlotId, TSKEY start, TSKEY end) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
   const char* pStart = pData;
 
   int32_t version = *(int32_t*)pStart;
@@ -4149,9 +4178,14 @@ int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, TSKE
   int32_t* colLen = (int32_t*)pStart;
   pStart += sizeof(int32_t) * numOfCols;
 
-  int32_t tsLen = htonl(colLen[0]);
-  const char* pts = pStart + BitmapLen(numOfRows);
-  int32_t firstRowNum = getFirstNotSmallerThanTSRowNum(pts, 0, numOfRows, start);
+  int32_t tsLen = htonl(colLen[tsColSlotId]);
+  int32_t tsColOffset;
+  code = getTsColDataOffset(pBlock, colLen, numOfRows, tsColSlotId, &tsColOffset);
+  if (code) {
+    return code;
+  }
+  const char* pts = pStart + tsColOffset;
+  int32_t     firstRowNum = getFirstNotSmallerThanTSRowNum(pts, 0, numOfRows, start);
   if (firstRowNum < 0) {
     pBlock->info.rows = 0;
     return TSDB_CODE_SUCCESS;
@@ -4164,7 +4198,7 @@ int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, TSKE
   int32_t realRows = lastRowNumNext - firstRowNum;
   int32_t leftRows = numOfRows - lastRowNumNext;
 
-  int32_t code = blockDataEnsureCapacity(pBlock, realRows);
+  code = blockDataEnsureCapacity(pBlock, realRows);
   if (code) {
     return code;
   }
@@ -4259,7 +4293,7 @@ int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, TSKE
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getStreamBlockTS(SSDataBlock* pBlock, int32_t row, TSKEY* ts) {
+int32_t getStreamBlockTS(SSDataBlock* pBlock, int32_t row, int32_t tsColSlotId, TSKEY* ts) {
   if (pBlock == NULL || ts == NULL) {
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
@@ -4267,13 +4301,17 @@ int32_t getStreamBlockTS(SSDataBlock* pBlock, int32_t row, TSKEY* ts) {
   if (pBlock->info.rows <= 0) {
     return TSDB_CODE_SUCCESS;
   }
+  int32_t cols = taosArrayGetSize(pBlock->pDataBlock);
+  if (tsColSlotId < 0 || tsColSlotId >= cols) {
+    uError("Invalid tsColSlotId %d, block has %d columns", tsColSlotId, cols);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
 
-  SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, 0);
+  SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, tsColSlotId);
   if (pColInfoData == NULL) {
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
   *ts = *(TSKEY*)(pColInfoData->pData + row * sizeof(TSKEY));
   return TSDB_CODE_SUCCESS;
-
 }
