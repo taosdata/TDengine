@@ -1729,12 +1729,13 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder* decoder, SDbCfgRsp* pRsp);
 void    tFreeSDbCfgRsp(SDbCfgRsp* pRsp);
 
 typedef struct {
-  char    mountName[TSDB_MOUNT_NAME_LEN];
-  char    mountPath[TSDB_MOUNT_PATH_LEN];
-  int8_t  ignoreExist;
-  int32_t dnodeId;
-  int32_t sqlLen;
-  char*   sql;
+  char     mountName[TSDB_MOUNT_NAME_LEN];
+  int8_t   ignoreExist;
+  int16_t  nMounts;
+  int32_t* dnodeIds;
+  char**   mountPaths;
+  int32_t  sqlLen;
+  char*    sql;
 } SCreateMountReq;
 
 int32_t tSerializeSCreateMountReq(void* buf, int32_t bufLen, SCreateMountReq* pReq);

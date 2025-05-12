@@ -489,7 +489,7 @@ typedef struct {
   int64_t      uid;
   int16_t      nMounts;
   int16_t      nDbs;
-  int32_t*     dnodeId;
+  int32_t*     dnodeIds;
   char**       paths;
   SMountDbObj* dbObj;
   SRWLatch     lock;

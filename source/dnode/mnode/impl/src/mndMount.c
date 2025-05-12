@@ -76,7 +76,7 @@ void mndCleanupMount(SMnode *pMnode) {}
 
 void mndMountFreeObj(SMountObj *pObj) {
   if (pObj) {
-    taosMemoryFreeClear(pObj->dnodeId);
+    taosMemoryFreeClear(pObj->dnodeIds);
     taosMemoryFreeClear(pObj->dbObj);
     if (pObj->paths) {
       for (int32_t i = 0; i < pObj->nMounts; ++i) {
@@ -110,11 +110,11 @@ int32_t tSerializeSMountObj(void *buf, int32_t bufLen, const SMountObj *pObj) {
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->uid));
   TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pObj->nMounts));
   for (int16_t i = 0; i < pObj->nMounts; ++i) {
-    TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pObj->dnodeId[i]));
+    TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pObj->dnodeIds[i]));
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->paths[i]));
   }
   TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pObj->nDbs));
-  for (int16_t i = 0; i < pObj->nMounts; ++i) {
+  for (int16_t i = 0; i < pObj->nDbs; ++i) {
     TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pObj->dbObj[i].uid));  // TODO
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->dbObj[i].name));
     // TAOS_CHECK_EXIT(tEncodeSdbCfg(&encoder, &pObj->dbObj[i].cfg)); // TODO
@@ -147,14 +147,14 @@ int32_t tDeserializeSMountObj(void *buf, int32_t bufLen, SMountObj *pObj) {
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->uid));
   TAOS_CHECK_EXIT(tDecodeI16v(&decoder, &pObj->nMounts));
   if (pObj->nMounts > 0) {
-    if (!(pObj->dnodeId = taosMemoryMalloc(sizeof(int32_t) * pObj->nMounts))) {
+    if (!(pObj->dnodeIds = taosMemoryMalloc(sizeof(int32_t) * pObj->nMounts))) {
       TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
     }
     if (!(pObj->paths = taosMemoryMalloc(sizeof(char *) * pObj->nMounts))) {
       TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
     }
     for (int16_t i = 0; i < pObj->nMounts; ++i) {
-      TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pObj->dnodeId[i]));
+      TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pObj->dnodeIds[i]));
       TAOS_CHECK_EXIT(tDecodeCStrAlloc(&decoder, &pObj->paths[i]));
     }
   }
@@ -189,7 +189,7 @@ SSdbRaw *mndMountActionEncode(SMountObj *pObj) {
   }
 
   int32_t size = sizeof(int32_t) + tlen;
-  pRaw = sdbAllocRaw(SDB_GRANT, MND_MOUNT_VER_NUMBER, size);
+  pRaw = sdbAllocRaw(SDB_MOUNT, MND_MOUNT_VER_NUMBER, size);
   if (pRaw == NULL) {
     TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
@@ -330,8 +330,7 @@ static int32_t mndMountActionDelete(SSdb *pSdb, SMountObj *pObj) {
 static int32_t mndMountActionUpdate(SSdb *pSdb, SMountObj *pOld, SMountObj *pNew) {
   mTrace("mount:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
   taosWLockLatch(&pOld->lock);
-  pOld->updateTime = pNew->updateTime;
-  ASSERT(0);  // TODO
+  pOld->updateTime = pNew->updateTime;  // TODO
   taosWUnLockLatch(&pOld->lock);
   return 0;
 }
@@ -665,11 +664,11 @@ static int32_t mndSetCreateDbUndoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
 
   TAOS_RETURN(code);
 }
+#endif
 
-static int32_t mndSetCreateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups,
-                                        SUserObj *pUserDuped) {
+static int32_t mndSetCreateMountCommitLogs(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
   int32_t  code = 0;
-  SSdbRaw *pDbRaw = mndDbActionEncode(pDb);
+  SSdbRaw *pDbRaw = mndMountActionEncode(pObj);
   if (pDbRaw == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -678,40 +677,9 @@ static int32_t mndSetCreateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *
   TAOS_CHECK_RETURN(mndTransAppendCommitlog(pTrans, pDbRaw));
   TAOS_CHECK_RETURN(sdbSetRawStatus(pDbRaw, SDB_STATUS_READY));
 
-  for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
-    SSdbRaw *pVgRaw = mndVgroupActionEncode(pVgroups + v);
-    if (pVgRaw == NULL) {
-      code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-      if (terrno != 0) code = terrno;
-      TAOS_RETURN(code);
-    }
-    TAOS_CHECK_RETURN(mndTransAppendCommitlog(pTrans, pVgRaw));
-    TAOS_CHECK_RETURN(sdbSetRawStatus(pVgRaw, SDB_STATUS_READY));
-  }
-
-  if (pDb->cfg.withArbitrator) {
-    for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
-      SVgObj   *pVgObj = pVgroups + v;
-      SArbGroup arbGroup = {0};
-      TAOS_CHECK_RETURN(mndArbGroupInitFromVgObj(pVgObj, &arbGroup));
-      TAOS_CHECK_RETURN(mndSetCreateArbGroupCommitLogs(pTrans, &arbGroup));
-    }
-  }
-
-  if (pUserDuped) {
-    SSdbRaw *pUserRaw = mndUserActionEncode(pUserDuped);
-    if (pUserRaw == NULL) {
-      code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-      if (terrno != 0) code = terrno;
-      TAOS_RETURN(code);
-    }
-    TAOS_CHECK_RETURN(mndTransAppendCommitlog(pTrans, pUserRaw));
-    TAOS_CHECK_RETURN(sdbSetRawStatus(pUserRaw, SDB_STATUS_READY));
-  }
-
   TAOS_RETURN(code);
 }
-#endif
+
 static int32_t mndSetCreateMountRedoActions(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
   int32_t code = 0;
   // for (int32_t vg = 0; vg < pDb->cfg.numOfVgroups; ++vg) {
@@ -750,6 +718,9 @@ static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SCreateMountReq *pC
   mntObj.updateTime = mntObj.createdTime;
   mntObj.uid = mndGenerateUid(mntObj.name, TSDB_MOUNT_NAME_LEN);
   (void)memcpy(mntObj.createUser, pUser->user, TSDB_USER_LEN);
+  mntObj.nMounts = pCreate->nMounts;
+  TSWAP(mntObj.dnodeIds, pCreate->dnodeIds);
+  TSWAP(mntObj.paths, pCreate->mountPaths);
   // dbCfg
   // mntObj.dbCfg = pCreate->dbCfg;
   // mntObj.dbName = pCreate->dbName;
@@ -811,7 +782,7 @@ static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SCreateMountReq *pC
   TAOS_CHECK_EXIT(mndSetCreateMountRedoActions(pMnode, pTrans, &mntObj));
   // TAOS_CHECK_EXIT(mndSetNewVgPrepareActions(pMnode, pTrans, &mntObj, pVgroups));
   // TAOS_CHECK_EXIT(mndSetCreateDbUndoLogs(pMnode, pTrans, &mntObj, pVgroups));
-  // TAOS_CHECK_EXIT(mndSetCreateDbCommitLogs(pMnode, pTrans, &mntObj, pVgroups, pNewUserDuped));
+  TAOS_CHECK_EXIT(mndSetCreateMountCommitLogs(pMnode, pTrans, &mntObj));
   // TAOS_CHECK_EXIT(mndSetCreateDbUndoActions(pMnode, pTrans, &mntObj, pVgroups));
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 
@@ -884,7 +855,7 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
   SCreateMountReq createReq = {0};
 
   TAOS_CHECK_EXIT(tDeserializeSCreateMountReq(pReq->pCont, pReq->contLen, &createReq));
-  mInfo("mount:%s, start to create on dnode %d from %s", createReq.mountName, createReq.dnodeId, createReq.mountPath);
+  mInfo("mount:%s, start to create on dnode %d from %s", createReq.mountName, *createReq.dnodeIds, createReq.mountPaths[0]); // TODO: mutiple mounts
 
   if ((pMount = mndAcquireMount(pMnode, createReq.mountName))) {
     if (createReq.ignoreExist) {
@@ -920,8 +891,8 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
 
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("mount:%s, dnode:%d, path:%s, failed to create at line:%d since %s", createReq.mountName, createReq.dnodeId,
-           createReq.mountPath, lino, tstrerror(code));
+    mError("mount:%s, dnode:%d, path:%s, failed to create at line:%d since %s", createReq.mountName, createReq.dnodeIds[0],
+           createReq.mountPaths[0], lino, tstrerror(code)); // TODO: mutiple mounts
   }
 
   mndReleaseMount(pMnode, pMount);
@@ -2023,59 +1994,69 @@ static bool mndGetTablesOfDbFp(SMnode *pMnode, void *pObj, void *p1, void *p2, v
   return true;
 }
 #endif
+
+// {.name = "name", .bytes = TSDB_MOUNT_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+// {.name = "dnode", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+// {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
+// {.name = "path", .bytes = TSDB_MOUNT_PATH_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+
 static int32_t mndRetrieveMounts(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
-  fprintf(stderr, "mndRetrieveMounts: %d\n", rowsCapacity);
-#if 0    
-  SMnode    *pMnode = pReq->info.node;
-  SSdb      *pSdb = pMnode->pSdb;
-  int32_t    numOfRows = 0;
-  SDbObj    *pDb = NULL;
-  SUserObj  *pUser = NULL;
-  ESdbStatus objStatus = 0;
+  SMnode          *pMnode = pReq->info.node;
+  int32_t          code = 0, lino = 0;
+  int32_t          numOfRows = 0;
+  int32_t          cols = 0;
+  char             tmp[512];
+  int32_t          tmpLen = 0;
+  int32_t          bufLen = 0;
+  char            *pBuf = NULL;
+  char            *qBuf = NULL;
+  void            *pIter = NULL;
+  SSdb            *pSdb = pMnode->pSdb;
+  SColumnInfoData *pColInfo = NULL;
 
-  (void)mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
-  if (pUser == NULL) return 0;
-  bool sysinfo = pUser->sysInfo;
+  pBuf = tmp;
+  bufLen = sizeof(tmp) - VARSTR_HEADER_SIZE;
+  if (pShow->numOfRows < 1) {
+    SMountObj *pObj = NULL;
+    int32_t    index = 0;
+    while ((pIter = sdbFetch(pSdb, SDB_MOUNT, pIter, (void **)&pObj))) {
+      cols = 0;
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+      qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+      TAOS_UNUSED(snprintf(qBuf, bufLen, "%s", pObj->name));
+      varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
+      COL_DATA_SET_VAL_GOTO(pBuf, false, pObj, _exit);
 
-  // Append the information_schema database into the result.
-  if (!pShow->sysDbRsp) {
-    SDbObj infoschemaDb = {0};
-    setInformationSchemaDbCfg(pMnode, &infoschemaDb);
-    size_t numOfTables = 0;
-    getVisibleInfosTablesNum(sysinfo, &numOfTables);
-    mndDumpDbInfoData(pMnode, pBlock, &infoschemaDb, pShow, numOfRows, numOfTables, true, 0, 1);
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        // TAOS_UNUSED(snprintf(pBuf, bufLen, "%d", *(int32_t *)pObj->dnodeIds));  // TODO: support mutiple dnodes
+        COL_DATA_SET_VAL_GOTO((const char*)&pObj->dnodeIds[0], false, pObj, _exit);
+      }
 
-    numOfRows += 1;
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        // TAOS_UNUSED(snprintf(pBuf, bufLen, "%" PRIi64, pObj->createdTime));
+        COL_DATA_SET_VAL_GOTO((const char*)&pObj->createdTime, false, pObj, _exit);
+      }
 
-    SDbObj perfschemaDb = {0};
-    setPerfSchemaDbCfg(pMnode, &perfschemaDb);
-    numOfTables = 0;
-    getPerfDbMeta(NULL, &numOfTables);
-    mndDumpDbInfoData(pMnode, pBlock, &perfschemaDb, pShow, numOfRows, numOfTables, true, 0, 1);
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+        TAOS_UNUSED(snprintf(qBuf, bufLen, "%s", pObj->paths[0]));  // TODO: support mutiple paths
+        varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
+        COL_DATA_SET_VAL_GOTO(pBuf, false, pObj, _exit);
+      }
 
-    numOfRows += 1;
-    pShow->sysDbRsp = true;
-  }
-
-  while (numOfRows < rowsCapacity) {
-    pShow->pIter = sdbFetchAll(pSdb, SDB_DB, pShow->pIter, (void **)&pDb, &objStatus, true);
-    if (pShow->pIter == NULL) break;
-
-    if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_OR_WRITE_DB, pDb) == 0) {
-      int32_t numOfTables = 0;
-      sdbTraverse(pSdb, SDB_VGROUP, mndGetTablesOfDbFp, &numOfTables, &pDb->uid, NULL);
-      mndDumpDbInfoData(pMnode, pBlock, pDb, pShow, numOfRows, numOfTables, false, objStatus, sysinfo);
-      numOfRows++;
+      sdbRelease(pSdb, pObj);
+      ++numOfRows;
     }
-
-    sdbRelease(pSdb, pDb);
   }
 
   pShow->numOfRows += numOfRows;
-  mndReleaseUser(pMnode, pUser);
+
+_exit:
+  if (code < 0) {
+    mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    TAOS_RETURN(code);
+  }
   return numOfRows;
-#endif
-  return 0;
 }
 
 static void mndCancelGetNextMount(SMnode *pMnode, void *pIter) {

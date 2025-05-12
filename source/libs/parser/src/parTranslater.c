@@ -9803,17 +9803,26 @@ static int32_t translateS3MigrateDatabase(STranslateContext* pCxt, SS3MigrateDat
 }
 
 static int32_t translateCreateMount(STranslateContext* pCxt, SCreateMountStmt* pStmt) {
+  int32_t         code = 0, lino = 0;
   SCreateMountReq createReq = {0};
-  int32_t         code = checkCreateMount(pCxt, pStmt);
 
-  createReq.dnodeId = pStmt->dnodeId;
-  createReq.ignoreExist = pStmt->ignoreExists;
+  TAOS_CHECK_EXIT(checkCreateMount(pCxt, pStmt));
+  createReq.nMounts = 1;
+  TSDB_CHECK_NULL((createReq.dnodeIds = taosMemoryMalloc(sizeof(int32_t) * createReq.nMounts)), code, lino, _exit,
+                  terrno);
+  TSDB_CHECK_NULL((createReq.mountPaths = taosMemoryMalloc(sizeof(char*) * createReq.nMounts)), code, lino, _exit,
+                  terrno);
   TAOS_UNUSED(snprintf(createReq.mountName, sizeof(createReq.mountName), "%s", pStmt->mountName));
-  TAOS_UNUSED(snprintf(createReq.mountPath, sizeof(createReq.mountPath), "%s", pStmt->mountPath));
+  createReq.ignoreExist = pStmt->ignoreExists;
+  createReq.dnodeIds[0] = pStmt->dnodeId;
+  TSDB_CHECK_NULL((createReq.mountPaths[0] = taosMemoryMalloc(strlen(pStmt->mountPath) + 1)), code, lino, _exit,
+                  terrno);
+  TAOS_UNUSED(sprintf(createReq.mountPaths[0], "%s", pStmt->mountPath));
 
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_CREATE_MOUNT, (FSerializeFunc)tSerializeSCreateMountReq, &createReq);
   }
+_exit:
   tFreeSCreateMountReq(&createReq);
   return code;
 }

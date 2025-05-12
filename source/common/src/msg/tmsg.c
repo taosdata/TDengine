@@ -5987,6 +5987,16 @@ void tFreeSDbCfgRsp(SDbCfgRsp *pRsp) {
   taosArrayDestroy(pRsp->pRetensions);
 }
 
+// typedef struct {
+//   char     mountName[TSDB_MOUNT_NAME_LEN];
+//   int8_t   ignoreExist;
+//   int16_t  nMounts;
+//   int32_t* dnodeIds;
+//   char**   mountPaths;
+//   int32_t  sqlLen;
+//   char*    sql;
+// } SCreateMountReq;
+
 int32_t tSerializeSCreateMountReq(void *buf, int32_t bufLen, SCreateMountReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
@@ -5997,13 +6007,15 @@ int32_t tSerializeSCreateMountReq(void *buf, int32_t bufLen, SCreateMountReq *pR
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->mountName));
-  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->mountPath));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->dnodeId));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->ignoreExist));
+  TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pReq->nMounts));
+  for (int32_t i = 0; i < pReq->nMounts; ++i) {
+    TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->dnodeIds[i]));
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->mountPaths[i]));
+  }
   ENCODESQL();
 
   tEndEncode(&encoder);
-
 _exit:
   if (code) {
     tlen = code;
@@ -6022,19 +6034,36 @@ int32_t tDeserializeSCreateMountReq(void *buf, int32_t bufLen, SCreateMountReq *
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->mountName));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->mountPath));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->dnodeId));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->ignoreExist));
+  TAOS_CHECK_EXIT(tDecodeI16v(&decoder, &pReq->nMounts));
+  if(pReq->nMounts > 0) {
+    TSDB_CHECK_NULL((pReq->dnodeIds = taosMemoryMalloc(pReq->nMounts * sizeof(int32_t))), code, lino, _exit, terrno);
+    TSDB_CHECK_NULL((pReq->mountPaths = taosMemoryMalloc(pReq->nMounts * sizeof(char*))), code, lino, _exit, terrno);
+    for (int32_t i = 0; i < pReq->nMounts; ++i) {
+      TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pReq->dnodeIds[i]));
+      TAOS_CHECK_EXIT(tDecodeCStrAlloc(&decoder, &pReq->mountPaths[i]));
+    }
+  }
   DECODESQL();
 
   tEndDecode(&decoder);
-
 _exit:
   tDecoderClear(&decoder);
   return code;
 }
 
-void tFreeSCreateMountReq(SCreateMountReq *pReq) { FREESQL(); }
+void tFreeSCreateMountReq(SCreateMountReq *pReq) {
+  if (pReq) {
+    taosMemoryFreeClear(pReq->dnodeIds);
+    if (pReq->mountPaths) {
+      for (int32_t i = 0; i < pReq->nMounts; ++i) {
+        taosMemoryFreeClear(pReq->mountPaths[i]);
+      }
+      taosMemoryFreeClear(pReq->mountPaths);
+    }
+    FREESQL();
+  }
+}
 
 int32_t tSerializeSDropMountReq(void *buf, int32_t bufLen, SDropMountReq *pReq) {
   SEncoder encoder = {0};
