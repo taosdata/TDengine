@@ -94,7 +94,7 @@ The following example directly writes to a supertable and uses the batch - bindi
   }
 
   // submit
-  preparedStatement.executeUpdate();
+  preparedStatement.executeBatch();
 
   // close statement
   preparedStatement.close();

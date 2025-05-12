@@ -94,7 +94,7 @@ driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”。
   }
 
   // submit
-  preparedStatement.executeUpdate();
+  preparedStatement.executeBatch();
 
   // close statement
   preparedStatement.close();
