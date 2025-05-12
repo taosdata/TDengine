@@ -1583,6 +1583,7 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->flags));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->tsmaId));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->placeHolderBitmap));
+  TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pReq->tsSlotId));
 
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->triggerTblVgId));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->outTblVgId));
@@ -1836,6 +1837,7 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->flags));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->tsmaId));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->placeHolderBitmap));
+  TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pReq->tsSlotId));
 
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->triggerTblVgId));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->outTblVgId));
