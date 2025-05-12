@@ -2284,5 +2284,21 @@ class TDSql:
         else:  # Linux/macOS
             input("press enter to continue...")
 
+    def setConnMode(self, mode=1):
+        """
+        Set Conn Mode
+
+        Args:
+            mode (int, optional): connect mode options.
+
+        Returns:
+            None
+
+        Raises:
+            None
+
+        """
+        tdLog.info(f"set connection mode:{mode}")
+
 
 tdSql = TDSql()

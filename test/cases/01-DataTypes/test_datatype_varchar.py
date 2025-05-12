@@ -1,22 +1,24 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestVarcharColumn:
+class TestDatatypeVarchar:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
         tdSql.prepare(dbname="db", drop=True)
 
-    def test_static_create_table(self):
-        """static create table
+    def test_datatype_varchar(self):
+        """varchar datatype
 
-        1. 使用 varchar 作为超级表的普通列、标签列
-        2. 当 varchar 作为标签列时，使用合法值、非法值创建子表
-        3. 当 varchar 作为标签列时，测试 show tags 的返回结果
+        1. create table
+        2. insert data
+        3. auto create table
+        4. alter tag value
+        5. illegal input
 
         Catalog:
-            - DataTypes:Varchar
-            - Tables:Create
+            - DataTypes
+            - Tables:SubTables:Create
 
         Since: v3.0.0.0
 
@@ -25,10 +27,16 @@ class TestVarcharColumn:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated from tsim/parser/columnValue_varchar.sim
+            - 2025-5-12 Simon Guan Migrated from tsim/parser/columnValue_varchar.sim
 
         """
+        self.create_table()
+        self.insert_data()
+        self.auto_create_table()
+        self.alter_tag_value()
+        self.illegal_input()
 
+    def create_table(self):
         tdLog.info(f"create super table")
         tdSql.execute(
             f"create table mt_varchar (ts timestamp, c varchar(50)) tags(tagname varchar(50))"
@@ -100,26 +108,7 @@ class TestVarcharColumn:
         tdSql.query(f"show tags from st_varchar_15")
         tdSql.checkData(0, 5, "today")
 
-    def test_insert_column_value(self):
-        """insert column value
-
-        1. 使用 varchar 作为超级表的普通列、标签列
-        2. 当 varchar 作为普通列时，使用合法值、非法值向子表中写入数据
-
-        Catalog:
-            - DataTypes:Varchar
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def insert_data(self):
         tdLog.info(f"case 1: insert values for test column values")
 
         tdSql.execute(f"insert into st_varchar_0 values(now, NULL)")
@@ -168,7 +157,7 @@ class TestVarcharColumn:
 
         tdSql.execute(f"insert into st_varchar_11 values(now, +0.1E+2)")
         tdSql.query(f"select * from st_varchar_11")
-        # tdSql.checkData(0, 1, "+0")
+        tdSql.checkData(0, 1, "+0.1e+2")
 
         tdSql.execute(f"insert into st_varchar_12 values(now, tRue)")
         tdSql.query(f"select * from st_varchar_12")
@@ -186,26 +175,7 @@ class TestVarcharColumn:
         tdSql.query(f"select * from st_varchar_15")
         tdSql.checkData(0, 1, "today")
 
-    def test_dynamic_create_table(self):
-        """dynamic create table
-
-        1. 使用 varchar 作为超级表的普通列、标签列
-        2. 使用合法值、非法值向子表中写入数据并自动建表
-
-        Catalog:
-            - DataTypes:Varchar
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def auto_create_table(self):
         tdLog.info(f"case 2: dynamic create table for test tag values")
         tdSql.execute(
             f"insert into st_varchar_0 using mt_varchar tags(NULL) values(now, NULL)"
@@ -351,26 +321,7 @@ class TestVarcharColumn:
         tdSql.query(f"select * from st_varchar_15")
         tdSql.checkData(0, 1, "today")
 
-    def test_alter_tag_value(self):
-        """alter tag value
-
-        1. 使用 varchar 作为超级表的标签列
-        2. 使用合法值、非法值修改子表的标签值
-
-        Catalog:
-            - DataTypes:Varchar
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def alter_tag_value(self):
         tdLog.info(f"case 3: alter tag value")
 
         tdSql.execute(f"alter table st_varchar_0  set tag tagname=NULL")
@@ -437,26 +388,7 @@ class TestVarcharColumn:
         tdSql.query(f"show tags from st_varchar_15")
         tdSql.checkData(0, 5, "today")
 
-    def test_illegal_input(self):
-        """illegal input
-
-        1. 使用 varchar 作为超级表的标签列
-        2. 使用非法标签值创建子表
-
-        Catalog:
-            - DataTypes:Varchar
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def illegal_input(self):
         tdSql.error(f"create table st_varchar_100 using mt_varchar tags(now+1d)")
         tdSql.error(f"create table st_varchar_101 using mt_varchar tags(toDay+1d)")
         tdSql.error(f"create table st_varchar_102 using mt_varchar tags(1+1b)")
