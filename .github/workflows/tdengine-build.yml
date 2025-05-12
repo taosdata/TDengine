@@ -230,9 +230,9 @@ jobs:
       - name: Run tests with taosBenchmark
         if: runner.os != 'Windows'
         run: |
-          taos -s "show databases"
-          taosBenchmark -t 10 -n 10 -s 1744951233012 -y
-          taos -s "select count(*) from test.meters"
+          taos  -h $(hostname) -s "show databases"
+          taosBenchmark -t 10 -n 10 -s 1744951233012 -h $(hostname)  -y 
+          taos  -h $(hostname) -s "select count(*) from test.meters"
 
       - name: Clean up  on Linux and macOS
         if: runner.os != 'Windows'
