@@ -19,7 +19,12 @@ Prepare the following environment:
 - Install Python connector driver, refer to [Python Client Library](../../../tdengine-reference/client-libraries/python).
 
 :::tip
-The Python connector of TDengine comes with a connection driver that supports Superset in versions 2.1.18 and later, which will be automatically installed in the Superset directory and provide data source services.  
+The TDengine Python connector has come with the Superset connection driver since version 2.7.18. It will be installed in the corresponding directory of Superset and provide data source services to Superset. Later, this driver was included in the Apache Superset 4.1.2 version. Therefore, there is no need to include it in the connector anymore. This driver was removed in TDengine Python v2.8.0. The matching table is as follows:
+| TDengine Python Connector Version | Matching Apache Superset Version  |
+|:--------------------------------- |:--------------------------------  |
+| 2.7.18 ~ 2.7.23                   | 2.1.0 ~ 4.1.1                     |  
+| 2.8.0 and above                   | 4.1.2 and above                   |
+
 :::
 
 ## Configure Data Source

@@ -723,7 +723,6 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_QUERIES_STMT:
     case QUERY_NODE_SHOW_VNODES_STMT:
     case QUERY_NODE_SHOW_APPS_STMT:
-    case QUERY_NODE_SHOW_SCORES_STMT:
     case QUERY_NODE_SHOW_VARIABLES_STMT:
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
@@ -988,6 +987,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL:
       code = makeNode(type, sizeof(SExternalWindowPhysiNode), &pNode);
+      break;
+    case QUERY_NODE_SHOW_SCORES_STMT:
+      code = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
     default:
       break;
@@ -1295,6 +1297,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_ANOMALY_WINDOW: {
       SAnomalyWindowNode* pAnomaly = (SAnomalyWindowNode*)pNode;
       nodesDestroyNode(pAnomaly->pCol);
+      nodesDestroyNode(pAnomaly->pExpr);
       break;
     }
     case QUERY_NODE_EXTERNAL_WINDOW: {
@@ -2035,6 +2038,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY: {
       SAnomalyWindowPhysiNode* pPhyNode = (SAnomalyWindowPhysiNode*)pNode;
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
+      nodesDestroyNode(pPhyNode->pAnomalyKey);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION: {

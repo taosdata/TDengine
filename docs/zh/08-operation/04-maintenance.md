@@ -27,12 +27,12 @@ kill compact compact_id;
 ### 效果
 
 - 扫描并压缩指定的 DB 中所有 vgroup 中 vnode 的所有数据文件
-- 扫描并压缩 DB 中指定的 vgroup 列表中 vnode 的所有数据文件, 若 db_name 为空，则默认为当前数据库
+- 扫描并压缩 DB 中指定的 vgroup 列表中 vnode 的所有数据文件，若 db_name 为空，则默认为当前数据库
 - compact 会删除被删除数据以及被删除的表的数据
 - compact 会合并多个 STT 文件
 - 可通过 start with 关键字指定 compact 数据的起始时间
 - 可通过 end with 关键字指定 compact 数据的终止时间
-- 可通过 `META_ONLY` 关键字指定只 compact 元数据。元数据默认情况下不会 compact。
+- 可通过 `META_ONLY` 关键字指定只 compact 元数据。元数据默认情况下不会 compact。元数据压缩会阻塞写入和查询，且被压缩数据库应该停止写入和查询
 - compact 命令会返回 compact 任务的 ID
 - compact 任务会在后台异步执行，可以通过 show compacts 命令查看 compact 任务的进度
 - show 命令会返回 compact 任务的 ID，可以通过 kill compact 命令终止 compact 任务
@@ -59,7 +59,7 @@ balance vgroup leader database <database_name>; # 再平衡一个 database 内�
 
 ### 注意
 
-vgroup 选举本身带有随机性，所以通过选举的重新分布产生的均匀分布也是带有一定的概率，不会完全的均匀。该命令的副作用是影响查询和写入，在 vgroup 重新选举时，从开始选举到选举出新的 leader 这段时间，这 个vgroup 无法写入和查询。选举过程一般在秒级完成。所有的 vgroup 会依次逐个重新选举。
+vgroup 选举本身带有随机性，所以通过选举的重新分布产生的均匀分布也是带有一定的概率，不会完全的均匀。该命令的副作用是影响查询和写入，在 vgroup 重新选举时，从开始选举到选举出新的 leader 这段时间，这 个 vgroup 无法写入和查询。选举过程一般在秒级完成。所有的 vgroup 会依次逐个重新选举。
 
 ## 恢复数据节点
 
@@ -128,14 +128,14 @@ assigned_dnode：
 
 assigned_token：
 - 标识被指定为 AssignedLeader 的 vnode 的 Token
-- 未指定 AssignedLeader时，该列显示 NULL
+- 未指定 AssignedLeader 时，该列显示 NULL
 
 ### 最佳实践
 
 1. 全新部署
 
 双副本的主要价值在于节省存储成本的同时能够有一定的高可用和高可靠能力。在实践中，推荐配置为：
-- N 节点集群 （其中 N>=3）
+- N 节点集群（其中 N>=3）
 - 其中 N-1 个 dnode 负责存储时序数据
 - 第 N 个 dnode 不参与时序数据的存储和读取，即其上不保存副本；可以通过 `supportVnodes` 这个参数为 0 来实现这个目标
 - 不存储数据副本的 dnode 对 CPU/Memory 资源的占用也较低，可以使用较低配置服务器

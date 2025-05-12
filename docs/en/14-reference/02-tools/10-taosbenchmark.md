@@ -100,6 +100,9 @@ taosBenchmark -f <json file>
 - **-t/--tables \<tableNum>** :
   Specifies the number of subtables, default is 10000.
 
+-**-s/ --start-timestamp \<NUMBER>**: 
+  Specify start timestamp to insert data for each child table
+
 - **-S/--timestampstep \<stepLength>** :
   Timestamp step length for inserting data into each subtable, in ms, default value is 1.
 
@@ -444,7 +447,7 @@ The subscription configuration parameters are set under `tmq_info`. The paramete
 -**poll_delay**: The polling timeout time passed in by calling tmq_consumer_poll. 
   The unit is milliseconds. A negative number means the default timeout is 1 second.
 -**enable.manual.commit**: whether manual submission is allowed. 
-  The value can be true: manual submission is allowed, after consuming messages, manually call tmq_commit_sync to complete the submission. false：Do not submit, default value: false.
+  The value can be true: manual submission is allowed, after consuming messages, manually call tmq_commit_sync to complete the submission. false: Do not submit, default value: false.
 -**rows_file**: a file that stores consumption data. 
   It can be a full path or a relative path with a file name.The actual saved file will be followed by the consumer serial number. For example, rows_file is result, and the actual file name is result_1 (consumer 1) result_2 (consumer 2).
 -**expect_rows**: the number of rows and data types expected to be consumed by each consumer. 

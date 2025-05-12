@@ -121,6 +121,7 @@ static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak
   bool    wait = (code == 0 && vnodeIsMsgBlock(pMsg->msgType));
   if (wait) {
     if (pVnode->blocked) {
+      (void)taosThreadMutexUnlock(&pVnode->lock);
       return TSDB_CODE_INTERNAL_ERROR;
     }
     pVnode->blocked = true;
@@ -444,7 +445,17 @@ static int32_t vnodeSyncApplyMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsm
           pMeta->state, syncStr(pMeta->state), TMSG_INFO(pMsg->msgType), pMsg->code);
 
   int32_t code = tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, pMsg);
-  if (code < 0) vError("vgId:%d, failed to put into apply_queue since %s", pVnode->config.vgId, tstrerror(code));
+  if (code < 0) {
+    if (code == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE) {
+      pVnode->applyQueueErrorCount++;
+      if (pVnode->applyQueueErrorCount == APPLY_QUEUE_ERROR_THRESHOLD) {
+        pVnode->applyQueueErrorCount = 0;
+        vWarn("vgId:%d, failed to put into apply_queue since %s", pVnode->config.vgId, tstrerror(code));
+      }
+    } else {
+      vError("vgId:%d, failed to put into apply_queue since %s", pVnode->config.vgId, tstrerror(code));
+    }
+  }
   return code;
 }
 
@@ -561,9 +572,15 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
       vInfo("vgId:%d, no items to be applied, restore finish", pVnode->config.vgId);
       break;
     } else {
-      vInfo("vgId:%d, restore not finish since %" PRId64 " items to be applied. commit-index:%" PRId64
-            ", applied-index:%" PRId64,
-            vgId, commitIdx - appliedIdx, commitIdx, appliedIdx);
+      if (appliedIdx % 10 == 0) {
+        vInfo("vgId:%d, restore not finish since %" PRId64 " items to be applied. commit-index:%" PRId64
+              ", applied-index:%" PRId64,
+              vgId, commitIdx - appliedIdx, commitIdx, appliedIdx);
+      } else {
+        vDebug("vgId:%d, restore not finish since %" PRId64 " items to be applied. commit-index:%" PRId64
+               ", applied-index:%" PRId64,
+               vgId, commitIdx - appliedIdx, commitIdx, appliedIdx);
+      }
       taosMsleep(10);
     }
   } while (true);

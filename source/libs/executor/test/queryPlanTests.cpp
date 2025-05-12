@@ -356,7 +356,7 @@ int32_t qptGetColumnRandLen(int32_t colType) {
     case TSDB_DATA_TYPE_NCHAR:
       return taosRand() % TSDB_MAX_BINARY_LEN;
     default:
-      assert(0);
+      TD_ALWAYS_ASSERT(0);
       break;
   }
 
@@ -504,7 +504,7 @@ void qptGetRandValue(uint8_t* pType, int32_t* pLen, void** ppVal) {
       *pLen = QPT_CORRECT_HIGH_PROB() ? tDataTypes[*pType].bytes : taosRand();
       if (ppVal) {
         *ppVal = taosMemoryMalloc(tDataTypes[*pType].bytes);
-        assert(*ppVal);
+        TD_ALWAYS_ASSERT(*ppVal);
         *(bool*)*ppVal = QPT_RAND_BOOL_V;
       }
       break;
@@ -512,7 +512,7 @@ void qptGetRandValue(uint8_t* pType, int32_t* pLen, void** ppVal) {
       *pLen = QPT_CORRECT_HIGH_PROB() ? tDataTypes[*pType].bytes : taosRand();
       if (ppVal) {
         *ppVal = taosMemoryMalloc(tDataTypes[*pType].bytes);
-        assert(*ppVal);
+        TD_ALWAYS_ASSERT(*ppVal);
         *(int8_t*)*ppVal = taosRand();
       }
       break;
@@ -520,7 +520,7 @@ void qptGetRandValue(uint8_t* pType, int32_t* pLen, void** ppVal) {
       *pLen = QPT_CORRECT_HIGH_PROB() ? tDataTypes[*pType].bytes : taosRand();
       if (ppVal) {
         *ppVal = taosMemoryMalloc(tDataTypes[*pType].bytes);
-        assert(*ppVal);
+        TD_ALWAYS_ASSERT(*ppVal);
         *(int16_t*)*ppVal = taosRand();
       }
       break;
@@ -528,7 +528,7 @@ void qptGetRandValue(uint8_t* pType, int32_t* pLen, void** ppVal) {
       *pLen = QPT_CORRECT_HIGH_PROB() ? tDataTypes[*pType].bytes : taosRand();
       if (ppVal) {
         *ppVal = taosMemoryMalloc(tDataTypes[*pType].bytes);
-        assert(*ppVal);
+        TD_ALWAYS_ASSERT(*ppVal);
         *(int32_t*)*ppVal = taosRand();
       }
       break;
@@ -537,7 +537,7 @@ void qptGetRandValue(uint8_t* pType, int32_t* pLen, void** ppVal) {
       *pLen = QPT_CORRECT_HIGH_PROB() ? tDataTypes[*pType].bytes : taosRand();
       if (ppVal) {
         *ppVal = taosMemoryMalloc(tDataTypes[*pType].bytes);
-        assert(*ppVal);
+        TD_ALWAYS_ASSERT(*ppVal);
         *(int64_t*)*ppVal = taosRand();
       }
       break;
@@ -545,7 +545,7 @@ void qptGetRandValue(uint8_t* pType, int32_t* pLen, void** ppVal) {
       *pLen = QPT_CORRECT_HIGH_PROB() ? tDataTypes[*pType].bytes : taosRand();
       if (ppVal) {
         *ppVal = taosMemoryMalloc(tDataTypes[*pType].bytes);
-        assert(*ppVal);
+        TD_ALWAYS_ASSERT(*ppVal);
         *(float*)*ppVal = taosRand();
       }
       break;
@@ -553,7 +553,7 @@ void qptGetRandValue(uint8_t* pType, int32_t* pLen, void** ppVal) {
       *pLen = QPT_CORRECT_HIGH_PROB() ? tDataTypes[*pType].bytes : taosRand();
       if (ppVal) {
         *ppVal = taosMemoryMalloc(tDataTypes[*pType].bytes);
-        assert(*ppVal);
+        TD_ALWAYS_ASSERT(*ppVal);
         *(double*)*ppVal = taosRand();
       }
       break;
@@ -567,7 +567,7 @@ void qptGetRandValue(uint8_t* pType, int32_t* pLen, void** ppVal) {
       *pLen = taosRand() % QPT_MAX_STRING_LEN;
       if (ppVal) {
         *ppVal = taosMemoryCalloc(1, *pLen + VARSTR_HEADER_SIZE);
-        assert(*ppVal);
+        TD_ALWAYS_ASSERT(*ppVal);
         varDataSetLen(*ppVal, *pLen);
         memset((char*)*ppVal + VARSTR_HEADER_SIZE, 'A' + taosRand() % 26, *pLen);
       }
@@ -576,11 +576,11 @@ void qptGetRandValue(uint8_t* pType, int32_t* pLen, void** ppVal) {
       *pLen = taosRand() % QPT_MAX_STRING_LEN;
       if (ppVal) {
         char* pTmp = (char*)taosMemoryCalloc(1, *pLen + 1);
-        assert(pTmp);
+        TD_ALWAYS_ASSERT(pTmp);
         memset(pTmp, 'A' + taosRand() % 26, *pLen);
         *ppVal = taosMemoryCalloc(1, *pLen * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
-        assert(*ppVal);
-        assert(taosMbsToUcs4(pTmp, *pLen, (TdUcs4 *)varDataVal(*ppVal), *pLen * TSDB_NCHAR_SIZE, NULL, NULL));
+        TD_ALWAYS_ASSERT(*ppVal);
+        TD_ALWAYS_ASSERT(taosMbsToUcs4(pTmp, *pLen, (TdUcs4 *)varDataVal(*ppVal), *pLen * TSDB_NCHAR_SIZE, NULL, NULL));
         *pLen *= TSDB_NCHAR_SIZE;
         varDataSetLen(*ppVal, *pLen);
         taosMemoryFree(pTmp);
@@ -591,7 +591,7 @@ void qptGetRandValue(uint8_t* pType, int32_t* pLen, void** ppVal) {
       *pLen = QPT_CORRECT_HIGH_PROB() ? tDataTypes[*pType].bytes : taosRand();
       if (ppVal) {
         *ppVal = taosMemoryMalloc(tDataTypes[*pType].bytes);
-        assert(*ppVal);
+        TD_ALWAYS_ASSERT(*ppVal);
         *(uint8_t*)*ppVal = taosRand();
       }
       break;
@@ -599,7 +599,7 @@ void qptGetRandValue(uint8_t* pType, int32_t* pLen, void** ppVal) {
       *pLen = QPT_CORRECT_HIGH_PROB() ? tDataTypes[*pType].bytes : taosRand();
       if (ppVal) {
         *ppVal = taosMemoryMalloc(tDataTypes[*pType].bytes);
-        assert(*ppVal);
+        TD_ALWAYS_ASSERT(*ppVal);
         *(uint16_t*)*ppVal = taosRand();
       }
       break;
@@ -607,7 +607,7 @@ void qptGetRandValue(uint8_t* pType, int32_t* pLen, void** ppVal) {
       *pLen = QPT_CORRECT_HIGH_PROB() ? tDataTypes[*pType].bytes : taosRand();
       if (ppVal) {
         *ppVal = taosMemoryMalloc(tDataTypes[*pType].bytes);
-        assert(*ppVal);
+        TD_ALWAYS_ASSERT(*ppVal);
         *(uint32_t*)*ppVal = taosRand();
       }
       break;
@@ -615,7 +615,7 @@ void qptGetRandValue(uint8_t* pType, int32_t* pLen, void** ppVal) {
       *pLen = QPT_CORRECT_HIGH_PROB() ? tDataTypes[*pType].bytes : taosRand();
       if (ppVal) {
         *ppVal = taosMemoryMalloc(tDataTypes[*pType].bytes);
-        assert(*ppVal);
+        TD_ALWAYS_ASSERT(*ppVal);
         *(uint64_t*)*ppVal = taosRand();
       }
       break;
@@ -623,7 +623,7 @@ void qptGetRandValue(uint8_t* pType, int32_t* pLen, void** ppVal) {
       *pLen = taosRand() % QPT_MAX_STRING_LEN;
       if (ppVal) {
         *ppVal = taosMemoryCalloc(1, *pLen);
-        assert(*ppVal);
+        TD_ALWAYS_ASSERT(*ppVal);
         memset((char*)*ppVal, 'a' + taosRand() % 26, *pLen);
       }
       break;
@@ -657,7 +657,7 @@ void qptFreeRandValue(int32_t* pType, void* pVal) {
     case TSDB_DATA_TYPE_MEDIUMBLOB:
       break;
     default:
-      assert(0);
+      TD_ALWAYS_ASSERT(0);
       break;
   }
 }
@@ -717,7 +717,7 @@ int32_t qptGetRandSubplanMsgType() {
 
 void qptNodesCalloc(int32_t num, int32_t size, void** pOut) {
   void* p = taosMemoryCalloc(num, size);
-  assert(p);
+  TD_ALWAYS_ASSERT(p);
   *(char*)p = 0;
   *pOut = (char*)p + 1;
 }
@@ -824,8 +824,8 @@ SNode* qptMakeColumnFromTable(int32_t colIdx) {
   }
   
   SColumnNode* pCol = NULL;
-  assert(0 == nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol));
-  assert(pCol);
+  TD_ALWAYS_ASSERT(0 == nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol));
+  TD_ALWAYS_ASSERT(pCol);
 
   SQPTCol fakeCol;
   fakeCol.type = QPT_QUERY_NODE_COL;
@@ -906,8 +906,8 @@ SNode* qptMakeWhenThenNode(SNode** ppNode) {
     return qptMakeRandNode(ppNode);
   }
   
-  assert(0 == nodesMakeNode(QUERY_NODE_WHEN_THEN, ppNode));
-  assert(*ppNode);
+  TD_ALWAYS_ASSERT(0 == nodesMakeNode(QUERY_NODE_WHEN_THEN, ppNode));
+  TD_ALWAYS_ASSERT(*ppNode);
   SWhenThenNode* pWhenThen = (SWhenThenNode*)*ppNode;
 
   qptMakeExprNode(&pWhenThen->pWhen);
@@ -923,8 +923,8 @@ SNode* qptMakeCaseWhenNode(SNode** ppNode) {
     return qptMakeRandNode(ppNode);
   }
   
-  assert(0 == nodesMakeNode(QUERY_NODE_CASE_WHEN, ppNode));
-  assert(*ppNode);
+  TD_ALWAYS_ASSERT(0 == nodesMakeNode(QUERY_NODE_CASE_WHEN, ppNode));
+  TD_ALWAYS_ASSERT(*ppNode);
   
   SCaseWhenNode* pCaseWhen = (SCaseWhenNode*)*ppNode;
 
@@ -955,7 +955,7 @@ SNode* qptMakeOperatorNode(SNode** ppNode) {
   }
 
   EOperatorType opType = OPERATOR_ARRAY[taosRand() % (sizeof(OPERATOR_ARRAY)/sizeof(OPERATOR_ARRAY[0]))];
-  assert(0 == nodesMakeNode(QUERY_NODE_OPERATOR, ppNode));
+  TD_ALWAYS_ASSERT(0 == nodesMakeNode(QUERY_NODE_OPERATOR, ppNode));
   
   SOperatorNode* pOp = (SOperatorNode*)*ppNode;
   pOp->opType = QPT_CORRECT_HIGH_PROB() ? opType : (EOperatorType)(opType + 1);
@@ -1287,7 +1287,7 @@ SNode* qptMakeTempTableNode(SNode** ppNode) {
   }
 
   STempTableNode* pTemp = NULL;
-  assert(0 == nodesMakeNode(QUERY_NODE_TEMP_TABLE, (SNode**)&pTemp));
+  TD_ALWAYS_ASSERT(0 == nodesMakeNode(QUERY_NODE_TEMP_TABLE, (SNode**)&pTemp));
 
   if (QPT_CORRECT_HIGH_PROB()) {
     // TODO
@@ -1304,7 +1304,7 @@ SNode* qptMakeJoinTableNode(SNode** ppNode) {
   }
 
   SJoinTableNode* pJoin = NULL;
-  assert(0 == nodesMakeNode(QUERY_NODE_JOIN_TABLE, (SNode**)&pJoin));
+  TD_ALWAYS_ASSERT(0 == nodesMakeNode(QUERY_NODE_JOIN_TABLE, (SNode**)&pJoin));
 
   if (QPT_CORRECT_HIGH_PROB()) {
     // TODO
@@ -1321,7 +1321,7 @@ SNode* qptMakeRealTableNode(SNode** ppNode) {
   }
 
   SRealTableNode* pReal = NULL;
-  assert(0 == nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pReal));
+  TD_ALWAYS_ASSERT(0 == nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pReal));
 
   if (QPT_CORRECT_HIGH_PROB()) {
     // TODO
@@ -1396,7 +1396,7 @@ SNode* qptMakeExprNode(SNode** ppNode) {
       qptMakeWhenThenNode(ppNode);
       break;
     default:
-      assert(0);
+      TD_ALWAYS_ASSERT(0);
       break;
   }
 
@@ -1411,22 +1411,22 @@ SNode* qptMakeLimitNode(SNode** ppNode) {
     return qptMakeRandNode(&pNode);
   }
   
-  assert(0 == nodesMakeNode(QUERY_NODE_LIMIT, &pNode));
-  assert(pNode);
+  TD_ALWAYS_ASSERT(0 == nodesMakeNode(QUERY_NODE_LIMIT, &pNode));
+  TD_ALWAYS_ASSERT(pNode);
 
   SLimitNode* pLimit = (SLimitNode*)pNode;
 
   if (!qptCtx.param.correctExpected) {
     if (taosRand() % 2) {
       code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pLimit->limit);
-      assert(pLimit->limit);
+      TD_ALWAYS_ASSERT(pLimit->limit);
       pLimit->limit->node.resType.type = TSDB_DATA_TYPE_BIGINT;
       pLimit->limit->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
       pLimit->limit->datum.i = taosRand() * ((taosRand() % 2) ? 1 : -1);
     }
     if (taosRand() % 2) {
       code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pLimit->offset);
-      assert(pLimit->offset);
+      TD_ALWAYS_ASSERT(pLimit->offset);
       pLimit->offset->node.resType.type = TSDB_DATA_TYPE_BIGINT;
       pLimit->offset->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
       pLimit->offset->datum.i = taosRand() * ((taosRand() % 2) ? 1 : -1);
@@ -1435,7 +1435,7 @@ SNode* qptMakeLimitNode(SNode** ppNode) {
     pLimit->limit->datum.i = taosRand();
     if (taosRand() % 2) {
       code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pLimit->offset);
-      assert(pLimit->offset);
+      TD_ALWAYS_ASSERT(pLimit->offset);
       pLimit->offset->node.resType.type = TSDB_DATA_TYPE_BIGINT;
       pLimit->offset->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
       pLimit->offset->datum.i = taosRand();
@@ -1454,8 +1454,8 @@ SNode* qptMakeWindowOffsetNode(SNode** ppNode) {
   }
 
   SNode* pNode = NULL;
-  assert(0 == nodesMakeNode(QUERY_NODE_WINDOW_OFFSET, &pNode));
-  assert(pNode);
+  TD_ALWAYS_ASSERT(0 == nodesMakeNode(QUERY_NODE_WINDOW_OFFSET, &pNode));
+  TD_ALWAYS_ASSERT(pNode);
 
   SWindowOffsetNode* pWinOffset = (SWindowOffsetNode*)pNode;  
   qptMakeValueNode(TSDB_DATA_TYPE_BIGINT, &pWinOffset->pStartOffset);
@@ -1531,7 +1531,7 @@ SNode* qptMakeSlotDescNode(const char* pName, const SNode* pNode, int16_t slotId
     return qptMakeRandNode((SNode**)&pSlot);
   }
 
-  assert(0 == nodesMakeNode(QUERY_NODE_SLOT_DESC, (SNode**)&pSlot));
+  TD_ALWAYS_ASSERT(0 == nodesMakeNode(QUERY_NODE_SLOT_DESC, (SNode**)&pSlot));
   
   QPT_RAND_BOOL_V ? (pSlot->name[0] = 0) : snprintf(pSlot->name, sizeof(pSlot->name), "%s", pName);
   pSlot->slotId = QPT_CORRECT_HIGH_PROB() ? slotId : taosRand();
@@ -1554,7 +1554,7 @@ SNode* qptMakeDataBlockDescNode(bool forSink) {
   }
 
   SDataBlockDescNode* pDesc = NULL;
-  assert(0 == nodesMakeNode(QUERY_NODE_DATABLOCK_DESC, (SNode**)&pDesc));
+  TD_ALWAYS_ASSERT(0 == nodesMakeNode(QUERY_NODE_DATABLOCK_DESC, (SNode**)&pDesc));
   
   pDesc->dataBlockId = QPT_CORRECT_HIGH_PROB() ? (forSink ? (qptCtx.buildCtx.nextBlockId - 1) : qptCtx.buildCtx.nextBlockId++) : QPT_RAND_INT_V;
   pDesc->precision = QPT_CORRECT_HIGH_PROB() ? qptCtx.param.db.precision : QPT_RAND_INT_V;
@@ -1575,7 +1575,7 @@ SNode* qptMakeDataBlockDescNodeFromNode(bool forSink) {
     if (QPT_CORRECT_HIGH_PROB()) {
       nodesCloneNode((SNode*)pInput, (SNode**)&pDesc);
     } else {
-      assert(0 == nodesMakeNode(QUERY_NODE_DATABLOCK_DESC, (SNode**)&pDesc));
+      TD_ALWAYS_ASSERT(0 == nodesMakeNode(QUERY_NODE_DATABLOCK_DESC, (SNode**)&pDesc));
 
       pDesc->dataBlockId = QPT_CORRECT_HIGH_PROB() ? pInput->dataBlockId : QPT_RAND_INT_V;
       pDesc->precision = QPT_CORRECT_HIGH_PROB() ? pInput->precision : QPT_RAND_INT_V;
@@ -1590,7 +1590,7 @@ SNode* qptMakeDataBlockDescNodeFromNode(bool forSink) {
       }
     }
   } else {
-    assert(0 == nodesMakeNode(QUERY_NODE_DATABLOCK_DESC, (SNode**)&pDesc));
+    TD_ALWAYS_ASSERT(0 == nodesMakeNode(QUERY_NODE_DATABLOCK_DESC, (SNode**)&pDesc));
     
     pDesc->dataBlockId = QPT_CORRECT_HIGH_PROB() ? (forSink ? (qptCtx.buildCtx.nextBlockId - 1) : qptCtx.buildCtx.nextBlockId++) : QPT_RAND_INT_V;
     pDesc->precision = QPT_CORRECT_HIGH_PROB() ? qptCtx.param.db.precision : QPT_RAND_INT_V;
@@ -1623,7 +1623,7 @@ SNode* qptMakeTargetNode(SNode* pNode, int16_t dataBlockId, int16_t slotId, SNod
   }
 
   STargetNode* pTarget = NULL;
-  assert(0 == nodesMakeNode(QUERY_NODE_TARGET, (SNode**)&pTarget));
+  TD_ALWAYS_ASSERT(0 == nodesMakeNode(QUERY_NODE_TARGET, (SNode**)&pTarget));
 
   pTarget->dataBlockId = QPT_CORRECT_HIGH_PROB() ? dataBlockId : taosRand();
   pTarget->slotId = QPT_CORRECT_HIGH_PROB() ? slotId : taosRand();
@@ -1692,8 +1692,8 @@ SNode* qptMakeSubplanNode(SNode** ppNode) {
 
 SPhysiNode* qptCreatePhysiNode(int32_t nodeType) {
   SPhysiNode* pPhysiNode = NULL;
-  assert(0 == nodesMakeNode((ENodeType)nodeType, (SNode**)&pPhysiNode));
-  assert(pPhysiNode);
+  TD_ALWAYS_ASSERT(0 == nodesMakeNode((ENodeType)nodeType, (SNode**)&pPhysiNode));
+  TD_ALWAYS_ASSERT(pPhysiNode);
   
   qptCtx.buildCtx.pCurr = pPhysiNode;
 
@@ -1721,7 +1721,7 @@ void qptMarkTableInUseCols(int32_t colNum, int32_t totalColNum) {
   if (colNum >= totalColNum) {
     for (int32_t i = 0; i < totalColNum; ++i) {
       SQPTCol* pNode = (SQPTCol*)nodesListGetNode(qptCtx.makeCtx.pInputList, i);
-      assert(pNode->type == QPT_QUERY_NODE_COL);
+      TD_ALWAYS_ASSERT(pNode->type == QPT_QUERY_NODE_COL);
       pNode->inUse = 1;
     }
     return;
@@ -1731,7 +1731,7 @@ void qptMarkTableInUseCols(int32_t colNum, int32_t totalColNum) {
   do {
     int32_t colIdx = taosRand() % totalColNum;
     SQPTCol* pNode = (SQPTCol*)nodesListGetNode(qptCtx.makeCtx.pInputList, colIdx);
-    assert(pNode->type == QPT_QUERY_NODE_COL);
+    TD_ALWAYS_ASSERT(pNode->type == QPT_QUERY_NODE_COL);
 
     if (pNode->inUse) {
       continue;
@@ -1764,13 +1764,13 @@ void qptMakeTableScanColList(       SNodeList** ppCols) {
       for (int32_t i = 0; colAdded < colNum; ++i) {
         int32_t idx = (i < qptCtx.makeCtx.pInputList->length) ? i : (taosRand() % qptCtx.makeCtx.pInputList->length);
         SQPTCol* pNode = (SQPTCol*)nodesListGetNode(qptCtx.makeCtx.pInputList, idx);
-        assert(pNode->type == QPT_QUERY_NODE_COL);
+        TD_ALWAYS_ASSERT(pNode->type == QPT_QUERY_NODE_COL);
         
         if (0 == pNode->inUse) {
           continue;
         }
 
-        assert(0 == qptNodesListMakeStrictAppend(ppCols, qptMakeColumnFromTable(idx)));
+        TD_ALWAYS_ASSERT(0 == qptNodesListMakeStrictAppend(ppCols, qptMakeColumnFromTable(idx)));
         colAdded++;
       }
 
@@ -1781,12 +1781,12 @@ void qptMakeTableScanColList(       SNodeList** ppCols) {
       int32_t colIdx = taosRand();
       colIdx = (colIdx >= qptCtx.makeCtx.pInputList->length) ? -1 : colIdx;
       
-      assert(0 == qptNodesListMakeStrictAppend(ppCols, qptMakeColumnFromTable(colIdx)));
+      TD_ALWAYS_ASSERT(0 == qptNodesListMakeStrictAppend(ppCols, qptMakeColumnFromTable(colIdx)));
     }
   } else {
     for (int32_t i = 0; i < colNum; ++i) {
       int32_t colIdx = taosRand();
-      assert(0 == qptNodesListMakeStrictAppend(ppCols, qptMakeColumnFromTable(colIdx)));
+      TD_ALWAYS_ASSERT(0 == qptNodesListMakeStrictAppend(ppCols, qptMakeColumnFromTable(colIdx)));
     }
   }
 }
@@ -1820,7 +1820,7 @@ void qptAddDataBlockSlots(SNodeList* pList, SDataBlockDescNode* pDataBlockDesc) 
     SNode*      pExpr = QUERY_NODE_ORDER_BY_EXPR == nodeType(pNode) ? ((SOrderByExprNode*)pNode)->pExpr : pNode;
     if (QPT_CORRECT_HIGH_PROB()) {
       SNode* pDesc = QPT_CORRECT_HIGH_PROB() ? qptMakeSlotDescNode(NULL, pExpr, nextSlotId, output, QPT_RAND_BOOL_V) : qptMakeExprNode(NULL);
-      assert(0 == qptNodesListMakeStrictAppend(&pDataBlockDesc->pSlots, pDesc));
+      TD_ALWAYS_ASSERT(0 == qptNodesListMakeStrictAppend(&pDataBlockDesc->pSlots, pDesc));
       pDataBlockDesc->totalRowSize += QPT_CORRECT_HIGH_PROB() ? ((SExprNode*)pExpr)->resType.bytes : taosRand();
       if (output && QPT_RAND_BOOL_V) {
         pDataBlockDesc->outputRowSize += QPT_CORRECT_HIGH_PROB() ? ((SExprNode*)pExpr)->resType.bytes : taosRand();
@@ -2167,7 +2167,7 @@ SNode* qptCreateLastRowScanPhysiNode(int32_t nodeType) {
   if (QPT_RAND_BOOL_V) {
     int32_t funcNum = taosRand() % QPT_MAX_COLUMN_NUM;
     pLRScanNode->pFuncTypes = taosArrayInit(funcNum, sizeof(int32_t));
-    assert(pLRScanNode->pFuncTypes);
+    TD_ALWAYS_ASSERT(pLRScanNode->pFuncTypes);
     for (int32_t i = 0; i < funcNum; ++i) {
       int32_t funcType = taosRand();
       taosArrayPush(pLRScanNode->pFuncTypes, &funcType);
@@ -2707,8 +2707,8 @@ SNode* qptCreateDynQueryCtrlPhysiNode(int32_t nodeType) {
 
 SNode* qptCreateDataSinkNode(int32_t nodeType) {
   SDataSinkNode* pSinkNode = NULL;
-  assert(0 == nodesMakeNode((ENodeType)nodeType, (SNode**)&pSinkNode));
-  assert(pSinkNode);
+  TD_ALWAYS_ASSERT(0 == nodesMakeNode((ENodeType)nodeType, (SNode**)&pSinkNode));
+  TD_ALWAYS_ASSERT(pSinkNode);
 
   if (QPT_CORRECT_HIGH_PROB() && qptCtx.buildCtx.pCurr && qptCtx.buildCtx.pCurr->pOutputDataBlockDesc) {
     pSinkNode->pInputDataBlockDesc = (SDataBlockDescNode*)qptMakeDataBlockDescNodeFromNode(true);
@@ -2798,7 +2798,7 @@ void qptCreateSubplanDataSink(SDataSinkNode** ppOutput) {
 
 SNode* qptCreateSubplanNode(int32_t nodeType) {
   SSubplan* pSubplan = NULL; 
-  assert(0 == nodesMakeNode((ENodeType)nodeType, (SNode**)&pSubplan));
+  TD_ALWAYS_ASSERT(0 == nodesMakeNode((ENodeType)nodeType, (SNode**)&pSubplan));
 
   pSubplan->id.queryId = qptCtx.param.plan.queryId;
   pSubplan->id.groupId = taosRand() % QPT_MAX_SUBPLAN_GROUP;
@@ -2923,7 +2923,7 @@ void qptBuildSubplansRelation(SNodeList* pList) {
 
 SNode* qptCreateQueryPlanNode(int32_t nodeType) {
   SQueryPlan* pPlan = NULL; 
-  assert(0 == nodesMakeNode((ENodeType)nodeType, (SNode**)&pPlan));
+  TD_ALWAYS_ASSERT(0 == nodesMakeNode((ENodeType)nodeType, (SNode**)&pPlan));
 
   int32_t subplanNum = 0, subplanLevelNum = taosRand() % QPT_MAX_SUBPLAN_LEVEL;
   pPlan->queryId = QPT_CORRECT_HIGH_PROB() ? qptCtx.param.plan.queryId : taosRand();
@@ -3123,7 +3123,7 @@ void qptExecPlan(SReadHandle* pReadHandle, SNode* pNode, SExecTaskInfo* pTaskInf
       qptCtx.result.code = createCountwindowOperatorInfo(NULL, (SPhysiNode*)pNode, pTaskInfo, ppOperaotr);
       break;
     default:
-      assert(0);
+      TD_ALWAYS_ASSERT(0);
   }
 
   if (qptCtx.result.code) {

@@ -705,6 +705,7 @@ typedef struct {
   int8_t      tableType;
   int32_t     sversion;
   int32_t     tversion;
+  int32_t     rversion;
   uint64_t    suid;
   uint64_t    tuid;
   int32_t     vgId;
@@ -1417,6 +1418,7 @@ typedef struct STbVerInfo {
   char    tbFName[TSDB_TABLE_FNAME_LEN];
   int32_t sversion;
   int32_t tversion;
+  int32_t rversion; // virtual table's column ref's version
 } STbVerInfo;
 
 typedef struct {
@@ -1485,6 +1487,22 @@ int32_t tSerializeSVSubTablesRsp(void *buf, int32_t bufLen, SVSubTablesRsp *pRsp
 int32_t tDeserializeSVSubTablesRsp(void *buf, int32_t bufLen, SVSubTablesRsp *pRsp);
 void tDestroySVSubTablesRsp(void* rsp);
 
+typedef struct {
+  SMsgHead header;
+  tb_uid_t suid;
+} SVStbRefDbsReq;
+
+int32_t tSerializeSVStbRefDbsReq(void *buf, int32_t bufLen, SVStbRefDbsReq *pReq);
+int32_t tDeserializeSVStbRefDbsReq(void *buf, int32_t bufLen, SVStbRefDbsReq *pReq);
+
+typedef struct {
+  int32_t  vgId;
+  SArray*  pDbs;   // SArray<char* (db name)>
+} SVStbRefDbsRsp;
+
+int32_t tSerializeSVStbRefDbsRsp(void *buf, int32_t bufLen, SVStbRefDbsRsp *pRsp);
+int32_t tDeserializeSVStbRefDbsRsp(void *buf, int32_t bufLen, SVStbRefDbsRsp *pRsp);
+void tDestroySVStbRefDbsRsp(void* rsp);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
@@ -1770,8 +1788,13 @@ int32_t tSerializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 int32_t tDeserializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 void    tFreeSQnodeListRsp(SQnodeListRsp* pRsp);
 
+typedef struct SDNodeAddr {
+  int32_t nodeId;  // dnodeId
+  SEpSet  epSet;
+} SDNodeAddr;
+
 typedef struct {
-  SArray* dnodeList;  // SArray<SEpSet>
+  SArray* dnodeList;  // SArray<SDNodeAddr>
 } SDnodeListRsp;
 
 int32_t tSerializeSDnodeListRsp(void* buf, int32_t bufLen, SDnodeListRsp* pRsp);

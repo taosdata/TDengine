@@ -12,6 +12,8 @@ TDengine 的流计算引擎提供了实时处理写入的数据流的能力，�
 
 TDengine 的流计算能够支持分布在多个节点中的超级表聚合，能够处理乱序数据的写入。它提供 watermark 机制以度量容忍数据乱序的程度，并提供了 ignore expired 配置项以决定乱序数据的处理策略 —— 丢弃或者重新计算。
 
+注意：windows 平台不支持流计算。
+
 下面详细介绍流计算使用的具体方法。
 
 ## 创建流计算
@@ -62,7 +64,7 @@ subquery 支持会话窗口、状态窗口、时间窗口、事件窗口与计�
 
 4. EVENT_WINDOW 是事件窗口，根据开始条件和结束条件来划定窗口。当 start_trigger_condition 满足时则窗口开始，直到 end_trigger_condition 满足时窗口关闭。start_trigger_condition 和 end_trigger_condition 可以是任意 TDengine 支持的条件表达式，且可以包含不同的列。
 
-5. COUNT_WINDOW 是计数窗口，按固定的数据行数来划分窗口。count_val 是常量，是正整数，必须大于等于 2，小于 2147483648。count_val 表示每个 COUNT_WINDOW 包含的最大数据行数，总数据行数不能整除 count_val 时，最后一个窗口的行数会小于 count_val。sliding_val 是常量，表示窗口滑动的数量，类似于 INTERVAL 的 SLIDING 。
+5. COUNT_WINDOW 是计数窗口，按固定的数据行数来划分窗口。count_val 是常量，是正整数，必须大于等于 2，小于 2147483648。count_val 表示每个 COUNT_WINDOW 包含的最大数据行数，总数据行数不能整除 count_val 时，最后一个窗口的行数会小于 count_val。sliding_val 是常量，表示窗口滑动的数量，类似于 INTERVAL 的 SLIDING。
 
 窗口的定义与时序数据窗口查询中的定义完全相同，具体可参考 TDengine 窗口函数部分。
 
@@ -91,7 +93,7 @@ SELECT _wstart, count(*), avg(voltage) FROM power.meters PARTITION BY tbname INT
 CREATE STREAM avg_vol_s INTO avg_vol SUBTABLE(CONCAT('new-', tname)) AS SELECT _wstart, count(*), avg(voltage) FROM meters PARTITION BY tbname tname INTERVAL(1m);
 ```
 
-PARTITION 子句中，为 tbname 定义了一个别名 tname， 在 PARTITION 子句中的别名可以用于 SUBTABLE 子句中的表达式计算，在上述示例中，流新创建的子表规则为 new- + 子表名 + _超级表名 + _groupId。
+PARTITION 子句中，为 tbname 定义了一个别名 tname，在 PARTITION 子句中的别名可以用于 SUBTABLE 子句中的表达式计算，在上述示例中，流新创建的子表规则为 new- + 子表名 + _超级表名 + _groupId。
 
 **注意**：子表名的长度若超过 TDengine 的限制，将被截断。若要生成的子表名已经存在于另一超级表，由于 TDengine 的子表名是唯一的，因此对应新子表的创建以及数据的写入将会失败。
 
@@ -102,7 +104,7 @@ PARTITION 子句中，为 tbname 定义了一个别名 tname， 在 PARTITION �
 通过启用 fill_history 选项，创建的流计算任务将具备处理创建前、创建过程中以及创建后写入的数据的能力。这意味着，无论数据是在流创建之前还是之后写入的，都将纳入流计算的范围，从而确保数据的完整性和一致性。这一设置为用户提供了更大的灵活性，使其能够根据实际需求灵活处理历史数据和新数据。
 
 注意：
-- 开启 fill_history 时，创建流需要找到历史数据的分界点，如果历史数据很多，可能会导致创建流任务耗时较长，此时可以通过 fill_history 1 async（v3.3.6.0 开始支持） 语法将创建流的任务放在后台处理，创建流的语句可立即返回，不阻塞后面的操作。async 只对 fill_history 1 起效，fill_history 0 时建流很快，不需要异步处理。
+- 开启 fill_history 时，创建流需要找到历史数据的分界点，如果历史数据很多，可能会导致创建流任务耗时较长，此时可以通过 fill_history 1 async（v3.3.6.0 开始支持）语法将创建流的任务放在后台处理，创建流的语句可立即返回，不阻塞后面的操作。async 只对 fill_history 1 起效，fill_history 0 时建流很快，不需要异步处理。
 
 - 通过 show streams 可查看后台建流的进度（ready 状态表示成功，init 状态表示正在建流，failed 状态表示建流失败，失败时 message 列可以查看原因。对于建流失败的情况可以删除流重新建立）。
 
@@ -131,12 +133,12 @@ create stream if not exists count_history_s fill_history 1 into count_history as
 1. AT_ONCE：写入立即触发。
 2. WINDOW_CLOSE：窗口关闭时触发（窗口关闭由事件时间决定，可配合 watermark 使用）。
 3. MAX_DELAY time：若窗口关闭，则触发计算。若窗口未关闭，且未关闭时长超过 max delay 指定的时间，则触发计算。
-4. FORCE_WINDOW_CLOSE：以操作系统当前时间为准，只计算当前关闭窗口的结果，并推送出去。窗口只会在被关闭的时刻计算一次，后续不会再重复计算。该模式当前只支持 INTERVAL 窗口（支持滑动）；该模式时，FILL_HISTORY 自动设置为 0，IGNORE EXPIRED 自动设置为 1，IGNORE UPDATE 自动设置为 1；FILL 只支持 PREV 、NULL、 NONE、VALUE。
+4. FORCE_WINDOW_CLOSE：以操作系统当前时间为准，只计算当前关闭窗口的结果，并推送出去。窗口只会在被关闭的时刻计算一次，后续不会再重复计算。该模式当前只支持 INTERVAL 窗口（支持滑动）；该模式时，FILL_HISTORY 自动设置为 0，IGNORE EXPIRED 自动设置为 1，IGNORE UPDATE 自动设置为 1；FILL 只支持 PREV、NULL、NONE、VALUE。
    - 该模式可用于实现连续查询，比如，创建一个流，每隔 1s 查询一次过去 10s 窗口内的数据条数。SQL 如下：
    ```sql
    create stream if not exists continuous_query_s trigger force_window_close into continuous_query as select count(*) from power.meters interval(10s) sliding(1s)
    ```
-5. CONTINUOUS_WINDOW_CLOSE：窗口关闭时输出结果。修改、删除数据，并不会立即触发重算，每等待 rec_time_val 时长，会进行周期性重算。如果不指定 rec_time_val，那么重算周期是 60 分钟。如果重算的时间长度超过 rec_time_val，在本次重算后，自动开启下一次重算。该模式当前只支持 INTERVAL 窗口。如果使用 FILL，需要配置 adapter的相关信息：adapterFqdn、adapterPort、adapterToken。adapterToken 为 `{username}:{password}` 经过 Base64 编码之后的字符串，例如 `root:taosdata` 编码后为 `cm9vdDp0YW9zZGF0YQ==`。
+5. CONTINUOUS_WINDOW_CLOSE：窗口关闭时输出结果。修改、删除数据，并不会立即触发重算，每等待 rec_time_val 时长，会进行周期性重算。如果不指定 rec_time_val，那么重算周期是 60 分钟。如果重算的时间长度超过 rec_time_val，在本次重算后，自动开启下一次重算。该模式当前只支持 INTERVAL 窗口。如果使用 FILL，需要配置 adapter 的相关信息：adapterFqdn、adapterPort、adapterToken。adapterToken 为 `{username}:{password}` 经过 Base64 编码之后的字符串，例如 `root:taosdata` 编码后为 `cm9vdDp0YW9zZGF0YQ==`。
 
 窗口关闭是由事件时间决定的，如事件流中断、或持续延迟，此时事件时间无法更新，可能导致无法得到最新的计算结果。
 
@@ -194,7 +196,7 @@ TDengine 对于修改数据提供两种处理方式，由 IGNORE UPDATE 选项�
 CREATE STREAM output_tag trigger at_once INTO output_tag_s TAGS(alias_tag varchar(100)) as select _wstart, count(*) from power.meters partition by concat("tag-", tbname) as alias_tag interval(10s);
 ```
 
-在 PARTITION 子句中，为 concat（"tag-"， tbname）定义了一个别名 alias_tag， 对应超级表 output_tag_s 的自定义 TAG 的名字。在上述示例中，流新创建的子表的 TAG 将以前缀 'tag-' 连接原表名作为 TAG 的值。会对 TAG 信息进行如下检查。
+在 PARTITION 子句中，为 concat（"tag-"，tbname）定义了一个别名 alias_tag，对应超级表 output_tag_s 的自定义 TAG 的名字。在上述示例中，流新创建的子表的 TAG 将以前缀 'tag-' 连接原表名作为 TAG 的值。会对 TAG 信息进行如下检查。
 
 1. 检查 tag 的 schema 信息是否匹配，对于不匹配的，则自动进行数据类型转换，当前只有数据长度大于 4096 bytes 时才报错，其余场景都能进行类型转换。
 2. 检查 tag 的 个数是否相同，如果不同，需要显示的指定超级表与 subquery 的 tag 的对应关系，否则报错。如果相同，可以指定对应关系，也可以不指定，不指定则按位置顺序对应。
@@ -252,12 +254,12 @@ RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name;
 
 1.修改 taos.cfg，添加 disableStream 1
 
-2.重启 taosd。如果启动失败，修改 stream 目录的名称，避免 taosd 启动的时候尝试加载 stream 目录下的流计算数据信息。不使用删除操作避免误操作导致的风险。需要修改的文件夹：$dataDir/vnode/vnode*/tq/stream，$dataDir 指 TDengine 存储数据的目录，在 $dataDir/vnode/ 目录下会有多个类似 vnode1 、vnode2...vnode* 的目录，全部需要修改里面的 tq/stream 目录的名字，改为 tq/stream.bk
+2.重启 taosd。如果启动失败，修改 stream 目录的名称，避免 taosd 启动的时候尝试加载 stream 目录下的流计算数据信息。不使用删除操作避免误操作导致的风险。需要修改的文件夹：$dataDir/vnode/vnode*/tq/stream，$dataDir 指 TDengine 存储数据的目录，在 $dataDir/vnode/ 目录下会有多个类似 vnode1、vnode2...vnode* 的目录，全部需要修改里面的 tq/stream 目录的名字，改为 tq/stream.bk
 
 3.启动 taos
 
 ```sql
-drop stream xxxx;                ---- xxx 指stream name
+drop stream xxxx;                ---- xxx 指 stream name
 flush database stream_source_db; ---- 流计算读取数据的超级表所在的 database
 flush database stream_dest_db;   ---- 流计算写入数据的超级表所在的 database
 ```

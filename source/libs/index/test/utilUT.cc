@@ -89,7 +89,7 @@ TEST_F(UtilEnv, intersectionSimpleResult) {
     taosArrayPush(f, &val);
   }
   iIntersection(src, rslt);
-  assert(taosArrayGetSize(rslt) == 10);
+  TD_ALWAYS_ASSERT(taosArrayGetSize(rslt) == 10);
 
   clearSourceArray(src);
   clearFinalArray(rslt);
@@ -112,7 +112,7 @@ TEST_F(UtilEnv, intersectMultiEmptyResult) {
   }
   // empty source
   iIntersection(src, rslt);
-  assert(taosArrayGetSize(rslt) == 0);
+  TD_ALWAYS_ASSERT(taosArrayGetSize(rslt) == 0);
   clearSourceArray(src);
   clearFinalArray(rslt);
 }
@@ -121,7 +121,7 @@ TEST_F(UtilEnv, intersectSimpleEmpty) {
   clearFinalArray(rslt);
 
   iIntersection(src, rslt);
-  assert(taosArrayGetSize(rslt) == 0);
+  TD_ALWAYS_ASSERT(taosArrayGetSize(rslt) == 0);
 }
 TEST_F(UtilEnv, intersect01) {
   clearSourceArray(src);
@@ -146,7 +146,7 @@ TEST_F(UtilEnv, intersect01) {
   }
 
   iIntersection(src, rslt);
-  assert(taosArrayGetSize(rslt) == 2);
+  TD_ALWAYS_ASSERT(taosArrayGetSize(rslt) == 2);
 }
 TEST_F(UtilEnv, intersect02) {
   clearSourceArray(src);
@@ -171,7 +171,7 @@ TEST_F(UtilEnv, intersect02) {
   }
 
   iIntersection(src, rslt);
-  assert(taosArrayGetSize(rslt) == 0);
+  TD_ALWAYS_ASSERT(taosArrayGetSize(rslt) == 0);
 }
 TEST_F(UtilEnv, 01union) {
   clearSourceArray(src);
@@ -183,7 +183,7 @@ TEST_F(UtilEnv, 01union) {
     taosArrayPush(f, &arr1[i]);
   }
   iUnion(src, rslt);
-  assert(taosArrayGetSize(rslt) == 3);
+  TD_ALWAYS_ASSERT(taosArrayGetSize(rslt) == 3);
 }
 TEST_F(UtilEnv, 02union) {
   clearSourceArray(src);
@@ -201,7 +201,7 @@ TEST_F(UtilEnv, 02union) {
     taosArrayPush(f, &arr2[i]);
   }
   iUnion(src, rslt);
-  assert(taosArrayGetSize(rslt) == 3);
+  TD_ALWAYS_ASSERT(taosArrayGetSize(rslt) == 3);
 }
 TEST_F(UtilEnv, 03union) {
   clearSourceArray(src);
@@ -224,7 +224,7 @@ TEST_F(UtilEnv, 03union) {
     taosArrayPush(f, &arr3[i]);
   }
   iUnion(src, rslt);
-  assert(taosArrayGetSize(rslt) == 9);
+  TD_ALWAYS_ASSERT(taosArrayGetSize(rslt) == 9);
 }
 TEST_F(UtilEnv, 04union) {
   clearSourceArray(src);
@@ -248,7 +248,7 @@ TEST_F(UtilEnv, 04union) {
     taosArrayPush(f, &arr3[i]);
   }
   iUnion(src, rslt);
-  assert(taosArrayGetSize(rslt) == 12);
+  TD_ALWAYS_ASSERT(taosArrayGetSize(rslt) == 12);
 }
 TEST_F(UtilEnv, 05unionExcept) {
   clearSourceArray(src);

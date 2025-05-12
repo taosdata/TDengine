@@ -2334,6 +2334,23 @@ _end:
   return ps;
 }
 
+// deep copy the primary key, to avoid ref invalid buffer is the primary key is varchar or something.
+static int32_t primaryKeyDup(SRowKey* pKey) {
+  if (pKey->numOfPKs > 0) {
+    if (!IS_NUMERIC_TYPE(pKey->pks[0].type)) {
+      void* p = taosMemoryMalloc(pKey->pks[0].nData);
+      if (p == NULL)  {
+        return terrno;
+      }
+
+      TAOS_MEMCPY(p, pKey->pks[0].pData, pKey->pks[0].nData);
+      pKey->pks[0].pData = p;
+    }
+  }
+
+  return 0;
+}
+
 static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* pBlockScanInfo, TSDBROW* pRow,
                                      SIterInfo* pIter, SSttBlockReader* pSttBlockReader) {
   int32_t             code = TSDB_CODE_SUCCESS;
@@ -2370,6 +2387,8 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
   SRowKey* pfKey = &(SRowKey){0};
   if (hasDataInFileBlock(pBlockData, pDumpInfo)) {
     tColRowGetKey(pBlockData, pDumpInfo->rowIndex, pfKey);
+    code = primaryKeyDup(pfKey);
+    TSDB_CHECK_CODE(code, lino, _end);
   } else {
     pfKey = NULL;
   }
@@ -2439,6 +2458,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
   TSDB_CHECK_CODE(code, lino, _end);
 
 _end:
+  clearRowKey(pfKey);
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -3177,6 +3197,8 @@ static int32_t buildComposedDataBlockImpl(STsdbReader* pReader, STableBlockScanI
 
   if (hasDataInFileBlock(pBlockData, pDumpInfo)) {
     tColRowGetKey(pBlockData, pDumpInfo->rowIndex, pKey);
+    code = primaryKeyDup(pKey);
+    TSDB_CHECK_CODE(code, lino, _end);
   } else {
     pKey = NULL;
   }
@@ -3210,8 +3232,9 @@ static int32_t buildComposedDataBlockImpl(STsdbReader* pReader, STableBlockScanI
   }
 
 _end:
+  clearRowKey(pKey);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    tsdbError("%s %s failed at line %d since %s", pReader->idStr, __func__, lino, tstrerror(code));
   }
   return code;
 }

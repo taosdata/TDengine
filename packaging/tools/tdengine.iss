@@ -15,7 +15,7 @@
 #define MyAppExeName "\*.exe"
 #define MyAppTaosExeName "\taos.bat"
 #define MyAppTaosdemoExeName "\taosBenchmark.exe"
-#define MyAppDLLName "\driver\*.dll"
+#define MyAppDLLName "\*.dll"
 ;#define MyAppVersion "3.0"
 ;#define MyAppInstallName "TDengine"
 [Setup]

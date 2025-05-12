@@ -1046,6 +1046,7 @@
 ,,y,script,./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v3.sim
 ,,y,script,./test.sh -f tsim/parser/limit1.sim
 ,,y,script,./test.sh -f tsim/parser/union.sim
+,,y,script,./test.sh -f tsim/parser/ts-6314.sim
 ,,y,script,./test.sh -f tsim/parser/commit.sim
 ,,y,script,./test.sh -f tsim/parser/nestquery.sim
 ,,y,script,./test.sh -f tsim/parser/groupby.sim
@@ -1533,7 +1534,6 @@
 ,,y,script,./test.sh -f tsim/tagindex/indexOverflow.sim
 ,,y,script,./test.sh -f tsim/query/cache_last.sim
 ,,y,script,./test.sh -f tsim/query/const.sim
-,,y,script,./test.sh -f tsim/query/nestedJoinView.sim
 
 
 

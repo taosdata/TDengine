@@ -55,4 +55,4 @@ SHOW INDEXES FROM [db_name.]tbl_name;
 
 7. 如果某个 tag 列的唯一值较少时，不建议对其建立索引，这种情况下收效甚微。
 
-8. 新建立的超级表，会给第一列 tag，随机生成一个indexNewName，生成规则是：tag0的name + 23个byte，在系统表可以查,也可以按需要drop，行为和其他列 tag 的索引一样
+8. 新建立的超级表，会给第一列 tag，随机生成一个 indexNewName，生成规则是：tag0 的 name + 23 个 byte，在系统表可以查，也可以按需要 drop，行为和其他列 tag 的索引一样

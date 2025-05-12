@@ -11,6 +11,10 @@ import imgRegexParsing from '../../assets/data-connectors-04.png';
 import imgResults from '../../assets/data-connectors-05.png';
 import imgSplit from '../../assets/data-connectors-06.png';
 
+import Enterprise from '../../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
+
 ## Overview
 
 TDengine Enterprise is equipped with a powerful visual data management tool—taosExplorer. With taosExplorer, users can easily submit tasks to TDengine through simple configurations in the browser, achieving seamless data import from various data sources into TDengine with zero coding. During the import process, TDengine automatically extracts, filters, and transforms the data to ensure the quality of the imported data. Through this zero-code data source integration method, TDengine has successfully transformed into an outstanding platform for aggregating time-series big data. Users do not need to deploy additional ETL tools, thereby greatly simplifying the overall architecture design and improving data processing efficiency.
@@ -42,8 +46,8 @@ The data sources currently supported by TDengine are as follows:
 | SQL Server | 2012/2022 | Microsoft SQL Server is a relational database management system developed by Microsoft, known for its ease of use, good scalability, and high integration with related software. |
 | MongoDB | 3.6+ | MongoDB is a product between relational and non-relational databases, widely used in content management systems, mobile applications, and the Internet of Things, among many other fields. |
 | CSV | -  | Abbreviation for Comma Separated Values, a plain text file format separated by commas, commonly used in spreadsheet or database software. |
-| TDengine 2.x | 2.4 or 2.6+ | Older version of TDengine, no longer maintained, upgrade to the latest version 3.0 is recommended. |
-| TDengine 3.x | Source version+ | Use TMQ for subscribing to specified databases or supertables from TDengine. |
+| TDengine Query | 2.4+, 3.0+ | Query from older version of TDengine and write into new cluster. |
+| TDengine Data Subscription | 3.0+ | Use TMQ for subscribing to specified databases or supertables from TDengine. |
 
 ## Data Extraction, Filtering, and Transformation
 

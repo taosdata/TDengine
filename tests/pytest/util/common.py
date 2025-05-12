@@ -141,6 +141,8 @@ class TDCom:
         self.range_count = 5
         self.default_interval = 5
         self.stream_timeout = 60
+        self.check_transactions_timeout = 300
+        self.show_trans_interval = 60
         self.create_stream_sleep = 0.5
         self.record_history_ts = str()
         self.precision = "ms"
@@ -204,7 +206,7 @@ class TDCom:
         self.cast_tag_stb_filter_des_select_elm = "ts, t1, t2, t3, t4, cast(t1 as TINYINT UNSIGNED), t6, t7, t8, t9, t10, cast(t2 as varchar(256)), t12, cast(t3 as bool)"
         self.tag_count = len(self.tag_filter_des_select_elm.split(","))
         self.state_window_range = list()
-        
+
         self.custom_col_val = 0
         self.part_val_list = [1, 2]
     # def init(self, conn, logSql):
@@ -517,7 +519,7 @@ class TDCom:
             buildPath = buildPath.replace(win_sep,'/')
 
         return buildPath
-    
+
     def getTaosdPath(self, dnodeID="dnode1"):
         buildPath = self.getBuildPath()
         if (buildPath == ""):
@@ -557,7 +559,7 @@ class TDCom:
         cur = self.newcur(host=host,port=port,user=user,password=password, database=database)
         newTdSql.init(cur, False)
         return newTdSql
-    
+
     def newcurWithTimezone(self,  timezone, host='localhost', port=6030,  user='root', password='taosdata'):
         cfgPath = self.getClientCfgPath()
         con=taos.connect(host=host, user=user, password=password, config=cfgPath, port=port, timezone=timezone)
@@ -921,7 +923,7 @@ class TDCom:
             else:
                 return f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table} {subtable} as {source_sql} {fill};'
         else:
-            
+
             if watermark is None:
                 if trigger_mode == "max_delay" or trigger_mode == "continuous_window_close" :
                     stream_options = f'trigger {trigger_mode} {max_delay}'
@@ -948,7 +950,7 @@ class TDCom:
                 return None
             else:
                 return f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table}{stb_field_name} {tags} {subtable} as {source_sql} {fill};'
-        
+
 
     def pause_stream(self, stream_name, if_exist=True, if_not_exist=False):
         """pause_stream
@@ -991,10 +993,10 @@ class TDCom:
         # This pattern looks for a number followed by an optional space and then a pair of square brackets
         # containing two numbers separated by a comma.
         pattern = r'(\d+)\s*\[(\d+),\s*(\d+)\]'
-        
+
         # Use the search function from the re module to find a match in the string
         match = re.search(pattern, wal_info)
-        
+
         # Check if a match was found
         if match:
             # Extract the numbers from the matching groups
@@ -1011,7 +1013,7 @@ class TDCom:
 
         # If no match was found, or the pattern does not match the expected format, return False
         return False
-    
+
     def check_stream_task_status(self, stream_name, vgroups, stream_timeout=0, check_wal_info=True):
         """check stream status
 
@@ -1024,12 +1026,12 @@ class TDCom:
         timeout = self.stream_timeout if stream_timeout is None else stream_timeout
 
         #check stream task rows
-        sql_task_all = f"select `task_id`,node_id,stream_name,status,info,history_task_id from information_schema.ins_stream_tasks where stream_name='{stream_name}' and `level`='source';" 
+        sql_task_all = f"select `task_id`,node_id,stream_name,status,info,history_task_id from information_schema.ins_stream_tasks where stream_name='{stream_name}' and `level`='source';"
         sql_task_status = f"select distinct(status) from information_schema.ins_stream_tasks where stream_name='{stream_name}' and `level`='source';"
         sql_task_history = f"select distinct(history_task_id) from information_schema.ins_stream_tasks where stream_name='{stream_name}' and `level`='source';"
         tdSql.query(sql_task_all)
         tdSql.checkRows(vgroups)
-                
+
         #check stream task status
         checktimes = 1
         check_stream_success = 0
@@ -1043,7 +1045,7 @@ class TDCom:
                 result_task_status_rows = tdSql.query(sql_task_status)
                 result_task_history = tdSql.query(sql_task_history,row_tag=True)
                 result_task_history_rows = tdSql.query(sql_task_history)
-                
+
                 tdLog.notice(f"Try to check stream status, check times: {checktimes} and stream task list[{check_stream_success}]")
                 print(f"result_task_status:{result_task_status},result_task_history:{result_task_history},result_task_alll:{result_task_alll}")
                 if result_task_status_rows == 1 and result_task_status ==[('ready',)] :
@@ -1058,22 +1060,22 @@ class TDCom:
                                     break
                         else:
                             check_stream_success = vgroups
-                            
+
                 if check_stream_success == vgroups:
                     break
-                time.sleep(1) 
-                checktimes += 1 
+                time.sleep(1)
+                checktimes += 1
                 vgroup_num = vgroup_num
             except Exception as e:
                 tdLog.notice(f"Try to check stream status again, check times: {checktimes}")
-                checktimes += 1 
+                checktimes += 1
                 tdSql.print_error_frame_info(result_task_alll[vgroup_num],"status is ready,info is finished and history_task_id is NULL",sql_task_all)
         else:
             checktimes_end = checktimes - 1
             tdLog.notice(f"it has spend {checktimes_end} for checking stream task status but it failed")
             if checktimes_end == timeout:
                 tdSql.print_error_frame_info(result_task_alll[vgroup_num],"status is ready,info is finished and history_task_id is NULL",sql_task_all)
-                
+
     # def check_stream_task_status(self, stream_name, vgroups, stream_timeout=None):
     #     """check stream status
 
@@ -1086,12 +1088,12 @@ class TDCom:
     #     timeout = self.stream_timeout if stream_timeout is None else stream_timeout
 
     #     #check stream task rows
-    #     sql_task_all = f"select `task_id`,node_id,stream_name,status,info,history_task_id from information_schema.ins_stream_tasks where stream_name='{stream_name}' and `level`='source';" 
+    #     sql_task_all = f"select `task_id`,node_id,stream_name,status,info,history_task_id from information_schema.ins_stream_tasks where stream_name='{stream_name}' and `level`='source';"
     #     sql_task_status = f"select distinct(status) from information_schema.ins_stream_tasks where stream_name='{stream_name}' and `level`='source';"
     #     sql_task_history = f"select distinct(history_task_id) from information_schema.ins_stream_tasks where stream_name='{stream_name}' and `level`='source';"
     #     tdSql.query(sql_task_all)
     #     tdSql.checkRows(vgroups)
-                
+
     #     #check stream task status
     #     checktimes = 1
     #     check_stream_success = 0
@@ -1105,7 +1107,7 @@ class TDCom:
     #             result_task_status_rows = tdSql.query(sql_task_status)
     #             result_task_history = tdSql.query(sql_task_history,row_tag=True)
     #             result_task_history_rows = tdSql.query(sql_task_history)
-                
+
     #             tdLog.notice(f"Try to check stream status, check times: {checktimes} and stream task list[{check_stream_success}]")
     #             print(f"result_task_status:{result_task_status},result_task_history:{result_task_history},result_task_alll:{result_task_alll}")
     #             for vgroup_num in range(vgroups):
@@ -1115,26 +1117,26 @@ class TDCom:
     #                 else:
     #                     check_stream_success = 0
     #                     break
-                            
+
     #             if check_stream_success == vgroups:
     #                 break
-    #             time.sleep(1) 
-    #             checktimes += 1 
+    #             time.sleep(1)
+    #             checktimes += 1
     #             vgroup_num = vgroup_num
     #         except Exception as e:
     #             tdLog.notice(f"Try to check stream status again, check times: {checktimes}")
-    #             checktimes += 1 
+    #             checktimes += 1
     #             tdSql.print_error_frame_info(result_task_alll[vgroup_num],"status is ready,info is finished and history_task_id is NULL",sql_task_all)
-                
+
     #     else:
     #         checktimes_end = checktimes - 1
     #         tdLog.notice(f"it has spend {checktimes_end} for checking stream task status but it failed")
     #         if checktimes_end == timeout:
     #             tdSql.print_error_frame_info(result_task_alll[vgroup_num],"status is ready,info is finished and history_task_id is NULL",sql_task_all)
-                
-                
-        
-        
+
+
+
+
 
     def drop_db(self, dbname="test"):
         """drop a db
@@ -2131,6 +2133,42 @@ class TDCom:
         except Exception as e:
             # Handle any other exceptions that may occur
             print(f"An error occurred: {e}")
+
+    def check_transactions(self, expected_rows=0):
+        tdSql.query(f'show transactions;')
+        query_data = tdSql.queryResult
+        latency = 0
+        while len(query_data) > expected_rows:
+            tdSql.query(f'show transactions;')
+            query_data = tdSql.queryResult
+            if latency < self.check_transactions_timeout:
+                latency += self.show_trans_interval
+                time.sleep(self.show_trans_interval)
+            else:
+                return False
+
+    def wait_checkpoint_ready(self, stream_name):
+        """
+        Waits for the checkpoint of a stream to be ready.
+        Args:
+            stream_name (str): The name of the stream.
+        Returns:
+            None: If the checkpoint is not ready within the specified timeout.
+        """
+        cnt = 0
+        cmd = f'select distinct status from information_schema.ins_stream_tasks where stream_name = "{stream_name}"'
+        tdSql.query(cmd)
+        query_result = tdSql.queryResult
+
+        tdSql.query('select * from information_schema.ins_stream_tasks')
+        while len(query_result) != 1 or query_result[0][0] != "ready":
+            time.sleep(1)
+            tdSql.query(cmd)
+            query_result = tdSql.queryResult
+            if cnt < self.stream_timeout:
+                cnt += 1
+            else:
+                return
 
 def is_json(msg):
     if isinstance(msg, str):

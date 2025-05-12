@@ -139,6 +139,7 @@ struct SSyncNode {
   SSyncFSM* pFsm;
   int32_t   quorum;
   SRaftId   leaderCache;
+  SEp           leaderCacheEp;
   ESyncFsmState fsmState;
 
   // life cycle
@@ -235,9 +236,11 @@ struct SSyncNode {
   bool isStart;
 
   // statis
-  int32_t sendCount;
-  int32_t recvCount;
-  int32_t slowCount;
+  int64_t sendCount;
+  int64_t recvCount;
+  int64_t slowCount;
+
+  int32_t applyQueueErrorCount;
 };
 
 // open/close --------------

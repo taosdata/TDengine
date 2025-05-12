@@ -1,0 +1,71 @@
+
+taos> select to_base64(NULL)
+ to_base64(null) |
+==================
+ NULL            |
+
+taos> select to_base64('')
+ to_base64('') |
+================
+               |
+
+taos> select to_base64('aaaa')
+ to_base64('aaaa') |
+====================
+ YWFhYQ==          |
+
+taos> select to_base64('Hello, world!')
+ to_base64('Hello, world!') |
+=============================
+ SGVsbG8sIHdvcmxkIQ==       |
+
+taos> select to_base64(concat(lower(concat('THIS',' ','IS',' ','A',' ')),'test'))
+ to_base64(concat(lower(concat('THIS',' ','IS',' ','A',' ')),'tes |
+===================================================================
+ dGhpcyBpcyBhIHRlc3Q=                                             |
+
+taos> select to_base64('北京涛思')
+ to_base64('北京涛思') |
+============================
+ 5YyX5Lqs5rab5oCd          |
+
+taos> select to_base64('北京涛思.com')
+ to_base64('北京涛思.com') |
+================================
+ 5YyX5Lqs5rab5oCdLmNvbQ==      |
+
+taos> select to_base64(repeat('Hello, world!', 5))
+ to_base64(repeat('Hello, world!', 5)) |
+========================================
+ SGVsbG8sIHdvcmxkIUhlbGxvLCB3b3JsZC... |
+
+taos> select to_base64(repeat('北京涛思.com', 5))
+ to_base64(repeat('北京涛思.com', 5)) |
+===========================================
+ 5YyX5Lqs5rab5oCdLmNvbeWMl+S6rOa2m+aAn... |
+
+taos> select to_base64(trim('  Hello, world!  '))
+ to_base64(trim('  Hello, world!  ')) |
+=======================================
+ SGVsbG8sIHdvcmxkIQ==                 |
+
+taos> select to_base64(trim('  Hello, world!  ')) == to_base64('Hello, world!')
+ to_base64(trim('  Hello, world!  ')) == to_base64('Hello, world! |
+===================================================================
+ true                                                             |
+
+taos> select to_base64(trim('  北京涛思  '))
+ to_base64(trim('  北京涛思  ')) |
+======================================
+ 5YyX5Lqs5rab5oCd                    |
+
+taos> select to_base64(trim('  北京涛思  ')) == to_base64('北京涛思')
+ to_base64(trim('  北京涛思  ')) == to_base64('北京涛思') |
+===================================================================
+ true                                                             |
+
+taos> select to_base64(substring('北京涛思.com', 1, 4)) == to_base64('北京涛思')
+ to_base64(substring('北京涛思.com', 1, 4)) == to_base64('北 |
+===================================================================
+ true                                                             |
+

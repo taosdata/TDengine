@@ -8,7 +8,7 @@ description: 流式计算的相关 SQL 的详细语法
 ## 创建流式计算
 
 ```sql
-CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, field2_name [PRIMARY KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery [notification_definition]
+CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, field2_name [COMPOSITE KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery [notification_definition]
 stream_options: {
  TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time | FORCE_WINDOW_CLOSE| CONTINUOUS_WINDOW_CLOSE [recalculate rec_time_val] ]
  WATERMARK      time
@@ -34,7 +34,7 @@ subquery: SELECT select_list
 
 stb_name 是保存计算结果的超级表的表名，如果该超级表不存在，会自动创建；如果已存在，则检查列的 schema 信息。详见 [写入已存在的超级表](#写入已存在的超级表)。
 
-TAGS 子句定义了流计算中创建TAG的规则，可以为每个 partition 对应的子表生成自定义的TAG值，详见 [自定义 TAG](#自定义-TAG)
+TAGS 子句定义了流计算中创建 TAG 的规则，可以为每个 partition 对应的子表生成自定义的 TAG 值，详见 [自定义 TAG](#自定义-tag)
 ```sql
 create_definition:
     col_name column_definition
@@ -128,7 +128,7 @@ create stream if not exists s1 fill_history 1 into st1  as select count(*) from 
 如果该流任务已经彻底过期，并且您不再想让它检测或处理数据，您可以手动删除它，被计算出的数据仍会被保留。
 
 注意：
-- 开启 fill_history 时，创建流需要找到历史数据的分界点，如果历史数据很多，可能会导致创建流任务耗时较长，此时可以通过 fill_history 1 async（v3.3.6.0 开始支持） 语法将创建流的任务放在后台处理，创建流的语句可立即返回，不阻塞后面的操作。async 只对 fill_history 1 起效，fill_history 0 时建流很快，不需要异步处理。
+- 开启 fill_history 时，创建流需要找到历史数据的分界点，如果历史数据很多，可能会导致创建流任务耗时较长，此时可以通过 fill_history 1 async（v3.3.6.0 开始支持）语法将创建流的任务放在后台处理，创建流的语句可立即返回，不阻塞后面的操作。async 只对 fill_history 1 起效，fill_history 0 时建流很快，不需要异步处理。
 
 - 通过 show streams 可查看后台建流的进度（ready 状态表示成功，init 状态表示正在建流，failed 状态表示建流失败，失败时 message 列可以查看原因。对于建流失败的情况可以删除流重新建立）。
 
@@ -168,7 +168,7 @@ SELECT * from information_schema.`ins_streams`;
 
 4. FORCE_WINDOW_CLOSE：以操作系统当前时间为准，只计算当前关闭窗口的结果，并推送出去。窗口只会在被关闭的时刻计算一次，后续不会再重复计算。该模式当前只支持 INTERVAL 窗口（不支持滑动）；FILL_HISTORY 必须为 0，IGNORE EXPIRED 必须为 1，IGNORE UPDATE 必须为 1；FILL 只支持 PREV、NULL、NONE、VALUE。
 
-5. CONTINUOUS_WINDOW_CLOSE：窗口关闭时输出结果。修改、删除数据，并不会立即触发重算，每等待 rec_time_val 时长，会进行周期性重算。如果不指定 rec_time_val，那么重算周期是 60 分钟。如果重算的时间长度超过 rec_time_val，在本次重算后，自动开启下一次重算。该模式当前只支持 INTERVAL 窗口。如果使用 FILL，需要配置 adapter的相关信息：adapterFqdn、adapterPort、adapterToken。adapterToken 为 `{username}:{password}` 经过 Base64 编码之后的字符串，例如 `root:taosdata` 编码后为 `cm9vdDp0YW9zZGF0YQ==`
+5. CONTINUOUS_WINDOW_CLOSE：窗口关闭时输出结果。修改、删除数据，并不会立即触发重算，每等待 rec_time_val 时长，会进行周期性重算。如果不指定 rec_time_val，那么重算周期是 60 分钟。如果重算的时间长度超过 rec_time_val，在本次重算后，自动开启下一次重算。该模式当前只支持 INTERVAL 窗口。如果使用 FILL，需要配置 adapter 的相关信息：adapterFqdn、adapterPort、adapterToken。adapterToken 为 `{username}:{password}` 经过 Base64 编码之后的字符串，例如 `root:taosdata` 编码后为 `cm9vdDp0YW9zZGF0YQ==`
 
 由于窗口关闭是由事件时间决定的，如事件流中断、或持续延迟，则事件时间无法更新，可能导致无法得到最新的计算结果。
 
@@ -189,12 +189,12 @@ T = 最新事件时间 - watermark
 每次写入的数据都会以上述公式更新窗口关闭时间，并将窗口结束时间 < T 的所有打开的窗口关闭，若触发模式为 WINDOW_CLOSE 或 MAX_DELAY，则推送窗口聚合结果。
 
 
-![TDengine 流式计算窗口关闭示意图](./watermark.webp)
+![TDengine 流式计算窗口关闭示意图](./pic/watermark.webp)
 
 
 图中，纵轴表示不同时刻，对于不同时刻，我们画出其对应的 TDengine 收到的数据，即为横轴。
 
-横轴上的数据点表示已经收到的数据，其中蓝色的点表示事件时间(即数据中的时间戳主键)最后的数据，该数据点减去定义的 watermark 时间，得到乱序容忍的上界 T。
+横轴上的数据点表示已经收到的数据，其中蓝色的点表示事件时间 (即数据中的时间戳主键) 最后的数据，该数据点减去定义的 watermark 时间，得到乱序容忍的上界 T。
 
 所有结束时间小于 T 的窗口都将被关闭（图中以灰色方框标记）。
 
@@ -207,7 +207,7 @@ T3 时刻，最新事件到达，T 向后推移超过了第二个窗口关闭的
 
 ## 流式计算对于过期数据的处理策略
 
-对于已关闭的窗口，再次落入该窗口中的数据被标记为过期数据.
+对于已关闭的窗口，再次落入该窗口中的数据被标记为过期数据。
 
 TDengine 对于过期数据提供两种处理方式，由 IGNORE EXPIRED 选项指定：
 
@@ -233,7 +233,7 @@ TDengine 对于修改数据提供两种处理方式，由 IGNORE UPDATE 选项�
 ```
 在本页文档顶部的 [field1_name, ...] 是用来指定 stb_name 的列与 subquery 输出结果的对应关系的。如果 stb_name 的列与 subquery 输出结果的位置、数量全部匹配，则不需要显示指定对应关系。如果 stb_name 的列与 subquery 输出结果的数据类型不匹配，会把 subquery 输出结果的类型转换成对应的 stb_name 的列的类型。创建流计算时不能指定 stb_name 的列和 TAG 的数据类型，否则会报错。
 
-对于已经存在的超级表，检查列的schema信息
+对于已经存在的超级表，检查列的 schema 信息
 1. 检查列的 schema 信息是否匹配，对于不匹配的，则自动进行类型转换，当前只有数据长度大于 4096byte 时才报错，其余场景都能进行类型转换。
 2. 检查列的个数是否相同，如果不同，需要显示的指定超级表与 subquery 的列的对应关系，否则报错；如果相同，可以指定对应关系，也可以不指定，不指定则按位置顺序对应。
 
@@ -241,12 +241,12 @@ TDengine 对于修改数据提供两种处理方式，由 IGNORE UPDATE 选项�
 
 用户可以为每个 partition 对应的子表生成自定义的 TAG 值。
 ```sql
-CREATE STREAM streams2 trigger at_once INTO st1 TAGS(cc varchar(100)) as select _wstart, count(*) c1 from st partition by concat("tag-", tbname) as cc interval(10s));
+CREATE STREAM streams2 trigger at_once INTO st1 TAGS(cc varchar(100)) as select _wstart, count(*) c1 from st partition by concat("tag-", tbname) as cc interval(10s);
 ```
 
 PARTITION 子句中，为 concat("tag-", tbname) 定义了一个别名 cc，对应超级表 st1 的自定义 TAG 的名字。在上述示例中，流新创建的子表的 TAG 将以前缀 'new-' 连接原表名作为 TAG 的值。
 
-会对TAG信息进行如下检查
+会对 TAG 信息进行如下检查
 1. 检查 tag 的 schema 信息是否匹配，对于不匹配的，则自动进行数据类型转换，当前只有数据长度大于 4096byte 时才报错，其余场景都能进行类型转换。
 2. 检查 tag 的个数是否相同，如果不同，需要显示的指定超级表与 subquery 的 tag 的对应关系，否则报错；如果相同，可以指定对应关系，也可以不指定，不指定则按位置顺序对应。
 
@@ -309,7 +309,7 @@ RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name;
 ```sql
 CREATE SNODE ON DNODE [id]
 ```
-其中的 id 是集群中的 dnode 的序号。请注意选择的dnode，流计算的中间状态将自动在其上进行备份。
+其中的 id 是集群中的 dnode 的序号。请注意选择的 dnode，流计算的中间状态将自动在其上进行备份。
 从 v3.3.4.0 开始，在多副本环境中创建流会进行 snode 的**存在性检查**，要求首先创建 snode。如果 snode 不存在，无法创建流。
 
 ## 流式计算的事件通知
@@ -338,7 +338,7 @@ notification_options: {
     1. WINDOW_OPEN：窗口打开事件，所有类型的窗口打开时都会触发。
     1. WINDOW_CLOSE：窗口关闭事件，所有类型的窗口关闭时都会触发。
 1. `NOTIFY_HISTORY`：控制是否在计算历史数据时触发通知，默认值为 0，即不触发。
-1. `ON_FAILURE`：向通知地址发送通知失败时(比如网络不佳场景)是否允许丢弃部分事件，默认值为 `PAUSE`。
+1. `ON_FAILURE`：向通知地址发送通知失败时 (比如网络不佳场景) 是否允许丢弃部分事件，默认值为 `PAUSE`。
     1. PAUSE 表示发送通知失败时暂停流计算任务。taosd 会重试发送通知，直到发送成功后，任务自动恢复运行。
     1. DROP 表示发送通知失败时直接丢弃事件信息，流计算任务继续运行，不受影响。
 
@@ -379,6 +379,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
           "eventTime": 1733284887097,
           "windowId": "window-id-67890",
           "windowType": "Time",
+          "groupId": "2650968222368530754",
           "windowStart": 1733284800000
         },
         {
@@ -387,6 +388,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
           "eventTime": 1733284887197,
           "windowId": "window-id-67890",
           "windowType": "Time",
+          "groupId": "2650968222368530754",
           "windowStart": 1733284800000,
           "windowEnd": 1733284860000,
           "result": {
@@ -405,6 +407,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
           "eventTime": 1733284887231,
           "windowId": "window-id-13579",
           "windowType": "Event",
+          "groupId": "7533998559487590581",
           "windowStart": 1733284800000,
           "triggerCondition": {
             "conditionIndex": 0,
@@ -420,12 +423,13 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
           "eventTime": 1733284887231,
           "windowId": "window-id-13579",
           "windowType": "Event",
+          "groupId": "7533998559487590581",
           "windowStart": 1733284800000,
           "windowEnd": 1733284810000,
           "triggerCondition": {
             "conditionIndex": 1,
             "fieldValue": {
-              "c1": 20
+              "c1": 20,
               "c2": 3
             }
           },
@@ -445,7 +449,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
 ### 根级字段说明
 
 1. messageId：字符串类型，是通知消息的唯一标识符，确保整条消息可以被追踪和去重。
-1. timestamp：长整型时间戳，表示通知消息生成的时间，精确到毫秒，即: '00:00, Jan 1 1970 UTC' 以来的毫秒数。
+1. timestamp：长整型时间戳，表示通知消息生成的时间，精确到毫秒，即：'00:00, Jan 1 1970 UTC' 以来的毫秒数。
 1. streams：对象数组，包含多个流任务的事件信息。(详细信息见下节)
 
 ### stream 对象的字段说明
@@ -463,6 +467,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
 1. eventTime：长整型时间戳，表示事件生成时间，精确到毫秒，即：'00:00, Jan 1 1970 UTC' 以来的毫秒数。
 1. windowId：字符串类型，窗口的唯一标识符，确保打开和关闭事件的 ID 一致，便于外部系统将两者关联。如果 taosd 发生故障重启，部分事件可能会重复发送，会保证同一窗口的 windowId 保持不变。
 1. windowType：字符串类型，表示窗口类型，支持 Time、State、Session、Event、Count 五种类型。
+1. groupId: 字符串类型，是对应分组的唯一标识符，如果是按表分组，则与对应表的 uid 一致。
 
 #### 时间窗口相关字段
 
@@ -479,7 +484,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
 这部分是 windowType 为 State 时 event 对象才有的字段。
 1. 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
     1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
-    1. prevState：与状态列的类型相同，表示上一个窗口的状态值。如果没有上一个窗口(即：现在是第一个窗口)，则为 NULL。
+    1. prevState：与状态列的类型相同，表示上一个窗口的状态值。如果没有上一个窗口 (即：现在是第一个窗口)，则为 NULL。
     1. curState：与状态列的类型相同，表示当前窗口的状态值。
 1. 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
     1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
@@ -504,13 +509,13 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
 1. 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
   1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
   1. triggerCondition：触发窗口开始的条件信息，包括以下字段：
-    1. conditionIndex：整型，表示满足的触发窗口开始的条件的索引，从0开始编号。
+    1. conditionIndex：整型，表示满足的触发窗口开始的条件的索引，从 0 开始编号。
     1. fieldValue：键值对形式，包含条件列列名及其对应的值。
 1. 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
     1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
     1. windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
     1. triggerCondition：触发窗口关闭的条件信息，包括以下字段：
-        1. conditionIndex：整型，表示满足的触发窗口关闭的条件的索引，从0开始编号。
+        1. conditionIndex：整型，表示满足的触发窗口关闭的条件的索引，从 0 开始编号。
         1. fieldValue：键值对形式，包含条件列列名及其对应的值。
     1. result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
 

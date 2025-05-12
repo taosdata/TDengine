@@ -3,13 +3,13 @@ title: "添加机器学习模型"
 sidebar_label: "添加机器学习模型"
 ---
 
-机器/深度学习模型一般要求训练集样本量足够大，才能取得不错的预测效果。训练过程要消耗一定量的时间和计算资源，并需要根据输入的数据进行定期的训练以及更新模型。TDgpt 内置了 Torch 和 Keras 机器学习库。所有使用 Torch 或 Keras 开发的模型均可以驱动运行。
+机器/深度学习模型一般要求训练集样本量足够大，才能取得不错的预测效果。训练过程要消耗一定量的时间和计算资源，并需要根据输入的数据进行定期的训练以及更新模型。TDgpt 内置了 PyTorch 和 Keras 机器学习库。所有使用 PyTorch 或 Keras 开发的模型均可以驱动运行。
 
 本章介绍将预训练完成的机器/深度学习分析模型添加到 TDgpt 中的方法。
 
 ## 准备模型
 
-推荐将模型保存在默认的保存目录（`/usr/local/taos/taosanode/model/`）中，也可以在目录中建立下一级目录，用以保存模型。下面使用 Keras 开发的基于自编码器(auto encoder) 的异常检测模型添加到 TDgpt 为例讲解整个流程。
+推荐将模型保存在默认的保存目录 `/usr/local/taos/taosanode/model/` 中，也可以在目录中建立下一级目录，用以保存模型。下面使用 Keras 开发的基于自编码器 `auto encoder` 的异常检测模型添加到 TDgpt 为例讲解整个流程。
 
 该模型在 TDgpt 系统中名称为 'sample_ad_model'。
 训练该模型的代码见：[training_ad_model.py](https://github.com/taosdata/TDengine/tree/main/tools/tdgpt/taosanalytics/misc/training_ad_model.py)。

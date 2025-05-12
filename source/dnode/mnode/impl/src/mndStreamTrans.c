@@ -38,6 +38,7 @@ int32_t mndStreamCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq,
   }
 
   mstInfo("start to build trans %s, transId:%d", name, p->id);
+  p->ableToBeKilled = true;
 
   mndTransSetDbName(p, pStream->pCreate->streamDB, pStream->pCreate->outTblName);
   if ((code = mndTransCheckConflict(pMnode, p)) != 0) {

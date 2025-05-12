@@ -29,7 +29,6 @@ FROM foo anomaly_window(val, 'algo=sample_ad_model,model=sample-ad-autoencoder')
 
 - Isolation Forest
 - One-Class Support Vector Machines (SVM)
-- Prophet
 
 ### 参考文献
 

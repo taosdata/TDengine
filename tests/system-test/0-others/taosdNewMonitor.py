@@ -116,24 +116,27 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][17]["name"] != "grants_timeseries_total":
             tdLog.exit("grants_timeseries_total is null!")
 
+        if infoDict[0]["tables"][4]["name"] != "taosd_sql_req":
+            tdLog.exit("taosd_sql_req is null!")
+
         # vgroup_infos  ====================================
 
-        vgroup_infos_nums = len(infoDict[0]["tables"][4]["metric_groups"])   
+        vgroup_infos_nums = len(infoDict[0]["tables"][5]["metric_groups"])   
     
         for  index in range(vgroup_infos_nums):
-            if infoDict[0]["tables"][4]["metric_groups"][index]["metrics"][0]["name"] != "tables_num":
+            if infoDict[0]["tables"][5]["metric_groups"][index]["metrics"][0]["name"] != "tables_num":
                 tdLog.exit("tables_num is null!")
 
-            if infoDict[0]["tables"][4]["metric_groups"][index]["metrics"][1]["name"] != "status":
+            if infoDict[0]["tables"][5]["metric_groups"][index]["metrics"][1]["name"] != "status":
                 tdLog.exit("status is null!")
         
-        if infoDict[0]["tables"][5]["name"] != "taosd_dnodes_status":
+        if infoDict[0]["tables"][6]["name"] != "taosd_dnodes_status":
             tdLog.exit("taosd_dnodes_status is null!")
 
-        if infoDict[0]["tables"][6]["name"] != "taosd_mnodes_info":
+        if infoDict[0]["tables"][7]["name"] != "taosd_mnodes_info":
             tdLog.exit("taosd_mnodes_info is null!")
 
-        if infoDict[0]["tables"][7]["name"] != "taosd_vnodes_info":
+        if infoDict[0]["tables"][8]["name"] != "taosd_vnodes_info":
             tdLog.exit("taosd_vnodes_info is null!")
 
     def do_GET(self):
@@ -167,6 +170,8 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         #print("================")
         # print(infoDict)
         self.telemetryInfoCheck(infoDict)
+
+        time.sleep(1)
 
         # 4. shutdown the server and exit case
         assassin = threading.Thread(target=self.server.shutdown)
@@ -225,6 +230,12 @@ class TDTestCase:
         tdSql.query(sql)
         sql = "create table db3.tb using db3.stb tags (1)"
         tdSql.query(sql)
+
+        count = 0
+        while count < 100:
+            sql = "insert into db3.tb values (now, %d)"%count
+            tdSql.execute(sql)
+            count += 1
 
         # create http server: bing ip/port , and  request processor
         if (platform.system().lower() == 'windows' and not tdDnodes.dnodes[0].remoteIP == ""):

@@ -4,11 +4,11 @@ slug: /tdengine-reference/sql-manual/time-series-extensions
 ---
 
 import Image from '@theme/IdealImage';
-import imgStep01 from './assets/time-series-extensions-01.png';
-import imgStep02 from './assets/time-series-extensions-02.png';
-import imgStep03 from './assets/time-series-extensions-03.png';
-import imgStep04 from './assets/time-series-extensions-04.png';
-import imgStep05 from './assets/time-series-extensions-05.png';
+import imgStep01 from './assets/time-series-extensions-01-time-window.png';
+import imgStep02 from './assets/time-series-extensions-02-state-window.png';
+import imgStep03 from './assets/time-series-extensions-03-session-window.png';
+import imgStep04 from './assets/time-series-extensions-04-event-window.png';
+import imgStep05 from './assets/time-series-extensions-05-count-window.png';
 
 TDengine, in addition to supporting standard SQL, also offers a series of specialized query syntaxes tailored for time-series business scenarios, which greatly facilitate the development of applications in time-series contexts.
 
@@ -86,7 +86,7 @@ The FILL statement specifies the filling mode when data is missing in a window i
 2. VALUE filling: Fixed value filling, where the fill value must be specified. For example: FILL(VALUE, 1.23). Note that the final fill value is determined by the type of the corresponding column, such as FILL(VALUE, 1.23), if the corresponding column is of INT type, then the fill value is 1. If multiple columns in the query list need FILL, then each FILL column must specify a VALUE, such as `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`. Note, only ordinary columns in the SELECT expression need to specify FILL VALUE, such as `_wstart`, `_wstart+1a`, `now`, `1+1` and the partition key (like tbname) used with partition by do not need to specify VALUE, like `timediff(last(ts), _wstart)` needs to specify VALUE.
 3. PREV filling: Fill data using the previous value. For example: FILL(PREV).
 4. NULL filling: Fill data with NULL. For example: FILL(NULL).
-5. LINEAR filling: Perform linear interpolation filling based on the nearest non-NULL values before and after. For example: FILL(LINEAR).
+5. LINEAR filling: Perform linear interpolation filling based on the nearest values before and after. For example: FILL(LINEAR).
 6. NEXT filling: Fill data using the next value. For example: FILL(NEXT).
 
 Among these filling modes, except for the NONE mode which does not fill by default, other modes will be ignored if there is no data in the entire query time range, resulting in no fill data and an empty query result. This behavior is reasonable under some modes (PREV, NEXT, LINEAR) because no data means no fill value can be generated. For other modes (NULL, VALUE), theoretically, fill values can be generated, and whether to output fill values depends on the application's needs. To meet the needs of applications that require forced filling of data or NULL, without breaking the compatibility of existing filling modes, two new filling modes have been added starting from version 3.0.3.0:
@@ -130,7 +130,7 @@ The forward sliding time of SLIDING cannot exceed the time range of one window. 
 SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
 ```
 
-The INTERVAL clause allows the use of the AUTO keyword to specify the window offset. If the WHERE condition provides a clear applicable start time limit, the required offset will be automatically calculated, dividing the time window from that point; otherwise, it defaults to an offset of 0. Here are some simple examples:
+The INTERVAL clause allows the use of the AUTO keyword to specify the window offset (Supported in version 3.3.5.0 and later). If the WHERE condition provides a clear applicable start time limit, the required offset will be automatically calculated, dividing the time window from that point; otherwise, it defaults to an offset of 0. Here are some simple examples:
 
 ```sql
 -- With a start time limit, divide the time window from '2018-10-03 14:38:05'

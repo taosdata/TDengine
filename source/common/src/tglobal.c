@@ -81,7 +81,12 @@ int32_t tsQueryNoFetchTimeoutSec = 3600 * 5;
 
 int32_t tsNumOfRpcThreads = 1;
 int32_t tsNumOfRpcSessions = 30000;
+#ifdef WINDOWS
+int32_t tsShareConnLimit = 1;
+#else
 int32_t tsShareConnLimit = 10;
+#endif
+
 int32_t tsReadTimeout = 900;
 int32_t tsTimeToGetAvailableConn = 500000;
 
@@ -117,6 +122,7 @@ int32_t tsHeartbeatInterval = 1000;
 int32_t tsHeartbeatTimeout = 20 * 1000;
 int32_t tsSnapReplMaxWaitN = 128;
 int64_t tsLogBufferMemoryAllowed = 0;  // bytes
+int32_t tsRoutineReportInterval = 300;
 
 // mnode
 int64_t tsMndSdbWriteDelta = 200;
@@ -127,7 +133,7 @@ bool    tsEnableWhiteList = false;  // ip white list cfg
 // arbitrator
 int32_t tsArbHeartBeatIntervalSec = 2;
 int32_t tsArbCheckSyncIntervalSec = 3;
-int32_t tsArbSetAssignedTimeoutSec = 6;
+int32_t tsArbSetAssignedTimeoutSec = 14;
 
 // dnode
 int64_t tsDndStart = 0;
@@ -339,7 +345,7 @@ int32_t tsS3MigrateIntervalSec = 60 * 60;  // interval of s3migrate db in all vg
 bool    tsS3MigrateEnabled = 0;
 int32_t tsGrantHBInterval = 60;
 int32_t tsUptimeInterval = 300;    // seconds
-char    tsUdfdResFuncs[512] = "";  // taosudf resident funcs that teardown when taosudf exits
+char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udfd exits
 char    tsUdfdLdLibPath[512] = "";
 #ifdef USE_STREAM
 bool tsDisableStream = false;
@@ -904,7 +910,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "memPoolFullFunc", tsMemPoolFullFunc, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL) != 0);
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "singleQueryMaxMemorySize", tsSingleQueryMaxMemorySize, 0, 1000000000, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL) != 0);
   //TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryBufferPoolSize", tsQueryBufferPoolSize, 0, 1000000000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0);
-  TAOS_CHECK_RETURN(cfgAddInt32Ex(pCfg, "minReservedMemorySize", 0, 1024, 1000000000, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL) != 0);
+  TAOS_CHECK_RETURN(cfgAddInt32Ex(pCfg, "minReservedMemorySize", 0, 1024, 1000000000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL) != 0);
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryNoFetchTimeoutSec", tsQueryNoFetchTimeoutSec, 60, 1000000000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_LOCAL) != 0);
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfMnodeReadThreads", tsNumOfMnodeReadThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL));
@@ -928,6 +934,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncHeartbeatTimeout", tsHeartbeatTimeout, 10, 1000 * 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncSnapReplMaxWaitN", tsSnapReplMaxWaitN, 16, (TSDB_SYNC_SNAP_BUFFER_SIZE >> 2), CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "syncLogBufferMemoryAllowed", tsLogBufferMemoryAllowed, TSDB_MAX_MSG_SIZE * 10L, INT64_MAX, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncRoutineReportInterval", tsRoutineReportInterval, 5, 600, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "arbHeartBeatIntervalSec", tsArbHeartBeatIntervalSec, 1, 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "arbCheckSyncIntervalSec", tsArbCheckSyncIntervalSec, 1, 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
@@ -1812,6 +1819,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "syncLogBufferMemoryAllowed");
   tsLogBufferMemoryAllowed = pItem->i64;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "syncRoutineReportInterval");
+  tsRoutineReportInterval = pItem->i32;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "arbHeartBeatIntervalSec");
   tsArbHeartBeatIntervalSec = pItem->i32;
 
@@ -2291,16 +2301,16 @@ int32_t tryLoadCfgFromDataDir(SConfig *pCfg) {
   SConfigItem *pItem = NULL;
   TAOS_CHECK_GET_CFG_ITEM(tsCfg, pItem, "forceReadConfig");
   tsForceReadConfig = pItem->i32;
+  code = readCfgFile(tsDataDir, true);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("failed to read global config from %s since %s", tsDataDir, tstrerror(code));
+    TAOS_RETURN(code);
+  }
   if (!tsForceReadConfig) {
     uInfo("load config from tsDataDir:%s", tsDataDir);
     code = readCfgFile(tsDataDir, false);
     if (code != TSDB_CODE_SUCCESS) {
       uError("failed to read local config from %s since %s", tsDataDir, tstrerror(code));
-      TAOS_RETURN(code);
-    }
-    code = readCfgFile(tsDataDir, true);
-    if (code != TSDB_CODE_SUCCESS) {
-      uError("failed to read global config from %s since %s", tsDataDir, tstrerror(code));
       TAOS_RETURN(code);
     }
   }
@@ -2463,6 +2473,10 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = -1;
 
+  if (strcasecmp("timezone", name) == 0) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
   if (strcasecmp(name, "resetlog") == 0) {
     // trigger, no item in cfg
     taosResetLog();
@@ -2526,6 +2540,12 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     goto _exit;
   }
 
+  if (strcasecmp(name, "minReservedMemorySize") == 0) {
+    tsMinReservedMemorySize = pItem->i32;
+    code = taosMemoryPoolCfgUpdateReservedSize(tsMinReservedMemorySize);
+    goto _exit;
+  }
+
   {  //  'bool/int32_t/int64_t/float/double' variables with general modification function
     static OptionNameAndVar debugOptions[] = {
         {"dDebugFlag", &dDebugFlag},       {"vDebugFlag", &vDebugFlag},
@@ -2578,6 +2598,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"syncHeartbeatInterval", &tsHeartbeatInterval},
                                          {"syncHeartbeatTimeout", &tsHeartbeatTimeout},
                                          {"syncSnapReplMaxWaitN", &tsSnapReplMaxWaitN},
+                                         {"syncRoutineReportInterval", &tsRoutineReportInterval},
                                          {"walFsyncDataSizeLimit", &tsWalFsyncDataSizeLimit},
 
                                          {"numOfCores", &tsNumOfCores},
@@ -2643,7 +2664,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
   int32_t lino = 0;
 
   if (strcasecmp("charset", name) == 0 || strcasecmp("timezone", name) == 0) {
-    goto _out;
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
 
   cfgLock(pCfg);
@@ -3097,6 +3118,9 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
       }
       continue;
     }
+    if (strcasecmp(item->name, "forceReadConfig") == 0) {
+      continue;
+    }
     switch (item->dtype) {
       {
         case CFG_DTYPE_NONE:
@@ -3141,6 +3165,7 @@ int32_t taosPersistGlobalConfig(SArray *array, const char *path, int32_t version
   int32_t   lino = 0;
   char     *buffer = NULL;
   TdFilePtr pFile = NULL;
+  char     *serialized = NULL;
   char      filepath[CONFIG_FILE_LEN] = {0};
   char      filename[CONFIG_FILE_LEN] = {0};
   snprintf(filepath, sizeof(filepath), "%s%sconfig", path, TD_DIRSEP);
@@ -3156,7 +3181,6 @@ int32_t taosPersistGlobalConfig(SArray *array, const char *path, int32_t version
     uError("failed to open file:%s since %s", filename, tstrerror(code));
     TAOS_RETURN(code);
   }
-  char *serialized = NULL;
   TAOS_CHECK_GOTO(globalConfigSerialize(version, array, &serialized), &lino, _exit);
 
   if (taosWriteFile(pConfigFile, serialized, strlen(serialized)) < 0) {
@@ -3180,6 +3204,7 @@ int32_t taosPersistLocalConfig(const char *path) {
   int32_t   lino = 0;
   char     *buffer = NULL;
   TdFilePtr pFile = NULL;
+  char     *serialized = NULL;
   char      filepath[CONFIG_FILE_LEN] = {0};
   char      filename[CONFIG_FILE_LEN] = {0};
   snprintf(filepath, sizeof(filepath), "%s%sconfig", path, TD_DIRSEP);
@@ -3197,7 +3222,6 @@ int32_t taosPersistLocalConfig(const char *path) {
     TAOS_RETURN(code);
   }
 
-  char *serialized = NULL;
   TAOS_CHECK_GOTO(localConfigSerialize(taosGetLocalCfg(tsCfg), &serialized), &lino, _exit);
   if (taosWriteFile(pConfigFile, serialized, strlen(serialized)) < 0) {
     lino = __LINE__;

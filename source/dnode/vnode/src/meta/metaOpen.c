@@ -292,6 +292,7 @@ static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
     return code;
   }
 
+#if 1
   // i == 0, scan super table
   // i == 1, scan normal table and child table
   for (int i = 0; i < 2; i++) {
@@ -369,6 +370,59 @@ static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
 
     tdbTbcClose(uidCursor);
   }
+#else
+  TBC *cursor = NULL;
+
+  code = tdbTbcOpen(pMeta->pTbDb, &cursor, NULL);
+  if (code) {
+    metaError("vgId:%d failed to open table.db cursor, reason:%s", TD_VID(pVnode), tstrerror(code));
+    return code;
+  }
+
+  code = tdbTbcMoveToFirst(cursor);
+  if (code) {
+    metaError("vgId:%d failed to move to first, reason:%s", TD_VID(pVnode), tstrerror(code));
+    tdbTbcClose(cursor);
+    return code;
+  }
+
+  while (true) {
+    const void *pKey;
+    int         kLen;
+    const void *pVal;
+    int         vLen;
+
+    if (tdbTbcGet(cursor, &pKey, &kLen, &pVal, &vLen) < 0) {
+      break;
+    }
+
+    STbDbKey  *pKeyEntry = (STbDbKey *)pKey;
+    SDecoder   dc = {0};
+    SMetaEntry me = {0};
+
+    tDecoderInit(&dc, (uint8_t *)pVal, vLen);
+    if (metaDecodeEntry(&dc, &me) < 0) {
+      tDecoderClear(&dc);
+      break;
+    }
+
+    if (metaHandleEntry2(pNewMeta, &me) != 0) {
+      metaError("vgId:%d failed to handle entry, uid:%" PRId64, TD_VID(pVnode), pKeyEntry->uid);
+      tDecoderClear(&dc);
+      break;
+    }
+    tDecoderClear(&dc);
+
+    code = tdbTbcMoveToNext(cursor);
+    if (code) {
+      metaError("vgId:%d failed to move to next, reason:%s", TD_VID(pVnode), tstrerror(code));
+      break;
+    }
+  }
+
+  tdbTbcClose(cursor);
+
+#endif
 
   code = metaCommit(pNewMeta, pNewMeta->txn);
   if (code) {
@@ -393,9 +447,9 @@ static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
   char metaTempDir[TSDB_FILENAME_LEN] = {0};
   char metaBackupDir[TSDB_FILENAME_LEN] = {0};
 
-  vnodeGetMetaPath(pVnode, metaDir, VNODE_META_DIR);
-  vnodeGetMetaPath(pVnode, metaTempDir, VNODE_META_TMP_DIR);
-  vnodeGetMetaPath(pVnode, metaBackupDir, VNODE_META_BACKUP_DIR);
+  vnodeGetMetaPath(pVnode, VNODE_META_DIR, metaDir);
+  vnodeGetMetaPath(pVnode, VNODE_META_TMP_DIR, metaTempDir);
+  vnodeGetMetaPath(pVnode, VNODE_META_BACKUP_DIR, metaBackupDir);
 
   metaClose(ppMeta);
   if (taosRenameFile(metaDir, metaBackupDir) != 0) {

@@ -115,6 +115,41 @@ class TDTestCase(TBase):
         os.system("rm -rf ./query_res*")
         os.system("rm -rf ./all_query*")
 
+        # use restful api to query
+        os.system("%s -f ./tools/benchmark/basic/json/queryInsertrestdata.json" % binPath)
+        os.system("%s -f ./tools/benchmark/basic/json/queryRestful.json" % binPath)
+        os.system("%s -f ./tools/benchmark/basic/json/queryRestful1.json" % binPath)
+        os.system("cat query_res0.txt*  > all_query_res0_rest.txt")
+        os.system("cat query_res1.txt*  > all_query_res1_rest.txt")
+        os.system("cat query_res2.txt*  > all_query_res2_rest.txt")
+
+        # correct Times testcases
+        queryTimes0Restful = self.queryTimesRestful("all_query_res0_rest.txt")
+        self.assertCheck("all_query_res0_rest.txt", queryTimes0Restful, 6)
+
+        queryTimes1Restful = self.queryTimesRestful("all_query_res1_rest.txt")
+        self.assertCheck("all_query_res1_rest.txt", queryTimes1Restful, 6)
+
+        queryTimes2Restful = self.queryTimesRestful("all_query_res2_rest.txt")
+        self.assertCheck("all_query_res2_rest.txt", queryTimes2Restful, 4)
+
+        # correct data testcase
+        data0 = self.getfileDataRestful("all_query_res0_rest.txt")
+        if data0 != "2020-11-01 00:00:00.009" and data0 != "2020-10-31T16:00:00.009Z":
+            tdLog.exit(
+                "data0 is not 2020-11-01 00:00:00.009 and 2020-10-31T16:00:00.009Z"
+            )
+
+        data1 = self.getfileDataRestful("all_query_res1_rest.txt")
+        self.assertCheck("all_query_res1_rest.txt", data1, 10)
+
+        data2 = self.getfileDataRestful("all_query_res2_rest.txt")
+        print(data2)
+        if data2 != "2020-11-01 00:00:00.004" and data2 != "2020-10-31T16:00:00.004Z":
+            tdLog.exit(
+                "data2 is not 2020-11-01 00:00:00.004 and 2020-10-31T16:00:00.004Z"
+            )
+
         # query times less than or equal to 100
         assert (
             os.system("%s -f ./tools/benchmark/basic/json/queryInsertdata.json" % binPath) == 0
@@ -134,6 +169,10 @@ class TDTestCase(TBase):
         assert exceptcode == 0
         exceptcode = os.system("%s -f ./tools/benchmark/basic/json/queryQps1.json" % binPath)
         assert exceptcode == 0
+
+        # 2021.02.09 need modify taosBenchmakr code
+        # use illegal or out of range parameters query json file
+        os.system("%s -f ./tools/benchmark/basic/json/queryInsertdata.json" % binPath)
 
         # delete useless files
         os.system("rm -rf ./insert_res.txt")
