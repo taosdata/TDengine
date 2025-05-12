@@ -19,7 +19,7 @@ import TDgpt from './pic/data-analysis.png';
 # 技术特点
 
 TDgpt 是与 TDengine 主进程 taosd 适配的外置式时序数据分析智能体，能够将时序数据分析服务无缝集成在 TDengine 的查询执行流程。
-TDgpt 是一个无状态的平台，其内置了经典的统计分析模型库 Statsmodel、Pycularity 等，内嵌了 torch/Keras 等机器/深度学习框架库，此外还通过请求转发和适配的方式直接调用涛思数据自研的时序数据基础大模型 TDtsfm (TDengine time series foundation model)。
+TDgpt 是一个无状态的平台，其内置了经典的统计分析模型库 Statsmodel、Pycularity 等，内嵌了 PyTorch/Keras 等机器/深度学习框架库，此外还通过请求转发和适配的方式直接调用涛思数据自研的时序数据基础大模型 TDtsfm (TDengine time series foundation model)。
 
 作为一个分析智能体，TDgpt 后续还将整合第三方时序数据 MaaS 大模型服务，仅修改一个参数（algo）就能够调用最先进的时间序列模型服务。
 TDgpt 是一个开放的系统，用户能够根据自己的需要，添加预测分析、异常检测、数据补全、数据分类算法，添加完成后，仅通过修改 SQL 语句中调用的算法参数就能够无缝使用新加入的算法。
@@ -74,7 +74,7 @@ TDgpt 企业版提供针对多种算法模型有效性的综合评估工具。�
 # 处理能力
 
 通常意义上，时间序列数据分析主要是计算密集型任务。这种计算密集型任务，可以使用更高性能的 CPU 或 GPU 来提升处理性能。
-如果是机器/深度学习模型，依赖于 torch 库驱动其运行，可以采用标准的提升分析处理能力的方案来提升 TDgpt 的服务能力，例如将 Anode 部署在内存更大并具有 GPU 的服务器之上，使用可调用 GPU 的 torch 库驱动模型运行，以提升分析响应能力。
+如果是机器/深度学习模型，依赖于 PyTorch 库驱动其运行，可以采用标准的提升分析处理能力的方案来提升 TDgpt 的服务能力，例如将 Anode 部署在内存更大并具有 GPU 的服务器之上，使用可调用 GPU 的 torch 库驱动模型运行，以提升分析响应能力。
 不同的模型、算法可以部署在不同的 Anode 上，增加并行的处理能力。
 
 # 运营维护

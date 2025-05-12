@@ -9749,7 +9749,8 @@ static int32_t checkColumnOptions(SNodeList* pList) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkTableKeepOption(STranslateContext* pCxt, STableOptions* pOptions, bool createStable) {
+static int32_t checkTableKeepOption(STranslateContext* pCxt, STableOptions* pOptions, bool createStable,
+                                    int32_t daysToKeep2) {
   if (pOptions == NULL || (pOptions->keep == -1 && pOptions->pKeepNode == NULL)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -9774,6 +9775,11 @@ static int32_t checkTableKeepOption(STranslateContext* pCxt, STableOptions* pOpt
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_VALUE_OUT_OF_RANGE,
                                    "Invalid option keep value: %lld, should be in range [%d, %d]", pOptions->keep,
                                    TSDB_MIN_KEEP, TSDB_MAX_KEEP);
+  }
+  if (pOptions->keep > daysToKeep2) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_VALUE_OUT_OF_RANGE,
+                                   "Invalid option keep value: %lld, should less than db config daysToKeep2: %d",
+                                   pOptions->keep, daysToKeep2);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -10264,7 +10270,7 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
     code = checkColumnOptions(pStmt->pCols);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkTableKeepOption(pCxt, pStmt->pOptions, createStable);
+    code = checkTableKeepOption(pCxt, pStmt->pOptions, createStable, dbCfg.daysToKeep2);
   }
   if (TSDB_CODE_SUCCESS == code) {
     if (createStable && pStmt->pOptions->ttl != 0) {
@@ -11072,7 +11078,7 @@ static int32_t checkAlterSuperTable(STranslateContext* pCxt, SAlterTableStmt* pS
     code = checkAlterSuperTableBySchema(pCxt, pStmt, pTableMeta);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkTableKeepOption(pCxt, pStmt->pOptions, true);
+    code = checkTableKeepOption(pCxt, pStmt->pOptions, true, dbCfg.daysToKeep2);
   }
   taosMemoryFree(pTableMeta);
   return code;

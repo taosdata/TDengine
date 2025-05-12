@@ -60,10 +60,7 @@ class TestTmpSnapshot1:
         showMsg = 1
         showRow = 0
 
-        tdSql.connect("root")
         tdSql.execute(f"use {dbName}")
-
-        tdLog.info(f"== alter database")
 
         tdLog.info(f"== create topics from super table")
         tdSql.execute(f"create topic topic_stb_column as select ts, c3 from stb")
@@ -86,10 +83,8 @@ class TestTmpSnapshot1:
             f"create topic topic_ntb_function as select ts, abs(c1), sin(c2) from ntb0"
         )
 
-        # sql show topics
-        # if $rows != 9 then
-        #  return -1
-        # endi
+        tdSql.query("show topics")
+        tdSql.checkRows(9)
 
         #'group.id:cgrp1,enable.auto.commit:false,auto.commit.interval.ms:6000,auto.offset.reset:earliest'
         keyList = "'group.id:cgrp1,enable.auto.commit:false,auto.commit.interval.ms:6000,auto.offset.reset:earliest'"
@@ -98,6 +93,20 @@ class TestTmpSnapshot1:
         topicNum = 2
 
         # =============================== start consume =============================#
+        cdbName = "cdb0"
+        tdSql.execute(f"create database {cdbName} vgroups 1")
+        tdSql.execute(f"use {cdbName}")
+
+        tdLog.info(f"== create consume info table and consume result table for stb")
+        tdSql.execute(
+            f"create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"
+        )
+        tdSql.execute(
+            f"create table consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)"
+        )
+
+        tdSql.query(f"show tables")
+        tdSql.checkRows(2)
 
         tdLog.info(f"================ test consume from stb")
         tdLog.info(
@@ -110,22 +119,21 @@ class TestTmpSnapshot1:
         totalMsgOfStb = totalMsgOfOneTopic * topicNum
         expectmsgcnt = 1000000
         tdSql.execute(
-            f"insert into consumeinfo values (now , {consumerId} , {topicList} , {keyList} , {expectmsgcnt} , {ifcheckdata} , {ifmanualcommit} )"
+            f"insert into consumeinfo values (now , {consumerId} , {topicList} , {keyList} , {totalMsgOfStb} , {ifcheckdata} , {ifmanualcommit} )"
         )
-
         topicList = "'topic_stb_all,topic_stb_function'"
         consumerId = 1
         tdSql.execute(
-            f"insert into consumeinfo values (now , {consumerId} , {topicList} , {keyList} , {expectmsgcnt} , {ifcheckdata} , {ifmanualcommit} )"
+            f"insert into consumeinfo values (now+1s , {consumerId} , {topicList} , {keyList} , {totalMsgOfStb} , {ifcheckdata} , {ifmanualcommit} )"
         )
 
         tdLog.info(f"== start consumer to pull msgs from stb")
         tdLog.info(
-            f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
+            f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start -e 1"
         )
 
         os.system(
-            f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
+            f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start -e 1"
         )
 
         tdLog.info(f"== check consume result")
@@ -179,22 +187,21 @@ class TestTmpSnapshot1:
         totalMsgOfCtb = totalMsgOfOneTopic * topicNum
         expectmsgcnt = 1000000
         tdSql.execute(
-            f"insert into consumeinfo values (now , {consumerId} , {topicList} , {keyList} , {expectmsgcnt} , {ifcheckdata} , {ifmanualcommit} )"
+            f"insert into consumeinfo values (now , {consumerId} , {topicList} , {keyList} , {totalMsgOfCtb} , {ifcheckdata} , {ifmanualcommit} )"
         )
-
         topicList = "'topic_ctb_function,topic_ctb_all'"
         consumerId = 1
         tdSql.execute(
-            f"insert into consumeinfo values (now , {consumerId} , {topicList} , {keyList} , {expectmsgcnt} , {ifcheckdata} , {ifmanualcommit} )"
+            f"insert into consumeinfo values (now+1s , {consumerId} , {topicList} , {keyList} , {totalMsgOfCtb} , {ifcheckdata} , {ifmanualcommit} )"
         )
 
         tdLog.info(f"== start consumer to pull msgs from ctb")
         tdLog.info(
-            f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
+            f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start -e 1"
         )
 
         os.system(
-            f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
+            f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start -e 1"
         )
 
         tdLog.info(f"== check consume result")
@@ -244,22 +251,22 @@ class TestTmpSnapshot1:
         totalMsgOfNtb = totalMsgOfOneTopic * topicNum
         expectmsgcnt = 1000000
         tdSql.execute(
-            f"insert into consumeinfo values (now , {consumerId} , {topicList} , {keyList} , {expectmsgcnt} , {ifcheckdata} , {ifmanualcommit} )"
+            f"insert into consumeinfo values (now , {consumerId} , {topicList} , {keyList} , {totalMsgOfNtb} , {ifcheckdata} , {ifmanualcommit} )"
         )
 
         topicList = "'topic_ntb_function,topic_ntb_all'"
         consumerId = 1
         tdSql.execute(
-            f"insert into consumeinfo values (now , {consumerId} , {topicList} , {keyList} , {expectmsgcnt} , {ifcheckdata} , {ifmanualcommit} )"
+            f"insert into consumeinfo values (now+1s , {consumerId} , {topicList} , {keyList} , {totalMsgOfNtb} , {ifcheckdata} , {ifmanualcommit} )"
         )
 
         tdLog.info(f"== start consumer to pull msgs from ntb")
         tdLog.info(
-            f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
+            f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start -e 1"
         )
 
         os.system(
-            f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
+            f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start -e 1"
         )
 
         tdLog.info(f"== check consume result from ntb")
