@@ -324,7 +324,7 @@ async fn main() -> anyhow::Result<()> {
         async move {
             let mut ticker = tokio::time::interval(args.report_interval);
             ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-            let mut published = 0;
+            let mut published = 0u64;
             let mut pre_published = published;
             let start = Instant::now();
             let mut pre_inst = Instant::now();
