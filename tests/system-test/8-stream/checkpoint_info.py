@@ -129,7 +129,7 @@ class TDTestCase:
         time.sleep(5)
         self.print_time_info()
         self.redistribute_vnode()
-        time.sleep(20)
+        time.sleep(180)
         self.restart_stream()
         time.sleep(5)
         self.print_time_info()
