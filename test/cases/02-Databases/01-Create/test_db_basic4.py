@@ -8,9 +8,14 @@ class TestDatabaseBasic4:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_basic4(self):
-        """db basic4
+        """create database 4
 
-        1. -
+        1. create database
+        2. create normal table
+        3. show tables
+        4. drop table
+        5. show tables
+        6. drop database
 
         Catalog:
             - Database:Create
@@ -22,7 +27,7 @@ class TestDatabaseBasic4:
         Jira: None
 
         History:
-            - 2025-4-30 Simon Guan Migrated from tsim/db/basic4.sim
+            - 2025-5-12 Simon Guan Migrated from tsim/db/basic4.sim
 
         """
 
@@ -35,11 +40,8 @@ class TestDatabaseBasic4:
 
         tdSql.query(f"select * from information_schema.ins_databases")
         tdSql.checkRows(3)
-
         tdSql.checkData(2, 0, "d1")
-
         tdSql.checkData(2, 2, 1)
-
         tdSql.checkData(2, 4, 1)
 
         tdSql.query(f"show d1.tables")
@@ -47,9 +49,7 @@ class TestDatabaseBasic4:
 
         tdSql.query(f"show d1.vgroups")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(0, 1, "d1")
 
         tdLog.info(f"=============== drop table")
@@ -57,11 +57,8 @@ class TestDatabaseBasic4:
 
         tdSql.query(f"select * from information_schema.ins_databases")
         tdSql.checkRows(3)
-
         tdSql.checkData(2, 0, "d1")
-
         tdSql.checkData(2, 2, 1)
-
         tdSql.checkData(2, 4, 1)
 
         tdSql.query(f"show d1.tables")
@@ -69,9 +66,7 @@ class TestDatabaseBasic4:
 
         tdSql.query(f"show d1.vgroups")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(0, 1, "d1")
 
         tdLog.info(f"=============== drop all table")
@@ -81,11 +76,8 @@ class TestDatabaseBasic4:
 
         tdSql.query(f"select * from information_schema.ins_databases")
         tdSql.checkRows(3)
-
         tdSql.checkData(2, 0, "d1")
-
         tdSql.checkData(2, 2, 1)
-
         tdSql.checkData(2, 4, 1)
 
         tdSql.query(f"show d1.tables")
@@ -93,7 +85,5 @@ class TestDatabaseBasic4:
 
         tdSql.query(f"show d1.vgroups")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, 2)
-
         tdSql.checkData(0, 1, "d1")
