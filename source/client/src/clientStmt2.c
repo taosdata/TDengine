@@ -396,6 +396,10 @@ static int32_t stmtCleanExecInfo(STscStmt2* pStmt, bool keepTable, bool deepClea
         qDestroyStmtDataBlock(pStmt->exec.pCurrBlock);
         pStmt->exec.pCurrBlock = NULL;
       }
+      if (STMT_TYPE_QUERY != pStmt->sql.type) {
+        taos_free_result(pStmt->exec.pRequest);
+        pStmt->exec.pRequest = NULL;
+      }
     } else {
       pStmt->sql.siInfo.pTableColsIdx = 0;
       stmtResetQueueTableBuf(&pStmt->sql.siInfo.tbBuf, &pStmt->queue);
@@ -461,7 +465,6 @@ static void stmtFreeTbCols(void* buf) {
 static int32_t stmtCleanSQLInfo(STscStmt2* pStmt) {
   STMT2_DLOG_E("start to free SQL info");
 
-  taosMemoryFreeClear(pStmt->db);
   taosMemoryFree(pStmt->sql.pBindInfo);
   taosMemoryFree(pStmt->sql.queryRes.fields);
   taosMemoryFree(pStmt->sql.queryRes.userFields);
@@ -2175,6 +2178,7 @@ int stmtClose2(TAOS_STMT2* stmt) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
 
   STMT_DLOG_E("start to free stmt");
+  taosMemoryFreeClear(pStmt->db);
 
   if (pStmt->bindThreadInUse) {
     while (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady)) {
