@@ -578,8 +578,9 @@ void taos_fetch_whitelist_dual_stack_a(TAOS *taos, __taos_async_whitelist_dual_s
   }
 
   pParam->connId = connId;
-
+  pParam->userCbFn = fp;
   pParam->userParam = param;
+
   SMsgSendInfo *pSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (pSendInfo == NULL) {
     fp(param, terrno, taos, 0, NULL);
