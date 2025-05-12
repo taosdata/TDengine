@@ -306,7 +306,7 @@ SELECT tbname, ts, voltage,
 
 **Step 3**, Output the analysis results, as shown in the following table:
 
-![spark-result](../../../zh/10-third-party/05-bi/spark-result.png)
+![spark-result](./spark-result.png)
 
 After Spark accesses the TDengine data source, it can further support complex data - processing functions such as cross - database analysis, intersection/union/difference operations of datasets, sub - query filtering with the WHERE clause, and normal - column JOIN.
 

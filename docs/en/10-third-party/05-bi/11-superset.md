@@ -80,6 +80,6 @@ There is no difference in the use of TDengine data source compared to other data
 We chose two popular templates from the [Superset Chart] template to showcase their effects, using smart meter data as an example:  
 
 1. `Aggregate` Type, which displays the maximum voltage value collected per minute during the specified time period in Group 4.  
-![superset-demo1](../../../zh/10-third-party/05-bi/superset-demo1.webp)  
+![superset-demo1](./superset-demo1.webp)  
 1. `RAW RECORDS` Type, which displays the collected values of current and voltage during the specified time period in Group 4.  
-![superset-demo2](../../../zh/10-third-party/05-bi/superset-demo2.webp)    
+![superset-demo2](./superset-demo2.webp)    
