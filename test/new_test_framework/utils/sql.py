@@ -1501,6 +1501,9 @@ class TDSql:
             tdLog.info("check key successfully")
 
     def printResult(self):
+        tdLog.info(
+            f"print result, rows:{self.queryRows}, cols:{self.queryCols}, sql:{self.sql}"
+        )
         for r in range(self.queryRows):
             for c in range(self.queryCols):
                 tdLog.info(f"data[{r}][{c}]=[{self.queryResult[r][c]}]")
@@ -2280,6 +2283,22 @@ class TDSql:
             os.system("pause")  # 显示 "按任意键继续..."
         else:  # Linux/macOS
             input("press enter to continue...")
+
+    def setConnMode(self, mode=1):
+        """
+        Set Conn Mode
+
+        Args:
+            mode (int, optional): connect mode options.
+
+        Returns:
+            None
+
+        Raises:
+            None
+
+        """
+        tdLog.info(f"set connection mode:{mode}")
 
 
 tdSql = TDSql()

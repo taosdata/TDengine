@@ -8,9 +8,11 @@ class TestDatabaseCreate:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_create(self):
-        """create db
+        """check database name
 
-        1. -
+        1. case sensitivity
+        2. illegal names
+        3. chinese names
 
         Catalog:
             - Database:Create
@@ -22,7 +24,7 @@ class TestDatabaseCreate:
         Jira: None
 
         History:
-            - 2025-4-30 Simon Guan Migrated from tsim/parser/create_db.sim
+            - 2025-5-12 Simon Guan Migrated from tsim/parser/create_db.sim
         """
 
         tdLog.info(f"======================== dnode1 start")
@@ -159,14 +161,12 @@ class TestDatabaseCreate:
         tdSql.execute(f"create database dbk0 keep 39")
         tdSql.query(f"select * from information_schema.ins_databases")
         tdSql.checkRows(3)
-
         tdSql.checkData(2, 7, "39d,39d,39d")
 
         tdSql.execute(f"drop database dbk0")
         tdSql.execute(f"create database dbka keep 39,40")
         tdSql.query(f"select * from information_schema.ins_databases")
         tdSql.checkRows(3)
-
         tdSql.checkData(2, 7, "39d,40d,40d")
 
         tdSql.execute(f"drop database dbka")
@@ -174,28 +174,24 @@ class TestDatabaseCreate:
         tdSql.execute(f"create database dbk1 duration 3 keep 11,11,11")
         tdSql.query(f"select * from information_schema.ins_databases")
         tdSql.checkRows(3)
-
         tdSql.checkData(2, 7, "11d,11d,11d")
 
         tdSql.execute(f"drop database dbk1")
         tdSql.execute(f"create database dbk2 duration 3 keep 11,12,13")
         tdSql.query(f"select * from information_schema.ins_databases")
         tdSql.checkRows(3)
-
         tdSql.checkData(2, 7, "11d,12d,13d")
 
         tdSql.execute(f"drop database dbk2")
         tdSql.execute(f"create database dbk3 duration 3 keep 11,11,13")
         tdSql.query(f"select * from information_schema.ins_databases")
         tdSql.checkRows(3)
-
         tdSql.checkData(2, 7, "11d,11d,13d")
 
         tdSql.execute(f"drop database dbk3")
         tdSql.execute(f"create database dbk4 duration 3 keep 11,13,13")
         tdSql.query(f"select * from information_schema.ins_databases")
         tdSql.checkRows(3)
-
         tdSql.checkData(2, 7, "11d,13d,13d")
 
         tdSql.execute(f"drop database dbk4")
@@ -252,5 +248,3 @@ class TestDatabaseCreate:
         tdSql.query(f"select * from information_schema.ins_databases")
         tdSql.checkRows(2)
 
-
-# system sh/exec.sh -n dnode1 -s stop -x SIGINT

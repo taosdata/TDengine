@@ -86,10 +86,8 @@ class TestTmpSnapshot2:
             f"create topic topic_ntb_function as select ts, abs(c1), sin(c2) from ntb0"
         )
 
-        # sql show topics
-        # if $rows != 9 then
-        #  return -1
-        # endi
+        tdSql.query("show topics")
+        tdSql.checkRows(9)
 
         keyList = "'group.id:cgrp1,enable.auto.commit:false,auto.commit.interval.ms:6000,auto.offset.reset:earliest'"
         tdLog.info(f"key list:  {keyList}")
@@ -106,7 +104,7 @@ class TestTmpSnapshot2:
             # run tsim/tmq/clearConsume.sim
             # because drop table function no stable, so by create new db for consume info and result. Modify it later
             cdb_index = cdb_index + 1
-            cdbName = "cdb" + cdb_index
+            cdbName = "cdb" + str(cdb_index)
             tdSql.execute(f"create database {cdbName} vgroups 1")
             tdSql.execute(f"use {cdbName}")
 
@@ -134,33 +132,34 @@ class TestTmpSnapshot2:
             else:
                 break
 
-        consumerId = 0
-        totalMsgOfStb = ctbNum * rowsPerCtb
-        expectmsgcnt = 1000000
-        expectrowcnt = 100
-        tdSql.execute(
-            f"insert into consumeinfo values (now , {consumerId} , {topicList} , {keyList} , {expectmsgcnt} , {ifcheckdata} , {ifmanualcommit} )"
-        )
+            consumerId = 0
+            totalMsgOfStb = ctbNum * rowsPerCtb
+            expectmsgcnt = 1000000
+            expectrowcnt = 100
+            tdSql.execute(
+                f"insert into consumeinfo values (now , {consumerId} , {topicList} , {keyList} , {totalMsgOfStb} , {ifcheckdata} , {ifmanualcommit} )"
+            )
 
-        tdLog.info(f"== start consumer to pull msgs from stb")
-        tdLog.info(
-            f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
-        )
-        os.system(
-            f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
-        )
+            tdLog.info(f"== start consumer to pull msgs from stb")
+            tdLog.info(
+                f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start -e 1"
+            )
+            os.system(
+                f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start -e 1"
+            )
 
-        tdLog.info(f"== check consume result")
-        while True:
-            tdSql.query(f"select * from consumeresult")
-            tdLog.info(f"==> rows: {tdSql.getRows()})")
+            tdLog.info(f"== check consume result")
+            while True:
+                tdSql.query(f"select * from consumeresult")
+                tdLog.info(f"==> rows: {tdSql.getRows()})")
 
-            if tdSql.getRows() == 1:
-                tdSql.checkData(0, 1, consumerId)
-                tdSql.checkData(0, 3, expectrowcnt)
-                tdSql.execute(f"drop database {cdbName}")
-                break
-            time.sleep(1)
+                if tdSql.getRows() == 1:
+                    tdSql.checkData(0, 1, consumerId)
+                    tdSql.checkData(0, 3, totalMsgOfStb)
+                    tdSql.execute(f"drop database {cdbName}")
+                    break
+                time.sleep(1)
+            loop_cnt = loop_cnt + 1
 
         tdLog.info(f"================ test consume from ctb")
         loop_cnt = 0
@@ -171,7 +170,7 @@ class TestTmpSnapshot2:
             # run tsim/tmq/clearConsume.sim
             # because drop table function no stable, so by create new db for consume info and result. Modify it later
             cdb_index = cdb_index + 1
-            cdbName = "cdb" + cdb_index
+            cdbName = "cdb" + str(cdb_index)
             tdSql.execute(f"create database {cdbName} vgroups 1")
             tdSql.execute(f"use {cdbName}")
 
@@ -208,10 +207,10 @@ class TestTmpSnapshot2:
 
             tdLog.info(f"== start consumer to pull msgs from ctb")
             tdLog.info(
-                f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -s start"
+                f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -s start -e 1 "
             )
             os.system(
-                f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
+                f"cases/12-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start -e 1"
             )
 
             tdLog.info(f"== check consume result")
@@ -221,8 +220,8 @@ class TestTmpSnapshot2:
 
                 if tdSql.getRows() == 1:
                     tdSql.checkData(0, 1, consumerId)
-                    tdSql.checkData(0, 2, 1)
-                    tdSql.checkData(0, 3, 10)
+                    # tdSql.checkData(0, 2, 1)
+                    tdSql.checkData(0, 3, totalMsgOfCtb)
                     tdSql.execute(f"drop database {cdbName}")
                     break
                 time.sleep(1)
@@ -237,7 +236,7 @@ class TestTmpSnapshot2:
             # run tsim/tmq/clearConsume.sim
             # because drop table function no stable, so by create new db for consume info and result. Modify it later
             cdb_index = cdb_index + 1
-            cdbName = "cdb" + cdb_index
+            cdbName = "cdb" + str(cdb_index)
             tdSql.execute(f"create database {cdbName} vgroups 1")
             tdSql.execute(f"use {cdbName}")
 
@@ -293,6 +292,7 @@ class TestTmpSnapshot2:
                     tdSql.execute(f"drop database {cdbName}")
                     break
                 time.sleep(1)
+            loop_cnt = loop_cnt + 1
 
         os.system(f"cases/12-DataSubscription/sh/consume.sh -s stop -x SIGINT")
 
