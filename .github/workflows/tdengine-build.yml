@@ -232,7 +232,7 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           taos  -h 127.0.0.1 -s "show databases"
-          taosBenchmark -t 10 -n 10 -s 1744951233012 -h 127.0.0.1  -y 
+          taosBenchmark -t 10 -n 10 -s 1744951233012 -h 127.0.0.1  -v 1 -y  
           taos  -h 127.0.0.1 -s "select count(*) from test.meters"
 
       - name: Clean up  on Linux and macOS
