@@ -186,7 +186,7 @@ int32_t smDeployTasks(SStmStreamDeploy* pDeploy) {
   int32_t lino = 0;
   SHashObj* pGrp = gStreamMgmt.stmGrp[gid];
 
-  mstInfo("start to deploy stream, readerNum:%d, triggerNum:%d, runnerNum:%d", 
+  mstInfo("start to deploy stream, readerNum:%zu, triggerNum:%d, runnerNum:%zu", 
       taosArrayGetSize(pDeploy->readerTasks), pDeploy->triggerTask ? 1 : 0, taosArrayGetSize(pDeploy->runnerTasks));      
   
   if (NULL == pGrp) {
@@ -382,7 +382,7 @@ void smRemoveTaskCb(void* param) {
     case STREAM_TRIGGER_TASK:
       taosWLockLatch(&pStream->triggerTaskLock);
       if (pStream->triggerTask->task.taskId != pTask->taskId) {
-        ST_TASK_ELOG("trigger task mismatch with current trigger taskId:%d", pStream->triggerTask->task.taskId);
+        ST_TASK_ELOG("trigger task mismatch with current trigger taskId:%"PRId64, pStream->triggerTask->task.taskId);
         goto _exit;
       }
       

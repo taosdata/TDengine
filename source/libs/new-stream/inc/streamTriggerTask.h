@@ -21,7 +21,6 @@
 #include "stream.h"
 #include "tcommon.h"
 #include "tlosertree.h"
-#include "tmsgcb.h"
 #include "tringbuf.h"
 #include "tsimplehash.h"
 
@@ -129,6 +128,8 @@ typedef struct SSTriggerWalMetaMerger {
   struct SSTriggerRealtimeContext *pContext;
   SArray                          *pMetaNodeBuf;
   SArray                          *pMetaLists;
+  int32_t                          tsSlotId;
+  bool                             useMetaAccel;
 
   SMultiwayMergeTreeInfo *pSessMerger;
   STimeWindow             sessRange;
@@ -140,7 +141,6 @@ typedef struct SSTriggerWalMetaMerger {
 
 typedef struct SSTriggerWalProgress {
   SStreamTaskAddr *pTaskAddr;     // reader task address
-  int64_t          histVerBound;  // boundary version between historical and real-time calculations
   int64_t          lastScanVer;   // version of the last committed record in previous scan
   int64_t          latestVer;     // latest version of committed records in the vnode WAL
 } SSTriggerWalProgress;
@@ -152,7 +152,6 @@ typedef struct SSTriggerRealtimeContext {
   SSHashObj *pReaderWalProgress;
   int32_t    curReaderIdx;
 
-  SSDataBlock               *pWalMetaData;  // wal meta pull response
   SSHashObj                 *pGroups;
   TSSTriggerRealtimeGroupBuf groupsToCheck;
   SSTriggerWalMetaMerger    *pMerger;
@@ -167,9 +166,63 @@ typedef struct SSTriggerRealtimeContext {
   ESTriggerRequestStatus  calcStatus;
   SSTriggerCalcRequest    calcReq;
   SSTriggerRealtimeGroup *pCalcGroup;
-  void                   *pCalcDataCache;
-  void                   *pCalcDataCacheIter;
+
+  void *pCalcDataCache;
+  void *pCalcDataCacheIter;
 } SSTriggerRealtimeContext;
+
+/// structure definitions for trigger history calculation
+
+typedef struct SSTriggerTsdbMeta {
+  int32_t vgId;
+  int64_t uid;
+  int64_t skey;
+  int64_t ekey;
+  int64_t nrows;
+} SSTriggerTsdbMeta;
+
+typedef struct SSTriggerHistoryGroup {
+  struct SSTriggerHistoryContext *pContext;
+  int64_t                         groupId;
+  ESTriggerGroupStatus            status;
+  SSDataBlock                    *pTsdbMetaData;
+
+  SArray               *pMetas;
+  int32_t               metaIdx;
+  STimeWindow           curWindow;
+  ESTriggerWindowStatus winStatus;
+  int32_t               nrowsInWindow;  // not work for sliding/session window
+  union {
+    TWstartBuf wstartBuf;  // for count window
+    SValue     stateVal;   // for state window
+  };
+} SSTriggerHistoryGroup;
+
+typedef TRINGBUF(SSTriggerHistoryGroup *) TSSTriggerHistoryGroupBuf;
+
+typedef struct SSTriggerHistoryContext {
+  struct SStreamTriggerTask *pTask;
+  int64_t                    sessionId;
+
+  int32_t curReaderIdx;
+
+  SSHashObj                *pGroups;
+  TSSTriggerHistoryGroupBuf groupsToCheck;
+  SFilterInfo              *pStartCond;
+  SFilterInfo              *pEndCond;
+  SArray                   *pNotifyParams;  // SArray<SSTriggerCalcParam>
+
+  ESTriggerRequestStatus    pullStatus;
+  SSTriggerPullRequestUnion pullReq;
+  SSDataBlock              *pullResDataBlock[STRIGGER_PULL_TYPE_MAX];
+
+  ESTriggerRequestStatus  calcStatus;
+  SSTriggerCalcRequest    calcReq;
+  SSTriggerRealtimeGroup *pCalcGroup;
+
+  void *pCalcDataCache;
+  void *pCalcDataCacheIter;
+} SSTriggerHistoryContext;
 
 typedef struct SStreamTriggerTask {
   SStreamTask task;
@@ -199,6 +252,7 @@ typedef struct SStreamTriggerTask {
   int64_t fillHistoryStartTime;
   int64_t watermark;
   int64_t expiredTime;
+  int32_t calcTsIndex;
   bool    ignoreDisorder;
   bool    fillHistory;
   bool    fillHistoryFirst;
@@ -220,7 +274,10 @@ typedef struct SStreamTriggerTask {
   // runtime info
   int32_t                   calcParamLimit;  // max number of params in each calculation request
   int32_t                   nextSessionId;
+  SSHashObj                *pHistoryCutoffTime;
+  SSHashObj                *pRealtimeStartVer;
   SSTriggerRealtimeContext *pRealtimeCtx;
+  SSTriggerHistoryContext  *pHistoryCtx;
   volatile int32_t         *pCalcExecCount;
 } SStreamTriggerTask;
 

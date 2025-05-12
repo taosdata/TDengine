@@ -311,7 +311,7 @@ int32_t stRunnerFetchDataFromCache(SStreamCacheReadInfo* pInfo) {
   void** ppIter;
   int32_t code = readStreamDataCache(pInfo->taskInfo.streamId, pInfo->taskInfo.taskId, pInfo->taskInfo.sessionId,
                                      pInfo->gid, pInfo->start, pInfo->end, &ppIter);
-  if (code == 0) {
+  if (code == 0 && *ppIter != NULL) {
     code = getNextStreamDataCache(ppIter, &pInfo->pBlock);
   }
   return code;

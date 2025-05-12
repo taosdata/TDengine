@@ -263,6 +263,7 @@ typedef struct {
   int64_t  flags;
   int64_t  tsmaId;
   int64_t  placeHolderBitmap;
+  int16_t  tsSlotId; // only used when using %%trows
 
   // only for child table and normal table
   int32_t triggerTblVgId;
@@ -395,6 +396,7 @@ typedef struct {
 
   int64_t eventTypes;
   int64_t placeHolderBitmap;
+  int16_t tsSlotId;  // only used when using %%trows
 
   SArray* readerList;  // SArray<SStreamTaskAddr>
   SArray* runnerList;  // SArray<SStreamRunnerTarget>
@@ -557,6 +559,7 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_WAL_TS_DATA,
   STRIGGER_PULL_WAL_TRIGGER_DATA,
   STRIGGER_PULL_WAL_CALC_DATA,
+  STRIGGER_PULL_GROUP_COL_VALUE,
   STRIGGER_PULL_TYPE_MAX,
 } ESTriggerPullType;
 
@@ -637,6 +640,10 @@ typedef struct SSTriggerWalCalcDataRequest {
   int64_t              skey;
   int64_t              ekey;
 } SSTriggerWalCalcDataRequest;
+typedef struct SSTriggerGroupColValueRequest {
+  SSTriggerPullRequest base;
+  int64_t              gid;
+} SSTriggerGroupColValueRequest;
 
 typedef union SSTriggerPullRequestUnion {
   SSTriggerPullRequest                base;
@@ -653,6 +660,7 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerWalTsDataRequest           walTsDataReq;
   SSTriggerWalTriggerDataRequest      walTriggerDataReq;
   SSTriggerWalCalcDataRequest         walCalcDataReq;
+  SSTriggerGroupColValueRequest       groupColValueReq;
 } SSTriggerPullRequestUnion;
 
 int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTriggerPullRequest* pReq);
@@ -706,6 +714,31 @@ typedef struct SStreamRuntimeFuncInfo {
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo);
 int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);
 
+typedef struct STsInfo {
+  int64_t gId;
+  int64_t  ts;
+} STsInfo;
+
+typedef struct SStreamTsResponse {
+  int64_t ver;
+  SArray* tsInfo;  // SArray<STsInfo>
+} SStreamTsResponse;
+
+int32_t tSerializeSStreamTsResponse(void* buf, int32_t bufLen, const SStreamTsResponse* pRsp);
+int32_t tDeserializeSStreamTsResponse(void* buf, int32_t bufLen, void *pBlock);
+
+typedef struct SGroupInfo {
+  SValue  data;
+  bool    isNull;
+} SGroupInfo;
+
+typedef struct SStreamGroupInfo {
+  SArray* gInfo;  // SArray<SGroupInfo>
+} SStreamGroupInfo;
+
+int32_t tSerializeSStreamGroupInfo(void* buf, int32_t bufLen, const SStreamGroupInfo* gInfo);
+int32_t tDeserializeSStreamGroupInfo(void* buf, int32_t bufLen, SStreamGroupInfo* gInfo);
+void    tDestroySStreamGroupInfo(void* ptr);
 
 #ifdef __cplusplus
 }

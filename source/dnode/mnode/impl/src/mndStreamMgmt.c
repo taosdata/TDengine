@@ -371,6 +371,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
 
   pMsg->eventTypes = pStream->pCreate->eventTypes;
   pMsg->placeHolderBitmap = pStream->pCreate->placeHolderBitmap;
+  pMsg->tsSlotId = pStream->pCreate->tsSlotId;
 
   SStreamTaskAddr addr;
   int32_t triggerReaderNum = 0;
@@ -1418,7 +1419,7 @@ static int32_t msmLaunchTaskDepolyAction(SStmGrpCtx* pCtx, SStmTaskAction* pActi
       if (!isTriggerReader) {
         scanPlan = taosArrayGet(pStream->pCreate->calcScanPlanList, pAction->id.taskIdx);
         if (NULL == scanPlan) {
-          mstError("fail to get TASK:%" PRId64 " scanPlan, taskIdx:%d, scanPlanNum:%d", 
+          mstError("fail to get TASK:%" PRId64 " scanPlan, taskIdx:%d, scanPlanNum:%zu", 
               pAction->id.taskId, pAction->id.taskIdx, taosArrayGetSize(pStream->pCreate->calcScanPlanList));
           TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
         }

@@ -14,6 +14,7 @@
  */
 
 #include "streamMsg.h"
+#include "tdatablock.h"
 #include "tmsg.h"
 #include "os.h"
 #include "tcommon.h"
@@ -695,6 +696,7 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
 
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->eventTypes));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->placeHolderBitmap));
+  TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->tsSlotId));
 
   int32_t readerNum = taosArrayGetSize(pMsg->readerList);
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, readerNum));
@@ -1088,6 +1090,7 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
 
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->eventTypes));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->placeHolderBitmap));
+  TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pMsg->tsSlotId));
 
   int32_t readerNum = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &readerNum));
@@ -1582,6 +1585,7 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->flags));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->tsmaId));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->placeHolderBitmap));
+  TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pReq->tsSlotId));
 
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->triggerTblVgId));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->outTblVgId));
@@ -1835,6 +1839,7 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->flags));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->tsmaId));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->placeHolderBitmap));
+  TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pReq->tsSlotId));
 
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->triggerTblVgId));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->outTblVgId));
@@ -2202,6 +2207,11 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
       break;
     }
+    case STRIGGER_PULL_GROUP_COL_VALUE: {
+      SSTriggerGroupColValueRequest* pRequest = (SSTriggerGroupColValueRequest*)pReq;
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->gid));
+      break;
+    }
     default: {
       uError("unknown pull type %d", pReq->type);
       code = TSDB_CODE_INVALID_PARA;
@@ -2302,6 +2312,11 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
+      break;
+    }
+    case STRIGGER_PULL_GROUP_COL_VALUE: {
+      SSTriggerGroupColValueRequest* pRequest = &(pReq->groupColValueReq);
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->gid));
       break;
     }
   }
@@ -2446,6 +2461,99 @@ _exit:
   return code;
 }
 
+int32_t tSerializeSStreamGroupInfo(void* buf, int32_t bufLen, const SStreamGroupInfo* gInfo){
+  SEncoder encoder = {0};
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  int32_t  tlen = 0;
+
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+
+  int32_t size = taosArrayGetSize(gInfo->gInfo);
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, size));
+  for (int32_t i = 0; i < size; ++i) {
+    SGroupInfo* pValue = taosArrayGet(gInfo->gInfo, i);
+    if (pValue == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    TAOS_CHECK_EXIT(tEncodeBool(&encoder, pValue->isNull));
+    if (pValue->isNull) {
+      continue;
+    }
+    
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pValue->data.type));
+    if (IS_VAR_DATA_TYPE(pValue->data.type)) {
+      TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pValue->data.pData, pValue->data.nData));
+    } else {
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pValue->data.val));
+    }
+  }
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSStreamGroupInfo(void* buf, int32_t bufLen, SStreamGroupInfo* gInfo) {
+  SDecoder decoder = {0};
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  int32_t  size = 0;
+
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &size));
+  if (size > 0) {
+    gInfo->gInfo = taosArrayInit(size, sizeof(SGroupInfo));
+    if (gInfo->gInfo == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+  }
+  for (int32_t i = 0; i < size; ++i) {
+    SGroupInfo* pValue = taosArrayReserve(gInfo->gInfo, i);
+    if (pValue == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    TAOS_CHECK_EXIT(tDecodeBool(&decoder, &pValue->isNull));
+    if (pValue->isNull) {
+      continue;
+    }
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pValue->data.type));
+    if (IS_VAR_DATA_TYPE(pValue->data.type)) {
+      uint64_t len = 0;
+      TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pValue->data.pData, &len));
+      pValue->data.nData = len;
+    } else {
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pValue->data.val));
+    }
+  }
+
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tDestroySStreamGroupInfo(void* ptr){
+  SStreamGroupInfo* pInfo = ptr;
+  if (pInfo != NULL) {
+    if (pInfo->gInfo != NULL) {
+      taosArrayDestroyEx(pInfo->gInfo, tDestroySValue);
+      pInfo->gInfo = NULL;
+    }
+  }
+}
+
 int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTriggerCalcRequest* pReq) {
   SEncoder encoder = {0};
   int32_t  code = TSDB_CODE_SUCCESS;
@@ -2537,5 +2645,85 @@ int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pIn
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pInfo->sessionId));
   TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &pInfo->withExternalWindow));
 _exit:
+  return code;
+}
+
+int32_t tSerializeSStreamTsResponse(void* buf, int32_t bufLen, const SStreamTsResponse* pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  int32_t  tlen = 0;
+
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->ver));
+  int32_t size = taosArrayGetSize(pRsp->tsInfo);
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, size));
+  for (int32_t i = 0; i < size; ++i) {
+    STsInfo* tsInfo = taosArrayGet(pRsp->tsInfo, i);
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, tsInfo->gId));
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, tsInfo->ts));
+  }
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSStreamTsResponse(void* buf, int32_t bufLen, void *pBlock) {
+  SDecoder decoder = {0};
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  SSDataBlock *pResBlock = pBlock;
+
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, (int64_t*)&pResBlock->info.id.groupId));
+  int32_t numOfCols = 2;
+  if (pResBlock->pDataBlock == NULL) {
+    pResBlock->pDataBlock = taosArrayInit_s(sizeof(SColumnInfoData), numOfCols);
+    if (pResBlock->pDataBlock == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    for (int32_t i = 0; i< numOfCols; ++i) {
+      SColumnInfoData *pColInfoData = taosArrayGet(pResBlock->pDataBlock, i);
+      if (pColInfoData == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      pColInfoData->info.type = TSDB_DATA_TYPE_BIGINT;
+      pColInfoData->info.bytes = sizeof(int64_t);
+    }
+  }
+  int32_t numOfRows = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &numOfRows));
+  TAOS_CHECK_EXIT(blockDataEnsureCapacity(pResBlock, numOfRows));
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    for (int32_t j = 0; j < numOfCols; ++j) {
+      SColumnInfoData *pColInfoData = taosArrayGet(pResBlock->pDataBlock, j);
+      if (pColInfoData == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      int64_t value = 0;
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &value));
+      colDataSetInt64(pColInfoData, i, &value);
+    }
+  }
+
+  pResBlock->info.dataLoad = 1;
+  pResBlock->info.rows = numOfRows;
+
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
   return code;
 }

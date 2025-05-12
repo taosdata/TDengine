@@ -55,7 +55,7 @@ static int32_t blockListGetLastBlock(SBlockList* pBlockList, SSDataBlock** ppBlo
   SListNode* pNode = TD_DLIST_TAIL(pBlockList->pBlocks);
   int32_t    code = 0;
   *ppBlock = NULL;
-  if (pNode) {
+  if (pNode && 0) { // TODO wjm remove it
     SSDataBlock* pBlock = *(SSDataBlock**)pNode->data;
     if (pBlock->info.rows < pBlockList->blockRowNumThreshold) {
       *ppBlock = pBlock;
@@ -66,20 +66,23 @@ static int32_t blockListGetLastBlock(SBlockList* pBlockList, SSDataBlock** ppBlo
     code = blockListAddBlock(pBlockList);
   }
   if (*ppBlock == NULL && 0 == code) {
-    code = blockListGetLastBlock(pBlockList, ppBlock);
+    pNode = TD_DLIST_TAIL(pBlockList->pBlocks);
+    *ppBlock = *(SSDataBlock**)pNode->data;
   }
   return code;
 }
 
 static void blockListDestroy(void* p) {
   SBlockList* pBlockList = (SBlockList*)p;
-  SListNode* pNode = TD_DLIST_HEAD(pBlockList->pBlocks);
-  while (pNode) {
-    SSDataBlock* pBlock = *(SSDataBlock**)pNode->data;
-    blockDataDestroy(pBlock);
-    pNode = pNode->dl_next_;
+  if (TD_DLIST_NELES(pBlockList->pBlocks) > 0) {
+    SListNode* pNode = TD_DLIST_HEAD(pBlockList->pBlocks);
+    while (pNode) {
+      SSDataBlock* pBlock = *(SSDataBlock**)pNode->data;
+      blockDataDestroy(pBlock);
+      pNode = pNode->dl_next_;
+    }
   }
-  tdListFree(pBlockList->pBlocks);
+  //tdListFree(pBlockList->pBlocks); // TODO wjm
 }
 
 typedef struct SExternalWindowOperator {
@@ -94,6 +97,7 @@ typedef struct SExternalWindowOperator {
   SArray*            pOutputBlocks;  // for each window, we have a list of blocks
   int32_t            outputWinId;
   SListNode*         pOutputBlockListNode;  // block index in block array used for output, TODO wjm remember to reset it
+  SSDataBlock*       pTmpBlock;
 } SExternalWindowOperator;
 
 
@@ -233,6 +237,7 @@ static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
   taosArrayDestroy(pExtW->pWins);
   pExtW->pWins = NULL;
   pExtW->pOutputBlockListNode = NULL;
+  pExtW->pOutputBlocks = NULL;
   initResultSizeInfo(&pOperator->resultInfo, 512);
   int32_t code = blockDataEnsureCapacity(pExtW->binfo.pRes, pOperator->resultInfo.capacity);
   if (code == 0) {
@@ -250,6 +255,8 @@ static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
   if (code == 0) {
     cleanupGroupResInfo(&pExtW->groupResInfo);
   }
+  blockDataDestroy(pExtW->pTmpBlock);
+  pExtW->pTmpBlock = NULL;
   return code;
 }
 
@@ -274,7 +281,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
   initBasicInfo(&pExtW->binfo, pResBlock);
 
   pExtW->primaryTsIndex = ((SColumnNode*)pPhynode->window.pTspk)->slotId;
-  pExtW->scalarMode = pPhynode->window.pFuncs->length == 1; // TODO wjm scalar mode
+  pExtW->scalarMode = pPhynode->window.pProjs;
   pExtW->binfo.inputTsOrder = pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC; // TODO wjm set inputtsOrdeer
   pExtW->binfo.outputTsOrder = pExtW->binfo.inputTsOrder;
 
@@ -293,10 +300,10 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     QUERY_CHECK_CODE(code, lino, _error);
   }
 
-  if (pPhynode->window.pExprs) {
+  if (pPhynode->window.pProjs) {
     int32_t    numOfScalarExpr = 0;
     SExprInfo* pScalarExprInfo = NULL;
-    code = createExprInfo(pPhynode->window.pExprs, NULL, &pScalarExprInfo, &numOfScalarExpr);
+    code = createExprInfo(pPhynode->window.pProjs, NULL, &pScalarExprInfo, &numOfScalarExpr);
     QUERY_CHECK_CODE(code, lino, _error);
 
     code = initExprSupp(&pExtW->scalarSupp, pScalarExprInfo, numOfScalarExpr, &pTaskInfo->storageAPI.functionStore);
@@ -435,20 +442,35 @@ static int32_t extWindowCopyRows(SOperatorInfo* pOperator, SSDataBlock* pInputBl
                                  int32_t forwardRows) {
   SExternalWindowOperator* pExtW = pOperator->info;
   SSDataBlock*             pResBlock = extWindowGetOutputBlock(pOperator, getExtWinCurIdx(pOperator));
+  SExprSupp*               pExprSup = &pExtW->scalarSupp;
+
   if (!pResBlock) {
     qError("failed to get output block for ext window:%s", tstrerror(terrno));
     return terrno;
   }
-  int32_t rowsToCopy = TMIN(pResBlock->info.capacity - pResBlock->info.rows, forwardRows);
+  int32_t rowsToCopy = forwardRows;
   int32_t code = 0;
+  if (!pExtW->pTmpBlock)
+    code = createOneDataBlock(pInputBlock, false, &pExtW->pTmpBlock);
+  else
+    blockDataCleanup(pExtW->pTmpBlock);
+  if (code) {
+    qError("failed to create datablock:%s", tstrerror(terrno));
+    return code;
+  }
+  code = blockDataEnsureCapacity(pExtW->pTmpBlock, rowsToCopy);
+  if (code) {
+    qError("failed to ensure capacity:%s", tstrerror(terrno));
+    return code;
+  }
   if (rowsToCopy > 0) {
-    code = blockDataMergeNRows(pResBlock, pInputBlock, startPos, rowsToCopy);
+    code = blockDataMergeNRows(pExtW->pTmpBlock, pInputBlock, startPos, rowsToCopy);
     if (code != 0) return code;
   }
 
-  if (forwardRows > rowsToCopy) {
-    code = extWindowCopyRows(pOperator, pInputBlock, startPos = rowsToCopy, forwardRows - rowsToCopy);
-  }
+  code = projectApplyFunctions(pExprSup->pExprInfo, pResBlock, pExtW->pTmpBlock, pExprSup->pCtx, pExprSup->numOfExprs,
+                               NULL, &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
+  if (code != 0) return code;
 
   return code;
 }
@@ -469,14 +491,6 @@ static int32_t hashExternalWindowProject(SOperatorInfo* pOperator, SSDataBlock* 
   int32_t forwardRows =
       getNumOfRowsInTimeWindow(&pInputBlock->info, tsCol, startPos, ekey, binarySearchForKey, NULL, tsOrder);
 
-
-  if (pExtW->scalarSupp.pExprInfo) {
-    SExprSupp* pExprSup = &pExtW->scalarSupp;
-    int32_t    code =
-      projectApplyFunctions(pExprSup->pExprInfo, pInputBlock, pInputBlock, pExprSup->pCtx, pExprSup->numOfExprs,
-          NULL, &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
-    if (code != 0) return code;
-  }
   int32_t code = extWindowCopyRows(pOperator, pInputBlock, startPos, forwardRows);
 
   while (code == 0 && pInputBlock->info.rows > startPos + forwardRows) {
@@ -596,13 +610,6 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
       // scalar mode, no need to do agg, just output rows partitioned by window
       code = hashExternalWindowProject(pOperator, pBlock);
       if (code != 0) goto _end;
-    }
-
-    if (pExtW->scalarSupp.pExprInfo) {
-      SExprSupp* pExprSup = &pExtW->scalarSupp;
-      code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL,
-                                   &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
-      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     OPTR_SET_OPENED(pOperator);

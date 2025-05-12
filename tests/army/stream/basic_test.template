@@ -5,7 +5,7 @@ use test;
 
 create table stream_query (ts timestamp, id int);
 create table stream_trigger (ts timestamp, id int);
-create stream s1 %WINDOW% from stream_trigger into stream_out as select _twstart, avg(id) from %SOURCE_TABLE%;
+create stream s1 %WINDOW% from stream_trigger %OPTIONS% into stream_out as select _twstart, avg(id) from %SOURCE_TABLE%;
 
 insert into stream_trigger values ('2025-01-01 00:00:00', 0), ('2025-01-01 00:00:01', 1), ('2025-01-01 00:00:02', 2);
 insert into stream_query values ('2025-01-01 00:00:00', 0), ('2025-01-01 00:00:01', 1), ('2025-01-01 00:00:02', 2);

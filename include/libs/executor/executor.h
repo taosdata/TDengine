@@ -111,6 +111,10 @@ int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pInfo, void* msg, SReadHandle* re
 qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int32_t vgId, int32_t* numOfCols,
                                      uint64_t id);
 
+int32_t qGetColumnsFromNodeList(void* data, bool isList, SArray** pColList);
+SSDataBlock* createDataBlockFromDescNode(void* pNode);
+void    printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr);
+
 int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray** tableList, void* pTaskInfo);
 
 /**

@@ -11,10 +11,12 @@ def main():
     parser = argparse.ArgumentParser(description="Generate and execute a SQL test script.")
     parser.add_argument("window_type", choices=valid_window_type, help="Type of window to use in the SQL script.")
     parser.add_argument("--cache", action="store_true", help="Enable cache for the SQL script.")
+    parser.add_argument("--history", action="store_true", help="Enable history for the SQL script.")
 
     args = parser.parse_args()
     window_type = args.window_type
     cache = args.cache
+    history = args.history
 
     try:
         with open("basic_test.template", "r") as f:
@@ -43,6 +45,12 @@ def main():
         template = template.replace(placeholder, "%%trows")
     else:
         template = template.replace(placeholder, "stream_query")
+
+    placeholder = "%OPTIONS%"
+    if history:
+        template = template.replace(placeholder, "options(fill_history_first 1)")
+    else:
+        template = template.replace(placeholder, "")
 
     try:
         with open("basic_test.sql", "w") as f:

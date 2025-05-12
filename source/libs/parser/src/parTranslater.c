@@ -13313,6 +13313,7 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
     pIter = taosHashIterate(pDbs, pIter);
   }
 
+  pReq->tsSlotId = -1;
   for (int32_t i = 0; i < taosArrayGetSize(pVgArray); i++) {
     SStreamCalcScan *pCalcScan = taosArrayGet(pVgArray, i);
     SSubplan        *pScanSubPlan = (SSubplan*)pCalcScan->scanPlan;
@@ -13340,6 +13341,22 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
         break;
       }
       WHERE_NEXT;
+    }
+
+    if (pCalcScan->readFromCache) {
+      SScanPhysiNode* pScan = (SScanPhysiNode*)pScanSubPlan->pNode;
+      FOREACH(pNode, pScan->pScanCols) {
+        STargetNode *pTarget = (STargetNode*)pNode;
+        if (nodeType(pTarget->pExpr) == QUERY_NODE_COLUMN) {
+          if (((SColumnNode*)pTarget->pExpr)->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+            pReq->tsSlotId = pTarget->slotId;
+            break;
+          }
+        }
+      }
+      if (pReq->tsSlotId == -1) {
+        PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Can not find timestamp primary key in trigger query scan"));
+      }
     }
 
     SStreamCalcScan pNewScan = {0};

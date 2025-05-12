@@ -458,14 +458,10 @@ class PlannerTestBaseImpl {
       tFreeSMCreateSmaReq(&req);
       nodesDestroyNode(pQuery->pRoot);
       pQuery->pRoot = pCxt->pAstRoot;
-      pCxt->streamQuery = true;
     } else if (QUERY_NODE_CREATE_STREAM_STMT == nodeType(pQuery->pRoot)) {
       SCreateStreamStmt* pStmt = (SCreateStreamStmt*)pQuery->pRoot;
       pCxt->pAstRoot = pStmt->pQuery;
       pStmt->pQuery = nullptr;
-      pCxt->streamQuery = true;
-      pCxt->triggerType = pStmt->pOptions->triggerType;
-      pCxt->watermark = (NULL != pStmt->pOptions->pWatermark ? ((SValueNode*)pStmt->pOptions->pWatermark)->datum.i : 0);
       nodesDestroyNode(pQuery->pRoot);
       pQuery->pRoot = pCxt->pAstRoot;
     } else {
