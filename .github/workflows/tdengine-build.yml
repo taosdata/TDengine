@@ -220,20 +220,22 @@ jobs:
           taosadapter -V
           taosBenchmark -V
           taos -V
-          ./build.sh start
+          echo "fqdn localhost" >> /etc/taos/taos.cfg 
+          nohup taosd &
+          nohup taosadapter &
           pgrep -l taos
           sleep 6     # NOTE: wait for taosd initialization to complete
           pgrep -l taos
-          taos -h 127.0.0.1  -s  " alter local 'rpcDebugFlag 135'  ;show databases;" || true 
+          taos  -s  " alter local 'rpcDebugFlag 135'  ;show databases" || true 
           cat /var/log/taos/taoslog* 
-          taos -h 127.0.0.1  -s "show dnodes"
+          taos  -s "show dnodes"
 
       - name: Run tests with taosBenchmark
         if: runner.os != 'Windows'
         run: |
-          taos  -h 127.0.0.1 -s "show databases"
-          taosBenchmark -t 10 -n 10 -s 1744951233012 -h 127.0.0.1  -v 1 -y  
-          taos  -h 127.0.0.1 -s "select count(*) from test.meters"
+          taos  -s "show databases"
+          taosBenchmark -t 10 -n 10 -s 1744951233012 -y  
+          taos -s "select count(*) from test.meters"
 
       - name: Clean up  on Linux and macOS
         if: runner.os != 'Windows'
