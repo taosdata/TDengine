@@ -226,7 +226,7 @@ jobs:
           pgrep -l taos
           sleep 6     # NOTE: wait for taosd initialization to complete
           pgrep -l taos
-          taos -c ./  -s  "show databases" || true 
+          taos -c ./  -s  "show databases" 
           taos -c ./   -s "show dnodes"
 
       - name: Run tests with taosBenchmark
