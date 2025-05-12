@@ -1,21 +1,17 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestNull:
+class TestNullColumn:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_null(self):
-        """Null 值处理
+    def test_null_column(self):
+        """NULL Column
 
-        1. 创建包含两个 Int 普通数据列的超级表
-        2. 创建子表并写入数据，其中部分数据为 NULL 值
-        3. 对子表执行投影查询、聚合查询
-        4. 使用 = NULL、is NULL 筛选条件查询
-        5. 创建普通表，包含 bool、smallint、tinyint、int、bigint、float、double、binary 类型的普通数据列
-        6. 向这些数据类中写入 NULL 值
-        7. 进行投影查询
+        1. create table
+        2. insert data with NULL
+        3. query data
 
         Catalog:
             - DataTypes
@@ -76,7 +72,6 @@ class TestNull:
         tdSql.query(f"select * from {tb}")
         tdLog.info(f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)}")
         tdSql.checkData(0, 1, None)
-
         tdSql.checkData(0, 2, 0)
 
         tdSql.checkRows(20)
@@ -89,24 +84,17 @@ class TestNull:
             f"===> {tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)}"
         )
         tdSql.checkData(0, 0, 19)
-
         tdSql.checkData(0, 1, 20)
-
         tdSql.checkData(0, 2, 10.000000000)
-
         tdSql.checkData(0, 3, 9.500000000)
-
         tdSql.checkData(0, 4, 190)
-
         tdSql.checkData(0, 5, 190)
 
         tdLog.info(f"=============== step4")
         tdSql.query(f"select * from {tb}  where tbcol2 = 19")
         tdLog.info(f"===> {tdSql.getData(0,1)} {tdSql.getData(0,2)}")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 1, 19)
-
         tdSql.checkData(0, 2, 19)
 
         tdSql.query(f"select * from {tb}  where tbcol is NULL")
@@ -133,15 +121,10 @@ class TestNull:
             f"===> {tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)}"
         )
         tdSql.checkData(0, 0, 190)
-
         tdSql.checkData(0, 1, 200)
-
         tdSql.checkData(0, 2, 10.000000000)
-
         tdSql.checkData(0, 3, 9.500000000)
-
         tdSql.checkData(0, 4, 1900)
-
         tdSql.checkData(0, 5, 1900)
 
         tdLog.info(f"=============== step7")
@@ -172,32 +155,26 @@ class TestNull:
 
         tdSql.query(f"select * from t2")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 1, None)
 
         tdSql.query(f"select * from t3")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 1, None)
 
         tdSql.query(f"select * from t4")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 1, None)
 
         tdSql.query(f"select * from t5")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 1, None)
 
         tdSql.query(f"select * from t6")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 1, None)
 
         tdSql.query(f"select * from t7")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 1, None)
 
         # sql select * from t8
