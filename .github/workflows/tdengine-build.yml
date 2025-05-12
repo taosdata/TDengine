@@ -220,7 +220,7 @@ jobs:
           taosadapter -V
           taosBenchmark -V
           taos -V
-          sudo bash -c "echo 'fqdn localhost'" >> /etc/taos/taos.cfg
+          sudo bash -c 'echo "fqdn localhost" >> /etc/taos/taos.cfg'
           nohup taosd &
           nohup taosadapter &
           pgrep -l taos
