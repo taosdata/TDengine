@@ -46,7 +46,7 @@ class TestBiTbnameCol:
         tdSql.execute(f"create table tbn1 (ts timestamp, f1 int);")
 
         # set_bi_mode 1
-
+        tdSql.setConnMode(1)
         tdSql.query(f"select `tbname`, f1, f2 from sta order by ts")
         tdLog.info(f"{tdSql.getRows()})")
         tdLog.info(

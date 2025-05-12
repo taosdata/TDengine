@@ -58,7 +58,7 @@ taosKeeper 的一个重要价值在于，它能够将多个甚至一批 TDengine
 
 ## taosX
 
-taosX 作为 TDengine Enterprise 的数据管道功能组件，旨在为用户提供一种无须编写代码即可轻松对接第三方数据源的方法，实现数据的便捷导入。目前，taosX 已支持众多主流数据源，包括 AVEVA PI System、AVEVA Historian、OPC-UA/DA、InfluxDB、OpenTSDB、MQTT、Kafka、CSV、TDengine 2.x、TDengine 3.x、MySQL、PostgreSQL 和 Oracle 等。
+taosX 作为 TDengine Enterprise 的数据管道功能组件，旨在为用户提供一种无须编写代码即可轻松对接第三方数据源的方法，实现数据的便捷导入。目前，taosX 已支持众多主流数据源，包括 AVEVA PI System、AVEVA Historian、OPC-UA/DA、InfluxDB、OpenTSDB、MQTT、Kafka、CSV、TDengine Query、TDengine Data Subscription、MySQL、PostgreSQL 和 Oracle 等。
 
 在实际使用中，用户通常无须直接与 taosX 进行交互。相反，他们可以通过 taosExplorer 提供的浏览器用户界面轻松访问和使用 taosX 的强大功能。这种设计简化了操作流程，降低了使用门槛，使得用户能够更加专注于数据处理和分析，从而提高工作效率。
 

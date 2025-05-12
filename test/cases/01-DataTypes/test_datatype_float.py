@@ -1,22 +1,24 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestFloatColumn:
+class TestDatatypeFloat:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
         tdSql.prepare(dbname="db", drop=True)
 
-    def test_static_create_table(self):
-        """static create table
+    def test_datatype_float(self):
+        """float datatype
 
-        1. 使用 float 作为超级表的普通列、标签列
-        2. 当 float 作为标签列时，使用合法值、非法值创建子表
-        3. 当 float 作为标签列时，测试 show tags 的返回结果
+        1. create table
+        2. insert data
+        3. auto create table
+        4. alter tag value
+        5. illegal input
 
         Catalog:
-            - DataTypes:Float
-            - Tables:Create
+            - DataTypes
+            - Tables:SubTables:Create
 
         Since: v3.0.0.0
 
@@ -25,10 +27,16 @@ class TestFloatColumn:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated from tsim/parser/columnValue_float.sim
+            - 2025-5-12 Simon Guan Migrated from tsim/parser/columnValue_float.sim
 
         """
+        self.create_table()
+        self.insert_data()
+        self.auto_create_table()
+        self.alter_tag_value()
+        self.illegal_input()
 
+    def create_table(self):
         tdLog.info(f"create super table")
         tdSql.execute(
             f"create table mt_float (ts timestamp, c float) tags(tagname float)"
@@ -174,26 +182,7 @@ class TestFloatColumn:
         tdSql.query(f"show tags from st_float_203")
         tdSql.checkData(0, 5, "-1.00000")
 
-    def test_insert_column_value(self):
-        """insert column value
-
-        1. 使用 float 作为超级表的普通列、标签列
-        2. 当 float 作为普通列时，使用合法值、非法值向子表中写入数据
-
-        Catalog:
-            - DataTypes:Float
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def insert_data(self):
         tdLog.info(f"case 1: insert values for test column values")
 
         tdSql.execute(f"insert into st_float_0 values(now, NULL)")
@@ -319,26 +308,7 @@ class TestFloatColumn:
         tdSql.query(f"select * from st_float_14")
         tdSql.checkRows(1)
 
-    def test_dynamic_create_table(self):
-        """dynamic create table
-
-        1. 使用 float 作为超级表的普通列、标签列
-        2. 使用合法值、非法值向子表中写入数据并自动建表
-
-        Catalog:
-            - DataTypes:Float
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def auto_create_table(self):
         tdLog.info(f"case 2: dynamic create table for test tag values")
 
         tdSql.execute(
@@ -532,26 +502,7 @@ class TestFloatColumn:
         tdSql.query(f"select * from st_float_203")
         tdSql.checkData(0, 1, -1.00000)
 
-    def test_alter_tag_value(self):
-        """alter tag value
-
-        1. 使用 float 作为超级表的标签列
-        2. 使用合法值、非法值修改子表的标签值
-
-        Catalog:
-            - DataTypes:Float
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def alter_tag_value(self):
         tdLog.info(f"case 3: alter tag value")
 
         tdSql.execute(
@@ -622,34 +573,18 @@ class TestFloatColumn:
         tdSql.query(f"show tags from st_float_203")
         tdSql.checkData(0, 5, "-1.00000")
 
-    def test_illegal_input(self):
-        """illegal input
-
-        1. 使用 float 作为超级表的标签列
-        2. 使用非法标签值创建子表
-
-        Catalog:
-            - DataTypes:Float
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def illegal_input(self):
         tdLog.info(f"case 4: illegal input")
 
         tdSql.error(f"create table st_float_e0 using mt_float tags(3.50282347e+38)")
         tdSql.error(f"create table st_float_e0 using mt_float tags(-3.50282347e+38)")
         tdSql.error(f"create table st_float_e0 using mt_float tags(333.40282347e+38)")
         tdSql.error(f"create table st_float_e0 using mt_float tags(-333.40282347e+38)")
-        # tdSql.error(f'create table st_float_e0 using mt_float tags(12.80)')   truncate integer part
-        # tdSql.error(f'create table st_float_e0 using mt_float tags(-11.80)')
+        # truncate integer part
+        tdSql.execute(f"create table st_float_e0 using mt_float tags(12.80)")
+        tdSql.execute(f"drop table st_float_e0")
+        tdSql.execute(f"create table st_float_e0 using mt_float tags(-11.80)")
+        tdSql.execute(f"drop table st_float_e0")
         tdSql.error(f"create table st_float_e0 using mt_float tags(123abc)")
         tdSql.error(f'create table st_float_e0_1 using mt_float tags("123abc")')
         tdSql.error(f"create table st_float_e0 using mt_float tags(abc)")
@@ -675,8 +610,8 @@ class TestFloatColumn:
         tdSql.error(f"insert into st_float_e1 values(now, -3.50282347e+38)")
         tdSql.error(f"insert into st_float_e2 values(now, 13.40282347e+38)")
         tdSql.error(f"insert into st_float_e3 values(now, -13.40282347e+38)")
-        # tdSql.error(f'insert into st_float_e4 values(now, 12.80)')
-        # tdSql.error(f'insert into st_float_e5 values(now, -11.80)')
+        tdSql.execute(f"insert into st_float_e4 values(now, 12.80)")
+        tdSql.execute(f"insert into st_float_e5 values(now, -11.80)")
         tdSql.error(f"insert into st_float_e6 values(now, 123abc)")
         tdSql.error(f'insert into st_float_e7 values(now, "123abc")')
         tdSql.error(f"insert into st_float_e9 values(now, abc)")
@@ -696,8 +631,12 @@ class TestFloatColumn:
         tdSql.error(
             f"insert into st_float_e16 using mt_float tags(033) values(now, -13.40282347e+38)"
         )
-        # tdSql.error(f'insert into st_float_e17 using mt_float tags(033) values(now, 12.80)')
-        # tdSql.error(f'insert into st_float_e18 using mt_float tags(033) values(now, -11.80)')
+        tdSql.execute(
+            f"insert into st_float_e17 using mt_float tags(033) values(now, 12.80)"
+        )
+        tdSql.execute(
+            f"insert into st_float_e18 using mt_float tags(033) values(now, -11.80)"
+        )
         tdSql.error(
             f"insert into st_float_e19 using mt_float tags(033) values(now, 123abc)"
         )
@@ -729,8 +668,12 @@ class TestFloatColumn:
         tdSql.error(
             f"insert into st_float_e16 using mt_float tags(-13.40282347e+38) values(now, -033)"
         )
-        # tdSql.error(f'insert into st_float_e17 using mt_float tags(12.80) values(now, -033)')
-        # tdSql.error(f'insert into st_float_e18 using mt_float tags(-11.80) values(now, -033)')
+        tdSql.execute(
+            f"insert into st_float_e17 using mt_float tags(12.80) values(now, -033)"
+        )
+        tdSql.execute(
+            f"insert into st_float_e18 using mt_float tags(-11.80) values(now, -033)"
+        )
         tdSql.error(
             f"insert into st_float_e19 using mt_float tags(123abc) values(now, -033)"
         )
@@ -747,8 +690,7 @@ class TestFloatColumn:
             f'insert into st_float_e24 using mt_float tags(" ") values(now, -033)'
         )
         tdSql.error(
-            f"insert into st_float_e25_3 using mt_float tags("
-            ") values(now, -033)"
+            f"insert into st_float_e25_3 using mt_float tags(" ") values(now, -033)"
         )
 
         tdSql.execute(

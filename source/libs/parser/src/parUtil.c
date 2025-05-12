@@ -1149,6 +1149,7 @@ int32_t buildTableMetaFromViewMeta(STableMeta** pMeta, SViewMeta* pViewMeta) {
   (*pMeta)->tableType = TSDB_VIEW_TABLE;
   (*pMeta)->sversion = pViewMeta->version;
   (*pMeta)->tversion = pViewMeta->version;
+  (*pMeta)->rversion = pViewMeta->version;
   (*pMeta)->tableInfo.precision = pViewMeta->precision;
   (*pMeta)->tableInfo.numOfColumns = pViewMeta->numOfCols;
   memcpy((*pMeta)->schema, pViewMeta->pSchema, sizeof(SSchema) * pViewMeta->numOfCols);

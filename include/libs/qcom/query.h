@@ -112,6 +112,7 @@ typedef struct SVCTableMeta {
   int32_t  vgId;
   int8_t   tableType;
   int32_t  numOfColRefs;
+  int32_t  rversion; // virtual table's column ref's version
   SColRef* colRef;
 } SVCTableMeta;
 #pragma pack(pop)
@@ -127,6 +128,7 @@ typedef struct STableMeta {
   // END: KEEP THIS PART SAME WITH SCTableMeta
 
   int32_t       numOfColRefs;
+  int32_t       rversion; // virtual table's column ref's version
   SColRef*      colRef;
   // END: KEEP THIS PART SAME WITH SVCTableMeta
 
