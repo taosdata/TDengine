@@ -1806,6 +1806,7 @@ int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** pRes, uint64_t* useco
 void streamSetTaskRuntimeInfo(qTaskInfo_t tinfo, SStreamRuntimeInfo* pStreamRuntimeInfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   pTaskInfo->pStreamRuntimeInfo = pStreamRuntimeInfo;
+  pTaskInfo->pStreamRuntimeInfo->funcInfo.withExternalWindow = pTaskInfo->withExternalWindow;
 }
 
 int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType,
