@@ -172,6 +172,7 @@ driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”。
   // getConsumer
   public static TaosConsumer<ResultBean> getConsumer() throws Exception {
       // property
+      String cls        = "com.taosdata.java.DemoSubscribe$ResultDeserializer";
       Properties config = new Properties();
       config.setProperty("td.connect.type",             "ws");
       config.setProperty("bootstrap.servers",           "localhost:6041");
@@ -183,7 +184,7 @@ driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”。
       config.setProperty("client.id",                   "clinet1");
       config.setProperty("td.connect.user",             "root");
       config.setProperty("td.connect.pass",             "taosdata");
-      config.setProperty("value.deserializer",          "com.taosdata.java.DemoSubscribe$ResultDeserializer");
+      config.setProperty("value.deserializer",          cls);
       config.setProperty("value.deserializer.encoding", "UTF-8");
 
       try {
@@ -197,11 +198,10 @@ driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”。
       } catch (Exception ex) {
           // please refer to the JDBC specifications for detailed exceptions info
           System.out.printf("Failed to create websocket consumer, " + 
-                  "host: %s, groupId: %s, clientId: %s, %sErrMessage: %s%n",
+                  "host: %s, groupId: %s, clientId: %s, ErrMessage: %s%n",
                   config.getProperty("bootstrap.servers"),
                   config.getProperty("group.id"),
                   config.getProperty("client.id"),
-                  ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
                   ex.getMessage());
           // Print stack trace for context in examples. Use logging in production.
           ex.printStackTrace();
@@ -249,9 +249,8 @@ driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”。
 
         } catch (Exception ex) {
             // catch except
-            System.out.printf("Failed to poll data, topic: %s, %sErrMessage: %s%n",
+            System.out.printf("Failed to poll data, topic: %s, ErrMessage: %s%n",
                     topics.get(0),
-                    ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
                     ex.getMessage());
             ex.printStackTrace();
         }
@@ -263,7 +262,7 @@ driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”。
         Dataset<Row> df   = spark.createDataFrame(data, schema);
 
         // show
-        System.out.println("----------------- below is subscribe data ----------------");
+        System.out.println("------------- below is subscribe data --------------");
         df.show(Integer.MAX_VALUE, 40, false);
     }
 ```
