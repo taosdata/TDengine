@@ -371,6 +371,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
 
   pMsg->eventTypes = pStream->pCreate->eventTypes;
   pMsg->placeHolderBitmap = pStream->pCreate->placeHolderBitmap;
+  pMsg->tsSlotId = pStream->pCreate->tsSlotId;
 
   SStreamTaskAddr addr;
   int32_t triggerReaderNum = 0;

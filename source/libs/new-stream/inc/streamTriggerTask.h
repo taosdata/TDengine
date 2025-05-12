@@ -128,6 +128,7 @@ typedef struct SSTriggerWalMetaMerger {
   struct SSTriggerRealtimeContext *pContext;
   SArray                          *pMetaNodeBuf;
   SArray                          *pMetaLists;
+  int32_t                          tsSlotId;
   bool                             useMetaAccel;
 
   SMultiwayMergeTreeInfo *pSessMerger;
@@ -251,6 +252,7 @@ typedef struct SStreamTriggerTask {
   int64_t fillHistoryStartTime;
   int64_t watermark;
   int64_t expiredTime;
+  int32_t calcTsIndex;
   bool    ignoreDisorder;
   bool    fillHistory;
   bool    fillHistoryFirst;

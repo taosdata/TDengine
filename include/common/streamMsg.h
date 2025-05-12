@@ -396,6 +396,7 @@ typedef struct {
 
   int64_t eventTypes;
   int64_t placeHolderBitmap;
+  int16_t tsSlotId;  // only used when using %%trows
 
   SArray* readerList;  // SArray<SStreamTaskAddr>
   SArray* runnerList;  // SArray<SStreamRunnerTarget>

@@ -29,6 +29,8 @@ static TdThreadOnce gStreamTriggerModuleInit = PTHREAD_ONCE_INIT;
 volatile int32_t    gStreamTriggerInitRes = TSDB_CODE_SUCCESS;
 static tsem_t       gStreamTriggerCalcReqSem;
 
+#define STREAM_TRIGGER_CHECK_INTERVAL_MS 10000
+
 static void streamTriggerEnvDoInit() {
   gStreamTriggerInitRes = tsem_init(&gStreamTriggerCalcReqSem, 0, 10);  // todo(kjq): ajust dynamically
 }
@@ -150,7 +152,7 @@ static void stwmDestroy(void *ptr) {
   taosMemoryFreeClear(*ppMerger);
 }
 
-static int32_t stwmSetWalMetas(SSTriggerWalMetaMerger *pMerger, SSTriggerWalMeta *pMetas, int32_t nMetas) {
+static int32_t stwmSetWalMetas(SSTriggerWalMetaMerger *pMerger, SSTriggerWalMeta *pMetas, int32_t nMetas, int32_t tsSlotId) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
   SSTriggerRealtimeContext *pContext = pMerger->pContext;
@@ -160,6 +162,7 @@ static int32_t stwmSetWalMetas(SSTriggerWalMetaMerger *pMerger, SSTriggerWalMeta
   QUERY_CHECK_CONDITION(IS_TRIGGER_WAL_META_SESS_MERGER_INVALID(pMerger), code, lino, _end, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_CONDITION(IS_TRIGGER_WAL_META_DATA_MERGER_INVALID(pMerger), code, lino, _end, TSDB_CODE_INVALID_PARA);
 
+  pMerger->tsSlotId = tsSlotId;
   if (pMerger->pMetaNodeBuf == NULL) {
     pMerger->pMetaNodeBuf = taosArrayInit(nMetas, sizeof(SSTriggerWalMetaNode));
     QUERY_CHECK_NULL(pMerger->pMetaNodeBuf, code, lino, _end, terrno);
@@ -401,7 +404,7 @@ static int32_t stwmMetaListSkip2Ts(SSTriggerWalMetaMerger *pMerger, SSTriggerWal
     pList->nextTs = TMAX(pList->head->pMeta->skey, start);
   } else {
     int32_t          nrows = blockDataGetNumOfRows(pList->pDataBlock);
-    SColumnInfoData *pTsCol = taosArrayGet(pList->pDataBlock->pDataBlock, pTask->primaryTsIndex);
+    SColumnInfoData *pTsCol = taosArrayGet(pList->pDataBlock->pDataBlock, pMerger->tsSlotId);
     while (pList->nextIdx < nrows) {
       int64_t ts = *(int64_t *)colDataGetNumData(pTsCol, pList->nextIdx);
       if (ts >= start) {
@@ -526,7 +529,7 @@ static int32_t stwmMetaListNextData(SSTriggerWalMetaMerger *pMerger, SSTriggerWa
   QUERY_CHECK_CONDITION(pList->nextIdx >= 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   int32_t          nrows = blockDataGetNumOfRows(pList->pDataBlock);
-  SColumnInfoData *pTsCol = taosArrayGet(pList->pDataBlock->pDataBlock, pTask->primaryTsIndex);
+  SColumnInfoData *pTsCol = taosArrayGet(pList->pDataBlock->pDataBlock, pMerger->tsSlotId);
   *ppDataBlock = pList->pDataBlock;
   *pStartIdx = pList->nextIdx;
   *pEndIdx = (*pStartIdx) + 1;
@@ -582,7 +585,7 @@ static int32_t stwmBindDataBlock(SSTriggerWalMetaMerger *pMerger, SSDataBlock *p
     pList->pDataBlock = NULL;
     blockDataDestroy(pDataBlock);
   } else {
-    SColumnInfoData  *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pTask->primaryTsIndex);
+    SColumnInfoData  *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pMerger->tsSlotId);
     SSTriggerWalMeta *pMeta = pList->head->pMeta;
     if (IS_TRIGGER_META_NROW_INACCURATE(pMeta)) {
       // update accurate meta info, which helps with subsequent data merging
@@ -635,7 +638,7 @@ static int32_t stwmMetaListSkipNrow(SSTriggerWalMetaMerger *pMerger, SSTriggerWa
 
   if (pList->pDataBlock != NULL) {
     int32_t          nrows = blockDataGetNumOfRows(pList->pDataBlock);
-    SColumnInfoData *pTsCol = taosArrayGet(pList->pDataBlock->pDataBlock, pTask->primaryTsIndex);
+    SColumnInfoData *pTsCol = taosArrayGet(pList->pDataBlock->pDataBlock, pMerger->tsSlotId);
     int32_t          nextIdx = pList->nextIdx;
     while (nextIdx < nrows && *pSkipped < nrowsToSkip) {
       int64_t ts = *(int64_t *)colDataGetNumData(pTsCol, nextIdx);
@@ -1264,7 +1267,7 @@ static int32_t strtgDoCheck(SSTriggerRealtimeGroup *pGroup) {
         // build session window merger
         SSTriggerWalMeta *pMetas = TARRAY_GET_ELEM(pGroup->pMetas, pGroup->metaIdx);
         int32_t           nMetas = TARRAY_SIZE(pGroup->pMetas) - pGroup->metaIdx;
-        code = stwmSetWalMetas(pMerger, pMetas, nMetas);
+        code = stwmSetWalMetas(pMerger, pMetas, nMetas, pTask->primaryTsIndex);
         QUERY_CHECK_CODE(code, lino, _end);
         code = stwmBuildSessMerger(pMerger, pGroup->oldThreshold + 1, pGroup->newThreshold, pTask->gap);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -1326,7 +1329,7 @@ static int32_t strtgDoCheck(SSTriggerRealtimeGroup *pGroup) {
               QUERY_CHECK_CODE(code, lino, _end);
               break;
             }
-            SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pTask->primaryTsIndex);
+            SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pMerger->tsSlotId);
             for (int32_t i = startIdx; i < endIdx; ++i) {
               int64_t ts = *(int64_t *)colDataGetNumData(pTsCol, i);
               if (pGroup->curWindow.ekey + pTask->gap < ts) {
@@ -1380,7 +1383,7 @@ static int32_t strtgDoCheck(SSTriggerRealtimeGroup *pGroup) {
       if (IS_TRIGGER_WAL_META_MERGER_EMPTY(pMerger)) {
         SSTriggerWalMeta *pMetas = TARRAY_GET_ELEM(pGroup->pMetas, pGroup->metaIdx);
         int32_t           nMetas = TARRAY_SIZE(pGroup->pMetas) - pGroup->metaIdx;
-        code = stwmSetWalMetas(pMerger, pMetas, nMetas);
+        code = stwmSetWalMetas(pMerger, pMetas, nMetas, pTask->primaryTsIndex);
         QUERY_CHECK_CODE(code, lino, _end);
         code = stwmBuildDataMerger(pMerger, pGroup->oldThreshold + 1, pGroup->newThreshold);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -1450,7 +1453,7 @@ static int32_t strtgDoCheck(SSTriggerRealtimeGroup *pGroup) {
       if (IS_TRIGGER_WAL_META_MERGER_EMPTY(pMerger)) {
         SSTriggerWalMeta *pMetas = TARRAY_GET_ELEM(pGroup->pMetas, pGroup->metaIdx);
         int32_t           nMetas = TARRAY_SIZE(pGroup->pMetas) - pGroup->metaIdx;
-        code = stwmSetWalMetas(pMerger, pMetas, nMetas);
+        code = stwmSetWalMetas(pMerger, pMetas, nMetas, pTask->primaryTsIndex);
         QUERY_CHECK_CODE(code, lino, _end);
         code = stwmBuildDataMerger(pMerger, pGroup->oldThreshold + 1, pGroup->newThreshold);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -1482,7 +1485,7 @@ static int32_t strtgDoCheck(SSTriggerRealtimeGroup *pGroup) {
             QUERY_CHECK_CODE(code, lino, _end);
             break;
           }
-          SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pTask->primaryTsIndex);
+          SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pMerger->tsSlotId);
           SColumnInfoData *pStateCol = taosArrayGet(pDataBlock->pDataBlock, pTask->stateColId);
           bool             isVarType = IS_VAR_DATA_TYPE(pStateCol->info.type);
           void            *pStateData = isVarType ? (void *)pGroup->stateVal.pData : (void *)&pGroup->stateVal.val;
@@ -1554,7 +1557,7 @@ static int32_t strtgDoCheck(SSTriggerRealtimeGroup *pGroup) {
       if (IS_TRIGGER_WAL_META_MERGER_EMPTY(pMerger)) {
         SSTriggerWalMeta *pMetas = TARRAY_GET_ELEM(pGroup->pMetas, pGroup->metaIdx);
         int32_t           nMetas = TARRAY_SIZE(pGroup->pMetas) - pGroup->metaIdx;
-        code = stwmSetWalMetas(pMerger, pMetas, nMetas);
+        code = stwmSetWalMetas(pMerger, pMetas, nMetas, pTask->primaryTsIndex);
         QUERY_CHECK_CODE(code, lino, _end);
         code = stwmBuildDataMerger(pMerger, pGroup->oldThreshold + 1, pGroup->newThreshold);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -1587,7 +1590,7 @@ static int32_t strtgDoCheck(SSTriggerRealtimeGroup *pGroup) {
             break;
           }
           SColumnInfoData *ps = NULL, *pe = NULL;
-          SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pTask->primaryTsIndex);
+          SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pMerger->tsSlotId);
           for (int32_t i = startIdx; i < endIdx; ++i) {
             int64_t ts = *(int64_t *)colDataGetNumData(pTsCol, i);
             if (pGroup->winStatus != STRIGGER_WINDOW_OPENED) {
@@ -1974,11 +1977,12 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
       // build session window merger
       SSTriggerWalMeta *pMetas = TARRAY_GET_ELEM(pGroup->pMetas, 0);
       int32_t           nMetas = TARRAY_SIZE(pGroup->pMetas);
-      code = stwmSetWalMetas(pMerger, pMetas, nMetas);
+      code = stwmSetWalMetas(pMerger, pMetas, nMetas, pTask->calcTsIndex);
       QUERY_CHECK_CODE(code, lino, _end);
       code = stwmBuildDataMerger(pMerger, pFirstWin->wstart, pLastWin->wend);
       QUERY_CHECK_CODE(code, lino, _end);
-      code = initStreamDataCache(pTask->task.streamId, pTask->task.taskId, 1, &pContext->pCalcDataCache);
+      code = initStreamDataCache(pTask->task.streamId, pTask->task.taskId, 1, pTask->calcTsIndex,
+                                 &pContext->pCalcDataCache);
       QUERY_CHECK_CODE(code, lino, _end);
     }
     while (true) {
@@ -2617,6 +2621,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, const SStreamTriggerDeplo
   pTask->fillHistoryStartTime = pMsg->fillHistoryStartTime;
   pTask->watermark = pMsg->watermark;
   pTask->expiredTime = pMsg->expiredTime;
+  pTask->calcTsIndex = pMsg->tsSlotId;
   pTask->ignoreDisorder = pMsg->igDisorder;
   pTask->fillHistory = pMsg->fillHistory;
   pTask->fillHistoryFirst = pMsg->fillHistoryFirst;

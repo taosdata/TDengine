@@ -696,6 +696,7 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
 
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->eventTypes));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->placeHolderBitmap));
+  TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->tsSlotId));
 
   int32_t readerNum = taosArrayGetSize(pMsg->readerList);
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, readerNum));
@@ -1089,6 +1090,7 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
 
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->eventTypes));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->placeHolderBitmap));
+  TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pMsg->tsSlotId));
 
   int32_t readerNum = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &readerNum));
