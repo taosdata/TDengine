@@ -73,8 +73,10 @@ void __taos_async_whitelist_cb(void *param, int code, TAOS *taos, int numOfWhite
 void __taos_async_whitelist_dual_stack_cb(void *param, int code, TAOS *taos, int numOfWhiteLists, char **pWhiteList) {
   if (code == 0) {
     printf("fetch whitelist cb. user: %s numofWhitelist: %d\n", param ? (char *)param : NULL, numOfWhiteLists);
-    for (int i = 0; i < numOfWhiteLists; ++i) {
-      printf("  %d: 0x%llx\n", i, pWhiteList[i]);
+    for (int i = 0; i < numOfWhiteLists && pWhiteList; ++i) {
+      if (pWhiteList[i]) {
+        printf("fetch ip %s", pWhiteList[i]);
+      }
     }
   } else {
     printf("fetch whitelist cb error %d\n", code);
