@@ -24,8 +24,8 @@ int alias__add(struct tmqtt *ttq, const char *topic, uint16_t alias) {
 
   for (i = 0; i < ttq->alias_count; i++) {
     if (ttq->aliases[i].alias == alias) {
-      tmqtt__free(ttq->aliases[i].topic);
-      ttq->aliases[i].topic = tmqtt__strdup(topic);
+      ttq_free(ttq->aliases[i].topic);
+      ttq->aliases[i].topic = ttq_strdup(topic);
       if (ttq->aliases[i].topic) {
         return TTQ_ERR_SUCCESS;
       } else {
@@ -35,12 +35,12 @@ int alias__add(struct tmqtt *ttq, const char *topic, uint16_t alias) {
   }
 
   /* New alias */
-  aliases = tmqtt__realloc(ttq->aliases, sizeof(struct tmqtt__alias) * (size_t)(ttq->alias_count + 1));
+  aliases = ttq_realloc(ttq->aliases, sizeof(struct tmqtt__alias) * (size_t)(ttq->alias_count + 1));
   if (!aliases) return TTQ_ERR_NOMEM;
 
   ttq->aliases = aliases;
   ttq->aliases[ttq->alias_count].alias = alias;
-  ttq->aliases[ttq->alias_count].topic = tmqtt__strdup(topic);
+  ttq->aliases[ttq->alias_count].topic = ttq_strdup(topic);
   if (!ttq->aliases[ttq->alias_count].topic) {
     return TTQ_ERR_NOMEM;
   }
@@ -54,7 +54,7 @@ int alias__find(struct tmqtt *ttq, char **topic, uint16_t alias) {
 
   for (i = 0; i < ttq->alias_count; i++) {
     if (ttq->aliases[i].alias == alias) {
-      *topic = tmqtt__strdup(ttq->aliases[i].topic);
+      *topic = ttq_strdup(ttq->aliases[i].topic);
       if (*topic) {
         return TTQ_ERR_SUCCESS;
       } else {
@@ -69,9 +69,9 @@ void alias__free_all(struct tmqtt *ttq) {
   int i;
 
   for (i = 0; i < ttq->alias_count; i++) {
-    tmqtt__free(ttq->aliases[i].topic);
+    ttq_free(ttq->aliases[i].topic);
   }
-  tmqtt__free(ttq->aliases);
+  ttq_free(ttq->aliases);
   ttq->aliases = NULL;
   ttq->alias_count = 0;
 }

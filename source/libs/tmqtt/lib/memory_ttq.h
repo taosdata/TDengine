@@ -22,11 +22,11 @@ extern "C" {
 
 #include <stdio.h>
 
-void *tmqtt__calloc(size_t nmemb, size_t size);
-void  tmqtt__free(void *mem);
-void *tmqtt__malloc(size_t size);
-void *tmqtt__realloc(void *ptr, size_t size);
-char *tmqtt__strdup(const char *s);
+void *ttq_calloc(size_t nmemb, size_t size);
+void  ttq_free(void *mem);
+void *ttq_malloc(size_t size);
+void *ttq_realloc(void *ptr, size_t size);
+char *ttq_strdup(const char *s);
 
 #ifdef __cplusplus
 }

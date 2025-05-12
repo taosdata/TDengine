@@ -48,9 +48,9 @@ int packet__alloc(struct tmqtt__packet *packet) {
   if (packet->remaining_count == 5) return TTQ_ERR_PAYLOAD_SIZE;
   packet->packet_length = packet->remaining_length + 1 + (uint8_t)packet->remaining_count;
 #ifdef WITH_WEBSOCKETS
-  packet->payload = tmqtt__malloc(sizeof(uint8_t) * packet->packet_length + LWS_PRE);
+  packet->payload = ttq_malloc(sizeof(uint8_t) * packet->packet_length + LWS_PRE);
 #else
-  packet->payload = tmqtt__malloc(sizeof(uint8_t) * packet->packet_length);
+  packet->payload = ttq_malloc(sizeof(uint8_t) * packet->packet_length);
 #endif
   if (!packet->payload) return TTQ_ERR_NOMEM;
 
@@ -71,7 +71,7 @@ void packet__cleanup(struct tmqtt__packet *packet) {
   packet->remaining_count = 0;
   packet->remaining_mult = 1;
   packet->remaining_length = 0;
-  tmqtt__free(packet->payload);
+  ttq_free(packet->payload);
   packet->payload = NULL;
   packet->to_process = 0;
   packet->pos = 0;
@@ -94,7 +94,7 @@ void packet__cleanup_all_no_locks(struct tmqtt *ttq) {
     }
 
     packet__cleanup(packet);
-    tmqtt__free(packet);
+    ttq_free(packet);
   }
   ttq->out_packet_count = 0;
 
@@ -119,7 +119,7 @@ int packet__queue(struct tmqtt *ttq, struct tmqtt__packet *packet) {
   ttq_pthread_mutex_lock(&ttq->out_packet_mutex);
 
   if (db.config->max_queued_messages > 0 && ttq->out_packet_count >= db.config->max_queued_messages) {
-    tmqtt__free(packet);
+    ttq_free(packet);
     if (ttq->is_dropping == false) {
       ttq->is_dropping = true;
       ttq_log(NULL, TTQ_LOG_NOTICE, "Outgoing messages are being dropped for client %s.", ttq->id);
@@ -239,7 +239,7 @@ int packet__write(struct tmqtt *ttq) {
     ttq_pthread_mutex_unlock(&ttq->out_packet_mutex);
 
     packet__cleanup(packet);
-    tmqtt__free(packet);
+    ttq_free(packet);
 
     ttq->next_msg_out = db.now_s + ttq->keepalive;
   }
@@ -384,7 +384,7 @@ int packet__read(struct tmqtt *ttq) {
     /* FIXME - client case for incoming message received from broker too large */
 #endif
     if (ttq->in_packet.remaining_length > 0) {
-      ttq->in_packet.payload = tmqtt__malloc(ttq->in_packet.remaining_length * sizeof(uint8_t));
+      ttq->in_packet.payload = ttq_malloc(ttq->in_packet.remaining_length * sizeof(uint8_t));
       if (!ttq->in_packet.payload) {
         return TTQ_ERR_NOMEM;
       }

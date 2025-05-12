@@ -122,7 +122,7 @@ static int property__read(struct tmqtt__packet *packet, uint32_t *len, tmqtt_pro
 
       rc = packet__read_string(packet, &str2, &slen2);
       if (rc) {
-        tmqtt__free(str1);
+        ttq_free(str1);
         return rc;
       }
       *len = (*len) - 2 - slen2; /* uint16, string len */
@@ -156,7 +156,7 @@ int property__read_all(int command, struct tmqtt__packet *packet, tmqtt_property
   /* The order of properties must be preserved for some types, so keep the
    * same order for all */
   while (proplen > 0) {
-    p = tmqtt__calloc(1, sizeof(tmqtt_property));
+    p = ttq_calloc(1, sizeof(tmqtt_property));
     if (!p) {
       tmqtt_property_free_all(properties);
       return TTQ_ERR_NOMEM;
@@ -164,7 +164,7 @@ int property__read_all(int command, struct tmqtt__packet *packet, tmqtt_property
 
     rc = property__read(packet, &proplen, p);
     if (rc) {
-      tmqtt__free(p);
+      ttq_free(p);
       tmqtt_property_free_all(properties);
       return rc;
     }
@@ -196,17 +196,17 @@ void property__free(tmqtt_property **property) {
     case MQTT_PROP_RESPONSE_INFORMATION:
     case MQTT_PROP_SERVER_REFERENCE:
     case MQTT_PROP_REASON_STRING:
-      tmqtt__free((*property)->value.s.v);
+      ttq_free((*property)->value.s.v);
       break;
 
     case MQTT_PROP_AUTHENTICATION_DATA:
     case MQTT_PROP_CORRELATION_DATA:
-      tmqtt__free((*property)->value.bin.v);
+      ttq_free((*property)->value.bin.v);
       break;
 
     case MQTT_PROP_USER_PROPERTY:
-      tmqtt__free((*property)->name.v);
-      tmqtt__free((*property)->value.s.v);
+      ttq_free((*property)->name.v);
+      ttq_free((*property)->value.s.v);
       break;
 
     case MQTT_PROP_PAYLOAD_FORMAT_INDICATOR:
@@ -692,7 +692,7 @@ int tmqtt_property_add_byte(tmqtt_property **proplist, int identifier, uint8_t v
     return TTQ_ERR_INVAL;
   }
 
-  prop = tmqtt__calloc(1, sizeof(tmqtt_property));
+  prop = ttq_calloc(1, sizeof(tmqtt_property));
   if (!prop) return TTQ_ERR_NOMEM;
 
   prop->client_generated = true;
@@ -712,7 +712,7 @@ int tmqtt_property_add_int16(tmqtt_property **proplist, int identifier, uint16_t
     return TTQ_ERR_INVAL;
   }
 
-  prop = tmqtt__calloc(1, sizeof(tmqtt_property));
+  prop = ttq_calloc(1, sizeof(tmqtt_property));
   if (!prop) return TTQ_ERR_NOMEM;
 
   prop->client_generated = true;
@@ -732,7 +732,7 @@ int tmqtt_property_add_int32(tmqtt_property **proplist, int identifier, uint32_t
     return TTQ_ERR_INVAL;
   }
 
-  prop = tmqtt__calloc(1, sizeof(tmqtt_property));
+  prop = ttq_calloc(1, sizeof(tmqtt_property));
   if (!prop) return TTQ_ERR_NOMEM;
 
   prop->client_generated = true;
@@ -749,7 +749,7 @@ int tmqtt_property_add_varint(tmqtt_property **proplist, int identifier, uint32_
   if (!proplist || value > 268435455) return TTQ_ERR_INVAL;
   if (identifier != MQTT_PROP_SUBSCRIPTION_IDENTIFIER) return TTQ_ERR_INVAL;
 
-  prop = tmqtt__calloc(1, sizeof(tmqtt_property));
+  prop = ttq_calloc(1, sizeof(tmqtt_property));
   if (!prop) return TTQ_ERR_NOMEM;
 
   prop->client_generated = true;
@@ -768,16 +768,16 @@ int tmqtt_property_add_binary(tmqtt_property **proplist, int identifier, const v
     return TTQ_ERR_INVAL;
   }
 
-  prop = tmqtt__calloc(1, sizeof(tmqtt_property));
+  prop = ttq_calloc(1, sizeof(tmqtt_property));
   if (!prop) return TTQ_ERR_NOMEM;
 
   prop->client_generated = true;
   prop->identifier = identifier;
 
   if (len) {
-    prop->value.bin.v = tmqtt__malloc(len);
+    prop->value.bin.v = ttq_malloc(len);
     if (!prop->value.bin.v) {
-      tmqtt__free(prop);
+      ttq_free(prop);
       return TTQ_ERR_NOMEM;
     }
 
@@ -806,15 +806,15 @@ int tmqtt_property_add_string(tmqtt_property **proplist, int identifier, const c
     return TTQ_ERR_INVAL;
   }
 
-  prop = tmqtt__calloc(1, sizeof(tmqtt_property));
+  prop = ttq_calloc(1, sizeof(tmqtt_property));
   if (!prop) return TTQ_ERR_NOMEM;
 
   prop->client_generated = true;
   prop->identifier = identifier;
   if (value && slen > 0) {
-    prop->value.s.v = tmqtt__strdup(value);
+    prop->value.s.v = ttq_strdup(value);
     if (!prop->value.s.v) {
-      tmqtt__free(prop);
+      ttq_free(prop);
       return TTQ_ERR_NOMEM;
     }
     prop->value.s.len = (uint16_t)slen;
@@ -838,26 +838,26 @@ int tmqtt_property_add_string_pair(tmqtt_property **proplist, int identifier, co
     if (tmqtt_validate_utf8(value, (int)slen_value)) return TTQ_ERR_MALFORMED_UTF8;
   }
 
-  prop = tmqtt__calloc(1, sizeof(tmqtt_property));
+  prop = ttq_calloc(1, sizeof(tmqtt_property));
   if (!prop) return TTQ_ERR_NOMEM;
 
   prop->client_generated = true;
   prop->identifier = identifier;
 
   if (name) {
-    prop->name.v = tmqtt__strdup(name);
+    prop->name.v = ttq_strdup(name);
     if (!prop->name.v) {
-      tmqtt__free(prop);
+      ttq_free(prop);
       return TTQ_ERR_NOMEM;
     }
     prop->name.len = (uint16_t)strlen(name);
   }
 
   if (value) {
-    prop->value.s.v = tmqtt__strdup(value);
+    prop->value.s.v = ttq_strdup(value);
     if (!prop->value.s.v) {
-      tmqtt__free(prop->name.v);
-      tmqtt__free(prop);
+      ttq_free(prop->name.v);
+      ttq_free(prop);
       return TTQ_ERR_NOMEM;
     }
     prop->value.s.len = (uint16_t)strlen(value);

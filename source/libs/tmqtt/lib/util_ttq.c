@@ -153,7 +153,7 @@ int tmqtt__hex2bin_sha1(const char *hex, unsigned char **bin) {
     return TTQ_ERR_INVAL;
   }
 
-  sha = tmqtt__malloc(SHA_DIGEST_LENGTH);
+  sha = ttq_malloc(SHA_DIGEST_LENGTH);
   if (!sha) {
     return TTQ_ERR_NOMEM;
   }

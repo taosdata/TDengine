@@ -29,7 +29,7 @@ struct tmqtt *context__init(ttq_sock_t sock) {
   struct tmqtt *context;
   char          address[1024];
 
-  context = tmqtt__calloc(1, sizeof(struct tmqtt));
+  context = ttq_calloc(1, sizeof(struct tmqtt));
   if (!context) return NULL;
 
 #ifdef WITH_EPOLL
@@ -64,11 +64,11 @@ struct tmqtt *context__init(ttq_sock_t sock) {
   context->address = NULL;
   if ((int)sock >= 0) {
     if (!net__socket_get_address(sock, address, 1024, &context->remote_port)) {
-      context->address = tmqtt__strdup(address);
+      context->address = ttq_strdup(address);
     }
     if (!context->address) {
       /* getpeername and inet_ntop failed and not a bridge */
-      tmqtt__free(context);
+      ttq_free(context);
       return NULL;
     }
   }
@@ -96,14 +96,14 @@ static void context__cleanup_out_packets(struct tmqtt *context) {
 
   if (context->current_out_packet) {
     packet__cleanup(context->current_out_packet);
-    tmqtt__free(context->current_out_packet);
+    ttq_free(context->current_out_packet);
     context->current_out_packet = NULL;
   }
   while (context->out_packet) {
     packet__cleanup(context->out_packet);
     packet = context->out_packet;
     context->out_packet = context->out_packet->next;
-    tmqtt__free(packet);
+    ttq_free(packet);
   }
   context->out_packet_count = 0;
 }
@@ -118,13 +118,13 @@ void context__cleanup(struct tmqtt *context, bool force_free) {
   // alias__free_all(context);
   context__cleanup_out_packets(context);
 
-  tmqtt__free(context->auth_method);
+  ttq_free(context->auth_method);
   context->auth_method = NULL;
 
-  tmqtt__free(context->username);
+  ttq_free(context->username);
   context->username = NULL;
 
-  tmqtt__free(context->password);
+  ttq_free(context->password);
   context->password = NULL;
 
   net__socket_close(context);
@@ -134,14 +134,14 @@ void context__cleanup(struct tmqtt *context, bool force_free) {
 
   db__messages_delete(context, force_free);
 
-  tmqtt__free(context->address);
+  ttq_free(context->address);
   context->address = NULL;
 
   // context__send_will(context);
 
   if (context->id) {
     context__remove_from_by_id(context);
-    tmqtt__free(context->id);
+    ttq_free(context->id);
     context->id = NULL;
   }
   packet__cleanup(&(context->in_packet));
@@ -149,7 +149,7 @@ void context__cleanup(struct tmqtt *context, bool force_free) {
   tmq_ctx_cleanup(&context->tmq_context);
 
   if (force_free) {
-    tmqtt__free(context);
+    ttq_free(context);
   }
 }
 /*
@@ -202,7 +202,7 @@ void context__add_to_disused(struct tmqtt *context) {
 
   if (context->id) {
     context__remove_from_by_id(context);
-    tmqtt__free(context->id);
+    ttq_free(context->id);
     context->id = NULL;
   }
 

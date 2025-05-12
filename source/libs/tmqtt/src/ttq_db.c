@@ -216,14 +216,14 @@ static void subhier_clean(struct tmqtt__subhier **subhier) {
     leaf = peer->subs;
     while (leaf) {
       nextleaf = leaf->next;
-      tmqtt__free(leaf);
+      ttq_free(leaf);
       leaf = nextleaf;
     }
     subhier_clean(&peer->children);
-    tmqtt__free(peer->topic);
+    ttq_free(peer->topic);
 
     HASH_DELETE(hh, *subhier, peer);
-    tmqtt__free(peer);
+    ttq_free(peer);
   }
 }
 
@@ -248,18 +248,18 @@ void db__msg_store_add(struct tmqtt_msg_store *store) {
 void db__msg_store_free(struct tmqtt_msg_store *store) {
   int i;
 
-  tmqtt__free(store->source_id);
-  tmqtt__free(store->source_username);
+  ttq_free(store->source_id);
+  ttq_free(store->source_username);
   if (store->dest_ids) {
     for (i = 0; i < store->dest_id_count; i++) {
-      tmqtt__free(store->dest_ids[i]);
+      ttq_free(store->dest_ids[i]);
     }
-    tmqtt__free(store->dest_ids);
+    ttq_free(store->dest_ids);
   }
-  tmqtt__free(store->topic);
+  ttq_free(store->topic);
   tmqtt_property_free_all(&store->properties);
-  tmqtt__free(store->payload);
-  tmqtt__free(store);
+  ttq_free(store->payload);
+  ttq_free(store);
 }
 
 void db__msg_store_remove(struct tmqtt_msg_store *store) {
@@ -327,7 +327,7 @@ static void db__message_remove_from_inflight(struct tmqtt_msg_data *msg_data, st
   }
 
   tmqtt_property_free_all(&item->properties);
-  tmqtt__free(item);
+  ttq_free(item);
 }
 
 static void db__message_remove_from_queued(struct tmqtt_msg_data *msg_data, struct tmqtt_client_msg *item) {
@@ -341,7 +341,7 @@ static void db__message_remove_from_queued(struct tmqtt_msg_data *msg_data, stru
   }
 
   tmqtt_property_free_all(&item->properties);
-  tmqtt__free(item);
+  ttq_free(item);
 }
 
 void db__message_dequeue_first(struct tmqtt *context, struct tmqtt_msg_data *msg_data) {
@@ -517,7 +517,7 @@ int db__message_insert(struct tmqtt *context, uint16_t mid, enum tmqtt_msg_direc
   }
 #endif
 
-  msg = tmqtt__calloc(1, sizeof(struct tmqtt_client_msg));
+  msg = ttq_calloc(1, sizeof(struct tmqtt_client_msg));
   if (!msg) return TTQ_ERR_NOMEM;
   msg->prev = NULL;
   msg->next = NULL;
@@ -552,11 +552,11 @@ int db__message_insert(struct tmqtt *context, uint16_t mid, enum tmqtt_msg_direc
      * multiple times for overlapping subscriptions, although this is only the
      * case for SUBSCRIPTION with multiple subs in so is a minor concern.
      */
-    dest_ids = tmqtt__realloc(stored->dest_ids, sizeof(char *) * (size_t)(stored->dest_id_count + 1));
+    dest_ids = ttq_realloc(stored->dest_ids, sizeof(char *) * (size_t)(stored->dest_id_count + 1));
     if (dest_ids) {
       stored->dest_ids = dest_ids;
       stored->dest_id_count++;
-      stored->dest_ids[stored->dest_id_count - 1] = tmqtt__strdup(context->id);
+      stored->dest_ids[stored->dest_id_count - 1] = ttq_strdup(context->id);
       if (!stored->dest_ids[stored->dest_id_count - 1]) {
         return TTQ_ERR_NOMEM;
       }
@@ -604,7 +604,7 @@ static void db__messages_delete_list(struct tmqtt_client_msg **head) {
     DL_DELETE(*head, tail);
     db__msg_store_ref_dec(&tail->store);
     tmqtt_property_free_all(&tail->properties);
-    tmqtt__free(tail);
+    ttq_free(tail);
   }
   *head = NULL;
 }
@@ -651,10 +651,10 @@ int db__messages_easy_queue(struct tmqtt *context, const char *topic, uint8_t qo
 
   if (!topic) return TTQ_ERR_INVAL;
 
-  stored = tmqtt__calloc(1, sizeof(struct tmqtt_msg_store));
+  stored = ttq_calloc(1, sizeof(struct tmqtt_msg_store));
   if (stored == NULL) return TTQ_ERR_NOMEM;
 
-  stored->topic = tmqtt__strdup(topic);
+  stored->topic = ttq_strdup(topic);
   if (stored->topic == NULL) {
     db__msg_store_free(stored);
     return TTQ_ERR_INVAL;
@@ -669,7 +669,7 @@ int db__messages_easy_queue(struct tmqtt *context, const char *topic, uint8_t qo
 
   stored->payloadlen = payloadlen;
   if (payloadlen > 0) {
-    stored->payload = tmqtt__malloc(stored->payloadlen + 1);
+    stored->payload = ttq_malloc(stored->payloadlen + 1);
     if (stored->payload == NULL) {
       db__msg_store_free(stored);
       return TTQ_ERR_NOMEM;
@@ -704,9 +704,9 @@ int db__messages_easy_queue(struct tmqtt *context, const char *topic, uint8_t qo
 int db__message_store(const struct tmqtt *source, struct tmqtt_msg_store *stored, uint32_t message_expiry_interval,
                       dbid_t store_id, enum tmqtt_msg_origin origin) {
   if (source && source->id) {
-    stored->source_id = tmqtt__strdup(source->id);
+    stored->source_id = ttq_strdup(source->id);
   } else {
-    stored->source_id = tmqtt__strdup("");
+    stored->source_id = ttq_strdup("");
   }
   if (!stored->source_id) {
     ttq_log(NULL, TTQ_LOG_ERR, "Error: Out of memory.");
@@ -715,7 +715,7 @@ int db__message_store(const struct tmqtt *source, struct tmqtt_msg_store *stored
   }
 
   if (source && source->username) {
-    stored->source_username = tmqtt__strdup(source->username);
+    stored->source_username = ttq_strdup(source->username);
     if (!stored->source_username) {
       db__msg_store_free(stored);
       return TTQ_ERR_NOMEM;

@@ -65,7 +65,7 @@ int session_expiry__add(struct tmqtt *context) {
     }
   }
 
-  item = tmqtt__calloc(1, sizeof(struct session_expiry_list));
+  item = ttq_calloc(1, sizeof(struct session_expiry_list));
   if (!item) return TTQ_ERR_NOMEM;
 
   item->context = context;
@@ -88,7 +88,7 @@ int session_expiry__add_from_persistence(struct tmqtt *context, time_t expiry_ti
     }
   }
 
-  item = tmqtt__calloc(1, sizeof(struct session_expiry_list));
+  item = ttq_calloc(1, sizeof(struct session_expiry_list));
   if (!item) return TTQ_ERR_NOMEM;
 
   item->context = context;
@@ -107,7 +107,7 @@ int session_expiry__add_from_persistence(struct tmqtt *context, time_t expiry_ti
 void session_expiry__remove(struct tmqtt *context) {
   if (context->expiry_list_item) {
     DL_DELETE(expiry_list, context->expiry_list_item);
-    tmqtt__free(context->expiry_list_item);
+    ttq_free(context->expiry_list_item);
     context->expiry_list_item = NULL;
   }
 }

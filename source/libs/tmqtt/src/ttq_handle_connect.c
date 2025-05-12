@@ -47,7 +47,7 @@ static char *client_id_gen(uint16_t *idlen, const char *auto_id_prefix, uint16_t
 
   *idlen = (uint16_t)(auto_id_prefix_len + 36);
 
-  client_id = (char *)tmqtt__calloc((size_t)(*idlen) + 1, sizeof(char));
+  client_id = (char *)ttq_calloc((size_t)(*idlen) + 1, sizeof(char));
   if (!client_id) {
     return NULL;
   }
@@ -86,7 +86,7 @@ static void connection_check_acl(struct tmqtt *context, struct tmqtt_client_msg 
       DL_DELETE((*head), msg_tail);
       db__msg_store_ref_dec(&msg_tail->store);
       tmqtt_property_free_all(&msg_tail->properties);
-      tmqtt__free(msg_tail);
+      ttq_free(msg_tail);
     }
   }
 }
@@ -319,7 +319,7 @@ static int will__read(struct tmqtt *context, const char *client_id, struct tmqtt
   uint16_t                  payloadlen;
   tmqtt_property           *properties = NULL;
 
-  will_struct = tmqtt__calloc(1, sizeof(struct tmqtt_message_all));
+  will_struct = ttq_calloc(1, sizeof(struct tmqtt_message_all));
   if (!will_struct) {
     rc = TTQ_ERR_NOMEM;
     goto error_cleanup;
@@ -341,7 +341,7 @@ static int will__read(struct tmqtt *context, const char *client_id, struct tmqtt
 
   if (context->listener->mount_point) {
     slen = strlen(context->listener->mount_point) + strlen(will_struct->msg.topic) + 1;
-    will_topic_mount = tmqtt__malloc(slen + 1);
+    will_topic_mount = ttq_malloc(slen + 1);
     if (!will_topic_mount) {
       rc = TTQ_ERR_NOMEM;
       goto error_cleanup;
@@ -350,7 +350,7 @@ static int will__read(struct tmqtt *context, const char *client_id, struct tmqtt
     snprintf(will_topic_mount, slen, "%s%s", context->listener->mount_point, will_struct->msg.topic);
     will_topic_mount[slen] = '\0';
 
-    tmqtt__free(will_struct->msg.topic);
+    ttq_free(will_struct->msg.topic);
     will_struct->msg.topic = will_topic_mount;
   }
 
@@ -376,7 +376,7 @@ static int will__read(struct tmqtt *context, const char *client_id, struct tmqtt
       rc = TTQ_ERR_PAYLOAD_SIZE;
       goto error_cleanup;
     }
-    will_struct->msg.payload = tmqtt__malloc((size_t)will_struct->msg.payloadlen);
+    will_struct->msg.payload = ttq_malloc((size_t)will_struct->msg.payloadlen);
     if (!will_struct->msg.payload) {
       rc = TTQ_ERR_NOMEM;
       goto error_cleanup;
@@ -394,10 +394,10 @@ static int will__read(struct tmqtt *context, const char *client_id, struct tmqtt
 
 error_cleanup:
   if (will_struct) {
-    tmqtt__free(will_struct->msg.topic);
-    tmqtt__free(will_struct->msg.payload);
+    ttq_free(will_struct->msg.topic);
+    ttq_free(will_struct->msg.payload);
     tmqtt_property_free_all(&will_struct->properties);
-    tmqtt__free(will_struct);
+    ttq_free(will_struct);
   }
   return rc;
 }
@@ -459,7 +459,7 @@ int send__connack(struct tmqtt *context, uint8_t ack, uint8_t reason_code, const
     return TTQ_ERR_OVERSIZE_PACKET;
   }
 
-  packet = tmqtt__calloc(1, sizeof(struct tmqtt__packet));
+  packet = ttq_calloc(1, sizeof(struct tmqtt__packet));
   if (!packet) {
     tmqtt_property_free_all(&connack_props);
     return TTQ_ERR_NOMEM;
@@ -471,7 +471,7 @@ int send__connack(struct tmqtt *context, uint8_t ack, uint8_t reason_code, const
   rc = packet__alloc(packet);
   if (rc) {
     tmqtt_property_free_all(&connack_props);
-    tmqtt__free(packet);
+    ttq_free(packet);
     return rc;
   }
   packet__write_byte(packet, ack);
@@ -683,7 +683,7 @@ int ttq_handle_connect(struct tmqtt *context) {
       rc = TTQ_ERR_PROTOCOL;
       goto handle_connect_error;
     } else { /* mqtt311/mqtt5 */
-      tmqtt__free(client_id);
+      ttq_free(client_id);
       client_id = NULL;
       /*
       if (db.config->per_listener_settings) {
@@ -807,8 +807,8 @@ int ttq_handle_connect(struct tmqtt *context) {
 
   if (context->listener->use_username_as_clientid) {
     if (context->username) {
-      tmqtt__free(context->id);
-      context->id = tmqtt__strdup(context->username);
+      ttq_free(context->id);
+      context->id = ttq_strdup(context->username);
       if (!context->id) {
         rc = TTQ_ERR_NOMEM;
         goto handle_connect_error;
@@ -831,12 +831,12 @@ int ttq_handle_connect(struct tmqtt *context) {
     rc = TTQ_ERR_NOT_SUPPORTED;
     // Client requested extended authentication
     send__connack(context, 0, MQTT_RC_BAD_AUTHENTICATION_METHOD, NULL);
-    // tmqtt__free(context->id);
+    // ttq_free(context->id);
     // context->id = NULL;
     goto handle_connect_error;
     /*
     rc = tmqtt_security_auth_start(context, false, auth_data, auth_data_len, &auth_data_out, &auth_data_out_len);
-    tmqtt__free(auth_data);
+    ttq_free(auth_data);
     auth_data = NULL;
     if (rc == TTQ_ERR_SUCCESS) {
       return connect__on_authorised(context, auth_data_out, auth_data_out_len);
@@ -851,17 +851,17 @@ int ttq_handle_connect(struct tmqtt *context) {
       // will__clear(context);
       if (rc == TTQ_ERR_AUTH) {
         send__connack(context, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
-        tmqtt__free(context->id);
+        ttq_free(context->id);
         context->id = NULL;
         goto handle_connect_error;
       } else if (rc == TTQ_ERR_NOT_SUPPORTED) {
         // Client has requested extended authentication, but we don't support it.
         send__connack(context, 0, MQTT_RC_BAD_AUTHENTICATION_METHOD, NULL);
-        tmqtt__free(context->id);
+        ttq_free(context->id);
         context->id = NULL;
         goto handle_connect_error;
       } else {
-        tmqtt__free(context->id);
+        ttq_free(context->id);
         context->id = NULL;
         goto handle_connect_error;
       }
@@ -880,21 +880,21 @@ int ttq_handle_connect(struct tmqtt *context) {
 
 handle_connect_error:
   tmqtt_property_free_all(&properties);
-  tmqtt__free(auth_data);
-  tmqtt__free(client_id);
-  tmqtt__free(username);
-  tmqtt__free(password);
+  ttq_free(auth_data);
+  ttq_free(client_id);
+  ttq_free(username);
+  ttq_free(password);
   if (will_struct) {
     tmqtt_property_free_all(&will_struct->properties);
-    tmqtt__free(will_struct->msg.payload);
-    tmqtt__free(will_struct->msg.topic);
-    tmqtt__free(will_struct);
+    ttq_free(will_struct->msg.payload);
+    ttq_free(will_struct->msg.topic);
+    ttq_free(will_struct);
   }
   if (context->will) {
     tmqtt_property_free_all(&context->will->properties);
-    tmqtt__free(context->will->msg.payload);
-    tmqtt__free(context->will->msg.topic);
-    tmqtt__free(context->will);
+    ttq_free(context->will->msg.payload);
+    ttq_free(context->will->msg.topic);
+    ttq_free(context->will);
     context->will = NULL;
   }
 

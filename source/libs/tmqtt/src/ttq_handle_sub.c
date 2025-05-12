@@ -30,7 +30,7 @@ static int ttq_send_suback(struct tmqtt *context, uint16_t mid, uint32_t payload
 
   ttq_log(NULL, TTQ_LOG_DEBUG, "Sending SUBACK to %s", context->id);
 
-  packet = tmqtt__calloc(1, sizeof(struct tmqtt__packet));
+  packet = ttq_calloc(1, sizeof(struct tmqtt__packet));
   if (!packet) return TTQ_ERR_NOMEM;
 
   packet->command = CMD_SUBACK;
@@ -40,7 +40,7 @@ static int ttq_send_suback(struct tmqtt *context, uint16_t mid, uint32_t payload
   }
   rc = packet__alloc(packet);
   if (rc) {
-    tmqtt__free(packet);
+    ttq_free(packet);
     return rc;
   }
   packet__write_uint16(packet, mid);
@@ -136,27 +136,27 @@ int ttq_handle_sub(struct tmqtt *context) {
   while (context->in_packet.pos < context->in_packet.remaining_length) {
     sub = NULL;
     if (packet__read_string(&context->in_packet, &sub, &slen)) {
-      tmqtt__free(payload);
+      ttq_free(payload);
       return TTQ_ERR_MALFORMED_PACKET;
     }
 
     if (sub) {
       if (!slen) {
         ttq_log(NULL, TTQ_LOG_INFO, "Empty subscription string from %s, disconnecting.", context->address);
-        tmqtt__free(sub);
-        tmqtt__free(payload);
+        ttq_free(sub);
+        ttq_free(payload);
         return TTQ_ERR_MALFORMED_PACKET;
       }
       if (tmqtt_sub_topic_check(sub)) {
         ttq_log(NULL, TTQ_LOG_INFO, "Invalid subscription string from %s, disconnecting.", context->address);
-        tmqtt__free(sub);
-        tmqtt__free(payload);
+        ttq_free(sub);
+        ttq_free(payload);
         return TTQ_ERR_MALFORMED_PACKET;
       }
 
       if (packet__read_byte(&context->in_packet, &subscription_options)) {
-        tmqtt__free(sub);
-        tmqtt__free(payload);
+        ttq_free(sub);
+        ttq_free(payload);
         return TTQ_ERR_MALFORMED_PACKET;
       }
       if (context->protocol == ttq_p_mqtt31 || context->protocol == ttq_p_mqtt311) {
@@ -169,21 +169,21 @@ int ttq_handle_sub(struct tmqtt *context) {
         subscription_options &= 0xFC;
 
         if ((subscription_options & MQTT_SUB_OPT_NO_LOCAL) && !strncmp(sub, "$share/", 7)) {
-          tmqtt__free(sub);
-          tmqtt__free(payload);
+          ttq_free(sub);
+          ttq_free(payload);
           return TTQ_ERR_PROTOCOL;
         }
         retain_handling = (subscription_options & 0x30);
         if (retain_handling == 0x30 || (subscription_options & 0xC0) != 0) {
-          tmqtt__free(sub);
-          tmqtt__free(payload);
+          ttq_free(sub);
+          ttq_free(payload);
           return TTQ_ERR_MALFORMED_PACKET;
         }
       }
       if (qos > 2) {
         ttq_log(NULL, TTQ_LOG_INFO, "Invalid QoS in subscription command from %s, disconnecting.", context->address);
-        tmqtt__free(sub);
-        tmqtt__free(payload);
+        ttq_free(sub);
+        ttq_free(payload);
         return TTQ_ERR_MALFORMED_PACKET;
       }
       if (qos > context->max_qos) {
@@ -192,16 +192,16 @@ int ttq_handle_sub(struct tmqtt *context) {
 
       if (context->listener && context->listener->mount_point) {
         len = strlen(context->listener->mount_point) + slen + 1;
-        sub_mount = tmqtt__malloc(len + 1);
+        sub_mount = ttq_malloc(len + 1);
         if (!sub_mount) {
-          tmqtt__free(sub);
-          tmqtt__free(payload);
+          ttq_free(sub);
+          ttq_free(payload);
           return TTQ_ERR_NOMEM;
         }
         snprintf(sub_mount, len, "%s%s", context->listener->mount_point, sub);
         sub_mount[len] = '\0';
 
-        tmqtt__free(sub);
+        ttq_free(sub);
         sub = sub_mount;
       }
       ttq_log(NULL, TTQ_LOG_DEBUG, "\t%s (QoS %d)", sub, qos);
@@ -226,7 +226,7 @@ int ttq_handle_sub(struct tmqtt *context) {
           }
           break;
         default:
-          tmqtt__free(sub);
+          ttq_free(sub);
           return rc2;
       }
       */
@@ -238,17 +238,17 @@ int ttq_handle_sub(struct tmqtt *context) {
 
         rc2 = sub__topic_tokenise(sub, &local_sub, &topics, &sharename);
         if (rc2 > 0) {
-          tmqtt__free(local_sub);
-          tmqtt__free(topics);
-          tmqtt__free(sub);
+          ttq_free(local_sub);
+          ttq_free(topics);
+          ttq_free(sub);
           return rc2;
         }
 
         topiclen = strlen(topics[0]);
         if (topiclen > UINT16_MAX) {
-          tmqtt__free(local_sub);
-          tmqtt__free(topics);
-          tmqtt__free(sub);
+          ttq_free(local_sub);
+          ttq_free(topics);
+          ttq_free(sub);
           return TTQ_ERR_INVAL;
         }
 
@@ -258,14 +258,14 @@ int ttq_handle_sub(struct tmqtt *context) {
           allowed = false;
         }
 
-        tmqtt__free(local_sub);
-        tmqtt__free(topics);
+        ttq_free(local_sub);
+        ttq_free(topics);
       }
 
       if (allowed) {
         rc2 = sub__add(context, sub, qos, subscription_identifier, subscription_options);
         if (rc2 > 0) {
-          tmqtt__free(sub);
+          ttq_free(sub);
           return rc2;
         }
         /*
@@ -282,15 +282,15 @@ int ttq_handle_sub(struct tmqtt *context) {
         */
         ttq_log(NULL, TTQ_LOG_SUBSCRIBE, "%s %d %s", context->id, qos, sub);
       }
-      tmqtt__free(sub);
+      ttq_free(sub);
 
-      tmp_payload = tmqtt__realloc(payload, payloadlen + 1);
+      tmp_payload = ttq_realloc(payload, payloadlen + 1);
       if (tmp_payload) {
         payload = tmp_payload;
         payload[payloadlen] = qos;
         payloadlen++;
       } else {
-        tmqtt__free(payload);
+        ttq_free(payload);
 
         return TTQ_ERR_NOMEM;
       }
@@ -304,7 +304,7 @@ int ttq_handle_sub(struct tmqtt *context) {
     }
   }
   if (ttq_send_suback(context, mid, payloadlen, payload)) rc = 1;
-  tmqtt__free(payload);
+  ttq_free(payload);
 
 #ifdef WITH_PERSISTENCE
   db.persistence_changes++;
@@ -325,7 +325,7 @@ static int ttq_send_unsuback(struct tmqtt *ttq, uint16_t mid, int reason_code_co
   struct tmqtt__packet *packet = NULL;
   int                   rc;
 
-  packet = tmqtt__calloc(1, sizeof(struct tmqtt__packet));
+  packet = ttq_calloc(1, sizeof(struct tmqtt__packet));
   if (!packet) return TTQ_ERR_NOMEM;
 
   packet->command = CMD_UNSUBACK;
@@ -338,7 +338,7 @@ static int ttq_send_unsuback(struct tmqtt *ttq, uint16_t mid, int reason_code_co
 
   rc = packet__alloc(packet);
   if (rc) {
-    tmqtt__free(packet);
+    ttq_free(packet);
     return rc;
   }
 
@@ -406,7 +406,7 @@ int ttq_handle_unsub(struct tmqtt *context) {
   }
 
   reason_code_max = 10;
-  reason_codes = tmqtt__malloc((size_t)reason_code_max);
+  reason_codes = ttq_malloc((size_t)reason_code_max);
   if (!reason_codes) {
     return TTQ_ERR_NOMEM;
   }
@@ -414,20 +414,20 @@ int ttq_handle_unsub(struct tmqtt *context) {
   while (context->in_packet.pos < context->in_packet.remaining_length) {
     sub = NULL;
     if (packet__read_string(&context->in_packet, &sub, &slen)) {
-      tmqtt__free(reason_codes);
+      ttq_free(reason_codes);
       return TTQ_ERR_MALFORMED_PACKET;
     }
 
     if (!slen) {
       ttq_log(NULL, TTQ_LOG_INFO, "Empty unsubscription string from %s, disconnecting.", context->id);
-      tmqtt__free(sub);
-      tmqtt__free(reason_codes);
+      ttq_free(sub);
+      ttq_free(reason_codes);
       return TTQ_ERR_MALFORMED_PACKET;
     }
     if (tmqtt_sub_topic_check(sub)) {
       ttq_log(NULL, TTQ_LOG_INFO, "Invalid unsubscription string from %s, disconnecting.", context->id);
-      tmqtt__free(sub);
-      tmqtt__free(reason_codes);
+      ttq_free(sub);
+      ttq_free(reason_codes);
       return TTQ_ERR_MALFORMED_PACKET;
     }
 
@@ -442,8 +442,8 @@ int ttq_handle_unsub(struct tmqtt *context) {
         reason = MQTT_RC_NOT_AUTHORIZED;
         break;
       default:
-        tmqtt__free(sub);
-        tmqtt__free(reason_codes);
+        ttq_free(sub);
+        ttq_free(reason_codes);
         return rc;
     }
 
@@ -456,17 +456,17 @@ int ttq_handle_unsub(struct tmqtt *context) {
 
       rc2 = sub__topic_tokenise(sub, &local_sub, &topics, &sharename);
       if (rc2 > 0) {
-        tmqtt__free(local_sub);
-        tmqtt__free(topics);
-        tmqtt__free(sub);
+        ttq_free(local_sub);
+        ttq_free(topics);
+        ttq_free(sub);
         return rc2;
       }
 
       topiclen = strlen(topics[0]);
       if (topiclen > UINT16_MAX) {
-        tmqtt__free(local_sub);
-        tmqtt__free(topics);
-        tmqtt__free(sub);
+        ttq_free(local_sub);
+        ttq_free(topics);
+        ttq_free(sub);
         return TTQ_ERR_INVAL;
       }
 
@@ -476,8 +476,8 @@ int ttq_handle_unsub(struct tmqtt *context) {
         allowed = false;
       }
 
-      tmqtt__free(local_sub);
-      tmqtt__free(topics);
+      ttq_free(local_sub);
+      ttq_free(topics);
     }
 
     ttq_log(NULL, TTQ_LOG_DEBUG, "\t%s", sub);
@@ -487,18 +487,18 @@ int ttq_handle_unsub(struct tmqtt *context) {
       rc = TTQ_ERR_SUCCESS;
     }
     ttq_log(NULL, TTQ_LOG_UNSUBSCRIBE, "%s %s", context->id, sub);
-    tmqtt__free(sub);
+    ttq_free(sub);
     if (rc) {
-      tmqtt__free(reason_codes);
+      ttq_free(reason_codes);
       return rc;
     }
 
     reason_codes[reason_code_count] = reason;
     reason_code_count++;
     if (reason_code_count == reason_code_max) {
-      reason_tmp = tmqtt__realloc(reason_codes, (size_t)(reason_code_max * 2));
+      reason_tmp = ttq_realloc(reason_codes, (size_t)(reason_code_max * 2));
       if (!reason_tmp) {
-        tmqtt__free(reason_codes);
+        ttq_free(reason_codes);
         return TTQ_ERR_NOMEM;
       }
       reason_codes = reason_tmp;
@@ -512,6 +512,6 @@ int ttq_handle_unsub(struct tmqtt *context) {
   ttq_log(NULL, TTQ_LOG_DEBUG, "Sending UNSUBACK to %s", context->id);
 
   rc = ttq_send_unsuback(context, mid, reason_code_count, reason_codes, NULL);
-  tmqtt__free(reason_codes);
+  ttq_free(reason_codes);
   return rc;
 }

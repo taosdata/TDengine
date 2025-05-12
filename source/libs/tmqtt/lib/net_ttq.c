@@ -245,17 +245,17 @@ int net__try_connect_step1(struct tmqtt *ttq, const char *host) {
 
   if (ttq->adns) {
     gai_cancel(ttq->adns);
-    tmqtt__free((struct addrinfo *)ttq->adns->ar_request);
-    tmqtt__free(ttq->adns);
+    ttq_free((struct addrinfo *)ttq->adns->ar_request);
+    ttq_free(ttq->adns);
   }
-  ttq->adns = tmqtt__calloc(1, sizeof(struct gaicb));
+  ttq->adns = ttq_calloc(1, sizeof(struct gaicb));
   if (!ttq->adns) {
     return TTQ_ERR_NOMEM;
   }
 
-  hints = tmqtt__calloc(1, sizeof(struct addrinfo));
+  hints = ttq_calloc(1, sizeof(struct addrinfo));
   if (!hints) {
-    tmqtt__free(ttq->adns);
+    ttq_free(ttq->adns);
     ttq->adns = NULL;
     return TTQ_ERR_NOMEM;
   }
@@ -270,8 +270,8 @@ int net__try_connect_step1(struct tmqtt *ttq, const char *host) {
   if (s) {
     errno = s;
     if (ttq->adns) {
-      tmqtt__free((struct addrinfo *)ttq->adns->ar_request);
-      tmqtt__free(ttq->adns);
+      ttq_free((struct addrinfo *)ttq->adns->ar_request);
+      ttq_free(ttq->adns);
       ttq->adns = NULL;
     }
     return TTQ_ERR_EAI;
@@ -328,8 +328,8 @@ int net__try_connect_step2(struct tmqtt *ttq, uint16_t port, ttq_sock_t *sock) {
   freeaddrinfo(ttq->adns->ar_result);
   ttq->adns->ar_result = NULL;
 
-  tmqtt__free((struct addrinfo *)ttq->adns->ar_request);
-  tmqtt__free(ttq->adns);
+  ttq_free((struct addrinfo *)ttq->adns->ar_request);
+  ttq_free(ttq->adns);
   ttq->adns = NULL;
 
   if (!rp) {

@@ -257,33 +257,33 @@ static unsigned int psk_server_callback(SSL *ssl, const char *identity, unsigned
 
   /* The hex to BN conversion results in the length halving, so we can pass
    * max_psk_len*2 as the max hex key here. */
-  psk_key = tmqtt__calloc(1, (size_t)max_psk_len * 2 + 1);
+  psk_key = ttq_calloc(1, (size_t)max_psk_len * 2 + 1);
   if (!psk_key) return 0;
 
   if (tmqtt_psk_key_get(context, psk_hint, identity, psk_key, (int)max_psk_len * 2) != TTQ_ERR_SUCCESS) {
-    tmqtt__free(psk_key);
+    ttq_free(psk_key);
     return 0;
   }
 
   len = tmqtt__hex2bin(psk_key, psk, (int)max_psk_len);
   if (len < 0) {
-    tmqtt__free(psk_key);
+    ttq_free(psk_key);
     return 0;
   }
 
   if (listener->use_identity_as_username) {
     if (tmqtt_validate_utf8(identity, (int)strlen(identity))) {
-      tmqtt__free(psk_key);
+      ttq_free(psk_key);
       return 0;
     }
-    context->username = tmqtt__strdup(identity);
+    context->username = ttq_strdup(identity);
     if (!context->username) {
-      tmqtt__free(psk_key);
+      ttq_free(psk_key);
       return 0;
     }
   }
 
-  tmqtt__free(psk_key);
+  ttq_free(psk_key);
   return (unsigned int)len;
 }
 #endif
@@ -704,7 +704,7 @@ static int net__socket_listen_tcp(struct tmqtt__listener *listener) {
       continue;
     }
     listener->sock_count++;
-    listener->socks = tmqtt__realloc(listener->socks, sizeof(ttq_sock_t) * (size_t)listener->sock_count);
+    listener->socks = ttq_realloc(listener->socks, sizeof(ttq_sock_t) * (size_t)listener->sock_count);
     if (!listener->socks) {
       ttq_log(NULL, TTQ_LOG_ERR, "Error: Out of memory.");
       freeaddrinfo(ainfo);
@@ -725,7 +725,7 @@ static int net__socket_listen_tcp(struct tmqtt__listener *listener) {
 
     if (net__socket_nonblock(&sock)) {
       freeaddrinfo(ainfo);
-      tmqtt__free(listener->socks);
+      ttq_free(listener->socks);
       return 1;
     }
 
@@ -760,7 +760,7 @@ static int net__socket_listen_tcp(struct tmqtt__listener *listener) {
       net__print_error(TTQ_LOG_ERR, "Error: %s");
       COMPAT_CLOSE(sock);
       freeaddrinfo(ainfo);
-      tmqtt__free(listener->socks);
+      ttq_free(listener->socks);
       return 1;
     }
 
@@ -768,7 +768,7 @@ static int net__socket_listen_tcp(struct tmqtt__listener *listener) {
       net__print_error(TTQ_LOG_ERR, "Error: %s");
       freeaddrinfo(ainfo);
       COMPAT_CLOSE(sock);
-      tmqtt__free(listener->socks);
+      ttq_free(listener->socks);
       return 1;
     }
   }
@@ -776,7 +776,7 @@ static int net__socket_listen_tcp(struct tmqtt__listener *listener) {
 
 #ifndef WIN32
   if (listener->bind_interface && !interface_bound) {
-    tmqtt__free(listener->socks);
+    ttq_free(listener->socks);
     return 1;
   }
 #endif
@@ -811,7 +811,7 @@ static int net__socket_listen_unix(struct tmqtt__listener *listener) {
     return 1;
   }
   listener->sock_count++;
-  listener->socks = tmqtt__realloc(listener->socks, sizeof(ttq_sock_t) * (size_t)listener->sock_count);
+  listener->socks = ttq_realloc(listener->socks, sizeof(ttq_sock_t) * (size_t)listener->sock_count);
   if (!listener->socks) {
     ttq_log(NULL, TTQ_LOG_ERR, "Error: Out of memory.");
     COMPAT_CLOSE(sock);

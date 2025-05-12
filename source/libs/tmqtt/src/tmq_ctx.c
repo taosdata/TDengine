@@ -142,7 +142,7 @@ static bool tmq_ctx_init_consumer(struct tmq_ctx* context, const char* cid, Cons
       return false;
     }
 
-    context->cid = tmqtt__strdup(cid);
+    context->cid = ttq_strdup(cid);
     if (NULL == context->cid) {
       return TTQ_ERR_NOMEM;
     }
@@ -399,7 +399,7 @@ void tmq_ctx_cleanup(struct tmq_ctx* context) {
   }
 
   if (context->cid) {
-    tmqtt__free(context->cid);
+    ttq_free(context->cid);
     context->cid = NULL;
   }
 }
@@ -412,24 +412,24 @@ static int ttq_broker_publish(const char* clientid, const char* topic, int paylo
     return TTQ_ERR_INVAL;
   }
 
-  msg = tmqtt__malloc(sizeof(struct tmqtt_message_v5));
+  msg = ttq_malloc(sizeof(struct tmqtt_message_v5));
   if (msg == NULL) return TTQ_ERR_NOMEM;
 
   msg->next = NULL;
   msg->prev = NULL;
   if (clientid) {
-    msg->clientid = tmqtt__strdup(clientid);
+    msg->clientid = ttq_strdup(clientid);
     if (msg->clientid == NULL) {
-      tmqtt__free(msg);
+      ttq_free(msg);
       return TTQ_ERR_NOMEM;
     }
   } else {
     msg->clientid = NULL;
   }
-  msg->topic = tmqtt__strdup(topic);
+  msg->topic = ttq_strdup(topic);
   if (msg->topic == NULL) {
-    tmqtt__free(msg->clientid);
-    tmqtt__free(msg);
+    ttq_free(msg->clientid);
+    ttq_free(msg);
     return TTQ_ERR_NOMEM;
   }
   msg->payloadlen = payloadlen;
@@ -722,7 +722,7 @@ static void tmq_ctx_do_msg(struct tmqtt* ctxt, TAOS_RES* msg) {
   rc = tmq_ctx_do_props(&props);
   if (rc != TTQ_ERR_SUCCESS) {
     xndError("json msg/add properties: out of memory.");
-    tmqtt__free(data);
+    ttq_free(data);
     return;
   }
 
@@ -733,7 +733,7 @@ static void tmq_ctx_do_msg(struct tmqtt* ctxt, TAOS_RES* msg) {
   rc = ttq_broker_publish(context->cid, topic_name, data_len, data, qos, retain, props);
   if (rc != TTQ_ERR_SUCCESS) {
     xndError("json msg/add property: out of memory.");
-    tmqtt__free(data);
+    ttq_free(data);
   }
 }
 

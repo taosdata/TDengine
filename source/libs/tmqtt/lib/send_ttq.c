@@ -88,7 +88,7 @@ int send__command_with_mid(struct tmqtt *ttq, uint8_t command, uint16_t mid, boo
   struct tmqtt__packet *packet = NULL;
   int                   rc;
 
-  packet = tmqtt__calloc(1, sizeof(struct tmqtt__packet));
+  packet = ttq_calloc(1, sizeof(struct tmqtt__packet));
   if (!packet) return TTQ_ERR_NOMEM;
 
   packet->command = command;
@@ -109,7 +109,7 @@ int send__command_with_mid(struct tmqtt *ttq, uint8_t command, uint16_t mid, boo
 
   rc = packet__alloc(packet);
   if (rc) {
-    tmqtt__free(packet);
+    ttq_free(packet);
     return rc;
   }
 
@@ -132,7 +132,7 @@ int send__simple_command(struct tmqtt *ttq, uint8_t command) {
   struct tmqtt__packet *packet = NULL;
   int                   rc;
 
-  packet = tmqtt__calloc(1, sizeof(struct tmqtt__packet));
+  packet = ttq_calloc(1, sizeof(struct tmqtt__packet));
   if (!packet) return TTQ_ERR_NOMEM;
 
   packet->command = command;
@@ -140,7 +140,7 @@ int send__simple_command(struct tmqtt *ttq, uint8_t command) {
 
   rc = packet__alloc(packet);
   if (rc) {
-    tmqtt__free(packet);
+    ttq_free(packet);
     return rc;
   }
 
@@ -153,7 +153,7 @@ int ttq_send_disconnect(struct tmqtt *ttq, uint8_t reason_code, const tmqtt_prop
 
   ttq_log(ttq, TTQ_LOG_DEBUG, "Sending DISCONNECT to %s (rc%d)", SAFE_PRINT(ttq->id), reason_code);
 
-  packet = tmqtt__calloc(1, sizeof(struct tmqtt__packet));
+  packet = ttq_calloc(1, sizeof(struct tmqtt__packet));
   if (!packet) return TTQ_ERR_NOMEM;
 
   packet->command = CMD_DISCONNECT;
@@ -168,7 +168,7 @@ int ttq_send_disconnect(struct tmqtt *ttq, uint8_t reason_code, const tmqtt_prop
 
   rc = packet__alloc(packet);
   if (rc) {
-    tmqtt__free(packet);
+    ttq_free(packet);
     return rc;
   }
   if (ttq->protocol == ttq_p_mqtt5 && (reason_code != 0 || properties)) {

@@ -77,13 +77,13 @@ int send__publish(struct tmqtt *ttq, uint16_t mid, const char *topic, uint32_t p
           return rc;
         }
         if (match) {
-          mapped_topic = tmqtt__strdup(topic);
+          mapped_topic = ttq_strdup(topic);
           if (!mapped_topic) return TTQ_ERR_NOMEM;
           if (cur_topic->local_prefix) {
             /* This prefix needs removing. */
             if (!strncmp(cur_topic->local_prefix, mapped_topic, strlen(cur_topic->local_prefix))) {
-              topic_temp = tmqtt__strdup(mapped_topic + strlen(cur_topic->local_prefix));
-              tmqtt__free(mapped_topic);
+              topic_temp = ttq_strdup(mapped_topic + strlen(cur_topic->local_prefix));
+              ttq_free(mapped_topic);
               if (!topic_temp) {
                 return TTQ_ERR_NOMEM;
               }
@@ -94,14 +94,14 @@ int send__publish(struct tmqtt *ttq, uint16_t mid, const char *topic, uint32_t p
           if (cur_topic->remote_prefix) {
             /* This prefix needs adding. */
             len = strlen(mapped_topic) + strlen(cur_topic->remote_prefix) + 1;
-            topic_temp = tmqtt__malloc(len + 1);
+            topic_temp = ttq_malloc(len + 1);
             if (!topic_temp) {
-              tmqtt__free(mapped_topic);
+              ttq_free(mapped_topic);
               return TTQ_ERR_NOMEM;
             }
             snprintf(topic_temp, len, "%s%s", cur_topic->remote_prefix, mapped_topic);
             topic_temp[len] = '\0';
-            tmqtt__free(mapped_topic);
+            ttq_free(mapped_topic);
             mapped_topic = topic_temp;
           }
           ttq_log(NULL, TTQ_LOG_DEBUG, "Sending PUBLISH to %s (d%d, q%d, r%d, m%d, '%s', ... (%ld bytes))",
@@ -109,7 +109,7 @@ int send__publish(struct tmqtt *ttq, uint16_t mid, const char *topic, uint32_t p
           G_PUB_BYTES_SENT_INC(payloadlen);
           rc = send__real_publish(ttq, mid, mapped_topic, payloadlen, payload, qos, retain, dup, cmsg_props,
                                   store_props, expiry_interval);
-          tmqtt__free(mapped_topic);
+          ttq_free(mapped_topic);
           return rc;
         }
       }
@@ -176,7 +176,7 @@ int send__real_publish(struct tmqtt *ttq, uint16_t mid, const char *topic, uint3
     return TTQ_ERR_OVERSIZE_PACKET;
   }
 
-  packet = tmqtt__calloc(1, sizeof(struct tmqtt__packet));
+  packet = ttq_calloc(1, sizeof(struct tmqtt__packet));
   if (!packet) return TTQ_ERR_NOMEM;
 
   packet->mid = mid;
@@ -184,7 +184,7 @@ int send__real_publish(struct tmqtt *ttq, uint16_t mid, const char *topic, uint3
   packet->remaining_length = packetlen;
   rc = packet__alloc(packet);
   if (rc) {
-    tmqtt__free(packet);
+    ttq_free(packet);
     return rc;
   }
   /* Variable header (topic string) */

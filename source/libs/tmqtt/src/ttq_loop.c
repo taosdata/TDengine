@@ -74,14 +74,14 @@ static int single_publish(struct tmqtt *context, struct tmqtt_message_v5 *msg, u
   struct tmqtt_msg_store *stored;
   uint16_t                mid;
 
-  stored = tmqtt__calloc(1, sizeof(struct tmqtt_msg_store));
+  stored = ttq_calloc(1, sizeof(struct tmqtt_msg_store));
   if (stored == NULL) return TTQ_ERR_NOMEM;
 
   stored->topic = msg->topic;
   msg->topic = NULL;
   stored->retain = 0;
   stored->payloadlen = (uint32_t)msg->payloadlen;
-  stored->payload = tmqtt__malloc(stored->payloadlen + 1);
+  stored->payload = ttq_malloc(stored->payloadlen + 1);
   if (stored->payload == NULL) {
     db__msg_store_free(stored);
     return TTQ_ERR_NOMEM;
@@ -148,11 +148,11 @@ static void queue_plugin_msgs(void) {
       db__messages_easy_queue(NULL, msg->topic, (uint8_t)msg->qos, (uint32_t)msg->payloadlen, msg->payload, msg->retain,
                               message_expiry, &msg->properties);
     }
-    tmqtt__free(msg->topic);
-    tmqtt__free(msg->payload);
+    ttq_free(msg->topic);
+    ttq_free(msg->payload);
     tmqtt_property_free_all(&msg->properties);
-    tmqtt__free(msg->clientid);
-    tmqtt__free(msg);
+    ttq_free(msg->clientid);
+    ttq_free(msg);
   }
 }
 

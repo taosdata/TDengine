@@ -70,7 +70,7 @@ int packet__read_binary(struct tmqtt__packet *packet, uint8_t **data, uint16_t *
 
   if (packet->pos + slen > packet->remaining_length) return TTQ_ERR_MALFORMED_PACKET;
 
-  *data = tmqtt__malloc(slen + 1U);
+  *data = ttq_malloc(slen + 1U);
   if (*data) {
     memcpy(*data, &(packet->payload[packet->pos]), slen);
     ((uint8_t *)(*data))[slen] = '\0';
@@ -91,7 +91,7 @@ int packet__read_string(struct tmqtt__packet *packet, char **str, uint16_t *leng
   if (*length == 0) return TTQ_ERR_SUCCESS;
 
   if (tmqtt_validate_utf8(*str, *length)) {
-    tmqtt__free(*str);
+    ttq_free(*str);
     *str = NULL;
     *length = 0;
     return TTQ_ERR_MALFORMED_UTF8;

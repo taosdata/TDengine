@@ -173,7 +173,7 @@ static int sub__add_leaf(struct tmqtt *context, uint8_t qos, uint32_t identifier
     }
     leaf = leaf->next;
   }
-  leaf = tmqtt__calloc(1, sizeof(struct tmqtt__subleaf));
+  leaf = ttq_calloc(1, sizeof(struct tmqtt__subleaf));
   if (!leaf) return TTQ_ERR_NOMEM;
   leaf->context = context;
   leaf->qos = qos;
@@ -192,10 +192,10 @@ static void sub__remove_shared_leaf(struct tmqtt__subhier *subhier, struct tmqtt
   DL_DELETE(shared->subs, leaf);
   if (shared->subs == NULL) {
     HASH_DELETE(hh, subhier->shared, shared);
-    tmqtt__free(shared->name);
-    tmqtt__free(shared);
+    ttq_free(shared->name);
+    ttq_free(shared);
   }
-  tmqtt__free(leaf);
+  ttq_free(leaf);
 }
 
 static int sub__add_shared(struct tmqtt *context, const char *sub, uint8_t qos, uint32_t identifier, int options,
@@ -212,13 +212,13 @@ static int sub__add_shared(struct tmqtt *context, const char *sub, uint8_t qos, 
 
   HASH_FIND(hh, subhier->shared, sharename, slen, shared);
   if (shared == NULL) {
-    shared = tmqtt__calloc(1, sizeof(struct tmqtt__subshared));
+    shared = ttq_calloc(1, sizeof(struct tmqtt__subshared));
     if (!shared) {
       return TTQ_ERR_NOMEM;
     }
-    shared->name = tmqtt__strdup(sharename);
+    shared->name = ttq_strdup(sharename);
     if (shared->name == NULL) {
-      tmqtt__free(shared);
+      ttq_free(shared);
       return TTQ_ERR_NOMEM;
     }
 
@@ -229,15 +229,15 @@ static int sub__add_shared(struct tmqtt *context, const char *sub, uint8_t qos, 
   if (rc > 0) {
     if (shared->subs == NULL) {
       HASH_DELETE(hh, subhier->shared, shared);
-      tmqtt__free(shared->name);
-      tmqtt__free(shared);
+      ttq_free(shared->name);
+      ttq_free(shared);
     }
     return rc;
   }
 
   if (rc != TTQ_ERR_SUB_EXISTS) {
     slen = strlen(sub);
-    csub = tmqtt__calloc(1, sizeof(struct tmqtt__client_sub) + slen + 1);
+    csub = ttq_calloc(1, sizeof(struct tmqtt__client_sub) + slen + 1);
     if (csub == NULL) return TTQ_ERR_NOMEM;
     memcpy(csub->topic_filter, sub, slen);
     csub->hier = subhier;
@@ -250,11 +250,11 @@ static int sub__add_shared(struct tmqtt *context, const char *sub, uint8_t qos, 
       }
     }
     if (i == context->sub_count) {
-      subs = tmqtt__realloc(context->subs, sizeof(struct tmqtt__client_sub *) * (size_t)(context->sub_count + 1));
+      subs = ttq_realloc(context->subs, sizeof(struct tmqtt__client_sub *) * (size_t)(context->sub_count + 1));
       if (!subs) {
         sub__remove_shared_leaf(subhier, shared, newleaf);
-        tmqtt__free(newleaf);
-        tmqtt__free(csub);
+        ttq_free(newleaf);
+        ttq_free(csub);
         return TTQ_ERR_NOMEM;
       }
       context->subs = subs;
@@ -291,7 +291,7 @@ static int sub__add_normal(struct tmqtt *context, const char *sub, uint8_t qos, 
 
   if (rc != TTQ_ERR_SUB_EXISTS) {
     slen = strlen(sub);
-    csub = tmqtt__calloc(1, sizeof(struct tmqtt__client_sub) + slen + 1);
+    csub = ttq_calloc(1, sizeof(struct tmqtt__client_sub) + slen + 1);
     if (csub == NULL) return TTQ_ERR_NOMEM;
     memcpy(csub->topic_filter, sub, slen);
     csub->hier = subhier;
@@ -304,11 +304,11 @@ static int sub__add_normal(struct tmqtt *context, const char *sub, uint8_t qos, 
       }
     }
     if (i == context->sub_count) {
-      subs = tmqtt__realloc(context->subs, sizeof(struct tmqtt__client_sub *) * (size_t)(context->sub_count + 1));
+      subs = ttq_realloc(context->subs, sizeof(struct tmqtt__client_sub *) * (size_t)(context->sub_count + 1));
       if (!subs) {
         DL_DELETE(subhier->subs, newleaf);
-        tmqtt__free(newleaf);
-        tmqtt__free(csub);
+        ttq_free(newleaf);
+        ttq_free(csub);
         return TTQ_ERR_NOMEM;
       }
       context->subs = subs;
@@ -375,7 +375,7 @@ static int sub__remove_normal(struct tmqtt *context, struct tmqtt__subhier *subh
       db.subscription_count--;
 #endif
       DL_DELETE(subhier->subs, leaf);
-      tmqtt__free(leaf);
+      ttq_free(leaf);
 
       /* Remove the reference to the sub that the client is keeping.
        * It would be nice to be able to use the reference directly,
@@ -383,7 +383,7 @@ static int sub__remove_normal(struct tmqtt *context, struct tmqtt__subhier *subh
        * each subleaf. Might be worth considering though. */
       for (i = 0; i < context->sub_count; i++) {
         if (context->subs[i] && context->subs[i]->hier == subhier) {
-          tmqtt__free(context->subs[i]);
+          ttq_free(context->subs[i]);
           context->subs[i] = NULL;
           break;
         }
@@ -411,7 +411,7 @@ static int sub__remove_shared(struct tmqtt *context, struct tmqtt__subhier *subh
         db.shared_subscription_count--;
 #endif
         DL_DELETE(shared->subs, leaf);
-        tmqtt__free(leaf);
+        ttq_free(leaf);
 
         /* Remove the reference to the sub that the client is keeping.
          * It would be nice to be able to use the reference directly,
@@ -419,7 +419,7 @@ static int sub__remove_shared(struct tmqtt *context, struct tmqtt__subhier *subh
          * each subleaf. Might be worth considering though. */
         for (i = 0; i < context->sub_count; i++) {
           if (context->subs[i] && context->subs[i]->hier == subhier && context->subs[i]->shared == shared) {
-            tmqtt__free(context->subs[i]);
+            ttq_free(context->subs[i]);
             context->subs[i] = NULL;
             break;
           }
@@ -427,8 +427,8 @@ static int sub__remove_shared(struct tmqtt *context, struct tmqtt__subhier *subh
 
         if (shared->subs == NULL) {
           HASH_DELETE(hh, subhier->shared, shared);
-          tmqtt__free(shared->name);
-          tmqtt__free(shared);
+          ttq_free(shared->name);
+          ttq_free(shared);
         }
 
         *reason = 0;
@@ -459,8 +459,8 @@ static int sub__remove_recurse(struct tmqtt *context, struct tmqtt__subhier *sub
     sub__remove_recurse(context, branch, &(topics[1]), reason, sharename);
     if (!branch->children && !branch->subs && !branch->shared) {
       HASH_DELETE(hh, subhier->children, branch);
-      tmqtt__free(branch->topic);
-      tmqtt__free(branch);
+      ttq_free(branch->topic);
+      ttq_free(branch);
     }
   }
   return TTQ_ERR_SUCCESS;
@@ -541,17 +541,17 @@ struct tmqtt__subhier *sub__add_hier_entry(struct tmqtt__subhier *parent, struct
                                            const char *topic, uint16_t len) {
   struct tmqtt__subhier *child;
 
-  child = tmqtt__calloc(1, sizeof(struct tmqtt__subhier));
+  child = ttq_calloc(1, sizeof(struct tmqtt__subhier));
   if (!child) {
     ttq_log(NULL, TTQ_LOG_ERR, "Error: Out of memory.");
     return NULL;
   }
   child->parent = parent;
   child->topic_len = len;
-  child->topic = tmqtt__strdup(topic);
+  child->topic = ttq_strdup(topic);
   if (!child->topic) {
     child->topic_len = 0;
-    tmqtt__free(child);
+    ttq_free(child);
     ttq_log(NULL, TTQ_LOG_ERR, "Error: Out of memory.");
     return NULL;
   }
@@ -574,8 +574,8 @@ int sub__add(struct tmqtt *context, const char *sub, uint8_t qos, uint32_t ident
 
   topiclen = strlen(topics[0]);
   if (topiclen > UINT16_MAX) {
-    tmqtt__free(local_sub);
-    tmqtt__free(topics);
+    ttq_free(local_sub);
+    ttq_free(topics);
     return TTQ_ERR_INVAL;
   }
 
@@ -584,8 +584,8 @@ int sub__add(struct tmqtt *context, const char *sub, uint8_t qos, uint32_t ident
     if (!subhier) {
       subhier = sub__add_hier_entry(NULL, &db.shared_subs, topics[0], (uint16_t)topiclen);
       if (!subhier) {
-        tmqtt__free(local_sub);
-        tmqtt__free(topics);
+        ttq_free(local_sub);
+        ttq_free(topics);
         ttq_log(NULL, TTQ_LOG_ERR, "Error: Out of memory.");
         return TTQ_ERR_NOMEM;
       }
@@ -595,8 +595,8 @@ int sub__add(struct tmqtt *context, const char *sub, uint8_t qos, uint32_t ident
     if (!subhier) {
       subhier = sub__add_hier_entry(NULL, &db.normal_subs, topics[0], (uint16_t)topiclen);
       if (!subhier) {
-        tmqtt__free(local_sub);
-        tmqtt__free(topics);
+        ttq_free(local_sub);
+        ttq_free(topics);
         ttq_log(NULL, TTQ_LOG_ERR, "Error: Out of memory.");
         return TTQ_ERR_NOMEM;
       }
@@ -604,8 +604,8 @@ int sub__add(struct tmqtt *context, const char *sub, uint8_t qos, uint32_t ident
   }
   rc = sub__add_context(context, sub, qos, identifier, options, subhier, topics, sharename);
 
-  tmqtt__free(local_sub);
-  tmqtt__free(topics);
+  ttq_free(local_sub);
+  ttq_free(topics);
 
   return rc;
 }
@@ -630,8 +630,8 @@ int sub__remove(struct tmqtt *context, const char *sub, uint8_t *reason) {
     rc = sub__remove_recurse(context, subhier, topics, reason, sharename);
   }
 
-  tmqtt__free(local_sub);
-  tmqtt__free(topics);
+  ttq_free(local_sub);
+  ttq_free(topics);
 
   return rc;
 }
@@ -680,8 +680,8 @@ int sub__messages_queue(const char *source_id, const char *topic, uint8_t qos, i
   }
   */
 end:
-  tmqtt__free(split_topics);
-  tmqtt__free(local_topic);
+  ttq_free(split_topics);
+  ttq_free(local_topic);
   /* Remove our reference and free if needed. */
   db__msg_store_ref_dec(stored);
 
@@ -702,8 +702,8 @@ static struct tmqtt__subhier *tmp_remove_subs(struct tmqtt__subhier *sub) {
 
   parent = sub->parent;
   HASH_DELETE(hh, parent->children, sub);
-  tmqtt__free(sub->topic);
-  tmqtt__free(sub);
+  ttq_free(sub->topic);
+  ttq_free(sub);
 
   if (parent->subs == NULL && parent->children == NULL && parent->shared == NULL && parent->parent) {
     return parent;
@@ -746,13 +746,13 @@ int sub__clean_session(struct tmqtt *context) {
           db.subscription_count--;
 #endif
           DL_DELETE(hier->subs, leaf);
-          tmqtt__free(leaf);
+          ttq_free(leaf);
           break;
         }
         leaf = leaf->next;
       }
     }
-    tmqtt__free(context->subs[i]);
+    ttq_free(context->subs[i]);
     context->subs[i] = NULL;
 
     if (hier->subs == NULL && hier->children == NULL && hier->shared == NULL && hier->parent) {
@@ -761,7 +761,7 @@ int sub__clean_session(struct tmqtt *context) {
       } while (hier);
     }
   }
-  tmqtt__free(context->subs);
+  ttq_free(context->subs);
   context->subs = NULL;
   context->sub_count = 0;
 
@@ -834,7 +834,7 @@ int sub__topic_tokenise(const char *subtopic, char **local_sub, char ***topics, 
     return TTQ_ERR_INVAL;
   }
 
-  *local_sub = tmqtt__strdup(subtopic);
+  *local_sub = ttq_strdup(subtopic);
   if ((*local_sub) == NULL) return TTQ_ERR_NOMEM;
 
   count = 0;
@@ -843,9 +843,9 @@ int sub__topic_tokenise(const char *subtopic, char **local_sub, char ***topics, 
     saveptr = strchr(&saveptr[1], '/');
     count++;
   }
-  *topics = tmqtt__calloc((size_t)(count + 3) /* 3=$shared,sharename,NULL */, sizeof(char *));
+  *topics = ttq_calloc((size_t)(count + 3) /* 3=$shared,sharename,NULL */, sizeof(char *));
   if ((*topics) == NULL) {
-    tmqtt__free(*local_sub);
+    ttq_free(*local_sub);
     return TTQ_ERR_NOMEM;
   }
 
@@ -863,8 +863,8 @@ int sub__topic_tokenise(const char *subtopic, char **local_sub, char ***topics, 
 
   if (!strcmp((*topics)[0], "$share")) {
     if (count < 3 || (count == 3 && strlen((*topics)[2]) == 0)) {
-      tmqtt__free(*local_sub);
-      tmqtt__free(*topics);
+      ttq_free(*local_sub);
+      ttq_free(*topics);
       return TTQ_ERR_PROTOCOL;
     }
 

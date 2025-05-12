@@ -66,7 +66,7 @@ static int listeners__start_single_mqtt(struct tmqtt__listener *listener) {
     return 1;
   }
   listensock_count += listener->sock_count;
-  listensock_new = tmqtt__realloc(listensock, sizeof(struct tmqtt__listener_sock) * (size_t)listensock_count);
+  listensock_new = ttq_realloc(listensock, sizeof(struct tmqtt__listener_sock) * (size_t)listensock_count);
   if (!listensock_new) {
     return 1;
   }
@@ -94,13 +94,13 @@ static int listeners__add_local(const char *host, uint16_t port) {
   listener__set_defaults(&listeners[db.config->listener_count]);
   // listeners[db.config->listener_count].security_options.allow_anonymous = true;
   listeners[db.config->listener_count].port = port;
-  listeners[db.config->listener_count].host = tmqtt__strdup(host);
+  listeners[db.config->listener_count].host = ttq_strdup(host);
   if (listeners[db.config->listener_count].host == NULL) {
     return TTQ_ERR_NOMEM;
   }
 
   if (listeners__start_single_mqtt(&listeners[db.config->listener_count])) {
-    tmqtt__free(listeners[db.config->listener_count].host);
+    ttq_free(listeners[db.config->listener_count].host);
     listeners[db.config->listener_count].host = NULL;
     return TTQ_ERR_UNKNOWN;
   }
@@ -117,7 +117,7 @@ static int listeners__start(void) {
 
   listensock_count = 0;
 
-  listeners = tmqtt__realloc(db.config->listeners, 2 * sizeof(struct tmqtt__listener));
+  listeners = ttq_realloc(db.config->listeners, 2 * sizeof(struct tmqtt__listener));
   if (listeners == NULL) {
     return TTQ_ERR_NOMEM;
   }
@@ -129,7 +129,7 @@ static int listeners__start(void) {
   // rc = listeners__add_local(tsLocalFqdn, tsMqttPort);
   rc = listeners__add_local("0.0.0.0", tsMqttPort);
   if (TTQ_ERR_SUCCESS != rc) {
-    tmqtt__free(db.config->listeners);
+    ttq_free(db.config->listeners);
   }
 
   return rc;
@@ -144,11 +144,11 @@ static void listeners__stop(void) {
     }
   }
 
-  tmqtt__free(listensock);
+  ttq_free(listensock);
 
-  tmqtt__free(db.config->listeners[db.config->listener_count - 1].host);
-  tmqtt__free(db.config->listeners[db.config->listener_count - 1].socks);
-  tmqtt__free(db.config->listeners);
+  ttq_free(db.config->listeners[db.config->listener_count - 1].host);
+  ttq_free(db.config->listeners[db.config->listener_count - 1].socks);
+  ttq_free(db.config->listeners);
 }
 
 static void ttq_rand_init(void) {

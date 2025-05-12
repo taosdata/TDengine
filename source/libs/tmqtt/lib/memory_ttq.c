@@ -37,7 +37,7 @@ static size_t mem_limit = 0;
 void          memory__set_limit(size_t lim) { mem_limit = lim; }
 #endif
 
-void *tmqtt__calloc(size_t nmemb, size_t size) {
+void *ttq_calloc(size_t nmemb, size_t size) {
   void *mem;
 #ifdef REAL_WITH_MEMORY_TRACKING
   if (mem_limit && memcount + size > mem_limit) {
@@ -58,7 +58,7 @@ void *tmqtt__calloc(size_t nmemb, size_t size) {
   return mem;
 }
 
-void tmqtt__free(void *mem) {
+void ttq_free(void *mem) {
 #ifdef REAL_WITH_MEMORY_TRACKING
   if (!mem) {
     return;
@@ -68,7 +68,7 @@ void tmqtt__free(void *mem) {
   free(mem);
 }
 
-void *tmqtt__malloc(size_t size) {
+void *ttq_malloc(size_t size) {
   void *mem;
 
 #ifdef REAL_WITH_MEMORY_TRACKING
@@ -91,7 +91,7 @@ void *tmqtt__malloc(size_t size) {
   return mem;
 }
 
-void *tmqtt__realloc(void *ptr, size_t size) {
+void *ttq_realloc(void *ptr, size_t size) {
   void *mem;
 #ifdef REAL_WITH_MEMORY_TRACKING
   if (mem_limit && memcount + size > mem_limit) {
@@ -115,7 +115,7 @@ void *tmqtt__realloc(void *ptr, size_t size) {
   return mem;
 }
 
-char *tmqtt__strdup(const char *s) {
+char *ttq_strdup(const char *s) {
   char *str;
 #ifdef REAL_WITH_MEMORY_TRACKING
   if (mem_limit && memcount + strlen(s) > mem_limit) {
