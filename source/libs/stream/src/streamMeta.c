@@ -1619,7 +1619,7 @@ bool streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId) {
         // do nothing
         return true;
       } else if (transId < pInfo->activeTransId) {
-        stError("vgId:%d invalid(out of order)epset update transId:%d, active transId:%d, complete transId:%d, discard",
+        stError("vgId:%d invalid(out of order) epset update transId:%d, active transId:%d, complete transId:%d, discard",
                 pMeta->vgId, transId, pInfo->activeTransId, pInfo->completeTransId);
         return false;
       } else {  // transId > pInfo->activeTransId
@@ -1628,7 +1628,7 @@ bool streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId) {
         pInfo->activeTransId = transId;
 
         stInfo("vgId:%d active epset update transId updated from:%d to %d, prev complete transId:%d", pMeta->vgId,
-               transId, prev, pInfo->completeTransId);
+               prev, transId, pInfo->completeTransId);
         return true;
       }
     }

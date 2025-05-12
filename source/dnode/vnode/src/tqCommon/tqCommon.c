@@ -150,7 +150,7 @@ int32_t tqStreamTaskStartAsync(SStreamMeta* pMeta, SMsgCb* cb, bool restart) {
     return 0;
   }
 
-  tqDebug("vgId:%d start all %d stream task(s) async", vgId, numOfTasks);
+  tqInfo("vgId:%d start all %d stream task(s) async", vgId, numOfTasks);
 
   int32_t type = restart ? STREAM_EXEC_T_RESTART_ALL_TASKS : STREAM_EXEC_T_START_ALL_TASKS;
   return streamTaskSchedTask(cb, vgId, 0, 0, type, false);
@@ -346,6 +346,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
       // always return true
       streamMetaWUnLock(pMeta);
       taosArrayDestroy(req.pNodeList);
+      tqError("vgId:%d commit meta failed, code:%s not restart the stream tasks", vgId);
       return TSDB_CODE_SUCCESS;
     }
 
@@ -353,7 +354,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
 
     if (isLeader) {
       if (!restored) {
-        tqDebug("vgId:%d vnode restore not completed, not start all tasks", vgId);
+        tqInfo("vgId:%d vnode restore not completed, not start all tasks", vgId);
       } else {
         tqInfo("vgId:%d all %d task(s) nodeEp updated and closed, transId:%d", vgId, numOfTasks, req.transId);
 #if 0
