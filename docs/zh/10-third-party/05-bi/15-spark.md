@@ -113,7 +113,7 @@ driverClass 指定为 “com.taosdata.jdbc.ws.WebSocketDriver”。
 
 数据读取通过表映射方式读取，分四步完成：
 
-**第 1 步**， 创建 Spark 交互实例。
+1. 创建 Spark 交互实例。
 ``` java
   // create connect
   SparkSession spark = SparkSession.builder()
@@ -122,7 +122,7 @@ driverClass 指定为 “com.taosdata.jdbc.ws.WebSocketDriver”。
       .getOrCreate();
 ```
 
-**第 2 步**， 创建数据读取器。
+2. 创建数据读取器。
 ``` java
   // create reader
   String url = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata";
@@ -135,7 +135,7 @@ driverClass 指定为 “com.taosdata.jdbc.ws.WebSocketDriver”。
 
 ```
 
-**第 3 步**， 映射表，显示表内数据。
+3. 映射表，显示表内数据。
 ``` java
   // map table
   String dbtable = "test.meters";
@@ -145,7 +145,7 @@ driverClass 指定为 “com.taosdata.jdbc.ws.WebSocketDriver”。
   df.close()
 ```
 
-**第 4 步**， 关闭交互。
+4. 关闭交互。
 ``` java
   spark.stop();
 ```
@@ -156,7 +156,7 @@ driverClass 指定为 “com.taosdata.jdbc.ws.WebSocketDriver”。
 
 数据订阅使用 JDBC 标准数据订阅方法，分四步完成：
 
-**第 1 步**， 创建 spark 交互实例。
+1. 创建 spark 交互实例。
 ``` java
   SparkSession spark = SparkSession.builder()
       .appName("appSparkTest")
@@ -164,7 +164,7 @@ driverClass 指定为 “com.taosdata.jdbc.ws.WebSocketDriver”。
       .getOrCreate();
 ```            
 
-**第 2 步**， 创建消费者。
+2. 创建消费者。
 ``` java
   // create consumer
   TaosConsumer<ResultBean> consumer = getConsumer();
@@ -210,7 +210,7 @@ driverClass 指定为 “com.taosdata.jdbc.ws.WebSocketDriver”。
   }  
 ```
 
-**第 3 步**， 订阅主题，消费到数据放至 spark 中并显示。
+3. 订阅主题，消费到数据放至 spark 中并显示。
 ``` java
     // poll
     pollExample(spark, consumer);
@@ -268,7 +268,7 @@ driverClass 指定为 “com.taosdata.jdbc.ws.WebSocketDriver”。
     }
 ```
 
-**第 4 步**， 取消订阅，释放资源。
+4. 取消订阅，释放资源。
 ``` java
   // close
   consumer.unsubscribe();
@@ -291,12 +291,12 @@ driverClass 指定为 “com.taosdata.jdbc.ws.WebSocketDriver”。
 ### 分析电压周变化率
 LAG() 函数是 Spark 提供获取当前行之前某行数据的函数，示例使用此函数进行电压周变化率分析。
 
-**第 1 步**，通过 TDengine SQL 获取数据并创建 Spark View, 详见 createSparkView()。
+1. 通过 TDengine SQL 获取数据并创建 Spark View, 详见 createSparkView()。
 ``` sql
 select tbname,* from test.meters where tbname='d0'
 ```
 
-**第 2 步**，使用 Spark SQL 查询 Spark View 数据, 计算电压周变化率，SQL 如下：
+2. 使用 Spark SQL 查询 Spark View 数据, 计算电压周变化率，SQL 如下：
 ``` sql
 SELECT tbname, ts, voltage,
       (LAG(voltage, 7) OVER (ORDER BY tbname)) AS voltage_last_week, 
@@ -305,7 +305,7 @@ SELECT tbname, ts, voltage,
       FROM sparkMeters
 ```
 
-**第 3 步**，输出分析结果，如图：
+3. 输出分析结果，如图：
 
 ![spark-result](./spark-result.png)
 
