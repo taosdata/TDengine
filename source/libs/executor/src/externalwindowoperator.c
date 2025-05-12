@@ -167,7 +167,7 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
   SMergeAlignedExternalWindowOperator* pMlExtInfo = taosMemoryCalloc(1, sizeof(SMergeAlignedExternalWindowOperator));
   SOperatorInfo*                       pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
 
-  //pTaskInfo->pStreamRuntimeInfo->funcInfo.withExternalWindow = true;
+  pTaskInfo->withExternalWindow = true;
   if (!pMlExtInfo || !pOperator) {
     code = terrno;
     goto _error;
@@ -246,7 +246,8 @@ static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
                        &pTaskInfo->storageAPI.functionStore);
   }
   if (code == 0) {
-    code = resetExprSupp(&pExtW->scalarSupp, pOperator, pTaskInfo, pPhynode->window.pExprs, NULL, &pTaskInfo->storageAPI.functionStore);
+    code = resetExprSupp(&pExtW->scalarSupp, pOperator, pTaskInfo, pPhynode->window.pProjs, NULL,
+                         &pTaskInfo->storageAPI.functionStore);
   }
   if (code == 0) {
     colDataDestroy(&pExtW->twAggSup.timeWindowData);
@@ -274,7 +275,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     lino = __LINE__;
     goto _error;
   }
-  //pTaskInfo->pStreamRuntimeInfo->funcInfo.withExternalWindow = true;
+  pTaskInfo->withExternalWindow = true;
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pPhynode->window.node.pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
@@ -595,6 +596,7 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
       if (code != 0) QUERY_CHECK_CODE(code, lino, _end);
       (void)taosArrayPush(pExtW->pOutputBlocks, &bl);
     }
+    pExtW->outputWinId = pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx;
   }
 
   while (1) {

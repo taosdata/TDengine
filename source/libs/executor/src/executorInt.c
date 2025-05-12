@@ -1017,6 +1017,7 @@ void initResultSizeInfo(SResultInfo* pResultInfo, int32_t numOfRows) {
   if (pResultInfo->threshold == 0) {
     pResultInfo->threshold = numOfRows;
   }
+  pResultInfo->totalRows = 0;
 }
 
 void initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock) {

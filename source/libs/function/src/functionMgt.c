@@ -808,7 +808,7 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
     }
   } else if (t == STREAM_PSEUDO_FUNC_TLOCALTIME) {
     // TODO wjm impl
-  } else if (1) {
+  } else if (LIST_LENGTH(pParamNodes) == 1) {
     // twstart, twend
     const void* pVal = fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
     pFirstParam = nodesListGetNode(pParamNodes, 0);
