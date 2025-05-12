@@ -378,7 +378,7 @@ int32_t fetchWhiteListCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
   }
 
   SGetUserWhiteListRsp wlRsp;
-  if (TSDB_CODE_SUCCESS != tDeserializeSGetUserWhiteListRsp(pMsg->pData, pMsg->len, &wlRsp)) {
+  if ((code = tDeserializeSGetUserWhiteListRsp(pMsg->pData, pMsg->len, &wlRsp)) != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
     taosMemoryFree(pInfo);
@@ -502,12 +502,12 @@ int32_t fetchWhiteListDualStackCallbackFn(void *param, SDataBuf *pMsg, int32_t c
   }
 
   SGetUserWhiteListRsp wlRsp;
-  if (TSDB_CODE_SUCCESS != tDeserializeSGetUserWhiteListRsp(pMsg->pData, pMsg->len, &wlRsp)) {
+  if ((code = tDeserializeSGetUserWhiteListRsp(pMsg->pData, pMsg->len, &wlRsp)) != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
     taosMemoryFree(pInfo);
     tFreeSGetUserWhiteListRsp(&wlRsp);
-    return terrno;
+    return code;
   }
 
   uint64_t *pWhiteLists = taosMemoryMalloc(wlRsp.numWhiteLists * sizeof(uint64_t));
@@ -516,7 +516,7 @@ int32_t fetchWhiteListDualStackCallbackFn(void *param, SDataBuf *pMsg, int32_t c
     taosMemoryFree(pMsg->pEpSet);
     taosMemoryFree(pInfo);
     tFreeSGetUserWhiteListRsp(&wlRsp);
-    return terrno;
+    return code = terrno;
   }
 
   for (int i = 0; i < wlRsp.numWhiteLists; ++i) {
