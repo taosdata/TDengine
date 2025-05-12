@@ -47,7 +47,7 @@ The following example creates a Spark instance and connects to the local TDengin
 
 ## Data Interaction
 
-When accessing data, it is necessary to register the TDengine dialect. The dialect mainly deals with backticks. The data - type mapping is the same as that of JDBC and requires no additional processing. see：[JDBC DataType Map](../../../tdengine-reference/client-libraries/java/#data-type-mapping)
+When accessing data, it is necessary to register the TDengine dialect. The dialect mainly deals with backticks. The data - type mapping is the same as that of JDBC and requires no additional processing. see:[JDBC DataType Map](../../../tdengine-reference/client-libraries/java/#data-type-mapping)
 
 The following takes a Spark task written in the JAVA language and submitted for execution via `spark-submit` as an example to introduce data access. The complete example code is attached later.
 
