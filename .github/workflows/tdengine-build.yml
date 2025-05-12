@@ -144,36 +144,6 @@ jobs:
         run: |
           choco install jom --yes
 
-      - name: Check hostname on Linux
-        if: runner.os == 'Linux'
-        run: |
-          hostname
-          echo hostname -f
-          hostname -f || true
-          echo hostname -i
-          hostname -i || true
-          echo hostname -I
-          hostname -I || true
-          echo hostname -y
-          hostname -y || true
-          echo ip addr
-          ip addr || true
-          echo ping -c 4 $(hostname)
-          ping -c 4 $(hostname)
-
-      - name: Check hostname on macOS
-        if: runner.os == 'macOS'
-        run: |
-          hostname
-          echo hostname -f
-          hostname -f || true
-          echo hostname -s
-          hostname -s || true
-          echo hostname -d
-          hostname -d || true
-          echo ping -c 4 $(hostname)
-          ping -c 4 $(hostname)
-
       - name: Cache externals built
         uses: actions/cache@v4
         id: cache-ext
@@ -251,14 +221,9 @@ jobs:
           taosBenchmark -V
           taos -V
           ./build.sh start
-          echo "cat /var/log/taos/taosdlog.0 for the first time"
-          cat /var/log/taos/taosdlog.0 || true
           pgrep -l taos
-          echo "sleep 10"
-          sleep 10    # NOTE: wait for taosd initialization to complete
+          sleep 6     # NOTE: wait for taosd initialization to complete
           pgrep -l taos
-          echo "cat /var/log/taos/taosdlog.0 for the second time"
-          cat /var/log/taos/taosdlog.0
           taos -s "show databases"
           taos -s "show dnodes"
 

@@ -33,45 +33,6 @@ static int32_t transValidLocalFqdn(const char* localFqdn, uint32_t* ip) {
   }
   return 0;
 }
-
-static void dummy(const char *fqdn)
-{
-  int r = 0;
-
-  char hostname[4096]; hostname[0] = '\0';
-
-  r = gethostname(hostname, sizeof(hostname));
-  if (r) {
-    tError("gethostname failed:[%d]%s", errno, strerror(errno));
-    return;
-  }
-  tInfo("hostname:%s", hostname);
-
-  struct addrinfo  hints = {0};
-  struct addrinfo *result = NULL;
-  hints.ai_flags = AI_CANONNAME;
-  hints.ai_family = AF_INET;
-  hints.ai_socktype = SOCK_STREAM;
-
-  int32_t ret = getaddrinfo(hostname, NULL, &hints, &result);
-  if (ret) {
-    tError("getaddrinfo(%s) failed:[%d]%s", hostname, ret, strerror(ret));
-    return;
-  }
-
-  for (struct addrinfo *p = result; p; p = p->ai_next) {
-    struct sockaddr    *sa = p->ai_addr;
-    struct sockaddr_in *si = (struct sockaddr_in *)sa;
-    struct in_addr      ia = si->sin_addr;
-
-    uint32_t ip = ia.s_addr;
-
-    tInfo("ai_canonname:%s[%" PRIx32 "]", p->ai_canonname, ip);
-  }
-
-  freeaddrinfo(result);
-}
-
 void* rpcOpen(const SRpcInit* pInit) {
   int32_t code = rpcInit();
   if (code != 0) {
@@ -136,14 +97,9 @@ void* rpcOpen(const SRpcInit* pInit) {
 
   uint32_t ip = 0;
   if (pInit->connType == TAOS_CONN_SERVER) {
-    dummy(pInit->localFqdn);
     if ((code = transValidLocalFqdn(pInit->localFqdn, &ip)) != 0) {
       tError("invalid fqdn:%s, errmsg:%s", pInit->localFqdn, tstrerror(code));
-      dummy(pInit->localFqdn);
       TAOS_CHECK_GOTO(code, NULL, _end);
-    } else {
-      tInfo("fqdn:%s => ip:0x%" PRIx32 "", pInit->localFqdn, ip);
-      dummy(pInit->localFqdn);
     }
   }
 
