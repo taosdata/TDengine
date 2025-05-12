@@ -1535,9 +1535,10 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   }
 
   if (false == taosValidIpAndPort(srv->ip, srv->port)) {
-    // code = TAOS_SYSTEM_ERROR(ERRNO);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     tError("invalid ip/port, %d:%d since %s", srv->ip, srv->port, terrstr());
-    // goto End;
+    code = 0;
+    terrno = 0;
   }
 
   char pipeName[PATH_MAX];
