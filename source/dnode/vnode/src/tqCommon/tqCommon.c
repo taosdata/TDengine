@@ -289,7 +289,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
 
   // stream do update the nodeEp info, write it into stream meta.
   if (updated) {
-    tqDebug("s-task:%s vgId:%d save task after update epset, and stop task", idstr, vgId);
+    tqInfo("s-task:%s vgId:%d save task after update epset, and stop task", idstr, vgId);
     code = streamMetaSaveTaskInMeta(pMeta, pTask);
     if (code) {
       tqError("s-task:%s vgId:%d failed to save task, code:%s", idstr, vgId, tstrerror(code));
@@ -302,7 +302,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
       }
     }
   } else {
-    tqDebug("s-task:%s vgId:%d not save task since not update epset actually, stop task", idstr, vgId);
+    tqInfo("s-task:%s vgId:%d not save task since not update epset actually, stop task", idstr, vgId);
   }
 
   code = streamTaskStop(pTask);
@@ -365,7 +365,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
         }
       }
     } else {
-      tqDebug("vgId:%d follower nodes not restart tasks", vgId);
+      tqInfo("vgId:%d follower nodes not restart tasks", vgId);
     }
   }
 
