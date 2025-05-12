@@ -951,8 +951,6 @@ TEST_F(ParserInitialCTest, createStream) {
   useDb("root", "test");
 
   SCMCreateStreamReq expect = {0};
-  SNodeList*         pTriggerCols = nullptr;
-  SNodeList*         pPartitionCols = nullptr;
 
   auto clearCreateStreamReq = [&]() {
     tFreeSCMCreateStreamReq(&expect);
@@ -974,6 +972,22 @@ TEST_F(ParserInitialCTest, createStream) {
     }
     char *tmpCalcDb = taosStrdup(pCalcDb);
     ASSERT_TRUE(taosArrayPush(expect.calcDB, &tmpCalcDb));
+  };
+
+  auto setCreateStreamTriggerScanPlan = [&](const char* pTriggerScanPlan) {
+    expect.triggerScanPlan = taosStrdup(pTriggerScanPlan);
+  };
+
+  auto setCreateStreamQueryCalcPlan = [&](const char* pStreamQueryCalcPlan) {
+    expect.calcPlan = taosStrdup(pStreamQueryCalcPlan);
+  };
+
+  auto setCreateStreamSubTblNameExpr = [&](const char* pSubTblNameExpr) {
+    expect.subTblNameExpr = taosStrdup(pSubTblNameExpr);
+  };
+
+  auto setCreateStreamTagValueExpr = [&](const char* pTagValueExpr) {
+    expect.tagValueExpr = taosStrdup(pTagValueExpr);
   };
 
   auto setCreateStreamOption = [&](int8_t igExists, int8_t triggerType, int8_t igDisorder, int8_t deleteReCalc,
@@ -1006,52 +1020,44 @@ TEST_F(ParserInitialCTest, createStream) {
     expect.placeHolderBitmap = placeHolderBitmap;
   };
 
-  SArray*        outCols;               // array of SFieldWithOptions
-  SArray*        outTags;               // array of SFieldWithOptions
   SStreamTrigger trigger;
 
-  auto addCreateStreamTriggerCols = [&](uint8_t type, uint8_t precision, uint8_t scale, int32_t bytes, uint64_t tableId,
-    int8_t tableType, col_id_t colId, EColumnType colType, const char* dbName, const char* tableName,
-    const char* tableAlias, const char* colName, int16_t slotId) {
-    SColumnNode *pCol = nullptr;
-    ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol), TSDB_CODE_SUCCESS);
-    pCol->node.resType.type = type;
-    pCol->node.resType.precision = precision;
-    pCol->node.resType.scale = scale;
-    pCol->node.resType.bytes = bytes;
-    pCol->tableId = tableId;
-    pCol->tableType = tableType;
-    pCol->colId = colId;
-    pCol->colType = colType;
-    tstrncpy(pCol->dbName, dbName, sizeof(pCol->dbName));
-    tstrncpy(pCol->colName, colName, sizeof(pCol->colName));
-    tstrncpy(pCol->tableName, tableName, sizeof(pCol->tableName));
-    tstrncpy(pCol->tableAlias, tableAlias, sizeof(pCol->tableAlias));
-    pCol->slotId = slotId;
-
-    ASSERT_EQ(nodesListMakeAppend(&pTriggerCols, (SNode*)pCol), TSDB_CODE_SUCCESS);
+  auto addCreateStreamOutCols = [&](const char* name, uint8_t type, int8_t flag, int32_t bytes, uint32_t compress, STypeMod typeMod) {
+    SFieldWithOptions outCol = {0};
+    strcpy(outCol.name, name);
+    outCol.type = type;
+    outCol.bytes = bytes;
+    outCol.compress = compress;
+    outCol.typeMod = typeMod;
+    outCol.flags = flag;
+    if (expect.outCols == nullptr) {
+      expect.outCols = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SFieldWithOptions));
+      ASSERT_TRUE(expect.outCols != nullptr);
+    }
+    ASSERT_TRUE(taosArrayPush(expect.outCols, &outCol) != nullptr);
   };
 
-  auto addCreateStreamPartitionCols = [&](uint8_t type, uint8_t precision, uint8_t scale, int32_t bytes, uint64_t tableId,
-    int8_t tableType, col_id_t colId, EColumnType colType, const char* dbName, const char* tableName,
-    const char* tableAlias, const char* colName, int16_t slotId) {
-    SColumnNode *pCol = nullptr;
-    ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol), TSDB_CODE_SUCCESS);
-    pCol->node.resType.type = type;
-    pCol->node.resType.precision = precision;
-    pCol->node.resType.scale = scale;
-    pCol->node.resType.bytes = bytes;
-    pCol->tableId = tableId;
-    pCol->tableType = tableType;
-    pCol->colId = colId;
-    pCol->colType = colType;
-    tstrncpy(pCol->dbName, dbName, sizeof(pCol->dbName));
-    tstrncpy(pCol->colName, colName, sizeof(pCol->colName));
-    tstrncpy(pCol->tableName, tableName, sizeof(pCol->tableName));
-    tstrncpy(pCol->tableAlias, tableAlias, sizeof(pCol->tableAlias));
-    pCol->slotId = slotId;
+  auto addCreateStreamOutTags = [&](const char* name, uint8_t type, int8_t flag, int32_t bytes, uint32_t compress, STypeMod typeMod) {
+    SFieldWithOptions outTags = {0};
+    strcpy(outTags.name, name);
+    outTags.type = type;
+    outTags.bytes = bytes;
+    outTags.compress = compress;
+    outTags.typeMod = typeMod;
+    outTags.flags = flag;
+    if (expect.outTags == nullptr) {
+      expect.outTags = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SFieldWithOptions));
+      ASSERT_TRUE(expect.outTags != nullptr);
+    }
+    ASSERT_TRUE(taosArrayPush(expect.outTags, &outTags) != nullptr);
+  };
 
-    ASSERT_EQ(nodesListMakeAppend(&pPartitionCols, (SNode*)pCol), TSDB_CODE_SUCCESS);
+  auto setCreateStreamTriggerCols = [&](const char* pCols) {
+    expect.triggerCols = taosStrdup(pCols);
+  };
+
+  auto setCreateStreamPartitionCols = [&](const char* pCols) {
+    expect.partitionCols = taosStrdup(pCols);
   };
 
 
@@ -1068,6 +1074,31 @@ TEST_F(ParserInitialCTest, createStream) {
     expect.notifyEventTypes = notifyEventTypes;
     expect.notifyErrorHandle = notifyErrorHandle;
     expect.notifyHistory = notifyHistory;
+  };
+
+  auto setCreateStreamForceOutputCols = [&](uint8_t type, uint8_t precision, uint8_t scale, int32_t bytes, const char* expr) {
+    SStreamOutCol outCol = {0};
+    outCol.type.type = type;
+    outCol.type.precision = precision;
+    outCol.type.scale = scale;
+    outCol.type.bytes = bytes;
+    outCol.expr = taosStrdup(expr);
+    if (expect.outCols == nullptr) {
+      expect.outCols = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SStreamOutCol));
+      ASSERT_TRUE(expect.outCols != nullptr);
+    }
+    ASSERT_TRUE(taosArrayPush(expect.outCols, &outCol) != nullptr);
+  };
+
+  auto addCreateStreamQueryScanPlan = [&](bool readFromCache, const char* pStreamQueryScanPlan) {
+    SStreamCalcScan scan = {0};
+    scan.readFromCache = (int8_t)readFromCache;
+    scan.scanPlan = taosStrdup(pStreamQueryScanPlan);
+    if (expect.calcScanPlanList == nullptr) {
+      expect.calcScanPlanList = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SStreamCalcScan));
+      ASSERT_TRUE(expect.calcScanPlanList != nullptr);
+    }
+    ASSERT_TRUE(taosArrayPush(expect.calcScanPlanList, &scan) != nullptr);
   };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
@@ -1128,47 +1159,70 @@ TEST_F(ParserInitialCTest, createStream) {
     ASSERT_EQ(req.tsmaId, expect.tsmaId);
     ASSERT_EQ(req.placeHolderBitmap, expect.placeHolderBitmap);
 
-    SNodeList* pReqTriggerColList = nullptr;
-    ASSERT_EQ(nodesStringToList((char*)req.triggerCols, &pReqTriggerColList), TSDB_CODE_SUCCESS);
-    ASSERT_EQ(LIST_LENGTH(pReqTriggerColList), LIST_LENGTH(pReqTriggerColList));
-    SNode *pReqNode, *pExpectNode = nullptr;
-    FORBOTH(pReqNode, pReqTriggerColList, pExpectNode, pTriggerCols) {
-      ASSERT_EQ(nodeType(pReqNode), nodeType(pExpectNode));
-      auto* pReqCol = (SColumnNode*)pReqNode;
-      auto* pExpectCol = (SColumnNode*)pExpectNode;
-      ASSERT_EQ(pReqCol->node.resType.type, pExpectCol->node.resType.type);
-      ASSERT_EQ(pReqCol->node.resType.precision, pExpectCol->node.resType.precision);
-      ASSERT_EQ(pReqCol->node.resType.scale, pExpectCol->node.resType.scale);
-      ASSERT_EQ(pReqCol->node.resType.bytes, pExpectCol->node.resType.bytes);
-      ASSERT_EQ(pReqCol->tableId, pExpectCol->tableId);
-      ASSERT_EQ(pReqCol->tableType, pExpectCol->tableType);
-      ASSERT_EQ(pReqCol->colId, pExpectCol->colId);
-      ASSERT_EQ(pReqCol->colType, pExpectCol->colType);
-      ASSERT_EQ(std::string(pReqCol->dbName), std::string(pExpectCol->dbName));
-      ASSERT_EQ(std::string(pReqCol->colName), std::string(pExpectCol->colName));
-      ASSERT_EQ(std::string(pReqCol->tableName), std::string(pExpectCol->tableName));
-      ASSERT_EQ(std::string(pReqCol->tableAlias), std::string(pExpectCol->tableAlias));
+    if (req.triggerCols == nullptr) {
+      ASSERT_TRUE(expect.triggerCols == nullptr);
+    } else {
+      ASSERT_EQ(std::string((char*)req.triggerCols), std::string((char*)expect.triggerCols));
     }
 
-    SNodeList* pReqPartitionColList = nullptr;
-    ASSERT_EQ(nodesStringToList((char*)req.partitionCols, &pReqPartitionColList), TSDB_CODE_SUCCESS);
-    ASSERT_EQ(LIST_LENGTH(pPartitionCols), LIST_LENGTH(pReqPartitionColList));
-    FORBOTH(pReqNode, pReqPartitionColList, pExpectNode, pPartitionCols) {
-      ASSERT_EQ(nodeType(pReqNode), nodeType(pExpectNode));
-      auto* pReqCol = (SColumnNode*)pReqNode;
-      auto* pExpectCol = (SColumnNode*)pExpectNode;
-      ASSERT_EQ(pReqCol->node.resType.type, pExpectCol->node.resType.type);
-      ASSERT_EQ(pReqCol->node.resType.precision, pExpectCol->node.resType.precision);
-      ASSERT_EQ(pReqCol->node.resType.scale, pExpectCol->node.resType.scale);
-      ASSERT_EQ(pReqCol->node.resType.bytes, pExpectCol->node.resType.bytes);
-      ASSERT_EQ(pReqCol->tableId, pExpectCol->tableId);
-      ASSERT_EQ(pReqCol->tableType, pExpectCol->tableType);
-      ASSERT_EQ(pReqCol->colId, pExpectCol->colId);
-      ASSERT_EQ(pReqCol->colType, pExpectCol->colType);
-      ASSERT_EQ(std::string(pReqCol->dbName), std::string(pExpectCol->dbName));
-      ASSERT_EQ(std::string(pReqCol->colName), std::string(pExpectCol->colName));
-      ASSERT_EQ(std::string(pReqCol->tableName), std::string(pExpectCol->tableName));
-      ASSERT_EQ(std::string(pReqCol->tableAlias), std::string(pExpectCol->tableAlias));
+    if (req.partitionCols == nullptr) {
+      ASSERT_TRUE(expect.partitionCols == nullptr);
+    } else {
+      ASSERT_EQ(std::string((char*)req.partitionCols), std::string((char*)expect.partitionCols));
+    }
+
+    ASSERT_EQ(std::string((char*)req.triggerScanPlan), std::string((char*)expect.triggerScanPlan));
+    //ASSERT_EQ(std::string((char*)req.calcPlan), std::string((char*)expect.calcPlan));
+
+    ASSERT_EQ(taosArrayGetSize(req.calcScanPlanList), taosArrayGetSize(expect.calcScanPlanList));
+    for (int32_t i = 0; i < taosArrayGetSize(req.calcScanPlanList); i++) {
+      auto pCalcScan = (SStreamCalcScan *)taosArrayGet(req.calcScanPlanList, i);
+      auto expectScan = (SStreamCalcScan *)taosArrayGet(expect.calcScanPlanList, i);
+      ASSERT_EQ(pCalcScan->readFromCache, expectScan->readFromCache);
+      ASSERT_EQ(std::string((char*)pCalcScan->scanPlan), std::string((char*)expectScan->scanPlan));
+    }
+
+    ASSERT_EQ(std::string((char*)req.subTblNameExpr), std::string((char*)expect.subTblNameExpr));
+    if (req.tagValueExpr == nullptr) {
+      ASSERT_TRUE(expect.tagValueExpr == nullptr);
+    } else {
+      ASSERT_EQ(std::string((char*)req.tagValueExpr), std::string((char*)expect.tagValueExpr));
+    }
+
+    ASSERT_EQ(taosArrayGetSize(req.forceOutCols), taosArrayGetSize(expect.forceOutCols));
+    for (int32_t i = 0; i < taosArrayGetSize(req.forceOutCols); i++) {
+      auto pOutCols = (SStreamOutCol *)taosArrayGet(req.forceOutCols, i);
+      auto expectOutCols = (SStreamOutCol *)taosArrayGet(expect.forceOutCols, i);
+      ASSERT_EQ(pOutCols->type.type, expectOutCols->type.type);
+      ASSERT_EQ(pOutCols->type.bytes, expectOutCols->type.bytes);
+      ASSERT_EQ(pOutCols->type.precision, expectOutCols->type.precision);
+      ASSERT_EQ(pOutCols->type.scale, expectOutCols->type.scale);
+
+      ASSERT_EQ(std::string((char*)pOutCols->expr), std::string((char*)expectOutCols->expr));
+    }
+
+    ASSERT_EQ(taosArrayGetSize(req.outCols), taosArrayGetSize(expect.outCols));
+    for (int32_t i = 0; i < taosArrayGetSize(req.outCols); i++) {
+      auto pOutCols = (SFieldWithOptions *)taosArrayGet(req.outCols, i);
+      auto expectOutCols = (SFieldWithOptions *)taosArrayGet(expect.outCols, i);
+      ASSERT_EQ(pOutCols->type, expectOutCols->type);
+      ASSERT_EQ(pOutCols->bytes, expectOutCols->bytes);
+      ASSERT_EQ(pOutCols->compress, expectOutCols->compress);
+      ASSERT_EQ(pOutCols->flags, expectOutCols->flags);
+      ASSERT_EQ(pOutCols->typeMod, expectOutCols->typeMod);
+      ASSERT_EQ(std::string(pOutCols->name), std::string(expectOutCols->name));
+    }
+
+    ASSERT_EQ(taosArrayGetSize(req.outTags), taosArrayGetSize(expect.outTags));
+    for (int32_t i = 0; i < taosArrayGetSize(req.outTags); i++) {
+      auto pOutTags = (SFieldWithOptions *)taosArrayGet(req.outTags, i);
+      auto expectOutTags = (SFieldWithOptions *)taosArrayGet(expect.outTags, i);
+      ASSERT_EQ(pOutTags->type, expectOutTags->type);
+      ASSERT_EQ(pOutTags->bytes, expectOutTags->bytes);
+      ASSERT_EQ(pOutTags->compress, expectOutTags->compress);
+      ASSERT_EQ(pOutTags->flags, expectOutTags->flags);
+      ASSERT_EQ(pOutTags->typeMod, expectOutTags->typeMod);
+      ASSERT_EQ(std::string(pOutTags->name), std::string(expectOutTags->name));
     }
 
     tFreeSCMCreateStreamReq(&req);
@@ -1186,10 +1240,17 @@ TEST_F(ParserInitialCTest, createStream) {
   } ETriggerType;
 
   setCreateStreamReq("s1", "0.test", "0.test", "0.test", "0.test", "t1", "stream_out", "create stream s1 interval(1s) sliding(1s) from t1 into stream_out as select now, avg(c1) from t2");
-  setCreateStreamOption(0, ETriggerType::WINDOW_TYPE_INTERVAL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, TSDB_NORMAL_TABLE, 9, TSDB_NORMAL_TABLE, 0, 0, 1, 1, 0, 0, 0);
-  addCreateStreamTriggerCols(9, 0, 0, 8, 9, TSDB_NORMAL_TABLE, 1, EColumnType::COLUMN_TYPE_COLUMN, "test", "t1", "t1", "ts", 0);
+  setCreateStreamOption(0, WINDOW_TYPE_INTERVAL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, TSDB_NORMAL_TABLE, 9, TSDB_NORMAL_TABLE, 0, 0, 1, 1, 0, 0, 0);
+  setCreateStreamTriggerCols("");
+  setCreateStreamTriggerScanPlan("{\"NodeType\":\"1128\",\"Name\":\"PhysiSubplan\",\"PhysiSubplan\":{\"Id\":{\"QueryId\":\"0\",\"GroupId\":\"1\",\"SubplanId\":\"1\"},\"SubplanType\":\"3\",\"MsgType\":\"769\",\"Level\":\"0\",\"DbFName\":\"0.test\",\"User\":\"\",\"NodeAddr\":{\"Id\":\"1\",\"InUse\":\"0\",\"NumOfEps\":\"0\"},\"RootNode\":{\"NodeType\":\"1101\",\"Name\":\"PhysiTableScan\",\"PhysiTableScan\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"0\",\"TotalRowSize\":\"32\",\"OutputRowSize\":\"32\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"8280654498900312045\"}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"3557205140367942817\"}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"2\",\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"20\"},\"Reserve\":false,\"Output\":true,\"Name\":\"6164016115312601301\"}}],\"Precision\":\"0\"}},\"ScanCols\":[{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"AliasName\":\"expr_1\",\"UserAlias\":\"ts\",\"TableId\":\"9\",\"TableType\":\"3\",\"ColId\":\"1\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"test\",\"TableName\":\"t1\",\"TableAlias\":\"t1\",\"ColName\":\"ts\",\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\"}}}},{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"DataBlockId\":\"0\",\"SlotId\":\"1\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"AliasName\":\"expr_2\",\"UserAlias\":\"c1\",\"TableId\":\"9\",\"TableType\":\"3\",\"ColId\":\"2\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"test\",\"TableName\":\"t1\",\"TableAlias\":\"t1\",\"ColName\":\"c1\",\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\"}}}},{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"DataBlockId\":\"0\",\"SlotId\":\"2\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"20\"},\"AliasName\":\"expr_3\",\"UserAlias\":\"c2\",\"TableId\":\"9\",\"TableType\":\"3\",\"ColId\":\"3\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"test\",\"TableName\":\"t1\",\"TableAlias\":\"t1\",\"ColName\":\"c2\",\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\"}}}}],\"TableId\":\"9\",\"STableId\":\"0\",\"TableType\":\"3\",\"TableName\":{\"NameType\":\"2\",\"AcctId\":\"0\",\"DbName\":\"test\",\"TableName\":\"t1\"},\"GroupOrderScan\":false,\"ScanCount\":\"1\",\"ReverseScanCount\":\"0\",\"StartKey\":\"-9223372036854775808\",\"EndKey\":\"9223372036854775807\",\"Ratio\":1,\"DataRequired\":\"1\",\"Interval\":\"0\",\"Offset\":\"0\",\"Sliding\":\"0\",\"IntervalUnit\":\"0\",\"SlidingUnit\":\"0\",\"TriggerType\":\"0\",\"Watermark\":\"0\",\"IgnoreExpired\":\"0\",\"GroupSort\":false,\"AssignBlockUid\":false,\"IgnoreUpdate\":\"0\",\"FilesetDelimited\":false,\"NeedCountEmptyTable\":false,\"ParaTablesSort\":false,\"SmallDataTsSort\":false,\"StreamResInfoStbFullName\":\"\",\"StreamResInfoWstartName\":\"\",\"StreamResInfoWendName\":\"\",\"StreamResInfoGroupIdName\":\"\",\"StreamResInfoIsWindowFilledName\":\"\"}},\"DataSink\":{\"NodeType\":\"1124\",\"Name\":\"PhysiDispatch\",\"PhysiDispatch\":{\"InputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"0\",\"TotalRowSize\":\"32\",\"OutputRowSize\":\"32\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\"}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\"}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"2\",\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"20\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\"}}],\"Precision\":\"0\"}}}},\"ShowRewrite\":false,\"IsView\":false,\"IsAudit\":false,\"RowThreshold\":\"4096\",\"DyRowThreshold\":false}}");
+  addCreateStreamQueryScanPlan(false, "{\"NodeType\":\"1128\",\"Name\":\"PhysiSubplan\",\"PhysiSubplan\":{\"Id\":{\"QueryId\":\"0\",\"GroupId\":\"2\",\"SubplanId\":\"2\"},\"SubplanType\":\"3\",\"MsgType\":\"769\",\"Level\":\"1\",\"DbFName\":\"0.test\",\"User\":\"\",\"NodeAddr\":{\"Id\":\"1\",\"InUse\":\"0\",\"NumOfEps\":\"0\"},\"RootNode\":{\"NodeType\":\"1101\",\"Name\":\"PhysiTableScan\",\"PhysiTableScan\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"3\",\"TotalRowSize\":\"12\",\"OutputRowSize\":\"12\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"3612687029497005528\"}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"281596734614822715\"}}],\"Precision\":\"0\"}},\"ScanCols\":[{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"DataBlockId\":\"3\",\"SlotId\":\"1\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"AliasName\":\"\",\"UserAlias\":\"\",\"TableId\":\"10\",\"TableType\":\"0\",\"ColId\":\"1\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"\",\"TableName\":\"t2\",\"TableAlias\":\"t2\",\"ColName\":\"ts\",\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\"}}}},{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"DataBlockId\":\"3\",\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"AliasName\":\"c1\",\"UserAlias\":\"c1\",\"TableId\":\"10\",\"TableType\":\"3\",\"ColId\":\"2\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"test\",\"TableName\":\"t2\",\"TableAlias\":\"t2\",\"ColName\":\"c1\",\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\"}}}}],\"TableId\":\"10\",\"STableId\":\"0\",\"TableType\":\"3\",\"TableName\":{\"NameType\":\"2\",\"AcctId\":\"0\",\"DbName\":\"test\",\"TableName\":\"t2\"},\"GroupOrderScan\":false,\"ScanCount\":\"1\",\"ReverseScanCount\":\"0\",\"StartKey\":\"-9223372036854775808\",\"EndKey\":\"9223372036854775807\",\"Ratio\":1,\"DataRequired\":\"2\",\"Interval\":\"0\",\"Offset\":\"0\",\"Sliding\":\"0\",\"IntervalUnit\":\"0\",\"SlidingUnit\":\"0\",\"TriggerType\":\"0\",\"Watermark\":\"0\",\"IgnoreExpired\":\"0\",\"GroupSort\":false,\"AssignBlockUid\":false,\"IgnoreUpdate\":\"0\",\"FilesetDelimited\":false,\"NeedCountEmptyTable\":false,\"ParaTablesSort\":false,\"SmallDataTsSort\":false,\"StreamResInfoStbFullName\":\"\",\"StreamResInfoWstartName\":\"\",\"StreamResInfoWendName\":\"\",\"StreamResInfoGroupIdName\":\"\",\"StreamResInfoIsWindowFilledName\":\"\"}},\"DataSink\":{\"NodeType\":\"1124\",\"Name\":\"PhysiDispatch\",\"PhysiDispatch\":{\"InputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"3\",\"TotalRowSize\":\"12\",\"OutputRowSize\":\"12\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\"}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\"}}],\"Precision\":\"0\"}}}},\"ShowRewrite\":false,\"IsView\":false,\"IsAudit\":false,\"RowThreshold\":\"4096\",\"DyRowThreshold\":false}}");
+  setCreateStreamSubTblNameExpr("{\"NodeType\":\"5\",\"Name\":\"Function\",\"Function\":{\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"14\"},\"AliasName\":\"\",\"UserAlias\":\"\",\"Name\":\"concat\",\"Id\":\"70\",\"Type\":\"1502\",\"Parameters\":[{\"NodeType\":\"2\",\"Name\":\"Value\",\"Value\":{\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"AliasName\":\"\",\"UserAlias\":\"\",\"LiteralSize\":\"2\",\"Literal\":\"t_\",\"Flag\":false,\"Translate\":true,\"NotReserved\":false,\"IsNull\":false,\"Unit\":\"0\",\"Datum\":\"t_\"}},{\"NodeType\":\"5\",\"Name\":\"Function\",\"Function\":{\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"10\"},\"AliasName\":\"\",\"UserAlias\":\"\",\"Name\":\"cast\",\"Id\":\"77\",\"Type\":\"2000\",\"Parameters\":[{\"NodeType\":\"5\",\"Name\":\"Function\",\"Function\":{\"DataType\":{\"Type\":\"5\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"AliasName\":\"\",\"UserAlias\":\"\",\"Name\":\"_tgrpid\",\"Id\":\"179\",\"Type\":\"3527\",\"Parameters\":[{\"NodeType\":\"2\",\"Name\":\"Value\",\"Value\":{\"DataType\":{\"Type\":\"5\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"AliasName\":\"\",\"UserAlias\":\"\",\"LiteralSize\":\"0\",\"Flag\":false,\"Translate\":true,\"NotReserved\":false,\"IsNull\":false,\"Unit\":\"0\",\"Datum\":\"0\"}}],\"UdfBufSize\":\"0\",\"HasPk\":false,\"PkBytes\":\"0\",\"IsMergeFunc\":false,\"MergeFuncOf\":\"0\",\"TrimType\":\"0\",\"SrcFuncInputDataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"}}},{\"NodeType\":\"2\",\"Name\":\"Value\",\"Value\":{\"DataType\":{\"Type\":\"2\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"1\"},\"AliasName\":\"\",\"UserAlias\":\"\",\"LiteralSize\":\"0\",\"Flag\":false,\"Translate\":true,\"NotReserved\":true,\"IsNull\":false,\"Unit\":\"0\",\"Datum\":\"0\"}}],\"UdfBufSize\":\"0\",\"HasPk\":false,\"PkBytes\":\"0\",\"IsMergeFunc\":false,\"MergeFuncOf\":\"0\",\"TrimType\":\"0\",\"SrcFuncInputDataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"}}}],\"UdfBufSize\":\"0\",\"HasPk\":false,\"PkBytes\":\"0\",\"IsMergeFunc\":false,\"MergeFuncOf\":\"0\",\"TrimType\":\"0\",\"SrcFuncInputDataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"}}}");
+  setCreateStreamTriggerCols("[{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"AliasName\":\"ts\",\"UserAlias\":\"ts\",\"TableId\":\"9\",\"TableType\":\"3\",\"ColId\":\"1\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"test\",\"TableName\":\"t1\",\"TableAlias\":\"t1\",\"ColName\":\"ts\",\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\"}}]");
+  addCreateStreamOutCols("now", TSDB_DATA_TYPE_TIMESTAMP, 0, 8, 0, {0});
+  addCreateStreamOutCols("avg(c1)", TSDB_DATA_TYPE_DOUBLE, 0, 8, 0, {0});
   run("create stream s1 interval(1s) sliding(1s) from t1 into stream_out as select now, avg(c1) from t2");
   clearCreateStreamReq();
+
 
 
 }
