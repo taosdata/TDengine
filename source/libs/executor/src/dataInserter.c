@@ -152,7 +152,7 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
   } else {
     pInserter->submitRes.code = TSDB_CODE_SUCCESS;
   }
-  SDecoder* pCoder = NULL;
+  SDecoder coder = {0};
 
   if (code == TSDB_CODE_SUCCESS) {
     pInserter->submitRes.pRsp = taosMemoryCalloc(1, sizeof(SSubmitRsp2));
@@ -161,9 +161,7 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
       goto _return;
     }
 
-    SDecoder coder = {0};
     tDecoderInit(&coder, pMsg->pData, pMsg->len);
-    pCoder = &coder;
     code = tDecodeSSubmitRsp2(&coder, pInserter->submitRes.pRsp);
     if (code) {
       taosMemoryFree(pInserter->submitRes.pRsp);
@@ -209,9 +207,7 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
         goto _return;
       }
 
-      SDecoder coder = {0};
       tDecoderInit(&coder, pMsg->pData, pMsg->len);
-      pCoder = &coder;
       code = tDecodeSSubmitRsp2(&coder, pInserter->submitRes.pRsp);
       if (code) {
         taosMemoryFree(pInserter->submitRes.pRsp);
@@ -226,10 +222,7 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
 
 _return:
 
-  if (pCoder) {
-    tDecoderClear(pCoder);
-    pCoder = NULL;
-  }
+  tDecoderClear(&coder);
   code2 = tsem_post(&pInserter->ready);
   if (code2 < 0) {
     qError("tsem_post inserter ready failed, error:%s", tstrerror(code2));
