@@ -37,13 +37,12 @@
 #include "thttp.h"
 #include "tjson.h"
 
-#define MOUNT_VER_NUMBER   1
-#define MOUNT_RESERVE_SIZE 128
+#define MND_MOUNT_VER_NUMBER 1
 
-static SSdbRaw *mndMountActionEncode(SMountObj *pDb);
+static SSdbRaw *mndMountActionEncode(SMountObj *pObj);
 static SSdbRow *mndMountActionDecode(SSdbRaw *pRaw);
-static int32_t  mndMountActionInsert(SSdb *pSdb, SMountObj *pDb);
-static int32_t  mndMountActionDelete(SSdb *pSdb, SMountObj *pDb);
+static int32_t  mndMountActionInsert(SSdb *pSdb, SMountObj *pObj);
+static int32_t  mndMountActionDelete(SSdb *pSdb, SMountObj *pObj);
 static int32_t  mndMountActionUpdate(SSdb *pSdb, SMountObj *pOld, SMountObj *pNew);
 static int32_t  mndNewMountActionValidate(SMnode *pMnode, STrans *pTrans, SSdbRaw *pRaw);
 
@@ -75,218 +74,208 @@ int32_t mndInitMount(SMnode *pMnode) {
 
 void mndCleanupMount(SMnode *pMnode) {}
 
-SSdbRaw *mndMountActionEncode(SMountObj *pDb) {
-#if 0
-  int32_t code = 0;
-  int32_t lino = 0;
-  terrno = TSDB_CODE_OUT_OF_MEMORY;
-
-  int32_t  size = sizeof(SDbObj) + pDb->cfg.numOfRetensions * sizeof(SRetention) + DB_RESERVE_SIZE;
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_DB, DB_VER_NUMBER, size);
-  if (pRaw == NULL) goto _exit;
-
-  int32_t dataPos = 0;
-  SDB_SET_BINARY(pRaw, dataPos, pDb->name, TSDB_DB_FNAME_LEN, _exit)
-  SDB_SET_BINARY(pRaw, dataPos, pDb->acct, TSDB_USER_LEN, _exit)
-  SDB_SET_BINARY(pRaw, dataPos, pDb->createUser, TSDB_USER_LEN, _exit)
-  SDB_SET_INT64(pRaw, dataPos, pDb->createdTime, _exit)
-  SDB_SET_INT64(pRaw, dataPos, pDb->updateTime, _exit)
-  SDB_SET_INT64(pRaw, dataPos, pDb->uid, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfgVersion, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->vgVersion, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.numOfVgroups, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.numOfStables, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.buffer, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.pageSize, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.pages, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.cacheLastSize, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysPerFile, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep0, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep1, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep2, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.minRows, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.maxRows, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.walFsyncPeriod, _exit)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.walLevel, _exit)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.precision, _exit)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.compression, _exit)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.replications, _exit)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.strict, _exit)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.cacheLast, _exit)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.hashMethod, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.numOfRetensions, _exit)
-  for (int32_t i = 0; i < pDb->cfg.numOfRetensions; ++i) {
-    SRetention *pRetension = taosArrayGet(pDb->cfg.pRetensions, i);
-    SDB_SET_INT64(pRaw, dataPos, pRetension->freq, _exit)
-    SDB_SET_INT64(pRaw, dataPos, pRetension->keep, _exit)
-    SDB_SET_INT8(pRaw, dataPos, pRetension->freqUnit, _exit)
-    SDB_SET_INT8(pRaw, dataPos, pRetension->keepUnit, _exit)
+void mndMountFreeObj(SMountObj *pObj) {
+  if (pObj) {
+    taosMemoryFreeClear(pObj->dnodeId);
+    taosMemoryFreeClear(pObj->dbObj);
+    if (pObj->paths) {
+      for (int32_t i = 0; i < pObj->nMounts; ++i) {
+        taosMemoryFreeClear(pObj->paths[i]);
+      }
+      taosMemoryFreeClear(pObj->paths);
+    }
   }
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.schemaless, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.walRetentionPeriod, _exit)
-  SDB_SET_INT64(pRaw, dataPos, pDb->cfg.walRetentionSize, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.walRollPeriod, _exit)
-  SDB_SET_INT64(pRaw, dataPos, pDb->cfg.walSegmentSize, _exit)
-  SDB_SET_INT16(pRaw, dataPos, pDb->cfg.sstTrigger, _exit)
-  SDB_SET_INT16(pRaw, dataPos, pDb->cfg.hashPrefix, _exit)
-  SDB_SET_INT16(pRaw, dataPos, pDb->cfg.hashSuffix, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.tsdbPageSize, _exit)
-  SDB_SET_INT64(pRaw, dataPos, pDb->compactStartTime, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.keepTimeOffset, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.s3ChunkSize, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.s3KeepLocal, _exit)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.s3Compact, _exit)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.withArbitrator, _exit)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.encryptAlgorithm, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->tsmaVersion, _exit);
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.compactTimeOffset, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactStartTime, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactEndTime, _exit)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactInterval, _exit)
+}
 
-  SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _exit)
-  SDB_SET_DATALEN(pRaw, dataPos, _exit)
+void mndMountDestroyObj(SMountObj *pObj) {
+  if (pObj) {
+    mndMountFreeObj(pObj);
+    taosMemoryFree(pObj);
+  }
+}
 
-  terrno = 0;
+int32_t tSerializeSMountObj(void *buf, int32_t bufLen, const SMountObj *pObj) {
+  int32_t  code = 0, lino = 0;
+  int32_t  tlen = 0;
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->name));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->acct));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->createUser));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->createdTime));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->updateTime));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->uid));
+  TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pObj->nMounts));
+  for (int16_t i = 0; i < pObj->nMounts; ++i) {
+    TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pObj->dnodeId[i]));
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->paths[i]));
+  }
+  TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pObj->nDbs));
+  for (int16_t i = 0; i < pObj->nMounts; ++i) {
+    TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pObj->dbObj[i].uid));  // TODO
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->dbObj[i].name));
+    // TAOS_CHECK_EXIT(tEncodeSdbCfg(&encoder, &pObj->dbObj[i].cfg)); // TODO
+  }
+  tEndEncode(&encoder);
+
+  tlen = encoder.pos;
+_exit:
+  tEncoderClear(&encoder);
+  if (code < 0) {
+    mError("mount, %s failed at line %d since %s", __func__, lino, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  return tlen;
+}
+
+int32_t tDeserializeSMountObj(void *buf, int32_t bufLen, SMountObj *pObj) {
+  int32_t  code = 0, lino = 0;
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->name));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->acct));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->createUser));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->createdTime));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->updateTime));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->uid));
+  TAOS_CHECK_EXIT(tDecodeI16v(&decoder, &pObj->nMounts));
+  if (pObj->nMounts > 0) {
+    if (!(pObj->dnodeId = taosMemoryMalloc(sizeof(int32_t) * pObj->nMounts))) {
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    if (!(pObj->paths = taosMemoryMalloc(sizeof(char *) * pObj->nMounts))) {
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    for (int16_t i = 0; i < pObj->nMounts; ++i) {
+      TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pObj->dnodeId[i]));
+      TAOS_CHECK_EXIT(tDecodeCStrAlloc(&decoder, &pObj->paths[i]));
+    }
+  }
+  TAOS_CHECK_EXIT(tDecodeI16v(&decoder, &pObj->nDbs));
+  if (pObj->nDbs > 0) {
+    if (!(pObj->dbObj = taosMemoryMalloc(sizeof(SMountDbObj) * pObj->nDbs))) {
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    for (int16_t i = 0; i < pObj->nDbs; ++i) {
+      TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->dbObj[i].uid));  // TODO
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->dbObj[i].name));
+    }
+  }
 
 _exit:
-  if (terrno != 0) {
-    mError("db:%s, failed to encode to raw:%p since %s", pDb->name, pRaw, terrstr());
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  if (code < 0) {
+    mndMountDestroyObj(pObj);
+    mError("mount, %s failed at line %d since %s, row:%p", __func__, lino, tstrerror(code), pObj);
+  }
+  TAOS_RETURN(code);
+}
+
+SSdbRaw *mndMountActionEncode(SMountObj *pObj) {
+  int32_t  code = 0, lino = 0;
+  void    *buf = NULL;
+  SSdbRaw *pRaw = NULL;
+  int32_t  tlen = tSerializeSMountObj(NULL, 0, pObj);
+  if (tlen < 0) {
+    TAOS_CHECK_EXIT(tlen);
+  }
+
+  int32_t size = sizeof(int32_t) + tlen;
+  pRaw = sdbAllocRaw(SDB_GRANT, MND_MOUNT_VER_NUMBER, size);
+  if (pRaw == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  buf = taosMemoryMalloc(tlen);
+  if (buf == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  tlen = tSerializeSMountObj(buf, tlen, pObj);
+  if (tlen < 0) {
+    TAOS_CHECK_EXIT(tlen);
+  }
+
+  int32_t dataPos = 0;
+  SDB_SET_INT32(pRaw, dataPos, tlen, _exit);
+  SDB_SET_BINARY(pRaw, dataPos, buf, tlen, _exit);
+  SDB_SET_DATALEN(pRaw, dataPos, _exit);
+
+_exit:
+  taosMemoryFreeClear(buf);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    mError("mount, failed to encode to raw:%p since %s", pRaw, tstrerror(code));
     sdbFreeRaw(pRaw);
     return NULL;
   }
 
-  mTrace("db:%s, encode to raw:%p, row:%p", pDb->name, pRaw, pDb);
+  mTrace("mount, encode to raw:%p, row:%p", pRaw, pObj);
   return pRaw;
-#endif
-  return NULL;
 }
 
 static SSdbRow *mndMountActionDecode(SSdbRaw *pRaw) {
-#if 0
-  int32_t code = 0;
-  int32_t lino = 0;
-  terrno = TSDB_CODE_OUT_OF_MEMORY;
-  SSdbRow *pRow = NULL;
-  SDbObj  *pDb = NULL;
+  int32_t    code = 0, lino = 0;
+  SSdbRow   *pRow = NULL;
+  SMountObj *pObj = NULL;
+  void      *buf = NULL;
 
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _exit;
-
-  if (sver != DB_VER_NUMBER) {
-    terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) {
     goto _exit;
   }
 
-  pRow = sdbAllocRow(sizeof(SDbObj));
-  if (pRow == NULL) goto _exit;
+  if (sver != MND_MOUNT_VER_NUMBER) {
+    code = TSDB_CODE_SDB_INVALID_DATA_VER;
+    mError("mount read invalid ver, data ver: %d, curr ver: %d", sver, MND_MOUNT_VER_NUMBER);
+    goto _exit;
+  }
 
-  pDb = sdbGetRowObj(pRow);
-  if (pDb == NULL) goto _exit;
+  if (!(pRow = sdbAllocRow(sizeof(SMountObj)))) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
 
+  if (!(pObj = sdbGetRowObj(pRow))) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  int32_t tlen;
   int32_t dataPos = 0;
-  SDB_GET_BINARY(pRaw, dataPos, pDb->name, TSDB_DB_FNAME_LEN, _exit)
-  SDB_GET_BINARY(pRaw, dataPos, pDb->acct, TSDB_USER_LEN, _exit)
-  SDB_GET_BINARY(pRaw, dataPos, pDb->createUser, TSDB_USER_LEN, _exit)
-  SDB_GET_INT64(pRaw, dataPos, &pDb->createdTime, _exit)
-  SDB_GET_INT64(pRaw, dataPos, &pDb->updateTime, _exit)
-  SDB_GET_INT64(pRaw, dataPos, &pDb->uid, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfgVersion, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->vgVersion, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.numOfVgroups, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.numOfStables, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.buffer, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.pageSize, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.pages, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.cacheLastSize, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysPerFile, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysToKeep0, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysToKeep1, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysToKeep2, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.minRows, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.maxRows, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.walFsyncPeriod, _exit)
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.walLevel, _exit)
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.precision, _exit)
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.compression, _exit)
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.replications, _exit)
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.strict, _exit)
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.cacheLast, _exit)
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.hashMethod, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.numOfRetensions, _exit)
-  if (pDb->cfg.numOfRetensions > 0) {
-    pDb->cfg.pRetensions = taosArrayInit(pDb->cfg.numOfRetensions, sizeof(SRetention));
-    if (pDb->cfg.pRetensions == NULL) goto _exit;
-    for (int32_t i = 0; i < pDb->cfg.numOfRetensions; ++i) {
-      SRetention retention = {0};
-      SDB_GET_INT64(pRaw, dataPos, &retention.freq, _exit)
-      SDB_GET_INT64(pRaw, dataPos, &retention.keep, _exit)
-      SDB_GET_INT8(pRaw, dataPos, &retention.freqUnit, _exit)
-      SDB_GET_INT8(pRaw, dataPos, &retention.keepUnit, _exit)
-      if (taosArrayPush(pDb->cfg.pRetensions, &retention) == NULL) {
-        goto _exit;
-      }
-    }
+  SDB_GET_INT32(pRaw, dataPos, &tlen, _exit);
+  buf = taosMemoryMalloc(tlen + 1);
+  if (buf == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
   }
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.schemaless, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.walRetentionPeriod, _exit)
-  SDB_GET_INT64(pRaw, dataPos, &pDb->cfg.walRetentionSize, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.walRollPeriod, _exit)
-  SDB_GET_INT64(pRaw, dataPos, &pDb->cfg.walSegmentSize, _exit)
-  SDB_GET_INT16(pRaw, dataPos, &pDb->cfg.sstTrigger, _exit)
-  SDB_GET_INT16(pRaw, dataPos, &pDb->cfg.hashPrefix, _exit)
-  SDB_GET_INT16(pRaw, dataPos, &pDb->cfg.hashSuffix, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.tsdbPageSize, _exit)
-  SDB_GET_INT64(pRaw, dataPos, &pDb->compactStartTime, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.keepTimeOffset, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.s3ChunkSize, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.s3KeepLocal, _exit)
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.s3Compact, _exit)
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.withArbitrator, _exit)
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.encryptAlgorithm, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->tsmaVersion, _exit);
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.compactTimeOffset, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactStartTime, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactEndTime, _exit)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactInterval, _exit)
+  SDB_GET_BINARY(pRaw, dataPos, buf, tlen, _exit);
 
-  SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _exit)
-  taosInitRWLatch(&pDb->lock);
-
-  if (pDb->cfg.s3ChunkSize == 0) {
-    pDb->cfg.s3ChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
-
-    mInfo("db:%s, s3ChunkSize set from %d to default %d", pDb->name, pDb->cfg.s3ChunkSize, TSDB_DEFAULT_S3_CHUNK_SIZE);
+  if (tDeserializeSMountObj(buf, tlen, pObj) < 0) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
   }
 
-  if (pDb->cfg.s3KeepLocal == 0) {
-    pDb->cfg.s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
-
-    mInfo("db:%s, s3KeepLocal set from %d to default %d", pDb->name, pDb->cfg.s3KeepLocal, TSDB_DEFAULT_S3_KEEP_LOCAL);
-  }
-
-  if (pDb->cfg.tsdbPageSize != TSDB_MIN_TSDB_PAGESIZE) {
-    mInfo("db:%s, tsdbPageSize set from %d to default %d", pDb->name, pDb->cfg.tsdbPageSize,
-          TSDB_DEFAULT_TSDB_PAGESIZE);
-  }
-
-  if (pDb->cfg.sstTrigger != TSDB_MIN_STT_TRIGGER) {
-    mInfo("db:%s, sstTrigger set from %d to default %d", pDb->name, pDb->cfg.sstTrigger, TSDB_DEFAULT_SST_TRIGGER);
-  }
-
-  terrno = 0;
+  taosInitRWLatch(&pObj->lock);
 
 _exit:
-  if (terrno != 0) {
-    mError("db:%s, failed to decode from raw:%p since %s", pDb == NULL ? "null" : pDb->name, pRaw, terrstr());
+  taosMemoryFreeClear(buf);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    mError("mount, failed to decode from raw:%p since %s", pRaw, tstrerror(code));
     taosMemoryFreeClear(pRow);
     return NULL;
   }
-
-  mTrace("db:%s, decode from raw:%p, row:%p", pDb->name, pRaw, pDb);
+  mTrace("mount, decode from raw:%p, row:%p", pRaw, pObj);
   return pRow;
-#endif
-  return NULL;
 }
 
 static int32_t mndNewMountActionValidate(SMnode *pMnode, STrans *pTrans, SSdbRaw *pRaw) {
@@ -342,7 +331,7 @@ static int32_t mndMountActionUpdate(SSdb *pSdb, SMountObj *pOld, SMountObj *pNew
   mTrace("mount:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
   taosWLockLatch(&pOld->lock);
   pOld->updateTime = pNew->updateTime;
-  ASSERT(0); // TODO
+  ASSERT(0);  // TODO
   taosWUnLockLatch(&pOld->lock);
   return 0;
 }
@@ -593,7 +582,6 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
 }
 #endif
 
-
 static int32_t mndSetCreateMountPrepareAction(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
   SSdbRaw *pDbRaw = mndMountActionEncode(pObj);
   if (pDbRaw == NULL) return -1;
@@ -726,14 +714,14 @@ static int32_t mndSetCreateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *
 #endif
 static int32_t mndSetCreateMountRedoActions(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
   int32_t code = 0;
-  for (int32_t vg = 0; vg < pDb->cfg.numOfVgroups; ++vg) {
-    SVgObj *pVgroup = pVgroups + vg;
+  // for (int32_t vg = 0; vg < pDb->cfg.numOfVgroups; ++vg) {
+  //   SVgObj *pVgroup = pVgroups + vg;
 
-    for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
-      SVnodeGid *pVgid = pVgroup->vnodeGid + vn;
-      TAOS_CHECK_RETURN(mndAddCreateVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid));
-    }
-  }
+  //   for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
+  //     SVnodeGid *pVgid = pVgroup->vnodeGid + vn;
+  //     TAOS_CHECK_RETURN(mndAddCreateVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid));
+  //   }
+  // }
 
   TAOS_RETURN(code);
 }
@@ -798,9 +786,11 @@ static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SCreateMountReq *pC
   // SUserObj *pNewUserDuped = NULL;
   // if (!pUser->superUser) {
   //   TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUserObj), NULL, _exit);
-  //   TAOS_CHECK_GOTO(taosHashPut(newUserObj.readDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name, TSDB_FILENAME_LEN),
+  //   TAOS_CHECK_GOTO(taosHashPut(newUserObj.readDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name,
+  //   TSDB_FILENAME_LEN),
   //                   NULL, _exit);
-  //   TAOS_CHECK_GOTO(taosHashPut(newUserObj.writeDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name, TSDB_FILENAME_LEN),
+  //   TAOS_CHECK_GOTO(taosHashPut(newUserObj.writeDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name,
+  //   TSDB_FILENAME_LEN),
   //                   NULL, _exit);
   //   pNewUserDuped = &newUserObj;
   // }
@@ -819,14 +809,14 @@ static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SCreateMountReq *pC
   mndTransSetOper(pTrans, MND_OPER_CREATE_DB);
   TAOS_CHECK_EXIT(mndSetCreateMountPrepareAction(pMnode, pTrans, &mntObj));
   TAOS_CHECK_EXIT(mndSetCreateMountRedoActions(pMnode, pTrans, &mntObj));
-  TAOS_CHECK_EXIT(mndSetNewVgPrepareActions(pMnode, pTrans, &mntObj, pVgroups));
+  // TAOS_CHECK_EXIT(mndSetNewVgPrepareActions(pMnode, pTrans, &mntObj, pVgroups));
   // TAOS_CHECK_EXIT(mndSetCreateDbUndoLogs(pMnode, pTrans, &mntObj, pVgroups));
   // TAOS_CHECK_EXIT(mndSetCreateDbCommitLogs(pMnode, pTrans, &mntObj, pVgroups, pNewUserDuped));
   // TAOS_CHECK_EXIT(mndSetCreateDbUndoActions(pMnode, pTrans, &mntObj, pVgroups));
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 
 _exit:
-  taosMemoryFree(pVgroups);
+  // taosMemoryFree(pVgroups);
   mndUserFreeObj(&newUserObj);
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
@@ -906,7 +896,7 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
       goto _exit;
     }
   } else {
-    if ((code = terrno) == TSDB_CODE_MND_DB_NOT_EXIST) {
+    if ((code = terrno) == TSDB_CODE_MND_MOUNT_NOT_EXIST) {
       // continue
     } else {  // TSDB_CODE_MND_MOUNT_IN_CREATING | TSDB_CODE_MND_DB_IN_DROPPING | TSDB_CODE_APP_ERROR
       goto _exit;
@@ -1275,8 +1265,8 @@ _exit:
 }
 #endif
 static int32_t mndProcessDropMountReq(SRpcMsg *pReq) {
-    fprintf(stderr, "mndProcessDropMountReq\n");
-    return 0;
+  fprintf(stderr, "mndProcessDropMountReq\n");
+  return 0;
 #if 0
   SMnode    *pMnode = pReq->info.node;
   int32_t    code = -1;
@@ -2034,7 +2024,7 @@ static bool mndGetTablesOfDbFp(SMnode *pMnode, void *pObj, void *p1, void *p2, v
 }
 #endif
 static int32_t mndRetrieveMounts(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
-    fprintf(stderr, "mndRetrieveMounts: %d\n", rowsCapacity);
+  fprintf(stderr, "mndRetrieveMounts: %d\n", rowsCapacity);
 #if 0    
   SMnode    *pMnode = pReq->info.node;
   SSdb      *pSdb = pMnode->pSdb;
@@ -2091,15 +2081,4 @@ static int32_t mndRetrieveMounts(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void mndCancelGetNextMount(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetchByType(pSdb, pIter, SDB_MOUNT);
-}
-
-void mndMountFreeObj(SMountObj *pObj) {
-  taosMemoryFreeClear(pObj->dnodeId);
-  taosMemoryFreeClear(pObj->dbObj);
-  if (pObj->paths) {
-    for (int32_t i = 0; i < pObj->nMounts; ++i) {
-      taosMemoryFreeClear(pObj->paths[i]);
-    }
-    taosMemoryFreeClear(pObj->paths);
-  }
 }

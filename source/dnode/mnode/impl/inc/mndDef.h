@@ -481,17 +481,18 @@ typedef struct {
 } SMountDbObj;
 
 typedef struct {
-  char     name[TSDB_MOUNT_NAME_LEN];
-  char     acct[TSDB_USER_LEN];
-  char     createUser[TSDB_USER_LEN];
-  int64_t  createdTime;
-  int64_t  updateTime;
-  int64_t  uid;
-  int32_t  nMounts;
-  int32_t* dnodeId;
-  char**   paths;
+  char         name[TSDB_MOUNT_NAME_LEN];
+  char         acct[TSDB_USER_LEN];
+  char         createUser[TSDB_USER_LEN];
+  int64_t      createdTime;
+  int64_t      updateTime;
+  int64_t      uid;
+  int16_t      nMounts;
+  int16_t      nDbs;
+  int32_t*     dnodeId;
+  char**       paths;
   SMountDbObj* dbObj;
-  SRWLatch lock;
+  SRWLatch     lock;
   // int64_t stateTs; // TODO mayby remove it
 } SMountObj;
 
@@ -533,6 +534,7 @@ typedef struct {
   void*     pTsma;
   int32_t   numOfCachedTables;
   int32_t   syncConfChangeVer;
+  int32_t   mountVgId;  // TS-5868
 } SVgObj;
 
 typedef struct {
