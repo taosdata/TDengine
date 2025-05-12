@@ -71,7 +71,7 @@ TDengine 是一款开源、高性能、云原生、AI 驱动的时序数据库 (
 
 TDengine 目前可以在 Linux 和 macOS 平台上安装和运行 (企业版支持 Windows)。任何 OS 的应用也可以选择 taosAdapter 的 RESTful 接口连接服务端 taosd。CPU 支持 X64、ARM64，后续会支持 MIPS64、Alpha64、ARM32、RISC-V 等 CPU 架构。目前不支持使用交叉编译器构建。
 
-如果你想要编译 taosAdapter 或者 taosKeeper，需要安装 Go 1.18 及以上版本。
+如果你想要编译 taosAdapter 或者 taosKeeper，需要安装 Go 1.23 及以上版本。
 
 ## 3.1 Linux 系统
 
@@ -389,7 +389,7 @@ TDengine 构建检查工作流可以在参考 [Github Action](https://github.com
 cd tests
 bash setup-lcov.sh -v 1.16 && ./run_local_coverage.sh -b main -c task 
 # on main branch and run cases in longtimeruning_cases.task 
-# for more infomation about options please refer to ./run_local_coverage.sh -h
+# for more information about options please refer to ./run_local_coverage.sh -h
 ```
 > **注意**：
 > 请注意，-b 和 -i 选项将使用 -DCOVER=true 选项重新编译 TDengine，这可能需要花费一些时间。

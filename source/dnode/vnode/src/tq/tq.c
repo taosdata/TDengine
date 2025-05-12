@@ -385,7 +385,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   int        code = tDeserializeSMqPollReq(pMsg->pCont, pMsg->contLen, &req);
   if (code < 0) {
     tqError("tDeserializeSMqPollReq %d failed", pMsg->contLen);
-    terrno = TSDB_CODE_INVALID_MSG;
+    code = TSDB_CODE_INVALID_MSG;
     goto END;
   }
   if (req.rawData == 1){
@@ -407,10 +407,9 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     // 1. find handle
     code = tqMetaGetHandle(pTq, req.subKey, &pHandle);
     if (code != TDB_CODE_SUCCESS) {
-      tqError("tmq poll: consumer:0x%" PRIx64 " vgId:%d subkey %s not found", consumerId, vgId, req.subKey);
-      terrno = TSDB_CODE_INVALID_MSG;
+      tqError("tmq poll: consumer:0x%" PRIx64 " vgId:%d subkey %s not found, msg:%s", consumerId, vgId, req.subKey, tstrerror(code));
       taosWUnLockLatch(&pTq->lock);
-      return -1;
+      return code;
     }
 
     // 2. check rebalance status
@@ -418,9 +417,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
       tqError("ERROR tmq poll: consumer:0x%" PRIx64
               " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
               consumerId, TD_VID(pTq->pVnode), req.subKey, pHandle->consumerId);
-      terrno = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
+      code = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
       taosWUnLockLatch(&pTq->lock);
-      code = -1;
       goto END;
     }
 
@@ -700,7 +698,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   STqHandle* pHandle = NULL;
   int32_t code = tqMetaGetHandle(pTq, req.subKey, &pHandle);
   if (code != 0){
-    tqInfo("vgId:%d, tq process sub req:%s, no such handle, create new one", pTq->pVnode->config.vgId, req.subKey);
+    tqInfo("vgId:%d, tq process sub req:%s, no such handle, create new one, msg:%s", pTq->pVnode->config.vgId, req.subKey, tstrerror(code));
   }
   taosRUnLockLatch(&pTq->lock);
   if (pHandle == NULL) {
@@ -755,5 +753,4 @@ end:
 }
 
 static void freePtr(void* ptr) { taosMemoryFree(*(void**)ptr); }
-
 

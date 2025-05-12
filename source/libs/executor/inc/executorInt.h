@@ -97,6 +97,7 @@ typedef struct {
   char*           tablename;
   char*           dbname;
   int32_t         tversion;
+  int32_t         rversion;
   SSchemaWrapper* sw;
   SSchemaWrapper* qsw;
 } SSchemaInfo;

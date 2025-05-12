@@ -4,11 +4,11 @@ slug: /third-party-tools/management/dbeaver
 ---
 
 import Image from '@theme/IdealImage';
-import imgStep01 from '../../assets/dbeaver-01.png';
-import imgStep02 from '../../assets/dbeaver-02.png';
-import imgStep03 from '../../assets/dbeaver-03.png';
-import imgStep04 from '../../assets/dbeaver-04.png';
-import imgStep05 from '../../assets/dbeaver-05.png';
+import imgStep01 from '../../assets/dbeaver-01.webp';
+import imgStep02 from '../../assets/dbeaver-02.webp';
+import imgStep03 from '../../assets/dbeaver-03.webp';
+import imgStep04 from '../../assets/dbeaver-04.webp';
+import imgStep05 from '../../assets/dbeaver-05.webp';
 
 DBeaver is a popular cross-platform database management tool that facilitates developers, database administrators, and data analysts in managing data. DBeaver has embedded support for TDengine starting from version 23.1.1. It supports both standalone deployed TDengine clusters and TDengine Cloud.
 
@@ -21,7 +21,7 @@ Using DBeaver to manage TDengine requires the following preparations.
 
 ## Using DBeaver to Access Internally Deployed TDengine
 
-1. Launch the DBeaver application, click the button or menu item to "Connect to Database", then select TDengine in the time-series category.
+1. Launch the DBeaver application, click the button or menu item to "New Database Connection", then select TDengine in the time-series category.
 
    <figure>
    <Image img={imgStep01} alt=""/>

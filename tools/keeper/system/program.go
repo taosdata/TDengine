@@ -69,13 +69,13 @@ func Init() *http.Server {
 		}
 	}
 
-	adapter := api.NewAdapter(conf)
-	if err := adapter.Init(router); err != nil {
+	gen_metric := api.NewGeneralMetric(conf)
+	if err := gen_metric.Init(router); err != nil {
 		panic(err)
 	}
 
-	gen_metric := api.NewGeneralMetric(conf)
-	if err := gen_metric.Init(router); err != nil {
+	adapter := api.NewAdapter(conf, gen_metric)
+	if err := adapter.Init(router); err != nil {
 		panic(err)
 	}
 

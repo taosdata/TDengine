@@ -179,6 +179,7 @@ This document details the server error codes that may be encountered when using 
 | 0x800003A5 | Snode not there                                              | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x800003A8 | The replica of mnode cannot less than 1                      | Less than 1 mnode                                            | Operation not allowed                                        |
 | 0x800003A9 | The replica of mnode cannot exceed 3                         | More than 1 mnode                                            | Operation not allowed                                        |
+| 0x800003AE | VGroup is offline                      | VGroup is offline                                       | check if dnode is offline                                       |
 | 0x800003B1 | No enough memory in dnode                                    | Insufficient memory                                          | Adjust configuration                                         |
 | 0x800003B3 | Invalid dnode end point                                      | Incorrect ep configuration                                   | Confirm if the operation is correct                          |
 | 0x800003B6 | Offline dnode exists                                         | Dnode offline                                                | Check node status                                            |
@@ -207,7 +208,7 @@ This document details the server error codes that may be encountered when using 
 | 0x800003E5 | Topic with invalid option                                    | Internal error                                               | Report issue                                                 |
 | 0x800003E6 | Consumer not exist                                           | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x800003E7 | Topic unchanged                                              | No change                                                    | Confirm if the operation is correct                          |
-| 0x800003E8 | Subcribe not exist                                           | Does not exist                                               | Confirm if the operation is correct                          |
+| 0x800003E8 | Subscribe not exist                                           | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x800003E9 | Offset not exist                                             | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x800003EA | Consumer not ready                                           | Internal error                                               | Report issue                                                 |
 | 0x800003EB | Topic subscribed cannot be dropped                           | Being used                                                   | Confirm if the operation is correct                          |
@@ -452,7 +453,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80002658 | Invalid windows pc                                           | Illegal use of window pseudocolumn                                         | Check and correct the SQL statement                          |
 | 0x80002659 | Window not allowed                                           | Function cannot be used in window                                          | Check and correct the SQL statement                          |
 | 0x8000265A | Stream not allowed                                           | Function cannot be used in stream computation                              | Check and correct the SQL statement                          |
-| 0x8000265B | Group by not allowd                                          | Function cannot be used in grouping                                        | Check and correct the SQL statement                          |
+| 0x8000265B | Group by not allowed                                          | Function cannot be used in grouping                                        | Check and correct the SQL statement                          |
 | 0x8000265D | Invalid interp clause                                        | Illegal INTERP or related statement                                        | Check and correct the SQL statement                          |
 | 0x8000265E | Not valid function ion window                                | Illegal window statement                                                   | Check and correct the SQL statement                          |
 | 0x8000265F | Only support single table                                    | Function only supported in single table queries                            | Check and correct the SQL statement                          |
@@ -469,7 +470,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80002689 | Invalid using cols function                                  | Illegal using cols function                                        | Check and correct the SQL statement                          |
 | 0x8000268A | Cols function's first param must be a select function that output a single row | The first parameter of the cols function should be a selection function | Check and correct the SQL statement                          |
 | 0x8000268B | Invalid using alias for cols function                        | Illegal cols function alias                                  | Check and correct the SQL statement                          |
-| 0x8000268C | Join primary key col must be timestmap type                  | Join primary key data type error                             | Check and correct the SQL statement                          |
+| 0x8000268C | Join primary key col must be timestamp type                  | Join primary key data type error                             | Check and correct the SQL statement                          |
 | 0x8000268D | Invalid virtual table's ref column                                                                     | Create/Update Virtual table using incorrect data source column             | Check and correct the SQL statement           |
 | 0x8000268E | Invalid table type                                                                                     | Incorrect Table type                                                       | Check and correct the SQL statement           |
 | 0x8000268F | Invalid ref column type                                                                                | Virtual table's column type and data source column's type are different    | Check and correct the SQL statement           |
@@ -560,17 +561,19 @@ This document details the server error codes that may be encountered when using 
 
 ## TDgpt
 
-| Error Code     | Description              | Possible Error Scenarios or Reasons                    | Recommanded Actions for Users             |
-| ---------- | --------------------- | -------------------------------------------------------------------------------- | ------------------------------ |
-| 0x80000440 | Analysis service response is NULL | The response content is empty                     | Check the taosanode.app.log for detailed response information |
-| 0x80000441 | Analysis service can't access     | Service is not work currectly, or network is broken  | Check the status of taosanode and network status       |
-| 0x80000442 | Analysis algorithm is missing     | Algorithm used in analysis is not specified     |   Add the "algo" parameter in forecast function or anomaly_window clause       |
-| 0x80000443 | Analysis algorithm not loaded | The specified algorithm is not available   |   Check for the specified algorithm   |
-| 0x80000444 | Analysis invalid buffer type  | The bufferred data type is invalid  | Check the taosanode.app.log for more details     |
-| 0x80000445 | Analysis failed since anode return error       | The responses from anode with error message | Check the taosanode.app.log for more details     |
-| 0x80000446 | Analysis failed since too many input rows for anode | Input data is too many   | Reduce the rows of input data to below than the threshold   |
-| 0x80000447 | white-noise data not processed                      |  white noise data is not processed   |  Ignore the white noise check or use another input data  |
-| 0x80000448 | Analysis internal error, not processed                 | Internal error occurs   | Check the taosanode.app.log for more details     |
+| Error Code | Description                                         | Possible Error Scenarios or Reasons                           | Recommended Actions for Users                                          |
+|------------|-----------------------------------------------------|---------------------------------------------------------------|------------------------------------------------------------------------|
+| 0x80000440 | Analysis service response is NULL                   | The response content is empty                                 | Check the taosanode.app.log for detailed response information          |
+| 0x80000441 | Analysis service can't access                       | Service is not work correctly, or network is broken           | Check the status of taosanode and network status                       |
+| 0x80000442 | Analysis algorithm is missing                       | Algorithm used in analysis is not specified                   | Add the "algo" parameter in forecast function or anomaly_window clause |
+| 0x80000443 | Analysis algorithm not loaded                       | The specified algorithm is not available                      | Check for the specified algorithm                                      |
+| 0x80000444 | Analysis invalid buffer type                        | The buffered data type is invalid                             | Check the taosanode.app.log for more details                           |
+| 0x80000445 | Analysis failed since anode return error            | The responses from anode with error message                   | Check the taosanode.app.log for more details                           |
+| 0x80000446 | Analysis failed since too many input rows for anode | Input data is too many                                        | Reduce the rows of input data to below than the threshold              |
+| 0x80000447 | white-noise data not processed                      | white noise data is not processed                             | Ignore the white noise check or use another input data                 |
+| 0x80000448 | Analysis internal error, not processed              | Internal error occurs                                         | Check the taosanode.app.log for more details                           |
+| 0x80000449 | Analysis failed since not enough rows               | Input data for forecasting are not enough                     | Increase the number of input rows (10 rows for forecasting at least)   |
+| 0x8000044A | Not support co-variate/multi-variate forecast       | The algorithm not support co-variate/multi-variate forecasting | Change the specified algorithm                                         |
 
 
 ## virtual table

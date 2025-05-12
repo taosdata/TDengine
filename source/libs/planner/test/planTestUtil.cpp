@@ -93,7 +93,7 @@ int32_t getLogLevel() { return g_logLevel; }
 
 class PlannerTestBaseImpl {
  public:
-  PlannerTestBaseImpl() : sqlNo_(0), sqlNum_(0) { assert(qInitKeywordsTable() == 0); }
+  PlannerTestBaseImpl() : sqlNo_(0), sqlNum_(0) { TD_ALWAYS_ASSERT(qInitKeywordsTable() == 0); }
 
   void useDb(const string& user, const string& db) {
     caseEnv_.acctId_ = 0;

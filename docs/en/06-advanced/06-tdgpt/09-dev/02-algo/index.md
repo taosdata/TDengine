@@ -3,7 +3,7 @@ sidebar_label: Adding Algorithms to TDgpt
 title: Adding Algorithms to TDgpt
 ---
 
-This dection describes how to add custom forecasting and anomaly detection models to TDgpt.
+This detection describes how to add custom forecasting and anomaly detection models to TDgpt.
 
 
 ```mdx-code-block

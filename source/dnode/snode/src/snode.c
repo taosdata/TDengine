@@ -184,3 +184,38 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
   }
   return code;
 }
+
+int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  switch (pMsg->msgType) {
+    case TDMT_STREAM_TASK_DEPLOY: {
+      void   *pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+      int32_t len = pMsg->contLen - sizeof(SMsgHead);
+      return tqStreamTaskProcessDeployReq(pSnode->pMeta, &pSnode->msgCb, pMsg->info.conn.applyIndex, pReq, len, true,
+                                          true);
+    }
+
+    case TDMT_STREAM_TASK_DROP:
+      return tqStreamTaskProcessDropReq(pSnode->pMeta, pMsg->pCont, pMsg->contLen);
+    case TDMT_VND_STREAM_TASK_UPDATE:
+      return tqStreamTaskProcessUpdateReq(pSnode->pMeta, &pSnode->msgCb, pMsg, true, true);
+    case TDMT_VND_STREAM_TASK_RESET:
+      return tqStreamTaskProcessTaskResetReq(pSnode->pMeta, pMsg->pCont);
+    case TDMT_VND_STREAM_ALL_STOP:
+      return tqStreamTaskProcessAllTaskStopReq(pSnode->pMeta, &pSnode->msgCb, pMsg);
+    case TDMT_STREAM_TASK_PAUSE:
+      return tqStreamTaskProcessTaskPauseReq(pSnode->pMeta, pMsg->pCont);
+    case TDMT_STREAM_TASK_RESUME:
+      return tqStreamTaskProcessTaskResumeReq(pSnode->pMeta, pMsg->info.conn.applyIndex, pMsg->pCont, false);
+    case TDMT_STREAM_TASK_STOP:
+      return tqStreamTaskProcessTaskPauseReq(pSnode->pMeta, pMsg->pCont);
+    case TDMT_STREAM_TASK_START:
+      return tqStreamTaskProcessTaskPauseReq(pSnode->pMeta, pMsg->pCont);
+    case TDMT_STREAM_TASK_UPDATE_CHKPT:
+      return tqStreamTaskProcessUpdateCheckpointReq(pSnode->pMeta, true, pMsg->pCont);
+    case TDMT_STREAM_CONSEN_CHKPT:
+      return tqStreamTaskProcessConsenChkptIdReq(pSnode->pMeta, pMsg);
+    default:
+      return TSDB_CODE_INVALID_MSG;
+  }
+>>>>>>> origin/3.0
+}

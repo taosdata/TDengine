@@ -19,7 +19,7 @@ create user user_name pass'password' [sysinfo {1|0}] [createdb {1|0}]
 - user_name：用户名最长不超过 23 个字节。
 - password：密码长度必须为 8 到 255 个字节。密码至少包含大写字母、小写字母、数字、特殊字符中的三类。特殊字符包括 `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? | ~ , .`（始自 v3.3.5.0），可以通过在 taos.cfg 中添加参数 `enableStrongPassword 0` 关闭此强制要求，或者通过如下 SQL 关闭（始自 v3.3.6.0）。
 ```sql
-alter all dnode 'EnableStrongPassword' '0'
+alter all dnodes 'EnableStrongPassword' '0'
 ```
 - sysinfo：用户是否可以查看系统信息。1 表示可以查看，0 表示不可以查看。系统信息包括服务端配置信息、服务端各种节点信息，如 dnode、查询节点（qnode）等，以及与存储相关的信息等。默认为可以查看系统信息。
 - createdb：用户是否可以创建数据库。1 表示可以创建，0 表示不可以创建。缺省值为 0。从企业版 v3.3.2.0 开始支持。
@@ -119,7 +119,7 @@ grant read on power to test
 grant all on power.meters to test
 ```
 
-如下 SQL 将超级表 meters 离标签值 groupId 等于 1 的子表的 write 权限授权给用户test。
+如下 SQL 将超级表 meters 离标签值 groupId 等于 1 的子表的 write 权限授权给用户 test。
 ```sql
 grant all on power.meters with groupId=1 to test
 ```
@@ -134,7 +134,7 @@ grant all on power.meters with groupId=1 to test
 - 视图权限需要单独授权和回收，通过 db.* 进行的授权和回收不包含视图权限。
 - 视图可以嵌套定义和使用，对视图权限的校验也是递归进行的。
 
-为了方便视图的分享和使用，TDengine 引入了视图有效用户（即视图的创建用户）的概念。被授权用户可以使用视图有效用户的库、表及嵌套视图的读写权限。当视图被replace 后，有效用户也会被更新。
+为了方便视图的分享和使用，TDengine 引入了视图有效用户（即视图的创建用户）的概念。被授权用户可以使用视图有效用户的库、表及嵌套视图的读写权限。当视图被 replace 后，有效用户也会被更新。
 
 视图操作和权限要求的详细对应关系请见参考手册。
 

@@ -3,7 +3,7 @@ title: "统计学算法"
 sidebar_label: "统计学算法"
 ---
 
-- k-sigma<sup>[1]</sup>: 即 ***68–95–99.7 rule*** 。***k***值默认为 3，即序列均值的 3 倍标准差范围为边界，超过边界的是异常值。KSigma 要求数据整体上服从正态分布，如果一个点偏离均值 K 倍标准差，则该点被视为异常点.
+- k-sigma<sup>[1]</sup>: 即 ***68–95–99.7 rule*** 。***k***值默认为 3，即序列均值的 3 倍标准差范围为边界，超过边界的是异常值。KSigma 要求数据整体上服从正态分布，如果一个点偏离均值 K 倍标准差，则该点被视为异常点。
 
 | 参数  | 说明    | 是否必选 | 默认值 |
 | --- | ----- | ---- | --- |
@@ -34,11 +34,11 @@ FROM foo
 ANOMALY_WINDOW(foo.i32, "algo=grubbs")
 ```
 
-- SHESD<sup>[4]</sup>： 带有季节性的 ESD 检测算法。ESD 可以检测时间序列数据的多异常点。需要指定异常检测方向（'pos' / 'neg' / 'both'），异常值比例的上界***max_anoms***，最差的情况是至多 49.9%。数据集的异常比例一般不超过 5%
+- SHESD<sup>[4]</sup>：带有季节性的 ESD 检测算法。ESD 可以检测时间序列数据的多异常点。需要指定异常检测方向（'pos' / 'neg' / 'both'），异常值比例的上界***max_anoms***，最差的情况是至多 49.9%。数据集的异常比例一般不超过 5%
 
 | 参数        | 说明                               | 是否必选 | 默认值    |
 | --------- | -------------------------------- | ---- | ------ |
-| direction | 异常检测方向类型('pos' / 'neg' / 'both') | 否    | "both" |
+| direction | 异常检测方向类型 ('pos' / 'neg' / 'both') | 否    | "both" |
 | max_anoms | 异常值比例 $0 < K \le 49.9$           | 否    | 0.05   |
 | period    | 一个周期包含的数据点                       | 否    | 0      |
 
@@ -61,6 +61,6 @@ ANOMALY_WINDOW(foo.i32, "algo=shesd,direction=both,anoms=0.05")
 ### 参考文献
 
 1. [https://en.wikipedia.org/wiki/68–95–99.7 rule](https://en.wikipedia.org/wiki/68%E2%80%9395%E2%80%9399.7_rule)
-2. https://en.wikipedia.org/wiki/Interquartile_range
-3. Adikaram, K. K. L. B.; Hussein, M. A.; Effenberger, M.; Becker, T. (2015-01-14). "Data Transformation Technique to Improve the Outlier Detection Power of Grubbs's Test for Data Expected to Follow Linear Relation". Journal of Applied Mathematics. 2015: 1–9. doi:10.1155/2015/708948.
-4. Hochenbaum, O. S. Vallis, and A. Kejariwal. 2017. Automatic Anomaly Detection in the Cloud Via Statistical Learning. arXiv preprint arXiv:1704.07706 (2017).
+2. [https://en.wikipedia.org/wiki/Interquartile_range](https://en.wikipedia.org/wiki/Interquartile_range)
+3. [Adikaram, K. K. L. B.; Hussein, M. A.; Effenberger, M.; Becker, T. (2015-01-14). "Data Transformation Technique to Improve the Outlier Detection Power of Grubbs's Test for Data Expected to Follow Linear Relation". Journal of Applied Mathematics. 2015: 1–9. doi:10.1155/2015/708948.](https://onlinelibrary.wiley.com/doi/epdf/10.1155/2015/708948)
+4. [Hochenbaum, O. S. Vallis, and A. Kejariwal. 2017. Automatic Anomaly Detection in the Cloud Via Statistical Learning.](https://arxiv.org/abs/1704.07706).

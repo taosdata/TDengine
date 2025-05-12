@@ -960,6 +960,7 @@ typedef enum {
 #define GRANT_STATE_NUM       30
 #define GRANT_ACTIVE_NUM      10
 #define GRANT_ACTIVE_HEAD_LEN 30
+#define GRANT_ACTIVE_SIGN_LEN 30
 
 typedef struct {
   union {

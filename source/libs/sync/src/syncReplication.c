@@ -58,8 +58,11 @@ int32_t syncNodeReplicateReset(SSyncNode* pNode, SRaftId* pDestId) {
 
 int32_t syncNodeReplicate(SSyncNode* pNode) {
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
-  (void)taosThreadMutexLock(&pBuf->mutex);
-  int32_t ret = syncNodeReplicateWithoutLock(pNode);
+  int32_t         ret = 0;
+  if ((ret = taosThreadMutexTryLock(&pBuf->mutex)) != 0) {
+    return ret;
+  }
+  ret = syncNodeReplicateWithoutLock(pNode);
   (void)taosThreadMutexUnlock(&pBuf->mutex);
 
   TAOS_RETURN(ret);
@@ -90,19 +93,19 @@ int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftI
   pMsg->destId = *destRaftId;
   TAOS_CHECK_RETURN(syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg));
 
-  int32_t nRef = 0;
+  int64_t nRef = 0;
   if (pSyncNode != NULL) {
-    nRef = atomic_add_fetch_32(&pSyncNode->sendCount, 1);
+    nRef = atomic_add_fetch_64(&pSyncNode->sendCount, 1);
     if (nRef <= 0) {
-      sError("vgId:%d, send count is %d", pSyncNode->vgId, nRef);
+      sError("vgId:%d, send count is %" PRId64, pSyncNode->vgId, nRef);
     }
   }
 
   SSyncLogReplMgr* mgr = syncNodeGetLogReplMgr(pSyncNode, (SRaftId*)destRaftId);
   if (mgr != NULL) {
-    nRef = atomic_add_fetch_32(&mgr->sendCount, 1);
+    nRef = atomic_add_fetch_64(&mgr->sendCount, 1);
     if (nRef <= 0) {
-      sError("vgId:%d, send count is %d", pSyncNode->vgId, nRef);
+      sError("vgId:%d, send count is %" PRId64, pSyncNode->vgId, nRef);
     }
   }
 
