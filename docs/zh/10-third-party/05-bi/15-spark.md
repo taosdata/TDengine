@@ -65,14 +65,16 @@ driverClass 指定为 “com.taosdata.jdbc.ws.WebSocketDriver”。
 **第 2 步**， 绑定数据并提交。
 下面示例直接写入超级表，并使用了批量绑定方式，提高写入效率。
 ``` java
-  // bind param
   int childTb    = 1;
   int insertRows = 21;
+  String sql = "INSERT INTO test.meters(tbname, groupid, location, ts, current, voltage, phase) " +
+      "VALUES (?,?,?,?,?,?,?)";
+  System.out.printf("prepare sql:%s\n", sql);
+  // prepare
+  PreparedStatement preparedStatement = connection.prepareStatement(sql);
+
+  // write
   for (int i = 0; i < childTb; i++ ) {
-      String sql = "INSERT INTO test.meters(tbname, groupid, location, ts, current, voltage, phase) " +
-          "VALUES (?,?,?,?,?,?,?)";
-      System.out.printf("prepare sql:%s\n", sql);
-      PreparedStatement preparedStatement = connection.prepareStatement(sql);
       for (int j = 0; j < insertRows; j++) {
           float current = (float)(10  + rand.nextInt(100) * 0.01);
           float phase   = (float)(1   + rand.nextInt(100) * 0.0001);
@@ -88,20 +90,21 @@ driverClass 指定为 “com.taosdata.jdbc.ws.WebSocketDriver”。
           preparedStatement.setFloat    (7, phase);
           // add batch
           preparedStatement.addBatch();
-
       }
-      // submit
-      preparedStatement.executeUpdate();
-
-      // close statement
-      preparedStatement.close();
   }
+
+  // submit
+  preparedStatement.executeUpdate();
+
+  // close statement
+  preparedStatement.close();
+
 ```
 
 **第 3 步**， 关闭连接。
 ``` java
-// close
-connection.close();
+ // close
+ connection.close();
 ```
 
 [示例源码](https://github.com/taosdata/tdengine-eco/blob/main/spark/src/main/java/com/taosdata/java/DemoWrite.java)
