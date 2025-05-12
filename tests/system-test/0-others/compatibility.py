@@ -90,7 +90,7 @@ class TDTestCase:
 
             cb.killAllDnodes()
 
-            cb.updateNewVersion(bPath,cPaths=[],upgrade=False)
+            cb.updateNewVersion(bPath,cPaths=[],upgrade=2)
 
             cb.verifyData(corss_major_version)
 

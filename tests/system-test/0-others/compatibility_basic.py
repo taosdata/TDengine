@@ -275,17 +275,49 @@ class CompatibilityBase:
             if os.system(cmd) == 0:
                 raise Exception("failed to execute system command. cmd: %s" % cmd)
         
-    def updateNewVersion(self,bPath,cPaths,upgrade):
+    def updateNewVersion(self, bPath, cPaths, upgrade):
         tdLog.printNoPrefix("==========step2:update new version ")
-        if upgrade:
-            tdLog.info("upgrade mode")
+        # upgrade only one dnode
+        if upgrade == 0:
+            tdLog.info("upgrade only one dnode")
             processPid = subprocess.getstatusoutput(f'ps aux|grep taosd |grep -v "grep"|awk \'{{print $2}}\'')[1]
             if processPid:
                 tdLog.info(f"kill taosd process, pid:{processPid}")
                 os.system(f"kill -9 {processPid}")
-                tdLog.info(f"start taosd in {cPaths[1]}")
+                tdLog.info(f"start taosd in {cPaths[0]}")
                 os.system(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")    
-        else:
+        # upgrade all dnodes
+        elif upgrade == 1:
+            tdLog.info("upgrade all dnodes")
+            status, output = subprocess.getstatusoutput(f'ps aux|grep taosd |grep -v "grep"|awk \'{{print $2}}\'')
+            if status != 0:
+                tdLog.error(f"Command to get PIDs failed with status {status}: {output}")
+                return 
+            found_pids = []
+            if output:
+                found_pids = [pid for pid in output.strip().split('\n') if pid] 
+            tdLog.info(f"Found PIDs: {found_pids} for 'upgrade all dnodes' scenario.")
+            # Determine the number of dnodes to manage, based on cPaths or a max like 3 (original implication)
+            # Let's use the length of cPaths as the primary guide for how many dnodes to manage.
+            num_dnodes_to_manage = len(cPaths) if cPaths else 0
+            if num_dnodes_to_manage == 0:
+                tdLog.warning("cPaths is empty or not provided. Cannot upgrade all dnodes.")
+                return
+            for i in range(num_dnodes_to_manage):
+                pid_to_kill_for_this_dnode = None
+                if i < len(found_pids):
+                    pid_to_kill_for_this_dnode = found_pids[i]
+                if pid_to_kill_for_this_dnode:
+                    tdLog.info(f"Killing taosd process, pid:{pid_to_kill_for_this_dnode} (for cPaths[{i}])")
+                    os.system(f"kill -9 {pid_to_kill_for_this_dnode}")
+                else:
+                    tdLog.info(f"No running taosd PID found to kill for cPaths[{i}] (or fewer PIDs found than cPaths entries).")
+                cb.checkProcessPid(pid_to_kill_for_this_dnode)
+                tdLog.info(f"Starting taosd using cPath: {cPaths[i]}")
+                tdLog.info(f"{bPath}/build/bin/taosd -c {cPaths[i]}cfg/ > /dev/null 2>&1 &")
+                os.system(f"{bPath}/build/bin/taosd -c {cPaths[i]}cfg/ > /dev/null 2>&1 &")
+        # no rolling upgrade
+        elif upgrade == 2:
             tdLog.info("no upgrade mode")
             self.buildTaosd(bPath)
             tdDnodes.start(1)

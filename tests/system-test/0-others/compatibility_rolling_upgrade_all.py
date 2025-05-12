@@ -88,7 +88,7 @@ class TDTestCase:
 
         cb.prepareDataOnOldVersion(lastBigVersion, self.getBuildPath(),corss_major_version=False)
 
-        cb.updateNewVersion(self.getBuildPath(),self.getDnodePath(),0)
+        cb.updateNewVersion(self.getBuildPath(),self.getDnodePath(),1)
 
         time.sleep(10)
 
