@@ -13,12 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stdint.h>
 #include "audit.h"
 #include "cos.h"
+#include "libs/new-stream/stream.h"
 #include "monitor.h"
+#include "taoserror.h"
 #include "tencode.h"
 #include "tglobal.h"
 #include "tmsg.h"
+#include "tmsgcb.h"
 #include "tstrbuild.h"
 #include "vnd.h"
 #include "vnode.h"
@@ -1764,6 +1768,99 @@ static int32_t vnodeRebuildSubmitReqMsg(SSubmitReq2 *pSubmitReq, void **ppMsg) {
   return code;
 }
 
+static bool isAcceptableShemaRow(const SSchemaWrapper *pExistRow, const SSchemaWrapper *pCreatingRow) {
+  if (pExistRow->nCols < pCreatingRow->nCols) {
+    return false;
+  }
+  for (int32_t i = 0; i < pCreatingRow->nCols; ++i) {
+    bool found = false;
+    for (int32_t j = i; j < pExistRow->nCols;) {
+      if (strncmp(pExistRow->pSchema[j].name, pCreatingRow->pSchema[i].name, TSDB_COL_NAME_LEN) != 0) {
+        break;
+      } else {
+        if (pExistRow->pSchema[j].type != pCreatingRow->pSchema[i].type ||
+            pExistRow->pSchema[j].bytes != pCreatingRow->pSchema[i].bytes) {
+          stWarn("column:%s has changed, line:%d", pCreatingRow->pSchema[i].name, __LINE__);
+          return false;
+        }
+        found = true;
+        break;
+      }
+      j = j + 1 < pExistRow->nCols ? j + 1 : 0;
+      if (j == i) {
+        break;
+      }
+    }
+    if (!found) {
+      stWarn("column:%s has changed, line:%d", pCreatingRow->pSchema[i].name, __LINE__);
+      return false;
+    }
+  }
+  return true;
+}
+
+static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbData, STableMetaRsp **ppRsp) {
+  int32_t code = 0;
+
+  SMetaEntry *pEntry = NULL;
+  code = metaFetchEntryByUid(pVnode->pMeta, pSubmitTbData->suid, &pEntry);
+  if (code) {
+    vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
+    return TSDB_CODE_TDB_TABLE_NOT_EXIST;
+  }
+
+
+  *ppRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
+  if (NULL == *ppRsp) {
+    return terrno;
+  }
+  (*ppRsp)->tuid = pEntry->uid;
+
+  // todo
+  (*ppRsp)->sversion = pEntry->stbEntry.schemaRow.version;
+
+  return code;
+}
+
+static int32_t buildExistNormalTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbData, STableMetaRsp **ppRsp) {
+  int32_t code = 0;
+
+  SMetaEntry *pEntry = NULL;
+  code = metaFetchEntryByUid(pVnode->pMeta, pSubmitTbData->uid, &pEntry);
+  if (code) {
+    vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
+    return TSDB_CODE_TDB_TABLE_NOT_EXIST;
+  }
+
+  *ppRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
+  if (NULL == *ppRsp) {
+    return terrno;
+  }
+  (*ppRsp)->tuid = pEntry->uid;
+
+  if (!isAcceptableShemaRow(&pEntry->ntbEntry.schemaRow, &pSubmitTbData->pCreateTbReq->ntb.schemaRow)) {
+    vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
+    return TSDB_CODE_STREAM_INSERT_SCHEMA_NOT_MATCH;
+  }
+  (*ppRsp)->tversion = pEntry->ntbEntry.schemaRow.version;
+
+  return code;
+}
+
+static int32_t buildExistTalbeInStreamRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbData, STableMetaRsp **ppRsp) {
+  if (pSubmitTbData->pCreateTbReq->flags & TD_CREATE_NORMAL_TB_IN_STREAM) {
+    int32_t code = buildExistNormalTalbeRsp(pVnode, pSubmitTbData, ppRsp);
+    if (code) {
+      vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
+      return code;
+    }
+    return TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
+  } else if (pSubmitTbData->pCreateTbReq->flags & TD_CREATE_SUB_TB_IN_STREAM) {
+    return buildExistSubTalbeRsp(pVnode, pSubmitTbData, ppRsp);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
                                      SRpcMsg *pOriginalMsg) {
   int32_t code = 0;
@@ -1967,6 +2064,14 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
         }
         terrno = 0;
         pSubmitTbData->uid = pSubmitTbData->pCreateTbReq->uid;  // update uid if table exist for using below
+
+        // stream: get sver from meta, write to pCreateTbRsp, and need to check crateTbReq is same as meta
+        code = buildExistTalbeInStreamRsp(pVnode, pSubmitTbData, &pCreateTbRsp->pMeta);
+        if (code) {
+          vError("vgId:%d failed to get table:%s, code:%s", TD_VID(pVnode), pSubmitTbData->pCreateTbReq->name,
+                 tstrerror(code));
+          goto _exit;
+        }
       }
     }
 
