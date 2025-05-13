@@ -14,21 +14,14 @@
  */
 
 #include "tcs.h"
+#include "tss.h"
 #include "tsdb.h"
 #include "tsdbFS2.h"
+#include "tsdbFSet2.h"
 #include "vnd.h"
+#include "tsdbInt.h"
 
 extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool s3Migrate);
-
-typedef struct {
-  STsdb  *tsdb;
-  int32_t szPage;
-  int64_t now;
-  int64_t cid;
-
-  STFileSet   *fset;
-  TFileOpArray fopArr;
-} SRTNer;
 
 static int32_t tsdbDoRemoveFileObject(SRTNer *rtner, const STFileObj *fobj) {
   STFileOp op = {
@@ -180,6 +173,7 @@ static int32_t tsdbDoMigrateFileObj(SRTNer *rtner, const STFileObj *fobj, const 
               .cid = fobj->f->cid,
               .size = fobj->f->size,
               .lcn = lcn,
+              .mcount = fobj->f->mcount,
               .stt[0] =
                   {
                       .level = fobj->f->stt[0].level,
@@ -359,7 +353,7 @@ static int32_t tsdbRetention(void *arg) {
   if (rtner.fset) {
     if (rtnArg->s3Migrate) {
 #ifdef USE_S3
-      TAOS_CHECK_GOTO(tsdbDoS3Migrate(&rtner), &lino, _exit);
+      TAOS_CHECK_GOTO(tsdbDoSsMigrate(&rtner), &lino, _exit);
 #endif
     } else {
       TAOS_CHECK_GOTO(tsdbDoRetention(&rtner), &lino, _exit);
@@ -431,29 +425,6 @@ int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now) {
 }
 
 #ifdef USE_S3
-static int32_t tsdbS3FidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int32_t s3KeepLocal, int64_t nowSec) {
-  int32_t localFid;
-  TSKEY   key;
-
-  if (pKeepCfg->precision == TSDB_TIME_PRECISION_MILLI) {
-    nowSec = nowSec * 1000;
-  } else if (pKeepCfg->precision == TSDB_TIME_PRECISION_MICRO) {
-    nowSec = nowSec * 1000000l;
-  } else if (pKeepCfg->precision == TSDB_TIME_PRECISION_NANO) {
-    nowSec = nowSec * 1000000000l;
-  }
-
-  nowSec = nowSec - pKeepCfg->keepTimeOffset * tsTickPerHour[pKeepCfg->precision];
-
-  key = nowSec - s3KeepLocal * tsTickPerMin[pKeepCfg->precision];
-  localFid = tsdbKeyFid(key, pKeepCfg->days, pKeepCfg->precision);
-
-  if (fid >= localFid) {
-    return 0;
-  } else {
-    return 1;
-  }
-}
 
 static int32_t tsdbMigrateDataFileLCS3(SRTNer *rtner, const STFileObj *fobj, int64_t size, int64_t chunksize) {
   int32_t   code = 0;
@@ -680,7 +651,7 @@ static int32_t tsdbDoS3Migrate(SRTNer *rtner) {
 
   SVnodeCfg *pCfg = &rtner->tsdb->pVnode->config;
   int32_t    s3KeepLocal = pCfg->s3KeepLocal;
-  int32_t    s3ExpLevel = tsdbS3FidLevel(fset->fid, &rtner->tsdb->keepCfg, s3KeepLocal, rtner->now);
+  int32_t    s3ExpLevel = tsdbSsFidLevel(fset->fid, &rtner->tsdb->keepCfg, s3KeepLocal, rtner->now);
   if (s3ExpLevel < 1) {  // keep on local storage
     return 0;
   }
@@ -739,6 +710,7 @@ _exit:
 int32_t tsdbAsyncS3Migrate(STsdb *tsdb, int64_t now) {
   int32_t code = 0;
 
+  #if 0
   int32_t expired = grantCheck(TSDB_GRANT_OBJECT_STORAGE);
   if (expired && tsS3Enabled) {
     tsdbWarn("s3 grant expired: %d", expired);
@@ -750,6 +722,7 @@ int32_t tsdbAsyncS3Migrate(STsdb *tsdb, int64_t now) {
   if (!tsS3Enabled) {
     return 0;
   }
+    #endif
 
   (void)taosThreadMutexLock(&tsdb->mutex);
   code = tsdbAsyncRetentionImpl(tsdb, now, true);
