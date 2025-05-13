@@ -6025,7 +6025,7 @@ void tFreeSDbCfgRsp(SDbCfgRsp *pRsp) {
   taosArrayDestroy(pRsp->pRetensions);
 }
 
-#ifndef TD_ASTRA
+#ifdef USE_MOUNT
 int32_t tSerializeSCreateMountReq(void *buf, int32_t bufLen, SCreateMountReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;

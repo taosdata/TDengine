@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TD_ASTRA
+#ifdef USE_MOUNT
 #define _DEFAULT_SOURCE
 #include "audit.h"
 #include "command.h"
@@ -713,7 +713,7 @@ static int32_t mndAddCreateMountRetrieveDbAction(SMnode *pMnode, STrans *pTrans,
   if (pDnode == NULL) TAOS_RETURN(terrno);
   if (pDnode->offlineReason != DND_REASON_ONLINE) {
     mndReleaseDnode(pMnode, pDnode);
-    TAOS_RETURN(TSDB_CODE_DNODE_OFFLINE);  // TODO: check when offline, if mndAcquireDnode return NULL is enough
+    TAOS_RETURN(TSDB_CODE_DNODE_OFFLINE);  // TODO: check when offline, if it's included when mndAcquireDnode return NULL.
   }
   action.epSet = mndGetDnodeEpset(pDnode);
   mndReleaseDnode(pMnode, pDnode);
@@ -2116,4 +2116,4 @@ static void mndCancelGetNextMount(SMnode *pMnode, void *pIter) {
   sdbCancelFetchByType(pSdb, pIter, SDB_MOUNT);
 }
 
-#endif  // TD_ASTRA
+#endif

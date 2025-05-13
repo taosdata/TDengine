@@ -16,7 +16,7 @@
 #ifndef _TD_MND_MOUNT_H_
 #define _TD_MND_MOUNT_H_
 
-#ifndef TD_ASTRA
+#ifdef USE_MOUNT
 
 #include "mndInt.h"
 
@@ -42,6 +42,6 @@ const char *mndGetMountStr(const char *src);
 }
 #endif
 
-#endif /* TD_ASTRA */
+#endif
 
 #endif /*_TD_MND_MOUNT_H_*/

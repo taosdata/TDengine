@@ -439,6 +439,26 @@ _OVER:
   return code;
 }
 
+int32_t vmProcessRetrieveMountPathReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  int32_t code = 0, lino = 0;
+#ifdef USE_MOUNT
+  SRetrieveMountPathReq req = {0};
+  char                  path[TSDB_FILENAME_LEN] = {0};
+
+  TAOS_CHECK_EXIT(tDeserializeSRetrieveMountPathReq(pMsg->pCont, pMsg->contLen, &req));
+
+  dInfo("mount:%s, start to retrieve path:%s", req.mountName, req.mountPath);
+
+_exit:
+  if (code != 0) {
+    dError("mount:%s, failed at line %d to retrieve path:%s since %s", req.mountName, lino, req.mountPath, tstrerror);
+  } else {
+    dInfo("mount:%s, success to retrieve path:%s", req.mountName, req.mountPath);
+  }
+#endif
+  TAOS_RETURN(code);
+}
+
 // alter replica doesn't use this, but restore dnode still use this
 int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SAlterVnodeTypeReq req = {0};
