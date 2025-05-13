@@ -351,7 +351,7 @@ int32_t tsdbJsonToTFileSet(STsdb *pTsdb, const cJSON *json, STFileSet **fset) {
   return 0;
 }
 
-// NOTE: the api does not remove file, only do memory operation
+// NOTE: the api does not remove file (seems this is not true?), only do memory operation
 int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op) {
   int32_t code = 0;
 
