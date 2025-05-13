@@ -2,7 +2,8 @@
 Utility script to build the documentation for the TDengine
 you can run this script with the following command:
 generate oem zip and pdf :python3 build_doc.py -sb -sp -ozf -fu -cn LCIotDB -cp lc 
-generate all zip and pdf :python3 build_doc.py
+generate all zip and pdf :python3 build_doc.py -ezf
+generate all zip and pdf without preparing, building and uploading zip : python3 build_doc.py -ezf -nu -sp -sb
 """
 
 
@@ -247,7 +248,7 @@ def build_oem_zip(enterprise_path, cus_name, cus_prompt):
         os.chdir(enterprise_path)
         print(f"Changed directory to {enterprise_path}")          
         # Run the build script
-        subprocess.run(f"python3 build.py oem  {cus_name} {cus_prompt} ", shell=True, check=True)
+        subprocess.run(f"python3 build.py oem  {cus_name} {cus_prompt} {no_upload_arm} ", shell=True, check=True)
     except subprocess.CalledProcessError as e:
         logger.error(f"Error: {e}")
 
@@ -331,11 +332,8 @@ def main():
     TDengine_branch_name = args.branch_name
     TDengine_repo = "https://github.com/taosdata/tdengine.com.git"
     TDengine_repo_path = f"{workdir}/TDengine/"
-    taos_tools_repo = "https://github.com/taosdata/taos-tools.git"
-    taos_tools_repo_path = f"{workdir}/taos-tools/"
     
     # prepare docs repo
-    prepare_repo(taos_tools_repo, taos_tools_repo_path, "main")
     prepare_repo(doc_zh_repo,doc_zh_repo_path, "master")
     prepare_repo(doc_en_repo, doc_en_repo_path, "main")
     prepare_repo(enterprise_doc_repo, enterprise_doc_repo_path, "main")
