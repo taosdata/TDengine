@@ -2927,6 +2927,7 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
   if (numOfTasks == 0) {
     mDebug("no streams in consensus-checkpointId list, no need to do stream consensus");
     taosArrayDestroy(pStreamList);
+    taosHashCleanup(pTermMap);
     return 0;
   } else {
     mDebug("start to check %d streams in consensus-checkpointId list", numOfTasks);
