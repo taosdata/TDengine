@@ -8,9 +8,12 @@ class TestDatabaseCommit:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_commit(self):
-        """db commit
+        """database datafile commit
 
-        1. -
+        1. write data,
+        2. restart taosd
+        3. write data to the previous data file
+        4. check the rows of data
 
         Catalog:
             - Database:Create
@@ -22,7 +25,7 @@ class TestDatabaseCommit:
         Jira: None
 
         History:
-            - 2025-4-30 Simon Guan Migrated to new test framework, from tsim/db/commit.sim
+            - 2025-5-12 Simon Guan Migrated from tsim/db/commit.sim
 
         """
 
@@ -44,7 +47,6 @@ class TestDatabaseCommit:
         tdLog.info(f"===> last {tdSql.getData(0,1)}")
 
         tdSql.checkRows(40)
-
         tdSql.checkData(0, 1, 40)
 
         tdLog.info(f"======== step2 stop dnode")
@@ -57,7 +59,6 @@ class TestDatabaseCommit:
         tdLog.info(f"===> last {tdSql.getData(0,1)}")
 
         tdSql.checkRows(40)
-
         tdSql.checkData(0, 1, 40)
 
         oldnum = tdSql.getRows()
@@ -71,7 +72,6 @@ class TestDatabaseCommit:
         tdLog.info(f"===> last {tdSql.getData(0,1)} expect  {tdSql.getData(0,1)}")
 
         tdSql.checkRows(num)
-
         tdSql.checkData(0, 1, 40)
 
         tdLog.info(f"======== step4 import new data")
@@ -83,7 +83,6 @@ class TestDatabaseCommit:
         tdLog.info(f"===> last {tdSql.getData(0,1)}")
 
         tdSql.checkRows(num)
-
         tdSql.checkData(0, 1, 40)
 
         tdLog.info(f"======== step5 stop dnode")
@@ -97,5 +96,4 @@ class TestDatabaseCommit:
 
         tdSql.query(f"select * from tb order by ts desc")
         tdSql.checkRows(num)
-
         tdSql.checkData(0, 1, 40)

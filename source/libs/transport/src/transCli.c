@@ -740,7 +740,7 @@ void cliHandleResp(SCliConn* conn) {
           tstrerror(pHead->code));
   code = cliNotifyCb(conn, pReq, &resp);
   if (code == TSDB_CODE_RPC_ASYNC_IN_PROCESS) {
-    tGWarn("%s msg need retry", CONN_GET_INST_LABEL(conn));
+    tGDebug("%s msg need retry", CONN_GET_INST_LABEL(conn));
   } else {
     destroyReq(pReq);
   }

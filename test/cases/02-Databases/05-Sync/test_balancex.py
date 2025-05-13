@@ -22,7 +22,7 @@ class TestBalancex:
         Jira: None
 
         History:
-            - 2025-5-6 Simon Guan Migrated to new test framework, from tsim/dnode/balancex.sim
+            - 2025-5-6 Simon Guan Migrated from tsim/dnode/balancex.sim
 
         """
 

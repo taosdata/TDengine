@@ -22,7 +22,7 @@ class TestDatabaseDeleteReuse1:
         Jira: None
 
         History:
-            - 2025-4-30 Simon Guan Migrated to new test framework, from tsim/db/delete_reuse1.sim
+            - 2025-4-30 Simon Guan Migrated from tsim/db/delete_reuse1.sim
 
         """
 

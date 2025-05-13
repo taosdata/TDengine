@@ -33,6 +33,12 @@ target_link_libraries(tdbPageRecycleTest PRIVATE tdb)
 add_executable(tdbPageFlushTest "tdbPageFlushTest.cpp")
 DEP_ext_gtest(tdbPageFlushTest)
 target_link_libraries(tdbPageFlushTest PRIVATE tdb)
+
+# btree to stack testing
+add_executable(tdbBtreeToStackTest "tdbBtreeToStackTest.cpp")
+DEP_ext_gtest(tdbBtreeToStackTest)
+target_link_libraries(tdbBtreeToStackTest PRIVATE tdb)
+
 add_test(
     NAME tdbPageFlushTest
     COMMAND tdbPageFlushTest

@@ -588,8 +588,8 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
 }
 
 int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, int32_t dbNameBuffLen, char* tableName,
-                                    int32_t tbaleNameBuffLen, int32_t* sversion, int32_t* tversion, int32_t idx,
-                                    bool* tbGet) {
+                                    int32_t tbaleNameBuffLen, int32_t* sversion, int32_t* tversion, int32_t* rversion,
+                                    int32_t idx, bool* tbGet) {
   *tbGet = false;
 
   if (tinfo == NULL || dbName == NULL || tableName == NULL) {
@@ -609,6 +609,7 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, int32_t dbN
 
   *sversion = pSchemaInfo->sw->version;
   *tversion = pSchemaInfo->tversion;
+  *rversion = pSchemaInfo->rversion;
   if (pSchemaInfo->dbname) {
     tstrncpy(dbName, pSchemaInfo->dbname, dbNameBuffLen);
   } else {

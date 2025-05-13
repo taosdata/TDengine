@@ -22,7 +22,7 @@ class TestDatabaseDeleteWriting1:
         Jira: None
 
         History:
-            - 2025-4-30 Simon Guan Migrated to new test framework, from tsim/db/delete_writing1.sim
+            - 2025-4-30 Simon Guan Migrated from tsim/db/delete_writing1.sim
 
         """
 
@@ -31,7 +31,8 @@ class TestDatabaseDeleteWriting1:
         tdSql.execute(f"insert into db.tb values(now, 1)")
 
         tdLog.info(f"======== start back")
-        # run_back tsim/db/back_insert.sim
+
+        # self.threadLoop
 
         tdLog.info(f"======== step1")
         x = 1
@@ -41,4 +42,12 @@ class TestDatabaseDeleteWriting1:
             tdSql.execute(f"create database db")
             tdSql.execute(f"create table db.tb (ts timestamp, i int)")
             time.sleep(1)
+            x = x + 1
+
+        # self.threadLoopStop()
+
+    def threadLoop(self):
+        x = 0
+        while True:
+            tdSql.is_err_sql(f"insert into db.tb values(now, {x} ")
             x = x + 1
