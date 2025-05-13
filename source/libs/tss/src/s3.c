@@ -35,11 +35,11 @@ typedef struct {
 
     // variable-length buffer for hostname, bucket and etc.
     char buf[0];
-} SSharedStorageS3 ;
+} SSharedStorageS3;
 
 
 
-// printConfig prints the configuration of the shared storage instance.
+// printConfig implements SSharedStorageType::printConfig.
 static void printConfig(SSharedStorage* pss) {
     SSharedStorageS3* ss = (SSharedStorageS3*)pss;
 
@@ -113,7 +113,7 @@ static bool initInstance(SSharedStorageS3* ss, const char* as) {
             ss->bucketContext.hostName = val;
         } else if (taosStrcasecmp(key, "bucket") == 0) {
             ss->bucketContext.bucketName = val;
-        } else if (taosStrcasecmp(key, "uriStyle") == 0) {
+        } else if (taosStrcasecmp(key, "uriStyle") == 0 && val != NULL) {
             if (taosStrcasecmp(val, "path") == 0) {
                 ss->bucketContext.uriStyle = S3UriStylePath;
             } else if (taosStrcasecmp(val, "virtualhost") == 0) {
@@ -122,7 +122,7 @@ static bool initInstance(SSharedStorageS3* ss, const char* as) {
                 tssError("unknown uriStyle '%s' in access string: %s", val, as);
                 return false;
             }
-        } else if (taosStrcasecmp(key, "protocol") == 0) {
+        } else if (taosStrcasecmp(key, "protocol") == 0 && val != NULL) {
             if (taosStrcasecmp(val, "http") == 0) {
                 ss->bucketContext.protocol = S3ProtocolHTTP;
             } else if (taosStrcasecmp(val, "https") == 0) {
@@ -180,9 +180,9 @@ static bool initInstance(SSharedStorageS3* ss, const char* as) {
 
 
 
-// createInstance creates a SSharedStorageS3 instance from the access string.
+// createInstance implements SSharedStorageType::createInstance.
 // access string format:
-//  s3:endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protocol=https;accessKeyId=xxx;secretAccessKey=xxx;region=xxx
+//  s3:endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protocol=https;accessKeyId=AKIA26SHLXUZKC56MEOY;secretAccessKey=xxxxxxx;region=us-east-2;chunkSize=64;maxChunks=10000
 static int32_t createInstance(const char* accessString, SSharedStorageS3** ppSS) {
     size_t asLen = strlen(accessString) + 1;
     S3Status status = S3_initialize("tdengine", S3_INIT_ALL, NULL);
@@ -210,9 +210,9 @@ static int32_t createInstance(const char* accessString, SSharedStorageS3** ppSS)
 
 
 
-static int32_t closeInstance(SSharedStorage* ss) {
-    SSharedStorageS3* s = (SSharedStorageS3*)ss;
-    taosMemFree(s);
+static int32_t closeInstance(SSharedStorage* pss) {
+    SSharedStorageS3* ss = (SSharedStorageS3*)pss;
+    taosMemFree(ss);
     S3_deinitialize();
     return TSDB_CODE_SUCCESS;
 }
@@ -278,7 +278,7 @@ static int shouldRetry() {
 
 
 
-// functions and data structures for upload
+// functions and data structures for upload & uploadFile.
 
 // SUploadSource represents the source of data to be uploaded.
 // It can be a file, a memory buffer, or another upload source,
@@ -614,8 +614,7 @@ static int32_t multipartUpload(SSharedStorageS3* ss, const char* dstPath, SUploa
 
 
 
-// upload uploads a block of data to the shared storage at the specified path.
-// It uploads an empty file if [size] is 0.
+// upload implements SSharedStorageType::upload.
 static int32_t upload(SSharedStorage* pss, const char* dstPath, const void* data, int64_t size) {
     SSharedStorageS3* ss = (SSharedStorageS3*)pss;
 
@@ -631,9 +630,7 @@ static int32_t upload(SSharedStorage* pss, const char* dstPath, const void* data
 
 
 
-// uploadFile uploads a file to the shared storage at the specified path.
-// [offset] is the start offset of the file, [size] is the size of the data to be uploaded.
-// If [size] is negative, upload until the end of the file. If [size] is 0, upload an empty file.
+// uploadFile implements SSharedStorageType::uploadFile.
 static int32_t uploadFile(SSharedStorage* pss, const char* dstPath, const char* srcPath, int64_t offset, int64_t size) {
     SSharedStorageS3* ss = (SSharedStorageS3*)pss;
 
@@ -685,7 +682,7 @@ static int32_t uploadFile(SSharedStorage* pss, const char* dstPath, const char* 
 
 
 
-// functions and data structures for download
+// functions and data structures for readFile & downloadFile.
 
 typedef struct {
     S3Status  status;
@@ -763,7 +760,10 @@ static int32_t doDownload(SSharedStorageS3* ss, const char* path, int64_t offset
             continue;
         }
 
-        if( dcbd->status != S3StatusOK ) {
+        if (dcbd->status == S3StatusErrorNoSuchKey || dcbd->status == S3StatusHttpErrorNotFound) {
+            tssError("failed to download %s: %d/%s", path, dcbd->status, dcbd->errMsg);
+            code = TSDB_CODE_NOT_FOUND;
+        } else if( dcbd->status != S3StatusOK ) {
             tssError("failed to download %s: %d/%s", path, dcbd->status, dcbd->errMsg);
             code = TAOS_SYSTEM_ERROR(EIO);
         }
@@ -776,9 +776,7 @@ static int32_t doDownload(SSharedStorageS3* ss, const char* path, int64_t offset
 
 
 
-// readFile reads a file or a block of a file from the shared storage to [buffer].
-// read starts at [offset] and reads [*size] bytes.
-// [*size] is updated to the number of bytes read when the function returns.
+// readFile implements SSharedStorageType::readFile.
 static int32_t readFile(SSharedStorage* pss, const char* srcPath, int64_t offset, char* buffer, int64_t* size) {
     SSharedStorageS3* ss = (SSharedStorageS3*)pss;
 
@@ -790,9 +788,7 @@ static int32_t readFile(SSharedStorage* pss, const char* srcPath, int64_t offset
 
 
 
-// downloadFile downloads a file or a block of a file from the shared storage to the local file system.
-// download starts at offset and downloads size bytes.
-// If size is zero, download until the end of the file.
+// downloadFile implements SSharedStorageType::downloadFile.
 static int32_t downloadFile(SSharedStorage* pss, const char* srcPath, const char* dstPath, int64_t offset, int64_t size) {
     SSharedStorageS3* ss = (SSharedStorageS3*)pss;
 
@@ -811,7 +807,7 @@ static int32_t downloadFile(SSharedStorage* pss, const char* srcPath, const char
 
 
 
-// functions and data structures for list
+// functions and data structures for listFile.
 
 typedef struct {
     S3Status status;
@@ -866,13 +862,7 @@ static S3Status listFileCallback(int                        isTruncated,
 }
 
 
-
-// listFile lists the files in the shared storage with the specified prefix [prefix].
-// [paths] is a pointer to a new initialized SArray, which will be filled with the paths.
-// If the call succeeds, the caller is responsible for freeing the items in [paths]
-// and [paths] itself.
-// if the call fails, [paths] will be cleared and the function returns an error code,
-// the caller is responsible for freeing [paths] itself.
+// listFile implements SSharedStorageType::listFile.
 static int32_t listFile(SSharedStorage* pss, const char* prefix, SArray* paths) {
     SSharedStorageS3* ss = (SSharedStorageS3*)pss;
 
@@ -909,8 +899,9 @@ static int32_t listFile(SSharedStorage* pss, const char* prefix, SArray* paths) 
 
 
 
-// functions and data structures for delete
+// functions and data structures for deleteFile.
 
+// deleteFile implements SSharedStorageType::deleteFile.
 static int32_t deleteFile(SSharedStorage* pss, const char* path) {
     SSharedStorageS3* ss = (SSharedStorageS3*)pss;
 
@@ -924,7 +915,7 @@ static int32_t deleteFile(SSharedStorage* pss, const char* path) {
         S3_delete_object(&ss->bucketContext, path, NULL, 0, &rh, &cbd);
     } while(S3_status_is_retryable(cbd.status) && shouldRetry());
 
-    if (cbd.status == S3StatusOK || cbd.status == S3StatusErrorNoSuchKey) {
+    if (cbd.status == S3StatusOK || cbd.status == S3StatusErrorNoSuchKey || cbd.status == S3StatusHttpErrorNotFound) {
         TAOS_RETURN(TSDB_CODE_SUCCESS);
     }
 
@@ -933,7 +924,7 @@ static int32_t deleteFile(SSharedStorage* pss, const char* path) {
 }
 
 
-// functions and data structures for file size
+// functions and data structures for getFileSize.
 
 typedef struct {
     S3Status  status;
@@ -954,6 +945,7 @@ static S3Status sizePropertiesCallback(const S3ResponseProperties* properties, v
 }
 
 
+// getFileSize implements SSharedStorageType::getFileSize.
 static int32_t getFileSize(SSharedStorage* pss, const char* path, int64_t* size) {
     SSharedStorageS3* ss = (SSharedStorageS3*)pss;
 
@@ -970,7 +962,7 @@ static int32_t getFileSize(SSharedStorage* pss, const char* path, int64_t* size)
     int code = 0;
     if (scbd.status == S3StatusOK) {
         *size = scbd.size;
-    } else if (scbd.status == S3StatusErrorNoSuchKey) {
+    } else if (scbd.status == S3StatusErrorNoSuchKey || scbd.status == S3StatusHttpErrorNotFound) {
         tssError("file %s does not exist", path);
         code = TSDB_CODE_NOT_FOUND;
     } else {
@@ -1039,7 +1031,7 @@ static int32_t ossCreateInstance(const char* as, SSharedStorage** ppSS) {
         return code;
     }
     ss->type = &sstOss;
-    // OSS always uses path style URI
+    // OSS always uses path style URI.
     ss->bucketContext.uriStyle = S3UriStylePath;
 
     *ppSS = (SSharedStorage*)ss;
@@ -1079,7 +1071,7 @@ static int32_t cosCreateInstance(const char* as, SSharedStorage** ppSS) {
 
 
 
-// register the S3, OSS and COS types
+// register the S3, OSS and COS types.
 void s3RegisterType() {
     tssRegisterType(&sstS3);
     tssRegisterType(&sstOss);
