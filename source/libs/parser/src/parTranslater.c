@@ -12365,6 +12365,44 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
     }
   }
 
+  int32_t     code = TSDB_CODE_SUCCESS;
+  STableMeta *pMeta = NULL;
+
+  code = getTableMeta(pCxt, pStmt->targetDbName, pStmt->targetTabName, &pMeta);
+  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
+    if (((SStreamTriggerNode*)pStmt->pTrigger)->pPartitionList) {
+      // create stb
+      if (!pStmt->pTags) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                       "Out table in stream with partition must be created with tags");
+      }
+    } else {
+      // create normal table
+      if (pStmt->pTags) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                       "Out table in stream without partition must not be created with tags");
+      }
+    }
+    code = TSDB_CODE_SUCCESS;
+  } else if (TSDB_CODE_SUCCESS == code) {
+    if (((SStreamTriggerNode*)pStmt->pTrigger)->pPartitionList) {
+      // create stb
+      if (pStmt->pTags) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                       "Out table in stream with partition must not be created with tags when exists");
+      }
+
+    } else {
+      // create normal table
+      if (pStmt->pTags) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                       "Out table in stream without partition must not be created with tags");
+      }
+    }
+  } else {
+    return code;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -12862,20 +12900,12 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
       pReq->outTblType = TSDB_SUPER_TABLE;
       pReq->outStbUid = 0;
       pReq->outStbSversion = 1;
-      if (!pStmt->pTags) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                       "Out table in stream with partition must be created with tags");
-      }
     } else {
       // create normal table
       pReq->outStbExists = false;
       pReq->outTblType = TSDB_NORMAL_TABLE;
       pReq->outStbUid = 0;
       pReq->outStbSversion = 1;
-      if (pStmt->pTags) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                       "Out table in stream without partition must not be created with tags");
-      }
     }
     code = TSDB_CODE_SUCCESS;
   } else if (TSDB_CODE_SUCCESS == code) {
@@ -12886,21 +12916,12 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
       pReq->outTblType = TSDB_SUPER_TABLE;
       pReq->outStbUid = pMeta->suid;
       pReq->outStbSversion = pMeta->sversion;
-      if (pStmt->pTags) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                       "Out table in stream with partition must not be created with tags when exists");
-      }
-
     } else {
       // create normal table
       pReq->outStbExists = false;
       pReq->outTblType = TSDB_NORMAL_TABLE;
       pReq->outStbUid = 0;
       pReq->outStbSversion = 1;
-      if (pStmt->pTags) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                       "Out table in stream without partition must not be created with tags");
-      }
     }
   } else {
     PAR_ERR_JRET(code);
@@ -13471,8 +13492,11 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
     WHERE_EACH(pNode, calcPlan->pSubplans) {
       SNodeListNode* pGroup = (SNodeListNode*)pNode;
       if (findNodeInList((SNode*)pScanSubPlan, pGroup->pNodeList)) {
-        REPLACE_NODE(NULL);
-        ERASE_NODE(calcPlan->pSubplans);
+        PAR_ERR_JRET(eliminateNodeFromList((SNode*)pScanSubPlan, pGroup->pNodeList));
+        if (LIST_LENGTH(pGroup->pNodeList) == 0) {
+          REPLACE_NODE(NULL);
+          ERASE_NODE(calcPlan->pSubplans);
+        }
         calcPlan->numOfSubplans--;
         break;
       }
