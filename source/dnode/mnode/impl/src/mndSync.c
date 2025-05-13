@@ -223,9 +223,6 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   code = sdbWriteFile(pMnode->pSdb, tsMndSdbWriteDelta);
 
 _OUT:
-  if (code == TSDB_CODE_OUT_OF_MEMORY) {
-    assert(0);
-  }
   if (pTrans) mndReleaseTrans(pMnode, pTrans);
   TAOS_RETURN(code);
 }
@@ -242,9 +239,6 @@ static int32_t mndPostMgmtCode(SMnode *pMnode, int32_t code) {
   pMgmt->transSec = 0;
   pMgmt->transSeq = 0;
   pMgmt->errCode = code;
-  if(code == TSDB_CODE_OUT_OF_MEMORY) {
-    assert(0);
-  }
   if (tsem_post(&pMgmt->syncSem) < 0) {
     mError("trans:%d, failed to post sem", transId);
   }
@@ -264,9 +258,6 @@ int32_t mndSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, SFsmCbMeta *pMeta)
   SMnode *pMnode = pFsm->data;
   int32_t code = pMsg->code;
   if (code != 0) {
-    if(code == TSDB_CODE_OUT_OF_MEMORY) {
-      assert(0);
-    }
     goto _OUT;
   }
 

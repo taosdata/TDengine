@@ -438,10 +438,9 @@ _OVER:
   terrno = code;
   return code;
 }
-
+#ifdef USE_MOUNT
 int32_t vmProcessRetrieveMountPathReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t code = 0, lino = 0;
-#ifdef USE_MOUNT
   SRetrieveMountPathReq req = {0};
   char                  path[TSDB_FILENAME_LEN] = {0};
 
@@ -455,9 +454,9 @@ _exit:
   } else {
     dInfo("mount:%s, success to retrieve path:%s", req.mountName, req.mountPath);
   }
-#endif
   TAOS_RETURN(code);
 }
+#endif
 
 // alter replica doesn't use this, but restore dnode still use this
 int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
