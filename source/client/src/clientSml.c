@@ -787,7 +787,7 @@ static int32_t smlCheckMeta(SSchema *schema, int32_t length, SArray *cols) {
         (kv->type == TSDB_DATA_TYPE_NCHAR && kv->length * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE > sTmp->bytes)) {
       uError("column %s (type %s) bytes invalid. db bytes:%d, kv bytes:%zu", sTmp->name,
              tDataTypes[sTmp->type].name, sTmp->bytes, kv->length);
-      SML_CHECK_CODE(TSDB_CODE_INTERNAL_ERROR);
+      SML_CHECK_CODE(TSDB_CODE_MND_INVALID_SCHEMA_VER);
     }
   }
 
