@@ -335,9 +335,9 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
     // int32_t vgId = pTask->task.nodeId;
     // int64_t streamId = pTask->task.streamId;
     // int32_t taskId = pTask->task.taskId;
-    SSubplan* pSubplan = NULL;
-    STREAM_CHECK_RET_GOTO(
-      nodesStringToNode(pMsg->msg.calc.calcScanPlan, (SNode**)(&pSubplan)));
+    // SSubplan* pSubplan = NULL;
+    // STREAM_CHECK_RET_GOTO(
+      // nodesStringToNode(pMsg->msg.calc.calcScanPlan, (SNode**)(&pSubplan)));
 
     // ST_TASK_DLOG("vgId:%d start to build stream reader calc task", vgId);
     pTask->info.calcReaderInfo.calcScanPlan = taosStrdup(pMsg->msg.calc.calcScanPlan);
@@ -370,6 +370,8 @@ int32_t stReaderTaskUndeploy(SStreamReaderTask** ppTask, const SStreamUndeployTa
     taosMemoryFreeClear((*ppTask)->info.calcReaderInfo.calcScanPlan);
     qDestroyTask((*ppTask)->info.calcReaderInfo.pTaskInfo);
     (*ppTask)->info.calcReaderInfo.pTaskInfo = NULL;
+    nodesDestroyNode((SNode*)(*ppTask)->info.calcReaderInfo.tsConditions);
+    filterFreeInfo((*ppTask)->info.calcReaderInfo.pFilterInfo);
   }
 
 end:
@@ -392,7 +394,7 @@ void* qStreamGetReaderInfo(int64_t streamId, int64_t taskId) {
 end:
   PRINT_LOG_END(code, lino);
   if (code == TSDB_CODE_SUCCESS) {
-    stInfo("stream %" PRIx64 " task %" PRIx64 "  in qStreamGetReaderInfo, pTask:%p, info:%p", streamId, taskId, pTask, ((SStreamReaderTask*)pTask)->info.triggerReaderInfo);
+    // stDebug("stream %" PRIx64 " task %" PRIx64 "  in qStreamGetReaderInfo, pTask:%p, info:%p", streamId, taskId, pTask, ((SStreamReaderTask*)pTask)->info.triggerReaderInfo);
     return ((SStreamReaderTask*)pTask)->info.triggerReaderInfo;
   }
   terrno = code;

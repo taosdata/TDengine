@@ -38,6 +38,7 @@ typedef struct SStreamReaderTask {
     void* triggerReaderInfo;
     struct {
       void*       pFilterInfo;
+      void*       tsConditions;
       void*       calcScanPlan;
       qTaskInfo_t pTaskInfo;
     } calcReaderInfo;
