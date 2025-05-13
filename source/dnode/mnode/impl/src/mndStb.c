@@ -1350,7 +1350,7 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
         mInfo("stb:%s, already exist while create, input tagVer:%d colVer:%d, exist tagVer:%d colVer:%d",
               createReq.name, createReq.tagVer, createReq.colVer, pStb->tagVer, pStb->colVer);
         if (tagDelta <= 0 && colDelta <= 0) {
-          mError("stb:%s, schema version is not incremented and nothing needs to be done", createReq.name);
+          mInfo("stb:%s, schema version is not incremented and nothing needs to be done", createReq.name);
           code = 0;
           goto _OVER;
         } else if ((tagDelta == 1 && colDelta == 0) || (tagDelta == 0 && colDelta == 1) ||
