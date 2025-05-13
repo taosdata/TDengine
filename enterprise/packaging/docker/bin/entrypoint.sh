@@ -1,10 +1,15 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 # for TZ awareness
 if [ "$TZ" != "" ]; then
     ln -sf /usr/share/zoneinfo/$TZ /etc/localtime
     echo $TZ >/etc/timezone
 fi
+
+TAOS_ROOT_PASSWORD=${TAOS_ROOT_PASSWORD:-taosdata}
+export TAOS_KEEPER_TDENGINE_PASSWORD=${TAOS_ROOT_PASSWORD}
+
+INITDB_DIR=/docker-entrypoint-initdb.d/
 
 # option to disable taosadapter, default is no
 DISABLE_ADAPTER=${TAOS_DISABLE_ADAPTER:-0}
@@ -74,6 +79,8 @@ if [ $# -gt 0 ]; then
     exec $@
     exit 0
 fi
+
+NEEDS_INITDB=0
 # startup taosd
 if [ "$DISABLE_SERVER" = "0" ]; then
     echo "enable server"
@@ -89,6 +96,27 @@ if [ "$DISABLE_SERVER" = "0" ]; then
             nc -z localhost $SERVER_PORT && break
             sleep 0.5
         done
+
+        while true; do
+            es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)
+            echo "Try to connect to first ep with return: ${es} (taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)"
+            if [ "${es%%:*}" -eq 2 ]; then
+                if [ "$FQDN" = "$FIRST_EP_HOST" ]; then
+                    if [ ! -f "${data_dir}/.docker-entrypoint-root-password-changed" ]; then
+                        if [ "$TAOS_ROOT_PASSWORD" != "taosdata" ]; then
+                            # change default root password
+                            taos -s "ALTER USER root PASS '$TAOS_ROOT_PASSWORD'"
+                            touch "${data_dir}/.docker-entrypoint-root-password-changed"
+                        fi
+                    fi
+                    # Initialization scripts should only work in first node.
+                    if [ ! -f "${data_dir}/.inited" ]; then
+                        NEEDS_INITDB=1
+                    fi
+                fi
+                break
+            fi
+        done
     else
         while true; do
             es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)
@@ -102,15 +130,15 @@ if [ "$DISABLE_SERVER" = "0" ]; then
                     sleep 0.5
                 done
                 ENDPOINT=$FQDN:$SERVER_PORT
-                taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create dnode \"$ENDPOINT\";"
-                DNODETmp=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "set max_binary_display_width 2000;show dnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
+                sh -c "taos -p'$TAOS_ROOT_PASSWORD' -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s 'create dnode \"$ENDPOINT\";'"
+                DNODETmp=$(sh -c "taos -p'$TAOS_ROOT_PASSWORD' -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s 'set max_binary_display_width 2000;show dnodes;'" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
                 DNODEID=$(echo "$DNODETmp" | sed -e 's/^[[:space:]]*//')
                 if [ "$DNODEID" != "" ] && [ "$TAOS_DISABLE_MNODE" = "0" ]; then
                     set +e
                     echo "Create the mnode for dnode $DNODEID"
                     for _ in $(seq 1 5); do
                         sleep 1s
-                        MNODETmp=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create mnode on dnode $DNODEID;")
+                        MNODETmp=$(sh -c "taos -p'$TAOS_ROOT_PASSWORD' -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s 'create mnode on dnode $DNODEID;'")
                         echo "Create the mnode for dnode $DNODEID with return: ${MNODETmp}"
 
                         MNODEOK=$(echo "$MNODETmp" | grep "Create OK")
@@ -174,6 +202,33 @@ if [ "$DISABLE_EXPLORER" = "0" ]; then
     done
 else
     echo "disable taos-explorer"
+fi
+
+if [ "$NEEDS_INITDB" = "1" ]; then
+    # check if initdb.d exists
+    if [ -d "${INITDB_DIR}" ]; then
+        # execute initdb scripts in sql
+        for FILE in "$INITDB_DIR"*.sql; do
+            echo "Initialize db with file $FILE"
+            MAX_RETRIES=5
+            RETRY_COUNT=0
+            SUCCESS=0
+            while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$SUCCESS" = "0" ]; do
+                set -x
+                OUTPUT=$(sh -c "taos -f $FILE -p'$TAOS_ROOT_PASSWORD'")
+                set +x
+                echo $OUTPUT
+                if [[ "$OUTPUT" =~ "DB error" ]]; then
+                    echo "Retrying in 2 seconds..."
+                    sleep 2
+                else
+                    SUCCESS=1
+                fi
+            done
+        done
+    fi
+
+    touch "${DATA_DIR}/.inited"
 fi
 
 # never exit
