@@ -962,8 +962,11 @@ notify_option(A) ::= ON_FAILURE_PAUSE.                                          
 
 %type column_name_list                                                            { SNodeList* }
 %destructor column_name_list                                                      { nodesDestroyList($$); }
-column_name_list(A) ::= column_name(B).                                           { A = createNodeList(pCxt, createColumnNode(pCxt, NULL, &B)); }
-column_name_list(A) ::= column_name_list(B) NK_COMMA column_name(C).              { A = addNodeToList(pCxt, B, createColumnNode(pCxt, NULL, &C)); }
+column_name_list(A) ::= trigger_col_name(B).                                      { A = createNodeList(pCxt, B); }
+column_name_list(A) ::= column_name_list(B) NK_COMMA trigger_col_name(C).         { A = addNodeToList(pCxt, B, C); }
+
+trigger_col_name(A) ::= column_name(B).                                           { A = createColumnNode(pCxt, NULL, &B); }
+trigger_col_name(A) ::= TBNAME(B).                                                { A = createFunctionNode(pCxt, &B, NULL); }
 
 %type event_type_list                                                             { int64_t }
 %destructor event_type_list                                                       { }
