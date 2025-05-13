@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef TD_ASTRA
 #define _DEFAULT_SOURCE
 #include "audit.h"
 #include "command.h"
@@ -680,6 +681,31 @@ static int32_t mndSetCreateMountCommitLogs(SMnode *pMnode, STrans *pTrans, SMoun
   TAOS_RETURN(code);
 }
 
+static int32_t mndAddCreateMountRetrieveDbAction(SMnode *pMnode, STrans *pTrans, SMountObj *pObj, int32_t index) {
+  int32_t      code = 0;
+  STransAction action = {0};
+
+  SDnodeObj *pDnode = mndAcquireDnode(pMnode, pObj->dnodeIds[index]);
+  if (pDnode == NULL) return -1;
+  action.epSet = mndGetDnodeEpset(pDnode);
+  mndReleaseDnode(pMnode, pDnode);
+
+  int32_t contLen = 0;
+  void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
+  if (pReq == NULL) return -1;
+
+  action.pCont = pReq;
+  action.contLen = contLen;
+  action.msgType = TDMT_DND_RETRIEVE_MOUNT_PATH;
+
+  if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
+    taosMemoryFree(pReq);
+    TAOS_RETURN(code);
+  }
+
+  TAOS_RETURN(code);
+}
+
 static int32_t mndSetCreateMountRedoActions(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
   int32_t code = 0;
   // for (int32_t vg = 0; vg < pDb->cfg.numOfVgroups; ++vg) {
@@ -690,7 +716,10 @@ static int32_t mndSetCreateMountRedoActions(SMnode *pMnode, STrans *pTrans, SMou
   //     TAOS_CHECK_RETURN(mndAddCreateVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid));
   //   }
   // }
-
+  for (int32_t i = 0; i < pObj->nMounts; i++) {
+    SVnodeGid *pVgid = pObj->dnodeIds + i;
+    mndAddCreateVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid);
+  }
   TAOS_RETURN(code);
 }
 #if 0
@@ -2067,3 +2096,5 @@ static void mndCancelGetNextMount(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetchByType(pSdb, pIter, SDB_MOUNT);
 }
+
+#endif  // TD_ASTRA

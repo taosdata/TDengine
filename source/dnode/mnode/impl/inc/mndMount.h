@@ -16,6 +16,8 @@
 #ifndef _TD_MND_MOUNT_H_
 #define _TD_MND_MOUNT_H_
 
+#ifndef TD_ASTRA
+
 #include "mndInt.h"
 
 #ifdef __cplusplus
@@ -36,9 +38,10 @@ void    mndMountDestroyObj(SMountObj *pObj);
 
 const char *mndGetMountStr(const char *src);
 
-
 #ifdef __cplusplus
 }
 #endif
+
+#endif /* TD_ASTRA */
 
 #endif /*_TD_MND_MOUNT_H_*/

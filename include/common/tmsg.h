@@ -1736,6 +1736,7 @@ int32_t tDeserializeSDbCfgRsp(void* buf, int32_t bufLen, SDbCfgRsp* pRsp);
 int32_t tDeserializeSDbCfgRspImpl(SDecoder* decoder, SDbCfgRsp* pRsp);
 void    tFreeSDbCfgRsp(SDbCfgRsp* pRsp);
 
+#ifndef TD_ASTRA
 typedef struct {
   char     mountName[TSDB_MOUNT_NAME_LEN];
   int8_t   ignoreExist;
@@ -1760,6 +1761,17 @@ typedef struct {
 int32_t tSerializeSDropMountReq(void* buf, int32_t bufLen, SDropMountReq* pReq);
 int32_t tDeserializeSDropMountReq(void* buf, int32_t bufLen, SDropMountReq* pReq);
 void    tFreeSDropMountReq(SDropMountReq* pReq);
+
+typedef struct {
+  char    mountName[TSDB_MOUNT_NAME_LEN];
+  char    mountPath[TSDB_MOUNT_PATH_LEN];
+  int32_t dnodeId;
+} SRetrieveMountPathReq;
+
+int32_t tSerializeSRetrieveMountPathReq(void* buf, int32_t bufLen, SRetrieveMountPathReq* pReq);
+int32_t tDeserializeSRetrieveMountPathReq(void* buf, int32_t bufLen, SRetrieveMountPathReq* pReq);
+void    tFreeSRetrieveMountPathReq(SRetrieveMountPathReq* pReq);
+#endif
 
 typedef struct {
   int32_t rowNum;

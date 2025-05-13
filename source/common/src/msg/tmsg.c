@@ -6025,16 +6025,7 @@ void tFreeSDbCfgRsp(SDbCfgRsp *pRsp) {
   taosArrayDestroy(pRsp->pRetensions);
 }
 
-// typedef struct {
-//   char     mountName[TSDB_MOUNT_NAME_LEN];
-//   int8_t   ignoreExist;
-//   int16_t  nMounts;
-//   int32_t* dnodeIds;
-//   char**   mountPaths;
-//   int32_t  sqlLen;
-//   char*    sql;
-// } SCreateMountReq;
-
+#ifndef TD_ASTRA
 int32_t tSerializeSCreateMountReq(void *buf, int32_t bufLen, SCreateMountReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
@@ -6144,6 +6135,47 @@ _exit:
 }
 
 void tFreeSDropMountReq(SDropMountReq *pReq) { FREESQL(); }
+
+int32_t tSerializeSRetrieveMountPathReq(void *buf, int32_t bufLen, SRetrieveMountPathReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->mountName));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->mountPath));
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->dnodeId));
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSRetrieveMountPathReq(void *buf, int32_t bufLen, SRetrieveMountPathReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->mountName));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->mountPath));
+  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pReq->dnodeId));
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+#endif
 
 int32_t tSerializeSUserIndexReq(void *buf, int32_t bufLen, SUserIndexReq *pReq) {
   SEncoder encoder = {0};
