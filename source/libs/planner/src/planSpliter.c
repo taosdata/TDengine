@@ -297,6 +297,10 @@ static bool stbSplNeedSplitWindow(bool streamQuery, SLogicNode* pNode) {
     return !stbSplHasGatherExecFunc(pWindow->pFuncs) && stbSplHasMultiTbScan(streamQuery, pNode);
   }
 
+  if (WINDOW_TYPE_EXTERNAL == pWindow->winType) {
+    return stbSplHasMultiTbScan(streamQuery, pNode);
+  }
+
   if (WINDOW_TYPE_SESSION == pWindow->winType) {
     if (!streamQuery) {
       return stbSplHasMultiTbScan(streamQuery, pNode);
@@ -388,7 +392,7 @@ static int32_t stbSplRewriteFuns(const SNodeList* pFuncs, SNodeList** pPartialFu
     SFunctionNode* pMidFunc = NULL;
     SFunctionNode* pMergeFunc = NULL;
     int32_t        code = TSDB_CODE_SUCCESS;
-    if (fmIsWindowPseudoColumnFunc(pFunc->funcId)) {
+    if (fmIsWindowPseudoColumnFunc(pFunc->funcId) || fmIsPlaceHolderFunc(pFunc->funcId)) {
       code = nodesCloneNode(pNode, (SNode**)&pPartFunc);
       if (TSDB_CODE_SUCCESS == code) {
         code = nodesCloneNode(pNode, (SNode**)&pMergeFunc);

@@ -12844,6 +12844,73 @@ _return:
   return code;
 }
 
+static int32_t createStreamCheckOutTags(STranslateContext* pCxt, SNodeList* pTags, STableMeta* pMeta) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t tagIndex = pMeta->tableInfo.numOfColumns;
+  SNode*  pNode = NULL;
+
+  if (!pTags) {
+    return code;
+  }
+
+  if (LIST_LENGTH(pTags) != pMeta->tableInfo.numOfTags) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                   "Out table tag count mismatch");
+  }
+
+  FOREACH(pNode, pTags) {
+    SStreamTagDefNode* pTagDef = (SStreamTagDefNode*)pNode;
+    int8_t  scale = 0;
+    int8_t  precision = 0;
+    int32_t bytes = 0;
+    extractTypeFromTypeMod(pMeta->schema[tagIndex].type, pMeta->schemaExt[tagIndex].typeMod, &precision, &scale, &bytes);
+    if (pTagDef->dataType.type != pMeta->schema[tagIndex].type ||
+        pTagDef->dataType.bytes != pMeta->schema[tagIndex].bytes ||
+        pTagDef->dataType.scale != scale ||
+        pTagDef->dataType.precision != precision ||
+        strcmp(pTagDef->tagName, pMeta->schema[tagIndex].name) != 0) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Out table tag type mismatch");
+    }
+  }
+
+  return code;
+}
+
+static int32_t createStreamCheckOutCols(STranslateContext* pCxt, SNodeList* pCols, STableMeta* pMeta) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t colIndex = 0;
+  SNode*  pNode = NULL;
+
+  if (!pCols) {
+    return code;
+  }
+
+  if (LIST_LENGTH(pCols) != pMeta->tableInfo.numOfColumns) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                   "Out table cols count mismatch");
+  }
+
+  FOREACH(pNode, pCols) {
+    SColumnDefNode* pColDef = (SColumnDefNode*)pNode;
+    int8_t  scale = 0;
+    int8_t  precision = 0;
+    int32_t bytes = 0;
+    extractTypeFromTypeMod(pMeta->schema[colIndex].type, pMeta->schemaExt[colIndex].typeMod, &precision, &scale, &bytes);
+    if (pColDef->dataType.type != pMeta->schema[colIndex].type ||
+        pColDef->dataType.bytes != pMeta->schema[colIndex].bytes ||
+        pColDef->dataType.scale != scale ||
+        pColDef->dataType.precision != precision ||
+        strcmp(pColDef->colName, pMeta->schema[colIndex].name) != 0) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Out table cols type mismatch");
+    }
+    colIndex++;
+  }
+
+  return code;
+}
+
 static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStreamStmt* pStmt,
                                             SSelectStmt* pTriggerSelect, SHashObj* pTriggerSlotHash,
                                             SCMCreateStreamReq* pReq) {
@@ -12893,60 +12960,8 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
       pReq->outTblType = TSDB_SUPER_TABLE;
       pReq->outStbUid = pMeta->suid;
       pReq->outStbSversion = pMeta->sversion;
-      if (pStmt->pTags) {
-        // sql specified tags
-        SNode*  pNode = NULL;
-        int32_t tagIndex = pMeta->tableInfo.numOfColumns;
-
-        if (LIST_LENGTH(pStmt->pTags) != pMeta->tableInfo.numOfTags) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                         "Out super table tag count mismatch");
-        }
-
-        FOREACH(pNode, pStmt->pTags) {
-          SStreamTagDefNode* pTagDef = (SStreamTagDefNode*)pNode;
-          int8_t  scale = 0;
-          int8_t  precision = 0;
-          int32_t bytes = 0;
-          extractTypeFromTypeMod(pMeta->schema[tagIndex].type, pMeta->schemaExt[tagIndex].typeMod, &precision, &scale, &bytes);
-          if (pTagDef->dataType.type != pMeta->schema[tagIndex].type ||
-              pTagDef->dataType.bytes != pMeta->schema[tagIndex].bytes ||
-              pTagDef->dataType.scale != scale ||
-              pTagDef->dataType.precision != precision ||
-              strcmp(pTagDef->tagName, pMeta->schema[tagIndex].name) != 0) {
-            return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                           "Out super table tag type mismatch");
-          }
-          tagIndex++;
-        }
-      }
-      if (pStmt->pCols) {
-        // sql specified cols
-        SNode*  pNode = NULL;
-        int32_t colIndex = 0;
-
-        if (LIST_LENGTH(pStmt->pCols) != pMeta->tableInfo.numOfColumns) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                         "Out super table cols count mismatch");
-        }
-
-        FOREACH(pNode, pStmt->pCols) {
-          SColumnDefNode* pColDef = (SColumnDefNode*)pNode;
-          int8_t  scale = 0;
-          int8_t  precision = 0;
-          int32_t bytes = 0;
-          extractTypeFromTypeMod(pMeta->schema[colIndex].type, pMeta->schemaExt[colIndex].typeMod, &precision, &scale, &bytes);
-          if (pColDef->dataType.type != pMeta->schema[colIndex].type ||
-              pColDef->dataType.bytes != pMeta->schema[colIndex].bytes ||
-              pColDef->dataType.scale != scale ||
-              pColDef->dataType.precision != precision ||
-              strcmp(pColDef->colName, pMeta->schema[colIndex].name) != 0) {
-            return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                           "Out super table col mismatch");
-          }
-          colIndex++;
-        }
-      }
+      PAR_ERR_JRET(createStreamCheckOutTags(pCxt, pStmt->pTags, pMeta));
+      PAR_ERR_JRET(createStreamCheckOutCols(pCxt, pStmt->pCols, pMeta));
     } else {
       if (pMeta->tableType != TSDB_NORMAL_TABLE) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
@@ -12957,33 +12972,7 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
       pReq->outTblType = TSDB_NORMAL_TABLE;
       pReq->outStbUid = 0;
       pReq->outStbSversion = 1;
-      if (pStmt->pCols) {
-        // sql specified cols
-        SNode*  pNode = NULL;
-        int32_t colIndex = 0;
-
-        if (LIST_LENGTH(pStmt->pCols) != pMeta->tableInfo.numOfColumns) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                         "Out table cols count mismatch");
-        }
-
-        FOREACH(pNode, pStmt->pCols) {
-          SColumnDefNode* pColDef = (SColumnDefNode*)pNode;
-          int8_t  scale = 0;
-          int8_t  precision = 0;
-          int32_t bytes = 0;
-          extractTypeFromTypeMod(pMeta->schema[colIndex].type, pMeta->schemaExt[colIndex].typeMod, &precision, &scale, &bytes);
-          if (pColDef->dataType.type != pMeta->schema[colIndex].type ||
-              pColDef->dataType.bytes != pMeta->schema[colIndex].bytes ||
-              pColDef->dataType.scale != scale ||
-              pColDef->dataType.precision != precision ||
-              strcmp(pColDef->colName, pMeta->schema[colIndex].name) != 0) {
-            return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                           "Out table col mismatch");
-          }
-          colIndex++;
-        }
-      }
+      PAR_ERR_JRET(createStreamCheckOutCols(pCxt, pStmt->pCols, pMeta));
     }
   } else {
     PAR_ERR_JRET(code);
