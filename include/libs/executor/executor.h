@@ -59,6 +59,7 @@ typedef struct {
   void*       pOtherBackend;
   int8_t      fillHistory;
   STimeWindow winRange;
+  bool        winRangeValid;
 
   struct SStorageAPI api;
   void*              pWorkerCb;
