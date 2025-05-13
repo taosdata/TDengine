@@ -115,9 +115,9 @@ def check_opts(opts):
         print("Must specify one option in:[ --destroy, --use, --setup, --prepare]")
         return False
     # have only one
-    if (opts.destroy and opts.use) or (opts.use and opts.setup) or (opts.destroy and opts.setup):
-        print("Can only specify one environment option: --destroy or --use or --setup")
-        return False
+    #if (opts.destroy and opts.use) or (opts.use and opts.setup) or (opts.destroy and opts.setup):
+    #    print("Can only specify one environment option: --destroy or --use or --setup")
+    #    return False
     # test groups and test cases can't run together.
     if (opts.group_dirs or opts.group_files) and opts.cases:
         print("--group-dir or --group-file can't be used together with --case")
