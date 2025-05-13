@@ -959,7 +959,7 @@ int32_t mndClearConsensusCheckpointId(SHashObj *pHash, int64_t streamId) {
   code = taosHashRemove(pHash, &streamId, sizeof(streamId));
   if (code == 0) {
     numOfStreams = taosHashGetSize(pHash);
-    mDebug("drop stream:0x%" PRIx64 " in consensus-checkpointId list, remain:%d", streamId, numOfStreams);
+    mInfo("drop stream:0x%" PRIx64 " in consensus-checkpointId list, remain:%d", streamId, numOfStreams);
   } else {
     mError("failed to remove stream:0x%" PRIx64 " in consensus-checkpointId list, remain:%d", streamId, numOfStreams);
   }
