@@ -1869,9 +1869,9 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
             TAOS_CHECK_EXIT(terrno);
           }
         }
-        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &calcScan.readFromCache));
-        TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&calcScan.scanPlan, NULL));
       }
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &calcScan.readFromCache));
+      TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&calcScan.scanPlan, NULL));
       taosArrayPush(pReq->calcScanPlanList, &calcScan);
     }
   }
