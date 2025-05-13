@@ -693,6 +693,7 @@ typedef struct {
   int8_t      tableType;
   int32_t     sversion;
   int32_t     tversion;
+  int32_t     rversion;
   uint64_t    suid;
   uint64_t    tuid;
   int32_t     vgId;
@@ -1405,6 +1406,7 @@ typedef struct STbVerInfo {
   char    tbFName[TSDB_TABLE_FNAME_LEN];
   int32_t sversion;
   int32_t tversion;
+  int32_t rversion; // virtual table's column ref's version
 } STbVerInfo;
 
 typedef struct {

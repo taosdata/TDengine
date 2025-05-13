@@ -1,22 +1,24 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestUIntColumn:
+class TestDatatypeUint:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
         tdSql.prepare(dbname="db", drop=True)
 
-    def test_static_create_table(self):
-        """static create table
+    def test_datatype_uint(self):
+        """unsigned int datatype
 
-        1. 使用 uint 作为超级表的普通列、标签列
-        2. 当 uint 作为标签列时，使用合法值、非法值创建子表
-        3. 当 uint 作为标签列时，测试 show tags 的返回结果
+        1. create table
+        2. insert data
+        3. auto create table
+        4. alter tag value
+        5. illegal input
 
         Catalog:
-            - DataTypes:UInt
-            - Tables:Create
+            - DataTypes
+            - Tables:SubTables:Create
 
         Since: v3.0.0.0
 
@@ -25,12 +27,20 @@ class TestUIntColumn:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated from tsim/parser/columnValue_uint.sim
+            - 2025-5-12 Simon Guan Migrated from tsim/parser/columnValue_uint.sim
 
         """
+        self.create_table()
+        self.insert_data()
+        self.auto_create_table()
+        self.alter_tag_value()
+        self.illegal_input()
 
+    def create_table(self):
         tdLog.info(f"create super table")
-        tdSql.execute(f"create table mt_uint (ts timestamp, c int unsigned) tags(tagname int unsigned)")
+        tdSql.execute(
+            f"create table mt_uint (ts timestamp, c int unsigned) tags(tagname int unsigned)"
+        )
 
         tdLog.info(f"case 0: static create table for test tag values")
 
@@ -167,29 +177,9 @@ class TestUIntColumn:
         tdSql.query(f"show tags from st_uint_203")
         tdSql.checkData(0, 5, 0)
 
-    def test_insert_column_value(self):
-        """insert column value
-
-        1. 使用 uint 作为超级表的普通列、标签列
-        2. 当 uint 作为普通列时，使用合法值、非法值向子表中写入数据
-
-        Catalog:
-            - DataTypes:UInt
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def insert_data(self):
         tdLog.info(f"case 1: insert values for test column values")
 
-        ## case 01: insert values  for test column values
         tdSql.execute(f"insert into st_uint_0 values(now, NULL)")
         tdSql.query(f"select * from st_uint_0")
         tdSql.checkRows(1)
@@ -322,29 +312,9 @@ class TestUIntColumn:
         tdSql.query(f"select * from st_uint_203")
         tdSql.checkData(0, 1, 0)
 
-    def test_dynamic_create_table(self):
-        """dynamic create table
-
-        1. 使用 uint 作为超级表的普通列、标签列
-        2. 使用合法值、非法值向子表中写入数据并自动建表
-
-        Catalog:
-            - DataTypes:UInt
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def auto_create_table(self):
         tdLog.info(f"case 2: dynamic create table for test tag values")
 
-        # case 02: dynamic create table for test tag values
         tdSql.execute(
             f"insert into st_uint_16 using mt_uint tags(NULL) values(now, NULL)"
         )
@@ -409,18 +379,14 @@ class TestUIntColumn:
         tdSql.query(f"select * from st_uint_22")
         tdSql.checkData(0, 1, 2147483647)
 
-        tdSql.execute(
-            f"insert into st_uint_23 using mt_uint tags(-0) values(now, -0)"
-        )
+        tdSql.execute(f"insert into st_uint_23 using mt_uint tags(-0) values(now, -0)")
         tdSql.query(f"show tags from st_uint_23")
         tdSql.checkData(0, 5, 0)
 
         tdSql.query(f"select * from st_uint_23")
         tdSql.checkData(0, 1, 0)
 
-        tdSql.execute(
-            f"insert into st_uint_24 using mt_uint tags(10) values(now, 10)"
-        )
+        tdSql.execute(f"insert into st_uint_24 using mt_uint tags(10) values(now, 10)")
         tdSql.query(f"show tags from st_uint_24")
         tdSql.checkData(0, 5, 10)
 
@@ -622,26 +588,7 @@ class TestUIntColumn:
         tdSql.query(f"select * from st_uint_1203")
         tdSql.checkData(0, 1, 0)
 
-    def test_alter_tag_value(self):
-        """alter tag value
-
-        1. 使用 uint 作为超级表的标签列
-        2. 使用合法值、非法值修改子表的标签值
-
-        Catalog:
-            - DataTypes:UInt
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def alter_tag_value(self):
         tdLog.info(f"case 3: alter tag value")
 
         tdSql.execute(f"alter table st_uint_0 set tag tagname=2147483647")
@@ -748,26 +695,7 @@ class TestUIntColumn:
         tdSql.query(f"show tags from st_uint_203")
         tdSql.checkData(0, 5, 0)
 
-    def test_illegal_input(self):
-        """illegal input
-
-        1. 使用 uint 作为超级表的标签列
-        2. 使用非法标签值创建子表
-
-        Catalog:
-            - DataTypes:UInt
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def illegal_input(self):
         tdLog.info(f"case 4: illegal input")
 
         tdSql.error(f"create table st_uint_e0_err0 using mt_uint tags(4294967296)")
@@ -819,18 +747,12 @@ class TestUIntColumn:
         tdSql.error(
             f'insert into st_uint_e20 using mt_uint tags(033) values(now, "123abc")'
         )
-        tdSql.error(
-            f"insert into st_uint_e22 using mt_uint tags(033) values(now, abc)"
-        )
+        tdSql.error(f"insert into st_uint_e22 using mt_uint tags(033) values(now, abc)")
         tdSql.error(
             f'insert into st_uint_e23 using mt_uint tags(033) values(now, "abc")'
         )
-        tdSql.error(
-            f'insert into st_uint_e24 using mt_uint tags(033) values(now, " ")'
-        )
-        tdSql.error(
-            f"insert into st_uint_e25 using mt_uint tags(033) values(now, '')"
-        )
+        tdSql.error(f'insert into st_uint_e24 using mt_uint tags(033) values(now, " ")')
+        tdSql.error(f"insert into st_uint_e25 using mt_uint tags(033) values(now, '')")
 
         tdSql.error(
             f"insert into st_uint_e13 using mt_uint tags(21474294967296483648) values(now, -033)"

@@ -1,22 +1,23 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestUnsignColumn:
+class TestDatatypeUnsigned:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
         tdSql.prepare(dbname="db", drop=True)
 
-    def test_static_create_table(self):
-        """static create table
+    def test_datatype_unsigned(self):
+        """unsigned datatypes()
 
-        1. 使用 unsign 作为超级表的普通列、标签列
-        2. 当 unsign 作为标签列时，使用合法值、非法值创建子表
-        3. 当 unsign 作为标签列时，测试 show tags 的返回结果
+        1. create table
+        2. alter tag value
+        3. insert data
+        4. query data
 
         Catalog:
-            - DataTypes:Unsign
-            - Tables:Create
+            - DataTypes
+            - Tables:SubTables:Create
 
         Since: v3.0.0.0
 
@@ -25,7 +26,7 @@ class TestUnsignColumn:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated from tsim/parser/columnValue_unsign.sim
+            - 2025-5-12 Simon Guan Migrated from tsim/parser/columnValue_unsign.sim
 
         """
 

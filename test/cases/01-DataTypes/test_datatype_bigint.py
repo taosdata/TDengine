@@ -1,22 +1,24 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestBigIntColumn:
+class TestDatatypeBigInt:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
         tdSql.prepare(dbname="db", drop=True)
 
-    def test_static_create_table(self):
-        """static create table
+    def test_datatype_bigint(self):
+        """bigint datatype
 
-        1. 使用 bigint 作为超级表的普通列、标签列
-        2. 当 bigint 作为标签列时，使用合法值、非法值创建子表
-        3. 当 bigint 作为标签列时，测试 show tags 的返回结果
+        1. create table
+        2. insert data
+        3. auto create table
+        4. alter tag value
+        5. illegal input
 
         Catalog:
-            - DataTypes:Bigint
-            - Tables:Create
+            - DataTypes
+            - Tables:SubTables:Create
 
         Since: v3.0.0.0
 
@@ -25,10 +27,16 @@ class TestBigIntColumn:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated from tsim/parser/columnValue_bigint.sim
+            - 2025-5-12 Simon Guan Migrated from tsim/parser/columnValue_bigint.sim
 
         """
+        self.create_table()
+        self.insert_data()
+        self.auto_create_table()
+        self.alter_tag_value()
+        self.illegal_input()
 
+    def create_table(self):
         tdLog.info(f"create super table")
         tdSql.execute(
             f"create table mt_bigint (ts timestamp, c bigint) tags(tagname bigint)"
@@ -101,26 +109,7 @@ class TestBigIntColumn:
         tdSql.query(f"show tags from st_bigint_14")
         tdSql.checkData(0, 5, -78)
 
-    def test_insert_column_value(self):
-        """insert column value
-
-        1. 使用 bigint 作为超级表的普通列、标签列
-        2. 当 bigint 作为普通列时，使用合法值、非法值向子表中写入数据
-
-        Catalog:
-            - DataTypes:Bigint
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def insert_data(self):
         tdLog.info(f"case 1: insert values for test column values")
 
         tdSql.execute(f"insert into st_bigint_0 values(now, NULL)")
@@ -200,26 +189,7 @@ class TestBigIntColumn:
 
         tdSql.checkData(0, 1, -56)
 
-    def test_dynamic_create_table(self):
-        """dynamic create table
-
-        1. 使用 bigint 作为超级表的普通列、标签列
-        2. 使用合法值、非法值向子表中写入数据并自动建表
-
-        Catalog:
-            - DataTypes:Bigint
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def auto_create_table(self):
         tdLog.info(f"case 2: dynamic create table for test tag values")
 
         tdSql.execute(
@@ -340,48 +310,42 @@ class TestBigIntColumn:
         tdSql.query(f"select * from st_bigint_28")
         tdSql.checkData(0, 1, -56)
 
-    def test_alter_tag_value(self):
-        """alter tag value
-
-        1. 使用 bigint 作为超级表的标签列
-        2. 使用合法值、非法值修改子表的标签值
-
-        Catalog:
-            - DataTypes:Bigint
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def alter_tag_value(self):
         tdLog.info(f"case 3: alter tag value")
 
-    def test_illegal_input(self):
-        """illegal input
+        tdSql.execute(f"alter table st_bigint_0 set tag tagname=9223372036854775807")
+        tdSql.query(f"show tags from  st_bigint_0")
+        tdSql.checkData(0, 5, 9223372036854775807)
 
-        1. 使用 bigint 作为超级表的标签列
-        2. 使用非法标签值创建子表
+        tdSql.execute(f"alter table st_bigint_0 set tag tagname=-9223372036854775807")
+        tdSql.query(f"show tags from  st_bigint_0")
+        tdSql.checkData(0, 5, -9223372036854775807)
 
-        Catalog:
-            - DataTypes:Bigint
+        tdSql.execute(f"alter table st_bigint_0 set tag tagname=+100")
+        tdSql.query(f"show tags from  st_bigint_0")
+        tdSql.checkData(0, 5, 100)
 
-        Since: v3.0.0.0
+        tdSql.execute(f"alter table st_bigint_0 set tag tagname=-33")
+        tdSql.query(f"show tags from  st_bigint_0")
+        tdSql.checkData(0, 5, -33)
 
-        Labels: common,ci
+        tdSql.execute(f"alter table st_bigint_0 set tag tagname='+98'")
+        tdSql.query(f"show tags from  st_bigint_0")
+        tdSql.checkData(0, 5, 98)
 
-        Jira: None
+        tdSql.execute(f"alter table st_bigint_0 set tag tagname='-076'")
+        tdSql.query(f"show tags from  st_bigint_0")
+        tdSql.checkData(0, 5, -76)
 
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
+        tdSql.execute(f"alter table st_bigint_0 set tag tagname=+0012")
+        tdSql.query(f"show tags from  st_bigint_0")
+        tdSql.checkData(0, 5, 12)
 
-        """
+        tdSql.execute(f"alter table st_bigint_0 set tag tagname=-00063")
+        tdSql.query(f"show tags from  st_bigint_0")
+        tdSql.checkData(0, 5, -63)
 
+    def illegal_input(self):
         tdLog.info(f"case 4: illegal input")
 
         tdSql.error(
@@ -396,8 +360,12 @@ class TestBigIntColumn:
         tdSql.error(
             f"create table st_bigint_e0_3 using mt_bigint tags(-9223372036854775809)"
         )
-        # tdSql.error(f'create table st_bigint_e0 using mt_bigint tags(12.80)   truncate integer part')
-        # tdSql.error(f'create table st_bigint_e0 using mt_bigint tags(-11.80)')
+
+        # truncate integer part
+        tdSql.execute(f"create table st_bigint_e0 using mt_bigint tags(12.80)")
+        tdSql.execute(f"drop table st_bigint_e0")
+        tdSql.execute(f"create table st_bigint_e0 using mt_bigint tags(-11.80)")
+        tdSql.execute(f"drop table st_bigint_e0")
         tdSql.error(f"create table st_bigint_e0 using mt_bigint tags(123abc)")
         tdSql.error(f'create table st_bigint_e0 using mt_bigint tags("123abc")')
         tdSql.error(f"create table st_bigint_e0 using mt_bigint tags(abc)")
@@ -423,8 +391,8 @@ class TestBigIntColumn:
         tdSql.execute(f"insert into st_bigint_e1 values(now, -9223372036854775808)")
         tdSql.error(f"insert into st_bigint_e2 values(now, 9223372036854775809)")
         tdSql.execute(f"insert into st_bigint_e3 values(now, -9223372036854775808)")
-        # tdSql.error(f'insert into st_bigint_e4 values(now, 922337203.6854775808)')
-        # tdSql.error(f'insert into st_bigint_e5 values(now, -922337203685477580.9)')
+        tdSql.execute(f"insert into st_bigint_e4 values(now, 922337203.6854775808)")
+        tdSql.execute(f"insert into st_bigint_e5 values(now, -922337203685477580.9)")
         tdSql.error(f"insert into st_bigint_e6 values(now, 123abc)")
         tdSql.error(f'insert into st_bigint_e7 values(now, "123abc")')
         tdSql.error(f"insert into st_bigint_e9 values(now, abc)")
@@ -444,8 +412,12 @@ class TestBigIntColumn:
         tdSql.error(
             f"insert into st_bigint_e16 using mt_bigint tags(033) values(now, -9923372036854775808)"
         )
-        # tdSql.error(f'insert into st_bigint_e17 using mt_bigint tags(033) values(now, 92233720368547758.08)')
-        # tdSql.error(f'insert into st_bigint_e18 using mt_bigint tags(033) values(now, -92233720368547.75808)')
+        tdSql.execute(
+            f"insert into st_bigint_e17 using mt_bigint tags(033) values(now, 92233720368547758.08)"
+        )
+        tdSql.execute(
+            f"insert into st_bigint_e18 using mt_bigint tags(033) values(now, -92233720368547.75808)"
+        )
         tdSql.error(
             f"insert into st_bigint_e19 using mt_bigint tags(033) values(now, 123abc)"
         )
@@ -477,8 +449,12 @@ class TestBigIntColumn:
         tdSql.error(
             f"insert into st_bigint_e16_0 using mt_bigint tags(-9223372036854775898) values(now, -033)"
         )
-        # tdSql.error(f'insert into st_bigint_e17 using mt_bigint tags(12.80) values(now, -033)')
-        # tdSql.error(f'insert into st_bigint_e18 using mt_bigint tags(-11.80) values(now, -033)')
+        tdSql.execute(
+            f"insert into st_bigint_e17 using mt_bigint tags(12.80) values(now, -033)"
+        )
+        tdSql.execute(
+            f"insert into st_bigint_e18 using mt_bigint tags(-11.80) values(now, -033)"
+        )
         tdSql.error(
             f"insert into st_bigint_e19 using mt_bigint tags(123abc) values(now, -033)"
         )
@@ -495,8 +471,7 @@ class TestBigIntColumn:
             f'insert into st_bigint_e24 using mt_bigint tags(" ") values(now, -033)'
         )
         tdSql.error(
-            f"insert into st_bigint_e25 using mt_bigint tags("
-            ") values(now, -033)"
+            f"insert into st_bigint_e25 using mt_bigint tags(" ") values(now, -033)"
         )
 
         tdSql.execute(

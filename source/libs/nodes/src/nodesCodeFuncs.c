@@ -699,6 +699,7 @@ static const char* jkTableMetaColRefNum = "ColRefNum";
 static const char* jkTableMetaRefCols = "RefCols";
 static const char* jkTableMetaSversion = "Sversion";
 static const char* jkTableMetaTversion = "Tversion";
+static const char* jkTableMetaRversion = "Rversion";
 static const char* jkTableMetaComInfo = "ComInfo";
 static const char* jkTableMetaColSchemas = "ColSchemas";
 
@@ -727,6 +728,9 @@ static int32_t tableMetaToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkTableMetaTversion, pNode->tversion);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkTableMetaRversion, pNode->rversion);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkTableMetaComInfo, tableComInfoToJson, &pNode->tableInfo);
@@ -761,6 +765,9 @@ static int32_t jsonToTableMeta(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     tjsonGetNumberValue(pJson, jkTableMetaTversion, pNode->tversion, code);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkTableMetaRversion, pNode->rversion, code);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonToObject(pJson, jkTableMetaComInfo, jsonToTableComInfo, &pNode->tableInfo);

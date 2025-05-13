@@ -1,22 +1,24 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestSmallintColumn:
+class TestDatatypeSmallint:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
         tdSql.prepare(dbname="db", drop=True)
 
-    def test_static_create_table(self):
-        """static create table
+    def test_datatype_smallint(self):
+        """smallint datatype
 
-        1. 使用 smallint 作为超级表的普通列、标签列
-        2. 当 smallint 作为标签列时，使用合法值、非法值创建子表
-        3. 当 smallint 作为标签列时，测试 show tags 的返回结果
+        1. create table
+        2. insert data
+        3. auto create table
+        4. alter tag value
+        5. illegal input
 
         Catalog:
-            - DataTypes:Smallint
-            - Tables:Create
+            - DataTypes
+            - Tables:SubTables:Create
 
         Since: v3.0.0.0
 
@@ -25,10 +27,16 @@ class TestSmallintColumn:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated from tsim/parser/columnValue_smallint.sim
+            - 2025-5-12 Simon Guan Migrated from tsim/parser/columnValue_smallint.sim
 
         """
+        self.create_table()
+        self.insert_data()
+        self.auto_create_table()
+        self.alter_tag_value()
+        self.illegal_input()
 
+    def create_table(self):
         tdLog.info(f"create super table")
         tdSql.execute(
             f"create table mt_smallint (ts timestamp, c smallint) tags(tagname smallint)"
@@ -96,26 +104,7 @@ class TestSmallintColumn:
         tdSql.query(f"show tags from st_smallint_14")
         tdSql.checkData(0, 5, -78)
 
-    def test_insert_column_value(self):
-        """insert column value
-
-        1. 使用 smallint 作为超级表的普通列、标签列
-        2. 当 smallint 作为普通列时，使用合法值、非法值向子表中写入数据
-
-        Catalog:
-            - DataTypes:Smallint
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def insert_data(self):
         tdLog.info(f"case 1: insert values for test column values")
 
         tdSql.execute(f"insert into st_smallint_0 values(now, NULL)")
@@ -174,26 +163,7 @@ class TestSmallintColumn:
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, -56)
 
-    def test_dynamic_create_table(self):
-        """dynamic create table
-
-        1. 使用 smallint 作为超级表的普通列、标签列
-        2. 使用合法值、非法值向子表中写入数据并自动建表
-
-        Catalog:
-            - DataTypes:Smallint
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def auto_create_table(self):
         tdLog.info(f"case 2: dynamic create table for test tag values")
 
         tdSql.execute(
@@ -314,27 +284,43 @@ class TestSmallintColumn:
         tdSql.query(f"select * from st_smallint_28")
         tdSql.checkData(0, 1, -56)
 
-    def test_alter_tag_value(self):
-        """alter tag value
-
-        1. 使用 smallint 作为超级表的标签列
-        2. 使用合法值、非法值修改子表的标签值
-
-        Catalog:
-            - DataTypes:Smallint
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def alter_tag_value(self):
         tdLog.info(f"case 3: alter tag value")
+
+        tdSql.execute(f"alter table st_smallint_0 set tag tagname=32767")
+        tdSql.query(f"show tags from st_smallint_0")
+        tdSql.checkData(0, 5, 32767)
+
+        tdSql.execute(f"alter table st_smallint_0 set tag tagname=-32767")
+        tdSql.query(f"show tags from st_smallint_0")
+        tdSql.checkData(0, 5, -32767)
+
+        tdSql.execute(f"alter table st_smallint_0 set tag tagname=+100")
+        tdSql.query(f"show tags from st_smallint_0")
+        tdSql.checkData(0, 5, 100)
+
+        tdSql.execute(f"alter table st_smallint_0 set tag tagname=-33")
+        tdSql.query(f"show tags from st_smallint_0")
+        tdSql.checkData(0, 5, -33)
+
+        tdSql.execute(f"alter table st_smallint_0 set tag tagname='+98'")
+        tdSql.query(f"show tags from st_smallint_0")
+        tdSql.checkData(0, 5, 98)
+
+        tdSql.execute(f"alter table st_smallint_0 set tag tagname='-076'")
+        tdSql.query(f"show tags from st_smallint_0")
+        tdSql.checkData(0, 5, -76)
+
+        tdSql.execute(f"alter table st_smallint_0 set tag tagname=+0012")
+        tdSql.query(f"show tags from st_smallint_0")
+        tdSql.checkData(0, 5, 12)
+
+        tdSql.execute(f"alter table st_smallint_0 set tag tagname=-00063")
+        tdSql.query(f"show tags from st_smallint_0")
+        tdSql.checkData(0, 5, -63)
+
+    def illegal_input(self):
+        tdLog.info(f"case 4: illegal input")
 
         tdSql.error(f"create table st_smallint_e0 using mt_smallint tags(32768)")
         tdSql.execute(f"create table st_smallint_e0_0 using mt_smallint tags(-32768)")
@@ -489,25 +475,3 @@ class TestSmallintColumn:
         tdSql.error(f'alter table st_smallint_e24 set tag tagname=" "')
         tdSql.error(f"alter table st_smallint_e25 set tag tagname=''")
         tdSql.execute(f"alter table st_smallint_e26 set tag tagname='123'")
-
-    def test_illegal_input(self):
-        """illegal input
-
-        1. 使用 smallint 作为超级表的标签列
-        2. 使用非法标签值创建子表
-
-        Catalog:
-            - DataTypes:Smallint
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
-        tdLog.info(f"case 4: illegal input")

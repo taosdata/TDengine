@@ -327,3 +327,21 @@ This is because TDengine versions 3.3.5.0 and above support persisting dynamical
 
 **Problem Solution:**
 If you understand the feature of persistent configuration parameters but still wish to load configuration parameters from the configuration file upon restart, you can add `forceReadConfig 1` to the configuration file. This will force TDengine to read configuration parameters from the file.
+
+### 37 I have clearly modified the configuration file, but the configuration parameters haven't taken effect.
+
+**Problem description:**
+In TDengine versions 3.3.5.0 and above, some users may encounter an issue: they have clearly modified a certain configuration parameter in the taos.cfg file, but after restarting, they find that the modification has not taken effect, and no error reports can be found when checking the logs.
+
+**Cause of the problem:**
+This is because TDengine versions 3.3.5.0 and above support the persistence of dynamically modified configuration parameters. That is, the parameters dynamically modified through ALTER will still be effective after a restart. Therefore, in TDengine versions 3.3.5.0 and above, when restarting, it will by default load the configuration parameters (except for dataDir) from dataDir, and will not use the configuration parameters in the taos.cfg file.
+
+**Solution to the problem:**
+If you understand the function of configuration parameter persistence but still want to load the configuration parameters from the configuration file after a restart, you can add forceReadConfig 1 to the configuration file. This will make TDengine forcefully read the configuration parameters from the configuration file.
+
+
+### 38 Database upgrade from version 2.6 to 3.3, When data migration is carried out and data is being written in the business at the same time, will there be serious out-of-order issues?
+
+In this situation, out-of-order issues generally won't occur. First, let's explain what out-of-order means in TDengine. In TDengine, out-of-order refers to the situation where, starting from a timestamp of 0, time windows are cut according to the Duration parameter set in the database (the default is 10 days). The out-of-order phenomenon occurs when the data written in each time window is not written in chronological order. As long as the data written in the same window is in order, even if the writing between windows is not sequential, there will be no out-of-order situation.
+
+Then, looking at the above scenario, when the backfill of old data and the writing of new data are carried out simultaneously, there is generally a large time gap between the old and new data, and they won't fall within the same window. As long as both the old and new data are written in order, there will be no out-of-order phenomenon.

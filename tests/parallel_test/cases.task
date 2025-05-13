@@ -1352,6 +1352,7 @@
 ,,y,script,./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v3.sim
 ,,y,script,./test.sh -f tsim/parser/limit1.sim
 ,,y,script,./test.sh -f tsim/parser/union.sim
+,,y,script,./test.sh -f tsim/parser/ts-6314.sim
 ,,y,script,./test.sh -f tsim/parser/commit.sim
 ,,y,script,./test.sh -f tsim/parser/nestquery.sim
 ,,n,script,./test.sh -f tsim/valgrind/checkError7.sim

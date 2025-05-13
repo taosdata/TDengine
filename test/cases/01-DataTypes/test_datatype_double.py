@@ -1,22 +1,24 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestDoubleColumn:
+class TestDatatypeDouble:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
         tdSql.prepare(dbname="db", drop=True)
 
-    def test_static_create_table(self):
-        """static create table
+    def test_datatype_double(self):
+        """double datatype
 
-        1. 使用 double 作为超级表的普通列、标签列
-        2. 当 double 作为标签列时，使用合法值、非法值创建子表
-        3. 当 double 作为标签列时，测试 show tags 的返回结果
+        1. create table
+        2. insert data
+        3. auto create table
+        4. alter tag value
+        5. illegal input
 
         Catalog:
-            - DataTypes:Double
-            - Tables:Create
+            - DataTypes
+            - Tables:SubTables:Create
 
         Since: v3.0.0.0
 
@@ -25,10 +27,16 @@ class TestDoubleColumn:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated from tsim/parser/columnValue_double.sim
+            - 2025-5-12 Simon Guan Migrated from tsim/parser/columnValue_double.sim
 
         """
+        self.create_table()
+        self.insert_data()
+        self.auto_create_table()
+        self.alter_tag_value()
+        self.illegal_input()
 
+    def create_table(self):
         tdLog.info(f"create super table")
         tdSql.execute(
             f"create table mt_double (ts timestamp, c double) tags(tagname double)"
@@ -136,13 +144,21 @@ class TestDoubleColumn:
             f"create table st_double_15_0 using mt_double tags(1.7976931348623157e+308)"
         )
         tdSql.query(f"show tags from st_double_15_0")
-        # tdSql.checkData(0, 5,  0.001500000 )
+        tdSql.checkData(
+            0,
+            5,
+            "179769313486231570814527423731704356798070567525844996598917476803157260780028538760589558632766878171540458953514382464234321326889464182768467546703537516986049910576551282076245490090389328944075868508455133942304583236903222948165808559332123348274797826204144723168738177180919299881250404026184124858368.000000000",
+        )
 
         tdSql.execute(
             f"create table st_double_16_0 using mt_double tags(-1.7976931348623157e+308)"
         )
         tdSql.query(f"show tags from st_double_16_0")
-        # tdSql.checkData(0, 5,  0.001500000 )
+        tdSql.checkData(
+            0,
+            5,
+            "-179769313486231570814527423731704356798070567525844996598917476803157260780028538760589558632766878171540458953514382464234321326889464182768467546703537516986049910576551282076245490090389328944075868508455133942304583236903222948165808559332123348274797826204144723168738177180919299881250404026184124858368.000000000",
+        )
 
         tdSql.execute(f'create table st_double_100 using mt_double tags("0x01")')
         tdSql.query(f"show tags from st_double_100")
@@ -176,26 +192,7 @@ class TestDoubleColumn:
         tdSql.query(f"show tags from st_double_203")
         tdSql.checkData(0, 5, "-1.000000000")
 
-    def test_insert_column_value(self):
-        """insert column value
-
-        1. 使用 double 作为超级表的普通列、标签列
-        2. 当 double 作为普通列时，使用合法值、非法值向子表中写入数据
-
-        Catalog:
-            - DataTypes:Double
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def insert_data(self):
         tdLog.info(f"case 1: insert values for test column values")
 
         tdSql.execute(f"insert into st_double_0 values(now, NULL )")
@@ -231,24 +228,22 @@ class TestDoubleColumn:
         tdSql.execute(f"insert into st_double_6 values(now, 1.7976931348623157e+308)")
         tdSql.query(f"select * from st_double_6")
         tdSql.checkRows(1)
-        # tdSql.checkData(0, 1, 340282346638528859811704183484516925440.00000 )
+        tdSql.checkData(0, 1, 1.7976931348623157e+308)
 
-        tdSql.execute(
-            f"insert into st_double_7 values(now, -1.7976931348623157e+308)"
-        )
+        tdSql.execute(f"insert into st_double_7 values(now, -1.7976931348623157e+308)")
         tdSql.query(f"select * from st_double_7")
         tdSql.checkRows(1)
-        # tdSql.checkData(0, 1, -340282346638528859811704183484516925440.00000 )
+        tdSql.checkData(0, 1, -1.7976931348623157e+308)
 
         tdSql.execute(f"insert into st_double_8 values(now, +100.89)")
         tdSql.query(f"select * from st_double_8")
         tdSql.checkRows(1)
-        # tdSql.checkData(0, 1, 100.89000000 )
+        tdSql.checkData(0, 1, 100.89000000)
 
         tdSql.execute(f'insert into st_double_9 values(now, "-0.98")')
         tdSql.query(f"select * from st_double_9")
         tdSql.checkRows(1)
-        # tdSql.checkData(0, 1, -0.980000000 )
+        tdSql.checkData(0, 1, -0.980000000)
 
         tdSql.execute(f"insert into st_double_10 values(now, '0')")
         tdSql.query(f"select * from st_double_10")
@@ -261,17 +256,17 @@ class TestDoubleColumn:
         tdSql.execute(f'insert into st_double_12 values(now, "+056")')
         tdSql.query(f"select * from st_double_12")
         tdSql.checkRows(1)
-        # tdSql.checkData(0, 1, 56.000000 )
+        tdSql.checkData(0, 1, 56.000000)
 
         tdSql.execute(f"insert into st_double_13 values(now, +056)")
         tdSql.query(f"select * from st_double_13")
         tdSql.checkRows(1)
-        # tdSql.checkData(0, 1, 56.000000000 )
+        tdSql.checkData(0, 1, 56.000000000)
 
         tdSql.execute(f"insert into st_double_14 values(now, -056)")
         tdSql.query(f"select * from st_double_14")
         tdSql.checkRows(1)
-        # tdSql.checkData(0, 1, -56 )
+        tdSql.checkData(0, 1, -56)
 
         tdSql.execute(f'insert into  st_double_100 values(now, "0x01")')
         tdSql.query(f"select * from st_double_100")
@@ -313,26 +308,7 @@ class TestDoubleColumn:
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, -1.000000000)
 
-    def test_dynamic_create_table(self):
-        """dynamic create table
-
-        1. 使用 double 作为超级表的普通列、标签列
-        2. 使用合法值、非法值向子表中写入数据并自动建表
-
-        Catalog:
-            - DataTypes:Double
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def auto_create_table(self):
         tdLog.info(f"case 2: dynamic create table for test tag values")
 
         tdSql.execute(
@@ -393,19 +369,19 @@ class TestDoubleColumn:
             f"insert into st_double_22 using mt_double tags(127) values(now, 1.7976931348623157e+308)"
         )
         tdSql.query(f"show tags from st_double_22")
-        # tdSql.checkData(0, 5,  127 )
+        tdSql.checkData(0, 5, "127.000000000")
 
         tdSql.query(f"select * from st_double_22")
-        # tdSql.checkData(0, 1, 127 )
+        tdSql.checkData(0, 1, 1.7976931348623157e+308)
 
         tdSql.execute(
             f"insert into st_double_23 using mt_double tags(-127) values(now, -1.7976931348623157e+308)"
         )
         tdSql.query(f"show tags from st_double_23")
-        # tdSql.checkData(0, 5,  -127 )
+        tdSql.checkData(0, 5, "-127.000000000")
 
         tdSql.query(f"select * from st_double_23")
-        # tdSql.checkData(0, 1, -127 )
+        tdSql.checkData(0, 1, -1.7976931348623157e+308)
 
         tdSql.execute(
             f"insert into st_double_24 using mt_double tags(10) values(now, 10)"
@@ -413,7 +389,7 @@ class TestDoubleColumn:
         tdSql.query(f"show tags from st_double_24")
 
         tdSql.query(f"select * from st_double_24")
-        # tdSql.checkData(0, 1, 10 )
+        tdSql.checkData(0, 1, 10)
 
         tdSql.execute(
             f'insert into st_double_25 using mt_double tags("-0") values(now, "-0")'
@@ -421,34 +397,34 @@ class TestDoubleColumn:
         tdSql.query(f"show tags from st_double_25")
 
         tdSql.query(f"select * from st_double_25")
-        # tdSql.checkData(0, 1, 0 )
+        tdSql.checkData(0, 1, 0)
 
         tdSql.execute(
             f"insert into st_double_26 using mt_double tags('123') values(now, '12.3')"
         )
         tdSql.query(f"show tags from st_double_26")
-        # tdSql.checkData(0, 5,  123 )
+        tdSql.checkData(0, 5, "123.000000000")
 
         tdSql.query(f"select * from st_double_26")
-        # tdSql.checkData(0, 1, 123 )
+        tdSql.checkData(0, 1, 12.3 )
 
         tdSql.execute(
             f"insert into st_double_27 using mt_double tags(+056) values(now, +0005.6)"
         )
         tdSql.query(f"show tags from st_double_27")
-        # tdSql.checkData(0, 5,  56 )
+        tdSql.checkData(0, 5, "56.000000000")
 
         tdSql.query(f"select * from st_double_27")
-        # tdSql.checkData(0, 1, 56 )
+        tdSql.checkData(0, 1, 5.6)
 
         tdSql.execute(
             f"insert into st_double_28 using mt_double tags(-056) values(now, -005.6)"
         )
         tdSql.query(f"show tags from st_double_28")
-        # tdSql.checkData(0, 5,  -56 )
+        tdSql.checkData(0, 5, "-56.000000000")
 
         tdSql.query(f"select * from st_double_28")
-        # tdSql.checkData(0, 1, -56 )
+        tdSql.checkData(0, 1, -5.6)
 
         tdSql.execute(
             f'insert into st_double_100 using mt_double tags("0x01") values(now, "0x01")'
@@ -522,26 +498,7 @@ class TestDoubleColumn:
         tdSql.query(f"select * from st_double_203")
         tdSql.checkData(0, 1, -1.000000000)
 
-    def test_alter_tag_value(self):
-        """alter tag value
-
-        1. 使用 double 作为超级表的标签列
-        2. 使用合法值、非法值修改子表的标签值
-
-        Catalog:
-            - DataTypes:Double
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def alter_tag_value(self):
         tdLog.info(f"case 3: alter tag value")
 
         tdSql.execute(f'alter table st_double_100 set tag tagname="0x01"')
@@ -576,26 +533,7 @@ class TestDoubleColumn:
         tdSql.query(f"show tags from st_double_203")
         tdSql.checkData(0, 5, "-1.000000000")
 
-    def test_illegal_input(self):
-        """illegal input
-
-        1. 使用 double 作为超级表的标签列
-        2. 使用非法标签值创建子表
-
-        Catalog:
-            - DataTypes:Double
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def illegal_input(self):
         tdLog.info(f"case 4: illegal input")
 
         tdSql.error(
@@ -610,8 +548,11 @@ class TestDoubleColumn:
         tdSql.error(
             f"create table st_double_e0 using mt_double tags(-31.7976931348623157e+308)"
         )
-        # tdSql.error(f'create table st_double_e0 using mt_double tags(12.80)   truncate integer part
-        # tdSql.error(f'create table st_double_e0 using mt_double tags(-11.80)
+        # truncate integer part
+        tdSql.execute(f"create table st_double_e0 using mt_double tags(12.80)")
+        tdSql.execute(f"drop table st_double_e0")
+        tdSql.execute(f"create table st_double_e0 using mt_double tags(-11.80)")
+        tdSql.execute(f"drop table st_double_e0")
         tdSql.error(f"create table st_double_e0 using mt_double tags(123abc)")
         tdSql.error(f'create table st_double_e0_1 using mt_double tags("123abc")')
         tdSql.error(f"create table st_double_e0 using mt_double tags(abc)")
@@ -634,17 +575,11 @@ class TestDoubleColumn:
         tdSql.execute(f"create table st_double_e12 using mt_double tags(123)")
 
         tdSql.error(f"insert into st_double_e0 values(now, 11.7976931348623157e+308)")
-        tdSql.error(
-            f"insert into st_double_e1 values(now, -11.7976931348623157e+308)"
-        )
-        tdSql.error(
-            f"insert into st_double_e2 values(now, 111.7976931348623157e+308)"
-        )
-        tdSql.error(
-            f"insert into st_double_e3 values(now, -111.7976931348623157e+308)"
-        )
-        # tdSql.error(f'insert into st_double_e4 values(now, 12.80)')
-        # tdSql.error(f'insert into st_double_e5 values(now, -11.80)')
+        tdSql.error(f"insert into st_double_e1 values(now, -11.7976931348623157e+308)")
+        tdSql.error(f"insert into st_double_e2 values(now, 111.7976931348623157e+308)")
+        tdSql.error(f"insert into st_double_e3 values(now, -111.7976931348623157e+308)")
+        tdSql.execute(f"insert into st_double_e4 values(now, 12.80)")
+        tdSql.execute(f"insert into st_double_e5 values(now, -11.80)")
         tdSql.error(f"insert into st_double_e6 values(now, 123abc)")
         tdSql.error(f'insert into st_double_e7 values(now, "123abc")')
         tdSql.error(f"insert into st_double_e9 values(now, abc)")
@@ -664,8 +599,12 @@ class TestDoubleColumn:
         tdSql.error(
             f"insert into st_double_e16 using mt_double tags(033) values(now, -131.7976931348623157e+308)"
         )
-        # tdSql.error(f'insert into st_double_e17 using mt_double tags(033) values(now, 12.80)')
-        # tdSql.error(f'insert into st_double_e18 using mt_double tags(033) values(now, -11.80)')
+        tdSql.execute(
+            f"insert into st_double_e17 using mt_double tags(033) values(now, 12.80)"
+        )
+        tdSql.execute(
+            f"insert into st_double_e18 using mt_double tags(033) values(now, -11.80)"
+        )
         tdSql.error(
             f"insert into st_double_e19 using mt_double tags(033) values(now, 123abc)"
         )
@@ -697,8 +636,12 @@ class TestDoubleColumn:
         tdSql.error(
             f"insert into st_double_e16 using mt_double tags(-131.7976931348623157e+308) values(now, -033)"
         )
-        # tdSql.error(f'insert into st_double_e17 using mt_double tags(12.80) values(now, -033)')
-        # tdSql.error(f'insert into st_double_e18 using mt_double tags(-11.80) values(now, -033)')
+        tdSql.execute(
+            f"insert into st_double_e17 using mt_double tags(12.80) values(now, -033)"
+        )
+        tdSql.execute(
+            f"insert into st_double_e18 using mt_double tags(-11.80) values(now, -033)"
+        )
         tdSql.error(
             f"insert into st_double_e19 using mt_double tags(123abc) values(now, -033)"
         )
@@ -715,8 +658,7 @@ class TestDoubleColumn:
             f'insert into st_double_e24 using mt_double tags(" ") values(now, -033)'
         )
         tdSql.error(
-            f"insert into st_double_e25 using mt_double tags("
-            ") values(now, -033)"
+            f"insert into st_double_e25 using mt_double tags(" ") values(now, -033)"
         )
         tdSql.execute(
             f'insert into st_double_e20 using mt_double tags("123") values(now, -033)'

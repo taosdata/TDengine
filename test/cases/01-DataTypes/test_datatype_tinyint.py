@@ -1,22 +1,24 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestTinyintColumn:
+class TestDatatypeTinyint:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
         tdSql.prepare(dbname="db", drop=True)
 
-    def test_static_create_table(self):
-        """static create table
+    def test_datatype_tinyint(self):
+        """tinyint datatype
 
-        1. 使用 tinyint 作为超级表的普通列、标签列
-        2. 当 tinyint 作为标签列时，使用合法值、非法值创建子表
-        3. 当 tinyint 作为标签列时，测试 show tags 的返回结果
+        1. create table
+        2. insert data
+        3. auto create table
+        4. alter tag value
+        5. illegal input
 
         Catalog:
-            - DataTypes:Tinyint
-            - Tables:Create
+            - DataTypes
+            - Tables:SubTables:Create
 
         Since: v3.0.0.0
 
@@ -25,10 +27,16 @@ class TestTinyintColumn:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated from tsim/parser/columnValue_tinyint.sim
+            - 2025-5-12 Simon Guan Migrated from tsim/parser/columnValue_tinyint.sim
 
         """
+        self.create_table()
+        self.insert_data()
+        self.auto_create_table()
+        self.alter_tag_value()
+        self.illegal_input()
 
+    def create_table(self):
         tdLog.info(f"create super table")
         tdSql.execute(
             f"create table mt_tinyint (ts timestamp, c tinyint) tags(tagname tinyint)"
@@ -96,26 +104,7 @@ class TestTinyintColumn:
         tdSql.query(f"show tags from st_tinyint_14")
         tdSql.checkData(0, 5, -78)
 
-    def test_insert_column_value(self):
-        """insert column value
-
-        1. 使用 tinyint 作为超级表的普通列、标签列
-        2. 当 tinyint 作为普通列时，使用合法值、非法值向子表中写入数据
-
-        Catalog:
-            - DataTypes:Tinyint
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def insert_data(self):
         tdLog.info(f"case 1: insert values for test column values")
 
         tdSql.execute(f"insert into st_tinyint_0 values(now, NULL)")
@@ -193,26 +182,7 @@ class TestTinyintColumn:
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, -56)
 
-    def test_dynamic_create_table(self):
-        """dynamic create table
-
-        1. 使用 tinyint 作为超级表的普通列、标签列
-        2. 使用合法值、非法值向子表中写入数据并自动建表
-
-        Catalog:
-            - DataTypes:Tinyint
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def auto_create_table(self):
         tdLog.info(f"case 2: dynamic create table for test tag values")
 
         tdSql.execute(
@@ -333,48 +303,74 @@ class TestTinyintColumn:
         tdSql.query(f"select * from st_tinyint_28")
         tdSql.checkData(0, 1, -56)
 
-    def test_alter_tag_value(self):
-        """alter tag value
-
-        1. 使用 tinyint 作为超级表的标签列
-        2. 使用合法值、非法值修改子表的标签值
-
-        Catalog:
-            - DataTypes:Tinyint
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
-
-        """
-
+    def alter_tag_value(self):
         tdLog.info(f"case 3: alter tag value")
 
-    def test_illegal_input(self):
-        """illegal input
+        tdSql.execute(f"alter table st_tinyint_0 set tag tagname=127")
+        tdSql.query(f"show tags from  st_tinyint_0")
+        tdSql.checkData(0, 5, 127)
 
-        1. 使用 tinyint 作为超级表的标签列
-        2. 使用非法标签值创建子表
+        tdSql.execute(f"alter table st_tinyint_0 set tag tagname=-127")
+        tdSql.query(f"show tags from  st_tinyint_0")
+        tdSql.checkData(0, 5, -127)
 
-        Catalog:
-            - DataTypes:Tinyint
+        tdSql.execute(f"alter table st_tinyint_0 set tag tagname=+100")
+        tdSql.query(f"show tags from  st_tinyint_0")
+        tdSql.checkData(0, 5, 100)
 
-        Since: v3.0.0.0
+        tdSql.execute(f"alter table st_tinyint_0 set tag tagname=-33")
+        tdSql.query(f"show tags from  st_tinyint_0")
+        tdSql.checkData(0, 5, -33)
 
-        Labels: common,ci
+        tdSql.execute(f"alter table st_tinyint_0 set tag tagname='+98'")
+        tdSql.query(f"show tags from  st_tinyint_0")
+        tdSql.checkData(0, 5, 98)
 
-        Jira: None
+        tdSql.execute(f"alter table st_tinyint_0 set tag tagname='-076'")
+        tdSql.query(f"show tags from  st_tinyint_0")
+        tdSql.checkData(0, 5, -76)
 
-        History:
-            - 2025-4-28 Simon Guan Migrated to new test framework
+        tdSql.execute(f"alter table st_tinyint_0 set tag tagname=+0012")
+        tdSql.query(f"show tags from  st_tinyint_0")
+        tdSql.checkData(0, 5, 12)
 
-        """
+        tdSql.execute(f"alter table st_tinyint_0 set tag tagname=-00063")
+        tdSql.query(f"show tags from  st_tinyint_0")
+        tdSql.checkData(0, 5, -63)
 
+        tdSql.execute(f"alter table st_tinyint_0 set tag tagname=127")
+        tdSql.query(f"show tags from  st_tinyint_0")
+        tdSql.checkData(0, 5, 127)
+
+        tdSql.execute(f"alter table st_tinyint_0 set tag tagname=-127")
+        tdSql.query(f"show tags from  st_tinyint_0")
+        tdSql.checkData(0, 5, -127)
+
+        tdSql.execute(f"alter table st_tinyint_0 set tag tagname=+100")
+        tdSql.query(f"show tags from  st_tinyint_0")
+        tdSql.checkData(0, 5, 100)
+
+        tdSql.execute(f"alter table st_tinyint_0 set tag tagname=-33")
+        tdSql.query(f"show tags from  st_tinyint_0")
+        tdSql.checkData(0, 5, -33)
+
+        tdSql.execute(f"alter table st_tinyint_0 set tag tagname='+98'")
+        tdSql.query(f"show tags from  st_tinyint_0")
+        tdSql.checkData(0, 5, 98)
+
+        tdSql.execute(f"alter table st_tinyint_0 set tag tagname='-076'")
+        tdSql.query(f"show tags from  st_tinyint_0")
+        tdSql.checkData(0, 5, -76)
+
+        tdSql.execute(f"alter table st_tinyint_0 set tag tagname=+0012")
+        tdSql.query(f"show tags from  st_tinyint_0")
+        tdSql.checkData(0, 5, 12)
+
+        tdSql.execute(f"alter table st_tinyint_0 set tag tagname=-00063")
+        tdSql.query(f"show tags from  st_tinyint_0")
+        tdSql.checkData(0, 5, -63)
+
+    def illegal_input(self):
         tdLog.info(f"case 4: illegal input")
 
         tdSql.error(f"create table st_tinyint_e0 using mt_tinyint tags(128)")
