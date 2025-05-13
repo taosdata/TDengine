@@ -224,7 +224,7 @@ int taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const voi
 
 // this function may be called by user or system, or by both simultaneously.
 void taos_cleanup(void) {
-  tscDebug("start to cleanup client environment");
+  tscInfo("start to cleanup client environment");
   if (atomic_val_compare_exchange_32(&sentinel, TSC_VAR_NOT_RELEASE, TSC_VAR_RELEASED) != TSC_VAR_NOT_RELEASE) {
     return;
   }
