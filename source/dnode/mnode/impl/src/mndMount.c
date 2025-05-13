@@ -681,17 +681,45 @@ static int32_t mndSetCreateMountCommitLogs(SMnode *pMnode, STrans *pTrans, SMoun
   TAOS_RETURN(code);
 }
 
-static int32_t mndAddCreateMountRetrieveDbAction(SMnode *pMnode, STrans *pTrans, SMountObj *pObj, int32_t index) {
+void *mndBuildRetrieveMountPathReq(SMnode *pMnode, const char *mountName, const char *mountPath, int32_t dnodeId,
+                                   int32_t *pContLen) {
+  int32_t code = 0, lino = 0;
+  void   *pReq = NULL;
+
+  SRetrieveMountPathReq req = {0};
+  req.dnodeId = dnodeId;
+  memcpy(req.mountName, mountName, TSDB_MOUNT_NAME_LEN);
+  memcpy(req.mountPath, mountPath, TSDB_MOUNT_PATH_LEN);
+
+  int32_t contLen = tSerializeSRetrieveMountPathReq(NULL, 0, &req);
+  TAOS_CHECK_EXIT(contLen);
+  TSDB_CHECK_NULL((pReq = taosMemoryMalloc(contLen)), code, lino, _exit, terrno);
+  TAOS_CHECK_EXIT(tSerializeSRetrieveMountPathReq(pReq, contLen, &req));
+_exit:
+  if (code != 0) {
+    taosMemoryFree(pReq);
+    terrno = code;
+    return NULL;
+  }
+  *pContLen = contLen;
+  return pReq;
+}
+
+static int32_t mndAddCreateMountRetrieveDbAction(SMnode *pMnode, STrans *pTrans, SMountObj *pObj, int32_t idx) {
   int32_t      code = 0;
   STransAction action = {0};
 
-  SDnodeObj *pDnode = mndAcquireDnode(pMnode, pObj->dnodeIds[index]);
-  if (pDnode == NULL) return -1;
+  SDnodeObj *pDnode = mndAcquireDnode(pMnode, pObj->dnodeIds[idx]);
+  if (pDnode == NULL) TAOS_RETURN(terrno);
+  if (pDnode->offlineReason != DND_REASON_ONLINE) {
+    mndReleaseDnode(pMnode, pDnode);
+    TAOS_RETURN(TSDB_CODE_DNODE_OFFLINE);  // TODO: check when offline, if mndAcquireDnode return NULL is enough
+  }
   action.epSet = mndGetDnodeEpset(pDnode);
   mndReleaseDnode(pMnode, pDnode);
 
   int32_t contLen = 0;
-  void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
+  void   *pReq = mndBuildRetrieveMountPathReq(pMnode, pObj->name, pObj->paths[idx], pDnode->id, &contLen);
   if (pReq == NULL) return -1;
 
   action.pCont = pReq;
@@ -708,17 +736,8 @@ static int32_t mndAddCreateMountRetrieveDbAction(SMnode *pMnode, STrans *pTrans,
 
 static int32_t mndSetCreateMountRedoActions(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
   int32_t code = 0;
-  // for (int32_t vg = 0; vg < pDb->cfg.numOfVgroups; ++vg) {
-  //   SVgObj *pVgroup = pVgroups + vg;
-
-  //   for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
-  //     SVnodeGid *pVgid = pVgroup->vnodeGid + vn;
-  //     TAOS_CHECK_RETURN(mndAddCreateVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid));
-  //   }
-  // }
-  for (int32_t i = 0; i < pObj->nMounts; i++) {
-    SVnodeGid *pVgid = pObj->dnodeIds + i;
-    mndAddCreateVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid);
+  for (int32_t i = 0; i < pObj->nMounts; ++i) {
+    mndAddCreateMountRetrieveDbAction(pMnode, pTrans, pObj, i);
   }
   TAOS_RETURN(code);
 }
