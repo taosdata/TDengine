@@ -409,11 +409,17 @@ install_package() {
 # Install package via apt
 install_via_apt() {
     echo -e "${YELLOW}Installing packages: $*...${NO_COLOR}"
-    if DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" "$@"; then
-        echo -e "${GREEN}Installed packages successfully.${NO_COLOR}"
-    else
-        echo -e "${RED}Failed to install packages.${NO_COLOR}"
-        return 1
+    if ! DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" "$@"; then
+        if ! DEBIAN_FRONTEND=noninteractive apt-get install -y --fix-missing -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" "$@"; then
+            echo "Attempting to update and install $package..."
+            apt update -y
+            if DEBIAN_FRONTEND=noninteractive apt-get install -y --fix-missing -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" "$@"; then
+                    echo -e "${GREEN}Installed packages successfully.${NO_COLOR}"
+            else
+                    echo -e "${RED}Failed to install packages.${NO_COLOR}"
+                    return 1
+            fi
+        fi
     fi
 }
 
@@ -942,7 +948,7 @@ install_java() {
     add_config_if_not_exist "export PATH=\$PATH:\$JAVA_HOME/bin" "$BASH_RC"
     # shellcheck source=/dev/null
     export JAVA_HOME=/usr/local/jdk-${JDK_VERSION_NUM}
-    export PATH=$PATH:$JAVA_HOME/bin
+    export PATH=$JAVA_HOME/bin:$PATH
     INSTALLED_VERSION=$("$JAVA_HOME"/bin/java --version 2>&1)
     if echo "$INSTALLED_VERSION" | grep -q "openjdk $DEFAULT_JDK_VERSION"; then
         echo -e "${GREEN}Java installed successfully.${NO_COLOR}"

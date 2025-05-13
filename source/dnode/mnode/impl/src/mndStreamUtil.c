@@ -847,20 +847,17 @@ int32_t mndCreateSetConsensusChkptIdTrans(SMnode *pMnode, SStreamObj *pStream, i
 
   code = mndStreamRegisterTrans(pTrans, MND_STREAM_CHKPT_CONSEN_NAME, pStream->uid);
   if (code) {
-    sdbRelease(pMnode->pSdb, pStream);
     return code;
   }
 
   code = mndStreamSetChkptIdAction(pMnode, pTrans, pStream, checkpointId, pList);
   if (code != 0) {
-    sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return code;
   }
 
   code = mndPersistTransLog(pStream, pTrans, SDB_STATUS_READY);
   if (code) {
-    sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return code;
   }
@@ -870,14 +867,11 @@ int32_t mndCreateSetConsensusChkptIdTrans(SMnode *pMnode, SStreamObj *pStream, i
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("trans:%d, failed to prepare set consensus-chkptId trans for stream:0x%" PRId64 " since %s", pTrans->id,
            pStream->uid, tstrerror(code));
-    sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return code;
   }
 
-  sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);
-
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
@@ -1044,7 +1038,8 @@ static int32_t isAllTaskPaused(SStreamObj *pStream, bool *pRes) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   SStreamTaskIter *pIter = NULL;
-  bool             isPaused =  true;
+  bool             isPaused = true;
+  int32_t          num = 0;
 
   taosRLockLatch(&pStream->lock);
   code = createStreamTaskIter(pStream, &pIter);
@@ -1060,11 +1055,22 @@ static int32_t isAllTaskPaused(SStreamObj *pStream, bool *pRes) {
     if (pe == NULL) {
       continue;
     }
+
     if (pe->status != TASK_STATUS__PAUSE) {
       isPaused = false;
+      mInfo("stream:0x%" PRIx64 " taskId:0x%" PRIx64 ", status:%d not paused, stream status not paused",
+            pe->id.streamId, pe->id.taskId, pe->status);
+    } else {
+      mInfo("stream:0x%" PRIx64 " taskId:0x%" PRIx64 ", status: paused, stream status paused", pe->id.streamId,
+            pe->id.taskId);
     }
+
+    num += 1;
   }
-  (*pRes) = isPaused;
+
+  if (num > 0) {
+    (*pRes) = isPaused;
+  }
 
 _end:
   destroyStreamTaskIter(pIter);

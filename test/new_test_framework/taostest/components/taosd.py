@@ -115,11 +115,8 @@ class TaosD:
                 start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']} 2>{error_output}"
             else:
                 start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']}  "
-        self._remote.cmd(cfg["fqdn"],
-                         ["ulimit -n 1048576",
-                          start_cmd,
-                          "sleep 0.1",
-                          "taos -c {0} -s \"{1}\";".format(dnode["config_dir"], createDnode)])
+
+        self._remote.cmd(cfg["fqdn"], ["ulimit -n 1048576", start_cmd])
         
         if self.taosd_valgrind == 0:
             time.sleep(0.1)
@@ -345,7 +342,7 @@ class TaosD:
                             self._remote.cmd(fqdn, killCmd)
                     else:
                         killCmd = [
-                            "ps -ef | grep -wi %s | grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1" % nodeDict["name"]]
+                            f"ps -ef | grep -wi {nodeDict['name']} | grep {i['config_dir']} | grep -v grep | awk '{{print $2}}' | xargs kill -9 > /dev/null"]
                         self._remote.cmd(fqdn, killCmd)
                     if self.taosd_valgrind and not self.taosc_valgrind:
                         killCmd = [

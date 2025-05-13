@@ -17,7 +17,7 @@ from fabric2 import Connection, Result
 
 
 from ..logger import Logger
-
+from ...utils.log import tdLog
 
 class Remote:
     def __init__(self, logger):
@@ -64,7 +64,10 @@ class Remote:
             cmd_line = " & ".join(cmd_list)
         else:
             cmd_line = cmd_list
-        self._logger.info("cmd on %s: %s", host, cmd_line)
+        if "taos" in cmd_line:
+            tdLog.info("cmd on %s: %s", host, cmd_line)
+        else:
+            tdLog.debug("cmd on %s: %s", host, cmd_line)
         # 执行本地shell命令
         if host == self._local_host or host == "localhost":
             if error_output is None:
@@ -73,7 +76,7 @@ class Remote:
                 with open(error_output, "a") as f:
                     result = await asyncio.to_thread(subprocess.run, cmd_line, shell=True, stdout=f, stderr=f)
             if result.returncode != 0:
-                self._logger.error(result.stderr.decode())
+                tdLog.error(result.stderr.decode())
                 return None
             return result.stdout.decode().strip()
         # 执行远程shell命令
@@ -203,7 +206,7 @@ class Remote:
             return c.run(cmd_line, warn=True)
 
     def put(self, host, file, path, password="") -> bool:
-        self._logger.info("put %s to %s:%s", file, host, path)
+        self._logger.debug("put %s to %s:%s", file, host, path)
         if host == platform.node() or host == "localhost":
             os.system("mkdir -p {0}".format(path))
             os.system("cp -rf {0} {1}".format(file, path))

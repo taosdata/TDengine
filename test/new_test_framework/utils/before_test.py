@@ -11,9 +11,8 @@ import logging
 import socket
 import configparser
 import shutil
-#from utils.log import testLog
 from .sql import tdSql
-from .log import testLog, tdLog
+from .log import tdLog
 from .server.cluster import cluster, clusterDnodes
 from .server.dnodes import tdDnodes
 from .taosadapter import tAdapter
@@ -34,7 +33,8 @@ class BeforeTest:
         self.config = {}
         for section in temp_config.sections():
             self.config[section] = dict(temp_config.items(section))
-        testLog.debug(f"config_: {self.config}")
+        tdLog.debug(f"config_: {self.config}")
+        self.log_level = request.config.getoption("--log-level").lower() if request.config.getoption("--log-level") else "info"
     def install_taos(self):
         pass
 
@@ -54,7 +54,7 @@ class BeforeTest:
         
         # 检查目录是否存在
         if not all(os.path.exists(d) for d in required_dirs):
-            testLog.debug("Required directories do not exist. Initializing...")
+            tdLog.debug("Required directories do not exist. Initializing...")
             # 调用初始化命令
             try:
                 #process = subprocess.Popen([sys.executable, "taostest", "--init"],
@@ -70,18 +70,18 @@ class BeforeTest:
                 #process.wait()
                 result = taostest.main({"test_root": self.root_dir, "init": True})
                 if result != 0:
-                    testLog.error(f"Error run taostest --init: {result}")
+                    tdLog.error(f"Error run taostest --init: {result}")
             except Exception as e:
-                testLog.exit(f"Error run taostest --init: {e}")
+                tdLog.exit(f"Error run taostest --init: {e}")
 
-        testLog.debug(f"Deploying environment with config: {yaml_file}")
+        tdLog.debug(f"Deploying environment with config: {yaml_file}")
         try:
             #subprocess.run([sys.executable, f"taostest --setup {yaml_file} --mnode-count {mnodes_num}"], check=True, text=True, shell=True, env=env_vars)
-            result = taostest.main({"test_root": self.root_dir, "setup": yaml_file, "mnode_count": mnodes_num})
+            result = taostest.main({"test_root": self.root_dir, "setup": yaml_file, "mnode_count": mnodes_num, "log_level": self.log_level})
             if result != 0:
-                testLog.error(f"Error run taostest --setup {yaml_file} --mnode-count {mnodes_num}: {result}")
+                tdLog.error(f"Error run taostest --setup {yaml_file} --mnode-count {mnodes_num}: {result}")
         except Exception as e:
-            testLog.error(f"Exception run taostest --setup {yaml_file} --mnode-count {mnodes_num}: {e}")
+            tdLog.error(f"Exception run taostest --setup {yaml_file} --mnode-count {mnodes_num}: {e}")
 
     def configure_test(self, yaml_file):
 
@@ -113,7 +113,7 @@ class BeforeTest:
             dnode_info['logDir'] = dnode['config']['logDir']
             dnode_info['config_dir'] = dnode['config_dir']
             denodes.append(dnode_info)
-        testLog.debug(f"[BeforeTest.configure_test] dnodes: {denodes}")
+        tdLog.debug(f"[BeforeTest.configure_test] dnodes: {denodes}")
         request.session.denodes = denodes
         self.denodes = denodes
 
@@ -122,13 +122,13 @@ class BeforeTest:
         '''
         创建module级别的数据库
         '''
-        testLog.debug(f"[BeforeTest.create_database] Creating database: {db_name}")
+        tdLog.debug(f"[BeforeTest.create_database] Creating database: {db_name}")
         try:
             conn = taos.connect(host=host, port=port)
             tdSql = self.get_tdsql(conn)
             tdSql.create_database(db_name, drop=False)
         except Exception as e:
-            testLog.error(f"[BeforeTest.create_database] Error create database: {e}")
+            tdLog.error(f"[BeforeTest.create_database] Error create database: {e}")
         finally:
             conn.close()
 
@@ -150,9 +150,9 @@ class BeforeTest:
             #subprocess.run([sys.executable, f"taostest --destroy {yaml_file}"], check=True, text=True, shell=True, env=env_vars)
             result = taostest.main({"test_root": self.root_dir, "destroy": yaml_file})
             if result != 0:
-                testLog.error(f"[BeforeTest.destroy] Error run taostest --destroy: {result}")
+                tdLog.error(f"[BeforeTest.destroy] Error run taostest --destroy: {result}")
         except Exception as e:
-            testLog.error(f"[BeforeTest.destroy] Error run taostest --destroy: {e}")
+            tdLog.error(f"[BeforeTest.destroy] Error run taostest --destroy: {e}")
         
     def get_config_from_param(self, request):
         work_dir = request.session.work_dir
@@ -163,16 +163,16 @@ class BeforeTest:
         cfg_path = os.path.join(work_dir, 'cfg')
         #bin_path = os.path.dirname(self.getPath("taosd"))
         lib_path = os.path.join(os.path.dirname(request.session.taos_bin_path), 'lib')
-        testLog.debug(f"lib_path: {lib_path}")
+        tdLog.debug(f"lib_path: {lib_path}")
         #os.environ["LD_LIBRARY_PATH"] = f"{lib_path}:{os.environ['LD_LIBRARY_PATH']}"
         #if os.path.exists(f"{lib_path}/libtaos.so") and lib_path != "/usr/lib":
         #    libso_file = os.path.basename(subprocess.check_output([f"ls -l {lib_path}/libtaos.so.3.3* | awk '{{print $9}}'"], shell=True).splitlines()[0].decode())
-        #    testLog.debug(f"libso_file: {libso_file}")
+        #    tdLog.debug(f"libso_file: {libso_file}")
         #    subprocess.run([f"rm -rf /usr/lib/libtaos.so && ln -s {lib_path}/libtaos.so /usr/lib/libtaos.so"], check=True, text=True, shell=True)
         #    subprocess.run([f"rm -rf /usr/lib/libtaos.so.1 && ln -s {lib_path}/{libso_file} /usr/lib/libtaos.so.1"], check=True, text=True, shell=True)
         # os.environ["LIB_PATH"]= f"{lib_path}:{os.environ['LIB_PATH']}"
         #os.environ["LIBRARY_PATH"]= f"{lib_path}:{os.environ['LIBRARY_PATH']}"
-        #testLog.info(f"os.environ: {os.environ}")
+        #tdLog.info(f"os.environ: {os.environ}")
         yaml_data = {
             "settings": [{
                 "name": "taosd",
@@ -234,7 +234,7 @@ class BeforeTest:
                     "telemetryReporting": 0
                 }
             }
-            testLog.debug(f"[BeforeTest.ci_init_config] dnode: {dnode}")
+            tdLog.debug(f"[BeforeTest.ci_init_config] dnode: {dnode}")
             if request.session.query_policy > 1:
                 dnode["config"]["queryPolicy"] = request.session.query_policy
             if request.session.independentMnode and i < request.session.mnodes_num:
@@ -445,7 +445,7 @@ class BeforeTest:
         request.session.yaml_data = yaml_data
         request.session.adapter = adapter
 
-        request.session.taoskepper = taoskeeper
+        request.session.taoskeper = taoskeeper
 
         if servers[0]["taosd_path"] is not None:
             request.session.taos_bin_path = servers[0]["taosd_path"]
@@ -477,6 +477,7 @@ class BeforeTest:
         tdDnodes.sim.logDir = os.path.join(tdDnodes.sim.path,"psim","log")
         tdDnodes.sim.cfgDir = os.path.join(tdDnodes.sim.path,"psim","cfg")
         tdDnodes.sim.cfgPath = os.path.join(tdDnodes.sim.path,"psim","cfg","taos.cfg")
+        tdDnodes.sim.deploy(request.cls.updatecfgDict if hasattr(request.cls, "updatecfgDict") else {})
         tdDnodes.simDeployed = True
         tdDnodes.setLevelDisk(request.session.level, request.session.disk)
         for i in range(dnode_nums):
@@ -515,6 +516,8 @@ class BeforeTest:
        
     def update_cfg(self, updatecfgDict):
         for key, value in updatecfgDict.items():
+            if key == "clientCfg":
+                continue
             for dnode in self.request.session.yaml_data["settings"][0]["spec"]["dnodes"]:
                 dnode["config"][key] = value
         with open(os.path.join(self.root_dir, 'env', 'ci_default.yaml'), 'w') as file:
@@ -544,15 +547,15 @@ class BeforeTest:
                 if os.path.exists("/usr/local/bin/{binary}"):
                     return f"/usr/local/bin/{binary}"
                 else:
-                    testLog.error(f"taosd binary not found in /usr/local/bin/{binary}")
+                    tdLog.error(f"taosd binary not found in /usr/local/bin/{binary}")
                     #raise Exception(f"taosd binary not found in debug/build/bin or /usr/local/bin/{binary}")
                     return None
             else:
-                testLog.debug(f"taos_bin_path: {os.path.exists('/usr/bin/{binary}')}")
+                tdLog.debug(f"taos_bin_path: {os.path.exists('/usr/bin/{binary}')}")
                 if os.path.exists(f"/usr/bin/{binary}"):
                     return f"/usr/bin/{binary}"
                 else:
-                    testLog.error(f"taosd binary not found in /usr/bin/{binary}")
+                    tdLog.error(f"taosd binary not found in /usr/bin/{binary}")
                     return None
                         #raise Exception(f"taosd binary not found in debug/build/bin or /usr/bin/{binary}")
         return paths[0]
@@ -577,7 +580,7 @@ class BeforeTest:
                 workdir = os.path.join(projPath, "sim")
             else:
                 workdir = os.path.join(selfPath, "sim")
-        testLog.debug(f"workdir: {workdir}")
+        tdLog.debug(f"workdir: {workdir}")
         #if os.path.exists(workdir):
         #    shutil.rmtree(workdir)
         os.makedirs(workdir, exist_ok=True)

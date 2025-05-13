@@ -91,6 +91,7 @@ int32_t tGetMachineId(char **result) {
   *result = NULL;
   return 0;
 }
+bool    grantCheckDualReplicaDnodes(void *pMnode) { return false; }
 int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }
 int32_t dmProcessGrantNotify(void *pInfo, SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }
 int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *pCfg) { return 0; }

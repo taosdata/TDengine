@@ -30,7 +30,7 @@ KILL COMPACT compact_id;
 - COMPACT will merge multiple STT files
 - You can specify the start time of the COMPACT data with the start with keyword
 - You can specify the end time of the COMPACT data with the end with keyword
-- You can specify the META_ONLY keyword to only compact the meta data which are not compacted by default
+- You can specify the META_ONLY keyword to only compact the meta data which are not compacted by default. Meta data compaction can block write and the database compacting meta should stop write and query
 - The COMPACT command will return the ID of the COMPACT task
 - COMPACT tasks are executed asynchronously in the background, and you can view the progress of COMPACT tasks using the SHOW COMPACTS command
 - The SHOW command will return the ID of the COMPACT task, and you can terminate the COMPACT task using the KILL COMPACT command

@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestNormalTableQuery:
@@ -25,7 +25,7 @@ class TestNormalTableQuery:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/field/single.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/field/single.sim
 
         """
 
