@@ -220,7 +220,9 @@ jobs:
           taosadapter -V
           taosBenchmark -V
           taos -V
-          ./build.sh start
+          sudo bash -c 'echo "fqdn localhost" >> /etc/taos/taos.cfg'
+          nohup taosd  &
+          nohup taosadapter &
           pgrep -l taos
           sleep 6     # NOTE: wait for taosd initialization to complete
           pgrep -l taos
@@ -238,4 +240,3 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           ./build.sh stop
-
