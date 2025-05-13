@@ -688,15 +688,15 @@ void *mndBuildRetrieveMountPathReq(SMnode *pMnode, const char *mountName, const 
 
   SRetrieveMountPathReq req = {0};
   req.dnodeId = dnodeId;
-  memcpy(req.mountName, mountName, TSDB_MOUNT_NAME_LEN);
-  memcpy(req.mountPath, mountPath, TSDB_MOUNT_PATH_LEN);
+  TAOS_UNUSED(snprintf(req.mountName, TSDB_MOUNT_NAME_LEN, "%s", mountName));
+  TAOS_UNUSED(snprintf(req.mountPath, TSDB_MOUNT_PATH_LEN, "%s", mountPath));
 
   int32_t contLen = tSerializeSRetrieveMountPathReq(NULL, 0, &req);
   TAOS_CHECK_EXIT(contLen);
   TSDB_CHECK_NULL((pReq = taosMemoryMalloc(contLen)), code, lino, _exit, terrno);
   TAOS_CHECK_EXIT(tSerializeSRetrieveMountPathReq(pReq, contLen, &req));
 _exit:
-  if (code != 0) {
+  if (code < 0) {
     taosMemoryFree(pReq);
     terrno = code;
     return NULL;
@@ -720,7 +720,7 @@ static int32_t mndAddCreateMountRetrieveDbAction(SMnode *pMnode, STrans *pTrans,
 
   int32_t contLen = 0;
   void   *pReq = mndBuildRetrieveMountPathReq(pMnode, pObj->name, pObj->paths[idx], pDnode->id, &contLen);
-  if (pReq == NULL) return -1;
+  if (pReq == NULL) return terrno;
 
   action.pCont = pReq;
   action.contLen = contLen;
@@ -735,11 +735,10 @@ static int32_t mndAddCreateMountRetrieveDbAction(SMnode *pMnode, STrans *pTrans,
 }
 
 static int32_t mndSetCreateMountRedoActions(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
-  int32_t code = 0;
   for (int32_t i = 0; i < pObj->nMounts; ++i) {
-    mndAddCreateMountRetrieveDbAction(pMnode, pTrans, pObj, i);
+    TAOS_CHECK_RETURN(mndAddCreateMountRetrieveDbAction(pMnode, pTrans, pObj, i));
   }
-  TAOS_RETURN(code);
+  TAOS_RETURN(0);
 }
 #if 0
 static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
@@ -836,6 +835,7 @@ static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SCreateMountReq *pC
 
 _exit:
   // taosMemoryFree(pVgroups);
+  mndMountFreeObj(&mntObj);
   mndUserFreeObj(&newUserObj);
   mndTransDrop(pTrans);
   TAOS_RETURN(code);

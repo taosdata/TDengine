@@ -39,7 +39,7 @@ static void vmProcessMultiMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       code = vmProcessCreateVnodeReq(pMgmt, pMsg);
       break;
     case TDMT_DND_RETRIEVE_MOUNT_PATH:
-      code = vmProcessCreateVnodeReq(pMgmt, pMsg);
+      assert(0);
       break;
   }
 

@@ -586,7 +586,12 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_DND_CREATE_ENCRYPT_KEY:
       code = dmProcessCreateEncryptKeyReq(pMgmt, pMsg);
       break;
+    case TDMT_DND_RETRIEVE_MOUNT_PATH:
+      assert(0);
+      code = dmProcessCreateEncryptKeyReq(pMgmt, pMsg);
+      break;
     default:
+      assert(0);
       code = TSDB_CODE_MSG_NOT_PROCESSED;
       dGError("msg:%p, not processed in mgmt queue, reason:%s", pMsg, tstrerror(code));
       break;
