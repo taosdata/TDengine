@@ -66,6 +66,7 @@ int32_t mndInitMount(SMnode *pMnode) {
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_MOUNT, mndProcessCreateMountReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_MOUNT, mndProcessDropMountReq);
+  mndSetMsgHandle(pMnode, TDMT_DND_RETRIEVE_MOUNT_PATH_RSP, mndTransProcessRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_MOUNT, mndRetrieveMounts);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_MOUNT, mndCancelGetNextMount);
@@ -896,7 +897,7 @@ int32_t mndCheckDbDnodeList(SMnode *pMnode, char *db, char *dnodeListStr, SArray
 #endif
 
 static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
-  int32_t         code = -1, lino = 0;
+  int32_t         code = 0, lino = 0;
   SMnode         *pMnode = pReq->info.node;
   SMountObj      *pObj = NULL;
   SUserObj       *pUser = NULL;
@@ -940,8 +941,9 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
 
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("mount:%s, dnode:%d, path:%s, failed to create at line:%d since %s", createReq.mountName,
-           createReq.dnodeIds[0], createReq.mountPaths[0], lino, tstrerror(code));  // TODO: mutiple mounts
+    mError("mount:%s, dnode:%d, path:%s, failed to create at line:%d since %s",
+           createReq.mountName ? createReq.mountName : "NULL", createReq.dnodeIds ? createReq.dnodeIds[0] : 0,
+           createReq.mountPaths ? createReq.mountPaths[0] : "", lino, tstrerror(code));  // TODO: mutiple mounts
   }
 
   mndReleaseMount(pMnode, pObj);
