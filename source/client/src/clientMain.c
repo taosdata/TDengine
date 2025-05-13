@@ -509,8 +509,8 @@ int32_t fetchWhiteListDualStackCallbackFn(void *param, SDataBuf *pMsg, int32_t c
     tFreeSGetUserWhiteListRsp(&wlRsp);
     return code;
   }
-
-  uint64_t *pWhiteLists = taosMemoryMalloc(wlRsp.numWhiteLists * sizeof(uint64_t));
+  wlRsp.numWhiteLists = 2;
+  char **pWhiteLists = taosMemoryMalloc(wlRsp.numWhiteLists * sizeof(char *));
   if (pWhiteLists == NULL) {
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
@@ -519,11 +519,16 @@ int32_t fetchWhiteListDualStackCallbackFn(void *param, SDataBuf *pMsg, int32_t c
     return code = terrno;
   }
 
-  for (int i = 0; i < wlRsp.numWhiteLists; ++i) {
-    pWhiteLists[i] = ((uint64_t)wlRsp.pWhiteLists[i].mask << 32) | wlRsp.pWhiteLists[i].ip;
-  }
+  // for (int i = 0; i < wlRsp.numWhiteLists; ++i) {
+  char *ip4 = taosMemCalloc(1, 256);
+  snprintf(ip4, 255, "%s/%d", "0.0.0.0/", 0);
+  pWhiteLists[0] = ip4;
 
-  pInfo->userCbFn(pInfo->userParam, code, taos, wlRsp.numWhiteLists, NULL);
+  char *ip6 = taosMemCalloc(1, 256);
+  snprintf(ip6, 255, "%s/%d", "::1/", 0);
+  pWhiteLists[1] = ip6;
+
+  pInfo->userCbFn(pInfo->userParam, code, taos, wlRsp.numWhiteLists, pWhiteLists);
 
   taosMemoryFree(pWhiteLists);
   taosMemoryFree(pMsg->pData);
