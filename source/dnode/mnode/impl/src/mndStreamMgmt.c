@@ -737,7 +737,7 @@ static int32_t msmTDAddReaderRunnerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SS
     int32_t vgNum = taosArrayGetSize(pScan->vgList);
     for (int32_t m = 0; m < vgNum; ++m) {
       state.id.taskId = msmAssignTaskId();
-      state.id.nodeId = *(int32_t*)taosArrayGet(pScan->vgList, i);
+      state.id.nodeId = *(int32_t*)taosArrayGet(pScan->vgList, m);
       state.id.taskIdx = i;
       TSDB_CHECK_NULL(taosArrayPush(pReader, &state), code, lino, _return, terrno);
 
