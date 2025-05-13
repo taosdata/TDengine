@@ -46,6 +46,7 @@ class TestBiTagScan:
         tdSql.execute(f"create table tbn1 (ts timestamp, f1 int);")
 
         # set_bi_mode 1
+        tdSql.setConnMode(1)
         tdSql.query(f"select t1,t2,t3 from db1.sta order by t1;")
         tdLog.info(f"{tdSql.getRows()}) {tdSql.getData(0,0)} {tdSql.getData(1,0)}")
         tdSql.checkRows(2)
