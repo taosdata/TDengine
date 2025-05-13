@@ -30,7 +30,7 @@ def pytest_addoption(parser):
     parser.addoption("--replica", action="store",
                     help="the number of replicas")
     parser.addoption("--clean", action="store_true",
-                    help="Clean test env processed and workdir before deploy")
+                    help="Clean test env processe and workdir before deploy")
     parser.addoption("--tsim", action="store",
                     help="tsim test file")
     parser.addoption("--skip_test", action="store_true",
