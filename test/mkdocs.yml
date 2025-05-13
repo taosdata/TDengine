@@ -1,6 +1,7 @@
 site_name: TDengine Case List
 theme:
   name: material
+  custom_dir: 'templates/python/material/'
   features:
     - navigation.tabs
     - navigation.top

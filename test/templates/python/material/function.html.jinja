@@ -51,86 +51,66 @@
       {% endif %}
   
       {% if should_render %}
-        {% if not root or config.show_root_heading %}
-          {% filter heading(
-              heading_level,
-              role="function",
-              id=html_id,
-              class="doc doc-heading",
-              toc_label=(('<code class="doc-symbol doc-symbol-toc doc-symbol-' + symbol_type + '"></code>&nbsp;')|safe if config.show_symbol_type_toc else '') + 
-                        (
-                          function.docstring.value.split("\n", 1)[0] if "cases/" in function.relative_filepath|string and function.docstring.value else
-                          function.name
-                        ),
-            ) %}
-  
-            {% block heading scoped %}
-              {#- Heading block.
-  
-              This block renders the heading for the function.
-              -#}
-              {% if config.show_symbol_type_heading %}<code class="doc-symbol doc-symbol-heading doc-symbol-{{ symbol_type }}"></code>{% endif %}
-              {% if config.separate_signature %}
-                <span class="doc doc-object-name doc-function-name">{{ config.heading if config.heading and root else function_name }}</span>
-              {% else %}
-                {%+ filter highlight(language="python", inline=True) %}
-                  {{ function_name }}{% include "signature"|get_template with context %}
-                {% endfilter %}
-              {% endif %}
-            {% endblock heading %}
-  
-            {% block labels scoped %}
-              {#- Labels block.
-  
-              This block renders the labels for the function.
-              -#}
-              {% with labels = function.labels %}
-                {% include "labels"|get_template with context %}
-              {% endwith %}
-            {% endblock labels %}
-  
-          {% endfilter %}
-    
-          {% block signature scoped %}
-            {#- Signature block.
-    
-            This block renders the signature for the function,
-            as well as its overloaded signatures if any.
+        {% filter heading(
+            heading_level,
+            role="function",
+            id=html_id,
+            class="doc doc-heading",
+            toc_label=(('<code class="doc-symbol doc-symbol-toc doc-symbol-' + symbol_type + '"></code>&nbsp;')|safe if config.show_symbol_type_toc else '') + 
+                      (
+                        function.docstring.value.split("\n", 1)[0] if "cases/" in function.relative_filepath|string and function.docstring.value else
+                        function.name
+                      ),
+          ) %}
+
+          {% block heading scoped %}
+            {#- Heading block.
+
+            This block renders the heading for the function.
             -#}
-            {% if function.overloads %}
-              <div class="doc-overloads">
-                {% for overload in function.overloads %}
-                  {% filter format_signature(overload, config.line_length, annotations=True, crossrefs=config.signature_crossrefs) %}
-                    {{ overload.name }}
-                  {% endfilter %}
-                {% endfor %}
-              </div>
-            {% endif %}
+            {% if config.show_symbol_type_heading %}<code class="doc-symbol doc-symbol-heading doc-symbol-{{ symbol_type }}"></code>{% endif %}
             {% if config.separate_signature %}
-              {% filter format_signature(function, config.line_length, crossrefs=config.signature_crossrefs) %}
-                {{ function.name }}
+              <span class="doc doc-object-name doc-function-name">{{ config.heading if config.heading and root else function_name }}</span>
+            {% else %}
+              {%+ filter highlight(language="python", inline=True) %}
+                {{ function_name }}{% include "signature"|get_template with context %}
               {% endfilter %}
             {% endif %}
-          {% endblock signature %}
-    
-        {% else %}
-    
-          {% if config.show_root_toc_entry %}
-            {% filter heading(
-                heading_level,
-                role="function",
-                id=html_id,
-                toc_label=(('<code class="doc-symbol doc-symbol-toc doc-symbol-' + symbol_type + '"></code>&nbsp;')|safe if config.show_symbol_type_toc else '') + 
-                          (
-                            function.docstring.value.split("\n", 1)[0] if "cases/" in function.relative_filepath|string and function.docstring.value else
-                            function.name 
-                          ),
-                hidden=True,
-              ) %}
+          {% endblock heading %}
+
+          {% block labels scoped %}
+            {#- Labels block.
+
+            This block renders the labels for the function.
+            -#}
+            {% with labels = function.labels %}
+              {% include "labels"|get_template with context %}
+            {% endwith %}
+          {% endblock labels %}
+
+        {% endfilter %}
+  
+        {% block signature scoped %}
+          {#- Signature block.
+  
+          This block renders the signature for the function,
+          as well as its overloaded signatures if any.
+          -#}
+          {% if function.overloads %}
+            <div class="doc-overloads">
+              {% for overload in function.overloads %}
+                {% filter format_signature(overload, config.line_length, annotations=True, crossrefs=config.signature_crossrefs) %}
+                  {{ overload.name }}
+                {% endfilter %}
+              {% endfor %}
+            </div>
+          {% endif %}
+          {% if config.separate_signature %}
+            {% filter format_signature(function, config.line_length, crossrefs=config.signature_crossrefs) %}
+              {{ function.name }}
             {% endfilter %}
           {% endif %}
-          {% set heading_level = heading_level - 1 %}
-        {% endif %}
+        {% endblock signature %}
 
         <div class="doc doc-contents {% if root %}first{% endif %}">
           {% block contents scoped %}

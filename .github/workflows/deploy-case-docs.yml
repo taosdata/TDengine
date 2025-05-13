@@ -84,6 +84,21 @@ jobs:
             echo "module_path: $module_path"
             mkdir -p "$(dirname "$markdown_file")"
 
+            if [[ -f "$file" ]]; then
+              echo "File $file exists."
+            else
+              echo "File $file does not exist."
+              echo "Removing $module_path from $markdown_file"
+              sed -i "/::: ${module_path}/d" "$markdown_file"
+              if [ ! -s "$markdown_file" ]; then
+                echo "File $markdown_file is empty after removal. Deleting it."
+                rm -f "$markdown_file"
+                modified_util=true
+              else
+                echo "File $markdown_file is not empty after removal."
+              fi
+              continue
+            fi
             if [ ! -f "$markdown_file" ]; then
               echo "Generating $markdown_file"
               echo "::: ${module_path}" > "$markdown_file"
@@ -116,6 +131,21 @@ jobs:
             markdown_file="test/docs/util_funcs_docs/new_test_framework/utils.md"
             mkdir -p "$(dirname "$markdown_file")"
 
+            if [[ -f "$file" ]]; then
+              echo "File $file exists."
+            else
+              echo "File $file does not exist."
+              echo "Removing $file_name from $markdown_file"
+              sed -i "/::: ${file_name}/d" "$markdown_file"
+              if [ ! -s "$markdown_file" ]; then
+                echo "File $markdown_file is empty after removal. Deleting it."
+                rm -f "$markdown_file"
+                modified_util=true
+              else
+                echo "File $markdown_file is not empty after removal."
+              fi
+              continue
+            fi
             if [ ! -f "$markdown_file" ]; then
               echo "Generating $markdown_file"
               echo "::: ${file_name}" > "$markdown_file"
