@@ -20,7 +20,7 @@
 #include "libs/function/tudf.h"
 #include "tgrant.h"
 #include "tcompare.h"
-#include "tcs.h"
+#include "tss.h"
 #include "tanalytics.h"
 // clang-format on
 
@@ -190,7 +190,8 @@ int32_t dmInit() {
   if ((code = dmInitDnode(dmInstance())) != 0) return code;
   if ((code = InitRegexCache() != 0)) return code;
 #if defined(USE_S3)
-  if ((code = tcsInit()) != 0) return code;
+  if ((code = tssInit()) != 0) return code;
+  if ((code = tssCreateDefaultInstance()) != 0) return code;
 #endif
 
   dInfo("dnode env is initialized");
@@ -225,7 +226,8 @@ void dmCleanup() {
   DestroyRegexCache();
 
 #if defined(USE_S3)
-  tcsUninit();
+  tssCloseDefaultInstance();
+  tssUninit();
 #endif
 
   dInfo("dnode env is cleaned up");

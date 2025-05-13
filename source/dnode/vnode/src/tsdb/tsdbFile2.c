@@ -68,6 +68,11 @@ static int32_t tfile_to_json(const STFile *file, cJSON *json) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  /* mcount - migration counter */
+  if (cJSON_AddNumberToObject(json, "mcount", file->mcount) == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   /* fid */
   if (cJSON_AddNumberToObject(json, "fid", file->fid) == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -122,6 +127,14 @@ static int32_t tfile_from_json(const cJSON *json, STFile *file) {
     file->lcn = item->valuedouble;
   } else {
     // return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  /* mcount - migration counter */
+  item = cJSON_GetObjectItem(json, "mcount");
+  if (cJSON_IsNumber(item)) {
+    file->mcount = item->valuedouble;
+  } else {
+    file->mcount = 0;
   }
 
   /* fid */
