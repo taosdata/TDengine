@@ -315,21 +315,17 @@ void mndStreamPostAction(SStmActionQ*       actionQ, int64_t streamId, char* str
   mndStreamActionEnqueue(actionQ, pNode);
 }
 
-void mndStreamPostTaskAction(SStmActionQ*        actionQ, int64_t streamId, SStmTaskId* pId, int32_t action, int64_t flags, EStreamTaskType type) {
+void mndStreamPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pAction, int32_t action) {
   SStmQNode *pNode = taosMemoryMalloc(sizeof(SStmQNode));
   if (NULL == pNode) {
+    int64_t streamId = pAction->streamId;
     mstError("%s failed at line %d, error:%s", __FUNCTION__, __LINE__, tstrerror(terrno));
     return;
   }
 
   pNode->type = action;
   pNode->streamAct = false;
-  pNode->action.task.streamId = streamId;
-  if (pId) {
-    pNode->action.task.id = *pId;
-  }
-  pNode->action.task.type = type;
-  pNode->action.task.flag = flags;
+  pNode->action.task = *pAction;
   
   pNode->next = NULL;
 

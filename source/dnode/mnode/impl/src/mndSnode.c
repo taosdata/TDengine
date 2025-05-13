@@ -212,20 +212,21 @@ static int32_t mndSetCreateSnodeCommitLogs(STrans *pTrans, SSnodeObj *pObj) {
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetCreateSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SSnodeObj *pObj) {
+static int32_t mndSetCreateSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SSnodeObj *pObj, int32_t replicaId) {
   int32_t          code = 0;
   SDCreateSnodeReq createReq = {0};
-  createReq.dnodeId = pDnode->id;
+  createReq.snodeId = pDnode->id;
+  createReq.replicaId = replicaId;
 
-  int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &createReq);
+  int32_t contLen = tSerializeSDCreateSNodeReq(NULL, 0, &createReq);
   void   *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
     code = terrno;
     TAOS_RETURN(code);
   }
-  code = tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
+  code = tSerializeSDCreateSNodeReq(pReq, contLen, &createReq);
   if (code < 0) {
-    mError("snode:%d, failed to serialize create drop snode request since %s", createReq.dnodeId, terrstr());
+    mError("snode:%d, failed to serialize create drop snode request since %s", createReq.snodeId, terrstr());
   }
 
   STransAction action = {0};
@@ -274,7 +275,7 @@ static int32_t mndSetCreateSnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
   TAOS_RETURN(code);
 }
 
-static int32_t mndCreateSnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMCreateSnodeReq *pCreate) {
+static int32_t mndCreateSnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMCreateSnodeReq *pCreate, int32_t replicaId) {
   int32_t code = -1;
 
   SSnodeObj snodeObj = {0};
@@ -295,7 +296,7 @@ static int32_t mndCreateSnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
   TAOS_CHECK_GOTO(mndSetCreateSnodeRedoLogs(pTrans, &snodeObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateSnodeUndoLogs(pTrans, &snodeObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateSnodeCommitLogs(pTrans, &snodeObj), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateSnodeRedoActions(pTrans, pDnode, &snodeObj), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetCreateSnodeRedoActions(pTrans, pDnode, &snodeObj, replicaId), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateSnodeUndoActions(pTrans, pDnode, &snodeObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
@@ -316,18 +317,14 @@ static int32_t mndProcessCreateSnodeReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 
   mInfo("snode:%d, start to create", createReq.dnodeId);
+  
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_SNODE), NULL, _OVER);
 
-  //  pObj = mndAcquireSnode(pMnode, createReq.dnodeId);
-  //  if (pObj != NULL) {
-  //    terrno = TSDB_CODE_MND_SNODE_ALREADY_EXIST;
-  //    goto _OVER;
-  //  } else if (terrno != TSDB_CODE_MND_SNODE_NOT_EXIST) {
-  //    goto _OVER;
-  //  }
-
-  if (sdbGetSize(pMnode->pSdb, SDB_SNODE) >= 1) {
+  pObj = mndAcquireSnode(pMnode, createReq.dnodeId);
+  if (pObj != NULL) {
     code = TSDB_CODE_MND_SNODE_ALREADY_EXIST;
+    goto _OVER;
+  } else if (terrno != TSDB_CODE_MND_SNODE_NOT_EXIST) {
     goto _OVER;
   }
 
@@ -341,6 +338,7 @@ static int32_t mndProcessCreateSnodeReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
+
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("snode:%d, failed to create since %s", createReq.dnodeId, tstrerror(code));
     TAOS_RETURN(code);

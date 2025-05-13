@@ -85,12 +85,27 @@ typedef struct SStmTaskId {
   int32_t taskIdx;
 } SStmTaskId;
 
+
+typedef struct SStmTaskStatus {
+  SStmTaskId      id;
+  EStreamTaskType type;
+  int64_t         flags;
+  EStreamStatus   status;
+  int64_t         lastUpTs;
+} SStmTaskStatus;
+
+
 typedef struct SStmTaskAction {
   // KEEP IT TOGETHER
   int64_t    streamId; 
   SStmTaskId id;
   // KEEP IT TOGETHER
 
+  // for snode runner redeploy
+  int32_t         deployNum;
+  int32_t         deployId[MND_STREAM_RUNNER_DEPLOY_NUM];
+  SStmTaskStatus* triggerStatus;
+  
   EStreamTaskType type;
   int64_t    flag;
 } SStmTaskAction;
@@ -122,13 +137,6 @@ typedef struct SVgroupChangeInfo {
 } SVgroupChangeInfo;
 
 
-typedef struct SStmTaskStatus {
-  SStmTaskId      id;
-  EStreamTaskType type;
-  int64_t         flags;
-  EStreamStatus   status;
-  int64_t         lastUpTs;
-} SStmTaskStatus;
 
 typedef struct SStmTaskSrcAddr {
   bool    isFromCache;
@@ -141,7 +149,7 @@ typedef struct SStmTaskSrcAddr {
 typedef struct SStmStatus {
   char*             streamName;
   int64_t           lastActTs;
-  int32_t           readerNum[2];      // trigger reader num & calc reader num
+  int32_t           triggerReaderNum;  
   SArray*           readerList;        // SArray<SStmTaskStatus>
   SStmTaskStatus*   triggerTask;
   int32_t           runnerDeploys;
@@ -315,7 +323,7 @@ int32_t msmUndeployStream(SMnode* pMnode, int64_t streamId, char* streamName);
 int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped);
 void msmHealthCheck(SMnode *pMnode);
 void mndStreamPostAction(SStmActionQ*       actionQ, int64_t streamId, char* streamName, int32_t action);
-void mndStreamPostTaskAction(SStmActionQ*       actionQ, int64_t streamId, SStmTaskId* pId, int32_t action, int64_t flags, EStreamTaskType type);
+void mndStreamPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pAction, int32_t action);
 
 #ifdef __cplusplus
 }
