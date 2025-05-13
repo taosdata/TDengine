@@ -1,0 +1,118 @@
+# Stage 1: Build Stage
+FROM python:3.9 AS builder
+
+# 设置工作目录
+WORKDIR /home
+
+# 复制必要的文件
+COPY requirements.txt /home/
+COPY sources.list /etc/apt/
+COPY id_ecdsa /root/.ssh/id_ecdsa
+COPY id_ecdsa.pub /root/.ssh/id_ecdsa.pub
+
+# 安装基础依赖（合并命令，减少镜像层）
+RUN apt-key adv --keyserver hkp://pgpkeys.eu --recv-keys 3B4FE6ACC0B21F32 \
+    && apt-key adv --keyserver hkp://pgpkeys.eu --recv-keys 871920D1991BC93C \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        locales psmisc sudo tree libgeos-dev libgflags2.2 libgflags-dev ruby-full lcov \
+        libgoogle-glog-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g pkg-config build-essential valgrind rsync vim \
+        libjemalloc-dev openssh-server screen sshpass net-tools dirmngr gnupg \
+        apt-transport-https ca-certificates software-properties-common iputils-ping clang-tools-16 \
+    && sed -i 's/# en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen \
+    && locale-gen \
+    && rm -rf /var/lib/apt/lists/* 
+
+# 配置 pip
+RUN pip3 config set global.index-url http://admin:123456@192.168.0.212:3141/admin/dev/+simple/ \
+    && pip3 config set global.trusted-host 192.168.0.212 \
+    && pip3 install --no-cache-dir -r /home/requirements.txt \
+    && pip3 install --no-cache-dir \
+        taospy==2.7.23 taos-ws-py==0.3.8 pandas psutil codecov fabric2 requests faker simplejson toml \
+        pexpect tzlocal distro decorator loguru hyperloglog websockets
+
+# 安装 R 和其他工具
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends r-base r-base-dev \
+    && echo "install.packages(\"RJDBC\", repos=\"http://cran.us.r-project.org\")" | R --no-save \
+    && rm -rf /var/lib/apt/lists/* 
+
+# 安装 Go、JDK、Maven、Node.js（优化解压路径）
+ADD go1.23.4.linux-amd64.tar.gz /usr/local/
+ADD jdk-8u144-linux-x64.tar.gz /usr/local/
+ADD apache-maven-3.8.4-bin.tar.gz /usr/local/
+ADD node-v20.17.0-linux-x64.tar.xz /usr/local/
+
+# 配置环境变量
+ENV PATH="/usr/local/go/bin:/usr/local/node-v20.17.0-linux-x64/bin:/usr/local/apache-maven-3.8.4/bin:/usr/local/jdk1.8.0_144/bin:/root/.cargo/bin:/home/bin:$PATH"
+ENV JAVA_HOME="/usr/local/jdk1.8.0_144"
+RUN go env -w GOPROXY=https://goproxy.cn
+
+# 安装 Rust（优化安装过程）
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y \
+    && echo "export RUSTUP_DIST_SERVER=\"https://rsproxy.cn\"" >> /root/.bashrc \
+    && echo "export RUSTUP_UPDATE_ROOT=\"https://rsproxy.cn/rustup\"" >> /root/.bashrc
+
+# 安装其他工具
+RUN gem install coveralls-lcov \
+    && npm config -g set registry https://registry.npmmirror.com
+
+# 配置 SSH（优化配置并设置权限）
+RUN mkdir -p /root/.ssh \
+    && chmod 700 /root/.ssh \
+    && echo "StrictHostKeyChecking no" >> /etc/ssh/ssh_config \
+    && chmod 600 /root/.ssh/id_ecdsa \
+    && COPY id_ecdsa.pub /root/.ssh/authorized_keys \
+    && chmod 600 /root/.ssh/authorized_keys
+
+# Stage 2: Runtime Stage
+FROM python:3.9-slim
+
+# 设置工作目录
+WORKDIR /home
+
+# 复制构建产物（只复制必要的工具和配置）
+COPY --from=builder /usr/local/bin /usr/local/bin
+COPY --from=builder /usr/local/lib /usr/local/lib
+COPY --from=builder /usr/local/include /usr/local/include
+COPY --from=builder /usr/local/go /usr/local/go
+COPY --from=builder /usr/local/jdk1.8.0_144 /usr/local/jdk1.8.0_144
+COPY --from=builder /usr/local/apache-maven-3.8.4 /usr/local/apache-maven-3.8.4
+COPY --from=builder /usr/local/node-v20.17.0-linux-x64 /usr/local/node-v20.17.0-linux-x64
+COPY --from=builder /root/.ssh /root/.ssh
+COPY --from=builder /root/.m2 /root/.m2
+COPY --from=builder /root/.nuget /root/.nuget
+COPY --from=builder /root/.dotnet /root/.dotnet
+COPY --from=builder /root/go /root/go
+COPY --from=builder /root/.cargo /root/.cargo
+COPY --from=builder /root/.npm /root/.npm
+COPY --from=builder /root/.gitconfig /root/.gitconfig
+
+# 安装运行时必要的依赖（保持最小化）
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        locales openssh-server libgeos-dev libgoogle-glog-dev libsnappy-dev liblzma-dev libz-dev \
+    && sed -i 's/# en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen \
+    && locale-gen \
+    && mkdir -p /run/sshd \
+    && rm -rf /var/lib/apt/lists/*  
+
+# 配置环境变量
+ENV PATH="/usr/local/go/bin:/usr/local/node-v20.17.0-linux-x64/bin:/usr/local/apache-maven-3.8.4/bin:/usr/local/jdk1.8.0_144/bin:/root/.cargo/bin:/home/bin:$PATH"
+ENV JAVA_HOME="/usr/local/jdk1.8.0_144"
+ENV LANG=en_US.UTF-8 LANGUAGE=en_US.UTF-8 LC_ALL=en_US.UTF-8
+
+# 复制应用代码
+COPY repository/TDinternal /home/TDinternal
+COPY setup.sh /home/setup.sh
+
+# 配置 SSH 服务（允许 root 登录）
+RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config \
+    && sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config \
+    && chmod +x /home/setup.sh
+
+# 暴露 SSH 端口
+EXPOSE 22
+
+# 启动命令
+CMD ["/usr/sbin/sshd", "-D"]
