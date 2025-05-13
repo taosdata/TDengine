@@ -216,7 +216,9 @@ static int32_t mndStreamCreateOutStb(SMnode *pMnode, STrans *pTrans, const SCMCr
   int32_t  lino = 0;
 
   SMCreateStbReq createReq = {0};
-  tstrncpy(createReq.name, pStream->outTblName, TSDB_TABLE_FNAME_LEN);
+  TAOS_STRNCAT(createReq.name, pStream->outDB, TSDB_DB_FNAME_LEN);
+  TAOS_STRNCAT(createReq.name, ".", 2);
+  TAOS_STRNCAT(createReq.name,  pStream->outTblName, TSDB_TABLE_NAME_LEN);
   createReq.numOfColumns = taosArrayGetSize(pStream->outCols);
   createReq.numOfTags = pStream->outTags ? taosArrayGetSize(pStream->outTags) : 1;
   createReq.pColumns = taosArrayInit_s(sizeof(SFieldWithOptions), createReq.numOfColumns);

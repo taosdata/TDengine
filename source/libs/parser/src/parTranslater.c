@@ -3538,7 +3538,7 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
         BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_IDX);
         SValueNode* pIndex = (SValueNode*)nodesListGetNode((*pFunc)->pParameterList, 0);
         int64_t     index = *(int64_t*)nodesGetValueFromNode(pIndex);
-        SExprNode*  pExpr = (SExprNode*)nodesListGetNode(pCxt->createStreamTriggerPartitionList, (int32_t)index);
+        SExprNode*  pExpr = (SExprNode*)nodesListGetNode(pCxt->createStreamTriggerPartitionList, (int32_t)index - 1);
         int32_t     code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&extraValue);
         if (TSDB_CODE_SUCCESS == code) {
           ((SValueNode*)extraValue)->node.resType.type = pExpr->resType.type;
@@ -13080,14 +13080,33 @@ static int32_t createStreamReqSetDefaultTag(STranslateContext* pCxt, SCreateStre
   }
 
   FOREACH(pNode, pTriggerPartition) {
-    SExprNode*         pExpr = (SExprNode*)pNode;
     SStreamTagDefNode* pTagDef = NULL;
     PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN_DEF, (SNode**)&pTagDef));
-    tstrncpy(pTagDef->tagName, pExpr->aliasName, TSDB_COL_NAME_LEN);
-    pTagDef->dataType.type = pExpr->resType.type;
-    pTagDef->dataType.bytes = pExpr->resType.bytes;
-    pTagDef->dataType.precision = pExpr->resType.precision;
-    pTagDef->dataType.scale = pExpr->resType.scale;
+    switch (nodeType(pNode)) {
+      case QUERY_NODE_FUNCTION: {
+        SFunctionNode *pFunc = (SFunctionNode*)pNode;
+        if (pFunc->funcType != FUNCTION_TYPE_TBNAME) {
+          PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "The tag function must be tbname"));
+        }
+        tstrncpy(pTagDef->tagName, "tag_tbname", TSDB_COL_NAME_LEN);
+        pTagDef->dataType.type = pFunc->node.resType.type;
+        pTagDef->dataType.bytes = pFunc->node.resType.bytes;
+        pTagDef->dataType.precision =pFunc->node.resType.precision;
+        pTagDef->dataType.scale = pFunc->node.resType.scale;
+        break;
+      }
+      case QUERY_NODE_COLUMN: {
+        SExprNode* pExpr = (SExprNode*)pNode;
+        tstrncpy(pTagDef->tagName, pExpr->aliasName, TSDB_COL_NAME_LEN);
+        pTagDef->dataType.type = pExpr->resType.type;
+        pTagDef->dataType.bytes = pExpr->resType.bytes;
+        pTagDef->dataType.precision = pExpr->resType.precision;
+        pTagDef->dataType.scale = pExpr->resType.scale;
+      }
+      default: {
+        PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "partition must be tbname or tag"));
+      }
+    }
 
     SNodeList*     pParamList = NULL;
     SFunctionNode* pFunc = NULL;
@@ -13262,10 +13281,26 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
 
   SNode *pNode = NULL;
   FOREACH(pNode, pTriggerPartition) {
-    SColumnNode* pCol = (SColumnNode*)pNode;
-    if (pCol->colType != COLUMN_TYPE_TAG && pCol->colType != COLUMN_TYPE_TBNAME) {
-      parserError("only tag and tbname can be used in partition");
-      PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY));
+    switch (nodeType(pNode)) {
+      case QUERY_NODE_COLUMN: {
+        SColumnNode* pCol = (SColumnNode*)pNode;
+        if (pCol->colType != COLUMN_TYPE_TAG) {
+          parserError("only tag and tbname can be used in partition");
+          PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY));
+        }
+        break;
+      }
+      case QUERY_NODE_FUNCTION: {
+        SFunctionNode *pFunc = (SFunctionNode*)pNode;
+        if (pFunc->funcType != FUNCTION_TYPE_TBNAME) {
+          parserError("only tag and tbname can be used in partition");
+          PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY));
+        }
+        break;
+      }
+      default:
+        parserError("only tag and tbname can be used in partition");
+        PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY));
     }
   }
 
@@ -13306,7 +13341,8 @@ static int32_t replaceSubPlanFromList(SNode* pTarget, SNodeList* pList) {
   return code;
 }
 
-static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNode* pTriggerTbl, SSelectStmt* pStreamCalcQuery) {
+static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTriggerPartition, SNode* pTriggerTbl,
+                                        SSelectStmt* pStreamCalcQuery) {
   int32_t    code = TSDB_CODE_SUCCESS;
   ESqlClause currClause = pCxt->currClause;
   SNode*     pCurrStmt = pCxt->pCurrStmt;
@@ -13315,10 +13351,12 @@ static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNode* pTrigger
   pCxt->currLevel = ++(pCxt->levelNo);
 
   pCxt->createStreamTriggerTbl = pTriggerTbl;
+  pCxt->createStreamTriggerPartitionList = pTriggerPartition;
   pCxt->createStreamCalc = true;
   PAR_ERR_JRET(translateSelect(pCxt, pStreamCalcQuery));
   pCxt->createStreamCalc = false;
   pCxt->createStreamTriggerTbl = NULL;
+  pCxt->createStreamTriggerPartitionList = NULL;
 
   pCxt->currClause = currClause;
   pCxt->pCurrStmt = pCurrStmt;
@@ -13339,8 +13377,8 @@ static bool findNodeInList(SNode* pTarget, SNodeList* pList) {
 }
 
 static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStreamStmt* pStmt,
-                                            SSelectStmt* pTriggerSelect, SHashObj* pTriggerSlotHash,
-                                            SNode* pNotifyCond, SCMCreateStreamReq* pReq) {
+                                            SNodeList *pTriggerPartition, SSelectStmt* pTriggerSelect,
+                                            SHashObj* pTriggerSlotHash, SNode* pNotifyCond, SCMCreateStreamReq* pReq) {
   int32_t      code = TSDB_CODE_SUCCESS;
   SQueryPlan*  calcPlan = NULL;
   SArray*      pVgArray = NULL;
@@ -13354,7 +13392,7 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
     PAR_ERR_JRET(nodesListMakeAppend(&((SSelectStmt*)pStmt->pQuery)->pProjectionList, pNotifyCond));
   }
 
-  PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerSelect->pFromTable, (SSelectStmt*)pStmt->pQuery));
+  PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect->pFromTable, (SSelectStmt*)pStmt->pQuery));
 
   pReq->placeHolderBitmap = pCxt->placeHolderBitmap;
 
@@ -13507,7 +13545,7 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   PAR_ERR_JRET(createStreamReqBuildTriggerOptions(pCxt, pTriggerOptions, pReq));
   PAR_ERR_JRET(createStreamReqBuildStreamNotifyOptions(pCxt, pNotifyOptions, &pNotifyCond, pReq));
   PAR_ERR_JRET(createStreamReqBuildTrigger(pCxt, pStmt, pTrigger, pReq, &pTriggerSelect, &pTriggerSlotHash));
-  PAR_ERR_JRET(createStreamReqBuildCalcPlan(pCxt, pStmt, pTriggerSelect, pTriggerSlotHash, pNotifyCond, pReq));
+  PAR_ERR_JRET(createStreamReqBuildCalcPlan(pCxt, pStmt, pTrigger->pPartitionList, pTriggerSelect, pTriggerSlotHash, pNotifyCond, pReq));
   PAR_ERR_JRET(createStreamReqBuildOutTable(pCxt, pStmt, pTriggerSelect, pTriggerSlotHash, pReq));
 
   if (pCxt->pMetaCache != NULL && pCxt->pMetaCache->pVSubTables != NULL) {
