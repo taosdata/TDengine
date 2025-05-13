@@ -16,11 +16,11 @@
 #include "tssInt.h"
 
 
-// the registry of shared storage types
+// the registry of shared storage types.
 static const SSharedStorageType* g_registry[8] = {0};
 
 
-// the default shared storage
+// the default shared storage instance.
 static SSharedStorage* g_default = NULL;
 
 
@@ -50,8 +50,10 @@ void tssRegisterType(const SSharedStorageType* t) {
 
 int32_t tssInit() {
     void s3RegisterType();
+    void fsRegisterType();
 
     s3RegisterType();
+    fsRegisterType();
     return TSDB_CODE_SUCCESS;
 }
 
@@ -246,6 +248,7 @@ int32_t tssCheckInstance(SSharedStorage* ss, uint32_t largeFileSizeInMB) {
     bool found = false;
     for(int i = 0; i < taosArrayGetSize(paths); i++) {
         char* p = *(char**)taosArrayGet(paths, i);
+        printf("  %s\n", p);
         if (strcmp(p, path) == 0) {
             found = true;
         }
@@ -355,6 +358,7 @@ int32_t tssCheckInstance(SSharedStorage* ss, uint32_t largeFileSizeInMB) {
     }
     for(int i = 0; i < taosArrayGetSize(paths); i++) {
         char* p = *(char**)taosArrayGet(paths, i);
+        printf("  %s\n", p);
         if (strcmp(p, path) == 0) {
             printf("test file was found in the list\n");
             code = TSDB_CODE_FAILED;
