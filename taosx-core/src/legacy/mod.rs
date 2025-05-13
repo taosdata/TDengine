@@ -1760,6 +1760,9 @@ async fn sync_specified_tables_with_workers(
                         if let Some(breakpoints) = breakpoints.as_ref() {
                             if let Some(end) = time_range.end {
                                 let breakpoint = end.to_string();
+                                tracing::debug!(
+                                    "set breakpoint, table: {table}, breakpoint: {breakpoint}"
+                                );
                                 if let Err(err) = breakpoints.set(&table, &breakpoint).await {
                                     tracing::warn!(
                                         task.id = task_id.as_ref(),
@@ -2898,6 +2901,7 @@ async fn realtime(
     if !opts.excursion.is_zero() {
         now -= excursion;
     }
+
     // now is the separator of history and future data.
     // check if need retro back.
     if !opts.restro.is_zero() {
@@ -3015,6 +3019,7 @@ async fn realtime(
             warn!(mode = "realtime", "Failed to submit task. err: {err}");
             continue;
         }
+
         // 等待所有任务完成
         let mut all_success = true;
         while let Some(res) = receivers.next().await {
@@ -3088,8 +3093,7 @@ pub async fn legacy_to_taos(
         source_opts.workers = concurrent;
     }
 
-    verify::verify_dsn(&from)
-        .map_err(|err| anyhow::format_err!("Cannot parse source DSN params: {err}"))?;
+    verify::verify_dsn_and_retain(&mut from);
 
     let target_db = to.subject.take();
 
@@ -3098,8 +3102,7 @@ pub async fn legacy_to_taos(
 
     let target_opts = TargetOpts::from_params(&source_opts, &mut to)?;
     tracing::debug!("target options: {:?}", target_opts); // debug
-    verify::verify_dsn(&to)
-        .map_err(|err| anyhow::format_err!("Cannot parse target DSN params: {err}"))?;
+    verify::verify_dsn_and_retain(&mut to);
     // let connect_timeout = Duration::from_secs(10);
     tracing::debug!("Building source connection pool...");
     let from_pool = from_builder
@@ -3124,7 +3127,7 @@ pub async fn legacy_to_taos(
             .with_context(|| anyhow::anyhow!("Source (2.x) precision could no be detected"))?
     };
 
-    // let source_taos = from_pool.get().await.context("Target connection error")?;
+    // create target_db if target_opts.assert is true
     if target_opts.assert {
         // use take there to avoid [Error: [0x0383] Invalid database name] when execute sql with no database
         if let Some(db) = target_db {
@@ -3305,6 +3308,7 @@ pub async fn legacy_to_taos(
 
     let metrics_arc_clone = metrics_arc.clone();
     let cancel_clone = cancel.clone();
+    // 创建线程，每 5 秒打印一次 metrics
     tokio::spawn(
         async move {
             let mut interval = tokio::time::interval(Duration::from_secs(5));
@@ -3361,7 +3365,7 @@ pub async fn legacy_to_taos(
                     _ = cancel.cancelled() => {
                         tracing::debug!("Schema task queue cancelled");
                     }
-                };
+                }
             }
 
             if let Some(breakpoints) = scheduler.breakpoints_ref() {
