@@ -411,15 +411,14 @@ typedef struct {
 } SUpdateAnodeStmt;
 
 typedef struct SXnodeOptions {
-  ENodeType  type;
-  SNodeList* pProtocol;
-  int8_t     protocol[XNODE_OPTION_PROTOCOL_MAX];
+  ENodeType type;
+  char      protoStr[TSDB_XNODE_OPT_PROTO_STR_LEN];
+  int8_t    proto;
 } SXnodeOptions;
 
 typedef struct {
   ENodeType      type;
   int32_t        dnodeId;
-  char           url[TSDB_XNODE_URL_LEN + 3];
   SXnodeOptions* pOptions;
 } SCreateXnodeStmt;
 
