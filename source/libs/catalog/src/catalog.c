@@ -241,6 +241,7 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
         taosMemoryFreeClear(output->vctbMeta);
         CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
       }
+      output->tbMeta->rversion = output->vctbMeta->rversion;
       output->tbMeta->numOfColRefs = output->vctbMeta->numOfColRefs;
       taosMemoryFreeClear(output->vctbMeta);
       *pTableMeta = output->tbMeta;
@@ -278,6 +279,7 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
       (*pTableMeta)->colRef = (SColRef *)((char *)(*pTableMeta) + metaSize);
       TAOS_MEMCPY((*pTableMeta)->colRef, output->vctbMeta->colRef, colRefSize);
       (*pTableMeta)->numOfColRefs = output->vctbMeta->numOfColRefs;
+      (*pTableMeta)->rversion = output->vctbMeta->rversion;
     }
 
     taosMemoryFreeClear(output->tbMeta);
@@ -1359,6 +1361,7 @@ int32_t catalogChkTbMetaVersion(SCatalog* pCtg, SRequestConnInfo* pConn, SArray*
   SName   name = {0};
   int32_t sver = 0;
   int32_t tver = 0;
+  int32_t rver = 0;
   int32_t tbNum = taosArrayGetSize(pTables);
   for (int32_t i = 0; i < tbNum; ++i) {
     STbSVersion* pTb = (STbSVersion*)taosArrayGet(pTables, i);
@@ -1383,8 +1386,8 @@ int32_t catalogChkTbMetaVersion(SCatalog* pCtg, SRequestConnInfo* pConn, SArray*
     int32_t  tbType = 0;
     uint64_t suid = 0;
     char     stbName[TSDB_TABLE_FNAME_LEN];
-    CTG_ERR_JRET(ctgReadTbVerFromCache(pCtg, &name, &sver, &tver, &tbType, &suid, stbName));
-    if ((sver >= 0 && sver < pTb->sver) || (tver >= 0 && tver < pTb->tver)) {
+    CTG_ERR_JRET(ctgReadTbVerFromCache(pCtg, &name, &sver, &tver, &rver, &tbType, &suid, stbName));
+    if ((sver >= 0 && sver < pTb->sver) || (tver >= 0 && tver < pTb->tver) || (rver >= 0 && rver < pTb->rver)) {
       switch (tbType) {
         case TSDB_CHILD_TABLE: {
           SName stb = name;
@@ -1392,10 +1395,16 @@ int32_t catalogChkTbMetaVersion(SCatalog* pCtg, SRequestConnInfo* pConn, SArray*
           CTG_ERR_JRET(ctgRemoveTbMeta(pCtg, &stb));
           break;
         }
-        case TSDB_SUPER_TABLE:
-        case TSDB_NORMAL_TABLE:
+        case TSDB_VIRTUAL_CHILD_TABLE: {
           CTG_ERR_JRET(ctgRemoveTbMeta(pCtg, &name));
           break;
+        }
+        case TSDB_SUPER_TABLE:
+        case TSDB_NORMAL_TABLE:
+        case TSDB_VIRTUAL_NORMAL_TABLE: {
+          CTG_ERR_JRET(ctgRemoveTbMeta(pCtg, &name));
+          break;
+        }
         default:
           ctgError("ignore table type %d", tbType);
           break;
