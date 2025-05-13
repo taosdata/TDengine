@@ -850,14 +850,15 @@ int32_t mndCheckDbDnodeList(SMnode *pMnode, char *db, char *dnodeListStr, SArray
 static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
   int32_t         code = -1, lino = 0;
   SMnode         *pMnode = pReq->info.node;
-  SMountObj      *pMount = NULL;
+  SMountObj      *pObj = NULL;
   SUserObj       *pUser = NULL;
   SCreateMountReq createReq = {0};
 
   TAOS_CHECK_EXIT(tDeserializeSCreateMountReq(pReq->pCont, pReq->contLen, &createReq));
-  mInfo("mount:%s, start to create on dnode %d from %s", createReq.mountName, *createReq.dnodeIds, createReq.mountPaths[0]); // TODO: mutiple mounts
+  mInfo("mount:%s, start to create on dnode %d from %s", createReq.mountName, *createReq.dnodeIds,
+        createReq.mountPaths[0]);  // TODO: mutiple mounts
 
-  if ((pMount = mndAcquireMount(pMnode, createReq.mountName))) {
+  if ((pObj = mndAcquireMount(pMnode, createReq.mountName))) {
     if (createReq.ignoreExist) {
       mInfo("mount:%s, already exist, ignore exist is set", createReq.mountName);
       code = 0;
@@ -869,13 +870,13 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
   } else {
     if ((code = terrno) == TSDB_CODE_MND_MOUNT_NOT_EXIST) {
       // continue
-    } else {  // TSDB_CODE_MND_MOUNT_IN_CREATING | TSDB_CODE_MND_DB_IN_DROPPING | TSDB_CODE_APP_ERROR
+    } else {  // TSDB_CODE_MND_MOUNT_IN_CREATING | TSDB_CODE_MND_MOUNT_IN_DROPPING | TSDB_CODE_APP_ERROR
       goto _exit;
     }
   }
 
   // mount operation share the privileges of db
-  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, NULL));
+  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, (SDbObj *)pObj));
   TAOS_CHECK_EXIT(grantCheck(TSDB_GRANT_MOUNT));  // TODO: implement when the plan is ready
 
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
@@ -891,11 +892,11 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
 
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("mount:%s, dnode:%d, path:%s, failed to create at line:%d since %s", createReq.mountName, createReq.dnodeIds[0],
-           createReq.mountPaths[0], lino, tstrerror(code)); // TODO: mutiple mounts
+    mError("mount:%s, dnode:%d, path:%s, failed to create at line:%d since %s", createReq.mountName,
+           createReq.dnodeIds[0], createReq.mountPaths[0], lino, tstrerror(code));  // TODO: mutiple mounts
   }
 
-  mndReleaseMount(pMnode, pMount);
+  mndReleaseMount(pMnode, pObj);
   mndReleaseUser(pMnode, pUser);
   tFreeSCreateMountReq(&createReq);
 
@@ -1003,10 +1004,9 @@ _exit:
 }
 #endif
 
-#if 0
-static int32_t mndSetDropDbPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+static int32_t mndSetDropMountPrepareLogs(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
   int32_t  code = 0;
-  SSdbRaw *pRedoRaw = mndDbActionEncode(pDb);
+  SSdbRaw *pRedoRaw = mndMountActionEncode(pObj);
   if (pRedoRaw == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -1015,6 +1015,7 @@ static int32_t mndSetDropDbPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *p
   TAOS_CHECK_RETURN(mndTransAppendPrepareLog(pTrans, pRedoRaw));
   TAOS_CHECK_RETURN(sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING));
 
+#if 0
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
 
@@ -1033,13 +1034,14 @@ static int32_t mndSetDropDbPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *p
 
     sdbRelease(pSdb, pArbGroup);
   }
+#endif
 
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+static int32_t mndSetDropMountCommitLogs(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
   int32_t  code = 0;
-  SSdbRaw *pCommitRaw = mndDbActionEncode(pDb);
+  SSdbRaw *pCommitRaw = mndMountActionEncode(pObj);
   if (pCommitRaw == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -1048,6 +1050,7 @@ static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
   TAOS_CHECK_RETURN(mndTransAppendCommitlog(pTrans, pCommitRaw));
   TAOS_CHECK_RETURN(sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED));
 
+#if 0
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
 
@@ -1124,10 +1127,10 @@ static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
 
     sdbRelease(pSdb, pStb);
   }
-
+#endif
   TAOS_RETURN(code);
 }
-
+#if 0
 static int32_t mndBuildDropVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup) {
   int32_t code = 0;
   for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
@@ -1137,9 +1140,10 @@ static int32_t mndBuildDropVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *
 
   TAOS_RETURN(code);
 }
-
-static int32_t mndSetDropDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+#endif
+static int32_t mndSetDropMountRedoActions(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
   int32_t code = 0;
+#if 0
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
 
@@ -1158,19 +1162,19 @@ static int32_t mndSetDropDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *p
 
     sdbRelease(pSdb, pVgroup);
   }
-
+#endif
   TAOS_RETURN(code);
 }
 
-static int32_t mndBuildDropDbRsp(SDbObj *pDb, int32_t *pRspLen, void **ppRsp, bool useRpcMalloc) {
-  int32_t    code = 0;
-  SDropDbRsp dropRsp = {0};
-  if (pDb != NULL) {
-    (void)memcpy(dropRsp.db, pDb->name, TSDB_DB_FNAME_LEN);
-    dropRsp.uid = pDb->uid;
+static int32_t mndBuildDropMountRsp(SMountObj *pObj, int32_t *pRspLen, void **ppRsp, bool useRpcMalloc) {
+  int32_t       code = 0;
+  SDropMountRsp dropRsp = {0};
+  if (pObj != NULL) {
+    (void)memcpy(dropRsp.name, pObj->name, TSDB_MOUNT_NAME_LEN);
+    dropRsp.uid = pObj->uid;
   }
 
-  int32_t rspLen = tSerializeSDropDbRsp(NULL, 0, &dropRsp);
+  int32_t rspLen = tSerializeSDropMountRsp(NULL, 0, &dropRsp);
   void   *pRsp = NULL;
   if (useRpcMalloc) {
     pRsp = rpcMallocCont(rspLen);
@@ -1184,82 +1188,83 @@ static int32_t mndBuildDropDbRsp(SDbObj *pDb, int32_t *pRspLen, void **ppRsp, bo
   }
 
   int32_t ret = 0;
-  if ((ret = tSerializeSDropDbRsp(pRsp, rspLen, &dropRsp)) < 0) return ret;
+  if ((ret = tSerializeSDropMountRsp(pRsp, rspLen, &dropRsp)) < 0) return ret;
   *pRspLen = rspLen;
   *ppRsp = pRsp;
   TAOS_RETURN(code);
 }
 
-static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
-  int32_t code = -1;
+static int32_t mndDropMount(SMnode *pMnode, SRpcMsg *pReq, SMountObj *pObj) {
+  int32_t code = -1, lino = 0;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "drop-db");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "drop-mount");
   if (pTrans == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
     goto _exit;
   }
 
-  mInfo("trans:%d start to drop db:%s", pTrans->id, pDb->name);
+  mInfo("trans:%d start to drop mount:%s", pTrans->id, pObj->name);
 
-  mndTransSetDbName(pTrans, pDb->name, NULL);
-  TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _exit);
+  mndTransSetDbName(pTrans, pObj->name, NULL);  // TODO
+  TAOS_CHECK_EXIT(mndTransCheckConflict(pMnode, pTrans));
 
+#if 0
   if (mndTopicExistsForDb(pMnode, pDb)) {
     code = TSDB_CODE_MND_TOPIC_MUST_BE_DELETED;
     goto _exit;
   }
-
-  TAOS_CHECK_GOTO(mndSetDropDbPrepareLogs(pMnode, pTrans, pDb), NULL, _exit);
-  TAOS_CHECK_GOTO(mndSetDropDbCommitLogs(pMnode, pTrans, pDb), NULL, _exit);
-  TAOS_CHECK_GOTO(mndDropStreamByDb(pMnode, pTrans, pDb), NULL, _exit);
-#ifdef TD_ENTERPRISE
-  TAOS_CHECK_GOTO(mndDropViewByDb(pMnode, pTrans, pDb), NULL, _exit);
 #endif
-  TAOS_CHECK_GOTO(mndDropSmasByDb(pMnode, pTrans, pDb), NULL, _exit);
-  TAOS_CHECK_GOTO(mndDropIdxsByDb(pMnode, pTrans, pDb), NULL, _exit);
-  TAOS_CHECK_GOTO(mndStreamSetStopStreamTasksActions(pMnode, pTrans, pDb->uid), NULL, _exit);
-  TAOS_CHECK_GOTO(mndSetDropDbRedoActions(pMnode, pTrans, pDb), NULL, _exit);
-  TAOS_CHECK_GOTO(mndUserRemoveDb(pMnode, pTrans, pDb->name), NULL, _exit);
+
+  TAOS_CHECK_EXIT(mndSetDropMountPrepareLogs(pMnode, pTrans, pObj));
+  TAOS_CHECK_EXIT(mndSetDropMountCommitLogs(pMnode, pTrans, pObj));
+  //   TAOS_CHECK_GOTO(mndDropStreamByDb(pMnode, pTrans, pDb), NULL, _exit);
+  // #ifdef TD_ENTERPRISE
+  //   TAOS_CHECK_GOTO(mndDropViewByDb(pMnode, pTrans, pDb), NULL, _exit);
+  // #endif
+  // TAOS_CHECK_GOTO(mndDropSmasByDb(pMnode, pTrans, pDb), NULL, _exit);
+  // TAOS_CHECK_GOTO(mndDropIdxsByDb(pMnode, pTrans, pDb), NULL, _exit);
+  // TAOS_CHECK_GOTO(mndStreamSetStopStreamTasksActions(pMnode, pTrans, pDb->uid), NULL, _exit);
+  TAOS_CHECK_EXIT(mndSetDropMountRedoActions(pMnode, pTrans, pObj));
+  // TAOS_CHECK_GOTO(mndUserRemoveMount(pMnode, pTrans, pDb->name), NULL, _exit);
 
   int32_t rspLen = 0;
   void   *pRsp = NULL;
-  TAOS_CHECK_GOTO(mndBuildDropDbRsp(pDb, &rspLen, &pRsp, false), NULL, _exit);
+  TAOS_CHECK_EXIT(mndBuildDropMountRsp(pObj, &rspLen, &pRsp, false));
   mndTransSetRpcRsp(pTrans, pRsp, rspLen);
 
-  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _exit);
+  TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
   code = 0;
 
 _exit:
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
 }
-#endif
+
 static int32_t mndProcessDropMountReq(SRpcMsg *pReq) {
   fprintf(stderr, "mndProcessDropMountReq\n");
-  return 0;
-#if 0
-  SMnode    *pMnode = pReq->info.node;
-  int32_t    code = -1;
-  SDbObj    *pDb = NULL;
-  SDropDbReq dropReq = {0};
+  SMnode       *pMnode = pReq->info.node;
+  int32_t       code = -1;
+  SMountObj    *pObj = NULL;
+  SDropMountReq dropReq = {0};
 
-  TAOS_CHECK_GOTO(tDeserializeSDropDbReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _exit);
+  TAOS_CHECK_GOTO(tDeserializeSDropMountReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _exit);
 
-  mInfo("db:%s, start to drop", dropReq.db);
+  mInfo("mount:%s, start to drop", dropReq.mountName);
 
-  pDb = mndAcquireDb(pMnode, dropReq.db);
-  if (pDb == NULL) {
+  pObj = mndAcquireMount(pMnode, dropReq.mountName);
+  if (pObj == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
     if (dropReq.ignoreNotExists) {
-      code = mndBuildDropDbRsp(pDb, &pReq->info.rspLen, &pReq->info.rsp, true);
+      code = mndBuildDropMountRsp(pObj, &pReq->info.rspLen, &pReq->info.rsp, true);
     }
     goto _exit;
   }
 
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_DB, pDb), NULL, _exit);
-
+  // mount operation share the privileges of db
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_DB, (SDbObj *)pObj), NULL, _exit);
+#if 0
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
 
@@ -1288,27 +1293,26 @@ static int32_t mndProcessDropMountReq(SRpcMsg *pReq) {
 
     sdbRelease(pSdb, pVgroup);
   }
-
-  code = mndDropDb(pMnode, pReq, pDb);
+#endif
+  code = mndDropMount(pMnode, pReq, pObj);
   if (code == TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
 
-  SName name = {0};
-  if (tNameFromString(&name, dropReq.db, T_NAME_ACCT | T_NAME_DB) < 0)
-    mError("db:%s, failed to parse db name", dropReq.db);
+  // SName name = {0};
+  // if (tNameFromString(&name, dropReq.mountName, T_NAME_ACCT | T_NAME_DB) < 0)
+  //   mError("mount:%s, failed to parse db name", dropReq.mountName);
 
-  auditRecord(pReq, pMnode->clusterId, "dropDB", name.dbname, "", dropReq.sql, dropReq.sqlLen);
+  auditRecord(pReq, pMnode->clusterId, "dropMount", dropReq.mountName, "", dropReq.sql, dropReq.sqlLen);
 
 _exit:
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("db:%s, failed to drop since %s", dropReq.db, terrstr());
+    mError("mount:%s, failed to drop since %s", dropReq.mountName, tstrerror(code));
   }
 
-  mndReleaseDb(pMnode, pDb);
-  tFreeSDropDbReq(&dropReq);
+  mndReleaseMount(pMnode, pObj);
+  tFreeSDropMountReq(&dropReq);
   TAOS_RETURN(code);
-#endif
 }
 
 #if 0
@@ -2029,12 +2033,12 @@ static int32_t mndRetrieveMounts(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
         // TAOS_UNUSED(snprintf(pBuf, bufLen, "%d", *(int32_t *)pObj->dnodeIds));  // TODO: support mutiple dnodes
-        COL_DATA_SET_VAL_GOTO((const char*)&pObj->dnodeIds[0], false, pObj, _exit);
+        COL_DATA_SET_VAL_GOTO((const char *)&pObj->dnodeIds[0], false, pObj, _exit);
       }
 
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
         // TAOS_UNUSED(snprintf(pBuf, bufLen, "%" PRIi64, pObj->createdTime));
-        COL_DATA_SET_VAL_GOTO((const char*)&pObj->createdTime, false, pObj, _exit);
+        COL_DATA_SET_VAL_GOTO((const char *)&pObj->createdTime, false, pObj, _exit);
       }
 
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {

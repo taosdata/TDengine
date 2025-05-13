@@ -1598,6 +1598,14 @@ int32_t tSerializeSDropDbRsp(void* buf, int32_t bufLen, SDropDbRsp* pRsp);
 int32_t tDeserializeSDropDbRsp(void* buf, int32_t bufLen, SDropDbRsp* pRsp);
 
 typedef struct {
+  char    name[TSDB_MOUNT_NAME_LEN];
+  int64_t uid;
+} SDropMountRsp;
+
+int32_t tSerializeSDropMountRsp(void* buf, int32_t bufLen, SDropMountRsp* pRsp);
+int32_t tDeserializeSDropMountRsp(void* buf, int32_t bufLen, SDropMountRsp* pRsp);
+
+typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   int64_t dbId;
   int32_t vgVersion;

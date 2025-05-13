@@ -4496,6 +4496,44 @@ _exit:
   return code;
 }
 
+int32_t tSerializeSDropMountRsp(void *buf, int32_t bufLen, SDropMountRsp *pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->name));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->uid));
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSDropMountRsp(void *buf, int32_t bufLen, SDropMountRsp *pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->name));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->uid));
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
 int32_t tSerializeSUseDbReq(void *buf, int32_t bufLen, SUseDbReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
