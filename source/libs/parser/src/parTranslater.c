@@ -11247,22 +11247,28 @@ static int32_t translateUpdateAnode(STranslateContext* pCxt, SUpdateAnodeStmt* p
   return code;
 }
 
+static int32_t checkCreateXnode(STranslateContext* pCxt, SCreateXnodeStmt* pStmt) {
+  SXnodeOptions* pOptions = pStmt->pOptions;
+
+  if ('\0' != pOptions->protoStr[0]) {
+    if (0 == strcasecmp(pOptions->protoStr, TSDB_XNODE_OPT_PROTO_STR_MQTT)) {
+      pOptions->proto = TSDB_XNODE_OPT_PROTO_MQTT;
+    } else {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_XNODE_OPTION, "Invalid option protocol: %s",
+                                     pOptions->protoStr);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateCreateXnode(STranslateContext* pCxt, SCreateXnodeStmt* pStmt) {
   SMCreateXnodeReq createReq = {.dnodeId = pStmt->dnodeId};
-  /*
-  createReq.urlLen = strlen(pStmt->url) + 1;
-  if (createReq.urlLen > TSDB_ANALYTIC_ANODE_URL_LEN) {
-    return TSDB_CODE_MND_XNODE_TOO_LONG_URL;
+
+  int32_t code = checkCreateXnode(pCxt, pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_XNODE, (FSerializeFunc)tSerializeSMCreateXnodeReq, &createReq);
   }
 
-  createReq.url = taosMemoryCalloc(createReq.urlLen, 1);
-  if (createReq.url == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  tstrncpy(createReq.url, pStmt->url, createReq.urlLen);
-  */
-  int32_t code = buildCmdMsg(pCxt, TDMT_MND_CREATE_XNODE, (FSerializeFunc)tSerializeSMCreateXnodeReq, &createReq);
   tFreeSMCreateXnodeReq(&createReq);
   return code;
 }

@@ -231,15 +231,15 @@ This document details the server error codes that may be encountered when using 
 
 ## xnode
 
-| Error Code | Description                | Possible Error Scenarios or Reasons | Recommended Actions |
-| ---------- | -------------------------- | ----------------------------------- | ------ ------------ |
-| 0x80000450 | Xnode already exists       | Already created                     | Check node status   |
-| 0x80000451 | Xnode already deployed     | Already deployed                    | Confirm if correct  |
-| 0x80000452 | Xnode not deployed         | Internal error                      | Report issue        |
-| 0x80000453 | Xnode not there            | Offline                             | Confirm if correct  |
-| 0x80000454 | Xnode not found            | Internal error                      | Report issue        |
-| 0x80000455 | Xnode exec launch failed   | Internal error                      | Report issue        |
-
+| Error Code | Description                | Possible Error Scenarios or Reasons | Recommended Actions                       |
+| ---------- | -------------------------- | ----------------------------------- | ----------------------------------------- |
+| 0x80000450 | Xnode already exists       | Already created                     | Check node status                         |
+| 0x80000451 | Xnode already deployed     | Already deployed                    | Confirm if correct                        |
+| 0x80000452 | Xnode not deployed         | Internal error                      | Report issue                              |
+| 0x80000453 | Xnode not there            | Offline                             | Confirm if correct                        |
+| 0x80000454 | Xnode not found            | Internal error                      | Report issue                              |
+| 0x80000455 | Xnode exec launch failed   | Internal error                      | Report issue                              |
+| 0x8000261C | Invalid xnode option       | Illegal xnode option value          | Check and correct the xnode option values |
 
 ## dnode
 

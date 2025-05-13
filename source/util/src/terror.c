@@ -680,6 +680,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME,   "Invalid identifier n
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_CORRESPONDING_STABLE_ERR,  "Corresponding super table not in this db")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_DB_OPTION,         "Invalid database option")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TABLE_OPTION,      "Invalid table option")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_XNODE_OPTION,      "Invalid xnode option")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_GROUPBY_WINDOW_COEXIST,    "GROUP BY and WINDOW-clause can't be used together")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_AGG_FUNC_NESTING,          "Aggregate functions do not support nesting")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE,    "Only support STATE_WINDOW on integer/bool/varchar column")
