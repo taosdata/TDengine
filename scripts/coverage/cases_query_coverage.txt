@@ -1,5 +1,5 @@
 # 500 seconds (at most)
-taostest --use=coverage_test.yaml --case=Query/queryscript/scene_query/schema/schema_show.py --keep --disable_collection
+taostest --setup=coverage_test.yaml --case=Query/queryscript/scene_query/schema/schema_show.py --keep --disable_collection
 taostest --use=coverage_test.yaml --case=Query/queryscript/stable_function/str/split/stable_str_concat_2.py --keep --disable_collection
 taostest --use=coverage_test.yaml --case=Query/queryscript/scene_query/schema/schema_query.py --keep --disable_collection
 taostest --use=coverage_test.yaml --case=Query/queryscript/stable_query/split/stable_query_union_1.py --keep --disable_collection
