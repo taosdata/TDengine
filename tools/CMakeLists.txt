@@ -57,15 +57,11 @@ IF(TD_BUILD_HTTP)
 ELSEIF(TD_BUILD_TAOSA_INTERNAL)
     MESSAGE("${Yellow} use taosa internal as httpd ${ColourReset}")
 
-    # NOTE: better not use INIT_EXT
-    #       because it's designed for external projects
-    #       in a specific way to cache compile artifacts of externals
-    # TODO: need to be adjusted
-    INIT_EXT(taosadapter)
-    get_from_local_repo_if_exists("https://github.com/taosdata/taosadapter.git")
+    INIT_DIRS(ext_taosadapter "${TD_INTERNALS_BASE_DIR}")
+    set(_git_url "https://github.com/taosdata/taosadapter.git")
     ExternalProject_Add(ext_taosadapter
         GIT_REPOSITORY ${_git_url}
-        PREFIX "${_base}"
+        PREFIX ${_base}
         GIT_TAG main
         GIT_SHALLOW TRUE
         BUILD_IN_SOURCE TRUE
