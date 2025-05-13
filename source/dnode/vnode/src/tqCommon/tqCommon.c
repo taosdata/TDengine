@@ -188,7 +188,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
 
   if (code < 0) {
     rsp.code = TSDB_CODE_MSG_DECODE_ERROR;
-    tqError("vgId:%d failed to decode task update msg, code:%s", vgId, tstrerror(rsp.code));
+    tqError("vgId:%d failed to decode task update msg, code:%s", vgId, tstrerror(code));
     tDestroyNodeUpdateMsg(&req);
     return rsp.code;
   }

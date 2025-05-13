@@ -3053,10 +3053,10 @@ char* getStreamOpName(uint16_t opType) {
 
 void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr) {
   if (!pBlock) {
-    qInfo("%s===stream===%s: Block is Null", taskIdStr, flag);
+    qDebug("%s===stream===%s: Block is Null", taskIdStr, flag);
     return;
   } else if (pBlock->info.rows == 0) {
-    qInfo("%s===stream===%s: Block is Empty. block type %d", taskIdStr, flag, pBlock->info.type);
+    qDebug("%s===stream===%s: Block is Empty. block type %d", taskIdStr, flag, pBlock->info.type);
     return;
   }
   if (qDebugFlag & DEBUG_DEBUG) {
