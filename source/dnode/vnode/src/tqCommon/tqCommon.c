@@ -229,7 +229,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   }
 
   // info needs to be kept till the new trans to update the nodeEp arrived.
-  bool update = streamMetaInitUpdateTaskList(pMeta, req.transId);
+  bool update = streamMetaInitUpdateTaskList(pMeta, req.transId, req.pTaskList);
   if (!update) {
     rsp.code = TSDB_CODE_SUCCESS;
 
@@ -325,7 +325,8 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   rsp.code = TSDB_CODE_SUCCESS;
 
   // possibly only handle the stream task.
-  int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
+//  int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
+  int32_t reqUpdateTasks = taosArrayGetSize(req.pTaskList);
   int32_t updateTasks = taosHashGetSize(pMeta->updateInfo.pTasks);
 
   if (restored && isLeader) {
@@ -333,13 +334,13 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     pMeta->startInfo.tasksWillRestart = 1;
   }
 
-  if (updateTasks < numOfTasks) {
+  if (updateTasks < reqUpdateTasks) {
     if (isLeader) {
       tqInfo("vgId:%d closed tasks:%d, unclosed:%d, all tasks will be started when nodeEp update completed", vgId,
-              updateTasks, (numOfTasks - updateTasks));
+              updateTasks, (reqUpdateTasks - updateTasks));
     } else {
       tqInfo("vgId:%d closed tasks:%d, unclosed:%d, follower not restart tasks", vgId, updateTasks,
-              (numOfTasks - updateTasks));
+              (reqUpdateTasks - updateTasks));
     }
   } else {
     if ((code = streamMetaCommit(pMeta)) < 0) {
@@ -356,7 +357,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
       if (!restored) {
         tqInfo("vgId:%d vnode restore not completed, not start all tasks", vgId);
       } else {
-        tqInfo("vgId:%d all %d task(s) nodeEp updated and closed, transId:%d", vgId, numOfTasks, req.transId);
+        tqInfo("vgId:%d all %d task(s) nodeEp updated and closed, transId:%d", vgId, reqUpdateTasks, req.transId);
 #if 0
       taosMSleep(5000);// for test purpose, to trigger the leader election
 #endif

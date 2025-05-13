@@ -1592,8 +1592,9 @@ void streamMetaClearSetUpdateTaskListComplete(SStreamMeta* pMeta) {
           pMeta->vgId, pInfo->completeTs, prev, pInfo->completeTransId, num);
 }
 
-bool streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId) {
+bool streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId, SArray* pUpdateTaskList) {
   STaskUpdateInfo* pInfo = &pMeta->updateInfo;
+  int32_t          numOfTasks = taosArrayGetSize(pUpdateTaskList);
 
   if (transId > pInfo->completeTransId) {
     if (pInfo->activeTransId == -1) {
@@ -1627,8 +1628,9 @@ bool streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId) {
         int32_t prev = pInfo->activeTransId;
         pInfo->activeTransId = transId;
 
-        stInfo("vgId:%d active epset update transId updated from:%d to %d, prev complete transId:%d", pMeta->vgId,
-               prev, transId, pInfo->completeTransId);
+        stInfo(
+            "vgId:%d active epset update transId updated from:%d to %d, prev complete transId:%d, reqUpdate tasks:%d",
+            pMeta->vgId, prev, transId, pInfo->completeTransId, numOfTasks);
         return true;
       }
     }
