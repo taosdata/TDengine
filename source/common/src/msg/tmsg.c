@@ -9843,6 +9843,10 @@ _exit:
   return code;
 }
 
+void    tDestroySResFetchReq(SResFetchReq* pReq){
+  // todo
+}
+
 int32_t tSerializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
   int32_t headLen = sizeof(SMsgHead);
   int32_t code = 0;

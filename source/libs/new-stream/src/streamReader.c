@@ -335,6 +335,9 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
     // int32_t vgId = pTask->task.nodeId;
     // int64_t streamId = pTask->task.streamId;
     // int32_t taskId = pTask->task.taskId;
+    SSubplan* pSubplan = NULL;
+    STREAM_CHECK_RET_GOTO(
+      nodesStringToNode(pMsg->msg.calc.calcScanPlan, (SNode**)(&pSubplan)));
 
     // ST_TASK_DLOG("vgId:%d start to build stream reader calc task", vgId);
     pTask->info.calcReaderInfo.calcScanPlan = taosStrdup(pMsg->msg.calc.calcScanPlan);

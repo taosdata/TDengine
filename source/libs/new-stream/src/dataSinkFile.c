@@ -421,13 +421,13 @@ int32_t getFirstDataIterFromFile(SDataSinkFileMgr* pFileMgr, int64_t groupId, TS
 
   //SDataSinkFileMgr* pFileMgr = pStreamTaskDSMgr->pFileMgr;
   if (pFileMgr == NULL) {
-    *ppResult = NULL;
+    releaseDataIterator((void**)ppResult);
     return TSDB_CODE_SUCCESS;
   }
   SGroupFileDataMgr** ppGroupData =
       (SGroupFileDataMgr**)taosHashGet(pFileMgr->groupBlockList, &groupId, sizeof(groupId));
   if (ppGroupData == NULL || *ppGroupData == NULL) {
-    *ppResult = NULL;
+    releaseDataIterator((void**)ppResult);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -437,13 +437,13 @@ int32_t getFirstDataIterFromFile(SDataSinkFileMgr* pFileMgr, int64_t groupId, TS
   // todo 每次 clear file data 之后，如果没有数据了，需要回收 file block
 
   if (pGroupData->windowDataInFile == NULL) {
-    *ppResult = NULL;
+    releaseDataIterator((void**)ppResult);
     return TSDB_CODE_SUCCESS;
   }
 
   SWindowDataInFile* pWindowData = *(SWindowDataInFile**)taosArrayGet(pGroupData->windowDataInFile, 0);
   if (pWindowData == NULL) {
-    *ppResult = NULL;
+    releaseDataIterator((void**)ppResult);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -463,7 +463,11 @@ int32_t getFirstDataIterFromFile(SDataSinkFileMgr* pFileMgr, int64_t groupId, TS
   }
   pFileMgr->readingGroupId = groupId;
 
-  pResult = taosMemoryCalloc(1, sizeof(SResultIter));
+  if (*ppResult != NULL) {
+    pResult = (SResultIter*)*ppResult;
+  } else {
+    pResult = taosMemoryCalloc(1, sizeof(SResultIter));
+  }
   if (pResult == NULL) {
     return terrno;
   }
@@ -485,10 +489,12 @@ void setNextIteratorFromFile(SResultIter** ppResult) {
   SGroupFileDataMgr* pGroupData = (SGroupFileDataMgr*)pResult->groupData;
 
   if (pResult->offset == -1) {  // 查询内存结束，开始查询文件
-    releaseDataIterator((void**)ppResult);
-    *ppResult = NULL;
-    getFirstDataIterFromFile(pResult->pFileMgr, pResult->groupId, pResult->reqStartTime, pResult->reqEndTime,
-                             (void**)ppResult);
+    int32_t code = getFirstDataIterFromFile(pResult->pFileMgr, pResult->groupId, pResult->reqStartTime,
+                                            pResult->reqEndTime, (void**)ppResult);
+    if (code != 0) {
+      stError("failed to get first data iterator from file, err: %s", terrMsg);
+      releaseDataIterator((void**)ppResult);
+    }
     return;
   } else {
     pResult->offset++;

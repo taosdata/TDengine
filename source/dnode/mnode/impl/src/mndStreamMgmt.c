@@ -390,7 +390,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   }
 
   if (NULL == pInfo->runnerTopIdx) {
-    mstDebug("no runner topIdx, skip set trigger's runner list, num:%"PRIu64, taosArrayGetSize(pInfo->runnerList));
+    mstDebug("no runner topIdx, skip set trigger's runner list, num:%"PRIu64, (int64_t)taosArrayGetSize(pInfo->runnerList));
     return code;
   }
 
