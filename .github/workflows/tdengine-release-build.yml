@@ -108,9 +108,9 @@ jobs:
 
       - name: Start taosd
         run: |
-          cp /etc/taos/taos.cfg ./
-          sudo echo "supportVnodes 256" >> taos.cfg
-          nohup sudo taosd -c taos.cfg &
+          # sudo bash -c 'echo "fqdn localhost" >> /etc/taos/taos.cfg'
+          sudo bash -c 'echo "supportVnodes 256" >> /etc/taos/taos.cfg'
+          nohup sudo taosd &
 
       - name: Start taosadapter
         run: nohup sudo taosadapter &
