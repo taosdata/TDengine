@@ -1,15 +1,17 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestNullChar:
+class TestNullTag:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_null_char(self):
-        """Null Char
+    def test_null_tag(self):
+        """NULL tag
 
-        1.
+        1. create table with NULL tags
+        2. select tags
+        3. alter tags
 
         Catalog:
             - DataTypes
@@ -29,7 +31,7 @@ class TestNullChar:
 
         db = "db"
         tdSql.execute(f"drop database if exists {db}")
-        tdSql.execute(f"create database {db}")
+        tdSql.prepare(db, drop=True)
         tdSql.execute(f"use {db}")
 
         #### case 0: field NULL, or 'NULL'
@@ -55,27 +57,16 @@ class TestNullChar:
 
         tdSql.query(f"select * from mt1")
         tdSql.checkRows(4)
-
         tdSql.checkData(2, 1, None)
-
         tdSql.checkData(2, 2, None)
-
         tdSql.checkData(2, 3, None)
-
         tdSql.checkData(2, 4, None)
-
         tdSql.checkData(2, 5, None)
-
         tdSql.checkData(2, 6, None)
-
         tdSql.checkData(2, 7, None)
-
         tdSql.checkData(2, 8, None)
-
         tdSql.checkData(2, 9, None)
-
         tdSql.checkData(3, 1, None)
-
         tdSql.checkData(3, 2, None)
 
         # if $tdSql.getData(3,3) != 0.00000 then
@@ -87,9 +78,7 @@ class TestNullChar:
         #  return -1
         # endi
         tdSql.checkData(3, 5, "NULL")
-
         tdSql.checkData(3, 6, None)
-
         tdSql.checkData(3, 9, "NULL")
 
         #### case 1: tag NULL, or 'NULL'
@@ -101,13 +90,9 @@ class TestNullChar:
 
         tdSql.query(f"select tag1, tag2, tag3, tag5 from st2")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, None)
-
         tdSql.checkData(0, 1, "NULL")
-
         tdSql.checkData(0, 2, 102)
-
         tdSql.checkData(0, 3, 1)
 
         tdSql.query(f"select tag1 from st2 limit 20 offset 1")
@@ -124,13 +109,9 @@ class TestNullChar:
         tdSql.execute(f"insert into st3 (ts, col1) values(now, 1)")
         tdSql.query(f"select tag1, tag2, tag3, tag5 from st3")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, None)
-
         tdSql.checkData(0, 1, "ABC")
-
         tdSql.checkData(0, 2, 103)
-
         tdSql.checkData(0, 3, 0)
 
         ### bool:
@@ -142,26 +123,18 @@ class TestNullChar:
         tdSql.execute(f"insert into st4 (ts, col1) values(now, 1)")
         tdSql.query(f"select tag1,tag2,tag3,tag5 from st4")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, "NULL")
-
         tdSql.checkData(0, 1, "123aBc")
-
         tdSql.checkData(0, 2, 104)
-
         tdSql.checkData(0, 3, None)
 
         tdSql.execute(f"create table st5 using mt2 tags ('NULL', '123aBc', 105, NULL)")
         tdSql.execute(f"insert into st5 (ts, col1) values(now, 1)")
         tdSql.query(f"select tag1,tag2,tag3,tag5 from st5")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, "NULL")
-
         tdSql.checkData(0, 1, "123aBc")
-
         tdSql.checkData(0, 2, 105)
-
         tdSql.checkData(0, 3, None)
 
         #### case 2: dynamic create table using super table when insert into
@@ -193,17 +166,11 @@ class TestNullChar:
             f"select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from st41"
         )
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, "beijing")
-
         tdSql.checkData(0, 1, "nchar_tag")
-
         tdSql.checkData(0, 2, 100)
-
         tdSql.checkData(0, 3, 0)
-
         tdSql.checkData(0, 4, 9.12345)
-
         tdSql.checkData(0, 5, 7.123456789)
 
         ################# binary

@@ -25,9 +25,7 @@ class TestBiStarTable:
 
         """
 
-        tdSql.execute(f"drop database if exists db1;")
-        tdSql.execute(f"create database db1 vgroups 3;")
-        tdSql.execute(f"create database db1;")
+        tdSql.prepare(dbname="db1", vgroups=3)
         tdSql.execute(f"use db1;")
         tdSql.execute(
             f"create stable sta (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);"
@@ -40,8 +38,8 @@ class TestBiStarTable:
         tdSql.execute(f'insert into tba1 values(now, 1, "1");')
         tdSql.execute(f'insert into tba2 values(now + 1s, 2, "2");')
         tdSql.execute(f"create table tbn1 (ts timestamp, f1 int);")
-        tdSql.execute(f"create database db2 vgroups 3;")
-        tdSql.execute(f"create database db2;")
+        
+        tdSql.prepare(dbname="db2", vgroups=3)
         tdSql.execute(f"use db2;")
         tdSql.execute(
             f"create stable sta (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);"
@@ -53,6 +51,7 @@ class TestBiStarTable:
         tdSql.execute(f"create table tba2 using sta tags(2, 2, 2);")
 
         # set_bi_mode 1
+        tdSql.setConnMode(1)
         tdSql.query(f"select * from db1.sta order by ts;")
         tdSql.checkCols(7)
 
@@ -99,5 +98,6 @@ class TestBiStarTable:
         tdSql.checkCols(1)
 
         # set_bi_mode 0
+        tdSql.setConnMode(0)
         tdSql.query(f"select * from db1.sta order by ts;")
         tdSql.checkCols(6)

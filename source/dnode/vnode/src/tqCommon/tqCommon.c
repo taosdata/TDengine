@@ -1299,7 +1299,7 @@ int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* m
   int32_t      code = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId, &pTask);
   if (pTask == NULL || (code != 0)) {
     tqError("s-task:0x%x failed to acquire task to resume, it may have been dropped or stopped", pReq->taskId);
-    return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
+    return TSDB_CODE_SUCCESS;
   }
 
   streamMutexLock(&pTask->lock);
@@ -1310,7 +1310,8 @@ int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* m
   code = tqProcessTaskResumeImpl(handle, pTask, sversion, pReq->igUntreated, fromVnode);
   if (code != 0) {
     streamMetaReleaseTask(pMeta, pTask);
-    return code;
+    tqError("s-task:%s failed to resume tasks, code:%s", pTask->id.idStr, tstrerror(code));
+    return TSDB_CODE_SUCCESS;
   }
 
   STaskId*     pHTaskId = &pTask->hTaskInfo.id;

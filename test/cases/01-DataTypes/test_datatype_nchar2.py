@@ -7,9 +7,11 @@ class TestNChar:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_nchar(self):
-        """NChar
+        """nchar datatype (Chinese)
 
-        1.
+        1. create table
+        2. insert data
+        3. query data
 
         Catalog:
             - DataTypes
@@ -40,7 +42,7 @@ class TestNChar:
         db = dbPrefix + str(i)
         mt = mtPrefix + str(i)
         tb = tbPrefix + str(i)
-        tdSql.execute(f"create database {db}")
+        tdSql.prepare(dbname=db)
         tdSql.execute(f"use {db}")
 
         # case1: create_metric_with_nchar_data
@@ -57,18 +59,15 @@ class TestNChar:
         )
         tdSql.query(f"show stables")
         tdSql.checkRows(1)
-
         tdSql.checkData(0, 0, mt)
 
         tdSql.query(f"describe {mt}")
         tdSql.checkRows(3)
-
         tdSql.checkData(1, 1, "NCHAR")
 
         tdSql.execute(f"create table {tb} using {mt} tags ('tag1')")
         tdSql.query(f"describe {tb}")
         tdSql.checkData(1, 1, "NCHAR")
-
         tdSql.checkData(2, 1, "NCHAR")
 
         tdSql.execute(f"drop table {tb}")
@@ -203,7 +202,6 @@ class TestNChar:
 
         tdLog.info(f"tdSql.getData(0,0) = {tdSql.getData(0,0)}")
         tdSql.checkData(0, 0, 5)
-
         tdSql.checkData(1, 0, 5)
 
         tdSql.error(f"select avg(tbcol) from {mt} where tbcol1 = 1 group by tgcol")
@@ -213,26 +211,18 @@ class TestNChar:
             f"select first(tbcol), tgcol from {mt} where tbcol1 = 1 group by tgcol order by tgcol"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 0)
-
         tdSql.checkData(0, 1, 0)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(1, 1, 1)
 
         tdSql.query(
             f"select last(tbcol), tgcol from {mt} where tbcol1 = 1 group by tgcol order by tgcol"
         )
         tdSql.checkRows(2)
-
         tdSql.checkData(0, 0, 0)
-
         tdSql.checkData(0, 1, 0)
-
         tdSql.checkData(1, 0, 1)
-
         tdSql.checkData(1, 1, 1)
 
         tdSql.execute(f"create table stbb (ts timestamp, c1 nchar(5)) tags (t1 int)")
@@ -248,5 +238,4 @@ class TestNChar:
 
         tdSql.query(f"select * from stbb")
         tdSql.checkRows(2)
-
         tdSql.checkData(1, 1, "insrt")

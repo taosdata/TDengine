@@ -32,8 +32,8 @@ TDengine Enterprise 配备了一个强大的可视化数据管理工具—taosEx
 | SQL Server | 2012/2022 | Microsoft SQL Server 是一种关系型数据库管理系统，由 Microsoft 公司开发，具有使用方便可伸缩性好与相关软件集成程度高等优点。 |
 | MongoDB | 3.6+ | MongoDB 是一个介于关系型数据库与非关系型数据库之间的产品，被广泛应用于内容管理系统、移动应用与物联网等众多领域。 |
 | CSV | -  | Comma Separated Values 的缩写，是一种以逗号分隔的纯文本文件格式，通常用于电子表格或数据库软件。 |
-| TDengine 2.x | 2.4 或 2.6+ | TDengine 旧版本，已不再维护，推荐升级到 3.0 最新版本。 |
-| TDengine 3.x | 源端版本 + | 使用 TMQ 进行 TDengine 指定从数据库或超级表的订阅。 |
+| TDengine 查询 | 2.4+, 3.0+ | TDengine 旧版本数据查询方式写入新集群。 |
+| TDengine 数据订阅 | 3.0+ | 使用 TMQ 进行 TDengine 指定从数据库或超级表的订阅。 |
 
 ## 数据提取、过滤和转换
 
