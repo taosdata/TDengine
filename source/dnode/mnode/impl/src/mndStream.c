@@ -2920,6 +2920,18 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
 
   mDebug("start to process consensus-checkpointId in tmr");
 
+  streamMutexLock(&execInfo.lock);
+  int32_t numOfTasks = taosHashGetSize(execInfo.pStreamConsensus);
+  streamMutexUnlock(&execInfo.lock);
+
+  if (numOfTasks == 0) {
+    mDebug("no streams in consensus-checkpointId list, no need to do stream consensus");
+    taosArrayDestroy(pStreamList);
+    return 0;
+  } else {
+    mDebug("start to check %d streams in consensus-checkpointId list", numOfTasks);
+  }
+
   code = mndTakeVgroupSnapshot(pMnode, &allReady, &pNodeSnapshot, pTermMap);
   taosArrayDestroy(pNodeSnapshot);
   if (code) {
@@ -2934,9 +2946,6 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
   }
 
   streamMutexLock(&execInfo.lock);
-
-  int32_t numOfTasks = taosHashGetSize(execInfo.pStreamConsensus);
-  mDebug("start to check %d streams in consensus-checkpointId list", numOfTasks);
 
   while ((pIter = taosHashIterate(execInfo.pStreamConsensus, pIter)) != NULL) {
     SCheckpointConsensusInfo *pInfo = (SCheckpointConsensusInfo *)pIter;
