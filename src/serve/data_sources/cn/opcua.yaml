@@ -144,7 +144,7 @@ datasets:
         
         (12) tag::VARCHAR(200)::name：可选/可配置多个tag列；数据点位在 TDengine 中对应的 Tag 列；其中 tag 为保留关键字，表示该列为一个 tag 列；VARCHAR(200) 表示该 tag 的类型，也可以是其它合法的类型；name 是该 tag 的列名。
         
-        更多填写规则请参考<a target="_blank" href="/docs/enterprise/datain/opcua">企业版文档</a>。
+        更多填写规则请参考<a target="_blank" href="/docs/advanced/data-in/opcua/">企业版文档</a>。
       target:
         name: csv_config_file
         description: |
