@@ -693,6 +693,7 @@ typedef struct SSTriggerCalcRequest {
   SArray* groupColVals;  // only provided at the first calculation of the group
   bool    brandNew;      // TODO wjm remove it
   int8_t  createTable;
+  int32_t curWinIdx; // no serialize
 } SSTriggerCalcRequest;
 
 int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTriggerCalcRequest* pReq);
