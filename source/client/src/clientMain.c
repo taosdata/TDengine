@@ -525,7 +525,7 @@ int32_t fetchWhiteListDualStackCallbackFn(void *param, SDataBuf *pMsg, int32_t c
   pWhiteLists[0] = ip4;
 
   char *ip6 = taosMemCalloc(1, 256);
-  snprintf(ip6, 255, "%s/%d", "::1/", 0);
+  snprintf(ip6, 255, "%s/%d", "::/", 0);
   pWhiteLists[1] = ip6;
 
   pInfo->userCbFn(pInfo->userParam, code, taos, wlRsp.numWhiteLists, pWhiteLists);
