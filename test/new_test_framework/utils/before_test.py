@@ -81,7 +81,7 @@ class BeforeTest:
             "log_level": self.log_level
         }
         if clean:
-            setup_params["destroy"] = yaml_file
+            setup_params["clean"] = ''
 
         try:
             #subprocess.run([sys.executable, f"taostest --setup {yaml_file} --mnode-count {mnodes_num}"], check=True, text=True, shell=True, env=env_vars)
