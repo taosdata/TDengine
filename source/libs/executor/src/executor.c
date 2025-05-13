@@ -1684,41 +1684,12 @@ int32_t streamClearStatesForOperators(qTaskInfo_t tInfo) {
   return code;
 }
 
-static int32_t streamDoNotification(qTaskInfo_t tInfo, const SSDataBlock* pBlock) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  if (!pBlock || pBlock->info.rows <= 0) return code;
-  return 0;
-
-  EStreamNotifyEventType  eventType = SNOTIFY_EVENT_WINDOW_CLOSE;
-  SStreamNotifyEventSupp* pSupp = NULL;
-  STaskNotifyEventStat    stats = {0};
-  pSupp->pWindowEventHashMap =
-      taosHashInit(4096, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  QUERY_CHECK_NULL(pSupp->pWindowEventHashMap, code, lino, _end, terrno);
-  // TODO wjm pSupp->windowType = ???
-
-  // code = addAggResultNotifyEvent(pBlock, NULL, NULL, pSupp, &stats);
-  if (code == 0) {
-    code = buildNotifyEventBlock(tInfo, pSupp, &stats);
-  }
-  // add NotifyEvent
-  //
-  // build notify block
-  //
-  // send events
-
-  return code;
-_end:
-  return code;
-}
-
-int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** pRes, uint64_t* useconds) {
+int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppRes, uint64_t* useconds, bool* finished) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tInfo;
   int64_t        threadId = taosGetSelfPthreadId();
   int64_t        curOwner = 0;
 
-  *pRes = NULL;
+  *ppRes = NULL;
 
   // todo extract method
   taosRLockLatch(&pTaskInfo->lock);
@@ -1760,24 +1731,19 @@ int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** pRes, uint64_t* useco
 
   int64_t st = taosGetTimestampUs();
 
-  int32_t code = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot, pRes);
+  int32_t code = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot, ppRes);
   if (code) {
     pTaskInfo->code = code;
     qError("%s failed at line %d, code:%s %s", __func__, __LINE__, tstrerror(code), GET_TASKID(pTaskInfo));
   } else {
-    code = streamForceOutput(tInfo, pRes);
+    *finished = NULL == *ppRes;
+    code = streamForceOutput(tInfo, ppRes);
   }
   if (code) {
     pTaskInfo->code = code;
     qError("%s failed at line %d, code:%s %s", __func__, __LINE__, tstrerror(code), GET_TASKID(pTaskInfo));
   } else {
-    code = blockDataCheck(*pRes);
-  }
-  if (code) {
-    pTaskInfo->code = code;
-    qError("%s failed at line %d, code:%s %s", __func__, __LINE__, tstrerror(code), GET_TASKID(pTaskInfo));
-  } else {
-    code = streamDoNotification(tInfo, *pRes);
+    code = blockDataCheck(*ppRes);
   }
   if (code) {
     pTaskInfo->code = code;
@@ -1787,13 +1753,13 @@ int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** pRes, uint64_t* useco
   uint64_t el = (taosGetTimestampUs() - st);
 
   pTaskInfo->cost.elapsedTime += el;
-  if (NULL == *pRes) {
+  if (NULL == *ppRes) {
     *useconds = pTaskInfo->cost.elapsedTime;
   }
 
   (void)cleanUpUdfs();
 
-  int32_t  current = (*pRes != NULL) ? (*pRes)->info.rows : 0;
+  int32_t  current = (*ppRes != NULL) ? (*ppRes)->info.rows : 0;
   uint64_t total = pTaskInfo->pRoot->resultInfo.totalRows;
 
   qDebug("%s task suspended, %d rows returned, total:%" PRId64 " rows, in sinkNode:%d, elapsed:%.2f ms",

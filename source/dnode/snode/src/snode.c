@@ -58,6 +58,7 @@ static int32_t handleTriggerCalcReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
     req.brandNew = true;
     req.execId = -1;
     pTask->pMsgCb = &pSnode->msgCb;
+    req.curWinIdx = 0;
     code = stRunnerTaskExecute(pTask, &req);
   }
   SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_TRIGGER_CALC_RSP, .contLen = 0, .pCont = NULL, .info = pRpcMsg->info};
@@ -122,6 +123,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, SRpcMsg* pRpcMsg) {
     TSWAP(calcReq.groupColVals, req.pStRtFuncInfo->pStreamPartColVals);
     TSWAP(calcReq.params, req.pStRtFuncInfo->pStreamPesudoFuncVals);
     calcReq.gid = req.pStRtFuncInfo->groupId;
+    calcReq.curWinIdx = req.pStRtFuncInfo->curIdx;
   }
   if (code == 0) {
     code = streamGetTask(calcReq.streamId, calcReq.runnerTaskId, (SStreamTask**)&pTask);

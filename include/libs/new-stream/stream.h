@@ -83,6 +83,7 @@ typedef struct SStreamRunnerTask {
   void*                         pSubTableExpr;
   SArray*                       forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
   bool                          topTask;
+  taskUndeplyCallback           undeployCb;
 } SStreamRunnerTask;
 
 typedef struct SStreamCacheReadInfo {

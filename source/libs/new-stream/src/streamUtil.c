@@ -331,12 +331,54 @@ _end:
   return code;
 }
 
-int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** ppContent) {
+int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** ppContent, int32_t filterColIdx, const SArray* pFields) {
   int32_t code = 0, lino = 0;
-  cJSON*  results = NULL;
-  results = cJSON_CreateObject();
-  QUERY_CHECK_NULL(results, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  cJSON*  pResult = NULL;
+  pResult = cJSON_CreateObject();
+  QUERY_CHECK_NULL(pResult, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+
+  cJSON* pArr = cJSON_AddArrayToObject(pResult, "result");
+  QUERY_CHECK_NULL(pArr, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+
+  cJSON* pRow = NULL;
+  for (int32_t rowIdx = 0; rowIdx < pBlock->info.rows; ++rowIdx) {
+    const SColumnInfoData* pFilterCol = taosArrayGet(pBlock->pDataBlock, filterColIdx);
+    if (pFilterCol->info.type != TSDB_DATA_TYPE_BOOL) {
+      stError("failed to do notification filtering, col type not bool: %d", pFilterCol->info.type);
+      QUERY_CHECK_CODE(TSDB_CODE_INTERNAL_ERROR, lino, _end);
+    }
+    bool v = *(const bool*)colDataGetNumData(pFilterCol, rowIdx);
+    if (!v) continue;
+
+    pRow = cJSON_CreateObject();
+    QUERY_CHECK_NULL(pRow, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+
+    for (int32_t colIdx = 0; colIdx < taosArrayGetSize(pBlock->pDataBlock); ++colIdx) {
+      const SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, colIdx);
+      const SFieldWithOptions* pField = taosArrayGet(pFields, colIdx);
+      const char*              colName = "unknown";
+      if (!pField) {
+        stError("failed to get field name for notification, colIdx: %d, fields arr size: %d", colIdx,
+                taosArrayGetSize(pFields));
+      }
+      colName = pField->name;
+      code = jsonAddColumnField(colName, pCol->info.type, colDataIsNull_s(pCol, rowIdx), colDataGetData(pCol, rowIdx),
+                                pRow);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+
+    TSDB_CHECK_CONDITION(cJSON_AddItemToArray(pArr, pRow), code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    pRow = NULL;
+  }
+  *ppContent = cJSON_PrintUnformatted(pResult);
+  QUERY_CHECK_NULL(*ppContent, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+
 _end:
+  if (pRow) cJSON_Delete(pRow);
+  if (pArr) cJSON_Delete(pArr);
+  if (code) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
