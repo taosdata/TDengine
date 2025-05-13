@@ -2907,20 +2907,13 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
   int32_t code = 0;
   void   *pIter = NULL;
 
-  SArray *pList = taosArrayInit(4, sizeof(int32_t));
-  if (pList == NULL) {
-    return terrno;
-  }
-
   SArray *pStreamList = taosArrayInit(4, sizeof(int64_t));
   if (pStreamList == NULL) {
-    taosArrayDestroy(pList);
     return terrno;
   }
 
   SHashObj* pTermMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   if (pTermMap == NULL) {
-    taosArrayDestroy(pList);
     taosArrayDestroy(pStreamList);
     return terrno;
   }
@@ -2936,17 +2929,17 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
   if (!allReady) {
     mWarn("not all vnodes are ready, end to process the consensus-checkpointId in tmr process");
     taosArrayDestroy(pStreamList);
-    taosArrayDestroy(pList);
     taosHashCleanup(pTermMap);
     return 0;
   }
 
   streamMutexLock(&execInfo.lock);
 
+  int32_t numOfTasks = taosHashGetSize(execInfo.pStreamConsensus);
+  mDebug("start to check %d streams in consensus-checkpointId list", numOfTasks);
+
   while ((pIter = taosHashIterate(execInfo.pStreamConsensus, pIter)) != NULL) {
     SCheckpointConsensusInfo *pInfo = (SCheckpointConsensusInfo *)pIter;
-
-    taosArrayClear(pList);
 
     int64_t     streamId = -1;
     int32_t     num = taosArrayGetSize(pInfo->pTaskList);
@@ -3011,13 +3004,15 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
       }
 
       if (((now - pe->ts) >= 10 * 1000) || allSame) {
-        mDebug("s-task:0x%x vgId:%d term:%d sendTs:%" PRId64 " wait %.2fs or all tasks have same checkpointId:%" PRId64, pe->req.taskId,
-               pe->req.nodeId, pe->req.term, pe->req.startTs, (now - pe->ts) / 1000.0, chkId);
+        mInfo("s-task:0x%" PRIx64 "-0x%x vgId:%d term:%d sendTs:%" PRId64
+              " wait %.2fs or all tasks have same checkpointId:%" PRId64,
+              pe->req.streamId, pe->req.taskId, pe->req.nodeId, pe->req.term, pe->req.startTs, (now - pe->ts) / 1000.0,
+              chkId);
+
         if (chkId > pe->req.checkpointId) {
           streamMutexUnlock(&execInfo.lock);
 
           taosArrayDestroy(pStreamList);
-          taosArrayDestroy(pList);
           taosHashCleanup(pTermMap);
 
           mError("s-task:0x%x checkpointId:%" PRId64 " is updated to %" PRId64 ", update it", pe->req.taskId,
@@ -3077,7 +3072,6 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
   streamMutexUnlock(&execInfo.lock);
 
   taosArrayDestroy(pStreamList);
-  taosArrayDestroy(pList);
   taosHashCleanup(pTermMap);
 
   mDebug("end to process consensus-checkpointId in tmr, send consensus-checkpoint trans:%d", numOfTrans);

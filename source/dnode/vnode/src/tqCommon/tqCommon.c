@@ -211,7 +211,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
             req.taskId);
     rsp.code = TSDB_CODE_SUCCESS;
     streamMetaWUnLock(pMeta);
-    taosArrayDestroy(req.pNodeList);
+    tDestroyNodeUpdateMsg(&req);
     return rsp.code;
   }
 
@@ -224,7 +224,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     streamMetaReleaseTask(pMeta, pTask);
     streamMetaWUnLock(pMeta);
 
-    taosArrayDestroy(req.pNodeList);
+    tDestroyNodeUpdateMsg(&req);
     return rsp.code;
   }
 
@@ -236,7 +236,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     streamMetaReleaseTask(pMeta, pTask);
     streamMetaWUnLock(pMeta);
 
-    taosArrayDestroy(req.pNodeList);
+    tDestroyNodeUpdateMsg(&req);
     return rsp.code;
   }
 
@@ -252,7 +252,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     streamMetaReleaseTask(pMeta, pTask);
     streamMetaWUnLock(pMeta);
 
-    taosArrayDestroy(req.pNodeList);
+    tDestroyNodeUpdateMsg(&req);
     return rsp.code;
   }
 
@@ -325,7 +325,6 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   rsp.code = TSDB_CODE_SUCCESS;
 
   // possibly only handle the stream task.
-//  int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
   int32_t reqUpdateTasks = taosArrayGetSize(req.pTaskList);
   int32_t updateTasks = taosHashGetSize(pMeta->updateInfo.pTasks);
 
@@ -346,7 +345,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     if ((code = streamMetaCommit(pMeta)) < 0) {
       // always return true
       streamMetaWUnLock(pMeta);
-      taosArrayDestroy(req.pNodeList);
+      tDestroyNodeUpdateMsg(&req);
       tqError("vgId:%d commit meta failed, code:%s not restart the stream tasks", vgId, tstrerror(code));
       return TSDB_CODE_SUCCESS;
     }
@@ -372,7 +371,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   }
 
   streamMetaWUnLock(pMeta);
-  taosArrayDestroy(req.pNodeList);
+  tDestroyNodeUpdateMsg(&req);
   return rsp.code;  // always return true
 }
 

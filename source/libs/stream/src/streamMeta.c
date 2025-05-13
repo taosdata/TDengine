@@ -390,22 +390,13 @@ int32_t streamMetaUpdateInfoInit(STaskUpdateInfo* pInfo) {
     return terrno;
   }
 
-  pInfo->pTaskList = taosArrayInit(4, sizeof(int32_t));
-  if (pInfo->pTaskList == NULL) {
-    return terrno;
-  }
-
   return TSDB_CODE_SUCCESS;
 }
 
 void streamMetaUpdateInfoCleanup(STaskUpdateInfo* pInfo) {
   taosHashCleanup(pInfo->pTasks);
-  taosArrayDestroy(pInfo->pTaskList);
   pInfo->pTasks = NULL;
-  pInfo->pTaskList = NULL;
 }
-
-
 
 int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, FTaskExpand expandTaskFn, int32_t vgId,
                        int64_t stage, startComplete_fn_t fn, SStreamMeta** p) {
@@ -1577,10 +1568,9 @@ void streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, SSt
 
 void streamMetaClearSetUpdateTaskListComplete(SStreamMeta* pMeta) {
   STaskUpdateInfo* pInfo = &pMeta->updateInfo;
-  int32_t          num = taosArrayGetSize(pInfo->pTaskList);
+  int32_t          num = taosHashGetSize(pInfo->pTasks);
 
   taosHashClear(pInfo->pTasks);
-  taosArrayClear(pInfo->pTaskList);
 
   int32_t prev = pInfo->completeTransId;
   pInfo->completeTransId = pInfo->activeTransId;
@@ -1607,12 +1597,12 @@ bool streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId, SArray* p
         int32_t num = taosArrayGetSize(pMeta->startInfo.pRecvChkptIdTasks);
         pMeta->startInfo.partialTasksStarted = true;
         stInfo(
-            "vgId:%d set the active epset update transId:%d, prev complete transId:%d, start all interrupted, only %d "
-            "tasks were started",
-            pMeta->vgId, transId, pInfo->completeTransId, num);
+            "vgId:%d set the active epset update transId:%d for %d tasks, prev complete transId:%d, start all "
+            "interrupted, only %d tasks were started",
+            pMeta->vgId, transId, numOfTasks, pInfo->completeTransId, num);
       } else {
-        stInfo("vgId:%d set the active epset update transId:%d, prev complete transId:%d", pMeta->vgId, transId,
-               pInfo->completeTransId);
+        stInfo("vgId:%d set the active epset update transId:%d for %d tasks, prev complete transId:%d", pMeta->vgId,
+               transId, numOfTasks, pInfo->completeTransId);
       }
       return true;
     } else {

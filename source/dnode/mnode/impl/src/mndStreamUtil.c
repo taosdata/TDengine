@@ -937,10 +937,10 @@ void mndAddConsensusTasks(SCheckpointConsensusInfo *pInfo, const SRestoreCheckpo
     mError("s-task:0x%x failed to put task into consensus-checkpointId list, code: out of memory", info.req.taskId);
   } else {
     num = taosArrayGetSize(pInfo->pTaskList);
-    mDebug("s-task:0x%x (vgId:%d) checkpointId:%" PRId64 " term:%d, reqTs:%" PRId64
-           " added into consensus-checkpointId list, stream:0x%" PRIx64 " waiting tasks:%d",
+    mInfo("s-task:0x%x (vgId:%d) checkpointId:%" PRId64 " term:%d, reqTs:%" PRId64
+           " added into consensus-checkpointId list, stream:0x%" PRIx64 " waiting tasks:%d, total tasks:%d",
            pRestoreInfo->taskId, pRestoreInfo->nodeId, pRestoreInfo->checkpointId, info.req.term,
-           info.req.startTs, pRestoreInfo->streamId, num);
+           info.req.startTs, pRestoreInfo->streamId, num, pInfo->numOfTasks);
   }
 }
 

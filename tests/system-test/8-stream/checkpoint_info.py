@@ -87,6 +87,7 @@ class TDTestCase:
         tdLog.debug("========restart stream========")
         time.sleep(10)
 
+        st = time.time()
         while True:
             sql = 'select status from information_schema.ins_stream_tasks where status<>"ready" '
             if len(tdSql.getResult(sql)) != 0:
