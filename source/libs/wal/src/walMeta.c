@@ -950,6 +950,8 @@ int32_t walSaveMeta(SWal* pWal) {
   char fnameStr[WAL_FILE_LEN];
   char tmpFnameStr[WAL_FILE_LEN];
   int      n;
+  TdFilePtr pMetaFile = NULL;
+  char*     serialized = NULL;
 
   TAOS_CHECK_GOTO(walFindCurMetaVer(pWal, &metaVer), &lino, _err);
   // fsync the idx and log file at first to ensure validity of meta
@@ -972,15 +974,13 @@ int32_t walSaveMeta(SWal* pWal) {
     TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
 
-  TdFilePtr pMetaFile =
-      taosOpenFile(tmpFnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+  pMetaFile = taosOpenFile(tmpFnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pMetaFile == NULL) {
     wError("vgId:%d, failed to open file %s since %s", pWal->cfg.vgId, tmpFnameStr, strerror(ERRNO));
 
     TAOS_RETURN(terrno);
   }
 
-  char* serialized = NULL;
   TAOS_CHECK_RETURN(walMetaSerialize(pWal, &serialized));
   int len = strlen(serialized);
   if (pWal->cfg.level != TAOS_WAL_SKIP && len != taosWriteFile(pMetaFile, serialized, len)) {
