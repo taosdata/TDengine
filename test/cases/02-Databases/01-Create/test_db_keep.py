@@ -40,12 +40,12 @@ class TestDatabaseKeep:
         x = 1
         while x < 41:
             time = str(x) + "d"
-            tdSql.is_err_sql(f"insert into tb values (now - {time} , {x} )")
+            tdSql.isErrorSql(f"insert into tb values (now - {time} , {x} )")
             x = x + 1
 
         tdSql.query(f"select * from tb")
         tdLog.info(f"===> rows {tdSql.getRows()}) last {tdSql.getData(0,1)}")
-        tdSql.checkAssert(tdSql.getRows() < 40)
+        tdSql.Assert(tdSql.getRows() < 40)
 
         tdLog.info(f"======== step2 stop dnode")
         sc.dnodeStop(2)
@@ -54,8 +54,8 @@ class TestDatabaseKeep:
 
         tdSql.query(f"select * from tb")
         tdLog.info(f"===> rows {tdSql.getRows()}) last {tdSql.getData(0,1)}")
-        tdSql.checkAssert(tdSql.getRows() < 40)
-        tdSql.checkAssert(tdSql.getRows() > 20)
+        tdSql.Assert(tdSql.getRows() < 40)
+        tdSql.Assert(tdSql.getRows() > 20)
 
         num1 = tdSql.getRows() + 40
 
@@ -71,13 +71,13 @@ class TestDatabaseKeep:
         x = 41
         while x < 81:
             time = str(x) + "d"
-            tdSql.is_err_sql(f"insert into tb values (now - {time} , {x} )")
+            tdSql.isErrorSql(f"insert into tb values (now - {time} , {x} )")
             x = x + 1
 
         tdSql.query(f"select * from tb")
         tdLog.info(f"===> rows {tdSql.getRows()}) last {tdSql.getData(0,1)}")
-        tdSql.checkAssert(tdSql.getRows() < 80)
-        tdSql.checkAssert(tdSql.getRows() > 45)
+        tdSql.Assert(tdSql.getRows() < 80)
+        tdSql.Assert(tdSql.getRows() > 45)
 
         tdLog.info(f"======== step5 stop dnode")
         sc.dnodeStop(2)
@@ -86,8 +86,8 @@ class TestDatabaseKeep:
 
         tdSql.query(f"select * from tb")
         tdLog.info(f"===> rows {tdSql.getRows()}) last {tdSql.getData(0,1)}")
-        tdSql.checkAssert(tdSql.getRows() < 80)
-        tdSql.checkAssert(tdSql.getRows() > 45)
+        tdSql.Assert(tdSql.getRows() < 80)
+        tdSql.Assert(tdSql.getRows() > 45)
 
         tdLog.info(f"======== step6 alter db")
         tdSql.execute(f"alter database keepdb keep 30")
@@ -102,20 +102,20 @@ class TestDatabaseKeep:
 
         tdSql.query(f"select * from tb")
         tdLog.info(f"===> rows {tdSql.getRows()}) last {tdSql.getData(0,1)}")
-        tdSql.checkAssert(tdSql.getRows() < 40)
-        tdSql.checkAssert(tdSql.getRows() > 20)
+        tdSql.Assert(tdSql.getRows() < 40)
+        tdSql.Assert(tdSql.getRows() > 20)
 
         tdLog.info(f"======== step8 insert data")
         x = 81
         while x < 121:
             time = str(x) + "d"
-            tdSql.is_err_sql(f"insert into tb values (now - {time} , {x} )")
+            tdSql.isErrorSql(f"insert into tb values (now - {time} , {x} )")
             x = x + 1
 
         tdSql.query(f"select * from tb")
         tdLog.info(f"===> rows {tdSql.getRows()}) last {tdSql.getData(0,1)}")
-        tdSql.checkAssert(tdSql.getRows() < 40)
-        tdSql.checkAssert(tdSql.getRows() > 20)
+        tdSql.Assert(tdSql.getRows() < 40)
+        tdSql.Assert(tdSql.getRows() > 20)
 
         tdLog.info(f"======== step9 alter db")
         tdSql.error(f"alter database keepdb keep -1")

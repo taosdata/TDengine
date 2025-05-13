@@ -49,5 +49,5 @@ class TestDatabaseDeleteWriting1:
     def threadLoop(self):
         x = 0
         while True:
-            tdSql.is_err_sql(f"insert into db.tb values(now, {x} ")
+            tdSql.isErrorSql(f"insert into db.tb values(now, {x} ")
             x = x + 1

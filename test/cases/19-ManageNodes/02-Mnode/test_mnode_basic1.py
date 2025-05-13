@@ -52,7 +52,7 @@ class TestMnodeBasic1:
                 checkFailed = False
                 break
         if checkFailed:
-            tdSql.checkAssert(False)
+            tdSql.Assert(False)
 
         tdLog.info(f"============ drop mnode 2")
         tdSql.execute(f"drop mnode on dnode 2")
@@ -81,4 +81,4 @@ class TestMnodeBasic1:
                 checkFailed = False
                 break
         if checkFailed:
-            tdSql.checkAssert(False)
+            tdSql.Assert(False)

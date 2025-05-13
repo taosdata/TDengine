@@ -221,7 +221,7 @@ class TestInterval2:
         tdLog.info(f"----> select desc rows: {tdSql.getRows()})")
         desc_rows = tdSql.getRows()
 
-        # tdSql.checkAssert(desc_rows, asc_rows)
+        # tdSql.Assert(desc_rows, asc_rows)
 
         tdLog.info(f"================= step11")
 

@@ -75,5 +75,5 @@ class TestVnodeReplica3Repeat:
             clusterComCheck.checkDbReady("db")
 
             tdSql.query(f"select count(*) from db.tb")
-            tdSql.checkAssert(tdSql.getData(0, 0) >= lastRows)
+            tdSql.Assert(tdSql.getData(0, 0) >= lastRows)
             lastRows = tdSql.getData(0, 0)

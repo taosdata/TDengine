@@ -173,8 +173,8 @@ class TestDropDnodeForce:
         tdLog.info(f"=============== step7: check d2")
         tdSql.query(f"show d2.tables")
         tdLog.info(f"===> d2.tables: {tdSql.getRows()}) remained")
-        tdSql.checkAssert(tdSql.getRows() <= 23)
-        tdSql.checkAssert(tdSql.getRows() > 0)
+        tdSql.Assert(tdSql.getRows() <= 23)
+        tdSql.Assert(tdSql.getRows() > 0)
 
         tdLog.info(f"=============== step8: drop stable and recreate it")
         tdSql.query(

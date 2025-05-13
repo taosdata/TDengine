@@ -88,7 +88,7 @@ class TestValgrindCheckError1:
         tdSql.checkRows(1)
 
         tdSql.query(f"select * from information_schema.ins_tables")
-        tdSql.checkAssert(tdSql.getRows() > 0)
+        tdSql.Assert(tdSql.getRows() > 0)
 
         tdSql.query(f"select * from information_schema.ins_users")
         tdSql.checkRows(1)
@@ -100,9 +100,9 @@ class TestValgrindCheckError1:
         tdSql.checkRows(89)
 
         tdSql.query(f"show dnode 1 variables;")
-        tdSql.checkAssert(tdSql.getRows() > 0)
+        tdSql.Assert(tdSql.getRows() > 0)
 
         tdSql.query(f"show local variables;")
-        tdSql.checkAssert(tdSql.getRows() > 0)
+        tdSql.Assert(tdSql.getRows() > 0)
 
         tdLog.info(f"=============== stop")
