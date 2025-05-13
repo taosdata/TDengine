@@ -279,13 +279,23 @@ class CompatibilityBase:
         tdLog.printNoPrefix("==========step2:update new version ")
         # upgrade only one dnode
         if upgrade == 0:
-            tdLog.info("upgrade only one dnode")
-            processPid = subprocess.getstatusoutput(f'ps aux|grep taosd |grep -v "grep"|awk \'{{print $2}}\'')[1]
-            if processPid:
-                tdLog.info(f"kill taosd process, pid:{processPid}")
-                os.system(f"kill -9 {processPid}")
-                tdLog.info(f"start taosd in {cPaths[0]}")
-                os.system(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")    
+            tdLog.info("upgrade all dnodes")
+            status, output = subprocess.getstatusoutput(f'ps aux|grep taosd |grep -v "grep"|awk \'{{print $2}}\'')
+            if status != 0:
+                tdLog.error(f"Command to get PIDs failed with status {status}: {output}")
+                return 
+            found_pids = []
+            if output:
+                found_pids = [pid for pid in output.strip().split('\n') if pid] 
+            tdLog.info(f"Found PIDs: {found_pids} for 'upgrade all dnodes' scenario.")
+
+            pid_to_kill_for_this_dnode = found_pids[0]
+            tdLog.info(f"Killing taosd process, pid:{pid_to_kill_for_this_dnode} (for cPaths[{0}])")
+            os.system(f"kill -9 {pid_to_kill_for_this_dnode}")
+            cb.checkProcessPid(pid_to_kill_for_this_dnode)
+            tdLog.info(f"Starting taosd using cPath: {cPaths[0]}")
+            tdLog.info(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
+            os.system(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
         # upgrade all dnodes
         elif upgrade == 1:
             tdLog.info("upgrade all dnodes")
