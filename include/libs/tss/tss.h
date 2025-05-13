@@ -43,13 +43,13 @@ struct SSharedStorage {
 
 // SSharedStorageType is defines the interface of a shared storage.
 struct SSharedStorageType {
-     // the name of the shared storage type
+     // the name of the shared storage type.
     const char* name;
 
     // printConfig prints the configuration of the shared storage instance.
     void (*printConfig)(SSharedStorage* ss);
 
-    // createInstance creates a shared storage instance
+    // createInstance creates a shared storage instance according to the access string.
     int32_t (*createInstance)(const char* accessString, SSharedStorage** pp);
 
     // closeInstance closes a shared storage instance.
@@ -60,8 +60,8 @@ struct SSharedStorageType {
     int32_t (*upload)(SSharedStorage* ss, const char* dstPath, const void* data, int64_t size);
 
     // uploadFile uploads a file to the shared storage at the specified path.
-    // [offset] is the start offset of the file, [size] is the size of the data to be uploaded.
-    // If [size] is negative, upload until the end of the file. If [size] is 0, upload an empty file.
+    // [offset] is the start offset of the source file, [size] is the size of the data to be uploaded.
+    // If [size] is negative, upload until the end of the source file. If [size] is 0, upload an empty file.
     int32_t (*uploadFile)(SSharedStorage* ss, const char* dstPath, const char* srcPath, int64_t offset, int64_t size);
 
     // readFile reads a file or a block of a file from the shared storage to [buffer].
@@ -71,10 +71,11 @@ struct SSharedStorageType {
 
     // downloadFile downloads a file or a block of a file from the shared storage to the local file system.
     // download starts at [offset] and downloads [size] bytes.
-    // If [size] is zero, download until the end of the file.
+    // If [size] is zero, download until the end of the source file.
     int32_t (*downloadFile)(SSharedStorage* ss, const char* srcPath, const char* dstPath, int64_t offset, int64_t size);
 
-    // listFile lists the files in the shared storage with the specified prefix [prefix].
+    // listFile lists the files in the shared storage.
+    // [prefix] is the prefix of the files to be listed, and should be a valid path.
     // [paths] is a pointer to a new initialized SArray, which will be filled with the paths.
     // If the call succeeds, the caller is responsible for freeing the items in [paths]
     // and [paths] itself.
@@ -90,8 +91,7 @@ struct SSharedStorageType {
 };
 
 
-// tssRegisterType registers a shared storage type with the given name and
-// initialization function.
+// tssRegisterType registers a shared storage type.
 void tssRegisterType(const SSharedStorageType* t);
 
 // tssInit initializes the tss module.
@@ -115,6 +115,7 @@ int32_t tssDeleteFile(SSharedStorage* ss, const char* path);
 int32_t tssGetFileSize(SSharedStorage* ss, const char* path, int64_t* size);
 
 
+// these functions wrap the functions in SSharedStorageType for the default instance.
 void tssPrintDefaultConfig();
 // tssCreateDefaultInstance creates the default shared storage instance using
 // [tsSsAccessString] as the access string.
