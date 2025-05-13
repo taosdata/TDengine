@@ -426,7 +426,7 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
     mndStreamCheckStatus(pMnode);
   }
 
-  if (sec % 5 == 0) {
+  if (sec % 60 == 0) {
     mndStreamConsensusChkpt(pMnode);
   }
 
