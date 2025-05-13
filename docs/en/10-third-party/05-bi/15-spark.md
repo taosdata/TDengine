@@ -6,7 +6,7 @@ toc_max_heading_level: 5
 
 [Apache Spark](https://spark.apache.org/) is an open - source big data processing engine. Based on in - memory computing, it can be applied in various scenarios such as batch processing, stream processing, machine learning, and graph computing. It supports the MapReduce computing model and a rich variety of computing operators and functions, boasting powerful distributed processing and computing capabilities for extremely large - scale data.
 
-By using the [TDengine Java connector](../../../reference/connector/java/), Spark can rapidly read TDengine data. Leveraging the powerful Spark engine, the data processing and computing capabilities of TDengine can be expanded. Meanwhile, through it, Spark can also write data into TDengine and subscribe to data from TDengine.
+By using the [TDengine Java Connector](.../../../tdengine-reference/client-libraries/java), Spark can rapidly read TDengine data. Leveraging the powerful Spark engine, the data processing and computing capabilities of TDengine can be expanded. Meanwhile, through it, Spark can also write data into TDengine and subscribe to data from TDengine.
 
 ## Prerequisites
 
