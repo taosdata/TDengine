@@ -659,6 +659,9 @@ int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
 
   if (pTask->pRealtimeCtx->sessionId == sessionId) {
     if (pTask->pRealtimeCtx->pCalcDataCacheIter == NULL) {
+      if (((SStreamTriggerTask*)pTask)->triggerType == STREAM_TRIGGER_SLIDING) {
+        end = end - 1;
+      }
       code = getStreamDataCache(pTask->pRealtimeCtx->pCalcDataCache, groupId, start, end, &pTask->pRealtimeCtx->pCalcDataCacheIter);
       QUERY_CHECK_CODE(code, lino, _end);
     }
