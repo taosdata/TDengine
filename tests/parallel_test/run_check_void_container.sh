@@ -44,12 +44,12 @@ ulimit -c unlimited
 cat << EOF
 docker run \
     -v $REP_MOUNT_PARAM \
-    --rm --ulimit core=-1 taos_test:v1.0  "$check_assert_scripts" -c $func_list_file -f $source_file_path
+    --rm --ulimit core=-1 tdengine-ci:0.1  "$check_assert_scripts" -c $func_list_file -f $source_file_path
 EOF
 
 docker run \
     -v "$REP_MOUNT_PARAM" \
-    --rm --ulimit core=-1 taos_test:v1.0  $check_assert_scripts -c $func_list_file -f $source_file_path
+    --rm --ulimit core=-1 tdengine-ci:0.1  $check_assert_scripts -c $func_list_file -f $source_file_path
 
 ret=$?
 exit $ret

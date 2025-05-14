@@ -84,7 +84,7 @@ docker run \
     -v $REP_MOUNT_DEBUG \
     -v $scan_changefile_temp_path:$docker_can_changefile_temp_path \
     -v $scan_log_temp_path:$docker_scan_log_temp_path \
-    --rm --ulimit core=-1 taos_test:v1.0 python3  $scan_scripts -b "${branch_name_id}"  -f "${scan_file_name}" -w ${web_server}
+    --rm --ulimit core=-1 tdengine-ci:0.1 python3  $scan_scripts -b "${branch_name_id}"  -f "${scan_file_name}" -w ${web_server}
 EOF
 docker run \
     -v /root/.cos-local.1:/root/.cos-local.2 \
@@ -92,7 +92,7 @@ docker run \
     -v $REP_MOUNT_DEBUG \
     -v $scan_changefile_temp_path:$docker_can_changefile_temp_path \
     -v $scan_log_temp_path:$docker_scan_log_temp_path \
-    --rm --ulimit core=-1 taos_test:v1.0 python3  $scan_scripts -b "${branch_name_id}"  -f "${scan_file_name}" -w ${web_server}
+    --rm --ulimit core=-1 tdengine-ci:0.1 python3  $scan_scripts -b "${branch_name_id}"  -f "${scan_file_name}" -w ${web_server}
 
 
 ret=$?
