@@ -168,6 +168,7 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
   SOperatorInfo*                       pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
 
   pTaskInfo->withExternalWindow = true;
+  pOperator->pPhyNode = pNode;
   if (!pMlExtInfo || !pOperator) {
     code = terrno;
     goto _error;
@@ -497,8 +498,9 @@ static int32_t hashExternalWindowProject(SOperatorInfo* pOperator, SSDataBlock* 
   while (code == 0 && pInputBlock->info.rows > startPos + forwardRows) {
     pWin = getExtNextWindow(pOperator);
     if (!pWin) break;
+    incExtWinCurIdx(pOperator);
 
-    startPos = startPos + forwardRows + 1;  // TODO wjm filter out some rows not in current window
+    startPos = startPos + forwardRows;  // TODO wjm filter out some rows not in current window
     ekey = ascScan ? pWin->ekey : pWin->skey;
     forwardRows =
         getNumOfRowsInTimeWindow(&pInputBlock->info, tsCol, startPos, ekey, binarySearchForKey, NULL, tsOrder);
@@ -641,6 +643,7 @@ static int32_t externalWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
   }
 
   SSDataBlock* pBlock = pExtW->binfo.pRes;
+  blockDataCleanup(pBlock);
   code = pOperator->fpSet._openFn(pOperator);
   QUERY_CHECK_CODE(code, lino, _end);
 

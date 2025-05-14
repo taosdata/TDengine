@@ -273,8 +273,8 @@ static int32_t checkInsertParam(SStreamInserterParam* streamInserterParam) {
 static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
                                      qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, int8_t compressResult, char* sql,
                                      EOPTR_EXEC_MODEL model, SStreamInserterParam* streamInserterParam) {
-  if (pSubplan == NULL || pTaskInfo == NULL || handle == NULL) {
-    qError("invalid parameter, pSubplan:%p, pTaskInfo:%p, handle:%p", pSubplan, pTaskInfo, handle);
+  if (pSubplan == NULL || pTaskInfo == NULL) {
+    qError("invalid parameter, pSubplan:%p, pTaskInfo:%p", pSubplan, pTaskInfo);
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t code = checkInsertParam(streamInserterParam);
@@ -343,8 +343,7 @@ int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle
     return code;
   }
   // todo: add stream inserter param
-  code = qCreateStreamExecTask(readers, vgId, taskId, pPlan, pTaskInfo, &pInserterParams->pSinkHandle, 0, NULL,
-                               OPTR_EXEC_MODEL_STREAM, pInserterParams);
+  code = qCreateStreamExecTask(readers, vgId, taskId, pPlan, pTaskInfo, pInserterParams ? &pInserterParams->pSinkHandle : NULL, 0, NULL, OPTR_EXEC_MODEL_STREAM, pInserterParams);
   if (code != TSDB_CODE_SUCCESS) {
     qDestroyTask(*pTaskInfo);
     return code;

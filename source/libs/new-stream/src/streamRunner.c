@@ -103,6 +103,7 @@ static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t 
     }
   }
   taosThreadMutexUnlock(&pMgr->lock);
+  if (*ppExec) ST_TASK_DLOG("get exec task with nodeId: %d", (*ppExec)->runtimeInfo.execId);
   return code;
 }
 
@@ -207,12 +208,13 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
   if (!pBlock || pBlock->info.rows <= 0) return code;
   char* pContent = NULL;
   int32_t filterColId = taosArrayGetSize(pBlock->pDataBlock) - 1;
-  code = streamBuildBlockResultNotifyContent(pBlock, &pContent, filterColId, pTask->output.outCols);
+  //code = streamBuildBlockResultNotifyContent(pBlock, &pContent, filterColId, pTask->output.outCols);
   //code = streamSendNotifyContent(pTask, 0, pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls, pTask->notification.notifyErrorHandle, const SSTriggerCalcParam *pParams, int32_t nParam);
   return code;
 }
 
 int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq) {
+  ST_TASK_DLOG("start to handle runner task calc request, topTask: %d", pTask->topTask);
   SStreamRunnerTaskExecution* pExec = NULL;
 
   int32_t code = stRunnerTaskExecMgrAcquireExec(pTask, pReq->execId, &pExec);
@@ -286,7 +288,7 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
   SReadHandle handle = {.pMsgCb = pTask->pMsgCb};
   if (pTask->topTask) {
     SStreamInserterParam params = {.dbFName = pTask->output.outDbFName,
-      .tbname =  pExec->tbname,
+      .tbname =  pExec->tbname,// TODO wjm add output stb name
       .pFields = pTask->output.outCols,
       .pTagFields = pTask->output.outTags,
       .suid = pTask->output.outStbUid,

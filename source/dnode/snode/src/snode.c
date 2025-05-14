@@ -129,6 +129,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, SRpcMsg* pRpcMsg) {
     code = streamGetTask(calcReq.streamId, calcReq.runnerTaskId, (SStreamTask**)&pTask);
   }
   if (code == 0) {
+    pTask->pMsgCb = &pSnode->msgCb;
     code = stRunnerTaskExecute(pTask, &calcReq);
   }
   void* buf = NULL;

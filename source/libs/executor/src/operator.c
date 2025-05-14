@@ -648,7 +648,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     }
 
     code = createStreamVtableMergeOperatorInfo(ops[0], pHandle, pVirtualTableScanNode, pTagCond, pTableListInfo, pTaskInfo, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL) {
+  } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL == type) {
     code = createExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL == type) {
     code = createMergeAlignedExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
