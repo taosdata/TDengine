@@ -47,6 +47,8 @@ int32_t replaceChildTblName(char *inSql, char *outSql, int tblIndex);
 int32_t calcGroupIndex(char* dbName, char* tbName, int32_t groupCnt);
 void prompt(bool nonStopMode);
 void printErrCmdCodeStr(char *cmd, int32_t code, TAOS_RES *res);
+void randomFillCols(uint16_t* cols, uint16_t max, uint16_t cnt);
+uint32_t appendRowRuleOld(SSuperTable* stb, char* pstr, uint32_t len, int64_t timestamp);
 
 #ifdef __cplusplus
 }
@@ -152,6 +154,29 @@ TEST(benchUtil, Base) {
 
   // close
   closeBenchConn(NULL);
+}
+
+TEST(benchInsertMix, randomFillCols) {
+  uint16_t max = 5;
+  uint16_t cols[max];
+  
+  randomFillCols(cols, max, 5);
+  for (uint16_t i = 0; i < max; i++) {
+    assert(cols[i] == i);
+  }
+
+  memset(cols, 0, max * sizeof(uint16_t));
+  randomFillCols(cols, max, 1);
+  for (uint16_t i = 0; i < max; i++) {
+    assert(cols[i] == i);
+  }
+
+  memset(cols, 0, max * sizeof(uint16_t));
+  randomFillCols(cols, max, 3);
+  for (uint16_t i = 0; i < max; i++) {
+    assert(cols[i] < max);
+  } 
+  
 }
 
 // main

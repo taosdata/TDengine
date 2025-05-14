@@ -251,40 +251,6 @@ uint32_t genDelPreSql(SDataBase* db, SSuperTable* stb, char* tableName, char* ps
   return len;
 }
 
-//
-// append row to batch buffer
-//
-uint32_t appendRowRuleOld(SSuperTable* stb, char* pstr, uint32_t len, int64_t timestamp) {
-  uint32_t size = 0;
-  int32_t  pos = RD(g_arguments->prepared_rand);
-  int      disorderRange = stb->disorderRange;
-
-  if (stb->useSampleTs && !stb->random_data_source) {
-    size = snprintf(pstr + len, TSDB_MAX_ALLOWED_SQL_LEN - len, "(%s)", stb->sampleDataBuf + pos * stb->lenOfCols);
-  } else {
-    int64_t disorderTs = 0;
-    if (stb->disorderRatio > 0) {
-      int rand_num = taosRandom() % 100;
-      if (rand_num < stb->disorderRatio) {
-        disorderRange--;
-        if (0 == disorderRange) {
-          disorderRange = stb->disorderRange;
-        }
-        disorderTs = stb->startTimestamp - disorderRange;
-        debugPrint(
-            "rand_num: %d, < disorderRatio:"
-            " %d, disorderTs: %" PRId64 "\n",
-            rand_num, stb->disorderRatio, disorderTs);
-      }
-    }
-    // generate
-    size = snprintf(pstr + len, TSDB_MAX_ALLOWED_SQL_LEN - len, "(%" PRId64 ",%s)", disorderTs ? disorderTs : timestamp,
-                    stb->sampleDataBuf + pos * stb->lenOfCols);
-  }
-
-  return size;
-}
-
 #define GET_IDX(i) info->batCols[i]
 uint32_t genRowMixAll(threadInfo* info, SSuperTable* stb, char* pstr, uint32_t len, int64_t ts, int64_t* k) {
   uint32_t size = 0;
@@ -505,89 +471,83 @@ uint32_t genBatchSql(threadInfo* info, SSuperTable* stb, SMixRatio* mix, int64_t
 
   while ( genRows < g_arguments->reqPerReq) {
     int32_t last = genRows;
-    if(stb->genRowRule == RULE_OLD) {
-        len += appendRowRuleOld(stb, pstr, len, ts);
-        genRows ++;
-        pBatT->ordRows ++;
-    } else {
-        char sts[128];
-        sprintf(sts, "%" PRId64, ts);
+    char sts[128];
+    sprintf(sts, "%" PRId64, ts);
 
-        // add new row (maybe del)
-        if (mix->insertedRows + pBatT->disRows + pBatT->ordRows  < mix->insertRows) {
-          uint32_t ordRows = 0;
-          if(info->csql && strstr(info->csql, sts)) {
-            infoPrint("   ord found duplicate ts=%" PRId64 " rows=%" PRId64 "\n", ts, pBatT->ordRows);
+    // add new row (maybe del)
+    if (mix->insertedRows + pBatT->disRows + pBatT->ordRows  < mix->insertRows) {
+      uint32_t ordRows = 0;
+      if(info->csql && strstr(info->csql, sts)) {
+        infoPrint("   ord found duplicate ts=%" PRId64 " rows=%" PRId64 "\n", ts, pBatT->ordRows);
+      }
+
+      len += appendRowRuleMix(info, stb, mix, pstr, len, ts, &ordRows, k);
+      if (ordRows > 0) {
+        genRows += ordRows;
+        pBatT->ordRows += ordRows;
+        //infoPrint("   ord ts=%" PRId64 " rows=%" PRId64 "\n", ts, pBatT->ordRows);
+      } else {
+        // takeout to disorder list, so continue to gen
+        last = -1;
+      }
+    }
+
+    if(genRows >= g_arguments->reqPerReq) {
+      // move to next batch start time
+      ts += timestamp_step;
+      break;
+    }
+
+    if( forceUpd || RD(stb->fillIntervalUpd) == 0) {
+        // fill update rows from buffer
+        uint32_t maxFill = stb->fillIntervalUpd/3;
+        if(maxFill > g_arguments->reqPerReq - genRows) {
+          maxFill = g_arguments->reqPerReq - genRows;
+        }
+        // calc need count
+        int32_t remain = mix->genCnt[MUPD] - mix->doneCnt[MUPD] - pBatT->updRows;
+        if (remain > 0) {
+          if (maxFill > remain) {
+            maxFill = remain;
           }
 
-          len += appendRowRuleMix(info, stb, mix, pstr, len, ts, &ordRows, k);
-          if (ordRows > 0) {
-            genRows += ordRows;
-            pBatT->ordRows += ordRows;
-            //infoPrint("   ord ts=%" PRId64 " rows=%" PRId64 "\n", ts, pBatT->ordRows);
-          } else {
-            // takeout to disorder list, so continue to gen
-            last = -1;
+          uint32_t updRows = 0;
+          len += fillBatchWithBuf(info, stb, mix, startTime, pstr, len, &updRows, MUPD, maxFill, forceUpd, k);
+          if (updRows > 0) {
+            genRows += updRows;
+            pBatT->updRows += updRows;
+            debugPrint("   upd ts=%" PRId64 " rows=%" PRId64 "\n", ts, pBatT->updRows);
+            if (genRows >= g_arguments->reqPerReq) {
+              // move to next batch start time
+              ts += timestamp_step;
+              break;
+            }
           }
         }
+    }
 
-        if(genRows >= g_arguments->reqPerReq) {
-          // move to next batch start time
-          ts += timestamp_step;
-          break;
+    if( forceDis || RD(stb->fillIntervalDis) == 0) {
+        // fill disorder rows from buffer
+        uint32_t maxFill = stb->fillIntervalDis/3;
+        if(maxFill > g_arguments->reqPerReq - genRows) {
+          maxFill = g_arguments->reqPerReq - genRows;
         }
+        // calc need count
+        int32_t remain = mix->genCnt[MDIS] - mix->doneCnt[MDIS] - pBatT->disRows;
+        if (remain > 0) {
+          if (maxFill > remain) {
+            maxFill = remain;
+          }
 
-        if( forceUpd || RD(stb->fillIntervalUpd) == 0) {
-            // fill update rows from buffer
-            uint32_t maxFill = stb->fillIntervalUpd/3;
-            if(maxFill > g_arguments->reqPerReq - genRows) {
-              maxFill = g_arguments->reqPerReq - genRows;
-            }
-            // calc need count
-            int32_t remain = mix->genCnt[MUPD] - mix->doneCnt[MUPD] - pBatT->updRows;
-            if (remain > 0) {
-              if (maxFill > remain) {
-                maxFill = remain;
-              }
-
-              uint32_t updRows = 0;
-              len += fillBatchWithBuf(info, stb, mix, startTime, pstr, len, &updRows, MUPD, maxFill, forceUpd, k);
-              if (updRows > 0) {
-                genRows += updRows;
-                pBatT->updRows += updRows;
-                debugPrint("   upd ts=%" PRId64 " rows=%" PRId64 "\n", ts, pBatT->updRows);
-                if (genRows >= g_arguments->reqPerReq) {
-                  // move to next batch start time
-                  ts += timestamp_step;
-                  break;
-                }
-              }
-            }
+          uint32_t disRows = 0;
+          len += fillBatchWithBuf(info, stb, mix, startTime, pstr, len, &disRows, MDIS, maxFill, forceDis, k);
+          if (disRows > 0) {
+            genRows += disRows;
+            pBatT->disRows += disRows;
+            debugPrint("   dis ts=%" PRId64 " rows=%" PRId64 "\n", ts, pBatT->disRows);
+          }
         }
-
-        if( forceDis || RD(stb->fillIntervalDis) == 0) {
-            // fill disorder rows from buffer
-            uint32_t maxFill = stb->fillIntervalDis/3;
-            if(maxFill > g_arguments->reqPerReq - genRows) {
-              maxFill = g_arguments->reqPerReq - genRows;
-            }
-            // calc need count
-            int32_t remain = mix->genCnt[MDIS] - mix->doneCnt[MDIS] - pBatT->disRows;
-            if (remain > 0) {
-              if (maxFill > remain) {
-                maxFill = remain;
-              }
-
-              uint32_t disRows = 0;
-              len += fillBatchWithBuf(info, stb, mix, startTime, pstr, len, &disRows, MDIS, maxFill, forceDis, k);
-              if (disRows > 0) {
-                genRows += disRows;
-                pBatT->disRows += disRows;
-                debugPrint("   dis ts=%" PRId64 " rows=%" PRId64 "\n", ts, pBatT->disRows);
-              }
-            }
-        }
-    } // if RULE_
+    }
 
     // move next ts
     if (!stb->primary_key || needChangeTs(stb, pkCur, pkCnt)) {
