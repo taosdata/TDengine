@@ -16,6 +16,9 @@
 #ifndef _TD_MND_MOUNT_H_
 #define _TD_MND_MOUNT_H_
 
+#ifndef USE_MOUNT
+#define USE_MOUNT
+#endif
 #ifdef USE_MOUNT
 
 #include "mndInt.h"

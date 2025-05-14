@@ -12,7 +12,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
+#ifndef USE_MOUNT
+#define USE_MOUNT
+#endif 
 #ifdef USE_MOUNT
 #define _DEFAULT_SOURCE
 #include "audit.h"
@@ -49,6 +51,7 @@ static int32_t  mndNewMountActionValidate(SMnode *pMnode, STrans *pTrans, SSdbRa
 
 static int32_t mndProcessCreateMountReq(SRpcMsg *pReq);
 static int32_t mndProcessDropMountReq(SRpcMsg *pReq);
+static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp);
 static int32_t mndRetrieveMounts(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity);
 static void    mndCancelGetNextMount(SMnode *pMnode, void *pIter);
 
@@ -66,7 +69,7 @@ int32_t mndInitMount(SMnode *pMnode) {
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_MOUNT, mndProcessCreateMountReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_MOUNT, mndProcessDropMountReq);
-  mndSetMsgHandle(pMnode, TDMT_DND_RETRIEVE_MOUNT_PATH_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_DND_RETRIEVE_MOUNT_PATH_RSP, mndProcessRetrieveMountPathRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_MOUNT, mndRetrieveMounts);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_MOUNT, mndCancelGetNextMount);
@@ -632,10 +635,10 @@ static int32_t mndSetCreateDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
 
   TAOS_RETURN(code);
 }
-
-static int32_t mndSetCreateDbUndoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
+#endif
+static int32_t mndSetCreateMountUndoLogs(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
   int32_t  code = 0;
-  SSdbRaw *pDbRaw = mndDbActionEncode(pDb);
+  SSdbRaw *pDbRaw = mndMountActionEncode(pObj);
   if (pDbRaw == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -644,6 +647,7 @@ static int32_t mndSetCreateDbUndoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
   TAOS_CHECK_RETURN(mndTransAppendUndolog(pTrans, pDbRaw));
   TAOS_CHECK_RETURN(sdbSetRawStatus(pDbRaw, SDB_STATUS_DROPPED));
 
+#if 0
   for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
     SSdbRaw *pVgRaw = mndVgroupActionEncode(pVgroups + v);
     if (pVgRaw == NULL) {
@@ -663,10 +667,9 @@ static int32_t mndSetCreateDbUndoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
       TAOS_CHECK_RETURN(mndSetCreateArbGroupUndoLogs(pTrans, &arbGroup));
     }
   }
-
+#endif
   TAOS_RETURN(code);
 }
-#endif
 
 static int32_t mndSetCreateMountCommitLogs(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
   int32_t  code = 0;
@@ -685,7 +688,7 @@ static int32_t mndSetCreateMountCommitLogs(SMnode *pMnode, STrans *pTrans, SMoun
 void *mndBuildRetrieveMountPathReq(SMnode *pMnode, const char *mountName, const char *mountPath, int32_t dnodeId,
                                    int32_t *pContLen) {
   int32_t code = 0, lino = 0;
-  void   *pReq = NULL;
+  void   *pBuf = NULL;
 
   SRetrieveMountPathReq req = {0};
   req.dnodeId = dnodeId;
@@ -694,51 +697,51 @@ void *mndBuildRetrieveMountPathReq(SMnode *pMnode, const char *mountName, const 
 
   int32_t contLen = tSerializeSRetrieveMountPathReq(NULL, 0, &req);
   TAOS_CHECK_EXIT(contLen);
-  TSDB_CHECK_NULL((pReq = taosMemoryMalloc(contLen)), code, lino, _exit, terrno);
-  TAOS_CHECK_EXIT(tSerializeSRetrieveMountPathReq(pReq, contLen, &req));
+  TSDB_CHECK_NULL((pBuf = rpcMallocCont(contLen)), code, lino, _exit, terrno);
+  TAOS_CHECK_EXIT(tSerializeSRetrieveMountPathReq(pBuf, contLen, &req));
 _exit:
   if (code < 0) {
-    taosMemoryFree(pReq);
+    rpcFreeCont(pBuf);
     terrno = code;
     return NULL;
   }
   *pContLen = contLen;
-  return pReq;
+  return pBuf;
 }
 
-static int32_t mndAddCreateMountRetrieveDbAction(SMnode *pMnode, STrans *pTrans, SMountObj *pObj, int32_t idx) {
-  int32_t      code = 0;
-  STransAction action = {0};
+// static int32_t mndAddCreateMountRetrieveDbAction(SMnode *pMnode, STrans *pTrans, SMountObj *pObj, int32_t idx) {
+//   int32_t      code = 0;
+//   STransAction action = {0};
 
-  SDnodeObj *pDnode = mndAcquireDnode(pMnode, pObj->dnodeIds[idx]);
-  if (pDnode == NULL) TAOS_RETURN(terrno);
-  if (pDnode->offlineReason != DND_REASON_ONLINE) {
-    mndReleaseDnode(pMnode, pDnode);
-    TAOS_RETURN(TSDB_CODE_DNODE_OFFLINE);  // TODO: check when offline, if it's included when mndAcquireDnode return NULL.
-  }
-  action.epSet = mndGetDnodeEpset(pDnode);
-  mndReleaseDnode(pMnode, pDnode);
+//   SDnodeObj *pDnode = mndAcquireDnode(pMnode, pObj->dnodeIds[idx]);
+//   if (pDnode == NULL) TAOS_RETURN(terrno);
+//   if (pDnode->offlineReason != DND_REASON_ONLINE) {
+//     mndReleaseDnode(pMnode, pDnode);
+//     TAOS_RETURN(TSDB_CODE_DNODE_OFFLINE);  // TODO: check when offline, if it's included when mndAcquireDnode return NULL.
+//   }
+//   action.epSet = mndGetDnodeEpset(pDnode);
+//   mndReleaseDnode(pMnode, pDnode);
 
-  int32_t contLen = 0;
-  void   *pReq = mndBuildRetrieveMountPathReq(pMnode, pObj->name, pObj->paths[idx], pDnode->id, &contLen);
-  if (pReq == NULL) return terrno;
+//   int32_t contLen = 0;
+//   void   *pReq = mndBuildRetrieveMountPathReq(pMnode, pObj->name, pObj->paths[idx], pDnode->id, &contLen);
+//   if (pReq == NULL) return terrno;
 
-  action.pCont = pReq;
-  action.contLen = contLen;
-  action.msgType = TDMT_DND_RETRIEVE_MOUNT_PATH;
+//   action.pCont = pReq;
+//   action.contLen = contLen;
+//   action.msgType = TDMT_DND_RETRIEVE_MOUNT_PATH;
 
-  if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
-    taosMemoryFree(pReq);
-    TAOS_RETURN(code);
-  }
+//   if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
+//     taosMemoryFree(pReq);
+//     TAOS_RETURN(code);
+//   }
 
-  TAOS_RETURN(code);
-}
+//   TAOS_RETURN(code);
+// }
 
 static int32_t mndSetCreateMountRedoActions(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
-  for (int32_t i = 0; i < pObj->nMounts; ++i) {
-    TAOS_CHECK_RETURN(mndAddCreateMountRetrieveDbAction(pMnode, pTrans, pObj, i));
-  }
+  // for (int32_t i = 0; i < pObj->nMounts; ++i) {
+  //   TAOS_CHECK_RETURN(mndAddCreateMountRetrieveDbAction(pMnode, pTrans, pObj, i));
+  // }
   TAOS_RETURN(0);
 }
 #if 0
@@ -756,6 +759,30 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
   TAOS_RETURN(code);
 }
 #endif
+
+static int32_t mndRetrieveMountInfo(SMnode *pMnode, SRpcMsg *pMsg, SCreateMountReq *pReq, SMountInfo **ppMountInfo) {
+  int32_t    code = 0, lino = 0;
+  SDnodeObj *pDnode = mndAcquireDnode(pMnode, pReq->dnodeIds[0]);
+  if (pDnode == NULL) TAOS_RETURN(terrno);
+  if (pDnode->offlineReason != DND_REASON_ONLINE) {
+    mndReleaseDnode(pMnode, pDnode);
+    TAOS_RETURN(TSDB_CODE_DNODE_OFFLINE);
+  }
+  SEpSet epSet = mndGetDnodeEpset(pDnode);
+  mndReleaseDnode(pMnode, pDnode);
+
+  int32_t bufLen = 0;
+  void   *pBuf = mndBuildRetrieveMountPathReq(pMnode, pReq->mountName, pReq->mountPaths[0], pReq->dnodeIds[0], &bufLen);
+  if (pBuf == NULL) TAOS_RETURN(terrno);
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_DND_RETRIEVE_MOUNT_PATH, .pCont = pBuf, .contLen = bufLen};
+  TAOS_CHECK_EXIT(tmsgSendReq(&epSet, &rpcMsg));
+
+  pMsg->info.handle = NULL;  // disable auto rsp to client
+_exit:
+  TAOS_RETURN(code);
+}
+
 static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SCreateMountReq *pCreate, SUserObj *pUser) {
   int32_t   code = 0, lino = 0;
   SUserObj  newUserObj = {0};
@@ -829,7 +856,7 @@ static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SCreateMountReq *pC
   TAOS_CHECK_EXIT(mndSetCreateMountPrepareAction(pMnode, pTrans, &mntObj));
   TAOS_CHECK_EXIT(mndSetCreateMountRedoActions(pMnode, pTrans, &mntObj));
   // TAOS_CHECK_EXIT(mndSetNewVgPrepareActions(pMnode, pTrans, &mntObj, pVgroups));
-  // TAOS_CHECK_EXIT(mndSetCreateDbUndoLogs(pMnode, pTrans, &mntObj, pVgroups));
+  TAOS_CHECK_EXIT(mndSetCreateMountUndoLogs(pMnode, pTrans, &mntObj));
   TAOS_CHECK_EXIT(mndSetCreateMountCommitLogs(pMnode, pTrans, &mntObj));
   // TAOS_CHECK_EXIT(mndSetCreateDbUndoActions(pMnode, pTrans, &mntObj, pVgroups));
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
@@ -896,12 +923,17 @@ int32_t mndCheckDbDnodeList(SMnode *pMnode, char *db, char *dnodeListStr, SArray
 #endif
 #endif
 
+SRpcHandleInfo mountInfo = {0};
+
 static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
   int32_t         code = 0, lino = 0;
   SMnode         *pMnode = pReq->info.node;
   SMountObj      *pObj = NULL;
   SUserObj       *pUser = NULL;
+  SMountInfo     *pMountInfo = NULL;
   SCreateMountReq createReq = {0};
+
+  mountInfo = pReq->info;
 
   TAOS_CHECK_EXIT(tDeserializeSCreateMountReq(pReq->pCont, pReq->contLen, &createReq));
   mInfo("mount:%s, start to create on dnode %d from %s", createReq.mountName, *createReq.dnodeIds,
@@ -923,15 +955,15 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
       goto _exit;
     }
   }
-
   // mount operation share the privileges of db
   TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, (SDbObj *)pObj));
   TAOS_CHECK_EXIT(grantCheck(TSDB_GRANT_MOUNT));  // TODO: implement when the plan is ready
-
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
 
-  TAOS_CHECK_EXIT(mndCreateMount(pMnode, pReq, &createReq, pUser));
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  TAOS_CHECK_EXIT(mndRetrieveMountInfo(pMnode, pReq, &createReq, &pMountInfo));
+
+  // TAOS_CHECK_EXIT(mndCreateMount(pMnode, pReq, &createReq, pUser));
+  // if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   // SName name = {0};
   // if (tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB) < 0)
@@ -951,6 +983,25 @@ _exit:
   tFreeSCreateMountReq(&createReq);
 
   TAOS_RETURN(code);
+}
+
+
+
+static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp) {
+  SMnode *pMnode = pRsp->info.node;
+
+  SRpcMsg rsp = {
+      .code = pRsp->code,
+      .pCont = pRsp->info.rsp,
+      .contLen = pRsp->info.rspLen,
+      .info = mountInfo, //pRsp->info,
+  };
+  tmsgSendRsp(&rsp);
+
+  const STraceId *trace = &pRsp->info.traceId;
+  mGInfo("msg:%p, retrieve mount path rsp with code:%d", pRsp, pRsp->code);
+
+  return 0;
 }
 
 #if 0

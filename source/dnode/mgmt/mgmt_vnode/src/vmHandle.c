@@ -442,7 +442,7 @@ _OVER:
 #ifdef USE_MOUNT
 static int32_t vmRetrieveMountPathImpl(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *req) {
   int32_t code = 0, lino = 0;
-  if (taosCheckAccessFile(req->mountPath, O_RDONLY)) {
+  if (!taosCheckAccessFile(req->mountPath, O_RDONLY)) {
     TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
   }
 
@@ -460,8 +460,8 @@ int32_t vmProcessRetrieveMountPathReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   char                  path[TSDB_FILENAME_LEN] = {0};
 
   TAOS_CHECK_EXIT(tDeserializeSRetrieveMountPathReq(pMsg->pCont, pMsg->contLen, &req));
-
   dInfo("mount:%s, start to retrieve path:%s", req.mountName, req.mountPath);
+  TAOS_CHECK_EXIT(vmRetrieveMountPathImpl(pMgmt, &req));
 
 _exit:
   if (code != 0) {

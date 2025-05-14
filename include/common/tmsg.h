@@ -1741,6 +1741,7 @@ void    tFreeSDbCfgRsp(SDbCfgRsp* pRsp);
 #ifdef USE_MOUNT
 typedef struct {
   char     mountName[TSDB_MOUNT_NAME_LEN];
+  int8_t   phase; // 0: precheck, 1: create
   int8_t   ignoreExist;
   int16_t  nMounts;
   int32_t* dnodeIds;
