@@ -6478,6 +6478,7 @@ static int32_t tEncodeSTableMetaRsp(SEncoder *pEncoder, STableMetaRsp *pRsp) {
       TAOS_CHECK_RETURN(tEncodeSColRef(pEncoder, pColRef));
     }
   }
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pRsp->rversion));
 
   return 0;
 }
@@ -6543,6 +6544,9 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
     } else {
       pRsp->pColRefs = NULL;
     }
+  }
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pRsp->rversion));
   }
 
   return 0;
@@ -10069,6 +10073,12 @@ int32_t tSerializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp
     }
   }
 
+  if (tbNum > 0) {
+    for (int32_t i = 0; i < tbNum; ++i) {
+      STbVerInfo *pVer = taosArrayGet(pRsp->tbVerInfo, i);
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, pVer->rversion));
+    }
+  }
   tEndEncode(&encoder);
 
 _exit:
@@ -10098,12 +10108,27 @@ int32_t tDeserializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pR
     if (NULL == pRsp->tbVerInfo) {
       TAOS_CHECK_EXIT(terrno);
     }
-    STbVerInfo tbVer;
-    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, tbVer.tbFName));
-    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &tbVer.sversion));
-    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &tbVer.tversion));
-    if (NULL == taosArrayPush(pRsp->tbVerInfo, &tbVer)) {
-      TAOS_CHECK_EXIT(terrno);
+    for (int32_t i = 0; i < tbNum; i++) {
+      STbVerInfo tbVer;
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, tbVer.tbFName));
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &tbVer.sversion));
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &tbVer.tversion));
+      tbVer.rversion = 1;
+      if (NULL == taosArrayPush(pRsp->tbVerInfo, &tbVer)) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+    }
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tbNum > 0) {
+      for (int32_t i = 0; i < tbNum; i++) {
+        STbVerInfo *pVer = taosArrayGet(pRsp->tbVerInfo, i);
+        if (NULL == pVer) {
+          TAOS_CHECK_EXIT(terrno);
+        }
+        TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pVer->rversion));
+      }
     }
   }
 

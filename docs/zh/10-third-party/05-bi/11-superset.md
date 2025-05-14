@@ -76,6 +76,6 @@ TDengine 数据源与其它数据源使用上无差别，这里简单介绍下�
 我们选择【Superset Chart】模板中较流行的两个模板做了效果展示，以智能电表数据为例：  
 
 1. `Aggregate` 类型，展示在第 4 组中指定时间段内每分钟采集电压值 (voltage) 最大值。  
-![superset-demo1](./superset-demo1.jpeg)
+![superset-demo1](./superset-demo1.webp)
 2. `RAW RECORDS` 类型，展示在第 4 组中指定时间段内 current, voltage 的采集值。  
-![superset-demo2](./superset-demo2.jpeg)  
+![superset-demo2](./superset-demo2.webp)  

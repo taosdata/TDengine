@@ -163,10 +163,10 @@ class TestInterval:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from {mt}  where ts <= {ms1} and ts > {ms2} interval(1m) fill(value, 0,0,0,0,0)"
         )
-        # tdSql.checkRowsLessEqualThan(50)
-        # tdSql.checkRowsGreaterEqualThan(30)
-        # tdSql.checkLessEqualThen(1, 0, 15)
-        # tdSql.checkGreaterEqualThen(1, 0, 5)
+        tdSql.checkAssert(tdSql.getRows() <= 50)
+        tdSql.checkAssert(tdSql.getRows() >= 30)
+        tdSql.checkAssert(tdSql.getData(1, 0) <= 15)
+        tdSql.checkAssert(tdSql.getData(1, 0) >= 5)
 
         tdLog.info(f"=============== clear")
         tdSql.execute(f"drop database {db}")
