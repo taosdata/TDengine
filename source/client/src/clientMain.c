@@ -503,7 +503,7 @@ int32_t fetchWhiteListDualStackCallbackFn(void *param, SDataBuf *pMsg, int32_t c
   }
 
   SGetUserWhiteListRsp wlRsp;
-  if ((code = tDeserializeSGetUserWhiteListRsp(pMsg->pData, pMsg->len, &wlRsp)) != TSDB_CODE_SUCCESS) {
+  if ((code = tDeserializeSGetUserWhiteListDualRsp(pMsg->pData, pMsg->len, &wlRsp)) != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
     taosMemoryFree(pInfo);
@@ -520,7 +520,6 @@ int32_t fetchWhiteListDualStackCallbackFn(void *param, SDataBuf *pMsg, int32_t c
     return code = terrno;
   }
 
-  // for (int i = 0; i < wlRsp.numWhiteLists; ++i) {
   char *ip4 = taosMemCalloc(1, 256);
   snprintf(ip4, 255, "%s/%d", "0.0.0.0", 0);
   pWhiteLists[0] = ip4;
@@ -601,7 +600,7 @@ void taos_fetch_whitelist_dual_stack_a(TAOS *taos, __taos_async_whitelist_dual_s
   pSendInfo->requestObjRefId = 0;
   pSendInfo->param = pParam;
   pSendInfo->fp = fetchWhiteListDualStackCallbackFn;
-  pSendInfo->msgType = TDMT_MND_GET_USER_WHITELIST;
+  pSendInfo->msgType = TDMT_MND_GET_USER_WHITELIST_DUAL;
 
   SEpSet epSet = getEpSet_s(&pTsc->pAppInfo->mgmtEp);
   if (TSDB_CODE_SUCCESS != asyncSendMsgToServer(pTsc->pAppInfo->pTransporter, &epSet, NULL, pSendInfo)) {

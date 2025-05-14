@@ -31,16 +31,36 @@ int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType op
 
 int32_t mndCheckTopicPrivilege(SMnode *pMnode, const char *user, EOperType operType, SMqTopicObj *pTopic) { return 0; }
 
-int32_t mndSetUserWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhiteListRsp *pWhiteListRsp) {
+int32_t mndSetUserWhiteListDualRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhiteListRsp *pWhiteListRsp) {
   memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
   pWhiteListRsp->numWhiteLists = 1;
-  pWhiteListRsp->pWhiteLists = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpRange));
-  if (pWhiteListRsp->pWhiteLists == NULL) {
+  pWhiteListRsp->pWhiteListsDual = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpRange));
+  if (pWhiteListRsp->pWhiteListsDual == NULL) {
     return terrno;
   }
-  memset(pWhiteListRsp->pWhiteLists, 0, pWhiteListRsp->numWhiteLists * sizeof(SIpRange));
+  memset(pWhiteListRsp->pWhiteListsDual, 0, pWhiteListRsp->numWhiteLists * sizeof(SIpRange));
 
   return 0;
+}
+
+int32_t mndSetUserWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhiteListRsp *pWhiteListRsp) {
+  int32_t code = 0;
+  memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
+  pWhiteListRsp->numWhiteLists = 1;
+
+  SIpWhiteList *pWhiteList = NULL;
+  code = cvtIpWhiteListDualToV4(pUser->pIpWhiteListDual, &pWhiteList);
+  if (code != 0) {
+    return code;
+  }
+  pWhiteListRsp->pWhiteLists = taosMemoryMalloc(pWhiteList->num * sizeof(SIpV4Range));
+  if (pWhiteListRsp->pWhiteLists == NULL) {
+    taosMemoryFreeClear(pWhiteList);
+    return terrno;
+  }
+  memset(pWhiteListRsp->pWhiteLists, 0, pWhiteList->num * sizeof(SIpRange));
+  taosMemoryFreeClear(pWhiteList);
+  return code;
 }
 
 int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp) {

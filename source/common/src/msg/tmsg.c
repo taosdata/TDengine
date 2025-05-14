@@ -2062,6 +2062,46 @@ SIpWhiteListDual *cloneIpWhiteList(SIpWhiteListDual *pIpWhiteList) {
   return pNew;
 }
 
+int32_t cvtIpWhiteListToDual(SIpWhiteList *pWhiteList, SIpWhiteListDual **pWhiteListDual) {
+  int32_t           code = 0;
+  int32_t           lino = 0;
+  SIpWhiteListDual *pList = NULL;
+
+  pList = taosMemoryCalloc(1, sizeof(SIpWhiteListDual) + sizeof(SIpRange) * pWhiteList->num);
+  if (pList == NULL) {
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+  }
+  pList->num = pWhiteList->num;
+  for (int i = 0; i < pWhiteList->num; i++) {
+    SIpV4Range *pIp4 = &(pWhiteList->pIpRange[i]);
+    SIpRange   *pRange = &(pList->pIpRanges[i]);
+    pRange->type = 0;
+    memcpy(&pRange->ipV4, pIp4, sizeof(SIpV4Range));
+  }
+_OVER:
+  *pWhiteListDual = pList;
+  return code;
+}
+int32_t cvtIpWhiteListDualToV4(SIpWhiteListDual *pWhiteListDual, SIpWhiteList **pWhiteList) {
+  int32_t code = 0;
+
+  int32_t       num = 0;
+  SIpWhiteList *p = taosMemCalloc(1, sizeof(SIpWhiteList) + sizeof(SIpV4Range) * pWhiteListDual->num);
+  if (p == NULL) {
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < pWhiteListDual->num; ++i) {
+    SIpRange *pRange = &pWhiteListDual->pIpRanges[i];
+    memcpy(&p->pIpRange[num], &pRange->ipV4, sizeof(SIpV4Range));
+    num++;
+  }
+  p->num = num;
+
+  *pWhiteList = p;
+
+  return code;
+}
 int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
