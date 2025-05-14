@@ -266,6 +266,8 @@
   TD_DEF_MSG_TYPE(TDMT_MND_CONFIG, "init-config", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_CONFIG_SDB, "config-sdb", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_RESET_STREAM, "reset-stream", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_RETRIEVE_IP_WHITE_DUAL, "retrieve-ip-white", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_GET_USER_WHITELIST_DUAL, "get-user-whitelist", NULL, NULL)
   // do not add new message type here, since mnode msg overload. you can add new message type after dnode msg
   TD_CLOSE_MSG_SEG(TDMT_END_MND_MSG)
 

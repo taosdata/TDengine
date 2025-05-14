@@ -141,7 +141,9 @@ extern void (*fp_taos_set_hb_quit)(int8_t quitByKill);
 
 extern int (*fp_taos_set_notify_cb)(TAOS *taos, __taos_notify_fn_t fp, void *param, int type);
 
-extern void (*fp_taos_fetch_whitelist_a)(TAOS *taos, __taos_async_whitelist_fn_t2 fp, void *param);
+extern void (*fp_taos_fetch_whitelist_a)(TAOS *taos, __taos_async_whitelist_fn_t fp, void *param);
+
+extern void (*fp_taos_fetch_whitelist_dual_stack_a)(TAOS *taos, __taos_async_whitelist_dual_stack_fn_t fp, void *param);
 
 extern int (*fp_taos_set_conn_mode)(TAOS *taos, int mode, int value);
 

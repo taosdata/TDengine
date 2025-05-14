@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestSubTableBasic:
@@ -14,7 +14,7 @@ class TestSubTableBasic:
         3. project query
         4. filter
         5. aggregate query
-        6. Kill -9 then restart
+        6. kill then restart
 
         Catalog:
             - Table:SubTable:Query
@@ -26,7 +26,7 @@ class TestSubTableBasic:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/column/metrics.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/column/metrics.sim
 
         """
 
@@ -190,10 +190,9 @@ class TestSubTableBasic:
         tdSql.checkData(0, 9, 10)
 
         tdLog.info(f"=============== step4")
-        # sc.dnodeStop(1)
-        # sc.dnodeStart(1)
-        # system sh/exec.sh -n dnode1 -s stop -x SIGINT
-        # system sh/exec.sh -n dnode1 -s start
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
 
         tdLog.info(f"=============== step5")
         tdSql.query(f"select * from d2.mt")

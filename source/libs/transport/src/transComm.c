@@ -904,9 +904,12 @@ int32_t transUtilSWhiteListToStr(SIpWhiteList* pList, char** ppBuf) {
   }
 
   for (int i = 0; i < pList->num; i++) {
-    SIpRange* pRange = &pList->pIpRange[i];
+    SIpV4Range* v4 = &pList->pIpRange[i];
+
+    SIpRange  range = {.type = 0, .ipV4 = *v4};
     SIpAddr   addr = {0};
-    code = tIpUintToStr(pRange, &addr);
+
+    code = tIpUintToStr(&range, &addr);
 
     len += sprintf(pBuf + len, "%s,", IP_ADDR_STR(&addr));
   }

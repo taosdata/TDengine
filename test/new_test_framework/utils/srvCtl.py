@@ -48,6 +48,19 @@ class srvCtl:
             return clusterDnodes.starttaosd(idx)
 
         return tdDnodes.starttaosd(idx)
+    
+    def dnodeStartAll(self):
+        """
+        Starts all dnodes.
+
+        Returns:
+            bool: True if all dnodes were started successfully, False otherwise.
+        """
+        if clusterDnodes.getModel() == 'cluster':
+            for dnode in clusterDnodes.dnodes:
+                clusterDnodes.starttaosd(dnode.index)
+        else:
+            return tdDnodes.starttaosd(1)
 
     # stop idx base is 1 
     def dnodeStop(self, idx):
@@ -64,6 +77,32 @@ class srvCtl:
             return clusterDnodes.stoptaosd(idx)
 
         return tdDnodes.stoptaosd(idx)
+    
+    def dnodeForceStop(self, idx):
+        """
+        Force Stops a dnode.
+
+        Args:
+            idx (int): The index of the dnode to stop.
+
+        Returns:
+            bool: True if the dnode was stopped successfully, False otherwise.
+        """
+        if clusterDnodes.getModel() == 'cluster':
+            return clusterDnodes.forcestop(idx)
+
+        return tdDnodes.forcestop(idx)
+    
+    def dnodeClearData(self, idx):
+        """
+        Clear a dnode data.
+
+        Args:
+            idx (int): The index of the dnode to clear.
+
+        Returns:
+            bool: True if the dnode was cleared successfully, False otherwise.
+        """
 
     def dnodeStopAll(self):
         """

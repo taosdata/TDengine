@@ -367,8 +367,10 @@ bool uvWhiteListFilte(SIpWhiteListTab* pWhite, char* user, uint32_t ip, int64_t 
 
   SIpWhiteList* pIpWhiteList = pUserList->pList;
   for (int i = 0; i < pIpWhiteList->num; i++) {
-    SIpRange* range = &pIpWhiteList->pIpRange[i];
-    if (uvCheckIp(range, ip)) {
+    SIpV4Range* v4 = &pIpWhiteList->pIpRange[i];
+
+    SIpRange range = {.type = 0, .ipV4 = *v4};
+    if (uvCheckIp(&range, ip)) {
       valid = true;
       break;
     }
@@ -1799,7 +1801,7 @@ void uvHandleUpdate(SSvrRespMsg* msg, SWorkThrd* thrd) {
   for (int i = 0; i < req->numOfUser; i++) {
     SUpdateUserIpWhite* pUser = &req->pUserIpWhite[i];
 
-    int32_t sz = pUser->numOfRange * sizeof(SIpV4Range);
+    int32_t sz = pUser->numOfRange * sizeof(SIpRange);
 
     SIpWhiteList* pList = taosMemoryCalloc(1, sz + sizeof(SIpWhiteList));
     if (pList == NULL) {

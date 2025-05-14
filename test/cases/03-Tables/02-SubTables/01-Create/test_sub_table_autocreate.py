@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestSubTableAutoCreate:
@@ -23,7 +23,7 @@ class TestSubTableAutoCreate:
         Jira: None
 
         History:
-            - 2025-4-28 Simon Guan Migrated to new test framework, from tests/script/tsim/table/autocreate.sim
+            - 2025-4-28 Simon Guan Migrated from tsim/table/autocreate.sim
 
         """
 

@@ -1233,7 +1233,7 @@ static int32_t mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
 
     char ip[TD_IP_LEN + VARSTR_HEADER_SIZE] = {0};
     char buf[IP_RESERVE_CAP] = {0};
-    snprintf(buf, sizeof(buf), IP_ADDR_STR(&pApp->cliAddr));
+    snprintf(buf, sizeof(buf), "%s", IP_ADDR_STR(&pApp->cliAddr));
     STR_TO_VARSTR(ip, buf);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

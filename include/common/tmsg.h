@@ -1219,15 +1219,15 @@ typedef struct {
 
 typedef struct {
   int32_t    num;
-  SIpRange   pIpRange[];
+  SIpV4Range pIpRange[];
 } SIpWhiteList;
 
 typedef struct {
   int32_t  num;
-  SIpRange ranges[];
-} SIpWhiteList2;
+  SIpRange pIpRanges[];
+} SIpWhiteListDual;
 
-SIpWhiteList* cloneIpWhiteList(SIpWhiteList* pIpWhiteList);
+SIpWhiteListDual* cloneIpWhiteList(SIpWhiteListDual* pIpWhiteList);
 typedef struct {
   int8_t      createType;
   int8_t      superUser;  // denote if it is a super user or not
@@ -1236,24 +1236,32 @@ typedef struct {
   char        user[TSDB_USER_LEN];
   char        pass[TSDB_USET_PASSWORD_LEN];
   int32_t     numIpRanges;
+
   SIpV4Range* pIpRanges;
   int32_t     sqlLen;
   char*       sql;
   int8_t      isImport;
   int8_t      createDb;
   int8_t      passIsMd5;
+  SIpRange*   pIpDualRanges;
 } SCreateUserReq;
 
 int32_t tSerializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
 int32_t tDeserializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
 void    tFreeSCreateUserReq(SCreateUserReq* pReq);
 
+int32_t tSerializeIpRange(SEncoder* encoder, SIpRange* pRange);
+int32_t tDeserializeIpRange(SDecoder* decoder, SIpRange* pRange);
 typedef struct {
   int64_t     ver;
   char        user[TSDB_USER_LEN];
   int32_t     numOfRange;
-  SIpRange*   pIpRanges;
+  union {
+    SIpV4Range* pIpRanges;
+    SIpRange*   pIpDualRanges;
+  };
 } SUpdateUserIpWhite;
+
 typedef struct {
   int64_t             ver;
   int                 numOfUser;
@@ -1264,6 +1272,10 @@ int32_t tSerializeSUpdateIpWhite(void* buf, int32_t bufLen, SUpdateIpWhite* pReq
 int32_t tDeserializeSUpdateIpWhite(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
 void    tFreeSUpdateIpWhiteReq(SUpdateIpWhite* pReq);
 int32_t cloneSUpdateIpWhiteReq(SUpdateIpWhite* pReq, SUpdateIpWhite** pUpdate);
+
+int32_t tSerializeSUpdateIpWhiteDual(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
+int32_t tDeserializeSUpdateIpWhiteDual(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
+void    tFreeSUpdateIpWhiteDualReq(SUpdateIpWhite* pReq);
 
 typedef struct {
   int64_t ipWhiteVer;
@@ -1313,6 +1325,7 @@ typedef struct {
   int32_t     sqlLen;
   char*       sql;
   int8_t      passIsMd5;
+  SIpRange*   pIpDualRanges;
 } SAlterUserReq;
 
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
@@ -1361,15 +1374,11 @@ int32_t tDeserializeSGetUserWhiteListReq(void* buf, int32_t bufLen, SGetUserWhit
 typedef struct {
   char        user[TSDB_USER_LEN];
   int32_t     numWhiteLists;
-  SIpV4Range* pWhiteLists;
+  union {
+    SIpV4Range* pWhiteLists;
+    SIpRange*   pWhiteListsDual;
+  };
 } SGetUserWhiteListRsp;
-
-typedef struct {
-  char    user[TSDB_USER_LEN];
-  int32_t numWhiteLists;
-
-  SIpRange* pWhiteLists;
-} SGetUserWhiteListRsp2;
 
 int32_t tIpStrToUint(const SIpAddr* addr, SIpRange* range);
 int32_t tIpUintToStr(const SIpRange* range, SIpAddr* addr);
@@ -1379,9 +1388,9 @@ int32_t tSerializeSGetUserWhiteListRsp(void* buf, int32_t bufLen, SGetUserWhiteL
 int32_t tDeserializeSGetUserWhiteListRsp(void* buf, int32_t bufLen, SGetUserWhiteListRsp* pRsp);
 void    tFreeSGetUserWhiteListRsp(SGetUserWhiteListRsp* pRsp);
 
-int32_t tSerializeSGetUserWhiteListRsp2(void* buf, int32_t bufLen, SGetUserWhiteListRsp2* pRsp);
-int32_t tDeserializeSGetUserWhiteListRsp2(void* buf, int32_t bufLen, SGetUserWhiteListRsp2* pRsp);
-void    tFreeSGetUserWhiteListRsp2(SGetUserWhiteListRsp2* pRsp);
+int32_t tSerializeSGetUserWhiteListDualRsp(void* buf, int32_t bufLen, SGetUserWhiteListRsp* pRsp);
+int32_t tDeserializeSGetUserWhiteListDualRsp(void* buf, int32_t bufLen, SGetUserWhiteListRsp* pRsp);
+void    tFreeSGetUserWhiteListDualRsp(SGetUserWhiteListRsp* pRsp);
 
 /*
  * for client side struct, only column id, type, bytes are necessary

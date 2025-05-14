@@ -409,7 +409,8 @@ void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj) {
       continue;
     }
 
-    (void)atomic_add_fetch_32(&pRow->refCount, 1);
+    (void) atomic_add_fetch_32(&pRow->refCount, 1);
+
     sdbPrintOper(pSdb, pRow, "fetch");
     *ppObj = pRow->pObj;
     break;

@@ -738,7 +738,7 @@ void cliHandleResp(SCliConn* conn) {
           tstrerror(pHead->code));
   code = cliNotifyCb(conn, pReq, &resp);
   if (code == TSDB_CODE_RPC_ASYNC_IN_PROCESS) {
-    tGWarn("%s msg need retry", CONN_GET_INST_LABEL(conn));
+    tGDebug("%s msg need retry", CONN_GET_INST_LABEL(conn));
   } else {
     destroyReq(pReq);
   }
@@ -1894,7 +1894,7 @@ static FORCE_INLINE int32_t cliUpdateFqdnCache(SHashObj* cache, char* fqdn) {
     SIpAddr*  v = taosHashGet(cache, fqdn, len);
     if (v != NULL) {
       if (!taosIpAddrIsEqual(v, &addr)) {
-        tWarn("update ip of fqdn:%s, old:%s, new:%s", fqdn, IP_ADDR_STR(v), &addr);
+        tWarn("update ip of fqdn:%s, old:%s, new:%s", fqdn, IP_ADDR_STR(v), IP_ADDR_STR(&addr));
         code = taosHashPut(cache, fqdn, len, &addr, sizeof(addr));
       }
     } else {

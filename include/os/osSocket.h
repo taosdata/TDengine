@@ -189,6 +189,7 @@ int32_t taosGetIpFromFqdn(const char *fqdn, SIpAddr *addr);
 #define IP_RESERVE_CAP (128 + 32)
 
 int8_t taosIpAddrIsEqual(SIpAddr *ip1, SIpAddr *ip2);
+
 #ifdef __cplusplus
 }
 #endif
