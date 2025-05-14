@@ -1,0 +1,3 @@
+pytest cases/05-VirtualTables/test_vtable_create.py
+pytest cases/05-VirtualTables/test_vtable_alter.py
+./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normal_table_alter_1.py
