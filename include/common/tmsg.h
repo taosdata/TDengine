@@ -1772,7 +1772,29 @@ typedef struct {
 
 int32_t tSerializeSRetrieveMountPathReq(void* buf, int32_t bufLen, SRetrieveMountPathReq* pReq);
 int32_t tDeserializeSRetrieveMountPathReq(void* buf, int32_t bufLen, SRetrieveMountPathReq* pReq);
-#endif
+
+typedef struct {
+  int32_t vgId;
+  SArray* pStb;
+} SMountVgInfo;
+
+typedef struct {
+  char    dbName[TSDB_DB_FNAME_LEN];
+  int64_t dbUid;
+  SArray* pVg;
+} SMountDbInfo;
+
+typedef struct {
+  char    mountName[TSDB_MOUNT_NAME_LEN];
+  int64_t mountUid;
+  int32_t dnodeId;
+  SArray* pDb;
+} SMountInfo;
+
+int32_t tSerializeSMountInfo(void* buf, int32_t bufLen, SMountInfo* pReq);
+int32_t tDeserializeSMountInfo(void* buf, int32_t bufLen, SMountInfo* pReq);
+
+#endif  // USE_MOUNT
 
 typedef struct {
   int32_t rowNum;

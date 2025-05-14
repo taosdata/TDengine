@@ -438,6 +438,7 @@ _OVER:
   terrno = code;
   return code;
 }
+
 #ifdef USE_MOUNT
 int32_t vmProcessRetrieveMountPathReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t code = 0, lino = 0;
