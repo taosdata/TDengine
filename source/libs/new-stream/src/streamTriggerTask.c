@@ -1053,7 +1053,7 @@ static void strtgNextIntervalWindow(const SInterval *pInterval, STimeWindow *pWi
   nextStart = taosTimeAdd(nextStart, pInterval->sliding, pInterval->slidingUnit, pInterval->precision, NULL);
   nextStart = taosTimeAdd(nextStart, pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
   pWindow->skey = nextStart;
-  pWindow->ekey = taosTimeAdd(nextStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL);
+  pWindow->ekey = taosTimeGetIntervalEnd(nextStart, pInterval);
 }
 
 static STimeWindow strtgGetPeriodWindow(const SInterval *pInterval, int64_t ts) {
