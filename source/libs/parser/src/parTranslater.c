@@ -13493,6 +13493,7 @@ static int32_t eliminateNodeFromList(SNode* pTarget, SNodeList* pList) {
   SNode*  pNode = NULL;
   WHERE_EACH(pNode, pList) {
     if (nodesEqualNode(pNode, pTarget)) {
+      REPLACE_NODE(NULL);
       ERASE_NODE(pList);
       break;
     }
