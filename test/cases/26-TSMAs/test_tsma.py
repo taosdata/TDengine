@@ -1222,6 +1222,17 @@ class TestTsma:
     
 
     def test_tsma(self):
+        """tsma
+
+        test tsma
+
+        Since: v3.0.0.0
+
+        History:
+            - 2024-4-14 chenhaoran Created
+            - 2025-5-13 Huo Hong Migrated to new test framework
+
+        """
 
         self.init_data()
         self.tsma_ddl()
