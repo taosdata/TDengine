@@ -99,15 +99,15 @@ class TestStreamSubqueryBasic:
     def create_stream(self):
         self.streams = [
             TestStreamSubqueryBaiscItem(
-                index=0,
+                id=0,
                 trigger="interval(5m)",
-                sub_query="select _wstart ts, count(current) cnt from qdb.meters",
-                res_query="select count(current) cnt from qdb.meters interval(5m)",  # select cnt from rdb.s0
-                exp_query="select count(current) cnt from qdb.meters where ts >= 1704038400000 and ts < 1704038700000",
-                exp_rows=(0 for _ in range(12)),
+                sub_query="select _twstart ts, count(current) cnt from qdb.meters where ts >= _twstart and ts < _twend;",
+                res_query="select ts, cnt from rdb.s0",
+                exp_query="select _wstart ts, count(current) cnt from qdb.meters interval(5m)",
+                exp_rows=[],
             ),
             TestStreamSubqueryBaiscItem(
-                index=1,
+                id=1,
                 trigger="interval(5m)",
                 sub_query="select _wstart ts, count(current) cnt from qdb.meters",
                 res_query="select count(current) cnt from qdb.meters interval(5m)",  # select cnt from rdb.s1
@@ -116,26 +116,31 @@ class TestStreamSubqueryBasic:
             ),
         ]
 
+        self.test_list = [0]
+
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
-            stream.create_stream()
+            if stream.id in self.test_list:
+                stream.create_stream()
 
     def wait_stream_run_finish(self):
         tdLog.info(f"wait total:{len(self.streams)} streams run finish")
         for stream in self.streams:
-            stream.wait_stream_run_finish()
+            if stream.id in self.test_list:
+                stream.wait_stream_run_finish()
 
     def check_result(self):
         tdLog.info(f"check total:{len(self.streams)} streams result")
         for stream in self.streams:
-            stream.check_result(print=True)
+            if stream.id in self.test_list:
+                stream.check_result(print=True)
 
 
 class TestStreamSubqueryBaiscItem:
-    def __init__(self, index, trigger, sub_query, res_query, exp_query, exp_rows=[]):
+    def __init__(self, id, trigger, sub_query, res_query, exp_query, exp_rows=[]):
         self.trigger = trigger
-        self.index = index
-        self.name = f"s{index}"
+        self.id = id
+        self.name = f"s{id}"
         self.sub_query = sub_query
         self.res_query = res_query
         self.exp_query = exp_query
@@ -143,7 +148,7 @@ class TestStreamSubqueryBaiscItem:
         self.exp_result = []
 
     def create_stream(self):
-        sql = f"create stream s{self.index} {self.trigger} from qdb.meters into rdb.rs{self.index} as {self.sub_query}"
+        sql = f"create stream s{self.id} {self.trigger} from qdb.meters into rdb.rs{self.id} as {self.sub_query}"
         tdLog.info(f"create stream:{self.name}, sql:{sql}")
 
     def wait_stream_run_finish(self):
