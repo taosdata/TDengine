@@ -849,10 +849,10 @@ int32_t msmGetTaskIdFromSubplanId(SStreamObj* pStream, SArray* pRunners, int32_t
   int64_t streamId = pStream->pCreate->streamId;
   int32_t runnerNum = taosArrayGetSize(pRunners);
   for (int32_t i = beginIdx; i < runnerNum; ++i) {
-    SStmTaskDeploy* pDeploy = taosArrayGet(pRunners, i);
-    SSubplan* pPlan = pDeploy->msg.runner.pPlan;
+    SStmTaskToDeployExt* pExt = taosArrayGet(pRunners, i);
+    SSubplan* pPlan = pExt->deploy.msg.runner.pPlan;
     if (pPlan->id.subplanId == subplanId) {
-      *taskId = pDeploy->task.taskId;
+      *taskId = pExt->deploy.task.taskId;
       return TSDB_CODE_SUCCESS;
     }
   }
