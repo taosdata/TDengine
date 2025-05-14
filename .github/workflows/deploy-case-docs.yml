@@ -77,44 +77,9 @@ jobs:
         run: |
           modified_flag=false
           mkdir -p test/docs/case_list_docs
-          for file in ${ALL_CHANGED_CASE_FILES}; do
-            echo "Processing $file"
-            module_path=$(echo "$file" | sed 's|/|.|g' | sed 's|.py$||' | sed 's|^test.cases.||')
-            markdown_file="test/docs/case_list_docs/$(echo "${module_path}" | sed 's|\.[^\.]*$||' | sed 's|\.|/|g').md"
-            echo "module_path: $module_path"
-            mkdir -p "$(dirname "$markdown_file")"
-
-            if [[ -f "$file" ]]; then
-              echo "File $file exists."
-            else
-              echo "File $file does not exist."
-              echo "Removing $module_path from $markdown_file"
-              sed -i "/::: ${module_path}/d" "$markdown_file"
-              if [ ! -s "$markdown_file" ]; then
-                echo "File $markdown_file is empty after removal. Deleting it."
-                rm -f "$markdown_file"
-                modified_util=true
-              else
-                echo "File $markdown_file is not empty after removal."
-              fi
-              continue
-            fi
-            if [ ! -f "$markdown_file" ]; then
-              echo "Generating $markdown_file"
-              echo "::: ${module_path}" > "$markdown_file"
-              modified_flag=true
-            else
-              echo "Appending to $markdown_file"
-              if ! grep -q "::: ${module_path}" "$markdown_file"; then
-                echo "::: ${module_path}" >> "$markdown_file"
-                modified_flag=true
-              else
-                echo "Content already exists in $markdown_file"
-              fi
-            fi
-            echo "End $file. markdown_file: $markdown_file. modified_flag: $modified_flag"
-            cat $markdown_file
-          done
+          python .github/scripts/generate_case_md.py "test/docs/case_list_docs" "${ALL_CHANGED_CASE_FILES}"
+          if [[ $? -eq 0 ]]; then
+            modified_flag=true
           echo "modified_flag=$modified_flag" >> $GITHUB_ENV
         shell: bash
 
