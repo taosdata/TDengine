@@ -151,7 +151,7 @@ end:
   return code;
 }
 
-static void releaseStreamInfo(void* p) {
+static void releaseStreamReaderInfo(void* p) {
   if (p == NULL) return;
   SStreamTriggerReaderInfo* pInfo = (SStreamTriggerReaderInfo*)p;
   if (pInfo == NULL) return;
@@ -165,6 +165,26 @@ static void releaseStreamInfo(void* p) {
   blockDataDestroy(pInfo->calcResBlock);
   taosMemoryFree(pInfo->triggerSchema);
   taosMemoryFree(pInfo->calcSchema);
+  taosMemoryFree(pInfo);
+}
+
+static void releaseStreamReaderCalcInfo(void* p) {
+  if (p == NULL) return;
+  SStreamTriggerReaderCalcInfo* pInfo = (SStreamTriggerReaderCalcInfo*)p;
+  if (pInfo == NULL) return;
+  nodesDestroyNode((SNode*)(pInfo->calcAst));
+  taosMemoryFreeClear(pInfo->calcScanPlan);
+  qDestroyTask(pInfo->pTaskInfo);
+  pInfo->pTaskInfo = NULL;
+  nodesDestroyNode((SNode*)pInfo->tsConditions);
+  filterFreeInfo(pInfo->pFilterInfo);
+
+  // nodesDestroyList(pInfo->triggerCols);
+  // nodesDestroyList(pInfo->calcCols);
+  // blockDataDestroy(pInfo->triggerResBlock);
+  // blockDataDestroy(pInfo->calcResBlock);
+  // taosMemoryFree(pInfo->triggerSchema);
+  // taosMemoryFree(pInfo->calcSchema);
   taosMemoryFree(pInfo);
 }
 
@@ -309,11 +329,40 @@ end:
   PRINT_LOG_END(code, lino);
 
   if (code != 0) {
-    releaseStreamInfo(sStreamReaderInfo);
+    releaseStreamReaderInfo(sStreamReaderInfo);
     sStreamReaderInfo = NULL;
   }
   nodesDestroyList(triggerCols);
   return sStreamReaderInfo;
+}
+
+static SStreamTriggerReaderCalcInfo* createStreamReaderCalcInfo(const SStreamReaderDeployMsg* pMsg) {
+  int32_t    code = 0;
+  int32_t    lino = 0;
+  SNodeList* triggerCols = NULL;
+
+  SStreamTriggerReaderCalcInfo* sStreamReaderCalcInfo = taosMemoryCalloc(1, sizeof(SStreamTriggerReaderCalcInfo));
+  STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo, terrno);
+
+  STREAM_CHECK_RET_GOTO(
+      nodesStringToNode(pMsg->msg.calc.calcScanPlan, (SNode**)(&sStreamReaderCalcInfo->calcAst)));
+  STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo->calcAst, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
+  STREAM_CHECK_CONDITION_GOTO(
+      QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN != nodeType(sStreamReaderCalcInfo->calcAst->pNode),
+      TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
+
+  sStreamReaderCalcInfo->calcScanPlan = taosStrdup(pMsg->msg.calc.calcScanPlan);
+  STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo->calcScanPlan, terrno);
+  sStreamReaderCalcInfo->pTaskInfo = NULL;
+
+end:
+  PRINT_LOG_END(code, lino);
+
+  if (code != 0) {
+    releaseStreamReaderCalcInfo(sStreamReaderCalcInfo);
+    sStreamReaderCalcInfo = NULL;
+  }
+  return sStreamReaderCalcInfo;
 }
 
 int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMsg* pMsg) {
@@ -326,23 +375,14 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
   if (pMsg->triggerReader == 1) {
     stDebug("triggerScanPlan:%s", (char*)(pMsg->msg.trigger.triggerScanPlan));
     stDebug("calcCacheScanPlan:%s", (char*)(pMsg->msg.trigger.calcCacheScanPlan));
-    pTask->info.triggerReaderInfo = createStreamReaderInfo(pMsg);
-    stInfo("stream %" PRIx64 " task %" PRIx64 "  in stReaderTaskDeploy, pTask:%p, info:%p", pTask->task.streamId, pTask->task.taskId, pTask, pTask->info.triggerReaderInfo);
+    pTask->info = createStreamReaderInfo(pMsg);
+    stInfo("stream %" PRIx64 " task %" PRIx64 "  in stReaderTaskDeploy, pTask:%p, info:%p", pTask->task.streamId,
+           pTask->task.taskId, pTask, pTask->info);
 
-    STREAM_CHECK_NULL_GOTO(pTask->info.triggerReaderInfo, terrno);
+    STREAM_CHECK_NULL_GOTO(pTask->info, terrno);
   } else {
     stDebug("calcScanPlan:%s", (char*)(pMsg->msg.calc.calcScanPlan));
-    // int32_t vgId = pTask->task.nodeId;
-    // int64_t streamId = pTask->task.streamId;
-    // int32_t taskId = pTask->task.taskId;
-    // SSubplan* pSubplan = NULL;
-    // STREAM_CHECK_RET_GOTO(
-      // nodesStringToNode(pMsg->msg.calc.calcScanPlan, (SNode**)(&pSubplan)));
-
-    // ST_TASK_DLOG("vgId:%d start to build stream reader calc task", vgId);
-    pTask->info.calcReaderInfo.calcScanPlan = taosStrdup(pMsg->msg.calc.calcScanPlan);
-    STREAM_CHECK_NULL_GOTO(pTask->info.calcReaderInfo.calcScanPlan, terrno);
-    pTask->info.calcReaderInfo.pTaskInfo = NULL;
+    pTask->info = createStreamReaderCalcInfo(pMsg);
   }
 
   pTask->task.status = STREAM_STATUS_INIT;
@@ -364,15 +404,11 @@ int32_t stReaderTaskUndeploy(SStreamReaderTask** ppTask, const SStreamUndeployTa
   STREAM_CHECK_NULL_GOTO(ppTask, TSDB_CODE_INVALID_PARA);
   STREAM_CHECK_NULL_GOTO(pMsg, TSDB_CODE_INVALID_PARA);
   if ((*ppTask)->triggerReader == 1) {
-    releaseStreamInfo((*ppTask)->info.triggerReaderInfo);
-    (*ppTask)->info.triggerReaderInfo = NULL;
+    releaseStreamReaderInfo((*ppTask)->info);
   } else {
-    taosMemoryFreeClear((*ppTask)->info.calcReaderInfo.calcScanPlan);
-    qDestroyTask((*ppTask)->info.calcReaderInfo.pTaskInfo);
-    (*ppTask)->info.calcReaderInfo.pTaskInfo = NULL;
-    nodesDestroyNode((SNode*)(*ppTask)->info.calcReaderInfo.tsConditions);
-    filterFreeInfo((*ppTask)->info.calcReaderInfo.pFilterInfo);
+    releaseStreamReaderCalcInfo((*ppTask)->info);
   }
+  (*ppTask)->info = NULL;
 
 end:
   PRINT_LOG_END(code, lino);
@@ -394,8 +430,9 @@ void* qStreamGetReaderInfo(int64_t streamId, int64_t taskId) {
 end:
   PRINT_LOG_END(code, lino);
   if (code == TSDB_CODE_SUCCESS) {
-    // stDebug("stream %" PRIx64 " task %" PRIx64 "  in qStreamGetReaderInfo, pTask:%p, info:%p", streamId, taskId, pTask, ((SStreamReaderTask*)pTask)->info.triggerReaderInfo);
-    return ((SStreamReaderTask*)pTask)->info.triggerReaderInfo;
+    // stDebug("stream %" PRIx64 " task %" PRIx64 "  in qStreamGetReaderInfo, pTask:%p, info:%p", streamId, taskId,
+    // pTask, ((SStreamReaderTask*)pTask)->info.triggerReaderInfo);
+    return ((SStreamReaderTask*)pTask)->info;
   }
   terrno = code;
   return NULL;

@@ -34,16 +34,7 @@ extern "C" {
 typedef struct SStreamReaderTask {
   SStreamTask task;
   int8_t      triggerReader;
-  union {
-    void* triggerReaderInfo;
-    struct {
-      void*       pFilterInfo;
-      void*       tsConditions;
-      void*       calcScanPlan;
-      qTaskInfo_t pTaskInfo;
-    } calcReaderInfo;
-  } info;
-  SStreamRuntimeInfo rtInfo;
+  void*       info;
 } SStreamReaderTask;
 
 typedef struct SStreamRunnerTaskExecution {

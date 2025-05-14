@@ -1232,29 +1232,23 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   SResFetchReq req = {0};
   STREAM_CHECK_CONDITION_GOTO(tDeserializeSResFetchReq(pMsg->pCont, pMsg->contLen, &req) < 0,
                               TSDB_CODE_QRY_INVALID_INPUT);
-  STREAM_CHECK_RET_GOTO(streamGetTask(req.queryId, req.taskId, (SStreamTask**)&pTask));
-  STREAM_CHECK_CONDITION_GOTO(pTask->triggerReader != 0, TSDB_CODE_INVALID_PARA);
-  if (req.reset || pTask->info.calcReaderInfo.pTaskInfo == NULL) {
-    qDestroyTask(pTask->info.calcReaderInfo.pTaskInfo);
+  SStreamTriggerReaderCalcInfo* sStreamReaderCalcInfo = qStreamGetReaderInfo(req.queryId, req.taskId);
+  STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo, terrno);
+
+  if (req.reset || sStreamReaderCalcInfo->pTaskInfo == NULL) {
+    qDestroyTask(sStreamReaderCalcInfo->pTaskInfo);
     SReadHandle handle = {
         .vnode = pVnode,
     };
 
-    int32_t vgId = pTask->task.nodeId;
-    int64_t streamId = pTask->task.streamId;
-    int32_t taskId = pTask->task.taskId;
-
     initStorageAPI(&handle.api);
     if (req.pStRtFuncInfo->withExternalWindow) {
-      nodesDestroyNode(pTask->info.calcReaderInfo.tsConditions);
-      filterFreeInfo(pTask->info.calcReaderInfo.pFilterInfo);
+      nodesDestroyNode(sStreamReaderCalcInfo->tsConditions);
+      filterFreeInfo(sStreamReaderCalcInfo->pFilterInfo);
 
-      STREAM_CHECK_RET_GOTO(createExternalConditions(req.pStRtFuncInfo->pStreamPesudoFuncVals, (SLogicConditionNode**)&pTask->info.calcReaderInfo.tsConditions));
-      char* str = NULL;
-      STREAM_CHECK_RET_GOTO(nodesNodeToString((SNode*)pTask->info.calcReaderInfo.tsConditions, false, &str, NULL));
-      vDebug("vgId:%d %s create condition %s", TD_VID(pVnode), __func__, str);
+      STREAM_CHECK_RET_GOTO(createExternalConditions(req.pStRtFuncInfo->pStreamPesudoFuncVals, (SLogicConditionNode**)&sStreamReaderCalcInfo->tsConditions));
       
-      STREAM_CHECK_RET_GOTO(filterInitFromNode((SNode*)pTask->info.calcReaderInfo.tsConditions, (SFilterInfo **)&pTask->info.calcReaderInfo.pFilterInfo, 0, NULL));
+      STREAM_CHECK_RET_GOTO(filterInitFromNode((SNode*)sStreamReaderCalcInfo->tsConditions, (SFilterInfo **)&sStreamReaderCalcInfo->pFilterInfo, 0, NULL));
       SSTriggerCalcParam* pFirst = taosArrayGet(req.pStRtFuncInfo->pStreamPesudoFuncVals, 0);
       SSTriggerCalcParam* pLast = taosArrayGetLast(req.pStRtFuncInfo->pStreamPesudoFuncVals);
       STREAM_CHECK_NULL_GOTO(pFirst, terrno);
@@ -1268,22 +1262,34 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
         pParam->wstart = INT64_MIN ;
         pParam->wend = INT64_MAX;
       }
+    } else {
+      STimeRangeNode* node = (STimeRangeNode*)((STableScanPhysiNode*)(sStreamReaderCalcInfo->calcAst))->pTimeRange;
+      if (node != NULL) {
+        SNode* pStart = node->pStart;
+        SNode* pEnd = node->pEnd;
+        // reader todo
+        SSTriggerCalcParam* pCur = taosArrayGet(req.pStRtFuncInfo->pStreamPesudoFuncVals, req.pStRtFuncInfo->curIdx);
+        STREAM_CHECK_NULL_GOTO(pCur, terrno);
+        handle.winRange.skey = pCur->wstart;
+        handle.winRange.ekey = pCur->wend;
+        handle.winRangeValid = true;
+      }
     }
-    pTask->rtInfo.funcInfo = *req.pStRtFuncInfo;
+    sStreamReaderCalcInfo->rtInfo.funcInfo = *req.pStRtFuncInfo;
 
     STREAM_CHECK_RET_GOTO(qCreateStreamExecTaskInfo(
-        &pTask->info.calcReaderInfo.pTaskInfo, pTask->info.calcReaderInfo.calcScanPlan, &handle, NULL, vgId, taskId));
-    streamSetTaskRuntimeInfo(pTask->info.calcReaderInfo.pTaskInfo, &pTask->rtInfo);
-    STREAM_CHECK_RET_GOTO(qSetTaskId(pTask->info.calcReaderInfo.pTaskInfo, taskId, streamId));
+        &sStreamReaderCalcInfo->pTaskInfo, sStreamReaderCalcInfo->calcScanPlan, &handle, NULL, TD_VID(pVnode), req.taskId));
+    streamSetTaskRuntimeInfo(sStreamReaderCalcInfo->pTaskInfo, &sStreamReaderCalcInfo->rtInfo);
+    STREAM_CHECK_RET_GOTO(qSetTaskId(sStreamReaderCalcInfo->pTaskInfo, req.taskId, req.queryId));
   }
 
   uint64_t ts = 0;
   // qStreamSetOpen(task);
-  STREAM_CHECK_RET_GOTO(qExecTask(pTask->info.calcReaderInfo.pTaskInfo, &pBlock, &ts));
+  STREAM_CHECK_RET_GOTO(qExecTask(sStreamReaderCalcInfo->pTaskInfo, &pBlock, &ts));
   printDataBlock(pBlock, "calc fetch block", "task id");
 
   if (req.pStRtFuncInfo->withExternalWindow && pBlock != NULL){
-    STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, pTask->info.calcReaderInfo.pFilterInfo));
+    STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, sStreamReaderCalcInfo->pFilterInfo));
   }
 
   vDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock != NULL ? pBlock->info.rows : -1);
