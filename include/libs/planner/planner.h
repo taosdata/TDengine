@@ -35,6 +35,7 @@ typedef struct SPlanContext {
   bool        showRewrite;
   bool        isView;
   bool        isAudit;
+  bool        withExtWindow;
   int8_t      triggerType;
   int64_t     watermark;
   int64_t     deleteMark;
