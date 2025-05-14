@@ -1014,8 +1014,10 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
     SStreamCalcScan pStreamCalcScan = {0};
     pStreamCalcScan.vgList = taosArrayInit(1, sizeof(int32_t));
     if (pScanLogicNode->pVgroupList) {
-      if (NULL == taosArrayPush(pStreamCalcScan.vgList, &pScanLogicNode->pVgroupList->vgroups[0].vgId)) {
-        PLAN_ERR_RET(terrno);
+      for (int32_t i = 0; i < pScanLogicNode->pVgroupList->numOfVgroups; i++) {
+        if (NULL == taosArrayPush(pStreamCalcScan.vgList, &pScanLogicNode->pVgroupList->vgroups[i].vgId)) {
+          PLAN_ERR_RET(terrno);
+        }
       }
     }
     pStreamCalcScan.scanPlan = (void*)pSubplan;
