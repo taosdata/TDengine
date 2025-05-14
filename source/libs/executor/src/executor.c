@@ -2021,6 +2021,10 @@ void destoryStreamInserterParam(SStreamInserterParam* pParam) {
       taosMemFree(pParam->tbname);
       pParam->tbname = NULL;
     }
+    if (pParam->stbname) {
+      taosMemFree(pParam->stbname);
+      pParam->stbname = NULL;
+    }
     if (pParam->dbFName) {
       taosMemFree(pParam->dbFName);
       pParam->dbFName = NULL;
@@ -2058,6 +2062,14 @@ int32_t cloneStreamInserterParam(SStreamInserterParam** ppDst, SStreamInserterPa
     code = terrno;
     goto _err;
   }
+  if (pSrc->stbname) {
+    (*ppDst)->stbname = taosStrdup(pSrc->stbname);
+    if ((*ppDst)->stbname == NULL) {
+      code = terrno;
+      goto _err;
+    }
+  }
+
   (*ppDst)->dbFName = taosStrdup(pSrc->dbFName);
   if ((*ppDst)->dbFName == NULL) {
     code = terrno;

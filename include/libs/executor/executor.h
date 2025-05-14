@@ -17,6 +17,7 @@
 #define _TD_EXECUTOR_H_
 
 #include <stdint.h>
+#include "tarray.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -68,10 +69,12 @@ typedef struct {
 
 typedef struct SStreamInserterParam {
   SArray*   pFields;  // SArray<SFieldWithOptions>
-  SArray*   pTagFields;
+  SArray*   pTagFields; // SArray<SFieldWithOptions>
+  SArray*   pTagVals; // SArray<STagVal>
   int64_t   suid;
   int32_t   sver;
   char*     tbname;
+  char*     stbname;
   int8_t    tbType;
   char*     dbFName;
   void*     pSinkHandle;

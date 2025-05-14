@@ -1830,9 +1830,9 @@ static int32_t buildExistNormalTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTb
   if (NULL == *ppRsp) {
     return terrno;
   }
-  
+
   (*ppRsp)->tuid = pEntry->uid;
-  (*ppRsp)->tversion = pEntry->ntbEntry.schemaRow.version;
+  (*ppRsp)->sversion = pEntry->ntbEntry.schemaRow.version;
   (*ppRsp)->numOfColumns = pEntry->ntbEntry.schemaRow.nCols;
   (*ppRsp)->pSchemas = taosMemoryCalloc(pEntry->ntbEntry.schemaRow.nCols, sizeof(SSchema));
   if (NULL == (*ppRsp)->pSchemas) {

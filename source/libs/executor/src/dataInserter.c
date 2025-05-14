@@ -120,11 +120,7 @@ static int32_t checkResAndGetTableId(const SSubmitRes* pSubmitRes, int8_t tbType
     return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
   }
   res->uid = pCreateTbRsp->pMeta->tuid;
-  if (tbType == TSDB_NORMAL_TABLE) {
-    res->version = pCreateTbRsp->pMeta->tversion;
-  } else if (tbType == TSDB_CHILD_TABLE) {
-    res->version = pCreateTbRsp->pMeta->sversion;
-  }
+  res->version = pCreateTbRsp->pMeta->sversion;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -484,7 +480,10 @@ int32_t inserterBuildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag*
   pTbReq->ctb.tagNum = tagNum;
   if (sname) {
     pTbReq->ctb.stbName = taosStrdup(sname);
-    if (!pTbReq->ctb.stbName) return terrno;
+    if (!pTbReq->ctb.stbName) {
+      taosMemoryFree(pTbReq->name);
+      return terrno;
+    }
   }
   pTbReq->ctb.tagName = taosArrayDup(tagName, NULL);
   if (!pTbReq->ctb.tagName) return terrno;
@@ -1054,7 +1053,7 @@ int32_t buildNormalTableCreateReq(SDataInserterHandle* pInserter, SStreamInserte
 
   int32_t numOfCols = pInsertParam->pFields->size;
   tbData->pCreateTbReq->ntb.schemaRow.nCols = numOfCols;
-  tbData->pCreateTbReq->ntb.schemaRow.version = 0;  // todo
+  tbData->pCreateTbReq->ntb.schemaRow.version = pInsertParam->pSchema->version;
 
   tbData->pCreateTbReq->ntb.schemaRow.pSchema = taosMemoryCalloc(numOfCols, sizeof(SSchema));
   if (NULL == tbData->pCreateTbReq->ntb.schemaRow.pSchema) {
@@ -1095,7 +1094,7 @@ static int32_t buildTSchmaFromInserter(SStreamInserterParam* pInsertParam, STSch
     return terrno;
   }
   if (pInsertParam->tbType == TSDB_NORMAL_TABLE) {
-    pTSchema->version = 0;
+    pTSchema->version = 1; // normal table version start from 1, if has exist table, it will be reset by resetInserterTbVersion
   } else {
     pTSchema->version = pInsertParam->sver;
   }
@@ -1140,6 +1139,83 @@ _end:
   return code;
 }
 
+static int32_t buildStreamSubTableCreateReq(SDataInserterHandle* pInserter, SStreamInserterParam* pInsertParam,
+                                            SSubmitTbData* tbData, int32_t* vgId) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pInsertParam->pTagFields == NULL) {
+    stError("buildStreamSubTableCreateReq, pTagFields is NULL");
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  int32_t nTags = pInserter->pParam->streamInserterParam->pTagFields->size;
+
+  SArray* TagNames = taosArrayInit(nTags, TSDB_COL_NAME_LEN);
+  if (!TagNames) {
+    code = terrno;
+    goto _end;
+  }
+  for (int32_t i = 0; i < pInserter->pTagSchema->nCols; ++i) {
+    SSchema* tSchema = &pInserter->pTagSchema->pSchema[i];
+    if (NULL == taosArrayPush(TagNames, tSchema->name)) {
+      goto _end;
+    }
+  }
+
+  tbData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
+  tbData->uid = 0;
+  tbData->suid = pInsertParam->suid;
+  tbData->sver = pInsertParam->sver;
+
+  tbData->pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
+  if (NULL == tbData->pCreateTbReq) {
+    code = terrno;
+    goto _end;
+  }
+  tbData->pCreateTbReq->type = TSDB_CHILD_TABLE;
+  tbData->pCreateTbReq->flags |= (TD_CREATE_SUB_TB_IN_STREAM | TD_CREATE_IF_NOT_EXISTS);
+
+  SDBVgInfo* dbInfo = NULL;
+  code = inserterGetDbVgInfo(pInserter, pInserter->dbFName, &dbInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _end;
+  }
+
+  tbData->pCreateTbReq->name = taosStrdup(pInsertParam->tbname);
+  if (!tbData->pCreateTbReq->name) return terrno;
+  char tbFullName[TSDB_TABLE_FNAME_LEN];
+  snprintf(tbFullName, TSDB_TABLE_FNAME_LEN, "%s.%s", pInsertParam->dbFName, pInsertParam->tbname);
+
+  code = inserterGetVgId(dbInfo, tbFullName, vgId);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _end;
+  }
+
+
+  STag* pTag = NULL;
+  code = tTagNew(pInsertParam->pTagVals, pInsertParam->sver, false, &pTag);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to create tag, error:%s", tstrerror(code));
+    goto _end;
+  }
+  code = inserterBuildCreateTbReq(tbData->pCreateTbReq, pInsertParam->tbname, pTag, tbData->suid, pInsertParam->stbname,
+                           TagNames, pInserter->pTagSchema->nCols, TSDB_DEFAULT_TABLE_TTL);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to build create table request, error:%s", tstrerror(code));
+    goto _end;
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    if (tbData->pCreateTbReq) {
+      taosMemoryFree(tbData->pCreateTbReq->name);
+      taosMemoryFree(tbData->pCreateTbReq);
+    }
+  }
+  if (TagNames) {
+    taosArrayDestroy(TagNames);
+  }
+  return code;
+}
+
 // todo 和 buildStreamSubmitReqFromBlock 总的公共部分提取接口，待其他修改稳定后进行防止多人修改冲突
 int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDataInserterInfo* pInserterInfo,
                                       SSubmitReq2** ppReq, const SSDataBlock* pDataBlock, int32_t* vgId) {
@@ -1175,9 +1251,20 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
     tbData.suid = pInsertParam->suid;
     tbData.sver = pInsertParam->sver;
   }
+
   if (pInserterInfo->isAutoCreateTable) {
-    tbData.flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
-    tbData.uid = 0;
+    if (pInsertParam->tbType == TSDB_NORMAL_TABLE) {
+      code = buildNormalTableCreateReq(pInserter, pInsertParam, &tbData, vgId);
+    } else if (pInsertParam->tbType == TSDB_CHILD_TABLE) {
+      code = buildStreamSubTableCreateReq (pInserter, pInsertParam, &tbData, vgId);
+    } else{
+      code = TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND;
+      stError("buildStreamSubmitReqFromBlock, unknown table type %d", pInsertParam->tbType);
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _end;
+    }
+    pInsertParam->vgid = *vgId;
   } else {
     SInsertTableRes tbInfo = {0};
     code = getStreamTableId(pInserterInfo->groupId, &tbInfo);
@@ -1186,6 +1273,7 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
     }
     tbData.uid = tbInfo.uid;
     tbData.sver = tbInfo.version;
+    *vgId = pInsertParam->vgid;
   }
 
   if (!pVals && !(pVals = taosArrayInit(colNum, sizeof(SColVal)))) {
@@ -1193,25 +1281,9 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
     goto _end;
   }
 
-  if (pInserter->autoCreateTableMode == AUTO_CREATE_TABLE_STABLE) {
-    if (!pTagVals && !(pTagVals = taosArrayInit(colNum, sizeof(STagVal)))) {
-      taosArrayDestroy(tbData.aRowP);
-      goto _end;
-    }
-  }
-
   int32_t numOfCols = pInsertParam->pFields->size;
   int64_t lastTs = TSKEY_MIN;
   bool    needSortMerge = false;
-
-  *vgId = pInsertParam->vgid;
-  if (pInserterInfo->isAutoCreateTable && pInsertParam->tbType == TSDB_NORMAL_TABLE) {
-    code = buildNormalTableCreateReq(pInserter, pInsertParam, &tbData, vgId);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _end;
-    }
-    pInsertParam->vgid = *vgId;
-  }
 
   for (int32_t j = 0; j < rows; ++j) {  // iterate by row
     taosArrayClear(pVals);
@@ -1424,6 +1496,7 @@ static int32_t putStreamDataBlock(SDataSinkHandle* pHandle, const SInputData* pI
   int32_t              lino = 0;
   SDataInserterHandle* pInserter = (SDataInserterHandle*)pHandle;
   if (!pInserter || !pInserter->pParam || !pInserter->pParam->streamInserterParam) {
+    stError("putStreamDataBlock: pInserter is NULL");
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
   if (!pInserter->explain) {
