@@ -1439,6 +1439,8 @@ int32_t vnodeGetRawWriteMetrics(void *pVnode, SRawWriteMetrics *pRawMetrics) {
   pRawMetrics->avg_write_size = pVnode1->writeMetrics.write_size;  // Assuming this is pre-calculated or needs sum/count
   pRawMetrics->rpc_queue_wait = pVnode1->writeMetrics.rpc_queue_wait;
   pRawMetrics->preprocess_time = pVnode1->writeMetrics.preprocess_time;
+  pRawMetrics->fetch_batch_meta_time = pVnode1->writeMetrics.fetch_batch_meta_time;
+  pRawMetrics->fetch_batch_meta_count = pVnode1->writeMetrics.fetch_batch_meta_count;
   pRawMetrics->memory_table_size = pVnode1->writeMetrics.memory_table_size;
   pRawMetrics->commit_count = pVnode1->writeMetrics.commit_count;
   pRawMetrics->merge_count = pVnode1->writeMetrics.merge_count;

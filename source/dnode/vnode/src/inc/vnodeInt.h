@@ -478,7 +478,8 @@ struct SVnodeWriteMetrics {
   double  cache_hit_ratio;
   int64_t rpc_queue_wait;
   int64_t preprocess_time;
-
+  int64_t fetch_batch_meta_time;
+  int64_t fetch_batch_meta_count;
   int64_t memory_table_size;
   int64_t commit_count;
   int64_t merge_count;

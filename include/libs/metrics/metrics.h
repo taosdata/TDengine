@@ -61,8 +61,8 @@ typedef struct {
   double  cache_hit_ratio;  // Or raw hits/lookups
   int64_t rpc_queue_wait;   // Sum
   int64_t preprocess_time;  // Sum
-  // Add other raw fields corresponding to SWriteMetricsEx
-  // Example: wal_write_bytes, sync_bytes, apply_bytes, time_intervals for rates?
+  int64_t fetch_batch_meta_time;
+  int64_t fetch_batch_meta_count;
   int64_t memory_table_size;  // Current value
   int64_t memory_table_rows;  // Current value
   int64_t commit_count;
@@ -86,6 +86,8 @@ typedef struct {
   SMetric cache_hit_ratio;
   SMetric rpc_queue_wait;
   SMetric preprocess_time;
+  SMetric fetch_batch_meta_time;
+  SMetric fetch_batch_meta_count;
   SMetric wal_write_rate;
   SMetric sync_rate;
   SMetric apply_rate;

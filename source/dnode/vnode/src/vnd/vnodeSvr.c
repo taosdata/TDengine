@@ -899,6 +899,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
 }
 
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
   vTrace("vgId:%d, msg:%p in fetch queue is processing", pVnode->config.vgId, pMsg);
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
        pMsg->msgType == TDMT_VND_BATCH_META || pMsg->msgType == TDMT_VND_TABLE_NAME ||
@@ -927,8 +928,14 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return vnodeGetTableMeta(pVnode, pMsg, true);
     case TDMT_VND_TABLE_CFG:
       return vnodeGetTableCfg(pVnode, pMsg, true);
-    case TDMT_VND_BATCH_META:
-      return vnodeGetBatchMeta(pVnode, pMsg);
+    case TDMT_VND_BATCH_META: {
+      int64_t start = taosGetTimestampUs();
+      code = vnodeGetBatchMeta(pVnode, pMsg);
+      int64_t cost = taosGetTimestampUs() - start;
+      (void)atomic_add_fetch_64(&pVnode->writeMetrics.fetch_batch_meta_time, cost);
+      (void)atomic_add_fetch_64(&pVnode->writeMetrics.fetch_batch_meta_count, 1);
+      return code;
+    }
     case TDMT_VND_VSUBTABLES_META:
       return vnodeGetVSubtablesMeta(pVnode, pMsg);
     case TDMT_VND_VSTB_REF_DBS:

@@ -160,6 +160,8 @@ void initWriteMetricsEx(SWriteMetricsEx *pMetrics) {
   initMetric(&pMetrics->cache_hit_ratio, METRIC_TYPE_DOUBLE, METRIC_LEVEL_LOW);
   initMetric(&pMetrics->rpc_queue_wait, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
   initMetric(&pMetrics->preprocess_time, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
+  initMetric(&pMetrics->fetch_batch_meta_time, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
+  initMetric(&pMetrics->fetch_batch_meta_count, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
   initMetric(&pMetrics->wal_write_rate, METRIC_TYPE_DOUBLE, METRIC_LEVEL_LOW);
   initMetric(&pMetrics->sync_rate, METRIC_TYPE_DOUBLE, METRIC_LEVEL_LOW);
   initMetric(&pMetrics->apply_rate, METRIC_TYPE_DOUBLE, METRIC_LEVEL_LOW);
@@ -190,6 +192,9 @@ static void updateFormattedFromRaw(SWriteMetricsEx *fmt, const SRawWriteMetrics 
   setMetricDouble(&fmt->cache_hit_ratio, raw->cache_hit_ratio);
   setMetricInt64(&fmt->rpc_queue_wait, raw->rpc_queue_wait);
   setMetricInt64(&fmt->preprocess_time, raw->preprocess_time);
+  setMetricInt64(&fmt->fetch_batch_meta_time, raw->fetch_batch_meta_time);
+  setMetricInt64(&fmt->fetch_batch_meta_count, raw->fetch_batch_meta_count);
+
   setMetricInt64(&fmt->memory_table_size, raw->memory_table_size);
   setMetricInt64(&fmt->memory_table_rows, raw->memory_table_rows);
   setMetricInt64(&fmt->commit_count, raw->commit_count);
@@ -263,7 +268,9 @@ void reportWriteMetrics() {
 
     uInfo("VgId:%d Req:%" PRId64 " Rows:%" PRId64 " Bytes:%" PRId64 " AvgSize:%.2f CacheHit:%.2f%% MemRows:%" PRId64
           " MemBytes:%" PRId64 " Commits:%" PRId64 "(A:%" PRId64 "/F:%" PRId64 "/B:%" PRId64 ") Merges:%" PRId64
-          " STT:%" PRId64 " CommitTime:%.2fms MergeTime:%.2fms RPC:%.2fms Preproc:%.2fms MemWait:%.2fms",
+          " STT:%" PRId64
+          " CommitTime:%.2fms MergeTime:%.2fms RPC:%.2fms Preproc:%.2fms MemWait:%.2fms FetchBatchMetaTime:%.2fms "
+          "FetchBatchMetaCount:%" PRId64,
           pMetrics->vgId, getMetricInt64(&pMetrics->total_requests), getMetricInt64(&pMetrics->total_rows),
           getMetricInt64(&pMetrics->total_bytes), getMetricDouble(&pMetrics->avg_write_size),
           getMetricDouble(&pMetrics->cache_hit_ratio) * 100.0, getMetricInt64(&pMetrics->memory_table_rows),
@@ -272,7 +279,8 @@ void reportWriteMetrics() {
           getMetricInt64(&pMetrics->blocked_commits), getMetricInt64(&pMetrics->merge_count),
           getMetricInt64(&pMetrics->stt_trigger_value), getMetricDouble(&pMetrics->avg_commit_time),
           getMetricDouble(&pMetrics->avg_merge_time), (double)getMetricInt64(&pMetrics->rpc_queue_wait),
-          (double)getMetricInt64(&pMetrics->preprocess_time), (double)getMetricInt64(&pMetrics->memtable_wait_time));
+          (double)getMetricInt64(&pMetrics->preprocess_time), (double)getMetricInt64(&pMetrics->memtable_wait_time),
+          (double)getMetricInt64(&pMetrics->fetch_batch_meta_time), getMetricInt64(&pMetrics->fetch_batch_meta_count));
     // No need to call taosHashIterate again here, the while condition does it.
   }
 }
