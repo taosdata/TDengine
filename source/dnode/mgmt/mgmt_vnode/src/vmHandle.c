@@ -440,8 +440,22 @@ _OVER:
 }
 
 #ifdef USE_MOUNT
-int32_t vmProcessRetrieveMountPathReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+static int32_t vmRetrieveMountPathImpl(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *req) {
   int32_t code = 0, lino = 0;
+  if (taosCheckAccessFile(req->mountPath, O_RDONLY)) {
+    TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
+  }
+
+_exit:
+  if (code != 0) {
+    dError("mount:%s, failed at line %d since %s, dnode:%d, path:%s", req->mountName, lino, tstrerror(code),
+           req->dnodeId, req->mountPath);
+  }
+  return code;
+}
+
+int32_t vmProcessRetrieveMountPathReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  int32_t               code = 0, lino = 0;
   SRetrieveMountPathReq req = {0};
   char                  path[TSDB_FILENAME_LEN] = {0};
 
@@ -451,9 +465,10 @@ int32_t vmProcessRetrieveMountPathReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
 _exit:
   if (code != 0) {
-    dError("mount:%s, failed at line %d to retrieve path:%s since %s", req.mountName, lino, req.mountPath, tstrerror);
+    dError("mount:%s, failed at line %d since %s, dnode:%d, path:%s", req.mountName, lino, tstrerror(code), req.dnodeId,
+           req.mountPath);
   } else {
-    dInfo("mount:%s, success to retrieve path:%s", req.mountName, req.mountPath);
+    dInfo("mount:%s, success to retrieve path %s on dnode:%d", req.mountName, req.mountPath, req.dnodeId);
   }
   TAOS_RETURN(code);
 }
