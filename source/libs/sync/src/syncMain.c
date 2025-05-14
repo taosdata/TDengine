@@ -685,6 +685,22 @@ SSyncState syncGetState(int64_t rid) {
   return state;
 }
 
+SSyncMetrics syncGetMetrics(int64_t rid) {
+  SSyncMetrics metrics = {0};
+
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode != NULL) {
+    metrics.wal_write_bytes = pSyncNode->wal_write_bytes;
+    metrics.wal_write_time = pSyncNode->wal_write_time;
+    metrics.sync_bytes = pSyncNode->sync_bytes;
+    metrics.sync_time = pSyncNode->sync_time;
+    metrics.apply_bytes = pSyncNode->apply_bytes;
+    metrics.apply_time = pSyncNode->apply_time;
+    syncNodeRelease(pSyncNode);
+  }
+  return metrics;
+}
+
 void syncGetCommitIndex(int64_t rid, int64_t* syncCommitIndex) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode != NULL) {

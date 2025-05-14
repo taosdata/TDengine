@@ -74,6 +74,13 @@ typedef struct {
   double  merge_time_sum;   // Sum for avg calculation
   int64_t blocked_commits;
   int64_t memtable_wait_time;  // Sum
+
+  int64_t wal_write_bytes;
+  int64_t wal_write_time;
+  int64_t sync_bytes;
+  int64_t sync_time;
+  int64_t apply_bytes;
+  int64_t apply_time;
 } SRawWriteMetrics;
 
 // Write Metrics Extended Structure (Formatted)
@@ -102,6 +109,12 @@ typedef struct {
   SMetric avg_merge_time;
   SMetric blocked_commits;
   SMetric memtable_wait_time;
+  SMetric wal_write_bytes;
+  SMetric wal_write_time;
+  SMetric sync_bytes;
+  SMetric sync_time;
+  SMetric apply_bytes;
+  SMetric apply_time;
 } SWriteMetricsEx;
 
 // Query Metrics Extended Structure

@@ -525,11 +525,14 @@ int32_t syncLogStorePersist(SSyncLogStore* pLogStore, SSyncNode* pNode, SSyncRaf
   if (pEntry->index != lastVer + 1) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   bool doFsync = syncLogStoreNeedFlush(pEntry, pNode->replicaNum);
+  int64_t wal_start_ts = taosGetTimestampUs();
   if ((code = pLogStore->syncLogAppendEntry(pLogStore, pEntry, doFsync)) < 0) {
     sError("failed to persist raft entry since %s, index:%" PRId64 ", term:%" PRId64, tstrerror(code),
            pEntry->index, pEntry->term);
     TAOS_RETURN(code);
   }
+  int64_t wal_end_ts = taosGetTimestampUs();
+  (void)atomic_add_fetch_64(&pNode->wal_write_time, wal_end_ts - wal_start_ts);
 
   lastVer = pLogStore->syncLogLastIndex(pLogStore);
   if (pEntry->index != lastVer) return TSDB_CODE_SYN_INTERNAL_ERROR;

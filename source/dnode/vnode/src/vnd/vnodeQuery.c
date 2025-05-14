@@ -1429,6 +1429,7 @@ int32_t vnodeGetRawWriteMetrics(void *pVnode, SRawWriteMetrics *pRawMetrics) {
   }
 
   SVnode *pVnode1 = (SVnode *)pVnode;
+  SSyncMetrics syncMetrics = syncGetMetrics(pVnode1->sync);
 
   // Directly copy/assign raw values from internal vnode metrics
   // Assuming pVnode1->writeMetrics (SVWriteMetrics) holds the necessary raw data.
@@ -1448,6 +1449,13 @@ int32_t vnodeGetRawWriteMetrics(void *pVnode, SRawWriteMetrics *pRawMetrics) {
   pRawMetrics->merge_time_sum = pVnode1->writeMetrics.merge_time;    // Assuming this holds sum for avg
   pRawMetrics->blocked_commits = pVnode1->writeMetrics.block_commit_time;
   pRawMetrics->memtable_wait_time = pVnode1->writeMetrics.memtable_wait_time;
+
+  pRawMetrics->wal_write_bytes = syncMetrics.wal_write_bytes;
+  pRawMetrics->wal_write_time = syncMetrics.wal_write_time;
+  pRawMetrics->sync_bytes = syncMetrics.sync_bytes;
+  pRawMetrics->sync_time = syncMetrics.sync_time;
+  pRawMetrics->apply_bytes = syncMetrics.apply_bytes;
+  pRawMetrics->apply_time = syncMetrics.apply_time;
 
   // Fields needing calculation or other sources (like cache hit ratio) are not set here
   // pRawMetrics->cache_hit_ratio = ...;
