@@ -1533,6 +1533,41 @@ static int32_t msgToTargetNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
+enum { TIME_RANGE_CODE_START = 1,
+       TIME_RANGE_CODE_END };
+
+static int32_t timeRangeNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const STimeRangeNode* pNode = (const STimeRangeNode*)pObj;
+
+  int32_t code = tlvEncodeObj(pEncoder, TIME_RANGE_CODE_START, nodeToMsg, pNode->pStart);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, TIME_RANGE_CODE_END, nodeToMsg, pNode->pEnd);
+  }
+
+  return code;
+}
+
+static int32_t msgToTimeRangeNode(STlvDecoder* pDecoder, void* pObj) {
+  STimeRangeNode* pNode = (STimeRangeNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case TIME_RANGE_CODE_START:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pStart);
+        break;
+      case TIME_RANGE_CODE_END:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pEnd);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return code;
+}
+
 enum { DATA_BLOCK_DESC_CODE_INLINE_ATTRS = 1, DATA_BLOCK_DESC_CODE_SLOTS };
 
 static int32_t dataBlockDescNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2404,7 +2439,8 @@ enum {
   PHY_TABLE_SCAN_CODE_DYN_SCAN_FUNCS,
   PHY_TABLE_SCAN_CODE_GROUP_TAGS,
   PHY_TABLE_SCAN_CODE_TAGS,
-  PHY_TABLE_SCAN_CODE_SUBTABLE
+  PHY_TABLE_SCAN_CODE_SUBTABLE,
+  PHY_TABLE_SCAN_CODE_TIME_RANGE_EXPR,
 };
 
 static int32_t physiTableScanNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2492,6 +2528,9 @@ static int32_t physiTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_TABLE_SCAN_CODE_SUBTABLE, nodeToMsg, pNode->pSubtable);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_TABLE_SCAN_CODE_TIME_RANGE_EXPR, nodeToMsg, pNode->pTimeRange);
   }
 
   return code;
@@ -2588,6 +2627,9 @@ static int32_t msgToPhysiTableScanNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_TABLE_SCAN_CODE_SUBTABLE:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pSubtable);
+        break;
+      case PHY_TABLE_SCAN_CODE_TIME_RANGE_EXPR:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pTimeRange);
         break;
       default:
         break;
@@ -4769,6 +4811,9 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_TARGET:
       code = targetNodeToMsg(pObj, pEncoder);
       break;
+    case QUERY_NODE_TIME_RANGE:
+      code = timeRangeNodeToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_DATABLOCK_DESC:
       code = dataBlockDescNodeToMsg(pObj, pEncoder);
       break;
@@ -4926,6 +4971,9 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       break;
     case QUERY_NODE_TARGET:
       code = msgToTargetNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_TIME_RANGE:
+      code = msgToTimeRangeNode(pDecoder, pObj);
       break;
     case QUERY_NODE_DATABLOCK_DESC:
       code = msgToDataBlockDescNode(pDecoder, pObj);
