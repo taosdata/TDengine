@@ -1,0 +1,17 @@
+::: 10-Functions.02-Aggregate.test_func_apercentile.TestFuncApercentile.test_func_apercentile
+::: 10-Functions.02-Aggregate.test_func_avg.TestFuncAvg.test_func_avg
+::: 10-Functions.02-Aggregate.test_func_count.TestFuncCount.test_func_count
+::: 10-Functions.02-Aggregate.test_func_elapsed.TestFuncElapsed.test_normal_query
+::: 10-Functions.02-Aggregate.test_func_elapsed.TestFuncElapsed.test_query_with_filter
+::: 10-Functions.02-Aggregate.test_func_elapsed.TestFuncElapsed.test_query_with_other_function
+::: 10-Functions.02-Aggregate.test_func_elapsed.TestFuncElapsed.test_query_with_join
+::: 10-Functions.02-Aggregate.test_func_elapsed.TestFuncElapsed.test_query_with_union
+::: 10-Functions.02-Aggregate.test_func_elapsed.TestFuncElapsed.test_nested_query
+::: 10-Functions.02-Aggregate.test_func_elapsed.TestFuncElapsed.test_abnormal_query
+::: 10-Functions.02-Aggregate.test_func_leastsquares.TestFuncLeastsquares.test_func_leastsquares
+::: 10-Functions.02-Aggregate.test_func_percentile.TestFuncPercentile.test_func_percentile
+::: 10-Functions.02-Aggregate.test_func_spread.TestFuncSpread.test_func_spread
+::: 10-Functions.02-Aggregate.test_func_stddev.TestFuncStddev.test_func_stddev
+::: 10-Functions.02-Aggregate.test_func_stddev2.TestFuncStddev2.test_func_stddev2
+::: 10-Functions.02-Aggregate.test_func_sum.TestFuncSum.test_func_sum
+::: 10-Functions.02-Aggregate.test_percentile.TestPercentile.test_percentile

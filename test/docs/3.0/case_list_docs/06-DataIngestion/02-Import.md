@@ -1,9 +1,0 @@
-::: 06-DataIngestion.02-Import.test_import
-::: 06-DataIngestion.02-Import.test_import_basic
-::: 06-DataIngestion.02-Import.test_import_commit
-::: 06-DataIngestion.02-Import.test_import_commit1
-::: 06-DataIngestion.02-Import.test_import_commit2
-::: 06-DataIngestion.02-Import.test_import_commit3
-::: 06-DataIngestion.02-Import.test_import_file
-::: 06-DataIngestion.02-Import.test_import_large
-::: 06-DataIngestion.02-Import.test_import_replica1

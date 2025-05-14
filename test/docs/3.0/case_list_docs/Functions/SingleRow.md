@@ -1,0 +1,9 @@
+::: 10-Functions.01-SingleRow.test_cast.TestCast.test_ts5972
+::: 10-Functions.01-SingleRow.test_cast.TestCast.test_cast_without_from
+::: 10-Functions.01-SingleRow.test_concat.TestConcat.test_concat
+::: 10-Functions.01-SingleRow.test_func_cast.TestFuncCast.test_func_cast
+::: 10-Functions.01-SingleRow.test_func_char_scalar.TestFuncCharScalar.test_func_char_scalar
+::: 10-Functions.01-SingleRow.test_func_scalar.TestFuncScalar.test_func_sclar
+::: 10-Functions.01-SingleRow.test_func_scalar_null.TestFuncScalarNull.test_func_scalar_null
+::: 10-Functions.01-SingleRow.test_func_truncate.TestFuncTruncate.test_func_truncate
+::: 10-Functions.01-SingleRow.test_single_row_in_tb.TestSingleRowInTb.test_single_row_in_tb

@@ -1,0 +1,11 @@
+::: 19-ManageNodes.01-Dnode.test_alter_dnode_debugflag.TestDnodeAlterDebugFlag.test_dnode_alter_debugflag
+::: 19-ManageNodes.01-Dnode.test_create_dnode.TestCreateDnode.test_create_dnode
+::: 19-ManageNodes.01-Dnode.test_drop_dnode_force.TestDropDnodeForce.test_drop_dnode_force
+::: 19-ManageNodes.01-Dnode.test_drop_dnode_has_mnode.TestDropDnodeHasMnode.test_drop_dnode_has_mnode
+::: 19-ManageNodes.01-Dnode.test_drop_dnode_has_multi_vnode_replica1.TestDropDnodeHasMultiVnodeReplica1.test_drop_dnode_has_multi_vnode_replica1
+::: 19-ManageNodes.01-Dnode.test_drop_dnode_has_multi_vnode_replica3.TestDropDnodeHasMultiVnodeReplica3.test_drop_dnode_has_multi_vnode_replica3
+::: 19-ManageNodes.01-Dnode.test_drop_dnode_has_qnode_snode.TestDropDnodeHasQnodeSnode.test_drop_dnode_has_qnode_snode
+::: 19-ManageNodes.01-Dnode.test_drop_dnode_has_vnode_replica1.TestDropDnodeHasVnodeReplica1.test_drop_dnode_has_vnode_replica1
+::: 19-ManageNodes.01-Dnode.test_drop_dnode_has_vnode_replica3.TestDropDnodeHasVnodeReplica3.test_drop_dnode_has_vnode_replica3
+::: 19-ManageNodes.01-Dnode.test_offline_reason.TestOfflineReason.test_offline_reason
+::: 19-ManageNodes.01-Dnode.test_use_dropped_dnode.TestUseDroppedDnode.test_use_dropped_dnode

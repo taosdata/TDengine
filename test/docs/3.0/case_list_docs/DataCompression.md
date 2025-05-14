@@ -1,0 +1,3 @@
+::: 30-DataCompression.test_compress_alter_option.TestCompressAlterOption.test_compress_alter_option
+::: 30-DataCompression.test_compress_disable.TestCompressAlterOption.test_compress_alter_option
+::: 30-DataCompression.test_compress_normal_table.TestCompressNormalTable.test_compress_normal_table

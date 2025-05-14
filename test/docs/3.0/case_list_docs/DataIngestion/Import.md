@@ -1,0 +1,9 @@
+::: 06-DataIngestion.02-Import.test_import.TestImport.test_import
+::: 06-DataIngestion.02-Import.test_import_basic.TestImportBasic.test_import_basic
+::: 06-DataIngestion.02-Import.test_import_commit.TestImportCommit.test_import_commit
+::: 06-DataIngestion.02-Import.test_import_commit1.TestImportCommit1.test_import_commit1
+::: 06-DataIngestion.02-Import.test_import_commit2.TestImportCommit2.test_import_commit2
+::: 06-DataIngestion.02-Import.test_import_commit3.TestImportCommit3.test_import_commit3
+::: 06-DataIngestion.02-Import.test_import_file.TestImportFile.test_import_file
+::: 06-DataIngestion.02-Import.test_import_large.TestImportLarge.test_import_large
+::: 06-DataIngestion.02-Import.test_import_replica1.TestImportReplica1.test_import_replica1
