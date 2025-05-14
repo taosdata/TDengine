@@ -2000,6 +2000,9 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
       if (!pCxt->pComCxt->isStmtBind && i != 0) {
         return buildInvalidOperationMsg(&pCxt->msg, "not support mixed bind and non-bind values");
       }
+      if (pCxt->pComCxt->pStmtCb == NULL) {
+        return buildInvalidOperationMsg(&pCxt->msg, "symbol ? only support in stmt mode");
+      }
       pCxt->isStmtBind = true;
       if (pCols->pColIndex[i] == tbnameIdx) {
         *bFoundTbName = true;
