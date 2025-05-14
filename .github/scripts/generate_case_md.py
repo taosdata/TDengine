@@ -131,7 +131,8 @@ if __name__ == "__main__":
         source_dir = "test/cases"
         files = []
         for root, dirs, file_names in os.walk(source_dir):
-            dirs[:] = [d for d in dirs if re.match(r"^\d{2}-", d)]
+            dirs[:] = sorted([d for d in dirs if re.match(r"^\d{2}-", d)])
+            file_names = sorted(file_names)
             files.extend(os.path.join(root, file) for file in file_names if file.endswith(".py"))
 
     for file_path in files:
