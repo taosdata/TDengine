@@ -358,7 +358,7 @@ int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** pp
       const SFieldWithOptions* pField = taosArrayGet(pFields, colIdx);
       const char*              colName = "unknown";
       if (!pField) {
-        stError("failed to get field name for notification, colIdx: %d, fields arr size: %d", colIdx,
+        stError("failed to get field name for notification, colIdx: %d, fields arr size: %" PRId64, colIdx,
                 taosArrayGetSize(pFields));
       }
       colName = pField->name;
