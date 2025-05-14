@@ -680,8 +680,16 @@ int32_t msmUPAddScanTask(SStmGrpCtx* pCtx, SStreamObj* pStream, char* scanPlan, 
   addr.groupId = pSubplan->id.groupId;
 
   key[1] = pSubplan->id.subplanId;
-  
-  TAOS_CHECK_EXIT(taosHashPut(mStreamMgmt.toUpdateScanMap, key, sizeof(key), &addr, sizeof(addr)));
+
+  SArray** ppRes = taosHashGet(mStreamMgmt.toUpdateScanMap, key, sizeof(key));
+  if (NULL == ppRes) {
+    SArray* pRes = taosArrayInit(1, sizeof(addr));
+    TSDB_CHECK_NULL(pRes, code, lino, _exit, terrno);
+    TSDB_CHECK_NULL(taosArrayPush(pRes, &addr), code, lino, _exit, terrno);
+    TAOS_CHECK_EXIT(taosHashPut(mStreamMgmt.toUpdateScanMap, key, sizeof(key), &pRes, POINTER_BYTES));
+  } else {
+    TSDB_CHECK_NULL(taosArrayPush(*ppRes, &addr), code, lino, _exit, terrno);
+  }
   
   atomic_add_fetch_32(&mStreamMgmt.toUpdateScanNum, 1);
   
@@ -710,8 +718,16 @@ int32_t msmUPAddCacheTask(SStmGrpCtx* pCtx, SStreamCalcScan* pScan, SStreamObj* 
   addr.groupId = pSubplan->id.groupId;
 
   key[1] = pSubplan->id.subplanId;
-  
-  TAOS_CHECK_EXIT(taosHashPut(mStreamMgmt.toUpdateScanMap, key, sizeof(key), &addr, sizeof(addr)));
+
+  SArray** ppRes = taosHashGet(mStreamMgmt.toUpdateScanMap, key, sizeof(key));
+  if (NULL == ppRes) {
+    SArray* pRes = taosArrayInit(1, sizeof(addr));
+    TSDB_CHECK_NULL(pRes, code, lino, _exit, terrno);
+    TSDB_CHECK_NULL(taosArrayPush(pRes, &addr), code, lino, _exit, terrno);
+    TAOS_CHECK_EXIT(taosHashPut(mStreamMgmt.toUpdateScanMap, key, sizeof(key), &pRes, POINTER_BYTES));
+  } else {
+    TSDB_CHECK_NULL(taosArrayPush(*ppRes, &addr), code, lino, _exit, terrno);
+  }
   
   atomic_add_fetch_32(&mStreamMgmt.toUpdateScanNum, 1);
   
@@ -743,7 +759,7 @@ static int32_t msmTDAddReaderRunnerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SS
     int32_t vgNum = taosArrayGetSize(pScan->vgList);
     for (int32_t m = 0; m < vgNum; ++m) {
       state.id.taskId = msmAssignTaskId();
-      state.id.nodeId = *(int32_t*)taosArrayGet(pScan->vgList, i);
+      state.id.nodeId = *(int32_t*)taosArrayGet(pScan->vgList, m);
       state.id.taskIdx = i;
       TSDB_CHECK_NULL(taosArrayPush(pReader, &state), code, lino, _return, terrno);
 
@@ -894,10 +910,10 @@ int32_t msmGetTaskIdFromSubplanId(SStreamObj* pStream, SArray* pRunners, int32_t
   int64_t streamId = pStream->pCreate->streamId;
   int32_t runnerNum = taosArrayGetSize(pRunners);
   for (int32_t i = beginIdx; i < runnerNum; ++i) {
-    SStmTaskDeploy* pDeploy = taosArrayGet(pRunners, i);
-    SSubplan* pPlan = pDeploy->msg.runner.pPlan;
+    SStmTaskToDeployExt* pExt = taosArrayGet(pRunners, i);
+    SSubplan* pPlan = pExt->deploy.msg.runner.pPlan;
     if (pPlan->id.subplanId == subplanId) {
-      *taskId = pDeploy->task.taskId;
+      *taskId = pExt->deploy.task.taskId;
       return TSDB_CODE_SUCCESS;
     }
   }
@@ -925,13 +941,17 @@ int32_t msmUpdateLowestPlanSourceAddr(SSubplan* pPlan, SStmTaskDeploy* pDeploy, 
 
     key[1] = MND_GET_RUNNER_SUBPLANID(pVal->datum.i);
 
-    SStmTaskSrcAddr* pAddr = taosHashGet(mStreamMgmt.toUpdateScanMap, key, sizeof(key));
-    if (NULL == pAddr) {
+    SArray** ppRes = taosHashGet(mStreamMgmt.toUpdateScanMap, key, sizeof(key));
+    if (NULL == ppRes) {
       mstError("lowest runner subplan ID:%d,%d can't get its child ID:%" PRId64 " addr", pPlan->id.groupId, pPlan->id.subplanId, key[1]);
       TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
     }
 
-    TAOS_CHECK_EXIT(msmUpdatePlanSourceAddr(pPlan, pDeploy->task.taskId, pAddr, pAddr->isFromCache ? TDMT_STREAM_FETCH_FROM_CACHE : TDMT_STREAM_FETCH));
+    int32_t childrenNum = taosArrayGetSize(*ppRes);
+    for (int32_t i = 0; i < childrenNum; ++i) {
+      SStmTaskSrcAddr* pAddr = taosArrayGet(*ppRes, i);
+      TAOS_CHECK_EXIT(msmUpdatePlanSourceAddr(pPlan, pDeploy->task.taskId, pAddr, pAddr->isFromCache ? TDMT_STREAM_FETCH_FROM_CACHE : TDMT_STREAM_FETCH));
+    }
   }
 
 _exit:

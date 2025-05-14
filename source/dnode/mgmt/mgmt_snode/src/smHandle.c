@@ -21,27 +21,49 @@ void smGetMonitorInfo(SSnodeMgmt *pMgmt, SMonSmInfo *smInfo) {}
 int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   int32_t          code = 0;
   SDCreateSnodeReq createReq = {0};
-  if (tDeserializeSCreateDropMQSNodeReq(pMsg->pCont, pMsg->contLen, &createReq) != 0) {
+  if (tDeserializeSDCreateSNodeReq(pMsg->pCont, pMsg->contLen, &createReq) != 0) {
     code = TSDB_CODE_INVALID_MSG;
     return code;
   }
 
-  if (pInput->pData->dnodeId != 0 && createReq.dnodeId != pInput->pData->dnodeId) {
+  if (pInput->pData->dnodeId != 0 && createReq.snodeId != pInput->pData->dnodeId) {
     code = TSDB_CODE_INVALID_OPTION;
     dError("failed to create snode since %s", tstrerror(code));
-    tFreeSMCreateQnodeReq(&createReq);
-    return code;
+    goto _exit;
   }
 
   bool deployed = true;
-  if ((code = dmWriteFile(pInput->path, pInput->name, deployed)) != 0) {
-    dError("failed to write snode file since %s", tstrerror(code));
-    tFreeSMCreateQnodeReq(&createReq);
-    return code;
+  SJson *pJson = tjsonCreateObject();
+  if (pJson == NULL) {
+    code = terrno;
+    dError("failed to create json object since %s", tstrerror(code));
+    goto _exit;
   }
 
-  tFreeSMCreateQnodeReq(&createReq);
-  return 0;
+  if (tjsonAddDoubleToObject(pJson, "deployed", deployed) < 0) {
+    code = terrno;
+    dError("failed to add deployed to json object since %s", tstrerror(code));
+    goto _exit;
+  }
+  if (tjsonAddIntegerToObject(pJson, "replicaId", createReq.replicaId) < 0) {
+    code = terrno;
+    dError("failed to add replicaId to json object since %s", tstrerror(code));
+    goto _exit;
+  }
+
+  char path[TSDB_FILENAME_LEN];
+  snprintf(path, TSDB_FILENAME_LEN, "%s%ssnode%d", pInput->path, TD_DIRSEP, createReq.snodeId);
+  
+  if ((code = dmWriteFileJson(path, pInput->name, pJson)) != 0) {
+    dError("failed to write snode file since %s", tstrerror(code));
+    goto _exit;
+  }
+
+_exit:
+
+  tFreeSDCreateSnodeReq(&createReq);
+  
+  return code;
 }
 
 int32_t smProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
@@ -60,8 +82,11 @@ int32_t smProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
     return code;
   }
 
+  char path[TSDB_FILENAME_LEN];
+  snprintf(path, TSDB_FILENAME_LEN, "%s%ssnode%d", pInput->path, TD_DIRSEP, dropReq.dnodeId);
+
   bool deployed = false;
-  if ((code = dmWriteFile(pInput->path, pInput->name, deployed)) != 0) {
+  if ((code = dmWriteFile(path, pInput->name, deployed)) != 0) {
     dError("failed to write snode file since %s", tstrerror(code));
     tFreeSMCreateQnodeReq(&dropReq);
     return code;

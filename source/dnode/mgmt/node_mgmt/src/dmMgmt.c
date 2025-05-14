@@ -26,6 +26,7 @@
 
 static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
+  input.dnodeId = pDnode->data.dnodeId;
 
   bool    required = false;
   int32_t code = (*pWrapper->func.requiredFp)(&input, &required);

@@ -347,11 +347,7 @@ int32_t tsGrantHBInterval = 60;
 int32_t tsUptimeInterval = 300;    // seconds
 char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udfd exits
 char    tsUdfdLdLibPath[512] = "";
-#ifdef USE_STREAM
-bool tsDisableStream = false;
-#else
-bool tsDisableStream = true;
-#endif
+bool    tsDisableStream = false;
 int64_t tsStreamBufferSize = 128 * 1024 * 1024;
 bool    tsFilterScalarMode = false;
 int     tsStreamAggCnt = 100000;
@@ -1003,10 +999,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "disableStream", tsDisableStream, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "streamBufferSize", tsStreamBufferSize, 0, INT64_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
-  TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "streamAggCnt", tsStreamAggCnt, 2, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_GLOBAL));
-
-  TAOS_CHECK_RETURN(cfgAddFloat(pCfg, "streamSinkDataRate", tsSinkDataRate, 0.1, 5, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_GLOBAL));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "concurrentCheckpoint", tsMaxConcurrentCheckpoint, 1, 10, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
 
@@ -1018,7 +1010,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "compressor", tsCompressor, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "filterScalarMode", tsFilterScalarMode, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxStreamBackendCache", tsMaxStreamBackendCache, 16, 1024, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "pqSortMemThreshold", tsPQSortMemThreshold, 1, 10240, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
 
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "s3Accesskey", tsS3AccessKey[0], CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
@@ -1885,20 +1876,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamBufferSize");
   tsStreamBufferSize = pItem->i64;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamAggCnt");
-  tsStreamAggCnt = pItem->i32;
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "concurrentCheckpoint");
-  tsMaxConcurrentCheckpoint = pItem->i32;
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamSinkDataRate");
-  tsSinkDataRate = pItem->fval;
-
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "filterScalarMode");
   tsFilterScalarMode = pItem->bval;
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "maxStreamBackendCache");
-  tsMaxStreamBackendCache = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "pqSortMemThreshold");
   tsPQSortMemThreshold = pItem->i32;
@@ -2608,13 +2587,11 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"telemetryInterval", &tsTelemInterval},
 
                                          {"cacheLazyLoadThreshold", &tsCacheLazyLoadThreshold},
-                                         {"concurrentCheckpoint", &tsMaxConcurrentCheckpoint},
 
                                          {"retentionSpeedLimitMB", &tsRetentionSpeedLimitMB},
                                          {"ttlChangeOnWrite", &tsTtlChangeOnWrite},
 
                                          {"logKeepDays", &tsLogKeepDays},
-                                         {"maxStreamBackendCache", &tsMaxStreamBackendCache},
                                          {"mqRebalanceInterval", &tsMqRebalanceInterval},
                                          {"numOfLogLines", &tsNumOfLogLines},
                                          {"queryRspPolicy", &tsQueryRspPolicy},

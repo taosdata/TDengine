@@ -246,7 +246,7 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   SDnode *pDnode = dmInstance();
 
   SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
-  if (pWrapper != NULL) {
+  if (pWrapper != NULL && ntype != SNODE) {
     dmReleaseWrapper(pWrapper);
     switch (ntype) {
       case MNODE:
@@ -255,11 +255,9 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
       case QNODE:
         code = TSDB_CODE_QNODE_ALREADY_DEPLOYED;
         break;
-      case SNODE:
-        code = TSDB_CODE_SNODE_ALREADY_DEPLOYED;
-        break;
       default:
         code = TSDB_CODE_APP_ERROR;
+        break;
     }
     dError("failed to create node since %s", tstrerror(code));
     return code;
@@ -268,10 +266,18 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   dInfo("start to process create-node-request");
 
   pWrapper = &pDnode->wrappers[ntype];
-  if (taosMkDir(pWrapper->path) != 0) {
+
+  char tpath[TSDB_FILENAME_LEN];
+  char* path = pWrapper->path;
+  if (SNODE == ntype) {
+    snprintf(tpath, TSDB_FILENAME_LEN, "%s%ssnode%d", pWrapper->path, TD_DIRSEP, pDnode->data.dnodeId);
+    path = tpath;
+  }
+
+  if (taosMulMkDir(path) != 0) {
     dmReleaseWrapper(pWrapper);
     code = terrno;
-    dError("failed to create dir:%s since %s", pWrapper->path, tstrerror(code));
+    dError("failed to create dir:%s since %s", path, tstrerror(code));
     return code;
   }
 

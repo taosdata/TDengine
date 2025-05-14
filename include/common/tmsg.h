@@ -2687,17 +2687,25 @@ typedef struct {
   int32_t sqlLen;
   char*   sql;
 } SMCreateMnodeReq, SMDropMnodeReq, SDDropMnodeReq, SMCreateQnodeReq, SMDropQnodeReq, SDCreateQnodeReq, SDDropQnodeReq,
-    SMCreateSnodeReq, SMDropSnodeReq, SDCreateSnodeReq, SDDropSnodeReq;
+    SMCreateSnodeReq, SMDropSnodeReq,     SDDropSnodeReq;
+
+
+int32_t tSerializeSCreateDropMQSNodeReq(void* buf, int32_t bufLen, SMCreateQnodeReq* pReq);
+int32_t tDeserializeSCreateDropMQSNodeReq(void* buf, int32_t bufLen, SMCreateQnodeReq* pReq);
 
 typedef struct {
   int32_t snodeId;
   int32_t replicaId;
   int32_t sqlLen;
   char*   sql;
+  bool    snodeUpdate;
 } SDCreateSnodeReq;
 
-int32_t tSerializeSCreateDropMQSNodeReq(void* buf, int32_t bufLen, SMCreateQnodeReq* pReq);
-int32_t tDeserializeSCreateDropMQSNodeReq(void* buf, int32_t bufLen, SMCreateQnodeReq* pReq);
+int32_t tSerializeSDCreateSNodeReq(void *buf, int32_t bufLen, SDCreateSnodeReq *pReq);
+int32_t tDeserializeSDCreateSNodeReq(void *buf, int32_t bufLen, SDCreateSnodeReq *pReq);
+void tFreeSDCreateSnodeReq(SDCreateSnodeReq *pReq);
+
+
 void    tFreeSMCreateQnodeReq(SMCreateQnodeReq* pReq);
 void    tFreeSDDropQnodeReq(SDDropQnodeReq* pReq);
 typedef struct {

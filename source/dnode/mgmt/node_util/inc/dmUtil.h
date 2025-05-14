@@ -31,6 +31,7 @@
 #include "tthread.h"
 #include "ttime.h"
 #include "tworker.h"
+#include "tjson.h"
 
 #include "dnode.h"
 #include "mnode.h"
@@ -148,6 +149,7 @@ typedef struct {
 } SDnodeData;
 
 typedef struct {
+  int32_t                      dnodeId;
   const char                  *path;
   const char                  *name;
   STfs                        *pTfs;
@@ -210,6 +212,7 @@ void        dmGetMonitorSystemInfo(SMonSysInfo *pInfo);
 // dmFile.c
 int32_t dmReadFile(const char *path, const char *name, bool *pDeployed);
 int32_t dmWriteFile(const char *path, const char *name, bool deployed);
+int32_t dmWriteFileJson(const char *path, const char *name, SJson *pJson);
 int32_t dmCheckRunning(const char *dataDir, TdFilePtr *pFile);
 // int32_t dmCheckRunningWrapper(const char *dataDir, TdFilePtr *pFile);
 

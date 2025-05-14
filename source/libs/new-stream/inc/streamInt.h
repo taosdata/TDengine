@@ -12,7 +12,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifdef USE_STREAM
 #ifndef TDENGINE_STREAM_INT_H
 #define TDENGINE_STREAM_INT_H
 
@@ -130,6 +129,4 @@ int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* ifndef TDENGINE_STREAM_INT_H */
-#endif /* USE_STREAM */
+#endif

@@ -3208,6 +3208,8 @@ _exit:
 
 void tFreeSMCreateQnodeReq(SMCreateQnodeReq *pReq) { FREESQL(); }
 
+void tFreeSDCreateSnodeReq(SDCreateSnodeReq *pReq) { FREESQL(); }
+
 void tFreeSDDropQnodeReq(SDDropQnodeReq *pReq) { FREESQL(); }
 
 int32_t tSerializeSDropDnodeReq(void *buf, int32_t bufLen, SDropDnodeReq *pReq) {

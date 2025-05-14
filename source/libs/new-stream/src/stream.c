@@ -25,9 +25,11 @@ SStreamMgmtInfo gStreamMgmt = {0};
 
 void streamSetSnodeEnabled(void) {
   gStreamMgmt.snodeId = (*gStreamMgmt.getDnode)(gStreamMgmt.dnode);
+  stInfo("snode %d enabled", gStreamMgmt.snodeId);
 }
 
 void streamSetSnodeDisabled(void) {
+  stInfo("snode disabled");
   gStreamMgmt.snodeId = INT32_MIN;
 }
 
