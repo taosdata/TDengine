@@ -100,7 +100,7 @@ void destroyInserterGrpInfo() {
   }
 }
 
-static int32_t getCreateResTableId(const SSubmitRes* pSubmitRes, int8_t tbType, SInsertTableRes* res) {
+static int32_t checkResAndGetTableId(const SSubmitRes* pSubmitRes, int8_t tbType, SInsertTableRes* res) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (!pSubmitRes->pRsp) {
     stError("create table response is NULL");
@@ -111,7 +111,7 @@ static int32_t getCreateResTableId(const SSubmitRes* pSubmitRes, int8_t tbType, 
     return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
   }
   SVCreateTbRsp* pCreateTbRsp = taosArrayGet(pSubmitRes->pRsp->aCreateTbRsp, 0);
-  if (pCreateTbRsp->code != 0) {
+  if (pCreateTbRsp->code != 0 && pCreateTbRsp->code != TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
     stError("create table failed, code:%d", pCreateTbRsp->code);
     return pCreateTbRsp->code;
   }
@@ -131,10 +131,125 @@ static int32_t getCreateResTableId(const SSubmitRes* pSubmitRes, int8_t tbType, 
 
 static int32_t saveCreateGrpTableInfo(int64_t groupId, const SSubmitRes* pSubmitRes, int8_t tbType) {
   SInsertTableRes res = {0};
-  int32_t         code = getCreateResTableId(pSubmitRes, tbType, &res);
+  int32_t         code = checkResAndGetTableId(pSubmitRes, tbType, &res);
   if (code) {
     return code;
   }
+  code = taosHashPut(gStreamGrpTableHash, &groupId, sizeof(groupId), &res, sizeof(SInsertTableRes));
+  if (code) {
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool colsIsSupported(const STableMetaRsp* pTableMetaRsp, const SStreamInserterParam* pInserterParam) {
+  SArray* pCreatingFields = pInserterParam->pFields;
+  if (pTableMetaRsp->numOfColumns < pCreatingFields->size) {
+    return false;
+  }
+
+  for (int32_t i = 0; i < pCreatingFields->size; ++i) {
+    SFieldWithOptions* pField = taosArrayGet(pCreatingFields, i);
+    if (NULL == pField) {
+      stError("isSupportedSTableSchema: failed to get field from array");
+      return false;
+    }
+    if (strncmp(pTableMetaRsp->pSchemas[i].name, pField->name, TSDB_COL_NAME_LEN) != 0) {
+      return false;
+    }
+
+    if (pTableMetaRsp->pSchemas[i].type != pField->type || pTableMetaRsp->pSchemas[i].bytes != pField->bytes) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool TagsIsSupported(const STableMetaRsp* pTableMetaRsp, const SStreamInserterParam* pInserterParam) {
+  SArray* pCreatingTags = pInserterParam->pTagFields;
+  if (pTableMetaRsp->numOfTags < pCreatingTags->size) {
+    return false;
+  }
+
+  int32_t tagIndexOffset = -1;
+  SFieldWithOptions* pField = taosArrayGet(pCreatingTags, 0);
+  if (NULL == pField) {
+    stError("isSupportedSTableSchema: failed to get field from array");
+    return false;
+  }
+  for (int32_t i = 0; i < pTableMetaRsp->numOfColumns + pTableMetaRsp->numOfTags; ++i) {
+    if (strncmp(pTableMetaRsp->pSchemas[i].name, pField->name, TSDB_COL_NAME_LEN) != 0) {
+      tagIndexOffset = i;
+      break;
+    }
+  }
+  if (tagIndexOffset == -1) {
+    stError("isSupportedSTableSchema: failed to get tag index");
+    return false;
+  
+  }
+
+  for (int32_t i = 0; i < pTableMetaRsp->numOfTags; ++i) {
+    int32_t            index = i + tagIndexOffset;
+    SFieldWithOptions* pField = taosArrayGet(pCreatingTags, i);
+    if (NULL == pField) {
+      stError("isSupportedSTableSchema: failed to get field from array");
+      return false;
+    }
+    if (strncmp(pTableMetaRsp->pSchemas[index].name, pField->name, TSDB_COL_NAME_LEN) != 0) {
+      return false;
+    }
+
+    if (pTableMetaRsp->pSchemas[index].type != pField->type || pTableMetaRsp->pSchemas[index].bytes != pField->bytes) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool isSupportedSTableSchema(const STableMetaRsp* pTableMetaRsp, const SStreamInserterParam* pInserterParam) {
+  if (!colsIsSupported(pTableMetaRsp, pInserterParam)) {
+    return false;
+  }
+  if (!TagsIsSupported(pTableMetaRsp, pInserterParam)) {
+    return false;
+  }
+  return true;
+}
+
+static bool isSupportedNTableSchema(const STableMetaRsp* pTableMetaRsp, const SStreamInserterParam* pInserterParam) {
+  return colsIsSupported(pTableMetaRsp, pInserterParam);
+}
+
+static int32_t checkAndSaveCreateGrpTableInfo(SDataInserterHandle* pInserthandle, int64_t groupId) {
+  SSubmitRes* pSubmitRes = &pInserthandle->submitRes;
+  int8_t      tbType = pInserthandle->pParam->streamInserterParam->tbType;
+
+  SInsertTableRes res = {0};
+  int32_t         code = checkResAndGetTableId(pSubmitRes, tbType, &res);
+  if (code) {
+    return code;
+  }
+
+  SVCreateTbRsp* pCreateTbRsp = taosArrayGet(pSubmitRes->pRsp->aCreateTbRsp, 0);
+  SSchema*              pExistRow = pCreateTbRsp->pMeta->pSchemas;
+  SStreamInserterParam* pInserterParam = pInserthandle->pParam->streamInserterParam;
+
+  if (tbType == TSDB_CHILD_TABLE) {
+    if (!isSupportedSTableSchema(pCreateTbRsp->pMeta, pInserterParam)) {
+      stError("create table failed, schema is not supported");
+      return TSDB_CODE_STREAM_INSERT_SCHEMA_NOT_MATCH;
+    }
+  } else if (tbType == TSDB_NORMAL_TABLE) {
+    if (!isSupportedNTableSchema(pCreateTbRsp->pMeta, pInserterParam)) {
+      stError("create table failed, schema is not supported");
+      return TSDB_CODE_STREAM_INSERT_SCHEMA_NOT_MATCH;
+    }
+  } else {
+    stError("checkAndSaveCreateGrpTableInfo failed, tbType:%d is not supported", tbType);
+    return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+  }
+
   code = taosHashPut(gStreamGrpTableHash, &groupId, sizeof(groupId), &res, sizeof(SInsertTableRes));
   if (code) {
     return code;
@@ -200,6 +315,7 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   if (TSDB_CODE_TDB_TABLE_ALREADY_EXIST == code) {
+    pInserter->submitRes.code = code;
     if (pParam->putParam != NULL && ((SStreamDataInserterInfo*)pParam->putParam)->isAutoCreateTable) {
       pInserter->submitRes.pRsp = taosMemoryCalloc(1, sizeof(SSubmitRsp2));
       if (NULL == pInserter->submitRes.pRsp) {
@@ -208,15 +324,16 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
       }
 
       tDecoderInit(&coder, pMsg->pData, pMsg->len);
-      code = tDecodeSSubmitRsp2(&coder, pInserter->submitRes.pRsp);
-      if (code) {
-        taosMemoryFree(pInserter->submitRes.pRsp);
-        pInserter->submitRes.code = code;
+      code2 = tDecodeSSubmitRsp2(&coder, pInserter->submitRes.pRsp);
+      if (code2 == TSDB_CODE_SUCCESS) {
+        code2 = checkAndSaveCreateGrpTableInfo(pInserter, ((SStreamDataInserterInfo*)pParam->putParam)->groupId);
+      }
+      // todo free tDecodeSSubmitRsp2 过程中分配的内存
+      taosMemoryFree(pInserter->submitRes.pRsp);
+      if (code2) {
+        pInserter->submitRes.code = code2;
         goto _return;
       }
-      saveCreateGrpTableInfo(((SStreamDataInserterInfo*)pParam->putParam)->groupId, &pInserter->submitRes,
-                             pInserter->pParam->streamInserterParam->tbType);
-      taosMemoryFree(pInserter->submitRes.pRsp);
     }
   }
 
