@@ -1849,7 +1849,7 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
 }
 
 static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
-  if (NULL != pSelect->pWindow || !pCxt->pPlanCxt->streamCalcQuery || !pSelect->pWhere) {
+  if (NULL != pSelect->pWindow || NULL != pSelect->pPartitionByList || !pCxt->pPlanCxt->streamCalcQuery || !pCxt->pPlanCxt->withExtWindow) {
     return TSDB_CODE_SUCCESS;
   }
   int32_t code = nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, &pSelect->pWindow);

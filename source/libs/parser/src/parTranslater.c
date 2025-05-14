@@ -6463,27 +6463,39 @@ static bool filterExtractTsNeedCollect(SNode* pLeft, SNode* pRight) {
   return false;
 }
 
-EDealRes filterExtractTsCondImpl(SNode* pNode, void* pContext) {
+EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
   SFilterExtractTsContext *pCxt = (SFilterExtractTsContext*)pContext;
-  switch(nodeType(pNode)) {
+  switch(nodeType(*pNode)) {
     case QUERY_NODE_OPERATOR: {
-      SOperatorNode* pOperator = (SOperatorNode*)pNode;
+      SOperatorNode* pOperator = (SOperatorNode*)*pNode;
       if (pOperator->opType == OP_TYPE_LOWER_EQUAL ||
           pOperator->opType == OP_TYPE_LOWER_THAN ||
           pOperator->opType == OP_TYPE_GREATER_EQUAL ||
           pOperator->opType == OP_TYPE_GREATER_THAN) {
         if (filterExtractTsNeedCollect(pOperator->pLeft, pOperator->pRight)) {
           if (pOperator->opType == OP_TYPE_LOWER_EQUAL || pOperator->opType == OP_TYPE_LOWER_THAN) {
-            nodesListMakeAppend(&pCxt->pStart, pNode);
+            nodesListMakeAppend(&pCxt->pStart, *pNode);
+            SValueNode *pVal = NULL;
+            nodesMakeValueNodeFromBool(true, &pVal);
+            *pNode = (SNode*)pVal;
           } else {
-            nodesListMakeAppend(&pCxt->pEnd, pNode);
+            nodesListMakeAppend(&pCxt->pEnd, *pNode);
+            SValueNode *pVal = NULL;
+            nodesMakeValueNodeFromBool(true, &pVal);
+            *pNode = (SNode*)pVal;
           }
           return DEAL_RES_IGNORE_CHILD;
         } else if (filterExtractTsNeedCollect(pOperator->pRight, pOperator->pLeft)) {
           if (pOperator->opType == OP_TYPE_LOWER_EQUAL || pOperator->opType == OP_TYPE_LOWER_THAN) {
-            nodesListMakeAppend(&pCxt->pEnd, pNode);
+            nodesListMakeAppend(&pCxt->pEnd, *pNode);
+            SValueNode *pVal = NULL;
+            nodesMakeValueNodeFromBool(true, &pVal);
+            *pNode = (SNode*)pVal;
           } else {
-            nodesListMakeAppend(&pCxt->pStart, pNode);
+            nodesListMakeAppend(&pCxt->pStart, *pNode);
+            SValueNode *pVal = NULL;
+            nodesMakeValueNodeFromBool(true, &pVal);
+            *pNode = (SNode*)pVal;
           }
           return DEAL_RES_IGNORE_CHILD;
         } else {
@@ -6494,7 +6506,7 @@ EDealRes filterExtractTsCondImpl(SNode* pNode, void* pContext) {
       }
     }
     case QUERY_NODE_LOGIC_CONDITION: {
-      SLogicConditionNode* pCond = (SLogicConditionNode*)pNode;
+      SLogicConditionNode* pCond = (SLogicConditionNode*)*pNode;
       switch (pCond->condType) {
         case LOGIC_COND_TYPE_OR:
         case LOGIC_COND_TYPE_NOT:
@@ -6508,12 +6520,12 @@ EDealRes filterExtractTsCondImpl(SNode* pNode, void* pContext) {
   }
 }
 
-static int32_t filterExtractTsCond(SNode* pCond, SNode** pTimeRangeExpr) {
+static int32_t filterExtractTsCond(SNode** pCond, SNode** pTimeRangeExpr) {
   int32_t                 code = TSDB_CODE_SUCCESS;
   SNode*                  pNew = NULL;
   SFilterExtractTsContext pCxt = {0};
 
-  nodesWalkExpr(pCond, filterExtractTsCondImpl, &pCxt);
+  nodesRewriteExpr(pCond, filterExtractTsCondImpl, &pCxt);
   PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_TIME_RANGE, pTimeRangeExpr));
   STimeRangeNode* pRange = (STimeRangeNode*)*pTimeRangeExpr;
   if (pCxt.pStart) {
@@ -6528,8 +6540,84 @@ _return:
   return code;
 }
 
-static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode* pWhere, STimeWindow* pTimeRange, SNode** pTimeRangeExpr) {
-  if (NULL == pWhere) {
+static bool filterHasPlaceHolderRangeStart(SOperatorNode *pOperator) {
+  SNode* pLeft = pOperator->pLeft;
+  SNode* pRight = pOperator->pRight;
+
+  if (pLeft == NULL || pRight == NULL) {
+    return false;
+  }
+
+  if (nodeType(pLeft) == QUERY_NODE_COLUMN) {
+    SColumnNode* pCol = (SColumnNode*)pLeft;
+    if (pCol->colType != COLUMN_TYPE_COLUMN || pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID || nodeType(pRight) != QUERY_NODE_FUNCTION) {
+      return false;
+    }
+    SFunctionNode *pFunc = (SFunctionNode*)pRight;
+    if (pFunc->funcType != FUNCTION_TYPE_TWSTART) {
+      return false;
+    }
+    if (pFunc->funcType == FUNCTION_TYPE_TWSTART && pOperator->opType == OP_TYPE_GREATER_EQUAL) {
+      return true;
+    }
+    return false;
+  } else if (nodeType(pRight) == QUERY_NODE_COLUMN) {
+    SColumnNode* pCol = (SColumnNode*)pRight;
+    if (pCol->colType != COLUMN_TYPE_COLUMN || pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID || nodeType(pLeft) != QUERY_NODE_FUNCTION) {
+      return false;
+    }
+    SFunctionNode *pFunc = (SFunctionNode*)pLeft;
+    if (pFunc->funcType != FUNCTION_TYPE_TWSTART) {
+      return false;
+    }
+    if (pFunc->funcType == FUNCTION_TYPE_TWSTART && pOperator->opType == OP_TYPE_LOWER_EQUAL) {
+      return true;
+    }
+    return false;
+  }
+  return false;
+}
+
+static bool filterHasPlaceHolderRangeEnd(SOperatorNode *pOperator) {
+  SNode* pLeft = pOperator->pLeft;
+  SNode* pRight = pOperator->pRight;
+
+  if (pLeft == NULL || pRight == NULL) {
+    return false;
+  }
+
+  if (nodeType(pLeft) == QUERY_NODE_COLUMN) {
+    SColumnNode* pCol = (SColumnNode*)pLeft;
+    if (pCol->colType != COLUMN_TYPE_COLUMN || pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID || nodeType(pRight) != QUERY_NODE_FUNCTION) {
+      return false;
+    }
+    SFunctionNode *pFunc = (SFunctionNode*)pRight;
+    if (pFunc->funcType != FUNCTION_TYPE_TWEND) {
+      return false;
+    }
+    if (pFunc->funcType == FUNCTION_TYPE_TWEND && pOperator->opType == OP_TYPE_LOWER_THAN) {
+      return true;
+    }
+    return false;
+  } else if (nodeType(pRight) == QUERY_NODE_COLUMN) {
+    SColumnNode* pCol = (SColumnNode*)pRight;
+    if (pCol->colType != COLUMN_TYPE_COLUMN || pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID || nodeType(pLeft) != QUERY_NODE_FUNCTION) {
+      return false;
+    }
+    SFunctionNode *pFunc = (SFunctionNode*)pLeft;
+    if (pFunc->funcType != FUNCTION_TYPE_TWEND) {
+      return false;
+    }
+    if (pFunc->funcType == FUNCTION_TYPE_TWEND && pOperator->opType == OP_TYPE_GREATER_THAN) {
+      return true;
+    }
+    return false;
+  }
+  return false;
+}
+
+static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeWindow* pTimeRange, SNode** pTimeRangeExpr) {
+  if (NULL == *pWhere) {
     TAOS_SET_OBJ_ALIGNED(pTimeRange, TSWINDOW_INITIALIZER);
     return TSDB_CODE_SUCCESS;
   }
@@ -6537,10 +6625,24 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode* pWhere, STimeWi
   SNode*  pCond = NULL;
   SNode*  pPrimaryKeyCond = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
-  PAR_ERR_JRET(nodesCloneNode(pWhere, &pCond));
+  PAR_ERR_JRET(nodesCloneNode(*pWhere, &pCond));
+
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond) &&
+      LOGIC_COND_TYPE_AND == ((SLogicConditionNode *)pCond)->condType) {
+    SLogicConditionNode *pLogicCond = (SLogicConditionNode *)pCond;
+    SNode *pLeft = nodesListGetNode(pLogicCond->pParameterList, 0);
+    SNode *pRight = nodesListGetNode(pLogicCond->pParameterList, 1);
+    bool hasStart = filterHasPlaceHolderRangeStart((SOperatorNode *)pLeft) | filterHasPlaceHolderRangeStart((SOperatorNode *)pRight);
+    bool hasEnd = filterHasPlaceHolderRangeEnd((SOperatorNode *)pLeft) | filterHasPlaceHolderRangeEnd((SOperatorNode *)pRight);
+    if (hasStart && hasEnd) {
+      pCxt->createStreamCalcWithExtWindow = true;
+    }
+  }
 
   if (pCxt->createStreamCalc && pCxt->currClause == SQL_CLAUSE_WHERE) {
-    PAR_ERR_JRET(filterExtractTsCond(pCond, pTimeRangeExpr));
+    PAR_ERR_JRET(filterExtractTsCond(&pCond, pTimeRangeExpr));
+    // some node may be replaced
+    *pWhere = pCond;
     goto _return;
   }
 
@@ -7173,7 +7275,7 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
     code = translateExpr(pCxt, &pSelect->pFill);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = getQueryTimeRange(pCxt, pSelect->pRange, &(((SFillNode*)pSelect->pFill)->timeRange), NULL);
+    code = getQueryTimeRange(pCxt, &pSelect->pRange, &(((SFillNode*)pSelect->pFill)->timeRange), NULL);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkFill(pCxt, (SFillNode*)pSelect->pFill, (SValueNode*)pSelect->pEvery, true, pSelect->precision);
@@ -7779,7 +7881,7 @@ static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_WHERE;
   int32_t code = translateExpr(pCxt, &pSelect->pWhere);
   if (TSDB_CODE_SUCCESS == code) {
-    code = getQueryTimeRange(pCxt, pSelect->pWhere, &pSelect->timeRange, &pSelect->pTimeRange);
+    code = getQueryTimeRange(pCxt, &pSelect->pWhere, &pSelect->timeRange, &pSelect->pTimeRange);
   }
   if (pSelect->pWhere != NULL && pCxt->pParseCxt->topicQuery == false) {
     PAR_ERR_RET(setTableVgroupsFromEqualTbnameCond(pCxt, pSelect));
@@ -13415,7 +13517,7 @@ static int32_t replaceSubPlanFromList(SNode* pTarget, SNodeList* pList) {
 }
 
 static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTriggerPartition, SNode* pTriggerTbl,
-                                        SSelectStmt* pStreamCalcQuery) {
+                                        SSelectStmt* pStreamCalcQuery, bool* withExtWindow) {
   int32_t    code = TSDB_CODE_SUCCESS;
   ESqlClause currClause = pCxt->currClause;
   SNode*     pCurrStmt = pCxt->pCurrStmt;
@@ -13423,6 +13525,7 @@ static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTri
 
   pCxt->currLevel = ++(pCxt->levelNo);
 
+  pCxt->createStreamCalcWithExtWindow = false;
   pCxt->createStreamTriggerTbl = pTriggerTbl;
   pCxt->createStreamTriggerPartitionList = pTriggerPartition;
   pCxt->createStreamCalc = true;
@@ -13430,6 +13533,7 @@ static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTri
   pCxt->createStreamCalc = false;
   pCxt->createStreamTriggerTbl = NULL;
   pCxt->createStreamTriggerPartitionList = NULL;
+  *withExtWindow = pCxt->createStreamCalcWithExtWindow;
 
   pCxt->currClause = currClause;
   pCxt->pCurrStmt = pCurrStmt;
@@ -13456,6 +13560,7 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
   SQueryPlan*  calcPlan = NULL;
   SArray*      pVgArray = NULL;
   SHashObj*    pDbs = NULL;
+  bool         withExtWindow = false;
 
   if (nodeType(pStmt->pQuery) != QUERY_NODE_SELECT_STMT) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY);
@@ -13465,7 +13570,7 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
     PAR_ERR_JRET(nodesListMakeAppend(&((SSelectStmt*)pStmt->pQuery)->pProjectionList, pNotifyCond));
   }
 
-  PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect->pFromTable, (SSelectStmt*)pStmt->pQuery));
+  PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect->pFromTable, (SSelectStmt*)pStmt->pQuery, &withExtWindow));
 
   pReq->placeHolderBitmap = pCxt->placeHolderBitmap;
 
@@ -13494,7 +13599,8 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
   SPlanContext calcCxt = {.pAstRoot = pStmt->pQuery,
                           .streamCalcQuery = true,
                           .pStreamCalcVgArray = pVgArray,
-                          .pStreamCalcDbs = pDbs};
+                          .pStreamCalcDbs = pDbs,
+                          .withExtWindow = withExtWindow};
 
   PAR_ERR_JRET(qCreateQueryPlan(&calcCxt, &calcPlan, NULL));
 

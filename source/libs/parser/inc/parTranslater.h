@@ -52,6 +52,7 @@ typedef struct STranslateContext {
   bool             createStreamCalc;
   bool             createStreamTrigger;
   bool             createStreamOutTable;
+  bool             createStreamCalcWithExtWindow;
   SNode*           createStreamTriggerTbl;
   SNodeList*       createStreamTriggerPartitionList;
 } STranslateContext;
