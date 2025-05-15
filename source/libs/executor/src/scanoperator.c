@@ -2746,7 +2746,7 @@ int32_t calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowI
   } else {
     code = appendCreateTableRow(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, &pInfo->tbnameCalSup,
                                 &pInfo->tagCalSup, pBlock->info.id.groupId, pBlock, rowId, pInfo->pCreateTbRes,
-                                &pInfo->stateStore);
+                                &pInfo->stateStore, idStr);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
