@@ -566,6 +566,9 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_DND_CREATE_SNODE:
       code = (*pMgmt->processCreateNodeFp)(SNODE, pMsg);
       break;
+    case TDMT_DND_ALTER_SNODE:
+      code = (*pMgmt->processAlterNodeFp)(SNODE, pMsg);
+      break;
     case TDMT_DND_DROP_SNODE:
       code = (*pMgmt->processDropNodeFp)(SNODE, pMsg);
       break;

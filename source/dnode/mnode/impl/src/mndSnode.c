@@ -48,6 +48,7 @@ int32_t mndInitSnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_SNODE, mndProcessCreateSnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_SNODE, mndProcessDropSnodeReq);
   mndSetMsgHandle(pMnode, TDMT_DND_CREATE_SNODE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_DND_ALTER_SNODE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_DND_DROP_SNODE_RSP, mndTransProcessRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_SNODE, mndRetrieveSnodes);
@@ -186,6 +187,20 @@ static int32_t mndSetCreateSnodeRedoLogs(STrans *pTrans, SSnodeObj *pObj) {
   TAOS_RETURN(code);
 }
 
+static int32_t mndSetUpdateSnodeRedoLogs(STrans *pTrans, SSnodeObj *pObj) {
+  int32_t  code = 0;
+  SSdbRaw *pRedoRaw = mndSnodeActionEncode(pObj);
+  if (pRedoRaw == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
+  TAOS_CHECK_RETURN(mndTransAppendRedolog(pTrans, pRedoRaw));
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pRedoRaw, SDB_STATUS_UPDATE));
+  TAOS_RETURN(code);
+}
+
+
 static int32_t mndSetCreateSnodeUndoLogs(STrans *pTrans, SSnodeObj *pObj) {
   int32_t  code = 0;
   SSdbRaw *pUndoRaw = mndSnodeActionEncode(pObj);
@@ -243,6 +258,39 @@ static int32_t mndSetCreateSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
 
   TAOS_RETURN(code);
 }
+
+static int32_t mndSetUpdateSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SSnodeObj *pObj, int32_t replicaId) {
+  int32_t          code = 0;
+  SDCreateSnodeReq createReq = {0};
+  createReq.snodeId = pDnode->id;
+  createReq.replicaId = replicaId;
+
+  int32_t contLen = tSerializeSDCreateSNodeReq(NULL, 0, &createReq);
+  void   *pReq = taosMemoryMalloc(contLen);
+  if (pReq == NULL) {
+    code = terrno;
+    TAOS_RETURN(code);
+  }
+  code = tSerializeSDCreateSNodeReq(pReq, contLen, &createReq);
+  if (code < 0) {
+    mError("snode:%d, failed to serialize create drop snode request since %s", createReq.snodeId, terrstr());
+  }
+
+  STransAction action = {0};
+  action.epSet = mndGetDnodeEpset(pDnode);
+  action.pCont = pReq;
+  action.contLen = contLen;
+  action.msgType = TDMT_DND_ALTER_SNODE;
+  action.acceptableCode = 0;
+
+  if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
+    taosMemoryFree(pReq);
+    TAOS_RETURN(code);
+  }
+
+  TAOS_RETURN(code);
+}
+
 
 static int32_t mndSetCreateSnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, SSnodeObj *pObj) {
   int32_t        code = 0;
@@ -336,6 +384,8 @@ static int32_t mndCreateSnodeWithReplicaId(SMnode *pMnode, SRpcMsg *pReq, SDnode
   int32_t replicaId = 0;
   SSnodeObj* noReplicaSnode = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SDnodeObj *pDnode2 = NULL;
 
   mndSnodeGetReplicaId(pMnode, pCreate, &replicaId, &noReplicaSnode);
 
@@ -356,37 +406,41 @@ static int32_t mndCreateSnodeWithReplicaId(SMnode *pMnode, SRpcMsg *pReq, SDnode
 
   mInfo("trans:%d, used to create snode:%d", pTrans->id, pCreate->dnodeId);
 
-  TAOS_CHECK_GOTO(mndSetCreateSnodeRedoLogs(pTrans, &snodeObj), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateSnodeUndoLogs(pTrans, &snodeObj), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateSnodeCommitLogs(pTrans, &snodeObj), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateSnodeRedoActions(pTrans, pDnode, &snodeObj, 2), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateSnodeUndoActions(pTrans, pDnode, &snodeObj), NULL, _OVER);
+  TAOS_CHECK_EXIT(mndSetCreateSnodeRedoLogs(pTrans, &snodeObj));
+  TAOS_CHECK_EXIT(mndSetCreateSnodeUndoLogs(pTrans, &snodeObj));
+  TAOS_CHECK_EXIT(mndSetCreateSnodeCommitLogs(pTrans, &snodeObj));
+  TAOS_CHECK_EXIT(mndSetCreateSnodeRedoActions(pTrans, pDnode, &snodeObj, snodeObj.replicaId));
+  TAOS_CHECK_EXIT(mndSetCreateSnodeUndoActions(pTrans, pDnode, &snodeObj));
 
+  if (noReplicaSnode) {
+    pDnode2 = mndAcquireDnode(pMnode, noReplicaSnode->id);
+    if (pDnode2 == NULL) {
+      code = TSDB_CODE_MND_DNODE_NOT_EXIST;
+      goto _exit;
+    }
 
+    SSnodeObj snodeObj2 = {0};
+    snodeObj2.id = noReplicaSnode->id;
+    snodeObj2.replicaId = pDnode->id;
+    snodeObj2.createdTime = noReplicaSnode->createdTime;
+    snodeObj2.updateTime = taosGetTimestampMs();
 
-  SDnodeObj *pDnode2 = mndAcquireDnode(pMnode, 2);
-  if (pDnode2 == NULL) {
-    code = TSDB_CODE_MND_DNODE_NOT_EXIST;
-    goto _exit;
+    mInfo("trans:%d, used to replace create snode:%d", pTrans->id, snodeObj2.id);
+
+    TAOS_CHECK_EXIT(mndSetUpdateSnodeRedoLogs(pTrans, &snodeObj2));
+    //TAOS_CHECK_EXIT(mndSetCreateSnodeUndoLogs(pTrans, &snodeObj2));
+    TAOS_CHECK_EXIT(mndSetCreateSnodeCommitLogs(pTrans, &snodeObj2));
+    TAOS_CHECK_EXIT(mndSetUpdateSnodeRedoActions(pTrans, pDnode2, &snodeObj2, snodeObj2.replicaId));
+    //TAOS_CHECK_EXIT(mndSetCreateSnodeUndoActions(pTrans, pDnode2, &snodeObj2));
   }
 
-  SSnodeObj snodeObj2 = {0};
-  snodeObj2.id = 2;
-  snodeObj2.createdTime = taosGetTimestampMs();
-  snodeObj2.updateTime = snodeObj2.createdTime;
-
-  mInfo("trans:%d, used to create snode:%d", pTrans->id, 2);
-
-  TAOS_CHECK_GOTO(mndSetCreateSnodeRedoLogs(pTrans, &snodeObj2), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateSnodeUndoLogs(pTrans, &snodeObj2), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateSnodeCommitLogs(pTrans, &snodeObj2), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateSnodeRedoActions(pTrans, pDnode2, &snodeObj2, 1), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateSnodeUndoActions(pTrans, pDnode2, &snodeObj2), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
+  TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 
 _exit:
 
+  mndReleaseDnode(pMnode, pDnode2);
   mndTransDrop(pTrans);
+  
   TAOS_RETURN(code);
 }
 

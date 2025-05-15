@@ -246,7 +246,7 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   SDnode *pDnode = dmInstance();
 
   SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
-  if (pWrapper != NULL && ntype != SNODE) {
+  if (pWrapper != NULL) {
     dmReleaseWrapper(pWrapper);
     switch (ntype) {
       case MNODE:
@@ -255,9 +255,11 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
       case QNODE:
         code = TSDB_CODE_QNODE_ALREADY_DEPLOYED;
         break;
+      case SNODE:
+        code = TSDB_CODE_SNODE_ALREADY_DEPLOYED;
+        break;
       default:
         code = TSDB_CODE_APP_ERROR;
-        break;
     }
     dError("failed to create node since %s", tstrerror(code));
     return code;
@@ -301,6 +303,37 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   (void)taosThreadMutexUnlock(&pDnode->mutex);
   return code;
 }
+
+
+static int32_t dmProcessAlterNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
+  int32_t code = 0;
+  if (SNODE != ntype) {
+    dError("failed to process msgType %d since node type is NOT snode", pMsg->msgType);
+    return TSDB_CODE_INVALID_MSG;
+  }
+  
+  SDnode *pDnode = dmInstance();
+  SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
+
+  dInfo("start to process alter-node-request");
+
+  pWrapper = &pDnode->wrappers[ntype];
+
+  (void)taosThreadMutexLock(&pDnode->mutex);
+  SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
+
+  dInfo("node:%s, start to update", pWrapper->name);
+  code = (*pWrapper->func.createFp)(&input, pMsg);
+  if (code != 0) {
+    dError("node:%s, failed to update since %s", pWrapper->name, tstrerror(code));
+  } else {
+    dInfo("node:%s, has been updated", pWrapper->name);
+  }
+
+  (void)taosThreadMutexUnlock(&pDnode->mutex);
+  return code;
+}
+
 
 static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   int32_t code = 0;
@@ -427,6 +460,7 @@ SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
       .pTfs = pWrapper->pDnode->pTfs,
       .pData = &pWrapper->pDnode->data,
       .processCreateNodeFp = dmProcessCreateNodeReq,
+      .processAlterNodeFp = dmProcessAlterNodeReq,
       .processAlterNodeTypeFp = dmProcessAlterNodeTypeReq,
       .processDropNodeFp = dmProcessDropNodeReq,
       .sendMonitorReportFp = dmSendMonitorReport,

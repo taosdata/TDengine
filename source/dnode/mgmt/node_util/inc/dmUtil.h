@@ -115,6 +115,7 @@ typedef enum {
 } EDndEnvStatus;
 
 typedef int32_t (*ProcessCreateNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
+typedef int32_t (*ProcessAlterNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef int32_t (*ProcessDropNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef void (*SendMonitorReportFp)();
 typedef void (*MonitorCleanExpiredSamplesFp)();
@@ -156,6 +157,7 @@ typedef struct {
   SDnodeData                  *pData;
   SMsgCb                       msgCb;
   ProcessCreateNodeFp          processCreateNodeFp;
+  ProcessAlterNodeFp           processAlterNodeFp;
   ProcessAlterNodeTypeFp       processAlterNodeTypeFp;
   ProcessDropNodeFp            processDropNodeFp;
   SendMonitorReportFp          sendMonitorReportFp;
