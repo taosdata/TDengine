@@ -886,7 +886,7 @@ count_col_list_opt(A) ::= .                                                     
 count_col_list_opt(A) ::= column_name_list(B).                                    { A = B; }
 
 offset_opt(A) ::= .                                                               { A = NULL; }
-offset_opt(A) ::= duration_literal(B).                                            { A = releaseRawExprNode(pCxt, B); }
+offset_opt(A) ::= NK_COMMA duration_literal(B).                                   { A = releaseRawExprNode(pCxt, B); }
 
 /***** trigger_table_opt *****/
 

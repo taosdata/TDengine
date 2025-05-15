@@ -1569,6 +1569,9 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
     }
     case WINDOW_TYPE_PERIOD: {
       // period trigger
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->trigger.period.precision));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->trigger.period.periodUnit));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->trigger.period.offsetUnit));
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.period.period));
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->trigger.period.offset));
       break;
@@ -1821,6 +1824,9 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
       }
       case WINDOW_TYPE_PERIOD: {
         // period trigger
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->trigger.period.precision));
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->trigger.period.periodUnit));
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->trigger.period.offsetUnit));
         TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.period.period));
         TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.period.offset));
         break;
