@@ -643,11 +643,11 @@ static int32_t msmTDAddReaderTriggerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, S
     }
     case TSDB_VIRTUAL_CHILD_TABLE:
     case TSDB_VIRTUAL_NORMAL_TABLE: {
-
+      //STREAMTODO
+      break;
     }
     default:
-      code = TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
-      mstError("invalid triggerTblType %d", pStream->pCreate->triggerTblType);
+      mstDebug("%s ignore triggerTblType %d", __FUNCTION__, pStream->pCreate->triggerTblType);
       break;
   }
 
@@ -804,11 +804,12 @@ static void msmCalcReadersNum(SMnode* pMnode, SStreamObj* pStream, int32_t* task
     }
     case TSDB_VIRTUAL_CHILD_TABLE:
     case TSDB_VIRTUAL_NORMAL_TABLE: {
-
+      //STREAMTODO
+      break;
     }
     default:
-      code = TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
-      mstError("invalid triggerTblType %d", pStream->pCreate->triggerTblType);
+      *taskNum = 0;
+      mstDebug("%s ignore triggerTblType %d", __FUNCTION__, pStream->pCreate->triggerTblType);
       break;
   }
 
