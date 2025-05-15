@@ -1154,9 +1154,9 @@ static int32_t buildStreamSubTableCreateReq(SDataInserterHandle* pInserter, SStr
     code = terrno;
     goto _end;
   }
-  for (int32_t i = 0; i < pInserter->pTagSchema->nCols; ++i) {
-    SSchema* tSchema = &pInserter->pTagSchema->pSchema[i];
-    if (NULL == taosArrayPush(TagNames, tSchema->name)) {
+  for (int32_t i = 0; i < nTags; ++i) {
+    SFieldWithOptions* pField = taosArrayGet(pInserter->pParam->streamInserterParam->pTagFields, i);
+    if (NULL == taosArrayPush(TagNames, pField->name)) {
       goto _end;
     }
   }
