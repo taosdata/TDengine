@@ -397,7 +397,7 @@ class TDSql:
                     tdSql.printResult("check continue")
                 time.sleep(1)
 
-        tdSql.printResult("check failed", exit=True)
+        tdSql.printResult(f"check failed for {retry} seconds", exit=True)
 
     def executeTimes(self, sql, times):
         """
