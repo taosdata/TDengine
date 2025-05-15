@@ -440,61 +440,55 @@ _OVER:
 }
 
 #ifdef USE_MOUNT
-static int32_t vmRetrieveMountPathImpl(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, SRetrieveMountPathReq *pReq) {
+static int32_t vmRetrieveMountPathImpl(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, SRetrieveMountPathReq *pReq,
+                                       SMountInfo *pMountInfo) {
   int32_t    code = 0, lino = 0;
   int32_t    checkCode = 0;
   SMountInfo mountInfo = {0};
   void      *pBuf = NULL;
 
-  mountInfo.dnodeId = pReq->dnodeId;
-  mountInfo.mountUid = pReq->mountUid;
-  snprintf(mountInfo.mountName, sizeof(mountInfo.mountName), "%s", pReq->mountName);
-  mountInfo.valLen = pReq->valLen;
-  mountInfo.pVal = pReq->pVal;
+  pMountInfo->dnodeId = pReq->dnodeId;
+  pMountInfo->mountUid = pReq->mountUid;
+  snprintf(pMountInfo->mountName, sizeof(pMountInfo->mountName), "%s", pReq->mountName);
+  pMountInfo->valLen = pReq->valLen;
+  pMountInfo->pVal = pReq->pVal;
 
   if (!taosCheckAccessFile(pReq->mountPath, O_RDONLY)) {
-    checkCode = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(errno);
   }
-
-  int32_t bufLen = tSerializeSMountInfo(NULL, 0, &mountInfo);
-  TAOS_CHECK_EXIT(bufLen);
-  TSDB_CHECK_NULL((pBuf = rpcMallocCont(bufLen)), code, lino, _exit, terrno);
-  TAOS_CHECK_EXIT(tSerializeSMountInfo(pBuf, bufLen, &mountInfo));
-
-  pMsg->info.rsp = pBuf;
-  pMsg->info.rspLen = bufLen;
-
-  code = 0;
 _exit:
-  if (code != 0) {
-    // in this case, the client will not receive the response, and client should be killed manually
-    dError("mount:%s, failed at line %d since %s, dnode:%d, path:%s", pReq->mountName, lino, tstrerror(code),
-           pReq->dnodeId, pReq->mountPath);
-    rpcFreeCont(pBuf);
-  } else if (checkCode != 0) {
-    // the client would receive the response with error message
-    dError("mount:%s, failed to retrieve path %s on dnode:%d, reason:%s", pReq->mountName, pReq->mountPath,
-           pReq->dnodeId, tstrerror(checkCode));
-    code = checkCode;
-  }
   TAOS_RETURN(code);
 }
 
 int32_t vmProcessRetrieveMountPathReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t               code = 0, lino = 0;
+  int32_t               rspCode = 0;
   SRetrieveMountPathReq req = {0};
   char                  path[TSDB_FILENAME_LEN] = {0};
+  SMountInfo            mountInfo = {0};
+  void                 *pBuf = NULL;
+  int32_t               bufLen = 0;
 
-  TAOS_CHECK_EXIT(tDeserializeSRetrieveMountPathReq(pMsg->pCont, pMsg->contLen, &req));
+  TAOS_CHECK_GOTO(tDeserializeSRetrieveMountPathReq(pMsg->pCont, pMsg->contLen, &req), &lino, _end);
   dInfo("mount:%s, start to retrieve path:%s", req.mountName, req.mountPath);
-  TAOS_CHECK_EXIT(vmRetrieveMountPathImpl(pMgmt, pMsg, &req));
-
+  TAOS_CHECK_GOTO(vmRetrieveMountPathImpl(pMgmt, pMsg, &req, &mountInfo), &lino, _end);
+_end:
+  TSDB_CHECK_CONDITION((bufLen = tSerializeSMountInfo(NULL, 0, &mountInfo)) >= 0, rspCode, lino, _exit, bufLen);
+  TSDB_CHECK_CONDITION((pBuf = rpcMallocCont(bufLen)), rspCode, lino, _exit, terrno);
+  TSDB_CHECK_CONDITION((bufLen = tSerializeSMountInfo(pBuf, bufLen, &mountInfo)) >= 0, rspCode, lino, _exit, bufLen);
+  pMsg->info.rsp = pBuf;
+  pMsg->info.rspLen = bufLen;
 _exit:
-  if (code != 0) {
-    dError("mount:%s, failed at line %d since %s, dnode:%d, path:%s", req.mountName, lino, tstrerror(code), req.dnodeId,
-           req.mountPath);
-  } else {
-    dInfo("mount:%s, success to retrieve path %s on dnode:%d", req.mountName, req.mountPath, req.dnodeId);
+  if (rspCode != 0) {
+    // corner case: if occurs, the client will not receive the response, and the client should be killed manually
+    dError("mount:%s, failed at line %d since %s, dnode:%d, path:%s", req.mountName, lino, tstrerror(rspCode),
+           req.dnodeId, req.mountPath);
+    rpcFreeCont(pBuf);
+    code = rspCode;
+  } else if (code != 0) {
+    // the client would receive the response with error msg
+    dError("mount:%s, failed to retrieve path %s on dnode:%d, reason:%s", req.mountName, req.mountPath, req.dnodeId,
+           tstrerror(code));
   }
   TAOS_RETURN(code);
 }
