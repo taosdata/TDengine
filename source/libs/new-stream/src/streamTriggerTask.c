@@ -87,11 +87,11 @@ static void streamTriggerCheckWaitList(void *param, void *tmrId) {
       SStreamTriggerTask *pTask = pInfo->pTask;
       int32_t             code = strtcPullNewMeta(pTask->pRealtimeCtx);
       if (code != TSDB_CODE_SUCCESS) {
-        stError("failed to resume stream trigger task %" PRId64 "-%" PRId64 " since %s", pTask->task.streamId,
+        stError("failed to resume stream trigger task %" PRIx64 "-%" PRIx64 " since %s", pTask->task.streamId,
                 pTask->task.taskId, tstrerror(code));
         continue;
       }
-      stDebug("resume stream trigger task %" PRId64 "-%" PRId64 " since now:%" PRId64 ", resumeTime:%" PRId64,
+      stDebug("resume stream trigger task %" PRIx64 "-%" PRIx64 " since now:%" PRId64 ", resumeTime:%" PRId64,
               pInfo->pTask->task.streamId, pInfo->pTask->task.taskId, now, pInfo->resumeTime);
       TD_DLIST_POP(&gStreamTriggerWaitList, pCurNode);
       taosMemoryFreeClear(pCurNode);
@@ -784,7 +784,7 @@ static int32_t strtgInit(SSTriggerRealtimeGroup *pGroup, SSTriggerRealtimeContex
 
   pGroup->pContext = pContext;
   pGroup->groupId = groupId;
-  pGroup->maxMetaDelta = 100;    // todo(kjq): adjust dynamically
+  pGroup->maxMetaDelta = 0;    // todo(kjq): adjust dynamically
   pGroup->minMetaThreshold = 1;  // todo(kjq): adjust dynamically
   pGroup->oldThreshold = INT64_MIN;
   pGroup->newThreshold = INT64_MIN;
@@ -2741,7 +2741,8 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, const SStreamTriggerDeplo
   pTask->readerList = pMsg->readerList;
   pTask->runnerList = pMsg->runnerList;
 
-  pTask->singleVnodePerGroup = taosArrayGetSize(pTask->readerList) == 1 || pMsg->placeHolderBitmap & (1 << 7);
+  pTask->singleVnodePerGroup =
+      taosArrayGetSize(pTask->readerList) == 1 || pMsg->placeHolderBitmap & (1 << 7);  // todo(kjq): fix here
   pTask->needRowNumber = pMsg->placeHolderBitmap & (1 << 4);
   pTask->needGroupColValue = pMsg->placeHolderBitmap & (1 << 6);
   pTask->needCacheData = pMsg->placeHolderBitmap & (1 << 8);
