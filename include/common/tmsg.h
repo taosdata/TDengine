@@ -1784,7 +1784,7 @@ typedef struct {
 
 typedef struct {
   char    dbName[TSDB_DB_FNAME_LEN];
-  int64_t dbUid;
+  int64_t dbId;
   SArray* pVg;
 } SMountDbInfo;
 

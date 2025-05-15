@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "taos_monitor.h"
 #include "vmInt.h"
+#include "vnodeInt.h"
 
 extern taos_counter_t *tsInsertCounter;
 
@@ -440,6 +441,21 @@ _OVER:
 }
 
 #ifdef USE_MOUNT
+extern int32_t vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo);
+static int     compareVnodeInfo(const void *p1, const void *p2) {
+  SVnodeInfo *v1 = (SVnodeInfo *)p1;
+  SVnodeInfo *v2 = (SVnodeInfo *)p2;
+
+  if (v1->config.dbId == v1->config.dbId) {
+    if (v1->config.vgId == v2->config.vgId) {
+      return 0;
+    }
+    return v1->config.vgId > v2->config.vgId ? 1 : -1;
+  }
+
+  return v1->config.dbId > v1->config.dbId : 1 : -1;
+}
+
 static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pReq, SMountInfo *pMountInfo) {
   int32_t       code = 0, lino = 0;
   SWrapperCfg  *pCfgs = NULL;
@@ -447,19 +463,68 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
   char          path[TSDB_MOUNT_PATH_LEN + 128] = {0};
   TdDirPtr      pDir = NULL;
   TdDirEntryPtr de = NULL;
-  SVnodeMgmt    vndMgmt = {0};
+  SVnodeMgmt    vnodeMgmt = {0};
+  SArray       *pVgCfgs = NULL;
+  SArray       *pDbInfos = NULL;
 
   snprintf(path, sizeof(path), "%s%s%s", pReq->mountPath, TD_DIRSEP, dmNodeName(VNODE));
-  vndMgmt.path = path;
+  vnodeMgmt.path = path;
   TAOS_CHECK_EXIT(vmGetVnodeListFromFile(pMgmt, &pCfgs, &numOfVnodes));
+  dInfo("mount:%s, num of vnodes is %d in path:%s\n", pReq->mountName, numOfVnodes, vnodeMgmt.path);
+  TSDB_CHECK_NULL((pVgCfgs = taosArrayInit_s(sizeof(SVnodeInfo), numOfVnodes)), code, lino, _exit, terrno);
 
-  fprintf(stderr, "numOfVnodes:%d in path:%s\n", numOfVnodes, vndMgmt.path);
+  for (int32_t i = 0; i < numOfVnodes; ++i) {
+    SWrapperCfg *pCfg = &pCfgs[i];
+    dInfo("mount:%s, vnode path:%s, dropped:%" PRIi8, pReq->mountName, pCfg->path, pCfg->dropped);
+    if (pCfg->dropped) {
+      continue;
+    }
+    SVnodeInfo info = {0};
+    snprintf(path, sizeof(path), "%s%s%s", pCfg->path, TD_DIRSEP, VND_INFO_FNAME);
+    TAOS_CHECK_EXIT(vnodeLoadInfo(path, &info));
+    if (info.config.syncCfg.replicaNum > 1) {
+      dError("mount:%s, vnode path:%s, replicaNum:%d > 1 not support", pReq->mountName, pCfg->path,
+             info.config.syncCfg.replicaNum);
+      TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_REPLICA);
+    }
+    TSDB_CHECK_NULL(taosArrayPush(pVgCfgs, &info), code, lino, _exit, terrno);
+  }
+  int32_t nVgCfg = taosArrayGetSize(pVgCfgs);
+  if (nVgCfg > 1) taosArraySort(pVgCfgs, compareVnodeInfo);
+
+  int64_t clusterId = 0;
+  int64_t dbId = 0, nDb = 0;
+  for (int32_t i = 0; i < nVgCfg; ++i) {
+    SVnodeInfo *pInfo = TARRAY_GET_ELEM(pVgCfgs, i);
+    if (clusterId == 0) {
+      clusterId = pInfo->config.syncCfg.nodeInfo->clusterId;
+    } else if (clusterId != pInfo->config.syncCfg.nodeInfo->clusterId) {
+      dError("mount:%s, clusterId:%" PRId64 " not match:%" PRId64, pReq->mountName, clusterId,
+             pInfo->config.syncCfg.nodeInfo->clusterId);
+      TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_CLUSTER_ID);
+    }
+    if (dbId != pInfo->config.dbId) {
+      dbId = pInfo->config.dbId;
+      ++nDb;
+    }
+  }
+
+  TSDB_CHECK_NULL((pDbInfos = taosArrayInit_s(sizeof(SMountDbInfo), nDb)), code, lino, _exit, terrno);
+
+  for (int32_t i = 0; i < nVgCfg; ++i) {
+    SVnodeInfo *pInfo = TARRAY_GET_ELEM(pVgCfgs, i);
+    if (i == 0) {
+      
+    } else {
+    }
+  }
 
 _exit:
   if (code != 0) {
     dError("mount:%s, failed at line %d on dnode:%d since %s, path:%s", pReq->mountName, lino, pReq->dnodeId,
            tstrerror(code), pReq->mountPath);
   }
+  taosArrayDestroy(pVgCfgs);
   taosMemoryFreeClear(pCfgs);
   TAOS_RETURN(code);
 }
@@ -488,6 +553,7 @@ static int32_t vmRetrieveMountPathImpl(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, SRetrie
   TSDB_CHECK_CONDITION(taosCheckAccessFile(path, O_RDONLY), code, lino, _exit, TAOS_SYSTEM_ERROR(errno));
   snprintf(path, sizeof(path), "%s%s%s", pReq->mountPath, TD_DIRSEP, dmNodeName(VNODE));
   TSDB_CHECK_CONDITION(taosCheckAccessFile(path, O_RDONLY), code, lino, _exit, TAOS_SYSTEM_ERROR(errno));
+  // TODO: dnode/config/local.json multi-tier not supported currently.
   TAOS_CHECK_EXIT(vmRetrieveMountVnodes(pMgmt, pReq, pMountInfo));
   TAOS_CHECK_EXIT(vmRetrieveMountStbs(pMgmt, pReq, pMountInfo));
 _exit:

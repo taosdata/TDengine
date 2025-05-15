@@ -6188,7 +6188,7 @@ int32_t tSerializeSMountInfo(void *buf, int32_t bufLen, SMountInfo *pInfo) {
   for (int32_t i = 0; i < nDb; ++i) {
     SMountDbInfo *pDbInfo = TARRAY_GET_ELEM(pInfo->pDb, i);
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pDbInfo->dbName));
-    TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pDbInfo->dbUid));
+    TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pDbInfo->dbId));
     nVg = taosArrayGetSize(pDbInfo->pVg);
     TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nVg));
     for (int32_t j = 0; j < nVg; ++j) {
@@ -6233,7 +6233,7 @@ int32_t tDeserializeSMountInfo(void *buf, int32_t bufLen, SMountInfo *pInfo) {
     for (int32_t i = 0; i < nDb; ++i) {
       SMountDbInfo *pDbInfo = TARRAY_GET_ELEM(pInfo->pDb, i);
       TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pDbInfo->dbName));
-      TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pDbInfo->dbUid));
+      TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pDbInfo->dbId));
       TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nVg));
       if (nVg > 0) {
         TSDB_CHECK_NULL((pDbInfo->pVg = taosArrayInit_s(sizeof(SMountVgInfo), nVg)), code, lino, _exit, terrno);
