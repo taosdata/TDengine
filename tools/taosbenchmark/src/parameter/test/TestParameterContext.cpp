@@ -17,11 +17,11 @@ void test_commandline_merge() {
     };
     ctx.merge_commandline(5, const_cast<char**>(argv));
 
-    const auto& config = ctx.get_config_data().global;
-    assert(config.host == "127.0.0.1");
-    assert(config.port == 6041);
-    assert(config.user == "admin");
-    assert(config.password == "taosdata");
+    const auto& conn_info = ctx.get_connection_info();
+    assert(conn_info.host == "127.0.0.1");
+    assert(conn_info.port == 6041);
+    assert(conn_info.user == "admin");
+    assert(conn_info.password == "taosdata");
     std::cout << "Commandline merge test passed.\n";
 }
 
@@ -32,9 +32,9 @@ void test_environment_merge() {
     setenv("TAOS_PORT", "6042", 1);
     ctx.merge_environment_vars();
 
-    const auto& config = ctx.get_config_data().global;
-    assert(config.host == "192.168.1.100");
-    assert(config.port == 6042);
+    const auto& conn_info = ctx.get_connection_info();
+    assert(conn_info.host == "192.168.1.100");
+    assert(conn_info.port == 6042);
     std::cout << "Environment merge test passed.\n";
 }
 
@@ -45,35 +45,55 @@ void test_yaml_merge() {
     // 模拟 YAML 配置
     YAML::Node config = YAML::Load(R"(
 global:
-  host: 10.0.0.1
-  port: 6043
-  user: root
-  password: secret
+  connection_info: &db_conn
+    host: 10.0.0.1
+    port: 6043
+    user: root
+    password: secret
 concurrency: 4
 jobs:
-  - job_type: insert
-    job_name: job1
-    source:
-      source_type: kafka
-  - job_type: query
-    job_name: job2
-    source:
-      connection:
-        host: localhost
+  create-super-table:
+    name: Create Super Table
+    needs: []
+    steps:
+      - name: Create Super Table
+        uses: actions/create-super-table
+        with:
+          connection_info: *db_conn
+  insert-second-data:
+    name: Insert Second-Level Data
+    needs: [create-super-table]
+    steps:
+      - name: Insert Data
+        uses: actions/insert-data
+        with:
+          source:
+            table_name:
+              source_type: generator
+              generator:
+                prefix: s
+                count: 10000
+                from: 200
 )");
 
     ctx.merge_yaml(config);
     const auto& data = ctx.get_config_data();
 
     // 验证全局配置
-    assert(data.global.host == "10.0.0.1");
-    assert(data.global.port == 6043);
+    assert(data.global.connection_info.host == "10.0.0.1");
+    assert(data.global.connection_info.port == 6043);
     assert(data.concurrency == 4);
 
     // 验证作业解析
     assert(data.jobs.size() == 2);
-    assert(std::holds_alternative<InsertJobConfig>(data.jobs[0]));
-    assert(std::holds_alternative<QueryJobConfig>(data.jobs[1]));
+    assert(data.jobs[0].key == "create-super-table");
+    assert(data.jobs[0].name == "Create Super Table");
+    assert(data.jobs[0].steps.size() == 1);
+
+    assert(data.jobs[1].key == "insert-second-data");
+    assert(data.jobs[1].name == "Insert Second-Level Data");
+    assert(data.jobs[1].needs.size() == 1);
+
 
     std::cout << "YAML merge test passed.\n";
 }
@@ -97,7 +117,7 @@ global:
     ctx.merge_commandline(2, const_cast<char**>(argv));
 
     // 验证优先级
-    assert(ctx.get_config_data().global.host == "cli.host");
+    assert(ctx.get_config_data().global.connection_info.host == "cli.host");
     std::cout << "Priority test passed.\n";
 }
 

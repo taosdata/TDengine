@@ -2,183 +2,277 @@ global:
   confirm_prompt: false
   log_dir: log/
   cfg_dir: /etc/taos/
-  host: 192.168.1.1
-  port: 6030
-  user: root
-  password: taosdata
+
+  connection_info: &db_conn  # 连接信息锚点
+    host: 192.168.1.1
+    port: 6030
+    user: root
+    password: taosdata
+
+  # 公共结构定义（可通过锚点复用）
+  database_info: &db_info
+    name: testdb
+    drop_if_exists:
+    precision: us
+    properties: vgroups 20 replica 3 keep 3650
+
+  super_table_info: &stb_info
+    name: points
+    columns: &columns_info
+      - name: latitude
+        type: float
+      - name: longitude
+        type: float
+      - name: quality
+        type: varchar(50)
+    tags: &tags_info
+      - name: type
+        type: varchar(7)
+      - name: name
+        type: varchar(20)
+      - name: department
+        type: varchar(7)
+
 
 concurrency: 3
 
 jobs:
-  - job_type: insert
-    job_name: insert-second
-    dependencies: []
-    source:
-      source_type: csv
-      columns:
-        file_path: /root/data/cnnc_csv_1s/
-        has_header: true
-      tags:
-        file_path: /root/meta/cnnc_csv_1s.csv
-        has_header: true
-      timestamp_strategy:
-        strategy_type: original
-        original_config:
-          column_index: 0
-          precision: us
-    target:
-      general:
-        timestamp_precision: us
-        child_table_prefix: s
-        child_table_count: 10000
-        insert_rows_per_table: 10000
-        use_source_definition: false
-        columns:
-          - name: latitude
-            type: float
-          - name: longitude
-            type: float
-          - name: quality
-            type: varchar
-            len: 50
-        tags:
-          - name: type
-            type: varchar
-            len: 7
-          - name: name
-            type: varchar
-            len: 20
-          - name: department
-            type: varchar
-            len: 7
-      target_type: tdengine
-      tdengine:
-        database_info:
-          name: testdb
-          drop_if_exists: true
-          vgroups: 20
-          replica: 3
-          keep: 3650
-        table_info:
-          name: points
-          super_table_exists: false
-          child_table_exists: false
-          auto_create_table: false
-          create_table_threads: 10
-          create_tables_per_batch: 1000
-          preload_table_meta: true
-    control:
-      data_format:
-        format_type: sql
-      data_channel:
-        channel_type: native
-      data_generation:
-        interlace_mode:
-          enabled: true
-          interlace_rows: 60
-        generate_threads: 8
-      insert_control:
-        rows_per_request: 10000
-        insert_threads: 8
-        thread_allocation: vgroup_binding
-      time_interval:
-        enabled: true
-        interval_strategy: first_to_first
+  # 创建数据库作业
+  create-database:
+    name: Create Database
+    needs: []
+    steps:
+      - name: Create Database
+        uses: actions/create-database
+        with:
+          connection_info: *db_conn             # 继承全局连接信息，默认属性，可省略
+          database_info:
+            name: testdb
+            drop_if_exists: true
+            precision: us
+            properties: vgroups 20 replica 3 keep 3650
 
-  - job_type: insert
-    job_name: insert-minute
-    dependencies:
-      - "insert-1.create_super_table"
-    source:
-      source_type: csv
-      columns:
-        file_path: /root/data/cnnc_csv_1m/
-        has_header: true
-      tags:
-        file_path: /root/meta/cnnc_csv_1m.csv
-        has_header: true
-      timestamp_strategy:
-        strategy_type: original
-        original_config:
-          column_index: 0
-          precision: ms
-    target:
-      general:
-        timestamp_precision: us
-        child_table_prefix: m
-        child_table_count: 10000
-        insert_rows_per_table: 10000
-        use_source_definition: false
-        columns:
-          - name: latitude
-            type: float
-          - name: longitude
-            type: float
-          - name: quality
-            type: varchar
-            len: 50
-        tags:
-          - name: type
-            type: varchar
-            len: 7
-          - name: name
-            type: varchar
-            len: 20
-          - name: department
-            type: varchar
-            len: 7
-      target_type: tdengine
-      tdengine:
-        database_info:
-          name: testdb
-          drop_if_exists: false
-        table_info:
-          name: points
-          super_table_exists: true
-          child_table_exists: false
-          auto_create_table: false
-          create_table_threads: 10
-          create_tables_per_batch: 1000
-          preload_table_meta: true
-    control:
-      data_format:
-        format_type: sql
-      data_channel:
-        channel_type: native
-      data_generation:
-        interlace_mode:
-          enabled: true
-          interlace_rows: 1
-        generate_threads: 8
-      insert_control:
-        rows_per_request: 10000
-        insert_threads: 8
-        thread_allocation: vgroup_binding
-      time_interval:
-        enabled: true
-        interval_strategy: first_to_first
 
-  - job_type: query
-    job_name: query-1
-    dependencies:
-      - insert-second.create_child_table
-      - insert-minute.create_child_table
-    control:
-      data_format:
-        format_type: sql
-      data_channel:
-        channel_type: native
-      query_control:
-        execution:
-          mode: parallel_per_group
-          threads: 10
-          times: 50
-          interval: 100
-        query_type: super_table
-        super_table:
-          database_name: testdb
-          super_table_name: points
-          placeholder: ${child_table}
-          templates:
-            - sql_template: select count(*) from ${child_table}
-              output_file: stb_result.txt
+  # 创建超级表作业
+  create-super-table:                           # 可与作业 create-database 合并，将步骤追加即可
+    name: Create Super Table
+    needs: [create-database]
+    steps:
+      - name: Create Super Table
+        uses: actions/create-super-table
+        with:
+          connection_info: *db_conn             # 继承全局连接信息，默认属性，可省略
+          database_info:
+            name: testdb
+          super_table_info:
+            name: points
+            columns: *columns_info            # 锚点引用普通列
+            tags: *tags_info                  # 锚点引用标签列
+
+
+  # 创建秒级子表作业
+  create-second-child-table:
+    name: Create Second Child Table
+    needs: [create-super-table]
+    steps:
+      - name: Create Second Child Table
+        uses: actions/create-child-table
+        with:
+          connection_info: *db_conn             # 继承全局连接信息，默认属性，可省略
+          database_info:
+            name: testdb
+          super_table_info:
+            name: points
+          child_table_info:
+            table_name:
+              source_type: generator            # 子表名称数据来源有两种：generator、csv
+              generator:
+                prefix: s
+                count: 10000
+                from: 200
+            tags: 
+              source_type: csv                  # 标签列数据来源有两种：generator、csv
+              csv:
+                file_path: /root/meta/cnnc_csv_1s.csv
+                has_header: true
+          batch:
+            size: 1000
+            concurrency: 10
+
+
+  # 创建分钟级子表作业
+  create-minute-child-table:
+    name: Create Minute Child Table
+    needs: [create-super-table]
+    steps:
+      - name: Create Minute Child Table
+        uses: actions/create-child-table
+        with:
+          connection_info: *db_conn             # 继承全局连接信息，默认属性，可省略
+          database_info:
+            name: testdb
+          super_table_info:
+            name: points
+          child_table_info:
+            table_name:
+              source_type: generator            # 子表名称数据来源有两种：generator、csv
+              generator:
+                prefix: m
+                count: 10000
+                from: 200
+            tags: 
+              source_type: csv                  # 标签列数据来源有两种：generator、csv
+              csv:
+                file_path: /root/meta/cnnc_csv_1m.csv
+                has_header: true
+          batch:
+            size: 1000
+            concurrency: 10
+
+
+  # 写入秒级数据作业
+  insert-second-data:
+    name: Insert Second-Level Data
+    needs: [create-second-child-table]
+    steps:
+      - name: Insert Second-Level Data
+        uses: actions/insert-data
+        with:
+          # source
+          source:
+            table_name:
+              source_type: generator              # 子表名称数据来源有两种：generator、csv
+              generator:
+                prefix: s
+                count: 10000
+                from: 200
+            columns:                              # 普通列数据来源有两种：generator、csv
+              source_type: csv
+              csv:
+                file_path: /root/data/cnnc_csv_1s/
+                has_header: true
+
+                timestamp_strategy:
+                  strategy_type: original
+                  original_config:
+                    column_index: 0
+                    precision: us
+
+          # target
+          target:
+            target_type: tdengine
+            tdengine:
+              connection_info: *db_conn           # 继承全局连接信息，默认属性，可省略
+              database_info:
+                name: testdb
+                precision: us
+            
+              super_table_info:
+                name: points
+                columns: *columns_info          # 锚点引用普通列
+                tags: *tags_info                # 锚点引用标签列
+
+          # control
+          control: &insert_second_control
+            data_format:
+              format_type: sql
+            data_channel:
+              channel_type: native
+            data_generation:
+              interlace_mode:
+                enabled: true
+                interlace_rows: 60
+              generate_threads: 8
+            insert_control:
+              rows_per_table: 10000000
+              rows_per_request: 10000
+              auto_create_table: false
+              preload_table_meta: false
+              insert_threads: 8
+              thread_allocation: vgroup_binding
+            time_interval:
+              enabled: true
+              interval_strategy: first_to_first
+
+
+
+  # 写入分钟级数据作业
+  insert-minute-data:
+    name: Insert Minute-Level Data
+    needs: [create-minute-child-table]
+    steps:
+      - name: Insert Minute-Level Data
+        uses: actions/insert-data
+        with:
+          # source
+          source:
+            table_name:
+              source_type: generator              # 子表名称数据来源有两种：generator、csv
+              generator:
+                prefix: m
+                count: 10000
+                from: 200
+            columns:                              # 普通列数据来源有两种：generator、csv
+              source_type: csv
+              csv:
+                file_path: /root/data/cnnc_csv_1m/
+                has_header: true
+
+                timestamp_strategy:
+                  strategy_type: original
+                  original_config:
+                    column_index: 0
+                    precision: ms
+
+          # target
+          target:
+            target_type: tdengine
+            tdengine:
+              connection_info: *db_conn           # 继承全局连接信息，默认属性，可省略
+              database_info:
+                name: testdb
+                precision: us
+            
+              super_table_info:
+                name: points
+                columns: *columns_info          # 锚点引用普通列
+                tags: *tags_info                # 锚点引用标签列
+
+          # control
+          control: *insert_second_control         # 复用配置
+
+
+  # 超级表查询作业
+  query-super-table:
+    name: Query Super Table
+    needs:
+      - create-second-child-table
+      - create-minute-child-table
+    steps:
+      - name: query-super-table
+        uses: actions/query-data
+        with:
+          # source
+          source:
+            connection_info: *db_conn             # 继承全局连接信息，默认属性，可省略
+          
+          # control
+          control:
+            data_format:
+              format_type: sql
+            data_channel:
+              channel_type: native
+            query_control:
+              execution:
+                mode: parallel_per_group
+                threads: 10
+                times: 50
+                interval: 100
+              query_type: super_table
+              super_table:
+                database_name: testdb
+                super_table_name: points
+                placeholder: ${child_table}
+                templates:
+                  - sql_template: select count(*) from ${child_table}
+                    output_file: stb_result.txt

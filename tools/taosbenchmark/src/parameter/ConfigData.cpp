@@ -15,17 +15,17 @@ static std::string to_lower(const std::string& str) {
 /**
  * 解析 DSN 字符串并填充 host/port/user/password 字段
  */
-void GlobalConfig::parse_dsn(const std::string& input_dsn) {
+void ConnectionInfo::parse_dsn(const std::string& input_dsn) {
     dsn = input_dsn;
 
     // 1. 检查协议头 "://"
-    const size_t protocol_pos = dsn.find("://");
+    const size_t protocol_pos = dsn->find("://");
     if (protocol_pos == std::string::npos) {
         throw std::runtime_error("DSN invalid: missing '://' protocol separator");
     }
 
     // 2. 提取 host:port 部分（排除协议头后的内容）
-    const std::string post_protocol = dsn.substr(protocol_pos + 3);
+    const std::string post_protocol = dsn->substr(protocol_pos + 3);
     const size_t path_start = post_protocol.find_first_of("?");
     const std::string host_port = post_protocol.substr(0, path_start);
 
