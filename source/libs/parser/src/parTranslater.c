@@ -11266,6 +11266,8 @@ static int32_t translateCreateXnode(STranslateContext* pCxt, SCreateXnodeStmt* p
 
   int32_t code = checkCreateXnode(pCxt, pStmt);
   if (TSDB_CODE_SUCCESS == code) {
+    createReq.xnodeProto = pStmt->pOptions->proto;
+
     code = buildCmdMsg(pCxt, TDMT_MND_CREATE_XNODE, (FSerializeFunc)tSerializeSMCreateXnodeReq, &createReq);
   }
 
