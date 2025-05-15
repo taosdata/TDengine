@@ -987,14 +987,14 @@ static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp) {
   int32_t code = 0, lino = 0;
   SMnode *pMnode = pRsp->info.node;
 
-  SMountInfo mountInfo = {0};
-  TAOS_CHECK_EXIT(tDeserializeSMountInfo(pRsp->pCont, pRsp->contLen, &mountInfo));
+  SMountInfo mntInfo = {0};
+  TAOS_CHECK_EXIT(tDeserializeSMountInfo(pRsp->pCont, pRsp->contLen, &mntInfo));
 
   SRpcMsg rsp = {
       .code = pRsp->code,
       .pCont = pRsp->info.rsp,
       .contLen = pRsp->info.rspLen,
-      .info = pRsp->info,  // TODO: use the info from the client original request
+      .info = *(SRpcHandleInfo*)mntInfo.pVal,
   };
   tmsgSendRsp(&rsp);
 

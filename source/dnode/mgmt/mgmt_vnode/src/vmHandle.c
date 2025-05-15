@@ -441,18 +441,20 @@ _OVER:
 
 #ifdef USE_MOUNT
 static int32_t vmRetrieveMountPathImpl(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, SRetrieveMountPathReq *pReq) {
-  int32_t code = 0, lino = 0;
-  void   *pBuf = NULL;
-  if (!taosCheckAccessFile(pReq->mountPath, O_RDONLY)) {
-    // TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
-  }
-
+  int32_t    code = 0, lino = 0;
+  int32_t    checkCode = 0;
   SMountInfo mountInfo = {0};
+  void      *pBuf = NULL;
+
   mountInfo.dnodeId = pReq->dnodeId;
   mountInfo.mountUid = pReq->mountUid;
   snprintf(mountInfo.mountName, sizeof(mountInfo.mountName), "%s", pReq->mountName);
   mountInfo.valLen = pReq->valLen;
   mountInfo.pVal = pReq->pVal;
+
+  if (!taosCheckAccessFile(pReq->mountPath, O_RDONLY)) {
+    checkCode = TAOS_SYSTEM_ERROR(errno);
+  }
 
   int32_t bufLen = tSerializeSMountInfo(NULL, 0, &mountInfo);
   TAOS_CHECK_EXIT(bufLen);
@@ -462,11 +464,18 @@ static int32_t vmRetrieveMountPathImpl(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, SRetrie
   pMsg->info.rsp = pBuf;
   pMsg->info.rspLen = bufLen;
 
+  code = 0;
 _exit:
-  if (code < 0) {
+  if (code != 0) {
+    // in this case, the client will not receive the response, and client should be killed manually
     dError("mount:%s, failed at line %d since %s, dnode:%d, path:%s", pReq->mountName, lino, tstrerror(code),
            pReq->dnodeId, pReq->mountPath);
     rpcFreeCont(pBuf);
+  } else if (checkCode != 0) {
+    // the client would receive the response with error message
+    dError("mount:%s, failed to retrieve path %s on dnode:%d, reason:%s", pReq->mountName, pReq->mountPath,
+           pReq->dnodeId, tstrerror(checkCode));
+    code = checkCode;
   }
   TAOS_RETURN(code);
 }
