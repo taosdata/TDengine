@@ -3535,6 +3535,11 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
         break;
       }
       case FUNCTION_TYPE_PLACEHOLDER_COLUMN: {
+        if (!pCxt->createStreamTriggerPartitionList) {
+          pCxt->errCode = TSDB_CODE_FUNC_FUNTION_ERROR;
+          parserError("use %%n without partition list in trigger");
+          return DEAL_RES_ERROR;
+        }
         BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_IDX);
         SValueNode* pIndex = (SValueNode*)nodesListGetNode((*pFunc)->pParameterList, 0);
         int64_t     index = *(int64_t*)nodesGetValueFromNode(pIndex);
@@ -13152,6 +13157,9 @@ static int32_t createStreamReqBuildTriggerPeriodWindow(STranslateContext* pCxt, 
   pReq->triggerType = WINDOW_TYPE_PERIOD;
   pReq->trigger.period.period = createStreamReqWindowGetBigInt(pTriggerWindow->pPeroid);
   pReq->trigger.period.offset = createStreamReqWindowGetBigInt(pTriggerWindow->pOffset);
+  pReq->trigger.period.periodUnit = createStreamReqWindowGetUnit(pTriggerWindow->pPeroid);
+  pReq->trigger.period.offsetUnit = createStreamReqWindowGetUnit(pTriggerWindow->pOffset);
+  //pReq->trigger.period.precision = trigger table's precision;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -13426,6 +13434,10 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
   SNode*          pTriggerFilter = ((SStreamTriggerOptions*)pTrigger->pOptions) ? ((SStreamTriggerOptions*)pTrigger->pOptions)->pPreFilter : NULL;
   SQueryPlan*     pTriggerPlan = NULL;
 
+  if (!pTriggerTable) {
+    PAR_ERR_JRET(translateExpr(pCxt, &pTriggerWindow));
+    PAR_RET(createStreamReqBuildTriggerWindow(pCxt, pTriggerWindow, NULL, pReq));
+  }
   PAR_ERR_JRET(getTableMeta(pCxt, pTriggerTable->table.dbName, pTriggerTable->table.tableName, &pTriggerTableMeta));
 
   switch (pTriggerTableMeta->tableType) {
@@ -13572,7 +13584,7 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
     PAR_ERR_JRET(nodesListMakeAppend(&((SSelectStmt*)pStmt->pQuery)->pProjectionList, pNotifyCond));
   }
 
-  PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect->pFromTable, (SSelectStmt*)pStmt->pQuery, &withExtWindow));
+  PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect ? pTriggerSelect->pFromTable : NULL, (SSelectStmt*)pStmt->pQuery, &withExtWindow));
 
   pReq->placeHolderBitmap = pCxt->placeHolderBitmap;
 
