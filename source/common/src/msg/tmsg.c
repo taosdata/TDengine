@@ -2279,6 +2279,8 @@ void tFreeSUpdateIpWhiteReq(SUpdateIpWhite *pReq) {
 int32_t tSerializeIpRange(SEncoder *encoder, SIpRange *pRange) {
   int32_t lino;
   int32_t code = 0;
+
+  TAOS_CHECK_EXIT(tEncodeI8(encoder, pRange->type));
   if (pRange->type == 0) {
     SIpV4Range *pIp4 = (SIpV4Range *)&pRange->ipV4;
     TAOS_CHECK_EXIT(tEncodeU32(encoder, pIp4->ip));
@@ -2296,6 +2298,8 @@ _exit:
 int32_t tDeserializeIpRange(SDecoder *decoder, SIpRange *pRange) {
   int32_t lino = 0;
   int32_t code = 0;
+
+  TAOS_CHECK_EXIT(tDecodeI8(decoder, &pRange->type));
   if (pRange->type == 0) {
     SIpV4Range *pIp4 = (SIpV4Range *)&pRange->ipV4;
     TAOS_CHECK_EXIT(tDecodeU32(decoder, &pIp4->ip));
@@ -3315,17 +3319,7 @@ int32_t tSerializeSGetUserWhiteListDualRsp(void *buf, int32_t bufLen, SGetUserWh
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->numWhiteLists));
   for (int i = 0; i < pRsp->numWhiteLists; ++i) {
     SIpRange *range = &pRsp->pWhiteListsDual[i];
-    TAOS_CHECK_EXIT(tEncodeI8(&encoder, range->type));
-    if (range->type == 0) {
-      SIpV4Range *ipv4 = &range->ipV4;
-      TAOS_CHECK_EXIT(tEncodeU32(&encoder, ipv4->ip));
-      TAOS_CHECK_EXIT(tEncodeU32(&encoder, ipv4->mask));
-    } else {
-      SIpV6Range *ipv6 = &range->ipV6;
-      TAOS_CHECK_EXIT(tEncodeU64(&encoder, ipv6->addr[0]));
-      TAOS_CHECK_EXIT(tEncodeU64(&encoder, ipv6->addr[1]));
-      TAOS_CHECK_EXIT(tEncodeU32(&encoder, ipv6->mask));
-    }
+     TAOS_CHECK_EXIT(tSerializeIpRange(&encoder, range));
   }
   tEndEncode(&encoder);
 
@@ -3353,18 +3347,8 @@ int32_t tDeserializeSGetUserWhiteListDualRsp(void *buf, int32_t bufLen, SGetUser
   }
   for (int32_t i = 0; i < pRsp->numWhiteLists; ++i) {
     SIpRange *range = &pRsp->pWhiteListsDual[i];
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &(range->type)));
-    if (range->type == 0) {
-      SIpV4Range *ipv4 = &range->ipV4;
-      TAOS_CHECK_EXIT(tDecodeU32(&decoder, &(ipv4->ip)));
-      TAOS_CHECK_EXIT(tDecodeU32(&decoder, &(ipv4->mask)));
-    } else {
-      SIpV6Range *ipv6 = &range->ipV6;
-      TAOS_CHECK_EXIT(tDecodeU64(&decoder, &(ipv6->addr[0])));
-      TAOS_CHECK_EXIT(tDecodeU64(&decoder, &(ipv6->addr[1])));
-      TAOS_CHECK_EXIT(tDecodeU32(&decoder, &(ipv6->mask)));
-    }
-  }
+    TAOS_CHECK_EXIT(tDeserializeIpRange(&decoder, range));
+ }
 
   tEndDecode(&decoder);
 _exit:
