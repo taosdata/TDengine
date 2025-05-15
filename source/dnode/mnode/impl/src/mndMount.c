@@ -984,19 +984,24 @@ _exit:
 }
 
 static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp) {
+  int32_t code = 0, lino = 0;
   SMnode *pMnode = pRsp->info.node;
+
+  SMountInfo mountInfo = {0};
+  TAOS_CHECK_EXIT(tDeserializeSMountInfo(pRsp->pCont, pRsp->contLen, &mountInfo));
 
   SRpcMsg rsp = {
       .code = pRsp->code,
       .pCont = pRsp->info.rsp,
       .contLen = pRsp->info.rspLen,
-      .info = pRsp->info, // TODO: use the info from the client original request
+      .info = pRsp->info,  // TODO: use the info from the client original request
   };
   tmsgSendRsp(&rsp);
 
   const STraceId *trace = &pRsp->info.traceId;
   mGInfo("msg:%p, retrieve mount path rsp with code:%d", pRsp, pRsp->code);
 
+_exit:
   return 0;
 }
 
