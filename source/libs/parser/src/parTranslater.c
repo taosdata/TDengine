@@ -13561,6 +13561,7 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
   SQueryPlan*  calcPlan = NULL;
   SArray*      pVgArray = NULL;
   SHashObj*    pDbs = NULL;
+  SHashObj*    pPlanMap = NULL;
   bool         withExtWindow = false;
 
   if (nodeType(pStmt->pQuery) != QUERY_NODE_SELECT_STMT) {
@@ -13629,12 +13630,18 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
     pIter = taosHashIterate(pDbs, pIter);
   }
 
+  pPlanMap = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+  if (NULL == pPlanMap) {
+    PAR_ERR_JRET(terrno);
+  }
   pReq->tsSlotId = -1;
   for (int32_t i = 0; i < taosArrayGetSize(pVgArray); i++) {
     SStreamCalcScan *pCalcScan = taosArrayGet(pVgArray, i);
     SSubplan        *pScanSubPlan = (SSubplan*)pCalcScan->scanPlan;
     SNode           *pTargetNode = (SNode*)pScanSubPlan->pNode;
     SNode           *pNode = NULL;
+
+    int64_t hashKey = (int64_t) pScanSubPlan->id.groupId << 32 | pScanSubPlan->id.subplanId;
 
     if (((SPhysiNode*)pTargetNode)->pParent) {
       PAR_ERR_JRET(eliminateNodeFromList(pTargetNode, ((SPhysiNode*)pTargetNode)->pParent->pChildren));
@@ -13660,6 +13667,12 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
         break;
       }
       WHERE_NEXT;
+    }
+
+    if (taosHashGet(pPlanMap, &hashKey, sizeof(int64_t)) != NULL) {
+      continue;
+    } else {
+      PAR_ERR_JRET(taosHashPut(pPlanMap, &hashKey, sizeof(int64_t), NULL, 0));
     }
 
     if (pCalcScan->readFromCache) {
