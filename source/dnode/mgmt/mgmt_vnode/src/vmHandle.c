@@ -440,18 +440,36 @@ _OVER:
 }
 
 #ifdef USE_MOUNT
-static int32_t vmRetrieveMountPathImpl(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *req) {
+static int32_t vmRetrieveMountPathImpl(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, SRetrieveMountPathReq *req) {
   int32_t code = 0, lino = 0;
+  void   *pBuf = NULL;
   if (!taosCheckAccessFile(req->mountPath, O_RDONLY)) {
     TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
   }
+
+  SMountInfo mountInfo = {0};
+  mountInfo.dnodeId = req->dnodeId;
+  mountInfo.mountUid = req->mountUid;
+  snprintf(mountInfo.mountName, sizeof(mountInfo.mountName), "%s", req->mountName);
+  mountInfo.valLen = req->valLen;
+  mountInfo.pVal = req->pVal;
+
+  int32_t bufLen = tSerializeSMountInfo(NULL, 0, &mountInfo);
+  TAOS_CHECK_EXIT(bufLen);
+  TSDB_CHECK_NULL((pBuf = rpcMallocCont(bufLen)), code, lino, _exit, terrno);
+  TAOS_CHECK_EXIT(tSerializeSRetrieveMountPathReq(pBuf, bufLen, &req));
+  TAOS_CHECK_EXIT(tSerializeSMountInfo(pBuf, bufLen, &mountInfo));
+
+  pMsg->info.rsp = pBuf;
+  pMsg->info.rspLen = bufLen;
 
 _exit:
   if (code != 0) {
     dError("mount:%s, failed at line %d since %s, dnode:%d, path:%s", req->mountName, lino, tstrerror(code),
            req->dnodeId, req->mountPath);
+    rpcFreeCont(pBuf);
   }
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t vmProcessRetrieveMountPathReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
@@ -461,7 +479,7 @@ int32_t vmProcessRetrieveMountPathReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   TAOS_CHECK_EXIT(tDeserializeSRetrieveMountPathReq(pMsg->pCont, pMsg->contLen, &req));
   dInfo("mount:%s, start to retrieve path:%s", req.mountName, req.mountPath);
-  TAOS_CHECK_EXIT(vmRetrieveMountPathImpl(pMgmt, &req));
+  TAOS_CHECK_EXIT(vmRetrieveMountPathImpl(pMgmt, pMsg, &req));
 
 _exit:
   if (code != 0) {

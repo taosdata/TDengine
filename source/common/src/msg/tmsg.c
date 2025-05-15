@@ -6182,6 +6182,7 @@ int32_t tSerializeSMountInfo(void *buf, int32_t bufLen, SMountInfo *pInfo) {
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pInfo->mountName));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pInfo->mountUid));
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pInfo->dnodeId));
+  TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t*)pInfo->pVal, pInfo->valLen));
   nDb = taosArrayGetSize(pInfo->pDb);
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nDb));
   for (int32_t i = 0; i < nDb; ++i) {
@@ -6225,6 +6226,7 @@ int32_t tDeserializeSMountInfo(void *buf, int32_t bufLen, SMountInfo *pInfo) {
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pInfo->mountName));
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pInfo->mountUid));
   TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pInfo->dnodeId));
+  TAOS_CHECK_EXIT(tDecodeBinary(&decoder, (uint8_t**)&pInfo->pVal, &pInfo->valLen));
   TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nDb));
   if (nDb > 0) {
     TSDB_CHECK_NULL((pInfo->pDb = taosArrayInit_s(sizeof(SMountDbInfo), nDb)), code, lino, _exit, terrno);

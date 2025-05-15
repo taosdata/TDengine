@@ -1789,10 +1789,12 @@ typedef struct {
 } SMountDbInfo;
 
 typedef struct {
-  char    mountName[TSDB_MOUNT_NAME_LEN];
-  int64_t mountUid;
-  int32_t dnodeId;
-  SArray* pDb;
+  char     mountName[TSDB_MOUNT_NAME_LEN];
+  int64_t  mountUid;
+  int32_t  dnodeId;
+  uint32_t valLen;
+  void*    pVal;
+  SArray*  pDb;
 } SMountInfo;
 
 int32_t tSerializeSMountInfo(void* buf, int32_t bufLen, SMountInfo* pReq);
