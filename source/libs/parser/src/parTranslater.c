@@ -6479,12 +6479,12 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
           pOperator->opType == OP_TYPE_GREATER_THAN) {
         if (filterExtractTsNeedCollect(pOperator->pLeft, pOperator->pRight)) {
           if (pOperator->opType == OP_TYPE_LOWER_EQUAL || pOperator->opType == OP_TYPE_LOWER_THAN) {
-            nodesListMakeAppend(&pCxt->pStart, *pNode);
+            nodesListMakeAppend(&pCxt->pEnd, *pNode);
             SValueNode *pVal = NULL;
             nodesMakeValueNodeFromBool(true, &pVal);
             *pNode = (SNode*)pVal;
           } else {
-            nodesListMakeAppend(&pCxt->pEnd, *pNode);
+            nodesListMakeAppend(&pCxt->pStart, *pNode);
             SValueNode *pVal = NULL;
             nodesMakeValueNodeFromBool(true, &pVal);
             *pNode = (SNode*)pVal;
@@ -6492,12 +6492,12 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
           return DEAL_RES_IGNORE_CHILD;
         } else if (filterExtractTsNeedCollect(pOperator->pRight, pOperator->pLeft)) {
           if (pOperator->opType == OP_TYPE_LOWER_EQUAL || pOperator->opType == OP_TYPE_LOWER_THAN) {
-            nodesListMakeAppend(&pCxt->pEnd, *pNode);
+            nodesListMakeAppend(&pCxt->pStart, *pNode);
             SValueNode *pVal = NULL;
             nodesMakeValueNodeFromBool(true, &pVal);
             *pNode = (SNode*)pVal;
           } else {
-            nodesListMakeAppend(&pCxt->pStart, *pNode);
+            nodesListMakeAppend(&pCxt->pEnd, *pNode);
             SValueNode *pVal = NULL;
             nodesMakeValueNodeFromBool(true, &pVal);
             *pNode = (SNode*)pVal;
