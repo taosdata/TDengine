@@ -440,12 +440,23 @@ _OVER:
 }
 
 #ifdef USE_MOUNT
+
+static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SMountInfo *pMountInfo) {
+  int32_t code = 0;
+
+  TAOS_RETURN(code);
+}
+
+static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SMountInfo *pMountInfo) {
+  int32_t code = 0;
+
+  TAOS_RETURN(code);
+}
+
 static int32_t vmRetrieveMountPathImpl(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, SRetrieveMountPathReq *pReq,
                                        SMountInfo *pMountInfo) {
   int32_t    code = 0, lino = 0;
-  int32_t    checkCode = 0;
-  SMountInfo mountInfo = {0};
-  void      *pBuf = NULL;
+  char       path[FILENAME_MAX] = {0};
 
   pMountInfo->dnodeId = pReq->dnodeId;
   pMountInfo->mountUid = pReq->mountUid;
@@ -453,10 +464,20 @@ static int32_t vmRetrieveMountPathImpl(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, SRetrie
   pMountInfo->valLen = pReq->valLen;
   pMountInfo->pVal = pReq->pVal;
 
-  if (!taosCheckAccessFile(pReq->mountPath, O_RDONLY)) {
-    code = TAOS_SYSTEM_ERROR(errno);
-  }
+  TSDB_CHECK_CONDITION(taosCheckAccessFile(pReq->mountPath, O_RDONLY), code, lino, _exit, TAOS_SYSTEM_ERROR(errno));
+  snprintf(path, sizeof(path), "%s%s%s", pReq->mountPath, TD_DIRSEP, dmNodeName(DNODE));
+  TSDB_CHECK_CONDITION(taosCheckAccessFile(path, O_RDONLY), code, lino, _exit, TAOS_SYSTEM_ERROR(errno));
+  snprintf(path, sizeof(path), "%s%s%s", pReq->mountPath, TD_DIRSEP, dmNodeName(MNODE));
+  TSDB_CHECK_CONDITION(taosCheckAccessFile(path, O_RDONLY), code, lino, _exit, TAOS_SYSTEM_ERROR(errno));
+  snprintf(path, sizeof(path), "%s%s%s", pReq->mountPath, TD_DIRSEP, dmNodeName(VNODE));
+  TSDB_CHECK_CONDITION(taosCheckAccessFile(path, O_RDONLY), code, lino, _exit, TAOS_SYSTEM_ERROR(errno));
+  TAOS_CHECK_EXIT(vmRetrieveMountVnodes(pMgmt, pMountInfo));
+  TAOS_CHECK_EXIT(vmRetrieveMountStbs(pMgmt, pMountInfo));
 _exit:
+  if (code != 0) {
+    dError("mount:%s, failed at line %d on dnode:%d since %s, path:%s", pReq->mountName, lino, pReq->dnodeId,
+           tstrerror(code), pReq->mountPath);
+  }
   TAOS_RETURN(code);
 }
 
@@ -464,7 +485,7 @@ int32_t vmProcessRetrieveMountPathReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t               code = 0, lino = 0;
   int32_t               rspCode = 0;
   SRetrieveMountPathReq req = {0};
-  char                  path[TSDB_FILENAME_LEN] = {0};
+
   SMountInfo            mountInfo = {0};
   void                 *pBuf = NULL;
   int32_t               bufLen = 0;
