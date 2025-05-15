@@ -915,6 +915,20 @@ mod tests {
             }
             has_error = false;
         }
+        let start = std::time::Instant::now();
+        loop {
+            let breakpoint = breakpoint_db
+                .get(PERSIST_QUEUE_BREAKPOINT_KEY)
+                .await?
+                .context("breakpoint not found")?;
+            if breakpoint == r#"{"segment_id":0,"end_offset":105300}"# {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            if start.elapsed() >= Duration::from_secs(10) {
+                panic!("persist breakpoint set timeout: {breakpoint}");
+            }
+        }
         token.cancel();
         for res in tasks.join_all().await {
             if let Err(e) = &res {
@@ -923,12 +937,6 @@ mod tests {
             has_error = false;
         }
         assert!(!has_error);
-
-        let breakpoint = breakpoint_db
-            .get(PERSIST_QUEUE_BREAKPOINT_KEY)
-            .await?
-            .context("breakpoint not found")?;
-        assert_eq!(breakpoint, r#"{"segment_id":0,"end_offset":105300}"#);
 
         Ok(())
     }
