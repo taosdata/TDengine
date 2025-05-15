@@ -106,17 +106,25 @@ nav:
         - 06-SessionWindow: case_list_docs/TimeSeriesExtensions/SessionWindow.md
         - 07-CountWindow: case_list_docs/TimeSeriesExtensions/CountWindow.md
     - 12-DataSubscription: case_list_docs/DataSubscription.md
+    - 13-SteamProcessing: case_list_docs/SteamProcessing.md
+    - 14-Operators: case_list_docs/Operators.md
+    - 15-JSONDataType: case_list_docs/JSONDataType.md
     - 16-EscapeCharacters: case_list_docs/EscapeCharacters.md
     - 17-NameLimits: case_list_docs/NameLimits.md
+    - 18-ReservedKeywords: case_list_docs/ReservedKeywords.md
     - 19-ManageNodes:
         - 01-Dnode: case_list_docs/ManageNodes/Dnode.md
         - 02-Mnode: case_list_docs/ManageNodes/Mnode.md
         - 03-Qnode: case_list_docs/ManageNodes/Qnode.md
         - 04-Snode: case_list_docs/ManageNodes/Snode.md
     - 20-Metadata: case_list_docs/Metadata.md
+    - 21-PerformanceData: case_list_docs/PerformanceData.md
     - 22-Show: case_list_docs/Show.md
     - 23-Users: case_list_docs/Users.md
+    - 24-Permissions: case_list_docs/Permissions.md
     - 25-UDFs: case_list_docs/UDFs.md
+    - 26-TSMAs: case_list_docs/TSMAs.md
+    - 27-Troubleshooting: case_list_docs/Troubleshooting.md
     - 29-JoinQueries: case_list_docs/JoinQueries.md
     - 30-DataCompression: case_list_docs/DataCompression.md
     - 31-Views: case_list_docs/Views.md

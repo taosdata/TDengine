@@ -2,49 +2,60 @@ import os
 import re
 import ast
 import sys
+import yaml
 
+def generate_md_files_from_nav(mkdocs_file, doc_dir):
+    """
+    根据 mkdocs.yml 中的 nav 配置生成 case_list_docs 目录下的 .md 文件
+    :param mkdocs_file: mkdocs.yml 文件路径
+    :param doc_dir: case_list_docs 目录路径
+    """
+    os.makedirs(doc_dir, exist_ok=True)
+    with open(mkdocs_file, "r", encoding="utf-8") as f:
+        mkdocs_config = yaml.safe_load(f)
+
+    nav = mkdocs_config.get("nav", [])
+    case_list_docs = None
+
+    for item in nav:
+        if isinstance(item, dict) and "Case list docs" in item:
+            case_list_docs = item["Case list docs"]
+            break
+
+    if not case_list_docs:
+        print("Error: 'Case list docs' not found in nav configuration.")
+        return
+
+    def process_nav(nav_item, base_path=""):
+        if isinstance(nav_item, dict):
+            for key, value in nav_item.items():
+                if isinstance(value, str): 
+                    md_file_path = os.path.join(doc_dir, value.replace("case_list_docs/", ""))
+                    os.makedirs(os.path.dirname(md_file_path), exist_ok=True)
+                    if not os.path.exists(md_file_path):
+                        with open(md_file_path, "w", encoding="utf-8") as f:
+                            f.write(f"# {key}\n")
+                        print(f"Created: {md_file_path}")
+                elif isinstance(value, list): 
+                    process_nav(value, base_path=os.path.join(base_path, key))
+        elif isinstance(nav_item, list):
+            for sub_item in nav_item:
+                process_nav(sub_item, base_path)
+
+    process_nav(case_list_docs)
+    
 def process_markdown_files(doc_dir, content, catalog):
     catalog_set = set(catalog.split(','))
-    modified = False
 
-    # 遍历 doc_dir 中的所有 Markdown 文件
-    for root, _, files in os.walk(doc_dir):
-        for file in files:
-            if file.endswith(".md"):
-                md_file = os.path.join(root, file)
-
-                # 检查文件是否包含 content
-                with open(md_file, "r", encoding="utf-8") as f:
-                    lines = f.readlines()
-
-                if any(content in line for line in lines):
-                    # 去掉 doc_dir 和 .md 后缀，提取相对路径
-                    module = os.path.relpath(md_file, doc_dir).replace(".md", "").replace("/", ":")
-
-                    if module in catalog_set:
-                        catalog_set.remove(module)  # 移除匹配的项
-                        continue
-
-                    # 删除文件中包含 content 的行
-                    with open(md_file, "w", encoding="utf-8") as f:
-                        for line in lines:
-                            if content not in line:
-                                f.write(line)
-                            else:
-                                modified = True
-
-    if catalog_set:
-        for item in catalog_set:
-            item = item.replace(":", "/")
-            md_file = os.path.join(doc_dir, f"{item}.md")
-            if not os.path.exists(md_file):
-                print(f"Warning: File {md_file} does not exist")
-                continue
-            with open(md_file, "a", encoding="utf-8") as f:
-                f.write(f"{content}\n")
-            print(f"Added content to {md_file}")
-    
-    return modified
+    for item in catalog_set:
+        item = item.replace(":", "/")
+        md_file = os.path.join(doc_dir, f"{item}.md")
+        if not os.path.exists(md_file):
+            print(f"Warning: File {md_file} does not exist")
+            continue
+        with open(md_file, "a", encoding="utf-8") as f:
+            f.write(f"{content}\n")
+        print(f"Added content to {md_file}")
             
 def get_md_file(base_dir, search_term):
     normalized_search_term = search_term.replace(":", "/")
@@ -98,33 +109,34 @@ def process_file(doc_dir, file_path):
         tree = ast.parse(f.read())
         add_parent_references(tree)
     functions = extract_functions_with_docstring(file_path)
-    modified = False
     for function_name, docstring, class_name, file_name in functions:
         # 提取 file_name 中 cases 后的字段，去掉 .py 后缀
         relative_path = file_name.split("test/cases/")[1].replace(".py", "").replace("/", ".")
         content = f"::: {relative_path}.{class_name}.{function_name}" if class_name else f"{relative_path}.{function_name}"
         
         # 解析 Catalog
-        module_path = file_path.replace("/", ":").removeprefix("test:cases:")
+        module_path = file_path.replace("/", ":")
+        if module_path.startswith("test:cases:"):
+            module_path = module_path[len("test:cases:"):]
         module_path = ":".join(module_path.split(":")[:-1])
         # 去掉每一级目录中的前两位数字和 '-'
         module_path = ":".join([re.sub(r"^\d{2}-", "", part) for part in module_path.split(":")])
         catalog = parse_catalog(module_path, docstring)
         print(f"function: {function_name} in class: {class_name} in file: {file_name} with catalog: {catalog}, relative path: {relative_path}")
         
-        if process_markdown_files(doc_dir, content, ",".join(catalog)):
-            modified = True
+        process_markdown_files(doc_dir, content, ",".join(catalog))
     
-    return modified
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: python generate_function_docs.py <doc_dir> <case_list>")
+    if len(sys.argv) != 4:
+        print("Usage: python generate_function_docs.py <mkdocs yaml file> <doc_dir> <case_list>")
         sys.exit(1)
     
-    doc_dir = sys.argv[1]
-    case_list = sys.argv[2]
-    modified = False
+    mkdocs_file = sys.argv[1]
+    doc_dir = sys.argv[2]
+    case_list = sys.argv[3]
+    
+    generate_md_files_from_nav(mkdocs_file, doc_dir)
     if case_list:
         files = [file.strip() for file in case_list.split(",") if file.strip()]
     else:
@@ -137,10 +149,4 @@ if __name__ == "__main__":
 
     for file_path in files:
         print(f"Processing file: {file_path}")
-        if process_file(doc_dir, file_path):
-            modified = True
-    
-    if modified:
-        sys.exit(0)
-    else:
-        sys.exit(1)
+        process_file(doc_dir, file_path)
