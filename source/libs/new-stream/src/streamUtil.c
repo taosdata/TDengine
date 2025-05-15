@@ -486,7 +486,7 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
   JSON_CHECK_ADD_ITEM(obj, "windowType", cJSON_CreateStringReference(windowType));
   JSON_CHECK_ADD_ITEM(obj, "windowStart", cJSON_CreateNumber(pParam->wstart));
   if (pParam->notifyType == STRIGGER_EVENT_WINDOW_CLOSE) {
-    int64_t wend = (triggerType == STREAM_TRIGGER_SLIDING) ? pParam->wend + 1 : pParam->wend;
+    int64_t wend = pParam->wend;
     JSON_CHECK_ADD_ITEM(obj, "windowEnd", cJSON_CreateNumber(wend));
   }
 
