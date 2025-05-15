@@ -2718,9 +2718,8 @@ void    tFreeSMUpdateAnodeReq(SMUpdateAnodeReq* pReq);
 
 typedef struct {
   int32_t dnodeId;
-  int32_t urlLen;
+  int32_t xnodeProto;
   int32_t sqlLen;
-  char*   url;
   char*   sql;
 } SMCreateXnodeReq, SDCreateXnodeReq;
 

@@ -3484,7 +3484,7 @@ int32_t tSerializeSMCreateXnodeReq(void *buf, int32_t bufLen, SMCreateXnodeReq *
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->dnodeId));
-  // TODO: options
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->xnodeProto));
 
   ENCODESQL();
   tEndEncode(&encoder);
@@ -3508,7 +3508,7 @@ int32_t tDeserializeSMCreateXnodeReq(void *buf, int32_t bufLen, SMCreateXnodeReq
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->dnodeId));
-  // TODO: options
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->xnodeProto));
 
   DECODESQL();
   tEndDecode(&decoder);
@@ -3519,8 +3519,7 @@ _exit:
 }
 
 void tFreeSMCreateXnodeReq(SMCreateXnodeReq *pReq) {
-  // taosMemoryFreeClear(pReq->url);
-  // TODO: may free options
+  // May free options
   FREESQL();
 }
 
