@@ -46,11 +46,21 @@ typedef struct SFindSplitNodeCtx {
 
 typedef bool (*FSplFindSplitNode)(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode, void* pInfo);
 
+static int32_t cloneVgroups(SVgroupsInfo **pDst, SVgroupsInfo* pSrc) {
+  int32_t len = VGROUPS_INFO_SIZE(pSrc);
+  *pDst = taosMemoryMalloc(len);
+  if (NULL == *pDst) {
+    return terrno;
+  }
+  memcpy(*pDst, pSrc, len);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t stbSplCreateMergeKeys(SNodeList* pSortKeys, SNodeList* pTargets, SNodeList** pOutput);
 
 static void splSetSubplanVgroups(SLogicSubplan* pSubplan, SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
-    TSWAP(pSubplan->pVgroupList, ((SScanLogicNode*)pNode)->pVgroupList);
+    cloneVgroups(&pSubplan->pVgroupList, ((SScanLogicNode*)pNode)->pVgroupList);
   } else if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pNode)) {
     // do nothing, since virtual table scan node is SUBPLAN_TYPE_MERGE
   } else if (QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL == nodeType(pNode) && ((SDynQueryCtrlLogicNode *)pNode)->qType == DYN_QTYPE_VTB_SCAN) {
@@ -297,6 +307,10 @@ static bool stbSplNeedSplitWindow(bool streamQuery, SLogicNode* pNode) {
     return !stbSplHasGatherExecFunc(pWindow->pFuncs) && stbSplHasMultiTbScan(streamQuery, pNode);
   }
 
+  if (WINDOW_TYPE_EXTERNAL == pWindow->winType) {
+    return stbSplHasMultiTbScan(streamQuery, pNode);
+  }
+
   if (WINDOW_TYPE_SESSION == pWindow->winType) {
     if (!streamQuery) {
       return stbSplHasMultiTbScan(streamQuery, pNode);
@@ -388,7 +402,7 @@ static int32_t stbSplRewriteFuns(const SNodeList* pFuncs, SNodeList** pPartialFu
     SFunctionNode* pMidFunc = NULL;
     SFunctionNode* pMergeFunc = NULL;
     int32_t        code = TSDB_CODE_SUCCESS;
-    if (fmIsWindowPseudoColumnFunc(pFunc->funcId)) {
+    if (fmIsWindowPseudoColumnFunc(pFunc->funcId) || fmIsPlaceHolderFunc(pFunc->funcId)) {
       code = nodesCloneNode(pNode, (SNode**)&pPartFunc);
       if (TSDB_CODE_SUCCESS == code) {
         code = nodesCloneNode(pNode, (SNode**)&pMergeFunc);
@@ -2130,10 +2144,22 @@ static int32_t streamScanSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
     return TSDB_CODE_SUCCESS;
   }
 
-  PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, info.pSubplan->subplanType, true));
-  PLAN_ERR_RET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, info.pSplitNode, 0)););
+  PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, info.pSubplan->subplanType, false));
+  SLogicSubplan* pScanSubplan = splCreateScanSubplan(pCxt, info.pSplitNode, 0);
+  if (NULL != pScanSubplan) {
+    if (NULL != info.pSubplan->pVgroupList) {
+      info.pSubplan->numOfComputeNodes = info.pSubplan->pVgroupList->numOfVgroups;
+    } else {
+      info.pSubplan->numOfComputeNodes = 1;
+    }
+    PLAN_ERR_RET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)pScanSubplan));
+  } else {
+    PLAN_ERR_RET(terrno);
+  }
+  info.pSubplan->subplanType = SUBPLAN_TYPE_COMPUTE;
   ++(pCxt->groupId);
-  pCxt->split = true;
+  info.pSplitNode->splitDone = true;
+  pCxt->split = false;
   return code;
 }
 

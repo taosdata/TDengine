@@ -116,7 +116,7 @@ struct SqlFunctionCtx;
 
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
                                 STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
-                                SExecTaskInfo* pTaskInfo);
+                                SExecTaskInfo* pTaskInfo, SHashObj* groupIdMap);
 
 STableListInfo* tableListCreate();
 void            tableListDestroy(STableListInfo* pTableListInfo);

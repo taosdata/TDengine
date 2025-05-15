@@ -273,8 +273,8 @@ static int32_t checkInsertParam(SStreamInserterParam* streamInserterParam) {
 static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
                                      qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, int8_t compressResult, char* sql,
                                      EOPTR_EXEC_MODEL model, SStreamInserterParam* streamInserterParam) {
-  if (pSubplan == NULL || pTaskInfo == NULL || handle == NULL) {
-    qError("invalid parameter, pSubplan:%p, pTaskInfo:%p, handle:%p", pSubplan, pTaskInfo, handle);
+  if (pSubplan == NULL || pTaskInfo == NULL) {
+    qError("invalid parameter, pSubplan:%p, pTaskInfo:%p", pSubplan, pTaskInfo);
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t code = checkInsertParam(streamInserterParam);
@@ -343,8 +343,7 @@ int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle
     return code;
   }
   // todo: add stream inserter param
-  code = qCreateStreamExecTask(readers, vgId, taskId, pPlan, pTaskInfo, &pInserterParams->pSinkHandle, 0, NULL,
-                               OPTR_EXEC_MODEL_STREAM, pInserterParams);
+  code = qCreateStreamExecTask(readers, vgId, taskId, pPlan, pTaskInfo, pInserterParams ? &pInserterParams->pSinkHandle : NULL, 0, NULL, OPTR_EXEC_MODEL_STREAM, pInserterParams);
   if (code != TSDB_CODE_SUCCESS) {
     qDestroyTask(*pTaskInfo);
     return code;
@@ -1684,41 +1683,12 @@ int32_t streamClearStatesForOperators(qTaskInfo_t tInfo) {
   return code;
 }
 
-static int32_t streamDoNotification(qTaskInfo_t tInfo, const SSDataBlock* pBlock) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  if (!pBlock || pBlock->info.rows <= 0) return code;
-  return 0;
-
-  EStreamNotifyEventType  eventType = SNOTIFY_EVENT_WINDOW_CLOSE;
-  SStreamNotifyEventSupp* pSupp = NULL;
-  STaskNotifyEventStat    stats = {0};
-  pSupp->pWindowEventHashMap =
-      taosHashInit(4096, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  QUERY_CHECK_NULL(pSupp->pWindowEventHashMap, code, lino, _end, terrno);
-  // TODO wjm pSupp->windowType = ???
-
-  // code = addAggResultNotifyEvent(pBlock, NULL, NULL, pSupp, &stats);
-  if (code == 0) {
-    code = buildNotifyEventBlock(tInfo, pSupp, &stats);
-  }
-  // add NotifyEvent
-  //
-  // build notify block
-  //
-  // send events
-
-  return code;
-_end:
-  return code;
-}
-
-int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** pRes, uint64_t* useconds) {
+int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppRes, uint64_t* useconds, bool* finished) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tInfo;
   int64_t        threadId = taosGetSelfPthreadId();
   int64_t        curOwner = 0;
 
-  *pRes = NULL;
+  *ppRes = NULL;
 
   // todo extract method
   taosRLockLatch(&pTaskInfo->lock);
@@ -1760,24 +1730,19 @@ int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** pRes, uint64_t* useco
 
   int64_t st = taosGetTimestampUs();
 
-  int32_t code = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot, pRes);
+  int32_t code = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot, ppRes);
   if (code) {
     pTaskInfo->code = code;
     qError("%s failed at line %d, code:%s %s", __func__, __LINE__, tstrerror(code), GET_TASKID(pTaskInfo));
   } else {
-    code = streamForceOutput(tInfo, pRes);
+    *finished = NULL == *ppRes;
+    code = streamForceOutput(tInfo, ppRes);
   }
   if (code) {
     pTaskInfo->code = code;
     qError("%s failed at line %d, code:%s %s", __func__, __LINE__, tstrerror(code), GET_TASKID(pTaskInfo));
   } else {
-    code = blockDataCheck(*pRes);
-  }
-  if (code) {
-    pTaskInfo->code = code;
-    qError("%s failed at line %d, code:%s %s", __func__, __LINE__, tstrerror(code), GET_TASKID(pTaskInfo));
-  } else {
-    code = streamDoNotification(tInfo, *pRes);
+    code = blockDataCheck(*ppRes);
   }
   if (code) {
     pTaskInfo->code = code;
@@ -1787,13 +1752,13 @@ int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** pRes, uint64_t* useco
   uint64_t el = (taosGetTimestampUs() - st);
 
   pTaskInfo->cost.elapsedTime += el;
-  if (NULL == *pRes) {
+  if (NULL == *ppRes) {
     *useconds = pTaskInfo->cost.elapsedTime;
   }
 
   (void)cleanUpUdfs();
 
-  int32_t  current = (*pRes != NULL) ? (*pRes)->info.rows : 0;
+  int32_t  current = (*ppRes != NULL) ? (*ppRes)->info.rows : 0;
   uint64_t total = pTaskInfo->pRoot->resultInfo.totalRows;
 
   qDebug("%s task suspended, %d rows returned, total:%" PRId64 " rows, in sinkNode:%d, elapsed:%.2f ms",
@@ -1811,7 +1776,7 @@ void streamSetTaskRuntimeInfo(qTaskInfo_t tinfo, SStreamRuntimeInfo* pStreamRunt
 
 int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType,
                                         SNodeList* pGroupTags, bool groupSort, SNode* pTagCond, SNode* pTagIndexCond,
-                                        SStorageAPI* storageAPI, void** pTableListInfo) {
+                                        SStorageAPI* storageAPI, void** pTableListInfo, SHashObj* groupIdMap) {
   STableListInfo* pList = tableListCreate();
   if (pList == NULL) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
@@ -1822,7 +1787,7 @@ int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t ui
   SReadHandle    pHandle = {.vnode = pVnode};
   SExecTaskInfo  pTaskInfo = {.id.str = "", .storageAPI = *storageAPI};
 
-  int32_t code = createScanTableListInfo(&pScanNode, pGroupTags, groupSort, &pHandle, pList, pTagCond, pTagIndexCond, &pTaskInfo);
+  int32_t code = createScanTableListInfo(&pScanNode, pGroupTags, groupSort, &pHandle, pList, pTagCond, pTagIndexCond, &pTaskInfo, groupIdMap);
   if (code != 0) {
     tableListDestroy(pList);
     qError("failed to createScanTableListInfo, code:%s", tstrerror(code));
@@ -2021,6 +1986,10 @@ void destoryStreamInserterParam(SStreamInserterParam* pParam) {
       taosMemFree(pParam->tbname);
       pParam->tbname = NULL;
     }
+    if (pParam->stbname) {
+      taosMemFree(pParam->stbname);
+      pParam->stbname = NULL;
+    }
     if (pParam->dbFName) {
       taosMemFree(pParam->dbFName);
       pParam->dbFName = NULL;
@@ -2058,6 +2027,14 @@ int32_t cloneStreamInserterParam(SStreamInserterParam** ppDst, SStreamInserterPa
     code = terrno;
     goto _err;
   }
+  if (pSrc->stbname) {
+    (*ppDst)->stbname = taosStrdup(pSrc->stbname);
+    if ((*ppDst)->stbname == NULL) {
+      code = terrno;
+      goto _err;
+    }
+  }
+
   (*ppDst)->dbFName = taosStrdup(pSrc->dbFName);
   if ((*ppDst)->dbFName == NULL) {
     code = terrno;

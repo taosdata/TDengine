@@ -331,12 +331,54 @@ _end:
   return code;
 }
 
-int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** ppContent) {
+int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** ppContent, int32_t filterColIdx, const SArray* pFields) {
   int32_t code = 0, lino = 0;
-  cJSON*  results = NULL;
-  results = cJSON_CreateObject();
-  QUERY_CHECK_NULL(results, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  cJSON*  pResult = NULL;
+  pResult = cJSON_CreateObject();
+  QUERY_CHECK_NULL(pResult, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+
+  cJSON* pArr = cJSON_AddArrayToObject(pResult, "result");
+  QUERY_CHECK_NULL(pArr, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+
+  cJSON* pRow = NULL;
+  for (int32_t rowIdx = 0; rowIdx < pBlock->info.rows; ++rowIdx) {
+    const SColumnInfoData* pFilterCol = taosArrayGet(pBlock->pDataBlock, filterColIdx);
+    if (pFilterCol->info.type != TSDB_DATA_TYPE_BOOL) {
+      stError("failed to do notification filtering, col type not bool: %d", pFilterCol->info.type);
+      QUERY_CHECK_CODE(TSDB_CODE_INTERNAL_ERROR, lino, _end);
+    }
+    bool v = *(const bool*)colDataGetNumData(pFilterCol, rowIdx);
+    if (!v) continue;
+
+    pRow = cJSON_CreateObject();
+    QUERY_CHECK_NULL(pRow, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+
+    for (int32_t colIdx = 0; colIdx < taosArrayGetSize(pBlock->pDataBlock); ++colIdx) {
+      const SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, colIdx);
+      const SFieldWithOptions* pField = taosArrayGet(pFields, colIdx);
+      const char*              colName = "unknown";
+      if (!pField) {
+        stError("failed to get field name for notification, colIdx: %d, fields arr size: %" PRId64, colIdx,
+                (int64_t)taosArrayGetSize(pFields));
+      }
+      colName = pField->name;
+      code = jsonAddColumnField(colName, pCol->info.type, colDataIsNull_s(pCol, rowIdx), colDataGetData(pCol, rowIdx),
+                                pRow);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+
+    TSDB_CHECK_CONDITION(cJSON_AddItemToArray(pArr, pRow), code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    pRow = NULL;
+  }
+  *ppContent = cJSON_PrintUnformatted(pResult);
+  QUERY_CHECK_NULL(*ppContent, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+
 _end:
+  if (pRow) cJSON_Delete(pRow);
+  if (pArr) cJSON_Delete(pArr);
+  if (code) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
@@ -444,7 +486,7 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
   JSON_CHECK_ADD_ITEM(obj, "windowType", cJSON_CreateStringReference(windowType));
   JSON_CHECK_ADD_ITEM(obj, "windowStart", cJSON_CreateNumber(pParam->wstart));
   if (pParam->notifyType == STRIGGER_EVENT_WINDOW_CLOSE) {
-    int64_t wend = (triggerType == STREAM_TRIGGER_SLIDING) ? pParam->wend + 1 : pParam->wend;
+    int64_t wend = pParam->wend;
     JSON_CHECK_ADD_ITEM(obj, "windowEnd", cJSON_CreateNumber(wend));
   }
 
@@ -659,6 +701,9 @@ int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
 
   if (pTask->pRealtimeCtx->sessionId == sessionId) {
     if (pTask->pRealtimeCtx->pCalcDataCacheIter == NULL) {
+      if (((SStreamTriggerTask*)pTask)->triggerType == STREAM_TRIGGER_SLIDING) {
+        end = end - 1;
+      }
       code = getStreamDataCache(pTask->pRealtimeCtx->pCalcDataCache, groupId, start, end, &pTask->pRealtimeCtx->pCalcDataCacheIter);
       QUERY_CHECK_CODE(code, lino, _end);
     }

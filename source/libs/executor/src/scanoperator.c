@@ -4661,7 +4661,7 @@ static int32_t buildVnodeGroupedStbTableCount(STableCountScanOperatorInfo* pInfo
                                               SSDataBlock* pRes, char* dbName, tb_uid_t stbUid, SStorageAPI* pAPI) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  char    stbName[TSDB_TABLE_NAME_LEN] = {0};
+  char    stbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
   code = pAPI->metaFn.getTableNameByUid(pInfo->readHandle.vnode, stbUid, stbName);
   QUERY_CHECK_CODE(code, lino, _end);
 

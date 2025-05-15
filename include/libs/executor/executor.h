@@ -17,6 +17,7 @@
 #define _TD_EXECUTOR_H_
 
 #include <stdint.h>
+#include "tarray.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -68,10 +69,12 @@ typedef struct {
 
 typedef struct SStreamInserterParam {
   SArray*   pFields;  // SArray<SFieldWithOptions>
-  SArray*   pTagFields;
+  SArray*   pTagFields; // SArray<SFieldWithOptions>
+  SArray*   pTagVals; // SArray<STagVal>
   int64_t   suid;
   int32_t   sver;
   char*     tbname;
+  char*     stbname;
   int8_t    tbType;
   char*     dbFName;
   void*     pSinkHandle;
@@ -252,11 +255,11 @@ int32_t  qStreamOperatorReleaseState(qTaskInfo_t tInfo);
 int32_t  qStreamOperatorReloadState(qTaskInfo_t tInfo);
 int32_t  streamCollectExprsForReplace(qTaskInfo_t tInfo, SArray* pExprs);
 int32_t  streamClearStatesForOperators(qTaskInfo_t tInfo);
-int32_t  streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppBlock, uint64_t* ts);
+int32_t  streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppBlock, uint64_t* ts, bool* finished);
 void     streamDestroyExecTask(qTaskInfo_t tInfo);
 int32_t  qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType,
                                          SNodeList* pGroupTags, bool groupSort, SNode* pTagCond, SNode* pTagIndexCond,
-                                         SStorageAPI* storageAPI, void** pTableListInfo);
+                                         SStorageAPI* storageAPI, void** pTableListInfo, SHashObj* groupIdMap);
 int32_t  qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STableKeyInfo** pKeyInfo, int32_t* size);
 uint64_t qStreamGetGroupId(void* pTableListInfo, int64_t uid);
 void     qStreamDestroyTableList(void* pTableListInfo);

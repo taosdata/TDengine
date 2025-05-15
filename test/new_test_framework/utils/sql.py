@@ -1505,8 +1505,10 @@ class TDSql:
             f"print result, rows:{self.queryRows}, cols:{self.queryCols}, sql:{self.sql}"
         )
         for r in range(self.queryRows):
+            result = "==== "
             for c in range(self.queryCols):
-                tdLog.info(f"data[{r}][{c}]=[{self.queryResult[r][c]}]")
+                result += f"d[{r}][{c}]={self.queryResult[r][c]} "
+            tdLog.info(result)
 
     def expectKeyData(self, key, col, data, show=False):
         """

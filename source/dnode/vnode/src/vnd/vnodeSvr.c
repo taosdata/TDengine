@@ -1771,37 +1771,6 @@ static int32_t vnodeRebuildSubmitReqMsg(SSubmitReq2 *pSubmitReq, void **ppMsg) {
   return code;
 }
 
-static bool isAcceptableShemaRow(const SSchemaWrapper *pExistRow, const SSchemaWrapper *pCreatingRow) {
-  if (pExistRow->nCols < pCreatingRow->nCols) {
-    return false;
-  }
-  for (int32_t i = 0; i < pCreatingRow->nCols; ++i) {
-    bool found = false;
-    for (int32_t j = i; j < pExistRow->nCols;) {
-      if (strncmp(pExistRow->pSchema[j].name, pCreatingRow->pSchema[i].name, TSDB_COL_NAME_LEN) != 0) {
-        break;
-      } else {
-        if (pExistRow->pSchema[j].type != pCreatingRow->pSchema[i].type ||
-            pExistRow->pSchema[j].bytes != pCreatingRow->pSchema[i].bytes) {
-          stWarn("column:%s has changed, line:%d", pCreatingRow->pSchema[i].name, __LINE__);
-          return false;
-        }
-        found = true;
-        break;
-      }
-      j = j + 1 < pExistRow->nCols ? j + 1 : 0;
-      if (j == i) {
-        break;
-      }
-    }
-    if (!found) {
-      stWarn("column:%s has changed, line:%d", pCreatingRow->pSchema[i].name, __LINE__);
-      return false;
-    }
-  }
-  return true;
-}
-
 static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbData, STableMetaRsp **ppRsp) {
   int32_t code = 0;
 
@@ -1812,16 +1781,38 @@ static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbDat
     return TSDB_CODE_TDB_TABLE_NOT_EXIST;
   }
 
+  if (pEntry->stbEntry.schemaRow.version == pSubmitTbData->sver) {
+    return TSDB_CODE_SUCCESS;
+  } else {
+    *ppRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
+    if (NULL == *ppRsp) {
+      return terrno;
+    }
+    (*ppRsp)->tuid = pEntry->uid;
+    (*ppRsp)->sversion = pEntry->stbEntry.schemaRow.version;
+    (*ppRsp)->numOfColumns = pEntry->stbEntry.schemaRow.nCols;
+    (*ppRsp)->numOfTags = pEntry->stbEntry.schemaTag.nCols;
+    (*ppRsp)->pSchemas =
+        taosMemoryCalloc(pEntry->stbEntry.schemaRow.nCols + pEntry->stbEntry.schemaTag.nCols, sizeof(STSchema));
+    if (NULL == (*ppRsp)->pSchemas) {
+      taosMemoryFree(*ppRsp);
+      return terrno;
+    }
+    memcpy((*ppRsp)->pSchemas, pEntry->stbEntry.schemaRow.pSchema, pEntry->stbEntry.schemaRow.nCols * sizeof(SSchema));
+    memcpy((*ppRsp)->pSchemas + pEntry->stbEntry.schemaRow.nCols, pEntry->stbEntry.schemaTag.pSchema,
+           pEntry->stbEntry.schemaTag.nCols * sizeof(SSchema));
+    if (pEntry->pExtSchemas != NULL) {
+      (*ppRsp)->pSchemaExt = taosMemoryCalloc(pEntry->stbEntry.schemaRow.nCols, sizeof(SSchemaExt));
+      if (NULL == (*ppRsp)->pSchemaExt) {
+        taosMemoryFree((*ppRsp)->pSchemas);
+        taosMemoryFree(*ppRsp);
+        return terrno;
+      }
+      memcpy((*ppRsp)->pSchemaExt, pEntry->pExtSchemas, pEntry->stbEntry.schemaRow.nCols * sizeof(SSchemaExt));
+    }
 
-  *ppRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
-  if (NULL == *ppRsp) {
-    return terrno;
+    return TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
   }
-  (*ppRsp)->tuid = pEntry->uid;
-
-  // todo
-  (*ppRsp)->sversion = pEntry->stbEntry.schemaRow.version;
-
   return code;
 }
 
@@ -1839,13 +1830,25 @@ static int32_t buildExistNormalTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTb
   if (NULL == *ppRsp) {
     return terrno;
   }
-  (*ppRsp)->tuid = pEntry->uid;
 
-  if (!isAcceptableShemaRow(&pEntry->ntbEntry.schemaRow, &pSubmitTbData->pCreateTbReq->ntb.schemaRow)) {
-    vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
-    return TSDB_CODE_STREAM_INSERT_SCHEMA_NOT_MATCH;
+  (*ppRsp)->tuid = pEntry->uid;
+  (*ppRsp)->sversion = pEntry->ntbEntry.schemaRow.version;
+  (*ppRsp)->numOfColumns = pEntry->ntbEntry.schemaRow.nCols;
+  (*ppRsp)->pSchemas = taosMemoryCalloc(pEntry->ntbEntry.schemaRow.nCols, sizeof(SSchema));
+  if (NULL == (*ppRsp)->pSchemas) {
+    taosMemoryFree(*ppRsp);
+    return terrno;
   }
-  (*ppRsp)->tversion = pEntry->ntbEntry.schemaRow.version;
+  memcpy((*ppRsp)->pSchemas, pEntry->ntbEntry.schemaRow.pSchema, pEntry->ntbEntry.schemaRow.nCols * sizeof(SSchema));
+  if (pEntry->pExtSchemas != NULL) {
+    (*ppRsp)->pSchemaExt = taosMemoryCalloc(pEntry->ntbEntry.schemaRow.nCols, sizeof(SSchemaExt));
+    if (NULL == (*ppRsp)->pSchemaExt) {
+      taosMemoryFree((*ppRsp)->pSchemas);
+      taosMemoryFree(*ppRsp);
+      return terrno;
+    }
+    memcpy((*ppRsp)->pSchemaExt, pEntry->pExtSchemas, pEntry->ntbEntry.schemaRow.nCols * sizeof(SSchemaExt));
+  }
 
   return code;
 }
@@ -1879,7 +1882,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
   void           *pAllocMsg = NULL;
   SSubmitReq2Msg *pMsg = (SSubmitReq2Msg *)pReq;
-  if (0 == pMsg->version) {
+  if (0 == taosHton64(pMsg->version)) {
     code = vnodeSubmitReqConvertToSubmitReq2(pVnode, (SSubmitReq *)pMsg, pSubmitReq);
     if (TSDB_CODE_SUCCESS == code) {
       code = vnodeRebuildSubmitReqMsg(pSubmitReq, &pReq);
@@ -2068,12 +2071,16 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
         terrno = 0;
         pSubmitTbData->uid = pSubmitTbData->pCreateTbReq->uid;  // update uid if table exist for using below
 
-        // stream: get sver from meta, write to pCreateTbRsp, and need to check crateTbReq is same as meta
-        code = buildExistTalbeInStreamRsp(pVnode, pSubmitTbData, &pCreateTbRsp->pMeta);
-        if (code) {
-          vError("vgId:%d failed to get table:%s, code:%s", TD_VID(pVnode), pSubmitTbData->pCreateTbReq->name,
-                 tstrerror(code));
-          goto _exit;
+        // stream: get sver from meta, write to pCreateTbRsp, and need to check crateTbReq is same as meta.
+        if (i == 0) {
+          // In the streaming scenario, multiple grouped req requests will only operate on the same write table, and
+          // only the first one needs to be processed.
+          code = buildExistTalbeInStreamRsp(pVnode, pSubmitTbData, &pCreateTbRsp->pMeta);
+          if (code) {
+            vError("vgId:%d failed to get table:%s, code:%s", TD_VID(pVnode), pSubmitTbData->pCreateTbReq->name,
+                   tstrerror(code));
+            goto _exit;
+          }
         }
       }
     }
@@ -2150,7 +2157,7 @@ _exit:
 
   // clear
   taosArrayDestroy(newTbUids);
-  tDestroySubmitReq(pSubmitReq, 0 == pMsg->version ? TSDB_MSG_FLG_CMPT : TSDB_MSG_FLG_DECODE);
+  tDestroySubmitReq(pSubmitReq, 0 == taosHton64(pMsg->version) ? TSDB_MSG_FLG_CMPT : TSDB_MSG_FLG_DECODE);
   tDestroySSubmitRsp2(pSubmitRsp, TSDB_MSG_FLG_ENCODE);
 
   if (code) terrno = code;

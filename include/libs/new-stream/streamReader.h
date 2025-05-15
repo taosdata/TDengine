@@ -59,6 +59,7 @@ typedef struct SStreamTriggerReaderInfo {
   SNodeList*   triggerCols;
   SNodeList*   calcCols;
   SHashObj*    streamTaskMap;
+  SHashObj*    groupIdMap;
   SSubplan*    triggerAst;
   SSubplan*    calcAst;
   SSDataBlock* triggerResBlock;
@@ -67,10 +68,14 @@ typedef struct SStreamTriggerReaderInfo {
   STSchema*    calcSchema;
 } SStreamTriggerReaderInfo;
 
-typedef struct SStreamCalcReaderInfo {
-  void*       calcScanPlan;
+typedef struct SStreamTriggerReaderCalcInfo {
+  void*       pFilterInfo;
+  void*       tsConditions;
+  SSubplan*    calcAst;
+  char*       calcScanPlan;
   qTaskInfo_t pTaskInfo;
-} SStreamCalcReaderInfo;
+  SStreamRuntimeInfo rtInfo;
+} SStreamTriggerReaderCalcInfo;
 
 typedef enum { STREAM_SCAN_GROUP_ONE_BY_ONE, STREAM_SCAN_ALL } EScanMode;
 
@@ -114,7 +119,7 @@ int32_t createDataBlockForStream(SArray* schemas, SSDataBlock** pBlockRet);
 int32_t qStreamBuildSchema(SArray* schemas, int8_t type, int32_t bytes, col_id_t colId);
 void    releaseStreamTask(void* p);
 int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* options, SStreamReaderTaskInner** ppTask,
-                         SSDataBlock* pResBlock);
+                         SSDataBlock* pResBlock, SHashObj* groupIdMap);
 void*   qStreamGetReaderInfo(int64_t streamId, int64_t taskId);
 #ifdef __cplusplus
 }

@@ -80,7 +80,7 @@ typedef struct SOperatorInfo {
   int32_t                numOfDownstream;  // number of downstream. The value is always ONE expect for join operator
   int32_t                numOfRealDownstream;
   SOperatorFpSet         fpSet;
-  void*                  pPhyNode;
+  const void*            pPhyNode;
 } SOperatorInfo;
 
 // operator creater functions

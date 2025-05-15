@@ -693,6 +693,7 @@ typedef struct SSTriggerCalcRequest {
   SArray* groupColVals;  // only provided at the first calculation of the group
   bool    brandNew;      // TODO wjm remove it
   int8_t  createTable;
+  int32_t curWinIdx; // no serialize
 } SSTriggerCalcRequest;
 
 int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTriggerCalcRequest* pReq);
@@ -739,6 +740,7 @@ typedef struct SStreamGroupInfo {
 int32_t tSerializeSStreamGroupInfo(void* buf, int32_t bufLen, const SStreamGroupInfo* gInfo);
 int32_t tDeserializeSStreamGroupInfo(void* buf, int32_t bufLen, SStreamGroupInfo* gInfo);
 void    tDestroySStreamGroupInfo(void* ptr);
+void    tDestroySValue(void* ptr);
 
 #ifdef __cplusplus
 }

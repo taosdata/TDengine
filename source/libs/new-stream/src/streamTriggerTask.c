@@ -23,16 +23,105 @@
 #include "ttime.h"
 
 static int32_t strtcSendPullReq(SSTriggerRealtimeContext *pContext, ESTriggerPullType type, void *param);
+static int32_t strtcPullNewMeta(SSTriggerRealtimeContext *pContext);
 static int32_t sthcSendPullReq(SSTriggerHistoryContext *pContext, ESTriggerPullType type, void *param);
 
 static TdThreadOnce gStreamTriggerModuleInit = PTHREAD_ONCE_INIT;
 volatile int32_t    gStreamTriggerInitRes = TSDB_CODE_SUCCESS;
 static tsem_t       gStreamTriggerCalcReqSem;
+// When the trigger task's real-time calculation catches up with the latest WAL
+// progress, it will wait and be awakened later by a timer.
+static SRWLatch gStreamTriggerWaitLatch;
+static SList    gStreamTriggerWaitList;
+static SList    gStreamTriggerReadyList;
+static tmr_h    gStreamTriggerTimerId = NULL;
 
-#define STREAM_TRIGGER_CHECK_INTERVAL_MS 10000
+#define STREAM_TRIGGER_CHECK_INTERVAL_MS 10000  // 10s
+
+typedef struct StreamTriggerWaitInfo {
+  SStreamTriggerTask *pTask;
+  int64_t             resumeTime;
+} StreamTriggerWaitInfo;
+
+static int32_t streamTriggerAddWaitTask(SStreamTriggerTask *pTask, int64_t resumeTime) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  StreamTriggerWaitInfo info = {
+      .pTask = pTask,
+      .resumeTime = resumeTime,
+  };
+  taosWLockLatch(&gStreamTriggerWaitLatch);
+  code = tdListAppend(&gStreamTriggerWaitList, &info);
+  taosWUnLockLatch(&gStreamTriggerWaitLatch);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("failed to add stream trigger task %" PRIx64 "-%" PRIx64 " to wait list since %s",
+                 pTask->task.streamId, pTask->task.taskId, tstrerror(code));
+  } else {
+    ST_TASK_DLOG("add stream trigger task %" PRIx64 "-%" PRIx64 " to wait list, resumeTime:%" PRId64,
+                 pTask->task.streamId, pTask->task.taskId, resumeTime);
+  }
+  return code;
+}
+
+static void streamTriggerCheckWaitList(void *param, void *tmrId) {
+  int64_t now = taosGetMonotonicMs();
+  taosWLockLatch(&gStreamTriggerWaitLatch);
+  SListNode *pNode = TD_DLIST_HEAD(&gStreamTriggerWaitList);
+  while (pNode != NULL) {
+    SListNode *pCurNode = pNode;
+    pNode = TD_DLIST_NODE_NEXT(pCurNode);
+    StreamTriggerWaitInfo *pInfo = (StreamTriggerWaitInfo *)pCurNode->data;
+    if (pInfo == NULL || pInfo->pTask == NULL) {
+      stWarn("unexpected null stream trigger wait info");
+      TD_DLIST_POP(&gStreamTriggerWaitList, pCurNode);
+      taosMemoryFreeClear(pCurNode);
+    } else if (pInfo->resumeTime <= now) {
+      TD_DLIST_POP(&gStreamTriggerWaitList, pCurNode);
+      TD_DLIST_APPEND(&gStreamTriggerReadyList, pCurNode);
+      stDebug("stream trigger task %" PRId64 "-%" PRId64 " is ready to run since now:%" PRId64 ", resumeTime:%" PRId64,
+              pInfo->pTask->task.streamId, pInfo->pTask->task.taskId, now, pInfo->resumeTime);
+    }
+  }
+  taosWUnLockLatch(&gStreamTriggerWaitLatch);
+
+  streamTmrStart(streamTriggerCheckWaitList, STREAM_TRIGGER_CHECK_INTERVAL_MS, NULL, gStreamMgmt.timer,
+                 &gStreamTriggerTimerId, "stream-trigger");
+  return;
+}
+
+static StreamTriggerWaitInfo *streamTriggerFetchReadyTask() {
+  taosWLockLatch(&gStreamTriggerWaitLatch);
+  SListNode *pNode = TD_DLIST_HEAD(&gStreamTriggerReadyList);
+  if (pNode != NULL) {
+    TD_DLIST_POP(&gStreamTriggerReadyList, pNode);
+  }
+  taosWUnLockLatch(&gStreamTriggerWaitLatch);
+  return (pNode != NULL) ? (StreamTriggerWaitInfo *)pNode->data : NULL;
+}
+
+static void streamTriggerPutBackReadyTask(StreamTriggerWaitInfo *pInfo) {
+  if (pInfo != NULL) {
+    SListNode *pNode = listNode(pInfo);
+    taosWLockLatch(&gStreamTriggerWaitLatch);
+    TD_DLIST_APPEND(&gStreamTriggerReadyList, pNode);
+    taosWUnLockLatch(&gStreamTriggerWaitLatch);
+  }
+}
 
 static void streamTriggerEnvDoInit() {
-  gStreamTriggerInitRes = tsem_init(&gStreamTriggerCalcReqSem, 0, 10);  // todo(kjq): ajust dynamically
+  gStreamTriggerInitRes = tsem_init(&gStreamTriggerCalcReqSem, 0, 10);  // todo(kjq): adjust dynamically
+  if (gStreamTriggerInitRes != TSDB_CODE_SUCCESS) {
+    stError("failed to init stream trigger calc req sem since %s", tstrerror(gStreamTriggerInitRes));
+    return;
+  }
+  taosInitRWLatch(&gStreamTriggerWaitLatch);
+  tdListInit(&gStreamTriggerWaitList, sizeof(StreamTriggerWaitInfo));
+  streamTmrStart(streamTriggerCheckWaitList, STREAM_TRIGGER_CHECK_INTERVAL_MS, NULL, gStreamMgmt.timer,
+                 &gStreamTriggerTimerId, "stream-trigger");
 }
 
 int32_t streamTriggerEnvInit() {
@@ -49,43 +138,51 @@ void streamTriggerEnvCleanup() {
   if (code != TSDB_CODE_SUCCESS) {
     stWarn("failed to destroy gTriggerCalcReqSem since %s", tstrerror(code));
   }
+  taosWLockLatch(&gStreamTriggerWaitLatch);
+  tdListEmpty(&gStreamTriggerWaitList);
+  tdListEmpty(&gStreamTriggerReadyList);
+  taosWUnLockLatch(&gStreamTriggerWaitLatch);
 }
 
 int32_t streamTriggerKickCalc() { return tsem_post(&gStreamTriggerCalcReqSem); }
 
 static int32_t streamTriggerAcquireCalcReq() { return tsem_wait(&gStreamTriggerCalcReqSem); }
 
-#define TRIGGER_META_SKEY_INACCURATE_MASK 0x01
-#define TRIGGER_META_EKEY_INACCURATE_MASK 0x02
-#define TRIGGER_META_DATA_EMPTY_MASK      0x04
+#define TRIGGER_META_SKEY_INACCURATE_MASK (1 << 0)
+#define TRIGGER_META_EKEY_INACCURATE_MASK (1 << 1)
+#define TRIGGER_META_DATA_EMPTY_MASK      (1 << 2)
+
+#define SET_TRIGGER_META_NROW_INACCURATE(pMeta) \
+  do {                                          \
+    if ((pMeta)->nrows >= 0) {                  \
+      (pMeta)->nrows = INT64_MIN;               \
+    }                                           \
+  } while (0)
+#define IS_TRIGGER_META_NROW_INACCURATE(pMeta) ((pMeta)->nrows < 0)
 
 #define SET_TRIGGER_META_SKEY_INACCURATE(pMeta)          \
   do {                                                   \
-    if ((pMeta)->nrows >= 0) {                           \
-      (pMeta)->nrows = INT64_MIN;                        \
-    }                                                    \
+    SET_TRIGGER_META_NROW_INACCURATE(pMeta);             \
     (pMeta)->nrows |= TRIGGER_META_SKEY_INACCURATE_MASK; \
   } while (0)
+#define IS_TRIGGER_META_SKEY_INACCURATE(pMeta) \
+  (IS_TRIGGER_META_NROW_INACCURATE(pMeta) && ((pMeta)->nrows & TRIGGER_META_SKEY_INACCURATE_MASK))
 
 #define SET_TRIGGER_META_EKEY_INACCURATE(pMeta)          \
   do {                                                   \
-    if ((pMeta)->nrows >= 0) {                           \
-      (pMeta)->nrows = INT64_MIN;                        \
-    }                                                    \
+    SET_TRIGGER_META_NROW_INACCURATE(pMeta);             \
     (pMeta)->nrows |= TRIGGER_META_EKEY_INACCURATE_MASK; \
   } while (0)
+#define IS_TRIGGER_META_EKEY_INACCURATE(pMeta) \
+  (IS_TRIGGER_META_NROW_INACCURATE(pMeta) && ((pMeta)->nrows & TRIGGER_META_EKEY_INACCURATE_MASK))
 
 #define SET_TRIGGER_META_DATA_EMPTY(pMeta)          \
   do {                                              \
+    SET_TRIGGER_META_NROW_INACCURATE(pMeta);        \
     (pMeta)->nrows |= TRIGGER_META_DATA_EMPTY_MASK; \
   } while (0)
-
-#define IS_TRIGGER_META_SKEY_INACCURATE(pMeta) \
-  (((pMeta)->nrows < 0) && ((pMeta)->nrows & TRIGGER_META_SKEY_INACCURATE_MASK))
-#define IS_TRIGGER_META_EKEY_INACCURATE(pMeta) \
-  (((pMeta)->nrows < 0) && ((pMeta)->nrows & TRIGGER_META_EKEY_INACCURATE_MASK))
-#define IS_TRIGGER_META_DATA_EMPTY(pMeta)      (((pMeta)->nrows < 0) && ((pMeta)->nrows & TRIGGER_META_DATA_EMPTY_MASK))
-#define IS_TRIGGER_META_NROW_INACCURATE(pMeta) ((pMeta)->nrows < 0)
+#define IS_TRIGGER_META_DATA_EMPTY(pMeta) \
+  (IS_TRIGGER_META_NROW_INACCURATE(pMeta) && ((pMeta)->nrows & TRIGGER_META_DATA_EMPTY_MASK))
 
 #define IS_TRIGGER_WAL_META_MERGER_EMPTY(pMerger) (taosArrayGetSize((pMerger)->pMetaNodeBuf) == 0)
 #define SET_TRIGGER_WAL_META_SESS_MERGER_INVALID(pMerger) \
@@ -111,7 +208,7 @@ static void stwmClear(SSTriggerWalMetaMerger *pMerger) {
     for (int32_t i = 0; i < TARRAY_SIZE(pMerger->pMetaLists); ++i) {
       SSTriggerWalMetaList *pList = TARRAY_GET_ELEM(pMerger->pMetaLists, i);
       if (pList->pDataBlock != NULL) {
-        blockDataDestroy(pList->pDataBlock);
+        blockDataCleanup(pList->pDataBlock);
         pList->pDataBlock = NULL;
       }
     }
@@ -136,7 +233,7 @@ static void stwmDestroy(void *ptr) {
     for (int32_t i = 0; i < TARRAY_SIZE(pMerger->pMetaLists); ++i) {
       SSTriggerWalMetaList *pList = TARRAY_GET_ELEM(pMerger->pMetaLists, i);
       if (pList->pDataBlock != NULL) {
-        blockDataDestroy(pList->pDataBlock);
+        blockDataCleanup(pList->pDataBlock);
         pList->pDataBlock = NULL;
       }
     }
@@ -152,7 +249,8 @@ static void stwmDestroy(void *ptr) {
   taosMemoryFreeClear(*ppMerger);
 }
 
-static int32_t stwmSetWalMetas(SSTriggerWalMetaMerger *pMerger, SSTriggerWalMeta *pMetas, int32_t nMetas, int32_t tsSlotId) {
+static int32_t stwmSetWalMetas(SSTriggerWalMetaMerger *pMerger, SSTriggerWalMeta *pMetas, int32_t nMetas,
+                               int32_t tsSlotId) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
   SSTriggerRealtimeContext *pContext = pMerger->pContext;
@@ -390,7 +488,7 @@ static int32_t stwmMetaListSkip2Ts(SSTriggerWalMetaMerger *pMerger, SSTriggerWal
     pList->head = pList->head->next;
     pList->nextIdx = -1;
     if (pList->pDataBlock != NULL) {
-      blockDataDestroy(pList->pDataBlock);
+      blockDataCleanup(pList->pDataBlock);
       pList->pDataBlock = NULL;
     }
   }
@@ -583,7 +681,7 @@ static int32_t stwmBindDataBlock(SSTriggerWalMetaMerger *pMerger, SSDataBlock *p
     pList->nextTs = (pList->head == NULL) ? INT64_MAX : pList->head->pMeta->skey;
     pList->nextIdx = -1;
     pList->pDataBlock = NULL;
-    blockDataDestroy(pDataBlock);
+    blockDataCleanup(pDataBlock);
   } else {
     SColumnInfoData  *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pMerger->tsSlotId);
     SSTriggerWalMeta *pMeta = pList->head->pMeta;
@@ -657,7 +755,7 @@ static int32_t stwmMetaListSkipNrow(SSTriggerWalMetaMerger *pMerger, SSTriggerWa
       pList->head = pList->head->next;
       pList->nextTs = (pList->head == NULL) ? INT64_MAX : pList->head->pMeta->skey;
       pList->nextIdx = -1;
-      blockDataDestroy(pList->pDataBlock);
+      blockDataCleanup(pList->pDataBlock);
       pList->pDataBlock = NULL;
     } else {
       pList->nextTs = *(int64_t *)colDataGetNumData(pTsCol, nextIdx);
@@ -997,7 +1095,7 @@ static void strtgNextIntervalWindow(const SInterval *pInterval, STimeWindow *pWi
   nextStart = taosTimeAdd(nextStart, pInterval->sliding, pInterval->slidingUnit, pInterval->precision, NULL);
   nextStart = taosTimeAdd(nextStart, pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
   pWindow->skey = nextStart;
-  pWindow->ekey = taosTimeAdd(nextStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL);
+  pWindow->ekey = taosTimeGetIntervalEnd(nextStart, pInterval);
 }
 
 static STimeWindow strtgGetPeriodWindow(const SInterval *pInterval, int64_t ts) {
@@ -1121,6 +1219,10 @@ static int32_t strtgOpenNewWindow(SSTriggerRealtimeGroup *pGroup, int64_t ts, ch
       .notifyType = STRIGGER_EVENT_WINDOW_OPEN,
       .extraNotifyContent = pExtraNotifyContent,
   };
+  if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
+    param.wend++;
+    param.wduration++;
+  }
   if (pTask->calcEventType & STRIGGER_EVENT_WINDOW_OPEN) {
     SSTriggerCalcRequest *pReq = &pContext->calcReq;
     if (pContext->calcStatus == STRIGGER_REQUEST_IDLE) {
@@ -1169,6 +1271,10 @@ static int32_t strtgCloseCurrentWindow(SSTriggerRealtimeGroup *pGroup, char *pEx
       .notifyType = STRIGGER_EVENT_WINDOW_CLOSE,
       .extraNotifyContent = pExtraNotifyContent,
   };
+  if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
+    param.wend++;
+    param.wduration++;
+  }
   if (pTask->calcEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
     SSTriggerCalcRequest *pReq = &pContext->calcReq;
     if (pContext->calcStatus == STRIGGER_REQUEST_IDLE) {
@@ -1673,7 +1779,7 @@ static int32_t strtgDoCheck(SSTriggerRealtimeGroup *pGroup) {
 
 _end:
   if (pDataBlock != NULL && needFree) {
-    blockDataDestroy(pDataBlock);
+    blockDataCleanup(pDataBlock);
   }
   if (pExtraNotifyContent != NULL) {
     taosMemoryFreeClear(pExtraNotifyContent);
