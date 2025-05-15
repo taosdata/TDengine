@@ -3341,51 +3341,62 @@ pub async fn legacy_to_taos(
     let cancel_clone = cancel.clone();
     let metrics_arc = metrics_arc.clone();
     let run = async {
-        if !matches!(source_opts.schema, SchemaMode::None) {
-            const BREAKPOINT_KEY_SCHEMA: &str = "...schema...";
-            let mut schema_synced = false;
-            // Step A: check breakpoints for schema
-            if let Some(breakpoints) = scheduler.breakpoints_ref() {
-                if let Some(v) = breakpoints
-                    .get(BREAKPOINT_KEY_SCHEMA)
-                    .await
-                    .ok()
-                    .and_then(|v| v)
-                {
-                    tracing::info!("Schema is synced at {v}, skipped");
-                    schema_synced = true;
-                }
+        match source_opts.schema {
+            SchemaMode::None => {
+                // do nothing
             }
-
-            if !schema_synced {
-                tracing::info!("synchronize schemas");
+            SchemaMode::Only => {
+                info!("synchronize schemas");
                 let future = sync_schema(&scheduler, &todo, source_opts.workers as _);
                 tokio::select! {
                     _ = future => {}
                     _ = cancel.cancelled() => {
-                        tracing::debug!("Schema task queue cancelled");
+                        debug!("Schema task queue cancelled");
+                    }
+                }
+                println!("{}", metrics);
+                return Ok(());
+            }
+            SchemaMode::Always => {
+                const BREAKPOINT_KEY_SCHEMA: &str = "...schema...";
+                let mut schema_synced = false;
+                // Step A: check breakpoints for schema
+                if let Some(breakpoints) = scheduler.breakpoints_ref() {
+                    if let Some(v) = breakpoints
+                        .get(BREAKPOINT_KEY_SCHEMA)
+                        .await
+                        .ok()
+                        .and_then(|v| v)
+                    {
+                        info!("Schema is synced at {v}, skipped");
+                        schema_synced = true;
+                    }
+                }
+
+                if !schema_synced {
+                    info!("synchronize schemas");
+                    let future = sync_schema(&scheduler, &todo, source_opts.workers as _);
+                    tokio::select! {
+                        _ = future => {}
+                        _ = cancel.cancelled() => {
+                            debug!("Schema task queue cancelled");
+                        }
+                    }
+                }
+
+                if let Some(breakpoints) = scheduler.breakpoints_ref() {
+                    if let Err(err) = breakpoints
+                        .set(BREAKPOINT_KEY_SCHEMA, &chrono::Utc::now().to_string())
+                        .await
+                    {
+                        warn!("Set schema breakpoint error: {err:#}");
                     }
                 }
             }
-
-            if let Some(breakpoints) = scheduler.breakpoints_ref() {
-                if let Err(err) = breakpoints
-                    .set(BREAKPOINT_KEY_SCHEMA, &chrono::Utc::now().to_string())
-                    .await
-                {
-                    tracing::warn!("Set schema breakpoint error: {err:#}");
-                }
-            }
-        }
-
-        if matches!(source_opts.schema, SchemaMode::Only) {
-            println!("{}", metrics);
-            return Ok(());
         }
 
         let restro_mark = std::time::Instant::now();
-
-        tracing::info!("monitoring for schema changes");
+        info!("monitoring for schema changes");
         let now = Utc::now();
         let schema_polling_scheduler = scheduler.clone();
         let schema_polling_todo = todo.clone();
