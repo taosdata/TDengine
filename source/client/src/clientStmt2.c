@@ -392,6 +392,7 @@ static int32_t stmtCleanExecInfo(STscStmt2* pStmt, bool keepTable, bool deepClea
       pStmt->exec.pBlockHash = NULL;
 
       if (NULL != pStmt->exec.pCurrBlock) {
+        taosMemoryFreeClear(pStmt->exec.pCurrBlock->boundColsInfo.pColIndex);
         taosMemoryFreeClear(pStmt->exec.pCurrBlock->pData);
         qDestroyStmtDataBlock(pStmt->exec.pCurrBlock);
         pStmt->exec.pCurrBlock = NULL;
@@ -1300,6 +1301,11 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags, SVCreateTbReq** pCre
 
   void* boundTags = NULL;
   if (pStmt->sql.stbInterlaceMode) {
+    if ((*pDataBlock)->pData->pCreateTbReq) {
+      tdDestroySVCreateTbReq((*pDataBlock)->pData->pCreateTbReq);
+      taosMemoryFreeClear((*pDataBlock)->pData->pCreateTbReq);
+      (*pDataBlock)->pData->pCreateTbReq = NULL;
+    }
     boundTags = pStmt->sql.siInfo.boundTags;
     *pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
     if (NULL == pCreateTbReq) {
