@@ -151,6 +151,7 @@ typedef struct SSTriggerRealtimeContext {
 
   SSHashObj *pReaderWalProgress;
   int32_t    curReaderIdx;
+  bool       getWalMeta;
 
   SSHashObj                 *pGroups;
   TSSTriggerRealtimeGroupBuf groupsToCheck;
@@ -269,6 +270,7 @@ typedef struct SStreamTriggerTask {
   // extra info
   bool singleVnodePerGroup;
   bool needRowNumber;
+  bool needGroupColValue;
   bool needCacheData;
 
   // runtime info
