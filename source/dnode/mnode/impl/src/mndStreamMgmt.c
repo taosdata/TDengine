@@ -623,6 +623,7 @@ static int32_t msmTDAddReaderTriggerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, S
           state.id.taskId = msmAssignTaskId();
           state.id.nodeId = pVgroup->vgId;
           state.id.taskIdx = 0;
+          state.flags = STREAM_FLAG_TRIGGER_READER;
           TSDB_CHECK_NULL(taosArrayPush(pReader, &state), code, lino, _return, terrno);
 
           SStmTaskDeploy info = {0};
