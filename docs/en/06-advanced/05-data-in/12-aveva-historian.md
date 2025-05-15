@@ -13,6 +13,10 @@ import imgStep06 from '../../assets/aveva-historian-06.png';
 import imgStep07 from '../../assets/aveva-historian-07.png';
 import imgStep08 from '../../assets/aveva-historian-08.png';
 
+import Enterprise from '../../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
+
 This section describes how to create data migration/data synchronization tasks through the Explorer interface, migrating/synchronizing data from AVEVA Historian to the current TDengine cluster.
 
 ## Feature Overview

@@ -9,7 +9,7 @@ import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import RequestId from "../../assets/resources/_request_id.mdx";
 
-`taopsy` is the official connector provided by TDengine database for Python language, which provides multiple access interfaces for database writing, querying, subscribing, etc.
+`taopsy` is the official TDengine python connector, which provides multiple access interfaces for database writing, querying, subscribing, etc.
 
 The installation command is as follows:
 ``` bash
@@ -55,30 +55,34 @@ Supports Python 3.0 and above.
 Python Connector historical versions (it is recommended to use the latest version of 'taopsy'):
 
 |Python Connector Version | Major Changes                                                                           | TDengine Version|
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-|2.7.21 | Native supports STMT2 writing                                                                              | - |
-|2.7.19 | Support Apache Superset connection to TDengine Cloud data source                                           | - |
-|2.7.18 | Support Apache SuperSet BI Tools.                                                                          | - |
-|2.7.16 | Add subscription configuration (session. timeout. ms, Max. roll. interval. ms).                            | - |
-|2.7.15 | Added support for VARBINRY and GEOMETRY types.                                                             | - |
-|2.7.14 | Fix Known Issues.                                                                                          | - |
-|2.7.13 | Added tmq synchronous submission offset interface.                                                         | - |
-|2.7.12 | 1. Added support for varbinary type (STMT currently does not support varbinary). <br/> 2 Query performance improvement (thanks to contributor [hadrianl](https://github.com/taosdata/taos-connector-python/pull/209) ). | 3.1.1.2 and higher|
-|2.7.9  | Data subscription supports obtaining and resetting consumption progress.                                    | 3.0.2.6 and higher|
-|2.7.8  | Added 'executioner_many'.                                                                                   | 3.0.0.0 and higher|
+| --------- | ----------------------------------------------------------------------------------------------------- | ----------------- |
+| 2.8.0 | Remove Apache Superset Driver                                                                              | - |
+|2.7.23 | Supports DECIMAL data type                                                                                 | - |
+|2.7.22 | Supports Python 3.12 and above                                                                             | - |
+|2.7.21 | Supports native STMT2 writing                                                                              | - |
+|2.7.19 | Supports Apache Superset connection to TDengine Cloud data source                                          | - |
+|2.7.18 | Supports Apache SuperSet BI Tools                                                                          | - |
+|2.7.16 | Adds subscription configuration (session.timeout.ms, Max.roll.interval.ms)                                 | - |
+|2.7.15 | Supports VARBINARY and GEOMETRY data types                                                                 | - |
+|2.7.14 | Fixes known issues                                                                                         | - |
+|2.7.13 | Adds tmq synchronous submission offset interface                                                           | - |
+|2.7.12 | 1. Adds support for VARBINARY type (STMT currently does not support VARBINARY) <br/> 2 Improves query performance (thanks to contributor [hadrianl](https://github.com/taosdata/taos-connector-python/pull/209) ) | 3.1.1.2 and higher|
+|2.7.9  | Data subscription supports obtaining and resetting consumption progress                                    | 3.0.2.6 and higher|
+|2.7.8  | Adds 'executioner_many'                                                                                    | 3.0.0.0 and higher|
 
 WebSocket Connector Historical Versions:
 
 |WebSocket Connector Version | Major Changes                                                                                    | TDengine Version|
 | ----------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
-|0.3.9 | Fix the problem of incomplete data retrieval when customizing the number of rows with the "fetchmany" method.           | - |
-|0.3.8 | Supported connecting SuperSet to the TDengine cloud service instance.                                                   | - |
-|0.3.5 | Fixed the issues in the crypto provider.                                                                                | - |
-|0.3.4 | Supported varbinary and geometry data type.                                                                             | 3.3.0.0 and higher |
-|0.3.2 | Optimize WebSocket SQL query and insertion performance, modify readme and documentation, fix known issues.              | 3.2.3.0 and higher|
-|0.2.9 | Known issue fixes.                                                                                                      | - |
-|0.2.5 | 1. Data subscription supports obtaining and resetting consumption progress. <br/>2 Support schemaless. <br/>3 Support STMT. | - |
-|0.2.4 | Data Subscription Addition/Unsubscribe Method.                                                                          | 3.0.5.0 and higher|
+|0.4.0 | Support dynamic add tmq attribute                                                                                       | - |
+|0.3.9 | Fixes the problem of incomplete data retrieval when customizing the number of rows with the "fetchmany" method          | - |
+|0.3.8 | Supports connecting SuperSet to the TDengine cloud service instance                                                     | - |
+|0.3.5 | Fixes the issues in the crypto provider                                                                                 | - |
+|0.3.4 | Supports VARBINARY and GEOMETRY data types                                                                              | 3.3.0.0 and higher |
+|0.3.2 | Optimizes WebSocket SQL query and insertion performance, modifies readme and documentation, fixes known issues          | 3.2.3.0 and higher|
+|0.2.9 | Fixes known issues                                                                                                      | - |
+|0.2.5 | 1. Data subscription supports obtaining and resetting consumption progress <br/>2. Supports schemaless <br/>3. Supports STMT | - |
+|0.2.4 | Adds data subscription addition/unsubscribe methods                                                                     | 3.0.5.0 and higher|
 
 ## Exception Handling
 
@@ -116,20 +120,21 @@ All database operations in the Python Connector, if an exception occurs, will be
 TDengine currently supports timestamp, numeric, character, boolean types, and the corresponding Python type conversions are as follows:
 
 |TDengine DataType|Python DataType|
-|:---------------|:--------------|
-|TIMESTAMP|datetime|
-|INT|int|
-|BIGINT|int|
-|FLOAT|float|
-|DOUBLE|int|
-|SMALLINT|int|
-|TINYINT|int|
-|BOOL|bool|
-|BINARY|str|
-|NCHAR|str|
-|JSON|str|
-|GEOMETRY|bytearray|
-|VARBINARY|bytearray|
+|:----------------|:--------------|
+|   TIMESTAMP     |  datetime  |
+|      INT        |    int     |
+|    BIGINT       |    int     |
+|     FLOAT       |   float    |
+|    DOUBLE       |    int     |
+|   SMALLINT      |    int     |
+|    TINYINT      |    int     |
+|     BOOL        |    bool    |
+|    BINARY       |    str     |
+|     NCHAR       |    str     |
+|     JSON        |    str     |
+|   GEOMETRY      | bytearray  |
+|   VARBINARY     | bytearray  |
+|    DECIMAL      |  Decimal   |
 
 ## Example Programs Summary
 

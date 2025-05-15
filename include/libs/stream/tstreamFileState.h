@@ -53,6 +53,7 @@ void              streamFileStateClear(SStreamFileState* pFileState);
 bool              needClearDiskBuff(SStreamFileState* pFileState);
 void              streamFileStateReleaseBuff(SStreamFileState* pFileState, SRowBuffPos* pPos, bool used);
 void              streamFileStateClearBuff(SStreamFileState* pFileState, SRowBuffPos* pPos);
+int32_t           getFileStateRowSize(SStreamFileState* pFileState);
 
 int32_t addRowBuffIfNotExist(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen,
                              int32_t* pWinCode);

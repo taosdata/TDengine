@@ -89,7 +89,7 @@ if $data10 != @   -> Merge (columns=3 width=24 input_order=unknown output_order=
   return -1
 endi
 sql explain select count(*), last_row(f1), min(f1) from sta interval(1s);
-if $data10 != @   -> Merge (columns=4 width=106 input_order=asc output_order=asc mode=sort)@ then
+if $data10 != @   -> Merge (columns=4 width=122 input_order=asc output_order=asc mode=sort)@ then
   return -1
 endi
 sql explain select distinct count(*), last_row(f1), min(f1) from tba1;
@@ -158,7 +158,18 @@ print step 3-------------------------------
 sql drop database if exists test1;
 sql create database test1  cachemodel 'both' vgroups 4;
 sql use test1;
-sql create table stb (ts timestamp,a int primary key,b int,c int) tags(ta int,tb int,tc int);
+sql create table stb (ts timestamp,a int COMPOSITE key,b int,c int) tags(ta int,tb int,tc int);
+sql show create table stb
+if $data01 != @CREATE STABLE `stb` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `a` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium' COMPOSITE KEY, `b` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `c` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium') TAGS (`ta` INT, `tb` INT, `tc` INT)@ then
+  print $data01
+  return -1
+endi
+
+sql desc stb
+if $data13 != @COMPOSITE KEY@ then
+  print $data13
+  return -1
+endi
 
 sql create table aaat1 using stb tags(1,1,1);
 sql create table bbbt2 using stb tags(2,2,2);

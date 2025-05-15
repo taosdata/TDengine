@@ -72,34 +72,34 @@ class TDTestCase:
 
     def check_pk_definition(self, table_name: str, d_type: LegalDataType, t_type: TableType):
         tdSql.query(f"describe {table_name}", show=SHOW_LOG)
-        tdSql.checkData(1, 3, "PRIMARY KEY")
+        tdSql.checkData(1, 3, "COMPOSITE KEY")
 
         if d_type == LegalDataType.BINARY:
             d_type = LegalDataType.VARCHAR
 
         if t_type == TableType.SUPERTABLE:
-            expected_value = f"CREATE STABLE `{table_name}` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `pk` {d_type.value} ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium' PRIMARY KEY, `c2` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium') TAGS (`engine` INT)"
+            expected_value = f"CREATE STABLE `{table_name}` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `pk` {d_type.value} ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium' COMPOSITE KEY, `c2` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium') TAGS (`engine` INT)"
         elif t_type == TableType.NORNALTABLE:
-            expected_value = f"CREATE TABLE `{table_name}` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `pk` {d_type.value} ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium' PRIMARY KEY, `c2` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium')"
+            expected_value = f"CREATE TABLE `{table_name}` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `pk` {d_type.value} ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium' COMPOSITE KEY, `c2` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium')"
 
         tdSql.query(f"show create table {table_name}", show=SHOW_LOG)
         result = tdSql.queryResult
 
-        tdSql.checkEqual("PRIMARY KEY" in result[0][1], True)
+        tdSql.checkEqual("COMPOSITE KEY" in result[0][1], True)
 
     def test_pk_datatype_legal(self, stable_name: str, ctable_name: str, ntable_name: str, dtype: LegalDataType):
         # create super table and child table
         tdSql.execute(f"drop table if exists {stable_name}", show=SHOW_LOG)
         tdSql.execute(f"drop table if exists {ntable_name}", show=SHOW_LOG)
         
-        tdSql.execute(f"create table {stable_name} (ts timestamp, pk {dtype.value} primary key, c2 int) tags (engine int)", show=SHOW_LOG)
+        tdSql.execute(f"create table {stable_name} (ts timestamp, pk {dtype.value} COMPOSITE key, c2 int) tags (engine int)", show=SHOW_LOG)
         self.check_pk_definition(stable_name, dtype, TableType.SUPERTABLE)
 
         tdSql.execute(f"create table {ctable_name} using {stable_name} tags (0)", show=SHOW_LOG)
         tdSql.execute(f"create table {ctable_name}_1 using {stable_name} tags (1) {ctable_name}_2 using {stable_name} tags (2) {ctable_name}_3 using {stable_name} tags (3)", show=SHOW_LOG)
 
         # create normal table
-        tdSql.execute(f"create table {ntable_name} (ts timestamp, pk {dtype.value} primary key, c2 int)", show=SHOW_LOG)
+        tdSql.execute(f"create table {ntable_name} (ts timestamp, pk {dtype.value} COMPOSITE key, c2 int)", show=SHOW_LOG)
         self.check_pk_definition(ntable_name, dtype, TableType.NORNALTABLE)
 
     def test_pk_datatype_illegal(self, stable_name: str, ntable_name: str, dtype: LegalDataType):

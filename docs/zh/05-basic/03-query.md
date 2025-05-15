@@ -4,9 +4,9 @@ title: TDengine 数据查询
 toc_max_heading_level: 4
 ---
 
-import win from './window.png';
-import swin from './session-window.png';
-import ewin from './event-window.png';
+import win from './pic/window.png';
+import swin from './pic/session_window.png';
+import ewin from './pic/event_window.png';
 
 相较于其他众多时序数据库和实时数据库，TDengine 的一个独特优势在于，自其首个版本发布之初便支持标准的 SQL 查询功能。这一特性极大地降低了用户在使用过程中的学习难度。本章将以智能电表的数据模型为例介绍如何在 TDengine 中运用 SQL 查询来处理时序数据。如果需要进一步了解 SQL 语法的细节和功能，建议参阅 TDengine 的官方文档。通过本章的学习，你将能够熟练掌握 TDengine 的 SQL 查询技巧，进而高效地对时序数据进行操作和分析。
 
@@ -182,7 +182,7 @@ INTERVAL(interval_val [, interval_offset])
 ```
 
 时间窗口子句包括 3 个子句：
-- INTERVAL 子句：用于产生相等时间周期的窗口，interval_val 指定每个时间窗口的大小，interval_offset 指定窗口偏移量；默认情况下，窗口是从 Unix time 0（1970-01-01 00:00:00 UTC）开始划分的；如果设置了 interval_offset，那么窗口的划分将从 “Unix time 0 + interval_offset” 开始；
+- INTERVAL 子句：用于产生相等时间周期的窗口，interval_val 指定每个时间窗口的大小，interval_offset 指定窗口偏移量；默认情况下，窗口是从 Unix time 0（1970-01-01 00:00:00 UTC）开始划分的；如果设置了 interval_offset，那么窗口的划分将从 "Unix time 0 + interval_offset" 开始；
 - SLIDING 子句：用于指定窗口向前滑动的时间；
 - FILL：用于指定窗口区间数据缺失的情况下，数据的填充模式。
 
@@ -224,9 +224,9 @@ Query OK, 12 row(s) in set (0.021265s)
 
 #### 滑动窗口
 
-每次执行的查询是一个时间窗口，时间窗口随着时间流动向前滑动。在定义连续查询的时候需要指定时间窗口（time window ）大小和每次前向增量时间（forward sliding times）。如下图，[t0s, t0e]、[t1s, t1e]、[t2s, t2e] 是分别是执行三次连续查询的时间窗口范围，窗口的前向滑动的时间范围 sliding time 标识。查询过滤、聚合等操作按照每个时间窗口为独立的单位执行。
+每次执行的查询是一个时间窗口，时间窗口随着时间流动向前滑动。在定义连续查询的时候需要指定时间窗口（time window）大小和每次前向增量时间（forward sliding times）。如下图，[t0s, t0e]、[t1s, t1e]、[t2s, t2e] 是分别是执行三次连续查询的时间窗口范围，窗口的前向滑动的时间范围 sliding time 标识。查询过滤、聚合等操作按照每个时间窗口为独立的单位执行。
 
-![时间窗口示意图](./sliding-window.png)
+![时间窗口示意图](./pic/time_window.webp)
 
 **注意** 
 
@@ -308,7 +308,7 @@ Query OK, 5 row(s) in set (0.016812s)
 #### FILL 子句
 
 1. 不进行填充：NONE（默认填充模式）。
-2. VALUE 填充：固定值填充，此时需要指定填充的数值。例如：FILL(VALUE, 1.23)。这里需要注意，最终填充的值受由相应列的类型决定，如 FILL(VALUE, 1.23)，相应列为 INT 类型，则填充值为 1，若查询列表中有多列需要 FILL，则需要给每一个 FILL 列指定 VALUE，如 `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`。注意，SELECT 表达式中只有包含普通列时才需要指定 FILL VALUE，如 `_wstart`、`_wstart+1a`、`now`、`1+1` 以及使用 partition by 时的 partition key (如 tbname)都不需要指定 VALUE,，如 `timediff(last(ts), _wstart)` 则需要指定VALUE。
+2. VALUE 填充：固定值填充，此时需要指定填充的数值。例如：FILL(VALUE, 1.23)。这里需要注意，最终填充的值受由相应列的类型决定，如 FILL(VALUE, 1.23)，相应列为 INT 类型，则填充值为 1，若查询列表中有多列需要 FILL，则需要给每一个 FILL 列指定 VALUE，如 `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`。注意，SELECT 表达式中只有包含普通列时才需要指定 FILL VALUE，如 `_wstart`、`_wstart+1a`、`now`、`1+1` 以及使用 partition by 时的 partition key (如 tbname) 都不需要指定 VALUE,，如 `timediff(last(ts), _wstart)` 则需要指定 VALUE。
 3. PREV 填充：使用前一个非 NULL 值填充数据。例如：FILL(PREV)。
 4. NULL 填充：使用 NULL 填充数据。例如：FILL(NULL)。
 5. LINEAR 填充：根据前后距离最近的非 NULL 值做线性插值填充。例如：FILL(LINEAR)。
@@ -377,7 +377,7 @@ STATE_WINDOW(
 SLIMIT 2;
 ```
 
-以上 SQL，查询超级表 meters 中，时间戳大于等于 2022-01-01T00:00:00+08:00，且时间戳小于 2022-01-01T00:05:00+08:00的数据；数据首先按照子表名 tbname 进行数据切分；根据电压是否在正常范围内进行状态窗口的划分；最后，取前 2 个分片的数据作为结果。查询结果如下：（由于数据是随机生成，结果集包含的数据条数会有不同）
+以上 SQL，查询超级表 meters 中，时间戳大于等于 2022-01-01T00:00:00+08:00，且时间戳小于 2022-01-01T00:05:00+08:00 的数据；数据首先按照子表名 tbname 进行数据切分；根据电压是否在正常范围内进行状态窗口的划分；最后，取前 2 个分片的数据作为结果。查询结果如下：（由于数据是随机生成，结果集包含的数据条数会有不同）
 
 ```text
  tbname |         _wstart         |          _wend          |  _wduration   |    status     |
@@ -432,7 +432,7 @@ SESSION(ts, 10m)
 SLIMIT 10;
 ```
 
-上面的 SQL，查询超级表 meters 中，时间戳大于等于 2022-01-01T00:00:00+08:00，且时间戳小于 2022-01-01T00:10:00+08:00的数据；数据先按照子表名 tbname 进行数据切分，再根据 10 分钟的会话窗口进行切分；最后，取前 10 个分片的数据作为结果，返回子表名、窗口开始时间、窗口结束时间、窗口宽度、窗口内数据条数。查询结果如下：
+上面的 SQL，查询超级表 meters 中，时间戳大于等于 2022-01-01T00:00:00+08:00，且时间戳小于 2022-01-01T00:10:00+08:00 的数据；数据先按照子表名 tbname 进行数据切分，再根据 10 分钟的会话窗口进行切分；最后，取前 10 个分片的数据作为结果，返回子表名、窗口开始时间、窗口结束时间、窗口宽度、窗口内数据条数。查询结果如下：
 ```text
  tbname |         _wstart         |          _wend          |  _wduration   |   count(*)    |
 ===============================================================================================
@@ -538,11 +538,11 @@ Query OK, 10 row(s) in set (0.062794s)
 |:------------:|:--------------------------------------------------------------------:|
 |CSUM          | 累加和（Cumulative sum），忽略 NULL 值。|
 |DERIVATIVE    | 统计表中某列数值的单位变化率。其中单位时间区间的长度可以通过 time_interval 参数指定，最小可以是 1 秒（1s）；ignore_negative 参数的值可以是 0 或 1，为 1 时表示忽略负值。|
-|DIFF          | 统计表中某列的值与前一行对应值的差。ignore_negative 取值为 0|1 ，可以不填，默认值为 0。不忽略负值。ignore_negative 为 1 时表示忽略负数。|
+|DIFF          | 统计表中某列的值与前一行对应值的差。ignore_negative 取值为 0|1，可以不填，默认值为 0。不忽略负值。ignore_negative 为 1 时表示忽略负数。|
 |IRATE         | 计算瞬时增长率。使用时间区间中最后两个样本数据来计算瞬时增长速率；如果这两个值呈递减关系，那么只取最后一个数用于计算，而不是使用二者差值。|
 |MAVG          | 计算连续 k 个值的移动平均数（moving average）。如果输入行数小于 k，则无结果输出。参数 k 的合法输入范围是 1≤ k ≤ 1000。|
 |STATECOUNT    | 返回满足某个条件的连续记录的个数，结果作为新的一列追加在每行后面。条件根据参数计算，如果条件为 true 则加 1，条件为 false 则重置为 -1，如果数据为 NULL，跳过该条数据。|
-|STATEDURATION | 返回满足某个条件的连续记录的时间长度，结果作为新的一列追加在每行后面。条件根据参数计算，如果条件为 true 则加上两个记录之间的时间长度（第一个满足条件的记录时间长度记为 0），条件为 false 则重置为 -1，如果数据为 NULL，跳过该条数据|
+|STATEDURATION | 返回满足某个条件的连续记录的时间长度，结果作为新的一列追加在每行后面。条件根据参数计算，如果条件为 true 则加上两个记录之间的时间长度（第一个满足条件的记录时间长度记为 0），条件为 false 则重置为 -1，如果数据为 NULL，跳过该条数据 |
 |TWA           | 时间加权平均函数。统计表中某列在一段时间内的时间加权平均。|
 
 ## 嵌套查询
@@ -611,7 +611,7 @@ Query OK, 6 row(s) in set (0.006438s)
 
 2. 连接条件
 
-在 TDengine 中，连接条件是指进行表关联所指定的条件。对于所有关联查询（除了ASOF Join 和 Window Join 以外），都需要指定连接条件，通常出现在 on 之后。在 ASOF Join 中，出现在 where 之后的条件也可以视作连接条件，而 Window Join 是通过 window_offset 来指定连接条件。
+在 TDengine 中，连接条件是指进行表关联所指定的条件。对于所有关联查询（除了 ASOF Join 和 Window Join 以外），都需要指定连接条件，通常出现在 on 之后。在 ASOF Join 中，出现在 where 之后的条件也可以视作连接条件，而 Window Join 是通过 window_offset 来指定连接条件。
 
 除了 ASOF Join 以外，TDengine 支持的所有 Join 类型都必须显式指定连接条件。ASOF Join 因为默认定义了隐式的连接条件，所以在默认条件可以满足需求的情况下，可以不必显式指定连接条件。
 

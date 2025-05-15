@@ -12,9 +12,9 @@ TDengine 的分布式、多组件特性导致 TDengine 的安全配置是生产�
 
 TDengine 包含多个组件，有：
 
-- `taosd`： 内核组件。
-- `taosc`： 客户端库。
-- `taosAdapter`： REST API 和 WebSocket 服务。
+- `taosd`：内核组件。
+- `taosc`：客户端库。
+- `taosAdapter`：REST API 和 WebSocket 服务。
 - `taosKeeper`：监控服务组件。
 - `taosX`：数据管道和备份恢复组件。
 - `taosxAgent`：外部数据源数据接入辅助组件。
@@ -29,7 +29,7 @@ TDengine 包含多个组件，有：
 
 ![TDengine 产品生态拓扑架构](./tdengine-topology.png)
 
-关于各组件的详细介绍，请参考 [组件介绍](./intro)。
+关于各组件的详细介绍，请参考 [组件介绍](../intro)。
 
 ## TDengine 安全设置
 
@@ -45,7 +45,7 @@ taosd 集群间使用 TCP 连接基于自有协议进行数据交换，风险较
 
 - **audit**：审计功能开关，0 为关，1 为开。默认打开。
 - **auditInterval**：上报间隔，单位为毫秒。默认 5000。
-- **auditCreateTable**：是否针对创建子表开启申计功能。 0 为关，1 为开。默认打开。
+- **auditCreateTable**：是否针对创建子表开启申计功能。0 为关，1 为开。默认打开。
 
 为保证数据文件安全，可启用数据库加密。
 
@@ -54,7 +54,7 @@ taosd 集群间使用 TCP 连接基于自有协议进行数据交换，风险较
 
 启用白名单可限制访问地址，进一步增强私密性。
 
-- **enableWhiteList**：白名单功能开关，0 为关， 1 为开；默认关闭。
+- **enableWhiteList**：白名单功能开关，0 为关，1 为开；默认关闭。
 
 ### `taosc`
 
@@ -82,7 +82,7 @@ keyFile = "/path/to/private-key"
 `taosX` 对外包括 REST API 接口和 gRPC 接口，其中 gRPC 接口用于 taos-agent 连接。
 
 - REST API 接口是基于 HTTP 1.1 且不加密的，有安全风险。
-- gRPC 接口基于 HTTP 2 且不加密，有安全风险 。
+- gRPC 接口基于 HTTP 2 且不加密，有安全风险。
 
 为了保证数据安全，建议 taosX API 接口仅限内部访问。在 `/etc/taos/taosx.toml` 配置文件中修改如下配置：
 

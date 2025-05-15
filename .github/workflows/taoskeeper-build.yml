@@ -20,12 +20,17 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.18
+          go-version: 1.23
 
       - name: Install system dependencies
         run: |
           sudo apt update -y
           sudo apt install -y build-essential cmake libgeos-dev
+
+      - name: Get CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
 
       - name: Install TDengine
         run: |

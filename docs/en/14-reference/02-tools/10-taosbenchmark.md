@@ -100,6 +100,9 @@ taosBenchmark -f <json file>
 - **-t/--tables \<tableNum>** :
   Specifies the number of subtables, default is 10000.
 
+-**-s/ --start-timestamp \<NUMBER>**: 
+  Specify start timestamp to insert data for each child table
+
 - **-S/--timestampstep \<stepLength>** :
   Timestamp step length for inserting data into each subtable, in ms, default value is 1.
 
@@ -321,11 +324,17 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 
 - **name**: The name of the column, if used with count, for example "name": "current", "count":3, then the names of the 3 columns are current, current_2, current_3 respectively.
 
-- **min**: The minimum value for the data type of the column/tag. Generated values will be greater than or equal to the minimum value.
+- **min**: Float type, the minimum value for the data type of the column/tag. Generated values will be greater than or equal to the minimum value.
 
-- **max**: The maximum value for the data type of the column/tag. Generated values will be less than the maximum value.
+- **max**: Float type, the maximum value for the data type of the column/tag. Generated values will be less than the maximum value.
 
-- **scalingFactor**: Floating-point precision enhancement factor, only effective when the data type is float/double, valid values range from 1 to 1000000 positive integers. Used to enhance the precision of generated floating points, especially when min or max values are small. This attribute enhances the precision after the decimal point by powers of 10: a scalingFactor of 10 means enhancing the precision by 1 decimal place, 100 means 2 places, and so on.
+- **dec_min**: String type, specifies the minimum value for a column of the DECIMAL data type. This field is used when min cannot express sufficient precision. The generated values will be greater than or equal to the minimum value.
+
+- **dec_max**: String type, specifies the maximum value for a column of the DECIMAL data type. This field is used when max cannot express sufficient precision. The generated values will be less than the maximum value.
+
+- **precision**: The total number of digits (including digits before and after the DECIMAL point), applicable only to the DECIMAL type, with a valid range of 0 to 38. 
+
+- **scale**: The number of digits to the right of the decimal point. For the FLOAT type, the scale's valid range is 0 to 6; for the DOUBLE type, the range is 0 to 15; and for the DECIMAL type, the scale's valid range is 0 to its precision value.
 
 - **fun**: This column data is filled with functions, currently only supports sin and cos functions, input parameters are converted from timestamps to angle values, conversion formula: angle x = input time column ts value % 360. Also supports coefficient adjustment, random fluctuation factor adjustment, displayed in a fixed format expression, such as fun="10*sin(x)+100*random(5)", x represents the angle, ranging from 0 ~ 360 degrees, the increment step is consistent with the time column step. 10 represents the multiplication coefficient, 100 represents the addition or subtraction coefficient, 5 represents the fluctuation amplitude within a 5% random range. Currently supports int, bigint, float, double four data types. Note: The expression is in a fixed pattern and cannot be reversed.
 
@@ -438,7 +447,7 @@ The subscription configuration parameters are set under `tmq_info`. The paramete
 -**poll_delay**: The polling timeout time passed in by calling tmq_consumer_poll. 
   The unit is milliseconds. A negative number means the default timeout is 1 second.
 -**enable.manual.commit**: whether manual submission is allowed. 
-  The value can be true: manual submission is allowed, after consuming messages, manually call tmq_commit_sync to complete the submission. false：Do not submit, default value: false.
+  The value can be true: manual submission is allowed, after consuming messages, manually call tmq_commit_sync to complete the submission. false: Do not submit, default value: false.
 -**rows_file**: a file that stores consumption data. 
   It can be a full path or a relative path with a file name.The actual saved file will be followed by the consumer serial number. For example, rows_file is result, and the actual file name is result_1 (consumer 1) result_2 (consumer 2).
 -**expect_rows**: the number of rows and data types expected to be consumed by each consumer. 
@@ -480,6 +489,7 @@ For the following parameters, see the description of [Subscription](../../../adv
 | 16  |  VARBINARY         |    varbinary
 | 17  |  GEOMETRY          |    geometry
 | 18  |  JSON              |    json
+| 19  |  DECIMAL           |    decimal
 
 Note: Data types in the taosBenchmark configuration file must be in lowercase to be recognized.
 

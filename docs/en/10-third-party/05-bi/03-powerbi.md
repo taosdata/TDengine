@@ -71,7 +71,7 @@ select _wstart date, count(*) from test.meters interval(1d) having count(*)>0
 
 **Step 5**, Establish the relationship between dimensions and measures. Open the model view and establish the relationship between the tags and data tables, setting tbname as the relationship data column.  
 
-**Step 6**, Establish the relationship between date and measures. Open the model view and establish the relationship between the date dataset and data, with the relationship data columns being date and datatime.  
+**Step 6**, Establish the relationship between date and measures. Open the model view and establish the relationship between the date dataset and data, with the relationship data columns being date and datetime.  
 
 **Step 7**, Create reports. Use these data in bar charts, pie charts, and other controls.  
 

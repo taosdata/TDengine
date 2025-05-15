@@ -367,7 +367,7 @@ static void taosUnLockLogFile(TdFilePtr pFile) {
 }
 
 static void taosReserveOldLog(char *oldName, char *keepName) {
-  if (tsLogKeepDays <= 0) {
+  if (tsLogKeepDays == 0) {
     keepName[0] = 0;
     return;
   }
@@ -461,8 +461,8 @@ static void *taosThreadToCloseOldFile(void *param) {
   taosCloseLogByFd(oldFileKeeper->pOldFile);
   taosKeepOldLog(oldFileKeeper->keepName);
   taosMemoryFree(oldFileKeeper);
-  if (tsLogKeepDays > 0) {
-    taosRemoveOldFiles(tsLogDir, tsLogKeepDays);
+  if (tsLogKeepDays != 0) {
+    taosRemoveOldFiles(tsLogDir, abs(tsLogKeepDays));
   }
   taosWUnLockLatch(&tsLogRotateLatch);
   return NULL;
@@ -1131,7 +1131,7 @@ static void *taosLogRotateFunc(void *param) {
     }
 
     int32_t days = inactiveSec / 86400 + 1;
-    if (tsLogKeepDays > 0 && days > tsLogKeepDays) {
+    if (tsLogKeepDays != 0 && days > abs(tsLogKeepDays)) {
       TAOS_UNUSED(taosRemoveFile(fullName));
       uInfo("file:%s is removed, days:%d, keepDays:%d, sed:%" PRId64, fullName, days, tsLogKeepDays, fileSec);
     } else {
@@ -1142,8 +1142,8 @@ static void *taosLogRotateFunc(void *param) {
     uWarn("%s:%d failed to close dir %s since %s\n", __func__, __LINE__, tsLogDir, tstrerror(code));
   }
 
-  if (tsLogKeepDays > 0) {
-    taosRemoveOldFiles(tsLogDir, tsLogKeepDays);
+  if (tsLogKeepDays != 0) {
+    taosRemoveOldFiles(tsLogDir, abs(tsLogKeepDays));
   }
 _exit:
   taosWUnLockLatch(&tsLogRotateLatch);

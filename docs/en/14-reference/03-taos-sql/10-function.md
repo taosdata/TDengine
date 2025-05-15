@@ -632,6 +632,81 @@ taos> select radians(180);
          3.141592653589793 |
 ```
 
+#### CRC32
+
+```sql
+CRC32(expr)
+```
+**Function Description**: Returns the unsigned 32-bit integer that represents the Cyclic Redundancy Check (CRC).
+
+**Return Type**: INT UNSIGNED. 
+
+**Applicable Data Types**: Suitable for any type.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- If `expr` is NULL, it returns NULL.
+- if `expr` is the empty string, it returns 0.
+- if `expr` is a non string, it is interpreted as a string.
+- This function is multibyte safe.
+
+**Example**:
+
+```sql
+taos> select crc32(NULL);
+ crc32(null) |
+==============
+ NULL        |
+
+taos> select crc32("");
+  crc32("")  |
+==============
+           0 |
+
+taos> select crc32(123);
+ crc32(123)  |
+==============
+  2286445522 |
+
+taos> select crc32(123.456);
+ crc32(123.456) |
+=================
+      844093190 |
+
+taos> select crc32(TO_TIMESTAMP("2000-01-01", "yyyy-mm-dd hh24:mi:ss"));
+ crc32(to_timestamp("2000-01-01", "yyyy-mm-dd hh24:mi:ss")) |
+=============================================================
+                                                 2274736693 |
+
+taos> select crc32("This is a string");
+ crc32("This is a string") |
+============================
+                 141976383 |
+
+taos> select crc32("这是一个字符串");
+ crc32("这是一个字符串") |
+========================
+            1902862441 |
+
+taos> select crc32(col_name) from ins_columns limit 10;
+ crc32(col_name) |
+==================
+      3208210256 |
+      3292663675 |
+      3081158046 |
+      1063017838 |
+      2063623452 |
+      3996452140 |
+      2559042119 |
+      3485334036 |
+      3208210256 |
+      3292663675 |
+```
+
 ### String Functions
 
 The input parameters for string functions are of string type, and the return results are of numeric type or string type.
@@ -1309,7 +1384,7 @@ TO_CHAR(ts, format_str_literal)
 
 - The output format for `Month`, `Day`, etc., is left-aligned with spaces added to the right, such as `2023-OCTOBER  -01`, `2023-SEPTEMBER-01`. September has the longest number of letters among the months, so there is no space for September. Weeks are similar.
 - When using `ms`, `us`, `ns`, the output of the above three formats only differs in precision, for example, if ts is `1697182085123`, the output for `ms` is `123`, for `us` is `123000`, and for `ns` is `123000000`.
-- Content in the time format that does not match the rules will be output directly. If you want to specify parts of the format string that can match rules not to be converted, you can use double quotes, like `to_char(ts, 'yyyy-mm-dd "is formated by yyyy-mm-dd"')`. If you want to output double quotes, then add a backslash before the double quotes, like `to_char(ts, '\"yyyy-mm-dd\"')` will output `"2023-10-10"`.
+- Content in the time format that does not match the rules will be output directly. If you want to specify parts of the format string that can match rules not to be converted, you can use double quotes, like `to_char(ts, 'yyyy-mm-dd "is formatted by yyyy-mm-dd"')`. If you want to output double quotes, then add a backslash before the double quotes, like `to_char(ts, '\"yyyy-mm-dd\"')` will output `"2023-10-10"`.
 - Formats that output numbers, such as `YYYY`, `DD`, uppercase and lowercase have the same meaning, i.e., `yyyy` and `YYYY` are interchangeable.
 - It is recommended to include timezone information in the time format; if not included, the default output timezone is the timezone configured by the server or client.
 - The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, then the precision is milliseconds.
@@ -2233,7 +2308,7 @@ ignore_option: {
 - A single statement can use one or multiple diffs, and each diff can specify the same or different ignore_option; when there is more than one diff in a single statement, only when all diff results of a row are null and all ignore_options are set to ignore null values, the row is excluded from the result set
 - Can be used with associated columns. For example: select _rowts, DIFF() from.
 - When there is no composite primary key, if different subtables have data with the same timestamp, a "Duplicate timestamps not allowed" message will be displayed
-- When using composite primary keys, the timestamp and primary key combinations of different subtables may be the same, which row is used depends on which one is found first, meaning that the results of running diff() multiple times in this situation may vary.
+- When using composite primary keys, the timestamp and composite primary key combinations of different subtables may be the same, which row is used depends on which one is found first, meaning that the results of running diff() multiple times in this situation may vary.
 
 ### INTERP
 

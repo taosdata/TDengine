@@ -65,7 +65,7 @@ class UtilTest(unittest.TestCase):
     def test_is_stationary(self):
         """test whether data is stationary or not"""
         st = is_stationary([1, 2, 3, 4, 5, 7, 5, 1, 54, 3, 6, 87, 45, 14, 24])
-        self.assertEquals(st, False)
+        self.assertEqual(st, False)
 
     def test_parse_options(self):
         """test case for parse key/value string into k/v pair"""
@@ -99,7 +99,7 @@ class ServiceTest(unittest.TestCase):
             if item["type"] == "anomaly-detection":
                 self.assertEqual(len(item["algo"]), 6)
             else:
-                self.assertEqual(len(item["algo"]), 4)
+                self.assertEqual(len(item["algo"]), 7)
 
 
 if __name__ == '__main__':

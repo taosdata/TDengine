@@ -188,6 +188,10 @@ static int32_t streamFileStateEncode(TSKEY* pKey, void** pVal, int32_t* pLen) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void printSRowBuffPos(SRowBuffPos* buf, const char* info, int32_t line) {
+  // qTrace("[StreamBuff] rowBuf:%p, %s, line:%d", buf->pRowBuff, info, line);
+}
+
 int32_t streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize, GetTsFun fp,
                             void* pFile, TSKEY delMark, const char* taskId, int64_t checkpointId, int8_t type,
                             SStreamFileState** ppFileState) {
@@ -313,6 +317,8 @@ _end:
 }
 
 void destroyRowBuffPos(SRowBuffPos* pPos) {
+  if (pPos == NULL) return;
+  printSRowBuffPos(pPos, __FUNCTION__, __LINE__);
   taosMemoryFreeClear(pPos->pKey);
   taosMemoryFreeClear(pPos->pRowBuff);
   taosMemoryFree(pPos);
@@ -323,9 +329,10 @@ void destroyRowBuffPosPtr(void* ptr) {
     return;
   }
   SRowBuffPos* pPos = *(SRowBuffPos**)ptr;
-  if (!pPos->beUsed) {
+  if (pPos != NULL && !pPos->beUsed) {
     destroyRowBuffPos(pPos);
   }
+  *(SRowBuffPos**)ptr = NULL;
 }
 
 void destroyRowBuffAllPosPtr(void* ptr) {
@@ -334,13 +341,14 @@ void destroyRowBuffAllPosPtr(void* ptr) {
   }
   SRowBuffPos* pPos = *(SRowBuffPos**)ptr;
   destroyRowBuffPos(pPos);
+  *(SRowBuffPos**)ptr = NULL;
 }
 
 void destroyRowBuff(void* ptr) {
   if (!ptr) {
     return;
   }
-  taosMemoryFree(*(void**)ptr);
+  taosMemoryFreeClear(*(void**)ptr);
 }
 
 void streamFileStateDestroy(SStreamFileState* pFileState) {
@@ -356,13 +364,20 @@ void streamFileStateDestroy(SStreamFileState* pFileState) {
   sessionWinStateCleanup(pFileState->searchBuff);
   tSimpleHashCleanup(pFileState->pGroupIdMap);
   tSimpleHashCleanup(pFileState->pRecFlagMap);
+
+  memset(pFileState, 0, sizeof(SStreamFileState));
   taosMemoryFree(pFileState);
+}
+
+int32_t getFileStateRowSize(SStreamFileState* pFileState){
+  return pFileState->rowSize;
 }
 
 int32_t putFreeBuff(SStreamFileState* pFileState, SRowBuffPos* pPos) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (pPos->pRowBuff) {
+    printSRowBuffPos(pPos, __FUNCTION__, __LINE__);
     code = tdListAppend(pFileState->freeBuffs, &(pPos->pRowBuff));
     QUERY_CHECK_CODE(code, lino, _end);
     pPos->pRowBuff = NULL;
@@ -385,6 +400,7 @@ void clearExpiredRowBuff(SStreamFileState* pFileState, TSKEY ts, bool all) {
   while ((pNode = tdListNext(&iter)) != NULL) {
     SRowBuffPos* pPos = *(SRowBuffPos**)(pNode->data);
     if (all || (pFileState->getTs(pPos->pKey) < ts && !pPos->beUsed)) {
+      printSRowBuffPos(pPos, __FUNCTION__, __LINE__);
       code = putFreeBuff(pFileState, pPos);
       QUERY_CHECK_CODE(code, lino, _end);
 
@@ -421,6 +437,7 @@ int32_t clearFlushedRowBuff(SStreamFileState* pFileState, SStreamSnapshot* pFlus
         code = tdListAppend(pFlushList, &pPos);
         QUERY_CHECK_CODE(code, lino, _end);
 
+        printSRowBuffPos(pPos, __FUNCTION__, __LINE__);
         pFileState->flushMark = TMAX(pFileState->flushMark, pFileState->getTs(pPos->pKey));
         pFileState->stateBuffRemoveByPosFn(pFileState, pPos);
         if (pPos->beUsed == false) {
@@ -469,7 +486,7 @@ int32_t popUsedBuffs(SStreamFileState* pFileState, SStreamSnapshot* pFlushList, 
       }
       code = tdListAppend(pFlushList, &pPos);
       QUERY_CHECK_CODE(code, lino, _end);
-
+      printSRowBuffPos(pPos, __FUNCTION__, __LINE__);
       pFileState->flushMark = TMAX(pFileState->flushMark, pFileState->getTs(pPos->pKey));
       pFileState->stateBuffRemoveByPosFn(pFileState, pPos);
       if (pPos->beUsed == false) {
@@ -656,9 +673,10 @@ SRowBuffPos* getNewRowPos(SStreamFileState* pFileState) {
   QUERY_CHECK_CODE(code, lino, _error);
 
   pPos->pRowBuff = getFreeBuff(pFileState);
-
+  printSRowBuffPos(pPos, __FUNCTION__, __LINE__);
 _end:
   code = tdListAppend(pFileState->usedBuffs, &pPos);
+  printSRowBuffPos(pPos, __FUNCTION__, __LINE__);
   QUERY_CHECK_CODE(code, lino, _error);
 
   QUERY_CHECK_CONDITION((pPos->pRowBuff != NULL), code, lino, _error, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
@@ -1097,7 +1115,7 @@ int32_t recoverSession(SStreamFileState* pFileState, int64_t ckId) {
 
     if (vlen != pFileState->rowSize) {
       code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-      qError("[InternalERR] read key:[skey:%"PRId64 ",ekey:%"PRId64 ",groupId:%"PRIu64 "],vlen:%d, rowSize:%d", key.win.skey, key.win.ekey, key.groupId, vlen, pFileState->rowSize);
+      qError("[StreamInternal] read key:[skey:%"PRId64 ",ekey:%"PRId64 ",groupId:%"PRIu64 "],vlen:%d, rowSize:%d", key.win.skey, key.win.ekey, key.groupId, vlen, pFileState->rowSize);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -1110,7 +1128,6 @@ int32_t recoverSession(SStreamFileState* pFileState, int64_t ckId) {
 
     winRes = streamStateSessionCurPrev_rocksdb(pCur);
   }
-
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));

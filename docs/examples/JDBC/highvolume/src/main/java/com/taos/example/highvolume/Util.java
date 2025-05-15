@@ -40,23 +40,24 @@ public class Util {
         properties.setProperty(TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT, "true");
         return DriverManager.getConnection(jdbcURL, properties);
     }
+
     public static void prepareDatabase(String dbName) throws SQLException {
-        try (Connection conn =Util.getConnection();
-            Statement stmt = conn.createStatement()){
+        try (Connection conn = Util.getConnection();
+                Statement stmt = conn.createStatement()) {
             stmt.execute("DROP DATABASE IF EXISTS " + dbName);
             stmt.execute("CREATE DATABASE IF NOT EXISTS " + dbName + " vgroups 20");
             stmt.execute("use " + dbName);
-            stmt.execute("CREATE STABLE " + dbName + ".meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(64))");
+            stmt.execute("CREATE STABLE " + dbName
+                    + ".meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(64))");
         }
     }
 
     public static long count(Statement stmt, String dbName) throws SQLException {
-        try (ResultSet result = stmt.executeQuery("SELECT count(*) from " + dbName +".meters")) {
+        try (ResultSet result = stmt.executeQuery("SELECT count(*) from " + dbName + ".meters")) {
             result.next();
             return result.getLong(1);
         }
     }
-
 
     public static String getKafkaBootstrapServers() {
         String kafkaBootstrapServers = System.getenv("KAFKA_BOOTSTRAP_SERVERS");
@@ -86,7 +87,7 @@ public class Util {
             if (!existingTopics.contains(topicName)) {
                 NewTopic newTopic = new NewTopic(topicName, numPartitions, replicationFactor);
                 CreateTopicsResult createTopicsResult = adminClient.createTopics(Collections.singleton(newTopic));
-                createTopicsResult.all().get(); // 等待创建完成
+                createTopicsResult.all().get();
                 logger.info("Topic " + topicName + " created successfully.");
             }
 
@@ -99,6 +100,5 @@ public class Util {
     public static int getPartitionCount() {
         return 5;
     }
-
 
 }

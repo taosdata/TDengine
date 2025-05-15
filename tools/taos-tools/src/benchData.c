@@ -10,10 +10,19 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
 
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <string.h>
+
+
 #include <bench.h>
 #include "benchLog.h"
 #include <math.h>
 #include <benchData.h>
+#include "decimal.h"
+
 
 const char charset[] =
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
@@ -33,12 +42,17 @@ const char* locations_sml[] = {
     "California.SantaClara", "California.Cupertino"};
 
 #ifdef WINDOWS
+    // TODO: why define ssize_t in this way?
     #define ssize_t int
-    #if _MSC_VER >= 1910
-        #include "benchLocations.h"
-    #else
-        #include "benchLocationsWin.h"
-    #endif
+    // #if _MSC_VER >= 1910
+    //     #include "benchLocations.h"
+    // #else
+    //     #include "benchLocationsWin.h"
+    // #endif
+    // NOTE: benchLocations.h is UTF-8 encoded, while benchLocationsWin.h is ANSI/GB18030 encoded.
+    //       we don't want to use /utf-8 option in MSVC which will bring more considerations,
+    //       so we use ANSI/GB18030 encoded file for the moment.
+    #include "benchLocationsWin.h"
 #else
     #include "benchLocations.h"
 #endif
@@ -474,6 +488,14 @@ uint32_t accumulateRowLen(BArray *fields, int iface) {
                 len += DOUBLE_BUFF_LEN;
                 break;
 
+            case TSDB_DATA_TYPE_DECIMAL:
+                len += DECIMAL_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_DECIMAL64:
+                len += DECIMAL64_BUFF_LEN;
+                break;
+
             case TSDB_DATA_TYPE_TIMESTAMP:
                 len += TIMESTAMP_BUFF_LEN;
                 break;
@@ -482,11 +504,11 @@ uint32_t accumulateRowLen(BArray *fields, int iface) {
                 return len;
         }
         len += 1;
-        if (iface == SML_IFACE) {
+        if (iface == SML_REST_IFACE || iface == SML_IFACE) {
             len += SML_LINE_SQL_SYNTAX_OFFSET + strlen(field->name);
         }
     }
-    if (iface == SML_IFACE) {
+    if (iface == SML_IFACE || iface == SML_REST_IFACE) {
         len += 2 * TSDB_TABLE_NAME_LEN * 2 + SML_LINE_SQL_SYNTAX_OFFSET;
     }
     len += TIMESTAMP_BUFF_LEN;
@@ -744,8 +766,9 @@ double tmpDoubleImpl(Field *field, int32_t angle, int32_t k) {
     }
 
     if (field->scalingFactor > 0) {
-        if (field->scalingFactor > 1)
-            doubleTmp = doubleTmp / field->scalingFactor;
+        if (field->scalingFactor > 1) {
+            doubleTmp /= field->scalingFactor;
+        }
 
         if (doubleTmp > field->maxInDbl)
             doubleTmp = field->maxInDbl;
@@ -797,6 +820,131 @@ static int tmpJson(char *sampleDataBuf,
 
     return n;
 }
+
+
+static uint64_t generateRandomUint64(uint64_t range) {
+    uint64_t randomValue;
+
+    if (range <= (uint64_t)RAND_MAX) {
+        randomValue = (uint64_t)rand() % range;
+    } else {
+        int bitsPerRand = 0;
+        for (uint64_t r = RAND_MAX; r > 0; r >>= 1) {
+            bitsPerRand++;
+        }
+
+        uint64_t result;
+        uint64_t threshold;
+
+        do {
+            result = 0;
+            int bitsAccumulated = 0;
+
+            while (bitsAccumulated < 64) {
+                uint64_t part = (uint64_t)rand();
+                int bits = (64 - bitsAccumulated) < bitsPerRand ? (64 - bitsAccumulated) : bitsPerRand;
+                part &= (1ULL << bits) - 1;
+                result |= part << bitsAccumulated;
+                bitsAccumulated += bits;
+            }
+
+            // rejecting sample
+            threshold = (UINT64_MAX / range) * range;
+            threshold = (threshold == 0) ? 0 : threshold - 1;
+
+        } while (result > threshold);
+
+        randomValue = result % range;
+    }
+
+    return randomValue;
+}
+
+
+static uint64_t randUint64(uint64_t min, uint64_t max) {
+    if (min >= max || (max - min) == UINT64_MAX) {
+        return min;
+    }
+
+    uint64_t range = max - min + 1;
+    return min + generateRandomUint64(range);
+}
+
+
+static int64_t randInt64(int64_t min, int64_t max) {
+    if (min >= max || ((uint64_t)max - (uint64_t)min) == UINT64_MAX) {
+        return min;
+    }
+
+    uint64_t range = (uint64_t)max - (uint64_t)min + 1;
+    return (int64_t)(min + generateRandomUint64(range));
+}
+
+
+static void decimal64Rand(Decimal64* result, const Decimal64* min, const Decimal64* max) {
+    int64_t temp = 0;
+    
+    do {
+        temp = randInt64(DECIMAL64_GET_VALUE(min), DECIMAL64_GET_VALUE(max));
+    } while (temp < DECIMAL64_GET_VALUE(min) || temp > DECIMAL64_GET_VALUE(max));
+
+    DECIMAL64_SET_VALUE(result, temp);
+}
+
+
+static void decimal128Rand(Decimal128* result, const Decimal128* min, const Decimal128* max) {
+    int64_t  high   = 0;
+    uint64_t low    = 0;
+    Decimal128 temp = {0};
+
+    int64_t minHigh = DECIMAL128_HIGH_WORD(min);
+    int64_t maxHigh = DECIMAL128_HIGH_WORD(max);
+    uint64_t minLow = DECIMAL128_LOW_WORD(min);
+    uint64_t maxLow = DECIMAL128_LOW_WORD(max);
+
+    do {
+        // high byte
+        high = randInt64(minHigh, maxHigh);
+
+        // low byte
+        if (high == minHigh && high == maxHigh) {
+            low = randUint64(minLow, maxLow);   
+        } else if (high == minHigh) {
+            low = randUint64(minLow, UINT64_MAX);
+        } else if (high == maxHigh) {
+            low = randUint64(0, maxLow);
+        } else {
+            low = randUint64(0, UINT64_MAX);
+        }
+
+        DECIMAL128_SET_HIGH_WORD(&temp, high);
+        DECIMAL128_SET_LOW_WORD(&temp, low);
+
+    } while (decimal128BCompare(&temp, min) < 0 || decimal128BCompare(&temp, max) > 0);
+
+    *result = temp;
+}
+
+
+Decimal64 tmpDecimal64Impl(Field* field, int32_t angle, int32_t k) {
+    (void)angle;
+    (void)k;
+
+    Decimal64 result = {0};
+    decimal64Rand(&result, &field->decMin.dec64, &field->decMax.dec64);
+    return result;
+}
+
+
+Decimal128 tmpDecimal128Impl(Field* field, int32_t angle, int32_t k) {
+    (void)angle;
+    (void)k;
+
+    Decimal128 result = {0};
+    decimal128Rand(&result, &field->decMin.dec128, &field->decMax.dec128);
+    return result;
+}
+
 
 static int generateRandDataSQL(SSuperTable *stbInfo, char *sampleDataBuf,
                      int64_t bufLen,
@@ -891,6 +1039,32 @@ static int generateRandDataSQL(SSuperTable *stbInfo, char *sampleDataBuf,
                     double double_ =  tmpDoubleImpl(field, angle, k);
                     n = snprintf(sampleDataBuf + pos, bufLen - pos,
                                         "%f,", double_);
+                    break;
+                }
+                case TSDB_DATA_TYPE_DECIMAL: {
+                    Decimal128 dec = tmpDecimal128Impl(field, angle, k);
+                    int ret = decimal128ToString(&dec, field->precision, field->scale, sampleDataBuf + pos, bufLen - pos);
+                    if (ret != 0) {
+                        errorPrint("%s() LN%d precision: %d, scale: %d, high: %" PRId64 ", low: %" PRIu64 "\n",
+                                __func__, __LINE__, field->precision, field->scale, DECIMAL128_HIGH_WORD(&dec), DECIMAL128_LOW_WORD(&dec));
+                        return -1;
+                    }
+                    size_t decLen = strlen(sampleDataBuf + pos);
+                    n = snprintf(sampleDataBuf + pos + decLen, bufLen - pos - decLen, ",");
+                    n += decLen;
+                    break;
+                }
+                case TSDB_DATA_TYPE_DECIMAL64: {
+                    Decimal64 dec = tmpDecimal64Impl(field, angle, k);
+                    int ret = decimal64ToString(&dec, field->precision, field->scale, sampleDataBuf + pos, bufLen - pos);
+                    if (ret != 0) {
+                        errorPrint("%s() LN%d precision: %d, scale: %d, value: %" PRId64 "\n",
+                                __func__, __LINE__, field->precision, field->scale, DECIMAL64_GET_VALUE(&dec));
+                        return -1;
+                    }
+                    size_t decLen = strlen(sampleDataBuf + pos);
+                    n = snprintf(sampleDataBuf + pos + decLen, bufLen - pos - decLen, ",");
+                    n += decLen;
                     break;
                 }
                 case TSDB_DATA_TYPE_BINARY:
@@ -1817,6 +1991,10 @@ int generateRandData(SSuperTable *stbInfo, char *sampleDataBuf,
         case TAOSC_IFACE:
             return generateRandDataSQL(stbInfo, sampleDataBuf,
                                     bufLen, lenOfOneRow, fields, loop, tag);
+        // REST
+        case REST_IFACE:
+            return generateRandDataSQL(stbInfo, sampleDataBuf,
+                                    bufLen, lenOfOneRow, fields, loop, tag);
         case STMT_IFACE:
         case STMT2_IFACE:
             if (childCols) {
@@ -1829,6 +2007,7 @@ int generateRandData(SSuperTable *stbInfo, char *sampleDataBuf,
                                     bufLen, lenOfOneRow, fields, loop, tag);
             }
         case SML_IFACE:
+        case SML_REST_IFACE: // REST
             return generateRandDataSml(stbInfo, sampleDataBuf,
                                     bufLen, lenOfOneRow, fields, loop, tag);
         default:
@@ -1854,11 +2033,12 @@ int prepareSampleData(SDataBase* database, SSuperTable* stbInfo) {
     stbInfo->lenOfCols = accumulateRowLen(stbInfo->cols, stbInfo->iface);
     stbInfo->lenOfTags = accumulateRowLen(stbInfo->tags, stbInfo->iface);
     if (stbInfo->partialColNum != 0
-            && stbInfo->iface == TAOSC_IFACE) {
+            && ((stbInfo->iface == TAOSC_IFACE
+                || stbInfo->iface == REST_IFACE))) {
         // check valid
         if(stbInfo->partialColFrom >= stbInfo->cols->size) {
             stbInfo->partialColFrom = 0;
-            infoPrint("stbInfo->partialColFrom(%d) is large than stbInfo->cols->size(%"PRIu64") \n ",stbInfo->partialColFrom,stbInfo->cols->size);
+            infoPrint("stbInfo->partialColFrom(%d) is large than stbInfo->cols->size(%zd) \n ",stbInfo->partialColFrom,stbInfo->cols->size);
         }
 
         if (stbInfo->partialColFrom + stbInfo->partialColNum > stbInfo->cols->size) {
@@ -2013,6 +2193,12 @@ int prepareSampleData(SDataBase* database, SSuperTable* stbInfo) {
         }
     }
 
+    if (0 != convertServAddr(
+            stbInfo->iface,
+            stbInfo->tcpTransfer,
+            stbInfo->lineProtocol)) {
+        return -1;
+    }    
     return 0;
 }
 
@@ -2040,7 +2226,6 @@ uint32_t bindParamBatch(threadInfo *pThreadInfo,
         pThreadInfo->stmtBind = true;
         memset(pThreadInfo->bindParams, 0,
             (sizeof(TAOS_MULTI_BIND) * (columnCount + 1)));
-        memset(pThreadInfo->is_null, 0, batch);
 
         for (int c = 0; c <= columnCount; c++) {
             TAOS_MULTI_BIND *param =
@@ -2475,8 +2660,36 @@ bool generateTagData(SSuperTable *stbInfo, char *buf, int64_t cnt, FILE* csv, BA
     return true;
 }
 
+static int seekFromCsv(FILE* fp, int64_t seek) {
+    size_t  n = 0;
+    char *  line = NULL;
+
+    if (seek > 0) {
+        for (size_t i = 0; i < seek; i++){
+            ssize_t readLen = 0;
+#if defined(WIN32) || defined(WIN64)
+            toolsGetLineFile(&line, &n, fp);
+            readLen = n;
+            if (0 == readLen) {
+#else
+            readLen = getline(&line, &n, fp);
+            if (-1 == readLen) {
+#endif
+                if (0 != fseek(fp, 0, SEEK_SET)) {
+                    return -1;
+                }
+                continue;
+            }           
+        }
+    }
+
+    tmfree(line);
+    infoPrint("seek data from csv file, seek rows=%" PRId64 "\n", seek);
+    return 0;
+}
+
 // open tag from csv file
-FILE* openTagCsv(SSuperTable* stbInfo) {
+FILE* openTagCsv(SSuperTable* stbInfo, uint64_t seek) {
     FILE* csvFile = NULL;
     if (stbInfo->tagsFile[0] != 0) {
         csvFile = fopen(stbInfo->tagsFile, "r");
@@ -2484,7 +2697,15 @@ FILE* openTagCsv(SSuperTable* stbInfo) {
             errorPrint("Failed to open tag sample file: %s, reason:%s\n", stbInfo->tagsFile, strerror(errno));
             return NULL;
         }
+        
+        if (seekFromCsv(csvFile, seek)) {
+            fclose(csvFile);
+            errorPrint("Failed to seek csv file: %s, reason:%s\n", stbInfo->tagsFile, strerror(errno));
+            return NULL;
+
+        }
         infoPrint("open tag csv file :%s \n", stbInfo->tagsFile);
+        
     }
     return csvFile;
 }
@@ -2502,7 +2723,6 @@ uint32_t bindVColsProgressive(TAOS_STMT2_BINDV *bindv, int32_t tbIndex,
 
     // clear
     memset(pThreadInfo->bindParams, 0, sizeof(TAOS_STMT2_BIND) * (columnCount + 1));
-    memset(pThreadInfo->is_null, 0, batch);
     debugPrint("stmt2 bindVColsProgressive child=%s batch=%d pos=%" PRId64 "\n", childTbl->name, batch, pos);
     // loop cols
     for (int c = 0; c <= columnCount; c++) {

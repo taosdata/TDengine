@@ -279,6 +279,27 @@ int32_t stopTableScanOperator(SOperatorInfo* pOperator, const char* pIdStr, SSto
   return p.code;
 }
 
+static ERetType doClearTbNameHashPtr(SOperatorInfo* pOperator, STraverParam* pParam, const char* pIdStr) {
+  SStorageAPI* pAPI = pParam->pParam;
+  if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL) {
+    SStreamFillOperatorInfo* pInfo = pOperator->info;
+    if (pInfo->pState != NULL) {
+      pInfo->pState->parNameMap = NULL;
+    }
+
+    qDebug("%s clear the parNameMap for fill operator", pIdStr);
+    return OPTR_FN_RET_ABORT;
+  }
+
+  return OPTR_FN_RET_CONTINUE;
+}
+
+int32_t clearParTbNameHashPtr(SOperatorInfo* pOperator, const char* pIdStr, SStorageAPI* pAPI) {
+  STraverParam p = {.pParam = pAPI};
+  traverseOperatorTree(pOperator, doClearTbNameHashPtr, &p, pIdStr);
+  return p.code;
+}
+
 int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SNode* pTagCond,
                        SNode* pTagIndexCond, const char* pUser, const char* dbname, SOperatorInfo** pOptrInfo,
                        EOPTR_EXEC_MODEL model) {
@@ -305,11 +326,15 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         return terrno;
       }
 
-      code = initQueriedTableSchemaInfo(pHandle, &pTableScanNode->scan, dbname, pTaskInfo);
-      if (code) {
-        pTaskInfo->code = code;
-        tableListDestroy(pTableListInfo);
-        return code;
+      // Since virtual stable scan use virtual super table's uid in scan operator, the origin table might be stored on
+      // different vnode, so we should not get table schema for virtual stable scan.
+      if (!pTableScanNode->scan.virtualStableScan) {
+        code = initQueriedTableSchemaInfo(pHandle, &pTableScanNode->scan, dbname, pTaskInfo);
+        if (code) {
+          pTaskInfo->code = code;
+          tableListDestroy(pTableListInfo);
+          return code;
+        }
       }
 
       if (pTableScanNode->scan.node.dynamicOp) {
@@ -514,6 +539,15 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     } else if (QUERY_NODE_PHYSICAL_PLAN_PROJECT == type) {
       code = createProjectOperatorInfo(NULL, (SProjectPhysiNode*)pPhyNode, pTaskInfo, &pOperator);
     } else if (QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN == type && model != OPTR_EXEC_MODEL_STREAM) {
+      SVirtualScanPhysiNode* pVirtualTableScanNode = (SVirtualScanPhysiNode*)pPhyNode;
+      // NOTE: this is an patch to fix the physical plan
+
+      code = initQueriedTableSchemaInfo(pHandle, &pVirtualTableScanNode->scan, dbname, pTaskInfo);
+      if (code) {
+        pTaskInfo->code = code;
+        return code;
+      }
+
       code = createVirtualTableMergeOperatorInfo(NULL, pHandle, NULL, 0, (SVirtualScanPhysiNode*)pPhyNode, pTaskInfo, &pOperator);
     } else {
       code = TSDB_CODE_INVALID_PARA;
@@ -662,6 +696,12 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
       pVirtualTableScanNode->groupSort = true;
     }
 
+    code = initQueriedTableSchemaInfo(pHandle, &pVirtualTableScanNode->scan, dbname, pTaskInfo);
+    if (code) {
+      pTaskInfo->code = code;
+      return code;
+    }
+
     STableListInfo* pTableListInfo = tableListCreate();
     if (!pTableListInfo) {
       pTaskInfo->code = terrno;
@@ -669,22 +709,14 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
       return terrno;
     }
 
-    code = initQueriedTableSchemaInfo(pHandle, &pVirtualTableScanNode->scan, dbname, pTaskInfo);
+    code = createScanTableListInfo(&pVirtualTableScanNode->scan, pVirtualTableScanNode->pGroupTags, pVirtualTableScanNode->groupSort,
+                                   pHandle, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo);
     if (code) {
       pTaskInfo->code = code;
       tableListDestroy(pTableListInfo);
+      qError("failed to createScanTableListInfo, code:%s, %s", tstrerror(code), idstr);
       return code;
     }
-
-      code = createScanTableListInfo(&pVirtualTableScanNode->scan, pVirtualTableScanNode->pGroupTags, pVirtualTableScanNode->groupSort,
-                                     pHandle, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo);
-      if (code) {
-        pTaskInfo->code = code;
-        tableListDestroy(pTableListInfo);
-        qError("failed to createScanTableListInfo, code:%s, %s", tstrerror(code), idstr);
-        return code;
-      }
-
 
     code = createVirtualTableMergeOperatorInfo(ops, pHandle, pTableListInfo, size, (SVirtualScanPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN == type && model == OPTR_EXEC_MODEL_STREAM) {

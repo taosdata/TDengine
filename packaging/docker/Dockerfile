@@ -5,6 +5,7 @@ WORKDIR /root
 ARG pkgFile
 ARG dirName
 ARG cpuType
+
 RUN echo ${pkgFile} && echo ${dirName}
 
 COPY ${pkgFile} /root/
@@ -45,7 +46,6 @@ ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib" \
 
 COPY ./bin/* /usr/bin/
 
-ENTRYPOINT ["/tini", "--", "/usr/bin/entrypoint.sh"]
-CMD ["taosd"]
-
 VOLUME [ "/var/lib/taos", "/var/log/taos", "/corefile" ]
+
+ENTRYPOINT ["/tini", "--", "/usr/bin/entrypoint.sh"]

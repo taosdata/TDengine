@@ -219,7 +219,7 @@ TEST(connectionCase, setConnectionOption_Test) {
   int32_t code = taos_options_connection(NULL, TSDB_OPTION_CONNECTION_CHARSET, NULL);
   ASSERT(code != 0);
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  ASSERT(pConn != nullptr);
+  ASSERT_NE(pConn, nullptr);
 
   code = taos_options_connection(pConn, TSDB_MAX_OPTIONS_CONNECTION, NULL);
   ASSERT(code != 0);

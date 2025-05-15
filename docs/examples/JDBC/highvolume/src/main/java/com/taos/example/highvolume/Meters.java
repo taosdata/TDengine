@@ -50,7 +50,6 @@ public class Meters {
     }
 
     @Override
-    // this is just a demo, so we don't need to implement the full CSV parser
     public String toString() {
         return tableName + "," +
                 ts.toString() + "," +

@@ -407,9 +407,7 @@ static int32_t metaAddOrDropColumnIndexOfVirtualSuperTable(SMeta *pMeta, const S
       return code;
     }
 
-    SMetaHandleParam param = {
-        .pEntry = pChildEntry
-    };
+    SMetaHandleParam param = {.pEntry = pChildEntry};
 
     if (action == ADD_COLUMN) {
       code = updataTableColRef(&pChildEntry->colRef, pNewColumn, 1, NULL);
@@ -449,7 +447,6 @@ static int32_t metaAddOrDropColumnIndexOfVirtualSuperTable(SMeta *pMeta, const S
 
   taosArrayDestroy(childTables);
   return code;
-
 }
 
 static int32_t metaUpdateSuperTableTagSchema(SMeta *pMeta, const SMetaHandleParam *pParam) {
@@ -597,7 +594,6 @@ static int32_t metaSchemaTableUpdate(SMeta *pMeta, const SMetaHandleParam *pPara
       } else {
         return metaSchemaTableUpsert(pMeta, pParam, META_TABLE_OP_UPDATA);
       }
-
     }
 
     // check tag schema
@@ -1296,7 +1292,7 @@ static int32_t metaHandleNormalTableCreate(SMeta *pMeta, const SMetaEntry *pEntr
     pMeta->pVnode->config.vndStats.numOfNTables++;
     pMeta->pVnode->config.vndStats.numOfNTimeSeries += pEntry->ntbEntry.schemaRow.nCols - 1;
 
-    if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
+    if (!TSDB_CACHE_NO(pMeta->pVnode->config) && pMeta->pVnode->pTsdb) {
       int32_t rc = tsdbCacheNewTable(pMeta->pVnode->pTsdb, pEntry->uid, -1, &pEntry->ntbEntry.schemaRow);
       if (rc < 0) {
         metaError("vgId:%d, failed to create table:%s since %s", TD_VID(pMeta->pVnode), pEntry->name, tstrerror(rc));
@@ -1374,14 +1370,14 @@ static int32_t metaHandleChildTableCreate(SMeta *pMeta, const SMetaEntry *pEntry
 
     if (!metaTbInFilterCache(pMeta, pSuperEntry->name, 1)) {
       int32_t nCols = 0;
-      int32_t ret = metaGetStbStats(pMeta->pVnode, pSuperEntry->uid, 0, &nCols);
+      int32_t ret = metaGetStbStats(pMeta->pVnode, pSuperEntry->uid, 0, &nCols, 0);
       if (ret < 0) {
         metaErr(TD_VID(pMeta->pVnode), ret);
       }
       pMeta->pVnode->config.vndStats.numOfTimeSeries += (nCols > 0 ? nCols - 1 : 0);
     }
 
-    if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
+    if (!TSDB_CACHE_NO(pMeta->pVnode->config) && pMeta->pVnode->pTsdb) {
       int32_t rc = tsdbCacheNewTable(pMeta->pVnode->pTsdb, pEntry->uid, pEntry->ctbEntry.suid, NULL);
       if (rc < 0) {
         metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
@@ -1442,7 +1438,8 @@ static int32_t metaHandleVirtualNormalTableCreate(SMeta *pMeta, const SMetaEntry
   return code;
 }
 
-static int32_t metaHandleVirtualChildTableCreateImpl(SMeta *pMeta, const SMetaEntry *pEntry, const SMetaEntry *pSuperEntry) {
+static int32_t metaHandleVirtualChildTableCreateImpl(SMeta *pMeta, const SMetaEntry *pEntry,
+                                                     const SMetaEntry *pSuperEntry) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   SMetaTableOp ops[] = {
@@ -1477,6 +1474,11 @@ static int32_t metaHandleVirtualChildTableCreateImpl(SMeta *pMeta, const SMetaEn
     }
 
     ret = metaTbGroupCacheClear(pMeta, pSuperEntry->uid);
+    if (ret < 0) {
+      metaErr(TD_VID(pMeta->pVnode), ret);
+    }
+
+    ret = metaRefDbsCacheClear(pMeta, pSuperEntry->uid);
     if (ret < 0) {
       metaErr(TD_VID(pMeta->pVnode), ret);
     }
@@ -1576,7 +1578,7 @@ static int32_t metaHandleNormalTableDrop(SMeta *pMeta, const SMetaEntry *pEntry)
   }
 #endif
 
-  if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
+  if (!TSDB_CACHE_NO(pMeta->pVnode->config) && pMeta->pVnode->pTsdb) {
     int32_t ret = tsdbCacheDropTable(pMeta->pVnode->pTsdb, pOldEntry->uid, 0, NULL);
     if (ret < 0) {
       metaErr(TD_VID(pMeta->pVnode), ret);
@@ -1673,12 +1675,12 @@ static int32_t metaHandleChildTableDrop(SMeta *pMeta, const SMetaEntry *pEntry, 
   if (!metaTbInFilterCache(pMeta, pSuper->name, 1)) {
     int32_t      nCols = 0;
     SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
-    if (metaGetStbStats(pMeta->pVnode, pSuper->uid, NULL, &nCols) == 0) {
+    if (metaGetStbStats(pMeta->pVnode, pSuper->uid, NULL, &nCols, 0) == 0) {
       pStats->numOfTimeSeries -= nCols - 1;
     }
   }
 
-  if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
+  if (!TSDB_CACHE_NO(pMeta->pVnode->config) && pMeta->pVnode->pTsdb) {
     int32_t ret = tsdbCacheDropTable(pMeta->pVnode->pTsdb, pChild->uid, pSuper->uid, NULL);
     if (ret < 0) {
       metaErr(TD_VID(pMeta->pVnode), ret);
@@ -1764,7 +1766,7 @@ static int32_t metaHandleVirtualNormalTableDrop(SMeta *pMeta, const SMetaEntry *
   }
 #endif
 
-  if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
+  if (!TSDB_CACHE_NO(pMeta->pVnode->config) && pMeta->pVnode->pTsdb) {
     int32_t ret = tsdbCacheDropTable(pMeta->pVnode->pTsdb, pOldEntry->uid, 0, NULL);
     if (ret < 0) {
       metaErr(TD_VID(pMeta->pVnode), ret);
@@ -1816,6 +1818,12 @@ static int32_t metaHandleVirtualChildTableDropImpl(SMeta *pMeta, const SMetaHand
   if (ret < 0) {
     metaErr(TD_VID(pMeta->pVnode), ret);
   }
+
+  ret = metaRefDbsCacheClear(pMeta, pSuper->uid);
+  if (ret < 0) {
+    metaErr(TD_VID(pMeta->pVnode), ret);
+  }
+
   return code;
 }
 
@@ -2029,6 +2037,10 @@ static int32_t metaHandleVirtualChildTableUpdateImpl(SMeta *pMeta, const SMetaHa
   if (metaTbGroupCacheClear(pMeta, pSuperEntry->uid) < 0) {
     metaErr(TD_VID(pMeta->pVnode), code);
   }
+
+  if (metaRefDbsCacheClear(pMeta, pSuperEntry->uid) < 0) {
+    metaErr(TD_VID(pMeta->pVnode), code);
+  }
   return code;
 }
 
@@ -2127,7 +2139,7 @@ static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
   int     nCols = pEntry->stbEntry.schemaRow.nCols;
   int     onCols = pOldEntry->stbEntry.schemaRow.nCols;
   int32_t deltaCol = nCols - onCols;
-  bool    updStat = deltaCol != 0 && !metaTbInFilterCache(pMeta, pEntry->name, 1);
+  bool    updStat = deltaCol != 0 && !TABLE_IS_VIRTUAL(pEntry->flags) && !metaTbInFilterCache(pMeta, pEntry->name, 1);
 
   if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
     STsdb  *pTsdb = pMeta->pVnode->pTsdb;
@@ -2147,7 +2159,9 @@ static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
         metaFetchEntryFree(&pOldEntry);
         return code;
       }
-      TAOS_CHECK_RETURN(tsdbCacheNewSTableColumn(pTsdb, uids, cid, col_type));
+      if (pTsdb) {
+        TAOS_CHECK_RETURN(tsdbCacheNewSTableColumn(pTsdb, uids, cid, col_type));
+      }
     } else if (deltaCol == -1) {
       int16_t cid = -1;
       bool    hasPrimaryKey = false;
@@ -2168,16 +2182,20 @@ static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
           metaFetchEntryFree(&pOldEntry);
           return code;
         }
-        TAOS_CHECK_RETURN(tsdbCacheDropSTableColumn(pTsdb, uids, cid, hasPrimaryKey));
+        if (pTsdb) {
+          TAOS_CHECK_RETURN(tsdbCacheDropSTableColumn(pTsdb, uids, cid, hasPrimaryKey));
+        }
       }
     }
     if (uids) taosArrayDestroy(uids);
 
-    tsdbCacheInvalidateSchema(pTsdb, pEntry->uid, -1, pEntry->stbEntry.schemaRow.version);
+    if (pTsdb) {
+      tsdbCacheInvalidateSchema(pTsdb, pEntry->uid, -1, pEntry->stbEntry.schemaRow.version);
+    }
   }
   if (updStat) {
     int64_t ctbNum = 0;
-    int32_t ret = metaGetStbStats(pMeta->pVnode, pEntry->uid, &ctbNum, NULL);
+    int32_t ret = metaGetStbStats(pMeta->pVnode, pEntry->uid, &ctbNum, 0, 0);
     if (ret < 0) {
       metaError("vgId:%d, failed to get stb stats:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pEntry->name,
                 pEntry->uid, tstrerror(ret));
@@ -2281,10 +2299,12 @@ static int32_t metaHandleNormalTableUpdate(SMeta *pMeta, const SMetaEntry *pEntr
     }
     }
 #endif
-    tsdbCacheInvalidateSchema(pMeta->pVnode->pTsdb, 0, pEntry->uid, pEntry->ntbEntry.schemaRow.version);
+    if (pMeta->pVnode->pTsdb) {
+      tsdbCacheInvalidateSchema(pMeta->pVnode->pTsdb, 0, pEntry->uid, pEntry->ntbEntry.schemaRow.version);
+    }
   }
   int32_t deltaCol = pEntry->ntbEntry.schemaRow.nCols - pOldEntry->ntbEntry.schemaRow.nCols;
-  pMeta->pVnode->config.vndStats.numOfNTimeSeries += deltaCol;  
+  pMeta->pVnode->config.vndStats.numOfNTimeSeries += deltaCol;
   if (deltaCol > 0) metaTimeSeriesNotifyCheck(pMeta);
   metaFetchEntryFree(&pOldEntry);
   return code;
@@ -2378,7 +2398,7 @@ static int32_t metaHandleSuperTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) 
     return code;
   }
 
-  if (tsdbCacheDropSubTables(pMeta->pVnode->pTsdb, childList, pEntry->uid) < 0) {
+  if (pMeta->pVnode->pTsdb && tsdbCacheDropSubTables(pMeta->pVnode->pTsdb, childList, pEntry->uid) < 0) {
     metaError("vgId:%d, failed to drop stb:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pEntry->name,
               pEntry->uid, tstrerror(terrno));
   }
@@ -2413,7 +2433,7 @@ static int32_t metaHandleSuperTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) 
   }
 
   // do other stuff
-  metaUpdTimeSeriesNum(pMeta);
+  // metaUpdTimeSeriesNum(pMeta);
 
   // free resource and return
   taosArrayDestroy(childList);
@@ -2515,8 +2535,8 @@ int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry) {
 
   if (TSDB_CODE_SUCCESS == code) {
     pMeta->changed = true;
-    metaDebug("vgId:%d, index:%" PRId64 ", handle meta entry success, type:%d tb:%s uid:%" PRId64, vgId, pEntry->version,
-              pEntry->type, pEntry->type > 0 ? pEntry->name : "", pEntry->uid);
+    metaDebug("vgId:%d, index:%" PRId64 ", handle meta entry success, type:%d tb:%s uid:%" PRId64, vgId,
+              pEntry->version, pEntry->type, pEntry->type > 0 ? pEntry->name : "", pEntry->uid);
   } else {
     metaErr(vgId, code);
   }

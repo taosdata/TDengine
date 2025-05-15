@@ -1,6 +1,9 @@
 name: TDengine Release Build
 
 on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */2 * * *'
   push:
     branches:
       - 'main'
@@ -33,7 +36,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.18
+          go-version: 1.23
 
       - name: Install dependencies on Linux
         if: runner.os == 'Linux'
@@ -72,6 +75,11 @@ jobs:
           sudo mkdir -p /usr/local/lib
           sudo mkdir -p /usr/local/include
 
+      - name: Get CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
+
       - name: Build and install TDengine
         run: |
           mkdir debug && cd debug
@@ -83,7 +91,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_DEPENDENCY_TESTS=false
           make -j 4
-          sudo make install
+          make install
           which taosd
           which taosadapter
           which taoskeeper
@@ -100,9 +108,9 @@ jobs:
 
       - name: Start taosd
         run: |
-          cp /etc/taos/taos.cfg ./
-          sudo echo "supportVnodes 256" >> taos.cfg
-          nohup sudo taosd -c taos.cfg &
+          # sudo bash -c 'echo "fqdn localhost" >> /etc/taos/taos.cfg'
+          sudo bash -c 'echo "supportVnodes 256" >> /etc/taos/taos.cfg'
+          nohup sudo taosd &
 
       - name: Start taosadapter
         run: nohup sudo taosadapter &
