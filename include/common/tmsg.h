@@ -1766,10 +1766,12 @@ int32_t tDeserializeSDropMountReq(void* buf, int32_t bufLen, SDropMountReq* pReq
 void    tFreeSDropMountReq(SDropMountReq* pReq);
 
 typedef struct {
-  char    mountName[TSDB_MOUNT_NAME_LEN];
-  char    mountPath[TSDB_MOUNT_PATH_LEN];
-  int64_t mountUid;
-  int32_t dnodeId;
+  char     mountName[TSDB_MOUNT_NAME_LEN];
+  char     mountPath[TSDB_MOUNT_PATH_LEN];
+  int64_t  mountUid;
+  int32_t  dnodeId;
+  uint32_t valLen;
+  void*    pVal;
 } SRetrieveMountPathReq;
 
 int32_t tSerializeSRetrieveMountPathReq(void* buf, int32_t bufLen, SRetrieveMountPathReq* pReq);

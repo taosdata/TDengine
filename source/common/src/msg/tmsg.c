@@ -6141,6 +6141,7 @@ int32_t tSerializeSRetrieveMountPathReq(void *buf, int32_t bufLen, SRetrieveMoun
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->mountPath));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->mountUid));
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->dnodeId));
+  TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t*)pReq->pVal, pReq->valLen));
   tEndEncode(&encoder);
 
 _exit:
@@ -6163,6 +6164,7 @@ int32_t tDeserializeSRetrieveMountPathReq(void *buf, int32_t bufLen, SRetrieveMo
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->mountPath));
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->mountUid));
   TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pReq->dnodeId));
+  TAOS_CHECK_EXIT(tDecodeBinary(&decoder, (uint8_t**)&pReq->pVal, &pReq->valLen));
   tEndDecode(&decoder);
 
 _exit:

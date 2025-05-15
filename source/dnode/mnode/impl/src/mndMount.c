@@ -685,13 +685,15 @@ static int32_t mndSetCreateMountCommitLogs(SMnode *pMnode, STrans *pTrans, SMoun
   TAOS_RETURN(code);
 }
 
-void *mndBuildRetrieveMountPathReq(SMnode *pMnode, const char *mountName, const char *mountPath, int32_t dnodeId,
+void *mndBuildRetrieveMountPathReq(SMnode *pMnode, SRpcMsg *pMsg, const char *mountName, const char *mountPath, int32_t dnodeId,
                                    int32_t *pContLen) {
   int32_t code = 0, lino = 0;
   void   *pBuf = NULL;
 
   SRetrieveMountPathReq req = {0};
   req.dnodeId = dnodeId;
+  req.pVal = &pMsg->info;
+  req.valLen = sizeof(pMsg->info);
   TAOS_UNUSED(snprintf(req.mountName, TSDB_MOUNT_NAME_LEN, "%s", mountName));
   TAOS_UNUSED(snprintf(req.mountPath, TSDB_MOUNT_PATH_LEN, "%s", mountPath));
 
@@ -772,7 +774,7 @@ static int32_t mndRetrieveMountInfo(SMnode *pMnode, SRpcMsg *pMsg, SCreateMountR
   mndReleaseDnode(pMnode, pDnode);
 
   int32_t bufLen = 0;
-  void   *pBuf = mndBuildRetrieveMountPathReq(pMnode, pReq->mountName, pReq->mountPaths[0], pReq->dnodeIds[0], &bufLen);
+  void   *pBuf = mndBuildRetrieveMountPathReq(pMnode, pMsg, pReq->mountName, pReq->mountPaths[0], pReq->dnodeIds[0], &bufLen);
   if (pBuf == NULL) TAOS_RETURN(terrno);
 
   SRpcMsg rpcMsg = {.msgType = TDMT_DND_RETRIEVE_MOUNT_PATH, .pCont = pBuf, .contLen = bufLen};
@@ -923,8 +925,6 @@ int32_t mndCheckDbDnodeList(SMnode *pMnode, char *db, char *dnodeListStr, SArray
 #endif
 #endif
 
-SRpcHandleInfo mountInfo = {0};
-
 static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
   int32_t         code = 0, lino = 0;
   SMnode         *pMnode = pReq->info.node;
@@ -932,8 +932,6 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
   SUserObj       *pUser = NULL;
   SMountInfo     *pMountInfo = NULL;
   SCreateMountReq createReq = {0};
-
-  mountInfo = pReq->info;
 
   TAOS_CHECK_EXIT(tDeserializeSCreateMountReq(pReq->pCont, pReq->contLen, &createReq));
   mInfo("mount:%s, start to create on dnode %d from %s", createReq.mountName, *createReq.dnodeIds,
@@ -985,8 +983,6 @@ _exit:
   TAOS_RETURN(code);
 }
 
-
-
 static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp) {
   SMnode *pMnode = pRsp->info.node;
 
@@ -994,7 +990,7 @@ static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp) {
       .code = pRsp->code,
       .pCont = pRsp->info.rsp,
       .contLen = pRsp->info.rspLen,
-      .info = mountInfo, //pRsp->info,
+      .info = pRsp->info, // TODO: use the info from the client original request
   };
   tmsgSendRsp(&rsp);
 
