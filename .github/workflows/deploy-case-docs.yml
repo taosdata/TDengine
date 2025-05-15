@@ -5,7 +5,7 @@ on:
     branches:
       - 'new_testframework_doc_1'
     paths:
-      - 'test/mkdocs.yml'
+      - 'test/cases/**/test_*.py'
   pull_request:
     branches:
       - 'main'

@@ -17,7 +17,7 @@ class TestDatatypeBigInt:
         5. illegal input
 
         Catalog:
-            - DataTypes
+            - DataTypes 
             - Tables:SubTables:Create
 
         Since: v3.0.0.0
