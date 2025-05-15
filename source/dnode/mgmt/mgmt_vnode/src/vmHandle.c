@@ -440,23 +440,40 @@ _OVER:
 }
 
 #ifdef USE_MOUNT
+static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pReq, SMountInfo *pMountInfo) {
+  int32_t       code = 0, lino = 0;
+  SWrapperCfg  *pCfgs = NULL;
+  int32_t       numOfVnodes = 0;
+  char          path[TSDB_MOUNT_PATH_LEN + 128] = {0};
+  TdDirPtr      pDir = NULL;
+  TdDirEntryPtr de = NULL;
+  SVnodeMgmt    vndMgmt = {0};
 
-static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SMountInfo *pMountInfo) {
-  int32_t code = 0;
+  snprintf(path, sizeof(path), "%s%s%s", pReq->mountPath, TD_DIRSEP, dmNodeName(VNODE));
+  vndMgmt.path = path;
+  TAOS_CHECK_EXIT(vmGetVnodeListFromFile(pMgmt, &pCfgs, &numOfVnodes));
 
+  fprintf(stderr, "numOfVnodes:%d in path:%s\n", numOfVnodes, vndMgmt.path);
+
+_exit:
+  if (code != 0) {
+    dError("mount:%s, failed at line %d on dnode:%d since %s, path:%s", pReq->mountName, lino, pReq->dnodeId,
+           tstrerror(code), pReq->mountPath);
+  }
+  taosMemoryFreeClear(pCfgs);
   TAOS_RETURN(code);
 }
 
-static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SMountInfo *pMountInfo) {
-  int32_t code = 0;
-
+static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pReq, SMountInfo *pMountInfo) {
+  int32_t code = 0, lino = 0;
+_exit:
   TAOS_RETURN(code);
 }
 
 static int32_t vmRetrieveMountPathImpl(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, SRetrieveMountPathReq *pReq,
                                        SMountInfo *pMountInfo) {
-  int32_t    code = 0, lino = 0;
-  char       path[FILENAME_MAX] = {0};
+  int32_t code = 0, lino = 0;
+  char    path[TSDB_MOUNT_PATH_LEN + 16] = {0};
 
   pMountInfo->dnodeId = pReq->dnodeId;
   pMountInfo->mountUid = pReq->mountUid;
@@ -471,8 +488,8 @@ static int32_t vmRetrieveMountPathImpl(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, SRetrie
   TSDB_CHECK_CONDITION(taosCheckAccessFile(path, O_RDONLY), code, lino, _exit, TAOS_SYSTEM_ERROR(errno));
   snprintf(path, sizeof(path), "%s%s%s", pReq->mountPath, TD_DIRSEP, dmNodeName(VNODE));
   TSDB_CHECK_CONDITION(taosCheckAccessFile(path, O_RDONLY), code, lino, _exit, TAOS_SYSTEM_ERROR(errno));
-  TAOS_CHECK_EXIT(vmRetrieveMountVnodes(pMgmt, pMountInfo));
-  TAOS_CHECK_EXIT(vmRetrieveMountStbs(pMgmt, pMountInfo));
+  TAOS_CHECK_EXIT(vmRetrieveMountVnodes(pMgmt, pReq, pMountInfo));
+  TAOS_CHECK_EXIT(vmRetrieveMountStbs(pMgmt, pReq, pMountInfo));
 _exit:
   if (code != 0) {
     dError("mount:%s, failed at line %d on dnode:%d since %s, path:%s", pReq->mountName, lino, pReq->dnodeId,
@@ -486,9 +503,9 @@ int32_t vmProcessRetrieveMountPathReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t               rspCode = 0;
   SRetrieveMountPathReq req = {0};
 
-  SMountInfo            mountInfo = {0};
-  void                 *pBuf = NULL;
-  int32_t               bufLen = 0;
+  SMountInfo mountInfo = {0};
+  void      *pBuf = NULL;
+  int32_t    bufLen = 0;
 
   TAOS_CHECK_GOTO(tDeserializeSRetrieveMountPathReq(pMsg->pCont, pMsg->contLen, &req), &lino, _end);
   dInfo("mount:%s, start to retrieve path:%s", req.mountName, req.mountPath);
@@ -513,7 +530,7 @@ _exit:
   }
   TAOS_RETURN(code);
 }
-#endif
+#endif  // USE_MOUNT
 
 // alter replica doesn't use this, but restore dnode still use this
 int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
