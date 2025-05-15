@@ -259,7 +259,7 @@ int32_t  streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppBlock, uint64_t* t
 void     streamDestroyExecTask(qTaskInfo_t tInfo);
 int32_t  qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType,
                                          SNodeList* pGroupTags, bool groupSort, SNode* pTagCond, SNode* pTagIndexCond,
-                                         SStorageAPI* storageAPI, void** pTableListInfo);
+                                         SStorageAPI* storageAPI, void** pTableListInfo, SHashObj* groupIdMap);
 int32_t  qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STableKeyInfo** pKeyInfo, int32_t* size);
 uint64_t qStreamGetGroupId(void* pTableListInfo, int64_t uid);
 void     qStreamDestroyTableList(void* pTableListInfo);

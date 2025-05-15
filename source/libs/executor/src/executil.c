@@ -765,8 +765,56 @@ end:
   return code;
 }
 
+static int32_t buildGroupInfo(SColumnInfoData* pValue, int32_t i, SArray* gInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SGroupInfo* v = taosArrayReserve(gInfo, 1);
+  if (v == NULL) {
+    code = terrno;
+    goto end;
+  }
+  if (colDataIsNull_s(pValue, i)) {
+    v->isNull = true;
+  } else {
+    v->isNull = false;
+    char* data = colDataGetData(pValue, i);
+    if (pValue->info.type == TSDB_DATA_TYPE_JSON) {
+      if (tTagIsJson(data)) {
+        code = TSDB_CODE_QRY_JSON_IN_GROUP_ERROR;
+        goto end;
+      }
+      if (tTagIsJsonNull(data)) {
+        v->isNull = true;
+        goto end;
+      }
+      int32_t len = getJsonValueLen(data);
+      v->data.type = pValue->info.type;
+      v->data.nData = len;
+      v->data.pData = taosMemoryCalloc(1, len);
+      memcpy(v->data.pData, data, len);
+    } else if (IS_VAR_DATA_TYPE(pValue->info.type)) {
+      if (varDataTLen(data) > pValue->info.bytes) {
+        code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+        goto end;
+      }
+      v->data.type = pValue->info.type;
+      v->data.nData = varDataLen(data);
+      v->data.pData = taosMemoryCalloc(1, varDataLen(data));
+      memcpy(v->data.pData, varDataVal(data), varDataLen(data));
+    } else {
+      v->data.type = pValue->info.type;
+      memcpy(&v->data.val, data, pValue->info.bytes);
+    }
+  }
+end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    v->isNull = true;
+  }
+  return code;
+}
+
 int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInfo* pTableListInfo, uint8_t* digest,
-                                   SStorageAPI* pAPI, bool initRemainGroups) {
+                                   SStorageAPI* pAPI, bool initRemainGroups, SHashObj* groupIdMap) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SArray*      pBlockList = NULL;
@@ -775,6 +823,7 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
   SArray*      groupData = NULL;
   SArray*      pUidTagList = NULL;
   SArray*      tableList = NULL;
+  SArray*      gInfo = NULL;
 
   int32_t rows = taosArrayGetSize(pTableListInfo->pTableList);
   if (rows == 0) {
@@ -921,11 +970,24 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
     STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
     QUERY_CHECK_NULL(info, code, lino, end, terrno);
 
+    if (groupIdMap != NULL){
+      gInfo = taosArrayInit(rows, sizeof(SGroupInfo));
+    }
+    
     char* isNull = (char*)keyBuf;
     char* pStart = (char*)keyBuf + sizeof(int8_t) * LIST_LENGTH(group);
     for (int j = 0; j < taosArrayGetSize(groupData); j++) {
       SColumnInfoData* pValue = (SColumnInfoData*)taosArrayGetP(groupData, j);
 
+      if (groupIdMap != NULL && gInfo != NULL) {
+        int32_t ret = buildGroupInfo(pValue, i, gInfo);
+        if (ret != TSDB_CODE_SUCCESS) {
+          qError("buildGroupInfo failed at line %d since %s", __LINE__, tstrerror(ret));
+          taosArrayDestroyEx(gInfo, tDestroySValue);
+          gInfo = NULL;
+        }
+      }
+      
       if (colDataIsNull_s(pValue, i)) {
         isNull[j] = 1;
       } else {
@@ -959,6 +1021,14 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
 
     int32_t len = (int32_t)(pStart - (char*)keyBuf);
     info->groupId = calcGroupId(keyBuf, len);
+    if (groupIdMap != NULL && gInfo != NULL) {
+      int32_t ret = taosHashPut(groupIdMap, &info->groupId, sizeof(info->groupId), &gInfo, POINTER_BYTES);
+      if (ret != TSDB_CODE_SUCCESS) {
+        qError("buildGroupInfo failed at line %d since %s", __LINE__, tstrerror(ret));
+        taosArrayDestroyEx(gInfo, tDestroySValue);
+      }
+      gInfo = NULL;
+    }
     if (initRemainGroups) {
       // groupId ~ table uid
       code = taosHashPut(pTableListInfo->remainGroups, &(info->groupId), sizeof(info->groupId), &(info->uid),
@@ -989,6 +1059,8 @@ end:
   taosArrayDestroy(pBlockList);
   taosArrayDestroyEx(pUidTagList, freeItem);
   taosArrayDestroyP(groupData, releaseColInfoData);
+  taosArrayDestroyEx(gInfo, tDestroySValue);
+
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -2871,8 +2943,42 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t addTbnameToMap(SHashObj* groupIdMap, int64_t uid, void* vnode, SStorageAPI* pAPI) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SArray* gInfo = taosArrayInit(4, sizeof(SGroupInfo));
+  if (gInfo == NULL) {
+    return terrno;
+  }
+  SGroupInfo* v = taosArrayReserve(gInfo, 1);
+  if (v == NULL) {
+    taosArrayDestroy(gInfo);
+    return terrno;
+  }
+
+  char str[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  code = pAPI->metaFn.getTableNameByUid(vnode, uid, str);
+  v->isNull = false;
+  v->data.nData = strlen(str);
+  v->data.pData = taosStrdup(str);
+  v->data.type = TSDB_DATA_TYPE_BINARY;
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    taosMemoryFree(v->data.pData);
+    taosArrayDestroy(gInfo);
+    return code;
+  }
+  code = taosHashPut(groupIdMap, &uid, sizeof(uid), &gInfo, POINTER_BYTES);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    taosMemoryFree(v->data.pData);
+    taosArrayDestroy(gInfo);
+    return code;
+  }
+  return code;
+}
+
 int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SScanPhysiNode* pScanNode,
-                                    SNodeList* group, bool groupSort, uint8_t* digest, SStorageAPI* pAPI) {
+                                    SNodeList* group, bool groupSort, uint8_t* digest, SStorageAPI* pAPI, SHashObj* groupIdMap) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   bool   groupByTbname = groupbyTbname(group);
@@ -2896,7 +3002,13 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
           return terrno;
         }
         info->groupId = groupByTbname ? info->uid : 0;
-
+        if (groupIdMap){
+          code = addTbnameToMap(groupIdMap, info->uid, pHandle->vnode, pAPI);
+          if (code != TSDB_CODE_SUCCESS) {
+            qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+            return code;
+          }
+        }
         int32_t tempRes = taosHashPut(pTableListInfo->remainGroups, &(info->groupId), sizeof(info->groupId),
                                       &(info->uid), sizeof(info->uid));
         if (tempRes != TSDB_CODE_SUCCESS && tempRes != TSDB_CODE_DUP_KEY) {
@@ -2912,6 +3024,13 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
           return terrno;
         }
         info->groupId = groupByTbname ? info->uid : 0;
+        if (groupIdMap){
+          code = addTbnameToMap(groupIdMap, info->uid, pHandle->vnode, pAPI);
+          if (code != TSDB_CODE_SUCCESS) {
+            qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+            return code;
+          }
+        }
       }
     }
 
@@ -2938,7 +3057,7 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
       }
     }
 
-    code = getColInfoResultForGroupby(pHandle->vnode, group, pTableListInfo, digest, pAPI, initRemainGroups);
+    code = getColInfoResultForGroupby(pHandle->vnode, group, pTableListInfo, digest, pAPI, initRemainGroups, groupIdMap);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -2970,7 +3089,7 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
 
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
                                 STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
-                                SExecTaskInfo* pTaskInfo) {
+                                SExecTaskInfo* pTaskInfo, SHashObj* groupIdMap) {
   int64_t     st = taosGetTimestampUs();
   const char* idStr = GET_TASKID(pTaskInfo);
 
@@ -3000,7 +3119,7 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
   }
 
   code = buildGroupIdMapForAllTables(pTableListInfo, pHandle, pScanNode, pGroupTags, groupSort, digest,
-                                     &pTaskInfo->storageAPI);
+                                     &pTaskInfo->storageAPI, groupIdMap);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }

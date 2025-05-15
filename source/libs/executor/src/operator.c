@@ -327,7 +327,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         pTableListInfo->idInfo.tableType = pTableScanNode->scan.tableType;
       } else {
         code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
-                                       pHandle, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo);
+                                       pHandle, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo, NULL);
         if (code) {
           pTaskInfo->code = code;
           tableListDestroy(pTableListInfo);
@@ -355,7 +355,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
       }
 
       code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, true, pHandle, pTableListInfo,
-                                     pTagCond, pTagIndexCond, pTaskInfo);
+                                     pTagCond, pTagIndexCond, pTaskInfo, NULL);
       if (code) {
         pTaskInfo->code = code;
         tableListDestroy(pTableListInfo);
@@ -398,7 +398,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
       }
       if (!pTagScanPhyNode->onlyMetaCtbIdx) {
         code = createScanTableListInfo((SScanPhysiNode*)pTagScanPhyNode, NULL, false, pHandle, pTableListInfo, pTagCond,
-                                       pTagIndexCond, pTaskInfo);
+                                       pTagIndexCond, pTaskInfo, NULL);
         if (code != TSDB_CODE_SUCCESS) {
           pTaskInfo->code = code;
           qError("failed to getTableList, code:%s", tstrerror(code));
@@ -474,7 +474,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
       }
 
       code = createScanTableListInfo(&pScanNode->scan, pScanNode->pGroupTags, true, pHandle, pTableListInfo, pTagCond,
-                                     pTagIndexCond, pTaskInfo);
+                                     pTagIndexCond, pTaskInfo, NULL);
       if (code != TSDB_CODE_SUCCESS) {
         pTaskInfo->code = code;
         tableListDestroy(pTableListInfo);
@@ -619,7 +619,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     }
 
     code = createScanTableListInfo(&pVirtualTableScanNode->scan, pVirtualTableScanNode->pGroupTags, pVirtualTableScanNode->groupSort,
-                                   pHandle, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo);
+                                   pHandle, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo, NULL);
     if (code) {
       pTaskInfo->code = code;
       tableListDestroy(pTableListInfo);
@@ -639,7 +639,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
 
     code = createScanTableListInfo(&pVirtualTableScanNode->scan, pVirtualTableScanNode->pGroupTags,
                                    pVirtualTableScanNode->groupSort, pHandle, pTableListInfo, pTagCond, pTagIndexCond,
-                                   pTaskInfo);
+                                   pTaskInfo, NULL);
     if (code) {
       pTaskInfo->code = code;
       tableListDestroy(pTableListInfo);

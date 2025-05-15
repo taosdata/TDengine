@@ -104,7 +104,7 @@ end:
 }
 
 int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* options, SStreamReaderTaskInner** ppTask,
-                         SSDataBlock* pResBlock) {
+                         SSDataBlock* pResBlock, SHashObj* groupIdMap) {
   int32_t                 code = 0;
   int32_t                 lino = 0;
   SStreamReaderTaskInner* pTask = taosMemoryCalloc(1, sizeof(SStreamReaderTaskInner));
@@ -122,7 +122,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
   STREAM_CHECK_RET_GOTO(filterInitFromNode(options->pConditions, &pTask->pFilterInfo, 0, NULL));
   STREAM_CHECK_RET_GOTO(qStreamCreateTableListForReader(pVnode, options->suid, options->uid, options->tableType,
                                                         options->partitionCols, options->groupSort, options->pTagCond,
-                                                        options->pTagIndexCond, &pTask->api, &pTask->pTableList));
+                                                        options->pTagIndexCond, &pTask->api, &pTask->pTableList, groupIdMap));
   if (options->gid != 0) {
     int32_t index = qStreamGetGroupIndex(pTask->pTableList, options->gid);
     STREAM_CHECK_CONDITION_GOTO(index < 0, TSDB_CODE_INVALID_PARA);
@@ -156,6 +156,7 @@ static void releaseStreamReaderInfo(void* p) {
   SStreamTriggerReaderInfo* pInfo = (SStreamTriggerReaderInfo*)p;
   if (pInfo == NULL) return;
   taosHashCleanup(pInfo->streamTaskMap);
+  taosHashCleanup(pInfo->groupIdMap);
   pInfo->streamTaskMap = NULL;
   nodesDestroyNode((SNode*)(pInfo->triggerAst));
   nodesDestroyNode((SNode*)(pInfo->calcAst));
@@ -241,6 +242,13 @@ end:
   return code;
 }
 
+static void releaseGroupIdMap(void* p) {
+  if (p == NULL) return;
+  SArray* gInfo = *((SArray**)p);
+  if (gInfo == NULL) return;
+  taosArrayDestroyEx(gInfo, tDestroySValue);
+}
+
 static SStreamTriggerReaderInfo* createStreamReaderInfo(const SStreamReaderDeployMsg* pMsg) {
   int32_t    code = 0;
   int32_t    lino = 0;
@@ -319,6 +327,11 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(const SStreamReaderDeplo
     STREAM_CHECK_RET_GOTO(buildSTSchemaAndSetColId(&sStreamReaderInfo->calcSchema, sStreamReaderInfo->calcCols,
                                                    sStreamReaderInfo->calcResBlock));
   }
+
+  sStreamReaderInfo->groupIdMap =
+      taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+  STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->groupIdMap, terrno);
+  taosHashSetFreeFp(sStreamReaderInfo->streamTaskMap, releaseGroupIdMap);
 
   sStreamReaderInfo->streamTaskMap =
       taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);

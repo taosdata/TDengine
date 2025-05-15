@@ -1776,7 +1776,7 @@ void streamSetTaskRuntimeInfo(qTaskInfo_t tinfo, SStreamRuntimeInfo* pStreamRunt
 
 int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType,
                                         SNodeList* pGroupTags, bool groupSort, SNode* pTagCond, SNode* pTagIndexCond,
-                                        SStorageAPI* storageAPI, void** pTableListInfo) {
+                                        SStorageAPI* storageAPI, void** pTableListInfo, SHashObj* groupIdMap) {
   STableListInfo* pList = tableListCreate();
   if (pList == NULL) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
@@ -1787,7 +1787,7 @@ int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t ui
   SReadHandle    pHandle = {.vnode = pVnode};
   SExecTaskInfo  pTaskInfo = {.id.str = "", .storageAPI = *storageAPI};
 
-  int32_t code = createScanTableListInfo(&pScanNode, pGroupTags, groupSort, &pHandle, pList, pTagCond, pTagIndexCond, &pTaskInfo);
+  int32_t code = createScanTableListInfo(&pScanNode, pGroupTags, groupSort, &pHandle, pList, pTagCond, pTagIndexCond, &pTaskInfo, groupIdMap);
   if (code != 0) {
     tableListDestroy(pList);
     qError("failed to createScanTableListInfo, code:%s", tstrerror(code));

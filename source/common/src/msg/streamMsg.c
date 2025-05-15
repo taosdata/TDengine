@@ -2364,7 +2364,7 @@ void tDestroySSTriggerCalcParam(void* ptr) {
   }
 }
 
-static void tDestroySValue(void* ptr) {
+void tDestroySValue(void* ptr) {
   SValue* pValue = ptr;
   if (ptr && IS_VAR_DATA_TYPE(pValue->type)) {
     taosMemoryFreeClear(pValue->pData);

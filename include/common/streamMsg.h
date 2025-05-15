@@ -740,6 +740,7 @@ typedef struct SStreamGroupInfo {
 int32_t tSerializeSStreamGroupInfo(void* buf, int32_t bufLen, const SStreamGroupInfo* gInfo);
 int32_t tDeserializeSStreamGroupInfo(void* buf, int32_t bufLen, SStreamGroupInfo* gInfo);
 void    tDestroySStreamGroupInfo(void* ptr);
+void    tDestroySValue(void* ptr);
 
 #ifdef __cplusplus
 }
