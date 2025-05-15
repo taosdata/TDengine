@@ -640,6 +640,7 @@ typedef struct SSTriggerWalCalcDataRequest {
   int64_t              skey;
   int64_t              ekey;
 } SSTriggerWalCalcDataRequest;
+
 typedef struct SSTriggerGroupColValueRequest {
   SSTriggerPullRequest base;
   int64_t              gid;

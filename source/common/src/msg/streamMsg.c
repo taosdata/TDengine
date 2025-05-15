@@ -2319,6 +2319,11 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->gid));
       break;
     }
+    default: {
+      uError("unknown pull type %d", type);
+      code = TSDB_CODE_INVALID_PARA;
+      break;
+    }
   }
 
   tEndDecode(&decoder);
