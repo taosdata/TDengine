@@ -348,7 +348,9 @@ class CompatibilityBase:
                 db_name = tdsql.queryResult[i][1]
                 stable_name = tdsql.queryResult[i][2]
                 tag_name = tdsql.queryResult[i][3]
-                tdLog.info(f"ALTER STABLE {db_name}.{stable_name} MODIFY TAG {tag_name} nchar({new_tag_size})")
+                if new_tag_size <= tag_size:
+                    continue
+                tdLog.info(f"ALTER STABLE {db_name}.{stable_name} MODIFY TAG {tag_name} nchar({new_tag_size}), case {tag_value} len > {tag_size}")
                 tdsql.execute(f"ALTER STABLE {db_name}.{stable_name} MODIFY TAG {tag_name} nchar({new_tag_size})")
 
 
