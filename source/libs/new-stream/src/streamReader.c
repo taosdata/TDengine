@@ -364,6 +364,15 @@ static SStreamTriggerReaderCalcInfo* createStreamReaderCalcInfo(const SStreamRea
       QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN != nodeType(sStreamReaderCalcInfo->calcAst->pNode),
       TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
 
+  SNodeList* pScanCols = ((STableScanPhysiNode*)(sStreamReaderCalcInfo->calcAst->pNode))->scan.pScanCols;
+  SNode*  nodeItem = NULL;
+  FOREACH(nodeItem, pScanCols) {
+    SColumnNode*     valueNode = (SColumnNode*)((STargetNode*)nodeItem)->pExpr;
+    if (valueNode->colId == PRIMARYKEY_TIMESTAMP_COL_ID){
+      sStreamReaderCalcInfo->pTargetNodeTs = (STargetNode*)nodeItem;
+    }
+  }
+
   sStreamReaderCalcInfo->calcScanPlan = taosStrdup(pMsg->msg.calc.calcScanPlan);
   STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo->calcScanPlan, terrno);
   sStreamReaderCalcInfo->pTaskInfo = NULL;

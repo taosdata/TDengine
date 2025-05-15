@@ -128,7 +128,7 @@ int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray** tableList
  * @param queryId
  */
 int32_t qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId);
-
+bool    qTaskIsDone(qTaskInfo_t tinfo);
 /**
  * Set block for sma
  * @param tinfo

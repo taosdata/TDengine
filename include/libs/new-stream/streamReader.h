@@ -72,6 +72,7 @@ typedef struct SStreamTriggerReaderCalcInfo {
   void*       pFilterInfo;
   void*       tsConditions;
   SSubplan*    calcAst;
+  STargetNode* pTargetNodeTs;
   char*       calcScanPlan;
   qTaskInfo_t pTaskInfo;
   SStreamRuntimeInfo rtInfo;

@@ -2390,7 +2390,7 @@ static int32_t tDeserializeSTriggerCalcParam(SDecoder* pDecoder, SArray**ppParam
         TAOS_CHECK_EXIT(terrno);
       }
     } else {
-      TAOS_CHECK_EXIT(taosArrayEnsureCap(*ppParams, size));
+      TAOS_CHECK_EXIT(taosArrayEnsureCap(*ppParams, size));      
     }
     TARRAY_SIZE(*ppParams) = size;
   }

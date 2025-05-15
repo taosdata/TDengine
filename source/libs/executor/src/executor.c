@@ -174,6 +174,11 @@ int32_t qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId) {
   return doSetTaskId(pTaskInfo->pRoot, &pTaskInfo->storageAPI);
 }
 
+bool qTaskIsDone(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = tinfo;
+  return pTaskInfo->status == OP_EXEC_DONE;
+}
+
 int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type) {
   if (tinfo == NULL) {
     return TSDB_CODE_APP_ERROR;

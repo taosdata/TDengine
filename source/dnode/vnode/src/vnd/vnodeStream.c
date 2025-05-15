@@ -505,7 +505,7 @@ end:
   return code;
 }
 
-static int32_t createTSAndCondition(int64_t start, int64_t end, SLogicConditionNode** pCond) {
+static int32_t createTSAndCondition(int64_t start, int64_t end, SLogicConditionNode** pCond, STargetNode* pTargetNodeTs) {
   int32_t            code = 0;
   int32_t            lino = 0;
 
@@ -521,7 +521,8 @@ static int32_t createTSAndCondition(int64_t start, int64_t end, SLogicConditionN
   pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
   pCol->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
   pCol->node.resType.bytes = LONG_BYTES;
-  // pCol->dataBlockId = 2;  //reader todo
+  pCol->slotId = pTargetNodeTs->slotId;
+  pCol->dataBlockId = pTargetNodeTs->dataBlockId;
 
   STREAM_CHECK_RET_GOTO(nodesCloneNode((SNode*)pCol, (SNode**)&pCol1));
 
@@ -580,12 +581,16 @@ end:
   return code;
 }
 
-static int32_t createExternalConditions(SArray* data, SLogicConditionNode** pCond) {
+static int32_t createExternalConditions(SArray* data, SLogicConditionNode** pCond, STargetNode* pTargetNodeTs) {
   int32_t code = 0;
   int32_t lino = 0;
   SLogicConditionNode* pAndCondition = NULL;
   SLogicConditionNode* cond = NULL;
 
+  if (pTargetNodeTs == NULL) {
+    vError("stream reader %s no ts column", __func__);
+    return TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN;
+  }
   STREAM_CHECK_RET_GOTO(nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&cond));
   cond->condType = LOGIC_COND_TYPE_OR;
   cond->node.resType.type = TSDB_DATA_TYPE_BOOL;
@@ -595,7 +600,7 @@ static int32_t createExternalConditions(SArray* data, SLogicConditionNode** pCon
   for (int i = 0; i < taosArrayGetSize(data); ++i) {
     SSTriggerCalcParam* pParam = taosArrayGet(data, i);
     STREAM_CHECK_NULL_GOTO(pParam, terrno);
-    STREAM_CHECK_RET_GOTO(createTSAndCondition(pParam->wstart, pParam->wend, &pAndCondition));
+    STREAM_CHECK_RET_GOTO(createTSAndCondition(pParam->wstart, pParam->wend, &pAndCondition, pTargetNodeTs));
     vDebug("%s create condition skey:%" PRId64 ", eksy:%" PRId64, __func__, pParam->wstart, pParam->wend);
     STREAM_CHECK_RET_GOTO(nodesListAppend(cond->pParameterList, (SNode*)pAndCondition));
     pAndCondition = NULL;
@@ -1255,6 +1260,54 @@ end:
   return code;
 }
 
+// static int32_t getExpValue(){
+//   SNode* pNode = NULL;
+//   FOREACH(pNode, group) {
+//     SScalarParam output = {0};
+
+//     switch (nodeType(pNode)) {
+//       case QUERY_NODE_VALUE:
+//         break;
+//       case QUERY_NODE_COLUMN:
+//       case QUERY_NODE_OPERATOR:
+//       case QUERY_NODE_FUNCTION: {
+//         SExprNode* expNode = (SExprNode*)pNode;
+//         code = createResultData(&expNode->resType, rows, &output);
+//         if (code != TSDB_CODE_SUCCESS) {
+//           goto end;
+//         }
+//         break;
+//       }
+
+//       default:
+//         code = TSDB_CODE_OPS_NOT_SUPPORT;
+//         goto end;
+//     }
+
+//     if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+//       SColumnNode*     pSColumnNode = (SColumnNode*)pNode;
+//       SColumnInfoData* pColInfo = (SColumnInfoData*)taosArrayGet(pResBlock->pDataBlock, pSColumnNode->slotId);
+//       QUERY_CHECK_NULL(pColInfo, code, lino, end, terrno);
+//       code = colDataAssign(output.columnData, pColInfo, rows, NULL);
+//     } else if (nodeType(pNode) == QUERY_NODE_VALUE) {
+//       continue;
+//     } else {
+//       code = scalarCalculate(pNode, pBlockList, &output, NULL);
+//     }
+
+//     if (code != TSDB_CODE_SUCCESS) {
+//       releaseColInfoData(output.columnData);
+//       goto end;
+//     }
+
+//     nodesWalkExprPostOrder(pNode, sclCalcWalker, (void *)&ctx);
+//     SCL_ERR_JRET(ctx.code);
+
+//     void* tmp = taosArrayPush(groupData, &output.columnData);
+//     QUERY_CHECK_NULL(tmp, code, lino, end, terrno);
+//   }
+// }
+
 static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   int32_t            code = 0;
   int32_t            lino = 0;
@@ -1281,7 +1334,8 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
       nodesDestroyNode(sStreamReaderCalcInfo->tsConditions);
       filterFreeInfo(sStreamReaderCalcInfo->pFilterInfo);
 
-      STREAM_CHECK_RET_GOTO(createExternalConditions(req.pStRtFuncInfo->pStreamPesudoFuncVals, (SLogicConditionNode**)&sStreamReaderCalcInfo->tsConditions));
+      STREAM_CHECK_RET_GOTO(createExternalConditions(req.pStRtFuncInfo->pStreamPesudoFuncVals, (SLogicConditionNode**)&sStreamReaderCalcInfo->tsConditions,
+      sStreamReaderCalcInfo->pTargetNodeTs));
       
       STREAM_CHECK_RET_GOTO(filterInitFromNode((SNode*)sStreamReaderCalcInfo->tsConditions, (SFilterInfo **)&sStreamReaderCalcInfo->pFilterInfo, 0, NULL));
       SSTriggerCalcParam* pFirst = taosArrayGet(req.pStRtFuncInfo->pStreamPesudoFuncVals, 0);
@@ -1318,13 +1372,19 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
     STREAM_CHECK_RET_GOTO(qSetTaskId(sStreamReaderCalcInfo->pTaskInfo, req.taskId, req.queryId));
   }
 
-  uint64_t ts = 0;
-  // qStreamSetOpen(task);
-  STREAM_CHECK_RET_GOTO(qExecTask(sStreamReaderCalcInfo->pTaskInfo, &pBlock, &ts));
-  printDataBlock(pBlock, "calc fetch block", "task id");
-
-  if (req.pStRtFuncInfo->withExternalWindow && pBlock != NULL){
-    STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, sStreamReaderCalcInfo->pFilterInfo));
+  while(1){
+    uint64_t ts = 0;
+    // qStreamSetOpen(task);
+    STREAM_CHECK_RET_GOTO(qExecTask(sStreamReaderCalcInfo->pTaskInfo, &pBlock, &ts));
+    printDataBlock(pBlock, "calc fetch block", "task id");
+  
+    if (req.pStRtFuncInfo->withExternalWindow && pBlock != NULL){
+      STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, sStreamReaderCalcInfo->pFilterInfo));
+      if (pBlock->info.rows == 0 && !qTaskIsDone(sStreamReaderCalcInfo->pTaskInfo)){
+        continue;
+      }
+    }
+    break;
   }
 
   vDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock != NULL ? pBlock->info.rows : -1);
