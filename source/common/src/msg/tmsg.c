@@ -3341,8 +3341,9 @@ int32_t tDeserializeSGetUserWhiteListDualRsp(void *buf, int32_t bufLen, SGetUser
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->user));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->numWhiteLists));
-  pRsp->pWhiteLists = taosMemoryMalloc(pRsp->numWhiteLists * sizeof(SIpRange));
-  if (pRsp->pWhiteLists == NULL) {
+
+  pRsp->pWhiteListsDual = taosMemoryMalloc(pRsp->numWhiteLists * sizeof(SIpRange));
+  if (pRsp->pWhiteListsDual == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
   for (int32_t i = 0; i < pRsp->numWhiteLists; ++i) {

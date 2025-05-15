@@ -491,50 +491,62 @@ typedef struct SFetchWhiteListDualStackInfo {
 } SFetchWhiteListDualStackInfo;
 
 int32_t fetchWhiteListDualStackCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
-  SFetchWhiteListDualStackInfo *pInfo = (SFetchWhiteListDualStackInfo *)param;
+  int32_t lino = 0;
+  char  **pWhiteLists = NULL;
 
+  SGetUserWhiteListRsp wlRsp = {0};
+
+  SFetchWhiteListDualStackInfo *pInfo = (SFetchWhiteListDualStackInfo *)param;
   TAOS *taos = &pInfo->connId;
+
   if (code != TSDB_CODE_SUCCESS) {
     pInfo->userCbFn(pInfo->userParam, code, taos, 0, NULL);
-    taosMemoryFree(pMsg->pData);
-    taosMemoryFree(pMsg->pEpSet);
-    taosMemoryFree(pInfo);
+    TAOS_CHECK_GOTO(code, &lino, _error);
     return code;
   }
 
-  SGetUserWhiteListRsp wlRsp;
   if ((code = tDeserializeSGetUserWhiteListDualRsp(pMsg->pData, pMsg->len, &wlRsp)) != TSDB_CODE_SUCCESS) {
-    taosMemoryFree(pMsg->pData);
-    taosMemoryFree(pMsg->pEpSet);
-    taosMemoryFree(pInfo);
-    tFreeSGetUserWhiteListRsp(&wlRsp);
-    return code;
+    TAOS_CHECK_GOTO(code, &lino, _error);
   }
-  wlRsp.numWhiteLists = 2;
-  char **pWhiteLists = taosMemoryMalloc(wlRsp.numWhiteLists * sizeof(char *));
+
+  pWhiteLists = taosMemoryMalloc(wlRsp.numWhiteLists * sizeof(char *));
   if (pWhiteLists == NULL) {
-    taosMemoryFree(pMsg->pData);
-    taosMemoryFree(pMsg->pEpSet);
-    taosMemoryFree(pInfo);
-    tFreeSGetUserWhiteListRsp(&wlRsp);
-    return code = terrno;
+    code = terrno;
+    TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
-  char *ip4 = taosMemCalloc(1, 256);
-  snprintf(ip4, 255, "%s/%d", "0.0.0.0", 0);
-  pWhiteLists[0] = ip4;
+  for (int32_t i = 0; i < wlRsp.numWhiteLists; i++) {
+    SIpRange *pIpRange = &wlRsp.pWhiteListsDual[i];
+    SIpAddr   ipAddr = {0};
 
-  char *ip6 = taosMemCalloc(1, 256);
-  snprintf(ip6, 255, "%s/%d", "::", 0);
-  pWhiteLists[1] = ip6;
+    code = tIpUintToStr(pIpRange, &ipAddr);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+
+    char *ip = taosMemCalloc(1, IP_RESERVE_CAP);
+    if (ip == NULL) {
+      code = terrno;
+      TAOS_CHECK_GOTO(code, &lino, _error);
+    }
+    if (ipAddr.type == 0) {
+      snprintf(ip, IP_RESERVE_CAP, "%s/%d", ipAddr.ipv4, ipAddr.mask);
+    } else {
+      snprintf(ip, IP_RESERVE_CAP, "%s/%d", ipAddr.ipv6, ipAddr.mask);
+    }
+    pWhiteLists[i] = ip;
+  }
 
   pInfo->userCbFn(pInfo->userParam, code, taos, wlRsp.numWhiteLists, pWhiteLists);
-
-  taosMemoryFree(pWhiteLists);
+_error:
+  if (pWhiteLists != NULL) {
+    for (int32_t i = 0; i < wlRsp.numWhiteLists; i++) {
+      taosMemFree(pWhiteLists[i]);
+    }
+    taosMemoryFree(pWhiteLists);
+  }
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
   taosMemoryFree(pInfo);
-  tFreeSGetUserWhiteListRsp(&wlRsp);
+  tFreeSGetUserWhiteListDualRsp(&wlRsp);
   return code;
 }
 void taos_fetch_whitelist_dual_stack_a(TAOS *taos, __taos_async_whitelist_dual_stack_fn_t fp, void *param) {
