@@ -11116,11 +11116,18 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
 
   createReq.numIpRanges = pStmt->numIpRanges;
   if (pStmt->numIpRanges > 0) {
-    createReq.pIpRanges = taosMemoryMalloc(createReq.numIpRanges * sizeof(SIpRange));
+    createReq.pIpRanges = taosMemoryMalloc(createReq.numIpRanges * sizeof(SIpV4Range));
     if (!createReq.pIpRanges) {
       return terrno;
     }
-    memcpy(createReq.pIpRanges, pStmt->pIpRanges, sizeof(SIpRange) * createReq.numIpRanges);
+    memcpy(createReq.pIpRanges, pStmt->pIpRanges, sizeof(SIpV4Range) * createReq.numIpRanges);
+
+    createReq.pIpDualRanges = taosMemoryMalloc(createReq.numIpRanges * sizeof(SIpRange));
+    if (!createReq.pIpDualRanges) {
+      return terrno;
+    }
+
+    memcpy(createReq.pIpDualRanges, pStmt->pIpRanges, sizeof(SIpRange) * createReq.numIpRanges);
   }
   code = buildCmdMsg(pCxt, TDMT_MND_CREATE_USER, (FSerializeFunc)tSerializeSCreateUserReq, &createReq);
   tFreeSCreateUserReq(&createReq);

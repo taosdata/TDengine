@@ -3406,13 +3406,30 @@ int32_t tIpUintToStr(const SIpRange *range, SIpAddr *addr) {
 
   return code;
 }
- void tIpRangeSetMask(SIpRange *range, uint32_t mask) {
+ int32_t tIpRangeSetMask(SIpRange *range, int32_t mask) {
   if (range->type == 0) {
     SIpV4Range *p4 = (SIpV4Range *)&range->ipV4;
     p4->mask = mask;
+    if (mask < 0 || mask > 32) {
+      return TSDB_CODE_PAR_INVALID_IP_RANGE; 
+    }
   } else {
     SIpV6Range *p6 = (SIpV6Range *)&range->ipV6;
+    if (mask < 0 || mask > 128) {
+      return TSDB_CODE_PAR_INVALID_IP_RANGE; 
+    }
     p6->mask = mask;
+  }
+  return 0;
+}
+
+void tIpRangeSetDefaultMask(SIpRange *range) {
+  if (range->type == 0) {
+    SIpV4Range *p4 = (SIpV4Range *)&range->ipV4;
+    p4->mask = 128;
+  } else {
+    SIpV6Range *p6 = (SIpV6Range *)&range->ipV6;
+    p6->mask = 32;
   }
 }
 void tFreeSGetUserWhiteListDualRsp(SGetUserWhiteListRsp *pRsp) { taosMemoryFree(pRsp->pWhiteListsDual); }
