@@ -359,7 +359,7 @@ int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** pp
       const char*              colName = "unknown";
       if (!pField) {
         stError("failed to get field name for notification, colIdx: %d, fields arr size: %" PRId64, colIdx,
-                taosArrayGetSize(pFields));
+                (int64_t)taosArrayGetSize(pFields));
       }
       colName = pField->name;
       code = jsonAddColumnField(colName, pCol->info.type, colDataIsNull_s(pCol, rowIdx), colDataGetData(pCol, rowIdx),
