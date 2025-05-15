@@ -929,7 +929,7 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
     } else if (nodeType(pNode) == QUERY_NODE_VALUE) {
       continue;
     } else {
-      code = scalarCalculate(pNode, pBlockList, &output, NULL);
+      code = scalarCalculate(pNode, pBlockList, &output, NULL, NULL);
     }
 
     if (code != TSDB_CODE_SUCCESS) {
@@ -1537,7 +1537,7 @@ static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SN
     QUERY_CHECK_CODE(code, lino, end);
   }
 
-  code = scalarCalculate(pTagCond, pBlockList, &output, NULL);
+  code = scalarCalculate(pTagCond, pBlockList, &output, NULL, NULL);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to calculate scalar, reason:%s", tstrerror(code));
     terrno = code;

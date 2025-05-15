@@ -743,6 +743,17 @@ int32_t tDeserializeSStreamGroupInfo(void* buf, int32_t bufLen, SStreamGroupInfo
 void    tDestroySStreamGroupInfo(void* ptr);
 void    tDestroySValue(void* ptr);
 
+typedef enum EValueType {
+  SCL_VALUE_TYPE_NULL = 0,
+  SCL_VALUE_TYPE_START,
+  SCL_VALUE_TYPE_END,
+} EValueType;
+typedef struct SStreamTSRangeParas { // used for stream
+  EOperatorType      opType;    
+  EValueType         eType;   
+  int64_t            timeValue;
+} SStreamTSRangeParas;
+
 #ifdef __cplusplus
 }
 #endif

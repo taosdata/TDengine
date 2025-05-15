@@ -1883,7 +1883,7 @@ static int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const S
     SSDataBlock block = {0};
     SSDataBlock* pBlock = &block;
     taosArrayPush(pBlockList, &pBlock);
-    if (code == 0) code = scalarCalculate(pSclNode, pBlockList, pDst, pExtraParams);
+    if (code == 0) code = scalarCalculate(pSclNode, pBlockList, pDst, pExtraParams, NULL);
     taosArrayDestroy(pBlockList);
   }
 

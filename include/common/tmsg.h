@@ -3056,7 +3056,6 @@ typedef struct {
 int32_t tSerializeSResFetchReq(void* buf, int32_t bufLen, SResFetchReq* pReq);
 int32_t tDeserializeSResFetchReq(void* buf, int32_t bufLen, SResFetchReq* pReq);
 void    tDestroySResFetchReq(SResFetchReq* pReq);
-
 typedef struct {
   SMsgHead header;
   uint64_t clientId;

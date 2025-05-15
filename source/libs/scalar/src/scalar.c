@@ -427,6 +427,9 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       break;
     }
     case QUERY_NODE_COLUMN: {
+      if (ctx->streamTsRange != NULL) {
+        break;
+      }
       if (NULL == ctx->pBlockList) {
         sclError("invalid node type for constant calculating, type:%d, src:%p", nodeType(node), ctx->pBlockList);
         SCL_ERR_RET(TSDB_CODE_APP_ERROR);
@@ -964,6 +967,67 @@ _return:
   SCL_RET(code);
 }
 
+static int64_t getTs(SScalarParam* param){
+  int64_t skey = 0;
+  void* p = colDataGetData(param->columnData, 0);
+  if (IS_VAR_DATA_TYPE(param->columnData->info.type)){
+    char* buf = taosMemoryCalloc(1, varDataTLen(p));
+    if (buf != NULL){
+      memcpy(buf, varDataVal(p), varDataLen(p));
+      (void)taosParseTime(buf, &skey, strlen(buf), param->columnData->info.precision, param->tz);
+    } 
+    taosMemoryFree(buf);
+  } else {
+    skey = *(int64_t*)p;
+  }
+  return skey;
+}
+static void calcStreamTimeRangeForPseudoCols(SStreamTSRangeParas* streamTsRange, SOperatorNode *node, SScalarParam *params){
+  if (streamTsRange->eType == SCL_VALUE_TYPE_START) {
+    if (nodeType(node->pRight) == QUERY_NODE_COLUMN && 
+      (node->opType == OP_TYPE_LOWER_EQUAL || node->opType == OP_TYPE_LOWER_THAN)) {
+      
+      int64_t skey = getTs(params);
+      if (skey > streamTsRange->timeValue) {
+        streamTsRange->timeValue = skey;
+        streamTsRange->opType = ((node->opType == OP_TYPE_LOWER_EQUAL) ? OP_TYPE_GREATER_EQUAL : OP_TYPE_GREATER_THAN);
+      } else if (skey == streamTsRange->timeValue && node->opType == OP_TYPE_LOWER_THAN) {
+        streamTsRange->opType = OP_TYPE_GREATER_THAN;
+      }
+    } else if(nodeType(node->pLeft) == QUERY_NODE_COLUMN && 
+      (node->opType == OP_TYPE_GREATER_EQUAL || node->opType == OP_TYPE_GREATER_THAN)) {
+
+      int64_t skey = getTs(params + 1);
+      if (skey > streamTsRange->timeValue) {
+        streamTsRange->timeValue = skey;
+        streamTsRange->opType = node->opType;
+      } else if (skey == streamTsRange->timeValue && node->opType == OP_TYPE_GREATER_THAN) {
+        streamTsRange->opType = OP_TYPE_GREATER_THAN;
+      }
+    }
+  } else if (streamTsRange->eType == SCL_VALUE_TYPE_END) {
+    if (nodeType(node->pRight) == QUERY_NODE_COLUMN && 
+      (node->opType == OP_TYPE_GREATER_EQUAL || node->opType == OP_TYPE_GREATER_THAN)) {
+      int64_t ekey = getTs(params);
+      if (ekey < streamTsRange->timeValue) {
+        streamTsRange->timeValue = ekey;
+        streamTsRange->opType = ((node->opType == OP_TYPE_GREATER_EQUAL) ? OP_TYPE_LOWER_EQUAL : OP_TYPE_LOWER_THAN);
+      } else if (ekey == streamTsRange->timeValue && node->opType == OP_TYPE_GREATER_THAN) {
+        streamTsRange->opType = OP_TYPE_LOWER_THAN;
+      }
+    } else if(nodeType(node->pLeft) == QUERY_NODE_COLUMN && 
+      (node->opType == OP_TYPE_LOWER_EQUAL || node->opType == OP_TYPE_LOWER_THAN)) {
+      int64_t ekey = getTs(params + 1);
+      if (ekey < streamTsRange->timeValue) {
+        streamTsRange->timeValue = ekey;
+        streamTsRange->opType = node->opType;
+      } else if (ekey == streamTsRange->timeValue && node->opType == OP_TYPE_LOWER_THAN) {
+        streamTsRange->opType = OP_TYPE_LOWER_THAN;
+      }
+    }
+  }
+}
+
 int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *output) {
   SScalarParam *params = NULL;
   int32_t       rowNum = 0;
@@ -986,7 +1050,10 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
       SCL_ERR_JRET(code);
     }
   }
-
+  if (ctx->streamTsRange != NULL) {
+    calcStreamTimeRangeForPseudoCols(ctx->streamTsRange, node, params);
+    goto _return;
+  }
   _bin_scalar_fn_t OperatorFn = getBinScalarOperatorFn(node->opType);
 
   SScalarParam *pLeft = &params[0];
@@ -1943,13 +2010,14 @@ int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes) { return sclCalcCon
 
 int32_t scalarCalculateConstantsFromDual(SNode *pNode, SNode **pRes) { return sclCalcConstants(pNode, true, pRes); }
 
-int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, const void* pExtraParam) {
-  if (NULL == pNode || NULL == pBlockList) {
+int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, const void* pExtraParam, void* pTsRange) {
+  if (NULL == pNode || (NULL == pBlockList && pTsRange == NULL)) {
     SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
   int32_t    code = 0;
-  SScalarCtx ctx = {.code = 0, .pBlockList = pBlockList, .param = pDst ? pDst->param : NULL, .pStreamRuntimeFuncInfo = pExtraParam};
+  SScalarCtx ctx = {.code = 0, .pBlockList = pBlockList, .param = pDst ? pDst->param : NULL, 
+    .pStreamRuntimeFuncInfo = pExtraParam, .streamTsRange = pTsRange};
 
   // TODO: OPT performance
   ctx.pRes = taosHashInit(SCL_DEFAULT_OP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
