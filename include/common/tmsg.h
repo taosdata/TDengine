@@ -1385,7 +1385,7 @@ typedef struct {
 
   int32_t tIpStrToUint(const SIpAddr* addr, SIpRange* range);
   int32_t tIpUintToStr(const SIpRange* range, SIpAddr* addr);
-  int32_t    tIpRangeSetMask(SIpRange* range, int32_t mask);
+  int32_t  tIpRangeSetMask(SIpRange* range, int32_t mask);
   void    tIpRangeSetDefaultMask(SIpRange* range);
 
   int32_t tSerializeSGetUserWhiteListRsp(void* buf, int32_t bufLen, SGetUserWhiteListRsp* pRsp);

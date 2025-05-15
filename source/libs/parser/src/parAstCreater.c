@@ -3371,10 +3371,30 @@ _err:
 
 static int32_t getIpRangeFromStr(char* ipRange, SIpRange* pIpRange) {
   int32_t code = 0;
-   
+
+  int8_t isIp6 = ((strchr(ipRange, ':')) != NULL ? 0 : 1);
+  if (isIp6) {
+    struct in6_addr ip6;
+    if (inet_pton(AF_INET6, ipRange, &ip6) == 1) {
+      pIpRange->type = 1;
+      memcpy(pIpRange->ipV6.addr, ip6.s6_addr, 8);
+      memcpy(pIpRange->ipV6.addr + 8, ip6.s6_addr + 8, 8);
+
+    } else {
+      return TSDB_CODE_PAR_INVALID_IP_RANGE;
+    }
+  } else {
+    struct in_addr ip4;
+    if (inet_pton(AF_INET, ipRange, &ip4) == 1) {
+      memcpy(&pIpRange->ipV4.ip, &ip4.s_addr, sizeof(ip4.s_addr));
+    } else {
+      return TSDB_CODE_PAR_INVALID_IP_RANGE;
+    }
+  }
+
   return code;
 }
-static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpRange* pIpRange) {
+static int32_t getIpRangeFromWhitelistItem(char* ipRange, SIpRange* pIpRange) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   char*   ipCopy = NULL;
@@ -3394,41 +3414,11 @@ static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpRange* pIpRange) 
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
-  
+  code = getIpRangeFromStr(ipCopy, pIpRange);
+  TAOS_CHECK_GOTO(code, &lino, _error);
 
   code = tIpRangeSetMask(pIpRange, mask);
   TAOS_CHECK_GOTO(code, &lino, _error);
-
-  // if (slash) {
-  //   *slash = '\0';
-  //   struct in_addr addr;
-  //   if (uv_inet_pton(AF_INET, ipCopy, &addr) == 0) {
-  //     int32_t prefix = 0;
-  //     code = taosStr2int32(slash + 1, &prefix);
-  //     if (code == 0) {
-  //       if (prefix < 0 || prefix > 32) {
-  //         code = TSDB_CODE_PAR_INVALID_IP_RANGE;
-  //       } else {
-  //         p4->ip = addr.s_addr;
-  //         p4->mask = prefix;
-  //         pIpRange->type = 0;
-  //         code = TSDB_CODE_SUCCESS;
-  //       }
-  //     }
-  //   } else {
-  //     code = TSDB_CODE_PAR_INVALID_IP_RANGE;
-  //   }
-  // } else {
-  //   struct in_addr addr;
-  //   if (uv_inet_pton(AF_INET, ipCopy, &addr) == 0) {
-  //     p4->ip = addr.s_addr;
-  //     p4->mask = 32;
-  //     pIpRange->type = 0;
-  //     code = TSDB_CODE_SUCCESS;
-  //   } else {
-  //     code = TSDB_CODE_PAR_INVALID_IP_RANGE;
-  //   }
-  // }
 
 #endif
 _error:
@@ -3447,7 +3437,7 @@ static int32_t fillIpRangesFromWhiteList(SAstCreateContext* pCxt, SNodeList* pIp
       return TSDB_CODE_PAR_INVALID_IP_RANGE;
     }
     SValueNode* pValNode = (SValueNode*)(pNode);
-    code = getIpV4RangeFromWhitelistItem(pValNode->literal, pIpRanges + i);
+    code = getIpRangeFromWhitelistItem(pValNode->literal, pIpRanges + i);
     ++i;
     if (code != TSDB_CODE_SUCCESS) {
       pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Invalid IP range %s", pValNode->literal);
@@ -3472,7 +3462,7 @@ SNode* addCreateUserStmtWhiteList(SAstCreateContext* pCxt, SNode* pCreateUserStm
   ((SCreateUserStmt*)pCreateUserStmt)->pNodeListIpRanges = pIpRangesNodeList;
   SCreateUserStmt* pCreateUser = (SCreateUserStmt*)pCreateUserStmt;
   pCreateUser->numIpRanges = LIST_LENGTH(pIpRangesNodeList);
-  pCreateUser->pIpRanges = taosMemoryMalloc(pCreateUser->numIpRanges * sizeof(SIpV4Range));
+  pCreateUser->pIpRanges = taosMemoryMalloc(pCreateUser->numIpRanges * sizeof(SIpRange));
   CHECK_OUT_OF_MEM(pCreateUser->pIpRanges);
 
   pCxt->errCode = fillIpRangesFromWhiteList(pCxt, pIpRangesNodeList, pCreateUser->pIpRanges);

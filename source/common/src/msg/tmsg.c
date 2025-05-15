@@ -3409,10 +3409,10 @@ int32_t tIpUintToStr(const SIpRange *range, SIpAddr *addr) {
  int32_t tIpRangeSetMask(SIpRange *range, int32_t mask) {
   if (range->type == 0) {
     SIpV4Range *p4 = (SIpV4Range *)&range->ipV4;
-    p4->mask = mask;
     if (mask < 0 || mask > 32) {
       return TSDB_CODE_PAR_INVALID_IP_RANGE; 
     }
+    p4->mask = mask;
   } else {
     SIpV6Range *p6 = (SIpV6Range *)&range->ipV6;
     if (mask < 0 || mask > 128) {
