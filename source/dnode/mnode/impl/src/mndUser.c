@@ -1521,10 +1521,10 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       TAOS_CHECK_GOTO(createIpWhiteListFromOldVer(key, len, &pIpWhiteList), &lino, _OVER);
       SDB_GET_INT64(pRaw, dataPos, &pUser->ipWhiteListVer, _OVER);
 
-      taosMemFreeClear(pIpWhiteList);
-
       code = cvtIpWhiteListToDual(pIpWhiteList, &pUser->pIpWhiteListDual);
       TAOS_CHECK_GOTO(code, &lino, _OVER);
+
+      taosMemoryFreeClear(pIpWhiteList);
 
     } else if (sver >= USER_VER_SUPPORT_WHITELIT_DUAL_STACK) {
       int32_t len = 0;
