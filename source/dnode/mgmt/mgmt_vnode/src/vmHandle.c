@@ -479,15 +479,18 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
     if (pCfg->dropped) {
       continue;
     }
-    SVnodeInfo info = {0};
+    SVnodeInfo *pInfo = TARRAY_GET_ELEM(pVgCfgs, i);
     snprintf(path, sizeof(path), "%s%s%s", pCfg->path, TD_DIRSEP, VND_INFO_FNAME);
-    TAOS_CHECK_EXIT(vnodeLoadInfo(path, &info));
-    if (info.config.syncCfg.replicaNum > 1) {
-      dError("mount:%s, vnode path:%s, replicaNum:%d > 1 not support", pReq->mountName, pCfg->path,
-             info.config.syncCfg.replicaNum);
+    TAOS_CHECK_EXIT(vnodeLoadInfo(path, pInfo));
+    if (pInfo->config.syncCfg.replicaNum > 1) {
+      dError("mount:%s, vnode path:%s, invalid replica:%d", pReq->mountName, pCfg->path,
+             pInfo->config.syncCfg.replicaNum);
       TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_REPLICA);
+    } else if (pInfo->config.vgId != pCfg->vgId) {
+      dError("mount:%s, vnode path:%s, vgId:%d not match:%d", pReq->mountName, pCfg->path, pInfo->config.vgId,
+             pCfg->vgId);
+      TAOS_CHECK_EXIT(TSDB_CODE_FILE_CORRUPTED);
     }
-    TSDB_CHECK_NULL(taosArrayPush(pVgCfgs, &info), code, lino, _exit, terrno);
   }
   int32_t nVgCfg = taosArrayGetSize(pVgCfgs);
   if (nVgCfg > 1) taosArraySort(pVgCfgs, compareVnodeInfo);
@@ -509,13 +512,31 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
     }
   }
 
-  TSDB_CHECK_NULL((pDbInfos = taosArrayInit_s(sizeof(SMountDbInfo), nDb)), code, lino, _exit, terrno);
-
-  for (int32_t i = 0; i < nVgCfg; ++i) {
-    SVnodeInfo *pInfo = TARRAY_GET_ELEM(pVgCfgs, i);
-    if (i == 0) {
-      
-    } else {
+  if (nDb > 0) {
+    TSDB_CHECK_NULL((pDbInfos = taosArrayInit_s(sizeof(SMountDbInfo), nDb)), code, lino, _exit, terrno);
+    int32_t dbIdx = 0;
+    for (int32_t i = 0; i < nVgCfg; ++i) {
+      SVnodeInfo *pVgCfg = TARRAY_GET_ELEM(pVgCfgs, i);
+      if (i == 0) {
+        SMountDbInfo *pDbInfo = TARRAY_GET_ELEM(pDbInfos, 0);
+        pDbInfo->dbId = pVgCfg->config.dbId;
+        snprintf(pDbInfo->dbName, sizeof(pDbInfo->dbName), "%s", pVgCfg->config.dbname);
+        TSDB_CHECK_NULL((pDbInfo->pVg = taosArrayInit(nVgCfg / nDb, sizeof(SMountVgInfo))), code, lino, _exit, terrno);
+        SMountVgInfo vgInfo = {.vgId = pVgCfg->config.vgId};
+        TSDB_CHECK_NULL(taosArrayPush(pDbInfo->pVg, &vgInfo), code, lino, _exit, terrno);
+      } else {
+        SMountDbInfo *pDbInfo = TARRAY_GET_ELEM(pDbInfos, pDbInfos->size - 1);
+        if (pDbInfo->dbId != pVgCfg->config.dbId) {
+          SMountDbInfo *pDbInfo = TARRAY_GET_ELEM(pDbInfos, ++dbIdx);
+          pDbInfo->dbId = pVgCfg->config.dbId;
+          snprintf(pDbInfo->dbName, sizeof(pDbInfo->dbName), "%s", pVgCfg->config.dbname);
+          TSDB_CHECK_NULL((pDbInfo->pVg = taosArrayInit(nVgCfg / nDb, sizeof(SMountVgInfo))), code, lino, _exit,
+                          terrno);
+        } else {
+          SMountVgInfo vgInfo = {.vgId = pVgCfg->config.vgId};
+          TSDB_CHECK_NULL(taosArrayPush(pDbInfo->pVg, &vgInfo), code, lino, _exit, terrno);
+        }
+      }
     }
   }
 
