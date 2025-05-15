@@ -3063,7 +3063,7 @@ void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr
     char*   pBuf = NULL;
     int32_t code = dumpBlockData(pBlock, flag, &pBuf, taskIdStr);
     if (code == 0) {
-      qInfo("%s", pBuf);
+      qDebug("%s", pBuf);
       taosMemoryFree(pBuf);
     }
   }
@@ -3085,7 +3085,7 @@ void printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr
     snprintf(flagBuf, sizeof(flagBuf), "%s %s", flag, opStr);
     int32_t code = dumpBlockData(pBlock, flagBuf, &pBuf, taskIdStr);
     if (code == 0) {
-      qInfo("%s", pBuf);
+      qDebug("%s", pBuf);
       taosMemoryFree(pBuf);
     }
   }
