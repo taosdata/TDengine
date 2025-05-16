@@ -50,15 +50,14 @@ void           shellInsertChar(SShellCmd *cmd, char *c, int size);
 void           shellInsertString(SShellCmd *cmd, char *str, int size);
 
 int32_t shellCountPrefixOnes(uint8_t c) {
-  uint8_t mask = 127;
-  mask = ~mask;
-  int32_t ret = 0;
+  uint8_t mask = 0x80;
+  int32_t count = 0;
   while ((c & mask) != 0) {
-    ret++;
-    c <<= 1;
+    count++;
+    mask >>= 1;
   }
 
-  return ret;
+  return (count == 0) ? 1 : count;
 }
 
 void shellGetPrevCharSize(const char *str, int32_t pos, int32_t *size, int32_t *width) {
@@ -496,7 +495,7 @@ int32_t shellReadCommand(char *command) {
       return c;
     }
 
-    if (c < 0) {  // For UTF-8
+    if ((c & 0x80) != 0) { // For UTF-8
       int32_t count = shellCountPrefixOnes(c);
       utf8_array[0] = c;
       for (int32_t k = 1; k < count; k++) {
