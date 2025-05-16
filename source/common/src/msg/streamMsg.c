@@ -2191,6 +2191,7 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
     case STRIGGER_PULL_WAL_META: {
       SSTriggerWalMetaRequest* pRequest = (SSTriggerWalMetaRequest*)pReq;
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->lastVer));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ctime));
       break;
     }
     case STRIGGER_PULL_WAL_TS_DATA: {
@@ -2298,6 +2299,7 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
     case STRIGGER_PULL_WAL_META: {
       SSTriggerWalMetaRequest* pRequest = &(pReq->walMetaReq);
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->lastVer));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ctime));
       break;
     }
     case STRIGGER_PULL_WAL_TS_DATA: {

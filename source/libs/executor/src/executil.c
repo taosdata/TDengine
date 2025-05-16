@@ -2745,6 +2745,7 @@ void tableListGetSourceTableInfo(const STableListInfo* pTableList, uint64_t* psu
 uint64_t tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tableUid) {
   int32_t* slot = taosHashGet(pTableList->map, &tableUid, sizeof(tableUid));
   if (slot == NULL) {
+    qInfo("table:%" PRIu64 " not found in table list", tableUid);
     return -1;
   }
 

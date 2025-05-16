@@ -115,7 +115,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
 
   pTask->options = *options;
   if (pResBlock != NULL) {
-    STREAM_CHECK_RET_GOTO(copyDataBlock(pTask->pResBlock, pResBlock));
+    STREAM_CHECK_RET_GOTO(createOneDataBlock(pResBlock, false, &pTask->pResBlock));
   } else {
     STREAM_CHECK_RET_GOTO(createDataBlockForStream(options->schemas, &pTask->pResBlock));
   }

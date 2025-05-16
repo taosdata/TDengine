@@ -619,6 +619,7 @@ typedef struct SSTriggerTsdbCalcDataNextRequest {
 typedef struct SSTriggerWalMetaRequest {
   SSTriggerPullRequest base;
   int64_t              lastVer;
+  int64_t              ctime;
 } SSTriggerWalMetaRequest;
 
 typedef struct SSTriggerWalTsDataRequest {
