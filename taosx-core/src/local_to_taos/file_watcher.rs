@@ -1,6 +1,7 @@
 use crate::local_to_taos::conf::LocalRestoreConfig;
 use crate::taoz::ZFile;
 use std::collections::HashSet;
+use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -24,7 +25,7 @@ pub struct FileWatcher {
     sorter: Arc<Option<FileSorter>>,
 
     /// 已经看到的文件
-    seen_files: Arc<Mutex<HashSet<PathBuf>>>,
+    seen_files: Arc<Mutex<HashSet<u64>>>,
     /// 停止标志
     stop_flag: Arc<AtomicBool>,
 }
@@ -61,20 +62,24 @@ impl From<LocalRestoreConfig> for FileWatcher {
 }
 
 fn compare_file_name(a: &Path, b: &Path) -> std::cmp::Ordering {
-    let a = a.file_name().unwrap().to_string_lossy();
-    let b = b.file_name().unwrap().to_string_lossy();
-    let (_, a_ts, a_vg_id, a_idx) = ZFile::parse_file_name(a.as_ref()).unwrap();
-    let (_, b_ts, b_vg_id, b_idx) = ZFile::parse_file_name(b.as_ref()).unwrap();
+    let parse = |path: &Path| -> Result<(_, _, _, _), ()> {
+        let name = path.file_name().unwrap().to_string_lossy();
+        ZFile::parse_file_name(&name).map_err(|_| ())
+    };
 
-    // 按照备份点和文件序号排序
-    match a_ts.cmp(&b_ts) {
-        std::cmp::Ordering::Less => std::cmp::Ordering::Less,
-        std::cmp::Ordering::Greater => std::cmp::Ordering::Greater,
-        std::cmp::Ordering::Equal => match a_vg_id.cmp(&b_vg_id) {
+    match (parse(a), parse(b)) {
+        (Ok((_, a_ts, a_vg_id, a_idx)), Ok((_, b_ts, b_vg_id, b_idx))) => match a_ts.cmp(&b_ts) {
             std::cmp::Ordering::Less => std::cmp::Ordering::Less,
             std::cmp::Ordering::Greater => std::cmp::Ordering::Greater,
-            std::cmp::Ordering::Equal => a_idx.cmp(&b_idx),
+            std::cmp::Ordering::Equal => match a_vg_id.cmp(&b_vg_id) {
+                std::cmp::Ordering::Less => std::cmp::Ordering::Less,
+                std::cmp::Ordering::Greater => std::cmp::Ordering::Greater,
+                std::cmp::Ordering::Equal => a_idx.cmp(&b_idx),
+            },
         },
+        (Ok(_), Err(_)) => std::cmp::Ordering::Less, // 有效文件在前
+        (Err(_), Ok(_)) => std::cmp::Ordering::Greater, // 无效文件在后
+        _ => std::cmp::Ordering::Equal,              // 都无效
     }
 }
 
@@ -125,6 +130,7 @@ impl FileWatcher {
                         })
                         .ok()?;
                     tracing::trace!("read dir: {:?}", dir);
+                    let mut hasher = std::collections::hash_map::DefaultHasher::new();
                     while let Some(entry) = dir_entries
                         .next_entry()
                         .await
@@ -140,11 +146,16 @@ impl FileWatcher {
                                 continue;
                             }
                         }
-                        // 如果是文件，且没有看到过，那么，加入到新文件列表中
                         let path = entry.path();
-                        if path.is_file() && !seen_files.contains(&path) {
-                            new_files.push(path.clone());
-                            seen_files.insert(path);
+                        path.as_path().hash(&mut hasher);
+                        let path_hash = hasher.finish();
+                        // 如果是文件，且没有看到过，那么，加入到新文件列表中
+                        if path.is_file() && !seen_files.contains(&path_hash) {
+                            let existed = tokio::fs::metadata(&path).await.is_ok();
+                            if existed {
+                                new_files.push(path.clone());
+                                seen_files.insert(path_hash);
+                            }
                         }
                     }
                     drop(seen_files);
@@ -192,18 +203,20 @@ mod tests {
             "xb4a5d2d8954-1735784520-6180-7.z",
             "xb4a5d2d8954-1735784520-6180-8.z",
             "xb4a5d2d8954-1735784520-6180-9.z",
+            "abc",
+            "abcde",
         ];
-
         let files = files
             .iter()
             .sorted_by(|a, b| compare_file_name(Path::new(a), Path::new(b)))
             .map(|s| s.to_string())
             .collect_vec();
-
         assert_eq!(files[0], "xb4a5d2d8954-1735784520-6179-1.z");
         assert_eq!(files[9], "xb4a5d2d8954-1735784520-6179-10.z");
         assert_eq!(files[10], "xb4a5d2d8954-1735784520-6180-1.z");
         assert_eq!(files[19], "xb4a5d2d8954-1735784520-6180-10.z");
+        assert_eq!(files[20], "abc");
+        assert_eq!(files[21], "abcde");
     }
 
     #[tokio::test]
