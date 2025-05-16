@@ -376,30 +376,27 @@ def gen_create_stream_variants():
             for paritem in partition_clauses:
                 for stream_opt in stream_options:
                     for notify in notify_options:
-                        sql = base_template.format(
-                            if_not_exists=if_not_exists,
-                            stream_name=dbnm + "stream_" + str(stream_index) + "\n",
-                            stream_options=" " + tritype  + "\n" + " " + paritem + " "  + "\n" + stream_opt + " "  + "\n" + notify  + "\n",
-                            into_clause=into + "\n",
-                            output_subtable=" " + generate_output_subtable() + " " + "\n",
-                            columns= generate_column_list_section() + "\n",
-                            tags= generate_tags_clause() + "\n",
-                            as_subquery=as_subquery + "\n"
-                        )
-                        sql_variants.append(sql.strip())
+                        #sql = base_template.format(
+                         #   if_not_exists=if_not_exists,
+                         #   stream_name=dbnm + "stream_" + str(stream_index) + "\n",
+                         #   stream_options=" " + tritype  + "\n" + " " + paritem + " "  + "\n" + stream_opt + " "  + "\n" + notify  + "\n",
+                         #   into_clause=into + "\n",
+                         #   output_subtable=" " + generate_output_subtable() + " " + "\n",
+                         ##   columns= generate_column_list_section() + "\n",
+                          #  tags= generate_tags_clause() + "\n",
+                          #  as_subquery=as_subquery + "\n"
+                        #)
+                       # sql_variants.append(sql.strip())
                         stream_index += 1
-                        if stream_index > 100000:
-                            return sql_variants
+                        #if stream_index > 100000:
+                            #return sql_variants
 
     print(stream_index)
     return sql_variants
 
 # Generate and print a few variants
 #variants = gen_create_stream_variants()
-for i in range(10):
-    print(f"{generate_tags_clause()}")
-
-#variants = gen_create_stream_variants()
+variants = gen_create_stream_variants()
 #for i, sql in enumerate(variants[:100000]):  # limit output for readability
     #print(f"-- Variant {i+1} --")
     #print(sql)
