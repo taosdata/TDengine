@@ -1253,40 +1253,6 @@ typedef struct {
   int32_t tDeserializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
   void    tFreeSCreateUserReq(SCreateUserReq* pReq);
 
-  int32_t tSerializeIpRange(SEncoder* encoder, SIpRange* pRange);
-  int32_t tDeserializeIpRange(SDecoder* decoder, SIpRange* pRange);
-  typedef struct {
-    int64_t ver;
-    char    user[TSDB_USER_LEN];
-    int32_t numOfRange;
-    union {
-    SIpV4Range* pIpRanges;
-    SIpRange*   pIpDualRanges;
-    };
-  } SUpdateUserIpWhite;
-
-  typedef struct {
-    int64_t             ver;
-    int                 numOfUser;
-    SUpdateUserIpWhite* pUserIpWhite;
-  } SUpdateIpWhite;
-
-  int32_t tSerializeSUpdateIpWhite(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
-  int32_t tDeserializeSUpdateIpWhite(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
-  void    tFreeSUpdateIpWhiteReq(SUpdateIpWhite* pReq);
-  int32_t cloneSUpdateIpWhiteReq(SUpdateIpWhite* pReq, SUpdateIpWhite** pUpdate);
-
-  int32_t tSerializeSUpdateIpWhiteDual(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
-  int32_t tDeserializeSUpdateIpWhiteDual(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
-  void    tFreeSUpdateIpWhiteDualReq(SUpdateIpWhite* pReq);
-
-  typedef struct {
-    int64_t ipWhiteVer;
-  } SRetrieveIpWhiteReq;
-
-  int32_t tSerializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteReq* pReq);
-  int32_t tDeserializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteReq* pReq);
-
   typedef struct {
     int32_t dnodeId;
     int64_t analVer;
@@ -1367,6 +1333,39 @@ typedef struct {
   int32_t tDeserializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
   void    tFreeSGetUserAuthRsp(SGetUserAuthRsp* pRsp);
 
+  int32_t tSerializeIpRange(SEncoder* encoder, SIpRange* pRange);
+  int32_t tDeserializeIpRange(SDecoder* decoder, SIpRange* pRange);
+  typedef struct {
+    int64_t ver;
+    char    user[TSDB_USER_LEN];
+    int32_t numOfRange;
+    union {
+      SIpV4Range* pIpRanges;
+      SIpRange*   pIpDualRanges;
+    };
+  } SUpdateUserIpWhite;
+
+  typedef struct {
+    int64_t             ver;
+    int                 numOfUser;
+    SUpdateUserIpWhite* pUserIpWhite;
+  } SUpdateIpWhite;
+
+  int32_t tSerializeSUpdateIpWhite(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
+  int32_t tDeserializeSUpdateIpWhite(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
+  void    tFreeSUpdateIpWhiteReq(SUpdateIpWhite* pReq);
+  int32_t cloneSUpdateIpWhiteReq(SUpdateIpWhite* pReq, SUpdateIpWhite** pUpdate);
+
+  int32_t tSerializeSUpdateIpWhiteDual(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
+  int32_t tDeserializeSUpdateIpWhiteDual(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
+  void    tFreeSUpdateIpWhiteDualReq(SUpdateIpWhite* pReq);
+
+  typedef struct {
+    int64_t ipWhiteVer;
+  } SRetrieveIpWhiteReq;
+
+  int32_t tSerializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteReq* pReq);
+  int32_t tDeserializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteReq* pReq);
   typedef struct {
     char user[TSDB_USER_LEN];
   } SGetUserWhiteListReq;
