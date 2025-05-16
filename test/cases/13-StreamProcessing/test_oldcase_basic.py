@@ -10,8 +10,7 @@ class TestStreamOldCaseBasic:
     def test_stream_oldcase_basic(self):
         """Stream basic test
 
-        1. basic test
-        2. out of order data
+        1. -
 
         Catalog:
             - Streams:OldCase
@@ -27,16 +26,16 @@ class TestStreamOldCaseBasic:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/basic5.sim
         """
 
-        # self.stream_basic_0()
-        # self.stream_basic_1()
-        # self.stream_basic_2()
-        # self.stream_basic_3()
+        self.stream_basic_0()
+        self.stream_basic_1()
+        self.stream_basic_2()
+        self.stream_basic_3()
         self.stream_basic_4()
-        # self.stream_basic_5()
+        self.stream_basic_5()
 
     def stream_basic_0(self):
         tdLog.info(f"stream_basic_0")
-        drop_all_streams_and_dbs()
+        clusterComCheck.drop_all_streams_and_dbs()
 
         tdLog.info(f"=============== create database")
         tdSql.execute(f"create database d0 vgroups 1")
@@ -61,7 +60,7 @@ class TestStreamOldCaseBasic:
         tdSql.execute(
             f"create stream s1 trigger at_once into outstb as select _wstart, min(k), max(k), sum(k) as sum_alias from ct1 interval(10m)"
         )
-        check_stream_status("s1")
+        clusterComCheck.check_stream_status("s1")
 
         tdSql.query(f"show stables")
         tdSql.checkRows(2)
@@ -107,7 +106,7 @@ class TestStreamOldCaseBasic:
 
     def stream_basic_1(self):
         tdLog.info(f"stream_basic_1")
-        drop_all_streams_and_dbs()
+        clusterComCheck.drop_all_streams_and_dbs()
 
         tdLog.info(f"=============== create database")
         tdSql.execute(f"create database test vgroups 1;")
@@ -117,7 +116,7 @@ class TestStreamOldCaseBasic:
         tdSql.execute(
             f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s);"
         )
-        check_stream_status("streams1")
+        clusterComCheck.check_stream_status("streams1")
 
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791223001,2,2,3,1.1);")
@@ -272,7 +271,7 @@ class TestStreamOldCaseBasic:
         tdSql.execute(
             f"create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt3 as select  _wstart, count(*) c1, sum(a) c3,max(b) c4, now c5 from st partition by tbname interval(10s);"
         )
-        check_stream_status()
+        clusterComCheck.check_stream_status()
 
         tdSql.execute(
             f"insert into t1 values(1648791213000,1,1,1,1.0) t2 values(1648791213000,2,2,2,2.0) t3 values(1648791213000,3,3,3,3.0) t4 values(1648791213000,4,4,4,4.0);"
@@ -316,7 +315,7 @@ class TestStreamOldCaseBasic:
             f"create stream stream_t3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamtST3 as select ts, min(a) c6, a, b, c, ta, tb, tc from ts1 interval(10s) ;"
         )
 
-        check_stream_status()
+        clusterComCheck.check_stream_status()
         tdSql.execute(f"insert into ts1 values(1648791211000,1,2,3);")
         tdSql.execute(f"insert into ts1 values(1648791222001,2,2,3);")
         tdSql.queryCheckFunc(
@@ -333,7 +332,7 @@ class TestStreamOldCaseBasic:
             f"create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt__4 as select  _wstart, count(*) c1 from t1 where a > 5 interval(10s);"
         )
 
-        check_stream_status()
+        clusterComCheck.check_stream_status()
 
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
         tdSql.queryCheckFunc(f"select * from streamt__4;", lambda: tdSql.getRows() == 0)
@@ -368,7 +367,7 @@ class TestStreamOldCaseBasic:
         tdSql.execute(
             f"create stream streams6 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt6 as select count(*), _wstart, _wend, max(a), _wstart as ts from ts1 interval(10s) ;"
         )
-        check_stream_status()
+        clusterComCheck.check_stream_status()
 
         tdSql.error(
             f"create stream streams7 trigger at_once into streamt7 as select _wstart, count(*), _wstart, _wend, max(a) from ts1 interval(10s) ;"
@@ -394,7 +393,7 @@ class TestStreamOldCaseBasic:
         tdSql.execute(
             f"create stream streams7 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt7 as select _wstart, count(*) from ts1 interval(10s) ;"
         )
-        check_stream_status()
+        clusterComCheck.check_stream_status()
 
         tdSql.execute(f"insert into ts1 values(1648791211000,1,2,3);")
         tdSql.error(f"insert into ts1 values(-1648791211000,1,2,3);")
@@ -415,7 +414,7 @@ class TestStreamOldCaseBasic:
 
     def stream_basic_2(self):
         tdLog.info(f"stream_basic_2")
-        drop_all_streams_and_dbs()
+        clusterComCheck.drop_all_streams_and_dbs()
 
         tdLog.info(f"=============== create database")
         tdSql.execute(f"create database d0 vgroups 1")
@@ -450,7 +449,7 @@ class TestStreamOldCaseBasic:
         tdSql.execute(
             f"create stream s1 trigger at_once into outstb as select _wstart, min(k), max(k), sum(k) as sum_alias from ct1 interval(10m)"
         )
-        check_stream_status()
+        clusterComCheck.check_stream_status()
 
         tdSql.query(f"show stables")
         tdSql.checkRows(2)
@@ -522,7 +521,7 @@ class TestStreamOldCaseBasic:
 
     def stream_basic_3(self):
         tdLog.info(f"stream_basic_3")
-        drop_all_streams_and_dbs()
+        clusterComCheck.drop_all_streams_and_dbs()
 
         tdSql.execute(f"alter local 'keepColumnName' '1'")
 
@@ -560,7 +559,7 @@ class TestStreamOldCaseBasic:
             f'create stream streamd6 into streamt6 as select ca, _wstart,_wend, count(*), max(ca), min(cb) from t1 where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by ca state_window(cc);'
         )
 
-        check_stream_status()
+        clusterComCheck.check_stream_status()
 
         tdSql.execute(f"alter local 'keepColumnName' '1'")
         tdSql.execute(
@@ -652,7 +651,7 @@ class TestStreamOldCaseBasic:
 
     def stream_basic_4(self):
         tdLog.info(f"stream_basic_4")
-        drop_all_streams_and_dbs()
+        clusterComCheck.drop_all_streams_and_dbs()
 
         tdLog.info(f"step1=============")
 
@@ -662,7 +661,7 @@ class TestStreamOldCaseBasic:
         tdSql.execute(
             f"create stream streams0 trigger at_once ignore expired 0 ignore update 0  into streamt as select  _wstart, count(*) c1 from t1 interval(1s);"
         )
-        check_stream_status()
+        clusterComCheck.check_stream_status()
 
         tdSql.execute(f"insert into t1 values(1648791211000,1,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791212001,2,2,3,1.1);")
@@ -699,7 +698,7 @@ class TestStreamOldCaseBasic:
         tdSql.execute(
             f"create stream streams2 trigger at_once ignore expired 0 ignore update 0 waterMark 200s  into streamt2 as select  _wstart, count(*) c1 from t1 interval(1s);"
         )
-        check_stream_status()
+        clusterComCheck.check_stream_status()
 
         tdSql.execute(f"insert into t1 values(1648791211000,1,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791212001,2,2,3,1.1);")
@@ -733,7 +732,7 @@ class TestStreamOldCaseBasic:
         tdSql.execute(
             f"create stream streams1 trigger at_once ignore expired 0 ignore update 0 into streamt1 as select  _wstart, count(*) c1 from t1 session(ts, 1s);"
         )
-        check_stream_status()
+        clusterComCheck.check_stream_status()
 
         tdSql.execute(f"insert into t1 values(1648791211000,1,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.1);")
@@ -845,7 +844,7 @@ class TestStreamOldCaseBasic:
         tdSql.execute(
             f"create stream streams5 trigger window_close IGNORE EXPIRED 0 into  streamt1 as select _wstart, count(*), now  from st partition by b interval(1s);"
         )
-        check_stream_status()
+        clusterComCheck.check_stream_status()
 
         tdSql.execute(
             f"insert into t1 values(1648791211000,1,1,1,1.1)  t2 values (1648791211000,2,2,2,2.1)  t3 values(1648791211000,3,3,3,3.1) t4 values(1648791211000,4,4,4,4.1)  t5 values (1648791211000,5,5,5,5.1)  t6 values(1648791211000,6,6,6,6.1);"
@@ -878,7 +877,7 @@ class TestStreamOldCaseBasic:
         tdSql.execute(
             f"insert into t1 values(1648791311002,1,1,1,1.1)  t2 values (1648791311002,2,2,2,2.1)  t3 values(1648791311002,3,3,3,3.1) t4 values(1648791311002,4,4,4,4.1)  t5 values (1648791311002,5,5,5,5.1)  t6 values(1648791311002,6,6,6,6.1);"
         )
-        
+
         tdLog.info("3")
         tdSql.queryCheckFunc(
             f"select * from streamt order by 1 desc;",
@@ -918,7 +917,7 @@ class TestStreamOldCaseBasic:
 
     def stream_basic_5(self):
         tdLog.info(f"stream_basic_5")
-        drop_all_streams_and_dbs()
+        clusterComCheck.drop_all_streams_and_dbs()
 
         tdLog.info(f"step1   =============")
 
@@ -938,7 +937,7 @@ class TestStreamOldCaseBasic:
         tdSql.execute(
             f"create stream streams3 trigger at_once ignore expired 0 ignore update 0 into streamt3 as select  _wstart, count(*) c1 from t1 state_window(a);"
         )
-        check_stream_status()
+        clusterComCheck.check_stream_status()
 
         tdSql.execute(f"insert into t1 values(1648791211000,1,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213000,2,2,3,1.1);")
@@ -1057,7 +1056,7 @@ class TestStreamOldCaseBasic:
         tdSql.execute(
             f"create stream streams4 trigger at_once ignore expired 0 ignore update 0 into streamt4 as select  _wstart, first(a), b, c, ta, tb from st interval(1s);"
         )
-        check_stream_status()
+        clusterComCheck.check_stream_status()
 
         tdSql.execute(f"insert into t1 values(1648791211000,1,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213000,2,3,4,1.1);")
@@ -1088,7 +1087,7 @@ class TestStreamOldCaseBasic:
         tdSql.execute(
             f"create stream streams5 trigger at_once ignore expired 0 ignore update 0 into streamt5 as select  _wstart, b, c, ta, tb, max(b) from t1 interval(1s);"
         )
-        check_stream_status()
+        clusterComCheck.check_stream_status()
 
         tdSql.execute(f"insert into t1 values(1648791211000,1,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213000,2,3,4,1.1);")
@@ -1134,7 +1133,7 @@ class TestStreamOldCaseBasic:
         tdSql.execute(
             f"create stream streams11 trigger at_once ignore expired 1 ignore update 0 watermark 100s into streamt11 as select  ts, b, c, last(c), ta, tb from st partition by tbname count_window(2);"
         )
-        check_stream_status()
+        clusterComCheck.check_stream_status()
 
         tdSql.execute(f"insert into t1 values(1648791211000,1,2,3,0);")
         tdSql.execute(f"insert into t1 values(1648791213000,2,3,4,0);")
@@ -1153,41 +1152,3 @@ class TestStreamOldCaseBasic:
             and tdSql.getData(2, 4) == 2
             and tdSql.getData(2, 5) == 2,
         )
-
-
-def check_stream_status(stream_name=""):
-    for loop in range(60):
-        if stream_name == "":
-            tdSql.query(f"select * from information_schema.ins_stream_tasks")
-            if tdSql.getRows() == 0:
-                continue
-            tdSql.query(
-                f'select * from information_schema.ins_stream_tasks where status != "ready"'
-            )
-            if tdSql.getRows() == 0:
-                return
-        else:
-            tdSql.query(
-                f'select stream_name, status from information_schema.ins_stream_tasks where stream_name = "{stream_name}" and status == "ready"'
-            )
-            if tdSql.getRows() == 1:
-                return
-        time.sleep(1)
-
-    tdLog.exit(f"stream task status not ready in {loop} seconds")
-
-
-def drop_all_streams_and_dbs():
-    dbList = tdSql.query("show databases", row_tag=True)
-    for r in range(len(dbList)):
-        if (
-            dbList[r][0] != "information_schema"
-            and dbList[r][0] != "performance_schema"
-        ):
-            tdSql.execute(f"drop database {dbList[r][0]}")
-
-    streamList = tdSql.query("show streams", row_tag=True)
-    for r in range(len(streamList)):
-        tdSql.execute(f"drop stream {streamList[r][0]}")
-
-    tdLog.info(f"drop {len(dbList)} databases, {len(streamList)} streams")

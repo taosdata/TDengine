@@ -2,16 +2,15 @@ import time
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestStreamOldCaseBasic:
+class TestStreamOldCaseCheckPoint:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_stream_oldcase_basic(self):
-        """Stream basic test
+    def test_stream_oldcase_checkpoint(self):
+        """Stream checkpoint
 
-        1. basic test
-        2. out of order data
+        1. -
 
         Catalog:
             - Streams:OldCase
@@ -26,47 +25,315 @@ class TestStreamOldCaseBasic:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/checkpointState0.sim
         """
 
-        # self.stream_basic_0()
-        # self.stream_basic_1()
-        # self.stream_basic_2()
-        # self.stream_basic_3()
-        self.stream_basic_4()
-        # self.stream_basic_5()
+        self.checkpointInterval0()
+        self.checkpointInterval1()
+        self.checkpointSession0()
+        self.checkpointSession1()
+        self.checkpointState0()
 
+    def checkpointInterval0(self):
+        tdLog.info(f"checkpointInterval0")
+        clusterComCheck.drop_all_streams_and_dbs()
 
-def check_stream_status(stream_name=""):
-    for loop in range(60):
-        if stream_name == "":
-            tdSql.query(f"select * from information_schema.ins_stream_tasks")
-            if tdSql.getRows() == 0:
-                continue
-            tdSql.query(
-                f'select * from information_schema.ins_stream_tasks where status != "ready"'
-            )
-            if tdSql.getRows() == 0:
-                return
-        else:
-            tdSql.query(
-                f'select stream_name, status from information_schema.ins_stream_tasks where stream_name = "{stream_name}" and status == "ready"'
-            )
-            if tdSql.getRows() == 1:
-                return
-        time.sleep(1)
+        tdLog.info(f"step 1")
 
-    tdLog.exit(f"stream task status not ready in {loop} seconds")
+        tdLog.info(f"=============== create database")
+        tdSql.execute(f"create database test vgroups 1;")
+        tdSql.execute(f"use test;")
 
+        tdSql.execute(f"create table t1(ts timestamp, a int, b int , c int, d double);")
+        tdSql.execute(
+            f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart, count(*) c1, sum(a) from t1 interval(10s);"
+        )
+        tdSql.execute(
+            f"create stream streams1 trigger window_close IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt1 as select  _wstart, count(*) c1, sum(a) from t1 interval(10s);"
+        )
 
-def drop_all_streams_and_dbs():
-    dbList = tdSql.query("show databases", row_tag=True)
-    for r in range(len(dbList)):
-        if (
-            dbList[r][0] != "information_schema"
-            and dbList[r][0] != "performance_schema"
-        ):
-            tdSql.execute(f"drop database {dbList[r][0]}")
+        clusterComCheck.check_stream_status()
 
-    streamList = tdSql.query("show streams", row_tag=True)
-    for r in range(len(streamList)):
-        tdSql.execute(f"drop stream {streamList[r][0]}")
+        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
+        tdSql.execute(f"insert into t1 values(1648791213001,2,2,3,1.1);")
+        tdSql.queryCheckFunc(
+            f"select * from streamt;",
+            lambda: tdSql.getRows() == 1
+            and tdSql.getData(0, 1) == 2
+            and tdSql.getData(0, 2) == 3,
+        )
+        tdSql.queryCheckFunc(f"select * from streamt1;", lambda: tdSql.getRows() == 0)
 
-    tdLog.info(f"drop {len(dbList)} databases, {len(streamList)} streams")
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.check_stream_status()
+
+        tdSql.execute(f"insert into t1 values(1648791213002,3,2,3,1.1);")
+        tdSql.queryCheckFunc(
+            f"select * from streamt;",
+            lambda: tdSql.getRows() == 1
+            and tdSql.getData(0, 1) == 3
+            and tdSql.getData(0, 2) == 6,
+        )
+
+        tdSql.execute(f"insert into t1 values(1648791223003,4,2,3,1.1);")
+        tdSql.queryCheckFunc(
+            f"select * from streamt;",
+            lambda: tdSql.getRows() == 2
+            and tdSql.getData(0, 1) == 3
+            and tdSql.getData(0, 2) == 6
+            and tdSql.getData(1, 1) == 1
+            and tdSql.getData(1, 2) == 4,
+        )
+
+        tdSql.queryCheckFunc(
+            f"select * from streamt1;",
+            lambda: tdSql.getRows() == 1
+            and tdSql.getData(0, 1) == 3
+            and tdSql.getData(0, 2) == 6,
+        )
+
+        tdLog.info(f"step 2")
+
+        tdLog.info(f"restart taosd 02 ......")
+
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.check_stream_status()
+
+        tdSql.execute(f"insert into t1 values(1648791223004,5,2,3,1.1);")
+        tdSql.queryCheckFunc(
+            f"select * from streamt;",
+            lambda: tdSql.getRows() == 2
+            and tdSql.getData(0, 1) == 3
+            and tdSql.getData(0, 2) == 6
+            and tdSql.getData(1, 1) == 2
+            and tdSql.getData(1, 2) == 9,
+        )
+
+        tdSql.queryCheckFunc(
+            f"select * from streamt1;",
+            lambda: tdSql.getRows() == 1
+            and tdSql.getData(0, 1) == 3
+            and tdSql.getData(0, 2) == 6,
+        )
+
+    def checkpointInterval1(self):
+        tdLog.info(f"checkpointInterval1")
+        clusterComCheck.drop_all_streams_and_dbs()
+
+        tdLog.info(f"step 1")
+        tdSql.execute(f"create database test vgroups 4;")
+        tdSql.execute(f"use test;")
+
+        tdSql.execute(
+            f"create stable st(ts timestamp,a int,b int,c int, d double) tags(ta int,tb int,tc int);"
+        )
+        tdSql.execute(f"create table t1 using st tags(1,1,1);")
+        tdSql.execute(f"create table t2 using st tags(2,2,2);")
+        tdSql.execute(
+            f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart, count(*) c1, sum(a) from st interval(10s);"
+        )
+        clusterComCheck.check_stream_status()
+
+        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
+        tdSql.execute(f"insert into t2 values(1648791213001,2,2,3,1.1);")
+
+        tdSql.queryCheckFunc(
+            f"select * from streamt;",
+            lambda: tdSql.getRows() == 1
+            and tdSql.getData(0, 1) == 2
+            and tdSql.getData(0, 2) == 3,
+        )
+
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.check_stream_status()
+
+        tdSql.execute(f"insert into t1 values(1648791213002,3,2,3,1.1);")
+        tdSql.execute(f"insert into t2 values(1648791223003,4,2,3,1.1);")
+
+        tdSql.queryCheckFunc(
+            f"select * from streamt;",
+            lambda: tdSql.getRows() == 2
+            and tdSql.getData(0, 1) == 3
+            and tdSql.getData(0, 2) == 6
+            and tdSql.getData(1, 1) == 1
+            and tdSql.getData(1, 2) == 4,
+        )
+
+    def checkpointSession0(self):
+        tdLog.info(f"checkpointSession0")
+        clusterComCheck.drop_all_streams_and_dbs()
+
+        tdLog.info(f"step 1")
+
+        tdLog.info(f"=============== create database")
+        tdSql.execute(f"create database test vgroups 1;")
+        tdSql.execute(f"use test;")
+
+        tdSql.execute(f"create table t1(ts timestamp, a int, b int , c int, d double);")
+        tdSql.execute(
+            f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart, count(*) c1, sum(a) from t1 session(ts, 10s);"
+        )
+        clusterComCheck.check_stream_status()
+
+        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
+        tdSql.execute(f"insert into t1 values(1648791213001,2,2,3,1.1);")
+
+        tdSql.queryCheckFunc(
+            f"select * from streamt;",
+            lambda: tdSql.getRows() == 1
+            and tdSql.getData(0, 1) == 2
+            and tdSql.getData(0, 2) == 3,
+        )
+
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.check_stream_status()
+
+        tdSql.execute(f"insert into t1 values(1648791213002,3,2,3,1.1);")
+
+        tdSql.queryCheckFunc(
+            f"select * from streamt;",
+            lambda: tdSql.getRows() == 1
+            and tdSql.getData(0, 1) == 3
+            and tdSql.getData(0, 2) == 6,
+        )
+
+        tdSql.execute(f"insert into t1 values(1648791233003,4,2,3,1.1);")
+        tdSql.queryCheckFunc(
+            f"select * from streamt;",
+            lambda: tdSql.getRows() == 2
+            and tdSql.getData(0, 1) == 3
+            and tdSql.getData(0, 2) == 6
+            and tdSql.getData(1, 1) == 1
+            and tdSql.getData(1, 2) == 4,
+        )
+
+        tdLog.info(f"step 2")
+        tdLog.info(f"restart taosd 02 ......")
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.check_stream_status()
+
+        tdSql.execute(f"insert into t1 values(1648791233004,5,2,3,1.1);")
+        tdSql.queryCheckFunc(
+            f"select * from streamt;",
+            lambda: tdSql.getRows() == 2
+            and tdSql.getData(0, 1) == 3
+            and tdSql.getData(0, 2) == 6
+            and tdSql.getData(1, 1) == 2
+            and tdSql.getData(1, 2) == 9,
+        )
+
+    def checkpointSession1(self):
+        tdLog.info(f"checkpointSession1")
+        clusterComCheck.drop_all_streams_and_dbs()
+
+        tdLog.info(f"step 1")
+        tdSql.execute(f"create database test vgroups 4;")
+        tdSql.execute(f"use test;")
+
+        tdSql.execute(
+            f"create stable st(ts timestamp,a int,b int,c int, d double) tags(ta int,tb int,tc int);"
+        )
+        tdSql.execute(f"create table t1 using st tags(1,1,1);")
+        tdSql.execute(f"create table t2 using st tags(2,2,2);")
+        tdSql.execute(
+            f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart, count(*) c1, sum(a) from st session(ts, 10s);"
+        )
+
+        clusterComCheck.check_stream_status()
+
+        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
+        tdSql.execute(f"insert into t2 values(1648791213001,2,2,3,1.1);")
+
+        tdSql.queryCheckFunc(
+            f"select * from streamt;",
+            lambda: tdSql.getRows() == 1
+            and tdSql.getData(0, 1) == 2
+            and tdSql.getData(0, 2) == 3,
+        )
+
+        tdLog.info(f"waiting for checkpoint generation 1 ......")
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.check_stream_status()
+
+        tdSql.execute(f"insert into t1 values(1648791213002,3,2,3,1.1);")
+        tdSql.execute(f"insert into t2 values(1648791233003,4,2,3,1.1);")
+
+        tdSql.queryCheckFunc(
+            f"select * from streamt;",
+            lambda: tdSql.getRows() == 2
+            and tdSql.getData(0, 1) == 3
+            and tdSql.getData(0, 2) == 6
+            and tdSql.getData(1, 1) == 1
+            and tdSql.getData(1, 2) == 4,
+        )
+
+    def checkpointState0(self):
+        tdLog.info(f"checkpointState0")
+        clusterComCheck.drop_all_streams_and_dbs()
+
+        tdLog.info(f"step 1")
+        tdLog.info(f"=============== create database")
+        tdSql.execute(f"create database test vgroups 1;")
+        tdSql.execute(f"use test;")
+
+        tdSql.execute(f"create table t1(ts timestamp, a int, b int , c int, d double);")
+        tdSql.execute(
+            f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart, count(*) c1, sum(a) from t1 state_window(b);"
+        )
+
+        clusterComCheck.check_stream_status()
+
+        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
+        tdSql.execute(f"insert into t1 values(1648791213001,2,2,3,1.1);")
+        tdSql.queryCheckFunc(
+            f"select * from streamt;",
+            lambda: tdSql.getRows() == 1
+            and tdSql.getData(0, 1) == 2
+            and tdSql.getData(0, 2) == 3,
+        )
+
+        tdLog.info(f"restart taosd 01 ......")
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.check_stream_status()
+
+        tdSql.execute(f"insert into t1 values(1648791213002,3,2,3,1.1);")
+
+        tdSql.queryCheckFunc(
+            f"select * from streamt;",
+            lambda: tdSql.getRows() == 1
+            and tdSql.getData(0, 1) == 3
+            and tdSql.getData(0, 2) == 6,
+        )
+
+        tdSql.execute(f"insert into t1 values(1648791233003,4,3,3,1.1);")
+
+        tdSql.queryCheckFunc(
+            f"select * from streamt;",
+            lambda: tdSql.getRows() == 2
+            and tdSql.getData(0, 1) == 3
+            and tdSql.getData(0, 2) == 6
+            and tdSql.getData(1, 1) == 1
+            and tdSql.getData(1, 2) == 4,
+        )
+
+        tdLog.info(f"step 2")
+
+        tdLog.info(f"restart taosd 02 ......")
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.check_stream_status()
+
+        tdSql.execute(f"insert into t1 values(1648791233004,5,3,3,1.1);")
+
+        tdSql.queryCheckFunc(
+            f"select * from streamt;",
+            lambda: tdSql.getRows() == 2
+            and tdSql.getData(0, 1) == 3
+            and tdSql.getData(0, 2) == 6
+            and tdSql.getData(1, 1) == 2
+            and tdSql.getData(1, 2) == 9,
+        )

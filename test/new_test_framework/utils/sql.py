@@ -1530,7 +1530,8 @@ class TDSql:
                 data += f"d[{r}][{c}]={self.queryResult[r][c]} "
             tdLog.info(data)
         if exit:
-            tdLog.exit(f"{name}")
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            tdLog.exit(f"{name} {caller.filename}({caller.lineno})")
 
     def expectKeyData(self, key, col, data, show=False):
         """
