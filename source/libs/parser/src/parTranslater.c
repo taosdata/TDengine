@@ -13394,6 +13394,7 @@ static int32_t createStreamReqBuildForceOutput(STranslateContext* pCxt, SCreateS
     PAR_ERR_JRET(terrno);
   }
 
+  int32_t index = 0;
   FOREACH(pNode, pProjection) {
     SStreamOutCol         pOutCol = {0};
     SStreamForceOutputCxt cxt = {.needFill = true};
@@ -13401,6 +13402,11 @@ static int32_t createStreamReqBuildForceOutput(STranslateContext* pCxt, SCreateS
     if (cxt.needFill) {
       PAR_ERR_JRET(nodesNodeToString(pNode, false, (char**)&pOutCol.expr, NULL));
     } else {
+      if (index == 0) {
+        taosArrayDestroy(pReq->forceOutCols);
+        pReq->forceOutCols = NULL;
+        return code;
+      }
       PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal));
       pVal->node.resType.type = ((SExprNode*)pNode)->resType.type;
       pVal->node.resType.bytes = ((SExprNode*)pNode)->resType.bytes;
