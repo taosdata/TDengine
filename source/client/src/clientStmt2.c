@@ -1460,6 +1460,7 @@ static int stmtFetchStbColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIEL
       qBuildStmtStbColFields(*pDataBlock, pStmt->bInfo.boundTags, pStmt->bInfo.tbNameFlag, fieldNum, fields));
 
   if (pStmt->bInfo.tbType == TSDB_SUPER_TABLE && cleanStb) {
+    taosMemoryFreeClear((*pDataBlock)->boundColsInfo.pColIndex);
     qDestroyStmtDataBlock(*pDataBlock);
     *pDataBlock = NULL;
     if (taosHashRemove(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName)) != 0) {
