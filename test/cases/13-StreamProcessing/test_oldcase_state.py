@@ -23,12 +23,16 @@ class TestStreamOldCaseState:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/state1.sim
         """
 
-        # self.stream_basic_0()
-        # self.stream_basic_1()
-        # self.stream_basic_2()
-        # self.stream_basic_3()
-        self.stream_basic_4()
-        # self.stream_basic_5()
+        # self.state0()
+        # self.state1()
+
+    def state0(self):
+        tdLog.info(f"state0")
+        drop_all_streams_and_dbs()
+
+    def state1(self):
+        tdLog.info(f"state1")
+        drop_all_streams_and_dbs()
 
 def check_stream_status(stream_name=""):
     for loop in range(60):

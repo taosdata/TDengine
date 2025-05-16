@@ -22,18 +22,35 @@ class TestStreamOldCaseTwa:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaError.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaFwcFill.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaFwcFillPrimaryKey.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaFwcInterval.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaFwcIntervalPrimaryKey.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaInterpFwc.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaInterpFwcCheckpoint.sim
         """
 
-        # self.stream_basic_0()
-        # self.stream_basic_1()
-        # self.stream_basic_2()
-        # self.stream_basic_3()
-        self.stream_basic_4()
-        # self.stream_basic_5()
+        # self.streamTwaError()
+        # self.streamTwaFwcFill()
+        # self.streamTwaFwcFillPrimaryKey()
+        # self.streamTwaFwcIntervalPrimaryKey()
+        # self.streamTwaInterpFwc()
+
+    def streamTwaError(self):
+        tdLog.info(f"streamTwaError")
+        drop_all_streams_and_dbs()
+
+    def streamTwaFwcFill(self):
+        tdLog.info(f"streamTwaFwcFill")
+        drop_all_streams_and_dbs()
+
+    def streamTwaFwcFillPrimaryKey(self):
+        tdLog.info(f"streamTwaFwcFillPrimaryKey")
+        drop_all_streams_and_dbs()
+
+    def streamTwaFwcIntervalPrimaryKey(self):
+        tdLog.info(f"streamTwaFwcIntervalPrimaryKey")
+        drop_all_streams_and_dbs()
+
+    def streamTwaInterpFwc(self):
+        tdLog.info(f"streamTwaInterpFwc")
+        drop_all_streams_and_dbs()
 
 def check_stream_status(stream_name=""):
     for loop in range(60):

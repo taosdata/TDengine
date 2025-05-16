@@ -23,12 +23,16 @@ class TestStreamOldCaseSnode:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/snodeCheck.sim
         """
 
-        # self.stream_basic_0()
-        # self.stream_basic_1()
-        # self.stream_basic_2()
-        # self.stream_basic_3()
-        self.stream_basic_4()
-        # self.stream_basic_5()
+        # self.schedSnode()
+        # self.snodeCheck()
+
+    def schedSnode(self):
+        tdLog.info(f"schedSnode")
+        drop_all_streams_and_dbs()
+
+    def snodeCheck(self):
+        tdLog.info(f"snodeCheck")
+        drop_all_streams_and_dbs()
 
 def check_stream_status(stream_name=""):
     for loop in range(60):

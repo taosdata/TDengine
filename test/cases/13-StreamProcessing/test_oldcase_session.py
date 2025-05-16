@@ -24,12 +24,22 @@ class TestStreamOldCaseSession:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/triggerSession0.sim
         """
 
-        # self.stream_basic_0()
-        # self.stream_basic_1()
-        # self.stream_basic_2()
-        # self.stream_basic_3()
-        self.stream_basic_4()
-        # self.stream_basic_5()
+        # self.session0()
+        # self.session1()
+        # self.triggerSession0()
+
+    def session0(self):
+        tdLog.info(f"session0")
+        drop_all_streams_and_dbs()
+
+    def session1(self):
+        tdLog.info(f"session1")
+        drop_all_streams_and_dbs()
+
+    def triggerSession1(self):
+        tdLog.info(f"triggerSession1")
+        drop_all_streams_and_dbs()
+
 
 
 def check_stream_status(stream_name=""):

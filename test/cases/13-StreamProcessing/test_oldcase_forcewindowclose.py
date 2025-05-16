@@ -20,7 +20,6 @@ class TestStreamOldCaseForceWindowClose:
         Jira: None
         History:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/forcewindowclose.sim
-            # - 2025-5-15 Simon Guan Migrated from tsim/stream/streamFwcIntervalFill.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpForceWindowClose.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpForceWindowClose1.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpFwcError.sim
@@ -34,10 +33,6 @@ class TestStreamOldCaseForceWindowClose:
 
     def forcewindowclose(self):
         tdLog.info(f"forcewindowclose")
-        drop_all_streams_and_dbs()
-
-    def streamFwcIntervalFill(self):
-        tdLog.info(f"streamFwcIntervalFill")
         drop_all_streams_and_dbs()
 
     def streamInterpForceWindowClose(self):
