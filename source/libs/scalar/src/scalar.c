@@ -1004,6 +1004,9 @@ static void calcStreamTimeRangeForPseudoCols(SStreamTSRangeParas* streamTsRange,
       } else if (skey == streamTsRange->timeValue && node->opType == OP_TYPE_GREATER_THAN) {
         streamTsRange->opType = OP_TYPE_GREATER_THAN;
       }
+    } else {
+      sclError("invalid stream timerange start expr, opType:%d, nodeType left:%d, nodeType right:%d", 
+        node->opType, nodeType(node->pLeft), nodeType(node->pRight));
     }
   } else if (streamTsRange->eType == SCL_VALUE_TYPE_END) {
     if (nodeType(node->pRight) == QUERY_NODE_COLUMN && 
@@ -1024,7 +1027,12 @@ static void calcStreamTimeRangeForPseudoCols(SStreamTSRangeParas* streamTsRange,
       } else if (ekey == streamTsRange->timeValue && node->opType == OP_TYPE_LOWER_THAN) {
         streamTsRange->opType = OP_TYPE_LOWER_THAN;
       }
+    } else {
+      sclError("invalid stream timerange end expr, opType:%d, nodeType left:%d, nodeType right:%d", 
+        node->opType, nodeType(node->pLeft), nodeType(node->pRight));
     }
+  } else {
+    sclError("invalid stream ts range type, type:%d", streamTsRange->eType);
   }
 }
 

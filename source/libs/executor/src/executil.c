@@ -789,8 +789,9 @@ static int32_t buildGroupInfo(SColumnInfoData* pValue, int32_t i, SArray* gInfo)
       int32_t len = getJsonValueLen(data);
       v->data.type = pValue->info.type;
       v->data.nData = len;
-      v->data.pData = taosMemoryCalloc(1, len);
+      v->data.pData = taosMemoryCalloc(1, len + 1);
       memcpy(v->data.pData, data, len);
+      qDebug("buildGroupInfo:%d add json data len:%d, data:%s", i, len, (char*)v->data.pData);
     } else if (IS_VAR_DATA_TYPE(pValue->info.type)) {
       if (varDataTLen(data) > pValue->info.bytes) {
         code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
@@ -798,11 +799,13 @@ static int32_t buildGroupInfo(SColumnInfoData* pValue, int32_t i, SArray* gInfo)
       }
       v->data.type = pValue->info.type;
       v->data.nData = varDataLen(data);
-      v->data.pData = taosMemoryCalloc(1, varDataLen(data));
+      v->data.pData = taosMemoryCalloc(1, varDataLen(data) + 1);
       memcpy(v->data.pData, varDataVal(data), varDataLen(data));
+      qDebug("buildGroupInfo:%d add var data type:%d, len:%d, data:%s", i, pValue->info.type, varDataLen(data), (char*)v->data.pData);
     } else {
       v->data.type = pValue->info.type;
       memcpy(&v->data.val, data, pValue->info.bytes);
+      qDebug("buildGroupInfo:%d add data type:%d, data:%"PRId64, i, pValue->info.type, v->data.val);
     }
   }
 end:
@@ -2974,6 +2977,7 @@ static int32_t addTbnameToMap(SHashObj* groupIdMap, int64_t uid, void* vnode, SS
     taosArrayDestroy(gInfo);
     return code;
   }
+  qDebug("table uid:%" PRId64 ":%s added into groupIdMap, groupIdMap size:%d", uid, str, taosHashGetSize(groupIdMap));
   return code;
 }
 

@@ -619,6 +619,70 @@ end:
   return code;
 }
 
+static void calcTimeRange(STimeRangeNode* node, void* pStRtFuncInfo, SReadHandle* handle){
+  SStreamTSRangeParas timeStartParas = {.eType = SCL_VALUE_TYPE_START, .timeValue = INT64_MIN};
+  SStreamTSRangeParas timeEndParas = {.eType = SCL_VALUE_TYPE_END, .timeValue = INT64_MAX};
+  if (scalarCalculate(node->pStart, NULL, NULL, pStRtFuncInfo, &timeStartParas) == 0 &&
+      scalarCalculate(node->pEnd, NULL, NULL, pStRtFuncInfo, &timeEndParas) == 0) {
+    if (timeStartParas.opType == OP_TYPE_GREATER_THAN){
+      handle->winRange.skey = timeStartParas.timeValue + 1;
+    } else if (timeStartParas.opType == OP_TYPE_GREATER_EQUAL){
+      handle->winRange.skey = timeStartParas.timeValue;
+    } else {
+      stError("start time range error, opType:%d", timeStartParas.opType);
+      return;
+    }
+    if (timeEndParas.opType == OP_TYPE_LOWER_THAN){
+      handle->winRange.ekey = timeEndParas.timeValue - 1;
+    } else if (timeEndParas.opType == OP_TYPE_LOWER_EQUAL){
+      handle->winRange.ekey = timeEndParas.timeValue;
+    } else {
+      stError("end time range error, opType:%d", timeEndParas.opType);
+      return;
+    }
+    stDebug("%s, skey:%" PRId64 ", ekey:%" PRId64, __func__,
+              handle->winRange.skey, handle->winRange.ekey);
+    handle->winRangeValid = true;
+  }
+}
+
+static int32_t processCalaTimeRange(SStreamTriggerReaderCalcInfo* sStreamReaderCalcInfo, SResFetchReq *req, 
+  STimeRangeNode* node, SReadHandle* handle){
+  int32_t            code = 0;
+  int32_t            lino = 0;
+  SArray*            funcVals = NULL;
+  if (req->pStRtFuncInfo->withExternalWindow) {
+    nodesDestroyNode(sStreamReaderCalcInfo->tsConditions);
+    filterFreeInfo(sStreamReaderCalcInfo->pFilterInfo);
+    sStreamReaderCalcInfo->pFilterInfo = NULL;
+
+    STREAM_CHECK_RET_GOTO(createExternalConditions(req->pStRtFuncInfo->pStreamPesudoFuncVals, (SLogicConditionNode**)&sStreamReaderCalcInfo->tsConditions,
+    sStreamReaderCalcInfo->pTargetNodeTs));
+    
+    STREAM_CHECK_RET_GOTO(filterInitFromNode((SNode*)sStreamReaderCalcInfo->tsConditions, (SFilterInfo **)&sStreamReaderCalcInfo->pFilterInfo, 0, NULL));
+    SSTriggerCalcParam* pFirst = taosArrayGet(req->pStRtFuncInfo->pStreamPesudoFuncVals, 0);
+    SSTriggerCalcParam* pLast = taosArrayGetLast(req->pStRtFuncInfo->pStreamPesudoFuncVals);
+    STREAM_CHECK_NULL_GOTO(pFirst, terrno);
+    STREAM_CHECK_NULL_GOTO(pLast, terrno);
+
+    SStreamRuntimeFuncInfo funcInfo = {.curIdx = 0};
+    funcVals = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+    STREAM_CHECK_NULL_GOTO(funcVals, terrno);
+    funcInfo.pStreamPesudoFuncVals = funcVals;
+    SSTriggerCalcParam para = {.wstart = pFirst->wstart, .wend = pLast->wend};
+    STREAM_CHECK_NULL_GOTO(taosArrayPush(funcInfo.pStreamPesudoFuncVals, &para), terrno);
+    stDebug("%s withExternalWindow is true, skey:%" PRId64 ", ekey:%" PRId64, __func__,
+              para.wstart, para.wend);
+    calcTimeRange(node, &funcInfo, handle);
+  } else {
+    calcTimeRange(node, req->pStRtFuncInfo, handle);
+  }
+  
+end:
+  taosArrayDestroy(funcVals);
+  return code;
+}
+
 // static int32_t taosArrayCompareSchemaSoltId(const void *a, const void *b) {
 //   const SSchema *x = (const SSchema *)a;
 //   const SSchema *y = (const SSchema *)b;
@@ -1258,63 +1322,6 @@ end:
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
 
-  return code;
-}
-
-static void calcTimeRange(STimeRangeNode* node, void* pStRtFuncInfo, SReadHandle* handle){
-  SStreamTSRangeParas timeStartParas = {.eType = SCL_VALUE_TYPE_START, .timeValue = INT64_MIN};
-  SStreamTSRangeParas timeEndParas = {.eType = SCL_VALUE_TYPE_END, .timeValue = INT64_MAX};
-  if (scalarCalculate(node->pStart, NULL, NULL, pStRtFuncInfo, &timeStartParas) == 0 &&
-      scalarCalculate(node->pEnd, NULL, NULL, pStRtFuncInfo, &timeEndParas) == 0) {
-    if (timeStartParas.opType == OP_TYPE_GREATER_THAN){
-      handle->winRange.skey = timeStartParas.timeValue + 1;
-    } else if (timeStartParas.opType == OP_TYPE_GREATER_EQUAL){
-      handle->winRange.skey = timeStartParas.timeValue;
-    }
-    if (timeEndParas.opType == OP_TYPE_LOWER_THAN){
-      handle->winRange.ekey = timeEndParas.timeValue - 1;
-    } else if (timeEndParas.opType == OP_TYPE_LOWER_EQUAL){
-      handle->winRange.ekey = timeEndParas.timeValue;
-    }
-    stDebug("%s withExternalWindow is false, skey:%" PRId64 ", ekey:%" PRId64, __func__,
-              handle->winRange.skey, handle->winRange.ekey);
-    handle->winRangeValid = true;
-  }
-}
-
-static int32_t processCalaTimeRange(SStreamTriggerReaderCalcInfo* sStreamReaderCalcInfo, SResFetchReq *req, 
-  STimeRangeNode* node, SReadHandle* handle){
-  int32_t            code = 0;
-  int32_t            lino = 0;
-  SArray*            funcVals = NULL;
-  if (req->pStRtFuncInfo->withExternalWindow) {
-    nodesDestroyNode(sStreamReaderCalcInfo->tsConditions);
-    filterFreeInfo(sStreamReaderCalcInfo->pFilterInfo);
-    sStreamReaderCalcInfo->pFilterInfo = NULL;
-
-    STREAM_CHECK_RET_GOTO(createExternalConditions(req->pStRtFuncInfo->pStreamPesudoFuncVals, (SLogicConditionNode**)&sStreamReaderCalcInfo->tsConditions,
-    sStreamReaderCalcInfo->pTargetNodeTs));
-    
-    STREAM_CHECK_RET_GOTO(filterInitFromNode((SNode*)sStreamReaderCalcInfo->tsConditions, (SFilterInfo **)&sStreamReaderCalcInfo->pFilterInfo, 0, NULL));
-    SSTriggerCalcParam* pFirst = taosArrayGet(req->pStRtFuncInfo->pStreamPesudoFuncVals, 0);
-    SSTriggerCalcParam* pLast = taosArrayGetLast(req->pStRtFuncInfo->pStreamPesudoFuncVals);
-    STREAM_CHECK_NULL_GOTO(pFirst, terrno);
-    STREAM_CHECK_NULL_GOTO(pLast, terrno);
-
-    SStreamRuntimeFuncInfo funcInfo = {.curIdx = 0};
-    funcVals = taosArrayInit(1, sizeof(SSTriggerCalcParam));
-    STREAM_CHECK_NULL_GOTO(funcVals, terrno);
-    funcInfo.pStreamPesudoFuncVals = funcVals;
-    SSTriggerCalcParam para = {.wstart = pFirst->wstart, .wend = pLast->wend};
-    STREAM_CHECK_NULL_GOTO(taosArrayPush(funcInfo.pStreamPesudoFuncVals, &para), terrno);
-
-    calcTimeRange(node, &funcInfo, handle);
-  } else {
-    calcTimeRange(node, req->pStRtFuncInfo, handle);
-  }
-  
-end:
-  taosArrayDestroy(funcVals);
   return code;
 }
 
