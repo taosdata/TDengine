@@ -1461,18 +1461,10 @@ static int32_t msmLaunchTaskDepolyAction(SStmGrpCtx* pCtx, SStmTaskAction* pActi
   int64_t taskId = pAction->id.taskId;
   SStreamObj* pStream = NULL;
 
-  SStmTaskStatus** ppTask = taosHashGet(mStreamMgmt.taskMap, &pAction->streamId, sizeof(pAction->streamId) + sizeof(pAction->id.taskId));
-  if (NULL == ppTask) {
-    mstError("TASK:%" PRId64 " not in taskMap, remain:%d", pAction->id.taskId, taosHashGetSize(mStreamMgmt.taskMap));
-    code = TSDB_CODE_STREAM_INTERNAL_ERROR;
-    goto _exit;
-  }
-
   SStmStatus* pStatus = taosHashGet(mStreamMgmt.streamMap, &pAction->streamId, sizeof(pAction->streamId));
   if (NULL == pStatus) {
     mstError("stream not in streamMap, remain:%d", taosHashGetSize(mStreamMgmt.streamMap));
-    code = TSDB_CODE_STREAM_INTERNAL_ERROR;
-    goto _exit;
+    TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
   }
 
   code = mndAcquireStream(pCtx->pMnode, pStatus->streamName, &pStream);
@@ -1490,10 +1482,16 @@ static int32_t msmLaunchTaskDepolyAction(SStmGrpCtx* pCtx, SStmTaskAction* pActi
     goto _exit;
   }
 
-  atomic_add_fetch_64(&(*ppTask)->id.seriousId, 1);
-
   switch (pAction->type) {
     case STREAM_READER_TASK: {
+      SStmTaskStatus** ppTask = taosHashGet(mStreamMgmt.taskMap, &pAction->streamId, sizeof(pAction->streamId) + sizeof(pAction->id.taskId));
+      if (NULL == ppTask) {
+        mstError("TASK:%" PRId64 " not in taskMap, remain:%d", pAction->id.taskId, taosHashGetSize(mStreamMgmt.taskMap));
+        TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
+      }
+
+      atomic_add_fetch_64(&(*ppTask)->id.seriousId, 1);
+
       SStmTaskDeploy info = {0};
       info.task.type = pAction->type;
       info.task.streamId = streamId;
@@ -1518,6 +1516,14 @@ static int32_t msmLaunchTaskDepolyAction(SStmGrpCtx* pCtx, SStmTaskAction* pActi
       break;
     }
     case STREAM_TRIGGER_TASK: {
+      SStmTaskStatus** ppTask = taosHashGet(mStreamMgmt.taskMap, &pAction->streamId, sizeof(pAction->streamId) + sizeof(pAction->id.taskId));
+      if (NULL == ppTask) {
+        mstError("TASK:%" PRId64 " not in taskMap, remain:%d", pAction->id.taskId, taosHashGetSize(mStreamMgmt.taskMap));
+        TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
+      }
+
+      atomic_add_fetch_64(&(*ppTask)->id.seriousId, 1);
+      
       SStmTaskDeploy info = {0};
       info.task.type = pAction->type;
       info.task.streamId = streamId;
@@ -2333,18 +2339,30 @@ int32_t msmHandleStreamStatusUpdate(SStmGrpCtx* pCtx) {
   stDebug("start to handle stream group %d tasks status, taskNum:%d", pCtx->pReq->streamGId, num);
 
   for (int32_t i = 0; i < num; ++i) {
-    SStmTaskStatusMsg* pStatus = taosArrayGet(pCtx->pReq->pStreamStatus, i);
-    SStmTaskStatus** ppStatus = taosHashGet(mStreamMgmt.taskMap, &pStatus->streamId, sizeof(pStatus->streamId) + sizeof(pStatus->taskId));
+    SStmTaskStatusMsg* pTask = taosArrayGet(pCtx->pReq->pStreamStatus, i);
+    ST_TASK_DLOG("task status %s got, taskIdx:%d", gStreamStatusStr[pTask->status], pTask->taskIdx);
+    
+    SStmTaskStatus** ppStatus = taosHashGet(mStreamMgmt.taskMap, &pTask->streamId, sizeof(pTask->streamId) + sizeof(pTask->taskId));
     if (NULL == ppStatus) {
-      msmHandleStatusUpdateErr(pCtx, STM_ERR_TASK_NOT_EXISTS, pStatus);
+      ST_TASK_ILOG("task no longer exists in taskMap, will try to rm it, taskIdx:%d", pTask->taskIdx);
+      
+      msmHandleStatusUpdateErr(pCtx, STM_ERR_TASK_NOT_EXISTS, pTask);
+      continue;
+    }
+
+    if ((pTask->seriousId != (*ppStatus)->id.seriousId) || (pTask->nodeId != (*ppStatus)->id.nodeId)) {
+      ST_TASK_ILOG("task mismatch with it in taskMap, will try to rm it, current seriousId:%" PRId64 ", nodeId:%d", 
+          (*ppStatus)->id.seriousId, (*ppStatus)->id.nodeId);
+          
+      msmHandleStatusUpdateErr(pCtx, STM_ERR_TASK_NOT_EXISTS, pTask);
       continue;
     }
     
-    (*ppStatus)->status = pStatus->status;
+    (*ppStatus)->status = pTask->status;
     (*ppStatus)->lastUpTs = pCtx->currTs;
     
-    if (STREAM_STATUS_RUNNING != pStatus->status) {
-      TAOS_CHECK_EXIT(msmHandleTaskAbnormalStatus(pCtx, pStatus));
+    if (STREAM_STATUS_RUNNING != pTask->status) {
+      TAOS_CHECK_EXIT(msmHandleTaskAbnormalStatus(pCtx, pTask));
     }
   }
 
@@ -2467,7 +2485,7 @@ int32_t msmHandleHbPostActions(SStmGrpCtx* pCtx) {
       msmRspAddStreamUndeploy(*pStreamId, pCtx->pRsp, pAction);
     }
 
-    if (STREAM_ACT_START & pAction->actions && msmCheckStreamStartCond(*pStreamId, pCtx->pReq->snodeId, &id)) {
+    if ((STREAM_ACT_START & pAction->actions) && GOT_SNODE(pCtx->pReq->snodeId) && msmCheckStreamStartCond(*pStreamId, pCtx->pReq->snodeId, &id)) {
       msmRspAddStreamStart(*pStreamId, pCtx->pRsp, streamNum, pAction, &id);
     }
   }
@@ -2495,6 +2513,7 @@ int32_t msmCheckUpdateDnodeTs(SStmGrpCtx* pCtx) {
     lastTs = taosHashGet(mStreamMgmt.dnodeMap, &pCtx->pReq->dnodeId, sizeof(pCtx->pReq->dnodeId));
     if (NULL == lastTs) {
       if (noExists) {
+        stError("Got unknown dnode %d hb msg", pCtx->pReq->dnodeId);
         TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
       }
 
@@ -2610,7 +2629,7 @@ int32_t msmHandleNormalHbMsg(SStmGrpCtx* pCtx) {
     TAOS_CHECK_EXIT(msmHandleStreamStatusUpdate(pCtx));
   }
 
-  if (taosHashGetSize(pCtx->actionStm) > 0 && GOT_SNODE(pReq->snodeId)) {
+  if (taosHashGetSize(pCtx->actionStm) > 0) {
     TAOS_CHECK_EXIT(msmHandleHbPostActions(pCtx));
   }
 
@@ -2899,6 +2918,8 @@ void msmReDeploySnodeRunnerTasks(SMnode *pMnode, SArray* pRunners, SArray* pTrig
     task.type = STREAM_RUNNER_TASK;
     
     mndStreamPostTaskAction(mStreamMgmt.actionQ, &task, STREAM_ACT_DEPLOY);
+
+    mstDebug("runner tasks %d redeploys added to actionQ", task.deployNum);
   }
 
   taosArrayClear(pRunners);
@@ -2912,6 +2933,8 @@ _exit:
 
 void msmHandleSnodeLost(SMnode *pMnode, SStmSnodeTasksStatus* pSnode) {
   pSnode->runnerThreadNum = -1;
+
+  (void)msmSTAddSnodesToMap(pMnode);
 
   if (pSnode->runnerList && taosArrayGetSize(pSnode->runnerList) > 0) {
     msmReDeploySnodeRunnerTasks(pMnode, pSnode->runnerList, pSnode->triggerList);
@@ -2939,8 +2962,14 @@ void msmCheckSnodeTasksStatus(SMnode *pMnode) {
     }
     
     SStmSnodeTasksStatus* pSnode = (SStmSnodeTasksStatus*)pIter;
+    if (pSnode->runnerThreadNum < 0) {
+      continue;
+    }
+    
     int64_t snodeNoUpTs = mStreamMgmt.healthCtx.currentTs - pSnode->lastUpTs;
     if (snodeNoUpTs >= MND_STREAM_WATCH_DURATION) {
+      stInfo("snode %d lost, lastUpTs:%" PRId64 ", runnerThreadNum:%d", pSnode->lastUpTs, pSnode->runnerThreadNum);
+      
       msmHandleSnodeLost(pMnode, pSnode);
       continue;
     }
@@ -2961,9 +2990,11 @@ void msmHealthCheck(SMnode *pMnode) {
   mStreamMgmt.healthCtx.slotIdx = (mStreamMgmt.healthCtx.slotIdx + 1) % MND_STREAM_ISOLATION_PERIOD_NUM;
   mStreamMgmt.healthCtx.currentTs = taosGetTimestampMs();
 
+  stDebug("start health check, soltIdx:%d, currentTs:%" PRId64, mStreamMgmt.healthCtx.slotIdx, mStreamMgmt.healthCtx.currentTs);
+
   taosWLockLatch(&mStreamMgmt.runtimeLock);
   //msmCheckStreamsStatus(pMnode);
-  //msmCheckTasksStatus(pMnode);
+  msmCheckTasksStatus(pMnode);
   taosWUnLockLatch(&mStreamMgmt.runtimeLock);
 }
 

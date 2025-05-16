@@ -269,19 +269,14 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
 
   pWrapper = &pDnode->wrappers[ntype];
 
-  char tpath[TSDB_FILENAME_LEN];
-  char* path = pWrapper->path;
-  if (SNODE == ntype) {
-    snprintf(tpath, TSDB_FILENAME_LEN, "%s%ssnode%d", pWrapper->path, TD_DIRSEP, pDnode->data.dnodeId);
-    path = tpath;
-  }
-
-  if (taosMulMkDir(path) != 0) {
+  if (taosMulMkDir(pWrapper->path) != 0) {
     dmReleaseWrapper(pWrapper);
     code = terrno;
-    dError("failed to create dir:%s since %s", path, tstrerror(code));
+    dError("failed to create dir:%s since %s", pWrapper->path, tstrerror(code));
     return code;
   }
+
+  dInfo("path %s created", pWrapper->path);
 
   (void)taosThreadMutexLock(&pDnode->mutex);
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
@@ -331,6 +326,9 @@ static int32_t dmProcessAlterNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   }
 
   (void)taosThreadMutexUnlock(&pDnode->mutex);
+
+  dmReleaseWrapper(pWrapper);
+  
   return code;
 }
 

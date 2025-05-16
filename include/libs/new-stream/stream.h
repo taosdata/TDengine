@@ -84,6 +84,7 @@ typedef struct SStreamRunnerTask {
   SArray*                       forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
   bool                          topTask;
   taskUndeplyCallback           undeployCb;
+  void*                         undeployParam;
 } SStreamRunnerTask;
 
 typedef struct SStreamCacheReadInfo {
@@ -106,34 +107,34 @@ typedef struct SStreamCacheReadInfo {
 // clang-format on
 
 #define ST_TASK_FLOG(param, ...)                                                                               \
-  stFatal("TYPE: %s, NODE:%d, STREAM:%" PRIx64 ", TASK:%" PRIx64 ", SESSION:%" PRIx64 " " param,               \
+  stFatal("TYPE: %s, NODE:%d, STREAM:%" PRIx64 ", TASK:%" PRIx64 ",SID:%" PRId64 ", SESSION:%" PRIx64 " " param,               \
           gStreamTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->nodeId,                    \
-          ((SStreamTask *)pTask)->streamId, ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->sessionId, \
+          ((SStreamTask *)pTask)->streamId, ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, ((SStreamTask *)pTask)->sessionId, \
           __VA_ARGS__)
 #define ST_TASK_ELOG(param, ...)                                                                               \
-  stError("TYPE: %s, NODE:%d, STREAM:%" PRIx64 ", TASK:%" PRIx64 ", SESSION:%" PRIx64 " " param,               \
+  stError("TYPE: %s, NODE:%d, STREAM:%" PRIx64 ", TASK:%" PRIx64 ",SID:%" PRId64 ", SESSION:%" PRIx64 " " param,               \
           gStreamTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->nodeId,                    \
-          ((SStreamTask *)pTask)->streamId, ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->sessionId, \
+          ((SStreamTask *)pTask)->streamId, ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, ((SStreamTask *)pTask)->sessionId, \
           __VA_ARGS__)
 #define ST_TASK_WLOG(param, ...)                                                                              \
-  stWarn("TYPE: %s, NODE:%d, STREAM:%" PRIx64 ", TASK:%" PRIx64 ", SESSION:%" PRIx64 " " param,               \
+  stWarn("TYPE: %s, NODE:%d, STREAM:%" PRIx64 ", TASK:%" PRIx64 ",SID:%" PRId64 ", SESSION:%" PRIx64 " " param,               \
          gStreamTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->nodeId,                    \
-         ((SStreamTask *)pTask)->streamId, ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->sessionId, \
+         ((SStreamTask *)pTask)->streamId, ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, ((SStreamTask *)pTask)->sessionId, \
          __VA_ARGS__)
 #define ST_TASK_ILOG(param, ...)                                                                              \
-  stInfo("TYPE: %s, NODE:%d, STREAM:%" PRIx64 ", TASK:%" PRIx64 ", SESSION:%" PRIx64 " " param,               \
+  stInfo("TYPE: %s, NODE:%d, STREAM:%" PRIx64 ", TASK:%" PRIx64 ",SID:%" PRId64 ", SESSION:%" PRIx64 " " param,               \
          gStreamTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->nodeId,                    \
-         ((SStreamTask *)pTask)->streamId, ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->sessionId, \
+         ((SStreamTask *)pTask)->streamId, ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, ((SStreamTask *)pTask)->sessionId, \
          __VA_ARGS__)
 #define ST_TASK_DLOG(param, ...)                                                                               \
-  stDebug("TYPE: %s, NODE:%d, STREAM:%" PRIx64 ", TASK:%" PRIx64 ", SESSION:%" PRIx64 " " param,               \
+  stDebug("TYPE: %s, NODE:%d, STREAM:%" PRIx64 ", TASK:%" PRIx64 ",SID:%" PRId64 ", SESSION:%" PRIx64 " " param,               \
           gStreamTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->nodeId,                    \
-          ((SStreamTask *)pTask)->streamId, ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->sessionId, \
+          ((SStreamTask *)pTask)->streamId, ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, ((SStreamTask *)pTask)->sessionId, \
           __VA_ARGS__)
 #define ST_TASK_TLOG(param, ...)                                                                               \
-  stTrace("TYPE: %s, NODE:%d, STREAM:%" PRIx64 ", TASK:%" PRIx64 ", SESSION:%" PRIx64 " " param,               \
+  stTrace("TYPE: %s, NODE:%d, STREAM:%" PRIx64 ", TASK:%" PRIx64 ",SID:%" PRId64 ", SESSION:%" PRIx64 " " param,               \
           gStreamTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->nodeId,                    \
-          ((SStreamTask *)pTask)->streamId, ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->sessionId, \
+          ((SStreamTask *)pTask)->streamId, ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, ((SStreamTask *)pTask)->sessionId, \
           __VA_ARGS__)
 
 #define mstFatal(param, ...) stFatal("STREAM:%" PRIx64 " " param, streamId, __VA_ARGS__)

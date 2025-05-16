@@ -24,13 +24,13 @@
 SStreamMgmtInfo gStreamMgmt = {0};
 
 void streamSetSnodeEnabled(void) {
-  gStreamMgmt.snodeId = (*gStreamMgmt.getDnode)(gStreamMgmt.dnode);
-  stInfo("snode %d enabled", gStreamMgmt.snodeId);
+  gStreamMgmt.snodeEnabled = true;
+  stInfo("snode %d enabled", (*gStreamMgmt.getDnode)(gStreamMgmt.dnode));
 }
 
 void streamSetSnodeDisabled(void) {
   stInfo("snode disabled");
-  gStreamMgmt.snodeId = INT32_MIN;
+  gStreamMgmt.snodeEnabled = false;
 }
 
 void streamCleanup(void) {
@@ -47,7 +47,6 @@ int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode
   gStreamMgmt.dnode = pDnode;
   gStreamMgmt.getMnode = getMnode;
   gStreamMgmt.getDnode = getDnode;
-  gStreamMgmt.snodeId = INT32_MIN;
 
   gStreamMgmt.vgLeaders = taosArrayInit(20, sizeof(int32_t));
   TSDB_CHECK_NULL(gStreamMgmt.vgLeaders, code, lino, _exit, terrno);

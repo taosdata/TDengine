@@ -48,7 +48,7 @@ static void stRunnerTaskExecMgrDestroyFinalize(SStreamRunnerTask* pTask) {
   SStreamRunnerTaskExecMgr* pMgr = &pTask->execMgr;
   tdListFreeP(pMgr->pRunningExecs, stRunnerDestroyTaskExecution);
   taosThreadMutexDestroy(&pMgr->lock);
-  pTask->undeployCb(&pTask);
+  pTask->undeployCb(pTask->undeployParam);
 }
 
 static void stRunnerDestroyTaskExecMgrAsync(SStreamRunnerTask* pTask) {
@@ -172,6 +172,7 @@ int32_t stRunnerTaskUndeploy(SStreamRunnerTask** ppTask, const SStreamUndeployTa
   nodesDestroyNode((*ppTask)->pSubTableExpr);
   (*ppTask)->pSubTableExpr = NULL;
   (*ppTask)->undeployCb = cb;
+  (*ppTask)->undeployParam = ppTask;
   stRunnerDestroyTaskExecMgrAsync(*ppTask);
   return 0;
 }

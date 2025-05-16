@@ -53,11 +53,21 @@ int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
 
   char path[TSDB_FILENAME_LEN];
   snprintf(path, TSDB_FILENAME_LEN, "%s%ssnode%d", pInput->path, TD_DIRSEP, createReq.snodeId);
+
+  if (taosMulMkDir(path) != 0) {
+    code = terrno;
+    dError("failed to create dir:%s since %s", path, tstrerror(code));
+    goto _exit;
+  }
+
+  dInfo("path %s created", path);
   
   if ((code = dmWriteFileJson(path, pInput->name, pJson)) != 0) {
     dError("failed to write snode file since %s", tstrerror(code));
     goto _exit;
   }
+
+  dInfo("snode %d created, replicaId:%d", createReq.snodeId, createReq.replicaId);
 
 _exit:
 

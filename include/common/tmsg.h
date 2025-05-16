@@ -2698,7 +2698,6 @@ typedef struct {
   int32_t replicaId;
   int32_t sqlLen;
   char*   sql;
-  bool    snodeUpdate;
 } SDCreateSnodeReq;
 
 int32_t tSerializeSDCreateSNodeReq(void *buf, int32_t bufLen, SDCreateSnodeReq *pReq);

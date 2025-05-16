@@ -68,7 +68,7 @@ typedef enum {
 #define MND_STREAM_DROP_NAME         "stream-drop"
 #define MND_STREAM_STOP_NAME         "stream-stop"
 
-#define GOT_SNODE(_snodeId) ((_snodeId) != INT32_MIN)
+#define GOT_SNODE(_snodeId) ((_snodeId) != 0)
 #define STREAM_IS_RUNNING(_status) (STREAM_STATUS_RUNNING == (_status))
 
 typedef struct SStmStreamAction {

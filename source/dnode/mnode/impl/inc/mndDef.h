@@ -290,6 +290,12 @@ typedef struct {
 } SSnodeObj;
 
 typedef struct {
+  SSnodeObj* target;
+  int32_t    affNum;
+  SSnodeObj* affSnode[2];
+} SSnodeDropTraversaCtx;
+
+typedef struct {
   int32_t dnodeId;
   char    token[TSDB_ARB_TOKEN_SIZE];
   int8_t  acked;
