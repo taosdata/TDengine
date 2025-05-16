@@ -16,51 +16,43 @@ Prepare the following environment:
 - TDengine 3.2.3.0 and above version is installed and running normally (both Enterprise and Community versions are available).
 - taosAdapter is running normally, refer to [taosAdapter](../../../tdengine-reference/components/taosadapter/).
 - Apache Superset version 2.1.0 or above is already installed, refre to [Apache Superset](https://superset.apache.org/).
-- Install Python connector driver, refer to [Python Client Library](../../../tdengine-reference/client-libraries/python).
+- The Python connector taospy version 2.7.18 or higher is installed, [Install](https://pypi.org/project/taospy/).
+- The Python connector (WebSocket) taos-ws-py version 0.3.9 or higher is installed, [Install](https://pypi.org/project/taos-ws-py/).
 
-:::tip
-The TDengine Python connector has come with the Superset connection driver since version 2.7.18. It will be installed in the corresponding directory of Superset and provide data source services to Superset. Later, this driver was included in the Apache Superset 4.1.2 version. Therefore, there is no need to include it in the connector anymore. This driver was removed in TDengine Python v2.8.0. The matching table is as follows:
-| TDengine Python Connector Version | Matching Apache Superset Version  |
-|:--------------------------------- |:--------------------------------  |
-| 2.7.18 ~ 2.7.23                   | 2.1.0 ~ 4.1.1                     |  
-| 2.8.0 and above                   | 4.1.2 and above                   |
-
-:::
 
 ## Configure Data Source
 
-**Step 1**, enter the new database connection page, [Superset] -> [Setting] -> [Database Connections] -> [+DATABASE].
+1. Enter the new database connection page, [Superset] -> [Setting] -> [Database Connections] -> [+DATABASE].
 
-**Step 2**, select TDengine database connection, select the `TDengine` option from the drop-down list of [SUPPORTED DATABASES]. 
+2. Select TDengine database connection, select the **Other** option from the drop-down list end of [SUPPORTED DATABASES]. 
 
-:::tip
-If there is no TDengine option in the drop-down list, please confirm that the steps of installing, `Superset` is first and `Python Connector` is second.
-:::
 
-**Step 3**, write a name of connection in [DISPLAY NAME]. 
+3. Enter a connection name in [DISPLAY NAME], you can enter any name.
 
-**Step 4**, The [SQLALCHEMY URL] field is a key connection information string, and it must be filled in correctly.
+4. Fill in the database connection string.  
+   Fill in the [SQLAlchemy URI] in the following format, and make sure the information is correct.
 
-```bash
-taosws://user:password@host:port
-```
+   ```bash
+   taosws://user:password@host:port
+   ```
 
-| Parameter  | <center>Parameter Description</center>                      |
-|:---------- |:---------------------------------------------------------   |
-|user        | Username for logging into TDengine database                 |   
-|password    | Password for logging into TDengine database                 |
-|host        | Name of the host where the TDengine database is located     |
-|port        | The port that provides WebSocket services, default is 6041  |
+   | Parameter  | <center>Parameter Description</center>                      |
+   |:---------- |:---------------------------------------------------------   |
+   |user        | Username for logging into TDengine database                 |   
+   |password    | Password for logging into TDengine database                 |
+   |host        | Name of the host where the TDengine database is located     |
+   |port        | The port that provides WebSocket services, default is 6041  |
 
-Example: 
+   Example: 
 
-The TDengine database installed on this machine provides WebSocket service port 6041, using the default username and password, `SQLALCHEMY URL` is:
+   The TDengine database installed on this machine provides WebSocket service port 6041, using the default username and password, [SQLALCHEMY URI] is:
 
-```bash
-taosws://root:taosdata@localhost:6041  
-```
+   ```bash
+   taosws://root:taosdata@localhost:6041
+   ```
 
-**Step 5**, configure the connection string, click "TEST CONNECTION" to test if the connection can be successful. After passing the test, click the "CONNECT" button to complete the connection.
+5. Test the connection.  
+   Click [TEST CONNECTION] to check if the connection is successful. After the test passes, click the [CONNECT] button to save the configuration.
        
 ## Data Analysis
 

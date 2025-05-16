@@ -10,55 +10,50 @@ title: 与 Superset 集成
 ## 前置条件 
 
 准备以下环境：
-- TDengine 3.2.3.0 及以上版本集群已部署并正常运行（企业及社区版均可）。
-- taosAdapter 能够正常运行，详细参考 [taosAdapter 使用手册](../../../reference/components/taosadapter)。
-- Apache Superset v2.1.0 或以上版本已安装，安装 Apache Superset 请参考 [官方文档](https://superset.apache.org/)。
-- 安装 Python 连接器驱动，详细参考 [TDengine Python Connector](../../../reference/connector/python)。
+- TDengine 3.2.3.0 或以上版本已安装且数据库服务正常运行（企业及社区版均可）。
+- taosAdapter 服务正常运行，检查参考 [taosAdapter 使用手册](../../../reference/components/taosadapter)。
+- Apache Superset v2.1.0 或以上版本已安装，安装参考 [官方文档](https://superset.apache.org/)。
+- Python 连接器 taospy 2.7.18 或以上版本已安装，[安装](https://pypi.org/project/taospy/)。
+- Python 连接器（WebSocket）taos-ws-py 0.3.9 或以上版本已安装，[安装](https://pypi.org/project/taos-ws-py/)。
 
-:::tip
-TDengine Python 连接器从 v2.7.18 起自带 Superset 连接驱动，会安装至 Superset 相应目录下并向 Superset 提供数据源服务，此驱动包含在了 Apache Superset v4.1.2 版本中，故连接器中无需再包含了，在 TDengine Python v2.8.0 中删除了此驱动，匹配表如下：
-| TDengine Python 连接器版本 | 匹配 Apache Superset 版本  |
-|:------------------------ |:--------------------------------  |
-| 2.7.18 ~ 2.7.23          | 2.1.0 ~ 4.1.1                     |  
-| 2.8.0 及以上              | 4.1.2 及以上                       |
-
-:::
 
 ## 配置数据源
 
-**第 1 步**，进入新建数据库连接页面【Superset】 -> 【Setting】->【Database Connections ->【+DATABASE】。 
 
-**第 2 步**，选择 TDengine 数据库连接。【SUPPORTED DATABASES】下拉列表中选择 `TDengine` 项。  
+1. 进入新建数据库连接页面，【Superset】->【Setting】->【Database Connections ->【+DATABASE】。
 
-:::tip
-注意：若下拉列表中无 `TDengine` 项，请检查安装顺序，确保 `TDengine Python 连接器` 在 `Superset` 安装之后再安装。  
-:::  
+2. 选择其它数据库连接，【SUPPORTED DATABASES】下拉列表中选择最后一项 **Other** 。
 
-**第 3 步**，【DISPLAY NAME】中填写连接名称，任意填写即可。   
+3. 在【DISPLAY NAME】中填写连接名称，任意填写即可。   
 
-**第 4 步**，【SQLALCHEMY URL】项为关键连接信息串，务必填写正确。   
+4. 填写数据库连接串。  
+    在【SQLALCHEMY URI】中按以下格式填写，务必填写正确。   
 
-```bash
-taosws://用户名:密码@主机名:端口号
-```
+    ```bash
+    taosws://用户名:密码@主机名:端口号
+    ```
 
-| 参数名称 | <center>参数说明</center>          |
-|:------- |:--------------------------------  |
-| 用户名   | 登录 TDengine 数据库用户名           |  
-| 密码     | 登录 TDengine 数据库密码            |
-| 主机名   | TDengine 数据库所在主机名称          |
-| 端口号   | 提供 WebSocket 服务的端口，默认：6041 |  
+    | 参数名称 | <center>参数说明</center>          |
+    |:------- |:--------------------------------  |
+    | 用户名   | 登录 TDengine 数据库用户名           |  
+    | 密码     | 登录 TDengine 数据库密码            |
+    | 主机名   | TDengine 数据库所在主机名称          |
+    | 端口号   | 提供 WebSocket 服务的端口，默认：6041 |  
 
-示例：
+    示例：
 
-本机安装 TDengine 数据库，WebSocket 服务端口 6041，使用默认用户名密码，`SQLALCHEMY URL` 应为：
+    本机安装 TDengine 数据库，WebSocket 服务端口 6041，使用默认用户名密码，连接串为：
 
-```bash
-taosws://root:taosdata@localhost:6041  
-```
-**第 5 步**，配置好连接串，点击【TEST CONNECTION】测试连接是否成功，测试通过后点击【CONNECT】按钮，完成连接。
-       
+    ```bash
+    taosws://root:taosdata@localhost:6041
+    ```
+
+5. 测试连接。  
+   点击【TEST CONNECTION】测试连接是否成功，测试通过后点击【CONNECT】按钮，保存配置。
+
+
 ## 数据分析
+
 
 ### 数据准备
 
