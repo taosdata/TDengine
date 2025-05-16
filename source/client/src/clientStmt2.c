@@ -301,6 +301,7 @@ static int32_t stmtParseSql(STscStmt2* pStmt) {
 
   pStmt->stat.parseSqlNum++;
   STMT_ERR_RET(parseSql(pStmt->exec.pRequest, false, &pStmt->sql.pQuery, &stmtCb));
+
   pStmt->sql.siInfo.pQuery = pStmt->sql.pQuery;
 
   pStmt->bInfo.needParse = false;
@@ -322,6 +323,11 @@ static int32_t stmtParseSql(STscStmt2* pStmt) {
   }
 
   STableDataCxt* pTableCtx = *pSrc;
+  if (pStmt->sql.stbInterlaceMode && pTableCtx->pData->pCreateTbReq) {
+    tdDestroySVCreateTbReq(pTableCtx->pData->pCreateTbReq);
+    taosMemoryFreeClear(pTableCtx->pData->pCreateTbReq);
+    pTableCtx->pData->pCreateTbReq = NULL;
+  }
   // if (pStmt->sql.stbInterlaceMode) {
   //   int16_t lastIdx = -1;
 
@@ -1301,11 +1307,6 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags, SVCreateTbReq** pCre
 
   void* boundTags = NULL;
   if (pStmt->sql.stbInterlaceMode) {
-    if ((*pDataBlock)->pData->pCreateTbReq) {
-      tdDestroySVCreateTbReq((*pDataBlock)->pData->pCreateTbReq);
-      taosMemoryFreeClear((*pDataBlock)->pData->pCreateTbReq);
-      (*pDataBlock)->pData->pCreateTbReq = NULL;
-    }
     boundTags = pStmt->sql.siInfo.boundTags;
     *pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
     if (NULL == pCreateTbReq) {

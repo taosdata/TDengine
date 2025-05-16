@@ -26,7 +26,7 @@ void do_query(TAOS* taos, const char* sql) {
   taos_free_result(result);
 }
 
-void stmtAsyncQueryCb(void* param, TAOS_RES* pRes, int code) { sleep(1); }
+void stmtAsyncQueryCb(void* param, TAOS_RES* pRes, int code) {}
 
 void initEnv(TAOS* taos) {
   do_query(taos, "drop database if exists db");
@@ -164,7 +164,7 @@ int main() {
     printf("failed to connect to db, reason:%s\n", taos_errstr(taos));
     exit(1);
   }
-  // interlace
+  //   interlace
   printf("[test begin]interlace:true, hagTag:true, preCreateTb:true, asyncExec:true\n");
   do_stmt(taos, "insert into `db`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)", true, true, true, true);
 
@@ -172,10 +172,10 @@ int main() {
   do_stmt(taos, "insert into `db`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)", true, true, false, true);
 
   printf("[test begin]interlace:true, hagTag:false, preCreateTb:true, asyncExec:true\n");
-  do_stmt(taos, "insert into `db`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)", true, false, true, true);
+  do_stmt(taos, "insert into `db`.`stb` (tbname,ts,b) values(?,?,?)", true, false, true, true);
 
   printf("[test begin]interlace:true, hagTag:false, preCreateTb:true, asyncExec:false\n");
-  do_stmt(taos, "insert into `db`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)", true, false, true, false);
+  do_stmt(taos, "insert into `db`.`stb` (tbname,ts,b) values(?,?,?)", true, false, true, false);
   //  none-interlace
   printf("[test begin]interlace:false, hagTag:true, preCreateTb:true, asyncExec:true\n");
   do_stmt(taos, "insert into `db`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)", false, true, true, true);
@@ -184,10 +184,10 @@ int main() {
   do_stmt(taos, "insert into `db`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)", false, true, false, true);
 
   printf("[test begin]interlace:false, hagTag:false, preCreateTb:true, asyncExec:true\n");
-  do_stmt(taos, "insert into `db`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)", false, false, true, true);
+  do_stmt(taos, "insert into `db`.`stb` (tbname,ts,b) values(?,?,?)", false, false, true, true);
 
   printf("[test begin]interlace:false, hagTag:false, preCreateTb:true, asyncExec:false\n");
-  do_stmt(taos, "insert into `db`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)", false, false, true, false);
+  do_stmt(taos, "insert into `db`.`stb` (tbname,ts,b) values(?,?,?)", false, false, true, false);
 
   // interlace
   printf("[test begin]interlace:true, hagTag:true, preCreateTb:true, asyncExec:true\n");
@@ -196,11 +196,11 @@ int main() {
   printf("[test begin]interlace:true, hagTag:true, preCreateTb:false, asyncExec:true\n");
   do_stmt(taos, "insert into db.? using db.stb tags(?,?)values(?,?)", true, true, false, true);
 
-  printf("[test begin]interlace:true, hagTag:false, preCreateTb:true, asyncExec:true\n");
-  do_stmt(taos, "insert into db.? using db.stb tags(?,?)values(?,?)", true, false, true, true);
+  printf("[test begin]interlace:true, hagTag:true, preCreateTb:true, asyncExec:false\n");
+  do_stmt(taos, "insert into db.? using db.stb tags(?,?)values(?,?)", true, true, true, false);
 
-  printf("[test begin]interlace:true, hagTag:false, preCreateTb:true, asyncExec:false\n");
-  do_stmt(taos, "insert into db.? using db.stb tags(?,?)values(?,?)", true, false, true, false);
+  printf("[test begin]interlace:true, hagTag:true, preCreateTb:true, asyncExec:false\n");
+  do_stmt(taos, "insert into db.? using db.stb tags(?,?)values(?,?)", true, true, false, false);
   //  none-interlace
   printf("[test begin]interlace:false, hagTag:true, preCreateTb:true, asyncExec:true\n");
   do_stmt(taos, "insert into db.? using db.stb tags(?,?)values(?,?)", false, true, true, true);
@@ -208,11 +208,11 @@ int main() {
   printf("[test begin]interlace:false, hagTag:true, preCreateTb:false, asyncExec:true\n");
   do_stmt(taos, "insert into db.? using db.stb tags(?,?)values(?,?)", false, true, false, true);
 
-  printf("[test begin]interlace:false, hagTag:false, preCreateTb:true, asyncExec:true\n");
-  do_stmt(taos, "insert into db.? using db.stb tags(?,?)values(?,?)", false, false, true, true);
+  printf("[test begin]interlace:false, hagTag:true, preCreateTb:true, asyncExec:false\n");
+  do_stmt(taos, "insert into db.? using db.stb tags(?,?)values(?,?)", false, true, true, false);
 
-  printf("[test begin]interlace:false, hagTag:false, preCreateTb:true, asyncExec:false\n");
-  do_stmt(taos, "insert into db.? using db.stb tags(?,?)values(?,?)", false, false, true, false);
+  printf("[test begin]interlace:false, hagTag:true, preCreateTb:false, asyncExec:false\n");
+  do_stmt(taos, "insert into db.? using db.stb tags(?,?)values(?,?)", false, true, false, false);
 
   printf("all test finish\n");
   taos_close(taos);
