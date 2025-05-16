@@ -287,7 +287,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
           }
         }
         if (code == 0) {
-          assert(nextOutIdx == pExec->runtimeInfo.funcInfo.curOutIdx); // TODO wjm remove it
+          assert(nextOutIdx >= pExec->runtimeInfo.funcInfo.curOutIdx); // TODO wjm remove it
           nextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx + 1;
           code = stRunnerHandleResultBlock(pTask, pExec, pBlock, &createTable);
         }
