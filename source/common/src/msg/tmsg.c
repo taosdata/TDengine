@@ -2075,6 +2075,7 @@ int32_t cvtIpWhiteListToDual(SIpWhiteList *pWhiteList, SIpWhiteListDual **pWhite
   for (int i = 0; i < pWhiteList->num; i++) {
     SIpV4Range *pIp4 = &(pWhiteList->pIpRange[i]);
     SIpRange   *pRange = &(pList->pIpRanges[i]);
+
     pRange->type = 0;
     memcpy(&pRange->ipV4, pIp4, sizeof(SIpV4Range));
   }
