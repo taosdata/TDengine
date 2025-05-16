@@ -51,6 +51,7 @@ private:
     void parse_jobs(const YAML::Node& jobs_yaml);
     void parse_steps(const YAML::Node& steps_yaml, std::vector<Step>& steps);
     void parse_create_database_action(Step& step);
+    void parse_create_super_table_action(Step& step);
     void parse_insert_data_action(Step& step);
     // void parse_job(const YAML::Node& job_yaml, Job& job);
     // void parse_step(const YAML::Node& step_yaml, Step& step);

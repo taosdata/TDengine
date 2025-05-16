@@ -50,6 +50,28 @@ global:
     port: 6043
     user: root
     password: secret
+  database_info: &db_info
+    name: testdb
+    drop_if_exists: true
+    precision: us
+    properties: vgroups 20 replica 3 keep 3650
+  super_table_info: &stb_info
+    name: points
+    columns: &columns_info
+      - name: latitude
+        type: float
+      - name: longitude
+        type: float
+      - name: quality
+        type: varchar(50)
+    tags: &tags_info
+      - name: type
+        type: varchar(7)
+      - name: name
+        type: varchar(20)
+      - name: department
+        type: varchar(7)
+
 concurrency: 4
 jobs:
   create-database:
@@ -74,6 +96,12 @@ jobs:
         uses: actions/create-super-table
         with:
           connection_info: *db_conn
+          database_info:
+            name: testdb
+          super_table_info:
+            name: points
+            columns: *columns_info
+            tags: *tags_info
 
   create-second-child-table:
     name: Create Second Child Table
@@ -133,9 +161,12 @@ jobs:
     assert(data.jobs[1].steps.size() == 1);
     assert(data.jobs[1].steps[0].name == "Create Super Table");
     assert(data.jobs[1].steps[0].uses == "actions/create-super-table");
-    // assert(std::holds_alternative<CreateSuperTableConfig>(data.jobs[1].steps[0].action_config));
-    // const auto& create_stb_config = std::get<CreateSuperTableConfig>(data.jobs[1].steps[0].action_config);
-    // assert(create_stb_config.connection_info.host == "10.0.0.1");
+    assert(std::holds_alternative<CreateSuperTableConfig>(data.jobs[1].steps[0].action_config));
+    const auto& create_stb_config = std::get<CreateSuperTableConfig>(data.jobs[1].steps[0].action_config);
+    assert(create_stb_config.database_info.name == "testdb");
+    assert(create_stb_config.super_table_info.name == "points");
+    assert(create_stb_config.super_table_info.columns.size() > 0);
+    assert(create_stb_config.super_table_info.tags.size() > 0);
 
     assert(data.jobs[2].key == "create-second-child-table");
     assert(data.jobs[2].name == "Create Second Child Table");
