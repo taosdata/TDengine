@@ -350,7 +350,7 @@ void destroyQueryExecRes(SExecResult* pRes) {
   }
 }
 // clang-format on
-int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len) {
+int32_t dataConverToStr(char* str, size_t capacity, int type, void* buf, int32_t bufSize, int32_t* len) {
   QUERY_PARAM_CHECK(str);
   QUERY_PARAM_CHECK(buf);
   int32_t n = 0;

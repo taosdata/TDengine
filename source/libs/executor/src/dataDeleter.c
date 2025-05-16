@@ -80,25 +80,27 @@ static int32_t toDataCacheEntry(SDataDeleterHandle* pHandle, const SInputData* p
   }
 
   SDeleterRes* pRes = (SDeleterRes*)pEntry->data;
-  pRes->suid = pHandle->pParam->suid;
+  taosSetUInt64Alignedx(pRes->suid, pHandle->pParam->suid);
   pRes->uidList = pHandle->pParam->pUidList;
   TAOS_STRCPY(pRes->tableName, pHandle->pDeleter->tableFName);
   TAOS_STRCPY(pRes->tsColName, pHandle->pDeleter->tsColName);
-  pRes->affectedRows = *(int64_t*)pColRes->pData;
+  taosSetPInt64Alignedx(pRes->affectedRows, pColRes->pData);
 
-  if (pRes->affectedRows) {
-    pRes->skey = *(int64_t*)pColSKey->pData;
-    pRes->ekey = *(int64_t*)pColEKey->pData;
-    if (pRes->skey > pRes->ekey) {
-      qError("data delter skey:%" PRId64 " is bigger than ekey:%" PRId64, pRes->skey, pRes->ekey);
+  if (taosGetInt64Alignedx(pRes->affectedRows)) {
+    taosSetPInt64Alignedx(pRes->skey, pColSKey->pData);
+    taosSetPInt64Alignedx(pRes->ekey, pColEKey->pData);
+    if (taosGetInt64Alignedx(pRes->skey) > taosGetInt64Alignedx(pRes->ekey)) {
+      qError("data delter skey:%" PRId64 " is bigger than ekey:%" PRId64, taosGetInt64Alignedx(pRes->skey),
+             taosGetInt64Alignedx(pRes->ekey));
       QRY_ERR_RET(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
     }
   } else {
-    pRes->skey = pHandle->pDeleter->deleteTimeRange.skey;
-    pRes->ekey = pHandle->pDeleter->deleteTimeRange.ekey;
+    taosSetInt64Alignedx(pRes->skey, pHandle->pDeleter->deleteTimeRange.skey);
+    taosSetInt64Alignedx(pRes->ekey, pHandle->pDeleter->deleteTimeRange.ekey);
   }
 
-  qDebug("delete %" PRId64 " rows, from %" PRId64 " to %" PRId64, pRes->affectedRows, pRes->skey, pRes->ekey);
+  qDebug("delete %" PRId64 " rows, from %" PRId64 " to %" PRId64, taosGetInt64Alignedx(pRes->affectedRows),
+         taosGetInt64Alignedx(pRes->skey), taosGetInt64Alignedx(pRes->ekey));
 
   pBuf->useSize += pEntry->dataLen;
 

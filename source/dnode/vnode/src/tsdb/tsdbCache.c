@@ -2756,7 +2756,7 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
   // rocksdb_writebatch_t *wb = pTsdb->rCache.writebatch;
   for (int i = 0; i < numKeys; ++i) {
     SLastCol *pLastCol = NULL;
-    if (values_list[i] != NULL) {
+    if (values_list && values_list[i] != NULL) {
       code = tsdbCacheDeserialize(values_list[i], values_list_sizes[i], &pLastCol);
       if (code != TSDB_CODE_SUCCESS) {
         tsdbError("vgId:%d, %s deserialize failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
