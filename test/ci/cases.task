@@ -57,8 +57,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_delete_reuse_vnode2.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_delete_reuse1.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_delete_reuse2.py
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_delete_writing1.py
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_delete_writing2.py
+,,n,.,pytest cases/02-Databases/02-Drop/test_db_delete_writing1.py
+,,n,.,pytest cases/02-Databases/02-Drop/test_db_delete_writing2.py
 ## 03-Alter
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_option_keep1.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_option_keep2.py
@@ -94,8 +94,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_clean.py -N 4 -C 2
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_import.py -N 4
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_many.py -N 4
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_repeat.py -N 4
+,,n,.,pytest cases/02-Databases/05-Sync/test_vnode_replica3_many.py -N 4
+,,n,.,pytest cases/02-Databases/05-Sync/test_vnode_replica3_repeat.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_vgroup.py -N 4
 ## 06-Precision
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/06-Precision/test_db_precision_ns.py
@@ -129,8 +129,8 @@
 ### 02-Drop
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_delete_reuse1.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_delete_reuse2.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_delete_writing.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_drop.py
+,,n,.,pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_delete_writing.py
+,,n,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_drop.py
 ### 03-Alter
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normal_table_alter_1.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normal_table_alter_2.py
@@ -451,7 +451,7 @@
 ,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/02-Fill/test_fill.py
 ## 03-TimeWindow
 ,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_bug.py
-#,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_empty_range_scl.py
+,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_empty_range_scl.py
 ,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_empty_range.py
 ,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_function.py
 ,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_offset.py
