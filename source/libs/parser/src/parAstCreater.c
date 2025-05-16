@@ -3672,6 +3672,7 @@ SNode* createDefaultXnodeOptions(SAstCreateContext* pCxt) {
   pCxt->errCode = nodesMakeNode(QUERY_NODE_XNODE_OPTIONS, (SNode**)&pOptions);
   CHECK_MAKE_NODE(pOptions);
 
+  tstrncpy(pOptions->protoStr, TSDB_XNODE_OPT_PROTO_DFT_STR, TSDB_XNODE_OPT_PROTO_STR_LEN);
   pOptions->proto = TSDB_XNODE_OPT_PROTO_DEFAULT;
 
   return (SNode*)pOptions;

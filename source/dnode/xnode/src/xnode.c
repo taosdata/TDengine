@@ -29,10 +29,13 @@ int32_t xndOpen(const SXnodeOpt *pOption, SXnode **pXnode) {
   (*pXnode)->dnodeId = pOption->dnodeId;
   (*pXnode)->protocol = (int8_t)pOption->proto;
 
-  // TODO: read config & start taosmqtt
-  if ((code = mqttMgmtStartMqttd((*pXnode)->dnodeId)) != 0) {
-    xndError("failed to start taosudf since %s", tstrerror(code));
-    return code;
+  if (TSDB_XNODE_OPT_PROTO_MQTT == (*pXnode)->protocol) {
+    if ((code = mqttMgmtStartMqttd((*pXnode)->dnodeId)) != 0) {
+      xndError("failed to start taosudf since %s", tstrerror(code));
+      return code;
+    }
+  } else {
+    xndError("Unknown xnode proto: %hhd.", (*pXnode)->protocol);
   }
 
   xndInfo("Xnode opened.");

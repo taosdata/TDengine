@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "xmInt.h"
-#include "libs/function/tudf.h"
+#include "tjson.h"
 
 static int32_t xmRequire(const SMgmtInputOpt *pInput, bool *required) {
   return dmReadFile(pInput->path, pInput->name, required);
@@ -82,6 +82,84 @@ int32_t xmPutMsgToQueue(SXnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   return code;
 }
 
+static int32_t xmDecodeFile(SJson *pJson, int32_t *proto) {
+  int32_t code = 0;
+
+  code = tjsonGetIntValue(pJson, "proto", proto);
+  return code;
+}
+
+static int32_t xmReadFile(const char *path, const char *name, int32_t *proto) {
+  int32_t   code = -1;
+  TdFilePtr pFile = NULL;
+  char     *content = NULL;
+  SJson    *pJson = NULL;
+  char      file[PATH_MAX] = {0};
+  int32_t   nBytes = snprintf(file, sizeof(file), "%s%s%s.json", path, TD_DIRSEP, name);
+  if (nBytes <= 0 || nBytes >= PATH_MAX) {
+    code = TSDB_CODE_OUT_OF_BUFFER;
+    goto _OVER;
+  }
+
+  if (taosStatFile(file, NULL, NULL, NULL) < 0) {
+    dInfo("file:%s not exist", file);
+    code = 0;
+    goto _OVER;
+  }
+
+  pFile = taosOpenFile(file, TD_FILE_READ);
+  if (pFile == NULL) {
+    code = terrno;
+    dError("failed to open file:%s since %s", file, tstrerror(code));
+    goto _OVER;
+  }
+
+  int64_t size = 0;
+  code = taosFStatFile(pFile, &size, NULL);
+  if (code != 0) {
+    dError("failed to fstat file:%s since %s", file, tstrerror(code));
+    goto _OVER;
+  }
+
+  content = taosMemoryMalloc(size + 1);
+  if (content == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+
+  if (taosReadFile(pFile, content, size) != size) {
+    code = terrno;
+    dError("failed to read file:%s since %s", file, tstrerror(code));
+    goto _OVER;
+  }
+
+  content[size] = '\0';
+
+  pJson = tjsonParse(content);
+  if (pJson == NULL) {
+    code = TSDB_CODE_INVALID_JSON_FORMAT;
+    goto _OVER;
+  }
+
+  if (xmDecodeFile(pJson, proto) < 0) {
+    code = TSDB_CODE_INVALID_JSON_FORMAT;
+    goto _OVER;
+  }
+
+  code = 0;
+  dInfo("succceed to read mnode file %s", file);
+
+_OVER:
+  if (content != NULL) taosMemoryFree(content);
+  if (pJson != NULL) cJSON_Delete(pJson);
+  if (pFile != NULL) taosCloseFile(&pFile);
+
+  if (code != 0) {
+    dError("failed to read dnode file:%s since %s", file, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t xmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   int32_t     code = 0;
   SXnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SXnodeMgmt));
@@ -99,6 +177,13 @@ static int32_t xmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   SXnodeOpt option = {0};
   xmInitOption(pMgmt, &option);
 
+  code = xmReadFile(pInput->path, pInput->name, &option.proto);
+  if (code != 0) {
+    dError("failed to read xnode since %s", tstrerror(code));
+    xmClose(pMgmt);
+    return code;
+  }
+
   code = xndOpenWrapper(&option, &pMgmt->pXnode);
   if (code != 0) {
     dError("failed to open xnode since %s", tstrerror(code));
@@ -107,11 +192,6 @@ static int32_t xmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   }
   tmsgReportStartup("xnode-impl", "initialized");
 
-  if ((code = udfcOpen()) != 0) {
-    dError("xnode can not open udfc");
-    xmClose(pMgmt);
-    return code;
-  }
   /*
   if ((code = xmStartWorker(pMgmt)) != 0) {
     dError("failed to start xnode worker since %s", tstrerror(code));
@@ -121,6 +201,87 @@ static int32_t xmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   tmsgReportStartup("xnode-worker", "initialized");
   */
   pOutput->pMgmt = pMgmt;
+  return code;
+}
+
+static int32_t xmEncodeFile(SJson *pJson, bool deployed, int32_t proto) {
+  if (tjsonAddDoubleToObject(pJson, "deployed", deployed) < 0) {
+    return TSDB_CODE_INVALID_JSON_FORMAT;
+  }
+
+  if (tjsonAddIntegerToObject(pJson, "proto", proto) < 0) {
+    return TSDB_CODE_INVALID_JSON_FORMAT;
+  }
+
+  return 0;
+}
+
+static int32_t xmWriteFile(const char *path, const char *name, bool deployed, int32_t proto) {
+  int32_t   code = -1;
+  char     *buffer = NULL;
+  SJson    *pJson = NULL;
+  TdFilePtr pFile = NULL;
+  char      file[PATH_MAX] = {0};
+  char      realfile[PATH_MAX] = {0};
+
+  int32_t nBytes = snprintf(file, sizeof(file), "%s%s%s.json", path, TD_DIRSEP, name);
+  if (nBytes <= 0 || nBytes >= PATH_MAX) {
+    code = TSDB_CODE_OUT_OF_BUFFER;
+    goto _OVER;
+  }
+
+  nBytes = snprintf(realfile, sizeof(realfile), "%s%s%s.json", path, TD_DIRSEP, name);
+  if (nBytes <= 0 || nBytes >= PATH_MAX) {
+    code = TSDB_CODE_OUT_OF_BUFFER;
+    goto _OVER;
+  }
+
+  pJson = tjsonCreateObject();
+  if (pJson == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+
+  if ((code = xmEncodeFile(pJson, deployed, proto)) != 0) goto _OVER;
+
+  buffer = tjsonToString(pJson);
+  if (buffer == NULL) {
+    code = TSDB_CODE_INVALID_JSON_FORMAT;
+    goto _OVER;
+  }
+
+  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+  if (pFile == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+
+  int32_t len = strlen(buffer);
+  if (taosWriteFile(pFile, buffer, len) <= 0) {
+    code = terrno;
+    goto _OVER;
+  }
+  if (taosFsyncFile(pFile) < 0) {
+    code = terrno;
+    goto _OVER;
+  }
+
+  if (taosCloseFile(&pFile) != 0) {
+    code = TAOS_SYSTEM_ERROR(ERRNO);
+    goto _OVER;
+  }
+  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);
+
+  dInfo("succeed to write file:%s, deloyed:%d", realfile, deployed);
+
+_OVER:
+  if (pJson != NULL) tjsonDelete(pJson);
+  if (buffer != NULL) taosMemoryFree(buffer);
+  if (pFile != NULL) taosCloseFile(&pFile);
+
+  if (code != 0) {
+    dError("failed to write file:%s since %s, deloyed:%d", realfile, tstrerror(code), deployed);
+  }
   return code;
 }
 
@@ -141,7 +302,7 @@ int32_t xmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   }
 
   bool deployed = true;
-  if ((code = dmWriteFile(pInput->path, pInput->name, deployed)) != 0) {
+  if ((code = xmWriteFile(pInput->path, pInput->name, deployed, createReq.xnodeProto)) != 0) {
     dError("failed to write xnode file since %s", tstrerror(code));
 
     tFreeSMCreateXnodeReq(&createReq);
