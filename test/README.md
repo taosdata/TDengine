@@ -115,10 +115,12 @@ Options:
 - `-C <num>`: create Dnode Numbers in one cluster
 - `-I <num>`: independentMnode Mnode
 - `--replica <num>`: set the number of replicas
+- `--clean`: Clean test env processe and workdir before deploy
 - `--tsim <file>`: tsim test file (for compatibility with the original tsim framework; not typically used in normal circumstances)
 
 - `--skip_test`: only do deploy or install without running test
 - `--skip_deploy`: Only run test without start TDengine
+- `--testlist`: Path to file containing list of test files to run. Each line should contain one Python test file path, and lines starting with # will be ignored.
 
 ## 4.4 Run tests by configuration file
 
