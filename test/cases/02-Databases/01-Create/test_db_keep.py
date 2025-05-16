@@ -8,9 +8,12 @@ class TestDatabaseKeep:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_Keep(self):
-        """crete db use keep option
+        """create database use keep option
 
-        1. -
+        1. create database with keep option
+        2. write and query data, include data not within the keep range
+        3. alter database keep option
+        4. write and query data again
 
         Catalog:
             - Database:Create
@@ -22,7 +25,7 @@ class TestDatabaseKeep:
         Jira: None
 
         History:
-            - 2025-4-30 Simon Guan Migrated from tsim/db/keep.sim
+            - 2025-5-12 Simon Guan Migrated from tsim/db/keep.sim
 
         """
 
@@ -90,7 +93,6 @@ class TestDatabaseKeep:
         tdSql.execute(f"alter database keepdb keep 30")
         tdSql.query(f"select * from information_schema.ins_databases")
         tdSql.checkData(2, 2, 2)
-
         tdSql.checkData(2, 7, "30d,30d,30d")
 
         tdLog.info(f"======== step7 stop dnode")

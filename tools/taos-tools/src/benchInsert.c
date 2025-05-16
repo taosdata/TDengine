@@ -523,28 +523,6 @@ int32_t getVgroupsNative(SBenchConn *conn, SDataBase *database) {
     return vgroups;
 }
 
-int32_t toolsGetDefaultVGroups() {
-    int32_t cores = toolsGetNumberOfCores();
-    if (cores < 3 ) {
-        return 1;
-    }
-
-    int64_t MemKB = 0;
-    benchGetTotalMemory(&MemKB);
-
-    infoPrint("check local machine CPU: %d Memory:%d MB \n", cores, (int32_t)(MemKB/1024));
-    if (MemKB <= 2*1024*1024) { // 2G
-        return 1;
-    } else if (MemKB <= 256*1024*1024) { // 256G
-        return 2;
-    } else if (MemKB <= 512*1024*1024) { // 512G
-        return 4;
-    } else {
-        return cores / 2;
-    }
-}
-
-
 int geneDbCreateCmd(SDataBase *database, char *command, int remainVnodes) {
     int dataLen = 0;
     int n;
@@ -599,12 +577,6 @@ int geneDbCreateCmd(SDataBase *database, char *command, int remainVnodes) {
                 dataLen += n;
             }
         }
-    }
-
-    // benchmark default
-    if (vgroups < 1) {
-        vgroups = toolsGetDefaultVGroups();
-        debugPrint("vgroup set with toolsGetDefaultVGroups(). vgroups=%d\n", vgroups);
     }
 
     // not found vgroups
@@ -2086,15 +2058,9 @@ static void *syncWriteInterlace(void *sarg) {
                                 g_fail = true;
                                 goto free_of_interlace;
                             }
-                        } else {
-                            bindVTags(bindv, i, w, pThreadInfo->tagsStmt);
                         }
-                        
-                    } else {
-                        // if engine fix must bind tag bug , need remove this code
-                        //if (firstInsertTb) {
-                        //    bindVTags(bindv, i, 0, stbInfo->tags);
-                        //}
+                    
+                        bindVTags(bindv, i, w, pThreadInfo->tagsStmt);
                     }
 
                     // cols
@@ -3754,12 +3720,236 @@ TAOS_STMT2* initStmt2(TAOS* taos, bool single) {
 }
 
 // init insert thread
+void initTsArray(uint64_t *bind_ts_array, SSuperTable* stbInfo) {
+    parseBufferToStmtBatch(stbInfo, bind_ts_array);
+    for (int64_t child = 0; child < stbInfo->childTblCount; child++) {
+        SChildTable *childTbl = stbInfo->childTblArray[child];
+        if (childTbl->useOwnSample) {
+            parseBufferToStmtBatchChildTbl(stbInfo, childTbl, bind_ts_array);
+        }
+    }
+    
+}
+
+void *genInsertTheadInfo(void* arg) {
+
+    if (g_arguments->terminate || g_fail) {
+        return NULL;
+    }
+
+    threadInfo* pThreadInfo = (threadInfo*)arg;
+    SSuperTable *stbInfo = pThreadInfo->stbInfo;
+    pThreadInfo->delayList = benchArrayInit(1, sizeof(int64_t));
+    switch (stbInfo->iface) {
+        // rest
+        case REST_IFACE: {
+            if (stbInfo->interlaceRows > 0) {
+                pThreadInfo->buffer = new_ds(0);
+            } else {
+                pThreadInfo->buffer = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, true);
+            }
+            int sockfd = createSockFd();
+            if (sockfd < 0) {
+                g_fail = true;
+                goto END;
+            }
+            pThreadInfo->sockfd = sockfd;
+            break;
+        }            
+        // stmt & stmt2 init
+        case STMT_IFACE: 
+        case STMT2_IFACE: {
+            pThreadInfo->conn = initBenchConn();
+            if (NULL == pThreadInfo->conn) {
+                goto END;
+            }
+            // single always true for benchmark
+            bool single = true;
+            if (stbInfo->iface == STMT2_IFACE) {
+                // stmt2 init
+                if (pThreadInfo->conn->stmt2)
+                    taos_stmt2_close(pThreadInfo->conn->stmt2);
+                pThreadInfo->conn->stmt2 = initStmt2(pThreadInfo->conn->taos, single);
+                if (NULL == pThreadInfo->conn->stmt2) {
+                    errorPrint("taos_stmt2_init() failed, reason: %s\n", taos_errstr(NULL));
+                    g_fail = true;
+                    goto END;                    
+                }
+            } else {
+                // stmt init
+                if (pThreadInfo->conn->stmt)
+                    taos_stmt_close(pThreadInfo->conn->stmt);
+                pThreadInfo->conn->stmt = initStmt(pThreadInfo->conn->taos, single);
+                if (NULL == pThreadInfo->conn->stmt) {
+                    errorPrint("taos_stmt_init() failed, reason: %s\n", taos_errstr(NULL));
+                    g_fail = true;
+                    goto END;                    
+                }
+            }
+
+            // select db
+            if (taos_select_db(pThreadInfo->conn->taos, pThreadInfo->dbInfo->dbName)) {
+                errorPrint("taos select database(%s) failed\n", pThreadInfo->dbInfo->dbName);
+                g_fail = true;
+                goto END;
+            }
+
+            // malloc bind
+            int32_t unit = stbInfo->iface == STMT2_IFACE ? sizeof(TAOS_STMT2_BIND) : sizeof(TAOS_MULTI_BIND);
+            pThreadInfo->bind_ts       = benchCalloc(1, sizeof(int64_t), true);
+            
+            pThreadInfo->bindParams    = benchCalloc(1, unit * (stbInfo->cols->size + 1), true);
+            // have ts columns, so size + 1
+            pThreadInfo->lengths       = benchCalloc(stbInfo->cols->size + 1, sizeof(int32_t*), true);
+            for(int32_t c = 0; c <= stbInfo->cols->size; c++) {
+                pThreadInfo->lengths[c] = benchCalloc(g_arguments->reqPerReq, sizeof(int32_t), true);
+            }
+            // tags data
+            pThreadInfo->tagsStmt = copyBArray(stbInfo->tags);
+            for(int32_t n = 0; n < pThreadInfo->tagsStmt->size; n ++ ) {
+                Field *field = benchArrayGet(pThreadInfo->tagsStmt, n);
+                memset(&field->stmtData, 0, sizeof(StmtData));
+            }
+        
+            break;
+        }
+        // sml rest
+        case SML_REST_IFACE: {
+            int sockfd = createSockFd();
+            if (sockfd < 0) {
+                g_fail = true;
+                goto END;
+            }
+            pThreadInfo->sockfd = sockfd;
+        }            
+        // sml
+        case SML_IFACE: {
+            if (stbInfo->iface == SML_IFACE) {
+                pThreadInfo->conn = initBenchConn();
+                if (pThreadInfo->conn == NULL) {
+                    errorPrint("%s() init connection failed\n", __func__);
+                    g_fail = true;
+                    goto END;
+                }
+                if (taos_select_db(pThreadInfo->conn->taos, pThreadInfo->dbInfo->dbName)) {
+                    errorPrint("taos select database(%s) failed\n", pThreadInfo->dbInfo->dbName);
+                    g_fail = true;
+                    goto END;
+                }
+            }
+            pThreadInfo->max_sql_len = stbInfo->lenOfCols + stbInfo->lenOfTags;
+            if (stbInfo->iface == SML_REST_IFACE) {
+                pThreadInfo->buffer = benchCalloc(1, g_arguments->reqPerReq * (1 + pThreadInfo->max_sql_len), true);
+            }                
+            int protocol = stbInfo->lineProtocol;
+            if (TSDB_SML_JSON_PROTOCOL != protocol && SML_JSON_TAOS_FORMAT != protocol) {
+                pThreadInfo->sml_tags = (char **)benchCalloc(pThreadInfo->ntables, sizeof(char *), true);
+                for (int t = 0; t < pThreadInfo->ntables; t++) {
+                    pThreadInfo->sml_tags[t] = benchCalloc(1, stbInfo->lenOfTags, true);
+                }
+
+                for (int t = 0; t < pThreadInfo->ntables; t++) {
+                    if (generateRandData(
+                                stbInfo, pThreadInfo->sml_tags[t],
+                                stbInfo->lenOfTags,
+                                stbInfo->lenOfCols + stbInfo->lenOfTags,
+                                stbInfo->tags, 1, true, NULL)) {
+                        g_fail = true;            
+                        goto END;
+                    }
+                    debugPrint("pThreadInfo->sml_tags[%d]: %s\n", t,
+                               pThreadInfo->sml_tags[t]);
+                }
+                pThreadInfo->lines = benchCalloc(g_arguments->reqPerReq, sizeof(char *), true);
+                for (int j = 0; (j < g_arguments->reqPerReq && !g_arguments->terminate); j++) {
+                    pThreadInfo->lines[j] = benchCalloc(1, pThreadInfo->max_sql_len, true);
+                }
+            } else {
+                pThreadInfo->json_array          = tools_cJSON_CreateArray();
+                pThreadInfo->sml_json_tags       = tools_cJSON_CreateArray();
+                pThreadInfo->sml_tags_json_array = (char **)benchCalloc( pThreadInfo->ntables, sizeof(char *), true);
+                for (int t = 0; t < pThreadInfo->ntables; t++) {
+                    if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL) {
+                        generateSmlJsonTags(
+                            pThreadInfo->sml_json_tags,
+                                pThreadInfo->sml_tags_json_array,
+                                stbInfo,
+                            pThreadInfo->start_table_from, t);
+                    } else {
+                        generateSmlTaosJsonTags(
+                            pThreadInfo->sml_json_tags, stbInfo,
+                            pThreadInfo->start_table_from, t);
+                    }
+                }
+                pThreadInfo->lines = (char **)benchCalloc(1, sizeof(char *), true);
+                if (0 == stbInfo->interlaceRows && TSDB_SML_JSON_PROTOCOL == protocol) {
+                    pThreadInfo->line_buf_len = g_arguments->reqPerReq * accumulateRowLen(pThreadInfo->stbInfo->tags, pThreadInfo->stbInfo->iface);
+                    debugPrint("%s() LN%d, line_buf_len=%d\n", __func__, __LINE__, pThreadInfo->line_buf_len);
+                    pThreadInfo->lines[0]             = benchCalloc(1, pThreadInfo->line_buf_len, true);
+                    pThreadInfo->sml_json_value_array = (char **)benchCalloc(pThreadInfo->ntables, sizeof(char *), true);
+                    for (int t = 0; t < pThreadInfo->ntables; t++) {
+                        generateSmlJsonValues(pThreadInfo->sml_json_value_array, stbInfo, t);
+                    }
+                }
+            }
+            break;
+        }
+        // taos
+        case TAOSC_IFACE: {
+            pThreadInfo->conn = initBenchConn();
+            if (pThreadInfo->conn == NULL) {
+                errorPrint("%s() failed to connect\n", __func__);
+                g_fail = true;
+                goto END;
+            }
+            char* command = benchCalloc(1, SHORT_1K_SQL_BUFF_LEN, false);
+            snprintf(command, SHORT_1K_SQL_BUFF_LEN,
+                    g_arguments->escape_character ? "USE `%s`" : "USE %s",
+                    pThreadInfo->dbInfo->dbName);
+            if (queryDbExecCall(pThreadInfo->conn, command)) {
+                errorPrint("taos select database(%s) failed\n", pThreadInfo->dbInfo->dbName);
+                g_fail = true;
+                goto END;
+            }
+            tmfree(command);
+            command = NULL;
+
+            if (stbInfo->interlaceRows > 0) {
+                pThreadInfo->buffer = new_ds(0);
+            } else {
+                pThreadInfo->buffer = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, true);
+                if (g_arguments->check_sql) {
+                    pThreadInfo->csql = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, true);
+                    memset(pThreadInfo->csql, 0, TSDB_MAX_ALLOWED_SQL_LEN);
+                }
+            }
+
+            break;
+        }
+        default:
+            break;
+    }
+
+END:
+    return NULL;
+}
+    
+
+// init insert thread
 int32_t initInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthreads, threadInfo *infos, int64_t div, int64_t mod) {
     int32_t  ret     = -1;
     uint64_t tbNext  = stbInfo->childTblFrom;
     int32_t  vgNext  = 0;
+    pthread_t   *pids  = benchCalloc(1, nthreads * sizeof(pthread_t),  true);
+    int threadCnt = 0;
+    uint64_t * bind_ts_array = NULL;
+    if (STMT2_IFACE == stbInfo->iface || STMT_IFACE == stbInfo->iface) {
+        bind_ts_array = benchCalloc(1, sizeof(int64_t)*g_arguments->prepared_rand, true);
+        initTsArray(bind_ts_array, stbInfo);
+    }
     
-    for (int32_t i = 0; i < nthreads; i++) {
+
+    for (int32_t i = 0; i < nthreads && !g_arguments->terminate; i++) {
         // set table
         threadInfo *pThreadInfo = infos + i;
         pThreadInfo->threadID   = i;
@@ -3769,7 +3959,11 @@ int32_t initInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
         pThreadInfo->pos        = 0;
         pThreadInfo->samplePos  = 0;
         pThreadInfo->totalInsertRows = 0;
-
+        if (STMT2_IFACE == stbInfo->iface || STMT_IFACE == stbInfo->iface) {
+            pThreadInfo->bind_ts_array = benchCalloc(1, sizeof(int64_t)*g_arguments->prepared_rand, true);
+            memcpy(pThreadInfo->bind_ts_array, bind_ts_array, sizeof(int64_t)*g_arguments->prepared_rand);
+            
+        }
         if (g_arguments->bind_vgroup) {
             for (int32_t j = vgNext; j < database->vgroups; j++) {
                 SVGroup *vg = benchArrayGet(database->vgArray, j);
@@ -3791,202 +3985,25 @@ int32_t initInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
         }
 
         // init conn
-        pThreadInfo->delayList = benchArrayInit(1, sizeof(int64_t));
-        switch (stbInfo->iface) {
-            // rest
-            case REST_IFACE: {
-                if (stbInfo->interlaceRows > 0) {
-                    pThreadInfo->buffer = new_ds(0);
-                } else {
-                    pThreadInfo->buffer = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, true);
-                }
-                int sockfd = createSockFd();
-                if (sockfd < 0) {
-                    goto END;
-                }
-                pThreadInfo->sockfd = sockfd;
-                break;
-            }            
-            // stmt & stmt2 init
-            case STMT_IFACE: 
-            case STMT2_IFACE: {
-                pThreadInfo->conn = initBenchConn();
-                if (NULL == pThreadInfo->conn) {
-                    goto END;
-                }
-                // single always true for benchmark
-                bool single = true;
-                if (stbInfo->iface == STMT2_IFACE) {
-                    // stmt2 init
-                    if (pThreadInfo->conn->stmt2)
-                        taos_stmt2_close(pThreadInfo->conn->stmt2);
-                    pThreadInfo->conn->stmt2 = initStmt2(pThreadInfo->conn->taos, single);
-                    if (NULL == pThreadInfo->conn->stmt2) {
-                        errorPrint("taos_stmt2_init() failed, reason: %s\n", taos_errstr(NULL));
-                        goto END;                    
-                    }
-                } else {
-                    // stmt init
-                    if (pThreadInfo->conn->stmt)
-                        taos_stmt_close(pThreadInfo->conn->stmt);
-                    pThreadInfo->conn->stmt = initStmt(pThreadInfo->conn->taos, single);
-                    if (NULL == pThreadInfo->conn->stmt) {
-                        errorPrint("taos_stmt_init() failed, reason: %s\n", taos_errstr(NULL));
-                        goto END;                    
-                    }
-                }
-
-                // select db
-                if (taos_select_db(pThreadInfo->conn->taos, database->dbName)) {
-                    errorPrint("taos select database(%s) failed\n", database->dbName);
-                    goto END;
-                }
-
-                // malloc bind
-                int32_t unit = stbInfo->iface == STMT2_IFACE ? sizeof(TAOS_STMT2_BIND) : sizeof(TAOS_MULTI_BIND);
-                pThreadInfo->bind_ts       = benchCalloc(1, sizeof(int64_t), true);
-                pThreadInfo->bind_ts_array = benchCalloc(1, sizeof(int64_t)*g_arguments->prepared_rand, true);
-                pThreadInfo->bindParams    = benchCalloc(1, unit * (stbInfo->cols->size + 1), true);
-                pThreadInfo->is_null       = benchCalloc(1, g_arguments->reqPerReq, true);
-                // have ts columns, so size + 1
-                pThreadInfo->lengths       = benchCalloc(stbInfo->cols->size + 1, sizeof(int32_t*), true);
-                for(int32_t c = 0; c <= stbInfo->cols->size; c++) {
-                    pThreadInfo->lengths[c] = benchCalloc(g_arguments->reqPerReq, sizeof(int32_t), true);
-                }
-                // tags data
-                pThreadInfo->tagsStmt = copyBArray(stbInfo->tags);
-                for(int32_t n = 0; n < pThreadInfo->tagsStmt->size; n ++ ) {
-                    Field *field = benchArrayGet(pThreadInfo->tagsStmt, n);
-                    memset(&field->stmtData, 0, sizeof(StmtData));
-                }
-                
-                parseBufferToStmtBatch(stbInfo, pThreadInfo->bind_ts_array);
-                for (int64_t child = 0; child < stbInfo->childTblCount; child++) {
-                    SChildTable *childTbl = stbInfo->childTblArray[child];
-                    if (childTbl->useOwnSample) {
-                        parseBufferToStmtBatchChildTbl(stbInfo, childTbl, pThreadInfo->bind_ts_array);
-                    }
-                }
-
-                break;
-            }
-            // sml rest
-            case SML_REST_IFACE: {
-                int sockfd = createSockFd();
-                if (sockfd < 0) {
-                    goto END;
-                }
-                pThreadInfo->sockfd = sockfd;
-            }            
-            // sml
-            case SML_IFACE: {
-                if (stbInfo->iface == SML_IFACE) {
-                    pThreadInfo->conn = initBenchConn();
-                    if (pThreadInfo->conn == NULL) {
-                        errorPrint("%s() init connection failed\n", __func__);
-                        goto END;
-                    }
-                    if (taos_select_db(pThreadInfo->conn->taos, database->dbName)) {
-                        errorPrint("taos select database(%s) failed\n", database->dbName);
-                        goto END;
-                    }
-                }
-                pThreadInfo->max_sql_len = stbInfo->lenOfCols + stbInfo->lenOfTags;
-                if (stbInfo->iface == SML_REST_IFACE) {
-                    pThreadInfo->buffer = benchCalloc(1, g_arguments->reqPerReq * (1 + pThreadInfo->max_sql_len), true);
-                }                
-                int protocol = stbInfo->lineProtocol;
-                if (TSDB_SML_JSON_PROTOCOL != protocol && SML_JSON_TAOS_FORMAT != protocol) {
-                    pThreadInfo->sml_tags = (char **)benchCalloc(pThreadInfo->ntables, sizeof(char *), true);
-                    for (int t = 0; t < pThreadInfo->ntables; t++) {
-                        pThreadInfo->sml_tags[t] = benchCalloc(1, stbInfo->lenOfTags, true);
-                    }
-
-                    for (int t = 0; t < pThreadInfo->ntables; t++) {
-                        if (generateRandData(
-                                    stbInfo, pThreadInfo->sml_tags[t],
-                                    stbInfo->lenOfTags,
-                                    stbInfo->lenOfCols + stbInfo->lenOfTags,
-                                    stbInfo->tags, 1, true, NULL)) {
-                            return -1;
-                        }
-                        debugPrint("pThreadInfo->sml_tags[%d]: %s\n", t,
-                                   pThreadInfo->sml_tags[t]);
-                    }
-                    pThreadInfo->lines = benchCalloc(g_arguments->reqPerReq, sizeof(char *), true);
-                    for (int j = 0; (j < g_arguments->reqPerReq && !g_arguments->terminate); j++) {
-                        pThreadInfo->lines[j] = benchCalloc(1, pThreadInfo->max_sql_len, true);
-                    }
-                } else {
-                    pThreadInfo->json_array          = tools_cJSON_CreateArray();
-                    pThreadInfo->sml_json_tags       = tools_cJSON_CreateArray();
-                    pThreadInfo->sml_tags_json_array = (char **)benchCalloc( pThreadInfo->ntables, sizeof(char *), true);
-                    for (int t = 0; t < pThreadInfo->ntables; t++) {
-                        if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL) {
-                            generateSmlJsonTags(
-                                pThreadInfo->sml_json_tags,
-                                    pThreadInfo->sml_tags_json_array,
-                                    stbInfo,
-                                pThreadInfo->start_table_from, t);
-                        } else {
-                            generateSmlTaosJsonTags(
-                                pThreadInfo->sml_json_tags, stbInfo,
-                                pThreadInfo->start_table_from, t);
-                        }
-                    }
-                    pThreadInfo->lines = (char **)benchCalloc(1, sizeof(char *), true);
-                    if (0 == stbInfo->interlaceRows && TSDB_SML_JSON_PROTOCOL == protocol) {
-                        pThreadInfo->line_buf_len = g_arguments->reqPerReq * accumulateRowLen(pThreadInfo->stbInfo->tags, pThreadInfo->stbInfo->iface);
-                        debugPrint("%s() LN%d, line_buf_len=%d\n", __func__, __LINE__, pThreadInfo->line_buf_len);
-                        pThreadInfo->lines[0]             = benchCalloc(1, pThreadInfo->line_buf_len, true);
-                        pThreadInfo->sml_json_value_array = (char **)benchCalloc(pThreadInfo->ntables, sizeof(char *), true);
-                        for (int t = 0; t < pThreadInfo->ntables; t++) {
-                            generateSmlJsonValues(pThreadInfo->sml_json_value_array, stbInfo, t);
-                        }
-                    }
-                }
-                break;
-            }
-            // taos
-            case TAOSC_IFACE: {
-                pThreadInfo->conn = initBenchConn();
-                if (pThreadInfo->conn == NULL) {
-                    errorPrint("%s() failed to connect\n", __func__);
-                    goto END;
-                }
-                char* command = benchCalloc(1, SHORT_1K_SQL_BUFF_LEN, false);
-                snprintf(command, SHORT_1K_SQL_BUFF_LEN,
-                        g_arguments->escape_character ? "USE `%s`" : "USE %s",
-                        database->dbName);
-                if (queryDbExecCall(pThreadInfo->conn, command)) {
-                    errorPrint("taos select database(%s) failed\n", database->dbName);
-                    goto END;
-                }
-                tmfree(command);
-                command = NULL;
-
-                if (stbInfo->interlaceRows > 0) {
-                    pThreadInfo->buffer = new_ds(0);
-                } else {
-                    pThreadInfo->buffer = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, true);
-                    if (g_arguments->check_sql) {
-                        pThreadInfo->csql = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, true);
-                        memset(pThreadInfo->csql, 0, TSDB_MAX_ALLOWED_SQL_LEN);
-                    }
-                }
-
-                break;
-            }
-            default:
-                break;
-        }
+        pthread_create(pids + i, NULL, genInsertTheadInfo,   pThreadInfo);
+        threadCnt ++;
+    }
+    
+    // wait threads
+    for (int i = 0; i < threadCnt; i++) {
+        infoPrint("init pthread_join %d ...\n", i);
+        pthread_join(pids[i], NULL);
     }
 
-    // success
-    ret = 0;
-
-END:
-    return ret;
+    if (bind_ts_array) {
+        tmfree(bind_ts_array);
+    }
+    
+    tmfree(pids);
+    if (g_fail) {
+       return -1;
+    }
+    return 0;
 }
 
 #ifdef LINUX
@@ -4175,7 +4192,6 @@ int32_t exitInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
                 tmfree(pThreadInfo->bind_ts);
                 tmfree(pThreadInfo->bind_ts_array);
                 tmfree(pThreadInfo->bindParams);
-                tmfree(pThreadInfo->is_null);
                 
                 // free tagsStmt
                 BArray *tags = pThreadInfo->tagsStmt;

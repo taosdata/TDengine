@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # This file is used to install TAOS time-series database on linux systems. The operating system
 # is required to use systemd to manage services at boot
@@ -312,9 +312,11 @@ function install_lib() {
   # Remove links
   remove_links() {
     local dir=$1
-    find ${dir} -name "libtaos.*" -exec ${csudo}rm -f {} \; || :
-    find ${dir} -name "libtaosnative.so" -exec ${csudo}rm -f {} \; || :
-    find ${dir} -name "libtaosws.so" -exec ${csudo}rm -f {} \; || :
+    if [ -d "$dir" ]; then
+      for pattern in "libtaos.*" "libtaosnative.*" "libtaosws.*"; do
+          ${csudo}find "$dir" -name "$pattern" -exec ${csudo}rm -f {} \; || :
+      done      
+    fi
   }
 
   remove_links ${lib_link_dir}

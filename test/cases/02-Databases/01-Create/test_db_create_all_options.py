@@ -8,9 +8,11 @@ class TestDatabaseCreateAllOptions:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_create_all_options(self):
-        """create db all options
+        """create database use options
 
-        1. -
+        1. create database using all the available options
+        2. query information_schema.ins_databases to confirm that the options are displayed correctly
+        3. test the ranges of each option.
 
         Catalog:
             - Database:Create
@@ -22,7 +24,7 @@ class TestDatabaseCreateAllOptions:
         Jira: None
 
         History:
-            - 2025-4-30 Simon Guan Migrated from tsim/db/create_all_options.sim
+            - 2025-5-12 Simon Guan Migrated from tsim/db/create_all_options.sim
 
         """
 

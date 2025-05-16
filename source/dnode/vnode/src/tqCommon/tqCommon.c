@@ -150,7 +150,7 @@ int32_t tqStreamTaskStartAsync(SStreamMeta* pMeta, SMsgCb* cb, bool restart) {
     return 0;
   }
 
-  tqDebug("vgId:%d start all %d stream task(s) async", vgId, numOfTasks);
+  tqInfo("vgId:%d start all %d stream task(s) async", vgId, numOfTasks);
 
   int32_t type = restart ? STREAM_EXEC_T_RESTART_ALL_TASKS : STREAM_EXEC_T_START_ALL_TASKS;
   return streamTaskSchedTask(cb, vgId, 0, 0, type, false);
@@ -188,7 +188,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
 
   if (code < 0) {
     rsp.code = TSDB_CODE_MSG_DECODE_ERROR;
-    tqError("vgId:%d failed to decode task update msg, code:%s", vgId, tstrerror(rsp.code));
+    tqError("vgId:%d failed to decode task update msg, code:%s", vgId, tstrerror(code));
     tDestroyNodeUpdateMsg(&req);
     return rsp.code;
   }
@@ -211,7 +211,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
             req.taskId);
     rsp.code = TSDB_CODE_SUCCESS;
     streamMetaWUnLock(pMeta);
-    taosArrayDestroy(req.pNodeList);
+    tDestroyNodeUpdateMsg(&req);
     return rsp.code;
   }
 
@@ -224,19 +224,19 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     streamMetaReleaseTask(pMeta, pTask);
     streamMetaWUnLock(pMeta);
 
-    taosArrayDestroy(req.pNodeList);
+    tDestroyNodeUpdateMsg(&req);
     return rsp.code;
   }
 
   // info needs to be kept till the new trans to update the nodeEp arrived.
-  bool update = streamMetaInitUpdateTaskList(pMeta, req.transId);
+  bool update = streamMetaInitUpdateTaskList(pMeta, req.transId, req.pTaskList);
   if (!update) {
     rsp.code = TSDB_CODE_SUCCESS;
 
     streamMetaReleaseTask(pMeta, pTask);
     streamMetaWUnLock(pMeta);
 
-    taosArrayDestroy(req.pNodeList);
+    tDestroyNodeUpdateMsg(&req);
     return rsp.code;
   }
 
@@ -252,7 +252,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     streamMetaReleaseTask(pMeta, pTask);
     streamMetaWUnLock(pMeta);
 
-    taosArrayDestroy(req.pNodeList);
+    tDestroyNodeUpdateMsg(&req);
     return rsp.code;
   }
 
@@ -289,7 +289,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
 
   // stream do update the nodeEp info, write it into stream meta.
   if (updated) {
-    tqDebug("s-task:%s vgId:%d save task after update epset, and stop task", idstr, vgId);
+    tqInfo("s-task:%s vgId:%d save task after update epset, and stop task", idstr, vgId);
     code = streamMetaSaveTaskInMeta(pMeta, pTask);
     if (code) {
       tqError("s-task:%s vgId:%d failed to save task, code:%s", idstr, vgId, tstrerror(code));
@@ -302,7 +302,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
       }
     }
   } else {
-    tqDebug("s-task:%s vgId:%d not save task since not update epset actually, stop task", idstr, vgId);
+    tqInfo("s-task:%s vgId:%d not save task since not update epset actually, stop task", idstr, vgId);
   }
 
   code = streamTaskStop(pTask);
@@ -325,7 +325,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   rsp.code = TSDB_CODE_SUCCESS;
 
   // possibly only handle the stream task.
-  int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
+  int32_t reqUpdateTasks = taosArrayGetSize(req.pTaskList);
   int32_t updateTasks = taosHashGetSize(pMeta->updateInfo.pTasks);
 
   if (restored && isLeader) {
@@ -333,19 +333,20 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     pMeta->startInfo.tasksWillRestart = 1;
   }
 
-  if (updateTasks < numOfTasks) {
+  if (updateTasks < reqUpdateTasks) {
     if (isLeader) {
-      tqDebug("vgId:%d closed tasks:%d, unclosed:%d, all tasks will be started when nodeEp update completed", vgId,
-              updateTasks, (numOfTasks - updateTasks));
+      tqInfo("vgId:%d closed tasks:%d, unclosed:%d, all tasks will be started when nodeEp update completed", vgId,
+              updateTasks, (reqUpdateTasks - updateTasks));
     } else {
-      tqDebug("vgId:%d closed tasks:%d, unclosed:%d, follower not restart tasks", vgId, updateTasks,
-              (numOfTasks - updateTasks));
+      tqInfo("vgId:%d closed tasks:%d, unclosed:%d, follower not restart tasks", vgId, updateTasks,
+              (reqUpdateTasks - updateTasks));
     }
   } else {
     if ((code = streamMetaCommit(pMeta)) < 0) {
       // always return true
       streamMetaWUnLock(pMeta);
-      taosArrayDestroy(req.pNodeList);
+      tDestroyNodeUpdateMsg(&req);
+      tqError("vgId:%d commit meta failed, code:%s not restart the stream tasks", vgId, tstrerror(code));
       return TSDB_CODE_SUCCESS;
     }
 
@@ -353,9 +354,9 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
 
     if (isLeader) {
       if (!restored) {
-        tqDebug("vgId:%d vnode restore not completed, not start all tasks", vgId);
+        tqInfo("vgId:%d vnode restore not completed, not start all tasks", vgId);
       } else {
-        tqDebug("vgId:%d all %d task(s) nodeEp updated and closed, transId:%d", vgId, numOfTasks, req.transId);
+        tqInfo("vgId:%d all %d task(s) nodeEp updated and closed, transId:%d", vgId, reqUpdateTasks, req.transId);
 #if 0
       taosMSleep(5000);// for test purpose, to trigger the leader election
 #endif
@@ -365,12 +366,12 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
         }
       }
     } else {
-      tqDebug("vgId:%d follower nodes not restart tasks", vgId);
+      tqInfo("vgId:%d follower nodes not restart tasks", vgId);
     }
   }
 
   streamMetaWUnLock(pMeta);
-  taosArrayDestroy(req.pNodeList);
+  tDestroyNodeUpdateMsg(&req);
   return rsp.code;  // always return true
 }
 
@@ -1299,7 +1300,7 @@ int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* m
   int32_t      code = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId, &pTask);
   if (pTask == NULL || (code != 0)) {
     tqError("s-task:0x%x failed to acquire task to resume, it may have been dropped or stopped", pReq->taskId);
-    return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
+    return TSDB_CODE_SUCCESS;
   }
 
   streamMutexLock(&pTask->lock);
@@ -1310,7 +1311,8 @@ int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* m
   code = tqProcessTaskResumeImpl(handle, pTask, sversion, pReq->igUntreated, fromVnode);
   if (code != 0) {
     streamMetaReleaseTask(pMeta, pTask);
-    return code;
+    tqError("s-task:%s failed to resume tasks, code:%s", pTask->id.idStr, tstrerror(code));
+    return TSDB_CODE_SUCCESS;
   }
 
   STaskId*     pHTaskId = &pTask->hTaskInfo.id;

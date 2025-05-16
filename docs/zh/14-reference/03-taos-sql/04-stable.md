@@ -36,7 +36,11 @@ table_option: {
     - TAGS 最多允许 128 个，至少 1 个，总长度不超过 16 KB。
 4. 关于 `ENCODE` 和 `COMPRESS` 的使用，请参考 [按列压缩](../compress)
 5. 关于 table_option 中的参数说明，请参考 [建表 SQL 说明](../table)
-6. 关于 table_option 中的 keep 参数，仅对超级表生效，keep 参数的详细说明可以参考 [数据库说明](02-database.md)，唯一不同的是超级表 keep 不会立即影响查询结果，仅在 compact 后生效。
+6. 关于 table_option 中的 keep 参数，仅对超级表生效，keep 参数的详细说明可以参考 [数据库说明](02-database.md)，但是超级表的 keep 参数与 db 的 keep 参数有以下不同：
+    - 超级表 keep 参数不会立即影响查询结果，只有在 compact 完成后，数据才会被清理，并对查询不可见。
+    - 超级表的 keep 参数需小于数据库的 keep 参数。
+    - compact 前必须进行 flush 否则可能不生效。
+    - compact 之后，alter stable 的 keep 再 compact ,部分数据有可能无法被正确清理，这取决于对应的文件在上次 compact 之后是否有新的数据写入。
 7. 关于 table_option 中的 virtual 参数，仅对超级表生效，指定为 1 表示创建虚拟超级表，为 0 表示创建超级表，默认为 0。创建虚拟超级表时，column_definition 中只支持 type_name 选项，不支持定义额外主键列以及压缩选项。
 
 ## 查看超级表

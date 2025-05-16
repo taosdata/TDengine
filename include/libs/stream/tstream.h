@@ -524,7 +524,6 @@ typedef struct STaskStartInfo {
 
 typedef struct STaskUpdateInfo {
   SHashObj* pTasks;
-  SArray*   pTaskList;
   int32_t   activeTransId;
   int32_t   completeTransId;
   int64_t   completeTs;
@@ -840,7 +839,7 @@ void    streamMetaAddFailedTaskSelf(SStreamTask* pTask, int64_t failedTs, bool l
 void    streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, SStreamTask* pHTask, int32_t transId,
                                         int64_t startTs);
 void    streamMetaClearSetUpdateTaskListComplete(SStreamMeta* pMeta);
-bool    streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId);
+bool    streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId, SArray* pUpdateTaskList);
 
 void    streamMetaRLock(SStreamMeta* pMeta);
 int32_t streamMetaTryRlock(SStreamMeta* pMeta);
