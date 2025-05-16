@@ -25,8 +25,6 @@
 #define SHELL_INPUT_MAX_COMMAND_SIZE 10000
 
 
-static int32_t shellCountPrefixOnes(uint8_t c);
-
 static void    shellGetNextCharSize(const char *str, int32_t pos, int32_t *size, int32_t *width);
 
 static void    shellBackspaceChar(SShellCmd *cmd);
