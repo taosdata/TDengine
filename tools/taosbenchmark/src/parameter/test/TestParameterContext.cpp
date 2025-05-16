@@ -173,7 +173,7 @@ jobs:
     assert(create_db_config.database_info.name == "testdb");
     assert(create_db_config.database_info.drop_if_exists == true);
     assert(create_db_config.database_info.precision == "us");
-    assert(create_db_config.database_info.properties == "precision us vgroups 20 replica 3 keep 3650");
+    assert(create_db_config.database_info.properties == "vgroups 20 replica 3 keep 3650");
 
     assert(data.jobs[1].key == "create-super-table");
     assert(data.jobs[1].name == "Create Super Table");
