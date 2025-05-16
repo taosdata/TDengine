@@ -160,8 +160,6 @@ static void releaseStreamReaderInfo(void* p) {
   pInfo->streamTaskMap = NULL;
   nodesDestroyNode((SNode*)(pInfo->triggerAst));
   nodesDestroyNode((SNode*)(pInfo->calcAst));
-  nodesDestroyList(pInfo->triggerCols);
-  nodesDestroyList(pInfo->calcCols);
   blockDataDestroy(pInfo->triggerResBlock);
   blockDataDestroy(pInfo->calcResBlock);
   taosMemoryFree(pInfo->triggerSchema);
@@ -363,6 +361,15 @@ static SStreamTriggerReaderCalcInfo* createStreamReaderCalcInfo(const SStreamRea
   STREAM_CHECK_CONDITION_GOTO(
       QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN != nodeType(sStreamReaderCalcInfo->calcAst->pNode),
       TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
+
+  SNodeList* pScanCols = ((STableScanPhysiNode*)(sStreamReaderCalcInfo->calcAst->pNode))->scan.pScanCols;
+  SNode*  nodeItem = NULL;
+  FOREACH(nodeItem, pScanCols) {
+    SColumnNode*     valueNode = (SColumnNode*)((STargetNode*)nodeItem)->pExpr;
+    if (valueNode->colId == PRIMARYKEY_TIMESTAMP_COL_ID){
+      sStreamReaderCalcInfo->pTargetNodeTs = (STargetNode*)nodeItem;
+    }
+  }
 
   sStreamReaderCalcInfo->calcScanPlan = taosStrdup(pMsg->msg.calc.calcScanPlan);
   STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo->calcScanPlan, terrno);

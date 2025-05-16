@@ -50,7 +50,7 @@ typedef struct SStreamRunnerTaskExecution {
 typedef struct SStreamRunnerTaskOutput {
   struct SSDataBlock *pBlock;
   char                outDbFName[TSDB_DB_FNAME_LEN];
-  char                outTbName[TSDB_TABLE_NAME_LEN];
+  char                outSTbName[TSDB_TABLE_NAME_LEN];
   int8_t              outTblType;
   SArray             *outCols;  // array of SFieldWithOptions
   SArray             *outTags;  // array of SFieldWithOptions

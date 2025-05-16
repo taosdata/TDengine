@@ -128,7 +128,7 @@ int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray** tableList
  * @param queryId
  */
 int32_t qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId);
-
+bool    qTaskIsDone(qTaskInfo_t tinfo);
 /**
  * Set block for sma
  * @param tinfo
@@ -291,6 +291,7 @@ void    gExecInfoInit(void* pDnode, getDnodeId_f getDnodeId, getMnodeEpset_f get
 int32_t getCurrentMnodeEpset(SEpSet* pEpSet);
 int32_t cloneStreamInserterParam(SStreamInserterParam** pDst, SStreamInserterParam* pSrc);
 void    destoryStreamInserterParam(SStreamInserterParam* pParam);
+int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes);
 
 #ifdef __cplusplus
 }

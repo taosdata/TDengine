@@ -3535,6 +3535,11 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
         break;
       }
       case FUNCTION_TYPE_PLACEHOLDER_COLUMN: {
+        if (!pCxt->createStreamTriggerPartitionList) {
+          pCxt->errCode = TSDB_CODE_FUNC_FUNTION_ERROR;
+          parserError("use %%n without partition list in trigger");
+          return DEAL_RES_ERROR;
+        }
         BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_IDX);
         SValueNode* pIndex = (SValueNode*)nodesListGetNode((*pFunc)->pParameterList, 0);
         int64_t     index = *(int64_t*)nodesGetValueFromNode(pIndex);
@@ -6474,12 +6479,12 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
           pOperator->opType == OP_TYPE_GREATER_THAN) {
         if (filterExtractTsNeedCollect(pOperator->pLeft, pOperator->pRight)) {
           if (pOperator->opType == OP_TYPE_LOWER_EQUAL || pOperator->opType == OP_TYPE_LOWER_THAN) {
-            nodesListMakeAppend(&pCxt->pStart, *pNode);
+            nodesListMakeAppend(&pCxt->pEnd, *pNode);
             SValueNode *pVal = NULL;
             nodesMakeValueNodeFromBool(true, &pVal);
             *pNode = (SNode*)pVal;
           } else {
-            nodesListMakeAppend(&pCxt->pEnd, *pNode);
+            nodesListMakeAppend(&pCxt->pStart, *pNode);
             SValueNode *pVal = NULL;
             nodesMakeValueNodeFromBool(true, &pVal);
             *pNode = (SNode*)pVal;
@@ -6487,12 +6492,12 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
           return DEAL_RES_IGNORE_CHILD;
         } else if (filterExtractTsNeedCollect(pOperator->pRight, pOperator->pLeft)) {
           if (pOperator->opType == OP_TYPE_LOWER_EQUAL || pOperator->opType == OP_TYPE_LOWER_THAN) {
-            nodesListMakeAppend(&pCxt->pEnd, *pNode);
+            nodesListMakeAppend(&pCxt->pStart, *pNode);
             SValueNode *pVal = NULL;
             nodesMakeValueNodeFromBool(true, &pVal);
             *pNode = (SNode*)pVal;
           } else {
-            nodesListMakeAppend(&pCxt->pStart, *pNode);
+            nodesListMakeAppend(&pCxt->pEnd, *pNode);
             SValueNode *pVal = NULL;
             nodesMakeValueNodeFromBool(true, &pVal);
             *pNode = (SNode*)pVal;
@@ -13152,6 +13157,9 @@ static int32_t createStreamReqBuildTriggerPeriodWindow(STranslateContext* pCxt, 
   pReq->triggerType = WINDOW_TYPE_PERIOD;
   pReq->trigger.period.period = createStreamReqWindowGetBigInt(pTriggerWindow->pPeroid);
   pReq->trigger.period.offset = createStreamReqWindowGetBigInt(pTriggerWindow->pOffset);
+  pReq->trigger.period.periodUnit = createStreamReqWindowGetUnit(pTriggerWindow->pPeroid);
+  pReq->trigger.period.offsetUnit = createStreamReqWindowGetUnit(pTriggerWindow->pOffset);
+  //pReq->trigger.period.precision = trigger table's precision;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -13426,6 +13434,10 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
   SNode*          pTriggerFilter = ((SStreamTriggerOptions*)pTrigger->pOptions) ? ((SStreamTriggerOptions*)pTrigger->pOptions)->pPreFilter : NULL;
   SQueryPlan*     pTriggerPlan = NULL;
 
+  if (!pTriggerTable) {
+    PAR_ERR_JRET(translateExpr(pCxt, &pTriggerWindow));
+    PAR_RET(createStreamReqBuildTriggerWindow(pCxt, pTriggerWindow, NULL, pReq));
+  }
   PAR_ERR_JRET(getTableMeta(pCxt, pTriggerTable->table.dbName, pTriggerTable->table.tableName, &pTriggerTableMeta));
 
   switch (pTriggerTableMeta->tableType) {
@@ -13572,7 +13584,7 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
     PAR_ERR_JRET(nodesListMakeAppend(&((SSelectStmt*)pStmt->pQuery)->pProjectionList, pNotifyCond));
   }
 
-  PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect->pFromTable, (SSelectStmt*)pStmt->pQuery, &withExtWindow));
+  PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect ? pTriggerSelect->pFromTable : NULL, (SSelectStmt*)pStmt->pQuery, &withExtWindow));
 
   pReq->placeHolderBitmap = pCxt->placeHolderBitmap;
 

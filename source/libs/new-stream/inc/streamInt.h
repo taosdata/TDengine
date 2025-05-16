@@ -105,6 +105,7 @@ int32_t stmAddFetchStreamGid(void);
 
 // initialize global request limit of stream triggers
 int32_t streamTriggerEnvInit();
+void    streamTriggerEnvStop(); // todo(kjq): call it when stop dnode
 void    streamTriggerEnvCleanup();
 
 int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMsg* pMsg);

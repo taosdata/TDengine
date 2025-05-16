@@ -174,6 +174,11 @@ int32_t qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId) {
   return doSetTaskId(pTaskInfo->pRoot, &pTaskInfo->storageAPI);
 }
 
+bool qTaskIsDone(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = tinfo;
+  return pTaskInfo->status == OP_EXEC_DONE;
+}
+
 int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type) {
   if (tinfo == NULL) {
     return TSDB_CODE_APP_ERROR;
@@ -1735,13 +1740,6 @@ int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppRes, uint64_t* usec
     pTaskInfo->code = code;
     qError("%s failed at line %d, code:%s %s", __func__, __LINE__, tstrerror(code), GET_TASKID(pTaskInfo));
   } else {
-    *finished = NULL == *ppRes;
-    code = streamForceOutput(tInfo, ppRes);
-  }
-  if (code) {
-    pTaskInfo->code = code;
-    qError("%s failed at line %d, code:%s %s", __func__, __LINE__, tstrerror(code), GET_TASKID(pTaskInfo));
-  } else {
     code = blockDataCheck(*ppRes);
   }
   if (code) {
@@ -1878,7 +1876,7 @@ static int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const S
     SSDataBlock block = {0};
     SSDataBlock* pBlock = &block;
     taosArrayPush(pBlockList, &pBlock);
-    if (code == 0) code = scalarCalculate(pSclNode, pBlockList, pDst, pExtraParams);
+    if (code == 0) code = scalarCalculate(pSclNode, pBlockList, pDst, pExtraParams, NULL);
     taosArrayDestroy(pBlockList);
   }
 
@@ -1894,7 +1892,6 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes) {
   SNode*         pNode = NULL;
   SScalarParam   dst = {0};
   if (!pForceOutputCols) return 0;
-  if (pRes && *pRes && (*pRes)->info.rows > 0) return 0;
   if (!pRes) {
     code = createDataBlock(pRes);
   }
@@ -1915,13 +1912,14 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes) {
 
   // loop all exprs for force output, execute all exprs
   int32_t idx = 0;
+  int32_t rowIdx = (*pRes)->info.rows;
   for (int32_t i = 0; i < pForceOutputCols->size; ++i) {
     SStreamOutCol* pCol = (SStreamOutCol*)taosArrayGet(pForceOutputCols, i);
     pNode = pCol->expr;
     SColumnInfoData* pInfo = taosArrayGet((*pRes)->pDataBlock, idx);
     if (nodeType(pNode) == QUERY_NODE_VALUE) {
       void* p = nodesGetValueFromNode((SValueNode*)pNode);
-      code = colDataSetVal(pInfo, 0, p, ((SValueNode*)pNode)->isNull);
+      code = colDataSetVal(pInfo, rowIdx, p, ((SValueNode*)pNode)->isNull);
     } else {
       dst.columnData = pInfo;
       code = streamCalcOneScalarExpr(pNode, &dst, &pTaskInfo->pStreamRuntimeInfo->funcInfo);
@@ -1929,6 +1927,7 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes) {
     ++idx;
     if (code != 0) break;
   }
+  (*pRes)->info.rows++;
   return code;
 }
 

@@ -378,6 +378,11 @@ static void incExtWinCurIdx(SOperatorInfo* pOperator) {
   pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx++;
 }
 
+static void incExtWinOutIdx(SOperatorInfo* pOperator) {
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  pTaskInfo->pStreamRuntimeInfo->funcInfo.curOutIdx++;
+}
+
 static const STimeWindow* getExtWindow(SOperatorInfo* pOperator, TSKEY ts) {
   SExternalWindowOperator* pExtW = pOperator->info;
   // TODO wjm handle desc order
@@ -442,6 +447,7 @@ static SSDataBlock* extWindowGetOutputBlock(SOperatorInfo* pOperator, int32_t wi
 
 static int32_t extWindowCopyRows(SOperatorInfo* pOperator, SSDataBlock* pInputBlock, int32_t startPos,
                                  int32_t forwardRows) {
+  if (forwardRows == 0) return 0;
   SExternalWindowOperator* pExtW = pOperator->info;
   SSDataBlock*             pResBlock = extWindowGetOutputBlock(pOperator, getExtWinCurIdx(pOperator));
   SExprSupp*               pExprSup = &pExtW->scalarSupp;
@@ -460,18 +466,19 @@ static int32_t extWindowCopyRows(SOperatorInfo* pOperator, SSDataBlock* pInputBl
     qError("failed to create datablock:%s", tstrerror(terrno));
     return code;
   }
-  code = blockDataEnsureCapacity(pExtW->pTmpBlock, rowsToCopy);
+  code = blockDataEnsureCapacity(pExtW->pTmpBlock, TMAX(1, rowsToCopy));
   if (code) {
     qError("failed to ensure capacity:%s", tstrerror(terrno));
     return code;
   }
   if (rowsToCopy > 0) {
     code = blockDataMergeNRows(pExtW->pTmpBlock, pInputBlock, startPos, rowsToCopy);
-    if (code != 0) return code;
+    if (code == 0) {
+      code = projectApplyFunctions(pExprSup->pExprInfo, pResBlock, pExtW->pTmpBlock, pExprSup->pCtx, pExprSup->numOfExprs,
+          NULL, &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
+    }
   }
 
-  code = projectApplyFunctions(pExprSup->pExprInfo, pResBlock, pExtW->pTmpBlock, pExprSup->pCtx, pExprSup->numOfExprs,
-                               NULL, &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
   if (code != 0) return code;
 
   return code;
@@ -489,9 +496,10 @@ static int32_t hashExternalWindowProject(SOperatorInfo* pOperator, SSDataBlock* 
   int32_t                  tsOrder = pExtW->binfo.inputTsOrder;
   int32_t startPos = 0;  // TODO wjm filter out somerows not in current window, and do it for hashExternalWindowAgg
 
+  if (!pWin) return 0;
   TSKEY   ekey = ascScan ? pWin->ekey : pWin->skey;
   int32_t forwardRows =
-      getNumOfRowsInTimeWindow(&pInputBlock->info, tsCol, startPos, ekey, binarySearchForKey, NULL, tsOrder);
+      getNumOfRowsInTimeWindow(&pInputBlock->info, tsCol, startPos, ekey-1, binarySearchForKey, NULL, tsOrder);
 
   int32_t code = extWindowCopyRows(pOperator, pInputBlock, startPos, forwardRows);
 
@@ -500,10 +508,10 @@ static int32_t hashExternalWindowProject(SOperatorInfo* pOperator, SSDataBlock* 
     if (!pWin) break;
     incExtWinCurIdx(pOperator);
 
-    startPos = startPos + forwardRows;  // TODO wjm filter out some rows not in current window
+    startPos = startPos + forwardRows;
     ekey = ascScan ? pWin->ekey : pWin->skey;
     forwardRows =
-        getNumOfRowsInTimeWindow(&pInputBlock->info, tsCol, startPos, ekey, binarySearchForKey, NULL, tsOrder);
+        getNumOfRowsInTimeWindow(&pInputBlock->info, tsCol, startPos, ekey-1, binarySearchForKey, NULL, tsOrder);
     code = extWindowCopyRows(pOperator, pInputBlock, startPos, forwardRows);
   }
   return code;
@@ -533,7 +541,7 @@ static bool hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
   if (ret != 0 || !pResult) T_LONG_JMP(pTaskInfo->env, ret);
   TSKEY   ekey = ascScan ? win.ekey : win.skey;
   int32_t forwardRows = getNumOfRowsInTimeWindow(&pInputBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL,
-                                                 pExtW->binfo.inputTsOrder);
+                                                 pExtW->binfo.inputTsOrder) - 1;
 
   updateTimeWindowInfo(&pExtW->twAggSup.timeWindowData, &win, 1);
   ret = extWindowDoHashAgg(pOperator, startPos, forwardRows, pInputBlock);
@@ -555,7 +563,7 @@ static bool hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
 
     ekey = ascScan ? win.ekey : win.skey;
     forwardRows = getNumOfRowsInTimeWindow(&pInputBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL,
-                                           pExtW->binfo.inputTsOrder);
+                                           pExtW->binfo.inputTsOrder) - 1;
 
     ret = setExtWindowOutputBuf(pResultRowInfo, &win, &pResult, pInputBlock->info.id.groupId, pSup->pCtx,
                                 numOfOutput, pSup->rowEntryInfoOffset, &pExtW->aggSup, pTaskInfo);
@@ -660,6 +668,7 @@ static int32_t externalWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
         if (!pExtW->pOutputBlockListNode->dl_next_) {
           pExtW->pOutputBlockListNode = NULL;
           pExtW->outputWinId++;
+          incExtWinOutIdx(pOperator);
           continue;
         }
         pExtW->pOutputBlockListNode = pExtW->pOutputBlockListNode->dl_next_;
@@ -669,7 +678,9 @@ static int32_t externalWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
         code = blockDataMerge(pBlock, *(SSDataBlock**)pExtW->pOutputBlockListNode->data);
         if (code != 0) goto _end;
       } else {
-        pBlock->info.rows = 0;
+        pExtW->outputWinId++;
+        incExtWinOutIdx(pOperator);
+        continue;
       }
       break;
     } else {
@@ -681,19 +692,6 @@ static int32_t externalWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
       }
       if (pExtW->binfo.pRes->info.rows > 0) break;
     }
-
-    code = setInputDataBlock(pSup, pBlock, pExtW->binfo.inputTsOrder, MAIN_SCAN, true);
-    QUERY_CHECK_CODE(code, lino, _end);
-
-    if (!pExtW->scalarMode) {
-      if (hashExternalWindowAgg(pOperator, pBlock)) break;
-    } else {
-      // scalar mode, no need to do agg, just output rows partitioned by window
-      code = hashExternalWindowProject(pOperator, pBlock);
-      if (code != 0) goto _end;
-    }
-
-    OPTR_SET_OPENED(pOperator);
   }
 
   pOperator->resultInfo.totalRows += pExtW->binfo.pRes->info.rows;

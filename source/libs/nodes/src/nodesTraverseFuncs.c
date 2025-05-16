@@ -422,6 +422,14 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       }
       break;
     }
+    case QUERY_NODE_PERIOD_WINDOW: {
+      SPeriodWindowNode* pPeriod = (SPeriodWindowNode*)pNode;
+      res = rewriteExpr(&pPeriod->pOffset, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pPeriod->pPeroid, order, rewriter, pContext);
+      }
+      break;
+    }
     default:
       break;
   }
