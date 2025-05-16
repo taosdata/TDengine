@@ -239,7 +239,7 @@ int32_t retrieveWalMetaData(SSubmitTbData* pSubmitTbData, void* pTableList, SSDa
   STREAM_CHECK_RET_GOTO(buildWalMetaBlock(pBlock, WAL_SUBMIT_DATA, gid, uid, skey, ekey, ver, numOfRows));
   pBlock->info.rows++;
   stDebug("stream reader scan submit data:uid %" PRIu64 ", skey %" PRIu64 ", ekey %" PRIu64 ", gid %" PRIu64
-          ", rows:%" PRId64,
+          ", rows:%d",
           uid, skey, ekey, gid, numOfRows);
 
 end:
