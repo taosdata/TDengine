@@ -119,7 +119,7 @@ jobs:
           rm $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx.tar.gz
   build_go_run_unit_test:
     runs-on: [self-hosted, linux, x64, qa, rust]
-    needs: [remove_artifacts,set_env]
+    needs: [remove_artifacts,set_env,build_rust_run_unit_test]
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -151,7 +151,7 @@ jobs:
           cp taosx-opc $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opc/
   build_java_run_unit_test:
     runs-on: [self-hosted, linux, x64, qa, rust]
-    needs: [remove_artifacts,set_env]
+    needs: [remove_artifacts,set_env,build_go_run_unit_test]
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4    
@@ -269,8 +269,8 @@ jobs:
               -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx-agent.info \
               -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_combined.info --quiet
           # 移除覆盖率附件中不属于源码的部分
-          lcov --remove $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_e2e.info '*/.cargo/*' '*/report/*' '*/target/*' '*/*test*' --ignore-errors unused -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_e2e_remove.info --quiet
-          lcov --remove $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_combined.info '*/.cargo/*' '*/report/*' '*/target/*' '*/*test*' --ignore-errors unused -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_combined_removed.info --quiet
+          lcov --extract $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_e2e.info '*/taosx/*' --ignore-errors unused -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_e2e_remove.info --quiet
+          lcov --extract $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_combined.info '*/taosx/*' --ignore-errors unused -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_combined_removed.info --quiet
           genhtml -o $COVERAGE_BASE_DIR/$DIR_PATH_3_0/taosx-report-merged/ --quiet --ignore-errors source --ignore-errors unmapped --show-details --highlight --legend $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_combined_removed.info
           genhtml -o $COVERAGE_BASE_DIR/$DIR_PATH_3_0/taosx-report-unit/ --quiet --ignore-errors source --ignore-errors unmapped --show-details --highlight --legend $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-unit-test-lcov.info
           genhtml -o $COVERAGE_BASE_DIR/$DIR_PATH_3_0/taosx-report-e2e/ --quiet --ignore-errors source --ignore-errors unmapped --show-details --highlight --legend $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_e2e_remove.info
