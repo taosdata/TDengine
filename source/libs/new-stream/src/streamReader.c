@@ -244,7 +244,7 @@ static void releaseGroupIdMap(void* p) {
   if (p == NULL) return;
   SArray* gInfo = *((SArray**)p);
   if (gInfo == NULL) return;
-  taosArrayDestroyEx(gInfo, tDestroySValue);
+  taosArrayDestroyEx(gInfo, tDestroySStreamGroupValue);
 }
 
 static SStreamTriggerReaderInfo* createStreamReaderInfo(const SStreamReaderDeployMsg* pMsg) {

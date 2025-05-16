@@ -767,7 +767,7 @@ end:
 
 static int32_t buildGroupInfo(SColumnInfoData* pValue, int32_t i, SArray* gInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
-  SGroupInfo* v = taosArrayReserve(gInfo, 1);
+  SStreamGroupValue* v = taosArrayReserve(gInfo, 1);
   if (v == NULL) {
     code = terrno;
     goto end;
@@ -974,7 +974,7 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
     QUERY_CHECK_NULL(info, code, lino, end, terrno);
 
     if (groupIdMap != NULL){
-      gInfo = taosArrayInit(rows, sizeof(SGroupInfo));
+      gInfo = taosArrayInit(rows, sizeof(SStreamGroupValue));
     }
     
     char* isNull = (char*)keyBuf;
@@ -986,7 +986,7 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
         int32_t ret = buildGroupInfo(pValue, i, gInfo);
         if (ret != TSDB_CODE_SUCCESS) {
           qError("buildGroupInfo failed at line %d since %s", __LINE__, tstrerror(ret));
-          taosArrayDestroyEx(gInfo, tDestroySValue);
+          taosArrayDestroyEx(gInfo, tDestroySStreamGroupValue);
           gInfo = NULL;
         }
       }
@@ -1028,7 +1028,7 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
       int32_t ret = taosHashPut(groupIdMap, &info->groupId, sizeof(info->groupId), &gInfo, POINTER_BYTES);
       if (ret != TSDB_CODE_SUCCESS) {
         qError("buildGroupInfo failed at line %d since %s", __LINE__, tstrerror(ret));
-        taosArrayDestroyEx(gInfo, tDestroySValue);
+        taosArrayDestroyEx(gInfo, tDestroySStreamGroupValue);
       }
       gInfo = NULL;
     }
@@ -1062,7 +1062,7 @@ end:
   taosArrayDestroy(pBlockList);
   taosArrayDestroyEx(pUidTagList, freeItem);
   taosArrayDestroyP(groupData, releaseColInfoData);
-  taosArrayDestroyEx(gInfo, tDestroySValue);
+  taosArrayDestroyEx(gInfo, tDestroySStreamGroupValue);
 
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -2949,11 +2949,11 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
 
 static int32_t addTbnameToMap(SHashObj* groupIdMap, int64_t uid, void* vnode, SStorageAPI* pAPI) {
   int32_t code = TSDB_CODE_SUCCESS;
-  SArray* gInfo = taosArrayInit(4, sizeof(SGroupInfo));
+  SArray* gInfo = taosArrayInit(4, sizeof(SStreamGroupValue));
   if (gInfo == NULL) {
     return terrno;
   }
-  SGroupInfo* v = taosArrayReserve(gInfo, 1);
+  SStreamGroupValue* v = taosArrayReserve(gInfo, 1);
   if (v == NULL) {
     taosArrayDestroy(gInfo);
     return terrno;

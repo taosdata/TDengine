@@ -83,6 +83,7 @@ typedef struct SSTriggerWalMeta {
 typedef struct SSTriggerRealtimeGroup {
   struct SSTriggerRealtimeContext *pContext;
   int64_t                          groupId;
+  int32_t                          vgId;
   ESTriggerGroupStatus             status;
   SSDataBlock                     *pWalMetaData;
   union {
@@ -254,6 +255,7 @@ typedef struct SStreamTriggerTask {
   int64_t watermark;
   int64_t expiredTime;
   int32_t calcTsIndex;
+  SNodeList *partitionCols;
   bool    ignoreDisorder;
   bool    fillHistory;
   bool    fillHistoryFirst;

@@ -87,7 +87,8 @@ static void streamTriggerCheckWaitList(void *param, void *tmrId) {
     } else if (pInfo->resumeTime <= now) {
       // resume the task
       SStreamTriggerTask *pTask = pInfo->pTask;
-      int32_t             code = strtcResumeCheck(pTask->pRealtimeCtx);
+      pTask->pRealtimeCtx->curReaderIdx = -1;
+      int32_t code = strtcResumeCheck(pTask->pRealtimeCtx);
       if (code != TSDB_CODE_SUCCESS) {
         stError("failed to resume stream trigger task %" PRIx64 "-%" PRIx64 " since %s", pTask->task.streamId,
                 pTask->task.taskId, tstrerror(code));
@@ -1032,6 +1033,8 @@ static int32_t strtgAddNewMeta(SSTriggerRealtimeGroup *pGroup) {
 
   SStreamTaskAddr *pReader = taosArrayGet(pTask->readerList, pContext->curReaderIdx);
   QUERY_CHECK_NULL(pReader, code, lino, _end, terrno);
+
+  pGroup->vgId = pReader->nodeId;
 
   SSTriggerWalMetaStat *pStat = strtgGetMetaStat(pGroup, pReader->nodeId);
   QUERY_CHECK_NULL(pStat, code, lino, _end, terrno);
@@ -2064,6 +2067,7 @@ static int32_t strtcSendPullReq(SSTriggerRealtimeContext *pContext, ESTriggerPul
       SSTriggerWalMetaRequest *pReq = &pContext->pullReq.walMetaReq;
       pReader = pProgress->pTaskAddr;
       pReq->lastVer = pProgress->lastScanVer;
+      pReq->ctime = INT64_MAX;
       break;
     }
     case STRIGGER_PULL_WAL_TS_DATA: {
@@ -2099,6 +2103,17 @@ static int32_t strtcSendPullReq(SSTriggerRealtimeContext *pContext, ESTriggerPul
       pReq->ver = pMeta->ver;
       pReq->skey = pMeta->skey;
       pReq->ekey = pMeta->ekey;
+      break;
+    }
+
+    case STRIGGER_PULL_GROUP_COL_VALUE: {
+      SSTriggerRealtimeGroup *pGroup = param;
+      SSTriggerGroupColValueRequest *pReq = &pContext->pullReq.groupColValueReq;
+      SSTriggerWalProgress *pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pGroup->vgId, sizeof(int32_t));
+      QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      pReader = pProgress->pTaskAddr;
+      QUERY_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      pReq->gid = pGroup->groupId;
       break;
     }
 
@@ -2201,12 +2216,20 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
     stwmClear(pMerger);
   }
 
+  pReq->gid = pContext->pCalcGroup->groupId;
+  pReq->createTable = true;  // todo(kjq): only create table at first time
+
+  bool needGroupColValue = pTask->needGroupColValue || (pReq->createTable && LIST_LENGTH(pTask->partitionCols) > 0);
+  if (taosArrayGetSize(pReq->groupColVals) == 0 && needGroupColValue) {
+    code = strtcSendPullReq(pContext, STRIGGER_PULL_GROUP_COL_VALUE, pContext->pCalcGroup);
+    QUERY_CHECK_CODE(code, lino, _end);
+    goto _end;
+  }
+
   SStreamRunnerTarget *pRunner = NULL;
   code = stTriggerChooseRunner(pTask, &pRunner);
   QUERY_CHECK_CODE(code, lino, _end);
   pReq->runnerTaskId = pRunner->addr.taskId;
-  pReq->gid = pContext->pCalcGroup->groupId;
-  pReq->createTable = true;  // todo(kjq): only create table at first time
 
   // serialize and send request
   SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_CALC};
@@ -2868,6 +2891,8 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, const SStreamTriggerDeplo
   pTask->watermark = pMsg->watermark;
   pTask->expiredTime = pMsg->expiredTime;
   pTask->calcTsIndex = pMsg->tsSlotId;
+  code = nodesStringToList(pMsg->partitionCols, &pTask->partitionCols);
+  QUERY_CHECK_CODE(code, lino, _end);
   pTask->ignoreDisorder = pMsg->igDisorder;
   pTask->fillHistory = pMsg->fillHistory;
   pTask->fillHistoryFirst = pMsg->fillHistoryFirst;
@@ -2881,8 +2906,14 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, const SStreamTriggerDeplo
   pTask->readerList = pMsg->readerList;
   pTask->runnerList = pMsg->runnerList;
 
-  pTask->singleVnodePerGroup =
-      taosArrayGetSize(pTask->readerList) == 1 || pMsg->placeHolderBitmap & (1 << 7);  // todo(kjq): fix here
+  if (LIST_LENGTH(pTask->partitionCols) == 1) {
+    SNode *pNode = pTask->partitionCols->pHead->pNode;
+    if ((pNode->type == QUERY_NODE_FUNCTION) &&
+        (strcmp(((struct SFunctionNode *)pNode)->functionName, "tbname") == 0)) {
+      pTask->singleVnodePerGroup = true;
+    }
+  }
+  pTask->singleVnodePerGroup = pTask->singleVnodePerGroup || taosArrayGetSize(pTask->readerList) == 1;
   pTask->needRowNumber = pMsg->placeHolderBitmap & (1 << 4);
   pTask->needGroupColValue = pMsg->placeHolderBitmap & (1 << 6);
   pTask->needCacheData = pMsg->placeHolderBitmap & (1 << 8);
@@ -2931,6 +2962,11 @@ int32_t stTriggerTaskUndeploy(SStreamTriggerTask **ppTask, const SStreamUndeploy
       nodesDestroyList((*ppTask)->pEndCondCols);
       (*ppTask)->pEndCondCols = NULL;
     }
+  }
+
+  if ((*ppTask)->partitionCols != NULL) {
+    nodesDestroyList((*ppTask)->partitionCols);
+    (*ppTask)->partitionCols = NULL;
   }
 
   if ((*ppTask)->pHistoryCutoffTime != NULL) {
@@ -3074,6 +3110,22 @@ int32_t streamTriggerProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp) {
             // ownership of the data block has been transfered to the merger
             pContext->pullResDataBlock[pReq->type] = NULL;
           }
+        } else {
+          // todo(kjq): handle error code
+        }
+        break;
+      }
+      case STRIGGER_PULL_GROUP_COL_VALUE: {
+        SSTriggerRealtimeContext *pContext = pTask->pRealtimeCtx;
+        QUERY_CHECK_CONDITION(pReq == &pContext->pullReq.base, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        if (pRsp->code == TSDB_CODE_SUCCESS) {
+          SSTriggerCalcRequest *pCalcReq = &pContext->calcReq;
+          SStreamGroupInfo      groupInfo = {.gInfo = pCalcReq->groupColVals};
+          code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
+          QUERY_CHECK_CODE(code, lino, _end);
+          pCalcReq->groupColVals = groupInfo.gInfo;
+          code = strtcSendCalcReq(pContext);
+          QUERY_CHECK_CODE(code, lino, _end);
         } else {
           // todo(kjq): handle error code
         }

@@ -397,6 +397,7 @@ typedef struct {
   int64_t eventTypes;
   int64_t placeHolderBitmap;
   int16_t tsSlotId;  // only used when using %%trows
+  void*   partitionCols;
 
   SArray* readerList;  // SArray<SStreamTaskAddr>
   SArray* runnerList;  // SArray<SStreamRunnerTarget>
@@ -692,7 +693,7 @@ typedef struct SSTriggerCalcRequest {
 
   int64_t gid;
   SArray* params;        // SArray<SSTriggerCalcParam>
-  SArray* groupColVals;  // only provided at the first calculation of the group
+  SArray* groupColVals;  // SArray<SStreamGroupValue>, only provided at the first calculation of the group
   bool    brandNew;      // TODO wjm remove it
   int8_t  createTable;
   int32_t curWinIdx; // no serialize
@@ -732,19 +733,18 @@ typedef struct SStreamTsResponse {
 int32_t tSerializeSStreamTsResponse(void* buf, int32_t bufLen, const SStreamTsResponse* pRsp);
 int32_t tDeserializeSStreamTsResponse(void* buf, int32_t bufLen, void *pBlock);
 
-typedef struct SGroupInfo {
+typedef struct SStreamGroupValue {
   SValue  data;
   bool    isNull;
-} SGroupInfo;
+} SStreamGroupValue;
 
 typedef struct SStreamGroupInfo {
-  SArray* gInfo;  // SArray<SGroupInfo>
+  SArray* gInfo;  // SArray<SStreamGroupValue>
 } SStreamGroupInfo;
 
 int32_t tSerializeSStreamGroupInfo(void* buf, int32_t bufLen, const SStreamGroupInfo* gInfo);
 int32_t tDeserializeSStreamGroupInfo(void* buf, int32_t bufLen, SStreamGroupInfo* gInfo);
-void    tDestroySStreamGroupInfo(void* ptr);
-void    tDestroySValue(void* ptr);
+void    tDestroySStreamGroupValue(void *ptr);
 
 typedef enum EValueType {
   SCL_VALUE_TYPE_NULL = 0,
