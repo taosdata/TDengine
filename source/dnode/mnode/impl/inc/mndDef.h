@@ -293,6 +293,7 @@ typedef struct {
 
 typedef struct {
   int32_t    id;
+  int32_t    proto;
   int64_t    createdTime;
   int64_t    updateTime;
   SDnodeObj* pDnode;

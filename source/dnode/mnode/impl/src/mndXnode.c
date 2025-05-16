@@ -35,6 +35,7 @@ static SSdbRaw *mndXnodeActionEncode(SXnodeObj *pObj) {
 
   int32_t dataPos = 0;
   SDB_SET_INT32(pRaw, dataPos, pObj->id, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pObj->proto, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pObj->createdTime, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pObj->updateTime, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, XNODE_RESERVE_SIZE, _OVER)
@@ -76,6 +77,7 @@ static SSdbRow *mndXnodeActionDecode(SSdbRaw *pRaw) {
 
   int32_t dataPos = 0;
   SDB_GET_INT32(pRaw, dataPos, &pObj->id, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pObj->proto, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pObj->createdTime, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pObj->updateTime, _OVER)
   SDB_GET_RESERVE(pRaw, dataPos, XNODE_RESERVE_SIZE, _OVER)
@@ -164,6 +166,7 @@ static int32_t mndSetCreateXnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
   int32_t          code = 0;
   SDCreateXnodeReq createReq = {0};
   createReq.dnodeId = pDnode->id;
+  createReq.xnodeProto = pObj->proto;
 
   int32_t contLen = tSerializeSMCreateXnodeReq(NULL, 0, &createReq);
   void   *pReq = taosMemoryMalloc(contLen);
@@ -227,6 +230,7 @@ static int32_t mndCreateXnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
 
   SXnodeObj xnodeObj = {0};
   xnodeObj.id = pDnode->id;
+  xnodeObj.proto = pCreate->xnodeProto;
   xnodeObj.createdTime = taosGetTimestampMs();
   xnodeObj.updateTime = xnodeObj.createdTime;
 
@@ -238,7 +242,7 @@ static int32_t mndCreateXnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
   }
   mndTransSetSerial(pTrans);
 
-  mInfo("trans:%d, used to create xnode:%d", pTrans->id, pCreate->dnodeId);
+  mInfo("trans:%d, to create xnode:%d %d", pTrans->id, pCreate->dnodeId, pCreate->xnodeProto);
 
   TAOS_CHECK_GOTO(mndSetCreateXnodeRedoLogs(pTrans, &xnodeObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateXnodeUndoLogs(pTrans, &xnodeObj), NULL, _OVER);
@@ -434,6 +438,16 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+static const char *mndXnodeProtoStr(int32_t proto) {
+  switch (proto) {
+    case TSDB_XNODE_OPT_PROTO_MQTT:
+      return TSDB_XNODE_OPT_PROTO_STR_MQTT;
+    default:
+      break;
+  }
+  return "unknown";
+}
+
 static int32_t mndRetrieveXnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode    *pMnode = pReq->info.node;
   SSdb      *pSdb = pMnode->pSdb;
@@ -459,8 +473,7 @@ static int32_t mndRetrieveXnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)ep, false), pSdb, pObj);
 
-    const char *protocol_str = "mqtt";
-    STR_TO_VARSTR(buf, protocol_str);
+    STR_TO_VARSTR(buf, mndXnodeProtoStr(pObj->proto));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)buf, false), pSdb, pObj);
 
