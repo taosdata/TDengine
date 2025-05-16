@@ -52,17 +52,41 @@ global:
     password: secret
 concurrency: 4
 jobs:
+  create-database:
+    name: Create Database
+    needs: []
+    steps:
+      - name: Create Database
+        uses: actions/create-database
+        with:
+          connection_info: *db_conn
+          database_info:
+            name: testdb
+            drop_if_exists: true
+            precision: us
+            properties: vgroups 20 replica 3 keep 3650
+
   create-super-table:
     name: Create Super Table
-    needs: []
+    needs: [create-database]
     steps:
       - name: Create Super Table
         uses: actions/create-super-table
         with:
           connection_info: *db_conn
+
+  create-second-child-table:
+    name: Create Second Child Table
+    needs: [create-super-table]
+    steps:
+      - name: Create Second Child Table
+        uses: actions/create-child-table
+        with:
+          connection_info: *db_conn
+
   insert-second-data:
     name: Insert Second-Level Data
-    needs: [create-super-table]
+    needs: [create-second-child-table]
     steps:
       - name: Insert Data
         uses: actions/insert-data
@@ -85,14 +109,47 @@ jobs:
     assert(data.concurrency == 4);
 
     // 验证作业解析
-    assert(data.jobs.size() == 2);
-    assert(data.jobs[0].key == "create-super-table");
-    assert(data.jobs[0].name == "Create Super Table");
+    assert(data.jobs.size() == 4);
+    assert(data.jobs[0].key == "create-database");
+    assert(data.jobs[0].name == "Create Database");
+    assert(data.jobs[0].needs.size() == 0);
     assert(data.jobs[0].steps.size() == 1);
+    assert(data.jobs[0].steps[0].name == "Create Database");
+    assert(data.jobs[0].steps[0].uses == "actions/create-database");
+    assert(std::holds_alternative<CreateDatabaseConfig>(data.jobs[0].steps[0].action_config));
+    const auto& create_db_config = std::get<CreateDatabaseConfig>(data.jobs[0].steps[0].action_config);
+    assert(create_db_config.connection_info.host == "10.0.0.1");
+    assert(create_db_config.connection_info.port == 6043);
+    assert(create_db_config.connection_info.user == "root");
+    assert(create_db_config.connection_info.password == "secret");
+    assert(create_db_config.database_info.name == "testdb");
+    assert(create_db_config.database_info.drop_if_exists == true);
+    assert(create_db_config.database_info.precision == "us");
+    assert(create_db_config.database_info.properties == "precision us vgroups 20 replica 3 keep 3650");
 
-    assert(data.jobs[1].key == "insert-second-data");
-    assert(data.jobs[1].name == "Insert Second-Level Data");
+    assert(data.jobs[1].key == "create-super-table");
+    assert(data.jobs[1].name == "Create Super Table");
     assert(data.jobs[1].needs.size() == 1);
+    assert(data.jobs[1].steps.size() == 1);
+    assert(data.jobs[1].steps[0].name == "Create Super Table");
+    assert(data.jobs[1].steps[0].uses == "actions/create-super-table");
+    // assert(std::holds_alternative<CreateSuperTableConfig>(data.jobs[1].steps[0].action_config));
+    // const auto& create_stb_config = std::get<CreateSuperTableConfig>(data.jobs[1].steps[0].action_config);
+    // assert(create_stb_config.connection_info.host == "10.0.0.1");
+
+    assert(data.jobs[2].key == "create-second-child-table");
+    assert(data.jobs[2].name == "Create Second Child Table");
+    assert(data.jobs[2].needs.size() == 1);
+    assert(data.jobs[2].steps.size() == 1);
+    assert(data.jobs[2].steps[0].name == "Create Second Child Table");
+    assert(data.jobs[2].steps[0].uses == "actions/create-child-table");
+
+    assert(data.jobs[3].key == "insert-second-data");
+    assert(data.jobs[3].name == "Insert Second-Level Data");
+    assert(data.jobs[3].needs.size() == 1);
+    assert(data.jobs[3].steps.size() == 1);
+    assert(data.jobs[3].steps[0].name == "Insert Data");
+    assert(data.jobs[3].steps[0].uses == "actions/insert-data");
 
 
     std::cout << "YAML merge test passed.\n";

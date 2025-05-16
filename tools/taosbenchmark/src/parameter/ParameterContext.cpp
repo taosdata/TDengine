@@ -129,19 +129,135 @@ void ParameterContext::parse_jobs(const YAML::Node& jobs_yaml) {
             job.needs = job_content["needs"].as<std::vector<std::string>>();
         }
         if (job_content["steps"]) {
-            for (const auto& step_node : job_content["steps"]) {
-                Step step;
-                step.name = step_node["name"].as<std::string>();
-                step.uses = step_node["uses"].as<std::string>();
-                if (step_node["with"]) {
-                    step.with = step_node["with"];
-                }
-                job.steps.push_back(step);
-            }
+            parse_steps(job_content["steps"], job.steps);
         }
         config_data.jobs.push_back(job);
     }
 }
+
+
+
+void ParameterContext::parse_steps(const YAML::Node& steps_yaml, std::vector<Step>& steps) {
+    for (const auto& step_node : steps_yaml) {
+        Step step;
+        step.name = step_node["name"].as<std::string>();
+        step.uses = step_node["uses"].as<std::string>();
+        if (step_node["with"]) {
+            step.with = step_node["with"]; // 保留原始 YAML 节点
+
+            // 根据 uses 字段解析具体行动
+            if (step.uses == "actions/create-database") {
+                parse_create_database_action(step);
+            } else if (step.uses == "actions/insert-data") {
+                parse_insert_data_action(step);
+            }
+            // 其他行动解析逻辑可以在此扩展
+        }
+        steps.push_back(step);
+    }
+}
+
+
+void ParameterContext::parse_create_database_action(Step& step) {
+    if (!step.with["database_info"]) {
+        throw std::runtime_error("Missing required 'database_info' for create-database action.");
+    }
+
+    CreateDatabaseConfig create_db_config;
+
+    // 解析 connection_info（可选）
+    if (step.with["connection_info"]) {
+        const auto& conn_info = step.with["connection_info"];
+        if (conn_info["host"]) create_db_config.connection_info.host = conn_info["host"].as<std::string>();
+        if (conn_info["port"]) create_db_config.connection_info.port = conn_info["port"].as<int>();
+        if (conn_info["user"]) create_db_config.connection_info.user = conn_info["user"].as<std::string>();
+        if (conn_info["password"]) create_db_config.connection_info.password = conn_info["password"].as<std::string>();
+        if (conn_info["dsn"]) create_db_config.connection_info.dsn = conn_info["dsn"].as<std::string>();
+    } else {
+        // 如果未指定 connection_info，则使用全局配置
+        create_db_config.connection_info = config_data.global.connection_info;
+    }
+
+    // 解析 database_info（必需）
+    const auto& db_info = step.with["database_info"];
+    if (db_info["name"]) {
+        create_db_config.database_info.name = db_info["name"].as<std::string>();
+    } else {
+        throw std::runtime_error("Missing required 'name' in database_info.");
+    }
+
+    if (db_info["drop_if_exists"]) {
+        create_db_config.database_info.drop_if_exists = db_info["drop_if_exists"].as<bool>();
+    }
+
+    if (db_info["precision"]) {
+        if (!db_info["precision"].IsScalar()) {
+            throw std::runtime_error("Invalid type for 'precision' in database_info. Expected a string.");
+        }
+        // 验证时间精度是否为合法值
+        std::string precision = db_info["precision"].as<std::string>();
+        if (precision != "ms" && precision != "us" && precision != "ns") {
+            throw std::runtime_error("Invalid precision value: " + precision);
+        }
+        create_db_config.database_info.properties = "precision " + precision;
+    }
+
+
+    if (db_info["precision"]) {
+        // 验证时间精度是否为合法值
+        std::string precision = db_info["precision"].as<std::string>();
+        if (precision != "ms" && precision != "us" && precision != "ns") {
+            throw std::runtime_error("Invalid precision value: " + precision);
+        }
+        create_db_config.database_info.precision = precision;
+    }
+    if (db_info["properties"]) {
+        if (create_db_config.database_info.properties) {
+            create_db_config.database_info.properties.value() += " " + db_info["properties"].as<std::string>();
+        } else {
+            create_db_config.database_info.properties = db_info["properties"].as<std::string>();
+        }
+    }
+
+    // 将解析结果保存到 Step 的 action_config 字段
+    step.action_config = std::move(create_db_config);
+
+    // 打印解析结果（可选）
+    std::cout << "Parsed create-database action: " << create_db_config.database_info.name << std::endl;
+}
+
+
+void ParameterContext::parse_insert_data_action(Step& step) {
+    InsertDataConfig insert_config;
+
+    return;
+    
+    if (step.with["source"]) {
+        const auto& source = step.with["source"];
+        insert_config.source.table_name = source["table_name"].as<std::string>();
+        insert_config.source.source_type = source["source_type"].as<std::string>();
+        // 解析其他字段...
+    }
+    if (step.with["target"]) {
+        const auto& target = step.with["target"];
+        insert_config.target.database_name = target["database_name"].as<std::string>();
+        insert_config.target.super_table_name = target["super_table_name"].as<std::string>();
+        // 解析其他字段...
+    }
+    if (step.with["control"]) {
+        const auto& control = step.with["control"];
+        insert_config.control.concurrency = control["concurrency"].as<int>();
+        insert_config.control.batch_size = control["batch_size"].as<int>();
+        // 解析其他字段...
+    }
+
+    // 将解析结果保存到 Step 的 action_config 字段
+    step.action_config = insert_config;
+
+    // 打印解析结果（可选）
+    std::cout << "Parsed insert-data action for table: " << insert_config.source.table_name << std::endl;
+}
+
 
 
 void ParameterContext::merge_yaml(const YAML::Node& config) {

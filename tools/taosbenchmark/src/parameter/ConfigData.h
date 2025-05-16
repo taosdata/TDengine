@@ -33,6 +33,7 @@ struct ConnectionInfo {
 
 struct DatabaseInfo {
     std::string name;
+    std::string precision;
     bool drop_if_exists = true;
     std::optional<std::string> properties;
 };
@@ -98,11 +99,60 @@ struct GlobalConfig {
 
 };
 
+
+struct CreateDatabaseConfig {
+    ConnectionInfo connection_info;
+    DatabaseInfo database_info;
+};
+
+
+struct CreateSuperTableConfig {
+    ConnectionInfo connection_info;
+    DatabaseInfo database_info;
+    SuperTableInfo super_table_info;
+};
+
+
+struct CreateChildTableConfig {
+    ConnectionInfo connection_info;
+    DatabaseInfo database_info;
+    SuperTableInfo super_table_info;
+};
+
+
+struct InsertDataConfig {
+    struct Source {
+        std::string table_name;
+        std::string source_type;
+        // 其他字段...
+    };
+    struct Target {
+        std::string database_name;
+        std::string super_table_name;
+        // 其他字段...
+    };
+    struct Control {
+        int concurrency;
+        int batch_size;
+        // 其他字段...
+    };
+
+    Source source;
+    Target target;
+    Control control;
+};
+
+
 struct Step {
     std::string name; // 步骤名称
     std::string uses; // 使用的操作类型
-    YAML::Node with;  // 参数配置
+    YAML::Node with;  // 原始参数配置
+    std::variant<std::monostate, CreateDatabaseConfig, CreateSuperTableConfig, InsertDataConfig> action_config; 
+    // 泛化字段，用于存储不同类型的 Action 配置
 };
+
+
+
 
 struct Job {
     std::string key;               // 作业标识符
