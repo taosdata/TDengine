@@ -420,9 +420,9 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
           // no external window, only one window to calc, force output and output block
           if (!pBlock || pBlock->info.rows == 0) {
             if (pForceOutBlock) blockDataCleanup(pForceOutBlock);
-            code = streamForceOutput(pExec->pExecutor, &pForceOutBlock, 0);
+            code = streamForceOutput(pExec->pExecutor, &pForceOutBlock, nextOutIdx);
             if (code == 0) {
-              code = stRunnerHandleResultBlock(pTask, pExec, pBlock, &createTable);
+              code = stRunnerHandleResultBlock(pTask, pExec, pForceOutBlock, &createTable);
             }
           } else {
             code = stRunnerHandleResultBlock(pTask, pExec, pBlock, &createTable);

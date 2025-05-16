@@ -540,8 +540,8 @@ static bool hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
                               numOfOutput, pSup->rowEntryInfoOffset, &pExtW->aggSup, pTaskInfo);
   if (ret != 0 || !pResult) T_LONG_JMP(pTaskInfo->env, ret);
   TSKEY   ekey = ascScan ? win.ekey : win.skey;
-  int32_t forwardRows = getNumOfRowsInTimeWindow(&pInputBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL,
-                                                 pExtW->binfo.inputTsOrder) - 1;
+  int32_t forwardRows = getNumOfRowsInTimeWindow(&pInputBlock->info, tsCols, startPos, ekey - 1, binarySearchForKey, NULL,
+                                                 pExtW->binfo.inputTsOrder);
 
   updateTimeWindowInfo(&pExtW->twAggSup.timeWindowData, &win, 1);
   ret = extWindowDoHashAgg(pOperator, startPos, forwardRows, pInputBlock);
@@ -551,7 +551,7 @@ static bool hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
   }
 
   while (1) {
-    int32_t prevEndPos = forwardRows - 1 + startPos;
+    int32_t prevEndPos = forwardRows + startPos - 1;
     pWin = getExtNextWindow(pOperator);
     if (!pWin)
       break;
@@ -562,8 +562,8 @@ static bool hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
     incExtWinCurIdx(pOperator);
 
     ekey = ascScan ? win.ekey : win.skey;
-    forwardRows = getNumOfRowsInTimeWindow(&pInputBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL,
-                                           pExtW->binfo.inputTsOrder) - 1;
+    forwardRows = getNumOfRowsInTimeWindow(&pInputBlock->info, tsCols, startPos, ekey - 1, binarySearchForKey, NULL,
+                                           pExtW->binfo.inputTsOrder);
 
     ret = setExtWindowOutputBuf(pResultRowInfo, &win, &pResult, pInputBlock->info.id.groupId, pSup->pCtx,
                                 numOfOutput, pSup->rowEntryInfoOffset, &pExtW->aggSup, pTaskInfo);
