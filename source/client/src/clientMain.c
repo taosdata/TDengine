@@ -683,6 +683,8 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
       continue;
     }
 
+    len += tsnprintf(str + len, size - len, "%s: ", fields[i].name);
+
     switch (fields[i].type) {
       case TSDB_DATA_TYPE_TINYINT:
         len += tsnprintf(str + len, size - len, "%d", *((int8_t *)row[i]));
