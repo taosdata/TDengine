@@ -10901,6 +10901,8 @@ static int32_t createTbnameFunction(SFunctionNode** ppFunc) {
   tstrncpy(pFunc->functionName, "tbname", TSDB_FUNC_NAME_LEN);
   tstrncpy(pFunc->node.aliasName, "tbname", TSDB_COL_NAME_LEN);
   tstrncpy(pFunc->node.userAlias, "tbname", TSDB_COL_NAME_LEN);
+  pFunc->node.resType.type = TSDB_DATA_TYPE_BINARY;
+  pFunc->node.resType.bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
   *ppFunc = pFunc;
   return code;
 }
@@ -12701,6 +12703,17 @@ static EDealRes doStreamSetSlotId(SNode* pNode, void* pContext) {
     }
     taosMemoryFree(name);
     return DEAL_RES_IGNORE_CHILD;
+  } else if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode*       pFunc = (SFunctionNode*)pNode;
+    SStreamSetSlotIdCxt* pCxt = (SStreamSetSlotIdCxt*)pContext;
+    if (FUNCTION_TYPE_TBNAME == pFunc->funcType) {
+      if (pCxt->pCollect) {
+        pCxt->errCode = nodesListAppend(pCxt->pCollect, pNode);
+        if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+          return DEAL_RES_ERROR;
+        }
+      }
+    }
   }
   return DEAL_RES_CONTINUE;
 }
@@ -13462,6 +13475,10 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
   PAR_ERR_JRET(createStreamReqBuildTriggerTable(pCxt, pTriggerTable, pTriggerTableMeta, pReq));
   PAR_ERR_JRET(createSimpleSelectStmtFromCols(pTriggerTable->table.dbName, pTriggerTable->table.tableName, 0, NULL, pTriggerSelect));
 
+  SFunctionNode* pFunc = NULL;
+  PAR_ERR_JRET(createTbnameFunction(&pFunc));
+  PAR_ERR_JRET(nodesListMakeStrictAppend(&((SSelectStmt*)pTriggerSelect)->pProjectionList, (SNode*)pFunc));
+
   (*pTriggerSelect)->pFromTable = pTrigger->pTrigerTable;
   (*pTriggerSelect)->pWhere = pTriggerFilter;
 
@@ -13484,8 +13501,8 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
         break;
       }
       case QUERY_NODE_FUNCTION: {
-        SFunctionNode *pFunc = (SFunctionNode*)pNode;
-        if (pFunc->funcType != FUNCTION_TYPE_TBNAME) {
+        SFunctionNode *pFunction = (SFunctionNode*)pNode;
+        if (pFunction->funcType != FUNCTION_TYPE_TBNAME) {
           parserError("only tag and tbname can be used in partition");
           PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY));
         }
