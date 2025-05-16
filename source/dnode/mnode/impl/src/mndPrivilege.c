@@ -58,7 +58,7 @@ int32_t mndSetUserWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhiteLis
     taosMemoryFreeClear(pWhiteList);
     return terrno;
   }
-  memset(pWhiteListRsp->pWhiteLists, 0, pWhiteList->num * sizeof(SIpRange));
+  memset(pWhiteListRsp->pWhiteLists, 0, pWhiteList->num * sizeof(SIpV4Range));
   taosMemoryFreeClear(pWhiteList);
   return code;
 }

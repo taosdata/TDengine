@@ -2093,7 +2093,9 @@ int32_t cvtIpWhiteListDualToV4(SIpWhiteListDual *pWhiteListDual, SIpWhiteList **
 
   for (int32_t i = 0; i < pWhiteListDual->num; ++i) {
     SIpRange *pRange = &pWhiteListDual->pIpRanges[i];
-    memcpy(&p->pIpRange[num], &pRange->ipV4, sizeof(SIpV4Range));
+    if (pRange->type == 0) {
+      memcpy(&p->pIpRange[num], &pRange->ipV4, sizeof(SIpV4Range));
+    }
     num++;
   }
   p->num = num;

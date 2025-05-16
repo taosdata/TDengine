@@ -642,27 +642,31 @@ int32_t mndInitUser(SMnode *pMnode) {
 
 void mndCleanupUser(SMnode *pMnode) { ipWhiteMgtCleanup(); }
 
-static void ipRangeToStr(SIpV4Range *range, char *buf) {
-  struct in_addr addr;
-  addr.s_addr = range->ip;
-#ifndef TD_ASTRA
-  (void)uv_inet_ntop(AF_INET, &addr, buf, 32);
-  if (range->mask != 32) {
-    (void)tsnprintf(buf + strlen(buf), 36 - strlen(buf), "/%d", range->mask);
-  }
-#endif
-  return;
-}
 static bool isDefaultRange(SIpRange *pRange) {
-  // SIpAddr addr4 = {.type = 0;
-  // .ipv4 = {.ip = 16777343, .mask = 32 }
-  return true;
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  SIpAddr  addr4 = {.type = 0, .mask = 32};
+  SIpAddr  addr6 = {.type = 1, .mask = 128};
+  SIpRange range4 = {0};
+  SIpRange range6 = {0};
+
+  memcpy(addr4.ipv4, "127.0.0.1", strlen("127.0.0.1"));
+  memcpy(addr6.ipv6, "::1", strlen("::1"));
+
+  code = tIpStrToUint(&addr4, &range4);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = tIpStrToUint(&addr6, &range6);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  if (isIpRangeEqual(pRange, &range4) || (isIpRangeEqual(pRange, &range6))) {
+    return true;
+  }
+_error:
+  return false;
 };
 
-// SIpV4Range val = {.ip = 16777343, .mask = 32};
-// //SIpV4Range       *tRange = (SIpV4Range *)&pRange->ipV4;
-
-// return tRange->ip == val.ip && tRange->mask == val.mask;
 static int32_t ipRangeListToStr(SIpRange *range, int32_t num, char *buf, int64_t bufLen) {
   int32_t len = 0;
   for (int i = 0; i < num; i++) {
