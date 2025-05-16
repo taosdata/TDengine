@@ -160,8 +160,6 @@ static void releaseStreamReaderInfo(void* p) {
   pInfo->streamTaskMap = NULL;
   nodesDestroyNode((SNode*)(pInfo->triggerAst));
   nodesDestroyNode((SNode*)(pInfo->calcAst));
-  nodesDestroyList(pInfo->triggerCols);
-  nodesDestroyList(pInfo->calcCols);
   blockDataDestroy(pInfo->triggerResBlock);
   blockDataDestroy(pInfo->calcResBlock);
   taosMemoryFree(pInfo->triggerSchema);
