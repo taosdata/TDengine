@@ -62,7 +62,7 @@ datasets:
         
         (12) tag::VARCHAR(200)::name: Multiple tag columns are optional or configurable. The Tag column corresponding to the data point in TDengine; tag is reserved keyword, indicating that the column is a tag column. VARCHAR(200) indicates the type of the tag, or any other valid type. name is the column name of the tag.
         
-        For more rules, please refer to the <a target="_blank" href="/docs-en/enterprise/datain/opcda">enterprise version document</a>.
+        For more rules, please refer to the <a target="_blank" href="/docs/advanced/data-in/opcda/">enterprise version document</a>.
       target:
         name: csv_config_file
         description: |
