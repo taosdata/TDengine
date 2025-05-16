@@ -1,4 +1,3 @@
-# Stage 1: Build Stage
 FROM python:3.9 AS builder
 
 # 设置工作目录
@@ -28,12 +27,7 @@ RUN apt-key adv --keyserver hkp://pgpkeys.eu --recv-keys 3B4FE6ACC0B21F32 \
         libjansson-dev  zlib1g pkg-config build-essential valgrind rsync vim \
         libjemalloc-dev openssh-server screen sshpass net-tools dirmngr gnupg \
         apt-transport-https ca-certificates software-properties-common iputils-ping \
-        r-base r-base-dev clang-tools-16 wget lcov \
-        && wget https://packages.microsoft.com/config/ubuntu/18.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb \
-        && dpkg -i packages-microsoft-prod.deb \
-        && rm packages-microsoft-prod.deb \
-        && apt-get update \
-        && apt-get install -y  dotnet-sdk-6.0 \
+        wget lcov \
     && sed -i 's/# en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen \
     && locale-gen \
     && rm -rf /var/lib/apt/lists/* 
