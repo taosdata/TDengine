@@ -1734,6 +1734,11 @@ _return:
   if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST && (pStmt->bInfo.tbNameFlag & NO_DATA_USING_CLAUSE) == 0x0) {
     code = TSDB_CODE_TSC_STMT_TBNAME_ERROR;
   }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    taos_free_result(pStmt->exec.pRequest);
+    pStmt->exec.pRequest = NULL;
+  }
   pStmt->errCode = preCode;
 
   return code;
@@ -1777,6 +1782,11 @@ int stmtGetColFields(TAOS_STMT* stmt, int* nums, TAOS_FIELD_E** fields) {
 
 _return:
 
+  if (code != TSDB_CODE_SUCCESS) {
+    taos_free_result(pStmt->exec.pRequest);
+    pStmt->exec.pRequest = NULL;
+  }
+
   pStmt->errCode = preCode;
 
   return code;
@@ -1818,6 +1828,11 @@ int stmtGetParamNum(TAOS_STMT* stmt, int* nums) {
   }
 
 _return:
+
+  if (code != TSDB_CODE_SUCCESS) {
+    taos_free_result(pStmt->exec.pRequest);
+    pStmt->exec.pRequest = NULL;
+  }
 
   pStmt->errCode = preCode;
 
@@ -1869,6 +1884,11 @@ int stmtGetParam(TAOS_STMT* stmt, int idx, int* type, int* bytes) {
   *bytes = calcSchemaBytesFromTypeBytes(pField[idx].type, pField[idx].bytes, true);
 
 _return:
+
+  if (code != TSDB_CODE_SUCCESS) {
+    taos_free_result(pStmt->exec.pRequest);
+    pStmt->exec.pRequest = NULL;
+  }
 
   taosMemoryFree(pField);
   pStmt->errCode = preCode;

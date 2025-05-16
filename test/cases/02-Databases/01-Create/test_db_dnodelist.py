@@ -8,9 +8,11 @@ class TestDatabaseDnodeList:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_dnode_list(self):
-        """create db use dnodelist
+        """create database use dnodelist option
 
-        1. -
+        1. create database with dnodelist option
+        2. test the creation with different numbers of replicas and vgroups
+        3. alter database dnodelist option
 
         Catalog:
             - Database:Create
@@ -22,7 +24,7 @@ class TestDatabaseDnodeList:
         Jira: None
 
         History:
-            - 2025-4-30 Simon Guan Migrated from tsim/db/dnodelist.sim
+            - 2025-5-12 Simon Guan Migrated from tsim/db/dnodelist.sim
 
         """
 

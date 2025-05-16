@@ -1590,11 +1590,13 @@ void* transInitServer(SIpAddr* addr, char* label, int numOfThreads, void* fp, vo
     goto End;
   }
 
-  // if (false == taosValidIpAndPort(srv->ip, srv->port)) {
-  //   code = TAOS_SYSTEM_ERROR(ERRNO);
-  //   tError("invalid ip/port, %d:%d since %s", srv->ip, srv->port, terrstr());
-  //   goto End;
-  // }
+  if (false == taosValidIpAndPort(srv->ip, srv->port)) {
+    code = TAOS_SYSTEM_ERROR(ERRNO);
+    tError("invalid ip/port, %d:%d since %s", srv->ip, srv->port, terrstr());
+    code = 0;
+    terrno = 0;
+  }
+
   char pipeName[PATH_MAX];
 
 #if defined(WINDOWS) || defined(DARWIN)
@@ -1962,8 +1964,8 @@ int32_t transReleaseSrvHandle(void* handle, int32_t status) {
   m->msg = tmsg;
   m->type = Normal;
 
-  tDebug("%s conn:%p, start to send %s, sid:%" PRId64, transLabel(pThrd->pInst), exh->handle,
-         TMSG_INFO(tmsg.msgType), qId);
+  tDebug("%s conn:%p, start to send %s, sid:%" PRId64, transLabel(pThrd->pInst), exh->handle, TMSG_INFO(tmsg.msgType),
+         qId);
   if ((code = transAsyncSend(pThrd->asyncPool, &m->q)) != 0) {
     destroySmsg(m);
     transReleaseExHandle(info->refIdMgt, refId);

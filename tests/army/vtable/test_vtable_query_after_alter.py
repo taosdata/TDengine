@@ -21,7 +21,6 @@ from frame.common import *
 import time
 
 class TDTestCase(TBase):
-
     def prepare_org_tables(self):
         tdLog.info(f"prepare org tables.")
 
@@ -211,13 +210,19 @@ class TDTestCase(TBase):
                       f"nchar_16_col from vtb_org_child_1.nchar_16_col,"
                       f"nchar_32_col from vtb_org_child_2.nchar_32_col)"
                       f"USING `vtb_virtual_stb` TAGS (3, false, 3, 3, 'child3', 'child3')")
-
     def check_row_and_col(self, table_name, rows, cols):
         tdSql.query(f"select * from {table_name};")
         tdSql.checkRows(rows)
         tdSql.checkCols(cols)
 
+    def check_row_and_col_on_new_client(self, table_name, rows, cols):
+        self.newTdSql.query(f"select * from {table_name};")
+        self.newTdSql.checkRows(rows)
+        self.newTdSql.checkCols(cols)
+
     def test_virtual_stable_and_child_table(self):
+        self.newTdSql = tdCom.newTdSql()
+        self.newTdSql.execute("use test_vtable_select_after_alter;")
         tdSql.execute("use test_vtable_select_after_alter;")
         self.check_row_and_col("vtb_virtual_ctb_full", 23333, 16)
         self.check_row_and_col("vtb_virtual_ctb_half_full", 23333, 16)
@@ -225,6 +230,11 @@ class TDTestCase(TBase):
         self.check_row_and_col("vtb_virtual_ctb_mix", 23333, 16)
         self.check_row_and_col("vtb_virtual_stb", 23333 * 3, 22)
 
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_full", 23333, 16)
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_half_full", 23333, 16)
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_empty", 0, 16)
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_mix", 23333, 16)
+        self.check_row_and_col_on_new_client("vtb_virtual_stb", 23333 * 3, 22)
 
         tdSql.execute("alter stable vtb_virtual_stb drop column u_smallint_col;")
         self.check_row_and_col("vtb_virtual_ctb_full", 23333, 15)
@@ -233,12 +243,25 @@ class TDTestCase(TBase):
         self.check_row_and_col("vtb_virtual_ctb_mix", 23333, 15)
         self.check_row_and_col("vtb_virtual_stb", 23333 * 3, 21)
 
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_full", 23333, 15)
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_half_full", 23333, 15)
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_empty", 0, 15)
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_mix", 23333, 15)
+        self.check_row_and_col_on_new_client("vtb_virtual_stb", 23333 * 3, 21)
+
         tdSql.execute("alter stable vtb_virtual_stb add column u_smallint_col smallint unsigned;")
         self.check_row_and_col("vtb_virtual_ctb_full", 23333, 16)
         self.check_row_and_col("vtb_virtual_ctb_half_full", 23333, 16)
         self.check_row_and_col("vtb_virtual_ctb_empty", 0, 16)
         self.check_row_and_col("vtb_virtual_ctb_mix", 23333, 16)
         self.check_row_and_col("vtb_virtual_stb", 23333 * 3, 22)
+
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_full", 23333, 16)
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_half_full", 23333, 16)
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_empty", 0, 16)
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_mix", 23333, 16)
+        self.check_row_and_col_on_new_client("vtb_virtual_stb", 23333 * 3, 22)
+
 
         tdSql.execute("alter vtable vtb_virtual_ctb_full alter column u_smallint_col set vtb_org_normal_1.u_smallint_col;")
         tdSql.execute("alter vtable vtb_virtual_ctb_half_full alter column u_smallint_col set vtb_org_normal_1.u_smallint_col;")
@@ -248,6 +271,11 @@ class TDTestCase(TBase):
         self.check_row_and_col("vtb_virtual_ctb_empty", 0, 16)
         self.check_row_and_col("vtb_virtual_ctb_mix", 23333, 16)
         self.check_row_and_col("vtb_virtual_stb", 23333 * 3, 22)
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_full", 23333, 16)
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_half_full", 23333, 16)
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_empty", 0, 16)
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_mix", 23333, 16)
+        self.check_row_and_col_on_new_client("vtb_virtual_stb", 23333 * 3, 22)
 
         tdSql.execute("alter stable vtb_virtual_stb add column u_smallint_col_new smallint unsigned;")
         self.check_row_and_col("vtb_virtual_ctb_full", 23333, 17)
@@ -255,6 +283,12 @@ class TDTestCase(TBase):
         self.check_row_and_col("vtb_virtual_ctb_empty", 0, 17)
         self.check_row_and_col("vtb_virtual_ctb_mix", 23333, 17)
         self.check_row_and_col("vtb_virtual_stb", 23333 * 3, 23)
+
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_full", 23333, 17)
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_half_full", 23333, 17)
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_empty", 0, 17)
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_mix", 23333, 17)
+        self.check_row_and_col_on_new_client("vtb_virtual_stb", 23333 * 3, 23)
 
         tdSql.execute("alter vtable vtb_virtual_ctb_full alter column u_smallint_col_new set vtb_org_normal_1.u_smallint_col;")
         tdSql.execute("alter vtable vtb_virtual_ctb_half_full alter column u_smallint_col_new set vtb_org_normal_1.u_smallint_col;")
@@ -264,6 +298,13 @@ class TDTestCase(TBase):
         self.check_row_and_col("vtb_virtual_ctb_empty", 0, 17)
         self.check_row_and_col("vtb_virtual_ctb_mix", 23333, 17)
         self.check_row_and_col("vtb_virtual_stb", 23333 * 3, 23)
+
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_full", 23333, 17)
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_half_full", 23333, 17)
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_empty", 0, 17)
+        self.check_row_and_col_on_new_client("vtb_virtual_ctb_mix", 23333, 17)
+        self.check_row_and_col_on_new_client("vtb_virtual_stb", 23333 * 3, 23)
+
 
     def test_virtual_normal_table(self):
         tdSql.execute("use test_vtable_select_after_alter;")
