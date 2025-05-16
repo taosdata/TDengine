@@ -39,6 +39,7 @@ typedef struct SXnode SXnode;
 typedef struct {
   SMsgCb  msgCb;
   int32_t dnodeId;
+  int32_t proto;
 } SXnodeOpt;
 
 /* ------------------------ SXnode ------------------------ */

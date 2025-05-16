@@ -27,6 +27,7 @@ int32_t xndOpen(const SXnodeOpt *pOption, SXnode **pXnode) {
 
   (*pXnode)->msgCb = pOption->msgCb;
   (*pXnode)->dnodeId = pOption->dnodeId;
+  (*pXnode)->protocol = (int8_t)pOption->proto;
 
   // TODO: read config & start taosmqtt
   if ((code = mqttMgmtStartMqttd((*pXnode)->dnodeId)) != 0) {
