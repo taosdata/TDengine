@@ -1779,13 +1779,13 @@ int32_t tDeserializeSRetrieveMountPathReq(void* buf, int32_t bufLen, SRetrieveMo
 
 typedef struct {
   int32_t vgId;
-  SArray* pStb;
 } SMountVgInfo;
 
 typedef struct {
   char    dbName[TSDB_DB_FNAME_LEN];
   int64_t dbId;
   SArray* pVg;
+  SArray* pStb;
 } SMountDbInfo;
 
 typedef struct {

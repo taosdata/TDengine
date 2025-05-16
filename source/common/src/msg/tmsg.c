@@ -6182,7 +6182,7 @@ int32_t tSerializeSMountInfo(void *buf, int32_t bufLen, SMountInfo *pInfo) {
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pInfo->mountName));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pInfo->mountUid));
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pInfo->dnodeId));
-  TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t*)pInfo->pVal, pInfo->valLen));
+  TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pInfo->pVal, pInfo->valLen));
   nDb = taosArrayGetSize(pInfo->pDb);
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nDb));
   for (int32_t i = 0; i < nDb; ++i) {
@@ -6194,13 +6194,13 @@ int32_t tSerializeSMountInfo(void *buf, int32_t bufLen, SMountInfo *pInfo) {
     for (int32_t j = 0; j < nVg; ++j) {
       SMountVgInfo *pVgInfo = TARRAY_GET_ELEM(pDbInfo->pVg, j);
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->vgId));
-      nStb = taosArrayGetSize(pVgInfo->pStb);
-      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nStb));
-      for (int32_t k = 0; k < nStb; ++k) {
-        // SMountStbInfo *pTblInfo = TARRAY_GET_ELEM(pVgInfo->pStb, k);
-        // TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pTblInfo->tblName));
-        // TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pTblInfo->tblUid));
-      }
+    }
+    nStb = taosArrayGetSize(pDbInfo->pStb);
+    TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nStb));
+    for (int32_t k = 0; k < nStb; ++k) {
+      // SMountStbInfo *pTblInfo = TARRAY_GET_ELEM(pVgInfo->pStb, k);
+      // TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pTblInfo->tblName));
+      // TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pTblInfo->tblUid));
     }
   }
 
@@ -6240,16 +6240,16 @@ int32_t tDeserializeSMountInfo(void *buf, int32_t bufLen, SMountInfo *pInfo) {
         for (int32_t j = 0; j < nVg; ++j) {
           SMountVgInfo *pVgInfo = TARRAY_GET_ELEM(pDbInfo->pVg, j);
           TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pVgInfo->vgId));
-          TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nStb));
-          if (nStb > 0) {
-            // TSDB_CHECK_NULL((pVgInfo->pStb = taosArrayInit_s(sizeof(SMountStbInfo), nStb)), code, lino, _exit,
-            //                 terrno);
-            for (int32_t k = 0; k < nStb; ++k) {
-              // SMountStbInfo *pTblInfo = TARRAY_GET_ELEM(pVgInfo->pStb, k);
-              // TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pTblInfo->tblName));
-              // TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pTblInfo->tblUid));
-            }
-          }
+        }
+      }
+     TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nStb));
+      if (nStb > 0) {
+        // TSDB_CHECK_NULL((pVgInfo->pStb = taosArrayInit_s(sizeof(SMountStbInfo), nStb)), code, lino, _exit,
+        //                 terrno);
+        for (int32_t k = 0; k < nStb; ++k) {
+          // SMountStbInfo *pTblInfo = TARRAY_GET_ELEM(pVgInfo->pStb, k);
+          // TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pTblInfo->tblName));
+          // TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pTblInfo->tblUid));
         }
       }
     }

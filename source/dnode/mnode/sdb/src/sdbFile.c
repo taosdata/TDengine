@@ -28,6 +28,8 @@
 #define SDB_TABLE_SIZE_EXTRA   SDB_MAX
 #define SDB_RESERVE_SIZE_EXTRA (512 - (SDB_TABLE_SIZE_EXTRA - SDB_TABLE_SIZE) * 2 * sizeof(int64_t))
 
+typedef int32_t (*__sdb_raw_fn_t)(SSdb *pSdb, SSdbRaw *pRaw);
+
 static int32_t sdbDeployData(SSdb *pSdb) {
   int32_t code = 0;
   mInfo("start to deploy sdb");
@@ -288,7 +290,9 @@ static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
   return 0;
 }
 
-static int32_t sdbReadFileImp(SSdb *pSdb) {
+
+
+static int32_t sdbReadFileImp(SSdb *pSdb, __sdb_raw_fn_t fp, int32_t encryptAlgo, int32_t encryptScope, char* encryptKey) {
   int64_t offset = 0;
   int32_t code = 0;
   int32_t readLen = 0;
@@ -328,6 +332,11 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
   int64_t tableVer[SDB_MAX] = {0};
   memcpy(tableVer, pSdb->tableVer, sizeof(tableVer));
 
+  bool isEncrypt = false;
+  if (encryptAlgo == DND_CA_SM4 && (encryptScope & DND_CS_SDB) == DND_CS_SDB) {
+    isEncrypt = true;
+  }
+
   while (1) {
     readLen = sizeof(SSdbRaw);
     ret = taosReadFile(pFile, pRaw, readLen);
@@ -346,7 +355,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
     }
 
     readLen = pRaw->dataLen + sizeof(int32_t);
-    if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB) {
+    if (isEncrypt) {
       readLen = ENCRYPTED_LEN(pRaw->dataLen) + sizeof(int32_t);
     }
     if (readLen >= bufLen) {
@@ -376,7 +385,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       goto _OVER;
     }
 
-    if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB) {
+    if (isEncrypt) {
       int32_t count = 0;
 
       char *plantContent = taosMemoryMalloc(ENCRYPTED_LEN(pRaw->dataLen));
@@ -390,7 +399,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       opts.source = pRaw->pData;
       opts.result = plantContent;
       opts.unitLen = 16;
-      tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+      tstrncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN + 1);
 
       count = CBC_Decrypt(&opts);
 
@@ -413,7 +422,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       continue;
     }
 
-    code = sdbWriteWithoutFree(pSdb, pRaw);
+    code = fp(pSdb, pRaw);
     if (code != 0) {
       mError("failed to exec sdbWrite while read sdb file:%s since %s", file, terrstr());
       goto _OVER;
@@ -441,7 +450,7 @@ int32_t sdbReadFile(SSdb *pSdb) {
   (void)taosThreadMutexLock(&pSdb->filelock);
 
   sdbResetData(pSdb);
-  int32_t code = sdbReadFileImp(pSdb);
+  int32_t code = sdbReadFileImp(pSdb, sdbWriteWithoutFree, tsiEncryptAlgorithm, tsiEncryptScope, tsEncryptKey);
   if (code != 0) {
     mError("failed to read sdb file since %s", tstrerror(code));
     sdbResetData(pSdb);
