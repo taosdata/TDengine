@@ -3372,13 +3372,13 @@ _err:
 static int32_t getIpRangeFromStr(char* ipRange, SIpRange* pIpRange) {
   int32_t code = 0;
 
-  int8_t isIp6 = ((strchr(ipRange, ':')) != NULL ? 0 : 1);
+  int8_t isIp6 = ((strchr(ipRange, ':')) != NULL ? 1 : 0);
   if (isIp6) {
     struct in6_addr ip6;
     if (inet_pton(AF_INET6, ipRange, &ip6) == 1) {
       pIpRange->type = 1;
-      memcpy(pIpRange->ipV6.addr, ip6.s6_addr, 8);
-      memcpy(pIpRange->ipV6.addr + 8, ip6.s6_addr + 8, 8);
+      memcpy(&pIpRange->ipV6.addr[0], ip6.s6_addr, 8);
+      memcpy(&pIpRange->ipV6.addr[1], ip6.s6_addr + 8, 8);
 
     } else {
       return TSDB_CODE_PAR_INVALID_IP_RANGE;

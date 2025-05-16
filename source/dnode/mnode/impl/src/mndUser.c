@@ -654,10 +654,14 @@ static void ipRangeToStr(SIpV4Range *range, char *buf) {
   return;
 }
 static bool isDefaultRange(SIpRange *pRange) {
-  static SIpV4Range val = {.ip = 16777343, .mask = 32};
-  SIpV4Range       *tRange = (SIpV4Range *)&pRange->ipV4;
+  SIpAddr addr4 = {.type = 0;
+  .ipv4 = {.ip = 16777343, .mask = 32 }
+};
 
-  return tRange->ip == val.ip && tRange->mask == val.mask;
+// SIpV4Range val = {.ip = 16777343, .mask = 32};
+// //SIpV4Range       *tRange = (SIpV4Range *)&pRange->ipV4;
+
+// return tRange->ip == val.ip && tRange->mask == val.mask;
 }
 static int32_t ipRangeListToStr(SIpRange *range, int32_t num, char *buf, int64_t bufLen) {
   int32_t len = 0;
@@ -666,7 +670,7 @@ static int32_t ipRangeListToStr(SIpRange *range, int32_t num, char *buf, int64_t
     SIpAddr   addr = {0};
     tIpUintToStr(pRange, &addr);
 
-    len += tsnprintf(buf + len, bufLen - len, "%s,", IP_ADDR_STR(&addr));
+    len += tsnprintf(buf + len, bufLen - len, "%s/%d,", IP_ADDR_STR(&addr), addr.mask);
   }
   if (len > 0) buf[len - 1] = 0;
   return len;
@@ -677,6 +681,24 @@ static bool isIpRangeEqual(SIpRange *a, SIpRange *b) {
   if (a->type != b->type) {
     return false;
   }
+  if (a->type == 0) {
+    SIpV4Range *aP4 = &a->ipV4;
+    SIpV4Range *bP4 = &b->ipV4;
+    if (aP4->ip != bP4->ip || aP4->mask != bP4->mask) {
+      return false;
+    } else {
+      return true;
+    }
+  } else {
+    SIpV6Range *aP6 = &a->ipV6;
+    SIpV6Range *bP6 = &b->ipV6;
+    if (aP6->addr[0] != bP6->addr[0] || aP6->addr[1] != bP6->addr[1] || aP6->mask != bP6->mask) {
+      return false;
+    } else {
+      return true;
+    }
+  }
+
   return true;
 }
 static bool isRangeInIpWhiteList(SIpWhiteListDual *pList, SIpRange *tgt) {
