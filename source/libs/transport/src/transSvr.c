@@ -81,8 +81,7 @@ typedef struct SSvrRespMsg {
 
 typedef struct {
   int64_t       ver;
-  SIpWhiteList* pList;
-  // SArray* list;
+  SIpWhiteListDual* pList;
 
 } SWhiteUserList;
 typedef struct {
@@ -134,10 +133,10 @@ typedef struct SServerObj {
 
 SIpWhiteListTab* uvWhiteListCreate();
 void             uvWhiteListDestroy(SIpWhiteListTab* pWhite);
-int32_t          uvWhiteListAdd(SIpWhiteListTab* pWhite, char* user, SIpWhiteList* pList, int64_t ver);
+int32_t          uvWhiteListAdd(SIpWhiteListTab* pWhite, char* user, SIpWhiteListDual* pList, int64_t ver);
 void             uvWhiteListUpdate(SIpWhiteListTab* pWhite, SHashObj* pTable);
 bool             uvWhiteListCheckConn(SIpWhiteListTab* pWhite, SSvrConn* pConn);
-bool             uvWhiteListFilte(SIpWhiteListTab* pWhite, char* user, uint32_t ip, int64_t ver);
+bool             uvWhiteListFilte(SIpWhiteListTab* pWhite, char* user, SIpAddr* pIp, int64_t ver);
 void             uvWhiteListSetConnVer(SIpWhiteListTab* pWhite, SSvrConn* pConn);
 
 static void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
@@ -227,19 +226,24 @@ static void uvHandleActivityTimeout(uv_timer_t* handle) {
   tDebug("%p timeout since no activity", conn);
 }
 
-static bool uvCheckIp(SIpRange* pRange, int32_t ip) {
+static bool uvCheckIp(SIpRange* pRange, SIpAddr* ip) {
   // impl later
-  SubnetUtils subnet = {0};
+  SIpRange ipUint = {0};
+  if (tIpStrToUint(ip, &ipUint) != 0) {
+    return false;
+  }
   if (pRange->type == 0) {
-    SIpV4Range range4 = pRange->ipV4;
+    SubnetUtils subnet = {0};
+    SIpV4Range  range4 = pRange->ipV4;
     if (subnetInit(&subnet, &range4) != 0) {
       return false;
     }
+    return subnetCheckIp(&subnet, ipUint.ipV4.ip);
   } else if (pRange->type == 1) {
     return true;
   }
 
-  return subnetCheckIp(&subnet, ip);
+  return false;
 }
 SIpWhiteListTab* uvWhiteListCreate() {
   SIpWhiteListTab* pWhiteList = taosMemoryCalloc(1, sizeof(SIpWhiteListTab));
@@ -310,7 +314,7 @@ void uvWhiteListDebug(SIpWhiteListTab* pWrite) {
     pIter = taosHashIterate(pWhiteList, pIter);
   }
 }
-int32_t uvWhiteListAdd(SIpWhiteListTab* pWhite, char* user, SIpWhiteList* plist, int64_t ver) {
+int32_t uvWhiteListAdd(SIpWhiteListTab* pWhite, char* user, SIpWhiteListDual* plist, int64_t ver) {
   int32_t   code = 0;
   SHashObj* pWhiteList = pWhite->pList;
 
@@ -341,22 +345,33 @@ int32_t uvWhiteListAdd(SIpWhiteListTab* pWhite, char* user, SIpWhiteList* plist,
   return 0;
 }
 
-void uvWhiteListUpdate(SIpWhiteListTab* pWhite, SHashObj* pTable) {
-  pWhite->ver++;
-  // impl later
+static bool uvWhiteListIsDefaultAddr(SIpAddr* ip) {
+  // 127.0.0.1
+
+  SIpAddr addr4 = {.type = 0, .mask = 32};
+  SIpAddr addr6 = {.type = 1, .mask = 128};
+
+  memcpy(addr4.ipv4, "127.0.0.1", strlen("127.0.0.1"));
+  memcpy(addr6.ipv6, "::1", strlen("::1"));
+
+  if (ip->type == 0) {
+    if (strlen(ip->ipv4) == strlen(addr4.ipv4) && strcmp(ip->ipv4, addr4.ipv4) == 0) {
+      return true;
+    }
+  } else if (ip->type == 1) {
+    if (strlen(ip->ipv6) == strlen(addr6.ipv6) && strcmp(ip->ipv6, addr6.ipv6) == 0) {
+      return true;
+    }
+  }
+  return false;
 }
 
-static bool uvWhiteListIsDefaultAddr(uint32_t ip) {
-  // 127.0.0.1
-  static SIpV4Range range = {.ip = 16777343, .mask = 32};
-  return range.ip == ip;
-}
-bool uvWhiteListFilte(SIpWhiteListTab* pWhite, char* user, uint32_t ip, int64_t ver) {
+bool uvWhiteListFilte(SIpWhiteListTab* pWhite, char* user, SIpAddr* pIp, int64_t ver) {
   // impl check
   SHashObj* pWhiteList = pWhite->pList;
   bool      valid = false;
 
-  if (uvWhiteListIsDefaultAddr(ip)) return true;
+  if (uvWhiteListIsDefaultAddr(pIp)) return true;
 
   SWhiteUserList** ppList = taosHashGet(pWhiteList, user, strlen(user));
   if (ppList == NULL || *ppList == NULL) {
@@ -365,12 +380,10 @@ bool uvWhiteListFilte(SIpWhiteListTab* pWhite, char* user, uint32_t ip, int64_t 
   SWhiteUserList* pUserList = *ppList;
   if (pUserList->ver == ver) return true;
 
-  SIpWhiteList* pIpWhiteList = pUserList->pList;
+  SIpWhiteListDual* pIpWhiteList = pUserList->pList;
   for (int i = 0; i < pIpWhiteList->num; i++) {
-    SIpV4Range* v4 = &pIpWhiteList->pIpRange[i];
-
-    SIpRange range = {.type = 0, .ipV4 = *v4};
-    if (uvCheckIp(&range, ip)) {
+    SIpRange* pRange = &pIpWhiteList->pIpRanges[i];
+    if (uvCheckIp(pRange, pIp)) {
       valid = true;
       break;
     }
@@ -383,7 +396,7 @@ bool uvWhiteListCheckConn(SIpWhiteListTab* pWhite, SSvrConn* pConn) {
       pWhite->ver == pConn->whiteListVer /*|| strncmp(pConn->user, "_dnd", strlen("_dnd")) == 0*/)
     return true;
 
-  return uvWhiteListFilte(pWhite, pConn->user, 0, pConn->whiteListVer);
+  return uvWhiteListFilte(pWhite, pConn->user, &pConn->clientIp, pConn->whiteListVer);
 }
 void uvWhiteListSetConnVer(SIpWhiteListTab* pWhite, SSvrConn* pConn) {
   // if conn already check by current whiteLis
@@ -1085,11 +1098,13 @@ void uvGetSockInfo(struct sockaddr* addr, SIpAddr* ip) {
     inet_ntop(AF_INET, &addr_in->sin_addr, ip->ipv4, INET_ADDRSTRLEN);
     ip->type = 0;
     ip->port = ntohs(addr_in->sin_port);
+    ip->mask = 32;
   } else if (addr->sa_family == AF_INET6) {
     struct sockaddr_in6* addr_in = (struct sockaddr_in6*)addr;
     ip->port = ntohs(addr_in->sin6_port);
     inet_ntop(AF_INET6, &addr_in->sin6_addr, ip->ipv6, INET6_ADDRSTRLEN);
     ip->type = 1;
+    ip->mask = 128;
   }
 }
 void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
@@ -1803,14 +1818,14 @@ void uvHandleUpdate(SSvrRespMsg* msg, SWorkThrd* thrd) {
 
     int32_t sz = pUser->numOfRange * sizeof(SIpRange);
 
-    SIpWhiteList* pList = taosMemoryCalloc(1, sz + sizeof(SIpWhiteList));
+    SIpWhiteListDual* pList = taosMemoryCalloc(1, sz + sizeof(SIpWhiteListDual));
     if (pList == NULL) {
       tError("failed to create ip-white-list since %s", tstrerror(code));
       code = terrno;
       break;
     }
     pList->num = pUser->numOfRange;
-    memcpy(pList->pIpRange, pUser->pIpRanges, sz);
+    memcpy(pList->pIpRanges, pUser->pIpDualRanges, sz);
     code = uvWhiteListAdd(thrd->pWhiteList, pUser->user, pList, pUser->ver);
     if (code != 0) {
       break;

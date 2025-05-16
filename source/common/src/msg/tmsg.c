@@ -2422,13 +2422,13 @@ int32_t cloneSUpdateIpWhiteReq(SUpdateIpWhite *pReq, SUpdateIpWhite **pUpdateMsg
     memcpy(pNew->user, pOld->user, strlen(pOld->user));
     pNew->numOfRange = pOld->numOfRange;
 
-    int32_t sz = pOld->numOfRange * sizeof(SIpV4Range);
-    pNew->pIpRanges = taosMemoryCalloc(1, sz);
+    int32_t sz = pOld->numOfRange * sizeof(SIpRange);
+    pNew->pIpDualRanges = taosMemoryCalloc(1, sz);
     if (pNew->pIpRanges == NULL) {
       code = terrno;
       break;
     }
-    memcpy(pNew->pIpRanges, pOld->pIpRanges, sz);
+    memcpy(pNew->pIpDualRanges, pOld->pIpDualRanges, sz);
   }
 _return:
   if (code < 0) {

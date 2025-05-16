@@ -890,26 +890,25 @@ int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) {
   return len;
 }
 
-int32_t transUtilSWhiteListToStr(SIpWhiteList* pList, char** ppBuf) {
+int32_t transUtilSWhiteListToStr(SIpWhiteListDual* pList, char** ppBuf) {
   int32_t code = 0;
-  if (pList->num == 0) {
-    *ppBuf = NULL;
-    return 0;
-  }
+  int32_t lino = 0;
 
   int32_t len = 0;
+  if (pList->num == 0) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_PARA, lino, _error);
+  }
+
   char*   pBuf = taosMemoryCalloc(1, pList->num * IP_RESERVE_CAP);
   if (pBuf == NULL) {
-    return terrno;
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
 
   for (int i = 0; i < pList->num; i++) {
-    SIpV4Range* v4 = &pList->pIpRange[i];
-
-    SIpRange  range = {.type = 0, .ipV4 = *v4};
+    SIpRange* pRange = &pList->pIpRanges[i];
     SIpAddr   addr = {0};
-
-    code = tIpUintToStr(&range, &addr);
+    code = tIpUintToStr(pRange, &addr);
+    TSDB_CHECK_CODE(code, lino, _error);
 
     len += sprintf(pBuf + len, "%s,", IP_ADDR_STR(&addr));
   }
@@ -918,13 +917,37 @@ int32_t transUtilSWhiteListToStr(SIpWhiteList* pList, char** ppBuf) {
   }
 
   *ppBuf = pBuf;
+_error:
+  if (code != 0) {
+    taosMemoryFree(pBuf);
+    *ppBuf = NULL;
+  }
+
   return len;
 }
 
-// int32_t transGenRandomError(int32_t status) {
-//   STUB_RAND_NETWORK_ERR(status)
-//   return status;
-// }
+bool transUtilCheckIpDual(SIpRange* range, SIpRange* ip) {
+  SIpV6Range* p6 = &range->ipV6;
+  SIpV6Range* pIp = &ip->ipV6;
+
+  if (p6->mask == 0) {
+    return true;
+  } else if (p6->mask == 128) {
+    return p6->addr[0] == pIp->addr[0] && p6->addr[1] == pIp->addr[1];
+  }
+
+  uint64_t maskHigh = 0, maskLow = 0;
+  if (p6->mask <= 64) {
+    maskHigh = (0xFFFFFFFFFFFFFFFFULL << (64 - p6->mask));
+    maskLow = 0;
+  } else {
+    maskHigh = 0xFFFFFFFFFFFFFFFFULL;
+    maskLow = (0xFFFFFFFFFFFFFFFFULL << (128 - p6->mask));
+  }
+
+  return ((pIp->addr[0] & maskHigh) == (p6->addr[0] & maskHigh)) &&
+         ((pIp->addr[1] & maskLow) == (p6->addr[1] & maskLow));
+}
 
 int32_t initWQ(queue* wq) {
   int32_t code = 0;

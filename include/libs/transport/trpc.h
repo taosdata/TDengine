@@ -188,7 +188,7 @@ int32_t rpcSetIpWhite(void *thandl, void *arg);
 
 int32_t rpcUtilSIpRangeToStr(SIpV4Range *pRange, char *buf);
 
-int32_t rpcUtilSWhiteListToStr(SIpWhiteList *pWhiteList, char **ppBuf);
+int32_t rpcUtilSWhiteListToStr(SIpWhiteListDual *pWhiteList, char **ppBuf);
 int32_t rpcCvtErrCode(int32_t code);
 
 #else

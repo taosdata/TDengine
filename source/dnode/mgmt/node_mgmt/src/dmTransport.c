@@ -91,7 +91,7 @@ static int32_t dmConvertErrCode(tmsg_t msgType, int32_t code) {
 static void dmUpdateRpcIpWhite(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
   int32_t        code = 0;
   SUpdateIpWhite ipWhite = {0};  // aosMemoryCalloc(1, sizeof(SUpdateIpWhite));
-  code = tDeserializeSUpdateIpWhite(pRpc->pCont, pRpc->contLen, &ipWhite);
+  code = tDeserializeSUpdateIpWhiteDual(pRpc->pCont, pRpc->contLen, &ipWhite);
   if (code < 0) {
     dError("failed to update rpc ip-white since: %s", tstrerror(code));
     return;
