@@ -654,15 +654,15 @@ static void ipRangeToStr(SIpV4Range *range, char *buf) {
   return;
 }
 static bool isDefaultRange(SIpRange *pRange) {
-  SIpAddr addr4 = {.type = 0;
-  .ipv4 = {.ip = 16777343, .mask = 32 }
+  // SIpAddr addr4 = {.type = 0;
+  // .ipv4 = {.ip = 16777343, .mask = 32 }
+  return true;
 };
 
 // SIpV4Range val = {.ip = 16777343, .mask = 32};
 // //SIpV4Range       *tRange = (SIpV4Range *)&pRange->ipV4;
 
 // return tRange->ip == val.ip && tRange->mask == val.mask;
-}
 static int32_t ipRangeListToStr(SIpRange *range, int32_t num, char *buf, int64_t bufLen) {
   int32_t len = 0;
   for (int i = 0; i < num; i++) {
