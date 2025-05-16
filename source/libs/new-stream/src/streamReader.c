@@ -396,14 +396,14 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
     stDebug("triggerScanPlan:%s", (char*)(pMsg->msg.trigger.triggerScanPlan));
     stDebug("calcCacheScanPlan:%s", (char*)(pMsg->msg.trigger.calcCacheScanPlan));
     pTask->info = createStreamReaderInfo(pMsg);
-    stInfo("stream %" PRIx64 " task %" PRIx64 "  in stReaderTaskDeploy, pTask:%p, info:%p", pTask->task.streamId,
-           pTask->task.taskId, pTask, pTask->info);
-
-    STREAM_CHECK_NULL_GOTO(pTask->info, terrno);
+    
   } else {
     stDebug("calcScanPlan:%s", (char*)(pMsg->msg.calc.calcScanPlan));
     pTask->info = createStreamReaderCalcInfo(pMsg);
   }
+  stInfo("stReaderTaskDeploy: stream %" PRIx64 " task %" PRIx64 " pTask:%p, info:%p", pTask->task.streamId,
+    pTask->task.taskId, pTask, pTask->info);
+  STREAM_CHECK_NULL_GOTO(pTask->info, terrno);
 
   pTask->task.status = STREAM_STATUS_INIT;
 
