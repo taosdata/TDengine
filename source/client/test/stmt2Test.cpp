@@ -960,8 +960,8 @@ TEST(stmt2Case, stmt2_stb_insert) {
   }
   // TD-34123 : interlace=0 with fixed tags
   {
-    do_stmt("no-interlcace", taos, &option, "insert into `stmt2_testdb_1`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)",
-            3, 3, 3, false, true);
+    do_stmt("no-interlcace & aync exec", taos, &option,
+            "insert into `stmt2_testdb_1`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)", 3, 3, 3, false, true);
   }
 
   // interlace = 0 & use db]

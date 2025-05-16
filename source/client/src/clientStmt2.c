@@ -323,7 +323,7 @@ static int32_t stmtParseSql(STscStmt2* pStmt) {
   }
 
   STableDataCxt* pTableCtx = *pSrc;
-  if (pStmt->sql.stbInterlaceMode && pTableCtx->pData->pCreateTbReq) {
+  if (pStmt->sql.stbInterlaceMode && pTableCtx->pData->pCreateTbReq && (pStmt->bInfo.tbNameFlag & USING_CLAUSE) == 0) {
     tdDestroySVCreateTbReq(pTableCtx->pData->pCreateTbReq);
     taosMemoryFreeClear(pTableCtx->pData->pCreateTbReq);
     pTableCtx->pData->pCreateTbReq = NULL;
@@ -1329,7 +1329,7 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags, SVCreateTbReq** pCre
 int stmtCheckTags2(TAOS_STMT2* stmt, SVCreateTbReq** pCreateTbReq) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
 
-  STMT_DLOG_E("start to set tbTags");
+  STMT2_TLOG_E("start to clone createTbRequest for fixed tags");
 
   if (pStmt->errCode != TSDB_CODE_SUCCESS) {
     return pStmt->errCode;
