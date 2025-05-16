@@ -150,6 +150,8 @@ void ParameterContext::parse_steps(const YAML::Node& steps_yaml, std::vector<Ste
                 parse_create_database_action(step);
             } else if (step.uses == "actions/create-super-table") {
                 parse_create_super_table_action(step);
+            } else if (step.uses == "actions/create-child-table") {
+                parse_create_child_table_action(step);
             } else if (step.uses == "actions/insert-data") {
                 parse_insert_data_action(step);
             }
@@ -286,6 +288,101 @@ void ParameterContext::parse_create_super_table_action(Step& step) {
 }
 
 
+void ParameterContext::parse_create_child_table_action(Step& step) {
+    if (!step.with["database_info"]) {
+        throw std::runtime_error("Missing required 'database_info' for create-child-table action.");
+    }
+    if (!step.with["super_table_info"]) {
+        throw std::runtime_error("Missing required 'super_table_info' for create-child-table action.");
+    }
+    if (!step.with["child_table_info"]) {
+        throw std::runtime_error("Missing required 'child_table_info' for create-child-table action.");
+    }
+
+    CreateChildTableConfig create_child_config;
+
+    // 解析 connection_info（可选）
+    if (step.with["connection_info"]) {
+        const auto& conn_info = step.with["connection_info"];
+        if (conn_info["host"]) create_child_config.connection_info.host = conn_info["host"].as<std::string>();
+        if (conn_info["port"]) create_child_config.connection_info.port = conn_info["port"].as<int>();
+        if (conn_info["user"]) create_child_config.connection_info.user = conn_info["user"].as<std::string>();
+        if (conn_info["password"]) create_child_config.connection_info.password = conn_info["password"].as<std::string>();
+        if (conn_info["dsn"]) create_child_config.connection_info.dsn = conn_info["dsn"].as<std::string>();
+    } else {
+        // 如果未指定 connection_info，则使用全局配置
+        create_child_config.connection_info = config_data.global.connection_info;
+    }
+
+    // 解析 database_info（必需）
+    const auto& db_info = step.with["database_info"];
+    if (db_info["name"]) {
+        create_child_config.database_info.name = db_info["name"].as<std::string>();
+    } else {
+        throw std::runtime_error("Missing required 'name' in database_info.");
+    }
+
+    // 解析 super_table_info（必需）
+    const auto& stb_info = step.with["super_table_info"];
+    if (stb_info["name"]) {
+        create_child_config.super_table_info.name = stb_info["name"].as<std::string>();
+    } else {
+        throw std::runtime_error("Missing required 'name' in super_table_info.");
+    }
+
+    // 解析 child_table_info（必需）
+    const auto& child_info = step.with["child_table_info"];
+    const auto& table_name = child_info["table_name"];
+    create_child_config.child_table_info.table_name.source_type = table_name["source_type"].as<std::string>();
+    if (create_child_config.child_table_info.table_name.source_type == "generator") {
+        const auto& generator = table_name["generator"];
+        create_child_config.child_table_info.table_name.generator.prefix = generator["prefix"].as<std::string>();
+        create_child_config.child_table_info.table_name.generator.count = generator["count"].as<int>();
+        if (generator["from"]) {
+            create_child_config.child_table_info.table_name.generator.from = generator["from"].as<int>();
+        }
+    } else if (create_child_config.child_table_info.table_name.source_type == "csv") {
+        const auto& csv = table_name["csv"];
+        create_child_config.child_table_info.table_name.csv.file_path = csv["file_path"].as<std::string>();
+        if (csv["has_header"]) create_child_config.child_table_info.table_name.csv.has_header = csv["has_header"].as<bool>();
+        if (csv["delimiter"]) create_child_config.child_table_info.table_name.csv.delimiter = csv["delimiter"].as<std::string>();
+        if (csv["column_index"]) create_child_config.child_table_info.table_name.csv.column_index = csv["column_index"].as<int>();
+    } else {
+        throw std::runtime_error("Invalid source_type for table_name in child_table_info.");
+    }
+
+    // 解析 tags
+    const auto& tags = child_info["tags"];
+    create_child_config.child_table_info.tags.source_type = tags["source_type"].as<std::string>();
+    if (create_child_config.child_table_info.tags.source_type == "generator") {
+        if (tags["generator"]["schema"]) {
+            parse_columns_or_tags(tags["generator"]["schema"], create_child_config.child_table_info.tags.generator.schema);
+        }
+    } else if (create_child_config.child_table_info.tags.source_type == "csv") {
+        const auto& csv = tags["csv"];
+        create_child_config.child_table_info.tags.csv.file_path = csv["file_path"].as<std::string>();
+        if (csv["has_header"]) create_child_config.child_table_info.tags.csv.has_header = csv["has_header"].as<bool>();
+        if (csv["delimiter"]) create_child_config.child_table_info.tags.csv.delimiter = csv["delimiter"].as<std::string>();
+        if (csv["exclude_index"]) create_child_config.child_table_info.tags.csv.exclude_index = csv["exclude_index"].as<int>();
+    } else {
+        throw std::runtime_error("Invalid source_type for tags in child_table_info.");
+    }
+
+    // 解析 batch（可选）
+    if (step.with["batch"]) {
+        const auto& batch = step.with["batch"];
+        if (batch["size"]) create_child_config.batch.size = batch["size"].as<int>();
+        if (batch["concurrency"]) create_child_config.batch.concurrency = batch["concurrency"].as<int>();
+    }
+
+    // 将解析结果保存到 Step 的 action_config 字段
+    step.action_config = std::move(create_child_config);
+
+    // 打印解析结果（可选）
+    std::cout << "Parsed create-child-table action for super table: " << create_child_config.super_table_info.name << std::endl;
+}
+
+
 void ParameterContext::parse_insert_data_action(Step& step) {
     InsertDataConfig insert_config;
 
@@ -316,6 +413,7 @@ void ParameterContext::parse_insert_data_action(Step& step) {
     // 打印解析结果（可选）
     std::cout << "Parsed insert-data action for table: " << insert_config.source.table_name << std::endl;
 }
+
 
 
 

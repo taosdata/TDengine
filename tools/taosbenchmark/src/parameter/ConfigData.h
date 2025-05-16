@@ -88,6 +88,38 @@ struct SuperTableInfo {
 
 
 
+struct ChildTableInfo {
+    struct TableNameConfig {
+        std::string source_type; // 数据来源类型：generator 或 csv
+        struct Generator {
+            std::string prefix;
+            int count;
+            int from = 0; // 默认起始下标为 0
+        } generator;
+        struct CSV {
+            std::string file_path;
+            bool has_header = true;
+            std::string delimiter = ",";
+            int column_index = 0;
+        } csv;
+    } table_name;
+
+    struct TagsConfig {
+        std::string source_type; // 数据来源类型：generator 或 csv
+        struct Generator {
+            std::vector<SuperTableInfo::Column> schema; // 标签列的 Schema 定义
+        } generator;
+        struct CSV {
+            std::string file_path;
+            bool has_header = true;
+            std::string delimiter = ",";
+            int exclude_index = -1; // 默认不剔除任何列
+        } csv;
+    } tags;
+};
+
+
+
 
 struct GlobalConfig {
     bool confirm_prompt = false;
@@ -114,9 +146,15 @@ struct CreateSuperTableConfig {
 
 
 struct CreateChildTableConfig {
-    ConnectionInfo connection_info;
-    DatabaseInfo database_info;
-    SuperTableInfo super_table_info;
+    ConnectionInfo connection_info;  // 数据库连接信息
+    DatabaseInfo database_info;      // 数据库信息
+    SuperTableInfo super_table_info; // 超级表信息
+    ChildTableInfo child_table_info; // 子表信息
+
+    struct BatchConfig {
+        int size = 1000;       // 每批创建的子表数量
+        int concurrency = 10;  // 并发执行的批次数量
+    } batch;
 };
 
 
@@ -143,15 +181,20 @@ struct InsertDataConfig {
 };
 
 
+using ActionConfigVariant = std::variant<
+    std::monostate,
+    CreateDatabaseConfig,
+    CreateSuperTableConfig,
+    CreateChildTableConfig,
+    InsertDataConfig
+>;
+
 struct Step {
     std::string name; // 步骤名称
     std::string uses; // 使用的操作类型
     YAML::Node with;  // 原始参数配置
-    std::variant<std::monostate, CreateDatabaseConfig, CreateSuperTableConfig, InsertDataConfig> action_config; 
-    // 泛化字段，用于存储不同类型的 Action 配置
+    ActionConfigVariant action_config; // 泛化字段，用于存储不同类型的 Action 配置
 };
-
-
 
 
 struct Job {
