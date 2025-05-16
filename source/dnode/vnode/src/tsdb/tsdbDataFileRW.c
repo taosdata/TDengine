@@ -777,6 +777,7 @@ static int32_t tsdbDataFileWriterDoOpen(SDataFileWriter *writer) {
         .cid = writer->config->cid,
         .size = 0,
         .lcn = writer->config->lcn == -1 ? 0 : -1,
+        .mcount = writer->config->mcountData,
         .minVer = VERSION_MAX,
         .maxVer = VERSION_MIN,
     };
@@ -795,6 +796,7 @@ static int32_t tsdbDataFileWriterDoOpen(SDataFileWriter *writer) {
         .fid = writer->config->fid,
         .cid = writer->config->cid,
         .size = 0,
+        .mcount = writer->config->mcountSma,
         .minVer = VERSION_MAX,
         .maxVer = VERSION_MIN,
     };

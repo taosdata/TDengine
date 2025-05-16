@@ -75,9 +75,11 @@ typedef struct SDataFileWriterConfig {
   int32_t  szPage;
   int32_t  fid;
   int64_t  cid;
-  int32_t  expLevel;
   int64_t  compactVersion;
+  int32_t  expLevel;
+  int32_t  mcountSma;   // migration counter of sma file
   int32_t  lcn;
+  int32_t  mcountData;  // migration counter of data file
   struct {
     bool   exist;
     STFile file;
