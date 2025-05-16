@@ -713,6 +713,7 @@ typedef struct SStreamRuntimeFuncInfo {
   int64_t sessionId;
   bool    withExternalWindow;
   int32_t curOutIdx;
+  bool    extWinProjMode; // true if proj mode for external window, else agg mode
 } SStreamRuntimeFuncInfo;
 
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo);

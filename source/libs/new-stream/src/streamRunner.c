@@ -225,8 +225,135 @@ static int32_t stRunnerHandleResultBlock(SStreamRunnerTask* pTask, SStreamRunner
   return code;
 }
 
-static int32_t stRunnerForceOutput(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec, const SSDataBlock* pOutBlock, SSDataBlock** ppForceOutBlock, int32_t* pWinIdx) {
+static int32_t stRunnerMergeBlockHandleOverflow(const SSDataBlock* pSrc, SSDataBlock* pDst, int32_t start,
+                                                int32_t rowsToCopy, SSDataBlock** ppExtraBlock) {
+  *ppExtraBlock = NULL;
   int32_t code = 0;
+  if (pDst->info.rows + rowsToCopy > 4096) {
+    int32_t rowsToCopy2 = 4096 - pDst->info.rows;
+    if (rowsToCopy2 > 0) {
+      code = blockDataMergeNRows(pDst, pSrc, start, rowsToCopy2);
+      if (code != 0) return code;
+      start += rowsToCopy2;
+      rowsToCopy -= rowsToCopy2;
+    }
+  }
+  if (rowsToCopy > 0) {
+    code = createOneDataBlock(pSrc, false, ppExtraBlock);
+    if (code == 0) {
+      code = blockDataMergeNRows(*ppExtraBlock, pSrc, start, rowsToCopy);
+      if (code != 0) {
+        blockDataDestroy(*ppExtraBlock);
+        *ppExtraBlock = NULL;
+      }
+    }
+  }
+  return code;
+}
+
+static int32_t stRunnerForceOutput(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
+                                   const SSDataBlock* pBlock, SSDataBlock** ppForceOutBlock, int32_t* pWinIdx) {
+  int32_t          code = 0;
+  SArray*          pTriggerCalcParams = pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals;
+  int32_t          curWinIdx = *pWinIdx;
+  int32_t          rowsInput = pBlock ? pBlock->info.rows : 0;
+  SColumnInfoData* pTsCol = rowsInput > 0 ? taosArrayGet(pBlock->pDataBlock, 0) : NULL;
+  if (*pWinIdx >= taosArrayGetSize(pTriggerCalcParams)) return 0;
+  SSTriggerCalcParam* pTriggerCalcParam = taosArrayGet(pTriggerCalcParams, *pWinIdx);
+  int32_t             totalWinNum = taosArrayGetSize(pTriggerCalcParams);
+  STimeWindow         curWin = {.skey = pTriggerCalcParam->wstart, .ekey = pTriggerCalcParam->wend};
+  int32_t             rowIdx = 0;
+  int32_t             rowsToCopy = 0;
+  SSDataBlock*        pSecondBlock = NULL;
+  bool                allRowsConsumed = false;
+
+  for (; curWinIdx < totalWinNum && code == 0;) {
+    int64_t ts = INT64_MAX;
+    if (rowIdx < rowsInput) {
+      ts = *(int64_t*)colDataGetNumData(pTsCol, rowIdx);
+      assert(ts >= curWin.skey);
+    }
+    if (ts < curWin.ekey) {
+      // cur window already has data
+      rowIdx++;
+      rowsToCopy++;
+      if (rowIdx >= rowsInput) {
+        allRowsConsumed = true;
+      }
+      continue;
+    } else if (ts >= curWin.ekey) {
+      if (rowsToCopy > 0) {
+        // copy rows of prev windows
+        if (!*ppForceOutBlock) {
+          code = createOneDataBlock(pBlock, false, ppForceOutBlock);
+        }
+        if (code == 0)
+          code = blockDataMergeNRows(*ppForceOutBlock, pBlock, rowIdx - rowsToCopy, rowsToCopy);
+        if (code != 0) break;
+        rowsToCopy = 0;
+        if (allRowsConsumed) break;
+      }
+      curWinIdx++;
+      assert(curWinIdx < taosArrayGetSize(pTriggerCalcParams));
+      pTriggerCalcParam = taosArrayGet(pTriggerCalcParams, curWinIdx);
+      curWin.skey = pTriggerCalcParam->wstart;
+      curWin.ekey = pTriggerCalcParam->wend;
+      if (ts >= curWin.ekey) {
+        // cur win has no data
+        code = streamForceOutput(pExec->pExecutor, ppForceOutBlock, curWinIdx);
+      }
+    }
+  }
+  *pWinIdx = curWinIdx;
+  pExec->runtimeInfo.funcInfo.curOutIdx = curWinIdx;
+  return code;
+}
+
+static int32_t stRunnerTopTaskHandleOutputBlockAgg(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
+                                                   SSDataBlock* pBlock, SSDataBlock** ppForceOutBlock,
+                                                   int32_t* pNextOutIdx, bool *createTable) {
+  int32_t code = 0;
+  SSDataBlock* pOutputBlock = pBlock;
+  if (taosArrayGetSize(pExec->runtimeInfo.pForceOutputCols) > 0) {
+    if (*ppForceOutBlock) blockDataCleanup(*ppForceOutBlock);
+    code = stRunnerForceOutput(pTask, pExec, pBlock, ppForceOutBlock, pNextOutIdx);
+    pOutputBlock = *ppForceOutBlock;
+  }
+  if (code == 0) {
+    if (pOutputBlock && pOutputBlock->info.rows > 0) {
+      code = stRunnerHandleResultBlock(pTask, pExec, pOutputBlock, createTable);
+    }
+  }
+  return code;
+}
+
+static int32_t stRunnerTopTaskHandleOutputBlockProj(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
+                                                    SSDataBlock* pBlock, SSDataBlock** ppForceOutBlock,
+                                                    int32_t* pNextOutIdx, bool* createTable) {
+  int32_t code = 0;
+  if (*ppForceOutBlock) blockDataCleanup(*ppForceOutBlock);
+  if (*pNextOutIdx < taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals)) {
+    if (*pNextOutIdx == pExec->runtimeInfo.funcInfo.curOutIdx && !pBlock) {
+      // got no data from current window
+      code = streamForceOutput(pExec->pExecutor, ppForceOutBlock, *pNextOutIdx);
+      (*pNextOutIdx)++;
+    } else if (*pNextOutIdx < pExec->runtimeInfo.funcInfo.curOutIdx && code == 0) {
+      // got data from later windows, force output cur window
+      while (*pNextOutIdx < pExec->runtimeInfo.funcInfo.curOutIdx && code == 0) {
+        code = streamForceOutput(pExec->pExecutor, ppForceOutBlock, *pNextOutIdx);
+        // won't overflow, total rows should smaller than 4096
+        (*pNextOutIdx)++;
+      }
+    }
+  }
+  if (code == 0 && (*ppForceOutBlock) && (*ppForceOutBlock)->info.rows > 0) {
+    code = stRunnerHandleResultBlock(pTask, pExec, *ppForceOutBlock, createTable);
+  }
+  if (code == 0) {
+    assert(*pNextOutIdx >= pExec->runtimeInfo.funcInfo.curOutIdx);  // TODO wjm remove it
+    *pNextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx + 1;
+    code = stRunnerHandleResultBlock(pTask, pExec, pBlock, createTable);
+  }
   return code;
 }
 
@@ -249,11 +376,17 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   pExec->runtimeInfo.funcInfo.sessionId = pReq->sessionId;
 
   int32_t winNum = taosArrayGetSize(pReq->params);
-  if (!pExec->pExecutor) {
-    code = streamBuildTask(pTask, pExec);
-  } else {
-    if (pReq->brandNew) // TODO wjm
-      streamResetTaskExec(pExec, pTask->output.outTblType == TSDB_NORMAL_TABLE);
+  if (winNum > STREAM_TRIGGER_MAX_WIN_NUM_PER_REQUEST) {
+    ST_TASK_ELOG("too many windows in one request, max:%d, cur:%d", STREAM_TRIGGER_MAX_WIN_NUM_PER_REQUEST, winNum);
+    code = TSDB_CODE_STREAM_TASK_IVLD_STATUS;
+  }
+  if (code == 0) {
+    if (!pExec->pExecutor) {
+      code = streamBuildTask(pTask, pExec);
+    } else {
+      if (pReq->brandNew)  // TODO wjm
+        code = streamResetTaskExec(pExec, pTask->output.outTblType == TSDB_NORMAL_TABLE);
+    }
   }
 
   streamSetTaskRuntimeInfo(pExec->pExecutor, &pExec->runtimeInfo);
@@ -263,7 +396,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   bool createTable = pReq->createTable;
   int32_t nextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx;
   SSDataBlock* pForceOutBlock = NULL;
-  for (; pExec->runtimeInfo.funcInfo.curOutIdx < winNum && code == 0;) {
+  while (pExec->runtimeInfo.funcInfo.curOutIdx < winNum && code == 0) {
     bool         finished = false;
     SSDataBlock* pBlock = NULL;
     uint64_t     ts = 0;
@@ -275,21 +408,25 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
       break;
     } else {
       if (pTask->topTask) {
-        if (pForceOutBlock) blockDataCleanup(pForceOutBlock);
-        if (nextOutIdx < pExec->runtimeInfo.funcInfo.curOutIdx && code == 0) {
-          while (nextOutIdx < pExec->runtimeInfo.funcInfo.curOutIdx && code == 0) {
-            code = streamForceOutput(pExec->pExecutor, &pForceOutBlock);
-            // won't overflow, total rows should smaller than 4096
-            nextOutIdx++;
+        if (pExec->runtimeInfo.funcInfo.withExternalWindow) {
+          if (pExec->runtimeInfo.funcInfo.extWinProjMode) {
+            code =
+                stRunnerTopTaskHandleOutputBlockProj(pTask, pExec, pBlock, &pForceOutBlock, &nextOutIdx, &createTable);
+          } else {
+            code =
+                stRunnerTopTaskHandleOutputBlockAgg(pTask, pExec, pBlock, &pForceOutBlock, &nextOutIdx, &createTable);
           }
-          if (code == 0 && pForceOutBlock && pForceOutBlock->info.rows > 0) {
-            code = stRunnerHandleResultBlock(pTask, pExec, pForceOutBlock, &createTable);
+        } else {
+          // no external window, only one window to calc, force output and output block
+          if (!pBlock || pBlock->info.rows == 0) {
+            if (pForceOutBlock) blockDataCleanup(pForceOutBlock);
+            code = streamForceOutput(pExec->pExecutor, &pForceOutBlock, 0);
+            if (code == 0) {
+              code = stRunnerHandleResultBlock(pTask, pExec, pBlock, &createTable);
+            }
+          } else {
+            code = stRunnerHandleResultBlock(pTask, pExec, pBlock, &createTable);
           }
-        }
-        if (code == 0) {
-          assert(nextOutIdx >= pExec->runtimeInfo.funcInfo.curOutIdx); // TODO wjm remove it
-          nextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx + 1;
-          code = stRunnerHandleResultBlock(pTask, pExec, pBlock, &createTable);
         }
       } else {
         if (pBlock) {
@@ -303,6 +440,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
     }
     if (finished) {
       streamResetTaskExec(pExec, true);
+      break;
     }
   }
 

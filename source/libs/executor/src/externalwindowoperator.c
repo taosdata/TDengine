@@ -378,7 +378,7 @@ static void incExtWinCurIdx(SOperatorInfo* pOperator) {
   pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx++;
 }
 
-static void incExtWinOutIdx(SOperatorInfo* pOperator) {
+static void incExtWinOutIdx(SOperatorInfo* pOperator, int32_t idx) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   pTaskInfo->pStreamRuntimeInfo->funcInfo.curOutIdx++;
 }
@@ -586,6 +586,7 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
   SOperatorInfo*           pDownstream = pOperator->pDownstream[0];
   SExternalWindowOperator* pExtW = pOperator->info;
   SExprSupp*               pSup = &pOperator->exprSupp;
+  pTaskInfo->pStreamRuntimeInfo->funcInfo.extWinProjMode = pExtW->scalarMode;
 
   int32_t scanFlag = MAIN_SCAN;
   int64_t st = taosGetTimestampUs();
@@ -668,7 +669,7 @@ static int32_t externalWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
         if (!pExtW->pOutputBlockListNode->dl_next_) {
           pExtW->pOutputBlockListNode = NULL;
           pExtW->outputWinId++;
-          incExtWinOutIdx(pOperator);
+          incExtWinOutIdx(pOperator, pExtW->outputWinId);
           continue;
         }
         pExtW->pOutputBlockListNode = pExtW->pOutputBlockListNode->dl_next_;
@@ -679,7 +680,7 @@ static int32_t externalWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
         if (code != 0) goto _end;
       } else {
         pExtW->outputWinId++;
-        incExtWinOutIdx(pOperator);
+        incExtWinOutIdx(pOperator, pExtW->outputWinId);
         continue;
       }
       break;
