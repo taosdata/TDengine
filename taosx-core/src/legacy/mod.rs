@@ -22,6 +22,7 @@ use crate::{
 };
 use anyhow::{bail, Context};
 use chrono::{DateTime, TimeZone, Utc};
+use futures::TryFutureExt;
 use futures_util::FutureExt;
 use rand::seq::SliceRandom;
 use serde::Deserialize;
@@ -29,7 +30,7 @@ use serde_with::serde_as;
 use taos::*;
 use tokio::{sync::oneshot, task::JoinSet};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info, instrument, warn, Instrument};
+use tracing::{debug, error, info, instrument, warn, Instrument};
 
 mod chunks;
 pub mod legacy_metric;
@@ -1737,11 +1738,9 @@ async fn sync_specified_tables_with_workers(
     workers: usize,
     task_id: Option<i64>,
 ) -> anyhow::Result<()> {
-    tracing::info!(
+    info!(
         tables = todo.tables_todo(),
-        task_id,
-        "Synchronize table data with {} workers",
-        workers
+        task_id, "Synchronize table data with {} workers", workers
     );
     let mut count = 0;
     let (tx, rx) = flume::unbounded::<(
@@ -1753,18 +1752,21 @@ async fn sync_specified_tables_with_workers(
         let mut fails = 0;
         while let Ok((sparse, reader)) = rx.recv_async().await {
             count += 1;
-            match reader.await? {
+            match reader.await.inspect_err(|err| {
+                error!("reader await Error: {err:#}",);
+            })? {
                 Ok(_) => {
                     if let Some((table, time_range)) = sparse {
                         // set breakpoint async
                         if let Some(breakpoints) = breakpoints.as_ref() {
                             if let Some(end) = time_range.end {
                                 let breakpoint = end.to_string();
-                                tracing::debug!(
-                                    "set breakpoint, table: {table}, breakpoint: {breakpoint}"
+                                debug!(
+                                    task.id = task_id.as_ref(),
+                                    "Set breakpoint, table: {table}, breakpoint: {breakpoint}"
                                 );
                                 if let Err(err) = breakpoints.set(&table, &breakpoint).await {
-                                    tracing::warn!(
+                                    warn!(
                                         task.id = task_id.as_ref(),
                                         "Set breakpoint error: {err:#}"
                                     );
@@ -1782,12 +1784,15 @@ async fn sync_specified_tables_with_workers(
                 }
             }
         }
+        debug!(
+            rx.disconnected = rx.is_disconnected(),
+            rx.len = rx.len(),
+            rx.is_empty = rx.is_empty(),
+        );
         if fails > 0 {
-            tracing::info!(
-                "Synchronizing {count} tables with {workers} workers finished, {fails} failed"
-            );
+            info!("Synchronizing {count} tables with {workers} workers finished, {fails} failed");
         } else {
-            tracing::info!("Synchronizing {count} tables with {workers} workers finished");
+            info!("Synchronizing {count} tables with {workers} workers finished");
         }
         anyhow::Ok(())
     });
@@ -1796,13 +1801,13 @@ async fn sync_specified_tables_with_workers(
     let todo = todo.clone();
     tokio::task::spawn(
         async move {
-            tracing::info!(tables = todo.tables.len(), "Scanning new tables ...");
+            info!(tables = todo.tables.len(), "Scanning new tables ...");
             let mut scanned = std::collections::HashSet::new();
             let mut futures = futures::stream::FuturesUnordered::new();
             todo.tables
                 .scan_async(|item: &LegacyTableItem| {
                     if scanned.contains(item) {
-                        tracing::warn!("table {} is already scanned.", item.table);
+                        warn!("table {} is already scanned.", item.table);
                         return;
                     }
                     scanned.insert(item.clone());
@@ -1815,7 +1820,7 @@ async fn sync_specified_tables_with_workers(
                     tracing::trace!("Send table error: {err:#}",);
                 }
             }
-            tracing::info!(tables = todo.tables.len(), "Scanning tables done");
+            info!(tables = todo.tables.len(), "Scanning tables done");
         }
         .in_current_span(),
     );
@@ -1837,29 +1842,25 @@ async fn sync_specified_tables_with_workers(
                     }) {
                         Ok(Some(breakpoint)) => {
                             opts.time_range.start = Some(breakpoint);
-                            tracing::debug!(
+                            debug!(
                                 "load breakpoint success set time_range: {} table: {table}",
                                 opts.time_range
                             );
                             break;
                         }
                         Ok(None) => {
-                            tracing::debug!("load breakpoint no breakpoint, table: {table}");
+                            debug!("load breakpoint no breakpoint, table: {table}");
                             break;
                         }
                         Err(err) => {
-                            tracing::debug!(
-                                    "load breakpoint failed, err: {err} table: {table}, retrying ... {retries} times left"
-                                );
+                            debug!("load breakpoint failed, err: {err} table: {table}, retrying ... {retries} times left");
 
                             if retries > 0 {
                                 retries -= 1;
                                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                                 continue;
                             } else {
-                                tracing::debug!(
-                                    "load breakpoint failed finally, err: {err} table: {table}"
-                                );
+                                debug!("load breakpoint failed finally, err: {err} table: {table}");
                                 break;
                             }
                         }
@@ -1870,6 +1871,7 @@ async fn sync_specified_tables_with_workers(
             let chunks = split_table_into_time_range_chunks(&from, table, &opts).await?;
             for chunk in chunks {
                 let (sender, reader) = oneshot::channel();
+                debug!("chunk: {chunk:?}");
                 scheduler
                     .send(Todo::Sparse(item.table.clone(), chunk, Some(sender)))
                     .await?;
@@ -1889,9 +1891,16 @@ async fn sync_specified_tables_with_workers(
             tx.send_async((None, reader)).await?;
         }
     }
+    debug!("Dropping tx to close receiver");
     drop(tx); // drop tx to close rx
-    drop(items_rx); // drop items_rx to close items_tx
-    handle.await??; // wait for rx handle
+    debug!("Dropping items_tx to close items_rx");
+    //drop(items_rx); // drop items_rx to close items_tx
+    debug!("Waiting for historical tasks");
+    handle.await?.inspect_err(|err| {
+        error!(task.id = task_id.as_ref(), "Error: {err:#}",);
+    })?; // wait for rx handle
+
+    info!("Synchronize table data done");
     Ok(())
 }
 
@@ -2059,7 +2068,7 @@ impl SourceOpts {
             opts.schema_polling_interval = value;
         } else {
             // default 1m=60s
-            opts.schema_polling_interval = Duration::from_secs(60);
+            opts.schema_polling_interval = Duration::from_secs(60 * 10);
         }
         // schema_polling_wait_before_end
         if let Some(value) = dsn.remove("schema-polling-wait-before-end") {
@@ -3009,7 +3018,9 @@ async fn realtime(
                     ))
                 };
                 tasks.push(task);
-                receivers.push(rx);
+
+                let table = if *mtlf { Some(table.clone()) } else { None };
+                receivers.push(rx.map_ok(move |res| (table, time_range, res)));
             })
             .await;
 
@@ -3022,10 +3033,35 @@ async fn realtime(
 
         // 等待所有任务完成
         let mut all_success = true;
+        let breakpoints = scheduler.breakpoints_ref();
         while let Some(res) = receivers.next().await {
             match res {
-                Ok(Ok(_)) => {}
-                Ok(Err(err)) => {
+                Ok((sparse, time_range, Ok(()))) => {
+                    // debug!(
+                    //     mode = "realtime",
+                    //     "Sparse task for table {sparse} range {time_range} completed successfully."
+                    // );
+
+                    if let Some(table) = sparse {
+                        // set breakpoint async
+                        if let Some(breakpoints) = breakpoints {
+                            if let Some(end) = time_range.end {
+                                let breakpoint = end.to_string();
+                                debug!(
+                                    "Set breakpoint, table: {}, breakpoint: {}",
+                                    &table, &breakpoint
+                                );
+                                if let Err(err) = breakpoints.set(&table, &breakpoint).await {
+                                    warn!(
+                                        // task.id = task_id.as_ref(),
+                                        "Set breakpoint error: {err:#}"
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                Ok((_, _, Err(err))) => {
                     warn!(mode = "realtime", "Task execution error: {err}");
                     all_success = false;
                 }
@@ -3489,12 +3525,13 @@ pub async fn legacy_to_taos(
             tracing::info!("synchronize all tables");
 
             // sync all tables
+            let target_opts_cloned = target_opts.clone();
             let future = sync_specified_tables_with_workers(
                 &scheduler,
                 &from_pool,
                 source_opts.query,
                 &todo_non_changed,
-                target_opts,
+                target_opts_cloned,
                 source_opts.workers as _,
                 task_id,
             );
@@ -3503,12 +3540,13 @@ pub async fn legacy_to_taos(
                 _ = cancel.cancelled() => {
                     tracing::debug!("Scheduler task queue cancelled");
                 }
-            };
+            }
 
             schema_polling_task
         } else {
             tokio::spawn(async move {
                 let handle = async move {
+                    tracing::debug!(interval = ?schema_polling_source_opts.schema_polling_interval, "schema polling task started");
                     let mut interval =
                         tokio::time::interval(schema_polling_source_opts.schema_polling_interval);
                     loop {
@@ -3527,10 +3565,7 @@ pub async fn legacy_to_taos(
                         }
                         let updates = Arc::new(updates);
                         let _ = async {
-                            tracing::info!(
-                            "Schema updated, spawning sync schema task for {} tables",
-                            updates.tables.len()
-                        );
+                            info!("Schema updated, spawning sync schema task for {} tables", updates.tables.len());
                             schema_polling_metrics
                                 .as_ref()
                                 .legacy()
@@ -3579,7 +3614,76 @@ pub async fn legacy_to_taos(
             }.in_current_span())
         };
 
+        // 如果 source_opts.mode 为 SyncMode::All 或 SyncMode::Realtime，执行实时同步
         if matches!(source_opts.mode, SyncMode::All | SyncMode::Realtime) {
+            // check breakpoints for realtime
+            let breakpoints = scheduler.breakpoints_ref();
+            let mut latest_offset_end = now;
+            if let Some(breakpoints) = breakpoints {
+                let mut todo_tables = vec![];
+                todo.tables
+                    .scan_async(|item| {
+                        let table = item.table.clone();
+                        todo_tables.push(table.to_string())
+                    })
+                    .await;
+                for t in todo_tables {
+                    if let Ok(Some(bp)) = breakpoints.get(&t).await.and_then(|bp| {
+                        bp.map(|bp| bp.parse::<DateTime<Utc>>().context("Parse datetime error"))
+                            .transpose()
+                    }) {
+                        if bp < latest_offset_end {
+                            latest_offset_end = bp;
+                        }
+                    }
+                }
+            }
+            debug!(
+                mode = "realtime",
+                "latest offset end: {:?}, now: {:?}", latest_offset_end, now
+            );
+            //
+            // if latest_offset_end < now {
+            //     let backfill = Duration::from_secs((now - latest_offset_end).num_seconds() as u64);
+            //     debug!("backfill duration: {:?}", backfill);
+            //     source_opts.table.restro = backfill;
+            // }
+
+            if latest_offset_end < now {
+                // sync historian data: latest_offset_end -> now
+                let time_range = TimeRange::new().start(latest_offset_end).end(now);
+                let mut query_opts = source_opts.query;
+                query_opts.time_range = time_range;
+                query_opts.unit = Duration::from_secs(60 * 10);
+                let todo = Arc::new(todo.as_ref().clone());
+                let target_opts_cloned = target_opts.clone();
+                let future = sync_specified_tables_with_workers(
+                    &scheduler,
+                    &from_pool,
+                    query_opts,
+                    &todo,
+                    target_opts_cloned,
+                    source_opts.workers as _,
+                    task_id,
+                );
+                tokio::select! {
+                    res = future => {
+                        match res {
+                            Ok(_) => {
+                                tracing::info!("Sync historian data done");
+                            }
+                            Err(err) => {
+                                tracing::warn!(error = format!("{err:#}"), "Sync historian data error");
+                            }
+                        }
+                    }
+                    _ = cancel.cancelled() => {
+                        tracing::debug!("Scheduler task queue cancelled");
+                    }
+                }
+            }
+
+            // 如果 source_opts.table.restro 为 0， 则把 restro 设置为 restro_mark.elapsed()
             if source_opts.table.restro.is_zero() {
                 source_opts.table.restro = restro_mark.elapsed();
                 tracing::info!(
@@ -3587,7 +3691,8 @@ pub async fn legacy_to_taos(
                     source_opts.table.restro
                 );
             };
-            tracing::info!("monitoring for data changes");
+            info!("monitoring for data changes");
+
             let future = realtime(
                 &scheduler,
                 now,

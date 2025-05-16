@@ -1,7 +1,8 @@
 use assert_cmd::{prelude::*, Command};
 use itertools::Itertools;
+use std::time::Duration;
 use taos::IntoDsn;
-use taosx_core::legacy_to_taos;
+use taosx_core::{get_data_dir, legacy_to_taos};
 use tokio_util::sync::CancellationToken;
 
 /// # case
@@ -155,6 +156,157 @@ async fn test_ts6499_with_taos() -> anyhow::Result<()> {
     let out = String::from_utf8_lossy(&output.stdout);
     let err = String::from_utf8_lossy(&output.stderr);
     assert!(err.is_empty(), "{}", out);
+
+    Ok(())
+}
+
+/// This case test the breakpoint recovery of realtime data synchronization
+/// Close https://jira.taosdata.com:18080/browse/TS-6402
+#[tokio::test]
+async fn test_ts6402_with_taos() -> anyhow::Result<()> {
+    tracing_subscriber::fmt::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .init();
+    const HOST: &str = "127.0.0.1";
+    const DB_SRC: &str = "test_ts6402_src";
+    const DB_DST: &str = "test_ts6402_dst";
+
+    // create databases and tables
+    println!("=========CREATE DATABASE AND WRITE=========");
+    let output = Command::new("taos")
+        .arg("-h")
+        .arg(HOST)
+        .arg("-s")
+        .arg(format!(
+            "drop database if exists `{DB_SRC}`;
+            create database if not exists `{DB_SRC}`;
+            drop database if exists `{DB_DST}`;
+            create database if not exists `{DB_DST}`;
+            create table `{DB_SRC}`.`meters`(ts timestamp, val float) tags(id int);
+            "
+        ))
+        .output()
+        .expect("failed to execute process");
+    let out = String::from_utf8_lossy(&output.stdout);
+    let err = String::from_utf8_lossy(&output.stderr);
+    dbg!(&out, &err);
+
+    let from = format!(
+        "taos://{HOST}/{DB_SRC}?mode=realtime&schema=always&schema-polling-interval=5s&sparse=true"
+    )
+    .into_dsn()?;
+    let to = format!("taos://{HOST}/{DB_DST}").into_dsn()?;
+    let tid = 6402;
+
+    let breakpoints_dir = get_data_dir()
+        .join("tasks")
+        .join(tid.to_string())
+        .join("breakpoints");
+    if breakpoints_dir.exists() {
+        std::fs::remove_dir_all(&breakpoints_dir)?;
+    }
+
+    // 1. create a legacy_to_taos task
+    println!("=========START LEGACY TO TAOS TASK=========");
+    let cancel = CancellationToken::new();
+    let from_clone = from.clone();
+    let to_clone = to.clone();
+    let cancel_clone = cancel.clone();
+    let h = tokio::spawn(async move {
+        let _ = legacy_to_taos(from_clone, vec![], to_clone, cancel_clone, Some(tid)).await;
+    });
+    tokio::time::sleep(Duration::from_secs(60)).await;
+    cancel.cancel();
+    h.await?;
+
+    // 2. write some data
+    println!("=========WRITE SOME DATA=========");
+    let output = Command::new("taos")
+        .arg("-h")
+        .arg(HOST)
+        .arg("-s")
+        .arg(format!(
+            "insert into `{DB_SRC}`.`t1` using `{DB_SRC}`.`meters` tags(1) values (now, 11.0);
+            insert into `{DB_SRC}`.`t2` using `{DB_SRC}`.`meters` tags(2) values (now, 22.0);
+            insert into `{DB_SRC}`.`t3` using `{DB_SRC}`.`meters` tags(3) values (now, 33.0);
+            insert into `{DB_SRC}`.`t4` using `{DB_SRC}`.`meters` tags(4) values (now, 44.0);
+            insert into `{DB_SRC}`.`t5` using `{DB_SRC}`.`meters` tags(5) values (now, 55.0);
+            "
+        ))
+        .output()
+        .expect("failed to execute process");
+    let out = String::from_utf8_lossy(&output.stdout);
+    let err = String::from_utf8_lossy(&output.stderr);
+    dbg!(&out, &err);
+
+    // 3. restart the legacy_to_taos task
+    dbg!("=========RESTART LEGACY TO TAOS TASK=========");
+    let cancel = CancellationToken::new();
+    let from_clone = from.clone();
+    let to_clone = to.clone();
+    let cancel_clone = cancel.clone();
+    let h = tokio::spawn(async move {
+        let _ = legacy_to_taos(from_clone, vec![], to_clone, cancel_clone, Some(tid)).await;
+    });
+    tokio::time::sleep(Duration::from_secs(60)).await;
+    cancel.cancel();
+    h.await?;
+
+    // 4. check the data
+    println!("=========CHECK DATA=========");
+    let output = Command::new("taos")
+        .arg("-h")
+        .arg(HOST)
+        .arg("-s")
+        .arg(format!("select count(*) from `{DB_SRC}`.`meters`"))
+        .output()
+        .expect("failed to execute process");
+    let src_out: Vec<String> = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(|l| l.to_owned())
+        .collect();
+    let src_err: Vec<String> = String::from_utf8_lossy(&output.stderr)
+        .lines()
+        .map(|l| l.to_owned())
+        .collect();
+    dbg!(&src_out, &src_err);
+
+    let output = Command::new("taos")
+        .arg("-h")
+        .arg(HOST)
+        .arg("-s")
+        .arg(format!("select count(*) from `{DB_DST}`.`meters`"))
+        .output()
+        .expect("failed to execute process");
+    let dst_out = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(|l| l.to_string())
+        .collect::<Vec<String>>();
+    let dst_err = String::from_utf8_lossy(&output.stderr)
+        .lines()
+        .map(|l| l.to_string())
+        .collect::<Vec<String>>();
+    dbg!(&dst_out, &dst_err);
+
+    let count_src = src_out.get(6);
+    let count_dst = dst_out.get(6);
+    assert_eq!(count_src, count_dst);
+
+    // 5. drop databases
+    Command::new("taos")
+        .arg("-h")
+        .arg(HOST)
+        .arg("-s")
+        .arg(format!(
+            "drop database if exists `{DB_SRC}`;
+            drop database if exists `{DB_DST}`;
+            "
+        ))
+        .output()
+        .expect("failed to execute process")
+        .assert()
+        .append_context("taos", "drop databases")
+        .success();
 
     Ok(())
 }
