@@ -2,13 +2,13 @@ import time
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestStreamOldCaseBasic:
+class TestStreamOldCaseDistribute:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_stream_oldcase_basic(self):
-        """Stream basic test
+    def test_stream_oldcase_distribute(self):
+        """Stream distribute
 
         1. basic test
         2. out of order data
@@ -25,13 +25,26 @@ class TestStreamOldCaseBasic:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/distributeSession0.sim
         """
 
-        # self.stream_basic_0()
-        # self.stream_basic_1()
-        # self.stream_basic_2()
-        # self.stream_basic_3()
-        self.stream_basic_4()
-        # self.stream_basic_5()
+        # self.distributeInterval0()
+        # self.distributeIntervalRetrive0()
+        # self.distributeMultiLevelInterval0()
+        # self.distributeSession0()
 
+    def distributeInterval0(self):
+        tdLog.info(f"distributeInterval0")
+        drop_all_streams_and_dbs()
+
+    def distributeIntervalRetrive0(self):
+        tdLog.info(f"distributeIntervalRetrive0")
+        drop_all_streams_and_dbs()
+
+    def distributeMultiLevelInterval0(self):
+        tdLog.info(f"distributeMultiLevelInterval0")
+        drop_all_streams_and_dbs()
+
+    def distributeSession0(self):
+        tdLog.info(f"distributeSession0")
+        drop_all_streams_and_dbs()
 
 def check_stream_status(stream_name=""):
     for loop in range(60):
