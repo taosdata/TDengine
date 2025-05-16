@@ -291,6 +291,7 @@ void    gExecInfoInit(void* pDnode, getDnodeId_f getDnodeId, getMnodeEpset_f get
 int32_t getCurrentMnodeEpset(SEpSet* pEpSet);
 int32_t cloneStreamInserterParam(SStreamInserterParam** pDst, SStreamInserterParam* pSrc);
 void    destoryStreamInserterParam(SStreamInserterParam* pParam);
+int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes);
 
 #ifdef __cplusplus
 }

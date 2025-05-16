@@ -1395,6 +1395,7 @@ int32_t resetExchangeOperState(SOperatorInfo* pOper) {
     SSourceDataInfo* pDataInfo = taosArrayGet(pInfo->pSourceDataInfo, i);
     pDataInfo->fetchSent = false;
     pDataInfo->code = 0;
+    pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
   }
   return 0;
 }

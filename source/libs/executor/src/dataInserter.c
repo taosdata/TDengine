@@ -1175,7 +1175,7 @@ static int32_t buildStreamSubTableCreateReq(SDataInserterHandle* pInserter, SStr
   tbData->pCreateTbReq->flags |= (TD_CREATE_SUB_TB_IN_STREAM | TD_CREATE_IF_NOT_EXISTS);
 
   SDBVgInfo* dbInfo = NULL;
-  code = inserterGetDbVgInfo(pInserter, pInserter->dbFName, &dbInfo);
+  code = inserterGetDbVgInfo(pInserter, pInsertParam->dbFName, &dbInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _end;
   }
@@ -1393,7 +1393,7 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
   if (pInserterInfo->isAutoCreateTable) {
     if (pInsertParam->tbType == TSDB_NORMAL_TABLE) {
       code = buildNormalTableCreateReq(pInserter, pInsertParam, &tbData, vgId);
-    } else if (pInsertParam->tbType == TSDB_CHILD_TABLE) {
+    } else if (pInsertParam->tbType == TSDB_SUPER_TABLE) {
       code = buildStreamSubTableCreateReq(pInserter, pInsertParam, &tbData, vgId);
     } else {
       code = TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND;
