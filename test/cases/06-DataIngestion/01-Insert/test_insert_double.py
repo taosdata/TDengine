@@ -103,19 +103,15 @@ class TestInsertDouble:
 
 
     def test_insert_double(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
-        """测试插入各种double值
+        """insert double
 
-        插入各种double值包括正负值、科学计数法、十六进制、二进制、字符串
+        insert variable double value
         
         Since: v3.0.0.0
 
-        Labels: common,ci
-
-        Jira: None
-
         History:
-            - 2024-2-6 Feng Chao Created
-            - 2025-2-26 Huo Hong Migrated to new test framework
+            - 2023-12-1 Bob Liu Created
+            - 2025-5-13 Huo Hong Migrated to new test framework
 
         """
 

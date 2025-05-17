@@ -361,6 +361,17 @@ class TestCompressBasic:
  
     # run
     def test_compress_basic(self):
+        """compress basic
+
+        write data, fluch database, write data, check row count.
+
+        Since: v3.0.0.0
+
+        History:
+            - 2024-6-5 Alex Duan Created
+            - 2025-5-13 Huo Hong Migrated to new test framework
+
+        """
         # sql syntax
         self.checkSqlSyntax()
 
