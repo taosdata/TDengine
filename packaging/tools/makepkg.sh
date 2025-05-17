@@ -108,18 +108,20 @@ fi
 
 if [ "$osType" == "Darwin" ]; then
     lib_files="${build_dir}/lib/libtaos.dylib"
-    pkg_lib_files="${build_dir}/lib/libtaos.${version}.dylib"
     nativelib_files="${build_dir}/lib/libtaosnative.dylib"
-    pkg_nativelib_files="${build_dir}/lib/libtaosnative.${version}.dylib"
     wslib_files="${build_dir}/lib/libtaosws.dylib"
-    pkg_wslib_files="${build_dir}/lib/libtaosws.${version}.dylib"
+
+    pkg_lib_files="libtaos.${version}.dylib"
+    pkg_nativelib_files="libtaosnative.${version}.dylib"
+    pkg_wslib_files="libtaosws.${version}.dylib"
 else
     lib_files="${build_dir}/lib/libtaos.so"
     nativelib_files="${build_dir}/lib/libtaosnative.so"
     wslib_files="${build_dir}/lib/libtaosws.so"
-    pkg_lib_files="${build_dir}/lib/libtaos.so.${version}"
-    pkg_nativelib_files="${build_dir}/lib/libtaosnative.so.${version}"
-    pkg_wslib_files="${build_dir}/lib/libtaosws.so.${version}"
+
+    pkg_lib_files="lib/libtaos.so.${version}"
+    pkg_nativelib_files="lib/libtaosnative.so.${version}"
+    pkg_wslib_files="lib/libtaosws.so.${version}"
 fi
 header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h ${code_dir}/include/util/tdef.h ${code_dir}/include/libs/function/taosudf.h"
 
