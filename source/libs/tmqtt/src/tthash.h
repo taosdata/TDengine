@@ -41,22 +41,7 @@ extern "C" {
   } while (0)
 #endif
 
-/* a number of the hash function use uint32_t which isn't defined on Pre VS2010 */
-#if defined(_WIN32)
-#if defined(_MSC_VER) && _MSC_VER >= 1600
 #include <stdint.h>
-#elif defined(__WATCOMC__) || defined(__MINGW32__) || defined(__CYGWIN__)
-#include <stdint.h>
-#else
-typedef unsigned int  uint32_t;
-typedef unsigned char uint8_t;
-#endif
-#elif defined(__GNUC__) && !defined(__VXWORKS__)
-#include <stdint.h>
-#else
-typedef unsigned int  uint32_t;
-typedef unsigned char uint8_t;
-#endif
 
 #ifndef uthash_malloc
 #define uthash_malloc(sz) malloc(sz) /* malloc fcn                      */

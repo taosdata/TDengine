@@ -28,7 +28,7 @@
 #include "time_ttq.h"
 #include "tmqtt.h"
 #include "tmqtt_int.h"
-#include "tmqtt_proto.h"
+#include "tmqttProto.h"
 #include "ttq_systree.h"
 #include "util_ttq.h"
 

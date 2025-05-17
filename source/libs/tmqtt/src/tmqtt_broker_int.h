@@ -64,19 +64,19 @@ enum struct_ident {
 #endif
 
 struct tmqtt__listener {
-  uint16_t            port;
-  char               *host;
-  char               *bind_interface;
-  int                 max_connections;
-  char               *mount_point;
-  ttq_sock_t         *socks;
-  int                 sock_count;
-  int                 client_count;
-  enum tmqtt_protocol protocol;
-  int                 socket_domain;
-  bool                use_username_as_clientid;
-  uint8_t             max_qos;
-  uint16_t            max_topic_alias;
+  uint16_t           port;
+  char              *host;
+  char              *bind_interface;
+  int                max_connections;
+  char              *mount_point;
+  ttq_sock_t        *socks;
+  int                sock_count;
+  int                client_count;
+  enum tmqttProtocol protocol;
+  int                socket_domain;
+  bool               use_username_as_clientid;
+  uint8_t            max_qos;
+  uint16_t           max_topic_alias;
 #ifdef WITH_TLS
   char               *cafile;
   char               *capath;
@@ -698,17 +698,6 @@ void handle_sigusr1(int signal);
 void handle_sigusr2(int signal);
 #ifdef SIGHUP
 void handle_sighup(int signal);
-#endif
-
-/* ============================================================
- * Window service and signal related functions
- * ============================================================ */
-#if defined(WIN32) || defined(__CYGWIN__)
-void service_install(void);
-void service_uninstall(void);
-void service_run(void);
-
-DWORD WINAPI SigThreadProc(void *data);
 #endif
 
 /* ============================================================

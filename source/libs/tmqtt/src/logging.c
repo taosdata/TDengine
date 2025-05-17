@@ -17,9 +17,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
-#ifndef WIN32
 #include <syslog.h>
-#endif
 #include <time.h>
 
 #if defined(__APPLE__)

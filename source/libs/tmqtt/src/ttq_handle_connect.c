@@ -25,7 +25,7 @@
 #include "send_ttq.h"
 #include "time_ttq.h"
 #include "tls_ttq.h"
-#include "tmqtt_proto.h"
+#include "tmqttProto.h"
 #include "ttq_systree.h"
 #include "util_ttq.h"
 

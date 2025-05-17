@@ -22,7 +22,7 @@
 #include "geometry/geosWrapper.h"
 #include "memory_ttq.h"
 #include "tmqtt_broker_int.h"
-#include "tmqtt_proto.h"
+#include "tmqttProto.h"
 #include "ttlist.h"
 
 bool tmq_ctx_auth(struct tmq_ctx* context, const char* username, const char* password) {

@@ -28,7 +28,7 @@ extern "C" {
 struct tmqtt;
 typedef struct mqtt5__property tmqtt_property;
 
-enum tmqtt_protocol { mp_mqtt, mp_mqttsn, mp_websockets };
+enum tmqttProtocol { mp_mqtt, mp_mqttsn, mp_websockets };
 
 // Memory allocation.
 void *tmqtt_calloc(size_t nmemb, size_t size);

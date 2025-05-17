@@ -15,19 +15,7 @@
 
 #include "time_ttq.h"
 
-#ifdef __APPLE__
-#include <mach/mach.h>
-#include <mach/mach_time.h>
-#endif
-
-#ifdef WIN32
-#if !(defined(_MSC_VER) && _MSC_VER <= 1500)
-#define _WIN32_WINNT _WIN32_WINNT_VISTA
-#endif
-#include <windows.h>
-#else
 #include <unistd.h>
-#endif
 
 #include "tmqtt.h"
 
@@ -52,9 +40,7 @@ void tmqtt_time_init(void) {
 }
 
 time_t tmqtt_time(void) {
-#ifdef WIN32
-  return GetTickCount64() / 1000;
-#elif _POSIX_TIMERS > 0 && defined(_POSIX_MONOTONIC_CLOCK)
+#if _POSIX_TIMERS > 0 && defined(_POSIX_MONOTONIC_CLOCK)
   struct timespec tp;
 
   if (clock_gettime(time_clock, &tp) == 0) return tp.tv_sec;

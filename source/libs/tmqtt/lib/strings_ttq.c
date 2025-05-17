@@ -18,11 +18,7 @@
 #include <errno.h>
 #include <string.h>
 
-#ifndef WIN32
-#include <strings.h>
-#endif
-
-#include "tmqtt_proto.h"
+#include "tmqttProto.h"
 
 const char *tmqtt_strerror(int ttq_errno) {
   switch (ttq_errno) {

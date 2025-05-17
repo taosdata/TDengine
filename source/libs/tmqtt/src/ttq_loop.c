@@ -15,18 +15,10 @@
 
 #include "tmqtt_broker_int.h"
 
-#ifndef WIN32
 #define _GNU_SOURCE
-#endif
 
-#ifndef WIN32
 #include <sys/socket.h>
 #include <unistd.h>
-#else
-#include <process.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#endif
 
 #include <errno.h>
 #include <signal.h>
@@ -39,7 +31,7 @@
 #include "packet_ttq.h"
 #include "send_ttq.h"
 #include "time_ttq.h"
-#include "tmqtt_proto.h"
+#include "tmqttProto.h"
 #include "ttq_systree.h"
 #include "util_ttq.h"
 
@@ -50,23 +42,16 @@ extern bool flag_reload;
 extern bool flag_tree_print;
 extern int  run;
 
-#ifndef WIN32
 pid_t g_ppid;
-#endif
 
-static void ttq_ppid_init(void) {
-#ifndef WIN32
-  g_ppid = getppid();
-#endif
-}
+static void ttq_ppid_init(void) { g_ppid = getppid(); }
 
 static int ttq_ppid_changed(void) {
-#ifndef WIN32
   extern pid_t g_ppid;
   if (getppid() != g_ppid) {
     return 1;
   }
-#endif
+
   return 0;
 }
 
@@ -268,9 +253,9 @@ void ttq_disconnect(struct tmqtt *context, int reason) {
           break;
         case TTQ_ERR_NOT_SUPPORTED:
           ttq_log(NULL, TTQ_LOG_NOTICE,
-                      "Client %s disconnected due to using not allowed feature (QoS too high, retain not supported, "
-                      "or bad AUTH method).",
-                      id);
+                  "Client %s disconnected due to using not allowed feature (QoS too high, retain not supported, "
+                  "or bad AUTH method).",
+                  id);
           break;
         case TTQ_ERR_ADMINISTRATIVE_ACTION:
           ttq_log(NULL, TTQ_LOG_NOTICE, "Client %s been disconnected by administrative action.", id);

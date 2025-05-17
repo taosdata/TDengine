@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef WIN32
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 #include <netdb.h>
@@ -21,10 +20,6 @@
 #include <strings.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#else
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#endif
 
 #ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
@@ -48,7 +43,7 @@
 #include "misc_ttq.h"
 #include "net_ttq.h"
 #include "tmqtt_broker_int.h"
-#include "tmqtt_proto.h"
+#include "tmqttProto.h"
 #include "ttq_systree.h"
 #include "util_ttq.h"
 
@@ -74,16 +69,8 @@ void net__broker_cleanup(void) {
 static void net__print_error(unsigned int log, const char *format_str) {
   char *buf;
 
-#ifdef WIN32
-  FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, WSAGetLastError(), LANG_NEUTRAL,
-                (LPTSTR)&buf, 0, NULL);
-
-  ttq_log(NULL, log, format_str, buf);
-  LocalFree(buf);
-#else
   buf = strerror(errno);
   ttq_log(NULL, log, format_str, buf);
-#endif
 }
 
 struct tmqtt *net__socket_accept(struct tmqtt__listener_sock *listensock) {
@@ -102,12 +89,7 @@ struct tmqtt *net__socket_accept(struct tmqtt__listener_sock *listensock) {
 
   new_sock = accept(listensock->sock, NULL, 0);
   if (new_sock == INVALID_SOCKET) {
-#ifdef WIN32
-    errno = WSAGetLastError();
-    if (errno == WSAEMFILE) {
-#else
     if (errno == EMFILE || errno == ENFILE) {
-#endif
       /* Close the spare socket, which means we should be able to accept
        * this connection. Accept it, then close it immediately and create
        * a new spare_sock. This prevents the situation of ever properly
@@ -122,8 +104,8 @@ struct tmqtt *net__socket_accept(struct tmqtt__listener_sock *listensock) {
       }
       spare_sock = socket(AF_INET, SOCK_STREAM, 0);
       ttq_log(NULL, TTQ_LOG_WARNING,
-                  "Unable to accept new connection, system socket count has been exceeded. Try increasing \"ulimit "
-                  "-n\" or equivalent.");
+              "Unable to accept new connection, system socket count has been exceeded. Try increasing \"ulimit "
+              "-n\" or equivalent.");
     }
     return NULL;
   }
@@ -152,11 +134,7 @@ struct tmqtt *net__socket_accept(struct tmqtt__listener_sock *listensock) {
 
   if (db.config->set_tcp_nodelay) {
     int flag = 1;
-#ifdef WIN32
-    if (setsockopt(new_sock, IPPROTO_TCP, TCP_NODELAY, (char *)&flag, sizeof(int)) != 0) {
-#else
     if (setsockopt(new_sock, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(int)) != 0) {
-#endif
       ttq_log(NULL, TTQ_LOG_WARNING, "Warning: Unable to set TCP_NODELAY.");
     }
   }
@@ -177,7 +155,7 @@ struct tmqtt *net__socket_accept(struct tmqtt__listener_sock *listensock) {
       new_context->listener->client_count > new_context->listener->max_connections) {
     if (db.config->connection_messages == true) {
       ttq_log(NULL, TTQ_LOG_NOTICE, "Client connection from %s denied: max_connections exceeded.",
-                  new_context->address);
+              new_context->address);
     }
     context__cleanup(new_context, true);
     return NULL;
@@ -209,7 +187,7 @@ struct tmqtt *net__socket_accept(struct tmqtt__listener_sock *listensock) {
           e = ERR_get_error();
           while (e) {
             ttq_log(NULL, TTQ_LOG_NOTICE, "Client connection from %s failed: %s.", new_context->address,
-                        ERR_error_string(e, ebuf));
+                    ERR_error_string(e, ebuf));
             e = ERR_get_error();
           }
         }
@@ -222,7 +200,7 @@ struct tmqtt *net__socket_accept(struct tmqtt__listener_sock *listensock) {
 
   if (db.config->connection_messages == true) {
     ttq_log(NULL, TTQ_LOG_NOTICE, "New connection from %s:%d on port %d.", new_context->address,
-                new_context->remote_port, new_context->listener->port);
+            new_context->remote_port, new_context->listener->port);
   }
 
   return new_context;
@@ -390,7 +368,7 @@ int net__tls_server_ctx(struct tmqtt__listener *listener) {
     rc = SSL_CTX_set_ciphersuites(listener->ssl_ctx, listener->ciphers_tls13);
     if (rc == 0) {
       ttq_log(NULL, TTQ_LOG_ERR, "Error: Unable to set TLS 1.3 ciphersuites. Check cipher_tls13 list \"%s\".",
-                  listener->ciphers_tls13);
+              listener->ciphers_tls13);
       return TTQ_ERR_TLS;
     }
   }
@@ -431,7 +409,7 @@ static int net__load_crl_file(struct tmqtt__listener *listener) {
   rc = X509_load_crl_file(lookup, listener->crlfile, X509_FILETYPE_PEM);
   if (rc < 1) {
     ttq_log(NULL, TTQ_LOG_ERR, "Error: Unable to load certificate revocation file \"%s\". Check crlfile.",
-                listener->crlfile);
+            listener->crlfile);
     net__print_error(TTQ_LOG_ERR, "Error: %s");
     net__print_ssl_error(NULL);
     return TTQ_ERR_TLS;
@@ -453,8 +431,7 @@ int net__load_certificates(struct tmqtt__listener *listener) {
   }
   rc = SSL_CTX_use_certificate_chain_file(listener->ssl_ctx, listener->certfile);
   if (rc != 1) {
-    ttq_log(NULL, TTQ_LOG_ERR, "Error: Unable to load server certificate \"%s\". Check certfile.",
-                listener->certfile);
+    ttq_log(NULL, TTQ_LOG_ERR, "Error: Unable to load server certificate \"%s\". Check certfile.", listener->certfile);
     net__print_ssl_error(NULL);
     return TTQ_ERR_TLS;
   }
@@ -551,7 +528,7 @@ int net__tls_load_verify(struct tmqtt__listener *listener) {
     if (rc == 0) {
       if (listener->cafile && listener->capath) {
         ttq_log(NULL, TTQ_LOG_ERR, "Error: Unable to load CA certificates. Check cafile \"%s\" and capath \"%s\".",
-                    listener->cafile, listener->capath);
+                listener->cafile, listener->capath);
       } else if (listener->cafile) {
         ttq_log(NULL, TTQ_LOG_ERR, "Error: Unable to load CA certificates. Check cafile \"%s\".", listener->cafile);
       } else {
@@ -587,7 +564,6 @@ int net__tls_load_verify(struct tmqtt__listener *listener) {
   return net__load_certificates(listener);
 }
 
-#ifndef WIN32
 static int net__bind_interface(struct tmqtt__listener *listener, struct addrinfo *rp) {
   /*
    * This binds the listener sock to a network interface.
@@ -616,8 +592,8 @@ static int net__bind_interface(struct tmqtt__listener *listener, struct addrinfo
           if (listener->host && memcmp(&((struct sockaddr_in *)rp->ai_addr)->sin_addr,
                                        &((struct sockaddr_in *)ifa->ifa_addr)->sin_addr, sizeof(struct in_addr))) {
             ttq_log(NULL, TTQ_LOG_ERR,
-                        "Error: Interface address for %s does not match specified listener address (%s).",
-                        listener->bind_interface, listener->host);
+                    "Error: Interface address for %s does not match specified listener address (%s).",
+                    listener->bind_interface, listener->host);
             return TTQ_ERR_INVAL;
           } else {
             memcpy(&((struct sockaddr_in *)rp->ai_addr)->sin_addr, &((struct sockaddr_in *)ifa->ifa_addr)->sin_addr,
@@ -630,8 +606,8 @@ static int net__bind_interface(struct tmqtt__listener *listener, struct addrinfo
           if (listener->host && memcmp(&((struct sockaddr_in6 *)rp->ai_addr)->sin6_addr,
                                        &((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr, sizeof(struct in6_addr))) {
             ttq_log(NULL, TTQ_LOG_ERR,
-                        "Error: Interface address for %s does not match specified listener address (%s).",
-                        listener->bind_interface, listener->host);
+                    "Error: Interface address for %s does not match specified listener address (%s).",
+                    listener->bind_interface, listener->host);
             return TTQ_ERR_INVAL;
           } else {
             memcpy(&((struct sockaddr_in6 *)rp->ai_addr)->sin6_addr, &((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr,
@@ -645,15 +621,14 @@ static int net__bind_interface(struct tmqtt__listener *listener, struct addrinfo
   }
   freeifaddrs(ifaddr);
   if (have_interface) {
-    ttq_log(NULL, TTQ_LOG_WARNING, "Warning: Interface %s does not support %s configuration.",
-                listener->bind_interface, rp->ai_addr->sa_family == AF_INET ? "IPv4" : "IPv6");
+    ttq_log(NULL, TTQ_LOG_WARNING, "Warning: Interface %s does not support %s configuration.", listener->bind_interface,
+            rp->ai_addr->sa_family == AF_INET ? "IPv4" : "IPv6");
     return TTQ_ERR_NOT_SUPPORTED;
   } else {
     ttq_log(NULL, TTQ_LOG_ERR, "Error: Interface %s does not exist.", listener->bind_interface);
     return TTQ_ERR_NOT_FOUND;
   }
 }
-#endif
 
 static int net__socket_listen_tcp(struct tmqtt__listener *listener) {
   ttq_sock_t       sock = INVALID_SOCKET;
@@ -662,9 +637,7 @@ static int net__socket_listen_tcp(struct tmqtt__listener *listener) {
   char             service[10];
   int              rc;
   int              ss_opt = 1;
-#ifndef WIN32
-  bool interface_bound = false;
-#endif
+  bool             interface_bound = false;
 
   if (!listener) return TTQ_ERR_INVAL;
 
@@ -690,10 +663,10 @@ static int net__socket_listen_tcp(struct tmqtt__listener *listener) {
   for (rp = ainfo; rp; rp = rp->ai_next) {
     if (rp->ai_family == AF_INET) {
       ttq_log(NULL, TTQ_LOG_INFO, "Opening ipv4 listen socket on port %d.",
-                  ntohs(((struct sockaddr_in *)rp->ai_addr)->sin_port));
+              ntohs(((struct sockaddr_in *)rp->ai_addr)->sin_port));
     } else if (rp->ai_family == AF_INET6) {
       ttq_log(NULL, TTQ_LOG_INFO, "Opening ipv6 listen socket on port %d.",
-                  ntohs(((struct sockaddr_in6 *)rp->ai_addr)->sin6_port));
+              ntohs(((struct sockaddr_in6 *)rp->ai_addr)->sin6_port));
     } else {
       continue;
     }
@@ -713,11 +686,10 @@ static int net__socket_listen_tcp(struct tmqtt__listener *listener) {
     }
     listener->socks[listener->sock_count - 1] = sock;
 
-#ifndef WIN32
     ss_opt = 1;
     /* Unimportant if this fails */
     (void)setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &ss_opt, sizeof(ss_opt));
-#endif
+
 #ifdef IPV6_V6ONLY
     ss_opt = 1;
     (void)setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &ss_opt, sizeof(ss_opt));
@@ -729,7 +701,6 @@ static int net__socket_listen_tcp(struct tmqtt__listener *listener) {
       return 1;
     }
 
-#ifndef WIN32
     if (listener->bind_interface) {
       /* It might be possible that an interface does not support all relevant sa_families.
        * We should successfully find at least one. */
@@ -746,14 +717,13 @@ static int net__socket_listen_tcp(struct tmqtt__listener *listener) {
       }
       interface_bound = true;
     }
-#endif
 
     if (bind(sock, rp->ai_addr, rp->ai_addrlen) == -1) {
 #if defined(__linux__)
       if (errno == EACCES) {
         ttq_log(NULL, TTQ_LOG_ERR,
-                    "If you are trying to bind to a privileged port (<1024), try using setcap and do not start the "
-                    "broker as root:");
+                "If you are trying to bind to a privileged port (<1024), try using setcap and do not start the "
+                "broker as root:");
         ttq_log(NULL, TTQ_LOG_ERR, "    sudo setcap 'CAP_NET_BIND_SERVICE=+ep /usr/sbin/tmqtt'");
       }
 #endif
@@ -774,12 +744,10 @@ static int net__socket_listen_tcp(struct tmqtt__listener *listener) {
   }
   freeaddrinfo(ainfo);
 
-#ifndef WIN32
   if (listener->bind_interface && !interface_bound) {
     ttq_free(listener->socks);
     return 1;
   }
-#endif
 
   return 0;
 }

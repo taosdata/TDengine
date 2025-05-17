@@ -19,7 +19,7 @@
 #include <string.h>
 
 #include "property_ttq.h"
-#include "tmqtt_proto.h"
+#include "tmqttProto.h"
 
 int property__process_will(struct tmqtt *context, struct tmqtt_message_all *msg, tmqtt_property **props) {
   tmqtt_property *p, *p_prev;

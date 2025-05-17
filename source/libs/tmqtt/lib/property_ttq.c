@@ -18,14 +18,10 @@
 #include <errno.h>
 #include <string.h>
 
-#ifndef WIN32
-#include <strings.h>
-#endif
-
 #include "logging_ttq.h"
 #include "memory_ttq.h"
 #include "packet_ttq.h"
-#include "tmqtt_proto.h"
+#include "tmqttProto.h"
 
 static int property__read(struct tmqtt__packet *packet, uint32_t *len, tmqtt_property *property) {
   int      rc;

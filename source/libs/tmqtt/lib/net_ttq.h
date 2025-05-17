@@ -20,34 +20,16 @@
 extern "C" {
 #endif
 
-#ifndef WIN32
 #include <sys/socket.h>
 #include <unistd.h>
-#else
-#include <winsock2.h>
-#ifndef _SSIZE_T_DEFINED
-typedef SSIZE_T ssize_t;
-#define _SSIZE_T_DEFINED
-#endif
-#endif
 
 #include "tmqtt.h"
 #include "tmqtt_int.h"
 
-#ifdef WIN32
-#define COMPAT_CLOSE(a)    closesocket(a)
-#define COMPAT_ECONNRESET  WSAECONNRESET
-#define COMPAT_EINTR       WSAEINTR
-#define COMPAT_EWOULDBLOCK WSAEWOULDBLOCK
-#ifndef EINPROGRESS
-#define EINPROGRESS WSAEINPROGRESS
-#endif
-#else
 #define COMPAT_CLOSE(a)    close(a)
 #define COMPAT_ECONNRESET  ECONNRESET
 #define COMPAT_EINTR       EINTR
 #define COMPAT_EWOULDBLOCK EWOULDBLOCK
-#endif
 
 /* For when not using winsock libraries. */
 #ifndef INVALID_SOCKET

@@ -15,13 +15,11 @@
 
 #define ALLOW_FORBID_FUNC
 
-#ifndef WIN32
 #include <grp.h>
 #include <pwd.h>
 #include <signal.h>
 #include <sys/time.h>
 #include <unistd.h>
-#endif
 
 #include <errno.h>
 #include <stdio.h>

@@ -16,14 +16,7 @@
 #include <ctype.h>
 #include <string.h>
 
-#ifdef WIN32
-#include <aclapi.h>
-#include <io.h>
-#include <lmcons.h>
-#include <winsock2.h>
-#else
 #include <sys/stat.h>
-#endif
 
 #if !defined(WITH_TLS) && defined(__linux__) && defined(__GLIBC__)
 #if __GLIBC_PREREQ(2, 25)
@@ -230,18 +223,6 @@ int util__random_bytes(void *bytes, int count) {
   if (getrandom(bytes, (size_t)count, 0) == count) {
     rc = TTQ_ERR_SUCCESS;
   }
-#elif defined(WIN32)
-  HCRYPTPROV provider;
-
-  if (!CryptAcquireContext(&provider, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) {
-    return TTQ_ERR_UNKNOWN;
-  }
-
-  if (CryptGenRandom(provider, count, bytes)) {
-    rc = TTQ_ERR_SUCCESS;
-  }
-
-  CryptReleaseContext(provider, 0);
 #else
   int i;
 

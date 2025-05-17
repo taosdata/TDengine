@@ -20,7 +20,7 @@
 
 #include "packet_ttq.h"
 #include "send_ttq.h"
-#include "tmqtt_proto.h"
+#include "tmqttProto.h"
 #include "util_ttq.h"
 
 static int ttq_handle_pingreq(struct tmqtt *ttq) {

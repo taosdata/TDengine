@@ -35,10 +35,6 @@
 #include "ttq_systree.h"
 #include "util_ttq.h"
 
-#ifdef WIN32
-#error "epoll not supported on WIN32"
-#endif
-
 #define MAX_EVENTS 1000
 
 static sigset_t           my_sigblock;

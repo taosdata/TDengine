@@ -22,7 +22,7 @@
 #include "memory_ttq.h"
 #include "net_ttq.h"
 #include "packet_ttq.h"
-#include "tmqtt_proto.h"
+#include "tmqttProto.h"
 #include "ttq_systree.h"
 
 int packet__read_byte(struct tmqtt__packet *packet, uint8_t *byte) {

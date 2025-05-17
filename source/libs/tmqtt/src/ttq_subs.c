@@ -50,7 +50,7 @@
 #include <string.h>
 
 #include "memory_ttq.h"
-#include "tmqtt_proto.h"
+#include "tmqttProto.h"
 #include "ttlist.h"
 #include "util_ttq.h"
 

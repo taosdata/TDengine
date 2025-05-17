@@ -17,14 +17,7 @@
 
 #include <string.h>
 
-#ifdef WIN32
-#include <aclapi.h>
-#include <io.h>
-#include <lmcons.h>
-#include <winsock2.h>
-#else
 #include <sys/stat.h>
-#endif
 
 #ifdef WITH_BROKER
 #include "tmqtt_broker_int.h"

@@ -21,7 +21,7 @@
 #include "memory_ttq.h"
 #include "packet_ttq.h"
 #include "property_ttq.h"
-#include "tmqtt_proto.h"
+#include "tmqttProto.h"
 
 static int ttq_send_suback(struct tmqtt *context, uint16_t mid, uint32_t payloadlen, const void *payload) {
   struct tmqtt__packet *packet = NULL;

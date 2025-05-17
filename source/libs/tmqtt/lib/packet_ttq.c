@@ -23,7 +23,7 @@
 #include "memory_ttq.h"
 #include "net_ttq.h"
 #include "send_ttq.h"
-#include "tmqtt_proto.h"
+#include "tmqttProto.h"
 #include "ttq_systree.h"
 #include "util_ttq.h"
 
@@ -193,14 +193,7 @@ int packet__write(struct tmqtt *ttq) {
         packet->to_process -= (uint32_t)write_length;
         packet->pos += (uint32_t)write_length;
       } else {
-#ifdef WIN32
-        errno = WSAGetLastError();
-#endif
-        if (errno == EAGAIN || errno == COMPAT_EWOULDBLOCK
-#ifdef WIN32
-            || errno == WSAENOTCONN
-#endif
-        ) {
+        if (errno == EAGAIN || errno == COMPAT_EWOULDBLOCK) {
           ttq_pthread_mutex_unlock(&ttq->current_out_packet_mutex);
           return TTQ_ERR_SUCCESS;
         } else {
@@ -285,9 +278,6 @@ int packet__read(struct tmqtt *ttq) {
       if (read_length == 0) {
         return TTQ_ERR_CONN_LOST; /* EOF */
       }
-#ifdef WIN32
-      errno = WSAGetLastError();
-#endif
       if (errno == EAGAIN || errno == COMPAT_EWOULDBLOCK) {
         return TTQ_ERR_SUCCESS;
       } else {
@@ -322,9 +312,6 @@ int packet__read(struct tmqtt *ttq) {
         if (read_length == 0) {
           return TTQ_ERR_CONN_LOST; /* EOF */
         }
-#ifdef WIN32
-        errno = WSAGetLastError();
-#endif
         if (errno == EAGAIN || errno == COMPAT_EWOULDBLOCK) {
           return TTQ_ERR_SUCCESS;
         } else {
@@ -398,9 +385,6 @@ int packet__read(struct tmqtt *ttq) {
       ttq->in_packet.to_process -= (uint32_t)read_length;
       ttq->in_packet.pos += (uint32_t)read_length;
     } else {
-#ifdef WIN32
-      errno = WSAGetLastError();
-#endif
       if (errno == EAGAIN || errno == COMPAT_EWOULDBLOCK) {
         if (ttq->in_packet.to_process > 1000) {
 #ifdef WITH_BROKER

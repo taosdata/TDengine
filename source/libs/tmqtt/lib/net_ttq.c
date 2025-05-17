@@ -20,16 +20,11 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
-#ifndef WIN32
-#define _GNU_SOURCE
+
 #include <netdb.h>
 #include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#else
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#endif
 
 #ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
@@ -59,7 +54,7 @@
 #include "logging_ttq.h"
 #include "memory_ttq.h"
 #include "time_ttq.h"
-#include "tmqtt_proto.h"
+#include "tmqttProto.h"
 #include "util_ttq.h"
 
 #ifdef WITH_TLS
@@ -97,13 +92,6 @@ UI_METHOD *net__get_ui_method(void) { return _ui_method; }
 #endif
 
 int net__init(void) {
-#ifdef WIN32
-  WSADATA wsaData;
-  if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-    return TTQ_ERR_UNKNOWN;
-  }
-#endif
-
 #ifdef WITH_SRV
   ares_library_init(ARES_LIB_INIT_ALL);
 #endif
@@ -131,10 +119,6 @@ void net__cleanup(void) {
 
 #ifdef WITH_SRV
   ares_library_cleanup();
-#endif
-
-#ifdef WIN32
-  WSACleanup();
 #endif
 }
 
@@ -307,9 +291,6 @@ int net__try_connect_step2(struct tmqtt *ttq, uint16_t port, ttq_sock_t *sock) {
     }
 
     rc = connect(*sock, rp->ai_addr, rp->ai_addrlen);
-#ifdef WIN32
-    errno = WSAGetLastError();
-#endif
     if (rc == 0 || errno == EINPROGRESS || errno == COMPAT_EWOULDBLOCK) {
       if (rc < 0 && (errno == EINPROGRESS || errno == COMPAT_EWOULDBLOCK)) {
         rc = TTQ_ERR_CONN_PENDING;
@@ -406,9 +387,6 @@ static int net__try_connect_tcp(const char *host, uint16_t port, ttq_sock_t *soc
     }
 
     rc = connect(*sock, rp->ai_addr, rp->ai_addrlen);
-#ifdef WIN32
-    errno = WSAGetLastError();
-#endif
     if (rc == 0 || errno == EINPROGRESS || errno == COMPAT_EWOULDBLOCK) {
       if (rc < 0 && (errno == EINPROGRESS || errno == COMPAT_EWOULDBLOCK)) {
         rc = TTQ_ERR_CONN_PENDING;
@@ -900,9 +878,6 @@ static int net__handle_ssl(struct tmqtt *ttq, int ret) {
     errno = EPROTO;
   }
   ERR_clear_error();
-#ifdef WIN32
-  WSASetLastError(errno);
-#endif
 
   return ret;
 }
@@ -927,11 +902,7 @@ ssize_t net__read(struct tmqtt *ttq, void *buf, size_t count) {
 
 #endif
 
-#ifndef WIN32
     return read(ttq->sock, buf, count);
-#else
-  return recv(ttq->sock, buf, count, 0);
-#endif
 
 #ifdef WITH_TLS
   }
@@ -965,7 +936,6 @@ ssize_t net__write(struct tmqtt *ttq, const void *buf, size_t count) {
 }
 
 int net__socket_nonblock(ttq_sock_t *sock) {
-#ifndef WIN32
   int opt;
   /* Set non-blocking */
   opt = fcntl(*sock, F_GETFL, 0);
@@ -980,124 +950,12 @@ int net__socket_nonblock(ttq_sock_t *sock) {
     *sock = INVALID_SOCKET;
     return TTQ_ERR_ERRNO;
   }
-#else
-  unsigned long opt = 1;
-  if (ioctlsocket(*sock, FIONBIO, &opt)) {
-    COMPAT_CLOSE(*sock);
-    *sock = INVALID_SOCKET;
-    return TTQ_ERR_ERRNO;
-  }
-#endif
+
   return TTQ_ERR_SUCCESS;
 }
 
 #ifndef WITH_BROKER
 int net__socketpair(ttq_sock_t *pairR, ttq_sock_t *pairW) {
-#ifdef WIN32
-  int                     family[2] = {AF_INET, AF_INET6};
-  int                     i;
-  struct sockaddr_storage ss;
-  struct sockaddr_in     *sa = (struct sockaddr_in *)&ss;
-  struct sockaddr_in6    *sa6 = (struct sockaddr_in6 *)&ss;
-  socklen_t               ss_len;
-  ttq_sock_t              spR, spW;
-
-  ttq_sock_t listensock;
-
-  *pairR = INVALID_SOCKET;
-  *pairW = INVALID_SOCKET;
-
-  for (i = 0; i < 2; i++) {
-    memset(&ss, 0, sizeof(ss));
-    if (family[i] == AF_INET) {
-      sa->sin_family = family[i];
-      sa->sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-      sa->sin_port = 0;
-      ss_len = sizeof(struct sockaddr_in);
-    } else if (family[i] == AF_INET6) {
-      sa6->sin6_family = family[i];
-      sa6->sin6_addr = in6addr_loopback;
-      sa6->sin6_port = 0;
-      ss_len = sizeof(struct sockaddr_in6);
-    } else {
-      return TTQ_ERR_INVAL;
-    }
-
-    listensock = socket(family[i], SOCK_STREAM, IPPROTO_TCP);
-    if (listensock == -1) {
-      continue;
-    }
-
-    if (bind(listensock, (struct sockaddr *)&ss, ss_len) == -1) {
-      COMPAT_CLOSE(listensock);
-      continue;
-    }
-
-    if (listen(listensock, 1) == -1) {
-      COMPAT_CLOSE(listensock);
-      continue;
-    }
-    memset(&ss, 0, sizeof(ss));
-    ss_len = sizeof(ss);
-    if (getsockname(listensock, (struct sockaddr *)&ss, &ss_len) < 0) {
-      COMPAT_CLOSE(listensock);
-      continue;
-    }
-
-    if (family[i] == AF_INET) {
-      sa->sin_family = family[i];
-      sa->sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-      ss_len = sizeof(struct sockaddr_in);
-    } else if (family[i] == AF_INET6) {
-      sa6->sin6_family = family[i];
-      sa6->sin6_addr = in6addr_loopback;
-      ss_len = sizeof(struct sockaddr_in6);
-    }
-
-    spR = socket(family[i], SOCK_STREAM, IPPROTO_TCP);
-    if (spR == -1) {
-      COMPAT_CLOSE(listensock);
-      continue;
-    }
-    if (net__socket_nonblock(&spR)) {
-      COMPAT_CLOSE(listensock);
-      continue;
-    }
-    if (connect(spR, (struct sockaddr *)&ss, ss_len) < 0) {
-#ifdef WIN32
-      errno = WSAGetLastError();
-#endif
-      if (errno != EINPROGRESS && errno != COMPAT_EWOULDBLOCK) {
-        COMPAT_CLOSE(spR);
-        COMPAT_CLOSE(listensock);
-        continue;
-      }
-    }
-    spW = accept(listensock, NULL, 0);
-    if (spW == -1) {
-#ifdef WIN32
-      errno = WSAGetLastError();
-#endif
-      if (errno != EINPROGRESS && errno != COMPAT_EWOULDBLOCK) {
-        COMPAT_CLOSE(spR);
-        COMPAT_CLOSE(listensock);
-        continue;
-      }
-    }
-
-    if (net__socket_nonblock(&spW)) {
-      COMPAT_CLOSE(spR);
-      COMPAT_CLOSE(listensock);
-      continue;
-    }
-    COMPAT_CLOSE(listensock);
-
-    *pairR = spR;
-    *pairW = spW;
-    return TTQ_ERR_SUCCESS;
-  }
-  return TTQ_ERR_UNKNOWN;
-#else
   int sv[2];
 
   *pairR = INVALID_SOCKET;
@@ -1117,7 +975,6 @@ int net__socketpair(ttq_sock_t *pairR, ttq_sock_t *pairW) {
   *pairR = sv[0];
   *pairW = sv[1];
   return TTQ_ERR_SUCCESS;
-#endif
 }
 #endif
 

@@ -26,7 +26,7 @@
 #include "property_ttq.h"
 #include "tmqtt.h"
 #include "tmqtt_int.h"
-#include "tmqtt_proto.h"
+#include "tmqttProto.h"
 #include "ttq_systree.h"
 
 int send__publish(struct tmqtt *ttq, uint16_t mid, const char *topic, uint32_t payloadlen, const void *payload,

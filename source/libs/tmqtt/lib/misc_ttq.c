@@ -23,109 +23,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef WIN32
-#include <aclapi.h>
-#include <fcntl.h>
-#include <io.h>
-#include <lmcons.h>
-#include <winsock2.h>
-#define PATH_MAX MAX_PATH
-#else
 #include <grp.h>
 #include <pwd.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#endif
 
 #include "logging_ttq.h"
 
 FILE *tmqtt__fopen(const char *path, const char *mode, bool restrict_read) {
-#ifdef WIN32
-  char buf[4096];
-  int  rc;
-  int  flags = 0;
-
-  rc = ExpandEnvironmentStringsA(path, buf, 4096);
-  if (rc == 0 || rc > 4096) {
-    return NULL;
-  } else {
-    if (restrict_read) {
-      HANDLE              hfile;
-      SECURITY_ATTRIBUTES sec;
-      EXPLICIT_ACCESS_A   ea;
-      PACL                pacl = NULL;
-      char                username[UNLEN + 1];
-      DWORD               ulen = UNLEN;
-      SECURITY_DESCRIPTOR sd;
-      DWORD               dwCreationDisposition;
-      DWORD               dwShareMode;
-      int                 fd;
-      FILE               *fptr;
-
-      switch (mode[0]) {
-        case 'a':
-          dwCreationDisposition = OPEN_ALWAYS;
-          dwShareMode = GENERIC_WRITE;
-          flags = _O_APPEND;
-          break;
-        case 'r':
-          dwCreationDisposition = OPEN_EXISTING;
-          dwShareMode = GENERIC_READ;
-          flags = _O_RDONLY;
-          break;
-        case 'w':
-          dwCreationDisposition = CREATE_ALWAYS;
-          dwShareMode = GENERIC_WRITE;
-          break;
-        default:
-          return NULL;
-      }
-      if (mode[1] == '+') {
-        dwShareMode = GENERIC_READ | GENERIC_WRITE;
-      }
-
-      GetUserNameA(username, &ulen);
-      if (!InitializeSecurityDescriptor(&sd, SECURITY_DESCRIPTOR_REVISION)) {
-        return NULL;
-      }
-      BuildExplicitAccessWithNameA(&ea, username, GENERIC_ALL, SET_ACCESS, NO_INHERITANCE);
-      if (SetEntriesInAclA(1, &ea, NULL, &pacl) != ERROR_SUCCESS) {
-        return NULL;
-      }
-      if (!SetSecurityDescriptorDacl(&sd, TRUE, pacl, FALSE)) {
-        LocalFree(pacl);
-        return NULL;
-      }
-
-      memset(&sec, 0, sizeof(sec));
-      sec.nLength = sizeof(SECURITY_ATTRIBUTES);
-      sec.bInheritHandle = FALSE;
-      sec.lpSecurityDescriptor = &sd;
-
-      hfile = CreateFileA(buf, dwShareMode, FILE_SHARE_READ, &sec, dwCreationDisposition, FILE_ATTRIBUTE_NORMAL, NULL);
-
-      LocalFree(pacl);
-
-      fd = _open_osfhandle((intptr_t)hfile, flags);
-      if (fd < 0) {
-        return NULL;
-      }
-
-      fptr = _fdopen(fd, mode);
-      if (!fptr) {
-        _close(fd);
-        return NULL;
-      }
-      if (mode[0] == 'a') {
-        fseek(fptr, 0, SEEK_END);
-      }
-      return fptr;
-
-    } else {
-      return fopen(buf, mode);
-    }
-  }
-#else
   FILE       *fptr;
   struct stat statbuf;
 
@@ -147,17 +52,10 @@ FILE *tmqtt__fopen(const char *path, const char *mode, bool restrict_read) {
 
   if (restrict_read) {
     if (statbuf.st_mode & S_IRWXO) {
-#ifdef WITH_BROKER
       ttq_log(NULL, TTQ_LOG_WARNING,
-#else
-      fprintf(stderr,
-#endif
-                  "Warning: File %s has world readable permissions. Future versions will refuse to load this file.\n"
-                  "To fix this, use `chmod 0700 %s`.",
-                  path, path);
-#if 0
-			return NULL;
-#endif
+              "Warning: File %s has world readable permissions. Future versions will refuse to load this file.\n"
+              "To fix this, use `chmod 0700 %s`.",
+              path, path);
     }
     if (statbuf.st_uid != getuid()) {
       char          buf[4096];
@@ -165,19 +63,11 @@ FILE *tmqtt__fopen(const char *path, const char *mode, bool restrict_read) {
 
       getpwuid_r(getuid(), &pw, buf, sizeof(buf), &result);
       if (result) {
-#ifdef WITH_BROKER
         ttq_log(NULL, TTQ_LOG_WARNING,
-#else
-        fprintf(stderr,
-#endif
-                    "Warning: File %s owner is not %s. Future versions will refuse to load this file."
-                    "To fix this, use `chown %s %s`.",
-                    path, result->pw_name, result->pw_name, path);
+                "Warning: File %s owner is not %s. Future versions will refuse to load this file."
+                "To fix this, use `chown %s %s`.",
+                path, result->pw_name, result->pw_name, path);
       }
-#if 0
-			// Future version
-			return NULL;
-#endif
     }
     if (statbuf.st_gid != getgid()) {
       char         buf[4096];
@@ -185,30 +75,19 @@ FILE *tmqtt__fopen(const char *path, const char *mode, bool restrict_read) {
 
       getgrgid_r(getgid(), &grp, buf, sizeof(buf), &result);
       if (result) {
-#ifdef WITH_BROKER
         ttq_log(NULL, TTQ_LOG_WARNING,
-#else
-        fprintf(stderr,
-#endif
-                    "Warning: File %s group is not %s. Future versions will refuse to load this file.", path,
-                    result->gr_name);
+                "Warning: File %s group is not %s. Future versions will refuse to load this file.", path,
+                result->gr_name);
       }
-#if 0
-			// Future version
-			return NULL
-#endif
     }
   }
 
   if (!S_ISREG(statbuf.st_mode) && !S_ISLNK(statbuf.st_mode)) {
-#ifdef WITH_BROKER
     ttq_log(NULL, TTQ_LOG_ERR, "Error: %s is not a file.", path);
-#endif
     fclose(fptr);
     return NULL;
   }
   return fptr;
-#endif
 }
 
 char *misc__trimblanks(char *str) {
