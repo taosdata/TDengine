@@ -994,7 +994,7 @@ static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp) {
       .code = pRsp->code,
       .pCont = pRsp->info.rsp,
       .contLen = pRsp->info.rspLen,
-      .info = *(SRpcHandleInfo*)mntInfo.pVal,
+      .info = *(SRpcHandleInfo *)mntInfo.pVal,
   };
   tmsgSendRsp(&rsp);
 
@@ -1002,6 +1002,7 @@ static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp) {
   mGInfo("msg:%p, retrieve mount path rsp with code:%d", pRsp, pRsp->code);
 
 _exit:
+  tFreeSDropMountInfo(&mntInfo);
   return 0;
 }
 

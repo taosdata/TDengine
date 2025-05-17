@@ -6261,6 +6261,20 @@ _exit:
   tDecoderClear(&decoder);
   return code;
 }
+
+void tFreeSDropMountInfo(SMountInfo *pReq) {
+  if (pReq) {
+    taosMemoryFreeClear(pReq->pVal);
+    if (pReq->pDb) {
+      for (int32_t i = 0; i < TARRAY_SIZE(pReq->pDb); ++i) {
+        SMountDbInfo *pDbInfo = TARRAY_GET_ELEM(pReq->pDb, i);
+        taosArrayDestroy(pDbInfo->pVg);
+        taosArrayDestroyP(pDbInfo->pStb, NULL);
+      }
+      taosArrayDestroy(pReq->pDb);
+    }
+  }
+}
 #endif // USE_MOUNT
 
 int32_t tSerializeSUserIndexReq(void *buf, int32_t bufLen, SUserIndexReq *pReq) {

@@ -1799,6 +1799,7 @@ typedef struct {
 
 int32_t tSerializeSMountInfo(void* buf, int32_t bufLen, SMountInfo* pReq);
 int32_t tDeserializeSMountInfo(void* buf, int32_t bufLen, SMountInfo* pReq);
+void    tFreeSDropMountInfo(SMountInfo* pReq);
 
 #endif  // USE_MOUNT
 

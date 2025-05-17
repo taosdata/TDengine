@@ -452,11 +452,8 @@ _OVER:
 }
 
 #ifdef USE_MOUNT
-static int32_t sdbWriteWithoutFreeStb(SSdb *pSdb, SSdbRaw *pRaw) {
-  return pRaw->type == SDB_STB ? sdbWriteWithoutFree(pSdb, pRaw) : 0;
-}
-
-int32_t sdbReadStables(SSdb **ppSdb, const char *path) {
+extern int32_t sdbWriteWithoutFreeStb(SSdb *pSdb, SSdbRaw *pRaw);
+int32_t        sdbReadStables(SSdb **ppSdb, const char *path) {
   int32_t code = 0, lino = 0;
   SSdb   *pSdb = NULL;
   SSdbOpt opt = {0};
@@ -465,11 +462,15 @@ int32_t sdbReadStables(SSdb **ppSdb, const char *path) {
   // opt.pWal = pMnode->pWal;
   mInfo("start to read sdb stb");
   TSDB_CHECK_NULL((pSdb = sdbInit(&opt)), code, lino, _exit, terrno != 0 ? terrno : TSDB_CODE_MND_RETURN_VALUE_NULL);
+  SSdbTable table = {.sdbType = SDB_STB, .keyType = SDB_KEY_BINARY};
+  sdbSetTable(pSdb, table);
   TAOS_CHECK_EXIT(sdbReadFileImp(pSdb, sdbWriteWithoutFreeStb, 0, 0, NULL));
 _exit:
+  if (pSdb) pSdb->applyIndex = pSdb->commitIndex = 0;  // skip sdbWrite file
   if (code != 0) {
     mError("failed to read sdb stb at line %d  since %s, path:%s", lino, tstrerror(code), path);
-    if (pSdb) sdbCleanup(pSdb);
+    pSdb->applyIndex = pSdb->commitIndex = 0;
+    if (pSdb) sdbCleanup(pSdb, false);
     *ppSdb = NULL;
   } else {
     *ppSdb = pSdb;
