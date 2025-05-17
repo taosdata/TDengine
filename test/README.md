@@ -165,6 +165,29 @@ pytest --log-level=DEBUG
 pytest --yaml_file=ci_default.yaml cases/data_write/sql_statement/test_insert_double.py
 ```
 
+## 4.7 Batch Run Test Cases
+
+To run test cases in batch:
+
+Run with default test list file:
+```bash
+./start_run_test_list.sh                           #run with default test list file(test_list.txt)
+./start_run_test_list.sh path/to/case_list_file    #run with custom test list file
+```
+
+For the format of the test list file, please refer to `test_list.txt`.
+
+To stop the test execution:
+```bash
+./stop_run_test_list.sh    #the script will stop after completing the current test case.
+```
+
+Batch test results can be found in the `test_logs` directory:
+- `test_logs/case_result.txt`: Case execution results
+- `test_logs/run_tests.log`: All cases outputs
+- `test_logs/xxx.log`: Failed case outputs
+- `test_logs/allure-report`: Allure report (if allure command is supported)
+
 # 5. Add New Case
 
 To add a new test case, follow these steps:
