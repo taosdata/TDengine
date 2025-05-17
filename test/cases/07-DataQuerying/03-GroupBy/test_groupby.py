@@ -127,10 +127,10 @@ class TestGroupBy:
             f"select first(ts), ts, c1 from group_tb0 where c1 < 20 group by c1 order by c1;"
         )
         tdSql.checkRows(20)
-        tdSql.assert(tdSql.getData(0, 0) == tdSql.getData(0, 1))
-        tdSql.assert(tdSql.getData(1, 0) == tdSql.getData(1, 1))
-        tdSql.assert(tdSql.getData(2, 0) == tdSql.getData(2, 1))
-        tdSql.assert(tdSql.getData(9, 0) == tdSql.getData(9, 1))
+        tdSql.checkAssert(tdSql.getData(0, 0) == tdSql.getData(0, 1))
+        tdSql.checkAssert(tdSql.getData(1, 0) == tdSql.getData(1, 1))
+        tdSql.checkAssert(tdSql.getData(2, 0) == tdSql.getData(2, 1))
+        tdSql.checkAssert(tdSql.getData(9, 0) == tdSql.getData(9, 1))
 
         tdSql.checkData(0, 2, 0)
 
@@ -214,19 +214,19 @@ class TestGroupBy:
         )
         tdSql.checkRows(20)
 
-        tdSql.assert(tdSql.getData(0, 0) == tdSql.getData(0, 1))
+        tdSql.checkAssert(tdSql.getData(0, 0) == tdSql.getData(0, 1))
 
         tdSql.checkData(0, 2, "1970-01-01 08:01:40")
 
-        tdSql.assert(tdSql.getData(1, 0) == tdSql.getData(1, 1))
+        tdSql.checkAssert(tdSql.getData(1, 0) == tdSql.getData(1, 1))
 
         tdSql.checkData(1, 2, "1970-01-01 08:01:40.001")
 
-        tdSql.assert(tdSql.getData(2, 0) == tdSql.getData(2, 1))
+        tdSql.checkAssert(tdSql.getData(2, 0) == tdSql.getData(2, 1))
 
         tdSql.checkData(2, 2, "1970-01-01 08:01:40.002")
 
-        tdSql.assert(tdSql.getData(9, 0) == tdSql.getData(9, 1))
+        tdSql.checkAssert(tdSql.getData(9, 0) == tdSql.getData(9, 1))
 
         tdSql.checkData(9, 2, "1970-01-01 08:01:40.009")
 
@@ -235,7 +235,7 @@ class TestGroupBy:
         )
         tdSql.checkRows(20)
 
-        tdSql.assert(tdSql.getData(0, 0) == tdSql.getData(0, 3))
+        tdSql.checkAssert(tdSql.getData(0, 0) == tdSql.getData(0, 3))
 
         tdSql.checkData(0, 1, "1970-01-01 08:01:40.900")
 
@@ -243,7 +243,7 @@ class TestGroupBy:
 
         tdSql.checkData(0, 7, 80)
 
-        tdSql.assert(tdSql.getData(1, 0) == tdSql.getData(1, 3))
+        tdSql.checkAssert(tdSql.getData(1, 0) == tdSql.getData(1, 3))
 
         tdSql.checkData(1, 1, "1970-01-01 08:01:40.901")
 
@@ -251,7 +251,7 @@ class TestGroupBy:
 
         tdSql.checkData(1, 7, 80)
 
-        tdSql.assert(tdSql.getData(9, 0) == tdSql.getData(9, 3))
+        tdSql.checkAssert(tdSql.getData(9, 0) == tdSql.getData(9, 3))
 
         tdSql.checkData(9, 1, "1970-01-01 08:01:40.909")
 

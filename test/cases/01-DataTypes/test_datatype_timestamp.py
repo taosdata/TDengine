@@ -191,25 +191,25 @@ class TestDatatypeTimestamp:
 
         tdSql.execute(f"create table st_timestamp_33 using mt_timestamp tags(now +1b)")
         tdSql.query(f"show tags from st_timestamp_33")
-        tdSql.assert(int(tdSql.getData(0, 5)) >= 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.execute(
             f'create table st_timestamp_34 using mt_timestamp tags("now()" +1b)'
         )
         tdSql.query(f"show tags from st_timestamp_34")
-        tdSql.assert(int(tdSql.getData(0, 5)) >= 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.execute(
             f"create table st_timestamp_35 using mt_timestamp tags(today() +1d)"
         )
         tdSql.query(f"show tags from st_timestamp_35")
-        tdSql.assert(int(tdSql.getData(0, 5)) >= 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.execute(
             f'create table st_timestamp_36 using mt_timestamp tags("today()" +1d)'
         )
         tdSql.query(f"show tags from st_timestamp_36")
-        tdSql.assert(int(tdSql.getData(0, 5)) >= 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
     def insert_data(self):
         tdLog.info(f"case 1: insert values for test column values")
@@ -348,19 +348,19 @@ class TestDatatypeTimestamp:
 
         tdSql.execute(f"insert into st_timestamp_33 values(now,now +1b)")
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_33")
-        tdSql.assert(int(tdSql.getData(0, 1)) >= 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
         tdSql.execute(f'insert into st_timestamp_34 values(now,"now()" +1b)')
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_34")
-        tdSql.assert(int(tdSql.getData(0, 1)) >= 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
         tdSql.execute(f"insert into st_timestamp_35 values(now,today() +1d)")
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_35")
-        tdSql.assert(int(tdSql.getData(0, 1)) >= 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
         tdSql.execute(f'insert into st_timestamp_36 values(now,"today()" +1d)')
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_36")
-        tdSql.assert(int(tdSql.getData(0, 1)) >= 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
     def auto_create_table(self):
         tdLog.info(f"case 2: dynamic create table for test tag values")
@@ -659,37 +659,37 @@ class TestDatatypeTimestamp:
             f"insert into st_timestamp_1033 using mt_timestamp tags(now+1b) values(now,now +1b)"
         )
         tdSql.query(f"show tags from st_timestamp_1033")
-        tdSql.assert(int(tdSql.getData(0, 5)) >= 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_1033")
-        tdSql.assert(int(tdSql.getData(0, 1)) >= 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
         tdSql.execute(
             f'insert into st_timestamp_1034 using mt_timestamp tags("now" +1b) values(now,"now()" +1b)'
         )
         tdSql.query(f"show tags from st_timestamp_1034")
-        tdSql.assert(int(tdSql.getData(0, 5)) >= 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_1034")
-        tdSql.assert(int(tdSql.getData(0, 1)) >= 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
         tdSql.execute(
             f"insert into st_timestamp_1035 using mt_timestamp tags(today() + 1d) values(now,today() +1d)"
         )
         tdSql.query(f"show tags from st_timestamp_1035")
-        tdSql.assert(int(tdSql.getData(0, 5)) >= 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_1035")
-        tdSql.assert(int(tdSql.getData(0, 1)) >= 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
         tdSql.execute(
             f'insert into st_timestamp_1036 using mt_timestamp tags("today" +1d) values(now,"today()" +1d)'
         )
         tdSql.query(f"show tags from st_timestamp_1036")
-        tdSql.assert(int(tdSql.getData(0, 5)) >= 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.query(f"select ts, cast(c as bigint) from st_timestamp_1036")
-        tdSql.assert(int(tdSql.getData(0, 1)) >= 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 1)) >= 1711883186000)
 
     def alter_tag_value(self):
         tdLog.info(f"case 3: alter tag value")
@@ -827,19 +827,19 @@ class TestDatatypeTimestamp:
 
         tdSql.execute(f"alter table st_timestamp_33 set tag tagname=now +1b")
         tdSql.query(f"show tags from st_timestamp_33")
-        tdSql.assert(int(tdSql.getData(0, 5)) >= 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.execute(f'alter table st_timestamp_34 set tag tagname="now()" +1b')
         tdSql.query(f"show tags from st_timestamp_34")
-        tdSql.assert(int(tdSql.getData(0, 5)) >= 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.execute(f"alter table st_timestamp_35 set tag tagname=today( ) +1d")
         tdSql.query(f"show tags from st_timestamp_35")
-        tdSql.assert(int(tdSql.getData(0, 5)) >= 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
         tdSql.execute(f'alter table st_timestamp_36 set tag tagname="today()" +1d')
         tdSql.query(f"show tags from st_timestamp_36")
-        tdSql.assert(int(tdSql.getData(0, 5)) >= 1711883186000)
+        tdSql.checkAssert(int(tdSql.getData(0, 5)) >= 1711883186000)
 
     def illegal_input(self):
         tdLog.info(f"case 4: illegal input")

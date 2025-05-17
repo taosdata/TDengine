@@ -120,10 +120,10 @@ class TestInterval:
             f"select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from {mt} interval(1m)"
         )
         tdLog.info(f"===> {tdSql.getRows()}")
-        tdSql.assert(tdSql.getRows() >= 18)
-        tdSql.assert(tdSql.getRows() <= 22)
-        tdSql.assert(tdSql.getData(1, 0) >= 5)
-        tdSql.assert(tdSql.getData(1, 0) <= 15)
+        tdSql.checkAssert(tdSql.getRows() >= 18)
+        tdSql.checkAssert(tdSql.getRows() <= 22)
+        tdSql.checkAssert(tdSql.getData(1, 0) >= 5)
+        tdSql.checkAssert(tdSql.getData(1, 0) <= 15)
 
         tdLog.info(f"=============== step7")
         cc = 4 * 60000
@@ -132,10 +132,10 @@ class TestInterval:
             f"select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from {mt}  where ts <= {ms} interval(1m)"
         )
         tdLog.info(f"===> {tdSql.getRows()}")
-        tdSql.assert(tdSql.getRows() >= 3)
-        tdSql.assert(tdSql.getRows() <= 7)
-        tdSql.assert(tdSql.getData(1, 0) >= 5)
-        tdSql.assert(tdSql.getData(1, 0) <= 15)
+        tdSql.checkAssert(tdSql.getRows() >= 3)
+        tdSql.checkAssert(tdSql.getRows() <= 7)
+        tdSql.checkAssert(tdSql.getData(1, 0) >= 5)
+        tdSql.checkAssert(tdSql.getData(1, 0) <= 15)
 
         tdLog.info(f"=============== step8")
         cc = 40 * 60000
@@ -148,10 +148,10 @@ class TestInterval:
             f"select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from {mt}  where ts <= {ms1} and ts > {ms2} interval(1m)"
         )
         tdLog.info(f"===> {tdSql.getRows()}")
-        tdSql.assert(tdSql.getRows() >= 18)
-        tdSql.assert(tdSql.getRows() <= 22)
-        tdSql.assert(tdSql.getData(1, 0) >= 5)
-        tdSql.assert(tdSql.getData(1, 0) <= 15)
+        tdSql.checkAssert(tdSql.getRows() >= 18)
+        tdSql.checkAssert(tdSql.getRows() <= 22)
+        tdSql.checkAssert(tdSql.getData(1, 0) >= 5)
+        tdSql.checkAssert(tdSql.getData(1, 0) <= 15)
 
         tdLog.info(f"=============== step9")
         cc = 40 * 60000
@@ -163,10 +163,10 @@ class TestInterval:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from {mt}  where ts <= {ms1} and ts > {ms2} interval(1m) fill(value, 0,0,0,0,0)"
         )
-        tdSql.assert(tdSql.getRows() <= 50)
-        tdSql.assert(tdSql.getRows() >= 30)
-        tdSql.assert(tdSql.getData(1, 0) <= 15)
-        tdSql.assert(tdSql.getData(1, 0) >= 5)
+        tdSql.checkAssert(tdSql.getRows() <= 50)
+        tdSql.checkAssert(tdSql.getRows() >= 30)
+        tdSql.checkAssert(tdSql.getData(1, 0) <= 15)
+        tdSql.checkAssert(tdSql.getData(1, 0) >= 5)
 
         tdLog.info(f"=============== clear")
         tdSql.execute(f"drop database {db}")

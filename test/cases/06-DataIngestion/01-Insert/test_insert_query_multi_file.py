@@ -52,7 +52,7 @@ class TestInsertQueryBlock1File:
         tdSql.query(f"select * from {tb}")
         tdLog.info(f"{tdSql.getRows()}) points data are retrieved -> exepct {N} rows")
         if tdSql.getRows() < N:
-            tdLog.exit("assert here")
+            tdLog.exit("checkAssert here")
 
         tdSql.execute(f"drop database {db}")
         tdSql.query(f"select * from information_schema.ins_databases")

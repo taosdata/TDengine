@@ -47,7 +47,7 @@ class TestMnodeBasic2:
                 checkFailed = False
                 break
         if checkFailed:
-            tdSql.assert(False)
+            tdSql.checkAssert(False)
 
         tdLog.info(f"=============== create user")
         tdSql.execute(f"create user user1 PASS 'user1@#xy'")

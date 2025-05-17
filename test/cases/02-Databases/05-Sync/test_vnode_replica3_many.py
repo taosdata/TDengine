@@ -85,7 +85,7 @@ class TestVnodeReplica3Many:
             clusterComCheck.checkDbReady("db4")
             tdSql.query(f"select count(*) from db1.tb1")
             tdLog.info(f"rows:{tdSql.getData(0, 0)}")
-            tdSql.assert(tdSql.getData(0, 0) >= lastRows1)
+            tdSql.checkAssert(tdSql.getData(0, 0) >= lastRows1)
             lastRows1 = tdSql.getData(0, 0)
 
             sc.dnodeStart(2)
@@ -97,7 +97,7 @@ class TestVnodeReplica3Many:
             clusterComCheck.checkDbReady("db4")
             tdSql.query(f"select count(*) from db1.tb1")
             tdLog.info(f"rows:{tdSql.getData(0, 0)}")
-            tdSql.assert(tdSql.getData(0, 0) >= lastRows1)
+            tdSql.checkAssert(tdSql.getData(0, 0) >= lastRows1)
             lastRows1 = tdSql.getData(0, 0)
 
             sc.dnodeStop(3)
@@ -109,7 +109,7 @@ class TestVnodeReplica3Many:
             clusterComCheck.checkDbReady("db4")
             tdSql.query(f"select count(*) from db1.tb1")
             tdLog.info(f"rows:{tdSql.getData(0, 0)}")
-            tdSql.assert(tdSql.getData(0, 0) >= lastRows1)
+            tdSql.checkAssert(tdSql.getData(0, 0) >= lastRows1)
             lastRows1 = tdSql.getData(0, 0)
 
             sc.dnodeStart(3)
@@ -121,7 +121,7 @@ class TestVnodeReplica3Many:
             clusterComCheck.checkDbReady("db4")
             tdSql.query(f"select count(*) from db1.tb1")
             tdLog.info(f"rows:{tdSql.getData(0, 0)}")
-            tdSql.assert(tdSql.getData(0, 0) >= lastRows1)
+            tdSql.checkAssert(tdSql.getData(0, 0) >= lastRows1)
             lastRows1 = tdSql.getData(0, 0)
 
             sc.dnodeStop(2)
@@ -133,7 +133,7 @@ class TestVnodeReplica3Many:
             clusterComCheck.checkDbReady("db4")
             tdSql.query(f"select count(*) from db1.tb1")
             tdLog.info(f"rows:{tdSql.getData(0, 0)}")
-            tdSql.assert(tdSql.getData(0, 0) >= lastRows1)
+            tdSql.checkAssert(tdSql.getData(0, 0) >= lastRows1)
             lastRows1 = tdSql.getData(0, 0)
 
             sc.dnodeStart(2)
@@ -145,19 +145,19 @@ class TestVnodeReplica3Many:
             clusterComCheck.checkDbReady("db4")
 
             tdSql.query(f"select count(*) from db1.tb1")
-            tdSql.assert(tdSql.getData(0, 0) >= lastRows1)
+            tdSql.checkAssert(tdSql.getData(0, 0) >= lastRows1)
             lastRows1 = tdSql.getData(0, 0)
 
             tdSql.query(f"select count(*) from db2.tb2")
-            tdSql.assert(tdSql.getData(0, 0) >= lastRows2)
+            tdSql.checkAssert(tdSql.getData(0, 0) >= lastRows2)
             lastRows2 = tdSql.getData(0, 0)
 
             tdSql.query(f"select count(*) from db3.tb3")
-            tdSql.assert(tdSql.getData(0, 0) >= lastRows3)
+            tdSql.checkAssert(tdSql.getData(0, 0) >= lastRows3)
             lastRows3 = tdSql.getData(0, 0)
 
             tdSql.query(f"select count(*) from db4.tb4")
-            tdSql.assert(tdSql.getData(0, 0) >= lastRows4)
+            tdSql.checkAssert(tdSql.getData(0, 0) >= lastRows4)
             lastRows4 = tdSql.getData(0, 0)
 
         self.running = False
