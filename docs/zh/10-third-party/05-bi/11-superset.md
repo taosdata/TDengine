@@ -20,14 +20,14 @@ title: 与 Superset 集成
 ## 配置数据源
 
 
-1. 进入新建数据库连接页面 “Superset” -> “Setting” -> “Database Connections” -> “+DATABASE”。
+1. 进入新建数据库连接页“Superset”->“Setting”->“Database Connections”->“+DATABASE”。
 
-2. 选择其它数据库连接，“SUPPORTED DATABASES” 下拉列表中选择最后一项 “Other”。
+2. 选择其它数据库连接，“SUPPORTED DATABASES”下拉列表中选择最后一项“Other”。
 
-3. 在 “DISPLAY NAME” 中填写连接名称，任意填写即可。   
+3. 在“DISPLAY NAME”中填写连接名称，任意填写即可。   
 
 4. 填写数据库连接串。  
-    在 “SQLALCHEMY URI” 中按以下格式填写，务必填写正确。   
+    在“SQLALCHEMY URI”中按以下格式填写，务必填写正确。   
 
     ```bash
     taosws://用户名:密码@主机名:端口号
@@ -49,7 +49,7 @@ title: 与 Superset 集成
     ```
 
 5. 测试连接。  
-   点击 “TEST CONNECTION” 测试连接是否成功，测试通过后点击 “CONNECT” 按钮，保存配置。
+   点击“TEST CONNECTION”测试连接是否成功，测试通过后点击“CONNECT”按钮，保存配置。
 
 
 ## 数据分析
@@ -59,18 +59,18 @@ title: 与 Superset 集成
 
 TDengine 数据源与其它数据源使用上无差别，这里简单介绍下数据查询：
 
-1. “Superset” 界面点击右上角 “+” 号按钮，选择 “SQL query”, 进入查询界面。 
-2. 左上角 “DATABASE” 下拉列表中选择前面已创建好的 “TDengine” 数据源。
-3. “SCHEMA” 下拉列表，选择要操作的数据库名（系统库不显示）。
-4. “SEE TABLE SCHEMA” 选择要操作的超级表名或普通表名（子表不显示）。  
-5. 随后会在下方显示选定表的 “SCHEMA” 信息。  
-6. 在 “SQL” 编辑器区域可输入符合 TDengine 语法的任意 SQL 语句执行。
+1. “Superset”界面点击右上角“+”号按钮，选择“SQL query”, 进入查询界面。 
+2. 左上角“DATABASE”下拉列表中选择前面已创建好的“TDengine”数据源。
+3. “SCHEMA”下拉列表，选择要操作的数据库名（系统库不显示）。
+4. “SEE TABLE SCHEMA”选择要操作的超级表名或普通表名（子表不显示）。  
+5. 随后会在下方显示选定表的“SCHEMA”信息。  
+6. 在“SQL”编辑器区域可输入符合 TDengine 语法的任意 SQL 语句执行。
 
 ### 智能电表样例
 
 我们选择【Superset Chart】模板中较流行的两个模板做了效果展示，以智能电表数据为例：  
 
-1. “Aggregate” 类型，展示在第 4 组中指定时间段内每分钟采集电压值 (voltage) 最大值。  
+1. “Aggregate”类型，展示在第 4 组中指定时间段内每分钟采集电压值 (voltage) 最大值。  
 ![superset-demo1](./superset-demo1.webp)
-2. “RAW RECORDS” 类型，展示在第 4 组中指定时间段内 current, voltage 的采集值。  
+2. “RAW RECORDS”类型，展示在第 4 组中指定时间段内 current, voltage 的采集值。  
 ![superset-demo2](./superset-demo2.webp)  
