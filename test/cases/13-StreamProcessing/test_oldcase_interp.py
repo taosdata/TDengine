@@ -20,14 +20,14 @@ class TestStreamOldCaseInterp
         Jira: None
         History:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpHistory.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpHistory1.sim
+            # - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpHistory1.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpLarge.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpLinear0.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpNext0.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpOther.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpOther1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPrev0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPrev1.sim
+            # - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpOther1.sim
+            # - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPrev0.sim
+            # - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPrev1.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpValue0.sim
         """
 

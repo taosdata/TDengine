@@ -22,8 +22,8 @@ class TestStreamOldCaseFillHistory:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/fillHistoryBasic1.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/fillHistoryBasic2.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/fillHistoryBasic3.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillHistoryBasic4.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/fillHistoryTransform.sim
+            # - 2025-5-15 Simon Guan Migrated from tsim/stream/fillHistoryBasic4.sim
+            # - 2025-5-15 Simon Guan Migrated from tsim/stream/fillHistoryTransform.sim
         """
 
         # self.stream_basic_0()
