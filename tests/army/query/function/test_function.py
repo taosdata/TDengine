@@ -172,6 +172,12 @@ class TDTestCase(TBase):
     def test_dayofweek(self):
         self.test_normal_query_new("dayofweek")
 
+    def test_st_x(self):
+        self.test_normal_query_new("st_x")
+
+    def test_st_y(self):
+        self.test_normal_query_new("st_y")
+
     def test_stddev_pop(self):
         self.test_normal_query_new("stddev")
 
@@ -555,6 +561,10 @@ class TDTestCase(TBase):
         # select function
         self.test_max()
         self.test_min()
+
+        # geometry function
+        self.test_st_x()
+        self.test_st_y()
 
         # error function
         self.test_error()

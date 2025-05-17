@@ -386,4 +386,172 @@ int32_t containsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 int32_t containsProperlyFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return geomRelationFunction(pInput, pOutput, false, doContainsProperly);
 }
+
+static int32_t getDoubleValue(SScalarParam *pInput, size_t i, double *val) {
+  switch (GET_PARAM_TYPE(pInput)) {
+    case TSDB_DATA_TYPE_FLOAT: {
+      float *in = (float *)colDataGetData(pInput->columnData, i);
+      *val = (double)*in;
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double *in = (double *)colDataGetData(pInput->columnData, i);
+      *val = (double)*in;
+      break;
+    }
+    case TSDB_DATA_TYPE_TINYINT: {
+      int8_t *in = (int8_t *)colDataGetData(pInput->columnData, i);
+      *val = (double)*in;
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      int16_t *in = (int16_t *)colDataGetData(pInput->columnData, i);
+      *val = (double)*in;
+      break;
+    }
+    case TSDB_DATA_TYPE_INT: {
+      int32_t *in = (int32_t *)colDataGetData(pInput->columnData, i);
+      *val = (double)*in;
+      break;
+    }
+    case TSDB_DATA_TYPE_BIGINT: {
+      int64_t *in = (int64_t *)colDataGetData(pInput->columnData, i);
+      *val = (double)*in;
+      break;
+    }
+    default: {
+      return TSDB_CODE_FAILED;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t geomGetX(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SColumnInfoData *pInputData = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+  int32_t numOfRows = pInput->numOfRows;
+
+  TAOS_CHECK_GOTO(initCtxGeomGetCoordinate(), NULL, _exit);
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+
+    GEOSGeometry *geom = NULL;
+    char *input = colDataGetData(pInputData, i);
+    TAOS_CHECK_GOTO(readGeometry(input, &geom, NULL), NULL, _exit);
+    
+    double x, y;
+    code = geomGetCoordinateX(geom, &x);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _exit;
+    }
+
+    if (inputNum == 1) {
+      double *out = (double *)pOutputData->pData;
+      out[i] = x;
+      destroyGeometry(&geom, NULL);
+      goto _exit;
+    }
+
+    code = geomGetCoordinateY(geom, &y);
+    if (code != TSDB_CODE_SUCCESS) {
+      destroyGeometry(&geom, NULL);
+      goto _exit;
+    }
+
+    double newX;
+    code = getDoubleValue(&pInput[1], i, &newX);
+    if (code != TSDB_CODE_SUCCESS) {
+      destroyGeometry(&geom, NULL);
+      goto _exit;
+    }
+
+    if (!isfinite(newX)) {
+      code = TSDB_CODE_GEOMETRY_DATA_OUT_OF_RANGE;
+      destroyGeometry(&geom, NULL);
+      goto _exit;
+    }
+
+    unsigned char *output = NULL;
+    TAOS_CHECK_GOTO(doMakePointFunc(newX, y, &output), NULL, _exit);
+    TAOS_CHECK_GOTO(colDataSetVal(pOutputData, i, output, (output == NULL)), NULL, _exit);
+
+    taosMemoryFree(output);
+    destroyGeometry(&geom, NULL);
+  }
+
+  pOutput->numOfRows = numOfRows;
+
+_exit:
+  TAOS_RETURN(code);
+}
+
+int32_t geomGetY(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SColumnInfoData *pInputData = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+  int32_t numOfRows = pInput->numOfRows;
+
+  TAOS_CHECK_GOTO(initCtxGeomGetCoordinate(), NULL, _exit);
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+
+    GEOSGeometry *geom = NULL;
+    char *input = colDataGetData(pInputData, i);
+    TAOS_CHECK_GOTO(readGeometry(input, &geom, NULL), NULL, _exit);
+    
+    double x, y;
+    code = geomGetCoordinateY(geom, &y);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _exit;
+    }
+
+    if (inputNum == 1) {
+      double *out = (double *)pOutputData->pData;
+      out[i] = y;
+      destroyGeometry(&geom, NULL);
+      goto _exit;
+    }
+
+    code = geomGetCoordinateX(geom, &x);
+    if (code != TSDB_CODE_SUCCESS) {
+      destroyGeometry(&geom, NULL);
+      goto _exit;
+    }
+
+    double newY;
+    code = getDoubleValue(&pInput[1], i, &newY);
+    if (code != TSDB_CODE_SUCCESS) {
+      destroyGeometry(&geom, NULL);
+      goto _exit;
+    }
+
+    if (!isfinite(newY)) {
+      code = TSDB_CODE_GEOMETRY_DATA_OUT_OF_RANGE;
+      destroyGeometry(&geom, NULL);
+      goto _exit;
+    }
+
+    unsigned char *output = NULL;
+    TAOS_CHECK_GOTO(doMakePointFunc(x, newY, &output), NULL, _exit);
+    TAOS_CHECK_GOTO(colDataSetVal(pOutputData, i, output, (output == NULL)), NULL, _exit);
+
+    taosMemoryFree(output);
+    destroyGeometry(&geom, NULL);
+  }
+
+  pOutput->numOfRows = numOfRows;
+
+_exit:
+  TAOS_RETURN(code);
+}
 #endif

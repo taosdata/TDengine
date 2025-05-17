@@ -2538,3 +2538,92 @@ ST_Touches(GEOMETRY geomA, GEOMETRY geomB)
 **适用表类型**：标准表和超表。
 
 **使用说明**：A 和 B 至少有一个公共点，并且这些公共点位于至少一个边界中。对于点/点输入，关系始终为 FALSE，因为点没有边界。
+
+### Geometric Property Functions
+#### ST_X
+
+```sql
+ST_X(GEOMETRY point [, DOUBLE new_x])
+```
+
+**功能说明**: ST_X 以双精度数形式返回有效 GEOMETRY 对象“点”的 X 坐标值。使用可选的第二个参数，ST_X 将返回一个具有相同 Y 坐标但 X 坐标设置为第二个参数值的 GEOMETRY 对象。
+
+**返回值类型**: GEOMETRY [, DOUBLE]
+
+**适用数据类型**: GEOMETRY [, DOUBLE]
+
+**适用表类型**：标准表和超表。
+
+**使用说明**:
+
+- ST_X(NULL) = NULL;
+- 如果第一个参数不是点，则退出并返回 TSDB_CODE_UNEXPECTED_GEOMETRY_TYPE 状态码；
+- 如果第二个参数不是有限的，则退出并返回 TSDB_CODE_GEOMETRY_DATA_OUT_OF_RANGE 状态码；
+- 如果应用于一个参数，则返回一个双精度值，表示输入点的第一个坐标；
+- 如果应用于两个参数（一个点和一个双精度数），则返回一个以双精度参数为第一个坐标的点。
+
+**Examples**:
+
+taos> select st_x(NULL);
+        st_x(null)         |
+============================
+ NULL                      |
+
+taos> select st_x(ST_GeomFromText('POINT(45 900)'));
+ st_x(st_geomfromtext('POINT(45 900)')) |
+=========================================
+                                     45 |
+
+taos> select st_x(ST_GeomFromText('POINT(45 900)'), 10.0);
+ st_x(st_geomfromtext('POINT(45 900)'), 10.0) |
+===============================================
+ POINT (10.000000 900.000000)                 |
+
+taos> select st_x(ST_GeomFromText('POINT(45 900)'), 1000000003445);
+ st_x(st_geomfromtext('POINT(45 900)'), 1000000003445) |
+========================================================
+ POINT (1000000003445.000000 900.000000)               |
+
+#### ST_Y
+
+```sql
+ST_Y(GEOMETRY point [, DOUBLE new_y])
+```
+
+**功能说明**: ST_Y 以双精度数形式返回有效 GEOMETRY 对象“点”的 Y 坐标值。使用可选的第二个参数，ST_Y 将返回一个具有相同 X 坐标但 Y 坐标设置为第二个参数值的 GEOMETRY 对象。
+
+**返回值类型**: GEOMETRY [, DOUBLE]
+
+**适用数据类型**: GEOMETRY [, DOUBLE]
+
+**适用表类型**：标准表和超表。
+
+**使用说明**:
+
+- ST_Y(NULL) = NULL;
+- 如果第一个参数不是点，则退出并返回 TSDB_CODE_UNEXPECTED_GEOMETRY_TYPE 状态码；
+- 如果第二个参数不是有限的，则退出并返回 TSDB_CODE_GEOMETRY_DATA_OUT_OF_RANGE 状态码；
+- 如果应用于一个参数，则返回一个双精度值，表示输入点的第二个坐标；
+- 如果应用于两个参数（一个点和一个双精度数），则返回一个以双精度参数作为第二个坐标的点。
+
+**Examples**:
+
+taos> select st_y(NULL);
+        st_y(null)         |
+============================
+ NULL                      |
+
+taos> select st_y(ST_GeomFromText('POINT(45 900)'));
+ st_y(st_geomfromtext('POINT(45 900)')) |
+=========================================
+                                    900 |
+
+taos> select st_y(ST_GeomFromText('POINT(45 900)'), 10.0);
+ st_y(st_geomfromtext('POINT(45 900)'), 10.0) |
+===============================================
+ POINT (45.000000 10.000000)                  |
+
+taos> select st_y(ST_GeomFromText('POINT(45 900)'), 1000000003445);
+ st_y(st_geomfromtext('POINT(45 900)'), 1000000003445) |
+========================================================
+ POINT (45.000000 1000000003445.000000)                |

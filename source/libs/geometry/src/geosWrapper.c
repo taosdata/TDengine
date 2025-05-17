@@ -22,6 +22,11 @@ typedef char (*_geosRelationFunc_t)(GEOSContextHandle_t handle, const GEOSGeomet
 typedef char (*_geosPreparedRelationFunc_t)(GEOSContextHandle_t handle, const GEOSPreparedGeometry *pg1,
                                             const GEOSGeometry *g2);
 
+typedef enum {
+  X = 0,
+  Y = 1
+} Coordinate;
+
 void geosFreeBuffer(void *buffer) {
   if (buffer) {
     SGeosContext *pCtx = acquireThreadLocalGeosCtx();
@@ -359,6 +364,72 @@ int32_t initCtxRelationFunc() {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t initCtxGeomGetCoordinate() {
+  int32_t       code = TSDB_CODE_FAILED;
+  SGeosContext *geosCtx = NULL;
+  
+  TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
+  
+  if (geosCtx->handle == NULL) {
+    geosCtx->handle = GEOS_init_r();
+    if (geosCtx->handle == NULL) {
+    return code;
+    }
+  
+    GEOSContext_setErrorMessageHandler_r(geosCtx->handle, geosErrMsgeHandler, geosCtx->errMsg);
+  }
+  
+  if (geosCtx->WKBReader == NULL) {
+    geosCtx->WKBReader = GEOSWKBReader_create_r(geosCtx->handle);
+    if (geosCtx->WKBReader == NULL) {
+    return code;
+    }
+  }
+  
+  if (geosCtx->WKBWriter == NULL) {
+    geosCtx->WKBWriter = GEOSWKBWriter_create_r(geosCtx->handle);
+    if (geosCtx->WKBWriter == NULL) {
+    return code;
+    }
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t geomGetCoordinate(const GEOSGeometry *geom, double *n, Coordinate coordinate) {
+  SGeosContext *geosCtx = NULL;
+
+  TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
+
+  if (GEOSGeomTypeId_r(geosCtx->handle, geom) != GEOS_POINT) {
+    return TSDB_CODE_UNEXPECTED_GEOMETRY_TYPE;
+  }
+
+  if (coordinate == X) {
+    if (GEOSGeomGetX_r(geosCtx->handle, geom, n) != 1) {
+      return TSDB_CODE_FAILED;
+    }
+  } else {
+    if (GEOSGeomGetY_r(geosCtx->handle, geom, n) != 1) {
+      return TSDB_CODE_FAILED;
+    }
+  }
+
+  if (!isfinite(*n)) {
+    return TSDB_CODE_GEOMETRY_DATA_OUT_OF_RANGE;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t geomGetCoordinateX(const GEOSGeometry *geom, double *x) {
+  return geomGetCoordinate(geom, x, X);
+}
+
+int32_t geomGetCoordinateY(const GEOSGeometry *geom, double *y) {
+  return geomGetCoordinate(geom, y, Y);
+}
+  
 int32_t doGeosRelation(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
                        bool swapped, char *res, _geosRelationFunc_t relationFn, _geosRelationFunc_t swappedRelationFn,
                        _geosPreparedRelationFunc_t preparedRelationFn,
