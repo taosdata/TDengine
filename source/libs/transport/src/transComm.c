@@ -385,6 +385,8 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
 void transCtxInit(STransCtx* ctx) {
   // init transCtx
   ctx->args = taosHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  ctx->brokenVal.val = NULL;
+  ctx->freeFunc = NULL;
 }
 void transCtxCleanup(STransCtx* ctx) {
   if (ctx == NULL || ctx->args == NULL) {
@@ -407,13 +409,20 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
   if (src->args == NULL || src->freeFunc == NULL) {
     return;
   }
+  SRpcBrokenlinkVal tval = {0};
+  void (*freeFunc)(const void* arg) = NULL;
+
   if (dst->args == NULL) {
     dst->args = src->args;
     dst->brokenVal = src->brokenVal;
     dst->freeFunc = src->freeFunc;
     src->args = NULL;
     return;
+  } else {
+    tval = src->brokenVal;
+    freeFunc = src->freeFunc;
   }
+
   void*  key = NULL;
   size_t klen = 0;
   void*  iter = taosHashIterate(src->args, NULL);
@@ -427,6 +436,11 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
     }
     iter = taosHashIterate(src->args, iter);
   }
+  if (freeFunc != NULL && tval.val != NULL) {
+    freeFunc(tval.val);
+    tval.val = NULL;
+  }
+
   taosHashCleanup(src->args);
 }
 void* transCtxDumpVal(STransCtx* ctx, int32_t key) {
