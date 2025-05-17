@@ -79,6 +79,7 @@ typedef struct SStreamDataInserterInfo {
   bool        isAutoCreateTable;
   int64_t     groupId;
   const char* tbName;
+  SArray*     pTagVals;  // SArray<STagVal>
 } SStreamDataInserterInfo;
 
 typedef struct SInputData {

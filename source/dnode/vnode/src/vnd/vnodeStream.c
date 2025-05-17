@@ -751,8 +751,10 @@ static int32_t createTaskForLastTs(SVnode* pVnode, SStreamReaderTaskInner** pTas
 
   BUILD_OPTION(options, sStreamReaderInfo, true, TSDB_ORDER_DESC, INT64_MIN, INT64_MAX, schemas, true,
                STREAM_SCAN_GROUP_ONE_BY_ONE, 0);
-  STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, pTask, NULL, NULL));
-
+  schemas = NULL;
+  SStorageAPI  api = {0};
+  initStorageAPI(&api);
+  STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, pTask, NULL, NULL, &api));
 end:
   taosArrayDestroy(schemas);
   return code;
@@ -770,7 +772,10 @@ static int32_t createTaskForFirstTs(SVnode* pVnode, SStreamReaderTaskInner** pTa
 
   BUILD_OPTION(options, sStreamReaderInfo, true, TSDB_ORDER_ASC, start, INT64_MAX, schemas, true,
                STREAM_SCAN_GROUP_ONE_BY_ONE, 0);
-  STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, pTask, NULL, sStreamReaderInfo->groupIdMap));
+  schemas = NULL;
+  SStorageAPI  api = {0};
+  initStorageAPI(&api);
+  STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, pTask, NULL, sStreamReaderInfo->groupIdMap, &api));
 
 end:
   taosArrayDestroy(schemas);
@@ -792,8 +797,10 @@ static int32_t createTaskForTsdbMeta(SVnode* pVnode, SStreamReaderTaskInner** pT
   STREAM_CHECK_RET_GOTO(qStreamBuildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 4))     // nrows
 
   BUILD_OPTION(options, sStreamReaderInfo, true, TSDB_ORDER_ASC, start, INT64_MAX, schemas, true, STREAM_SCAN_ALL, 0);
-
-  STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, pTask, NULL, sStreamReaderInfo->groupIdMap));
+  schemas = NULL;
+  SStorageAPI  api = {0};
+  initStorageAPI(&api);
+  STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, pTask, NULL, sStreamReaderInfo->groupIdMap, &api));
 
 end:
   taosArrayDestroy(schemas);
@@ -980,7 +987,9 @@ static int32_t vnodeProcessStreamTsDataReq(SVnode* pVnode, SRpcMsg* pMsg, SSTrig
                sStreamReaderInfo->triggerCols, false, STREAM_SCAN_ALL, 0);
   options.uid = req->tsdbTsDataReq.uid;
   options.tableType = TD_CHILD_TABLE;
-  STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTask, sStreamReaderInfo->triggerResBlock, NULL));
+  SStorageAPI  api = {0};
+  initStorageAPI(&api);
+  STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTask, sStreamReaderInfo->triggerResBlock, NULL, &api));
   STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->triggerResBlock, false, &pTask->pResBlockDst));
 
   while (1) {
@@ -1027,8 +1036,10 @@ static int32_t vnodeProcessStreamTsdbTriggerDataReq(SVnode* pVnode, SRpcMsg* pMs
   if (req->base.type == STRIGGER_PULL_TSDB_TRIGGER_DATA) {
     BUILD_OPTION(options, sStreamReaderInfo, true, TSDB_ORDER_ASC, req->tsdbTriggerDataReq.startTime, INT64_MAX,
                  sStreamReaderInfo->triggerCols, false, STREAM_SCAN_ALL, 0);
+    SStorageAPI  api = {0};
+    initStorageAPI(&api);
     STREAM_CHECK_RET_GOTO(
-        createStreamTask(pVnode, &options, &pTask, sStreamReaderInfo->triggerResBlock, sStreamReaderInfo->groupIdMap));
+        createStreamTask(pVnode, &options, &pTask, sStreamReaderInfo->triggerResBlock, sStreamReaderInfo->groupIdMap, &api));
     STREAM_CHECK_RET_GOTO(taosHashPut(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES, &pTask, sizeof(pTask)));
 
     STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->triggerResBlock, false, &pTask->pResBlockDst));
@@ -1093,7 +1104,9 @@ static int32_t vnodeProcessStreamCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
   if (req->base.type == STRIGGER_PULL_TSDB_CALC_DATA) {
     BUILD_OPTION(options, sStreamReaderInfo, true, TSDB_ORDER_ASC, req->tsdbCalcDataReq.skey, req->tsdbCalcDataReq.ekey,
                  sStreamReaderInfo->calcCols, false, STREAM_SCAN_ALL, req->tsdbCalcDataReq.gid);
-    STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTask, sStreamReaderInfo->calcResBlock, NULL));
+    SStorageAPI  api = {0};
+    initStorageAPI(&api);
+    STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTask, sStreamReaderInfo->calcResBlock, NULL, &api));
     STREAM_CHECK_RET_GOTO(taosHashPut(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES, &pTask, sizeof(pTask)));
 
     STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->calcResBlock, false, &pTask->pResBlockDst));
@@ -1142,7 +1155,6 @@ static int32_t vnodeProcessStreamWalMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   void*        buf = NULL;
   size_t       size = 0;
   SSDataBlock* pBlock = NULL;
-  SStorageAPI  api = {0};
   void*        pTableList = NULL;
 
   stDebug("vgId:%d %s start, request paras lastVer:%" PRId64 ",ctime:%" PRId64, TD_VID(pVnode), __func__,
@@ -1151,6 +1163,7 @@ static int32_t vnodeProcessStreamWalMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   SStreamTriggerReaderInfo* sStreamReaderInfo = qStreamGetReaderInfo(req->base.streamId, req->base.readerTaskId);
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
 
+  SStorageAPI  api = {0};
   initStorageAPI(&api);
   STREAM_CHECK_RET_GOTO(qStreamCreateTableListForReader(
       pVnode, sStreamReaderInfo->suid, sStreamReaderInfo->uid, sStreamReaderInfo->tableType,
@@ -1286,10 +1299,11 @@ static int32_t vnodeProcessStreamGroupColValueReq(SVnode* pVnode, SRpcMsg* pMsg,
   pGroupInfo.gInfo = *gInfo;
 
   size = tSerializeSStreamGroupInfo(NULL, 0, &pGroupInfo);
+  STREAM_CHECK_CONDITION_GOTO(size < 0, size);
   buf = rpcMallocCont(size);
   STREAM_CHECK_NULL_GOTO(buf, terrno);
-  code = tSerializeSStreamGroupInfo(buf, size, &pGroupInfo);
-
+  size = tSerializeSStreamGroupInfo(buf, size, &pGroupInfo);
+  STREAM_CHECK_CONDITION_GOTO(size < 0, size);
 end:
   if (code != 0) {
     rpcFreeCont(buf);

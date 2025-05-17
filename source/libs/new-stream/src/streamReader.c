@@ -2,6 +2,13 @@
 #include "osMemPool.h"
 #include "streamInt.h"
 
+void destroyOptions(SStreamTriggerReaderTaskInnerOptions* options) {
+  if (options == NULL) return;
+  if (options->isSchema){
+    taosArrayDestroy(options->schemas);
+  }
+}
+
 void releaseStreamTask(void* p) {
   if (p == NULL) return;
   SStreamReaderTaskInner* pTask = *((SStreamReaderTaskInner**)p);
@@ -12,6 +19,7 @@ void releaseStreamTask(void* p) {
   qStreamDestroyTableList(pTask->pTableList);
   pTask->api.tsdReader.tsdReaderClose(pTask->pReader);
   filterFreeInfo(pTask->pFilterInfo);
+  destroyOptions(&pTask->options);
   taosMemoryFree(pTask);
 }
 
@@ -104,25 +112,26 @@ end:
 }
 
 int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* options, SStreamReaderTaskInner** ppTask,
-                         SSDataBlock* pResBlock, SHashObj* groupIdMap) {
+                         SSDataBlock* pResBlock, SHashObj* groupIdMap, SStorageAPI*  api) {
   int32_t                 code = 0;
   int32_t                 lino = 0;
   SStreamReaderTaskInner* pTask = taosMemoryCalloc(1, sizeof(SStreamReaderTaskInner));
   STREAM_CHECK_NULL_GOTO(pTask, terrno);
-  initStorageAPI(&pTask->api);
+  pTask->api = *api;
   pTask->pIgnoreTables = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   STREAM_CHECK_NULL_GOTO(pTask->pIgnoreTables, terrno);
 
   pTask->options = *options;
+  options->schemas = NULL;
   if (pResBlock != NULL) {
     STREAM_CHECK_RET_GOTO(createOneDataBlock(pResBlock, false, &pTask->pResBlock));
   } else {
-    STREAM_CHECK_RET_GOTO(createDataBlockForStream(options->schemas, &pTask->pResBlock));
+    STREAM_CHECK_RET_GOTO(createDataBlockForStream(pTask->options.schemas, &pTask->pResBlock));
   }
   STREAM_CHECK_RET_GOTO(filterInitFromNode(options->pConditions, &pTask->pFilterInfo, 0, NULL));
   STREAM_CHECK_RET_GOTO(qStreamCreateTableListForReader(
       pVnode, options->suid, options->uid, options->tableType, options->partitionCols, options->groupSort,
-      options->pTagCond, options->pTagIndexCond, &pTask->api, &pTask->pTableList, groupIdMap));
+      options->pTagCond, options->pTagIndexCond, api, &pTask->pTableList, groupIdMap));
   if (options->gid != 0) {
     int32_t index = qStreamGetGroupIndex(pTask->pTableList, options->gid);
     STREAM_CHECK_CONDITION_GOTO(index < 0, TSDB_CODE_INVALID_PARA);
@@ -138,7 +147,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
   }
 
   SQueryTableDataCond pCond = {0};
-  STREAM_CHECK_RET_GOTO(qStreamInitQueryTableDataCond(&pCond, options->order, options->schemas, options->isSchema,
+  STREAM_CHECK_RET_GOTO(qStreamInitQueryTableDataCond(&pCond, options->order, pTask->options.schemas, options->isSchema,
                                                       options->twindows, options->suid));
   STREAM_CHECK_RET_GOTO(pTask->api.tsdReader.tsdReaderOpen(
       pVnode, &pCond, pList, pNum, pTask->pResBlock, (void**)&pTask->pReader, pTask->idStr, &pTask->pIgnoreTables));
@@ -148,6 +157,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
 end:
   PRINT_LOG_END(code, lino);
   releaseStreamTask(pTask);
+  destroyOptions(options);
   return code;
 }
 
@@ -262,12 +272,6 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(const SStreamReaderDeplo
     sStreamReaderInfo->uid = pMsg->msg.trigger.triggerTblUid;
   }
 
-  sStreamReaderInfo->twindows.skey = INT64_MIN;
-  sStreamReaderInfo->twindows.ekey = INT64_MAX;
-  sStreamReaderInfo->pTagCond = NULL;
-  sStreamReaderInfo->pTagIndexCond = NULL;
-  sStreamReaderInfo->pConditions = NULL;
-  STREAM_CHECK_RET_GOTO(nodesStringToList(pMsg->msg.trigger.partitionCols, &sStreamReaderInfo->partitionCols));
   sStreamReaderInfo->deleteReCalc = pMsg->msg.trigger.deleteReCalc;
   sStreamReaderInfo->deleteOutTbl = pMsg->msg.trigger.deleteOutTbl;
   // pMsg->msg.trigger.calcCacheScanPlan;
@@ -293,8 +297,9 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(const SStreamReaderDeplo
   sStreamReaderInfo->pTagCond = sStreamReaderInfo->triggerAst->pTagCond;
   sStreamReaderInfo->pTagIndexCond = sStreamReaderInfo->triggerAst->pTagIndexCond;
   sStreamReaderInfo->pConditions = sStreamReaderInfo->triggerAst->pNode->pConditions;
-  sStreamReaderInfo->partitionCols = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->pGroupTags;
-
+  STREAM_CHECK_RET_GOTO(nodesStringToList(pMsg->msg.trigger.partitionCols, &sStreamReaderInfo->partitionCols));
+  // sStreamReaderInfo->partitionCols = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->pGroupTags;
+  sStreamReaderInfo->twindows = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scanRange;
   sStreamReaderInfo->triggerCols = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scan.pScanCols;
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->triggerCols, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
   SDataBlockDescNode* pDescNode =
@@ -405,7 +410,7 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
     stDebug("calcScanPlan:%s", (char*)(pMsg->msg.calc.calcScanPlan));
     pTask->info = createStreamReaderCalcInfo(pMsg);
   }
-  stInfo("stReaderTaskDeploy: stream %" PRIx64 " task %" PRIx64 " pTask:%p, info:%p", pTask->task.streamId,
+  stInfo("stReaderTaskDeploy: stream %" PRIx64 " task %" PRIx64 " vgId:%" PRId64 " pTask:%p, info:%p", pTask->task.streamId,
          pTask->task.taskId, pTask, pTask->info);
   STREAM_CHECK_NULL_GOTO(pTask->info, terrno);
 

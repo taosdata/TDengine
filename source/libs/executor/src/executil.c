@@ -1027,9 +1027,10 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
     if (groupIdMap != NULL && gInfo != NULL) {
       int32_t ret = taosHashPut(groupIdMap, &info->groupId, sizeof(info->groupId), &gInfo, POINTER_BYTES);
       if (ret != TSDB_CODE_SUCCESS) {
-        qError("buildGroupInfo failed at line %d since %s", __LINE__, tstrerror(ret));
+        qError("put groupid to map failed at line %d since %s", __LINE__, tstrerror(ret));
         taosArrayDestroyEx(gInfo, tDestroySStreamGroupValue);
       }
+      qDebug("put groupid to map gid:%" PRIu64, info->groupId);
       gInfo = NULL;
     }
     if (initRemainGroups) {
@@ -2962,8 +2963,8 @@ static int32_t addTbnameToMap(SHashObj* groupIdMap, int64_t uid, void* vnode, SS
   char str[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
   code = pAPI->metaFn.getTableNameByUid(vnode, uid, str);
   v->isNull = false;
-  v->data.nData = strlen(str);
-  v->data.pData = taosStrdup(str);
+  v->data.nData = varDataLen(str);
+  v->data.pData = taosStrdup(varDataVal(str));
   v->data.type = TSDB_DATA_TYPE_BINARY;
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -2978,7 +2979,7 @@ static int32_t addTbnameToMap(SHashObj* groupIdMap, int64_t uid, void* vnode, SS
     taosArrayDestroy(gInfo);
     return code;
   }
-  qDebug("table uid:%" PRId64 ":%s added into groupIdMap, groupIdMap size:%d", uid, str, taosHashGetSize(groupIdMap));
+  qDebug("table uid:%" PRId64 ":%s added into groupIdMap, groupIdMap size:%d", uid, varDataVal(str), taosHashGetSize(groupIdMap));
   return code;
 }
 
