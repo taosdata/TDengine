@@ -53,7 +53,7 @@ class TestVnodeReplica3Repeat:
             clusterComCheck.checkDbReady("db")
             tdSql.query(f"select count(*) from db.tb")
             tdLog.info(f"rows:{tdSql.getData(0, 0)}")
-            tdSql.checkAssert(tdSql.getData(0, 0) >= lastRows)
+            tdSql.assert(tdSql.getData(0, 0) >= lastRows)
             lastRows = tdSql.getData(0, 0)
 
             sc.dnodeStart(2)
@@ -62,7 +62,7 @@ class TestVnodeReplica3Repeat:
             clusterComCheck.checkDbReady("db")
             tdSql.query(f"select count(*) from db.tb")
             tdLog.info(f"rows:{tdSql.getData(0, 0)}")
-            tdSql.checkAssert(tdSql.getData(0, 0) >= lastRows)
+            tdSql.assert(tdSql.getData(0, 0) >= lastRows)
             lastRows = tdSql.getData(0, 0)
 
             sc.dnodeStop(3)
@@ -71,7 +71,7 @@ class TestVnodeReplica3Repeat:
             clusterComCheck.checkDbReady("db")
             tdSql.query(f"select count(*) from db.tb")
             tdLog.info(f"rows:{tdSql.getData(0, 0)}")
-            tdSql.checkAssert(tdSql.getData(0, 0) >= lastRows)
+            tdSql.assert(tdSql.getData(0, 0) >= lastRows)
             lastRows = tdSql.getData(0, 0)
 
             sc.dnodeStart(3)
@@ -80,7 +80,7 @@ class TestVnodeReplica3Repeat:
             clusterComCheck.checkDbReady("db")
             tdSql.query(f"select count(*) from db.tb")
             tdLog.info(f"rows:{tdSql.getData(0, 0)}")
-            tdSql.checkAssert(tdSql.getData(0, 0) >= lastRows)
+            tdSql.assert(tdSql.getData(0, 0) >= lastRows)
             lastRows = tdSql.getData(0, 0)
 
             sc.dnodeStop(2)
@@ -90,7 +90,7 @@ class TestVnodeReplica3Repeat:
             
             tdSql.query(f"select count(*) from db.tb")
             tdLog.info(f"rows:{tdSql.getData(0, 0)}")
-            tdSql.checkAssert(tdSql.getData(0, 0) >= lastRows)
+            tdSql.assert(tdSql.getData(0, 0) >= lastRows)
             lastRows = tdSql.getData(0, 0)
 
             sc.dnodeStart(2)
@@ -99,7 +99,7 @@ class TestVnodeReplica3Repeat:
             clusterComCheck.checkDbReady("db")
 
             tdSql.query(f"select count(*) from db.tb")
-            tdSql.Assert(tdSql.getData(0, 0) >= lastRows)
+            tdSql.assert(tdSql.getData(0, 0) >= lastRows)
             lastRows = tdSql.getData(0, 0)
 
         self.running = False

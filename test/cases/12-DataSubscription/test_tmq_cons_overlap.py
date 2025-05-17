@@ -138,16 +138,16 @@ class TestTmpConsOverlap:
         while True:
             tdSql.query(f"select * from consumeresult")
             if tdSql.getRows() == 2:
-                tdSql.Assert(tdSql.getData(0, 1) + tdSql.getData(1, 1) == 1)
+                tdSql.assert(tdSql.getData(0, 1) + tdSql.getData(1, 1) == 1)
                 
-                # tdSql.Assert(tdSql.getData(0, 2) <= expectmsgcnt)
-                # tdSql.Assert(tdSql.getData(1, 2) <= expectmsgcnt)
+                # tdSql.assert(tdSql.getData(0, 2) <= expectmsgcnt)
+                # tdSql.assert(tdSql.getData(1, 2) <= expectmsgcnt)
                 # sumOfMsgCnt = tdSql.getData(0, 2) + tdSql.getData(1, 2)
-                # tdSql.Assert(sumOfMsgCnt == expectmsgcnt)
+                # tdSql.assert(sumOfMsgCnt == expectmsgcnt)
 
                 totalMsgCons = totalMsgOfOneTopic + totalMsgOfStb
                 sumOfRows = tdSql.getData(0, 3) + tdSql.getData(1, 3)
-                tdSql.Assert(sumOfRows == totalMsgCons)
+                tdSql.assert(sumOfRows == totalMsgCons)
 
                 tdSql.execute(f"drop database {cdbName}")
                 break
@@ -208,11 +208,11 @@ class TestTmpConsOverlap:
             tdSql.query(f"select * from consumeresult")
             tdLog.info(f"==> rows: {tdSql.getRows()})")
             if tdSql.getRows() == 2:
-                tdSql.Assert(tdSql.getData(0, 1) + tdSql.getData(1, 1) == 1)
-                tdSql.Assert(
+                tdSql.assert(tdSql.getData(0, 1) + tdSql.getData(1, 1) == 1)
+                tdSql.assert(
                     tdSql.getData(0, 2) + tdSql.getData(1, 2) == 1 + topicNum
                 )
-                tdSql.Assert(
+                tdSql.assert(
                     tdSql.getData(0, 3) + tdSql.getData(1, 3)
                     == totalMsgOfCtb + totalMsgOfOneTopic
                 )
@@ -276,11 +276,11 @@ class TestTmpConsOverlap:
             tdSql.query(f"select * from consumeresult")
             tdLog.info(f"==> rows: {tdSql.getRows()})")
             if tdSql.getRows() == 2:
-                tdSql.Assert(tdSql.getData(0, 1) + tdSql.getData(1, 1) == 1)
-                # tdSql.Assert(
+                tdSql.assert(tdSql.getData(0, 1) + tdSql.getData(1, 1) == 1)
+                # tdSql.assert(
                 #     tdSql.getData(0, 2) + tdSql.getData(1, 2) == 1 + expectmsgcnt
                 # )
-                tdSql.Assert(
+                tdSql.assert(
                     tdSql.getData(0, 3) + tdSql.getData(1, 3)
                     == totalMsgOfNtb + totalMsgOfOneTopic
                 )

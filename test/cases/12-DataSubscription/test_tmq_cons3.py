@@ -158,21 +158,21 @@ class TestTmpCons3:
                 tdLog.info(f"==> rows: {tdSql.getRows()})")
 
                 if tdSql.getRows() == 2:
-                    tdSql.Assert(tdSql.getData(0, 1) + tdSql.getData(1, 1) == 1)
+                    tdSql.assert(tdSql.getData(0, 1) + tdSql.getData(1, 1) == 1)
 
-                    # tdSql.Assert(tdSql.getData(0, 2) > 0)
-                    # tdSql.Assert(tdSql.getData(0, 2) < expectmsgcnt)
-                    # tdSql.Assert(tdSql.getData(1, 2) > 0)
-                    # tdSql.Assert(tdSql.getData(1, 2) < expectmsgcnt)
+                    # tdSql.assert(tdSql.getData(0, 2) > 0)
+                    # tdSql.assert(tdSql.getData(0, 2) < expectmsgcnt)
+                    # tdSql.assert(tdSql.getData(1, 2) > 0)
+                    # tdSql.assert(tdSql.getData(1, 2) < expectmsgcnt)
                     # sumOfMsgCnt = tdSql.getData(0, 2) + tdSql.getData(1, 2)
-                    # tdSql.Assert(sumOfMsgCnt == expectmsgcnt)
+                    # tdSql.assert(sumOfMsgCnt == expectmsgcnt)
 
-                    # tdSql.Assert(tdSql.getData(0, 3) > 0)
-                    # tdSql.Assert(tdSql.getData(0, 3) < totalMsgOfStb)
-                    # tdSql.Assert(tdSql.getData(1, 3) > 0)
-                    # tdSql.Assert(tdSql.getData(1, 3) < totalMsgOfStb)
+                    # tdSql.assert(tdSql.getData(0, 3) > 0)
+                    # tdSql.assert(tdSql.getData(0, 3) < totalMsgOfStb)
+                    # tdSql.assert(tdSql.getData(1, 3) > 0)
+                    # tdSql.assert(tdSql.getData(1, 3) < totalMsgOfStb)
                     sumOfMsgRows = tdSql.getData(0, 3) + tdSql.getData(1, 3)
-                    tdSql.Assert(sumOfMsgRows == totalMsgOfStb)
+                    tdSql.assert(sumOfMsgRows == totalMsgOfStb)
 
                     tdSql.execute(f"drop database {cdbName}")
                     break
@@ -243,11 +243,11 @@ class TestTmpCons3:
                 tdLog.info(f"==> rows: {tdSql.getRows()})")
 
                 if tdSql.getRows() == 2:
-                    tdSql.Assert(tdSql.getData(0, 1) + tdSql.getData(1, 1) == 1)
-                    # tdSql.Assert(
+                    tdSql.assert(tdSql.getData(0, 1) + tdSql.getData(1, 1) == 1)
+                    # tdSql.assert(
                     #     tdSql.getData(0, 2) + tdSql.getData(1, 2) == expectmsgcnt
                     # )
-                    tdSql.Assert(
+                    tdSql.assert(
                         tdSql.getData(0, 3) + tdSql.getData(1, 3) == totalMsgOfCtb
                     )
                     tdSql.execute(f"drop database {cdbName}")
@@ -317,11 +317,11 @@ class TestTmpCons3:
                 tdLog.info(f"==> rows: {tdSql.getRows()})")
 
                 if tdSql.getRows() == 2:
-                    tdSql.Assert(tdSql.getData(0, 1) + tdSql.getData(1, 1) == 1)
-                    # tdSql.Assert(
+                    tdSql.assert(tdSql.getData(0, 1) + tdSql.getData(1, 1) == 1)
+                    # tdSql.assert(
                     #     tdSql.getData(0, 2) + tdSql.getData(1, 2) == expectmsgcnt
                     # )
-                    tdSql.Assert(
+                    tdSql.assert(
                         tdSql.getData(0, 3) + tdSql.getData(1, 3) == totalMsgOfNtb
                     )
                     tdSql.execute(f"drop database {cdbName}")

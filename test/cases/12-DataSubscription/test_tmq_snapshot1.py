@@ -142,15 +142,15 @@ class TestTmpSnapshot1:
             tdLog.info(f"==> rows: {tdSql.getRows()})")
 
             if tdSql.getRows() == 2:
-                tdSql.Assert(tdSql.getData(0, 1) + tdSql.getData(1, 1) == 1)
-                tdSql.Assert(tdSql.getData(0, 3) >= totalMsgOfOneTopic)
-                tdSql.Assert(tdSql.getData(0, 3) <= totalMsgOfStb)
-                tdSql.Assert(tdSql.getData(1, 3) >= totalMsgOfOneTopic)
-                tdSql.Assert(tdSql.getData(1, 3) <= totalMsgOfStb)
+                tdSql.assert(tdSql.getData(0, 1) + tdSql.getData(1, 1) == 1)
+                tdSql.assert(tdSql.getData(0, 3) >= totalMsgOfOneTopic)
+                tdSql.assert(tdSql.getData(0, 3) <= totalMsgOfStb)
+                tdSql.assert(tdSql.getData(1, 3) >= totalMsgOfOneTopic)
+                tdSql.assert(tdSql.getData(1, 3) <= totalMsgOfStb)
 
                 totalMsgCons = totalMsgOfOneTopic + totalMsgOfStb
                 sumOfRows = tdSql.getData(0, 3) + tdSql.getData(1, 3)
-                tdSql.Assert(totalMsgCons == sumOfRows)
+                tdSql.assert(totalMsgCons == sumOfRows)
                 tdSql.execute(f"drop database {cdbName}")
                 break
             time.sleep(1)
@@ -210,8 +210,8 @@ class TestTmpSnapshot1:
             tdLog.info(f"==> rows: {tdSql.getRows()})")
 
             if tdSql.getRows() == 2:
-                tdSql.Assert(tdSql.getData(0, 1) + tdSql.getData(1, 1) == 1)
-                tdSql.Assert(
+                tdSql.assert(tdSql.getData(0, 1) + tdSql.getData(1, 1) == 1)
+                tdSql.assert(
                     tdSql.getData(0, 3) + tdSql.getData(1, 3)
                     == totalMsgOfOneTopic + totalMsgOfCtb
                 )
@@ -275,8 +275,8 @@ class TestTmpSnapshot1:
             tdLog.info(f"==> rows: {tdSql.getRows()})")
 
             if tdSql.getRows() == 2:
-                tdSql.Assert(tdSql.getData(0, 1) + tdSql.getData(1, 1) == 1)
-                tdSql.Assert(
+                tdSql.assert(tdSql.getData(0, 1) + tdSql.getData(1, 1) == 1)
+                tdSql.assert(
                     tdSql.getData(0, 3) + tdSql.getData(1, 3)
                     == totalMsgOfOneTopic + totalMsgOfNtb
                 )
