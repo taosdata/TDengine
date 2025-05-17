@@ -26,9 +26,9 @@ class TestClusterBasic:
 
     @pytest.mark.cluster
     def test_check_cluster_empty_db(self):
-        """测试多节点集群缩减
+        """cluster dnode reduction
 
-        5节点集群停止两个dnode后cluster状态仍为alive
+        5 dnodes start and stop 2, then check cluster status
 
         Since: v3.3.0.0
 
@@ -59,11 +59,10 @@ class TestClusterBasic:
         tdSql.checkData(0, 0, 1)
 
     @pytest.mark.cluster
-    @pytest.mark.ci
     def test_check_cluster_with_db(self):
-        """测试多节点集群扩容
+        """cluster dnode reduction with db
 
-        5节点集群创建数据库,缩减集群到3节点后,cluster状态仍为alive
+        5 dnodes start and create db, and stop 2, then check cluster status
 
         Since: v3.3.0.0
 
