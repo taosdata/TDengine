@@ -554,4 +554,41 @@ int32_t geomGetY(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) 
 _exit:
   TAOS_RETURN(code);
 }
+
+int32_t numPointsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SColumnInfoData *pInputData = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+  int32_t numOfRows = pInput->numOfRows;
+
+  TAOS_CHECK_GOTO(initCtxGeomGetCoordinate(), NULL, _exit);
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+
+    GEOSGeometry *geom = NULL;
+    char *input = colDataGetData(pInputData, i);
+    TAOS_CHECK_GOTO(readGeometry(input, &geom, NULL), NULL, _exit);
+
+    uint32_t numPoints;
+    code = geomGetNumPoints(geom, &numPoints);
+    
+    if (code != TSDB_CODE_SUCCESS) {
+      destroyGeometry(&geom, NULL);
+      goto _exit;
+    }
+
+    uint32_t *out = (uint32_t *)pOutputData->pData;
+    out[i] = numPoints;
+    destroyGeometry(&geom, NULL);
+  }
+
+  pOutput->numOfRows = numOfRows;
+
+_exit:
+  TAOS_RETURN(code);
+}
 #endif

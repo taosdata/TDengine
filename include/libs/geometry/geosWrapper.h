@@ -32,6 +32,8 @@ int32_t initCtxGeomGetCoordinate();
 int32_t geomGetCoordinateX(const GEOSGeometry *geom, double *x);
 int32_t geomGetCoordinateY(const GEOSGeometry *geom, double *y);
 
+int32_t geomGetNumPoints(const GEOSGeometry *geom, uint32_t *y);
+
 int32_t initCtxMakePoint();
 int32_t doMakePoint(double x, double y, unsigned char **outputGeom, size_t *size);
 

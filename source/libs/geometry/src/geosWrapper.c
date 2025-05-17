@@ -429,6 +429,26 @@ int32_t geomGetCoordinateX(const GEOSGeometry *geom, double *x) {
 int32_t geomGetCoordinateY(const GEOSGeometry *geom, double *y) {
   return geomGetCoordinate(geom, y, Y);
 }
+
+int32_t geomGetNumPoints(const GEOSGeometry *geom, uint32_t *numPoints) {
+  SGeosContext *geosCtx = NULL;
+  uint32_t n;
+
+  TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
+
+  if (GEOSGeomTypeId_r(geosCtx->handle, geom) != GEOS_LINESTRING) {
+    return TSDB_CODE_UNEXPECTED_GEOMETRY_TYPE;
+  }
+
+  n = GEOSGeomGetNumPoints_r(geosCtx->handle, geom);
+  if (n == -1) {
+    return TSDB_CODE_FAILED;
+  }
+
+  *numPoints = n;
+
+  return TSDB_CODE_SUCCESS;
+}
   
 int32_t doGeosRelation(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
                        bool swapped, char *res, _geosRelationFunc_t relationFn, _geosRelationFunc_t swappedRelationFn,

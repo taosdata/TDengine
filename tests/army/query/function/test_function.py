@@ -177,6 +177,9 @@ class TDTestCase(TBase):
 
     def test_st_y(self):
         self.test_normal_query_new("st_y")
+        
+    def test_st_numpoints(self):
+        self.test_normal_query_new("st_numpoints")
 
     def test_stddev_pop(self):
         self.test_normal_query_new("stddev")
@@ -565,6 +568,7 @@ class TDTestCase(TBase):
         # geometry function
         self.test_st_x()
         self.test_st_y()
+        self.test_st_numpoints()
 
         # error function
         self.test_error()

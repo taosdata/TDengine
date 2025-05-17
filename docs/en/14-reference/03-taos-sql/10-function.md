@@ -2706,3 +2706,29 @@ taos> select st_y(ST_GeomFromText('POINT(45 900)'), 1000000003445);
  st_y(st_geomfromtext('POINT(45 900)'), 1000000003445) |
 ========================================================
  POINT (45.000000 1000000003445.000000)                |
+
+#### ST_NUMPOINTS
+
+```sql
+ST_NUMPOINTS(GEOMETRY linestring)
+```
+
+**Function Description**: Returns the number of points in the linestring input parameter. 
+
+**Return Type**: GEOMETRY.
+
+**Applicable Data Types**: INT UNSIGNED.
+
+**Applicable Table Types**: Basic tables and supertables.
+
+**Examples**:
+
+taos> select st_numpoints(NULL);
+ st_numpoints(null) |
+=====================
+ NULL               |
+
+taos> select st_numpoints(ST_GeomFromText('LINESTRING (30 10, 10 30, 40 40)'));
+ st_numpoints(st_geomfromtext('LINESTRING (30 10, 10 30, 40 40)') |
+===================================================================
+                                                                3 |
