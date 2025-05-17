@@ -112,12 +112,12 @@ end:
 }
 
 int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* options, SStreamReaderTaskInner** ppTask,
-                         SSDataBlock* pResBlock, SHashObj* groupIdMap) {
+                         SSDataBlock* pResBlock, SHashObj* groupIdMap, SStorageAPI*  api) {
   int32_t                 code = 0;
   int32_t                 lino = 0;
   SStreamReaderTaskInner* pTask = taosMemoryCalloc(1, sizeof(SStreamReaderTaskInner));
   STREAM_CHECK_NULL_GOTO(pTask, terrno);
-  initStorageAPI(&pTask->api);
+  pTask->api = *api;
   pTask->pIgnoreTables = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   STREAM_CHECK_NULL_GOTO(pTask->pIgnoreTables, terrno);
 
@@ -131,7 +131,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
   STREAM_CHECK_RET_GOTO(filterInitFromNode(options->pConditions, &pTask->pFilterInfo, 0, NULL));
   STREAM_CHECK_RET_GOTO(qStreamCreateTableListForReader(
       pVnode, options->suid, options->uid, options->tableType, options->partitionCols, options->groupSort,
-      options->pTagCond, options->pTagIndexCond, &pTask->api, &pTask->pTableList, groupIdMap));
+      options->pTagCond, options->pTagIndexCond, api, &pTask->pTableList, groupIdMap));
   if (options->gid != 0) {
     int32_t index = qStreamGetGroupIndex(pTask->pTableList, options->gid);
     STREAM_CHECK_CONDITION_GOTO(index < 0, TSDB_CODE_INVALID_PARA);
@@ -410,7 +410,7 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
     stDebug("calcScanPlan:%s", (char*)(pMsg->msg.calc.calcScanPlan));
     pTask->info = createStreamReaderCalcInfo(pMsg);
   }
-  stInfo("stReaderTaskDeploy: stream %" PRIx64 " task %" PRIx64 " pTask:%p, info:%p", pTask->task.streamId,
+  stInfo("stReaderTaskDeploy: stream %" PRIx64 " task %" PRIx64 " vgId:%" PRId64 " pTask:%p, info:%p", pTask->task.streamId,
          pTask->task.taskId, pTask, pTask->info);
   STREAM_CHECK_NULL_GOTO(pTask->info, terrno);
 
