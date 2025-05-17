@@ -31,36 +31,36 @@ typedef struct mqtt5__property tmqtt_property;
 enum tmqttProtocol { mp_mqtt, mp_mqttsn, mp_websockets };
 
 // Memory allocation.
-void *tmqtt_calloc(size_t nmemb, size_t size);
-void  tmqtt_free(void *mem);
-void *tmqtt_malloc(size_t size);
-void *tmqtt_realloc(void *ptr, size_t size);
-char *tmqtt_strdup(const char *s);
+void *tmqttCalloc(size_t nmemb, size_t size);
+void  tmqttFree(void *mem);
+void *tmqttMalloc(size_t size);
+void *tmqttRealloc(void *ptr, size_t size);
+char *tmqttStrdup(const char *s);
 
 // Utility Functions
-void tmqtt_log_printf(int level, const char *fmt, ...);
+void tmqttLog(int level, const char *fmt, ...);
 
 // Client Functions
-const char *tmqtt_client_address(const struct tmqtt *client);
-bool        tmqtt_client_clean_session(const struct tmqtt *client);
-const char *tmqtt_client_id(const struct tmqtt *client);
-int         tmqtt_client_keepalive(const struct tmqtt *client);
-void       *tmqtt_client_certificate(const struct tmqtt *client);
-int         tmqtt_client_protocol(const struct tmqtt *client);
-int         tmqtt_client_protocol_version(const struct tmqtt *client);
-int         tmqtt_client_sub_count(const struct tmqtt *client);
-const char *tmqtt_client_username(const struct tmqtt *client);
-int         tmqtt_set_username(struct tmqtt *client, const char *username);
+const char *tmqttClientAddress(const struct tmqtt *client);
+bool        tmqttClientCleanSession(const struct tmqtt *client);
+const char *tmqttClientId(const struct tmqtt *client);
+int         tmqttClientKeepalive(const struct tmqtt *client);
+void       *tmqttClientCertificate(const struct tmqtt *client);
+int         tmqttClientProtocol(const struct tmqtt *client);
+int         tmqttClientProtocol_version(const struct tmqtt *client);
+int         tmqttClientSubCount(const struct tmqtt *client);
+const char *tmqttClientUsername(const struct tmqtt *client);
+int         tmqttSetUsername(struct tmqtt *client, const char *username);
 
 // Client control
-int tmqtt_kick_client_by_clientid(const char *clientid, bool with_will);
-int tmqtt_kick_client_by_username(const char *username, bool with_will);
+int tmqttKickClientByClientid(const char *clientid, bool with_will);
+int tmqttKickClientByUsername(const char *username, bool with_will);
 
 // Publishing functions
-int tmqtt_broker_publish(const char *clientid, const char *topic, int payloadlen, void *payload, int qos, bool retain,
+int tmqttBrokerPublish(const char *clientid, const char *topic, int payloadlen, void *payload, int qos, bool retain,
                          tmqtt_property *properties);
 
-int tmqtt_broker_publish_copy(const char *clientid, const char *topic, int payloadlen, const void *payload, int qos,
+int tmqttBrokerPublishCopy(const char *clientid, const char *topic, int payloadlen, const void *payload, int qos,
                               bool retain, tmqtt_property *properties);
 
 #ifdef __cplusplus

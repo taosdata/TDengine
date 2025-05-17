@@ -797,8 +797,8 @@ int ttq_handle_connect(struct tmqtt *context) {
   client_id = NULL;
 
   {
-    /* FIXME - these ensure the tmqtt_client_id() and
-     * tmqtt_client_username() functions work, but is hacky */
+    /* FIXME - these ensure the tmqttClientId() and
+     * tmqttClientUsername() functions work, but is hacky */
     context->username = username;
     context->password = password;
     username = NULL; /* Avoid free() in error: below. */

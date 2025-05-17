@@ -343,7 +343,7 @@ void log__internal(const char *fmt, ...) {
 
 int tmqtt_log_vprintf(int level, const char *fmt, va_list va) { return log__vprintf((unsigned int)level, fmt, va); }
 
-void tmqtt_log_printf(int level, const char *fmt, ...) {
+void tmqttLog(int level, const char *fmt, ...) {
   va_list va;
 
   va_start(va, fmt);

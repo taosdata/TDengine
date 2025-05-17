@@ -24,10 +24,10 @@ extern "C" {
 
 #include "ttqLogging.h"
 //#include "password_ttq.h"
-#include "ttqTls.h"
 #include "tmqtt.h"
 #include "tmqttBroker.h"
 #include "tmqttInt.h"
+#include "ttqTls.h"
 //#include "tmqtt_plugin.h"
 #include "tthash.h"
 
@@ -167,10 +167,6 @@ struct tmqtt__config {
   int      websockets_log_level;
   uint16_t websockets_headers_size;
 #endif
-#ifdef WITH_BRIDGE
-  struct tmqtt__bridge *bridges;
-  int                   bridge_count;
-#endif
   // struct tmqtt__security_options security_options;
 };
 
@@ -296,7 +292,7 @@ struct tmqtt_message_v5 {
   char                    *topic;
   void                    *payload;
   tmqtt_property          *properties;
-  char                    *clientid; /* Used only by tmqtt_broker_publish*() to indicate
+  char                    *clientid; /* Used only by tmqttBrokerPublish*() to indicate
                                                         this message is for a specific client. */
   int  payloadlen;
   int  qos;
@@ -304,30 +300,24 @@ struct tmqtt_message_v5 {
 };
 
 struct tmqtt_db {
-  dbid_t                    last_db_id;
-  struct tmqtt__subhier    *normal_subs;
-  struct tmqtt__subhier    *shared_subs;
-  struct tmqtt__retainhier *retains;
-  struct tmqtt             *contexts_by_id;
-  struct tmqtt             *contexts_by_sock;
-  struct tmqtt             *contexts_for_free;
-#ifdef WITH_BRIDGE
-  struct tmqtt **bridges;
-#endif
+  dbid_t                       last_db_id;
+  struct tmqtt__subhier       *normal_subs;
+  struct tmqtt__subhier       *shared_subs;
+  struct tmqtt__retainhier    *retains;
+  struct tmqtt                *contexts_by_id;
+  struct tmqtt                *contexts_by_sock;
+  struct tmqtt                *contexts_for_free;
   struct clientid__index_hash *clientid_index_hash;
   struct tmqtt_msg_store      *msg_store;
   struct tmqtt_msg_store_load *msg_store_load;
   time_t                       now_s;      /* Monotonic clock, where possible */
   time_t                       now_real_s; /* Read clock, for measuring session/message expiry */
-#ifdef WITH_BRIDGE
-  int bridge_count;
-#endif
-  int                   msg_store_count;
-  unsigned long         msg_store_bytes;
-  char                 *config_file;
-  struct tmqtt__config *config;
-  int                   auth_plugin_count;
-  bool                  verbose;
+  int                          msg_store_count;
+  unsigned long                msg_store_bytes;
+  char                        *config_file;
+  struct tmqtt__config        *config;
+  int                          auth_plugin_count;
+  bool                         verbose;
 #ifdef WITH_SYS_TREE
   int subscription_count;
   int shared_subscription_count;
@@ -430,9 +420,6 @@ struct libws_mqtt_data {
 
 extern struct tmqtt_db db;
 
-/* ============================================================
- * Main functions
- * ============================================================ */
 int ttq_main_loop(struct tmqtt__listener_sock *listensock, int listensock_count);
 
 /* ============================================================
@@ -457,11 +444,6 @@ int drop_privileges(struct tmqtt__config *config);
  * Server send functions
  * ============================================================ */
 int send__connack(struct tmqtt *context, uint8_t ack, uint8_t reason_code, const tmqtt_property *properties);
-/*
-int ttq_send_suback(struct tmqtt *context, uint16_t mid, uint32_t payloadlen, const void *payload);
-int ttq_send_unsuback(struct tmqtt *context, uint16_t mid, int reason_code_count, uint8_t *reason_codes,
-                 const tmqtt_property *properties);
-*/
 int send__auth(struct tmqtt *context, uint8_t reason_code, const void *auth_data, uint16_t auth_data_len);
 
 /* ============================================================
@@ -580,26 +562,6 @@ int  log__close(struct tmqtt__config *config);
 void log__internal(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
 /* ============================================================
- * Bridge functions
- * ============================================================ */
-#ifdef WITH_BRIDGE
-void bridge__start_all(void);
-int  bridge__new(struct tmqtt__bridge *bridge);
-void bridge__cleanup(struct tmqtt *context);
-int  bridge__connect(struct tmqtt *context);
-int  bridge__connect_step1(struct tmqtt *context);
-int  bridge__connect_step2(struct tmqtt *context);
-int  bridge__connect_step3(struct tmqtt *context);
-int  bridge__on_connect(struct tmqtt *context);
-void bridge__packet_cleanup(struct tmqtt *context);
-void bridge_check(void);
-int  bridge__register_local_connections(void);
-int  bridge__add_topic(struct tmqtt__bridge *bridge, const char *topic, enum tmqtt__bridge_direction direction,
-                       uint8_t qos, const char *local_prefix, const char *remote_prefix);
-int  bridge__remap_topic_in(struct tmqtt *context, char **topic);
-#endif
-
-/* ============================================================
  * IO multiplex
  * ============================================================ */
 int ttq_mux_init(struct tmqtt__listener_sock *listensock, int listensock_count);
@@ -617,16 +579,6 @@ void listeners__reload_all_certificates(void);
 #ifdef WITH_WEBSOCKETS
 void listeners__add_websockets(struct lws_context *ws_context, ttq_sock_t fd);
 #endif
-
-/* ============================================================
- * Plugin
- * ============================================================ */
-/*
-  int plugin__load_v5(struct tmqtt__listener *listener, struct tmqtt__auth_plugin *plugin, struct tmqtt_opt
-*auth_options, int auth_option_count, void *lib); void plugin__handle_disconnect(struct tmqtt *context, int reason); int
-plugin__handle_message(struct tmqtt *context, struct tmqtt_msg_store *stored); void LIB_ERROR(void); void
-plugin__handle_tick(void);
-*/
 
 /* ============================================================
  * Property related functions
@@ -715,10 +667,6 @@ int  will_delay__add(struct tmqtt *context);
 void will_delay__check(void);
 void will_delay__send_all(void);
 void will_delay__remove(struct tmqtt *ttq);
-
-/* ============================================================
- * Other
- * ============================================================ */
 
 #define TTQ_ACL_NONE        0x00
 #define TTQ_ACL_READ        0x01
