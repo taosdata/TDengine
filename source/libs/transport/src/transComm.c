@@ -435,7 +435,7 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
       dst->freeFunc(dVal->val);
       dVal->val = NULL;
 
-      (void)taosHashRemove(dst->args, msgType, sizeof(*msgType));
+      TAOS_UNUSED(taosHashRemove(dst->args, msgType, sizeof(*msgType)));
     }
 
     int32_t code = taosHashPut(dst->args, msgType, sizeof(*msgType), sVal, sizeof(*sVal));
