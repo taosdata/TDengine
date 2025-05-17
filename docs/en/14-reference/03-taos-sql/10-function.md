@@ -2617,3 +2617,92 @@ ST_ContainsProperly(GEOMETRY geomA, GEOMETRY geomB)
 **Applicable Table Types**: Basic tables and supertables
 
 **Usage Instructions**: No points of B are on the boundary or outside of A.
+
+### Geometric Property Functions
+#### ST_X
+
+```sql
+ST_X(GEOMETRY point [, DOUBLE new_x])
+```
+
+**Function Description**: ST_X returns the X-coordinate value of a valid GEOMETRY object `point` as a double-precision number. With the optional second argument, ST_X returns a GEOMETRY object with the same Y coordinate, but the X coordinate set to the value of the second argument.
+
+**Return Type**: GEOMETRY [, DOUBLE]
+
+**Applicable Data Types**: GEOMETRY [, DOUBLE]
+
+**Applicable Table Types**: Basic tables and supertables
+
+**Usage Notes**:
+
+- ST_X(NULL) = NULL;
+- If the first parameter is not a point, exit with TSDB_CODE_UNEXPECTED_GEOMETRY_TYPE status code;
+- If the second parameter is not finite, exit with TSDB_CODE_GEOMETRY_DATA_OUT_OF_RANGE status code;
+- If it's applied to one parameter, it returns a double value that represents the first coordinate of the input point;
+- If it's applied to two parameter, a point and a double number, it returns a point with the double parameter as first coordinate.
+
+**Examples**:
+
+taos> select st_x(NULL);
+        st_x(null)         |
+============================
+ NULL                      |
+
+taos> select st_x(ST_GeomFromText('POINT(45 900)'));
+ st_x(st_geomfromtext('POINT(45 900)')) |
+=========================================
+                                     45 |
+
+taos> select st_x(ST_GeomFromText('POINT(45 900)'), 10.0);
+ st_x(st_geomfromtext('POINT(45 900)'), 10.0) |
+===============================================
+ POINT (10.000000 900.000000)                 |
+
+taos> select st_x(ST_GeomFromText('POINT(45 900)'), 1000000003445);
+ st_x(st_geomfromtext('POINT(45 900)'), 1000000003445) |
+========================================================
+ POINT (1000000003445.000000 900.000000)               |
+
+#### ST_Y
+
+```sql
+ST_Y(GEOMETRY point [, DOUBLE new_y])
+```
+
+**Function Description**: ST_Y returns the Y-coordinate value of a valid GEOMETRY object `point` as a double-precision number. With the optional second argument, ST_Y returns a GEOMETRY object with the same X coordinate, but the Y coordinate set to the value of the second argument.
+
+**Return Type**: GEOMETRY [, DOUBLE]
+
+**Applicable Data Types**: GEOMETRY [, DOUBLE]
+
+**Applicable Table Types**: Basic tables and supertables
+
+**Usage Notes**:
+
+- ST_Y(NULL) = NULL;
+- If the first parameter is not a point, exit with TSDB_CODE_UNEXPECTED_GEOMETRY_TYPE status code;
+- If the second parameter is not finite, exit with TSDB_CODE_GEOMETRY_DATA_OUT_OF_RANGE status code;
+- If it's applied to one parameter, it returns a double value that represents the second coordinate of the input point;
+- If it's applied to two parameter, a point and a double number, it returns a point with the double parameter as second coordinate.
+
+**Examples**:
+
+taos> select st_y(NULL);
+        st_y(null)         |
+============================
+ NULL                      |
+
+taos> select st_y(ST_GeomFromText('POINT(45 900)'));
+ st_y(st_geomfromtext('POINT(45 900)')) |
+=========================================
+                                    900 |
+
+taos> select st_y(ST_GeomFromText('POINT(45 900)'), 10.0);
+ st_y(st_geomfromtext('POINT(45 900)'), 10.0) |
+===============================================
+ POINT (45.000000 10.000000)                  |
+
+taos> select st_y(ST_GeomFromText('POINT(45 900)'), 1000000003445);
+ st_y(st_geomfromtext('POINT(45 900)'), 1000000003445) |
+========================================================
+ POINT (45.000000 1000000003445.000000)                |

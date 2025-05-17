@@ -28,6 +28,10 @@ extern "C" {
 
 void geosFreeBuffer(void *buffer);
 
+int32_t initCtxGeomGetCoordinate();
+int32_t geomGetCoordinateX(const GEOSGeometry *geom, double *x);
+int32_t geomGetCoordinateY(const GEOSGeometry *geom, double *y);
+
 int32_t initCtxMakePoint();
 int32_t doMakePoint(double x, double y, unsigned char **outputGeom, size_t *size);
 
