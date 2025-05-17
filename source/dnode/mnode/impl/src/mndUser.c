@@ -878,13 +878,13 @@ static int32_t createDefaultIpWhiteList(SIpWhiteListDual **ppWhiteList) {
   if (*ppWhiteList == NULL) {
     TAOS_RETURN(terrno);
   }
-  (*ppWhiteList)->num = 1;
+  (*ppWhiteList)->num = 2;
 
   SIpRange v4 = {0};
   SIpRange v6 = {0};
 
   SIpAddr addr4 = {0, .ipv4 = {"127.0.0.1"}, .mask = 32};
-  SIpAddr addr6 = {0, .ipv6 = {"::1"}, .mask = 128};
+  SIpAddr addr6 = {1, .ipv6 = {"::1"}, .mask = 128};
 
 #ifndef TD_ASTRA
   code = tIpStrToUint(&addr4, &v4);
