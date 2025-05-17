@@ -441,12 +441,10 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
     int32_t code = taosHashPut(dst->args, msgType, sizeof(*msgType), sVal, sizeof(*sVal));
     if (code != 0) {
       tError("failed to put val to hash since %s", tstrerror(code));
-    } else {
       tDebug("put msg type %s dump func", TMSG_INFO(*(int32_t*)msgType));
       if (src->freeFunc) (src->freeFunc)(sVal->val);
       sVal->val = NULL;
     }
-
     iter = taosHashIterate(src->args, iter);
   }
   if (freeFunc != NULL && tval.val != NULL) {
