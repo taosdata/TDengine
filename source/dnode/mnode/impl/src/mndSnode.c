@@ -20,6 +20,7 @@
 #include "mndSnode.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "mndStream.h"
 
 #define SNODE_VER_NUMBER   1
 #define SNODE_RESERVE_SIZE 64
@@ -697,10 +698,13 @@ static int32_t mndDropSnode(SMnode *pMnode, SRpcMsg *pReq, SSnodeObj *pObj) {
   int32_t lino = 0;
   SSnodeObj* pAffected1 = NULL, *pAffected2 = NULL;
   int32_t newReplicaId1 = 0, newReplicaId2 = 0;
+  STrans *pTrans = NULL;
+  SArray* streamList = NULL;
   
+  TAOS_CHECK_EXIT(msmCheckSnodeReassign(pMnode, pObj, &streamList));
   TAOS_CHECK_EXIT(mndSnodeCheckDropReplica(pMnode, pObj, &pAffected1, &newReplicaId1, &pAffected2, &newReplicaId2));
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "drop-snode");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "drop-snode");
   if (pTrans == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -708,22 +712,34 @@ static int32_t mndDropSnode(SMnode *pMnode, SRpcMsg *pReq, SSnodeObj *pObj) {
   }
   mndTransSetSerial(pTrans);
 
-  mInfo("trans:%d, used to drop snode:%d", pTrans->id, pObj->id);
-  TAOS_CHECK_GOTO(mndSetDropSnodeInfoToTrans(pMnode, pTrans, pObj, false), NULL, _exit);
+  int32_t streamNum = taosArrayGetSize(streamList);
+  if (streamNum > 0) {
+    for (int32_t i = 0; i < streamNum; ++i) {
+      SStreamObj* pStream = taosArrayGetP(streamList, i);
+      atomic_store_32(&pStream->mainSnodeId, pObj->replicaId);
+      TAOS_CHECK_EXIT(mndStreamTransAppend(pStream, pTrans, SDB_STATUS_READY));
+    }
+  }
 
   if (pAffected1) {
+    mInfo("trans:%d, used to update snode:%d replica to %d", pTrans->id, pAffected1->id, newReplicaId1);
     TAOS_CHECK_EXIT(mndSnodeAppendUpdateToTrans(pMnode, pAffected1, pTrans, newReplicaId1));
   }
 
   if (pAffected2) {
+    mInfo("trans:%d, used to update snode:%d replica to %d", pTrans->id, pAffected2->id, newReplicaId2);
     TAOS_CHECK_EXIT(mndSnodeAppendUpdateToTrans(pMnode, pAffected2, pTrans, newReplicaId2));
   }
+
+  mInfo("trans:%d, used to drop snode:%d", pTrans->id, pObj->id);
+  TAOS_CHECK_GOTO(mndSetDropSnodeInfoToTrans(pMnode, pTrans, pObj, false), NULL, _exit);
   
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _exit);
 
 _exit:
 
   mndTransDrop(pTrans);
+  taosArrayDestroy(streamList);
 
   if (code) {
     mError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));

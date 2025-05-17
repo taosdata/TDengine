@@ -38,6 +38,9 @@ int32_t stmAddFetchStreamGid(void) {
 
 
 int32_t stmAddStreamStatus(SArray** ppStatus, SStreamTasksInfo* pStream, int64_t streamId, int32_t gid) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
   taosWLockLatch(&pStream->taskLock);
 
   if (taosArrayGetSize(pStream->undeployReaders) > 0) {
@@ -52,9 +55,6 @@ int32_t stmAddStreamStatus(SArray** ppStatus, SStreamTasksInfo* pStream, int64_t
     mstDebug("ignore stream status update since stream taskNum %d is invalid", pStream->taskNum);
     goto _exit;
   }
-
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
   
   if (NULL == *ppStatus) {
     *ppStatus = taosArrayInit(pStream->taskNum, sizeof(SStmTaskStatusMsg));

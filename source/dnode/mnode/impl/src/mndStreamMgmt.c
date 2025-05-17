@@ -617,7 +617,8 @@ int32_t msmRetrieveStaticSnodeId(SMnode* pMnode, SStreamObj* pStream) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   bool alive = false;
-  int32_t snodeId = pStream->mainSnodeId;
+  int32_t mainSnodeId = atomic_load_32(&pStream->mainSnodeId);
+  int32_t snodeId = mainSnodeId;
   int64_t streamId = pStream->pCreate->streamId;
   
   while (true) {
@@ -627,7 +628,7 @@ int32_t msmRetrieveStaticSnodeId(SMnode* pMnode, SStreamObj* pStream) {
       return snodeId;
     }
     
-    if (snodeId == pStream->mainSnodeId) {
+    if (snodeId == mainSnodeId) {
       SSnodeObj* pSnode = mndAcquireSnode(pMnode, snodeId);
       if (NULL == pSnode) {
         mstWarn("snode %d not longer exists, ignore assign snode", snodeId);
@@ -635,7 +636,7 @@ int32_t msmRetrieveStaticSnodeId(SMnode* pMnode, SStreamObj* pStream) {
       }
       
       if (pSnode->replicaId <= 0) {
-        mstError("no available snode now, mainSnodeId:%d, replicaId:%d", pStream->mainSnodeId, pSnode->replicaId);
+        mstError("no available snode now, mainSnodeId:%d, replicaId:%d", mainSnodeId, pSnode->replicaId);
         mndReleaseSnode(pMnode, pSnode);
         return 0;
       }
@@ -646,7 +647,7 @@ int32_t msmRetrieveStaticSnodeId(SMnode* pMnode, SStreamObj* pStream) {
       continue;
     }
 
-    mstError("no available snode now, mainSnodeId:%d, followerSnodeId:%d", pStream->mainSnodeId, snodeId);
+    mstError("no available snode now, mainSnodeId:%d, followerSnodeId:%d", mainSnodeId, snodeId);
     return 0;
   }
 
@@ -2864,6 +2865,62 @@ void msmHandleBecomeNotLeader(SMnode *pMnode) {
   taosWUnLockLatch(&mStreamMgmt.runtimeLock);
 }
 
+static bool msmCheckStreamAssign(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SStreamObj* pStream = pObj;
+  SSnodeObj* pSnode = p1;
+  SArray** ppRes = p2;
+
+  if (pStream->mainSnodeId == pSnode->id) {
+    if (NULL == *ppRes) {
+      int32_t streamNum = sdbGetSize(pMnode->pSdb, SDB_STREAM);
+      *ppRes = taosArrayInit(streamNum, POINTER_BYTES);
+      TSDB_CHECK_NULL(*ppRes, code, lino, _exit, terrno);
+    }
+
+    TSDB_CHECK_NULL(taosArrayPush(*ppRes, &pStream), code, lino, _exit, terrno);
+  }
+
+  return true;
+
+_exit:
+
+  if (code) {
+    stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }  
+
+  *(int32_t*)p3 = code;
+
+  return false;
+}
+
+
+int32_t msmCheckSnodeReassign(SMnode *pMnode, SSnodeObj* pSnode, SArray** ppRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  
+  sdbTraverse(pMnode->pSdb, SDB_STREAM, msmCheckStreamAssign, pSnode, ppRes, &code);
+  TAOS_CHECK_EXIT(code);
+
+  int32_t streamNum = taosArrayGetSize(*ppRes);
+  if (streamNum > 0 && 0 == pSnode->replicaId) {
+    stError("snode %d has no replica while %d streams assigned", pSnode->id, streamNum);
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_SNODE_IN_USE);
+  }
+
+  //STREAMTODO CHECK REPLICA UPDATED OR NOT
+
+_exit:
+
+  if (code) {
+    stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }  
+
+  return code;
+}
+
+
 static bool msmCheckStreamStatus(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
   SStreamObj* pStream = pObj;
   int64_t streamId = pStream->pCreate->streamId;
@@ -3067,6 +3124,7 @@ void msmReDeploySnodeRunnerTasks(SMnode *pMnode, SArray* pRunners, SArray* pTrig
     }
 
     streamId = *(int64_t*)taosHashGetKey(pIter, NULL);
+    mstDebug("stream debug %d", 1);
     
     SStmTaskAction task;
     task.streamId = streamId;
@@ -3074,9 +3132,12 @@ void msmReDeploySnodeRunnerTasks(SMnode *pMnode, SArray* pRunners, SArray* pTrig
     for (int32_t i = 0; i < task.deployNum; ++i) {
       task.deployId[i] = *(int32_t*)((int32_t*)pIter + i + 1);
     }
+    mstDebug("stream debug %d", 2);
     
     msmRemoveTriggerFromList(pTriggers, streamId, &task.triggerStatus);
     task.type = STREAM_RUNNER_TASK;
+
+    mstDebug("stream debug %d", 3);
     
     mndStreamPostTaskAction(mStreamMgmt.actionQ, &task, STREAM_ACT_DEPLOY);
 

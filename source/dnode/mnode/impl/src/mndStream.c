@@ -137,7 +137,7 @@ static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream) {
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStreamObj *pNewStream) {
   mTrace("stream:%s, perform update action", pOldStream->pCreate->name);
 
-  pOldStream->mainSnodeId = pNewStream->mainSnodeId;
+  atomic_store_32(&pOldStream->mainSnodeId, pNewStream->mainSnodeId);
   atomic_store_8(&pOldStream->userStopped, atomic_load_8(&pNewStream->userStopped));
   pOldStream->updateTime = pNewStream->updateTime;
   
