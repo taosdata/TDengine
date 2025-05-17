@@ -646,18 +646,13 @@ static bool isDefaultRange(SIpRange *pRange) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  SIpAddr  addr4 = {.type = 0, .mask = 32};
-  SIpAddr  addr6 = {.type = 1, .mask = 128};
   SIpRange range4 = {0};
   SIpRange range6 = {0};
 
-  memcpy(addr4.ipv4, "127.0.0.1", strlen("127.0.0.1"));
-  memcpy(addr6.ipv6, "::1", strlen("::1"));
-
-  code = tIpStrToUint(&addr4, &range4);
+  code = createDefaultIp4Range(&range4);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = tIpStrToUint(&addr6, &range6);
+  code = createDefaultIp6Range(&range4);
   TSDB_CHECK_CODE(code, lino, _error);
 
   if (isIpRangeEqual(pRange, &range4) || (isIpRangeEqual(pRange, &range6))) {
@@ -883,15 +878,13 @@ static int32_t createDefaultIpWhiteList(SIpWhiteListDual **ppWhiteList) {
   SIpRange v4 = {0};
   SIpRange v6 = {0};
 
-  SIpAddr addr4 = {0, .ipv4 = {"127.0.0.1"}, .mask = 32};
-  SIpAddr addr6 = {1, .ipv6 = {"::1"}, .mask = 128};
-
 #ifndef TD_ASTRA
-  code = tIpStrToUint(&addr4, &v4);
+  code = createDefaultIp4Range(&v4);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = tIpStrToUint(&addr6, &v6);
+  code = createDefaultIp6Range(&v6);
   TSDB_CHECK_CODE(code, lino, _error);
+
 #endif
 
 _error:
@@ -1545,6 +1538,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
       SIpWhiteList *pIpWhiteList = NULL;
       TAOS_CHECK_GOTO(createIpWhiteListFromOldVer(key, len, &pIpWhiteList), &lino, _OVER);
+
       SDB_GET_INT64(pRaw, dataPos, &pUser->ipWhiteListVer, _OVER);
 
       code = cvtIpWhiteListToDual(pIpWhiteList, &pUser->pIpWhiteListDual);

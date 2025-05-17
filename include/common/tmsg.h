@@ -1231,6 +1231,8 @@ typedef struct {
 SIpWhiteListDual* cloneIpWhiteList(SIpWhiteListDual* pIpWhiteList);
 int32_t           cvtIpWhiteListToDual(SIpWhiteList* pWhiteList, SIpWhiteListDual** pWhiteListDual);
 int32_t           cvtIpWhiteListDualToV4(SIpWhiteListDual* pWhiteListDual, SIpWhiteList** pWhiteList);
+int32_t           createDefaultIp6Range(SIpRange* pRange);
+int32_t           createDefaultIp4Range(SIpRange* pRange);
 
 typedef struct {
   int8_t  createType;

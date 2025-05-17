@@ -2066,8 +2066,9 @@ int32_t cvtIpWhiteListToDual(SIpWhiteList *pWhiteList, SIpWhiteListDual **pWhite
   int32_t           code = 0;
   int32_t           lino = 0;
   SIpWhiteListDual *pList = NULL;
+  SIpRange          p6 = {0};
 
-  pList = taosMemoryCalloc(1, sizeof(SIpWhiteListDual) + sizeof(SIpRange) * pWhiteList->num);
+  pList = taosMemoryCalloc(1, sizeof(SIpWhiteListDual) + sizeof(SIpRange) * pWhiteList->num + 1);
   if (pList == NULL) {
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
@@ -2079,9 +2080,28 @@ int32_t cvtIpWhiteListToDual(SIpWhiteList *pWhiteList, SIpWhiteListDual **pWhite
     pRange->type = 0;
     memcpy(&pRange->ipV4, pIp4, sizeof(SIpV4Range));
   }
+
+  code = createDefaultIp6Range(&p6);
+  TAOS_CHECK_GOTO(code, &lino, _OVER);
+
+  memcpy(pList->pIpRanges + pList->num, &p6, sizeof(SIpRange));
+  pList->num++;
+
 _OVER:
   *pWhiteListDual = pList;
   return code;
+}
+
+int32_t createDefaultIp6Range(SIpRange *pRange) {
+  int32_t code = 0;
+  SIpAddr add6 = {.type = 1, .ipv6 = {"::1"}, .mask = 128};
+  return tIpStrToUint(&add6, pRange);
+}
+
+int32_t createDefaultIp4Range(SIpRange *pRange) {
+  int32_t code = 0;
+  SIpAddr add4 = {.type = 0, .ipv4 = {"127.0.0.1"}, .mask = 32};
+  return tIpStrToUint(&add4, pRange);
 }
 int32_t cvtIpWhiteListDualToV4(SIpWhiteListDual *pWhiteListDual, SIpWhiteList **pWhiteList) {
   int32_t code = 0;

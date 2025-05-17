@@ -346,22 +346,35 @@ int32_t uvWhiteListAdd(SIpWhiteListTab* pWhite, char* user, SIpWhiteListDual* pl
 }
 
 static bool uvWhiteListIsDefaultAddr(SIpAddr* ip) {
-  // 127.0.0.1
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  SIpRange addr4 = {0};
+  SIpRange addr6 = {0};
 
-  SIpAddr addr4 = {.type = 0, .mask = 32};
-  SIpAddr addr6 = {.type = 1, .mask = 128};
+  SIpRange target = {0};
+  code = tIpStrToUint(ip, &target);
+  TAOS_CHECK_GOTO(code, &lino, _error);
 
-  memcpy(addr4.ipv4, "127.0.0.1", strlen("127.0.0.1"));
-  memcpy(addr6.ipv6, "::1", strlen("::1"));
+  if (target.type) {
+    code = createDefaultIp4Range(&addr4);
+    TAOS_CHECK_GOTO(code, &lino, _error);
 
-  if (ip->type == 0) {
-    if (strlen(ip->ipv4) == strlen(addr4.ipv4) && strcmp(ip->ipv4, addr4.ipv4) == 0) {
+    if (target.ipV4.ip == addr4.ipV4.ip) {
       return true;
     }
-  } else if (ip->type == 1) {
-    if (strlen(ip->ipv6) == strlen(addr6.ipv6) && strcmp(ip->ipv6, addr6.ipv6) == 0) {
+
+  } else {
+    code = createDefaultIp6Range(&addr6);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+
+    if (addr6.ipV6.addr[0] == target.ipV6.addr[0] && addr6.ipV6.addr[1] == target.ipV6.addr[1]) {
       return true;
     }
+  }
+
+_error:
+  if (code != 0) {
+    tError("failed to create default ip range since %s", tstrerror(code));
   }
   return false;
 }
