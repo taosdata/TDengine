@@ -13477,7 +13477,7 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
 
   SFunctionNode* pFunc = NULL;
   PAR_ERR_JRET(createTbnameFunction(&pFunc));
-  PAR_ERR_JRET(nodesListMakeStrictAppend(&((SSelectStmt*)pTriggerSelect)->pProjectionList, (SNode*)pFunc));
+  PAR_ERR_JRET(nodesListMakeStrictAppend(&((SSelectStmt*)*pTriggerSelect)->pProjectionList, (SNode*)pFunc));
 
   (*pTriggerSelect)->pFromTable = pTrigger->pTrigerTable;
   (*pTriggerSelect)->pWhere = pTriggerFilter;
