@@ -28,9 +28,10 @@ use tokio_util::sync::CancellationToken;
 
 use taosx_tools::{
     codec::{Compression, Encoding, Processor},
-    csv_reader,
+    csv_reader, select3,
     topic::TopicFaker,
     topic_fuzzy::TopicFuzzer,
+    Select3,
 };
 
 #[derive(Debug, PartialEq, serde::Deserialize)]
@@ -77,6 +78,8 @@ struct Args {
     exec_duration: Option<Duration>,
     #[arg(long = "csv-header", value_delimiter = ',', requires = "csv_file")]
     csv_headers: Option<Vec<String>>,
+    #[arg(long = "report-interval", default_value = "5s", value_parser = fundu::parse_duration)]
+    report_interval: Duration,
 }
 
 #[derive(Debug, clap::Args)]
@@ -129,6 +132,10 @@ struct FrequencyArgs {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
+
+    if args.report_interval < Duration::from_secs(1) {
+        anyhow::bail!("report interval should > 1s");
+    }
 
     let client_id = args
         .connect
@@ -315,53 +322,66 @@ async fn main() -> anyhow::Result<()> {
         let token = cancel.clone();
         let total_notifier = total_notifier.clone();
         async move {
-            let mut ticker = tokio::time::interval(Duration::from_secs(5));
+            let mut ticker = tokio::time::interval(args.report_interval);
             ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-            let mut published = 0;
+            let mut published = 0u64;
+            let mut pre_published = published;
             let start = Instant::now();
+            let mut pre_inst = Instant::now();
             loop {
-                tokio::select! {
-                    res = event_loop.poll() => match res {
+                match select3(event_loop.poll(), ticker.tick(), token.cancelled()).await {
+                    Select3::T1(res) => match res {
                         Ok(Event::Incoming(Incoming::ConnAck(ack))) => {
                             if matches!(ack.code, ConnectReturnCode::Success) {
                                 println!("client connect sucessfully");
                                 tx.try_send(WatchEvent::ConnAck).ok();
                             } else {
                                 println!("connect error: {:?}", ack.code);
-                                break
+                                break;
                             }
-                        },
+                        }
                         Ok(Event::Incoming(Incoming::PubAck(ack))) => {
                             if matches!(ack.reason, PubAckReason::Success) {
                                 published += 1;
                             } else {
                                 println!("publish error: {:?}", ack.reason);
                             }
-                        },
+                        }
                         Ok(Event::Incoming(Incoming::PubRec(ack))) => {
                             if matches!(ack.reason, PubRecReason::Success) {
                                 published += 1;
                             } else {
                                 println!("publish error: {:?}", ack.reason);
                             }
-                        },
-                        Ok(Event::Outgoing(Outgoing::Publish(0))) => {
-                                published += 1;
                         }
-                        Ok(_) => {},
+                        Ok(Event::Outgoing(Outgoing::Publish(0))) => {
+                            published += 1;
+                        }
+                        Ok(_) => {}
                         Err(e) => {
                             println!("polling error: {e}");
                             tokio::time::sleep(Duration::from_millis(100)).await;
-                        },
+                        }
                     },
-                    _ = ticker.tick() => {
-                        let duration = start.elapsed().as_secs();
+                    Select3::T2(_) => {
+                        let duration = start.elapsed().as_millis();
                         if duration == 0 {
                             continue;
                         }
-                        println!("published {published}, speed: {}/s", published / duration);
-                    },
-                    _ = token.cancelled() => break
+                        let published_delta = published - pre_published;
+                        let mut duration_delta = pre_inst.elapsed().as_millis();
+                        if duration_delta == 0 {
+                            duration_delta = duration;
+                        }
+                        pre_published = published;
+                        pre_inst = Instant::now();
+                        println!(
+                            "published {published}, speed: {:.0}/s, avg speed: {:.0}/s",
+                            (published_delta as f64 / duration_delta as f64) * 1000.0,
+                            (published as f64 / duration as f64) * 1000.0
+                        );
+                    }
+                    Select3::T3(_) => break,
                 }
 
                 if args
@@ -399,34 +419,30 @@ async fn main() -> anyhow::Result<()> {
                 }
             };
             let mut total = 0;
-            loop {
-                tokio::select! {
-                    _ = stream.next() => {
-                        let data = tokio::select! {
-                            data = data_rx.recv_async() => match data {
-                                Ok(data) => data,
-                                Err(_) => break,
-                            },
-                            _ = token.cancelled() => break,
-                        };
-                        let qos = qos(data.qos).unwrap();
-                        tokio::select! {
-                            res = client.publish(&data.topic, qos, false, data.payload) => {
-                                if let Err(e) = res {
-                                    println!("publish message error: {e}")
-                                }
-                            },
-                            _ = token.cancelled() => break,
-                        }
-                        total += 1;
-                        if args.total_count.is_some_and(|c| total >= c) {
-                            total_notifier.notified().await;
-                            break
-                        }
-                    },
-                    _ = token.cancelled() => break,
+            while token.run_until_cancelled(stream.next()).await.is_some() {
+                let Some(Ok(data)) = token.run_until_cancelled(data_rx.recv_async()).await else {
+                    break;
+                };
+
+                let qos = qos(data.qos).unwrap();
+                match token
+                    .run_until_cancelled(client.publish(&data.topic, qos, false, data.payload))
+                    .await
+                {
+                    Some(Ok(_)) => {}
+                    Some(Err(e)) => {
+                        println!("publish message error: {e:#}")
+                    }
+                    _ => break,
+                }
+
+                total += 1;
+                if args.total_count.is_some_and(|c| total >= c) {
+                    total_notifier.notified().await;
+                    break;
                 }
             }
+
             Ok(())
         }
     });
