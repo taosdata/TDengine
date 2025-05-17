@@ -13611,13 +13611,13 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
 
   pReq->placeHolderBitmap = pCxt->placeHolderBitmap;
 
-  if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, SP_CURRENT_TS)) {
+  if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_CURRENT_TS)) {
     if (pReq->triggerType != WINDOW_TYPE_INTERVAL) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "_tcurrent_ts can only be used in sliding window"));
     }
   }
-  if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, SP_WSTART) || BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, SP_WEND) ||
-      BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, SP_WDURATION) || BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, SP_WROWNUM)) {
+  if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WSTART) || BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WEND) ||
+      BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WDURATION) || BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WROWNUM)) {
     if (pReq->triggerType == WINDOW_TYPE_PERIOD || (pReq->triggerType == WINDOW_TYPE_INTERVAL && pReq->trigger.sliding.interval == 0)) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "_twstart/_twend/_twduration/_twrownum can only be used in event window"));
     }
