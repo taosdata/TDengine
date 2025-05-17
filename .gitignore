@@ -2,6 +2,7 @@ debug
 build
 release
 .externals
+.internals
 *.swp
 compile_commands.json
 .cache

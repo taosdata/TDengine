@@ -16,13 +16,16 @@ endif()
 set(TD_EXTERNALS_BASE_DIR "${CMAKE_SOURCE_DIR}/.externals" CACHE PATH "path where external dependencies reside")
 message(STATUS "TD_EXTERNALS_BASE_DIR:${TD_EXTERNALS_BASE_DIR}")
 
+set(TD_INTERNALS_BASE_DIR "${CMAKE_SOURCE_DIR}/.internals" CACHE PATH "path where internal dependencies reside")
+message(STATUS "TD_INTERNALS_BASE_DIR:${TD_INTERNALS_BASE_DIR}")
+
 include(ExternalProject)
 
 add_custom_target(build_externals)
 
-macro(INIT_DIRS name)              # {
-    set(_base            "${TD_EXTERNALS_BASE_DIR}/build/${name}")                      # where all source and build stuffs locate
-    set(_ins             "${TD_EXTERNALS_BASE_DIR}/install/${name}/${TD_CONFIG_NAME}")  # where all installed stuffs locate
+macro(INIT_DIRS name base_dir)     # {
+    set(_base            "${base_dir}/build/${name}")                      # where all source and build stuffs locate
+    set(_ins             "${base_dir}/install/${name}/${TD_CONFIG_NAME}")  # where all installed stuffs locate
     set(${name}_base     "${_base}")
     set(${name}_source   "${_base}/src/${name}")
     set(${name}_build    "${_base}/src/${name}-build")
@@ -32,7 +35,7 @@ endmacro()                         # }
 # eg.: INIT_EXT(ext_zlib)
 # initialization all variables to be used by external project and those relied on
 macro(INIT_EXT name)               # {
-    INIT_DIRS(${name})
+    INIT_DIRS(${name} ${TD_EXTERNALS_BASE_DIR})
     set(${name}_inc_dir  "")
     set(${name}_libs     "")
     set(${name}_have_dev          FALSE)
