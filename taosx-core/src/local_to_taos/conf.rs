@@ -6,7 +6,7 @@ use anyhow::Context;
 use chrono::{DateTime, Utc};
 use std::path::PathBuf;
 use std::time::Duration;
-use taos::{AsyncQueryable, Dsn, Taos};
+use taos::{AsyncQueryable, AsyncTBuilder, Dsn, Taos, TaosBuilder, TaosPool};
 
 #[derive(Debug, Clone)]
 pub struct LocalRestoreConfig {
@@ -33,6 +33,7 @@ pub struct LocalRestoreConfig {
     #[allow(unused)]
     /// 错误重试的间隔。默认为 5s。
     pub error_retry_interval: Duration,
+    #[allow(unused)]
     /// 恢复到指定的数据库，如果为 None，则使用 topic_meta.db_name
     pub database: Option<String>,
     // 强制恢复，如果为 true，则删除已存在的数据库或表。默认为 true
@@ -145,6 +146,7 @@ impl LocalRestoreConfig {
     //     Ok(())
     // }
 
+    #[allow(unused)]
     pub async fn connect_taos(&self) -> anyhow::Result<Taos> {
         let taos = connect_taos_root(&self.raw_to).await?;
 
@@ -155,6 +157,14 @@ impl LocalRestoreConfig {
         }
 
         Ok(taos)
+    }
+
+    pub async fn connect_taos_pool(&self) -> anyhow::Result<TaosPool> {
+        let pool = TaosBuilder::from_dsn(&self.raw_to)?
+            .pool()
+            .map_err(|e| anyhow::anyhow!("failed to build connect pool, cause: {:?}", e))?;
+
+        Ok(pool)
     }
 }
 
