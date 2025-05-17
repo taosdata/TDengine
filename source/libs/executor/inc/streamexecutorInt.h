@@ -52,7 +52,6 @@ void releaseFlusedPos(void* pRes);
 typedef int32_t (*__compare_fn_t)(void* pKey, void* data, int32_t index);
 int32_t binarySearchCom(void* keyList, int num, void* pKey, int order, __compare_fn_t comparefn);
 
-int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes);
 #ifdef __cplusplus
 }
 #endif

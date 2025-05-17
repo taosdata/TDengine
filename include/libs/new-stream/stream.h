@@ -28,6 +28,7 @@ extern "C" {
 
 #define STREAM_MAX_GROUP_NUM  5
 #define STREAM_MAX_THREAD_NUM 5
+#define STREAM_RETURN_ROWS_NUM 10
 
 #define STREAM_ACT_MIN_DELAY_MSEC (STREAM_MAX_GROUP_NUM * STREAM_HB_INTERVAL_MS)
 
@@ -156,6 +157,8 @@ void    streamCleanup(void);
 int32_t streamGetTask(int64_t streamId, int64_t taskId, SStreamTask** ppTask);
 int32_t streamTriggerKickCalc();
 int32_t streamTriggerProcessRsp(SStreamTask *pTask, SRpcMsg *pRsp);
+
+#define STREAM_TRIGGER_MAX_WIN_NUM_PER_REQUEST 4096
 
 #ifdef __cplusplus
 }

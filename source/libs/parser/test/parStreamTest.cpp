@@ -28,7 +28,7 @@ class ParserStreamTest : public ParserDdlTest {};
 * CREATE STREAM [IF NOT EXISTS] stream_name stream_options [INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [PRIMARY KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
 *
 * stream_options: {
-*     trigger_type [FROM [db_name.]table_name] [PARTITION BY col1 [, ...]] [OPTIONS(stream_option [|...]] [notification_definition]
+*     trigger_type [FROM [db_name.]table_name] [PARTITION BY col1 [, ...]] [OPTIONS(stream_option [|...])] [notification_definition]
 * }
 *
 * trigger_type: {
@@ -48,7 +48,7 @@ class ParserStreamTest : public ParserDdlTest {};
 * stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY(start_time) | FILL_HISTORY_FIRST(start_time) | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types)}
 *
 * notification_definition:
-*     NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option)]]
+*     NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option [| notify_option])]
 *
 * notify_option: [NOTIFY_HISTORY | ON_FAILURE_PAUSE]
 *

@@ -13,8 +13,6 @@
 extern "C" {
 #endif
 
-#define STREAM_RETURN_ROWS_NUM 100
-
 #define STREAM_CHECK_RET_GOTO(CMD) \
   code = (CMD);                    \
   if (code != TSDB_CODE_SUCCESS) { \

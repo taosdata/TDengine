@@ -1740,6 +1740,7 @@ int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppRes, uint64_t* usec
     pTaskInfo->code = code;
     qError("%s failed at line %d, code:%s %s", __func__, __LINE__, tstrerror(code), GET_TASKID(pTaskInfo));
   } else {
+    *finished = *ppRes == NULL;
     code = blockDataCheck(*ppRes);
   }
   if (code) {
@@ -1885,14 +1886,14 @@ static int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const S
   return code;
 }
 
-int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes) {
+int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes, int32_t winIdx) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tInfo;
   const SArray*  pForceOutputCols = pTaskInfo->pStreamRuntimeInfo->pForceOutputCols;
   int32_t        code = 0;
   SNode*         pNode = NULL;
   SScalarParam   dst = {0};
   if (!pForceOutputCols) return 0;
-  if (!pRes) {
+  if (!*pRes) {
     code = createDataBlock(pRes);
   }
 
@@ -1908,14 +1909,17 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes) {
     }
   }
 
-  blockDataEnsureCapacity(*pRes, 1);
+  blockDataEnsureCapacity(*pRes, 4096);
 
   // loop all exprs for force output, execute all exprs
   int32_t idx = 0;
   int32_t rowIdx = (*pRes)->info.rows;
+  int32_t tmpWinIdx = pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx;
+  pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx = winIdx;
   for (int32_t i = 0; i < pForceOutputCols->size; ++i) {
     SStreamOutCol* pCol = (SStreamOutCol*)taosArrayGet(pForceOutputCols, i);
-    pNode = pCol->expr;
+    code = nodesStringToNode(pCol->expr, &pNode);
+    if (code != 0) break;
     SColumnInfoData* pInfo = taosArrayGet((*pRes)->pDataBlock, idx);
     if (nodeType(pNode) == QUERY_NODE_VALUE) {
       void* p = nodesGetValueFromNode((SValueNode*)pNode);
@@ -1925,8 +1929,10 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes) {
       code = streamCalcOneScalarExpr(pNode, &dst, &pTaskInfo->pStreamRuntimeInfo->funcInfo);
     }
     ++idx;
+    nodesDestroyNode(pNode);
     if (code != 0) break;
   }
+  pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx = tmpWinIdx;
   (*pRes)->info.rows++;
   return code;
 }
