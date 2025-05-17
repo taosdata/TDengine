@@ -943,11 +943,11 @@ static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp) {
   tmsgSendRsp(&rsp);
 
   const STraceId *trace = &pRsp->info.traceId;
-  mGInfo("msg:%p, retrieve mount path rsp with code:%d", pRsp, pRsp->code);
+  mGInfo("mount:%s, msg:%p, retrieve mount path rsp with code:%d", mntInfo.mountName, pRsp, pRsp->code);
 
 _exit:
   tDecoderClear(&decoder);
-  tFreeMountInfo(&mntInfo, false);
+  tFreeMountInfo(&mntInfo, true);
   return 0;
 }
 

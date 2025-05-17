@@ -4244,7 +4244,7 @@ _end:
 
 #ifdef USE_MOUNT
 extern int32_t sdbReadStables(SSdb **ppSdb, const char *path);
-int32_t        mndFetchSdbStables(const char *path, SArray **ppStbs) {
+int32_t        mndFetchSdbStables(const char *mntName, const char *path, SArray **ppStbs) {
   int32_t  code = 0, lino = 0;
   int32_t  nStb = 0;
   SSdb    *pSdb = NULL;
@@ -4257,8 +4257,8 @@ int32_t        mndFetchSdbStables(const char *path, SArray **ppStbs) {
   TSDB_CHECK_NULL((pStbs = taosArrayInit(nStb, sizeof(SSdbRaw *))), code, lino, _exit, terrno);
 
   while ((pStb = taosHashIterate(hash, pStb))) {
-    fprintf(stdout, "%s:%d stb type:%" PRIi8 ", status:%" PRIi8 ", dataLen:%d\n", __func__, __LINE__, pStb->type,
-            pStb->status, pStb->dataLen);
+    mTrace("mount:%s, stb type:%" PRIi8 ", status:%" PRIi8 ", dataLen:%d\n", mntName, pStb->type, pStb->status,
+                  pStb->dataLen);
     int32_t vlen = sizeof(int32_t) + sizeof(SSdbRaw) + pStb->dataLen;
     void   *pVal = taosMemoryMalloc(vlen);
     TSDB_CHECK_NULL(pVal, code, lino, _exit, terrno);
@@ -4269,7 +4269,7 @@ int32_t        mndFetchSdbStables(const char *path, SArray **ppStbs) {
 
 _exit:
   if (code != 0) {
-    mError("failed to fetch sdb stb at line %d  since %s, path:%s", lino, tstrerror(code), path);
+    mError("mount:%s, failed to fetch sdb stb at line %d  since %s, path:%s", mntName, lino, tstrerror(code), path);
     taosArrayDestroyP(pStbs, NULL);
     *ppStbs = NULL;
   } else {

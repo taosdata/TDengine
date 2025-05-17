@@ -442,7 +442,7 @@ _OVER:
 
 #ifdef USE_MOUNT
 extern int32_t vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo);
-extern int32_t mndFetchSdbStables(const char *path, void *output);
+extern int32_t mndFetchSdbStables(const char* mntName, const char *path, void *output);
 static int     compareVnodeInfo(const void *p1, const void *p2) {
   SVnodeInfo *v1 = (SVnodeInfo *)p1;
   SVnodeInfo *v2 = (SVnodeInfo *)p2;
@@ -557,7 +557,7 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
   if (nDb > 0) {
     snprintf(path, sizeof(path), "%s%s%s", pReq->mountPath, TD_DIRSEP, dmNodeName(MNODE));
     SMountDbInfo *pDbInfo = taosArrayGet(pMountInfo->pDb, 0);
-    mndFetchSdbStables(path, &pDbInfo->pStb);
+    mndFetchSdbStables(pReq->mountName, path, &pDbInfo->pStb);
   }
 _exit:
   TAOS_RETURN(code);

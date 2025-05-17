@@ -6216,14 +6216,14 @@ _exit:
 }
 
 int32_t tDeserializeSMountInfo(SDecoder *decoder, SMountInfo *pInfo) {
-  int32_t  code = 0, lino = 0;
-  int32_t  nDb = 0, nVg = 0, nStb = 0;
+  int32_t code = 0, lino = 0;
+  int32_t nDb = 0, nVg = 0, nStb = 0;
 
   TAOS_CHECK_EXIT(tStartDecode(decoder));
   TAOS_CHECK_EXIT(tDecodeCStrTo(decoder, pInfo->mountName));
   TAOS_CHECK_EXIT(tDecodeI64v(decoder, &pInfo->mountUid));
   TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pInfo->dnodeId));
-  TAOS_CHECK_EXIT(tDecodeBinary(decoder, (uint8_t**)&pInfo->pVal, &pInfo->valLen));
+  TAOS_CHECK_EXIT(tDecodeBinary(decoder, (uint8_t **)&pInfo->pVal, &pInfo->valLen));
   TAOS_CHECK_EXIT(tDecodeI32v(decoder, &nDb));
   if (nDb > 0) {
     TSDB_CHECK_NULL((pInfo->pDb = taosArrayInit_s(sizeof(SMountDbInfo), nDb)), code, lino, _exit, terrno);
@@ -6239,16 +6239,23 @@ int32_t tDeserializeSMountInfo(SDecoder *decoder, SMountInfo *pInfo) {
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->vgId));
         }
       }
-     TAOS_CHECK_EXIT(tDecodeI32v(decoder, &nStb));
+      TAOS_CHECK_EXIT(tDecodeI32v(decoder, &nStb));
       if (nStb > 0) {
         TSDB_CHECK_NULL((pDbInfo->pStb = taosArrayInit_s(sizeof(void *), nStb)), code, lino, _exit, terrno);
         for (int32_t k = 0; k < nStb; ++k) {
           int32_t vlen = 0;
-          char   *pVal = NULL;
+          void   *pVal = NULL;
           TAOS_CHECK_EXIT(tDecodeBinary(decoder, (uint8_t **)&pVal, &vlen));
-          if (vlen <= 12) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG); // sizeof(int32_t) + sizeof(SSdbRaw) + sdbRaw->dataLen
+          if (vlen <= 12) {
+            TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);  // sizeof(int32_t) + sizeof(SSdbRaw) + sdbRaw->dataLen
+          }
           void *pStb = TARRAY_GET_ELEM(pDbInfo->pStb, k);
-          pStb = &pVal + sizeof(int32_t);  // SSdbRaw of stb
+          void *pNewVal = taosMemoryMalloc(vlen);
+          if (pNewVal == NULL) {
+            TAOS_CHECK_EXIT(terrno);
+          }
+          memcpy(pNewVal, pVal, vlen);
+          *(void **)pStb = pNewVal;
         }
       }
     }
