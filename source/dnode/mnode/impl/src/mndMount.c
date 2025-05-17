@@ -902,6 +902,55 @@ int32_t mndCheckDbDnodeList(SMnode *pMnode, char *db, char *dnodeListStr, SArray
 #endif
 #endif
 
+static int32_t mndRetrieveMountInfo(SMnode *pMnode, SRpcMsg *pMsg, SCreateMountReq *pReq) {
+  int32_t    code = 0, lino = 0;
+  SDnodeObj *pDnode = mndAcquireDnode(pMnode, pReq->dnodeIds[0]);
+  if (pDnode == NULL) TAOS_RETURN(terrno);
+  if (pDnode->offlineReason != DND_REASON_ONLINE) {
+    mndReleaseDnode(pMnode, pDnode);
+    TAOS_RETURN(TSDB_CODE_DNODE_OFFLINE);
+  }
+  SEpSet epSet = mndGetDnodeEpset(pDnode);
+  mndReleaseDnode(pMnode, pDnode);
+
+  int32_t bufLen = 0;
+  void   *pBuf = mndBuildRetrieveMountPathReq(pMnode, pMsg, pReq->mountName, pReq->mountPaths[0], pReq->dnodeIds[0], &bufLen);
+  if (pBuf == NULL) TAOS_RETURN(terrno);
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_DND_RETRIEVE_MOUNT_PATH, .pCont = pBuf, .contLen = bufLen};
+  TAOS_CHECK_EXIT(tmsgSendReq(&epSet, &rpcMsg));
+
+  pMsg->info.handle = NULL;  // disable auto rsp to client
+_exit:
+  TAOS_RETURN(code);
+}
+
+static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp) {
+  int32_t    code = 0, lino = 0;
+  SMnode    *pMnode = pRsp->info.node;
+  SMountInfo mntInfo = {0};
+  SDecoder   decoder = {0};
+
+  tDecoderInit(&decoder, pRsp->pCont, pRsp->contLen);
+  TAOS_CHECK_EXIT(tDeserializeSMountInfo(&decoder, &mntInfo));
+
+  SRpcMsg rsp = {
+      .code = pRsp->code,
+      .pCont = pRsp->info.rsp,
+      .contLen = pRsp->info.rspLen,
+      .info = *(SRpcHandleInfo *)mntInfo.pVal,
+  };
+  tmsgSendRsp(&rsp);
+
+  const STraceId *trace = &pRsp->info.traceId;
+  mGInfo("msg:%p, retrieve mount path rsp with code:%d", pRsp, pRsp->code);
+
+_exit:
+  tDecoderClear(&decoder);
+  tFreeMountInfo(&mntInfo, false);
+  return 0;
+}
+
 static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
   int32_t         code = 0, lino = 0;
   SMnode         *pMnode = pReq->info.node;
@@ -957,55 +1006,6 @@ _exit:
   tFreeSCreateMountReq(&createReq);
 
   TAOS_RETURN(code);
-}
-
-static int32_t mndRetrieveMountInfo(SMnode *pMnode, SRpcMsg *pMsg, SCreateMountReq *pReq) {
-  int32_t    code = 0, lino = 0;
-  SDnodeObj *pDnode = mndAcquireDnode(pMnode, pReq->dnodeIds[0]);
-  if (pDnode == NULL) TAOS_RETURN(terrno);
-  if (pDnode->offlineReason != DND_REASON_ONLINE) {
-    mndReleaseDnode(pMnode, pDnode);
-    TAOS_RETURN(TSDB_CODE_DNODE_OFFLINE);
-  }
-  SEpSet epSet = mndGetDnodeEpset(pDnode);
-  mndReleaseDnode(pMnode, pDnode);
-
-  int32_t bufLen = 0;
-  void   *pBuf = mndBuildRetrieveMountPathReq(pMnode, pMsg, pReq->mountName, pReq->mountPaths[0], pReq->dnodeIds[0], &bufLen);
-  if (pBuf == NULL) TAOS_RETURN(terrno);
-
-  SRpcMsg rpcMsg = {.msgType = TDMT_DND_RETRIEVE_MOUNT_PATH, .pCont = pBuf, .contLen = bufLen};
-  TAOS_CHECK_EXIT(tmsgSendReq(&epSet, &rpcMsg));
-
-  pMsg->info.handle = NULL;  // disable auto rsp to client
-_exit:
-  TAOS_RETURN(code);
-}
-
-static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp) {
-  int32_t    code = 0, lino = 0;
-  SMnode    *pMnode = pRsp->info.node;
-  SMountInfo mntInfo = {0};
-  SDecoder   decoder = {0};
-
-  tDecoderInit(&decoder, pRsp->pCont, pRsp->contLen);
-  TAOS_CHECK_EXIT(tDeserializeSMountInfo(&decoder, &mntInfo));
-
-  SRpcMsg rsp = {
-      .code = pRsp->code,
-      .pCont = pRsp->info.rsp,
-      .contLen = pRsp->info.rspLen,
-      .info = *(SRpcHandleInfo *)mntInfo.pVal,
-  };
-  tmsgSendRsp(&rsp);
-
-  const STraceId *trace = &pRsp->info.traceId;
-  mGInfo("msg:%p, retrieve mount path rsp with code:%d", pRsp, pRsp->code);
-
-_exit:
-  tDecoderClear(&decoder);
-  tFreeMountInfo(&mntInfo, false);
-  return 0;
 }
 
 #if 0
