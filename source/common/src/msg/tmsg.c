@@ -6198,9 +6198,8 @@ int32_t tSerializeSMountInfo(void *buf, int32_t bufLen, SMountInfo *pInfo) {
     nStb = taosArrayGetSize(pDbInfo->pStb);
     TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nStb));
     for (int32_t k = 0; k < nStb; ++k) {
-      // SMountStbInfo *pTblInfo = TARRAY_GET_ELEM(pVgInfo->pStb, k);
-      // TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pTblInfo->tblName));
-      // TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pTblInfo->tblUid));
+      void **pVal = TARRAY_GET_ELEM(pDbInfo->pStb, k);
+      TAOS_CHECK_EXIT(tEncodeBinary(&encoder, *(const uint8_t **)(pVal), **(int32_t **)pVal));
     }
   }
 
@@ -6216,60 +6215,58 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeSMountInfo(void *buf, int32_t bufLen, SMountInfo *pInfo) {
-  SDecoder decoder = {0};
+int32_t tDeserializeSMountInfo(SDecoder *decoder, SMountInfo *pInfo) {
   int32_t  code = 0, lino = 0;
   int32_t  nDb = 0, nVg = 0, nStb = 0;
-  tDecoderInit(&decoder, buf, bufLen);
 
-  TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pInfo->mountName));
-  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pInfo->mountUid));
-  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pInfo->dnodeId));
-  TAOS_CHECK_EXIT(tDecodeBinary(&decoder, (uint8_t**)&pInfo->pVal, &pInfo->valLen));
-  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nDb));
+  TAOS_CHECK_EXIT(tStartDecode(decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(decoder, pInfo->mountName));
+  TAOS_CHECK_EXIT(tDecodeI64v(decoder, &pInfo->mountUid));
+  TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pInfo->dnodeId));
+  TAOS_CHECK_EXIT(tDecodeBinary(decoder, (uint8_t**)&pInfo->pVal, &pInfo->valLen));
+  TAOS_CHECK_EXIT(tDecodeI32v(decoder, &nDb));
   if (nDb > 0) {
     TSDB_CHECK_NULL((pInfo->pDb = taosArrayInit_s(sizeof(SMountDbInfo), nDb)), code, lino, _exit, terrno);
     for (int32_t i = 0; i < nDb; ++i) {
       SMountDbInfo *pDbInfo = TARRAY_GET_ELEM(pInfo->pDb, i);
-      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pDbInfo->dbName));
-      TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pDbInfo->dbId));
-      TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nVg));
+      TAOS_CHECK_EXIT(tDecodeCStrTo(decoder, pDbInfo->dbName));
+      TAOS_CHECK_EXIT(tDecodeI64v(decoder, &pDbInfo->dbId));
+      TAOS_CHECK_EXIT(tDecodeI32v(decoder, &nVg));
       if (nVg > 0) {
         TSDB_CHECK_NULL((pDbInfo->pVg = taosArrayInit_s(sizeof(SMountVgInfo), nVg)), code, lino, _exit, terrno);
         for (int32_t j = 0; j < nVg; ++j) {
           SMountVgInfo *pVgInfo = TARRAY_GET_ELEM(pDbInfo->pVg, j);
-          TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pVgInfo->vgId));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->vgId));
         }
       }
-     TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nStb));
+     TAOS_CHECK_EXIT(tDecodeI32v(decoder, &nStb));
       if (nStb > 0) {
-        // TSDB_CHECK_NULL((pVgInfo->pStb = taosArrayInit_s(sizeof(SMountStbInfo), nStb)), code, lino, _exit,
-        //                 terrno);
+        TSDB_CHECK_NULL((pDbInfo->pStb = taosArrayInit_s(sizeof(void *), nStb)), code, lino, _exit, terrno);
         for (int32_t k = 0; k < nStb; ++k) {
-          // SMountStbInfo *pTblInfo = TARRAY_GET_ELEM(pVgInfo->pStb, k);
-          // TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pTblInfo->tblName));
-          // TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pTblInfo->tblUid));
+          int32_t vlen = 0;
+          char   *pVal = NULL;
+          TAOS_CHECK_EXIT(tDecodeBinary(decoder, (uint8_t **)&pVal, &vlen));
+          if (vlen <= 12) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG); // sizeof(int32_t) + sizeof(SSdbRaw) + sdbRaw->dataLen
+          void *pStb = TARRAY_GET_ELEM(pDbInfo->pStb, k);
+          pStb = &pVal + sizeof(int32_t);  // SSdbRaw of stb
         }
       }
     }
   }
 
-  tEndDecode(&decoder);
+  tEndDecode(decoder);
 
 _exit:
-  tDecoderClear(&decoder);
   return code;
 }
 
-void tFreeSDropMountInfo(SMountInfo *pReq) {
+void tFreeMountInfo(SMountInfo *pReq, bool deepFree) {
   if (pReq) {
-    taosMemoryFreeClear(pReq->pVal);
     if (pReq->pDb) {
       for (int32_t i = 0; i < TARRAY_SIZE(pReq->pDb); ++i) {
         SMountDbInfo *pDbInfo = TARRAY_GET_ELEM(pReq->pDb, i);
         taosArrayDestroy(pDbInfo->pVg);
-        taosArrayDestroyP(pDbInfo->pStb, NULL);
+        deepFree ? taosArrayDestroyP(pDbInfo->pStb, NULL) : taosArrayDestroy(pDbInfo->pStb);
       }
       taosArrayDestroy(pReq->pDb);
     }

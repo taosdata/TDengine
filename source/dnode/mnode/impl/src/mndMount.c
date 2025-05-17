@@ -984,11 +984,13 @@ _exit:
 }
 
 static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp) {
-  int32_t code = 0, lino = 0;
-  SMnode *pMnode = pRsp->info.node;
-
+  int32_t    code = 0, lino = 0;
+  SMnode    *pMnode = pRsp->info.node;
   SMountInfo mntInfo = {0};
-  TAOS_CHECK_EXIT(tDeserializeSMountInfo(pRsp->pCont, pRsp->contLen, &mntInfo));
+  SDecoder   decoder = {0};
+
+  tDecoderInit(&decoder, pRsp->pCont, pRsp->contLen);
+  TAOS_CHECK_EXIT(tDeserializeSMountInfo(&decoder, &mntInfo));
 
   SRpcMsg rsp = {
       .code = pRsp->code,
@@ -1002,7 +1004,8 @@ static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp) {
   mGInfo("msg:%p, retrieve mount path rsp with code:%d", pRsp, pRsp->code);
 
 _exit:
-  tFreeSDropMountInfo(&mntInfo);
+  tDecoderClear(&decoder);
+  tFreeMountInfo(&mntInfo, false);
   return 0;
 }
 

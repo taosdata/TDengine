@@ -556,9 +556,9 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
   int32_t nDb = taosArrayGetSize(pMountInfo->pDb);
   if (nDb > 0) {
     snprintf(path, sizeof(path), "%s%s%s", pReq->mountPath, TD_DIRSEP, dmNodeName(MNODE));
-    mndFetchSdbStables(path, NULL);
+    SMountDbInfo *pDbInfo = taosArrayGet(pMountInfo->pDb, 0);
+    mndFetchSdbStables(path, &pDbInfo->pStb);
   }
-
 _exit:
   TAOS_RETURN(code);
 }
@@ -622,6 +622,7 @@ _exit:
     dError("mount:%s, failed to retrieve path %s on dnode:%d, reason:%s", req.mountName, req.mountPath, req.dnodeId,
            tstrerror(code));
   }
+  tFreeMountInfo(&mountInfo, true);
   TAOS_RETURN(code);
 }
 #endif  // USE_MOUNT
