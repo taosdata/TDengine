@@ -19,7 +19,7 @@ class TestStreamOldCaseInterpDeleteUpdate:
         Labels: common,ci
         Jira: None
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpError.sim
+            ## - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpError.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpDelete0.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpDelete1.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpDelete2.sim
