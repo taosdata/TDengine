@@ -94,13 +94,6 @@ int32_t initInserterGrpInfo() {
   return TSDB_CODE_SUCCESS;
 }
 
-void destroyInserterGrpInfo() {
-  if (gStreamGrpTableHash) {
-    taosHashCleanup(gStreamGrpTableHash);
-    gStreamGrpTableHash = NULL;
-  }
-}
-
 static int32_t checkResAndGetTableId(const SSubmitRes* pSubmitRes, int8_t tbType, SInsertTableRes* res) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (!pSubmitRes->pRsp) {

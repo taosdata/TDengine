@@ -21,10 +21,42 @@
 #include "tcommon.h"
 #include "tdef.h"
 #include "thash.h"
+#include "tskiplist.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+  // todo
+  // 一个 group 无法避免有多个数据块在同一个文件中
+  // 需要有标记来记录已经get 但是没有开始 put 的 group， 这些优先要淘汰的内存
+  // 上述内存淘汰完之后，内存还不足，代表这需要淘汰正在写的和真在读的的内存块了。
+  
+  // 需要有其他的线程来淘汰内存么？
+  // 管理信息需要占用较多的内存，几乎无法节省
+
+
+  // 1. 非 sliding, 读取后立即释放内存，一个单独 list 存放 buff 信息，每个 buff 10 M，当前 buff 写满开始下一个 buff，总大小超过则按时间升序将部分 buff 块写入文件，释放内存；
+  // 每次读取数据，会同时读取文件和 buff 中的数据，读取完成后会全部释放。内存和文件中数据会有一个 groupid 标签，目前非 sliding 模式同时只会存在一个 groupid 的数据，如果发现
+  // 有多个 groupid 数据在尝试同时写入，报错。
+  // 非 slidng 模式，内存中需保存管理信息(同时保存的group信息理论上只有一个)： groupid，usedMemSize  blocksInMem: address, capacity, size + (windows: startTime, endTime, dataLen) + dataBlock serialized data
+  // blocksInFile: offset, capacity, size
+  //                文件中保存信息：(windows: startTime, endTime, dataLen) + dataBlock serialized data
+
+  // 2. sliding 模式：每次写入数据，写入独立的内存段，内存不足时触发淘汰机制，将某些 group 的数据从内存淘汰，写入文件
+  // 内存不足时，先淘汰占用内存最多并且当前不活跃的 group ，淘汰后内存仍不足时，淘汰当前 group 的数据（理论上同一时间只有一个活跃的 group ）
+  // 当前不活跃的 group: 定义为 getdata 完成，没有进行新一轮的 putdata 的 group
+  // 每个 task 首次需要写入文件时，计算要写入的 group data 的长度（考虑 +20% 做缓冲，最多 + 1M ），作为文件中每个 group block 的大小，后续写入的 group block 均使用改大小，当大小不足时，申请新的 block 
+  // 淘汰内存时，linux 下使用 writev 来写入文件, 可以将分散的内存连续一次写入，其他平台不支持，可以先逐个写入内存后再写入文件，后续优化
+  // 从 group 读取数据时，文件/内存中可能均有数据，先读文件后读取内存；
+  // 每次读取数据后，检查使用内存情况，如果需要触发淘汰机制，在一个新线程中进行内存淘汰。读取数据时的内存淘汰触发条件要比写入时内存淘汰更敏感，设置一个略小的值（例如比写入时限制小 10 M），尽量提前触发，避免在读取时需要阻塞读取进行释放
+  // sliding 模式，内存中需保存的管理信息（多个 group）：groupid，usedMemSize  blocksInMem: address, capacity, size + (windows: startTime, endTime, dataLen) + dataBlock serialized data
+  // blocksInFile: groupOffset, dataStartOffset, dataLen， capacity(same in a task)
+  //                  文件中保存信息：(windows: startTime, endTime, dataLen) + dataBlock serialized data
+
+  // 每个块写入的 window 保存：list, endtime, len
+
+ extern int64_t gDSFileBlockDefaultSize;
 
 typedef enum {
   DATA_SAVEMODE_BLOCK = 1,
@@ -45,36 +77,40 @@ typedef struct SWindowData {
 } SWindowData;
 
 typedef struct SFileBlockInfo {
-  int64_t          groupDataStartOffSet;  // offset in file
+  int64_t offset;  // offset in file
+  int64_t size;
 } SFileBlockInfo;
 
 typedef struct SWindowDataInFile {
-  int64_t          wstart;  // start time of the window
-  int64_t          wend;    // end time of the window
-  TSKEY            start;   // start time of the data
-  TSKEY            end;     // end time of the data
-  int64_t          dataLen;
-  int64_t          offset;  // offset in file
-  int64_t          groupDataStartOffSet;  // offset in file
+  int64_t        wstart;  // start time of the window
+  int64_t        wend;    // end time of the window
+  TSKEY          start;   // start time of the data
+  TSKEY          end;     // end time of the data
+  int64_t        dataLen;
+  int64_t        offset;     // offset in file
+  SFileBlockInfo blockInfo;  // offset in file
 } SWindowDataInFile;
 
 typedef struct SGroupFileDataMgr {
-  int64_t          groupId;
-  int64_t          lastWstartInFile;
-  bool             hasDataInFile;
-  int64_t          allWindowDataLen;
-  int64_t          groupDataStartOffSet;  // offset in file
-  SArray*          windowDataInFile;  // array SWindowDataInFile <wstart, start block num in file>
+  int64_t        groupId;
+  int64_t        lastWstartInFile;
+  int64_t        allWindowDataLen;
+
+
+
+  SFileBlockInfo blockInfo;         // offset and size in file
+  SArray*        windowDataInFile;  // array SWindowDataInFile <wstart, start block num in file>
+  bool           hasDataInFile;
 } SGroupFileDataMgr;
 
 typedef struct SDataSinkFileMgr {
-  char      fileName[FILENAME_MAX];
-  int64_t   fileSize;
-  int64_t   fileBlockCount;
-  int64_t   fileBlockUsedCount;
-  int64_t   fileGroupBlockMaxSize;
-  SArray*   freeBlockList;   // array: groupDataStartOffSet
-  SHashObj* groupBlockList;  // hash <groupId, SGroupFileDataMgr>
+  char       fileName[FILENAME_MAX];
+  int64_t    fileSize;
+  int64_t    fileBlockCount;
+  int64_t    fileBlockUsedCount;
+  int64_t    fileGroupBlockMaxSize;
+  SSkipList* pFreeBlockSkipList;  // skiplist: <groupDataStartOffSet, SFileBlockInfo>
+  SHashObj*  groupBlockList;     // hash <groupId, SGroupFileDataMgr>
 
   int64_t   readingGroupId;
   int64_t   writingGroupId;
@@ -83,6 +119,7 @@ typedef struct SDataSinkFileMgr {
 } SDataSinkFileMgr;
 
 typedef enum {
+  DATA_CLEAN_NONE = 0,
   DATA_CLEAN_IMMEDIATE = 1,
   DATA_CLEAN_EXPIRED = 2,
 } SCleanMode;
@@ -92,38 +129,99 @@ typedef struct SDataSinkManager2 {
   int64_t   usedMemSize;
   int64_t   maxMemSize;
   int64_t   fileBlockSize;
-  int64_t   readDataFromMemTimes;
   int64_t   readDataFromFileTimes;
-  SHashObj* dataSinkStreamTaskList;  // hash <streamId + taskId, SStreamTaskDSManager>
+  SHashObj* dsStreamTaskList;  // hash <streamId + taskId, SSlidingTaskDSMgr/SAlignTaskDSMgr>
 } SDataSinkManager2;
 extern SDataSinkManager2 g_pDataSinkManager;
 
-typedef struct SStreamTaskDSManager {
+typedef struct SSlidingWindowInMem {
+  int64_t startTime;
+  int64_t endTime;
+  int64_t dataLen;
+  // char*   realDataBuf;    // realDataBuf == &pData + sizeof(SSlidingWindowInMem)
+} SSlidingWindowInMem;
+
+typedef struct SAlignBlocksInMem {
+  int64_t capacity;
+  int64_t dataLen;
+  int32_t nWindow;
+  // void*   address;   // 后续地址存放的内容为 SSlidingWindowInMem 数组序列化后的内容
+} SAlignBlocksInMem;
+
+typedef struct SBlocksInfoFile {
+  int64_t        groupOffset;  // offset in file
+  int64_t        dataStartOffset;
+  int64_t        dataLen;
+  int64_t        capacity;  // size in file
+  // SSlidingWindowInMem *windowDataInFile;  // array SSlidingWindowInMem 实际数据，反序列化保存至文件
+} SBlocksInfoFile;
+
+typedef struct STaskDSMgr {
+  int8_t            cleanMode;  // 1 - immediate, 2 - expired
+} STaskDSMgr;
+
+typedef struct SAlignTaskDSMgr {
+  int8_t            cleanMode;  // 1 - immediate, 2 - expired
   int64_t           streamId;
   int64_t           taskId;
-  int64_t           usedMemSize;
-  SCleanMode        cleanMode;
   int32_t           tsSlotId;
-  SHashObj*         DataSinkGroupList;  // hash <groupId, SGroupDSManager>
+  SHashObj*         pAlignGrpList;  // hash <groupId, SAlignGrpMgr>
   SDataSinkFileMgr* pFileMgr;
-} SStreamTaskDSManager;
+} SAlignTaskDSMgr;
+
+typedef struct SSlidingTaskDSMgr {
+  int8_t            cleanMode;  // 1 - immediate, 2 - expired
+  int64_t           streamId;
+  int64_t           taskId;
+  int32_t           tsSlotId;
+  int64_t           capacity;         // group 在文件中的每个 block 块大小
+  SHashObj*         pSlidingGrpList;  // hash <groupId, SSlidingGrpMgr>
+  SDataSinkFileMgr* pFileMgr;
+} SSlidingTaskDSMgr;
+
+typedef enum {
+  GRP_DATA_WAITTING = 0,
+  GRP_DATA_WRITING = 1,
+  GRP_DATA_READING = 2,
+} EGroupStatus;
+
+typedef struct SSlidingGrpMgr {
+  int64_t groupId;
+  int64_t usedMemSize;
+  SArray* winDataInMem;  // array SSlidingWindowInMem
+  SArray* blocksInFile;  // array SBlocksInfoFile
+  int8_t  status;        // 0 waitting, 1 writing, 2 reading
+} SSlidingGrpMgr;
+
+typedef struct SAlignGrpMgr {
+  int64_t groupId;
+  int64_t usedMemSize;
+  SArray* blocksInMem;   // array SAlignBlocksInMem <address, capacity, dataLen>
+  SArray* blocksInFile;  // array SBlocksInfoFile <groupOffset, dataStartOffset, dataLen>
+  int8_t  status;        // 0 waitting, 1 writing, 2 reading
+} SAlignGrpMgr;
 
 struct SGroupDSManager {
   int64_t               groupId;
   int64_t               usedMemSize;
-  int64_t               lastWstartInMem;
-  SArray*               windowDataInMem;  // array SWindowData <wstart, SSDataBlock*>
-  SStreamTaskDSManager* pSinkManager;
+
+  SArray*               winDataInMem;  // array SWindowData <wstart, SSDataBlock*>
+
+  SBlocksInfoFile blocksInFile;
+  SSlidingTaskDSMgr* pSinkManager;   // todo parent ptr, delete
 };
 
 typedef enum {
   DATA_SINK_MEM = 0,
   DATA_SINK_FILE,
 } SDataSinkPos;
+
 typedef struct SResultIter {
+  SCleanMode        cleanMode;    // 1 - immediate, 2 - expired
   void*             groupData;    // SGroupDSManager(data in mem) or SGroupFileDataMgr(data in file)
   SDataSinkFileMgr* pFileMgr;     // when has data in file, pFileMgr is not NULL
   int32_t           tsColSlotId;  // ts column slot id
+  int32_t           winIndex;     // only for immediate clean mode, index of the window in the block
   int64_t           offset;       // array index, start from 0
   SDataSinkPos      dataPos;      // 0 - data in mem, 1 - data in file
   int64_t           groupId;
@@ -198,35 +296,34 @@ int32_t initDataSinkFileDir();
 
 int32_t initStreamDataSinkOnce();
 
+void checkAndReleaseBuffer();
+
+
+int32_t buildSlidingWindowInMem(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t startIndex, int32_t endIndex,
+                                SSlidingWindowInMem** ppSlidingWinInMem);
+void    destorySlidingWindowInMem(void* ppSlidingWinInMem);
+
+int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY wstart, TSKEY wend);
+
 // @brief 写入数据到文件
-int32_t writeToFile(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSKEY wstart, TSKEY wend,
+int32_t writeToFile(SSlidingTaskDSMgr* pStreamDataSink, int64_t groupId, TSKEY wstart, TSKEY wend,
                     SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex);
 
-// @brief 写入数据到内存
-int32_t writeToCache(SStreamTaskDSManager* pStreamDataSink, SGroupDSManager* pGroupDataInfoMgr, TSKEY wstart, TSKEY wend,
-                     SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex);
-int32_t moveToCache(SStreamTaskDSManager* pStreamDataSink, SGroupDSManager* pGroupDataInfoMgr, TSKEY wstart, TSKEY wend,
-                     SSDataBlock* pBlock);
-
 // @brief 读取数据从内存
-int32_t readDataFromCache(SResultIter* pResult, SSDataBlock** ppBlock, bool* finished);
-int32_t getFirstDataIterFromCache(SStreamTaskDSManager* pStreamTaskDSMgr, int64_t groupId, TSKEY start, TSKEY end,
-                                  void** ppResult);
+int32_t readDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, bool* finished);
 int32_t readDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, int32_t tsColSlotId, bool* finished);
 int32_t getFirstDataIterFromFile(SDataSinkFileMgr* pFileMgr, int64_t groupId, TSKEY start, TSKEY end,
                                  void** ppResult);
 
 // @brief 从内存查找下一组数据位置
-// return true: 需要继续查看文件, false: 不需要继续查看文件                              
-bool    setNextIteratorFromCache(SResultIter** ppResult);
-void    setNextIteratorFromFile(SResultIter** pIter);
-void    releaseDataIterator(void** pIter);
+// return true: 需要继续查看文件, false: 不需要继续查看文件
+bool    setNextIteratorFromMem(SResultIter** ppResult);
+bool    setNextIteratorFromFile(SResultIter** ppResult);
+int32_t createDataResult(void** ppResult);
+void    releaseDataResult(void** ppResult);
 
 // @brief 读取数据从文件
 int32_t createSGroupDSManager(int64_t groupId, SGroupDSManager** ppGroupDataInfo);
-
-int32_t getOrCreateSGroupDSManager(SStreamTaskDSManager* pStreamDataSink, int64_t groupId,
-                                   SGroupDSManager** ppGroupDataInfoMgr);
 
 void destorySWindowDataP(void* pData);
 void destorySWindowDataPP(void* pData);
@@ -236,10 +333,20 @@ void clearGroupExpiredDataInMem(SGroupDSManager* pGroupData, TSKEY start);
 void syncWindowDataMemAdd(SWindowData* pSWindowData);
 void syncWindowDataMemSub(SWindowData* pSWindowData);
 
-void destroyStreamDataSinkFile(SDataSinkFileMgr** ppDaSinkFileMgr);
-
 int32_t initInserterGrpInfo();
 void    destroyInserterGrpInfo();
+
+void destoryAlignBlockInMem(void* ppData);
+
+void destroyStreamDataSinkFile(SDataSinkFileMgr** ppDaSinkFileMgr);
+
+//----------------- ***************************************  -----------------//
+//----------------- data sink file: block manager interface  -----------------//
+//----------------- ***************************************  -----------------//
+int32_t         createFileBlockSkipList(SSkipList** ppSkipList);
+void            destroyFileBlockSkipList(SSkipList* pSkipList);
+SFileBlockInfo* findFirstGreaterThan(SSkipList* pSkipList, int64_t size);
+
 
 #ifdef __cplusplus
 }
