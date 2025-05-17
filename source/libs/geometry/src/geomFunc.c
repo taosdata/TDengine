@@ -24,7 +24,8 @@
 
 typedef int32_t (*_geomDoRelationFunc_t)(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1,
                                          const GEOSGeometry *geom2, bool swapped, char *res);
-
+typedef int32_t (*_geomDoCountFunc_t)(const GEOSGeometry *geom, uint32_t *countResult);
+typedef int32_t (*_geomCheckFunc_t)(const GEOSGeometry *geom, bool *countResult);
 typedef int32_t (*_geomInitCtxFunc_t)();
 typedef int32_t (*_geomExecuteOneParamFunc_t)(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData);
 typedef int32_t (*_geomExecuteTwoParamsFunc_t)(SColumnInfoData *pInputData[], int32_t iLeft, int32_t iRight,
@@ -555,13 +556,13 @@ _exit:
   TAOS_RETURN(code);
 }
 
-int32_t numPointsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+static int32_t doCountFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput, _geomDoCountFunc_t countFn) {
   int32_t code = TSDB_CODE_SUCCESS;
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
   int32_t numOfRows = pInput->numOfRows;
 
-  TAOS_CHECK_GOTO(initCtxGeomGetCoordinate(), NULL, _exit);
+  TAOS_CHECK_GOTO(initCtxRelationFunc(), NULL, _exit);
 
   for (int32_t i = 0; i < numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
@@ -573,8 +574,8 @@ int32_t numPointsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     char *input = colDataGetData(pInputData, i);
     TAOS_CHECK_GOTO(readGeometry(input, &geom, NULL), NULL, _exit);
 
-    uint32_t numPoints;
-    code = geomGetNumPoints(geom, &numPoints);
+    uint32_t count;
+    code = countFn(geom, &count);
     
     if (code != TSDB_CODE_SUCCESS) {
       destroyGeometry(&geom, NULL);
@@ -582,7 +583,100 @@ int32_t numPointsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     }
 
     uint32_t *out = (uint32_t *)pOutputData->pData;
-    out[i] = numPoints;
+    out[i] = count;
+    destroyGeometry(&geom, NULL);
+  }
+
+  pOutput->numOfRows = numOfRows;
+
+_exit:
+  TAOS_RETURN(code);
+}
+
+static int32_t doCheckFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput, _geomCheckFunc_t checkFn) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SColumnInfoData *pInputData = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+  int32_t numOfRows = pInput->numOfRows;
+
+  TAOS_CHECK_GOTO(initCtxRelationFunc(), NULL, _exit);
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+
+    GEOSGeometry *geom = NULL;
+    char *input = colDataGetData(pInputData, i);
+    TAOS_CHECK_GOTO(readGeometry(input, &geom, NULL), NULL, _exit);
+
+    bool hasProperty;
+    code = checkFn(geom, &hasProperty);
+    
+    if (code != TSDB_CODE_SUCCESS) {
+      destroyGeometry(&geom, NULL);
+      goto _exit;
+    }
+
+    bool *out = (bool *)pOutputData->pData;
+    out[i] = hasProperty;
+    destroyGeometry(&geom, NULL);
+  }
+
+  pOutput->numOfRows = numOfRows;
+
+_exit:
+  TAOS_RETURN(code);
+}
+
+int32_t numPointsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return doCountFunction(pInput, inputNum, pOutput, geomGetNumPoints);
+}
+
+int32_t numInteriorRingsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return doCountFunction(pInput, inputNum, pOutput, geomGetNumInnerRings);
+}
+
+int32_t numGeometriesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return doCountFunction(pInput, inputNum, pOutput, geomGetNumGeometries);
+}
+
+int32_t isSimpleFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return doCheckFunction(pInput, inputNum, pOutput, geomIsSimple);
+}
+int32_t isEmptyFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return doCheckFunction(pInput, inputNum, pOutput, geomIsEmpty);
+}
+
+int32_t dimensionFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SColumnInfoData *pInputData = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+  int32_t numOfRows = pInput->numOfRows;
+
+  TAOS_CHECK_GOTO(initCtxRelationFunc(), NULL, _exit);
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+
+    GEOSGeometry *geom = NULL;
+    char *input = colDataGetData(pInputData, i);
+    TAOS_CHECK_GOTO(readGeometry(input, &geom, NULL), NULL, _exit);
+
+    int8_t dimension;
+    code = geomDimension(geom, &dimension);
+    
+    if (code != TSDB_CODE_SUCCESS) {
+      destroyGeometry(&geom, NULL);
+      goto _exit;
+    }
+
+    int8_t *out = (int8_t *)pOutputData->pData;
+    out[i] = dimension;
     destroyGeometry(&geom, NULL);
   }
 
