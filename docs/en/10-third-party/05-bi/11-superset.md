@@ -16,8 +16,8 @@ Prepare the following environment:
 - TDengine 3.2.3.0 and above version is installed and running normally (both Enterprise and Community versions are available).
 - taosAdapter is running normally, refer to [taosAdapter](../../../tdengine-reference/components/taosadapter/).
 - Apache Superset version 2.1.0 or above is already installed, refre to [Apache Superset](https://superset.apache.org/).
-- The Python connector taospy version 2.7.18 or higher is installed, [Install](https://pypi.org/project/taospy/).
-- The Python connector (WebSocket) taos-ws-py version 0.3.9 or higher is installed, [Install](https://pypi.org/project/taos-ws-py/).
+- The Python connector taospy version 2.7.18 or higher is installed, [Install reference link](https://pypi.org/project/taospy/).
+- The Python connector (WebSocket) taos-ws-py version 0.3.9 or higher is installed, [Install reference link](https://pypi.org/project/taos-ws-py/).
 
 
 ## Configure Data Source

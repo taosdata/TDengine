@@ -13,8 +13,8 @@ title: 与 Superset 集成
 - TDengine 3.2.3.0 或以上版本已安装（企业及社区版均可）。
 - taosAdapter 服务正常运行，检查参考 [taosAdapter 使用手册](../../../reference/components/taosadapter)。
 - Apache Superset v2.1.0 或以上版本已安装，安装参考 [官方文档](https://superset.apache.org/)。
-- Python 连接器 taospy 2.7.18 或以上版本已安装，[安装](https://pypi.org/project/taospy/)。
-- Python 连接器（WebSocket）taos-ws-py 0.3.9 或以上版本已安装，[安装](https://pypi.org/project/taos-ws-py/)。
+- Python 连接器 taospy 2.7.18 或以上版本已 [安装](https://pypi.org/project/taospy/)。
+- Python 连接器（WebSocket）taos-ws-py 0.3.9 或以上版本已 [安装](https://pypi.org/project/taos-ws-py/)。
 
 
 ## 配置数据源
