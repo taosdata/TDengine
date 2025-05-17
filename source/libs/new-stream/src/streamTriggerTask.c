@@ -2964,6 +2964,19 @@ int32_t stTriggerTaskUndeploy(SStreamTriggerTask **ppTask, const SStreamUndeploy
 
   // todo(kjq): do checkpoint/cleanup according to pMsg
 
+  taosWLockLatch(&gStreamTriggerWaitLatch);
+  SListNode *pNode = TD_DLIST_HEAD(&gStreamTriggerWaitList);
+  while (pNode != NULL) {
+    SListNode *pCurNode = pNode;
+    pNode = TD_DLIST_NODE_NEXT(pCurNode);
+    StreamTriggerWaitInfo *pInfo = (StreamTriggerWaitInfo *)pCurNode->data;
+    if (pInfo != NULL && pInfo->pTask == pTask) {
+      TD_DLIST_POP(&gStreamTriggerWaitList, pCurNode);
+      taosMemoryFreeClear(pCurNode);
+    }
+  }
+  taosWUnLockLatch(&gStreamTriggerWaitLatch);
+
   if ((*ppTask)->triggerType == STREAM_TRIGGER_EVENT) {
     if ((*ppTask)->pStartCond != NULL) {
       nodesDestroyNode((*ppTask)->pStartCond);
