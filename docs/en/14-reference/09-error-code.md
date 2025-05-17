@@ -296,6 +296,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80000739 | Query memory upper limit is reached  | Single query memory upper limit is reached                   | Modify memory upper limit size or optimize SQL               |
 | 0x8000073A | Query memory exhausted               | Query memory in dnode is exhausted                           | Limit concurrent queries or add more physical memory         |
 | 0x8000073B | Timeout for long time no fetch       | Query without fetch for a long time                          | Correct application to fetch data asap                       |
+| 0x8000073C | Memory pool not initialized          | Memory pool not initialized in dnode                         | Confirm if the switch queryUseMemoryPool is enabled; if queryUseMemoryPool is already enabled, check if the server meets the basic conditions for enabling the memory pool: 1. The total available system memory is not less than 5GB; 2. The available system memory after deducting the reserved portion is not less than 4GB. |
 
 ## grant
 

@@ -1805,10 +1805,14 @@ int32_t taosMemoryPoolCfgUpdateReservedSize(int32_t newReservedSizeMB) {
     return TSDB_CODE_SUCCESS;
   }
   int32_t code = TSDB_CODE_SUCCESS;
-  if (NULL == gMemPoolHandle || newReservedSizeMB < 0) {
-    uError("%s invalid input param, poolHandle:%p, newReservedSizeMB:%d", __FUNCTION__, gMemPoolHandle,
-           newReservedSizeMB);
+  if (NULL == gMemPoolHandle) {
+    uError("memory pool not initialized");
+    MP_ERR_RET(TSDB_CODE_QRY_MEMORY_POOL_NOT_INITIALIZED);
+  }
+  if (newReservedSizeMB < 0) {
+    uError("newReservedSizeMB:%d is invalid", newReservedSizeMB);
     MP_ERR_RET(TSDB_CODE_INVALID_PARA);
   }
+
   return mpUpdateReservedSize(gMemPoolHandle, newReservedSizeMB);
 }
