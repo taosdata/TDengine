@@ -1551,7 +1551,7 @@ class TDSql:
 
         return True
 
-    def Assert(self, assertVal, show=False):
+    def checkAssert(self, assertVal, show=False):
         """
         Checks if the assertVal is true.
 
