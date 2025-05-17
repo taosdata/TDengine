@@ -3,7 +3,7 @@ use flume::Receiver;
 use itertools::Itertools;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use taos::{AsyncQueryable, Dsn, Taos};
+use taos::{AsyncQueryable, Dsn, Taos, TaosPool};
 use taosx_ipc::types::dsv::DataSourceValidation;
 use tokio::task::JoinSet;
 use tokio_stream::StreamExt;
@@ -76,6 +76,7 @@ pub async fn local_to_taos(
     let metrics_arc = get_metrics_arc(task_id.clone()).await;
 
     let (tx, rx) = flume::unbounded();
+    let taos_pool = config.connect_taos_pool().await?;
     // 创建 RestoreWorker
     let rx = rx.clone();
     let worker = RestoreWorker {
@@ -83,6 +84,7 @@ pub async fn local_to_taos(
         backup_config: config.clone(),
         backup_obj: config.backup_obj.clone(),
         metrics: LocalToTaosMetrics::new(metrics_arc.clone()),
+        pool: taos_pool,
     };
     let restore_worker = tokio::spawn(async move { worker.run().await }.in_current_span());
 
@@ -164,6 +166,7 @@ struct RestoreWorker {
     backup_obj: BackupObject,
     rx: Receiver<Vec<PathBuf>>,
     metrics: LocalToTaosMetrics,
+    pool: TaosPool,
 }
 
 impl RestoreWorker {
@@ -202,7 +205,8 @@ impl RestoreWorker {
                 let mut join_set: JoinSet<Result<()>> = JoinSet::new();
                 // 每个 vgroup 一个 worker
                 for (idx, files) in files_of_vgroup.into_iter().enumerate() {
-                    let taos = self.backup_config.connect_taos().await?;
+                    // let taos = self.backup_config.connect_taos().await?;
+                    let taos = self.pool.get().await?;
                     let stable = self.backup_obj.stable_name.clone();
                     let metrics = self.metrics.clone();
                     let retry_interval = self.backup_config.error_retry_interval;
