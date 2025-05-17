@@ -384,7 +384,7 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
 
 void transCtxInit(STransCtx* ctx) {
   // init transCtx
-  ctx->args = taosHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  ctx->args = taosHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   ctx->brokenVal.val = NULL;
   ctx->freeFunc = NULL;
 }
@@ -423,24 +423,30 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
     freeFunc = src->freeFunc;
   }
 
-  void*  key = NULL;
   size_t klen = 0;
   void*  iter = taosHashIterate(src->args, NULL);
   while (iter) {
     STransCtxVal* sVal = (STransCtxVal*)iter;
-    key = taosHashGetKey(sVal, &klen);
+    int32_t*      msgType = taosHashGetKey(sVal, &klen);
 
-    STransCtxVal* dVal = taosHashGet(dst->args, key, klen);
+    STransCtxVal* dVal = taosHashGet(dst->args, msgType, sizeof(*msgType));
     if (dVal != NULL) {
-      tDebug("free msg type %s dump func", TMSG_INFO(*(int32_t*)key));
+      tDebug("free msg type %s dump func", TMSG_INFO(*(int32_t*)msgType));
       dst->freeFunc(dVal->val);
       dVal->val = NULL;
+
+      (void)taosHashRemove(dst->args, msgType, sizeof(*msgType));
     }
 
-    int32_t code = taosHashPut(dst->args, key, klen, sVal, sizeof(*sVal));
+    int32_t code = taosHashPut(dst->args, msgType, sizeof(*msgType), sVal, sizeof(*sVal));
     if (code != 0) {
       tError("failed to put val to hash since %s", tstrerror(code));
+    } else {
+      tDebug("put msg type %s dump func", TMSG_INFO(*(int32_t*)msgType));
+      if (src->freeFunc) (src->freeFunc)(sVal->val);
+      sVal->val = NULL;
     }
+
     iter = taosHashIterate(src->args, iter);
   }
   if (freeFunc != NULL && tval.val != NULL) {
