@@ -2,13 +2,13 @@ import time
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestStreamOldCaseBasic:
+class TestStreamOldCaseInterpPrimary:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_stream_oldcase_basic(self):
-        """Stream basic test
+    def test_stream_oldcase_interp_primary(self):
+        """Stream interp primary
 
         1. basic test
         2. out of order data
@@ -29,11 +29,44 @@ class TestStreamOldCaseBasic:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamPrimaryKey3.sim
         """
 
-        # self.stream_basic_0()
-        # self.stream_basic_1()
-        # self.stream_basic_2()
-        # self.stream_basic_3()
-        self.stream_basic_4()
-        # self.stream_basic_5()
+        # self.streamInterpPrimaryKey0()
+        # self.streamInterpPrimaryKey1()
+        # self.streamInterpPrimaryKey2()
+        # self.streamInterpPrimaryKey3()
+        # self.streamPrimaryKey0()
+        # self.streamPrimaryKey1()
+        # self.streamPrimaryKey2()
+        # self.streamPrimaryKey3()
 
+    def streamInterpPrimaryKey0(self):
+        tdLog.info(f"streamInterpPrimaryKey0")
+        drop_all_streams_and_dbs()
+
+    def streamInterpPrimaryKey1(self):
+        tdLog.info(f"streamInterpPrimaryKey1")
+        drop_all_streams_and_dbs()
+
+    def streamInterpPrimaryKey2(self):
+        tdLog.info(f"streamInterpPrimaryKey2")
+        drop_all_streams_and_dbs()
+
+    def streamInterpPrimaryKey3(self):
+        tdLog.info(f"streamInterpPrimaryKey3")
+        drop_all_streams_and_dbs()
+
+    def streamPrimaryKey0(self):
+        tdLog.info(f"streamPrimaryKey0")
+        drop_all_streams_and_dbs()
+
+    def streamPrimaryKey1(self):
+        tdLog.info(f"streamPrimaryKey1")
+        drop_all_streams_and_dbs()
+
+    def streamPrimaryKey2(self):
+        tdLog.info(f"streamPrimaryKey2")
+        drop_all_streams_and_dbs()
+
+    def streamPrimaryKey3(self):
+        tdLog.info(f"streamPrimaryKey3")
+        drop_all_streams_and_dbs()
 

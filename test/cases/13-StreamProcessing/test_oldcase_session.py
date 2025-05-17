@@ -2,13 +2,13 @@ import time
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestStreamOldCaseBasic:
+class TestStreamOldCaseSession:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_stream_oldcase_basic(self):
-        """Stream basic test
+    def test_stream_oldcase_session(self):
+        """Stream session
 
         1. basic test
         2. out of order data
@@ -24,11 +24,21 @@ class TestStreamOldCaseBasic:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/triggerSession0.sim
         """
 
-        # self.stream_basic_0()
-        # self.stream_basic_1()
-        # self.stream_basic_2()
-        # self.stream_basic_3()
-        self.stream_basic_4()
-        # self.stream_basic_5()
+        # self.session0()
+        # self.session1()
+        # self.triggerSession0()
+
+    def session0(self):
+        tdLog.info(f"session0")
+        drop_all_streams_and_dbs()
+
+    def session1(self):
+        tdLog.info(f"session1")
+        drop_all_streams_and_dbs()
+
+    def triggerSession1(self):
+        tdLog.info(f"triggerSession1")
+        drop_all_streams_and_dbs()
+
 
 

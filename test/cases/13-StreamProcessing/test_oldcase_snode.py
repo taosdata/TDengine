@@ -2,13 +2,13 @@ import time
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
-class TestStreamOldCaseBasic:
+class TestStreamOldCaseSnode:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_stream_oldcase_basic(self):
-        """Stream basic test
+    def test_stream_oldcase_snode(self):
+        """Stream snode
 
         1. basic test
         2. out of order data
@@ -23,10 +23,14 @@ class TestStreamOldCaseBasic:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/snodeCheck.sim
         """
 
-        # self.stream_basic_0()
-        # self.stream_basic_1()
-        # self.stream_basic_2()
-        # self.stream_basic_3()
-        self.stream_basic_4()
-        # self.stream_basic_5()
+        # self.schedSnode()
+        # self.snodeCheck()
+
+    def schedSnode(self):
+        tdLog.info(f"schedSnode")
+        drop_all_streams_and_dbs()
+
+    def snodeCheck(self):
+        tdLog.info(f"snodeCheck")
+        drop_all_streams_and_dbs()
 
