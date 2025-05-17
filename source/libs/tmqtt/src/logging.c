@@ -29,11 +29,11 @@
 #include <sys/stat.h>
 #endif
 
-#include "logging_ttq.h"
-#include "memory_ttq.h"
-#include "misc_ttq.h"
-#include "tmqtt_broker_int.h"
-#include "util_ttq.h"
+#include "ttqLogging.h"
+#include "ttqMemory.h"
+#include "ttqMisc.h"
+#include "tmqttBrokerInt.h"
+#include "ttqUtil.h"
 
 static char log_fptr_buffer[BUFSIZ];
 

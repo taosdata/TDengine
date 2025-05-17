@@ -28,19 +28,19 @@ endif()
 
 
 add_executable(taosmqtt ${TAOSMQTT_SRC}
-  lib/net_ttq.c
-  lib/packet_datatypes.c
-  lib/packet_ttq.c
-  lib/send_ttq.c
-  lib/send_publish.c
-  lib/property_ttq.c
-  lib/memory_ttq.c
-  lib/misc_ttq.c
-  lib/util_ttq.c
-  lib/time_ttq.c
-  lib/strings_ttq.c
-  lib/utf8_ttq.c
-  lib/util_topic.c
+  lib/ttqNet.c
+  lib/packetDataTypes.c
+  lib/ttqPacket.c
+  lib/ttqSend.c
+  lib/sendPublish.c
+  lib/ttqProperty.c
+  lib/ttqMemory.c
+  lib/ttqMisc.c
+  lib/ttqUtil.c
+  lib/ttqTime.c
+  lib/ttqStrings.c
+  lib/ttqUtf8.c
+  lib/utilTopic.c
 )
 
 DEP_ext_cjson(taosmqtt)

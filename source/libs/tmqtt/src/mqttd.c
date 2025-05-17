@@ -27,7 +27,7 @@
 #include "tmisce.h"
 #include "tversion.h"
 #include "thash.h"
-#include "tmq_ctx.h"
+#include "tmqCtx.h"
 // clang-format on
 
 SMqttdContext global;

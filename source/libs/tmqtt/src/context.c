@@ -13,17 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tmqtt_broker_int.h"
+#include "tmqttBrokerInt.h"
 
 #include <time.h>
 
-#include "alias_ttq.h"
-#include "memory_ttq.h"
-#include "packet_ttq.h"
-#include "property_ttq.h"
-#include "time_ttq.h"
+#include "ttqAlias.h"
+#include "ttqMemory.h"
+#include "ttqPacket.h"
+#include "ttqProperty.h"
+#include "ttqTime.h"
 #include "tthash.h"
-#include "util_ttq.h"
+#include "ttqUtil.h"
 
 struct tmqtt *context__init(ttq_sock_t sock) {
   struct tmqtt *context;

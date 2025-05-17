@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tmqtt_broker_int.h"
+#include "tmqttBrokerInt.h"
 
 #include <time.h>
 

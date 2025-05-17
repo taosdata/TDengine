@@ -25,10 +25,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "memory_ttq.h"
-#include "misc_ttq.h"
-#include "tmqtt_broker_int.h"
-#include "util_ttq.h"
+#include "ttqMemory.h"
+#include "ttqMisc.h"
+#include "tmqttBrokerInt.h"
+#include "ttqUtil.h"
 
 #include "version.h"
 
