@@ -22,6 +22,7 @@ class TestStreamOldCaseTwa:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaError.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaFwcFill.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaFwcFillPrimaryKey.sim
+            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaFwcInterval.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaFwcIntervalPrimaryKey.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaInterpFwc.sim
         """
@@ -44,6 +45,10 @@ class TestStreamOldCaseTwa:
         tdLog.info(f"streamTwaFwcFillPrimaryKey")
         drop_all_streams_and_dbs()
 
+    def streamTwaFwcInterval(self):
+        tdLog.info(f"streamTwaFwcInterval")
+        drop_all_streams_and_dbs()
+        
     def streamTwaFwcIntervalPrimaryKey(self):
         tdLog.info(f"streamTwaFwcIntervalPrimaryKey")
         drop_all_streams_and_dbs()
