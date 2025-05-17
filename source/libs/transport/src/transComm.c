@@ -430,6 +430,13 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
     STransCtxVal* sVal = (STransCtxVal*)iter;
     key = taosHashGetKey(sVal, &klen);
 
+    STransCtxVal* dVal = taosHashGet(dst->args, key, klen);
+    if (dVal != NULL) {
+      tDebug("free msg type %s dump func", TMSG_INFO(*(int32_t*)key));
+      dst->freeFunc(dVal->val);
+      dVal->val = NULL;
+    }
+
     int32_t code = taosHashPut(dst->args, key, klen, sVal, sizeof(*sVal));
     if (code != 0) {
       tError("failed to put val to hash since %s", tstrerror(code));
