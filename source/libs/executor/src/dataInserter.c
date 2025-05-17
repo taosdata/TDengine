@@ -1141,10 +1141,15 @@ _end:
 }
 
 static int32_t buildStreamSubTableCreateReq(SDataInserterHandle* pInserter, SStreamInserterParam* pInsertParam,
-                                            SSubmitTbData* tbData, int32_t* vgId) {
+                                            SStreamDataInserterInfo* pInserterInfo, SSubmitTbData* tbData,
+                                            int32_t* vgId) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pInsertParam->pTagFields == NULL) {
     stError("buildStreamSubTableCreateReq, pTagFields is NULL");
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  if (pInserterInfo->pTagVals == NULL || pInserterInfo->pTagVals->size == 0) {
+    stError("buildStreamSubTableCreateReq, pTagVals is NULL");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
   int32_t nTags = pInserter->pParam->streamInserterParam->pTagFields->size;
@@ -1192,7 +1197,7 @@ static int32_t buildStreamSubTableCreateReq(SDataInserterHandle* pInserter, SStr
 
 
   STag* pTag = NULL;
-  code = tTagNew(pInsertParam->pTagVals, pInsertParam->sver, false, &pTag);
+  code = tTagNew(pInserterInfo->pTagVals, pInsertParam->sver, false, &pTag);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to create tag, error:%s", tstrerror(code));
     goto _end;
@@ -1394,7 +1399,7 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
     if (pInsertParam->tbType == TSDB_NORMAL_TABLE) {
       code = buildNormalTableCreateReq(pInserter, pInsertParam, &tbData, vgId);
     } else if (pInsertParam->tbType == TSDB_SUPER_TABLE) {
-      code = buildStreamSubTableCreateReq(pInserter, pInsertParam, &tbData, vgId);
+      code = buildStreamSubTableCreateReq(pInserter, pInsertParam, pInserterInfo, &tbData, vgId);
     } else {
       code = TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND;
       stError("buildStreamSubmitReqFromBlock, unknown table type %d", pInsertParam->tbType);
