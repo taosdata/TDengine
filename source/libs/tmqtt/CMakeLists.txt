@@ -56,16 +56,15 @@ target_include_directories(
     taosmqtt
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/"
-    "${TD_SOURCE_DIR}/include/libs/tmqtt"
     "${TD_SOURCE_DIR}/include/util"
     "${TD_SOURCE_DIR}/include/common"
     "${TD_SOURCE_DIR}/include/libs/transport"
     "${TD_SOURCE_DIR}/include/client"
-    "${TD_SOURCE_DIR}/include/libs/tmqtt"
     "${TD_SOURCE_DIR}/include/dnode/xnode"
+    PRIVATE "${TD_SOURCE_DIR}/include/libs/tmqtt"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/lib"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/lib/inc"
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/inc"
 )
 
 target_link_libraries(
