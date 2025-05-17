@@ -87,15 +87,23 @@ where
                     return Err(e);
                 }
             };
-            self.ts.append_value(message.ts);
-            // self.qos.append_value(message.qos);
-            // self.topic.append_value(&message.topic);
-            self.payload.append_value(
-                String::from_utf8(payload).context("parse mqtt payload to string error")?,
-            );
+            match String::from_utf8(payload) {
+                Ok(payload) => {
+                    self.payload.append_value(payload);
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "parse mqtt payload to string error, skip this message: {:?}",
+                        bytes::Bytes::from_owner(e.into_bytes())
+                    );
+                    continue;
+                }
+            }
             if let Some(topic_parser) = self.topic_parser.as_mut() {
                 topic_parser.append_value(&message.topic)?;
             }
+
+            self.ts.append_value(message.ts);
         }
 
         let mut columns: Vec<ArrayRef> = vec![
