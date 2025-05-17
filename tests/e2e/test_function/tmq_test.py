@@ -37,6 +37,7 @@ def drop_ci_resource(dsn: str):
             yesterday = row[0]
             break
         yesterday_timestamp = parser.parse(yesterday).timestamp() * 1000
+        print(f"yesterday_timestamp: {yesterday_timestamp}")
         topic_query = conn.query(
             f"select topic_name from information_schema.ins_topics where topic_name like 'ci_%' and create_time <= {yesterday_timestamp}"
         )
@@ -47,6 +48,7 @@ def drop_ci_resource(dsn: str):
         database_query = conn.query(
             f"select name from information_schema.ins_databases where name like 'ci_%' and create_time <= {yesterday_timestamp}"
         )
+        time.sleep(20)
         for database in database_query:
             database_name = database[0]
             conn.query(f"drop database `{database_name}`")

@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     ops::{ControlFlow, Deref},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{atomic::AtomicU64, Arc},
     time::Duration,
 };
@@ -17,7 +17,7 @@ use futures::{
     FutureExt,
 };
 use parking_lot::Mutex;
-use persist_queue::fs::EntryPosition;
+use persist_queue::{fs::EntryPosition, writer::Request};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use tokio::{
     sync::{oneshot, watch},
@@ -28,8 +28,12 @@ use tokio_stream::wrappers::WatchStream;
 use tokio_util::sync::CancellationToken;
 
 use taosx_ipc::ack::LushAck;
+use tracing::{info_span, Instrument};
 
-use crate::{core_metrics::CoreMetrics, get_data_dir, utils::breakpoints::BreakpointDb};
+use crate::{
+    core_metrics::CoreMetrics,
+    utils::{self, breakpoints::BreakpointDb, futs_helper::select_cancel},
+};
 
 const PERSIST_QUEUE_BREAKPOINT_KEY: &str = "persist_queue_breakpoint";
 const DEFAULT_READ_BATCH_SIZE: usize = 1000;
@@ -42,8 +46,19 @@ const METRICS_PERSIST_INFLIGHT_ACKS: FastStr = FastStr::from_static_str("persist
 
 #[derive(Debug, Clone)]
 pub struct PersistConfig {
-    pub dir: Option<PathBuf>,
-    pub schema: Arc<Schema>,
+    pub schemas: HashMap<Arc<Schema>, PathBuf>,
+    pub record_metrics: bool,
+    /// number of rows in one RecordBatch
+    pub batch_size: Option<usize>,
+    /// max timeout wait for rows in one RecordBatch
+    pub batch_timeout: Option<Duration>,
+    /// max number of RecordBatches processed at a time
+    pub batch_chunk_size: Option<usize>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PersistComponentConfig {
+    pub record_metrics: bool,
     /// number of rows in one RecordBatch
     pub batch_size: Option<usize>,
     /// max timeout wait for rows in one RecordBatch
@@ -53,23 +68,35 @@ pub struct PersistConfig {
 }
 
 #[derive(Clone)]
+pub struct PersistComponents {
+    pub config: Arc<PersistComponentConfig>,
+    pub components: HashMap<Arc<Schema>, PersistComponent>,
+}
+
+#[derive(Clone)]
 pub struct PersistComponent {
+    pub dir: PathBuf,
+    pub schema: Arc<Schema>,
     pub payload_tx: flume::Sender<Vec<u8>>,
     pub request_tx: flume::Sender<persist_queue::writer::Request<EntryPosition>>,
     pub reader_rx: flume::Receiver<persist_queue::Entry<EntryPosition>>,
     pub breakpoint_db: BreakpointDb,
-    pub config: PersistConfig,
+    pub config: Arc<PersistComponentConfig>,
 }
 
 impl PersistComponent {
     pub fn new(
+        dir: PathBuf,
+        schema: Arc<Schema>,
         payload_tx: flume::Sender<Vec<u8>>,
         request_tx: flume::Sender<persist_queue::writer::Request<EntryPosition>>,
         reader_rx: flume::Receiver<persist_queue::Entry<EntryPosition>>,
         breakpoint_db: BreakpointDb,
-        config: PersistConfig,
+        config: Arc<PersistComponentConfig>,
     ) -> Self {
         Self {
+            dir,
+            schema,
             payload_tx,
             request_tx,
             reader_rx,
@@ -81,76 +108,95 @@ impl PersistComponent {
 
 #[tracing::instrument(name = "persist_queue_rw_runners", skip_all)]
 pub async fn get_persist(
-    task_id: i64,
-    config: PersistConfig,
+    mut config: PersistConfig,
     token: &CancellationToken,
-) -> anyhow::Result<(PersistComponent, tokio::task::JoinSet<anyhow::Result<()>>)> {
-    let mut tasks = tokio::task::JoinSet::new();
-    let dir = config.dir.clone().unwrap_or_else(|| {
-        get_data_dir()
-            .join("tasks")
-            .join(task_id.to_string())
-            .join("persist_queue")
+) -> anyhow::Result<(PersistComponents, JoinSet<anyhow::Result<()>>)> {
+    let persist_config = Arc::new(PersistComponentConfig {
+        record_metrics: config.record_metrics,
+        batch_size: config.batch_size,
+        batch_timeout: config.batch_timeout,
+        batch_chunk_size: config.batch_chunk_size,
     });
-    let channel_batch_size = config.batch_size.map(|v| v * 2).unwrap_or(1000);
-    // 创建 persist queue
-    let mut queue = persist_queue::fs::FsQueue::builder(&dir)
-        .build()
-        .await
-        .context("build persist queue error")?;
-    // 获取 breakpoint 数据库
-    let breakpoint_db =
-        tokio::task::spawn_blocking(move || BreakpointDb::open(&dir.join("breakpoint")))
+    let mut components = HashMap::with_capacity(config.schemas.len());
+    let mut tasks = tokio::task::JoinSet::new();
+    for (schema, dir) in std::mem::take(&mut config.schemas) {
+        let channel_batch_size = config.batch_size.map(|v| v * 2).unwrap_or(1000);
+        // 创建 persist queue
+        let mut queue = persist_queue::fs::FsQueue::builder(&dir)
+            .build()
+            .await
+            .context("build persist queue error")?;
+        // 获取 breakpoint 数据库
+        let path = dir.join("breakpoint");
+        let breakpoint_db = tokio::task::spawn_blocking(move || BreakpointDb::open(&path))
             .await?
             .context("open persist breakpoint db error")?;
 
-    // 创建 reader
-    let (reader_tx, reader_rx) = flume::bounded(channel_batch_size);
-    let breakpoint = match breakpoint_db
-        .get(PERSIST_QUEUE_BREAKPOINT_KEY)
-        .await
-        .context("get persist queue breakpoint error")?
-    {
-        Some(breakpoint) => {
-            let position = serde_json::from_str(&breakpoint)
-                .context("deserialize persist queue positoin error")?;
-            persist_queue::fs::ReadFrom::LastPosition(position)
+        // 创建 reader
+        let (reader_tx, reader_rx) = flume::bounded(channel_batch_size);
+        let breakpoint = match breakpoint_db
+            .get(PERSIST_QUEUE_BREAKPOINT_KEY)
+            .await
+            .context("get persist queue breakpoint error")?
+        {
+            Some(breakpoint) => {
+                let position = serde_json::from_str(&breakpoint)
+                    .context("deserialize persist queue positoin error")?;
+                persist_queue::fs::ReadFrom::LastPosition(position)
+            }
+            None => persist_queue::fs::ReadFrom::Earliest,
+        };
+        let reader = queue
+            .new_reader(breakpoint)
+            .await
+            .context("build persist queue reader error")?;
+        let mut reader_builder = persist_queue::reader::Reader::builder(reader, reader_tx);
+        if let Some(batch_size) = config.batch_size {
+            reader_builder = reader_builder.batch_size(batch_size)
         }
-        None => persist_queue::fs::ReadFrom::Earliest,
-    };
-    let reader = queue
-        .new_reader(breakpoint)
-        .await
-        .context("build persist queue reader error")?;
-    let mut reader_builder = persist_queue::reader::Reader::builder(reader, reader_tx);
-    if let Some(batch_size) = config.batch_size {
-        reader_builder = reader_builder.batch_size(batch_size)
-    }
-    tasks.spawn(
-        reader_builder
-            .build()
-            .run(token.child_token())
-            .map(|res| res.context("persist reader task error")),
-    );
+        tasks.spawn(
+            reader_builder
+                .build()
+                .run(token.child_token())
+                .map(|res| res.context("persist reader task error"))
+                .instrument(info_span!("persist queue reader runner")),
+        );
 
-    // 创建 writer
-    let w = queue.new_writer::<Vec<u8>>().await?;
-    let (payload_tx, payload_rx) = flume::bounded(channel_batch_size);
-    let (request_tx, request_rx) = flume::bounded(1);
-    let mut writer_builder =
-        persist_queue::writer::Writer::builder(w, payload_rx).request_rx(request_rx);
-    if let Some(batch_size) = config.batch_size {
-        writer_builder = writer_builder.chunk_size(batch_size);
+        // 创建 writer
+        let w = queue.new_writer::<Vec<u8>>().await?;
+        let (payload_tx, payload_rx) = flume::bounded(channel_batch_size);
+        let (request_tx, request_rx) = flume::bounded(1);
+        let mut writer_builder =
+            persist_queue::writer::Writer::builder(w, payload_rx).request_rx(request_rx);
+        if let Some(batch_size) = config.batch_size {
+            writer_builder = writer_builder.chunk_size(batch_size);
+        }
+        tasks.spawn(
+            writer_builder
+                .build()
+                .run(token.child_token())
+                .map(|res| res.context("persist writer task error"))
+                .instrument(info_span!("persist queue writer runner")),
+        );
+        components.insert(
+            schema.clone(),
+            PersistComponent::new(
+                dir,
+                schema,
+                payload_tx,
+                request_tx,
+                reader_rx,
+                breakpoint_db,
+                persist_config.clone(),
+            ),
+        );
     }
-    tasks.spawn(
-        writer_builder
-            .build()
-            .run(token.child_token())
-            .map(|res| res.context("persist writer task error")),
-    );
 
     Ok((
-        PersistComponent::new(payload_tx, request_tx, reader_rx, breakpoint_db, config),
+        PersistComponents {
+            config: persist_config,
+            components,
+        },
         tasks,
     ))
 }
@@ -179,10 +225,8 @@ where
         .batch_chunk_size
         .unwrap_or(DEFAULT_BATCH_CHUNK_SIZE);
 
-    let metrics = metrics.map(|m| Arc::new(PersistMetrics::new(m)));
-    if let Some(metrics) = metrics.as_ref() {
-        metrics.reset();
-    }
+    let metrics = Arc::new(PersistMetrics::new(metrics));
+    metrics.reset();
 
     // 从 ipc_reader 获取数据写入持久化组件
     // 将接收到的 recordbatch 写入 persist queue
@@ -192,117 +236,119 @@ where
         let payload_tx = persist.payload_tx;
         let ack_tx = ack_tx.clone();
         async move {
+            let _guard = utils::defer::defer(|| {
+                tracing::debug!("persist queue write records task exit");
+            });
             'OUTER: loop {
-                tokio::select! {
-                    res = write_rx.recv_async() => {
-                        let Ok(rows) = res else {
-                            break
-                        };
-                        let mut written = 0;
-                        for row in rows {
-                            tokio::select! {
-                                res = payload_tx.send_async(row) => {
-                                    if res.is_err() {
-                                        break 'OUTER
-                                    }
-                                },
-                                _ = token.cancelled() => break 'OUTER
-                            }
-                            written += 1;
-                        }
-                        // 回复上游数据源
-                        let ack = LushAck {
-                            code: 0,
-                            message: None,
-                            context: Some(serde_json::json!({
-                                "stream": "flat",
-                                "written":  written
-                            }).to_string())
-                        };
-                        tokio::select! {
-                            res = ack_tx.send_async(ack) => {
-                                if res.is_err() {
-                                    break
-                                }
-                            },
-                            _ = token.cancelled() => break
-                        }
-                    },
-                    _ = token.cancelled() => break
+                let Some(Ok(rows)) = select_cancel(write_rx.recv_async(), &token).await else {
+                    break;
+                };
+
+                let mut written = 0;
+                for row in rows {
+                    if select_cancel(payload_tx.send_async(row), &token)
+                        .await
+                        .is_none_or(|v| v.is_err())
+                    {
+                        break 'OUTER;
+                    }
+                    written += 1;
+                }
+                // 回复上游数据源
+                let ack = LushAck {
+                    code: 0,
+                    message: None,
+                    context: Some(
+                        serde_json::json!({
+                            "stream": "flat",
+                            "written":  written
+                        })
+                        .to_string(),
+                    ),
+                };
+                if select_cancel(ack_tx.send_async(ack), &token)
+                    .await
+                    .is_none_or(|v| v.is_err())
+                {
+                    break;
                 }
             }
 
             Ok(())
         }
+        .in_current_span()
     });
 
     tasks.spawn({
         let token = token.clone();
         async move {
+            let _guard = utils::defer::defer(|| {
+                tracing::debug!("persist queue read stream task exit");
+            });
             pin_mut!(stream);
             let mut msg_stream = stream.ready_chunks(batch_chunk_size);
             'OUTER: loop {
-                tokio::select! {
-                    res = msg_stream.next() => {
-                        let Some(batches) = res else {
-                            break
-                        };
-                        let batches_rows = tokio::task::spawn_blocking({
-                            let ack_tx = ack_tx.clone();
-                            move || {
-                                batches.into_par_iter().filter_map(|batch| {
-                                    let batch = match batch {
-                                        Ok(batch) => batch,
-                                        Err(e) => {
-                                            let ack = LushAck {
-                                                code: 0xFFFF,
-                                                message: Some(format!("Parse message error: {e:#}")),
-                                                context: Some(
-                                                    serde_json::json!({
-                                                        "stream": "flat",
-                                                    })
-                                                    .to_string(),
-                                                ),
-                                            };
-                                            ack_tx.send(ack).ok()?;
-                                            return None;
-                                        }
-                                    };
-                                    let rows: Vec<Box<serde_json::value::RawValue>> = {
-                                        match batch.to_json_rows()
-                                            .context("serialize recordbatch to json rawvalue error") 
-                                        {
-                                            Ok(rows) => rows,
-                                            Err(e) => return Some(Err(e))
-                                        }
-                                    };
-                                    let rows = rows.into_iter()
-                                        .map(|v| v.get().as_bytes().to_vec())
-                                        .collect::<Vec<_>>();
-                                    Some(anyhow::Ok(rows))
-                                }).collect::<anyhow::Result<Vec<_>>>()
-                            }
-                        }).await??;
-                        if batches_rows.is_empty() {
-                            continue
-                        }
-                        for rows in batches_rows {
-                            tokio::select! {
-                                res = write_tx.send_async(rows) => {
-                                    if res.is_err() {
-                                        break 'OUTER
+                let Some(Some(batches)) = select_cancel(msg_stream.next(), &token).await else {
+                    break;
+                };
+                let batches_rows = tokio::task::spawn_blocking({
+                    let ack_tx = ack_tx.clone();
+                    move || {
+                        batches
+                            .into_par_iter()
+                            .filter_map(|batch| {
+                                let batch = match batch {
+                                    Ok(batch) => batch,
+                                    Err(e) => {
+                                        let ack = LushAck {
+                                            code: 0xFFFF,
+                                            message: Some(format!("Parse message error: {e:#}")),
+                                            context: Some(
+                                                serde_json::json!({
+                                                    "stream": "flat",
+                                                })
+                                                .to_string(),
+                                            ),
+                                        };
+                                        ack_tx.send(ack).ok()?;
+                                        return None;
                                     }
-                                },
-                                _ = token.cancelled() => break 'OUTER
-                            }
-                        }
-                    },
-                    _ = token.cancelled() => break
+                                };
+                                let rows: Vec<Box<serde_json::value::RawValue>> = {
+                                    match batch
+                                        .to_json_rows()
+                                        .context("serialize recordbatch to json rawvalue error")
+                                    {
+                                        Ok(rows) => rows,
+                                        Err(e) => return Some(Err(e)),
+                                    }
+                                };
+                                let rows = rows
+                                    .into_iter()
+                                    .map(|v| v.get().as_bytes().to_vec())
+                                    .collect::<Vec<_>>();
+                                Some(anyhow::Ok(rows))
+                            })
+                            .collect::<anyhow::Result<Vec<_>>>()
+                    }
+                })
+                .await??;
+                if batches_rows.is_empty() {
+                    continue;
+                }
+                for rows in batches_rows {
+                    if select_cancel(write_tx.send_async(rows), &token)
+                        .await
+                        .is_none_or(|v| v.is_err())
+                    {
+                        break 'OUTER;
+                    }
                 }
             }
 
             anyhow::Ok(())
         }
+        .in_current_span()
     });
 
     // 从持久化组件中，读取数据
@@ -317,130 +363,152 @@ where
         let token = token.clone();
         let reader_rx = persist.reader_rx;
         async move {
+            let _guard = utils::defer::defer(|| {
+                tracing::debug!("persist queue read records task exit");
+            });
             let stream = {
                 use tokio_stream::StreamExt;
-                reader_rx.into_stream().chunks_timeout(batch_size, batch_timeout)
+                reader_rx
+                    .into_stream()
+                    .chunks_timeout(batch_size, batch_timeout)
             };
             pin_mut!(stream);
             loop {
-                tokio::select! {
-                    res = stream.next() => {
-                        let Some(entries) = res else {
-                            break;
-                        };
-                        let Some(position) = entries.last().map(|entry| entry.position) else {
-                            continue;
-                        };
-                        let batch = tokio::task::spawn_blocking(move || {
-                            entries.into_par_iter().map(|entry| {
-                                serde_json::from_slice(&entry.payload).context("deserialize entry error")
-                            }).collect::<anyhow::Result<Vec<serde_json::Value>>>()
+                let Some(Some(entries)) = select_cancel(stream.next(), &token).await else {
+                    break;
+                };
+                let Some(position) = entries.last().map(|entry| entry.position) else {
+                    continue;
+                };
+                let batch = tokio::task::spawn_blocking(move || {
+                    entries
+                        .into_par_iter()
+                        .map(|entry| {
+                            serde_json::from_slice(&entry.payload)
+                                .context("deserialize entry error")
                         })
-                        .await??;
+                        .collect::<anyhow::Result<Vec<serde_json::Value>>>()
+                })
+                .await??;
 
-                        tokio::select! {
-                            res = read_batch_tx.send_async((batch, position)) => {
-                                if res.is_err() {
-                                    break
-                                }
-                            },
-                            _ = token.cancelled() => break,
-                        }
-                    },
-                    _ = token.cancelled() => break,
+                if select_cancel(read_batch_tx.send_async((batch, position)), &token)
+                    .await
+                    .is_none_or(|v| v.is_err())
+                {
+                    break;
                 }
             }
             anyhow::Ok(())
         }
+        .in_current_span()
     });
 
     tasks.spawn({
-        let schema = persist.config.schema.clone();
+        let schema = persist.schema.clone();
         let token = token.clone();
         let breakpoint_db = persist.breakpoint_db.clone();
         let metrics_tx = metrics_tx.clone();
-        let send_metrics = metrics.is_some();
         async move {
+            let _guard = utils::defer::defer(|| {
+                tracing::debug!("persist queue deserialize records task exit");
+            });
             let mut batch_stream = read_batch_rx.into_stream().ready_chunks(batch_chunk_size);
             'OUTER: loop {
-                tokio::select! {
-                    res = batch_stream.next() => {
-                        let Some(batches_rows) = res else {
-                            break
-                        };
-                        let schema = schema.clone();
-                        let batches = tokio::task::spawn_blocking(move || {
-                            batches_rows.into_par_iter().map(|(payloads, position)| {
-                                let mut decoder = arrow::json::reader::ReaderBuilder::new(schema.clone())
+                let Some(Some(batches_rows)) = select_cancel(batch_stream.next(), &token).await
+                else {
+                    break;
+                };
+                let schema = schema.clone();
+                let batches = tokio::task::spawn_blocking(move || {
+                    batches_rows
+                        .into_par_iter()
+                        .map(|(payloads, position)| {
+                            let mut decoder =
+                                arrow::json::reader::ReaderBuilder::new(schema.clone())
                                     .with_strict_mode(true)
                                     .build_decoder()
                                     .context("build arrow json reader error")?;
-                                decoder.serialize(&payloads).context("arrow json decoder serialize error")?;
-                                let batch = decoder.flush()
-                                    .context("arrow json decoder flush error")?
-                                    .context("record batch not found in arrow read decoder")?;
+                            decoder
+                                .serialize(&payloads)
+                                .context("arrow json decoder serialize error")?;
+                            let batch = decoder
+                                .flush()
+                                .context("arrow json decoder flush error")?
+                                .context("record batch not found in arrow read decoder")?;
 
-                                let metadata = schema.metadata()
-                                    .iter()
-                                    .map(|(k,v)| (k.clone(), v.clone()))
-                                    .chain([(PERSIST_QUEUE_BREAKPOINT_KEY.to_string(), serde_json::to_string(&position)?)]);
-                                let mut metadata = HashMap::<_, _, _>::from_iter(metadata);
-                                metadata.insert(
+                            let metadata = schema
+                                .metadata()
+                                .iter()
+                                .map(|(k, v)| (k.clone(), v.clone()))
+                                .chain([(
                                     PERSIST_QUEUE_BREAKPOINT_KEY.to_string(),
                                     serde_json::to_string(&position)?,
-                                );
-                                let schema: Schema = schema.deref().clone();
+                                )]);
+                            let mut metadata = HashMap::<_, _, _>::from_iter(metadata);
+                            metadata.insert(
+                                PERSIST_QUEUE_BREAKPOINT_KEY.to_string(),
+                                serde_json::to_string(&position)?,
+                            );
+                            let schema: Schema = schema.deref().clone();
 
-                                Ok((batch
+                            Ok((
+                                batch
                                     .with_schema(Arc::new(schema.with_metadata(metadata)))
-                                    .context("build batch with new metadata error")?, position))
-                            }).collect::<anyhow::Result<Vec<_>>>()
-                        }).await??;
+                                    .context("build batch with new metadata error")?,
+                                position,
+                            ))
+                        })
+                        .collect::<anyhow::Result<Vec<_>>>()
+                })
+                .await??;
 
-                        for (batch, position) in batches {
-                            if wait_for_ack {
-                                let (ack_tx, ack_rx) = oneshot::channel::<LushAck>();
-                                // 发送给 FuturesOrdered 用于等待 ack
-                                tokio::select!{
-                                    res = acks_tx.send_async(ack_rx) => {
-                                        if res.is_err() {
-                                            break 'OUTER
-                                        }
-                                    },
-                                    _ = token.cancelled() => break 'OUTER,
-                                }
-                                // 把 recordbatch 发送给下游，等待下游的 ack
-                                tokio::select! {
-                                    res = batch_tx.send_async((Ok::<_, ArrowError>(batch), Some(ack_tx))) => {
-                                        if res.is_err() {
-                                            break 'OUTER
-                                        }
-                                    },
-                                    _ = token.cancelled() => break 'OUTER,
-                                }
-                            } else {
-                                // 把 recordbatch 发送给下游，不等待下游的 ack
-                                breakpoint_db.set(PERSIST_QUEUE_BREAKPOINT_KEY, &serde_json::to_string(&position)?).await?;
-                                if send_metrics && metrics_tx.send(position).is_err() {
-                                    break 'OUTER
-                                }
-                                tokio::select! {
-                                    res = batch_tx.send_async((Ok::<_, ArrowError>(batch), None)) => {
-                                        if res.is_err() {
-                                            break 'OUTER
-                                        }
-                                    },
-                                    _ = token.cancelled() => break 'OUTER,
-                                }
-                            }
+                for (batch, position) in batches {
+                    if wait_for_ack {
+                        let (ack_tx, ack_rx) = oneshot::channel::<LushAck>();
+                        // 发送给 FuturesOrdered 用于等待 ack
+                        if select_cancel(acks_tx.send_async(ack_rx), &token)
+                            .await
+                            .is_none_or(|v| v.is_err())
+                        {
+                            break 'OUTER;
                         }
-                    },
-                    _ = token.cancelled() => break,
+                        // 把 recordbatch 发送给下游，等待下游的 ack
+                        if select_cancel(
+                            batch_tx.send_async((Ok::<_, ArrowError>(batch), Some(ack_tx))),
+                            &token,
+                        )
+                        .await
+                        .is_none_or(|v| v.is_err())
+                        {
+                            break 'OUTER;
+                        }
+                    } else {
+                        // 把 recordbatch 发送给下游，不等待下游的 ack
+                        breakpoint_db
+                            .set(
+                                PERSIST_QUEUE_BREAKPOINT_KEY,
+                                &serde_json::to_string(&position)?,
+                            )
+                            .await?;
+                        if metrics_tx.send(position).is_err() {
+                            break 'OUTER;
+                        }
+                        if select_cancel(
+                            batch_tx.send_async((Ok::<_, ArrowError>(batch), None)),
+                            &token,
+                        )
+                        .await
+                        .is_none_or(|v| v.is_err())
+                        {
+                            break 'OUTER;
+                        }
+                    }
                 }
             }
 
             Ok(())
         }
+        .in_current_span()
     });
 
     // 读取 ack 数据，将进度写入 breakpoint 数据库
@@ -448,11 +516,13 @@ where
         let breakpoint_db = persist.breakpoint_db;
         let token = token.clone();
         let metrics = metrics.clone();
+        let dir = persist.dir.clone();
         async move {
+            let _guard = utils::defer::defer(|| {
+                tracing::debug!("persist queue ack task exit");
+            });
             let _metrics_guard = crate::utils::defer::defer(|| {
-                if let Some(metrics) = metrics.as_ref() {
-                    metrics.reset();
-                }
+                metrics.reset();
             });
             use oneshot::error::RecvError;
             // 使用 FuturesOrdered 保证等待 ack 的顺序
@@ -465,9 +535,7 @@ where
                         let Some(Ok::<LushAck, RecvError>(ack)) = res else {
                             break
                         };
-                        if let Some(metrics) = metrics.as_ref() {
-                            metrics.sub_persist_inflight_acks();
-                        }
+                        metrics.sub_persist_inflight_acks();
 
                         // 无论成功与否，都写断点
                         if let Some(context) = ack.context() {
@@ -479,12 +547,11 @@ where
                                     .set(PERSIST_QUEUE_BREAKPOINT_KEY, position)
                                     .await
                                     .context("set ack breakpoint error")?;
-                                if metrics.is_some() {
-                                    let position: persist_queue::fs::EntryPosition =
+                                // 更新读进度
+                                let position: persist_queue::fs::EntryPosition =
                                         serde_json::from_str(position).context("deserialize position error")?;
-                                    if metrics_tx.send(position).is_err() {
-                                        break
-                                    }
+                                if metrics_tx.send(position).is_err() {
+                                    break
                                 }
                             }
                         }
@@ -502,15 +569,20 @@ where
                             break
                         };
                         futs.push_back(ack_rx);
-                        if let Some(metrics) = metrics.as_ref() {
-                            metrics.add_persist_inflight_acks();
+                        metrics.add_persist_inflight_acks();
+                        if tracing::enabled!(tracing::Level::TRACE) {
+                            tracing::trace!(
+                                dir = dir.display().to_string(),
+                                inflight_acks = metrics.get_persist_inflight_acks(),
+                                "update persist queue inflight acks",
+                            );
                         }
                     },
                     _ = token.cancelled() => break
                 }
             }
             anyhow::Ok(())
-        }
+        }.in_current_span()
     });
 
     // 更新 metrics
@@ -518,11 +590,11 @@ where
         let token = token.clone();
         let request_tx = persist.request_tx;
         let mut watch_stream = WatchStream::from_changes(metrics_rx);
+        let dir = persist.dir.clone();
         async move {
             let _metrics_guard = crate::utils::defer::defer(|| {
-                if let Some(metrics) = metrics.as_ref() {
-                    metrics.reset();
-                }
+                tracing::debug!("persist queue metrics task exit");
+                metrics.reset()
             });
             loop {
                 tokio::select! {
@@ -530,12 +602,12 @@ where
                         let Some(read_position) = res else {
                             break
                         };
-                        if update_rw_position(&request_tx, Some(read_position), metrics.clone(), token.child_token()).await.is_break() {
+                        if update_rw_position(&dir, &request_tx, Some(read_position), metrics.clone(), token.child_token()).await.is_break() {
                             break
                         }
                     },
                     _ = tokio::time::sleep(Duration::from_secs(1)) => {
-                        if update_rw_position(&request_tx, None, metrics.clone(), token.child_token()).await.is_break() {
+                        if update_rw_position(&dir, &request_tx, None, metrics.clone(), token.child_token()).await.is_break() {
                             break
                         }
                     }
@@ -543,47 +615,51 @@ where
                 };
             }
             Ok(())
-        }
+        }.in_current_span()
     });
 
     Ok(batch_rx)
 }
 
+#[tracing::instrument(skip_all)]
 async fn update_rw_position(
-    request_tx: &flume::Sender<persist_queue::writer::Request<EntryPosition>>,
+    dir: impl AsRef<Path>,
+    request_tx: &flume::Sender<Request<EntryPosition>>,
     read_position: Option<EntryPosition>,
-    metrics: Option<Arc<PersistMetrics>>,
+    metrics: Arc<PersistMetrics>,
     token: CancellationToken,
 ) -> ControlFlow<()> {
     use persist_queue::EntryPosition;
     let (tx, rx) = oneshot::channel();
-    tokio::select! {
-        res = request_tx.send_async(persist_queue::writer::Request::Position(tx)) => {
-            if res.is_err() {
-                return ControlFlow::Break(());
-            }
-        },
-        _ = token.cancelled() => return ControlFlow::Break(()),
+    if select_cancel(request_tx.send_async(Request::Position(tx)), &token)
+        .await
+        .is_none_or(|v| v.is_err())
+    {
+        return ControlFlow::Break(());
     }
-    tokio::select! {
-        res = rx => {
-            let Ok(write_position) = res else {
-                return ControlFlow::Break(());
-            };
-            if let Some(metrics) = &metrics {
-                metrics.set_persist_write_offset(write_position.offset());
-                if let Some(position) = read_position {
-                    metrics.set_persist_read_offset(position.offset());
-                }
-            }
-        },
-        _ = token.cancelled() => return ControlFlow::Break(()),
+
+    let Some(Ok(write_position)) = select_cancel(rx, &token).await else {
+        return ControlFlow::Break(());
+    };
+    metrics.set_persist_write_offset(write_position.offset());
+
+    if let Some(position) = read_position {
+        metrics.set_persist_read_offset(position.offset());
     }
+    if tracing::enabled!(tracing::Level::TRACE) {
+        tracing::trace!(
+            dir = dir.as_ref().display().to_string(),
+            read_offset = metrics.get_persist_read_offset(),
+            write_offset = metrics.get_persist_write_offset(),
+            "update read/write offset"
+        );
+    }
+
     ControlFlow::Continue(())
 }
 
 struct PersistMetrics {
-    core_metrics: Arc<CoreMetrics>,
+    core_metrics: Option<Arc<CoreMetrics>>,
 
     pub persist_read_offset: AtomicU64,
     pub persist_write_offset: AtomicU64,
@@ -593,7 +669,7 @@ struct PersistMetrics {
 }
 
 impl PersistMetrics {
-    fn new(core_metrics: Arc<CoreMetrics>) -> Self {
+    fn new(core_metrics: Option<Arc<CoreMetrics>>) -> Self {
         Self {
             core_metrics,
             persist_read_offset: AtomicU64::default(),
@@ -643,18 +719,24 @@ impl PersistMetrics {
     }
 
     fn reset(&self) {
-        self.core_metrics
+        let Some(core_metrics) = self.core_metrics.clone() else {
+            return;
+        };
+        core_metrics
             .ipc()
             .set_extra_metric(&METRICS_PERSIST_READ_OFFSET, 0);
-        self.core_metrics
+        core_metrics
             .ipc()
             .set_extra_metric(&METRICS_PERSIST_WRITE_OFFSET, 0);
-        self.core_metrics
+        core_metrics
             .ipc()
             .set_extra_metric(&METRICS_PERSIST_INFLIGHT_ACKS, 0);
     }
 
     fn update(&self) {
+        let Some(core_metrics) = self.core_metrics.clone() else {
+            return;
+        };
         let Some(mut instant) = self.instant.try_lock() else {
             return;
         };
@@ -662,14 +744,14 @@ impl PersistMetrics {
             return;
         }
 
-        self.core_metrics
+        core_metrics
             .ipc()
             .set_extra_metric(&METRICS_PERSIST_READ_OFFSET, self.get_persist_read_offset());
-        self.core_metrics.ipc().set_extra_metric(
+        core_metrics.ipc().set_extra_metric(
             &METRICS_PERSIST_WRITE_OFFSET,
             self.get_persist_write_offset(),
         );
-        self.core_metrics.ipc().set_extra_metric(
+        core_metrics.ipc().set_extra_metric(
             &METRICS_PERSIST_INFLIGHT_ACKS,
             self.get_persist_inflight_acks(),
         );
@@ -696,11 +778,10 @@ mod tests {
         let token = CancellationToken::new();
         let schema = Arc::new(build_schema());
 
-        let (component, mut tasks) = get_persist(
-            0,
+        let (mut components, mut tasks) = get_persist(
             PersistConfig {
-                dir: Some(dir.into_path()),
-                schema: schema.clone(),
+                record_metrics: false,
+                schemas: HashMap::from_iter([(schema.clone(), dir.into_path())]),
                 batch_size: Some(10),
                 batch_timeout: Some(Duration::from_millis(100)),
                 batch_chunk_size: None,
@@ -709,13 +790,18 @@ mod tests {
         )
         .await?;
 
-        let breakpoint_db = component.breakpoint_db.clone();
+        let breakpoint_db = components
+            .components
+            .get(&schema.clone())
+            .unwrap()
+            .breakpoint_db
+            .clone();
 
         let (batch_tx, batch_rx) = flume::bounded(1);
         let (ack_tx, ack_rx) = flume::bounded(1);
 
         let batch_receiver = get_stream(
-            component,
+            components.components.remove(&schema.clone()).unwrap(),
             batch_rx.into_stream(),
             ack_tx,
             &token,
@@ -829,6 +915,20 @@ mod tests {
             }
             has_error = false;
         }
+        let start = std::time::Instant::now();
+        loop {
+            let breakpoint = breakpoint_db
+                .get(PERSIST_QUEUE_BREAKPOINT_KEY)
+                .await?
+                .context("breakpoint not found")?;
+            if breakpoint == r#"{"segment_id":0,"end_offset":105300}"# {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            if start.elapsed() >= Duration::from_secs(10) {
+                panic!("persist breakpoint set timeout: {breakpoint}");
+            }
+        }
         token.cancel();
         for res in tasks.join_all().await {
             if let Err(e) = &res {
@@ -837,12 +937,6 @@ mod tests {
             has_error = false;
         }
         assert!(!has_error);
-
-        let breakpoint = breakpoint_db
-            .get(PERSIST_QUEUE_BREAKPOINT_KEY)
-            .await?
-            .context("breakpoint not found")?;
-        assert_eq!(breakpoint, r#"{"segment_id":0,"end_offset":105300}"#);
 
         Ok(())
     }

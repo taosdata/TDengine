@@ -12,7 +12,7 @@ use faststr::FastStr;
 use flume::Sender;
 use futures::future::Either;
 use futures_util::{Sink, Stream, StreamExt};
-use persist::{get_stream, PersistComponent};
+use persist::{get_stream, PersistComponent, PersistComponents};
 use ring_channel::{ring_channel, RingReceiver};
 use serde_json::json;
 use std::net::{Ipv4Addr, SocketAddrV4};
@@ -155,7 +155,7 @@ async fn ipc_tcp_forward(
     task_id: i64,
     batch_counter: BatchCounter,
     config: Option<OpcModelConfig>,
-    persist_component: Option<PersistComponent>,
+    persist_components: Option<PersistComponents>,
 ) -> anyhow::Result<()> {
     use md5;
     tracing::info!("token: {}", format!("{:x}", md5::compute(token.clone())));
@@ -187,6 +187,16 @@ async fn ipc_tcp_forward(
             .context("Create AckWriter error")?;
 
     let schema = ipc_reader.schema.clone();
+    let persist_component = match persist_components {
+        Some(components) => match components.components.get(&schema) {
+            Some(component) => Some(component.clone()),
+            None => {
+                tracing::error!("persist component not found for schema: {schema}");
+                None
+            }
+        },
+        None => None,
+    };
     let mut schema = schema.as_ref().clone();
     if let Some(config) = config.as_ref() {
         schema.metadata.insert(
@@ -199,41 +209,6 @@ async fn ipc_tcp_forward(
     info!("Reading batches");
 
     let metrics = get_metrics(task_id).await;
-
-    let (ipc_stream, persist_tasks) = match persist_component {
-        None => {
-            // 默认行为，直接返回 ack = success 给上游数据源
-            let ipc_stream = ipc_reader.into_raw_stream_qos_0(ipc_ack_writer);
-            (Either::Left(ipc_stream), None)
-        }
-        Some(persist) => {
-            let mut tasks = tokio::task::JoinSet::new();
-            let (ack_tx, ack_rx) = flume::bounded(64);
-            tasks.spawn_blocking(move || {
-                while let Ok(ack) = ack_rx.recv() {
-                    ipc_ack_writer.ack(ack).inspect_err(|err| {
-                        tracing::error!("Write ack error: {err:#}");
-                    })?;
-                }
-                anyhow::Ok(())
-            });
-            (
-                Either::Right(
-                    get_stream(
-                        persist,
-                        ipc_reader.into_raw_stream(),
-                        ack_tx,
-                        &cancel,
-                        metrics,
-                        &mut tasks,
-                        false,
-                    )?
-                    .into_stream(),
-                ),
-                Some(tasks),
-            )
-        }
-    };
 
     let (tables_cache_tx, tables_cache_rx) =
         ring_channel(crate::global::agent_in_memory_cache_capacity());
@@ -265,6 +240,45 @@ async fn ipc_tcp_forward(
         }
         vec
     }
+    let retry_forever = persist_component.is_some();
+    let (input_stream, ack_tx) = if let Some(component) = persist_component.as_ref() {
+        let batch_chunk_size = component.config.batch_chunk_size.unwrap_or(100);
+        let (ack_tx, ack_rx) = flume::bounded(batch_chunk_size);
+        tokio::task::spawn_blocking(move || {
+            while let Ok(ack) = ack_rx.recv() {
+                ipc_ack_writer.ack(ack).inspect_err(|err| {
+                    tracing::error!("Write ack error: {err:#}");
+                })?;
+            }
+            anyhow::Ok(())
+        });
+        (ipc_reader.into_raw_stream(), Some(ack_tx))
+    } else {
+        (ipc_reader.into_raw_stream_qos_0(ipc_ack_writer), None)
+    };
+
+    let task_token = cancel.child_token();
+    let mut persist_tasks = None;
+
+    macro_rules! wait_for_tasks_exit {
+        ($token: expr) => {
+            if let Some(mut tasks) = persist_tasks.take() {
+                $token.cancel();
+                while let Some(res) = tasks.join_next().await {
+                    match res {
+                        Ok(Ok(_)) => {}
+                        Ok(Err(e)) => {
+                            tracing::error!("persist task exited with error: {e:#}");
+                        }
+                        Err(e) => {
+                            tracing::error!("persist task paniced: {e}")
+                        }
+                    }
+                }
+            }
+        };
+    }
+
     'start: loop {
         let tables_cache_tx = tables_cache_tx.clone();
         let cur_span = Span::current();
@@ -285,26 +299,78 @@ async fn ipc_tcp_forward(
             matches!(v, LushMessageType::Children)
         }
         let retained_tables = retain_tables_cache(&tables_cache_rx);
-        let data_stream = futures::stream::iter(retained_tables)
-            .map(Ok)
-            .chain({
-                match ipc_stream.clone() {
-                    Either::Left(stream) => Either::Left(stream),
-                    Either::Right(stream) => Either::Right(stream.map(|(batch, _)| batch)),
-                }
-            })
-            .inspect_ok(move |batch| {
-                if is_lush && is_tables_record(batch) {
-                    let _ = tables_cache_tx.send(batch.clone());
-                }
-            })
-            .map_err(move |err: ArrowError| {
-                cur_span_in_map_err.in_scope(|| {
-                    warn!(error = ?err, "IPC reading error: {err:#}");
+
+        let task_token = task_token.child_token();
+        let ipc_stream = match persist_component.clone() {
+            None => {
+                // 默认行为，直接返回 ack = success 给上游数据源
+                Either::Left(input_stream.clone())
+            }
+            Some(component) => {
+                let input_stream = input_stream.clone();
+                let metrics = component
+                    .config
+                    .record_metrics
+                    .then_some(metrics.clone())
+                    .flatten();
+                let mut tasks = tokio::task::JoinSet::new();
+                let persist_rx = get_stream(
+                    component,
+                    input_stream,
+                    ack_tx.clone().expect("ack_tx not found"),
+                    &task_token,
+                    metrics,
+                    &mut tasks,
+                    true,
+                )?;
+                persist_tasks = Some(tasks);
+                Either::Right(persist_rx.into_stream())
+            }
+        };
+        let data_stream =
+            futures::stream::iter(retained_tables.into_iter().map(|batch| (Ok(batch), None)))
+                .chain({
+                    match ipc_stream {
+                        Either::Left(stream) => Either::Left(stream.map(|batch| (batch, None))),
+                        Either::Right(stream) => Either::Right(stream),
+                    }
+                })
+                .map(move |(batch, mut ack_wait_tx)| {
+                    let meta = batch
+                        .as_ref()
+                        .map(|b| {
+                            serde_json::Map::from_iter(
+                                b.schema_ref()
+                                    .metadata()
+                                    .iter()
+                                    .map(|(k, v)| (k.clone(), json!(v))),
+                            )
+                        })
+                        .map(serde_json::Value::from)
+                        .ok();
+                    if let Some(ack_tx) = ack_wait_tx.take() {
+                        let mut ack = LushAck::ok();
+                        ack.context = meta.map(|v| v.to_string());
+                        ack_tx.send(ack).ok();
+                    }
+
+                    match batch {
+                        Ok(batch) => {
+                            if is_lush && is_tables_record(&batch) {
+                                let _ = tables_cache_tx.send(batch.clone());
+                            }
+                            Ok(batch)
+                        }
+                        Err(err) => {
+                            cur_span_in_map_err.in_scope(|| {
+                                warn!(error = ?err, "IPC reading error: {err:#}");
+                            });
+                            Err(FlightError::from(err))
+                        }
+                    }
                 });
-                FlightError::from(err)
-            });
-        if last_retries > MAX_LAST_RETRIES {
+
+        if !retry_forever && last_retries > MAX_LAST_RETRIES {
             tracing::warn!(
                 "There're {} retries happened in 2m, break now",
                 last_retries
@@ -347,20 +413,28 @@ async fn ipc_tcp_forward(
             });
 
         const MAX_RETRIES: usize = 500;
-        const MAX_RETRY_INTERVAL: Duration = Duration::from_secs(60 * 5);
+        const MAX_RETRY_INTERVAL: Duration = Duration::from_secs(30);
         let mut retries = 0;
         let mut retry_interval = Duration::from_secs(3);
         let channel = loop {
             match try_establish_channel(remote.clone()).await {
-                Ok(channel) => break channel,
+                Ok(channel) => {
+                    tracing::info!("connect to {remote} successfully!");
+                    break channel;
+                }
                 Err(err) => {
                     retries += 1;
                     tracing::error!("Failed to establish connection: {}. Retrying...", err);
-                    if retries >= MAX_RETRIES {
+                    if !retry_forever && retries >= MAX_RETRIES {
                         tracing::error!("Max retries reached. Exiting...");
                         return Err(err);
                     }
-                    tokio::time::sleep(retry_interval).await;
+                    if tokio::time::timeout(retry_interval, cancel.cancelled())
+                        .await
+                        .is_ok()
+                    {
+                        break 'start;
+                    }
                     retry_interval = retry_interval.mul(2).min(MAX_RETRY_INTERVAL);
                 }
             }
@@ -412,6 +486,7 @@ async fn ipc_tcp_forward(
         {
             last_retry_tick!();
             cause_error.replace(err);
+            wait_for_tasks_exit!(task_token);
             continue 'start;
         }
         info!("Handshake done");
@@ -429,6 +504,7 @@ async fn ipc_tcp_forward(
                 tracing::warn!("Try putting stream error: {:#}", err);
                 last_retry_tick!();
                 cause_error.replace(err);
+                wait_for_tasks_exit!(task_token);
                 continue 'start;
             }
         };
@@ -494,6 +570,7 @@ async fn ipc_tcp_forward(
                                         qid.display()
                                     ));
                                     last_retry_tick!();
+                                    wait_for_tasks_exit!(task_token);
                                     continue 'start;
                                 }
 
@@ -534,20 +611,7 @@ async fn ipc_tcp_forward(
         }
     }
 
-    if let Some(mut tasks) = persist_tasks {
-        cancel.cancel();
-        while let Some(res) = tasks.join_next().await {
-            match res {
-                Ok(Ok(_)) => {}
-                Ok(Err(e)) => {
-                    tracing::error!("persist task exited with error: {e:#}");
-                }
-                Err(e) => {
-                    tracing::error!("persist task paniced: {e}")
-                }
-            }
-        }
-    }
+    wait_for_tasks_exit!(task_token);
 
     Ok(())
 }
@@ -585,7 +649,7 @@ async fn ipc_tcp_read(
     task_id: Option<i64>,
     batch_counter: Option<BatchCounter>,
     notifier: crate::TaskNotifySender,
-    persist_component: Option<PersistComponent>,
+    persist_component: Option<PersistComponents>,
 ) -> anyhow::Result<()> {
     // let stream = Arc::new(stream);
     // let reader = stream.clone();
@@ -2238,16 +2302,18 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
 }
 
 #[instrument(skip_all)]
-async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
+async fn ipc_point_reader<R: Read + Send + 'static, W: Write + Send + 'static>(
     pool: &TaosPool,
     ipc_reader: IpcReader<R>,
-    ipc_ack_writer: AckWriter<W>,
+    mut ipc_ack_writer: AckWriter<W>,
     config: Option<OpcModelConfig>,
     target_precision: taos::Precision,
     notifier: crate::TaskNotifySender,
     _ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
+    persist_component: Option<PersistComponent>,
+    cancel: CancellationToken,
 ) -> anyhow::Result<()> {
     let count = Arc::new(AtomicUsize::new(0));
 
@@ -2260,7 +2326,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
 
     async fn parse(
         context: WriterContext,
-        record: Result<Box<dyn IpcMessage>, arrow::error::ArrowError>,
+        record: Result<RecordBatch, arrow::error::ArrowError>,
         metrics: &IpcMetrics,
     ) -> anyhow::Result<usize> {
         let record = record?;
@@ -2268,10 +2334,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
         let taos = context.pool.get().await?;
         let mut count = 0;
         let mut taos = Some(taos);
-        let record = *Box::<dyn Any>::downcast::<PointMessage>(unsafe {
-            std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
-        })
-        .unwrap();
+        let record = PointMessage::new(vec![record.into()]);
         let raw_rows = record.nrows();
         metrics.add_received_messages(raw_rows as u64);
         let n = consume_point_record(
@@ -2293,19 +2356,40 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
         config: config.map(Arc::new),
         target_precision,
     };
-    let ipc_ack_writer = Arc::new(Mutex::new(ipc_ack_writer));
+
+    let (ack_tx, ack_rx) = flume::bounded(1);
+    let mut tasks = tokio::task::JoinSet::new();
+    tasks.spawn_blocking(move || {
+        for ack in ack_rx {
+            let _ = ipc_ack_writer.ack(ack);
+        }
+        anyhow::Ok(())
+    });
     let qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
     // debug_assert!(qid.task_id() > 0);
     // debug_assert!(qid.batch_id() > 0);
-    ipc_reader
-        .into_stream()
-        .for_each_concurrent(48, |record| {
+    let stream = ipc_reader.into_raw_stream_with_capycity(100);
+    let (stream, ack_tx) = match persist_component {
+        None => (Either::Left(stream.map(|v| (v, None))), Some(ack_tx)),
+        Some(component) => {
+            let metrics = component
+                .config
+                .record_metrics
+                .then_some(metrics_arc.clone());
+            let persist_rx = get_stream(
+                component, stream, ack_tx, &cancel, metrics, &mut tasks, true,
+            )?;
+            (Either::Right(persist_rx.into_stream()), None)
+        }
+    };
+    stream
+        .for_each_concurrent(48, |(record, ack_wait_tx)| {
             let context = context.clone();
-            let ipc_ack_writer = ipc_ack_writer.clone();
             let count = count.clone();
             let notifier = notifier.clone();
             let batch_counter = batch_counter.clone();
             let mut qid = qid.clone();
+            let ack_tx = ack_tx.clone();
             debug!("Writing batch");
             let metrics_arc_clone = metrics_arc.clone();
             async move {
@@ -2315,28 +2399,57 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
                 }
                 let metrics = metrics_arc_clone.ipc();
                 metrics.add_received_batches(1);
+                let meta = {
+                    record
+                        .as_ref()
+                        .ok()
+                        .map(|b| {
+                            serde_json::Map::from_iter(
+                                b.schema_ref()
+                                    .metadata()
+                                    .iter()
+                                    .map(|(k, v)| (k.clone(), json!(v))),
+                            )
+                        })
+                        .map(serde_json::Value::from)
+                };
                 let n = parse(context, record, metrics).await;
                 match n {
                     Ok(n) => {
+                        let mut ack = LushAck::ok();
+                        ack.context = meta.map(|m| m.to_string());
                         metrics.add_processed_batches(1);
-                        let _ = ipc_ack_writer.lock().await.write_ok();
+                        if let Some(ack_tx) = ack_tx {
+                            let _ = ack_tx.send_async(ack).await;
+                        } else if let Some(ack_tx) = ack_wait_tx {
+                            let _ = ack_tx.send(ack);
+                        }
                         count.fetch_add(n, Ordering::SeqCst);
                     }
                     Err(err) => {
                         metrics.add_failed_batches(1);
                         tracing::warn!("Writing batch error: {err:#}");
                         let _ = notifier.send(crate::TaskNotify::sink_error(format!("{:#}", err)));
-                        let _ = ipc_ack_writer.lock().await.ack(LushAck {
+                        let ack = LushAck {
                             code: 0,
                             message: Some(err.to_string()),
-                            context: None,
-                        });
+                            context: meta.map(|m| m.to_string()),
+                        };
+                        if let Some(ack_tx) = ack_tx {
+                            let _ = ack_tx.send_async(ack).await;
+                        } else if let Some(ack_tx) = ack_wait_tx {
+                            let _ = ack_tx.send(ack);
+                        }
                     }
                 }
             }
             .in_current_span()
         })
         .await;
+    while let Some(task) = tasks.join_next().await {
+        task.context("Point stream task paniced")?
+            .context("Point stream worker error")?;
+    }
     println!(
         "IPC stream finished, total {} records in this stream",
         count.load(Ordering::SeqCst)
@@ -2612,7 +2725,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     task_id: Option<i64>,
     batch_counter: Option<BatchCounter>,
     notifier: crate::TaskNotifySender,
-    persist_component: Option<PersistComponent>,
+    persist_component: Option<PersistComponents>,
 ) -> anyhow::Result<()> {
     // the queue for transmitting cache and archived data
     let (archive_tx, archive_rx) = flume::bounded(0);
@@ -2712,6 +2825,18 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     drop(taos);
     info!(?stream_type, "Processing stream");
 
+    let schema = ipc_reader.schema();
+    let persist_component = match persist_component {
+        Some(components) => match components.components.get(&schema) {
+            Some(component) => Some(component.clone()),
+            None => {
+                tracing::error!("persist component not found for schema: {schema}");
+                None
+            }
+        },
+        None => None,
+    };
+
     let cancel_clone = cancel.clone();
     let metrics_arc_clone = metrics_arc.clone();
     let future_ipc = async move {
@@ -2762,6 +2887,8 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
                 ipc_error_strategy,
                 metrics_arc_clone.clone(),
                 batch_counter,
+                persist_component,
+                cancel_clone,
             )
             .await
             .inspect_err(|err| {
@@ -3113,13 +3240,11 @@ pub async fn listen_tcp_socket_with_agent(
     // let closed = Arc::new(AtomicBool::new(false));
     // let closed2 = closed.clone();
 
-    let (persist_component, persist_tasks) =
-        match persist_config.map(|config| (with_agent.0, config)) {
-            Some((task_id, config)) => {
-                Some(persist::get_persist(task_id, config, &cancel).await?).unzip()
-            }
-            _ => (None, None),
-        };
+    let tasks_token = cancel.child_token();
+    let (persist_component, persist_tasks) = match persist_config {
+        Some(config) => Some(persist::get_persist(config, &tasks_token).await?).unzip(),
+        _ => (None, None),
+    };
 
     let notify = Arc::new(tokio::sync::Notify::new());
     let notified = notify.clone();
@@ -3223,6 +3348,7 @@ pub async fn listen_tcp_socket_with_agent(
                 }
             }
             if let Some(mut tasks) = persist_tasks {
+                tasks_token.cancel();
                 loop {
                     match tokio::time::timeout(Duration::from_secs(5), tasks.join_next()).await {
                         Ok(None) => break,
@@ -3340,13 +3466,10 @@ pub async fn listen_tcp_socket(
         batch_counter = Some(BatchCounter::new(*task_id as u16).await?);
     };
 
-    let (persist_component, mut persist_tasks) =
-        match task_id.and_then(|id| persist_config.map(|config| (id, config))) {
-            Some((task_id, config)) => {
-                Some(persist::get_persist(task_id, config, &cancel).await?).unzip()
-            }
-            _ => (None, None),
-        };
+    let (persist_component, mut persist_tasks) = match persist_config {
+        Some(config) => Some(persist::get_persist(config, &cancel).await?).unzip(),
+        _ => (None, None),
+    };
 
     let thread = tokio::task::spawn(
         async move {
@@ -3382,7 +3505,7 @@ pub async fn listen_tcp_socket(
                     let notifier = notifier.clone();
                     let notify = notified.clone();
                     let batch_counter = batch_counter.clone();
-                    let persist_component = persist_component.clone();
+                    let persist_components = persist_component.clone();
                     set.spawn(async move {
                         // let dsn: Dsn = "taos:///db2".parse().unwrap();
                         // let pool = TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
@@ -3399,7 +3522,7 @@ pub async fn listen_tcp_socket(
                             task_id,
                             batch_counter,
                             notifier,
-                            persist_component,
+                            persist_components,
                         )
                             .in_current_span()
                             .await;

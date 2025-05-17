@@ -539,6 +539,10 @@ impl<R: Read> IpcReader<R> {
         Ok(Self { parser, reader })
     }
 
+    pub fn schema(&self) -> Arc<Schema> {
+        self.parser.schema.clone()
+    }
+
     pub fn into_stream(self) -> impl Stream<Item = Result<Box<dyn IpcMessage>, ArrowError>>
     where
         R: Send + 'static,

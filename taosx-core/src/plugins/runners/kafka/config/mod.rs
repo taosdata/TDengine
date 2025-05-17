@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 use faststr::FastStr;
+use rdkafka::Offset;
 use taos::{Dsn, Itertools};
 use tracing::debug;
 
@@ -21,6 +22,7 @@ pub struct KafkaTaskConfig {
     pub timeout: i64,
     pub group: String,
     pub topics: Vec<String>,
+    pub seek_to: Option<Offset>,
 
     pub fallback_offset: String,
     pub fetch_max_wait_time: Option<Duration>,
@@ -46,6 +48,9 @@ impl KafkaTaskConfig {
             timeout: Self::parse_timeout(dsn)?,
             group: Self::parse_group(dsn),
             topics: Self::parse_topics(dsn)?,
+            seek_to: utils::parse_key_in_dsn::<bool>(dsn, "seek_to_end")?
+                .filter(|&b| b)
+                .map(|_| Offset::End),
             fallback_offset: Self::parse_fallback_offset(dsn)?,
             fetch_max_wait_time: Self::parse_fetch_max_wait_time(dsn)?,
             fetch_min_bytes: Self::parse_fetch_min_bytes(dsn)?,
@@ -282,6 +287,21 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
+
+    #[test]
+    fn test_parse_seek_to() {
+        let dsn = Dsn::from_str("kafka://:?topics=t&group=g&seek_to_end=true").unwrap();
+        let seek_to = KafkaTaskConfig::from_dsn(&dsn).unwrap().seek_to.unwrap();
+        assert_eq!(Offset::End, seek_to);
+
+        let dsn = Dsn::from_str("kafka://:?topics=t&group=g").unwrap();
+        let seek_to = KafkaTaskConfig::from_dsn(&dsn).unwrap().seek_to;
+        assert!(seek_to.is_none());
+
+        let dsn = Dsn::from_str("kafka://:?topics=t&group=g&seek_to_end=false").unwrap();
+        let seek_to = KafkaTaskConfig::from_dsn(&dsn).unwrap().seek_to;
+        assert!(seek_to.is_none());
+    }
 
     #[test]
     fn test_parse_group() {

@@ -228,7 +228,8 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(start_replica_monitor)
             .service(stop_replica_monitor)
             .service(delete_replica_monitor)
-            .service(backup::get_backup_points);
+            .service(backup::get_backup_points)
+            .service(kafka::seek_to_end);
     }
 }
 
@@ -507,6 +508,7 @@ impl Cli {
                 routes::replica::stop_replica_monitor,
                 routes::replica::delete_replica_monitor,
                 crate::serve::backup::get_backup_points,
+                crate::serve::data_sources::kafka::seek_to_end,
             ),
             tags(
                 (name = "tasks", description = "Task management endpoints"),

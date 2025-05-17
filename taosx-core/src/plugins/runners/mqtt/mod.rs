@@ -70,9 +70,20 @@ pub async fn mqtt_to_taos(
     let config: MqttConfig = from.try_into()?;
     let schema = Arc::new(build_schema(config.topic_pattern.as_ref()));
 
+    let tid = task_id
+        .or(with_agent.as_ref().map(|a| a.0))
+        .context("task id not found")?;
     let persist_config = config.persist_data.as_ref().map(|c| PersistConfig {
-        dir: c.dir.clone(),
-        schema: schema.clone(),
+        record_metrics: true,
+        schemas: HashMap::from_iter([(
+            schema.clone(),
+            c.dir.clone().unwrap_or_else(|| {
+                get_data_dir()
+                    .join("tasks")
+                    .join(tid.to_string())
+                    .join("persist_queue")
+            }),
+        )]),
         batch_size: Some(config.task.batch_size),
         batch_timeout: Some(Duration::from_millis(config.task.batch_timeout as u64)),
         batch_chunk_size: None,

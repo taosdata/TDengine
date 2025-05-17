@@ -2815,7 +2815,6 @@ pub async fn ipc_flat_stream_worker_concurrent(
     archive_tx: Sender<(ArchiveType, RecordBatch)>,
     persist_component: Option<PersistComponent>,
 ) -> anyhow::Result<()> {
-    // tokio::pin!(stream);
     let count = Arc::new(AtomicUsize::new(0));
     let context = WriterContext {
         pool: pool.clone(),
@@ -2835,21 +2834,22 @@ pub async fn ipc_flat_stream_worker_concurrent(
 
     let (stream, ack_tx) = match persist_component {
         None => (Either::Left(stream.map(|v| (v, None))), Some(ack_tx)),
-        Some(persist) => (
-            Either::Right(
-                get_stream(
-                    persist,
-                    stream,
-                    ack_tx,
-                    &cancel,
-                    Some(metrics_arc.clone()),
-                    &mut writer_set,
-                    true,
-                )?
-                .into_stream(),
-            ),
-            None,
-        ),
+        Some(component) => {
+            let metrics = component
+                .config
+                .record_metrics
+                .then_some(metrics_arc.clone());
+            let persist_rx = get_stream(
+                component,
+                stream,
+                ack_tx,
+                &cancel,
+                metrics,
+                &mut writer_set,
+                true,
+            )?;
+            (Either::Right(persist_rx.into_stream()), None)
+        }
     };
 
     writer_set.spawn({

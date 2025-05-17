@@ -407,6 +407,17 @@ fn get_effective_config_path(args: &Args) -> PathBuf {
         .unwrap_or_else(get_default_config_path)
 }
 
+fn log_to_tracing_level(level_filter: &LevelFilter) -> TracingLevelFilter {
+    match level_filter {
+        log::LevelFilter::Off => TracingLevelFilter::OFF,
+        log::LevelFilter::Error => TracingLevelFilter::ERROR,
+        log::LevelFilter::Warn => TracingLevelFilter::WARN,
+        log::LevelFilter::Info => TracingLevelFilter::INFO,
+        log::LevelFilter::Debug => TracingLevelFilter::DEBUG,
+        log::LevelFilter::Trace => TracingLevelFilter::TRACE,
+    }
+}
+
 impl Args {
     pub fn init() -> Result<Args, ArgsError> {
         let args = Args::command().get_matches();
@@ -863,14 +874,7 @@ fn main() -> Result<()> {
     let level_num = matches.get_count("verbose") as i8 - matches.get_count("quiet") as i8;
     level_filter = level_upgrade(level_filter, level_num);
 
-    let tracing_level_filter = match level_filter {
-        log::LevelFilter::Off => TracingLevelFilter::OFF,
-        log::LevelFilter::Error => TracingLevelFilter::ERROR,
-        log::LevelFilter::Warn => TracingLevelFilter::WARN,
-        log::LevelFilter::Info => TracingLevelFilter::INFO,
-        log::LevelFilter::Debug => TracingLevelFilter::DEBUG,
-        log::LevelFilter::Trace => TracingLevelFilter::TRACE,
-    };
+    let tracing_level_filter = log_to_tracing_level(&level_filter);
 
     match args.global.log.as_mut() {
         Some(opts) => {
@@ -905,7 +909,7 @@ fn main() -> Result<()> {
                             return;
                         }
                     };
-                    log_level_reload(event, &config_file, &handle, tracing_level_filter);
+                    log_level_reload(event, &config_file, &handle);
                 }
             })?;
             watcher
@@ -1042,12 +1046,7 @@ fn default_env_filter(
 }
 
 #[instrument(skip_all)]
-fn log_level_reload(
-    event: notify::Event,
-    config_file: &PathBuf,
-    handle: &ReloadHandle,
-    tracing_level_filter: tracing::level_filters::LevelFilter,
-) {
+fn log_level_reload(event: notify::Event, config_file: &PathBuf, handle: &ReloadHandle) {
     if !matches!(
         event.kind,
         EventKind::Modify(ModifyKind::Data(DataChange::Any))
@@ -1068,20 +1067,34 @@ fn log_level_reload(
             }
             match toml::from_str::<Global>(&s) {
                 Ok(args) => {
-                    let Some(loggers) = args.log.and_then(|opts| opts.loggers) else {
-                        tracing::info!("log.loggers config not found, tracing filter won't reload");
+                    let Some(opts) = args.log else {
                         return;
                     };
-                    let mut filter = default_env_filter(tracing_level_filter)
-                        .expect("create default env filter error");
-                    for (k, v) in loggers {
-                        match format!("{k}={v}").parse() {
-                            Ok(directive) => {
-                                filter = filter.add_directive(directive);
+                    if opts.level.is_none() && opts.loggers.is_none() {
+                        return;
+                    }
+                    let level_filter = match opts.level {
+                        Some(level) => log_to_tracing_level(&level),
+                        None => TracingLevelFilter::INFO,
+                    };
+                    let mut filter = match default_env_filter(level_filter) {
+                        Ok(filter) => filter,
+                        Err(e) => {
+                            tracing::error!("create default env filter error: {e}");
+                            return;
+                        }
+                    };
+                    if let Some(loggers) = opts.loggers {
+                        for (k, v) in loggers {
+                            match format!("{k}={v}").parse() {
+                                Ok(directive) => {
+                                    filter = filter.add_directive(directive);
+                                }
+                                Err(e) => tracing::error!("parse logger level {k}={v} error: {e}"),
                             }
-                            Err(e) => tracing::error!("parse logger level {k}={v} error: {e}"),
                         }
                     }
+
                     if let Err(e) = handle.reload(filter) {
                         tracing::error!("reload tracing filter level error: {e}")
                     }

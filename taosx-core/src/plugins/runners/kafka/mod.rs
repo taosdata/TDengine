@@ -28,6 +28,7 @@ use rdkafka::topic_partition_list::TopicPartitionList;
 use rdkafka::types::RDKafkaErrorCode;
 use rdkafka::Offset;
 use scc::HashIndex;
+use serde::Serialize;
 use serde_json::json;
 use taos::Dsn;
 use tokio::task::JoinSet;
@@ -38,7 +39,7 @@ use tracing::{error, instrument, warn, Instrument};
 use taosx_ipc::ack::{AckReaderBuilder, LushAck};
 use taosx_ipc::prelude::ArrowDataType;
 
-use crate::core_metrics::{get_metrics_arc_from_i64, CoreMetrics};
+use crate::core_metrics::{find_metrics_arc, get_metrics_arc_from_i64, CoreMetrics};
 use crate::plugins::dsv::DataSourceValidation;
 use crate::plugins::transform::sample::DsSampleIn;
 use crate::runners::kafka::config::connect::KafkaConnectConfig;
@@ -234,8 +235,61 @@ fn tracing_all_topics(topics: Vec<&str>, consumer: &BaseConsumer) -> anyhow::Res
     Ok(())
 }
 
-#[instrument(skip_all)]
+#[derive(Debug, Serialize)]
+pub struct TopicOffsetInfo {
+    pub topic: String,
+    pub partition: i32,
+    pub low_watermark: i64,
+    pub high_watermark: i64,
+}
 
+pub async fn get_topics_offset(
+    task_id: Option<i64>,
+    from: &Dsn,
+) -> anyhow::Result<Vec<TopicOffsetInfo>> {
+    // kafka task config
+    let config = KafkaTaskConfig::from_dsn(from)?;
+
+    let metrics_arc = find_metrics_arc(task_id)
+        .await
+        .unwrap_or(Arc::new(CoreMetrics::IPC(IpcMetrics::default())));
+
+    let topics = config
+        .topics
+        .iter()
+        .map(|s| s.as_str())
+        .collect::<Vec<&str>>();
+
+    let consumer: LoggingConsumer = config.build_consumer(None, &topics, &metrics_arc).await?;
+
+    let metadata = consumer
+        .fetch_metadata(None, Duration::from_secs(1))
+        .context("failed to load meta data")?;
+
+    let mut topic_offset_ranges = Vec::new();
+    for tp in metadata.topics() {
+        if !topics.contains(&tp.name()) {
+            continue;
+        }
+
+        for partition in tp.partitions() {
+            let (low, high) = consumer
+                .fetch_watermarks(tp.name(), partition.id(), Duration::from_secs(1))
+                .expect("failed to fetch watermarks");
+            let offset = TopicOffsetInfo {
+                topic: tp.name().to_string(),
+                partition: partition.id(),
+                low_watermark: low,
+                high_watermark: high,
+            };
+            topic_offset_ranges.push(offset);
+        }
+    }
+
+    Ok(topic_offset_ranges)
+}
+
+#[instrument(skip_all)]
 pub async fn kafka_to_taos(
     from: Dsn,
     parser: Option<Parser>,
@@ -436,7 +490,7 @@ async fn execute(
     );
 
     // split into sub tasks
-    let sub_tasks = SubTask::build_tasks(config, &notify, &metrics_arc)?;
+    let sub_tasks = SubTask::build_tasks(config, &notify, &metrics_arc).await?;
 
     let schema = Arc::new(build_schema());
 
@@ -613,40 +667,42 @@ async fn execute(
                                 }
                                 warn!(error, instance, "Try to rebuild consumer {idx}");
 
-                                consumer = Arc::into_inner(context)
-                                    .map_or_else(
-                                        || {
-                                            config.build_consumer(
-                                                instance.as_deref(),
-                                                &topics
-                                                    .iter()
-                                                    .map(|s| s.as_str())
-                                                    .collect::<Vec<&str>>(),
-                                                &metrics,
-                                            )
-                                        },
-                                        |context| {
-                                            config.build_consumer_with_context(
-                                                instance.as_deref(),
-                                                &topics
-                                                    .iter()
-                                                    .map(|s| s.as_str())
-                                                    .collect::<Vec<&str>>(),
-                                                context,
-                                            )
-                                        },
-                                    )
-                                    .with_context(|| {
-                                        format!("{joins} loop to rebuild consumer {idx} error")
-                                    })?;
+                                consumer = match Arc::into_inner(context) {
+                                    Some(context) => config
+                                        .build_consumer_with_context(
+                                            instance.as_deref(),
+                                            &topics
+                                                .iter()
+                                                .map(|s| s.as_str())
+                                                .collect::<Vec<&str>>(),
+                                            context,
+                                        )
+                                        .await
+                                        .with_context(|| {
+                                            format!("{joins} loop to rebuild consumer {idx} error")
+                                        })?,
+                                    None => config
+                                        .build_consumer(
+                                            instance.as_deref(),
+                                            &topics
+                                                .iter()
+                                                .map(|s| s.as_str())
+                                                .collect::<Vec<&str>>(),
+                                            &metrics,
+                                        )
+                                        .await
+                                        .with_context(|| {
+                                            format!("{joins} loop to rebuild consumer {idx} error")
+                                        })?,
+                                };
 
                                 notify
                                     .send(crate::TaskNotify::info(instance.as_deref().map_or_else(
                                         || format!("Rebuild consumer {idx}"),
                                         |instance| {
                                             format!(
-                                        "Rebuild consumer {idx} with instance id {instance}"
-                                    )
+                                                "Rebuild consumer {idx} with instance id {instance}"
+                                            )
                                         },
                                     )))
                                     .context("Task logging listener seems closed")?;
@@ -682,7 +738,7 @@ struct SubTask {
 }
 
 impl SubTask {
-    pub fn build_tasks(
+    pub async fn build_tasks(
         config: KafkaTaskConfig,
         _notify: &crate::TaskNotifySender,
         metrics: &Arc<CoreMetrics>,
@@ -761,11 +817,13 @@ impl SubTask {
             } else {
                 None
             };
-            let consumer = config.build_consumer(
-                instance.as_deref(),
-                &topics.iter().map(|s| s.as_str()).collect::<Vec<&str>>(),
-                metrics,
-            )?;
+            let consumer = config
+                .build_consumer(
+                    instance.as_deref(),
+                    &topics.iter().map(|s| s.as_str()).collect::<Vec<&str>>(),
+                    metrics,
+                )
+                .await?;
             let topics = topics.clone();
 
             let sub_task = SubTask {
@@ -1198,6 +1256,9 @@ async fn poll_message<'a>(
     const MAX_NON_MESSAGE_WARNING_INTERVAL: u64 = 480;
     const MAX_BACKOFF: u64 = 16;
     let mut last_warning_interval = INITIAL_NON_MESSAGE_WARNING_INTERVAL;
+
+    let mut seek_to = consumer.context().seek_to;
+
     loop {
         tracing::trace!("Kafka consumer-{} polling by ready trunks", index);
         tokio::select! {
@@ -1211,11 +1272,25 @@ async fn poll_message<'a>(
                 return Ok(ExitStatus::Timeout);
             }
             chunk = ready_chunks.next() => {
-                // if RANDOM_ERROR_ATOMIC.fetch_add(1, std::sync::atomic::Ordering::SeqCst) % 32 == 0 {
-                //     bail!("Random error");
-                // };
                 match chunk {
                     Some(Ok(chunk)) => {
+                        if let Some(to) = seek_to {
+                            let assigns = consumer.assignment().expect("failed to get assignment");
+                            for a in assigns.elements() {
+                                tracing::info!(
+                                    "seeking topic: {}, partition: {} to offset: {:?}",
+                                    a.topic(),
+                                    a.partition(),
+                                    to
+                                );
+                                consumer
+                                    .seek(a.topic(), a.partition(), to, Duration::from_secs(1))
+                                    .expect("failed to seek");
+                            }
+                            seek_to = None;
+                            continue;
+                        }
+
                         backoff = 1;
                         last_message = Instant::now();
                         last_warning_interval = INITIAL_NON_MESSAGE_WARNING_INTERVAL;
@@ -1325,9 +1400,10 @@ struct CustomContext {
     sem: tokio::sync::Semaphore,
     /// Metric 1: joins, times that a retryable consumer joins to the group.
     joins: AtomicUsize,
-    rebalances: AtomicUsize,
+    rebalanced_count: AtomicUsize,
     commits: AtomicUsize,
     metrics: Arc<CoreMetrics>,
+    seek_to: Option<Offset>,
 }
 
 impl CustomContext {
@@ -1344,9 +1420,10 @@ impl CustomContext {
             offsets_cache: scc::HashIndex::with_capacity(1),
             sem: tokio::sync::Semaphore::new(1),
             joins: AtomicUsize::new(0),
-            rebalances: AtomicUsize::new(0),
+            rebalanced_count: AtomicUsize::new(0),
             commits: AtomicUsize::new(0),
             metrics,
+            seek_to: None,
         }
     }
 
@@ -1407,7 +1484,7 @@ impl ConsumerContext for CustomContext {
             }
         }
         let rebalances = self
-            .rebalances
+            .rebalanced_count
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         tracing::info!(rebalances, "Post rebalance {:?}", rebalance);
         self.sem.add_permits(1);
@@ -1465,20 +1542,21 @@ fn is_tplist_empty(tpl: &TopicPartitionList) -> bool {
 type LoggingConsumer = StreamConsumer<CustomContext>;
 
 impl KafkaTaskConfig {
-    fn build_consumer(
+    async fn build_consumer(
         &self,
         instance: Option<&str>,
         topics: &[&str],
         metrics: &Arc<CoreMetrics>,
     ) -> anyhow::Result<LoggingConsumer> {
         self.build_consumer_with_context(instance, topics, CustomContext::new(metrics.clone()))
+            .await
     }
 
-    fn build_consumer_with_context(
+    async fn build_consumer_with_context(
         &self,
         instance: Option<&str>,
         topics: &[&str],
-        context: CustomContext,
+        mut context: CustomContext,
     ) -> anyhow::Result<LoggingConsumer> {
         let mut client = build_client_config(self.connect.clone()).unwrap();
         // Client identifier, default "rdkafka".
@@ -1579,6 +1657,10 @@ impl KafkaTaskConfig {
             None => {
                 tracing::info!(joins, "Consumer begin join");
             }
+        }
+
+        if let Some(offset) = &self.seek_to {
+            context.seek_to = Some(*offset);
         }
 
         let consumer: LoggingConsumer = client
@@ -1726,11 +1808,24 @@ fn build_client_config(config: KafkaConnectConfig) -> anyhow::Result<ClientConfi
 
 #[cfg(test)]
 mod tests {
+    use std::env;
     use std::str::FromStr;
-
     use taos::IntoDsn;
 
     use super::*;
+
+    /// Example:
+    /// ```shell
+    /// KAFKA_DSN="kafka://192.168.1.45:9092?topics=zyyang&group=test" cargo nextest run -p taosx-core test_get_topics_offset --no-capture --retries 0
+    /// ```
+    #[tokio::test]
+    async fn test_get_topics_offset() {
+        if let Ok(kafka_dsn) = env::var("KAFKA_DSN") {
+            let dsn = kafka_dsn.into_dsn().unwrap();
+            let offsets = get_topics_offset(None, &dsn).await.unwrap();
+            dbg!(offsets);
+        }
+    }
 
     #[tokio::test]
     async fn test_is_valid() {

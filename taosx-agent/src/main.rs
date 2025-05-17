@@ -136,6 +136,8 @@ pub struct Args {
 
     // manually specified port range, eg. 9000-9099
     ports: Option<RangeInclusive<u16>>,
+
+    keep_online: bool,
 }
 
 #[config]
@@ -186,6 +188,9 @@ pub struct ConfigArgs {
 
     #[clap(flatten)]
     client_port_range: Option<ClientPortRange>,
+
+    #[clap(long, action = clap::ArgAction::SetTrue)]
+    keep_online: Option<bool>,
 }
 
 #[config]
@@ -439,6 +444,7 @@ impl Args {
             mut log,
             client_port_range,
             ca,
+            keep_online,
             ..
         } = ConfigArgs::with_layers(&layers)?;
 
@@ -505,6 +511,7 @@ impl Args {
             log,
             in_memory_cache_capacity,
             ports,
+            keep_online: keep_online.unwrap_or_default(),
         })
     }
 
@@ -633,6 +640,9 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
                         break;
                     } else {
                         tracing::error!("Connection closed. Retry in 5 seconds");
+                        if args.keep_online {
+                            continue
+                        }
                         if let Err(err) = error_gate.tick(err) {
                             tracing::info!("Connection failed: {err:#}");
                             if tasks.is_empty() {
@@ -846,6 +856,7 @@ fn print_effective_config(log_keep_days: i64, args: &Args) -> Result<(), std::io
     }
     writeln!(cursor, "{:<w$}{:<w2$}{}", ' ', "log_keep_days",  log_keep_days)?;
     writeln!(cursor, "{:<w$}{:<w2$}{}", ' ', "compression",  compression)?;
+    writeln!(cursor, "{:<w$}{:<w2$}{}", ' ', "keep_online",  args.keep_online)?;
     write!(cursor, "================================================================")?;
     tracing::info!("{}", String::from_utf8_lossy(&cache));
     Ok(())

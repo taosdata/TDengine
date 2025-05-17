@@ -836,7 +836,7 @@ impl TaskController {
     }
 
     #[instrument(skip_all, fields(task.id = task.id,task.agent = task.via))]
-    async fn start_task(&self, task: &Task) -> anyhow::Result<()> {
+    pub async fn start_task(&self, task: &Task) -> anyhow::Result<()> {
         let from: Dsn = task
             .from
             .parse()
