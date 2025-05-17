@@ -15,6 +15,8 @@ duration_lists = [
 ]
 
 columns = ["ts_col", "col1", "col2", "tag1", "tag2", "tag3"]
+partition_columns = ["ts_col", "tag1", "tag2", "tag3", "tag4", "tbname"]
+placeholders = ["_tcurrent_ts", "_twstart", "_twend", "_twduration", "_twrownum", "_tgrpid", "_tlocaltime", "%%1", "%%2", "%%3", "%%tbname", "%%trows"]
 out_columns = ["ts_col", "col1", "col2", "col3", "col4", "col5", "col6"]
 out_tags = ["tag1", "tag2", "tag3", "tag4", "tag5"]
 counts = [10, 100]
@@ -40,6 +42,9 @@ into_option_list = [
     " INTO exist_sub_table",
     " INTO exist_normal_table"
 ]
+if_not_exists_opts = ["", " IF NOT EXISTS"]
+db_name_list = ["", "create_stream_db.", "non_exists_db."]
+trigger_table_list = ["trigger_table", "trigger_stable", "trigger_ctable", "non_exists_table", ""]
 
 def random_from_list(lst, n=1):
     """Return n random elements from a list."""
@@ -93,13 +98,13 @@ def generate_trigger_section():
     # SESSION
     for col in columns:
         dur = random_from_list(duration_lists)
-        triggers.append(f"SESSION({col}, '{dur}')")
-        triggers.append(f"SESSION({col}, {dur})")
+        triggers.append(f" SESSION({col}, '{dur}') ")
+        triggers.append(f" SESSION({col}, {dur}) ")
     # STATE_WINDOW
     for col in columns:
-        triggers.append(f"STATE_WINDOW({col})")
+        triggers.append(f" STATE_WINDOW({col}) ")
         dur = random_from_list(duration_lists)
-        triggers.append(f"STATE_WINDOW({col}) TRUE_FOR('{dur}')")
+        triggers.append(f" STATE_WINDOW({col}) TRUE_FOR('{dur}') ")
     # INTERVAL + SLIDING
     max_sliding_count = 20
     for _ in range(0, max_sliding_count + 1):
@@ -107,24 +112,24 @@ def generate_trigger_section():
         offset = random_from_list(duration_lists)
         slide = random_from_list(duration_lists)
         slide_offset = random_from_list(duration_lists)
-        int_part = f"INTERVAL('{interval}')"
-        int_part_with_offset = f"INTERVAL('{interval}', '{offset}')"
-        slide_part = f"SLIDING('{slide}')"
-        slide_part_with_offset = f"SLIDING('{slide}', '{slide_offset}')"
+        int_part = f" INTERVAL('{interval}') "
+        int_part_with_offset = f" INTERVAL('{interval}', '{offset}') "
+        slide_part = f" SLIDING('{slide}') "
+        slide_part_with_offset = f" SLIDING('{slide}', '{slide_offset}') "
         triggers.extend([
             slide_part,
             slide_part_with_offset,
-            f"{int_part} {slide_part}",
-            f"{int_part} {slide_part_with_offset}",
-            f"{int_part_with_offset} {slide_part}",
-            f"{int_part_with_offset} {slide_part_with_offset}"
+            f" {int_part} {slide_part} ",
+            f" {int_part} {slide_part_with_offset} ",
+            f" {int_part_with_offset} {slide_part} ",
+            f" {int_part_with_offset} {slide_part_with_offset} "
         ])
     # EVENT_WINDOW
     max_event_count = 20
     for _ in range(0, max_event_count + 1):
         start = generate_logical_condition()
         end = generate_logical_condition()
-        ew = f"EVENT_WINDOW(START WITH {start} END WITH {end})"
+        ew = f" EVENT_WINDOW(START WITH {start} END WITH {end}) "
         triggers.append(ew)
     # COUNT_WINDOW
     max_col_len = 3
@@ -143,30 +148,23 @@ def generate_trigger_section():
                         parts.append(str(slide))
                     if cols:
                         parts.extend(cols)
-                    triggers.append(f"COUNT_WINDOW({', '.join(parts)})")
+                    triggers.append(f" COUNT_WINDOW({', '.join(parts)}) ")
     # PERIOD
     max_period_count = 20
     for _ in range(0, max_period_count + 1):
         period = random_from_list(duration_lists)
         offset = random_from_list(duration_lists)
-        triggers.append(f"PERIOD('{period}', '{offset}')")
-        triggers.append(f"PERIOD('{period}')")
+        triggers.append(f" PERIOD('{period}', '{offset}') ")
+        triggers.append(f" PERIOD('{period}') ")
     return triggers
 
 def generate_partition_section():
-    max_partition_len = 3       # Maximum number of columns (including duplicates)
-    max_samples_per_len = 5     # Number of samples for each length
-    partition_clauses = []
-    # Enumerate different lengths, allow duplicate combinations
-    for length in range(1, max_partition_len + 1):
-        all_combos = list(product(columns, repeat=length))
-        sampled = random.sample(all_combos, min(len(all_combos), max_samples_per_len))
-        for combo in sampled:
-            clause = f"PARTITION BY {', '.join(combo)}"
-            partition_clauses.append(clause)
-    # Add empty clause (no PARTITION BY)
-    partition_clauses.append("")
-    return partition_clauses
+    max_partition_len = 3  # Maximum number of columns (including duplicates)
+    length = random_int(1, max_partition_len)
+    combo = tuple(random.choices(partition_columns, k=length))  # allow duplicates
+    if random_bool(0.2):  # 20% generate empty clause
+        return ""
+    return f" PARTITION BY {', '.join(combo)} "
 
 def generate_event_types():
     types = [random_from_list(event_types_pool) for _ in range(random_int(1, 3))]
@@ -191,11 +189,11 @@ def random_option():
     return option_type()
 
 def generate_options_section(n=10, max_options=10):
-    options_clauses = []
+    options_clauses = [""]
     for _ in range(n):
         count = random_int(1, max_options)
         options = [random_option() for _ in range(count)]
-        clause = f"OPTIONS({'|'.join(options)})"
+        clause = f" OPTIONS({'|'.join(options)}) "
         options_clauses.append(clause)
     return options_clauses
 
@@ -204,7 +202,7 @@ def pick_random_combo(source_list, max_len):
     return [random_from_list(source_list) for _ in range(length)] if length > 0 else []
 
 def generate_notif_def_section(
-        total=5, max_urls=2, max_events=2, max_options=2, max_condition_depth=2
+        total, max_urls=2, max_events=2, max_options=2, max_condition_depth=2
 ):
     result = []
     for _ in range(total):
@@ -212,28 +210,42 @@ def generate_notif_def_section(
         # optional NOTIFY(url [, ...])
         notify_urls = pick_random_combo(urls, max_urls)
         if notify_urls:
-            parts.append(f"NOTIFY({', '.join(notify_urls)})")
+            parts.append(f" NOTIFY({', '.join(notify_urls)}) ")
         # optional ON (event_types)
         selected_events = pick_random_combo(event_types, max_events)
         if selected_events:
-            parts.append(f"ON ({'|'.join(selected_events)})")
+            parts.append(f" ON ({'|'.join(selected_events)}) ")
         # optional WHERE condition (using generate_logical_condition)
         if random_bool():
             condition = generate_logical_condition(max_depth=max_condition_depth)
-            parts.append(f"WHERE {condition}")
+            parts.append(f" WHERE {condition} ")
         # optional NOTIFY_OPTIONS(...)
         selected_options = pick_random_combo(notify_option_list, max_options)
         if selected_options:
-            parts.append(f"NOTIFY_OPTIONS({'|'.join(selected_options)})")
+            parts.append(f" NOTIFY_OPTIONS({'|'.join(selected_options)}) ")
         result.append(" ".join(parts))
     return result
 
 string_literals = ["'_v1'", "'_2024'", "'_tag'", "'_out'", "'_ts'", "'_X'"]
+numeric_literals = [str(i) for i in range(0, 10)]
+arithmetic_ops = ['+', '-', '*', '/', '%']
+numeric_func_names = ['abs', 'acos', 'cos', 'asin', 'sin', 'log', 'floor', 'ceil', 'round']
+string_func_names = [
+    'concat', 'upper', 'lower', 'length', 'substr',
+    'replace', 'ltrim', 'rtrim', 'trim'
+]
 
 def random_expr_atom():
     return random.choices(
         population=columns + string_literals,
         weights=[7] * len(columns) + [3] * len(string_literals),
+        k=1
+    )[0]
+
+def random_numeric_atom():
+    return random.choices(
+        population=columns + numeric_literals,
+        weights=[7] * len(columns) + [3] * len(numeric_literals),
         k=1
     )[0]
 
@@ -266,25 +278,44 @@ def gen_string_func(func, expr=None):
     else:
         raise ValueError(f"Unknown string func: {func}")
 
-string_func_names = [
-    'concat', 'upper', 'lower', 'length', 'substr',
-    'replace', 'ltrim', 'rtrim', 'trim'
-]
+def gen_numeric_expr(depth=0, max_depth=3):
+    if depth >= max_depth or random_bool(0.3):
+        return random_numeric_atom()
+    if random_bool(0.4):
+        # function
+        func = random_from_list(numeric_func_names)
+        return gen_numeric_func(func, gen_numeric_expr(depth + 1, max_depth))
+    else:
+        # operators
+        left = gen_numeric_expr(depth + 1, max_depth)
+        op = random_from_list(arithmetic_ops)
+        right = gen_numeric_expr(depth + 1, max_depth)
+        return f"({left} {op} {right})"
 
-def generate_tbname_expr(max_depth=3):
-    def gen_nested_expr(depth):
-        if depth >= max_depth or random_bool(0.3):
-            return random_expr_atom()
-        func = random_from_list(string_func_names)
-        inner = gen_nested_expr(depth + 1)
-        return gen_string_func(func, inner)
-    return gen_nested_expr(0)
+def gen_numeric_func(func, expr=None):
+    expr = expr or gen_numeric_expr(depth=2)
+    return f"{func}({expr})"
+
+def gen_string_expr(depth, max_depth):
+    if depth >= max_depth or random_bool(0.3):
+        return random_expr_atom()
+    func = random_from_list(string_func_names)
+    inner = gen_string_expr(depth + 1, max_depth)
+    return gen_string_func(func, inner)
+
+def generate_tag_expr(max_depth=3):
+    if random_bool(0.5):
+        # generate string type expression
+        return gen_string_expr(0, max_depth)
+    else:
+        # generate numeric type expression
+        return gen_numeric_expr(depth=0, max_depth=max_depth)
 
 def generate_output_subtable(max_depth=3, include_probability=0.7):
     if not random_bool(include_probability):
         return ""  # Do not include OUTPUT_SUBTABLE
-    expr = generate_tbname_expr(max_depth=max_depth)
-    return f"OUTPUT_SUBTABLE({expr})"
+    expr = gen_string_expr(0, max_depth)
+    return f" OUTPUT_SUBTABLE({expr}) "
 
 def generate_column_section_base(out_col_list, include_probability=0.8, max_cols=6, with_primary_key_prob=0.6):
     if not random_bool(include_probability):
@@ -299,7 +330,7 @@ def generate_column_section_base(out_col_list, include_probability=0.8, max_cols
             col_defs.append(f"{col} PRIMARY KEY")
         else:
             col_defs.append(col)
-    return f"({', '.join(col_defs)})"
+    return f" ({', '.join(col_defs)}) "
 
 def generate_column_list_section(include_probability=0.8, max_cols=6, with_primary_key_prob=0.6):
     return generate_column_section_base(out_columns, include_probability, max_cols, with_primary_key_prob)
@@ -318,17 +349,22 @@ def generate_tags_clause(include_probability=0.7, max_tags=4, allow_comment=True
     for tag in selected_tags:
         type_name = random_from_list(out_types)
         comment_str = f" COMMENT '{random_string(6)}'" if allow_comment and random_bool(0.5) else ""
-        expr = generate_tbname_expr(max_depth=2)
+        expr = generate_tag_expr(max_depth=2)
         tag_defs.append(f"{tag} {type_name}{comment_str} AS {expr}")
-    return f"TAGS ({', '.join(tag_defs)})"
+    return f" TAGS ({', '.join(tag_defs)}) "
+
+def generate_trigger_from_table_section():
+    trigger_from_table = []
+    for db_name in db_name_list:
+        for table_name in trigger_table_list:
+            trigger_from_table.append(f" FROM {db_name}{table_name} ")
+    return trigger_from_table
 
 def gen_create_stream_variants():
     base_template = "CREATE STREAM{if_not_exists} {stream_name}{stream_options}{into_clause}{output_subtable}{columns}{tags}{as_subquery};"
-    if_not_exists_opts = ["", " IF NOT EXISTS"]
-    as_subquery_opts = ["", " AS SELECT * FROM some_table"]
-    db_name_list = ["", "create_stream_db.", "non_exists_db."]
+    as_subquery_opts = [" AS SELECT * FROM query_table", ""]
     trigger_types = generate_trigger_section()
-    partition_clauses = generate_partition_section()
+    trigger_tables = generate_trigger_from_table_section()
     stream_options = generate_options_section(10, max_options=10)
     notify_options = generate_notif_def_section(total=10)
     sql_variants = []
@@ -337,28 +373,30 @@ def gen_create_stream_variants():
             if_not_exists_opts, db_name_list, into_option_list, as_subquery_opts
     ):
         for tritype in trigger_types:
-            for paritem in partition_clauses:
+            for trigger_table in trigger_tables:
                 for stream_opt in stream_options:
                     for notify in notify_options:
-                        #sql = base_template.format(
-                        #   if_not_exists=if_not_exists,
-                        #   stream_name=dbnm + "stream_" + str(stream_index) + "\n",
-                        #   stream_options=" " + tritype  + "\n" + " " + paritem + " "  + "\n" + stream_opt + " "  + "\n" + notify  + "\n",
-                        #   into_clause=into + "\n",
-                        #   output_subtable=" " + generate_output_subtable() + " " + "\n",
-                        #   columns= generate_column_list_section() + "\n",
-                        #   tags= generate_tags_clause() + "\n",
-                        #   as_subquery=as_subquery + "\n"
-                        #)
-                        #sql_variants.append(sql.strip())
+                        sql = base_template.format(
+                           if_not_exists=if_not_exists,
+                           stream_name=dbnm + "stream_" + str(stream_index),
+                           stream_options=tritype + generate_partition_section() + stream_opt + notify + trigger_table,
+                           into_clause=into,
+                           output_subtable=generate_output_subtable(),
+                           columns=generate_column_list_section(),
+                           tags=generate_tags_clause() + " ",
+                           as_subquery=as_subquery
+                        )
+                        sql_variants.append(sql.strip())
                         stream_index += 1
-                        #if stream_index > 100000:
-                        #    return sql_variants
+                        if stream_index > 100000:
+                            return sql_variants
     print(stream_index)
     return sql_variants
 
-variants = generate_trigger_section()
-for variant in variants:
-    print(variant)
+
+sql = gen_create_stream_variants()
+for i in range(10000):
+    print("======================")
+    print(sql[i])
 
 
