@@ -183,7 +183,7 @@ class StreamComputingTest(TDCase):
         self.tag_count = len(self.tag_filter_des_select_elm.split(","))
 
         self.state_window_range = list()
-        self.checkpoint_time = 180
+        self.checkpoint_time = 300
         self.stage_report_time = 5
 
         self.c1_half_bf = 0
@@ -4776,6 +4776,8 @@ class StreamComputingTest(TDCase):
         self.tdSql.query(f'select distinct(`stage`) from information_schema.ins_stream_tasks')
         old_stage = int(self.tdSql.query_data[0][0])
         self.taosd.update_cfg('/tmp', self.taosd_setting, {"supportVnodes": self.cfg["boundary"][-1]}, self.endpoint, True)
+        for stream_name in [f'{self.stb_name}{self.stream_suffix}', f'{self.ctb_name}{self.stream_suffix}', f'{self.tb_name}{self.stream_suffix}']:
+            self.wait_checkpoint_ready(stream_name)
          # insert data
         count = self.range_count
         step_count = self.range_count
