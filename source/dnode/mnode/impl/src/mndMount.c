@@ -762,29 +762,6 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
 }
 #endif
 
-static int32_t mndRetrieveMountInfo(SMnode *pMnode, SRpcMsg *pMsg, SCreateMountReq *pReq, SMountInfo **ppMountInfo) {
-  int32_t    code = 0, lino = 0;
-  SDnodeObj *pDnode = mndAcquireDnode(pMnode, pReq->dnodeIds[0]);
-  if (pDnode == NULL) TAOS_RETURN(terrno);
-  if (pDnode->offlineReason != DND_REASON_ONLINE) {
-    mndReleaseDnode(pMnode, pDnode);
-    TAOS_RETURN(TSDB_CODE_DNODE_OFFLINE);
-  }
-  SEpSet epSet = mndGetDnodeEpset(pDnode);
-  mndReleaseDnode(pMnode, pDnode);
-
-  int32_t bufLen = 0;
-  void   *pBuf = mndBuildRetrieveMountPathReq(pMnode, pMsg, pReq->mountName, pReq->mountPaths[0], pReq->dnodeIds[0], &bufLen);
-  if (pBuf == NULL) TAOS_RETURN(terrno);
-
-  SRpcMsg rpcMsg = {.msgType = TDMT_DND_RETRIEVE_MOUNT_PATH, .pCont = pBuf, .contLen = bufLen};
-  TAOS_CHECK_EXIT(tmsgSendReq(&epSet, &rpcMsg));
-
-  pMsg->info.handle = NULL;  // disable auto rsp to client
-_exit:
-  TAOS_RETURN(code);
-}
-
 static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SCreateMountReq *pCreate, SUserObj *pUser) {
   int32_t   code = 0, lino = 0;
   SUserObj  newUserObj = {0};
@@ -930,7 +907,6 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
   SMnode         *pMnode = pReq->info.node;
   SMountObj      *pObj = NULL;
   SUserObj       *pUser = NULL;
-  SMountInfo     *pMountInfo = NULL;
   SCreateMountReq createReq = {0};
 
   TAOS_CHECK_EXIT(tDeserializeSCreateMountReq(pReq->pCont, pReq->contLen, &createReq));
@@ -958,7 +934,7 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
   TAOS_CHECK_EXIT(grantCheck(TSDB_GRANT_MOUNT));  // TODO: implement when the plan is ready
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
 
-  TAOS_CHECK_EXIT(mndRetrieveMountInfo(pMnode, pReq, &createReq, &pMountInfo));
+  TAOS_CHECK_EXIT(mndRetrieveMountInfo(pMnode, pReq, &createReq));
 
   // TAOS_CHECK_EXIT(mndCreateMount(pMnode, pReq, &createReq, pUser));
   // if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -980,6 +956,29 @@ _exit:
   mndReleaseUser(pMnode, pUser);
   tFreeSCreateMountReq(&createReq);
 
+  TAOS_RETURN(code);
+}
+
+static int32_t mndRetrieveMountInfo(SMnode *pMnode, SRpcMsg *pMsg, SCreateMountReq *pReq) {
+  int32_t    code = 0, lino = 0;
+  SDnodeObj *pDnode = mndAcquireDnode(pMnode, pReq->dnodeIds[0]);
+  if (pDnode == NULL) TAOS_RETURN(terrno);
+  if (pDnode->offlineReason != DND_REASON_ONLINE) {
+    mndReleaseDnode(pMnode, pDnode);
+    TAOS_RETURN(TSDB_CODE_DNODE_OFFLINE);
+  }
+  SEpSet epSet = mndGetDnodeEpset(pDnode);
+  mndReleaseDnode(pMnode, pDnode);
+
+  int32_t bufLen = 0;
+  void   *pBuf = mndBuildRetrieveMountPathReq(pMnode, pMsg, pReq->mountName, pReq->mountPaths[0], pReq->dnodeIds[0], &bufLen);
+  if (pBuf == NULL) TAOS_RETURN(terrno);
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_DND_RETRIEVE_MOUNT_PATH, .pCont = pBuf, .contLen = bufLen};
+  TAOS_CHECK_EXIT(tmsgSendReq(&epSet, &rpcMsg));
+
+  pMsg->info.handle = NULL;  // disable auto rsp to client
+_exit:
   TAOS_RETURN(code);
 }
 
