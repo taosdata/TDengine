@@ -13297,6 +13297,7 @@ static int32_t createStreamReqSetDefaultTag(STranslateContext* pCxt, SCreateStre
         pTagDef->dataType.bytes = pExpr->resType.bytes;
         pTagDef->dataType.precision = pExpr->resType.precision;
         pTagDef->dataType.scale = pExpr->resType.scale;
+        break;
       }
       default: {
         PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "partition must be tbname or tag"));
