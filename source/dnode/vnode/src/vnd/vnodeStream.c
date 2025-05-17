@@ -751,8 +751,8 @@ static int32_t createTaskForLastTs(SVnode* pVnode, SStreamReaderTaskInner** pTas
 
   BUILD_OPTION(options, sStreamReaderInfo, true, TSDB_ORDER_DESC, INT64_MIN, INT64_MAX, schemas, true,
                STREAM_SCAN_GROUP_ONE_BY_ONE, 0);
+  schemas = NULL;
   STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, pTask, NULL, NULL));
-
 end:
   taosArrayDestroy(schemas);
   return code;
@@ -770,6 +770,7 @@ static int32_t createTaskForFirstTs(SVnode* pVnode, SStreamReaderTaskInner** pTa
 
   BUILD_OPTION(options, sStreamReaderInfo, true, TSDB_ORDER_ASC, start, INT64_MAX, schemas, true,
                STREAM_SCAN_GROUP_ONE_BY_ONE, 0);
+  schemas = NULL;
   STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, pTask, NULL, sStreamReaderInfo->groupIdMap));
 
 end:
@@ -792,6 +793,7 @@ static int32_t createTaskForTsdbMeta(SVnode* pVnode, SStreamReaderTaskInner** pT
   STREAM_CHECK_RET_GOTO(qStreamBuildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 4))     // nrows
 
   BUILD_OPTION(options, sStreamReaderInfo, true, TSDB_ORDER_ASC, start, INT64_MAX, schemas, true, STREAM_SCAN_ALL, 0);
+  schemas = NULL;
 
   STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, pTask, NULL, sStreamReaderInfo->groupIdMap));
 
@@ -1286,10 +1288,11 @@ static int32_t vnodeProcessStreamGroupColValueReq(SVnode* pVnode, SRpcMsg* pMsg,
   pGroupInfo.gInfo = *gInfo;
 
   size = tSerializeSStreamGroupInfo(NULL, 0, &pGroupInfo);
+  STREAM_CHECK_CONDITION_GOTO(size < 0, size);
   buf = rpcMallocCont(size);
   STREAM_CHECK_NULL_GOTO(buf, terrno);
-  code = tSerializeSStreamGroupInfo(buf, size, &pGroupInfo);
-
+  size = tSerializeSStreamGroupInfo(buf, size, &pGroupInfo);
+  STREAM_CHECK_CONDITION_GOTO(size < 0, size);
 end:
   if (code != 0) {
     rpcFreeCont(buf);
