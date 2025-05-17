@@ -104,12 +104,6 @@ struct TableNameConfig {
 };
 
 
-
-
-
-
-
-
 struct TagsConfig {
     std::string source_type; // 数据来源类型：generator 或 csv
     struct Generator {
@@ -124,7 +118,36 @@ struct TagsConfig {
 };
 
 
+struct TimestampGeneratorConfig {
+    std::string start_timestamp = "now";
+    std::string timestamp_precision = "ms";
+    int timestamp_step = 1;
+};
 
+
+struct ColumnsConfig {
+    std::string source_type; // 数据来源类型：generator 或 csv
+    struct Generator {
+        std::vector<SuperTableInfo::Column> schema; // 普通列的 Schema 定义
+        struct TimestampStrategy {
+            TimestampGeneratorConfig generator_config;
+        } timestamp_strategy;
+    } generator;
+    struct CSV {
+        std::string file_path;
+        bool has_header = true;
+        std::string delimiter = ",";
+        struct TimestampStrategy {
+            std::string strategy_type = "original";
+            struct OriginalConfig {
+                int column_index = 0;
+                std::string precision = "ms";
+                std::string offset_config;
+            } original_config;
+            TimestampGeneratorConfig generator_config;
+        } timestamp_strategy;
+    } csv;
+};
 
 
 struct ChildTableInfo {
@@ -171,27 +194,121 @@ struct CreateChildTableConfig {
 };
 
 
+
 struct InsertDataConfig {
     struct Source {
-        std::string table_name;
-        std::string source_type;
-        // 其他字段...
-    };
-    struct Target {
-        std::string database_name;
-        std::string super_table_name;
-        // 其他字段...
-    };
-    struct Control {
-        int concurrency;
-        int batch_size;
-        // 其他字段...
-    };
+        TableNameConfig table_name; // 子表名称配置
+        TagsConfig tags;            // 标签列配置
+        ColumnsConfig columns;      // 普通列配置
+    } source;
 
-    Source source;
-    Target target;
-    Control control;
+    struct Target {
+        std::string timestamp_precision ;   // 时间戳精度：ms、us、ns
+        std::string target_type; // 数据目标类型：tdengine 或 file_system
+        struct TDengine {
+            ConnectionInfo connection_info;
+            DatabaseInfo database_info;
+            SuperTableInfo super_table_info;
+        } tdengine;
+        struct FileSystem {
+            std::string output_dir;
+            std::string file_prefix = "data";
+            std::string timestamp_format;
+            std::string timestamp_interval = "1d";
+            bool include_header = true;
+            std::string tbname_col_alias = "device_id";
+            std::string compression_level = "none";
+        } file_system;
+    } target;
+
+    struct Control {
+        struct DataFormat {
+            std::string format_type = "sql";
+            struct StmtConfig {
+                std::string version = "v2"; // "v1" or "v2"
+            } stmt_config;
+            struct SchemalessConfig {
+                std::string protocol  = "line"; // "line" "telnet" "json" or "taos-json"
+            } schemaless_config;
+            struct CSVConfig {
+                std::string delimiter = ","; // 默认分隔符为逗号
+                std::string quote_character = "\""; // 默认引号字符
+                std::string escape_character = "\\"; // 默认转义字符
+            } csv_config;
+        } data_format;
+        struct DataChannel {
+            std::string channel_type = "native";    // "native" "websocket" "restful" or "file_stream"
+        } data_channel;
+        struct DataQuality {
+            struct DataDisorder {
+                bool enabled = false;
+                struct Interval {
+                    std::string time_start;
+                    std::string time_end;
+                    double ratio = 0.0; // 比例
+                    int latency_range = 0; // 延迟范围
+                };
+                std::vector<Interval> intervals; // 乱序时间区间
+            } data_disorder; // 数据乱序配置
+        } data_quality;
+        struct DataGeneration {
+            struct InterlaceMode {
+                bool enabled = false;
+                int rows = 1; // 行数
+            } interlace_mode; // 交错模式配置
+
+            int generate_threads = 1;
+            int per_table_rows = 10000;
+        } data_generation;
+        struct DataCache {
+            bool enabled = false;
+            int cache_size = 1000000; // 缓存大小
+        } data_cache;
+        struct InsertControl {
+            int per_request_rows = 30000;
+            bool auto_create_table = false;
+            int insert_threads = 8;
+            std::string thread_allocation = "index_range"; // index_range or vgroup_binding
+            std::string log_path = "result.txt";
+            bool enable_dryrun = false;
+            bool preload_table_meta = false;
+        
+            struct FailureHandling {
+                int max_retries = 0;
+                int retry_interval_ms = 1000;
+                std::string on_failure = "exit"; //  exit or warn_and_continue
+            } failure_handling;
+        } insert_control;
+        struct TimeInterval {
+            bool enabled = false;                      // 是否启用间隔控制，默认值为 false
+            std::string interval_strategy = "fixed";   // 时间间隔策略类型，默认值为 fixed，可选值为 first_to_first、last_to_first、fixed
+        
+            struct FixedInterval {
+                int base_interval = 1000;              // 固定间隔数值，单位毫秒，必需
+                int random_deviation = 0;              // 随机偏移量，默认值为 0
+            } fixed_interval;
+        
+            struct DynamicInterval {
+                int min_interval = -1;                 // 最小时间间隔阈值，默认值为 -1
+                int max_interval = -1;                 // 最大时间间隔阈值，默认值为 -1
+            } dynamic_interval;
+        } time_interval;
+    } control;
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 using ActionConfigVariant = std::variant<
@@ -511,10 +628,358 @@ namespace YAML {
 
 
 
+    template<>
+    struct convert<TimestampGeneratorConfig> {
+        static bool decode(const Node& node, TimestampGeneratorConfig& rhs) {
+            if (node["start_timestamp"]) {
+                rhs.start_timestamp = node["start_timestamp"].as<std::string>("now");
+            }
+            if (node["timestamp_precision"]) {
+                rhs.timestamp_precision = node["timestamp_precision"].as<std::string>("ms");
+            }
+            if (node["timestamp_step"]) {
+                rhs.timestamp_step = node["timestamp_step"].as<int>(1);
+            }
+            return true;
+        }
+    };
+
+
+
+    template<>
+    struct convert<ColumnsConfig> {
+        static bool decode(const Node& node, ColumnsConfig& rhs) {
+            if (!node["source_type"]) {
+                throw std::runtime_error("Missing required field 'source_type' in ColumnsConfig.");
+            }
+            rhs.source_type = node["source_type"].as<std::string>();
+    
+            if (rhs.source_type == "generator") {
+                if (!node["generator"]) {
+                    throw std::runtime_error("Missing required 'generator' configuration for source_type 'generator'.");
+                }
+                const auto& generator = node["generator"];
+                if (generator["schema"]) {
+                    rhs.generator.schema = generator["schema"].as<std::vector<SuperTableInfo::Column>>();
+                }
+                if (generator["timestamp_strategy"]) {
+                    rhs.generator.timestamp_strategy.generator_config = generator["timestamp_strategy"]["generator_config"].as<TimestampGeneratorConfig>();
+                }
+            } else if (rhs.source_type == "csv") {
+                if (!node["csv"]) {
+                    throw std::runtime_error("Missing required 'csv' configuration for source_type 'csv'.");
+                }
+                const auto& csv = node["csv"];
+                if (csv["file_path"]) {
+                    rhs.csv.file_path = csv["file_path"].as<std::string>();
+                }
+                if (csv["has_header"]) {
+                    rhs.csv.has_header = csv["has_header"].as<bool>(true);
+                }
+                if (csv["delimiter"]) {
+                    rhs.csv.delimiter = csv["delimiter"].as<std::string>(",");
+                }
+                if (csv["timestamp_strategy"]) {
+                    const auto& ts = csv["timestamp_strategy"];
+                    rhs.csv.timestamp_strategy.strategy_type = ts["strategy_type"].as<std::string>("original");
+                    if (rhs.csv.timestamp_strategy.strategy_type == "original") {
+                        const auto& original = ts["original_config"];
+                        rhs.csv.timestamp_strategy.original_config.column_index = original["column_index"].as<int>(0);
+                        rhs.csv.timestamp_strategy.original_config.precision = original["precision"].as<std::string>("ms");
+                        if (original["offset_config"]) {
+                            rhs.csv.timestamp_strategy.original_config.offset_config = original["offset_config"].as<std::string>();
+                        }
+                    }
+                    if (ts["generator_config"]) {
+                        rhs.csv.timestamp_strategy.generator_config = ts["generator_config"].as<TimestampGeneratorConfig>();
+                    }
+                }
+            } else {
+                throw std::runtime_error("Invalid 'source_type' in ColumnsConfig: " + rhs.source_type);
+            }
+    
+            return true;
+        }
+    };
+
+
+    template<>
+    struct convert<InsertDataConfig::Source> {
+        static bool decode(const Node& node, InsertDataConfig::Source& rhs) {
+            if (node["table_name"]) {
+                rhs.table_name = node["table_name"].as<TableNameConfig>();
+            }
+            if (node["tags"]) {
+                rhs.tags = node["tags"].as<TagsConfig>();
+            }
+            if (node["columns"]) {
+                rhs.columns = node["columns"].as<ColumnsConfig>();
+            }
+            return true;
+        }
+    };
+
+
+    template<>
+    struct convert<InsertDataConfig::Target::TDengine> {
+        static bool decode(const Node& node, InsertDataConfig::Target::TDengine& rhs) {
+            if (node["connection_info"]) {
+                rhs.connection_info = node["connection_info"].as<ConnectionInfo>();
+            }
+            if (node["database_info"]) {
+                rhs.database_info = node["database_info"].as<DatabaseInfo>();
+            }
+            if (node["super_table_info"]) {
+                rhs.super_table_info = node["super_table_info"].as<SuperTableInfo>();
+            }
+            return true;
+        }
+    };
+
+
+    template<>
+    struct convert<InsertDataConfig::Target::FileSystem> {
+        static bool decode(const Node& node, InsertDataConfig::Target::FileSystem& rhs) {
+            if (node["output_dir"]) {
+                rhs.output_dir = node["output_dir"].as<std::string>();
+            }
+            if (node["file_prefix"]) {
+                rhs.file_prefix = node["file_prefix"].as<std::string>("data");
+            }
+            if (node["timestamp_format"]) {
+                rhs.timestamp_format = node["timestamp_format"].as<std::string>();
+            }
+            if (node["timestamp_interval"]) {
+                rhs.timestamp_interval = node["timestamp_interval"].as<std::string>("1d");
+            }
+            if (node["include_header"]) {
+                rhs.include_header = node["include_header"].as<bool>(true);
+            }
+            if (node["tbname_col_alias"]) {
+                rhs.tbname_col_alias = node["tbname_col_alias"].as<std::string>("device_id");
+            }
+            if (node["compression_level"]) {
+                rhs.compression_level = node["compression_level"].as<std::string>("none");
+            }
+            return true;
+        }
+    };
+
+
+    template<>
+    struct convert<InsertDataConfig::Target> {
+        static bool decode(const Node& node, InsertDataConfig::Target& rhs) {
+            if (node["timestamp_precision"]) {
+                rhs.timestamp_precision = node["timestamp_precision"].as<std::string>();
+            }
+            if (node["target_type"]) {
+                rhs.target_type = node["target_type"].as<std::string>();
+            }
+            if (rhs.target_type == "tdengine" && node["tdengine"]) {
+                rhs.tdengine = node["tdengine"].as<InsertDataConfig::Target::TDengine>();
+            } else if (rhs.target_type == "file_system" && node["file_system"]) {
+                rhs.file_system = node["file_system"].as<InsertDataConfig::Target::FileSystem>();
+            }
+            return true;
+        }
+    };
+
+
+    template<>
+    struct convert<InsertDataConfig::Control::DataFormat> {
+        static bool decode(const Node& node, InsertDataConfig::Control::DataFormat& rhs) {
+            if (node["format_type"]) {
+                rhs.format_type = node["format_type"].as<std::string>("sql");
+            }
+            if (rhs.format_type == "stmt" && node["stmt_config"]) {
+                rhs.stmt_config.version = node["stmt_config"]["version"].as<std::string>("v2");
+            }
+            if (rhs.format_type == "schemaless" && node["schemaless_config"]) {
+                rhs.schemaless_config.protocol = node["schemaless_config"]["protocol"].as<std::string>("line");
+            }
+            if (rhs.format_type == "csv" && node["csv_config"]) {
+                rhs.csv_config.delimiter = node["csv_config"]["delimiter"].as<std::string>(",");
+                rhs.csv_config.quote_character = node["csv_config"]["quote_character"].as<std::string>("\"");
+                rhs.csv_config.escape_character = node["csv_config"]["escape_character"].as<std::string>("\\");
+            }
+            return true;
+        }
+    };
+
+
+    template<>
+    struct convert<InsertDataConfig::Control::DataChannel> {
+        static bool decode(const Node& node, InsertDataConfig::Control::DataChannel& rhs) {
+            if (node["channel_type"]) {
+                rhs.channel_type = node["channel_type"].as<std::string>("native");
+            }
+            return true;
+        }
+    };
+
+
+    template<>
+    struct convert<InsertDataConfig::Control::DataQuality> {
+        static bool decode(const Node& node, InsertDataConfig::Control::DataQuality& rhs) {
+            if (node["data_disorder"]) {
+                const auto& disorder = node["data_disorder"];
+                rhs.data_disorder.enabled = disorder["enabled"].as<bool>(false);
+                if (disorder["intervals"]) {
+                    for (const auto& interval : disorder["intervals"]) {
+                        InsertDataConfig::Control::DataQuality::DataDisorder::Interval i;
+                        i.time_start = interval["time_start"].as<std::string>();
+                        i.time_end = interval["time_end"].as<std::string>();
+                        i.ratio = interval["ratio"].as<double>(0.0);
+                        i.latency_range = interval["latency_range"].as<int>(0);
+                        rhs.data_disorder.intervals.push_back(i);
+                    }
+                }
+            }
+            return true;
+        }
+    };
+
+
+    template<>
+    struct convert<InsertDataConfig::Control::DataGeneration> {
+        static bool decode(const Node& node, InsertDataConfig::Control::DataGeneration& rhs) {
+            if (node["interlace_mode"]) {
+                const auto& interlace = node["interlace_mode"];
+                rhs.interlace_mode.enabled = interlace["enabled"].as<bool>(false);
+                rhs.interlace_mode.rows  = interlace["rows"].as<int>(1);
+            }
+            if (node["generate_threads"]) {
+                rhs.generate_threads = node["generate_threads"].as<int>(1);
+            }
+            if (node["per_table_rows"]) {
+                rhs.per_table_rows = node["per_table_rows"].as<int>(10000);
+            }
+            return true;
+        }
+    };
+
+
+    template<>
+    struct convert<InsertDataConfig::Control::DataCache> {
+        static bool decode(const Node& node, InsertDataConfig::Control::DataCache& rhs) {
+            if (node["enabled"]) {
+                rhs.enabled = node["enabled"].as<bool>(false);
+            }
+            if (node["cache_size"]) {
+                rhs.cache_size = node["cache_size"].as<int>(1000000);
+            }
+            return true;
+        }
+    };
+
+
+    template<>
+    struct convert<InsertDataConfig::Control::InsertControl> {
+        static bool decode(const Node& node, InsertDataConfig::Control::InsertControl& rhs) {
+            if (node["per_request_rows"]) {
+                rhs.per_request_rows = node["per_request_rows"].as<int>(30000);
+            }
+            if (node["auto_create_table"]) {
+                rhs.auto_create_table = node["auto_create_table"].as<bool>(false);
+            }
+            if (node["insert_threads"]) {
+                rhs.insert_threads = node["insert_threads"].as<int>(8);
+            }
+            if (node["thread_allocation"]) {
+                rhs.thread_allocation = node["thread_allocation"].as<std::string>("index_range");
+            }
+            if (node["log_path"]) {
+                rhs.log_path = node["log_path"].as<std::string>("result.txt");
+            }
+            if (node["enable_dryrun"]) {
+                rhs.enable_dryrun = node["enable_dryrun"].as<bool>(false);
+            }
+            if (node["preload_table_meta"]) {
+                rhs.preload_table_meta = node["preload_table_meta"].as<bool>(false);
+            }
+            if (node["failure_handling"]) {
+                const auto& failure = node["failure_handling"];
+                rhs.failure_handling.max_retries = failure["max_retries"].as<int>(0);
+                rhs.failure_handling.retry_interval_ms = failure["retry_interval_ms"].as<int>(1000);
+                rhs.failure_handling.on_failure = failure["on_failure"].as<std::string>("exit");
+            }
+            return true;
+        }
+    };
+
+
+    template<>
+    struct convert<InsertDataConfig::Control::TimeInterval> {
+        static bool decode(const Node& node, InsertDataConfig::Control::TimeInterval& rhs) {
+            if (node["enabled"]) {
+                rhs.enabled = node["enabled"].as<bool>(false);
+            }
+            if (node["interval_strategy"]) {
+                rhs.interval_strategy = node["interval_strategy"].as<std::string>("fixed");
+            }
+            if (rhs.interval_strategy == "fixed" && node["fixed_interval"]) {
+                const auto& fixed = node["fixed_interval"];
+                rhs.fixed_interval.base_interval = fixed["base_interval"].as<int>(1000);
+                rhs.fixed_interval.random_deviation = fixed["random_deviation"].as<int>(0);
+            } else if ((rhs.interval_strategy == "first_to_first" || rhs.interval_strategy == "last_to_first") && node["dynamic_interval"]) {
+                const auto& dynamic = node["dynamic_interval"];
+                rhs.dynamic_interval.min_interval = dynamic["min_interval"].as<int>(-1);
+                rhs.dynamic_interval.max_interval = dynamic["max_interval"].as<int>(-1);
+            }
+            return true;
+        }
+    };
+
+
+    template<>
+    struct convert<InsertDataConfig::Control> {
+        static bool decode(const Node& node, InsertDataConfig::Control& rhs) {
+            if (node["data_format"]) {
+                rhs.data_format = node["data_format"].as<InsertDataConfig::Control::DataFormat>();
+            }
+            if (node["data_channel"]) {
+                rhs.data_channel = node["data_channel"].as<InsertDataConfig::Control::DataChannel>();
+            }
+            if (node["data_quality"]) {
+                rhs.data_quality = node["data_quality"].as<InsertDataConfig::Control::DataQuality>();
+            }
+            if (node["data_generation"]) {
+                rhs.data_generation = node["data_generation"].as<InsertDataConfig::Control::DataGeneration>();
+            }
+            if (node["data_cache"]) {
+                rhs.data_cache = node["data_cache"].as<InsertDataConfig::Control::DataCache>();
+            }
+            if (node["insert_control"]) {
+                rhs.insert_control = node["insert_control"].as<InsertDataConfig::Control::InsertControl>();
+            }
+            if (node["time_interval"]) {
+                rhs.time_interval = node["time_interval"].as<InsertDataConfig::Control::TimeInterval>();
+            }
+            return true;
+        }
+    };
+
+    // template<>
+    // struct convert<InsertDataConfig> {
+    //     static bool decode(const Node& node, InsertDataConfig& rhs) {
+    //         if (node["source"]) {
+    //             rhs.source = node["source"].as<InsertDataConfig::Source>();
+    //         }
+    //         if (node["target"]) {
+    //             rhs.target = node["target"].as<InsertDataConfig::Target>();
+    //         }
+    //         if (node["control"]) {
+    //             rhs.control = node["control"].as<InsertDataConfig::Control>();
+    //         }
+    //         return true;
+    //     }
+    // };
+
 
 }
 
-    
+
+
 
 
 #endif // CONFIG_DATA_H

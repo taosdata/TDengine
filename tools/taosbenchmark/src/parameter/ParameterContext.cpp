@@ -149,16 +149,6 @@ void ParameterContext::parse_create_super_table_action(Step& step) {
 
 
 void ParameterContext::parse_create_child_table_action(Step& step) {
-    if (!step.with["database_info"]) {
-        throw std::runtime_error("Missing required 'database_info' for create-child-table action.");
-    }
-    if (!step.with["super_table_info"]) {
-        throw std::runtime_error("Missing required 'super_table_info' for create-child-table action.");
-    }
-    if (!step.with["child_table_info"]) {
-        throw std::runtime_error("Missing required 'child_table_info' for create-child-table action.");
-    }
-
     CreateChildTableConfig create_child_config;
 
     // 解析 connection_info（可选）
@@ -206,35 +196,22 @@ void ParameterContext::parse_create_child_table_action(Step& step) {
 void ParameterContext::parse_insert_data_action(Step& step) {
     InsertDataConfig insert_config;
 
-    return;
-
     if (step.with["source"]) {
-        const auto& source = step.with["source"];
-        insert_config.source.table_name = source["table_name"].as<std::string>();
-        insert_config.source.source_type = source["source_type"].as<std::string>();
-        // 解析其他字段...
+        insert_config.source = step.with["source"].as<InsertDataConfig::Source>();
     }
     if (step.with["target"]) {
-        const auto& target = step.with["target"];
-        insert_config.target.database_name = target["database_name"].as<std::string>();
-        insert_config.target.super_table_name = target["super_table_name"].as<std::string>();
-        // 解析其他字段...
+        insert_config.target = step.with["target"].as<InsertDataConfig::Target>();
     }
     if (step.with["control"]) {
-        const auto& control = step.with["control"];
-        insert_config.control.concurrency = control["concurrency"].as<int>();
-        insert_config.control.batch_size = control["batch_size"].as<int>();
-        // 解析其他字段...
+        insert_config.control = step.with["control"].as<InsertDataConfig::Control>();
     }
 
     // 将解析结果保存到 Step 的 action_config 字段
-    step.action_config = insert_config;
+    step.action_config = std::move(insert_config);
 
     // 打印解析结果（可选）
-    std::cout << "Parsed insert-data action for table: " << insert_config.source.table_name << std::endl;
+    std::cout << "Parsed insert-data action." << std::endl;
 }
-
-
 
 
 void ParameterContext::merge_yaml(const YAML::Node& config) {

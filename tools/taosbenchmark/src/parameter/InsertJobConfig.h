@@ -163,7 +163,7 @@ struct ControlConfig {
     struct DataGeneration {
         struct InterlaceMode {
             bool enabled = false;
-            int interlace_rows = 10;
+            int rows = 10;
         };
         InterlaceMode interlace_mode;
         int generate_threads = 8;

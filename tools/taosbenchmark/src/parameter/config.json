@@ -80,7 +80,7 @@
                 "data_generation" : {
                     "interlace_mode": {
                         "enabled": true,
-                        "interlace_rows": 60
+                        "rows": 60
                     },
                     "generate_threads" : 8
                 },
@@ -162,7 +162,7 @@
                 "data_generation" : {
                     "interlace_mode": {
                         "enabled": true,
-                        "interlace_rows": 1
+                        "rows": 1
                     },
                     "generate_threads" : 8
                 },

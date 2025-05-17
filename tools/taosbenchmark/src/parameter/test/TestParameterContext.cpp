@@ -136,9 +136,10 @@ jobs:
     name: Insert Second-Level Data
     needs: [create-second-child-table]
     steps:
-      - name: Insert Data
+      - name: Insert Second-Level Data
         uses: actions/insert-data
         with:
+          # source
           source:
             table_name:
               source_type: generator
@@ -146,6 +147,52 @@ jobs:
                 prefix: s
                 count: 10000
                 from: 200
+            columns:
+              source_type: csv
+              csv:
+                file_path: /root/data/cnnc_csv_1s/
+                has_header: true
+
+                timestamp_strategy:
+                  strategy_type: original
+                  original_config:
+                    column_index: 0
+                    precision: us
+
+          # target
+          target:
+            target_type: tdengine
+            tdengine:
+              connection_info: *db_conn
+              database_info:
+                name: testdb
+                precision: us
+            
+              super_table_info:
+                name: points
+                columns: *columns_info
+                tags: *tags_info
+
+          # control
+          control: &insert_second_control
+            data_format:
+              format_type: sql
+            data_channel:
+              channel_type: native
+            data_generation:
+              interlace_mode:
+                enabled: true
+                rows: 60
+              generate_threads: 8
+              per_table_rows: 10000
+            insert_control:
+              per_request_rows: 10000
+              auto_create_table: false
+              insert_threads: 8
+              thread_allocation: vgroup_binding
+            time_interval:
+              enabled: true
+              interval_strategy: first_to_first
 )");
 
     ctx.merge_yaml(config);
@@ -208,13 +255,55 @@ jobs:
     assert(create_child_config.batch.size == 1000);
     assert(create_child_config.batch.concurrency == 10);
 
-
     assert(data.jobs[3].key == "insert-second-data");
     assert(data.jobs[3].name == "Insert Second-Level Data");
     assert(data.jobs[3].needs.size() == 1);
+    assert(data.jobs[3].needs[0] == "create-second-child-table");
     assert(data.jobs[3].steps.size() == 1);
-    assert(data.jobs[3].steps[0].name == "Insert Data");
+    assert(data.jobs[3].steps[0].name == "Insert Second-Level Data");
     assert(data.jobs[3].steps[0].uses == "actions/insert-data");
+    assert(std::holds_alternative<InsertDataConfig>(data.jobs[3].steps[0].action_config));
+    const auto& insert_config = std::get<InsertDataConfig>(data.jobs[3].steps[0].action_config);
+
+    assert(insert_config.source.table_name.source_type == "generator");
+    assert(insert_config.source.table_name.generator.prefix == "s");
+    assert(insert_config.source.table_name.generator.count == 10000);
+    assert(insert_config.source.table_name.generator.from == 200);
+
+    assert(insert_config.source.columns.source_type == "csv");
+    assert(insert_config.source.columns.csv.file_path == "/root/data/cnnc_csv_1s/");
+    assert(insert_config.source.columns.csv.has_header == true);
+    assert(insert_config.source.columns.csv.timestamp_strategy.strategy_type == "original");
+    assert(insert_config.source.columns.csv.timestamp_strategy.original_config.column_index == 0);
+    assert(insert_config.source.columns.csv.timestamp_strategy.original_config.precision == "us");
+
+    assert(insert_config.target.target_type == "tdengine");
+    assert(insert_config.target.tdengine.connection_info.host == "10.0.0.1");
+    assert(insert_config.target.tdengine.connection_info.port == 6043);
+    assert(insert_config.target.tdengine.connection_info.user == "root");
+    assert(insert_config.target.tdengine.connection_info.password == "secret");
+    assert(insert_config.target.tdengine.database_info.name == "testdb");
+    assert(insert_config.target.tdengine.database_info.precision == "us");
+    assert(insert_config.target.tdengine.super_table_info.name == "points");
+    assert(insert_config.target.tdengine.super_table_info.columns.size() > 0);
+    assert(insert_config.target.tdengine.super_table_info.tags.size() > 0);
+
+    assert(insert_config.control.data_format.format_type == "sql");
+    assert(insert_config.control.data_channel.channel_type == "native");
+
+    assert(insert_config.control.data_generation.interlace_mode.enabled == true);
+    assert(insert_config.control.data_generation.interlace_mode.rows  == 60);
+    assert(insert_config.control.data_generation.generate_threads == 8);
+    assert(insert_config.control.data_generation.per_table_rows == 10000);
+
+    assert(insert_config.control.insert_control.per_request_rows == 10000);
+    assert(insert_config.control.insert_control.auto_create_table == false);
+    assert(insert_config.control.insert_control.insert_threads == 8);
+    assert(insert_config.control.insert_control.thread_allocation == "vgroup_binding");
+
+    assert(insert_config.control.time_interval.enabled == true);
+    assert(insert_config.control.time_interval.interval_strategy == "first_to_first");
+
 
 
     std::cout << "YAML merge test passed.\n";

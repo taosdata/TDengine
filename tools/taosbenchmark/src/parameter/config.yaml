@@ -181,7 +181,7 @@ jobs:
             data_generation:
               interlace_mode:
                 enabled: true
-                interlace_rows: 60
+                rows: 60
               generate_threads: 8
               per_table_rows: 10000
             insert_control:
