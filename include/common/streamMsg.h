@@ -329,6 +329,7 @@ typedef struct SStreamHbMsg {
   int32_t dnodeId;
   int32_t streamGId;
   int32_t snodeId;
+  int32_t runnerThreadNum;
   SArray* pVgLeaders;     // SArray<int32_t>
   SArray* pStreamStatus;  // SArray<SStmTaskStatusMsg>
 } SStreamHbMsg;

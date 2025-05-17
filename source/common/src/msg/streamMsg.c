@@ -463,6 +463,8 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->dnodeId));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->streamGId));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->snodeId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->runnerThreadNum));
+
   int32_t vgLeaderNum = taosArrayGetSize(pReq->pVgLeaders);
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, vgLeaderNum));
   for (int32_t i = 0; i < vgLeaderNum; ++i) {
@@ -493,6 +495,7 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->dnodeId));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->streamGId));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->snodeId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->runnerThreadNum));
 
   int32_t vgLearderNum = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &vgLearderNum));
