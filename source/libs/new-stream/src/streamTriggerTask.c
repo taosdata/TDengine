@@ -2201,9 +2201,22 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
       QUERY_CHECK_CODE(code, lino, _end);
       code = stwmBuildDataMerger(pMerger, pFirstWin->wstart, pLastWin->wend);
       QUERY_CHECK_CODE(code, lino, _end);
-      code = initStreamDataCache(pTask->task.streamId, pTask->task.taskId, 1, pTask->calcTsIndex,
-                                 &pContext->pCalcDataCache);
-      QUERY_CHECK_CODE(code, lino, _end);
+      if (pContext->pCalcDataCache == NULL) {
+        int32_t cleanMode = DATA_CLEAN_IMMEDIATE;
+        if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
+          SInterval *pInterval = &pTask->interval;
+          if ((pInterval->sliding > 0) && (pInterval->sliding < pInterval->interval)) {
+            // cleanMode = DATA_CLEAN_EXPIRED;
+          }
+        } else if (pTask->triggerType == STREAM_TRIGGER_COUNT) {
+          if ((pTask->windowSliding > 0) && (pTask->windowSliding < pTask->windowCount)) {
+            // cleanMode = DATA_CLEAN_EXPIRED;
+          }
+        }
+        code = initStreamDataCache(pTask->task.streamId, pTask->task.taskId, cleanMode, pTask->calcTsIndex,
+                                   &pContext->pCalcDataCache);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
     }
     while (true) {
       SSTriggerWalMetaList *pDataWinner = stwmGetDataWinner(pMerger);
@@ -2233,6 +2246,8 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
         }
       }
     }
+    taosArrayPopFrontBatch(pGroup->pMetas, pGroup->metaIdx);
+    pGroup->metaIdx = 0;
     stwmClear(pMerger);
   }
 
