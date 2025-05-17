@@ -419,8 +419,11 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
     src->args = NULL;
     return;
   } else {
-    tval = src->brokenVal;
-    freeFunc = src->freeFunc;
+    tval = dst->brokenVal;
+    freeFunc = dst->freeFunc;
+
+    dst->brokenVal = src->brokenVal;
+    dst->freeFunc = src->freeFunc;
   }
 
   size_t klen = 0;
