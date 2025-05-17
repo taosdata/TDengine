@@ -179,7 +179,7 @@ const char *taosInetNtop(struct in_addr ipInt, char *dstStr, int32_t len) {
 
 #define TCP_CONN_TIMEOUT 3000  // conn timeout
 
-bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
+int8_t taosValidIpAndPort(uint32_t ip, uint16_t port) {
   struct sockaddr_in serverAdd;
   SocketFd           fd;
   int32_t            reuse;
@@ -199,13 +199,13 @@ bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
   fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
   if (-1 == fd) {  // exception
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
-    return false;
+    return 0;
   }
 
   TdSocketPtr pSocket = (TdSocketPtr)taosMemoryMalloc(sizeof(TdSocket));
   if (pSocket == NULL) {
     TAOS_SKIP_ERROR(taosCloseSocketNoCheck1(fd));
-    return false;
+    return 0;
   }
   pSocket->refId = 0;
   pSocket->fd = fd;
@@ -214,19 +214,19 @@ bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
   reuse = 1;
   if (taosSetSockOpt(pSocket, SOL_SOCKET, SO_REUSEADDR, (void *)&reuse, sizeof(reuse)) < 0) {
     TAOS_SKIP_ERROR(taosCloseSocket(&pSocket));
-    return false;
+    return 0;
   }
 
   /* bind socket to server address */
   if (-1 == bind(pSocket->fd, (struct sockaddr *)&serverAdd, sizeof(serverAdd))) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
     TAOS_SKIP_ERROR(taosCloseSocket(&pSocket));
-    return false;
+    return 0;
   }
 
   TAOS_SKIP_ERROR(taosCloseSocket(&pSocket));
 
-  return true;
+  return 1;
 }
 
 int32_t taosBlockSIGPIPE() {
@@ -332,6 +332,118 @@ _err:
     uWarn("get ip from fqdn:%s, cost:%" PRId64 "ms", fqdn, cost);
   }
   return code;
+}
+int32_t taosGetIpv6FromFqdn(const char *fqdn, SIpAddr *pAddr) {
+  int32_t code = 0;
+  OS_PARAM_CHECK(fqdn);
+  int64_t limitMs = 1000;
+  int64_t st = taosGetTimestampMs(), cost = 0;
+#ifdef WINDOWS
+  // Initialize Winsock
+  WSADATA wsaData;
+  int     iResult;
+  iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+  if (iResult != 0) {
+    code = TAOS_SYSTEM_WINSOCKET_ERROR(WSAGetLastError());
+    goto _err;
+  }
+#endif
+
+#if defined(LINUX)
+  struct addrinfo hints = {0};
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+
+  struct addrinfo *result = NULL;
+  bool             inRetry = false;
+
+  char ipStr[INET6_ADDRSTRLEN];
+  while (true) {
+    int32_t ret = getaddrinfo(fqdn, NULL, &hints, &result);
+    if (ret) {
+      if (EAI_AGAIN == ret && !inRetry) {
+        inRetry = true;
+        continue;
+      } else if (EAI_SYSTEM == ret) {
+        code = TAOS_SYSTEM_ERROR(ERRNO);
+        goto _err;
+      }
+
+      code = TAOS_SYSTEM_ERROR(ERRNO);
+      goto _err;
+    }
+
+    if (result->ai_family == AF_INET6) {
+      struct sockaddr_in6 *p6 = (struct sockaddr_in6 *)result->ai_addr;
+      inet_ntop(AF_INET6, &p6->sin6_addr, pAddr->ipv6, sizeof(pAddr->ipv6));
+      pAddr->type = 1;
+    } else if (result->ai_family == AF_INET) {
+      struct sockaddr_in *p4 = (struct sockaddr_in *)result->ai_addr;
+      inet_ntop(AF_INET, &p4->sin_addr, pAddr->ipv4, sizeof(pAddr->ipv4));
+      pAddr->type = 0;
+    } else {
+      code = TSDB_CODE_RPC_FQDN_ERROR;
+      goto _err;
+    }
+
+    freeaddrinfo(result);
+    goto _err;
+  }
+#else
+  struct addrinfo hints = {0};
+  hints.ai_family = AF_INET6;
+  hints.ai_socktype = SOCK_STREAM;
+
+  struct addrinfo *result = NULL;
+
+  int32_t ret = getaddrinfo(fqdn, NULL, &hints, &result);
+  if (result) {
+    struct sockaddr    *sa = result->ai_addr;
+    struct sockaddr_in *si = (struct sockaddr_in *)sa;
+    struct in_addr      ia = si->sin_addr;
+    *ip = ia.s_addr;
+    freeaddrinfo(result);
+    goto _err;
+  } else {
+#ifdef EAI_SYSTEM
+    if (ret == EAI_SYSTEM) {
+      // printf("failed to get the ip address, fqdn:%s, errno:%d, since:%s", fqdn, ERRNO, strerror(ERRNO));
+    } else {
+      // printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
+    }
+#else
+    // printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
+#endif
+
+    *ip = 0xFFFFFFFF;
+    code = TSDB_CODE_RPC_FQDN_ERROR;
+    goto _err;
+  }
+#endif
+_err:
+  cost = taosGetTimestampMs() - st;
+  if (cost >= limitMs) {
+    uWarn("get ip from fqdn:%s, cost:%" PRId64 "ms", fqdn, cost);
+  }
+  return code;
+}
+
+int32_t taosGetIpFromFqdn(const char *fqdn, SIpAddr *addr) {
+  int32_t  code = 0;
+  uint32_t ipAddr = 0;
+  code = taosGetIpv6FromFqdn(fqdn, addr);
+  return code;
+}
+
+int8_t taosIpAddrIsEqual(SIpAddr *ip1, SIpAddr *ip2) {
+  if (ip1->type == ip2->type) {
+    if (ip1->type == 0) {
+      return (strcmp(ip1->ipv4, ip2->ipv4) == 0 ? 1 : 0);
+    } else {
+      return (strcmp(ip1->ipv6, ip2->ipv6) == 0 ? 1 : 0);
+    }
+  }
+  return 0;
 }
 
 int32_t taosGetFqdn(char *fqdn) {
@@ -439,14 +551,15 @@ int32_t taosIgnSIGPIPE() {
  * Set TCP connection timeout per-socket level.
  * ref [https://github.com/libuv/help/issues/54]
  */
-int32_t taosCreateSocketWithTimeout(uint32_t timeout) {
+int32_t taosCreateSocketWithTimeout(uint32_t timeout, int8_t t) {
 #if defined(WINDOWS)
   SOCKET fd;
 #else
   int fd;
 #endif
+  int32_t type = t == 0 ? AF_INET : AF_INET6;
 
-  if ((fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
+  if ((fd = socket(type, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }

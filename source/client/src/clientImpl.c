@@ -1568,8 +1568,9 @@ int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* p
       terrno = TSDB_CODE_TSC_INVALID_FQDN;
       return terrno;
     }
-    uint32_t addr = 0;
-    code = taosGetIpv4FromFqdn(mgmtEpSet->eps[mgmtEpSet->numOfEps].fqdn, &addr);
+    // uint32_t addr = 0;
+    SIpAddr addr = {0};
+    code = taosGetIpFromFqdn(mgmtEpSet->eps[mgmtEpSet->numOfEps].fqdn, &addr);
     if (code) {
       tscError("failed to resolve firstEp fqdn: %s, code:%s", mgmtEpSet->eps[mgmtEpSet->numOfEps].fqdn,
                tstrerror(TSDB_CODE_TSC_INVALID_FQDN));
@@ -1589,8 +1590,8 @@ int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* p
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
-    uint32_t addr = 0;
-    code = taosGetIpv4FromFqdn(mgmtEpSet->eps[mgmtEpSet->numOfEps].fqdn, &addr);
+    SIpAddr addr = {0};
+    code = taosGetIpFromFqdn(mgmtEpSet->eps[mgmtEpSet->numOfEps].fqdn, &addr);
     if (code) {
       tscError("failed to resolve secondEp fqdn: %s, code:%s", mgmtEpSet->eps[mgmtEpSet->numOfEps].fqdn,
                tstrerror(TSDB_CODE_TSC_INVALID_FQDN));
@@ -2657,6 +2658,7 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.readTimeout = tsReadTimeout;
+  rpcInit.ipv6 = tsIpv6Support;
   if (TSDB_CODE_SUCCESS != taosVersionStrToInt(td_version, &rpcInit.compatibilityVer)) {
     tscError("faild to convert taos version from str to int, errcode:%s", terrstr());
     goto _OVER;

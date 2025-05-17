@@ -89,6 +89,7 @@ int32_t tsShareConnLimit = 10;
 
 int32_t tsReadTimeout = 900;
 int32_t tsTimeToGetAvailableConn = 500000;
+int8_t  tsIpv6Support = 0;
 
 int32_t tsNumOfQueryThreads = 0;
 int32_t tsNumOfCommitThreads = 2;
@@ -833,6 +834,8 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
                                  CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "gitinfo", td_gitinfo, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "buildinfo", td_buildinfo, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
+
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "ipv6Support", tsIpv6Support, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1024,6 +1027,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamVirtualMergeMaxDelay", tsStreamVirtualMergeMaxDelayMs, 500, 10 * 60 * 1000, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamVirtualMergeMaxMem", tsStreamVirtualMergeMaxMemKb, 8 * 1024, 1 * 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamVirtualMergeWaitMode", tsStreamVirtualMergeWaitMode, 0, 2, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "ipv6Support", tsIpv6Support,CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
 
   // clang-format on
 
@@ -1538,6 +1542,8 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "compareAsStrInGreatest");
   tsCompareAsStrInGreatest = pItem->bval;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ipv6Support");
+  tsIpv6Support = pItem->bval;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1951,6 +1957,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamVirtualMergeWaitMode");
   tsStreamVirtualMergeWaitMode = pItem->i32;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ipv6Support");
+  tsIpv6Support = pItem->bval;
+
   // GRANT_CFG_GET;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -2075,9 +2084,9 @@ _exit:
 }
 
 static int32_t taosCheckGlobalCfg() {
-  uint32_t ipv4 = 0;
+  SIpAddr addr = {0};
   uInfo("check global fqdn:%s and port:%u", tsLocalFqdn, tsServerPort);
-  int32_t code = taosGetIpv4FromFqdn(tsLocalFqdn, &ipv4);
+  int32_t code = taosGetIpFromFqdn(tsLocalFqdn, &addr);
   if (code) {
     uError("failed to get ip from fqdn:%s since %s, can not be initialized", tsLocalFqdn, tstrerror(code));
     TAOS_RETURN(TSDB_CODE_RPC_FQDN_ERROR);

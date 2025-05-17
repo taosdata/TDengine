@@ -132,9 +132,6 @@ int32_t mndInitDnode(SMnode *pMnode) {
   return sdbSetTable(pMnode->pSdb, table);
 }
 
-SIpWhiteList *mndCreateIpWhiteOfDnode(SMnode *pMnode);
-SIpWhiteList *mndAddIpWhiteOfDnode(SIpWhiteList *pIpWhiteList, char *fqdn);
-SIpWhiteList *mndRmIpWhiteOfDnode(SIpWhiteList *pIpWhiteList, char *fqdn);
 void          mndCleanupDnode(SMnode *pMnode) {}
 
 static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
