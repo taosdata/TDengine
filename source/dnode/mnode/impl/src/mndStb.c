@@ -4241,3 +4241,27 @@ _end:
   tFreeFetchTtlExpiredTbsRsp(&rsp);
   TAOS_RETURN(code);
 }
+
+#ifdef USE_MOUNT
+extern int32_t sdbReadStables(SSdb **ppSdb, const char *path);
+int32_t        mndFetchSdbStables(const char *path, void *output) {
+  int32_t  code = 0, lino = 0;
+  SSdb    *pSdb = NULL;
+  SStbObj *pStb = NULL;
+  void    *pIter = NULL;
+
+  TAOS_CHECK_EXIT(sdbReadStables(&pSdb, path));
+
+  while ((pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb))) {
+    fprintf(stdout, "%s:%d stb:%s\n", __func__, __LINE__, pStb->name);
+    sdbRelease(pSdb, pStb);
+  }
+
+_exit:
+  if (code != 0) {
+    mError("failed to fetch sdb stb at line %d  since %s, path:%s", lino, tstrerror(code), path);
+  }
+  if (pSdb) sdbCleanup(pSdb);
+  return code;
+}
+#endif

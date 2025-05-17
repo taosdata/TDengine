@@ -442,6 +442,7 @@ _OVER:
 
 #ifdef USE_MOUNT
 extern int32_t vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo);
+extern int32_t mndFetchSdbStables(const char *path, void *output);
 static int     compareVnodeInfo(const void *p1, const void *p2) {
   SVnodeInfo *v1 = (SVnodeInfo *)p1;
   SVnodeInfo *v2 = (SVnodeInfo *)p2;
@@ -469,7 +470,7 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
 
   snprintf(path, sizeof(path), "%s%s%s", pReq->mountPath, TD_DIRSEP, dmNodeName(VNODE));
   vnodeMgmt.path = path;
-  TAOS_CHECK_EXIT(vmGetVnodeListFromFile(pMgmt, &pCfgs, &numOfVnodes));
+  TAOS_CHECK_EXIT(vmGetVnodeListFromFile(&vnodeMgmt, &pCfgs, &numOfVnodes));
   dInfo("mount:%s, num of vnodes is %d in path:%s\n", pReq->mountName, numOfVnodes, vnodeMgmt.path);
   TSDB_CHECK_NULL((pVgCfgs = taosArrayInit_s(sizeof(SVnodeInfo), numOfVnodes)), code, lino, _exit, terrno);
 
@@ -534,8 +535,9 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
         TSDB_CHECK_NULL(taosArrayPush(pDbInfo->pVg, &vgInfo), code, lino, _exit, terrno);
       }
     }
-
   }
+
+  pMountInfo->pDb = pDbInfos;
 
 _exit:
   if (code != 0) {
@@ -549,6 +551,14 @@ _exit:
 
 static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pReq, SMountInfo *pMountInfo) {
   int32_t code = 0, lino = 0;
+  char    path[TSDB_MOUNT_PATH_LEN + 128] = {0};
+
+  int32_t nDb = taosArrayGetSize(pMountInfo->pDb);
+  if (nDb > 0) {
+    snprintf(path, sizeof(path), "%s%s%s", pReq->mountPath, TD_DIRSEP, dmNodeName(MNODE));
+    mndFetchSdbStables(path, NULL);
+  }
+
 _exit:
   TAOS_RETURN(code);
 }
