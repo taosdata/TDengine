@@ -5,7 +5,7 @@ on:
     branches:
       - 'main'
     paths:
-      - 'test/cases/**'
+      - 'test/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-TDengineNewFramework
