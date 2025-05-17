@@ -24,6 +24,7 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pObj->name));
   TAOS_CHECK_RETURN(tSerializeSCMCreateStreamReqImpl(pEncoder, pObj->pCreate));
 
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pObj->mainSnodeId));
   TAOS_CHECK_RETURN(tEncodeI8(pEncoder, atomic_load_8((int8_t*)&pObj->userStopped)));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->createTime));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->updateTime));
@@ -45,6 +46,7 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
   
   TAOS_CHECK_RETURN(tDeserializeSCMCreateStreamReqImpl(pDecoder, pObj->pCreate));
 
+  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pObj->mainSnodeId));
   TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pObj->userStopped));
   TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pObj->createTime));
   TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pObj->updateTime));

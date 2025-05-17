@@ -63,8 +63,7 @@ typedef enum {
 #define MND_GET_RUNNER_SUBPLANID(_id) ((_id) &0xFFFFFFFF)
 
 #define MND_STREAM_CREATE_NAME       "stream-create"
-#define MND_STREAM_PAUSE_NAME        "stream-pause"
-#define MND_STREAM_RESUME_NAME       "stream-resume"
+#define MND_STREAM_START_NAME        "stream-start"
 #define MND_STREAM_DROP_NAME         "stream-drop"
 #define MND_STREAM_STOP_NAME         "stream-stop"
 
@@ -324,6 +323,7 @@ int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped);
 void msmHealthCheck(SMnode *pMnode);
 void mndStreamPostAction(SStmActionQ*       actionQ, int64_t streamId, char* streamName, int32_t action);
 void mndStreamPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pAction, int32_t action);
+int32_t msmAssignRandomSnodeId(SMnode* pMnode, int64_t streamId);
 
 #ifdef __cplusplus
 }

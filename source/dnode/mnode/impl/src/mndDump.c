@@ -427,6 +427,7 @@ void dumpStream(SSdb *pSdb, SJson *json) {
 
     SJson *item = tjsonCreateObject();
     RETRIEVE_CHECK_GOTO(tjsonAddItemToArray(items, item), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "mainSnodeId", i642str(pObj->mainSnodeId)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "userStopped", i642str(pObj->userStopped)), pObj, &lino, _OVER);
 
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "createTime", i642str(pObj->createTime)), pObj, &lino, _OVER);

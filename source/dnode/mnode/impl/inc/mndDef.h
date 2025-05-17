@@ -793,7 +793,8 @@ typedef struct {
   SCMCreateStreamReq* pCreate;
 
   // dynamic info
-  int8_t  userDropped;
+  int32_t mainSnodeId;
+  int8_t  userDropped;  // no need to serialize
   int8_t  userStopped;
   int64_t createTime;
   int64_t updateTime;

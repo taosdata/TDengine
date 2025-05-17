@@ -47,8 +47,8 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void    mndCancelGetNextStream(SMnode *pMnode, void *pIter);
 static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextStreamTask(SMnode *pMnode, void *pIter);
-static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq);
-static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq);
+static int32_t mndProcessStopStreamReq(SRpcMsg *pReq);
+static int32_t mndProcessStartStreamReq(SRpcMsg *pReq);
 static void    doSendQuickRsp(SRpcHandleInfo *pInfo, int32_t msgSize, int32_t vgId, int32_t code);
 
 static SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw);
@@ -137,6 +137,7 @@ static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream) {
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStreamObj *pNewStream) {
   mTrace("stream:%s, perform update action", pOldStream->pCreate->name);
 
+  pOldStream->mainSnodeId = pNewStream->mainSnodeId;
   atomic_store_8(&pOldStream->userStopped, atomic_load_8(&pNewStream->userStopped));
   pOldStream->updateTime = pNewStream->updateTime;
   
@@ -194,12 +195,13 @@ static int32_t createSchemaByFields(const SArray *pFields, SSchemaWrapper *pWrap
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mndStreamBuildObj(SMnode *pMnode, SStreamObj *pObj, SCMCreateStreamReq *pCreate) {
+static int32_t mndStreamBuildObj(SMnode *pMnode, SStreamObj *pObj, SCMCreateStreamReq *pCreate, int32_t snodeId) {
   int32_t     code = 0;
 
   pObj->pCreate = pCreate;
   strncpy(pObj->name, pCreate->name, TSDB_STREAM_NAME_LEN);
-
+  pObj->mainSnodeId = snodeId;
+  
   pObj->userDropped = 0;
   pObj->userStopped = 0;
   
@@ -545,7 +547,7 @@ static void doSendQuickRsp(SRpcHandleInfo *pInfo, int32_t msgSize, int32_t vgId,
   }
 }
 
-static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
+static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
   int32_t     code = 0;
@@ -578,7 +580,7 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
   }
 
   STrans *pTrans = NULL;
-  code = mndStreamCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_PAUSE_NAME, &pTrans);
+  code = mndStreamCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_STOP_NAME, &pTrans);
   if (pTrans == NULL || code) {
     mstError("failed to pause stream %s since %s", pauseReq.name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
@@ -612,7 +614,7 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
 }
 
 
-static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
+static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
   int32_t     code = 0;
@@ -642,7 +644,7 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
 
   atomic_store_8(&pStream->userStopped, 0);
   
-  mstInfo("start to resume stream %s from pause", resumeReq.name);
+  mstInfo("start to start stream %s from stopped", resumeReq.name);
 
   code = mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->pCreate->streamDB);
   if (code != TSDB_CODE_SUCCESS) {
@@ -652,7 +654,7 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   }
 
   STrans *pTrans = NULL;
-  code = mndStreamCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_RESUME_NAME, &pTrans);
+  code = mndStreamCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_START_NAME, &pTrans);
   if (pTrans == NULL || code) {
     mstError("failed to resume stream %s since %s", resumeReq.name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
@@ -820,8 +822,11 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
   mstInfo("start to create stream %s, sql:%s", pCreate->name, pCreate->sql);
 
-  code = mstCheckSnodeExists(pMnode);
-  TSDB_CHECK_CODE(code, lino, _OVER);
+  int32_t snodeId = msmAssignRandomSnodeId(pMnode, streamId);
+  if (0 == snodeId) {
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _OVER);
+  }
   
   code = mndAcquireStream(pMnode, pCreate->name, &pStream);
   if (pStream != NULL && code == 0) {
@@ -844,7 +849,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   code = mndStreamValidateCreate(pMnode, pReq->info.conn.user, pCreate);
   TSDB_CHECK_CODE(code, lino, _OVER);
 
-  code = mndStreamBuildObj(pMnode, &streamObj, pCreate);
+  code = mndStreamBuildObj(pMnode, &streamObj, pCreate, snodeId);
   TSDB_CHECK_CODE(code, lino, _OVER);
 
   pStream = &streamObj;
@@ -917,8 +922,8 @@ int32_t mndInitStream(SMnode *pMnode) {
 */
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STREAM, mndProcessCreateStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM, mndProcessDropStreamReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_START_STREAM, mndProcessPauseStreamReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_STOP_STREAM, mndProcessResumeStreamReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_START_STREAM, mndProcessStartStreamReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_STOP_STREAM, mndProcessStopStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_HEARTBEAT, mndProcessStreamHb);  
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndRetrieveStream);
