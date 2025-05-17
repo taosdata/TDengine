@@ -341,10 +341,10 @@ fi
 
 # Copy driver
 mkdir -p ${install_dir}/driver
-&& cp ${lib_files}       ${install_dir}/driver/${pkg_lib_files} \
-&& cp ${nativelib_files} ${install_dir}/driver/${pkg_nativelib_files} \
-&& echo "${versionComp}" >${install_dir}/driver/vercomp.txt \
-&& cp ${wslib_files}     ${install_dir}/driver/${pkg_wslib_files} || :
+cp ${lib_files}       ${install_dir}/driver/${pkg_lib_files} 
+cp ${nativelib_files} ${install_dir}/driver/${pkg_nativelib_files} 
+echo "${versionComp}" >${install_dir}/driver/vercomp.txt 
+cp ${wslib_files}     ${install_dir}/driver/${pkg_wslib_files} || :
 
 # Copy connector && taosx
 if [ "$verMode" == "cluster" ]; then    
