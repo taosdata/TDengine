@@ -150,6 +150,27 @@ struct ColumnsConfig {
 };
 
 
+struct DataFormat {
+    std::string format_type = "sql";
+    struct StmtConfig {
+        std::string version = "v2"; // "v1" or "v2"
+    } stmt_config;
+    struct SchemalessConfig {
+        std::string protocol  = "line"; // "line" "telnet" "json" or "taos-json"
+    } schemaless_config;
+    struct CSVConfig {
+        std::string delimiter = ","; // 默认分隔符为逗号
+        std::string quote_character = "\""; // 默认引号字符
+        std::string escape_character = "\\"; // 默认转义字符
+    } csv_config;
+};
+
+
+struct DataChannel {
+    std::string channel_type = "native";    // "native" "websocket" "restful" or "file_stream"
+};
+
+
 struct ChildTableInfo {
     TableNameConfig table_name;     // 子表名称配置
     TagsConfig tags;                // 标签配置
@@ -222,23 +243,8 @@ struct InsertDataConfig {
     } target;
 
     struct Control {
-        struct DataFormat {
-            std::string format_type = "sql";
-            struct StmtConfig {
-                std::string version = "v2"; // "v1" or "v2"
-            } stmt_config;
-            struct SchemalessConfig {
-                std::string protocol  = "line"; // "line" "telnet" "json" or "taos-json"
-            } schemaless_config;
-            struct CSVConfig {
-                std::string delimiter = ","; // 默认分隔符为逗号
-                std::string quote_character = "\""; // 默认引号字符
-                std::string escape_character = "\\"; // 默认转义字符
-            } csv_config;
-        } data_format;
-        struct DataChannel {
-            std::string channel_type = "native";    // "native" "websocket" "restful" or "file_stream"
-        } data_channel;
+        DataFormat data_format;
+        DataChannel data_channel;
         struct DataQuality {
             struct DataDisorder {
                 bool enabled = false;
@@ -298,11 +304,50 @@ struct InsertDataConfig {
 
 
 
+struct QueryDataConfig {
+    struct Source {
+        ConnectionInfo connection_info;
+    } source;
 
+    struct Control {
+        DataFormat data_format;
+        DataChannel data_channel;
 
+        struct QueryControl {
+            std::string log_path = "result.txt";
+            bool enable_dryrun = false;
 
+            struct Execution {
+                std::string mode = "sequential_per_thread";
+                int threads = 1;
+                int times = 1;
+                int interval = 0;
+            } execution;
 
+            std::string query_type;
 
+            struct FixedQuery {
+                std::string sql;
+                std::string output_file;
+            };
+            struct SuperTableQueryTemplate {
+                std::string sql_template;
+                std::string output_file;
+            };
+
+            struct Fixed {
+                std::vector<FixedQuery> queries;
+            } fixed;
+
+            struct SuperTable {
+                std::string database_name;
+                std::string super_table_name;
+                std::string placeholder;
+                std::vector<SuperTableQueryTemplate> templates;
+            } super_table;
+        } query_control;
+    } control;
+};
 
 
 
@@ -316,7 +361,8 @@ using ActionConfigVariant = std::variant<
     CreateDatabaseConfig,
     CreateSuperTableConfig,
     CreateChildTableConfig,
-    InsertDataConfig
+    InsertDataConfig,
+    QueryDataConfig
 >;
 
 struct Step {
@@ -786,8 +832,8 @@ namespace YAML {
 
 
     template<>
-    struct convert<InsertDataConfig::Control::DataFormat> {
-        static bool decode(const Node& node, InsertDataConfig::Control::DataFormat& rhs) {
+    struct convert<DataFormat> {
+        static bool decode(const Node& node, DataFormat& rhs) {
             if (node["format_type"]) {
                 rhs.format_type = node["format_type"].as<std::string>("sql");
             }
@@ -808,8 +854,8 @@ namespace YAML {
 
 
     template<>
-    struct convert<InsertDataConfig::Control::DataChannel> {
-        static bool decode(const Node& node, InsertDataConfig::Control::DataChannel& rhs) {
+    struct convert<DataChannel> {
+        static bool decode(const Node& node, DataChannel& rhs) {
             if (node["channel_type"]) {
                 rhs.channel_type = node["channel_type"].as<std::string>("native");
             }
@@ -935,10 +981,10 @@ namespace YAML {
     struct convert<InsertDataConfig::Control> {
         static bool decode(const Node& node, InsertDataConfig::Control& rhs) {
             if (node["data_format"]) {
-                rhs.data_format = node["data_format"].as<InsertDataConfig::Control::DataFormat>();
+                rhs.data_format = node["data_format"].as<DataFormat>();
             }
             if (node["data_channel"]) {
-                rhs.data_channel = node["data_channel"].as<InsertDataConfig::Control::DataChannel>();
+                rhs.data_channel = node["data_channel"].as<DataChannel>();
             }
             if (node["data_quality"]) {
                 rhs.data_quality = node["data_quality"].as<InsertDataConfig::Control::DataQuality>();
@@ -974,6 +1020,125 @@ namespace YAML {
     //         return true;
     //     }
     // };
+
+
+    template<>
+    struct convert<QueryDataConfig::Source> {
+        static bool decode(const Node& node, QueryDataConfig::Source& rhs) {
+            if (node["connection_info"]) {
+                rhs.connection_info = node["connection_info"].as<ConnectionInfo>();
+            }
+            return true;
+        }
+    };
+
+
+    template<>
+    struct convert<QueryDataConfig::Control::QueryControl::Execution> {
+        static bool decode(const Node& node, QueryDataConfig::Control::QueryControl::Execution& rhs) {
+            if (node["mode"]) {
+                rhs.mode = node["mode"].as<std::string>("sequential_per_thread");
+            }
+            if (node["threads"]) {
+                rhs.threads = node["threads"].as<int>(1);
+            }
+            if (node["times"]) {
+                rhs.times = node["times"].as<int>(1);
+            }
+            if (node["interval"]) {
+                rhs.interval = node["interval"].as<int>(0);
+            }
+            return true;
+        }
+    };
+
+
+
+    template<>
+    struct convert<QueryDataConfig::Control::QueryControl::Fixed> {
+        static bool decode(const Node& node, QueryDataConfig::Control::QueryControl::Fixed& rhs) {
+            if (node["queries"]) {
+                for (const auto& query_node : node["queries"]) {
+                    QueryDataConfig::Control::QueryControl::FixedQuery query;
+                    query.sql = query_node["sql"].as<std::string>();
+                    query.output_file = query_node["output_file"].as<std::string>();
+                    rhs.queries.push_back(query);
+                }
+            }
+            return true;
+        }
+    };
+
+
+
+    template<>
+    struct convert<QueryDataConfig::Control::QueryControl::SuperTable> {
+        static bool decode(const Node& node, QueryDataConfig::Control::QueryControl::SuperTable& rhs) {
+            if (node["database_name"]) {
+                rhs.database_name = node["database_name"].as<std::string>();
+            }
+            if (node["super_table_name"]) {
+                rhs.super_table_name = node["super_table_name"].as<std::string>();
+            }
+            if (node["placeholder"]) {
+                rhs.placeholder = node["placeholder"].as<std::string>();
+            }
+            if (node["templates"]) {
+                for (const auto& template_node : node["templates"]) {
+                    QueryDataConfig::Control::QueryControl::SuperTableQueryTemplate query_template;
+                    query_template.sql_template = template_node["sql_template"].as<std::string>();
+                    query_template.output_file = template_node["output_file"].as<std::string>();
+                    rhs.templates.push_back(query_template);
+                }
+            }
+            return true;
+        }
+    };
+
+
+    template<>
+    struct convert<QueryDataConfig::Control::QueryControl> {
+        static bool decode(const Node& node, QueryDataConfig::Control::QueryControl& rhs) {
+            if (node["log_path"]) {
+                rhs.log_path = node["log_path"].as<std::string>("result.txt");
+            }
+            if (node["enable_dryrun"]) {
+                rhs.enable_dryrun = node["enable_dryrun"].as<bool>(false);
+            }
+            if (node["execution"]) {
+                rhs.execution = node["execution"].as<QueryDataConfig::Control::QueryControl::Execution>();
+            }
+            if (node["query_type"]) {
+                rhs.query_type = node["query_type"].as<std::string>();
+                if (rhs.query_type == "fixed" && node["fixed"]) {
+                    rhs.fixed = node["fixed"].as<QueryDataConfig::Control::QueryControl::Fixed>();
+                } else if (rhs.query_type == "super_table" && node["super_table"]) {
+                    rhs.super_table = node["super_table"].as<QueryDataConfig::Control::QueryControl::SuperTable>();
+                } else {
+                    throw std::runtime_error("Invalid or missing 'query_type' in query_control.");
+                }
+            }
+            return true;
+        }
+    };
+
+
+    template<>
+    struct convert<QueryDataConfig::Control> {
+        static bool decode(const Node& node, QueryDataConfig::Control& rhs) {
+            if (node["data_format"]) {
+                rhs.data_format = node["data_format"].as<DataFormat>();
+            }
+            if (node["data_channel"]) {
+                rhs.data_channel = node["data_channel"].as<DataChannel>();
+            }
+            if (node["query_control"]) {
+                rhs.query_control = node["query_control"].as<QueryDataConfig::Control::QueryControl>();
+            }
+            return true;
+        }
+    };
+
 
 
 }

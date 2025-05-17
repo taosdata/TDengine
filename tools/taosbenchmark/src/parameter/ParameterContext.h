@@ -54,6 +54,7 @@ private:
     void parse_create_super_table_action(Step& step);
     void parse_create_child_table_action(Step& step);
     void parse_insert_data_action(Step& step);
+    void parse_query_data_action(Step& step);
     // void parse_job(const YAML::Node& job_yaml, Job& job);
     // void parse_step(const YAML::Node& step_yaml, Step& step);
 

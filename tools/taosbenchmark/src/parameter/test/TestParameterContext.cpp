@@ -193,6 +193,40 @@ jobs:
             time_interval:
               enabled: true
               interval_strategy: first_to_first
+
+  query-super-table:
+    name: Query Super Table
+    needs:
+      - create-second-child-table
+      - create-minute-child-table
+    steps:
+      - name: query-super-table
+        uses: actions/query-data
+        with:
+          # source
+          source:
+            connection_info: *db_conn
+          
+          # control
+          control:
+            data_format:
+              format_type: sql
+            data_channel:
+              channel_type: native
+            query_control:
+              execution:
+                mode: parallel_per_group
+                threads: 10
+                times: 50
+                interval: 100
+              query_type: super_table
+              super_table:
+                database_name: testdb
+                super_table_name: points
+                placeholder: ${child_table}
+                templates:
+                  - sql_template: select count(*) from ${child_table}
+                    output_file: stb_result.txt
 )");
 
     ctx.merge_yaml(config);
@@ -204,7 +238,8 @@ jobs:
     assert(data.concurrency == 4);
 
     // 验证作业解析
-    assert(data.jobs.size() == 4);
+    // job: create-database
+    assert(data.jobs.size() == 5);
     assert(data.jobs[0].key == "create-database");
     assert(data.jobs[0].name == "Create Database");
     assert(data.jobs[0].needs.size() == 0);
@@ -222,6 +257,7 @@ jobs:
     assert(create_db_config.database_info.precision == "us");
     assert(create_db_config.database_info.properties == "vgroups 20 replica 3 keep 3650");
 
+    // job: create-super-table
     assert(data.jobs[1].key == "create-super-table");
     assert(data.jobs[1].name == "Create Super Table");
     assert(data.jobs[1].needs.size() == 1);
@@ -235,6 +271,7 @@ jobs:
     assert(create_stb_config.super_table_info.columns.size() > 0);
     assert(create_stb_config.super_table_info.tags.size() > 0);
 
+    // job: create-second-child-table
     assert(data.jobs[2].key == "create-second-child-table");
     assert(data.jobs[2].name == "Create Second Child Table");
     assert(data.jobs[2].needs.size() == 1);
@@ -255,6 +292,7 @@ jobs:
     assert(create_child_config.batch.size == 1000);
     assert(create_child_config.batch.concurrency == 10);
 
+    // job: insert-second-data
     assert(data.jobs[3].key == "insert-second-data");
     assert(data.jobs[3].name == "Insert Second-Level Data");
     assert(data.jobs[3].needs.size() == 1);
@@ -303,6 +341,48 @@ jobs:
 
     assert(insert_config.control.time_interval.enabled == true);
     assert(insert_config.control.time_interval.interval_strategy == "first_to_first");
+
+
+    // job: query-super-table
+    assert(data.jobs[4].key == "query-super-table");
+    assert(data.jobs[4].name == "Query Super Table");
+    assert(data.jobs[4].needs.size() == 2);
+    assert(data.jobs[4].needs[0] == "create-second-child-table");
+    assert(data.jobs[4].needs[1] == "create-minute-child-table");
+    assert(data.jobs[4].steps.size() == 1);
+    assert(data.jobs[4].steps[0].name == "query-super-table");
+    assert(data.jobs[4].steps[0].uses == "actions/query-data");
+
+    assert(std::holds_alternative<QueryDataConfig>(data.jobs[4].steps[0].action_config));
+    const auto& query_config = std::get<QueryDataConfig>(data.jobs[4].steps[0].action_config);
+
+    assert(query_config.source.connection_info.host == "10.0.0.1");
+    assert(query_config.source.connection_info.port == 6043);
+    assert(query_config.source.connection_info.user == "root");
+    assert(query_config.source.connection_info.password == "secret");
+
+    assert(query_config.control.data_format.format_type == "sql");
+    assert(query_config.control.data_channel.channel_type == "native");
+
+    const auto& query_control = query_config.control.query_control;
+    assert(query_control.execution.mode == "parallel_per_group");
+    assert(query_control.execution.threads == 10);
+    assert(query_control.execution.times == 50);
+    assert(query_control.execution.interval == 100);
+
+    assert(query_control.query_type == "super_table");
+
+    const auto& super_table = query_control.super_table;
+    assert(super_table.database_name == "testdb");
+    assert(super_table.super_table_name == "points");
+    assert(super_table.placeholder == "${child_table}");
+    assert(super_table.templates.size() == 1);
+    assert(super_table.templates[0].sql_template == "select count(*) from ${child_table}");
+    assert(super_table.templates[0].output_file == "stb_result.txt");
+
+
+
+
 
 
 

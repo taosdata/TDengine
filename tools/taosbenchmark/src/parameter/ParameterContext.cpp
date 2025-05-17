@@ -69,6 +69,10 @@ void ParameterContext::parse_steps(const YAML::Node& steps_yaml, std::vector<Ste
                 parse_create_child_table_action(step);
             } else if (step.uses == "actions/insert-data") {
                 parse_insert_data_action(step);
+            } else if (step.uses == "actions/query-data") {
+                parse_query_data_action(step);
+            } else {
+                throw std::runtime_error("Unknown action type: " + step.uses);
             }
             // 其他行动解析逻辑可以在此扩展
         }
@@ -212,6 +216,26 @@ void ParameterContext::parse_insert_data_action(Step& step) {
     // 打印解析结果（可选）
     std::cout << "Parsed insert-data action." << std::endl;
 }
+
+
+void ParameterContext::parse_query_data_action(Step& step) {
+    QueryDataConfig query_config;
+
+    if (step.with["source"]) {
+        query_config.source = step.with["source"].as<QueryDataConfig::Source>();
+    }
+    if (step.with["control"]) {
+        query_config.control = step.with["control"].as<QueryDataConfig::Control>();
+    }
+
+    // 将解析结果保存到 Step 的 action_config 字段
+    step.action_config = std::move(query_config);
+
+    // 打印解析结果（可选）
+    std::cout << "Parsed query-data action." << std::endl;
+}
+
+
 
 
 void ParameterContext::merge_yaml(const YAML::Node& config) {
