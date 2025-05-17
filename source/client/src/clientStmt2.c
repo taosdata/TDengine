@@ -301,6 +301,7 @@ static int32_t stmtParseSql(STscStmt2* pStmt) {
 
   pStmt->stat.parseSqlNum++;
   STMT_ERR_RET(parseSql(pStmt->exec.pRequest, false, &pStmt->sql.pQuery, &stmtCb));
+
   pStmt->sql.siInfo.pQuery = pStmt->sql.pQuery;
 
   pStmt->bInfo.needParse = false;
@@ -322,6 +323,11 @@ static int32_t stmtParseSql(STscStmt2* pStmt) {
   }
 
   STableDataCxt* pTableCtx = *pSrc;
+  if (pStmt->sql.stbInterlaceMode && pTableCtx->pData->pCreateTbReq && (pStmt->bInfo.tbNameFlag & USING_CLAUSE) == 0) {
+    tdDestroySVCreateTbReq(pTableCtx->pData->pCreateTbReq);
+    taosMemoryFreeClear(pTableCtx->pData->pCreateTbReq);
+    pTableCtx->pData->pCreateTbReq = NULL;
+  }
   // if (pStmt->sql.stbInterlaceMode) {
   //   int16_t lastIdx = -1;
 
@@ -392,6 +398,7 @@ static int32_t stmtCleanExecInfo(STscStmt2* pStmt, bool keepTable, bool deepClea
       pStmt->exec.pBlockHash = NULL;
 
       if (NULL != pStmt->exec.pCurrBlock) {
+        taosMemoryFreeClear(pStmt->exec.pCurrBlock->boundColsInfo.pColIndex);
         taosMemoryFreeClear(pStmt->exec.pCurrBlock->pData);
         qDestroyStmtDataBlock(pStmt->exec.pCurrBlock);
         pStmt->exec.pCurrBlock = NULL;
@@ -1322,7 +1329,7 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags, SVCreateTbReq** pCre
 int stmtCheckTags2(TAOS_STMT2* stmt, SVCreateTbReq** pCreateTbReq) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
 
-  STMT_DLOG_E("start to set tbTags");
+  STMT2_TLOG_E("start to clone createTbRequest for fixed tags");
 
   if (pStmt->errCode != TSDB_CODE_SUCCESS) {
     return pStmt->errCode;
@@ -1454,6 +1461,7 @@ static int stmtFetchStbColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIEL
       qBuildStmtStbColFields(*pDataBlock, pStmt->bInfo.boundTags, pStmt->bInfo.tbNameFlag, fieldNum, fields));
 
   if (pStmt->bInfo.tbType == TSDB_SUPER_TABLE && cleanStb) {
+    taosMemoryFreeClear((*pDataBlock)->boundColsInfo.pColIndex);
     qDestroyStmtDataBlock(*pDataBlock);
     *pDataBlock = NULL;
     if (taosHashRemove(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName)) != 0) {
