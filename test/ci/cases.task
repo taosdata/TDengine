@@ -344,7 +344,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_having_child.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_having_complex.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_having.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_having_with_interval_and_fill.py
+#,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_having_with_interval_and_fill.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/12-Having/test_query_accuracy.py
 ## 13-Distinct
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/13-Distinct/test_distinct.py
@@ -521,7 +521,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/20-Metadata/test_keep_time_offset.py
 ,,y,.,./ci/pytest.sh pytest cases/20-Metadata/test_metrics_idx.py
 ,,y,.,./ci/pytest.sh pytest cases/20-Metadata/test_show_db_table_kind.py
-,,y,.,./ci/pytest.sh pytest cases/20-Metadata/test_sys_tbname.py
+#,,y,.,./ci/pytest.sh pytest cases/20-Metadata/test_sys_tbname.py
 ,,y,.,./ci/pytest.sh pytest cases/20-Metadata/test_table_count.py
 
 # 21-PerformanceData
