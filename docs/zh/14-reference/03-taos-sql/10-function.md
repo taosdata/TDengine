@@ -2711,7 +2711,10 @@ ST_NUMGEOMETRIES(GEOMETRY geometryCollection)
 
 **使用说明**:
 
-- 如果集合为 NULL，则返回 NULL。
+- 如果集合为 NULL，则返回 NULL；
+- 如果集合不是复合几何体，则返回 NULL；
+- 如果集合为空，则返回 0；
+- 否则返回集合中几何体的数量。
 
 **举例**：
 
@@ -2720,6 +2723,11 @@ taos> select st_numgeometries(NULL);
  st_numgeometries(null) |
 =========================
  NULL                   |
+
+taos> SELECT ST_NumGeometries(ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))'));
+ st_numgeometries(st_geomfromtext('POLYGON((0 0, 1 0, 1 1, 0 1, 0 |
+===================================================================
+ NULL                                                             |
 
 taos> select st_numgeometries(ST_GeomFromText('GEOMETRYCOLLECTION(POINT(1 1), LINESTRING(0 0, 2 2))'));
  st_numgeometries(st_geomfromtext('GEOMETRYCOLLECTION(POINT(1 1), |

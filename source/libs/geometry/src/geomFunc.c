@@ -639,7 +639,46 @@ int32_t numInteriorRingsFunction(SScalarParam *pInput, int32_t inputNum, SScalar
 }
 
 int32_t numGeometriesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return doCountFunction(pInput, inputNum, pOutput, geomGetNumGeometries);
+  int32_t code = TSDB_CODE_SUCCESS;
+  SColumnInfoData *pInputData = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+  int32_t numOfRows = pInput->numOfRows;
+
+  TAOS_CHECK_GOTO(initCtxRelationFunc(), NULL, _exit);
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+
+    GEOSGeometry *geom = NULL;
+    char *input = colDataGetData(pInputData, i);
+    TAOS_CHECK_GOTO(readGeometry(input, &geom, NULL), NULL, _exit);
+
+    int32_t count;
+    code = geomGetNumGeometries(geom, &count);
+    
+    if (code != TSDB_CODE_SUCCESS) {
+      destroyGeometry(&geom, NULL);
+      goto _exit;
+    }
+
+    if (count < 0) {
+      /* The geometry is not composite */
+      colDataSetNULL(pOutputData, i);
+    } else {
+      uint32_t *out = (uint32_t *)pOutputData->pData;
+      out[i] = (uint32_t) count;
+    }
+
+    destroyGeometry(&geom, NULL);
+  }
+
+  pOutput->numOfRows = numOfRows;
+
+_exit:
+  TAOS_RETURN(code);
 }
 
 int32_t isSimpleFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {

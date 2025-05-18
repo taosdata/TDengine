@@ -34,7 +34,7 @@ int32_t geomGetCoordinateY(const GEOSGeometry *geom, double *y);
 
 int32_t geomGetNumPoints(const GEOSGeometry *geom, uint32_t *numPoints);
 int32_t geomGetNumInnerRings(const GEOSGeometry *geom, uint32_t *numInnerRings);
-int32_t geomGetNumGeometries(const GEOSGeometry *geom, uint32_t *numGeometries);
+int32_t geomGetNumGeometries(const GEOSGeometry *geom, int32_t *numGeometries);
 
 int32_t geomIsSimple(const GEOSGeometry *geom, bool *isSimple);
 int32_t geomIsEmpty(const GEOSGeometry *geom, bool *isEmpty);

@@ -2796,7 +2796,10 @@ ST_NUMGEOMETRIES(GEOMETRY geometryCollection)
 
 **Usage Notes**:
 
-- if the collection is NULL, return NULL.
+- if the collection is NULL, return NULL;
+- If the collection is not composite, return NULL;
+- If the collection is empty, return 0;
+- Otherwise return the number of geometries in the collection.
 
 **Examples**:
 
@@ -2923,7 +2926,7 @@ taos> select st_dimension(NULL);
 =====================
  NULL               |
 
-taos> SELECT ST_Dimension(ST_GeomFromText('LINESTRING EMPTY'));
+taos> select st_dimension(ST_GeomFromText('LINESTRING EMPTY'));
  st_dimension(st_geomfromtext('LINESTRING EMPTY')) |
 ====================================================
                                                 -1 |
@@ -2933,17 +2936,17 @@ taos> select st_dimension(ST_GeomFromText('POINT(1 2)'));
 ==============================================
                                            0 |
 
-taos> SELECT ST_Dimension(ST_GeomFromText('LINESTRING(0 0, 1 1)'));
+taos> select st_dimension(ST_GeomFromText('LINESTRING(0 0, 1 1)'));
  st_dimension(st_geomfromtext('LINESTRING(0 0, 1 1)')) |
 ========================================================
                                                      1 |
 
-taos> SELECT ST_Dimension(ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))'));
+taos> select st_dimension(ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))'));
  st_dimension(st_geomfromtext('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0)) |
 ===================================================================
                                                                 2 |
 
-taos> SELECT ST_Dimension(ST_GeomFromText('GEOMETRYCOLLECTION(POINT(1 1), LINESTRING(0 0, 1 1))'));
+taos> select st_dimension(ST_GeomFromText('GEOMETRYCOLLECTION(POINT(1 1), LINESTRING(0 0, 1 1))'));
  st_dimension(st_geomfromtext('GEOMETRYCOLLECTION(POINT(1 1), LIN |
 ===================================================================
                                                                 1 |

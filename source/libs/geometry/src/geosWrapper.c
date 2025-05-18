@@ -473,8 +473,24 @@ int32_t geomGetNumInnerRings(const GEOSGeometry *geom, uint32_t *numInnerRings) 
   return geomDoCount(geom, numInnerRings, GEOSGetNumInteriorRings_r, isPolygon);
 }
 
-int32_t geomGetNumGeometries(const GEOSGeometry *geom, uint32_t *numGeometries) {
-  return geomDoCount(geom, numGeometries, GEOSGetNumGeometries_r, isGeometryCollection);
+int32_t geomGetNumGeometries(const GEOSGeometry *geom, int32_t *numGeometries) {
+  SGeosContext *geosCtx = NULL;
+
+  TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
+
+  int geomType = GEOSGeomTypeId_r(geosCtx->handle, geom);
+  bool isComposite = (geomType == GEOS_MULTIPOINT ||
+                      geomType == GEOS_MULTILINESTRING ||
+                      geomType == GEOS_MULTIPOLYGON ||
+                      geomType == GEOS_GEOMETRYCOLLECTION);
+
+  if (!isComposite) {
+    *numGeometries = -1;
+  } else {
+    *numGeometries = GEOSGetNumGeometries_r(geosCtx->handle, geom);
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t geomCheckProperty(const GEOSGeometry *geom, bool *isPropertyTrue, _geos_doCheckProperty_t checkFn) {
