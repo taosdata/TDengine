@@ -25,6 +25,7 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndIndex.h"
+#include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndSma.h"
@@ -51,6 +52,7 @@ static int32_t  mndNewMountActionValidate(SMnode *pMnode, STrans *pTrans, SSdbRa
 
 static int32_t mndProcessCreateMountReq(SRpcMsg *pReq);
 static int32_t mndProcessDropMountReq(SRpcMsg *pReq);
+static int32_t mndProcessExecuteMountReq(SRpcMsg *pReq);
 static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp);
 static int32_t mndRetrieveMounts(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity);
 static void    mndCancelGetNextMount(SMnode *pMnode, void *pIter);
@@ -69,6 +71,7 @@ int32_t mndInitMount(SMnode *pMnode) {
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_MOUNT, mndProcessCreateMountReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_MOUNT, mndProcessDropMountReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_EXECUTE_MOUNT, mndProcessExecuteMountReq);
   mndSetMsgHandle(pMnode, TDMT_DND_RETRIEVE_MOUNT_PATH_RSP, mndProcessRetrieveMountPathRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_MOUNT, mndRetrieveMounts);
@@ -762,11 +765,11 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
 }
 #endif
 
-static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SCreateMountReq *pCreate, SUserObj *pUser) {
+static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, SUserObj *pUser) {
   int32_t   code = 0, lino = 0;
   SUserObj  newUserObj = {0};
   SMountObj mntObj = {0};
-  (void)memcpy(mntObj.name, pCreate->mountName, TSDB_MOUNT_NAME_LEN);
+  (void)memcpy(mntObj.name, pInfo->mountName, TSDB_MOUNT_NAME_LEN);
   (void)memcpy(mntObj.acct, pUser->acct, TSDB_USER_LEN);
   mntObj.createdTime = taosGetTimestampMs();
   mntObj.updateTime = mntObj.createdTime;
@@ -927,28 +930,70 @@ _exit:
 
 static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp) {
   int32_t    code = 0, lino = 0;
+  int32_t    rspCode = 0;
   SMnode    *pMnode = pRsp->info.node;
   SMountInfo mntInfo = {0};
   SDecoder   decoder = {0};
+  void      *pBuf = NULL;
+  int32_t    bufLen = 0;
+  bool       rspToClient = false;
 
+  // step 1: decode and preprocess in mnode read thread
   tDecoderInit(&decoder, pRsp->pCont, pRsp->contLen);
   TAOS_CHECK_EXIT(tDeserializeSMountInfo(&decoder, &mntInfo));
-
+  const STraceId *trace = &pRsp->info.traceId;
+  rspToClient = true;
   SRpcMsg rsp = {
-      .code = pRsp->code,
-      .pCont = pRsp->info.rsp,
-      .contLen = pRsp->info.rspLen,
+      // .code = pRsp->code,
+      // .pCont = pRsp->info.rsp,
+      // .contLen = pRsp->info.rspLen,
       .info = *(SRpcHandleInfo *)mntInfo.pVal,
   };
-  tmsgSendRsp(&rsp);
+  if (pRsp->code != 0) {
+    TAOS_CHECK_EXIT(pRsp->code);
+  }
 
-  const STraceId *trace = &pRsp->info.traceId;
-  mGInfo("mount:%s, msg:%p, retrieve mount path rsp with code:%d", mntInfo.mountName, pRsp, pRsp->code);
+  // step 2: collect the responses from dnodes, process and push to mnode write thread to run as transaction
+  // TODO: multiple retrieve dnodes and paths supported later
+  TSDB_CHECK_CONDITION((bufLen = tSerializeSMountInfo(NULL, 0, &mntInfo)) >= 0, code, lino, _exit, bufLen);
+  TSDB_CHECK_CONDITION((pBuf = rpcMallocCont(bufLen)), code, lino, _exit, terrno);
+  TSDB_CHECK_CONDITION((bufLen = tSerializeSMountInfo(pBuf, bufLen, &mntInfo)) >= 0, code, lino, _exit, bufLen);
+  SRpcMsg rpcMsg = {.pCont = pBuf, .contLen = bufLen, .msgType = TDMT_MND_EXECUTE_MOUNT, .info.noResp = 1};
+  SEpSet  mnodeEpset = {0};
+  mndGetMnodeEpSet(pMnode, &mnodeEpset);
 
+  SMountObj *pObj = NULL;
+  if ((pObj = mndAcquireMount(pMnode, mntInfo.mountName))) {
+    mndReleaseMount(pMnode, pObj);
+    if (mntInfo.ignoreExist) {
+      mInfo("mount:%s, already exist, ignore exist is set", mntInfo.mountName);
+      code = 0;
+      goto _exit;
+    } else {
+      TAOS_CHECK_EXIT(TSDB_CODE_MND_MOUNT_ALREADY_EXIST);
+    }
+  } else {
+    if ((code = terrno) == TSDB_CODE_MND_MOUNT_NOT_EXIST) {
+      // continue
+    } else {  // TSDB_CODE_MND_MOUNT_IN_CREATING | TSDB_CODE_MND_MOUNT_IN_DROPPING | TSDB_CODE_APP_ERROR
+      TAOS_CHECK_EXIT(code);
+    }
+  }
+  TAOS_CHECK_EXIT(tmsgSendReq(&mnodeEpset, &rpcMsg));
 _exit:
+  if (code == 0) {
+    mGInfo("mount:%s, msg:%p, retrieve mount path rsp with code:%d", mntInfo.mountName, pRsp, pRsp->code);
+  } else {
+    mError("mount:%s, msg:%p, failed at line %d to retrieve mount path rsp since %s", mntInfo.mountName, pRsp, lino,
+           tstrerror(code));
+    if (rspToClient) {
+      rsp.code = code;
+      tmsgSendRsp(&rsp);
+    }
+  }
   tDecoderClear(&decoder);
   tFreeMountInfo(&mntInfo, true);
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
@@ -987,6 +1032,63 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
 
   // TAOS_CHECK_EXIT(mndCreateMount(pMnode, pReq, &createReq, pUser));
   // if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+  // SName name = {0};
+  // if (tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB) < 0)
+  //   mError("db:%s, failed to parse db name", createReq.db);
+
+  auditRecord(pReq, pMnode->clusterId, "createMount", createReq.mountName, "", createReq.sql, createReq.sqlLen);
+
+_exit:
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("mount:%s, dnode:%d, path:%s, failed to create at line:%d since %s",
+           createReq.mountName ? createReq.mountName : "NULL", createReq.dnodeIds ? createReq.dnodeIds[0] : 0,
+           createReq.mountPaths ? createReq.mountPaths[0] : "", lino, tstrerror(code));  // TODO: mutiple mounts
+  }
+
+  mndReleaseMount(pMnode, pObj);
+  mndReleaseUser(pMnode, pUser);
+  tFreeSCreateMountReq(&createReq);
+
+  TAOS_RETURN(code);
+}
+
+
+static int32_t mndProcessExecuteMountReq(SRpcMsg *pReq) {
+  int32_t    code = 0, lino = 0;
+  SMnode    *pMnode = pReq->info.node;
+  SMountObj *pObj = NULL;
+  SUserObj  *pUser = NULL;
+  SMountInfo mntInfo = {0};
+  SDecoder   decoder = {0};
+
+  tDecoderInit(&decoder, pReq->pCont, pReq->contLen);
+
+  TAOS_CHECK_EXIT(tDeserializeSMountInfo(&decoder, &mntInfo));
+  mInfo("mount:%s, start to execute on mnode", mntInfo.mountName);
+
+  if ((pObj = mndAcquireMount(pMnode, mntInfo.mountName))) {
+    if (mntInfo.ignoreExist) {
+      mInfo("mount:%s, already exist, ignore exist is set", mntInfo.mountName);
+      code = 0;
+      goto _exit;
+    } else {
+      TAOS_CHECK_EXIT(TSDB_CODE_MND_MOUNT_ALREADY_EXIST);
+    }
+  } else {
+    if ((code = terrno) == TSDB_CODE_MND_MOUNT_NOT_EXIST) {
+      // continue
+    } else {  // TSDB_CODE_MND_MOUNT_IN_CREATING | TSDB_CODE_MND_MOUNT_IN_DROPPING | TSDB_CODE_APP_ERROR
+      TAOS_CHECK_EXIT(code);
+    }
+  }
+  // mount operation share the privileges of db
+  TAOS_CHECK_EXIT(grantCheck(TSDB_GRANT_MOUNT));  // TODO: implement when the plan is ready
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
+
+
+  TAOS_CHECK_EXIT(mndCreateMount(pMnode, pReq, &mndInfo, pUser));
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   // SName name = {0};
   // if (tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB) < 0)

@@ -192,6 +192,7 @@ SArray *mmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_MND_GET_DB_INFO, mmPutMsgToReadQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_CREATE_MOUNT, mmPutMsgToReadQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_DROP_MOUNT, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_MND_EXECUTE_MOUNT, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
 
   if (dmSetMgmtHandle(pArray, TDMT_MND_RETRIEVE_ANAL_ALGO, mmPutMsgToReadQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_RETRIEVE_IP_WHITE, mmPutMsgToReadQueue, 0) == NULL) goto _OVER;
