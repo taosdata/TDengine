@@ -1147,6 +1147,11 @@ static int32_t translatePlaceHolderPseudoColumn(SFunctionNode* pFunc, char* pErr
                                         .precision = pFunc->node.resType.precision};
       break;
     }
+    case FUNCTION_TYPE_PLACEHOLDER_TBNAME: {
+      pFunc->node.resType = (SDataType){.bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE,
+                                        .type = TSDB_DATA_TYPE_BINARY};
+      break;
+    }
     case FUNCTION_TYPE_PLACEHOLDER_COLUMN: {
       break;
     }
@@ -6048,6 +6053,20 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .maxParamNum = 0,
                    .paramInfoPattern = 0,
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE},},
+    .translateFunc = translatePlaceHolderPseudoColumn,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL,
+  },
+  {
+    .name = "_placeholder_tbname",
+    .type = FUNCTION_TYPE_PLACEHOLDER_TBNAME,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_PLACE_HOLDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE},},
     .translateFunc = translatePlaceHolderPseudoColumn,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
