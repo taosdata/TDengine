@@ -7,7 +7,6 @@ import taos
 import taosrest
 import taosws
 import yaml
-import logging
 import socket
 import configparser
 import shutil
@@ -38,10 +37,10 @@ class BeforeTest:
     def install_taos(self):
         pass
 
-    def deploy_taos(self, yaml_file, mnodes_num=1):
+    def deploy_taos(self, yaml_file, mnodes_num=1, clean=False):
         """
         get env directory from request;
-        use yaml file for tostest run;
+        use yaml file for taostest run;
         """
         # 初始化目录
         # 获取根目录
@@ -75,9 +74,18 @@ class BeforeTest:
                 tdLog.exit(f"Error run taostest --init: {e}")
 
         tdLog.debug(f"Deploying environment with config: {yaml_file}")
+        setup_params = {
+            "test_root": self.root_dir,
+            "setup": yaml_file,
+            "mnode_count": mnodes_num,
+            "log_level": self.log_level
+        }
+        if clean:
+            setup_params["clean"] = ''
+
         try:
             #subprocess.run([sys.executable, f"taostest --setup {yaml_file} --mnode-count {mnodes_num}"], check=True, text=True, shell=True, env=env_vars)
-            result = taostest.main({"test_root": self.root_dir, "setup": yaml_file, "mnode_count": mnodes_num, "log_level": self.log_level})
+            result = taostest.main(setup_params)
             if result != 0:
                 tdLog.error(f"Error run taostest --setup {yaml_file} --mnode-count {mnodes_num}: {result}")
         except Exception as e:
@@ -477,6 +485,7 @@ class BeforeTest:
         tdDnodes.sim.logDir = os.path.join(tdDnodes.sim.path,"psim","log")
         tdDnodes.sim.cfgDir = os.path.join(tdDnodes.sim.path,"psim","cfg")
         tdDnodes.sim.cfgPath = os.path.join(tdDnodes.sim.path,"psim","cfg","taos.cfg")
+        tdDnodes.sim.deploy(request.cls.updatecfgDict if hasattr(request.cls, "updatecfgDict") else {})
         tdDnodes.simDeployed = True
         tdDnodes.setLevelDisk(request.session.level, request.session.disk)
         for i in range(dnode_nums):
@@ -515,6 +524,8 @@ class BeforeTest:
        
     def update_cfg(self, updatecfgDict):
         for key, value in updatecfgDict.items():
+            if key == "clientCfg":
+                continue
             for dnode in self.request.session.yaml_data["settings"][0]["spec"]["dnodes"]:
                 dnode["config"][key] = value
         with open(os.path.join(self.root_dir, 'env', 'ci_default.yaml'), 'w') as file:

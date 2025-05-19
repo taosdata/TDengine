@@ -135,6 +135,19 @@ class TDDnodes:
     def forcestop(self, index):
         self.check(index)
         self.dnodes[index - 1].forcestop()
+        
+    def dnodeClearData(self, index):
+        """
+        Clear dnode's data (Remove all data files).
+
+        Args:
+            idx (int): The index of the dnode to clear.
+
+        Returns:
+            bool: True if the dnode was cleared successfully, False otherwise.
+        """
+        self.check(index)
+        return self.dnodes[index - 1].dnodeClearData()
 
     def startIP(self, index):
         self.check(index)

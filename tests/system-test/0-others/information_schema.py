@@ -224,7 +224,7 @@ class TDTestCase:
         tdLog.info(len(tdSql.queryResult))
         tdSql.checkEqual(True, len(tdSql.queryResult) in range(329, 330))
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
-        tdSql.checkEqual(61, len(tdSql.queryResult))
+        tdSql.checkEqual(62, len(tdSql.queryResult))
 
     def ins_dnodes_check(self):
         tdSql.execute('drop database if exists db2')
@@ -276,7 +276,6 @@ class TDTestCase:
             'subscription':'Subscription',
             'view':'View',
             'audit':'Audit',
-            'csv':'CSV',
             'storage':'Multi-Tier Storage',
             'backup_restore':'Data Backup & Restore',
             'object_storage':'Object Storage',
@@ -300,6 +299,7 @@ class TDTestCase:
             'mssql':'SqlServer',
             'mongodb':'MongoDB',
             'csv':'CSV',
+            'sparkplugb':"SparkplugB",
         }
 
         tdSql.execute('drop database if exists db2')

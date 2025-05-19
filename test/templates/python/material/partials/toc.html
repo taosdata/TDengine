@@ -1,0 +1,52 @@
+{% set title = lang.t("toc") %}
+{% if config.mdx_configs.toc and config.mdx_configs.toc.title %}
+  {% set title = config.mdx_configs.toc.title %}
+{% endif %}
+
+{# 定义递归处理TOC项的宏 #}
+{% macro render_toc_item(item, level=1) %}
+  {% if level == 2 %}
+    {# 对于第二级目录，跳过渲染 #}
+    <nav class="md-nav" aria-label="{{ item.title | e }}">
+      <ul class="md-nav__list">
+        {% for child in item.children %}
+          {{ render_toc_item(child, level + 1) }}
+        {% endfor %}
+      </ul>
+    </nav>
+  {% else %}
+    <li class="md-nav__item">
+      <a href="{{ item.url }}" class="md-nav__link">
+        {{ item.title | replace('test_', '') }} {# 移除test_前缀 #}
+      </a>
+      {% if item.children %}
+        <nav class="md-nav" aria-label="{{ item.title | e }}">
+          <ul class="md-nav__list">
+            {% for child in item.children %}
+              {{ render_toc_item(child, level + 1) }}
+            {% endfor %}
+          </ul>
+        </nav>
+      {% endif %}
+    </li>
+  {% endif %}
+{% endmacro %}
+
+<nav class="md-nav md-nav--secondary" aria-label="{{ title | e }}">
+  {% set toc = page.toc %}
+  {% set first = toc | first %}
+  {% if first and first.level == 1 %}
+    {% set toc = first.children %}
+  {% endif %}
+  {% if toc %}
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      {{ title }}
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      {% for toc_item in toc %}
+        {{ render_toc_item(toc_item) }}
+      {% endfor %}
+    </ul>
+  {% endif %}
+</nav>
