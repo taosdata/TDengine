@@ -332,4 +332,42 @@ void mndStreamPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pActio
   mndStreamActionEnqueue(actionQ, pNode);
 }
 
+void mndStreamLogSStreamObj(char* tips, SStreamObj* p) {
+  if (NULL == p) {
+    stDebug("%s: stream is NULL", tips);
+    return;
+  }
+
+  stDebug("%s: stream obj", tips);
+  stDebug("name:%s mainSnodeId:%d userDropped:%d userStopped:%d createTime:%" PRId64 " updateTime:%" PRId64,
+      p->name, p->mainSnodeId, p->userDropped, p->userStopped, p->createTime, p->updateTime);
+
+  SCMCreateStreamReq* q = p->pCreate;
+  if (NULL == q) {
+    stDebug("stream pCreate is NULL");
+    return;
+  }
+
+  int64_t streamId = q->streamId;
+  int32_t calcDBNum = taosArrayGetSize(q->calcDB);
+  mstDebug("create info: name:%d sql:%s streamDB:%s triggerDB:%s outDB:%s calcDBNum:%d",
+      q->name, q->sql, q->streamDB, q->triggerDB, q->outDB, calcDBNum);
+
+  for (int32_t i = 0; i < calcDBNum; ++i) {
+  }
+
+  int32_t calcScanNum = taosArrayGetSize(q->calcScanPlanList);
+  mstDebug("create info: calcPlan:[%s], calcScanPlanNum:%d", q->calcPlan, calcScanNum);
+
+  for (int32_t i = 0; i < calcScanNum; ++i) {
+    SStreamCalcScan* pScan = taosArrayGet(q->calcScanPlanList, i);
+    int32_t vgNum = taosArrayGetSize(pScan->vgList);
+    mstDebug("calcScanPlan[%d] - readFromCache:%d vgNum:%d scanPlan:[%s]", i, pScan->readFromCache, vgNum, pScan->scanPlan);
+    for (int32_t v = 0; v < vgNum; ++v) {
+      mstDebug("calcScanPlan[%d] vg[%d] - vgId:%d", i, v, *(int32_t*)taosArrayGet(pScan->vgList, v));
+    }
+  }
+      
+}
+
 

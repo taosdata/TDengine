@@ -1219,7 +1219,7 @@ int32_t msmUpdateRunnerPlans(SStmGrpCtx* pCtx, SArray* pRunners, SStreamObj* pSt
     TAOS_CHECK_EXIT(nodesNodeToString((SNode*)pExt->deploy.msg.runner.pPlan, false, (char**)&pExt->deploy.msg.runner.pPlan, NULL));
 
     SStreamTask* pTask = &pExt->deploy.task;
-    ST_TASK_DLOG("runner task plan:%s", (const char*)pExt->deploy.msg.runner.pPlan);
+    ST_TASK_DLOG("runner updated task plan:%s", (const char*)pExt->deploy.msg.runner.pPlan);
   }
 
 _exit:

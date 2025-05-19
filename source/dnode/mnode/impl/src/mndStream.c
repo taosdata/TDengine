@@ -208,6 +208,8 @@ static int32_t mndStreamBuildObj(SMnode *pMnode, SStreamObj *pObj, SCMCreateStre
   pObj->createTime = taosGetTimestampMs();
   pObj->updateTime = pObj->createTime;
 
+  mndStreamLogSStreamObj("create stream", pObj);
+
   return code;
 }
 
