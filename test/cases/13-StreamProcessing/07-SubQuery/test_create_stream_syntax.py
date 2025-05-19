@@ -369,17 +369,17 @@ def gen_create_stream_variants():
     notify_options = generate_notif_def_section(total=10)
     sql_variants = []
     stream_index = 0
-    for if_not_exists, dbnm, into, as_subquery in product(
+    for if_not_exists, db_name, into, as_subquery in product(
             if_not_exists_opts, db_name_list, into_option_list, as_subquery_opts
     ):
-        for tritype in trigger_types:
+        for trigger_type in trigger_types:
             for trigger_table in trigger_tables:
                 for stream_opt in stream_options:
                     for notify in notify_options:
                         sql = base_template.format(
                            if_not_exists=if_not_exists,
-                           stream_name=dbnm + "stream_" + str(stream_index),
-                           stream_options=tritype + generate_partition_section() + stream_opt + notify + trigger_table,
+                           stream_name=db_name + "stream_" + str(stream_index),
+                           stream_options=trigger_type + generate_partition_section() + stream_opt + notify + trigger_table,
                            into_clause=into,
                            output_subtable=generate_output_subtable(),
                            columns=generate_column_list_section(),
