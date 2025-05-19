@@ -3497,6 +3497,11 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
   }
 
   if (fmIsPlaceHolderFunc((*pFunc)->funcId)) {
+    if (!pCxt->createStreamCalc) {
+      pCxt->errCode = TSDB_CODE_FUNC_FUNTION_ERROR;
+      parserError("stream place holder should only appear in create stream's query part");
+      return DEAL_RES_ERROR;
+    }
     SNode* extraValue = NULL;
     switch ((*pFunc)->funcType) {
       case FUNCTION_TYPE_TCURRENT_TS: {
@@ -3532,6 +3537,11 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
       case FUNCTION_TYPE_TGRPID: {
         BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_GRPID);
         nodesMakeValueNodeFromInt64(0, &extraValue);
+        break;
+      }
+      case FUNCTION_TYPE_PLACEHOLDER_TBNAME: {
+        BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_TBNAME);
+        nodesMakeValueNodeFromString("_ph_tbname", (SValueNode**)&extraValue);
         break;
       }
       case FUNCTION_TYPE_PLACEHOLDER_COLUMN: {
@@ -5774,6 +5784,10 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
       break;
     }
     case QUERY_NODE_PLACE_HOLDER_TABLE: {
+      if (!pCxt->createStreamCalc) {
+        parserError("stream place holder should only appear in create stream's query part");
+        return TSDB_CODE_FUNC_FUNTION_ERROR;
+      }
       SPlaceHolderTableNode *pPlaceHolderTable = (SPlaceHolderTableNode*)*pTable;
       SRealTableNode        *newPlaceHolderTable = NULL;
       SRealTableNode        *pTriggerTable = (SRealTableNode*)pCxt->createStreamTriggerTbl;
@@ -12806,6 +12820,7 @@ static int32_t createStreamReqBuildStreamTagExprStr(STranslateContext* pCxt, SNo
     SStreamTagDefNode* pTag = (SStreamTagDefNode*)pNode;
     if (pTag->pTagExpr) {
       PAR_ERR_JRET(translateCreateStreamTagSubtableExpr(pCxt, pPartitionByList, &pTag->pTagExpr));
+      // TODO(smj) : check tag expr's type
       PAR_ERR_JRET(createStreamSetNodeSlotId(pTag->pTagExpr, pTriggerSlotHash, NULL));
       PAR_ERR_JRET(nodesListMakeAppend(&pExprList, pTag->pTagExpr));
     } else {
@@ -13284,19 +13299,21 @@ static int32_t createStreamReqSetDefaultTag(STranslateContext* pCxt, SCreateStre
           PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "The tag function must be tbname"));
         }
         tstrncpy(pTagDef->tagName, "tag_tbname", TSDB_COL_NAME_LEN);
-        pTagDef->dataType.type = pFunc->node.resType.type;
-        pTagDef->dataType.bytes = pFunc->node.resType.bytes;
-        pTagDef->dataType.precision =pFunc->node.resType.precision;
-        pTagDef->dataType.scale = pFunc->node.resType.scale;
+        // default use _tgrpid as value;
+        pTagDef->dataType.type = TSDB_DATA_TYPE_BIGINT;
+        pTagDef->dataType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+        pTagDef->dataType.precision = 0;
+        pTagDef->dataType.scale = 0;
         break;
       }
       case QUERY_NODE_COLUMN: {
         SExprNode* pExpr = (SExprNode*)pNode;
         tstrncpy(pTagDef->tagName, pExpr->aliasName, TSDB_COL_NAME_LEN);
-        pTagDef->dataType.type = pExpr->resType.type;
-        pTagDef->dataType.bytes = pExpr->resType.bytes;
-        pTagDef->dataType.precision = pExpr->resType.precision;
-        pTagDef->dataType.scale = pExpr->resType.scale;
+        // default use _tgrpid as value;
+        pTagDef->dataType.type = TSDB_DATA_TYPE_BIGINT;
+        pTagDef->dataType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+        pTagDef->dataType.precision = 0;
+        pTagDef->dataType.scale = 0;
         break;
       }
       default: {
