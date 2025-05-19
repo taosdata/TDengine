@@ -30,7 +30,7 @@ extern "C" {
 #define DESCRIBE_RESULT_TYPE_LEN           (20 + VARSTR_HEADER_SIZE)
 #define DESCRIBE_RESULT_NOTE_LEN           (16 + VARSTR_HEADER_SIZE)
 #define DESCRIBE_RESULT_COPRESS_OPTION_LEN (TSDB_CL_COMPRESS_OPTION_LEN + VARSTR_HEADER_SIZE)
-#define DESCRIBE_RESULT_COL_REF_LEN         (TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE)
+#define DESCRIBE_RESULT_COL_REF_LEN        (TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE)
 
 #define SHOW_CREATE_DB_RESULT_COLS       2
 #define SHOW_CREATE_DB_RESULT_FIELD1_LEN (TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE)
@@ -162,6 +162,12 @@ typedef struct STrimDatabaseStmt {
   int32_t   maxSpeed;
 } STrimDatabaseStmt;
 
+typedef struct SDFDatabaseStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  int8_t    typeDDF;
+} SDFDatabaseStmt;
+
 typedef struct SS3MigrateDatabaseStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
@@ -185,22 +191,22 @@ typedef struct SCompactVgroupsStmt {
 } SCompactVgroupsStmt;
 
 typedef struct STableOptions {
-  ENodeType  type;
-  bool       virtualStb;
-  bool       commentNull;
-  char       comment[TSDB_TB_COMMENT_LEN];
-  SNodeList* pMaxDelay;
-  int64_t    maxDelay1;
-  int64_t    maxDelay2;
-  SNodeList* pWatermark;
-  int64_t    watermark1;
-  int64_t    watermark2;
-  SNodeList* pDeleteMark;
-  int64_t    deleteMark1;
-  int64_t    deleteMark2;
-  SNodeList* pRollupFuncs;
-  int32_t    ttl;
-  SNodeList* pSma;
+  ENodeType   type;
+  bool        virtualStb;
+  bool        commentNull;
+  char        comment[TSDB_TB_COMMENT_LEN];
+  SNodeList*  pMaxDelay;
+  int64_t     maxDelay1;
+  int64_t     maxDelay2;
+  SNodeList*  pWatermark;
+  int64_t     watermark1;
+  int64_t     watermark2;
+  SNodeList*  pDeleteMark;
+  int64_t     deleteMark1;
+  int64_t     deleteMark2;
+  SNodeList*  pRollupFuncs;
+  int32_t     ttl;
+  SNodeList*  pSma;
   SValueNode* pKeepNode;
   int32_t     keep;
 } STableOptions;
@@ -238,24 +244,24 @@ typedef struct SCreateTableStmt {
 } SCreateTableStmt;
 
 typedef struct SCreateVTableStmt {
-  ENodeType      type;
-  char           dbName[TSDB_DB_NAME_LEN];
-  char           tableName[TSDB_TABLE_NAME_LEN];
-  bool           ignoreExists;
-  SNodeList*     pCols;
+  ENodeType  type;
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       tableName[TSDB_TABLE_NAME_LEN];
+  bool       ignoreExists;
+  SNodeList* pCols;
 } SCreateVTableStmt;
 
 typedef struct SCreateVSubTableStmt {
-  ENodeType      type;
-  char           dbName[TSDB_DB_NAME_LEN];
-  char           tableName[TSDB_TABLE_NAME_LEN];
-  char           useDbName[TSDB_DB_NAME_LEN];
-  char           useTableName[TSDB_TABLE_NAME_LEN];
-  bool           ignoreExists;
-  SNodeList*     pSpecificTags;
-  SNodeList*     pValsOfTags;
-  SNodeList*     pSpecificColRefs;
-  SNodeList*     pColRefs;
+  ENodeType  type;
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       tableName[TSDB_TABLE_NAME_LEN];
+  char       useDbName[TSDB_DB_NAME_LEN];
+  char       useTableName[TSDB_TABLE_NAME_LEN];
+  bool       ignoreExists;
+  SNodeList* pSpecificTags;
+  SNodeList* pValsOfTags;
+  SNodeList* pSpecificColRefs;
+  SNodeList* pColRefs;
 } SCreateVSubTableStmt;
 
 typedef struct SCreateSubTableClause {

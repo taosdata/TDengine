@@ -119,6 +119,8 @@ static SKeyword keywordTable[] = {
     {"FIRST",                TK_FIRST},
     {"FLOAT",                TK_FLOAT},
     {"FLUSH",                TK_FLUSH},
+    {"IDF",                  TK_IDF},
+    {"DDF",                  TK_DDF},
     {"FROM",                 TK_FROM},
     {"FOR",                  TK_FOR},
     {"FORCE",                TK_FORCE},

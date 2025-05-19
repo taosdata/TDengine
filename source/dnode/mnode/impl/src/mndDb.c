@@ -14,12 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mndDb.h"
 #include "audit.h"
 #include "command.h"
 #include "mndArbGroup.h"
 #include "mndCluster.h"
 #include "mndConfig.h"
-#include "mndDb.h"
 #include "mndDnode.h"
 #include "mndIndex.h"
 #include "mndPrivilege.h"
@@ -51,6 +51,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq);
 static int32_t mndProcessDropDbReq(SRpcMsg *pReq);
 static int32_t mndProcessUseDbReq(SRpcMsg *pReq);
 static int32_t mndProcessTrimDbReq(SRpcMsg *pReq);
+static int32_t mndProcessIdfDbReq(SRpcMsg *pReq);
 static int32_t mndProcessS3MigrateDbReq(SRpcMsg *pReq);
 static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity);
 static void    mndCancelGetNextDb(SMnode *pMnode, void *pIter);
@@ -78,6 +79,7 @@ int32_t mndInitDb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_USE_DB, mndProcessUseDbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_COMPACT_DB, mndProcessCompactDbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_TRIM_DB, mndProcessTrimDbReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_IDF_DB, mndProcessIdfDbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_DB_CFG, mndProcessGetDbCfgReq);
   mndSetMsgHandle(pMnode, TDMT_MND_S3MIGRATE_DB, mndProcessS3MigrateDbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_DB_INFO, mndProcessUseDbReq);
@@ -1196,7 +1198,7 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     compactTimeRangeChanged = true;
     code = 0;
   }
-  if(compactTimeRangeChanged) {
+  if (compactTimeRangeChanged) {
     pDb->vgVersion++;
   }
 
@@ -1305,7 +1307,8 @@ static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *p
     TAOS_RETURN(code);
   }
   mInfo("trans:%d, used to alter db:%s", pTrans->id, pOld->name);
-  mInfo("trans:%d, used to alter db, ableToBeKilled:%d, killMode:%d", pTrans->id, pTrans->ableToBeKilled, pTrans->killMode);
+  mInfo("trans:%d, used to alter db, ableToBeKilled:%d, killMode:%d", pTrans->id, pTrans->ableToBeKilled,
+        pTrans->killMode);
 
   mndTransSetDbName(pTrans, pOld->name, NULL);
   TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
@@ -1315,7 +1318,8 @@ static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *p
   TAOS_CHECK_GOTO(mndSetAlterDbCommitLogs(pMnode, pTrans, pOld, pNew), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetAlterDbRedoActions(pMnode, pTrans, pOld, pNew), NULL, _OVER);
 
-  mInfo("trans:%d, used to alter db, ableToBeKilled:%d, killMode:%d", pTrans->id, pTrans->ableToBeKilled, pTrans->killMode);
+  mInfo("trans:%d, used to alter db, ableToBeKilled:%d, killMode:%d", pTrans->id, pTrans->ableToBeKilled,
+        pTrans->killMode);
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
   code = 0;
 
@@ -1594,7 +1598,7 @@ static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
   }
 
   while (1) {
-    SStbObj *pStb = NULL;
+    SStbObj   *pStb = NULL;
     ESdbStatus status;
     pIter = sdbFetchAll(pSdb, SDB_STB, pIter, (void **)&pStb, &status, true);
     if (pIter == NULL) break;
@@ -2214,6 +2218,77 @@ static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB, pDb), NULL, _OVER);
 
   code = mndTrimDb(pMnode, pDb);
+
+_OVER:
+  if (code != 0) {
+    mError("db:%s, failed to process trim db req since %s", trimReq.db, terrstr());
+  }
+
+  mndReleaseDb(pMnode, pDb);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndIdfDb(SMnode *pMnode, SDbObj *pDb, int32_t typeDDF) {
+  SSdb      *pSdb = pMnode->pSdb;
+  SVgObj    *pVgroup = NULL;
+  void      *pIter = NULL;
+  int32_t    code = 0;
+  SVIdfDbReq trimReq = {.timestamp = taosGetTimestampSec(), .typeDDF = typeDDF};
+  int32_t    reqLen = tSerializeSVIdfDbReq(NULL, 0, &trimReq);
+  int32_t    contLen = reqLen + sizeof(SMsgHead);
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+
+    SMsgHead *pHead = rpcMallocCont(contLen);
+    if (pHead == NULL) {
+      sdbCancelFetch(pSdb, pVgroup);
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
+    pHead->contLen = htonl(contLen);
+    pHead->vgId = htonl(pVgroup->vgId);
+    int32_t ret = 0;
+    if ((ret = tSerializeSVIdfDbReq((char *)pHead + sizeof(SMsgHead), contLen, &trimReq)) < 0) {
+      sdbRelease(pSdb, pVgroup);
+      return ret;
+    }
+
+    SRpcMsg rpcMsg = {.msgType = TDMT_VND_IDF, .pCont = pHead, .contLen = contLen};
+    SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
+    int32_t code = tmsgSendReq(&epSet, &rpcMsg);
+    if (code != 0) {
+      mError("vgId:%d, failed to send vnode-trim request to vnode since 0x%x", pVgroup->vgId, code);
+    } else {
+      mInfo("vgId:%d, send vnode-trim request to vnode, time:%d", pVgroup->vgId, trimReq.timestamp);
+    }
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  return 0;
+}
+
+static int32_t mndProcessIdfDbReq(SRpcMsg *pReq) {
+  SMnode   *pMnode = pReq->info.node;
+  int32_t   code = -1;
+  SDbObj   *pDb = NULL;
+  SIdfDbReq trimReq = {0};
+
+  TAOS_CHECK_GOTO(tDeserializeSIdfDbReq(pReq->pCont, pReq->contLen, &trimReq), NULL, _OVER);
+
+  mInfo("db:%s, start to trim", trimReq.db);
+
+  pDb = mndAcquireDb(pMnode, trimReq.db);
+  if (pDb == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    goto _OVER;
+  }
+
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB, pDb), NULL, _OVER);
+
+  code = mndIdfDb(pMnode, pDb, trimReq.typeDDF);
 
 _OVER:
   if (code != 0) {

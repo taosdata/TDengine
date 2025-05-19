@@ -285,6 +285,7 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_DATABASE_STMT,
   QUERY_NODE_ALTER_DATABASE_STMT,
   QUERY_NODE_FLUSH_DATABASE_STMT,
+  QUERY_NODE_IDF_DATABASE_STMT,
   QUERY_NODE_TRIM_DATABASE_STMT,
   QUERY_NODE_CREATE_TABLE_STMT,
   QUERY_NODE_CREATE_SUBTABLE_CLAUSE,
@@ -512,7 +513,7 @@ typedef enum ENodeType {
 
 typedef struct {
   int32_t     vgId;
-  uint8_t     option;  // 0x0 REQ_OPT_TBNAME, 0x01 REQ_OPT_TBUID
+  uint8_t     option;         // 0x0 REQ_OPT_TBNAME, 0x01 REQ_OPT_TBUID
   uint8_t     autoCreateCtb;  // 0x0 not auto create, 0x01 auto create
   const char* dbFName;
   const char* tbName;
@@ -619,9 +620,9 @@ typedef struct {
 } SColRef;
 
 typedef struct {
-  int32_t   nCols;
-  int32_t   version;
-  SColRef*  pColRef;
+  int32_t  nCols;
+  int32_t  version;
+  SColRef* pColRef;
 } SColRefWrapper;
 
 typedef struct {
@@ -644,13 +645,13 @@ typedef struct SVCTableRefCols {
 } SVCTableRefCols;
 
 typedef struct SVCTableMergeInfo {
-  uint64_t     uid;
-  int32_t      numOfSrcTbls;
+  uint64_t uid;
+  int32_t  numOfSrcTbls;
 } SVCTableMergeInfo;
 
 typedef struct {
-  int32_t     nCols;
-  SColRefEx*  pColRefEx;
+  int32_t    nCols;
+  SColRefEx* pColRefEx;
 } SColRefExWrapper;
 
 struct SSchema {
@@ -725,12 +726,12 @@ typedef struct {
 // void    tFreeSSubmitBlkRsp(void* param);
 void tFreeSSubmitRsp(SSubmitRsp* pRsp);
 
-#define COL_SMA_ON     ((int8_t)0x1)
-#define COL_IDX_ON     ((int8_t)0x2)
-#define COL_IS_KEY     ((int8_t)0x4)
-#define COL_SET_NULL   ((int8_t)0x10)
-#define COL_SET_VAL    ((int8_t)0x20)
-#define COL_IS_SYSINFO ((int8_t)0x40)
+#define COL_SMA_ON       ((int8_t)0x1)
+#define COL_IDX_ON       ((int8_t)0x2)
+#define COL_IS_KEY       ((int8_t)0x4)
+#define COL_SET_NULL     ((int8_t)0x10)
+#define COL_SET_VAL      ((int8_t)0x20)
+#define COL_IS_SYSINFO   ((int8_t)0x40)
 #define COL_HAS_TYPE_MOD ((int8_t)0x80)
 
 #define COL_IS_SET(FLG)  (((FLG) & (COL_SET_VAL | COL_SET_NULL)) != 0)
@@ -795,7 +796,6 @@ typedef struct {
   int32_t   version;
   SColCmpr* pColCmpr;
 } SColCmprWrapper;
-
 
 static FORCE_INLINE int32_t tInitDefaultSColRefWrapperByCols(SColRefWrapper* pRef, int32_t nCols) {
   if (pRef->pColRef) {
@@ -1009,7 +1009,9 @@ static FORCE_INLINE void* taosDecodeSSchemaWrapper(const void* buf, SSchemaWrapp
 }
 
 static FORCE_INLINE int32_t tEncodeSSchemaWrapper(SEncoder* pEncoder, const SSchemaWrapper* pSW) {
-  if (pSW == NULL) {return TSDB_CODE_INVALID_PARA;}
+  if (pSW == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   TAOS_CHECK_RETURN(tEncodeI32v(pEncoder, pSW->nCols));
   TAOS_CHECK_RETURN(tEncodeI32v(pEncoder, pSW->version));
   for (int32_t i = 0; i < pSW->nCols; i++) {
@@ -1019,7 +1021,9 @@ static FORCE_INLINE int32_t tEncodeSSchemaWrapper(SEncoder* pEncoder, const SSch
 }
 
 static FORCE_INLINE int32_t tDecodeSSchemaWrapper(SDecoder* pDecoder, SSchemaWrapper* pSW) {
-  if (pSW == NULL) {return TSDB_CODE_INVALID_PARA;}
+  if (pSW == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pSW->nCols));
   TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pSW->version));
 
@@ -1401,7 +1405,7 @@ typedef struct STbVerInfo {
   char    tbFName[TSDB_TABLE_FNAME_LEN];
   int32_t sversion;
   int32_t tversion;
-  int32_t rversion; // virtual table's column ref's version
+  int32_t rversion;  // virtual table's column ref's version
 } STbVerInfo;
 
 typedef struct {
@@ -1458,34 +1462,34 @@ typedef struct {
   tb_uid_t suid;
 } SVSubTablesReq;
 
-int32_t tSerializeSVSubTablesReq(void *buf, int32_t bufLen, SVSubTablesReq *pReq);
-int32_t tDeserializeSVSubTablesReq(void *buf, int32_t bufLen, SVSubTablesReq *pReq);
+int32_t tSerializeSVSubTablesReq(void* buf, int32_t bufLen, SVSubTablesReq* pReq);
+int32_t tDeserializeSVSubTablesReq(void* buf, int32_t bufLen, SVSubTablesReq* pReq);
 
 typedef struct {
-  int32_t  vgId;
-  SArray*  pTables;   //SArray<SVCTableRefCols*>
+  int32_t vgId;
+  SArray* pTables;  // SArray<SVCTableRefCols*>
 } SVSubTablesRsp;
 
-int32_t tSerializeSVSubTablesRsp(void *buf, int32_t bufLen, SVSubTablesRsp *pRsp);
-int32_t tDeserializeSVSubTablesRsp(void *buf, int32_t bufLen, SVSubTablesRsp *pRsp);
-void tDestroySVSubTablesRsp(void* rsp);
+int32_t tSerializeSVSubTablesRsp(void* buf, int32_t bufLen, SVSubTablesRsp* pRsp);
+int32_t tDeserializeSVSubTablesRsp(void* buf, int32_t bufLen, SVSubTablesRsp* pRsp);
+void    tDestroySVSubTablesRsp(void* rsp);
 
 typedef struct {
   SMsgHead header;
   tb_uid_t suid;
 } SVStbRefDbsReq;
 
-int32_t tSerializeSVStbRefDbsReq(void *buf, int32_t bufLen, SVStbRefDbsReq *pReq);
-int32_t tDeserializeSVStbRefDbsReq(void *buf, int32_t bufLen, SVStbRefDbsReq *pReq);
+int32_t tSerializeSVStbRefDbsReq(void* buf, int32_t bufLen, SVStbRefDbsReq* pReq);
+int32_t tDeserializeSVStbRefDbsReq(void* buf, int32_t bufLen, SVStbRefDbsReq* pReq);
 
 typedef struct {
-  int32_t  vgId;
-  SArray*  pDbs;   // SArray<char* (db name)>
+  int32_t vgId;
+  SArray* pDbs;  // SArray<char* (db name)>
 } SVStbRefDbsRsp;
 
-int32_t tSerializeSVStbRefDbsRsp(void *buf, int32_t bufLen, SVStbRefDbsRsp *pRsp);
-int32_t tDeserializeSVStbRefDbsRsp(void *buf, int32_t bufLen, SVStbRefDbsRsp *pRsp);
-void tDestroySVStbRefDbsRsp(void* rsp);
+int32_t tSerializeSVStbRefDbsRsp(void* buf, int32_t bufLen, SVStbRefDbsRsp* pRsp);
+int32_t tDeserializeSVStbRefDbsRsp(void* buf, int32_t bufLen, SVStbRefDbsRsp* pRsp);
+void    tDestroySVStbRefDbsRsp(void* rsp);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
@@ -1646,6 +1650,22 @@ typedef struct {
 
 int32_t tSerializeSVTrimDbReq(void* buf, int32_t bufLen, SVTrimDbReq* pReq);
 int32_t tDeserializeSVTrimDbReq(void* buf, int32_t bufLen, SVTrimDbReq* pReq);
+
+typedef struct {
+  char    db[TSDB_DB_FNAME_LEN];
+  int32_t typeDDF;
+} SIdfDbReq;
+
+int32_t tSerializeSIdfDbReq(void* buf, int32_t bufLen, SIdfDbReq* pReq);
+int32_t tDeserializeSIdfDbReq(void* buf, int32_t bufLen, SIdfDbReq* pReq);
+
+typedef struct {
+  int32_t timestamp;
+  int32_t typeDDF;
+} SVIdfDbReq;
+
+int32_t tSerializeSVIdfDbReq(void* buf, int32_t bufLen, SVIdfDbReq* pReq);
+int32_t tDeserializeSVIdfDbReq(void* buf, int32_t bufLen, SVIdfDbReq* pReq);
 
 typedef struct {
   char db[TSDB_DB_FNAME_LEN];
@@ -2501,9 +2521,9 @@ typedef struct SSysTableSchema {
 int32_t tSerializeSRetrieveTableReq(void* buf, int32_t bufLen, SRetrieveTableReq* pReq);
 int32_t tDeserializeSRetrieveTableReq(void* buf, int32_t bufLen, SRetrieveTableReq* pReq);
 
-#define RETRIEVE_TABLE_RSP_VERSION          0
-#define RETRIEVE_TABLE_RSP_TMQ_VERSION      1
-#define RETRIEVE_TABLE_RSP_TMQ_RAW_VERSION  2
+#define RETRIEVE_TABLE_RSP_VERSION         0
+#define RETRIEVE_TABLE_RSP_TMQ_VERSION     1
+#define RETRIEVE_TABLE_RSP_TMQ_RAW_VERSION 2
 
 typedef struct {
   int64_t useconds;
@@ -3003,21 +3023,21 @@ typedef struct SColIdPair {
 } SColIdPair;
 
 typedef struct SOrgTbInfo {
-  int32_t   vgId;
-  char      tbName[TSDB_TABLE_FNAME_LEN];
-  SArray*   colMap;  // SArray<SColIdNameKV>
+  int32_t vgId;
+  char    tbName[TSDB_TABLE_FNAME_LEN];
+  SArray* colMap;  // SArray<SColIdNameKV>
 } SOrgTbInfo;
 
 typedef struct STableScanOperatorParam {
-  bool           tableSeq;
-  SArray*        pUidList;
-  SOrgTbInfo*    pOrgTbInfo;
-  STimeWindow    window;
+  bool        tableSeq;
+  SArray*     pUidList;
+  SOrgTbInfo* pOrgTbInfo;
+  STimeWindow window;
 } STableScanOperatorParam;
 
 typedef struct SVTableScanOperatorParam {
-  uint64_t       uid;
-  SArray*        pOpParamArray;  // SArray<SOperatorParam>
+  uint64_t uid;
+  SArray*  pOpParamArray;  // SArray<SOperatorParam>
 } SVTableScanOperatorParam;
 
 typedef struct {
@@ -3197,7 +3217,7 @@ typedef struct {
   char    pWendName[TSDB_COL_NAME_LEN];
   char    pGroupIdName[TSDB_COL_NAME_LEN];
   char    pIsWindowFilledName[TSDB_COL_NAME_LEN];
-  SArray* pVSubTables; // array of SVSubTablesRsp
+  SArray* pVSubTables;  // array of SVSubTablesRsp
 } SCMCreateStreamReq;
 
 typedef struct STaskNotifyEventStat {
@@ -3494,7 +3514,7 @@ typedef struct SVCreateTbReq {
   char*           sql;
   SColCmprWrapper colCmpr;
   SExtSchema*     pExtSchemas;
-  SColRefWrapper  colRef; // col reference for virtual table
+  SColRefWrapper  colRef;  // col reference for virtual table
 } SVCreateTbReq;
 
 int  tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);
@@ -3607,7 +3627,7 @@ typedef struct SMultiTagUpateVal {
   int8_t   isNull;
   SArray*  pTagArray;
 } SMultiTagUpateVal;
-typedef struct SVAlterTbReq{
+typedef struct SVAlterTbReq {
   char*   tbName;
   int8_t  action;
   char*   colName;
@@ -3640,9 +3660,9 @@ typedef struct SVAlterTbReq{
   // for Add column
   STypeMod typeMod;
   // TSDB_ALTER_TABLE_ALTER_COLUMN_REF
-  char*    refDbName;
-  char*    refTbName;
-  char*    refColName;
+  char* refDbName;
+  char* refTbName;
+  char* refColName;
   // TSDB_ALTER_TABLE_REMOVE_COLUMN_REF
 } SVAlterTbReq;
 
@@ -4457,7 +4477,7 @@ typedef struct {
   int8_t       rawData;
   int32_t      minPollRows;
   int8_t       enableBatchMeta;
-  SHashObj     *uidHash;  // to find if uid is duplicated
+  SHashObj*    uidHash;  // to find if uid is duplicated
 } SMqPollReq;
 
 int32_t tSerializeSMqPollReq(void* buf, int32_t bufLen, SMqPollReq* pReq);
@@ -4531,13 +4551,13 @@ typedef struct {
       SArray* createTableLen;
       SArray* createTableReq;
     };
-    struct{
+    struct {
       int32_t len;
       void*   rawData;
     };
   };
-  void*   data;  //for free in client, only effected if type is data or metadata. raw data not effected
-  bool    blockDataElementFree;   // if true, free blockDataElement in blockData,(true in server, false in client)
+  void* data;                  // for free in client, only effected if type is data or metadata. raw data not effected
+  bool  blockDataElementFree;  // if true, free blockDataElement in blockData,(true in server, false in client)
 } SMqDataRsp;
 
 int32_t tEncodeMqDataRsp(SEncoder* pEncoder, const SMqDataRsp* pObj);

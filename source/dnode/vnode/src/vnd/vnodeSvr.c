@@ -41,6 +41,7 @@ static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t ver, void *pR
 static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int32_t vnodeProcessIdfReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessS3MigrateReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
                                      SRpcMsg *pOriginalMsg);
@@ -363,6 +364,12 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
         TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
+    {
+      static int batchNo = 0;
+      ++batchNo;
+
+      // if (!strncmp
+    }
   }
 
   if (!tDecodeIsEnd(pCoder)) {
@@ -374,7 +381,8 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
 
 _exit:
   if (code) {
-    vError("vgId:%d, %s:%d failed to vnodePreProcessSubmitTbData submit request since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+    vError("vgId:%d, %s:%d failed to vnodePreProcessSubmitTbData submit request since %s", TD_VID(pVnode), __func__,
+           lino, tstrerror(code));
   }
   return code;
 }
@@ -675,6 +683,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_VND_TRIM:
       if (vnodeProcessTrimReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
+    case TDMT_VND_IDF:
+      if (vnodeProcessIdfReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
+      break;
     case TDMT_VND_S3MIGRATE:
       if (vnodeProcessS3MigrateReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
@@ -691,7 +702,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_VND_BATCH_DEL:
       if (vnodeProcessBatchDeleteReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
-    /* TQ */
+      /* TQ */
 #if defined(USE_TQ) || defined(USE_STREAM)
     case TDMT_VND_TMQ_SUBSCRIBE:
       if (tqProcessSubscribeReq(pVnode->pTq, ver, pReq, len) < 0) {
@@ -1092,6 +1103,51 @@ _exit:
   return code;
 }
 
+static int32_t vnodeProcessIdfReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  if (!pVnode->restored) {
+    vInfo("vgId:%d, ignore trim req during restoring. ver:%" PRId64, TD_VID(pVnode), ver);
+    return 0;
+  }
+
+  int32_t    code = 0;
+  SVIdfDbReq idfReq = {0};
+
+  // decode
+  if (tDeserializeSVIdfDbReq(pReq, len, &idfReq) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  vInfo("vgId:%d, process idf vnode request, time:%d", pVnode->config.vgId, idfReq.timestamp);
+
+  if (1 == idfReq.typeDDF) {
+    if (pVnode->partitionNo <= 1) {
+      code = TSDB_CODE_INVALID_MSG;
+      vError("vgId:%d, failed to update partitionNo:%hh list since %s", TD_VID(pVnode), pVnode->partitionNo,
+             tstrerror(code));
+
+    } else {
+      --pVnode->partitionNo;
+    }
+  } else if (0 == idfReq.typeDDF) {
+    if (pVnode->partitionNo >= 3) {
+      code = TSDB_CODE_INVALID_MSG;
+      vError("vgId:%d, failed to update partitionNo:%d list since %s", TD_VID(pVnode), pVnode->partitionNo,
+             tstrerror(code));
+
+    } else {
+      ++pVnode->partitionNo;
+    }
+
+  } else {
+    code = TSDB_CODE_INVALID_MSG;
+    vError("vgId:%d, failed to update partitionNo:%d list since %s", TD_VID(pVnode), idfReq.typeDDF, tstrerror(code));
+  }
+
+_exit:
+  return code;
+}
+
 extern int32_t vnodeAsyncS3Migrate(SVnode *pVnode, int64_t now);
 
 static int32_t vnodeProcessS3MigrateReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
@@ -1126,8 +1182,8 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
   }
 
   if (ttlReq.nUids != 0) {
-    vInfo("vgId:%d, process drop ttl table request, time:%d, ntbUids:%d", pVnode->config.vgId,
-          ttlReq.timestampSec, ttlReq.nUids);
+    vInfo("vgId:%d, process drop ttl table request, time:%d, ntbUids:%d", pVnode->config.vgId, ttlReq.timestampSec,
+          ttlReq.nUids);
   }
 
   if (ttlReq.nUids > 0) {
@@ -1529,7 +1585,8 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     vAlterTbRsp.pMeta = &vMetaRsp;
   }
 
-  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL || vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
+  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL ||
+      vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
     int64_t uid = metaGetTableEntryUidByName(pVnode->pMeta, vAlterTbReq.tbName);
     if (uid == 0) {
       vError("vgId:%d, %s failed at %s:%d since table %s not found", TD_VID(pVnode), __func__, __FILE__, __LINE__,
@@ -1537,8 +1594,8 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
       goto _exit;
     }
 
-    SArray* tbUids = taosArrayInit(4, sizeof(int64_t));
-    void* p = taosArrayPush(tbUids, &uid);
+    SArray *tbUids = taosArrayInit(4, sizeof(int64_t));
+    void   *p = taosArrayPush(tbUids, &uid);
     TSDB_CHECK_NULL(p, code, lino, _exit, terrno);
 
     vDebug("vgId:%d, remove tags value altered table:%s from query table list", TD_VID(pVnode), vAlterTbReq.tbName);
