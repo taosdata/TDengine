@@ -365,9 +365,9 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
       }
     }
     {
-      static int batchNo = 0;
-      ++batchNo;  // use pVnode->batchCount instead of batchNo
+      ++pVnode->batchCount;
 
+      // retrieve name column
       // if (!strncmp
     }
   }
