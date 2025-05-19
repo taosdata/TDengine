@@ -2145,10 +2145,21 @@ static int32_t streamScanSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   }
 
   PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, info.pSubplan->subplanType, false));
-  PLAN_ERR_RET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, info.pSplitNode, 0)));
+  SLogicSubplan* pScanSubplan = splCreateScanSubplan(pCxt, info.pSplitNode, 0);
+  if (NULL != pScanSubplan) {
+    if (NULL != info.pSubplan->pVgroupList) {
+      info.pSubplan->numOfComputeNodes = info.pSubplan->pVgroupList->numOfVgroups;
+    } else {
+      info.pSubplan->numOfComputeNodes = 1;
+    }
+    PLAN_ERR_RET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)pScanSubplan));
+  } else {
+    PLAN_ERR_RET(terrno);
+  }
+  info.pSubplan->subplanType = SUBPLAN_TYPE_COMPUTE;
   ++(pCxt->groupId);
   info.pSplitNode->splitDone = true;
-  pCxt->split = true;
+  pCxt->split = false;
   return code;
 }
 
