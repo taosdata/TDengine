@@ -269,6 +269,7 @@ static SKeyword keywordTable[] = {
     {"START",                TK_START},
     {"STATE",                TK_STATE},
     {"STATE_WINDOW",         TK_STATE_WINDOW},
+    {"STOP",                 TK_STOP},
     {"STORAGE",              TK_STORAGE},
     {"STREAM",               TK_STREAM},
     {"STREAMS",              TK_STREAMS},
