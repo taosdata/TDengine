@@ -51,6 +51,7 @@ static int32_t doSetScanVgroup(SLogicNode* pNode, const SVgroupInfo* pVgroup, bo
       return terrno;
     }
     memcpy(pScan->pVgroupList->vgroups, pVgroup, sizeof(SVgroupInfo));
+    pScan->pVgroupList->numOfVgroups = 1;
     *pFound = true;
     return TSDB_CODE_SUCCESS;
   } else if (QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL == nodeType(pNode)) {
