@@ -589,7 +589,9 @@ static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
 
   atomic_store_8(&pStream->userStopped, 1);
 
-  // pause stream
+  msmUndeployStream(pMnode, streamId, pStream->pCreate->name);
+
+  // stop stream
   code = mndStreamTransAppend(pStream, pTrans, SDB_STATUS_READY);
   if (code != TSDB_CODE_SUCCESS) {
     sdbRelease(pMnode->pSdb, pStream);
@@ -604,8 +606,6 @@ static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
     mndTransDrop(pTrans);
     return code;
   }
-
-  mndStreamPostAction(mStreamMgmt.actionQ, streamId, pStream->pCreate->name, STREAM_ACT_UNDEPLOY);
 
   sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);

@@ -559,15 +559,15 @@ _return:
 }
 
 
-static int32_t msmSTAddToSnodeMap(SStmGrpCtx* pCtx, SStreamObj* pStream, SArray* pTasks, SStmTaskStatus* pTask, bool triggerTask) {
+static int32_t msmSTAddToSnodeMap(SStmGrpCtx* pCtx, SStreamObj* pStream, SArray* pTasks, SStmTaskStatus* pTask, int32_t taskNum, bool triggerTask) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
-  int32_t taskNum = triggerTask ? 1 : taosArrayGetSize(pTasks);
+  int32_t rtaskNum = (taskNum > 0) ? taskNum : taosArrayGetSize(pTasks);
   int32_t taskType = triggerTask ? STREAM_TRIGGER_TASK : STREAM_RUNNER_TASK;
   
-  for (int32_t i = 0; i < taskNum; ++i) {
-    SStmTaskStatus* pStatus = triggerTask ? pTask : taosArrayGet(pTasks, i);
+  for (int32_t i = 0; i < rtaskNum; ++i) {
+    SStmTaskStatus* pStatus = (taskNum > 0) ? (pTask + i) : taosArrayGet(pTasks, i);
     TSDB_CHECK_CODE(msmSTAddToSnodeMapImpl(mStreamMgmt.snodeMap, pStatus, pStream, triggerTask), lino, _return);
   }
   
@@ -767,7 +767,7 @@ static int32_t msmBuildTriggerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStream
   atomic_add_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);
 
   TSDB_CHECK_CODE(msmSTAddToTaskMap(pCtx, pStream, NULL, pInfo->triggerTask), lino, _return);
-  TSDB_CHECK_CODE(msmSTAddToSnodeMap(pCtx, pStream, NULL, pInfo->triggerTask, true), lino, _return);
+  TSDB_CHECK_CODE(msmSTAddToSnodeMap(pCtx, pStream, NULL, pInfo->triggerTask, 1, true), lino, _return);
 
 _return:
 
@@ -1338,7 +1338,7 @@ int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* 
   }
 
   TSDB_CHECK_CODE(msmSTAddToTaskMap(pCtx, pStream, pInfo->runnerList, NULL), lino, _exit);
-  TSDB_CHECK_CODE(msmSTAddToSnodeMap(pCtx, pStream, pInfo->runnerList, NULL, false), lino, _exit);
+  TSDB_CHECK_CODE(msmSTAddToSnodeMap(pCtx, pStream, pInfo->runnerList, NULL, 0, false), lino, _exit);
 
 _exit:
 
@@ -1434,11 +1434,7 @@ int32_t msmReBuildRunnerTasks(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* pI
     TAOS_CHECK_EXIT(msmUpdateRunnerPlans(pCtx, pSnodeDeploy->runnerList, pStream, totalTaskNum));
 
     int32_t num = ((uint64_t)pRunner - (uint64_t)pStartRunner) / sizeof(SStmTaskStatus);
-    SArray* pTmp = taosArrayInit_s(num, sizeof(SStmTaskStatus));
-    TSDB_CHECK_NULL(pTmp, code, lino, _exit, terrno);
-    memcpy(TARRAY_DATA(pTmp), pStartRunner, num * sizeof(SStmTaskStatus));
-    TAOS_CHECK_EXIT(msmSTAddToSnodeMap(pCtx, pStream, pTmp, NULL, false));
-    taosArrayDestroy(pTmp);
+    TAOS_CHECK_EXIT(msmSTAddToSnodeMap(pCtx, pStream, NULL, pStartRunner, num, false));
 
     TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pDag));
   }
@@ -1682,7 +1678,7 @@ static int32_t msmLaunchTaskDepolyAction(SStmGrpCtx* pCtx, SStmTaskAction* pActi
 
       TAOS_CHECK_EXIT(msmBuildTriggerDeployInfo(pCtx->pMnode, pStatus, &info, pStream));
       TAOS_CHECK_EXIT(msmTDAddSnodeTask(mStreamMgmt.toDeploySnodeMap, &info, pStream, true, false));
-      TAOS_CHECK_EXIT(msmSTAddToSnodeMap(pCtx, pStream, NULL, *ppTask, true));
+      TAOS_CHECK_EXIT(msmSTAddToSnodeMap(pCtx, pStream, NULL, *ppTask, 1, true));
       
       atomic_add_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);
       break;
@@ -1723,7 +1719,7 @@ static int32_t msmLaunchTaskDepolyAction(SStmGrpCtx* pCtx, SStmTaskAction* pActi
 
         TAOS_CHECK_EXIT(msmBuildTriggerDeployInfo(pCtx->pMnode, pStatus, &info, pStream));
         TAOS_CHECK_EXIT(msmTDAddSnodeTask(mStreamMgmt.toDeploySnodeMap, &info, pStream, true, false));
-        TAOS_CHECK_EXIT(msmSTAddToSnodeMap(pCtx, pStream, NULL, pAction->triggerStatus, true));
+        TAOS_CHECK_EXIT(msmSTAddToSnodeMap(pCtx, pStream, NULL, pAction->triggerStatus, 1, true));
         
         atomic_add_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);
       }
@@ -3081,7 +3077,7 @@ void msmReDeploySnodeRunnerTasks(SMnode *pMnode, SArray* pRunners, SArray* pTrig
   int64_t lastStreamId = 0;
   int32_t lastDeployId = -1;
   int32_t *pNum = NULL;
-  int32_t streamDeploy[MND_STREAM_RUNNER_DEPLOY_NUM] = {0};
+  int32_t streamDeploy[MND_STREAM_RUNNER_DEPLOY_NUM + 1] = {0};
   
   if (NULL == mStreamMgmt.healthCtx.streamRunners) {
     mStreamMgmt.healthCtx.streamRunners = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
