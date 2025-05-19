@@ -227,6 +227,45 @@ jobs:
                 templates:
                   - sql_template: select count(*) from ${child_table}
                     output_file: stb_result.txt
+
+  subscribe-data:
+    name: Subscribe Data
+    needs:
+      - create-second-child-table
+      - create-minute-child-table
+    steps:
+      - name: subscribe-data
+        uses: actions/subscribe-data
+        with:
+          # source
+          source:
+            connection_info: *db_conn
+          # control
+          control:
+            data_format:
+              format_type: sql
+            data_channel:
+              channel_type: native
+            subscribe_control:
+              execution:
+                consumer_concurrency: 5
+                poll_timeout: 500
+              topics:
+                - name: topic1
+                  sql: select * from testdb.points
+              commit:
+                mode: auto
+              group_id:
+                strategy: custom
+                custom_id: custom_group
+              output:
+                path: out
+                file_prefix: subscribe_data_
+                expected_rows: 10000
+              advanced:
+                client.id: benchmark_client
+                auto.offset.reset: earliest
+                msg.with.table.name: true
 )");
 
     ctx.merge_yaml(config);
@@ -239,7 +278,7 @@ jobs:
 
     // 验证作业解析
     // job: create-database
-    assert(data.jobs.size() == 5);
+    assert(data.jobs.size() == 6);
     assert(data.jobs[0].key == "create-database");
     assert(data.jobs[0].name == "Create Database");
     assert(data.jobs[0].needs.size() == 0);
@@ -371,7 +410,6 @@ jobs:
     assert(query_control.execution.interval == 100);
 
     assert(query_control.query_type == "super_table");
-
     const auto& super_table = query_control.super_table;
     assert(super_table.database_name == "testdb");
     assert(super_table.super_table_name == "points");
@@ -381,9 +419,42 @@ jobs:
     assert(super_table.templates[0].output_file == "stb_result.txt");
 
 
+    // job: subscribe-super-table
+    assert(data.jobs[5].key == "subscribe-data");
+    assert(data.jobs[5].name == "Subscribe Data");
+    assert(data.jobs[5].needs.size() == 2);
+    assert(data.jobs[5].needs[0] == "create-second-child-table");
+    assert(data.jobs[5].needs[1] == "create-minute-child-table");
+    assert(data.jobs[5].steps.size() == 1);
+    assert(data.jobs[5].steps[0].name == "subscribe-data");
+    assert(data.jobs[5].steps[0].uses == "actions/subscribe-data");
 
+    assert(std::holds_alternative<SubscribeDataConfig>(data.jobs[5].steps[0].action_config));
+    const auto& subscribe_config = std::get<SubscribeDataConfig>(data.jobs[5].steps[0].action_config);
 
+    assert(subscribe_config.source.connection_info.host == "10.0.0.1");
+    assert(subscribe_config.source.connection_info.port == 6043);
+    assert(subscribe_config.source.connection_info.user == "root");
+    assert(subscribe_config.source.connection_info.password == "secret");
 
+    assert(subscribe_config.control.data_format.format_type == "sql");
+    assert(subscribe_config.control.data_channel.channel_type == "native");
+
+    const auto& subscribe_control = subscribe_config.control.subscribe_control;
+    assert(subscribe_control.execution.consumer_concurrency == 5);
+    assert(subscribe_control.execution.poll_timeout == 500);
+    assert(subscribe_control.topics.size() == 1);
+    assert(subscribe_control.topics[0].name == "topic1");
+    assert(subscribe_control.topics[0].sql == "select * from testdb.points");
+    assert(subscribe_control.commit.mode == "auto");
+    assert(subscribe_control.group_id.strategy == "custom");
+    assert(subscribe_control.group_id.custom_id == "custom_group");
+    assert(subscribe_control.output.path == "out");
+    assert(subscribe_control.output.file_prefix == "subscribe_data_");
+    assert(subscribe_control.output.expected_rows == 10000);
+    assert(subscribe_control.advanced.at("client.id") == "benchmark_client");
+    assert(subscribe_control.advanced.at("auto.offset.reset") == "earliest");
+    assert(subscribe_control.advanced.at("msg.with.table.name") == "true");
 
 
     std::cout << "YAML merge test passed.\n";

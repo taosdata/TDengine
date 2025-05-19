@@ -71,6 +71,8 @@ void ParameterContext::parse_steps(const YAML::Node& steps_yaml, std::vector<Ste
                 parse_insert_data_action(step);
             } else if (step.uses == "actions/query-data") {
                 parse_query_data_action(step);
+            } else if (step.uses == "actions/subscribe-data") {
+                parse_subscribe_data_action(step);
             } else {
                 throw std::runtime_error("Unknown action type: " + step.uses);
             }
@@ -102,7 +104,7 @@ void ParameterContext::parse_create_database_action(Step& step) {
     // 将解析结果保存到 Step 的 action_config 字段
     step.action_config = std::move(create_db_config);
 
-    // 打印解析结果（可选）
+    // 打印解析结果
     std::cout << "Parsed create-database action: " << create_db_config.database_info.name << std::endl;
 }
 
@@ -147,7 +149,7 @@ void ParameterContext::parse_create_super_table_action(Step& step) {
     // 将解析结果保存到 Step 的 action_config 字段
     step.action_config = std::move(create_stb_config);
 
-    // 打印解析结果（可选）
+    // 打印解析结果
     std::cout << "Parsed create-super-table action: " << create_stb_config.super_table_info.name << std::endl;
 }
 
@@ -192,7 +194,7 @@ void ParameterContext::parse_create_child_table_action(Step& step) {
     // 将解析结果保存到 Step 的 action_config 字段
     step.action_config = std::move(create_child_config);
 
-    // 打印解析结果（可选）
+    // 打印解析结果
     std::cout << "Parsed create-child-table action for super table: " << create_child_config.super_table_info.name << std::endl;
 }
 
@@ -213,7 +215,7 @@ void ParameterContext::parse_insert_data_action(Step& step) {
     // 将解析结果保存到 Step 的 action_config 字段
     step.action_config = std::move(insert_config);
 
-    // 打印解析结果（可选）
+    // 打印解析结果
     std::cout << "Parsed insert-data action." << std::endl;
 }
 
@@ -221,20 +223,51 @@ void ParameterContext::parse_insert_data_action(Step& step) {
 void ParameterContext::parse_query_data_action(Step& step) {
     QueryDataConfig query_config;
 
+    // 解析 source（必需）
     if (step.with["source"]) {
         query_config.source = step.with["source"].as<QueryDataConfig::Source>();
+    } else {
+        throw std::runtime_error("Missing required 'source' for query-data action.");
     }
+
+    // 解析 control（必需）
     if (step.with["control"]) {
         query_config.control = step.with["control"].as<QueryDataConfig::Control>();
+    } else {
+        throw std::runtime_error("Missing required 'control' for query-data action.");
     }
 
     // 将解析结果保存到 Step 的 action_config 字段
     step.action_config = std::move(query_config);
 
-    // 打印解析结果（可选）
+    // 打印解析结果
     std::cout << "Parsed query-data action." << std::endl;
 }
 
+
+void ParameterContext::parse_subscribe_data_action(Step& step) {
+    SubscribeDataConfig subscribe_config;
+
+    // 解析 source（必需）
+    if (step.with["source"]) {
+        subscribe_config.source = step.with["source"].as<SubscribeDataConfig::Source>();
+    } else {
+        throw std::runtime_error("Missing required 'source' for subscribe-data action.");
+    }
+
+    // 解析 control（必需）
+    if (step.with["control"]) {
+        subscribe_config.control = step.with["control"].as<SubscribeDataConfig::Control>();
+    } else {
+        throw std::runtime_error("Missing required 'control' for subscribe-data action.");
+    }
+
+    // 将解析结果保存到 Step 的 action_config 字段
+    step.action_config = std::move(subscribe_config);
+
+    // 打印解析结果
+    std::cout << "Parsed subscribe-data action." << std::endl;
+}
 
 
 

@@ -350,6 +350,49 @@ struct QueryDataConfig {
 };
 
 
+struct SubscribeDataConfig {
+    struct Source {
+        ConnectionInfo connection_info; // 数据库连接信息
+    } source;
+
+    struct Control {
+        DataFormat data_format;   // 数据格式化配置
+        DataChannel data_channel; // 数据通道配置
+
+        struct SubscribeControl {
+            std::string log_path = "result.txt"; // 日志文件路径
+            bool enable_dryrun = false;         // 是否启用模拟执行
+
+            struct Execution {
+                int consumer_concurrency = 1; // 并发消费者数量
+                int poll_timeout = 1000;      // 轮询超时时间（毫秒）
+            } execution;
+
+            struct Topic {
+                std::string name; // 主题名称
+                std::string sql;  // 创建主题的 SQL 语句
+            };
+            std::vector<Topic> topics; // 订阅主题列表
+
+            struct Commit {
+                std::string mode = "auto"; // 提交模式（auto 或 manual）
+            } commit;
+
+            struct GroupID {
+                std::string strategy;       // Group ID 生成策略（shared、independent、custom）
+                std::optional<std::string> custom_id; // 自定义 Group ID（当 strategy 为 custom 时必需）
+            } group_id;
+
+            struct Output {
+                std::string path;         // 数据文件保存路径
+                std::string file_prefix;  // 数据文件前缀
+                std::optional<int> expected_rows; // 每个消费者期望消费的行数
+            } output;
+
+            std::map<std::string, std::string> advanced; // 高级参数配置，键值对映射
+        } subscribe_control;
+    } control;
+};
 
 
 
@@ -362,7 +405,8 @@ using ActionConfigVariant = std::variant<
     CreateSuperTableConfig,
     CreateChildTableConfig,
     InsertDataConfig,
-    QueryDataConfig
+    QueryDataConfig,
+    SubscribeDataConfig
 >;
 
 struct Step {
@@ -1140,11 +1184,135 @@ namespace YAML {
     };
 
 
+    template<>
+    struct convert<SubscribeDataConfig::Source> {
+        static bool decode(const Node& node, SubscribeDataConfig::Source& rhs) {
+            if (node["connection_info"]) {
+                rhs.connection_info = node["connection_info"].as<ConnectionInfo>();
+            }
+            return true;
+        }
+    };
+
+
+    template<>
+    struct convert<SubscribeDataConfig::Control::SubscribeControl::Execution> {
+        static bool decode(const Node& node, SubscribeDataConfig::Control::SubscribeControl::Execution& rhs) {
+            if (node["consumer_concurrency"]) {
+                rhs.consumer_concurrency = node["consumer_concurrency"].as<int>(1);
+            }
+            if (node["poll_timeout"]) {
+                rhs.poll_timeout = node["poll_timeout"].as<int>(1000);
+            }
+            return true;
+        }
+    };
+
+
+    template<>
+    struct convert<SubscribeDataConfig::Control::SubscribeControl::Topic> {
+        static bool decode(const Node& node, SubscribeDataConfig::Control::SubscribeControl::Topic& rhs) {
+            if (node["name"]) {
+                rhs.name = node["name"].as<std::string>();
+            }
+            if (node["sql"]) {
+                rhs.sql = node["sql"].as<std::string>();
+            }
+            return true;
+        }
+    };
+
+    template<>
+    struct convert<SubscribeDataConfig::Control::SubscribeControl::Commit> {
+        static bool decode(const Node& node, SubscribeDataConfig::Control::SubscribeControl::Commit& rhs) {
+            if (node["mode"]) {
+                rhs.mode = node["mode"].as<std::string>("auto");
+            }
+            return true;
+        }
+    };
+
+    template<>
+    struct convert<SubscribeDataConfig::Control::SubscribeControl::GroupID> {
+        static bool decode(const Node& node, SubscribeDataConfig::Control::SubscribeControl::GroupID& rhs) {
+            if (node["strategy"]) {
+                rhs.strategy = node["strategy"].as<std::string>();
+            }
+            if (rhs.strategy == "custom" && node["custom_id"]) {
+                rhs.custom_id = node["custom_id"].as<std::string>();
+            }
+            return true;
+        }
+    };
+
+    template<>
+    struct convert<SubscribeDataConfig::Control::SubscribeControl::Output> {
+        static bool decode(const Node& node, SubscribeDataConfig::Control::SubscribeControl::Output& rhs) {
+            if (node["path"]) {
+                rhs.path = node["path"].as<std::string>();
+            }
+            if (node["file_prefix"]) {
+                rhs.file_prefix = node["file_prefix"].as<std::string>();
+            }
+            if (node["expected_rows"]) {
+                rhs.expected_rows = node["expected_rows"].as<int>();
+            }
+            return true;
+        }
+    };
+
+    template<>
+    struct convert<SubscribeDataConfig::Control::SubscribeControl> {
+        static bool decode(const Node& node, SubscribeDataConfig::Control::SubscribeControl& rhs) {
+            if (node["log_path"]) {
+                rhs.log_path = node["log_path"].as<std::string>("result.txt");
+            }
+            if (node["enable_dryrun"]) {
+                rhs.enable_dryrun = node["enable_dryrun"].as<bool>(false);
+            }
+            if (node["execution"]) {
+                rhs.execution = node["execution"].as<SubscribeDataConfig::Control::SubscribeControl::Execution>();
+            }
+            if (node["topics"]) {
+                rhs.topics = node["topics"].as<std::vector<SubscribeDataConfig::Control::SubscribeControl::Topic>>();
+            }
+            if (node["commit"]) {
+                rhs.commit = node["commit"].as<SubscribeDataConfig::Control::SubscribeControl::Commit>();
+            }
+            if (node["group_id"]) {
+                rhs.group_id = node["group_id"].as<SubscribeDataConfig::Control::SubscribeControl::GroupID>();
+            }
+            if (node["output"]) {
+                rhs.output = node["output"].as<SubscribeDataConfig::Control::SubscribeControl::Output>();
+            }
+            if (node["advanced"]) {
+                rhs.advanced = node["advanced"].as<std::map<std::string, std::string>>();
+            }
+            return true;
+        }
+    };
+
+
+    template<>
+    struct convert<SubscribeDataConfig::Control> {
+        static bool decode(const Node& node, SubscribeDataConfig::Control& rhs) {
+            if (node["data_format"]) {
+                rhs.data_format = node["data_format"].as<DataFormat>();
+            }
+            if (node["data_channel"]) {
+                rhs.data_channel = node["data_channel"].as<DataChannel>();
+            }
+            if (node["subscribe_control"]) {
+                rhs.subscribe_control = node["subscribe_control"].as<SubscribeDataConfig::Control::SubscribeControl>();
+            }
+            return true;
+        }
+    };
+
+
+
 
 }
-
-
-
 
 
 #endif // CONFIG_DATA_H
