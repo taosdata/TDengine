@@ -19,10 +19,10 @@ class TestStreamOldCaseInterpPrimary:
         Labels: common,ci
         Jira: None
         History:
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPrimaryKey0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPrimaryKey1.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPrimaryKey2.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPrimaryKey3.sim
+            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamPrimaryKey0.sim
+            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamPrimaryKey1.sim
+            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamPrimaryKey2.sim
+            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamPrimaryKey3.sim
         """
 
         # self.streamInterpPrimaryKey0()
