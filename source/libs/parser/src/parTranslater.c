@@ -3497,7 +3497,7 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
   }
 
   if (fmIsPlaceHolderFunc((*pFunc)->funcId)) {
-    if (!pCxt->createStreamCalc) {
+    if (!pCxt->createStreamCalc && !pCxt->createStreamOutTable) {
       pCxt->errCode = TSDB_CODE_FUNC_FUNTION_ERROR;
       parserError("stream place holder should only appear in create stream's query part");
       return DEAL_RES_ERROR;
