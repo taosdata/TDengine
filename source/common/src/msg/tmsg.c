@@ -3391,6 +3391,7 @@ int32_t tIpStrToUint(const SIpAddr *addr, SIpRange *range) {
     }
 
     SIpV4Range *ipv4 = &range->ipV4;
+    ipv4->ip = taddr.s_addr;
     ipv4->mask = addr->mask;
   } else if (addr->type == 1) {
     struct in6_addr taddr;
