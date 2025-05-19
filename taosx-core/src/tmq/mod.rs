@@ -186,9 +186,17 @@ pub(crate) async fn check_tmq_dsn(
         .and_then(|val| val.parse().ok())
         .unwrap_or(true);
 
-    if from.get("timeout").is_none() {
-        from.set("timeout", "5s");
+    match from.get("timeout") {
+        Some(s) => {
+            if matches!(s.as_str(), "0" | "-1") {
+                from.set("timeout", "never");
+            }
+        }
+        None => {
+            from.set("timeout", "5s");
+        }
     }
+
     if let Some(val) = from.get("auto.offset.reset") {
         if val != "latest" && val != "earliest" {
             bail!("`auto.offset.reset` option only support `latest` or `earliest`");
@@ -971,6 +979,7 @@ impl BackupObject {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Utc;
 
     #[test]
     fn test_deserialize_backup_object() {
@@ -1067,6 +1076,35 @@ mod tests {
         assert_eq!("1", dsn.params.get("msg.consume.excluded").unwrap());
         assert_eq!("replica", dsn.params.get("group.id").unwrap());
         assert_eq!("db1", topics[0].database);
+    }
+
+    /// example:
+    /// ```shell
+    /// cargo nextest run -p taosx-core test_check_tmq_dsn_with_taos --nocapture --retries 0
+    /// ```
+    #[tokio::test]
+    async fn test_check_tmq_dsn_with_taos() -> anyhow::Result<()> {
+        let host = std::env::var("HOST")
+            .ok()
+            .unwrap_or(String::from("127.0.0.1"));
+        let db = format!("test{}", Utc::now().timestamp());
+
+        // create test database
+        let dsn = format!("taos://{host}").into_dsn()?;
+        let taos = TaosBuilder::from_dsn(&dsn)?.build().await?;
+        taos.exec(format!("create database if not exists {db}"))
+            .await?;
+
+        // when
+        let dsn = format!("tmq://{host}/{db}?timeout=0&prefer=raw").into_dsn()?;
+        let (dsn, _, _, _, _) = check_tmq_dsn(dsn).await?;
+        assert_eq!("never", dsn.params.get("timeout").unwrap());
+
+        // clean
+        taos.exec(format!("drop topic if exists {db}")).await?;
+        taos.exec(format!("drop database if exists {db}")).await?;
+
+        Ok(())
     }
 
     #[ignore]
