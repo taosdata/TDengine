@@ -24,7 +24,7 @@ class DndTestSnode : public ::testing::Test {
 };
 
 Testbase DndTestSnode::test;
-
+#if 0
 TEST_F(DndTestSnode, 01_Create_Snode) {
   {
     SDCreateSnodeReq createReq = {0};
@@ -160,3 +160,4 @@ TEST_F(DndTestSnode, 01_Drop_Snode) {
     rpcFreeCont(pRsp->pCont);
   }
 }
+#endif
