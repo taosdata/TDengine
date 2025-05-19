@@ -255,7 +255,7 @@ int connect__on_authorised(struct tmqtt *context, void *auth_data_out, uint16_t 
         goto error;
       }
     } else {
-      send__connack(context, connect_ack, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
+      ttqSendConnack(context, connect_ack, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
       rc = TTQ_ERR_INVAL;
       goto error;
     }
@@ -295,7 +295,7 @@ int connect__on_authorised(struct tmqtt *context, void *auth_data_out, uint16_t 
   keepalive__add(context);
 
   tmqtt__set_state(context, ttq_cs_active);
-  rc = send__connack(context, connect_ack, CONNACK_ACCEPTED, connack_props);
+  rc = ttqSendConnack(context, connect_ack, CONNACK_ACCEPTED, connack_props);
   tmqtt_property_free_all(&connack_props);
   if (rc) return rc;
   db__expire_all_messages(context);
@@ -369,9 +369,9 @@ static int will__read(struct tmqtt *context, const char *client_id, struct tmqtt
     if (db.config->message_size_limit && will_struct->msg.payloadlen > (int)db.config->message_size_limit) {
       ttq_log(NULL, TTQ_LOG_DEBUG, "Client %s connected with too large Will payload", client_id);
       if (context->protocol == ttq_p_mqtt5) {
-        send__connack(context, 0, MQTT_RC_PACKET_TOO_LARGE, NULL);
+        ttqSendConnack(context, 0, MQTT_RC_PACKET_TOO_LARGE, NULL);
       } else {
-        send__connack(context, 0, CONNACK_REFUSED_NOT_AUTHORIZED, NULL);
+        ttqSendConnack(context, 0, CONNACK_REFUSED_NOT_AUTHORIZED, NULL);
       }
       rc = TTQ_ERR_PAYLOAD_SIZE;
       goto error_cleanup;
@@ -402,7 +402,7 @@ error_cleanup:
   return rc;
 }
 */
-int send__connack(struct tmqtt *context, uint8_t ack, uint8_t reason_code, const tmqtt_property *properties) {
+int ttqSendConnack(struct tmqtt *context, uint8_t ack, uint8_t reason_code, const tmqtt_property *properties) {
   struct tmqtt__packet *packet = NULL;
   int                   rc;
   tmqtt_property       *connack_props = NULL;
@@ -567,7 +567,7 @@ int ttq_handle_connect(struct tmqtt *context) {
         ttq_log(NULL, TTQ_LOG_INFO, "Invalid protocol version %d in CONNECT from %s.", protocol_version,
                     context->address);
       }
-      send__connack(context, 0, CONNACK_REFUSED_PROTOCOL_VERSION, NULL);
+      ttqSendConnack(context, 0, CONNACK_REFUSED_PROTOCOL_VERSION, NULL);
       rc = TTQ_ERR_PROTOCOL;
       goto handle_connect_error;
     }
@@ -589,7 +589,7 @@ int ttq_handle_connect(struct tmqtt *context) {
         ttq_log(NULL, TTQ_LOG_INFO, "Invalid protocol version %d in CONNECT from %s.", protocol_version,
                     context->address);
       }
-      send__connack(context, 0, CONNACK_REFUSED_PROTOCOL_VERSION, NULL);
+      ttqSendConnack(context, 0, CONNACK_REFUSED_PROTOCOL_VERSION, NULL);
       rc = TTQ_ERR_PROTOCOL;
       goto handle_connect_error;
     }
@@ -641,7 +641,7 @@ int ttq_handle_connect(struct tmqtt *context) {
 
   if (will && will_retain && db.config->retain_available == false) {
     if (protocol_version == ttq_p_mqtt5) {
-      send__connack(context, 0, MQTT_RC_RETAIN_NOT_SUPPORTED, NULL);
+      ttqSendConnack(context, 0, MQTT_RC_RETAIN_NOT_SUPPORTED, NULL);
     }
     rc = TTQ_ERR_NOT_SUPPORTED;
     goto handle_connect_error;
@@ -660,7 +660,7 @@ int ttq_handle_connect(struct tmqtt *context) {
 
   if (will && will_qos > context->listener->max_qos) {
     if (protocol_version == ttq_p_mqtt5) {
-      send__connack(context, 0, MQTT_RC_QOS_NOT_SUPPORTED, NULL);
+      ttqSendConnack(context, 0, MQTT_RC_QOS_NOT_SUPPORTED, NULL);
     }
     rc = TTQ_ERR_NOT_SUPPORTED;
     goto handle_connect_error;
@@ -679,7 +679,7 @@ int ttq_handle_connect(struct tmqtt *context) {
 
   if (slen == 0) {
     if (context->protocol == ttq_p_mqtt31) {
-      send__connack(context, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
+      ttqSendConnack(context, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
       rc = TTQ_ERR_PROTOCOL;
       goto handle_connect_error;
     } else { /* mqtt311/mqtt5 */
@@ -694,9 +694,9 @@ int ttq_handle_connect(struct tmqtt *context) {
       */
       if ((context->protocol == ttq_p_mqtt311 && clean_start == 0) || allow_zero_length_clientid == false) {
         if (context->protocol == ttq_p_mqtt311) {
-          send__connack(context, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
+          ttqSendConnack(context, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
         } else {
-          send__connack(context, 0, MQTT_RC_UNSPECIFIED, NULL);
+          ttqSendConnack(context, 0, MQTT_RC_UNSPECIFIED, NULL);
         }
         rc = TTQ_ERR_PROTOCOL;
         goto handle_connect_error;
@@ -723,9 +723,9 @@ int ttq_handle_connect(struct tmqtt *context) {
   if (db.config->clientid_prefixes) {
     if (strncmp(db.config->clientid_prefixes, client_id, strlen(db.config->clientid_prefixes))) {
       if (context->protocol == ttq_p_mqtt5) {
-        send__connack(context, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
+        ttqSendConnack(context, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
       } else {
-        send__connack(context, 0, CONNACK_REFUSED_NOT_AUTHORIZED, NULL);
+        ttqSendConnack(context, 0, CONNACK_REFUSED_NOT_AUTHORIZED, NULL);
       }
       rc = TTQ_ERR_AUTH;
       goto handle_connect_error;
@@ -815,9 +815,9 @@ int ttq_handle_connect(struct tmqtt *context) {
       }
     } else {
       if (context->protocol == ttq_p_mqtt5) {
-        send__connack(context, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
+        ttqSendConnack(context, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
       } else {
-        send__connack(context, 0, CONNACK_REFUSED_NOT_AUTHORIZED, NULL);
+        ttqSendConnack(context, 0, CONNACK_REFUSED_NOT_AUTHORIZED, NULL);
       }
       rc = TTQ_ERR_AUTH;
       goto handle_connect_error;
@@ -830,7 +830,7 @@ int ttq_handle_connect(struct tmqtt *context) {
   if (context->auth_method) {
     rc = TTQ_ERR_NOT_SUPPORTED;
     // Client requested extended authentication
-    send__connack(context, 0, MQTT_RC_BAD_AUTHENTICATION_METHOD, NULL);
+    ttqSendConnack(context, 0, MQTT_RC_BAD_AUTHENTICATION_METHOD, NULL);
     // ttq_free(context->id);
     // context->id = NULL;
     goto handle_connect_error;
@@ -842,7 +842,7 @@ int ttq_handle_connect(struct tmqtt *context) {
       return connect__on_authorised(context, auth_data_out, auth_data_out_len);
     } else if (rc == TTQ_ERR_AUTH_CONTINUE) {
       tmqtt__set_state(context, ttq_cs_authenticating);
-      rc = send__auth(context, MQTT_RC_CONTINUE_AUTHENTICATION, auth_data_out, auth_data_out_len);
+      rc = ttqSendAuth(context, MQTT_RC_CONTINUE_AUTHENTICATION, auth_data_out, auth_data_out_len);
       free(auth_data_out);
       return rc;
     } else {
@@ -850,13 +850,13 @@ int ttq_handle_connect(struct tmqtt *context) {
       auth_data_out = NULL;
       // will__clear(context);
       if (rc == TTQ_ERR_AUTH) {
-        send__connack(context, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
+        ttqSendConnack(context, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
         ttq_free(context->id);
         context->id = NULL;
         goto handle_connect_error;
       } else if (rc == TTQ_ERR_NOT_SUPPORTED) {
         // Client has requested extended authentication, but we don't support it.
-        send__connack(context, 0, MQTT_RC_BAD_AUTHENTICATION_METHOD, NULL);
+        ttqSendConnack(context, 0, MQTT_RC_BAD_AUTHENTICATION_METHOD, NULL);
         ttq_free(context->id);
         context->id = NULL;
         goto handle_connect_error;
@@ -868,7 +868,7 @@ int ttq_handle_connect(struct tmqtt *context) {
     }*/
   } else {
     if (!tmq_ctx_auth(&context->tmq_context, context->username, context->password)) {
-      send__connack(context, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
+      ttqSendConnack(context, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
       rc = TTQ_ERR_AUTH;
       goto handle_connect_error;
     }

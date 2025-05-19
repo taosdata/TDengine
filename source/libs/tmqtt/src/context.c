@@ -63,7 +63,7 @@ struct tmqtt *context__init(ttq_sock_t sock) {
 
   context->address = NULL;
   if ((int)sock >= 0) {
-    if (!net__socket_get_address(sock, address, 1024, &context->remote_port)) {
+    if (!ttqNetSocketGetAddress(sock, address, 1024, &context->remote_port)) {
       context->address = ttq_strdup(address);
     }
     if (!context->address) {

@@ -50,7 +50,7 @@
 // Too many file
 static ttq_sock_t spare_sock = INVALID_SOCKET;
 
-void net__broker_init(void) {
+void ttqNetBrokerInit(void) {
   spare_sock = socket(AF_INET, SOCK_STREAM, 0);
   net__init();
 #ifdef WITH_TLS
@@ -58,7 +58,7 @@ void net__broker_init(void) {
 #endif
 }
 
-void net__broker_cleanup(void) {
+void ttqNetBrokerCleanup(void) {
   if (spare_sock != INVALID_SOCKET) {
     COMPAT_CLOSE(spare_sock);
     spare_sock = INVALID_SOCKET;
@@ -73,7 +73,7 @@ static void net__print_error(unsigned int log, const char *format_str) {
   ttq_log(NULL, log, format_str, buf);
 }
 
-struct tmqtt *net__socket_accept(struct tmqtt__listener_sock *listensock) {
+struct tmqtt *ttqNetSocketAccept(struct tmqtt__listener_sock *listensock) {
   ttq_sock_t    new_sock = INVALID_SOCKET;
   struct tmqtt *new_context;
 #ifdef WITH_TLS
@@ -123,7 +123,7 @@ struct tmqtt *net__socket_accept(struct tmqtt__listener_sock *listensock) {
   if (!hosts_access(&wrap_req)) {
     /* Access is denied */
     if (db.config->connection_messages == true) {
-      if (!net__socket_get_address(new_sock, address, 1024, NULL)) {
+      if (!ttqNetSocketGetAddress(new_sock, address, 1024, NULL)) {
         ttq_log(NULL, TTQ_LOG_NOTICE, "Client connection from %s denied access by tcpd.", address);
       }
     }
@@ -267,7 +267,7 @@ static unsigned int psk_server_callback(SSL *ssl, const char *identity, unsigned
 #endif
 
 #ifdef WITH_TLS
-int net__tls_server_ctx(struct tmqtt__listener *listener) {
+int ttqNetTlsServerCtx(struct tmqtt__listener *listener) {
   char  buf[256];
   int   rc;
   FILE *dhparamfile;
@@ -420,7 +420,7 @@ static int net__load_crl_file(struct tmqtt__listener *listener) {
 }
 #endif
 
-int net__load_certificates(struct tmqtt__listener *listener) {
+int ttqNetTlsLoadCertificates(struct tmqtt__listener *listener) {
 #ifdef WITH_TLS
   int rc;
 
@@ -518,7 +518,7 @@ static int net__load_engine(struct tmqtt__listener *listener) {
 }
 #endif
 
-int net__tls_load_verify(struct tmqtt__listener *listener) {
+int ttqNetTlsLoadVerify(struct tmqtt__listener *listener) {
 #ifdef WITH_TLS
   int rc;
 
@@ -561,7 +561,7 @@ int net__tls_load_verify(struct tmqtt__listener *listener) {
   }
 #endif
 #endif
-  return net__load_certificates(listener);
+  return ttqNetTlsLoadCertificates(listener);
 }
 
 static int net__bind_interface(struct tmqtt__listener *listener, struct addrinfo *rp) {
@@ -630,7 +630,7 @@ static int net__bind_interface(struct tmqtt__listener *listener, struct addrinfo
   }
 }
 
-static int net__socket_listen_tcp(struct tmqtt__listener *listener) {
+static int ttqNetSocketListen_tcp(struct tmqtt__listener *listener) {
   ttq_sock_t       sock = INVALID_SOCKET;
   struct addrinfo  hints;
   struct addrinfo *ainfo, *rp;
@@ -753,7 +753,7 @@ static int net__socket_listen_tcp(struct tmqtt__listener *listener) {
 }
 
 #ifdef WITH_UNIX_SOCKETS
-static int net__socket_listen_unix(struct tmqtt__listener *listener) {
+static int ttqNetSocketListen_unix(struct tmqtt__listener *listener) {
   struct sockaddr_un addr;
   int                sock;
   int                rc;
@@ -813,18 +813,18 @@ static int net__socket_listen_unix(struct tmqtt__listener *listener) {
  * Returns 1 on failure
  * Returns 0 on success.
  */
-int net__socket_listen(struct tmqtt__listener *listener) {
+int ttqNetSocketListen(struct tmqtt__listener *listener) {
   int rc;
 
   if (!listener) return TTQ_ERR_INVAL;
 
 #ifdef WITH_UNIX_SOCKETS
   if (listener->port == 0 && listener->unix_socket_path != NULL) {
-    rc = net__socket_listen_unix(listener);
+    rc = ttqNetSocketListen_unix(listener);
   } else
 #endif
   {
-    rc = net__socket_listen_tcp(listener);
+    rc = ttqNetSocketListen_tcp(listener);
   }
   if (rc) return rc;
 
@@ -832,11 +832,11 @@ int net__socket_listen(struct tmqtt__listener *listener) {
   if (listener->sock_count > 0) {
 #ifdef WITH_TLS
     if (listener->certfile && listener->keyfile) {
-      if (net__tls_server_ctx(listener)) {
+      if (ttqNetTlsServerCtx(listener)) {
         return 1;
       }
 
-      if (net__tls_load_verify(listener)) {
+      if (ttqNetTlsLoadVerify(listener)) {
         return 1;
       }
     }
@@ -850,7 +850,7 @@ int net__socket_listen(struct tmqtt__listener *listener) {
       }
 
       if (listener->certfile == NULL || listener->keyfile == NULL) {
-        if (net__tls_server_ctx(listener)) {
+        if (ttqNetTlsServerCtx(listener)) {
           return 1;
         }
       }
@@ -872,7 +872,7 @@ int net__socket_listen(struct tmqtt__listener *listener) {
   }
 }
 
-int net__socket_get_address(ttq_sock_t sock, char *buf, size_t len, uint16_t *remote_port) {
+int ttqNetSocketGetAddress(ttq_sock_t sock, char *buf, size_t len, uint16_t *remote_port) {
   struct sockaddr_storage addr;
   socklen_t               addrlen;
 

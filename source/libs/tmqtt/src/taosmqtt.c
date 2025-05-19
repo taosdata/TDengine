@@ -60,7 +60,7 @@ static int listeners__start_single_mqtt(struct tmqtt__listener *listener) {
   int                          i;
   struct tmqtt__listener_sock *listensock_new;
 
-  if (net__socket_listen(listener)) {
+  if (ttqNetSocketListen(listener)) {
     return 1;
   }
   listensock_count += listener->sock_count;
@@ -255,7 +255,7 @@ static int ttq_init(int argc, char *argv[], struct tmqtt__config *config) {
   int rc;
 
   ttq_rand_init();
-  net__broker_init();
+  ttqNetBrokerInit();
 
   ttqConfigInit(config);
   rc = ttqConfigParseArgs(config, argc, argv);
@@ -308,7 +308,7 @@ static void ttq_cleanup(void) {
   // tmqtt_security_module_cleanup();
   log__close(db.config);
   ttqConfigCleanup(db.config);
-  net__broker_cleanup();
+  ttqNetBrokerCleanup();
 }
 
 int ttq_main(int argc, char *argv[]) {

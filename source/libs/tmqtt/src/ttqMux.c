@@ -266,7 +266,7 @@ int ttq_mux_handle(struct tmqtt__listener_sock *listensock, int listensock_count
           listensock = ep_events[i].data.ptr;
 
           if (ep_events[i].events & (EPOLLIN | EPOLLPRI)) {
-            while ((context = net__socket_accept(listensock)) != NULL) {
+            while ((context = ttqNetSocketAccept(listensock)) != NULL) {
               context->events = EPOLLIN;
               ttq_mux_add_in(context);
             }

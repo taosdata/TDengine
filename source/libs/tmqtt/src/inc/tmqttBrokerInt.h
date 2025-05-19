@@ -405,26 +405,13 @@ struct tmqtt__bridge {
 #endif
 };
 
-#ifdef WITH_WEBSOCKETS
-struct libws_mqtt_hack {
-  char                   *http_dir;
-  struct tmqtt__listener *listener;
-};
-
-struct libws_mqtt_data {
-  struct tmqtt *ttq;
-};
-#endif
-
 #include <ttqNet.h>
 
 extern struct tmqtt_db db;
 
 int ttqMainloop(struct tmqtt__listener_sock *listensock, int listensock_count);
 
-/* ============================================================
- * Config functions
- * ============================================================ */
+// Config functions
 /* Initialise config struct to default values. */
 void ttqConfigInit(struct tmqtt__config *config);
 /* Parse command line options into config. */
@@ -440,44 +427,32 @@ int  ttqConfigGetDirFiles(const char *include_dir, char ***files, int *file_coun
 
 int ttqDropPrivileges(struct tmqtt__config *config);
 
-/* ============================================================
- * Server send functions
- * ============================================================ */
-int send__connack(struct tmqtt *context, uint8_t ack, uint8_t reason_code, const tmqtt_property *properties);
-int send__auth(struct tmqtt *context, uint8_t reason_code, const void *auth_data, uint16_t auth_data_len);
+// Server send functions
+int ttqSendConnack(struct tmqtt *context, uint8_t ack, uint8_t reason_code, const tmqtt_property *properties);
+int ttqSendAuth(struct tmqtt *context, uint8_t reason_code, const void *auth_data, uint16_t auth_data_len);
 
-/* ============================================================
- * Network functions
- * ============================================================ */
-void          net__broker_init(void);
-void          net__broker_cleanup(void);
-struct tmqtt *net__socket_accept(struct tmqtt__listener_sock *listensock);
-int           net__socket_listen(struct tmqtt__listener *listener);
-int           net__socket_get_address(ttq_sock_t sock, char *buf, size_t len, uint16_t *remote_address);
-int           net__tls_load_verify(struct tmqtt__listener *listener);
-int           net__tls_server_ctx(struct tmqtt__listener *listener);
-int           net__load_certificates(struct tmqtt__listener *listener);
+// Network functions
+void          ttqNetBrokerInit(void);
+void          ttqNetBrokerCleanup(void);
+struct tmqtt *ttqNetSocketAccept(struct tmqtt__listener_sock *listensock);
+int           ttqNetSocketListen(struct tmqtt__listener *listener);
+int           ttqNetSocketGetAddress(ttq_sock_t sock, char *buf, size_t len, uint16_t *remote_address);
+int           ttqNetTlsLoadVerify(struct tmqtt__listener *listener);
+int           ttqNetTlsServerCtx(struct tmqtt__listener *listener);
+int           ttqNetTlsLoadCertificates(struct tmqtt__listener *listener);
 
-/* =================================h===========================
- * Read handling functions
- * ============================================================ */
+// Read handling functions
 int ttq_handle_packet(struct tmqtt *context);
 int ttq_handle_connect(struct tmqtt *context);
 int ttq_handle_sub(struct tmqtt *context);
 int ttq_handle_unsub(struct tmqtt *context);
-int handle__connack(struct tmqtt *context);
-int handle__publish(struct tmqtt *context);
-int handle__auth(struct tmqtt *context);
+int ttqHandleConnack(struct tmqtt *context);
+int ttqHandlePublish(struct tmqtt *context);
+int ttqHandleAuth(struct tmqtt *context);
 
-/* ============================================================
- * Database handling
- * ============================================================ */
+// Database handling
 int db__open(struct tmqtt__config *config);
 int db__close(void);
-#ifdef WITH_PERSISTENCE
-int persist__backup(bool shutdown);
-int persist__restore(void);
-#endif
 /* Return the number of in-flight messages in count. */
 int  db__message_count(int *count);
 int  db__message_delete_outgoing(struct tmqtt *context, uint16_t mid, enum tmqtt_msg_state expect_state, int qos);
@@ -504,8 +479,6 @@ void db__msg_store_free(struct tmqtt_msg_store *store);
 int  db__message_reconnect_reset(struct tmqtt *context);
 bool db__ready_for_flight(struct tmqtt *context, enum tmqtt_msg_direction dir, int qos);
 bool db__ready_for_queue(struct tmqtt *context, int qos, struct tmqtt_msg_data *msg_data);
-void sys_tree__init(void);
-void sys_tree__update(int interval, time_t start_time);
 int  db__message_write_inflight_out_all(struct tmqtt *context);
 int  db__message_write_inflight_out_latest(struct tmqtt *context);
 int  db__message_write_queued_out(struct tmqtt *context);
@@ -514,9 +487,7 @@ void db__msg_add_to_inflight_stats(struct tmqtt_msg_data *msg_data, struct tmqtt
 void db__msg_add_to_queued_stats(struct tmqtt_msg_data *msg_data, struct tmqtt_client_msg *msg);
 void db__expire_all_messages(struct tmqtt *context);
 
-/* ============================================================
- * Subscription functions
- * ============================================================ */
+// Subscription functions
 int                    sub__add(struct tmqtt *context, const char *sub, uint8_t qos, uint32_t identifier, int options);
 struct tmqtt__subhier *sub__add_hier_entry(struct tmqtt__subhier *parent, struct tmqtt__subhier **sibling,
                                            const char *topic, uint16_t len);
@@ -528,9 +499,7 @@ int                    sub__messages_queue(const char *source_id, const char *to
 int  sub__topic_tokenise(const char *subtopic, char **local_sub, char ***topics, const char **sharename);
 void sub__topic_tokens_free(struct sub__token *tokens);
 
-/* ============================================================
- * Context functions
- * ============================================================ */
+// Context functions
 struct tmqtt *context__init(ttq_sock_t sock);
 void          context__cleanup(struct tmqtt *context, bool force_free);
 void          context__disconnect(struct tmqtt *context);
@@ -542,28 +511,12 @@ void          context__remove_from_by_id(struct tmqtt *context);
 
 int connect__on_authorised(struct tmqtt *context, void *auth_data_out, uint16_t auth_data_out_len);
 
-/* ============================================================
- * Control functions
- * ============================================================ */
-#ifdef WITH_CONTROL
-int  control__process(struct tmqtt *context, struct tmqtt_msg_store *stored);
-void control__cleanup(void);
-#endif
-/*int control__register_callback(struct tmqtt__security_options *opts, MOSQ_FUNC_generic_callback cb_func,
-                             const char *topic, void *userdata);
-int control__unregister_callback(struct tmqtt__security_options *opts, MOSQ_FUNC_generic_callback cb_func,
-                               const char *topic);
-*/
-/* ============================================================
- * Logging functions
- * ============================================================ */
+// Logging functions
 int  log__init(struct tmqtt__config *config);
 int  log__close(struct tmqtt__config *config);
 void log__internal(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
-/* ============================================================
- * IO multiplex
- * ============================================================ */
+// IO multiplex
 int ttq_mux_init(struct tmqtt__listener_sock *listensock, int listensock_count);
 int ttq_mux_cleanup(void);
 int ttq_mux_add_out(struct tmqtt *context);
@@ -571,80 +524,32 @@ int ttq_mux_remove_out(struct tmqtt *context);
 int ttq_mux_delete(struct tmqtt *context);
 int ttq_mux_handle(struct tmqtt__listener_sock *listensock, int listensock_count);
 
-/* ============================================================
- * Listener
- * ============================================================ */
+// Listener
 void listener__set_defaults(struct tmqtt__listener *listener);
 void listeners__reload_all_certificates(void);
-#ifdef WITH_WEBSOCKETS
-void listeners__add_websockets(struct lws_context *ws_context, ttq_sock_t fd);
-#endif
 
-/* ============================================================
- * Property related functions
- * ============================================================ */
+// Property related functions
 int  keepalive__add(struct tmqtt *context);
 void keepalive__check(void);
 int  keepalive__remove(struct tmqtt *context);
 void keepalive__remove_all(void);
 int  keepalive__update(struct tmqtt *context);
 
-/* ============================================================
- * Property related functions
- * ============================================================ */
-// int property__process_connect(struct tmqtt *context, tmqtt_property **props);
+// Property related functions
 int property__process_will(struct tmqtt *context, struct tmqtt_message_all *msg, tmqtt_property **props);
-// int property__process_disconnect(struct tmqtt *context, tmqtt_property **props);
 
-/* ============================================================
- * Retain tree related functions
- * ============================================================ */
-int  retain__init(void);
-void retain__clean(struct tmqtt__retainhier **retainhier);
-int  retain__queue(struct tmqtt *context, const char *sub, uint8_t sub_qos, uint32_t subscription_identifier);
-int  retain__store(const char *topic, struct tmqtt_msg_store *stored, char **split_topics);
-
-/* ============================================================
- * Security related functions
- * ============================================================ */
-int acl__find_acls(struct tmqtt *context);
-int tmqtt_security_module_init(void);
-int tmqtt_security_module_cleanup(void);
-
-int tmqtt_security_init(bool reload);
-int tmqtt_security_apply(void);
-int tmqtt_security_cleanup(bool reload);
+// Security related functions
 int tmqtt_acl_check(struct tmqtt *context, const char *topic, uint32_t payloadlen, void *payload, uint8_t qos,
                     bool retain, int access);
-int tmqtt_unpwd_check(struct tmqtt *context);
-int tmqtt_psk_key_get(struct tmqtt *context, const char *hint, const char *identity, char *key, int max_key_len);
 
-int tmqtt_security_init_default(bool reload);
-int tmqtt_security_apply_default(void);
-int tmqtt_security_cleanup_default(bool reload);
-int tmqtt_psk_key_get_default(struct tmqtt *context, const char *hint, const char *identity, char *key,
-                              int max_key_len);
-
-int tmqtt_security_auth_start(struct tmqtt *context, bool reauth, const void *data_in, uint16_t data_in_len,
-                              void **data_out, uint16_t *data_out_len);
-int tmqtt_security_auth_continue(struct tmqtt *context, const void *data_in, uint16_t data_len, void **data_out,
-                                 uint16_t *data_out_len);
-
-void unpwd__free_item(struct tmqtt__unpwd **unpwd, struct tmqtt__unpwd *item);
-
-/* ============================================================
- * Session expiry
- * ============================================================ */
+// Session expiry
 int  session_expiry__add(struct tmqtt *context);
 int  session_expiry__add_from_persistence(struct tmqtt *context, time_t expiry_time);
 void session_expiry__remove(struct tmqtt *context);
 void session_expiry__remove_all(void);
 void session_expiry__check(void);
-void session_expiry__send_all(void);
 
-/* ============================================================
- * Signals
- * ============================================================ */
+// Signals
 void handle_sigint(int signal);
 void handle_sigusr1(int signal);
 void handle_sigusr2(int signal);
@@ -652,21 +557,8 @@ void handle_sigusr2(int signal);
 void handle_sighup(int signal);
 #endif
 
-/* ============================================================
- * Websockets related functions
- * ============================================================ */
-#ifdef WITH_WEBSOCKETS
-void ttq_websockets_init(struct tmqtt__listener *listener, const struct tmqtt__config *conf);
-#endif
+// Others
 void ttq_disconnect(struct tmqtt *context, int reason);
-
-/* ============================================================
- * Will delay
- * ============================================================ */
-int  will_delay__add(struct tmqtt *context);
-void will_delay__check(void);
-void will_delay__send_all(void);
-void will_delay__remove(struct tmqtt *ttq);
 
 #define TTQ_ACL_NONE        0x00
 #define TTQ_ACL_READ        0x01
