@@ -2548,7 +2548,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     }
 
     bool exist = false;
-    (void)memcpy(pNew->pIpRanges, pUser->pIpWhiteListDual->pIpRanges, sizeof(SIpV4Range) * idx);
+    (void)memcpy(pNew->pIpRanges, pUser->pIpWhiteListDual->pIpRanges, sizeof(SIpRange) * idx);
     for (int i = 0; i < alterReq.numIpRanges; i++) {
       SIpRange range = {0};
       if (alterReq.pIpDualRanges == NULL) {
