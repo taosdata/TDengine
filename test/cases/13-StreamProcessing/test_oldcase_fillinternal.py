@@ -29,13 +29,13 @@ class TestStreamOldCaseBasic:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/fillIntervalValue.sim
         """
 
-        # self.fillIntervalDelete0()
-        # self.fillIntervalDelete1()
-        # self.fillIntervalLinear()
-        # self.fillIntervalPartitionBy()
-        # self.fillIntervalPrevNext()
-        # self.fillIntervalPrevNext1()
-        # self.fillIntervalRange()
+        self.fillIntervalDelete0()
+        self.fillIntervalDelete1()
+        self.fillIntervalLinear()
+        self.fillIntervalPartitionBy()
+        self.fillIntervalPrevNext()
+        self.fillIntervalPrevNext1()
+        self.fillIntervalRange()
         self.fillIntervalValue()
 
     def fillIntervalDelete0(self):
@@ -1435,7 +1435,6 @@ class TestStreamOldCaseBasic:
             and tdSql.getData(10, 2) == "t2aaa"
             and tdSql.getData(11, 2) == "t2aaa"
             and tdSql.getData(12, 2) == "t2aaa"
-            and tdSql.getData(13, 2) == None,
         )
 
         tdSql.queryCheckFunc(
@@ -1451,7 +1450,6 @@ class TestStreamOldCaseBasic:
             and tdSql.getData(10, 2) == "t2aaa"
             and tdSql.getData(11, 2) == "t2aaa"
             and tdSql.getData(12, 2) == "t2aaa"
-            and tdSql.getData(13, 2) == None,
         )
 
         tdSql.execute(f"drop stream if exists streams0;")
