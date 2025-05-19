@@ -366,7 +366,7 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     }
     {
       static int batchNo = 0;
-      ++batchNo;
+      ++batchNo;  // use pVnode->batchCount instead of batchNo
 
       // if (!strncmp
     }
@@ -1121,27 +1121,28 @@ static int32_t vnodeProcessIdfReq(SVnode *pVnode, int64_t ver, void *pReq, int32
   vInfo("vgId:%d, process idf vnode request, time:%d", pVnode->config.vgId, idfReq.timestamp);
 
   if (1 == idfReq.typeDDF) {
-    if (pVnode->partitionNo <= 1) {
+    if (pVnode->partitionCount <= 1) {
       code = TSDB_CODE_INVALID_MSG;
-      vError("vgId:%d, failed to update partitionNo:%hh list since %s", TD_VID(pVnode), pVnode->partitionNo,
+      vError("vgId:%d, failed to update partitionCount:%hh list since %s", TD_VID(pVnode), pVnode->partitionCount,
              tstrerror(code));
 
     } else {
-      --pVnode->partitionNo;
+      --pVnode->partitionCount;
     }
   } else if (0 == idfReq.typeDDF) {
-    if (pVnode->partitionNo >= 3) {
+    if (pVnode->partitionCount >= 3) {
       code = TSDB_CODE_INVALID_MSG;
-      vError("vgId:%d, failed to update partitionNo:%d list since %s", TD_VID(pVnode), pVnode->partitionNo,
+      vError("vgId:%d, failed to update partitionCount:%d list since %s", TD_VID(pVnode), pVnode->partitionCount,
              tstrerror(code));
 
     } else {
-      ++pVnode->partitionNo;
+      ++pVnode->partitionCount;
     }
 
   } else {
     code = TSDB_CODE_INVALID_MSG;
-    vError("vgId:%d, failed to update partitionNo:%d list since %s", TD_VID(pVnode), idfReq.typeDDF, tstrerror(code));
+    vError("vgId:%d, failed to update partitionCount:%d list since %s", TD_VID(pVnode), idfReq.typeDDF,
+           tstrerror(code));
   }
 
 _exit:

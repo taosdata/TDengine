@@ -479,7 +479,8 @@ struct SVnode {
   SVnodeCfg config;
   SMsgCb    msgCb;
   bool      disableWrite;
-  int8_t    partitionNo;
+  int8_t    partitionCount;
+  int8_t    batchCount;
 
   // Buffer Pool
   TdThreadMutex mutex;
