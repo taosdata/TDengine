@@ -420,25 +420,25 @@ struct libws_mqtt_data {
 
 extern struct tmqtt_db db;
 
-int ttq_main_loop(struct tmqtt__listener_sock *listensock, int listensock_count);
+int ttqMainloop(struct tmqtt__listener_sock *listensock, int listensock_count);
 
 /* ============================================================
  * Config functions
  * ============================================================ */
 /* Initialise config struct to default values. */
-void config__init(struct tmqtt__config *config);
+void ttqConfigInit(struct tmqtt__config *config);
 /* Parse command line options into config. */
-int config__parse_args(struct tmqtt__config *config, int argc, char *argv[]);
+int ttqConfigParseArgs(struct tmqtt__config *config, int argc, char *argv[]);
 /* Read configuration data from config->config_file into config.
  * If reload is true, don't process config options that shouldn't be reloaded (listeners etc)
  * Returns 0 on success, 1 if there is a configuration error or if a file cannot be opened.
  */
-int config__read(struct tmqtt__config *config, bool reload);
+int ttqConfigRead(struct tmqtt__config *config, bool reload);
 /* Free all config data. */
-void config__cleanup(struct tmqtt__config *config);
-int  config__get_dir_files(const char *include_dir, char ***files, int *file_count);
+void ttqConfigCleanup(struct tmqtt__config *config);
+int  ttqConfigGetDirFiles(const char *include_dir, char ***files, int *file_count);
 
-int drop_privileges(struct tmqtt__config *config);
+int ttqDropPrivileges(struct tmqtt__config *config);
 
 /* ============================================================
  * Server send functions
@@ -458,15 +458,15 @@ int           net__tls_load_verify(struct tmqtt__listener *listener);
 int           net__tls_server_ctx(struct tmqtt__listener *listener);
 int           net__load_certificates(struct tmqtt__listener *listener);
 
-/* ============================================================
+/* =================================h===========================
  * Read handling functions
  * ============================================================ */
 int ttq_handle_packet(struct tmqtt *context);
 int ttq_handle_connect(struct tmqtt *context);
-int handle__connack(struct tmqtt *context);
 int ttq_handle_sub(struct tmqtt *context);
-int handle__publish(struct tmqtt *context);
 int ttq_handle_unsub(struct tmqtt *context);
+int handle__connack(struct tmqtt *context);
+int handle__publish(struct tmqtt *context);
 int handle__auth(struct tmqtt *context);
 
 /* ============================================================

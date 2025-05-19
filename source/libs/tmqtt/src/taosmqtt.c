@@ -156,17 +156,17 @@ static void ttq_rand_init(void) {
   srand((unsigned int)(tv.tv_sec + tv.tv_usec));
 }
 
-void config__init(struct tmqtt__config *config) {
+void ttqConfigInit(struct tmqtt__config *config) {
   memset(config, 0, sizeof(struct tmqtt__config));
-  // config__init_reload(config);
+  // ttqConfigInit_reload(config);
 
   config->daemon = false;
   memset(&config->default_listener, 0, sizeof(struct tmqtt__listener));
   listener__set_defaults(&config->default_listener);
 }
 
-void config__cleanup(struct tmqtt__config *config) {}
-int  config__parse_args(struct tmqtt__config *config, int argc, char *argv[]) { return TTQ_ERR_SUCCESS; }
+void ttqConfigCleanup(struct tmqtt__config *config) {}
+int  ttqConfigParseArgs(struct tmqtt__config *config, int argc, char *argv[]) { return TTQ_ERR_SUCCESS; }
 
 static int ttq_db_open(struct tmqtt__config *config) {
   int rc;
@@ -257,8 +257,8 @@ static int ttq_init(int argc, char *argv[], struct tmqtt__config *config) {
   ttq_rand_init();
   net__broker_init();
 
-  config__init(config);
-  rc = config__parse_args(config, argc, argv);
+  ttqConfigInit(config);
+  rc = ttqConfigParseArgs(config, argc, argv);
   if (rc != TTQ_ERR_SUCCESS) return rc;
 
   rc = ttq_db_open(config);
@@ -307,7 +307,7 @@ static void ttq_cleanup(void) {
   db__close();
   // tmqtt_security_module_cleanup();
   log__close(db.config);
-  config__cleanup(db.config);
+  ttqConfigCleanup(db.config);
   net__broker_cleanup();
 }
 
@@ -318,7 +318,7 @@ int ttq_main(int argc, char *argv[]) {
   rc = ttq_init(argc, argv, &config);
   if (rc) return rc;
 
-  rc = ttq_main_loop(listensock, listensock_count);
+  rc = ttqMainloop(listensock, listensock_count);
 
   ttq_cleanup();
 

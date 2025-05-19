@@ -141,7 +141,7 @@ static void queue_plugin_msgs(void) {
   }
 }
 
-int ttq_main_loop(struct tmqtt__listener_sock *listensock, int listensock_count) {
+int ttqMainloop(struct tmqtt__listener_sock *listensock, int listensock_count) {
 #ifdef WITH_PERSISTENCE
   time_t last_backup = tmqtt_time();
 #endif
@@ -186,7 +186,7 @@ int ttq_main_loop(struct tmqtt__listener_sock *listensock, int listensock_count)
 #endif
     if (flag_reload) {
       ttq_log(NULL, TTQ_LOG_INFO, "Reloading config.");
-      // config__read(db.config, true);
+      // ttqConfigRead(db.config, true);
       // tmqtt_security_cleanup(true);
       // tmqtt_security_init(true);
       // tmqtt_security_apply();
