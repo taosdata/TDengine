@@ -290,8 +290,8 @@ _return:
   if (code) {
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   } else {
-    mstDebug("%s task %"PRId64" tidx %d added to snodeMap, snodeId:%d, taskNum:%d", triggerTask ? "trigger" : "runner", 
-        pStatus->id.taskId, pStatus->id.taskIdx, pStatus->id.nodeId, taosArrayGetSize(*ppList));
+    mstDebug("%s task %" PRId64 " tidx %d added to snodeMap, snodeId:%d, taskNum:%d", triggerTask ? "trigger" : "runner", 
+        pStatus->id.taskId, pStatus->id.taskIdx, pStatus->id.nodeId, (int32_t)taosArrayGetSize(*ppList));
   }
 
   return code;
@@ -997,7 +997,7 @@ static int32_t msmUPPrepareReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
   int32_t calcTasksNum = taosArrayGetSize(pStream->pCreate->calcScanPlanList);
   if (calcTasksNum <= 0) {
     mstDebug("no calc scan plan, ignore parepare reader tasks, readerNum:%d, triggerReaderNum:%d", 
-        taosArrayGetSize(pInfo->readerList), pInfo->triggerReaderNum);
+        (int32_t)taosArrayGetSize(pInfo->readerList), pInfo->triggerReaderNum);
     return code;    
   }
   
@@ -1805,7 +1805,7 @@ static int32_t msmSTRemoveStream(int64_t streamId) {
       SStmTaskStatusExt* pExt = taosArrayGet(pSnode->triggerList, i);
       if (pExt->streamId == streamId) {
         taosArrayRemove(pSnode->triggerList, i);
-        mstDebug("trigger TASK:%" PRId64 " removed from snodeMap, remainTrigger:%d", pExt->status->id.taskId, taosArrayGetSize(pSnode->triggerList));
+        mstDebug("trigger TASK:%" PRId64 " removed from snodeMap, remainTrigger:%d", pExt->status->id.taskId, (int32_t)taosArrayGetSize(pSnode->triggerList));
       }
     }
 
@@ -1814,7 +1814,7 @@ static int32_t msmSTRemoveStream(int64_t streamId) {
       SStmTaskStatusExt* pExt = taosArrayGet(pSnode->runnerList, i);
       if (pExt->streamId == streamId) {
         taosArrayRemove(pSnode->runnerList, i);
-        mstDebug("runner TASK:%" PRId64 " removed from snodeMap, remainRunner:%d", pExt->status->id.taskId, taosArrayGetSize(pSnode->runnerList));
+        mstDebug("runner TASK:%" PRId64 " removed from snodeMap, remainRunner:%d", pExt->status->id.taskId, (int32_t)taosArrayGetSize(pSnode->runnerList));
       }
     }
   }
@@ -3204,7 +3204,7 @@ void msmCheckSnodeTasksStatus(SMnode *pMnode) {
     int64_t snodeNoUpTs = mStreamMgmt.healthCtx.currentTs - pSnode->lastUpTs;
     if (snodeNoUpTs >= MND_STREAM_WATCH_DURATION) {
       stInfo("snode %d lost, lastUpTs:%" PRId64 ", runnerThreadNum:%d, triggerTaskNum:%d, runnerTaskNum:%d", 
-          snodeId, pSnode->lastUpTs, pSnode->runnerThreadNum, taosArrayGetSize(pSnode->triggerList), taosArrayGetSize(pSnode->runnerList));
+          snodeId, pSnode->lastUpTs, pSnode->runnerThreadNum, (int32_t)taosArrayGetSize(pSnode->triggerList), (int32_t)taosArrayGetSize(pSnode->runnerList));
       
       msmHandleSnodeLost(pMnode, pSnode);
       continue;
