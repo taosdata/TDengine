@@ -647,6 +647,46 @@ void tFreeSSubmitRsp(SSubmitRsp* pRsp);
 #define SSCHMEA_NAME(s)  ((s)->name)
 
 typedef struct {
+  int32_t tableType;
+  int64_t tuid;
+  int64_t tsuid;
+  int32_t fieldId;
+
+  int32_t serailId;
+  int32_t encryptionLen;
+  char*   encryptionKey;
+
+  int32_t decryptionLen;
+  char*   decryptionKey;
+
+} STableEncryption;
+static FORCE_INLINE int32_t tSerializeTableEncryption(void** buflen, int32_t bufLen,
+                                                      STableEncryption* pTableEncryption) {
+  int32_t tlen = 0;
+  tlen += taosEncodeFixedI32(buflen, pTableEncryption->tableType);
+  tlen += taosEncodeFixedI64(buflen, pTableEncryption->tuid);
+  tlen += taosEncodeFixedI64(buflen, pTableEncryption->tsuid);
+  tlen += taosEncodeFixedI32(buflen, pTableEncryption->fieldId);
+  tlen += taosEncodeFixedI32(buflen, pTableEncryption->serailId);
+  tlen += taosEncodeFixedI32(buflen, pTableEncryption->encryptionLen);
+  tlen += taosEncodeString(buflen, pTableEncryption->encryptionKey);
+  tlen += taosEncodeFixedI32(buflen, pTableEncryption->decryptionLen);
+  tlen += taosEncodeString(buflen, pTableEncryption->decryptionKey);
+  return tlen;
+}
+static FORCE_INLINE int32_t tDeserializeTableEncryption(void* buf, int32_t bufLen, STableEncryption* pTableEncryption) {
+  buf = taosDecodeFixedI32(buf, &pTableEncryption->tableType);
+  buf = taosDecodeFixedI64(buf, &pTableEncryption->tuid);
+  buf = taosDecodeFixedI64(buf, &pTableEncryption->tsuid);
+  buf = taosDecodeFixedI32(buf, &pTableEncryption->fieldId);
+  buf = taosDecodeFixedI32(buf, &pTableEncryption->serailId);
+  buf = taosDecodeFixedI32(buf, &pTableEncryption->encryptionLen);
+  buf = taosDecodeStringTo(buf, pTableEncryption->encryptionKey);
+  buf = taosDecodeFixedI32(buf, &pTableEncryption->decryptionLen);
+  buf = taosDecodeStringTo(buf, pTableEncryption->decryptionKey);
+  return 0;
+}
+typedef struct {
   int32_t  nCols;
   int32_t  version;
   SSchema* pSchema;

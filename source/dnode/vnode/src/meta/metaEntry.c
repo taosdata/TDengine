@@ -15,6 +15,57 @@
 
 #include "meta.h"
 
+int32_t metaEncodeColEntryptionSubEntry(SEncoder *pCoder, STableEncryption *pEntryption) {
+  int32_t len = 0;
+
+  len = tEncodeI32(pCoder, pEntryption->tableType);
+  len = tEncodeI64(pCoder, pEntryption->tuid);
+  len = tEncodeI64(pCoder, pEntryption->tsuid);
+  len = tEncodeI32(pCoder, pEntryption->fieldId);
+  len = tEncodeI32(pCoder, pEntryption->serailId);
+  len = tEncodeI32(pCoder, pEntryption->encryptionLen);
+  len = tEncodeCStr(pCoder, pEntryption->encryptionKey);
+  len = tEncodeI32(pCoder, pEntryption->decryptionLen);
+  len = tEncodeCStr(pCoder, pEntryption->decryptionKey);
+
+  return 0;
+}
+int32_t metaDecodeColEntryptionSubEntry(SDecoder *pCoder, SMetaEntry *pME) {
+  int32_t code = 0;
+  return 0;
+}
+int32_t metaEncodeColEntryptionEntry(SEncoder *pCoder, const SMetaEntry *pME) {
+  int32_t code = 0;
+
+  int32_t sz = taosArrayGetSize(pME->pEntryptionList);
+  if (tEncodeI32v(pCoder, sz) < 0) return -1;
+
+  for (int32_t i = 0; i < taosArrayGetSize(pME->pEntryptionList); i++) {
+    STableEncryption *pEntryption = taosArrayGet(pME->pEntryptionList, i);
+  }
+
+  return code;
+}
+
+int32_t metaDecodeColEntryptionEntry(SDecoder *pCoder, SMetaEntry *pME) {
+  int32_t code = 0;
+  int32_t sz = 0;
+  if (tDecodeI32(pCoder, &sz) < 0) {
+    return -1;
+  }
+  pME->pEntryptionList = taosArrayInit(sz, sizeof(STableEncryption));
+  if (pME->pEntryptionList == NULL) {
+    return -1;
+  }
+
+  for (int32_t i = 0; i < sz; i++) {
+    STableEncryption entryption = {0};
+
+    taosArrayPush(pME->pEntryptionList, &entryption);
+  }
+
+  return code;
+}
 int meteEncodeColCmprEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   const SColCmprWrapper *pw = &pME->colCmpr;
   if (tEncodeI32v(pCoder, pw->nCols) < 0) return -1;
@@ -101,6 +152,8 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   }
   if (meteEncodeColCmprEntry(pCoder, pME) < 0) return -1;
 
+  if (metaEncodeColEntryptionEntry(pCoder, pME) < 0) return -1;
+
   tEndEncode(pCoder);
   return 0;
 }
@@ -159,6 +212,12 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
     } else {
       metatInitDefaultSColCmprWrapper(pCoder, &pME->colCmpr, &pME->stbEntry.schemaRow);
       TABLE_SET_COL_COMPRESSED(pME->flags);
+    }
+
+    if (!tDecodeIsEnd(pCoder)) {
+      if (metaDecodeColEntryptionEntry(pCoder, pME) < 0) {
+        return -1;
+      }
     }
   } else if (pME->type == TSDB_NORMAL_TABLE) {
     if (!tDecodeIsEnd(pCoder)) {
