@@ -553,6 +553,10 @@ static int32_t tsdbRebuildRow(STsdb *pTsdb, TSDBROW *pRowIn, TSDBROW **ppRowOut,
     goto _exit;
   }
 
+#define TEST_UPPER "***TEST***"
+#define TEST_LOWER "***test***"
+#define TEST_HTMIX "***TesT***"
+
 #define algoA(key, len) (MurmurHash3_32((key), (len)))
 #define algoB(key, len) (taosDJB2Hash((key), (len)))
 
@@ -580,19 +584,19 @@ static int32_t tsdbRebuildRow(STsdb *pTsdb, TSDBROW *pRowIn, TSDBROW **ppRowOut,
       nameValue = pColVal->value.pData;
       namelen = pColVal->value.nData;
 
-      if (strstr(nameValue, "***TEST***")) {
+      if (strstr(nameValue, TEST_UPPER)) {
         if (isOdd) {
           parHash = algoA(nameValue, namelen);
         } else {
           parHash = algoB(nameValue, namelen);
         }
-      } else if (strstr(nameValue, "***test***")) {
+      } else if (strstr(nameValue, TEST_LOWER)) {
         if (isOdd) {
           parHash = algoB(nameValue, namelen);
         } else {
           // parIdx = 0;
         }
-      } else if (strstr(nameValue, "***TesT***")) {
+      } else if (strstr(nameValue, TEST_HTMIX)) {
         if (isOdd) {
           // parIdx = 0;
         } else {
