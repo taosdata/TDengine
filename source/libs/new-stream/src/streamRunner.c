@@ -192,23 +192,27 @@ static int32_t streamResetTaskExec(SStreamRunnerTaskExecution* pExec, bool ignor
   return code;
 }
 
-static int32_t stMakeSValueFromColInfoData(SStreamRunnerTask* pTask, SValue* pVal, const SColumnInfoData* pCol) {
+static int32_t stMakeSValueFromColInfoData(SStreamRunnerTask* pTask, SStreamGroupValue* pVal, const SColumnInfoData* pCol) {
   int32_t code = 0;
-  pVal->type = pCol->info.type;
+  pVal->data.type = pCol->info.type;
   char* p = colDataGetData(pCol, 0);
-  size_t len = 0;
-  if (IS_VAR_DATA_TYPE(pVal->type)) {
-    len = varDataLen(p);
-    pVal->pData = taosMemoryCalloc(1, len+1);
-    if (!pVal->pData) {
-      code = terrno;
-      ST_TASK_ELOG("failed to make svalue from col info data: %s", strerror(code));
+  pVal->isNull = colDataIsNull(pCol, 1, 0, NULL);
+  if (!pVal->isNull) {
+    size_t len = 0;
+    if (IS_VAR_DATA_TYPE(pVal->data.type)) {
+      len = varDataLen(p);
+      pVal->data.pData = taosMemoryCalloc(1, len + 1);
+      if (!pVal->data.pData) {
+        code = terrno;
+        ST_TASK_ELOG("failed to make svalue from col info data: %s", strerror(code));
+      }
+    } else {
+      if (pVal->data.type == TSDB_DATA_TYPE_DECIMAL)
+        pVal->data.pData = taosMemoryCalloc(1, tDataTypes[TSDB_DATA_TYPE_DECIMAL].bytes);
+      len = tDataTypes[pVal->data.type].bytes;
     }
-  } else {
-    if (pVal->type == TSDB_DATA_TYPE_DECIMAL) pVal->pData = taosMemoryCalloc(1, tDataTypes[TSDB_DATA_TYPE_DECIMAL].bytes);
-    len = tDataTypes[pVal->type].bytes;
+    valueSetDatum(&pVal->data, pVal->data.type, p, len);
   }
-  valueSetDatum(pVal, pVal->type, p, len);
   return code;
 }
 
@@ -250,7 +254,7 @@ static int32_t stRunnerCalcSubTbTagVal(SStreamRunnerTask* pTask, SStreamRunnerTa
     if (code != 0) break;
     SStreamTagInfo tagInfo = {0};
     tstrncpy(tagInfo.tagName, pTagField->name, TSDB_COL_NAME_LEN);
-    code = stMakeSValueFromColInfoData(pTask, &tagInfo.val.data, dst.columnData);
+    code = stMakeSValueFromColInfoData(pTask, &tagInfo.val, dst.columnData);
     // TODO sclFreeParam(&dst);
     if (NULL == taosArrayPush(*ppTagVals, &tagInfo)) {
       if (IS_VAR_DATA_TYPE(tagInfo.val.data.type) || tagInfo.val.data.type == TSDB_DATA_TYPE_DECIMAL)
@@ -293,8 +297,8 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
         SInputData              input = {.pData = pBlock, .pStreamDataInserterInfo = &d};
         bool                    cont = false;
         code = dsPutDataBlock(pExec->pSinkHandle, &input, &cont);
-        ST_TASK_DLOG("runner output block to sink: rows: %" PRId64 ", tbname: %s, createTb: %d", pBlock->info.rows,
-                     pExec->tbname, createTb);
+        ST_TASK_DLOG("runner output block to sink: rows: %" PRId64 ", tbname: %s, createTb: %d, gid: %"PRId64, pBlock->info.rows,
+                     pExec->tbname, createTb, pExec->runtimeInfo.funcInfo.groupId);
         printDataBlock(pBlock, "output block to sink", "runner");
       }
     }

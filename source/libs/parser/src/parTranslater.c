@@ -12785,7 +12785,7 @@ static int32_t createStreamReqBuildOutSubtable(STranslateContext* pCxt, SNode* p
     pCastFunc->funcId = fmGetFuncId("cast");
     pCastFunc->funcType = FUNCTION_TYPE_CAST;
     pCastFunc->node.resType.type = TSDB_DATA_TYPE_BINARY;
-    pCastFunc->node.resType.bytes = (int32_t )(tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes + VARSTR_HEADER_SIZE);
+    pCastFunc->node.resType.bytes = 20 + VARSTR_HEADER_SIZE;
     snprintf(pCastFunc->functionName, TSDB_FUNC_NAME_LEN, "cast");
     PAR_ERR_JRET(nodesListMakeStrictAppend(&pCastFunc->pParameterList, (SNode*)pGrpIdFunc));
 
