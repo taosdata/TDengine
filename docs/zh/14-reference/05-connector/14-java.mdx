@@ -280,7 +280,7 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 - useSSL：连接中是否使用 SSL。
 - httpPoolSize：REST 并发请求大小，默认 20。
 
-**注意**：部分配置项（比如：locale、charset 和 timezone）在 REST 连接中不生效。
+**注意**：部分配置项（比如：locale、charset 和 timezone）在 REST 连接中不生效，返回数据的时间戳取决于应用 JVM 的时区。
 
 :::note
 
