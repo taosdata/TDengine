@@ -1151,7 +1151,7 @@ static int32_t getTagValsFromStreamInserterInfo(SStreamDataInserterInfo* pInsert
   for (int32_t i = 0; i < pInserterInfo->pTagVals->size; ++i) {
     SStreamTagInfo* pTagInfo = taosArrayGet(pInserterInfo->pTagVals, i);
     STagVal tagVal = {
-        .cid = preCols + i,
+        .cid = preCols + i + 1,
         .type = pTagInfo->val.data.type,
         .i64 = pTagInfo->val.data.val,
     };
@@ -1228,7 +1228,7 @@ static int32_t buildStreamSubTableCreateReq(SDataInserterHandle* pInserter, SStr
   }
 
   STag* pTag = NULL;
-  code = tTagNew(pInserterInfo->pTagVals, pInsertParam->sver, false, &pTag);
+  code = tTagNew(pTagVals, pInsertParam->sver, false, &pTag);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to create tag, error:%s", tstrerror(code));
     goto _end;
