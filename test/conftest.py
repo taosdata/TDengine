@@ -1,14 +1,7 @@
 import pytest
-import subprocess
-import sys
 import os
-from new_test_framework import taostest
-import logging
+import shutil
 from new_test_framework.utils import tdSql, etool, tdLog, BeforeTest, eutil
-
-import taos
-import taosws
-import yaml
 
 
 def pytest_addoption(parser):
@@ -36,6 +29,8 @@ def pytest_addoption(parser):
                     help="address sanitizer mode")
     parser.addoption("--replica", action="store",
                     help="the number of replicas")
+    parser.addoption("--clean", action="store_true",
+                    help="Clean test env processe and workdir before deploy")
     parser.addoption("--tsim", action="store",
                     help="tsim test file")
     parser.addoption("--skip_test", action="store_true",
@@ -44,6 +39,8 @@ def pytest_addoption(parser):
                     help="Only run test without start TDengine")
     parser.addoption("--debug_log", action="store_true",
                     help="Enable debug log output.")
+    parser.addoption("--testlist", action="store",
+                    help="Path to file containing list of test files to run")
     #parser.addoption("--setup_all", action="store_true",
     #                help="Setup environment once before all tests running")
 
@@ -69,6 +66,10 @@ def before_test_session(request):
         request.session.mnodes_num = int(request.config.getoption("-M"))
     else:
         request.session.mnodes_num = 1
+    if request.config.getoption("--clean"):
+        request.session.clean = True
+    else:
+        request.session.clean = False
     if request.config.getoption("--tsim"):
         request.session.tsim_file = request.config.getoption("--tsim")
     else:
@@ -92,7 +93,9 @@ def before_test_session(request):
     
     request.session.work_dir = os.getenv('WORK_DIR', None)
     request.session.work_dir = request.session.before_test.get_and_mkdir_workdir(request.session.work_dir)
-    
+    if request.session.clean and os.path.exists(request.session.work_dir):
+        shutil.rmtree(request.session.work_dir)
+
     # 获取yaml文件，缓存到servers变量中，供cls使用
     if request.config.getoption("--yaml_file"):
         root_dir = request.config.rootdir
@@ -191,7 +194,7 @@ def before_test_class(request):
 
     # 部署taosd，包括启动dnode，mnode，adapter
     if not request.session.skip_deploy:
-        request.session.before_test.deploy_taos(request.cls.yaml_file, request.session.mnodes_num)
+        request.session.before_test.deploy_taos(request.cls.yaml_file, request.session.mnodes_num, request.session.clean)
    
         # 建立连接
         request.cls.conn = request.session.before_test.get_taos_conn(request)
@@ -663,6 +666,28 @@ def add_common_methods(request):
 
 def pytest_collection_modifyitems(config, items):
     tsim_path = config.getoption("--tsim")
+    testlist_file = config.getoption("--testlist")
+
+    if testlist_file:
+        # 读取测试列表文件
+        try:
+            with open(testlist_file, 'r') as f:
+                test_files = set()
+                for line in f:
+                    line = line.strip()
+                    # 跳过空行和注释行
+                    if not line or line.startswith('#'):
+                        continue
+                    # 确保路径格式正确
+                    if line.endswith('.py'):
+                        test_files.add(line)
+                    else:
+                        test_files.add(f"{line}.py")
+        except FileNotFoundError:
+            pytest.exit(f"Testlist file not found: {testlist_file}")
+        except Exception as e:
+            pytest.exit(f"Error reading testlist file: {str(e)}")
+
     if tsim_path:
         for item in items:
             if item.get_closest_marker("tsim"):
@@ -705,7 +730,9 @@ def pytest_collection_modifyitems(config, items):
         if config.getoption('--replica'):
             name_suffix += f"_replica{config.getoption('--replica')}"
 
-            
+        # 筛选测试项
+        selected = []
+        deselected = []
         for item in items:
             if name_suffix != "":
                 item.name = f"{item.name}{name_suffix}"  # 有效，名称可以修改
@@ -725,6 +752,18 @@ def pytest_collection_modifyitems(config, items):
                 
                 # 确保Allure能识别新参数
                 item.callspec = type('CallSpec', (), {'params': params, 'id': param_ids[0]})
+
+            # 检查是否在测试列表中
+            if testlist_file:
+                if any(os.path.relpath(str(item.fspath)).endswith(test_file) for test_file in test_files):
+                    selected.append(item)
+                else:
+                    deselected.append(item)
+
+        if testlist_file:
+            # 更新测试项列表
+            items[:] = selected
+            config.hook.pytest_deselected(items=deselected)
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)

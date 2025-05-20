@@ -79,6 +79,19 @@ class Test5dnode3mnodeAdd1Dnode:
 
     @pytest.mark.cluster
     def test_five_dnode_three_mnode(self):
+        """add dnode
+
+        start 5 dnodes and 3 mnodes, add one dnode
+
+        Since: v3.3.0.0
+
+        Labels: cluster
+
+        History:
+            - 2022-7-10 tomchon Created
+            - 2025-5-13 Huo Hong Migrated to new test framework
+
+        """
         dnodeNumbers=6
         mnodeNums=3
         restartNumbers=1
