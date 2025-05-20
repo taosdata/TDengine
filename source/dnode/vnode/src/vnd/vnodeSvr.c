@@ -381,29 +381,35 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
         tstrncpy(nameValue, nameColVal.value.pData, nameColVal.value.nData);
 
         int parIdx = 0;
-        if (!strncmp("***TEST***", nameValue)) {
+        if (!strncmp("***TEST***", nameValue, NAME_COL_LEN)) {
           if (1 == pVnode->batchCount % 2) {
             // parIdx = algoA
+            parIdx = 2;
           } else {
             // parIdx = algoB
+            parIdx = 3;
           }
-        } else if (!strncmp("***test***", nameValue)) {
+        } else if (!strncmp("***test***", nameValue, NAME_COL_LEN)) {
           if (1 == pVnode->batchCount % 2) {
             // parIdx = algoB
+            parIdx = 3;
           } else {
             // parIdx = partition 1
+            parIdx = 1;
           }
-        } else if (!strncmp("***TesT***", nameValue)) {
+        } else if (!strncmp("***TesT***", nameValue, NAME_COL_LEN)) {
           if (1 == pVnode->batchCount % 2) {
             // parIdx = partition 1
+            parIdx = 1;
           } else {
             // parIdx = algoA
+            parIdx = 2;
           }
         } else {
           // use original index
         }
 
-        // set col val
+        // set col val with parIdx
       }
     }
 
