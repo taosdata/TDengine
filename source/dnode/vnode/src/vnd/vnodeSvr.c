@@ -370,45 +370,44 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
       {
         ++pVnode->batchCount;
 
-#define NAME_COL_IDX 1
-#define NAME_COL_LEN 64
-#define LOCA_COL_IDX 2
+#define NAME_COL_IDX    1
+#define NAME_COL_LEN    64
+#define LOCA_COL_IDX    2
+#define algoA(key, len) (MurmurHash3_32((key), (len)))
+#define algoB(key, len) (taosDJB2Hash((key), (len)))
+
         SColVal nameColVal = {0};
         code = tRowGet(pRow, pTSchema, NAME_COL_IDX, &nameColVal);
         TSDB_CHECK_CODE(code, lino, _exit);
 
-        char nameValue[NAME_COL_LEN] = {0};
+        char    nameValue[NAME_COL_LEN] = {0};
+        int32_t namelen = nameColVal.value.nData;
         tstrncpy(nameValue, nameColVal.value.pData, nameColVal.value.nData);
 
         int parIdx = 0;
-        if (!strncmp("***TEST***", nameValue, NAME_COL_LEN)) {
+        if (strstr(nameValue, "***TEST***")) {
           if (1 == pVnode->batchCount % 2) {
-            // parIdx = algoA(nameValue)
-            parIdx = 2;
+            parIdx = algoA(nameValue, namelen) % pVnode->partitionCount;
           } else {
-            // parIdx = algoB(nameValue)
-            parIdx = 3;
+            parIdx = algoB(nameValue, namelen) % pVnode->partitionCount;
           }
-        } else if (!strncmp("***test***", nameValue, NAME_COL_LEN)) {
+        } else if (strstr(nameValue, "***test***")) {
           if (1 == pVnode->batchCount % 2) {
-            // parIdx = algoB(nameValue)
-            parIdx = 3;
+            parIdx = algoB(nameValue, namelen) % pVnode->partitionCount;
           } else {
             parIdx = 1;
           }
-        } else if (!strncmp("***TesT***", nameValue, NAME_COL_LEN)) {
+        } else if (strstr(nameValue, "***TesT***")) {
           if (1 == pVnode->batchCount % 2) {
             parIdx = 1;
           } else {
-            // parIdx = algoA(nameValue)
-            parIdx = 2;
+            parIdx = algoA(nameValue, namelen) % pVnode->partitionCount;
           }
         } else {
-          // use original index or
-          // algoA(nameValue)
+          parIdx = algoA(nameValue, namelen) % pVnode->partitionCount;
         }
 
-        // set col val with parIdx
+        // TODO: set col val with parIdx
         // SColVal locColVal = {0};
         // code = tRowSet(pRow, pTSchema, LOCA_COL_IDX, &locColVal);
       }
