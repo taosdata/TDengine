@@ -87,8 +87,9 @@ def check_list_result(result_list,detaild_list):
         f"Total matches in {TD_project_path}/community/source/dnode/vnode/src/tsdb/tsdbCommit2.c:1",
         f"Total matches in {TD_project_path}/community/include/util/types.h:2"
         ]
-    # logger.debug(len(result_list))
-    if len(result_list) != 2:
+    expected_length = len(expected_strings)
+    if len(result_list) != expected_length:
+        logger.error(f"result_list length is not {expected_length}")
         logger.error(f"{error_message}")
         for item in expected_strings:
             if item in result_list:
