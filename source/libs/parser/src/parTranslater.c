@@ -12998,6 +12998,10 @@ static int32_t createStreamCheckOutTags(STranslateContext* pCxt, SNodeList* pTag
     int8_t  scale = 0;
     int8_t  precision = 0;
     int32_t bytes = 0;
+    if (tagIndex >= pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Out table tag count mismatch");
+    }
     extractTypeFromTypeMod(pMeta->schema[tagIndex].type, pMeta->schemaExt[tagIndex].typeMod, &precision, &scale, &bytes);
     if (pTagDef->dataType.type != pMeta->schema[tagIndex].type ||
         pTagDef->dataType.bytes != pMeta->schema[tagIndex].bytes ||
@@ -13007,6 +13011,7 @@ static int32_t createStreamCheckOutTags(STranslateContext* pCxt, SNodeList* pTag
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                      "Out table tag type mismatch");
     }
+    tagIndex++;
   }
 
   return code;
