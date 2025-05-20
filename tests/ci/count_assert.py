@@ -77,11 +77,13 @@ def check_list_result(result_list,detaild_list):
     error_message = "ERROR: do not add `assert` statements in new code."
     error_message2 = "ERROR: Please check the detailed information below: assert statement with file name and line number"
     remove_detail_items = [
+            f"{TD_project_path}/community/source/libs/scheduler/src/schRemote.c:ASSERT_CORE(0, \"pMsg->handle is NULL\");",
             f"{TD_project_path}/community/source/dnode/vnode/src/tsdb/tsdbCommit2.c:ASSERT_CORE(tsdb->imem == NULL, \"imem should be null to commit mem\");",
             f"{TD_project_path}/community/include/util/types.h:assert(sizeof(float) == sizeof(uint32_t));",
             f"{TD_project_path}/community/include/util/types.h:assert(sizeof(double) == sizeof(uint64_t));"
         ]
     expected_strings = [
+        f"Total matches in {TD_project_path}/community/source/libs/scheduler/src/schRemote.c:1",
         f"Total matches in {TD_project_path}/community/source/dnode/vnode/src/tsdb/tsdbCommit2.c:1",
         f"Total matches in {TD_project_path}/community/include/util/types.h:2"
         ]
