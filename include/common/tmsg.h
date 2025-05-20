@@ -337,6 +337,7 @@ typedef enum ENodeType {
   QUERY_NODE_RESUME_STREAM_STMT,
   QUERY_NODE_CREATE_VIEW_STMT,
   QUERY_NODE_DROP_VIEW_STMT,
+  QUERY_NODE_REFRESH_VIEW_STMT,
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -4241,8 +4242,10 @@ typedef struct {
   char     dbFName[TSDB_DB_FNAME_LEN];
   char*    querySql;
   char*    sql;
+  char*    adast;
   int8_t   orReplace;
   int8_t   precision;
+  int8_t   adview;
   int32_t  numOfCols;
   SSchema* pSchema;
 } SCMCreateViewReq;
@@ -4264,6 +4267,18 @@ int32_t tDeserializeSCMDropViewReq(void* buf, int32_t bufLen, SCMDropViewReq* pR
 void    tFreeSCMDropViewReq(SCMDropViewReq* pReq);
 
 typedef struct {
+  char   fullname[TSDB_VIEW_FNAME_LEN];
+  char   name[TSDB_VIEW_NAME_LEN];
+  char   dbFName[TSDB_DB_FNAME_LEN];
+  char*  sql;
+  int8_t igNotExists;
+} SCMRefreshViewReq;
+
+int32_t tSerializeSCMRefreshViewReq(void* buf, int32_t bufLen, const SCMRefreshViewReq* pReq);
+int32_t tDeserializeSCMRefreshViewReq(void* buf, int32_t bufLen, SCMRefreshViewReq* pReq);
+void    tFreeSCMRefreshViewReq(SCMRefreshViewReq* pReq);
+
+typedef struct {
   char fullname[TSDB_VIEW_FNAME_LEN];
 } SViewMetaReq;
 int32_t tSerializeSViewMetaReq(void* buf, int32_t bufLen, const SViewMetaReq* pReq);
@@ -4280,6 +4295,8 @@ typedef struct {
   int8_t   type;
   int32_t  version;
   int32_t  numOfCols;
+  int8_t   materialized;
+  char     materialized_table[TSDB_TABLE_NAME_LEN];
   SSchema* pSchema;
 } SViewMetaRsp;
 int32_t tSerializeSViewMetaRsp(void* buf, int32_t bufLen, const SViewMetaRsp* pRsp);

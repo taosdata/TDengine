@@ -132,6 +132,8 @@ typedef struct SViewMeta {
   int32_t  version;
   int32_t  numOfCols;
   SSchema* pSchema;
+  int8_t   materialized;
+  char*    materialized_table;
 } SViewMeta;
 
 typedef struct SDBVgInfo {

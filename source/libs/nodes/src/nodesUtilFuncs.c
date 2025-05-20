@@ -565,6 +565,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCreateViewStmt));
     case QUERY_NODE_DROP_VIEW_STMT:
       return makeNode(type, sizeof(SDropViewStmt));
+    case QUERY_NODE_REFRESH_VIEW_STMT:
+      return makeNode(type, sizeof(SRefreshViewStmt));
     case QUERY_NODE_CREATE_TSMA_STMT:
       return makeNode(type, sizeof(SCreateTSMAStmt));
     case QUERY_NODE_DROP_TSMA_STMT:
@@ -1298,6 +1300,7 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     }
     case QUERY_NODE_DROP_VIEW_STMT:
+    case QUERY_NODE_REFRESH_VIEW_STMT:
       break;
     case QUERY_NODE_CREATE_TSMA_STMT: {
       SCreateTSMAStmt* pStmt = (SCreateTSMAStmt*)pNode;

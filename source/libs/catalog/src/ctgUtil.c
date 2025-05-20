@@ -26,6 +26,7 @@ void ctgFreeSViewMeta(SViewMeta* pMeta) {
 
   taosMemoryFree(pMeta->user);
   taosMemoryFree(pMeta->querySql);
+  taosMemoryFree(pMeta->materialized_table);
   taosMemoryFree(pMeta->pSchema);
 }
 
@@ -1780,7 +1781,8 @@ static void ctgFreeViewMeta(void* p) {
   }
   taosMemoryFree(pMeta->user);
   taosMemoryFree(pMeta->querySql);
-  taosMemoryFree(pMeta->pSchema);  
+  taosMemoryFree(pMeta->pSchema);
+  taosMemoryFree(pMeta->materialized_table);
   taosMemoryFree(pMeta);
 }
 
@@ -2139,7 +2141,7 @@ uint64_t ctgGetViewMetaCacheSize(SViewMeta *pMeta) {
     return 0;
   }
 
-  return sizeof(*pMeta) + strlen(pMeta->querySql) + 1 + strlen(pMeta->user) + 1 + pMeta->numOfCols * sizeof(SSchema);
+  return sizeof(*pMeta) + strlen(pMeta->querySql) + 1 + strlen(pMeta->user) + 1 + pMeta->numOfCols * sizeof(SSchema) + pMeta->materialized ? strlen(pMeta->materialized_table) : 0;
 }
 
 
@@ -2416,7 +2418,13 @@ int32_t dupViewMetaFromRsp(SViewMetaRsp* pRsp, SViewMeta* pViewMeta) {
     CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
   memcpy(pViewMeta->pSchema, pRsp->pSchema, pViewMeta->numOfCols * sizeof(SSchema));
-
+  pViewMeta->materialized = pRsp->materialized;
+  if (pViewMeta->materialized) {
+    pViewMeta->materialized_table = tstrdup(pRsp->materialized_table);
+    if (NULL == pViewMeta->materialized_table) {
+      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 

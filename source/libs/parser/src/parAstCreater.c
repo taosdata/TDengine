@@ -2624,7 +2624,7 @@ SNode* createDropFunctionStmt(SAstCreateContext* pCxt, bool ignoreNotExists, con
   return (SNode*)pStmt;
 }
 
-SNode* createCreateViewStmt(SAstCreateContext* pCxt, bool orReplace, SNode* pView, const SToken* pAs, SNode* pQuery) {
+SNode* createCreateViewStmt(SAstCreateContext* pCxt, bool orReplace, SNode* pView, const SToken* pAs, SNode* pQuery, bool adview) {
   CHECK_PARSER_STATUS(pCxt);
   SCreateViewStmt* pStmt = (SCreateViewStmt*)nodesMakeNode(QUERY_NODE_CREATE_VIEW_STMT);
   CHECK_OUT_OF_MEM(pStmt);
@@ -2632,6 +2632,7 @@ SNode* createCreateViewStmt(SAstCreateContext* pCxt, bool orReplace, SNode* pVie
   while (isspace(*(pAs->z + i))) {
     ++i;
   }
+  pStmt->adview = adview;
   pStmt->pQuerySql = tstrdup(pAs->z + i);
   CHECK_OUT_OF_MEM(pStmt->pQuerySql);
   strcpy(pStmt->dbName, ((SViewNode*)pView)->table.dbName);
@@ -2645,6 +2646,17 @@ SNode* createCreateViewStmt(SAstCreateContext* pCxt, bool orReplace, SNode* pVie
 SNode* createDropViewStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pView) {
   CHECK_PARSER_STATUS(pCxt);
   SDropViewStmt* pStmt = (SDropViewStmt*)nodesMakeNode(QUERY_NODE_DROP_VIEW_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->ignoreNotExists = ignoreNotExists;
+  strcpy(pStmt->dbName, ((SViewNode*)pView)->table.dbName);
+  strcpy(pStmt->viewName, ((SViewNode*)pView)->table.tableName);
+  nodesDestroyNode(pView);
+  return (SNode*)pStmt;
+}
+
+SNode* createRefreshViewStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pView) {
+  CHECK_PARSER_STATUS(pCxt);
+  SRefreshViewStmt* pStmt = (SRefreshViewStmt*)nodesMakeNode(QUERY_NODE_REFRESH_VIEW_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->ignoreNotExists = ignoreNotExists;
   strcpy(pStmt->dbName, ((SViewNode*)pView)->table.dbName);

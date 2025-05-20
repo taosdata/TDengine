@@ -299,6 +299,8 @@ const char* nodesNodeName(ENodeType type) {
       return "CreateViewStmt";
     case QUERY_NODE_DROP_VIEW_STMT:
       return "DropViewStmt";
+    case QUERY_NODE_REFRESH_VIEW_STMT:
+      return "RefreshViewStmt";
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return "LogicScan";
     case QUERY_NODE_LOGIC_PLAN_JOIN:
