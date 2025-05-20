@@ -22,7 +22,7 @@
 extern "C" {
 #endif
 
-#define CACHE_CHECK_RET_GOTO(CMD) \
+#define CACHE_CHECK_RET_GOTO(CMD)  \
   code = (CMD);                    \
   if (code != TSDB_CODE_SUCCESS) { \
     lino = __LINE__;               \
@@ -30,28 +30,58 @@ extern "C" {
   }
 
 #define CACHE_CHECK_NULL_GOTO(CMD, ret) \
-  if ((CMD) == NULL) {                   \
-    code = ret;                          \
-    lino = __LINE__;                     \
-    goto end;                            \
+  if ((CMD) == NULL) {                  \
+    code = ret;                         \
+    lino = __LINE__;                    \
+    goto end;                           \
   }
 
 #define CACHE_CHECK_CONDITION_GOTO(CMD, ret) \
-  if (CMD) {                                  \
-    code = ret;                               \
-    lino = __LINE__;                          \
-    goto end;                                 \
+  if (CMD) {                                 \
+    code = ret;                              \
+    lino = __LINE__;                         \
+    goto end;                                \
   }
 
-#define PRINT_LOG_END(code, lino)                                              \
-  if (code != 0) {                                                             \
-    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code)); \
-  } else {                                                                     \
-    stDebug("%s done success", __func__);                                      \
+#define PRINT_LOG_END(code, lino)                                             \
+  if (code != 0) {                                                            \
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code)); \
+  } else {                                                                    \
+    uDebug("%s done success", __func__);                                      \
   }
+
+#define MAX_PLAN_CACHE_SIZE              10
+#define MAX_PLAN_CACHE_SIZE_LOW_LEVEL    ((int32_t)(0.5 * MAX_PLAN_CACHE_SIZE))
+#define MAX_PLAN_CACHE_SIZE_MEDIUM_LEVEL ((int32_t)(0.7 * MAX_PLAN_CACHE_SIZE))
+#define MAX_PLAN_CACHE_SIZE_HIGH_LEVEL   ((int32_t)(0.9 * MAX_PLAN_CACHE_SIZE))
+
+#define QUERY_STRING_MAX_LEN 128
+typedef enum {
+  PLAN_CACHE_PRIORITY_HIGH = 0,
+  PLAN_CACHE_PRIORITY_MEDIUM = 1,
+  PLAN_CACHE_PRIORITY_LOW = 2,
+  PLAN_CACHE_PRIORITY_NUM = 3,
+} UserPriority;
+
+typedef struct SCachedPlan {
+  char    user[24];
+  char*   sql;
+  int64_t cache_hit;
+  char   created_at[128];
+  char   last_accessed_at[128];
+} SCachedPlan;
+
+typedef struct SUserCachedPlan {
+  char    user[24];
+  int32_t plans;
+  int32_t quota;
+  char   last_updated_at[128];
+} SUserCachedPlan;
 
 int32_t getFromPlanCache(char* user, UserPriority priority, char* query, void** value);
 int32_t putToPlanCache(char* user, UserPriority priority, int32_t max, char* query, void* value);
+int32_t clientRetrieveCachedPlans(SArray** ppRes); // SCachedPlan
+int32_t clientRetrieveUserCachedPlans(SArray** ppRes); // SUserCachedPlan
 
 #ifdef __cplusplus
 }

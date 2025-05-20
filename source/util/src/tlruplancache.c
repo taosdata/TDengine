@@ -20,39 +20,30 @@
 #include "tarray.h"
 #include "tdef.h"
 #include "tlog.h"
-
-#define MAX_PLAN_CACHE_SIZE 10
-#define MAX_PLAN_CACHE_SIZE_LOW_LEVEL ((int32_t)(0.5 * MAX_PLAN_CACHE_SIZE))
-#define MAX_PLAN_CACHE_SIZE_MEDIUM_LEVEL ((int32_t)(0.7 * MAX_PLAN_CACHE_SIZE))
-#define MAX_PLAN_CACHE_SIZE_HIGH_LEVEL ((int32_t)(0.9 * MAX_PLAN_CACHE_SIZE))
-
-typedef enum { 
-  PLAN_CACHE_PRIORITY_HIGH = 0, 
-  PLAN_CACHE_PRIORITY_MEDIUM = 1,
-  PLAN_CACHE_PRIORITY_LOW = 2,
-  PLAN_CACHE_PRIORITY_NUM = 3,
- } UserPriority;
-
 typedef struct {
-  char user[128];
-  char query[128];
+  char user[TSDB_USER_LEN];
+  char query[QUERY_STRING_MAX_LEN];
 } PlanCacheData;
 
+// struct SPlanCacheEntry;
 typedef struct SPlanCacheEntry{
-  PlanCacheData    data;
-  SPlanCacheEntry *prev;
-  SPlanCacheEntry *next;
+  PlanCacheData           data;
+  struct SPlanCacheEntry *prev;
+  struct SPlanCacheEntry *next;
 } SPlanCacheEntry;
 
-typedef struct PlanCacheList {
+typedef struct {
   TdThreadMutex    lock;
   SPlanCacheEntry *head;
   SPlanCacheEntry *tail;
   int              size;
-}
+} PlanCacheList;
 
 typedef struct {
-  void*               value;
+  int64_t             cache_hit;
+  int64_t             created_at;
+  int64_t             last_accessed_at;
+  void*               plan;
   SPlanCacheEntry*    entry;
 } PlanCacheValue;
 
@@ -66,22 +57,22 @@ static void planCacheListInit(PlanCacheList *list) {
   list->head = NULL;
   list->tail = NULL;
   list->size = 0;
-  list->Lock = taosThreadMutexInit();
+  taosThreadMutexInit(&list->lock, NULL);
 }
 
 static int32_t newPlanCacheEntry(SPlanCacheEntry **entry, const char *key, const char *query) {
   int32_t code = 0;
-  int32_t line = 0;
+  int32_t lino = 0;
   SPlanCacheEntry *newEntry = (SPlanCacheEntry *)taosMemoryCalloc(1, sizeof(SPlanCacheEntry));
   CACHE_CHECK_NULL_GOTO(newEntry, terrno);
-  tstrncpy(newEntry->data.key, key, sizeof(newEntry->data.key));
+  tstrncpy(newEntry->data.user, key, sizeof(newEntry->data.user));
   tstrncpy(newEntry->data.query, query, sizeof(newEntry->data.query));
   newEntry->data.query[sizeof(newEntry->data.query) - 1] = '\0';
   newEntry->prev = NULL;
   newEntry->next = NULL;
   *entry = newEntry;
 end:
-  PRINT_LOG_END(code, line);
+  PRINT_LOG_END(code, lino);
   return code;
 }
 
@@ -98,7 +89,7 @@ static void planCacheListDestroy(PlanCacheList *list) {
 }
 
 static void planCacheListPushToHead(PlanCacheList *list, SPlanCacheEntry *entry) {
-  taosThreadMutexLock(&list->Lock);
+  taosThreadMutexLock(&list->lock);
   if (list->head == NULL) {
     list->head = entry;
     list->tail = entry;
@@ -108,13 +99,13 @@ static void planCacheListPushToHead(PlanCacheList *list, SPlanCacheEntry *entry)
     list->head = entry;
   }
   list->size++;
-  taosThreadMutexUnLock(&list->Lock);
+  taosThreadMutexUnlock(&list->lock);
 }
 
 static SPlanCacheEntry* planCacheListPopFromTail(PlanCacheList *list) {
-  taosThreadMutexLock(&list->Lock);
+  taosThreadMutexLock(&list->lock);
   if (list->tail == NULL) {
-    taosThreadMutexUnLock(&list->Lock);
+    taosThreadMutexUnlock(&list->lock);
     return NULL;
   }
   SPlanCacheEntry *entry = list->tail;
@@ -126,16 +117,16 @@ static SPlanCacheEntry* planCacheListPopFromTail(PlanCacheList *list) {
     list->tail = NULL;
   }
   list->size--;
-  taosThreadMutexUnLock(&list->Lock);
+  taosThreadMutexUnlock(&list->lock);
 
   return entry;
 }
 
 static void planCacheListMoveToHead(PlanCacheList *list, SPlanCacheEntry *entry) {
-  taosThreadMutexLock(&list->Lock);
+  taosThreadMutexLock(&list->lock);
 
   if (list->head == entry) {
-    taosThreadMutexUnLock(&list->Lock);
+    taosThreadMutexUnlock(&list->lock);
     return;
   }
   if (entry->prev) {
@@ -158,10 +149,10 @@ static void planCacheListMoveToHead(PlanCacheList *list, SPlanCacheEntry *entry)
   if (list->tail == NULL) {
     list->tail = entry;
   }
-  taosThreadMutexUnLock(&list->Lock);
+  taosThreadMutexUnlock(&list->lock);
 }
 
-static int32_t erasePlanCache(){
+static void erasePlanCache(){
   // from low to high
   for(int i = PLAN_CACHE_PRIORITY_LOW; i >= PLAN_CACHE_PRIORITY_HIGH; i++) {
     PlanCacheList *list = &planCacheList[i];
@@ -170,11 +161,11 @@ static int32_t erasePlanCache(){
       if(entry == NULL) {
         break;
       }
-      void* data = taosHashGet(planCacheObj, entry->data.user, strlen(entry->data.user));
-      if (data != NULL) {
-        int32_t ret = taosHashRemove(data, entry->data.query, strlen(entry->data.query));
+      void** data = taosHashGet(planCacheObj, entry->data.user, strlen(entry->data.user) + 1);
+      if (data != NULL && *data != NULL) {
+        int32_t ret = taosHashRemove((SHashObj*)(*data), entry->data.query, strlen(entry->data.query) + 1);
         if (ret != 0) {
-          tscError("Failed to remove plan cache entry, ret: %d", ret);
+          uError("Failed to remove plan cache entry, ret: %d", ret);
         }
       }
       taosMemoryFree(entry);
@@ -189,25 +180,25 @@ static int32_t erasePlanCache(){
 
 int32_t putToPlanCache(char* user, UserPriority priority, int32_t max, char* query, void* value) {
   int32_t code = 0;
-  int32_t line = 0;
+  int32_t lino = 0;
   CACHE_CHECK_CONDITION_GOTO(priority >= PLAN_CACHE_PRIORITY_HIGH && priority < PLAN_CACHE_PRIORITY_LOW, TSDB_CODE_INVALID_PARA);
 
   taosThreadMutexLock(&cacheLock);
-  if (priority == PLAN_CACHE_PRIORITY_LOW && totalPlanCacheSize >= MAX_PLAN_CACHE_SIZE_LOW_LEVEL)) {
-    taosThreadMutexUnLock(&cacheLock);
+  if (priority == PLAN_CACHE_PRIORITY_LOW && totalPlanCacheSize >= MAX_PLAN_CACHE_SIZE_LOW_LEVEL) {
+    taosThreadMutexUnlock(&cacheLock);
     goto end;
   }
   if (planCacheObj == NULL) {
-    planCacheObj = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+    planCacheObj = taosHashInit(4, MurmurHash3_32, false, HASH_ENTRY_LOCK);
     CACHE_CHECK_NULL_GOTO(planCacheObj, terrno);
   }
-  taosThreadMutexUnLock(&cacheLock);
+  taosThreadMutexUnlock(&cacheLock);
  
-  void* data = taosHashGet(planCacheObj, user, strlen(user));
+  void* data = taosHashGet(planCacheObj, user, strlen(user) + 1);
   if (data == NULL) {
-    data = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+    data = taosHashInit(4, MurmurHash3_32, false, HASH_ENTRY_LOCK);
     CACHE_CHECK_NULL_GOTO(data, terrno);
-    CACHE_CHECK_RET_GOTO(taosHashPut(planObj, user, strlen(user), &data, POINTER_BYTES));
+    CACHE_CHECK_RET_GOTO(taosHashPut(planCacheObj, user, strlen(user) + 1, &data, POINTER_BYTES));
   } else {
     data = *(void**)data;
   }
@@ -216,16 +207,17 @@ int32_t putToPlanCache(char* user, UserPriority priority, int32_t max, char* que
     goto end;
   }
 
-  SPlanCacheEntry* pValue = taosHashGet(data, query, strlen(query));
+  SPlanCacheEntry* pValue = taosHashGet(data, query, strlen(query) + 1);
   if (pValue != NULL) {
     goto end;
   }
 
   SPlanCacheEntry *entry = NULL;
   CACHE_CHECK_RET_GOTO(newPlanCacheEntry(&entry, user, query));
-  PlanCacheValue v = {.value = value, .entry = entry};
+  PlanCacheValue v = {.plan = value, .entry = entry, .cache_hit = 0, 
+    .created_at = taosGetTimestampMs(), .last_accessed_at = taosGetTimestampMs()};
 
-  CACHE_CHECK_RET_GOTO(taosHashPut(data, query, strlen(query), &v, sizeof(v)));
+  CACHE_CHECK_RET_GOTO(taosHashPut(data, query, strlen(query) + 1, &v, sizeof(v)));
   PlanCacheList *list = &planCacheList[priority];
   planCacheListPushToHead(list, entry);
 
@@ -234,42 +226,117 @@ int32_t putToPlanCache(char* user, UserPriority priority, int32_t max, char* que
   if (totalPlanCacheSize >= MAX_PLAN_CACHE_SIZE_HIGH_LEVEL) {
     erasePlanCache();
   }
-  taosThreadMutexUnLock(&cacheLock);
+  taosThreadMutexUnlock(&cacheLock);
   
 end:
-  PRINT_LOG_END(code, line);
+  PRINT_LOG_END(code, lino);
   return code;
 }
 
 int32_t getFromPlanCache(char* user, UserPriority priority, char* query, void** value) {
   int32_t code = 0;
-  int32_t line = 0;
+  int32_t lino = 0;
   CACHE_CHECK_CONDITION_GOTO(priority >= PLAN_CACHE_PRIORITY_HIGH && priority < PLAN_CACHE_PRIORITY_LOW, TSDB_CODE_INVALID_PARA);
 
   taosThreadMutexLock(&cacheLock);
   if (planCacheObj == NULL) {
-    planCacheObj = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+    planCacheObj = taosHashInit(4, MurmurHash3_32, false, HASH_ENTRY_LOCK);
     CACHE_CHECK_NULL_GOTO(planCacheObj, terrno);
   }
-  taosThreadMutexUnLock(&cacheLock);
+  taosThreadMutexUnlock(&cacheLock);
  
-  void* data = taosHashGet(planCacheObj, user, strlen(user));
-  if (data == NULL) {
+  void** data = taosHashGet(planCacheObj, user, strlen(user) + 1);
+  if (data == NULL || *data == NULL) {
     *value = NULL;
     goto end;
   } 
-  PlanCacheValue* pValue = taosHashGet(data, query, strlen(query);
+  PlanCacheValue* pValue = taosHashGet((SHashObj*)(*data), query, strlen(query) + 1);
   if (pValue == NULL) {
     *value = NULL;
     goto end;
   }
-  *value = pValue->value;
-  SPlanCacheEntry* entry = = pValue->entry;
-  
+  *value = pValue->plan;
+  SPlanCacheEntry* entry = pValue->entry;
+  pValue->cache_hit++;
+  pValue->last_accessed_at = taosGetTimestampMs();
   planCacheListMoveToHead(&planCacheList[priority], entry);
   
 end:
-  PRINT_LOG_END(code, line);
+  PRINT_LOG_END(code, lino);
   return code;
 }
 
+void formatTimestamp(int64_t timestamp, char* buf, int32_t size) {
+  time_t tt = (time_t)(timestamp / 1000);
+  struct tm ptm = {0};
+  if (taosLocalTime(&tt, &ptm, NULL) == NULL) {
+    return;
+  }
+  strftime(buf, size, "%Y-%m-%d %H:%M:%S", &ptm);
+}
+
+int32_t clientRetrieveCachedPlans(SArray** ppRes) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SArray* pRes = taosArrayInit(totalPlanCacheSize, sizeof(SCachedPlan));
+  CACHE_CHECK_NULL_GOTO(pRes, terrno);
+
+  void *pIter = taosHashIterate(planCacheObj, NULL);
+  while (pIter != NULL) {
+    SHashObj *pHashObj = *(SHashObj **)pIter;
+    char* user = taosHashGetKey(pIter, NULL);
+    void *pIterInner = taosHashIterate(pHashObj, NULL);
+    while (pIterInner != NULL) {
+      PlanCacheValue *pValue = (PlanCacheValue *)pIterInner;
+      SCachedPlan* value = taosArrayReserve(pRes, 1);
+      if (value == NULL) {
+        code = terrno;
+        taosHashCancelIterate(pHashObj, pIterInner);
+        taosHashCancelIterate(planCacheObj, pIter);
+        goto end;
+      }
+      char* query = taosHashGetKey(pIterInner, NULL);
+
+      value->cache_hit = pValue->cache_hit;
+      formatTimestamp(pValue->created_at, value->created_at, sizeof(value->created_at));
+      formatTimestamp(pValue->last_accessed_at, value->last_accessed_at, sizeof(value->last_accessed_at));
+      tstrncpy(value->user, user, strlen(user) + 1);
+      tstrncpy(value->sql, query, strlen(query) + 1);
+
+      pIterInner = taosHashIterate(pHashObj, pIterInner);
+    }
+    pIter = taosHashIterate(planCacheObj, pIter);
+  }
+
+end:
+  PRINT_LOG_END(code, lino);
+  return code;
+}
+
+int32_t clientRetrieveUserCachedPlans(SArray** ppRes) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SArray* pRes = taosArrayInit(taosHashGetSize(planCacheObj), sizeof(SUserCachedPlan));
+  CACHE_CHECK_NULL_GOTO(pRes, terrno);
+
+  void *pIter = taosHashIterate(planCacheObj, NULL);
+  while (pIter != NULL) {
+    char* user = taosHashGetKey(pIter, NULL);
+    SUserCachedPlan* value = taosArrayReserve(pRes, 1);
+    if (value == NULL) {
+      code = terrno;
+      taosHashCancelIterate(planCacheObj, pIter);
+      goto end;
+    }
+    SHashObj *pHashObj = *(SHashObj **)pIter;
+    value->plans = taosHashGetSize(pHashObj);
+    value->quota = MAX_PLAN_CACHE_SIZE;
+    // formatTimestamp(pValue->last_accessed_at, value->last_accessed_at, sizeof(value->last_accessed_at));
+    tstrncpy(value->user, user, strlen(user) + 1);
+    pIter = taosHashIterate(planCacheObj, pIter);
+  }
+
+end:
+  PRINT_LOG_END(code, lino);
+  return code;
+}
