@@ -350,22 +350,52 @@ void mndStreamLogSStreamObj(char* tips, SStreamObj* p) {
 
   int64_t streamId = q->streamId;
   int32_t calcDBNum = taosArrayGetSize(q->calcDB);
-  mstDebug("create info: name:%d sql:%s streamDB:%s triggerDB:%s outDB:%s calcDBNum:%d",
-      q->name, q->sql, q->streamDB, q->triggerDB, q->outDB, calcDBNum);
+  int32_t calcScanNum = taosArrayGetSize(q->calcScanPlanList);
+  int32_t notifyUrlNum = taosArrayGetSize(q->pNotifyAddrUrls);
+  int32_t outColNum = taosArrayGetSize(q->outCols);
+  int32_t outTagNum = taosArrayGetSize(q->outTags);
+  int32_t forceOutColNum = taosArrayGetSize(q->forceOutCols);
+
+  mstDebug("create_info: name:%d sql:%s streamDB:%s triggerDB:%s outDB:%s calcDBNum:%d triggerTblName:%s outTblName:%s "
+      "igExists:%d triggerType:%d igDisorder:%d deleteReCalc:%d deleteOutTbl:%d fillHistory:%d fillHistroyFirst:%d "
+      "calcNotifyOnly:%d lowLatencyCalc:%d notifyUrlNum:%d notifyEventTypes:%d notifyErrorHandle:%d notifyHistory:%d "
+      "outColsNum:%d outTagsNum:%d maxDelay:%" PRId64 " fillHistoryStartTs:%" PRId64 " watermark:%" PRId64 " expiredTime:%" PRId64 " "
+      "triggerTblType:%d triggerTblUid:%" PRIu64 " outTblType:%d outStbExists:%d outStbUid:%" PRIu64 " outStbSversion:%d "
+      "eventTypes:0x%" PRIx64 " flags:0x%" PRIx64 " tsmaId:0x%" PRIx64 " placeHolderBitmap:0x%" PRIx64 " tsSlotId:%d "
+      "triggerTblVgId:%d outTblVgId:%d triggerCols:[%s] partitionCols:[%s] triggerScanPlan:[%s] calcPlan:[%s] calcScanPlanNum:%d "
+      "subTblNameExpr:[%s] tagValueExpr:[%s] forceOutCols:%d",
+      q->name, q->sql, q->streamDB, q->triggerDB, q->outDB, calcDBNum, q->triggerTblName, q->outTblName,
+      q->igExists, q->triggerType, q->igDisorder, q->deleteReCalc, q->deleteOutTbl, q->fillHistory, q->fillHistoryFirst,
+      q->calcNotifyOnly, q->lowLatencyCalc, notifyUrlNum, q->notifyEventTypes, q->notifyErrorHandle, q->notifyHistory,
+      outColNum, outTagNum, q->maxDelay, q->fillHistoryStartTime, q->watermark, q->expiredTime,
+      q->triggerTblType, q->triggerTblUid, q->outTblType, q->outStbExists, q->outStbUid, q->outStbSversion,
+      q->eventTypes, q->flags, q->tsmaId, q->placeHolderBitmap, q->tsSlotId,
+      q->triggerTblVgId, q->outTblVgId, q->triggerCols, q->partitionCols, q->triggerScanPlan, q->calcPlan, calcScanNum,
+      q->subTblNameExpr, q->tagValueExpr, forceOutColNum);
 
   for (int32_t i = 0; i < calcDBNum; ++i) {
+    char* dbName = taosArrayGetP(q->calcDB, i);
+    mstDebug("create_info: calcDB[%d] - %s", i, dbName);
   }
-
-  int32_t calcScanNum = taosArrayGetSize(q->calcScanPlanList);
-  mstDebug("create info: calcPlan:[%s], calcScanPlanNum:%d", q->calcPlan, calcScanNum);
 
   for (int32_t i = 0; i < calcScanNum; ++i) {
     SStreamCalcScan* pScan = taosArrayGet(q->calcScanPlanList, i);
     int32_t vgNum = taosArrayGetSize(pScan->vgList);
-    mstDebug("calcScanPlan[%d] - readFromCache:%d vgNum:%d scanPlan:[%s]", i, pScan->readFromCache, vgNum, pScan->scanPlan);
+    mstDebugL("create_info: calcScanPlan[%d] - readFromCache:%d vgNum:%d scanPlan:[%s]", i, pScan->readFromCache, vgNum, pScan->scanPlan);
     for (int32_t v = 0; v < vgNum; ++v) {
-      mstDebug("calcScanPlan[%d] vg[%d] - vgId:%d", i, v, *(int32_t*)taosArrayGet(pScan->vgList, v));
+      mstDebug("create_info: calcScanPlan[%d] vg[%d] - vgId:%d", i, v, *(int32_t*)taosArrayGet(pScan->vgList, v));
     }
+  }
+
+  for (int32_t i = 0; i < notifyUrlNum; ++i) {
+    char* url = taosArrayGetP(q->pNotifyAddrUrls, i);
+    mstDebug("create_info: notifyUrl[%d] - %s", i, url);
+  }
+
+  for (int32_t i = 0; i < outColNum; ++i) {
+    SFieldWithOptions* o = taosArrayGetP(q->outCols, i);
+    mstDebug("create_info: outCol[%d] - name:%s type:%d flags:%d bytes:%d compress:%u typeMod:%d", 
+        i, o->name, o->type, o->flags, o->bytes, o->compress, o->typeMod);
   }
       
 }

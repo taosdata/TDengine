@@ -104,6 +104,7 @@ typedef struct SStreamCacheReadInfo {
 #define stWarn(...)  do { if (stDebugFlag & DEBUG_WARN)  { taosPrintLog("STM WARN  ", DEBUG_WARN,  255,         __VA_ARGS__); }} while(0)
 #define stInfo(...)  do { if (stDebugFlag & DEBUG_INFO)  { taosPrintLog("STM INFO  ", DEBUG_INFO,  255,         __VA_ARGS__); }} while(0)
 #define stDebug(...) do { if (stDebugFlag & DEBUG_DEBUG) { taosPrintLog("STM DEBUG ", DEBUG_DEBUG, stDebugFlag, __VA_ARGS__); }} while(0)
+#define stDebugL(...) do { if (stDebugFlag & DEBUG_DEBUG) { taosPrintLongString("STM DEBUG ", DEBUG_DEBUG, stDebugFlag, __VA_ARGS__); }} while(0)
 #define stTrace(...) do { if (stDebugFlag & DEBUG_TRACE) { taosPrintLog("STM TRACE ", DEBUG_TRACE, stDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
@@ -143,6 +144,7 @@ typedef struct SStreamCacheReadInfo {
 #define mstWarn(param, ...)  stWarn("STREAM:%" PRIx64 " " param, streamId, __VA_ARGS__)
 #define mstInfo(param, ...)  stInfo("STREAM:%" PRIx64 " " param, streamId, __VA_ARGS__)
 #define mstDebug(param, ...) stDebug("STREAM:%" PRIx64 " " param, streamId, __VA_ARGS__)
+#define mstDebugL(param, ...) stDebugL("STREAM:%" PRIx64 " " param, streamId, __VA_ARGS__)
 #define mstTrace(param, ...) stTrace("STREAM:%" PRIx64 " " param, streamId, __VA_ARGS__)
 
 int32_t streamGetThreadIdx(int32_t threadNum, int64_t streamGId);
