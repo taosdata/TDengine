@@ -133,6 +133,11 @@ typedef struct SStreamCacheReadInfo {
           gStreamTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->nodeId,                    \
           ((SStreamTask *)pTask)->streamId, ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, ((SStreamTask *)pTask)->sessionId, \
           __VA_ARGS__)
+#define ST_TASK_DLOGL(param, ...)                                                                               \
+    stDebugL("TYPE: %s, NODE:%d, STREAM:%" PRIx64 ", TASK:%" PRIx64 ",SID:%" PRId64 ", SESSION:%" PRIx64 " " param,               \
+            gStreamTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->nodeId,                    \
+            ((SStreamTask *)pTask)->streamId, ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, ((SStreamTask *)pTask)->sessionId, \
+            __VA_ARGS__)
 #define ST_TASK_TLOG(param, ...)                                                                               \
   stTrace("TYPE: %s, NODE:%d, STREAM:%" PRIx64 ", TASK:%" PRIx64 ",SID:%" PRId64 ", SESSION:%" PRIx64 " " param,               \
           gStreamTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->nodeId,                    \
