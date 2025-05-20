@@ -733,6 +733,9 @@ typedef struct SStreamTsResponse {
 int32_t tSerializeSStreamTsResponse(void* buf, int32_t bufLen, const SStreamTsResponse* pRsp);
 int32_t tDeserializeSStreamTsResponse(void* buf, int32_t bufLen, void *pBlock);
 
+
+
+
 typedef struct SStreamGroupValue {
   SValue  data;
   bool    isNull;

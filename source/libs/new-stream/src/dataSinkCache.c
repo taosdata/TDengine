@@ -236,45 +236,14 @@ int32_t readDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, bool* finis
   }
 }
 
-void clearGroupExpiredDataInMem(SGroupDSManager* pGroupData, TSKEY start) {
-  //if (pGroupData->windowDataInMem == NULL) {
-  //  return;
-  //}
-
-  //   int32_t size = taosArrayGetSize(pGroupData->windowDataInMem);
-  //   int     deleteCount = 0;
-  //   for (int i = 0; i < size; ++i) {
-  //     SWindowData* pWindowData = *(SWindowData**)taosArrayGet(pGroupData->windowDataInMem, i);
-  //     if (pWindowData && (pWindowData->wend <= start) || pWindowData->pDataBuf == NULL) {
-  //       deleteCount++;
-  //     } else {
-  //       break;
-  //     }
-  //   }
-//   
-  //   if (deleteCount == 0) {
-  //     return;
-  //   }
-  //   taosArrayRemoveBatch(pGroupData->windowDataInMem, 0, deleteCount, destorySWindowDataPP);
-}
-
-void syncWindowDataMemAdd(SWindowData* pWindowData) {
-  int32_t size = pWindowData->dataLen;
-  atomic_add_fetch_64(&pWindowData->pGroupDataInfoMgr->usedMemSize, size);
+void syncWindowDataMemAdd(SGrpCacheMgr* pGrpCacheMgr, int64_t size) {
+  atomic_add_fetch_64(&pGrpCacheMgr->usedMemSize, size);
   atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, size);
 }
 
-void syncWindowDataMemSub(SWindowData* pWindowData) {
-  int32_t size = pWindowData->dataLen;
-  atomic_sub_fetch_64(&pWindowData->pGroupDataInfoMgr->usedMemSize, size);
+void syncWindowDataMemSub(SGrpCacheMgr* pGrpCacheMgr, int64_t size) {
+  atomic_sub_fetch_64(&pGrpCacheMgr->usedMemSize, size);
   atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, size);
-}
-
-void clearGroupExpiredData(SGroupDSManager* pGroupData, TSKEY start) {
-  //if (pGroupData->windowDataInMem == NULL) {
-  //  return;
-  //}
-  clearGroupExpiredDataInMem(pGroupData, start);
 }
 
 bool setNextIteratorFromMem(SResultIter** ppResult) {

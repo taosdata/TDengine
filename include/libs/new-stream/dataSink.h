@@ -185,20 +185,23 @@ typedef enum {
   GRP_DATA_READING = 2,
 } EGroupStatus;
 
-typedef struct SSlidingGrpMgr {
+typedef struct SGrpCacheMgr {
   int64_t groupId;
   int64_t usedMemSize;
-  SArray* winDataInMem;  // array SSlidingWindowInMem
-  SArray* blocksInFile;  // array SBlocksInfoFile
-  int8_t  status;        // 0 waitting, 1 writing, 2 reading
+} SGrpCacheMgr;
+
+typedef struct SSlidingGrpMgr {
+  SGrpCacheMgr grpCacheMgr;
+  SArray*      winDataInMem;  // array SSlidingWindowInMem
+  SArray*      blocksInFile;  // array SBlocksInfoFile
+  int8_t       status;        // 0 waitting, 1 writing, 2 reading
 } SSlidingGrpMgr;
 
 typedef struct SAlignGrpMgr {
-  int64_t groupId;
-  int64_t usedMemSize;
-  SArray* blocksInMem;   // array SAlignBlocksInMem <address, capacity, dataLen>
-  SArray* blocksInFile;  // array SBlocksInfoFile <groupOffset, dataStartOffset, dataLen>
-  int8_t  status;        // 0 waitting, 1 writing, 2 reading
+  SGrpCacheMgr grpCacheMgr;
+  SArray*      blocksInMem;   // array SAlignBlocksInMem <address, capacity, dataLen>
+  SArray*      blocksInFile;  // array SBlocksInfoFile <groupOffset, dataStartOffset, dataLen>
+  int8_t       status;        // 0 waitting, 1 writing, 2 reading
 } SAlignGrpMgr;
 
 struct SGroupDSManager {
@@ -322,16 +325,11 @@ bool    setNextIteratorFromFile(SResultIter** ppResult);
 int32_t createDataResult(void** ppResult);
 void    releaseDataResult(void** ppResult);
 
-// @brief 读取数据从文件
-int32_t createSGroupDSManager(int64_t groupId, SGroupDSManager** ppGroupDataInfo);
-
 void destorySWindowDataP(void* pData);
 void destorySWindowDataPP(void* pData);
 
-void clearGroupExpiredDataInMem(SGroupDSManager* pGroupData, TSKEY start);
-
-void syncWindowDataMemAdd(SWindowData* pSWindowData);
-void syncWindowDataMemSub(SWindowData* pSWindowData);
+void syncWindowDataMemAdd(SGrpCacheMgr* pGrpCacheMgr, int64_t size);
+void syncWindowDataMemSub(SGrpCacheMgr* pGrpCacheMgr, int64_t size);
 
 int32_t initInserterGrpInfo();
 void    destroyInserterGrpInfo();

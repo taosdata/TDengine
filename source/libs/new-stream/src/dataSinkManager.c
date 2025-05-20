@@ -89,31 +89,6 @@ void destorySWindowDataP(void* pData) {
   taosMemoryFree((pWindowData));
 }
 
-static bool shouldWriteIntoFile(SSlidingTaskDSMgr* pStreamDataSink, int64_t groupId, bool isMove) {
-  // 如果当前 task 已经开始在文件中写入数据，则继续写入文件，保证文件中数据时间总是大于内存中数据，并且数据连续
-  // 为防止某个 task 一直在文件中写入数据，当内存使用小于 50% 时，读取这个任务所有文件数据迁入内存
-  if (pStreamDataSink->pFileMgr && pStreamDataSink->pFileMgr->fileBlockUsedCount > 0) {
-    return true;
-  }
-
-  // 内存使用小于 70% 时，写入内存
-  if (g_pDataSinkManager.usedMemSize < g_pDataSinkManager.maxMemSize * 0.7) {
-    return false;
-  }
-  // 内存使用大于 70% 但小于 90%，旧的 task 继续写入内存
-  // if (g_pDataSinkManager.usedMemSize < g_pDataSinkManager.maxMemSize * 0.9 && pStreamDataSink->usedMemSize > 0) {
-  //   return false;
-  // }
-
-  // 内存使用小于 90% 时，但是使用了 move 语义，认为已经写入了内存，计入内存管理
-  if (g_pDataSinkManager.usedMemSize < g_pDataSinkManager.maxMemSize * 0.9 && isMove) {
-    return false;
-  }
-
-  // 内存使用大于 70% 并且是新的 task，或者内存使用大于 90% 全部写入文件
-  return true;
-}
-
 static bool isManagerReady() {
   if (g_pDataSinkManager.dsStreamTaskList != NULL) {
     return true;
@@ -169,25 +144,6 @@ static void destroySStreamDSTaskMgr(void* pData) {
   } else {
     stError("invalid clean mode: %d", cleanMode);
   }
-}
-
-int32_t createSGroupDSManager(int64_t groupId, SGroupDSManager** ppGroupDataInfo) {
-  *ppGroupDataInfo = (SGroupDSManager*)taosMemoryCalloc(1, sizeof(SGroupDSManager));
-  if (*ppGroupDataInfo == NULL) {
-    return terrno;
-  }
-  (*ppGroupDataInfo)->groupId = groupId;
-  (*ppGroupDataInfo)->winDataInMem = NULL;
-  return TSDB_CODE_SUCCESS;
-}
-
-static void destroySGroupDSManager(void* pData) {
-  SGroupDSManager* pGroupData = *(SGroupDSManager**)pData;
-  if (pGroupData->winDataInMem) {
-    taosArrayDestroyP(pGroupData->winDataInMem, destorySWindowDataP);
-    pGroupData->winDataInMem = NULL;
-  }
-  taosMemoryFreeClear(pGroupData);
 }
 
 int32_t createAlignGrpMgr(int64_t groupId, SAlignGrpMgr** ppAlignGrpMgr) {
@@ -433,7 +389,8 @@ int32_t putDataToSlidingTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t group
   }
 
   // todo mem size add
-  pSlidingGrpMgr->usedMemSize += sizeof(SSlidingWindowInMem);
+  pSlidingGrpMgr->usedMemSize += (sizeof(SSlidingWindowInMem) + pSlidingWinInMem->dataLen);
+  syncWindowDataMemAdd((SGrpCacheMgr*)pSlidingGrpMgr, sizeof(SSlidingWindowInMem) + pSlidingWinInMem->dataLen);
 
   return TSDB_CODE_SUCCESS;
 }
