@@ -24,7 +24,9 @@ TDengine 支持标准 ODBC 接口，SSRS 可实现无缝对接 TDengine。TDengi
 - 安装 Microsoft SQL Server 2022 且数据库服务正常运行，[下载安装](https://www.microsoft.com/zh-cn/sql-server/sql-server-downloads)。
 - 安装 Microsoft SQL Server 2022 Reporting Service 且报表服务正常运行，[下载安装](https://learn.microsoft.com/zh-cn/sql/reporting-services/install-windows/install-reporting-services)。
 - 配置 Microsoft SQL Server 2022 Reporting Service 使用 IP 地址对外提供服务。
+  
   ![pre-1](img/pre-1.webp)
+
 - 服务器 IP：192.168.1.83
 - 提供 HTTP 服务： 端口 80
 
@@ -34,15 +36,17 @@ TDengine 支持标准 ODBC 接口，SSRS 可实现无缝对接 TDengine。TDengi
 - 安装 TDengine 3.3.3.0 或以上 Windows 客户端版（默认安装 TDengine ODBC 驱动）。
 - 安装 Microsoft Report Builder（32 位），提供报表开发服务，[下载安装](https://www.microsoft.com/en-us/download/details.aspx?id=53613)。
 - 配置 Microsoft Report Builder 连接报表服务器为：http://192.168.1.83:80/ReportServer。
+  
   ![pre-2](img/pre-2.webp)
- 
 
 ## 配置数据源
 SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
 
 1. SSRS Windows 服务器配置 ODBC 数据源
    打开 ODBC 数据源管理器（64 位），选择 “System DSN”, 配置如下图：
+
    ![cfg-1](img/cfg-1.webp)
+
    - DSN：填写 TDengine
    - Connect type: 选择 WebSocket
    - URL: http://192.168.2.124:6041
@@ -52,7 +56,9 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
 
 2. 报表制作 Window 客户端配置 ODBC 数据源。
    打开 ODBC 数据源管理器（32 位），选择 “System DSN”, 配置如下图：
+
    ![cfg-2](img/cfg-2.webp)
+
    - DSN：填写 TDengine（必务与步骤 1 中 DSN 相同）
    - Connect type: 选择 WebSocket
    - URL: http://192.168.2.124:6041
@@ -62,7 +68,9 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
 
 3. Report Builder 创建数据源连接
    启动 Report Builder，左侧区域内”Data Source“项上点右键，点击“Add Data Source...”菜单，如图：
+
    ![cfg-3](img/cfg-3.webp)
+
    - Name：填写数据源名称
    - 数据源方式：选择第二项“Use a connection embedded in my report”
    - Select Connection type：选择 ODBC 数据源
@@ -85,7 +93,9 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
 1. 打开 Report Builder 开始制作报表
 2. 创建新数据集
    左侧区域内 "DataSource"->"DataSource1"->“Add Dataset...”
+
    ![create-1](img/create-1.webp)
+
    - Name：填写数据集名称
    - 数据集方式：选择第二项“Use a dataset embedded im my report”
    - Data source：选择前面创建好的 “DataSource1”
@@ -103,41 +113,58 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    
 3. 制作报表页面
    菜单"Insert"->"Table"->"Insert Table"，插入空表格，用鼠标把左侧 DataSet1 中数据列用拖到右侧报表制作区域内放置到自己想要展示的列上，如图：
+
    ![create-2](img/create-2.webp)
+
 4. 预览
    点击 “Home” 菜单中的 “Run” 按钮，预览报表效果。
+
    ![create-3](img/create-3.webp)
+
 5. 退出预览
    点击工具栏左侧第一个图标 “Design” 关闭预览，回到设计界面继续设计。
 
 ### 发送报表
 1.  保存报表到服务器上，如图：
    点击“File”菜单->“Save”。
+
    ![report-1](img/report-1.webp)
+
 2. 报表数据源连接组件发布到服务器
    点击“File”菜单->“Publish Report Parts”
+
    ![report-2](img/report-2.webp)
-   选择第一项“Pubsh all report parts with default settings”，会把当前数据源配置也发送至报表服务器。
+
+   选择第一项“Pubsh all report parts with default settings”，可把报表使用数据源配置一起发送至服务器。
 
 ### 浏览报表
 报表发送至服务器后，报表即被共享出去了，可在任意客户端通过浏览器访问浏览报表数据。
 1. 查看报表浏览地址
    报表浏览地址在 SSRS 服务器配置中，如下：
+
    ![browser-1](img/browser-1.webp)
+
 2. 输入访问授权
    客户端第一次访问报表数据时，会弹出授权窗口要求登录，输入报表服务器操作系统登录账号即可。
+
    ![browser-2](img/browser-2.webp)
+
    账号输入成功后，会出现如下页面，可以看到前面保存上传的报表 meters。
+
    ![browser-3](img/browser-3.webp)
+
 3. 分页浏览报表
    点击 meters，会分页展示小区内所有智能电表最新采集数据。
+
    ![browser-4](img/browser-4.webp)
 
 ### 管理报表
 1. SSRS 提供了报表管理页面，可通过以下页得到或修改管理页面地址：
-![manager-1](img/manager-1.webp)
+   
+   ![manager-1](img/manager-1.webp)
+  
+2. 打开管理页面，可对报表进行管理操作，如图：
 
-1. 打开管理页面，可对报表进行管理操作，如图：
-![manager-2](img/manager-2.webp)
+   ![manager-2](img/manager-2.webp)
 
 以上流程，我们使用了 SSDR 开发了基于 TDengine 数据源的一个简单报表制作、分发、浏览系统，更多丰富的报表还有待您的进一步开发。
