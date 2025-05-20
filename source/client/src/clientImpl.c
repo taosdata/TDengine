@@ -1192,6 +1192,7 @@ int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pRes
       pRequest->body.subplanNum = pDag->numOfSubplans;
       TSWAP(pRequest->pPostPlan, pDag->pPostPlan);
 
+      pDag->planCacheUsed = true;
       putToPlanCache(pRequest->pTscObj->user, pRequest->pTscObj->priority, pRequest->pTscObj->maxCount, pRequest->sqlstr, pDag);
     }
   }
