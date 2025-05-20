@@ -4,9 +4,11 @@
 #include "InsertJobConfig.h"
 #include "QueryJobConfig.h"
 #include "SubscribeJobConfig.h"
+
 #include <string>
 #include <vector>
 #include <optional>
+
 #include <variant>
 #include <yaml-cpp/yaml.h>
 
