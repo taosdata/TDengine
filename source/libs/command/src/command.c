@@ -22,6 +22,7 @@
 #include "tdatablock.h"
 #include "tglobal.h"
 #include "tgrant.h"
+#include "tlruplancache.h"
 
 extern SConfig* tsCfg;
 
@@ -625,7 +626,7 @@ static int32_t setUserPlansResultIntoDataBlock(SSDataBlock* pBlock, SArray* pRes
 
 
 
-static int32_t execShowUserPlans(int64_t* pConnId, SShowPlansStmt* pStmt, SRetrieveTableRsp** pRsp) {
+static int32_t execShowUserPlans(int64_t* pConnId, SShowUserPlansStmt* pStmt, SRetrieveTableRsp** pRsp) {
   SSDataBlock* pBlock = NULL;
   int32_t      code = buildUserPlansResultDataBlock(&pBlock);
   if (TSDB_CODE_SUCCESS == code) {

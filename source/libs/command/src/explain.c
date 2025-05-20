@@ -1992,7 +1992,7 @@ int32_t qExplainPrepareCtx(SQueryPlan *pDag, SExplainCtx **pCtx) {
   QRY_ERR_JRET(
       qExplainInitCtx(&ctx, groupHash, pDag->explainInfo.verbose, pDag->explainInfo.ratio, pDag->explainInfo.mode));
 
-  ctx.planCacheUsed = pDag->planCacheUsed;
+  ctx->planCacheUsed = pDag->planCacheUsed;
   for (int32_t i = 0; i < levelNum; ++i) {
     plans = (SNodeListNode *)nodesListGetNode(pDag->pSubplans, i);
     if (NULL == plans) {

@@ -51,26 +51,6 @@ int32_t timestampDeltaLimit = 900;  // s
 static TdThreadOnce tscinit = PTHREAD_ONCE_INIT;
 volatile int32_t    tscInitRes = 0;
 
-typedef struct SCachedPlan {
-  char    user[TSDB_USER_LEN];
-  char*   sql;
-  int64_t cache_hit;
-  char*   created_at;
-  char*   last_accessed_at;
-} SCachedPlan;
-
-typedef struct SUserCachedPlan {
-  char    user[TSDB_USER_LEN];
-  int32_t plans;
-  int32_t quota;
-  char*   last_updated_at;
-} SUserCachedPlan;
-
-
-int32_t clientRetrieveCachedPlans(SArray** ppRes); // SCachedPlan
-int32_t clientRetrieveUserCachedPlans(SArray** ppRes); // SUserCachedPlan
-
-
 int32_t clientSendAuditLog(void* pTrans, SEpSet* epset, char* operation, char* detail) {
   char*   msg = NULL;
   int32_t msgLen = 0;
@@ -80,7 +60,7 @@ int32_t clientSendAuditLog(void* pTrans, SEpSet* epset, char* operation, char* d
   int32_t len = tSerializeAuditLogReq(NULL, 0, &req);
   void* pBuf = rpcMallocCont(len);
 
-  tSerializeStreamProgressReq(pBuf, len, &req);
+  tSerializeAuditLogReq(pBuf, len, &req);
 
   SRpcMsg rpcMsg = {
       .msgType = reqType,

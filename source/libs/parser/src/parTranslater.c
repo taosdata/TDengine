@@ -27,6 +27,7 @@
 #include "tcol.h"
 #include "tglobal.h"
 #include "ttime.h"
+#include "tlruplancache.h"
 
 #define generateDealNodeErrMsg(pCxt, code, ...) \
   (pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, code, ##__VA_ARGS__), DEAL_RES_ERROR)

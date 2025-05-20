@@ -28,6 +28,8 @@
 #include "tref.h"
 #include "tsched.h"
 #include "tversion.h"
+#include "tlruplancache.h"
+
 static int32_t       initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
 static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest);
 
@@ -1154,7 +1156,7 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
   return pRequest;
 }
 
-static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta,
+int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta,
                                  SSqlCallbackWrapper* pWrapper) {
   int32_t code = TSDB_CODE_SUCCESS;
   pRequest->type = pQuery->msgType;
@@ -1190,7 +1192,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
       pRequest->body.subplanNum = pDag->numOfSubplans;
       TSWAP(pRequest->pPostPlan, pDag->pPostPlan);
 
-      putToPlanCache(pRequest->pTscObj->user, pRequest->pTscObj->priority, pRequest->sqlstr, pDag);
+      putToPlanCache(pRequest->pTscObj->user, pRequest->pTscObj->priority, pRequest->pTscObj->maxCount, pRequest->sqlstr, pDag);
     }
   }
 
