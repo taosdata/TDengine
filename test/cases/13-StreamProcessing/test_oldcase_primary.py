@@ -25,44 +25,23 @@ class TestStreamOldCaseInterpPrimary:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamPrimaryKey3.sim
         """
 
-        # self.streamInterpPrimaryKey0()
-        # self.streamInterpPrimaryKey1()
-        # self.streamInterpPrimaryKey2()
-        # self.streamInterpPrimaryKey3()
         # self.streamPrimaryKey0()
         # self.streamPrimaryKey1()
         # self.streamPrimaryKey2()
         # self.streamPrimaryKey3()
 
-    def streamInterpPrimaryKey0(self):
-        tdLog.info(f"streamInterpPrimaryKey0")
-        drop_all_streams_and_dbs()
-
-    def streamInterpPrimaryKey1(self):
-        tdLog.info(f"streamInterpPrimaryKey1")
-        drop_all_streams_and_dbs()
-
-    def streamInterpPrimaryKey2(self):
-        tdLog.info(f"streamInterpPrimaryKey2")
-        drop_all_streams_and_dbs()
-
-    def streamInterpPrimaryKey3(self):
-        tdLog.info(f"streamInterpPrimaryKey3")
-        drop_all_streams_and_dbs()
-
     def streamPrimaryKey0(self):
         tdLog.info(f"streamPrimaryKey0")
-        drop_all_streams_and_dbs()
+        clusterComCheck.check_stream_status()
 
     def streamPrimaryKey1(self):
         tdLog.info(f"streamPrimaryKey1")
-        drop_all_streams_and_dbs()
+        clusterComCheck.check_stream_status()
 
     def streamPrimaryKey2(self):
         tdLog.info(f"streamPrimaryKey2")
-        drop_all_streams_and_dbs()
+        clusterComCheck.check_stream_status()
 
     def streamPrimaryKey3(self):
         tdLog.info(f"streamPrimaryKey3")
-        drop_all_streams_and_dbs()
-
+        clusterComCheck.check_stream_status()

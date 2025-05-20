@@ -35,25 +35,25 @@ class TestStreamOldCaseTwa:
 
     def streamTwaError(self):
         tdLog.info(f"streamTwaError")
-        drop_all_streams_and_dbs()
+        clusterComCheck.check_stream_status()
 
     def streamTwaFwcFill(self):
         tdLog.info(f"streamTwaFwcFill")
-        drop_all_streams_and_dbs()
+        clusterComCheck.check_stream_status()
 
     def streamTwaFwcFillPrimaryKey(self):
         tdLog.info(f"streamTwaFwcFillPrimaryKey")
-        drop_all_streams_and_dbs()
+        clusterComCheck.check_stream_status()
 
     def streamTwaFwcInterval(self):
         tdLog.info(f"streamTwaFwcInterval")
-        drop_all_streams_and_dbs()
+        clusterComCheck.check_stream_status()
         
     def streamTwaFwcIntervalPrimaryKey(self):
         tdLog.info(f"streamTwaFwcIntervalPrimaryKey")
-        drop_all_streams_and_dbs()
+        clusterComCheck.check_stream_status()
 
     def streamTwaInterpFwc(self):
         tdLog.info(f"streamTwaInterpFwc")
-        drop_all_streams_and_dbs()
+        clusterComCheck.check_stream_status()
 

@@ -21,47 +21,17 @@ class TestStreamOldCaseOptions:
         History:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/ignoreCheckUpdate.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/ignoreExpiredData.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/pauseAndResume.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/sliding.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/tag.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/triggerInterval0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/windowClose.sim
         """
 
         # self.ignoreCheckUpdate()
         # self.ignoreExpiredData()
-        # self.pauseAndResume()
-        # self.sliding()
-        # self.tag()
-        # self.triggerInterval0()
-        # self.windowClose()
 
     def ignoreCheckUpdate(self):
         tdLog.info(f"ignoreCheckUpdate")
-        drop_all_streams_and_dbs()
+        clusterComCheck.check_stream_status()
 
     def ignoreExpiredData(self):
         tdLog.info(f"ignoreExpiredData")
-        drop_all_streams_and_dbs()
-
-    def pauseAndResume(self):
-        tdLog.info(f"pauseAndResume")
-        drop_all_streams_and_dbs()
-
-    def sliding(self):
-        tdLog.info(f"sliding")
-        drop_all_streams_and_dbs()
-
-    def tag(self):
-        tdLog.info(f"tag")
-        drop_all_streams_and_dbs()
-
-    def triggerInterval0(self):
-        tdLog.info(f"triggerInterval0")
-        drop_all_streams_and_dbs()
-
-    def windowClose(self):
-        tdLog.info(f"windowClose")
-        drop_all_streams_and_dbs()
+        clusterComCheck.check_stream_status()
 
 

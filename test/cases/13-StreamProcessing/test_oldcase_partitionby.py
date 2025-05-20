@@ -25,8 +25,6 @@ class TestStreamOldCasePartitionBt
             - 2025-5-15 Simon Guan Migrated from tsim/stream/partitionbyColumnOther.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/partitionbyColumnSession.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/partitionbyColumnState.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPartitionBy0.sim
-            - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPartitionBy1.sim
         """
 
         # self.partitionby()
@@ -35,8 +33,6 @@ class TestStreamOldCasePartitionBt
         # self.partitionbyColumnOther()
         # self.partitionbyColumnSession()
         # self.partitionbyColumnState()
-        # self.streamInterpPartitionBy0()
-        # self.streamInterpPartitionBy1()
 
     def partitionby(self):
         tdLog.info(f"partitionby")
@@ -62,11 +58,4 @@ class TestStreamOldCasePartitionBt
         tdLog.info(f"partitionbyColumnState")
         drop_all_streams_and_dbs()
 
-    def streamInterpPartitionBy0(self):
-        tdLog.info(f"streamInterpPartitionBy0")
-        drop_all_streams_and_dbs()
-
-    def streamInterpPartitionBy1(self):
-        tdLog.info(f"streamInterpPartitionBy1")
-        drop_all_streams_and_dbs()
 
