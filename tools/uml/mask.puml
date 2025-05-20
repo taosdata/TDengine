@@ -1,0 +1,26 @@
+@startuml
+app -> taosc: REQ: …… test_udf(user, table, sqlcmd) ……
+taosc -> taosc: parse SQL
+taosc -> mnode: get table_red and user_red info
+mnode -> mnode: read table_red and user_red info
+mnode --> taosc: return table_red and user_red info
+taosc -> taosc: parse sqlcmd
+taosc -> mnode: get metadata
+mnode -> mnode: read metadata
+mnode --> taosc: return metadata
+taosc -> taosc: check privilege
+taosc -> taosc: translate
+taosc -> taosc: update catalog info
+taosc -> taosc: logic plan
+taosc -> taosc: optimize ……
+taosc -> taosc: physic plan
+taosc -> vnode1: read data
+taosc -> vnode2: read data
+vnode1 --> taosc: return data
+vnode2 --> taosc: return data
+taosc -> taosc: merge data
+taosc -> taosc: mask data
+taosc --> app: RSP: result
+
+
+@enduml
