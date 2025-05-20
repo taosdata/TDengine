@@ -1076,7 +1076,7 @@ static int32_t logicMergeNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddIntegerToObject(pJson, jkMergeLogicPlanSrcGroupId, pNode->srcGroupId);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkMergeLogicPlanSrcENdGroupId, pNode->srcEndGroupId);
+    code = tjsonAddIntegerToObject(pJson, jkMergeLogicPlanSrcEndGroupId, pNode->srcEndGroupId);
   }
   return code;
 }
