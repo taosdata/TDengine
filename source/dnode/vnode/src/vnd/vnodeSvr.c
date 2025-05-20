@@ -351,6 +351,9 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
+    STSchema *pTSchema = NULL;
+    code = metaGetTbTSchemaEx(pVnode->pMeta, submitTbData.suid, submitTbData.uid, submitTbData.sver, &pTSchema);
+
     for (int32_t iRow = 0; iRow < nRow; ++iRow) {
       SRow *pRow = (SRow *)(pCoder->data + pCoder->pos);
       pCoder->pos += pRow->len;
@@ -363,13 +366,22 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
         code = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
         TSDB_CHECK_CODE(code, lino, _exit);
       }
-    }
-    {
-      ++pVnode->batchCount;
 
-      // retrieve name column
-      // if (!strncmp
+      {
+        ++pVnode->batchCount;
+
+#define NAME_COL_IDX 1
+        SColVal nameColVal = {0};
+        code = tRowGet(pRow, pTSchema, NAME_COL_IDX, &nameColVal);
+        TSDB_CHECK_CODE(code, lino, _exit);
+
+        // retrieve name column
+        // if (!strncmp
+      }
     }
+
+    taosMemoryFreeClear(pTSchema);
+    pTSchema = NULL;
   }
 
   if (!tDecodeIsEnd(pCoder)) {
