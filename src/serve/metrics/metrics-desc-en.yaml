@@ -95,3 +95,8 @@ out_of_range_rows: Number of rows out of time range in this task run
 total_out_of_range_rows: Total number of rows out of time range
 archived_rows: Number of rows archived
 total_archived_rows: Total number of rows archived
+total_messages_bytes: Total number of bytes received via TMQ
+messages_bytes: Number of bytes received via TMQ in this task run
+commits: Number of messages committed in this task run
+total_commits: Total number of messages committed since task started
+task_name: Task name

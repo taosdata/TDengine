@@ -263,6 +263,7 @@ impl WriteOptions {
 
     async fn parse_meta_only(&self, meta: &Meta, metrics: &TmqMetrics) -> Result<RawMessage> {
         let raw = meta.as_raw_meta().await?;
+        metrics.add_message_bytes(raw.raw_len() as _);
         let json_meta = if !self.actions.is_empty() || !self.strategy.without_json_meta() {
             meta.as_json_meta()
                 .in_current_span()
@@ -277,6 +278,7 @@ impl WriteOptions {
     }
     async fn parse_data(&self, data: &Data, metrics: &TmqMetrics) -> Result<RawMessage> {
         let raw = data.as_raw_data().await?;
+        metrics.add_message_bytes(raw.raw_len() as _);
 
         if self.actions.is_empty() && !self.strategy.require_blocks() {
             return Ok(RawMessage::raw_only(
@@ -303,6 +305,7 @@ impl WriteOptions {
         metrics: &TmqMetrics,
     ) -> Result<RawMessage> {
         let raw = meta.as_raw_meta().await?;
+        metrics.add_message_bytes(raw.raw_len() as _);
         if self.actions.is_empty() && self.strategy.without_json_meta() {
             return Ok(RawMessage::raw_only(
                 self.next_mid(),
