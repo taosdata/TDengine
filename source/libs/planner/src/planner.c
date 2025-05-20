@@ -62,6 +62,21 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   }
   if (TSDB_CODE_SUCCESS == code) {
     dumpQueryPlan(*pPlan);
+    SNode* pnode = NULL;
+    FOREACH(pnode, (*pPlan)->pSubplans) {
+      SNodeListNode* pLevel = (SNodeListNode*)pnode;
+      int32_t num = pLevel->pNodeList->length;
+      for (int32_t i = 0; i < num; ++i) {
+        SSubplan* sub = (SSubplan*)nodesListGetNode(pLevel->pNodeList, i);
+        if (sub->showRewrite) {
+          (*pPlan)->showRewrite = true;
+          break;
+        }
+      }
+      if ((*pPlan)->showRewrite) {
+        break;
+      }
+    }
   }
   nodesReleaseAllocator(pCxt->allocatorId);
 

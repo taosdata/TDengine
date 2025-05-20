@@ -469,6 +469,10 @@ bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOpt
                        int32_t paramNum) {
   void* value = NULL;
   switch (opt) {
+    case HINT_NO_CACHE_PLAN:
+    case HINT_CACHE_PLAN:
+    case HINT_NO_USE_PLAN_CACHE:
+    case HINT_USE_PLAN_CACHE:
     case HINT_SKIP_TSMA:
     case HINT_BATCH_SCAN:
     case HINT_NO_BATCH_SCAN: {

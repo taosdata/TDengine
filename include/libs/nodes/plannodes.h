@@ -809,6 +809,7 @@ typedef struct SQueryPlan {
   SExplainInfo explainInfo;
   void*        pPostPlan;
   bool         planCacheUsed;
+  bool         showRewrite;
 } SQueryPlan;
 
 const char* dataOrderStr(EDataOrderLevel order);
