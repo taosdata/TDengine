@@ -153,7 +153,7 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMs
   pTask->output.pTagValExprs = pMsg->tagValueExpr;
   int32_t code = nodesStringToList(pMsg->tagValueExpr, &pTask->output.pTagValExprs);
   if (code != 0) {
-    ST_TASK_ELOG("failed to convert tag value expr to node err: %s expr: %s", strerror(code), pMsg->tagValueExpr);
+    ST_TASK_ELOG("failed to convert tag value expr to node err: %s expr: %s", strerror(code), (char*)pMsg->tagValueExpr);
     pTask->task.status = STREAM_STATUS_FAILED;
     return code;
   }

@@ -30,6 +30,7 @@
 #include "tarray.h"
 #include "tcompression.h"
 #include "tdatablock.h"
+#include "tdataformat.h"
 #include "tglobal.h"
 #include "thash.h"
 #include "tmsg.h"
@@ -1140,6 +1141,33 @@ _end:
   return code;
 }
 
+static int32_t getTagValsFromStreamInserterInfo(SStreamDataInserterInfo* pInserterInfo, int32_t preCols, SArray** ppTagVals) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t nTags = pInserterInfo->pTagVals->size;
+  *ppTagVals = taosArrayInit(nTags, sizeof(STagVal));
+  if (!ppTagVals) {
+    return terrno;
+  }
+  for (int32_t i = 0; i < pInserterInfo->pTagVals->size; ++i) {
+    SStreamTagInfo* pTagInfo = taosArrayGet(pInserterInfo->pTagVals, i);
+    STagVal tagVal = {
+        .cid = preCols + i,
+        .type = pTagInfo->val.data.type,
+        .i64 = pTagInfo->val.data.val,
+    };
+    if (NULL == taosArrayPush(*ppTagVals, &tagVal)) {
+      code = terrno;
+      goto _end;
+    }
+  }
+  _end:
+  if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(*ppTagVals);
+    *ppTagVals = NULL;
+  }
+  return code;
+}
+
 static int32_t buildStreamSubTableCreateReq(SDataInserterHandle* pInserter, SStreamInserterParam* pInsertParam,
                                             SStreamDataInserterInfo* pInserterInfo, SSubmitTbData* tbData,
                                             int32_t* vgId) {
@@ -1152,7 +1180,7 @@ static int32_t buildStreamSubTableCreateReq(SDataInserterHandle* pInserter, SStr
     stError("buildStreamSubTableCreateReq, pTagVals is NULL");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
-  int32_t nTags = pInserter->pParam->streamInserterParam->pTagFields->size;
+  int32_t nTags = pInserterInfo->pTagVals->size;
 
   SArray* TagNames = taosArrayInit(nTags, TSDB_COL_NAME_LEN);
   if (!TagNames) {
@@ -1160,7 +1188,7 @@ static int32_t buildStreamSubTableCreateReq(SDataInserterHandle* pInserter, SStr
     goto _end;
   }
   for (int32_t i = 0; i < nTags; ++i) {
-    SFieldWithOptions* pField = taosArrayGet(pInserter->pParam->streamInserterParam->pTagFields, i);
+    SFieldWithOptions* pField = taosArrayGet(pInsertParam->pTagFields, i);
     if (NULL == taosArrayPush(TagNames, pField->name)) {
       goto _end;
     }
@@ -1185,16 +1213,19 @@ static int32_t buildStreamSubTableCreateReq(SDataInserterHandle* pInserter, SStr
     goto _end;
   }
 
-  tbData->pCreateTbReq->name = taosStrdup(pInsertParam->tbname);
-  if (!tbData->pCreateTbReq->name) return terrno;
   char tbFullName[TSDB_TABLE_FNAME_LEN];
-  snprintf(tbFullName, TSDB_TABLE_FNAME_LEN, "%s.%s", pInsertParam->dbFName, pInsertParam->tbname);
+  snprintf(tbFullName, TSDB_TABLE_FNAME_LEN, "%s.%s", pInsertParam->dbFName, pInserterInfo->tbName);
 
   code = inserterGetVgId(dbInfo, tbFullName, vgId);
   if (code != TSDB_CODE_SUCCESS) {
     goto _end;
   }
 
+  SArray* pTagVals = NULL;
+  code = getTagValsFromStreamInserterInfo(pInserterInfo, pInsertParam->pFields->size, &pTagVals);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _end;
+  }
 
   STag* pTag = NULL;
   code = tTagNew(pInserterInfo->pTagVals, pInsertParam->sver, false, &pTag);
@@ -1202,8 +1233,8 @@ static int32_t buildStreamSubTableCreateReq(SDataInserterHandle* pInserter, SStr
     qError("failed to create tag, error:%s", tstrerror(code));
     goto _end;
   }
-  code = inserterBuildCreateTbReq(tbData->pCreateTbReq, pInsertParam->tbname, pTag, tbData->suid, pInsertParam->stbname,
-                           TagNames, pInserter->pTagSchema->nCols, TSDB_DEFAULT_TABLE_TTL);
+  code = inserterBuildCreateTbReq(tbData->pCreateTbReq, pInserterInfo->tbName, pTag, tbData->suid, pInsertParam->stbname,
+                           TagNames, nTags, TSDB_DEFAULT_TABLE_TTL);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to build create table request, error:%s", tstrerror(code));
     goto _end;
@@ -1218,6 +1249,9 @@ _end:
   }
   if (TagNames) {
     taosArrayDestroy(TagNames);
+  }
+  if (pTagVals) {
+    taosArrayDestroy(pTagVals);
   }
   return code;
 }
