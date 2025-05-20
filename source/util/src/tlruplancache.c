@@ -280,7 +280,6 @@ int32_t clientRetrieveCachedPlans(SArray** ppRes) {
   int32_t lino = 0;
   SArray* pRes = taosArrayInit(totalPlanCacheSize, sizeof(SCachedPlan));
   CACHE_CHECK_NULL_GOTO(pRes, terrno);
-
   void *pIter = taosHashIterate(planCacheObj, NULL);
   while (pIter != NULL) {
     SHashObj *pHashObj = *(SHashObj **)pIter;
@@ -307,8 +306,11 @@ int32_t clientRetrieveCachedPlans(SArray** ppRes) {
     }
     pIter = taosHashIterate(planCacheObj, pIter);
   }
+  *ppRes = pRes;
+  pRes = NULL;
 
 end:
+  taosArrayDestroy(pRes);
   PRINT_LOG_END(code, lino);
   return code;
 }
@@ -318,7 +320,6 @@ int32_t clientRetrieveUserCachedPlans(SArray** ppRes) {
   int32_t lino = 0;
   SArray* pRes = taosArrayInit(taosHashGetSize(planCacheObj), sizeof(SUserCachedPlan));
   CACHE_CHECK_NULL_GOTO(pRes, terrno);
-
   void *pIter = taosHashIterate(planCacheObj, NULL);
   while (pIter != NULL) {
     char* user = taosHashGetKey(pIter, NULL);
@@ -335,8 +336,11 @@ int32_t clientRetrieveUserCachedPlans(SArray** ppRes) {
     tstrncpy(value->user, user, strlen(user) + 1);
     pIter = taosHashIterate(planCacheObj, pIter);
   }
+  *ppRes = pRes;
+  pRes = NULL;
 
 end:
+  taosArrayDestroy(pRes);
   PRINT_LOG_END(code, lino);
   return code;
 }
