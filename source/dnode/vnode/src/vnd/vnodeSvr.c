@@ -395,11 +395,11 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
           if (1 == pVnode->batchCount % 2) {
             parIdx = algoB(nameValue, namelen) % pVnode->partitionCount;
           } else {
-            parIdx = 1;
+            // parIdx = 1;
           }
         } else if (strstr(nameValue, "***TesT***")) {
           if (1 == pVnode->batchCount % 2) {
-            parIdx = 1;
+            // parIdx = 1;
           } else {
             parIdx = algoA(nameValue, namelen) % pVnode->partitionCount;
           }
@@ -1168,7 +1168,7 @@ static int32_t vnodeProcessIdfReq(SVnode *pVnode, int64_t ver, void *pReq, int32
   if (1 == idfReq.typeDDF) {
     if (pVnode->partitionCount <= 1) {
       code = TSDB_CODE_INVALID_MSG;
-      vError("vgId:%d, failed to update partitionCount:%hh list since %s", TD_VID(pVnode), pVnode->partitionCount,
+      vError("vgId:%d, failed to update partitionCount:%d list since %s", TD_VID(pVnode), pVnode->partitionCount,
              tstrerror(code));
 
     } else {
