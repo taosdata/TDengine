@@ -556,16 +556,19 @@ static int32_t tsdbRebuildRow(STsdb *pTsdb, TSDBROW *pRowIn, TSDBROW **ppRowOut,
 #define algoA(key, len) (MurmurHash3_32((key), (len)))
 #define algoB(key, len) (taosDJB2Hash((key), (len)))
 
-  if (pVnode->partitionCount <= 0) {
-    pVnode->partitionCount = 1;
-  }
-
   const int   nameColId = 2;
   const int   locaColId = 3;
   bool        isOdd = (1 == pVnode->batchCount % 2);
   const char *nameValue = NULL;
   int32_t     namelen = 0;
-  int         parIdx = 0;
+  uint32_t    parHash = 0;
+  int         parIdx = 1;
+
+  if (pVnode->partitionCount <= 0) {
+    pVnode->partitionCount = 1;
+  }
+
+  int parCount = pVnode->partitionCount;
 
   for (;;) {
     SColVal *pColVal = tRowIterNext(pIter);
@@ -579,13 +582,13 @@ static int32_t tsdbRebuildRow(STsdb *pTsdb, TSDBROW *pRowIn, TSDBROW **ppRowOut,
 
       if (strstr(nameValue, "***TEST***")) {
         if (isOdd) {
-          parIdx = algoA(nameValue, namelen) % pVnode->partitionCount;
+          parHash = algoA(nameValue, namelen);
         } else {
-          parIdx = algoB(nameValue, namelen) % pVnode->partitionCount;
+          parHash = algoB(nameValue, namelen);
         }
       } else if (strstr(nameValue, "***test***")) {
         if (isOdd) {
-          parIdx = algoB(nameValue, namelen) % pVnode->partitionCount;
+          parHash = algoB(nameValue, namelen);
         } else {
           // parIdx = 0;
         }
@@ -593,11 +596,15 @@ static int32_t tsdbRebuildRow(STsdb *pTsdb, TSDBROW *pRowIn, TSDBROW **ppRowOut,
         if (isOdd) {
           // parIdx = 0;
         } else {
-          parIdx = algoA(nameValue, namelen) % pVnode->partitionCount;
+          parHash = algoA(nameValue, namelen);
         }
       } else {
-        parIdx = algoA(nameValue, namelen) % pVnode->partitionCount;
+        parHash = algoA(nameValue, namelen);
       }
+    }
+
+    if (parCount > 1) {
+      parIdx = parHash % parCount + 1;
     }
 
     if (pColVal->cid == locaColId) {

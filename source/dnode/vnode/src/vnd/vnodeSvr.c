@@ -1169,6 +1169,10 @@ static int32_t vnodeProcessIdfReq(SVnode *pVnode, int64_t ver, void *pReq, int32
 
   vInfo("vgId:%d, process idf vnode request, time:%d", pVnode->config.vgId, idfReq.timestamp);
 
+  if (pVnode->partitionCount <= 0) {
+    pVnode->partitionCount = 1;
+  }
+
   if (1 == idfReq.typeDDF) {
     if (pVnode->partitionCount <= 1) {
       code = TSDB_CODE_INVALID_MSG;
