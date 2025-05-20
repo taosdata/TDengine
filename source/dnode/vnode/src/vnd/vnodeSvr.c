@@ -394,12 +394,10 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
             // parIdx = algoB
             parIdx = 3;
           } else {
-            // parIdx = partition 1
             parIdx = 1;
           }
         } else if (!strncmp("***TesT***", nameValue, NAME_COL_LEN)) {
           if (1 == pVnode->batchCount % 2) {
-            // parIdx = partition 1
             parIdx = 1;
           } else {
             // parIdx = algoA
