@@ -419,6 +419,8 @@ typedef struct SDropComponentNodeStmt {
 typedef struct SRestoreComponentNodeStmt {
   ENodeType type;
   int32_t   dnodeId;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tableName[TSDB_TABLE_NAME_LEN];
 } SRestoreComponentNodeStmt;
 
 typedef struct SAKGenNodeStmt {

@@ -211,7 +211,6 @@ static SKeyword keywordTable[] = {
     {"REPLICA",              TK_REPLICA},
     {"RESET",                TK_RESET},
     {"RESUME",               TK_RESUME},
-    {"RESTORE",              TK_RESTORE},
     {"RETENTIONS",           TK_RETENTIONS},
     {"REVOKE",               TK_REVOKE},
     {"RIGHT",                TK_RIGHT},
@@ -295,7 +294,6 @@ static SKeyword keywordTable[] = {
     {"VGROUPS",              TK_VGROUPS},
     {"VIEW",                 TK_VIEW},
     {"VIEWS",                TK_VIEWS},
-    {"VNODE",                TK_VNODE},
     {"VNODES",               TK_VNODES},
     {"WAL_FSYNC_PERIOD",     TK_WAL_FSYNC_PERIOD},
     {"WAL_LEVEL",            TK_WAL_LEVEL},
@@ -334,6 +332,7 @@ static SKeyword keywordTable[] = {
     {"LEVEL",                TK_LEVEL},
     {"ARBGROUPS",            TK_ARBGROUPS},
     {"AKGEN",            TK_AKGEN},
+    {"AKENC",            TK_AKENC},
 };
 // clang-format on
 

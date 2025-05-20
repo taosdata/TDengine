@@ -23,9 +23,12 @@
 
 #define MND_ENC_KEY_VER_NUMBER 1
 
+static int32_t mndProcessAKEncReq(SRpcMsg *pReq);
+
 int32_t mndInitEncKey(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ENCKEY, mndRetrieveEncKey);
   mndSetMsgHandle(pMnode, TDMT_MND_AK_GEN, mndProcessAKGenReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_RESTORE_DNODE, mndProcessAKEncReq);
 
   SSdbTable table = {
       .sdbType = SDB_ENC_KEY,
@@ -278,4 +281,10 @@ int32_t mndProcessAKGenReq(SRpcMsg *pReq) {
 
   mndTransDrop(pTrans);
   return 0; 
+}
+
+int32_t mndProcessAKEncReq(SRpcMsg *pReq) {
+  mInfo("mndProcessRestoreDnodeReq");
+  SMnode *pMnode = pReq->info.node;
+  return 0;
 }
