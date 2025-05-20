@@ -4,36 +4,36 @@ title: 与 SSRS 集成
 toc_max_heading_level: 5
 ---
 
-[SQL Server Reporting Services](https://learn.microsoft.com/zh-cn/sql/reporting-services/) (SSRS) 作为微软 SQL Server 数据库平台内置组件，为企业级报表制作、浏览及管理提供强大支持。与微软旗下另一制作灵活多样的报表工具 Power BI 相比，SSRS 更适合于制作传统固定格式报表。
+[SQL Server Reporting Services](https://learn.microsoft.com/zh-cn/sql/reporting-services/) (SSRS) 作为微软 SQL Server 数据库平台内置组件，为企业级报表制作、浏览及管理提供强大支持。与微软旗下另一可制作灵活多样报表工具 Power BI 相比，SSRS 更适合于制作传统固定格式报表。
 
-TDengine 全面支持标准 ODBC 接口，SSRS 可实现无缝对接 TDengine。TDengine 高性能数据存储与查询能力为 SSRS 报表引擎提供了实时数据源，而 SSRS 可视化报表生成功能则将 TDengine 中的物联网、金融等时序数据转化为直观的业务洞察信息，满足了企业对跨平台报表解决方案的需求，同时通过标准化接口保障了数据交互的安全与稳定性，为构建现代化数据驱动型组织提供了坚实的技术支撑。
+TDengine 支持标准 ODBC 接口，SSRS 可实现无缝对接 TDengine。TDengine 高性能数据存储与查询能力为 SSRS 报表引擎提供实时数据源，SSRS 可视化报表生成功能则将 TDengine 中的物联网、金融等时序数据转化为直观业务洞察信息，满足了企业对跨平台报表解决方案的需求，同时通过标准化接口保障了数据交互安全与稳定性，为构建现代化数据驱动型组织提供坚实的技术支撑。
 
 ## 前置条件
 本示例需准备两台服务器一台客户端，搭建 SSRS 演示环境，环境准备如下：
 
-### TDengine 服务器 1 台
+### TDengine 服务器
 
 - 安装 TDengine 3.3.3.0 或以上服务器版（企业及社区版均可）。
 - taosAdapter 服务正常运行，检查参考 [taosAdapter 使用手册](../../../reference/components/taosadapter)。
 - 服务器 IP：192.168.2.124
 - 提供 WebSocket 服务：端口 6041（默认）
 
-### SSRS Windows 服务器 1 台
+### SSRS Windows 服务器
 
 - 安装 TDengine 3.3.3.0 或以上 Windows 客户端版（默认安装 TDengine ODBC 驱动）。
-- 安装 Microsoft SQL Server 2022 且数据库服务正常运行，[下载安装] (https://www.microsoft.com/zh-cn/sql-server/sql-server-downloads)。
-- 安装 Microsoft SQL Server 2022 Reporting Service 且报表服务正常运行，[下载安装] (https://learn.microsoft.com/zh-cn/sql/reporting-services/install-windows/install-reporting-services)。
+- 安装 Microsoft SQL Server 2022 且数据库服务正常运行，[下载安装](https://www.microsoft.com/zh-cn/sql-server/sql-server-downloads)。
+- 安装 Microsoft SQL Server 2022 Reporting Service 且报表服务正常运行，[下载安装](https://learn.microsoft.com/zh-cn/sql/reporting-services/install-windows/install-reporting-services)。
 - 配置 Microsoft SQL Server 2022 Reporting Service 使用 IP 地址对外提供服务。
   ![pre-1](img/pre-1.webp)
 - 服务器 IP：192.168.1.83
 - 提供 HTTP 服务： 端口 80
 
 
-### 报表制作 Window 客户端 1 台
+### 报表制作 Window 客户端
 
 - 安装 TDengine 3.3.3.0 或以上 Windows 客户端版（默认安装 TDengine ODBC 驱动）。
-- 安装 Microsoft Report Builder（32 位），提供报表开发服务，[下载安装] (https://www.microsoft.com/en-us/download/details.aspx?id=53613)。
-- 配置 Microsoft Report Builder 连接报表服务器为 http://192.168.1.83:80/ReportServer。
+- 安装 Microsoft Report Builder（32 位），提供报表开发服务，[下载安装](https://www.microsoft.com/en-us/download/details.aspx?id=53613)。
+- 配置 Microsoft Report Builder 连接报表服务器为：http://192.168.1.83:80/ReportServer。
   ![pre-2](img/pre-2.webp)
  
 
@@ -47,6 +47,7 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    - Connect type: 选择 WebSocket
    - URL: http://192.168.2.124:6041
    - User/Password：填写连接 TDengine 数据库用户名/密码，不填写使用默认
+   
    点击“Test Connection”，连接成功表示配置正确，点击“OK”保存配置。
 
 2. 报表制作 Window 客户端配置 ODBC 数据源。
@@ -56,6 +57,7 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    - Connect type: 选择 WebSocket
    - URL: http://192.168.2.124:6041
    - User/Password：填写连接 TDengine 数据库用户名/密码，不填写使用默认
+  
    点击“Test Connection”，连接成功表示配置正确，点击“OK”保存配置。
 
 3. Report Builder 创建数据源连接
@@ -65,6 +67,7 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    - 数据源方式：选择第二项“Use a connection embedded in my report”
    - Select Connection type：选择 ODBC 数据源
    - Connection string： 点击旁边“Build...”按钮，按上图选择填写
+   
    点击“Test Connection”，连接成功表示配置正确，点击“OK”保存配置。
 
 
@@ -78,7 +81,7 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
 ### 数据准备
 我们为小区创建一张超级表, 500 个子表，每个子表代表一台智能电表，生成电压数据在 198 ~ 235 内波动，电流在 10A ~ 30A 范围内波动。
 
-### 创建报表
+### 制作报表
 1. 打开 Report Builder 开始制作报表
 2. 创建新数据集
    左侧区域内 "DataSource"->"DataSource1"->“Add Dataset...”
@@ -107,7 +110,7 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
 5. 退出预览
    点击工具栏左侧第一个图标 “Design” 关闭预览，回到设计界面继续设计。
 
-### 发送报表至服务器
+### 发送报表
 1.  保存报表到服务器上，如图：
    点击“File”菜单->“Save”。
    ![report-1](img/report-1.webp)
@@ -116,7 +119,7 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    ![report-2](img/report-2.webp)
    选择第一项“Pubsh all report parts with default settings”，会把当前数据源配置也发送至报表服务器。
 
-### 浏览分析数据
+### 浏览报表
 报表发送至服务器后，报表即被共享出去了，可在任意客户端通过浏览器访问浏览报表数据。
 1. 查看报表浏览地址
    报表浏览地址在 SSRS 服务器配置中，如下：
@@ -130,7 +133,7 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    点击 meters，会分页展示小区内所有智能电表最新采集数据。
    ![browser-4](img/browser-4.webp)
 
-### 管理报表数据
+### 管理报表
 1. SSRS 提供了报表管理页面，可通过以下页得到或修改管理页面地址：
 ![manager-1](img/manager-1.webp)
 
