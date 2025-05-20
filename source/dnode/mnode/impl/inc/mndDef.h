@@ -785,6 +785,11 @@ typedef struct {
   int32_t  version;
   int8_t   precision;
   int8_t   type;
+  int8_t   adview;       // used for adview
+  int8_t   materialized; // used for adview
+  char     materialized_table[TSDB_DB_NAME_LEN];
+  char*    ast;          // used for adview
+  char*    physiplan;    // used for adview
   int32_t  numOfCols;
   SSchema* pSchema;
   SRWLatch lock;

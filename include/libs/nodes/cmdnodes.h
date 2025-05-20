@@ -553,6 +553,7 @@ typedef struct SCreateViewStmt {
   char             viewName[TSDB_VIEW_NAME_LEN];
   char*            pQuerySql;
   bool             orReplace;
+  bool             adview;
   SNode*           pQuery;
   SCMCreateViewReq createReq;
 } SCreateViewStmt;
@@ -563,6 +564,13 @@ typedef struct SDropViewStmt {
   char      viewName[TSDB_VIEW_NAME_LEN];
   bool      ignoreNotExists;
 } SDropViewStmt;
+
+typedef struct SRefreshViewStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      viewName[TSDB_VIEW_NAME_LEN];
+  bool      ignoreNotExists;
+} SRefreshViewStmt;
 
 typedef struct SGrantStmt {
   ENodeType type;

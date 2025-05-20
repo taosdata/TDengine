@@ -9833,8 +9833,10 @@ int32_t tSerializeSCMCreateViewReq(void *buf, int32_t bufLen, const SCMCreateVie
   if (tEncodeCStr(&encoder, pReq->dbFName) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->querySql) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->adast) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->orReplace) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->precision) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->adview) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->numOfCols) < 0) return -1;
   for (int32_t i = 0; i < pReq->numOfCols; ++i) {
     SSchema *pSchema = &pReq->pSchema[i];
@@ -9858,8 +9860,10 @@ int32_t tDeserializeSCMCreateViewReq(void *buf, int32_t bufLen, SCMCreateViewReq
   if (tDecodeCStrTo(&decoder, pReq->dbFName) < 0) return -1;
   if (tDecodeCStrAlloc(&decoder, &pReq->querySql) < 0) return -1;
   if (tDecodeCStrAlloc(&decoder, &pReq->sql) < 0) return -1;
+  if (tDecodeCStrAlloc(&decoder, &pReq->adast) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->orReplace) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->precision) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->adview) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->numOfCols) < 0) return -1;
 
   if (pReq->numOfCols > 0) {
@@ -9889,6 +9893,7 @@ void tFreeSCMCreateViewReq(SCMCreateViewReq *pReq) {
   taosMemoryFreeClear(pReq->querySql);
   taosMemoryFreeClear(pReq->sql);
   taosMemoryFreeClear(pReq->pSchema);
+  taosMemoryFreeClear(pReq->adast);
 }
 
 int32_t tSerializeSCMDropViewReq(void *buf, int32_t bufLen, const SCMDropViewReq *pReq) {
@@ -9926,6 +9931,48 @@ int32_t tDeserializeSCMDropViewReq(void *buf, int32_t bufLen, SCMDropViewReq *pR
   return 0;
 }
 void tFreeSCMDropViewReq(SCMDropViewReq *pReq) {
+  if (NULL == pReq) {
+    return;
+  }
+
+  taosMemoryFree(pReq->sql);
+}
+
+int32_t tSerializeSCMRefreshViewReq(void *buf, int32_t bufLen, const SCMRefreshViewReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->fullname) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->dbFName) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->igNotExists) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSCMRefreshViewReq(void *buf, int32_t bufLen, SCMRefreshViewReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->fullname) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->dbFName) < 0) return -1;
+  if (tDecodeCStrAlloc(&decoder, &pReq->sql) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->igNotExists) < 0) return -1;
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+void tFreeSCMRefreshViewReq(SCMRefreshViewReq *pReq) {
   if (NULL == pReq) {
     return;
   }
@@ -9975,6 +10022,10 @@ static int32_t tEncodeSViewMetaRsp(SEncoder *pEncoder, const SViewMetaRsp *pRsp)
     SSchema *pSchema = &pRsp->pSchema[i];
     if (tEncodeSSchema(pEncoder, pSchema) < 0) return -1;
   }
+  if (tEncodeI8(pEncoder, pRsp->materialized) < 0) return -1;
+  if (pRsp->materialized) {
+    if (tEncodeCStr(pEncoder, pRsp->materialized_table) < 0) return -1;
+  }
 
   return 0;
 }
@@ -10015,6 +10066,10 @@ static int32_t tDecodeSViewMetaRsp(SDecoder *pDecoder, SViewMetaRsp *pRsp) {
       SSchema *pSchema = pRsp->pSchema + i;
       if (tDecodeSSchema(pDecoder, pSchema) < 0) return -1;
     }
+  }
+  if (tDecodeI8(pDecoder, &pRsp->materialized) < 0) return -1;
+  if (pRsp->materialized) {
+    if (tDecodeCStrTo(pDecoder, pRsp->materialized_table) < 0) return -1;
   }
 
   return 0;

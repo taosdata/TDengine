@@ -10321,6 +10321,13 @@ static int32_t translateCreateView(STranslateContext* pCxt, SCreateViewStmt* pSt
     code = collectUseTable(&name, pCxt->pTargetTables);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = translateQuery(pCxt, pStmt->pQuery);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesNodeToString(pStmt->pQuery, false, &pStmt->createReq.adast, NULL);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
     pStmt->createReq.precision = res.schemaRes.precision;
     pStmt->createReq.numOfCols = res.schemaRes.numOfCols;
     pStmt->createReq.pSchema = res.schemaRes.pSchema;
@@ -10331,6 +10338,7 @@ static int32_t translateCreateView(STranslateContext* pCxt, SCreateViewStmt* pSt
     TSWAP(pStmt->createReq.querySql, pStmt->pQuerySql);
     pStmt->createReq.orReplace = pStmt->orReplace;
     pStmt->createReq.sql = tstrdup(pCxt->pParseCxt->pSql);
+    pStmt->createReq.adview = pStmt->adview;
     if (NULL == pStmt->createReq.sql) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -10367,6 +10375,32 @@ static int32_t translateDropView(STranslateContext* pCxt, SDropViewStmt* pStmt) 
   }
 
   return buildCmdMsg(pCxt, TDMT_MND_DROP_VIEW, (FSerializeFunc)tSerializeSCMDropViewReq, &dropReq);
+}
+
+static int32_t translateRefreshView(STranslateContext* pCxt, SRefreshViewStmt* pStmt) {
+#ifndef TD_ENTERPRISE
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+
+  SCMRefreshViewReq refreshReq = {0};
+  SName             name;
+  tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
+  tNameGetFullDbName(&name, refreshReq.dbFName);
+  strncpy(refreshReq.name, pStmt->viewName, sizeof(refreshReq.name) - 1);
+  snprintf(refreshReq.fullname, sizeof(refreshReq.fullname) - 1, "%s.%s", refreshReq.dbFName, refreshReq.name);
+  refreshReq.sql = (char*)pCxt->pParseCxt->pSql;
+  if (NULL == refreshReq.sql) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  refreshReq.igNotExists = pStmt->ignoreNotExists;
+
+  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->viewName, &name);
+  int32_t code = collectUseTable(&name, pCxt->pTargetTables);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  return buildCmdMsg(pCxt, TDMT_MND_REFRESH_VIEW, (FSerializeFunc)tSerializeSCMRefreshViewReq, &refreshReq);
 }
 
 static int32_t readFromFile(char* pName, int32_t* len, char** buf) {
@@ -11296,6 +11330,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_DROP_VIEW_STMT:
       code = translateDropView(pCxt, (SDropViewStmt*)pNode);
+      break;
+    case QUERY_NODE_REFRESH_VIEW_STMT:
+      code = translateRefreshView(pCxt, (SRefreshViewStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_TSMA_STMT:
       code = translateCreateTSMA(pCxt, (SCreateTSMAStmt*)pNode);

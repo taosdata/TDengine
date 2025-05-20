@@ -196,6 +196,9 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
 static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SRealTableNode* pRealTable) {
   pCxt->errCode = collectMetaKeyFromRealTableImpl(pCxt->pComCxt, pRealTable->table.dbName, pRealTable->table.tableName,
                                                   AUTH_TYPE_READ);
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    pCxt->errCode = catalogRemoveViewMeta(pCxt->pComCxt->pParseCxt->pCatalog, pRealTable->table.dbName, 0, pRealTable->table.tableName, 0);
+  }
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
 
@@ -776,6 +779,12 @@ static int32_t collectMetaKeyFromDropViewStmt(SCollectMetaKeyCxt* pCxt, SDropVie
   return code;
 }
 
+static int32_t collectMetaKeyFromRefreshViewStmt(SCollectMetaKeyCxt* pCxt, SRefreshViewStmt* pStmt) {
+  int32_t code = reserveViewUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->viewName, AUTH_TYPE_ALTER,
+                                  pCxt->pMetaCache);
+  return code;
+}
+
 static int32_t collectMetaKeyFromCreateTSMAStmt(SCollectMetaKeyCxt* pCxt, SCreateTSMAStmt* pStmt) {
   int32_t code;
   if (pStmt->pOptions->recursiveTsma) {
@@ -953,6 +962,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromCreateViewStmt(pCxt, (SCreateViewStmt*)pStmt);
     case QUERY_NODE_DROP_VIEW_STMT:
       return collectMetaKeyFromDropViewStmt(pCxt, (SDropViewStmt*)pStmt);
+    case QUERY_NODE_REFRESH_VIEW_STMT:
+      return collectMetaKeyFromRefreshViewStmt(pCxt, (SRefreshViewStmt*)pStmt);
     case QUERY_NODE_CREATE_TSMA_STMT:
       return collectMetaKeyFromCreateTSMAStmt(pCxt, (SCreateTSMAStmt*)pStmt);
     case QUERY_NODE_DROP_TSMA_STMT:

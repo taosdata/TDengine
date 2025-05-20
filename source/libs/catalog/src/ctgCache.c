@@ -3160,6 +3160,15 @@ int32_t ctgGetViewsFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgViewsC
     }
 
     memcpy(pViewMeta, pCache->pMeta, sizeof(*pViewMeta));
+    if (pViewMeta->materialized) {
+      pViewMeta->materialized_table = tstrdup(pCache->pMeta->materialized_table);
+      if (NULL == pViewMeta->materialized_table) {
+        ctgReleaseViewMetaToCache(pCtg, dbCache, pCache);
+        pViewMeta->pSchema = NULL;
+        taosMemoryFree(pViewMeta);
+        CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      }
+    }
     pViewMeta->querySql = tstrdup(pCache->pMeta->querySql);
     pViewMeta->user = tstrdup(pCache->pMeta->user);
     if (NULL == pViewMeta->querySql || NULL == pViewMeta->user) {
