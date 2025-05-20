@@ -1424,7 +1424,7 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  if (pInsertParam->tbType == TSDB_CHILD_TABLE) {
+  if (pInsertParam->tbType == TSDB_SUPER_TABLE) {
     tbData.suid = pInsertParam->suid;
     tbData.sver = pInsertParam->sver;
   }
