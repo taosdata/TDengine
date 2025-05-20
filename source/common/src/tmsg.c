@@ -10585,8 +10585,8 @@ int32_t tDeserializeAuditLogReq(void *buf, int32_t bufLen, SAuditLogReq *pReq) {
   tDecoderInit(&decoder, (char *)buf, bufLen);
 
   if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeBinaryAlloc(&decoder, &pReq->operation, NULL) < 0) return -1;
-  if (tDecodeBinaryAlloc(&decoder, &pReq->detail, NULL) < 0) return -1;
+  if (tDecodeBinaryAlloc(&decoder, (void**)&pReq->operation, NULL) < 0) return -1;
+  if (tDecodeBinaryAlloc(&decoder, (void**)&pReq->detail, NULL) < 0) return -1;
 
   tEndDecode(&decoder);
 
