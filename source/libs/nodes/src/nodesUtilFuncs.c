@@ -698,6 +698,10 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SSubplan));
     case QUERY_NODE_PHYSICAL_PLAN:
       return makeNode(type, sizeof(SQueryPlan));
+    case QUERY_NODE_SHOW_PLANS_STMT:
+      return makeNode(QUERY_NODE_SHOW_PLANS_STMT, sizeof(SShowPlansStmt));
+    case QUERY_NODE_SHOW_USER_PLANS_STMT:
+      return makeNode(QUERY_NODE_SHOW_USER_PLANS_STMT, sizeof(SShowUserPlansStmt));
     default:
       break;
   }

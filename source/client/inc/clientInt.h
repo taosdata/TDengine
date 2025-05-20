@@ -150,6 +150,8 @@ typedef struct STscObj {
   char           sVer[TSDB_VERSION_LEN];
   char           sDetailVer[128];
   int8_t         sysInfo;
+  int8_t         priority;
+  int32_t        maxCount;
   int8_t         connType;
   int8_t         dropped;
   int8_t         biMode;
@@ -283,6 +285,8 @@ typedef struct SRequestObj {
   SMetaData            parseMeta;
   char*                effectiveUser;
   int8_t               source;
+
+  SQueryPlan* plan;  
 } SRequestObj;
 
 typedef struct SSyncQueryParam {
@@ -447,6 +451,7 @@ enum {
 void sqlReqLog(int64_t rid,  bool killed, int32_t code, int8_t type);
 
 void clientMonitorClose(const char* clusterKey);
+int32_t clientSendAuditLog(void* pTrans, SEpSet* epset, char* operation, char* detail);
 
 #ifdef __cplusplus
 }

@@ -1601,6 +1601,8 @@ int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq
   if (tEncodeI8(&encoder, pReq->superUser) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->sysInfo) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->enable) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->priority) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->maxCount) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->user) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->pass) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->numIpRanges) < 0) return -1;
@@ -1626,6 +1628,8 @@ int32_t tDeserializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pR
   if (tDecodeI8(&decoder, &pReq->superUser) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->sysInfo) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->enable) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->priority) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->maxCount) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->user) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->pass) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->numIpRanges) < 0) return -1;
@@ -1866,6 +1870,8 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   if (tEncodeI8(pEncoder, pRsp->sysInfo) < 0) return -1;
   if (tEncodeI8(pEncoder, pRsp->enable) < 0) return -1;
   if (tEncodeI8(pEncoder, pRsp->dropped) < 0) return -1;
+  if (tEncodeI8(pEncoder, pRsp->priority) < 0) return -1;
+  if (tEncodeI32(pEncoder, pRsp->maxCount) < 0) return -1;
   if (tEncodeI32(pEncoder, pRsp->version) < 0) return -1;
 
   int32_t numOfCreatedDbs = taosHashGetSize(pRsp->createdDbs);
@@ -2054,6 +2060,8 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
   if (tDecodeI8(pDecoder, &pRsp->sysInfo) < 0) goto _err;
   if (tDecodeI8(pDecoder, &pRsp->enable) < 0) goto _err;
   if (tDecodeI8(pDecoder, &pRsp->dropped) < 0) goto _err;
+  if (tDecodeI8(pDecoder, &pRsp->priority) < 0) goto _err;
+  if (tDecodeI32(pDecoder, &pRsp->maxCount) < 0) goto _err;
   if (tDecodeI32(pDecoder, &pRsp->version) < 0) goto _err;
 
   int32_t numOfCreatedDbs = 0;
@@ -5098,6 +5106,8 @@ int32_t tSerializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   if (tEncodeI32(&encoder, pRsp->dnodeNum) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->superUser) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->sysInfo) < 0) return -1;
+  if (tEncodeI8(&encoder, pRsp->priority) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->maxCount) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->connType) < 0) return -1;
   if (tEncodeSEpSet(&encoder, &pRsp->epSet) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->svrTimestamp) < 0) return -1;
@@ -5124,6 +5134,8 @@ int32_t tDeserializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   if (tDecodeI32(&decoder, &pRsp->dnodeNum) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->superUser) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->sysInfo) < 0) return -1;
+  if (tDecodeI8(&decoder, &pRsp->priority) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->maxCount) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->connType) < 0) return -1;
   if (tDecodeSEpSet(&decoder, &pRsp->epSet) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->svrTimestamp) < 0) return -1;
@@ -10552,3 +10564,34 @@ void tFreeFetchTtlExpiredTbsRsp(void *p) {
   SVFetchTtlExpiredTbsRsp *pRsp = p;
   taosArrayDestroy(pRsp->pExpiredTbs);
 }
+
+int32_t tSerializeAuditLogReq(void *buf, int32_t bufLen, const SAuditLogReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeBinary(&encoder, pReq->operation, strlen(pReq->operation) + 1) < 0) return -1;
+  if (tEncodeBinary(&encoder, pReq->detail, strlen(pReq->detail) + 1) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeAuditLogReq(void *buf, int32_t bufLen, SAuditLogReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, (char *)buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeBinaryAlloc(&decoder, &pReq->operation, NULL) < 0) return -1;
+  if (tDecodeBinaryAlloc(&decoder, &pReq->detail, NULL) < 0) return -1;
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+

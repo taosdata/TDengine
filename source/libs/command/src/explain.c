@@ -1992,6 +1992,7 @@ int32_t qExplainPrepareCtx(SQueryPlan *pDag, SExplainCtx **pCtx) {
   QRY_ERR_JRET(
       qExplainInitCtx(&ctx, groupHash, pDag->explainInfo.verbose, pDag->explainInfo.ratio, pDag->explainInfo.mode));
 
+  ctx.planCacheUsed = pDag->planCacheUsed;
   for (int32_t i = 0; i < levelNum; ++i) {
     plans = (SNodeListNode *)nodesListGetNode(pDag->pSubplans, i);
     if (NULL == plans) {
@@ -2054,6 +2055,10 @@ int32_t qExplainAppendPlanRows(SExplainCtx *pCtx) {
 
   int32_t tlen = 0;
   char   *tbuf = pCtx->tbuf;
+
+  EXPLAIN_SUM_ROW_NEW(EXPLAIN_PLAN_CACHE_USED_FORMAT, pCtx->planCacheUsed ? "true" : "false");
+  EXPLAIN_SUM_ROW_END();
+  QRY_ERR_RET(qExplainResAppendRow(pCtx, tbuf, tlen, 0));
 
   EXPLAIN_SUM_ROW_NEW(EXPLAIN_RATIO_TIME_FORMAT, pCtx->ratio);
   EXPLAIN_SUM_ROW_END();

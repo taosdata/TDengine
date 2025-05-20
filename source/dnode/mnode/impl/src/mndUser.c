@@ -644,6 +644,8 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   userObj.updateTime = userObj.createdTime;
   userObj.sysInfo = 1;
   userObj.enable = 1;
+  userObj.priority = 0;
+  userObj.maxCount = TSDB_DEFAULT_USER_MAX_COUNT;
   userObj.ipWhiteListVer = taosGetTimestampMs();
   userObj.pIpWhiteList = createDefaultIpWhiteList();
   if (strcmp(user, TSDB_DEFAULT_USER) == 0) {
@@ -817,6 +819,8 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_INT8(pRaw, dataPos, pUser->superUser, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pUser->sysInfo, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pUser->enable, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pUser->priority, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pUser->maxCount, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pUser->reserve, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pUser->authVersion, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pUser->passVersion, _OVER)
@@ -1001,6 +1005,8 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT8(pRaw, dataPos, &pUser->superUser, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pUser->sysInfo, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pUser->enable, _OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pUser->priority, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pUser->maxCount, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pUser->reserve, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pUser->authVersion, _OVER)
   if (sver >= 4) {
@@ -1445,6 +1451,8 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   userObj.superUser = 0;  // pCreate->superUser;
   userObj.sysInfo = pCreate->sysInfo;
   userObj.enable = pCreate->enable;
+  userObj.priority = pCreate->priority;
+  userObj.maxCount = pCreate->maxCount;
 
   if (pCreate->numIpRanges == 0) {
     userObj.pIpWhiteList = createDefaultIpWhiteList();
@@ -2313,6 +2321,14 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     colDataSetVal(pColInfo, numOfRows, (const char *)&pUser->sysInfo, false);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pUser->priority, false);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pUser->maxCount, false);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);

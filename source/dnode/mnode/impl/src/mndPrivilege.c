@@ -71,6 +71,8 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   pRsp->version = pUser->authVersion;
   pRsp->passVer = pUser->passVersion;
   pRsp->whiteListVer = pUser->ipWhiteListVer;
+  pRsp->priority = pUser->priority;
+  pRsp->maxCount = pUser->maxCount;
   return 0;
 }
 

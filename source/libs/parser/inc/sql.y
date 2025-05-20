@@ -95,10 +95,21 @@ white_list(A) ::= HOST ip_range_list(B).                                        
 white_list_opt(A) ::= .                                                           { A = NULL; }
 white_list_opt(A) ::= white_list(B).                                              { A = B; }
 
+
+%type user_priority                                                                 { int8_t }
+%destructor user_priority                                                           { }
+user_priority(A) ::= .                                                              { A = 0; }
+user_priority(A) ::= USER_PRIORITY NK_INTEGER(B).                                   { A = taosStr2Int8(B.z, NULL, 10); }
+
+%type max_count                                                                     { int32_t }
+%destructor max_count                                                               { }
+max_count(A) ::= .                                                                  { A = 0; }
+max_count(A) ::= MAX_COUNT NK_INTEGER(B).                                           { A = taosStr2Int32(B.z, NULL, 10); }
+
 /************************************************ create/alter/drop user **********************************************/
 cmd ::= CREATE USER user_name(A) PASS NK_STRING(B) sysinfo_opt(C)
-                      white_list_opt(D).                                          {
-                                                                                    pCxt->pRootNode = createCreateUserStmt(pCxt, &A, &B, C);
+                      white_list_opt(D) user_priority(E) max_count (F).           {
+                                                                                    pCxt->pRootNode = createCreateUserStmt(pCxt, &A, &B, C, E, F);
                                                                                     pCxt->pRootNode = addCreateUserStmtWhiteList(pCxt, pCxt->pRootNode, D);
                                                                                   }
 cmd ::= ALTER USER user_name(A) PASS NK_STRING(B).                                { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_PASSWD, &B); }
@@ -551,6 +562,8 @@ cmd ::= SHOW db_name_cond_opt(A) VIEWS like_pattern_opt(B).                     
 cmd ::= SHOW CREATE VIEW full_table_name(A).                                      { pCxt->pRootNode = createShowCreateViewStmt(pCxt, QUERY_NODE_SHOW_CREATE_VIEW_STMT, A); }
 cmd ::= SHOW COMPACTS.                                                            { pCxt->pRootNode = createShowCompactsStmt(pCxt, QUERY_NODE_SHOW_COMPACTS_STMT); }
 cmd ::= SHOW COMPACT NK_INTEGER(A).                                               { pCxt->pRootNode = createShowCompactDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A)); }
+cmd ::= SHOW PLANS.                                                               { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_PLANS_STMT); }
+cmd ::= SHOW USER_PLANS.                                                          { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USER_PLANS_STMT); }
 
 %type table_kind_db_name_cond_opt                                                 { SShowTablesOption }
 %destructor table_kind_db_name_cond_opt                                           { }

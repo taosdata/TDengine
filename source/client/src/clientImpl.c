@@ -1178,13 +1178,19 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .sysInfo = pRequest->pTscObj->sysInfo,
                         .allocatorId = pRequest->allocatorRefId};
 
-    code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
+    if (NULL == pRequest->plan) {
+      code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
+    } else {
+      pDag = pRequest->plan;
+    }
     if (code) {
       tscError("0x%" PRIx64 " failed to create query plan, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
                pRequest->requestId);
     } else {
       pRequest->body.subplanNum = pDag->numOfSubplans;
       TSWAP(pRequest->pPostPlan, pDag->pPostPlan);
+
+      putToPlanCache(pRequest->pTscObj->user, pRequest->pTscObj->priority, pRequest->sqlstr, pDag);
     }
   }
 

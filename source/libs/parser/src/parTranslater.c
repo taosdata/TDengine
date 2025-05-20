@@ -8349,6 +8349,8 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   createReq.sysInfo = pStmt->sysinfo;
   createReq.enable = 1;
   strcpy(createReq.pass, pStmt->password);
+  createReq.priority = pStmt->priority;
+  createReq.maxCount = pStmt->maxCount;
 
   createReq.numIpRanges = pStmt->numIpRanges;
   if (pStmt->numIpRanges > 0) {
@@ -11305,6 +11307,16 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_DROP_TSMA_STMT:
       code = translateDropTSMA(pCxt, (SDropTSMAStmt*)pNode);
       break;
+    case QUERY_NODE_SHOW_PLANS_STMT: {
+      SShowPlansStmt * plan = (SShowPlansStmt*)pNode;
+      code = clientRetrieveCachedPlans(&plan->plans);
+      break;
+    }
+    case QUERY_NODE_SHOW_USER_PLANS_STMT: {
+      SShowUserPlansStmt * plan = (SShowUserPlansStmt*)pNode;
+      code = clientRetrieveUserCachedPlans(&plan->plans);
+      break;
+    }
     default:
       break;
   }
@@ -11520,6 +11532,65 @@ static int32_t extractCompactDbResultSchema(int32_t* numOfCols, SSchema** pSchem
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t extractShowPlansResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+  *numOfCols = 5;
+  *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
+  if (NULL == (*pSchema)) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[0].bytes = TSDB_USER_LEN;
+  strcpy((*pSchema)[0].name, "user");
+
+  (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[1].bytes = 1024;
+  strcpy((*pSchema)[1].name, "sql");
+
+  (*pSchema)[2].type = TSDB_DATA_TYPE_BIGINT;
+  (*pSchema)[2].bytes = 8;
+  strcpy((*pSchema)[2].name, "cache_hits");
+
+  (*pSchema)[3].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[3].bytes = 128;
+  strcpy((*pSchema)[2].name, "created_at");
+
+  (*pSchema)[4].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[4].bytes = 128;
+  strcpy((*pSchema)[2].name, "last_accessed_at");
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extractShowUserPlansResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+  *numOfCols = 4;
+  *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
+  if (NULL == (*pSchema)) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[0].bytes = TSDB_USER_LEN;
+  strcpy((*pSchema)[0].name, "user");
+
+  (*pSchema)[1].type = TSDB_DATA_TYPE_INT;
+  (*pSchema)[1].bytes = 4;
+  strcpy((*pSchema)[1].name, "plans");
+
+  (*pSchema)[2].type = TSDB_DATA_TYPE_INT;
+  (*pSchema)[2].bytes = 4;
+  strcpy((*pSchema)[2].name, "quota");
+
+  (*pSchema)[3].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[3].bytes = 128;
+  strcpy((*pSchema)[2].name, "last_updated_at");
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+
+
 int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema) {
   if (NULL == pRoot) {
     return TSDB_CODE_SUCCESS;
@@ -11550,6 +11621,10 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
       return extractShowVariablesResultSchema(numOfCols, pSchema);
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       return extractCompactDbResultSchema(numOfCols, pSchema);
+    case QUERY_NODE_SHOW_PLANS_STMT:
+      return extractShowPlansResultSchema(numOfCols, pSchema);
+    case QUERY_NODE_SHOW_USER_PLANS_STMT:
+      return extractShowUserPlansResultSchema(numOfCols, pSchema);
     default:
       break;
   }
@@ -13316,6 +13391,8 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
+    case QUERY_NODE_SHOW_PLANS_STMT:
+    case QUERY_NODE_SHOW_USER_PLANS_STMT:
       pQuery->execMode = QUERY_EXEC_MODE_LOCAL;
       pQuery->haveResultSet = true;
       break;

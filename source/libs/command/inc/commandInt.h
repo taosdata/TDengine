@@ -62,6 +62,7 @@ extern "C" {
 #define EXPLAIN_TIME_WINDOWS_FORMAT "Time Window: interval=%" PRId64 "%c offset=%" PRId64 "%c sliding=%" PRId64 "%c"
 #define EXPLAIN_WINDOW_FORMAT "Window: gap=%" PRId64
 #define EXPLAIN_RATIO_TIME_FORMAT "Ratio: %f"
+#define EXPLAIN_PLAN_CACHE_USED_FORMAT "Plan Cache Used: %s"
 #define EXPLAIN_MERGE_FORMAT "Merge"
 #define EXPLAIN_MERGE_KEYS_FORMAT "Merge Key: "
 #define EXPLAIN_IGNORE_GROUPID_FORMAT "Ignore Group Id: %s"
@@ -158,6 +159,7 @@ typedef struct SExplainCtx {
   EExplainMode mode;
   double       ratio;
   bool         verbose;
+  bool         planCacheUsed;
 
   SRWLatch     lock;
   int32_t      rootGroupId;

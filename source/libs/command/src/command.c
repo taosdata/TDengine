@@ -502,6 +502,145 @@ static int32_t execShowAliveStatus(int64_t* pConnId, SShowAliveStmt* pStmt, SRet
   return code;
 }
 
+static int32_t buildPlansResultDataBlock(SSDataBlock** pOutput) {
+  SSDataBlock* pBlock = createDataBlock();
+  if (NULL == pBlock) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN, 1);
+  int32_t         code = blockDataAppendColInfo(pBlock, &infoData);
+
+  infoData = createColumnInfoData(TSDB_DATA_TYPE_BINARY, 1024, 2);
+  code = blockDataAppendColInfo(pBlock, &infoData);
+
+  infoData = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, 8, 3);
+  code = blockDataAppendColInfo(pBlock, &infoData);
+
+  infoData = createColumnInfoData(TSDB_DATA_TYPE_BINARY, 128, 4);
+  code = blockDataAppendColInfo(pBlock, &infoData);
+
+  infoData = createColumnInfoData(TSDB_DATA_TYPE_BINARY, 128, 5);
+  code = blockDataAppendColInfo(pBlock, &infoData);
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOutput = pBlock;
+  } else {
+    blockDataDestroy(pBlock);
+  }
+  return code;
+}
+
+static int32_t setPlansResultIntoDataBlock(SSDataBlock* pBlock, SArray* pRes) {
+  int32_t num = taosArrayGetSize(pRes);
+  
+  blockDataEnsureCapacity(pBlock, num);
+  pBlock->info.rows = num;
+
+  for (int32_t i = 0; i < num; ++i) {
+    SCachedPlan * plan = taosArrayGet(pRes, i);
+    SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+    colDataSetVal(pCol1, i, (const char*)plan->user, false);
+
+    pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+    colDataSetVal(pCol1, i, (const char*)plan->sql, false);
+
+    pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+    colDataSetVal(pCol1, i, (const char*)&plan->cache_hit, false);
+
+    pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+    colDataSetVal(pCol1, i, (const char*)plan->created_at, false);
+
+    pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+    colDataSetVal(pCol1, i, (const char*)plan->last_accessed_at, false);
+  }
+
+  return 0;
+}
+
+
+
+static int32_t execShowPlans(int64_t* pConnId, SShowPlansStmt* pStmt, SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildPlansResultDataBlock(&pBlock);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setPlansResultIntoDataBlock(pBlock, pStmt->plans);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildRetrieveTableRsp(pBlock, 5, pRsp);
+  }
+  blockDataDestroy(pBlock);
+  return code;
+}
+
+static int32_t buildUserPlansResultDataBlock(SSDataBlock** pOutput) {
+  SSDataBlock* pBlock = createDataBlock();
+  if (NULL == pBlock) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN, 1);
+  int32_t         code = blockDataAppendColInfo(pBlock, &infoData);
+
+  infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 2);
+  code = blockDataAppendColInfo(pBlock, &infoData);
+
+  infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 3);
+  code = blockDataAppendColInfo(pBlock, &infoData);
+
+  infoData = createColumnInfoData(TSDB_DATA_TYPE_BINARY, 128, 4);
+  code = blockDataAppendColInfo(pBlock, &infoData);
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOutput = pBlock;
+  } else {
+    blockDataDestroy(pBlock);
+  }
+  return code;
+}
+
+static int32_t setUserPlansResultIntoDataBlock(SSDataBlock* pBlock, SArray* pRes) {
+  int32_t num = taosArrayGetSize(pRes);
+  
+  blockDataEnsureCapacity(pBlock, num);
+  pBlock->info.rows = num;
+
+  for (int32_t i = 0; i < num; ++i) {
+    SUserCachedPlan * plan = taosArrayGet(pRes, i);
+    SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+    colDataSetVal(pCol1, i, (const char*)plan->user, false);
+
+    pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+    colDataSetVal(pCol1, i, (const char*)&plan->plans, false);
+
+    pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+    colDataSetVal(pCol1, i, (const char*)&plan->quota, false);
+
+    pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+    colDataSetVal(pCol1, i, (const char*)plan->last_updated_at, false);
+  }
+
+  return 0;
+}
+
+
+
+static int32_t execShowUserPlans(int64_t* pConnId, SShowPlansStmt* pStmt, SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildUserPlansResultDataBlock(&pBlock);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setUserPlansResultIntoDataBlock(pBlock, pStmt->plans);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildRetrieveTableRsp(pBlock, 4, pRsp);
+  }
+  blockDataDestroy(pBlock);
+  return code;
+}
+
+
+
+
 static int32_t execShowCreateDatabase(SShowCreateDatabaseStmt* pStmt, SRetrieveTableRsp** pRsp) {
   SSDataBlock* pBlock = NULL;
   int32_t      code = buildCreateDBResultDataBlock(&pBlock);
@@ -1073,6 +1212,10 @@ int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieve
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
     case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
       return execShowAliveStatus(pConnId, (SShowAliveStmt*)pStmt, pRsp);
+    case QUERY_NODE_SHOW_PLANS_STMT:
+      return execShowPlans(pConnId, (SShowPlansStmt*)pStmt, pRsp);
+    case QUERY_NODE_SHOW_USER_PLANS_STMT:
+      return execShowUserPlans(pConnId, (SShowUserPlansStmt*)pStmt, pRsp);
     default:
       break;
   }

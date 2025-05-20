@@ -56,6 +56,7 @@ static SKeyword keywordTable[] = {
     {"BUFSIZE",              TK_BUFSIZE},
     {"BY",                   TK_BY},
     {"CACHE",                TK_CACHE},
+    {"CACHE_PALN",           TK_CACHE_PLAN},
     {"CACHEMODEL",           TK_CACHEMODEL},
     {"CACHESIZE",            TK_CACHESIZE},
     {"CASE",                 TK_CASE},
@@ -154,6 +155,7 @@ static SKeyword keywordTable[] = {
     {"LINEAR",               TK_LINEAR},
     {"LOCAL",                TK_LOCAL},
     {"MATCH",                TK_MATCH},
+    {"MAX_COUNT",            TK_MAX_COUNT},
     {"MAXROWS",              TK_MAXROWS},
     {"MAX_DELAY",            TK_MAX_DELAY},
     {"BWLIMIT",              TK_BWLIMIT},
@@ -173,6 +175,7 @@ static SKeyword keywordTable[] = {
     {"NONE",                 TK_NONE},
     {"NOT",                  TK_NOT},
     {"NOW",                  TK_NOW},
+    {"NO_CACHE_PALN",        TK_NO_CACHE_PLAN},
     {"NO_BATCH_SCAN",        TK_NO_BATCH_SCAN},
     {"NULL",                 TK_NULL},
     {"NULL_F",               TK_NULL_F},
@@ -283,6 +286,7 @@ static SKeyword keywordTable[] = {
     {"UPDATE",               TK_UPDATE},
     {"USE",                  TK_USE},
     {"USER",                 TK_USER},
+    {"USER_PRIORITY",        TK_USER_PRIORITY},
     {"USERS",                TK_USERS},
     {"USING",                TK_USING},
     {"VALUE",                TK_VALUE},
@@ -333,6 +337,10 @@ static SKeyword keywordTable[] = {
     {"COMPRESS",             TK_COMPRESS},
     {"LEVEL",                TK_LEVEL},
     {"ARBGROUPS",            TK_ARBGROUPS},
+    {"USE_PLAN_CACHE",       TK_USE_PLAN_CACHE},
+    {"NO_USE_PLAN_CACHE",    TK_NO_USE_PLAN_CACHE},
+    {"PLANS",                TK_PLANS},
+    {"USER_PLANS",           TK_USER_PLANS},
 };
 // clang-format on
 

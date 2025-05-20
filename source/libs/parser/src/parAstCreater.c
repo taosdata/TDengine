@@ -539,6 +539,38 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
     i += t0.n;
 
     switch (t0.type) {
+      case TK_CACHE_PLAN:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_CACHE_PLAN;
+        break;
+      case TK_NO_CACHE_PLAN:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_NO_CACHE_PLAN;
+        break;
+      case TK_USE_PLAN_CACHE:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_USE_PLAN_CACHE;
+        break;
+      case TK_NO_USE_PLAN_CACHE:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_NO_USE_PLAN_CACHE;
+        break;
       case TK_BATCH_SCAN:
         lastComma = false;
         if (0 != opt || inParamList) {
@@ -2212,7 +2244,7 @@ SNode* addCreateUserStmtWhiteList(SAstCreateContext* pCxt, SNode* pCreateUserStm
   return pCreateUserStmt;
 }
 
-SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword, int8_t sysinfo) {
+SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword, int8_t sysinfo, int8_t priority, int32_t maxCount) {
   CHECK_PARSER_STATUS(pCxt);
   char password[TSDB_USET_PASSWORD_LEN + 3] = {0};
   if (!checkUserName(pCxt, pUserName) || !checkPassword(pCxt, pPassword, password)) {
@@ -2223,6 +2255,8 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const ST
   COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
   strcpy(pStmt->password, password);
   pStmt->sysinfo = sysinfo;
+  pStmt->priority = priority;
+  pStmt->maxCount = maxCount;
   return (SNode*)pStmt;
 }
 

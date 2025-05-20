@@ -380,6 +380,8 @@ typedef enum ENodeType {
   QUERY_NODE_CREATE_TSMA_STMT,
   QUERY_NODE_SHOW_CREATE_TSMA_STMT,
   QUERY_NODE_DROP_TSMA_STMT,
+  QUERY_NODE_SHOW_PLANS_STMT,
+  QUERY_NODE_SHOW_USER_PLANS_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -952,6 +954,8 @@ typedef struct {
   int32_t  dnodeNum;
   int8_t   superUser;
   int8_t   sysInfo;
+  int8_t   priority;
+  int32_t  maxCount;
   int8_t   connType;
   SEpSet   epSet;
   int32_t  svrTimestamp;
@@ -1005,6 +1009,8 @@ typedef struct {
   int8_t      superUser;  // denote if it is a super user or not
   int8_t      sysInfo;
   int8_t      enable;
+  int8_t      priority;
+  int32_t     maxCount;
   char        user[TSDB_USER_LEN];
   char        pass[TSDB_USET_PASSWORD_LEN];
   int32_t     numIpRanges;
@@ -1079,6 +1085,8 @@ typedef struct {
   int8_t    sysInfo;
   int8_t    enable;
   int8_t    dropped;
+  int8_t    priority;
+  int32_t    maxCount;
   SHashObj* createdDbs;
   SHashObj* readDbs;
   SHashObj* writeDbs;
@@ -4386,6 +4394,21 @@ void tFreeFetchTtlExpiredTbsRsp(void* p);
 
 void setDefaultOptionsForField(SFieldWithOptions* field);
 void setFieldWithOptions(SFieldWithOptions* fieldWithOptions, SField* field);
+
+typedef struct SAuditLogReq {
+  char* operation;
+  char* detail;
+} SAuditLogReq;
+int32_t tSerializeAuditLogReq(void *buf, int32_t bufLen, const SAuditLogReq *pReq);
+int32_t tDeserializeAuditLogReq(void *buf, int32_t bufLen, SAuditLogReq *pReq);
+
+typedef struct SAuditLogRsp {
+  int32_t code;
+} SAuditLogRsp;
+
+int32_t tSerializeAuditLogRsp(void *buf, int32_t bufLen, const SAuditLogRsp *pReq);
+int32_t tDeserializeAuditLogRsp(void *buf, int32_t bufLen, SAuditLogRsp *pReq);
+
 
 #pragma pack(pop)
 

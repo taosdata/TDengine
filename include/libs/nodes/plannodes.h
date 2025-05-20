@@ -808,6 +808,7 @@ typedef struct SQueryPlan {
   SNodeList*   pSubplans;  // Element is SNodeListNode. The execution level of subplan, starting from 0.
   SExplainInfo explainInfo;
   void*        pPostPlan;
+  bool         planCacheUsed;
 } SQueryPlan;
 
 const char* dataOrderStr(EDataOrderLevel order);

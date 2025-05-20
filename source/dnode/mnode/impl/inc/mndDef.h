@@ -329,6 +329,8 @@ typedef struct {
   int8_t        superUser;
   int8_t        sysInfo;
   int8_t        enable;
+  int8_t        priority;
+  int32_t       maxCount;
   int8_t        reserve;
   int32_t       acctId;
   int32_t       authVersion;

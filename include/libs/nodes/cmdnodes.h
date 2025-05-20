@@ -259,6 +259,8 @@ typedef struct SCreateUserStmt {
   char        password[TSDB_USET_PASSWORD_LEN];
   int8_t      sysinfo;
   int32_t     numIpRanges;
+  int8_t      priority;
+  int32_t     maxCount;
   SIpV4Range* pIpRanges;
 
   SNodeList* pNodeListIpRanges;
@@ -631,6 +633,17 @@ typedef struct SDropTSMAStmt {
   char          dbName[TSDB_DB_NAME_LEN];
   char          tsmaName[TSDB_TABLE_NAME_LEN];
 } SDropTSMAStmt;
+
+typedef struct SShowPlansStmt {
+  ENodeType type;
+  SArray*   plans;
+} SShowPlansStmt;
+
+typedef struct SShowUserPlansStmt {
+  ENodeType type;
+  SArray*   plans;
+} SShowUserPlansStmt;
+
 
 #ifdef __cplusplus
 }

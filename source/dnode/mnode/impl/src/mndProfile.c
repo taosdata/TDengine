@@ -83,6 +83,36 @@ static int32_t   mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void      mndCancelGetNextApp(SMnode *pMnode, void *pIter);
 static int32_t   mndProcessSvrVerReq(SRpcMsg *pReq);
 
+static int32_t mndProcessAuditLogReq(SRpcMsg *pReq) {
+  SMnode         *pMnode = pReq->info.node;
+  int32_t       code = -1;
+  SAuditLogReq  req = {0};
+  SAuditLogRsp  rsp = {0};
+
+  if ((code = tDeserializeAuditLogReq(pReq->pCont, pReq->contLen, &req)) != 0) {
+    terrno = (-1 == code ? TSDB_CODE_INVALID_MSG : code);
+    goto _over;
+  }
+
+  auditRecord(pReq, pMnode->clusterId, req.operation, NULL, NULL, req.detail, strlen(req.detail));
+
+  int32_t contLen = tSerializeAuditLogRsp(NULL, 0, &rsp);
+  if (contLen < 0) goto _over;
+  void *pRsp = rpcMallocCont(contLen);
+  if (pRsp == NULL) goto _over;
+  tSerializeAuditLogRsp(pRsp, contLen, &rsp);
+
+  pReq->info.rspLen = contLen;
+  pReq->info.rsp = pRsp;
+
+  code = 0;
+
+_over:
+
+  return code;
+}
+
+
 int32_t mndInitProfile(SMnode *pMnode) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
@@ -107,6 +137,7 @@ int32_t mndInitProfile(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_QUERY, mndProcessKillQueryReq);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_CONN, mndProcessKillConnReq);
   mndSetMsgHandle(pMnode, TDMT_MND_SERVER_VERSION, mndProcessSvrVerReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_AUDIT_LOG, mndProcessAuditLogReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONNS, mndRetrieveConns);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONNS, mndCancelGetNextConn);
@@ -293,6 +324,8 @@ _CONNECT:
   connectRsp.acctId = pUser->acctId;
   connectRsp.superUser = pUser->superUser;
   connectRsp.sysInfo = pUser->sysInfo;
+  connectRsp.priority = pUser->priority;
+  connectRsp.maxCount = pUser->maxCount;
   connectRsp.clusterId = pMnode->clusterId;
   connectRsp.connId = pConn->id;
   connectRsp.connType = connReq.connType;
