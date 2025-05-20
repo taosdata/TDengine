@@ -371,12 +371,39 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
         ++pVnode->batchCount;
 
 #define NAME_COL_IDX 1
+#define NAME_COL_LEN 64
+#define LOCA_COL_IDX 2
         SColVal nameColVal = {0};
         code = tRowGet(pRow, pTSchema, NAME_COL_IDX, &nameColVal);
         TSDB_CHECK_CODE(code, lino, _exit);
 
-        // retrieve name column
-        // if (!strncmp
+        char nameValue[NAME_COL_LEN] = {0};
+        tstrncpy(nameValue, nameColVal.value.pData, nameColVal.value.nData);
+
+        int parIdx = 0;
+        if (!strncmp("***TEST***", nameValue)) {
+          if (1 == pVnode->batchCount % 2) {
+            // parIdx = algoA
+          } else {
+            // parIdx = algoB
+          }
+        } else if (!strncmp("***test***", nameValue)) {
+          if (1 == pVnode->batchCount % 2) {
+            // parIdx = algoB
+          } else {
+            // parIdx = partition 1
+          }
+        } else if (!strncmp("***TesT***", nameValue)) {
+          if (1 == pVnode->batchCount % 2) {
+            // parIdx = partition 1
+          } else {
+            // parIdx = algoA
+          }
+        } else {
+          // use original index
+        }
+
+        // set col val
       }
     }
 
