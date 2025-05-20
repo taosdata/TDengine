@@ -134,7 +134,7 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    点击“File”菜单->“Publish Report Parts”。
    ![report-2](img/report-2.webp)
 
-   选择第一项“Pubsh all report parts with default settings”，可把报表使用数据源配置一起发送至服务器。
+   选择第一项“Pubsh all report parts with default settings”，会把报表使用数据源配置一起发送至服务器。
 
 ### 浏览报表
 报表发送至服务器后，报表即被共享出去了，可在任意客户端通过浏览器访问浏览报表数据。
