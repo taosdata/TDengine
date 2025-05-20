@@ -519,6 +519,7 @@ int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
 
   if (pMsg->handle == NULL) {
     qError("sch handle is NULL, may be already released and mem lea");
+    ASSERT(0);
   }
   if (pMsg) {
     taosMemoryFree(pMsg->pData);
