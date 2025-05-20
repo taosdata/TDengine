@@ -28,7 +28,7 @@ target_include_directories(parameter PUBLIC
 )
 
 # 链接 nlohmann/json 和 yaml-cpp 库
-target_link_libraries(parameter PRIVATE 
+target_link_libraries(parameter PUBLIC 
     nlohmann_json::nlohmann_json 
     yaml-cpp
 )

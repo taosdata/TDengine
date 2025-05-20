@@ -17,8 +17,9 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
 
 # 添加主库
 add_library(engine STATIC 
-    JobDAG.cpp 
-    ThreadSafeQueue.cpp 
+    JobDAG.cpp
+    ThreadSafeQueue.cpp
+    StepExecutionStrategy.cpp
     JobScheduler.cpp
 )
 
@@ -36,16 +37,15 @@ target_link_libraries(engine PRIVATE
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../parameter/build)
 target_link_libraries(engine PRIVATE parameter)
 
-# TestConfigData
-# add_executable(TestConfigData 
-#     test/TestConfigData.cpp
-# )
+# TestJobScheduler
+add_executable(TestJobScheduler 
+    test/TestJobScheduler.cpp
+)
 
-# target_link_libraries(TestConfigData PRIVATE 
-#     parameter
-# )
+target_link_libraries(TestJobScheduler PRIVATE 
+    parameter
+    engine
+    yaml-cpp
+)
 
-# add_test(NAME TestConfigData COMMAND TestConfigData)
-
-# 添加可执行文件
-# add_executable(parameter main.cpp)
+add_test(NAME TestJobScheduler COMMAND TestJobScheduler)
