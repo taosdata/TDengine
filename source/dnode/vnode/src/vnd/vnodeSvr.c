@@ -369,7 +369,9 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
 
       {
         ++pVnode->batchCount;
-
+        if (pVnode->partitionCount <= 0) {
+          pVnode->partitionCount = 1;
+        }
         bool isOdd = (1 == pVnode->batchCount % 2);
 
 #define NAME_COL_IDX    1

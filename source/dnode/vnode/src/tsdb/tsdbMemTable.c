@@ -553,13 +553,56 @@ static int32_t tsdbRebuildRow(STsdb *pTsdb, TSDBROW *pRowIn, TSDBROW **ppRowOut,
     goto _exit;
   }
 
+#define algoA(key, len) (MurmurHash3_32((key), (len)))
+#define algoB(key, len) (taosDJB2Hash((key), (len)))
+
+  if (pVnode->partitionCount <= 0) {
+    pVnode->partitionCount = 1;
+  }
+
+  const int   nameColId = 2;
+  const int   locaColId = 3;
+  bool        isOdd = (1 == pVnode->batchCount % 2);
+  const char *nameValue = NULL;
+  int32_t     namelen = 0;
+  int         parIdx = 0;
+
   for (;;) {
     SColVal *pColVal = tRowIterNext(pIter);
     if (pColVal == NULL) {
       break;
     }
 
-    // TODO: Replace phylocation
+    if (pColVal->cid == nameColId) {
+      nameValue = pColVal->value.pData;
+      namelen = pColVal->value.nData;
+
+      if (strstr(nameValue, "***TEST***")) {
+        if (isOdd) {
+          parIdx = algoA(nameValue, namelen) % pVnode->partitionCount;
+        } else {
+          parIdx = algoB(nameValue, namelen) % pVnode->partitionCount;
+        }
+      } else if (strstr(nameValue, "***test***")) {
+        if (isOdd) {
+          parIdx = algoB(nameValue, namelen) % pVnode->partitionCount;
+        } else {
+          // parIdx = 0;
+        }
+      } else if (strstr(nameValue, "***TesT***")) {
+        if (isOdd) {
+          // parIdx = 0;
+        } else {
+          parIdx = algoA(nameValue, namelen) % pVnode->partitionCount;
+        }
+      } else {
+        parIdx = algoA(nameValue, namelen) % pVnode->partitionCount;
+      }
+    }
+
+    if (pColVal->cid == locaColId) {
+      pColVal->value.val = parIdx;
+    }
 
     if (NULL == taosArrayPush(pColValArray, pColVal)) {
       code = terrno;
@@ -610,8 +653,14 @@ static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListN
   SVBufPool        *pPool = pMemTable->pTsdb->pVnode->inUse;
   int64_t           nSize;
 
-  TSDBROW *pNewRow = NULL;
-  code = tsdbRebuildRow(pMemTable->pTsdb, pRow, &pNewRow, NULL);
+  TSDBROW  *pNewRow = NULL;
+  STSchema *pTSchema = NULL;
+  SVnode   *pVnode = pMemTable->pTsdb->pVnode;
+  code = metaGetTbTSchemaEx(pVnode->pMeta, pTbData->suid, pTbData->uid, -1, &pTSchema);
+
+  code = tsdbRebuildRow(pMemTable->pTsdb, pRow, &pNewRow, pTSchema);
+  taosMemoryFreeClear(pTSchema);
+  pTSchema = NULL;
   if (code) {
     return code;
   }
