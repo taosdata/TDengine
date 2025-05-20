@@ -1189,6 +1189,7 @@ int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pRes
       code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
     } else {
       pDag = plan;
+      pDag->planCacheUsed = true;
     }
     if (code) {
       tscError("0x%" PRIx64 " failed to create query plan, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
@@ -1197,8 +1198,7 @@ int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pRes
       pRequest->body.subplanNum = pDag->numOfSubplans;
       TSWAP(pRequest->pPostPlan, pDag->pPostPlan);
 
-      if (!pDag->planCacheUsed) {
-        pDag->planCacheUsed = true;
+      if (!pDag->planCacheUsed && !pDag->showRewrite) {
         putToPlanCache(pRequest->pTscObj->user, pRequest->pTscObj->priority, pRequest->pTscObj->maxCount, pRequest->sqlstr, pDag);
       }
     }
