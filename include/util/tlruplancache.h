@@ -65,7 +65,7 @@ typedef enum {
 
 typedef struct SCachedPlan {
   char    user[24];
-  char*   sql;
+  char   sql[128];
   int64_t cache_hit;
   char   created_at[128];
   char   last_accessed_at[128];

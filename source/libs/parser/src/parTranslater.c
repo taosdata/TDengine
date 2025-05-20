@@ -11554,11 +11554,11 @@ static int32_t extractShowPlansResultSchema(int32_t* numOfCols, SSchema** pSchem
 
   (*pSchema)[3].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[3].bytes = 128;
-  strcpy((*pSchema)[2].name, "created_at");
+  strcpy((*pSchema)[3].name, "created_at");
 
   (*pSchema)[4].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[4].bytes = 128;
-  strcpy((*pSchema)[2].name, "last_accessed_at");
+  strcpy((*pSchema)[4].name, "last_accessed_at");
 
   return TSDB_CODE_SUCCESS;
 }
@@ -11584,7 +11584,7 @@ static int32_t extractShowUserPlansResultSchema(int32_t* numOfCols, SSchema** pS
 
   (*pSchema)[3].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[3].bytes = 128;
-  strcpy((*pSchema)[2].name, "last_updated_at");
+  strcpy((*pSchema)[3].name, "last_updated_at");
 
   return TSDB_CODE_SUCCESS;
 }
@@ -13438,6 +13438,21 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
   return TSDB_CODE_SUCCESS;
 }
 
+
+bool getNoUsePlanCacheHint(SNodeList* pList) {
+  if (!pList) return false;
+  SNode* pNode;
+  FOREACH(pNode, pList) {
+    SHintNode* pHint = (SHintNode*)pNode;
+    if (pHint->option == HINT_NO_USE_PLAN_CACHE) {
+      return true;
+    }
+  }
+  return false;
+}
+
+
+
 int32_t translate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
   STranslateContext cxt = {0};
 
@@ -13447,6 +13462,10 @@ int32_t translate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMe
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateQuery(&cxt, pQuery->pRoot);
+    if (QUERY_NODE_SELECT_STMT == nodeType(pQuery->pRoot)) {
+      SSelectStmt* pSelect = (SSelectStmt*)pQuery->pRoot;      
+      pQuery->noUseCachePlan = getNoUsePlanCacheHint(pSelect->pHint);
+    }
   }
   if (TSDB_CODE_SUCCESS == code && (cxt.pPrevRoot || cxt.pPostRoot)) {
     pQuery->pPrevRoot = cxt.pPrevRoot;

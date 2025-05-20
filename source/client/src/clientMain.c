@@ -1215,20 +1215,14 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     return;
   }
 
-  void* plan = NULL;
-  getFromPlanCache(pRequest->pTscObj->user, pRequest->pTscObj->priority, pRequest->sqlstr, &plan);
+  
+  if (TSDB_CODE_SUCCESS == code) {
+    code = prepareAndParseSqlSyntax(&pWrapper, pRequest, updateMetaForce);
+  }
 
-  if (plan) {
-    code = asyncExecSchQuery(pRequest, pRequest->pQuery, NULL, pWrapper);
-  } else {
-    if (TSDB_CODE_SUCCESS == code) {
-      code = prepareAndParseSqlSyntax(&pWrapper, pRequest, updateMetaForce);
-    }
-
-    if (TSDB_CODE_SUCCESS == code) {
-      pRequest->stmtType = pRequest->pQuery->pRoot->type;
-      code = phaseAsyncQuery(pWrapper);
-    }
+  if (TSDB_CODE_SUCCESS == code) {
+    pRequest->stmtType = pRequest->pQuery->pRoot->type;
+    code = phaseAsyncQuery(pWrapper);
   }
 
   if (TSDB_CODE_SUCCESS != code) {

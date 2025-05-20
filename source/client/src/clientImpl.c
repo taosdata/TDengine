@@ -1180,10 +1180,15 @@ int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pRes
                         .sysInfo = pRequest->pTscObj->sysInfo,
                         .allocatorId = pRequest->allocatorRefId};
 
-    if (NULL == pRequest->plan) {
+    void* plan = NULL;
+    if (!pQuery->noUseCachePlan) {
+      getFromPlanCache(pRequest->pTscObj->user, pRequest->pTscObj->priority, pRequest->sqlstr, &plan);
+    }
+    
+    if (NULL == plan) {
       code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
     } else {
-      pDag = pRequest->plan;
+      pDag = plan;
     }
     if (code) {
       tscError("0x%" PRIx64 " failed to create query plan, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
@@ -1192,8 +1197,10 @@ int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pRes
       pRequest->body.subplanNum = pDag->numOfSubplans;
       TSWAP(pRequest->pPostPlan, pDag->pPostPlan);
 
-      pDag->planCacheUsed = true;
-      putToPlanCache(pRequest->pTscObj->user, pRequest->pTscObj->priority, pRequest->pTscObj->maxCount, pRequest->sqlstr, pDag);
+      if (!pDag->planCacheUsed) {
+        pDag->planCacheUsed = true;
+        putToPlanCache(pRequest->pTscObj->user, pRequest->pTscObj->priority, pRequest->pTscObj->maxCount, pRequest->sqlstr, pDag);
+      }
     }
   }
 

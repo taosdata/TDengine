@@ -2501,7 +2501,6 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
   int32_t* rows = (int32_t*)data;
   *rows = pBlock->info.rows;
   data += sizeof(int32_t);
-  ASSERT(*rows > 0);
 
   int32_t* cols = (int32_t*)data;
   *cols = numOfCols;

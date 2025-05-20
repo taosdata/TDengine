@@ -42,7 +42,7 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
   (*pRsp)->numOfCols = htonl(numOfCols);
 
   int32_t len = blockEncode(pBlock, (*pRsp)->data, numOfCols);
-
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -543,16 +543,16 @@ static int32_t setPlansResultIntoDataBlock(SSDataBlock* pBlock, SArray* pRes) {
     SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
     colDataSetVal(pCol1, i, (const char*)plan->user, false);
 
-    pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+    pCol1 = taosArrayGet(pBlock->pDataBlock, 1);
     colDataSetVal(pCol1, i, (const char*)plan->sql, false);
 
-    pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+    pCol1 = taosArrayGet(pBlock->pDataBlock, 2);
     colDataSetVal(pCol1, i, (const char*)&plan->cache_hit, false);
 
-    pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+    pCol1 = taosArrayGet(pBlock->pDataBlock, 3);
     colDataSetVal(pCol1, i, (const char*)plan->created_at, false);
 
-    pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+    pCol1 = taosArrayGet(pBlock->pDataBlock, 4);
     colDataSetVal(pCol1, i, (const char*)plan->last_accessed_at, false);
   }
 
@@ -611,13 +611,13 @@ static int32_t setUserPlansResultIntoDataBlock(SSDataBlock* pBlock, SArray* pRes
     SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
     colDataSetVal(pCol1, i, (const char*)plan->user, false);
 
-    pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+    pCol1 = taosArrayGet(pBlock->pDataBlock, 1);
     colDataSetVal(pCol1, i, (const char*)&plan->plans, false);
 
-    pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+    pCol1 = taosArrayGet(pBlock->pDataBlock, 2);
     colDataSetVal(pCol1, i, (const char*)&plan->quota, false);
 
-    pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+    pCol1 = taosArrayGet(pBlock->pDataBlock, 3);
     colDataSetVal(pCol1, i, (const char*)plan->last_updated_at, false);
   }
 

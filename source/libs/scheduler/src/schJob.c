@@ -686,7 +686,7 @@ void schFreeJobImpl(void *job) {
 
   destroyQueryExecRes(&pJob->execRes);
 
-  qDestroyQueryPlan(pJob->pDag);
+  //qDestroyQueryPlan(pJob->pDag);
   nodesReleaseAllocatorWeakRef(pJob->allocatorRefId);
 
   taosMemoryFreeClear(pJob->userRes.execRes);

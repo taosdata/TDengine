@@ -96,6 +96,15 @@ static int32_t mndProcessAuditLogReq(SRpcMsg *pReq) {
 
   auditRecord(pReq, pMnode->clusterId, req.operation, NULL, NULL, req.detail, strlen(req.detail));
 
+  char filename[255];
+  sprintf(filename, "%s/%s", tsLogDir, "planCache.log");
+  TdFilePtr ptr = taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  char* p = taosMemoryCalloc(1, strlen(req.operation) + strlen(req.detail) + 32);
+  sprintf(p, "%s - %s", req.operation, req.detail);
+  taosWriteFile(ptr, p, strlen(p));
+  taosCloseFile(&ptr);
+  taosMemoryFree(p);
+
   int32_t contLen = tSerializeAuditLogRsp(NULL, 0, &rsp);
   if (contLen < 0) goto _over;
   void *pRsp = rpcMallocCont(contLen);

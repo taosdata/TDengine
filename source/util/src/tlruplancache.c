@@ -20,6 +20,7 @@
 #include "tarray.h"
 #include "tdef.h"
 #include "tlog.h"
+#include "types.h"
 typedef struct {
   char user[TSDB_USER_LEN];
   char query[QUERY_STRING_MAX_LEN];
@@ -181,7 +182,7 @@ static void erasePlanCache(){
 int32_t putToPlanCache(char* user, UserPriority priority, int32_t max, char* query, void* value) {
   int32_t code = 0;
   int32_t lino = 0;
-  CACHE_CHECK_CONDITION_GOTO(priority >= PLAN_CACHE_PRIORITY_HIGH && priority < PLAN_CACHE_PRIORITY_LOW, TSDB_CODE_INVALID_PARA);
+  CACHE_CHECK_CONDITION_GOTO(priority < PLAN_CACHE_PRIORITY_HIGH || priority > PLAN_CACHE_PRIORITY_LOW, TSDB_CODE_INVALID_PARA);
 
   taosThreadMutexLock(&cacheLock);
   if (priority == PLAN_CACHE_PRIORITY_LOW && totalPlanCacheSize >= MAX_PLAN_CACHE_SIZE_LOW_LEVEL) {
@@ -236,7 +237,7 @@ end:
 int32_t getFromPlanCache(char* user, UserPriority priority, char* query, void** value) {
   int32_t code = 0;
   int32_t lino = 0;
-  CACHE_CHECK_CONDITION_GOTO(priority >= PLAN_CACHE_PRIORITY_HIGH && priority < PLAN_CACHE_PRIORITY_LOW, TSDB_CODE_INVALID_PARA);
+  CACHE_CHECK_CONDITION_GOTO(priority < PLAN_CACHE_PRIORITY_HIGH || priority > PLAN_CACHE_PRIORITY_LOW, TSDB_CODE_INVALID_PARA);
 
   taosThreadMutexLock(&cacheLock);
   if (planCacheObj == NULL) {
@@ -297,10 +298,16 @@ int32_t clientRetrieveCachedPlans(SArray** ppRes) {
       char* query = taosHashGetKey(pIterInner, NULL);
 
       value->cache_hit = pValue->cache_hit;
-      formatTimestamp(pValue->created_at, value->created_at, sizeof(value->created_at));
-      formatTimestamp(pValue->last_accessed_at, value->last_accessed_at, sizeof(value->last_accessed_at));
-      tstrncpy(value->user, user, strlen(user) + 1);
-      tstrncpy(value->sql, query, strlen(query) + 1);
+      formatTimestamp(pValue->created_at, varDataVal(value->created_at), sizeof(value->created_at));
+      formatTimestamp(pValue->last_accessed_at, varDataVal(value->last_accessed_at), sizeof(value->last_accessed_at));
+      varDataLen(value->created_at) = strlen(varDataVal(value->created_at));
+      varDataLen(value->last_accessed_at) = strlen(varDataVal(value->last_accessed_at));
+
+
+      tstrncpy(varDataVal(value->user), user, strlen(user) + 1);
+      varDataLen(value->user) = strlen(user);
+      tstrncpy(varDataVal(value->sql), query, strlen(query) + 1);
+      varDataLen(value->sql) = strlen(query);
 
       pIterInner = taosHashIterate(pHashObj, pIterInner);
     }
@@ -333,7 +340,9 @@ int32_t clientRetrieveUserCachedPlans(SArray** ppRes) {
     value->plans = taosHashGetSize(pHashObj);
     value->quota = MAX_PLAN_CACHE_SIZE;
     // formatTimestamp(pValue->last_accessed_at, value->last_accessed_at, sizeof(value->last_accessed_at));
-    tstrncpy(value->user, user, strlen(user) + 1);
+    
+    tstrncpy(varDataVal(value->user), user, strlen(user) + 1);
+    varDataLen(value->user) = strlen(user);
     pIter = taosHashIterate(planCacheObj, pIter);
   }
   *ppRes = pRes;

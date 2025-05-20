@@ -49,6 +49,8 @@ bool        getBatchScanOptionFromHint(SNodeList* pList);
 bool        getSortForGroupOptHint(SNodeList* pList);
 bool        getParaTablesSortOptHint(SNodeList* pList);
 bool        getSmallDataTsSortOptHint(SNodeList* pList);
+bool getNoUsePlanCacheHint(SNodeList* pList);
+
 bool        getHashJoinOptHint(SNodeList* pList);
 bool        getOptHint(SNodeList* pList, EHintOption hint);
 SLogicNode* getLogicNodeRootNode(SLogicNode* pCurr);
