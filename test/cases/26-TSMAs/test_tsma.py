@@ -1222,6 +1222,17 @@ class TestTsma:
     
 
     def test_tsma(self):
+        """tsma
+
+        test tsma
+
+        Since: v3.0.0.0
+
+        History:
+            - 2024-4-14 chenhaoran Created
+            - 2025-5-13 Huo Hong Migrated to new test framework
+
+        """
 
         self.init_data()
         self.tsma_ddl()
@@ -1230,7 +1241,7 @@ class TestTsma:
         self.tsma_flush_query()
         
         #cluster test
-        cluster_dnode_list = tdSql.get_cluseter_dnodes()
+        cluster_dnode_list = tdSql.getCluseterDnodes()
         clust_dnode_nums = len(cluster_dnode_list)
         if clust_dnode_nums > 1:
             self.tsma_redistribute_vgroups()
@@ -1653,8 +1664,8 @@ class TestTsma:
         tdSql.checkData(0,0,10008)
 
     def tsma_redistribute_vgroups(self):
-        tdSql.redistribute_db_all_vgroups('test', self.replicaVar)
-        tdSql.redistribute_db_all_vgroups('db4096', self.replicaVar)
+        tdSql.redistributeDbAllVgroups('test', self.replicaVar)
+        tdSql.redistributeDbAllVgroups('db4096', self.replicaVar)
 
     # def tsma_replica_dnode(self):
         

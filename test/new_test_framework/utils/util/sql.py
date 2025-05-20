@@ -130,7 +130,7 @@ class TDSql:
                 time.sleep(1)
                 pass
 
-    def no_error(self, sql):
+    def noError(self, sql):
         caller = inspect.getframeinfo(inspect.stack()[1][0])
         expectErrOccurred = False
 
@@ -292,7 +292,7 @@ class TDSql:
                 time.sleep(1)
                 pass
 
-    def is_err_sql(self, sql):
+    def isErrorSql(self, sql):
         err_flag = True
         try:
             self.cursor.execute(sql)
@@ -368,7 +368,7 @@ class TDSql:
         #     args = (caller.filename, caller.lineno, self.sql, self.queryRows, expectedRows)
         #     tdLog.exit("%s(%d) failed: sql:%s, queryRows:%d != expect:%d" % args)
 
-    def checkRows_not_exited(self, expectedRows):
+    def checkRowsNotExited(self, expectedRows):
         """
             Check if the query rows is equal to the expected rows
             :param expectedRows: The expected number of rows.
@@ -379,7 +379,7 @@ class TDSql:
         else:
             return False
 
-    def checkRows_range(self, excepte_row_list):
+    def checkRowsRange(self, excepte_row_list):
         if self.queryRows in excepte_row_list:
             tdLog.info(f"sql:{self.sql}, queryRows:{self.queryRows} in expect:{excepte_row_list}")
             return True
@@ -616,11 +616,11 @@ class TDSql:
         self.query(sql)
         self.checkData(row, col, data)
 
-    def check_rows_loop(self, expectedRows, sql, loopCount, waitTime):
+    def checkRowsLoop(self, expectedRows, sql, loopCount, waitTime):
         # loop check util checkData return true
         for i in range(loopCount):
             self.query(sql)
-            if self.checkRows_not_exited(expectedRows):
+            if self.checkRowsNotExited(expectedRows):
                 return
             else:
                 time.sleep(waitTime)
@@ -705,7 +705,7 @@ class TDSql:
             tdLog.info("%s(%d) failed: sql:%s, elm:%s == expect_elm:%s" % args)
             raise Exception
 
-    def get_times(self, time_str, precision="ms"):
+    def getTimes(self, time_str, precision="ms"):
         caller = inspect.getframeinfo(inspect.stack()[1][0])
         if time_str[-1] not in TAOS_TIME_INIT:
             tdLog.exit(f"{caller.filename}({caller.lineno}) failed: {time_str} not a standard taos time init")
@@ -740,7 +740,7 @@ class TDSql:
         elif precision == "ns":
             return int(times*1000*1000)
 
-    def get_type(self, col):
+    def getType(self, col):
         if self.cursor.istype(col, "BOOL"):
             return "BOOL"
         if self.cursor.istype(col, "INT"):
@@ -824,7 +824,7 @@ class TDSql:
     
 
 
-    def get_db_vgroups(self, db_name:str = "test") -> list:
+    def getDbVgroups(self, db_name:str = "test") -> list:
         db_vgroups_list = []
         tdSql.query(f"show {db_name}.vgroups")
         for result in tdSql.queryResult:
@@ -834,7 +834,7 @@ class TDSql:
         tdSql.query("select * from information_schema.ins_vnodes")
         return db_vgroups_list
 
-    def get_cluseter_dnodes(self) -> list:
+    def getCluseterDnodes(self) -> list:
         cluset_dnodes_list = []
         tdSql.query("show dnodes")
         for result in tdSql.queryResult:
@@ -858,9 +858,9 @@ class TDSql:
         tdSql.query(redistribute_sql)
         tdLog.debug("redistributeSql ok")
 
-    def redistribute_db_all_vgroups(self, db_name:str = "test", replica:int = 1):
-        db_vgroups_list = self.get_db_vgroups(db_name)
-        cluset_dnodes_list = self.get_cluseter_dnodes()
+    def redistributeDbAllVgroups(self, db_name:str = "test", replica:int = 1):
+        db_vgroups_list = self.getDbVgroups(db_name)
+        cluset_dnodes_list = self.getCluseterDnodes()
         useful_trans_dnodes_list = cluset_dnodes_list.copy()
         tdSql.query("select * from information_schema.ins_vnodes")
         #result: dnode_id|vgroup_id|db_name|status|role_time|start_time|restored|

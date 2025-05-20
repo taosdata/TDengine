@@ -17,6 +17,19 @@ class TestTmqParams:
         cls.snapshot_value_list = ["false"]
 
     def test_tmq_params(self):
+        """consumer parameters
+
+        test consumer create parameters
+
+        Since: v3.3.0.0
+
+        Labels: tmq
+
+        History:
+            - 2023-6-21 jiajingbin Created
+            - 2025-5-13 Huo Hong Migrated to new test framework
+
+        """
         paraDict = {'dbName':     'db1',
                     'dropFlag':   1,
                     'vgroups':    4,
