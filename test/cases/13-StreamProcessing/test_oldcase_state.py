@@ -28,9 +28,9 @@ class TestStreamOldCaseState:
 
     def state0(self):
         tdLog.info(f"state0")
-        clusterComCheck.check_stream_status()
+        clusterComCheck.drop_all_streams_and_dbs()
 
     def state1(self):
         tdLog.info(f"state1")
-        clusterComCheck.check_stream_status()
+        clusterComCheck.drop_all_streams_and_dbs()
 

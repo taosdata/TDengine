@@ -32,16 +32,16 @@ class TestStreamOldCaseInterpPrimary:
 
     def streamPrimaryKey0(self):
         tdLog.info(f"streamPrimaryKey0")
-        clusterComCheck.check_stream_status()
+        clusterComCheck.drop_all_streams_and_dbs()
 
     def streamPrimaryKey1(self):
         tdLog.info(f"streamPrimaryKey1")
-        clusterComCheck.check_stream_status()
+        clusterComCheck.drop_all_streams_and_dbs()
 
     def streamPrimaryKey2(self):
         tdLog.info(f"streamPrimaryKey2")
-        clusterComCheck.check_stream_status()
+        clusterComCheck.drop_all_streams_and_dbs()
 
     def streamPrimaryKey3(self):
         tdLog.info(f"streamPrimaryKey3")
-        clusterComCheck.check_stream_status()
+        clusterComCheck.drop_all_streams_and_dbs()

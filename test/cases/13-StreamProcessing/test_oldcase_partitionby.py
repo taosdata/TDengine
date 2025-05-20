@@ -36,26 +36,26 @@ class TestStreamOldCasePartitionBt
 
     def partitionby(self):
         tdLog.info(f"partitionby")
-        drop_all_streams_and_dbs()
+        clusterComCheck.drop_all_streams_and_dbs()
 
     def partitionby1(self):
         tdLog.info(f"partitionby1")
-        drop_all_streams_and_dbs()
+        clusterComCheck.drop_all_streams_and_dbs()
 
     def partitionbyColumnInterval(self):
         tdLog.info(f"partitionbyColumnInterval")
-        drop_all_streams_and_dbs()
+        clusterComCheck.drop_all_streams_and_dbs()
 
     def partitionbyColumnOther(self):
         tdLog.info(f"partitionbyColumnOther")
-        drop_all_streams_and_dbs()
+        clusterComCheck.drop_all_streams_and_dbs()
 
     def partitionbyColumnSession(self):
         tdLog.info(f"partitionbyColumnSession")
-        drop_all_streams_and_dbs()
+        clusterComCheck.drop_all_streams_and_dbs()
 
     def partitionbyColumnState(self):
         tdLog.info(f"partitionbyColumnState")
-        drop_all_streams_and_dbs()
+        clusterComCheck.drop_all_streams_and_dbs()
 
 

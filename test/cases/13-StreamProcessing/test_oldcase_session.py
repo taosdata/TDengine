@@ -30,15 +30,15 @@ class TestStreamOldCaseSession:
 
     def session0(self):
         tdLog.info(f"session0")
-        clusterComCheck.check_stream_status()
+        clusterComCheck.drop_all_streams_and_dbs()
 
     def session1(self):
         tdLog.info(f"session1")
-        clusterComCheck.check_stream_status()
+        clusterComCheck.drop_all_streams_and_dbs()
 
     def triggerSession1(self):
         tdLog.info(f"triggerSession1")
-        clusterComCheck.check_stream_status()
+        clusterComCheck.drop_all_streams_and_dbs()
 
 
 

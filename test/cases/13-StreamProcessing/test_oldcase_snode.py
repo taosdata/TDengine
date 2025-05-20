@@ -28,9 +28,9 @@ class TestStreamOldCaseSnode:
 
     def schedSnode(self):
         tdLog.info(f"schedSnode")
-        clusterComCheck.check_stream_status()
+        clusterComCheck.drop_all_streams_and_dbs()
 
     def snodeCheck(self):
         tdLog.info(f"snodeCheck")
-        clusterComCheck.check_stream_status()
+        clusterComCheck.drop_all_streams_and_dbs()
 
