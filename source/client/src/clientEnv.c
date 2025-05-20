@@ -51,31 +51,6 @@ int32_t timestampDeltaLimit = 900;  // s
 static TdThreadOnce tscinit = PTHREAD_ONCE_INIT;
 volatile int32_t    tscInitRes = 0;
 
-int32_t clientSendAuditLog(void* pTrans, SEpSet* epset, char* operation, char* detail) {
-  char*   msg = NULL;
-  int32_t msgLen = 0;
-  int32_t reqType = TDMT_MND_AUDIT_LOG;
-  SAuditLogReq req = {operation, detail};
-
-  int32_t len = tSerializeAuditLogReq(NULL, 0, &req);
-  void* pBuf = rpcMallocCont(len);
-
-  tSerializeAuditLogReq(pBuf, len, &req);
-
-  SRpcMsg rpcMsg = {
-      .msgType = reqType,
-      .pCont = msg,
-      .contLen = msgLen,
-  };
-
-  SRpcMsg rpcRsp = {0};
-  rpcSendRecv(pTrans, epset, &rpcMsg, &rpcRsp);
-
-  rpcFreeCont(rpcRsp.pCont);
-
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
   // connection has been released already, abort creating request.
   pRequest->self = taosAddRef(clientReqRefPool, pRequest);

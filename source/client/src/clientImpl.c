@@ -1199,7 +1199,8 @@ int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pRes
 
       if (!pDag->planCacheUsed) {
         pDag->planCacheUsed = true;
-        putToPlanCache(pRequest->pTscObj->user, pRequest->pTscObj->priority, pRequest->pTscObj->maxCount, pRequest->sqlstr, pDag);
+        putToPlanCache(pRequest->pTscObj->user, pRequest->pTscObj->priority, pRequest->pTscObj->maxCount, 
+          pRequest->sqlstr, pDag, pRequest->pTscObj->pAppInfo->pTransporter, &cxt.mgmtEpSet);
       }
     }
   }

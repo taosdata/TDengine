@@ -17,6 +17,8 @@
 #define _TD_UTIL_LRUCACHE_H_
 
 #include "thash.h"
+#include "trpc.h"
+#include "cJSON.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -65,7 +67,7 @@ typedef enum {
 
 typedef struct SCachedPlan {
   char    user[24];
-  char   sql[128];
+  char*   sql;
   int64_t cache_hit;
   char   created_at[128];
   char   last_accessed_at[128];
@@ -79,7 +81,7 @@ typedef struct SUserCachedPlan {
 } SUserCachedPlan;
 
 int32_t getFromPlanCache(char* user, UserPriority priority, char* query, void** value);
-int32_t putToPlanCache(char* user, UserPriority priority, int32_t max, char* query, void* value);
+int32_t putToPlanCache(char* user, UserPriority priority, int32_t max, char* query, void* value, void* pTrans, SEpSet* epset);
 int32_t clientRetrieveCachedPlans(SArray** ppRes); // SCachedPlan
 int32_t clientRetrieveUserCachedPlans(SArray** ppRes); // SUserCachedPlan
 

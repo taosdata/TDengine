@@ -451,7 +451,6 @@ enum {
 void sqlReqLog(int64_t rid,  bool killed, int32_t code, int8_t type);
 
 void clientMonitorClose(const char* clusterKey);
-int32_t clientSendAuditLog(void* pTrans, SEpSet* epset, char* operation, char* detail);
 
 #ifdef __cplusplus
 }
