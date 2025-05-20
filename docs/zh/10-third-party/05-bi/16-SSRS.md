@@ -43,7 +43,7 @@ TDengine 支持标准 ODBC 接口，SSRS 可实现无缝对接 TDengine。TDengi
 SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
 
 1. SSRS Windows 服务器配置 ODBC 数据源   
-   打开 ODBC 数据源管理器（64 位），选择 “System DSN”->"Add..."->"TDengine"->"Finish" 后, 弹出窗口配置如下：
+   打开 ODBC 数据源管理器（64 位），选择“System DSN”->"Add..."->"TDengine"->"Finish"后, 弹出窗口配置如下：
 
    ![cfg-1](img/cfg-1.webp)
 
@@ -54,8 +54,8 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    
    点击“Test Connection”，连接成功表示配置正确，点击“OK”保存配置。
 
-2. 报表制作 Window 客户端配置 ODBC 数据源。
-   打开 ODBC 数据源管理器（32 位），选择 “System DSN”->"Add..."->"TDengine"->"Finish" 后, 弹出窗口配置如下：
+2. 报表制作 Window 客户端配置 ODBC 数据源。  
+   打开 ODBC 数据源管理器（32 位），选择 “System DSN”->"Add..."->"TDengine"->"Finish"后, 弹出窗口配置如下：
 
    ![cfg-2](img/cfg-2.webp)
 
@@ -85,15 +85,15 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
 ### 场景介绍
 某小区有 500 台智能电表，数据存储在 TDengine 数据库中，电力公司要求数据运营部门制作一张能够分页浏览此小区每台智能电表最后一次上报电压及电流值的报表，分析居民用电情况，同时要求报表可在公司内任意一台办公电脑上登录后浏览。
 
-数据运营部门决定使用微软提供的 SSDR 报表服务完成此项工作，使用 Report Builder 制作好报表，上传至报表服务器后供相关人员浏览。
+开发人员使用微软提供的 SSDR 报表服务完成此项工作，使用 Report Builder 制作好报表，上传至报表服务器后供相关人员浏览。
 
 ### 数据准备
-我们为小区创建一张超级表, 500 个子表，每个子表代表一台智能电表，生成电压数据在 198 ~ 235 内波动，电流在 10A ~ 30A 范围内波动。
+创建一张超级表, 500 子表，每子表代表一台智能电表，生成电压数据在 198 ~ 235 内波动，电流在 10A ~ 30A 内波动。
 
 ### 制作报表
 1. 打开 Report Builder 开始制作报表。
-2. 创建新数据集。
-   左侧区域内 "DataSource"->"DataSource1"->“Add Dataset...”。
+2. 创建新数据集。  
+   左侧区域内“DataSource”->“DataSource1”->“Add Dataset...”。
 
    ![create-1](img/create-1.webp)
 
@@ -112,23 +112,22 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    ORDER BY tbname;
    ```
    
-3. 制作报表页面  
-   菜单"Insert"->"Table"->"Insert Table"，插入空表格，用鼠标把左侧 DataSet1 中数据列用拖到右侧报表制作区域内放置到自己想要展示的列上，如图：
+3. 制作报表页面。   
+   菜单“Insert”->“Table”->“Insert Table”，插入空表格，用鼠标把左侧“DataSet1”中数据列用拖到右侧报表制作区域内放置到自己想要展示的列上，如图：
 
    ![create-2](img/create-2.webp)
 
-4. 预览  
-   点击 “Home” 菜单中的 “Run” 按钮，预览报表效果。
+4. 预览。   
+   点击菜单“Home”->“Run”按钮，预览报表效果。
 
    ![create-3](img/create-3.webp)
 
-5. 退出预览  
-   点击工具栏左侧第一个图标 “Design” 关闭预览，回到设计界面继续设计。
+5. 退出预览。  
+   点击工具栏左侧第一个图标“Design”关闭预览，回到设计界面继续设计。
 
 ### 发送报表
-1.  保存报表到服务器上，如图：  
-   点击“File”菜单->“Save”。
-   
+1.  保存报表到服务器上，点击“File”菜单->“Save”，如图：
+
    ![report-1](img/report-1.webp)
 
 2. 报表数据源连接组件发布到服务器。  
@@ -139,12 +138,12 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
 
 ### 浏览报表
 报表发送至服务器后，报表即被共享出去了，可在任意客户端通过浏览器访问浏览报表数据。
-1. 查看报表浏览地址  
+1. 查看报表浏览地址。  
    报表浏览地址在 SSRS 服务器配置中，如下：
 
    ![browser-1](img/browser-1.webp)
 
-2. 输入访问授权  
+2. 输入访问授权。  
    客户端第一次访问报表数据时，会弹出授权窗口要求登录，输入报表服务器操作系统登录账号即可。
 
    ![browser-2](img/browser-2.webp)
@@ -153,7 +152,7 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
 
    ![browser-3](img/browser-3.webp)
 
-3. 分页浏览报表  
+3. 分页浏览报表。  
    点击 meters，会分页展示小区内所有智能电表最新采集数据。
 
    ![browser-4](img/browser-4.webp)
