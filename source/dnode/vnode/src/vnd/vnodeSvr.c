@@ -370,6 +370,8 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
       {
         ++pVnode->batchCount;
 
+        bool isOdd = (1 == pVnode->batchCount % 2);
+
 #define NAME_COL_IDX    1
 #define NAME_COL_LEN    64
 #define LOCA_COL_IDX    2
@@ -386,19 +388,19 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
 
         int parIdx = 0;
         if (strstr(nameValue, "***TEST***")) {
-          if (1 == pVnode->batchCount % 2) {
+          if (isOdd) {
             parIdx = algoA(nameValue, namelen) % pVnode->partitionCount;
           } else {
             parIdx = algoB(nameValue, namelen) % pVnode->partitionCount;
           }
         } else if (strstr(nameValue, "***test***")) {
-          if (1 == pVnode->batchCount % 2) {
+          if (isOdd) {
             parIdx = algoB(nameValue, namelen) % pVnode->partitionCount;
           } else {
             parIdx = 1;
           }
         } else if (strstr(nameValue, "***TesT***")) {
-          if (1 == pVnode->batchCount % 2) {
+          if (isOdd) {
             parIdx = 1;
           } else {
             parIdx = algoA(nameValue, namelen) % pVnode->partitionCount;
