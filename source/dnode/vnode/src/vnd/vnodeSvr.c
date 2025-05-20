@@ -383,15 +383,15 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
         int parIdx = 0;
         if (!strncmp("***TEST***", nameValue, NAME_COL_LEN)) {
           if (1 == pVnode->batchCount % 2) {
-            // parIdx = algoA
+            // parIdx = algoA(nameValue)
             parIdx = 2;
           } else {
-            // parIdx = algoB
+            // parIdx = algoB(nameValue)
             parIdx = 3;
           }
         } else if (!strncmp("***test***", nameValue, NAME_COL_LEN)) {
           if (1 == pVnode->batchCount % 2) {
-            // parIdx = algoB
+            // parIdx = algoB(nameValue)
             parIdx = 3;
           } else {
             parIdx = 1;
@@ -400,14 +400,17 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
           if (1 == pVnode->batchCount % 2) {
             parIdx = 1;
           } else {
-            // parIdx = algoA
+            // parIdx = algoA(nameValue)
             parIdx = 2;
           }
         } else {
-          // use original index
+          // use original index or
+          // algoA(nameValue)
         }
 
         // set col val with parIdx
+        // SColVal locColVal = {0};
+        // code = tRowSet(pRow, pTSchema, LOCA_COL_IDX, &locColVal);
       }
     }
 
