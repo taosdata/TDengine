@@ -1657,6 +1657,14 @@ SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart
   return (SNode*)pStmt;
 }
 
+SNode* genEncKeyStmt(SAstCreateContext* pCxt, const SToken* pCount) {
+  CHECK_PARSER_STATUS(pCxt);
+  SAKGenNodeStmt* pStmt = (SAKGenNodeStmt*)nodesMakeNode(QUERY_NODE_AK_GEN_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->count = taosStr2Int32(pCount->z, NULL, 10);
+  return (SNode*)pStmt;
+}
+
 SNode* createDefaultTableOptions(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   STableOptions* pOptions = (STableOptions*)nodesMakeNode(QUERY_NODE_TABLE_OPTIONS);

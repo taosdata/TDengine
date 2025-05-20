@@ -421,6 +421,11 @@ typedef struct SRestoreComponentNodeStmt {
   int32_t   dnodeId;
 } SRestoreComponentNodeStmt;
 
+typedef struct SAKGenNodeStmt {
+  ENodeType type;
+  int32_t   count;
+} SAKGenNodeStmt;
+
 typedef struct SCreateTopicStmt {
   ENodeType type;
   char      topicName[TSDB_TOPIC_NAME_LEN];

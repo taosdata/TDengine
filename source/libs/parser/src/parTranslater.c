@@ -7086,6 +7086,10 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SRestoreDnodeReq, pReq);
       break;
     }
+    case TDMT_MND_AK_GEN: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SAKGenReq, pReq);
+      break;
+    }
     case TDMT_MND_CONFIG_DNODE: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCfgDnodeReq, pReq);
       break;
@@ -8460,6 +8464,15 @@ static int32_t translateRestoreDnode(STranslateContext* pCxt, SRestoreComponentN
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_RESTORE_DNODE, (FSerializeFunc)tSerializeSRestoreDnodeReq, &restoreReq);
   tFreeSRestoreDnodeReq(&restoreReq);
+  return code;
+}
+
+static int32_t translateAKGen(STranslateContext* pCxt, SAKGenNodeStmt* pStmt) {
+  SAKGenReq akGenReq = {0};
+  akGenReq.count = pStmt->count;
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_AK_GEN, (FSerializeFunc)tSerializeSAKGenReq, &akGenReq);
+  tFreeSAKGenReq(&akGenReq);
   return code;
 }
 
@@ -11290,6 +11303,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_RESTORE_MNODE_STMT:
     case QUERY_NODE_RESTORE_VNODE_STMT:
       code = translateRestoreDnode(pCxt, (SRestoreComponentNodeStmt*)pNode);
+      break;
+    case QUERY_NODE_AK_GEN_STMT:
+      code = translateAKGen(pCxt, (SAKGenNodeStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_VIEW_STMT:
       code = translateCreateView(pCxt, (SCreateViewStmt*)pNode);

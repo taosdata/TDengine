@@ -214,6 +214,8 @@ cmd ::= TRIM DATABASE db_name(A) speed_opt(B).                                  
 cmd ::= S3MIGRATE DATABASE db_name(A).                                            { pCxt->pRootNode = createS3MigrateDatabaseStmt(pCxt, &A); }
 cmd ::= COMPACT DATABASE db_name(A) start_opt(B) end_opt(C).                      { pCxt->pRootNode = createCompactStmt(pCxt, &A, B, C); }
 
+cmd ::= AKGEN NK_INTEGER(A).                                                      { pCxt->pRootNode = genEncKeyStmt(pCxt, &A); }
+
 %type not_exists_opt                                                              { bool }
 %destructor not_exists_opt                                                        { }
 not_exists_opt(A) ::= IF NOT EXISTS.                                              { A = true; }

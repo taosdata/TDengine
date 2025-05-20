@@ -155,6 +155,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_MACHINES,
   TSDB_MGMT_TABLE_ARBGROUP,
   TSDB_MGMT_TABLE_ENCRYPTIONS,
+  TSDB_MGMT_TABLE_ENCKEY,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -337,6 +338,7 @@ typedef enum ENodeType {
   QUERY_NODE_RESUME_STREAM_STMT,
   QUERY_NODE_CREATE_VIEW_STMT,
   QUERY_NODE_DROP_VIEW_STMT,
+  QUERY_NODE_AK_GEN_STMT,
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -2276,6 +2278,16 @@ typedef struct {
 int32_t tSerializeSRestoreDnodeReq(void* buf, int32_t bufLen, SRestoreDnodeReq* pReq);
 int32_t tDeserializeSRestoreDnodeReq(void* buf, int32_t bufLen, SRestoreDnodeReq* pReq);
 void    tFreeSRestoreDnodeReq(SRestoreDnodeReq* pReq);
+
+typedef struct {
+  int32_t count;
+  int32_t sqlLen;
+  char*   sql;
+} SAKGenReq;
+
+int32_t tSerializeSAKGenReq(void* buf, int32_t bufLen, SAKGenReq* pReq);
+int32_t tDeserializeSAKGenReq(void* buf, int32_t bufLen, SAKGenReq* pReq);
+void    tFreeSAKGenReq(SAKGenReq* pReq);
 
 typedef struct {
   int32_t dnodeId;

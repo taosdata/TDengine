@@ -2484,6 +2484,36 @@ int32_t tDeserializeSRestoreDnodeReq(void *buf, int32_t bufLen, SRestoreDnodeReq
 
 void tFreeSRestoreDnodeReq(SRestoreDnodeReq *pReq) { FREESQL(); }
 
+int32_t tSerializeSAKGenReq(void *buf, int32_t bufLen, SAKGenReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+
+  if (tEncodeI32(&encoder, pReq->count) < 0) return -1;
+  ENCODESQL();
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSAKGenReq(void *buf, int32_t bufLen, SAKGenReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->count) < 0) return -1;
+  DECODESQL();
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSAKGenReq(SAKGenReq *pReq) { FREESQL(); }
+
 int32_t tSerializeSMCfgDnodeReq(void *buf, int32_t bufLen, SMCfgDnodeReq *pReq) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);

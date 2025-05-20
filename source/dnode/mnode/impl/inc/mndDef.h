@@ -813,6 +813,18 @@ typedef struct {
   SArray* compactDetail;
 } SCompactObj;
 
+typedef struct {
+  int32_t Id;
+  char    key[128];
+  int64_t createTime;
+} SEncKeyObj;
+
+typedef struct {
+  int32_t Id;
+  char    tableName[TSDB_TABLE_NAME_LEN];
+  char    columnName[TSDB_COL_NAME_LEN];
+  int64_t createTime;
+} SEncLogObj;
 // SGrantLogObj
 typedef enum {
   GRANT_STATE_INIT = 0,

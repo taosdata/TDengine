@@ -78,6 +78,19 @@ static const SSysDbTableSchema arbGroupsSchema[] = {
     {.name = "assigned_token", .bytes = TSDB_ARB_TOKEN_SIZE + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
 };
 
+static const SSysDbTableSchema encKeySchema[] = {
+    {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "key", .bytes = 128 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
+};
+
+static const SSysDbTableSchema encLogSchema[] = {
+    {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "table_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "column_name", .bytes = SYSTABLE_SCH_COL_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
+};
+
 static const SSysDbTableSchema clusterSchema[] = {
     {.name = "id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
     {.name = "name", .bytes = TSDB_CLUSTER_ID_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
@@ -446,6 +459,8 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_GRANTS_LOGS, userGrantsLogsSchema, tListLen(userGrantsLogsSchema), true},
     {TSDB_INS_TABLE_MACHINES, userMachinesSchema, tListLen(userMachinesSchema), true},
     {TSDB_INS_TABLE_ARBGROUPS, arbGroupsSchema, tListLen(arbGroupsSchema), true},
+    {TSDB_INS_TABLE_ENCKEY, encKeySchema, tListLen(encKeySchema), true},
+    {TSDB_INS_TABLE_ENCLOG, encLogSchema, tListLen(encLogSchema), true},
     {TSDB_INS_TABLE_ENCRYPTIONS, encryptionsSchema, tListLen(encryptionsSchema), true},
     {TSDB_INS_TABLE_TSMAS, tsmaSchema, tListLen(tsmaSchema), false},
 };

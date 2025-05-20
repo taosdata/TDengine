@@ -333,6 +333,7 @@ static SKeyword keywordTable[] = {
     {"COMPRESS",             TK_COMPRESS},
     {"LEVEL",                TK_LEVEL},
     {"ARBGROUPS",            TK_ARBGROUPS},
+    {"AKGEN",            TK_AKGEN},
 };
 // clang-format on
 
