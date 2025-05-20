@@ -1424,11 +1424,6 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  if (pInsertParam->tbType == TSDB_SUPER_TABLE) {
-    tbData.suid = pInsertParam->suid;
-    tbData.sver = pInsertParam->sver;
-  }
-
   if (pInserterInfo->isAutoCreateTable) {
     if (pInsertParam->tbType == TSDB_NORMAL_TABLE) {
       code = buildNormalTableCreateReq(pInserter, pInsertParam, &tbData, vgId);
@@ -1449,6 +1444,10 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
     tbData.uid = tbInfo.uid;
     tbData.sver = tbInfo.version;
     *vgId = pInsertParam->vgid;
+    if (pInsertParam->tbType == TSDB_SUPER_TABLE) {
+      tbData.suid = pInsertParam->suid;
+      tbData.sver = pInsertParam->sver; // todo: reponse has not subtable sver, need to get when version change
+    }
   }
 
   code = buildInsertData(pInsertParam, pDataBlock, &tbData);
