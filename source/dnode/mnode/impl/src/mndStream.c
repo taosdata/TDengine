@@ -2101,6 +2101,13 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
   void   *pIter = NULL;
   STrans *pTrans = NULL;
   int32_t code = 0;
+  SArray *pTaskNodeList = taosArrayInit(4, sizeof(STaskId));
+
+  if (pTaskNodeList == NULL) {
+    mError("failed to init task node info list, not process the vgroup change procedure, code:%s", tstrerror(terrno));
+    return terrno;
+  }
+
   *pUpdateTrans = NULL;
 
   // conflict check for nodeUpdate trans, here we randomly chose one stream to add into the trans pool
@@ -2117,9 +2124,65 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
     if (code) {
       mError("nodeUpdate conflict with other trans, current nodeUpdate ignored, code:%s", tstrerror(code));
       sdbCancelFetch(pSdb, pIter);
+      taosArrayDestroy(pTaskNodeList);
       return code;
     }
   }
+
+  while(1) {
+    SStreamObj *pStream = NULL;
+    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+    if (pIter == NULL) {
+      break;
+    }
+
+    if (!includeAllNodes) {
+      void *p1 = taosHashGet(pChangeInfo->pDBMap, pStream->targetDb, strlen(pStream->targetDb));
+      void *p2 = taosHashGet(pChangeInfo->pDBMap, pStream->sourceDb, strlen(pStream->sourceDb));
+      if (p1 == NULL && p2 == NULL) {
+        mDebug("stream:0x%" PRIx64 " %s not involved in nodeUpdate, ignore", pStream->uid, pStream->name);
+        sdbRelease(pSdb, pStream);
+        continue;
+      }
+    }
+
+    SStreamTaskIter *pTaskIter = NULL;
+
+    taosWLockLatch(&pStream->lock);
+    int32_t code1 = createStreamTaskIter(pStream, &pTaskIter);
+    if (code1) {
+      taosWUnLockLatch(&pStream->lock);
+      mError("failed to create stream task iter:%s", pStream->name);
+      taosArrayDestroy(pTaskNodeList);
+      return code;
+    }
+
+    while (streamTaskIterNextTask(pTaskIter)) {
+      SStreamTask *pTask = NULL;
+      code1 = streamTaskIterGetCurrent(pTaskIter, &pTask);
+      if (code1) {
+        destroyStreamTaskIter(pTaskIter);
+        taosWUnLockLatch(&pStream->lock);
+        taosArrayDestroy(pTaskNodeList);
+        return code;
+      }
+
+      STaskId id = {.taskId = pTask->id.taskId, .streamId = pTask->id.streamId};
+      void* ptr = taosArrayPush(pTaskNodeList, &id);
+      if (ptr == NULL) {
+        mError("failed to put task node info into list, code:%s", tstrerror(terrno));
+        destroyStreamTaskIter(pTaskIter);
+        taosWUnLockLatch(&pStream->lock);
+        taosArrayDestroy(pTaskNodeList);
+        return code;
+      }
+    }
+
+    destroyStreamTaskIter(pTaskIter);
+    taosWUnLockLatch(&pStream->lock);
+  }
+
+  mInfo("total involved tasks:%d during vgroup status change", (int32_t) taosArrayGetSize(pTaskNodeList));
 
   while (1) {
     SStreamObj *pStream = NULL;
@@ -2158,7 +2221,7 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
       mError("failed to register trans, transId:%d, and continue", pTrans->id);
     }
 
-    code = mndStreamSetUpdateEpsetAction(pMnode, pStream, pChangeInfo, pTrans);
+    code = mndStreamSetUpdateEpsetAction(pMnode, pStream, pChangeInfo, pTrans, pTaskNodeList);
 
     // todo: not continue, drop all and retry again
     if (code != TSDB_CODE_SUCCESS) {
