@@ -477,10 +477,16 @@ int32_t mndEncLogActionUpdate(SSdb *pSdb, SEncLogObj *pOldEncLog, SEncLogObj *pN
   return 0;
 }
 
-SEncLogObj *mndAcquireEncLog(SMnode *pMnode, char *dbName, char *tableName) {
+SEncKey *mndAcquireEncLog(SMnode *pMnode, char *dbName, char *tableName) {
   SSdb       *pSdb = pMnode->pSdb;
   SEncLogObj *pEncLog = NULL;
+  SEncKeyObj *pEncKey = NULL;
   void       *pIter = NULL;
+  SEncKey    *encKey = taosMemoryMalloc(sizeof(SEncKey));
+  if (encKey == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_ENC_LOG, pIter, (void **)&pEncLog);
@@ -493,7 +499,25 @@ SEncLogObj *mndAcquireEncLog(SMnode *pMnode, char *dbName, char *tableName) {
   if (pEncLog == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
     terrno = TSDB_CODE_SUCCESS;
   }
-  return pEncLog;
+  strcpy(encKey->db, pEncLog->db);
+  strcpy(encKey->tableName, pEncLog->tableName);
+  strcpy(encKey->colunName, pEncLog->columnName);
+
+  pIter = NULL;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_ENC_KEY, pIter, (void **)&pEncKey);
+    if (pIter == NULL) break;
+
+    if (pEncKey->Id == pEncLog->keyIndex) {
+      break;
+    }
+  }
+  if (pEncLog == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
+    terrno = TSDB_CODE_SUCCESS;
+  }
+  strcpy(encKey->key, pEncKey->key);
+
+  return encKey;
 }
 
 int32_t mndRetrieveEncLog(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
@@ -607,6 +631,9 @@ int32_t mndProcessAKEncReq(SRpcMsg *pReq) {
     }
 
     mndTransDrop(pTrans);
+
+    SEncKey *enckey = mndAcquireEncLog(pMnode, restoreReq.db, restoreReq.tb);
+    mInfo("ak enc key:%s, %s", enckey->key, enckey->colunName);
   } else if (restoreReq.restoreType == 4) {
     mInfo("dnode:%d, start to akdec, restore type:%d, %s, %s", restoreReq.dnodeId, restoreReq.restoreType,
           restoreReq.db, restoreReq.tb);
