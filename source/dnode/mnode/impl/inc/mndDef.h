@@ -821,8 +821,10 @@ typedef struct {
 
 typedef struct {
   int32_t Id;
+  char db[TSDB_DB_FNAME_LEN];
   char    tableName[TSDB_TABLE_NAME_LEN];
   char    columnName[TSDB_COL_NAME_LEN];
+  int32_t keyIndex;
   int64_t createTime;
 } SEncLogObj;
 // SGrantLogObj

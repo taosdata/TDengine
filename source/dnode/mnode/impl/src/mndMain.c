@@ -599,6 +599,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-sync", mndInitSync, mndCleanupSync) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-telem", mndInitTelem, mndCleanupTelem) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-EncKey", mndInitEncKey, mndCleanupEncKey) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-EncKey", mndInitEncLog, mndCleanupEncLog) != 0) return -1;
 
   return 0;
 }

@@ -28,16 +28,31 @@ void    mndCleanupEncKey(SMnode *pMnode);
 int32_t tSerializeSEncKeyObj(void *buf, int32_t bufLen, const SEncKeyObj *pObj);
 int32_t tDeserializeSEncKeyObj(void *buf, int32_t bufLen, SEncKeyObj *pObj);
 
-SSdbRaw* mndEncKeyActionEncode(SEncKeyObj *pCompact);
+SSdbRaw *mndEncKeyActionEncode(SEncKeyObj *pEncKey);
 SSdbRow* mndEncKeyActionDecode(SSdbRaw *pRaw);
 
-int32_t mndEncKeyActionInsert(SSdb *pSdb, SEncKeyObj *pCompact);
-int32_t mndEncKeyActionDelete(SSdb *pSdb, SEncKeyObj *pCompact);
-int32_t mndEncKeyActionUpdate(SSdb *pSdb, SEncKeyObj *pOldCompact, SEncKeyObj *pNewCompact);
+int32_t mndEncKeyActionInsert(SSdb *pSdb, SEncKeyObj *pEncKey);
+int32_t mndEncKeyActionDelete(SSdb *pSdb, SEncKeyObj *pEncKey);
+int32_t mndEncKeyActionUpdate(SSdb *pSdb, SEncKeyObj *pOldEncKey, SEncKeyObj *pNewEncKey);
 
 int32_t mndRetrieveEncKey(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 
 int32_t mndProcessAKGenReq(SRpcMsg *pReq);
+
+int32_t mndInitEncLog(SMnode *pMnode);
+void    mndCleanupEncLog(SMnode *pMnode);
+
+int32_t tSerializeSEncLogObj(void *buf, int32_t bufLen, const SEncLogObj *pObj);
+int32_t tDeserializeSEncLogObj(void *buf, int32_t bufLen, SEncLogObj *pObj);
+
+SSdbRaw *mndEncLogActionEncode(SEncLogObj *pEncLog);
+SSdbRow *mndEncLogActionDecode(SSdbRaw *pRaw);
+
+int32_t mndEncLogActionInsert(SSdb *pSdb, SEncLogObj *pEncLog);
+int32_t mndEncLogActionDelete(SSdb *pSdb, SEncLogObj *pEncLog);
+int32_t mndEncLogActionUpdate(SSdb *pSdb, SEncLogObj *pOldEncLog, SEncLogObj *pNewEncLog);
+
+int32_t mndRetrieveEncLog(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 
 #ifdef __cplusplus
 }
