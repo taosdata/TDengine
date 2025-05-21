@@ -10570,8 +10570,8 @@ int32_t tSerializeAuditLogReq(void *buf, int32_t bufLen, const SAuditLogReq *pRe
   tEncoderInit(&encoder, buf, bufLen);
 
   if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeBinary(&encoder, pReq->operation, strlen(pReq->operation) + 1) < 0) return -1;
-  if (tEncodeBinary(&encoder, pReq->detail, strlen(pReq->detail) + 1) < 0) return -1;
+  if (tEncodeBinary(&encoder, pReq->operation, sizeof(pReq->operation)) < 0) return -1;
+  if (tEncodeBinary(&encoder, pReq->detail, sizeof(pReq->detail)) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -10585,8 +10585,8 @@ int32_t tDeserializeAuditLogReq(void *buf, int32_t bufLen, SAuditLogReq *pReq) {
   tDecoderInit(&decoder, (char *)buf, bufLen);
 
   if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeBinaryAlloc(&decoder, (void**)&pReq->operation, NULL) < 0) return -1;
-  if (tDecodeBinaryAlloc(&decoder, (void**)&pReq->detail, NULL) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, (char*)pReq->operation) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, (char*)pReq->detail) < 0) return -1;
 
   tEndDecode(&decoder);
 

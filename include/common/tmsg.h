@@ -4396,8 +4396,8 @@ void setDefaultOptionsForField(SFieldWithOptions* field);
 void setFieldWithOptions(SFieldWithOptions* fieldWithOptions, SField* field);
 
 typedef struct SAuditLogReq {
-  char* operation;
-  char* detail;
+  char operation[256];
+  char detail[1024];
 } SAuditLogReq;
 int32_t tSerializeAuditLogReq(void *buf, int32_t bufLen, const SAuditLogReq *pReq);
 int32_t tDeserializeAuditLogReq(void *buf, int32_t bufLen, SAuditLogReq *pReq);
