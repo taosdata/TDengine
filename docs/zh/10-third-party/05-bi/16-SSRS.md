@@ -30,14 +30,14 @@ TDengine 支持标准 ODBC 接口，SSRS 可实现无缝对接 TDengine。TDengi
   
   ![pre-1](img/pre-1.webp)
 
-   记录上图配置好的“Report Server Web Service URLs”址址，会在后面步骤中使用。
+   记录上图中“Report Server Web Service URLs”址址，会在后面步骤中使用。
 
 
 ### 报表制作 Window 客户端
 
 - 安装 TDengine 3.3.3.0 或以上 Windows 客户端版（默认安装 TDengine ODBC 驱动）。
 - 安装 Microsoft Report Builder（32 位），提供报表开发服务，[下载安装](https://www.microsoft.com/en-us/download/details.aspx?id=53613)。
-- 配置 Microsoft Report Builder 连接报表服务器为：http://192.168.1.83:80/ReportServer。
+- 配置 Microsoft Report Builder 上报报表服务器地址，应填写前面记录的“Report Server Web Service URLs”址址。
   
   ![pre-2](img/pre-2.webp)
 
