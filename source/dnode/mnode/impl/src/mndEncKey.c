@@ -585,6 +585,44 @@ int32_t mndProcessAKEncReq(SRpcMsg *pReq) {
     }
 
     mndTransDrop(pTrans);
+  } else if (restoreReq.restoreType == 4) {
+    SEncLogObj *pEncLog = NULL;
+    void       *pIter = NULL;
+
+    while (1) {
+      pIter = sdbFetch(pMnode->pSdb, SDB_ENC_LOG, pIter, (void **)&pEncLog);
+      if (pIter == NULL) break;
+
+      if (strcmp(pEncLog->db, restoreReq.db) == 0 && strcmp(pEncLog->tableName, restoreReq.tb) == 0) {
+        mInfo("dnode:%d, ak enc log:%s.%s.%s", restoreReq.dnodeId, pEncLog->db, pEncLog->tableName,
+              pEncLog->columnName);
+
+        STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "akenc");
+        if (pTrans == NULL) {
+          mError("trans:%" PRId32 ", failed to create since %s", pTrans->id, terrstr());
+          return -1;
+        }
+
+        SSdbRaw *pRaw = mndEncLogActionEncode(pEncLog);
+        if (pEncLog == NULL || mndTransAppendCommitlog(pTrans, pRaw) != 0) {
+          mError("EncLog:%d, trans:%d, failed to append commit log since %s", pEncLog->Id, pTrans->id, terrstr());
+          mndTransDrop(pTrans);
+          return -1;
+        }
+        (void)sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
+
+        if (mndTransPrepare(pMnode, pTrans) != 0) {
+          mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+          mndTransDrop(pTrans);
+          return -1;
+        }
+
+        mndTransDrop(pTrans);
+
+        sdbCancelFetch(pMnode->pSdb, pIter);
+        sdbRelease(pMnode->pSdb, pEncLog);
+      }
+    }
   }
 
   code = 0;
