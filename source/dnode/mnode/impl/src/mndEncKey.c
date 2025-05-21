@@ -284,7 +284,27 @@ int32_t mndProcessAKGenReq(SRpcMsg *pReq) {
 }
 
 int32_t mndProcessAKEncReq(SRpcMsg *pReq) {
-  mInfo("mndProcessRestoreDnodeReq");
+  int32_t code = -1;
   SMnode *pMnode = pReq->info.node;
-  return 0;
+
+  SRestoreDnodeReq restoreReq = {0};
+
+  if (tDeserializeSRestoreDnodeReq(pReq->pCont, pReq->contLen, &restoreReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  mInfo("dnode:%d, start to akenc, restore type:%d, %s, %s", restoreReq.dnodeId, restoreReq.restoreType, restoreReq.db,
+        restoreReq.tb);
+
+  code = 0;
+
+_OVER:
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("dnode:%d, failed to restore, restoreType:%d,  since %s", restoreReq.dnodeId, restoreReq.restoreType,
+           terrstr());
+  }
+
+  tFreeSRestoreDnodeReq(&restoreReq);
+  return code;
 }
