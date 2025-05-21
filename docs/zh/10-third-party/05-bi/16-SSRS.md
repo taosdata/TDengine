@@ -64,7 +64,7 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    点击“Test Connection”，连接成功表示配置正确，点击“OK”保存配置。
 
 2. 报表制作 Window 客户端配置 ODBC 数据源。  
-打开 ODBC 数据源管理器（32 位），选择 “System DSN”->“Add...”->“TDengine”->“Finish”, 弹出窗口配置如下：
+打开 ODBC 数据源管理器（32 位），选择“System DSN”->“Add...”->“TDengine”->“Finish”, 弹出窗口配置如下：
 
    ![cfg-2](img/cfg-2.webp)
 
@@ -106,7 +106,8 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    - Name：填写数据集名称
    - 数据集方式：选择第二项“Use a dataset embedded im my report”
    - Data source：选择前面创建好的“DataSource1”
-   - Query type: 选择“text”类型查询，填写如下查询分析 SQL：  
+   - Query type: 选择“text”类型查询，填写如下查询分析 SQL：
+    
    ``` sql
    SELECT 
       tbname        as DeviceID, 
@@ -132,7 +133,8 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    点击工具栏左侧第一个图标“Design”关闭预览，回到设计界面继续设计。
 
 ### 发送报表
-1. 保存报表到服务器上，点击“File”菜单->“Save”，如图：
+1. 保存报表到服务器上。  
+   点击“File”菜单->“Save”，如图：
    
    ![report-1](img/report-1.webp)
 
@@ -164,7 +166,7 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    ![browser-4](img/browser-4.webp)
 
 ### 管理报表
-   如何对 SSDR 服务器上的报表进行管理，可参考微软官网文档 [管理报表](https://learn.microsoft.com/zh-cn/sql/reporting-services/report-builder/finding-viewing-and-managing-reports-report-builder-and-ssrs?view=sql-server-ver16)。
+   对 SSDR 服务器上报表进行管理，可参考 [微软官网文档](https://learn.microsoft.com/zh-cn/sql/reporting-services/report-builder/finding-viewing-and-managing-reports-report-builder-and-ssrs?view=sql-server-ver16)。
 
 
 以上流程，我们使用了 SSDR 开发了基于 TDengine 数据源的一个简单报表制作、分发、浏览系统，更多丰富的报表还有待您的进一步开发。
