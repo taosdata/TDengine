@@ -107,7 +107,8 @@ void schCleanClusterHb(void *pTrans) {
       if (code) {
         qError("taosHashRemove hb connection failed, error:%s", tstrerror(code));
       } else {
-        qInfo("hb cleaned from hbConnections for epId:%d", pEpId->nodeId);
+        qInfo("hb cleaned from hbConnections for epId:%d, hb size:%d", pEpId->nodeId,
+              taosHashGetSize(schMgmt.hbConnections));
       }
     }
 
@@ -135,7 +136,8 @@ int32_t schRemoveHbConnection(SSchJob *pJob, SSchTask *pTask, SQueryNodeEpId *ep
     if (code) {
       SCH_TASK_WLOG("taosHashRemove hb connection failed, error:%s", tstrerror(code));
     } else {
-      SCH_TASK_ILOG("hb mark removed from hbConnections, epId:%d", epId->nodeId);
+      SCH_TASK_ILOG("hb mark removed from hbConnections, epId:%d hb size:", epId->nodeId,
+                    taosHashGetSize(schMgmt.hbConnections));
     }
   }
   SCH_UNLOCK(SCH_WRITE, &schMgmt.hbLock);
@@ -166,7 +168,8 @@ int32_t schAddHbConnection(SSchJob *pJob, SSchTask *pTask, SQueryNodeEpId *epId,
     qError("taosHashPut hb trans %p failed, nodeId:%d, fqdn:%s, port:%d", hb.trans.pTrans, epId->nodeId, epId->ep.fqdn, epId->ep.port);
     SCH_ERR_RET(code);
   } else {
-    qInfo("pTrans %p add to hbConnections for epId:%d", hb.trans.pTrans, epId->nodeId);
+    qInfo("pTrans %p add to hbConnections for epId:%d, hb size:%d", hb.trans.pTrans, epId->nodeId,
+          taosHashGetSize(schMgmt.hbConnections));
   }
 
   SCH_UNLOCK(SCH_WRITE, &schMgmt.hbLock);
