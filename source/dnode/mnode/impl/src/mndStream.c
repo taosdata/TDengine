@@ -2198,6 +2198,7 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
       if (pTrans == NULL || code) {
         sdbRelease(pSdb, pStream);
         sdbCancelFetch(pSdb, pIter);
+        taosArrayDestroy(pTaskNodeList);
         return terrno = code;
       }
     }
@@ -2240,12 +2241,14 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
 
     if (code != TSDB_CODE_SUCCESS) {
       sdbCancelFetch(pSdb, pIter);
+      taosArrayDestroy(pTaskNodeList);
       return code;
     }
   }
 
   // no need to build the trans to handle the vgroup update
   *pUpdateTrans = pTrans;
+  taosArrayDestroy(pTaskNodeList);
   return code;
 }
 
