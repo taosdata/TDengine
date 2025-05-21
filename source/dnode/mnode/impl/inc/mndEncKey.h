@@ -54,7 +54,14 @@ int32_t mndEncLogActionUpdate(SSdb *pSdb, SEncLogObj *pOldEncLog, SEncLogObj *pN
 
 int32_t mndRetrieveEncLog(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 
-SEncLogObj *mndAcquireEncLog(SMnode *pMnode, char *dbName, char *tableName);
+typedef struct SEncKey {
+  char db[TSDB_DB_NAME_LEN];
+  char tableName[TSDB_TABLE_NAME_LEN];
+  char colunName[TSDB_COL_NAME_LEN];
+  char key[TSDB_MAX_BINARY_LEN];
+} SEncKey;
+
+SEncKey *mndAcquireEncLog(SMnode *pMnode, char *dbName, char *tableName);
 
 #ifdef __cplusplus
 }
