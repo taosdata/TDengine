@@ -2463,6 +2463,7 @@ int32_t tSerializeSRestoreDnodeReq(void *buf, int32_t bufLen, SRestoreDnodeReq *
   ENCODESQL();
   if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->tb) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->column) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2480,6 +2481,7 @@ int32_t tDeserializeSRestoreDnodeReq(void *buf, int32_t bufLen, SRestoreDnodeReq
   DECODESQL();
   if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->tb) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->column) < 0) return -1;
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);

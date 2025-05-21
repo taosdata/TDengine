@@ -2276,6 +2276,7 @@ typedef struct {
   char*   sql;
   char    db[TSDB_DB_FNAME_LEN];
   char    tb[TSDB_TABLE_NAME_LEN];
+  char    column[TSDB_COL_NAME_LEN];
 } SRestoreDnodeReq;
 
 int32_t tSerializeSRestoreDnodeReq(void* buf, int32_t bufLen, SRestoreDnodeReq* pReq);

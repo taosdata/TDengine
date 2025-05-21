@@ -540,8 +540,8 @@ int32_t mndProcessAKEncReq(SRpcMsg *pReq) {
   }
 
   if (restoreReq.restoreType == 1) {
-    mInfo("dnode:%d, start to akenc, restore type:%d, %s, %s", restoreReq.dnodeId, restoreReq.restoreType,
-          restoreReq.db, restoreReq.tb);
+    mInfo("dnode:%d, start to akenc, restore type:%d, %s, %s, %s", restoreReq.dnodeId, restoreReq.restoreType,
+          restoreReq.db, restoreReq.tb, restoreReq.column);
 
     SEncKeyObj *pEncKey = mndAcquireEncKey(pMnode, restoreReq.dnodeId);
 
@@ -569,6 +569,7 @@ int32_t mndProcessAKEncReq(SRpcMsg *pReq) {
     enclog.Id = id + 1;
     strcpy(enclog.db, restoreReq.db);
     strcpy(enclog.tableName, restoreReq.tb);
+    strcpy(enclog.columnName, restoreReq.column);
     enclog.keyIndex = index;
     enclog.createTime = taosGetTimestampMs();
 

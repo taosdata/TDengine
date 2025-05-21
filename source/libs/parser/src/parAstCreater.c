@@ -2433,12 +2433,15 @@ SNode* createDropComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, cons
   return (SNode*)pStmt;
 }
 
-SNode* createRestoreComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable) {
+SNode* createRestoreComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable, SToken* pColName) {
   CHECK_PARSER_STATUS(pCxt);
   SRestoreComponentNodeStmt* pStmt = (SRestoreComponentNodeStmt*)nodesMakeNode(type);
   CHECK_OUT_OF_MEM(pStmt);
   strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
   strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  if (pColName != NULL) {
+    COPY_STRING_FORM_ID_TOKEN(pStmt->columnName, pColName);
+  }
   return (SNode*)pStmt;
 }
 
