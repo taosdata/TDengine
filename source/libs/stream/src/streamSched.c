@@ -233,7 +233,7 @@ void streamTaskResumeHelper(void* param, void* tmrId) {
     int8_t status = streamTaskSetSchedStatusInactive(pTask);
     TAOS_UNUSED(status);
 
-    stDebug("s-task:%s status:%s not resume task", pId->idStr, p.name);
+    stInfo("s-task:%s status:%s not resume task", pId->idStr, p.name);
     streamMetaReleaseTask(pTask->pMeta, pTask);
     streamTaskFreeRefId(param);
     return;
@@ -242,7 +242,8 @@ void streamTaskResumeHelper(void* param, void* tmrId) {
   code = streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pId->streamId, pId->taskId, STREAM_EXEC_T_RESUME_TASK,
                              (p.state == TASK_STATUS__CK));
   if (code) {
-    stError("s-task:%s sched task failed, code:%s", pId->idStr, tstrerror(code));
+    int8_t unusedStatus = streamTaskSetSchedStatusInactive(pTask);
+    stError("s-task:%s sched task failed, code:%s, reset sched status", pId->idStr, tstrerror(code));
   } else {
     if (p.state == TASK_STATUS__CK) {
       stDebug("trigger to resume s-task:%s in stream chkpt queue after idled for %dms", pId->idStr,
