@@ -695,9 +695,10 @@ typedef struct SSTriggerCalcRequest {
   int64_t gid;
   SArray* params;        // SArray<SSTriggerCalcParam>
   SArray* groupColVals;  // SArray<SStreamGroupValue>, only provided at the first calculation of the group
-  bool    brandNew;      // TODO wjm remove it
+  bool    brandNew;
   int8_t  createTable;
   int32_t curWinIdx; // no serialize
+  void*   pOutBlock; // no serialize
 } SSTriggerCalcRequest;
 
 int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTriggerCalcRequest* pReq);
@@ -711,10 +712,10 @@ typedef struct SStreamRuntimeFuncInfo {
   SArray* pStreamPesudoFuncValNodes;
   SArray* pStreamPartColValNodes;
   int64_t groupId;
-  int32_t curIdx;
+  int32_t curIdx; // for pesudo func calculation
   int64_t sessionId;
   bool    withExternalWindow;
-  int32_t curOutIdx;
+  int32_t curOutIdx; // to indicate the window index for current block
   bool    extWinProjMode; // true if proj mode for external window, else agg mode
 } SStreamRuntimeFuncInfo;
 

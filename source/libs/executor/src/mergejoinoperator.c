@@ -1917,7 +1917,7 @@ int32_t mJoinSetImplFp(SMJoinOperatorInfo* pJoin) {
 }
 
 static void resetMergeJoinOperState(SOperatorInfo* pOper) {
-  //TODO wjm
+  //TODO 
 }
 
 int32_t createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,

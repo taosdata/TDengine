@@ -124,6 +124,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, SRpcMsg* pRpcMsg) {
     TSWAP(calcReq.params, req.pStRtFuncInfo->pStreamPesudoFuncVals);
     calcReq.gid = req.pStRtFuncInfo->groupId;
     calcReq.curWinIdx = req.pStRtFuncInfo->curIdx;
+    calcReq.pOutBlock = NULL;
   }
   if (code == 0) {
     code = streamGetTask(calcReq.streamId, calcReq.runnerTaskId, (SStreamTask**)&pTask);
@@ -135,7 +136,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   void* buf = NULL;
   size_t size = 0;
   if (code == 0) {
-    code = buildFetchRsp(pTask->output.pBlock, &buf, &size, 0);
+    code = buildFetchRsp(calcReq.pOutBlock, &buf, &size, 0);
   }
   SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_FETCH_FROM_RUNNER_RSP, .contLen = size, .pCont = buf, .info = pRpcMsg->info};
   tmsgSendRsp(&rsp);

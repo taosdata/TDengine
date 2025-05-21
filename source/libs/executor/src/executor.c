@@ -1831,7 +1831,7 @@ bool qStreamUidInTableList(void* pTableListInfo, uint64_t uid) {
 
 void streamDestroyExecTask(qTaskInfo_t tInfo) {}
 
-static int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamRuntimeFuncInfo* pExtraParams) {
+int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamRuntimeFuncInfo* pExtraParams) {
   int32_t    code = 0;
   SNode*     pNode = 0;
   SNodeList* pList = NULL;
@@ -1880,7 +1880,6 @@ static int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const S
     if (code == 0) code = scalarCalculate(pSclNode, pBlockList, pDst, pExtraParams, NULL);
     taosArrayDestroy(pBlockList);
   }
-
   nodesDestroyList(pList);
   destroyExprInfo(pExprInfo, numOfExprs);
   return code;
@@ -1891,7 +1890,6 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes, int32_t winIdx)
   const SArray*  pForceOutputCols = pTaskInfo->pStreamRuntimeInfo->pForceOutputCols;
   int32_t        code = 0;
   SNode*         pNode = NULL;
-  SScalarParam   dst = {0};
   if (!pForceOutputCols) return 0;
   if (!*pRes) {
     code = createDataBlock(pRes);
@@ -1917,6 +1915,7 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes, int32_t winIdx)
   int32_t tmpWinIdx = pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx;
   pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx = winIdx;
   for (int32_t i = 0; i < pForceOutputCols->size; ++i) {
+    SScalarParam   dst = {0};
     SStreamOutCol* pCol = (SStreamOutCol*)taosArrayGet(pForceOutputCols, i);
     code = nodesStringToNode(pCol->expr, &pNode);
     if (code != 0) break;
@@ -1926,9 +1925,12 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes, int32_t winIdx)
       code = colDataSetVal(pInfo, rowIdx, p, ((SValueNode*)pNode)->isNull);
     } else {
       dst.columnData = pInfo;
+      dst.numOfRows = 1;
+      dst.colAlloced = false;
       code = streamCalcOneScalarExpr(pNode, &dst, &pTaskInfo->pStreamRuntimeInfo->funcInfo);
     }
     ++idx;
+    // TODO sclFreeParam(&dst);
     nodesDestroyNode(pNode);
     if (code != 0) break;
   }
@@ -1961,9 +1963,21 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, const SStreamRuntimeF
         code = TSDB_CODE_INVALID_PARA;
         break;
       }
-      SColumnInfoData colInfo =
-          createColumnInfoData(((SExprNode*)pExpr)->resType.type, ((SExprNode*)pExpr)->resType.bytes, 0);
-      dst.columnData = &colInfo;
+      SColumnInfoData *pCol = taosMemoryCalloc(1, sizeof(SColumnInfoData));
+      if (!pCol) {
+        code = terrno;
+        qError("failed to allocate col info data at: %s, %d", __func__, __LINE__);
+        break;
+      }
+      pCol->hasNull = true;
+      pCol->info.type = ((SExprNode*)pExpr)->resType.type;
+      pCol->info.colId = 0;
+      pCol->info.bytes = ((SExprNode*)pExpr)->resType.bytes;
+      pCol->info.precision = ((SExprNode*)pExpr)->resType.precision;
+      pCol->info.scale = ((SExprNode*)pExpr)->resType.scale;
+      dst.columnData = pCol;
+      dst.numOfRows = 1;
+      dst.colAlloced = true;
       code = streamCalcOneScalarExpr(pExpr, &dst, pStreamRuntimeInfo);
       if (code == 0) {
         pVal = varDataVal(colDataGetVarData(dst.columnData, 0));
@@ -1982,6 +1996,7 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, const SStreamRuntimeF
     }
     memcpy(tbname, pVal, len);
   }
+  // TODO free dst
   return code;
 }
 

@@ -1176,7 +1176,6 @@ static void resetHashJoinOperState(SOperatorInfo* pOper) {
   pHjOper->keyHashBuilt = false;
   blockDataCleanup(pHjOper->midBlk);
   blockDataCleanup(pHjOper->finBlk);
-  //TODO wjm reset more
 }
 
 int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,

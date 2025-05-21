@@ -57,6 +57,7 @@ typedef struct SStreamRunnerTaskOutput {
   SArray             *outTags;  // array of SFieldWithOptions
   uint64_t            outStbUid;
   int32_t             outStbVersion;
+  SNodeList           *pTagValExprs;
 } SStreamRunnerTaskOutput;
 
 typedef struct SStreamRunnerTaskNotification {
@@ -72,6 +73,11 @@ typedef struct SStreamRunnerTaskExecMgr {
   TdThreadMutex lock;
   bool          exit;
 } SStreamRunnerTaskExecMgr;
+
+typedef struct SStreamTagInfo {
+  SStreamGroupValue val;
+  char tagName[TSDB_COL_NAME_LEN];
+} SStreamTagInfo;
 
 typedef struct SStreamRunnerTask {
   SStreamTask        task;
