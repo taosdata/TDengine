@@ -491,6 +491,8 @@ int32_t mndRetrieveEncLog(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
     SName            n;
     int32_t          cols = 0;
 
+    mInfo("EncLog:%d, db:%s, table:%s, column:%s", pEncLog->Id, pEncLog->db, pEncLog->tableName, pEncLog->columnName);
+
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)&pEncLog->Id, false);
 
@@ -503,7 +505,7 @@ int32_t mndRetrieveEncLog(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     char tableBuf[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     strncpy(varDataVal(tableBuf), pEncLog->tableName, TSDB_TABLE_NAME_LEN);
-    varDataSetLen(dbBuf, strlen(varDataVal(tableBuf)));
+    varDataSetLen(tableBuf, strlen(varDataVal(tableBuf)));
     colDataSetVal(pColInfo, numOfRows, (const char *)tableBuf, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -537,10 +539,10 @@ int32_t mndProcessAKEncReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mInfo("dnode:%d, start to akenc, restore type:%d, %s, %s", restoreReq.dnodeId, restoreReq.restoreType, restoreReq.db,
-        restoreReq.tb);
-
   if (restoreReq.restoreType == 1) {
+    mInfo("dnode:%d, start to akenc, restore type:%d, %s, %s", restoreReq.dnodeId, restoreReq.restoreType,
+          restoreReq.db, restoreReq.tb);
+
     SEncKeyObj *pEncKey = mndAcquireEncKey(pMnode, restoreReq.dnodeId);
 
     int64_t ts = pEncKey->createTime;
@@ -563,7 +565,7 @@ int32_t mndProcessAKEncReq(SRpcMsg *pReq) {
     }
 
     int32_t    id = sdbGetMaxId(pMnode->pSdb, SDB_ENC_LOG);
-    SEncLogObj enclog;
+    SEncLogObj enclog = {0};
     enclog.Id = id + 1;
     strcpy(enclog.db, restoreReq.db);
     strcpy(enclog.tableName, restoreReq.tb);
@@ -586,6 +588,9 @@ int32_t mndProcessAKEncReq(SRpcMsg *pReq) {
 
     mndTransDrop(pTrans);
   } else if (restoreReq.restoreType == 4) {
+    mInfo("dnode:%d, start to akdec, restore type:%d, %s, %s", restoreReq.dnodeId, restoreReq.restoreType,
+          restoreReq.db, restoreReq.tb);
+
     SEncLogObj *pEncLog = NULL;
     void       *pIter = NULL;
 
