@@ -18,6 +18,7 @@
 #include "audit.h"
 #include "mndDb.h"
 #include "mndDnode.h"
+#include "mndEncKey.h"
 #include "mndIndex.h"
 #include "mndIndexComm.h"
 #include "mndInfoSchema.h"
@@ -196,7 +197,19 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   if (pStb->pEncryption == NULL) {
     int32_t num = pStb->numOfColumns;
     pStb->pEncryption = taosMemoryCalloc(1, sizeof(STableEncryptionMgt) + sizeof(STableEncryption) * num);
+
     pStb->pEncryption->numOfEncryption = num;
+    for (int32_t i = 0; i < pStb->numOfColumns; i++) {
+      SSchema          *pSchema = &pStb->pColumns[i];
+      STableEncryption *pEncrypt = &pStb->pEncryption->pTableEncryption[i];
+      pEncrypt->tableType = pSchema->type;
+      pEncrypt->tuid = pStb->uid;
+      pEncrypt->tsuid = pStb->dbUid;
+      pEncrypt->fieldId = pSchema->colId;
+      pEncrypt->serailId = pSchema->colId;
+      memset(pEncrypt->decryptionKey, 0, sizeof(pEncrypt->decryptionKey));
+      memset(pEncrypt->encryptionKey, 0, sizeof(pEncrypt->encryptionKey));
+    }
   }
   if (pStb->pEncryption != NULL) {
     SDB_SET_INT32(pRaw, dataPos, pStb->pEncryption->numOfEncryption, _OVER)
@@ -4311,7 +4324,7 @@ _end:
   return code;
 }
 
-int32_t mndCreateNewStbByEncry(SStbObj *pDst, SStbObj *pSrc, SEncLogObj *pEncLog) {
+int32_t mndCreateNewStbByEncry(SStbObj *pDst, SStbObj *pSrc, SEncKey *pEncKey) {
   int32_t code = 0;
 
   memcpy(pDst, pSrc, sizeof(SStbObj));
@@ -4372,7 +4385,7 @@ int32_t mndCreateNewStbByEncry(SStbObj *pDst, SStbObj *pSrc, SEncLogObj *pEncLog
   int32_t idx = 0;
   for (int32_t i = 0; i < pSrc->numOfColumns; i++) {
     SSchema *pSchema = &pDst->pColumns[i];
-    if (strcmp(pSchema->name, pEncLog->columnName) == 0) {
+    if (strcmp(pSchema->name, pEncKey->colunName) == 0) {
       idx = pSchema->colId;
       break;
     }
@@ -4380,30 +4393,11 @@ int32_t mndCreateNewStbByEncry(SStbObj *pDst, SStbObj *pSrc, SEncLogObj *pEncLog
   memcpy(pDst->pEncryption, pSrc->pEncryption, len);
   for (int32_t i = 0; pDst->pEncryption->numOfEncryption; i++) {
     STableEncryption *pEnc = &pDst->pEncryption->pTableEncryption[i];
-    SSchema          *pSchema = &pDst->pColumns[i];
-    if (strcmp(pSchema->name, pEncLog->columnName) == 0) {
+    if (pEnc->fieldId == idx) {
+      memcpy(pEnc->encryptionKey, pEncKey->key, sizeof(pEnc->encryptionKey));
       break;
     }
   }
-
-  // for (int32_t i = 0; i < pDst->numOfColumns; i++) {
-  //   SFieldWithOptions *pField = taosArrayGet(pCreate->pColumns, i);
-  //   SSchema           *pSchema = &pDst->pColumns[i];
-
-  //   SColCmpr *pColCmpr = &pDst->pCmpr[i];
-  //   pColCmpr->id = pSchema->colId;
-  //   pColCmpr->alg = pField->compress;
-  // }
-  // for (int32_t i = 0; i < pDst->numOfColumns; ++i) {
-  //   SFieldWithOptions *pField = taosArrayGet(pSrc->pColumns, i);
-  //   SSchema           *pSchema = &pDst->pColumns[i];
-  //   pSchema->type = pField->type;
-  //   pSchema->bytes = pField->bytes;
-  //   pSchema->flags = pField->flags;
-  //   memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
-  //   pSchema->colId = pDst->nextColId;
-  //   pDst->nextColId++;
-  // }
 
   return code;
 }
@@ -4412,6 +4406,9 @@ int32_t mndAlterStbByEncyption(SMnode *pMnode) {
   SSdb   *pSdb = pMnode->pSdb;
 
   SArray     *pArray = taosArrayInit(4, sizeof(SEncLogObj));
+
+  SArray *pEncKeyArray = taosArrayInit(4, sizeof(SEncKey *));
+
   SEncLogObj *pEncLogObj = NULL;
   void       *pIter = NULL;
   while (1) {
@@ -4420,20 +4417,29 @@ int32_t mndAlterStbByEncyption(SMnode *pMnode) {
     SEncLogObj encLog = {0};
     memcpy(&encLog, pEncLogObj, sizeof(SEncLogObj));
     taosArrayPush(pArray, &encLog);
-
     sdbRelease(pSdb, pEncLogObj);
   }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pArray); i++) {
+    SEncLogObj *pEncLog = taosArrayGet(pArray, i);
+    SEncKey    *pKey = mndAcquireEncLog(pMnode, pEncLog->db, pEncLog->tableName);
+
+    taosArrayPush(pEncKeyArray, pKey);
+  }
+
+  taosArrayDestroy(pArray);
+
   SStbObj stbObj = {0};
   pIter = NULL;
   for (int32_t i = 0; i < taosArrayGetSize(pArray); i++) {
-    SEncLogObj *pEncLog = taosArrayGet(pArray, i);
+    SEncKey *pEncKey = taosArrayGetP(pEncKeyArray, i);
     while (1) {
       SStbObj *pStb = NULL;
       pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb);
-      if (strcmp(pStb->db, pEncLog->db) == 0 && strcmp(pStb->name, pEncLog->tableName) == 0) {
+      if (strcmp(pStb->db, pEncKey->db) == 0 && strcmp(pStb->name, pEncKey->tableName) == 0) {
         SDbObj *pDb = mndAcquireDb(pMnode, pStb->db);
 
-        mndCreateNewStbByEncry(&stbObj, pStb, pEncLog);
+        mndCreateNewStbByEncry(&stbObj, pStb, pEncKey);
         mndAlterStbImp(pMnode, NULL, pDb, &stbObj, 0, "", 0);
         sdbRelease(pSdb, pSdb);
 
