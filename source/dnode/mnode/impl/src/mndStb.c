@@ -114,12 +114,16 @@ int32_t mndInitStb(SMnode *pMnode) {
 
 void mndCleanupStb(SMnode *pMnode) {}
 
+int32_t calcEncrySize(STableEncryptionMgt *pMgt) {
+  if (pMgt == NULL) return 0;
+  return sizeof(*pMgt) + sizeof(STableEncryption) * sizeof(STableEncryption);
+}
 SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int32_t size = sizeof(SStbObj) + (pStb->numOfColumns + pStb->numOfTags) * sizeof(SSchema) + pStb->commentLen +
                  pStb->ast1Len + pStb->ast2Len + pStb->numOfColumns * sizeof(SColCmpr) + STB_RESERVE_SIZE +
-                 taosArrayGetSize(pStb->pFuncs) * TSDB_FUNC_NAME_LEN;
+                 taosArrayGetSize(pStb->pFuncs) * TSDB_FUNC_NAME_LEN + calcEncrySize(pStb->pEncryption);
   SSdbRaw *pRaw = sdbAllocRaw(SDB_STB, STB_VER_NUMBER, size);
   if (pRaw == NULL) goto _OVER;
 
@@ -186,6 +190,25 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
       SColCmpr *p = &pStb->pCmpr[i];
       SDB_SET_INT16(pRaw, dataPos, p->id, _OVER)
       SDB_SET_INT32(pRaw, dataPos, p->alg, _OVER)
+    }
+  }
+
+  if (pStb->pEncryption == NULL) {
+    int32_t num = pStb->numOfColumns;
+    pStb->pEncryption = taosMemoryCalloc(1, sizeof(STableEncryptionMgt) + sizeof(STableEncryption) * num);
+    pStb->pEncryption->numOfEncryption = num;
+  }
+  if (pStb->pEncryption != NULL) {
+    SDB_SET_INT32(pRaw, dataPos, pStb->pEncryption->numOfEncryption, _OVER)
+    for (int32_t i = 0; i < pStb->pEncryption->numOfEncryption; i++) {
+      STableEncryption *pEnc = &pStb->pEncryption->pTableEncryption[i];
+      SDB_SET_INT32(pRaw, dataPos, pEnc->tableType, _OVER)
+      SDB_SET_INT64(pRaw, dataPos, pEnc->tuid, _OVER)
+      SDB_SET_INT64(pRaw, dataPos, pEnc->tsuid, _OVER)
+      SDB_SET_INT32(pRaw, dataPos, pEnc->fieldId, _OVER)
+      SDB_SET_INT32(pRaw, dataPos, pEnc->serailId, _OVER)
+      SDB_SET_BINARY(pRaw, dataPos, pEnc->encryptionKey, sizeof(pEnc->encryptionKey), _OVER);
+      SDB_SET_BINARY(pRaw, dataPos, pEnc->decryptionKey, sizeof(pEnc->decryptionKey), _OVER);
     }
   }
   SDB_SET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
@@ -313,6 +336,28 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     }
   }
 
+  if (pStb->pEncryption != NULL) {
+    // pStb->pEncryption = taosMemoryCalloc(1, sizeof(STableEncryptionMgt));
+    // if (pStb->pEncryption == NULL) goto _OVER;
+    int32_t sz = 0;
+    SDB_GET_INT32(pRaw, dataPos, &sz, _OVER)
+
+    int32_t total = sizeof(STableEncryptionMgt) + sizeof(STableEncryption) * sz;
+    pStb->pEncryption = taosMemoryCalloc(total, 1);
+    pStb->pEncryption->numOfEncryption = sz;
+    if (pStb->pEncryption == NULL) goto _OVER;
+    for (int32_t i = 0; i < pStb->pEncryption->numOfEncryption; i++) {
+      STableEncryption *pEnc = &pStb->pEncryption->pTableEncryption[i];
+      SDB_GET_INT32(pRaw, dataPos, &pEnc->tableType, _OVER)
+      SDB_GET_INT64(pRaw, dataPos, &pEnc->tuid, _OVER)
+      SDB_GET_INT64(pRaw, dataPos, &pEnc->tsuid, _OVER)
+      SDB_GET_INT32(pRaw, dataPos, &pEnc->fieldId, _OVER)
+      SDB_GET_INT32(pRaw, dataPos, &pEnc->serailId, _OVER)
+      SDB_GET_BINARY(pRaw, dataPos, pEnc->encryptionKey, sizeof(pEnc->encryptionKey), _OVER);
+      SDB_GET_BINARY(pRaw, dataPos, pEnc->decryptionKey, sizeof(pEnc->decryptionKey), _OVER);
+    }
+  }
+
   SDB_GET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
 
   terrno = 0;
@@ -342,6 +387,7 @@ void mndFreeStb(SStbObj *pStb) {
   taosMemoryFreeClear(pStb->pAst1);
   taosMemoryFreeClear(pStb->pAst2);
   taosMemoryFreeClear(pStb->pCmpr);
+  taosMemoryFreeClear(pStb->pEncryption);
 }
 
 static int32_t mndStbActionInsert(SSdb *pSdb, SStbObj *pStb) {
@@ -1193,8 +1239,31 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
   }
   pDst->tagVer = createReq->tagVer;
   pDst->colVer = createReq->colVer;
+
+  pDst->pEncryption = taosMemoryCalloc(1, sizeof(STableEncryptionMgt) + sizeof(STableEncryption) * pDst->numOfColumns);
+  pDst->pEncryption->numOfEncryption = pDst->numOfColumns;
+
+  int32_t encodeColId = 0;
+  for (int32_t i = 0; i < pDst->numOfColumns; i++) {
+    SSchema *pSchema = &pDst->pColumns[i];
+    encodeColId = 1;
+    break;
+  }
+
+  for (int32_t i = 0; i < pDst->pEncryption->numOfEncryption; i++) {
+    STableEncryption *pEncryption = &pDst->pEncryption->pTableEncryption[i];
+    if (pEncryption->fieldId == encodeColId) {
+    }
+  }
+
   return TSDB_CODE_SUCCESS;
 }
+
+typedef struct {
+  char stbname;
+  char columnName;
+  char dbnma;
+} SAlterEncryReq;
 
 static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;

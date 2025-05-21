@@ -82,7 +82,7 @@ typedef struct SMetaEntry {
 
   SColCmprWrapper colCmpr;  // col compress alg
 
-  SArray* pEntryptionList;
+  STableEncryptionMgt* pEncryptionMgt;
 } SMetaEntry;
 
 typedef struct SMetaReader {

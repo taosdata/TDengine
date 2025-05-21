@@ -655,13 +655,17 @@ typedef struct {
   int32_t fieldId;
 
   int32_t serailId;
-  int32_t encryptionLen;
-  char*   encryptionKey;
+  char    encryptionKey[128];
 
-  int32_t decryptionLen;
-  char*   decryptionKey;
+  char decryptionKey[128];
 
 } STableEncryption;
+
+typedef struct {
+  int32_t          numOfEncryption;
+  STableEncryption pTableEncryption[];
+} STableEncryptionMgt;
+
 static FORCE_INLINE int32_t tSerializeTableEncryption(void** buflen, int32_t bufLen,
                                                       STableEncryption* pTableEncryption) {
   int32_t tlen = 0;
@@ -670,9 +674,7 @@ static FORCE_INLINE int32_t tSerializeTableEncryption(void** buflen, int32_t buf
   tlen += taosEncodeFixedI64(buflen, pTableEncryption->tsuid);
   tlen += taosEncodeFixedI32(buflen, pTableEncryption->fieldId);
   tlen += taosEncodeFixedI32(buflen, pTableEncryption->serailId);
-  tlen += taosEncodeFixedI32(buflen, pTableEncryption->encryptionLen);
   tlen += taosEncodeString(buflen, pTableEncryption->encryptionKey);
-  tlen += taosEncodeFixedI32(buflen, pTableEncryption->decryptionLen);
   tlen += taosEncodeString(buflen, pTableEncryption->decryptionKey);
   return tlen;
 }
@@ -682,9 +684,7 @@ static FORCE_INLINE int32_t tDeserializeTableEncryption(void* buf, int32_t bufLe
   buf = taosDecodeFixedI64(buf, &pTableEncryption->tsuid);
   buf = taosDecodeFixedI32(buf, &pTableEncryption->fieldId);
   buf = taosDecodeFixedI32(buf, &pTableEncryption->serailId);
-  buf = taosDecodeFixedI32(buf, &pTableEncryption->encryptionLen);
   buf = taosDecodeStringTo(buf, pTableEncryption->encryptionKey);
-  buf = taosDecodeFixedI32(buf, &pTableEncryption->decryptionLen);
   buf = taosDecodeStringTo(buf, pTableEncryption->decryptionKey);
   return 0;
 }
@@ -2952,6 +2952,7 @@ typedef struct SVCreateStbReq {
   int8_t          source;
   int8_t          colCmpred;
   SColCmprWrapper colCmpr;
+  STableEncryptionMgt *pMgt;
 } SVCreateStbReq;
 
 int tEncodeSVCreateStbReq(SEncoder* pCoder, const SVCreateStbReq* pReq);

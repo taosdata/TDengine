@@ -517,6 +517,9 @@ typedef struct {
   SRWLatch  lock;
   int8_t    source;
   SColCmpr* pCmpr;
+
+  STableEncryptionMgt* pEncryption;
+
 } SStbObj;
 
 typedef struct {

@@ -8148,6 +8148,41 @@ int32_t tDecodeSRSmaParam(SDecoder *pCoder, SRSmaParam *pRSmaParam) {
   return 0;
 }
 
+int32_t tEncodeEncrytionMgt(SEncoder *pCoder, STableEncryptionMgt *pEnc) {
+  if (tEncodeI32(pCoder, pEnc->numOfEncryption) < 0) return -1;
+  for (int32_t i = 0; i < pEnc->numOfEncryption; i++) {
+    STableEncryption *p = &pEnc->pTableEncryption[i];
+    tEncodeI32(pCoder, p->tableType);
+    tEncodeI64(pCoder, p->tuid);
+    tEncodeI64(pCoder, p->tsuid);
+    tEncodeI32(pCoder, p->fieldId);
+    tEncodeI32(pCoder, p->serailId);
+    tEncodeCStr(pCoder, p->encryptionKey);
+    tEncodeCStr(pCoder, p->decryptionKey);
+  }
+  return 0;
+}
+
+int32_t tDecoderEnryptionMgt(SDecoder *pCoder, STableEncryptionMgt **pEnc) {
+  int32_t              sz = 0;
+  STableEncryptionMgt *mgt = NULL;
+  if (tDecodeI32(pCoder, &sz) < 0) return -1;
+  mgt = (STableEncryptionMgt *)taosMemoryCalloc(1, sizeof(STableEncryptionMgt) + sizeof(STableEncryption) * sz);
+
+  for (int32_t i = 0; i < mgt->numOfEncryption; i++) {
+    STableEncryption *p = &mgt->pTableEncryption[i];
+    tDecodeI32(pCoder, &p->tableType);
+    tDecodeI64(pCoder, &p->tuid);
+    tDecodeI64(pCoder, &p->tsuid);
+    tDecodeI32(pCoder, &p->fieldId);
+    tDecodeI32(pCoder, &p->serailId);
+    tDecodeCStrTo(pCoder, p->encryptionKey);
+    tDecodeCStrTo(pCoder, p->decryptionKey);
+  }
+
+  *pEnc = mgt;
+  return 0;
+}
 int32_t tEncodeSColCmprWrapper(SEncoder *pCoder, const SColCmprWrapper *pWrapper) {
   if (tEncodeI32v(pCoder, pWrapper->nCols) < 0) return -1;
   if (tEncodeI32v(pCoder, pWrapper->version) < 0) return -1;
@@ -8196,6 +8231,8 @@ int tEncodeSVCreateStbReq(SEncoder *pCoder, const SVCreateStbReq *pReq) {
   if (tEncodeI8(pCoder, pReq->colCmpred) < 0) return -1;
   if (tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr) < 0) return -1;
 
+  if (tEncodeEncrytionMgt(pCoder, pReq->pMgt) < 0) return -1;
+
   tEndEncode(pCoder);
   return 0;
 }
@@ -8225,8 +8262,11 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
     if (!tDecodeIsEnd(pCoder)) {
       if (tDecodeSColCmprWrapperEx(pCoder, &pReq->colCmpr) < 0) return -1;
     }
-  }
 
+    if (!tDecodeIsEnd(pCoder)) {
+      if (tDecoderEnryptionMgt(pCoder, &pReq->pMgt) < 0) return -1;
+    }
+  }
   tEndDecode(pCoder);
   return 0;
 }

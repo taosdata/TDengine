@@ -23,25 +23,36 @@ int32_t metaEncodeColEntryptionSubEntry(SEncoder *pCoder, STableEncryption *pEnt
   len = tEncodeI64(pCoder, pEntryption->tsuid);
   len = tEncodeI32(pCoder, pEntryption->fieldId);
   len = tEncodeI32(pCoder, pEntryption->serailId);
-  len = tEncodeI32(pCoder, pEntryption->encryptionLen);
   len = tEncodeCStr(pCoder, pEntryption->encryptionKey);
-  len = tEncodeI32(pCoder, pEntryption->decryptionLen);
   len = tEncodeCStr(pCoder, pEntryption->decryptionKey);
 
   return 0;
 }
-int32_t metaDecodeColEntryptionSubEntry(SDecoder *pCoder, SMetaEntry *pME) {
+int32_t metaDecodeColEntryptionSubEntry(SDecoder *pCoder, STableEncryption *pEntryption) {
   int32_t code = 0;
+  tDecodeI32(pCoder, &pEntryption->tableType);
+  tDecodeI64(pCoder, &pEntryption->tuid);
+  tDecodeI64(pCoder, &pEntryption->tsuid);
+  tDecodeI32(pCoder, &pEntryption->fieldId);
+  tDecodeI32(pCoder, &pEntryption->serailId);
+  tDecodeCStrTo(pCoder, pEntryption->encryptionKey);
+  tDecodeCStrTo(pCoder, pEntryption->decryptionKey);
+
+  return 0;
+
   return 0;
 }
 int32_t metaEncodeColEntryptionEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   int32_t code = 0;
 
-  int32_t sz = taosArrayGetSize(pME->pEntryptionList);
-  if (tEncodeI32v(pCoder, sz) < 0) return -1;
+  STableEncryptionMgt *pMgt = pME->pEncryptionMgt;
+  int32_t              sz = pMgt->numOfEncryption;
 
-  for (int32_t i = 0; i < taosArrayGetSize(pME->pEntryptionList); i++) {
-    STableEncryption *pEntryption = taosArrayGet(pME->pEntryptionList, i);
+  if (tEncodeI32(pCoder, sz) < 0) return -1;
+
+  for (int32_t i = 0; i < sz; i++) {
+    STableEncryption *pEntryption = &pMgt->pTableEncryption[i];
+    metaEncodeColEntryptionSubEntry(pCoder, pEntryption);
   }
 
   return code;
@@ -53,15 +64,15 @@ int32_t metaDecodeColEntryptionEntry(SDecoder *pCoder, SMetaEntry *pME) {
   if (tDecodeI32(pCoder, &sz) < 0) {
     return -1;
   }
-  pME->pEntryptionList = taosArrayInit(sz, sizeof(STableEncryption));
-  if (pME->pEntryptionList == NULL) {
+  pME->pEncryptionMgt = taosMemoryCalloc(1, sizeof(STableEncryptionMgt) + sz * sizeof(STableEncryption));
+  if (pME->pEncryptionMgt == NULL) {
     return -1;
   }
 
   for (int32_t i = 0; i < sz; i++) {
     STableEncryption entryption = {0};
-
-    taosArrayPush(pME->pEntryptionList, &entryption);
+    metaDecodeColEntryptionSubEntry(pCoder, &entryption);
+    memcpy(&pME->pEncryptionMgt->pTableEncryption[i], &entryption, sizeof(STableEncryption));
   }
 
   return code;
