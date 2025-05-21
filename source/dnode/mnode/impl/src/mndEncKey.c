@@ -311,6 +311,8 @@ int32_t mndProcessAKGenReq(SRpcMsg *pReq) {
     return -1;
   }
 
+  auditRecord(pReq, pMnode->clusterId, "AKGen", NULL, NULL, akGenReq.sql, akGenReq.sqlLen);
+
   mndTransDrop(pTrans);
   return 0; 
 }
@@ -630,6 +632,8 @@ int32_t mndProcessAKEncReq(SRpcMsg *pReq) {
       return -1;
     }
 
+    auditRecord(pReq, pMnode->clusterId, "AKEnc", restoreReq.db, restoreReq.tb, restoreReq.sql, restoreReq.sqlLen);
+
     mndTransDrop(pTrans);
 
     SEncKey *enckey = mndAcquireEncLog(pMnode, restoreReq.db, restoreReq.tb);
@@ -668,6 +672,8 @@ int32_t mndProcessAKEncReq(SRpcMsg *pReq) {
           mndTransDrop(pTrans);
           return -1;
         }
+
+        auditRecord(pReq, pMnode->clusterId, "AKDec", restoreReq.db, restoreReq.tb, restoreReq.sql, restoreReq.sqlLen);
 
         mndTransDrop(pTrans);
 
