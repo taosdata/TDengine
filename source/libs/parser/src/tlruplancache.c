@@ -68,9 +68,7 @@ int32_t clientSendAuditLog(void* pTrans, SEpSet* epset, char* operation, char* d
   char*        msg = NULL;
   int32_t      msgLen = 0;
   int32_t      reqType = TDMT_MND_AUDIT_LOG;
-  SAuditLogReq req = {0};
-  strcpy(req.operation, operation);
-  strcpy(req.detail, detail);
+  SAuditLogReq req = {operation, detail};
 
   int32_t len = tSerializeAuditLogReq(NULL, 0, &req);
   void*   pBuf = rpcMallocCont(len);
