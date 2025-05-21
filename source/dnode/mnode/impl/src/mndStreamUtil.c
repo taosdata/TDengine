@@ -333,6 +333,10 @@ void mndStreamPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pActio
 }
 
 void mndStreamLogSStreamObj(char* tips, SStreamObj* p) {
+  if (!(stDebugFlag & DEBUG_DEBUG)) {
+    return;
+  }
+  
   if (NULL == p) {
     stDebug("%s: stream is NULL", tips);
     return;

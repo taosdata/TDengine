@@ -2795,7 +2795,7 @@ _exit:
 }
 
 
-int32_t msmHandleCleanupHbMsg(SStmGrpCtx* pCtx) {
+int32_t msmHandleRestartHbMsg(SStmGrpCtx* pCtx) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
@@ -2836,12 +2836,13 @@ int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, 
   
   switch (mStreamMgmt.phase) {
     case MND_STM_PHASE_WATCH:
+      code = msmHandleWatchHbMsg(pCtx);
       break;
     case MND_STM_PHASE_NORMAL:
       code = msmHandleNormalHbMsg(pCtx);
       break;
-    case MND_STM_PHASE_CLEANUP:
-      code = msmHandleCleanupHbMsg(pCtx);
+    case MND_STM_PHASE_RESTART:
+      code = msmHandleRestartHbMsg(pCtx);
       break;
     default:
       stError("Invalid stream phase: %d", mStreamMgmt.phase);
