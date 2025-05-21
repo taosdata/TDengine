@@ -189,8 +189,8 @@ static void planCacheListMoveToHead(PlanCacheList* list, SPlanCacheEntry* entry)
 
 static void erasePlanCache() {
   // from low to high
-  for (int i = PLAN_CACHE_PRIORITY_LOW; i >= PLAN_CACHE_PRIORITY_HIGH; i++) {
-    PlanCacheList* list = &planCacheList[i];
+  for(int i = PLAN_CACHE_PRIORITY_LOW; i >= PLAN_CACHE_PRIORITY_HIGH; i--) {
+    PlanCacheList *list = &planCacheList[i];
     while (list->size > 0 && totalPlanCacheSize > MAX_PLAN_CACHE_SIZE_LOW_LEVEL) {
       SPlanCacheEntry* entry = planCacheListPopFromTail(list);
       if (entry == NULL) {
