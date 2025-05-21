@@ -16,13 +16,15 @@ TDengine 支持标准 ODBC 接口，SSRS 可实现无缝对接 TDengine。TDengi
 环境准备如下：
 ### TDengine 服务器
 
+- 操作系统不限。
 - 安装 TDengine 3.3.3.0 或以上服务器版（企业及社区版均可）。
 - taosAdapter 服务正常运行，检查参考 [taosAdapter 使用手册](../../../reference/components/taosadapter)。
 - 服务器 IP：192.168.2.124
 - 提供 WebSocket 服务：端口 6041（默认）
 
-### SSRS Windows 服务器
+### SSRS 服务器
 
+- 要求 Windows 操作系统。
 - 安装 TDengine 3.3.3.0 或以上 Windows 客户端版（默认安装 TDengine ODBC 驱动）。
 - 安装 Microsoft SQL Server 2022 且数据库服务正常运行，[下载安装](https://www.microsoft.com/zh-cn/sql-server/sql-server-downloads)。
 - 安装 Microsoft SQL Server 2022 Reporting Service 且报表服务正常运行，[下载安装](https://learn.microsoft.com/zh-cn/sql/reporting-services/install-windows/install-reporting-services?view=sql-server-ver16)。
@@ -33,8 +35,9 @@ TDengine 支持标准 ODBC 接口，SSRS 可实现无缝对接 TDengine。TDengi
    记录上图中“Report Server Web Service URLs”址址，会在后面步骤中使用。
 
 
-### 报表制作 Window 客户端
+### 报表制作客户端
 
+- 要求 Windows 操作系统。
 - 安装 TDengine 3.3.3.0 或以上 Windows 客户端版（默认安装 TDengine ODBC 驱动）。
 - 安装 Microsoft Report Builder（32 位），提供报表开发服务，[下载安装](https://www.microsoft.com/en-us/download/details.aspx?id=53613)。
 - 配置 Microsoft Report Builder 上报报表服务器地址，应填写前面记录的“Report Server Web Service URLs”址址。
@@ -51,8 +54,8 @@ TDengine 支持标准 ODBC 接口，SSRS 可实现无缝对接 TDengine。TDengi
 ## 配置数据源
 SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
 
-1. SSRS Windows 服务器配置 ODBC 数据源   
-打开 ODBC 数据源管理器（64 位），选择“System DSN”->“Add...”->“TDengine”->“Finish”, 弹出窗口配置如下：
+1. SSRS 服务器配置 ODBC 数据源   
+   打开 ODBC 数据源管理器（64 位），选择“System DSN”->“Add...”->“TDengine”->“Finish”, 弹出配置窗口如下：
 
    ![cfg-1](img/cfg-1.webp)
 
@@ -64,18 +67,14 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    点击“Test Connection”，连接成功表示配置正确，点击“OK”保存配置。
 
 2. 报表制作 Window 客户端配置 ODBC 数据源。  
-打开 ODBC 数据源管理器（32 位），选择“System DSN”->“Add...”->“TDengine”->“Finish”, 弹出窗口配置如下：
+   打开 ODBC 数据源管理器（32 位），选择“System DSN”->“Add...”->“TDengine”->“Finish”, 弹出 ODBC 数据源配置窗口，内容填写请与上一步相同。
 
-   ![cfg-2](img/cfg-2.webp)
-
-   配置项内容填写同上步。
-  
    点击“Test Connection”，连接成功表示配置正确，点击“OK”保存配置。
 
 3. Report Builder 创建数据源连接  
    启动 Report Builder，左侧区域内”Data Source“项上点右键，点击“Add Data Source...”菜单，如图：
 
-   ![cfg-3](img/cfg-3.webp)
+   ![cfg-2](img/cfg-2.webp)
 
    - Name：填写数据源名称
    - 数据源方式：选择第二项“Use a connection embedded in my report”
