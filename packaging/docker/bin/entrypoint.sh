@@ -66,15 +66,15 @@ if [ -f "$DATA_DIR/dnode/dnode.json" ] ||
 
             # Initialization scripts should only work in first node.
             if [ "$FQDN" = "$FIRST_EP_HOST" ]; then
-                if [ ! -f "${data_dir}/.docker-entrypoint-root-password-changed" ]; then
+                if [ ! -f "${DATA_DIR}/.docker-entrypoint-root-password-changed" ]; then
                     if [ "$TAOS_ROOT_PASSWORD" != "taosdata" ]; then
                         # change default root password
                         taos -s "ALTER USER root PASS '$TAOS_ROOT_PASSWORD'"
-                        touch "${data_dir}/.docker-entrypoint-root-password-changed"
+                        touch "${DATA_DIR}/.docker-entrypoint-root-password-changed"
                     fi
                 fi
                 # Initialization scripts should only work in first node.
-                if [ ! -f "${data_dir}/.docker-entrypoint-inited" ]; then
+                if [ ! -f "${DATA_DIR}/.docker-entrypoint-inited" ]; then
                     NEEDS_INITDB=1
                 fi
             fi
