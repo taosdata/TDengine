@@ -18,6 +18,8 @@
 #include "qworker.h"
 #include "tversion.h"
 
+#include "scheduler.h"
+
 static inline void dmSendRsp(SRpcMsg *pMsg) { rpcSendResponse(pMsg); }
 
 static inline void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
@@ -523,6 +525,11 @@ int32_t dmInitServer(SDnode *pDnode) {
   }
 
   dDebug("dnode rpc server is initialized");
+  if (schedulerInit() != TSDB_CODE_SUCCESS) {
+    dError("failed to init scheduler");
+    return -1;
+  }
+
   return 0;
 }
 
