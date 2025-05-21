@@ -789,7 +789,6 @@ typedef struct {
   int8_t   materialized; // used for adview
   char     materialized_table[TSDB_DB_NAME_LEN];
   char*    ast;          // used for adview
-  char*    physiplan;    // used for adview
   int32_t  numOfCols;
   SSchema* pSchema;
   SRWLatch lock;

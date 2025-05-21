@@ -2141,7 +2141,7 @@ uint64_t ctgGetViewMetaCacheSize(SViewMeta *pMeta) {
     return 0;
   }
 
-  return sizeof(*pMeta) + strlen(pMeta->querySql) + 1 + strlen(pMeta->user) + 1 + pMeta->numOfCols * sizeof(SSchema) + pMeta->materialized ? strlen(pMeta->materialized_table) : 0;
+  return sizeof(*pMeta) + strlen(pMeta->querySql) + 1 + strlen(pMeta->user) + 1 + pMeta->numOfCols * sizeof(SSchema) + (pMeta->materialized == 1 ? strlen(pMeta->materialized_table) : 0);
 }
 
 
