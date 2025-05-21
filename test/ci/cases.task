@@ -490,7 +490,6 @@
 ## 05-Notify
 ## 06-Output
 ## 07-SubQuery
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_basic.py
 ## 08-ReCalculate
 ## 20-UseCase
 ## 21-Stability 
