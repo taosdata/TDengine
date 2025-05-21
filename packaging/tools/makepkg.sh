@@ -119,9 +119,9 @@ else
     nativelib_files="${build_dir}/lib/libtaosnative.so"
     wslib_files="${build_dir}/lib/libtaosws.so"
 
-    pkg_lib_files="lib/libtaos.so.${version}"
-    pkg_nativelib_files="lib/libtaosnative.so.${version}"
-    pkg_wslib_files="lib/libtaosws.so.${version}"
+    pkg_lib_files="libtaos.so.${version}"
+    pkg_nativelib_files="libtaosnative.so.${version}"
+    pkg_wslib_files="libtaosws.so.${version}"
 fi
 header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h ${code_dir}/include/util/tdef.h ${code_dir}/include/libs/function/taosudf.h"
 
