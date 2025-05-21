@@ -103,6 +103,8 @@ setConfRet taos_set_config(const char *config) {
   return ret;
 }
 
+extern PlanCacheAddr gPCaddr;
+
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
   tscDebug("try to connect to %s:%u, user:%s db:%s", ip, port, user, db);
   if (user == NULL) {
@@ -112,6 +114,13 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
   if (pass == NULL) {
     pass = TSDB_DEFAULT_PASS;
   }
+
+  gPCaddr.ip =ip ? taosStrdup(ip) : NULL;
+  gPCaddr.user =user?taosStrdup(user):NULL;
+  gPCaddr.pass =pass?taosStrdup(pass):NULL;
+  gPCaddr.db =db?taosStrdup(db):NULL;
+  gPCaddr.port =port;
+
 
   STscObj *pObj = taos_connect_internal(ip, user, pass, NULL, db, port, CONN_TYPE__QUERY);
   if (pObj) {

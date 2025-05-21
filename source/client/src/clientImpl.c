@@ -30,6 +30,10 @@
 #include "tversion.h"
 #include "tlruplancache.h"
 
+
+PlanCacheAddr gPCaddr = {0};
+void* gPCConn = NULL;
+
 static int32_t       initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
 static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest);
 
@@ -1200,8 +1204,17 @@ int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pRes
       TSWAP(pRequest->pPostPlan, pDag->pPostPlan);
 
       if (!pDag->planCacheUsed && !pDag->showRewrite && EXPLAIN_MODE_DISABLE == pDag->explainInfo.mode && isQuery) {
+        STscObj *pTscObj = NULL;
+        if (NULL == gPCConn) {
+          gPCConn = taos_connect(gPCaddr.ip, gPCaddr.user, gPCaddr.pass, gPCaddr.db, gPCaddr.port);
+        }
+        
+        pTscObj = acquireTscObj(*(int64_t*)gPCConn);
+        void* pTrans = pTscObj->pAppInfo->pTransporter;
+        SEpSet      mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+
         putToPlanCache(pRequest->pTscObj->user, pRequest->pTscObj->priority, pRequest->pTscObj->maxCount, pRequest->sqlstr, pDag
-          , pRequest->pTscObj->pAppInfo->pTransporter, &cxt.mgmtEpSet);
+          , pTrans, &mgmtEpSet);
       }
     }
   }

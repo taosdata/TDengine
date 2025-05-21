@@ -58,6 +58,14 @@ enum {
 
 #define isQueryStmt(_node) (nodeType(_node) == QUERY_NODE_SELECT_STMT)
 
+typedef struct {
+  char* ip;
+  char* user;
+  char* pass;
+  char* db;
+  uint16_t port;
+} PlanCacheAddr;
+
 typedef struct SAppInstInfo SAppInstInfo;
 
 typedef struct {
