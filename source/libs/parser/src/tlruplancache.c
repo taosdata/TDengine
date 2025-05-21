@@ -228,6 +228,7 @@ static char* generateSummary(){
     cJSON_AddItemToObject(json, "plan_num", num);
 
     cJSON_AddItemToArray(users, json);
+    pIter = taosHashIterate(planCacheObj, pIter);
   }
   char* string = cJSON_PrintUnformatted(users);
   cJSON_Delete(users);
@@ -251,9 +252,9 @@ int32_t putToPlanCache(char* user, UserPriority priority, int32_t max, char* que
   }
   if (planCacheObj == NULL) {
     planCacheObj = taosHashInit(4, MurmurHash3_32, false, HASH_ENTRY_LOCK);
-    CACHE_CHECK_NULL_GOTO(planCacheObj, terrno);
   }
   taosThreadMutexUnlock(&cacheLock);
+  CACHE_CHECK_NULL_GOTO(planCacheObj, terrno);
 
   void* data = taosHashGet(planCacheObj, user, strlen(user) + 1);
   if (data == NULL) {
@@ -316,9 +317,9 @@ int32_t getFromPlanCache(char* user, UserPriority priority, char* query, void** 
   taosThreadMutexLock(&cacheLock);
   if (planCacheObj == NULL) {
     planCacheObj = taosHashInit(4, MurmurHash3_32, false, HASH_ENTRY_LOCK);
-    CACHE_CHECK_NULL_GOTO(planCacheObj, terrno);
   }
   taosThreadMutexUnlock(&cacheLock);
+  CACHE_CHECK_NULL_GOTO(planCacheObj, terrno);
 
   void* data = taosHashGet(planCacheObj, user, strlen(user) + 1);
   if (data == NULL) {
