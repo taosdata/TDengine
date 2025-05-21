@@ -28,7 +28,6 @@ static int32_t mndProcessAKEncReq(SRpcMsg *pReq);
 int32_t mndInitEncKey(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ENCKEY, mndRetrieveEncKey);
   mndSetMsgHandle(pMnode, TDMT_MND_AK_GEN, mndProcessAKGenReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_RESTORE_DNODE, mndProcessAKEncReq);
 
   SSdbTable table = {
       .sdbType = SDB_ENC_KEY,
@@ -43,9 +42,28 @@ int32_t mndInitEncKey(SMnode *pMnode) {
   return sdbSetTable(pMnode->pSdb, table);
 }
 
+int32_t mndInitEncLog(SMnode *pMnode) {
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ENCLOG, mndRetrieveEncLog);
+  mndSetMsgHandle(pMnode, TDMT_MND_RESTORE_DNODE, mndProcessAKEncReq);
+
+  SSdbTable table = {
+      .sdbType = SDB_ENC_LOG,
+      .keyType = SDB_KEY_INT32,
+      .encodeFp = (SdbEncodeFp)mndEncLogActionEncode,
+      .decodeFp = (SdbDecodeFp)mndEncLogActionDecode,
+      .insertFp = (SdbInsertFp)mndEncLogActionInsert,
+      .updateFp = (SdbUpdateFp)mndEncLogActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndEncLogActionDelete,
+  };
+
+  return sdbSetTable(pMnode->pSdb, table);
+}
+
 void mndCleanupEncKey(SMnode *pMnode) {
   mDebug("mnd EncKey cleanup");
 }
+
+void mndCleanupEncLog(SMnode *pMnode) { mDebug("mnd EncLog cleanup"); }
 
 int32_t tSerializeSEncKeyObj(void *buf, int32_t bufLen, const SEncKeyObj *pObj) {
   SEncoder encoder = {0};
@@ -205,6 +223,20 @@ int32_t mndEncKeyActionUpdate(SSdb *pSdb, SEncKeyObj *pOldEncKey, SEncKeyObj *pN
   return 0;
 }
 
+SEncKeyObj *mndAcquireEncKey(SMnode *pMnode, int64_t encKeyId) {
+  SSdb       *pSdb = pMnode->pSdb;
+  SEncKeyObj *pEncKey = sdbAcquire(pSdb, SDB_ENC_KEY, &encKeyId);
+  if (pEncKey == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
+    terrno = TSDB_CODE_SUCCESS;
+  }
+  return pEncKey;
+}
+
+void mndReleaseEncKey(SMnode *pMnode, SEncKeyObj *pEncKey) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbRelease(pSdb, pEncKey);
+}
+
 //retrieve EncKey
 int32_t mndRetrieveEncKey(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows){
   SMnode     *pMnode = pReq->info.node;
@@ -283,6 +315,219 @@ int32_t mndProcessAKGenReq(SRpcMsg *pReq) {
   return 0; 
 }
 
+int32_t tSerializeSEncLogObj(void *buf, int32_t bufLen, const SEncLogObj *pObj) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+
+  if (tEncodeI32(&encoder, pObj->Id) < 0) return -1;
+  if (tEncodeCStr(&encoder, pObj->db) < 0) return -1;
+  if (tEncodeCStr(&encoder, pObj->tableName) < 0) return -1;
+  if (tEncodeCStr(&encoder, pObj->columnName) < 0) return -1;
+  if (tEncodeI64(&encoder, pObj->createTime) < 0) return -1;
+  if (tEncodeI32(&encoder, pObj->keyIndex) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSEncLogObj(void *buf, int32_t bufLen, SEncLogObj *pObj) {
+  int8_t   ex = 0;
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+
+  if (tDecodeI32(&decoder, &pObj->Id) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pObj->db) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pObj->tableName) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pObj->columnName) < 0) return -1;
+  if (tDecodeI64(&decoder, &pObj->createTime) < 0) return -1;
+  if (tDecodeI32(&decoder, &pObj->keyIndex) < 0) return -1;
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+SSdbRaw *mndEncLogActionEncode(SEncLogObj *pEncLog) {
+  terrno = TSDB_CODE_SUCCESS;
+
+  void    *buf = NULL;
+  SSdbRaw *pRaw = NULL;
+
+  int32_t tlen = tSerializeSEncLogObj(NULL, 0, pEncLog);
+  if (tlen < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto OVER;
+  }
+
+  int32_t size = sizeof(int32_t) + tlen;
+  pRaw = sdbAllocRaw(SDB_ENC_LOG, MND_ENC_KEY_VER_NUMBER, size);
+  if (pRaw == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto OVER;
+  }
+
+  buf = taosMemoryMalloc(tlen);
+  if (buf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto OVER;
+  }
+
+  tlen = tSerializeSEncLogObj(buf, tlen, pEncLog);
+  if (tlen < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto OVER;
+  }
+
+  int32_t dataPos = 0;
+  SDB_SET_INT32(pRaw, dataPos, tlen, OVER);
+  SDB_SET_BINARY(pRaw, dataPos, buf, tlen, OVER);
+  SDB_SET_DATALEN(pRaw, dataPos, OVER);
+
+OVER:
+  taosMemoryFreeClear(buf);
+  if (terrno != TSDB_CODE_SUCCESS) {
+    mError("EncLog:%" PRId32 ", failed to encode to raw:%p since %s", pEncLog->Id, pRaw, terrstr());
+    sdbFreeRaw(pRaw);
+    return NULL;
+  }
+
+  mTrace("EncLog:%" PRId32 ", encode to raw:%p, row:%p", pEncLog->Id, pRaw, pEncLog);
+  return pRaw;
+}
+
+SSdbRow *mndEncLogActionDecode(SSdbRaw *pRaw) {
+  SSdbRow    *pRow = NULL;
+  SEncLogObj *pEncLog = NULL;
+  void       *buf = NULL;
+  terrno = TSDB_CODE_SUCCESS;
+
+  int8_t sver = 0;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) {
+    goto OVER;
+  }
+
+  if (sver != MND_ENC_KEY_VER_NUMBER) {
+    terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
+    mError("compact read invalid ver, data ver: %d, curr ver: %d", sver, MND_ENC_KEY_VER_NUMBER);
+    goto OVER;
+  }
+
+  pRow = sdbAllocRow(sizeof(SEncLogObj));
+  if (pRow == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto OVER;
+  }
+
+  pEncLog = sdbGetRowObj(pRow);
+  if (pEncLog == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto OVER;
+  }
+
+  int32_t tlen;
+  int32_t dataPos = 0;
+  SDB_GET_INT32(pRaw, dataPos, &tlen, OVER);
+  buf = taosMemoryMalloc(tlen + 1);
+  if (buf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto OVER;
+  }
+  SDB_GET_BINARY(pRaw, dataPos, buf, tlen, OVER);
+
+  if (tDeserializeSEncLogObj(buf, tlen, pEncLog) < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto OVER;
+  }
+
+  // taosInitRWLatch(&pView->lock);
+
+OVER:
+  taosMemoryFreeClear(buf);
+  if (terrno != TSDB_CODE_SUCCESS) {
+    mError("enckey:%" PRId32 ", failed to decode from raw:%p since %s", pEncLog->Id, pRaw, terrstr());
+    taosMemoryFreeClear(pRow);
+    return NULL;
+  }
+
+  mTrace("EncLog:%" PRId32 ", decode from raw:%p, row:%p", pEncLog->Id, pRaw, pEncLog);
+  return pRow;
+}
+
+int32_t mndEncLogActionInsert(SSdb *pSdb, SEncLogObj *pEncLog) {
+  mTrace("EncLog:%" PRId32 ", perform insert action", pEncLog->Id);
+  return 0;
+}
+
+int32_t mndEncLogActionDelete(SSdb *pSdb, SEncLogObj *pEncLog) {
+  mTrace("EncLog:%" PRId32 ", perform insert action", pEncLog->Id);
+  return 0;
+}
+
+int32_t mndEncLogActionUpdate(SSdb *pSdb, SEncLogObj *pOldEncLog, SEncLogObj *pNewEncLog) {
+  mTrace("EncLog:%" PRId32 ", perform update action, old row:%p new row:%p", pOldEncLog->Id, pOldEncLog, pNewEncLog);
+
+  return 0;
+}
+
+int32_t mndRetrieveEncLog(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  SMnode     *pMnode = pReq->info.node;
+  SSdb       *pSdb = pMnode->pSdb;
+  int32_t     numOfRows = 0;
+  SEncLogObj *pEncLog = NULL;
+
+  while (numOfRows < rows) {
+    pShow->pIter = sdbFetch(pSdb, SDB_ENC_LOG, pShow->pIter, (void **)&pEncLog);
+    if (pShow->pIter == NULL) break;
+
+    SColumnInfoData *pColInfo;
+    SName            n;
+    int32_t          cols = 0;
+
+    mInfo("EncLog:%d, db:%s, table:%s, column:%s", pEncLog->Id, pEncLog->db, pEncLog->tableName, pEncLog->columnName);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pEncLog->Id, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    char dbBuf[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    strncpy(varDataVal(dbBuf), pEncLog->db, TSDB_DB_FNAME_LEN);
+    varDataSetLen(dbBuf, strlen(varDataVal(dbBuf)));
+    colDataSetVal(pColInfo, numOfRows, (const char *)dbBuf, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    char tableBuf[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    strncpy(varDataVal(tableBuf), pEncLog->tableName, TSDB_TABLE_NAME_LEN);
+    varDataSetLen(tableBuf, strlen(varDataVal(tableBuf)));
+    colDataSetVal(pColInfo, numOfRows, (const char *)tableBuf, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    char columnBuf[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    strncpy(varDataVal(columnBuf), pEncLog->columnName, TSDB_COL_NAME_LEN);
+    varDataSetLen(columnBuf, strlen(varDataVal(columnBuf)));
+    colDataSetVal(pColInfo, numOfRows, (const char *)columnBuf, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pEncLog->createTime, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pEncLog->keyIndex, false);
+
+    numOfRows++;
+    sdbRelease(pSdb, pEncLog);
+  }
+
+  pShow->numOfRows += numOfRows;
+  return numOfRows;
+}
+
 int32_t mndProcessAKEncReq(SRpcMsg *pReq) {
   int32_t code = -1;
   SMnode *pMnode = pReq->info.node;
@@ -294,8 +539,96 @@ int32_t mndProcessAKEncReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mInfo("dnode:%d, start to akenc, restore type:%d, %s, %s", restoreReq.dnodeId, restoreReq.restoreType, restoreReq.db,
-        restoreReq.tb);
+  if (restoreReq.restoreType == 1) {
+    mInfo("dnode:%d, start to akenc, restore type:%d, %s, %s", restoreReq.dnodeId, restoreReq.restoreType,
+          restoreReq.db, restoreReq.tb);
+
+    SEncKeyObj *pEncKey = mndAcquireEncKey(pMnode, restoreReq.dnodeId);
+
+    int64_t ts = pEncKey->createTime;
+    int64_t nowts = taosGetTimestampMs();
+    int32_t size = sdbGetSize(pMnode->pSdb, SDB_ENC_KEY);
+    int32_t index = (int32_t)(nowts - ts) / 1000 % size;
+    mndReleaseEncKey(pMnode, pEncKey);
+
+    pEncKey = mndAcquireEncKey(pMnode, index);
+    char key[128] = {0};
+    strcpy(key, pEncKey->key);
+    mndReleaseEncKey(pMnode, pEncKey);
+
+    mInfo("dnode:%d, ak enc key:%s", restoreReq.dnodeId, key);
+
+    STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "akenc");
+    if (pTrans == NULL) {
+      mError("trans:%" PRId32 ", failed to create since %s", pTrans->id, terrstr());
+      return -1;
+    }
+
+    int32_t    id = sdbGetMaxId(pMnode->pSdb, SDB_ENC_LOG);
+    SEncLogObj enclog = {0};
+    enclog.Id = id + 1;
+    strcpy(enclog.db, restoreReq.db);
+    strcpy(enclog.tableName, restoreReq.tb);
+    enclog.keyIndex = index;
+    enclog.createTime = taosGetTimestampMs();
+
+    SSdbRaw *pEncLog = mndEncLogActionEncode(&enclog);
+    if (pEncLog == NULL || mndTransAppendCommitlog(pTrans, pEncLog) != 0) {
+      mError("EncLog:%d, trans:%d, failed to append commit log since %s", enclog.Id, pTrans->id, terrstr());
+      mndTransDrop(pTrans);
+      return -1;
+    }
+    (void)sdbSetRawStatus(pEncLog, SDB_STATUS_READY);
+
+    if (mndTransPrepare(pMnode, pTrans) != 0) {
+      mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+      mndTransDrop(pTrans);
+      return -1;
+    }
+
+    mndTransDrop(pTrans);
+  } else if (restoreReq.restoreType == 4) {
+    mInfo("dnode:%d, start to akdec, restore type:%d, %s, %s", restoreReq.dnodeId, restoreReq.restoreType,
+          restoreReq.db, restoreReq.tb);
+
+    SEncLogObj *pEncLog = NULL;
+    void       *pIter = NULL;
+
+    while (1) {
+      pIter = sdbFetch(pMnode->pSdb, SDB_ENC_LOG, pIter, (void **)&pEncLog);
+      if (pIter == NULL) break;
+
+      if (strcmp(pEncLog->db, restoreReq.db) == 0 && strcmp(pEncLog->tableName, restoreReq.tb) == 0) {
+        mInfo("dnode:%d, ak enc log:%s.%s.%s", restoreReq.dnodeId, pEncLog->db, pEncLog->tableName,
+              pEncLog->columnName);
+
+        STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "akenc");
+        if (pTrans == NULL) {
+          mError("trans:%" PRId32 ", failed to create since %s", pTrans->id, terrstr());
+          return -1;
+        }
+
+        SSdbRaw *pRaw = mndEncLogActionEncode(pEncLog);
+        if (pEncLog == NULL || mndTransAppendCommitlog(pTrans, pRaw) != 0) {
+          mError("EncLog:%d, trans:%d, failed to append commit log since %s", pEncLog->Id, pTrans->id, terrstr());
+          mndTransDrop(pTrans);
+          return -1;
+        }
+        (void)sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
+
+        if (mndTransPrepare(pMnode, pTrans) != 0) {
+          mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+          mndTransDrop(pTrans);
+          return -1;
+        }
+
+        mndTransDrop(pTrans);
+
+        sdbCancelFetch(pMnode->pSdb, pIter);
+        sdbRelease(pMnode->pSdb, pEncLog);
+      }
+    }
+  }
 
   code = 0;
 

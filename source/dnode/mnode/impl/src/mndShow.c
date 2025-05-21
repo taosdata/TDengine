@@ -137,6 +137,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_TSMAS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_ENCKEY, len) == 0) {
     type = TSDB_MGMT_TABLE_ENCKEY;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ENCLOG, len) == 0) {
+    type = TSDB_MGMT_TABLE_ENCLOG;
   } else {
     mError("invalid show name:%s len:%d", name, len);
   }

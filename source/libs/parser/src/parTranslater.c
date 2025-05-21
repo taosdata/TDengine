@@ -8446,6 +8446,7 @@ static int32_t translateRestoreDnode(STranslateContext* pCxt, SRestoreComponentN
   SRestoreDnodeReq restoreReq = {0};
   restoreReq.dnodeId = pStmt->dnodeId;
   strcpy(restoreReq.db, pStmt->dbName);
+  strcpy(restoreReq.tb, pStmt->tableName);
   switch (nodeType((SNode*)pStmt)) {
     case QUERY_NODE_RESTORE_DNODE_STMT:
       restoreReq.restoreType = RESTORE_TYPE__ALL;
