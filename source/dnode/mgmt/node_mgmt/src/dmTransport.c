@@ -291,7 +291,6 @@ static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
     return -1;
   } else {
     pMsg->info.handle = 0;
-    pMsg->info.noResp = 1;
     rpcSendRequest(pDnode->trans.clientRpc, pEpSet, pMsg, NULL);
     return 0;
   }
