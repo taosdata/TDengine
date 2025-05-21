@@ -352,6 +352,9 @@ class CompatibilityBase:
                     continue
                 tdLog.info(f"ALTER STABLE {db_name}.{stable_name} MODIFY TAG {tag_name} nchar({new_tag_size}), case {tag_value} len > {tag_size}")
                 tdsql.execute(f"ALTER STABLE {db_name}.{stable_name} MODIFY TAG {tag_name} nchar({new_tag_size})")
+                sleep(3)
+                self.checkTagSizeAndAlterStb(tdsql)
+
 
 
     def verifyData(self,corss_major_version):
