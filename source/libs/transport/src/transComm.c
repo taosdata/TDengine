@@ -384,7 +384,9 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
 
 void transCtxInit(STransCtx* ctx) {
   // init transCtx
-  ctx->args = taosHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  ctx->args = taosHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  ctx->brokenVal.val = NULL;
+  ctx->freeFunc = NULL;
 }
 void transCtxCleanup(STransCtx* ctx) {
   if (ctx == NULL || ctx->args == NULL) {
@@ -407,26 +409,52 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
   if (src->args == NULL || src->freeFunc == NULL) {
     return;
   }
+  SRpcBrokenlinkVal tval = {0};
+  void (*freeFunc)(const void* arg) = NULL;
+
   if (dst->args == NULL) {
     dst->args = src->args;
     dst->brokenVal = src->brokenVal;
     dst->freeFunc = src->freeFunc;
     src->args = NULL;
     return;
+  } else {
+    tval = dst->brokenVal;
+    freeFunc = dst->freeFunc;
+
+    dst->brokenVal = src->brokenVal;
+    dst->freeFunc = src->freeFunc;
   }
-  void*  key = NULL;
+
   size_t klen = 0;
   void*  iter = taosHashIterate(src->args, NULL);
   while (iter) {
     STransCtxVal* sVal = (STransCtxVal*)iter;
-    key = taosHashGetKey(sVal, &klen);
+    int32_t*      msgType = taosHashGetKey(sVal, &klen);
 
-    int32_t code = taosHashPut(dst->args, key, klen, sVal, sizeof(*sVal));
+    STransCtxVal* dVal = taosHashGet(dst->args, msgType, sizeof(*msgType));
+    if (dVal != NULL) {
+      tDebug("free msg type %s dump func", TMSG_INFO(*(int32_t*)msgType));
+      dst->freeFunc(dVal->val);
+      dVal->val = NULL;
+
+      TAOS_UNUSED(taosHashRemove(dst->args, msgType, sizeof(*msgType)));
+    }
+
+    int32_t code = taosHashPut(dst->args, msgType, sizeof(*msgType), sVal, sizeof(*sVal));
     if (code != 0) {
       tError("failed to put val to hash since %s", tstrerror(code));
+      tDebug("put msg type %s dump func", TMSG_INFO(*(int32_t*)msgType));
+      if (src->freeFunc) (src->freeFunc)(sVal->val);
+      sVal->val = NULL;
     }
     iter = taosHashIterate(src->args, iter);
   }
+  if (freeFunc != NULL && tval.val != NULL) {
+    freeFunc(tval.val);
+    tval.val = NULL;
+  }
+
   taosHashCleanup(src->args);
 }
 void* transCtxDumpVal(STransCtx* ctx, int32_t key) {

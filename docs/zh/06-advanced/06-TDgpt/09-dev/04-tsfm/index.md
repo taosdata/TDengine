@@ -27,7 +27,7 @@ TDgpt 在 3.3.6.4 版本原生支持五种类型的时序基础模型：涛思�
 为了使用时间序列基础模型，需要在本地部署环境支持其运行。首先需要准备一个虚拟的 Python 环境，使用 `pip` 安装必要的依赖包：
 
 ```shell
-pip install torch==2.4.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
+pip install torch==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
 pip install flask==3.0.3
 pip install transformers==4.40.0
 pip install accelerate

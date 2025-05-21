@@ -31,7 +31,7 @@ class TestNullTag:
 
         db = "db"
         tdSql.execute(f"drop database if exists {db}")
-        tdSql.execute(f"create database {db}")
+        tdSql.prepare(db, drop=True)
         tdSql.execute(f"use {db}")
 
         #### case 0: field NULL, or 'NULL'
