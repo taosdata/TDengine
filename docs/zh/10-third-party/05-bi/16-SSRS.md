@@ -9,8 +9,11 @@ toc_max_heading_level: 5
 TDengine 支持标准 ODBC 接口，SSRS 可实现无缝对接 TDengine。TDengine 高性能数据存储与查询能力为 SSRS 报表引擎提供实时数据源，SSRS 可视化报表生成功能则将 TDengine 中的物联网、金融等时序数据转化为直观业务洞察信息，满足了企业对跨平台报表解决方案的需求，同时通过标准化接口保障了数据交互安全与稳定性，为构建现代化数据驱动型组织提供坚实的技术支撑。
 
 ## 前置条件
-本示例需准备两台服务器一台客户端，搭建 SSRS 示例环境，环境准备如下：
+本示例需准备两台服务器两台客户端，搭建 SSRS 示例环境，网络部署如下：
+  
+![deploy](img/deploy.webp)
 
+环境准备如下：
 ### TDengine 服务器
 
 - 安装 TDengine 3.3.3.0 或以上服务器版（企业及社区版均可）。
@@ -22,13 +25,12 @@ TDengine 支持标准 ODBC 接口，SSRS 可实现无缝对接 TDengine。TDengi
 
 - 安装 TDengine 3.3.3.0 或以上 Windows 客户端版（默认安装 TDengine ODBC 驱动）。
 - 安装 Microsoft SQL Server 2022 且数据库服务正常运行，[下载安装](https://www.microsoft.com/zh-cn/sql-server/sql-server-downloads)。
-- 安装 Microsoft SQL Server 2022 Reporting Service 且报表服务正常运行，[下载安装](https://learn.microsoft.com/zh-cn/sql/reporting-services/install-windows/install-reporting-services)。
+- 安装 Microsoft SQL Server 2022 Reporting Service 且报表服务正常运行，[下载安装](https://learn.microsoft.com/zh-cn/sql/reporting-services/install-windows/install-reporting-services?view=sql-server-ver16)。
 - 配置 Microsoft SQL Server 2022 Reporting Service 使用 IP 地址对外提供服务。
   
   ![pre-1](img/pre-1.webp)
 
-- 服务器 IP：192.168.1.83
-- 提供 HTTP 服务： 端口 80
+   记录上图配置好的“Report Server Web Service URLs”址址，会在后面步骤中使用。
 
 
 ### 报表制作 Window 客户端
@@ -38,6 +40,13 @@ TDengine 支持标准 ODBC 接口，SSRS 可实现无缝对接 TDengine。TDengi
 - 配置 Microsoft Report Builder 连接报表服务器为：http://192.168.1.83:80/ReportServer。
   
   ![pre-2](img/pre-2.webp)
+
+### 办公客户端
+
+- 操作系统不限。
+- 网络要求可连接至 SSRS 服务器。
+- 安装任意一款浏览器软件。
+
 
 ## 配置数据源
 SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
@@ -59,10 +68,7 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
 
    ![cfg-2](img/cfg-2.webp)
 
-   - DSN：填写 TDengine（必务与步骤 1 中 DSN 相同）
-   - Connect type: 选择 WebSocket
-   - URL: http://192.168.2.124:6041
-   - User/Password：填写连接 TDengine 数据库用户名/密码，不填写使用默认
+   配置项内容填写与上一步相同。
   
    点击“Test Connection”，连接成功表示配置正确，点击“OK”保存配置。
 
@@ -73,8 +79,8 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
 
    - Name：填写数据源名称
    - 数据源方式：选择第二项“Use a connection embedded in my report”
-   - Select Connection type：选择 ODBC 数据源
-   - Connection string： 点击旁边“Build...”按钮，按上图选择填写
+   - Select Connection type：选择“ODBC”数据源
+   - Connection string：点击旁边“Build...”按钮，按上图选择填写
    
    点击“Test Connection”，连接成功表示配置正确，点击“OK”保存配置。
 
@@ -158,12 +164,7 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    ![browser-4](img/browser-4.webp)
 
 ### 管理报表
-1. SSRS 提供了报表管理页面，可通过以下页得到或修改管理页面地址：
-   
-   ![manager-1](img/manager-1.webp)
-  
-2. 打开管理页面，可对报表进行管理操作，如图：
+   如何对 SSDR 服务器上的报表进行管理，可参考微软官网文档 [管理报表](https://learn.microsoft.com/zh-cn/sql/reporting-services/report-builder/finding-viewing-and-managing-reports-report-builder-and-ssrs?view=sql-server-ver16)。
 
-   ![manager-2](img/manager-2.webp)
 
 以上流程，我们使用了 SSDR 开发了基于 TDengine 数据源的一个简单报表制作、分发、浏览系统，更多丰富的报表还有待您的进一步开发。
