@@ -477,6 +477,25 @@ int32_t mndEncLogActionUpdate(SSdb *pSdb, SEncLogObj *pOldEncLog, SEncLogObj *pN
   return 0;
 }
 
+SEncLogObj *mndAcquireEncLog(SMnode *pMnode, char *dbName, char *tableName) {
+  SSdb       *pSdb = pMnode->pSdb;
+  SEncLogObj *pEncLog = NULL;
+  void       *pIter = NULL;
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_ENC_LOG, pIter, (void **)&pEncLog);
+    if (pIter == NULL) break;
+
+    if (strcmp(pEncLog->db, dbName) == 0 && strcmp(pEncLog->tableName, tableName) == 0) {
+      break;
+    }
+  }
+  if (pEncLog == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
+    terrno = TSDB_CODE_SUCCESS;
+  }
+  return pEncLog;
+}
+
 int32_t mndRetrieveEncLog(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode     *pMnode = pReq->info.node;
   SSdb       *pSdb = pMnode->pSdb;
@@ -540,8 +559,8 @@ int32_t mndProcessAKEncReq(SRpcMsg *pReq) {
   }
 
   if (restoreReq.restoreType == 1) {
-    mInfo("dnode:%d, start to akenc, restore type:%d, %s, %s", restoreReq.dnodeId, restoreReq.restoreType,
-          restoreReq.db, restoreReq.tb);
+    mInfo("dnode:%d, start to akenc, restore type:%d, %s, %s, %s", restoreReq.dnodeId, restoreReq.restoreType,
+          restoreReq.db, restoreReq.tb, restoreReq.column);
 
     SEncKeyObj *pEncKey = mndAcquireEncKey(pMnode, restoreReq.dnodeId);
 
@@ -569,6 +588,7 @@ int32_t mndProcessAKEncReq(SRpcMsg *pReq) {
     enclog.Id = id + 1;
     strcpy(enclog.db, restoreReq.db);
     strcpy(enclog.tableName, restoreReq.tb);
+    strcpy(enclog.columnName, restoreReq.column);
     enclog.keyIndex = index;
     enclog.createTime = taosGetTimestampMs();
 

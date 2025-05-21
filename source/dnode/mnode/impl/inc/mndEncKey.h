@@ -54,6 +54,8 @@ int32_t mndEncLogActionUpdate(SSdb *pSdb, SEncLogObj *pOldEncLog, SEncLogObj *pN
 
 int32_t mndRetrieveEncLog(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 
+SEncLogObj *mndAcquireEncLog(SMnode *pMnode, char *dbName, char *tableName);
+
 #ifdef __cplusplus
 }
 #endif
