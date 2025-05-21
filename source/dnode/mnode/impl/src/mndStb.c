@@ -4382,6 +4382,7 @@ int32_t mndCreateNewStbByEncry(SStbObj *pDst, SStbObj *pSrc, SEncLogObj *pEncLog
     STableEncryption *pEnc = &pDst->pEncryption->pTableEncryption[i];
     SSchema          *pSchema = &pDst->pColumns[i];
     if (strcmp(pSchema->name, pEncLog->columnName) == 0) {
+      break;
     }
   }
 
