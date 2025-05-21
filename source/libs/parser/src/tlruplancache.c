@@ -73,7 +73,7 @@ int32_t clientSendAuditLog(void* pTrans, SEpSet* epset, char* operation, char* d
   int32_t len = tSerializeAuditLogReq(NULL, 0, &req);
   void*   pBuf = rpcMallocCont(len);
 
-  tSerializeAuditLogReq(pBuf, len, &req);
+  msgLen = tSerializeAuditLogReq(pBuf, len, &req);
 
   SRpcMsg rpcMsg = {
       .msgType = reqType,
