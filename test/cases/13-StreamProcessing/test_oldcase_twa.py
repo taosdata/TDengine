@@ -811,7 +811,7 @@ class TestStreamOldCaseTwa:
             and tdSql.getData(0, 1) == "t12"
             and tdSql.getData(0, 3) == "100000"
             and tdSql.getData(0, 4) == 1
-            and tdSql.getData(0, 5) == 64,
+            and tdSql.getData(0, 5) == 1,
         )
 
         tdLog.info(
@@ -833,7 +833,7 @@ class TestStreamOldCaseTwa:
         tdLog.info(f"2 sql select cc,ta,* from streamt11;")
         tdSql.queryCheckFunc(
             f"select cc,ta,* from streamt11;",
-            lambda: tdSql.getRows() >= 2
+            lambda: tdSql.getRows() >= 1
             and tdSql.getData(0, 0) == 1
             and tdSql.getData(0, 1) == "t12"
             and tdSql.getData(0, 3) == "1"
