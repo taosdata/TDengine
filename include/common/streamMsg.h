@@ -695,7 +695,7 @@ typedef struct SSTriggerCalcRequest {
   int64_t gid;
   SArray* params;        // SArray<SSTriggerCalcParam>
   SArray* groupColVals;  // SArray<SStreamGroupValue>, only provided at the first calculation of the group
-  bool    brandNew;      // TODO wjm remove it
+  bool    brandNew;
   int8_t  createTable;
   int32_t curWinIdx; // no serialize
   void*   pOutBlock; // no serialize

@@ -55,17 +55,8 @@ static int32_t blockListGetLastBlock(SBlockList* pBlockList, SSDataBlock** ppBlo
   SListNode* pNode = TD_DLIST_TAIL(pBlockList->pBlocks);
   int32_t    code = 0;
   *ppBlock = NULL;
-  if (pNode && 0) { // TODO wjm remove it
-    SSDataBlock* pBlock = *(SSDataBlock**)pNode->data;
-    if (pBlock->info.rows < pBlockList->blockRowNumThreshold) {
-      *ppBlock = pBlock;
-    } else {
-      code = blockListAddBlock(pBlockList);
-    }
-  } else {
-    code = blockListAddBlock(pBlockList);
-  }
-  if (*ppBlock == NULL && 0 == code) {
+  code = blockListAddBlock(pBlockList);
+  if (0 == code) {
     pNode = TD_DLIST_TAIL(pBlockList->pBlocks);
     *ppBlock = *(SSDataBlock**)pNode->data;
   }
@@ -82,7 +73,6 @@ static void blockListDestroy(void* p) {
       pNode = pNode->dl_next_;
     }
   }
-  //tdListFree(pBlockList->pBlocks); // TODO wjm
 }
 
 typedef struct SExternalWindowOperator {
@@ -96,7 +86,7 @@ typedef struct SExternalWindowOperator {
   SArray*            pWins;
   SArray*            pOutputBlocks;  // for each window, we have a list of blocks
   int32_t            outputWinId;
-  SListNode*         pOutputBlockListNode;  // block index in block array used for output, TODO wjm remember to reset it
+  SListNode*         pOutputBlockListNode;  // block index in block array used for output
   SSDataBlock*       pTmpBlock;
 } SExternalWindowOperator;
 
@@ -306,7 +296,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
 
   pExtW->primaryTsIndex = ((SColumnNode*)pPhynode->window.pTspk)->slotId;
   pExtW->scalarMode = pPhynode->window.pProjs;
-  pExtW->binfo.inputTsOrder = pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC; // TODO wjm set inputtsOrdeer
+  pExtW->binfo.inputTsOrder = pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC;
   pExtW->binfo.outputTsOrder = pExtW->binfo.inputTsOrder;
 
   if (pExtW->scalarMode) {
@@ -405,7 +395,7 @@ static void incExtWinOutIdx(SOperatorInfo* pOperator) {
 }
 
 static const STimeWindow* getExtWindow(SExternalWindowOperator* pExtW, TSKEY ts) {
-  // TODO wjm handle desc order
+  // TODO handle desc order
   for (int32_t i = 0; i < pExtW->pWins->size; ++i) {
     const STimeWindow* pWin = taosArrayGet(pExtW->pWins, i);
     if (ts >= pWin->skey && ts < pWin->ekey) {
@@ -513,7 +503,7 @@ static int32_t hashExternalWindowProject(SOperatorInfo* pOperator, SSDataBlock* 
   const STimeWindow*       pWin = getExtWindow(pExtW, ts);
   bool                     ascScan = pExtW->binfo.inputTsOrder == TSDB_ORDER_ASC;
   int32_t                  tsOrder = pExtW->binfo.inputTsOrder;
-  int32_t startPos = 0;  // TODO wjm filter out somerows not in current window, and do it for hashExternalWindowAgg
+  int32_t startPos = 0;
 
   if (!pWin) return 0;
   TSKEY   ekey = ascScan ? pWin->ekey : pWin->skey;
@@ -548,12 +538,8 @@ static bool hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
   TSKEY                    ts = getStartTsKey(&pInputBlock->info.window, tsCols);
   SResultRow*              pResult = NULL;
   int32_t                  ret = 0;
-  // TODO wjm handle limit, test desc order
 
   const STimeWindow* pWin = getExtWindow(pExtW, ts);
-  if (pWin) {
-    // TODO wjm handle null
-  }
   STimeWindow win = *pWin;
   ret = setExtWindowOutputBuf(pResultRowInfo, &win, &pResult, pInputBlock->info.id.groupId, pSup->pCtx,
                               numOfOutput, pSup->rowEntryInfoOffset, &pExtW->aggSup, pTaskInfo);
@@ -755,9 +741,6 @@ static int32_t doMergeAlignExtWindowAgg(SOperatorInfo* pOperator, SResultRowInfo
   TSKEY ts = getStartTsKey(&pBlock->info.window, tsCols);
 
   const STimeWindow *pWin = getExtWindow(pExtW, ts);
-  if (!pWin) {
-    // TODO wjm
-  }
 
   STimeWindow win = *pWin;
 
@@ -771,7 +754,6 @@ static int32_t doMergeAlignExtWindowAgg(SOperatorInfo* pOperator, SResultRowInfo
   while (++currPos < pBlock->info.rows) {
     if (tsCols[currPos] == pMlExtInfo->curTs) continue;
 
-    //updateTimeWindowInfo(&pExtW->twAggSup.timeWindowData, &win, 0);// TODO wjm take care of win end key
     code = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pExtW->twAggSup.timeWindowData, startPos,
                                            currPos - startPos, pBlock->info.rows, pSup->numOfExprs);
     if (code != 0) {
@@ -792,7 +774,6 @@ static int32_t doMergeAlignExtWindowAgg(SOperatorInfo* pOperator, SResultRowInfo
     pMlExtInfo->curTs = pWin->skey;
   }
 
-  //updateTimeWindowInfo(&pExtW->twAggSup.timeWindowData, &win, 0);  // TODO wjm take care of win end key
   code = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pExtW->twAggSup.timeWindowData, startPos,
                                          currPos - startPos, pBlock->info.rows, pSup->numOfExprs);
   if (code != 0) {

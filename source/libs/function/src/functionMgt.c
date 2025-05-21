@@ -775,6 +775,8 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
       return &pParams->wduration;
     case FUNCTION_TYPE_TWROWNUM:
       return &pParams->wrownum;
+    case FUNCTION_TYPE_TLOCALTIME:
+      return &pParams->triggerTime;
     case FUNCTION_TYPE_TGRPID:
       return &pStreamRuntimeFuncInfo->groupId;
     default:
@@ -806,8 +808,6 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
       uError("failed to set value node value: %s", tstrerror(code));
       return code;
     }
-  } else if (t == STREAM_PSEUDO_FUNC_TLOCALTIME) {
-    // TODO wjm impl
   } else if (LIST_LENGTH(pParamNodes) == 1) {
     // twstart, twend
     const void* pVal = fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);

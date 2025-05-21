@@ -145,7 +145,7 @@ static void stSetRunnerOutputInfo(SStreamRunnerTask* pTask, const SStreamRunnerD
 
 int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
   ST_TASK_ILOG("deploy runner task for %s.%s", pMsg->outDBFName, pMsg->outTblName);
-  pTask->pPlan = pMsg->pPlan;  // TODO wjm do we need to deep copy this char*
+  pTask->pPlan = pMsg->pPlan;
   pTask->forceOutCols = pMsg->forceOutCols;
   pTask->parallelExecutionNun = pMsg->execReplica;
   pTask->output.outStbVersion = pMsg->outStbSversion;
@@ -451,7 +451,6 @@ static int32_t stRunnerTopTaskHandleOutputBlockProj(SStreamRunnerTask* pTask, SS
     code = stRunnerHandleResultBlock(pTask, pExec, *ppForceOutBlock, createTable);
   }
   if (code == 0) {
-    assert(*pNextOutIdx >= pExec->runtimeInfo.funcInfo.curOutIdx);  // TODO wjm remove it
     *pNextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx + 1;
     code = stRunnerHandleResultBlock(pTask, pExec, pBlock, createTable);
   }

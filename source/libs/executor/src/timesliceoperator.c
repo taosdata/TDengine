@@ -1254,7 +1254,6 @@ static void resetTimeSliceOperState(SOperatorInfo* pOper) {
   pInterp->pRemainRes = NULL;
   pInterp->remainIndex = 0;
   pInterp->prevKey.ts = INT64_MIN;
-  //TODO wjm reset more
 }
 
 int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
