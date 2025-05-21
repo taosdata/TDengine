@@ -10320,9 +10320,7 @@ static int32_t translateCreateView(STranslateContext* pCxt, SCreateViewStmt* pSt
   if (TSDB_CODE_SUCCESS == code) {
     code = collectUseTable(&name, pCxt->pTargetTables);
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = translateQuery(pCxt, pStmt->pQuery);
-  }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesNodeToString(pStmt->pQuery, false, &pStmt->createReq.adast, NULL);
   }
