@@ -79,14 +79,12 @@ int32_t clientSendAuditLog(void* pTrans, SEpSet* epset, char* operation, char* d
 
   SRpcMsg rpcMsg = {
       .msgType = reqType,
-      .pCont = msg,
+      .pCont = pBuf,
       .contLen = msgLen,
   };
 
   SRpcMsg rpcRsp = {0};
-  rpcSendRecv(pTrans, epset, &rpcMsg, &rpcRsp);
-
-  rpcFreeCont(rpcRsp.pCont);
+  rpcSendRequest(pTrans, epset, &rpcMsg, NULL);
 
   return TSDB_CODE_SUCCESS;
 }

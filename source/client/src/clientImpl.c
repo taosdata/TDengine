@@ -33,6 +33,7 @@
 
 PlanCacheAddr gPCaddr = {0};
 void* gPCConn = NULL;
+bool newConn = false;
 
 static int32_t       initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
 static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest);
@@ -58,7 +59,11 @@ static bool validateDbName(const char* db) { return stringLengthCheck(db, TSDB_D
 
 static char* getClusterKey(const char* user, const char* auth, const char* ip, int32_t port) {
   char key[512] = {0};
-  snprintf(key, sizeof(key), "%s:%s:%s:%d", user, auth, ip, port);
+  if (newConn) {
+    snprintf(key, sizeof(key), "abc%s:%s:%s:%d", user, auth, ip, port);
+  } else {
+    snprintf(key, sizeof(key), "%s:%s:%s:%d", user, auth, ip, port);
+  }
   return taosStrdup(key);
 }
 
@@ -1206,7 +1211,9 @@ int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pRes
       if (!pDag->planCacheUsed && !pDag->showRewrite && EXPLAIN_MODE_DISABLE == pDag->explainInfo.mode && isQuery) {
         STscObj *pTscObj = NULL;
         if (NULL == gPCConn) {
+          newConn = true;
           gPCConn = taos_connect(gPCaddr.ip, gPCaddr.user, gPCaddr.pass, gPCaddr.db, gPCaddr.port);
+          newConn = false;
         }
         
         pTscObj = acquireTscObj(*(int64_t*)gPCConn);
