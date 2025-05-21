@@ -117,7 +117,7 @@ void mndCleanupStb(SMnode *pMnode) {}
 
 int32_t calcEncrySize(STableEncryptionMgt *pMgt) {
   if (pMgt == NULL) return 0;
-  return sizeof(*pMgt) + sizeof(STableEncryption) * sizeof(STableEncryption);
+  return sizeof(*pMgt) + sizeof(STableEncryption) * pMgt->numOfEncryption;
 }
 SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
