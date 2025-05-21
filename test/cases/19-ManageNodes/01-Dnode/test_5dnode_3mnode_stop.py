@@ -44,19 +44,17 @@ class Test5dnode3mnodeStop:
 
     @pytest.mark.cluster
     def test_five_dnode_three_mnode(self):
-        """测试多节点集群缩扩容后mnode状态
+        """cluster mnode status
 
-        5节点集群停止、启动各个dnode后, 检查mnode状态
+        5dnodes start/stop each dnode, then check mnode status
 
         Since: v3.3.0.0
 
-        Labels: cluster,ci
-
-        Jira: None
+        Labels: cluster
 
         History:
-            - 2024-2-6 Feng Chao Created
-            - 2025-3-10 Huo Hong Migrated to new test framework
+            - 2022-6-11 tomchon Created
+            - 2025-5-13 Huo Hong Migrated to new test framework
 
         """
 

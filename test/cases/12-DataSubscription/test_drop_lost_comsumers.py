@@ -298,19 +298,17 @@ class TestDropLostConsumers:
     
     
     def test_case_max_poll_timeout(self):
-        """session_timeout_ms 和 max_poll_interval_ms 到期后consumer关闭
+        """timeout then consumer close
         
-        session_timeout_ms 和 max_poll_interval_ms 到期后consumer关闭
+        session_timeout_ms and max_poll_interval_ms timeout then consumer close
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
-        Jira: TD-12345,TS-1234
+        Labels: tmq
 
         History:
-            - 2024-2-6 Feng Chao Created
-            - 2025-2-26 Huo Hong Migrated to new test framework
+            - 2024-10-23 chenhaoran Created
+            - 2025-5-13 Huo Hong Migrated to new test framework
 
         """
         tdLog.info("start to test max_poll_interval_ms=20s")

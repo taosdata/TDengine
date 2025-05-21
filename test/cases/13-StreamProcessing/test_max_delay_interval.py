@@ -141,6 +141,19 @@ class TestMaxDelayInterval:
 
 
     def test_watermark_max_delay_interval(self):
+        """watermark max delay interval
+
+        test watermark max delay interval
+
+        Since: v3.3.0.0
+
+        Labels: stream
+
+        History:
+            - 2023-8-21 jiajingbin Created
+            - 2025-5-13 Huo Hong Migrated to new test framework
+
+        """
         for watermark in [None, random.randint(20, 25)]:
             self.watermark_max_delay_interval(interval=random.choice([15]), watermark=watermark, max_delay=f"{random.randint(5, 6)}s")
         for fill_value in ["NULL", "PREV", "NEXT", "LINEAR", "VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11"]:

@@ -34,6 +34,17 @@ class TestMlevelBasic:
 
     # run
     def test_mlevel_basic(self):
+        """multi level storage
+
+        insert data, fluch & trim database, check aggregate value.
+
+        Since: v3.0.0.0
+
+        History:
+            - 2024-6-5 Alex Duan Created
+            - 2025-5-13 Huo Hong Migrated to new test framework
+
+        """
         tdLog.debug(f"start to excute {__file__}")
 
         # insert data
