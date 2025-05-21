@@ -491,9 +491,12 @@ void doDestroyRequest(void *p) {
   }
   taosMemoryFree(pRequest->body.interParam);
 
+  bool isQuery = isQueryStmt(pRequest->pQuery->pRoot);
   qDestroyQuery(pRequest->pQuery);
-  //nodesDestroyAllocator(pRequest->allocatorRefId);
-
+  if (!isQuery) {
+    nodesDestroyAllocator(pRequest->allocatorRefId);
+  }
+  
   taosMemoryFreeClear(pRequest->effectiveUser);
   taosMemoryFreeClear(pRequest->sqlstr);
   taosMemoryFree(pRequest);

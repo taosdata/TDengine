@@ -79,6 +79,7 @@ typedef struct SSchedulerReq {
   SExecResult*       pExecRes;
   void**             pFetchRes;
   int8_t             source;
+  bool               isQuery;
 } SSchedulerReq;
 
 int32_t schedulerInit(void);

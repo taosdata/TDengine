@@ -56,6 +56,8 @@ enum {
 #define TD_RES_TMQ_META(res)     (*(int8_t*)res == RES_TYPE__TMQ_META)
 #define TD_RES_TMQ_METADATA(res) (*(int8_t*)res == RES_TYPE__TMQ_METADATA)
 
+#define isQueryStmt(_node) (nodeType(_node) == QUERY_NODE_SELECT_STMT)
+
 typedef struct SAppInstInfo SAppInstInfo;
 
 typedef struct {

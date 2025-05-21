@@ -306,6 +306,7 @@ typedef struct SSchJob {
   char                *sql;
   SQueryProfileSummary summary;
   int8_t               source;
+  bool                 isQuery;
 } SSchJob;
 
 typedef struct SSchTaskCtx {

@@ -686,7 +686,10 @@ void schFreeJobImpl(void *job) {
 
   destroyQueryExecRes(&pJob->execRes);
 
-  //qDestroyQueryPlan(pJob->pDag);
+  if (!pJob->isQuery) {
+    qDestroyQueryPlan(pJob->pDag);
+  }
+  
   nodesReleaseAllocatorWeakRef(pJob->allocatorRefId);
 
   taosMemoryFreeClear(pJob->userRes.execRes);
@@ -747,6 +750,7 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   pJob->userRes.execFp = pReq->execFp;
   pJob->userRes.cbParam = pReq->cbParam;
   pJob->source = pReq->source;
+  pJob->isQuery = pReq->isQuery;
 
   if (pReq->pNodeList == NULL || taosArrayGetSize(pReq->pNodeList) <= 0) {
     qDebug("QID:0x%" PRIx64 " input exec nodeList is empty", pReq->pDag->queryId);

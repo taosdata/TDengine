@@ -1163,6 +1163,7 @@ int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pRes
   SArray*     pMnodeList = NULL;
   SQueryPlan* pDag = NULL;
   int64_t     st = taosGetTimestampUs();
+  bool        isQuery = isQueryStmt(pQuery->pRoot);
 
   if (!pRequest->parseOnly) {
     pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
@@ -1181,7 +1182,7 @@ int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pRes
                         .allocatorId = pRequest->allocatorRefId};
 
     void* plan = NULL;
-    if (!pQuery->noUseCachePlan) {
+    if (!pQuery->noUseCachePlan && isQuery) {
       getFromPlanCache(pRequest->pTscObj->user, pRequest->pTscObj->priority, pRequest->sqlstr, &plan);
     }
     
@@ -1198,7 +1199,7 @@ int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pRes
       pRequest->body.subplanNum = pDag->numOfSubplans;
       TSWAP(pRequest->pPostPlan, pDag->pPostPlan);
 
-      if (!pDag->planCacheUsed && !pDag->showRewrite && EXPLAIN_MODE_DISABLE == pDag->explainInfo.mode) {
+      if (!pDag->planCacheUsed && !pDag->showRewrite && EXPLAIN_MODE_DISABLE == pDag->explainInfo.mode && isQuery) {
         putToPlanCache(pRequest->pTscObj->user, pRequest->pTscObj->priority, pRequest->pTscObj->maxCount, pRequest->sqlstr, pDag
           , pRequest->pTscObj->pAppInfo->pTransporter, &cxt.mgmtEpSet);
       }
@@ -1232,6 +1233,7 @@ int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pRes
            .chkKillParam = (void*)pRequest->self,
            .pExecRes = NULL,
            .source = pRequest->source,
+           .isQuery = isQuery
     };
     code = schedulerExecJob(&req, &pRequest->body.queryJob);
     taosArrayDestroy(pNodeList);
