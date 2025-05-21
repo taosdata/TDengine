@@ -9,7 +9,7 @@ toc_max_heading_level: 5
 TDengine 支持标准 ODBC 接口，SSRS 可实现无缝对接 TDengine。TDengine 高性能数据存储与查询能力为 SSRS 报表引擎提供实时数据源，SSRS 可视化报表生成功能则将 TDengine 中的物联网、金融等时序数据转化为直观业务洞察信息，满足了企业对跨平台报表解决方案的需求，同时通过标准化接口保障了数据交互安全与稳定性，为构建现代化数据驱动型组织提供坚实的技术支撑。
 
 ## 前置条件
-本示例需准备两台服务器两台客户端，搭建 SSRS 示例环境，网络部署如下：
+本示例需准备两台服务器两台客户端，搭建 SSRS 示例环境，网络部署图：
   
 ![deploy](img/deploy.webp)
 
@@ -68,7 +68,7 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
 
    ![cfg-2](img/cfg-2.webp)
 
-   配置项内容填写与上一步相同。
+   配置项内容填写同上步。
   
    点击“Test Connection”，连接成功表示配置正确，点击“OK”保存配置。
 
@@ -106,7 +106,7 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    - Name：填写数据集名称
    - 数据集方式：选择第二项“Use a dataset embedded im my report”
    - Data source：选择前面创建好的 “DataSource1”
-   - Query type: 选择“text”类型查询，填写如下查询分析 SQL：
+   - Query type: 选择“text”类型查询，填写如下查询分析 SQL：  
    ``` sql
    SELECT 
       tbname        as DeviceID, 
