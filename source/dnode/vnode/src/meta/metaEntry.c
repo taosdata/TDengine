@@ -37,10 +37,7 @@ int32_t metaDecodeColEntryptionSubEntry(SDecoder *pCoder, STableEncryption *pEnt
   tDecodeI32(pCoder, &pEntryption->serailId);
   tDecodeCStrTo(pCoder, pEntryption->encryptionKey);
   tDecodeCStrTo(pCoder, pEntryption->decryptionKey);
-
-  return 0;
-
-  return 0;
+  return code;
 }
 int32_t metaEncodeColEntryptionEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   int32_t code = 0;

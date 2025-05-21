@@ -4310,3 +4310,41 @@ _end:
   tFreeFetchTtlExpiredTbsRsp(&rsp);
   return code;
 }
+int32_t mndAlterStbByEncyption(SMnode *pMnode) {
+  int32_t code = 0;
+  SSdb   *pSdb = pMnode->pSdb;
+
+  SArray     *pArray = taosArrayInit(4, sizeof(SEncLogObj));
+  SEncLogObj *pEncLogObj = NULL;
+  void       *pIter = NULL;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_ENC_LOG, pIter, (void **)&pEncLogObj);
+
+    SEncLogObj encLog = {0};
+    memcpy(&encLog, pEncLogObj, sizeof(SEncLogObj));
+    taosArrayPush(pArray, &encLog);
+
+    sdbRelease(pSdb, pEncLogObj);
+  }
+  SStbObj stbObj = {0};
+  pIter = NULL;
+  for (int32_t i = 0; i < taosArrayGetSize(pArray); i++) {
+    SEncLogObj *pEncLog = taosArrayGet(pArray, i);
+    while (1) {
+      SStbObj *pStb = NULL;
+      pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb);
+      if (strcmp(pStb->db, pEncLog->db) == 0 && strcmp(pStb->name, pEncLog->tableName) == 0) {
+        SDbObj *pDb = mndAcquireDb(pMnode, pStb->db);
+
+        mndAlterStbImp(pMnode, NULL, pDb, pStb, 0, "", 0);
+        sdbRelease(pSdb, pSdb);
+
+        mndReleaseDb(pMnode, pDb);
+        break;
+      }
+      sdbRelease(pSdb, pSdb);
+    }
+  }
+
+  return code;
+}
