@@ -14,7 +14,7 @@ from util.dnodes import tdDnodes
 from util.cluster import *
 
 # Define the list of base versions to test
-BASE_VERSIONS = ["3.2.0.0","3.3.3.0","3.3.4.0","3.3.5.0","3.3.6.0"]  # Add more versions as needed
+BASE_VERSIONS = ["3.2.0.0","3.3.3.0","3.3.4.3","3.3.5.0","3.3.6.0"]  # Add more versions as needed
 
 class TDTestCase:
     def caseDescription(self):
