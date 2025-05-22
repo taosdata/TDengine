@@ -176,7 +176,7 @@ static int ttq_db_open(struct tmqtt__config *config) {
   db.now_real_s = time(NULL);
 
   db.config = config;
-  rc = db__open(config);
+  rc = ttqDbOpen(config);
   if (rc != TTQ_ERR_SUCCESS) {
     ttq_log(NULL, TTQ_LOG_ERR, "Error: Couldn't open database.");
   }
@@ -304,7 +304,7 @@ static void ttq_cleanup(void) {
   session_expiry__remove_all();
   ttq_cxt_cleanup();
   listeners__stop();
-  db__close();
+  ttqDbClose();
   // tmqtt_security_module_cleanup();
   log__close(db.config);
   ttqConfigCleanup(db.config);

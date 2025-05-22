@@ -442,50 +442,50 @@ int           ttqNetTlsServerCtx(struct tmqtt__listener *listener);
 int           ttqNetTlsLoadCertificates(struct tmqtt__listener *listener);
 
 // Read handling functions
-int ttq_handle_packet(struct tmqtt *context);
-int ttq_handle_connect(struct tmqtt *context);
-int ttq_handle_sub(struct tmqtt *context);
-int ttq_handle_unsub(struct tmqtt *context);
+int ttqHandlePacket(struct tmqtt *context);
+int ttqHandleConnect(struct tmqtt *context);
+int ttqHandleSub(struct tmqtt *context);
+int ttqHandleUnsub(struct tmqtt *context);
 int ttqHandleConnack(struct tmqtt *context);
 int ttqHandlePublish(struct tmqtt *context);
 int ttqHandleAuth(struct tmqtt *context);
 
 // Database handling
-int db__open(struct tmqtt__config *config);
-int db__close(void);
+int ttqDbOpen(struct tmqtt__config *config);
+int ttqDbClose(void);
 /* Return the number of in-flight messages in count. */
-int  db__message_count(int *count);
-int  db__message_delete_outgoing(struct tmqtt *context, uint16_t mid, enum tmqtt_msg_state expect_state, int qos);
-int  db__message_insert(struct tmqtt *context, uint16_t mid, enum tmqtt_msg_direction dir, uint8_t qos, bool retain,
+int  ttqDbMessageCount(int *count);
+int  ttqDbMessageDeleteOutgoing(struct tmqtt *context, uint16_t mid, enum tmqtt_msg_state expect_state, int qos);
+int  ttqDbMessageInsert(struct tmqtt *context, uint16_t mid, enum tmqtt_msg_direction dir, uint8_t qos, bool retain,
                         struct tmqtt_msg_store *stored, tmqtt_property *properties, bool update);
-int  db__message_remove_incoming(struct tmqtt *context, uint16_t mid);
-int  db__message_release_incoming(struct tmqtt *context, uint16_t mid);
-int  db__message_update_outgoing(struct tmqtt *context, uint16_t mid, enum tmqtt_msg_state state, int qos);
-void db__message_dequeue_first(struct tmqtt *context, struct tmqtt_msg_data *msg_data);
-int  db__messages_delete(struct tmqtt *context, bool force_free);
-int  db__messages_easy_queue(struct tmqtt *context, const char *topic, uint8_t qos, uint32_t payloadlen,
+int  ttqDbMessageRemoveIncoming(struct tmqtt *context, uint16_t mid);
+int  ttqDbMessageReleaseIncoming(struct tmqtt *context, uint16_t mid);
+int  ttqDbMessageUpdateOutgoing(struct tmqtt *context, uint16_t mid, enum tmqtt_msg_state state, int qos);
+void ttqDbMessageDequeueFirst(struct tmqtt *context, struct tmqtt_msg_data *msg_data);
+int  ttqDbMessageDelete(struct tmqtt *context, bool force_free);
+int  ttqDbMessageEasyQueue(struct tmqtt *context, const char *topic, uint8_t qos, uint32_t payloadlen,
                              const void *payload, int retain, uint32_t message_expiry_interval,
                              tmqtt_property **properties);
-int  db__message_store(const struct tmqtt *source, struct tmqtt_msg_store *stored, uint32_t message_expiry_interval,
+int  ttqDbMessageStore(const struct tmqtt *source, struct tmqtt_msg_store *stored, uint32_t message_expiry_interval,
                        dbid_t store_id, enum tmqtt_msg_origin origin);
-int  db__message_store_find(struct tmqtt *context, uint16_t mid, struct tmqtt_client_msg **client_msg);
-void db__msg_store_add(struct tmqtt_msg_store *store);
-void db__msg_store_remove(struct tmqtt_msg_store *store);
-void db__msg_store_ref_inc(struct tmqtt_msg_store *store);
-void db__msg_store_ref_dec(struct tmqtt_msg_store **store);
-void db__msg_store_clean(void);
-void db__msg_store_compact(void);
-void db__msg_store_free(struct tmqtt_msg_store *store);
-int  db__message_reconnect_reset(struct tmqtt *context);
-bool db__ready_for_flight(struct tmqtt *context, enum tmqtt_msg_direction dir, int qos);
-bool db__ready_for_queue(struct tmqtt *context, int qos, struct tmqtt_msg_data *msg_data);
-int  db__message_write_inflight_out_all(struct tmqtt *context);
-int  db__message_write_inflight_out_latest(struct tmqtt *context);
-int  db__message_write_queued_out(struct tmqtt *context);
-int  db__message_write_queued_in(struct tmqtt *context);
-void db__msg_add_to_inflight_stats(struct tmqtt_msg_data *msg_data, struct tmqtt_client_msg *msg);
-void db__msg_add_to_queued_stats(struct tmqtt_msg_data *msg_data, struct tmqtt_client_msg *msg);
-void db__expire_all_messages(struct tmqtt *context);
+int  ttqDbMessageStore_find(struct tmqtt *context, uint16_t mid, struct tmqtt_client_msg **client_msg);
+void ttqDbMsgStoreAdd(struct tmqtt_msg_store *store);
+void ttqDbMsgStoreRemove(struct tmqtt_msg_store *store);
+void ttqDbMsgStoreRefInc(struct tmqtt_msg_store *store);
+void ttqDbMsgStoreRefDec(struct tmqtt_msg_store **store);
+void ttqDbMsgStoreClean(void);
+void ttqDbMsgStoreCompact(void);
+void ttqDbMsgStoreFree(struct tmqtt_msg_store *store);
+int  ttqDbMessageReconnectReset(struct tmqtt *context);
+bool ttqDbReadyForFlight(struct tmqtt *context, enum tmqtt_msg_direction dir, int qos);
+bool ttqDbReadyForQueue(struct tmqtt *context, int qos, struct tmqtt_msg_data *msg_data);
+int  ttqDbMessageWriteInflightOutAll(struct tmqtt *context);
+int  ttqDbMessageWriteInflightOutLatest(struct tmqtt *context);
+int  ttqDbMessageWriteQueuedOut(struct tmqtt *context);
+int  ttqDbMessageWriteQueuedIn(struct tmqtt *context);
+void ttqDbMsgAddToInflightStats(struct tmqtt_msg_data *msg_data, struct tmqtt_client_msg *msg);
+void ttqDbMsgAddToQueuedStats(struct tmqtt_msg_data *msg_data, struct tmqtt_client_msg *msg);
+void ttqDbExpireAllMessages(struct tmqtt *context);
 
 // Subscription functions
 int                    sub__add(struct tmqtt *context, const char *sub, uint8_t qos, uint32_t identifier, int options);

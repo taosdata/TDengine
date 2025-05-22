@@ -94,7 +94,7 @@ static int ttq_handle_puback(struct tmqtt *ttq) {
 
   tmqtt_property_free_all(&properties);
 
-  rc = db__message_delete_outgoing(ttq, mid, ttq_ms_wait_for_pubcomp, qos);
+  rc = ttqDbMessageDeleteOutgoing(ttq, mid, ttq_ms_wait_for_pubcomp, qos);
   if (rc == TTQ_ERR_NOT_FOUND) {
     ttq_log(ttq, TTQ_LOG_WARNING, "Warning: Received %s from %s for an unknown packet identifier %d.", "PUBACK",
                 SAFE_PRINT(ttq->id), mid);
@@ -172,7 +172,7 @@ static int ttq_handle_disconnect(struct tmqtt *context) {
   return TTQ_ERR_SUCCESS;
 }
 
-int ttq_handle_packet(struct tmqtt *context) {
+int ttqHandlePacket(struct tmqtt *context) {
   int rc = TTQ_ERR_INVAL;
 
   if (!context) return TTQ_ERR_INVAL;
@@ -185,15 +185,15 @@ int ttq_handle_packet(struct tmqtt *context) {
       rc = ttq_handle_puback(context);
       break;
     case CMD_CONNECT:
-      return ttq_handle_connect(context);
+      return ttqHandleConnect(context);
     case CMD_DISCONNECT:
       rc = ttq_handle_disconnect(context);
       break;
     case CMD_SUBSCRIBE:
-      rc = ttq_handle_sub(context);
+      rc = ttqHandleSub(context);
       break;
     case CMD_UNSUBSCRIBE:
-      rc = ttq_handle_unsub(context);
+      rc = ttqHandleUnsub(context);
       break;
     case CMD_PINGRESP:
     case CMD_PUBCOMP:

@@ -57,7 +57,7 @@ static int ttq_send_suback(struct tmqtt *context, uint16_t mid, uint32_t payload
   return packet__queue(context, packet);
 }
 
-int ttq_handle_sub(struct tmqtt *context) {
+int ttqHandleSub(struct tmqtt *context) {
   int             rc = 0;
   int             rc2;
   uint16_t        mid;
@@ -311,9 +311,9 @@ int ttq_handle_sub(struct tmqtt *context) {
 #endif
 
   if (context->current_out_packet == NULL) {
-    rc = db__message_write_queued_out(context);
+    rc = ttqDbMessageWriteQueuedOut(context);
     if (rc) return rc;
-    rc = db__message_write_inflight_out_latest(context);
+    rc = ttqDbMessageWriteInflightOutLatest(context);
     if (rc) return rc;
   }
 
@@ -352,7 +352,7 @@ static int ttq_send_unsuback(struct tmqtt *ttq, uint16_t mid, int reason_code_co
   return packet__queue(ttq, packet);
 }
 
-int ttq_handle_unsub(struct tmqtt *context) {
+int ttqHandleUnsub(struct tmqtt *context) {
   uint16_t        mid;
   char           *sub;
   uint16_t        slen;

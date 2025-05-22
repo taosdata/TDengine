@@ -30,7 +30,7 @@
  * @param qos qos for the packet of interest
  * @return true if more in flight are allowed.
  */
-bool db__ready_for_flight(struct tmqtt *context, enum tmqtt_msg_direction dir, int qos) {
+bool ttqDbReadyForFlight(struct tmqtt *context, enum tmqtt_msg_direction dir, int qos) {
   struct tmqtt_msg_data *msgs;
   bool                   valid_bytes;
   bool                   valid_count;
@@ -91,7 +91,7 @@ bool db__ready_for_flight(struct tmqtt *context, enum tmqtt_msg_direction dir, i
  * @param qos destination qos for the packet of interest
  * @return true if queuing is allowed, false if should be dropped
  */
-bool db__ready_for_queue(struct tmqtt *context, int qos, struct tmqtt_msg_data *msg_data) {
+bool ttqDbReadyForQueue(struct tmqtt *context, int qos, struct tmqtt_msg_data *msg_data) {
   int     source_count;
   int     adjust_count;
   long    source_bytes;
@@ -104,7 +104,7 @@ bool db__ready_for_queue(struct tmqtt *context, int qos, struct tmqtt_msg_data *
   }
 
   if (qos == 0 && db.config->queue_qos0_messages == false) {
-    return false; /* This case is handled in db__ready_for_flight() */
+    return false; /* This case is handled in ttqDbReadyForFlight() */
   } else {
     source_bytes = (ssize_t)msg_data->queued_bytes12;
     source_count = msg_data->queued_count12;
@@ -130,7 +130,7 @@ bool db__ready_for_queue(struct tmqtt *context, int qos, struct tmqtt_msg_data *
   return valid_bytes && valid_count;
 }
 
-void db__msg_add_to_inflight_stats(struct tmqtt_msg_data *msg_data, struct tmqtt_client_msg *msg) {
+void ttqDbMsgAddToInflightStats(struct tmqtt_msg_data *msg_data, struct tmqtt_client_msg *msg) {
   msg_data->inflight_count++;
   msg_data->inflight_bytes += msg->store->payloadlen;
   if (msg->qos != 0) {
@@ -148,7 +148,7 @@ static void db__msg_remove_from_inflight_stats(struct tmqtt_msg_data *msg_data, 
   }
 }
 
-void db__msg_add_to_queued_stats(struct tmqtt_msg_data *msg_data, struct tmqtt_client_msg *msg) {
+void ttqDbMsgAddToQueuedStats(struct tmqtt_msg_data *msg_data, struct tmqtt_client_msg *msg) {
   msg_data->queued_count++;
   msg_data->queued_bytes += msg->store->payloadlen;
   if (msg->qos != 0) {
@@ -166,7 +166,7 @@ static void db__msg_remove_from_queued_stats(struct tmqtt_msg_data *msg_data, st
   }
 }
 
-int db__open(struct tmqtt__config *config) {
+int ttqDbOpen(struct tmqtt__config *config) {
   struct tmqtt__subhier *subhier;
 
   if (!config) return TTQ_ERR_INVAL;
@@ -227,16 +227,16 @@ static void subhier_clean(struct tmqtt__subhier **subhier) {
   }
 }
 
-int db__close(void) {
+int ttqDbClose(void) {
   subhier_clean(&db.normal_subs);
   subhier_clean(&db.shared_subs);
   // retain__clean(&db.retains);
-  db__msg_store_clean();
+  ttqDbMsgStoreClean();
 
   return TTQ_ERR_SUCCESS;
 }
 
-void db__msg_store_add(struct tmqtt_msg_store *store) {
+void ttqDbMsgStoreAdd(struct tmqtt_msg_store *store) {
   store->next = db.msg_store;
   store->prev = NULL;
   if (db.msg_store) {
@@ -245,7 +245,7 @@ void db__msg_store_add(struct tmqtt_msg_store *store) {
   db.msg_store = store;
 }
 
-void db__msg_store_free(struct tmqtt_msg_store *store) {
+void ttqDbMsgStoreFree(struct tmqtt_msg_store *store) {
   int i;
 
   ttq_free(store->source_id);
@@ -262,7 +262,7 @@ void db__msg_store_free(struct tmqtt_msg_store *store) {
   ttq_free(store);
 }
 
-void db__msg_store_remove(struct tmqtt_msg_store *store) {
+void ttqDbMsgStoreRemove(struct tmqtt_msg_store *store) {
   if (store->prev) {
     store->prev->next = store->next;
     if (store->next) {
@@ -277,39 +277,39 @@ void db__msg_store_remove(struct tmqtt_msg_store *store) {
   db.msg_store_count--;
   db.msg_store_bytes -= store->payloadlen;
 
-  db__msg_store_free(store);
+  ttqDbMsgStoreFree(store);
 }
 
-void db__msg_store_clean(void) {
+void ttqDbMsgStoreClean(void) {
   struct tmqtt_msg_store *store, *next;
   ;
 
   store = db.msg_store;
   while (store) {
     next = store->next;
-    db__msg_store_remove(store);
+    ttqDbMsgStoreRemove(store);
     store = next;
   }
 }
 
-void db__msg_store_ref_inc(struct tmqtt_msg_store *store) { store->ref_count++; }
+void ttqDbMsgStoreRefInc(struct tmqtt_msg_store *store) { store->ref_count++; }
 
-void db__msg_store_ref_dec(struct tmqtt_msg_store **store) {
+void ttqDbMsgStoreRefDec(struct tmqtt_msg_store **store) {
   (*store)->ref_count--;
   if ((*store)->ref_count == 0) {
-    db__msg_store_remove(*store);
+    ttqDbMsgStoreRemove(*store);
     *store = NULL;
   }
 }
 
-void db__msg_store_compact(void) {
+void ttqDbMsgStoreCompact(void) {
   struct tmqtt_msg_store *store, *next;
 
   store = db.msg_store;
   while (store) {
     next = store->next;
     if (store->ref_count < 1) {
-      db__msg_store_remove(store);
+      ttqDbMsgStoreRemove(store);
     }
     store = next;
   }
@@ -323,7 +323,7 @@ static void db__message_remove_from_inflight(struct tmqtt_msg_data *msg_data, st
   DL_DELETE(msg_data->inflight, item);
   if (item->store) {
     db__msg_remove_from_inflight_stats(msg_data, item);
-    db__msg_store_ref_dec(&item->store);
+    ttqDbMsgStoreRefDec(&item->store);
   }
 
   tmqtt_property_free_all(&item->properties);
@@ -337,14 +337,14 @@ static void db__message_remove_from_queued(struct tmqtt_msg_data *msg_data, stru
 
   DL_DELETE(msg_data->queued, item);
   if (item->store) {
-    db__msg_store_ref_dec(&item->store);
+    ttqDbMsgStoreRefDec(&item->store);
   }
 
   tmqtt_property_free_all(&item->properties);
   ttq_free(item);
 }
 
-void db__message_dequeue_first(struct tmqtt *context, struct tmqtt_msg_data *msg_data) {
+void ttqDbMessageDequeueFirst(struct tmqtt *context, struct tmqtt_msg_data *msg_data) {
   struct tmqtt_client_msg *msg;
 
   UNUSED(context);
@@ -357,10 +357,10 @@ void db__message_dequeue_first(struct tmqtt *context, struct tmqtt_msg_data *msg
   }
 
   db__msg_remove_from_queued_stats(msg_data, msg);
-  db__msg_add_to_inflight_stats(msg_data, msg);
+  ttqDbMsgAddToInflightStats(msg_data, msg);
 }
 
-int db__message_delete_outgoing(struct tmqtt *context, uint16_t mid, enum tmqtt_msg_state expect_state, int qos) {
+int ttqDbMessageDeleteOutgoing(struct tmqtt *context, uint16_t mid, enum tmqtt_msg_state expect_state, int qos) {
   struct tmqtt_client_msg *tail, *tmp;
   int                      msg_index = 0;
 
@@ -381,7 +381,7 @@ int db__message_delete_outgoing(struct tmqtt *context, uint16_t mid, enum tmqtt_
   }
 
   DL_FOREACH_SAFE(context->msgs_out.queued, tail, tmp) {
-    if (!db__ready_for_flight(context, ttq_md_out, tail->qos)) {
+    if (!ttqDbReadyForFlight(context, ttq_md_out, tail->qos)) {
       break;
     }
 
@@ -398,16 +398,16 @@ int db__message_delete_outgoing(struct tmqtt *context, uint16_t mid, enum tmqtt_
         tail->state = ttq_ms_publish_qos2;
         break;
     }
-    db__message_dequeue_first(context, &context->msgs_out);
+    ttqDbMessageDequeueFirst(context, &context->msgs_out);
   }
 #ifdef WITH_PERSISTENCE
   db.persistence_changes++;
 #endif
 
-  return db__message_write_inflight_out_latest(context);
+  return ttqDbMessageWriteInflightOutLatest(context);
 }
 
-int db__message_insert(struct tmqtt *context, uint16_t mid, enum tmqtt_msg_direction dir, uint8_t qos, bool retain,
+int ttqDbMessageInsert(struct tmqtt *context, uint16_t mid, enum tmqtt_msg_direction dir, uint8_t qos, bool retain,
                        struct tmqtt_msg_store *stored, tmqtt_property *properties, bool update) {
   struct tmqtt_client_msg *msg;
   struct tmqtt_msg_data   *msg_data;
@@ -463,7 +463,7 @@ int db__message_insert(struct tmqtt *context, uint16_t mid, enum tmqtt_msg_direc
   }
 
   if (context->sock != INVALID_SOCKET) {
-    if (db__ready_for_flight(context, dir, qos)) {
+    if (ttqDbReadyForFlight(context, dir, qos)) {
       if (dir == ttq_md_out) {
         switch (qos) {
           case 0:
@@ -484,7 +484,7 @@ int db__message_insert(struct tmqtt *context, uint16_t mid, enum tmqtt_msg_direc
           return 1;
         }
       }
-    } else if (qos != 0 && db__ready_for_queue(context, qos, msg_data)) {
+    } else if (qos != 0 && ttqDbReadyForQueue(context, qos, msg_data)) {
       state = ttq_ms_queued;
       rc = 2;
     } else {
@@ -498,7 +498,7 @@ int db__message_insert(struct tmqtt *context, uint16_t mid, enum tmqtt_msg_direc
       return 2;
     }
   } else {
-    if (db__ready_for_queue(context, qos, msg_data)) {
+    if (ttqDbReadyForQueue(context, qos, msg_data)) {
       state = ttq_ms_queued;
     } else {
       G_MSGS_DROPPED_INC();
@@ -522,7 +522,7 @@ int db__message_insert(struct tmqtt *context, uint16_t mid, enum tmqtt_msg_direc
   msg->prev = NULL;
   msg->next = NULL;
   msg->store = stored;
-  db__msg_store_ref_inc(msg->store);
+  ttqDbMsgStoreRefInc(msg->store);
   msg->mid = mid;
   msg->timestamp = db.now_s;
   msg->direction = dir;
@@ -538,10 +538,10 @@ int db__message_insert(struct tmqtt *context, uint16_t mid, enum tmqtt_msg_direc
 
   if (state == ttq_ms_queued) {
     DL_APPEND(msg_data->queued, msg);
-    db__msg_add_to_queued_stats(msg_data, msg);
+    ttqDbMsgAddToQueuedStats(msg_data, msg);
   } else {
     DL_APPEND(msg_data->inflight, msg);
-    db__msg_add_to_inflight_stats(msg_data, msg);
+    ttqDbMsgAddToInflightStats(msg_data, msg);
   }
 
   if (db.config->allow_duplicate_messages == false && dir == ttq_md_out && retain == false) {
@@ -572,16 +572,16 @@ int db__message_insert(struct tmqtt *context, uint16_t mid, enum tmqtt_msg_direc
   }
 
   if (dir == ttq_md_out && update) {
-    rc = db__message_write_inflight_out_latest(context);
+    rc = ttqDbMessageWriteInflightOutLatest(context);
     if (rc) return rc;
-    rc = db__message_write_queued_out(context);
+    rc = ttqDbMessageWriteQueuedOut(context);
     if (rc) return rc;
   }
 
   return rc;
 }
 
-int db__message_update_outgoing(struct tmqtt *context, uint16_t mid, enum tmqtt_msg_state state, int qos) {
+int ttqDbMessageUpdateOutgoing(struct tmqtt *context, uint16_t mid, enum tmqtt_msg_state state, int qos) {
   struct tmqtt_client_msg *tail;
 
   DL_FOREACH(context->msgs_out.inflight, tail) {
@@ -597,24 +597,24 @@ int db__message_update_outgoing(struct tmqtt *context, uint16_t mid, enum tmqtt_
   return TTQ_ERR_NOT_FOUND;
 }
 
-static void db__messages_delete_list(struct tmqtt_client_msg **head) {
+static void ttqDbMessageDelete_list(struct tmqtt_client_msg **head) {
   struct tmqtt_client_msg *tail, *tmp;
 
   DL_FOREACH_SAFE(*head, tail, tmp) {
     DL_DELETE(*head, tail);
-    db__msg_store_ref_dec(&tail->store);
+    ttqDbMsgStoreRefDec(&tail->store);
     tmqtt_property_free_all(&tail->properties);
     ttq_free(tail);
   }
   *head = NULL;
 }
 
-int db__messages_delete(struct tmqtt *context, bool force_free) {
+int ttqDbMessageDelete(struct tmqtt *context, bool force_free) {
   if (!context) return TTQ_ERR_INVAL;
 
   if (force_free || context->clean_start || (context->bridge && context->bridge->clean_start)) {
-    db__messages_delete_list(&context->msgs_in.inflight);
-    db__messages_delete_list(&context->msgs_in.queued);
+    ttqDbMessageDelete_list(&context->msgs_in.inflight);
+    ttqDbMessageDelete_list(&context->msgs_in.queued);
     context->msgs_in.inflight_bytes = 0;
     context->msgs_in.inflight_bytes12 = 0;
     context->msgs_in.inflight_count = 0;
@@ -627,8 +627,8 @@ int db__messages_delete(struct tmqtt *context, bool force_free) {
 
   if (force_free || (context->bridge && context->bridge->clean_start_local) ||
       (context->bridge == NULL && context->clean_start)) {
-    db__messages_delete_list(&context->msgs_out.inflight);
-    db__messages_delete_list(&context->msgs_out.queued);
+    ttqDbMessageDelete_list(&context->msgs_out.inflight);
+    ttqDbMessageDelete_list(&context->msgs_out.queued);
     context->msgs_out.inflight_bytes = 0;
     context->msgs_out.inflight_bytes12 = 0;
     context->msgs_out.inflight_count = 0;
@@ -642,7 +642,7 @@ int db__messages_delete(struct tmqtt *context, bool force_free) {
   return TTQ_ERR_SUCCESS;
 }
 
-int db__messages_easy_queue(struct tmqtt *context, const char *topic, uint8_t qos, uint32_t payloadlen,
+int ttqDbMessageEasyQueue(struct tmqtt *context, const char *topic, uint8_t qos, uint32_t payloadlen,
                             const void *payload, int retain, uint32_t message_expiry_interval,
                             tmqtt_property **properties) {
   struct tmqtt_msg_store *stored;
@@ -656,7 +656,7 @@ int db__messages_easy_queue(struct tmqtt *context, const char *topic, uint8_t qo
 
   stored->topic = ttq_strdup(topic);
   if (stored->topic == NULL) {
-    db__msg_store_free(stored);
+    ttqDbMsgStoreFree(stored);
     return TTQ_ERR_INVAL;
   }
 
@@ -671,7 +671,7 @@ int db__messages_easy_queue(struct tmqtt *context, const char *topic, uint8_t qo
   if (payloadlen > 0) {
     stored->payload = ttq_malloc(stored->payloadlen + 1);
     if (stored->payload == NULL) {
-      db__msg_store_free(stored);
+      ttqDbMsgStoreFree(stored);
       return TTQ_ERR_NOMEM;
     }
     /* Ensure payload is always zero terminated, this is the reason for the extra byte above */
@@ -694,14 +694,14 @@ int db__messages_easy_queue(struct tmqtt *context, const char *topic, uint8_t qo
   } else {
     origin = ttq_mo_broker;
   }
-  if (db__message_store(context, stored, message_expiry_interval, 0, origin)) return 1;
+  if (ttqDbMessageStore(context, stored, message_expiry_interval, 0, origin)) return 1;
 
   return sub__messages_queue(source_id, stored->topic, stored->qos, stored->retain, &stored);
 }
 
 /* This function requires topic to be allocated on the heap. Once called, it owns topic and will free it on error.
  * Likewise payload and properties. */
-int db__message_store(const struct tmqtt *source, struct tmqtt_msg_store *stored, uint32_t message_expiry_interval,
+int ttqDbMessageStore(const struct tmqtt *source, struct tmqtt_msg_store *stored, uint32_t message_expiry_interval,
                       dbid_t store_id, enum tmqtt_msg_origin origin) {
   if (source && source->id) {
     stored->source_id = ttq_strdup(source->id);
@@ -710,14 +710,14 @@ int db__message_store(const struct tmqtt *source, struct tmqtt_msg_store *stored
   }
   if (!stored->source_id) {
     ttq_log(NULL, TTQ_LOG_ERR, "Error: Out of memory.");
-    db__msg_store_free(stored);
+    ttqDbMsgStoreFree(stored);
     return TTQ_ERR_NOMEM;
   }
 
   if (source && source->username) {
     stored->source_username = ttq_strdup(source->username);
     if (!stored->source_username) {
-      db__msg_store_free(stored);
+      ttqDbMsgStoreFree(stored);
       return TTQ_ERR_NOMEM;
     }
   }
@@ -743,12 +743,12 @@ int db__message_store(const struct tmqtt *source, struct tmqtt_msg_store *stored
     stored->db_id = store_id;
   }
 
-  db__msg_store_add(stored);
+  ttqDbMsgStoreAdd(stored);
 
   return TTQ_ERR_SUCCESS;
 }
 
-int db__message_store_find(struct tmqtt *context, uint16_t mid, struct tmqtt_client_msg **client_msg) {
+int ttqDbMessageStore_find(struct tmqtt *context, uint16_t mid, struct tmqtt_client_msg **client_msg) {
   struct tmqtt_client_msg *cmsg;
 
   *client_msg = NULL;
@@ -774,7 +774,7 @@ int db__message_store_find(struct tmqtt *context, uint16_t mid, struct tmqtt_cli
 
 /* Called on reconnect to set outgoing messages to a sensible state and force a
  * retry, and to set incoming messages to expect an appropriate retry. */
-static int db__message_reconnect_reset_outgoing(struct tmqtt *context) {
+static int ttqDbMessageReconnectReset_outgoing(struct tmqtt *context) {
   struct tmqtt_client_msg *msg, *tmp;
 
   context->msgs_out.inflight_bytes = 0;
@@ -788,7 +788,7 @@ static int db__message_reconnect_reset_outgoing(struct tmqtt *context) {
   context->msgs_out.inflight_quota = context->msgs_out.inflight_maximum;
 
   DL_FOREACH_SAFE(context->msgs_out.inflight, msg, tmp) {
-    db__msg_add_to_inflight_stats(&context->msgs_out, msg);
+    ttqDbMsgAddToInflightStats(&context->msgs_out, msg);
     if (msg->qos > 0) {
       util__decrement_send_quota(context);
     }
@@ -816,8 +816,8 @@ static int db__message_reconnect_reset_outgoing(struct tmqtt *context) {
    * will be sent out of order.
    */
   DL_FOREACH_SAFE(context->msgs_out.queued, msg, tmp) {
-    db__msg_add_to_queued_stats(&context->msgs_out, msg);
-    if (db__ready_for_flight(context, ttq_md_out, msg->qos)) {
+    ttqDbMsgAddToQueuedStats(&context->msgs_out, msg);
+    if (ttqDbReadyForFlight(context, ttq_md_out, msg->qos)) {
       switch (msg->qos) {
         case 0:
           msg->state = ttq_ms_publish_qos0;
@@ -829,7 +829,7 @@ static int db__message_reconnect_reset_outgoing(struct tmqtt *context) {
           msg->state = ttq_ms_publish_qos2;
           break;
       }
-      db__message_dequeue_first(context, &context->msgs_out);
+      ttqDbMessageDequeueFirst(context, &context->msgs_out);
     }
   }
 
@@ -837,7 +837,7 @@ static int db__message_reconnect_reset_outgoing(struct tmqtt *context) {
 }
 
 /* Called on reconnect to set incoming messages to expect an appropriate retry. */
-static int db__message_reconnect_reset_incoming(struct tmqtt *context) {
+static int ttqDbMessageReconnectReset_incoming(struct tmqtt *context) {
   struct tmqtt_client_msg *msg, *tmp;
 
   context->msgs_in.inflight_bytes = 0;
@@ -851,7 +851,7 @@ static int db__message_reconnect_reset_incoming(struct tmqtt *context) {
   context->msgs_in.inflight_quota = context->msgs_in.inflight_maximum;
 
   DL_FOREACH_SAFE(context->msgs_in.inflight, msg, tmp) {
-    db__msg_add_to_inflight_stats(&context->msgs_in, msg);
+    ttqDbMsgAddToInflightStats(&context->msgs_in, msg);
     if (msg->qos > 0) {
       util__decrement_receive_quota(context);
     }
@@ -875,8 +875,8 @@ static int db__message_reconnect_reset_incoming(struct tmqtt *context) {
    */
   DL_FOREACH_SAFE(context->msgs_in.queued, msg, tmp) {
     msg->dup = 0;
-    db__msg_add_to_queued_stats(&context->msgs_in, msg);
-    if (db__ready_for_flight(context, ttq_md_in, msg->qos)) {
+    ttqDbMsgAddToQueuedStats(&context->msgs_in, msg);
+    if (ttqDbReadyForFlight(context, ttq_md_in, msg->qos)) {
       switch (msg->qos) {
         case 0:
           msg->state = ttq_ms_publish_qos0;
@@ -888,22 +888,22 @@ static int db__message_reconnect_reset_incoming(struct tmqtt *context) {
           msg->state = ttq_ms_publish_qos2;
           break;
       }
-      db__message_dequeue_first(context, &context->msgs_in);
+      ttqDbMessageDequeueFirst(context, &context->msgs_in);
     }
   }
 
   return TTQ_ERR_SUCCESS;
 }
 
-int db__message_reconnect_reset(struct tmqtt *context) {
+int ttqDbMessageReconnectReset(struct tmqtt *context) {
   int rc;
 
-  rc = db__message_reconnect_reset_outgoing(context);
+  rc = ttqDbMessageReconnectReset_outgoing(context);
   if (rc) return rc;
-  return db__message_reconnect_reset_incoming(context);
+  return ttqDbMessageReconnectReset_incoming(context);
 }
 
-int db__message_remove_incoming(struct tmqtt *context, uint16_t mid) {
+int ttqDbMessageRemoveIncoming(struct tmqtt *context, uint16_t mid) {
   struct tmqtt_client_msg *tail, *tmp;
 
   if (!context) return TTQ_ERR_INVAL;
@@ -921,7 +921,7 @@ int db__message_remove_incoming(struct tmqtt *context, uint16_t mid) {
   return TTQ_ERR_NOT_FOUND;
 }
 
-int db__message_release_incoming(struct tmqtt *context, uint16_t mid) {
+int ttqDbMessageReleaseIncoming(struct tmqtt *context, uint16_t mid) {
   struct tmqtt_client_msg *tail, *tmp;
   int                      retain;
   char                    *topic;
@@ -962,7 +962,7 @@ int db__message_release_incoming(struct tmqtt *context, uint16_t mid) {
   }
 
   DL_FOREACH_SAFE(context->msgs_in.queued, tail, tmp) {
-    if (db__ready_for_flight(context, ttq_md_in, tail->qos)) {
+    if (ttqDbReadyForFlight(context, ttq_md_in, tail->qos)) {
       break;
     }
 
@@ -972,7 +972,7 @@ int db__message_release_incoming(struct tmqtt *context, uint16_t mid) {
     if (tail->qos == 2) {
       send__pubrec(context, tail->mid, 0, NULL);
       tail->state = ttq_ms_wait_for_pubrel;
-      db__message_dequeue_first(context, &context->msgs_in);
+      ttqDbMessageDequeueFirst(context, &context->msgs_in);
     }
   }
   if (deleted) {
@@ -982,7 +982,7 @@ int db__message_release_incoming(struct tmqtt *context, uint16_t mid) {
   }
 }
 
-void db__expire_all_messages(struct tmqtt *context) {
+void ttqDbExpireAllMessages(struct tmqtt *context) {
   struct tmqtt_client_msg *msg, *tmp;
 
   DL_FOREACH_SAFE(context->msgs_out.inflight, msg, tmp) {
@@ -1109,7 +1109,7 @@ static int db__message_write_inflight_out_single(struct tmqtt *context, struct t
   return TTQ_ERR_SUCCESS;
 }
 
-int db__message_write_inflight_out_all(struct tmqtt *context) {
+int ttqDbMessageWriteInflightOutAll(struct tmqtt *context) {
   struct tmqtt_client_msg *tail, *tmp;
   int                      rc;
 
@@ -1124,7 +1124,7 @@ int db__message_write_inflight_out_all(struct tmqtt *context) {
   return TTQ_ERR_SUCCESS;
 }
 
-int db__message_write_inflight_out_latest(struct tmqtt *context) {
+int ttqDbMessageWriteInflightOutLatest(struct tmqtt *context) {
   struct tmqtt_client_msg *tail, *next;
   int                      rc;
 
@@ -1162,7 +1162,7 @@ int db__message_write_inflight_out_latest(struct tmqtt *context) {
   return TTQ_ERR_SUCCESS;
 }
 
-int db__message_write_queued_in(struct tmqtt *context) {
+int ttqDbMessageWriteQueuedIn(struct tmqtt *context) {
   struct tmqtt_client_msg *tail, *tmp;
   int                      rc;
 
@@ -1177,7 +1177,7 @@ int db__message_write_queued_in(struct tmqtt *context) {
 
     if (tail->qos == 2) {
       tail->state = ttq_ms_send_pubrec;
-      db__message_dequeue_first(context, &context->msgs_in);
+      ttqDbMessageDequeueFirst(context, &context->msgs_in);
       rc = send__pubrec(context, tail->mid, 0, NULL);
       if (!rc) {
         tail->state = ttq_ms_wait_for_pubrel;
@@ -1189,7 +1189,7 @@ int db__message_write_queued_in(struct tmqtt *context) {
   return TTQ_ERR_SUCCESS;
 }
 
-int db__message_write_queued_out(struct tmqtt *context) {
+int ttqDbMessageWriteQueuedOut(struct tmqtt *context) {
   struct tmqtt_client_msg *tail, *tmp;
 
   if (context->state != ttq_cs_active) {
@@ -1197,7 +1197,7 @@ int db__message_write_queued_out(struct tmqtt *context) {
   }
 
   DL_FOREACH_SAFE(context->msgs_out.queued, tail, tmp) {
-    if (!db__ready_for_flight(context, ttq_md_out, tail->qos)) {
+    if (!ttqDbReadyForFlight(context, ttq_md_out, tail->qos)) {
       break;
     }
 
@@ -1212,7 +1212,7 @@ int db__message_write_queued_out(struct tmqtt *context) {
         tail->state = ttq_ms_publish_qos2;
         break;
     }
-    db__message_dequeue_first(context, &context->msgs_out);
+    ttqDbMessageDequeueFirst(context, &context->msgs_out);
   }
   return TTQ_ERR_SUCCESS;
 }

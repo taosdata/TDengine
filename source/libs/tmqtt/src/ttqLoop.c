@@ -68,7 +68,7 @@ static int single_publish(struct tmqtt *context, struct tmqtt_message_v5 *msg, u
   stored->payloadlen = (uint32_t)msg->payloadlen;
   stored->payload = ttq_malloc(stored->payloadlen + 1);
   if (stored->payload == NULL) {
-    db__msg_store_free(stored);
+    ttqDbMsgStoreFree(stored);
     return TTQ_ERR_NOMEM;
   }
   /* Ensure payload is always zero terminated, this is the reason for the extra byte above */
@@ -80,14 +80,14 @@ static int single_publish(struct tmqtt *context, struct tmqtt_message_v5 *msg, u
     msg->properties = NULL;
   }
 
-  if (db__message_store(context, stored, message_expiry, 0, ttq_mo_broker)) return 1;
+  if (ttqDbMessageStore(context, stored, message_expiry, 0, ttq_mo_broker)) return 1;
 
   if (msg->qos) {
     mid = tmqtt__mid_generate(context);
   } else {
     mid = 0;
   }
-  return db__message_insert(context, mid, ttq_md_out, (uint8_t)msg->qos, 0, stored, msg->properties, true);
+  return ttqDbMessageInsert(context, mid, ttq_md_out, (uint8_t)msg->qos, 0, stored, msg->properties, true);
 }
 
 static void read_message_expiry_interval(tmqtt_property **proplist, uint32_t *message_expiry) {
@@ -130,7 +130,7 @@ static void queue_plugin_msgs(void) {
         single_publish(context, msg, message_expiry);
       }
     } else {
-      db__messages_easy_queue(NULL, msg->topic, (uint8_t)msg->qos, (uint32_t)msg->payloadlen, msg->payload, msg->retain,
+      ttqDbMessageEasyQueue(NULL, msg->topic, (uint8_t)msg->qos, (uint32_t)msg->payloadlen, msg->payload, msg->retain,
                               message_expiry, &msg->properties);
     }
     ttq_free(msg->topic);

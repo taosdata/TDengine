@@ -84,7 +84,7 @@ static void connection_check_acl(struct tmqtt *context, struct tmqtt_client_msg 
     if (tmqtt_acl_check(context, msg_tail->store->topic, msg_tail->store->payloadlen, msg_tail->store->payload,
                         msg_tail->store->qos, msg_tail->store->retain, access) != TTQ_ERR_SUCCESS) {
       DL_DELETE((*head), msg_tail);
-      db__msg_store_ref_dec(&msg_tail->store);
+      ttqDbMsgStoreRefDec(&msg_tail->store);
       tmqtt_property_free_all(&msg_tail->properties);
       ttq_free(msg_tail);
     }
@@ -139,7 +139,7 @@ int connect__on_authorised(struct tmqtt *context, void *auth_data_out, uint16_t 
         context->msgs_in.inflight_maximum = in_maximum;
         context->msgs_out.inflight_maximum = out_maximum;
 
-        db__message_reconnect_reset(context);
+        ttqDbMessageReconnectReset(context);
       }
       context->subs = found_context->subs;
       found_context->subs = NULL;
@@ -298,10 +298,10 @@ int connect__on_authorised(struct tmqtt *context, void *auth_data_out, uint16_t 
   rc = ttqSendConnack(context, connect_ack, CONNACK_ACCEPTED, connack_props);
   tmqtt_property_free_all(&connack_props);
   if (rc) return rc;
-  db__expire_all_messages(context);
-  rc = db__message_write_queued_out(context);
+  ttqDbExpireAllMessages(context);
+  rc = ttqDbMessageWriteQueuedOut(context);
   if (rc) return rc;
-  rc = db__message_write_inflight_out_all(context);
+  rc = ttqDbMessageWriteInflightOutAll(context);
   return rc;
 error:
   free(auth_data_out);
@@ -513,7 +513,7 @@ static int property__process_connect(struct tmqtt *context, tmqtt_property **pro
   return TTQ_ERR_SUCCESS;
 }
 
-int ttq_handle_connect(struct tmqtt *context) {
+int ttqHandleConnect(struct tmqtt *context) {
   char                      protocol_name[7];
   uint8_t                   protocol_version;
   uint8_t                   connect_flags;

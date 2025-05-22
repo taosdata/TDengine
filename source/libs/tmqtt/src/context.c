@@ -132,7 +132,7 @@ void context__cleanup(struct tmqtt *context, bool force_free) {
     sub__clean_session(context);
   }
 
-  db__messages_delete(context, force_free);
+  ttqDbMessageDelete(context, force_free);
 
   ttq_free(context->address);
   context->address = NULL;
@@ -163,7 +163,7 @@ void context__send_will(struct tmqtt *ctxt) {
     if (tmqtt_acl_check(ctxt, ctxt->will->msg.topic, (uint32_t)ctxt->will->msg.payloadlen, ctxt->will->msg.payload,
                         (uint8_t)ctxt->will->msg.qos, ctxt->will->msg.retain, TTQ_ACL_WRITE) == TTQ_ERR_SUCCESS) {
 
-db__messages_easy_queue(ctxt, ctxt->will->msg.topic, (uint8_t)ctxt->will->msg.qos, (uint32_t)ctxt->will->msg.payloadlen,
+ttqDbMessageEasyQueue(ctxt, ctxt->will->msg.topic, (uint8_t)ctxt->will->msg.qos, (uint32_t)ctxt->will->msg.payloadlen,
                         ctxt->will->msg.payload, ctxt->will->msg.retain, ctxt->will->expiry_interval,
                         &ctxt->will->properties);
 }

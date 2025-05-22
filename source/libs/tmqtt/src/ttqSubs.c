@@ -99,7 +99,7 @@ static int subs__send(struct tmqtt__subleaf *leaf, const char *topic, uint8_t qo
     if (leaf->identifier) {
       tmqtt_property_add_varint(&properties, MQTT_PROP_SUBSCRIPTION_IDENTIFIER, leaf->identifier);
     }
-    if (db__message_insert(leaf->context, mid, ttq_md_out, msg_qos, client_retain, stored, properties, true) == 1) {
+    if (ttqDbMessageInsert(leaf->context, mid, ttq_md_out, msg_qos, client_retain, stored, properties, true) == 1) {
       return 1;
     }
   } else {
@@ -650,7 +650,7 @@ int sub__messages_queue(const char *source_id, const char *topic, uint8_t qos, i
   clients - this is required because websockets client calls
   db__message_write(), which could remove the message if ref_count==0.
   */
-  db__msg_store_ref_inc(*stored);
+  ttqDbMsgStoreRefInc(*stored);
 
   HASH_FIND(hh, db.normal_subs, split_topics[0], strlen(split_topics[0]), subhier);
   if (subhier) {
@@ -683,7 +683,7 @@ end:
   ttq_free(split_topics);
   ttq_free(local_topic);
   /* Remove our reference and free if needed. */
-  db__msg_store_ref_dec(stored);
+  ttqDbMsgStoreRefDec(stored);
 
   return rc;
 }

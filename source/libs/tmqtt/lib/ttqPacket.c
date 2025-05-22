@@ -417,7 +417,7 @@ int packet__read(struct tmqtt *ttq) {
     G_PUB_MSGS_RECEIVED_INC(1);
   }
 #endif
-  rc = ttq_handle_packet(ttq);
+  rc = ttqHandlePacket(ttq);
 
   /* Free data and reset values */
   packet__cleanup(&ttq->in_packet);

@@ -284,7 +284,7 @@ static int log__vprintf(unsigned int priority, const char *fmt, va_list va) {
       syslog(syslog_priority, "%s", log_line);
     }
     if (log_destinations & MQTT3_LOG_TOPIC && priority != TTQ_LOG_DEBUG && priority != TTQ_LOG_INTERNAL) {
-      // db__messages_easy_queue(NULL, topic, 2, (uint32_t)strlen(log_line), log_line, 0, 20, NULL);
+      // ttqDbMessageEasyQueue(NULL, topic, 2, (uint32_t)strlen(log_line), log_line, 0, 20, NULL);
     }
 #ifdef WITH_DLT
     if (log_destinations & MQTT3_LOG_DLT && priority != TTQ_LOG_INTERNAL) {
