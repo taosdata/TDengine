@@ -55,7 +55,8 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
       Parse(pParser, 0, t0, &cxt);
       goto abort_parse;
     }
-    t0.n = tGetToken((char*)&cxt.pQueryCxt->pSql[i], &t0.type);
+    char  quoteChar = 0;
+    t0.n = tGetToken((char*)&cxt.pQueryCxt->pSql[i], &t0.type, &quoteChar);
     t0.z = (char*)(cxt.pQueryCxt->pSql + i);
     i += t0.n;
 

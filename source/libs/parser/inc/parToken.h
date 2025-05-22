@@ -54,7 +54,7 @@ typedef struct SToken {
  * @param tokenType
  * @return
  */
-uint32_t tGetToken(const char *z, uint32_t *tokenType);
+uint32_t tGetToken(const char *z, uint32_t *tokenType, char* quoteChar);
 
 /**
  * enhanced tokenizer for sql string.

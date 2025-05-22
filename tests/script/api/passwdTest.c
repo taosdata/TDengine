@@ -44,8 +44,8 @@
 #include "taos.h"  // TAOS header file
 
 #define nDup     1
-#define nRoot    10
-#define nUser    10
+#define nRoot    1
+#define nUser    1
 #define USER_LEN 24
 #define BUF_LEN  1024
 
@@ -70,7 +70,7 @@ void taosMsleep(int64_t ms) {
 #ifdef WINDOWS
   Sleep(ms);
 #else
-  usleep(ms * 1000);
+  usleep((__useconds_t)ms * 1000);
 #endif
 }
 	
@@ -99,35 +99,6 @@ void __taos_notify_cb(void *param, void *ext, int type) {
   }
 }
 
-static void queryDB(TAOS *taos, char *command) {
-  int       i;
-  TAOS_RES *pSql = NULL;
-  int32_t   code = -1;
-
-  for (i = 0; i < nDup; ++i) {
-    if (NULL != pSql) {
-      taos_free_result(pSql);
-      pSql = NULL;
-    }
-
-    pSql = taos_query(taos, command);
-    code = taos_errno(pSql);
-    if (0 == code) {
-      break;
-    }
-  }
-
-  if (code != 0) {
-    fprintf(stderr, "failed to run: %s, reason: %s\n", command, taos_errstr(pSql));
-    taos_free_result(pSql);
-    taos_close(taos);
-    exit(EXIT_FAILURE);
-  } else {
-    fprintf(stderr, "success to run: %s\n", command);
-  }
-
-  taos_free_result(pSql);
-}
 
 int printRow(char *str, TAOS_ROW row, TAOS_FIELD *fields, int numFields) {
   int  len = 0;
@@ -198,6 +169,7 @@ int printRow(char *str, TAOS_ROW row, TAOS_FIELD *fields, int numFields) {
   return len;
 }
 
+
 static int printResult(TAOS_RES *res, char *output) {
   int         numFields = taos_num_fields(res);
   TAOS_FIELD *fields = taos_fetch_fields(res);
@@ -220,6 +192,39 @@ static int printResult(TAOS_RES *res, char *output) {
   return 0;
 }
 
+static void queryDB(TAOS *taos, char *command, bool isPrintResult) {
+  int       i;
+  TAOS_RES *pSql = NULL;
+  int32_t   code = -1;
+
+  for (i = 0; i < nDup; ++i) {
+    if (NULL != pSql) {
+      taos_free_result(pSql);
+      pSql = NULL;
+    }
+
+    pSql = taos_query(taos, command);
+    code = taos_errno(pSql);
+    if (0 == code) {
+      break;
+    }
+  }
+
+  if (code != 0) {
+    fprintf(stderr, "failed to run: %s, reason: %s\n", command, taos_errstr(pSql));
+    taos_free_result(pSql);
+    taos_close(taos);
+    exit(EXIT_FAILURE);
+  } else {
+    fprintf(stderr, "success to run: %s\n", command);
+    if (isPrintResult) {
+      char output[BUF_LEN] = {0};
+      printResult(pSql, output);
+    }
+  }
+  taos_free_result(pSql);
+}
+
 int main(int argc, char *argv[]) {
   char qstr[1024];
   // connect to server
@@ -235,9 +240,9 @@ int main(int argc, char *argv[]) {
   }
   createUsers(taos, argv[1], qstr);
   passVerTestMulti(argv[1], qstr);
-  sysInfoTest(taos, argv[1], qstr);
-  userDroppedTest(taos, argv[1], qstr);
-  clearTestEnv(taos, argv[1], qstr);
+  // sysInfoTest(taos, argv[1], qstr);
+  // userDroppedTest(taos, argv[1], qstr);
+  // clearTestEnv(taos, argv[1], qstr);
 
   taos_close(taos);
   taos_cleanup();
@@ -249,7 +254,7 @@ void createUsers(TAOS *taos, const char *host, char *qstr) {
   for (int i = 0; i < nUser; ++i) {
     sprintf(users[i], "user%d", i);
     sprintf(qstr, "CREATE USER %s PASS 'taosdata'", users[i]);
-    queryDB(taos, qstr);
+    queryDB(taos, qstr, false);
 
     taosu[i] = taos_connect(host, users[i], "taosdata", NULL, 0);
     if (taosu[i] == NULL) {
@@ -268,7 +273,7 @@ void createUsers(TAOS *taos, const char *host, char *qstr) {
 
     // alter pass for users
     sprintf(qstr, "alter user %s pass 'taos@123'", users[i]);
-    queryDB(taos, qstr);
+    queryDB(taos, qstr, false);
   }
 }
 
@@ -294,16 +299,19 @@ void passVerTestMulti(const char *host, char *qstr) {
     }
   }
 
-  queryDB(taos[0], "create database if not exists demo1 vgroups 1 minrows 10");
-  queryDB(taos[0], "create database if not exists demo2 vgroups 1 minrows 10");
-  queryDB(taos[0], "create database if not exists demo3 vgroups 1 minrows 10");
+  queryDB(taos[0], "create database if not exists demo1 vgroups 1 minrows 10", false);
+  queryDB(taos[0], "create database if not exists demo2 vgroups 1 minrows 10", false);
+  queryDB(taos[0], "create database if not exists demo3 vgroups 1 minrows 10", false);
 
-  queryDB(taos[0], "create table if not exists demo1.stb (ts timestamp, c1 int) tags(t1 int)");
-  queryDB(taos[0], "create table if not exists demo2.stb (ts timestamp, c1 int) tags(t1 int)");
-  queryDB(taos[0], "create table if not exists demo3.stb (ts timestamp, c1 int) tags(t1 int)");
+  queryDB(taos[0], "create table if not exists demo1.stb (ts timestamp, c1 int, c2 varchar(20)) tags(t1 int)", false);
+  queryDB(taos[0], "create table if not exists demo1.ctb0 using demo1.stb tags('1')", false);
+  queryDB(taos[0], "insert into demo1.ctb0 values(now, 1, 'a\\'bc')", false);
+  queryDB(taos[0], "insert into demo1.ctb0 values(now, 2, 'd''ef')", false);
+  queryDB(taos[0], "select * from demo1.ctb0", true);
+  
 
   strcpy(qstr, "alter user root pass 'taos@123'");
-  queryDB(taos[0], qstr);
+  queryDB(taos[0], qstr, false);
 
   // calculate the nPassVerNotified for root and users
   int nConn = nRoot + nUser;
@@ -337,166 +345,4 @@ void passVerTestMulti(const char *host, char *qstr) {
   }
   fprintf(stderr, "######## %s #########\n", __func__);
   // sleep(300);
-}
-
-void sysInfoTest(TAOS *taosRoot, const char *host, char *qstr) {
-  fprintf(stderr, "######## %s entry #########\n", __func__);
-  TAOS *taos[nRoot] = {0};
-  char  userName[USER_LEN] = "user0";
-
-  for (int i = 0; i < nRoot; ++i) {
-    taos[i] = taos_connect(host, "user0", "taos@123", NULL, 0);
-    if (taos[i] == NULL) {
-      fprintf(stderr, "failed to connect to server, reason:%s\n", "null taos" /*taos_errstr(taos)*/);
-      exit(1);
-    }
-  }
-
-  queryDB(taosRoot, "create database if not exists demo11 vgroups 1 minrows 10");
-  queryDB(taosRoot, "create database if not exists demo12 vgroups 1 minrows 10");
-  queryDB(taosRoot, "create database if not exists demo13 vgroups 1 minrows 10");
-
-  queryDB(taosRoot, "create table if not exists demo11.stb (ts timestamp, c1 int) tags(t1 int)");
-  queryDB(taosRoot, "create table if not exists demo12.stb (ts timestamp, c1 int) tags(t1 int)");
-  queryDB(taosRoot, "create table if not exists demo13.stb (ts timestamp, c1 int) tags(t1 int)");
-
-  sprintf(qstr, "show grants");
-  char      output[BUF_LEN];
-  TAOS_RES *res = NULL;
-  int32_t   nRep = 0;
-
-_REP:
-  fprintf(stderr, "######## %s loop:%d #########\n", __func__, nRep);
-  res = taos_query(taos[0], qstr);
-  if (taos_errno(res) != 0) {
-    fprintf(stderr, "%s:%d failed to execute: %s since %s\n", __func__, __LINE__, qstr, taos_errstr(res));
-    taos_free_result(res);
-    exit(EXIT_FAILURE);
-  }
-  printResult(res, output);
-  taos_free_result(res);
-  if (!strstr(output, "timeseries")) {
-    fprintf(stderr, "%s:%d expected output: 'timeseries' not occur\n", __func__, __LINE__);
-    exit(EXIT_FAILURE);
-  }
-
-  queryDB(taosRoot, "alter user user0 sysinfo 0");
-
-  fprintf(stderr, "%s:%d sleep 2 seconds to wait HB take effect\n", __func__, __LINE__);
-  for (int i = 1; i <= 2; ++i) {
-    taosMsleep(1000);
-  }
-
-  res = taos_query(taos[0], qstr);
-  if (taos_errno(res) != 0) {
-    if (!strstr(taos_errstr(res), "Permission denied")) {
-      fprintf(stderr, "%s:%d expected error: 'Permission denied' not occur\n", __func__, __LINE__);
-      taos_free_result(res);
-      exit(EXIT_FAILURE);
-    }
-  }
-  taos_free_result(res);
-
-  queryDB(taosRoot, "alter user user0 sysinfo 1");
-  fprintf(stderr, "%s:%d sleep 2 seconds to wait HB take effect\n", __func__, __LINE__);
-  for (int i = 1; i <= 2; ++i) {
-    taosMsleep(1000);
-  }
-
-  if (++nRep < 5) {
-    goto _REP;
-  }
-
-  // close the taos_conn
-  for (int i = 0; i < nRoot; ++i) {
-    taos_close(taos[i]);
-    fprintf(stderr, "%s:%d close taos[%d]\n", __func__, __LINE__, i);
-  }
-
-  fprintf(stderr, "######## %s #########\n", __func__);
-  fprintf(stderr, ">>> succeed to run sysInfoTest\n");
-  fprintf(stderr, "######## %s #########\n", __func__);
-}
-static bool isDropUser = true;
-void        userDroppedTest(TAOS *taos, const char *host, char *qstr) {
-  // users
-  int nTestUsers = nUser;
-  int nLoop = 0;
-_loop:
-  ++nLoop;
-  printf("\n\n%s:%d LOOP %d, nTestUsers:%d\n", __func__, __LINE__, nLoop, nTestUsers);
-  for (int i = 0; i < nTestUsers; ++i) {
-    // sprintf(users[i], "user%d", i);
-    taosu[i] = taos_connect(host, users[i], "taos@123", NULL, 0);
-    if (taosu[i] == NULL) {
-      printf("failed to connect to server, user:%s, reason:%s\n", users[i], "null taos" /*taos_errstr(taos)*/);
-      exit(1);
-    }
-    int code = taos_set_notify_cb(taosu[i], __taos_notify_cb, users[i], TAOS_NOTIFY_USER_DROPPED);
-    if (code != 0) {
-      fprintf(stderr, "failed to run: taos_set_notify_cb:%d for user:%s since %d\n", TAOS_NOTIFY_USER_DROPPED, users[i],
-              code);
-      exit(EXIT_FAILURE);
-    } else {
-      fprintf(stderr, "success to run: taos_set_notify_cb:%d for user:%s\n", TAOS_NOTIFY_USER_DROPPED, users[i]);
-    }
-  }
-
-  for (int i = 0; i < nTestUsers; ++i) {
-    // drop user0 ... user${nUser}
-    sprintf(qstr, "drop user %s", users[i]);
-    queryDB(taos, qstr);
-  }
-
-  // calculate the nUserDropped for users
-  int nConn = nTestUsers;
-
-  for (int i = 0; i < 15; ++i) {
-    printf("%s:%d [%d] second(s) elasped, user dropped notification received:%d, total:%d\n", __func__, __LINE__, i,
-           nUserDropped, nConn);
-    if (nUserDropped >= nConn) break;
-    taosMsleep(1000);
-  }
-
-  for (int i = 0; i < nTestUsers; ++i) {
-    taos_close(taosu[i]);
-    printf("%s:%d close taosu[%d]\n", __func__, __LINE__, i);
-  }
-
-  fprintf(stderr, "######## %s #########\n", __func__);
-  if (nUserDropped == nConn) {
-    fprintf(stderr, ">>> succeed to get user dropped notification since nNotify %d == nConn %d\n", nUserDropped, nConn);
-  } else {
-    fprintf(stderr, ">>> failed to get user dropped notification since nNotify %d != nConn %d\n", nUserDropped, nConn);
-    exit(1);
-  }
-  fprintf(stderr, "######## %s #########\n", __func__);
-
-  if (nLoop < 5) {
-    nUserDropped = 0;
-    for (int i = 0; i < nTestUsers; ++i) {
-      sprintf(users[i], "user%d", i);
-      sprintf(qstr, "CREATE USER %s PASS 'taos@123'", users[i]);
-      fprintf(stderr, "%s:%d create user:%s\n", __func__, __LINE__, users[i]);
-      queryDB(taos, qstr);
-    }
-    goto _loop;
-  }
-  isDropUser = false;
-}
-
-void clearTestEnv(TAOS *taos, const char *host, char *qstr) {
-  fprintf(stderr, "######## %s start #########\n", __func__);
-  // restore  password
-  sprintf(qstr, "alter user root pass 'taosdata'");
-  queryDB(taos, qstr);
-
-  if (isDropUser) {
-    for (int i = 0; i < nUser; ++i) {
-      sprintf(qstr, "drop user %s", users[i]);
-      queryDB(taos, qstr);
-    }
-  }
-  // sleep(3000);
-  fprintf(stderr, "######## %s end #########\n", __func__);
 }

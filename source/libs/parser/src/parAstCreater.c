@@ -686,7 +686,7 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
     if (hint[i] == 0) {
       break;
     }
-    t0.n = tGetToken(&hint[i], &t0.type);
+    t0.n = tGetToken(&hint[i], &t0.type, NULL);
     t0.z = hint + i;
     i += t0.n;
 
