@@ -82,7 +82,7 @@ int32_t clientSendAuditLog(void* pTrans, SEpSet* epset, char* operation, char* d
   };
 
   SRpcMsg rpcRsp = {0};
-  rpcSendRequest(pTrans, epset, &rpcMsg, NULL);
+  rpcSendRecv(pTrans, epset, &rpcMsg, &rpcRsp);
 
   return TSDB_CODE_SUCCESS;
 }
