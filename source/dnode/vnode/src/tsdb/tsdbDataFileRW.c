@@ -1034,8 +1034,13 @@ static int32_t tsdbDataFileDoWriteBlockData(SDataFileWriter *writer, SBlockData 
   code = metaGetColCmpr(writer->config->tsdb->pVnode->pMeta, bData->suid != 0 ? bData->suid : bData->uid,
                         &cmprInfo.pColCmpr);
 
+  code = metaGetEncryParam(writer->config->tsdb->pVnode->pMeta, bData->suid != 0 ? bData->suid : bData->uid,
+                           &cmprInfo.pEncryption);
+
   code = tBlockDataCompress(bData, &cmprInfo, buffers, assist);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+  
 
   record->blockKeySize = buffers[0].size + buffers[1].size;
   record->blockSize = record->blockKeySize + buffers[2].size + buffers[3].size;

@@ -45,6 +45,7 @@ extern int32_t tsdbFsyncFile(STsdbFD *pFD, int32_t encryptAlgorithm, char* encry
 typedef struct SColCompressInfo SColCompressInfo;
 struct SColCompressInfo {
   SHashObj *pColCmpr;
+  SHashObj *pEncryption;
   uint32_t  defaultCmprAlg;
 };
 typedef struct SColCompressInfo2 SColCompressInfo2;

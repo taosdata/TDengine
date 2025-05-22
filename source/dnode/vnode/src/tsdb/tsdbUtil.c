@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "crypt.h"
 #include "tcompression.h"
 #include "tdataformat.h"
 #include "tsdb.h"
@@ -1411,11 +1412,53 @@ SColData *tBlockDataGetColData(SBlockData *pBlockData, int16_t cid) {
   return NULL;
 }
 
+int32_t tsdbCryption(SBuffer *pBuffer, int32_t cid, SHashObj *pEncryptionObj) {
+  int32_t           code = 0;
+  STableEncryption *pEncryption = taosHashGet(pEncryptionObj, &cid, sizeof(cid));
+  if (pEncryption == NULL || strlen(pEncryption->encryptionKey) == 0) {
+    return code;
+  }
+  char      *t = taosMemoryCalloc(1, pBuffer->size);
+  SCryptOpts opts;
+  opts.len = pBuffer->size;
+  opts.source = pBuffer->data;
+  opts.result = t;
+  opts.unitLen = strlen(pEncryption->encryptionKey);
+  strncpy(opts.key, pEncryption->encryptionKey, strlen(pEncryption->encryptionKey));
+
+  int32_t count = CBC_Encrypt(&opts);
+
+  memcpy(pBuffer->data, t, pBuffer->size);
+  taosMemoryFree(t);
+  return code;
+}
+
+int32_t tsdbDecryption(SBuffer *pBuffer, int32_t cid, SHashObj *pDecryObj) {
+  int32_t           code = 0;
+  STableEncryption *pEncryption = taosHashGet(pDecryObj, &cid, sizeof(cid));
+  if (pEncryption == NULL || strlen(pEncryption->encryptionKey) == 0) {
+    return code;
+  }
+  char      *t = taosMemoryCalloc(1, pBuffer->size);
+  SCryptOpts opts;
+  opts.len = pBuffer->size;
+  opts.source = pBuffer->data;
+  opts.result = t;
+  opts.unitLen = strlen(pEncryption->encryptionKey);
+  strncpy(opts.key, pEncryption->encryptionKey, strlen(pEncryption->encryptionKey));
+
+  int32_t count = CBC_Decrypt(&opts);
+
+  memcpy(pBuffer->data, t, pBuffer->size);
+  taosMemoryFree(t);
+  return code;
+}
 /* buffers[0]: SDiskDataHdr
  * buffers[1]: key part: uid + version + ts + primary keys
  * buffers[2]: SBlockCol part
  * buffers[3]: regular column part
  */
+
 int32_t tBlockDataCompress(SBlockData *bData, void *pCompr, SBuffer *buffers, SBuffer *assist) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -1678,7 +1721,8 @@ static int32_t tBlockDataCompressKeyPart(SBlockData *bData, SDiskDataHdr *hdr, S
     }
 
     code = tColDataCompress(colData, &info, buffer, assist);
-    TSDB_CHECK_CODE(code, lino, _exit);
+
+    code = TSDB_CHECK_CODE(code, lino, _exit);
 
     *blockCol = (SBlockCol){
         .cid = info.columnId,

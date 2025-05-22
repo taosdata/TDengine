@@ -513,6 +513,7 @@ static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, S
   code = tBlockDataCompress(blockData, info, buffers, buffers + 4);
   if (code) return code;
 
+
   sttBlk->bInfo.offset = *fileSize;
   sttBlk->bInfo.szKey = buffers[0].size + buffers[1].size;
   sttBlk->bInfo.szBlock = buffers[2].size + buffers[3].size + sttBlk->bInfo.szKey;
@@ -541,6 +542,7 @@ static int32_t tsdbSttFileDoWriteBlockData(SSttFileWriter *writer) {
   tb_uid_t         uid = writer->blockData->suid == 0 ? writer->blockData->uid : writer->blockData->suid;
   SColCompressInfo info = {.defaultCmprAlg = writer->config->cmprAlg, .pColCmpr = NULL};
   code = metaGetColCmpr(writer->config->tsdb->pVnode->pMeta, uid, &(info.pColCmpr));
+  code = metaGetEncryParam(writer->config->tsdb->pVnode->pMeta, uid, &(info.pEncryption));
 
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
   char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;

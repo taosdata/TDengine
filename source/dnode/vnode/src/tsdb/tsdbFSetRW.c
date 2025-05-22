@@ -34,6 +34,7 @@ struct SFSetWriter {
   SDataFileWriter *dataWriter;
   SSttFileWriter  *sttWriter;
   SHashObj        *pColCmprObj;
+  SHashObj        *pEncryption;
 };
 
 static int32_t tsdbFSetWriteTableDataBegin(SFSetWriter *writer, const TABLEID *tbid) {
@@ -46,6 +47,8 @@ static int32_t tsdbFSetWriteTableDataBegin(SFSetWriter *writer, const TABLEID *t
   code = tsdbUpdateSkmTb(writer->config->tsdb, writer->ctx->tbid, writer->skmTb);
 
   code = metaGetColCmpr(writer->config->tsdb->pVnode->pMeta, tbid->suid ? tbid->suid : tbid->uid, &writer->pColCmprObj);
+  code =
+      metaGetEncryParam(writer->config->tsdb->pVnode->pMeta, tbid->suid ? tbid->suid : tbid->uid, &writer->pEncryption);
   // TSDB_CHECK_CODE(code, lino, _exit);
 
   writer->blockDataIdx = 0;

@@ -188,6 +188,9 @@ int32_t tBrinBlockGet(SBrinBlock *brinBlock, int32_t idx, SBrinRecord *record);
 int32_t tsdbUpdateSkmTb(STsdb *pTsdb, const TABLEID *tbid, SSkmInfo *pSkmTb);
 int32_t tsdbUpdateSkmRow(STsdb *pTsdb, const TABLEID *tbid, int32_t sver, SSkmInfo *pSkmRow);
 
+int32_t tsdbCryption(SBuffer *pBuffer, int32_t cid, SHashObj *pEncryptionObj);
+int32_t tsdbDecryption(SBuffer *pBuffer, int32_t cid, SHashObj *pDecryObj);
+
 #ifdef __cplusplus
 }
 #endif

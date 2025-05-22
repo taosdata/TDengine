@@ -2740,6 +2740,56 @@ int32_t metaGetColCmpr(SMeta *pMeta, tb_uid_t uid, SHashObj **ppColCmprObj) {
 
   return 0;
 }
+
+int32_t metaGetEncryParam(SMeta *pMeta, tb_uid_t uid, SHashObj **ppEncryptionObj) {
+  int32_t code = 0;
+  int     rc = 0;
+
+  SHashObj  *pEncryptionObj = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  void      *pData = NULL;
+  int        nData = 0;
+  SMetaEntry e = {0};
+  SDecoder   dc = {0};
+
+  *ppEncryptionObj = NULL;
+
+  metaRLock(pMeta);
+  rc = tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData);
+  if (rc < 0) {
+    taosHashClear(pEncryptionObj);
+    metaULock(pMeta);
+    return -1;
+  }
+  int64_t version = ((SUidIdxVal *)pData)[0].version;
+  rc = tdbTbGet(pMeta->pTbDb, &(STbDbKey){.version = version, .uid = uid}, sizeof(STbDbKey), &pData, &nData);
+  if (rc < 0) {
+    metaULock(pMeta);
+    taosHashClear(pEncryptionObj);
+    metaError("failed to get table entry");
+    return rc;
+  }
+
+  tDecoderInit(&dc, pData, nData);
+  rc = metaDecodeEntry(&dc, &e);
+  if (rc < 0) {
+    tDecoderClear(&dc);
+    tdbFree(pData);
+    metaULock(pMeta);
+    taosHashClear(pEncryptionObj);
+    return -1;
+  }
+  for (int32_t i = 0; i < e.pEncryptionMgt->numOfEncryption; i++) {
+    STableEncryption *encryption = &e.pEncryptionMgt->pTableEncryption[i];
+    taosHashPut(pEncryptionObj, &encryption->fieldId, sizeof(encryption->fieldId), encryption,
+                sizeof(STableEncryption));
+  }
+  tDecoderClear(&dc);
+  tdbFree(pData);
+  metaULock(pMeta);
+
+  *ppEncryptionObj = pEncryptionObj;
+  return code;
+}
 // refactor later
 void *metaGetIdx(SMeta *pMeta) { return pMeta->pTagIdx; }
 void *metaGetIvtIdx(SMeta *pMeta) { return pMeta->pTagIvtIdx; }
