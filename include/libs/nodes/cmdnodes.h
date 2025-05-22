@@ -62,6 +62,8 @@ extern "C" {
 #define PRIVILEGE_TYPE_WRITE     BIT_FLAG_MASK(2)
 #define PRIVILEGE_TYPE_SUBSCRIBE BIT_FLAG_MASK(3)
 #define PRIVILEGE_TYPE_ALTER     BIT_FLAG_MASK(4)
+#define PRIVILEGE_TYPE_AKENC     BIT_FLAG_MASK(5)
+#define PRIVILEGE_TYPE_AKDEC     BIT_FLAG_MASK(6)
 
 typedef struct SDatabaseOptions {
   ENodeType   type;

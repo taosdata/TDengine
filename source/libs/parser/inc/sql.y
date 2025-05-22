@@ -122,6 +122,8 @@ cmd ::= REVOKE privileges(A) ON priv_level(B) with_opt(D) FROM user_name(C).    
 privileges(A) ::= ALL.                                                            { A = PRIVILEGE_TYPE_ALL; }
 privileges(A) ::= priv_type_list(B).                                              { A = B; }
 privileges(A) ::= SUBSCRIBE.                                                      { A = PRIVILEGE_TYPE_SUBSCRIBE; }
+privileges(A) ::= AKENC.                                                          { A = PRIVILEGE_TYPE_AKENC; }
+privileges(A) ::= AKDEC.                                                          { A = PRIVILEGE_TYPE_AKDEC; }
 
 %type priv_type_list                                                              { int64_t }
 %destructor priv_type_list                                                        { }
