@@ -906,16 +906,18 @@ trigger_options_opt(A) ::= .                                                    
 trigger_options_opt(A) ::= OPTIONS NK_LP trigger_option_list(B) NK_RP.                     { A = B; }
 
 trigger_option_list(A) ::= trigger_option(B).                                       { A = createStreamTriggerOptions(pCxt);  A = setStreamTriggerOptions(pCxt, A, &B);  }
-trigger_option_list(A) ::= trigger_option_list(B) NK_CONCAT trigger_option(C).      { A = setStreamTriggerOptions(pCxt, B, &C); }
+trigger_option_list(A) ::= trigger_option_list(B) NK_BITOR trigger_option(C).       { A = setStreamTriggerOptions(pCxt, B, &C); }
 
 %type trigger_option                                                               { SStreamTriggerOption }
 %destructor trigger_option                                                         { }
 trigger_option(A) ::= CALC_NOTIFY_ONLY.                                            { A.type = STREAM_TRIGGER_OPTION_CALC_NOTIFY_ONLY; }
 trigger_option(A) ::= DELETE_RECALC.                                               { A.type = STREAM_TRIGGER_OPTION_DELETE_RECALC; }
 trigger_option(A) ::= DELETE_OUTPUT_TABLE.                                         { A.type = STREAM_TRIGGER_OPTION_DELETE_OUTPUT_TABLE; }
-trigger_option(A) ::= EXPIRED_TIME NK_INTEGER(B).                                  { A.type = STREAM_TRIGGER_OPTION_EXPIRED_TIME; A.val = B; }
-trigger_option(A) ::= FILL_HISTORY NK_INTEGER(B).                                  { A.type = STREAM_TRIGGER_OPTION_FILL_HISTORY; A.val = B; }
-trigger_option(A) ::= FILL_HISTORY_FIRST NK_INTEGER(B).                            { A.type = STREAM_TRIGGER_OPTION_FILL_HISTORY_FIRST; A.val = B; }
+trigger_option(A) ::= EXPIRED_TIME NK_LP NK_INTEGER(B) NK_RP.                      { A.type = STREAM_TRIGGER_OPTION_EXPIRED_TIME; A.val = B; }
+trigger_option(A) ::= FILL_HISTORY NK_LP NK_INTEGER(B) NK_RP.                      { A.type = STREAM_TRIGGER_OPTION_FILL_HISTORY; A.pNode = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B); }
+trigger_option(A) ::= FILL_HISTORY NK_LP NK_STRING(B) NK_RP.                       { A.type = STREAM_TRIGGER_OPTION_FILL_HISTORY; A.pNode = createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &B); }
+trigger_option(A) ::= FILL_HISTORY_FIRST NK_LP NK_INTEGER(B) NK_RP.                { A.type = STREAM_TRIGGER_OPTION_FILL_HISTORY_FIRST; A.pNode = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B);; }
+trigger_option(A) ::= FILL_HISTORY_FIRST NK_LP NK_STRING(B) NK_RP.                 { A.type = STREAM_TRIGGER_OPTION_FILL_HISTORY_FIRST; A.pNode = createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &B);; }
 trigger_option(A) ::= FORCE_OUTPUT.                                                { A.type = STREAM_TRIGGER_OPTION_FORCE_OUTPUT; }
 trigger_option(A) ::= IGNORE_DISORDER.                                             { A.type = STREAM_TRIGGER_OPTION_IGNORE_DISORDER;}
 trigger_option(A) ::= LOW_LATENCY_CALC.                                            { A.type = STREAM_TRIGGER_OPTION_LOW_LATENCY_CALC; }
@@ -951,7 +953,7 @@ notify_options_opt(A) ::= NOTIFY_OPTIONS NK_LP notify_options_list(B) NK_RP.    
 %type notify_options_list                                                         { int64_t }
 %destructor notify_options_list                                                   { }
 notify_options_list(A) ::= notify_option(B).                                      { A = B; }
-notify_options_list(A) ::= notify_options_list(B) NK_CONCAT notify_option(C).     { A = B | C; }
+notify_options_list(A) ::= notify_options_list(B) NK_BITOR notify_option(C).     { A = B | C; }
 
 %type notify_option                                                               { int64_t }
 %destructor notify_option                                                         { }
@@ -971,7 +973,7 @@ trigger_col_name(A) ::= TBNAME(B).                                              
 %type event_type_list                                                             { int64_t }
 %destructor event_type_list                                                       { }
 event_type_list(A) ::= event_types(B).                                            { A = B;}
-event_type_list(A) ::= event_type_list(B) NK_CONCAT event_types(C).               { A = B | C; }
+event_type_list(A) ::= event_type_list(B) NK_BITOR event_types(C).               { A = B | C; }
 
 %type event_types                                                                 { int64_t }
 %destructor event_types                                                           { }
