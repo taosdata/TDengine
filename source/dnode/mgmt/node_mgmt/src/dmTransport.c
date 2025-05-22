@@ -529,12 +529,18 @@ int32_t dmInitServer(SDnode *pDnode) {
     dError("failed to init scheduler");
     return -1;
   }
+  if (initTaskQueue() != TSDB_CODE_SUCCESS) {
+    dError("failed to init task queue");
+    return -1;
+  }
 
   return 0;
 }
 
 void dmCleanupServer(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
+  cleanupTaskQueue();
+  schedulerDestroy();
   if (pTrans->serverRpc) {
     rpcClose(pTrans->serverRpc);
     pTrans->serverRpc = NULL;
