@@ -82,7 +82,7 @@ int32_t clientSendAuditLog(void* pTrans, SEpSet* epset, char* operation, char* d
   };
 
   SRpcMsg rpcRsp = {0};
-  rpcSendRecv(pTrans, epset, &rpcMsg, &rpcRsp);
+  rpcSendRequest(pTrans, epset, &rpcMsg, NULL);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -186,7 +186,39 @@ static void planCacheListMoveToHead(PlanCacheList* list, SPlanCacheEntry* entry)
   taosThreadMutexUnlock(&list->lock);
 }
 
-static void erasePlanCache() {
+static char* generateSummary(char* event){
+  cJSON* json = cJSON_CreateObject();
+  cJSON* eventJson = cJSON_CreateString(event);
+  cJSON_AddItemToObject(json, "event", eventJson);
+
+  cJSON* users = cJSON_CreateArray();
+  void* pIter = taosHashIterate(planCacheObj, NULL);
+  while (pIter != NULL) {
+    char*            user = taosHashGetKey(pIter, NULL);
+    SHashObj* pHashObj = ((UserCacheValue*)pIter)->hash;
+
+    cJSON* item = cJSON_CreateObject();
+    cJSON* userName = cJSON_CreateString(user);
+    cJSON_AddItemToObject(item, "user_name", userName);
+    cJSON* num = cJSON_CreateNumber(taosHashGetSize(pHashObj));
+    cJSON_AddItemToObject(item, "plan_num", num);
+
+    cJSON_AddItemToArray(users, item);
+    pIter = taosHashIterate(planCacheObj, pIter);
+  }
+  cJSON_AddItemToObject(json, "summary", users);
+  char* string = cJSON_PrintUnformatted(json);
+  cJSON_Delete(json);
+  return string;
+}
+
+static void recordPlanCacheAudit(char* event, void* pTrans, SEpSet* epset){
+  char* summary = generateSummary(event);
+  clientSendAuditLog(pTrans, epset, "plan_cache", summary);
+  taosMemoryFree(summary);
+}
+
+static void erasePlanCache(void* pTrans, SEpSet* epset) {
   // from low to high
   for(int i = PLAN_CACHE_PRIORITY_LOW; i >= PLAN_CACHE_PRIORITY_HIGH; i--) {
     PlanCacheList *list = &planCacheList[i];
@@ -202,6 +234,7 @@ static void erasePlanCache() {
         if (ret != 0) {
           uError("Failed to remove plan cache entry, ret: %d", ret);
         }
+        recordPlanCacheAudit("plan_cache_remove", pTrans, epset);
       }
       taosMemoryFree(entry);
 
@@ -213,27 +246,6 @@ static void erasePlanCache() {
   }
 }
 
-static char* generateSummary(){
-  cJSON* users = cJSON_CreateArray();
-  void* pIter = taosHashIterate(planCacheObj, NULL);
-  while (pIter != NULL) {
-    char*            user = taosHashGetKey(pIter, NULL);
-    SHashObj* pHashObj = ((UserCacheValue*)pIter)->hash;
-
-    cJSON* json = cJSON_CreateObject();
-    cJSON* userName = cJSON_CreateString(user);
-    cJSON_AddItemToObject(json, "user_name", userName);
-    cJSON* num = cJSON_CreateNumber(taosHashGetSize(pHashObj));
-    cJSON_AddItemToObject(json, "plan_num", num);
-
-    cJSON_AddItemToArray(users, json);
-    pIter = taosHashIterate(planCacheObj, pIter);
-  }
-  char* string = cJSON_PrintUnformatted(users);
-  cJSON_Delete(users);
-  return string;
-}
-
 int32_t putToPlanCache(char* user, UserPriority priority, int32_t max, char* query, void* value, void* pTrans,
                        SEpSet* epset) {
   int32_t code = 0;
@@ -243,9 +255,7 @@ int32_t putToPlanCache(char* user, UserPriority priority, int32_t max, char* que
 
   taosThreadMutexLock(&cacheLock);
   if (priority == PLAN_CACHE_PRIORITY_LOW && totalPlanCacheSize >= MAX_PLAN_CACHE_SIZE_MEDIUM_LEVEL) {
-    char* summary = generateSummary();
-    clientSendAuditLog(pTrans, epset, "plan_cache", summary);
-    taosMemoryFree(summary);
+    recordPlanCacheAudit("plan_cache_70_percent", pTrans, epset);
     taosThreadMutexUnlock(&cacheLock);
     goto end;
   }
@@ -288,17 +298,14 @@ int32_t putToPlanCache(char* user, UserPriority priority, int32_t max, char* que
   CACHE_CHECK_RET_GOTO(taosHashPut(data, query, strlen(query) + 1, &v, sizeof(v)));
   PlanCacheList* list = &planCacheList[priority];
   planCacheListPushToHead(list, entry);
+  recordPlanCacheAudit("plan_cache_add", pTrans, epset);
 
   taosThreadMutexLock(&cacheLock);
   totalPlanCacheSize++;
   if (totalPlanCacheSize >= MAX_PLAN_CACHE_SIZE_HIGH_LEVEL) {
-    char* summary = generateSummary();
-    clientSendAuditLog(pTrans, epset, "plan_cache_90_percent", summary);
-    taosMemoryFree(summary);
-    erasePlanCache();
-    summary = generateSummary();
-    clientSendAuditLog(pTrans, epset, "plan_cache_50_percent", summary);
-    taosMemoryFree(summary);
+    recordPlanCacheAudit("plan_cache_90_percent", pTrans, epset);
+    erasePlanCache(pTrans, epset);
+    recordPlanCacheAudit("plan_cache_50_percent", pTrans, epset);
   }
   taosThreadMutexUnlock(&cacheLock);
 
