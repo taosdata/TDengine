@@ -160,7 +160,9 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   }
   if (meteEncodeColCmprEntry(pCoder, pME) < 0) return -1;
 
-  if (metaEncodeColEntryptionEntry(pCoder, pME) < 0) return -1;
+  if (pME->pEncryptionMgt) {
+    if (metaEncodeColEntryptionEntry(pCoder, pME) < 0) return -1;
+  }
 
   tEndEncode(pCoder);
   return 0;

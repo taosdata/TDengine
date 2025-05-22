@@ -282,6 +282,10 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     TABLE_SET_COL_COMPRESSED(me.flags);
     me.colCmpr = pReq->colCmpr;
   }
+  if (pReq->pMgt != NULL) {
+    STableEncryptionMgt *pEncryptionMgt = (STableEncryptionMgt *)pReq->pMgt;
+    me.pEncryptionMgt = pEncryptionMgt;
+  }
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
 
