@@ -2056,9 +2056,9 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
               (pReq->type == STREAM_INPUT__DATA_SUBMIT || pReq->type == STREAM_INPUT__DATA_BLOCK ||
                pReq->type == STREAM_INPUT__REF_DATA_BLOCK)) {
             stDebug(
-                "s-task:%s too many items (1000) in writeQ of vgId:%d, refuse dispatch msg, "
+                "s-task:%s %d items in writeQ of vgId:%d (too many, more than 1000), refuse dispatch msg, "
                 "recv msgId:%d, not update lastMsgId:%" PRId64,
-                id, pMeta->vgId, pReq->msgId, pInfo->lastMsgId);
+                id, itemsInWriteQ, pMeta->vgId, pReq->msgId, pInfo->lastMsgId);
             status = TASK_INPUT_STATUS__BLOCKED;
           } else {
             status = streamTaskAppendInputBlocks(pTask, pReq);
