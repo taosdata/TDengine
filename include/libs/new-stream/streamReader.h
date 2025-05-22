@@ -64,6 +64,8 @@ typedef struct SStreamTriggerReaderInfo {
   SSDataBlock* calcResBlock;
   STSchema*    triggerSchema;
   STSchema*    calcSchema;
+  SExprInfo*   pExprInfo;
+  int32_t      numOfExpr;
 } SStreamTriggerReaderInfo;
 
 typedef struct SStreamTriggerReaderCalcInfo {

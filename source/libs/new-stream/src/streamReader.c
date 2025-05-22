@@ -311,6 +311,13 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(const SStreamReaderDeplo
 
   // process calcCacheScanPlan
   STREAM_CHECK_RET_GOTO(nodesStringToNode(pMsg->msg.trigger.calcCacheScanPlan, (SNode**)(&sStreamReaderInfo->calcAst)));
+
+  SNodeList* pseudoCols = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scan.pScanPseudoCols;
+  if (pseudoCols != NULL) {
+    STREAM_CHECK_RET_GOTO(qStreamCreateExprInfo(pseudoCols, NULL, 
+      &sStreamReaderInfo->pExprInfo, &sStreamReaderInfo->numOfExpr));
+  }
+
   if (sStreamReaderInfo->calcAst != NULL) {
     STREAM_CHECK_CONDITION_GOTO(
         QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN != nodeType(sStreamReaderInfo->calcAst->pNode) &&

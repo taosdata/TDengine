@@ -142,6 +142,8 @@ int   vnodeDecodeInfo(uint8_t* pData, SVnodeInfo* pInfo);
 void vnodeBufPoolRegisterQuery(SVBufPool* pPool, SQueryNode* pQNode);
 void vnodeBufPoolDeregisterQuery(SVBufPool* pPool, SQueryNode* pQNode, bool proactive);
 
+void  initStorageAPI(SStorageAPI* pAPI);
+
 // meta
 typedef struct SMStbCursor SMStbCursor;
 typedef struct STbUidStore STbUidStore;
