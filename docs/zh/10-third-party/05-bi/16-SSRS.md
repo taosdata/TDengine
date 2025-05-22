@@ -60,8 +60,8 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    ![cfg-1](img/cfg-1.webp)
 
    - DSN：填写“TDengine”。
-   - Connect type: 选择“WebSocket”。
-   - URL: http://192.168.2.124:6041 。
+   - Connect type：选择“WebSocket”。
+   - URL：`http://192.168.2.124:6041`。
    - User/Password：填写连接 TDengine 数据库用户名/密码，不填写使用默认。
    
    点击“Test Connection”，连接成功表示配置正确，点击“OK”保存配置。
@@ -105,7 +105,7 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    - Name：填写数据集名称。
    - 数据集方式：选择第二项“Use a dataset embedded im my report”。
    - Data source：选择前面创建好的“DataSource1”。
-   - Query type: 选择“text”类型查询，填写如下查询分析 SQL：
+   - Query type：选择“text”类型查询，填写如下查询分析 SQL：
     
    ``` sql
    SELECT 
