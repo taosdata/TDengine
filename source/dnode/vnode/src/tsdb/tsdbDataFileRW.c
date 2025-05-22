@@ -299,12 +299,13 @@ extern int32_t tBlockDataDecompress(SBufferReader *br, SBlockData *blockData, SB
 int32_t tsdbDataFileReadBlockData(SDataFileReader *reader, const SBrinRecord *record, SBlockData *bData) {
   int32_t code = 0;
   int32_t lino = 0;
-
+  SHashObj *pEncryTable = NULL;
   SBuffer *buffer = reader->buffers + 0;
   SBuffer *assist = reader->buffers + 1;
 
   int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
   char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+
   // load data
   tBufferClear(buffer);
   code = tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_DATA], record->blockOffset, record->blockSize, buffer, 0,
@@ -329,6 +330,7 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
   int32_t code = 0;
   int32_t lino = 0;
 
+  SHashObj    *pEncryTable = NULL;
   SDiskDataHdr hdr;
   SBuffer     *buffer0 = reader->buffers + 0;
   SBuffer     *buffer1 = reader->buffers + 1;
@@ -338,6 +340,7 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
   char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
   // load key part
   tBufferClear(buffer0);
+
   code = tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_DATA], record->blockOffset, record->blockKeySize, buffer0, 0,
                               encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -353,6 +356,8 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
   bData->suid = hdr.suid;
   bData->uid = hdr.uid;
   bData->nRow = hdr.nRow;
+
+  metaGetEncryParam(reader->config->tsdb->pVnode->pMeta, hdr.suid, &pEncryTable);
 
   // Key part
   code = tBlockDataDecompressKeyPart(&hdr, &br, bData, assist);

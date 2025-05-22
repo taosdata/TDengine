@@ -1435,11 +1435,15 @@ int32_t tsdbCryption(SBuffer *pBuffer, int32_t cid, SHashObj *pEncryptionObj) {
 
 int32_t tsdbDecryption(SBuffer *pBuffer, int32_t cid, SHashObj *pDecryObj) {
   int32_t           code = 0;
+
+  if (pDecryObj == NULL) return code;
+
   STableEncryption *pEncryption = taosHashGet(pDecryObj, &cid, sizeof(cid));
   if (pEncryption == NULL || strlen(pEncryption->encryptionKey) == 0) {
     return code;
   }
   char      *t = taosMemoryCalloc(1, pBuffer->size);
+
   SCryptOpts opts;
   opts.len = pBuffer->size;
   opts.source = pBuffer->data;
@@ -1507,8 +1511,11 @@ int32_t tBlockDataCompress(SBlockData *bData, void *pCompr, SBuffer *buffers, SB
     }
 
     int32_t offset = buffers[3].size;
+
     code = tColDataCompress(colData, &cinfo, &buffers[3], assist);
     TSDB_CHECK_CODE(code, lino, _exit);
+
+    code = tsdbCryption(&buffers[3], colData->cid, pInfo->pEncryption);
 
     SBlockCol blockCol = (SBlockCol){.cid = cinfo.columnId,
                                      .type = cinfo.dataType,
@@ -1721,8 +1728,9 @@ static int32_t tBlockDataCompressKeyPart(SBlockData *bData, SDiskDataHdr *hdr, S
     }
 
     code = tColDataCompress(colData, &info, buffer, assist);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
-    code = TSDB_CHECK_CODE(code, lino, _exit);
+    code = tsdbCryption(buffer, colData->cid, compressInfo->pEncryption);
 
     *blockCol = (SBlockCol){
         .cid = info.columnId,
@@ -1782,6 +1790,10 @@ int32_t tBlockDataDecompressColData(const SDiskDataHdr *hdr, const SBlockCol *bl
 
   code = tColDataDecompress(BR_PTR(br), &info, colData, assist);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbDecryption(assist, colData->cid, NULL);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   br->offset += blockCol->szBitmap + blockCol->szOffset + blockCol->szValue;
 
 _exit:

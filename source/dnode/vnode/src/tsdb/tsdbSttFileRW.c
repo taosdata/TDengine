@@ -240,6 +240,9 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
   SBuffer     *buffer1 = reader->buffers + 1;
   SBuffer     *assist = reader->buffers + 2;
 
+  SHashObj *pEncryTable = NULL;
+  code = metaGetEncryParam(reader->config->tsdb->pVnode->pMeta, hdr.suid, &pEncryTable);
+
   int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
   char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
   // load key part
