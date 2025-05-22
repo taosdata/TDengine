@@ -141,7 +141,7 @@ static void doStartScanWal(void* param, void* tmrId) {
   }
 
   numOfItems = tmsgGetQueueSize(&pTq->pVnode->msgCb, pMeta->vgId, STREAM_QUEUE);
-  bool tooMany = (numOfItems > 1000);
+  bool tooMany = (numOfItems > tsThresholdItemsInWriteQueue);
 
   if (!waitEnoughDuration(pMeta) || tooMany) {
     if (tooMany) {
