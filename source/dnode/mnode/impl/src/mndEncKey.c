@@ -573,6 +573,11 @@ int32_t mndRetrieveEncLog(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
   return numOfRows;
 }
 
+int32_t mndCheckAKEncPrivilege(SMnode *pMnode, const char *user, EOperType operType, const char *pViewFName) {
+  int32_t code = 0;
+  return code;
+}
+
 int32_t mndProcessAKEncReq(SRpcMsg *pReq) {
   int32_t code = -1;
   SMnode *pMnode = pReq->info.node;
