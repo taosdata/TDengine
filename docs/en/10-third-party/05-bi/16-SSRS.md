@@ -132,7 +132,7 @@ Create a super meter with 500 sub-meters, each sub-meter represents a smart mete
 5. Exit the preview.  
    Click the first icon "Design" on the left side of the toolbar to close the preview and go back to the design interface to continue designing.
 
-### Sending Report
+### Send Report
 1. Save the report to the server.  
    Click menu "File" -> "Save", as shown in the figure:
    
@@ -167,7 +167,7 @@ After the report is sent to the server, the report is shared and can be accessed
 
    ![browser-4](img/browser-4.webp)
 
-### Managing Reports
+### Manage Report
    To manage reports on SSRS server, you can refer to [Microsoft official document](https://learn.microsoft.com/en-us/sql/reporting-services/report-builder/finding-viewing-and-managing-reports-report-builder-and-ssrs?view=sql-server-ver16).
 
 
