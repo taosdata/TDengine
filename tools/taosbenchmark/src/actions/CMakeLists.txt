@@ -12,41 +12,40 @@ enable_testing()
 # 添加调试符号信息
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
 
-# 添加第三方库
+# 添加子目录
+add_subdirectory(config)
 
+# 添加 base 目录
+add_library(actions_base INTERFACE)
+target_include_directories(actions_base INTERFACE base)
 
-# 添加主库
-add_library(actions STATIC 
-    JobDAG.cpp
-    ThreadSafeQueue.cpp
-    StepExecutionStrategy.cpp
-    JobScheduler.cpp
+# 添加 create 目录
+add_library(actions_create STATIC
+    create/CreateChildTableAction.cpp
+    create/CreateDatabaseAction.cpp
+    create/CreateSuperTableAction.cpp
 )
+target_include_directories(actions_create PUBLIC create)
+target_link_libraries(actions_create PUBLIC actions_config actions_base)
 
-# 包含头文件目录
-target_include_directories(actions PUBLIC 
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/..
+# 添加 insert 目录
+add_library(actions_insert STATIC
+    insert/InsertDataAction.cpp
 )
+target_include_directories(actions_insert PUBLIC insert)
+target_link_libraries(actions_insert PUBLIC actions_config actions_base)
 
-# 链接依赖库
-target_link_libraries(actions PRIVATE 
-    parameter
+# 添加 query 目录
+add_library(actions_query STATIC
+    query/QueryDataAction.cpp
 )
+target_include_directories(actions_query PUBLIC query)
+target_link_libraries(actions_query PUBLIC actions_config actions_base)
 
-# 链接依赖库
-link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../parameter/build)
-target_link_libraries(actions PRIVATE parameter)
-
-# TestJobScheduler
-add_executable(TestJobScheduler 
-    test/TestJobScheduler.cpp
+# 添加 subscribe 目录
+add_library(actions_subscribe STATIC
+    subscribe/SubscribeDataAction.cpp
 )
+target_include_directories(actions_subscribe PUBLIC subscribe)
+target_link_libraries(actions_subscribe PUBLIC actions_config actions_base)
 
-target_link_libraries(TestJobScheduler PRIVATE 
-    parameter
-    actions
-    yaml-cpp
-)
-
-add_test(NAME TestJobScheduler COMMAND TestJobScheduler)
