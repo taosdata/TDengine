@@ -208,7 +208,7 @@ int ttqHandleSub(struct tmqtt *context) {
 
       allowed = true;
       /*
-      rc2 = tmqtt_acl_check(context, sub, 0, NULL, qos, false, TTQ_ACL_SUBSCRIBE);
+      rc2 = tmqttAclCheck(context, sub, 0, NULL, qos, false, TTQ_ACL_SUBSCRIBE);
       switch (rc2) {
         case TTQ_ERR_SUCCESS:
           break;
@@ -236,7 +236,7 @@ int ttqHandleSub(struct tmqtt *context) {
         char      **topics;
         size_t      topiclen;
 
-        rc2 = sub__topic_tokenise(sub, &local_sub, &topics, &sharename);
+        rc2 = ttqSubTopicTokenise(sub, &local_sub, &topics, &sharename);
         if (rc2 > 0) {
           ttq_free(local_sub);
           ttq_free(topics);
@@ -263,7 +263,7 @@ int ttqHandleSub(struct tmqtt *context) {
       }
 
       if (allowed) {
-        rc2 = sub__add(context, sub, qos, subscription_identifier, subscription_options);
+        rc2 = ttqSubAdd(context, sub, qos, subscription_identifier, subscription_options);
         if (rc2 > 0) {
           ttq_free(sub);
           return rc2;
@@ -433,7 +433,7 @@ int ttqHandleUnsub(struct tmqtt *context) {
 
     /* ACL check */
     allowed = true;
-    rc = tmqtt_acl_check(context, sub, 0, NULL, 0, false, TTQ_ACL_UNSUBSCRIBE);
+    rc = tmqttAclCheck(context, sub, 0, NULL, 0, false, TTQ_ACL_UNSUBSCRIBE);
     switch (rc) {
       case TTQ_ERR_SUCCESS:
         break;
@@ -454,7 +454,7 @@ int ttqHandleUnsub(struct tmqtt *context) {
       size_t      topiclen;
       int         rc2;
 
-      rc2 = sub__topic_tokenise(sub, &local_sub, &topics, &sharename);
+      rc2 = ttqSubTopicTokenise(sub, &local_sub, &topics, &sharename);
       if (rc2 > 0) {
         ttq_free(local_sub);
         ttq_free(topics);
@@ -482,7 +482,7 @@ int ttqHandleUnsub(struct tmqtt *context) {
 
     ttq_log(NULL, TTQ_LOG_DEBUG, "\t%s", sub);
     if (allowed) {
-      rc = sub__remove(context, sub, &reason);
+      rc = ttqSubRemmove(context, sub, &reason);
     } else {
       rc = TTQ_ERR_SUCCESS;
     }

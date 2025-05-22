@@ -21,7 +21,7 @@
 #include "ttqProperty.h"
 #include "tmqttProto.h"
 
-int property__process_will(struct tmqtt *context, struct tmqtt_message_all *msg, tmqtt_property **props) {
+int ttqPropertyProcessWill(struct tmqtt *context, struct tmqtt_message_all *msg, tmqtt_property **props) {
   tmqtt_property *p, *p_prev;
   tmqtt_property *msg_properties, *msg_properties_last;
 

@@ -187,13 +187,13 @@ int ttqDbOpen(struct tmqtt__config *config) {
   db.normal_subs = NULL;
   db.shared_subs = NULL;
 
-  subhier = sub__add_hier_entry(NULL, &db.shared_subs, "", 0);
+  subhier = ttqSubAddHierEntry(NULL, &db.shared_subs, "", 0);
   if (!subhier) return TTQ_ERR_NOMEM;
 
-  subhier = sub__add_hier_entry(NULL, &db.normal_subs, "", 0);
+  subhier = ttqSubAddHierEntry(NULL, &db.normal_subs, "", 0);
   if (!subhier) return TTQ_ERR_NOMEM;
 
-  subhier = sub__add_hier_entry(NULL, &db.normal_subs, "$SYS", (uint16_t)strlen("$SYS"));
+  subhier = ttqSubAddHierEntry(NULL, &db.normal_subs, "$SYS", (uint16_t)strlen("$SYS"));
   if (!subhier) return TTQ_ERR_NOMEM;
 
     // retain__init();
@@ -696,7 +696,7 @@ int ttqDbMessageEasyQueue(struct tmqtt *context, const char *topic, uint8_t qos,
   }
   if (ttqDbMessageStore(context, stored, message_expiry_interval, 0, origin)) return 1;
 
-  return sub__messages_queue(source_id, stored->topic, stored->qos, stored->retain, &stored);
+  return ttqSubMessagesQueue(source_id, stored->topic, stored->qos, stored->retain, &stored);
 }
 
 /* This function requires topic to be allocated on the heap. Once called, it owns topic and will free it on error.
@@ -950,7 +950,7 @@ int ttqDbMessageReleaseIncoming(struct tmqtt *context, uint16_t mid) {
         db__message_remove_from_inflight(&context->msgs_in, tail);
         deleted = true;
       } else {
-        rc = sub__messages_queue(source_id, topic, 2, retain, &tail->store);
+        rc = ttqSubMessagesQueue(source_id, topic, 2, retain, &tail->store);
         if (rc == TTQ_ERR_SUCCESS || rc == TTQ_ERR_NO_SUBSCRIBERS) {
           db__message_remove_from_inflight(&context->msgs_in, tail);
           deleted = true;

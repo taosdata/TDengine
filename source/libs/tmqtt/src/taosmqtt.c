@@ -46,7 +46,7 @@ bool flag_reload = false;
 bool flag_tree_print = false;
 int  run;
 
-void listener__set_defaults(struct tmqtt__listener *listener) {
+void ttqListenerSetDefaults(struct tmqtt__listener *listener) {
   // listener->security_options.allow_anonymous = -1;
   // listener->security_options.allow_zero_length_clientid = true;
   listener->protocol = mp_mqtt;
@@ -89,7 +89,7 @@ static int listeners__add_local(const char *host, uint16_t port) {
 
   listeners = db.config->listeners;
 
-  listener__set_defaults(&listeners[db.config->listener_count]);
+  ttqListenerSetDefaults(&listeners[db.config->listener_count]);
   // listeners[db.config->listener_count].security_options.allow_anonymous = true;
   listeners[db.config->listener_count].port = port;
   listeners[db.config->listener_count].host = ttq_strdup(host);
@@ -162,7 +162,7 @@ void ttqConfigInit(struct tmqtt__config *config) {
 
   config->daemon = false;
   memset(&config->default_listener, 0, sizeof(struct tmqtt__listener));
-  listener__set_defaults(&config->default_listener);
+  ttqListenerSetDefaults(&config->default_listener);
 }
 
 void ttqConfigCleanup(struct tmqtt__config *config) {}
@@ -243,12 +243,12 @@ static void ttq_cxt_cleanup(void) {
     if (!ctxt->wsi)
 #endif
     {
-      context__cleanup(ctxt, true);
+      ttqCxtCleanup(ctxt, true);
     }
   }
-  HASH_ITER(hh_sock, db.contexts_by_sock, ctxt, ctxt_tmp) { context__cleanup(ctxt, true); }
+  HASH_ITER(hh_sock, db.contexts_by_sock, ctxt, ctxt_tmp) { ttqCxtCleanup(ctxt, true); }
 
-  context__free_disused();
+  ttqCxtFreeDisused();
 }
 
 static int ttq_init(int argc, char *argv[], struct tmqtt__config *config) {
@@ -268,7 +268,7 @@ static int ttq_init(int argc, char *argv[], struct tmqtt__config *config) {
   }
 
   // Initialise logging only after the database initialised in case logging to topics
-  if (log__init(config)) {
+  if (ttqLogInit(config)) {
     rc = 1;
     return rc;
   }
@@ -282,7 +282,7 @@ static int ttq_init(int argc, char *argv[], struct tmqtt__config *config) {
 
   if (listeners__start()) return 1;
 
-  rc = ttq_mux_init(listensock, listensock_count);
+  rc = ttqMuxInit(listensock, listensock_count);
   if (rc) return rc;
 
   ttq_log_running();
@@ -293,7 +293,7 @@ static int ttq_init(int argc, char *argv[], struct tmqtt__config *config) {
 }
 
 static void ttq_cleanup(void) {
-  ttq_mux_cleanup();
+  ttqMuxCleanup();
 
   ttq_log_stopping();
 
@@ -301,12 +301,12 @@ static void ttq_cleanup(void) {
   persist__backup(true);
 #endif
 
-  session_expiry__remove_all();
+  ttqSessionExpiryRemoveAll();
   ttq_cxt_cleanup();
   listeners__stop();
   ttqDbClose();
   // tmqtt_security_module_cleanup();
-  log__close(db.config);
+  ttqLogClose(db.config);
   ttqConfigCleanup(db.config);
   ttqNetBrokerCleanup();
 }

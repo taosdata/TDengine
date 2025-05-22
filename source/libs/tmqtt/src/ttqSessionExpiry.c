@@ -54,7 +54,7 @@ static void set_session_expiry_time(struct tmqtt *context) {
   }
 }
 
-int session_expiry__add(struct tmqtt *context) {
+int ttqSessionExpiryAdd(struct tmqtt *context) {
   struct session_expiry_list *item;
 
   if (db.config->persistent_client_expiration == 0) {
@@ -77,7 +77,7 @@ int session_expiry__add(struct tmqtt *context) {
   return TTQ_ERR_SUCCESS;
 }
 
-int session_expiry__add_from_persistence(struct tmqtt *context, time_t expiry_time) {
+int ttqSessionExpiryAddFromPersistence(struct tmqtt *context, time_t expiry_time) {
   struct session_expiry_list *item;
 
   if (db.config->persistent_client_expiration == 0) {
@@ -104,7 +104,7 @@ int session_expiry__add_from_persistence(struct tmqtt *context, time_t expiry_ti
   return TTQ_ERR_SUCCESS;
 }
 
-void session_expiry__remove(struct tmqtt *context) {
+void ttqSessionExpiryRemove(struct tmqtt *context) {
   if (context->expiry_list_item) {
     DL_DELETE(expiry_list, context->expiry_list_item);
     ttq_free(context->expiry_list_item);
@@ -113,21 +113,21 @@ void session_expiry__remove(struct tmqtt *context) {
 }
 
 /* Call on broker shutdown only */
-void session_expiry__remove_all(void) {
+void ttqSessionExpiryRemoveAll(void) {
   struct session_expiry_list *item, *tmp;
   struct tmqtt               *context;
 
   DL_FOREACH_SAFE(expiry_list, item, tmp) {
     context = item->context;
-    session_expiry__remove(context);
+    ttqSessionExpiryRemove(context);
     context->session_expiry_interval = 0;
     context->will_delay_interval = 0;
     // will_delay__remove(context);
-    context__disconnect(context);
+    ttqCxtDisconnect(context);
   }
 }
 
-void session_expiry__check(void) {
+void ttqSessionExpiryCheck(void) {
   struct session_expiry_list *item, *tmp;
   struct tmqtt               *context;
 
@@ -138,7 +138,7 @@ void session_expiry__check(void) {
   DL_FOREACH_SAFE(expiry_list, item, tmp) {
     if (item->context->session_expiry_time < db.now_real_s) {
       context = item->context;
-      session_expiry__remove(context);
+      ttqSessionExpiryRemove(context);
 
       if (context->id) {
         ttq_log(NULL, TTQ_LOG_NOTICE, "Expiring client %s due to timeout.", context->id);
@@ -150,8 +150,8 @@ void session_expiry__check(void) {
       /* Session has expired, so will delay should be cleared. */
       context->will_delay_interval = 0;
       // will_delay__remove(context);
-      // context__send_will(context);
-      context__add_to_disused(context);
+      // ttqCxtSendWill(context);
+      ttqCxtAddToDisused(context);
     } else {
       return;
     }

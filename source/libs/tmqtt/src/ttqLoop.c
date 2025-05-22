@@ -154,13 +154,13 @@ int ttqMainloop(struct tmqtt__listener_sock *listensock, int listensock_count) {
 
   while (run) {
     queue_plugin_msgs();
-    context__free_disused();
-    keepalive__check();
+    ttqCxtFreeDisused();
+    ttqKeepaliveCheck();
 
-    rc = ttq_mux_handle(listensock, listensock_count);
+    rc = ttqMuxHandle(listensock, listensock_count);
     if (rc) return rc;
 
-    session_expiry__check();
+    ttqSessionExpiryCheck();
     // will_delay__check();
 #ifdef WITH_PERSISTENCE
     if (db.config->persistence && db.config->autosave_interval) {
@@ -190,13 +190,13 @@ int ttqMainloop(struct tmqtt__listener_sock *listensock, int listensock_count) {
       // tmqtt_security_cleanup(true);
       // tmqtt_security_init(true);
       // tmqtt_security_apply();
-      log__close(db.config);
-      log__init(db.config);
+      ttqLogClose(db.config);
+      ttqLogInit(db.config);
       flag_reload = false;
     }
     if (flag_tree_print) {
-      sub__tree_print(db.normal_subs, 0);
-      sub__tree_print(db.shared_subs, 0);
+      ttqSubTreePrint(db.normal_subs, 0);
+      ttqSubTreePrint(db.shared_subs, 0);
       flag_tree_print = false;
     }
 
@@ -210,7 +210,7 @@ int ttqMainloop(struct tmqtt__listener_sock *listensock, int listensock_count) {
   return TTQ_ERR_SUCCESS;
 }
 
-void ttq_disconnect(struct tmqtt *context, int reason) {
+void ttqDisconnect(struct tmqtt *context, int reason) {
   const char *id;
 
   if (context->state == ttq_cs_disconnected) {
@@ -276,6 +276,6 @@ void ttq_disconnect(struct tmqtt *context, int reason) {
     }
   }
 
-  ttq_mux_delete(context);
-  context__disconnect(context);
+  ttqMuxDelete(context);
+  ttqCxtDisconnect(context);
 }

@@ -488,66 +488,66 @@ void ttqDbMsgAddToQueuedStats(struct tmqtt_msg_data *msg_data, struct tmqtt_clie
 void ttqDbExpireAllMessages(struct tmqtt *context);
 
 // Subscription functions
-int                    sub__add(struct tmqtt *context, const char *sub, uint8_t qos, uint32_t identifier, int options);
-struct tmqtt__subhier *sub__add_hier_entry(struct tmqtt__subhier *parent, struct tmqtt__subhier **sibling,
+int                    ttqSubAdd(struct tmqtt *context, const char *sub, uint8_t qos, uint32_t identifier, int options);
+struct tmqtt__subhier *ttqSubAddHierEntry(struct tmqtt__subhier *parent, struct tmqtt__subhier **sibling,
                                            const char *topic, uint16_t len);
-int                    sub__remove(struct tmqtt *context, const char *sub, uint8_t *reason);
-void                   sub__tree_print(struct tmqtt__subhier *root, int level);
-int                    sub__clean_session(struct tmqtt *context);
-int                    sub__messages_queue(const char *source_id, const char *topic, uint8_t qos, int retain,
+int                    ttqSubRemmove(struct tmqtt *context, const char *sub, uint8_t *reason);
+void                   ttqSubTreePrint(struct tmqtt__subhier *root, int level);
+int                    ttqSubCleanSession(struct tmqtt *context);
+int                    ttqSubMessagesQueue(const char *source_id, const char *topic, uint8_t qos, int retain,
                                            struct tmqtt_msg_store **stored);
-int  sub__topic_tokenise(const char *subtopic, char **local_sub, char ***topics, const char **sharename);
-void sub__topic_tokens_free(struct sub__token *tokens);
+int  ttqSubTopicTokenise(const char *subtopic, char **local_sub, char ***topics, const char **sharename);
+void ttqSubTopicTokensFree(struct sub__token *tokens);
 
 // Context functions
-struct tmqtt *context__init(ttq_sock_t sock);
-void          context__cleanup(struct tmqtt *context, bool force_free);
-void          context__disconnect(struct tmqtt *context);
-void          context__add_to_disused(struct tmqtt *context);
-void          context__free_disused(void);
-void          context__send_will(struct tmqtt *context);
-void          context__add_to_by_id(struct tmqtt *context);
-void          context__remove_from_by_id(struct tmqtt *context);
+struct tmqtt *ttqCxtInit(ttq_sock_t sock);
+void          ttqCxtCleanup(struct tmqtt *context, bool force_free);
+void          ttqCxtDisconnect(struct tmqtt *context);
+void          ttqCxtAddToDisused(struct tmqtt *context);
+void          ttqCxtFreeDisused(void);
+void          ttqCxtSendWill(struct tmqtt *context);
+void          ttqCxtAddToById(struct tmqtt *context);
+void          ttqCxtRemoveFromById(struct tmqtt *context);
 
-int connect__on_authorised(struct tmqtt *context, void *auth_data_out, uint16_t auth_data_out_len);
+int ttqCxtOnAuthorised(struct tmqtt *context, void *auth_data_out, uint16_t auth_data_out_len);
 
 // Logging functions
-int  log__init(struct tmqtt__config *config);
-int  log__close(struct tmqtt__config *config);
-void log__internal(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+int  ttqLogInit(struct tmqtt__config *config);
+int  ttqLogClose(struct tmqtt__config *config);
+void ttqLogInternal(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
 // IO multiplex
-int ttq_mux_init(struct tmqtt__listener_sock *listensock, int listensock_count);
-int ttq_mux_cleanup(void);
-int ttq_mux_add_out(struct tmqtt *context);
-int ttq_mux_remove_out(struct tmqtt *context);
-int ttq_mux_delete(struct tmqtt *context);
-int ttq_mux_handle(struct tmqtt__listener_sock *listensock, int listensock_count);
+int ttqMuxInit(struct tmqtt__listener_sock *listensock, int listensock_count);
+int ttqMuxCleanup(void);
+int ttqMuxAddOut(struct tmqtt *context);
+int ttqMuxRemoveOut(struct tmqtt *context);
+int ttqMuxDelete(struct tmqtt *context);
+int ttqMuxHandle(struct tmqtt__listener_sock *listensock, int listensock_count);
 
 // Listener
-void listener__set_defaults(struct tmqtt__listener *listener);
-void listeners__reload_all_certificates(void);
+void ttqListenerSetDefaults(struct tmqtt__listener *listener);
+void ttqListenersReloadAllCertificates(void);
 
 // Property related functions
-int  keepalive__add(struct tmqtt *context);
-void keepalive__check(void);
-int  keepalive__remove(struct tmqtt *context);
-void keepalive__remove_all(void);
-int  keepalive__update(struct tmqtt *context);
+int  ttqKeepaliveAdd(struct tmqtt *context);
+void ttqKeepaliveCheck(void);
+int  ttqKeepaliveRemove(struct tmqtt *context);
+void ttqKeepaliveRemoveAll(void);
+int  ttqKeepaliveUpdate(struct tmqtt *context);
 
 // Property related functions
-int property__process_will(struct tmqtt *context, struct tmqtt_message_all *msg, tmqtt_property **props);
+int ttqPropertyProcessWill(struct tmqtt *context, struct tmqtt_message_all *msg, tmqtt_property **props);
 
 // Security related functions
-int tmqtt_acl_check(struct tmqtt *context, const char *topic, uint32_t payloadlen, void *payload, uint8_t qos,
+int tmqttAclCheck(struct tmqtt *context, const char *topic, uint32_t payloadlen, void *payload, uint8_t qos,
                     bool retain, int access);
 
 // Session expiry
-int  session_expiry__add(struct tmqtt *context);
-int  session_expiry__add_from_persistence(struct tmqtt *context, time_t expiry_time);
-void session_expiry__remove(struct tmqtt *context);
-void session_expiry__remove_all(void);
-void session_expiry__check(void);
+int  ttqSessionExpiryAdd(struct tmqtt *context);
+int  ttqSessionExpiryAddFromPersistence(struct tmqtt *context, time_t expiry_time);
+void ttqSessionExpiryRemove(struct tmqtt *context);
+void ttqSessionExpiryRemoveAll(void);
+void ttqSessionExpiryCheck(void);
 
 // Signals
 void handle_sigint(int signal);
@@ -558,7 +558,7 @@ void handle_sighup(int signal);
 #endif
 
 // Others
-void ttq_disconnect(struct tmqtt *context, int reason);
+void ttqDisconnect(struct tmqtt *context, int reason);
 
 #define TTQ_ACL_NONE        0x00
 #define TTQ_ACL_READ        0x01

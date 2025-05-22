@@ -25,7 +25,7 @@
 #include "tthash.h"
 #include "ttqUtil.h"
 
-struct tmqtt *context__init(ttq_sock_t sock) {
+struct tmqtt *ttqCxtInit(ttq_sock_t sock) {
   struct tmqtt *context;
   char          address[1024];
 
@@ -89,7 +89,7 @@ struct tmqtt *context__init(ttq_sock_t sock) {
   return context;
 }
 
-static void context__cleanup_out_packets(struct tmqtt *context) {
+static void ttqCxtCleanup_out_packets(struct tmqtt *context) {
   struct tmqtt__packet *packet;
 
   if (!context) return;
@@ -108,7 +108,7 @@ static void context__cleanup_out_packets(struct tmqtt *context) {
   context->out_packet_count = 0;
 }
 
-void context__cleanup(struct tmqtt *context, bool force_free) {
+void ttqCxtCleanup(struct tmqtt *context, bool force_free) {
   if (!context) return;
 
   if (force_free) {
@@ -116,7 +116,7 @@ void context__cleanup(struct tmqtt *context, bool force_free) {
   }
 
   // alias__free_all(context);
-  context__cleanup_out_packets(context);
+  ttqCxtCleanup_out_packets(context);
 
   ttq_free(context->auth_method);
   context->auth_method = NULL;
@@ -129,7 +129,7 @@ void context__cleanup(struct tmqtt *context, bool force_free) {
 
   net__socket_close(context);
   if (force_free) {
-    sub__clean_session(context);
+    ttqSubCleanSession(context);
   }
 
   ttqDbMessageDelete(context, force_free);
@@ -137,15 +137,15 @@ void context__cleanup(struct tmqtt *context, bool force_free) {
   ttq_free(context->address);
   context->address = NULL;
 
-  // context__send_will(context);
+  // ttqCxtSendWill(context);
 
   if (context->id) {
-    context__remove_from_by_id(context);
+    ttqCxtRemoveFromById(context);
     ttq_free(context->id);
     context->id = NULL;
   }
   packet__cleanup(&(context->in_packet));
-  context__cleanup_out_packets(context);
+  ttqCxtCleanup_out_packets(context);
   tmq_ctx_cleanup(&context->tmq_context);
 
   if (force_free) {
@@ -153,14 +153,14 @@ void context__cleanup(struct tmqtt *context, bool force_free) {
   }
 }
 /*
-void context__send_will(struct tmqtt *ctxt) {
+void ttqCxtSendWill(struct tmqtt *ctxt) {
   if (ctxt->state != ttq_cs_disconnecting && ctxt->will) {
     if (ctxt->will_delay_interval > 0) {
       will_delay__add(ctxt);
       return;
     }
 
-    if (tmqtt_acl_check(ctxt, ctxt->will->msg.topic, (uint32_t)ctxt->will->msg.payloadlen, ctxt->will->msg.payload,
+    if (tmqttAclCheck(ctxt, ctxt->will->msg.topic, (uint32_t)ctxt->will->msg.payloadlen, ctxt->will->msg.payload,
                         (uint8_t)ctxt->will->msg.qos, ctxt->will->msg.retain, TTQ_ACL_WRITE) == TTQ_ERR_SUCCESS) {
 
 ttqDbMessageEasyQueue(ctxt, ctxt->will->msg.topic, (uint8_t)ctxt->will->msg.qos, (uint32_t)ctxt->will->msg.payloadlen,
@@ -171,37 +171,37 @@ ttqDbMessageEasyQueue(ctxt, ctxt->will->msg.topic, (uint8_t)ctxt->will->msg.qos,
 will__clear(ctxt);
 }
 */
-void context__disconnect(struct tmqtt *context) {
+void ttqCxtDisconnect(struct tmqtt *context) {
   if (tmqtt__get_state(context) == ttq_cs_disconnected) {
     return;
   }
 
   // plugin__handle_disconnect(context, -1);
 
-  // context__send_will(context);
+  // ttqCxtSendWill(context);
   net__socket_close(context);
   {
     if (context->session_expiry_interval == 0) {
       /* Client session is due to be expired now */
       if (context->will_delay_interval == 0) {
         /* This will be done later, after the will is published for delay>0. */
-        context__add_to_disused(context);
+        ttqCxtAddToDisused(context);
       }
     } else {
-      session_expiry__add(context);
+      ttqSessionExpiryAdd(context);
     }
   }
-  keepalive__remove(context);
+  ttqKeepaliveRemove(context);
   tmqtt__set_state(context, ttq_cs_disconnected);
 }
 
-void context__add_to_disused(struct tmqtt *context) {
+void ttqCxtAddToDisused(struct tmqtt *context) {
   if (context->state == ttq_cs_disused) return;
 
   tmqtt__set_state(context, ttq_cs_disused);
 
   if (context->id) {
-    context__remove_from_by_id(context);
+    ttqCxtRemoveFromById(context);
     ttq_free(context->id);
     context->id = NULL;
   }
@@ -210,26 +210,26 @@ void context__add_to_disused(struct tmqtt *context) {
   db.ll_for_free = context;
 }
 
-void context__free_disused(void) {
+void ttqCxtFreeDisused(void) {
   struct tmqtt *context, *next;
 
   context = db.ll_for_free;
   db.ll_for_free = NULL;
   while (context) {
     next = context->for_free_next;
-    context__cleanup(context, true);
+    ttqCxtCleanup(context, true);
     context = next;
   }
 }
 
-void context__add_to_by_id(struct tmqtt *context) {
+void ttqCxtAddToById(struct tmqtt *context) {
   if (context->in_by_id == false) {
     context->in_by_id = true;
     HASH_ADD_KEYPTR(hh_id, db.contexts_by_id, context->id, strlen(context->id), context);
   }
 }
 
-void context__remove_from_by_id(struct tmqtt *context) {
+void ttqCxtRemoveFromById(struct tmqtt *context) {
   struct tmqtt *context_found;
 
   if (context->in_by_id == true && context->id) {

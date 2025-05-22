@@ -20,13 +20,13 @@
 static time_t last_keepalive_check = 0;
 
 /* FIXME - this is the prototype for the future tree/trie based keepalive check implementation. */
-int keepalive__add(struct tmqtt *context) {
+int ttqKeepaliveAdd(struct tmqtt *context) {
   UNUSED(context);
 
   return TTQ_ERR_SUCCESS;
 }
 
-void keepalive__check(void) {
+void ttqKeepaliveCheck(void) {
   struct tmqtt *context, *ctxt_tmp;
 
   if (last_keepalive_check + 5 < db.now_s) {
@@ -40,22 +40,22 @@ void keepalive__check(void) {
             db.now_s - context->last_msg_in <= (time_t)(context->keepalive) * 3 / 2) {
         } else {
           /* Client has exceeded keepalive*1.5 */
-          ttq_disconnect(context, TTQ_ERR_KEEPALIVE);
+          ttqDisconnect(context, TTQ_ERR_KEEPALIVE);
         }
       }
     }
   }
 }
 
-int keepalive__remove(struct tmqtt *context) {
+int ttqKeepaliveRemove(struct tmqtt *context) {
   UNUSED(context);
 
   return TTQ_ERR_SUCCESS;
 }
 
-void keepalive__remove_all(void) {}
+void ttqKeepaliveRemoveAll(void) {}
 
-int keepalive__update(struct tmqtt *context) {
+int ttqKeepaliveUpdate(struct tmqtt *context) {
   context->last_msg_in = db.now_s;
   return TTQ_ERR_SUCCESS;
 }

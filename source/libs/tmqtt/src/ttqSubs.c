@@ -54,7 +54,7 @@
 #include "ttlist.h"
 #include "ttqUtil.h"
 
-int tmqtt_acl_check(struct tmqtt *context, const char *topic, uint32_t payloadlen, void *payload, uint8_t qos,
+int tmqttAclCheck(struct tmqtt *context, const char *topic, uint32_t payloadlen, void *payload, uint8_t qos,
                     bool retain, int access) {
   int rc = TTQ_ERR_SUCCESS;
 
@@ -70,7 +70,7 @@ static int subs__send(struct tmqtt__subleaf *leaf, const char *topic, uint8_t qo
   int             rc2;
 
   /* Check for ACL topic access. */
-  rc2 = tmqtt_acl_check(leaf->context, topic, stored->payloadlen, stored->payload, stored->qos, stored->retain,
+  rc2 = tmqttAclCheck(leaf->context, topic, stored->payloadlen, stored->payload, stored->qos, stored->retain,
                         TTQ_ACL_READ);
   if (rc2 == TTQ_ERR_ACL_DENIED) {
     return TTQ_ERR_SUCCESS;
@@ -155,7 +155,7 @@ static int subs__process(struct tmqtt__subhier *hier, const char *source_id, con
   }
 }
 
-static int sub__add_leaf(struct tmqtt *context, uint8_t qos, uint32_t identifier, int options,
+static int ttqSubAdd_leaf(struct tmqtt *context, uint8_t qos, uint32_t identifier, int options,
                          struct tmqtt__subleaf **head, struct tmqtt__subleaf **newleaf) {
   struct tmqtt__subleaf *leaf;
 
@@ -187,7 +187,7 @@ static int sub__add_leaf(struct tmqtt *context, uint8_t qos, uint32_t identifier
   return TTQ_ERR_SUCCESS;
 }
 
-static void sub__remove_shared_leaf(struct tmqtt__subhier *subhier, struct tmqtt__subshared *shared,
+static void ttqSubRemmove_shared_leaf(struct tmqtt__subhier *subhier, struct tmqtt__subshared *shared,
                                     struct tmqtt__subleaf *leaf) {
   DL_DELETE(shared->subs, leaf);
   if (shared->subs == NULL) {
@@ -198,7 +198,7 @@ static void sub__remove_shared_leaf(struct tmqtt__subhier *subhier, struct tmqtt
   ttq_free(leaf);
 }
 
-static int sub__add_shared(struct tmqtt *context, const char *sub, uint8_t qos, uint32_t identifier, int options,
+static int ttqSubAdd_shared(struct tmqtt *context, const char *sub, uint8_t qos, uint32_t identifier, int options,
                            struct tmqtt__subhier *subhier, const char *sharename) {
   struct tmqtt__subleaf     *newleaf;
   struct tmqtt__subshared   *shared = NULL;
@@ -225,7 +225,7 @@ static int sub__add_shared(struct tmqtt *context, const char *sub, uint8_t qos, 
     HASH_ADD_KEYPTR(hh, subhier->shared, shared->name, slen, shared);
   }
 
-  rc = sub__add_leaf(context, qos, identifier, options, &shared->subs, &newleaf);
+  rc = ttqSubAdd_leaf(context, qos, identifier, options, &shared->subs, &newleaf);
   if (rc > 0) {
     if (shared->subs == NULL) {
       HASH_DELETE(hh, subhier->shared, shared);
@@ -252,7 +252,7 @@ static int sub__add_shared(struct tmqtt *context, const char *sub, uint8_t qos, 
     if (i == context->sub_count) {
       subs = ttq_realloc(context->subs, sizeof(struct tmqtt__client_sub *) * (size_t)(context->sub_count + 1));
       if (!subs) {
-        sub__remove_shared_leaf(subhier, shared, newleaf);
+        ttqSubRemmove_shared_leaf(subhier, shared, newleaf);
         ttq_free(newleaf);
         ttq_free(csub);
         return TTQ_ERR_NOMEM;
@@ -275,7 +275,7 @@ static int sub__add_shared(struct tmqtt *context, const char *sub, uint8_t qos, 
   }
 }
 
-static int sub__add_normal(struct tmqtt *context, const char *sub, uint8_t qos, uint32_t identifier, int options,
+static int ttqSubAdd_normal(struct tmqtt *context, const char *sub, uint8_t qos, uint32_t identifier, int options,
                            struct tmqtt__subhier *subhier) {
   struct tmqtt__subleaf     *newleaf = NULL;
   struct tmqtt__client_sub **subs;
@@ -284,7 +284,7 @@ static int sub__add_normal(struct tmqtt *context, const char *sub, uint8_t qos, 
   int                        rc;
   size_t                     slen;
 
-  rc = sub__add_leaf(context, qos, identifier, options, &subhier->subs, &newleaf);
+  rc = ttqSubAdd_leaf(context, qos, identifier, options, &subhier->subs, &newleaf);
   if (rc > 0) {
     return rc;
   }
@@ -329,7 +329,7 @@ static int sub__add_normal(struct tmqtt *context, const char *sub, uint8_t qos, 
   }
 }
 
-static int sub__add_context(struct tmqtt *context, const char *topic_filter, uint8_t qos, uint32_t identifier,
+static int ttqSubAdd_context(struct tmqtt *context, const char *topic_filter, uint8_t qos, uint32_t identifier,
                             int options, struct tmqtt__subhier *subhier, char *const *const topics,
                             const char *sharename) {
   struct tmqtt__subhier *branch;
@@ -345,7 +345,7 @@ static int sub__add_context(struct tmqtt *context, const char *topic_filter, uin
     HASH_FIND(hh, subhier->children, topics[topic_index], topiclen, branch);
     if (!branch) {
       /* Not found */
-      branch = sub__add_hier_entry(subhier, &subhier->children, topics[topic_index], (uint16_t)topiclen);
+      branch = ttqSubAddHierEntry(subhier, &subhier->children, topics[topic_index], (uint16_t)topiclen);
       if (!branch) return TTQ_ERR_NOMEM;
     }
     subhier = branch;
@@ -355,16 +355,16 @@ static int sub__add_context(struct tmqtt *context, const char *topic_filter, uin
   /* Add add our context */
   if (context && context->id) {
     if (sharename) {
-      return sub__add_shared(context, topic_filter, qos, identifier, options, subhier, sharename);
+      return ttqSubAdd_shared(context, topic_filter, qos, identifier, options, subhier, sharename);
     } else {
-      return sub__add_normal(context, topic_filter, qos, identifier, options, subhier);
+      return ttqSubAdd_normal(context, topic_filter, qos, identifier, options, subhier);
     }
   } else {
     return TTQ_ERR_SUCCESS;
   }
 }
 
-static int sub__remove_normal(struct tmqtt *context, struct tmqtt__subhier *subhier, uint8_t *reason) {
+static int ttqSubRemmove_normal(struct tmqtt *context, struct tmqtt__subhier *subhier, uint8_t *reason) {
   struct tmqtt__subleaf *leaf;
   int                    i;
 
@@ -396,7 +396,7 @@ static int sub__remove_normal(struct tmqtt *context, struct tmqtt__subhier *subh
   return TTQ_ERR_NO_SUBSCRIBERS;
 }
 
-static int sub__remove_shared(struct tmqtt *context, struct tmqtt__subhier *subhier, uint8_t *reason,
+static int ttqSubRemmove_shared(struct tmqtt *context, struct tmqtt__subhier *subhier, uint8_t *reason,
                               const char *sharename) {
   struct tmqtt__subshared *shared;
   struct tmqtt__subleaf   *leaf;
@@ -442,21 +442,21 @@ static int sub__remove_shared(struct tmqtt *context, struct tmqtt__subhier *subh
   }
 }
 
-static int sub__remove_recurse(struct tmqtt *context, struct tmqtt__subhier *subhier, char **topics, uint8_t *reason,
+static int ttqSubRemmove_recurse(struct tmqtt *context, struct tmqtt__subhier *subhier, char **topics, uint8_t *reason,
                                const char *sharename) {
   struct tmqtt__subhier *branch;
 
   if (topics == NULL || topics[0] == NULL) {
     if (sharename) {
-      return sub__remove_shared(context, subhier, reason, sharename);
+      return ttqSubRemmove_shared(context, subhier, reason, sharename);
     } else {
-      return sub__remove_normal(context, subhier, reason);
+      return ttqSubRemmove_normal(context, subhier, reason);
     }
   }
 
   HASH_FIND(hh, subhier->children, topics[0], strlen(topics[0]), branch);
   if (branch) {
-    sub__remove_recurse(context, branch, &(topics[1]), reason, sharename);
+    ttqSubRemmove_recurse(context, branch, &(topics[1]), reason, sharename);
     if (!branch->children && !branch->subs && !branch->shared) {
       HASH_DELETE(hh, subhier->children, branch);
       ttq_free(branch->topic);
@@ -537,7 +537,7 @@ static int sub__search(struct tmqtt__subhier *subhier, char **split_topics, cons
   }
 }
 
-struct tmqtt__subhier *sub__add_hier_entry(struct tmqtt__subhier *parent, struct tmqtt__subhier **sibling,
+struct tmqtt__subhier *ttqSubAddHierEntry(struct tmqtt__subhier *parent, struct tmqtt__subhier **sibling,
                                            const char *topic, uint16_t len) {
   struct tmqtt__subhier *child;
 
@@ -561,7 +561,7 @@ struct tmqtt__subhier *sub__add_hier_entry(struct tmqtt__subhier *parent, struct
   return child;
 }
 
-int sub__add(struct tmqtt *context, const char *sub, uint8_t qos, uint32_t identifier, int options) {
+int ttqSubAdd(struct tmqtt *context, const char *sub, uint8_t qos, uint32_t identifier, int options) {
   int                    rc = 0;
   struct tmqtt__subhier *subhier;
   const char            *sharename = NULL;
@@ -569,7 +569,7 @@ int sub__add(struct tmqtt *context, const char *sub, uint8_t qos, uint32_t ident
   char                 **topics;
   size_t                 topiclen;
 
-  rc = sub__topic_tokenise(sub, &local_sub, &topics, &sharename);
+  rc = ttqSubTopicTokenise(sub, &local_sub, &topics, &sharename);
   if (rc) return rc;
 
   topiclen = strlen(topics[0]);
@@ -582,7 +582,7 @@ int sub__add(struct tmqtt *context, const char *sub, uint8_t qos, uint32_t ident
   if (sharename) {
     HASH_FIND(hh, db.shared_subs, topics[0], topiclen, subhier);
     if (!subhier) {
-      subhier = sub__add_hier_entry(NULL, &db.shared_subs, topics[0], (uint16_t)topiclen);
+      subhier = ttqSubAddHierEntry(NULL, &db.shared_subs, topics[0], (uint16_t)topiclen);
       if (!subhier) {
         ttq_free(local_sub);
         ttq_free(topics);
@@ -593,7 +593,7 @@ int sub__add(struct tmqtt *context, const char *sub, uint8_t qos, uint32_t ident
   } else {
     HASH_FIND(hh, db.normal_subs, topics[0], topiclen, subhier);
     if (!subhier) {
-      subhier = sub__add_hier_entry(NULL, &db.normal_subs, topics[0], (uint16_t)topiclen);
+      subhier = ttqSubAddHierEntry(NULL, &db.normal_subs, topics[0], (uint16_t)topiclen);
       if (!subhier) {
         ttq_free(local_sub);
         ttq_free(topics);
@@ -602,7 +602,7 @@ int sub__add(struct tmqtt *context, const char *sub, uint8_t qos, uint32_t ident
       }
     }
   }
-  rc = sub__add_context(context, sub, qos, identifier, options, subhier, topics, sharename);
+  rc = ttqSubAdd_context(context, sub, qos, identifier, options, subhier, topics, sharename);
 
   ttq_free(local_sub);
   ttq_free(topics);
@@ -610,14 +610,14 @@ int sub__add(struct tmqtt *context, const char *sub, uint8_t qos, uint32_t ident
   return rc;
 }
 
-int sub__remove(struct tmqtt *context, const char *sub, uint8_t *reason) {
+int ttqSubRemmove(struct tmqtt *context, const char *sub, uint8_t *reason) {
   int                    rc = 0;
   struct tmqtt__subhier *subhier;
   const char            *sharename = NULL;
   char                  *local_sub = NULL;
   char                 **topics = NULL;
 
-  rc = sub__topic_tokenise(sub, &local_sub, &topics, &sharename);
+  rc = ttqSubTopicTokenise(sub, &local_sub, &topics, &sharename);
   if (rc) return rc;
 
   if (sharename) {
@@ -627,7 +627,7 @@ int sub__remove(struct tmqtt *context, const char *sub, uint8_t *reason) {
   }
   if (subhier) {
     *reason = MQTT_RC_NO_SUBSCRIPTION_EXISTED;
-    rc = sub__remove_recurse(context, subhier, topics, reason, sharename);
+    rc = ttqSubRemmove_recurse(context, subhier, topics, reason, sharename);
   }
 
   ttq_free(local_sub);
@@ -636,7 +636,7 @@ int sub__remove(struct tmqtt *context, const char *sub, uint8_t *reason) {
   return rc;
 }
 
-int sub__messages_queue(const char *source_id, const char *topic, uint8_t qos, int retain,
+int ttqSubMessagesQueue(const char *source_id, const char *topic, uint8_t qos, int retain,
                         struct tmqtt_msg_store **stored) {
   int                    rc = TTQ_ERR_SUCCESS, rc2;
   int                    rc_normal = TTQ_ERR_NO_SUBSCRIBERS, rc_shared = TTQ_ERR_NO_SUBSCRIBERS;
@@ -644,7 +644,7 @@ int sub__messages_queue(const char *source_id, const char *topic, uint8_t qos, i
   char                 **split_topics = NULL;
   char                  *local_topic = NULL;
 
-  if (sub__topic_tokenise(topic, &local_topic, &split_topics, NULL)) return 1;
+  if (ttqSubTopicTokenise(topic, &local_topic, &split_topics, NULL)) return 1;
 
   /* Protect this message until we have sent it to all
   clients - this is required because websockets client calls
@@ -714,7 +714,7 @@ static struct tmqtt__subhier *tmp_remove_subs(struct tmqtt__subhier *sub) {
 
 /* Remove all subscriptions for a client.
  */
-int sub__clean_session(struct tmqtt *context) {
+int ttqSubCleanSession(struct tmqtt *context) {
   int                    i;
   struct tmqtt__subleaf *leaf;
   struct tmqtt__subhier *hier;
@@ -733,7 +733,7 @@ int sub__clean_session(struct tmqtt *context) {
 #ifdef WITH_SYS_TREE
           db.shared_subscription_count--;
 #endif
-          sub__remove_shared_leaf(context->subs[i]->hier, context->subs[i]->shared, leaf);
+          ttqSubRemmove_shared_leaf(context->subs[i]->hier, context->subs[i]->shared, leaf);
           break;
         }
         leaf = leaf->next;
@@ -768,7 +768,7 @@ int sub__clean_session(struct tmqtt *context) {
   return TTQ_ERR_SUCCESS;
 }
 
-void sub__tree_print(struct tmqtt__subhier *root, int level) {
+void ttqSubTreePrint(struct tmqtt__subhier *root, int level) {
   int                    i;
   struct tmqtt__subhier *branch, *branch_tmp;
   struct tmqtt__subleaf *leaf;
@@ -791,7 +791,7 @@ void sub__tree_print(struct tmqtt__subhier *root, int level) {
       printf("\n");
     }
 
-    sub__tree_print(branch->children, level + 1);
+    ttqSubTreePrint(branch->children, level + 1);
   }
 }
 
@@ -821,7 +821,7 @@ static char *strtok_hier(char *str, char **saveptr) {
   return str;
 }
 
-int sub__topic_tokenise(const char *subtopic, char **local_sub, char ***topics, const char **sharename) {
+int ttqSubTopicTokenise(const char *subtopic, char **local_sub, char ***topics, const char **sharename) {
   char  *saveptr = NULL;
   char  *token;
   int    count;

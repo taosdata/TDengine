@@ -139,14 +139,14 @@ struct tmqtt *ttqNetSocketAccept(struct tmqtt__listener_sock *listensock) {
     }
   }
 
-  new_context = context__init(new_sock);
+  new_context = ttqCxtInit(new_sock);
   if (!new_context) {
     COMPAT_CLOSE(new_sock);
     return NULL;
   }
   new_context->listener = listensock->listener;
   if (!new_context->listener) {
-    context__cleanup(new_context, true);
+    ttqCxtCleanup(new_context, true);
     return NULL;
   }
   new_context->listener->client_count++;
@@ -157,7 +157,7 @@ struct tmqtt *ttqNetSocketAccept(struct tmqtt__listener_sock *listensock) {
       ttq_log(NULL, TTQ_LOG_NOTICE, "Client connection from %s denied: max_connections exceeded.",
               new_context->address);
     }
-    context__cleanup(new_context, true);
+    ttqCxtCleanup(new_context, true);
     return NULL;
   }
 
@@ -166,7 +166,7 @@ struct tmqtt *ttqNetSocketAccept(struct tmqtt__listener_sock *listensock) {
   if (new_context->listener->ssl_ctx) {
     new_context->ssl = SSL_new(new_context->listener->ssl_ctx);
     if (!new_context->ssl) {
-      context__cleanup(new_context, true);
+      ttqCxtCleanup(new_context, true);
       return NULL;
     }
     SSL_set_ex_data(new_context->ssl, tls_ex_index_context, new_context);
@@ -191,7 +191,7 @@ struct tmqtt *ttqNetSocketAccept(struct tmqtt__listener_sock *listensock) {
             e = ERR_get_error();
           }
         }
-        context__cleanup(new_context, true);
+        ttqCxtCleanup(new_context, true);
         return NULL;
       }
     }

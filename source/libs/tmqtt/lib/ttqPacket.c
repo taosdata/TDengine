@@ -174,7 +174,7 @@ int packet__write(struct tmqtt *ttq) {
   ttq_pthread_mutex_unlock(&ttq->out_packet_mutex);
 
   if (ttq->current_out_packet) {
-    ttq_mux_add_out(ttq);
+    ttqMuxAddOut(ttq);
   }
 
   state = tmqtt__get_state(ttq);
@@ -238,7 +238,7 @@ int packet__write(struct tmqtt *ttq) {
   }
 
   if (NULL == ttq->current_out_packet) {
-    ttq_mux_remove_out(ttq);
+    ttqMuxRemoveOut(ttq);
   }
 
   ttq_pthread_mutex_unlock(&ttq->current_out_packet_mutex);
@@ -388,7 +388,7 @@ int packet__read(struct tmqtt *ttq) {
       if (errno == EAGAIN || errno == COMPAT_EWOULDBLOCK) {
         if (ttq->in_packet.to_process > 1000) {
 #ifdef WITH_BROKER
-          keepalive__update(ttq);
+          ttqKeepaliveUpdate(ttq);
 #else
           ttq_pthread_mutex_lock(&ttq->msgtime_mutex);
           ttq->last_msg_in = tmqtt_time();
@@ -423,7 +423,7 @@ int packet__read(struct tmqtt *ttq) {
   packet__cleanup(&ttq->in_packet);
 
 #ifdef WITH_BROKER
-  keepalive__update(ttq);
+  ttqKeepaliveUpdate(ttq);
 #else
   ttq_pthread_mutex_lock(&ttq->msgtime_mutex);
   ttq->last_msg_in = tmqtt_time();

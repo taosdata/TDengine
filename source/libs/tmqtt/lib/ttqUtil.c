@@ -87,7 +87,7 @@ int tmqtt__check_keepalive(struct tmqtt *ttq) {
 #ifdef WITH_BROKER
 #ifdef WITH_BRIDGE
       if (ttq->bridge) {
-        context__send_will(ttq);
+        ttqCxtSendWill(ttq);
       }
 #endif
       net__socket_close(ttq);

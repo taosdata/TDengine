@@ -42,7 +42,7 @@ static struct epoll_event ep_events[MAX_EVENTS];
 
 #endif
 
-int ttq_mux_init(struct tmqtt__listener_sock *listensock, int listensock_count) {
+int ttqMuxInit(struct tmqtt__listener_sock *listensock, int listensock_count) {
 #ifndef WITH_EPOLL
   UNUSED(listensock);
   UNUSED(listensock_count);
@@ -83,7 +83,7 @@ int ttq_mux_init(struct tmqtt__listener_sock *listensock, int listensock_count) 
 #endif
 }
 
-int ttq_mux_cleanup(void) {
+int ttqMuxCleanup(void) {
 #ifndef WITH_EPOLL
   return -1;
 #else
@@ -95,7 +95,7 @@ int ttq_mux_cleanup(void) {
 #endif
 }
 
-int ttq_mux_add_out(struct tmqtt *context) {
+int ttqMuxAddOut(struct tmqtt *context) {
 #ifndef WITH_EPOLL
   UNUSED(context);
   return -1;
@@ -120,7 +120,7 @@ int ttq_mux_add_out(struct tmqtt *context) {
 #endif
 }
 
-int ttq_mux_remove_out(struct tmqtt *context) {
+int ttqMuxRemoveOut(struct tmqtt *context) {
 #ifndef WITH_EPOLL
   UNUSED(context);
   return -1;
@@ -145,7 +145,7 @@ int ttq_mux_remove_out(struct tmqtt *context) {
 #endif
 }
 
-int ttq_mux_delete(struct tmqtt *context) {
+int ttqMuxDelete(struct tmqtt *context) {
 #ifndef WITH_EPOLL
   UNUSED(context);
   return -1;
@@ -198,13 +198,13 @@ static void ttq_handle_rw(struct tmqtt *context, uint32_t events) {
           tmqtt__set_state(context, ttq_cs_new);
         }
       } else {
-        ttq_disconnect(context, TTQ_ERR_CONN_LOST);
+        ttqDisconnect(context, TTQ_ERR_CONN_LOST);
         return;
       }
     }
     rc = packet__write(context);
     if (rc) {
-      ttq_disconnect(context, rc);
+      ttqDisconnect(context, rc);
       return;
     }
   }
@@ -213,13 +213,13 @@ static void ttq_handle_rw(struct tmqtt *context, uint32_t events) {
     do {
       rc = packet__read(context);
       if (rc) {
-        ttq_disconnect(context, rc);
+        ttqDisconnect(context, rc);
         return;
       }
     } while (SSL_DATA_PENDING(context));
   } else {
     if (events & (EPOLLERR | EPOLLHUP)) {
-      ttq_disconnect(context, TTQ_ERR_CONN_LOST);
+      ttqDisconnect(context, TTQ_ERR_CONN_LOST);
       return;
     }
   }
@@ -227,7 +227,7 @@ static void ttq_handle_rw(struct tmqtt *context, uint32_t events) {
 
 #endif
 
-int ttq_mux_handle(struct tmqtt__listener_sock *listensock, int listensock_count) {
+int ttqMuxHandle(struct tmqtt__listener_sock *listensock, int listensock_count) {
   UNUSED(listensock_count);
 
 #ifndef WITH_EPOLL

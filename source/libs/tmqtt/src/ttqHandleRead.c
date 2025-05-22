@@ -155,7 +155,7 @@ static int ttq_handle_disconnect(struct tmqtt *context) {
   ttq_log(NULL, TTQ_LOG_DEBUG, "Received DISCONNECT from %s", context->id);
   if (context->protocol == ttq_p_mqtt311 || context->protocol == ttq_p_mqtt5) {
     if ((context->in_packet.command & 0x0F) != 0x00) {
-      ttq_disconnect(context, TTQ_ERR_PROTOCOL);
+      ttqDisconnect(context, TTQ_ERR_PROTOCOL);
       return TTQ_ERR_PROTOCOL;
     }
   }
@@ -167,7 +167,7 @@ static int ttq_handle_disconnect(struct tmqtt *context) {
     tmqtt__set_state(context, ttq_cs_disconnecting);
   }
 
-  ttq_disconnect(context, TTQ_ERR_SUCCESS);
+  ttqDisconnect(context, TTQ_ERR_SUCCESS);
 
   return TTQ_ERR_SUCCESS;
 }

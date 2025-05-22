@@ -92,7 +92,7 @@ static int get_time(struct tm **ti) {
   return 0;
 }
 
-int log__init(struct tmqtt__config *config) {
+int ttqLogInit(struct tmqtt__config *config) {
   int rc = 0;
 
   log_priorities = config->log_type;
@@ -127,7 +127,7 @@ int log__init(struct tmqtt__config *config) {
   return rc;
 }
 
-int log__close(struct tmqtt__config *config) {
+int ttqLogClose(struct tmqtt__config *config) {
   if (log_destinations & MQTT3_LOG_SYSLOG) {
     closelog();
   }
@@ -324,7 +324,7 @@ int ttq_log(struct tmqtt *ttq, unsigned int priority, const char *fmt, ...) {
   return rc;
 }
 
-void log__internal(const char *fmt, ...) {
+void ttqLogInternal(const char *fmt, ...) {
   va_list va;
   char    buf[200];
   int     len;

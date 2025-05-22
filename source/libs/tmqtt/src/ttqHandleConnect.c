@@ -81,7 +81,7 @@ static void connection_check_acl(struct tmqtt *context, struct tmqtt_client_msg 
     } else {
       access = TTQ_ACL_WRITE;
     }
-    if (tmqtt_acl_check(context, msg_tail->store->topic, msg_tail->store->payloadlen, msg_tail->store->payload,
+    if (tmqttAclCheck(context, msg_tail->store->topic, msg_tail->store->payloadlen, msg_tail->store->payload,
                         msg_tail->store->qos, msg_tail->store->retain, access) != TTQ_ERR_SUCCESS) {
       DL_DELETE((*head), msg_tail);
       ttqDbMsgStoreRefDec(&msg_tail->store);
@@ -91,7 +91,7 @@ static void connection_check_acl(struct tmqtt *context, struct tmqtt_client_msg 
   }
 }
 
-int connect__on_authorised(struct tmqtt *context, void *auth_data_out, uint16_t auth_data_out_len) {
+int ttqCxtOnAuthorised(struct tmqtt *context, void *auth_data_out, uint16_t auth_data_out_len) {
   struct tmqtt          *found_context;
   struct tmqtt__subleaf *leaf;
   tmqtt_property        *connack_props = NULL;
@@ -110,7 +110,7 @@ int connect__on_authorised(struct tmqtt *context, void *auth_data_out, uint16_t 
       /* FIXME - does anything need to be done here? */
     } else {
       /* Client is already connected, disconnect old version. This is
-       * done in context__cleanup() below. */
+       * done in ttqCxtCleanup() below. */
       if (db.config->connection_messages == true) {
         ttq_log(NULL, TTQ_LOG_ERR, "Client %s already connected, closing old connection.", context->id);
       }
@@ -171,15 +171,15 @@ int connect__on_authorised(struct tmqtt *context, void *auth_data_out, uint16_t 
     }
 
     if (context->clean_start == true) {
-      sub__clean_session(found_context);
+      ttqSubCleanSession(found_context);
     }
     if ((found_context->protocol == ttq_p_mqtt5 && found_context->session_expiry_interval == 0) ||
         (found_context->protocol != ttq_p_mqtt5 && found_context->clean_start == true) ||
         (context->clean_start == true)) {
-      // context__send_will(found_context);
+      // ttqCxtSendWill(found_context);
     }
 
-    session_expiry__remove(found_context);
+    ttqSessionExpiryRemove(found_context);
     // will_delay__remove(found_context);
     // will__clear(found_context);
 
@@ -190,7 +190,7 @@ int connect__on_authorised(struct tmqtt *context, void *auth_data_out, uint16_t 
     if (found_context->protocol == ttq_p_mqtt5) {
       ttq_send_disconnect(found_context, MQTT_RC_SESSION_TAKEN_OVER, NULL);
     }
-    ttq_disconnect(found_context, TTQ_ERR_SUCCESS);
+    ttqDisconnect(found_context, TTQ_ERR_SUCCESS);
   }
   /* TODO:
   rc = acl__find_acls(context);
@@ -238,7 +238,7 @@ int connect__on_authorised(struct tmqtt *context, void *auth_data_out, uint16_t 
   connection_check_acl(context, &context->msgs_out.inflight);
   connection_check_acl(context, &context->msgs_out.queued);
 
-  context__add_to_by_id(context);
+  ttqCxtAddToById(context);
 
 #ifdef WITH_PERSISTENCE
   if (!context->clean_start) {
@@ -292,7 +292,7 @@ int connect__on_authorised(struct tmqtt *context, void *auth_data_out, uint16_t 
   free(auth_data_out);
   auth_data_out = NULL;
 
-  keepalive__add(context);
+  ttqKeepaliveAdd(context);
 
   tmqtt__set_state(context, ttq_cs_active);
   rc = ttqSendConnack(context, connect_ack, CONNACK_ACCEPTED, connack_props);
@@ -328,7 +328,7 @@ static int will__read(struct tmqtt *context, const char *client_id, struct tmqtt
     rc = property__read_all(CMD_WILL, &context->in_packet, &properties);
     if (rc) goto error_cleanup;
 
-    rc = property__process_will(context, will_struct, &properties);
+    rc = ttqPropertyProcessWill(context, will_struct, &properties);
     tmqtt_property_free_all(&properties);
     if (rc) goto error_cleanup;
   }
@@ -839,7 +839,7 @@ int ttqHandleConnect(struct tmqtt *context) {
     ttq_free(auth_data);
     auth_data = NULL;
     if (rc == TTQ_ERR_SUCCESS) {
-      return connect__on_authorised(context, auth_data_out, auth_data_out_len);
+      return ttqCxtOnAuthorised(context, auth_data_out, auth_data_out_len);
     } else if (rc == TTQ_ERR_AUTH_CONTINUE) {
       tmqtt__set_state(context, ttq_cs_authenticating);
       rc = ttqSendAuth(context, MQTT_RC_CONTINUE_AUTHENTICATION, auth_data_out, auth_data_out_len);
@@ -875,7 +875,7 @@ int ttqHandleConnect(struct tmqtt *context) {
 
     context->tmq_context.context = context;
 
-    return connect__on_authorised(context, NULL, 0);
+    return ttqCxtOnAuthorised(context, NULL, 0);
   }
 
 handle_connect_error:
