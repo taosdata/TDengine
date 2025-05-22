@@ -125,7 +125,7 @@ TdUcs4 *tasoUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4)
 }
 
 typedef struct {
-  iconv_t conv;
+  iconv_tt conv;
   int8_t  inUse;
 } SConv;
 
@@ -145,13 +145,13 @@ int32_t taosConvInit(void) {
 
   for (int32_t i = 0; i < gConvMaxNum[M2C]; ++i) {
     gConv[M2C][i].conv = iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
-    if ((iconv_t)-1 == gConv[M2C][i].conv || (iconv_t)0 == gConv[M2C][i].conv) {
+    if ((iconv_tt)-1 == gConv[M2C][i].conv || (iconv_tt)0 == gConv[M2C][i].conv) {
       return -1;
     }
   }
   for (int32_t i = 0; i < gConvMaxNum[1 - M2C]; ++i) {
     gConv[1 - M2C][i].conv = iconv_open(tsCharset, DEFAULT_UNICODE_ENCODEC);
-    if ((iconv_t)-1 == gConv[1 - M2C][i].conv || (iconv_t)0 == gConv[1 - M2C][i].conv) {
+    if ((iconv_tt)-1 == gConv[1 - M2C][i].conv || (iconv_tt)0 == gConv[1 - M2C][i].conv) {
       return -1;
     }
   }
@@ -173,7 +173,7 @@ void taosConvDestroy() {
   gConvMaxNum[1 - M2C] = -1;
 }
 
-iconv_t taosAcquireConv(int32_t *idx, ConvType type) {
+iconv_tt taosAcquireConv(int32_t *idx, ConvType type) {
   if (gConvMaxNum[type] <= 0) {
     *idx = -1;
     if (type == M2C) {
@@ -211,7 +211,7 @@ iconv_t taosAcquireConv(int32_t *idx, ConvType type) {
   return gConv[type][startId].conv;
 }
 
-void taosReleaseConv(int32_t idx, iconv_t conv, ConvType type) {
+void taosReleaseConv(int32_t idx, iconv_tt conv, ConvType type) {
   if (idx < 0) {
     iconv_close(conv);
     return;
@@ -229,7 +229,7 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
   memset(ucs4, 0, ucs4_max_len);
 
   int32_t idx = -1;
-  iconv_t conv = taosAcquireConv(&idx, M2C);
+  iconv_tt conv = taosAcquireConv(&idx, M2C);
   size_t  ucs4_input_len = mbsLength;
   size_t  outLeft = ucs4_max_len;
   if (iconv(conv, (char **)&mbs, &ucs4_input_len, (char **)&ucs4, &outLeft) == -1) {
@@ -256,7 +256,7 @@ int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
 #else
 
   int32_t idx = -1;
-  iconv_t conv = taosAcquireConv(&idx, C2M);
+  iconv_tt conv = taosAcquireConv(&idx, C2M);
   size_t  ucs4_input_len = ucs4_max_len;
   size_t  outLen = ucs4_max_len;
   if (iconv(conv, (char **)&ucs4, &ucs4_input_len, &mbs, &outLen) == -1) {
@@ -268,7 +268,7 @@ int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
 #endif
 }
 
-int32_t taosUcs4ToMbsEx(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, iconv_t conv) {
+int32_t taosUcs4ToMbsEx(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, iconv_tt conv) {
 #ifdef DISALLOW_NCHAR_WITHOUT_ICONV
   printf("Nchar cannot be read and written without iconv, please install iconv library and recompile.\n");
   return -1;
@@ -288,8 +288,8 @@ bool taosValidateEncodec(const char *encodec) {
   printf("Nchar cannot be read and written without iconv, please install iconv library and recompile.\n");
   return true;
 #else
-  iconv_t cd = iconv_open(encodec, DEFAULT_UNICODE_ENCODEC);
-  if (cd == (iconv_t)(-1)) {
+  iconv_tt cd = iconv_open(encodec, DEFAULT_UNICODE_ENCODEC);
+  if (cd == (iconv_tt)(-1)) {
     return false;
   }
 

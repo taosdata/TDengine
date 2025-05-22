@@ -28,7 +28,7 @@ void    mndCleanupView(SMnode *pMnode);
 int32_t mndProcessCreateViewReq(SRpcMsg *pReq);
 int32_t mndProcessDropViewReq(SRpcMsg *pReq);
 int32_t mndProcessGetViewMetaReq(SRpcMsg *pReq);
-
+int32_t mndProcessRefreshViewReq(SRpcMsg *pReq);
 
 #ifdef TD_ENTERPRISE
 
