@@ -893,6 +893,8 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->msgCb = pInput->msgCb;
   pMgmt->msgCb.putToQueueFp = (PutToQueueFp)vmPutRpcMsgToQueue;
   pMgmt->msgCb.qsizeFp = (GetQueueSizeFp)vmGetQueueSize;
+  pMgmt->msgCb.qMemFp = (GetQueueSizeFp)vmGetQueueMemSize;
+
   pMgmt->msgCb.mgmt = pMgmt;
 
   code = taosThreadRwlockInit(&pMgmt->hashLock, NULL);

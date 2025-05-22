@@ -63,6 +63,7 @@ typedef struct {
   void*                   syncRpc;
   PutToQueueFp            putToQueueFp;
   GetQueueSizeFp          qsizeFp;
+  GetQueueSizeFp          qMemFp; 
   SendReqFp               sendReqFp;
   SendReqFp               sendSyncReqFp;
   SendRspFp               sendRspFp;
@@ -76,6 +77,7 @@ typedef struct {
 void    tmsgSetDefault(const SMsgCb* msgcb);
 int32_t tmsgPutToQueue(const SMsgCb* msgcb, EQueueType qtype, SRpcMsg* pMsg);
 int32_t tmsgGetQueueSize(const SMsgCb* msgcb, int32_t vgId, EQueueType qtype);
+int32_t tmsgGetQueueMemSize(const SMsgCb* msgcb, int32_t vgId, EQueueType qtype);
 int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg);
 int32_t tmsgSendSyncReq(const SEpSet* epSet, SRpcMsg* pMsg);
 void    tmsgSendRsp(SRpcMsg* pMsg);

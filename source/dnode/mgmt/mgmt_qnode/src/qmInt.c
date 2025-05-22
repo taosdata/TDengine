@@ -50,6 +50,7 @@ static int32_t qmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->msgCb = pInput->msgCb;
   pMgmt->msgCb.putToQueueFp = (PutToQueueFp)qmPutRpcMsgToQueue;
   pMgmt->msgCb.qsizeFp = (GetQueueSizeFp)qmGetQueueSize;
+  pMgmt->msgCb.qMemFp = (GetQueueSizeFp)qmGetQueueSize;
   pMgmt->msgCb.mgmt = pMgmt;
 
   SQnodeOpt option = {0};

@@ -494,6 +494,49 @@ int32_t vmGetQueueSize(SVnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {
   return size;
 }
 
+int32_t vmGetQueueMemSize(SVnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {
+  int32_t    size = -1;
+  SVnodeObj *pVnode = vmAcquireVnode(pMgmt, vgId);
+  if (pVnode != NULL) {
+    switch (qtype) {
+      case WRITE_QUEUE:
+        size = taosQueueMemorySize(pVnode->pWriteW.queue);
+        break;
+      case SYNC_QUEUE:
+        size = taosQueueMemorySize(pVnode->pSyncW.queue);
+        break;
+      case APPLY_QUEUE:
+        size = taosQueueItemSize(pVnode->pApplyW.queue);
+        break;
+      case QUERY_QUEUE:
+        size = taosQueueItemSize(pVnode->pQueryQ);
+        break;
+      case FETCH_QUEUE:
+        size = taosQueueItemSize(pVnode->pFetchQ);
+        break;
+      case STREAM_QUEUE:
+        size = taosQueueItemSize(pVnode->pStreamQ);
+        break;
+      case STREAM_CTRL_QUEUE:
+        size = taosQueueItemSize(pVnode->pStreamCtrlQ);
+        break;
+      case STREAM_LONG_EXEC_QUEUE:
+        size = taosQueueItemSize(pVnode->pStreamLongExecQ);
+        break;
+      case STREAM_CHKPT_QUEUE:
+        size = taosQueueItemSize(pVnode->pStreamChkQ);
+      default:
+        break;
+    }
+  }
+  if (pVnode) vmReleaseVnode(pMgmt, pVnode);
+  if (size < 0) {
+    dTrace("vgId:%d, can't get size from queue since %s, qtype:%d", vgId, terrstr(), qtype);
+    size = 0;
+  }
+  return size;
+}
+
 int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   int32_t         code = 0;
   SMultiWorkerCfg wcfg = {.max = 1, .name = "vnode-write", .fp = (FItems)vnodeProposeWriteMsg, .param = pVnode->pImpl};
