@@ -343,6 +343,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
     for (int32_t n = 0; n < taskNum; ++n) {
       SSubplan *plan = (SSubplan *)nodesListGetNode(plans->pNodeList, n);
 
+      plan->id.queryId = pJob->queryId;
       SCH_SET_JOB_TYPE(pJob, plan->subplanType);
 
       SSchTask  task = {0};

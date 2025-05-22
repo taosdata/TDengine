@@ -306,6 +306,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
         .fetchMsgType = SCH_FETCH_TYPE(pTask),
         .localExec = SCH_IS_LOCAL_EXEC_TASK(pJob, pTask),
     };
+    qClearSubplanExecutionNode(parent->plan);
     qSetSubplanExecutionNode(parent->plan, pTask->plan->id.groupId, &source);
     SCH_UNLOCK(SCH_WRITE, &parent->planLock);
 

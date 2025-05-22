@@ -1199,6 +1199,7 @@ int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pRes
       code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
     } else {
       pDag = plan;
+      pDag->queryId = pRequest->requestId;
       pDag->planCacheUsed = true;
     }
     if (code) {
