@@ -2091,7 +2091,6 @@ static int32_t mndProcessResetStreamReq(SRpcMsg *pReq) {
     }
   }
 
-  //todo(liao hao jun)
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
