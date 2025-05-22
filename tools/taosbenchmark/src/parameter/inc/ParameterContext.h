@@ -1,6 +1,7 @@
 #ifndef PARAMETER_CONTEXT_H
 #define PARAMETER_CONTEXT_H
 
+#include "ConfigParser.h"
 #include "ConfigData.h"
 // #include "ParamDescriptor.h"
 

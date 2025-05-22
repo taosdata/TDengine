@@ -17,45 +17,43 @@ find_package(nlohmann_json 3.2.0 REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
 # 添加主库
-add_library(parameter STATIC 
-    ConfigData.cpp 
-    ParameterContext.cpp
+add_library(parameter STATIC
+    src/ParameterContext.cpp
 )
 
 # 包含头文件目录
 target_include_directories(parameter PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../common/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../actions/config/inc
 )
 
-# 链接 nlohmann/json 和 yaml-cpp 库
+# 链接依赖库
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../actions/build/config)
 target_link_libraries(parameter PUBLIC 
     nlohmann_json::nlohmann_json 
     yaml-cpp
+    actions_config
 )
 
-# TestConfigData
-add_executable(TestConfigData 
-    test/TestConfigData.cpp
+# 添加测试
+# test ParseYAML
+add_executable(TestParseYAML 
+    test/TestParseYAML.cpp
 )
-
-target_link_libraries(TestConfigData PRIVATE 
-    parameter
+target_link_libraries(TestParseYAML PRIVATE 
+    yaml-cpp
 )
+add_test(NAME TestParseYAML COMMAND TestParseYAML)
 
-add_test(NAME TestConfigData COMMAND TestConfigData)
-
-# TestParameterContext
+# test ParameterContext
 add_executable(TestParameterContext 
     test/TestParameterContext.cpp
 )
-
 target_link_libraries(TestParameterContext PRIVATE 
     parameter
     nlohmann_json::nlohmann_json
     yaml-cpp
 )
-
 add_test(NAME TestParameterContext COMMAND TestParameterContext)
-
-# 添加可执行文件
-# add_executable(parameter main.cpp)

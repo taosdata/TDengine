@@ -5,7 +5,7 @@
 
 int main() {
     // 打开 YAML 文件
-    std::ifstream file("../config.yaml");
+    std::ifstream file("../conf/config.yaml");
     if (!file.is_open()) {
         std::cerr << "Failed to open config.yaml" << std::endl;
         return 1;
@@ -25,7 +25,7 @@ int main() {
     std::cout << config << std::endl;
 
     // 示例：访问 YAML 数据
-    if (config["host"]) {
+    if (config["global"]["host"]) {
         std::cout << "Host: " << config["host"].as<std::string>() << std::endl;
     }
 

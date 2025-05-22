@@ -1,9 +1,13 @@
-#ifndef CONFIG_DATA_H
-#define CONFIG_DATA_H
+#ifndef CONFIG_PARSER_H
+#define CONFIG_PARSER_H
 
-#include "InsertJobConfig.h"
-#include "QueryJobConfig.h"
-#include "SubscribeJobConfig.h"
+#include "GlobalConfig.h"
+#include "CreateDatabaseConfig.h"
+#include "CreateSuperTableConfig.h"
+#include "CreateChildTableConfig.h"
+#include "InsertDataConfig.h"
+#include "QueryDataConfig.h"
+#include "SubscribeDataConfig.h"
 
 #include <string>
 #include <vector>
@@ -13,432 +17,7 @@
 #include <yaml-cpp/yaml.h>
 
 
-
-
-
-struct ConnectionInfo {
-    std::string host = "localhost";
-    int port = 6030;
-    std::string user = "root";
-    std::string password = "taosdata";
-    std::optional<std::string> dsn;
-
-    /**
-     * 解析 DSN 字符串并填充 host/port/user/password 字段
-     * @param input_dsn 输入 DSN 字符串
-     * @throws std::runtime_error 如果解析失败
-     */
-    void parse_dsn(const std::string& input_dsn);
-
-
-};
-
-struct DatabaseInfo {
-    std::string name;
-    std::string precision = "ms"; // 默认时间精度为毫秒
-    bool drop_if_exists = true;
-    std::optional<std::string> properties;
-};
-
-
-struct SuperTableInfo {
-    std::string name;
-
-    struct Column {
-        std::string name;
-        std::string type;
-        std::optional<int> len;
-        int count = 1;
-        std::optional<int> precision;
-        std::optional<int> scale;
-        std::optional<std::string> properties;
-        std::optional<std::string> gen_type;
-        std::optional<float> null_ratio;
-
-        // Attributes for gen_type=random
-        std::optional<double> min;
-        std::optional<double> max;
-        std::optional<std::string> dec_min;
-        std::optional<std::string> dec_max;
-        std::optional<std::string> corpus;
-        std::optional<bool> chinese;
-        std::optional<std::vector<std::string>> values;
-
-        // Attributes for gen_type=order
-        std::optional<double> order_min;
-        std::optional<double> order_max;
-
-        // Attributes for gen_type=function
-        struct FunctionConfig {
-            std::string expression; // 完整的函数表达式
-            std::string function;   // 函数名，例如 sinusoid、counter 等
-            double multiple = 1.0;  // 倍率
-            double addend = 0.0;    // 加数
-            int random = 0;         // 随机部分的范围
-            double base = 0.0;      // 基值
-            std::optional<double> min; // 函数参数：最小值
-            std::optional<double> max; // 函数参数：最大值
-            std::optional<int> period; // 函数参数：周期
-            std::optional<int> offset; // 函数参数：偏移量
-        };
-        std::optional<FunctionConfig> function_config;
-    };
-
-    std::vector<Column> columns;
-    std::vector<Column> tags;
-};
-
-
-
-struct TableNameConfig {
-    std::string source_type; // 数据来源类型：generator 或 csv
-    struct Generator {
-        std::string prefix;
-        int count;
-        int from = 0; // 默认起始下标为 0
-    } generator;
-    struct CSV {
-        std::string file_path;
-        bool has_header = true;
-        std::string delimiter = ",";
-        int column_index = 0;
-    } csv;
-};
-
-
-struct TagsConfig {
-    std::string source_type; // 数据来源类型：generator 或 csv
-    struct Generator {
-        std::vector<SuperTableInfo::Column> schema; // 标签列的 Schema 定义
-    } generator;
-    struct CSV {
-        std::string file_path;
-        bool has_header = true;
-        std::string delimiter = ",";
-        int exclude_index = -1; // 默认不剔除任何列
-    } csv;
-};
-
-
-struct TimestampGeneratorConfig {
-    std::string start_timestamp = "now";
-    std::string timestamp_precision = "ms";
-    int timestamp_step = 1;
-};
-
-
-struct ColumnsConfig {
-    std::string source_type; // 数据来源类型：generator 或 csv
-    struct Generator {
-        std::vector<SuperTableInfo::Column> schema; // 普通列的 Schema 定义
-        struct TimestampStrategy {
-            TimestampGeneratorConfig generator_config;
-        } timestamp_strategy;
-    } generator;
-    struct CSV {
-        std::string file_path;
-        bool has_header = true;
-        std::string delimiter = ",";
-        struct TimestampStrategy {
-            std::string strategy_type = "original";
-            struct OriginalConfig {
-                int column_index = 0;
-                std::string precision = "ms";
-                std::string offset_config;
-            } original_config;
-            TimestampGeneratorConfig generator_config;
-        } timestamp_strategy;
-    } csv;
-};
-
-
-struct DataFormat {
-    std::string format_type = "sql";
-    struct StmtConfig {
-        std::string version = "v2"; // "v1" or "v2"
-    } stmt_config;
-    struct SchemalessConfig {
-        std::string protocol  = "line"; // "line" "telnet" "json" or "taos-json"
-    } schemaless_config;
-    struct CSVConfig {
-        std::string delimiter = ","; // 默认分隔符为逗号
-        std::string quote_character = "\""; // 默认引号字符
-        std::string escape_character = "\\"; // 默认转义字符
-    } csv_config;
-};
-
-
-struct DataChannel {
-    std::string channel_type = "native";    // "native" "websocket" "restful" or "file_stream"
-};
-
-
-struct ChildTableInfo {
-    TableNameConfig table_name;     // 子表名称配置
-    TagsConfig tags;                // 标签配置
-};
-
-
-
-struct GlobalConfig {
-    bool confirm_prompt = false;
-    std::string log_dir = "log/";
-    std::string cfg_dir = "/etc/taos/";
-    ConnectionInfo connection_info;
-    DatabaseInfo database_info;
-    SuperTableInfo super_table_info;
-
-};
-
-
-struct CreateDatabaseConfig {
-    ConnectionInfo connection_info;
-    DatabaseInfo database_info;
-};
-
-
-struct CreateSuperTableConfig {
-    ConnectionInfo connection_info;
-    DatabaseInfo database_info;
-    SuperTableInfo super_table_info;
-};
-
-
-struct CreateChildTableConfig {
-    ConnectionInfo connection_info;  // 数据库连接信息
-    DatabaseInfo database_info;      // 数据库信息
-    SuperTableInfo super_table_info; // 超级表信息
-    ChildTableInfo child_table_info; // 子表信息
-
-    struct BatchConfig {
-        int size = 1000;       // 每批创建的子表数量
-        int concurrency = 10;  // 并发执行的批次数量
-    } batch;
-};
-
-
-
-struct InsertDataConfig {
-    struct Source {
-        TableNameConfig table_name; // 子表名称配置
-        TagsConfig tags;            // 标签列配置
-        ColumnsConfig columns;      // 普通列配置
-    } source;
-
-    struct Target {
-        std::string timestamp_precision ;   // 时间戳精度：ms、us、ns
-        std::string target_type; // 数据目标类型：tdengine 或 file_system
-        struct TDengine {
-            ConnectionInfo connection_info;
-            DatabaseInfo database_info;
-            SuperTableInfo super_table_info;
-        } tdengine;
-        struct FileSystem {
-            std::string output_dir;
-            std::string file_prefix = "data";
-            std::string timestamp_format;
-            std::string timestamp_interval = "1d";
-            bool include_header = true;
-            std::string tbname_col_alias = "device_id";
-            std::string compression_level = "none";
-        } file_system;
-    } target;
-
-    struct Control {
-        DataFormat data_format;
-        DataChannel data_channel;
-        struct DataQuality {
-            struct DataDisorder {
-                bool enabled = false;
-                struct Interval {
-                    std::string time_start;
-                    std::string time_end;
-                    double ratio = 0.0; // 比例
-                    int latency_range = 0; // 延迟范围
-                };
-                std::vector<Interval> intervals; // 乱序时间区间
-            } data_disorder; // 数据乱序配置
-        } data_quality;
-        struct DataGeneration {
-            struct InterlaceMode {
-                bool enabled = false;
-                int rows = 1; // 行数
-            } interlace_mode; // 交错模式配置
-
-            int generate_threads = 1;
-            int per_table_rows = 10000;
-        } data_generation;
-        struct DataCache {
-            bool enabled = false;
-            int cache_size = 1000000; // 缓存大小
-        } data_cache;
-        struct InsertControl {
-            int per_request_rows = 30000;
-            bool auto_create_table = false;
-            int insert_threads = 8;
-            std::string thread_allocation = "index_range"; // index_range or vgroup_binding
-            std::string log_path = "result.txt";
-            bool enable_dryrun = false;
-            bool preload_table_meta = false;
-        
-            struct FailureHandling {
-                int max_retries = 0;
-                int retry_interval_ms = 1000;
-                std::string on_failure = "exit"; //  exit or warn_and_continue
-            } failure_handling;
-        } insert_control;
-        struct TimeInterval {
-            bool enabled = false;                      // 是否启用间隔控制，默认值为 false
-            std::string interval_strategy = "fixed";   // 时间间隔策略类型，默认值为 fixed，可选值为 first_to_first、last_to_first、fixed
-        
-            struct FixedInterval {
-                int base_interval = 1000;              // 固定间隔数值，单位毫秒，必需
-                int random_deviation = 0;              // 随机偏移量，默认值为 0
-            } fixed_interval;
-        
-            struct DynamicInterval {
-                int min_interval = -1;                 // 最小时间间隔阈值，默认值为 -1
-                int max_interval = -1;                 // 最大时间间隔阈值，默认值为 -1
-            } dynamic_interval;
-        } time_interval;
-    } control;
-};
-
-
-
-struct QueryDataConfig {
-    struct Source {
-        ConnectionInfo connection_info;
-    } source;
-
-    struct Control {
-        DataFormat data_format;
-        DataChannel data_channel;
-
-        struct QueryControl {
-            std::string log_path = "result.txt";
-            bool enable_dryrun = false;
-
-            struct Execution {
-                std::string mode = "sequential_per_thread";
-                int threads = 1;
-                int times = 1;
-                int interval = 0;
-            } execution;
-
-            std::string query_type;
-
-            struct FixedQuery {
-                std::string sql;
-                std::string output_file;
-            };
-            struct SuperTableQueryTemplate {
-                std::string sql_template;
-                std::string output_file;
-            };
-
-            struct Fixed {
-                std::vector<FixedQuery> queries;
-            } fixed;
-
-            struct SuperTable {
-                std::string database_name;
-                std::string super_table_name;
-                std::string placeholder;
-                std::vector<SuperTableQueryTemplate> templates;
-            } super_table;
-        } query_control;
-    } control;
-};
-
-
-struct SubscribeDataConfig {
-    struct Source {
-        ConnectionInfo connection_info; // 数据库连接信息
-    } source;
-
-    struct Control {
-        DataFormat data_format;   // 数据格式化配置
-        DataChannel data_channel; // 数据通道配置
-
-        struct SubscribeControl {
-            std::string log_path = "result.txt"; // 日志文件路径
-            bool enable_dryrun = false;         // 是否启用模拟执行
-
-            struct Execution {
-                int consumer_concurrency = 1; // 并发消费者数量
-                int poll_timeout = 1000;      // 轮询超时时间（毫秒）
-            } execution;
-
-            struct Topic {
-                std::string name; // 主题名称
-                std::string sql;  // 创建主题的 SQL 语句
-            };
-            std::vector<Topic> topics; // 订阅主题列表
-
-            struct Commit {
-                std::string mode = "auto"; // 提交模式（auto 或 manual）
-            } commit;
-
-            struct GroupID {
-                std::string strategy;       // Group ID 生成策略（shared、independent、custom）
-                std::optional<std::string> custom_id; // 自定义 Group ID（当 strategy 为 custom 时必需）
-            } group_id;
-
-            struct Output {
-                std::string path;         // 数据文件保存路径
-                std::string file_prefix;  // 数据文件前缀
-                std::optional<int> expected_rows; // 每个消费者期望消费的行数
-            } output;
-
-            std::map<std::string, std::string> advanced; // 高级参数配置，键值对映射
-        } subscribe_control;
-    } control;
-};
-
-
-
-
-
-
-using ActionConfigVariant = std::variant<
-    std::monostate,
-    CreateDatabaseConfig,
-    CreateSuperTableConfig,
-    CreateChildTableConfig,
-    InsertDataConfig,
-    QueryDataConfig,
-    SubscribeDataConfig
->;
-
-struct Step {
-    std::string name; // 步骤名称
-    std::string uses; // 使用的操作类型
-    YAML::Node with;  // 原始参数配置
-    ActionConfigVariant action_config; // 泛化字段，用于存储不同类型的 Action 配置
-};
-
-
-struct Job {
-    std::string key;               // 作业标识符
-    std::string name;              // 作业显示名称
-    std::vector<std::string> needs; // 依赖的作业列表
-    std::vector<Step> steps;       // 作业的步骤列表
-};
-
-
-// 顶层配置
-struct ConfigData {
-    GlobalConfig global;
-    int concurrency = 1;
-    std::vector<Job> jobs; // 存储作业列表
-};
-
-
-
-
 namespace YAML {
-
 
     template<>
     struct convert<ConnectionInfo> {
@@ -490,7 +69,6 @@ namespace YAML {
     };
 
 
-
     template<>
     struct convert<SuperTableInfo::Column> {    
         static bool decode(const Node& node, SuperTableInfo::Column& rhs) {
@@ -520,8 +98,8 @@ namespace YAML {
                     if (node["chinese"]) rhs.chinese = node["chinese"].as<bool>();
                     if (node["values"]) rhs.values = node["values"].as<std::vector<std::string>>();
                 } else if (*rhs.gen_type == "order") {
-                    if (node["min"]) rhs.order_min = node["min"].as<double>();
-                    if (node["max"]) rhs.order_max = node["max"].as<double>();
+                    if (node["min"]) rhs.order_min = node["min"].as<int64_t>();
+                    if (node["max"]) rhs.order_max = node["max"].as<int64_t>();
                 } else if (*rhs.gen_type == "function") {
                     if (node["expression"]) {
                         if (!rhs.function_config) {
@@ -586,7 +164,6 @@ namespace YAML {
             return true;
         }
     };
-
 
 
     template<>
@@ -688,6 +265,7 @@ namespace YAML {
         }
     };
 
+
     template<>
     struct convert<ChildTableInfo> {
         static bool decode(const Node& node, ChildTableInfo& rhs) {
@@ -705,6 +283,7 @@ namespace YAML {
         }
     };
 
+
     template<>
     struct convert<CreateChildTableConfig::BatchConfig> {
         static bool decode(const Node& node, CreateChildTableConfig::BatchConfig& rhs) {
@@ -717,7 +296,6 @@ namespace YAML {
             return true;
         }
     };
-
 
 
     template<>
@@ -735,7 +313,6 @@ namespace YAML {
             return true;
         }
     };
-
 
 
     template<>
@@ -1099,7 +676,6 @@ namespace YAML {
     };
 
 
-
     template<>
     struct convert<QueryDataConfig::Control::QueryControl::Fixed> {
         static bool decode(const Node& node, QueryDataConfig::Control::QueryControl::Fixed& rhs) {
@@ -1224,6 +800,7 @@ namespace YAML {
         }
     };
 
+
     template<>
     struct convert<SubscribeDataConfig::Control::SubscribeControl::Commit> {
         static bool decode(const Node& node, SubscribeDataConfig::Control::SubscribeControl::Commit& rhs) {
@@ -1233,6 +810,7 @@ namespace YAML {
             return true;
         }
     };
+
 
     template<>
     struct convert<SubscribeDataConfig::Control::SubscribeControl::GroupID> {
@@ -1246,6 +824,7 @@ namespace YAML {
             return true;
         }
     };
+
 
     template<>
     struct convert<SubscribeDataConfig::Control::SubscribeControl::Output> {
@@ -1262,6 +841,7 @@ namespace YAML {
             return true;
         }
     };
+
 
     template<>
     struct convert<SubscribeDataConfig::Control::SubscribeControl> {
@@ -1310,11 +890,7 @@ namespace YAML {
             return true;
         }
     };
-
-
-
-
 }
 
 
-#endif // CONFIG_DATA_H
+#endif // CONFIG_PARSER_H
