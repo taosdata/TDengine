@@ -275,6 +275,10 @@ int32_t mndRetrieveEncKey(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
 int32_t mndProcessAKGenReq(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
 
+  if (strcmp(pReq->info.conn.user, "keymaster") != 0) {
+    return TSDB_CODE_MND_NO_RIGHTS;
+  }
+
   SAKGenReq akGenReq = {0};
   if (tDeserializeSAKGenReq(pReq->pCont, pReq->contLen, &akGenReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;

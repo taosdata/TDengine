@@ -2053,6 +2053,13 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     newUser.sysInfo = alterReq.sysInfo;
   }
 
+  if (ALTER_USER_AKENC_ALL_DB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName) ||
+      ALTER_USER_AKDEC_ALL_DB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName)) {
+    mInfo("user:%s", pReq->info.conn.user);
+    if (strcmp(pReq->info.conn.user, "keymaster") != 0) {
+      return TSDB_CODE_MND_NO_RIGHTS;
+    }
+  }
   if (ALTER_USER_ADD_PRIVS(alterReq.alterType) || ALTER_USER_DEL_PRIVS(alterReq.alterType)) {
     if (0 != mndProcessAlterUserPrivilegesReq(&alterReq, pMnode, &newUser)) goto _OVER;
   }
