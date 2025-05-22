@@ -728,6 +728,14 @@ impl IntoMetrics for TmqMetrics {
         ));
         vec.push(value2metric!("commits", self.commits.load(SeqCst)));
         vec.push(value2metric!("consumers", self.consumers.load(SeqCst)));
+        vec.push(value2metric!(
+            "total_consume_cost_ms",
+            self.total_consume_cost_ms.load(SeqCst)
+        ));
+        vec.push(value2metric!(
+            "total_write_cost_ms",
+            self.total_write_cost_ms.load(SeqCst)
+        ));
 
         vec
     }
