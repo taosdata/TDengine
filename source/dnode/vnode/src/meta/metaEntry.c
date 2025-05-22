@@ -15,6 +15,65 @@
 
 #include "meta.h"
 
+int32_t metaEncodeColEntryptionSubEntry(SEncoder *pCoder, STableEncryption *pEntryption) {
+  int32_t len = 0;
+
+  len = tEncodeI32(pCoder, pEntryption->tableType);
+  len = tEncodeI64(pCoder, pEntryption->tuid);
+  len = tEncodeI64(pCoder, pEntryption->tsuid);
+  len = tEncodeI32(pCoder, pEntryption->fieldId);
+  len = tEncodeI32(pCoder, pEntryption->serailId);
+  len = tEncodeCStr(pCoder, pEntryption->encryptionKey);
+  len = tEncodeCStr(pCoder, pEntryption->decryptionKey);
+
+  return 0;
+}
+int32_t metaDecodeColEntryptionSubEntry(SDecoder *pCoder, STableEncryption *pEntryption) {
+  int32_t code = 0;
+  tDecodeI32(pCoder, &pEntryption->tableType);
+  tDecodeI64(pCoder, &pEntryption->tuid);
+  tDecodeI64(pCoder, &pEntryption->tsuid);
+  tDecodeI32(pCoder, &pEntryption->fieldId);
+  tDecodeI32(pCoder, &pEntryption->serailId);
+  tDecodeCStrTo(pCoder, pEntryption->encryptionKey);
+  tDecodeCStrTo(pCoder, pEntryption->decryptionKey);
+  return code;
+}
+int32_t metaEncodeColEntryptionEntry(SEncoder *pCoder, const SMetaEntry *pME) {
+  int32_t code = 0;
+
+  STableEncryptionMgt *pMgt = pME->pEncryptionMgt;
+  int32_t              sz = pMgt->numOfEncryption;
+
+  if (tEncodeI32(pCoder, sz) < 0) return -1;
+
+  for (int32_t i = 0; i < sz; i++) {
+    STableEncryption *pEntryption = &pMgt->pTableEncryption[i];
+    metaEncodeColEntryptionSubEntry(pCoder, pEntryption);
+  }
+
+  return code;
+}
+
+int32_t metaDecodeColEntryptionEntry(SDecoder *pCoder, SMetaEntry *pME) {
+  int32_t code = 0;
+  int32_t sz = 0;
+  if (tDecodeI32(pCoder, &sz) < 0) {
+    return -1;
+  }
+  pME->pEncryptionMgt = taosMemoryCalloc(1, sizeof(STableEncryptionMgt) + sz * sizeof(STableEncryption));
+  if (pME->pEncryptionMgt == NULL) {
+    return -1;
+  }
+
+  for (int32_t i = 0; i < sz; i++) {
+    STableEncryption entryption = {0};
+    metaDecodeColEntryptionSubEntry(pCoder, &entryption);
+    memcpy(&pME->pEncryptionMgt->pTableEncryption[i], &entryption, sizeof(STableEncryption));
+  }
+
+  return code;
+}
 int meteEncodeColCmprEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   const SColCmprWrapper *pw = &pME->colCmpr;
   if (tEncodeI32v(pCoder, pw->nCols) < 0) return -1;
@@ -101,6 +160,8 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   }
   if (meteEncodeColCmprEntry(pCoder, pME) < 0) return -1;
 
+  if (metaEncodeColEntryptionEntry(pCoder, pME) < 0) return -1;
+
   tEndEncode(pCoder);
   return 0;
 }
@@ -159,6 +220,12 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
     } else {
       metatInitDefaultSColCmprWrapper(pCoder, &pME->colCmpr, &pME->stbEntry.schemaRow);
       TABLE_SET_COL_COMPRESSED(pME->flags);
+    }
+
+    if (!tDecodeIsEnd(pCoder)) {
+      if (metaDecodeColEntryptionEntry(pCoder, pME) < 0) {
+        return -1;
+      }
     }
   } else if (pME->type == TSDB_NORMAL_TABLE) {
     if (!tDecodeIsEnd(pCoder)) {

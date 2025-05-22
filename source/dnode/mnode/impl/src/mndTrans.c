@@ -1064,7 +1064,9 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
         if (0 == mndBuildSMCreateStbRsp(pMnode, pTrans->dbname, pTrans->stbname, &pCont, &contLen) != 0) {
           mndTransSetRpcRsp(pTrans, pCont, contLen);
         }
-      }
+      } else if (pTrans->originRpcType == TDMT_MND_RESTORE_DNODE) {
+        // do enc
+      }  
 
       if (pTrans->rpcRspLen != 0) {
         void *rpcCont = rpcMallocCont(pTrans->rpcRspLen);

@@ -77,6 +77,8 @@ typedef enum {
   MND_OPER_CREATE_VIEW,
   MND_OPER_DROP_VIEW,
   MND_OPER_CONFIG_CLUSTER,
+  MND_OPER_AK_ENC,
+  MND_OPER_AK_DEC,
 } EOperType;
 
 typedef enum {
@@ -517,6 +519,9 @@ typedef struct {
   SRWLatch  lock;
   int8_t    source;
   SColCmpr* pCmpr;
+
+  STableEncryptionMgt* pEncryption;
+
 } SStbObj;
 
 typedef struct {
@@ -813,6 +818,20 @@ typedef struct {
   SArray* compactDetail;
 } SCompactObj;
 
+typedef struct {
+  int32_t Id;
+  char    key[128];
+  int64_t createTime;
+} SEncKeyObj;
+
+typedef struct {
+  int32_t Id;
+  char db[TSDB_DB_FNAME_LEN];
+  char    tableName[TSDB_TABLE_NAME_LEN];
+  char    columnName[TSDB_COL_NAME_LEN];
+  int32_t keyIndex;
+  int64_t createTime;
+} SEncLogObj;
 // SGrantLogObj
 typedef enum {
   GRANT_STATE_INIT = 0,

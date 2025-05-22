@@ -1657,6 +1657,14 @@ SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart
   return (SNode*)pStmt;
 }
 
+SNode* genEncKeyStmt(SAstCreateContext* pCxt, const SToken* pCount) {
+  CHECK_PARSER_STATUS(pCxt);
+  SAKGenNodeStmt* pStmt = (SAKGenNodeStmt*)nodesMakeNode(QUERY_NODE_AK_GEN_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->count = taosStr2Int32(pCount->z, NULL, 10);
+  return (SNode*)pStmt;
+}
+
 SNode* createDefaultTableOptions(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   STableOptions* pOptions = (STableOptions*)nodesMakeNode(QUERY_NODE_TABLE_OPTIONS);
@@ -2425,11 +2433,15 @@ SNode* createDropComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, cons
   return (SNode*)pStmt;
 }
 
-SNode* createRestoreComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pDnodeId) {
+SNode* createRestoreComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable, SToken* pColName) {
   CHECK_PARSER_STATUS(pCxt);
   SRestoreComponentNodeStmt* pStmt = (SRestoreComponentNodeStmt*)nodesMakeNode(type);
   CHECK_OUT_OF_MEM(pStmt);
-  pStmt->dnodeId = taosStr2Int32(pDnodeId->z, NULL, 10);
+  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
+  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  if (pColName != NULL) {
+    COPY_STRING_FORM_ID_TOKEN(pStmt->columnName, pColName);
+  }
   return (SNode*)pStmt;
 }
 

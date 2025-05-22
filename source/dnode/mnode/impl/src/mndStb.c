@@ -114,12 +114,16 @@ int32_t mndInitStb(SMnode *pMnode) {
 
 void mndCleanupStb(SMnode *pMnode) {}
 
+int32_t calcEncrySize(STableEncryptionMgt *pMgt) {
+  if (pMgt == NULL) return 0;
+  return sizeof(*pMgt) + sizeof(STableEncryption) * pMgt->numOfEncryption;
+}
 SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int32_t size = sizeof(SStbObj) + (pStb->numOfColumns + pStb->numOfTags) * sizeof(SSchema) + pStb->commentLen +
                  pStb->ast1Len + pStb->ast2Len + pStb->numOfColumns * sizeof(SColCmpr) + STB_RESERVE_SIZE +
-                 taosArrayGetSize(pStb->pFuncs) * TSDB_FUNC_NAME_LEN;
+                 taosArrayGetSize(pStb->pFuncs) * TSDB_FUNC_NAME_LEN + calcEncrySize(pStb->pEncryption);
   SSdbRaw *pRaw = sdbAllocRaw(SDB_STB, STB_VER_NUMBER, size);
   if (pRaw == NULL) goto _OVER;
 
@@ -186,6 +190,25 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
       SColCmpr *p = &pStb->pCmpr[i];
       SDB_SET_INT16(pRaw, dataPos, p->id, _OVER)
       SDB_SET_INT32(pRaw, dataPos, p->alg, _OVER)
+    }
+  }
+
+  if (pStb->pEncryption == NULL) {
+    int32_t num = pStb->numOfColumns;
+    pStb->pEncryption = taosMemoryCalloc(1, sizeof(STableEncryptionMgt) + sizeof(STableEncryption) * num);
+    pStb->pEncryption->numOfEncryption = num;
+  }
+  if (pStb->pEncryption != NULL) {
+    SDB_SET_INT32(pRaw, dataPos, pStb->pEncryption->numOfEncryption, _OVER)
+    for (int32_t i = 0; i < pStb->pEncryption->numOfEncryption; i++) {
+      STableEncryption *pEnc = &pStb->pEncryption->pTableEncryption[i];
+      SDB_SET_INT32(pRaw, dataPos, pEnc->tableType, _OVER)
+      SDB_SET_INT64(pRaw, dataPos, pEnc->tuid, _OVER)
+      SDB_SET_INT64(pRaw, dataPos, pEnc->tsuid, _OVER)
+      SDB_SET_INT32(pRaw, dataPos, pEnc->fieldId, _OVER)
+      SDB_SET_INT32(pRaw, dataPos, pEnc->serailId, _OVER)
+      SDB_SET_BINARY(pRaw, dataPos, pEnc->encryptionKey, sizeof(pEnc->encryptionKey), _OVER);
+      SDB_SET_BINARY(pRaw, dataPos, pEnc->decryptionKey, sizeof(pEnc->decryptionKey), _OVER);
     }
   }
   SDB_SET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
@@ -313,6 +336,28 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     }
   }
 
+  if (pStb->pEncryption != NULL) {
+    // pStb->pEncryption = taosMemoryCalloc(1, sizeof(STableEncryptionMgt));
+    // if (pStb->pEncryption == NULL) goto _OVER;
+    int32_t sz = 0;
+    SDB_GET_INT32(pRaw, dataPos, &sz, _OVER)
+
+    int32_t total = sizeof(STableEncryptionMgt) + sizeof(STableEncryption) * sz;
+    pStb->pEncryption = taosMemoryCalloc(total, 1);
+    pStb->pEncryption->numOfEncryption = sz;
+    if (pStb->pEncryption == NULL) goto _OVER;
+    for (int32_t i = 0; i < pStb->pEncryption->numOfEncryption; i++) {
+      STableEncryption *pEnc = &pStb->pEncryption->pTableEncryption[i];
+      SDB_GET_INT32(pRaw, dataPos, &pEnc->tableType, _OVER)
+      SDB_GET_INT64(pRaw, dataPos, &pEnc->tuid, _OVER)
+      SDB_GET_INT64(pRaw, dataPos, &pEnc->tsuid, _OVER)
+      SDB_GET_INT32(pRaw, dataPos, &pEnc->fieldId, _OVER)
+      SDB_GET_INT32(pRaw, dataPos, &pEnc->serailId, _OVER)
+      SDB_GET_BINARY(pRaw, dataPos, pEnc->encryptionKey, sizeof(pEnc->encryptionKey), _OVER);
+      SDB_GET_BINARY(pRaw, dataPos, pEnc->decryptionKey, sizeof(pEnc->decryptionKey), _OVER);
+    }
+  }
+
   SDB_GET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
 
   terrno = 0;
@@ -342,6 +387,7 @@ void mndFreeStb(SStbObj *pStb) {
   taosMemoryFreeClear(pStb->pAst1);
   taosMemoryFreeClear(pStb->pAst2);
   taosMemoryFreeClear(pStb->pCmpr);
+  taosMemoryFreeClear(pStb->pEncryption);
 }
 
 static int32_t mndStbActionInsert(SSdb *pSdb, SStbObj *pStb) {
@@ -1193,8 +1239,31 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
   }
   pDst->tagVer = createReq->tagVer;
   pDst->colVer = createReq->colVer;
+
+  pDst->pEncryption = taosMemoryCalloc(1, sizeof(STableEncryptionMgt) + sizeof(STableEncryption) * pDst->numOfColumns);
+  pDst->pEncryption->numOfEncryption = pDst->numOfColumns;
+
+  int32_t encodeColId = 0;
+  for (int32_t i = 0; i < pDst->numOfColumns; i++) {
+    SSchema *pSchema = &pDst->pColumns[i];
+    encodeColId = 1;
+    break;
+  }
+
+  for (int32_t i = 0; i < pDst->pEncryption->numOfEncryption; i++) {
+    STableEncryption *pEncryption = &pDst->pEncryption->pTableEncryption[i];
+    if (pEncryption->fieldId == encodeColId) {
+    }
+  }
+
   return TSDB_CODE_SUCCESS;
 }
+
+typedef struct {
+  char stbname;
+  char columnName;
+  char dbnma;
+} SAlterEncryReq;
 
 static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
@@ -4239,5 +4308,141 @@ _end:
   if (pCtx) mndDestroyDropTbsWithTsmaCtx(pCtx);
   tDecoderClear(&decoder);
   tFreeFetchTtlExpiredTbsRsp(&rsp);
+  return code;
+}
+
+int32_t mndCreateNewStbByEncry(SStbObj *pDst, SStbObj *pSrc, SEncLogObj *pEncLog) {
+  int32_t code = 0;
+
+  memcpy(pDst, pSrc, sizeof(SStbObj));
+  pDst->pColumns = NULL;
+  pDst->pFuncs = NULL;
+  pDst->pTags = NULL;
+  pDst->pAst1 = NULL;
+  pDst->pAst2 = NULL;
+  pDst->pCmpr = NULL;
+  pDst->pEncryption = NULL;
+  pDst->comment = NULL;
+
+  if (pDst->commentLen > 0) {
+    pDst->comment = taosMemoryCalloc(pDst->commentLen + 1, 1);
+    if (pDst->comment == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+    memcpy(pDst->comment, pSrc->comment, pDst->commentLen + 1);
+  }
+
+  pDst->ast1Len = pSrc->ast1Len;
+  if (pDst->ast1Len > 0) {
+    pDst->pAst1 = taosMemoryCalloc(pDst->ast1Len, 1);
+    if (pDst->pAst1 == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+    memcpy(pDst->pAst1, pSrc->pAst1, pDst->ast1Len);
+  }
+
+  pDst->ast2Len = pSrc->ast2Len;
+  if (pDst->ast2Len > 0) {
+    pDst->pAst2 = taosMemoryCalloc(pDst->ast2Len, 1);
+    if (pDst->pAst2 == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+    memcpy(pDst->pAst2, pSrc->pAst2, pDst->ast2Len);
+  }
+
+  pDst->pColumns = taosMemoryCalloc(1, pDst->numOfColumns * sizeof(SSchema));
+  pDst->pTags = taosMemoryCalloc(1, pDst->numOfTags * sizeof(SSchema));
+  if (pDst->pColumns == NULL || pDst->pTags == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  memcpy(pDst->pColumns, pSrc->pColumns, pDst->numOfColumns * sizeof(SSchema));
+  memcpy(pDst->pTags, pSrc->pTags, pDst->numOfTags * sizeof(SSchema));
+
+  pDst->pCmpr = taosMemoryCalloc(1, pDst->numOfColumns * sizeof(SCmprObj));
+  memcpy(pDst->pCmpr, pSrc->pCmpr, pDst->numOfColumns * sizeof(SCmprObj));
+
+  int32_t len = sizeof(STableEncryptionMgt) + pSrc->pEncryption->numOfEncryption * sizeof(STableEncryption);
+  pDst->pEncryption = taosMemoryCalloc(1, len);
+
+  int32_t idx = 0;
+  for (int32_t i = 0; i < pSrc->numOfColumns; i++) {
+    SSchema *pSchema = &pDst->pColumns[i];
+    if (strcmp(pSchema->name, pEncLog->columnName) == 0) {
+      idx = pSchema->colId;
+      break;
+    }
+  }
+  memcpy(pDst->pEncryption, pSrc->pEncryption, len);
+  for (int32_t i = 0; pDst->pEncryption->numOfEncryption; i++) {
+    STableEncryption *pEnc = &pDst->pEncryption->pTableEncryption[i];
+    SSchema          *pSchema = &pDst->pColumns[i];
+    if (strcmp(pSchema->name, pEncLog->columnName) == 0) {
+      break;
+    }
+  }
+
+  // for (int32_t i = 0; i < pDst->numOfColumns; i++) {
+  //   SFieldWithOptions *pField = taosArrayGet(pCreate->pColumns, i);
+  //   SSchema           *pSchema = &pDst->pColumns[i];
+
+  //   SColCmpr *pColCmpr = &pDst->pCmpr[i];
+  //   pColCmpr->id = pSchema->colId;
+  //   pColCmpr->alg = pField->compress;
+  // }
+  // for (int32_t i = 0; i < pDst->numOfColumns; ++i) {
+  //   SFieldWithOptions *pField = taosArrayGet(pSrc->pColumns, i);
+  //   SSchema           *pSchema = &pDst->pColumns[i];
+  //   pSchema->type = pField->type;
+  //   pSchema->bytes = pField->bytes;
+  //   pSchema->flags = pField->flags;
+  //   memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
+  //   pSchema->colId = pDst->nextColId;
+  //   pDst->nextColId++;
+  // }
+
+  return code;
+}
+int32_t mndAlterStbByEncyption(SMnode *pMnode) {
+  int32_t code = 0;
+  SSdb   *pSdb = pMnode->pSdb;
+
+  SArray     *pArray = taosArrayInit(4, sizeof(SEncLogObj));
+  SEncLogObj *pEncLogObj = NULL;
+  void       *pIter = NULL;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_ENC_LOG, pIter, (void **)&pEncLogObj);
+
+    SEncLogObj encLog = {0};
+    memcpy(&encLog, pEncLogObj, sizeof(SEncLogObj));
+    taosArrayPush(pArray, &encLog);
+
+    sdbRelease(pSdb, pEncLogObj);
+  }
+  SStbObj stbObj = {0};
+  pIter = NULL;
+  for (int32_t i = 0; i < taosArrayGetSize(pArray); i++) {
+    SEncLogObj *pEncLog = taosArrayGet(pArray, i);
+    while (1) {
+      SStbObj *pStb = NULL;
+      pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb);
+      if (strcmp(pStb->db, pEncLog->db) == 0 && strcmp(pStb->name, pEncLog->tableName) == 0) {
+        SDbObj *pDb = mndAcquireDb(pMnode, pStb->db);
+
+        mndCreateNewStbByEncry(&stbObj, pStb, pEncLog);
+        mndAlterStbImp(pMnode, NULL, pDb, &stbObj, 0, "", 0);
+        sdbRelease(pSdb, pSdb);
+
+        mndReleaseDb(pMnode, pDb);
+        break;
+      }
+      sdbRelease(pSdb, pSdb);
+    }
+  }
+
   return code;
 }

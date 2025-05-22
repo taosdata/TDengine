@@ -36,7 +36,7 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
 int32_t mndSetUserWhiteListRsp(SMnode* pMnode, SUserObj* pUser, SGetUserWhiteListRsp* pWhiteListRsp);
 int32_t mndEnableIpWhiteList(SMnode *pMnode);
 int32_t mndFetchIpWhiteList(SIpWhiteList *ipList, char **buf);
-
+int32_t mndCheckAKEncPrivilege(SMnode *pMnode, const char *user, EOperType operType, const char *pViewFName);
 #ifdef __cplusplus
 }
 #endif

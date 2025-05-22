@@ -2461,6 +2461,9 @@ int32_t tSerializeSRestoreDnodeReq(void *buf, int32_t bufLen, SRestoreDnodeReq *
   if (tEncodeI32(&encoder, pReq->dnodeId) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->restoreType) < 0) return -1;
   ENCODESQL();
+  if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->tb) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->column) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2476,6 +2479,9 @@ int32_t tDeserializeSRestoreDnodeReq(void *buf, int32_t bufLen, SRestoreDnodeReq
   if (tDecodeI32(&decoder, &pReq->dnodeId) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->restoreType) < 0) return -1;
   DECODESQL();
+  if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->tb) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->column) < 0) return -1;
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -2483,6 +2489,36 @@ int32_t tDeserializeSRestoreDnodeReq(void *buf, int32_t bufLen, SRestoreDnodeReq
 }
 
 void tFreeSRestoreDnodeReq(SRestoreDnodeReq *pReq) { FREESQL(); }
+
+int32_t tSerializeSAKGenReq(void *buf, int32_t bufLen, SAKGenReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+
+  if (tEncodeI32(&encoder, pReq->count) < 0) return -1;
+  ENCODESQL();
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSAKGenReq(void *buf, int32_t bufLen, SAKGenReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->count) < 0) return -1;
+  DECODESQL();
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSAKGenReq(SAKGenReq *pReq) { FREESQL(); }
 
 int32_t tSerializeSMCfgDnodeReq(void *buf, int32_t bufLen, SMCfgDnodeReq *pReq) {
   SEncoder encoder = {0};
@@ -8114,6 +8150,41 @@ int32_t tDecodeSRSmaParam(SDecoder *pCoder, SRSmaParam *pRSmaParam) {
   return 0;
 }
 
+int32_t tEncodeEncrytionMgt(SEncoder *pCoder, STableEncryptionMgt *pEnc) {
+  if (tEncodeI32(pCoder, pEnc->numOfEncryption) < 0) return -1;
+  for (int32_t i = 0; i < pEnc->numOfEncryption; i++) {
+    STableEncryption *p = &pEnc->pTableEncryption[i];
+    tEncodeI32(pCoder, p->tableType);
+    tEncodeI64(pCoder, p->tuid);
+    tEncodeI64(pCoder, p->tsuid);
+    tEncodeI32(pCoder, p->fieldId);
+    tEncodeI32(pCoder, p->serailId);
+    tEncodeCStr(pCoder, p->encryptionKey);
+    tEncodeCStr(pCoder, p->decryptionKey);
+  }
+  return 0;
+}
+
+int32_t tDecoderEnryptionMgt(SDecoder *pCoder, STableEncryptionMgt **pEnc) {
+  int32_t              sz = 0;
+  STableEncryptionMgt *mgt = NULL;
+  if (tDecodeI32(pCoder, &sz) < 0) return -1;
+  mgt = (STableEncryptionMgt *)taosMemoryCalloc(1, sizeof(STableEncryptionMgt) + sizeof(STableEncryption) * sz);
+
+  for (int32_t i = 0; i < mgt->numOfEncryption; i++) {
+    STableEncryption *p = &mgt->pTableEncryption[i];
+    tDecodeI32(pCoder, &p->tableType);
+    tDecodeI64(pCoder, &p->tuid);
+    tDecodeI64(pCoder, &p->tsuid);
+    tDecodeI32(pCoder, &p->fieldId);
+    tDecodeI32(pCoder, &p->serailId);
+    tDecodeCStrTo(pCoder, p->encryptionKey);
+    tDecodeCStrTo(pCoder, p->decryptionKey);
+  }
+
+  *pEnc = mgt;
+  return 0;
+}
 int32_t tEncodeSColCmprWrapper(SEncoder *pCoder, const SColCmprWrapper *pWrapper) {
   if (tEncodeI32v(pCoder, pWrapper->nCols) < 0) return -1;
   if (tEncodeI32v(pCoder, pWrapper->version) < 0) return -1;
@@ -8162,6 +8233,8 @@ int tEncodeSVCreateStbReq(SEncoder *pCoder, const SVCreateStbReq *pReq) {
   if (tEncodeI8(pCoder, pReq->colCmpred) < 0) return -1;
   if (tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr) < 0) return -1;
 
+  if (tEncodeEncrytionMgt(pCoder, pReq->pMgt) < 0) return -1;
+
   tEndEncode(pCoder);
   return 0;
 }
@@ -8191,8 +8264,11 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
     if (!tDecodeIsEnd(pCoder)) {
       if (tDecodeSColCmprWrapperEx(pCoder, &pReq->colCmpr) < 0) return -1;
     }
-  }
 
+    if (!tDecodeIsEnd(pCoder)) {
+      if (tDecoderEnryptionMgt(pCoder, &pReq->pMgt) < 0) return -1;
+    }
+  }
   tEndDecode(pCoder);
   return 0;
 }

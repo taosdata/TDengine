@@ -175,6 +175,8 @@ const char* nodesNodeName(ENodeType type) {
       return "DescribeStmt";
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       return "CompactDatabaseStmt";
+    case QUERY_NODE_AK_GEN_STMT:
+      return "AKGenStmt";
     case QUERY_NODE_CREATE_STREAM_STMT:
       return "CreateStreamStmt";
     case QUERY_NODE_DROP_STREAM_STMT:
@@ -6734,6 +6736,16 @@ static int32_t jsonToCompactDatabaseStmt(const SJson* pJson, void* pObj) {
   return tjsonGetStringValue(pJson, jkCompactDatabaseStmtDbName, pNode->dbName);
 }
 
+static int32_t akGenStmtToJson(const void* pObj, SJson* pJson) {
+  const SAKGenNodeStmt* pNode = (const SAKGenNodeStmt*)pObj;
+  return tjsonAddIntegerToObject(pJson, "count", pNode->count);
+}
+
+static int32_t jsonToAKGenStmt(const SJson* pJson, void* pObj) {
+  SAKGenNodeStmt* pNode = (SAKGenNodeStmt*)pObj;
+  return tjsonGetIntValue(pJson, "count", &pNode->count);
+}
+
 static const char* jkCreateStreamStmtStreamName = "StreamName";
 static const char* jkCreateStreamStmtTargetDbName = "TargetDbName";
 static const char* jkCreateStreamStmtTargetTabName = "TargetTabName";
@@ -7599,6 +7611,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return describeStmtToJson(pObj, pJson);
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       return compactDatabaseStmtToJson(pObj, pJson);
+    case QUERY_NODE_AK_GEN_STMT:
+      return akGenStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_STREAM_STMT:
       return createStreamStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_STREAM_STMT:
@@ -7946,6 +7960,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToDescribeStmt(pJson, pObj);
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       return jsonToCompactDatabaseStmt(pJson, pObj);
+    case QUERY_NODE_AK_GEN_STMT:
+      return jsonToAKGenStmt(pJson, pObj);
     case QUERY_NODE_CREATE_STREAM_STMT:
       return jsonToCreateStreamStmt(pJson, pObj);
     case QUERY_NODE_DROP_STREAM_STMT:

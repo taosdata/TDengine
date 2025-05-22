@@ -155,6 +155,8 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_MACHINES,
   TSDB_MGMT_TABLE_ARBGROUP,
   TSDB_MGMT_TABLE_ENCRYPTIONS,
+  TSDB_MGMT_TABLE_ENCKEY,
+  TSDB_MGMT_TABLE_ENCLOG,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -337,6 +339,7 @@ typedef enum ENodeType {
   QUERY_NODE_RESUME_STREAM_STMT,
   QUERY_NODE_CREATE_VIEW_STMT,
   QUERY_NODE_DROP_VIEW_STMT,
+  QUERY_NODE_AK_GEN_STMT,
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -646,6 +649,46 @@ void tFreeSSubmitRsp(SSubmitRsp* pRsp);
 #define SSCHMEA_BYTES(s) ((s)->bytes)
 #define SSCHMEA_NAME(s)  ((s)->name)
 
+typedef struct {
+  int32_t tableType;
+  int64_t tuid;
+  int64_t tsuid;
+  int32_t fieldId;
+
+  int32_t serailId;
+  char    encryptionKey[128];
+
+  char decryptionKey[128];
+
+} STableEncryption;
+
+typedef struct {
+  int32_t          numOfEncryption;
+  STableEncryption pTableEncryption[];
+} STableEncryptionMgt;
+
+static FORCE_INLINE int32_t tSerializeTableEncryption(void** buflen, int32_t bufLen,
+                                                      STableEncryption* pTableEncryption) {
+  int32_t tlen = 0;
+  tlen += taosEncodeFixedI32(buflen, pTableEncryption->tableType);
+  tlen += taosEncodeFixedI64(buflen, pTableEncryption->tuid);
+  tlen += taosEncodeFixedI64(buflen, pTableEncryption->tsuid);
+  tlen += taosEncodeFixedI32(buflen, pTableEncryption->fieldId);
+  tlen += taosEncodeFixedI32(buflen, pTableEncryption->serailId);
+  tlen += taosEncodeString(buflen, pTableEncryption->encryptionKey);
+  tlen += taosEncodeString(buflen, pTableEncryption->decryptionKey);
+  return tlen;
+}
+static FORCE_INLINE int32_t tDeserializeTableEncryption(void* buf, int32_t bufLen, STableEncryption* pTableEncryption) {
+  buf = taosDecodeFixedI32(buf, &pTableEncryption->tableType);
+  buf = taosDecodeFixedI64(buf, &pTableEncryption->tuid);
+  buf = taosDecodeFixedI64(buf, &pTableEncryption->tsuid);
+  buf = taosDecodeFixedI32(buf, &pTableEncryption->fieldId);
+  buf = taosDecodeFixedI32(buf, &pTableEncryption->serailId);
+  buf = taosDecodeStringTo(buf, pTableEncryption->encryptionKey);
+  buf = taosDecodeStringTo(buf, pTableEncryption->decryptionKey);
+  return 0;
+}
 typedef struct {
   int32_t  nCols;
   int32_t  version;
@@ -2231,11 +2274,24 @@ typedef struct {
   int8_t  restoreType;
   int32_t sqlLen;
   char*   sql;
+  char    db[TSDB_DB_FNAME_LEN];
+  char    tb[TSDB_TABLE_NAME_LEN];
+  char    column[TSDB_COL_NAME_LEN];
 } SRestoreDnodeReq;
 
 int32_t tSerializeSRestoreDnodeReq(void* buf, int32_t bufLen, SRestoreDnodeReq* pReq);
 int32_t tDeserializeSRestoreDnodeReq(void* buf, int32_t bufLen, SRestoreDnodeReq* pReq);
 void    tFreeSRestoreDnodeReq(SRestoreDnodeReq* pReq);
+
+typedef struct {
+  int32_t count;
+  int32_t sqlLen;
+  char*   sql;
+} SAKGenReq;
+
+int32_t tSerializeSAKGenReq(void* buf, int32_t bufLen, SAKGenReq* pReq);
+int32_t tDeserializeSAKGenReq(void* buf, int32_t bufLen, SAKGenReq* pReq);
+void    tFreeSAKGenReq(SAKGenReq* pReq);
 
 typedef struct {
   int32_t dnodeId;
@@ -2898,6 +2954,7 @@ typedef struct SVCreateStbReq {
   int8_t          source;
   int8_t          colCmpred;
   SColCmprWrapper colCmpr;
+  STableEncryptionMgt *pMgt;
 } SVCreateStbReq;
 
 int tEncodeSVCreateStbReq(SEncoder* pCoder, const SVCreateStbReq* pReq);
