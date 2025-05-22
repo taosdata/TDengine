@@ -1,6 +1,6 @@
 ---
 sidebar_label: SSRS
-title: Integration with SSRS
+title: Integration with SQL Server Reporting Services
 toc_max_heading_level: 5
 ---
 
@@ -61,7 +61,7 @@ SSRS accesses the TDengine data source through ODBC, and the configuration steps
 
    - DSN: fill in "TDengine".
    - Connect type: select "WebSocket".
-   - URL: http://192.168.2.124:6041 .
+   - URL: `http://192.168.2.124:6041`.
    - User/Password: Fill in the TDengine database user name/password, use the default if you don't fill in the fields.
    
    Click "Test Connection", successful connection means the configuration is correct, click "OK" to save the configuration.

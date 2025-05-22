@@ -1,6 +1,6 @@
 ---
 sidebar_label: SSRS
-title: 与 SSRS 集成
+title: 与 SQL Server Reporting Services 集成
 toc_max_heading_level: 5
 ---
 
