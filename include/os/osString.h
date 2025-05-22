@@ -22,7 +22,7 @@ extern "C" {
 
 typedef wchar_t TdWchar;
 typedef int32_t TdUcs4;
-typedef void   *iconv_tt;
+typedef void   *iconv_t;
 typedef enum { M2C = 0, C2M } ConvType;
 
 // If the error is in a third-party library, place this header file under the third-party library header file.
@@ -61,10 +61,10 @@ int64_t taosStr2int64(const char *str);
 
 int32_t taosConvInit(void);
 void    taosConvDestroy();
-iconv_tt taosAcquireConv(int32_t *idx, ConvType type);
-void    taosReleaseConv(int32_t idx, iconv_tt conv, ConvType type);
+iconv_t taosAcquireConv(int32_t *idx, ConvType type);
+void    taosReleaseConv(int32_t idx, iconv_t conv, ConvType type);
 int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs);
-int32_t taosUcs4ToMbsEx(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, iconv_tt conv);
+int32_t taosUcs4ToMbsEx(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, iconv_t conv);
 bool    taosMbsToUcs4(const char *mbs, size_t mbs_len, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len);
 int32_t tasoUcs4Compare(TdUcs4 *f1_ucs4, TdUcs4 *f2_ucs4, int32_t bytes);
 TdUcs4 *tasoUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4);
