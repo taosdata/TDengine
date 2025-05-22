@@ -1,6 +1,7 @@
 #pragma once
 #include "ActionBase.h"
-#include "parameter/ConfigData.h"
+#include "ActionFactory.h"
+#include "QueryDataConfig.h"
 #include <iostream>
 
 class QueryDataAction : public ActionBase {
@@ -14,4 +15,14 @@ public:
 
 private:
     QueryDataConfig config_;
+
+    // 注册 QueryDataAction 到 ActionFactory
+    inline static bool registered_ = []() {
+        ActionFactory::instance().register_action(
+            "actions/query-data",
+            [](const ActionConfigVariant& config) {
+                return std::make_unique<QueryDataAction>(std::get<QueryDataConfig>(config));
+            });
+        return true;
+    }();
 };

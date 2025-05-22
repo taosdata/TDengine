@@ -1,41 +1,36 @@
 #pragma once
-#include <memory>
 #include "ActionBase.h"
-#include "CreateDatabaseAction.h"
-#include "CreateSuperTableAction.h"
-#include "CreateChildTableAction.h"
-#include "InsertDataAction.h"
-#include "QueryDataAction.h"
-#include "SubscribeDataAction.h"
-#include "parameter/ConfigData.h"
+#include <memory>
+#include <mutex>
+#include <string>
+#include <unordered_map>
+#include <functional>
 
 
 class ActionFactory {
-public:
-    static std::unique_ptr<ActionBase> createAction(
-        const Step& step,
-        const ActionConfigVariant& config) 
-    {
-        if (step.uses == "actions/create-database") {
-            return std::make_unique<CreateDatabaseAction>(
-                std::get<CreateDatabaseConfig>(config));
-        } else if (step.uses == "actions/create-super-table") {
-            return std::make_unique<CreateSuperTableAction>(
-                std::get<CreateSuperTableConfig>(config));
-        } else if (step.uses == "actions/create-child-table") {
-            return std::make_unique<CreateChildTableAction>(
-                std::get<CreateChildTableConfig>(config));
-        } else if (step.uses == "actions/insert-data") {
-            return std::make_unique<InsertDataAction>(
-                std::get<InsertDataConfig>(config));
-        } else if (step.uses == "actions/query-data") {
-            return std::make_unique<QueryDataAction>(
-                std::get<QueryDataConfig>(config));
-        } else if (step.uses == "actions/subscribe-data") {
-            return std::make_unique<SubscribeDataAction>(
-                std::get<SubscribeDataConfig>(config));
+    public:
+        using ActionCreator = std::function<std::unique_ptr<ActionBase>(const ActionConfigVariant&)>;
+    
+        static ActionFactory& instance() {
+            static ActionFactory factory;
+            return factory;
         }
-
-        throw std::invalid_argument("Unsupported action type: " + step.uses);
-    }
-};
+    
+        void register_action(const std::string& action_type, ActionCreator creator) {
+            std::lock_guard<std::mutex> lock(mutex_);
+            creators_[action_type] = std::move(creator);
+        }
+    
+        std::unique_ptr<ActionBase> create_action(const Step& step, const ActionConfigVariant& config) {
+            std::lock_guard<std::mutex> lock(mutex_);
+            auto it = creators_.find(step.uses);
+            if (it != creators_.end()) {
+                return it->second(config);
+            }
+            throw std::invalid_argument("Unsupported action type: " + step.uses);
+        }
+    
+    private:
+        std::unordered_map<std::string, ActionCreator> creators_;
+        std::mutex mutex_;
+    };

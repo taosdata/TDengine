@@ -1,5 +1,4 @@
 #pragma once
-#include "parameter/ConfigData.h"
 
 class ActionBase {
 public:

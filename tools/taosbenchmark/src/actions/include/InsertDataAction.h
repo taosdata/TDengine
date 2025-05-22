@@ -1,6 +1,7 @@
 #pragma once
 #include "ActionBase.h"
-#include "parameter/ConfigData.h"
+#include "ActionFactory.h"
+#include "InsertDataConfig.h"
 #include <iostream>
 
 class InsertDataAction : public ActionBase {
@@ -14,4 +15,14 @@ public:
 
 private:
     InsertDataConfig config_;
+
+    // 注册 InsertDataAction 到 ActionFactory
+    inline static bool registered_ = []() {
+        ActionFactory::instance().register_action(
+            "actions/insert-data",
+            [](const ActionConfigVariant& config) {
+                return std::make_unique<InsertDataAction>(std::get<InsertDataConfig>(config));
+            });
+        return true;
+    }();
 };

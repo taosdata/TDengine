@@ -12,6 +12,7 @@ enable_testing()
 # 添加调试符号信息
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
 
+
 # 添加子目录
 add_subdirectory(config)
 
@@ -48,4 +49,20 @@ add_library(actions_subscribe STATIC
 )
 target_include_directories(actions_subscribe PUBLIC subscribe)
 target_link_libraries(actions_subscribe PUBLIC actions_config actions_base)
+
+# actions
+set(actions_sources
+    $<TARGET_OBJECTS:actions_config>
+    $<TARGET_OBJECTS:actions_create>
+    $<TARGET_OBJECTS:actions_insert>
+    $<TARGET_OBJECTS:actions_query>
+    $<TARGET_OBJECTS:actions_subscribe>
+)
+target_include_directories(actions_config PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/config/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+)
+add_library(actions STATIC ${actions_sources})
 

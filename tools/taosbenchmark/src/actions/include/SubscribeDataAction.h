@@ -1,6 +1,7 @@
 #pragma once
 #include "ActionBase.h"
-#include "parameter/ConfigData.h"
+#include "ActionFactory.h"
+#include "SubscribeDataConfig.h"
 #include <iostream>
 
 class SubscribeDataAction : public ActionBase {
@@ -18,4 +19,14 @@ public:
 
 private:
     SubscribeDataConfig config_;
+
+    // 注册 SubscribeDataAction 到 ActionFactory
+    inline static bool registered_ = []() {
+        ActionFactory::instance().register_action(
+            "actions/subscribe-data",
+            [](const ActionConfigVariant& config) {
+                return std::make_unique<SubscribeDataAction>(std::get<SubscribeDataConfig>(config));
+            });
+        return true;
+    }();
 };
