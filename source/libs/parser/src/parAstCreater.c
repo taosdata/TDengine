@@ -4213,7 +4213,7 @@ SNode* setStreamTriggerOptions(SAstCreateContext* pCxt, SNode* pOptions, SStream
         goto _err;
       }
       pStreamOptions->fillHistory = true;
-      pStreamOptions->fillHistoryStartTime = taosStr2Int32((&pOptionUnit->val)->z, NULL, 10);
+      pStreamOptions->fillHistoryStartTime = *(int64_t*)nodesGetValueFromNode((SValueNode*)pOptionUnit->pNode);
       break;
     case STREAM_TRIGGER_OPTION_FILL_HISTORY_FIRST:
       if (pStreamOptions->fillHistory) {
@@ -4222,7 +4222,7 @@ SNode* setStreamTriggerOptions(SAstCreateContext* pCxt, SNode* pOptions, SStream
         goto _err;
       }
       pStreamOptions->fillHistoryFirst = true;
-      pStreamOptions->fillHistoryStartTime = taosStr2Int32((&pOptionUnit->val)->z, NULL, 10);
+      pStreamOptions->fillHistoryStartTime = *(int64_t*)nodesGetValueFromNode((SValueNode*)pOptionUnit->pNode);
       break;
     case STREAM_TRIGGER_OPTION_IGNORE_DISORDER:
       pStreamOptions->ignoreDisorder = true;
