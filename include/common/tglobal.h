@@ -279,6 +279,7 @@ extern int32_t tsCompactPullupInterval;
 extern int32_t tsMqRebalanceInterval;
 extern int32_t tsStreamCheckpointInterval;
 extern int32_t tsThresholdItemsInWriteQueue;
+extern int32_t tsThresholdItemsInStreamQueue;
 extern float   tsSinkDataRate;
 extern int32_t tsStreamNodeCheckInterval;
 extern int32_t tsMaxConcurrentCheckpoint;

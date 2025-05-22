@@ -337,6 +337,7 @@ int32_t tsMqRebalanceInterval = 2;
 int32_t tsStreamCheckpointInterval = 300;
 float   tsSinkDataRate = 2.0;
 int32_t tsThresholdItemsInWriteQueue = 1000;
+int32_t tsThresholdItemsInStreamQueue = 25;
 int32_t tsStreamNodeCheckInterval = 240;   // 3min
 int32_t tsMaxConcurrentCheckpoint = 1;
 int32_t tsTtlUnit = 86400;
@@ -992,6 +993,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddFloat(pCfg, "streamSinkDataRate", tsSinkDataRate, 0.1, 5, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "concurrentCheckpoint", tsMaxConcurrentCheckpoint, 1, 10, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "itemsInWriteQ", tsThresholdItemsInWriteQueue, 100, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "itemsInStreamQ", tsThresholdItemsInStreamQueue, 10, 5000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
 

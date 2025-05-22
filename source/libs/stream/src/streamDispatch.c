@@ -2048,17 +2048,23 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
         if (pReq->msgId > pInfo->lastMsgId) {
 
           int32_t itemsInWriteQ = 0;
+          int32_t itemsInStreamQ = 0;
+          bool    tooManyItems = false;
           if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
             itemsInWriteQ = tmsgGetQueueSize(msgcb, pMeta->vgId, WRITE_QUEUE);
+            itemsInStreamQ = tmsgGetQueueSize(msgcb, pMeta->vgId, STREAM_QUEUE);
+            tooManyItems =
+                (itemsInWriteQ > tsThresholdItemsInWriteQueue) || (itemsInStreamQ > tsThresholdItemsInStreamQueue);
           }
 
-          if ((pTask->info.taskLevel == TASK_LEVEL__SINK) && (itemsInWriteQ > tsThresholdItemsInWriteQueue) &&
+          if ((pTask->info.taskLevel == TASK_LEVEL__SINK) && tooManyItems &&
               (pReq->type == STREAM_INPUT__DATA_SUBMIT || pReq->type == STREAM_INPUT__DATA_BLOCK ||
                pReq->type == STREAM_INPUT__REF_DATA_BLOCK)) {
             stDebug(
-                "s-task:%s %d items in writeQ of vgId:%d (too many, more than 1000), refuse dispatch msg from vgId:%d, "
-                "recv msgId:%d, not update lastMsgId:%" PRId64,
-                id, itemsInWriteQ, pMeta->vgId, pReq->upstreamNodeId, pReq->msgId, pInfo->lastMsgId);
+                "s-task:%s vgId:%d %d items in writeQ (threshold: %d), items in streamQ:%d (threshold: %d), refuse "
+                "dispatch msg from vgId:%d, recv msgId:%d, not update lastMsgId:%" PRId64,
+                id, pMeta->vgId, itemsInWriteQ, tsThresholdItemsInWriteQueue, itemsInStreamQ,
+                tsThresholdItemsInStreamQueue, pReq->upstreamNodeId, pReq->msgId, pInfo->lastMsgId);
             status = TASK_INPUT_STATUS__BLOCKED;
           } else {
             status = streamTaskAppendInputBlocks(pTask, pReq);
