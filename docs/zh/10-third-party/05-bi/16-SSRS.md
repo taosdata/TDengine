@@ -19,8 +19,8 @@ TDengine 支持标准 ODBC 接口，SSRS 可实现无缝对接 TDengine。TDengi
 - 操作系统不限。
 - 安装 TDengine 3.3.3.0 或以上服务器版（企业及社区版均可）。
 - taosAdapter 服务正常运行，检查参考 [taosAdapter 使用手册](../../../reference/components/taosadapter)。
-- 服务器 IP：192.168.2.124
-- 提供 WebSocket 服务：端口 6041（默认）
+- 服务器 IP：192.168.2.124 。
+- 提供 WebSocket 服务：端口 6041（默认）。
 
 ### SSRS 服务器
 
@@ -59,10 +59,10 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
 
    ![cfg-1](img/cfg-1.webp)
 
-   - DSN：填写 TDengine
-   - Connect type: 选择 WebSocket
-   - URL: http://192.168.2.124:6041
-   - User/Password：填写连接 TDengine 数据库用户名/密码，不填写使用默认
+   - DSN：填写“TDengine”。
+   - Connect type: 选择“WebSocket”。
+   - URL: http://192.168.2.124:6041 。
+   - User/Password：填写连接 TDengine 数据库用户名/密码，不填写使用默认。
    
    点击“Test Connection”，连接成功表示配置正确，点击“OK”保存配置。
 
@@ -77,9 +77,9 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    ![cfg-2](img/cfg-2.webp)
 
    - Name：填写数据源名称
-   - 数据源方式：选择第二项“Use a connection embedded in my report”
-   - Select Connection type：选择“ODBC”数据源
-   - Connection string：点击旁边“Build...”按钮，按上图选择填写
+   - 数据源方式：选择第二项“Use a connection embedded in my report”。
+   - Select Connection type：选择“ODBC”数据源。
+   - Connection string：点击旁边“Build...”按钮，按上图选择填写。
    
    点击“Test Connection”，连接成功表示配置正确，点击“OK”保存配置。
 
@@ -102,9 +102,9 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
 
    ![create-1](img/create-1.webp)
 
-   - Name：填写数据集名称
-   - 数据集方式：选择第二项“Use a dataset embedded im my report”
-   - Data source：选择前面创建好的“DataSource1”
+   - Name：填写数据集名称。
+   - 数据集方式：选择第二项“Use a dataset embedded im my report”。
+   - Data source：选择前面创建好的“DataSource1”。
    - Query type: 选择“text”类型查询，填写如下查询分析 SQL：
     
    ``` sql
@@ -155,12 +155,12 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
 
    ![browser-2](img/browser-2.webp)
 
-   账号输入成功后，会出现如下页面，可以看到前面保存上传的报表 meters。
+   账号输入成功后，会出现如下页面，可以看到前面保存上传的报表“meters”。
 
    ![browser-3](img/browser-3.webp)
 
 3. 分页浏览报表。  
-   点击 meters，会分页展示小区内所有智能电表最新采集数据。
+   点击“meters“，会分页展示小区内所有智能电表最新采集数据。
 
    ![browser-4](img/browser-4.webp)
 
