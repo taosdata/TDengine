@@ -1122,7 +1122,6 @@ int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn_t searchFn, 
                                int64_t* pData);
 SSDataBlock* buildCreateTableBlock(SExprSupp* tbName, SExprSupp* tag);
 SExprInfo*   createExpr(SNodeList* pNodeList, int32_t* numOfExprs);
-void         destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs);
 
 int32_t copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultRow* pRow, SqlFunctionCtx* pCtx,
                                  SSDataBlock* pBlock, const int32_t* rowEntryOffset, SExecTaskInfo* pTaskInfo);

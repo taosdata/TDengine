@@ -1825,9 +1825,6 @@ int32_t qStreamGetTableListGroupNum(const void* pTableList) { return ((STableLis
 
 int32_t qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo) { return doFilter(pBlock, pFilterInfo, NULL); }
 
-int32_t qStreamCreateExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, SExprInfo** pExprInfo, int32_t* numOfExprs)
- { return createExprInfo(pNodeList, pGroupKeys, pExprInfo, numOfExprs); }
-
 bool qStreamUidInTableList(void* pTableListInfo, uint64_t uid) {
   return tableListGetTableGroupId(pTableListInfo, uid) != -1;
 }

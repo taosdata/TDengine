@@ -179,7 +179,6 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
 
 int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId);
 int32_t createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode);
-int32_t createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, SExprInfo** pExprInfo, int32_t* numOfExprs);
 
 SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowEntryInfoOffset,
                                      SFunctionStateStore* pStore);

@@ -174,6 +174,8 @@ static void releaseStreamReaderInfo(void* p) {
   blockDataDestroy(pInfo->calcResBlock);
   taosMemoryFree(pInfo->triggerSchema);
   taosMemoryFree(pInfo->calcSchema);
+  destroyExprInfo(pInfo->pExprInfo, pInfo->numOfExpr);
+  taosMemoryFreeClear(pInfo->pExprInfo);
   taosMemoryFree(pInfo);
 }
 
@@ -314,7 +316,7 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(const SStreamReaderDeplo
 
   SNodeList* pseudoCols = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scan.pScanPseudoCols;
   if (pseudoCols != NULL) {
-    STREAM_CHECK_RET_GOTO(qStreamCreateExprInfo(pseudoCols, NULL, 
+    STREAM_CHECK_RET_GOTO(createExprInfo(pseudoCols, NULL, 
       &sStreamReaderInfo->pExprInfo, &sStreamReaderInfo->numOfExpr));
   }
 
