@@ -194,11 +194,16 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
 }
 
 static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SRealTableNode* pRealTable) {
+  SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pComCxt->pParseCxt->acctId};
+  strcpy(name.dbname, pRealTable->table.dbName);
+  strcpy(name.tname, pRealTable->table.tableName);
+  char dbFName[TSDB_DB_FNAME_LEN];
+  tNameGetFullDbName(&name, dbFName);
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    pCxt->errCode = catalogRemoveViewMeta(pCxt->pComCxt->pParseCxt->pCatalog, dbFName, 0, pRealTable->table.tableName, 0);
+  }
   pCxt->errCode = collectMetaKeyFromRealTableImpl(pCxt->pComCxt, pRealTable->table.dbName, pRealTable->table.tableName,
                                                   AUTH_TYPE_READ);
-  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-    pCxt->errCode = catalogRemoveViewMeta(pCxt->pComCxt->pParseCxt->pCatalog, pRealTable->table.dbName, 0, pRealTable->table.tableName, 0);
-  }
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
 

@@ -962,11 +962,7 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
   uuid_generate(uuid);
   // it's caller's responsibility to make enough space for `uid`, that's 36-char + 1-null
   uuid_unparse_lower(uuid, buf);
-  int n = snprintf(uid, uidlen, "%.*s", (int)sizeof(buf), buf);  // though less performance, much safer
-  if (n >= uidlen) {
-    // target buffer is too small
-    return -1;
-  }
+  (void)snprintf(uid, uidlen, "%.*s", (int)sizeof(buf), buf);  // though less performance, much safer
   return 0;
 #else
   int len = 0;
