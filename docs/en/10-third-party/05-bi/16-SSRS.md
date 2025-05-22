@@ -35,7 +35,7 @@ Prepare the environment as follows:
 
    Record the "Report Server Web Service URLs" address in the above figure, which will be used in the following steps.
 
-### Report Creator Client
+### Report Builder Client
 
 - Requires Windows OS.
 - TDengine 3.3.3.0 or above Windows client version installed (TDengine ODBC driver installed by default).
@@ -66,12 +66,12 @@ SSRS accesses the TDengine data source through ODBC, and the configuration steps
    
    Click "Test Connection", successful connection means the configuration is correct, click "OK" to save the configuration.
 
-2. Configure the ODBC data source on Report Creator Client.  
+2. Configure the ODBC data source on Report Builder Client.  
    Open ODBC Data Source Manager (32-bit), select "System DSN" -> "Add..." -> "TDengine" -> "Finish", the ODBC Data Source Configuration window will pop up, please fill in the same content as the previous step.
 
    Click "Test Connection", successful connection means that the configuration is correct, click "OK" to save the configuration.
 
-3. Create data source connection on Report Creator Client.   
+3. Create data source connection on Report Builder Client.   
    Start Report Builder, right-click on the "Data Source" item in the left area and click "Add Data Source..." menu, as shown in Figure:
 
    ![cfg-2](img/cfg-2.webp)

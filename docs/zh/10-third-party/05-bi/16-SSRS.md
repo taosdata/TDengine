@@ -71,12 +71,12 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
 
    点击“Test Connection”，连接成功表示配置正确，点击“OK”保存配置。
 
-3. Report Builder 创建数据源连接  
+3. Report Builder 创建数据源连接。  
    启动 Report Builder，左侧区域内”Data Source“项上点右键，点击“Add Data Source...”菜单，如图：
 
    ![cfg-2](img/cfg-2.webp)
 
-   - Name：填写数据源名称
+   - Name：填写数据源名称。
    - 数据源方式：选择第二项“Use a connection embedded in my report”。
    - Select Connection type：选择“ODBC”数据源。
    - Connection string：点击旁边“Build...”按钮，按上图选择填写。
