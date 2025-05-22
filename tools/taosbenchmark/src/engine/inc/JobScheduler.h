@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <chrono>
 
+#include "ConfigData.h"
 #include "JobDAG.h"
 #include "ThreadSafeQueue.h"
 #include "StepExecutionStrategy.h"

@@ -1,7 +1,8 @@
 #ifndef STEP_EXECUTION_STRATEGY_H
 #define STEP_EXECUTION_STRATEGY_H
 
-#include "ConfigData.h"
+#include "Step.h"
+
 
 // 抽象基类：步骤执行策略
 class StepExecutionStrategy {

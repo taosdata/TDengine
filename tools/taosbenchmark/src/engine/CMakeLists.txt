@@ -17,25 +17,25 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
 
 # 添加主库
 add_library(engine STATIC 
-    JobDAG.cpp
-    ThreadSafeQueue.cpp
-    StepExecutionStrategy.cpp
-    JobScheduler.cpp
+    src/JobDAG.cpp
+    src/ThreadSafeQueue.cpp
+    src/StepExecutionStrategy.cpp
+    src/JobScheduler.cpp
 )
 
 # 包含头文件目录
 target_include_directories(engine PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/../parameter
+    ${CMAKE_CURRENT_SOURCE_DIR}/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_CURRENT_SOURCE_DIR}/../common/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../actions/config/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../actions/base
 )
 
 # 链接依赖库
-target_link_libraries(engine PRIVATE 
-    parameter
-)
-# 链接依赖库
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../parameter/build)
-target_link_libraries(engine PRIVATE parameter)
+target_link_libraries(engine PUBLIC parameter)
 
 # TestJobScheduler
 add_executable(TestJobScheduler 

@@ -4,10 +4,11 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
-#include <queue>
 #include <atomic>
 #include <memory>
-#include "ConfigData.h"
+
+#include "Job.h"
+
 
 // DAG 节点结构
 struct DAGNode {
