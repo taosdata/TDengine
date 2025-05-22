@@ -100,7 +100,15 @@ static int32_t mndProcessAuditLogReq(SRpcMsg *pReq) {
   sprintf(filename, "%s/%s", tsLogDir, "planCache.log");
   TdFilePtr ptr = taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
   char* p = taosMemoryCalloc(1, strlen(req.operation) + strlen(req.detail) + 32);
-  sprintf(p, "%s - %s", req.operation, req.detail);
+  struct tm      Tm, *ptm;
+  struct timeval timeSecs;
+
+  taosGetTimeOfDay(&timeSecs);
+  time_t curTime = timeSecs.tv_sec;
+  ptm = taosLocalTime(&curTime, &Tm, NULL);
+
+  sprintf(p, "%02d/%02d %02d:%02d:%02d.%06d: %s - %s\n", ptm->tm_mon + 1, ptm->tm_mday,
+                 ptm->tm_hour, ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, req.operation, req.detail);
   taosWriteFile(ptr, p, strlen(p));
   taosCloseFile(&ptr);
   taosMemoryFree(p);
