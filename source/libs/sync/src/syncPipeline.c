@@ -734,13 +734,7 @@ int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTe
     sGDebug(&rpcMsg.info.traceId, "vgId:%d, index:%" PRId64 ", get response info, handle:%p seq:%" PRId64 " num:%d",
             pNode->vgId, pEntry->index, &rpcMsg.info, cbMeta.seqNum, num);
 
-    int64_t apply_start_ts = taosGetTimestampUs();
     code = pFsm->FpCommitCb(pFsm, &rpcMsg, &cbMeta);
-    int64_t apply_end_ts = taosGetTimestampUs();
-
-    (void)atomic_add_fetch_64(&pNode->apply_bytes, (int64_t)pEntry->bytes);
-    (void)atomic_add_fetch_64(&pNode->apply_time, apply_end_ts - apply_start_ts);
-
     if (code != 0) {
       sGError(&rpcMsg.info.traceId,
               "vgId:%d, index:%" PRId64 ", failed to execute sync log entry, term:%" PRId64

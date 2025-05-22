@@ -247,8 +247,6 @@ struct SSyncNode {
   int64_t wal_write_time;
   int64_t sync_bytes;
   int64_t sync_time;
-  int64_t apply_bytes;
-  int64_t apply_time;
 };
 
 // open/close --------------

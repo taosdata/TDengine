@@ -685,9 +685,14 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       if (vnodeProcessCreateTSmaReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
     /* TSDB */
-    case TDMT_VND_SUBMIT:
+    case TDMT_VND_SUBMIT: {
+      int64_t apply_start_ts = taosGetTimestampUs();
       if (vnodeProcessSubmitReq(pVnode, ver, pMsg->pCont, pMsg->contLen, pRsp, pMsg) < 0) goto _err;
+      int64_t apply_end_ts = taosGetTimestampUs();
+      (void)atomic_add_fetch_64(&pVnode->writeMetrics.apply_bytes, (int64_t)pMsg->contLen);
+      (void)atomic_add_fetch_64(&pVnode->writeMetrics.apply_time, apply_end_ts - apply_start_ts);
       break;
+    }
     case TDMT_VND_DELETE:
       if (vnodeProcessDeleteReq(pVnode, ver, pReq, len, pRsp, pMsg) < 0) goto _err;
       break;

@@ -1440,6 +1440,8 @@ int32_t vnodeGetRawWriteMetrics(void *pVnode, SRawWriteMetrics *pRawMetrics) {
   pRawMetrics->avg_write_size = pVnode1->writeMetrics.write_size;  // Assuming this is pre-calculated or needs sum/count
   pRawMetrics->rpc_queue_wait = pVnode1->writeMetrics.rpc_queue_wait;
   pRawMetrics->preprocess_time = pVnode1->writeMetrics.preprocess_time;
+  pRawMetrics->apply_bytes = pVnode1->writeMetrics.apply_bytes;
+  pRawMetrics->apply_time = pVnode1->writeMetrics.apply_time;
   pRawMetrics->fetch_batch_meta_time = pVnode1->writeMetrics.fetch_batch_meta_time;
   pRawMetrics->fetch_batch_meta_count = pVnode1->writeMetrics.fetch_batch_meta_count;
   pRawMetrics->memory_table_size = pVnode1->writeMetrics.memory_table_size;
@@ -1454,9 +1456,6 @@ int32_t vnodeGetRawWriteMetrics(void *pVnode, SRawWriteMetrics *pRawMetrics) {
   pRawMetrics->wal_write_time = syncMetrics.wal_write_time;
   pRawMetrics->sync_bytes = syncMetrics.sync_bytes;
   pRawMetrics->sync_time = syncMetrics.sync_time;
-  pRawMetrics->apply_bytes = syncMetrics.apply_bytes;
-  pRawMetrics->apply_time = syncMetrics.apply_time;
-
   // Fields needing calculation or other sources (like cache hit ratio) are not set here
   // pRawMetrics->cache_hit_ratio = ...;
   // pRawMetrics->memory_table_rows = ...; // Assuming this comes from elsewhere or needs calculation
