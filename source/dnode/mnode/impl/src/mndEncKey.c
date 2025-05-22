@@ -580,7 +580,7 @@ int32_t mndProcessAKEncReq(SRpcMsg *pReq) {
   SRestoreDnodeReq restoreReq = {0};
 
   if (tDeserializeSRestoreDnodeReq(pReq->pCont, pReq->contLen, &restoreReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
+    code = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
 
@@ -588,7 +588,21 @@ int32_t mndProcessAKEncReq(SRpcMsg *pReq) {
     mInfo("dnode:%d, start to akenc, restore type:%d, %s, %s, %s", restoreReq.dnodeId, restoreReq.restoreType,
           restoreReq.db, restoreReq.tb, restoreReq.column);
 
-    SEncKeyObj *pEncKey = mndAcquireEncKey(pMnode, restoreReq.dnodeId);
+    SName pName = {0};
+    toName(1, restoreReq.db, NULL, &pName);
+    char db[TSDB_DB_FNAME_LEN] = {0};
+    tNameGetFullDbName(&pName, db);
+    mInfo("dnode:%d, db name:%s", restoreReq.dnodeId, db);
+    if ((code = mndCheckAKEncPrivilege(pMnode, pReq->info.conn.user, MND_OPER_AK_ENC, db)) != 0) {
+      mError("dnode:%d, failed to check privilege since %s", restoreReq.dnodeId, terrstr());
+      goto _OVER;
+    }
+
+    SEncKeyObj *pEncKey = mndAcquireEncKey(pMnode, 1);
+    if (pEncKey == NULL) {
+      mError("dnode:%d, failed to acquire enc key since %s", restoreReq.dnodeId, terrstr());
+      goto _OVER;
+    }
 
     int64_t ts = pEncKey->createTime;
     int64_t nowts = taosGetTimestampMs();
@@ -642,6 +656,16 @@ int32_t mndProcessAKEncReq(SRpcMsg *pReq) {
     mInfo("dnode:%d, start to akdec, restore type:%d, %s, %s", restoreReq.dnodeId, restoreReq.restoreType,
           restoreReq.db, restoreReq.tb);
 
+    SName pName = {0};
+    toName(1, restoreReq.db, NULL, &pName);
+    char db[TSDB_DB_FNAME_LEN] = {0};
+    tNameGetFullDbName(&pName, db);
+    mInfo("dnode:%d, db name:%s", restoreReq.dnodeId, db);
+    if ((code = mndCheckAKEncPrivilege(pMnode, pReq->info.conn.user, MND_OPER_AK_DEC, db)) != 0) {
+      mError("dnode:%d, failed to check privilege since %s", restoreReq.dnodeId, terrstr());
+      goto _OVER;
+    }
+
     SEncLogObj *pEncLog = NULL;
     void       *pIter = NULL;
 
@@ -653,7 +677,7 @@ int32_t mndProcessAKEncReq(SRpcMsg *pReq) {
         mInfo("dnode:%d, ak enc log:%s.%s.%s", restoreReq.dnodeId, pEncLog->db, pEncLog->tableName,
               pEncLog->columnName);
 
-        STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "akenc");
+        STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "akdec");
         if (pTrans == NULL) {
           mError("trans:%" PRId32 ", failed to create since %s", pTrans->id, terrstr());
           return -1;
