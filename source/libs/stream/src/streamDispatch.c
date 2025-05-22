@@ -2000,7 +2000,7 @@ static int32_t streamTaskAppendInputBlocks(SStreamTask* pTask, const SStreamDisp
   return status;
 }
 
-int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
+int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp, const SMsgCb* msgcb) {
   int32_t      status = 0;
   SStreamMeta* pMeta = pTask->pMeta;
   const char*  id = pTask->id.idStr;
@@ -2046,12 +2046,28 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
         }
 
         if (pReq->msgId > pInfo->lastMsgId) {
-          status = streamTaskAppendInputBlocks(pTask, pReq);
-          if (status == TASK_INPUT_STATUS__NORMAL) {
-            stDebug("s-task:%s update the lastMsgId from %" PRId64 " to %d", id, pInfo->lastMsgId, pReq->msgId);
-            pInfo->lastMsgId = pReq->msgId;
+
+          int32_t itemsInWriteQ = 0;
+          if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
+            itemsInWriteQ = tmsgGetQueueSize(msgcb, pMeta->vgId, WRITE_QUEUE);
+          }
+
+          if ((pTask->info.taskLevel == TASK_LEVEL__SINK) && (itemsInWriteQ > 1000) &&
+              (pReq->type == STREAM_INPUT__DATA_SUBMIT || pReq->type == STREAM_INPUT__DATA_BLOCK ||
+               pReq->type == STREAM_INPUT__REF_DATA_BLOCK)) {
+            stDebug(
+                "s-task:%s too many items (1000) in writeQ of vgId:%d, refuse dispatch msg, "
+                "recv msgId:%d, not update lastMsgId:%" PRId64,
+                id, pMeta->vgId, pReq->msgId, pInfo->lastMsgId);
+            status = TASK_INPUT_STATUS__BLOCKED;
           } else {
-            stDebug("s-task:%s not update the lastMsgId, remain:%" PRId64, id, pInfo->lastMsgId);
+            status = streamTaskAppendInputBlocks(pTask, pReq);
+            if (status == TASK_INPUT_STATUS__NORMAL) {
+              stDebug("s-task:%s update the lastMsgId from %" PRId64 " to %d", id, pInfo->lastMsgId, pReq->msgId);
+              pInfo->lastMsgId = pReq->msgId;
+            } else {
+              stDebug("s-task:%s not update the lastMsgId, remain:%" PRId64, id, pInfo->lastMsgId);
+            }
           }
         } else {
           stWarn(

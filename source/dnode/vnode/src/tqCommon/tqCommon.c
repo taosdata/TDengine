@@ -381,7 +381,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   return rsp.code;  // always return true
 }
 
-int32_t tqStreamTaskProcessDispatchReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
+int32_t tqStreamTaskProcessDispatchReq(SStreamMeta* pMeta, SRpcMsg* pMsg, const SMsgCb* msgcb) {
   char*   msgStr = pMsg->pCont;
   char*   msgBody = POINTER_SHIFT(msgStr, sizeof(SMsgHead));
   int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
@@ -402,7 +402,7 @@ int32_t tqStreamTaskProcessDispatchReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   int32_t      code = streamMetaAcquireTask(pMeta, req.streamId, req.taskId, &pTask);
   if (pTask && (code == 0)) {
     SRpcMsg rsp = {.info = pMsg->info, .code = 0};
-    if (streamProcessDispatchMsg(pTask, &req, &rsp) != 0) {
+    if (streamProcessDispatchMsg(pTask, &req, &rsp, msgcb) != 0) {
       return -1;
     }
     tCleanupStreamDispatchReq(&req);
