@@ -242,10 +242,9 @@ int32_t putToPlanCache(char* user, UserPriority priority, int32_t max, char* que
                              TSDB_CODE_INVALID_PARA);
 
   taosThreadMutexLock(&cacheLock);
-//  if (priority == PLAN_CACHE_PRIORITY_LOW && totalPlanCacheSize >= MAX_PLAN_CACHE_SIZE_MEDIUM_LEVEL) {
-  if (totalPlanCacheSize >= 0) {
+  if (priority == PLAN_CACHE_PRIORITY_LOW && totalPlanCacheSize >= MAX_PLAN_CACHE_SIZE_MEDIUM_LEVEL) {
     char* summary = generateSummary();
-    clientSendAuditLog(pTrans, epset, "plan_cache_70_percent", summary);
+    clientSendAuditLog(pTrans, epset, "plan_cache", summary);
     taosMemoryFree(summary);
     taosThreadMutexUnlock(&cacheLock);
     goto end;
