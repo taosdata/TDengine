@@ -90,7 +90,7 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
 ### 场景介绍
 某小区有 500 台智能电表，数据存储在 TDengine 数据库中，电力公司要求数据运营部门制作一张能够分页浏览此小区每台智能电表最后一次上报电压及电流值的报表，分析居民用电情况，同时要求报表可在公司内任意一台办公电脑上登录后浏览。
 
-开发人员使用微软提供的 SSDR 报表服务完成此项工作，使用 Report Builder 制作好报表，上传至报表服务器后供相关人员浏览。
+开发人员使用微软提供的 SSRS 报表服务完成此项工作，使用 Report Builder 制作好报表，上传至报表服务器后供相关人员浏览。
 
 ### 数据准备
 创建一张超级表，500 子表，每子表代表一台智能电表，生成电压数据在 198 ~ 235 内波动，电流在 10A ~ 30A 内波动。
@@ -165,7 +165,7 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    ![browser-4](img/browser-4.webp)
 
 ### 管理报表
-   对 SSDR 服务器上报表进行管理，可参考 [微软官网文档](https://learn.microsoft.com/zh-cn/sql/reporting-services/report-builder/finding-viewing-and-managing-reports-report-builder-and-ssrs?view=sql-server-ver16)。
+   对 SSRS 服务器上报表进行管理，可参考 [微软官网文档](https://learn.microsoft.com/zh-cn/sql/reporting-services/report-builder/finding-viewing-and-managing-reports-report-builder-and-ssrs?view=sql-server-ver16)。
 
 
-以上流程，我们使用了 SSDR 开发了基于 TDengine 数据源的一个简单报表制作、分发、浏览系统，更多丰富的报表还有待您的进一步开发。
+以上流程，我们使用了 SSRS 开发了基于 TDengine 数据源的一个简单报表制作、分发、浏览系统，更多丰富的报表还有待您的进一步开发。

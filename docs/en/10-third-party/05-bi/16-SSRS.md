@@ -90,7 +90,7 @@ SSRS accesses the TDengine data source through ODBC, and the configuration steps
 ### Scenario Introduction
 There are 500 smart meters in a community, and the data is stored in the TDengine database. The electric power company asks the data operation department to create a report that can browse the last reported voltage and current values of each smart meter in the community in a page by page to analyze the electricity consumption of the residents, and at the same time, it is requested that the report can be browsed by logging in to any of the office computers in the company.
 
-The developer uses the SSDR reporting service provided by Microsoft to accomplish this task. The report is created using Report Builder and uploaded to the report server for viewing by the relevant personnel.
+The developer uses the SSRS reporting service provided by Microsoft to accomplish this task. The report is created using Report Builder and uploaded to the report server for viewing by the relevant personnel.
 
 ### Data Preparation
 Create a super meter with 500 sub-meters, each sub-meter represents a smart meter, and generates voltage data that fluctuates between 198 and 235, and current data that fluctuates between 10A and 30A.
@@ -167,7 +167,7 @@ After the report is sent to the server, the report is shared and can be accessed
    ![browser-4](img/browser-4.webp)
 
 ### Managing Reports
-   To manage reports on SSDR server, you can refer to [Microsoft official document](https://learn.microsoft.com/en-us/sql/reporting-services/report-builder/finding-viewing-and-managing-reports-report-builder-and-ssrs?view=sql-server-ver16).
+   To manage reports on SSRS server, you can refer to [Microsoft official document](https://learn.microsoft.com/en-us/sql/reporting-services/report-builder/finding-viewing-and-managing-reports-report-builder-and-ssrs?view=sql-server-ver16).
 
 
-In the above process, we have used SSDR to develop a simple report creation, distribution and browsing system based on TDengine data source, and more rich reports are still waiting for your further development.
+In the above process, we have used SSRS to develop a simple report creation, distribution and browsing system based on TDengine data source, and more rich reports are still waiting for your further development.
