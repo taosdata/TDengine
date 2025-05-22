@@ -2168,7 +2168,7 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
       }
 
       STaskId id = {.taskId = pTask->id.taskId, .streamId = pTask->id.streamId};
-      void* ptr = taosArrayPush(pTaskNodeList, &id);
+      void   *ptr = taosArrayPush(pTaskNodeList, &id);
       if (ptr == NULL) {
         mError("failed to put task node info into list, code:%s", tstrerror(terrno));
         destroyStreamTaskIter(pTaskIter);
@@ -2180,9 +2180,28 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
 
     destroyStreamTaskIter(pTaskIter);
     taosWUnLockLatch(&pStream->lock);
+
+    // stop all tasks in this vnode
+/*    {
+      SVPauseStreamTaskReq req = {.streamId = -1, .taskId = -1};
+      SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_STOP, .pCont = &req, .contLen = sizeof(SVPauseStreamTaskReq)};
+      mDebug("build and send stop all tasks msg to vnode");
+
+      void* pVgIter = NULL;
+      while ((pVgIter = taosHashIterate(pHashMap, pVgIter)) != NULL) {
+        SEpSet *pEpset = (SEpSet *)pVgIter;
+        code = tmsgSendReq(pEpset, &msg);
+
+        size_t keyLen = 0;
+        void* pKey = taosHashGetKey(pEpset, &keyLen);
+
+        int32_t vgId = *(int32_t*) pKey;
+        mInfo("send stop tasks msg to vnode:%d", vgId);
+      }
+    }*/
   }
 
-  mInfo("total involved tasks:%d during vgroup status change", (int32_t) taosArrayGetSize(pTaskNodeList));
+  mInfo("total involved tasks:%d during vgroup status change", (int32_t)taosArrayGetSize(pTaskNodeList));
 
   while (1) {
     SStreamObj *pStream = NULL;

@@ -26,7 +26,6 @@ static int32_t doSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTa
   if (pReq == NULL) {
     mError("failed to malloc in pause stream, size:%" PRIzu ", code:%s", sizeof(SVPauseStreamTaskReq),
            tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    // terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
