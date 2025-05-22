@@ -19,7 +19,7 @@ TDengine 支持标准 ODBC 接口，SSRS 可实现无缝对接 TDengine。TDengi
 - 操作系统不限。
 - 安装 TDengine 3.3.3.0 或以上服务器版（企业及社区版均可）。
 - taosAdapter 服务正常运行，检查参考 [taosAdapter 使用手册](../../../reference/components/taosadapter)。
-- 服务器 IP：192.168.2.124 。
+- 服务器 IP：192.168.2.124。
 - 提供 WebSocket 服务：端口 6041（默认）。
 
 ### SSRS 服务器

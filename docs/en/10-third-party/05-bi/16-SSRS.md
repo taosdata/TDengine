@@ -51,7 +51,7 @@ Prepare the environment as follows:
 - Install any browser software.
 
 
-### Configure Data Source
+## Configure Data Source
 SSRS accesses the TDengine data source through ODBC, and the configuration steps are as follows:
 
 1. Configure ODBC data source on SSRS Server.   
@@ -96,7 +96,7 @@ The developer uses the SSRS reporting service provided by Microsoft to accomplis
 Create a super meter with 500 sub-meters, each sub-meter represents a smart meter, and generates voltage data that fluctuates between 198 and 235, and current data that fluctuates between 10A and 30A.
 
 ### Create Report
-1. Open Report Builder to start creating a report. 2.
+1. Open Report Builder to start creating a report.
 2. Create a new dataset.  
    In the left area, "DataSource" -> "DataSource1" -> "Add Dataset...".
 
@@ -119,7 +119,8 @@ Create a super meter with 500 sub-meters, each sub-meter represents a smart mete
    ```
    
 3. Create the report page.   
-   Menu "Insert" -> "Table" -> "Insert Table", insert an empty table, use the mouse to drag the data columns of "DataSet1" to the right side of the report. "DataSet1" in the data columns with the mouse dragged to the right side of the report production area placed on the columns they want to show, as shown:
+   Menu "Insert" -> "Table" -> "Insert Table", insert an empty table, use the mouse to drag the data columns of "DataSet1" to the right side of the report.   
+   "DataSet1" in the data columns with the mouse dragged to the right side of the report production area placed on the columns they want to show, as shown:
 
    ![create-2](img/create-2.webp)
 
