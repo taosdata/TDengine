@@ -54,7 +54,7 @@ TDengine 支持标准 ODBC 接口，SSRS 可实现无缝对接 TDengine。TDengi
 ## 配置数据源
 SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
 
-1. SSRS 服务器配置 ODBC 数据源   
+1. SSRS 服务器配置 ODBC 数据源。   
    打开 ODBC 数据源管理器（64 位），选择“System DSN”->“Add...”->“TDengine”->“Finish”, 弹出配置窗口如下：
 
    ![cfg-1](img/cfg-1.webp)
