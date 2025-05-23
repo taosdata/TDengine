@@ -2154,13 +2154,9 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     if (pStmt->sql.stbInterlaceMode) {
       int64_t startTs = taosGetTimestampUs();
       // wait for stmt bind thread to finish
-      if (pStmt->sql.siInfo.tbRemainNum > 0) {
-        STMT2_TLOG("wait for all tables to be bound, tbRemainNum:%" PRId64, pStmt->sql.siInfo.tbRemainNum);
-      }
       while (atomic_load_64(&pStmt->sql.siInfo.tbRemainNum)) {
         taosUsleep(1);
       }
-      STMT2_TLOG("all tables bound, tbRemainNum:%" PRId64, pStmt->sql.siInfo.tbRemainNum);
 
       pStmt->stat.execWaitUs += taosGetTimestampUs() - startTs;
       STMT_ERR_RET(qBuildStmtFinOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, pStmt->sql.siInfo.pVgroupList));
@@ -2204,13 +2200,9 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     pStmt->affectedRows += pStmt->exec.affectedRows;
 
     // wait for stmt bind thread to finish
-    if (pStmt->sql.siInfo.tbRemainNum > 0) {
-      STMT2_TLOG("wait for all cols to clean, tableColsReady:%d", pStmt->sql.siInfo.tableColsReady);
-    }
     while (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady)) {
       taosUsleep(1);
     }
-    STMT2_TLOG("all cols cleaned, tableColsReady:%d", pStmt->sql.siInfo.tableColsReady);
 
     STMT_ERR_RET(stmtCleanExecInfo(pStmt, (code ? false : true), false));
 
@@ -2251,13 +2243,9 @@ int stmtClose2(TAOS_STMT2* stmt) {
 
   if (pStmt->bindThreadInUse) {
     // wait for stmt bind thread to finish
-    if (pStmt->sql.siInfo.tableColsReady == 0) {
-      STMT2_TLOG_E("wait for all cols ready, avoid deadlock");
-    }
     while (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady)) {
       taosUsleep(1);
     }
-    STMT2_TLOG_E("all cols ready");
 
     (void)taosThreadMutexLock(&pStmt->queue.mutex);
     pStmt->queue.stopQueue = true;
