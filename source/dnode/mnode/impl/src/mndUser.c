@@ -2987,10 +2987,10 @@ int32_t distableAllUserExcept(SMnode *pMnode, STrans *pTrans, char *user) {
       break;
     }
     (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+    mndUserFreeObj(&newUser);
+    sdbRelease(pSdb, pUser);
   }
 
-  mndUserFreeObj(&newUser);
-  sdbRelease(pSdb, pUser);
   code = 0;
   return code;
 }
