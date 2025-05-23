@@ -2168,6 +2168,7 @@ TAOS_STMT2 *taos_stmt2_init(TAOS *taos, TAOS_STMT2_OPTION *option) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
   }
+  atomic_add_fetch_64(&stmt2_init_metrics, 1);
 
   TAOS_STMT2 *pStmt = stmtInit2(pObj, option);
 

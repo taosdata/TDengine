@@ -921,7 +921,13 @@ void tscStopCrashReport() {
     taosMsleep(100);
   }
 }
-
+void *printStmt2InitMetrics(void *arg) {
+  while (1) {
+    tscInfo("stmt2_init_metrics: %lld\n", stmt2_init_metrics);
+    taosSsleep(60);  // 每隔 1 分钟打印一次
+  }
+  return NULL;
+}
 void taos_write_crashinfo(int signum, void *sigInfo, void *context) {
   writeCrashLogToFile(signum, sigInfo, CUS_PROMPT, lastClusterId, appInfo.startTime);
 }
