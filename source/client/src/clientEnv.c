@@ -239,6 +239,32 @@ static bool checkSlowLogExceptDb(SRequestObj *pRequest, char *exceptDb) {
   }
   return true;
 }
+void *printStmt2InitMetrics(void *arg) {
+  tscInfo("stmt2_init_metrics thread started\n");
+  while (1) {
+    tscInfo("stmt2_init_metrics: %" PRId64 "\n", stmt2_init_metrics);
+    taosSsleep(20);  // 每隔 1 分钟打印一次
+  }
+  tscInfo("stmt2_init_metrics thread stopped\n");
+  return NULL;
+}
+
+static int32_t stmtStartMetricsThread(void) {
+  TdThreadAttr thAttr;
+  if (taosThreadAttrInit(&thAttr) != 0) {
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
+  }
+  if (taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_DETACHED) != 0) {
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
+  }
+  TdThread th;
+  if (taosThreadCreate(&th, &thAttr, printStmt2InitMetrics, NULL) != 0) {
+    return TAOS_SYSTEM_ERROR(ERRNO);
+  }
+
+  (void)taosThreadAttrDestroy(&thAttr);
+  return TSDB_CODE_SUCCESS;
+}
 
 static void deregisterRequest(SRequestObj *pRequest) {
   if (pRequest == NULL) {
@@ -921,13 +947,7 @@ void tscStopCrashReport() {
     taosMsleep(100);
   }
 }
-void *printStmt2InitMetrics(void *arg) {
-  while (1) {
-    tscInfo("stmt2_init_metrics: %lld\n", stmt2_init_metrics);
-    taosSsleep(60);  // 每隔 1 分钟打印一次
-  }
-  return NULL;
-}
+
 void taos_write_crashinfo(int signum, void *sigInfo, void *context) {
   writeCrashLogToFile(signum, sigInfo, CUS_PROMPT, lastClusterId, appInfo.startTime);
 }
@@ -1114,6 +1134,7 @@ void taos_init_imp(void) {
 
   ENV_ERR_RET(initTaskQueue(), "failed to init task queue");
   ENV_ERR_RET(fmFuncMgtInit(), "failed to init funcMgt");
+  ENV_ERR_RET(stmtStartMetricsThread(), "failed to init stmtMetricsThread");
   ENV_ERR_RET(nodesInitAllocatorSet(), "failed to init allocator set");
 
   clientConnRefPool = taosOpenRef(200, destroyTscObj);

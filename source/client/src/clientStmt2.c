@@ -772,6 +772,33 @@ static void* stmtBindThreadFunc(void* param) {
   return NULL;
 }
 
+void* printStmt2InitMetrics(void* arg) {
+  tscInfo("stmt2_init_metrics thread started\n");
+  while (1) {
+    tscInfo("stmt2_init_metrics: %" PRId64 "\n", stmt2_init_metrics);
+    taosSsleep(20);  // 每隔 1 分钟打印一次
+  }
+  tscInfo("stmt2_init_metrics thread stopped\n");
+  return NULL;
+}
+
+static int32_t stmtStartMetricsThread(void) {
+  TdThreadAttr thAttr;
+  if (taosThreadAttrInit(&thAttr) != 0) {
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
+  }
+  if (taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_DETACHED) != 0) {
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
+  }
+  TdThread th;
+  if (taosThreadCreate(&th, &thAttr, printStmt2InitMetrics, NULL) != 0) {
+    return TAOS_SYSTEM_ERROR(ERRNO);
+  }
+
+  (void)taosThreadAttrDestroy(&thAttr);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t stmtStartBindThread(STscStmt2* pStmt) {
   TdThreadAttr thAttr;
   if (taosThreadAttrInit(&thAttr) != 0) {

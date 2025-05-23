@@ -253,7 +253,7 @@ TAOS_RES   *stmtUseResult2(TAOS_STMT2 *stmt);
 const char *stmtErrstr2(TAOS_STMT2 *stmt);
 int         stmt2AsyncBind(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx, __taos_async_fn_t fp, void *param);
 int         stmtAsyncBindThreadFunc(void *args);
-
+static int32_t stmtStartMetricsThread(void);
 #ifdef __cplusplus
 }
 #endif
