@@ -124,6 +124,7 @@ struct Limit {
 }
 
 impl Limit {
+    #[allow(unused)]
     #[cfg(test)]
     pub const fn new(limit: (u32, Option<u32>)) -> Self {
         Self {
@@ -4058,14 +4059,28 @@ fn process_unit_value(option_value: &str) -> String {
 mod tests {
     use super::*;
 
-    //
+    /// # description
+    /// Test synchronize database with taos.
+    /// # description_cn
+    /// 同步数据库，包括 stable 和普通表。
+    /// 1. 创建数据库：x-sync-2和x-sync，在x-sync中写入数据；
+    /// 2. 运行 legacy_to_taos 任务，同步x-sync到x-sync-2；
+    /// 3.  检查x-sync和x-sync-2，同步成功，用例通过，否则用例失败。
+    /// # example
+    /// ```shell
+    /// cargo nextest run -p taosx-core test_sync_with_taos --no-capture --retries 0
+    /// ```
     #[tokio::test(flavor = "multi_thread")]
     async fn test_sync_with_taos() -> anyhow::Result<()> {
-        let _ = pretty_env_logger::formatted_timed_builder()
-            .filter_level(log::LevelFilter::Debug)
-            .try_init();
+        tracing_subscriber::fmt::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .init();
+
         // prepare
-        let taos = TaosBuilder::from_dsn("taos+ws:///")?.build().await?;
+        let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
+        let taos = TaosBuilder::from_dsn(format!("taos://{host}/").into_dsn()?)?
+            .build()
+            .await?;
         taos.exec_many([
             "drop topic if exists `x-sync-2`",
             "drop database if exists `x-sync-2`",
@@ -4086,23 +4101,32 @@ mod tests {
         ])
         .await?;
 
-        let v3: Dsn = "taos:///x-sync".parse()?;
+        // sync database from x-sync to x-sync-2
+        let src: Dsn = format!("taos://{host}/x-sync").parse()?;
+        let dst: Dsn = format!("taos://{host}/x-sync-2").parse()?;
+        legacy_to_taos(src, vec![], dst, CancellationToken::new(), None).await?;
 
-        let v2: Dsn = "taos:///x-sync-2".parse()?;
+        // then
+        let count_src: u32 = taos
+            .query_one("select count(*) from `x-sync`.stb1")
+            .await?
+            .unwrap_or(0);
+        let count_dst: u32 = taos
+            .query_one("select count(*) from `x-sync-2`.stb1")
+            .await?
+            .unwrap_or(0);
+        assert_eq!(count_src, count_dst);
+        let count_src: u32 = taos
+            .query_one("select count(*) from `x-sync`.ntb1")
+            .await?
+            .unwrap_or(0);
+        let count_dst: u32 = taos
+            .query_one("select count(*) from `x-sync-2`.ntb1")
+            .await?
+            .unwrap_or(0);
+        assert_eq!(count_src, count_dst);
 
-        // let v2: Dsn = "taos://localhost:16030/db1?libraryPath=\
-        //     /home/huolinhe/Projects/taosdata/TDengine2.0/debug/build/lib/libtaos.so.2.6.0.0\
-        //     &configDir=\
-        //     /home/huolinhe/Projects/taosdata/taos-connector-rust/taos-optin/tests/cfg/v2"
-        //     .parse()?;
-
-        let _ = QueryOpts {
-            time_range: TimeRange::new()
-                .start(DateTime::parse_from_rfc3339("2022-12-12T08:00:00Z")?.with_timezone(&Utc)),
-            limit: Limit::new((1, Some(1))),
-            ..Default::default()
-        };
-        legacy_to_taos(v3, vec![], v2, CancellationToken::new(), None).await?;
+        // clean
         let _ = taos
             .exec_many([
                 "drop topic if exists `x-sync-2`",
@@ -4114,14 +4138,29 @@ mod tests {
         Ok(())
     }
 
+    /// # description
     /// Test synchronize schema with large columns of table.
-    ///
+    /// # description_cn
+    /// 同步 schema，超级表包含多列和多种数据类型
+    /// 1. 创建数据库 DB1 和 DB2；
+    /// 2. 在 DB1 中创建超级表，超级表包含 3600，12 种不同的数据类型，并创建 1000 张子表；
+    /// 3. 运行 legacy_to_taos 任务，schema=only；
+    /// 4. 检查 DB2 的 schema，schema 同步成功，用例通过，否则失败。
+    /// # jira
     /// Close https://jira.taosdata.com:18080/browse/TS-4323
+    /// # example
+    /// ```shell
+    /// cargo nextest run -p taosx-core test_sync_large_table_with_taos --no-capture --retries 0
+    /// ```
     #[tokio::test(flavor = "multi_thread")]
     async fn test_sync_large_table_with_taos() -> anyhow::Result<()> {
         let _ = tracing_subscriber::fmt::fmt().with_level(true).try_init();
+
         // prepare
-        let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
+        let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
+        let taos = TaosBuilder::from_dsn(format!("taos://{host}/").into_dsn()?)?
+            .build()
+            .await?;
         let db_prefix = "test_large_stable";
         let db1 = format!("{}1", db_prefix);
         let db2 = format!("{}2", db_prefix);
@@ -4155,7 +4194,6 @@ mod tests {
         ];
         let table_prefix = "tB";
         let table_num = 1000;
-
         let columns = 3600;
         let mut create_table_sql = format!("CREATE TABLE `{}` (`ts` TIMESTAMP", stable);
         for i in 0..columns {
@@ -4164,9 +4202,7 @@ mod tests {
             create_table_sql.push_str(format!(", {} {}", column_name, column_type).as_str());
         }
         create_table_sql.push_str(") tags (`t1` INT)");
-
         std::fs::write("tests/large_table.sql", create_table_sql.as_bytes())?;
-
         taos.exec(&create_table_sql).await?;
 
         let show_create: (String, String) = taos
@@ -4174,7 +4210,7 @@ mod tests {
             .await?
             .unwrap();
         let show_sql = show_create.1;
-        tracing::info!(
+        info!(
             truncated_len = show_sql.len(),
             "show create table sql: {}",
             &show_sql.as_str()[(show_sql.len() - 100)..show_sql.len()]
@@ -4189,16 +4225,10 @@ mod tests {
             .await?;
         }
 
-        let v3: Dsn = format!("taos:///{db1}?schema=only").parse()?;
-
-        let v2: Dsn = format!("taos:///{db2}?assert").parse()?;
-        let _ = QueryOpts {
-            time_range: TimeRange::new()
-                .start(DateTime::parse_from_rfc3339("2022-12-12T08:00:00Z")?.with_timezone(&Utc)),
-            limit: Limit::new((1, Some(1))),
-            ..Default::default()
-        };
-        legacy_to_taos(v3, vec![], v2, CancellationToken::new(), None).await?;
+        // sync schema=only
+        let from: Dsn = format!("taos://{host}/{db1}?schema=only").parse()?;
+        let to: Dsn = format!("taos://{host}/{db2}?assert").parse()?;
+        legacy_to_taos(from, vec![], to, CancellationToken::new(), None).await?;
 
         taos.exec(format!("use `{}`", db2)).await?;
         let _ = taos.describe(stable).await?;
@@ -4213,14 +4243,29 @@ mod tests {
         Ok(())
     }
 
+    /// # description
     /// Test synchronize schema with large columns of table.
-    ///
+    /// # description_cn
+    /// 同步 schema，普通表包含多列和多种数据类型
+    /// 1. 创建数据库 DB1 和 DB2；
+    /// 2. 在 DB1 中创建普通表，超级表包含 3600，12 种不同的数据类型，并创建 1000 张子表；
+    /// 3. 运行 legacy_to_taos 任务，schema=only；
+    /// 4. 检查 DB2 的 schema，schema 同步成功，用例通过，否则失败。
+    /// # jira
     /// Close https://jira.taosdata.com:18080/browse/TS-4323
+    /// # example
+    /// ```shell
+    /// cargo nextest run -p taosx-core test_sync_large_normal_table_with_taos --no-capture --retries 0
+    /// ```
     #[tokio::test(flavor = "multi_thread")]
     async fn test_sync_large_normal_table_with_taos() -> anyhow::Result<()> {
         let _ = tracing_subscriber::fmt::fmt().with_level(true).try_init();
+
         // prepare
-        let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
+        let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
+        let taos = TaosBuilder::from_dsn(format!("taos://{host}/").into_dsn()?)?
+            .build()
+            .await?;
         let db_prefix = "test_large_normal_table";
         let db1 = format!("{}1", db_prefix);
         let db2 = format!("{}2", db_prefix);
@@ -4236,7 +4281,6 @@ mod tests {
             format!("use {db1}"),
         ])
         .await?;
-
         let name = "nTb1";
         let types = [
             "TINYINT",
@@ -4252,7 +4296,6 @@ mod tests {
             "BINARY(16)",
             "NCHAR(4)",
         ];
-
         let columns = 3600;
         let mut create_table_sql = format!("CREATE TABLE `{}` (`ts` TIMESTAMP", name);
         for i in 0..columns {
@@ -4261,9 +4304,7 @@ mod tests {
             create_table_sql.push_str(format!(", {} {}", column_name, column_type).as_str());
         }
         create_table_sql.push(')');
-
         std::fs::write("tests/large_normal_table.sql", create_table_sql.as_bytes())?;
-
         taos.exec(&create_table_sql).await?;
 
         let show_create: (String, String) = taos
@@ -4271,26 +4312,20 @@ mod tests {
             .await?
             .unwrap();
         let show_sql = show_create.1;
-        tracing::info!(
+        info!(
             truncated_len = show_sql.len(),
             "show create table sql: {}",
             &show_sql.as_str()[(show_sql.len() - 100)..show_sql.len()]
         );
 
-        let v3: Dsn = format!("taos:///{db1}?schema=only").parse()?;
-
-        let v2: Dsn = format!("taos:///{db2}?assert").parse()?;
-        let _ = QueryOpts {
-            time_range: TimeRange::new()
-                .start(DateTime::parse_from_rfc3339("2022-12-12T08:00:00Z")?.with_timezone(&Utc)),
-            limit: Limit::new((1, Some(1))),
-            ..Default::default()
-        };
-        legacy_to_taos(v3, vec![], v2, CancellationToken::new(), None).await?;
+        // sync schema=only
+        let from: Dsn = format!("taos://{host}/{db1}?schema=only").parse()?;
+        let to: Dsn = format!("taos://{host}/{db2}?assert").parse()?;
+        legacy_to_taos(from, vec![], to, CancellationToken::new(), None).await?;
 
         taos.exec(format!("use `{}`", db2)).await?;
-
-        let _desc = taos.describe(name).await?;
+        let desc = taos.describe(name).await?.to_vec();
+        assert_eq!(desc.len(), columns + 1);
 
         taos.exec_many([
             format!("drop database if exists `{db1}`"),
@@ -4390,12 +4425,12 @@ mod tests {
         for (idx, (code, sql)) in sqls.iter().enumerate() {
             match taos.exec(sql).await {
                 Ok(_) => {
-                    tracing::info!("{}: {}", idx, sql);
-                    assert!(*code == 0, "[{idx}] SQL({sql}) must run ok");
+                    info!("{}: {}", idx, sql);
+                    assert_eq!(*code, 0, "[{idx}] SQL({sql}) must run ok");
                 }
                 Err(e) => {
-                    tracing::info!("{}: {}", idx, e);
-                    assert!(e.code() == *code, "[{idx}] SQL({sql}) must run err");
+                    info!("{}: {}", idx, e);
+                    assert_eq!(e.code(), *code, "[{idx}] SQL({sql}) must run err");
                 }
             }
         }
@@ -4419,12 +4454,28 @@ mod tests {
         assert!(targe_opts.minimal, "minimal should be true");
     }
 
+    /// # description
+    /// Test synchronize with table rename and special characters in table name.
+    /// # description_cn
+    /// 数据同步时，带特殊字符的表名
+    /// 1. 创建数据库 DB1，创建表名包含特殊字符的表：>♑1和nTb1，并各自写入一条数据；
+    /// 2. 创建数据库 DB2；
+    /// 3. 运行 legacy_to_taos 任务，actions=["rename-table:map:nTb1,nTb2"];
+    /// 4. 检查 SINK，>♑1和nTb1 同步成功，用例通过，否则失败。
+    /// # jira
+    /// close https://jira.taosdata.com:18080/browse/TS-5124
+    /// # example
+    /// ```shell
+    /// cargo nextest run -p taosx-core test_ts5124_with_taos --no-capture --retries 0
+    /// ````
     #[tokio::test]
     async fn test_ts5124_with_taos() -> anyhow::Result<()> {
-        let builder = TaosBuilder::from_dsn("taos:///")?;
+        // prepare
+        let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
+        let builder = TaosBuilder::from_dsn(format!("taos://{host}/").into_dsn()?)?;
         let taos1 = builder.build().await?;
         let taos2 = builder.build().await?;
-        let db_prefix = "test_ts5124";
+        let db_prefix = "test_ts5124_";
         let db1 = format!("{}1", db_prefix);
         let db2 = format!("{}2", db_prefix);
         let tid = 5124;
@@ -4447,22 +4498,21 @@ mod tests {
             ])
             .await?;
 
-        let source: Dsn = format!("taos:///{db1}").parse()?;
-
-        let sink: Dsn = format!("taos:///{db2}").parse()?;
-        let _ = QueryOpts {
-            ..Default::default()
-        };
-        let actions = vec![Action::from_str("rename-table:map:nTb1,nTb2").unwrap(); 1];
-
+        // sync
+        let source = format!("taos://{host}/{db1}").into_dsn()?;
+        let sink = format!("taos://{host}/{db2}").into_dsn()?;
+        let actions = vec![Action::from_str("rename-table:map:nTb1,nTb2")?; 1];
         crate::core_metrics::clear_metrics(tid).await;
         let _ = crate::core_metrics::init_task_metrics(&source, &sink, tid, None).await;
-
         legacy_to_taos(source, actions, sink, CancellationToken::new(), Some(tid)).await?;
 
-        // table nTb2 should be created
-        let _ = taos2.exec(format!("desc `{}`.`nTb2`", db2)).await?;
-        let _ = taos2.exec(format!("desc `{}`.`>♑1`", db2)).await?;
+        // check table schema
+        let src_desc = taos1.describe("nTb1").await?;
+        let dst_desc = taos2.describe("nTb2").await?;
+        assert_eq!(src_desc, dst_desc);
+        let src_desc = taos1.describe(">♑1").await?;
+        let dst_desc = taos2.describe(">♑1").await?;
+        assert_eq!(src_desc, dst_desc);
 
         taos1
             .exec_many([
@@ -4474,17 +4524,27 @@ mod tests {
         Ok(())
     }
 
+    /// # description
     /// Test synchronize with table rename and mismatch table schema.
-    ///
-    /// Close https://jira.taosdata.com:18080/browse/TS-6449
-    ///
     /// This test case is used to test the rename-table action.
-    ///
     /// - Source: table nTb1(ts timestamp, v1 double)
     /// - Sink: table nTb2(ts timestamp, v1 float)
+    /// # description_cn
+    /// 表结构不一致时，通过 actions 可以写入成功
+    /// 1. 创建数据库 SOURCE，创建普通表 nTb1，val 为 double，写入 1 条数据；
+    /// 2. 创建数据库 SINK，创建普通表 nTb2，value 为 float；
+    /// 3. 运行 legacy_to_taos 任务，actions=["rename-table:map:nTb1,nTb2"];
+    /// 4. 检查 SINK，在 schema 不一致的情况写，写入成功，用例通过，否则失败。
+    /// # jira
+    /// Close https://jira.taosdata.com:18080/browse/TS-6449
+    /// # example
+    /// ```shell
+    /// cargo nextest run -p taosx-core test_ts6449_with_taos --no-capture --retries 0
+    /// ```
     #[tokio::test]
     async fn test_ts6449_with_taos() -> anyhow::Result<()> {
-        let builder = TaosBuilder::from_dsn("taos:///")?;
+        let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
+        let builder = TaosBuilder::from_dsn(format!("taos://{host}/").into_dsn()?)?;
         let taos1 = builder.build().await?;
         let taos2 = builder.build().await?;
         let db_prefix = "test_ts6449_";
@@ -4509,22 +4569,26 @@ mod tests {
             ])
             .await?;
 
-        let source: Dsn = format!("taos:///{db1}").parse()?;
-
-        let sink: Dsn = format!("taos:///{db2}").parse()?;
-        let _ = QueryOpts {
-            ..Default::default()
-        };
+        // sync
+        let source: Dsn = format!("taos://{host}/{db1}").parse()?;
+        let sink: Dsn = format!("taos://{host}/{db2}").parse()?;
         let actions = vec![Action::from_str("rename-table:map:nTb1,nTb2").unwrap(); 1];
-
         crate::core_metrics::clear_metrics(tid).await;
         let _ = crate::core_metrics::init_task_metrics(&source, &sink, tid, None).await;
-
         legacy_to_taos(source, actions, sink, CancellationToken::new(), Some(tid)).await?;
 
         // table nTb2 should be created
-        let _ = taos2.exec(format!("desc `{}`.`nTb2`", db2)).await?;
+        let count_src: u32 = taos1
+            .query_one("select count(*) from `nTb1`")
+            .await?
+            .unwrap_or(0);
+        let count_dst: u32 = taos2
+            .query_one("select count(*) from `nTb2`")
+            .await?
+            .unwrap_or(0);
+        assert_eq!(count_src, count_dst);
 
+        // clean
         taos1
             .exec_many([
                 format!("drop database if exists `{db1}`"),
@@ -4534,10 +4598,6 @@ mod tests {
         crate::core_metrics::clear_metrics(tid).await;
         Ok(())
     }
-
-    // start: 2024-07-31T01:04:39.316816912Z, end: 2024-07-31T01:04:39.437430018Z
-    // start: 2024-07-31T01:04:39.437430018Z, end: 2024-07-31T01:04:39.560152320Z
-    // start: 2024-07-31T01:04:39.560152320Z, end: 2024-07-31T01:04:40.560887126Z
 
     #[test]
     fn test_to_chunks() {
