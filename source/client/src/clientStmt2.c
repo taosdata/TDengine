@@ -83,7 +83,7 @@ static bool stmtDequeue(STscStmt2* pStmt, SStmtQNode** param) {
   (void)atomic_sub_fetch_64((int64_t*)&pStmt->queue.qRemainNum, 1);
   (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
 
-  STMT2_DLOG("dequeue success, node:%p, remainNum:%lld", node, pStmt->queue.qRemainNum);
+  STMT2_DLOG("dequeue success, node:%p, remainNum:%" PRId64, node, pStmt->queue.qRemainNum);
 
   return true;
 }
@@ -107,7 +107,7 @@ static void stmtEnqueue(STscStmt2* pStmt, SStmtQNode* param) {
 
   (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
 
-  STMT2_TLOG("enqueue param:%p, remainNum:%lld, restoreTbCols:%d", param, pStmt->queue.qRemainNum,
+  STMT2_TLOG("enqueue param:%p, remainNum:%" PRId64 ", restoreTbCols:%d", param, pStmt->queue.qRemainNum,
              param->restoreTbCols);
 }
 
