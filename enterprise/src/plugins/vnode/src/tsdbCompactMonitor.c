@@ -31,6 +31,7 @@ struct SCompMonitor {
   int64_t totalCompactSize;
   int64_t finishedCompactSize;
   int64_t lastUpdateFinishedSizeTime;
+  int32_t killed;
 };
 
 bool tsdbCompMonHasTask(STsdb *tsdb) { return (TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr) > 0); }
@@ -58,6 +59,7 @@ int32_t tsdbAddCompMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId, int6
     tsdb->pCompMonitor->totalCompactSize = 0;
     tsdb->pCompMonitor->finishedCompactSize = 0;
     tsdb->pCompMonitor->lastUpdateFinishedSizeTime = tsdb->pCompMonitor->startTimeSec;
+    tsdb->pCompMonitor->killed = 0;
   }
 
   SCompState state = {
@@ -118,6 +120,7 @@ void tsdbStopAllCompTask(STsdb *tsdb) {
     return;
   }
 
+  tsdb->pCompMonitor->killed = 1;
   i = 0;
   while (i < TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr)) {
     SCompState *state = TARRAY2_GET_PTR(&tsdb->pCompMonitor->stateArr, i);
@@ -153,4 +156,11 @@ int32_t tsdbCompMonitorGetInfo(STsdb *tsdb, SQueryCompactProgressRsp *rsp) {
   }
   TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
   return 0;
+}
+
+int32_t tsdbCompMonitorGetKilled(STsdb *tsdb) {
+  TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
+  int32_t killed = tsdb->pCompMonitor->killed;
+  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
+  return killed;
 }
