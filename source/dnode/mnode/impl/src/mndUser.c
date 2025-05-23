@@ -2939,7 +2939,7 @@ int32_t mndUserRemoveTopic(SMnode *pMnode, STrans *pTrans, char *topic) {
 
 int32_t mndChangeUserExcept(SMnode *pMnode, char *user) {
   int32_t code = 0;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, NULL, "drop-use");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, NULL, "drop-user");
   if (pTrans == NULL) {
     code = -1;
     goto _OVER;
@@ -2970,8 +2970,8 @@ int32_t distableAllUserExcept(SMnode *pMnode, STrans *pTrans, char *user) {
       break;
     }
 
-    if (strcmp(newUser.user, user) == 0 || strcmp(newUser.user, "root") == 0 || strcmp(newUser.user, "decuser") ||
-        strcmp(newUser.user, "keymaster")) {
+    if (strcmp(newUser.user, user) == 0 || strcmp(newUser.user, "root") == 0 || strcmp(newUser.user, "decuser") == 0 ||
+        strcmp(newUser.user, "keymaster") == 0) {
       mndUserFreeObj(&newUser);
       sdbRelease(pSdb, pUser);
       continue;
