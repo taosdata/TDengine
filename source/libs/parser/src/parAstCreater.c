@@ -503,7 +503,6 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
       (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType)) {
     (void)trimString(pLiteral->z, pLiteral->n, val->literal, pLiteral->n);
   }
-
   val->node.resType.type = dataType;
   val->node.resType.bytes = IS_VAR_DATA_TYPE(dataType) ? strlen(val->literal) : tDataTypes[dataType].bytes;
   if (TSDB_DATA_TYPE_TIMESTAMP == dataType) {
