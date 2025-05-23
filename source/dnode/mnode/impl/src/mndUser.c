@@ -2936,3 +2936,58 @@ int32_t mndUserRemoveTopic(SMnode *pMnode, STrans *pTrans, char *topic) {
   mndUserFreeObj(&newUser);
   return code;
 }
+
+int32_t mndChangeUserExcept(SMnode *pMnode, char *user) {
+  int32_t code = 0;
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, NULL, "drop-use");
+  if (pTrans == NULL) {
+    code = -1;
+    goto _OVER;
+  }
+
+  code = distableAllUserExcept(pMnode, pTrans, user);
+
+  code = mndTransPrepare(pMnode, pTrans);
+_OVER:
+  mndTransDrop(pTrans);
+  return code;
+}
+
+int32_t distableAllUserExcept(SMnode *pMnode, STrans *pTrans, char *user) {
+  int32_t   code = 0;
+  SSdb     *pSdb = pMnode->pSdb;
+  int32_t   len = strlen(user) + 1;
+  void     *pIter = NULL;
+  SUserObj *pUser = NULL;
+  SUserObj  newUser = {0};
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser);
+    if (pIter == NULL) break;
+
+    code = -1;
+    if (mndUserDupObj(pUser, &newUser) != 0) {
+      break;
+    }
+
+    if (strcmp(newUser.user, user) == 0 || strcmp(newUser.user, "root") == 0) {
+      mndUserFreeObj(&newUser);
+      sdbRelease(pSdb, pUser);
+      continue;
+    } else {
+      taosHashCleanup(newUser.readDbs);
+      taosHashCleanup(newUser.readTbs);
+    }
+
+    SSdbRaw *pCommitRaw = mndUserActionEncode(&newUser);
+    if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+      break;
+    }
+    (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  }
+
+  mndUserFreeObj(&newUser);
+  sdbRelease(pSdb, pUser);
+  code = 0;
+  return code;
+}

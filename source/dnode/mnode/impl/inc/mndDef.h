@@ -338,15 +338,15 @@ typedef struct {
   int64_t       ipWhiteListVer;
   SIpWhiteList* pIpWhiteList;
 
-  SHashObj* readDbs;
+  SHashObj* readDbs;  // 1
   SHashObj* writeDbs;
-  SHashObj* topics;
-  SHashObj* readTbs;
-  SHashObj* writeTbs;
-  SHashObj* alterTbs;
-  SHashObj* readViews;
-  SHashObj* writeViews;
-  SHashObj* alterViews;
+  SHashObj* topics;      // 1
+  SHashObj* readTbs;     // 1
+  SHashObj* writeTbs;    // 1
+  SHashObj* alterTbs;    // 1
+  SHashObj* readViews;   // 1
+  SHashObj* writeViews;  // 1
+  SHashObj* alterViews;  // 1
   SHashObj* useDbs;
   SRWLatch  lock;
 } SUserObj;

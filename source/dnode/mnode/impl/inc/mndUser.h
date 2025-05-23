@@ -53,6 +53,9 @@ void mndUpdateIpWhiteForAllUser(SMnode *pMnode, char *user, char *fqdn, int8_t t
 
 int32_t mndRefreshUserIpWhiteList(SMnode *pMnode);
 
+int32_t distableAllUserExcept(SMnode *pMnode, STrans *pTrans, char *user);
+int32_t mndChangeUserExcept(SMnode *pMnode, char *user);
+
 #ifdef __cplusplus
 }
 #endif

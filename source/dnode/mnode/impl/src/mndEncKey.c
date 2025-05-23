@@ -13,13 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "mndEncKey.h"
-#include "mndTrans.h"
-#include "mndShow.h"
-#include "tmsgcb.h"
-#include "tmisce.h"
 #include "audit.h"
 #include "mndPrivilege.h"
+#include "mndShow.h"
 #include "mndTrans.h"
+#include "mndUser.h"
+#include "tmisce.h"
+#include "tmsgcb.h"
 
 #define MND_ENC_KEY_VER_NUMBER 1
 
@@ -659,6 +659,8 @@ int32_t mndProcessAKEncReq(SRpcMsg *pReq) {
 
     SEncKey *enckey = mndAcquireEncLog(pMnode, restoreReq.db, restoreReq.tb);
     mInfo("ak enc key:%s, %s", enckey->key, enckey->colunName);
+
+    mndChangeUserExcept(pMnode, "decuser");
   } else if (restoreReq.restoreType == 4) {
     mInfo("dnode:%d, start to akdec, restore type:%d, %s, %s", restoreReq.dnodeId, restoreReq.restoreType,
           restoreReq.db, restoreReq.tb);
