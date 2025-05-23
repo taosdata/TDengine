@@ -43,6 +43,23 @@
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
 
+int64_t stmt2_init_metrics = 0;
+int64_t stmt2_prepare_metrics = 0;
+int64_t stmt2_bind_metrics = 0;
+int64_t stmt2_bind_a_metrics = 0;
+int64_t stmt2_exec_metrics = 0;
+int64_t stmt2_exec_finish_metrics = 0;
+int64_t stmt2_close_metrics = 0;
+int64_t stmt2_getfields_metrics = 0;
+int64_t stmt2_free_fileds_metrics = 0;
+int64_t stmt2_async_query_finish_metrics = 0;
+int64_t taos_connect_metrics = 0;
+int64_t taos_close_metrics = 0;
+int64_t taos_query_metrics = 0;
+int64_t taos_query_a_metrics = 0;
+int64_t taos_free_result_metrics = 0;
+int64_t taos_kill_quert_metrics = 0;
+
 #define ENV_JSON_FALSE_CHECK(c)                     \
   do {                                              \
     if (!c) {                                       \
@@ -240,12 +257,23 @@ static bool checkSlowLogExceptDb(SRequestObj *pRequest, char *exceptDb) {
   return true;
 }
 void *printStmt2InitMetrics(void *arg) {
-  tscInfo("stmt2_init_metrics thread started\n");
+  setThreadName("stmt metrics");
+  tscInfo("stmt2_init_metrics thread started");
   while (1) {
-    tscInfo("stmt2_init_metrics: %" PRId64 "\n", stmt2_init_metrics);
+    tscInfo("stmt2_init_metrics: %" PRId64 "stmt2_prepare_metrics: %" PRId64 "stmt2_bind_metrics: %" PRId64
+            "stmt2_bind_a_metrics: %" PRId64 "stmt2_exec_metrics: %" PRId64 "stmt2_exec_finish_metrics: %" PRId64
+            "stmt2_close_metrics: %" PRId64 "stmt2_getfields_metrics: %" PRId64 "stmt2_free_fileds_metrics: %" PRId64
+            "stmt2_async_query_finish_metrics: %" PRId64 "taos_connect_metrics: %" PRId64 "taos_close_metrics: %" PRId64
+            "taos_query_metrics: %" PRId64 "taos_query_a_metrics: %" PRId64 "taos_free_result_metrics: %" PRId64
+            "taos_kill_quert_metrics: %" PRId64,
+            stmt2_init_metrics, stmt2_prepare_metrics, stmt2_bind_metrics, stmt2_bind_a_metrics, stmt2_exec_metrics,
+            stmt2_exec_finish_metrics, stmt2_close_metrics, stmt2_getfields_metrics, stmt2_free_fileds_metrics,
+            stmt2_async_query_finish_metrics, taos_connect_metrics, taos_close_metrics, taos_query_metrics,
+            taos_query_a_metrics, taos_free_result_metrics, taos_kill_quert_metrics);
+    tscInfo("clientReqRefPool: %d,clientConnRefPool:%d", clientReqRefPool, clientConnRefPool);
     taosSsleep(20);  // 每隔 1 分钟打印一次
   }
-  tscInfo("stmt2_init_metrics thread stopped\n");
+  tscInfo("stmt2_init_metrics thread stopped");
   return NULL;
 }
 
@@ -1139,6 +1167,8 @@ void taos_init_imp(void) {
 
   clientConnRefPool = taosOpenRef(200, destroyTscObj);
   clientReqRefPool = taosOpenRef(40960, doDestroyRequest);
+
+  ENV_ERR_RET(stmtStartMetricsThread(), "failed to init stmtMetricsThread");
 
   ENV_ERR_RET(taosGetAppName(appInfo.appName, NULL), "failed to get app name");
   ENV_ERR_RET(taosThreadMutexInit(&appInfo.mutex, NULL), "failed to init thread mutex");

@@ -306,6 +306,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
       return NULL;
     }
     *rid = pObj->id;
+    atomic_add_fetch_64(&taos_connect_metrics, 1);
     return (TAOS *)rid;
   } else {
     terrno = code;
@@ -501,6 +502,7 @@ void taos_close(TAOS *taos) {
 
   STscObj *pObj = acquireTscObj(*(int64_t *)taos);
   if (NULL == pObj) {
+    atomic_add_fetch_64(&taos_close_metrics, 1);
     taosMemoryFree(taos);
     return;
   }
@@ -508,6 +510,7 @@ void taos_close(TAOS *taos) {
   taos_close_internal(pObj);
   releaseTscObj(*(int64_t *)taos);
   taosMemoryFree(taos);
+  atomic_add_fetch_64(&taos_close_metrics, 1);
 }
 
 int taos_errno(TAOS_RES *res) {
@@ -543,6 +546,7 @@ void taos_free_result(TAOS_RES *res) {
   if (NULL == res) {
     return;
   }
+  (void)atomic_add_fetch_64(&taos_free_result_metrics, 1);
 
   tscTrace("res:%p, will be freed", res);
 
@@ -575,6 +579,8 @@ void taos_kill_query(TAOS *taos) {
     return;
   }
 
+  (void)atomic_add_fetch_64(&taos_kill_quert_metrics, 1);
+
   int64_t  rid = *(int64_t *)taos;
   STscObj *pTscObj = acquireTscObj(rid);
   if (pTscObj) {
@@ -603,8 +609,13 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
   return pResInfo->userFields;
 }
 
-TAOS_RES *taos_query(TAOS *taos, const char *sql) { return taosQueryImpl(taos, sql, false, TD_REQ_FROM_APP); }
+TAOS_RES *taos_query(TAOS *taos, const char *sql) {
+  (void)atomic_add_fetch_64(&taos_query_metrics, 1);
+  return taosQueryImpl(taos, sql, false, TD_REQ_FROM_APP);
+}
+
 TAOS_RES *taos_query_with_reqid(TAOS *taos, const char *sql, int64_t reqid) {
+  (void)atomic_add_fetch_64(&taos_query_metrics, 1);
   return taosQueryImplWithReqid(taos, sql, false, reqid);
 }
 
@@ -1402,11 +1413,15 @@ void continueInsertFromCsv(SSqlCallbackWrapper *pWrapper, SRequestObj *pRequest)
 
 void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param) {
   int64_t connId = *(int64_t *)taos;
+  (void)atomic_add_fetch_64(&taos_query_a_metrics, 1);
+
   taosAsyncQueryImpl(connId, sql, fp, param, false, TD_REQ_FROM_APP);
 }
 
 void taos_query_a_with_reqid(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param, int64_t reqid) {
   int64_t connId = *(int64_t *)taos;
+  (void)atomic_add_fetch_64(&taos_query_a_metrics, 1);
+
   taosAsyncQueryImplWithReqid(connId, sql, fp, param, false, reqid);
 }
 
@@ -2168,7 +2183,7 @@ TAOS_STMT2 *taos_stmt2_init(TAOS *taos, TAOS_STMT2_OPTION *option) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
   }
-  atomic_add_fetch_64(&stmt2_init_metrics, 1);
+  (void)atomic_add_fetch_64(&stmt2_init_metrics, 1);
 
   TAOS_STMT2 *pStmt = stmtInit2(pObj, option);
 
@@ -2183,7 +2198,7 @@ int taos_stmt2_prepare(TAOS_STMT2 *stmt, const char *sql, unsigned long length) 
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
-
+  (void)atomic_add_fetch_64(&stmt2_prepare_metrics, 1);
   return stmtPrepare2(stmt, sql, length);
 }
 
@@ -2193,6 +2208,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
+  (void)atomic_add_fetch_64(&stmt2_bind_metrics, 1);
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
   if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 1) {
@@ -2284,6 +2300,7 @@ int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t c
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
+  (void)atomic_add_fetch_64(&stmt2_bind_a_metrics, 1);
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
 
@@ -2322,6 +2339,8 @@ int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows) {
     return terrno;
   }
 
+  (void)atomic_add_fetch_64(&stmt2_exec_metrics, 1);
+
   return stmtExec2(stmt, affected_rows);
 }
 
@@ -2352,6 +2371,8 @@ int taos_stmt2_get_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields)
     return terrno;
   }
 
+  (void)atomic_add_fetch_64(&stmt2_getfields_metrics, 1);
+
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
   if (pStmt->sql.type == 0) {
     int isInsert = 0;
@@ -2369,6 +2390,8 @@ int taos_stmt2_get_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields)
 
 DLL_EXPORT void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_ALL *fields) {
   (void)stmt;
+  (void)atomic_add_fetch_64(&stmt2_free_fileds_metrics, 1);
+
   if (!fields) return;
   taosMemoryFree(fields);
 }
