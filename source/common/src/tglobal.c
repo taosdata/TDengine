@@ -1128,6 +1128,18 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
     pItem->stype = stype;
   }
 
+  pItem = cfgGetItem(pCfg, "itemsInWriteQ");
+  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
+    pItem->i32 = tsThresholdItemsInWriteQueue;
+    pItem->stype = stype;
+  }
+
+  pItem = cfgGetItem(pCfg, "itemsInStreamQ");
+  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
+    pItem->i32 = tsThresholdItemsInStreamQueue;
+    pItem->stype = stype;
+  }
+
   pItem = cfgGetItem(pCfg, "numOfVnodeFetchThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
     tsNumOfVnodeFetchThreads = numOfCores / 4;
@@ -1626,6 +1638,12 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ratioOfVnodeStreamThreads");
   tsRatioOfVnodeStreamThreads = pItem->fval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "itemsInWriteQ");
+  tsThresholdItemsInWriteQueue = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "itemsInStreamQ");
+  tsThresholdItemsInStreamQueue = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfVnodeFetchThreads");
   tsNumOfVnodeFetchThreads = pItem->i32;

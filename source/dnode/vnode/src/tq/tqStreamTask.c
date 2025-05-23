@@ -141,11 +141,12 @@ static void doStartScanWal(void* param, void* tmrId) {
   }
 
   numOfItems = tmsgGetQueueSize(&pTq->pVnode->msgCb, pMeta->vgId, STREAM_QUEUE);
-  bool tooMany = (numOfItems > tsThresholdItemsInWriteQueue);
+  bool tooMany = (numOfItems > tsThresholdItemsInStreamQueue);
 
   if (!waitEnoughDuration(pMeta) || tooMany) {
     if (tooMany) {
-      tqDebug("vgId:%d %d items (too many) in stream_queue, not scan wal now", vgId, numOfItems);
+      tqDebug("vgId:%d %d items (threshold: %d) in stream_queue, not scan wal now", vgId, numOfItems,
+              tsThresholdItemsInStreamQueue);
     }
 
     streamTmrStart(doStartScanWal, SCAN_WAL_IDLE_DURATION, pParam, pTimer, &pMeta->scanInfo.scanTimer, vgId,
