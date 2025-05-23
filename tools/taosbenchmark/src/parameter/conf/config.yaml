@@ -3,13 +3,18 @@ global:
   log_dir: log/
   cfg_dir: /etc/taos/
 
-  connection_info: &db_conn  # 连接信息锚点
+  # 公共结构定义（可通过锚点复用）
+  connection_info: &db_conn
     host: 192.168.1.1
     port: 6030
     user: root
     password: taosdata
 
-  # 公共结构定义（可通过锚点复用）
+    data_format: &data_format
+      format_type: sql
+    data_channel: &data_channel
+      channel_type: native
+
   database_info: &db_info
     name: testdb
     drop_if_exists: true

@@ -1,5 +1,6 @@
 #pragma once
 #include "ActionBase.h"
+#include "Step.h"
 #include <memory>
 #include <mutex>
 #include <string>

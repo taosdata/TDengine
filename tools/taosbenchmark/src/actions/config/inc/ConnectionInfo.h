@@ -18,8 +18,6 @@ struct ConnectionInfo {
      * @throws std::runtime_error 如果解析失败
      */
     void parse_dsn(const std::string& input_dsn);
-
-
 };
 
 

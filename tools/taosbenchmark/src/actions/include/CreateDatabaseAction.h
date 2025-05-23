@@ -1,17 +1,16 @@
 #pragma once
+
+#include <iostream>
 #include "ActionBase.h"
 #include "ActionFactory.h"
 #include "CreateDatabaseConfig.h"
-#include <iostream>
+
 
 class CreateDatabaseAction : public ActionBase {
 public:
     explicit CreateDatabaseAction(const CreateDatabaseConfig& config) : config_(config) {}
 
-    void execute() override {
-        std::cout << "Creating database: " << config_.database_info.name << std::endl;
-        // 在此处实现具体的创建数据库逻辑
-    }
+    void execute() override;
 
 private:
     CreateDatabaseConfig config_;

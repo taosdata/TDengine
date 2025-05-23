@@ -8,6 +8,8 @@
 
 struct CreateChildTableConfig {
     ConnectionInfo connection_info;  // 数据库连接信息
+    DataFormat data_format;
+    DataChannel data_channel;
     DatabaseInfo database_info;      // 数据库信息
     SuperTableInfo super_table_info; // 超级表信息
     ChildTableInfo child_table_info; // 子表信息

@@ -17,11 +17,6 @@ class ParameterContext {
 public:
     ParameterContext();
 
-    // 解析配置文件
-    void parse_columns_or_tags(const YAML::Node& node, std::vector<SuperTableInfo::Column>& target);
-    void parse_global(const YAML::Node& global_yaml);
-
-
     // 合并参数来源
     void merge_commandline(int argc, char* argv[]);
     void merge_environment_vars();
@@ -49,6 +44,7 @@ private:
     std::unordered_map<std::string, std::string> env_params;
 
     // 辅助方法
+    void parse_global(const YAML::Node& global_yaml);
     void parse_jobs(const YAML::Node& jobs_yaml);
     void parse_steps(const YAML::Node& steps_yaml, std::vector<Step>& steps);
     void parse_create_database_action(Step& step);

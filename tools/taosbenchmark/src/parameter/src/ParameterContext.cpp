@@ -22,6 +22,12 @@ void ParameterContext::parse_global(const YAML::Node& global_yaml) {
     if (global_yaml["connection_info"]) {
         global_config.connection_info = global_yaml["connection_info"].as<ConnectionInfo>();
     }
+    if (global_yaml["data_format"]) {
+        global_config.data_format = global_yaml["data_format"].as<DataFormat>();
+    }
+    if (global_yaml["data_channel"]) {
+        global_config.data_channel = global_yaml["data_channel"].as<DataChannel>();
+    }
     if (global_yaml["database_info"]) {
         global_config.database_info = global_yaml["database_info"].as<DatabaseInfo>();
     }
@@ -94,6 +100,22 @@ void ParameterContext::parse_create_database_action(Step& step) {
         create_db_config.connection_info = config_data.global.connection_info;
     }
 
+    // 解析 data_format（可选）
+    if (step.with["data_format"]) {
+        create_db_config.data_format = step.with["data_format"].as<DataFormat>();
+    } else {
+        // 如果未指定 data_format，则使用全局配置
+        create_db_config.data_format = config_data.global.data_format;
+    }
+
+    // 解析 data_channel（可选）
+    if (step.with["data_channel"]) {
+        create_db_config.data_channel = step.with["data_channel"].as<DataChannel>();
+    } else {
+        // 如果未指定 data_channel，则使用全局配置
+        create_db_config.data_channel = config_data.global.data_channel;
+    }
+
     // 解析 database_info（必需）
     if (step.with["database_info"]) {
         create_db_config.database_info = step.with["database_info"].as<DatabaseInfo>();
@@ -110,13 +132,6 @@ void ParameterContext::parse_create_database_action(Step& step) {
 
 
 void ParameterContext::parse_create_super_table_action(Step& step) {
-    if (!step.with["database_info"]) {
-        throw std::runtime_error("Missing required 'database_info' for create-super-table action.");
-    }
-    if (!step.with["super_table_info"]) {
-        throw std::runtime_error("Missing required 'super_table_info' for create-super-table action.");
-    }
-
     CreateSuperTableConfig create_stb_config;
 
     // 解析 connection_info（可选）
@@ -125,6 +140,22 @@ void ParameterContext::parse_create_super_table_action(Step& step) {
     } else {
         // 如果未指定 connection_info，则使用全局配置
         create_stb_config.connection_info = config_data.global.connection_info;
+    }
+
+    // 解析 data_format（可选）
+    if (step.with["data_format"]) {
+        create_stb_config.data_format = step.with["data_format"].as<DataFormat>();
+    } else {
+        // 如果未指定 data_format，则使用全局配置
+        create_stb_config.data_format = config_data.global.data_format;
+    }
+
+    // 解析 data_channel（可选）
+    if (step.with["data_channel"]) {
+        create_stb_config.data_channel = step.with["data_channel"].as<DataChannel>();
+    } else {
+        // 如果未指定 data_channel，则使用全局配置
+        create_stb_config.data_channel = config_data.global.data_channel;
     }
 
     // 解析 database_info（必需）
@@ -165,6 +196,22 @@ void ParameterContext::parse_create_child_table_action(Step& step) {
         create_child_config.connection_info = config_data.global.connection_info;
     }
 
+    // 解析 data_format（可选）
+    if (step.with["data_format"]) {
+        create_child_config.data_format = step.with["data_format"].as<DataFormat>();
+    } else {
+        // 如果未指定 data_format，则使用全局配置
+        create_child_config.data_format = config_data.global.data_format;
+    }
+
+    // 解析 data_channel（可选）
+    if (step.with["data_channel"]) {
+        create_child_config.data_channel = step.with["data_channel"].as<DataChannel>();
+    } else {
+        // 如果未指定 data_channel，则使用全局配置
+        create_child_config.data_channel = config_data.global.data_channel;
+    }
+
     // 解析 database_info（必需）
     if (step.with["database_info"]) {
         create_child_config.database_info = step.with["database_info"].as<DatabaseInfo>();
@@ -180,7 +227,7 @@ void ParameterContext::parse_create_child_table_action(Step& step) {
     }
 
     // 解析 child_table_info（必需）
-    if (step.with["super_table_info"]) {
+    if (step.with["child_table_info"]) {
         create_child_config.child_table_info = step.with["child_table_info"].as<ChildTableInfo>();
     } else {
         throw std::runtime_error("Missing required 'child_table_info' for create-child-table action.");
@@ -268,7 +315,6 @@ void ParameterContext::parse_subscribe_data_action(Step& step) {
     // 打印解析结果
     std::cout << "Parsed subscribe-data action." << std::endl;
 }
-
 
 
 void ParameterContext::merge_yaml(const YAML::Node& config) {

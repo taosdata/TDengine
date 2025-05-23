@@ -7,6 +7,8 @@
 
 struct CreateSuperTableConfig {
     ConnectionInfo connection_info;
+    DataFormat data_format;
+    DataChannel data_channel;
     DatabaseInfo database_info;
     SuperTableInfo super_table_info;
 };
