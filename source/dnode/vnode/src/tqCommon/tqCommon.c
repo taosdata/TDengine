@@ -328,6 +328,12 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   int32_t reqUpdateTasks = taosArrayGetSize(req.pTaskList);
   int32_t updateTasks = taosHashGetSize(pMeta->updateInfo.pTasks);
 
+  int32_t numOfActualTasks = streamMetaGetNumOfTasks(pMeta);
+  if (numOfActualTasks < reqUpdateTasks) {
+    tqInfo("vgId:%d req updated tasks from mnode-side:%d to vnode-side:%d", vgId, updateTasks, numOfActualTasks);
+    reqUpdateTasks = numOfActualTasks;
+  }
+
   if (restored && isLeader) {
     tqDebug("vgId:%d s-task:0x%x update epset transId:%d, set the restart flag", vgId, req.taskId, req.transId);
     pMeta->startInfo.tasksWillRestart = 1;
