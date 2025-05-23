@@ -358,6 +358,7 @@ static int32_t vnodeCommit(void *arg) {
   SCommitInfo *pInfo = (SCommitInfo *)arg;
   SVnode      *pVnode = pInfo->pVnode;
 
+  int64_t begin_ts = taosGetTimestampUs();
   // commit
   if ((code = vnodeCommitImpl(pInfo))) {
     vFatal("vgId:%d, failed to commit vnode since %s", TD_VID(pVnode), terrstr());
@@ -365,6 +366,9 @@ static int32_t vnodeCommit(void *arg) {
     exit(EXIT_FAILURE);
     goto _exit;
   }
+
+  atomic_add_fetch_64(&pVnode->writeMetrics.commit_time, taosGetTimestampUs() - begin_ts);
+  atomic_add_fetch_64(&pVnode->writeMetrics.commit_count, 1);
 
   vnodeReturnBufPool(pVnode);
 
