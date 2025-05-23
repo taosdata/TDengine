@@ -28,7 +28,6 @@ event_types_pool = ["WINDOW_OPEN", "WINDOW_CLOSE"]
 urls = [" 'http://example.com/notify' ", " 'http://localhost:8000/callback' ", " 'https://api.test.com/hook' "]
 notify_option_list = ["NOTIFY_HISTORY", "ON_FAILURE_PAUSE"]
 into_option_list = [
-    "",
     " INTO create_stream_db.new_table",
     " INTO create_stream_db.exist_super_table",
     " INTO create_stream_db.exist_sub_table",
@@ -38,7 +37,8 @@ into_option_list = [
     " INTO new_table",
     " INTO exist_super_table",
     " INTO exist_sub_table",
-    " INTO exist_normal_table"
+    " INTO exist_normal_table",
+    ""
 ]
 as_subquery_opts = [" AS SELECT * FROM query_table",
                     " AS SELECT first(ts), avg(col1) from query_table",
@@ -221,6 +221,10 @@ def pick_random_combo(source_list, max_len):
     length = random_int(0, max_len)
     return [random_from_list(source_list) for _ in range(length)] if length > 0 else []
 
+def pick_random_combo_fix(source_list, max_len):
+    length = random_int(1, max_len)
+    return [random_from_list(source_list) for _ in range(length)] if length > 0 else []
+
 def generate_notif_def_section(
         total, max_urls=2, max_events=2, max_options=2, max_condition_depth=2
 ):
@@ -228,7 +232,7 @@ def generate_notif_def_section(
     for _ in range(total):
         parts = []
         # optional NOTIFY(url [, ...])
-        notify_urls = pick_random_combo(urls, max_urls)
+        notify_urls = pick_random_combo_fix(urls, max_urls)
         if notify_urls:
             parts.append(f" NOTIFY({', '.join(notify_urls)}) ")
         # optional ON (event_types)
