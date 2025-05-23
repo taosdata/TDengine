@@ -14,7 +14,7 @@
  */
 
 #include "sync.h"
-#include "tcs.h"
+#include "tss.h"
 #include "tq.h"
 #include "tsdb.h"
 #include "vnd.h"
@@ -340,12 +340,12 @@ void vnodeDestroy(int32_t vgId, const char *path, STfs *pTfs, int32_t nodeId) {
     vError("failed to remove path:%s since %s", path, tstrerror(terrno));
   }
 
-  // int32_t nlevel = tfsGetLevel(pTfs);
 #ifdef USE_S3
-  if (nodeId > 0 && vgId > 0 /*&& nlevel > 1*/ && tsS3Enabled) {
-    char vnode_prefix[TSDB_FILENAME_LEN];
-    snprintf(vnode_prefix, TSDB_FILENAME_LEN, "%d/v%df", nodeId, vgId);
-    tcsDeleteObjectsByPrefix(vnode_prefix);
+  if (nodeId > 0 && vgId > 0 && tsS3Enabled) {
+    // we should only do this on the leader node, but it is ok to do this on all nodes
+    char prefix[TSDB_FILENAME_LEN];
+    snprintf(prefix, TSDB_FILENAME_LEN, "vnode%d/", vgId);
+    tssDeleteFileByPrefixFromDefault(prefix);
   }
 #endif
 }
