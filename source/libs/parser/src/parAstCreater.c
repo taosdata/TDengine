@@ -4155,6 +4155,7 @@ SNode* createStreamTriggerOptions(SAstCreateContext* pCxt) {
   pOptions->pPreFilter = NULL;
   pOptions->pWaterMark = NULL;
   pOptions->pMaxDelay = NULL;
+  pOptions->pExpiredTime = NULL;
   pOptions->pEventType = EVENT_WINDOW_CLOSE;
   pOptions->calcNotifyOnly = false;
   pOptions->deleteOutputTable = false;
@@ -4164,7 +4165,6 @@ SNode* createStreamTriggerOptions(SAstCreateContext* pCxt) {
   pOptions->lowLatencyCalc = false;
   pOptions->forceOutput = false;
   pOptions->ignoreDisorder = false;
-  pOptions->expiredTime = 0;
   pOptions->fillHistoryStartTime = 0;
   return (SNode*)pOptions;
 _err:
@@ -4201,7 +4201,7 @@ SNode* setStreamTriggerOptions(SAstCreateContext* pCxt, SNode* pOptions, SStream
       pStreamOptions->deleteRecalc = true;
       break;
     case STREAM_TRIGGER_OPTION_EXPIRED_TIME:
-      pStreamOptions->expiredTime = taosStr2Int32((&pOptionUnit->val)->z, NULL, 10);
+      pStreamOptions->pExpiredTime = pOptionUnit->pNode;
       break;
     case STREAM_TRIGGER_OPTION_FORCE_OUTPUT:
       pStreamOptions->forceOutput = true;
