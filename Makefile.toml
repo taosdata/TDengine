@@ -892,6 +892,8 @@ args = [
   "--html",
   "--exclude",
   "taos-explorer",
+  "--profile",
+  "ci",
 ]
 
 [tasks.test-explorer]
