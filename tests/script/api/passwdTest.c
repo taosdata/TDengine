@@ -304,10 +304,10 @@ void passVerTestMulti(const char *host, char *qstr) {
   queryDB(taos[0], "create database if not exists demo3 vgroups 1 minrows 10", false);
 
   queryDB(taos[0], "create table if not exists demo1.stb (ts timestamp, c1 int, c2 varchar(20)) tags(t1 int)", false);
-  queryDB(taos[0], "create table if not exists demo1.ctb0 using demo1.stb tags('1')", false);
-  queryDB(taos[0], "insert into demo1.ctb0 values(now, 1, 'a\\'bc')", false);
-  queryDB(taos[0], "insert into demo1.ctb0 values(now, 2, 'd''ef')", false);
-  queryDB(taos[0], "select * from demo1.ctb0", true);
+  queryDB(taos[0], "create table if not exists demo1.`ctb0``` using demo1.stb tags('1')", false);
+  queryDB(taos[0], "insert into demo1.`ctb0``` values(now, 1, 'a\\'bc')", false);
+  queryDB(taos[0], "insert into demo1.`ctb0``` values(now, 2, 'd''ef')", false);
+  queryDB(taos[0], "select * from demo1.`ctb0```", true);
   
 
   strcpy(qstr, "alter user root pass 'taos@123'");

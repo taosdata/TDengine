@@ -46,7 +46,9 @@ int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placehol
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   SAstCreateContext cxt;
   initAstCreateContext(pParseCxt, &cxt);
-  void* pParser = ParseAlloc((FMalloc)taosMemMalloc);
+  int32_t bufLen = 0;
+  char*   pBuf = NULL;
+  void*   pParser = ParseAlloc((FMalloc)taosMemMalloc);
   if (!pParser) return terrno;
   int32_t i = 0;
   while (1) {
@@ -55,8 +57,8 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
       Parse(pParser, 0, t0, &cxt);
       goto abort_parse;
     }
-    char  quoteChar = 0;
-    t0.n = tGetToken((char*)&cxt.pQueryCxt->pSql[i], &t0.type, &quoteChar);
+    char  dupQuoteChar = 0;
+    t0.n = tGetToken((char*)&cxt.pQueryCxt->pSql[i], &t0.type, &dupQuoteChar);
     t0.z = (char*)(cxt.pQueryCxt->pSql + i);
     i += t0.n;
 
@@ -81,6 +83,30 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
       }
       default:
         // ParseTrace(stdout, "");
+        if (dupQuoteChar) {  // trim the duplicated quote char
+          if (NULL == pBuf) {
+            bufLen = t0.n < 127 ? 128 : t0.n + 1;
+            pBuf = (char*)taosMemMalloc(bufLen);
+          } else if (bufLen < t0.n + 1) {
+            bufLen = t0.n + 1;
+            char* pTmp = (char*)taosMemRealloc(pBuf, bufLen);
+            if (!pTmp) {
+              cxt.errCode = TSDB_CODE_OUT_OF_MEMORY;
+              goto abort_parse;
+            }
+            pBuf = pTmp;
+          }
+          int32_t k = 0;
+          for (int32_t j = 0; j < t0.n; ++j) {
+            pBuf[k++] = t0.z[j];
+            if (dupQuoteChar == t0.z[j] && dupQuoteChar == t0.z[j + 1]) {
+              ++j;
+            }
+          }
+          pBuf[k] = 0;
+          t0.n = k;
+          t0.z = pBuf;
+        }
         Parse(pParser, t0.type, t0, &cxt);
         if (TSDB_CODE_SUCCESS != cxt.errCode) {
           goto abort_parse;
@@ -89,6 +115,7 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   }
 
 abort_parse:
+  taosMemFreeClear(pBuf);
   ParseFree(pParser, (FFree)taosAutoMemoryFree);
   if (TSDB_CODE_SUCCESS == cxt.errCode) {
     int32_t code = buildQueryAfterParse(pQuery, cxt.pRootNode, cxt.placeholderNo, &cxt.pPlaceholderValues);

@@ -431,7 +431,7 @@ static int32_t tKeywordCode(const char* z, int n) {
  * Return the length of the token that begins at z[0].
  * Store the token type in *type before returning.
  */
-uint32_t tGetToken(const char* z, uint32_t* tokenId, char *quoteChar) {
+uint32_t tGetToken(const char* z, uint32_t* tokenId, char *dupQuoteChar) {
   uint32_t i;
   switch (*z) {
     case ' ':
@@ -568,9 +568,6 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId, char *quoteChar) {
     case '`':
     case '\'':
     case '"': {
-      if (quoteChar) {
-        *quoteChar = *z;
-      }
       int  delim = z[0];
       bool strEnd = false;
       for (i = 1; z[i]; i++) {
@@ -581,6 +578,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId, char *quoteChar) {
 
         if (z[i] == delim) {
           if (z[i + 1] == delim) {
+            if (dupQuoteChar) *dupQuoteChar = *z;
             i++;
           } else {
             strEnd = true;
