@@ -17,7 +17,7 @@ on:
   schedule:
     # - cron: '0 06 * * *'
     # - cron: '0 18 * * *'
-    - cron: '0 */4 * * *'
+    - cron: '0 */12 * * *'
 
 
 concurrency:
