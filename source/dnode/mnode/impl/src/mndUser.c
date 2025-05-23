@@ -2976,7 +2976,9 @@ int32_t distableAllUserExcept(SMnode *pMnode, STrans *pTrans, char *user) {
       continue;
     } else {
       taosHashCleanup(newUser.readDbs);
+      newUser.readDbs = NULL;
       taosHashCleanup(newUser.readTbs);
+      newUser.readTbs = NULL;
     }
 
     SSdbRaw *pCommitRaw = mndUserActionEncode(&newUser);
