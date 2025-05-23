@@ -578,7 +578,9 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId, char *dupQuoteChar) {
 
         if (z[i] == delim) {
           if (z[i + 1] == delim) {
-            if (dupQuoteChar) *dupQuoteChar = *z;
+            if (dupQuoteChar && (*dupQuoteChar != *z)) {
+              *dupQuoteChar = *z;
+            }
             i++;
           } else {
             strEnd = true;

@@ -88,7 +88,7 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
             bufLen = t0.n < 127 ? 128 : t0.n + 1;
             pBuf = (char*)taosMemMalloc(bufLen);
           } else if (bufLen < t0.n + 1) {
-            bufLen = t0.n + 1;
+            bufLen = (t0.n + 1 > bufLen << 1) ? t0.n + 1 : bufLen << 1;
             char* pTmp = (char*)taosMemRealloc(pBuf, bufLen);
             if (!pTmp) {
               cxt.errCode = TSDB_CODE_OUT_OF_MEMORY;
@@ -96,12 +96,15 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
             }
             pBuf = pTmp;
           }
-          int32_t k = 0;
-          for (int32_t j = 0; j < t0.n; ++j) {
+          int32_t j = 0, k = 0;
+          for (; j < t0.n - 1; ++j) {
             pBuf[k++] = t0.z[j];
-            if (dupQuoteChar == t0.z[j] && dupQuoteChar == t0.z[j + 1]) {
-              ++j;
+            if (t0.z[j] == dupQuoteChar) {
+              if (t0.z[j + 1] == dupQuoteChar) ++j;
             }
+          }
+          if (j < t0.n) {
+            pBuf[k++] = t0.z[j];
           }
           pBuf[k] = 0;
           t0.n = k;
