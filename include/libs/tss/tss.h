@@ -23,6 +23,16 @@
 extern "C" {
 #endif
 
+// TODO: rename these variables?
+extern int8_t tsS3Enabled;
+extern int8_t tsS3EnabledCfg;
+extern int32_t tsS3UploadDelaySec;
+extern int32_t tsS3BlockSize;
+extern int32_t tsS3BlockCacheSize;
+extern int32_t tsS3PageCacheSize;
+extern int8_t tsS3StreamEnabled;
+
+
 // forward declaration of SSharedStorage & SSharedStorageType
 struct SSharedStorage;
 typedef struct SSharedStorage SSharedStorage;
@@ -112,6 +122,7 @@ int32_t tssReadFile(SSharedStorage* ss, const char* srcPath, int64_t offset, cha
 int32_t tssDownloadFile(SSharedStorage* ss, const char* srcPath, const char* dstPath, int64_t offset, int64_t size);
 int32_t tssListFile(SSharedStorage* ss, const char* prefix, struct SArray* paths);
 int32_t tssDeleteFile(SSharedStorage* ss, const char* path);
+int32_t tssDeleteFileByPrefix(SSharedStorage* ss, const char* prefix);
 int32_t tssGetFileSize(SSharedStorage* ss, const char* path, int64_t* size);
 
 
@@ -127,6 +138,7 @@ int32_t tssReadFileFromDefault(const char* srcPath, int64_t offset, char* buffer
 int32_t tssDownloadFileFromDefault(const char* srcPath, const char* dstPath, int64_t offset, int64_t size);
 int32_t tssListFileOfDefault(const char* prefix, struct SArray* paths);
 int32_t tssDeleteFileFromDefault(const char* path);
+int32_t tssDeleteFileByPrefixFromDefault(const char* prefix);
 int32_t tssGetFileSizeOfDefault(const char* path, int64_t* size);
 
 
