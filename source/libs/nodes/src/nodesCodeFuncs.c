@@ -5664,6 +5664,7 @@ static int32_t jsonToStreamNode(const SJson* pJson, void* pObj) {
 static const char* jkStreamTagDefTagName = "TagName";
 static const char* jkStreamTagDefDataType = "DataType";
 static const char* jkStreamTagDefTagExpr = "DataType";
+static const char* jkStreamTagDefComment = "Comment";
 
 static int32_t streamTagDefNodeToJson(const void* pObj, SJson* pJson) {
   const SStreamTagDefNode* pNode = (const SStreamTagDefNode*)pObj;
@@ -5673,6 +5674,9 @@ static int32_t streamTagDefNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkStreamTagDefTagExpr, nodeToJson, pNode->pTagExpr);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkStreamTagDefComment, nodeToJson, pNode->pComment);
   }
   return code;
 }
@@ -5685,6 +5689,9 @@ static int32_t jsonToStreamTagDefNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkStreamTagDefTagExpr, &pNode->pTagExpr);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkStreamTagDefComment, &pNode->pComment);
   }
   return code;
 }

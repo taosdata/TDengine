@@ -982,7 +982,7 @@ event_types(A) ::= WINDOW_CLOSE.                                                
 
 /********** into_table_opt **********/
 into_table_opt(A) ::= .                                                           { A = NULL; }
-into_table_opt(A) ::= INTO table_name(B).                                         { A = createRealTableNode(pCxt, NULL, &B, NULL);; }
+into_table_opt(A) ::= INTO full_table_name(B).                                    { A = B; }
 
 /********** output_subtable_opt **********/
 output_subtable_opt(A) ::= .                                                      { A = NULL; }
@@ -1003,7 +1003,10 @@ stream_tags_def_opt(A) ::= TAGS NK_LP stream_tags_def_list(B) NK_RP.            
 stream_tags_def_list(A) ::= stream_tags_def(B).                                        { A = createNodeList(pCxt, B); }
 stream_tags_def_list(A) ::= stream_tags_def_list(B) NK_COMMA stream_tags_def(C).       { A = addNodeToList(pCxt, B, C); }
 
-stream_tags_def(A) ::= column_name(B) type_name(C) AS expression(D).                   { A = createStreamTagDefNode(pCxt, &B, C, releaseRawExprNode(pCxt, D)); }
+stream_tags_def(A) ::= column_name(B) type_name(C) tag_comment(D) AS expression(E).    { A = createStreamTagDefNode(pCxt, &B, C, D, releaseRawExprNode(pCxt, E)); }
+
+tag_comment(A) ::= .                                                                   { A = NULL; }
+tag_comment(A) ::= COMMENT NK_STRING(B).                                               { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
 
 %type column_name_unit                                                                 { SNodeList* }
 %destructor column_name_unit                                                           { nodesDestroyList($$); }
