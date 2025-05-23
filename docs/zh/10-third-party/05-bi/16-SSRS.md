@@ -160,7 +160,7 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    ![browser-3](img/browser-3.webp)
 
 3. 分页浏览报表。  
-   点击“meters“，会分页展示小区内所有智能电表最新采集数据。
+   点击“meters”，会分页展示小区内所有智能电表最新采集数据。
 
    ![browser-4](img/browser-4.webp)
 
