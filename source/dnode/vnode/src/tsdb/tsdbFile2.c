@@ -14,7 +14,6 @@
  */
 
 #include "tsdbFile2.h"
-#include "tcs.h"
 #include "vnd.h"
 
 // to_json
@@ -294,55 +293,25 @@ int32_t tsdbTFileObjUnref(STFileObj *fobj) {
   return 0;
 }
 
-static void tsdbTFileObjRemoveLC(STFileObj *fobj, bool remove_all) {
+static void tsdbTFileObjRemoveLC(STFileObj *fobj) {
   if (fobj->f->type != TSDB_FTYPE_DATA || fobj->f->lcn < 1) {
     tsdbRemoveFile(fobj->fname);
     return;
   }
+
 #ifdef USE_S3
-  if (!remove_all) {
-    // remove local last chunk file
-    char lc_path[TSDB_FILENAME_LEN];
-    tstrncpy(lc_path, fobj->fname, TSDB_FQDN_LEN);
+  // remove local last chunk file
+  char lc_path[TSDB_FILENAME_LEN];
+  tstrncpy(lc_path, fobj->fname, TSDB_FQDN_LEN);
 
-    char *dot = strrchr(lc_path, '.');
-    if (!dot) {
-      tsdbError("unexpected path: %s", lc_path);
-      return;
-    }
-    snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - lc_path), "%d.data", fobj->f->lcn);
-
-    tsdbRemoveFile(lc_path);
-
-  } else {
-    // delete by data file prefix
-    char lc_path[TSDB_FILENAME_LEN];
-    tstrncpy(lc_path, fobj->fname, TSDB_FQDN_LEN);
-
-    char   *object_name = taosDirEntryBaseName(lc_path);
-    int32_t node_id = fobj->nlevel;
-    char    object_name_prefix[TSDB_FILENAME_LEN];
-    snprintf(object_name_prefix, TSDB_FQDN_LEN, "%d/%s", node_id, object_name);
-
-    char *dot = strrchr(object_name_prefix, '.');
-    if (!dot) {
-      tsdbError("unexpected path: %s", object_name_prefix);
-      return;
-    }
-    *(dot + 1) = 0;
-
-    tcsDeleteObjectsByPrefix(object_name_prefix);
-
-    // remove local last chunk file
-    dot = strrchr(lc_path, '.');
-    if (!dot) {
-      tsdbError("unexpected path: %s", lc_path);
-      return;
-    }
-    snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - lc_path), "%d.data", fobj->f->lcn);
-
-    tsdbRemoveFile(lc_path);
+  char *dot = strrchr(lc_path, '.');
+  if (!dot) {
+    tsdbError("unexpected path: %s", lc_path);
+    return;
   }
+  snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - lc_path), "%d.data", fobj->f->lcn);
+
+  tsdbRemoveFile(lc_path);
 #endif
 }
 
@@ -358,7 +327,7 @@ int32_t tsdbTFileObjRemove(STFileObj *fobj) {
   (void)taosThreadMutexUnlock(&fobj->mutex);
   tsdbTrace("remove unref file %s, fobj:%p ref:%d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
-    tsdbTFileObjRemoveLC(fobj, true);
+    tsdbTFileObjRemoveLC(fobj);
     taosMemoryFree(fobj);
   }
   return 0;
@@ -378,7 +347,7 @@ int32_t tsdbTFileObjRemoveUpdateLC(STFileObj *fobj) {
   (void)taosThreadMutexUnlock(&fobj->mutex);
   tsdbTrace("remove unref file %s, fobj:%p ref:%d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
-    tsdbTFileObjRemoveLC(fobj, false);
+    tsdbTFileObjRemoveLC(fobj);
     taosMemoryFree(fobj);
   }
   return 0;
@@ -456,6 +425,7 @@ bool tsdbIsSameTFile(const STFile *f1, const STFile *f2) {
 
 bool tsdbIsTFileChanged(const STFile *f1, const STFile *f2) {
   if (f1->size != f2->size) return true;
+  if (f1->mcount != f2->mcount) return true;
   // if (f1->type == TSDB_FTYPE_STT && f1->stt->nseg != f2->stt->nseg) return true;
   return false;
 }
