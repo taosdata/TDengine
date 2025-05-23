@@ -836,11 +836,14 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     }
 
     // start a new one
+    int64_t begin_ts = taosGetTimestampUs();
     code = vnodeBegin(pVnode);
     if (code) {
       vError("vgId:%d, failed to begin vnode since %s.", TD_VID(pVnode), tstrerror(terrno));
       goto _err;
     }
+    int64_t end_ts = taosGetTimestampUs();
+    (void)atomic_add_fetch_64(&pVnode->writeMetrics.memtable_wait_time, end_ts - begin_ts);
   }
 
 _exit:
