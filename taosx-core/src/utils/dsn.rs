@@ -148,7 +148,7 @@ pub fn json_to_dsn(json: &serde_json::Value) -> anyhow::Result<Dsn> {
             let json_value: serde_json::Value = match serde_json::from_str(&str) {
                 Ok(value) => value,
                 Err(_) => {
-                    tracing::warn!("parse by json failed, use default dsn: {}", str);
+                    tracing::info!("parse by json failed, use default dsn: {}", str);
                     return str
                         .parse()
                         .with_context(|| format!("Invalid data source: {}", json));

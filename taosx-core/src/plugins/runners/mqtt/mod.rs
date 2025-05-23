@@ -74,6 +74,7 @@ pub async fn mqtt_to_taos(
         .or(with_agent.as_ref().map(|a| a.0))
         .context("task id not found")?;
     let persist_config = config.persist_data.as_ref().map(|c| PersistConfig {
+        task_id: tid,
         record_metrics: true,
         schemas: HashMap::from_iter([(
             schema.clone(),

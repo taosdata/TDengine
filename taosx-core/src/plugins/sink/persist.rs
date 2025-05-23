@@ -1,8 +1,8 @@
 use std::{
     collections::HashMap,
-    ops::{ControlFlow, Deref},
-    path::{Path, PathBuf},
-    sync::{atomic::AtomicU64, Arc},
+    ops::Deref,
+    path::PathBuf,
+    sync::{atomic::AtomicU64, Arc, LazyLock},
     time::Duration,
 };
 
@@ -17,14 +17,10 @@ use futures::{
     FutureExt,
 };
 use parking_lot::Mutex;
-use persist_queue::{fs::EntryPosition, writer::Request};
+use persist_queue::fs::EntryPosition;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use tokio::{
-    sync::{oneshot, watch},
-    task::JoinSet,
-};
+use tokio::{sync::oneshot, task::JoinSet};
 
-use tokio_stream::wrappers::WatchStream;
 use tokio_util::sync::CancellationToken;
 
 use taosx_ipc::ack::LushAck;
@@ -40,12 +36,16 @@ const DEFAULT_READ_BATCH_SIZE: usize = 1000;
 const DEFAULT_READ_TIMEOUT: Duration = Duration::from_millis(500);
 const DEFAULT_BATCH_CHUNK_SIZE: usize = 100;
 
-const METRICS_PERSIST_READ_OFFSET: FastStr = FastStr::from_static_str("persist_read_offset");
-const METRICS_PERSIST_WRITE_OFFSET: FastStr = FastStr::from_static_str("persist_write_offset");
+const METRICS_PERSIST_READ_MESSAGES: FastStr = FastStr::from_static_str("persist_read_messages");
+const METRICS_PERSIST_WRITE_MESSAGES: FastStr = FastStr::from_static_str("persist_write_messages");
 const METRICS_PERSIST_INFLIGHT_ACKS: FastStr = FastStr::from_static_str("persist_inflight_acks");
+
+static TASK_PERSIST_METRICS: LazyLock<scc::HashIndex<i64, Arc<PersistMetrics>>> =
+    LazyLock::new(scc::HashIndex::new);
 
 #[derive(Debug, Clone)]
 pub struct PersistConfig {
+    pub task_id: i64,
     pub schemas: HashMap<Arc<Schema>, PathBuf>,
     pub record_metrics: bool,
     /// number of rows in one RecordBatch
@@ -75,10 +75,10 @@ pub struct PersistComponents {
 
 #[derive(Clone)]
 pub struct PersistComponent {
+    pub task_id: i64,
     pub dir: PathBuf,
     pub schema: Arc<Schema>,
     pub payload_tx: flume::Sender<Vec<u8>>,
-    pub request_tx: flume::Sender<persist_queue::writer::Request<EntryPosition>>,
     pub reader_rx: flume::Receiver<persist_queue::Entry<EntryPosition>>,
     pub breakpoint_db: BreakpointDb,
     pub config: Arc<PersistComponentConfig>,
@@ -86,19 +86,19 @@ pub struct PersistComponent {
 
 impl PersistComponent {
     pub fn new(
+        task_id: i64,
         dir: PathBuf,
         schema: Arc<Schema>,
         payload_tx: flume::Sender<Vec<u8>>,
-        request_tx: flume::Sender<persist_queue::writer::Request<EntryPosition>>,
         reader_rx: flume::Receiver<persist_queue::Entry<EntryPosition>>,
         breakpoint_db: BreakpointDb,
         config: Arc<PersistComponentConfig>,
     ) -> Self {
         Self {
+            task_id,
             dir,
             schema,
             payload_tx,
-            request_tx,
             reader_rx,
             breakpoint_db,
             config,
@@ -128,9 +128,12 @@ pub async fn get_persist(
             .context("build persist queue error")?;
         // 获取 breakpoint 数据库
         let path = dir.join("breakpoint");
-        let breakpoint_db = tokio::task::spawn_blocking(move || BreakpointDb::open(&path))
-            .await?
-            .context("open persist breakpoint db error")?;
+        let breakpoint_db = tokio::task::spawn_blocking({
+            let path = path.clone();
+            move || BreakpointDb::open(&path)
+        })
+        .await?
+        .context("open persist breakpoint db error")?;
 
         // 创建 reader
         let (reader_tx, reader_rx) = flume::bounded(channel_batch_size);
@@ -146,6 +149,7 @@ pub async fn get_persist(
             }
             None => persist_queue::fs::ReadFrom::Earliest,
         };
+        tracing::info!(?path, "start persist reader at offset: {breakpoint}");
         let reader = queue
             .new_reader(breakpoint)
             .await
@@ -154,37 +158,52 @@ pub async fn get_persist(
         if let Some(batch_size) = config.batch_size {
             reader_builder = reader_builder.batch_size(batch_size)
         }
-        tasks.spawn(
-            reader_builder
-                .build()
-                .run(token.child_token())
-                .map(|res| res.context("persist reader task error"))
-                .instrument(info_span!("persist queue reader runner")),
-        );
+        tasks.spawn({
+            let path = path.clone();
+            let token = token.child_token();
+            async move {
+                let _guard = utils::defer::defer(|| {
+                    tracing::info!(?path, "perssit queue reader exit");
+                });
+                reader_builder
+                    .build()
+                    .run(token)
+                    .map(|res| res.context("persist reader task error"))
+                    .instrument(info_span!("persist queue reader runner"))
+                    .await
+            }
+        });
 
+        tracing::info!(?path, "start persist writer");
         // 创建 writer
         let w = queue.new_writer::<Vec<u8>>().await?;
         let (payload_tx, payload_rx) = flume::bounded(channel_batch_size);
-        let (request_tx, request_rx) = flume::bounded(1);
-        let mut writer_builder =
-            persist_queue::writer::Writer::builder(w, payload_rx).request_rx(request_rx);
+        let mut writer_builder = persist_queue::writer::Writer::builder(w, payload_rx);
         if let Some(batch_size) = config.batch_size {
             writer_builder = writer_builder.chunk_size(batch_size);
         }
-        tasks.spawn(
-            writer_builder
-                .build()
-                .run(token.child_token())
-                .map(|res| res.context("persist writer task error"))
-                .instrument(info_span!("persist queue writer runner")),
-        );
+        tasks.spawn({
+            let path = path.clone();
+            let token = token.child_token();
+            async move {
+                let _guard = utils::defer::defer(|| {
+                    tracing::info!(?path, "perssit queue writer exit");
+                });
+                writer_builder
+                    .build()
+                    .run(token)
+                    .map(|res| res.context("persist writer task error"))
+                    .instrument(info_span!("persist queue writer runner"))
+                    .await
+            }
+        });
         components.insert(
             schema.clone(),
             PersistComponent::new(
+                config.task_id,
                 dir,
                 schema,
                 payload_tx,
-                request_tx,
                 reader_rx,
                 breakpoint_db,
                 persist_config.clone(),
@@ -225,8 +244,13 @@ where
         .batch_chunk_size
         .unwrap_or(DEFAULT_BATCH_CHUNK_SIZE);
 
-    let metrics = Arc::new(PersistMetrics::new(metrics));
+    let metric_entry = TASK_PERSIST_METRICS
+        .entry(persist.task_id)
+        .or_insert(Arc::new(PersistMetrics::new(metrics)));
+    let metrics = metric_entry.get();
     metrics.reset();
+
+    let path = persist.dir;
 
     // 从 ipc_reader 获取数据写入持久化组件
     // 将接收到的 recordbatch 写入 persist queue
@@ -235,9 +259,12 @@ where
         let token = token.clone();
         let payload_tx = persist.payload_tx;
         let ack_tx = ack_tx.clone();
+        let metrics = metrics.clone();
+        let path = path.clone();
+        tracing::info!(?path, "persist queue write records task start");
         async move {
             let _guard = utils::defer::defer(|| {
-                tracing::debug!("persist queue write records task exit");
+                tracing::info!(?path, "persist queue write records task exit");
             });
             'OUTER: loop {
                 let Some(Ok(rows)) = select_cancel(write_rx.recv_async(), &token).await else {
@@ -253,6 +280,7 @@ where
                         break 'OUTER;
                     }
                     written += 1;
+                    metrics.add_persist_write_messages();
                 }
                 // 回复上游数据源
                 let ack = LushAck {
@@ -281,9 +309,11 @@ where
 
     tasks.spawn({
         let token = token.clone();
+        let path = path.clone();
+        tracing::info!(?path, "persist queue read stream task start");
         async move {
             let _guard = utils::defer::defer(|| {
-                tracing::debug!("persist queue read stream task exit");
+                tracing::info!(?path, "persist queue read stream task exit");
             });
             pin_mut!(stream);
             let mut msg_stream = stream.ready_chunks(batch_chunk_size);
@@ -355,16 +385,18 @@ where
     let (batch_tx, batch_rx) = flume::bounded(1);
     let (acks_tx, acks_rx) = flume::bounded(0);
     let (read_batch_tx, read_batch_rx) = flume::bounded(batch_chunk_size);
-    let (metrics_tx, metrics_rx) = watch::channel(EntryPosition::default());
 
     tasks.spawn({
         let batch_size = persist.config.batch_size.unwrap_or(DEFAULT_READ_BATCH_SIZE);
         let batch_timeout = persist.config.batch_timeout.unwrap_or(DEFAULT_READ_TIMEOUT);
         let token = token.clone();
         let reader_rx = persist.reader_rx;
+        let metrics = metrics.clone();
+        let path = path.clone();
+        tracing::info!(?path, "persist queue read records task start");
         async move {
             let _guard = utils::defer::defer(|| {
-                tracing::debug!("persist queue read records task exit");
+                tracing::info!(?path, "persist queue read records task exit");
             });
             let stream = {
                 use tokio_stream::StreamExt;
@@ -374,12 +406,22 @@ where
             };
             pin_mut!(stream);
             loop {
-                let Some(Some(entries)) = select_cancel(stream.next(), &token).await else {
+                let Ok(res) = tokio::time::timeout(
+                    Duration::from_secs(60),
+                    select_cancel(stream.next(), &token),
+                )
+                .await
+                else {
+                    tracing::warn!("persist queue fetch no messages for 60s");
+                    continue;
+                };
+                let Some(Some(entries)) = res else {
                     break;
                 };
                 let Some(position) = entries.last().map(|entry| entry.position) else {
                     continue;
                 };
+                metrics.add_persist_read_messages(entries.len() as _);
                 let batch = tokio::task::spawn_blocking(move || {
                     entries
                         .into_par_iter()
@@ -407,10 +449,11 @@ where
         let schema = persist.schema.clone();
         let token = token.clone();
         let breakpoint_db = persist.breakpoint_db.clone();
-        let metrics_tx = metrics_tx.clone();
+        let path = path.clone();
+        tracing::info!(?path, "persist queue deserialize records task exit");
         async move {
             let _guard = utils::defer::defer(|| {
-                tracing::debug!("persist queue deserialize records task exit");
+                tracing::info!(?path, "persist queue deserialize records task exit");
             });
             let mut batch_stream = read_batch_rx.into_stream().ready_chunks(batch_chunk_size);
             'OUTER: loop {
@@ -490,9 +533,6 @@ where
                                 &serde_json::to_string(&position)?,
                             )
                             .await?;
-                        if metrics_tx.send(position).is_err() {
-                            break 'OUTER;
-                        }
                         if select_cancel(
                             batch_tx.send_async((Ok::<_, ArrowError>(batch), None)),
                             &token,
@@ -516,13 +556,11 @@ where
         let breakpoint_db = persist.breakpoint_db;
         let token = token.clone();
         let metrics = metrics.clone();
-        let dir = persist.dir.clone();
+        let path = path.clone();
+        tracing::info!(?path, "persist queue ack task start");
         async move {
             let _guard = utils::defer::defer(|| {
-                tracing::debug!("persist queue ack task exit");
-            });
-            let _metrics_guard = crate::utils::defer::defer(|| {
-                metrics.reset();
+                tracing::info!(?path, "persist queue ack task exit");
             });
             use oneshot::error::RecvError;
             // 使用 FuturesOrdered 保证等待 ack 的顺序
@@ -547,12 +585,6 @@ where
                                     .set(PERSIST_QUEUE_BREAKPOINT_KEY, position)
                                     .await
                                     .context("set ack breakpoint error")?;
-                                // 更新读进度
-                                let position: persist_queue::fs::EntryPosition =
-                                        serde_json::from_str(position).context("deserialize position error")?;
-                                if metrics_tx.send(position).is_err() {
-                                    break
-                                }
                             }
                         }
 
@@ -572,7 +604,7 @@ where
                         metrics.add_persist_inflight_acks();
                         if tracing::enabled!(tracing::Level::TRACE) {
                             tracing::trace!(
-                                dir = dir.display().to_string(),
+                                ?path,
                                 inflight_acks = metrics.get_persist_inflight_acks(),
                                 "update persist queue inflight acks",
                             );
@@ -585,84 +617,14 @@ where
         }.in_current_span()
     });
 
-    // 更新 metrics
-    tasks.spawn({
-        let token = token.clone();
-        let request_tx = persist.request_tx;
-        let mut watch_stream = WatchStream::from_changes(metrics_rx);
-        let dir = persist.dir.clone();
-        async move {
-            let _metrics_guard = crate::utils::defer::defer(|| {
-                tracing::debug!("persist queue metrics task exit");
-                metrics.reset()
-            });
-            loop {
-                tokio::select! {
-                    res = watch_stream.next() => {
-                        let Some(read_position) = res else {
-                            break
-                        };
-                        if update_rw_position(&dir, &request_tx, Some(read_position), metrics.clone(), token.child_token()).await.is_break() {
-                            break
-                        }
-                    },
-                    _ = tokio::time::sleep(Duration::from_secs(1)) => {
-                        if update_rw_position(&dir, &request_tx, None, metrics.clone(), token.child_token()).await.is_break() {
-                            break
-                        }
-                    }
-                    _ = token.cancelled() => break
-                };
-            }
-            Ok(())
-        }.in_current_span()
-    });
-
     Ok(batch_rx)
-}
-
-#[tracing::instrument(skip_all)]
-async fn update_rw_position(
-    dir: impl AsRef<Path>,
-    request_tx: &flume::Sender<Request<EntryPosition>>,
-    read_position: Option<EntryPosition>,
-    metrics: Arc<PersistMetrics>,
-    token: CancellationToken,
-) -> ControlFlow<()> {
-    use persist_queue::EntryPosition;
-    let (tx, rx) = oneshot::channel();
-    if select_cancel(request_tx.send_async(Request::Position(tx)), &token)
-        .await
-        .is_none_or(|v| v.is_err())
-    {
-        return ControlFlow::Break(());
-    }
-
-    let Some(Ok(write_position)) = select_cancel(rx, &token).await else {
-        return ControlFlow::Break(());
-    };
-    metrics.set_persist_write_offset(write_position.offset());
-
-    if let Some(position) = read_position {
-        metrics.set_persist_read_offset(position.offset());
-    }
-    if tracing::enabled!(tracing::Level::TRACE) {
-        tracing::trace!(
-            dir = dir.as_ref().display().to_string(),
-            read_offset = metrics.get_persist_read_offset(),
-            write_offset = metrics.get_persist_write_offset(),
-            "update read/write offset"
-        );
-    }
-
-    ControlFlow::Continue(())
 }
 
 struct PersistMetrics {
     core_metrics: Option<Arc<CoreMetrics>>,
 
-    pub persist_read_offset: AtomicU64,
-    pub persist_write_offset: AtomicU64,
+    pub persist_read_messages: AtomicU64,
+    pub persist_write_messages: AtomicU64,
     pub persist_inflight_acks: AtomicU64,
 
     instant: Mutex<std::time::Instant>,
@@ -672,32 +634,32 @@ impl PersistMetrics {
     fn new(core_metrics: Option<Arc<CoreMetrics>>) -> Self {
         Self {
             core_metrics,
-            persist_read_offset: AtomicU64::default(),
-            persist_write_offset: AtomicU64::default(),
+            persist_read_messages: AtomicU64::default(),
+            persist_write_messages: AtomicU64::default(),
             persist_inflight_acks: AtomicU64::default(),
             instant: Mutex::new(std::time::Instant::now()),
         }
     }
 
-    fn set_persist_read_offset(&self, offset: u64) {
-        self.persist_read_offset
-            .store(offset, std::sync::atomic::Ordering::SeqCst);
+    fn add_persist_read_messages(&self, additional: u64) {
+        self.persist_read_messages
+            .fetch_add(additional, std::sync::atomic::Ordering::SeqCst);
         self.update();
     }
 
-    fn get_persist_read_offset(&self) -> u64 {
-        self.persist_read_offset
+    fn get_persist_read_messages(&self) -> u64 {
+        self.persist_read_messages
             .load(std::sync::atomic::Ordering::SeqCst)
     }
 
-    fn set_persist_write_offset(&self, offset: u64) {
-        self.persist_write_offset
-            .store(offset, std::sync::atomic::Ordering::SeqCst);
+    fn add_persist_write_messages(&self) {
+        self.persist_write_messages
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         self.update();
     }
 
-    fn get_persist_write_offset(&self) -> u64 {
-        self.persist_write_offset
+    fn get_persist_write_messages(&self) -> u64 {
+        self.persist_write_messages
             .load(std::sync::atomic::Ordering::SeqCst)
     }
 
@@ -724,10 +686,10 @@ impl PersistMetrics {
         };
         core_metrics
             .ipc()
-            .set_extra_metric(&METRICS_PERSIST_READ_OFFSET, 0);
+            .set_extra_metric(&METRICS_PERSIST_READ_MESSAGES, 0);
         core_metrics
             .ipc()
-            .set_extra_metric(&METRICS_PERSIST_WRITE_OFFSET, 0);
+            .set_extra_metric(&METRICS_PERSIST_WRITE_MESSAGES, 0);
         core_metrics
             .ipc()
             .set_extra_metric(&METRICS_PERSIST_INFLIGHT_ACKS, 0);
@@ -744,12 +706,13 @@ impl PersistMetrics {
             return;
         }
 
-        core_metrics
-            .ipc()
-            .set_extra_metric(&METRICS_PERSIST_READ_OFFSET, self.get_persist_read_offset());
         core_metrics.ipc().set_extra_metric(
-            &METRICS_PERSIST_WRITE_OFFSET,
-            self.get_persist_write_offset(),
+            &METRICS_PERSIST_READ_MESSAGES,
+            self.get_persist_read_messages(),
+        );
+        core_metrics.ipc().set_extra_metric(
+            &METRICS_PERSIST_WRITE_MESSAGES,
+            self.get_persist_write_messages(),
         );
         core_metrics.ipc().set_extra_metric(
             &METRICS_PERSIST_INFLIGHT_ACKS,
@@ -780,6 +743,7 @@ mod tests {
 
         let (mut components, mut tasks) = get_persist(
             PersistConfig {
+                task_id: 0,
                 record_metrics: false,
                 schemas: HashMap::from_iter([(schema.clone(), dir.into_path())]),
                 batch_size: Some(10),

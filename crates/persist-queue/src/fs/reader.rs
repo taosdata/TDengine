@@ -4,6 +4,7 @@ use std::{
     io::SeekFrom,
     path::{Path, PathBuf},
     sync::Arc,
+    time::{Duration, Instant},
 };
 
 use fs2::{lock_contended_error, FileExt};
@@ -26,9 +27,14 @@ enum ReadState {
     Reader(InnerReader),
 }
 
-impl Default for ReadState {
-    fn default() -> Self {
-        Self::Position(ReadFrom::Latest)
+impl std::fmt::Display for ReadState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ReadState::Position(read_from) => write!(f, "POSITION-{}", read_from),
+            ReadState::Reader(inner_reader) => {
+                write!(f, "READER-{}", inner_reader.framed.decoder().position)
+            }
+        }
     }
 }
 
@@ -166,6 +172,15 @@ impl ReadState {
             }
         }
     }
+
+    fn position(&self) -> ReadState {
+        match self {
+            ReadState::Position(read_from) => ReadState::Position(*read_from),
+            ReadState::Reader(inner) => {
+                ReadState::Position(ReadFrom::LastPosition(inner.framed.decoder().position))
+            }
+        }
+    }
 }
 
 async fn open_file_with_lock(
@@ -180,7 +195,7 @@ async fn open_file_with_lock(
     })?;
     match lock_file.try_lock_shared() {
         Ok(_) => {}
-        Err(e) if e.kind() == lock_contended_error().kind() => {
+        Err(e) if e.to_string() == lock_contended_error().to_string() => {
             return FileLockedSnafu {
                 path: &lock_file_path,
             }
@@ -360,28 +375,20 @@ impl RawReader for Reader {
     type EntryPosition = super::EntryPosition;
 
     async fn read(&mut self, max_batch_size: usize) -> Result<Vec<Entry<Self::EntryPosition>>> {
-        let mut inner = match std::mem::take(&mut self.state) {
-            ReadState::Reader(inner) => {
-                // 暂存当前状态
-                self.state =
-                    ReadState::Position(ReadFrom::LastPosition(inner.framed.decoder().position));
-                inner
-            }
+        let current_position = self.state.position();
+        let mut inner = match std::mem::replace(&mut self.state, current_position) {
+            ReadState::Reader(inner) => inner,
             ReadState::Position(from) => match self.rotate(ReadState::Position(from)).await? {
-                ReadState::Position(from) => {
-                    self.state = ReadState::Position(from);
+                ReadState::Position(_) => {
                     return Ok(vec![]);
                 }
-                ReadState::Reader(inner) => {
-                    self.state = ReadState::Position(ReadFrom::LastPosition(
-                        inner.framed.decoder().position,
-                    ));
-                    inner
-                }
+                ReadState::Reader(inner) => inner,
             },
         };
 
         let mut entries = Vec::with_capacity(max_batch_size);
+        let mut last_instant = Instant::now();
+        const LOG_DURATION: Duration = Duration::from_secs(5);
         loop {
             match inner.framed.next().await.transpose()? {
                 Some(entry) => {
@@ -391,18 +398,36 @@ impl RawReader for Reader {
                     }
                 }
                 None => {
-                    // 文件被删除，直接返回，下次读下一个文件
                     if !self.need_rotate(&inner) {
                         break;
                     }
+                    if last_instant.elapsed() >= LOG_DURATION {
+                        tracing::info!("perssit file reader will rotate to next file");
+                    }
                     match self.rotate(ReadState::Reader(inner)).await? {
                         ReadState::Position(from) => {
+                            if last_instant.elapsed() >= LOG_DURATION {
+                                tracing::info!(
+                                    "perssit file reader next rotate file from {from} not found"
+                                );
+                            }
                             self.state = ReadState::Position(from);
                             return Ok(entries);
                         }
-                        ReadState::Reader(new_inner) => inner = new_inner,
+                        ReadState::Reader(new_inner) => {
+                            if last_instant.elapsed() >= LOG_DURATION {
+                                tracing::info!(
+                                    seg = ?new_inner.segment,
+                                    "perssit file reader rotate to next file"
+                                );
+                            }
+                            inner = new_inner
+                        }
                     }
                 }
+            }
+            if last_instant.elapsed() >= LOG_DURATION {
+                last_instant = Instant::now();
             }
         }
 
@@ -419,27 +444,18 @@ impl RawReader for Reader {
     ) -> Result<Vec<Entry<Self::EntryPosition>>> {
         let deadline = timeout.map(|timeout| tokio::time::Instant::now() + timeout);
 
-        let mut inner = match std::mem::take(&mut self.state) {
-            ReadState::Reader(inner) => {
-                self.state =
-                    ReadState::Position(ReadFrom::LastPosition(inner.framed.decoder().position));
-                inner
-            }
+        let current_position = self.state.position();
+        let mut inner = match std::mem::replace(&mut self.state, current_position) {
+            ReadState::Reader(inner) => inner,
             ReadState::Position(from) => {
                 match self
                     .rotate_timeout_at(ReadState::Position(from), deadline)
                     .await?
                 {
-                    ReadState::Position(from) => {
-                        self.state = ReadState::Position(from);
+                    ReadState::Position(_) => {
                         return Ok(vec![]);
                     }
-                    ReadState::Reader(inner) => {
-                        self.state = ReadState::Position(ReadFrom::LastPosition(
-                            inner.framed.decoder().position,
-                        ));
-                        inner
-                    }
+                    ReadState::Reader(inner) => inner,
                 }
             }
         };
@@ -459,15 +475,25 @@ impl RawReader for Reader {
                     }
                     // 文件被删除，或者是读到了文件结尾，则切换下一个文件
                     if self.need_rotate(&inner) {
+                        tracing::info!("perssit file reader will rotate to next file");
                         match self
                             .rotate_timeout_at(ReadState::Reader(inner), deadline)
                             .await?
                         {
                             ReadState::Position(from) => {
+                                tracing::info!(
+                                    "perssit file reader next rotate file from {from} not found"
+                                );
                                 self.state = ReadState::Position(from);
                                 return Ok(entries);
                             }
-                            ReadState::Reader(new_inner) => inner = new_inner,
+                            ReadState::Reader(new_inner) => {
+                                tracing::info!(
+                                    seg = ?new_inner.segment,
+                                    "perssit file reader rotate to next file"
+                                );
+                                inner = new_inner
+                            }
                         }
                         continue;
                     }
@@ -511,7 +537,7 @@ impl RawReader for Reader {
             })?;
             match lock_file.try_lock_exclusive() {
                 Ok(_) => {}
-                Err(e) if e.kind() == lock_contended_error().kind() => {
+                Err(e) if e.to_string() == lock_contended_error().to_string() => {
                     tracing::warn!("vacuum {} failed, file is locked, ignore", path.display());
                     continue;
                 }

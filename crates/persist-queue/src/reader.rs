@@ -86,6 +86,9 @@ where
                             }
                         }
                     },
+                    _ = ticker.tick() => {
+                        self.reader.vacuum().await?;
+                    }
                     _ = token.cancelled() => break
                 }
             }
