@@ -186,13 +186,13 @@ int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int3
     SRpcMsg msg = {.msgType = TDMT_STREAM_CHKPT_EXEC, .pCont = buf, .contLen = tlen + sizeof(SMsgHead)};
     code = tmsgPutToQueue(pMsgCb, STREAM_CHKPT_QUEUE, &msg);
     if (code) {
-      stError("vgId:%d failed to put msg into stream chkpt queue, code:%s, %x", vgId, tstrerror(code), taskId);
+      stError("vgId:%d failed to put msg into stream chkpt queue, code:%s, 0x%x", vgId, tstrerror(code), taskId);
     }
   } else {
     SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = buf, .contLen = tlen + sizeof(SMsgHead)};
     code = tmsgPutToQueue(pMsgCb, STREAM_QUEUE, &msg);
     if (code) {
-      stError("vgId:%d failed to put msg into stream queue, code:%s, %x", vgId, tstrerror(code), taskId);
+      stError("vgId:%d failed to put msg into stream queue, code:%s, 0x%x", vgId, tstrerror(code), taskId);
     }
   }
   return code;

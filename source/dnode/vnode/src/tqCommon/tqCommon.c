@@ -318,7 +318,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   }
 
   // keep info
-  streamMetaAddIntoUpdateTaskList(pMeta, pTask, (pHTask != NULL) ? (pHTask) : NULL, req.transId, st);
+  streamMetaAddIntoUpdateTaskList(pMeta, pTask, req.transId, st);
   streamMetaReleaseTask(pMeta, pTask);
   streamMetaReleaseTask(pMeta, pHTask);
 
@@ -327,6 +327,35 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   // possibly only handle the stream task.
   int32_t reqUpdateTasks = taosArrayGetSize(req.pTaskList);
   int32_t updateTasks = taosHashGetSize(pMeta->updateInfo.pTasks);
+  bool    hasUnupdated = false;
+
+  for(int32_t i = 0; i < taosArrayGetSize(req.pTaskList); ++i) {
+
+    int32_t* pTaskId = (int32_t*) taosArrayGet(req.pTaskList, i);
+    if (pTaskId != NULL) {
+      int32_t index = -1;
+
+      for(int32_t j = 0; j < taosArrayGetSize(pMeta->pTaskList); ++j) {
+        SStreamTaskId* pId = taosArrayGet(pMeta->pTaskList, j);
+        if (*pTaskId == pId->taskId) {  // task id exist in vnode
+          index = j;
+          break;
+        }
+      }
+
+      if (index != -1) {
+        SStreamTaskId*   pId = taosArrayGet(pMeta->pTaskList, index);
+        STaskUpdateEntry uEntry = {.streamId = pId->streamId, .taskId = pId->taskId, .transId = req.transId};
+        void*            p = taosHashGet(pMeta->updateInfo.pTasks, &uEntry, sizeof(uEntry));
+        if (p == NULL) {
+          tqInfo("vgId:%d s-task:0x%x not updated yet, wait for it to be updated", vgId, uEntry.taskId);
+          hasUnupdated = true;
+        }
+      } else {
+        tqError("vgId:%d s-task:0x%x not exists, ignore update", vgId, *pTaskId);
+      }
+    }
+  }
 
   int32_t numOfActualTasks = streamMetaGetNumOfTasks(pMeta);
   if (numOfActualTasks < reqUpdateTasks) {
@@ -339,7 +368,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     pMeta->startInfo.tasksWillRestart = 1;
   }
 
-  if (updateTasks < reqUpdateTasks) {
+  if (hasUnupdated) {
     if (isLeader) {
       tqInfo("vgId:%d closed tasks:%d, unclosed:%d, all tasks will be started when nodeEp update completed", vgId,
               updateTasks, (reqUpdateTasks - updateTasks));
@@ -381,7 +410,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   return rsp.code;  // always return true
 }
 
-int32_t tqStreamTaskProcessDispatchReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
+int32_t tqStreamTaskProcessDispatchReq(SStreamMeta* pMeta, SRpcMsg* pMsg, const SMsgCb* msgcb) {
   char*   msgStr = pMsg->pCont;
   char*   msgBody = POINTER_SHIFT(msgStr, sizeof(SMsgHead));
   int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
@@ -402,7 +431,7 @@ int32_t tqStreamTaskProcessDispatchReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   int32_t      code = streamMetaAcquireTask(pMeta, req.streamId, req.taskId, &pTask);
   if (pTask && (code == 0)) {
     SRpcMsg rsp = {.info = pMsg->info, .code = 0};
-    if (streamProcessDispatchMsg(pTask, &req, &rsp) != 0) {
+    if (streamProcessDispatchMsg(pTask, &req, &rsp, msgcb) != 0) {
       return -1;
     }
     tCleanupStreamDispatchReq(&req);
