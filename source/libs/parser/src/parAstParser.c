@@ -57,8 +57,13 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
       Parse(pParser, 0, t0, &cxt);
       goto abort_parse;
     }
-    char  dupQuoteChar = 0;
-    t0.n = tGetToken((char*)&cxt.pQueryCxt->pSql[i], &t0.type, &dupQuoteChar);
+    if (!pParseCxt->hasDupQuoteChar) {
+      char dupQuoteChar = 0;
+      t0.n = tGetToken((char*)&cxt.pQueryCxt->pSql[i], &t0.type, &dupQuoteChar);
+      if (dupQuoteChar) pParseCxt->hasDupQuoteChar = true;
+    } else {
+      t0.n = tGetToken((char*)&cxt.pQueryCxt->pSql[i], &t0.type, NULL);
+    }
     t0.z = (char*)(cxt.pQueryCxt->pSql + i);
     i += t0.n;
 
@@ -83,6 +88,7 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
       }
       default:
         // ParseTrace(stdout, "");
+#if 0
         if (dupQuoteChar) {  // trim the duplicated quote char
           if (NULL == pBuf) {
             bufLen = t0.n < 127 ? 128 : t0.n + 1;
@@ -110,6 +116,7 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
           t0.n = k;
           t0.z = pBuf;
         }
+#endif
         Parse(pParser, t0.type, t0, &cxt);
         if (TSDB_CODE_SUCCESS != cxt.errCode) {
           goto abort_parse;
