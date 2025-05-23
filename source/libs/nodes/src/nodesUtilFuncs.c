@@ -427,6 +427,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_STREAM_TRIGGER:
       code = makeNode(type, sizeof(SStreamTriggerNode), &pNode);
       break;
+    case QUERY_NODE_STREAM_TAG_DEF:
+      code = makeNode(type, sizeof(SStreamTagDefNode), &pNode);
+      break;
     case QUERY_NODE_NODE_LIST:
       code = makeNode(type, sizeof(SNodeListNode), &pNode);
       break;
