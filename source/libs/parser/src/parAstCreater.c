@@ -488,7 +488,12 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   SValueNode* val = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&val);
   CHECK_MAKE_NODE(val);
-  val->literal = taosStrndup(pLiteral->z, pLiteral->n);
+  // if ((TK_NK_ID == pLiteral->type) && (pLiteral->z[0] == '`') && (pLiteral->n > 1) &&
+  //     (pLiteral->z[pLiteral->n - 1] == '`') && IS_VAR_DATA_TYPE(dataType)) {
+  //   val->literal = taosStrndup(pLiteral->z + 1, pLiteral->n - 2);
+  // } else {
+    val->literal = taosStrndup(pLiteral->z, pLiteral->n);
+  // }
   if (!val->literal) {
     pCxt->errCode = terrno;
     nodesDestroyNode((SNode*)val);
@@ -498,6 +503,7 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
       (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType)) {
     (void)trimString(pLiteral->z, pLiteral->n, val->literal, pLiteral->n);
   }
+
   val->node.resType.type = dataType;
   val->node.resType.bytes = IS_VAR_DATA_TYPE(dataType) ? strlen(val->literal) : tDataTypes[dataType].bytes;
   if (TSDB_DATA_TYPE_TIMESTAMP == dataType) {
