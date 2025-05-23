@@ -136,6 +136,28 @@ int32_t tssDeleteFile(SSharedStorage* ss, const char* path) {
 }
 
 
+int32_t tssDeleteFileByPrefix(SSharedStorage* ss, const char* prefix) {
+    struct SArray* paths = taosArrayInit(10, sizeof(char*));
+    int32_t        code = tssListFile(ss, prefix, paths);
+    if (code != TSDB_CODE_SUCCESS) {
+        taosArrayDestroy(paths);
+        return code;
+    }
+
+    for (int i = 0; i < taosArrayGetSize(paths); i++) {
+        char* p = *(char**)taosArrayGet(paths, i);
+        code = tssDeleteFile(ss, p);
+        taosMemFree(p);
+        if (code != TSDB_CODE_SUCCESS) {
+            tssWarn("failed to delete file %s, code: %d", p, code);
+        }
+    }
+
+    taosArrayDestroy(paths);
+    return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t tssGetFileSize(SSharedStorage* ss, const char* path, int64_t* size) {
     return ss->type->getFileSize(ss, path, size);
 }
@@ -200,6 +222,9 @@ int32_t tssDeleteFileFromDefault(const char* path) {
     return g_default->type->deleteFile(g_default, path);
 }
 
+int32_t tssDeleteFileByPrefixFromDefault(const char* prefix) {
+    return tssDeleteFileByPrefix(g_default, prefix);
+}
 
 int32_t tssGetFileSizeOfDefault(const char* path, int64_t* size) {
     return g_default->type->getFileSize(g_default, path, size);

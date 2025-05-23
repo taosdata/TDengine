@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "functionMgt.h"
-#include "tcs.h"
+#include "tss.h"
 #include "tsdb.h"
 #include "tsdbDataFileRW.h"
 #include "tsdbIter.h"
@@ -4155,11 +4155,22 @@ static void getBCacheKey(int32_t fid, int64_t commitID, int64_t blkno, char *key
 static int32_t tsdbCacheLoadBlockS3(STsdbFD *pFD, uint8_t **ppBlock) {
   int32_t code = 0;
 
-  int64_t block_offset = (pFD->blkno - 1) * tsS3BlockSize * pFD->szPage;
+  int64_t block_size = tsS3BlockSize * pFD->szPage;
+  int64_t block_offset = (pFD->blkno - 1) * block_size;
+  
+  char* buf = taosMemoryMalloc(block_size);
+  if (buf == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
 
-  TAOS_CHECK_RETURN(tcsGetObjectBlock(pFD->objName, block_offset, tsS3BlockSize * pFD->szPage, 0, ppBlock));
-
-  tsdbTrace("block:%p load from s3", *ppBlock);
+  // TODO: pFD->objName is not initialized, but this function is never called.
+  code = tssReadFileFromDefault(pFD->objName, block_offset, buf, &block_size);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(buf);
+    goto _exit;
+  }
+  *ppBlock = buf;
 
 _exit:
   return code;

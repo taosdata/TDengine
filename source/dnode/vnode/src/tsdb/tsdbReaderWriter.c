@@ -14,7 +14,7 @@
  */
 
 #include "crypt.h"
-#include "tcs.h"
+#include "tss.h"
 #include "tsdb.h"
 #include "tsdbDef.h"
 #include "vnd.h"
@@ -342,67 +342,53 @@ _exit:
   }
   return code;
 }
+
+
 #ifdef USE_S3
-static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, bool check, uint8_t **ppBlock) {
-  int32_t    code = 0;
-  int32_t    lino;
-  SVnodeCfg *pCfg = &pFD->pTsdb->pVnode->config;
-  int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
-  int64_t    cOffset = offset % chunksize;
-  int64_t    n = 0;
-  char      *buf = NULL;
+static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, uint8_t **ppBlock) {
+  int32_t code = 0, lino, vid = TD_VID(pFD->pTsdb->pVnode);
 
-  char   *object_name = taosDirEntryBaseName(pFD->path);
-  char    object_name_prefix[TSDB_FILENAME_LEN];
-  int32_t node_id = vnodeNodeId(pFD->pTsdb->pVnode);
-  snprintf(object_name_prefix, TSDB_FQDN_LEN, "%d/%s", node_id, object_name);
-
-  char *dot = strrchr(object_name_prefix, '.');
-  if (!dot) {
-    tsdbError("unexpected path: %s", object_name_prefix);
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(ENOENT), lino, _exit);
-  }
-
-  buf = taosMemoryCalloc(1, size);
+  char* buf = taosMemoryCalloc(1, size);
   if (buf == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
-  for (int32_t chunkno = offset / chunksize + 1; n < size; ++chunkno) {
-    int64_t nRead = TMIN(chunksize - cOffset, size - n);
+  SVnodeCfg *pCfg = &pFD->pTsdb->pVnode->config;
+  int64_t szChunk = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
 
-    if (chunkno >= pFD->lcn) {
-      // read last chunk
-      int64_t ret = taosLSeekFile(pFD->pFD, chunksize * (chunkno - pFD->lcn) + cOffset, SEEK_SET);
-      if (ret < 0) {
+  for (int64_t n = 0, nRead = 0; n < size; n += nRead, offset += nRead) {
+    int chunk = offset / szChunk + 1;
+
+    if (chunk >= pFD->lcn) {
+      if (taosLSeekFile(pFD->pFD, offset - szChunk * (pFD->lcn - 1), SEEK_SET) < 0) {
         TSDB_CHECK_CODE(code = terrno, lino, _exit);
       }
 
-      ret = taosReadFile(pFD->pFD, buf + n, nRead);
-      if (ret < 0) {
+      int64_t toRead = size - n;
+      nRead = taosReadFile(pFD->pFD, buf + n, toRead);
+      if (nRead < 0) {
         TSDB_CHECK_CODE(code = terrno, lino, _exit);
-      } else if (ret < nRead) {
+      } else if (nRead < toRead) {
         TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
       }
     } else {
-      uint8_t *pBlock = NULL;
+      int64_t toRead = TMIN(szChunk - offset % szChunk, size - n);
+      nRead = toRead;
 
-      snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - object_name_prefix), "%d.data", chunkno);
+      char path[TSDB_FILENAME_LEN];
+      sprintf(path, "vnode%d/f%d/v%df%dver%" PRId64 ".%d.data", vid, pFD->fid, vid, pFD->fid, pFD->cid, chunk);
 
-      code = tcsGetObjectBlock(object_name_prefix, cOffset, nRead, check, &pBlock);
+      code = tssReadFileFromDefault(path, offset % szChunk, buf + n, &nRead);
       TSDB_CHECK_CODE(code, lino, _exit);
-
-      memcpy(buf + n, pBlock, nRead);
-      taosMemoryFree(pBlock);
+      if (nRead < toRead) {
+        TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+      }
     }
-
-    n += nRead;
-    cOffset = 0;
   }
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(pFD->pTsdb->pVnode), lino, code);
+    TSDB_ERROR_LOG(vid, lino, code);
     taosMemoryFree(buf);
   } else {
     *ppBlock = (uint8_t *)buf;
@@ -410,6 +396,9 @@ _exit:
   return code;
 }
 #endif
+
+
+
 static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, int64_t szHint) {
 #ifdef USE_S3
   int32_t code = 0;
@@ -476,7 +465,7 @@ static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64
 
     int64_t retrieve_size = (pgnoEnd - pgno + 1) * pFD->szPage;
 
-    code = tsdbReadFileBlock(pFD, retrieve_offset, retrieve_size, 1, &pBlock);
+    code = tsdbReadFileBlock(pFD, retrieve_offset, retrieve_size, &pBlock);
     TSDB_CHECK_CODE(code, lino, _exit);
     // 3, Store Pages in Cache
     int nPage = pgnoEnd - pgno + 1;

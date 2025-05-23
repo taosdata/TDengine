@@ -197,7 +197,7 @@ static int32_t tsdbMigrateFile(SRTNer* rtner, int32_t vid, STFileObj* fobj) {
     return TSDB_CODE_SUCCESS;
   }
 
-  const char* fname = strrchr(fobj->fname, TD_DIRSEP[0]) + 1;
+  const char* fname = strrchr(fobj->fname, TD_DIRSEP_CHAR) + 1;
   STFile* f = fobj->f;
   
   char path[TSDB_FILENAME_LEN];
@@ -372,7 +372,6 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
     return false; // file too small, no need to migrate
   }
 
-  extern int32_t tsS3UploadDelaySec;
   if (mtime >= rtner->now - tsS3UploadDelaySec) {
     return false; // still active writing, postpone migration
   }
