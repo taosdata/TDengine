@@ -21,6 +21,12 @@
 #include "taoserror.h"
 #include "tmisce.h"
 
+void mstWaitRLock(SRWLatch* pLock) {
+  while (taosRTryLockLatch(pLock)) {
+    taosMsleep(1);
+  }
+}
+
 int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped) {
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
@@ -269,6 +275,18 @@ int32_t mstCheckSnodeExists(SMnode *pMnode) {
   return TSDB_CODE_SNODE_NOT_DEPLOYED;
 }
 
+void mstSetTaskStatusFromMsg(SStmGrpCtx* pCtx, SStmTaskStatus* pTask, SStmTaskStatusMsg* pMsg) {
+  pTask->id.taskId = pMsg->taskId;
+  pTask->id.deployId = pMsg->deployId;
+  pTask->id.seriousId = pMsg->seriousId;
+  pTask->id.nodeId = pMsg->nodeId;
+  pTask->id.taskIdx = pMsg->taskIdx;
+
+  pTask->type = pMsg->type;
+  pTask->flags = pMsg->flags;
+  pTask->status = pMsg->status;
+  pTask->lastUpTs = pCtx->currTs;
+}
 
 bool mndStreamActionDequeue(SStmActionQ* pQueue, SStmQNode **param) {
   while (0 == atomic_load_64(&pQueue->qRemainNum)) {
@@ -300,7 +318,7 @@ void mndStreamActionEnqueue(SStmActionQ* pQueue, SStmQNode* param) {
 void mndStreamPostAction(SStmActionQ*       actionQ, int64_t streamId, char* streamName, int32_t action) {
   SStmQNode *pNode = taosMemoryMalloc(sizeof(SStmQNode));
   if (NULL == pNode) {
-    mstError("%s failed at line %d, error:%s", __FUNCTION__, __LINE__, tstrerror(terrno));
+    mstsError("%s failed at line %d, error:%s", __FUNCTION__, __LINE__, tstrerror(terrno));
     return;
   }
 
@@ -319,7 +337,7 @@ void mndStreamPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pActio
   SStmQNode *pNode = taosMemoryMalloc(sizeof(SStmQNode));
   if (NULL == pNode) {
     int64_t streamId = pAction->streamId;
-    mstError("%s failed at line %d, error:%s", __FUNCTION__, __LINE__, tstrerror(terrno));
+    mstsError("%s failed at line %d, error:%s", __FUNCTION__, __LINE__, tstrerror(terrno));
     return;
   }
 
@@ -338,17 +356,17 @@ void mndStreamLogSStreamObj(char* tips, SStreamObj* p) {
   }
   
   if (NULL == p) {
-    stDebug("%s: stream is NULL", tips);
+    mstDebug("%s: stream is NULL", tips);
     return;
   }
 
-  stDebug("%s: stream obj", tips);
-  stDebug("name:%s mainSnodeId:%d userDropped:%d userStopped:%d createTime:%" PRId64 " updateTime:%" PRId64,
+  mstDebug("%s: stream obj", tips);
+  mstDebug("name:%s mainSnodeId:%d userDropped:%d userStopped:%d createTime:%" PRId64 " updateTime:%" PRId64,
       p->name, p->mainSnodeId, p->userDropped, p->userStopped, p->createTime, p->updateTime);
 
   SCMCreateStreamReq* q = p->pCreate;
   if (NULL == q) {
-    stDebug("stream pCreate is NULL");
+    mstDebug("stream pCreate is NULL");
     return;
   }
 
@@ -360,7 +378,7 @@ void mndStreamLogSStreamObj(char* tips, SStreamObj* p) {
   int32_t outTagNum = taosArrayGetSize(q->outTags);
   int32_t forceOutColNum = taosArrayGetSize(q->forceOutCols);
 
-  mstDebugL("create_info: name:%d sql:%s streamDB:%s triggerDB:%s outDB:%s calcDBNum:%d triggerTblName:%s outTblName:%s "
+  mstsDebugL("create_info: name:%d sql:%s streamDB:%s triggerDB:%s outDB:%s calcDBNum:%d triggerTblName:%s outTblName:%s "
       "igExists:%d triggerType:%d igDisorder:%d deleteReCalc:%d deleteOutTbl:%d fillHistory:%d fillHistroyFirst:%d "
       "calcNotifyOnly:%d lowLatencyCalc:%d notifyUrlNum:%d notifyEventTypes:%d notifyErrorHandle:%d notifyHistory:%d "
       "outColsNum:%d outTagsNum:%d maxDelay:%" PRId64 " fillHistoryStartTs:%" PRId64 " watermark:%" PRId64 " expiredTime:%" PRId64 " "
@@ -375,41 +393,41 @@ void mndStreamLogSStreamObj(char* tips, SStreamObj* p) {
       q->eventTypes, q->flags, q->tsmaId, q->placeHolderBitmap, q->tsSlotId,
       q->triggerTblVgId, q->outTblVgId, calcScanNum, forceOutColNum);
 
-  mstDebugL("create_info: triggerCols:[%s]", q->triggerCols);
+  mstsDebugL("create_info: triggerCols:[%s]", q->triggerCols);
 
-  mstDebugL("create_info: partitionCols:[%s]", q->partitionCols);
+  mstsDebugL("create_info: partitionCols:[%s]", q->partitionCols);
 
-  mstDebugL("create_info: triggerScanPlan:[%s]", q->triggerScanPlan);
+  mstsDebugL("create_info: triggerScanPlan:[%s]", q->triggerScanPlan);
 
-  mstDebugL("create_info: calcPlan:[%s]", q->calcPlan);
+  mstsDebugL("create_info: calcPlan:[%s]", q->calcPlan);
 
-  mstDebugL("create_info: subTblNameExpr:[%s]", q->subTblNameExpr);
+  mstsDebugL("create_info: subTblNameExpr:[%s]", q->subTblNameExpr);
 
-  mstDebugL("create_info: tagValueExpr:[%s]", q->tagValueExpr);
+  mstsDebugL("create_info: tagValueExpr:[%s]", q->tagValueExpr);
 
 
   for (int32_t i = 0; i < calcDBNum; ++i) {
     char* dbName = taosArrayGetP(q->calcDB, i);
-    mstDebug("create_info: calcDB[%d] - %s", i, dbName);
+    mstsDebug("create_info: calcDB[%d] - %s", i, dbName);
   }
 
   for (int32_t i = 0; i < calcScanNum; ++i) {
     SStreamCalcScan* pScan = taosArrayGet(q->calcScanPlanList, i);
     int32_t vgNum = taosArrayGetSize(pScan->vgList);
-    mstDebugL("create_info: calcScanPlan[%d] - readFromCache:%d vgNum:%d scanPlan:[%s]", i, pScan->readFromCache, vgNum, pScan->scanPlan);
+    mstsDebugL("create_info: calcScanPlan[%d] - readFromCache:%d vgNum:%d scanPlan:[%s]", i, pScan->readFromCache, vgNum, pScan->scanPlan);
     for (int32_t v = 0; v < vgNum; ++v) {
-      mstDebug("create_info: calcScanPlan[%d] vg[%d] - vgId:%d", i, v, *(int32_t*)taosArrayGet(pScan->vgList, v));
+      mstsDebug("create_info: calcScanPlan[%d] vg[%d] - vgId:%d", i, v, *(int32_t*)taosArrayGet(pScan->vgList, v));
     }
   }
 
   for (int32_t i = 0; i < notifyUrlNum; ++i) {
     char* url = taosArrayGetP(q->pNotifyAddrUrls, i);
-    mstDebug("create_info: notifyUrl[%d] - %s", i, url);
+    mstsDebug("create_info: notifyUrl[%d] - %s", i, url);
   }
 
   for (int32_t i = 0; i < outColNum; ++i) {
     SFieldWithOptions* o = taosArrayGet(q->outCols, i);
-    mstDebug("create_info: outCol[%d] - name:%s type:%d flags:%d bytes:%d compress:%u typeMod:%d", 
+    mstsDebug("create_info: outCol[%d] - name:%s type:%d flags:%d bytes:%d compress:%u typeMod:%d", 
         i, o->name, o->type, o->flags, o->bytes, o->compress, o->typeMod);
   }
       

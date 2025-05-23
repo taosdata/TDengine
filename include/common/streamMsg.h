@@ -314,7 +314,9 @@ typedef struct SStreamTask {
   int64_t taskId;    // ID of the current task
   /** KEEP TOGETHER **/
 
+  int64_t       flags;
   int64_t       seriousId;  // task deploy idx
+  int32_t       deployId;   // runner task's deploy id
   int32_t       nodeId;     // ID of the vgroup/snode
   int64_t       sessionId;  // ID of the current session (real-time, historical, or recalculation)
   int16_t       taskIdx;
@@ -352,7 +354,8 @@ typedef struct {
 } SStreamReaderDeployFromTrigger;
 
 typedef struct {
-  void* calcScanPlan;
+  int32_t execReplica;
+  void*   calcScanPlan;
 } SStreamReaderDeployFromCalc;
 
 typedef union {

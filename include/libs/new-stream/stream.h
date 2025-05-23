@@ -150,13 +150,13 @@ typedef struct SStreamCacheReadInfo {
           ((SStreamTask *)pTask)->streamId, ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, ((SStreamTask *)pTask)->sessionId, \
           __VA_ARGS__)
 
-#define mstFatal(param, ...) stFatal("STREAM:%" PRIx64 " " param, streamId, __VA_ARGS__)
-#define mstError(param, ...) stError("STREAM:%" PRIx64 " " param, streamId, __VA_ARGS__)
-#define mstWarn(param, ...)  stWarn("STREAM:%" PRIx64 " " param, streamId, __VA_ARGS__)
-#define mstInfo(param, ...)  stInfo("STREAM:%" PRIx64 " " param, streamId, __VA_ARGS__)
-#define mstDebug(param, ...) stDebug("STREAM:%" PRIx64 " " param, streamId, __VA_ARGS__)
-#define mstDebugL(param, ...) stDebugL("STREAM:%" PRIx64 " " param, streamId, __VA_ARGS__)
-#define mstTrace(param, ...) stTrace("STREAM:%" PRIx64 " " param, streamId, __VA_ARGS__)
+#define stsFatal(param, ...) stFatal("%" PRIx64 " " param, streamId, __VA_ARGS__)
+#define stsError(param, ...) stError("%" PRIx64 " " param, streamId, __VA_ARGS__)
+#define stsWarn(param, ...)  stWarn("%" PRIx64 " " param, streamId, __VA_ARGS__)
+#define stsInfo(param, ...)  stInfo("%" PRIx64 " " param, streamId, __VA_ARGS__)
+#define stsDebug(param, ...) stDebug("%" PRIx64 " " param, streamId, __VA_ARGS__)
+#define stsDebugL(param, ...) stDebugL("%" PRIx64 " " param, streamId, __VA_ARGS__)
+#define stsTrace(param, ...) stTrace("%" PRIx64 " " param, streamId, __VA_ARGS__)
 
 int32_t streamGetThreadIdx(int32_t threadNum, int64_t streamGId);
 void    streamRemoveVnodeLeader(int32_t vgId);
