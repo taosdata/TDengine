@@ -2970,7 +2970,8 @@ int32_t distableAllUserExcept(SMnode *pMnode, STrans *pTrans, char *user) {
       break;
     }
 
-    if (strcmp(newUser.user, user) == 0 || strcmp(newUser.user, "root") == 0 || strcmp(newUser.user, "decuser")) {
+    if (strcmp(newUser.user, user) == 0 || strcmp(newUser.user, "root") == 0 || strcmp(newUser.user, "decuser") ||
+        strcmp(newUser.user, "keymater")) {
       mndUserFreeObj(&newUser);
       sdbRelease(pSdb, pUser);
       continue;
