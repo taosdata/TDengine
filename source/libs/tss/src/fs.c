@@ -333,7 +333,7 @@ static int32_t downloadFile(SSharedStorage* pss, const char* srcPath, const char
 
 
 
-static int32_t listFileInDir(const char* dirPath, size_t prefixLen, SArray* res) {
+static int32_t listFileInDir(const char* dirPath, size_t baseLen, SArray* res) {
     int32_t code = 0;
 
     TdDirPtr dir = taosOpenDir(dirPath);
@@ -363,9 +363,9 @@ static int32_t listFileInDir(const char* dirPath, size_t prefixLen, SArray* res)
                 path[len++] = TD_DIRSEP_CHAR;
                 path[len] = 0;
             }
-            code = listFileInDir(path, prefixLen, res);
+            code = listFileInDir(path, baseLen, res);
         } else {
-            char* p = strdup(path + prefixLen);
+            char* p = strdup(path + baseLen);
             if ( p == NULL ) {
                 code = TSDB_CODE_OUT_OF_MEMORY;
             } else if (taosArrayPush(res, &p) == NULL) {
@@ -400,6 +400,10 @@ static int32_t listFile(SSharedStorage* pss, const char* prefix, SArray* paths) 
         fullPath[len] = 0;
     }
 
+    len = ss->baseDirLen;
+    if (ss->baseDir[len - 1] != TD_DIRSEP_CHAR) {
+        len++;
+    }
     int32_t code = listFileInDir(fullPath, len, paths);
     if (code != TSDB_CODE_SUCCESS) {
         tssError("failed to list files in directory %s, code = %d", fullPath, code);

@@ -66,7 +66,7 @@ struct STFile {
                         // for sma file, this counter is for the whole file,
                         // for data file, this counter is for the last chunk.
   int64_t cid;          // commit id
-  int64_t size;
+  int64_t size;         // the logical file size, not the physical size
   int64_t minVer;
   int64_t maxVer;
   union {
