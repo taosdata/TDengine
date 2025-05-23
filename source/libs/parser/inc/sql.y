@@ -996,7 +996,7 @@ column_name_opt(A) ::= column_name_unit(B).                                     
 %type stream_tags_def_opt                                                            { SNodeList* }
 %destructor stream_tags_def_opt                                                      { nodesDestroyList($$); }
 stream_tags_def_opt(A) ::= .                                                         { A = NULL; }
-stream_tags_def_opt(A) ::= stream_tags_def_list(B).                                  { A = B; }
+stream_tags_def_opt(A) ::= TAGS NK_LP stream_tags_def_list(B) NK_RP.                 { A = B; }
 
 %type stream_tags_def_list                                                             { SNodeList* }
 %destructor stream_tags_def_list                                                       { nodesDestroyList($$); }

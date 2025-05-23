@@ -3467,6 +3467,33 @@ static int32_t translateFunctionImpl(STranslateContext* pCxt, SFunctionNode** pF
 
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc) {
   SNode* pParam = NULL;
+  if (pCxt->createStreamOutTable && strcmp((*pFunc)->functionName, "tbname") == 0) {
+    if (!pCxt->createStreamTriggerPartitionList) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, (*pFunc)->functionName);
+      return DEAL_RES_ERROR;
+    }
+    SNode *pNode = NULL;
+    int32_t index = 1;
+    FOREACH(pNode, pCxt->createStreamTriggerPartitionList) {
+      SFunctionNode* pFuncNode = (SFunctionNode*)pNode;
+      if (0 == strcmp(pFuncNode->functionName, (*pFunc)->functionName)) {
+        SNodeList*     pParamList = NULL;
+        SFunctionNode* ppFunc = NULL;
+        SValueNode*    pVal = NULL;
+
+        nodesMakeValueNodeFromInt32(index, (SNode**)&pVal);
+        pVal->translate = true;
+        nodesListMakeStrictAppend(&pParamList, (SNode*)pVal);
+        createFunction("_placeholder_column", pParamList, &ppFunc);
+        nodesDestroyNode((SNode*)*pFunc);
+        *pFunc = ppFunc;
+        return translateFunction(pCxt, (SFunctionNode**)&ppFunc);
+      }
+      index++;
+    }
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, (*pFunc)->functionName);
+    return DEAL_RES_ERROR;
+  }
   if (strcmp((*pFunc)->functionName, "tbname") == 0 && (*pFunc)->pParameterList != NULL) {
     pParam = nodesListGetNode((*pFunc)->pParameterList, 0);
     if (pParam && nodeType(pParam) == QUERY_NODE_VALUE) {
