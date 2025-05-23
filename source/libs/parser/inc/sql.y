@@ -913,7 +913,7 @@ trigger_option_list(A) ::= trigger_option_list(B) NK_BITOR trigger_option(C).   
 trigger_option(A) ::= CALC_NOTIFY_ONLY.                                            { A.type = STREAM_TRIGGER_OPTION_CALC_NOTIFY_ONLY; }
 trigger_option(A) ::= DELETE_RECALC.                                               { A.type = STREAM_TRIGGER_OPTION_DELETE_RECALC; }
 trigger_option(A) ::= DELETE_OUTPUT_TABLE.                                         { A.type = STREAM_TRIGGER_OPTION_DELETE_OUTPUT_TABLE; }
-trigger_option(A) ::= EXPIRED_TIME NK_LP NK_INTEGER(B) NK_RP.                      { A.type = STREAM_TRIGGER_OPTION_EXPIRED_TIME; A.val = B; }
+trigger_option(A) ::= EXPIRED_TIME NK_LP duration_literal(B) NK_RP.                { A.type = STREAM_TRIGGER_OPTION_EXPIRED_TIME; A.pNode = releaseRawExprNode(pCxt, B); }
 trigger_option(A) ::= FILL_HISTORY NK_LP NK_INTEGER(B) NK_RP.                      { A.type = STREAM_TRIGGER_OPTION_FILL_HISTORY; A.pNode = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B); }
 trigger_option(A) ::= FILL_HISTORY NK_LP NK_STRING(B) NK_RP.                       { A.type = STREAM_TRIGGER_OPTION_FILL_HISTORY; A.pNode = createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &B); }
 trigger_option(A) ::= FILL_HISTORY_FIRST NK_LP NK_INTEGER(B) NK_RP.                { A.type = STREAM_TRIGGER_OPTION_FILL_HISTORY_FIRST; A.pNode = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B);; }

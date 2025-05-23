@@ -12924,6 +12924,13 @@ _return:
 
 static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, SStreamTriggerOptions* pOptions, SCMCreateStreamReq* pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
+  // TODO(smj) : check expiredTime/maxDelay/watermark
+//  if (TSDB_CODE_SUCCESS == code) {
+//    code = checkEvery(pCxt, (SValueNode*)(*pEvery));
+//  }
+//  if (TSDB_CODE_SUCCESS == code) {
+//    code = translateExpr(pCxt, pEvery);
+//  }
 
   pReq->igDisorder = pOptions ? (int8_t)pOptions->ignoreDisorder : 0;
   pReq->deleteReCalc = pOptions ? (int8_t)pOptions->deleteRecalc : 0;
@@ -12933,7 +12940,7 @@ static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, SStre
   pReq->calcNotifyOnly = pOptions ? (int8_t)pOptions->calcNotifyOnly : 0;
   pReq->lowLatencyCalc = pOptions ? (int8_t)pOptions->lowLatencyCalc : 0;
   pReq->fillHistoryStartTime = pOptions ? pOptions->fillHistoryStartTime : 0;
-  pReq->expiredTime = pOptions ? pOptions->expiredTime : 0;
+  pReq->expiredTime = pOptions ? (NULL != pOptions->pExpiredTime ? ((SValueNode*)pOptions->pExpiredTime)->datum.i : 0) : 0;
   pReq->eventTypes = pOptions ? pOptions->pEventType : EVENT_WINDOW_CLOSE;
   pReq->maxDelay = pOptions ? (NULL != pOptions->pMaxDelay ? ((SValueNode*)pOptions->pMaxDelay)->datum.i : 0) : 0;
   pReq->watermark = pOptions ? (NULL != pOptions->pWaterMark ? ((SValueNode*)pOptions->pWaterMark)->datum.i : 0) : 0;
@@ -13305,20 +13312,20 @@ static int32_t createStreamReqSetDefaultTag(STranslateContext* pCxt, SCreateStre
         }
         tstrncpy(pTagDef->tagName, "tag_tbname", TSDB_COL_NAME_LEN);
         // default use _tgrpid as value;
-        pTagDef->dataType.type = TSDB_DATA_TYPE_BIGINT;
-        pTagDef->dataType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
-        pTagDef->dataType.precision = 0;
-        pTagDef->dataType.scale = 0;
+        pTagDef->dataType.type = pFunc->node.resType.type;
+        pTagDef->dataType.bytes = pFunc->node.resType.bytes;
+        pTagDef->dataType.precision = pFunc->node.resType.precision;
+        pTagDef->dataType.scale = pFunc->node.resType.scale;;
         break;
       }
       case QUERY_NODE_COLUMN: {
         SExprNode* pExpr = (SExprNode*)pNode;
         tstrncpy(pTagDef->tagName, pExpr->aliasName, TSDB_COL_NAME_LEN);
         // default use _tgrpid as value;
-        pTagDef->dataType.type = TSDB_DATA_TYPE_BIGINT;
-        pTagDef->dataType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
-        pTagDef->dataType.precision = 0;
-        pTagDef->dataType.scale = 0;
+        pTagDef->dataType.type = pExpr->resType.type;
+        pTagDef->dataType.bytes = pExpr->resType.bytes;
+        pTagDef->dataType.precision = pExpr->resType.precision;
+        pTagDef->dataType.scale = pExpr->resType.scale;;
         break;
       }
       default: {
@@ -13326,15 +13333,7 @@ static int32_t createStreamReqSetDefaultTag(STranslateContext* pCxt, SCreateStre
       }
     }
 
-    SNodeList*     pParamList = NULL;
-    SFunctionNode* pFunc = NULL;
-
-    nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
-    pFunc->funcId = fmGetFuncId("_tgrpid");
-    pFunc->funcType = FUNCTION_TYPE_TGRPID;
-    snprintf(pFunc->functionName, TSDB_FUNC_NAME_LEN, "_tgrpid");
-
-    PAR_ERR_JRET(nodesCloneNode((SNode*)pFunc, &pTagDef->pTagExpr));
+    PAR_ERR_JRET(nodesCloneNode((SNode*)pNode, &pTagDef->pTagExpr));
     PAR_ERR_JRET(nodesListMakeAppend(&pStmt->pTags, (SNode*)pTagDef));
     index++;
   }
