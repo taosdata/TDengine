@@ -57,6 +57,14 @@ This is a [more detailed parameter binding example](https://github.com/taosdata/
 </TabItem>
 <TabItem label="Python" value="python">
 
+The following is an example code for using stmt2 to bind parameters (applicable to Python connector version 0.5.1 and above, and TDengine v3.3.5.0 and above):  
+
+```python
+{{#include docs/examples/python/stmt2_ws.py}}
+```
+
+The example code for stmt to bind parameters is as follows:
+
 ```python
 {{#include docs/examples/python/stmt_ws.py}}
 ```

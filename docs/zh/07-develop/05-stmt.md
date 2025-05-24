@@ -55,6 +55,14 @@ import TabItem from "@theme/TabItem";
 </TabItem>
 <TabItem label="Python" value="python">
 
+推荐使用 stmt2 绑定参数的示例代码如下（适用于 python 连接器 0.5.1 及以上、TDengine v3.3.5.0 及以上版本）：
+
+```python
+{{#include docs/examples/python/stmt2_ws.py}}
+```
+
+stmt 绑定参数的示例代码如下：
+
 ```python
 {{#include docs/examples/python/stmt_ws.py}}
 ```

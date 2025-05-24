@@ -56,7 +56,8 @@ Python Connector historical versions (it is recommended to use the latest versio
 
 |Python Connector Version | Major Changes                                                                           | TDengine Version|
 | --------- | ----------------------------------------------------------------------------------------------------- | ----------------- |
-| 2.8.0 | Remove Apache Superset Driver                                                                              | - |
+|2.8.1 | Add two functions to set the connect property                                                                               | - |
+|2.8.0 | Remove Apache Superset Driver                                                                               | - |
 |2.7.23 | Supports DECIMAL data type                                                                                 | - |
 |2.7.22 | Supports Python 3.12 and above                                                                             | - |
 |2.7.21 | Supports native STMT2 writing                                                                              | - |
@@ -74,6 +75,7 @@ WebSocket Connector Historical Versions:
 
 |WebSocket Connector Version | Major Changes                                                                                    | TDengine Version|
 | ----------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
+|0.5.1 | Support WebSocket STMT2 writing and querying                                                                            | - |
 |0.4.0 | Support dynamic add tmq attribute                                                                                       | - |
 |0.3.9 | Fixes the problem of incomplete data retrieval when customizing the number of rows with the "fetchmany" method          | - |
 |0.3.8 | Supports connecting SuperSet to the TDengine cloud service instance                                                     | - |
@@ -261,9 +263,41 @@ TaosResult objects can be accessed by iterating over them to retrieve the querie
 
 #### Parameter Binding
 
-- `fn statement(&self) -> PyResult<TaosStmt>`
-  - **Interface Description**: Create a stmt object using a connection object.
+Since version 0.5.1, an interface for binding parameters of stmt2 has been provided to achieve efficient writing. 
+
+- `fn stmt2_statement(&self) -> PyResult<TaosStmt2>`
+  - **接口说明**：Create a stmt2 object using a connection object.
   - **Return Value**: stmt object.
+  - **Exception**: Throws `ConnectionError` on failure.
+- `fn prepare(&mut self, sql: &str) -> PyResult<()>`
+  - **Interface Description**: Bind a precompiled SQL statement.
+  - **Parameter Description**:
+    - `sql`: Precompiled SQL statement.
+  - **Exception**: Throws `ProgrammingError` on failure.
+- `fn bind(&mut self, params: Vec<PyStmt2BindParam>) -> PyResult<()>`
+  - **Interface Description**: Bind data.
+  - **Parameter Description**:
+    - `params`: Data to bind.
+  - **Exception**: Throws `ProgrammingError` on failure.
+- `fn execute(&mut self) -> PyResult<usize>`
+  - **Interface Description**: Execute to write all bound data.
+  - **Return Value**: Number of entries written.
+  - **Exception**: Throws `QueryError` on failure.
+- `fn result_set(&mut self) -> PyResult<TaosResult>`
+  - **Interface Description**: Get the bind query result set.
+  - **Return Value**: `TaosResult` data set object.
+  - **Exception**: Throws `QueryError` on failure.
+- `fn affect_rows(&mut self) -> PyResult<usize>`
+  - **Interface Description**: Get the number of entries written.
+  - **Return Value**: Number of entries written.
+- `fn close(&self) -> PyResult<()>`
+  - **Interface Description**: Close the stmt object.
+
+The interface for binding parameters of the standard Stmt.
+
+- `fn statement(&self) -> PyResult<TaosStmt>`
+  - **Interface Description**: Create a stmt2 object using a connection object.
+  - **Return Value**: stmt2 object.
   - **Exception**: Throws `ConnectionError` on failure.
 - `fn prepare(&mut self, sql: &str) -> PyResult<()>`
   - **Interface Description**: Bind a precompiled SQL statement.
@@ -296,7 +330,7 @@ TaosResult objects can be accessed by iterating over them to retrieve the querie
   - **Interface Description**: Get the number of entries written.
   - **Return Value**: Number of entries written.
 - `fn close(&self) -> PyResult<()>`
-  - **Interface Description**: Close the stmt object.
+  - **Interface Description**: Close the stmt2 object.
 
 #### Data Subscription
 
