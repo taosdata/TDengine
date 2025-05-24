@@ -4109,6 +4109,26 @@ _err:
   return NULL;
 }
 
+SNode* createStreamOutTableNode(SAstCreateContext *pCxt, SNode* pIntoTable, SNode* pOutputSubTable, SNodeList* pColList, SNodeList* pTagList) {
+  SStreamOutTableNode* pOutTable = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM_OUT_TABLE, (SNode**)&pOutTable);
+  CHECK_MAKE_NODE(pOutTable);
+  pOutTable->pOutTable = pIntoTable;
+  pOutTable->pSubtable = pOutputSubTable;
+  pOutTable->pCols = pColList;
+  pOutTable->pTags = pTagList;
+  return (SNode*)pOutTable;
+
+_err:
+  nodesDestroyNode((SNode*)pOutTable);
+  nodesDestroyNode(pIntoTable);
+  nodesDestroyNode(pOutputSubTable);
+  nodesDestroyList(pColList);
+  nodesDestroyList(pTagList);
+  return NULL;
+}
+
 SNode* createStreamTriggerNode(SAstCreateContext *pCxt, SNode* pTriggerWindow, SNode* pTriggerTable, SNodeList* pPartitionList, SNode* pOptions, SNode* pNotification) {
   SStreamTriggerNode* pTrigger = NULL;
   CHECK_PARSER_STATUS(pCxt);
@@ -4308,37 +4328,31 @@ _err:
   return NULL;
 }
 
-SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pStream, SNode* pTrigger,
-                              SNode* pIntoTable, SNode* pOutputSubTable, SNodeList* pColList, SNodeList* pTagList, SNode* pQuery) {
+SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pStream, SNode* pTrigger, SNode* pOutTable, SNode* pQuery) {
   SCreateStreamStmt* pStmt = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_STREAM_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
 
-  if (pIntoTable) {
-    tstrncpy(pStmt->targetDbName, ((SRealTableNode*)pIntoTable)->table.dbName, TSDB_DB_NAME_LEN);
-    tstrncpy(pStmt->targetTabName, ((SRealTableNode*)pIntoTable)->table.tableName, TSDB_TABLE_NAME_LEN);
+  if (pOutTable && ((SStreamOutTableNode*)pOutTable)->pOutTable) {
+    tstrncpy(pStmt->targetDbName, ((SRealTableNode*)((SStreamOutTableNode*)pOutTable)->pOutTable)->table.dbName, TSDB_DB_NAME_LEN);
+    tstrncpy(pStmt->targetTabName, ((SRealTableNode*)((SStreamOutTableNode*)pOutTable)->pOutTable)->table.tableName, TSDB_TABLE_NAME_LEN);
   }
-
   tstrncpy(pStmt->streamDbName, ((SStreamNode*)pStream)->dbName, TSDB_DB_NAME_LEN);
   tstrncpy(pStmt->streamName, ((SStreamNode*)pStream)->streamName, TSDB_STREAM_NAME_LEN);
-  nodesDestroyNode(pIntoTable);
   nodesDestroyNode(pStream);
 
   pStmt->ignoreExists = ignoreExists;
   pStmt->pTrigger = pTrigger;
   pStmt->pQuery = pQuery;
-  pStmt->pTags = pTagList;
-  pStmt->pSubtable = pOutputSubTable;
-  pStmt->pCols = pColList;
+  pStmt->pTags = pOutTable ? ((SStreamOutTableNode*)pOutTable)->pTags : NULL;
+  pStmt->pSubtable = pOutTable ? ((SStreamOutTableNode*)pOutTable)->pSubtable : NULL;
+  pStmt->pCols = pOutTable ? ((SStreamOutTableNode*)pOutTable)->pCols : NULL;
   return (SNode*)pStmt;
 _err:
-  nodesDestroyNode(pIntoTable);
+  nodesDestroyNode(pOutTable);
   nodesDestroyNode(pQuery);
   nodesDestroyNode(pTrigger);
-  nodesDestroyList(pTagList);
-  nodesDestroyNode(pOutputSubTable);
-  nodesDestroyList(pColList);
   nodesDestroyNode(pQuery);
   return NULL;
 }

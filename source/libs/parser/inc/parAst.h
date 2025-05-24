@@ -358,8 +358,8 @@ SNode* createStreamTriggerOptions(SAstCreateContext* pCxt);
 SNode* setStreamTriggerOptions(SAstCreateContext* pCxt, SNode* pOptions, SStreamTriggerOption* pStreamOptionUnit);
 SNode* createStreamNotifyOptions(SAstCreateContext *pCxt, SNodeList* pAddrUrls, int64_t eventType, SNode* pWhere, int64_t notifyType);
 SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pStream, SNode* pTrigger,
-                              SNode* pIntoTable, SNode* pOutputSubTable, SNodeList* pColList, SNodeList* pTagList,
-                              SNode* pQuery);
+                              SNode* pOutTable, SNode* pQuery);
+SNode* createStreamOutTableNode(SAstCreateContext *pCxt, SNode* pIntoTable, SNode* pOutputSubTable, SNodeList* pColList, SNodeList* pTagList);
 SNode* createStreamTriggerNode(SAstCreateContext *pCxt, SNode* pTriggerWindow, SNode* pTriggerTable, SNodeList* pPartitionList, SNode* pOptions, SNode* pNotification);
 SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pStreamName);
 SNode* createPauseStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pStreamName);

@@ -427,6 +427,14 @@ typedef struct SStreamTriggerNode {
   SNodeList*  pPartitionList;
 } SStreamTriggerNode;
 
+typedef struct SStreamOutTableNode {
+  ENodeType             type;
+  SNode*                pOutTable; // STableNode
+  SNode*                pSubtable;
+  SNodeList*            pTags; // SStreamTagDefNode
+  SNodeList*            pCols; // SColumnDefNode
+} SStreamOutTableNode;
+
 typedef struct SPeriodWindowNode {
   ENodeType type;  // QUERY_NODE_PERIOD_WINDOW
   SNode*    pPeroid;
