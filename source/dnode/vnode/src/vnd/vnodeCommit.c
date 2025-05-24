@@ -478,6 +478,9 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   code = syncEndSnapshot(pVnode->sync);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  code = tqCommitOffset(pVnode->pTq);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  
 _exit:
   if (code) {
     vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));

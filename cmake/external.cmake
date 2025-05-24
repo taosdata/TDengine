@@ -1477,10 +1477,10 @@ if(NOT ${TD_WINDOWS})        # {
     )
     # URL https://dlcdn.apache.org//apr/apr-1.7.4.tar.gz
     # URL_HASH SHA256=a4137dd82a185076fa50ba54232d920a17c6469c30b0876569e1c2a05ff311d9
-    get_from_local_if_exists("https://dlcdn.apache.org//apr/apr-1.7.5.tar.gz")
+    get_from_local_if_exists("https://dlcdn.apache.org//apr/apr-1.7.6.tar.gz")
     ExternalProject_Add(ext_apr
         URL ${_url}
-        URL_HASH SHA256=3375fa365d67bcf945e52b52cba07abea57ef530f40b281ffbe977a9251361db
+        URL_HASH SHA256=6a10e7f7430510600af25fabf466e1df61aaae910bf1dc5d10c44a4433ccc81d
         # GIT_SHALLOW TRUE
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE

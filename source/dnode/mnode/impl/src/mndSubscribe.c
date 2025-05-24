@@ -949,6 +949,10 @@ static int32_t mndCheckConsumer(SRpcMsg *pMsg, SHashObj *rebSubHash) {
         MND_TMQ_RETURN_CHECK(mndSendConsumerMsg(pMnode, pConsumer->consumerId, TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, &pMsg->info));
       } else if (hbStatus * tsMqRebalanceInterval * 1000 >= pConsumer->sessionTimeoutMs ||
                  pollStatus * tsMqRebalanceInterval * 1000 >= pConsumer->maxPollIntervalMs) {
+        mInfo("tmq rebalance for consumer:0x%" PRIx64 " status:%d(%s), sub-time:%" PRId64 ", createTime:%" PRId64
+           ", hb lost cnt:%d, or long time no poll cnt:%d",
+           pConsumer->consumerId, status, mndConsumerStatusName(status), pConsumer->subscribeTime,
+           pConsumer->createTime, hbStatus, pollStatus);
         taosRLockLatch(&pConsumer->lock);
         MND_TMQ_RETURN_CHECK(buildRebInfo(rebSubHash, pConsumer->currentTopics, 0, pConsumer->cgroup, pConsumer->consumerId));
         taosRUnLockLatch(&pConsumer->lock);
@@ -1610,7 +1614,7 @@ static int32_t buildResult(SSDataBlock *pBlock, int32_t *numOfRows, int64_t cons
       OffsetRows *tmp = taosArrayGet(offsetRows, i);
       MND_TMQ_NULL_CHECK(tmp);
       if (tmp->vgId != pVgEp->vgId) {
-        mInfo("mnd show subscriptions: do not find vgId:%d, %d in offsetRows", tmp->vgId, pVgEp->vgId);
+        // mInfo("mnd show subscriptions: do not find vgId:%d, %d in offsetRows", tmp->vgId, pVgEp->vgId);
         continue;
       }
       data = tmp;

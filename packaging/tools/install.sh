@@ -284,7 +284,7 @@ function install_lib() {
   ${csudo}ln -sf ${install_main_dir}/driver/libtaosnative.* ${lib_link_dir}/libtaosnative.so.1
   ${csudo}ln -sf ${lib_link_dir}/libtaosnative.so.1 ${lib_link_dir}/libtaosnative.so
 
-  [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so ${lib_link_dir}/libtaosws.so || :
+  ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so.* ${lib_link_dir}/libtaosws.so || :
 
   #link lib64/link_dir
   if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
@@ -293,7 +293,7 @@ function install_lib() {
     ${csudo}ln -sf ${install_main_dir}/driver/libtaosnative.* ${lib64_link_dir}/libtaosnative.so.1 || :
     ${csudo}ln -sf ${lib64_link_dir}/libtaosnative.so.1 ${lib64_link_dir}/libtaosnative.so || :
 
-    [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so ${lib64_link_dir}/libtaosws.so || :
+    ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so.* ${lib64_link_dir}/libtaosws.so || :
   fi
 
   ${csudo}ldconfig
