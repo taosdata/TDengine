@@ -397,6 +397,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_STREAM:
       code = makeNode(type, sizeof(SStreamNode), &pNode);
       break;
+    case QUERY_NODE_STREAM_OUT_TABLE:
+      code = makeNode(type, sizeof(SStreamOutTableNode), &pNode);
+      break;
     case QUERY_NODE_JOIN_TABLE:
       code = makeNode(type, sizeof(SJoinTableNode), &pNode);
       break;

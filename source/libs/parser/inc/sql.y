@@ -837,8 +837,7 @@ full_view_name(A) ::= db_name(B) NK_DOT view_name(C).                           
 
 /************************************************ create/drop stream **************************************************/
 cmd ::= CREATE STREAM not_exists_opt(A) full_stream_name(B) stream_trigger(C)
-        into_table_opt(D) output_subtable_opt(E) column_name_opt(F) stream_tags_def_opt(G)
-        as_subquery_opt(H).                                                       { pCxt->pRootNode = createCreateStreamStmt(pCxt, A, B, C, D, E, F, G, H); }
+        stream_outtable_opt(D) as_subquery_opt(E).                                { pCxt->pRootNode = createCreateStreamStmt(pCxt, A, B, C, D, E); }
 cmd ::= DROP STREAM exists_opt(A) stream_name(B).                                 { pCxt->pRootNode = createDropStreamStmt(pCxt, A, &B); }
 cmd ::= STOP STREAM exists_opt(A) stream_name(B).                                 { pCxt->pRootNode = createPauseStreamStmt(pCxt, A, &B); }
 cmd ::= START STREAM exists_opt(A) ignore_opt(C) stream_name(B).                  { pCxt->pRootNode = createResumeStreamStmt(pCxt, A, C, &B); }
@@ -853,6 +852,10 @@ recalculate_range(A) ::= FROM interval_sliding_duration_literal(B)
 
 full_stream_name(A) ::= stream_name(B).                                           { A = createStreamNode(pCxt, NULL, &B); }
 full_stream_name(A) ::= db_name(B) NK_DOT stream_name(C).                         { A = createStreamNode(pCxt, &B, &C); }
+
+/********** stream_outtable **********/
+stream_outtable_opt(A) ::= .                                                                                            { A = NULL; }
+stream_outtable_opt(A) ::= INTO full_table_name(B) output_subtable_opt(C) column_name_opt(D) stream_tags_def_opt(E).    { A = createStreamOutTableNode(pCxt, B, C, D, E); }
 
 /********** stream_trigger **********/
 stream_trigger(A) ::= trigger_type(B) trigger_table_opt(C) stream_partition_by_opt(D)
@@ -929,16 +932,13 @@ trigger_option(A) ::= EVENT_TYPE NK_LP event_type_list(B) NK_RP.                
 /***** notification_opt *****/
 notification_opt(A) ::= .                                                         { A = NULL; }
 notification_opt(A) ::= NOTIFY NK_LP notify_url_list(B) NK_RP
-                        notify_on_opt(C) notify_where_clause_opt(D)
+                        notify_on_opt(C) where_clause_opt(D)
                         notify_options_opt(E).                                    { A = createStreamNotifyOptions(pCxt, B, C, D, E); }
 
 %type notify_url_list                                                             { SNodeList* }
 %destructor notify_url_list                                                       { nodesDestroyList($$); }
 notify_url_list(A) ::= NK_STRING(B).                                              { A = createNodeList(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B)); }
 notify_url_list(A) ::= notify_url_list(B) NK_COMMA NK_STRING(C).                  { A = addNodeToList(pCxt, B, createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &C)); }
-
-notify_where_clause_opt(A) ::= .                                                         { A = NULL; }
-notify_where_clause_opt(A) ::= WHERE NK_LP search_condition(B) NK_RP.                                { A = B; }
 
 %type notify_on_opt                                                               { int64_t }
 %destructor notify_on_opt                                                         { }
@@ -980,13 +980,9 @@ event_type_list(A) ::= event_type_list(B) NK_BITOR event_types(C).              
 event_types(A) ::= WINDOW_OPEN.                                                   { A = EVENT_WINDOW_OPEN; }
 event_types(A) ::= WINDOW_CLOSE.                                                  { A = EVENT_WINDOW_CLOSE; }
 
-/********** into_table_opt **********/
-into_table_opt(A) ::= .                                                           { A = NULL; }
-into_table_opt(A) ::= INTO full_table_name(B).                                    { A = B; }
-
 /********** output_subtable_opt **********/
 output_subtable_opt(A) ::= .                                                      { A = NULL; }
-output_subtable_opt(A) ::= OUTPUT_SUBTABLE NK_LP expression(B) NK_RP.             { A = releaseRawExprNode(pCxt, B); }
+output_subtable_opt(A) ::= OUTPUT_SUBTABLE NK_LP expr_or_subquery(B) NK_RP.       { A = releaseRawExprNode(pCxt, B); }
 
 %type column_name_opt                                                             { SNodeList* }
 %destructor column_name_opt                                                       { nodesDestroyList($$); }
