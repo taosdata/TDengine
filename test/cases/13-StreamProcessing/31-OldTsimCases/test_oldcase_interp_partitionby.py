@@ -1,5 +1,5 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
 
 
 class TestStreamOldCaseInterpPartitionBy:
@@ -33,7 +33,7 @@ class TestStreamOldCaseInterpPartitionBy:
 
     def streamInterpPartitionBy0(self):
         tdLog.info(f"streamInterpPartitionBy0")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"alter local 'streamCoverage' '1';")
 
@@ -53,7 +53,7 @@ class TestStreamOldCaseInterpPartitionBy:
             f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, interp(a), _isfilled, tbname, b, c from st partition by tbname, b,c every(1s) fill(prev);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(
             f"insert into t1 values(1648791212000,0,0,0,0.0) (1648791212001,1,0,0,1.0) (1648791217001,2,0,0,2.1) t2 values(1648791212000,0,1,1,0.0) (1648791212001,1,1,1,1.0) (1648791217001,2,1,1,2.1);"
@@ -85,7 +85,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"0 sql select * from streamt where b = 0 and c = 0 order by 1;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where b = 0 and c = 0 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0
@@ -103,7 +103,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"1 sql select * from streamt where b = 1 and c = 1 order by 1;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where b = 1 and c = 1 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0
@@ -121,7 +121,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"2 sql select * from streamt where b = 2 and c = 2 order by 1;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where b = 2 and c = 2 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0
@@ -154,7 +154,7 @@ class TestStreamOldCaseInterpPartitionBy:
             f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt2 as select _irowts, interp(a), _isfilled, tbname, b, c from st partition by tbname, b,c every(1s) fill(next);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(
             f"insert into t1 values(1648791212000,0,0,0,0.0) (1648791212001,1,0,0,1.0) (1648791217001,2,0,0,2.1) t2 values(1648791212000,0,1,1,0.0) (1648791212001,1,1,1,1.0) (1648791217001,2,1,1,2.1);"
@@ -186,7 +186,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"0 sql select * from streamt2 where b = 0 and c = 0 order by 1;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt2 where b = 0 and c = 0 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0
@@ -204,7 +204,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"1 sql select * from streamt2 where b = 1 and c = 1 order by 1;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt2 where b = 1 and c = 1 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0
@@ -222,7 +222,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"2 sql select * from streamt2 where b = 2 and c = 2 order by 1;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt2 where b = 2 and c = 2 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0
@@ -241,7 +241,7 @@ class TestStreamOldCaseInterpPartitionBy:
 
     def streamInterpPartitionBy1(self):
         tdLog.info(f"streamInterpPartitionBy1")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"alter local 'streamCoverage' '1';")
 
@@ -261,7 +261,7 @@ class TestStreamOldCaseInterpPartitionBy:
             f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, interp(a), _isfilled, tbname, b, c from st partition by tbname, b,c every(1s) fill(NULL);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(
             f"insert into t1 values(1648791212000,0,0,0,0.0) (1648791212001,1,0,0,1.0) (1648791217001,2,0,0,2.1) t2 values(1648791212000,0,1,1,0.0) (1648791212001,1,1,1,1.0) (1648791217001,2,1,1,2.1);"
@@ -293,7 +293,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"0 sql select * from streamt where b = 0 and c = 0 order by 1;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where b = 0 and c = 0 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0
@@ -311,7 +311,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"1 sql select * from streamt where b = 1 and c = 1 order by 1;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where b = 1 and c = 1 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0
@@ -329,7 +329,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"2 sql select * from streamt where b = 2 and c = 2 order by 1;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where b = 2 and c = 2 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0
@@ -362,7 +362,7 @@ class TestStreamOldCaseInterpPartitionBy:
             f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt2 as select _irowts, interp(a), _isfilled, tbname, b, c from st partition by tbname, b,c every(1s) fill(linear);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(
             f"insert into t1 values(1648791212000,0,0,0,0.0) (1648791212001,10,0,0,1.0) (1648791217001,20,0,0,2.1) t2 values(1648791212000,0,1,1,0.0) (1648791212001,10,1,1,1.0) (1648791217001,20,1,1,2.1);"
@@ -380,7 +380,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"0 sql select * from streamt2 where b = 0 and c = 0 order by 1;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt2 where b = 0 and c = 0 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0
@@ -405,7 +405,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"1 sql select * from streamt2 where b = 1 and c = 1 order by 1;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt2 where b = 1 and c = 1 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0
@@ -430,7 +430,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"2 sql select * from streamt2 where b = 2 and c = 2 order by 1;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt2 where b = 2 and c = 2 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0
