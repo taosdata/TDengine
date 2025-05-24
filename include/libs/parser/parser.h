@@ -103,7 +103,6 @@ typedef struct SParseContext {
   int64_t          requestRid;
   int32_t          acctId;
   const char*      db;
-  bool             topicQuery;
   void*            pTransporter;
   SEpSet           mgmtEpSet;
   const char*      pSql;    // sql string
@@ -114,11 +113,13 @@ typedef struct SParseContext {
   SStmtCallback*   pStmtCb;
   const char*      pUser;
   const char*      pEffectiveUser;
+  bool             topicQuery;
   bool             parseOnly;
   bool             isSuperUser;
   bool             enableSysInfo;
   bool             async;
   bool             hasInvisibleCol;
+  bool             hasDupQuoteChar;
   bool             isView;
   bool             isAudit;
   bool             nodeOffline;
