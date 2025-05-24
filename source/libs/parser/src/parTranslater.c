@@ -13761,6 +13761,8 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
       PAR_ERR_JRET(terrno);
     }
   }
+
+  pReq->numOfCalcSubplan = calcPlan->numOfSubplans;
   PAR_ERR_JRET(nodesNodeToString((SNode*)calcPlan, false, (char**)&pReq->calcPlan, NULL));
 
 _return:

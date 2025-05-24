@@ -27,6 +27,18 @@ void mstWaitRLock(SRWLatch* pLock) {
   }
 }
 
+void mstDestroySStmVgStreamStatus(void* p) { 
+  SStmVgStreamStatus* pStatus = (SStmVgStreamStatus*)p;
+  taosArrayDestroy(pStatus->trigReaders); 
+  taosArrayDestroy(pStatus->calcReaders); 
+}
+
+
+void mstDestroyVgroupStatus(SStmVgroupStatus* pVgStatus) {
+  taosHashCleanup(pVgStatus->streamTasks);
+  pVgStatus->streamTasks = NULL;
+}
+
 int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped) {
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;

@@ -215,14 +215,14 @@ typedef struct {
 } SStreamCalcScan;
 
 typedef struct {
-  char*   name;
+  char*   name;         // full name
   int64_t streamId;
   char*   sql;
 
-  char*   streamDB;
-  char*   triggerDB;
-  char*   outDB;
-  SArray* calcDB;  // char*
+  char*   streamDB;    // db full name
+  char*   triggerDB;   // db full name
+  char*   outDB;       // db full name
+  SArray* calcDB;      // char*, db full name
 
   char* triggerTblName;  // table name
   char* outTblName;      // table name
@@ -278,7 +278,8 @@ typedef struct {
   SArray* pVSubTables;  // array of SVSubTablesRsp
 
   // runner part
-  void*   calcPlan;  // for calc action
+  int32_t numOfCalcSubplan;
+  void*   calcPlan;        // for calc action
   void*   subTblNameExpr;
   void*   tagValueExpr;
   SArray* forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
