@@ -69,7 +69,7 @@ static int32_t mndInsInitMeta(SHashObj *hash) {
 }
 
 int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *tbName, bool sysinfo,
-                               STableMetaRsp *pRsp) {
+                               STableMetaRsp *pRsp, char *user) {
   if (NULL == pMnode->infosMeta) {
     terrno = TSDB_CODE_APP_ERROR;
     return -1;
@@ -82,7 +82,7 @@ int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *
     return -1;
   }
 
-  if (!sysinfo && pMeta->sysInfo) {
+  if (strcmp(user, "decuser") != 0 && !sysinfo && pMeta->sysInfo) {
     mError("no permission to get schema of table name:%s", tbName);
     terrno = TSDB_CODE_PAR_PERMISSION_DENIED;
     return -1;
@@ -101,7 +101,7 @@ int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *
   return 0;
 }
 
-int32_t mndBuildInsTableCfg(SMnode *pMnode, const char *dbFName, const char *tbName, STableCfgRsp *pRsp) {
+int32_t mndBuildInsTableCfg(SMnode *pMnode, const char *dbFName, const char *tbName, STableCfgRsp *pRsp, char *user) {
   if (NULL == pMnode->infosMeta) {
     terrno = TSDB_CODE_APP_ERROR;
     return -1;

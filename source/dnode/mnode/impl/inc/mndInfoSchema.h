@@ -25,8 +25,8 @@ extern "C" {
 int32_t mndInitInfos(SMnode *pMnode);
 void    mndCleanupInfos(SMnode *pMnode);
 int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *tbName, bool sysinfo,
-                               STableMetaRsp *pRsp);
-int32_t mndBuildInsTableCfg(SMnode *pMnode, const char *dbFName, const char *tbName, STableCfgRsp *pRsp);
+                               STableMetaRsp *pRsp, char *user);
+int32_t mndBuildInsTableCfg(SMnode *pMnode, const char *dbFName, const char *tbName, STableCfgRsp *pRsp, char *user);
 
 #ifdef __cplusplus
 }

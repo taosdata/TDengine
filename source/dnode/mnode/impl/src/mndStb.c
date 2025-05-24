@@ -2926,11 +2926,12 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
 
   if (0 == strcmp(infoReq.dbFName, TSDB_INFORMATION_SCHEMA_DB)) {
     mInfo("information_schema table:%s.%s, start to retrieve meta", infoReq.dbFName, infoReq.tbName);
-    if (mndBuildInsTableSchema(pMnode, infoReq.dbFName, infoReq.tbName, sysinfo, &metaRsp) != 0) {
+    if (mndBuildInsTableSchema(pMnode, infoReq.dbFName, infoReq.tbName, sysinfo, &metaRsp, pReq->info.conn.user) != 0) {
       goto _OVER;
     }
   } else if (0 == strcmp(infoReq.dbFName, TSDB_PERFORMANCE_SCHEMA_DB)) {
-    mInfo("performance_schema table:%s.%s, start to retrieve meta", infoReq.dbFName, infoReq.tbName);
+    mInfo("performance_schema table:%s.%s, start to retrieve meta", infoReq.dbFName, infoReq.tbName,
+          pReq->info.conn.user);
     if (mndBuildPerfsTableSchema(pMnode, infoReq.dbFName, infoReq.tbName, &metaRsp) != 0) {
       goto _OVER;
     }
@@ -2985,7 +2986,7 @@ static int32_t mndProcessTableCfgReq(SRpcMsg *pReq) {
   mndExtractShortDbNameFromDbFullName(cfgReq.dbFName, dbName);
   if (0 == strcmp(dbName, TSDB_INFORMATION_SCHEMA_DB)) {
     mInfo("information_schema table:%s.%s, start to retrieve cfg", cfgReq.dbFName, cfgReq.tbName);
-    if (mndBuildInsTableCfg(pMnode, cfgReq.dbFName, cfgReq.tbName, &cfgRsp) != 0) {
+    if (mndBuildInsTableCfg(pMnode, cfgReq.dbFName, cfgReq.tbName, &cfgRsp, NULL) != 0) {
       goto _OVER;
     }
   } else if (0 == strcmp(dbName, TSDB_PERFORMANCE_SCHEMA_DB)) {
@@ -4418,7 +4419,7 @@ int32_t mndAlterStbByEncyption(SMnode *pMnode) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
 
-  SArray     *pArray = taosArrayInit(4, sizeof(SEncLogObj));
+  SArray *pArray = taosArrayInit(4, sizeof(SEncLogObj));
 
   SArray *pEncKeyArray = taosArrayInit(4, sizeof(SEncKey *));
 
