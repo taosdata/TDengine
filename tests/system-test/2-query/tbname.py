@@ -184,7 +184,7 @@ class TDTestCase:
         tdSql.execute(f'use {dbname}')
         tdSql.execute('CREATE STABLE ```s``t``` (`ts` TIMESTAMP, ```v1``` INT) TAGS (```t``1``` INT);')
         tdSql.execute('CREATE STABLE ```s``t2``` (`ts` TIMESTAMP, ```v1``` INT) TAGS (```t``1``` INT);')
-        tdSql.execute('CREATE TABLE ```t1``` USING ```s``t``` (```t``1```) TAGS (1);')
+        tdSql.execute('CREATE TABLE ```t1``` USING db.```s``t``` TAGS (1);')
         tdSql.execute('CREATE TABLE `t2``` USING ```s``t``` (```t``1```) TAGS (2);')
         tdSql.execute('CREATE TABLE ```t21` USING ```s``t2``` (```t``1```) TAGS (21);')
         tdSql.execute('CREATE TABLE ```n``t``` (```t``s``` TIMESTAMP, ```v1` INT);')
@@ -377,6 +377,11 @@ class TDTestCase:
         tdSql.query("show stables like '`s`t`'")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "`s`t`")
+
+        tdLog.debug(f"--------------  step8:  show create virtual table/drop/recreate with show result ------------------")
+        tdSql.execute("create vtable db.```vntb``100```(```ts``` timestamp, ```v0_``0` int from db.```n``t```.```v1`, ```v0_``1` int from db.```n``t```.```v1`)")
+        tdSql.execute("create stable db.```vstb``100```(```ts``` timestamp, ```c``0``` int, ```c``1``` int) tags(```t0``` int, `t``1``` varchar(20)) virtual 1")
+        tdSql.execute("create vtable db.```vctb``100```(```c0``` from db.```n``t```.```v1`, ```c1``` from db.```n``t```.```v1`) using db.```vstb``100``` tags(0, '0')")
 
     def run(self):
         tdSql.prepare()
