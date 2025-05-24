@@ -1927,6 +1927,7 @@ TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, cons
       tscError("out of memory when taos connect to %s:%u, user:%s db:%s", ip, port, user, db);
     }
     *rid = pObj->id;
+    atomic_add_fetch_64(&taos_connect_metrics, 1);
     return (TAOS*)rid;
   }
 

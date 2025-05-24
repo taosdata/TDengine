@@ -2125,6 +2125,8 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
   if (tsem_post(&pStmt->asyncExecSem) != 0) {
     tscError("fail to post asyncExecSem");
   }
+
+  (void)atomic_add_fetch_64(&stmt2_async_query_finish_metrics, 1);
 }
 
 int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
@@ -2232,6 +2234,8 @@ _return:
   }
   pStmt->stat.execUseUs += taosGetTimestampUs() - startUs;
 
+  atomic_add_fetch_64(&stmt2_exec_finish_metrics, 1);
+
   STMT_RET(code);
 }
 
@@ -2297,6 +2301,8 @@ int stmtClose2(TAOS_STMT2* stmt) {
     }
   }
   taosMemoryFree(stmt);
+
+  (void)atomic_add_fetch_64(&stmt2_close_metrics, 1);
 
   return TSDB_CODE_SUCCESS;
 }

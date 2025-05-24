@@ -39,6 +39,23 @@ extern "C" {
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
 #define HEARTBEAT_INTERVAL         1500  // ms
 
+extern uint64_t stmt2_init_metrics;
+extern uint64_t stmt2_prepare_metrics;
+extern uint64_t stmt2_bind_metrics;
+extern uint64_t stmt2_bind_a_metrics;
+extern uint64_t stmt2_exec_metrics;
+extern uint64_t stmt2_exec_finish_metrics;
+extern uint64_t stmt2_close_metrics;
+extern uint64_t stmt2_getfields_metrics;
+extern uint64_t stmt2_free_fileds_metrics;
+extern uint64_t stmt2_async_query_finish_metrics;
+extern uint64_t taos_connect_metrics;
+extern uint64_t taos_close_metrics;
+extern uint64_t taos_query_metrics;
+extern uint64_t taos_query_a_metrics;
+extern uint64_t taos_free_result_metrics;
+extern uint64_t taos_kill_quert_metrics;
+
 enum {
   RES_TYPE__QUERY = 1,
   RES_TYPE__TMQ,
