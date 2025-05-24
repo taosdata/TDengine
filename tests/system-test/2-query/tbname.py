@@ -194,14 +194,14 @@ class TDTestCase:
             tdSql.execute(f"insert into {dbname}.```t1``` values({now_time + i * 1000}, {i})")
             tdSql.execute(f"insert into {dbname}.`t2``` values({now_time + i * 1000}, {i})")
             tdSql.execute(f"insert into {dbname}.```n``t``` values ({now_time + i * 1000}, {i})")
-        
+
         tdLog.debug(f"--------------  step1:  normal table test   ------------------")
-        tdSql.query("select tbname, count(*) from ```n``t```;")  
+        tdSql.query("select tbname, count(*) from ```n``t```;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "`n`t`")
         tdSql.checkData(0, 1, 3)
-  
-        tdSql.query("select ```n``t```.tbname, count(*) from ```n``t```;")  
+
+        tdSql.query("select ```n``t```.tbname, count(*) from ```n``t```;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "`n`t`")
         tdSql.checkData(0, 1, 3)
@@ -209,115 +209,179 @@ class TDTestCase:
         tdSql.query("select ```n``t```.tbname, count(*) from ```n``t``` group by ```n``t```.tbname")  
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "`n`t`")
-        tdSql.checkData(0, 1, 3) 
-        
+        tdSql.checkData(0, 1, 3)
+
         tdLog.debug(f"--------------  step3:  child table test   ------------------")
-        tdSql.query("select tbname, count(*) from ```t1```")  
+        tdSql.query("select tbname, count(*) from ```t1```")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 3)
 
-        tdSql.query("select ```t1```.tbname, count(*) from ```t1```")  
+        tdSql.query("select ```t1```.tbname, count(*) from ```t1```")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 3)
-        
-        tdSql.query("select tbname, count(*) from ```t1``` group by tbname")  
+
+        tdSql.query("select tbname, count(*) from ```t1``` group by tbname")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 3)
-        
-        tdSql.query("select ```t1```.tbname, count(*) from ```t1``` group by tbname")  
+
+        tdSql.query("select ```t1```.tbname, count(*) from ```t1``` group by tbname")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 3)
-        
-        tdSql.query("select ```t1```.tbname, count(*) from ```t1``` group by ```t1```.tbname")  
+
+        tdSql.query("select ```t1```.tbname, count(*) from ```t1``` group by ```t1```.tbname")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 3)
-        
         tdSql.error("select ```t1```.tbname, count(*) from `t2``` group by ```t1```.tbname")
         tdSql.error("select ```t1```.tbname, count(*) from ```t1``` group by `t2```.tbname")
         tdSql.error("select `t2```.tbname, count(*) from ```t1``` group by ```t1```.tbname")
-        
         tdLog.debug(f"--------------  step4:  super table test   ------------------")
-        tdSql.query("select tbname, count(*) from ```s``t``` group by tbname")  
+        tdSql.query("select tbname, count(*) from ```s``t``` group by tbname")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 3)
         tdSql.checkData(1, 1, 3)
-        
-        tdSql.query("select tbname, count(*) from ```s``t``` partition by tbname")  
+        tdSql.query("select tbname, count(*) from ```s``t``` partition by tbname")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 3)
         tdSql.checkData(1, 1, 3)
-        
         tdSql.query("select ts, ```t``1``` from ```s``t``` where ```s``t```.tbname=\"`t1`\"")
         tdSql.checkRows(3)
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(1, 1, 1)
         tdSql.checkData(2, 1, 1)
-        
-        tdSql.query("select tbname, ts from ```s``t``` where tbname=\"t2`\"")  
+        tdSql.query("select tbname, ts from ```s``t``` where tbname=\"t2`\"")
         tdSql.checkRows(3)
-        
-        tdSql.query("select tbname, ts from ```s``t``` where tbname=\"t2`\" order by tbname")  
+        tdSql.query("select tbname, ts from ```s``t``` where tbname=\"t2`\" order by tbname")
         tdSql.checkRows(3)
-        
-        tdSql.query("select tbname, ts from ```s``t``` where tbname=\"t2`\" order by ```s``t```.tbname")  
+        tdSql.query("select tbname, ts from ```s``t``` where tbname=\"t2`\" order by ```s``t```.tbname")
         tdSql.checkRows(3)
-        
-        tdSql.query("select tbname, count(*) from ```s``t``` where tbname=\"t2`\" group by tbname order by tbname")  
+        tdSql.query("select tbname, count(*) from ```s``t``` where tbname=\"t2`\" group by tbname order by tbname")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 3)
-        
-        tdSql.query("select tbname, count(*) from ```s``t``` group by tbname order by tbname")  
+        tdSql.query("select tbname, count(*) from ```s``t``` group by tbname order by tbname")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 3)
         tdSql.checkData(1, 1, 3)
-        
-        tdSql.query("select tbname, count(*) from ```s``t``` group by ```s``t```.tbname order by ```s``t```.tbname")  
+        tdSql.query("select tbname, count(*) from ```s``t``` group by ```s``t```.tbname order by ```s``t```.tbname")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 3)
         tdSql.checkData(1, 1, 3)
 
         tdLog.debug(f"--------------  step4:  join test   ------------------")
-        tdSql.query("select ```t1```.tbname, `t2```.tbname from ```t1```, `t2``` where ```t1```.ts=`t2```.ts and ```t1```.tbname!=`t2```.tbname")  
-        tdSql.checkRows(3)
-        
-        tdSql.query("select ```t1```.tbname, `t2```.tbname from ```t1```, `t2``` where ```t1```.ts=`t2```.ts and ```t1```.tbname!=`t2```.tbname order by ```t1```.tbname")  
-        tdSql.checkRows(3)
-        
-        tdSql.query("select ```s``t```.tbname, ```s``t2```.tbname from ```s``t```, ```s``t2``` where ```s``t```.ts=```s``t2```.ts and ```s``t```.tbname!=```s``t2```.tbname order by ```s``t```.tbname")  
-        tdSql.checkRows(0)
-        
-        tdSql.execute(f"insert into ```t21` values ( { now_time + 1000 }, 1 )")
-        tdSql.query("select ```s``t```.tbname, ```s``t2```.tbname from ```s``t```, ```s``t2``` where ```s``t```.ts=```s``t2```.ts and ```s``t```.tbname!=```s``t2```.tbname order by ```s``t```.tbname")  
-        tdSql.checkRows(2)
-        
-        tdSql.query("select ```t1```.tbname, ```s``t2```.tbname from ```t1```, ```s``t2``` where ```t1```.ts=```s``t2```.ts and ```t1```.tbname!=```s``t2```.tbname order by ```t1```.tbname")  
-        tdSql.checkRows(1)
-        
-        tdSql.query("select ```n``t```.```t``s```, ```s``t```.tbname from ```n``t```, ```s``t``` where ```n``t```.```t``s```=```s``t```.`ts` order by ```s``t```.tbname")  
-        tdSql.checkRows(6)
-        
-        tdSql.query("select ```n``t```.```t``s```, ```t1```.tbname from ```n``t```, ```t1``` where ```n``t```.```t``s```=```t1```.`ts` order by ```t1```.tbname")  
+        tdSql.query("select ```t1```.tbname, `t2```.tbname from ```t1```, `t2``` where ```t1```.ts=`t2```.ts and ```t1```.tbname!=`t2```.tbname")
         tdSql.checkRows(3)
 
-        tdLog.debug(f"--------------  step4:  auto create table and ddl test   ------------------")
+        tdSql.query("select ```t1```.tbname, `t2```.tbname from ```t1```, `t2``` where ```t1```.ts=`t2```.ts and ```t1```.tbname!=`t2```.tbname order by ```t1```.tbname")
+        tdSql.checkRows(3)
+
+        tdSql.query("select ```s``t```.tbname, ```s``t2```.tbname from ```s``t```, ```s``t2``` where ```s``t```.ts=```s``t2```.ts and ```s``t```.tbname!=```s``t2```.tbname order by ```s``t```.tbname")
+        tdSql.checkRows(0)
+
+        tdSql.execute(f"insert into ```t21` values ( { now_time + 1000 }, 1 )")
+        tdSql.query("select ```s``t```.tbname, ```s``t2```.tbname from ```s``t```, ```s``t2``` where ```s``t```.ts=```s``t2```.ts and ```s``t```.tbname!=```s``t2```.tbname order by ```s``t```.tbname")
+        tdSql.checkRows(2)
+        
+        tdSql.query("select ```t1```.tbname, ```s``t2```.tbname from ```t1```, ```s``t2``` where ```t1```.ts=```s``t2```.ts and ```t1```.tbname!=```s``t2```.tbname order by ```t1```.tbname")
+        tdSql.checkRows(1)
+        
+        tdSql.query("select ```n``t```.```t``s```, ```s``t```.tbname from ```n``t```, ```s``t``` where ```n``t```.```t``s```=```s``t```.`ts` order by ```s``t```.tbname")
+        tdSql.checkRows(6)
+        
+        tdSql.query("select ```n``t```.```t``s```, ```t1```.tbname from ```n``t```, ```t1``` where ```n``t```.```t``s```=```t1```.`ts` order by ```t1```.tbname")
+        tdSql.checkRows(3)
+
+        tdLog.debug(f"--------------  step5:  auto create table/show create table/drop/recreate with show result  ------------------")
         tdSql.execute('INSERT INTO `t30``` USING ```s``t``` (```t``1```) TAGS (30) VALUES(now+30s,30);')
         tdSql.execute('INSERT INTO ```t31` USING ```s``t``` (```t``1```) TAGS (31) (`ts`,```v1```) VALUES(now+31s,31);')
         tdSql.execute('INSERT INTO `t3``2` USING ```s``t``` (```t``1```) TAGS (32) (```v1```,`ts`) VALUES(32,now+32s);')
-        tdSql.execute('INSERT INTO `t3``3` USING ```s``t``` (```t``1```) TAGS (33) (```v1```,ts) VALUES(33,now+33s);')
-        tdSql.execute('INSERT INTO ```t3``4``` USING ```s``t``` (```t``1```) TAGS (34) (```v1```,ts) VALUES(34,now+34s);')
-        tdSql.execute('INSERT INTO `````t3````5````` USING ```s``t``` (```t``1```) TAGS (35) (ts,```v1```) VALUES(now+35s,35);')
-
+        tdSql.execute('INSERT INTO ```t3``3``` USING ```s``t``` (```t``1```) TAGS (33) (```v1```,ts) VALUES(33,now+33s);')
+        tdSql.execute('INSERT INTO `````t3````4````` USING ```s``t``` (```t``1```) TAGS (34) (ts,```v1```) VALUES(now+34s,34);')
         tdSql.query("select tbname, count(*) from ```s``t``` partition by tbname")  
-        tdSql.checkRows(8)
-        tdSql.query("select tbname, count(*) from `t30```")
+        tdSql.checkRows(7)
+        self.column_dict = {'`t30```':'t30`','```t31`':'`t31','`t3``2`':'t3`2','```t3``3```':'`t3`3`','`````t3````4`````':'``t3``4``'}
+        self.show_create_result = []
+        for key, value in self.column_dict.items():
+            tdSql.query(f"select tbname, count(*) from {key}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, value)
+            tdSql.checkData(0, 1, 1)
+            tdSql.query(f"select {key}.tbname, count(*) from {key}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, value)
+            tdSql.checkData(0, 1, 1)
+            tdSql.query(f"select tbname, count(*) from {key} group by tbname")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, value)
+            tdSql.checkData(0, 1, 1)
+            tdSql.query(f"select {key}.tbname, count(*) from {key} group by tbname")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, value)
+            tdSql.checkData(0, 1, 1)
+            tdSql.query(f"show create table {key}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, value)
+            self.show_create_result.append(tdSql.getData(0, 1))
+            tdSql.query(f"drop table {key}")
+
+        tdSql.query("select tbname, count(*) from ```s``t``` partition by tbname")
+        tdSql.checkRows(2)
+        for i in range(len(self.show_create_result)):
+            tdLog.info(f"{self.show_create_result[i]}")
+            tdSql.query(f"{self.show_create_result[i]}")
+        tdSql.query("select tbname, count(*) from ```s``t``` partition by tbname")
+        tdSql.checkRows(7)
+
+        i=0
+        for key, value in self.column_dict.items():
+            tdSql.query(f"show create table {key}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, value)
+            tdSql.checkData(0, 1, self.show_create_result[i])
+            i+=1
+
+        tdLog.debug(f"--------------  step6:  show create normal table/drop/recreate with show result ------------------")
+        tdSql.query("show create table ```n``t```")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 1)
-        tdSql.checkEqual(tdSql.queryResult[0][0], "t30`")
+        tdSql.checkData(0, 0, "`n`t`")
+        tdSql.checkData(0, 1, "CREATE TABLE ```n``t``` (```t``s``` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', ```v1` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium')")
+        showCreateResult = tdSql.getData(0, 1)
+        tdSql.query("show tables like '`n`t`'")
+        tdSql.checkRows(1)
+        tdSql.query("drop table ```n``t```")
+        tdSql.query("show tables like '`n`t`'")
+        tdSql.checkRows(0)
+        tdSql.query(f"{showCreateResult}")
+        tdSql.query("show create table ```n``t```")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "`n`t`")
+        tdSql.checkData(0, 1, f"{showCreateResult}")
+        tdSql.query("show tables like '`n`t`'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "`n`t`")
+
+        tdLog.debug(f"--------------  step7:  show create super table/drop/recreate with show result ------------------")
+        tdSql.query("show create table ```s``t```")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "`s`t`")
+        tdSql.checkData(0, 1, "CREATE STABLE ```s``t``` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', ```v1``` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium') TAGS (```t``1``` INT)")
+        showCreateResult = tdSql.getData(0, 1)
+        tdSql.query("show stables like '`s`t`'")
+        tdSql.checkRows(1)
+        tdSql.query("drop table ```s``t```")
+        tdSql.query("show stables like '`s`t`'")
+        tdSql.checkRows(0)
+        tdSql.query(f"{showCreateResult}")
+        tdSql.query("show create table ```s``t```")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "`s`t`")
+        tdSql.checkData(0, 1, f"{showCreateResult}")
+        tdSql.query("show stables like '`s`t`'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "`s`t`")
 
     def run(self):
         tdSql.prepare()
         self.ts6532()
-        # self.td29092()
+        self.td29092()
 
     def stop(self):
         tdSql.close()
