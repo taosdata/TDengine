@@ -80,7 +80,9 @@ typedef enum {
   MND_OPER_BALANCE_VGROUP_LEADER,
   MND_OPER_CREATE_ANODE,
   MND_OPER_UPDATE_ANODE,
-  MND_OPER_DROP_ANODE
+  MND_OPER_DROP_ANODE,
+  MND_OPER_CREATE_XNODE,
+  MND_OPER_DROP_XNODE
 } EOperType;
 
 typedef enum {
@@ -288,6 +290,14 @@ typedef struct {
   int64_t    updateTime;
   SDnodeObj* pDnode;
 } SSnodeObj;
+
+typedef struct {
+  int32_t    id;
+  int32_t    proto;
+  int64_t    createdTime;
+  int64_t    updateTime;
+  SDnodeObj* pDnode;
+} SXnodeObj;
 
 typedef struct {
   int32_t dnodeId;
