@@ -524,6 +524,45 @@ class ClusterComCheck:
             args = (caller.filename, caller.lineno)
             tdLog.exit("%s(%d) failed " % args)
 
+
+    def check_stream_status(self, stream_name=""):
+        for loop in range(60):
+            if stream_name == "":
+                tdSql.query(f"select * from information_schema.ins_stream_tasks")
+                if tdSql.getRows() == 0:
+                    continue
+                tdSql.query(
+                    f'select * from information_schema.ins_stream_tasks where status != "ready"'
+                )
+                if tdSql.getRows() == 0:
+                    return
+            else:
+                tdSql.query(
+                    f'select stream_name, status from information_schema.ins_stream_tasks where stream_name = "{stream_name}" and status == "ready"'
+                )
+                if tdSql.getRows() == 1:
+                    return
+            time.sleep(1)
+
+        tdLog.exit(f"stream task status not ready in {loop} seconds")
+
+
+    def drop_all_streams_and_dbs(self):
+        streamList = tdSql.query("show streams", row_tag=True)
+        for r in range(len(streamList)):
+            tdSql.execute(f"drop stream {streamList[r][0]}")
+            
+        dbList = tdSql.query("show databases", row_tag=True)
+        for r in range(len(dbList)):
+            if (
+                dbList[r][0] != "information_schema"
+                and dbList[r][0] != "performance_schema"
+            ):
+                tdSql.execute(f"drop database {dbList[r][0]}")
+
+
+        tdLog.info(f"drop {len(dbList)} databases, {len(streamList)} streams")
+
     def close(self):
         self.cursor.close()
 

@@ -381,6 +381,24 @@ class TDSql:
                 time.sleep(1)
                 pass
 
+    def queryCheckFunc(self, sql, checkFunc, delay=0.3, retry=20, print=False):
+        if delay != 0:
+            time.sleep(delay)
+
+        for loop in range(retry):
+            tdSql.query(sql)
+
+            if checkFunc():
+                tdSql.printResult("check succeed")
+                return
+
+            if loop != retry - 1:
+                if print:
+                    tdSql.printResult("check continue")
+                time.sleep(1)
+
+        tdSql.printResult(f"check failed for {retry} seconds", exit=True)
+
     def executeTimes(self, sql, times):
         """
         Executes a SQL statement a specified number of times.(Not used)
@@ -1500,13 +1518,20 @@ class TDSql:
         if show:
             tdLog.info("check key successfully")
 
-    def printResult(self):
+    def printResult(self, name="", exit=False):
+        if name == "":
+            name = "print result"
         tdLog.info(
-            f"print result, rows:{self.queryRows}, cols:{self.queryCols}, sql:{self.sql}"
+            f"==== {name}, rows:{self.queryRows}, cols:{self.queryCols}, sql:{self.sql}"
         )
         for r in range(self.queryRows):
+            data = "==== "
             for c in range(self.queryCols):
-                tdLog.info(f"data[{r}][{c}]=[{self.queryResult[r][c]}]")
+                data += f"d[{r}][{c}]={self.queryResult[r][c]} "
+            tdLog.info(data)
+        if exit:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            tdLog.exit(f"{name} {caller.filename}({caller.lineno})")
 
     def expectKeyData(self, key, col, data, show=False):
         """
