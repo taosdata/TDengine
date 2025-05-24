@@ -3386,6 +3386,7 @@ static int32_t getIpRangeFromStr(char* ipRange, SIpRange* pIpRange) {
   } else {
     struct in_addr ip4;
     if (inet_pton(AF_INET, ipRange, &ip4) == 1) {
+      pIpRange->type = 0;
       memcpy(&pIpRange->ipV4.ip, &ip4.s_addr, sizeof(ip4.s_addr));
     } else {
       return TSDB_CODE_PAR_INVALID_IP_RANGE;
@@ -3417,6 +3418,9 @@ static int32_t getIpRangeFromWhitelistItem(char* ipRange, SIpRange* pIpRange) {
   code = getIpRangeFromStr(ipCopy, pIpRange);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
+  if (!slash) {
+    mask = pIpRange->type == 0 ? 32 : 128;
+  }
   code = tIpRangeSetMask(pIpRange, mask);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
