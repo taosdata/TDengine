@@ -76,7 +76,7 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
 
   SRpcMsg rpcMsg = {.pCont = pHead,
                     .contLen = contLen,
-                    .msgType = TDMT_MND_RETRIEVE_IP_WHITE,
+                    .msgType = TDMT_MND_RETRIEVE_IP_WHITE_DUAL,
                     .info.ahandle = 0,
                     .info.notFreeAhandle = 1,
                     .info.refId = 0,

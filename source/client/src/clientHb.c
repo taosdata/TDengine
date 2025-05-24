@@ -1231,7 +1231,7 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
     maxIpWhiteVer = TMAX(maxIpWhiteVer, ver);
     releaseTscObj(connKey->tscRid);
   }
-  (*pBatchReq)->ipWhiteList = maxIpWhiteVer;
+  (*pBatchReq)->ipWhiteListVer = maxIpWhiteVer;
 
   return TSDB_CODE_SUCCESS;
 }
