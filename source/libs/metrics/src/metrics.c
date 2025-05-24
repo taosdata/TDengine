@@ -251,26 +251,76 @@ int32_t addWriteMetrics(int32_t vgId, const SRawWriteMetrics *pRawMetrics) {
   return code;
 }
 
+static SJson *metricsToJson(SWriteMetricsEx *pMetrics) {
+  SJson *pJson = tjsonCreateObject();
+  if (pJson == NULL) return NULL;
+
+  char    buf[40] = {0};
+  int64_t curTime = taosGetTimestampMs();
+  if (taosFormatUtcTime(buf, sizeof(buf), curTime, TSDB_TIME_PRECISION_MILLI) != 0) {
+    tjsonDelete(pJson);
+    return NULL;
+  }
+
+  tjsonAddStringToObject(pJson, "ts", buf);
+  tjsonAddDoubleToObject(pJson, "vgId", pMetrics->vgId);
+  tjsonAddDoubleToObject(pJson, "total_requests", getMetricInt64(&pMetrics->total_requests));
+  tjsonAddDoubleToObject(pJson, "total_rows", getMetricInt64(&pMetrics->total_rows));
+  tjsonAddDoubleToObject(pJson, "total_bytes", getMetricInt64(&pMetrics->total_bytes));
+  tjsonAddDoubleToObject(pJson, "avg_write_size", getMetricDouble(&pMetrics->avg_write_size));
+  tjsonAddDoubleToObject(pJson, "rpc_queue_wait", getMetricInt64(&pMetrics->rpc_queue_wait));
+  tjsonAddDoubleToObject(pJson, "preprocess_time", getMetricInt64(&pMetrics->preprocess_time));
+  tjsonAddDoubleToObject(pJson, "fetch_batch_meta_time", getMetricInt64(&pMetrics->fetch_batch_meta_time));
+  tjsonAddDoubleToObject(pJson, "fetch_batch_meta_count", getMetricInt64(&pMetrics->fetch_batch_meta_count));
+  tjsonAddDoubleToObject(pJson, "memtable_wait_time", getMetricInt64(&pMetrics->memtable_wait_time));
+  tjsonAddDoubleToObject(pJson, "memory_table_rows", getMetricInt64(&pMetrics->memory_table_rows));
+  tjsonAddDoubleToObject(pJson, "memory_table_size", getMetricInt64(&pMetrics->memory_table_size));
+  tjsonAddDoubleToObject(pJson, "cache_hit_ratio", getMetricDouble(&pMetrics->cache_hit_ratio));
+  tjsonAddDoubleToObject(pJson, "wal_write_bytes", getMetricInt64(&pMetrics->wal_write_bytes));
+  tjsonAddDoubleToObject(pJson, "wal_write_time", getMetricInt64(&pMetrics->wal_write_time));
+  tjsonAddDoubleToObject(pJson, "sync_bytes", getMetricInt64(&pMetrics->sync_bytes));
+  tjsonAddDoubleToObject(pJson, "sync_time", getMetricInt64(&pMetrics->sync_time));
+  tjsonAddDoubleToObject(pJson, "apply_bytes", getMetricInt64(&pMetrics->apply_bytes));
+  tjsonAddDoubleToObject(pJson, "apply_time", getMetricInt64(&pMetrics->apply_time));
+  tjsonAddDoubleToObject(pJson, "commit_count", getMetricInt64(&pMetrics->commit_count));
+  tjsonAddDoubleToObject(pJson, "avg_commit_time", getMetricDouble(&pMetrics->avg_commit_time));
+  tjsonAddDoubleToObject(pJson, "blocked_commits", getMetricInt64(&pMetrics->blocked_commits));
+  tjsonAddDoubleToObject(pJson, "merge_count", getMetricInt64(&pMetrics->merge_count));
+  tjsonAddDoubleToObject(pJson, "avg_merge_time", getMetricDouble(&pMetrics->avg_merge_time));
+
+  return pJson;
+}
+
+static void sendMetricsReport(SJson *pJson) {
+  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
+
+  char *pCont = tjsonToString(pJson);
+  if (pCont != NULL) {
+    EHttpCompFlag flag = HTTP_FLAT;
+    char          tmp[100] = {0};
+    snprintf(tmp, 100, "0x%" PRIxLEAST64, taosGetTimestampUs());
+    if (taosSendHttpReportWithQID(tsMonitorFqdn, "/metrics", tsMonitorPort, pCont, strlen(pCont), flag, tmp) != 0) {
+      uError("failed to send metrics msg");
+    }
+    taosMemoryFree(pCont);
+  }
+}
+
 void reportWriteMetrics() {
   if (gMetricsManager.pWriteMetrics == NULL) {
     uError("Write metrics manager not initialized for reporting.");
     return;
   }
 
-  void            *pIter = NULL;  // Start iterator from NULL
+  void            *pIter = NULL;
   SWriteMetricsEx *pMetrics = NULL;
-  void            *pData = NULL;  // Pointer to the data returned by iterator
+  void            *pData = NULL;
 
   while ((pData = taosHashIterate(gMetricsManager.pWriteMetrics, pIter)) != NULL) {
-    // pData points to the stored data, which is &pMetricEx (type SWriteMetricsEx**)
-    pMetrics = *(SWriteMetricsEx **)pData;  // Dereference to get SWriteMetricsEx*
-
-    // Update pIter for the *next* call to taosHashIterate
-    pIter = pData;  // Use the current data pointer as the marker for the next iteration
+    pMetrics = *(SWriteMetricsEx **)pData;
+    pIter = pData;
 
     if (pMetrics == NULL) {
-      // This case shouldn't happen if addWriteMetrics always allocates memory,
-      // but good to handle defensively.
       continue;
     }
 
@@ -284,7 +334,7 @@ void reportWriteMetrics() {
           " "
           "ApplyBytes:%" PRId64 " ApplyTime:%" PRId64 " Commits:%" PRId64 " CommitTime:%.2fms Blocked:%" PRId64
           " "
-          "Merges:%" PRId64 " MergeTime:%.2fms ",
+          "Merges:%" PRId64 " MergeTime:%.2fms",
           pMetrics->vgId, getMetricInt64(&pMetrics->total_requests), getMetricInt64(&pMetrics->total_rows),
           getMetricInt64(&pMetrics->total_bytes), getMetricDouble(&pMetrics->avg_write_size),
           (double)getMetricInt64(&pMetrics->rpc_queue_wait), (double)getMetricInt64(&pMetrics->preprocess_time),
@@ -297,6 +347,90 @@ void reportWriteMetrics() {
           getMetricInt64(&pMetrics->commit_count), getMetricDouble(&pMetrics->avg_commit_time),
           getMetricInt64(&pMetrics->blocked_commits), getMetricInt64(&pMetrics->merge_count),
           getMetricDouble(&pMetrics->avg_merge_time));
-    // No need to call taosHashIterate again here, the while condition does it.
+
+    SJson *pJson = metricsToJson(pMetrics);
+    if (pJson != NULL) {
+      sendMetricsReport(pJson);
+      tjsonDelete(pJson);
+    }
   }
+}
+
+void sendAllMetricsReport() {
+  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
+  if (gMetricsManager.pWriteMetrics == NULL) return;
+
+  SJson *pRootJson = tjsonCreateObject();
+  if (pRootJson == NULL) return;
+
+  char    buf[40] = {0};
+  int64_t curTime = taosGetTimestampMs();
+  if (taosFormatUtcTime(buf, sizeof(buf), curTime, TSDB_TIME_PRECISION_MILLI) != 0) {
+    tjsonDelete(pRootJson);
+    return;
+  }
+
+  tjsonAddStringToObject(pRootJson, "ts", buf);
+  SJson *pMetricsArray = tjsonAddArrayToObject(pRootJson, "write_metrics");
+  if (pMetricsArray == NULL) {
+    tjsonDelete(pRootJson);
+    return;
+  }
+
+  void            *pIter = NULL;
+  SWriteMetricsEx *pMetrics = NULL;
+  void            *pData = NULL;
+
+  while ((pData = taosHashIterate(gMetricsManager.pWriteMetrics, pIter)) != NULL) {
+    pMetrics = *(SWriteMetricsEx **)pData;
+    pIter = pData;
+
+    if (pMetrics == NULL) continue;
+
+    SJson *pVgJson = tjsonCreateObject();
+    if (pVgJson == NULL) continue;
+
+    tjsonAddDoubleToObject(pVgJson, "vgId", pMetrics->vgId);
+    tjsonAddDoubleToObject(pVgJson, "total_requests", getMetricInt64(&pMetrics->total_requests));
+    tjsonAddDoubleToObject(pVgJson, "total_rows", getMetricInt64(&pMetrics->total_rows));
+    tjsonAddDoubleToObject(pVgJson, "total_bytes", getMetricInt64(&pMetrics->total_bytes));
+    tjsonAddDoubleToObject(pVgJson, "avg_write_size", getMetricDouble(&pMetrics->avg_write_size));
+    tjsonAddDoubleToObject(pVgJson, "rpc_queue_wait", getMetricInt64(&pMetrics->rpc_queue_wait));
+    tjsonAddDoubleToObject(pVgJson, "preprocess_time", getMetricInt64(&pMetrics->preprocess_time));
+    tjsonAddDoubleToObject(pVgJson, "fetch_batch_meta_time", getMetricInt64(&pMetrics->fetch_batch_meta_time));
+    tjsonAddDoubleToObject(pVgJson, "fetch_batch_meta_count", getMetricInt64(&pMetrics->fetch_batch_meta_count));
+    tjsonAddDoubleToObject(pVgJson, "memtable_wait_time", getMetricInt64(&pMetrics->memtable_wait_time));
+    tjsonAddDoubleToObject(pVgJson, "memory_table_rows", getMetricInt64(&pMetrics->memory_table_rows));
+    tjsonAddDoubleToObject(pVgJson, "memory_table_size", getMetricInt64(&pMetrics->memory_table_size));
+    tjsonAddDoubleToObject(pVgJson, "cache_hit_ratio", getMetricDouble(&pMetrics->cache_hit_ratio));
+    tjsonAddDoubleToObject(pVgJson, "wal_write_bytes", getMetricInt64(&pMetrics->wal_write_bytes));
+    tjsonAddDoubleToObject(pVgJson, "wal_write_time", getMetricInt64(&pMetrics->wal_write_time));
+    tjsonAddDoubleToObject(pVgJson, "sync_bytes", getMetricInt64(&pMetrics->sync_bytes));
+    tjsonAddDoubleToObject(pVgJson, "sync_time", getMetricInt64(&pMetrics->sync_time));
+    tjsonAddDoubleToObject(pVgJson, "apply_bytes", getMetricInt64(&pMetrics->apply_bytes));
+    tjsonAddDoubleToObject(pVgJson, "apply_time", getMetricInt64(&pMetrics->apply_time));
+    tjsonAddDoubleToObject(pVgJson, "commit_count", getMetricInt64(&pMetrics->commit_count));
+    tjsonAddDoubleToObject(pVgJson, "avg_commit_time", getMetricDouble(&pMetrics->avg_commit_time));
+    tjsonAddDoubleToObject(pVgJson, "blocked_commits", getMetricInt64(&pMetrics->blocked_commits));
+    tjsonAddDoubleToObject(pVgJson, "merge_count", getMetricInt64(&pMetrics->merge_count));
+    tjsonAddDoubleToObject(pVgJson, "avg_merge_time", getMetricDouble(&pMetrics->avg_merge_time));
+
+    if (tjsonAddItemToArray(pMetricsArray, pVgJson) != 0) {
+      tjsonDelete(pVgJson);
+    }
+  }
+
+  char *pCont = tjsonToString(pRootJson);
+  if (pCont != NULL) {
+    EHttpCompFlag flag = HTTP_FLAT;
+    char          tmp[100] = {0};
+    snprintf(tmp, 100, "0x%" PRIxLEAST64, taosGetTimestampUs());
+    if (taosSendHttpReportWithQID(tsMonitorFqdn, "/metrics-batch", tsMonitorPort, pCont, strlen(pCont), flag, tmp) !=
+        0) {
+      uError("failed to send metrics batch msg");
+    }
+    taosMemoryFree(pCont);
+  }
+
+  tjsonDelete(pRootJson);
 }

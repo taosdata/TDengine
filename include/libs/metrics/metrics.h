@@ -161,6 +161,7 @@ int32_t forEachMetric(MetricsLogCallback callback, void *param);
 int32_t getAllMetricsJson(char **pJson);
 
 void reportWriteMetrics();
+void sendAllMetricsReport();
 
 #ifdef __cplusplus
 }

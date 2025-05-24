@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -32,6 +33,7 @@ var createList = []string{
 	// CreateSummarySql,
 	// CreateGrantInfoSql,
 	CreateKeeperSql,
+	CreateWriteMetricsSql,
 }
 
 type Reporter struct {
@@ -61,6 +63,11 @@ func NewReporter(conf *config.Config) *Reporter {
 
 func (r *Reporter) Init(c gin.IRouter) {
 	c.POST("report", r.handlerFunc())
+	c.POST("metrics", r.metricsHandlerFunc())
+	c.POST("metrics-batch", r.metricsBatchHandlerFunc())
+	c.GET("metrics/query", r.metricsQueryHandlerFunc())
+	c.GET("metrics/summary", r.metricsSummaryHandlerFunc())
+	c.GET("metrics/vgroups", r.metricsVgroupsHandlerFunc())
 	r.createDatabase()
 	r.creatTables()
 	// todo: it can delete in the future.
@@ -375,6 +382,253 @@ func (r *Reporter) recordTotalRep() {
 
 func (r *Reporter) GetTotalRep() *atomic.Value {
 	return &r.totalRep
+}
+
+func (r *Reporter) metricsHandlerFunc() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		qid := util.GetQid(c.GetHeader("X-QID"))
+
+		logger := logger.WithFields(
+			logrus.Fields{config.ReqIDKey: qid},
+		)
+
+		data, err := c.GetRawData()
+		if err != nil {
+			logger.Errorf("receiving metrics data error, msg:%s", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		var metricsInfo WriteMetricsInfo
+		if e := json.Unmarshal(data, &metricsInfo); e != nil {
+			logger.Errorf("error occurred while unmarshal metrics request, data:%s, error:%v", data, e)
+			c.JSON(http.StatusBadRequest, gin.H{"error": e.Error()})
+			return
+		}
+
+		sql := r.insertWriteMetricsSql(metricsInfo)
+		conn, err := db.NewConnectorWithDb(r.username, r.password, r.host, r.port, r.dbname, r.usessl)
+		if err != nil {
+			logger.Errorf("connect to database error, msg:%s", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		defer r.closeConn(conn)
+
+		ctx := context.Background()
+		if _, err := conn.Exec(ctx, sql, qid); err != nil {
+			logger.Errorf("execute sql error, sql:%s, error:%s", sql, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{})
+	}
+}
+
+func (r *Reporter) metricsBatchHandlerFunc() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		qid := util.GetQid(c.GetHeader("X-QID"))
+
+		logger := logger.WithFields(
+			logrus.Fields{config.ReqIDKey: qid},
+		)
+
+		data, err := c.GetRawData()
+		if err != nil {
+			logger.Errorf("receiving metrics batch data error, msg:%s", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		var batchReport WriteMetricsReport
+		if e := json.Unmarshal(data, &batchReport); e != nil {
+			logger.Errorf("error occurred while unmarshal metrics batch request, data:%s, error:%v", data, e)
+			c.JSON(http.StatusBadRequest, gin.H{"error": e.Error()})
+			return
+		}
+
+		var sqls []string
+		for _, metrics := range batchReport.WriteMetrics {
+			sqls = append(sqls, r.insertWriteMetricsSql(metrics))
+		}
+
+		conn, err := db.NewConnectorWithDb(r.username, r.password, r.host, r.port, r.dbname, r.usessl)
+		if err != nil {
+			logger.Errorf("connect to database error, msg:%s", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		defer r.closeConn(conn)
+
+		ctx := context.Background()
+		for _, sql := range sqls {
+			if _, err := conn.Exec(ctx, sql, qid); err != nil {
+				logger.Errorf("execute sql error, sql:%s, error:%s", sql, err)
+			}
+		}
+
+		c.JSON(http.StatusOK, gin.H{})
+	}
+}
+
+func (r *Reporter) insertWriteMetricsSql(metrics WriteMetricsInfo) string {
+	return fmt.Sprintf("insert into write_metrics_%d using write_metrics tags (%d, %d, '%s', '%s') values (now, %d, %d, %d, %f, %d, %d, %d, %d, %d, %d, %d, %f, %d, %d, %d, %d, %d, %d, %d, %f, %d, %d, %f)",
+		metrics.VgId, metrics.VgId, 1, "localhost:6030", "cluster1",
+		metrics.TotalRequests, metrics.TotalRows, metrics.TotalBytes, metrics.AvgWriteSize,
+		metrics.RpcQueueWait, metrics.PreprocessTime, metrics.FetchBatchMetaTime, metrics.FetchBatchMetaCount,
+		metrics.MemtableWaitTime, metrics.MemoryTableRows, metrics.MemoryTableSize, metrics.CacheHitRatio,
+		metrics.WalWriteBytes, metrics.WalWriteTime, metrics.SyncBytes, metrics.SyncTime,
+		metrics.ApplyBytes, metrics.ApplyTime, metrics.CommitCount, metrics.AvgCommitTime,
+		metrics.BlockedCommits, metrics.MergeCount, metrics.AvgMergeTime)
+}
+
+func (r *Reporter) metricsQueryHandlerFunc() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		vgroupId := c.Query("vgroup_id")
+		startTime := c.Query("start_time")
+		endTime := c.Query("end_time")
+		interval := c.DefaultQuery("interval", "1m")
+		limit := c.DefaultQuery("limit", "1000")
+
+		var sql string
+		if vgroupId != "" {
+			sql = fmt.Sprintf(`SELECT _wstart as ts, vgroup_id, 
+				avg(total_requests) as total_requests,
+				avg(total_rows) as total_rows,
+				avg(total_bytes) as total_bytes,
+				avg(avg_write_size) as avg_write_size,
+				avg(cache_hit_ratio) as cache_hit_ratio,
+				avg(memory_table_rows) as memory_table_rows,
+				avg(commit_count) as commit_count,
+				avg(avg_commit_time) as avg_commit_time,
+				avg(preprocess_time) as preprocess_time,
+				avg(wal_write_bytes) as wal_write_bytes,
+				avg(sync_bytes) as sync_bytes,
+				avg(apply_bytes) as apply_bytes
+			FROM %s.write_metrics 
+			WHERE vgroup_id = %s`, r.dbname, vgroupId)
+		} else {
+			sql = fmt.Sprintf(`SELECT _wstart as ts, vgroup_id,
+				avg(total_requests) as total_requests,
+				avg(total_rows) as total_rows,
+				avg(total_bytes) as total_bytes,
+				avg(avg_write_size) as avg_write_size,
+				avg(cache_hit_ratio) as cache_hit_ratio,
+				avg(memory_table_rows) as memory_table_rows,
+				avg(commit_count) as commit_count,
+				avg(avg_commit_time) as avg_commit_time,
+				avg(preprocess_time) as preprocess_time,
+				avg(wal_write_bytes) as wal_write_bytes,
+				avg(sync_bytes) as sync_bytes,
+				avg(apply_bytes) as apply_bytes
+			FROM %s.write_metrics`, r.dbname)
+		}
+
+		if startTime != "" && endTime != "" {
+			sql += fmt.Sprintf(" AND ts >= '%s' AND ts <= '%s'", startTime, endTime)
+		} else if startTime != "" {
+			sql += fmt.Sprintf(" AND ts >= '%s'", startTime)
+		} else if endTime != "" {
+			sql += fmt.Sprintf(" AND ts <= '%s'", endTime)
+		}
+
+		sql += fmt.Sprintf(" INTERVAL(%s) GROUP BY vgroup_id ORDER BY ts DESC LIMIT %s", interval, limit)
+
+		r.executeQueryAndRespond(c, sql)
+	}
+}
+
+func (r *Reporter) metricsSummaryHandlerFunc() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		timeRange := c.DefaultQuery("time_range", "1h")
+		
+		var timeFilter string
+		switch timeRange {
+		case "1h":
+			timeFilter = "ts >= now - 1h"
+		case "6h":
+			timeFilter = "ts >= now - 6h" 
+		case "24h":
+			timeFilter = "ts >= now - 24h"
+		case "7d":
+			timeFilter = "ts >= now - 7d"
+		default:
+			timeFilter = "ts >= now - 1h"
+		}
+
+		sql := fmt.Sprintf(`SELECT 
+			vgroup_id,
+			max(total_requests) as max_total_requests,
+			max(total_rows) as max_total_rows,
+			max(total_bytes) as max_total_bytes,
+			avg(avg_write_size) as avg_write_size,
+			avg(cache_hit_ratio) as avg_cache_hit_ratio,
+			max(memory_table_rows) as max_memory_table_rows,
+			max(commit_count) as max_commit_count,
+			avg(avg_commit_time) as avg_commit_time,
+			max(blocked_commits) as max_blocked_commits,
+			max(merge_count) as max_merge_count,
+			avg(avg_merge_time) as avg_merge_time,
+			sum(wal_write_bytes) as total_wal_write_bytes,
+			sum(sync_bytes) as total_sync_bytes,
+			sum(apply_bytes) as total_apply_bytes
+		FROM %s.write_metrics 
+		WHERE %s 
+		GROUP BY vgroup_id 
+		ORDER BY vgroup_id`, r.dbname, timeFilter)
+
+		r.executeQueryAndRespond(c, sql)
+	}
+}
+
+func (r *Reporter) metricsVgroupsHandlerFunc() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		sql := fmt.Sprintf(`SELECT DISTINCT 
+			vgroup_id, 
+			dnode_id, 
+			dnode_ep, 
+			cluster_id,
+			count(*) as record_count,
+			min(ts) as first_ts,
+			max(ts) as last_ts
+		FROM %s.write_metrics 
+		GROUP BY vgroup_id, dnode_id, dnode_ep, cluster_id 
+		ORDER BY vgroup_id`, r.dbname)
+
+		r.executeQueryAndRespond(c, sql)
+	}
+}
+
+func (r *Reporter) executeQueryAndRespond(c *gin.Context, sql string) {
+	qid := util.GetQid(c.GetHeader("X-QID"))
+	
+	logger := logger.WithFields(
+		logrus.Fields{config.ReqIDKey: qid},
+	)
+
+	conn, err := db.NewConnectorWithDb(r.username, r.password, r.host, r.port, r.dbname, r.usessl)
+	if err != nil {
+		logger.Errorf("connect to database error, msg:%s", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer r.closeConn(conn)
+
+	ctx := context.Background()
+	result, err := conn.Query(ctx, sql, qid)
+	if err != nil {
+		logger.Errorf("execute query error, sql:%s, error:%s", sql, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 0,
+		"message": "success",
+		"data": result.Data,
+		"rows": len(result.Data),
+	})
 }
 
 func insertClusterInfoSql(info ClusterInfo, ClusterID string, protocol int, ts string) []string {
