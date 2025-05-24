@@ -2,6 +2,8 @@
 #define CREATE_DATABASE_CONFIG_H
 
 #include "ConnectionInfo.h"
+#include "DataFormat.h"
+#include "DataChannel.h"
 #include "DatabaseInfo.h"
 
 struct CreateDatabaseConfig {
