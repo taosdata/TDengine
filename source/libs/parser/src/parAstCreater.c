@@ -96,7 +96,7 @@ void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
 }
 
 static void trimEscape(SAstCreateContext* pCxt, SToken* pName) {
-  // todo need to deal with `ioo``ii` -> ioo`ii
+  // todo need to deal with `ioo``ii` -> ioo`ii: done
   if (NULL != pName && pName->n > 1 && '`' == pName->z[0]) {
     if (!pCxt->pQueryCxt->hasDupQuoteChar) {
       pName->z += 1;
@@ -112,9 +112,6 @@ static void trimEscape(SAstCreateContext* pCxt, SToken* pName) {
         } else {
           pName->z[j++] = pName->z[i];
         }
-      }
-      if (i < pName->n) {
-        pName->z[j++] = pName->z[i];
       }
       pName->n = j;
     }
