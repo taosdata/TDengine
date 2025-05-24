@@ -13933,7 +13933,7 @@ static int32_t translateRecalcStream(STranslateContext* pCxt, SRecalcStreamStmt*
   PAR_ERR_JRET(tNameExtractFullName(&name, req.name));
   req.calcAll = (int8_t)((SStreamCalcRangeNode*)pStmt->pRange)->calcAll;
   PAR_ERR_JRET(translateTimeRange(pCxt, pStmt->streamDbName, ((SStreamCalcRangeNode*)pStmt->pRange)->pStart, ((SStreamCalcRangeNode*)pStmt->pRange)->pEnd, &req.timeRange));
-  PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_RESUME_STREAM, (FSerializeFunc)tSerializeSMRecalcStreamReq, &req));
+  PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_RECALC_STREAM, (FSerializeFunc)tSerializeSMRecalcStreamReq, &req));
 
 _return:
   tFreeMRecalcStreamReq(&req);
