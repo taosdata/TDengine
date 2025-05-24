@@ -78,16 +78,16 @@ void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
 
 static void trimEscape(SAstCreateContext* pCxt, SToken* pName) {
   // todo need to deal with `ioo``ii` -> ioo`ii: done
-  if (NULL != pName && pName->n > 1 && '`' == pName->z[0]) {
+  if (NULL != pName && pName->n > 1 && TS_ESCAPE_CHAR == pName->z[0]) {
     if (!pCxt->pQueryCxt->hasDupQuoteChar) {
       pName->z += 1;
       pName->n -= 2;
     } else {
       int32_t i = 1, j = 0;
       for (; i < pName->n - 1; ++i) {
-        if (pName->z[i] == '`') {
-          if (pName->z[i + 1] == '`') {
-            pName->z[j++] = '`';
+        if (pName->z[i] == TS_ESCAPE_CHAR) {
+          if (pName->z[i + 1] == TS_ESCAPE_CHAR) {
+            pName->z[j++] = TS_ESCAPE_CHAR;
             ++i;
           }
         } else {
