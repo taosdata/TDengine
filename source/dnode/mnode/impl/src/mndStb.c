@@ -2930,8 +2930,7 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
       goto _OVER;
     }
   } else if (0 == strcmp(infoReq.dbFName, TSDB_PERFORMANCE_SCHEMA_DB)) {
-    mInfo("performance_schema table:%s.%s, start to retrieve meta", infoReq.dbFName, infoReq.tbName,
-          pReq->info.conn.user);
+    mInfo("performance_schema table:%s.%s, start to retrieve meta", infoReq.dbFName, infoReq.tbName);
     if (mndBuildPerfsTableSchema(pMnode, infoReq.dbFName, infoReq.tbName, &metaRsp) != 0) {
       goto _OVER;
     }
