@@ -28,15 +28,14 @@ from .common import *
 class StreamUtil:
     def createSnode(self, index=1):
         sql = f"create snode on dnode {index}"
-        tdSql.query(sql)
+        tdSql.execute(sql)
+
         tdSql.query("show snodes")
-        tdSql.checkKeyData(index, 0, index)
-        tdLog.info(sql)
+        tdSql.checkKeyExist(index)
 
     def dropSnode(self, index=1):
         sql = f"drop snode on dnode {index}"
         tdSql.query(sql)
-        tdLog.info(sql)
 
     def checkQueryResults(self, sql, checkFunc, delay=0.3, retry=20, show=False):
         if delay != 0:

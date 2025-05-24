@@ -60,7 +60,7 @@ class TestStreamDevBasic:
         tdLog.info(f"=============== create trigger table")
         tdSql.execute("create table stream_trigger (ts timestamp, id int, c1 int);")
         tdSql.query(f"show tables")
-        tdSql.checkKeyData("stream_trigger", 0, "stream_trigger")
+        tdSql.checkKeyExist("stream_trigger")
 
         tdLog.info(f"=============== create stream")
         tdSql.execute(
