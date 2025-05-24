@@ -42,6 +42,10 @@ success_messages: Total number of messages succeeded via TMQ in this task run
 total_received_batches: Total number of data batches received via IPC Stream
 total_processed_batches: Total number of data batches successfully processed by taosx
 total_failed_batches: Total number of data batches failed to process
+total_parsed_rows: Total number of rows parsed
+total_filter_skipped_rows: Total number of rows filtered out by the filter after parsing
+total_check_skipped_rows: Total number of rows filtered out by the pre-check after parsing
+total_write_ready_rows: Total number of rows ready to write
 total_processed_rows: Total number of rows successfully processed. (before transform)
 total_inserted_sqls: Total number of INSERT SQLs successfully executed by taosx
 total_failed_sqls: Total number of INSERT SQLs failed to execute by taosx
@@ -56,6 +60,10 @@ total_success_messages: Total number of messages successfully written
 received_batches: Number of data batches received via IPC Stream in this task run
 processed_batches: Number of data batches successfully processed by taosx in this task run
 failed_batches: Number of data batches failed to process in this task run
+parsed_rows: Number of rows parsed in this task run
+filter_skipped_rows: Number of rows filtered out by the filter after parsing in this task run
+check_skipped_rows: Number of rows filtered out by the pre-check after parsing in this task run
+write_ready_rows: Number of rows ready to write in this task run
 processed_rows: Number of rows successfully processed in this task run. (equal to the sum of the number of data rows contained in the batch containing data)
 inserted_sqls: Number of INSERT SQLs successfully execute by taosx in this task run
 failed_sqls: Number of INSERT SQLs failed to execute by taosx in this task run

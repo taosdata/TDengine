@@ -133,17 +133,20 @@ async fn task_opts_init(
         };
         let (_, minimum_timestamp, maximum_timestamp) =
             get_timestamp_range(&pool, &mut None, 3, &cancel).await?;
+        let metrics = get_metrics_arc_from_i64(Some(id)).await;
         let parser = match parser {
             plugins::Parser::Inner(parser) => {
                 let mut parser = parser;
                 parser.set_maximum_timestamp(maximum_timestamp);
                 parser.set_minimum_timestamp(minimum_timestamp);
+                parser.set_metrics(metrics);
                 plugins::Parser::Inner(parser)
             }
             plugins::Parser::WithSample { parser, input } => {
                 let mut parser = parser;
                 parser.set_maximum_timestamp(maximum_timestamp);
                 parser.set_minimum_timestamp(minimum_timestamp);
+                parser.set_metrics(metrics);
                 plugins::Parser::WithSample { parser, input }
             }
         };

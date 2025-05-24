@@ -1930,10 +1930,16 @@ async fn consume_flat_record(
     notifier: Option<&crate::TaskNotifySender>,
     archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
+    if unsafe { crate::global::DRY_RUN } {
+        metrics.add_processed_rows(batch.num_rows() as u64);
+        return Ok(());
+    }
+
     if cancel.is_cancelled() {
         tracing::warn!("Task is cancelled");
         return Ok(());
     }
+
     let timeout = parser
         .global()
         .process_on_abnormal
@@ -1995,9 +2001,6 @@ async fn consume_flat_record(
         }
     }
     let mut qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
-    // debug_assert!(qid.task_id() > 0);
-    // debug_assert!(qid.batch_id() > 0);
-    // let stmt = Stmt::init(taos.as_ref().unwrap())?;
     let mut max_lengths = HashMap::new();
     let num_rows = batch.num_rows();
     if num_rows == 0 {
@@ -2018,26 +2021,18 @@ async fn consume_flat_record(
         let elapsed = instant.elapsed();
         tracing::trace!(cost = ?elapsed, "Parse message elapsed: {:?}", elapsed);
     }
+
     match batch {
-        crate::plugins::transform::Message::Raw(_) => todo!(),
-        crate::plugins::transform::Message::Tables(_) => todo!(),
-        crate::plugins::transform::Message::ChildTables(_) => todo!(),
-        crate::plugins::transform::Message::Records(mut message) => {
+        transform::Message::Records(mut message) => {
             if message.is_empty() {
                 return Ok(());
             }
 
-            if unsafe { crate::global::DRY_RUN } {
-                *count += num_rows;
-                metrics.add_processed_rows(num_rows as u64);
-                return Ok(());
-            }
-
-            let factor = message
+            let write_ready_rows = message
                 .iter()
                 .map(|message| message.records.num_rows())
-                .sum::<usize>()
-                / message.len();
+                .sum::<usize>();
+            let factor = write_ready_rows / message.len();
             let res = if factor < 200 {
                 flat_write_with_sql(
                     pool,
@@ -2072,7 +2067,7 @@ async fn consume_flat_record(
             match res {
                 Ok(n) => {
                     *count += n;
-                    metrics.add_processed_rows(num_rows as u64);
+                    metrics.add_processed_rows(write_ready_rows as u64);
                 }
                 Err(err) => {
                     let errstr = format!("{:#}", err);
@@ -2143,11 +2138,13 @@ async fn consume_flat_record(
                         *count += n;
                         metrics.add_processed_rows(num_rows as u64);
                     } else {
+                        metrics.add_failed_rows(write_ready_rows as u64);
                         return Err(err);
                     }
                 }
             }
         }
+        _ => unimplemented!(),
     }
     Ok(())
 }
