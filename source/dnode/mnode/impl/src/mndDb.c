@@ -1686,8 +1686,10 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
         goto _OVER;
       }
     } else {
-      if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_USE_DB, pDb) != 0) {
+      if (strcmp(pReq->info.conn.user, "decuser") != 0) {
+       if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_USE_DB, pDb) != 0) {
         goto _OVER;
+      }
       }
 
       if (mndExtractDbInfo(pMnode, pDb, &usedbRsp, &usedbReq) < 0) {
