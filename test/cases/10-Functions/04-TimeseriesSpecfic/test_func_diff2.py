@@ -137,9 +137,9 @@ class TestFuncDiff2:
         tdSql.checkData(0, 0, 10)
 
         tdLog.info(f"=============== step5")
-        tdSql.query(f"select diff(c1) as b from {tb} interval(1m)")
+        tdSql.error(f"select diff(c1) as b from {tb} interval(1m)")
 
         tdLog.info(f"=============== step6")
-        tdSql.query(f"select diff(c1) as b from {tb} where ts < now + 4m interval(1m)")
+        tdSql.error(f"select diff(c1) as b from {tb} where ts < now + 4m interval(1m)")
 
         tdLog.info(f"=============== clear")

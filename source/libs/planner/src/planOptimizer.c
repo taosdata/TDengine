@@ -2827,13 +2827,13 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
     }
   } else {
     if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pLeft) &&
-    !(((SScanLogicNode*)pLeft)->scanSeq[0] && ((SScanLogicNode*)pLeft)->scanSeq[1])) {
+        !(((SScanLogicNode*)pLeft)->scanSeq[0] && ((SScanLogicNode*)pLeft)->scanSeq[1])) {
       pScan = (SScanLogicNode*)pLeft;
       pChild = pRight;
       pChildPos = &pJoin->node.pChildren->pTail->pNode;
       targetOrder = pScan->node.outputTsOrder;
     } else if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pRight) &&
-    !(((SScanLogicNode*)pRight)->scanSeq[0] && ((SScanLogicNode*)pRight)->scanSeq[1])) {
+               !(((SScanLogicNode*)pRight)->scanSeq[0] && ((SScanLogicNode*)pRight)->scanSeq[1])) {
       pScan = (SScanLogicNode*)pRight;
       pChild = pLeft;
       pChildPos = &pJoin->node.pChildren->pHead->pNode;
@@ -2844,7 +2844,7 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
       targetOrder = pLeft->outputTsOrder;
     }
     pJoin->node.inputTsOrder = targetOrder;
-  }
+    }
 
   if (QUERY_NODE_OPERATOR != nodeType(pJoin->pPrimKeyEqCond)) {
     return TSDB_CODE_PLAN_INTERNAL_ERROR;

@@ -622,8 +622,8 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
     pTbCtx->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
     vgId = (int32_t)ctbReq->uid;
     uid = 0;
-    pTbCtx->pMeta->vgId=(int32_t)ctbReq->uid;
-    ctbReq->uid=0;
+    pTbCtx->pMeta->vgId = (int32_t)ctbReq->uid;
+    ctbReq->uid = 0;
     pTbCtx->pData->pCreateTbReq = ctbReq;
     code = TSDB_CODE_SUCCESS;
   } else {
@@ -634,8 +634,11 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
     pTbCtx->pMeta->uid = uid;
     pTbCtx->pData->uid = uid;
     pTbCtx->pData->pCreateTbReq = NULL;
+
     if (ctbReq != NULL) {
       tdDestroySVCreateTbReq(ctbReq);
+      taosMemoryFree(ctbReq);
+      ctbReq = NULL;
     }
   }
 

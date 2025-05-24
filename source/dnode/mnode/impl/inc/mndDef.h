@@ -687,6 +687,7 @@ typedef struct {
   int32_t pid;
   SEpSet  ep;
   int64_t createTime;
+  int64_t pollTime;
   int64_t subscribeTime;
   int64_t rebalanceTime;
 

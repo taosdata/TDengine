@@ -944,5 +944,3 @@ int32_t mndInitStream(SMnode *pMnode) {
   //code = sdbSetTable(pMnode->pSdb, tableSeq);
   return code;
 }
-
-
