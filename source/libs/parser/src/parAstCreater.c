@@ -519,22 +519,35 @@ _err:
   return NULL;
 }
 
+static void copyValueWithEscape(char* buf, int32_t bufLen, const SToken* pToken, bool trim) {
+  int32_t len = TMIN((pToken)->n, bufLen);
+  if ((trim) && ((pToken)->z[0] == TS_ESCAPE_CHAR)) {
+    int32_t i = 1, j = 0;
+    for (; i < len - 1; ++i) {
+      buf[j++] = (pToken)->z[i];
+      if ((pToken)->z[i] == TS_ESCAPE_CHAR) {
+        if ((pToken)->z[i + 1] == TS_ESCAPE_CHAR) ++i;
+      }
+    }
+    buf[j] = 0;
+  } else {
+    strncpy(buf, (pToken)->z, len);
+  }
+}
+
 SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral) {
   CHECK_PARSER_STATUS(pCxt);
   SValueNode* val = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&val);
   CHECK_MAKE_NODE(val);
-  if ((TK_NK_ID == pLiteral->type) && (pLiteral->z[0] == '`') && (pLiteral->n > 1) &&
-      (pLiteral->z[pLiteral->n - 1] == '`') && IS_VAR_DATA_TYPE(dataType)) {
-    val->literal = taosStrndup(pLiteral->z + 1, pLiteral->n - 2);
-  } else {
-    val->literal = taosStrndup(pLiteral->z, pLiteral->n);
-  }
+  val->literal = taosMemoryMalloc(pLiteral->n + 1);
   if (!val->literal) {
     pCxt->errCode = terrno;
     nodesDestroyNode((SNode*)val);
     return NULL;
   }
+  copyValueWithEscape(val->literal, pLiteral->n + 1, pLiteral,
+                      pCxt->pQueryCxt->hasDupQuoteChar && TK_NK_ID == pLiteral->type);
   if (TK_NK_ID != pLiteral->type && TK_TIMEZONE != pLiteral->type &&
       (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType)) {
     (void)trimString(pLiteral->z, pLiteral->n, val->literal, pLiteral->n);
@@ -1337,14 +1350,12 @@ SNode* createRealTableNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pTa
   } else {
     snprintf(realTable->table.dbName, sizeof(realTable->table.dbName), "%s", pCxt->pQueryCxt->db);
   }
-
-  COPY_STRING_FORM_ID_TOKEN_TRIM_ESCAPE(realTable->table.tableName, pTableName, pCxt->pQueryCxt->hasDupQuoteChar);
   if (NULL != pTableAlias && TK_NK_NIL != pTableAlias->type) {
     COPY_STRING_FORM_ID_TOKEN(realTable->table.tableAlias, pTableAlias);
   } else {
-    tstrncpy(realTable->table.tableAlias, realTable->table.tableName, TSDB_TABLE_NAME_LEN);
+    COPY_STRING_FORM_ID_TOKEN(realTable->table.tableAlias, pTableName);
   }
-
+  COPY_STRING_FORM_ID_TOKEN(realTable->table.tableName, pTableName);
   return (SNode*)realTable;
 _err:
   return NULL;

@@ -188,7 +188,7 @@ class TDTestCase:
         tdSql.execute('CREATE TABLE `t2``` USING ```s``t``` (```t``1```) TAGS (2);')
         tdSql.execute('CREATE TABLE ```t21` USING ```s``t2``` (```t``1```) TAGS (21);')
         tdSql.execute('CREATE TABLE ```n``t``` (```t``s``` TIMESTAMP, ```v1` INT);')
-        
+
         now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
         for i in range(3):
             tdSql.execute(f"insert into {dbname}.```t1``` values({now_time + i * 1000}, {i})")
@@ -247,7 +247,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, 3)
         tdSql.checkData(1, 1, 3)
         
-        tdSql.query("select ts, ```t1``` from ```s``t``` where ```s``t```.tbname=\"`t1`\"")  
+        tdSql.query("select ts, ```t``1``` from ```s``t``` where ```s``t```.tbname=\"`t1`\"")
         tdSql.checkRows(3)
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(1, 1, 1)
