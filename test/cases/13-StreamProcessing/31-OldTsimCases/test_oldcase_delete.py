@@ -1,5 +1,5 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
 
 
 class TestStreamOldCaseDelete:
@@ -36,7 +36,7 @@ class TestStreamOldCaseDelete:
 
     def deleteInterval(self):
         tdLog.info(f"deleteInterval")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"drop stream if exists streams0;")
         tdSql.execute(f"drop stream if exists streams1;")
@@ -51,18 +51,18 @@ class TestStreamOldCaseDelete:
             f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select  _wstart c1, count(*) c2, max(a) c3 from t1 interval(10s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"delete from t1 where ts = 1648791213000;")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() == 0,
         )
 
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -77,7 +77,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(
             f"delete from t1 where ts >= 1648791213001 and ts <= 1648791213002;"
         )
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -89,14 +89,14 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t1 values(1648791223002,3,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791223003,3,2,3,1.0);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c2, c3;", lambda: tdSql.getRows() == 2
         )
 
         tdSql.execute(
             f"delete from t1 where ts >= 1648791223000 and ts <= 1648791223003;"
         )
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -121,7 +121,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(
             f"delete from t1 where ts >= 1648791213001 and ts <= 1648791233005;"
         )
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() > 1
             and tdSql.getData(0, 1) == 1
@@ -145,18 +145,18 @@ class TestStreamOldCaseDelete:
             f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into test.streamt2 as select  _wstart c1, count(*) c2, max(a) c3 from st interval(10s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"insert into t2 values(1648791213000,NULL,NULL,NULL,NULL);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 1,
         )
 
         tdSql.execute(f"delete from t1 where ts = 1648791213000;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -175,7 +175,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(
             f"delete from t2 where ts >= 1648791223000 and ts <= 1648791223001;"
         )
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 1
             and tdSql.getData(0, 1) == 1
@@ -187,7 +187,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(
             f"delete from st where ts >= 1648791223000 and ts <= 1648791223003;"
         )
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 1
             and tdSql.getData(0, 1) == 1
@@ -206,7 +206,7 @@ class TestStreamOldCaseDelete:
             f"delete from t2 where ts >= 1648791213004 and ts <= 1648791213006;"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 1) == 4
@@ -228,7 +228,7 @@ class TestStreamOldCaseDelete:
             f"delete from st where ts >= 1648791213001 and ts <= 1648791233005;"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 1) == 1
@@ -248,34 +248,34 @@ class TestStreamOldCaseDelete:
             f"create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into test.streamt3 as select  _wstart c1, count(*) c2, max(a) c3 from st interval(10s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"insert into t2 values(1648791213000,NULL,NULL,NULL,NULL);")
 
         tdSql.execute(f"delete from t1;")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt3 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 1,
         )
 
         tdSql.execute(f"delete from t1 where ts > 100;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt3 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 1,
         )
 
         tdSql.execute(f"delete from st;")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt3 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 0,
         )
 
     def deleteScalar(self):
         tdLog.info(f"deleteScalar")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"drop database if exists test;")
         tdSql.execute(f"create database test  vgroups 4;")
@@ -285,7 +285,7 @@ class TestStreamOldCaseDelete:
             f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select  ts, a, b from t1 partition by a;"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,0,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213001,1,2,3,1.0);")
@@ -295,12 +295,12 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t1 values(1648791213004,1,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213005,2,2,3,1.0);")
 
-        tdSql.queryCheckFunc(f"select * from streamt;", lambda: tdSql.getRows() == 6)
+        tdStream.checkQueryResults(f"select * from streamt;", lambda: tdSql.getRows() == 6)
 
         tdLog.info(f"delete from t1 where ts <= 1648791213002;")
         tdSql.execute(f"delete from t1 where ts <= 1648791213002;")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by 1;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 1) == 0
@@ -318,7 +318,7 @@ class TestStreamOldCaseDelete:
             f'create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt1 subtable(concat("aaa-", cast( a as varchar(10) ))) as select  ts, a, b from t1 partition by a;'
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,0,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213001,1,2,3,1.0);")
@@ -328,7 +328,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t1 values(1648791213004,1,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213005,2,2,3,1.0);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt1;",
             lambda: tdSql.getRows() == 6,
         )
@@ -336,7 +336,7 @@ class TestStreamOldCaseDelete:
         tdLog.info(f"delete from t1 where ts <= 1648791213002;")
         tdSql.execute(f"delete from t1 where ts <= 1648791213002;")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt1 order by 1;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 1) == 0
@@ -354,7 +354,7 @@ class TestStreamOldCaseDelete:
             f'create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt2 subtable("aaa-a") as select  ts, a, b from t1;'
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,0,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213001,1,2,3,1.0);")
@@ -364,7 +364,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t1 values(1648791213004,1,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213005,2,2,3,1.0);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt2;",
             lambda: tdSql.getRows() == 6,
         )
@@ -372,7 +372,7 @@ class TestStreamOldCaseDelete:
         tdLog.info(f"delete from t1 where ts <= 1648791213002;")
         tdSql.execute(f"delete from t1 where ts <= 1648791213002;")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt2 order by 1;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 1) == 0
@@ -382,7 +382,7 @@ class TestStreamOldCaseDelete:
 
     def deleteSession(self):
         tdLog.info(f"deleteSession")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"drop stream if exists streams0;")
         tdSql.execute(f"drop stream if exists streams1;")
@@ -397,19 +397,19 @@ class TestStreamOldCaseDelete:
             f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select  _wstart c1, count(*) c2, max(a) c3 from t1 session(ts, 5s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"delete from t1 where ts = 1648791213000;")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() == 0,
         )
 
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -424,7 +424,7 @@ class TestStreamOldCaseDelete:
             f"delete from t1 where ts >= 1648791213001 and ts <= 1648791213002;"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -436,7 +436,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t1 values(1648791223002,3,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791223003,3,2,3,1.0);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() == 2,
         )
@@ -444,7 +444,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(
             f"delete from t1 where ts >= 1648791223000 and ts <= 1648791223003;"
         )
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -470,7 +470,7 @@ class TestStreamOldCaseDelete:
             f"delete from t1 where ts >= 1648791213001 and ts <= 1648791233005;"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() > 1
             and tdSql.getData(0, 1) == 1
@@ -492,18 +492,18 @@ class TestStreamOldCaseDelete:
             f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into test.streamt2 as select  _wstart c1, count(*) c2, max(a) c3 from st session(ts,5s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"insert into t2 values(1648791213000,NULL,NULL,NULL,NULL);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 1,
         )
 
         tdSql.execute(f"delete from t1 where ts = 1648791213000;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -523,7 +523,7 @@ class TestStreamOldCaseDelete:
             f"delete from t2 where ts >= 1648791223000 and ts <= 1648791223001;"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 1
             and tdSql.getData(0, 1) == 1
@@ -536,7 +536,7 @@ class TestStreamOldCaseDelete:
             f"delete from st where ts >= 1648791223000 and ts <= 1648791223003;"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 1
             and tdSql.getData(0, 1) == 1
@@ -556,7 +556,7 @@ class TestStreamOldCaseDelete:
             f"delete from t2 where ts >= 1648791213004 and ts <= 1648791213006;"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 1) == 4
@@ -578,7 +578,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(
             f"delete from st where ts >= 1648791213001 and ts <= 1648791233005;"
         )
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 1) == 1
@@ -604,7 +604,7 @@ class TestStreamOldCaseDelete:
             f"create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into test.streamt3 as select  _wstart c1, count(*) c2, max(a) c3 from st session(ts,5s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791210000,1,1,1,NULL);")
         tdSql.execute(f"insert into t1 values(1648791210001,2,2,2,NULL);")
@@ -622,7 +622,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t1 values(1648791232005,13,13,13,NULL);")
         tdSql.execute(f"insert into t2 values(1648791242005,14,14,14,NULL);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt3 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 3,
         )
@@ -630,7 +630,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(
             f"delete from t2 where ts >= 1648791213001 and ts <= 1648791218003;"
         )
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt3 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(0, 1) == 2
@@ -662,7 +662,7 @@ class TestStreamOldCaseDelete:
             f"create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt4 as select  _wstart, count(*) c1 from st partition by tbname session(ts, 2s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791210000,1,2,3);")
         tdSql.execute(f"insert into t1 values(1648791220000,2,2,3);")
@@ -676,7 +676,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t2 values(1648791221000,2,2,3);")
         tdSql.execute(f"insert into t2 values(1648791231000,2,2,3);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt4 order by c1 desc;;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 4
@@ -692,7 +692,7 @@ class TestStreamOldCaseDelete:
             f"delete from st where ts >= 1648791220000 and ts <=1648791223000;"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt4 order by c1 desc;;",
             lambda: tdSql.getRows() == 4
             and tdSql.getData(0, 1) == 1
@@ -703,7 +703,7 @@ class TestStreamOldCaseDelete:
 
     def deleteState(self):
         tdLog.info(f"deleteState")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"drop stream if exists streams0;")
         tdSql.execute(f"drop stream if exists streams1;")
@@ -718,18 +718,18 @@ class TestStreamOldCaseDelete:
             f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select  _wstart c1, count(*) c2, max(b) c3 from t1 state_window(a);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"delete from t1 where ts = 1648791213000;")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() == 0,
         )
 
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() == 0,
         )
@@ -743,7 +743,7 @@ class TestStreamOldCaseDelete:
             f"delete from t1 where ts >= 1648791213001 and ts <= 1648791213002;"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -755,7 +755,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t1 values(1648791223002,2,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791223003,2,2,3,1.0);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() == 2,
         )
@@ -764,7 +764,7 @@ class TestStreamOldCaseDelete:
             f"delete from t1 where ts >= 1648791223000 and ts <= 1648791223003;"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -790,7 +790,7 @@ class TestStreamOldCaseDelete:
             f"delete from t1 where ts >= 1648791213001 and ts <= 1648791233005;"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 1) == 1
@@ -816,7 +816,7 @@ class TestStreamOldCaseDelete:
             f"create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt4 as select  _wstart, count(*) c1 from st partition by tbname state_window(c);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791210000,1,2,1);")
         tdSql.execute(f"insert into t1 values(1648791220000,2,2,2);")
@@ -830,7 +830,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t2 values(1648791221000,2,2,2);")
         tdSql.execute(f"insert into t2 values(1648791231000,2,2,3);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt4 order by c1 desc;;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 4
@@ -846,7 +846,7 @@ class TestStreamOldCaseDelete:
             f"delete from st where ts >= 1648791220000 and ts <=1648791223000;"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt4 order by c1 desc;;",
             lambda: tdSql.getRows() == 4
             and tdSql.getData(0, 1) == 1

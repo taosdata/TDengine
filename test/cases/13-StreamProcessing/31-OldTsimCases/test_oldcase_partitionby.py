@@ -1,5 +1,5 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
 
 
 class TestStreamOldCasePartitionBy:
@@ -40,7 +40,7 @@ class TestStreamOldCasePartitionBy:
 
     def partitionby(self):
         tdLog.info(f"partitionby")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"create database test  vgroups 4;")
         tdSql.execute(f"create database test0  vgroups 1;")
@@ -56,14 +56,14 @@ class TestStreamOldCasePartitionBy:
             f"create stream stream_t1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into test0.streamtST1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from st partition by ta,tb,tc interval(10s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into ts1 values(1648791213001,1,12,3,1.0);")
         tdSql.execute(f"insert into ts2 values(1648791213001,1,12,3,1.0);")
         tdSql.execute(f"insert into ts3 values(1648791213001,1,12,3,1.0);")
         tdSql.execute(f"insert into ts4 values(1648791213001,1,12,3,1.0);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test0.streamtST1;",
             lambda: tdSql.getRows() == 4,
         )
@@ -75,13 +75,13 @@ class TestStreamOldCasePartitionBy:
 
         time.sleep(1)
         tdSql.execute(f"delete from st where ts = 1648791223001;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test0.streamtST1;",
             lambda: tdSql.getRows() == 4,
         )
 
         tdLog.info(f"=====loop0")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"create database test1  vgroups 1;")
         tdSql.execute(f"use test1;")
@@ -96,17 +96,17 @@ class TestStreamOldCasePartitionBy:
             f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart, count(*) c1, count(a) c2  from st partition by ta,tb,tc interval(10s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
         tdSql.execute(f"insert into ts1 values(1648791211000,1,2,3);")
         tdSql.execute(f"insert into ts2 values(1648791211000,1,2,3);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 2,
         )
 
         tdLog.info(f"=====loop1")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"create database test2  vgroups 1;")
         tdSql.execute(f"use test2;")
@@ -120,7 +120,7 @@ class TestStreamOldCasePartitionBy:
             f"create stream stream_t2 trigger at_once  watermark 20s IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamtST as select  _wstart, count(*) c1, count(a) c2 , sum(a) c3 ,  max(b)  c5, min(c) c6, max(id) c7 from st partition by ta interval(10s) ;"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into ts1 values(1648791211000,1,2,3,1);")
         tdSql.execute(f"insert into ts1 values(1648791222001,2,2,3,2);")
@@ -135,7 +135,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into ts2 values(1648791211000,1,2,3,9);")
         tdSql.execute(f"insert into ts2 values(1648791222001,2,2,3,10);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamtST order by c7 asc;",
             lambda: tdSql.getRows() > 3
             and tdSql.getData(0, 1) == 1
@@ -150,7 +150,7 @@ class TestStreamOldCasePartitionBy:
 
     def partitionby1(self):
         tdLog.info(f"partitionby1")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"create database test  vgroups 4;")
         tdSql.execute(f"use test;")
@@ -165,7 +165,7 @@ class TestStreamOldCasePartitionBy:
             f"create stream stream_t1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamtST1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from st partition by tbname interval(10s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into ts1 values(1648791213001,1,12,3,1.0);")
         tdSql.execute(f"insert into ts2 values(1648791213001,1,12,3,1.0);")
@@ -173,13 +173,13 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into ts3 values(1648791213001,1,12,3,1.0);")
         tdSql.execute(f"insert into ts4 values(1648791213001,1,12,3,1.0);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamtST1;",
             lambda: tdSql.getRows() == 4,
         )
 
         tdLog.info(f"=====loop0")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
         tdSql.execute(f"create database test1  vgroups 1;")
         tdSql.execute(f"use test1;")
         tdSql.execute(
@@ -193,15 +193,15 @@ class TestStreamOldCasePartitionBy:
             f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart, count(*) c1, count(a) c2  from st partition by tbname interval(10s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into ts1 values(1648791211000,1,2,3);")
         tdSql.execute(f"insert into ts2 values(1648791211000,1,2,3);")
 
-        tdSql.queryCheckFunc(f"select * from streamt;", lambda: tdSql.getRows() == 2)
+        tdStream.checkQueryResults(f"select * from streamt;", lambda: tdSql.getRows() == 2)
 
         tdLog.info(f"=====loop1")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"create database test2  vgroups 1;")
         tdSql.execute(f"use test2;")
@@ -215,7 +215,7 @@ class TestStreamOldCasePartitionBy:
             f"create stream stream_t2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamtST as select  _wstart, count(*) c1, count(a) c2 , sum(a) c3 ,  max(b)  c5, min(c) c6, max(id) c7 from st partition by tbname interval(10s) ;"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into ts1 values(1648791211000,1,2,3,1);")
         tdSql.execute(f"insert into ts1 values(1648791222001,2,2,3,2);")
@@ -230,7 +230,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into ts2 values(1648791211000,1,2,3,3);")
         tdSql.execute(f"insert into ts2 values(1648791222001,2,2,3,4);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamtST;",
             lambda: tdSql.getRows() > 3
             and tdSql.getData(0, 1) == 1
@@ -241,7 +241,7 @@ class TestStreamOldCasePartitionBy:
 
     def partitionbyColumnInterval(self):
         tdLog.info(f"partitionbyColumnInterval")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"drop stream if exists streams0;")
         tdSql.execute(f"drop stream if exists streams1;")
@@ -256,12 +256,12 @@ class TestStreamOldCasePartitionBy:
             f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select  _wstart c1, count(*) c2, max(a) c3, _group_key(a) c4 from t1 partition by a interval(10s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -269,7 +269,7 @@ class TestStreamOldCasePartitionBy:
         )
 
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -277,7 +277,7 @@ class TestStreamOldCasePartitionBy:
         )
 
         tdSql.execute(f"insert into t1 values(1648791213000,2,2,3,1.0);")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -289,7 +289,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791213002,2,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213002,1,2,3,1.0);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 1
             and tdSql.getData(0, 1) == 1
@@ -306,7 +306,7 @@ class TestStreamOldCasePartitionBy:
             f"insert into t1 values(1648791213001,1,2,3,1.0) (1648791223001,2,2,3,1.0) (1648791223003,1,2,3,1.0);"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 4
             and tdSql.getData(0, 1) == 2
@@ -330,7 +330,7 @@ class TestStreamOldCasePartitionBy:
             f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt1 as select  _wstart c1, count(*) c2, max(c) c3, _group_key(a+b) c4 from t1 partition by a+b interval(10s)"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
@@ -338,7 +338,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791213001,2,1,2,2.0);")
         tdSql.execute(f"insert into t1 values(1648791213001,1,2,3,2.0);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt1 order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0 and tdSql.getData(0, 1) == 2,
         )
@@ -350,7 +350,7 @@ class TestStreamOldCasePartitionBy:
             f"insert into t1 values(1648791213001,1,1,6,2.0) (1648791223002,1,1,7,2.0);"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt1 order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -376,14 +376,14 @@ class TestStreamOldCasePartitionBy:
             f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into test.streamt2 as select  _wstart c1, count(*) c2, max(a) c3 from st partition by a interval(10s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"insert into t2 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"insert into t2 values(1648791213000,NULL,NULL,NULL,NULL);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -393,7 +393,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
         tdSql.execute(f"insert into t2 values(1648791213000,1,2,3,1.0);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -403,7 +403,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791213000,2,2,3,1.0);")
         tdSql.execute(f"insert into t2 values(1648791213000,2,2,3,1.0);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -419,7 +419,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t2 values(1648791213002,2,2,3,1.0);")
         tdSql.execute(f"insert into t2 values(1648791213002,1,2,3,1.0);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 1
             and tdSql.getData(0, 1) == 2
@@ -443,7 +443,7 @@ class TestStreamOldCasePartitionBy:
             f"insert into t2 values(1648791213001,1,2,3,1.0) (1648791223001,2,2,3,1.0) (1648791223003,1,2,3,1.0);"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 4
             and tdSql.getData(0, 1) == 2
@@ -473,7 +473,7 @@ class TestStreamOldCasePartitionBy:
             f"create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into test.streamt4 as select  _wstart c1, count(*) c2, max(a) c3 from st partition by a interval(10s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,2,2,3,1.0);")
         tdSql.execute(f"insert into t2 values(1648791213000,2,2,3,1.0);")
@@ -481,7 +481,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t4 values(1648791213000,2,2,3,1.0);")
         tdSql.execute(f"insert into t4 values(1648791213000,1,2,3,1.0);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt4 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 1
             and tdSql.getData(0, 1) == 1
@@ -494,7 +494,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791233000,2,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt4 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 1) == 1
@@ -517,7 +517,7 @@ class TestStreamOldCasePartitionBy:
             f"create stream streams5 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into test.streamt5 as select  _wstart c1, count(*) c2, max(a) c3 from st partition by a interval(10s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
         tdSql.execute(f"insert into t2 values(1648791213000,2,2,3,1.0);")
@@ -532,7 +532,7 @@ class TestStreamOldCasePartitionBy:
         time.sleep(1)
         tdSql.execute(f"delete from st where ts = 1648791223000;")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt5 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 4,
         )
@@ -545,7 +545,7 @@ class TestStreamOldCasePartitionBy:
         time.sleep(1)
         tdSql.execute(f"delete from st where ts = 1648791223001;")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt5 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 4,
         )
@@ -558,13 +558,13 @@ class TestStreamOldCasePartitionBy:
         time.sleep(1)
         tdSql.execute(f"delete from st where ts = 1648791223001;")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt5 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 4,
         )
 
         tdLog.info(f"================step2")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"drop database if exists test1;")
         tdSql.execute(f"create database test6  vgroups 2 buffer 32;")
@@ -574,7 +574,7 @@ class TestStreamOldCasePartitionBy:
             f'create stream streams6 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt6 subtable("aaa-a") as select  _wstart, count(*) from t1 partition by a interval(10s);'
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,0,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213001,1,2,3,1.0);")
@@ -587,7 +587,7 @@ class TestStreamOldCasePartitionBy:
         tdLog.info(f"delete from t1 where ts <= 1648791213002;")
         tdSql.execute(f"delete from t1 where ts <= 1648791213002;")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt6 order by 1;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 1) == 1
@@ -597,7 +597,7 @@ class TestStreamOldCasePartitionBy:
 
     def partitionbyColumnOther(self):
         tdLog.info(f"partitionbyColumnOther")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdLog.info(f"================step1")
         tdSql.execute(f"drop database if exists test1;")
@@ -608,7 +608,7 @@ class TestStreamOldCasePartitionBy:
             f'create stream streams0 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 watermark 100s into streamt0 subtable("aaa-a") as select  _wstart, count(*) from t1 partition by a count_window(10);'
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,0,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213001,1,2,3,1.0);")
@@ -621,7 +621,7 @@ class TestStreamOldCasePartitionBy:
         tdLog.info(f"delete from t1 where ts <= 1648791213002;")
         tdSql.execute(f"delete from t1 where ts <= 1648791213002;")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt0 order by 1;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 1) == 1
@@ -630,7 +630,7 @@ class TestStreamOldCasePartitionBy:
         )
 
         tdLog.info(f"================step1")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"drop database if exists test1;")
         tdSql.execute(f"create database test1  vgroups 2  buffer 32;")
@@ -640,7 +640,7 @@ class TestStreamOldCasePartitionBy:
             f'create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt1 subtable("aaa-a") as select  _wstart, count(*) from t1 partition by a event_window start with b = 2 end with b = 2;'
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,0,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213001,1,2,3,1.0);")
@@ -653,7 +653,7 @@ class TestStreamOldCasePartitionBy:
         tdLog.info(f"delete from t1 where ts <= 1648791213002;")
         tdSql.execute(f"delete from t1 where ts <= 1648791213002;")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt1 order by 1;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 1) == 1
@@ -663,7 +663,7 @@ class TestStreamOldCasePartitionBy:
 
     def partitionbyColumnSession(self):
         tdLog.info(f"partitionbyColumnSession")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"drop stream if exists streams0;")
         tdSql.execute(f"drop stream if exists streams1;")
@@ -678,12 +678,12 @@ class TestStreamOldCasePartitionBy:
             f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select  _wstart c1, count(*) c2, max(a) c3, _group_key(a) c4 from t1 partition by a session(ts, 5s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -691,7 +691,7 @@ class TestStreamOldCasePartitionBy:
         )
 
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -699,7 +699,7 @@ class TestStreamOldCasePartitionBy:
         )
 
         tdSql.execute(f"insert into t1 values(1648791213000,2,2,3,1.0);")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -711,7 +711,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791213002,2,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213002,1,2,3,1.0);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 1
             and tdSql.getData(0, 1) == 2
@@ -728,7 +728,7 @@ class TestStreamOldCasePartitionBy:
             f"insert into t1 values(1648791213001,1,2,3,1.0) (1648791223001,2,2,3,1.0) (1648791223003,1,2,3,1.0);"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 4
             and tdSql.getData(0, 1) == 1
@@ -751,7 +751,7 @@ class TestStreamOldCasePartitionBy:
             f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt1 as select  _wstart c1, count(*) c2, max(c) c3, _group_key(a+b) c4 from t1 partition by a+b session(ts, 5s)"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
@@ -759,7 +759,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791213001,2,1,2,2.0);")
         tdSql.execute(f"insert into t1 values(1648791213001,1,2,3,2.0);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt1 order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0 and tdSql.getData(0, 1) == 2,
         )
@@ -771,7 +771,7 @@ class TestStreamOldCasePartitionBy:
             f"insert into t1 values(1648791213001,1,1,6,2.0) (1648791223002,1,1,7,2.0);"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt1 order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 3
             and tdSql.getData(0, 1) == 1
@@ -796,14 +796,14 @@ class TestStreamOldCasePartitionBy:
             f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into test.streamt2 as select  _wstart c1, count(*) c2, max(a) c3 from st partition by a session(ts, 5s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"insert into t2 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"insert into t2 values(1648791213000,NULL,NULL,NULL,NULL);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -813,7 +813,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
         tdSql.execute(f"insert into t2 values(1648791213000,1,2,3,1.0);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -823,7 +823,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791213000,2,2,3,1.0);")
         tdSql.execute(f"insert into t2 values(1648791213000,2,2,3,1.0);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -839,7 +839,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t2 values(1648791213002,2,2,3,1.0);")
         tdSql.execute(f"insert into t2 values(1648791213002,1,2,3,1.0);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 1
             and tdSql.getData(0, 1) == 4
@@ -863,7 +863,7 @@ class TestStreamOldCasePartitionBy:
             f"insert into t2 values(1648791213001,1,2,3,1.0) (1648791223001,2,2,3,1.0) (1648791223003,1,2,3,1.0);"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 3
             and tdSql.getData(0, 1) == 2
@@ -892,7 +892,7 @@ class TestStreamOldCasePartitionBy:
             f"create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into test.streamt4 as select  _wstart c1, count(*) c2, max(a) c3 from st partition by a session(ts, 5s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,2,2,3,1.0);")
         tdSql.execute(f"insert into t2 values(1648791213000,2,2,3,1.0);")
@@ -900,7 +900,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t4 values(1648791213000,2,2,3,1.0);")
         tdSql.execute(f"insert into t4 values(1648791213000,1,2,3,1.0);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt4 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 1) == 1
@@ -913,7 +913,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791233000,2,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from test.streamt4 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 1) == 1
@@ -922,7 +922,7 @@ class TestStreamOldCasePartitionBy:
         )
 
         tdLog.info(f"================step2")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
         tdSql.execute(f"drop database if exists test5;")
         tdSql.execute(f"create database test5  vgroups 4;")
         tdSql.execute(f"use test5;")
@@ -931,7 +931,7 @@ class TestStreamOldCasePartitionBy:
             f'create stream streams6 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt6 subtable("aaa-a") as select  _wstart, count(*) from t1 partition by a session(ts, 10s);'
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,0,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213001,1,2,3,1.0);")
@@ -944,7 +944,7 @@ class TestStreamOldCasePartitionBy:
         tdLog.info(f"delete from t1 where ts <= 1648791213002;")
         tdSql.execute(f"delete from t1 where ts <= 1648791213002;")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt6 order by 1;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 1) == 1
@@ -954,7 +954,7 @@ class TestStreamOldCasePartitionBy:
 
     def partitionbyColumnState(self):
         tdLog.info(f"partitionbyColumnState")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"drop database if exists test;")
         tdSql.execute(f"create database test  vgroups 1;")
@@ -964,18 +964,18 @@ class TestStreamOldCasePartitionBy:
             f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select  _wstart c1, count(*) c2, max(a) c3, _group_key(a) c4 from t1 partition by a state_window(b);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() == 0,
         )
 
         tdSql.execute(f"insert into t1 values(1648791213000,1,1,3,1.0);")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -983,7 +983,7 @@ class TestStreamOldCasePartitionBy:
         )
 
         tdSql.execute(f"insert into t1 values(1648791213000,2,1,3,1.0);")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -995,7 +995,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791213002,2,1,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213002,1,1,3,1.0);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -1012,7 +1012,7 @@ class TestStreamOldCasePartitionBy:
             f"insert into t1 values(1648791213001,1,1,3,1.0) (1648791223001,2,2,3,1.0) (1648791223003,1,2,3,1.0);"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 4
             and tdSql.getData(0, 1) == 1
@@ -1035,7 +1035,7 @@ class TestStreamOldCasePartitionBy:
             f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt1 as select  _wstart c1, count(*) c2, max(d) c3, _group_key(a+b) c4 from t1 partition by a+b state_window(c)"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
@@ -1043,7 +1043,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791213001,2,1,1,2);")
         tdSql.execute(f"insert into t1 values(1648791213001,1,2,1,3);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt1 order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0 and tdSql.getData(0, 1) == 2,
         )
@@ -1054,7 +1054,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(
             f"insert into t1 values(1648791213001,1,1,1,7) (1648791223002,1,1,2,8);"
         )
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt1 order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 3
             and tdSql.getData(0, 1) == 1
@@ -1068,7 +1068,7 @@ class TestStreamOldCasePartitionBy:
         )
 
         tdLog.info(f"================step2")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
         tdSql.execute(f"drop database if exists test2;")
         tdSql.execute(f"create database test2  vgroups 4;")
         tdSql.execute(f"use test2;")
@@ -1077,7 +1077,7 @@ class TestStreamOldCasePartitionBy:
             f'create stream streams6 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt6 subtable("aaa-a") as select  _wstart, count(*) from t1 partition by a session(ts, 10s);'
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,0,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213001,1,2,3,1.0);")
@@ -1090,7 +1090,7 @@ class TestStreamOldCasePartitionBy:
         tdLog.info(f"delete from t1 where ts <= 1648791213002;")
         tdSql.execute(f"delete from t1 where ts <= 1648791213002;")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt6 order by 1;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 1) == 1

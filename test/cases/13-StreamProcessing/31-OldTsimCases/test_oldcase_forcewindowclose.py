@@ -1,5 +1,5 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
 
 
 class TestStreamOldCaseForceWindowClose:
@@ -38,7 +38,7 @@ class TestStreamOldCaseForceWindowClose:
 
     def forcewindowclose(self):
         tdLog.info(f"forcewindowclose")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdLog.info(
             f"===================================== force window close with sliding test"
@@ -62,7 +62,7 @@ class TestStreamOldCaseForceWindowClose:
         tdSql.execute(
             f"create stream stream11 trigger force_window_close into str_dst1 as select  _wstart, _wend, count(*) from st1 partition by tbname interval(5s) sliding(1s);"
         )
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         time.sleep(5.5)
         tdSql.execute(f"insert into tu11 values(now, 1);")
@@ -70,14 +70,14 @@ class TestStreamOldCaseForceWindowClose:
             time.sleep(0.5)
             tdSql.execute(f"insert into tu11 values(now, 1);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select sum(`count(*)`) from (select * from str_dst1)",
             lambda: tdSql.getRows() > 0 and tdSql.getData(0, 0) == 100,
             retry=60,
         )
 
         tdLog.info(f"========================================== create database")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
         tdSql.execute(f"create database test vgroups 2;")
 
         tdSql.execute(f"use test")
@@ -87,7 +87,7 @@ class TestStreamOldCaseForceWindowClose:
         tdSql.execute(
             f"create stream stream1 trigger force_window_close into str_dst as select  _wstart, count(*) from st partition by tbname interval(5s);"
         )
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into tu1 values(now, 1);")
         time.sleep(5.5)
@@ -97,7 +97,7 @@ class TestStreamOldCaseForceWindowClose:
             tdSql.execute(f"insert into tu1 values(now, 1);")
 
         tdSql.execute("resume stream stream1")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select sum(`count(*)`) from (select * from str_dst)",
             lambda: tdSql.getRows() > 0 and tdSql.getData(0, 0) == 20,
             retry=60,
@@ -107,7 +107,7 @@ class TestStreamOldCaseForceWindowClose:
         tdSql.execute(f"drop database test")
 
         tdLog.info(f"===================================== micro precision db test")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
         tdLog.info(f"============ create db")
         tdSql.execute(f"create database test vgroups 2 precision 'us';")
 
@@ -118,7 +118,7 @@ class TestStreamOldCaseForceWindowClose:
         tdSql.execute(
             f"create stream stream1 trigger force_window_close into str_dst as select _wstart, count(*) from st partition by tbname interval(5s);"
         )
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into tu1 values(now, 1);")
         time.sleep(5.5)
@@ -128,7 +128,7 @@ class TestStreamOldCaseForceWindowClose:
             tdSql.execute(f"insert into tu1 values(now, 1);")
 
         tdSql.execute("resume stream stream1")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select sum(`count(*)`) from (select * from str_dst)",
             lambda: tdSql.getRows() > 0 and tdSql.getData(0, 0) == 20,
             retry=60,
@@ -143,19 +143,19 @@ class TestStreamOldCaseForceWindowClose:
         tdSql.execute(
             f"create stream stream2 trigger force_window_close watermark 30s into str_dst as select _wstart, count(*), now() from st partition by tbname interval(5s);"
         )
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         for i in range(19):
             time.sleep(0.5)
             tdSql.execute(f"insert into tu1 values(now, 1);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select sum(`count(*)`) from (select * from str_dst)",
             lambda: tdSql.getRows() > 0 and tdSql.getData(0, 0) == 19,
             retry=60,
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select round(timediff(`now()`, `_wstart`)/1000000) from str_dst;",
             lambda: tdSql.getRows() > 0 and tdSql.getData(0, 0) == 35.000000000,
             retry=60,
@@ -163,7 +163,7 @@ class TestStreamOldCaseForceWindowClose:
 
     def streamFwcIntervalFill(self):
         tdLog.info(f"streamFwcIntervalFill")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdLog.info(f"step1")
         tdLog.info(f"=============== create database")
@@ -180,7 +180,7 @@ class TestStreamOldCaseForceWindowClose:
             f"create stream streams1 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt as select _wstart, count(a) as ca, now, ta, sum(b) as cb, timezone()  from st partition by tbname,ta interval(2s) fill(value, 100, 200);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(
             f"insert into t1 values(now +  3000a,1,1,1) (now +  3100a,5,10,10) (now +  3200a,5,10,10)  (now + 5100a,20,1,1) (now + 5200a,30,10,10) (now + 5300a,40,10,10);"
@@ -210,7 +210,7 @@ class TestStreamOldCaseForceWindowClose:
         query2_data11 = tdSql.getData(1, 1)
 
         tdLog.info(f"2 sql select * from streamt where ta == 1 order by 1;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where ta == 1 order by 1;",
             lambda: tdSql.getRows() >= 2
             and tdSql.getData(0, 1) == query1_data01
@@ -219,7 +219,7 @@ class TestStreamOldCaseForceWindowClose:
         )
 
         tdLog.info(f"2 sql select * from streamt where ta == 2 order by 1;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where ta == 2 order by 1;",
             lambda: tdSql.getRows() >= 2
             and tdSql.getData(0, 1) == query2_data01
@@ -227,11 +227,11 @@ class TestStreamOldCaseForceWindowClose:
         )
 
         tdLog.info(f"2 sql select * from streamt;")
-        tdSql.queryCheckFunc(f"select * from streamt;", lambda: tdSql.getRows() >= 6)
+        tdStream.checkQueryResults(f"select * from streamt;", lambda: tdSql.getRows() >= 6)
 
         tdLog.info(f"step2")
         tdLog.info(f"=============== create database")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
         tdSql.execute(f"create database test2 vgroups 4;")
         tdSql.execute(f"use test2;")
 
@@ -245,7 +245,7 @@ class TestStreamOldCaseForceWindowClose:
             f"create stream streams2 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt as select _wstart, count(*), ta  from st partition by tbname,ta interval(2s) fill(NULL);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(
             f"insert into t1 values(now +  3000a,1,1,1) (now +  3100a,3,10,10) (now +  3200a,5,10,10) (now + 5100a,20,1,1) (now + 5200a,30,10,10) (now + 5300a,40,10,10);"
@@ -261,7 +261,7 @@ class TestStreamOldCaseForceWindowClose:
         query1_data11 = tdSql.getData(1, 1)
 
         tdLog.info(f"2 sql select * from streamt where ta == 1 order by 1;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where ta == 1 order by 1;",
             lambda: tdSql.getRows() > 1 and tdSql.getData(0, 1) == query1_data01,
             retry=60,
@@ -275,7 +275,7 @@ class TestStreamOldCaseForceWindowClose:
         )
 
         tdLog.info(f"2 sql select * from streamt;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt;",
             lambda: tdSql.getRows() >= 10 and tdSql.getData(0, 1) == query1_data01,
             retry=60,
@@ -283,7 +283,7 @@ class TestStreamOldCaseForceWindowClose:
 
     def streamInterpForceWindowClose(self):
         tdLog.info(f"streamInterpForceWindowClose")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdLog.info(f"step1")
         tdLog.info(f"=============== create database")
@@ -295,7 +295,7 @@ class TestStreamOldCaseForceWindowClose:
             f"create stream streams1 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt as select _irowts, interp(a) as a, interp(b) as b, now  from t1 every(2s) fill(prev);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(
             f"insert into t1 values(now,1,1,1,1.1) (now + 10s,2,2,2,2.1) (now + 20s,3,3,3,3.1);"
@@ -305,21 +305,21 @@ class TestStreamOldCaseForceWindowClose:
         tdSql.query(f"select * from t1;")
 
         tdLog.info(f"2 sql select * from streamt where a == 1;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where a == 1;",
             lambda: tdSql.getRows() >= 2,
             retry=60,
         )
 
         tdLog.info(f"2 sql select * from streamt where a == 2;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where a == 2;",
             lambda: tdSql.getRows() >= 2,
             retry=60,
         )
 
         tdLog.info(f"2 sql select * from streamt where a == 3;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where a == 3;",
             lambda: tdSql.getRows() >= 5,
             retry=60,
@@ -327,7 +327,7 @@ class TestStreamOldCaseForceWindowClose:
 
         tdLog.info(f"step2")
         tdLog.info(f"=============== create database")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"create database test2 vgroups 1;")
         tdSql.execute(f"use test2;")
@@ -337,7 +337,7 @@ class TestStreamOldCaseForceWindowClose:
             f"create stream streams2 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt as select _irowts, interp(a) as a, interp(b) as b, now  from t1 every(2s) fill(NULL);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(
             f"insert into t1 values(now,1,1,1,1.1) (now + 10s,2,2,2,2.1) (now + 20s,3,3,3,3.1);"
@@ -346,7 +346,7 @@ class TestStreamOldCaseForceWindowClose:
         tdLog.info(f"sql select * from t1;")
 
         tdLog.info(f"2 sql select * from streamt where a is null;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where a is null;",
             lambda: tdSql.getRows() >= 5,
             retry=60,
@@ -354,7 +354,7 @@ class TestStreamOldCaseForceWindowClose:
 
         tdLog.info(f"step3")
         tdLog.info(f"=============== create database")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"create database test3 vgroups 1;")
         tdSql.execute(f"use test3;")
@@ -364,7 +364,7 @@ class TestStreamOldCaseForceWindowClose:
             f"create stream streams3 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt as select _irowts, interp(a) as a, interp(b) as b, now  from t1 every(2s) fill(value,100,200);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(
             f"insert into t1 values(now,1,1,1,1.1) (now + 10s,2,2,2,2.1) (now + 20s,3,3,3,3.1);"
@@ -374,7 +374,7 @@ class TestStreamOldCaseForceWindowClose:
         tdSql.query(f"select * from t1;")
 
         tdLog.info(f"2 sql select * from streamt where a == 100;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where a == 100;",
             lambda: tdSql.getRows() >= 5,
             retry=60,
@@ -382,7 +382,7 @@ class TestStreamOldCaseForceWindowClose:
 
     def streamInterpForceWindowClose1(self):
         tdLog.info(f"streamInterpForceWindowClose1")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdLog.info(f"step prev")
         tdLog.info(f"=============== create database")
@@ -400,7 +400,7 @@ class TestStreamOldCaseForceWindowClose:
             f"create stream streams1 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt as select _irowts, interp(a) as a, _isfilled, tbname, b, c from st partition by tbname, b,c every(5s) fill(prev);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(
             f"insert into t1 values(now,1,1,1,1.0) (now + 10s,2,1,1,2.0)(now + 20s,3,1,1,3.0)"
@@ -422,91 +422,91 @@ class TestStreamOldCaseForceWindowClose:
         tdSql.query(f"select * from t3;")
 
         tdLog.info(f"2 sql select * from streamt where a == 1;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where a == 1;",
             lambda: tdSql.getRows() >= 2,
             retry=60,
         )
 
         tdLog.info(f"2 sql select * from streamt where a == 21;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where a == 21;",
             lambda: tdSql.getRows() >= 2,
             retry=60,
         )
 
         tdLog.info(f"2 sql select * from streamt where a == 31;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where a == 31;",
             lambda: tdSql.getRows() >= 2,
             retry=60,
         )
 
         tdLog.info(f"sql select * from streamt where a == 2;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where a == 2;",
             lambda: tdSql.getRows() >= 2,
             retry=60,
         )
 
         tdLog.info(f"3 sql select * from streamt where a == 22;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where a == 22;",
             lambda: tdSql.getRows() >= 2,
             retry=60,
         )
 
         tdLog.info(f"3 sql select * from streamt where a == 32;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where a == 32;",
             lambda: tdSql.getRows() >= 2,
             retry=60,
         )
 
         tdLog.info(f"4 sql select * from streamt where a == 3;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where a == 3;",
             lambda: tdSql.getRows() >= 2,
             retry=60,
         )
 
         tdLog.info(f"4 sql select * from streamt where a == 23;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where a == 23;",
             lambda: tdSql.getRows() >= 2,
             retry=60,
         )
 
         tdLog.info(f"4 sql select * from streamt where a == 33;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where a == 33;",
             lambda: tdSql.getRows() >= 2,
             retry=60,
         )
 
         tdLog.info(f"5 sql select * from streamt where a == 3;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where a == 3;",
             lambda: tdSql.getRows() >= 5,
             retry=60,
         )
 
         tdLog.info(f"5 sql select * from streamt where a == 23;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where a == 23;",
             lambda: tdSql.getRows() >= 5,
             retry=60,
         )
 
         tdLog.info(f"5 sql select * from streamt where a == 33;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where a == 33;",
             lambda: tdSql.getRows() >= 5,
             retry=60,
         )
 
         tdLog.info(f"2 sql select * from streamt where a == 3;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where a == 3;",
             lambda: tdSql.getRows() >= 5,
             retry=60,
@@ -514,7 +514,7 @@ class TestStreamOldCaseForceWindowClose:
 
         tdLog.info(f"step2")
         tdLog.info(f"=============== create database")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"create database test2 vgroups 1;")
         tdSql.execute(f"use test2;")
@@ -531,7 +531,7 @@ class TestStreamOldCaseForceWindowClose:
             f"create stream streams2 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt as select _irowts, interp(a) as a, _isfilled, tbname, b, c from st partition by tbname, b,c every(2s) fill(NULL);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(
             f"insert into t1 values(now,1,1,1,1.0) (now + 10s,2,1,1,2.0)(now + 20s,3,1,1,3.0)"
@@ -553,7 +553,7 @@ class TestStreamOldCaseForceWindowClose:
         tdSql.query(f"select * from t3;")
 
         tdLog.info(f"2 sql select * from streamt where a is null;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where a is null;",
             lambda: tdSql.getRows() >= 5,
             retry=60,
@@ -561,7 +561,7 @@ class TestStreamOldCaseForceWindowClose:
 
         tdLog.info(f"step3")
         tdLog.info(f"=============== create database")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
         tdSql.execute(f"create database test3 vgroups 1;")
         tdSql.execute(f"use test3;")
 
@@ -577,7 +577,7 @@ class TestStreamOldCaseForceWindowClose:
             f"create stream streams3 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt as select _irowts, interp(a) as a, _isfilled, tbname, b, c from st partition by tbname, b,c every(2s) fill(value,100);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(
             f"insert into t1 values(now,1,1,1,1.0) (now + 10s,2,1,1,2.0)(now + 20s,3,1,1,3.0)"
@@ -599,7 +599,7 @@ class TestStreamOldCaseForceWindowClose:
         tdSql.query(f"select * from t3;")
 
         tdLog.info(f"2 sql select * from streamt where a == 100;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt where a == 100;",
             lambda: tdSql.getRows() >= 10,
             retry=60,

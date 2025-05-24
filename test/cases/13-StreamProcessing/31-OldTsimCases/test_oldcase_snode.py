@@ -1,5 +1,5 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
 
 
 class TestStreamOldCaseSnode:
@@ -32,7 +32,7 @@ class TestStreamOldCaseSnode:
 
     def schedSnode(self):
         tdLog.info(f"schedSnode")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"create database test  vgroups 2;")
         tdSql.execute(f"create database target vgroups 1;")
@@ -50,7 +50,7 @@ class TestStreamOldCaseSnode:
         tdSql.execute(
             f"create stream stream_t1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into target.streamtST1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s);"
         )
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into ts1 values(1648791213001,1,12,3,1.0);")
         tdSql.execute(f"insert into ts2 values(1648791213001,1,12,3,1.0);")
@@ -112,7 +112,7 @@ class TestStreamOldCaseSnode:
             f"insert into ts3 values(1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0)  (1648791223001,22,22,83,1.1) ;"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from target.streamtST1;",
             lambda: tdSql.getRows() >= 4
             and tdSql.getData(0, 1) == 8

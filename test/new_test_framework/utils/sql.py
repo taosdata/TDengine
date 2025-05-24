@@ -381,24 +381,6 @@ class TDSql:
                 time.sleep(1)
                 pass
 
-    def queryCheckFunc(self, sql, checkFunc, delay=0.3, retry=20, print=False):
-        if delay != 0:
-            time.sleep(delay)
-
-        for loop in range(retry):
-            tdSql.query(sql)
-
-            if checkFunc():
-                tdSql.printResult("check succeed")
-                return
-
-            if loop != retry - 1:
-                if print:
-                    tdSql.printResult("check continue")
-                time.sleep(1)
-
-        tdSql.printResult(f"check failed for {retry} seconds", exit=True)
-
     def executeTimes(self, sql, times):
         """
         Executes a SQL statement a specified number of times.(Not used)
@@ -865,7 +847,7 @@ class TDSql:
     #  check session
     #
 
-    def checkRows(self, expectedRows):
+    def checkRows(self, expectedRows, show=False):
         """
         Checks if the number of rows fetched by the last query matches the expected number of rows.
 
@@ -878,7 +860,7 @@ class TDSql:
         Raises:
             SystemExit: If the number of rows does not match the expected number.
         """
-        return self.checkEqual(self.queryRows, expectedRows)
+        return self.checkEqual(self.queryRows, expectedRows, show=show)
 
     def checkRowsV2(
         self,
@@ -1508,7 +1490,8 @@ class TDSql:
             if self.queryResult[i][col] == data:
                 row = i
 
-        tdLog.info(f"find key:{key}, row:{row} col:{col}, data:{data}")
+        if show:
+            tdLog.info(f"find key:{key}, row:{row} col:{col}, data:{data}")
 
         if row == -1:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
@@ -1518,9 +1501,10 @@ class TDSql:
         if show:
             tdLog.info("check key successfully")
 
-    def printResult(self, name="", exit=False):
-        if name == "":
-            name = "print result"
+    def checkKeyExist(self, key, show=False):
+        return self.checkKeyData(key, 0, key, show=show)
+
+    def printResult(self, name=""):
         tdLog.info(
             f"==== {name}, rows:{self.queryRows}, cols:{self.queryCols}, sql:{self.sql}"
         )
@@ -1964,7 +1948,7 @@ class TDSql:
         # tdLog.info("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
         raise Exception("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
 
-    def checkEqual(self, elm, expect_elm):
+    def checkEqual(self, elm, expect_elm, show=False):
         """
         Checks if the given element is equal to the expected element.
 
@@ -1979,10 +1963,16 @@ class TDSql:
             Exception: If the element does not match the expected element.
         """
         if elm == expect_elm:
-            tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
+            if show:
+                tdLog.info(
+                    "sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm)
+                )
             return True
         if self.__check_equal(elm, expect_elm):
-            tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
+            if show:
+                tdLog.info(
+                    "sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm)
+                )
             return True
         self.print_error_frame_info(elm, expect_elm)
 
