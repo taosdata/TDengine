@@ -2110,6 +2110,7 @@ static int32_t createParseContext(const SRequestObj* pRequest, SParseContext** p
 static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
   STscStmt2*        pStmt = userdata;
   __taos_async_fn_t fp = pStmt->options.asyncExecFn;
+  pStmt->asyncExecCb = true;
 
   pStmt->exec.affectedRows = taos_affected_rows(pStmt->exec.pRequest);
   pStmt->affectedRows += pStmt->exec.affectedRows;
@@ -2123,7 +2124,7 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
   ++pStmt->sql.runTimes;
 
   if (tsem_post(&pStmt->asyncExecSem) != 0) {
-    tscError("fail to post asyncExecSem");
+    STMT2_ELOG_E("fail to post asyncExecSem");
   }
 }
 
@@ -2138,17 +2139,18 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     return pStmt->errCode;
   }
 
-  TSC_ERR_RET(taosThreadMutexLock(&pStmt->asyncBindParam.mutex));
+  STMT_ERR_RET(taosThreadMutexLock(&pStmt->asyncBindParam.mutex));
   while (atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum) > 0) {
     (void)taosThreadCondWait(&pStmt->asyncBindParam.waitCond, &pStmt->asyncBindParam.mutex);
   }
-  TSC_ERR_RET(taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex));
+  STMT_ERR_RET(taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex));
 
   if (pStmt->sql.stbInterlaceMode) {
     STMT_ERR_RET(stmtAddBatch2(pStmt));
   }
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_EXECUTE));
+  pStmt->asyncExecCb = false;
 
   if (STMT_TYPE_QUERY != pStmt->sql.type) {
     if (pStmt->sql.stbInterlaceMode) {
@@ -2308,7 +2310,10 @@ const char* stmtErrstr2(TAOS_STMT2* stmt) {
     return (char*)tstrerror(terrno);
   }
 
-  pStmt->exec.pRequest->code = terrno;
+  // if stmt async exec ,error code is pStmt->exec.pRequest->code
+  if (!(pStmt->sql.status >= STMT_EXECUTE && pStmt->options.asyncExecFn != NULL && pStmt->asyncExecCb)) {
+    pStmt->exec.pRequest->code = terrno;
+  }
 
   SRequestObj* pRequest = pStmt->exec.pRequest;
   if (NULL != pRequest->msgBuf && (strlen(pRequest->msgBuf) > 0 || pRequest->code == TSDB_CODE_RPC_FQDN_ERROR)) {
