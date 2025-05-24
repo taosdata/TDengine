@@ -12326,7 +12326,7 @@ static int32_t translateDescribe(STranslateContext* pCxt, SDescribeStmt* pStmt) 
   return code;
 }
 
-static int32_t translateCompactRange(STranslateContext* pCxt, const char* dbName, SNode* pStart, SNode* pEnd,
+static int32_t translateTimeRange(STranslateContext* pCxt, const char* dbName, SNode* pStart, SNode* pEnd,
                                      STimeWindow* timeRange) {
   SDbCfgInfo dbCfg = {0};
   int32_t    code = getDBCfg(pCxt, dbName, &dbCfg);
@@ -12357,7 +12357,7 @@ static int32_t translateCompactDb(STranslateContext* pCxt, SCompactDatabaseStmt*
   if (TSDB_CODE_SUCCESS != code) return code;
 
   (void)tNameGetFullDbName(&name, compactReq.db);
-  code = translateCompactRange(pCxt, pStmt->dbName, pStmt->pStart, pStmt->pEnd, &compactReq.timeRange);
+  code = translateTimeRange(pCxt, pStmt->dbName, pStmt->pStart, pStmt->pEnd, &compactReq.timeRange);
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_COMPACT_DB, (FSerializeFunc)tSerializeSCompactDbReq, &compactReq);
   }
@@ -12431,7 +12431,7 @@ static int32_t translateCompactVgroups(STranslateContext* pCxt, SCompactVgroupsS
 
   if (TSDB_CODE_SUCCESS == code) {
     code =
-        translateCompactRange(pCxt, ((SValueNode*)pStmt->pDbName)->literal, pStmt->pStart, pStmt->pEnd, &req.timeRange);
+        translateTimeRange(pCxt, ((SValueNode*)pStmt->pDbName)->literal, pStmt->pStart, pStmt->pEnd, &req.timeRange);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -13858,36 +13858,86 @@ _return:
 }
 
 static int32_t translateDropStream(STranslateContext* pCxt, SDropStreamStmt* pStmt) {
-  SMDropStreamReq dropReq = {0};
+  SMDropStreamReq req = {0};
   SName           name;
   int32_t         code = TSDB_CODE_SUCCESS;
-  
-  (void)strncpy(dropReq.name, pStmt->streamName, sizeof(dropReq.name));
-  dropReq.igNotExists = pStmt->ignoreNotExists;
-  code = buildCmdMsg(pCxt, TDMT_MND_DROP_STREAM, (FSerializeFunc)tSerializeSMDropStreamReq, &dropReq);
-  tFreeMDropStreamReq(&dropReq);
+
+  req.name = taosMemoryCalloc(1, TSDB_STREAM_FNAME_LEN);
+  if (NULL == req.name) {
+    PAR_ERR_JRET(terrno);
+  }
+
+  toName(pCxt->pParseCxt->acctId, pStmt->streamDbName, pStmt->streamName, &name);
+  PAR_ERR_JRET(tNameExtractFullName(&name, req.name));
+  req.igNotExists = (int8_t)pStmt->ignoreNotExists;
+  PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_DROP_STREAM, (FSerializeFunc)tSerializeSMDropStreamReq, &req));
+
+_return:
+  tFreeMDropStreamReq(&req);
   return code;
 }
 
 static int32_t translatePauseStream(STranslateContext* pCxt, SPauseStreamStmt* pStmt) {
   SMPauseStreamReq req = {0};
   SName            name;
-  int32_t          code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->streamName, strlen(pStmt->streamName));
-  if (TSDB_CODE_SUCCESS != code) return code;
-  (void)tNameGetFullDbName(&name, req.name);
-  req.igNotExists = pStmt->ignoreNotExists;
-  return buildCmdMsg(pCxt, TDMT_MND_PAUSE_STREAM, (FSerializeFunc)tSerializeSMPauseStreamReq, &req);
+  int32_t          code = TSDB_CODE_SUCCESS;
+
+  req.name = taosMemoryCalloc(1, TSDB_STREAM_FNAME_LEN);
+  if (NULL == req.name) {
+    PAR_ERR_JRET(terrno);
+  }
+
+  toName(pCxt->pParseCxt->acctId, pStmt->streamDbName, pStmt->streamName, &name);
+  PAR_ERR_JRET(tNameExtractFullName(&name, req.name));
+  req.igNotExists = (int8_t)pStmt->ignoreNotExists;
+  PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_PAUSE_STREAM, (FSerializeFunc)tSerializeSMPauseStreamReq, &req));
+
+_return:
+  tFreeMPauseStreamReq(&req);
+  return code;
 }
 
 static int32_t translateResumeStream(STranslateContext* pCxt, SResumeStreamStmt* pStmt) {
   SMResumeStreamReq req = {0};
   SName             name;
-  int32_t           code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->streamName, strlen(pStmt->streamName));
-  if (TSDB_CODE_SUCCESS != code) return code;
-  (void)tNameGetFullDbName(&name, req.name);
-  req.igNotExists = pStmt->ignoreNotExists;
-  req.igUntreated = pStmt->ignoreUntreated;
-  return buildCmdMsg(pCxt, TDMT_MND_RESUME_STREAM, (FSerializeFunc)tSerializeSMResumeStreamReq, &req);
+  int32_t           code = TSDB_CODE_SUCCESS;
+
+  req.name = taosMemoryCalloc(1, TSDB_STREAM_FNAME_LEN);
+  if (NULL == req.name) {
+    PAR_ERR_JRET(terrno);
+  }
+
+  toName(pCxt->pParseCxt->acctId, pStmt->streamDbName, pStmt->streamName, &name);
+  PAR_ERR_JRET(tNameExtractFullName(&name, req.name));
+
+  req.igNotExists = (int8_t)pStmt->ignoreNotExists;
+  req.igUntreated = (int8_t)pStmt->ignoreUntreated;
+  PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_RESUME_STREAM, (FSerializeFunc)tSerializeSMResumeStreamReq, &req));
+
+_return:
+  tFreeMResumeStreamReq(&req);
+  return code;
+}
+
+static int32_t translateRecalcStream(STranslateContext* pCxt, SRecalcStreamStmt* pStmt) {
+  SMRecalcStreamReq req = {0};
+  SName             name;
+  int32_t           code = TSDB_CODE_SUCCESS;
+
+  req.name = taosMemoryCalloc(1, TSDB_STREAM_FNAME_LEN);
+  if (NULL == req.name) {
+    PAR_ERR_JRET(terrno);
+  }
+
+  toName(pCxt->pParseCxt->acctId, pStmt->streamDbName, pStmt->streamName, &name);
+  PAR_ERR_JRET(tNameExtractFullName(&name, req.name));
+  req.calcAll = (int8_t)((SStreamCalcRangeNode*)pStmt->pRange)->calcAll;
+  PAR_ERR_JRET(translateTimeRange(pCxt, pStmt->streamDbName, ((SStreamCalcRangeNode*)pStmt->pRange)->pStart, ((SStreamCalcRangeNode*)pStmt->pRange)->pEnd, &req.timeRange));
+  PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_RESUME_STREAM, (FSerializeFunc)tSerializeSMRecalcStreamReq, &req));
+
+_return:
+  tFreeMRecalcStreamReq(&req);
+  return code;
 }
 
 static int32_t validateCreateView(STranslateContext* pCxt, SCreateViewStmt* pStmt) {
@@ -14944,6 +14994,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_RESUME_STREAM_STMT:
       code = translateResumeStream(pCxt, (SResumeStreamStmt*)pNode);
+      break;
+    case QUERY_NODE_RECALCULATE_STREAM_STMT:
+      code = translateRecalcStream(pCxt, (SRecalcStreamStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_FUNCTION_STMT:
       code = translateCreateFunction(pCxt, (SCreateFunctionStmt*)pNode);
