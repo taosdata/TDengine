@@ -2197,7 +2197,8 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
   STMT2_DLOG_E("start to bind param");
   if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 1) {
     STMT2_ELOG_E("async bind param is still working, please try again later");
-    return TSDB_CODE_TSC_STMT_API_ERROR;
+    terrno = TSDB_CODE_TSC_STMT_API_ERROR;
+    return terrno;
   }
 
   if (pStmt->options.asyncExecFn && !pStmt->execSemWaited) {
@@ -2225,6 +2226,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
         code = tSimpleHashPut(hashTbnames, bindv->tbnames[i], strlen(bindv->tbnames[i]), NULL, 0);
         if (code) {
+          terrno = code;
           STMT2_ELOG("unexpected error happens, code:%s", tstrerror(code));
           goto out;
         }
@@ -2232,6 +2234,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
       code = stmtSetTbName2(stmt, bindv->tbnames[i]);
       if (code) {
+        terrno = code;
         STMT2_ELOG("set tbname failed, code:%s", tstrerror(code));
         goto out;
       }
@@ -2250,6 +2253,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
     }
 
     if (code) {
+      terrno = code;
       STMT2_ELOG("set tags failed, code:%s", tstrerror(code));
       goto out;
     }
@@ -2273,6 +2277,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
       code = stmtBindBatch2(stmt, bind, col_idx, pCreateTbReq);
       if (TSDB_CODE_SUCCESS != code) {
+        terrno = code;
         STMT2_ELOG("bind batch failed, code:%s", tstrerror(code));
         goto out;
       }
@@ -2305,13 +2310,15 @@ int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t c
   if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 0) {
     (void)taosThreadMutexUnlock(&(pStmt->asyncBindParam.mutex));
     tscError("async bind param is still working, please try again later");
-    return TSDB_CODE_TSC_STMT_API_ERROR;
+    terrno = TSDB_CODE_TSC_STMT_API_ERROR;
+    return terrno;
   }
   (void)atomic_add_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);
   (void)taosThreadMutexUnlock(&(pStmt->asyncBindParam.mutex));
 
   int code_s = taosStmt2AsyncBind(stmtAsyncBindThreadFunc, (void *)args);
   if (code_s != TSDB_CODE_SUCCESS) {
+    terrno = code_s;
     (void)taosThreadMutexLock(&(pStmt->asyncBindParam.mutex));
     (void)taosThreadCondSignal(&(pStmt->asyncBindParam.waitCond));
     (void)atomic_sub_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);

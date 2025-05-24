@@ -172,6 +172,7 @@ typedef struct {
   tsem_t         asyncExecSem;
   bool           execSemWaited;
   AsyncBindParam asyncBindParam;
+  bool           asyncExecCb;
   SStmtStatInfo  stat;
 } STscStmt2;
 /*
