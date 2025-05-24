@@ -506,7 +506,11 @@ int32_t tsdbMerge(void *arg) {
 
   // do merge
   tsdbInfo("vgId:%d merge begin, fid:%d", TD_VID(tsdb->pVnode), merger->fid);
+  int64_t begin_ts = taosGetTimestampUs();
   code = tsdbDoMerge(merger);
+  int64_t end_ts = taosGetTimestampUs();
+  atomic_add_fetch_64(&tsdb->pVnode->writeMetrics.merge_time, end_ts - begin_ts);
+  atomic_add_fetch_64(&tsdb->pVnode->writeMetrics.merge_count, 1);
   tsdbInfo("vgId:%d merge done, fid:%d", TD_VID(tsdb->pVnode), mergeArg->fid);
   TSDB_CHECK_CODE(code, lino, _exit);
 

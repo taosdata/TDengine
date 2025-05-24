@@ -321,7 +321,10 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
   STsdb  *tsdb = committer->tsdb;
 
   // check if can commit
+  int64_t begin_ts = taosGetTimestampUs();
   tsdbFSCheckCommit(tsdb, committer->ctx->info->fid);
+  int64_t end_ts = taosGetTimestampUs();
+  atomic_add_fetch_64(&tsdb->pVnode->writeMetrics.commit_time, end_ts - begin_ts);
 
   committer->ctx->expLevel = tsdbFidLevel(committer->ctx->info->fid, &tsdb->keepCfg, committer->now);
   tsdbFidKeyRange(committer->ctx->info->fid, committer->minutes, committer->precision, &committer->ctx->minKey,
