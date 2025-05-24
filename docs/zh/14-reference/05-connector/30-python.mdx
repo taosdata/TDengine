@@ -283,8 +283,8 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
     - **返回值**：写入条数。
     - **异常**：操作失败抛出 `QueryError` 异常。
 - `fn result_set(&mut self) -> PyResult<TaosResult>`
-    - **接口说明**： 获取绑定查询结果集。
-    - **返回值**： 查询结果集。
+    - **接口说明**：获取绑定查询结果集。
+    - **返回值**：查询结果集。
     - **异常**：操作失败抛出 `QueryError` 异常。
 - `fn affect_rows(&mut self) -> PyResult<usize>`
     - **接口说明**：获取写入条数。
