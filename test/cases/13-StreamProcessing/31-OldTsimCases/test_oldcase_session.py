@@ -14,14 +14,19 @@ class TestStreamOldCaseSession:
         2. out of order data
 
         Catalog:
-            - Streams:OldCase
+            - Streams:OldTsimCases
+
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
+
         History:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/session0.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/session1.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/triggerSession0.sim
+
         """
 
         self.session0()

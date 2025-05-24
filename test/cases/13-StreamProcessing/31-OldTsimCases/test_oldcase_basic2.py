@@ -10,20 +10,24 @@ class TestStreamOldCaseBasic2:
     def test_stream_oldcase_basic2(self):
         """Stream basic test 2
 
-        1. basic test
-        2. out of order data
+        1.
 
         Catalog:
-            - Streams:OldCase
+            - Streams:OldTsimCases
+
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
+
         History:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/pauseAndResume.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/sliding.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/tag.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/triggerInterval0.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/windowClose.sim
+
         """
 
         self.pauseAndResume()

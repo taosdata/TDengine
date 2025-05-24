@@ -13,15 +13,20 @@ class TestStreamOldCaseDelete:
         1. -
 
         Catalog:
-            - Streams:OldCase
+            - Streams:OldTsimCases
+
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
+
         History:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/deleteInterval.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/deleteScalar.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/deleteSession.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/deleteState.sim
+
         """
 
         self.deleteInterval()

@@ -14,16 +14,21 @@ class TestStreamOldCaseFillHistory:
         2. out of order data
 
         Catalog:
-            - Streams:OldCase
+            - Streams:OldTsimCases
+
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
+
         History:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/fillHistoryBasic1.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/fillHistoryBasic2.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/fillHistoryBasic3.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/fillHistoryBasic4.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/fillHistoryTransform.sim
+
         """
 
         self.fillHistoryBasic1()

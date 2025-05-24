@@ -13,13 +13,18 @@ class TestStreamOldCaseContinueWindowClose:
         1. -
 
         Catalog:
-            - Streams:OldCase
+            - Streams:OldTsimCases
+
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
+
         History:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/nonblockIntervalBasic.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/nonblockIntervalHistory.sim
+
         """
 
         self.nonblockIntervalBasic()

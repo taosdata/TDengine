@@ -14,13 +14,18 @@ class TestStreamOldCaseInterpPartitionBy:
         2. out of order data
 
         Catalog:
-            - Streams:OldCase
+            - Streams:OldTsimCases
+
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
+
         History:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPartitionBy0.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPartitionBy1.sim
+
         """
 
         self.streamInterpPartitionBy0()

@@ -13,15 +13,20 @@ class TestStreamOldCaseConcat:
         1. -
 
         Catalog:
-            - Streams:OldCase
+            - Streams:OldTsimCases
+
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
+
         History:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/udTableAndCol0.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/udTableAndTag0.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/udTableAndTag1.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/udTableAndTag2.sim
+
         """
 
         self.udTableAndCol0()

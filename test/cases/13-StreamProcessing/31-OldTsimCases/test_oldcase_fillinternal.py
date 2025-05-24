@@ -14,10 +14,14 @@ class TestStreamOldCaseFillInterval:
         2. out of order data
 
         Catalog:
-            - Streams:OldCase
+            - Streams:OldTsimCases
+
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
+
         History:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/fillIntervalDelete0.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/fillIntervalDelete1.sim
@@ -27,6 +31,7 @@ class TestStreamOldCaseFillInterval:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/fillIntervalPrevNext1.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/fillIntervalRange.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/fillIntervalValue.sim
+
         """
 
         self.fillIntervalDelete0()
@@ -1434,7 +1439,7 @@ class TestStreamOldCaseFillInterval:
             and tdSql.getData(8, 2) == "t2aaa"
             and tdSql.getData(10, 2) == "t2aaa"
             and tdSql.getData(11, 2) == "t2aaa"
-            and tdSql.getData(12, 2) == "t2aaa"
+            and tdSql.getData(12, 2) == "t2aaa",
         )
 
         tdSql.queryCheckFunc(
@@ -1449,7 +1454,7 @@ class TestStreamOldCaseFillInterval:
             and tdSql.getData(8, 2) == "t2aaa"
             and tdSql.getData(10, 2) == "t2aaa"
             and tdSql.getData(11, 2) == "t2aaa"
-            and tdSql.getData(12, 2) == "t2aaa"
+            and tdSql.getData(12, 2) == "t2aaa",
         )
 
         tdSql.execute(f"drop stream if exists streams0;")

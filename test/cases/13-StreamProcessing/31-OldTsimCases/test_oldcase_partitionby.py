@@ -14,10 +14,14 @@ class TestStreamOldCasePartitionBy:
         2. out of order data
 
         Catalog:
-            - Streams:OldCase
+            - Streams:OldTsimCases
+            
         Since: v3.0.0.0
+        
         Labels: common,ci
+        
         Jira: None
+        
         History:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/partitionby.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/partitionby1.sim

@@ -13,10 +13,14 @@ class TestStreamOldCaseCount:
         1. -
 
         Catalog:
-            - Streams:OldCase
+            - Streams:OldTsimCases
+
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
+
         History:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/count0.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/count1.sim
@@ -25,6 +29,7 @@ class TestStreamOldCaseCount:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/countSliding0.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/countSliding1.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/countSliding2.sim
+
         """
 
         self.count0()

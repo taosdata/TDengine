@@ -13,10 +13,14 @@ class TestStreamOldCaseBasic1:
         1. -
 
         Catalog:
-            - Streams:OldCase
+            - Streams:OldTsimCases
+
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
+
         History:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/basic0.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/basic1.sim
@@ -24,6 +28,7 @@ class TestStreamOldCaseBasic1:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/basic3.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/basic4.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/basic5.sim
+
         """
 
         self.stream_basic_0()

@@ -14,10 +14,14 @@ class TestStreamOldCaseTwa:
         2. out of order data
 
         Catalog:
-            - Streams:OldCase
+            - Streams:OldTsimCases
+
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
+
         History:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaError.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaFwcFill.sim
@@ -25,6 +29,7 @@ class TestStreamOldCaseTwa:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaFwcInterval.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaFwcIntervalPrimaryKey.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamTwaInterpFwc.sim
+
         """
 
         self.streamTwaError()

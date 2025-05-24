@@ -13,16 +13,21 @@ class TestStreamOldCaseCheckPoint:
         1. -
 
         Catalog:
-            - Streams:OldCase
+            - Streams:OldTsimCases
+
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
+
         History:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/checkpointInterval0.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/checkpointInterval1.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/checkpointSession0.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/checkpointSession1.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/checkpointState0.sim
+
         """
 
         self.checkpointInterval0()

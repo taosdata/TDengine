@@ -14,15 +14,20 @@ class TestStreamOldCaseInterpDelete:
         2. out of order data
 
         Catalog:
-            - Streams:OldCase
+            - Streams:OldTsimCases
+
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
+
         History:
             ## - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpError.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpDelete0.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpDelete1.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpDelete2.sim
+
         """
 
         self.streamInterpDelete0()

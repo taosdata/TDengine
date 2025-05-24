@@ -14,10 +14,14 @@ class TestStreamOldCaseInterpFill:
         2. out of order data
 
         Catalog:
-            - Streams:OldCase
+            - Streams:OldTsimCases
+
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
+
         History:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpLarge.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpLinear0.sim
@@ -25,6 +29,7 @@ class TestStreamOldCaseInterpFill:
             ## - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPrev0.sim
             ## - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpPrev1.sim
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamInterpValue0.sim
+
         """
 
         self.streamInterpLarge()
