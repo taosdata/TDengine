@@ -486,7 +486,7 @@
 ## 23-Compatibility 
 ## 24-OldCases
 ## 30-OldPyCases
-,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/test_max_delay_interval.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_max_delay_interval.py
 ## 31-OldTsimCases
 ,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py
 ,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic2.py
