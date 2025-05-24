@@ -53,25 +53,6 @@
   } while (0)
 
 #define COPY_STRING_FORM_ID_TOKEN(buf, pToken) strncpy(buf, (pToken)->z, TMIN((pToken)->n, sizeof(buf) - 1))
-#define COPY_STRING_FORM_ID_TOKEN_TRIM_ESCAPE(buf, pToken, trim) \
-  do {                                                           \
-    int32_t len = TMIN((pToken)->n, sizeof(buf) - 1);            \
-    if ((trim) && ((pToken)->z[0] == TS_ESCAPE_CHAR)) {          \
-      int32_t i = 0, j = 0;                                      \
-      for (; i < len - 1; ++i) {                                 \
-        buf[j++] = (pToken)->z[i];                               \
-        if ((pToken)->z[i] == TS_ESCAPE_CHAR) {                  \
-          if ((pToken)->z[i + 1] == TS_ESCAPE_CHAR) ++i;         \
-        }                                                        \
-      }                                                          \
-      if (i < len) {                                             \
-        buf[j++] = (pToken)->z[i];                               \
-      }                                                          \
-      buf[j] = 0;                                                \
-    } else {                                                     \
-      strncpy(buf, (pToken)->z, len);                            \
-    }                                                            \
-  } while (0)
 
 // strncpy(buf, (pToken)->z, TMIN((pToken)->n, sizeof(buf) - 1))
 #define COPY_STRING_FORM_STR_TOKEN(buf, pToken)                              \
@@ -519,8 +500,8 @@ _err:
   return NULL;
 }
 
-static void copyValueWithEscape(char* buf, int32_t bufLen, const SToken* pToken, bool trim) {
-  int32_t len = TMIN((pToken)->n, bufLen);
+static void copyValueTrimEscape(char* buf, int32_t bufLen, const SToken* pToken, bool trim) {
+  int32_t len = TMIN((pToken)->n, bufLen - 1);
   if ((trim) && ((pToken)->z[0] == TS_ESCAPE_CHAR)) {
     int32_t i = 1, j = 0;
     for (; i < len - 1; ++i) {
@@ -531,7 +512,7 @@ static void copyValueWithEscape(char* buf, int32_t bufLen, const SToken* pToken,
     }
     buf[j] = 0;
   } else {
-    strncpy(buf, (pToken)->z, len);
+    tstrncpy(buf, (pToken)->z, len + 1);
   }
 }
 
@@ -540,14 +521,13 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   SValueNode* val = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&val);
   CHECK_MAKE_NODE(val);
-  val->literal = taosMemoryMalloc(pLiteral->n + 1);
-  if (!val->literal) {
+  if (!(val->literal = taosMemoryMalloc(pLiteral->n + 1))) {
     pCxt->errCode = terrno;
     nodesDestroyNode((SNode*)val);
     return NULL;
   }
-  copyValueWithEscape(val->literal, pLiteral->n + 1, pLiteral,
-                      pCxt->pQueryCxt->hasDupQuoteChar && TK_NK_ID == pLiteral->type);
+  copyValueTrimEscape(val->literal, pLiteral->n + 1, pLiteral,
+                      pCxt->pQueryCxt->hasDupQuoteChar && (TK_NK_ID == pLiteral->type));
   if (TK_NK_ID != pLiteral->type && TK_TIMEZONE != pLiteral->type &&
       (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType)) {
     (void)trimString(pLiteral->z, pLiteral->n, val->literal, pLiteral->n);

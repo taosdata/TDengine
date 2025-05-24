@@ -46,8 +46,6 @@ int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placehol
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   SAstCreateContext cxt;
   initAstCreateContext(pParseCxt, &cxt);
-  int32_t bufLen = 0;
-  char*   pBuf = NULL;
   void*   pParser = ParseAlloc((FMalloc)taosMemMalloc);
   if (!pParser) return terrno;
   int32_t i = 0;
@@ -88,35 +86,6 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
       }
       default:
         // ParseTrace(stdout, "");
-#if 0
-        if (dupQuoteChar) {  // trim the duplicated quote char
-          if (NULL == pBuf) {
-            bufLen = t0.n < 127 ? 128 : t0.n + 1;
-            pBuf = (char*)taosMemMalloc(bufLen);
-          } else if (bufLen < t0.n + 1) {
-            bufLen = (t0.n + 1 > bufLen << 1) ? t0.n + 1 : bufLen << 1;
-            char* pTmp = (char*)taosMemRealloc(pBuf, bufLen);
-            if (!pTmp) {
-              cxt.errCode = TSDB_CODE_OUT_OF_MEMORY;
-              goto abort_parse;
-            }
-            pBuf = pTmp;
-          }
-          int32_t j = 0, k = 0;
-          for (; j < t0.n - 1; ++j) {
-            pBuf[k++] = t0.z[j];
-            if (t0.z[j] == dupQuoteChar) {
-              if (t0.z[j + 1] == dupQuoteChar) ++j;
-            }
-          }
-          if (j < t0.n) {
-            pBuf[k++] = t0.z[j];
-          }
-          pBuf[k] = 0;
-          t0.n = k;
-          t0.z = pBuf;
-        }
-#endif
         Parse(pParser, t0.type, t0, &cxt);
         if (TSDB_CODE_SUCCESS != cxt.errCode) {
           goto abort_parse;
@@ -125,7 +94,6 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   }
 
 abort_parse:
-  taosMemFreeClear(pBuf);
   ParseFree(pParser, (FFree)taosAutoMemoryFree);
   if (TSDB_CODE_SUCCESS == cxt.errCode) {
     int32_t code = buildQueryAfterParse(pQuery, cxt.pRootNode, cxt.placeholderNo, &cxt.pPlaceholderValues);
