@@ -7,7 +7,7 @@ numOfSubTable = 10
 numOfRow = 10
 
 conn = None
-stmt = None
+stmt2 = None
 host="localhost"
 port=6041
 try:
