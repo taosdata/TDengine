@@ -101,9 +101,6 @@ typedef struct {
   SMetric memory_table_size;
   SMetric memory_table_rows;
   SMetric commit_count;
-  SMetric auto_commit_count;
-  SMetric forced_commit_count;
-  SMetric stt_trigger_value;
   SMetric merge_count;
   SMetric avg_commit_time;
   SMetric avg_merge_time;
