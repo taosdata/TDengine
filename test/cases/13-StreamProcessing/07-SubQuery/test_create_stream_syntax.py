@@ -70,6 +70,24 @@ db_name_list_invalid = ["non_exists_db."]
 trigger_table_list_valid = ["trigger_table", "trigger_stable", "trigger_ctable"]
 trigger_table_list_invalid = ["non_exists_table", ""]
 
+into_option_list_valid = [
+    " INTO create_stream_db.new_table",
+    " INTO create_stream_db.exist_super_table",
+    " INTO create_stream_db.exist_sub_table",
+    " INTO create_stream_db.exist_normal_table",
+    " INTO new_table",
+    " INTO exist_super_table",
+    " INTO exist_sub_table",
+    " INTO exist_normal_table",
+    ""
+]
+
+into_option_list_invalid = [
+    " INTO non_exists_db.new_table",
+]
+
+partition_columns_valid = ["tag1", "tag2", "tag3", "tag4", "tbname"]
+partition_columns_invalid = ["ts_col", "tag5", "tag6", "now"]
 
 def random_from_list(lst, n=1):
     """Return n random elements from a list."""
@@ -382,30 +400,6 @@ def generate_tags_clause(include_probability=0.7, max_tags=4, allow_comment=True
         tag_defs.append(f"{tag} {type_name}{comment_str} AS {expr}")
     return f" TAGS ({', '.join(tag_defs)}) "
 
-def generate_random_trigger_from_table_section():
-    if random_bool():
-        # Generate a valid database name
-        dbname = random_from_list(db_name_list_valid)
-        if random_bool():
-            # Generate a valid trigger table name
-            trigger_table = random_from_list(trigger_table_list_valid)
-            return f" FROM {dbname}{trigger_table} ", True
-        else:
-            # Generate an invalid trigger table name
-            trigger_table = random_from_list(trigger_table_list_invalid)
-            return f" FROM {dbname}{trigger_table} ", False
-    else:
-        # Generate an invalid database name
-        dbname = random_from_list(db_name_list_invalid)
-        if random_bool():
-            # Generate a valid trigger table name
-            trigger_table = random_from_list(trigger_table_list_valid)
-            return f" FROM {dbname}{trigger_table} ", False
-        else:
-            # Generate an invalid trigger table name
-            trigger_table = random_from_list(trigger_table_list_invalid)
-            return f" FROM {dbname}{trigger_table} ", False
-
 def generate_random_stream_db_section():
     if random_bool():
         # Generate a valid database name
@@ -416,6 +410,52 @@ def generate_random_stream_db_section():
         dbname = random_from_list(db_name_list_invalid)
         return f" {dbname}", False
 
+# return a tuple (trigger_table, is_valid, trigger_null, has_tag)
+def generate_random_trigger_table_section():
+    if random_bool(0.2):
+        # Do not generate a trigger table
+        return "", True, True, False
+    else :
+        if random_bool():
+            # Generate a valid database name
+            dbname = random_from_list(db_name_list_valid)
+            if random_bool():
+                # Generate a valid trigger table name
+                trigger_table = random_from_list(trigger_table_list_valid)
+                if trigger_table == "trigger_table":
+                    return f" FROM {dbname}{trigger_table} ", True, False, False
+                else :
+                    return f" FROM {dbname}{trigger_table} ", True, False, True
+            else:
+                # Generate an invalid trigger table name
+                trigger_table = random_from_list(trigger_table_list_invalid)
+                return f" FROM {dbname}{trigger_table} ", False, False, False
+        else:
+            # Generate an invalid database name
+            dbname = random_from_list(db_name_list_invalid)
+            if random_bool():
+                # Generate a valid trigger table name
+                trigger_table = random_from_list(trigger_table_list_valid)
+                return f" FROM {dbname}{trigger_table} ", False, False, False
+            else:
+                # Generate an invalid trigger table name
+                trigger_table = random_from_list(trigger_table_list_invalid)
+                return f" FROM {dbname}{trigger_table} ", False, False, False
+
+def generate_random_into_table_section():
+    if random_bool():
+        # Generate a valid into table section
+        into_table = random_from_list(into_option_list_valid)
+        if into_table == "":
+            return f" {into_table} ", True, True
+        else:
+            return f" {into_table} ", True, False
+    else:
+        # Generate an invalid into table section
+        into_table = random_from_list(into_option_list_invalid)
+        return f" {into_table} ", False, False
+
+
 def gen_create_stream_variants():
     base_template = "CREATE STREAM{if_not_exists} {stream_name}{stream_options}{into_clause}{output_subtable}{columns}{tags}{as_subquery};"
     trigger_types = generate_trigger_section()
@@ -423,19 +463,21 @@ def gen_create_stream_variants():
     notify_options = generate_notif_def_section(total=10)
     sql_variants = []
     stream_index = 0
-    for if_not_exists, into, as_subquery in product(
-            if_not_exists_opts, into_option_list, as_subquery_opts
+    for if_not_exists, as_subquery in product(
+            if_not_exists_opts, as_subquery_opts
     ):
         for trigger_type in trigger_types:
             for stream_opt in stream_options:
                 for notify in notify_options:
                     stream_db, v1 = generate_random_stream_db_section()
-                    trigger_table, v2 = generate_random_trigger_from_table_section()
+                    trigger_table, v2, trigger_null, trigger_has_tag = generate_random_trigger_table_section()
+                    into_table, v3, into_null = generate_random_into_table_section()
+                    partition = generate_partition_section()
                     sql = base_template.format(
                        if_not_exists=if_not_exists,
                        stream_name=stream_db + "stream_" + str(stream_index),
-                       stream_options=trigger_type + trigger_table + generate_partition_section() + stream_opt + notify,
-                       into_clause=into,
+                       stream_options=trigger_type + trigger_table + partition + stream_opt + notify,
+                       into_clause=into_table,
                        output_subtable=generate_output_subtable(),
                        columns=generate_column_list_section(),
                        tags=generate_tags_clause() + " ",
