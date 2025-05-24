@@ -9,27 +9,39 @@ void test_native_connector_create_database() {
     conn_info.user = "root";
     conn_info.password = "taosdata";
 
-    // 创建 NativeConnector 实例
-    NativeConnector connector(conn_info);
+    // 配置数据通道
+    DataChannel channel;
+    channel.channel_type = "native";
+
+    // 使用 DatabaseConnector::create 创建连接器实例
+    auto connector = DatabaseConnector::create(channel, conn_info);
 
     // 测试连接
-    if (!connector.connect()) {
+    if (!connector->connect()) {
         std::cerr << "Failed to connect to TDengine." << std::endl;
         return;
     }
     std::cout << "Connected to TDengine successfully." << std::endl;
 
     // 测试执行 SQL
-    const std::string sql = "CREATE DATABASE IF NOT EXISTS `test_native_connector`";
-    if (!connector.execute(sql)) {
+    std::string sql = "DROP DATABASE IF EXISTS `test_native_connector`";
+    if (!connector->execute(sql)) {
         std::cerr << "Failed to execute SQL: " << sql << std::endl;
-        connector.close();
+        connector->close();
+        return;
+    }
+    std::cout << "SQL executed successfully: " << sql << std::endl;
+
+    sql = "CREATE DATABASE IF NOT EXISTS `test_native_connector`";
+    if (!connector->execute(sql)) {
+        std::cerr << "Failed to execute SQL: " << sql << std::endl;
+        connector->close();
         return;
     }
     std::cout << "SQL executed successfully: " << sql << std::endl;
 
     // 关闭连接
-    connector.close();
+    connector->close();
     std::cout << "Connection closed successfully." << std::endl;
 }
 
