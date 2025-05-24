@@ -838,45 +838,42 @@ full_view_name(A) ::= db_name(B) NK_DOT view_name(C).                           
 /************************************************ create/drop stream **************************************************/
 cmd ::= CREATE STREAM not_exists_opt(A) full_stream_name(B) stream_trigger(C)
         stream_outtable_opt(D) as_subquery_opt(E).                                { pCxt->pRootNode = createCreateStreamStmt(pCxt, A, B, C, D, E); }
-cmd ::= DROP STREAM exists_opt(A) stream_name(B).                                 { pCxt->pRootNode = createDropStreamStmt(pCxt, A, &B); }
-cmd ::= STOP STREAM exists_opt(A) stream_name(B).                                 { pCxt->pRootNode = createPauseStreamStmt(pCxt, A, &B); }
-cmd ::= START STREAM exists_opt(A) ignore_opt(C) stream_name(B).                  { pCxt->pRootNode = createResumeStreamStmt(pCxt, A, C, &B); }
-/*
-cmd ::= RECALCULATE STREAM stream_name(B) recalculate_range(C).                   { pCxt->pRootNode = createRecalcStreamStmt(pCxt, &B, C); }
+cmd ::= DROP STREAM exists_opt(A) full_stream_name(B).                            { pCxt->pRootNode = createDropStreamStmt(pCxt, A, B); }
+cmd ::= STOP STREAM exists_opt(A) full_stream_name(B).                            { pCxt->pRootNode = createPauseStreamStmt(pCxt, A, B); }
+cmd ::= START STREAM exists_opt(A) ignore_opt(C) full_stream_name(B).             { pCxt->pRootNode = createResumeStreamStmt(pCxt, A, C, B); }
+cmd ::= RECALCULATE STREAM full_stream_name(A) recalculate_range(B).              { pCxt->pRootNode = createRecalcStreamStmt(pCxt, A, B); }
 
 recalculate_range(A) ::= ALL.                                                     { A = createRecalcRange(pCxt, NULL, NULL); }
-recalculate_range(A) ::= FROM interval_sliding_duration_literal(B).               { A = createRecalcRange(pCxt, releaseRawExprNode(pCxt, B), NULL); }
-recalculate_range(A) ::= FROM interval_sliding_duration_literal(B)
-    TO interval_sliding_duration_literal(C).                                      { A = createRecalcRange(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
-*/
+recalculate_range(A) ::= FROM time_point(B).                                      { A = createRecalcRange(pCxt, B, NULL); }
+recalculate_range(A) ::= FROM time_point(B) TO time_point(C).                     { A = createRecalcRange(pCxt, B, C); }
 
 full_stream_name(A) ::= stream_name(B).                                           { A = createStreamNode(pCxt, NULL, &B); }
 full_stream_name(A) ::= db_name(B) NK_DOT stream_name(C).                         { A = createStreamNode(pCxt, &B, &C); }
 
 /********** stream_outtable **********/
-stream_outtable_opt(A) ::= .                                                                                            { A = NULL; }
-stream_outtable_opt(A) ::= INTO full_table_name(B) output_subtable_opt(C) column_name_opt(D) stream_tags_def_opt(E).    { A = createStreamOutTableNode(pCxt, B, C, D, E); }
+stream_outtable_opt(A) ::= .                                                                                                { A = NULL; }
+stream_outtable_opt(A) ::= INTO full_table_name(B) output_subtable_opt(C) column_name_opt(D) stream_tags_def_opt(E).        { A = createStreamOutTableNode(pCxt, B, C, D, E); }
 
 /********** stream_trigger **********/
 stream_trigger(A) ::= trigger_type(B) trigger_table_opt(C) stream_partition_by_opt(D)
-                      trigger_options_opt(E) notification_opt(F).                 { A = createStreamTriggerNode(pCxt, B, C, D, E, F); }
+                      trigger_options_opt(E) notification_opt(F).                                                           { A = createStreamTriggerNode(pCxt, B, C, D, E, F); }
 
 /***** trigger type *****/
 
-trigger_type(A) ::= SESSION NK_LP column_reference(B) NK_COMMA interval_sliding_duration_literal(C) NK_RP.            { A = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
+trigger_type(A) ::= SESSION NK_LP column_reference(B) NK_COMMA interval_sliding_duration_literal(C) NK_RP.                  { A = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
 trigger_type(A) ::= STATE_WINDOW NK_LP expr_or_subquery(B) NK_RP true_for_opt(C).                                           { A = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, B), C); }
 trigger_type(A) ::= interval_opt(B) SLIDING NK_LP sliding_expr(C) NK_RP.                                                    { A = createIntervalWindowNodeExt(pCxt, B, C); }
 trigger_type(A) ::= EVENT_WINDOW NK_LP START WITH search_condition(B) END WITH search_condition(C) NK_RP true_for_opt(D).   { A = createEventWindowNode(pCxt, B, C, D); }
 trigger_type(A) ::= COUNT_WINDOW NK_LP NK_INTEGER(B) sliding_val_opt(C) count_col_list_opt(D) NK_RP.                        { A = createCountWindowNode(pCxt, &B, &C, D); }
 trigger_type(A) ::= PERIOD NK_LP duration_literal(B) offset_opt(C) NK_RP.                                                   { A = createPeriodWindowNode(pCxt, releaseRawExprNode(pCxt, B), C); }
 
-interval_opt(A) ::= .                                                                             { A = NULL; }
-interval_opt(A) ::= INTERVAL NK_LP interval_sliding_duration_literal(C) NK_RP.                    { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, C), NULL, NULL, NULL); }
+interval_opt(A) ::= .                                                                                                       { A = NULL; }
+interval_opt(A) ::= INTERVAL NK_LP interval_sliding_duration_literal(C) NK_RP.                                              { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, C), NULL, NULL, NULL); }
 interval_opt(A) ::= INTERVAL NK_LP interval_sliding_duration_literal(C)
-                    NK_COMMA interval_sliding_duration_literal(D) NK_RP.                          { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D), NULL, NULL); }
+                    NK_COMMA interval_sliding_duration_literal(D) NK_RP.                                                    { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D), NULL, NULL); }
 
-sliding_expr(A) ::= interval_sliding_duration_literal(B).                                         { A = createSlidingWindowNode(pCxt, releaseRawExprNode(pCxt, B), NULL); }
-sliding_expr(A) ::= interval_sliding_duration_literal(B) NK_COMMA duration_literal(C) NK_RP.      { A = createSlidingWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
+sliding_expr(A) ::= interval_sliding_duration_literal(B).                                                                   { A = createSlidingWindowNode(pCxt, releaseRawExprNode(pCxt, B), NULL); }
+sliding_expr(A) ::= interval_sliding_duration_literal(B) NK_COMMA duration_literal(C) NK_RP.                                { A = createSlidingWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
 
 %type sliding_val_opt                                                             { SToken }
 %destructor sliding_val_opt                                                       { }
@@ -917,10 +914,8 @@ trigger_option(A) ::= CALC_NOTIFY_ONLY.                                         
 trigger_option(A) ::= DELETE_RECALC.                                               { A.type = STREAM_TRIGGER_OPTION_DELETE_RECALC; }
 trigger_option(A) ::= DELETE_OUTPUT_TABLE.                                         { A.type = STREAM_TRIGGER_OPTION_DELETE_OUTPUT_TABLE; }
 trigger_option(A) ::= EXPIRED_TIME NK_LP duration_literal(B) NK_RP.                { A.type = STREAM_TRIGGER_OPTION_EXPIRED_TIME; A.pNode = releaseRawExprNode(pCxt, B); }
-trigger_option(A) ::= FILL_HISTORY NK_LP NK_INTEGER(B) NK_RP.                      { A.type = STREAM_TRIGGER_OPTION_FILL_HISTORY; A.pNode = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B); }
-trigger_option(A) ::= FILL_HISTORY NK_LP NK_STRING(B) NK_RP.                       { A.type = STREAM_TRIGGER_OPTION_FILL_HISTORY; A.pNode = createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &B); }
-trigger_option(A) ::= FILL_HISTORY_FIRST NK_LP NK_INTEGER(B) NK_RP.                { A.type = STREAM_TRIGGER_OPTION_FILL_HISTORY_FIRST; A.pNode = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B);; }
-trigger_option(A) ::= FILL_HISTORY_FIRST NK_LP NK_STRING(B) NK_RP.                 { A.type = STREAM_TRIGGER_OPTION_FILL_HISTORY_FIRST; A.pNode = createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &B);; }
+trigger_option(A) ::= FILL_HISTORY NK_LP time_point(B) NK_RP.                      { A.type = STREAM_TRIGGER_OPTION_FILL_HISTORY; A.pNode = B; }
+trigger_option(A) ::= FILL_HISTORY_FIRST NK_LP time_point(B) NK_RP.                { A.type = STREAM_TRIGGER_OPTION_FILL_HISTORY_FIRST; A.pNode = B; }
 trigger_option(A) ::= FORCE_OUTPUT.                                                { A.type = STREAM_TRIGGER_OPTION_FORCE_OUTPUT; }
 trigger_option(A) ::= IGNORE_DISORDER.                                             { A.type = STREAM_TRIGGER_OPTION_IGNORE_DISORDER;}
 trigger_option(A) ::= LOW_LATENCY_CALC.                                            { A.type = STREAM_TRIGGER_OPTION_LOW_LATENCY_CALC; }
@@ -961,6 +956,9 @@ notify_option(A) ::= NOTIFY_HISTORY.                                            
 notify_option(A) ::= ON_FAILURE_PAUSE.                                            { A = NOTIFY_ON_FAILURE_PAUSE; }
 
 /***** common part *****/
+
+time_point(A) ::= NK_INTEGER(B).                                                  { A = createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &B); }
+time_point(A) ::= NK_STRING(B).                                                   { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
 
 %type column_name_list                                                            { SNodeList* }
 %destructor column_name_list                                                      { nodesDestroyList($$); }

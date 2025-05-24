@@ -63,8 +63,13 @@ as_subquery_opts = [" AS SELECT * FROM query_table",
                     " AS SELECT col1, col2 from %%trows",
                     ""]
 if_not_exists_opts = ["", " IF NOT EXISTS"]
-db_name_list = ["", "create_stream_db.", "non_exists_db."]
-trigger_table_list = ["trigger_table", "trigger_stable", "trigger_ctable", "non_exists_table", ""]
+
+db_name_list_valid = ["", "create_stream_db."]
+db_name_list_invalid = ["non_exists_db."]
+
+trigger_table_list_valid = ["trigger_table", "trigger_stable", "trigger_ctable"]
+trigger_table_list_invalid = ["non_exists_table", ""]
+
 
 def random_from_list(lst, n=1):
     """Return n random elements from a list."""
@@ -377,42 +382,69 @@ def generate_tags_clause(include_probability=0.7, max_tags=4, allow_comment=True
         tag_defs.append(f"{tag} {type_name}{comment_str} AS {expr}")
     return f" TAGS ({', '.join(tag_defs)}) "
 
-def generate_trigger_from_table_section():
-    trigger_from_table = []
-    for db_name in db_name_list:
-        for table_name in trigger_table_list:
-            trigger_from_table.append(f" FROM {db_name}{table_name} ")
-    return trigger_from_table
+def generate_random_trigger_from_table_section():
+    if random_bool():
+        # Generate a valid database name
+        dbname = random_from_list(db_name_list_valid)
+        if random_bool():
+            # Generate a valid trigger table name
+            trigger_table = random_from_list(trigger_table_list_valid)
+            return f" FROM {dbname}{trigger_table} ", True
+        else:
+            # Generate an invalid trigger table name
+            trigger_table = random_from_list(trigger_table_list_invalid)
+            return f" FROM {dbname}{trigger_table} ", False
+    else:
+        # Generate an invalid database name
+        dbname = random_from_list(db_name_list_invalid)
+        if random_bool():
+            # Generate a valid trigger table name
+            trigger_table = random_from_list(trigger_table_list_valid)
+            return f" FROM {dbname}{trigger_table} ", False
+        else:
+            # Generate an invalid trigger table name
+            trigger_table = random_from_list(trigger_table_list_invalid)
+            return f" FROM {dbname}{trigger_table} ", False
+
+def generate_random_stream_db_section():
+    if random_bool():
+        # Generate a valid database name
+        dbname = random_from_list(db_name_list_valid)
+        return f" {dbname}", True
+    else:
+        # Generate an invalid database name
+        dbname = random_from_list(db_name_list_invalid)
+        return f" {dbname}", False
 
 def gen_create_stream_variants():
     base_template = "CREATE STREAM{if_not_exists} {stream_name}{stream_options}{into_clause}{output_subtable}{columns}{tags}{as_subquery};"
     trigger_types = generate_trigger_section()
-    trigger_tables = generate_trigger_from_table_section()
     stream_options = generate_options_section(10, max_options=10)
     notify_options = generate_notif_def_section(total=10)
     sql_variants = []
     stream_index = 0
-    for if_not_exists, db_name, into, as_subquery in product(
-            if_not_exists_opts, db_name_list, into_option_list, as_subquery_opts
+    for if_not_exists, into, as_subquery in product(
+            if_not_exists_opts, into_option_list, as_subquery_opts
     ):
         for trigger_type in trigger_types:
-            for trigger_table in trigger_tables:
-                for stream_opt in stream_options:
-                    for notify in notify_options:
-                        sql = base_template.format(
-                           if_not_exists=if_not_exists,
-                           stream_name=db_name + "stream_" + str(stream_index),
-                           stream_options=trigger_type + trigger_table + generate_partition_section() + stream_opt + notify,
-                           into_clause=into,
-                           output_subtable=generate_output_subtable(),
-                           columns=generate_column_list_section(),
-                           tags=generate_tags_clause() + " ",
-                           as_subquery=as_subquery
-                        )
-                        sql_variants.append(sql.strip())
-                        stream_index += 1
-                        if stream_index > 100000:
-                            return sql_variants
+            for stream_opt in stream_options:
+                for notify in notify_options:
+                    stream_db, v1 = generate_random_stream_db_section()
+                    trigger_table, v2 = generate_random_trigger_from_table_section()
+                    sql = base_template.format(
+                       if_not_exists=if_not_exists,
+                       stream_name=stream_db + "stream_" + str(stream_index),
+                       stream_options=trigger_type + trigger_table + generate_partition_section() + stream_opt + notify,
+                       into_clause=into,
+                       output_subtable=generate_output_subtable(),
+                       columns=generate_column_list_section(),
+                       tags=generate_tags_clause() + " ",
+                       as_subquery=as_subquery
+                    )
+                    sql_variants.append(sql.strip())
+                    stream_index += 1
+                    if stream_index > 100000:
+                        return sql_variants
     print(stream_index)
     return sql_variants
 

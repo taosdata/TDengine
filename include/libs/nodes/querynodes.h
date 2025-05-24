@@ -435,6 +435,13 @@ typedef struct SStreamOutTableNode {
   SNodeList*            pCols; // SColumnDefNode
 } SStreamOutTableNode;
 
+typedef struct SStreamCalcRangeNode {
+  ENodeType             type;
+  bool                  calcAll;
+  SNode*                pStart;
+  SNode*                pEnd;
+} SStreamCalcRangeNode;
+
 typedef struct SPeriodWindowNode {
   ENodeType type;  // QUERY_NODE_PERIOD_WINDOW
   SNode*    pPeroid;
