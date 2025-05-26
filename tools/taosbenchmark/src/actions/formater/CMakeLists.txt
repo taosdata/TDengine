@@ -1,0 +1,43 @@
+cmake_minimum_required(VERSION 3.10)
+
+project(formatter LANGUAGES CXX)
+
+# 设置 C++ 标准
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# 启用测试支持
+enable_testing()
+
+# 添加调试符号信息
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
+
+# 添加第三方库
+
+include_directories(C:/TDengine/include)
+include_directories(/usr/include)
+
+# 添加主库
+add_library(formatter STATIC 
+    src/FormatterFactory.cpp
+)
+
+# 包含头文件目录
+target_include_directories(formatter PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_CURRENT_SOURCE_DIR}/../config/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../common/inc
+)
+
+# 添加测试
+# test SqlDatabaseFormatter
+add_executable(TestSqlDatabaseFormatter
+    test/TestSqlDatabaseFormatter.cpp
+)
+target_link_libraries(TestSqlDatabaseFormatter PRIVATE 
+    formatter
+)
+add_test(NAME TestSqlDatabaseFormatter COMMAND TestSqlDatabaseFormatter)
