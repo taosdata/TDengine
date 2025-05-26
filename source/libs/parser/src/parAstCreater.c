@@ -83,11 +83,9 @@ static void trimEscape(SAstCreateContext* pCxt, SToken* pName) {
     } else {
       int32_t i = 1, j = 0;
       for (; i < pName->n - 1; ++i) {
-        if (pName->z[i] == TS_ESCAPE_CHAR) {
-          if (pName->z[i + 1] == TS_ESCAPE_CHAR) {
-            pName->z[j++] = TS_ESCAPE_CHAR;
-            ++i;
-          }
+        if ((pName->z[i] == TS_ESCAPE_CHAR) && (pName->z[i + 1] == TS_ESCAPE_CHAR)) {
+          pName->z[j++] = TS_ESCAPE_CHAR;
+          ++i;
         } else {
           pName->z[j++] = pName->z[i];
         }
