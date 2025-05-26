@@ -33,7 +33,7 @@
 #define USER_VER_NUMBER                      7
 #define USER_VER_SUPPORT_WHITELIST           5
 #define USER_VER_SUPPORT_WHITELIT_DUAL_STACK 7
-#define USER_RESERVE_SIZE 64
+#define USER_RESERVE_SIZE                    64
 
 #define BIT_FLAG_MASK(n)              (1 << n)
 #define BIT_FLAG_SET_MASK(val, mask)  ((val) |= (mask))
@@ -102,8 +102,8 @@
 static int32_t createDefaultIpWhiteList(SIpWhiteListDual **ppWhiteList);
 static int32_t createIpWhiteList(void *buf, int32_t len, SIpWhiteListDual **ppWhiteList);
 
-static bool    isIpWhiteListEqual(SIpWhiteListDual *a, SIpWhiteListDual *b);
-static bool    isIpRangeEqual(SIpRange *a, SIpRange *b);
+static bool isIpWhiteListEqual(SIpWhiteListDual *a, SIpWhiteListDual *b);
+static bool isIpRangeEqual(SIpRange *a, SIpRange *b);
 
 void destroyIpWhiteTab(SHashObj *pIpWhiteTab);
 
@@ -288,8 +288,8 @@ int64_t mndGetIpWhiteVer(SMnode *pMnode) {
 }
 
 int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8_t type, bool *pUpdate) {
-  int32_t    lino = 0;
-  bool       update = false;
+  int32_t lino = 0;
+  bool    update = false;
 
   SIpRange range = {0};
   SIpAddr  addr = {0};
@@ -329,7 +329,7 @@ int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8
       update = true;
     } else {
       if (!isRangeInWhiteList(pList, &range)) {
-        int32_t       sz = sizeof(SIpWhiteListDual) + sizeof(SIpRange) * (pList->num + 1);
+        int32_t           sz = sizeof(SIpWhiteListDual) + sizeof(SIpRange) * (pList->num + 1);
         SIpWhiteListDual *pNewList = taosMemoryCalloc(1, sz);
         if (pNewList == NULL) {
           TAOS_CHECK_GOTO(terrno, &lino, _OVER);
@@ -356,7 +356,7 @@ int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8
           }
           taosMemoryFree(pList);
         } else {
-          int32_t       idx = 0;
+          int32_t           idx = 0;
           int32_t           sz = sizeof(SIpWhiteListDual) + sizeof(SIpRange) * (pList->num - 1);
           SIpWhiteListDual *pNewList = taosMemoryCalloc(1, sz);
           if (pNewList == NULL) {
@@ -808,7 +808,6 @@ _OVER:
   }
   TAOS_RETURN(code);
 }
-
 
 static int32_t createIpWhiteList(void *buf, int32_t len, SIpWhiteListDual **ppList) {
   int32_t           code = 0;
@@ -1830,7 +1829,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
       TAOS_RETURN(TSDB_CODE_MND_TOO_MANY_USER_HOST);
     }
 
-    int32_t       numOfRanges = taosHashGetSize(pUniqueTab);
+    int32_t           numOfRanges = taosHashGetSize(pUniqueTab);
     SIpWhiteListDual *p = taosMemoryCalloc(1, sizeof(SIpWhiteListDual) + numOfRanges * sizeof(SIpRange));
     if (p == NULL) {
       taosHashCleanup(pUniqueTab);
@@ -1839,8 +1838,8 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     void   *pIter = taosHashIterate(pUniqueTab, NULL);
     int32_t i = 0;
     while (pIter) {
-      size_t      len = 0;
-      SIpRange   *key = taosHashGetKey(pIter, &len);
+      size_t    len = 0;
+      SIpRange *key = taosHashGetKey(pIter, &len);
       memcpy(p->pIpRanges + i, key, sizeof(SIpRange));
       pIter = taosHashIterate(pUniqueTab, pIter);
       i++;
@@ -1967,7 +1966,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_USER_FORMAT, &lino, _OVER);
   }
 
-  if(createReq.passIsMd5 == 0){
+  if (createReq.passIsMd5 == 0) {
     int32_t len = strlen(createReq.pass);
     if (createReq.isImport != 1) {
       if (mndCheckPasswordMinLen(createReq.pass, len) != 0) {
@@ -1999,7 +1998,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
 
   char detail[1000] = {0};
   (void)tsnprintf(detail, sizeof(detail), "enable:%d, superUser:%d, sysInfo:%d, password:xxx", createReq.enable,
-            createReq.superUser, createReq.sysInfo);
+                  createReq.superUser, createReq.sysInfo);
   char operation[15] = {0};
   if (createReq.isImport == 1) {
     tstrncpy(operation, "importUser", sizeof(operation));
@@ -2478,7 +2477,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   if (alterReq.user[0] == 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_USER_FORMAT, &lino, _OVER);
   }
-  if(alterReq.passIsMd5 == 0){
+  if (alterReq.passIsMd5 == 0) {
     if (TSDB_ALTER_USER_PASSWD == alterReq.alterType) {
       int32_t len = strlen(alterReq.pass);
       if (mndCheckPasswordMinLen(alterReq.pass, len) != 0) {
@@ -2583,8 +2582,8 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     taosMemoryFreeClear(newUser.pIpWhiteListDual);
 
     int32_t           num = pUser->pIpWhiteListDual->num;
-    bool          noexist = true;
-    bool          localHost = false;
+    bool              noexist = true;
+    bool              localHost = false;
     SIpWhiteListDual *pNew = taosMemoryCalloc(1, sizeof(SIpWhiteListDual) + sizeof(SIpRange) * num);
 
     if (pNew == NULL) {
@@ -2596,7 +2595,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       for (int i = 0; i < pUser->pIpWhiteListDual->num; i++) {
         SIpRange *oldRange = &pUser->pIpWhiteListDual->pIpRanges[i];
 
-        bool        found = false;
+        bool found = false;
         for (int j = 0; j < alterReq.numIpRanges; j++) {
           SIpRange range = {0};
           if (alterReq.pIpDualRanges == NULL) {
@@ -2648,9 +2647,9 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   if (alterReq.alterType == TSDB_ALTER_USER_PASSWD) {
     char detail[1000] = {0};
     (void)tsnprintf(detail, sizeof(detail),
-              "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, createdb:%d, tabName:%s, password:xxx",
-              mndUserAuditTypeStr(alterReq.alterType), alterReq.enable, alterReq.superUser, alterReq.sysInfo,
-              alterReq.createdb ? 1 : 0, alterReq.tabName);
+                    "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, createdb:%d, tabName:%s, password:xxx",
+                    mndUserAuditTypeStr(alterReq.alterType), alterReq.enable, alterReq.superUser, alterReq.sysInfo,
+                    alterReq.createdb ? 1 : 0, alterReq.tabName);
     auditRecord(pReq, pMnode->clusterId, "alterUser", "", alterReq.user, detail, strlen(detail));
   } else if (alterReq.alterType == TSDB_ALTER_USER_SUPERUSER || alterReq.alterType == TSDB_ALTER_USER_ENABLE ||
              alterReq.alterType == TSDB_ALTER_USER_SYSINFO || alterReq.alterType == TSDB_ALTER_USER_CREATEDB) {
@@ -2939,7 +2938,7 @@ static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
 
     cols++;
 
-    int32_t tlen = convertIpWhiteListToStr(pUser->pIpWhiteList, &buf);
+    int32_t tlen = convertIpWhiteListToStr(pUser->pIpWhiteListDual, &buf);
     if (tlen != 0) {
       TAOS_MEMORY_REALLOC(varstr, VARSTR_HEADER_SIZE + tlen);
       if (varstr == NULL) {

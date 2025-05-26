@@ -486,6 +486,7 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.startReadTimer = 0;
   rpcInit.readTimeout = 0;
+  rpcInit.ipv6 = tsIpv6Support;
 
   if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
     dError("failed to convert version string:%s to int", td_version);
