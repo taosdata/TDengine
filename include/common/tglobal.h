@@ -279,6 +279,8 @@ extern int32_t tsTransPullupInterval;
 extern int32_t tsCompactPullupInterval;
 extern int32_t tsMqRebalanceInterval;
 extern int32_t tsStreamCheckpointInterval;
+extern int32_t tsThresholdItemsInWriteQueue;
+extern int32_t tsThresholdItemsInStreamQueue;
 extern float   tsSinkDataRate;
 extern int32_t tsStreamNodeCheckInterval;
 extern int32_t tsMaxConcurrentCheckpoint;
@@ -338,7 +340,6 @@ int32_t localConfigSerialize(SArray *array, char **serialized);
 int32_t tSerializeSConfigArray(SEncoder *pEncoder, SArray *array);
 int32_t tDeserializeSConfigArray(SDecoder *pDecoder, SArray *array);
 int32_t setAllConfigs(SConfig *pCfg);
-void    printConfigNotMatch(SArray *array);
 
 bool    isConifgItemLazyMode(SConfigItem *item);
 int32_t taosUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs);

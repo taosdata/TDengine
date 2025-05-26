@@ -132,6 +132,19 @@ void do_query(TAOS* taos, const char* sql) {
   taos_free_result(result);
 }
 
+void do_error_query(TAOS* taos, const char* sql, int errorCode) {
+  TAOS_RES* result = taos_query(taos, sql);
+  // printf("sql: %s\n", sql);
+  int code = taos_errno(result);
+  while (code == TSDB_CODE_MND_DB_IN_CREATING || code == TSDB_CODE_MND_DB_IN_DROPPING) {
+    taosMsleep(2000);
+    result = taos_query(taos, sql);
+    code = taos_errno(result);
+  }
+  ASSERT_EQ(code, errorCode);
+  taos_free_result(result);
+}
+
 void do_stmt(const char* msg, TAOS* taos, TAOS_STMT2_OPTION* option, const char* sql, int CTB_NUMS, int ROW_NUMS,
              int CYC_NUMS, bool hastags, bool createTable) {
   printf("stmt2 [%s] : %s\n", msg, sql);
@@ -960,8 +973,8 @@ TEST(stmt2Case, stmt2_stb_insert) {
   }
   // TD-34123 : interlace=0 with fixed tags
   {
-    do_stmt("no-interlcace", taos, &option, "insert into `stmt2_testdb_1`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)",
-            3, 3, 3, false, true);
+    do_stmt("no-interlcace & aync exec", taos, &option,
+            "insert into `stmt2_testdb_1`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)", 3, 3, 3, false, true);
   }
 
   // interlace = 0 & use db]
@@ -1016,6 +1029,7 @@ TEST(stmt2Case, stmt2_stb_insert) {
 }
 
 // TD-33417
+// TS-6515
 TEST(stmt2Case, stmt2_insert_non_statndard) {
   TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
   ASSERT_NE(taos, nullptr);
@@ -1027,6 +1041,7 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
            "geometry(200)) tags(int_tag int,long_tag bigint,double_tag double,bool_tag bool,binary_tag "
            "binary(20),nchar_tag nchar(20),varbinary_tag varbinary(20),geometry_tag geometry(200));");
   do_query(taos, "use stmt2_testdb_6");
+  do_error_query(taos, "INSERT INTO stmt2_testdb_6.stb1 (tbname,ts)VALUES (?,?)", TSDB_CODE_TSC_INVALID_OPERATION);
 
   TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
 

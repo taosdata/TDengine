@@ -1531,6 +1531,11 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
         if (0 == mndBuildSMCreateStbRsp(pMnode, pTrans->dbname, pTrans->stbname, &pCont, &contLen)) {
           mndTransSetRpcRsp(pTrans, pCont, contLen);
         }
+      } else if (pTrans->originRpcType == TDMT_MND_DROP_DNODE) {
+        int32_t code = mndRefreshUserIpWhiteList(pMnode);
+        if (code != 0) {
+          mWarn("failed to refresh user ip white list since %s", tstrerror(code));
+        }
       }
 
       if (pTrans->rpcRspLen != 0) {

@@ -523,28 +523,6 @@ int32_t getVgroupsNative(SBenchConn *conn, SDataBase *database) {
     return vgroups;
 }
 
-int32_t toolsGetDefaultVGroups() {
-    int32_t cores = toolsGetNumberOfCores();
-    if (cores < 3 ) {
-        return 1;
-    }
-
-    int64_t MemKB = 0;
-    benchGetTotalMemory(&MemKB);
-
-    infoPrint("check local machine CPU: %d Memory:%d MB \n", cores, (int32_t)(MemKB/1024));
-    if (MemKB <= 2*1024*1024) { // 2G
-        return 1;
-    } else if (MemKB <= 256*1024*1024) { // 256G
-        return 2;
-    } else if (MemKB <= 512*1024*1024) { // 512G
-        return 4;
-    } else {
-        return cores / 2;
-    }
-}
-
-
 int geneDbCreateCmd(SDataBase *database, char *command, int remainVnodes) {
     int dataLen = 0;
     int n;
@@ -599,12 +577,6 @@ int geneDbCreateCmd(SDataBase *database, char *command, int remainVnodes) {
                 dataLen += n;
             }
         }
-    }
-
-    // benchmark default
-    if (vgroups < 1) {
-        vgroups = toolsGetDefaultVGroups();
-        debugPrint("vgroup set with toolsGetDefaultVGroups(). vgroups=%d\n", vgroups);
     }
 
     // not found vgroups
