@@ -8,6 +8,8 @@ theme:
 extra:
   version:
     provider: mike
+extra_css:
+  - stylesheets/extra.css
   
 markdown_extensions:
 - attr_list
@@ -26,6 +28,7 @@ plugins:
           - cases
           - new_test_framework/utils
         options:
+          github_branch: !ENV [BRANCH_NAME, main]
           heading_level: 2
           show_root_heading: true
           show_bases: false
