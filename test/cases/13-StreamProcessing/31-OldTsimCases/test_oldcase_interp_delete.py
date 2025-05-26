@@ -64,7 +64,7 @@ class TestStreamOldCaseInterpDelete:
         )
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(0, 1) == 1
@@ -89,7 +89,7 @@ class TestStreamOldCaseInterpDelete:
         )
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(0, 1) == 1
@@ -114,7 +114,7 @@ class TestStreamOldCaseInterpDelete:
         )
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 4
             and tdSql.getData(0, 1) == 8
@@ -138,7 +138,7 @@ class TestStreamOldCaseInterpDelete:
         )
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 8,
         )
@@ -167,7 +167,7 @@ class TestStreamOldCaseInterpDelete:
         )
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(0, 1) == 8
@@ -192,7 +192,7 @@ class TestStreamOldCaseInterpDelete:
         )
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(0, 1) == 8
@@ -217,7 +217,7 @@ class TestStreamOldCaseInterpDelete:
         )
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 4
             and tdSql.getData(0, 1) == 8
@@ -241,7 +241,7 @@ class TestStreamOldCaseInterpDelete:
         )
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 8,
         )
@@ -276,7 +276,7 @@ class TestStreamOldCaseInterpDelete:
         )
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(0, 1) == None
@@ -301,7 +301,7 @@ class TestStreamOldCaseInterpDelete:
         )
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(0, 1) == None
@@ -326,7 +326,7 @@ class TestStreamOldCaseInterpDelete:
         )
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 4
             and tdSql.getData(0, 1) == 8
@@ -350,7 +350,7 @@ class TestStreamOldCaseInterpDelete:
         )
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 8,
         )
@@ -380,7 +380,7 @@ class TestStreamOldCaseInterpDelete:
         )
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(0, 1) == 100
@@ -405,7 +405,7 @@ class TestStreamOldCaseInterpDelete:
         )
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(0, 1) == 100
@@ -430,7 +430,7 @@ class TestStreamOldCaseInterpDelete:
         )
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 4
             and tdSql.getData(0, 1) == 8
@@ -454,7 +454,7 @@ class TestStreamOldCaseInterpDelete:
         )
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 8,
         )
@@ -489,7 +489,7 @@ class TestStreamOldCaseInterpDelete:
         )
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(0, 1) == 4
@@ -514,7 +514,7 @@ class TestStreamOldCaseInterpDelete:
         )
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(0, 1) == 4
@@ -539,7 +539,7 @@ class TestStreamOldCaseInterpDelete:
         )
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 4
             and tdSql.getData(0, 1) == 8
@@ -563,7 +563,7 @@ class TestStreamOldCaseInterpDelete:
         )
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 8,
         )

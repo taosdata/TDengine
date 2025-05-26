@@ -37,24 +37,6 @@ class StreamUtil:
         sql = f"drop snode on dnode {index}"
         tdSql.query(sql)
 
-    def checkQueryResults(self, sql, checkFunc, delay=0.3, retry=20, show=False):
-        if delay != 0:
-            time.sleep(delay)
-
-        for loop in range(retry):
-            tdSql.query(sql)
-
-            if checkFunc():
-                tdSql.printResult(f"check succeed in {loop} seconds")
-                return
-
-            if loop != retry - 1:
-                if show:
-                    tdSql.printResult("check continue")
-                time.sleep(1)
-
-        tdSql.printResult(f"check failed for {retry} seconds", exit=True)
-
     def checkStreamStatus(self, stream_name=""):
         return
 
