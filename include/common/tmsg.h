@@ -1821,8 +1821,8 @@ typedef struct {
 typedef struct {
   char     dbName[TSDB_DB_FNAME_LEN];
   uint64_t dbId;
-  SArray*  pVg;
-  SArray*  pStb;
+  SArray*  pVgs;
+  SArray*  pStbs;
 } SMountDbInfo;
 
 typedef struct {
@@ -1833,7 +1833,7 @@ typedef struct {
   int32_t  dnodeId;
   uint32_t valLen;
   void*    pVal;
-  SArray*  pDb;
+  SArray*  pDbs;
 } SMountInfo;
 
 int32_t tSerializeSMountInfo(void* buf, int32_t bufLen, SMountInfo* pReq);

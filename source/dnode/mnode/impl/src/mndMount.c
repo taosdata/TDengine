@@ -549,8 +549,8 @@ static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pOldCfg, SDbCfg *pN
   code = 0;
   TAOS_RETURN(code);
 }
-
-static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
+#endif
+static void mndSetDbCfg(SMountInfo *pInfo, SDbCfg *pCfg) {
   if (pCfg->numOfVgroups < 0) pCfg->numOfVgroups = TSDB_DEFAULT_VN_PER_DB;
   if (pCfg->numOfStables < 0) pCfg->numOfStables = TSDB_DEFAULT_DB_SINGLE_STABLE;
   if (pCfg->buffer < 0) pCfg->buffer = TSDB_DEFAULT_BUFFER_PER_VNODE;
@@ -587,7 +587,7 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->withArbitrator < 0) pCfg->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
   if (pCfg->encryptAlgorithm < 0) pCfg->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
 }
-#endif
+
 
 static int32_t mndSetCreateMountPrepareAction(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
   SSdbRaw *pDbRaw = mndMountActionEncode(pObj);
@@ -770,6 +770,10 @@ static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, 
   int32_t   code = 0, lino = 0;
   SUserObj  newUserObj = {0};
   SMountObj mntObj = {0};
+  SDbObj   *pDbObj = NULL;
+  SVgObj   *pVgroups = NULL;
+  int32_t   nDbs = 0, nVgs = 0;
+
   tsnprintf(mntObj.name, TSDB_MOUNT_NAME_LEN, "%s", pInfo->mountName);
   tsnprintf(mntObj.acct, TSDB_USER_LEN, "%s", pUser->acct);
   mntObj.createdTime = taosGetTimestampMs();
@@ -786,9 +790,11 @@ static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, 
   // dbCfg
   // mntObj.dbCfg = pCreate->dbCfg;
 
-  // mntObj.dbName = pCreate->dbName;
-  // mntObj.dbUid = pCreate->dbUid;
-  // mndSetDefaultDbCfg(&dbObj.cfg);
+  TSDB_CHECK_CONDITION(((nDbs = taosArrayGetSize(pInfo->pDbs)) > 0), code, lino, _exit,
+                       TSDB_CODE_MND_INVALID_MOUNT_INFO);
+
+  SDbObj    dbObj = {0};
+  mndSetDbCfg(pInfo, &dbObj.cfg);
 
   // if ((code = mndCheckDbName(dbObj.name, pUser)) != 0) {
   //   mError("db:%s, failed to create, check db name failed, since %s", pCreate->db, terrstr());
@@ -810,7 +816,7 @@ static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, 
   //   dbObj.cfg.hashPrefix -= dbLen;
   // }
 
-  // SVgObj *pVgroups = NULL;
+  
   // if ((code = mndAllocVgroup(pMnode, &dbObj, &pVgroups, dnodeList)) != 0) {
   //   mError("db:%s, failed to create, alloc vgroup failed, since %s", pCreate->db, terrstr());
   //   TAOS_RETURN(code);
@@ -843,7 +849,7 @@ static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, 
   mndTransSetOper(pTrans, MND_OPER_CREATE_DB);
   TAOS_CHECK_EXIT(mndSetCreateMountPrepareAction(pMnode, pTrans, &mntObj));
   TAOS_CHECK_EXIT(mndSetCreateMountRedoActions(pMnode, pTrans, &mntObj));
-  TAOS_CHECK_EXIT(mndSetNewVgPrepareActions(pMnode, pTrans, &mntObj, pVgroups));
+  // TAOS_CHECK_EXIT(mndSetNewVgPrepareActions(pMnode, pTrans, &mntObj, pVgroups));
   TAOS_CHECK_EXIT(mndSetCreateMountUndoLogs(pMnode, pTrans, &mntObj));
   TAOS_CHECK_EXIT(mndSetCreateMountCommitLogs(pMnode, pTrans, &mntObj));
   // TAOS_CHECK_EXIT(mndSetCreateDbUndoActions(pMnode, pTrans, &mntObj, pVgroups));
