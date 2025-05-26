@@ -2955,7 +2955,7 @@ int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb
     return 0;
   }
 
-  mndTransSetGroupParallel(pTrans);
+  // mndTransSetGroupParallel(pTrans);
 
   if (pNewDb->cfg.replications == 3) {
     mInfo("trans:%d, db:%s, vgId:%d, will add 2 vnodes, vn:0 dnode:%d", pTrans->id, pVgroup->dbName, pVgroup->vgId,

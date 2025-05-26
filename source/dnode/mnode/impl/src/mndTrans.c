@@ -958,20 +958,29 @@ int32_t mndTransAppendGroupRedolog(STrans *pTrans, SSdbRaw *pRaw, int32_t groupI
                          .pRaw = pRaw,
                          .mTraceId = pTrans->mTraceId,
                          .groupId = groupId};
-  if (pTrans->exec == TRN_EXEC_GROUP_PARALLEL && action.groupId == 0) return TSDB_CODE_INTERNAL_ERROR;
+  if (pTrans->exec == TRN_EXEC_GROUP_PARALLEL && action.groupId == 0) {
+    mError("trans:%d, groupid cannot be 0 in TRN_EXEC_GROUP_PARALLEL", pTrans->id);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
   if (groupId > 0) TAOS_CHECK_RETURN(mndTransAddActionToGroup(pTrans, &action));
   return mndTransAppendAction(pTrans->redoActions, &action);
 }
 
 int32_t mndTransAppendNullLog(STrans *pTrans) {
   STransAction action = {.stage = TRN_STAGE_REDO_ACTION, .actionType = TRANS_ACTION_NULL};
-  if (pTrans->exec == TRN_EXEC_GROUP_PARALLEL && action.groupId == 0) return TSDB_CODE_INTERNAL_ERROR;
+  if (pTrans->exec == TRN_EXEC_GROUP_PARALLEL && action.groupId == 0) {
+    mError("trans:%d, groupid cannot be 0 in TRN_EXEC_GROUP_PARALLEL", pTrans->id);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
   return mndTransAppendAction(pTrans->redoActions, &action);
 }
 
 int32_t mndTransAppendGroupNullLog(STrans *pTrans, int32_t groupId) {
   STransAction action = {.stage = TRN_STAGE_REDO_ACTION, .actionType = TRANS_ACTION_NULL, .groupId = groupId};
-  if (pTrans->exec == TRN_EXEC_GROUP_PARALLEL && action.groupId == 0) return TSDB_CODE_INTERNAL_ERROR;
+  if (pTrans->exec == TRN_EXEC_GROUP_PARALLEL && action.groupId == 0) {
+    mError("trans:%d, groupid cannot be 0 in TRN_EXEC_GROUP_PARALLEL", pTrans->id);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
   if (groupId > 0) TAOS_CHECK_RETURN(mndTransAddActionToGroup(pTrans, &action));
   return mndTransAppendAction(pTrans->redoActions, &action);
 }
@@ -996,7 +1005,10 @@ int32_t mndTransAppendRedoAction(STrans *pTrans, STransAction *pAction) {
   pAction->stage = TRN_STAGE_REDO_ACTION;
   pAction->actionType = TRANS_ACTION_MSG;
   pAction->mTraceId = pTrans->mTraceId;
-  if (pTrans->exec == TRN_EXEC_GROUP_PARALLEL && pAction->groupId == 0) return TSDB_CODE_INTERNAL_ERROR;
+  if (pTrans->exec == TRN_EXEC_GROUP_PARALLEL && pAction->groupId == 0) {
+    mError("trans:%d, groupid cannot be 0 in TRN_EXEC_GROUP_PARALLEL", pTrans->id);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
   if (pAction->groupId > 0) TAOS_CHECK_RETURN(mndTransAddActionToGroup(pTrans, pAction));
   return mndTransAppendAction(pTrans->redoActions, pAction);
 }
@@ -1065,9 +1077,20 @@ void mndTransAddArbGroupId(STrans *pTrans, int32_t groupId) {
   }
 }
 
-void mndTransSetSerial(STrans *pTrans) { pTrans->exec = TRN_EXEC_SERIAL; }
+void mndTransSetSerial(STrans *pTrans) {
+  mInfo("trans:%d, set Serial", pTrans->id);
+  pTrans->exec = TRN_EXEC_SERIAL;
+}
 
-void mndTransSetGroupParallel(STrans *pTrans) { pTrans->exec = TRN_EXEC_GROUP_PARALLEL; }
+void mndTransSetGroupParallel(STrans *pTrans) {
+  mInfo("trans:%d, set Group Parallel", pTrans->id);
+  pTrans->exec = TRN_EXEC_GROUP_PARALLEL;
+}
+
+void mndTransSetParallel(STrans *pTrans) {
+  mInfo("trans:%d, set Parallel", pTrans->id);
+  pTrans->exec = TRN_EXEC_PARALLEL;
+}
 
 void mndTransSetBeKilled(STrans *pTrans, bool ableToBeKilled) { pTrans->ableToBeKilled = ableToBeKilled; }
 
@@ -1075,8 +1098,6 @@ void mndTransSetKillMode(STrans *pTrans, ETrnKillMode killMode) {
   pTrans->ableToBeKilled = true; 
   pTrans->killMode = killMode; 
 }
-
-void mndTransSetParallel(STrans *pTrans) { pTrans->exec = TRN_EXEC_PARALLEL; }
 
 void mndTransSetChangeless(STrans *pTrans) { pTrans->changeless = true; }
 
@@ -1989,11 +2010,13 @@ static int32_t mndTransExecuteActionsSerialGroup(SMnode *pMnode, STrans *pTrans,
   if (numOfActions == 0) return code;
 
   if (groupId <= 0) {
+    mError("trans:%d, failed to execute action in serail group, %d", pTrans->id, groupId);
     return TSDB_CODE_INTERNAL_ERROR;
   }
 
   int32_t *actionPos = taosHashGet(pTrans->groupActionPos, &groupId, sizeof(int32_t));
   if (actionPos == NULL) {
+    mError("trans:%d, failed to execute action in serail group, actionPos is null at group %d", pTrans->id, groupId);
     return TSDB_CODE_INTERNAL_ERROR;
   }
 
