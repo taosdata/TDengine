@@ -134,6 +134,11 @@ typedef struct SDataSinkManager2 {
 } SDataSinkManager2;
 extern SDataSinkManager2 g_pDataSinkManager;
 
+typedef struct SMoveWindowInfo {
+  int64_t      moveSize;
+  SSDataBlock* pData;  // data block to move
+} SMoveWindowInfo;
+
 typedef struct SSlidingWindowInMem {
   int64_t startTime;
   int64_t endTime;
@@ -185,23 +190,19 @@ typedef enum {
   GRP_DATA_READING = 2,
 } EGroupStatus;
 
-typedef struct SGrpCacheMgr {
+typedef struct SSlidingGrpMgr {
   int64_t groupId;
   int64_t usedMemSize;
-} SGrpCacheMgr;
-
-typedef struct SSlidingGrpMgr {
-  SGrpCacheMgr grpCacheMgr;
-  SArray*      winDataInMem;  // array SSlidingWindowInMem
-  SArray*      blocksInFile;  // array SBlocksInfoFile
-  int8_t       status;        // 0 waitting, 1 writing, 2 reading
+  SArray* winDataInMem;  // array SSlidingWindowInMem
+  SArray* blocksInFile;  // array SBlocksInfoFile
+  int8_t  status;        // 0 waitting, 1 writing, 2 reading
 } SSlidingGrpMgr;
 
 typedef struct SAlignGrpMgr {
-  SGrpCacheMgr grpCacheMgr;
-  SArray*      blocksInMem;   // array SAlignBlocksInMem <address, capacity, dataLen>
-  SArray*      blocksInFile;  // array SBlocksInfoFile <groupOffset, dataStartOffset, dataLen>
-  int8_t       status;        // 0 waitting, 1 writing, 2 reading
+  int64_t groupId;
+  SArray* blocksInMem;   // array SAlignBlocksInMem <address, capacity, dataLen>
+  SArray* blocksInFile;  // array SBlocksInfoFile <groupOffset, dataStartOffset, dataLen>
+  int8_t  status;        // 0 waitting, 1 writing, 2 reading
 } SAlignGrpMgr;
 
 struct SGroupDSManager {
@@ -301,13 +302,14 @@ int32_t initStreamDataSinkOnce();
 
 void checkAndReleaseBuffer();
 
-
 int32_t buildSlidingWindowInMem(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t startIndex, int32_t endIndex,
                                 SSlidingWindowInMem** ppSlidingWinInMem);
 void    destorySlidingWindowInMem(void* ppSlidingWinInMem);
 
-int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY wstart, TSKEY wend);
-
+int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY wstart,
+                                   TSKEY wend);
+int32_t buildMoveAlignWindowInMem(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY wstart,
+                                   TSKEY wend);
 // @brief 写入数据到文件
 int32_t writeToFile(SSlidingTaskDSMgr* pStreamDataSink, int64_t groupId, TSKEY wstart, TSKEY wend,
                     SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex);
@@ -325,11 +327,7 @@ bool    setNextIteratorFromFile(SResultIter** ppResult);
 int32_t createDataResult(void** ppResult);
 void    releaseDataResult(void** ppResult);
 
-void destorySWindowDataP(void* pData);
-void destorySWindowDataPP(void* pData);
-
-void syncWindowDataMemAdd(SGrpCacheMgr* pGrpCacheMgr, int64_t size);
-void syncWindowDataMemSub(SGrpCacheMgr* pGrpCacheMgr, int64_t size);
+void slidingGrpMgrUsedMemAdd(SSlidingGrpMgr* pSlidingGrpCacheMgr, int64_t size);
 
 int32_t initInserterGrpInfo();
 void    destroyInserterGrpInfo();

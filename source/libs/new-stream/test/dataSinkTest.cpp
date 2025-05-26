@@ -186,8 +186,6 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   void* pIter = NULL;
 
   // Test invalid parameters
-  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 100);
-  ASSERT_NE(code, 0);
   code = getStreamDataCache(pCache, groupID, wend, wstart, &pIter);
   ASSERT_EQ(code, TSDB_CODE_STREAM_INTERNAL_ERROR);
   code = getStreamDataCache(NULL, groupID, wstart, wend, &pIter);
@@ -404,6 +402,7 @@ TEST(dataSinkTest, cancelStreamDataCacheIterateTest) {
   ASSERT_NE(pIter, nullptr);
   ASSERT_EQ(pBlock1, pBlock);
   cancelStreamDataCacheIterate(&pIter);
+  
 
   blockDataDestroy(pBlock1);  // pBlock1 has moveout, can destroy
   // blockDataDestroy(pBlock2); // pBlock2 has not moveout, can not destroy

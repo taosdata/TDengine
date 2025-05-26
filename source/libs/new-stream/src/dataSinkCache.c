@@ -36,7 +36,6 @@ void moveBlockBuf(SAlignBlocksInMem* pAlignBlockInfo, size_t dataEncodeBufSize) 
 }
 
 static void freeWindowsBufferImmediate(SWindowData* pWindowData) {
-  syncWindowDataMemSub(pWindowData);
   if (pWindowData->pDataBuf) {
     taosMemoryFree(pWindowData->pDataBuf);
     pWindowData->pDataBuf = NULL;
@@ -172,14 +171,22 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
         *finished = true;
         return code;
       }
+
       if (pWindowData->endTime >= pResult->reqStartTime) {
         found = true;
-        code = getRangeInWindowBlock(pWindowData, pResult->tsColSlotId, pResult->reqStartTime, pResult->reqEndTime,
-                                     ppBlock);
-        if (code) {
-          return code;
+        if (pWindowData->dataLen == 0) {
+          SMoveWindowInfo* pMoveWinInfo = getWindowDataBuf(pWindowData);
+          *ppBlock = pMoveWinInfo->pData;
+          atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pMoveWinInfo->moveSize);
+        } else {
+          code = getRangeInWindowBlock(pWindowData, pResult->tsColSlotId, pResult->reqStartTime, pResult->reqEndTime,
+                                       ppBlock);
+          if (code) {
+            return code;
+          }
         }
       }
+
       if (++pResult->winIndex >= pBlockInfo->nWindow) {
         pResult->winIndex = 0;
         pResult->offset += 0;
@@ -218,7 +225,11 @@ static int32_t getSlidingDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock
       continue;
     }
     if (pWindowData->endTime < pResult->reqStartTime) {
+      // clear expired data
       continue;  // to check next window
+    } else if (pWindowData->startTime > pResult->reqEndTime) {
+      *finished = true;
+      return code;
     } else {
       return getRangeInWindowBlock(pWindowData, pResult->tsColSlotId, pResult->reqStartTime, pResult->reqEndTime,
                                    ppBlock);
@@ -236,14 +247,9 @@ int32_t readDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, bool* finis
   }
 }
 
-void syncWindowDataMemAdd(SGrpCacheMgr* pGrpCacheMgr, int64_t size) {
+void slidingGrpMgrUsedMemAdd(SSlidingGrpMgr* pGrpCacheMgr, int64_t size) {
   atomic_add_fetch_64(&pGrpCacheMgr->usedMemSize, size);
   atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, size);
-}
-
-void syncWindowDataMemSub(SGrpCacheMgr* pGrpCacheMgr, int64_t size) {
-  atomic_sub_fetch_64(&pGrpCacheMgr->usedMemSize, size);
-  atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, size);
 }
 
 bool setNextIteratorFromMem(SResultIter** ppResult) {
@@ -251,12 +257,13 @@ bool setNextIteratorFromMem(SResultIter** ppResult) {
 
   if (pResult->cleanMode == DATA_CLEAN_EXPIRED) {
     SSlidingGrpMgr* pSlidingGrpMgr = (SSlidingGrpMgr*)pResult->groupData;
-    if (pResult->offset++ < pSlidingGrpMgr->winDataInMem->size) {
+    if (++pResult->offset < pSlidingGrpMgr->winDataInMem->size) {
       return false;
     } else {
       return true;
     }
   } else {
+    // 在读取数据时已完成指针移动
     SAlignGrpMgr* pAlignGrpMgr = (SAlignGrpMgr*)pResult->groupData;
     return pAlignGrpMgr->blocksInMem->size == 0;
   }
@@ -315,6 +322,7 @@ void destoryAlignBlockInMem(void* ppData) {
   SAlignBlocksInMem* ppAlignBlockInfo = *(SAlignBlocksInMem**)ppData;
   if (ppAlignBlockInfo) {
     taosMemoryFree(ppAlignBlockInfo);
+    atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, gDSFileBlockDefaultSize + sizeof(SAlignBlocksInMem));
   }
 }
 
@@ -347,6 +355,8 @@ int32_t getEnoughBuffWindow(SAlignGrpMgr* pAlignGrpMgr, size_t dataEncodeBufSize
     return terrno;
   }
   *ppAlignBlockInfo = pAlignBlockInfo;
+
+  atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, gDSFileBlockDefaultSize + sizeof(SAlignBlocksInMem));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -375,6 +385,38 @@ int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlo
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
+  moveBlockBuf(pAlignBlockInfo, dataEncodeBufSize);
+
+  return TSDB_CODE_SUCCESS;
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to encode data since %s, lineno:%d", tstrerror(code), lino);
+  }
+  return code;
+}
+
+int32_t buildMoveAlignWindowInMem(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY wstart,
+                                  TSKEY wend) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  size_t  numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+
+  size_t             dataEncodeBufSize = sizeof(SSlidingWindowInMem) + sizeof(SMoveWindowInfo);
+  size_t             moveSize = blockGetEncodeSize(pBlock);
+  SAlignBlocksInMem* pAlignBlockInfo = NULL;
+  code = getEnoughBuffWindow(pAlignGrpMgr, dataEncodeBufSize, &pAlignBlockInfo);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  SSlidingWindowInMem* pSlidingWinInMem = (SSlidingWindowInMem*)(getNextBuffStart(pAlignBlockInfo));
+  pSlidingWinInMem->endTime = wend;
+  pSlidingWinInMem->startTime = wstart;
+  pSlidingWinInMem->dataLen = 0;  // move data, so no data length
+
+  char*            pStart = getWindowDataBuf(pSlidingWinInMem);
+  SMoveWindowInfo* pMoveInfo = (SMoveWindowInfo*)pStart;
+  pMoveInfo->moveSize = moveSize;
+  pMoveInfo->pData = pBlock;
+  atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, moveSize);
   moveBlockBuf(pAlignBlockInfo, dataEncodeBufSize);
 
   return TSDB_CODE_SUCCESS;

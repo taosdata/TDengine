@@ -65,30 +65,6 @@ int32_t     initStreamDataSinkOnce() {
   return TSDB_CODE_SUCCESS;
 };
 
-void destorySWindowDataPP(void* pData) {
-  SWindowData** ppWindowData = (SWindowData**)pData;
-  if (ppWindowData == NULL || (*ppWindowData) == NULL) {
-    return;
-  }
-  syncWindowDataMemSub(*ppWindowData);
-  if ((*ppWindowData)->pDataBuf) {
-    taosMemoryFree((*ppWindowData)->pDataBuf);
-  }
-  taosMemoryFree((*ppWindowData));
-}
-
-void destorySWindowDataP(void* pData) {
-  SWindowData* pWindowData = (SWindowData*)pData;
-  if (pWindowData == NULL) {
-    return;
-  }
-  syncWindowDataMemSub(pWindowData);
-  if (pWindowData->pDataBuf) {
-    taosMemoryFree(pWindowData->pDataBuf);
-  }
-  taosMemoryFree((pWindowData));
-}
-
 static bool isManagerReady() {
   if (g_pDataSinkManager.dsStreamTaskList != NULL) {
     return true;
@@ -152,7 +128,6 @@ int32_t createAlignGrpMgr(int64_t groupId, SAlignGrpMgr** ppAlignGrpMgr) {
     return terrno;
   }
   (*ppAlignGrpMgr)->groupId = groupId;
-  (*ppAlignGrpMgr)->usedMemSize = 0;
   (*ppAlignGrpMgr)->blocksInMem = taosArrayInit(0, sizeof(SAlignBlocksInMem*));
   if ((*ppAlignGrpMgr)->blocksInMem == NULL) {
     taosMemoryFree(*ppAlignGrpMgr);
@@ -352,18 +327,6 @@ static int32_t getOrCreateAlignGrpMgr(SAlignTaskDSMgr* pStreamTaskMgr, int64_t g
   return code;
 }
 
-static int32_t addASlidingWindowInMem(SSlidingGrpMgr* pSlidingGrpMgr, SSlidingWindowInMem* pSlidingWindowInMem) {
-  // todo mem size check
-  int32_t code = TSDB_CODE_SUCCESS;
-  void*   p = taosArrayPush(pSlidingGrpMgr->winDataInMem, &pSlidingWindowInMem);
-  if (p == NULL) {
-    stError("failed to push window data into group data sink manager, err: %s", terrMsg);
-    return terrno;
-  }
-  pSlidingGrpMgr->usedMemSize += sizeof(SSlidingWindowInMem);
-  return code;
-}
-
 int32_t putDataToSlidingTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t groupId, SSDataBlock* pBlock,
                                 int32_t startIndex, int32_t endIndex) {
   int32_t         code = TSDB_CODE_SUCCESS;
@@ -388,9 +351,7 @@ int32_t putDataToSlidingTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t group
     return terrno;
   }
 
-  // todo mem size add
-  pSlidingGrpMgr->usedMemSize += (sizeof(SSlidingWindowInMem) + pSlidingWinInMem->dataLen);
-  syncWindowDataMemAdd((SGrpCacheMgr*)pSlidingGrpMgr, sizeof(SSlidingWindowInMem) + pSlidingWinInMem->dataLen);
+  slidingGrpMgrUsedMemAdd(pSlidingGrpMgr, sizeof(SSlidingWindowInMem) + pSlidingWinInMem->dataLen);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -418,7 +379,7 @@ int32_t putDataToAlignTaskMgr(SAlignTaskDSMgr* pStreamTaskMgr, int64_t groupId, 
     stError("failed to get or create group data sink manager, err: %s", terrMsg);
     return code;
   }
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t moveDataToAlignTaskMgr(SAlignTaskDSMgr* pStreamTaskMgr, SSDataBlock* pBlock, int64_t groupId, TSKEY wstart,
@@ -439,7 +400,7 @@ int32_t moveDataToAlignTaskMgr(SAlignTaskDSMgr* pStreamTaskMgr, SSDataBlock* pBl
     }
   }
 
-  code = buildAlignWindowInMemBlock(pAlignGrpMgr, pBlock, pStreamTaskMgr->tsSlotId, wstart, wend);
+  code = buildMoveAlignWindowInMem(pAlignGrpMgr, pBlock, pStreamTaskMgr->tsSlotId, wstart, wend);
   if (code != 0) {
     stError("failed to get or create group data sink manager, err: %s", terrMsg);
     return code;
