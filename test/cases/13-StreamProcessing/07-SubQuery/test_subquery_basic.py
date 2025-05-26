@@ -9,14 +9,21 @@ class TestStreamSubqueryBasic:
 
     def test_stream_subquery_basic(self):
         """As SubQuery basic test
+
         1. -
+
         Catalog:
             - Streams:SubQuery
+
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
+
         History:
             - 2025-5-13 Simon Guan Create Case
+
         """
 
         self.init_variables()
