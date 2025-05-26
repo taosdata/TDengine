@@ -12,7 +12,8 @@ def generate_md_files_from_nav(mkdocs_file, doc_dir):
     """
     os.makedirs(doc_dir, exist_ok=True)
     with open(mkdocs_file, "r", encoding="utf-8") as f:
-        mkdocs_config = yaml.safe_load(f)
+        content = re.sub(r'!ENV\s*\[[^\]]+\]', 'main', f.read())
+        mkdocs_config = yaml.safe_load(content)
 
     nav = mkdocs_config.get("nav", [])
     case_list_docs = None
