@@ -136,11 +136,13 @@ class RestoreBasic:
             tdLog.exit(f"remove path {dnode.dataDir} error : {x.strerror}")
 
         dnode.starttaosd()
+
+        time.sleep(3)
         
         # exec restore
         sql = f"restore dnode {index}"
         tdLog.info(sql)
-        tdSql.execute(sql)
+        tdSql.execute(sql, queryTimes=1)
         self.check_corrent()
 
     def restore_dnode_prepare(self, index):
@@ -190,15 +192,38 @@ class RestoreBasic:
 
         dnode.starttaosd()
         
+        newTdSql=tdCom.newTdSql()
+        t0 = threading.Thread(target=self.showTransactionThread, args=('', newTdSql))
+        t0.start()
+
         # exec restore
         sql = f"restore vnode on dnode {index}"
         tdLog.info(sql)
-        tdSql.execute(sql)
+        tdSql.execute(sql, queryTimes=1)
 
         # check result
         self.check_corrent()
 
-        
+    def showTransactionThread(self, p, newTdSql):
+        transid = 0
+
+        count = 0
+        started = 0
+        while count < 100:
+            sql = f"show transactions;"
+            rows = newTdSql.query(sql)
+            if rows > 0:
+                started = 1
+                transid = newTdSql.getData(0, 0)
+                if transid > 0:
+                    os.system("taos -s \"show transaction %d\G;\""%transid)
+            else:
+                transid = 0
+            if started == 1 and transid == 0:
+                break
+            time.sleep(1)
+            count += 1
+
     # restore mnode
     def restore_mnode(self, index):
         tdLog.info(f"start restore mnode {index}")
