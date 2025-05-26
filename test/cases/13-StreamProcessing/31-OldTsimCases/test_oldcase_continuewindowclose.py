@@ -1,5 +1,5 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
 
 
 class TestStreamOldCaseContinueWindowClose:
@@ -32,7 +32,7 @@ class TestStreamOldCaseContinueWindowClose:
 
     def nonblockIntervalBasic(self):
         tdLog.info(f"nonblockIntervalBasic")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdLog.info(f"========== interval window")
 
@@ -62,7 +62,7 @@ class TestStreamOldCaseContinueWindowClose:
             f"create stream streams1 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt1 as select  _wstart, count(*) c1, sum(b) c2  from st partition by tbname interval(10s) ;"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791211000,1,2,3);")
         tdSql.execute(f"insert into t1 values(1648791221000,1,2,3);")
@@ -70,7 +70,7 @@ class TestStreamOldCaseContinueWindowClose:
             f"select  _wstart, count(*) c1, sum(b) c2  from st partition by tbname interval(10s) ;"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt1;",
             lambda: tdSql.getRows() == 1
             and tdSql.getData(0, 1) == 1
@@ -93,7 +93,7 @@ class TestStreamOldCaseContinueWindowClose:
             f"create stream streams2 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt2 as select  _wstart, count(*) c1, max(a) c2  from st partition by tbname interval(10s) sliding(5s) ;"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791211000,1,2,3);")
         tdSql.execute(f"insert into t1 values(1648791214000,2,2,3);")
@@ -102,7 +102,7 @@ class TestStreamOldCaseContinueWindowClose:
         tdSql.execute(f"insert into t1 values(1648791220000,5,2,3);")
 
         tdSql.execute(f"insert into t1 values(1648791420000,6,2,3);")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt2 order by 1,2;",
             lambda: tdSql.getRows() == 4
             and tdSql.getData(0, 1) == 2
@@ -125,13 +125,13 @@ class TestStreamOldCaseContinueWindowClose:
             f"create stream streams3 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt3 as select  _wstart, count(*) c1, sum(b) c2  from st interval(10s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791211000,1,2,3);")
         tdSql.execute(f"insert into t1 values(1648791221000,1,2,3);")
         tdSql.query(f"select  _wstart, count(*) c1, sum(b) c2  from st interval(10s) ;")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt3;",
             lambda: tdSql.getRows() == 1
             and tdSql.getData(0, 1) == 1
@@ -140,7 +140,7 @@ class TestStreamOldCaseContinueWindowClose:
 
         tdSql.execute(f"insert into t2 values(1648791211000,1,2,3);")
         tdSql.query(f"select  _wstart, count(*) c1, sum(b) c2  from st interval(10s) ;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt3;",
             lambda: tdSql.getRows() == 1
             and tdSql.getData(0, 1) == 2
@@ -161,7 +161,7 @@ class TestStreamOldCaseContinueWindowClose:
             f"create stream streams4 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt4 as select  _wstart, count(*) c1, max(a) c2  from st interval(10s) sliding(5s) ;"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791211000,1,2,3);")
         tdSql.execute(f"insert into t1 values(1648791214000,2,2,3);")
@@ -173,7 +173,7 @@ class TestStreamOldCaseContinueWindowClose:
             f"select  _wstart, count(*) c1, max(a) c2  from st partition by tbname interval(10s) sliding(5s) ;"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt4 order by 1,2;",
             lambda: tdSql.getRows() == 4
             and tdSql.getData(0, 1) == 2
@@ -196,7 +196,7 @@ class TestStreamOldCaseContinueWindowClose:
             f"create stream streams5 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt5 as select  _wstart, count(*) c1, max(a) c2, b  from st partition by b interval(10s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791211000,1,1,3);")
         tdSql.execute(f"insert into t1 values(1648791214000,2,2,3);")
@@ -220,7 +220,7 @@ class TestStreamOldCaseContinueWindowClose:
         )
 
         tdLog.info(f"sql select * from streamt5 order by 1,4;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt5 order by 1,4;",
             lambda: tdSql.getRows() == 4
             and tdSql.getData(0, 1) == 4
@@ -247,7 +247,7 @@ class TestStreamOldCaseContinueWindowClose:
             f'create stream streams7 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt7  TAGS(dd varchar(100)) SUBTABLE(concat("streams7-tbn-", cast(dd as varchar(10)) )) as select  _wstart, count(*) c1, max(b) c2  from st partition by a as dd interval(10s);'
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791211000,1,1,3);")
         tdSql.execute(f"insert into t2 values(1648791211000,2,2,3);")
@@ -258,12 +258,12 @@ class TestStreamOldCaseContinueWindowClose:
         tdSql.query(f"show tables;")
 
         tdLog.info(f"sql show tables;")
-        tdSql.queryCheckFunc(f"show tables;", lambda: tdSql.getRows() == 6)
+        tdStream.checkQueryResults(f"show tables;", lambda: tdSql.getRows() == 6)
 
         tdLog.info(
             f'sql select * from information_schema.ins_tables where table_name like "streams6-tbn-%";'
         )
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f'select * from information_schema.ins_tables where table_name like "streams6-tbn-%";',
             lambda: tdSql.getRows() == 2,
         )
@@ -271,16 +271,16 @@ class TestStreamOldCaseContinueWindowClose:
         tdLog.info(
             f'sql select * from information_schema.ins_tables where table_name like "streams7-tbn-%";'
         )
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f'select * from information_schema.ins_tables where table_name like "streams7-tbn-%";',
             lambda: tdSql.getRows() == 2,
         )
 
         tdLog.info(f"sql select * from streamt6;")
-        tdSql.queryCheckFunc(f"select * from streamt6;", lambda: tdSql.getRows() == 2)
+        tdStream.checkQueryResults(f"select * from streamt6;", lambda: tdSql.getRows() == 2)
 
         tdLog.info(f"sql select * from streamt7;")
-        tdSql.queryCheckFunc(f"select * from streamt7;", lambda: tdSql.getRows() == 2)
+        tdStream.checkQueryResults(f"select * from streamt7;", lambda: tdSql.getRows() == 2)
 
         tdLog.info(f"========== interval window step6")
 
@@ -304,14 +304,14 @@ class TestStreamOldCaseContinueWindowClose:
             f"create stream streams9 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt9(c1, c2 primary key, c3) as select  _wstart, count(*) c1, max(b) c2  from st interval(10s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791211000,1,1,3);")
         tdSql.execute(f"insert into t2 values(1648791211000,2,2,3);")
         tdSql.execute(f"insert into t1 values(1648791221000,1,3,3);")
 
         tdLog.info(f"sql select * from streamt9;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt9;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 2,
         )
@@ -319,16 +319,16 @@ class TestStreamOldCaseContinueWindowClose:
         tdSql.execute(f"insert into t2 values(1648791211001,2,4,3);")
 
         tdLog.info(f"sql select * from streamt8;")
-        tdSql.queryCheckFunc(f"select * from streamt8;", lambda: tdSql.getRows() == 1)
+        tdStream.checkQueryResults(f"select * from streamt8;", lambda: tdSql.getRows() == 1)
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt9;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 3,
         )
 
     def nonblockIntervalHistory(self):
         tdLog.info(f"nonblockIntervalHistory")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdLog.info(f"========== interval window")
 
@@ -350,10 +350,10 @@ class TestStreamOldCaseContinueWindowClose:
             f"create stream streams1 trigger continuous_window_close fill_history 1 ignore update 0 ignore expired 0 into streamt1 as select  _wstart, count(*) c1, sum(b) c2  from st partition by tbname interval(10s) ;"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdLog.info(f"sql loop00 select * from streamt1 order by 1,2;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt1 order by 1,2;", lambda: tdSql.getRows() == 4
         )
 
@@ -369,7 +369,7 @@ class TestStreamOldCaseContinueWindowClose:
         )
 
         tdLog.info(f"sql loop0 select * from streamt1 order by 1,2;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt1 order by 1,2;",
             lambda: tdSql.getRows() == 4
             and tdSql.getData(0, 1) == 1
@@ -407,8 +407,8 @@ class TestStreamOldCaseContinueWindowClose:
             f"create stream streams12 trigger continuous_window_close fill_history 1 ignore update 0 ignore expired 0 into streamt12 as select  _wstart, avg(a) c1, sum(b) c2, tbname as c3  from st partition by tbname interval(1s) ;"
         )
 
-        clusterComCheck.check_stream_status()
-        tdSql.queryCheckFunc(
+        tdStream.checkStreamStatus()
+        tdStream.checkQueryResults(
             f"select * from streamt12 order by 1,2;",
             lambda: tdSql.getRows() == 6,
         )
@@ -416,7 +416,7 @@ class TestStreamOldCaseContinueWindowClose:
         tdSql.execute(f"insert into  t1 values(1648791224001,2,2,3);")
         tdSql.execute(f"insert into  t1 values(1648791225001,2,2,3);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f'select * from streamt12 where c3 == "t1" order by 1,2;',
             lambda: tdSql.getRows() == 2 and tdSql.getData(1, 2) == 4,
         )
@@ -442,7 +442,7 @@ class TestStreamOldCaseContinueWindowClose:
             f"create stream streams3 trigger continuous_window_close fill_history 1 ignore update 0 ignore expired 0 into streamt3 as select  _wstart, count(*) c1, sum(b) c2  from st interval(10s) ;"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdLog.info(
             f"sql sql select  _wstart, count(*) c1, sum(b) c2  from st interval(10s) order by 1,2 ;"
@@ -452,7 +452,7 @@ class TestStreamOldCaseContinueWindowClose:
         )
 
         tdLog.info(f"sql loop5 select * from streamt3 order by 1,2;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt3 order by 1,2;",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 1) == 2
@@ -470,7 +470,7 @@ class TestStreamOldCaseContinueWindowClose:
         )
 
         tdLog.info(f"sql loop6 select * from streamt3 order by 1,2;")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt3 order by 1,2;",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 1) == 2
