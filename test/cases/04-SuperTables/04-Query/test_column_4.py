@@ -15,7 +15,7 @@ class TestColumn4:
 
 
         Catalog:
-            - SuperTable:Columns
+            - SuperTables:Columns
 
         Since: v3.0.0.0
 
