@@ -93,7 +93,8 @@ static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
 
     int32_t total = atomic_add_fetch_64((int64_t *)&pSummary->totalRequests, 1);
     int32_t currentInst = atomic_add_fetch_64((int64_t *)&pSummary->currentRequests, 1);
-    tscDebug("req:0x%" PRIx64 ", create request from conn:0x%" PRIx64 ", current:%d, app current:%d, total:%d, QID:0x%" PRIx64,
+    tscDebug("req:0x%" PRIx64 ", create request from conn:0x%" PRIx64
+             ", current:%d, app current:%d, total:%d, QID:0x%" PRIx64,
              pRequest->self, pRequest->pTscObj->id, num, currentInst, total, pRequest->requestId);
   }
 
@@ -376,7 +377,7 @@ int32_t openTransporter(const char *user, const char *auth, int32_t numOfThread,
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.startReadTimer = 1;
   rpcInit.readTimeout = tsReadTimeout;
-  rpcInit.ipv6 = tsIpv6Support;
+  rpcInit.ipv6 = tsEnableIpv6;
 
   int32_t code = taosVersionStrToInt(td_version, &rpcInit.compatibilityVer);
   if (TSDB_CODE_SUCCESS != code) {
@@ -1116,7 +1117,7 @@ void taos_init_imp(void) {
 
   ENV_ERR_RET(taosGetAppName(appInfo.appName, NULL), "failed to get app name");
   ENV_ERR_RET(taosThreadMutexInit(&appInfo.mutex, NULL), "failed to init thread mutex");
-#ifdef USE_REPORT  
+#ifdef USE_REPORT
   ENV_ERR_RET(tscCrashReportInit(), "failed to init crash report");
 #endif
   ENV_ERR_RET(qInitKeywordsTable(), "failed to init parser keywords table");

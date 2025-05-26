@@ -899,7 +899,7 @@ int32_t transUtilSWhiteListToStr(SIpWhiteListDual* pList, char** ppBuf) {
     TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_PARA, lino, _error);
   }
 
-  char*   pBuf = taosMemoryCalloc(1, pList->num * IP_RESERVE_CAP);
+  char* pBuf = taosMemoryCalloc(1, pList->num * IP_RESERVE_CAP);
   if (pBuf == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
@@ -1122,9 +1122,7 @@ int32_t transCompressMsg(char* msg, int32_t len) {
   taosMemoryFree(buf);
   return ret;
 }
-int32_t transDecompressMsg(char** msg, int32_t* len) {
-  return 0;
-}
+int32_t transDecompressMsg(char** msg, int32_t* len) { return 0; }
 
 void transFreeMsg(void* msg) {
   if (msg == NULL) {
@@ -1316,7 +1314,7 @@ void* procClientMsg(void* arg) {
       } else {
         tError("taosc failed to find callback for msg type:%s", TMSG_INFO(pRpcMsg->msgType));
       }
-      taosFreeQitem(pRpcMsg);      
+      taosFreeQitem(pRpcMsg);
     }
     taosUpdateItemSize(qinfo.queue, numOfMsgs);
   }

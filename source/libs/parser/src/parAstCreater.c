@@ -202,7 +202,7 @@ static int32_t parseEndpoint(SAstCreateContext* pCxt, const SToken* pEp, char* p
     tstrncpy(pFqdn, ep, TSDB_FQDN_LEN);
     return TSDB_CODE_SUCCESS;
   }
-  char* pColon = strchr(ep, ':');
+  char* pColon = strrchr(ep, ':');
   if (NULL == pColon) {
     *pPort = tsServerPort;
     tstrncpy(pFqdn, ep, TSDB_FQDN_LEN);
@@ -415,13 +415,13 @@ SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
 
 SNodeList* createColsFuncParamNodeList(SAstCreateContext* pCxt, SNode* pNode, SNodeList* pNodeList, SToken* pAlias) {
   CHECK_PARSER_STATUS(pCxt);
-    if (NULL == pNode || QUERY_NODE_RAW_EXPR != nodeType(pNode)) {
+  if (NULL == pNode || QUERY_NODE_RAW_EXPR != nodeType(pNode)) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
   }
   CHECK_PARSER_STATUS(pCxt);
   SRawExprNode* pRawExpr = (SRawExprNode*)pNode;
   SNode*        pFuncNode = pRawExpr->pNode;
-  if(pFuncNode->type != QUERY_NODE_FUNCTION) {
+  if (pFuncNode->type != QUERY_NODE_FUNCTION) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
   }
   CHECK_PARSER_STATUS(pCxt);
@@ -434,7 +434,7 @@ SNodeList* createColsFuncParamNodeList(SAstCreateContext* pCxt, SNode* pNode, SN
   CHECK_PARSER_STATUS(pCxt);
   return list;
 
-  _err:
+_err:
   nodesDestroyNode(pFuncNode);
   nodesDestroyList(pNodeList);
   return NULL;
@@ -1568,7 +1568,7 @@ SNode* createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd
   }
 
   return createInterpTimeAround(pCxt, pStart, pEnd, pInterval);
-  
+
 _err:
 
   nodesDestroyNode(pStart);
@@ -2124,7 +2124,7 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
         pDbOptions->keepTimeOffset = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       } else {
         pDbOptions->pKeepTimeOffsetNode = (SValueNode*)createDurationValueNode(pCxt, (SToken*)pVal);
-      }      
+      }
       break;
     case DB_OPTION_ENCRYPT_ALGORITHM:
       COPY_STRING_FORM_STR_TOKEN(pDbOptions->encryptAlgorithmStr, (SToken*)pVal);
@@ -2164,8 +2164,6 @@ _err:
   nodesDestroyNode(pOptions);
   return NULL;
 }
-
-
 
 SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOptionType type, void* pVal) {
   return setDatabaseOptionImpl(pCxt, pOptions, type, pVal, false);
@@ -2508,7 +2506,7 @@ _err:
 STokenTriplet* createTokenTriplet(SAstCreateContext* pCxt, SToken pName) {
   CHECK_PARSER_STATUS(pCxt);
 
-  STokenTriplet *pTokenTri = taosMemoryMalloc(sizeof(STokenTriplet));
+  STokenTriplet* pTokenTri = taosMemoryMalloc(sizeof(STokenTriplet));
   CHECK_OUT_OF_MEM(pTokenTri);
   pTokenTri->name[0] = pName;
   pTokenTri->numOfName = 1;
@@ -2539,7 +2537,7 @@ SNode* createColumnRefNodeByName(SAstCreateContext* pCxt, STokenTriplet* pTokenT
   pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN_REF, (SNode**)&pCol);
   CHECK_MAKE_NODE(pCol);
 
-  switch(pTokenTri->numOfName) {
+  switch (pTokenTri->numOfName) {
     case 2: {
       CHECK_NAME(checkTableName(pCxt, &pTokenTri->name[0]));
       CHECK_NAME(checkColumnName(pCxt, &pTokenTri->name[1]));
@@ -2614,7 +2612,7 @@ SDataType createDecimalDataType(uint8_t type, const SToken* pPrecisionToken, con
 }
 
 SNode* createCreateVTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNodeList* pCols) {
-  SCreateVTableStmt * pStmt = NULL;
+  SCreateVTableStmt* pStmt = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
@@ -3043,7 +3041,7 @@ static bool needDbShowStmt(ENodeType type) {
          QUERY_NODE_SHOW_USAGE_STMT == type || QUERY_NODE_SHOW_VTABLES_STMT == type;
 }
 
-SNode* createShowStmtWithLike(SAstCreateContext* pCxt, ENodeType type,   SNode*  pLikePattern) {
+SNode* createShowStmtWithLike(SAstCreateContext* pCxt, ENodeType type, SNode* pLikePattern) {
   CHECK_PARSER_STATUS(pCxt);
   SShowStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
@@ -3179,7 +3177,8 @@ SNode* createShowSTablesStmt(SAstCreateContext* pCxt, SShowTablesOption option, 
     pDbName = createIdentifierValueNode(pCxt, &option.dbName);
   }
 
-  if (option.kind != SHOW_KIND_TABLES_NORMAL && option.kind != SHOW_KIND_TABLES_VIRTUAL && option.kind != SHOW_KIND_ALL) {
+  if (option.kind != SHOW_KIND_TABLES_NORMAL && option.kind != SHOW_KIND_TABLES_VIRTUAL &&
+      option.kind != SHOW_KIND_ALL) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
     return NULL;
   }
@@ -3849,7 +3848,8 @@ _err:
   return NULL;
 }
 
-SNode* createDropCGroupStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pCGroupId, SToken* pTopicName, bool force) {
+SNode* createDropCGroupStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pCGroupId, SToken* pTopicName,
+                            bool force) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkTopicName(pCxt, pTopicName));
   CHECK_NAME(checkCGroupName(pCxt, pCGroupId));
@@ -4156,11 +4156,11 @@ SNode* createStreamNotifyOptions(SAstCreateContext* pCxt, SNodeList* pAddrUrls, 
   }
 
   FOREACH(pNode, pAddrUrls) {
-    char *url = ((SValueNode*)pNode)->literal;
+    char* url = ((SValueNode*)pNode)->literal;
     if (strlen(url) >= TSDB_STREAM_NOTIFY_URL_LEN) {
-      pCxt->errCode =
-          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                  "notification address \"%s\" exceed maximum length %d", url, TSDB_STREAM_NOTIFY_URL_LEN);
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                              "notification address \"%s\" exceed maximum length %d", url,
+                                              TSDB_STREAM_NOTIFY_URL_LEN);
       goto _err;
     }
     if (!validateNotifyUrl(url)) {
@@ -4177,7 +4177,7 @@ SNode* createStreamNotifyOptions(SAstCreateContext* pCxt, SNodeList* pAddrUrls, 
   }
 
   FOREACH(pNode, pEventTypes) {
-    char *eventStr = ((SValueNode *)pNode)->literal;
+    char* eventStr = ((SValueNode*)pNode)->literal;
     if (taosStrncasecmp(eventStr, eWindowOpenStr, strlen(eWindowOpenStr) + 1) == 0) {
       BIT_FLAG_SET_MASK(eventTypes, SNOTIFY_EVENT_WINDOW_OPEN);
     } else if (taosStrncasecmp(eventStr, eWindowCloseStr, strlen(eWindowCloseStr) + 1) == 0) {
@@ -4315,7 +4315,6 @@ SNode* createResetStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, STok
 _err:
   return NULL;
 }
-
 
 SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId) {
   CHECK_PARSER_STATUS(pCxt);

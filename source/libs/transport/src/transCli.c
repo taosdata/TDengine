@@ -1620,25 +1620,17 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
   STrans* pInst = pThrd->pInst;
   int8_t  type = 0;
 
-  // struct sockaddr_in6 addr6;
-  // struct sockaddr_in  addr4;
-  // struct sockaddr*    addr;
   struct sockaddr_storage addr;
+  SIpAddr                 ipaddr;
 
-  SIpAddr  ipaddr;
-  int32_t  code = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, conn->ipStr, &ipaddr);
-  if (code != 0) {
-    TAOS_CHECK_GOTO(code, &lino, _exception1);
-  }
+  int32_t code = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, conn->ipStr, &ipaddr);
+  TAOS_CHECK_GOTO(code, &lino, _exception1);
+
   ipaddr.port = conn->port;
   type = ipaddr.type;
 
-  // if (type == 0) {
-  //   addr = (struct sockaddr*)(&addr4);
-  // } else {
-  //   addr = (struct sockaddr*)(&addr6);
-  // }
-  cliBuildSockByIpType(&ipaddr, (struct sockaddr*)&addr);
+  code = cliBuildSockByIpType(&ipaddr, (struct sockaddr*)&addr);
+  TAOS_CHECK_GOTO(code, &lino, _exception1);
 
   tTrace("%s conn:%p, try to connect to %s", pInst->label, conn, conn->dstAddr);
 
@@ -1697,7 +1689,7 @@ _exception2:
 
 int32_t cliConnSetSockInfo(SCliConn* pConn) {
   struct sockaddr_storage peername, sockname;
-  int             addrlen = sizeof(peername);
+  int                     addrlen = sizeof(peername);
 
   int32_t code = uv_tcp_getpeername((uv_tcp_t*)pConn->stream, (struct sockaddr*)&peername, &addrlen);
   if (code != 0) {
@@ -1862,10 +1854,10 @@ FORCE_INLINE int32_t cliBuildExceptResp(SCliThrd* pThrd, SCliReq* pReq, STransMs
 }
 
 static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, SIpAddr* ip) {
-  int32_t   code = 0;
+  int32_t code = 0;
   // uint32_t  addr = 0;
-  size_t    len = strlen(fqdn);
-  SIpAddr   ipAddr = {0};
+  size_t  len = strlen(fqdn);
+  SIpAddr ipAddr = {0};
 
   SIpAddr* v = taosHashGet(cache, fqdn, len);
   if (v == NULL) {
@@ -1890,8 +1882,8 @@ static FORCE_INLINE int32_t cliUpdateFqdnCache(SHashObj* cache, char* fqdn) {
   SIpAddr addr = {0};
   int32_t code = taosGetIpFromFqdn(fqdn, &addr);
   if (code == 0) {
-    size_t    len = strlen(fqdn);
-    SIpAddr*  v = taosHashGet(cache, fqdn, len);
+    size_t   len = strlen(fqdn);
+    SIpAddr* v = taosHashGet(cache, fqdn, len);
     if (v != NULL) {
       if (!taosIpAddrIsEqual(v, &addr)) {
         tWarn("update ip of fqdn:%s, old:%s, new:%s", fqdn, IP_ADDR_STR(v), IP_ADDR_STR(&addr));

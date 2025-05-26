@@ -89,7 +89,7 @@ int32_t tsShareConnLimit = 10;
 
 int32_t tsReadTimeout = 900;
 int32_t tsTimeToGetAvailableConn = 500000;
-int8_t  tsIpv6Support = 0;
+int8_t  tsEnableIpv6 = 0;
 
 int32_t tsNumOfQueryThreads = 0;
 int32_t tsNumOfCommitThreads = 2;
@@ -838,7 +838,7 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "gitinfo", td_gitinfo, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "buildinfo", td_buildinfo, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
 
-  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "ipv6Support", tsIpv6Support, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableIpv6", tsEnableIpv6, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1544,8 +1544,8 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "compareAsStrInGreatest");
   tsCompareAsStrInGreatest = pItem->bval;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ipv6Support");
-  tsIpv6Support = pItem->bval;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableIpv6");
+  tsEnableIpv6 = pItem->bval;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1959,8 +1959,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamVirtualMergeWaitMode");
   tsStreamVirtualMergeWaitMode = pItem->i32;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ipv6Support");
-  tsIpv6Support = pItem->bval;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableIpv6");
+  tsEnableIpv6 = pItem->bval;
 
   // GRANT_CFG_GET;
   TAOS_RETURN(TSDB_CODE_SUCCESS);

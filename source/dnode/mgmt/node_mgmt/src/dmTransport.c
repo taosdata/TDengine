@@ -175,6 +175,9 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     case TDMT_MND_RETRIEVE_IP_WHITE_RSP:
       dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
+    case TDMT_MND_RETRIEVE_IP_WHITE_DUAL_RSP:
+      dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
+      return;
     case TDMT_MND_RETRIEVE_ANAL_ALGO_RSP:
       dmUpdateAnalyticFunc(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
@@ -436,7 +439,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.notWaitAvaliableConn = 0;
   rpcInit.startReadTimer = 1;
   rpcInit.readTimeout = tsReadTimeout;
-  rpcInit.ipv6 = tsIpv6Support;
+  rpcInit.ipv6 = tsEnableIpv6;
 
   if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
     dError("failed to convert version string:%s to int", td_version);
@@ -486,7 +489,7 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.startReadTimer = 0;
   rpcInit.readTimeout = 0;
-  rpcInit.ipv6 = tsIpv6Support;
+  rpcInit.ipv6 = tsEnableIpv6;
 
   if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
     dError("failed to convert version string:%s to int", td_version);
@@ -537,7 +540,7 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.startReadTimer = 1;
   rpcInit.readTimeout = tsReadTimeout;
-  rpcInit.ipv6 = tsIpv6Support;
+  rpcInit.ipv6 = tsEnableIpv6;
 
   if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
     dError("failed to convert version string:%s to int", td_version);
@@ -593,7 +596,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   rpcInit.parent = pDnode;
   rpcInit.compressSize = tsCompressMsgSize;
   rpcInit.shareConnLimit = tsShareConnLimit * 16;
-  rpcInit.ipv6 = tsIpv6Support;
+  rpcInit.ipv6 = tsEnableIpv6;
 
   if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
     dError("failed to convert version string:%s to int", td_version);

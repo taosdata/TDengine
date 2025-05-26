@@ -80,7 +80,7 @@ typedef struct SSvrRespMsg {
 } SSvrRespMsg;
 
 typedef struct {
-  int64_t       ver;
+  int64_t           ver;
   SIpWhiteListDual* pList;
 
 } SWhiteUserList;
@@ -127,7 +127,7 @@ typedef struct SServerObj {
   uint32_t    port;
   uv_async_t* pAcceptAsync;  // just to quit from from accept thread
   SIpAddr     addr;
-  bool inited;
+  bool        inited;
   int8_t      ipv6;
 } SServerObj;
 
@@ -405,7 +405,7 @@ bool uvWhiteListFilte(SIpWhiteListTab* pWhite, char* user, SIpAddr* pIp, int64_t
 }
 bool uvWhiteListCheckConn(SIpWhiteListTab* pWhite, SSvrConn* pConn) {
   if (pConn->inType == TDMT_MND_STATUS || pConn->inType == TDMT_MND_RETRIEVE_IP_WHITE ||
-      taosIpAddrIsEqual(&pConn->clientIp, &pConn->serverIp) ||
+      pConn->inType == TDMT_MND_RETRIEVE_IP_WHITE_DUAL || taosIpAddrIsEqual(&pConn->clientIp, &pConn->serverIp) ||
       pWhite->ver == pConn->whiteListVer /*|| strncmp(pConn->user, "_dnd", strlen("_dnd")) == 0*/)
     return true;
 
@@ -2176,7 +2176,7 @@ int32_t transSetIpWhiteList(void *thandle, void *arg, FilteFunc *func) { return 
 
 void *transInitServer(SIpAddr *pAddr, char *label, int numOfThreads, void *fp, void *pInit) { return NULL; }
 void  transCloseServer(void *arg) {
-  // impl later
+   // impl later
   return;
 }
 

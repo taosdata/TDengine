@@ -2216,11 +2216,37 @@ _exit:
   return code;
 }
 
+static int32_t getIpv4Range(SUpdateUserIpWhite *pReq, SIpV4Range **pIpRange, int32_t *num) {
+  int32_t code = 0;
+  if (pReq->numOfRange <= 0) {
+    return code;
+  }
+
+  SIpV4Range *p = taosMemoryCalloc(1, pReq->numOfRange * sizeof(SIpV4Range));
+
+  int32_t cnt = 0;
+  for (int32_t i = 0; i < pReq->numOfRange; i++) {
+    SIpRange *pRange = &pReq->pIpDualRanges[i];
+    if (pRange->type == 0) {
+      SIpV4Range *pIp4 = (SIpV4Range *)&pRange->ipV4;
+      memcpy(&p[cnt], pIp4, sizeof(SIpV4Range));
+    } else {
+      continue;
+    }
+  }
+
+  *pIpRange = p;
+  *num = cnt;
+
+  return code;
+}
 int32_t tSerializeSUpdateIpWhite(void *buf, int32_t bufLen, SUpdateIpWhite *pReq) {
-  SEncoder encoder = {0};
-  int32_t  code = 0;
-  int32_t  lino;
-  int32_t  tlen;
+  SEncoder    encoder = {0};
+  int32_t     code = 0;
+  int32_t     lino;
+  int32_t     tlen;
+  int32_t     num = 0;
+  SIpV4Range *p = NULL;
 
   tEncoderInit(&encoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
@@ -2231,17 +2257,21 @@ int32_t tSerializeSUpdateIpWhite(void *buf, int32_t bufLen, SUpdateIpWhite *pReq
 
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, pUser->ver));
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pUser->user));
-    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pUser->numOfRange));
-    for (int j = 0; j < pUser->numOfRange; j++) {
-      SIpV4Range *pRange = &pUser->pIpRanges[j];
+
+    TAOS_CHECK_EXIT(getIpv4Range(pUser, &p, &num));
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, num));
+    for (int32_t i = 0; i < num; i++) {
+      SIpV4Range *pRange = &p[i];
       TAOS_CHECK_EXIT(tEncodeU32(&encoder, pRange->ip));
       TAOS_CHECK_EXIT(tEncodeU32(&encoder, pRange->mask));
     }
+    taosMemFreeClear(p);
   }
 
   tEndEncode(&encoder);
 
 _exit:
+  taosMemFreeClear(p);
   if (code) {
     tlen = code;
   } else {
