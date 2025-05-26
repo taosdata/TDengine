@@ -59,13 +59,6 @@ jobs:
           cp -r ../test_docs_backup/util_funcs_docs test/docs/ || true
           rm -rf ../test_docs_backup
 
-      - name: Get all changed case files
-        id: changed-case-files
-        uses: tj-actions/changed-files@v45
-        with:
-          files: |
-            test/cases/**/test_*.py
-
       - name: Get all changed utils files
         id: changed-utils-files
         uses: tj-actions/changed-files@v45
@@ -74,9 +67,6 @@ jobs:
             test/new_test_framework/utils/*.py
 
       - name: Generate Markdown files
-        if: steps.changed-case-files.outputs.any_changed == 'true'
-        env:
-          ALL_CHANGED_CASE_FILES: ${{ steps.changed-case-files.outputs.all_changed_files }}
         run: |
           mkdir -p test/docs/case_list_docs
           python .github/scripts/generate_case_md.py "test/mkdocs.yml" "test/docs/case_list_docs" ""
