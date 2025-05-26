@@ -113,7 +113,6 @@ typedef struct SParseMetaCache {
   SHashObj* pTableTSMAs;   // key is tbFName, elements are SArray<STableTSMAInfo*>
   SHashObj* pTSMAs;        // key is tsmaFName, elements are STableTSMAInfo*
   SHashObj* pTableName;    // key is tbFUid, elements is STableMeta*(append with tbName)
-  SArray*   pVSubTables;   // element is SVSubTablesRsp
   SArray*   pVStbRefDbs;   // element is pVStbRefDbs
   SArray*   pDnodes;       // element is SDNodeAddr
   bool      dnodeRequired;
@@ -164,7 +163,6 @@ int32_t reserveTableCfgInCache(int32_t acctId, const char* pDb, const char* pTab
 int32_t reserveDnodeRequiredInCache(SParseMetaCache* pMetaCache);
 int32_t reserveTableTSMAInfoInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveTSMAInfoInCache(int32_t acctId, const char* pDb, const char* pTsmaName, SParseMetaCache* pMetaCache);
-int32_t reserveVSubTableInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveVStbRefDbsInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t getTableMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta);
 int32_t getTableNameFromCache(SParseMetaCache* pMetaCache, const SName* pName, char* pTbName);
