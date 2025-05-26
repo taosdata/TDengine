@@ -114,10 +114,7 @@
                     </div>
                   {% endif %}
                   <div class="doc doc-docstring doc-function.path">
-                    <strong>Path:</strong>
-                    <a href="https://github.com/taosdata/TDengine/blob/{{ config.github_branch }}/test/{{ function.relative_filepath }}" target="_blank">
-                      {{ function.relative_filepath|safe }}
-                    </a>
+                    <strong>path:</strong> {{ function.relative_filepath|safe }}
                   </div>
                 {% endwith %}
               {% endif %}
