@@ -65,7 +65,7 @@ class TestStreamDevBasic:
 
         tdLog.info(f"=============== create stream")
         tdSql.execute(
-            "create stream s1 interval(1s) sliding(1s) from stream_trigger partition by tbname into stream_out as select _twstart, avg(id) from stream_query where ts >= _twstart and ts < _twend;"
+            "create stream s1 interval(1s) sliding(1s) from stream_trigger partition by tbname into stream_out tags (gid bigint as _tgrpid) as select _twstart ts, count(*) c1, avg(id) c2  from stream_query where ts >= _twstart and ts < _twend;"
         )
         tdStream.checkStreamStatus()
 
@@ -75,38 +75,35 @@ class TestStreamDevBasic:
         )
 
         tdLog.info(f"=============== check stream result")
-        tdSql.checkResultsByFunc(f"show stables", lambda: tdSql.getRows() == 1)
+        result_sql = "select ts, c1, c2 from test.stream_out"
 
-        # result_sql = "select * from stream_out partition by tbname order by tbname"
-        result_sql = "select _wstart, avg(id) from stream_query interval(1s)"
+        tdSql.checkResultsByFunc(f"show stables", lambda: tdSql.getRows() == 2)
 
         tdSql.checkResultsByFunc(
             sql=result_sql,
-            func=lambda: tdSql.getRows() == 3
+            func=lambda: tdSql.getRows() == 2
             and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 2)
+            and tdSql.compareData(0, 2, 0.5)
             and tdSql.compareData(1, 0, "2025-01-01 00:00:01.000")
-            and tdSql.compareData(2, 0, "2025-01-01 00:00:02.000")
-            and tdSql.compareData(0, 1, 0.5)
-            and tdSql.compareData(1, 1, 1.5)
-            and tdSql.compareData(2, 1, 2.5),
-            retry=3,
+            and tdSql.compareData(1, 1, 2)
+            and tdSql.compareData(1, 2, 1.5),
         )
 
         tdSql.checkResultsByFunc(
             result_sql,
-            lambda: tdSql.getRows() >= 3
-            and tdSql.getData(0, 1) == 0.5
-            and tdSql.getData(1, 1) == 1.5
-            and tdSql.getData(2, 1) == 2.5,
+            lambda: tdSql.getRows() >= 2
+            and tdSql.getData(0, 2) == 0.5
+            and tdSql.getData(1, 2) == 1.5,
+            retry=0,
         )
 
-        exp_sql = result_sql
+        exp_sql = "select _wstart, count(*), avg(id) from test.stream_query interval(1s) limit 2"
         exp_result = tdSql.getResult(exp_sql)
         tdSql.checkResultsByArray(
             sql=result_sql,
             exp_result=exp_result,
             exp_sql=exp_sql,
-            retry=1,
         )
 
         exp_sql = result_sql

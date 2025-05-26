@@ -2380,6 +2380,9 @@ class TDSql:
         if delay != 0:
             time.sleep(delay)
 
+        if retry <= 0:
+            retry = 1
+
         for loop in range(retry):
             tdSql.query(sql)
 
@@ -2387,7 +2390,7 @@ class TDSql:
                 tdSql.printResult(f"check succeed in {loop} seconds")
                 return
 
-            if loop != retry - 1 or retry != 0:
+            if loop != retry - 1:
                 if show:
                     tdSql.printResult("check continue")
                 time.sleep(1)
@@ -2400,6 +2403,9 @@ class TDSql:
         if delay != 0:
             time.sleep(delay)
 
+        if retry <= 0:
+            retry = 1
+
         for loop in range(retry):
             res_result = tdSql.getResult(sql)
 
@@ -2407,7 +2413,7 @@ class TDSql:
                 tdSql.printResult(f"check succeed in {loop} seconds")
                 return
 
-            if loop != retry - 1 or retry != 0:
+            if loop != retry - 1:
                 if show:
                     tdSql.printResult("check continue")
                 time.sleep(1)
