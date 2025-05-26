@@ -1105,9 +1105,15 @@ void vmUpdateMetricsInfo(SVnodeMgmt *pMgmt) {
     if (!pVnode->failed) {
       SRawWriteMetrics metrics = {0};
       if (vnodeGetRawWriteMetrics(pVnode->pImpl, &metrics) == 0) {
+        // Add the metrics to the global metrics system
         int32_t code = addWriteMetrics(pVnode->vgId, &metrics);
         if (code != TSDB_CODE_SUCCESS) {
           dError("Failed to add write metrics for vgId: %d, code: %d", pVnode->vgId, code);
+        } else {
+          // After successfully adding metrics, reset the vnode's write metrics using atomic operations
+          if (vnodeResetRawWriteMetrics(pVnode->pImpl, &metrics) != 0) {
+            dError("Failed to reset write metrics for vgId: %d", pVnode->vgId);
+          }
         }
       } else {
         dError("Failed to get write metrics for vgId: %d", pVnode->vgId);

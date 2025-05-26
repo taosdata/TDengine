@@ -78,7 +78,7 @@ typedef struct {
   int64_t total_requests;
   int64_t total_rows;
   int64_t total_bytes;
-  double  avg_write_size;
+  int64_t avg_write_size;
   int64_t fetch_batch_meta_time;
   int64_t fetch_batch_meta_count;
   int64_t preprocess_time;
@@ -87,11 +87,11 @@ typedef struct {
   int64_t apply_bytes;
   int64_t apply_time;
   int64_t commit_count;
-  double  commit_time;
+  int64_t commit_time;
   int64_t memtable_wait_time;
   int64_t blocked_commits;
   int64_t merge_count;
-  double  merge_time;
+  int64_t merge_time;
 } SRawWriteMetrics;
 
 // Write Metrics Extended Structure (Formatted)

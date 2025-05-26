@@ -1454,3 +1454,48 @@ int32_t vnodeGetRawWriteMetrics(void *pVnode, SRawWriteMetrics *pRawMetrics) {
 
   return 0;
 }
+
+/*
+ * Reset raw write metrics for a vnode by subtracting old values
+ */
+int32_t vnodeResetRawWriteMetrics(void *pVnode, const SRawWriteMetrics *pOldMetrics) {
+  if (pVnode == NULL || pOldMetrics == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SVnode *pVnode1 = (SVnode *)pVnode;
+
+  // Reset vnode write metrics using atomic operations to subtract old values
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.total_requests, pOldMetrics->total_requests);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.total_rows, pOldMetrics->total_rows);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.total_bytes, pOldMetrics->total_bytes);
+
+  // avg_write_size is int64_t type, use atomic_sub_fetch_64
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.write_size, pOldMetrics->avg_write_size);
+
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.fetch_batch_meta_time, pOldMetrics->fetch_batch_meta_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.fetch_batch_meta_count, pOldMetrics->fetch_batch_meta_count);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.preprocess_time, pOldMetrics->preprocess_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.apply_bytes, pOldMetrics->apply_bytes);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.apply_time, pOldMetrics->apply_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.commit_count, pOldMetrics->commit_count);
+
+  // commit_time and merge_time are int64_t types, use atomic_sub_fetch_64
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.commit_time, pOldMetrics->commit_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.merge_time, pOldMetrics->merge_time);
+
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.memtable_wait_time, pOldMetrics->memtable_wait_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.block_commit_time, pOldMetrics->blocked_commits);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.merge_count, pOldMetrics->merge_count);
+
+  // Reset sync metrics
+  SSyncMetrics syncMetrics = {
+      .wal_write_bytes = pOldMetrics->wal_write_bytes,
+      .wal_write_time = pOldMetrics->wal_write_time,
+      .sync_bytes = 0,  // Not used in current SRawWriteMetrics
+      .sync_time = 0    // Not used in current SRawWriteMetrics
+  };
+  syncResetMetrics(pVnode1->sync, &syncMetrics);
+
+  return 0;
+}

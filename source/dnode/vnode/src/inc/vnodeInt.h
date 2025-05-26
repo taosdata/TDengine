@@ -170,8 +170,8 @@ int             metaTtlFindExpired(SMeta* pMeta, int64_t timePointMs, SArray* tb
 int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq, STableMetaRsp* pMetaRsp);
 int             metaUpdateChangeTimeWithLock(SMeta* pMeta, tb_uid_t uid, int64_t changeTimeMs);
 SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, SExtSchema** extSchema);
-int64_t         metaGetTableCreateTime(SMeta *pMeta, tb_uid_t uid, int lock);
-SExtSchema*     metaGetSExtSchema(const SMetaEntry *pME);
+int64_t         metaGetTableCreateTime(SMeta* pMeta, tb_uid_t uid, int lock);
+SExtSchema*     metaGetSExtSchema(const SMetaEntry* pME);
 int32_t         metaGetTbTSchemaNotNull(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema);
 int32_t         metaGetTbTSchemaMaybeNull(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock);
@@ -474,8 +474,8 @@ struct SVnodeWriteMetrics {
   int64_t total_requests;
   int64_t total_rows;
   int64_t total_bytes;
-  double  write_size;
-  double  cache_hit_ratio;
+  int64_t write_size;
+  int64_t cache_hit_ratio;
   int64_t rpc_queue_wait;
   int64_t preprocess_time;
   int64_t apply_time;
