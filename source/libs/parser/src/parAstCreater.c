@@ -497,18 +497,18 @@ _err:
 }
 
 static void copyValueTrimEscape(char* buf, int32_t bufLen, const SToken* pToken, bool trim) {
-  int32_t len = TMIN((pToken)->n, bufLen - 1);
-  if ((trim) && ((pToken)->z[0] == TS_ESCAPE_CHAR)) {
+  int32_t len = TMIN(pToken->n, bufLen - 1);
+  if (trim && (pToken->z[0] == TS_ESCAPE_CHAR)) {
     int32_t i = 1, j = 0;
     for (; i < len - 1; ++i) {
-      buf[j++] = (pToken)->z[i];
-      if ((pToken)->z[i] == TS_ESCAPE_CHAR) {
-        if ((pToken)->z[i + 1] == TS_ESCAPE_CHAR) ++i;
+      buf[j++] = pToken->z[i];
+      if (pToken->z[i] == TS_ESCAPE_CHAR) {
+        if (pToken->z[i + 1] == TS_ESCAPE_CHAR) ++i;
       }
     }
     buf[j] = 0;
   } else {
-    tstrncpy(buf, (pToken)->z, len + 1);
+    tstrncpy(buf, pToken->z, len + 1);
   }
 }
 
