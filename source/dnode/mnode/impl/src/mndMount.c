@@ -769,17 +769,24 @@ static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, 
   int32_t   code = 0, lino = 0;
   SUserObj  newUserObj = {0};
   SMountObj mntObj = {0};
-  (void)memcpy(mntObj.name, pInfo->mountName, TSDB_MOUNT_NAME_LEN);
-  (void)memcpy(mntObj.acct, pUser->acct, TSDB_USER_LEN);
+  tsnprintf(mntObj.name, TSDB_MOUNT_NAME_LEN, "%s", pInfo->mountName);
+  tsnprintf(mntObj.acct, TSDB_USER_LEN, "%s", pUser->acct);
   mntObj.createdTime = taosGetTimestampMs();
   mntObj.updateTime = mntObj.createdTime;
   mntObj.uid = mndGenerateUid(mntObj.name, TSDB_MOUNT_NAME_LEN);
-  (void)memcpy(mntObj.createUser, pUser->user, TSDB_USER_LEN);
-  mntObj.nMounts = pCreate->nMounts;
-  TSWAP(mntObj.dnodeIds, pCreate->dnodeIds);
-  TSWAP(mntObj.paths, pCreate->mountPaths);
+  tsnprintf(mntObj.createUser, TSDB_USER_LEN, "%s", pUser->user);
+  mntObj.nMounts = 1;  // currently only one mount is supported
+  TSDB_CHECK_NULL((mntObj.dnodeIds = taosMemoryCalloc(mntObj.nMounts, sizeof(int32_t))), code, lino, _exit, terrno);
+  TSDB_CHECK_NULL((mntObj.paths[0] = taosMemoryCalloc(mntObj.nMounts, sizeof(char *))), code, lino, _exit, terrno);
+  mntObj.dnodeIds[0] = pInfo->dnodeId;
+  mntObj.paths[0] = tstrndup(pInfo->mountPath, TSDB_MOUNT_PATH_LEN);
+  if (mntObj.paths[0] == NULL) {
+    TAOS_CHECK_EXIT(terrno != 0 ? terrno : TSDB_CODE_MND_RETURN_VALUE_NULL);
+  }
+
   // dbCfg
   // mntObj.dbCfg = pCreate->dbCfg;
+
   // mntObj.dbName = pCreate->dbName;
   // mntObj.dbUid = pCreate->dbUid;
   // mndSetDefaultDbCfg(&dbObj.cfg);
@@ -829,7 +836,7 @@ static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, 
     goto _exit;
   }
   // mndTransSetSerial(pTrans);
-  mInfo("trans:%d, used to create db:%s", pTrans->id, pCreate->mountName);
+  mInfo("trans:%d, used to create mount:%s", pTrans->id, pInfo->mountName);
 
   mndTransSetDbName(pTrans, mntObj.name, NULL);
   TAOS_CHECK_EXIT(mndTransCheckConflict(pMnode, pTrans));
@@ -1053,7 +1060,6 @@ _exit:
   TAOS_RETURN(code);
 }
 
-
 static int32_t mndProcessExecuteMountReq(SRpcMsg *pReq) {
   int32_t    code = 0, lino = 0;
   SMnode    *pMnode = pReq->info.node;
@@ -1086,26 +1092,17 @@ static int32_t mndProcessExecuteMountReq(SRpcMsg *pReq) {
   TAOS_CHECK_EXIT(grantCheck(TSDB_GRANT_MOUNT));  // TODO: implement when the plan is ready
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
 
-
-  TAOS_CHECK_EXIT(mndCreateMount(pMnode, pReq, &mndInfo, pUser));
+  TAOS_CHECK_EXIT(mndCreateMount(pMnode, pReq, &mntInfo, pUser));
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
-
-  // SName name = {0};
-  // if (tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB) < 0)
-  //   mError("db:%s, failed to parse db name", createReq.db);
-
-  auditRecord(pReq, pMnode->clusterId, "createMount", createReq.mountName, "", createReq.sql, createReq.sqlLen);
-
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("mount:%s, dnode:%d, path:%s, failed to create at line:%d since %s",
-           createReq.mountName ? createReq.mountName : "NULL", createReq.dnodeIds ? createReq.dnodeIds[0] : 0,
-           createReq.mountPaths ? createReq.mountPaths[0] : "", lino, tstrerror(code));  // TODO: mutiple mounts
+    // TODO: mutiple mounts
+    mError("mount:%s, dnode:%d, path:%s, failed to create at line:%d since %s", mntInfo.mountName, mntInfo.dnodeId,
+           mntInfo.mountPath, lino, tstrerror(code));  
   }
-
   mndReleaseMount(pMnode, pObj);
   mndReleaseUser(pMnode, pUser);
-  tFreeSCreateMountReq(&createReq);
+  tDecoderClear(&decoder);
 
   TAOS_RETURN(code);
 }

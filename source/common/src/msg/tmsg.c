@@ -6141,6 +6141,7 @@ int32_t tSerializeSRetrieveMountPathReq(void *buf, int32_t bufLen, SRetrieveMoun
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->mountPath));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->mountUid));
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->dnodeId));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->ignoreExist));
   TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t*)pReq->pVal, pReq->valLen));
   tEndEncode(&encoder);
 
@@ -6164,6 +6165,7 @@ int32_t tDeserializeSRetrieveMountPathReq(void *buf, int32_t bufLen, SRetrieveMo
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->mountPath));
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->mountUid));
   TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pReq->dnodeId));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->ignoreExist));
   TAOS_CHECK_EXIT(tDecodeBinary(&decoder, (uint8_t**)&pReq->pVal, &pReq->valLen));
   tEndDecode(&decoder);
 
@@ -6180,6 +6182,7 @@ int32_t tSerializeSMountInfo(void *buf, int32_t bufLen, SMountInfo *pInfo) {
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pInfo->mountName));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pInfo->mountPath));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pInfo->ignoreExist));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pInfo->mountUid));
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pInfo->dnodeId));
@@ -6222,6 +6225,7 @@ int32_t tDeserializeSMountInfo(SDecoder *decoder, SMountInfo *pInfo) {
 
   TAOS_CHECK_EXIT(tStartDecode(decoder));
   TAOS_CHECK_EXIT(tDecodeCStrTo(decoder, pInfo->mountName));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(decoder, pInfo->mountPath));
   TAOS_CHECK_EXIT(tDecodeI8(decoder, &pInfo->ignoreExist));
   TAOS_CHECK_EXIT(tDecodeI64v(decoder, &pInfo->mountUid));
   TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pInfo->dnodeId));
