@@ -777,12 +777,10 @@ static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, 
   tsnprintf(mntObj.createUser, TSDB_USER_LEN, "%s", pUser->user);
   mntObj.nMounts = 1;  // currently only one mount is supported
   TSDB_CHECK_NULL((mntObj.dnodeIds = taosMemoryCalloc(mntObj.nMounts, sizeof(int32_t))), code, lino, _exit, terrno);
-  TSDB_CHECK_NULL((mntObj.paths[0] = taosMemoryCalloc(mntObj.nMounts, sizeof(char *))), code, lino, _exit, terrno);
+  TSDB_CHECK_NULL((mntObj.paths = taosMemoryCalloc(mntObj.nMounts, sizeof(char *))), code, lino, _exit, terrno);
   mntObj.dnodeIds[0] = pInfo->dnodeId;
-  mntObj.paths[0] = tstrndup(pInfo->mountPath, TSDB_MOUNT_PATH_LEN);
-  if (mntObj.paths[0] == NULL) {
-    TAOS_CHECK_EXIT(terrno != 0 ? terrno : TSDB_CODE_MND_RETURN_VALUE_NULL);
-  }
+  TSDB_CHECK_NULL((mntObj.paths[0] = tstrndup(pInfo->mountPath, TSDB_MOUNT_PATH_LEN)), code, lino, _exit,
+                  TSDB_CODE_OUT_OF_MEMORY);
 
   // dbCfg
   // mntObj.dbCfg = pCreate->dbCfg;
@@ -949,14 +947,14 @@ static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp) {
   tDecoderInit(&decoder, pRsp->pCont, pRsp->contLen);
   TAOS_CHECK_EXIT(tDeserializeSMountInfo(&decoder, &mntInfo));
   const STraceId *trace = &pRsp->info.traceId;
-  rspToClient = true;
-  SRpcMsg rsp = {
+  SRpcMsg         rsp = {
       // .code = pRsp->code,
       // .pCont = pRsp->info.rsp,
       // .contLen = pRsp->info.rspLen,
-      .info = *(SRpcHandleInfo *)mntInfo.pVal,
+              .info = *(SRpcHandleInfo *)mntInfo.pVal,
   };
   if (pRsp->code != 0) {
+    rspToClient = true;
     TAOS_CHECK_EXIT(pRsp->code);
   }
 
@@ -1034,11 +1032,8 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
   TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, (SDbObj *)pObj));
   TAOS_CHECK_EXIT(grantCheck(TSDB_GRANT_MOUNT));  // TODO: implement when the plan is ready
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
-
   TAOS_CHECK_EXIT(mndRetrieveMountInfo(pMnode, pReq, &createReq));
-
-  // TAOS_CHECK_EXIT(mndCreateMount(pMnode, pReq, &createReq, pUser));
-  // if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   // SName name = {0};
   // if (tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB) < 0)
@@ -1067,10 +1062,13 @@ static int32_t mndProcessExecuteMountReq(SRpcMsg *pReq) {
   SUserObj  *pUser = NULL;
   SMountInfo mntInfo = {0};
   SDecoder   decoder = {0};
+  SRpcMsg    rsp = {0};
+  bool       rspToClient = false;
 
   tDecoderInit(&decoder, pReq->pCont, pReq->contLen);
 
   TAOS_CHECK_EXIT(tDeserializeSMountInfo(&decoder, &mntInfo));
+  rspToClient = true;
   mInfo("mount:%s, start to execute on mnode", mntInfo.mountName);
 
   if ((pObj = mndAcquireMount(pMnode, mntInfo.mountName))) {
@@ -1097,8 +1095,13 @@ static int32_t mndProcessExecuteMountReq(SRpcMsg *pReq) {
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     // TODO: mutiple mounts
+    rsp.code = code;
     mError("mount:%s, dnode:%d, path:%s, failed to create at line:%d since %s", mntInfo.mountName, mntInfo.dnodeId,
-           mntInfo.mountPath, lino, tstrerror(code));  
+           mntInfo.mountPath, lino, tstrerror(code));
+  }
+  if (rspToClient) {
+    rsp.info = *(SRpcHandleInfo *)mntInfo.pVal, tmsgSendRsp(&rsp);
+    tmsgSendRsp(&rsp);
   }
   mndReleaseMount(pMnode, pObj);
   mndReleaseUser(pMnode, pUser);
