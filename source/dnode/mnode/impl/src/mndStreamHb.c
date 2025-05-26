@@ -360,7 +360,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   mndInitStreamExecInfo(pMnode, &execInfo);
   if (!validateHbMsg(execInfo.pNodeList, req.vgId)) {
-    mError("vgId:%d not exists in nodeList buf, discarded", req.vgId);
+    mError("vgId:%d not exists in nodeList buf, discarded HbMsg", req.vgId);
 
     doSendHbMsgRsp(terrno, &pReq->info, &mnodeEpset, req.vgId, req.msgId);
 

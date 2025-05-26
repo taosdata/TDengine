@@ -339,7 +339,7 @@ class TDSql:
             raise Exception(repr(e))
         return (self.queryRows, timeout)
 
-    def is_err_sql(self, sql):
+    def isErrorSql(self, sql):
         """
         Executes a SQL statement and checks if it results in an error.(Not used)
 
@@ -587,7 +587,7 @@ class TDSql:
             args = (caller.filename, caller.lineno, self.sql, self.queryRows, expectRows)
             tdLog.exit("%s(%d) failed: sql:%s, queryRows:%d != expect:%d" % args)
 
-    def checkRows_range(self, excepte_row_list):
+    def checkRowsRange(self, excepte_row_list):
         """
         Checks if the number of rows fetched by the last query is within the expected range.(Not used)
 
@@ -1225,7 +1225,7 @@ class TDSql:
     # others session
     #
 
-    def get_times(self, time_str, precision="ms"):
+    def getTimes(self, time_str, precision="ms"):
         """
         Converts a time string to a timestamp based on the specified precision.(Not used)
 
@@ -1273,7 +1273,7 @@ class TDSql:
         elif precision == "ns":
             return int(times*1000*1000)
 
-    def get_type(self, col):
+    def getType(self, col):
         """
         Retrieves the data type of the specified column in the last query result.(Not used)
 
