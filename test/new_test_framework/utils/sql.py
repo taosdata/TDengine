@@ -1564,6 +1564,8 @@ class TDSql:
 
         if input_sql == "":
             sql = self.sql
+        else:
+            sql = input_sql
 
         tdLog.info(f"==== {name}, rows:{rows}, cols:{cols}, sql:{sql}")
         for r in range(rows):
