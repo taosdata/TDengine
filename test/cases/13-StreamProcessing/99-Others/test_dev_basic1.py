@@ -77,9 +77,12 @@ class TestStreamDevBasic:
         tdLog.info(f"=============== check stream result")
         tdSql.checkResultsByFunc(f"show stables", lambda: tdSql.getRows() == 1)
 
+        # result_sql = "select * from stream_out partition by tbname order by tbname"
+        result_sql = "select _wstart, avg(id) from stream_query interval(1s)"
+
         tdSql.checkResultsByFunc(
-            f"select _wstart, avg(id) from stream_query interval(1s)",
-            lambda: tdSql.getRows() == 3
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 3
             and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
             and tdSql.compareData(1, 0, "2025-01-01 00:00:01.000")
             and tdSql.compareData(2, 0, "2025-01-01 00:00:02.000")
@@ -90,24 +93,24 @@ class TestStreamDevBasic:
         )
 
         tdSql.checkResultsByFunc(
-            f"select _wstart, avg(id) from stream_query interval(1s)",
+            result_sql,
             lambda: tdSql.getRows() >= 3
             and tdSql.getData(0, 1) == 0.5
             and tdSql.getData(1, 1) == 1.5
             and tdSql.getData(2, 1) == 2.5,
         )
 
-        exp_sql = "select _wstart, avg(id) from stream_query interval(1s)"
+        exp_sql = result_sql
         exp_result = tdSql.getResult(exp_sql)
         tdSql.checkResultsByArray(
-            f"select _wstart ts, avg(id) res from stream_query interval(1s)",
+            sql=result_sql,
             exp_result=exp_result,
             exp_sql=exp_sql,
             retry=1,
         )
 
-        exp_sql = "select _wstart, avg(id) from stream_query interval(1s)"
+        exp_sql = result_sql
         tdSql.checkResultsBySql(
-            f"select _wstart ts, avg(id) res from stream_query interval(1s)",
+            sql=result_sql,
             exp_sql=exp_sql,
         )

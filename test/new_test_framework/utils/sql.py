@@ -1564,6 +1564,8 @@ class TDSql:
 
         if input_sql == "":
             sql = self.sql
+        else:
+            sql = input_sql
 
         tdLog.info(f"==== {name}, rows:{rows}, cols:{cols}, sql:{sql}")
         for r in range(rows):
@@ -2374,14 +2376,14 @@ class TDSql:
         """
         tdLog.info(f"set connection mode:{mode}")
 
-    def checkResultsByFunc(self, sql, checkFunc, delay=0.0, retry=20, show=False):
+    def checkResultsByFunc(self, sql, func, delay=0.0, retry=20, show=False):
         if delay != 0:
             time.sleep(delay)
 
         for loop in range(retry):
             tdSql.query(sql)
 
-            if checkFunc():
+            if func():
                 tdSql.printResult(f"check succeed in {loop} seconds")
                 return
 
