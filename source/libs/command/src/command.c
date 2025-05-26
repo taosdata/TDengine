@@ -591,7 +591,7 @@ static int32_t buildCreateViewResultDataBlock(SSDataBlock** pOutput) {
 }
 
 static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
-  char expandName[SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1 + 1] = {0};
+  char expandName[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
   for (int32_t i = 0; i < pCfg->numOfColumns; ++i) {
     SSchema* pSchema = pCfg->pSchemas + i;
     SColRef* pRef = pCfg->pColRefs + i;
@@ -641,7 +641,7 @@ static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
 }
 
 static void appendColRefFields(char* buf, int32_t* len, STableCfg* pCfg) {
-  char expandName[SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1 + 1] = {0};
+  char expandName[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
   for (int32_t i = 1; i < pCfg->numOfColumns; ++i) {
     SSchema* pSchema = pCfg->pSchemas + i;
     SColRef* pRef = pCfg->pColRefs + i;
@@ -659,13 +659,13 @@ static void appendColRefFields(char* buf, int32_t* len, STableCfg* pCfg) {
     }
 
     *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                      "%s`%s` %s", ((i > 1) ? ", " : ""), pSchema->name, type);
+                      "%s`%s` %s", ((i > 1) ? ", " : ""), expandIdentifier(pSchema->name, expandName), type);
 
   }
 }
 
 static void appendTagFields(char* buf, int32_t* len, STableCfg* pCfg) {
-  char expandName[TSDB_COL_NAME_LEN << 1 + 1] = {0};
+  char expandName[(TSDB_COL_NAME_LEN << 1) + 1] = {0};
   for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
     SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
     char     type[32];
@@ -685,7 +685,7 @@ static void appendTagFields(char* buf, int32_t* len, STableCfg* pCfg) {
 }
 
 static void appendTagNameFields(char* buf, int32_t* len, STableCfg* pCfg) {
-  char expandName[TSDB_COL_NAME_LEN << 1 + 1] = {0};
+  char expandName[(TSDB_COL_NAME_LEN << 1) + 1] = {0};
   for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
     SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
     *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
@@ -863,7 +863,7 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
   pBlock->info.rows = 1;
 
   SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
-  char             buf1[SHOW_CREATE_TB_RESULT_FIELD1_LEN * 2] = {0};
+  char             buf1[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1)] = {0};
   STR_TO_VARSTR(buf1, tbName);
   QRY_ERR_RET(colDataSetVal(pCol1, 0, buf1, false));
 
