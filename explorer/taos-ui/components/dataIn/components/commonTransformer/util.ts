@@ -215,8 +215,8 @@ export const resetTransformerState = () => {
 };
 
 export const defaultColsMap: Record<string, string[]> = {
-  mqtt: ['topic', 'qos', 'payload'],
-  kafka: ['topic', 'partition', 'offset', 'key', 'value'],
+  mqtt: ['topic', 'qos'],
+  kafka: ['topic', 'partition', 'offset', 'key'],
   mongodb: ['value']
 };
 

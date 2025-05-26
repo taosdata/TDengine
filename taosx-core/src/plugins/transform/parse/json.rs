@@ -110,6 +110,7 @@ impl Parse for Json {
         let mut flatten = false;
 
         let array = arrow::compute::cast(array, &DataType::Utf8)?;
+        let field = field.clone().with_data_type(DataType::Utf8);
 
         let string = array.as_any().downcast_ref::<StringArray>().unwrap();
         let num_rows = string.len();
@@ -218,21 +219,12 @@ impl Parse for Json {
             })
             .collect();
 
-        let mut arrays = Vec::new();
-
         let fields = schema
             .fields()
             .iter()
             .map(|f| f.as_ref().clone())
             .collect_vec();
         // dbg!(&fields);
-        if self.keep {
-            arrays.push((field.name(), array.clone()));
-            let len = schema.fields().len();
-            schema = Schema::try_merge(vec![Schema::new(vec![field.clone()]), schema]).unwrap();
-            // New schema has original field and the json-parsed fields in order.
-            debug_assert!(len + 1 == schema.fields().len());
-        }
 
         let mut r_fields = Vec::with_capacity(fields.len());
         let mut r_arrays = Vec::with_capacity(fields.len());
@@ -885,6 +877,11 @@ impl Parse for Json {
                     return Err(super::ParseError::UnsupportedDataType(dt.clone()));
                 }
             }
+        }
+
+        if self.keep {
+            r_arrays.push(array.clone());
+            r_fields.push(field);
         }
 
         schema.fields = Fields::from(r_fields);
