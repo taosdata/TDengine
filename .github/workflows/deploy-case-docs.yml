@@ -6,7 +6,7 @@ on:
       - 'main'
       - '3.0'
       - 'new_test_framework_docs'
-    types: [closed]  # trigger on PR close
+    #types: [closed]  # trigger on PR close
     paths:
       - 'test/cases/**/test_*.py'
       - 'test/new_test_framework/utils/*.py'
