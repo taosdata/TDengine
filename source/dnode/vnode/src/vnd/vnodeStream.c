@@ -1417,10 +1417,11 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   SStreamTriggerReaderCalcInfo* sStreamReaderCalcInfo = qStreamGetReaderInfo(req.queryId, req.taskId);
   STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo, terrno);
 
-  if (req.reset || sStreamReaderCalcInfo->pTaskInfo == NULL) {
-    qDestroyTask(sStreamReaderCalcInfo->pTaskInfo);
+  // if (req.reset || sStreamReaderCalcInfo->pTaskInfo == NULL) {
+    // qDestroyTask(sStreamReaderCalcInfo->pTaskInfo);
     SReadHandle handle = {
         .vnode = pVnode,
+        .winRange = {0},
     };
 
     initStorageAPI(&handle.api);
@@ -1431,16 +1432,19 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
 
     sStreamReaderCalcInfo->rtInfo.funcInfo = *req.pStRtFuncInfo;
 
-    STREAM_CHECK_RET_GOTO(qCreateStreamExecTaskInfo(&sStreamReaderCalcInfo->pTaskInfo,
-                                                    sStreamReaderCalcInfo->calcScanPlan, &handle, NULL, TD_VID(pVnode),
-                                                    req.taskId));
+    if (sStreamReaderCalcInfo->pTaskInfo == NULL) {
+      STREAM_CHECK_RET_GOTO(qCreateStreamExecTaskInfo(&sStreamReaderCalcInfo->pTaskInfo,
+        sStreamReaderCalcInfo->calcScanPlan, &handle, NULL, TD_VID(pVnode), req.taskId));
+    } else {
+      STREAM_CHECK_RET_GOTO(qResetTableScan(sStreamReaderCalcInfo->pTaskInfo, handle.winRange));
+    }
+    
     streamSetTaskRuntimeInfo(sStreamReaderCalcInfo->pTaskInfo, &sStreamReaderCalcInfo->rtInfo);
     STREAM_CHECK_RET_GOTO(qSetTaskId(sStreamReaderCalcInfo->pTaskInfo, req.taskId, req.queryId));
-  }
+  // }
 
   while (1) {
     uint64_t ts = 0;
-    // qStreamSetOpen(task);
     STREAM_CHECK_RET_GOTO(qExecTask(sStreamReaderCalcInfo->pTaskInfo, &pBlock, &ts));
     printDataBlock(pBlock, "calc fetch block", "task id");
 

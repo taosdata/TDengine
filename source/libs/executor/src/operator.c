@@ -971,7 +971,7 @@ void resetBasicOperatorState(SOptrBasicInfo *pBasicInfo) {
   initResultRowInfo(&pBasicInfo->resultRowInfo);
 }
 
-int32_t resetAggSup(SExprSupp* pExprSupp, SAggSupporter* pSup, SOperatorInfo* pOperator, SExecTaskInfo* pTaskInfo,
+int32_t resetAggSup(SExprSupp* pExprSupp, SAggSupporter* pSup, SExecTaskInfo* pTaskInfo,
                     SNodeList* pNodeList, SNodeList* pGroupKeys, size_t keyBufSize, const char* pKey, void* pState,
                     SFunctionStateStore* pStore) {
   int32_t    code = 0, lino = 0, num = 0;
@@ -991,7 +991,7 @@ _error:
   return code;
 }
 
-int32_t resetExprSupp(SExprSupp* pExprSupp, SOperatorInfo* pOperator, SExecTaskInfo* pTaskInfo, SNodeList* pNodeList,
+int32_t resetExprSupp(SExprSupp* pExprSupp, SExecTaskInfo* pTaskInfo, SNodeList* pNodeList,
                       SNodeList* pGroupKeys, SFunctionStateStore* pStore) {
   int32_t code = 0, lino = 0, num = 0;
   SExprInfo* pExprInfo = NULL;
