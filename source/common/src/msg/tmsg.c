@@ -6192,12 +6192,44 @@ int32_t tSerializeSMountInfo(void *buf, int32_t bufLen, SMountInfo *pInfo) {
   for (int32_t i = 0; i < nDb; ++i) {
     SMountDbInfo *pDbInfo = TARRAY_GET_ELEM(pInfo->pDb, i);
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pDbInfo->dbName));
-    TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pDbInfo->dbId));
+    TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pDbInfo->dbId));
     nVg = taosArrayGetSize(pDbInfo->pVg);
     TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nVg));
     for (int32_t j = 0; j < nVg; ++j) {
       SMountVgInfo *pVgInfo = TARRAY_GET_ELEM(pDbInfo->pVg, j);
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->vgId));
+      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->cacheLastSize));
+      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->szPage));
+      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->szCache));
+      TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pVgInfo->szBuf));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->cacheLast));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->isTsma));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->isRsma));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->standby));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->hashMethod));
+      TAOS_CHECK_EXIT(tEncodeU32v(&encoder, pVgInfo->hashBegin));
+      TAOS_CHECK_EXIT(tEncodeU32v(&encoder, pVgInfo->hashEnd));
+      TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pVgInfo->hashPrefix));
+      TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pVgInfo->hashSuffix));
+      TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pVgInfo->sttTrigger));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->precision));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->compression));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->slLevel));
+      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->minRows));
+      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->maxRows));
+      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->tsdbPageSize));
+      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->s3ChunkSize));
+      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->s3KeepLocal));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->s3Compact));
+      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->walFsyncPeriod));
+      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->walRetentionPeriod));
+      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->walRollPeriod));
+      TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pVgInfo->walRetentionSize));
+      TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pVgInfo->walSegSize));
+      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->walLevel));
+      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->encryptAlgorithm));
+      TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pVgInfo->encryptKey));
+      TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pVgInfo->dbId));
     }
     nStb = taosArrayGetSize(pDbInfo->pStb);
     TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nStb));
@@ -6236,13 +6268,45 @@ int32_t tDeserializeSMountInfo(SDecoder *decoder, SMountInfo *pInfo) {
     for (int32_t i = 0; i < nDb; ++i) {
       SMountDbInfo *pDbInfo = TARRAY_GET_ELEM(pInfo->pDb, i);
       TAOS_CHECK_EXIT(tDecodeCStrTo(decoder, pDbInfo->dbName));
-      TAOS_CHECK_EXIT(tDecodeI64v(decoder, &pDbInfo->dbId));
+      TAOS_CHECK_EXIT(tDecodeU64v(decoder, &pDbInfo->dbId));
       TAOS_CHECK_EXIT(tDecodeI32v(decoder, &nVg));
       if (nVg > 0) {
         TSDB_CHECK_NULL((pDbInfo->pVg = taosArrayInit_s(sizeof(SMountVgInfo), nVg)), code, lino, _exit, terrno);
         for (int32_t j = 0; j < nVg; ++j) {
           SMountVgInfo *pVgInfo = TARRAY_GET_ELEM(pDbInfo->pVg, j);
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->vgId));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->cacheLastSize));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->szPage));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->szCache));
+          TAOS_CHECK_EXIT(tDecodeU64v(decoder, &pVgInfo->szBuf));
+          TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->cacheLast));
+          TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->isTsma));
+          TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->isRsma));
+          TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->standby));
+          TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->hashMethod));
+          TAOS_CHECK_EXIT(tDecodeU32v(decoder, &pVgInfo->hashBegin));
+          TAOS_CHECK_EXIT(tDecodeU32v(decoder, &pVgInfo->hashEnd));
+          TAOS_CHECK_EXIT(tDecodeI16v(decoder, &pVgInfo->hashPrefix));
+          TAOS_CHECK_EXIT(tDecodeI16v(decoder, &pVgInfo->hashSuffix));
+          TAOS_CHECK_EXIT(tDecodeI16v(decoder, &pVgInfo->sttTrigger));
+          TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->precision));
+          TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->compression));
+          TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->slLevel));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->minRows));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->maxRows));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->tsdbPageSize));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->s3ChunkSize));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->s3KeepLocal));
+          TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->s3Compact));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->walFsyncPeriod));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->walRetentionPeriod));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->walRollPeriod));
+          TAOS_CHECK_EXIT(tDecodeI64v(decoder, &pVgInfo->walRetentionSize));
+          TAOS_CHECK_EXIT(tDecodeI64v(decoder, &pVgInfo->walSegSize));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->walLevel));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->encryptAlgorithm));
+          TAOS_CHECK_EXIT(tDecodeCStrTo(decoder, pVgInfo->encryptKey));
+          TAOS_CHECK_EXIT(tDecodeU64v(decoder, &pVgInfo->dbId));
         }
       }
       TAOS_CHECK_EXIT(tDecodeI32v(decoder, &nStb));

@@ -1784,22 +1784,18 @@ typedef struct {
   int32_t  szPage;
   int32_t  szCache;
   uint64_t szBuf;
-  bool     isHeap;
-  bool     isWeak;
   int8_t   cacheLast;
   int8_t   isTsma;
   int8_t   isRsma;
-  int8_t   hashMethod;
   int8_t   standby;
+  int8_t   hashMethod;
   uint32_t hashBegin;
   uint32_t hashEnd;
-  bool     hashChange;
-  int16_t  sttTrigger;
   int16_t  hashPrefix;
   int16_t  hashSuffix;
+  int16_t  sttTrigger;
   // tsdbInfo
   int8_t  precision;
-  int8_t  update;
   int8_t  compression;
   int8_t  slLevel;
   int32_t minRows;
@@ -1809,25 +1805,24 @@ typedef struct {
   int32_t s3KeepLocal;
   int8_t  s3Compact;
   // walInfo
-  int32_t  walFsyncPeriod;      // millisecond
-  int32_t  walRetentionPeriod;  // secs
-  int32_t  walRollPeriod;       // secs
-  int64_t  walRetentionSize;
-  int64_t  walSegSize;
-  EWalType walLevel;
+  int32_t walFsyncPeriod;      // millisecond
+  int32_t walRetentionPeriod;  // secs
+  int32_t walRollPeriod;       // secs
+  int64_t walRetentionSize;
+  int64_t walSegSize;
+  int32_t walLevel;
   // encryptInfo
   int32_t encryptAlgorithm;
   char    encryptKey[ENCRYPT_KEY_LEN + 1];
   // dbInfo
   uint64_t dbId;
-  char     dbname[TSDB_DB_FNAME_LEN];
 } SMountVgInfo;
 
 typedef struct {
-  char    dbName[TSDB_DB_FNAME_LEN];
-  int64_t dbId;
-  SArray* pVg;
-  SArray* pStb;
+  char     dbName[TSDB_DB_FNAME_LEN];
+  uint64_t dbId;
+  SArray*  pVg;
+  SArray*  pStb;
 } SMountDbInfo;
 
 typedef struct {
