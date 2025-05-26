@@ -63,7 +63,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into ts3 values(1648791213001,1,12,3,1.0);")
         tdSql.execute(f"insert into ts4 values(1648791213001,1,12,3,1.0);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test0.streamtST1;",
             lambda: tdSql.getRows() == 4,
         )
@@ -75,7 +75,7 @@ class TestStreamOldCasePartitionBy:
 
         time.sleep(1)
         tdSql.execute(f"delete from st where ts = 1648791223001;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test0.streamtST1;",
             lambda: tdSql.getRows() == 4,
         )
@@ -100,7 +100,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into ts1 values(1648791211000,1,2,3);")
         tdSql.execute(f"insert into ts2 values(1648791211000,1,2,3);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 2,
         )
@@ -135,7 +135,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into ts2 values(1648791211000,1,2,3,9);")
         tdSql.execute(f"insert into ts2 values(1648791222001,2,2,3,10);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamtST order by c7 asc;",
             lambda: tdSql.getRows() > 3
             and tdSql.getData(0, 1) == 1
@@ -173,7 +173,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into ts3 values(1648791213001,1,12,3,1.0);")
         tdSql.execute(f"insert into ts4 values(1648791213001,1,12,3,1.0);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamtST1;",
             lambda: tdSql.getRows() == 4,
         )
@@ -198,7 +198,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into ts1 values(1648791211000,1,2,3);")
         tdSql.execute(f"insert into ts2 values(1648791211000,1,2,3);")
 
-        tdStream.checkQueryResults(f"select * from streamt;", lambda: tdSql.getRows() == 2)
+        tdSql.checkResultsByFunc(f"select * from streamt;", lambda: tdSql.getRows() == 2)
 
         tdLog.info(f"=====loop1")
         tdStream.dropAllStreamsAndDbs()
@@ -230,7 +230,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into ts2 values(1648791211000,1,2,3,3);")
         tdSql.execute(f"insert into ts2 values(1648791222001,2,2,3,4);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamtST;",
             lambda: tdSql.getRows() > 3
             and tdSql.getData(0, 1) == 1
@@ -261,7 +261,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -269,7 +269,7 @@ class TestStreamOldCasePartitionBy:
         )
 
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -277,7 +277,7 @@ class TestStreamOldCasePartitionBy:
         )
 
         tdSql.execute(f"insert into t1 values(1648791213000,2,2,3,1.0);")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -289,7 +289,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791213002,2,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213002,1,2,3,1.0);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 1
             and tdSql.getData(0, 1) == 1
@@ -306,7 +306,7 @@ class TestStreamOldCasePartitionBy:
             f"insert into t1 values(1648791213001,1,2,3,1.0) (1648791223001,2,2,3,1.0) (1648791223003,1,2,3,1.0);"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 4
             and tdSql.getData(0, 1) == 2
@@ -338,7 +338,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791213001,2,1,2,2.0);")
         tdSql.execute(f"insert into t1 values(1648791213001,1,2,3,2.0);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt1 order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0 and tdSql.getData(0, 1) == 2,
         )
@@ -350,7 +350,7 @@ class TestStreamOldCasePartitionBy:
             f"insert into t1 values(1648791213001,1,1,6,2.0) (1648791223002,1,1,7,2.0);"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt1 order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -383,7 +383,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t2 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"insert into t2 values(1648791213000,NULL,NULL,NULL,NULL);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -393,7 +393,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
         tdSql.execute(f"insert into t2 values(1648791213000,1,2,3,1.0);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -403,7 +403,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791213000,2,2,3,1.0);")
         tdSql.execute(f"insert into t2 values(1648791213000,2,2,3,1.0);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -419,7 +419,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t2 values(1648791213002,2,2,3,1.0);")
         tdSql.execute(f"insert into t2 values(1648791213002,1,2,3,1.0);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 1
             and tdSql.getData(0, 1) == 2
@@ -443,7 +443,7 @@ class TestStreamOldCasePartitionBy:
             f"insert into t2 values(1648791213001,1,2,3,1.0) (1648791223001,2,2,3,1.0) (1648791223003,1,2,3,1.0);"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 4
             and tdSql.getData(0, 1) == 2
@@ -481,7 +481,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t4 values(1648791213000,2,2,3,1.0);")
         tdSql.execute(f"insert into t4 values(1648791213000,1,2,3,1.0);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt4 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 1
             and tdSql.getData(0, 1) == 1
@@ -494,7 +494,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791233000,2,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt4 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 1) == 1
@@ -532,7 +532,7 @@ class TestStreamOldCasePartitionBy:
         time.sleep(1)
         tdSql.execute(f"delete from st where ts = 1648791223000;")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt5 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 4,
         )
@@ -545,7 +545,7 @@ class TestStreamOldCasePartitionBy:
         time.sleep(1)
         tdSql.execute(f"delete from st where ts = 1648791223001;")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt5 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 4,
         )
@@ -558,7 +558,7 @@ class TestStreamOldCasePartitionBy:
         time.sleep(1)
         tdSql.execute(f"delete from st where ts = 1648791223001;")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt5 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 4,
         )
@@ -587,7 +587,7 @@ class TestStreamOldCasePartitionBy:
         tdLog.info(f"delete from t1 where ts <= 1648791213002;")
         tdSql.execute(f"delete from t1 where ts <= 1648791213002;")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt6 order by 1;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 1) == 1
@@ -621,7 +621,7 @@ class TestStreamOldCasePartitionBy:
         tdLog.info(f"delete from t1 where ts <= 1648791213002;")
         tdSql.execute(f"delete from t1 where ts <= 1648791213002;")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt0 order by 1;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 1) == 1
@@ -653,7 +653,7 @@ class TestStreamOldCasePartitionBy:
         tdLog.info(f"delete from t1 where ts <= 1648791213002;")
         tdSql.execute(f"delete from t1 where ts <= 1648791213002;")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt1 order by 1;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 1) == 1
@@ -683,7 +683,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -691,7 +691,7 @@ class TestStreamOldCasePartitionBy:
         )
 
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -699,7 +699,7 @@ class TestStreamOldCasePartitionBy:
         )
 
         tdSql.execute(f"insert into t1 values(1648791213000,2,2,3,1.0);")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -711,7 +711,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791213002,2,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213002,1,2,3,1.0);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 1
             and tdSql.getData(0, 1) == 2
@@ -728,7 +728,7 @@ class TestStreamOldCasePartitionBy:
             f"insert into t1 values(1648791213001,1,2,3,1.0) (1648791223001,2,2,3,1.0) (1648791223003,1,2,3,1.0);"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 4
             and tdSql.getData(0, 1) == 1
@@ -759,7 +759,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791213001,2,1,2,2.0);")
         tdSql.execute(f"insert into t1 values(1648791213001,1,2,3,2.0);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt1 order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0 and tdSql.getData(0, 1) == 2,
         )
@@ -771,7 +771,7 @@ class TestStreamOldCasePartitionBy:
             f"insert into t1 values(1648791213001,1,1,6,2.0) (1648791223002,1,1,7,2.0);"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt1 order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 3
             and tdSql.getData(0, 1) == 1
@@ -803,7 +803,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t2 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"insert into t2 values(1648791213000,NULL,NULL,NULL,NULL);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -813,7 +813,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
         tdSql.execute(f"insert into t2 values(1648791213000,1,2,3,1.0);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -823,7 +823,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791213000,2,2,3,1.0);")
         tdSql.execute(f"insert into t2 values(1648791213000,2,2,3,1.0);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -839,7 +839,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t2 values(1648791213002,2,2,3,1.0);")
         tdSql.execute(f"insert into t2 values(1648791213002,1,2,3,1.0);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 1
             and tdSql.getData(0, 1) == 4
@@ -863,7 +863,7 @@ class TestStreamOldCasePartitionBy:
             f"insert into t2 values(1648791213001,1,2,3,1.0) (1648791223001,2,2,3,1.0) (1648791223003,1,2,3,1.0);"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 3
             and tdSql.getData(0, 1) == 2
@@ -900,7 +900,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t4 values(1648791213000,2,2,3,1.0);")
         tdSql.execute(f"insert into t4 values(1648791213000,1,2,3,1.0);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt4 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 1) == 1
@@ -913,7 +913,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791233000,2,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt4 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 1) == 1
@@ -944,7 +944,7 @@ class TestStreamOldCasePartitionBy:
         tdLog.info(f"delete from t1 where ts <= 1648791213002;")
         tdSql.execute(f"delete from t1 where ts <= 1648791213002;")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt6 order by 1;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 1) == 1
@@ -969,13 +969,13 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() == 0,
         )
 
         tdSql.execute(f"insert into t1 values(1648791213000,1,1,3,1.0);")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -983,7 +983,7 @@ class TestStreamOldCasePartitionBy:
         )
 
         tdSql.execute(f"insert into t1 values(1648791213000,2,1,3,1.0);")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -995,7 +995,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791213002,2,1,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213002,1,1,3,1.0);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -1012,7 +1012,7 @@ class TestStreamOldCasePartitionBy:
             f"insert into t1 values(1648791213001,1,1,3,1.0) (1648791223001,2,2,3,1.0) (1648791223003,1,2,3,1.0);"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 4
             and tdSql.getData(0, 1) == 1
@@ -1043,7 +1043,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(f"insert into t1 values(1648791213001,2,1,1,2);")
         tdSql.execute(f"insert into t1 values(1648791213001,1,2,1,3);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt1 order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 0 and tdSql.getData(0, 1) == 2,
         )
@@ -1054,7 +1054,7 @@ class TestStreamOldCasePartitionBy:
         tdSql.execute(
             f"insert into t1 values(1648791213001,1,1,1,7) (1648791223002,1,1,2,8);"
         )
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt1 order by c1, c4, c2, c3;",
             lambda: tdSql.getRows() > 3
             and tdSql.getData(0, 1) == 1
@@ -1090,7 +1090,7 @@ class TestStreamOldCasePartitionBy:
         tdLog.info(f"delete from t1 where ts <= 1648791213002;")
         tdSql.execute(f"delete from t1 where ts <= 1648791213002;")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt6 order by 1;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 1) == 1

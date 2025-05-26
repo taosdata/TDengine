@@ -1,4 +1,5 @@
 import time
+import math
 from new_test_framework.utils import tdLog, tdSql, tdStream
 
 
@@ -35,7 +36,7 @@ class TestStreamDevBasic:
         tdStream.createSnode()
 
         tdLog.info(f"=============== create database")
-        tdSql.prepare(dbname="test")
+        tdSql.prepare(dbname="test", vgroups=1)
 
         tdLog.info(f"=============== create super table")
         tdSql.execute(
@@ -74,4 +75,39 @@ class TestStreamDevBasic:
         )
 
         tdLog.info(f"=============== check stream result")
-        tdStream.checkQueryResults(f"show stables", lambda: tdSql.getRows() == 2)
+        tdSql.checkResultsByFunc(f"show stables", lambda: tdSql.getRows() == 1)
+
+        tdSql.checkResultsByFunc(
+            f"select _wstart, avg(id) from stream_query interval(1s)",
+            lambda: tdSql.getRows() == 3
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:01.000")
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:02.000")
+            and tdSql.compareData(0, 1, 0.5)
+            and tdSql.compareData(1, 1, 1.5)
+            and tdSql.compareData(2, 1, 2.5),
+            retry=3,
+        )
+
+        tdSql.checkResultsByFunc(
+            f"select _wstart, avg(id) from stream_query interval(1s)",
+            lambda: tdSql.getRows() >= 3
+            and tdSql.getData(0, 1) == 0.5
+            and tdSql.getData(1, 1) == 1.5
+            and tdSql.getData(2, 1) == 2.5,
+        )
+
+        exp_sql = "select _wstart, avg(id) from stream_query interval(1s)"
+        exp_result = tdSql.getResult(exp_sql)
+        tdSql.checkResultsByArray(
+            f"select _wstart ts, avg(id) res from stream_query interval(1s)",
+            exp_result=exp_result,
+            exp_sql=exp_sql,
+            retry=1,
+        )
+
+        exp_sql = "select _wstart, avg(id) from stream_query interval(1s)"
+        tdSql.checkResultsBySql(
+            f"select _wstart ts, avg(id) res from stream_query interval(1s)",
+            exp_sql=exp_sql,
+        )
