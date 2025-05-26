@@ -35,8 +35,8 @@ typedef enum {
 
 // Metric definition structure
 typedef struct {
-  EMetricType     type;
-  EMetricLevel    level;
+  EMetricType  type;
+  EMetricLevel level;
 } SMetricDef;
 
 // Metric value union
@@ -57,30 +57,20 @@ typedef struct {
   int64_t total_requests;
   int64_t total_rows;
   int64_t total_bytes;
-  double  avg_write_size;   // Or raw sum/count if calculated lazily
-  double  cache_hit_ratio;  // Or raw hits/lookups
-  int64_t rpc_queue_wait;   // Sum
-  int64_t preprocess_time;  // Sum
+  double  avg_write_size;
   int64_t fetch_batch_meta_time;
   int64_t fetch_batch_meta_count;
-  int64_t memory_table_size;  // Current value
-  int64_t memory_table_rows;  // Current value
-  int64_t commit_count;
-  int64_t auto_commit_count;
-  int64_t forced_commit_count;
-  int64_t stt_trigger_value;  // Current value?
-  int64_t merge_count;
-  double  commit_time_sum;  // Sum for avg calculation
-  double  merge_time_sum;   // Sum for avg calculation
-  int64_t blocked_commits;
-  int64_t memtable_wait_time;  // Sum
-
+  int64_t preprocess_time;
   int64_t wal_write_bytes;
   int64_t wal_write_time;
-  int64_t sync_bytes;
-  int64_t sync_time;
   int64_t apply_bytes;
   int64_t apply_time;
+  int64_t commit_count;
+  double  commit_time;
+  int64_t memtable_wait_time;
+  int64_t blocked_commits;
+  int64_t merge_count;
+  double  merge_time;
 } SRawWriteMetrics;
 
 // Write Metrics Extended Structure (Formatted)
@@ -90,28 +80,19 @@ typedef struct {
   SMetric total_rows;
   SMetric total_bytes;
   SMetric avg_write_size;
-  SMetric cache_hit_ratio;
-  SMetric rpc_queue_wait;
-  SMetric preprocess_time;
   SMetric fetch_batch_meta_time;
   SMetric fetch_batch_meta_count;
-  SMetric wal_write_rate;
-  SMetric sync_rate;
-  SMetric apply_rate;
-  SMetric memory_table_size;
-  SMetric memory_table_rows;
-  SMetric commit_count;
-  SMetric merge_count;
-  SMetric avg_commit_time;
-  SMetric avg_merge_time;
-  SMetric blocked_commits;
-  SMetric memtable_wait_time;
+  SMetric preprocess_time;
   SMetric wal_write_bytes;
   SMetric wal_write_time;
-  SMetric sync_bytes;
-  SMetric sync_time;
   SMetric apply_bytes;
   SMetric apply_time;
+  SMetric commit_count;
+  SMetric commit_time;
+  SMetric memtable_wait_time;
+  SMetric blocked_commits;
+  SMetric merge_count;
+  SMetric merge_time;
 } SWriteMetricsEx;
 
 // Query Metrics Extended Structure

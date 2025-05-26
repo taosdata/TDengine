@@ -473,14 +473,13 @@ func (r *Reporter) metricsBatchHandlerFunc() gin.HandlerFunc {
 }
 
 func (r *Reporter) insertWriteMetricsSql(metrics WriteMetricsInfo) string {
-	return fmt.Sprintf("insert into write_metrics_%d using write_metrics tags (%d, %d, '%s', '%s') values (now, %d, %d, %d, %f, %d, %d, %d, %d, %d, %d, %d, %f, %d, %d, %d, %d, %d, %d, %d, %f, %d, %d, %f)",
+	return fmt.Sprintf("insert into write_metrics_%d using write_metrics tags (%d, %d, '%s', '%s') values (now, %d, %d, %d, %f, %d, %d, %d, %d, %d, %d, %d, %d, %f, %d, %d, %d, %f)",
 		metrics.VgId, metrics.VgId, 1, "localhost:6030", "cluster1",
 		metrics.TotalRequests, metrics.TotalRows, metrics.TotalBytes, metrics.AvgWriteSize,
-		metrics.RpcQueueWait, metrics.PreprocessTime, metrics.FetchBatchMetaTime, metrics.FetchBatchMetaCount,
-		metrics.MemtableWaitTime, metrics.MemoryTableRows, metrics.MemoryTableSize, metrics.CacheHitRatio,
-		metrics.WalWriteBytes, metrics.WalWriteTime, metrics.SyncBytes, metrics.SyncTime,
-		metrics.ApplyBytes, metrics.ApplyTime, metrics.CommitCount, metrics.AvgCommitTime,
-		metrics.BlockedCommits, metrics.MergeCount, metrics.AvgMergeTime)
+		metrics.FetchBatchMetaTime, metrics.FetchBatchMetaCount, metrics.PreprocessTime,
+		metrics.WalWriteBytes, metrics.WalWriteTime, metrics.ApplyBytes, metrics.ApplyTime,
+		metrics.CommitCount, metrics.CommitTime, metrics.MemtableWaitTime, 
+		metrics.BlockedCommits, metrics.MergeCount, metrics.MergeTime)
 }
 
 func (r *Reporter) metricsQueryHandlerFunc() gin.HandlerFunc {
@@ -498,14 +497,19 @@ func (r *Reporter) metricsQueryHandlerFunc() gin.HandlerFunc {
 				avg(total_rows) as total_rows,
 				avg(total_bytes) as total_bytes,
 				avg(avg_write_size) as avg_write_size,
-				avg(cache_hit_ratio) as cache_hit_ratio,
-				avg(memory_table_rows) as memory_table_rows,
-				avg(commit_count) as commit_count,
-				avg(avg_commit_time) as avg_commit_time,
+				avg(fetch_batch_meta_time) as fetch_batch_meta_time,
+				avg(fetch_batch_meta_count) as fetch_batch_meta_count,
 				avg(preprocess_time) as preprocess_time,
 				avg(wal_write_bytes) as wal_write_bytes,
-				avg(sync_bytes) as sync_bytes,
-				avg(apply_bytes) as apply_bytes
+				avg(wal_write_time) as wal_write_time,
+				avg(apply_bytes) as apply_bytes,
+				avg(apply_time) as apply_time,
+				avg(commit_count) as commit_count,
+				avg(commit_time) as commit_time,
+				avg(memtable_wait_time) as memtable_wait_time,
+				avg(blocked_commits) as blocked_commits,
+				avg(merge_count) as merge_count,
+				avg(merge_time) as merge_time
 			FROM %s.write_metrics 
 			WHERE vgroup_id = %s`, r.dbname, vgroupId)
 		} else {
@@ -514,14 +518,19 @@ func (r *Reporter) metricsQueryHandlerFunc() gin.HandlerFunc {
 				avg(total_rows) as total_rows,
 				avg(total_bytes) as total_bytes,
 				avg(avg_write_size) as avg_write_size,
-				avg(cache_hit_ratio) as cache_hit_ratio,
-				avg(memory_table_rows) as memory_table_rows,
-				avg(commit_count) as commit_count,
-				avg(avg_commit_time) as avg_commit_time,
+				avg(fetch_batch_meta_time) as fetch_batch_meta_time,
+				avg(fetch_batch_meta_count) as fetch_batch_meta_count,
 				avg(preprocess_time) as preprocess_time,
 				avg(wal_write_bytes) as wal_write_bytes,
-				avg(sync_bytes) as sync_bytes,
-				avg(apply_bytes) as apply_bytes
+				avg(wal_write_time) as wal_write_time,
+				avg(apply_bytes) as apply_bytes,
+				avg(apply_time) as apply_time,
+				avg(commit_count) as commit_count,
+				avg(commit_time) as commit_time,
+				avg(memtable_wait_time) as memtable_wait_time,
+				avg(blocked_commits) as blocked_commits,
+				avg(merge_count) as merge_count,
+				avg(merge_time) as merge_time
 			FROM %s.write_metrics`, r.dbname)
 		}
 
@@ -563,16 +572,19 @@ func (r *Reporter) metricsSummaryHandlerFunc() gin.HandlerFunc {
 			max(total_rows) as max_total_rows,
 			max(total_bytes) as max_total_bytes,
 			avg(avg_write_size) as avg_write_size,
-			avg(cache_hit_ratio) as avg_cache_hit_ratio,
-			max(memory_table_rows) as max_memory_table_rows,
+			sum(fetch_batch_meta_time) as total_fetch_batch_meta_time,
+			max(fetch_batch_meta_count) as max_fetch_batch_meta_count,
+			sum(preprocess_time) as total_preprocess_time,
+			sum(wal_write_bytes) as total_wal_write_bytes,
+			sum(wal_write_time) as total_wal_write_time,
+			sum(apply_bytes) as total_apply_bytes,
+			sum(apply_time) as total_apply_time,
 			max(commit_count) as max_commit_count,
-			avg(avg_commit_time) as avg_commit_time,
+			avg(commit_time) as avg_commit_time,
+			sum(memtable_wait_time) as total_memtable_wait_time,
 			max(blocked_commits) as max_blocked_commits,
 			max(merge_count) as max_merge_count,
-			avg(avg_merge_time) as avg_merge_time,
-			sum(wal_write_bytes) as total_wal_write_bytes,
-			sum(sync_bytes) as total_sync_bytes,
-			sum(apply_bytes) as total_apply_bytes
+			avg(merge_time) as avg_merge_time
 		FROM %s.write_metrics 
 		WHERE %s 
 		GROUP BY vgroup_id 

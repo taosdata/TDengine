@@ -95,7 +95,7 @@ int32_t fillTableColRef(SMetaReader *reader, SColRef *pRef, int32_t numOfCol) {
       SColRef *pColRef = &p->pColRef[i];
       pRef[i].hasRef = pColRef->hasRef;
       pRef[i].id = pColRef->id;
-      if(pRef[i].hasRef) {
+      if (pRef[i].hasRef) {
         tstrncpy(pRef[i].refDbName, pColRef->refDbName, TSDB_DB_NAME_LEN);
         tstrncpy(pRef[i].refTableName, pColRef->refTableName, TSDB_TABLE_NAME_LEN);
         tstrncpy(pRef[i].refColName, pColRef->refColName, TSDB_COL_NAME_LEN);
@@ -176,7 +176,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       break;
     }
     case TSDB_CHILD_TABLE:
-    case TSDB_VIRTUAL_CHILD_TABLE:{
+    case TSDB_VIRTUAL_CHILD_TABLE: {
       metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK);
       if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit2;
 
@@ -227,7 +227,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   }
   if (hasRefCol(mer1.me.type)) {
     metaRsp.rversion = mer1.me.colRef.version;
-    metaRsp.pColRefs = (SColRef*)taosMemoryMalloc(sizeof(SColRef) * metaRsp.numOfColumns);
+    metaRsp.pColRefs = (SColRef *)taosMemoryMalloc(sizeof(SColRef) * metaRsp.numOfColumns);
     if (metaRsp.pColRefs) {
       code = fillTableColRef(&mer1, metaRsp.pColRefs, metaRsp.numOfColumns);
       if (code < 0) {
@@ -382,7 +382,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   cfgRsp.numOfTags = schemaTag.nCols;
   cfgRsp.numOfColumns = schema.nCols;
-  cfgRsp.virtualStb = false; // vnode don't have super table, so it's always false
+  cfgRsp.virtualStb = false;  // vnode don't have super table, so it's always false
   cfgRsp.pSchemas = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * (cfgRsp.numOfColumns + cfgRsp.numOfTags));
   cfgRsp.pSchemaExt = (SSchemaExt *)taosMemoryMalloc(cfgRsp.numOfColumns * sizeof(SSchemaExt));
   cfgRsp.pColRefs = (SColRef *)taosMemoryMalloc(sizeof(SColRef) * cfgRsp.numOfColumns);
@@ -396,7 +396,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     (void)memcpy(cfgRsp.pSchemas + schema.nCols, schemaTag.pSchema, sizeof(SSchema) * schemaTag.nCols);
   }
 
-  SMetaReader     *pReader = (mer1.me.type == TSDB_CHILD_TABLE || mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? &mer2 : &mer1;
+  SMetaReader *pReader = (mer1.me.type == TSDB_CHILD_TABLE || mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? &mer2 : &mer1;
   SColCmprWrapper *pColCmpr = &pReader->me.colCmpr;
   SColRefWrapper  *pColRef = &mer1.me.colRef;
 
@@ -628,15 +628,15 @@ _exit:
     (void)taosThreadRwlockUnlock(&(pVnode)->metaRWLock); \
   } while (0)
 
-int32_t vnodeReadVSubtables(SReadHandle* pHandle, int64_t suid, SArray** ppRes) {
-  int32_t                    code = TSDB_CODE_SUCCESS;
-  int32_t                    line = 0;
-  SMetaReader                mr = {0};
-  bool                       readerInit = false;
-  SVCTableRefCols*           pTb = NULL;
-  int32_t                    refColsNum = 0;
-  char                       tbFName[TSDB_TABLE_FNAME_LEN];
-  SSHashObj*                 pSrcTbls = NULL;
+int32_t vnodeReadVSubtables(SReadHandle *pHandle, int64_t suid, SArray **ppRes) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          line = 0;
+  SMetaReader      mr = {0};
+  bool             readerInit = false;
+  SVCTableRefCols *pTb = NULL;
+  int32_t          refColsNum = 0;
+  char             tbFName[TSDB_TABLE_FNAME_LEN];
+  SSHashObj       *pSrcTbls = NULL;
 
   SArray *pList = taosArrayInit(10, sizeof(uint64_t));
   QUERY_CHECK_NULL(pList, code, line, _return, terrno);
@@ -650,7 +650,7 @@ int32_t vnodeReadVSubtables(SReadHandle* pHandle, int64_t suid, SArray** ppRes) 
   QUERY_CHECK_NULL(pSrcTbls, code, line, _return, terrno);
 
   for (int32_t i = 0; i < num; ++i) {
-    uint64_t* id = taosArrayGet(pList, i);
+    uint64_t *id = taosArrayGet(pList, i);
     QUERY_CHECK_NULL(id, code, line, _return, terrno);
     pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn);
     QUERY_CHECK_CODE(pHandle->api.metaReaderFn.getTableEntryByUid(&mr, *id), line, _return);
@@ -674,7 +674,7 @@ int32_t vnodeReadVSubtables(SReadHandle* pHandle, int64_t suid, SArray** ppRes) 
 
     pTb->uid = mr.me.uid;
     pTb->numOfColRefs = refColsNum;
-    pTb->refCols = (SRefColInfo*)(pTb + 1);
+    pTb->refCols = (SRefColInfo *)(pTb + 1);
 
     refColsNum = 0;
     tSimpleHashClear(pSrcTbls);
@@ -688,7 +688,8 @@ int32_t vnodeReadVSubtables(SReadHandle* pHandle, int64_t suid, SArray** ppRes) 
       tstrncpy(pTb->refCols[refColsNum].refTableName, mr.me.colRef.pColRef[j].refTableName, TSDB_TABLE_NAME_LEN);
       tstrncpy(pTb->refCols[refColsNum].refDbName, mr.me.colRef.pColRef[j].refDbName, TSDB_DB_NAME_LEN);
 
-      snprintf(tbFName, sizeof(tbFName), "%s.%s", pTb->refCols[refColsNum].refDbName, pTb->refCols[refColsNum].refTableName);
+      snprintf(tbFName, sizeof(tbFName), "%s.%s", pTb->refCols[refColsNum].refDbName,
+               pTb->refCols[refColsNum].refTableName);
 
       if (NULL == tSimpleHashGet(pSrcTbls, tbFName, strlen(tbFName))) {
         QUERY_CHECK_CODE(tSimpleHashPut(pSrcTbls, tbFName, strlen(tbFName), &code, sizeof(code)), line, _return);
@@ -721,20 +722,20 @@ _return:
   return code;
 }
 
-int32_t vnodeReadVStbRefDbs(SReadHandle* pHandle, int64_t suid, SArray** ppRes) {
-  int32_t                    code = TSDB_CODE_SUCCESS;
-  int32_t                    line = 0;
-  SMetaReader                mr = {0};
-  bool                       readerInit = false;
-  SSHashObj*                 pDbNameHash = NULL;
-  SArray*                    pList = NULL;
+int32_t vnodeReadVStbRefDbs(SReadHandle *pHandle, int64_t suid, SArray **ppRes) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  int32_t     line = 0;
+  SMetaReader mr = {0};
+  bool        readerInit = false;
+  SSHashObj  *pDbNameHash = NULL;
+  SArray     *pList = NULL;
 
   pList = taosArrayInit(10, sizeof(uint64_t));
   QUERY_CHECK_NULL(pList, code, line, _return, terrno);
 
   *ppRes = taosArrayInit(10, POINTER_BYTES);
   QUERY_CHECK_NULL(*ppRes, code, line, _return, terrno)
-  
+
   // lookup in cache
   code = pHandle->api.metaFn.metaGetCachedRefDbs(pHandle->vnode, suid, *ppRes);
   QUERY_CHECK_CODE(code, line, _return);
@@ -751,7 +752,7 @@ int32_t vnodeReadVStbRefDbs(SReadHandle* pHandle, int64_t suid, SArray** ppRes) 
     QUERY_CHECK_NULL(pDbNameHash, code, line, _return, terrno);
 
     for (int32_t i = 0; i < num; ++i) {
-      uint64_t* id = taosArrayGet(pList, i);
+      uint64_t *id = taosArrayGet(pList, i);
       QUERY_CHECK_NULL(id, code, line, _return, terrno);
 
       pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn);
@@ -762,7 +763,8 @@ int32_t vnodeReadVStbRefDbs(SReadHandle* pHandle, int64_t suid, SArray** ppRes) 
 
       for (int32_t j = 0; j < mr.me.colRef.nCols; j++) {
         if (mr.me.colRef.pColRef[j].hasRef) {
-          if (NULL == tSimpleHashGet(pDbNameHash, mr.me.colRef.pColRef[j].refDbName, strlen(mr.me.colRef.pColRef[j].refDbName))) {
+          if (NULL == tSimpleHashGet(pDbNameHash, mr.me.colRef.pColRef[j].refDbName,
+                                     strlen(mr.me.colRef.pColRef[j].refDbName))) {
             char *refDbName = taosStrdup(mr.me.colRef.pColRef[j].refDbName);
             QUERY_CHECK_NULL(refDbName, code, line, _return, terrno);
 
@@ -802,9 +804,9 @@ int32_t vnodeGetVSubtablesMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t        rspSize = 0;
   SVSubTablesReq req = {0};
   SVSubTablesRsp rsp = {0};
-  SRpcMsg      rspMsg = {0};
-  void        *pRsp = NULL;
-  int32_t      line = 0;
+  SRpcMsg        rspMsg = {0};
+  void          *pRsp = NULL;
+  int32_t        line = 0;
 
   if (tDeserializeSVSubTablesReq(pMsg->pCont, pMsg->contLen, &req)) {
     code = terrno;
@@ -850,10 +852,10 @@ _return:
   }
 
   *pMsg = rspMsg;
-  
+
   tDestroySVSubTablesRsp(&rsp);
 
-  //tmsgSendRsp(&rspMsg);
+  // tmsgSendRsp(&rspMsg);
 
   return code;
 }
@@ -917,7 +919,6 @@ _return:
 
   return code;
 }
-
 
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   SSyncState state = syncGetState(pVnode->sync);
@@ -1429,40 +1430,27 @@ int32_t vnodeGetRawWriteMetrics(void *pVnode, SRawWriteMetrics *pRawMetrics) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  SVnode *pVnode1 = (SVnode *)pVnode;
+  SVnode      *pVnode1 = (SVnode *)pVnode;
   SSyncMetrics syncMetrics = syncGetMetrics(pVnode1->sync);
 
-  // Directly copy/assign raw values from internal vnode metrics
-  // Assuming pVnode1->writeMetrics (SVWriteMetrics) holds the necessary raw data.
-  // Note: Atomic operations might be needed if these are read concurrently.
-  pRawMetrics->total_requests = pVnode1->writeMetrics.total_requests;  // Assuming direct read or atomic read
+  // Copy values following SRawWriteMetrics structure order
+  pRawMetrics->total_requests = pVnode1->writeMetrics.total_requests;
   pRawMetrics->total_rows = pVnode1->writeMetrics.total_rows;
   pRawMetrics->total_bytes = pVnode1->writeMetrics.total_bytes;
-  pRawMetrics->avg_write_size = pVnode1->writeMetrics.write_size;  // Assuming this is pre-calculated or needs sum/count
-  pRawMetrics->rpc_queue_wait = pVnode1->writeMetrics.rpc_queue_wait;
-  pRawMetrics->preprocess_time = pVnode1->writeMetrics.preprocess_time;
-  pRawMetrics->apply_bytes = pVnode1->writeMetrics.apply_bytes;
-  pRawMetrics->apply_time = pVnode1->writeMetrics.apply_time;
+  pRawMetrics->avg_write_size = pVnode1->writeMetrics.write_size;
   pRawMetrics->fetch_batch_meta_time = pVnode1->writeMetrics.fetch_batch_meta_time;
   pRawMetrics->fetch_batch_meta_count = pVnode1->writeMetrics.fetch_batch_meta_count;
-  pRawMetrics->memory_table_size = pVnode1->writeMetrics.memory_table_size;
-  pRawMetrics->commit_count = pVnode1->writeMetrics.commit_count;
-  pRawMetrics->merge_count = pVnode1->writeMetrics.merge_count;
-  pRawMetrics->commit_time_sum = pVnode1->writeMetrics.commit_time;  // Assuming this holds sum for avg
-  pRawMetrics->merge_time_sum = pVnode1->writeMetrics.merge_time;    // Assuming this holds sum for avg
-  pRawMetrics->blocked_commits = pVnode1->writeMetrics.block_commit_time;
-  pRawMetrics->memtable_wait_time = pVnode1->writeMetrics.memtable_wait_time;
-
+  pRawMetrics->preprocess_time = pVnode1->writeMetrics.preprocess_time;
   pRawMetrics->wal_write_bytes = syncMetrics.wal_write_bytes;
   pRawMetrics->wal_write_time = syncMetrics.wal_write_time;
-  pRawMetrics->sync_bytes = syncMetrics.sync_bytes;
-  pRawMetrics->sync_time = syncMetrics.sync_time;
-  // Fields needing calculation or other sources (like cache hit ratio) are not set here
-  // pRawMetrics->cache_hit_ratio = ...;
-  // pRawMetrics->memory_table_rows = ...; // Assuming this comes from elsewhere or needs calculation
-  // pRawMetrics->auto_commit_count = ...;
-  // pRawMetrics->forced_commit_count = ...;
-  // pRawMetrics->stt_trigger_value = ...;
+  pRawMetrics->apply_bytes = pVnode1->writeMetrics.apply_bytes;
+  pRawMetrics->apply_time = pVnode1->writeMetrics.apply_time;
+  pRawMetrics->commit_count = pVnode1->writeMetrics.commit_count;
+  pRawMetrics->commit_time = pVnode1->writeMetrics.commit_time;
+  pRawMetrics->memtable_wait_time = pVnode1->writeMetrics.memtable_wait_time;
+  pRawMetrics->blocked_commits = pVnode1->writeMetrics.block_commit_time;
+  pRawMetrics->merge_count = pVnode1->writeMetrics.merge_count;
+  pRawMetrics->merge_time = pVnode1->writeMetrics.merge_time;
 
   return 0;
 }
