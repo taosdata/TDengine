@@ -46,7 +46,7 @@ int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placehol
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   SAstCreateContext cxt;
   initAstCreateContext(pParseCxt, &cxt);
-  void*   pParser = ParseAlloc((FMalloc)taosMemMalloc);
+  void* pParser = ParseAlloc((FMalloc)taosMemMalloc);
   if (!pParser) return terrno;
   int32_t i = 0;
   while (1) {

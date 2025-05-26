@@ -53,8 +53,6 @@
   } while (0)
 
 #define COPY_STRING_FORM_ID_TOKEN(buf, pToken) strncpy(buf, (pToken)->z, TMIN((pToken)->n, sizeof(buf) - 1))
-
-// strncpy(buf, (pToken)->z, TMIN((pToken)->n, sizeof(buf) - 1))
 #define COPY_STRING_FORM_STR_TOKEN(buf, pToken)                              \
   do {                                                                       \
     if ((pToken)->n > 2) {                                                   \
