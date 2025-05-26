@@ -5,7 +5,7 @@
 
 std::unique_ptr<DatabaseConnector> DatabaseConnector::create(
     const DataChannel& channel,
-    const ConnectionInfo& connInfo) 
+    const ConnectionInfo& connInfo)
 {
     if (channel.channel_type == "native") {
         return std::make_unique<NativeConnector>(connInfo);
