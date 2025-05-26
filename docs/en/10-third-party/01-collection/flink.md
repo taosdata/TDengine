@@ -26,6 +26,7 @@ Flink Connector supports all platforms that can run Flink 1.19 and above version
 
 | Flink Connector Version | Major Changes | TDengine Version|
 |-------------------------| ------------------------------------ | ---------------- |
+| 2.1.1                   | Fix the issue of data binding failure for the same table in Stmt.| - |
 | 2.1.0                   | Fix the issue of writing varchar types from different data sources.| - |
 | 2.0.2                   | The Table Sink supports types such as RowKind.UPDATE_BEFORE, RowKind.UPDATE_AFTER, and RowKind.DELETE.| - |
 | 2.0.1                   | Sink supports writing types from Rowdata implementations.| - |
@@ -108,7 +109,7 @@ If using Maven to manage a project, simply add the following dependencies in pom
 <dependency>
     <groupId>com.taosdata.flink</groupId>
     <artifactId>flink-connector-tdengine</artifactId>
-    <version>2.1.0</version>
+    <version>2.1.1</version>
 </dependency>
 ```
 

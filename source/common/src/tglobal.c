@@ -337,6 +337,8 @@ int32_t tsCompactPullupInterval = 10;
 int32_t tsMqRebalanceInterval = 2;
 int32_t tsStreamCheckpointInterval = 300;
 float   tsSinkDataRate = 2.0;
+int32_t tsThresholdItemsInWriteQueue = 1000;
+int32_t tsThresholdItemsInStreamQueue = 25;
 int32_t tsStreamNodeCheckInterval = 240;   // 3min
 int32_t tsMaxConcurrentCheckpoint = 1;
 int32_t tsTtlUnit = 86400;
@@ -996,6 +998,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "checkpointInterval", tsStreamCheckpointInterval, 60, 1800, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddFloat(pCfg, "streamSinkDataRate", tsSinkDataRate, 0.1, 5, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "concurrentCheckpoint", tsMaxConcurrentCheckpoint, 1, 10, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "itemsInWriteQ", tsThresholdItemsInWriteQueue, 100, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "itemsInStreamQ", tsThresholdItemsInStreamQueue, 10, 5000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
 
@@ -1127,6 +1131,18 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   pItem = cfgGetItem(pCfg, "ratioOfVnodeStreamThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
     pItem->fval = tsRatioOfVnodeStreamThreads;
+    pItem->stype = stype;
+  }
+
+  pItem = cfgGetItem(pCfg, "itemsInWriteQ");
+  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
+    pItem->i32 = tsThresholdItemsInWriteQueue;
+    pItem->stype = stype;
+  }
+
+  pItem = cfgGetItem(pCfg, "itemsInStreamQ");
+  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
+    pItem->i32 = tsThresholdItemsInStreamQueue;
     pItem->stype = stype;
   }
 
@@ -1634,6 +1650,12 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ratioOfVnodeStreamThreads");
   tsRatioOfVnodeStreamThreads = pItem->fval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "itemsInWriteQ");
+  tsThresholdItemsInWriteQueue = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "itemsInStreamQ");
+  tsThresholdItemsInStreamQueue = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfVnodeFetchThreads");
   tsNumOfVnodeFetchThreads = pItem->i32;

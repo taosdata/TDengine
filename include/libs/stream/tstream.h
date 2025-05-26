@@ -696,7 +696,7 @@ typedef struct SCheckpointConsensusEntry {
 void streamSetupScheduleTrigger(SStreamTask* pTask);
 
 // dispatch related
-int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
+int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg, const SMsgCb* msgcb);
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code);
 
 void streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId, SStreamUpstreamEpInfo** pEpInfo);
@@ -836,8 +836,7 @@ void    streamMetaClearStartInfoPartial(STaskStartInfo* pStartInfo);
 int32_t streamMetaResetTaskStatus(SStreamMeta* pMeta);
 int32_t streamMetaAddFailedTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, bool lock);
 void    streamMetaAddFailedTaskSelf(SStreamTask* pTask, int64_t failedTs, bool lock);
-void    streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, SStreamTask* pHTask, int32_t transId,
-                                        int64_t startTs);
+void    streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, int32_t transId, int64_t startTs);
 void    streamMetaClearSetUpdateTaskListComplete(SStreamMeta* pMeta);
 bool    streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId, SArray* pUpdateTaskList);
 

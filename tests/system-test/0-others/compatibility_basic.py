@@ -350,8 +350,24 @@ class CompatibilityBase:
                 tag_name = tdsql.queryResult[i][3]
                 if new_tag_size <= tag_size:
                     continue
-                tdLog.info(f"ALTER STABLE {db_name}.{stable_name} MODIFY TAG {tag_name} nchar({new_tag_size}), case {tag_value} len > {tag_size}")
+                tdLog.info(f"ALTER STABLE {db_name}.{stable_name} MODIFY TAG {tag_name} nchar({new_tag_size})")
+                tdLog.info(f"current tag_value is {tag_value} and tag value len is {len(tag_value)} and tag_size is {tag_size}")
                 tdsql.execute(f"ALTER STABLE {db_name}.{stable_name} MODIFY TAG {tag_name} nchar({new_tag_size})")
+                #check tag size
+                max_try_times = 100
+                try_times = 0
+                while try_times < max_try_times:
+                    tdLog.info(f"select * from information_schema.ins_tags where db_name = '{db_name}' and stable_name = '{stable_name}' and tag_name = '{tag_name}'")
+                    tdsql.query(f"select * from information_schema.ins_tags where db_name = '{db_name}' and stable_name = '{stable_name}' and tag_name = '{tag_name}'")
+                    real_tag_type = tdsql.queryResult[0][4]
+                    real_tag_size =  int(real_tag_type.split('(')[1].split(')')[0])
+                    if real_tag_size == new_tag_size:
+                        tdLog.info(f"success to alter tag size from {tag_size} to {new_tag_size}")
+                        break
+                    time.sleep(0.5)
+                    try_times += 1
+                self.checkTagSizeAndAlterStb(tdsql)
+
 
 
     def verifyData(self,corss_major_version):

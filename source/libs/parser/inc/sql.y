@@ -396,13 +396,13 @@ speed_opt(A) ::= BWLIMIT NK_INTEGER(B).                                         
 
 start_opt(A) ::= .                                                                { A = NULL; }
 start_opt(A) ::= START WITH NK_INTEGER(B).                                        { A = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B); }
-start_opt(A) ::= START WITH NK_STRING(B).                                         { A = createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &B); }
-start_opt(A) ::= START WITH TIMESTAMP NK_STRING(B).                               { A = createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &B); }
+start_opt(A) ::= START WITH NK_STRING(B).                                         { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
+start_opt(A) ::= START WITH TIMESTAMP NK_STRING(B).                               { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
 
 end_opt(A) ::= .                                                                  { A = NULL; }
 end_opt(A) ::= END WITH NK_INTEGER(B).                                            { A = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B); }
-end_opt(A) ::= END WITH NK_STRING(B).                                             { A = createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &B); }
-end_opt(A) ::= END WITH TIMESTAMP NK_STRING(B).                                   { A = createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &B); }
+end_opt(A) ::= END WITH NK_STRING(B).                                             { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
+end_opt(A) ::= END WITH TIMESTAMP NK_STRING(B).                                   { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
 
 /************************************************ create/drop table/stable ********************************************/
 cmd ::= CREATE TABLE not_exists_opt(A) full_table_name(B)
