@@ -756,6 +756,10 @@ int32_t fmGetStreamPseudoFuncType(int32_t funcId) {
       return STREAM_PSEUDO_FUNC_TLOCALTIME;
     case FUNCTION_TYPE_TGRPID:
       return STREAM_PSEUDO_FUNC_TGRPID;
+    case FUNCTION_TYPE_PLACEHOLDER_COLUMN:
+      return STREAM_PSEUDO_FUNC_PLACEHOLDER_COLUMN;
+    case FUNCTION_TYPE_PLACEHOLDER_TBNAME:
+      return STREAM_PSEUDO_FUNC_PLACEHOLDER_TBNAME;
     default:
       break;
   }
@@ -779,6 +783,10 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
       return &pParams->triggerTime;
     case FUNCTION_TYPE_TGRPID:
       return &pStreamRuntimeFuncInfo->groupId;
+    case  FUNCTION_TYPE_PLACEHOLDER_COLUMN:
+      return pStreamRuntimeFuncInfo->pStreamPartColVals;
+    // case FUNCTION_TYPE_PLACEHOLDER_TBNAME:
+      // return &pStreamRuntimeFuncInfo->tbName;
     default:
       break;
   }
@@ -808,6 +816,43 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
       uError("failed to set value node value: %s", tstrerror(code));
       return code;
     }
+  } else if (STREAM_PSEUDO_FUNC_PLACEHOLDER_COLUMN == t) {
+    SNode* pFirstParam = nodesListGetNode(pParamNodes, 0);
+    if (nodeType(pFirstParam) != QUERY_NODE_VALUE) {
+      uError("invalid param node type: %d for func: %d", nodeType(pFirstParam), funcId);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+    SNode* pSecondParam = nodesListGetNode(pParamNodes, 1);
+    if (nodeType(pSecondParam) != QUERY_NODE_VALUE) {
+      uError("invalid param node type: %d for func: %d", nodeType(pSecondParam), funcId);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+    SArray* pVal = (SArray*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
+    int32_t idx = ((SValueNode*)pSecondParam)->datum.i;
+    if (idx - 1 < 0 || idx - 1 >= taosArrayGetSize(pVal)) {
+      uError("invalid idx: %d for func: %d, should be in [1, %d]", idx, funcId, taosArrayGetSize(pVal));
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+    SStreamGroupValue* pValue = taosArrayGet(pVal, idx - 1);
+    if (pValue == NULL) {
+      uError("invalid idx: %d for func: %d, should be in [1, %d]", idx, funcId, taosArrayGetSize(pVal));
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+    if (!pValue->isNull){
+      if (pValue->data.type != ((SValueNode*)pFirstParam)->node.resType.type){
+        uError("invalid value type: %d for func: %d, should be: %d", pValue->data.type, funcId, ((SValueNode*)pFirstParam)->node.resType.type);
+        return TSDB_CODE_INTERNAL_ERROR;
+      }
+      if (IS_VAR_DATA_TYPE(((SValueNode*)pFirstParam)->node.resType.type)) {
+        taosMemoryFree(((SValueNode*)pFirstParam)->datum.p);
+        ((SValueNode*)pFirstParam)->datum.p = taosMemoryCalloc(1, pValue->data.nData + VARSTR_HEADER_SIZE); 
+        memcpy(varDataVal(((SValueNode*)pFirstParam)->datum.p), pValue->data.pData, pValue->data.nData);
+        varDataLen(((SValueNode*)pFirstParam)->datum.p) = pValue->data.nData;
+      } else {
+        code = nodesSetValueNodeValue((SValueNode*)pFirstParam, VALUE_GET_DATUM(&pValue->data, pValue->data.type));
+      }
+    }
+    ((SValueNode*)pFirstParam)->isNull = pValue->isNull;
   } else if (LIST_LENGTH(pParamNodes) == 1) {
     // twstart, twend
     const void* pVal = fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
@@ -833,7 +878,7 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
     }
     int32_t idx = ((SValueNode*)pSecondParam)->datum.i;
     const SValue* pVal = taosArrayGet(pVals2, idx);
-    int32_t code = nodesSetValueNodeValue((SValueNode*)pFirstParam, VALUE_GET_DATUM(pVal, pFirstParam->type));
+    code = nodesSetValueNodeValue((SValueNode*)pFirstParam, VALUE_GET_DATUM(pVal, pFirstParam->type));
   }
   return code;
 }

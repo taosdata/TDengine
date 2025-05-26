@@ -802,7 +802,7 @@ static int32_t buildGroupInfo(SColumnInfoData* pValue, int32_t i, SArray* gInfo)
       v->data.pData = taosMemoryCalloc(1, varDataLen(data) + 1);
       memcpy(v->data.pData, varDataVal(data), varDataLen(data));
       qDebug("buildGroupInfo:%d add var data type:%d, len:%d, data:%s", i, pValue->info.type, varDataLen(data), (char*)v->data.pData);
-    } else {
+    } else {  // reader todo decimal
       v->data.type = pValue->info.type;
       memcpy(&v->data.val, data, pValue->info.bytes);
       qDebug("buildGroupInfo:%d add data type:%d, data:%"PRId64, i, pValue->info.type, v->data.val);

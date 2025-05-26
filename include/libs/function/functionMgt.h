@@ -360,8 +360,11 @@ typedef enum SStreamPseudoFuncType {
   STREAM_PSEUDO_FUNC_TWEND = 2,
   STREAM_PSEUDO_FUNC_TWDURATION = 3,
   STREAM_PSEUDO_FUNC_TWROWNUM = 4,
-  STREAM_PSEUDO_FUNC_TGRPID = 6,
   STREAM_PSEUDO_FUNC_TLOCALTIME = 5,
+  STREAM_PSEUDO_FUNC_TGRPID = 6,
+  STREAM_PSEUDO_FUNC_PLACEHOLDER_COLUMN = 7,
+  STREAM_PSEUDO_FUNC_PLACEHOLDER_TBNAME = 8,
+
 } SStreamPseudoFuncType;
 
 int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, const SStreamRuntimeFuncInfo* pStreamRuntimeInfo);
