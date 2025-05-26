@@ -34,6 +34,7 @@ var createList = []string{
 	// CreateGrantInfoSql,
 	CreateKeeperSql,
 	CreateWriteMetricsSql,
+	CreateDnodeMetricsSql,
 }
 
 type Reporter struct {
@@ -65,9 +66,13 @@ func (r *Reporter) Init(c gin.IRouter) {
 	c.POST("report", r.handlerFunc())
 	c.POST("metrics", r.metricsHandlerFunc())
 	c.POST("metrics-batch", r.metricsBatchHandlerFunc())
+	c.POST("dnode-metrics", r.dnodeMetricsHandlerFunc())
+	c.POST("dnode-metrics-batch", r.dnodeMetricsBatchHandlerFunc())
 	c.GET("metrics/query", r.metricsQueryHandlerFunc())
 	c.GET("metrics/summary", r.metricsSummaryHandlerFunc())
 	c.GET("metrics/vgroups", r.metricsVgroupsHandlerFunc())
+	c.GET("dnode-metrics/query", r.dnodeMetricsQueryHandlerFunc())
+	c.GET("dnode-metrics/summary", r.dnodeMetricsSummaryHandlerFunc())
 	r.createDatabase()
 	r.creatTables()
 	// todo: it can delete in the future.
@@ -741,4 +746,168 @@ func insertLogSummary(log LogInfo, DnodeID int, DnodeEp string, ClusterID string
 func insertGrantSql(g GrantInfo, DnodeID int, ClusterID string, ts string) string {
 	return fmt.Sprintf("insert into grants_info_%s using grants_info tags ('%s') (ts, expire_time, "+
 		"timeseries_used, timeseries_total) values ('%s', %d, %d, %d)", ClusterID+strconv.Itoa(DnodeID), ClusterID, ts, g.ExpireTime, g.TimeseriesUsed, g.TimeseriesTotal)
+}
+
+func (r *Reporter) dnodeMetricsHandlerFunc() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		qid := util.GetQid(c.GetHeader("X-QID"))
+		
+		logger := logger.WithFields(
+			logrus.Fields{config.ReqIDKey: qid},
+		)
+
+		var report DnodeMetricsReport
+		if err := c.ShouldBindJSON(&report); err != nil {
+			logger.Errorf("bind json error, msg:%s", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		conn, err := db.NewConnectorWithDb(r.username, r.password, r.host, r.port, r.dbname, r.usessl)
+		if err != nil {
+			logger.Errorf("connect to database error, msg:%s", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		defer r.closeConn(conn)
+
+		sql := r.insertDnodeMetricsSql(report.DnodeMetrics, 1, "localhost:6030", "cluster1")
+		
+		ctx := context.Background()
+		_, err = conn.Exec(ctx, sql, qid)
+		if err != nil {
+			logger.Errorf("execute sql error, sql:%s, error:%s", sql, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		r.recordTotalRep()
+		c.JSON(http.StatusOK, gin.H{})
+	}
+}
+
+func (r *Reporter) insertDnodeMetricsSql(metrics DnodeMetricsInfo, dnodeId int, dnodeEp string, clusterId string) string {
+	return fmt.Sprintf("insert into dnode_metrics_%d using dnode_metrics tags (%d, '%s', '%s') values (now, %d, %d, %d, %d)",
+		dnodeId, dnodeId, dnodeEp, clusterId,
+		metrics.RpcQueueMemoryAllowed, metrics.RpcQueueMemoryUsed, 
+		metrics.ApplyMemoryAllowed, metrics.ApplyMemoryUsed)
+}
+
+func (r *Reporter) dnodeMetricsQueryHandlerFunc() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		dnodeId := c.Query("dnode_id")
+		startTime := c.Query("start_time")
+		endTime := c.Query("end_time")
+		interval := c.DefaultQuery("interval", "1m")
+		limit := c.DefaultQuery("limit", "1000")
+
+		var sql string
+		if dnodeId != "" {
+			sql = fmt.Sprintf(`SELECT _wstart as ts, dnode_id, 
+				avg(rpc_queue_memory_allowed) as rpc_queue_memory_allowed,
+				avg(rpc_queue_memory_used) as rpc_queue_memory_used,
+				avg(apply_memory_allowed) as apply_memory_allowed,
+				avg(apply_memory_used) as apply_memory_used
+			FROM %s.dnode_metrics 
+			WHERE dnode_id = %s`, r.dbname, dnodeId)
+		} else {
+			sql = fmt.Sprintf(`SELECT _wstart as ts, dnode_id,
+				avg(rpc_queue_memory_allowed) as rpc_queue_memory_allowed,
+				avg(rpc_queue_memory_used) as rpc_queue_memory_used,
+				avg(apply_memory_allowed) as apply_memory_allowed,
+				avg(apply_memory_used) as apply_memory_used
+			FROM %s.dnode_metrics`, r.dbname)
+		}
+
+		if startTime != "" && endTime != "" {
+			sql += fmt.Sprintf(" AND ts >= '%s' AND ts <= '%s'", startTime, endTime)
+		} else if startTime != "" {
+			sql += fmt.Sprintf(" AND ts >= '%s'", startTime)
+		} else if endTime != "" {
+			sql += fmt.Sprintf(" AND ts <= '%s'", endTime)
+		}
+
+		sql += fmt.Sprintf(" INTERVAL(%s) GROUP BY dnode_id ORDER BY ts DESC LIMIT %s", interval, limit)
+
+		r.executeQueryAndRespond(c, sql)
+	}
+}
+
+func (r *Reporter) dnodeMetricsSummaryHandlerFunc() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		timeRange := c.DefaultQuery("time_range", "1h")
+		
+		var timeFilter string
+		switch timeRange {
+		case "1h":
+			timeFilter = "ts >= now - 1h"
+		case "6h":
+			timeFilter = "ts >= now - 6h" 
+		case "24h":
+			timeFilter = "ts >= now - 24h"
+		case "7d":
+			timeFilter = "ts >= now - 7d"
+		default:
+			timeFilter = "ts >= now - 1h"
+		}
+
+		sql := fmt.Sprintf(`SELECT 
+			dnode_id,
+			max(rpc_queue_memory_allowed) as max_rpc_queue_memory_allowed,
+			max(rpc_queue_memory_used) as max_rpc_queue_memory_used,
+			avg(rpc_queue_memory_used * 100.0 / rpc_queue_memory_allowed) as avg_rpc_queue_memory_usage_percent,
+			max(apply_memory_allowed) as max_apply_memory_allowed,
+			max(apply_memory_used) as max_apply_memory_used,
+			avg(apply_memory_used * 100.0 / apply_memory_allowed) as avg_apply_memory_usage_percent
+		FROM %s.dnode_metrics 
+		WHERE %s 
+		GROUP BY dnode_id 
+		ORDER BY dnode_id`, r.dbname, timeFilter)
+
+		r.executeQueryAndRespond(c, sql)
+	}
+}
+
+func (r *Reporter) dnodeMetricsBatchHandlerFunc() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		qid := util.GetQid(c.GetHeader("X-QID"))
+
+		logger := logger.WithFields(
+			logrus.Fields{config.ReqIDKey: qid},
+		)
+
+		data, err := c.GetRawData()
+		if err != nil {
+			logger.Errorf("receiving dnode metrics batch data error, msg:%s", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		var batchReport DnodeMetricsReport
+		if e := json.Unmarshal(data, &batchReport); e != nil {
+			logger.Errorf("error occurred while unmarshal dnode metrics batch request, data:%s, error:%v", data, e)
+			c.JSON(http.StatusBadRequest, gin.H{"error": e.Error()})
+			return
+		}
+
+		sql := r.insertDnodeMetricsSql(batchReport.DnodeMetrics, 1, "localhost:6030", "cluster1")
+
+		conn, err := db.NewConnectorWithDb(r.username, r.password, r.host, r.port, r.dbname, r.usessl)
+		if err != nil {
+			logger.Errorf("connect to database error, msg:%s", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		defer r.closeConn(conn)
+
+		ctx := context.Background()
+		if _, err := conn.Exec(ctx, sql, qid); err != nil {
+			logger.Errorf("execute sql error, sql:%s, error:%s", sql, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		r.recordTotalRep()
+		c.JSON(http.StatusOK, gin.H{})
+	}
 }

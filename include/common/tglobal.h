@@ -69,7 +69,7 @@ extern char          tsEncryptScope[];
 extern EEncryptAlgor tsiEncryptAlgorithm;
 extern EEncryptScope tsiEncryptScope;
 // extern char     tsAuthCode[];
-extern char tsEncryptKey[];
+extern char   tsEncryptKey[];
 extern int8_t tsEnableStrongPassword;
 
 // common
@@ -115,7 +115,9 @@ extern int32_t tsNumOfQnodeFetchThreads;
 extern int32_t tsNumOfSnodeStreamThreads;
 extern int32_t tsNumOfSnodeWriteThreads;
 extern int64_t tsQueueMemoryAllowed;
+extern int64_t tsQueueMemoryUsed;
 extern int64_t tsApplyMemoryAllowed;
+extern int64_t tsApplyMemoryUsed;
 extern int32_t tsRetentionSpeedLimitMB;
 
 extern int32_t tsNumOfCompactThreads;

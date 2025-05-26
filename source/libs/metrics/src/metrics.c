@@ -44,14 +44,17 @@ static SMetricsManager gMetricsManager = {0};
 
 static void destroyWriteMetricsEx(void *p) { taosMemoryFree(*(SWriteMetricsEx **)p); }
 
+static void destroyDnodeMetricsEx(void *p) { taosMemoryFree(*(SDnodeMetricsEx **)p); }
+
 int32_t initMetricsManager() {
   int32_t code = 0;
 
-  gMetricsManager.pDnodeMetrics = taosArrayInit(8, sizeof(SMetric));
+  gMetricsManager.pDnodeMetrics = taosMemoryMalloc(sizeof(SDnodeMetricsEx));
   if (gMetricsManager.pDnodeMetrics == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
+  initDnodeMetricsEx((SDnodeMetricsEx *)gMetricsManager.pDnodeMetrics);
 
   // Initialize pWriteMetrics hash table for SWriteMetricsBundle*
   gMetricsManager.pWriteMetrics =
@@ -85,7 +88,10 @@ _err:
 }
 
 static void destroyMetricsManager() {
-  taosArrayDestroy(gMetricsManager.pDnodeMetrics);
+  if (gMetricsManager.pDnodeMetrics) {
+    taosMemoryFree(gMetricsManager.pDnodeMetrics);
+    gMetricsManager.pDnodeMetrics = NULL;
+  }
   taosHashClear(gMetricsManager.pWriteMetrics);
   taosHashClear(gMetricsManager.pQueryMetrics);
   taosHashClear(gMetricsManager.pStreamMetrics);
@@ -174,6 +180,14 @@ void initWriteMetricsEx(SWriteMetricsEx *pMetrics) {
   initMetric(&pMetrics->merge_time, METRIC_TYPE_DOUBLE, METRIC_LEVEL_LOW);
 }
 
+void initDnodeMetricsEx(SDnodeMetricsEx *pMetrics) {
+  if (pMetrics == NULL) return;
+  initMetric(&pMetrics->rpcQueueMemoryAllowed, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
+  initMetric(&pMetrics->rpcQueueMemoryUsed, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
+  initMetric(&pMetrics->applyMemoryAllowed, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
+  initMetric(&pMetrics->applyMemoryUsed, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
+}
+
 void cleanupMetrics() { destroyMetricsManager(); }
 
 static void updateFormattedFromRaw(SWriteMetricsEx *fmt, const SRawWriteMetrics *raw, int32_t vgId) {
@@ -198,6 +212,15 @@ static void updateFormattedFromRaw(SWriteMetricsEx *fmt, const SRawWriteMetrics 
   setMetricInt64(&fmt->blocked_commits, raw->blocked_commits);
   setMetricInt64(&fmt->merge_count, raw->merge_count);
   setMetricDouble(&fmt->merge_time, raw->merge_time);
+}
+
+static void updateDnodeFormattedFromRaw(SDnodeMetricsEx *fmt, const SRawDnodeMetrics *raw) {
+  if (fmt == NULL || raw == NULL) return;
+
+  setMetricInt64(&fmt->rpcQueueMemoryAllowed, raw->rpcQueueMemoryAllowed);
+  setMetricInt64(&fmt->rpcQueueMemoryUsed, raw->rpcQueueMemoryUsed);
+  setMetricInt64(&fmt->applyMemoryAllowed, raw->applyMemoryAllowed);
+  setMetricInt64(&fmt->applyMemoryUsed, raw->applyMemoryUsed);
 }
 
 int32_t addWriteMetrics(int32_t vgId, const SRawWriteMetrics *pRawMetrics) {
@@ -230,6 +253,31 @@ int32_t addWriteMetrics(int32_t vgId, const SRawWriteMetrics *pRawMetrics) {
     updateFormattedFromRaw(pMetricEx, pRawMetrics, vgId);
   }
   return code;
+}
+
+int32_t addDnodeMetrics(const SRawDnodeMetrics *pRawMetrics) {
+  if (pRawMetrics == NULL || gMetricsManager.pDnodeMetrics == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SDnodeMetricsEx *pMetricEx = (SDnodeMetricsEx *)gMetricsManager.pDnodeMetrics;
+  updateDnodeFormattedFromRaw(pMetricEx, pRawMetrics);
+  return TSDB_CODE_SUCCESS;
+}
+
+SDnodeMetricsEx *getDnodeMetrics() { return (SDnodeMetricsEx *)gMetricsManager.pDnodeMetrics; }
+
+SWriteMetricsEx *getWriteMetricsByVgId(int32_t vgId) {
+  if (gMetricsManager.pWriteMetrics == NULL) {
+    return NULL;
+  }
+
+  SWriteMetricsEx **ppMetricEx = (SWriteMetricsEx **)taosHashGet(gMetricsManager.pWriteMetrics, &vgId, sizeof(vgId));
+  if (ppMetricEx == NULL) {
+    return NULL;
+  }
+
+  return *ppMetricEx;
 }
 
 static SJson *metricsToJson(SWriteMetricsEx *pMetrics) {
@@ -266,6 +314,35 @@ static SJson *metricsToJson(SWriteMetricsEx *pMetrics) {
   return pJson;
 }
 
+static SJson *dnodeMetricsToJson(SDnodeMetricsEx *pMetrics) {
+  SJson *pJson = tjsonCreateObject();
+  if (pJson == NULL) return NULL;
+
+  char    buf[40] = {0};
+  int64_t curTime = taosGetTimestampMs();
+  if (taosFormatUtcTime(buf, sizeof(buf), curTime, TSDB_TIME_PRECISION_MILLI) != 0) {
+    tjsonDelete(pJson);
+    return NULL;
+  }
+
+  tjsonAddStringToObject(pJson, "ts", buf);
+
+  SJson *pDnodeMetricsJson = tjsonCreateObject();
+  if (pDnodeMetricsJson == NULL) {
+    tjsonDelete(pJson);
+    return NULL;
+  }
+
+  tjsonAddDoubleToObject(pDnodeMetricsJson, "rpcQueueMemoryAllowed", getMetricInt64(&pMetrics->rpcQueueMemoryAllowed));
+  tjsonAddDoubleToObject(pDnodeMetricsJson, "rpcQueueMemoryUsed", getMetricInt64(&pMetrics->rpcQueueMemoryUsed));
+  tjsonAddDoubleToObject(pDnodeMetricsJson, "applyMemoryAllowed", getMetricInt64(&pMetrics->applyMemoryAllowed));
+  tjsonAddDoubleToObject(pDnodeMetricsJson, "applyMemoryUsed", getMetricInt64(&pMetrics->applyMemoryUsed));
+
+  tjsonAddItemToObject(pJson, "dnode_metrics", pDnodeMetricsJson);
+
+  return pJson;
+}
+
 static void sendMetricsReport(SJson *pJson) {
   if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
 
@@ -276,6 +353,22 @@ static void sendMetricsReport(SJson *pJson) {
     snprintf(tmp, 100, "0x%" PRIxLEAST64, taosGetTimestampUs());
     if (taosSendHttpReportWithQID(tsMonitorFqdn, "/metrics", tsMonitorPort, pCont, strlen(pCont), flag, tmp) != 0) {
       uError("failed to send metrics msg");
+    }
+    taosMemoryFree(pCont);
+  }
+}
+
+static void sendDnodeMetricsReport(SJson *pJson) {
+  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
+
+  char *pCont = tjsonToString(pJson);
+  if (pCont != NULL) {
+    EHttpCompFlag flag = HTTP_FLAT;
+    char          tmp[100] = {0};
+    snprintf(tmp, 100, "0x%" PRIxLEAST64, taosGetTimestampUs());
+    if (taosSendHttpReportWithQID(tsMonitorFqdn, "/dnode-metrics", tsMonitorPort, pCont, strlen(pCont), flag, tmp) !=
+        0) {
+      uError("failed to send dnode metrics msg");
     }
     taosMemoryFree(pCont);
   }
@@ -326,75 +419,22 @@ void reportWriteMetrics() {
   }
 }
 
-void sendAllMetricsReport() {
-  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
-  if (gMetricsManager.pWriteMetrics == NULL) return;
-
-  SJson *pRootJson = tjsonCreateObject();
-  if (pRootJson == NULL) return;
-
-  char    buf[40] = {0};
-  int64_t curTime = taosGetTimestampMs();
-  if (taosFormatUtcTime(buf, sizeof(buf), curTime, TSDB_TIME_PRECISION_MILLI) != 0) {
-    tjsonDelete(pRootJson);
+void reportDnodeMetrics() {
+  if (gMetricsManager.pDnodeMetrics == NULL) {
+    uError("Dnode metrics manager not initialized for reporting.");
     return;
   }
 
-  tjsonAddStringToObject(pRootJson, "ts", buf);
-  SJson *pMetricsArray = tjsonAddArrayToObject(pRootJson, "write_metrics");
-  if (pMetricsArray == NULL) {
-    tjsonDelete(pRootJson);
-    return;
+  SDnodeMetricsEx *pMetrics = (SDnodeMetricsEx *)gMetricsManager.pDnodeMetrics;
+
+  uInfo("Dnode RpcQueueMemoryAllowed:%" PRId64 " RpcQueueMemoryUsed:%" PRId64 " ApplyMemoryAllowed:%" PRId64
+        " ApplyMemoryUsed:%" PRId64,
+        getMetricInt64(&pMetrics->rpcQueueMemoryAllowed), getMetricInt64(&pMetrics->rpcQueueMemoryUsed),
+        getMetricInt64(&pMetrics->applyMemoryAllowed), getMetricInt64(&pMetrics->applyMemoryUsed));
+
+  SJson *pJson = dnodeMetricsToJson(pMetrics);
+  if (pJson != NULL) {
+    sendDnodeMetricsReport(pJson);
+    tjsonDelete(pJson);
   }
-
-  void            *pIter = NULL;
-  SWriteMetricsEx *pMetrics = NULL;
-  void            *pData = NULL;
-
-  while ((pData = taosHashIterate(gMetricsManager.pWriteMetrics, pIter)) != NULL) {
-    pMetrics = *(SWriteMetricsEx **)pData;
-    pIter = pData;
-
-    if (pMetrics == NULL) continue;
-
-    SJson *pVgJson = tjsonCreateObject();
-    if (pVgJson == NULL) continue;
-
-    tjsonAddDoubleToObject(pVgJson, "vgId", pMetrics->vgId);
-    tjsonAddDoubleToObject(pVgJson, "total_requests", getMetricInt64(&pMetrics->total_requests));
-    tjsonAddDoubleToObject(pVgJson, "total_rows", getMetricInt64(&pMetrics->total_rows));
-    tjsonAddDoubleToObject(pVgJson, "total_bytes", getMetricInt64(&pMetrics->total_bytes));
-    tjsonAddDoubleToObject(pVgJson, "avg_write_size", getMetricDouble(&pMetrics->avg_write_size));
-    tjsonAddDoubleToObject(pVgJson, "fetch_batch_meta_time", getMetricInt64(&pMetrics->fetch_batch_meta_time));
-    tjsonAddDoubleToObject(pVgJson, "fetch_batch_meta_count", getMetricInt64(&pMetrics->fetch_batch_meta_count));
-    tjsonAddDoubleToObject(pVgJson, "preprocess_time", getMetricInt64(&pMetrics->preprocess_time));
-    tjsonAddDoubleToObject(pVgJson, "wal_write_bytes", getMetricInt64(&pMetrics->wal_write_bytes));
-    tjsonAddDoubleToObject(pVgJson, "wal_write_time", getMetricInt64(&pMetrics->wal_write_time));
-    tjsonAddDoubleToObject(pVgJson, "apply_bytes", getMetricInt64(&pMetrics->apply_bytes));
-    tjsonAddDoubleToObject(pVgJson, "apply_time", getMetricInt64(&pMetrics->apply_time));
-    tjsonAddDoubleToObject(pVgJson, "commit_count", getMetricInt64(&pMetrics->commit_count));
-    tjsonAddDoubleToObject(pVgJson, "commit_time", getMetricDouble(&pMetrics->commit_time));
-    tjsonAddDoubleToObject(pVgJson, "memtable_wait_time", getMetricInt64(&pMetrics->memtable_wait_time));
-    tjsonAddDoubleToObject(pVgJson, "blocked_commits", getMetricInt64(&pMetrics->blocked_commits));
-    tjsonAddDoubleToObject(pVgJson, "merge_count", getMetricInt64(&pMetrics->merge_count));
-    tjsonAddDoubleToObject(pVgJson, "merge_time", getMetricDouble(&pMetrics->merge_time));
-
-    if (tjsonAddItemToArray(pMetricsArray, pVgJson) != 0) {
-      tjsonDelete(pVgJson);
-    }
-  }
-
-  char *pCont = tjsonToString(pRootJson);
-  if (pCont != NULL) {
-    EHttpCompFlag flag = HTTP_FLAT;
-    char          tmp[100] = {0};
-    snprintf(tmp, 100, "0x%" PRIxLEAST64, taosGetTimestampUs());
-    if (taosSendHttpReportWithQID(tsMonitorFqdn, "/metrics-batch", tsMonitorPort, pCont, strlen(pCont), flag, tmp) !=
-        0) {
-      uError("failed to send metrics batch msg");
-    }
-    taosMemoryFree(pCont);
-  }
-
-  tjsonDelete(pRootJson);
 }

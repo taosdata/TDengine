@@ -14,10 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "audit.h"
 #include "dmMgmt.h"
 #include "dmNodes.h"
-#include "audit.h"
 #include "metrics.h"
+#include "tglobal.h"
 
 static void collectDnodeMetricsInfo(SDnode *pDnode);
 static void collectWriteMetricsInfo(SDnode *pDnode);
@@ -35,12 +36,22 @@ void dmSendMetricsReport() {
   collectQueryMetricsInfo(pDnode);
   collectStreamMetricsInfo(pDnode);
 
+  reportDnodeMetrics();
   reportWriteMetrics();
 }
 
 static void collectDnodeMetricsInfo(SDnode *pDnode) {
-  // TODO: collect dnode metrics info
-  return;
+  SRawDnodeMetrics rawMetrics = {0};
+
+  rawMetrics.rpcQueueMemoryAllowed = tsQueueMemoryAllowed;
+  rawMetrics.rpcQueueMemoryUsed = atomic_load_64(&tsQueueMemoryUsed);
+  rawMetrics.applyMemoryAllowed = tsApplyMemoryAllowed;
+  rawMetrics.applyMemoryUsed = atomic_load_64(&tsApplyMemoryUsed);
+
+  int32_t code = addDnodeMetrics(&rawMetrics);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("Failed to add dnode metrics, code: %d", code);
+  }
 }
 
 static void collectWriteMetricsInfo(SDnode *pDnode) {
@@ -54,12 +65,6 @@ static void collectWriteMetricsInfo(SDnode *pDnode) {
   return;
 }
 
-static void collectQueryMetricsInfo(SDnode *pDnode) {
-  // TODO: collect query metrics info
-  return;
-}
+static void collectQueryMetricsInfo(SDnode *pDnode) { return; }
 
-static void collectStreamMetricsInfo(SDnode *pDnode) {
-  // TODO: collect stream metrics info
-  return;
-}
+static void collectStreamMetricsInfo(SDnode *pDnode) { return; }

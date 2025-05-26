@@ -52,6 +52,27 @@ typedef struct {
   SMetricValue value;
 } SMetric;
 
+typedef struct {
+  int64_t rpcQueueMemoryAllowed;
+  int64_t rpcQueueMemoryUsed;
+  int64_t applyMemoryAllowed;
+  int64_t applyMemoryUsed;
+} SDnodeMetrics;
+
+typedef struct {
+  int64_t rpcQueueMemoryAllowed;
+  int64_t rpcQueueMemoryUsed;
+  int64_t applyMemoryAllowed;
+  int64_t applyMemoryUsed;
+} SRawDnodeMetrics;
+
+typedef struct {
+  SMetric rpcQueueMemoryAllowed;
+  SMetric rpcQueueMemoryUsed;
+  SMetric applyMemoryAllowed;
+  SMetric applyMemoryUsed;
+} SDnodeMetricsEx;
+
 // Raw Write Metrics Structure (Primitive Types)
 typedef struct {
   int64_t total_requests;
@@ -105,10 +126,10 @@ typedef struct {
 
 // Metrics Manager Structure
 typedef struct {
-  SArray   *pDnodeMetrics;
-  SHashObj *pWriteMetrics;
-  SHashObj *pQueryMetrics;
-  SHashObj *pStreamMetrics;
+  SDnodeMetrics *pDnodeMetrics;
+  SHashObj      *pWriteMetrics;
+  SHashObj      *pQueryMetrics;
+  SHashObj      *pStreamMetrics;
 } SMetricsManager;
 
 // Metrics management functions
@@ -129,6 +150,11 @@ void             initWriteMetricsEx(SWriteMetricsEx *pMetrics);
 int32_t          addWriteMetrics(int32_t vgId, const SRawWriteMetrics *pRawMetrics);
 SWriteMetricsEx *getWriteMetricsByVgId(int32_t vgId);
 
+// Dnode metrics functions
+void             initDnodeMetricsEx(SDnodeMetricsEx *pMetrics);
+int32_t          addDnodeMetrics(const SRawDnodeMetrics *pRawMetrics);
+SDnodeMetricsEx *getDnodeMetrics();
+
 // Function type definition for vnode callbacks
 typedef void *(*SVnodeMetricsLogFn)(void **pIter);
 typedef int32_t (*VnodeGetRawMetricsFn)(void *pVnode, SRawWriteMetrics *pRawMetrics);
@@ -142,6 +168,7 @@ int32_t forEachMetric(MetricsLogCallback callback, void *param);
 int32_t getAllMetricsJson(char **pJson);
 
 void reportWriteMetrics();
+void reportDnodeMetrics();
 void sendAllMetricsReport();
 
 #ifdef __cplusplus

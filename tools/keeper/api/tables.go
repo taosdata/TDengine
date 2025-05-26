@@ -331,3 +331,25 @@ type WriteMetricsReport struct {
 	Ts           string              `json:"ts"`
 	WriteMetrics []WriteMetricsInfo  `json:"write_metrics"`
 }
+
+type DnodeMetricsInfo struct {
+	RpcQueueMemoryAllowed int64 `json:"rpcQueueMemoryAllowed"`
+	RpcQueueMemoryUsed    int64 `json:"rpcQueueMemoryUsed"`
+	ApplyMemoryAllowed    int64 `json:"applyMemoryAllowed"`
+	ApplyMemoryUsed       int64 `json:"applyMemoryUsed"`
+}
+
+var CreateDnodeMetricsSql = "create table if not exists dnode_metrics (" +
+	"ts timestamp, " +
+	"rpc_queue_memory_allowed bigint, " +
+	"rpc_queue_memory_used bigint, " +
+	"apply_memory_allowed bigint, " +
+	"apply_memory_used bigint " +
+	") tags (dnode_id int, dnode_ep nchar(" + dnodeEpLen + "), cluster_id nchar(32))"
+
+type DnodeMetricsReport struct {
+	Ts           string           `json:"ts"`
+	DnodeMetrics DnodeMetricsInfo `json:"dnode_metrics"`
+}
+
+
