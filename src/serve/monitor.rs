@@ -104,7 +104,7 @@ lazy_static! {
 }
 
 impl Monitor {
-    pub fn new(cfg: MonitorCfg, taosx_port: &str, controller: TaskControllerRef) -> Self {
+    pub fn new(cfg: MonitorCfg, taosx_port: u16, controller: TaskControllerRef) -> Self {
         let hostname = gethostname();
         let hostname = match hostname.to_str() {
             Some(hostname) => hostname.to_string(),
@@ -113,7 +113,7 @@ impl Monitor {
                 "unknown".to_string()
             }
         };
-        let taosx_id = hostname.to_string() + ":" + taosx_port;
+        let taosx_id = format!("{}:{}", hostname, taosx_port);
         let taosx_id = Box::leak(taosx_id.into_boxed_str());
         tracing::info!("taosx_id: {}", taosx_id);
         let tasks = controller.scheduler.tasks.clone();
