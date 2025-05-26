@@ -39,7 +39,7 @@ class srvCtl:
         Starts a dnode.
 
         Args:
-            idx (int): The index of the dnode to start.
+            idx (int): The index of the dnode to start
 
         Returns:
             bool: True if the dnode was started successfully, False otherwise.

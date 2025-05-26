@@ -14,7 +14,7 @@ class TestColumn2:
         3. 对超级表执行基于普通数据列筛选条件的查询，包括投影查询、聚合查询和分组查询
 
         Catalog:
-            - SuperTables:Columns
+            - SuperTable:Columns
 
         Since: v3.0.0.0
 
