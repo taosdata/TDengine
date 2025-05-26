@@ -1,9 +1,6 @@
 name: Deploy Case Docs
 
 on:
-  push:
-    branches:
-      - 'new_test_framework_docs'
   pull_request:
     branches:
       - 'main'
@@ -43,7 +40,7 @@ jobs:
           else
             BRANCH_NAME="${{ github.ref_name }}"
           fi
-          BRANCH_NAME="3.0"
+          #BRANCH_NAME="3.0"
           echo "Target branch is $BRANCH_NAME"
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
 
