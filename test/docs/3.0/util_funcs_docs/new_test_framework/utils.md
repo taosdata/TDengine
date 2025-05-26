@@ -21,3 +21,4 @@
 ::: taoskeeper
 ::: tserror
 ::: types
+::: streamUtil
