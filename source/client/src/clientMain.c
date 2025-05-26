@@ -2194,21 +2194,22 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
   }
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
+  STMT2_DLOG_E("start to bind param");
   if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 1) {
-    tscError("async bind param is still working, please try again later");
+    STMT2_ELOG_E("async bind param is still working, please try again later");
     return TSDB_CODE_TSC_STMT_API_ERROR;
   }
 
   if (pStmt->options.asyncExecFn && !pStmt->execSemWaited) {
     if (tsem_wait(&pStmt->asyncExecSem) != 0) {
-      tscError("wait asyncExecSem failed");
+      STMT2_ELOG_E("bind param wait asyncExecSem failed");
     }
     pStmt->execSemWaited = true;
   }
 
   SSHashObj *hashTbnames = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR));
   if (NULL == hashTbnames) {
-    tscError("stmt2 bind failed, %s", tstrerror(terrno));
+    STMT2_ELOG_E("cannot init hashTbnames for same tbname check");
     return terrno;
   }
 
@@ -2218,18 +2219,20 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       if (pStmt->sql.stbInterlaceMode) {
         if (tSimpleHashGet(hashTbnames, bindv->tbnames[i], strlen(bindv->tbnames[i])) != NULL) {
           code = terrno = TSDB_CODE_PAR_TBNAME_DUPLICATED;
-          tscError("stmt2 bind failed, %s %s", tstrerror(terrno), bindv->tbnames[i]);
+          STMT2_ELOG("interlace mode don't support same tbname:%s in one bind", bindv->tbnames[i]);
           goto out;
         }
 
         code = tSimpleHashPut(hashTbnames, bindv->tbnames[i], strlen(bindv->tbnames[i]), NULL, 0);
         if (code) {
+          STMT2_ELOG("unexpected error happens, code:%s", tstrerror(code));
           goto out;
         }
       }
 
       code = stmtSetTbName2(stmt, bindv->tbnames[i]);
       if (code) {
+        STMT2_ELOG("set tbname failed, code:%s", tstrerror(code));
         goto out;
       }
     }
@@ -2240,10 +2243,14 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
     } else if (pStmt->bInfo.tbNameFlag & IS_FIXED_TAG) {
       code = stmtCheckTags2(stmt, &pCreateTbReq);
     } else {
-      pStmt->sql.autoCreateTbl = false;
+      if (pStmt->sql.autoCreateTbl) {
+        pStmt->sql.autoCreateTbl = false;
+        STMT2_WLOG_E("sql is autoCreateTbl, but no tags");
+      }
     }
 
     if (code) {
+      STMT2_ELOG("set tags failed, code:%s", tstrerror(code));
       goto out;
     }
 
@@ -2251,7 +2258,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       TAOS_STMT2_BIND *bind = bindv->bind_cols[i];
 
       if (bind->num <= 0 || bind->num > INT16_MAX) {
-        tscError("invalid bind num %d", bind->num);
+        STMT2_ELOG("bind num:%d must > 0 and < INT16_MAX", bind->num);
         code = terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
         goto out;
       }
@@ -2259,13 +2266,14 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       int32_t insert = 0;
       (void)stmtIsInsert2(stmt, &insert);
       if (0 == insert && bind->num > 1) {
-        tscError("only one row data allowed for query");
+        STMT2_ELOG_E("only one row data allowed for query");
         code = terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
         goto out;
       }
 
       code = stmtBindBatch2(stmt, bind, col_idx, pCreateTbReq);
       if (TSDB_CODE_SUCCESS != code) {
+        STMT2_ELOG("bind batch failed, code:%s", tstrerror(code));
         goto out;
       }
     }
@@ -2359,6 +2367,7 @@ int taos_stmt2_get_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields)
       pStmt->sql.type = STMT_TYPE_QUERY;
     }
   }
+
   if (pStmt->sql.type == STMT_TYPE_QUERY) {
     return stmtGetParamNum2(stmt, count);
   }
