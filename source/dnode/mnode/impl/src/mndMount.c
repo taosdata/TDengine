@@ -597,14 +597,14 @@ static int32_t mndSetCreateMountPrepareAction(SMnode *pMnode, STrans *pTrans, SM
   if (sdbSetRawStatus(pDbRaw, SDB_STATUS_CREATING) != 0) return -1;
   return 0;
 }
-#if 0
+
 static int32_t mndSetNewVgPrepareActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
   for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
     if (mndAddNewVgPrepareAction(pMnode, pTrans, (pVgroups + v)) != 0) return -1;
   }
   return 0;
 }
-
+#if 0
 static int32_t mndSetCreateDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
   int32_t  code = 0;
   SSdbRaw *pDbRaw = mndDbActionEncode(pDb);
@@ -747,6 +747,7 @@ static int32_t mndSetCreateMountRedoActions(SMnode *pMnode, STrans *pTrans, SMou
   // for (int32_t i = 0; i < pObj->nMounts; ++i) {
   //   TAOS_CHECK_RETURN(mndAddCreateMountRetrieveDbAction(pMnode, pTrans, pObj, i));
   // }
+  // TODO: create soft link in mount dnode/vnode
   TAOS_RETURN(0);
 }
 #if 0
@@ -842,7 +843,7 @@ static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, 
   mndTransSetOper(pTrans, MND_OPER_CREATE_DB);
   TAOS_CHECK_EXIT(mndSetCreateMountPrepareAction(pMnode, pTrans, &mntObj));
   TAOS_CHECK_EXIT(mndSetCreateMountRedoActions(pMnode, pTrans, &mntObj));
-  // TAOS_CHECK_EXIT(mndSetNewVgPrepareActions(pMnode, pTrans, &mntObj, pVgroups));
+  TAOS_CHECK_EXIT(mndSetNewVgPrepareActions(pMnode, pTrans, &mntObj, pVgroups));
   TAOS_CHECK_EXIT(mndSetCreateMountUndoLogs(pMnode, pTrans, &mntObj));
   TAOS_CHECK_EXIT(mndSetCreateMountCommitLogs(pMnode, pTrans, &mntObj));
   // TAOS_CHECK_EXIT(mndSetCreateDbUndoActions(pMnode, pTrans, &mntObj, pVgroups));

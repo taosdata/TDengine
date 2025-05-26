@@ -1778,7 +1778,49 @@ int32_t tSerializeSRetrieveMountPathReq(void* buf, int32_t bufLen, SRetrieveMoun
 int32_t tDeserializeSRetrieveMountPathReq(void* buf, int32_t bufLen, SRetrieveMountPathReq* pReq);
 
 typedef struct {
-  int32_t vgId;
+  // vgInfo
+  int32_t  vgId;
+  int32_t  cacheLastSize;
+  int32_t  szPage;
+  int32_t  szCache;
+  uint64_t szBuf;
+  bool     isHeap;
+  bool     isWeak;
+  int8_t   cacheLast;
+  int8_t   isTsma;
+  int8_t   isRsma;
+  int8_t   hashMethod;
+  int8_t   standby;
+  uint32_t hashBegin;
+  uint32_t hashEnd;
+  bool     hashChange;
+  int16_t  sttTrigger;
+  int16_t  hashPrefix;
+  int16_t  hashSuffix;
+  // tsdbInfo
+  int8_t  precision;
+  int8_t  update;
+  int8_t  compression;
+  int8_t  slLevel;
+  int32_t minRows;
+  int32_t maxRows;
+  int32_t tsdbPageSize;
+  int32_t s3ChunkSize;
+  int32_t s3KeepLocal;
+  int8_t  s3Compact;
+  // walInfo
+  int32_t  walFsyncPeriod;      // millisecond
+  int32_t  walRetentionPeriod;  // secs
+  int32_t  walRollPeriod;       // secs
+  int64_t  walRetentionSize;
+  int64_t  walSegSize;
+  EWalType walLevel;
+  // encryptInfo
+  int32_t encryptAlgorithm;
+  char    encryptKey[ENCRYPT_KEY_LEN + 1];
+  // dbInfo
+  uint64_t dbId;
+  char     dbname[TSDB_DB_FNAME_LEN];
 } SMountVgInfo;
 
 typedef struct {
