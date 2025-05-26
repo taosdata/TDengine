@@ -228,7 +228,8 @@ class TaosTestFrame:
                 need_setup = 1
             elif self._opts.setup:
                 self._read_env_setting(self._opts.setup)
-                # self._destroy()
+                if self._opts.clean:
+                   self._destroy()
                 need_setup = 1
             elif self._opts.use:
                 self._read_env_setting(self._opts.use)

@@ -3,9 +3,7 @@ name: New Framework Test
 on:
   pull_request:
     branches:
-      - 'main'
-    paths:
-      - 'test/cases/**'
+      - '3.0'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-TDengineNewFramework
