@@ -111,5 +111,3 @@ class TestStreamDevBasic:
             f"select _wstart ts, avg(id) res from stream_query interval(1s)",
             exp_sql=exp_sql,
         )
-        
-        time.sleep(10000)

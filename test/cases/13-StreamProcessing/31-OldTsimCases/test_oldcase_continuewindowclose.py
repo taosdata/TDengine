@@ -70,7 +70,7 @@ class TestStreamOldCaseContinueWindowClose:
             f"select  _wstart, count(*) c1, sum(b) c2  from st partition by tbname interval(10s) ;"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt1;",
             lambda: tdSql.getRows() == 1
             and tdSql.getData(0, 1) == 1
@@ -102,7 +102,7 @@ class TestStreamOldCaseContinueWindowClose:
         tdSql.execute(f"insert into t1 values(1648791220000,5,2,3);")
 
         tdSql.execute(f"insert into t1 values(1648791420000,6,2,3);")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt2 order by 1,2;",
             lambda: tdSql.getRows() == 4
             and tdSql.getData(0, 1) == 2
@@ -131,7 +131,7 @@ class TestStreamOldCaseContinueWindowClose:
         tdSql.execute(f"insert into t1 values(1648791221000,1,2,3);")
         tdSql.query(f"select  _wstart, count(*) c1, sum(b) c2  from st interval(10s) ;")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt3;",
             lambda: tdSql.getRows() == 1
             and tdSql.getData(0, 1) == 1
@@ -140,7 +140,7 @@ class TestStreamOldCaseContinueWindowClose:
 
         tdSql.execute(f"insert into t2 values(1648791211000,1,2,3);")
         tdSql.query(f"select  _wstart, count(*) c1, sum(b) c2  from st interval(10s) ;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt3;",
             lambda: tdSql.getRows() == 1
             and tdSql.getData(0, 1) == 2
@@ -173,7 +173,7 @@ class TestStreamOldCaseContinueWindowClose:
             f"select  _wstart, count(*) c1, max(a) c2  from st partition by tbname interval(10s) sliding(5s) ;"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt4 order by 1,2;",
             lambda: tdSql.getRows() == 4
             and tdSql.getData(0, 1) == 2
@@ -220,7 +220,7 @@ class TestStreamOldCaseContinueWindowClose:
         )
 
         tdLog.info(f"sql select * from streamt5 order by 1,4;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt5 order by 1,4;",
             lambda: tdSql.getRows() == 4
             and tdSql.getData(0, 1) == 4
@@ -258,12 +258,12 @@ class TestStreamOldCaseContinueWindowClose:
         tdSql.query(f"show tables;")
 
         tdLog.info(f"sql show tables;")
-        tdStream.checkQueryResults(f"show tables;", lambda: tdSql.getRows() == 6)
+        tdSql.checkResultsByFunc(f"show tables;", lambda: tdSql.getRows() == 6)
 
         tdLog.info(
             f'sql select * from information_schema.ins_tables where table_name like "streams6-tbn-%";'
         )
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f'select * from information_schema.ins_tables where table_name like "streams6-tbn-%";',
             lambda: tdSql.getRows() == 2,
         )
@@ -271,16 +271,16 @@ class TestStreamOldCaseContinueWindowClose:
         tdLog.info(
             f'sql select * from information_schema.ins_tables where table_name like "streams7-tbn-%";'
         )
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f'select * from information_schema.ins_tables where table_name like "streams7-tbn-%";',
             lambda: tdSql.getRows() == 2,
         )
 
         tdLog.info(f"sql select * from streamt6;")
-        tdStream.checkQueryResults(f"select * from streamt6;", lambda: tdSql.getRows() == 2)
+        tdSql.checkResultsByFunc(f"select * from streamt6;", lambda: tdSql.getRows() == 2)
 
         tdLog.info(f"sql select * from streamt7;")
-        tdStream.checkQueryResults(f"select * from streamt7;", lambda: tdSql.getRows() == 2)
+        tdSql.checkResultsByFunc(f"select * from streamt7;", lambda: tdSql.getRows() == 2)
 
         tdLog.info(f"========== interval window step6")
 
@@ -311,7 +311,7 @@ class TestStreamOldCaseContinueWindowClose:
         tdSql.execute(f"insert into t1 values(1648791221000,1,3,3);")
 
         tdLog.info(f"sql select * from streamt9;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt9;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 2,
         )
@@ -319,9 +319,9 @@ class TestStreamOldCaseContinueWindowClose:
         tdSql.execute(f"insert into t2 values(1648791211001,2,4,3);")
 
         tdLog.info(f"sql select * from streamt8;")
-        tdStream.checkQueryResults(f"select * from streamt8;", lambda: tdSql.getRows() == 1)
+        tdSql.checkResultsByFunc(f"select * from streamt8;", lambda: tdSql.getRows() == 1)
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt9;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 3,
         )
@@ -353,7 +353,7 @@ class TestStreamOldCaseContinueWindowClose:
         tdStream.checkStreamStatus()
 
         tdLog.info(f"sql loop00 select * from streamt1 order by 1,2;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt1 order by 1,2;", lambda: tdSql.getRows() == 4
         )
 
@@ -369,7 +369,7 @@ class TestStreamOldCaseContinueWindowClose:
         )
 
         tdLog.info(f"sql loop0 select * from streamt1 order by 1,2;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt1 order by 1,2;",
             lambda: tdSql.getRows() == 4
             and tdSql.getData(0, 1) == 1
@@ -408,7 +408,7 @@ class TestStreamOldCaseContinueWindowClose:
         )
 
         tdStream.checkStreamStatus()
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt12 order by 1,2;",
             lambda: tdSql.getRows() == 6,
         )
@@ -416,7 +416,7 @@ class TestStreamOldCaseContinueWindowClose:
         tdSql.execute(f"insert into  t1 values(1648791224001,2,2,3);")
         tdSql.execute(f"insert into  t1 values(1648791225001,2,2,3);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f'select * from streamt12 where c3 == "t1" order by 1,2;',
             lambda: tdSql.getRows() == 2 and tdSql.getData(1, 2) == 4,
         )
@@ -452,7 +452,7 @@ class TestStreamOldCaseContinueWindowClose:
         )
 
         tdLog.info(f"sql loop5 select * from streamt3 order by 1,2;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt3 order by 1,2;",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 1) == 2
@@ -470,7 +470,7 @@ class TestStreamOldCaseContinueWindowClose:
         )
 
         tdLog.info(f"sql loop6 select * from streamt3 order by 1,2;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt3 order by 1,2;",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 1) == 2

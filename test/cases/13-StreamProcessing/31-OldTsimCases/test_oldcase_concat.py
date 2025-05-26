@@ -210,12 +210,12 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3);")
         tdSql.execute(f"insert into t2 values(1648791213000,1,2,3);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f'select table_name from information_schema.ins_tables where db_name="result" order by 1;',
             lambda: tdSql.getRows() == 2,
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from result.streamt;", lambda: tdSql.getRows() == 2
         )
 
@@ -242,21 +242,21 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3);")
         tdSql.execute(f"insert into t2 values(1648791213000,1,2,3);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f'select tag_name from information_schema.ins_tags where db_name="result2" and stable_name = "streamt2" order by 1;',
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 0) == "cc"
             and tdSql.getData(1, 0) == "cc",
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select cc from result2.streamt2 order by 1;",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 0) == "tag-t1"
             and tdSql.getData(1, 0) == "tag-t2",
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from result2.streamt2;",
             lambda: tdSql.getRows() == 2,
         )
@@ -284,26 +284,26 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3);")
         tdSql.execute(f"insert into t2 values(1648791213000,1,2,3);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f'select tag_name from information_schema.ins_tags where db_name="result3" and stable_name = "streamt3" order by 1;',
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 0) == "dd"
             and tdSql.getData(1, 0) == "dd",
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select dd from result3.streamt3 order by 1;",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 0) == "tag-t1"
             and tdSql.getData(1, 0) == "tag-t2",
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from result3.streamt3;",
             lambda: tdSql.getRows() == 2,
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f'select table_name from information_schema.ins_tables where db_name="result3" order by 1;',
             lambda: tdSql.getRows() == 2,
         )
@@ -333,12 +333,12 @@ class TestStreamOldCaseConcat:
             f"insert into t1 values(1648791213000,1,1,1) t2 values(1648791213000,2,2,2) t3 values(1648791213000,3,3,3);"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f'select table_name from information_schema.ins_tables where db_name="result4" order by 1;',
             lambda: tdSql.getRows() == 3,
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from result4.streamt4 order by 3;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 1) == 1
@@ -392,7 +392,7 @@ class TestStreamOldCaseConcat:
             f"insert into t1 values(1648791213000,1,1,1) t2 values(1648791213000,2,2,2) t3 values(1648791213000,3,3,3);"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from result6.streamt6 order by 3;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 2) == 10
@@ -427,12 +427,12 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3);")
         tdSql.execute(f"insert into t2 values(1648791213000,2,2,3);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f'select table_name from information_schema.ins_tables where db_name="result" order by 1;',
             lambda: tdSql.getRows() == 2,
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from result.streamt;", lambda: tdSql.getRows() == 2
         )
 
@@ -459,21 +459,21 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3);")
         tdSql.execute(f"insert into t2 values(1648791213000,2,2,3);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f'select tag_name from information_schema.ins_tags where db_name="result2" and stable_name = "streamt2" order by 1;',
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 0) == "cc"
             and tdSql.getData(1, 0) == "cc",
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select cc from result2.streamt2 order by 1;",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 0) == "col-1"
             and tdSql.getData(1, 0) == "col-2",
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from result2.streamt2;", lambda: tdSql.getRows() == 2
         )
 
@@ -501,25 +501,25 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3);")
         tdSql.execute(f"insert into t2 values(1648791213000,2,2,3);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f'select tag_name from information_schema.ins_tags where db_name="result3" and stable_name = "streamt3" order by 1;',
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 0) == "dd"
             and tdSql.getData(1, 0) == "dd",
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select dd from result3.streamt3 order by 1;",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 0) == "col-1"
             and tdSql.getData(1, 0) == "col-2",
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from result3.streamt3;", lambda: tdSql.getRows() == 2
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f'select table_name from information_schema.ins_tables where db_name="result3" order by 1;',
             lambda: tdSql.getRows() == 2,
         )
@@ -549,12 +549,12 @@ class TestStreamOldCaseConcat:
             f"insert into t1 values(1648791213000,1,1,1) t2 values(1648791213000,2,2,2) t3 values(1648791213000,3,3,3);"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f'select table_name from information_schema.ins_tables where db_name="result4" order by 1;',
             lambda: tdSql.getRows() == 3,
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from result4.streamt4 order by 3;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 1) == 1
@@ -584,7 +584,7 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"insert into t1 values(1648791233002,3,2,3,2.1);")
         tdSql.execute(f"insert into t1 values(1648791243003,4,2,3,3.1);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt5;",
             lambda: tdSql.getRows() == 4
             and tdSql.getData(0, 1) == 1000
@@ -620,12 +620,12 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3);")
         tdSql.execute(f"insert into t2 values(1648791213000,2,2,3);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f'select table_name from information_schema.ins_tables where db_name="result" order by 1;',
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 0) == "aaa",
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from result.streamt;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 2,
         )
@@ -653,17 +653,17 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3);")
         tdSql.execute(f"insert into t2 values(1648791213000,2,2,3);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f'select tag_name from information_schema.ins_tags where db_name="result2" and stable_name = "streamt2" order by 1;',
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 0) == "cc",
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select cc from result2.streamt2 order by 1;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 0) == None,
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from result2.streamt2;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 2,
         )
@@ -692,22 +692,22 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3);")
         tdSql.execute(f"insert into t2 values(1648791213000,2,2,3);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f'select tag_name from information_schema.ins_tags where db_name="result3" and stable_name = "streamt3" order by 1;',
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 0) == "dd",
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select dd from result3.streamt3 order by 1;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 0) == None,
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from result3.streamt3;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 2,
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f'select table_name from information_schema.ins_tables where db_name="result3" order by 1;',
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 0) == "tbn-1",
         )
@@ -737,12 +737,12 @@ class TestStreamOldCaseConcat:
             f"insert into t1 values(1648791213000,1,1,1) t2 values(1648791213000,2,2,2) t3 values(1648791213000,3,3,3);"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f'select table_name from information_schema.ins_tables where db_name="result4" order by 1;',
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 0) == "tbn-1",
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from result4.streamt4 order by 3;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 3,
         )
@@ -776,32 +776,32 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3);")
         tdSql.execute(f"insert into t2 values(1648791213000,2,2,3);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f'select table_name from information_schema.ins_tables where db_name="result5" order by 1;',
             lambda: tdSql.getRows() == 3 and tdSql.getData(0, 0) == "aaa",
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f'select tag_name from information_schema.ins_tags where db_name="result5" and stable_name = "streamt52" order by 1;',
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 0) == "cc",
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f'select tag_name from information_schema.ins_tags where db_name="result5" and stable_name = "streamt53" order by 1;',
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 0) == "dd",
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from result5.streamt51;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 2,
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from result5.streamt52;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 2,
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from result5.streamt53;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 2,
         )
