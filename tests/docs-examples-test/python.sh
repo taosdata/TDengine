@@ -183,11 +183,13 @@ python3 stmt_ws.py
 taos -s "drop database power"
 check_transactions || exit 1
 reset_cache || exit 1
+echo "stmt2_native.py"
 python3 stmt2_native.py
 
 taos -s "drop database power"
 check_transactions || exit 1
 reset_cache || exit 1
+echo "stmt2_ws.py"
 python3 stmt2_ws.py
 
 taos -s "drop topic if exists topic_meters"
@@ -206,5 +208,4 @@ check_transactions || exit 1
 reset_cache || exit 1
 python3 tmq_websocket_example.py
 
-python3 stmt2_native.py
 
