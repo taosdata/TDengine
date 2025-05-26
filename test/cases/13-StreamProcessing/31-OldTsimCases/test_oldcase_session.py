@@ -1,5 +1,5 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
 
 
 class TestStreamOldCaseSession:
@@ -35,7 +35,7 @@ class TestStreamOldCaseSession:
 
     def session0(self):
         tdLog.info(f"session0")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdLog.info(f"=============== create database")
         tdSql.execute(f"create database test vgroups 1;")
@@ -51,7 +51,7 @@ class TestStreamOldCaseSession:
             f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart, count(*) c1,  sum(a), max(a), min(d), stddev(a), last(a), first(d), max(id) s from t1 session(ts,10s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL,1);")
         tdSql.execute(f"insert into t1 values(1648791223001,10,2,3,1.1,2);")
@@ -61,7 +61,7 @@ class TestStreamOldCaseSession:
             f"insert into t1 values(1648791213002,NULL,NULL,NULL,NULL,5) (1648791233012,NULL,NULL,NULL,NULL,6);"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by s desc;",
             lambda: tdSql.getRows() > 1
             and tdSql.getData(0, 1) == 3
@@ -91,7 +91,7 @@ class TestStreamOldCaseSession:
             f"insert into t1 values(1648791213002,4,2,3,4.1,12) (1648791223009,4,2,3,4.1,13);"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by s desc ;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 7
@@ -113,7 +113,7 @@ class TestStreamOldCaseSession:
             f'create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   watermark 1d into streamt2 as select  _wstart,apercentile(a,30) c1, apercentile(a,70), apercentile(a,20,"t-digest") c2, apercentile(a,60,"t-digest") c3, max(id) c4 from t2 session(ts,10s);'
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t2 values(1648791213001,1,1,3,1.0,1);")
         tdSql.execute(f"insert into t2 values(1648791213002,2,2,6,3.4,2);")
@@ -125,7 +125,7 @@ class TestStreamOldCaseSession:
         time.sleep(1)
         tdSql.execute(f"insert into t2 values(1648791223003,20,7,3,10.1,7);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt2 where c4=7;",
             lambda: tdSql.getRows() > 0
             # and tdSql.getData(0, 1) == 2.091607978
@@ -152,7 +152,7 @@ class TestStreamOldCaseSession:
         )
         # sql create stream streams8 trigger at_once  watermark 1d IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt8 as select  _wstart, histogram(a,"user_input", "[1,3,5,7]", 1), histogram(a,"user_input", "[1,3,5,7]", 0) from t1 session(ts,10s);
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213001,1,1,1,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213002,2,3,2,3.4);")
@@ -166,24 +166,24 @@ class TestStreamOldCaseSession:
 
         tdSql.execute(f"insert into t1 values(1648791223004,20,7,9,10.1);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt3;",
             lambda: tdSql.getRows() != 0,
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt4;",
             lambda: tdSql.getRows() != 0,
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt7;",
             lambda: tdSql.getRows() != 0,
         )
 
     def session1(self):
         tdLog.info(f"session1")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdLog.info(f"=============== create database")
         tdSql.execute(f"create database test vgroups 1;")
@@ -199,14 +199,14 @@ class TestStreamOldCaseSession:
             f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart, count(*) c1,  sum(a), min(b), max(id) s from t1 session(ts,10s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791210000,1,1,1,1.1,1);")
         tdSql.execute(f"insert into t1 values(1648791220000,2,2,2,2.1,2);")
         tdSql.execute(f"insert into t1 values(1648791230000,3,3,3,3.1,3);")
         tdSql.execute(f"insert into t1 values(1648791240000,4,4,4,4.1,4);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by s desc;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 4
@@ -222,7 +222,7 @@ class TestStreamOldCaseSession:
             f"insert into t1 values(1648791240005,5,5,5,5.1,8) (1648791250006,6,6,6,6.1,9);"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by s desc;",
             lambda: tdSql.getRows() > 1
             and tdSql.getData(0, 1) == 8
@@ -249,7 +249,7 @@ class TestStreamOldCaseSession:
             f"insert into t1 values(1648791220000,10,10,10,10.1,19) (1648791290008,2,2,2,2.1,20) (1648791540000,17,17,17,17.1,21) (1648791500001,22,22,22,22.1,22);"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by s desc;",
             lambda: tdSql.getRows() > 3
             and tdSql.getData(0, 1) == 2
@@ -271,12 +271,12 @@ class TestStreamOldCaseSession:
         )
 
         tdSql.execute(f"insert into t1 values(1648791000000,1,1,1,1.1,23);")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt order by s desc;",
             lambda: tdSql.getRows() > 0 and tdSql.getData(0, 1) == 1,
         )
 
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
         tdSql.execute(f"create database test1  vgroups 1;")
         tdSql.execute(f"use test1;")
         tdSql.execute(f"create table t1(ts timestamp, a int, b int , c int, d double);")
@@ -284,22 +284,22 @@ class TestStreamOldCaseSession:
             f"create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt3 as select  _wstart, count(*) c1 from t1 where a > 5 session(ts, 5s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt3;",
             lambda: tdSql.getRows() == 0,
         )
 
         tdSql.execute(f"insert into t1 values(1648791213000,6,2,3,1.0);")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt3;",
             lambda: tdSql.getRows() > 0 and tdSql.getData(0, 1) == 1,
         )
 
         tdSql.execute(f"insert into t1 values(1648791213000,2,2,3,1.0);")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt3;",
             lambda: tdSql.getRows() == 0,
         )
@@ -307,18 +307,18 @@ class TestStreamOldCaseSession:
         tdSql.execute(f"insert into t1 values(1648791223000,2,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791223000,10,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791233000,10,2,3,1.0);")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt3;",
             lambda: tdSql.getRows() == 2,
         )
 
         tdSql.execute(f"insert into t1 values(1648791233000,2,2,3,1.0);")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt3;",
             lambda: tdSql.getRows() == 1,
         )
 
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
         tdSql.execute(f"create database test2  vgroups 4;")
         tdSql.execute(f"use test2;")
         tdSql.execute(
@@ -330,7 +330,7 @@ class TestStreamOldCaseSession:
             f"create stream streams4 trigger at_once ignore update 0 ignore expired 0 into streamt4 as select  _wstart, count(*) c1, count(a) c2  from st session(ts, 2s) ;"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791255100,1,2,3);")
         tdSql.execute(f"insert into t1 values(1648791255300,1,2,3);")
@@ -338,14 +338,14 @@ class TestStreamOldCaseSession:
             f"insert into t1 values(1648791253000,1,2,3) (1648791254000,1,2,3);"
         )
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt4;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 4,
         )
 
     def triggerSession0(self):
         tdLog.info(f"triggerSession0")
-        clusterComCheck.drop_all_streams_and_dbs()
+        tdStream.dropAllStreamsAndDbs()
 
         tdLog.info(f"=============== create database")
         tdSql.execute(f"create database test vgroups 1;")
@@ -360,7 +360,7 @@ class TestStreamOldCaseSession:
             f"create stream streams2 trigger window_close IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt2 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from t2 session(ts, 10s);"
         )
 
-        clusterComCheck.check_stream_status()
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t2 values(1648791213000,1,2,3,1.0);")
         tdSql.execute(f"insert into t2 values(1648791222999,1,2,3,1.0);")
@@ -368,13 +368,13 @@ class TestStreamOldCaseSession:
         tdSql.execute(f"insert into t2 values(1648791223001,1,2,3,1.0);")
         tdSql.execute(f"insert into t2 values(1648791233001,1,2,3,1.0);")
 
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt2;",
             lambda: tdSql.getRows() == 0,
         )
 
         tdSql.execute(f"insert into t2 values(1648791243002,1,2,3,1.0);")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt2;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 5,
         )
@@ -382,19 +382,19 @@ class TestStreamOldCaseSession:
         tdSql.execute(
             f"insert into t2 values(1648791223001,1,2,3,1.0) (1648791223002,1,2,3,1.0) (1648791222999,1,2,3,1.0);"
         )
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt2;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 6,
         )
 
         tdSql.execute(f"insert into t2 values(1648791233002,1,2,3,1.0);")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt2;",
             lambda: tdSql.getRows() == 0,
         )
 
         tdSql.execute(f"insert into t2 values(1648791253003,1,2,3,1.0);")
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt2;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 8,
         )
@@ -402,7 +402,7 @@ class TestStreamOldCaseSession:
         tdSql.execute(
             f"insert into t2 values(1648791243003,1,2,3,1.0) (1648791243002,1,2,3,1.0) (1648791270004,1,2,3,1.0) (1648791280005,1,2,3,1.0)  (1648791290006,1,2,3,1.0);"
         )
-        tdSql.queryCheckFunc(
+        tdStream.checkQueryResults(
             f"select * from streamt2;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 1) == 10
