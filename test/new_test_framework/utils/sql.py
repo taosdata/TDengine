@@ -847,7 +847,7 @@ class TDSql:
     #  check session
     #
 
-    def checkRows(self, expectedRows):
+    def checkRows(self, expectedRows, show=False):
         """
         Checks if the number of rows fetched by the last query matches the expected number of rows.
 
@@ -860,7 +860,7 @@ class TDSql:
         Raises:
             SystemExit: If the number of rows does not match the expected number.
         """
-        return self.checkEqual(self.queryRows, expectedRows)
+        return self.checkEqual(self.queryRows, expectedRows, show=show)
 
     def checkRowsV2(
         self,
@@ -1490,7 +1490,8 @@ class TDSql:
             if self.queryResult[i][col] == data:
                 row = i
 
-        tdLog.info(f"find key:{key}, row:{row} col:{col}, data:{data}")
+        if show:
+            tdLog.info(f"find key:{key}, row:{row} col:{col}, data:{data}")
 
         if row == -1:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
@@ -1500,13 +1501,21 @@ class TDSql:
         if show:
             tdLog.info("check key successfully")
 
-    def printResult(self):
+    def checkKeyExist(self, key, show=False):
+        return self.checkKeyData(key, 0, key, show=show)
+
+    def printResult(self, name=""):
         tdLog.info(
-            f"print result, rows:{self.queryRows}, cols:{self.queryCols}, sql:{self.sql}"
+            f"==== {name}, rows:{self.queryRows}, cols:{self.queryCols}, sql:{self.sql}"
         )
         for r in range(self.queryRows):
+            data = "==== "
             for c in range(self.queryCols):
-                tdLog.info(f"data[{r}][{c}]=[{self.queryResult[r][c]}]")
+                data += f"d[{r}][{c}]={self.queryResult[r][c]} "
+            tdLog.info(data)
+        if exit:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            tdLog.exit(f"{name} {caller.filename}({caller.lineno})")
 
     def expectKeyData(self, key, col, data, show=False):
         """
@@ -1939,7 +1948,7 @@ class TDSql:
         # tdLog.info("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
         raise Exception("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
 
-    def checkEqual(self, elm, expect_elm):
+    def checkEqual(self, elm, expect_elm, show=False):
         """
         Checks if the given element is equal to the expected element.
 
@@ -1954,10 +1963,16 @@ class TDSql:
             Exception: If the element does not match the expected element.
         """
         if elm == expect_elm:
-            tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
+            if show:
+                tdLog.info(
+                    "sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm)
+                )
             return True
         if self.__check_equal(elm, expect_elm):
-            tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
+            if show:
+                tdLog.info(
+                    "sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm)
+                )
             return True
         self.print_error_frame_info(elm, expect_elm)
 
