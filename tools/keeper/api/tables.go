@@ -286,24 +286,24 @@ var CreateKeeperSql = "create table if not exists keeper_monitor (" +
 	") tags (identify nchar(50))"
 
 type WriteMetricsInfo struct {
-	VgId                  int     `json:"vgId"`
-	TotalRequests         int64   `json:"total_requests"`
-	TotalRows             int64   `json:"total_rows"`
-	TotalBytes            int64   `json:"total_bytes"`
-	AvgWriteSize          float64 `json:"avg_write_size"`
-	FetchBatchMetaTime    int64   `json:"fetch_batch_meta_time"`
-	FetchBatchMetaCount   int64   `json:"fetch_batch_meta_count"`
-	PreprocessTime        int64   `json:"preprocess_time"`
-	WalWriteBytes         int64   `json:"wal_write_bytes"`
-	WalWriteTime          int64   `json:"wal_write_time"`
-	ApplyBytes            int64   `json:"apply_bytes"`
-	ApplyTime             int64   `json:"apply_time"`
-	CommitCount           int64   `json:"commit_count"`
-	CommitTime            float64 `json:"commit_time"`
-	MemtableWaitTime      int64   `json:"memtable_wait_time"`
-	BlockedCommits        int64   `json:"blocked_commits"`
-	MergeCount            int64   `json:"merge_count"`
-	MergeTime             float64 `json:"merge_time"`
+	VgId                  int   `json:"vgId"`
+	TotalRequests         int64 `json:"total_requests"`
+	TotalRows             int64 `json:"total_rows"`
+	TotalBytes            int64 `json:"total_bytes"`
+	AvgWriteSize          int64 `json:"avg_write_size"`
+	FetchBatchMetaTime    int64 `json:"fetch_batch_meta_time"`
+	FetchBatchMetaCount   int64 `json:"fetch_batch_meta_count"`
+	PreprocessTime        int64 `json:"preprocess_time"`
+	WalWriteBytes         int64 `json:"wal_write_bytes"`
+	WalWriteTime          int64 `json:"wal_write_time"`
+	ApplyBytes            int64 `json:"apply_bytes"`
+	ApplyTime             int64 `json:"apply_time"`
+	CommitCount           int64 `json:"commit_count"`
+	CommitTime            int64 `json:"commit_time"`
+	MemtableWaitTime      int64 `json:"memtable_wait_time"`
+	BlockedCommits        int64 `json:"blocked_commits"`
+	MergeCount            int64 `json:"merge_count"`
+	MergeTime             int64 `json:"merge_time"`
 }
 
 var CreateWriteMetricsSql = "create table if not exists write_metrics (" +
@@ -311,7 +311,7 @@ var CreateWriteMetricsSql = "create table if not exists write_metrics (" +
 	"total_requests bigint, " +
 	"total_rows bigint, " +
 	"total_bytes bigint, " +
-	"avg_write_size float, " +
+	"avg_write_size bigint, " +
 	"fetch_batch_meta_time bigint, " +
 	"fetch_batch_meta_count bigint, " +
 	"preprocess_time bigint, " +
@@ -320,11 +320,11 @@ var CreateWriteMetricsSql = "create table if not exists write_metrics (" +
 	"apply_bytes bigint, " +
 	"apply_time bigint, " +
 	"commit_count bigint, " +
-	"commit_time float, " +
+	"commit_time bigint, " +
 	"memtable_wait_time bigint, " +
 	"blocked_commits bigint, " +
 	"merge_count bigint, " +
-	"merge_time float " +
+	"merge_time bigint " +
 	") tags (vgroup_id int, dnode_id int, dnode_ep nchar(" + dnodeEpLen + "), cluster_id nchar(32))"
 
 type WriteMetricsReport struct {
