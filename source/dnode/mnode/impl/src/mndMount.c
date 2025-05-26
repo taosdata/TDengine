@@ -1004,6 +1004,7 @@ _exit:
 static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
   int32_t         code = 0, lino = 0;
   SMnode         *pMnode = pReq->info.node;
+  SDbObj         *pDb = NULL;
   SMountObj      *pObj = NULL;
   SUserObj       *pUser = NULL;
   SCreateMountReq createReq = {0};
@@ -1011,6 +1012,11 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
   TAOS_CHECK_EXIT(tDeserializeSCreateMountReq(pReq->pCont, pReq->contLen, &createReq));
   mInfo("mount:%s, start to create on dnode %d from %s", createReq.mountName, *createReq.dnodeIds,
         createReq.mountPaths[0]);  // TODO: mutiple mounts
+
+  if((pDb = mndAcquireDb(pMnode, createReq.mountName))) {
+    mndReleaseDb(pMnode, pDb);
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_MOUNT_DUP_DB_EXIST);
+  }
 
   if ((pObj = mndAcquireMount(pMnode, createReq.mountName))) {
     if (createReq.ignoreExist) {
@@ -1058,6 +1064,7 @@ _exit:
 static int32_t mndProcessExecuteMountReq(SRpcMsg *pReq) {
   int32_t    code = 0, lino = 0;
   SMnode    *pMnode = pReq->info.node;
+  SDbObj    *pDb = NULL;
   SMountObj *pObj = NULL;
   SUserObj  *pUser = NULL;
   SMountInfo mntInfo = {0};
@@ -1070,6 +1077,11 @@ static int32_t mndProcessExecuteMountReq(SRpcMsg *pReq) {
   TAOS_CHECK_EXIT(tDeserializeSMountInfo(&decoder, &mntInfo));
   rspToClient = true;
   mInfo("mount:%s, start to execute on mnode", mntInfo.mountName);
+
+  if((pDb = mndAcquireDb(pMnode, mntInfo.mountName))) {
+    mndReleaseDb(pMnode, pDb);
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_MOUNT_DUP_DB_EXIST);
+  }
 
   if ((pObj = mndAcquireMount(pMnode, mntInfo.mountName))) {
     if (mntInfo.ignoreExist) {
@@ -1094,7 +1106,7 @@ static int32_t mndProcessExecuteMountReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    // TODO: mutiple mounts
+    // TODO: mutiple path mount
     rsp.code = code;
     mError("mount:%s, dnode:%d, path:%s, failed to create at line:%d since %s", mntInfo.mountName, mntInfo.dnodeId,
            mntInfo.mountPath, lino, tstrerror(code));

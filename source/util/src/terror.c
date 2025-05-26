@@ -401,6 +401,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_COMPACT_DETAIL_NOT_EXIST, "compact detail doesn'
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COMPACT_ALREADY_EXIST,    "compact already exist")
 
 // mnode-mount
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_DUP_DB_EXIST,       "Database with identical name already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_ALREADY_EXIST,      "Mount already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_NOT_EXIST,          "Mount not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_IN_CREATING,        "Mount in creating status")

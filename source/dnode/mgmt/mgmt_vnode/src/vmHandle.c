@@ -570,7 +570,8 @@ static int32_t vmRetrieveMountPathImpl(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, SRetrie
 
   pMountInfo->dnodeId = pReq->dnodeId;
   pMountInfo->mountUid = pReq->mountUid;
-  snprintf(pMountInfo->mountName, sizeof(pMountInfo->mountName), "%s", pReq->mountName);
+  tsnprintf(pMountInfo->mountName, sizeof(pMountInfo->mountName), "%s", pReq->mountName);
+  tsnprintf(pMountInfo->mountPath, sizeof(pMountInfo->mountPath), "%s", pReq->mountPath);
   pMountInfo->ignoreExist = pReq->ignoreExist;
   pMountInfo->valLen = pReq->valLen;
   pMountInfo->pVal = pReq->pVal;
