@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cassert>
-#include "SqlDatabaseFormatter.h"
+#include "FormatterRegistrar.h"
+
 
 void test_format_drop_database() {
     DataFormat format;

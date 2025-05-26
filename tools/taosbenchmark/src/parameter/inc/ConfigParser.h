@@ -2,12 +2,7 @@
 #define CONFIG_PARSER_H
 
 #include "GlobalConfig.h"
-#include "CreateDatabaseConfig.h"
-#include "CreateSuperTableConfig.h"
-#include "CreateChildTableConfig.h"
-#include "InsertDataConfig.h"
-#include "QueryDataConfig.h"
-#include "SubscribeDataConfig.h"
+#include "ActionConfigVariant.h"
 
 #include <string>
 #include <vector>

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(actions_config LANGUAGES CXX)
+project(actions_create LANGUAGES CXX)
 
 # 设置 C++ 标准
 set(CMAKE_CXX_STANDARD 17)
@@ -16,21 +16,42 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
 
 
 # 添加主库
-add_library(actions_config STATIC 
-    src/ConnectionInfo.cpp
+add_library(actions_create STATIC 
+    src/CreateDatabaseAction.cpp
+    src/CreateSuperTableAction.cpp
+    src/CreateChildTableAction.cpp
 )
 
 # 包含头文件目录
-target_include_directories(actions_config PUBLIC
+target_include_directories(actions_create PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../common/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../base
+    ${CMAKE_CURRENT_SOURCE_DIR}/../config/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../connector/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../formatter/inc
 )
 
-# 添加测试
-# test ConnectionInfo
-add_executable(TestConnectionInfo
-    test/TestConnectionInfo.cpp
-)
-target_link_libraries(TestConnectionInfo PRIVATE 
+# 链接依赖库
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../config/build)
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../connector/build)
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../formatter/build)
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../common/build)
+target_link_libraries(actions_create PUBLIC
+    common
     actions_config
+    actions_connector
+    actions_formatter
 )
-add_test(NAME TestConnectionInfo COMMAND TestConnectionInfo)
+
+
+# 添加测试
+# test CreateDatabaseAction
+add_executable(TestCreateDatabaseAction
+    test/TestCreateDatabaseAction.cpp
+)
+target_link_libraries(TestCreateDatabaseAction PRIVATE 
+    actions_create
+    taos
+)
+add_test(NAME TestCreateDatabaseAction COMMAND TestCreateDatabaseAction)

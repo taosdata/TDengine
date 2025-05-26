@@ -4,6 +4,7 @@
 #include "ActionBase.h"
 #include "ActionFactory.h"
 #include "CreateDatabaseConfig.h"
+#include "DatabaseConnector.h"
 
 
 class CreateDatabaseAction : public ActionBase {

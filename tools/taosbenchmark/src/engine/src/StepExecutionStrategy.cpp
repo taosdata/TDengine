@@ -11,7 +11,7 @@ void ProductionStepStrategy::execute(const Step& step) {
         // 打印调试信息
         std::cout << "Executing step: " << step.name << " (" << step.uses << ")" << std::endl;
 
-        auto action = ActionFactory::instance().create_action(step, step.action_config);
+        auto action = ActionFactory::instance().create_action(step.uses, step.action_config);
         action->execute();
 
         // 打印调试信息，表示步骤完成

@@ -1,9 +1,7 @@
 #include "CreateDatabaseAction.h"
 #include <iostream>
-#include "FormatterFactory.h"
+#include "FormatterRegistrar.h"
 
-CreateDatabaseAction::CreateDatabaseAction(const CreateDatabaseConfig& config) 
-    : config_(config) {}
 
 void CreateDatabaseAction::execute() {
     std::cout << "Creating database: " << config_.database_info.name << std::endl;
@@ -23,6 +21,7 @@ void CreateDatabaseAction::execute() {
         
     } catch (const std::exception& e) {
         std::cerr << "An error occurred: " << e.what() << std::endl;
+        throw;
     }
 
     connector_->close();
