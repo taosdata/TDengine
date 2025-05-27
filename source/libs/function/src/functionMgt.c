@@ -830,12 +830,12 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
     SArray* pVal = (SArray*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
     int32_t idx = ((SValueNode*)pSecondParam)->datum.i;
     if (idx - 1 < 0 || idx - 1 >= taosArrayGetSize(pVal)) {
-      uError("invalid idx: %d for func: %d, should be in [1, %d]", idx, funcId, taosArrayGetSize(pVal));
+      uError("invalid idx: %d for func: %d, should be in [1, %d]", idx, funcId, (int32_t)taosArrayGetSize(pVal));
       return TSDB_CODE_INTERNAL_ERROR;
     }
     SStreamGroupValue* pValue = taosArrayGet(pVal, idx - 1);
     if (pValue == NULL) {
-      uError("invalid idx: %d for func: %d, should be in [1, %d]", idx, funcId, taosArrayGetSize(pVal));
+      uError("invalid idx: %d for func: %d, should be in [1, %d]", idx, funcId, (int32_t)taosArrayGetSize(pVal));
       return TSDB_CODE_INTERNAL_ERROR;
     }
     if (!pValue->isNull){
