@@ -478,13 +478,13 @@ func (r *Reporter) metricsBatchHandlerFunc() gin.HandlerFunc {
 }
 
 func (r *Reporter) insertWriteMetricsSql(metrics WriteMetricsInfo) string {
-	return fmt.Sprintf("insert into write_metrics_%d_%d using write_metrics tags (%d, %d) values (now, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)",
+	return fmt.Sprintf("insert into write_metrics_%d_%d using write_metrics tags (%d, %d) values (now, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)",
 		metrics.DnodeId, metrics.VgId, metrics.VgId, metrics.DnodeId,
 		metrics.TotalRequests, metrics.TotalRows, metrics.TotalBytes,
 		metrics.FetchBatchMetaTime, metrics.FetchBatchMetaCount, metrics.PreprocessTime,
 		metrics.WalWriteBytes, metrics.WalWriteTime, metrics.ApplyBytes, metrics.ApplyTime,
 		metrics.CommitCount, metrics.CommitTime, metrics.MemtableWaitTime, 
-		metrics.BlockedCommits, metrics.MergeCount, metrics.MergeTime)
+		metrics.BlockCommitCount, metrics.BlockedCommitTime, metrics.MergeCount, metrics.MergeTime)
 }
 
 func (r *Reporter) metricsQueryHandlerFunc() gin.HandlerFunc {
@@ -513,7 +513,8 @@ func (r *Reporter) metricsQueryHandlerFunc() gin.HandlerFunc {
 			avg(commit_count) as commit_count,
 			avg(commit_time) as commit_time,
 			avg(memtable_wait_time) as memtable_wait_time,
-			avg(blocked_commits) as blocked_commits,
+			avg(block_commit_count) as block_commit_count,
+			avg(blocked_commit_time) as blocked_commit_time,
 			avg(merge_count) as merge_count,
 			avg(merge_time) as merge_time
 		FROM %s.write_metrics`
@@ -579,7 +580,8 @@ func (r *Reporter) metricsSummaryHandlerFunc() gin.HandlerFunc {
 			max(commit_count) as max_commit_count,
 			avg(commit_time) as avg_commit_time,
 			sum(memtable_wait_time) as total_memtable_wait_time,
-			max(blocked_commits) as max_blocked_commits,
+			max(block_commit_count) as max_block_commit_count,
+			sum(blocked_commit_time) as total_blocked_commit_time,
 			max(merge_count) as max_merge_count,
 			avg(merge_time) as avg_merge_time
 		FROM %s.write_metrics 

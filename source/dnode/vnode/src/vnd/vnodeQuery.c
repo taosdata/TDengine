@@ -1447,7 +1447,8 @@ int32_t vnodeGetRawWriteMetrics(void *pVnode, SRawWriteMetrics *pRawMetrics) {
   pRawMetrics->commit_count = pVnode1->writeMetrics.commit_count;
   pRawMetrics->commit_time = pVnode1->writeMetrics.commit_time;
   pRawMetrics->memtable_wait_time = pVnode1->writeMetrics.memtable_wait_time;
-  pRawMetrics->blocked_commits = pVnode1->writeMetrics.block_commit_time;
+  pRawMetrics->block_commit_count = pVnode1->writeMetrics.block_commit_count;
+  pRawMetrics->blocked_commit_time = pVnode1->writeMetrics.block_commit_time;
   pRawMetrics->merge_count = pVnode1->writeMetrics.merge_count;
   pRawMetrics->merge_time = pVnode1->writeMetrics.merge_time;
 
@@ -1481,7 +1482,8 @@ int32_t vnodeResetRawWriteMetrics(void *pVnode, const SRawWriteMetrics *pOldMetr
   (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.merge_time, pOldMetrics->merge_time);
 
   (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.memtable_wait_time, pOldMetrics->memtable_wait_time);
-  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.block_commit_time, pOldMetrics->blocked_commits);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.block_commit_count, pOldMetrics->block_commit_count);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.block_commit_time, pOldMetrics->blocked_commit_time);
   (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.merge_count, pOldMetrics->merge_count);
 
   // Reset sync metrics

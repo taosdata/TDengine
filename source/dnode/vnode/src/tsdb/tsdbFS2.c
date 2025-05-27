@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbFS2.h"
 #include "cos.h"
+#include "tsdbFS2.h"
 #include "tsdbUpgrade.h"
 #include "vnd.h"
 
@@ -906,12 +906,22 @@ void tsdbFSCheckCommit(STsdb *tsdb, int32_t fid) {
   (void)taosThreadMutexLock(&tsdb->mutex);
   STFileSet *fset;
   tsdbFSGetFSet(tsdb->pFS, fid, &fset);
+  bool blockCommit = false;
+  if (fset) {
+    blockCommit = fset->blockCommit;
+  }
+  int64_t begin_ts = taosGetTimestampUs();
   if (fset) {
     while (fset->blockCommit) {
       fset->numWaitCommit++;
       (void)taosThreadCondWait(&fset->canCommit, &tsdb->mutex);
       fset->numWaitCommit--;
     }
+  }
+  int64_t end_ts = taosGetTimestampUs();
+  if (blockCommit) {
+    atomic_add_fetch_64(&tsdb->pVnode->writeMetrics.block_commit_count, 1);
+    atomic_add_fetch_64(&tsdb->pVnode->writeMetrics.block_commit_time, end_ts - begin_ts);
   }
   (void)taosThreadMutexUnlock(&tsdb->mutex);
   return;

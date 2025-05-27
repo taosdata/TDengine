@@ -174,7 +174,8 @@ void initWriteMetricsEx(SWriteMetricsEx *pMetrics) {
   initMetric(&pMetrics->commit_count, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
   initMetric(&pMetrics->commit_time, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
   initMetric(&pMetrics->memtable_wait_time, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
-  initMetric(&pMetrics->blocked_commits, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
+  initMetric(&pMetrics->block_commit_count, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
+  initMetric(&pMetrics->blocked_commit_time, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
   initMetric(&pMetrics->merge_count, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
   initMetric(&pMetrics->merge_time, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
 }
@@ -208,7 +209,8 @@ static void updateFormattedFromRaw(SWriteMetricsEx *fmt, const SRawWriteMetrics 
   setMetricInt64(&fmt->commit_count, raw->commit_count);
   setMetricInt64(&fmt->commit_time, raw->commit_time);
   setMetricInt64(&fmt->memtable_wait_time, raw->memtable_wait_time);
-  setMetricInt64(&fmt->blocked_commits, raw->blocked_commits);
+  setMetricInt64(&fmt->block_commit_count, raw->block_commit_count);
+  setMetricInt64(&fmt->blocked_commit_time, raw->blocked_commit_time);
   setMetricInt64(&fmt->merge_count, raw->merge_count);
   setMetricInt64(&fmt->merge_time, raw->merge_time);
 }
@@ -306,7 +308,8 @@ static SJson *writeMetricsToJson(SWriteMetricsEx *pMetrics) {
   tjsonAddDoubleToObject(pJson, "commit_count", getMetricInt64(&pMetrics->commit_count));
   tjsonAddDoubleToObject(pJson, "commit_time", getMetricInt64(&pMetrics->commit_time));
   tjsonAddDoubleToObject(pJson, "memtable_wait_time", getMetricInt64(&pMetrics->memtable_wait_time));
-  tjsonAddDoubleToObject(pJson, "blocked_commits", getMetricInt64(&pMetrics->blocked_commits));
+  tjsonAddDoubleToObject(pJson, "block_commit_count", getMetricInt64(&pMetrics->block_commit_count));
+  tjsonAddDoubleToObject(pJson, "blocked_commit_time", getMetricInt64(&pMetrics->blocked_commit_time));
   tjsonAddDoubleToObject(pJson, "merge_count", getMetricInt64(&pMetrics->merge_count));
   tjsonAddDoubleToObject(pJson, "merge_time", getMetricInt64(&pMetrics->merge_time));
 
@@ -397,7 +400,7 @@ void reportWriteMetrics() {
           " "
           "WalWriteBytes:%" PRId64 " WalWriteTime:%" PRId64 " ApplyBytes:%" PRId64 " ApplyTime:%" PRId64
           " "
-          "Commits:%" PRId64 " CommitTime:%" PRId64 " MemWait:%" PRId64 " Blocked:%" PRId64
+          "Commits:%" PRId64 " CommitTime:%" PRId64 " MemWait:%" PRId64 " BlockCount:%" PRId64 " BlockTime:%" PRId64
           " "
           "Merges:%" PRId64 " MergeTime:%" PRId64,
           pMetrics->vgId, getMetricInt64(&pMetrics->total_requests), getMetricInt64(&pMetrics->total_rows),
@@ -406,8 +409,9 @@ void reportWriteMetrics() {
           getMetricInt64(&pMetrics->wal_write_bytes), getMetricInt64(&pMetrics->wal_write_time),
           getMetricInt64(&pMetrics->apply_bytes), getMetricInt64(&pMetrics->apply_time),
           getMetricInt64(&pMetrics->commit_count), getMetricInt64(&pMetrics->commit_time),
-          getMetricInt64(&pMetrics->memtable_wait_time), getMetricInt64(&pMetrics->blocked_commits),
-          getMetricInt64(&pMetrics->merge_count), getMetricInt64(&pMetrics->merge_time));
+          getMetricInt64(&pMetrics->memtable_wait_time), getMetricInt64(&pMetrics->block_commit_count),
+          getMetricInt64(&pMetrics->blocked_commit_time), getMetricInt64(&pMetrics->merge_count),
+          getMetricInt64(&pMetrics->merge_time));
 
     SJson *pJson = writeMetricsToJson(pMetrics);
     if (pJson != NULL) {

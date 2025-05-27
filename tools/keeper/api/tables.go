@@ -301,7 +301,8 @@ type WriteMetricsInfo struct {
 	CommitCount           int64 `json:"commit_count"`
 	CommitTime            int64 `json:"commit_time"`
 	MemtableWaitTime      int64 `json:"memtable_wait_time"`
-	BlockedCommits        int64 `json:"blocked_commits"`
+	BlockCommitCount      int64 `json:"block_commit_count"`
+	BlockedCommitTime     int64 `json:"blocked_commit_time"`
 	MergeCount            int64 `json:"merge_count"`
 	MergeTime             int64 `json:"merge_time"`
 }
@@ -321,7 +322,8 @@ var CreateWriteMetricsSql = "create table if not exists write_metrics (" +
 	"commit_count bigint, " +
 	"commit_time bigint, " +
 	"memtable_wait_time bigint, " +
-	"blocked_commits bigint, " +
+	"block_commit_count bigint, " +
+	"blocked_commit_time bigint, " +
 	"merge_count bigint, " +
 	"merge_time bigint " +
 	") tags (vgroup_id int, dnode_id int)"
