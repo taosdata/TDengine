@@ -1498,8 +1498,10 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
   // out table part
 
   // trigger cols and partition cols
+  int32_t filterColsLen = pReq->triggerFilterCols == NULL ? 0 : (int32_t)strlen((char*)pReq->triggerFilterCols) + 1;
   int32_t triggerColsLen = pReq->triggerCols == NULL ? 0 : (int32_t)strlen((char*)pReq->triggerCols) + 1;
   int32_t partitionColsLen = pReq->partitionCols == NULL ? 0 : (int32_t)strlen((char*)pReq->partitionCols) + 1;
+  TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->triggerFilterCols, filterColsLen));
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->triggerCols, triggerColsLen));
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->partitionCols, partitionColsLen));
 
@@ -1602,6 +1604,9 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
   int32_t triggerScanPlanLen = pReq->triggerScanPlan == NULL ? 0 : (int32_t)strlen((char*)pReq->triggerScanPlan) + 1;
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->triggerScanPlan, triggerScanPlanLen));
 
+  int32_t triggerFilterLen = pReq->triggerPrevFilter == NULL ? 0 : (int32_t)strlen((char*)pReq->triggerPrevFilter) + 1;
+  TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->triggerPrevFilter, triggerFilterLen));
+
   int32_t calcScanPlanListSize = (int32_t)taosArrayGetSize(pReq->calcScanPlanList);
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, calcScanPlanListSize));
   for (int32_t i = 0; i < calcScanPlanListSize; ++i) {
@@ -1614,12 +1619,6 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
     }
     TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pCalcScanPlan->readFromCache));
     TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pCalcScanPlan->scanPlan, scanPlanLen));
-  }
-
-  int32_t vgNum = (int32_t)taosArrayGetSize(pReq->pVSubTables);
-  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, vgNum));
-  for (int32_t i = 0; i < vgNum; ++i) {
-    TAOS_CHECK_EXIT(tSerializeSVSubTablesRspImpl(pEncoder, (SVSubTablesRsp*)taosArrayGet(pReq->pVSubTables, i)));
   }
 
   int32_t calcPlanLen = pReq->calcPlan == NULL ? 0 : (int32_t)strlen((char*)pReq->calcPlan) + 1;
@@ -1742,6 +1741,7 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->notifyErrorHandle));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->notifyHistory));
 
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->triggerFilterCols, NULL));
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->triggerCols, NULL));
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->partitionCols, NULL));
 
@@ -1858,6 +1858,8 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
 
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->triggerScanPlan, NULL));
 
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->triggerPrevFilter, NULL));
+
   int32_t calcScanPlanListSize = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &calcScanPlanListSize));
   if (calcScanPlanListSize > 0) {
@@ -1885,24 +1887,6 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &calcScan.readFromCache));
       TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&calcScan.scanPlan, NULL));
       taosArrayPush(pReq->calcScanPlanList, &calcScan);
-    }
-  }
-
-  int32_t vgNum = 0;
-  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &vgNum));
-  if (vgNum > 0) {
-    pReq->pVSubTables = taosArrayInit(vgNum, sizeof(SVSubTablesRsp));
-    if (pReq->pVSubTables == NULL) {
-      TAOS_CHECK_EXIT(terrno);
-    }
-    SVSubTablesRsp vgTables = {0};
-    for (int32_t i = 0; i < vgNum; ++i) {
-      vgTables.pTables = NULL;
-      TAOS_CHECK_EXIT(tDeserializeSVSubTablesRspImpl(pDecoder, &vgTables));
-      if (taosArrayPush(pReq->pVSubTables, &vgTables) == NULL) {
-        tDestroySVSubTablesRsp(&vgTables);
-        TAOS_CHECK_EXIT(terrno);
-      }
     }
   }
 
@@ -2523,7 +2507,7 @@ void tDestroySSTriggerCalcParam(void* ptr) {
 
 void tDestroySStreamGroupValue(void* ptr) {
   SStreamGroupValue* pValue = ptr;
-  if ((pValue != NULL) && IS_VAR_DATA_TYPE(pValue->data.type)) {
+  if ((pValue != NULL) && (IS_VAR_DATA_TYPE(pValue->data.type) || pValue->data.type == TSDB_DATA_TYPE_DECIMAL)) {
     taosMemoryFreeClear(pValue->data.pData);
     pValue->data.nData = 0;
   }

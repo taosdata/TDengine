@@ -135,7 +135,6 @@ typedef enum {
   CTG_TASK_GET_TB_TSMA,
   CTG_TASK_GET_TSMA,
   CTG_TASK_GET_TB_NAME,
-  CTG_TASK_GET_V_SUBTABLES,
   CTG_TASK_GET_V_STBREFDBS,
 } CTG_TASK_TYPE;
 
@@ -311,21 +310,6 @@ typedef struct SCtgTbTSMACtx {
   SArray* pFetches;
 } SCtgTbTSMACtx;
 
-typedef struct SCtgVSubTablesCtx {
-  SArray* pNames;
-
-  STableMeta* pMeta;
- 
-  int32_t vgNum;
-  bool    clonedVgroups;
-  SArray* pVgroups;
-
-  int32_t         resCode;
-  int32_t         resDoneNum;
-  SVSubTablesRsp* pResList;
-  int32_t         resIdx;
-} SCtgVSubTablesCtx;
-
 typedef struct SCtgVStbRefDbsCtx {
   SArray*         pNames;
 
@@ -466,7 +450,6 @@ typedef struct SCtgJob {
   int32_t          tbTsmaNum;
   int32_t          tsmaNum;  // currently, only 1 is possible
   int32_t          tbNameNum;
-  int32_t          vsubTbNum;
   int32_t          vstbRefDbNum;
 } SCtgJob;
 
@@ -1150,7 +1133,6 @@ int32_t ctgLaunchJob(SCtgJob* pJob);
 int32_t ctgMakeAsyncRes(SCtgJob* pJob);
 int32_t ctgLaunchSubTask(SCtgTask** ppTask, CTG_TASK_TYPE type, ctgSubTaskCbFp fp, void* param);
 int32_t ctgGetTbCfgCb(SCtgTask* pTask);
-int32_t ctgGetVSubTablesCb(SCtgTask* pTask);
 int32_t ctgGetVStbRefDbsCb(SCtgTask* pTask);
 void    ctgFreeHandle(SCatalog* pCatalog);
 
@@ -1250,11 +1232,9 @@ bool     isCtgTSMACacheOutOfDate(STSMACache* pTsmaCache);
 int32_t  ctgGetStreamProgressFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTbName,
                                        SVgroupInfo* vgroupInfo, SStreamProgressRsp* out, SCtgTaskReq* tReq,
                                        void* bInput);
-int32_t ctgGetVSubTablesFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, int64_t suid, SVgroupInfo* vgroupInfo, SCtgTaskReq* tReq);
 int32_t ctgGetVStbRefDbsFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, int64_t suid, SVgroupInfo* vgroupInfo, SCtgTaskReq* tReq);
 int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fetchIdx, int32_t resIdx, int32_t flag,
                         CTG_TSMA_FETCH_TYPE fetchType, const SName* sourceTbName);
-int32_t ctgBuildNormalChildVtbList(SCtgVSubTablesCtx* pCtx);                        
 int32_t ctgOpUpdateDbTsmaVersion(SCtgCacheOperation* pOper);
 int32_t ctgUpdateDbTsmaVersionEnqueue(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId,
                                       bool syncOper);
