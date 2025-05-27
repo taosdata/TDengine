@@ -103,7 +103,6 @@ typedef struct SCollectMetaKeyCxt {
   SParseContext*   pParseCxt;
   SParseMetaCache* pMetaCache;
   SNode*           pStmt;
-  bool             collectVSubTables;
   bool             collectVStbRefDbs;
 } SCollectMetaKeyCxt;
 
@@ -201,9 +200,6 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
 static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SRealTableNode* pRealTable) {
   pCxt->errCode = collectMetaKeyFromRealTableImpl(pCxt->pComCxt, pRealTable->table.dbName, pRealTable->table.tableName,
                                                   AUTH_TYPE_READ);
-  if (TSDB_CODE_SUCCESS == pCxt->errCode && pCxt->pComCxt->collectVSubTables) {
-    pCxt->errCode = reserveVSubTableInCache(pCxt->pComCxt->pParseCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, pCxt->pComCxt->pMetaCache);
-  }
   if (TSDB_CODE_SUCCESS == pCxt->errCode && pCxt->pComCxt->collectVStbRefDbs) {
     pCxt->errCode = reserveVStbRefDbsInCache(pCxt->pComCxt->pParseCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, pCxt->pComCxt->pMetaCache);
   }
@@ -615,8 +611,6 @@ static int32_t collectMetaKeyFromDescribe(SCollectMetaKeyCxt* pCxt, SDescribeStm
 }
 
 static int32_t collectMetaKeyFromCreateStream(SCollectMetaKeyCxt* pCxt, SCreateStreamStmt* pStmt) {
-  pCxt->collectVSubTables = true;
-
   int32_t code = TSDB_CODE_SUCCESS;
 
   if (strcmp(pStmt->targetTabName, "") != 0) {

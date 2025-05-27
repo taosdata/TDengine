@@ -490,8 +490,6 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
     TSDB_CHECK_NULL(taosArrayPush(pMsg->runnerList, &runner), code, lino, _exit, terrno);
   }
 
-  pMsg->pVSubTables = pStream->pCreate->pVSubTables;
-
 _exit:
 
   if (code) {

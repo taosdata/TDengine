@@ -243,6 +243,7 @@ typedef struct {
   int32_t notifyErrorHandle;
   int8_t  notifyHistory;
 
+  void*          triggerFilterCols;     // nodelist of SColumnNode
   void*          triggerCols;           // nodelist of SColumnNode
   void*          partitionCols;         // nodelist of SColumnNode
   SArray*        outCols;               // array of SFieldWithOptions
@@ -275,7 +276,7 @@ typedef struct {
   SArray* calcScanPlanList;  // for calc action, SArray<SStreamCalcScan>
 
   // trigger part
-  SArray* pVSubTables;  // array of SVSubTablesRsp
+  void*   triggerPrevFilter;  // filter for trigger table
 
   // runner part
   void*   calcPlan;  // for calc action
@@ -402,8 +403,6 @@ typedef struct {
 
   SArray* readerList;  // SArray<SStreamTaskAddr>
   SArray* runnerList;  // SArray<SStreamRunnerTarget>
-
-  SArray* pVSubTables;
 } SStreamTriggerDeployMsg;
 
 typedef struct SStreamRunnerDeployMsg {
