@@ -52,7 +52,7 @@ typedef struct SToken {
  * tokenizer for sql string
  * @param z
  * @param tokenType
- * @param dupQuoteChar duplicated quota char contained in the quoted string
+ * @param dupQuoteChar duplicated quote char contained in the quoted string
  * @return
  */
 uint32_t tGetToken(const char *z, uint32_t *tokenType, char* dupQuoteChar);
