@@ -1607,6 +1607,7 @@ static int32_t putStreamDataBlock(SDataSinkHandle* pHandle, const SInputData* pI
     }
 
     if (pInserter->submitRes.code) {
+      code = pInserter->submitRes.code;
       stError("submitRes err:%s, code:%d", tstrerror(pInserter->submitRes.code), pInserter->submitRes.code);
       QUERY_CHECK_CODE(pInserter->submitRes.code, lino, _return);
     }
