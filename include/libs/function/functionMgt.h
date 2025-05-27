@@ -163,13 +163,17 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_IROWTS_ORIGIN,
   FUNCTION_TYPE_GROUP_ID,
   FUNCTION_TYPE_IS_WINDOW_FILLED,
-  FUNCTION_TYPE_TCURRENT_TS, // _tcurrent_ts
-  FUNCTION_TYPE_TWSTART,     // _twstart
-  FUNCTION_TYPE_TWEND,       // _twend
-  FUNCTION_TYPE_TWDURATION,  // _twduration
-  FUNCTION_TYPE_TWROWNUM,    // _twrownum
-  FUNCTION_TYPE_TLOCALTIME,  // _tlocaltime
-  FUNCTION_TYPE_TGRPID,      // _tgrpid
+  FUNCTION_TYPE_TPREV_TS,           // _tprev_ts
+  FUNCTION_TYPE_TCURRENT_TS,        // _tcurrent_ts
+  FUNCTION_TYPE_TNEXT_TS,           // _tnext_ts
+  FUNCTION_TYPE_TWSTART,            // _twstart
+  FUNCTION_TYPE_TWEND,              // _twend
+  FUNCTION_TYPE_TWDURATION,         // _twduration
+  FUNCTION_TYPE_TWROWNUM,           // _twrownum
+  FUNCTION_TYPE_TPREV_LOCALTIME,    // _tprev_localtime
+  FUNCTION_TYPE_TNEXT_LOCALTIME,    // _tnext_localtime
+  FUNCTION_TYPE_TLOCALTIME,         // _tlocaltime
+  FUNCTION_TYPE_TGRPID,             // _tgrpid
   FUNCTION_TYPE_PLACEHOLDER_COLUMN, // %%n
   FUNCTION_TYPE_PLACEHOLDER_TBNAME, // %%tbname
 
