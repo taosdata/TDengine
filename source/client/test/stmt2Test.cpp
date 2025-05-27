@@ -2207,14 +2207,13 @@ TEST(stmt2Case, usage_error) {
   int              t64_len[1] = {sizeof(int64_t)};
   int              b_len[1] = {3};
   int64_t          ts = 1591060628000;
-  TAOS_STMT2_BIND* params = new TAOS_STMT2_BIND;
-  *params = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_TIMESTAMP, &ts, t64_len, NULL, 1};
+  TAOS_STMT2_BIND  params = {TSDB_DATA_TYPE_TIMESTAMP, &ts, t64_len, NULL, 1};
+  TAOS_STMT2_BIND* params1 = &params;
 
-  TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &params};
+  TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &params1};
   code = taos_stmt2_bind_param(stmt, &bindv, -1);
   ASSERT_EQ(code, TSDB_CODE_TSC_STMT_API_ERROR);
   ASSERT_STREQ(taos_stmt2_error(stmt), "stmt only support select or insert");
-  delete params;  // Ensure proper cleanup after usage
 
   taos_stmt2_close(stmt);
   do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_14");
