@@ -2523,7 +2523,7 @@ void tDestroySSTriggerCalcParam(void* ptr) {
 
 void tDestroySStreamGroupValue(void* ptr) {
   SStreamGroupValue* pValue = ptr;
-  if ((pValue != NULL) && IS_VAR_DATA_TYPE(pValue->data.type)) {
+  if ((pValue != NULL) && (IS_VAR_DATA_TYPE(pValue->data.type) || pValue->data.type == TSDB_DATA_TYPE_DECIMAL)) {
     taosMemoryFreeClear(pValue->data.pData);
     pValue->data.nData = 0;
   }
