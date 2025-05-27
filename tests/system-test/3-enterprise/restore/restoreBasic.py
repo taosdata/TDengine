@@ -136,13 +136,11 @@ class RestoreBasic:
             tdLog.exit(f"remove path {dnode.dataDir} error : {x.strerror}")
 
         dnode.starttaosd()
-
-        time.sleep(3)
         
         # exec restore
         sql = f"restore dnode {index}"
         tdLog.info(sql)
-        tdSql.execute(sql, queryTimes=1)
+        tdSql.execute(sql)
         self.check_corrent()
 
     def restore_dnode_prepare(self, index):
@@ -192,14 +190,14 @@ class RestoreBasic:
 
         dnode.starttaosd()
         
-        newTdSql=tdCom.newTdSql()
-        t0 = threading.Thread(target=self.showTransactionThread, args=('', newTdSql))
-        t0.start()
+        #newTdSql=tdCom.newTdSql()
+        #t0 = threading.Thread(target=self.showTransactionThread, args=('', newTdSql))
+        #t0.start()
 
         # exec restore
         sql = f"restore vnode on dnode {index}"
         tdLog.info(sql)
-        tdSql.execute(sql, queryTimes=1)
+        tdSql.execute(sql)
 
         # check result
         self.check_corrent()
