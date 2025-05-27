@@ -566,6 +566,8 @@ static bool mndUpdateVnodeState(int32_t vgId, SVnodeGid *pGid, SVnodeLoad *pVloa
 
   pGid->syncAppliedIndex = pVload->syncAppliedIndex;
   pGid->syncCommitIndex = pVload->syncCommitIndex;
+  pGid->bufferSegmentUsed = pVload->bufferSegmentUsed;
+  pGid->bufferSegmentSize = pVload->bufferSegmentSize;
   if (roleChanged || pGid->syncRestore != pVload->syncRestore || pGid->syncCanRead != pVload->syncCanRead ||
       pGid->startTimeMs != pVload->startTimeMs) {
     mInfo(
