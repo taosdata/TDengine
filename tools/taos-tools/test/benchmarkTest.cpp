@@ -49,6 +49,7 @@ void prompt(bool nonStopMode);
 void printErrCmdCodeStr(char *cmd, int32_t code, TAOS_RES *res);
 void randomFillCols(uint16_t* cols, uint16_t max, uint16_t cnt);
 uint32_t appendRowRuleOld(SSuperTable* stb, char* pstr, uint32_t len, int64_t timestamp);
+int32_t parseFunArgs(char* value, uint8_t funType, int64_t* min ,int64_t* max, int32_t* step ,int32_t* period ,int32_t* offset);
 
 #ifdef __cplusplus
 }
@@ -178,6 +179,62 @@ TEST(benchInsertMix, randomFillCols) {
   } 
   
 }
+
+TEST(benchJsonOpt, parseFunArgs) {
+    int64_t min = 0, max = 0;
+    int32_t step = 0, period = 0, offset = 0;
+    
+    char* input = "100,200,300,400)";
+    uint32_t len = parseFunArgs(input, FUNTYPE_COUNT, &min, &max, &step, &period, &offset);
+    assert(len == strlen("100,200,300,400") + 1);
+
+    assert(min == 100);
+    assert(max == 200);
+    assert(period == 300);
+    assert(offset == 400);
+
+    min = 0;
+    max = 0;
+    step = 0;
+    period = 0;
+    offset = 0;
+    input = "50,150,250,350)";
+    len = parseFunArgs(strdup(input), FUNTYPE_CNT, &min, &max, &step, &period, &offset);
+    assert(len == strlen("50,150,250,350") + 1);
+    assert(min == 50);
+    assert(max == 150);
+    assert(period == 250);
+    assert(offset == 350);
+
+    min = -1;
+    max = -1;
+    step = -1;
+    period = -1;
+    offset = -1;
+    input = "50,150,250";
+    len = parseFunArgs(strdup(input), FUNTYPE_CNT, &min, &max, &step, &period, &offset);
+    assert(len == 0);
+    assert(min == -1);
+    assert(max == -1);
+    assert(period == -1);
+    assert(offset == -1);
+
+
+    min = -1;
+    max = -1;
+    step = -1;
+    period = -1;
+    offset = -1;
+    input = "50";
+    len = parseFunArgs(strdup(input), FUNTYPE_CNT, &min, &max, &step, &period, &offset);
+    assert(len == 0);
+    assert(min == -1);
+    assert(max == -1);
+    assert(period == -1);
+    assert(offset == -1);
+
+}
+
 
 // main
 int main(int argc, char **argv) {

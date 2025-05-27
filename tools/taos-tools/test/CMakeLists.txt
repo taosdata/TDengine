@@ -19,6 +19,7 @@ IF(TD_LINUX)
         "../src/benchUtilDs.c"
         "../src/wrapDb.c"
         "../src/benchDataMix.c"
+        "../src/benchJsonOpt.c"
     )
 
     ADD_EXECUTABLE(benchmarkTest benchmarkTest.cpp ${BENCHMARK_SRC})
