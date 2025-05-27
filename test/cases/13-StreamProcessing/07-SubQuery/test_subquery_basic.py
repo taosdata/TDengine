@@ -177,5 +177,5 @@ class TestStreamSubqueryBasic:
                     input_sql=self.exp_query,
                 )
 
-            tdSql.checkResultsByArray(self.res_query, tmp_result)
+            tdSql.checkResultsByArray(self.res_query, self.exp_result, self.exp_query)
             tdLog.info(f"check stream:{self.name} result successfully")
