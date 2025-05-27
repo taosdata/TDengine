@@ -478,8 +478,8 @@ func (r *Reporter) metricsBatchHandlerFunc() gin.HandlerFunc {
 }
 
 func (r *Reporter) insertWriteMetricsSql(metrics WriteMetricsInfo) string {
-	return fmt.Sprintf("insert into write_metrics_%d using write_metrics tags (%d, %d, '%s', '%s') values (now, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)",
-		metrics.VgId, metrics.VgId, 1, "localhost:6030", "cluster1",
+	return fmt.Sprintf("insert into write_metrics_%d_%d using write_metrics tags (%d, %d) values (now, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)",
+		metrics.DnodeId, metrics.VgId, metrics.VgId, metrics.DnodeId,
 		metrics.TotalRequests, metrics.TotalRows, metrics.TotalBytes,
 		metrics.FetchBatchMetaTime, metrics.FetchBatchMetaCount, metrics.PreprocessTime,
 		metrics.WalWriteBytes, metrics.WalWriteTime, metrics.ApplyBytes, metrics.ApplyTime,
@@ -490,51 +490,45 @@ func (r *Reporter) insertWriteMetricsSql(metrics WriteMetricsInfo) string {
 func (r *Reporter) metricsQueryHandlerFunc() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		vgroupId := c.Query("vgroup_id")
+		dnodeId := c.Query("dnode_id")
 		startTime := c.Query("start_time")
 		endTime := c.Query("end_time")
 		interval := c.DefaultQuery("interval", "1m")
 		limit := c.DefaultQuery("limit", "1000")
 
 		var sql string
+		whereConditions := []string{}
+		
+		baseSelect := `SELECT _wstart as ts, vgroup_id, dnode_id,
+			avg(total_requests) as total_requests,
+			avg(total_rows) as total_rows,
+			avg(total_bytes) as total_bytes,
+			avg(fetch_batch_meta_time) as fetch_batch_meta_time,
+			avg(fetch_batch_meta_count) as fetch_batch_meta_count,
+			avg(preprocess_time) as preprocess_time,
+			avg(wal_write_bytes) as wal_write_bytes,
+			avg(wal_write_time) as wal_write_time,
+			avg(apply_bytes) as apply_bytes,
+			avg(apply_time) as apply_time,
+			avg(commit_count) as commit_count,
+			avg(commit_time) as commit_time,
+			avg(memtable_wait_time) as memtable_wait_time,
+			avg(blocked_commits) as blocked_commits,
+			avg(merge_count) as merge_count,
+			avg(merge_time) as merge_time
+		FROM %s.write_metrics`
+		
 		if vgroupId != "" {
-			sql = fmt.Sprintf(`SELECT _wstart as ts, vgroup_id, 
-				avg(total_requests) as total_requests,
-				avg(total_rows) as total_rows,
-				avg(total_bytes) as total_bytes,
-				avg(fetch_batch_meta_time) as fetch_batch_meta_time,
-				avg(fetch_batch_meta_count) as fetch_batch_meta_count,
-				avg(preprocess_time) as preprocess_time,
-				avg(wal_write_bytes) as wal_write_bytes,
-				avg(wal_write_time) as wal_write_time,
-				avg(apply_bytes) as apply_bytes,
-				avg(apply_time) as apply_time,
-				avg(commit_count) as commit_count,
-				avg(commit_time) as commit_time,
-				avg(memtable_wait_time) as memtable_wait_time,
-				avg(blocked_commits) as blocked_commits,
-				avg(merge_count) as merge_count,
-				avg(merge_time) as merge_time
-			FROM %s.write_metrics 
-			WHERE vgroup_id = %s`, r.dbname, vgroupId)
+			whereConditions = append(whereConditions, fmt.Sprintf("vgroup_id = %s", vgroupId))
+		}
+		if dnodeId != "" {
+			whereConditions = append(whereConditions, fmt.Sprintf("dnode_id = %s", dnodeId))
+		}
+		
+		if len(whereConditions) > 0 {
+			sql = fmt.Sprintf(baseSelect+" WHERE %s", r.dbname, strings.Join(whereConditions, " AND "))
 		} else {
-			sql = fmt.Sprintf(`SELECT _wstart as ts, vgroup_id,
-				avg(total_requests) as total_requests,
-				avg(total_rows) as total_rows,
-				avg(total_bytes) as total_bytes,
-				avg(fetch_batch_meta_time) as fetch_batch_meta_time,
-				avg(fetch_batch_meta_count) as fetch_batch_meta_count,
-				avg(preprocess_time) as preprocess_time,
-				avg(wal_write_bytes) as wal_write_bytes,
-				avg(wal_write_time) as wal_write_time,
-				avg(apply_bytes) as apply_bytes,
-				avg(apply_time) as apply_time,
-				avg(commit_count) as commit_count,
-				avg(commit_time) as commit_time,
-				avg(memtable_wait_time) as memtable_wait_time,
-				avg(blocked_commits) as blocked_commits,
-				avg(merge_count) as merge_count,
-				avg(merge_time) as merge_time
-			FROM %s.write_metrics`, r.dbname)
+			sql = fmt.Sprintf(baseSelect, r.dbname)
 		}
 
 		if startTime != "" && endTime != "" {
@@ -545,7 +539,7 @@ func (r *Reporter) metricsQueryHandlerFunc() gin.HandlerFunc {
 			sql += fmt.Sprintf(" AND ts <= '%s'", endTime)
 		}
 
-		sql += fmt.Sprintf(" INTERVAL(%s) GROUP BY vgroup_id ORDER BY ts DESC LIMIT %s", interval, limit)
+		sql += fmt.Sprintf(" INTERVAL(%s) GROUP BY vgroup_id, dnode_id ORDER BY ts DESC LIMIT %s", interval, limit)
 
 		r.executeQueryAndRespond(c, sql)
 	}
@@ -571,6 +565,7 @@ func (r *Reporter) metricsSummaryHandlerFunc() gin.HandlerFunc {
 
 		sql := fmt.Sprintf(`SELECT 
 			vgroup_id,
+			dnode_id,
 			max(total_requests) as max_total_requests,
 			max(total_rows) as max_total_rows,
 			max(total_bytes) as max_total_bytes,
@@ -589,8 +584,8 @@ func (r *Reporter) metricsSummaryHandlerFunc() gin.HandlerFunc {
 			avg(merge_time) as avg_merge_time
 		FROM %s.write_metrics 
 		WHERE %s 
-		GROUP BY vgroup_id 
-		ORDER BY vgroup_id`, r.dbname, timeFilter)
+		GROUP BY vgroup_id, dnode_id 
+		ORDER BY vgroup_id, dnode_id`, r.dbname, timeFilter)
 
 		r.executeQueryAndRespond(c, sql)
 	}
@@ -600,14 +595,12 @@ func (r *Reporter) metricsVgroupsHandlerFunc() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		sql := fmt.Sprintf(`SELECT DISTINCT 
 			vgroup_id, 
-			dnode_id, 
-			dnode_ep, 
-			cluster_id,
+			dnode_id,
 			count(*) as record_count,
 			min(ts) as first_ts,
 			max(ts) as last_ts
 		FROM %s.write_metrics 
-		GROUP BY vgroup_id, dnode_id, dnode_ep, cluster_id 
+		GROUP BY vgroup_id, dnode_id 
 		ORDER BY vgroup_id`, r.dbname)
 
 		r.executeQueryAndRespond(c, sql)

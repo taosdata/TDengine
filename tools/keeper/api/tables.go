@@ -287,6 +287,7 @@ var CreateKeeperSql = "create table if not exists keeper_monitor (" +
 
 type WriteMetricsInfo struct {
 	VgId                  int   `json:"vgId"`
+	DnodeId               int   `json:"dnodeId"`
 	TotalRequests         int64 `json:"total_requests"`
 	TotalRows             int64 `json:"total_rows"`
 	TotalBytes            int64 `json:"total_bytes"`
@@ -323,7 +324,7 @@ var CreateWriteMetricsSql = "create table if not exists write_metrics (" +
 	"blocked_commits bigint, " +
 	"merge_count bigint, " +
 	"merge_time bigint " +
-	") tags (vgroup_id int, dnode_id int, dnode_ep nchar(" + dnodeEpLen + "), cluster_id nchar(32))"
+	") tags (vgroup_id int, dnode_id int)"
 
 type WriteMetricsReport struct {
 	Ts           string              `json:"ts"`

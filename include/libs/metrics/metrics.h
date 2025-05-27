@@ -96,6 +96,7 @@ typedef struct {
 // Write Metrics Extended Structure (Formatted)
 typedef struct {
   int32_t vgId;
+  int32_t dnodeId;
   SMetric total_requests;
   SMetric total_rows;
   SMetric total_bytes;
@@ -145,7 +146,7 @@ const char *getMetricString(const SMetric *pMetric);
 
 // Write metrics functions
 void             initWriteMetricsEx(SWriteMetricsEx *pMetrics);
-int32_t          addWriteMetrics(int32_t vgId, const SRawWriteMetrics *pRawMetrics);
+int32_t          addWriteMetrics(int32_t vgId, int32_t dnodeId, const SRawWriteMetrics *pRawMetrics);
 SWriteMetricsEx *getWriteMetricsByVgId(int32_t vgId);
 
 // Dnode metrics functions

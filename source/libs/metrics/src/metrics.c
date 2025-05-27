@@ -189,10 +189,11 @@ void initDnodeMetricsEx(SDnodeMetricsEx *pMetrics) {
 
 void cleanupMetrics() { destroyMetricsManager(); }
 
-static void updateFormattedFromRaw(SWriteMetricsEx *fmt, const SRawWriteMetrics *raw, int32_t vgId) {
+static void updateFormattedFromRaw(SWriteMetricsEx *fmt, const SRawWriteMetrics *raw, int32_t vgId, int32_t dnodeId) {
   if (fmt == NULL || raw == NULL) return;
 
   fmt->vgId = vgId;
+  fmt->dnodeId = dnodeId;
 
   setMetricInt64(&fmt->total_requests, raw->total_requests);
   setMetricInt64(&fmt->total_rows, raw->total_rows);
@@ -221,7 +222,7 @@ static void updateDnodeFormattedFromRaw(SDnodeMetricsEx *fmt, const SRawDnodeMet
   setMetricInt64(&fmt->applyMemoryUsed, raw->applyMemoryUsed);
 }
 
-int32_t addWriteMetrics(int32_t vgId, const SRawWriteMetrics *pRawMetrics) {
+int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, const SRawWriteMetrics *pRawMetrics) {
   if (pRawMetrics == NULL || gMetricsManager.pWriteMetrics == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -238,7 +239,7 @@ int32_t addWriteMetrics(int32_t vgId, const SRawWriteMetrics *pRawMetrics) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
     initWriteMetricsEx(pMetricEx);
-    updateFormattedFromRaw(pMetricEx, pRawMetrics, vgId);
+    updateFormattedFromRaw(pMetricEx, pRawMetrics, vgId, dnodeId);
     code = taosHashPut(gMetricsManager.pWriteMetrics, &vgId, sizeof(vgId), &pMetricEx, sizeof(SWriteMetricsEx *));
     if (code != TSDB_CODE_SUCCESS) {
       taosMemoryFree(pMetricEx);
@@ -248,7 +249,7 @@ int32_t addWriteMetrics(int32_t vgId, const SRawWriteMetrics *pRawMetrics) {
     }
   } else {
     pMetricEx = *ppMetricEx;
-    updateFormattedFromRaw(pMetricEx, pRawMetrics, vgId);
+    updateFormattedFromRaw(pMetricEx, pRawMetrics, vgId, dnodeId);
   }
   return code;
 }
@@ -278,7 +279,7 @@ SWriteMetricsEx *getWriteMetricsByVgId(int32_t vgId) {
   return *ppMetricEx;
 }
 
-static SJson *metricsToJson(SWriteMetricsEx *pMetrics) {
+static SJson *writeMetricsToJson(SWriteMetricsEx *pMetrics) {
   SJson *pJson = tjsonCreateObject();
   if (pJson == NULL) return NULL;
 
@@ -290,6 +291,7 @@ static SJson *metricsToJson(SWriteMetricsEx *pMetrics) {
   }
 
   tjsonAddStringToObject(pJson, "ts", buf);
+  tjsonAddDoubleToObject(pJson, "dnodeId", pMetrics->dnodeId);
   tjsonAddDoubleToObject(pJson, "vgId", pMetrics->vgId);
   tjsonAddDoubleToObject(pJson, "total_requests", getMetricInt64(&pMetrics->total_requests));
   tjsonAddDoubleToObject(pJson, "total_rows", getMetricInt64(&pMetrics->total_rows));
@@ -407,7 +409,7 @@ void reportWriteMetrics() {
           getMetricInt64(&pMetrics->memtable_wait_time), getMetricInt64(&pMetrics->blocked_commits),
           getMetricInt64(&pMetrics->merge_count), getMetricInt64(&pMetrics->merge_time));
 
-    SJson *pJson = metricsToJson(pMetrics);
+    SJson *pJson = writeMetricsToJson(pMetrics);
     if (pJson != NULL) {
       sendMetricsReport(pJson);
       tjsonDelete(pJson);
