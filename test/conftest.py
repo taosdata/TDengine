@@ -41,6 +41,8 @@ def pytest_addoption(parser):
                     help="Enable debug log output.")
     parser.addoption("--testlist", action="store",
                     help="Path to file containing list of test files to run")
+    parser.addoption("--skip_stop", action="store_true",
+                    help="Do not destroy/stop the TDengine cluster after test class execution (for debugging or keeping environment alive)")
     #parser.addoption("--setup_all", action="store_true",
     #                help="Setup environment once before all tests running")
 
@@ -86,6 +88,7 @@ def before_test_session(request):
         request.session.skip_test = True
     else:
         request.session.skip_test = False
+    request.session.skip_stop = bool(request.config.getoption("--skip_stop"))
     if request.config.getoption("-A"):
         request.session.asan = True
     else:
@@ -280,7 +283,7 @@ def before_test_class(request):
                 if hasattr(item, "rep_setup") and item.rep_setup.outcome == "error":
                     tdLog.debug(f"    错误原因: {str(item.rep_setup.longrepr)}")
                     if_success = False
-        if if_success:
+        if if_success and not request.session.skip_stop:
             tdLog.info(f"successfully executed")
             request.session.before_test.destroy(request.cls.yaml_file)
 
