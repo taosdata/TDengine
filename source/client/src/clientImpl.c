@@ -139,6 +139,7 @@ int32_t taos_connect_internal(const char* ip, const char* user, const char* pass
   }
   for (int32_t i = 0; i < epSet.epSet.numOfEps; i++) {
     if ((code = taosValidFqdn(tsEnableIpv6, epSet.epSet.eps[i].fqdn)) != 0) {
+      taosMemFree(key);
       tscError("ipv6 flag %d, the local FQDN %s does not resolve to the ip address since %s", tsEnableIpv6,
                epSet.epSet.eps[i].fqdn, tstrerror(code));
       TSC_ERR_RET(code);
