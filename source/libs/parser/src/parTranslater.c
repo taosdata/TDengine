@@ -3531,8 +3531,18 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
     }
     SNode* extraValue = NULL;
     switch ((*pFunc)->funcType) {
+      case FUNCTION_TYPE_TPREV_TS: {
+        BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PREV_TS);
+        nodesMakeValueNodeFromTimestamp(0, &extraValue);
+        break;
+      }
       case FUNCTION_TYPE_TCURRENT_TS: {
         BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_CURRENT_TS);
+        nodesMakeValueNodeFromTimestamp(0, &extraValue);
+        break;
+      }
+      case FUNCTION_TYPE_TNEXT_TS: {
+        BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_NEXT_TS);
         nodesMakeValueNodeFromTimestamp(0, &extraValue);
         break;
       }
@@ -3554,6 +3564,16 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
       case FUNCTION_TYPE_TWROWNUM: {
         BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_WROWNUM);
         nodesMakeValueNodeFromInt64(0, &extraValue);
+        break;
+      }
+      case FUNCTION_TYPE_TPREV_LOCALTIME: {
+        BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PREV_LOCAL);
+        nodesMakeValueNodeFromTimestamp(0, &extraValue);
+        break;
+      }
+      case FUNCTION_TYPE_TNEXT_LOCALTIME: {
+        BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_NEXT_LOCAL);
+        nodesMakeValueNodeFromTimestamp(0, &extraValue);
         break;
       }
       case FUNCTION_TYPE_TLOCALTIME: {
@@ -13672,15 +13692,22 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
 
   pReq->placeHolderBitmap = pCxt->placeHolderBitmap;
 
-  if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_CURRENT_TS)) {
+  if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_CURRENT_TS) ||
+      BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PREV_TS) ||
+      BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_NEXT_TS)) {
     if (pReq->triggerType != WINDOW_TYPE_INTERVAL) {
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "_tcurrent_ts can only be used in sliding window"));
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "_tcurrent_ts/_tprev_ts/_tnext_ts can only be used in sliding window"));
     }
   }
   if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WSTART) || BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WEND) ||
       BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WDURATION) || BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WROWNUM)) {
     if (pReq->triggerType == WINDOW_TYPE_PERIOD || (pReq->triggerType == WINDOW_TYPE_INTERVAL && pReq->trigger.sliding.interval == 0)) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "_twstart/_twend/_twduration/_twrownum can only be used in event window"));
+    }
+  }
+  if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PREV_LOCAL) || BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_NEXT_LOCAL)) {
+    if (pReq->triggerType != WINDOW_TYPE_PERIOD) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "_tprev_localtime/_tnext_localtime can only be used in period window"));
     }
   }
   if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PARTITION_TBNAME)) {
