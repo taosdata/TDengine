@@ -164,7 +164,6 @@ void initWriteMetricsEx(SWriteMetricsEx *pMetrics) {
   initMetric(&pMetrics->total_requests, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
   initMetric(&pMetrics->total_rows, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
   initMetric(&pMetrics->total_bytes, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
-  initMetric(&pMetrics->avg_write_size, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
   initMetric(&pMetrics->fetch_batch_meta_time, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
   initMetric(&pMetrics->fetch_batch_meta_count, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
   initMetric(&pMetrics->preprocess_time, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
@@ -198,7 +197,6 @@ static void updateFormattedFromRaw(SWriteMetricsEx *fmt, const SRawWriteMetrics 
   setMetricInt64(&fmt->total_requests, raw->total_requests);
   setMetricInt64(&fmt->total_rows, raw->total_rows);
   setMetricInt64(&fmt->total_bytes, raw->total_bytes);
-  setMetricInt64(&fmt->avg_write_size, raw->avg_write_size);
   setMetricInt64(&fmt->fetch_batch_meta_time, raw->fetch_batch_meta_time);
   setMetricInt64(&fmt->fetch_batch_meta_count, raw->fetch_batch_meta_count);
   setMetricInt64(&fmt->preprocess_time, raw->preprocess_time);
@@ -296,7 +294,6 @@ static SJson *metricsToJson(SWriteMetricsEx *pMetrics) {
   tjsonAddDoubleToObject(pJson, "total_requests", getMetricInt64(&pMetrics->total_requests));
   tjsonAddDoubleToObject(pJson, "total_rows", getMetricInt64(&pMetrics->total_rows));
   tjsonAddDoubleToObject(pJson, "total_bytes", getMetricInt64(&pMetrics->total_bytes));
-  tjsonAddDoubleToObject(pJson, "avg_write_size", getMetricInt64(&pMetrics->avg_write_size));
   tjsonAddDoubleToObject(pJson, "fetch_batch_meta_time", getMetricInt64(&pMetrics->fetch_batch_meta_time));
   tjsonAddDoubleToObject(pJson, "fetch_batch_meta_count", getMetricInt64(&pMetrics->fetch_batch_meta_count));
   tjsonAddDoubleToObject(pJson, "preprocess_time", getMetricInt64(&pMetrics->preprocess_time));
@@ -392,7 +389,7 @@ void reportWriteMetrics() {
       continue;
     }
 
-    uInfo("VgId:%d Req:%" PRId64 " Rows:%" PRId64 " Bytes:%" PRId64 " AvgSize:%" PRId64
+    uInfo("VgId:%d Req:%" PRId64 " Rows:%" PRId64 " Bytes:%" PRId64
           " "
           "FetchBatchMetaTime:%" PRId64 " FetchBatchMetaCount:%" PRId64 " Preproc:%" PRId64
           " "
@@ -402,14 +399,13 @@ void reportWriteMetrics() {
           " "
           "Merges:%" PRId64 " MergeTime:%" PRId64,
           pMetrics->vgId, getMetricInt64(&pMetrics->total_requests), getMetricInt64(&pMetrics->total_rows),
-          getMetricInt64(&pMetrics->total_bytes), getMetricInt64(&pMetrics->avg_write_size),
-          getMetricInt64(&pMetrics->fetch_batch_meta_time), getMetricInt64(&pMetrics->fetch_batch_meta_count),
-          getMetricInt64(&pMetrics->preprocess_time), getMetricInt64(&pMetrics->wal_write_bytes),
-          getMetricInt64(&pMetrics->wal_write_time), getMetricInt64(&pMetrics->apply_bytes),
-          getMetricInt64(&pMetrics->apply_time), getMetricInt64(&pMetrics->commit_count),
-          getMetricInt64(&pMetrics->commit_time), getMetricInt64(&pMetrics->memtable_wait_time),
-          getMetricInt64(&pMetrics->blocked_commits), getMetricInt64(&pMetrics->merge_count),
-          getMetricInt64(&pMetrics->merge_time));
+          getMetricInt64(&pMetrics->total_bytes), getMetricInt64(&pMetrics->fetch_batch_meta_time),
+          getMetricInt64(&pMetrics->fetch_batch_meta_count), getMetricInt64(&pMetrics->preprocess_time),
+          getMetricInt64(&pMetrics->wal_write_bytes), getMetricInt64(&pMetrics->wal_write_time),
+          getMetricInt64(&pMetrics->apply_bytes), getMetricInt64(&pMetrics->apply_time),
+          getMetricInt64(&pMetrics->commit_count), getMetricInt64(&pMetrics->commit_time),
+          getMetricInt64(&pMetrics->memtable_wait_time), getMetricInt64(&pMetrics->blocked_commits),
+          getMetricInt64(&pMetrics->merge_count), getMetricInt64(&pMetrics->merge_time));
 
     SJson *pJson = metricsToJson(pMetrics);
     if (pJson != NULL) {

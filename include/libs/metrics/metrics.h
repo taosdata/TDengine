@@ -78,7 +78,6 @@ typedef struct {
   int64_t total_requests;
   int64_t total_rows;
   int64_t total_bytes;
-  int64_t avg_write_size;
   int64_t fetch_batch_meta_time;
   int64_t fetch_batch_meta_count;
   int64_t preprocess_time;
@@ -100,7 +99,6 @@ typedef struct {
   SMetric total_requests;
   SMetric total_rows;
   SMetric total_bytes;
-  SMetric avg_write_size;
   SMetric fetch_batch_meta_time;
   SMetric fetch_batch_meta_count;
   SMetric preprocess_time;

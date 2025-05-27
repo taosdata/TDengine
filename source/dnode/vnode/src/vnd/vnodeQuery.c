@@ -1437,7 +1437,6 @@ int32_t vnodeGetRawWriteMetrics(void *pVnode, SRawWriteMetrics *pRawMetrics) {
   pRawMetrics->total_requests = pVnode1->writeMetrics.total_requests;
   pRawMetrics->total_rows = pVnode1->writeMetrics.total_rows;
   pRawMetrics->total_bytes = pVnode1->writeMetrics.total_bytes;
-  pRawMetrics->avg_write_size = pVnode1->writeMetrics.write_size;
   pRawMetrics->fetch_batch_meta_time = pVnode1->writeMetrics.fetch_batch_meta_time;
   pRawMetrics->fetch_batch_meta_count = pVnode1->writeMetrics.fetch_batch_meta_count;
   pRawMetrics->preprocess_time = pVnode1->writeMetrics.preprocess_time;
@@ -1469,9 +1468,6 @@ int32_t vnodeResetRawWriteMetrics(void *pVnode, const SRawWriteMetrics *pOldMetr
   (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.total_requests, pOldMetrics->total_requests);
   (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.total_rows, pOldMetrics->total_rows);
   (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.total_bytes, pOldMetrics->total_bytes);
-
-  // avg_write_size is int64_t type, use atomic_sub_fetch_64
-  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.write_size, pOldMetrics->avg_write_size);
 
   (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.fetch_batch_meta_time, pOldMetrics->fetch_batch_meta_time);
   (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.fetch_batch_meta_count, pOldMetrics->fetch_batch_meta_count);

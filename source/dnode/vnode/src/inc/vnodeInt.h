@@ -474,7 +474,6 @@ struct SVnodeWriteMetrics {
   int64_t total_requests;
   int64_t total_rows;
   int64_t total_bytes;
-  int64_t write_size;
   int64_t cache_hit_ratio;
   int64_t rpc_queue_wait;
   int64_t preprocess_time;

@@ -51,7 +51,6 @@ SELECT
     vgroup_id,
     max(total_requests) as max_total_requests,
     max(total_rows) as max_total_rows,
-    avg(avg_write_size) as avg_write_size,
     avg(cache_hit_ratio) as avg_cache_hit_ratio,
     max(memory_table_rows) as max_memory_table_rows,
     avg(avg_commit_time) as avg_commit_time
@@ -164,12 +163,15 @@ ORDER BY blocked_ratio DESC;
 SELECT 
     ts,
     vgroup_id,
-    avg_write_size,
     total_bytes,
-    total_rows
+    total_rows,
+    case when total_rows > 0 
+         then total_bytes / total_rows 
+         else 0 end as avg_write_size
 FROM log.write_metrics 
 WHERE ts >= now - 1h 
-  AND (avg_write_size > 10000 OR avg_write_size < 10)
+  AND total_rows > 0
+  AND (total_bytes / total_rows > 10000 OR total_bytes / total_rows < 10)
 ORDER BY ts DESC;
 ```
 
