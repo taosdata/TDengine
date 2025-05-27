@@ -270,7 +270,7 @@ char *strsep(char **stringp, const char *delim);
 #define TD_CHARSET_LEN  64
 #define TD_TIMEZONE_LEN 96
 #define TD_TIME_STR_LEN 128
-#define TD_IP_LEN       64
+#define TD_IP_LEN       128
 
 #ifdef __cplusplus
 }

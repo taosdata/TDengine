@@ -132,9 +132,6 @@ int32_t mndInitDnode(SMnode *pMnode) {
   return sdbSetTable(pMnode->pSdb, table);
 }
 
-SIpWhiteList *mndCreateIpWhiteOfDnode(SMnode *pMnode);
-SIpWhiteList *mndAddIpWhiteOfDnode(SIpWhiteList *pIpWhiteList, char *fqdn);
-SIpWhiteList *mndRmIpWhiteOfDnode(SIpWhiteList *pIpWhiteList, char *fqdn);
 void          mndCleanupDnode(SMnode *pMnode) {}
 
 static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
@@ -1125,6 +1122,12 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
 
   if (createReq.fqdn[0] == 0 || createReq.port <= 0 || createReq.port > UINT16_MAX) {
     code = TSDB_CODE_MND_INVALID_DNODE_EP;
+    goto _OVER;
+  }
+  code = taosValidFqdn(tsEnableIpv6, createReq.fqdn);
+  if (code != 0) {
+    mError("ipv6 flag %d, the local FQDN %s does not resolve to the ip address since %d", tsEnableIpv6, tsLocalFqdn,
+           tstrerror(code));
     goto _OVER;
   }
 

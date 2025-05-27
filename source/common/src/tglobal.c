@@ -53,7 +53,7 @@ EEncryptAlgor tsiEncryptAlgorithm = 0;
 EEncryptScope tsiEncryptScope = 0;
 // char     tsAuthCode[500] = {0};
 // char     tsEncryptKey[17] = {0};
-char tsEncryptKey[17] = {0};
+char   tsEncryptKey[17] = {0};
 int8_t tsEnableStrongPassword = 1;
 
 // common
@@ -65,7 +65,7 @@ int8_t tsMemPoolFullFunc = 0;
 #ifndef TD_ASTRA
 int8_t tsQueryUseMemoryPool = 1;
 #else
-int8_t tsQueryUseMemoryPool = 0;
+int8_t  tsQueryUseMemoryPool = 0;
 #endif
 int32_t tsQueryBufferPoolSize = 0;       // MB
 int32_t tsSingleQueryMaxMemorySize = 0;  // MB
@@ -89,6 +89,7 @@ int32_t tsShareConnLimit = 10;
 
 int32_t tsReadTimeout = 900;
 int32_t tsTimeToGetAvailableConn = 500000;
+int8_t  tsEnableIpv6 = 0;
 
 int32_t tsNumOfQueryThreads = 0;
 int32_t tsNumOfCommitThreads = 2;
@@ -146,7 +147,7 @@ bool tsCompareAsStrInGreatest = true;
 #ifdef USE_MONITOR
 bool tsEnableMonitor = true;
 #else
-bool tsEnableMonitor = false;
+bool    tsEnableMonitor = false;
 #endif
 int32_t  tsMonitorInterval = 30;
 char     tsMonitorFqdn[TSDB_FQDN_LEN] = {0};
@@ -157,7 +158,7 @@ bool     tsMonitorLogProtocol = false;
 #ifdef USE_MONITOR
 bool tsMonitorForceV2 = true;
 #else
-bool tsMonitorForceV2 = false;
+bool    tsMonitorForceV2 = false;
 #endif
 
 // audit
@@ -352,7 +353,7 @@ char    tsUdfdLdLibPath[512] = "";
 #ifdef USE_STREAM
 bool tsDisableStream = false;
 #else
-bool tsDisableStream = true;
+bool    tsDisableStream = true;
 #endif
 int64_t tsStreamBufferSize = 128 * 1024 * 1024;
 int64_t tsStreamFailedTimeout = 30 * 60 * 1000;
@@ -542,7 +543,9 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-struct SConfig *taosGetCfg() { return tsCfg; }
+struct SConfig *taosGetCfg() {
+  return tsCfg;
+}
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
@@ -552,10 +555,10 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
 
   TAOS_CHECK_RETURN(taosExpandDir(inputCfgDir, cfgDir, PATH_MAX));
   int32_t pos = strlen(cfgDir);
-  if(pos > 0) {
+  if (pos > 0) {
     pos -= 1;
   }
-  char  lastC = cfgDir[pos];  
+  char  lastC = cfgDir[pos];
   char *tdDirsep = TD_DIRSEP;
   if (lastC == '\\' || lastC == '/') {
     tdDirsep = "";
@@ -792,8 +795,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(
       cfgAddBool(pCfg, "streamCoverage", tsStreamCoverage, CFG_DYN_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
-  
-  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "compareAsStrInGreatest", tsCompareAsStrInGreatest, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,CFG_CATEGORY_LOCAL));
+
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "compareAsStrInGreatest", tsCompareAsStrInGreatest, CFG_SCOPE_CLIENT,
+                               CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -835,6 +839,8 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
                                  CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "gitinfo", td_gitinfo, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "buildinfo", td_buildinfo, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
+
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableIpv6", tsEnableIpv6, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1554,6 +1560,8 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "compareAsStrInGreatest");
   tsCompareAsStrInGreatest = pItem->bval;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableIpv6");
+  tsEnableIpv6 = pItem->bval;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1973,6 +1981,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamVirtualMergeWaitMode");
   tsStreamVirtualMergeWaitMode = pItem->i32;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableIpv6");
+  tsEnableIpv6 = pItem->bval;
+
   // GRANT_CFG_GET;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -2097,9 +2108,9 @@ _exit:
 }
 
 static int32_t taosCheckGlobalCfg() {
-  uint32_t ipv4 = 0;
+  SIpAddr addr = {0};
   uInfo("check global fqdn:%s and port:%u", tsLocalFqdn, tsServerPort);
-  int32_t code = taosGetIpv4FromFqdn(tsLocalFqdn, &ipv4);
+  int32_t code = taosGetIpFromFqdn(tsLocalFqdn, &addr);
   if (code) {
     uError("failed to get ip from fqdn:%s since %s, can not be initialized", tsLocalFqdn, tstrerror(code));
     TAOS_RETURN(TSDB_CODE_RPC_FQDN_ERROR);

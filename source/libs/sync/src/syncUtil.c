@@ -45,11 +45,13 @@ void syncUtilNodeInfo2EpSet(const SNodeInfo* pInfo, SEpSet* pEpSet) {
 }
 
 bool syncUtilNodeInfo2RaftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* raftId) {
-  uint32_t ipv4 = 0xFFFFFFFF;
+  // uint32_t ipv4 = 0xFFFFFFFF;
+  SIpAddr addr = {0};
   sDebug("vgId:%d, resolve sync addr from fqdn, ep:%s:%u", vgId, pInfo->nodeFqdn, pInfo->nodePort);
 
+  int32_t code = 0;
   for (int32_t i = 0; i < FQDNRETRYTIMES; i++) {
-    int32_t code = taosGetIpv4FromFqdn(pInfo->nodeFqdn, &ipv4);
+    code = taosGetIpFromFqdn(pInfo->nodeFqdn, &addr);
     if (code) {
       sError("vgId:%d, failed to resolve sync addr, dnode:%d fqdn:%s, retry", vgId, pInfo->nodeId, pInfo->nodeFqdn);
       taosSsleep(1);
@@ -58,19 +60,17 @@ bool syncUtilNodeInfo2RaftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* 
     }
   }
 
-  if (ipv4 == 0xFFFFFFFF || ipv4 == 1) {
+  if (code != 0) {
     sError("vgId:%d, failed to resolve sync addr, dnode:%d fqdn:%s", vgId, pInfo->nodeId, pInfo->nodeFqdn);
     terrno = TSDB_CODE_TSC_INVALID_FQDN;
     return false;
   }
 
-  char ipbuf[TD_IP_LEN] = {0};
-  taosInetNtoa(ipbuf, ipv4);
   raftId->addr = SYNC_ADDR(pInfo);
   raftId->vgId = vgId;
 
-  sInfo("vgId:%d, sync addr:0x%" PRIx64 " is resolved, ep:%s:%u ip:%s ipv4:%u dnode:%d cluster:%" PRId64, vgId,
-        raftId->addr, pInfo->nodeFqdn, pInfo->nodePort, ipbuf, ipv4, pInfo->nodeId, pInfo->clusterId);
+  sInfo("vgId:%d, sync addr:0x%" PRIx64 " is resolved, ep:%s:%u ip:%s dnode:%d cluster:%" PRId64, vgId, raftId->addr,
+        pInfo->nodeFqdn, pInfo->nodePort, IP_ADDR_STR(&addr), pInfo->nodeId, pInfo->clusterId);
   return true;
 }
 
