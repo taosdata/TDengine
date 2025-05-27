@@ -86,6 +86,10 @@ def before_test_session(request):
         request.session.skip_test = True
     else:
         request.session.skip_test = False
+    if request.config.getoption("-A"):
+        request.session.asan = True
+    else:
+        request.session.asan = False
 
         # 读取环境变量并存入 session 变量
     request.session.taos_bin_path = os.getenv('TAOS_BIN_PATH', None)
@@ -127,9 +131,9 @@ def before_test_session(request):
         else:
             request.session.restful = False
         if request.config.getoption("-K"):
-            request.session.taoskeeper = True
+            request.session.set_taoskeeper = True
         else:
-            request.session.taoskeeper = False
+            request.session.set_taoskeeper = False
         if request.config.getoption("-Q"):   
             request.session.query_policy = int(request.config.getoption("-Q"))
         else:
@@ -150,10 +154,6 @@ def before_test_session(request):
             request.session.create_dnode_num = int(request.config.getoption("-C"))
         else:
             request.session.create_dnode_num = request.session.denodes_num
-        if request.config.getoption("-A"):
-            request.session.asan = True
-        else:
-            request.session.asan = False
         
         request.session.before_test.get_config_from_param(request)
     
@@ -179,11 +179,16 @@ def before_test_class(request):
     request.cls.dnode_nums = request.session.denodes_num
     request.cls.mnode_nums = request.session.mnodes_num
     request.cls.restful = request.session.restful
-    request.cls.taoskeeper = request.session.taoskeeper
+    if request.session.restful:
+        request.cls.taosadapter = request.session.taosadapter
+    request.cls.set_taoskeeper = request.session.set_taoskeeper
+    if request.session.set_taoskeeper:
+        request.cls.taoskeeper = request.session.taoskeeper
     request.cls.query_policy = request.session.query_policy
     request.cls.replicaVar = request.session.replicaVar
     request.cls.tsim_file = request.session.tsim_file
-    request.cls.tsim_path = request.session.tsim_path
+    if request.session.tsim_file is not None:
+        request.cls.tsim_path = request.session.tsim_path
     request.cls.taos_bin_path = request.session.taos_bin_path
     request.cls.lib_path = request.session.lib_path
     request.cls.work_dir = request.session.work_dir
@@ -196,28 +201,28 @@ def before_test_class(request):
     if not request.session.skip_deploy:
         request.session.before_test.deploy_taos(request.cls.yaml_file, request.session.mnodes_num, request.session.clean)
    
-        # 建立连接
-        request.cls.conn = request.session.before_test.get_taos_conn(request)
-        tdSql.init(request.cls.conn.cursor())
-        tdSql.replica = request.session.replicaVar
-        tdLog.debug(tdSql.query(f"show dnodes", row_tag=True))
+    # 建立连接
+    request.cls.conn = request.session.before_test.get_taos_conn(request)
+    tdSql.init(request.cls.conn.cursor())
+    tdSql.replica = request.session.replicaVar
+    tdLog.debug(tdSql.query(f"show dnodes", row_tag=True))
 
-        # 为兼容老用例，初始化原框架连接
-        #tdSql_pytest.init(request.cls.conn.cursor())
-        #tdSql_army.init(request.cls.conn.cursor())
+    # 为兼容老用例，初始化原框架连接
+    #tdSql_pytest.init(request.cls.conn.cursor())
+    #tdSql_army.init(request.cls.conn.cursor())
 
-        # 处理 -C 参数，如果未设置 -C 参数，create_dnode_num 和 -N 参数相同
-        for i in range(1, request.session.create_dnode_num):
-            tdSql.execute(f"create dnode localhost port {6030+i*100}")
+    # 处理 -C 参数，如果未设置 -C 参数，create_dnode_num 和 -N 参数相同
+    for i in range(1, request.session.create_dnode_num):
+        tdSql.execute(f"create dnode localhost port {6030+i*100}")
 
-        # 处理-Q参数，如果-Q参数不等于1，则创建qnode，并设置queryPolicy
-        if request.session.query_policy != 1:
-            tdSql.execute(f'alter local "queryPolicy" "{request.session.query_policy}"')
-            tdSql.execute("create qnode on dnode 1")
-            tdSql.execute("show local variables")
-    
-        # 为老用例兼容，初始化老框架部分实例
-        request.session.before_test.init_dnode_cluster(request, dnode_nums=request.cls.dnode_nums, mnode_nums=request.cls.mnode_nums, independentMnode=True, level=request.session.level, disk=request.session.disk)
+    # 处理-Q参数，如果-Q参数不等于1，则创建qnode，并设置queryPolicy
+    if request.session.query_policy != 1:
+        tdSql.execute(f'alter local "queryPolicy" "{request.session.query_policy}"')
+        tdSql.execute("create qnode on dnode 1")
+        tdSql.execute("show local variables")
+
+    # 为老用例兼容，初始化老框架部分实例
+    request.session.before_test.init_dnode_cluster(request, dnode_nums=request.cls.dnode_nums, mnode_nums=request.cls.mnode_nums, independentMnode=True, level=request.session.level, disk=request.session.disk)
     
     if request.session.skip_test:
         pytest.skip("skip test")
