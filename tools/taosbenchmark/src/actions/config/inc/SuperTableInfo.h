@@ -12,6 +12,7 @@ struct SuperTableInfo {
     struct Column {
         std::string name;
         std::string type;
+        bool primary_key = false;
         std::optional<int> len;
         int count = 1;
         std::optional<int> precision;

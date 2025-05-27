@@ -1,20 +1,22 @@
 #pragma once
+#include <iostream>
 #include "ActionBase.h"
 #include "ActionFactory.h"
 #include "CreateSuperTableConfig.h"
-#include <iostream>
+#include "DatabaseConnector.h"
 
 class CreateSuperTableAction : public ActionBase {
 public:
     explicit CreateSuperTableAction(const CreateSuperTableConfig& config) : config_(config) {}
 
-    void execute() override {
-        std::cout << "Creating super table: " << config_.super_table_info.name << std::endl;
-        // 在此处实现具体的创建超级表逻辑
-    }
+    void execute() override;
 
 private:
     CreateSuperTableConfig config_;
+
+    std::unique_ptr<DatabaseConnector> connector_;
+
+    void prepare_connector();
 
     // 注册 CreateSuperTableAction 到 ActionFactory
     inline static bool registered_ = []() {

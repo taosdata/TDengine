@@ -1,8 +1,9 @@
+#include <iostream>
+#include <cassert>
 #include "CreateDatabaseAction.h"
 #include "ActionFactory.h"
 #include "DatabaseConnector.h"
 #include "CreateDatabaseConfig.h"
-#include <iostream>
 
 
 void test_create_database_action() {
@@ -65,12 +66,12 @@ void test_create_database_action() {
     // }
 
     // 清理测试数据库
-    std::cout << "Cleaning up test database..." << std::endl;
-    auto cleanup_connector = DatabaseConnector::create(channel, conn_info);
-    if (cleanup_connector->connect()) {
-        cleanup_connector->execute("DROP DATABASE IF EXISTS `" + config.database_info.name + "`");
-        cleanup_connector->close();
-    }
+    // std::cout << "Cleaning up test database..." << std::endl;
+    // auto cleanup_connector = DatabaseConnector::create(channel, conn_info);
+    // if (cleanup_connector->connect()) {
+    //     cleanup_connector->execute("DROP DATABASE IF EXISTS `" + config.database_info.name + "`");
+    //     cleanup_connector->close();
+    // }
 
     std::cout << "=== Test completed ===" << std::endl;
 }

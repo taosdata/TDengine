@@ -17,13 +17,8 @@ private:
     CreateDatabaseConfig config_;
 
     std::unique_ptr<DatabaseConnector> connector_;
-    
-    void prepare_connector() {
-        connector_ = DatabaseConnector::create(
-            config_.data_channel, 
-            config_.connection_info
-        );
-    }
+
+    void prepare_connector();
 
     // 注册 CreateDatabaseAction 到 ActionFactory
     inline static bool registered_ = []() {

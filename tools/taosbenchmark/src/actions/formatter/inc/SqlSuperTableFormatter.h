@@ -36,9 +36,6 @@ public:
     }
 
 
-
-
-
 private:
     DataFormat format_;
 

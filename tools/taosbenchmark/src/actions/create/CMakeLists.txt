@@ -55,3 +55,14 @@ target_link_libraries(TestCreateDatabaseAction PRIVATE
     taos
 )
 add_test(NAME TestCreateDatabaseAction COMMAND TestCreateDatabaseAction)
+
+# test CreateSuperTableAction
+add_executable(TestCreateSuperTableAction
+    test/TestCreateSuperTableAction.cpp
+)
+target_link_libraries(TestCreateSuperTableAction PRIVATE 
+    actions_create
+    taos
+)
+add_test(NAME TestCreateSuperTableAction COMMAND TestCreateSuperTableAction)
+

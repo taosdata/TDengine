@@ -3,6 +3,13 @@
 #include "FormatterRegistrar.h"
 
 
+void CreateDatabaseAction::prepare_connector() {
+    connector_ = DatabaseConnector::create(
+        config_.data_channel, 
+        config_.connection_info
+    );
+}
+
 void CreateDatabaseAction::execute() {
     std::cout << "Creating database: " << config_.database_info.name << std::endl;
 
