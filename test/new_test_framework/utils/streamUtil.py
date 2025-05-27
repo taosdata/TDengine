@@ -61,6 +61,8 @@ class StreamUtil:
         tdLog.exit(f"stream task status not ready in {loop} seconds")
 
     def dropAllStreamsAndDbs(self):
+        return
+
         streamList = tdSql.query("show streams", row_tag=True)
         for r in range(len(streamList)):
             tdSql.execute(f"drop stream {streamList[r][0]}")
