@@ -89,6 +89,61 @@ into_option_list_invalid = [
 partition_columns_valid = ["tag1", "tag2", "tag3", "tag4", "tbname"]
 partition_columns_invalid = ["ts_col", "tag5", "tag6", "now"]
 
+duration_lists_valid = [
+    "1b", "1u", "1a", "1s", "1m", "1h", "1d", "1w", "1n", "1y",
+    "2b", "2u", "2a", "2s", "2m", "2h", "2d", "2w", "2n", "2y",
+    "5b", "5u", "5a", "5s", "5m", "5h", "5d", "5w", "5n", "5y",
+    "7b", "7u", "7a", "7s", "7m", "7h", "7d", "7w", "7n", "7y",
+    "12b", "12u", "12a", "12s", "12m", "12h", "12d", "12w", "12n", "12y",
+    "30b", "30u", "30a", "30s", "30m", "30h", "30d", "30w", "30n", "30y",
+    "365b", "365u", "365a", "365s", "365m", "365h", "365d", "365w", "365n", "365y"
+]
+
+duration_lists_invalid = [
+    "1x", "2x", "5x", "7x", "12x", "30x", "365x",
+    "a", "b", "c", "d", "e", "f", "g", "h", "i", "j",
+]
+
+expired_time_list_valid = [
+    "1a", "1s", "1m", "1h", "1d",
+    "2a", "2s", "2m", "2h", "2d",
+    "5a", "5s", "5m", "5h", "5d",
+    "7a", "7s", "7m", "7h", "7d",
+    "12a", "12s", "12m", "12h", "12d",
+    "30a", "30s", "30m", "30h", "30d",
+    "365a", "365s", "365m", "365h", "365d",
+]
+
+expired_time_list_invalid = [
+    "1x", "2x", "5x", "7x", "12x", "30x", "365x",
+    "1b", "2b", "5b", "7b", "12b", "30b", "365b",
+    "1u", "2u", "5u", "7u", "12u", "30u", "365u",
+    "1w", "2w", "5w", "7w", "12w", "30w", "365w",
+    "1n", "2n", "5n", "7n", "12n", "30n", "365n",
+    "1y", "2y", "5y", "7y", "12y", "30y", "365y",
+    "a", "b", "c", "d", "e", "f", "g", "h", "i", "j",
+]
+
+start_time_valid = [" '2025-05-27 14:29:42' ", " '1970-01-01 08:00:00' ",
+                    " 2025-05-27 14:29:42 ", " 1970-01-01 08:00:00 ",
+                    " 1748327382161 ", " 1 "]
+
+start_time_invalid = [" '2025-05-27 14:29:42:00' ", " '1970-01-01 08:00:00:00' ",
+                      " 2025-05-27 14:29:42:00 ", " 1970-01-01 08:00:00:00 ",
+                      " 1748327382161:00 ", " 1:00 ", " '2025-05-27 14:29' ",
+                      " '2025-05-27' ", " '2025-05' ", " '2025' ",
+                      " '2025-05-27T14:29:42Z' ", " '2025-05-27T14:29Z' ",
+                      " '2025-05-27T14Z' ", " '2025-05-27T' ",
+                      " '2025-05T14:29:42Z' ", " '2025-05T14Z' ",
+                      " '2025-05T' ", " '2025T14:29:42Z' ", " '2025T14Z' ",
+                      " '2025T' ", "'invalid_time'", "'invalid_date'",
+                      "'invalid_timestamp'", "'invalid_format'",
+                      "'another_invalid_format'", "'yet_another_invalid_format'"]
+
+event_types_valid = ["WINDOW_OPEN", "WINDOW_CLOSE"]
+
+event_types_invalid = ["INVALID_EVENT", "ANOTHER_INVALID_EVENT", ""]
+
 def random_from_list(lst, n=1):
     """Return n random elements from a list."""
     if n == 1:
@@ -103,30 +158,35 @@ def random_int(a, b):
     """Return a random integer between a and b, inclusive."""
     return random.randint(a, b)
 
-def generate_arithmetic_expr():
-    left = random_from_list(columns)
-    right = random_from_list(columns + [str(random_int(1, 100))])
+def generate_arithmetic_expr(column_list):
+    left = random_from_list(column_list)
+    right = random_from_list(column_list + [str(random_int(1, 100))])
     operator = random_from_list(arith_ops)
     return f"({left} {operator} {right})"
 
-def generate_atomic_condition():
+def generate_atomic_condition(valid_list=None, valid=True):
+    if valid:
+        column_list = valid_list
+    else:
+        # TODO(smj) full list need recalculate
+        column_list = list(set(partition_columns_valid + partition_columns_invalid) - set(valid_list))
+
     left_expr = (
-        generate_arithmetic_expr() if random_bool(0.3) else random_from_list(columns)
+        generate_arithmetic_expr(column_list) if random_bool(0.3) else random_from_list(column_list)
     )
     op = random_from_list(ops)
     right_expr = (
-        generate_arithmetic_expr()
-        if random_bool(0.3)
-        else random_from_list(columns + [str(random_int(1, 100))])
+        generate_arithmetic_expr(column_list) if random_bool(0.3) else random_from_list(column_list + [str(random_int(1, 100))])
     )
+
     return f"{left_expr} {op} {right_expr}"
 
-def generate_logical_condition(max_depth=2, current_depth=0):
+def generate_logical_condition(max_depth=2, current_depth=0, full_column_list=None, valid_column_list=None, valid=True):
     if current_depth >= max_depth or random_bool(0.4):
-        return generate_atomic_condition()
+        return generate_atomic_condition(valid_column_list, valid)
     else:
-        left = generate_logical_condition(max_depth, current_depth + 1)
-        right = generate_logical_condition(max_depth, current_depth + 1)
+        left = generate_logical_condition(max_depth, current_depth + 1, valid_column_list, valid)
+        right = generate_logical_condition(max_depth, current_depth + 1, valid_column_list, valid)
         op = random_from_list(logic_ops)
         return f"({left} {op} {right})"
 
@@ -201,44 +261,70 @@ def generate_trigger_section():
         triggers.append(f" PERIOD('{period}') ")
     return triggers
 
-def generate_partition_section():
-    max_partition_len = 3  # Maximum number of columns (including duplicates)
-    length = random_int(1, max_partition_len)
-    combo = tuple(random.choices(partition_columns, k=length))  # allow duplicates
-    if random_bool(0.2):  # 20% generate empty clause
-        return ""
-    return f" PARTITION BY {', '.join(combo)} "
-
-def generate_event_types():
-    types = [random_from_list(event_types_pool) for _ in range(random_int(1, 3))]
+def generate_random_event_types(valid=True):
+    if valid:
+        types = [random_from_list(event_types_valid) for _ in range(random_int(1, 2))]
+    else:
+        types = [random_from_list(event_types_invalid)] + [random_from_list(event_types_valid) for _ in range(random_int(1, 2))]
     return "|".join(types)
 
-def random_option():
+def random_option(valid=True, partition_list=None):
+    if valid:
+        watermark_duration = random_from_list(duration_lists_valid)
+        expired_time = random_from_list(expired_time_list_valid)
+        start_time = random_from_list(start_time_valid)
+        max_delay = random_from_list(expired_time_list_valid)
+    else:
+        watermark_duration = random_from_list(duration_lists_invalid)
+        expired_time = random_from_list(expired_time_list_invalid)
+        start_time = random_from_list(start_time_invalid)
+        max_delay = random_from_list(expired_time_list_invalid)
+
+    prev_filter = generate_logical_condition(
+        full_column_list = list(set(partition_columns_valid + partition_columns_invalid) - set(partition_list)),
+        valid_column_list = partition_list,
+        valid = valid)
+
     option_type = random_from_list([
-        lambda: f"WATERMARK({random_from_list(duration_lists)})",
-        lambda: f"EXPIRED_TIME({random_from_list(duration_lists)})",
+        lambda: f"WATERMARK({watermark_duration})",
+        lambda: f"EXPIRED_TIME({expired_time})",
         lambda: "IGNORE_DISORDER",
         lambda: "DELETE_RECALC",
         lambda: "DELETE_OUTPUT_TABLE",
-        lambda: f"FILL_HISTORY({random_from_list(timestamps)})",
-        lambda: f"FILL_HISTORY_FIRST({random_from_list(timestamps)})",
+        lambda: f"FILL_HISTORY({start_time})",
+        lambda: f"FILL_HISTORY_FIRST({start_time})",
         lambda: "CALC_NOTIFY_ONLY",
         lambda: "LOW_LATENCY_CALC",
-        lambda: f"PRE_FILTER({generate_logical_condition()})",
+        lambda: f"PRE_FILTER({prev_filter})",
         lambda: "FORCE_OUTPUT",
-        lambda: f"MAX_DELAY({random_from_list(duration_lists)})",
-        lambda: f"EVENT_TYPE({generate_event_types()})"
+        lambda: f"MAX_DELAY({max_delay})",
+        lambda: f"EVENT_TYPE({generate_random_event_types(valid)})"
     ])
+
     return option_type()
 
-def generate_options_section(n=10, max_options=10):
-    options_clauses = [""]
-    for _ in range(n):
-        count = random_int(1, max_options)
-        options = [random_option() for _ in range(count)]
-        clause = f" OPTIONS({'|'.join(options)}) "
-        options_clauses.append(clause)
-    return options_clauses
+def generate_options_section(max_options=10, partition_list = None):
+    count = random_int(1, max_options)
+    options = [random_option() for _ in range(count - 1)]
+    rand_val = random.random()
+    if rand_val < 0.2:
+        # 20% chance to generate empty options clause
+        return "", True
+    elif rand_val < 0.5:
+        # 30% chance to generate invalid options clause
+        options.append(random_option(valid=False, partition_list=partition_list))
+        valid = False
+    # 50% chance to generate valid options clause
+    else:
+        options.append(random_option(valid=True, partition_list=partition_list))
+        valid = True
+    combined = '|'.join(options)
+
+    # FILL_HISTORY and FILL_HISTORY_FIRST cannot be used together
+    if "FILL_HISTORY(" in combined and "FILL_HISTORY_FIRST(" in combined:
+        valid = False
+
+    return f" OPTIONS({combined}) ", valid
 
 def pick_random_combo(source_list, max_len):
     length = random_int(0, max_len)
@@ -455,6 +541,21 @@ def generate_random_into_table_section():
         into_table = random_from_list(into_option_list_invalid)
         return f" {into_table} ", False, False
 
+def generate_random_partition_section(max_partition_len = 5):
+    rand_val = random.random()
+    length = random_int(1, max_partition_len)
+    # 20% chance to generate empty partition clause
+    if rand_val < 0.2:
+        return "", True, []
+    # 30% chance to generate invalid partition clause
+    elif rand_val < 0.5:
+        selected = random.sample(partition_columns_valid, length - 1) + [random.choice(partition_columns_invalid)]
+        random.shuffle(selected)
+        return f" PARTITION BY {', '.join(selected)} ", False, []
+    # 50% chance to generate valid partition clause
+    else:
+        selected = random.sample(partition_columns_valid, length)
+        return f" PARTITION BY {', '.join(selected)} ", True, selected
 
 def gen_create_stream_variants():
     base_template = "CREATE STREAM{if_not_exists} {stream_name}{stream_options}{into_clause}{output_subtable}{columns}{tags}{as_subquery};"
@@ -472,7 +573,7 @@ def gen_create_stream_variants():
                     stream_db, v1 = generate_random_stream_db_section()
                     trigger_table, v2, trigger_null, trigger_has_tag = generate_random_trigger_table_section()
                     into_table, v3, into_null = generate_random_into_table_section()
-                    partition = generate_partition_section()
+                    partition, v4, partition_cols = generate_random_partition_section()
                     sql = base_template.format(
                        if_not_exists=if_not_exists,
                        stream_name=stream_db + "stream_" + str(stream_index),
