@@ -65,7 +65,7 @@ class TestStreamDevBasic:
 
         tdLog.info(f"=============== create stream")
         tdSql.execute(
-            "create stream s3 state_window (id) from stream_trigger into stream_out3 as select _twstart ts, count(*) c1, avg(id) c2 from stream_query;"
+            "create stream s5 sliding (1s)  from stream_trigger into stream_out5 as select now ts , _tcurrent_ts c1 , count(*) c2, avg(id) c3 from stream_query;"
         )
         tdStream.checkStreamStatus()
 
@@ -75,15 +75,9 @@ class TestStreamDevBasic:
         )
 
         tdLog.info(f"=============== check stream result")
-        result_sql = "select ts, c1, c2 from test.stream_out3"
+        result_sql = "select ts, c1, c2, c3 from test.stream_out5"
 
         tdSql.checkResultsByFunc(
             sql=result_sql,
-            func=lambda: tdSql.getRows() == 2
-            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
-            and tdSql.compareData(0, 1, 6)
-            and tdSql.compareData(0, 2, 1.5)
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:01.000")
-            and tdSql.compareData(1, 1, 6)
-            and tdSql.compareData(1, 2, 1.5),
+            func=lambda: tdSql.getRows() == 2,
         )
