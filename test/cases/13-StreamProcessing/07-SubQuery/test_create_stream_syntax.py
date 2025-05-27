@@ -164,12 +164,11 @@ def generate_arithmetic_expr(column_list):
     operator = random_from_list(arith_ops)
     return f"({left} {operator} {right})"
 
-def generate_atomic_condition(valid_list=None, valid=True):
+def generate_atomic_condition(full_list=None, valid_list=None, valid=True):
     if valid:
         column_list = valid_list
     else:
-        # TODO(smj) full list need recalculate
-        column_list = list(set(partition_columns_valid + partition_columns_invalid) - set(valid_list))
+        column_list = list(set(full_list) - set(valid_list))
 
     left_expr = (
         generate_arithmetic_expr(column_list) if random_bool(0.3) else random_from_list(column_list)
@@ -183,10 +182,10 @@ def generate_atomic_condition(valid_list=None, valid=True):
 
 def generate_logical_condition(max_depth=2, current_depth=0, full_column_list=None, valid_column_list=None, valid=True):
     if current_depth >= max_depth or random_bool(0.4):
-        return generate_atomic_condition(valid_column_list, valid)
+        return generate_atomic_condition(full_column_list, valid_column_list, valid)
     else:
-        left = generate_logical_condition(max_depth, current_depth + 1, valid_column_list, valid)
-        right = generate_logical_condition(max_depth, current_depth + 1, valid_column_list, valid)
+        left = generate_logical_condition(max_depth, current_depth + 1, full_column_list, valid_column_list, valid)
+        right = generate_logical_condition(max_depth, current_depth + 1, full_column_list, valid_column_list, valid)
         op = random_from_list(logic_ops)
         return f"({left} {op} {right})"
 
@@ -305,7 +304,7 @@ def random_option(valid=True, partition_list=None):
 
 def generate_options_section(max_options=10, partition_list = None):
     count = random_int(1, max_options)
-    options = [random_option() for _ in range(count - 1)]
+    options = [random_option(valid=True, partition_list=partition_list) for _ in range(count - 1)]
     rand_val = random.random()
     if rand_val < 0.2:
         # 20% chance to generate empty options clause
@@ -314,8 +313,8 @@ def generate_options_section(max_options=10, partition_list = None):
         # 30% chance to generate invalid options clause
         options.append(random_option(valid=False, partition_list=partition_list))
         valid = False
-    # 50% chance to generate valid options clause
     else:
+        # 50% chance to generate valid options clause
         options.append(random_option(valid=True, partition_list=partition_list))
         valid = True
     combined = '|'.join(options)
@@ -568,31 +567,31 @@ def gen_create_stream_variants():
             if_not_exists_opts, as_subquery_opts
     ):
         for trigger_type in trigger_types:
-            for stream_opt in stream_options:
-                for notify in notify_options:
-                    stream_db, v1 = generate_random_stream_db_section()
-                    trigger_table, v2, trigger_null, trigger_has_tag = generate_random_trigger_table_section()
-                    into_table, v3, into_null = generate_random_into_table_section()
-                    partition, v4, partition_cols = generate_random_partition_section()
-                    sql = base_template.format(
-                       if_not_exists=if_not_exists,
-                       stream_name=stream_db + "stream_" + str(stream_index),
-                       stream_options=trigger_type + trigger_table + partition + stream_opt + notify,
-                       into_clause=into_table,
-                       output_subtable=generate_output_subtable(),
-                       columns=generate_column_list_section(),
-                       tags=generate_tags_clause() + " ",
-                       as_subquery=as_subquery
-                    )
-                    sql_variants.append(sql.strip())
-                    stream_index += 1
-                    if stream_index > 100000:
-                        return sql_variants
+            for notify in notify_options:
+                stream_db, v1 = generate_random_stream_db_section()
+                trigger_table, v2, trigger_null, trigger_has_tag = generate_random_trigger_table_section()
+                into_table, v3, into_null = generate_random_into_table_section()
+                partition, v4, partition_cols = generate_random_partition_section()
+                stream_opt, v5 = generate_options_section(partition_list=partition_cols)
+                sql = base_template.format(
+                   if_not_exists=if_not_exists,
+                   stream_name=stream_db + "stream_" + str(stream_index),
+                   stream_options=trigger_type + trigger_table + partition + stream_opt + notify,
+                   into_clause=into_table,
+                   output_subtable=generate_output_subtable(),
+                   columns=generate_column_list_section(),
+                   tags=generate_tags_clause() + " ",
+                   as_subquery=as_subquery
+                )
+                sql_variants.append(sql.strip())
+                stream_index += 1
+                if stream_index > 100000:
+                    return sql_variants
     print(stream_index)
     return sql_variants
 
 
-sql = gen_create_stream_variants()
 for i in range(10000):
     print("======================")
-    print(sql[i])
+    sql, valid = generate_options_section(partition_list=partition_columns_valid)
+    print(sql)
