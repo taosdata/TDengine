@@ -102,11 +102,9 @@ class TestStreamDevBasic:
         exp_result = tdSql.getResult(exp_sql)
         tdSql.checkResultsByArray(
             sql=result_sql,
-            exp_result=exp_result,
-            exp_sql=exp_sql,
+            exp_result=exp_result
         )
 
-        exp_sql = result_sql
         tdSql.checkResultsBySql(
             sql=result_sql,
             exp_sql=exp_sql,
