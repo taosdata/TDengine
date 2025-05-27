@@ -550,16 +550,24 @@ static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pOldCfg, SDbCfg *pN
   TAOS_RETURN(code);
 }
 #endif
-static void mndSetDbCfg(SMountInfo *pInfo, SDbCfg *pCfg) {
-  if (pCfg->numOfVgroups < 0) pCfg->numOfVgroups = TSDB_DEFAULT_VN_PER_DB;
-  if (pCfg->numOfStables < 0) pCfg->numOfStables = TSDB_DEFAULT_DB_SINGLE_STABLE;
-  if (pCfg->buffer < 0) pCfg->buffer = TSDB_DEFAULT_BUFFER_PER_VNODE;
-  if (pCfg->pageSize < 0) pCfg->pageSize = TSDB_DEFAULT_PAGESIZE_PER_VNODE;
-  if (pCfg->pages < 0) pCfg->pages = TSDB_DEFAULT_PAGES_PER_VNODE;
+static void mndSetDbInfo(SMountInfo *pInfo, SMountDbInfo *pDb, SDbObj *pObj) {
+  SDbCfg       *pCfg = &pObj->cfg;
+  SMountVgInfo *pVg = taosArrayGet(pDb->pVgs, 0);
+
+  pCfg->numOfVgroups = taosArrayGetSize(pDb->pVgs);
+  pCfg->numOfStables = TSDB_DEFAULT_DB_SINGLE_STABLE;
+  pCfg->buffer = pVg->szBuf / 1048576;  // convert to MB
+  pCfg->pageSize = pVg->szPage;
+  pCfg->pages = pVg->szCache;
+  pCfg->daysPerFile = pVg->daysPerFile;
+
+  
+
   if (pCfg->daysPerFile < 0) pCfg->daysPerFile = TSDB_DEFAULT_DURATION_PER_FILE;
   if (pCfg->daysToKeep0 < 0) pCfg->daysToKeep0 = TSDB_DEFAULT_KEEP;
   if (pCfg->daysToKeep1 < 0) pCfg->daysToKeep1 = pCfg->daysToKeep0;
   if (pCfg->daysToKeep2 < 0) pCfg->daysToKeep2 = pCfg->daysToKeep1;
+
   if (pCfg->keepTimeOffset < 0) pCfg->keepTimeOffset = TSDB_DEFAULT_KEEP_TIME_OFFSET;
   if (pCfg->minRows < 0) pCfg->minRows = TSDB_DEFAULT_MINROWS_FBLOCK;
   if (pCfg->maxRows < 0) pCfg->maxRows = TSDB_DEFAULT_MAXROWS_FBLOCK;
@@ -580,7 +588,7 @@ static void mndSetDbCfg(SMountInfo *pInfo, SDbCfg *pCfg) {
   if (pCfg->walRollPeriod < 0) pCfg->walRollPeriod = TSDB_REPS_DEF_DB_WAL_ROLL_PERIOD;
   if (pCfg->walSegmentSize < 0) pCfg->walSegmentSize = TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE;
   if (pCfg->sstTrigger <= 0) pCfg->sstTrigger = TSDB_DEFAULT_SST_TRIGGER;
-  if (pCfg->tsdbPageSize <= 0) pCfg->tsdbPageSize = TSDB_DEFAULT_TSDB_PAGESIZE;
+  pCfg->tsdbPageSize = pVg->tsdbPageSize;
   if (pCfg->s3ChunkSize <= 0) pCfg->s3ChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
   if (pCfg->s3KeepLocal <= 0) pCfg->s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
   if (pCfg->s3Compact < 0) pCfg->s3Compact = TSDB_DEFAULT_S3_COMPACT;
@@ -793,8 +801,11 @@ static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, 
   TSDB_CHECK_CONDITION(((nDbs = taosArrayGetSize(pInfo->pDbs)) > 0), code, lino, _exit,
                        TSDB_CODE_MND_INVALID_MOUNT_INFO);
 
-  SDbObj    dbObj = {0};
-  mndSetDbCfg(pInfo, &dbObj.cfg);
+  for (int32_t i = 0; i < nDbs; ++i) {
+    SMountDbInfo *pDb = taosArrayGet(pInfo->pDbs, i);
+    SDbObj        dbObj = {0};
+    mndSetDbInfo(pInfo, pDb, &dbObj);
+  }
 
   // if ((code = mndCheckDbName(dbObj.name, pUser)) != 0) {
   //   mError("db:%s, failed to create, check db name failed, since %s", pCreate->db, terrstr());
@@ -816,7 +827,6 @@ static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, 
   //   dbObj.cfg.hashPrefix -= dbLen;
   // }
 
-  
   // if ((code = mndAllocVgroup(pMnode, &dbObj, &pVgroups, dnodeList)) != 0) {
   //   mError("db:%s, failed to create, alloc vgroup failed, since %s", pCreate->db, terrstr());
   //   TAOS_RETURN(code);
@@ -857,6 +867,9 @@ static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, 
 
 _exit:
   // taosMemoryFree(pVgroups);
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("mount:%s, failed at line %d to create mount, since %s", mntObj.name, lino, tstrerror(code));
+  }
   mndMountFreeObj(&mntObj);
   mndUserFreeObj(&newUserObj);
   mndTransDrop(pTrans);

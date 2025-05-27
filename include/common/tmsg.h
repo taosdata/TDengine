@@ -1785,8 +1785,6 @@ typedef struct {
   int32_t  szCache;
   uint64_t szBuf;
   int8_t   cacheLast;
-  int8_t   isTsma;
-  int8_t   isRsma;
   int8_t   standby;
   int8_t   hashMethod;
   uint32_t hashBegin;
@@ -1798,6 +1796,7 @@ typedef struct {
   int8_t  precision;
   int8_t  compression;
   int8_t  slLevel;
+  int32_t daysPerFile;
   int32_t minRows;
   int32_t maxRows;
   int32_t tsdbPageSize;
@@ -1813,7 +1812,6 @@ typedef struct {
   int32_t walLevel;
   // encryptInfo
   int32_t encryptAlgorithm;
-  char    encryptKey[ENCRYPT_KEY_LEN + 1];
   // dbInfo
   uint64_t dbId;
 } SMountVgInfo;

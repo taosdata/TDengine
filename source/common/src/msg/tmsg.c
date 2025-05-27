@@ -6203,8 +6203,6 @@ int32_t tSerializeSMountInfo(void *buf, int32_t bufLen, SMountInfo *pInfo) {
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->szCache));
       TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pVgInfo->szBuf));
       TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->cacheLast));
-      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->isTsma));
-      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->isRsma));
       TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->standby));
       TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->hashMethod));
       TAOS_CHECK_EXIT(tEncodeU32v(&encoder, pVgInfo->hashBegin));
@@ -6215,6 +6213,7 @@ int32_t tSerializeSMountInfo(void *buf, int32_t bufLen, SMountInfo *pInfo) {
       TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->precision));
       TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->compression));
       TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->slLevel));
+      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->daysPerFile));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->minRows));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->maxRows));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->tsdbPageSize));
@@ -6228,7 +6227,6 @@ int32_t tSerializeSMountInfo(void *buf, int32_t bufLen, SMountInfo *pInfo) {
       TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pVgInfo->walSegSize));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->walLevel));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->encryptAlgorithm));
-      TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pVgInfo->encryptKey));
       TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pVgInfo->dbId));
     }
     nStb = taosArrayGetSize(pDbInfo->pStbs);
@@ -6280,8 +6278,6 @@ int32_t tDeserializeSMountInfo(SDecoder *decoder, SMountInfo *pInfo) {
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->szCache));
           TAOS_CHECK_EXIT(tDecodeU64v(decoder, &pVgInfo->szBuf));
           TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->cacheLast));
-          TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->isTsma));
-          TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->isRsma));
           TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->standby));
           TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->hashMethod));
           TAOS_CHECK_EXIT(tDecodeU32v(decoder, &pVgInfo->hashBegin));
@@ -6292,6 +6288,7 @@ int32_t tDeserializeSMountInfo(SDecoder *decoder, SMountInfo *pInfo) {
           TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->precision));
           TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->compression));
           TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->slLevel));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->daysPerFile));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->minRows));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->maxRows));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->tsdbPageSize));
@@ -6305,7 +6302,6 @@ int32_t tDeserializeSMountInfo(SDecoder *decoder, SMountInfo *pInfo) {
           TAOS_CHECK_EXIT(tDecodeI64v(decoder, &pVgInfo->walSegSize));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->walLevel));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->encryptAlgorithm));
-          TAOS_CHECK_EXIT(tDecodeCStrTo(decoder, pVgInfo->encryptKey));
           TAOS_CHECK_EXIT(tDecodeU64v(decoder, &pVgInfo->dbId));
         }
       }
