@@ -1599,16 +1599,23 @@ int32_t mndTransProcessRsp(SRpcMsg *pRsp) {
 
   STransAction *pAction = taosArrayGet(pArray, action);
   if (pAction != NULL) {
-    pAction->msgReceived = 1;
-    pAction->errCode = pRsp->code;
-    pAction->endTime = taosGetTimestampMs();
+    if (pAction->msgSent) {
+      pAction->msgReceived = 1;
+      pAction->errCode = pRsp->code;
+      pAction->endTime = taosGetTimestampMs();
 
-    // pTrans->lastErrorNo = pRsp->code;
-    mndSetTransLastAction(pTrans, pAction);
+      // pTrans->lastErrorNo = pRsp->code;
+      mndSetTransLastAction(pTrans, pAction);
 
-    mInfo("trans:%d, %s:%d response is received, received code:0x%x(%s), accept:0x%x(%s) retry:0x%x(%s)", transId,
-          mndTransStr(pAction->stage), action, pRsp->code, tstrerror(pRsp->code), pAction->acceptableCode,
-          tstrerror(pAction->acceptableCode), pAction->retryCode, tstrerror(pAction->retryCode));
+      mInfo("trans:%d, %s:%d response is received, received code:0x%x(%s), accept:0x%x(%s) retry:0x%x(%s)", transId,
+            mndTransStr(pAction->stage), action, pRsp->code, tstrerror(pRsp->code), pAction->acceptableCode,
+            tstrerror(pAction->acceptableCode), pAction->retryCode, tstrerror(pAction->retryCode));
+    } else {
+      mWarn("trans:%d, %s:%d response is received, but msgSent is false, code:0x%x(%s), accept:0x%x(%s) retry:0x%x", 
+            transId, mndTransStr(pAction->stage), action, pRsp->code, tstrerror(pRsp->code),
+            pAction->acceptableCode, tstrerror(pAction->acceptableCode), pAction->retryCode);
+    }
+
   } else {
     mInfo("trans:%d, invalid action, index:%d, code:0x%x", transId, action, pRsp->code);
   }
@@ -2026,7 +2033,9 @@ static int32_t mndTransExecuteActionsSerialGroup(SMnode *pMnode, STrans *pTrans,
   }
 
   if (*actionPos >= numOfActions) {
-    return code;
+    mError("trans:%d, failed to execute action in serail group, actionPos:%d >= numOfActions:%d at group %d",
+           pTrans->id, *actionPos, numOfActions, groupId);
+    return TSDB_CODE_INTERNAL_ERROR;
   }
 
   for (int32_t action = *actionPos; action < numOfActions; ++action) {
@@ -2109,12 +2118,15 @@ static int32_t mndTransExecuteActionsSerialGroup(SMnode *pMnode, STrans *pTrans,
       (void)taosThreadMutexUnlock(&pTrans->mutex);
       code = mndTransSync(pMnode, pTrans);
       (void)taosThreadMutexLock(&pTrans->mutex);
+      mInfo("trans:%d, try to reset all action msgSent except:%d", pTrans->id, pAction->id);
       for (int32_t i = 0; i < taosArrayGetSize(pTrans->redoActions); ++i) {
         STransAction *pTmpAction = taosArrayGet(pTrans->redoActions, i);
         int8_t       *msgSent = taosHashGet(pHash, &pTmpAction->id, sizeof(int32_t));
-        if (pTmpAction->id != pAction->id) pTmpAction->msgSent = *msgSent;
+        if (pTmpAction->id != pAction->id && pTmpAction->msgSent != *msgSent) {
+          pTmpAction->msgSent = *msgSent;
+          mInfo("trans:%d, action:%d, reset msgSent:%d", pTrans->id, pTmpAction->id, *msgSent);
+        }
       }
-      mInfo("trans:%d, reset all action msgSent except:%d", pTrans->id, pAction->id);
       if (code != 0) {
         pTrans->actionPos--;
         (*actionPos)--;
@@ -2180,8 +2192,8 @@ static int32_t mndTransExecuteRedoActionGroup(SMnode *pMnode, STrans *pTrans, bo
     size_t   keyLen = 0;
     int32_t *key = taosHashGetKey(pIter, &keyLen);
     int32_t  actionCount = taosArrayGetSize(*redoActions);
-    mInfo("trans:%d, group:%d/%d(%d) begin to execute, current group(action pos:%d, action count:%d)", pTrans->id,
-          currentGroup, groupCount, *key, pTrans->actionPos, actionCount);
+    mInfo("trans:%d, group:%d/%d(%d) begin to execute, current group(action count:%d) transaction(action pos:%d)",
+          pTrans->id, currentGroup, groupCount, *key, actionCount, pTrans->actionPos);
     code = mndTransExecuteActionsSerialGroup(pMnode, pTrans, *redoActions, topHalf, *key, currentGroup, groupCount,
                                              notSend, pHash);
     if (code == TSDB_CODE_MND_TRANS_CTX_SWITCH) {
