@@ -656,3 +656,22 @@ int32_t taosSetSockOpt2(int32_t fd) {
 #endif
   return 0;
 }
+
+int32_t taosValidFqdn(int8_t enableIpv6, char *fqdn) {
+  int32_t code = 0;
+  SIpAddr addr = {0};
+  code = taosGetIpv6FromFqdn(fqdn, &addr);
+  if (code != 0) {
+    return code;
+  }
+
+  if (enableIpv6) {
+    // if ipv6 is enabled, but the fqdn resolves to ipv4 address
+    // then return error
+    if (addr.type == 0) return TSDB_CODE_RPC_FQDN_ERROR;
+  } else {
+    if (addr.type == 1) return TSDB_CODE_RPC_FQDN_ERROR;
+  }
+
+  return code;
+}

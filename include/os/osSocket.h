@@ -191,6 +191,8 @@ int32_t taosGetIpFromFqdn(const char *fqdn, SIpAddr *addr);
 
 int8_t taosIpAddrIsEqual(SIpAddr *ip1, SIpAddr *ip2);
 
+int32_t taosValidFqdn(int8_t enableIpv6, char *fqdn);
+
 #ifdef __cplusplus
 }
 #endif

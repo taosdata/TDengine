@@ -242,7 +242,7 @@ static FORCE_INLINE int32_t cliMayCvtFqdnToIp(SReqEpSet* pEpSet, const SCvtAddr*
 
 static FORCE_INLINE int32_t cliBuildExceptResp(SCliThrd* thrd, SCliReq* pReq, STransMsg* resp);
 
-static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, SIpAddr* ipaddr);
+static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, SIpAddr* ipaddr, int8_t ipv6);
 static FORCE_INLINE int32_t cliUpdateFqdnCache(SHashObj* cache, char* fqdn);
 
 static FORCE_INLINE void cliMayUpdateFqdnCache(SHashObj* cache, char* dst);
@@ -1623,7 +1623,7 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
   struct sockaddr_storage addr;
   SIpAddr                 ipaddr;
 
-  int32_t code = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, conn->ipStr, &ipaddr);
+  int32_t code = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, conn->ipStr, &ipaddr, pInst->ipv6);
   TAOS_CHECK_GOTO(code, &lino, _exception1);
 
   ipaddr.port = conn->port;
@@ -1853,7 +1853,7 @@ FORCE_INLINE int32_t cliBuildExceptResp(SCliThrd* pThrd, SCliReq* pReq, STransMs
   return 0;
 }
 
-static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, SIpAddr* ip) {
+static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, SIpAddr* ip, int8_t enableIpv6) {
   int32_t code = 0;
   // uint32_t  addr = 0;
   size_t  len = strlen(fqdn);
@@ -1864,10 +1864,14 @@ static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, S
     code = taosGetIpFromFqdn(fqdn, &ipAddr);
     if (code != 0) {
       code = TSDB_CODE_RPC_FQDN_ERROR;
-      tError("failed to get ip from fqdn:%s since %s", fqdn, tstrerror(code));
+      tError("ipv6Enable(%d), failed to get ip from fqdn:%s since %s", enableIpv6, fqdn, tstrerror(code));
       return code;
+    } else {
+      if (enableIpv6 && ipAddr.type != 1) {
+        tWarn("get ipv4 addr from fqdn:%s, but ipv6 is enabled", fqdn);
+        return TSDB_CODE_RPC_FQDN_ERROR;
+      }
     }
-
     if ((code = taosHashPut(cache, fqdn, len, &ipAddr, sizeof(ipAddr)) != 0)) {
       return code;
     }

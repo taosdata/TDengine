@@ -93,6 +93,7 @@ int32_t taos_connect_internal(const char* ip, const char* user, const char* pass
   if (!validateUserName(user)) {
     TSC_ERR_RET(TSDB_CODE_TSC_INVALID_USER_LENGTH);
   }
+  int32_t code = 0;
 
   char localDb[TSDB_DB_NAME_LEN] = {0};
   if (db != NULL && strlen(db) > 0) {
@@ -136,9 +137,16 @@ int32_t taos_connect_internal(const char* ip, const char* user, const char* pass
   for (int32_t i = 0; i < epSet.epSet.numOfEps; ++i) {
     tscInfo("ep:%d, %s:%u", i, epSet.epSet.eps[i].fqdn, epSet.epSet.eps[i].port);
   }
+  for (int32_t i = 0; i < epSet.epSet.numOfEps; i++) {
+    if ((code = taosValidFqdn(tsEnableIpv6, epSet.epSet.eps[i].fqdn)) != 0) {
+      tscError("ipv6 flag %d, the local FQDN %s does not resolve to the ip address since %s", tsEnableIpv6,
+               epSet.epSet.eps[i].fqdn, tstrerror(code));
+      TSC_ERR_RET(code);
+    }
+  }
 
   SAppInstInfo** pInst = NULL;
-  int32_t        code = taosThreadMutexLock(&appInfo.mutex);
+  code = taosThreadMutexLock(&appInfo.mutex);
   if (TSDB_CODE_SUCCESS != code) {
     tscError("failed to lock app info, code:%s", tstrerror(TAOS_SYSTEM_ERROR(code)));
     TSC_ERR_RET(code);

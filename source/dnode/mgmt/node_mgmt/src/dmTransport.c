@@ -582,10 +582,19 @@ void dmCleanupSyncClient(SDnode *pDnode) {
 }
 
 int32_t dmInitServer(SDnode *pDnode) {
+  int32_t      code = 0;
   SDnodeTrans *pTrans = &pDnode->trans;
+
+  code = taosValidFqdn(tsEnableIpv6, tsLocalFqdn);
+  if (code != 0) {
+    dError("ipv6 flag %d, the local FQDN %s does not resolve to the ip address since %s", tsEnableIpv6, tsLocalFqdn,
+           tstrerror(code));
+    return code;
+  }
 
   SRpcInit rpcInit = {0};
   tstrncpy(rpcInit.localFqdn, tsLocalFqdn, TSDB_FQDN_LEN);
+
   rpcInit.localPort = tsServerPort;
   rpcInit.label = "DND-S";
   rpcInit.numOfThreads = tsNumOfRpcThreads;
