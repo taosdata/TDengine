@@ -208,6 +208,18 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
         code = TSDB_CODE_INVALID_PARA;
         goto END;
       }
+      SIpAddr  addr = {0};
+      SIpRange ipUint = {0};
+      code = taosGetIpv6FromFqdn(val, &addr);
+      if (code != 0) {
+        goto END;
+      }
+
+      code = tIpStrToUint(&addr, &pObj->optionInfo.userDualIp);
+      if (code != 0) {
+        goto END;
+      }
+
     } else {
       pObj->optionInfo.userIp = INADDR_NONE;
     }

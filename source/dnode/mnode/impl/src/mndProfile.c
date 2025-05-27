@@ -143,6 +143,17 @@ static void setUserInfo2Conn(SConnObj *connObj, char *userApp, uint32_t userIp) 
   tstrncpy(connObj->userApp, userApp, sizeof(connObj->userApp));
   connObj->userIp = userIp;
 }
+static void setUserInfoIpToConn(SConnObj *connObj, SIpRange *pRange) {
+  int32_t code = 0;
+  if (connObj == NULL) {
+    return;
+  }
+  code = tIpUintToStr(pRange, &connObj->addr);
+  if (code != 0) {
+    mError("conn:%u, failed to set user ip to conn since %s", connObj->id, terrstr());
+    return;
+  }
+}
 static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, SIpAddr *pAddr, int32_t pid,
                                const char *app, int64_t startTime) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
@@ -529,6 +540,8 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
     }
 
     setUserInfo2Conn(pConn, pHbReq->userApp, pHbReq->userIp);
+    setUserInfoIpToConn(pConn, &pHbReq->userDualIp);
+
     SQueryHbRspBasic *rspBasic = taosMemoryCalloc(1, sizeof(SQueryHbRspBasic));
     if (rspBasic == NULL) {
       mndReleaseConn(pMnode, pConn, true);
@@ -949,10 +962,17 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }
 
     char userIp[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    // if (pConn->userIp != 0 && pConn->userIp != INADDR_NONE) {
-    //   taosInetNtoa(varDataVal(userIp), pConn->userIp);
-    //   varDataLen(userIp) = strlen(varDataVal(userIp));
-    // }
+    if (pConn->userIp != 0 && pConn->userIp != INADDR_NONE) {
+      taosInetNtoa(varDataVal(userIp), pConn->userIp);
+      varDataLen(userIp) = strlen(varDataVal(userIp));
+    }
+
+    if (pConn->addr.ipv4[0] != 0) {
+      int32_t len = strlen(IP_ADDR_STR(&pConn->addr));
+      memcpy(varDataVal(userIp), IP_ADDR_STR(&pConn->addr), len);
+      varDataLen(userIp) = len;
+    }
+
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)userIp, false);
     if (code != 0) {

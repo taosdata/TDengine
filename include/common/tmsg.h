@@ -3825,6 +3825,7 @@ typedef struct {
   SHashObj*         info;  // hash<Skv.key, Skv>
   char              userApp[TSDB_APP_NAME_LEN];
   uint32_t          userIp;
+  SIpRange          userDualIp;
 } SClientHbReq;
 
 typedef struct {
