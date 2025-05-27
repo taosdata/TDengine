@@ -302,7 +302,7 @@ class BeforeTest:
             adapter["taos_firstEP"] = "localhost:6030"
             adapter["taos_logDir"] = taos_log_dir
             request.session.adapter = adapter
-        if request.session.taoskeeper:
+        if request.session.set_taoskeeper:
             # TODO:增加taoskeeper配置
             taoskeeper_config_dir = os.path.join(work_dir, "dnode1", "cfg")
             taoskeeper_config_file = os.path.join(taoskeeper_config_dir, "taoskeeper.toml")
@@ -398,6 +398,7 @@ class BeforeTest:
         # 解析settings中name=taosd的配置
         servers = []
         request.session.restful = False
+        request.session.set_taoskeeper = False
         for setting in yaml_data.get("settings", []):
             if setting.get("name") == "taosd":
                 for dnode in setting["spec"]["dnodes"]:
@@ -428,7 +429,7 @@ class BeforeTest:
                 adapter["taos_logDir"] = setting["spec"]["taos_config"]["logDir"]
             if setting.get("name") == "taoskeeper":
                 # TODO:解析taoskeeper的配置
-                request.session.restful = True
+                request.session.set_taoskeeper = True
                 taoskeeper = {}
                 taoskeeper["host"] = setting["fqdn"][0]
                 taoskeeper["port"] = setting["spec"]["port"]
@@ -448,15 +449,22 @@ class BeforeTest:
         request.session.password = "taosdata"
         request.session.cfg_path = servers[0]["cfg_path"]
         request.session.servers = servers
+        request.session.level = 1
+        request.session.disk = 1
         request.session.denodes_num = len(servers)
+        request.session.create_dnode_num = len(servers)
         request.session.query_policy = 1
         request.session.yaml_data = yaml_data
-        request.session.adapter = adapter
-
-        request.session.taoskeper = taoskeeper
+        if setting.get("name") == "taosAdapter":
+            request.session.adapter = adapter
+        if setting.get("name") == "taoskeeper":
+            request.session.taoskeeper = taoskeeper
 
         if servers[0]["taosd_path"] is not None:
             request.session.taos_bin_path = servers[0]["taosd_path"]
+        else:
+            request.session.taos_bin_path = self.get_taos_bin_path()
+        request.session.lib_path = os.path.join(os.path.dirname(request.session.taos_bin_path), 'lib')
 
 
     def init_dnode_cluster(self, request, dnode_nums, mnode_nums, independentMnode=True, level=1, disk=1):
@@ -511,7 +519,7 @@ class BeforeTest:
             tAdapter.running = 1
 
     # TODO: 增加taoskeeper实例化
-        if request.session.taoskeeper:
+        if request.session.set_taoskeeper:
             taoskeeper.init("", master_ip)
             taoskeeper.log_dir = request.session.taoskeeper["log_path"]
             taoskeeper.cfg_dir = request.session.taoskeeper["cfg_dir"]
