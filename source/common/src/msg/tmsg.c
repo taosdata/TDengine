@@ -1510,6 +1510,13 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
 
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->timestamp));
 
+  // Encode buffer info
+  for (int32_t i = 0; i < vlen; ++i) {
+    SVnodeLoad *pload = taosArrayGet(pReq->pVloads, i);
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pload->bufferSegmentUsed));
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pload->bufferSegmentSize));
+  }
+
   tEndEncode(&encoder);
 
 _exit:
@@ -1649,6 +1656,16 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
 
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->timestamp));
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->timestamp));
+  }
+
+  // Decode buffer info
+  if (!tDecodeIsEnd(&decoder)) {
+    for (int32_t i = 0; i < vlen; ++i) {
+      SVnodeLoad *pLoad = taosArrayGet(pReq->pVloads, i);
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pLoad->bufferSegmentUsed));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pLoad->bufferSegmentSize));
+    }
   }
 
   tEndDecode(&decoder);
