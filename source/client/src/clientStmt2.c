@@ -140,7 +140,6 @@ static int32_t stmtSwitchStatus(STscStmt2* pStmt, STMT_STATUS newStatus) {
   int32_t code = 0;
 
   if (newStatus >= STMT_INIT && newStatus < STMT_MAX) {
-    STMT2_ELOG("stmt already failed with err:%s", tstrerror(pStmt->errCode));
     STMT_LOG_SEQ(newStatus);
   }
 
@@ -315,14 +314,21 @@ static int32_t stmtParseSql(STscStmt2* pStmt) {
 
   pStmt->bInfo.needParse = false;
 
-  if (pStmt->sql.pQuery->pRoot && 0 == pStmt->sql.type) {
+  if (pStmt->sql.pQuery->pRoot && LEGAL_INSERT(nodeType(pStmt->sql.pQuery->pRoot))) {
     pStmt->sql.type = STMT_TYPE_INSERT;
     pStmt->sql.stbInterlaceMode = false;
-  } else if (pStmt->sql.pQuery->pPrepareRoot) {
+  } else if (pStmt->sql.pQuery->pPrepareRoot && LEGAL_SELECT(nodeType(pStmt->sql.pQuery->pPrepareRoot))) {
     pStmt->sql.type = STMT_TYPE_QUERY;
     pStmt->sql.stbInterlaceMode = false;
 
     return TSDB_CODE_SUCCESS;
+  } else {
+    pStmt->bInfo.needParse = true;
+    STMT2_ELOG_E("only support select or insert sql");
+    if (pStmt->exec.pRequest->msgBuf) {
+      tstrncpy(pStmt->exec.pRequest->msgBuf, "stmt only support select or insert", pStmt->exec.pRequest->msgBufLen);
+    }
+    return TSDB_CODE_TSC_STMT_API_ERROR;
   }
 
   STableDataCxt** pSrc =
