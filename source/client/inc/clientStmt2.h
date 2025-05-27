@@ -172,6 +172,7 @@ typedef struct {
   tsem_t         asyncExecSem;
   bool           execSemWaited;
   AsyncBindParam asyncBindParam;
+  bool           asyncExecCb;
   SStmtStatInfo  stat;
 } STscStmt2;
 /*
@@ -228,13 +229,13 @@ do {                               \
 #define STMT2_FLOG(param, ...) qFatal("stmt2:%p, " param, pStmt, __VA_ARGS__)
 #define STMT2_ELOG(param, ...) qError("stmt2:%p, " param, pStmt, __VA_ARGS__)
 #define STMT2_DLOG(param, ...) qDebug("stmt2:%p, " param, pStmt, __VA_ARGS__)
-#define STMT2_WOG(param, ...)  qWarn("stmt2:%p, " param, pStmt, __VA_ARGS__)
+#define STMT2_WLOG(param, ...)  qWarn("stmt2:%p, " param, pStmt, __VA_ARGS__)
 #define STMT2_ILOG(param, ...)  qInfo("stmt2:%p, " param, pStmt, __VA_ARGS__)
 #define STMT2_TLOG(param, ...)  qTrace("stmt2:%p, " param, pStmt, __VA_ARGS__)
 
 #define STMT2_ELOG_E(param) qError("stmt2:%p, " param, pStmt)
 #define STMT2_DLOG_E(param) qDebug("stmt2:%p, " param, pStmt)
-#define STMT2_WOG_E(param)  qWarn("stmt2:%p, " param, pStmt)
+#define STMT2_WLOG_E(param)  qWarn("stmt2:%p, " param, pStmt)
 #define STMT2_ILOG_E(param)  qInfo("stmt2:%p, " param, pStmt)
 #define STMT2_TLOG_E(param)  qTrace("stmt2:%p, " param, pStmt)
 
