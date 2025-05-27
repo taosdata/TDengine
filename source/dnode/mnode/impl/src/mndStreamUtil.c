@@ -33,6 +33,15 @@ void mstDestroySStmVgStreamStatus(void* p) {
   taosArrayDestroy(pStatus->calcReaders); 
 }
 
+void mstDestroySStmSnodeStreamStatus(void* p) { 
+  SStmSnodeStreamStatus* pStatus = (SStmSnodeStreamStatus*)p;
+  taosMemoryFreeClear(pStatus->trigger); 
+  for (int32_t i = 0; i < MND_STREAM_RUNNER_DEPLOY_NUM; ++i) {
+    taosArrayDestroy(pStatus->runners[i]);
+    pStatus->runners[i] = NULL;
+  }
+}
+
 
 void mstDestroyVgroupStatus(SStmVgroupStatus* pVgStatus) {
   taosHashCleanup(pVgStatus->streamTasks);
@@ -445,4 +454,60 @@ void mndStreamLogSStreamObj(char* tips, SStreamObj* p) {
       
 }
 
+void mndStreamLogSStmTaskStatus(char* name, int64_t streamId, SStmTaskStatus* pTask, int32_t idx) {
+  mstsDebug("%s[%d]: task %" PRIx64 " deployId:%d SID:%" PRId64 " nodeId:%d tidx:%d type:%s flags:%" PRIx64 " status:%s lastUpTs:%" PRId64, 
+      name, idx, pTask->id.taskId, pTask->id.deployId, pTask->id.seriousId, pTask->id.nodeId, pTask->id.taskIdx,
+      gStreamTaskTypeStr[pTask->type], pTask->flags, gStreamStatusStr[pTask->status], pTask->lastUpTs);
+}
+
+void mndStreamLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p) {
+  if (!(stDebugFlag & DEBUG_DEBUG)) {
+    return;
+  }
+  
+  if (NULL == p) {
+    mstsDebug("%s: stream status is NULL", tips);
+    return;
+  }
+
+  int32_t trigReaderNum = taosArrayGetSize(p->trigReaders);
+  int32_t calcReaderNum = taosArrayGetSize(p->calcReaders);
+  int32_t triggerNum = p->triggerTask ? 1 : 0;
+  int32_t runnerNum = 0;
+
+  for (int32_t i = 0; i < p->runnerDeploys; ++i) {
+    runnerNum += taosArrayGetSize(p->runners[i]);
+  }
+
+  mstsDebug("%s: stream status", tips);
+  mstsDebug("name:%s runnerNum:%d runnerDeploys:%d runnerReplica:%d allTaskBuilt:%d lastActTs:%" PRId64
+           " trigReaders:%d calcReaders:%d trigger:%d runners:%d",
+      p->streamName, p->runnerNum, p->runnerDeploys, p->runnerReplica, p->allTaskBuilt, p->lastActTs,
+      trigReaderNum, calcReaderNum, triggerNum, runnerNum);
+
+  SStmTaskStatus* pTask = NULL;
+  for (int32_t i = 0; i < trigReaderNum; ++i) {
+    pTask = taosArrayGet(p->trigReaders, i);
+    mndStreamLogSStmTaskStatus("trigReader task", streamId, pTask, i);
+  }
+
+  for (int32_t i = 0; i < calcReaderNum; ++i) {
+    pTask = taosArrayGet(p->calcReaders, i);
+    mndStreamLogSStmTaskStatus("calcReader task", streamId, pTask, i);
+  }
+
+  if (triggerNum > 0) {
+    mndStreamLogSStmTaskStatus("trigger task", streamId, p->triggerTask, 0);
+  }
+
+  for (int32_t i = 0; i < p->runnerDeploys; ++i) {
+    int32_t num = taosArrayGetSize(p->runners[i]);
+    mstsDebug("the %dth deploy runners status", i);
+    for (int32_t m = 0; m < num; ++m) {
+      pTask = taosArrayGet(p->runners[i], m);
+      mndStreamLogSStmTaskStatus("runner task", streamId, pTask, m);
+    }
+  }
+      
+}
 

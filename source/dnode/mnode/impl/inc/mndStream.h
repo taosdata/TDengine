@@ -52,6 +52,7 @@ static const char* gMndStreamState[] = {"W", "N", "R"};
 #define STREAM_FLAG_TOP_RUNNER     (1 << 1)
 
 #define STREAM_IS_TRIGGER_READER(_flags) ((_flags) & STREAM_FLAG_TRIGGER_READER)
+#define STREAM_IS_TOP_RUNNER(_flags) ((_flags) & STREAM_FLAG_TOP_RUNNER)
 
 #define MND_STREAM_RESERVE_SIZE      64
 #define MND_STREAM_VER_NUMBER        6
@@ -155,7 +156,9 @@ typedef struct SStmTaskAction {
   SStmTaskStatus* triggerStatus;
   
   EStreamTaskType type;
-  int64_t    flag;
+  bool            multiRunner;
+  
+  int64_t         flag;
 } SStmTaskAction;
 
 typedef union {
@@ -203,13 +206,11 @@ typedef struct SStmStatus {
 
   bool              allTaskBuilt;
   int64_t           lastActTs;
-  SArray*           trigReaders;
-  SArray*           calcReaders;
-  
-  SArray*           readerList;        // SArray<SStmTaskStatus>, triggerReader first
+
+  SArray*           trigReaders;        // SArray<SStmTaskStatus>
+  SArray*           calcReaders;        // SArray<SStmTaskStatus>  
   SStmTaskStatus*   triggerTask;
-  SArray*           runnerTopIdx;      // top runner task index in runnerList, num is runnerDeploys
-  SArray*           runnerList;        // SArray<SStmTaskStatus>
+  SArray*           runners[MND_STREAM_RUNNER_DEPLOY_NUM];  // SArray<SStmTaskStatus>
 } SStmStatus;
 
 
@@ -218,13 +219,16 @@ typedef struct SStmTaskStatusExt{
   SStmTaskStatus* status;
 } SStmTaskStatusExt;
 
-typedef struct SStmSnodeTasksStatus {
+typedef struct SStmSnodeStreamStatus {
+  SStmTaskStatus*  trigger;       
+  SArray*          runners[MND_STREAM_RUNNER_DEPLOY_NUM];       // SArray<SStmTaskStatus*>
+} SStmSnodeStreamStatus;
+
+typedef struct SStmSnodeStatus {
   int32_t  runnerThreadNum; // runner thread num in snode
   int64_t  lastUpTs;
-  SRWLatch lock;
-  SArray*  triggerList;     // SArray<SStmTaskStatusExt>
-  SArray*  runnerList;      // SArray<SStmTaskStatusExt>
-} SStmSnodeTasksStatus;
+  SHashObj* streamTasks;   // streamId => SStmSnodeStreamStatus
+} SStmSnodeStatus;
 
 typedef struct SStmVgStreamStatus {
   SArray*  trigReaders;       // SArray<SStmTaskStatus*>
@@ -296,12 +300,11 @@ typedef struct SStmThreadCtx {
 } SStmThreadCtx;
 
 typedef struct SStmHealthCheckCtx {
+  bool      checkAll;
   int32_t   slotIdx;
   
   int64_t   currentTs;
   int32_t   validStreamNum;
-
-  SHashObj* streamRunners;     // streamId => deploy num
 } SStmHealthCheckCtx;
 
 typedef struct SStmRuntimeStat {
@@ -332,6 +335,7 @@ typedef struct SStmRuntime {
   int64_t          profile;
   int64_t          activeBeginTs;
   int8_t           state;
+  int32_t          fatalError;
 
   SRWLatch         actionQLock;
   SStmActionQ*     actionQ;
@@ -345,7 +349,7 @@ typedef struct SStmRuntime {
   SHashObj*        streamMap;  // streamId => SStmStatus
   SHashObj*        taskMap;    // streamId + taskId => SStmTaskStatus*
   SHashObj*        vgroupMap;  // vgId => SStmVgroupStatus (only reader tasks)
-  SHashObj*        snodeMap;   // snodeId => SStmSnodeTasksStatus (only trigger and runner tasks)
+  SHashObj*        snodeMap;   // snodeId => SStmSnodeStatus (only trigger and runner tasks)
   SHashObj*        dnodeMap;   // dnodeId => lastUpTs
 
   // TD
@@ -370,6 +374,7 @@ extern SStmRuntime         mStreamMgmt;
 int32_t mndInitStream(SMnode *pMnode);
 void    mndCleanupStream(SMnode *pMnode);
 int32_t mndAcquireStream(SMnode *pMnode, char *streamName, SStreamObj **pStream);
+int32_t mndAcquireStreamById(SMnode *pMnode, int64_t streamId, SStreamObj **pStream);
 void    mndReleaseStream(SMnode *pMnode, SStreamObj *pStream);
 int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 
@@ -405,12 +410,16 @@ void msmHandleBecomeNotLeader(SMnode *pMnode);
 int32_t msmUndeployStream(SMnode* pMnode, int64_t streamId, char* streamName);
 int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped);
 void mstWaitRLock(SRWLatch* pLock);
-void msmHealthCheck(SMnode *pMnode);
+void msmHealthCheck(SMnode *pMnode, bool checkAll, bool needLock);
 void mndStreamPostAction(SStmActionQ*       actionQ, int64_t streamId, char* streamName, int32_t action);
 void mndStreamPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pAction, int32_t action);
 int32_t msmAssignRandomSnodeId(SMnode* pMnode, int64_t streamId);
 int32_t msmCheckSnodeReassign(SMnode *pMnode, SSnodeObj* pSnode, SArray** ppRes);
 void mndStreamLogSStreamObj(char* tips, SStreamObj* p);
+void mndStreamLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p);
+void mstDestroySStmVgStreamStatus(void* p);
+void mstDestroyVgroupStatus(SStmVgroupStatus* pVgStatus);
+void mstDestroySStmSnodeStreamStatus(void* p);
 
 #ifdef __cplusplus
 }

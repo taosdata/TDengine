@@ -154,6 +154,34 @@ int32_t mndAcquireStream(SMnode *pMnode, char *streamName, SStreamObj **pStream)
   return code;
 }
 
+static bool mndStreamGetNameFromId(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
+  SStreamObj* pStream = pObj;
+
+  if (pStream->pCreate->streamId == *(int64_t*)p1) {
+    strncpy((char*)p2, pStream->name, TSDB_STREAM_NAME_LEN);
+    return false;
+  }
+
+  return true;
+}
+
+int32_t mndAcquireStreamById(SMnode *pMnode, int64_t streamId, SStreamObj **pStream) {
+  int32_t code = 0;
+  SSdb   *pSdb = pMnode->pSdb;
+  char streamName[TSDB_STREAM_NAME_LEN];
+  streamName[0] = 0;
+  
+  sdbTraverse(pSdb, SDB_STREAM, mndStreamGetNameFromId, &streamId, streamName, NULL);
+  if (streamName[0]) {
+    (*pStream) = sdbAcquire(pSdb, SDB_STREAM, streamName);
+    if ((*pStream) == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
+      code = TSDB_CODE_MND_STREAM_NOT_EXIST;
+    }
+  }
+  
+  return code;
+}
+
 void mndReleaseStream(SMnode *pMnode, SStreamObj *pStream) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pStream);
