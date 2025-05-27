@@ -41,3 +41,12 @@ target_link_libraries(TestSqlDatabaseFormatter PRIVATE
     actions_formatter
 )
 add_test(NAME TestSqlDatabaseFormatter COMMAND TestSqlDatabaseFormatter)
+
+# test SqlDatabaseFormatter
+add_executable(TestSqlSuperTableFormatter
+    test/TestSqlSuperTableFormatter.cpp
+)
+target_link_libraries(TestSqlSuperTableFormatter PRIVATE 
+    actions_formatter
+)
+add_test(NAME TestSqlSuperTableFormatter COMMAND TestSqlSuperTableFormatter)

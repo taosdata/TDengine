@@ -1,5 +1,5 @@
 #pragma once
-#include "IDatabaseFormatter.h"
+#include "IFormatter.h"
 #include "FormatterFactory.h"
 
 
@@ -32,5 +32,4 @@ private:
             });
         return true;
     }();
-
 };

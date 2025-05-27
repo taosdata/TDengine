@@ -9,8 +9,29 @@ using FormatResult = std::variant<std::string, int>;
 class IFormatter {
 public:
     virtual ~IFormatter() = default;
-    virtual FormatResult format(const CreateDatabaseConfig&, bool is_drop) const = 0;
-    // virtual FormatResult format(const CreateSuperTableConfig&) const = 0;
-    // virtual FormatResult format(const InsertDataConfig&) const = 0;
-    // 其他Action的format方法...
 };
+
+
+class IDatabaseFormatter : public IFormatter {
+public:
+    virtual FormatResult format(const CreateDatabaseConfig&, bool is_drop) const = 0;
+};
+
+
+class ISuperTableFormatter : public IFormatter {
+public:
+    virtual FormatResult format(const CreateSuperTableConfig&) const = 0;
+};
+
+
+class IChildTableFormatter : public IFormatter {
+    public:
+        virtual FormatResult format(const CreateChildTableConfig&) const = 0;
+    };
+
+
+class IInsertDataFormatter : public IFormatter {
+public:
+    virtual FormatResult format(const InsertDataConfig&) const = 0;
+};
+
