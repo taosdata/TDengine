@@ -112,7 +112,7 @@ class TestStreamOldCaseSnode:
             f"insert into ts3 values(1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0)  (1648791223001,22,22,83,1.1) ;"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from target.streamtST1;",
             lambda: tdSql.getRows() >= 4
             and tdSql.getData(0, 1) == 8

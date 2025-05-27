@@ -1536,8 +1536,7 @@ int32_t streamMetaResetTaskStatus(SStreamMeta* pMeta) {
   return 0;
 }
 
-void streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, SStreamTask* pHTask, int32_t transId,
-                                     int64_t startTs) {
+void streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, int32_t transId, int64_t startTs) {
   const char* id = pTask->id.idStr;
   int32_t     vgId = pMeta->vgId;
   int32_t     code = 0;
@@ -1550,20 +1549,8 @@ void streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, SSt
   }
 
   int64_t el = taosGetTimestampMs() - startTs;
-  if (pHTask != NULL) {
-    STaskUpdateEntry hEntry = {.streamId = pHTask->id.streamId, .taskId = pHTask->id.taskId, .transId = transId};
-    code = taosHashPut(pMeta->updateInfo.pTasks, &hEntry, sizeof(hEntry), NULL, 0);
-    if (code != 0) {
-      stError("s-task:%s failed to put updateTask into update list", id);
-    } else {
-      stDebug("s-task:%s vgId:%d transId:%d task nodeEp update completed, streamTask/hTask closed, elapsed:%" PRId64
-              " ms",
-              id, vgId, transId, el);
-    }
-  } else {
-    stDebug("s-task:%s vgId:%d transId:%d task nodeEp update completed, streamTask closed, elapsed time:%" PRId64 "ms",
-            id, vgId, transId, el);
-  }
+  stDebug("s-task:%s vgId:%d transId:%d task nodeEp update completed, streamTask closed, elapsed time:%" PRId64 "ms",
+          id, vgId, transId, el);
 }
 
 void streamMetaClearSetUpdateTaskListComplete(SStreamMeta* pMeta) {

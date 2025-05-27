@@ -56,13 +56,13 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"delete from t1 where ts = 1648791213000;")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() == 0,
         )
 
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -77,7 +77,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(
             f"delete from t1 where ts >= 1648791213001 and ts <= 1648791213002;"
         )
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -89,14 +89,14 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t1 values(1648791223002,3,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791223003,3,2,3,1.0);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c2, c3;", lambda: tdSql.getRows() == 2
         )
 
         tdSql.execute(
             f"delete from t1 where ts >= 1648791223000 and ts <= 1648791223003;"
         )
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -121,7 +121,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(
             f"delete from t1 where ts >= 1648791213001 and ts <= 1648791233005;"
         )
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() > 1
             and tdSql.getData(0, 1) == 1
@@ -150,13 +150,13 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"insert into t2 values(1648791213000,NULL,NULL,NULL,NULL);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 1,
         )
 
         tdSql.execute(f"delete from t1 where ts = 1648791213000;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -175,7 +175,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(
             f"delete from t2 where ts >= 1648791223000 and ts <= 1648791223001;"
         )
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 1
             and tdSql.getData(0, 1) == 1
@@ -187,7 +187,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(
             f"delete from st where ts >= 1648791223000 and ts <= 1648791223003;"
         )
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 1
             and tdSql.getData(0, 1) == 1
@@ -206,7 +206,7 @@ class TestStreamOldCaseDelete:
             f"delete from t2 where ts >= 1648791213004 and ts <= 1648791213006;"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 1) == 4
@@ -228,7 +228,7 @@ class TestStreamOldCaseDelete:
             f"delete from st where ts >= 1648791213001 and ts <= 1648791233005;"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 1) == 1
@@ -255,20 +255,20 @@ class TestStreamOldCaseDelete:
 
         tdSql.execute(f"delete from t1;")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt3 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 1,
         )
 
         tdSql.execute(f"delete from t1 where ts > 100;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt3 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 1,
         )
 
         tdSql.execute(f"delete from st;")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt3 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 0,
         )
@@ -295,12 +295,12 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t1 values(1648791213004,1,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213005,2,2,3,1.0);")
 
-        tdStream.checkQueryResults(f"select * from streamt;", lambda: tdSql.getRows() == 6)
+        tdSql.checkResultsByFunc(f"select * from streamt;", lambda: tdSql.getRows() == 6)
 
         tdLog.info(f"delete from t1 where ts <= 1648791213002;")
         tdSql.execute(f"delete from t1 where ts <= 1648791213002;")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by 1;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 1) == 0
@@ -328,7 +328,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t1 values(1648791213004,1,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213005,2,2,3,1.0);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt1;",
             lambda: tdSql.getRows() == 6,
         )
@@ -336,7 +336,7 @@ class TestStreamOldCaseDelete:
         tdLog.info(f"delete from t1 where ts <= 1648791213002;")
         tdSql.execute(f"delete from t1 where ts <= 1648791213002;")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt1 order by 1;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 1) == 0
@@ -364,7 +364,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t1 values(1648791213004,1,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213005,2,2,3,1.0);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt2;",
             lambda: tdSql.getRows() == 6,
         )
@@ -372,7 +372,7 @@ class TestStreamOldCaseDelete:
         tdLog.info(f"delete from t1 where ts <= 1648791213002;")
         tdSql.execute(f"delete from t1 where ts <= 1648791213002;")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt2 order by 1;",
             lambda: tdSql.getRows() == 3
             and tdSql.getData(0, 1) == 0
@@ -402,14 +402,14 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"delete from t1 where ts = 1648791213000;")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() == 0,
         )
 
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -424,7 +424,7 @@ class TestStreamOldCaseDelete:
             f"delete from t1 where ts >= 1648791213001 and ts <= 1648791213002;"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -436,7 +436,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t1 values(1648791223002,3,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791223003,3,2,3,1.0);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() == 2,
         )
@@ -444,7 +444,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(
             f"delete from t1 where ts >= 1648791223000 and ts <= 1648791223003;"
         )
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -470,7 +470,7 @@ class TestStreamOldCaseDelete:
             f"delete from t1 where ts >= 1648791213001 and ts <= 1648791233005;"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() > 1
             and tdSql.getData(0, 1) == 1
@@ -497,13 +497,13 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"insert into t2 values(1648791213000,NULL,NULL,NULL,NULL);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 1,
         )
 
         tdSql.execute(f"delete from t1 where ts = 1648791213000;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
@@ -523,7 +523,7 @@ class TestStreamOldCaseDelete:
             f"delete from t2 where ts >= 1648791223000 and ts <= 1648791223001;"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() > 1
             and tdSql.getData(0, 1) == 1
@@ -536,7 +536,7 @@ class TestStreamOldCaseDelete:
             f"delete from st where ts >= 1648791223000 and ts <= 1648791223003;"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 1
             and tdSql.getData(0, 1) == 1
@@ -556,7 +556,7 @@ class TestStreamOldCaseDelete:
             f"delete from t2 where ts >= 1648791213004 and ts <= 1648791213006;"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 1) == 4
@@ -578,7 +578,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(
             f"delete from st where ts >= 1648791213001 and ts <= 1648791233005;"
         )
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt2 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 1) == 1
@@ -622,7 +622,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t1 values(1648791232005,13,13,13,NULL);")
         tdSql.execute(f"insert into t2 values(1648791242005,14,14,14,NULL);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt3 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 3,
         )
@@ -630,7 +630,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(
             f"delete from t2 where ts >= 1648791213001 and ts <= 1648791218003;"
         )
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from test.streamt3 order by c1, c2, c3;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(0, 1) == 2
@@ -676,7 +676,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t2 values(1648791221000,2,2,3);")
         tdSql.execute(f"insert into t2 values(1648791231000,2,2,3);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt4 order by c1 desc;;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 4
@@ -692,7 +692,7 @@ class TestStreamOldCaseDelete:
             f"delete from st where ts >= 1648791220000 and ts <=1648791223000;"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt4 order by c1 desc;;",
             lambda: tdSql.getRows() == 4
             and tdSql.getData(0, 1) == 1
@@ -723,13 +723,13 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
         tdSql.execute(f"delete from t1 where ts = 1648791213000;")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() == 0,
         )
 
         tdSql.execute(f"insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() == 0,
         )
@@ -743,7 +743,7 @@ class TestStreamOldCaseDelete:
             f"delete from t1 where ts >= 1648791213001 and ts <= 1648791213002;"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -755,7 +755,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t1 values(1648791223002,2,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791223003,2,2,3,1.0);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() == 2,
         )
@@ -764,7 +764,7 @@ class TestStreamOldCaseDelete:
             f"delete from t1 where ts >= 1648791223000 and ts <= 1648791223003;"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 2
@@ -790,7 +790,7 @@ class TestStreamOldCaseDelete:
             f"delete from t1 where ts >= 1648791213001 and ts <= 1648791233005;"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 1) == 1
@@ -830,7 +830,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t2 values(1648791221000,2,2,2);")
         tdSql.execute(f"insert into t2 values(1648791231000,2,2,3);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt4 order by c1 desc;;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 4
@@ -846,7 +846,7 @@ class TestStreamOldCaseDelete:
             f"delete from st where ts >= 1648791220000 and ts <=1648791223000;"
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt4 order by c1 desc;;",
             lambda: tdSql.getRows() == 4
             and tdSql.getData(0, 1) == 1
