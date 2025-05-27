@@ -1120,7 +1120,7 @@ int32_t tMergeTreeNext(SMergeTree *pMTree, bool *pHasNext) {
   }
 
   *pHasNext = false;
-  if (pMTree->pIter) {
+  while (pMTree->pIter) {
     SLDataIter *pIter = pMTree->pIter;
     bool        hasVal = false;
     code = tLDataIterNextRow(pIter, pMTree->idStr, &hasVal);
@@ -1140,9 +1140,11 @@ int32_t tMergeTreeNext(SMergeTree *pMTree, bool *pHasNext) {
         (void)tRBTreePut(&pMTree->rbt, (SRBTreeNode *)pMTree->pIter);
         pMTree->pIter = NULL;
       } else if (!c) {
-        return TSDB_CODE_INTERNAL_ERROR;
+        continue;
       }
     }
+
+    break;
   }
 
   if (pMTree->pIter == NULL) {
