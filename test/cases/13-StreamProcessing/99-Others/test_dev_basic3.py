@@ -9,7 +9,7 @@ class TestStreamDevBasic:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_dev_basic(self):
-        """Stream basic development testing 1
+        """basic test 3
 
         Verification testing during the development process.
 
@@ -65,7 +65,7 @@ class TestStreamDevBasic:
 
         tdLog.info(f"=============== create stream")
         tdSql.execute(
-            "create stream s1 interval(1s) sliding(1s) from stream_trigger partition by tbname into stream_out tags (gid bigint as _tgrpid) as select _twstart ts, count(*) c1, avg(id) c2  from stream_query where ts >= _twstart and ts < _twend;"
+            "create stream s3 state_window (id) from stream_trigger partition by tbname into stream_out3 as select _twstart ts, count(*) c1, avg(id) c2 from stream_query;"
         )
         tdStream.checkStreamStatus()
 
@@ -75,39 +75,15 @@ class TestStreamDevBasic:
         )
 
         tdLog.info(f"=============== check stream result")
-        result_sql = "select ts, c1, c2 from test.stream_out"
-
-        tdSql.checkResultsByFunc(f"show stables", lambda: tdSql.getRows() == 2)
+        result_sql = "select ts, c1, c2 from test.stream_out3"
 
         tdSql.checkResultsByFunc(
             sql=result_sql,
             func=lambda: tdSql.getRows() == 2
             and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
-            and tdSql.compareData(0, 1, 2)
-            and tdSql.compareData(0, 2, 0.5)
+            and tdSql.compareData(0, 1, 6)
+            and tdSql.compareData(0, 2, 1.5)
             and tdSql.compareData(1, 0, "2025-01-01 00:00:01.000")
-            and tdSql.compareData(1, 1, 2)
+            and tdSql.compareData(1, 1, 6)
             and tdSql.compareData(1, 2, 1.5),
-        )
-
-        tdSql.checkResultsByFunc(
-            result_sql,
-            lambda: tdSql.getRows() >= 2
-            and tdSql.getData(0, 2) == 0.5
-            and tdSql.getData(1, 2) == 1.5,
-            retry=0,
-        )
-
-        exp_sql = "select _wstart, count(*), avg(id) from test.stream_query interval(1s) limit 2"
-        exp_result = tdSql.getResult(exp_sql)
-        tdSql.checkResultsByArray(
-            sql=result_sql,
-            exp_result=exp_result,
-            exp_sql=exp_sql,
-        )
-
-        exp_sql = result_sql
-        tdSql.checkResultsBySql(
-            sql=result_sql,
-            exp_sql=exp_sql,
         )
