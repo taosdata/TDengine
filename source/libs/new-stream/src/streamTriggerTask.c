@@ -3170,6 +3170,7 @@ int32_t streamTriggerProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp) {
           SStreamGroupInfo      groupInfo = {.gInfo = pCalcReq->groupColVals};
           code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
           QUERY_CHECK_CODE(code, lino, _end);
+          pContext->pullStatus = STRIGGER_REQUEST_IDLE;
           pCalcReq->groupColVals = groupInfo.gInfo;
           code = strtcSendCalcReq(pContext);
           QUERY_CHECK_CODE(code, lino, _end);
