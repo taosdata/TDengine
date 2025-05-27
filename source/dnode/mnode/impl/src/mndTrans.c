@@ -1125,7 +1125,7 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
   }
 
   sdbFreeRaw(pRaw);
-  mInfo("trans:%d, sync finished, createTime:%" PRId64, pTrans->id, pTrans->createdTime);
+  mInfo("trans:%d, sync to other mnodes finished, createTime:%" PRId64, pTrans->id, pTrans->createdTime);
   TAOS_RETURN(code);
 }
 
@@ -2071,6 +2071,13 @@ static int32_t mndTransExecuteActionsSerialGroup(SMnode *pMnode, STrans *pTrans,
           }
         } else {
           code = TSDB_CODE_ACTION_IN_PROGRESS;
+        }
+        int8_t *msgSent = taosHashGet(pHash, &pAction->id, sizeof(int32_t));
+        if (msgSent != NULL) {
+          *msgSent = pAction->msgSent;
+          mInfo("trans:%d, action:%d, set tmp msgSent:%d", pTrans->id, pAction->id, pAction->msgSent);
+        } else {
+          mWarn("trans:%d, action:%d, failed set tmp msgSent:%d", pTrans->id, pAction->id, pAction->msgSent);
         }
       } else if (pAction->rawWritten) {
         if (pAction->errCode != 0 && pAction->errCode != pAction->acceptableCode) {
