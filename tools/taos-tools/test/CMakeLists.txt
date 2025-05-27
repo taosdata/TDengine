@@ -9,10 +9,16 @@ IF(TD_LINUX)
 
     # benchmark
     SET(BENCHMARK_SRC 
-        "../src/benchUtil.c"
+       "../src/benchUtil.c"
         "../src/benchLog.c"
         "../src/toolstime.c"
         "../../src/pub.c"
+        "../src/benchData.c"
+        "../src/benchInsert.c"
+        "../src/benchInsertMix.c"
+        "../src/benchUtilDs.c"
+        "../src/wrapDb.c"
+        "../src/benchDataMix.c"
     )
 
     ADD_EXECUTABLE(benchmarkTest benchmarkTest.cpp ${BENCHMARK_SRC})
