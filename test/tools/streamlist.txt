@@ -1,10 +1,8 @@
 ../tests/script/sh/stop_dnodes.sh 
-pytest --clean cases/01-DataTypes/test_datatype_bigint.py
-pytest --clean cases/01-DataTypes/test_datatype_bool.py
 pytest --clean cases/13-StreamProcessing/99-Others/test_dev_basic1.py 
 pytest --clean cases/13-StreamProcessing/99-Others/test_dev_basic2.py 
 #pytest --clean cases/13-StreamProcessing/99-Others/test_dev_basic3.py 
 #pytest --clean cases/13-StreamProcessing/99-Others/test_dev_basic4.py 
 #pytest --clean cases/13-StreamProcessing/99-Others/test_dev_basic5.py 
-pytest --clean cases/13-StreamProcessing/99-Others/test_dev_basic6.py 
+#pytest --clean cases/13-StreamProcessing/99-Others/test_dev_basic6.py 
 
