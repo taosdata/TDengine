@@ -1353,6 +1353,27 @@ _err:
   return NULL;
 }
 
+SNode* createRecalcRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd) {
+  SStreamCalcRangeNode* pRange = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM_CALC_RANGE, (SNode**)&pRange);
+  CHECK_MAKE_NODE(pRange);
+  if (NULL == pStart && NULL == pEnd) {
+    pRange->calcAll = true;
+  } else {
+    pRange->calcAll = false;
+    pRange->pStart = pStart;
+    pRange->pEnd = pEnd;
+  }
+
+  return (SNode*)pRange;
+_err:
+  nodesDestroyNode((SNode*)pRange);
+  nodesDestroyNode(pStart);
+  nodesDestroyNode(pEnd);
+  return NULL;
+}
+
 SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, SToken* pTableAlias) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkTableName(pCxt, pTableAlias)) {
@@ -4109,6 +4130,26 @@ _err:
   return NULL;
 }
 
+SNode* createStreamOutTableNode(SAstCreateContext *pCxt, SNode* pIntoTable, SNode* pOutputSubTable, SNodeList* pColList, SNodeList* pTagList) {
+  SStreamOutTableNode* pOutTable = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM_OUT_TABLE, (SNode**)&pOutTable);
+  CHECK_MAKE_NODE(pOutTable);
+  pOutTable->pOutTable = pIntoTable;
+  pOutTable->pSubtable = pOutputSubTable;
+  pOutTable->pCols = pColList;
+  pOutTable->pTags = pTagList;
+  return (SNode*)pOutTable;
+
+_err:
+  nodesDestroyNode((SNode*)pOutTable);
+  nodesDestroyNode(pIntoTable);
+  nodesDestroyNode(pOutputSubTable);
+  nodesDestroyList(pColList);
+  nodesDestroyList(pTagList);
+  return NULL;
+}
+
 SNode* createStreamTriggerNode(SAstCreateContext *pCxt, SNode* pTriggerWindow, SNode* pTriggerTable, SNodeList* pPartitionList, SNode* pOptions, SNode* pNotification) {
   SStreamTriggerNode* pTrigger = NULL;
   CHECK_PARSER_STATUS(pCxt);
@@ -4155,6 +4196,7 @@ SNode* createStreamTriggerOptions(SAstCreateContext* pCxt) {
   pOptions->pPreFilter = NULL;
   pOptions->pWaterMark = NULL;
   pOptions->pMaxDelay = NULL;
+  pOptions->pExpiredTime = NULL;
   pOptions->pEventType = EVENT_WINDOW_CLOSE;
   pOptions->calcNotifyOnly = false;
   pOptions->deleteOutputTable = false;
@@ -4164,7 +4206,6 @@ SNode* createStreamTriggerOptions(SAstCreateContext* pCxt) {
   pOptions->lowLatencyCalc = false;
   pOptions->forceOutput = false;
   pOptions->ignoreDisorder = false;
-  pOptions->expiredTime = 0;
   pOptions->fillHistoryStartTime = 0;
   return (SNode*)pOptions;
 _err:
@@ -4172,7 +4213,7 @@ _err:
   return NULL;
 }
 
-SNode* createStreamTagDefNode(SAstCreateContext* pCxt, SToken* pTagName, SDataType dataType, SNode* tagExpression) {
+SNode* createStreamTagDefNode(SAstCreateContext* pCxt, SToken* pTagName, SDataType dataType, SNode* pComment, SNode* tagExpression) {
   SStreamTagDefNode* pTagDef = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM_TAG_DEF, (SNode**)&pTagDef);
@@ -4180,6 +4221,7 @@ SNode* createStreamTagDefNode(SAstCreateContext* pCxt, SToken* pTagName, SDataTy
   tstrncpy(pTagDef->tagName, pTagName->z, sizeof(pTagDef->tagName));
   pTagDef->dataType = dataType;
   pTagDef->pTagExpr = tagExpression;
+  pTagDef->pComment = pComment;
   return (SNode*)pTagDef;
 _err:
   nodesDestroyNode(tagExpression);
@@ -4201,7 +4243,7 @@ SNode* setStreamTriggerOptions(SAstCreateContext* pCxt, SNode* pOptions, SStream
       pStreamOptions->deleteRecalc = true;
       break;
     case STREAM_TRIGGER_OPTION_EXPIRED_TIME:
-      pStreamOptions->expiredTime = taosStr2Int32((&pOptionUnit->val)->z, NULL, 10);
+      pStreamOptions->pExpiredTime = pOptionUnit->pNode;
       break;
     case STREAM_TRIGGER_OPTION_FORCE_OUTPUT:
       pStreamOptions->forceOutput = true;
@@ -4213,7 +4255,7 @@ SNode* setStreamTriggerOptions(SAstCreateContext* pCxt, SNode* pOptions, SStream
         goto _err;
       }
       pStreamOptions->fillHistory = true;
-      pStreamOptions->fillHistoryStartTime = taosStr2Int32((&pOptionUnit->val)->z, NULL, 10);
+      pStreamOptions->fillHistoryStartTime = *(int64_t*)nodesGetValueFromNode((SValueNode*)pOptionUnit->pNode);
       break;
     case STREAM_TRIGGER_OPTION_FILL_HISTORY_FIRST:
       if (pStreamOptions->fillHistory) {
@@ -4222,7 +4264,7 @@ SNode* setStreamTriggerOptions(SAstCreateContext* pCxt, SNode* pOptions, SStream
         goto _err;
       }
       pStreamOptions->fillHistoryFirst = true;
-      pStreamOptions->fillHistoryStartTime = taosStr2Int32((&pOptionUnit->val)->z, NULL, 10);
+      pStreamOptions->fillHistoryStartTime = *(int64_t*)nodesGetValueFromNode((SValueNode*)pOptionUnit->pNode);
       break;
     case STREAM_TRIGGER_OPTION_IGNORE_DISORDER:
       pStreamOptions->ignoreDisorder = true;
@@ -4307,61 +4349,76 @@ _err:
   return NULL;
 }
 
-SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pStream, SNode* pTrigger,
-                              SNode* pIntoTable, SNode* pOutputSubTable, SNodeList* pColList, SNodeList* pTagList, SNode* pQuery) {
+SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pStream, SNode* pTrigger, SNode* pOutTable, SNode* pQuery) {
   SCreateStreamStmt* pStmt = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_STREAM_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
 
-  if (pIntoTable) {
-    tstrncpy(pStmt->targetDbName, ((SRealTableNode*)pIntoTable)->table.dbName, TSDB_DB_NAME_LEN);
-    tstrncpy(pStmt->targetTabName, ((SRealTableNode*)pIntoTable)->table.tableName, TSDB_TABLE_NAME_LEN);
+  if (pOutTable && ((SStreamOutTableNode*)pOutTable)->pOutTable) {
+    tstrncpy(pStmt->targetDbName, ((SRealTableNode*)((SStreamOutTableNode*)pOutTable)->pOutTable)->table.dbName, TSDB_DB_NAME_LEN);
+    tstrncpy(pStmt->targetTabName, ((SRealTableNode*)((SStreamOutTableNode*)pOutTable)->pOutTable)->table.tableName, TSDB_TABLE_NAME_LEN);
   }
 
-  tstrncpy(pStmt->streamDbName, ((SStreamNode*)pStream)->dbName, TSDB_DB_NAME_LEN);
-  tstrncpy(pStmt->streamName, ((SStreamNode*)pStream)->streamName, TSDB_STREAM_NAME_LEN);
-  nodesDestroyNode(pIntoTable);
+  if (pStream) {
+    tstrncpy(pStmt->streamDbName, ((SStreamNode*)pStream)->dbName, TSDB_DB_NAME_LEN);
+    tstrncpy(pStmt->streamName, ((SStreamNode*)pStream)->streamName, TSDB_STREAM_NAME_LEN);
+  } else {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "stream name cannot be empty");
+    goto _err;
+  }
   nodesDestroyNode(pStream);
 
   pStmt->ignoreExists = ignoreExists;
   pStmt->pTrigger = pTrigger;
   pStmt->pQuery = pQuery;
-  pStmt->pTags = pTagList;
-  pStmt->pSubtable = pOutputSubTable;
-  pStmt->pCols = pColList;
+  pStmt->pTags = pOutTable ? ((SStreamOutTableNode*)pOutTable)->pTags : NULL;
+  pStmt->pSubtable = pOutTable ? ((SStreamOutTableNode*)pOutTable)->pSubtable : NULL;
+  pStmt->pCols = pOutTable ? ((SStreamOutTableNode*)pOutTable)->pCols : NULL;
   return (SNode*)pStmt;
 _err:
-  nodesDestroyNode(pIntoTable);
+  nodesDestroyNode(pOutTable);
   nodesDestroyNode(pQuery);
   nodesDestroyNode(pTrigger);
-  nodesDestroyList(pTagList);
-  nodesDestroyNode(pOutputSubTable);
-  nodesDestroyList(pColList);
   nodesDestroyNode(pQuery);
   return NULL;
 }
 
-SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pStreamName) {
+SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pStream) {
   CHECK_PARSER_STATUS(pCxt);
-  CHECK_NAME(checkStreamName(pCxt, pStreamName));
   SDropStreamStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_STREAM_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  COPY_STRING_FORM_ID_TOKEN(pStmt->streamName, pStreamName);
+  if (pStream) {
+    tstrncpy(pStmt->streamDbName, ((SStreamNode*)pStream)->dbName, TSDB_DB_NAME_LEN);
+    tstrncpy(pStmt->streamName, ((SStreamNode*)pStream)->streamName, TSDB_STREAM_NAME_LEN);
+  } else {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "stream name cannot be empty");
+    goto _err;
+  }
+  nodesDestroyNode(pStream);
   pStmt->ignoreNotExists = ignoreNotExists;
   return (SNode*)pStmt;
 _err:
   return NULL;
 }
 
-SNode* createPauseStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pStreamName) {
+SNode* createPauseStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pStream) {
   CHECK_PARSER_STATUS(pCxt);
-  CHECK_NAME(checkStreamName(pCxt, pStreamName));
   SPauseStreamStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_PAUSE_STREAM_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  COPY_STRING_FORM_ID_TOKEN(pStmt->streamName, pStreamName);
+  if (pStream) {
+    tstrncpy(pStmt->streamDbName, ((SStreamNode*)pStream)->dbName, TSDB_DB_NAME_LEN);
+    tstrncpy(pStmt->streamName, ((SStreamNode*)pStream)->streamName, TSDB_STREAM_NAME_LEN);
+  } else {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "stream name cannot be empty");
+    goto _err;
+  }
+  nodesDestroyNode(pStream);
   pStmt->ignoreNotExists = ignoreNotExists;
   return (SNode*)pStmt;
 _err:
@@ -4369,15 +4426,41 @@ _err:
 }
 
 SNode* createResumeStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, bool ignoreUntreated,
-                              SToken* pStreamName) {
+                              SNode* pStream) {
   CHECK_PARSER_STATUS(pCxt);
-  CHECK_NAME(checkStreamName(pCxt, pStreamName));
   SResumeStreamStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_RESUME_STREAM_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  COPY_STRING_FORM_ID_TOKEN(pStmt->streamName, pStreamName);
+  if (pStream) {
+    tstrncpy(pStmt->streamDbName, ((SStreamNode*)pStream)->dbName, TSDB_DB_NAME_LEN);
+    tstrncpy(pStmt->streamName, ((SStreamNode*)pStream)->streamName, TSDB_STREAM_NAME_LEN);
+  } else {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "stream name cannot be empty");
+    goto _err;
+  }
+  nodesDestroyNode(pStream);
   pStmt->ignoreNotExists = ignoreNotExists;
   pStmt->ignoreUntreated = ignoreUntreated;
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createRecalcStreamStmt(SAstCreateContext* pCxt, SNode* pStream, SNode* pRange) {
+  CHECK_PARSER_STATUS(pCxt);
+  SRecalcStreamStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_RECALCULATE_STREAM_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  if (pStream) {
+    tstrncpy(pStmt->streamDbName, ((SStreamNode*)pStream)->dbName, TSDB_DB_NAME_LEN);
+    tstrncpy(pStmt->streamName, ((SStreamNode*)pStream)->streamName, TSDB_STREAM_NAME_LEN);
+  } else {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "stream name cannot be empty");
+    goto _err;
+  }
+  pStmt->pRange = pRange;
   return (SNode*)pStmt;
 _err:
   return NULL;

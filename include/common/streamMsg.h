@@ -128,16 +128,20 @@ void    tCleanupStreamRetrieveReq(struct SStreamRetrieveReq* pReq);
 #define BIT_FLAG_TEST_MASK(val, mask)  (((val) & (mask)) != 0)
 
 #define PLACE_HOLDER_NONE             0
-#define PLACE_HOLDER_CURRENT_TS       BIT_FLAG_MASK(0)
-#define PLACE_HOLDER_WSTART           BIT_FLAG_MASK(1)
-#define PLACE_HOLDER_WEND             BIT_FLAG_MASK(2)
-#define PLACE_HOLDER_WDURATION        BIT_FLAG_MASK(3)
-#define PLACE_HOLDER_WROWNUM          BIT_FLAG_MASK(4)
-#define PLACE_HOLDER_LOCALTIME        BIT_FLAG_MASK(5)
-#define PLACE_HOLDER_PARTITION_IDX    BIT_FLAG_MASK(6)
-#define PLACE_HOLDER_PARTITION_TBNAME BIT_FLAG_MASK(7)
-#define PLACE_HOLDER_PARTITION_ROWS   BIT_FLAG_MASK(8)
-#define PLACE_HOLDER_GRPID            BIT_FLAG_MASK(9)
+#define PLACE_HOLDER_PREV_TS          BIT_FLAG_MASK(0)
+#define PLACE_HOLDER_CURRENT_TS       BIT_FLAG_MASK(1)
+#define PLACE_HOLDER_NEXT_TS          BIT_FLAG_MASK(2)
+#define PLACE_HOLDER_WSTART           BIT_FLAG_MASK(3)
+#define PLACE_HOLDER_WEND             BIT_FLAG_MASK(4)
+#define PLACE_HOLDER_WDURATION        BIT_FLAG_MASK(5)
+#define PLACE_HOLDER_WROWNUM          BIT_FLAG_MASK(6)
+#define PLACE_HOLDER_PREV_LOCAL       BIT_FLAG_MASK(7)
+#define PLACE_HOLDER_NEXT_LOCAL       BIT_FLAG_MASK(8)
+#define PLACE_HOLDER_LOCALTIME        BIT_FLAG_MASK(9)
+#define PLACE_HOLDER_PARTITION_IDX    BIT_FLAG_MASK(10)
+#define PLACE_HOLDER_PARTITION_TBNAME BIT_FLAG_MASK(11)
+#define PLACE_HOLDER_PARTITION_ROWS   BIT_FLAG_MASK(12)
+#define PLACE_HOLDER_GRPID            BIT_FLAG_MASK(13)
 
 typedef enum EStreamPlaceholder {
   SP_NONE = 0,
@@ -243,6 +247,7 @@ typedef struct {
   int32_t notifyErrorHandle;
   int8_t  notifyHistory;
 
+  void*          triggerFilterCols;     // nodelist of SColumnNode
   void*          triggerCols;           // nodelist of SColumnNode
   void*          partitionCols;         // nodelist of SColumnNode
   SArray*        outCols;               // array of SFieldWithOptions
@@ -275,7 +280,7 @@ typedef struct {
   SArray* calcScanPlanList;  // for calc action, SArray<SStreamCalcScan>
 
   // trigger part
-  SArray* pVSubTables;  // array of SVSubTablesRsp
+  void*   triggerPrevFilter;  // filter for trigger table
 
   // runner part
   int32_t numOfCalcSubplan;
@@ -406,8 +411,6 @@ typedef struct {
 
   SArray* readerList;  // SArray<SStreamTaskAddr>
   SArray* runnerList;  // SArray<SStreamRunnerTarget>
-
-  SArray* pVSubTables;
 } SStreamTriggerDeployMsg;
 
 typedef struct SStreamRunnerDeployMsg {
@@ -552,6 +555,7 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
 int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder* pDecoder, SCMCreateStreamReq* pReq);
 
 typedef enum ESTriggerPullType {
+  STRIGGER_PULL_SET_TABLE,
   STRIGGER_PULL_LAST_TS,
   STRIGGER_PULL_FIRST_TS,
   STRIGGER_PULL_TSDB_META,
@@ -561,11 +565,16 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT,
   STRIGGER_PULL_TSDB_CALC_DATA,
   STRIGGER_PULL_TSDB_CALC_DATA_NEXT,
+  STRIGGER_PULL_TSDB_DATA,
+  STRIGGER_PULL_TSDB_DATA_NEXT,
   STRIGGER_PULL_WAL_META,
   STRIGGER_PULL_WAL_TS_DATA,
   STRIGGER_PULL_WAL_TRIGGER_DATA,
   STRIGGER_PULL_WAL_CALC_DATA,
+  STRIGGER_PULL_WAL_DATA,
   STRIGGER_PULL_GROUP_COL_VALUE,
+  STRIGGER_PULL_VTABLE_INFO,
+  STRIGGER_PULL_OTABLE_INFO,
   STRIGGER_PULL_TYPE_MAX,
 } ESTriggerPullType;
 
@@ -576,6 +585,11 @@ typedef struct SSTriggerPullRequest {
   int64_t           sessionId;
   int64_t           triggerTaskId;  // does not serialize
 } SSTriggerPullRequest;
+
+typedef struct SSTriggerSetTableRequest {
+  SSTriggerPullRequest base;
+  SArray               uids;  // SArray<int64_t>, uid of the table to set
+} SSTriggerSetTableRequest;
 
 typedef struct SSTriggerLastTsRequest {
   SSTriggerPullRequest base;
@@ -622,6 +636,19 @@ typedef struct SSTriggerTsdbCalcDataNextRequest {
   SSTriggerPullRequest base;
 } SSTriggerTsdbCalcDataNextRequest;
 
+typedef struct SSTriggerTsdbDataRequest {
+  SSTriggerPullRequest base;
+  int64_t              uid;
+  int64_t              skey;
+  int64_t              ekey;
+  SArray               cols;  // SArray<col_id_t>, col_id starts from 0
+} SSTriggerTsdbDataRequest;
+
+typedef struct SSTriggerTsdbDataNextRequest {
+  SSTriggerPullRequest base;
+  int64_t              uid;
+} SSTriggerTsdbDataNextRequest;
+
 typedef struct SSTriggerWalMetaRequest {
   SSTriggerPullRequest base;
   int64_t              lastVer;
@@ -648,13 +675,32 @@ typedef struct SSTriggerWalCalcDataRequest {
   int64_t              ekey;
 } SSTriggerWalCalcDataRequest;
 
+typedef struct SSTriggerWalDataRequest {
+  SSTriggerPullRequest base;
+  int64_t              uid;
+  int64_t              ver;
+  int64_t              skey;
+  int64_t              ekey;
+  SArray               cols;  // SArray<col_id_t>, col_id starts from 0
+} SSTriggerWalDataRequest;
+
 typedef struct SSTriggerGroupColValueRequest {
   SSTriggerPullRequest base;
   int64_t              gid;
 } SSTriggerGroupColValueRequest;
 
+typedef struct SSTriggerVirTableInfoRequest {
+  SSTriggerPullRequest base;
+} SSTriggerVirTableInfoRequest;
+
+typedef struct SSTriggerOrigTableInfoRequest {
+  SSTriggerPullRequest base;
+  SArray               cols;  // SArray<SColRef>
+} SSTriggerOrigTableInfoRequest;
+
 typedef union SSTriggerPullRequestUnion {
   SSTriggerPullRequest                base;
+  SSTriggerSetTableRequest            setTableReq;
   SSTriggerLastTsRequest              lastTsReq;
   SSTriggerFirstTsRequest             firstTsReq;
   SSTriggerTsdbMetaRequest            tsdbMetaReq;
@@ -664,11 +710,16 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerTsdbTriggerDataNextRequest tsdbTriggerDataNextReq;
   SSTriggerTsdbCalcDataRequest        tsdbCalcDataReq;
   SSTriggerTsdbCalcDataNextRequest    tsdbCalcDataNextReq;
+  SSTriggerTsdbDataRequest            tsdbDataReq;
+  SSTriggerTsdbDataNextRequest        tsdbDataNextReq;
   SSTriggerWalMetaRequest             walMetaReq;
   SSTriggerWalTsDataRequest           walTsDataReq;
   SSTriggerWalTriggerDataRequest      walTriggerDataReq;
   SSTriggerWalCalcDataRequest         walCalcDataReq;
+  SSTriggerWalDataRequest             walDataReq;
   SSTriggerGroupColValueRequest       groupColValueReq;
+  SSTriggerVirTableInfoRequest        virTableInfoReq;
+  SSTriggerOrigTableInfoRequest       origTableInfoReq;
 } SSTriggerPullRequestUnion;
 
 int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTriggerPullRequest* pReq);

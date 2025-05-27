@@ -1130,7 +1130,9 @@ static int32_t translateOutFirstIn(SFunctionNode* pFunc, char* pErrBuf, int32_t 
 static int32_t translatePlaceHolderPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
   switch (pFunc->funcType) {
+    case FUNCTION_TYPE_TPREV_TS:
     case FUNCTION_TYPE_TCURRENT_TS:
+    case FUNCTION_TYPE_TNEXT_TS:
     case FUNCTION_TYPE_TWSTART:
     case FUNCTION_TYPE_TWEND:
     case FUNCTION_TYPE_TWDURATION:
@@ -1138,6 +1140,13 @@ static int32_t translatePlaceHolderPseudoColumn(SFunctionNode* pFunc, char* pErr
       pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes,
                                         .type = TSDB_DATA_TYPE_TIMESTAMP,
                                         .precision = pFunc->node.resType.precision};
+      break;
+    }
+    case FUNCTION_TYPE_TPREV_LOCALTIME:
+    case FUNCTION_TYPE_TNEXT_LOCALTIME: {
+      pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes,
+                                        .type = TSDB_DATA_TYPE_TIMESTAMP,
+                                        .precision = TSDB_TIME_PRECISION_NANO};
       break;
     }
     case FUNCTION_TYPE_TWROWNUM:
@@ -5948,8 +5957,36 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL,
   },
   {
+    .name = "_tprev_ts",
+    .type = FUNCTION_TYPE_TPREV_TS,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_PLACE_HOLDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE}},
+    .translateFunc = translatePlaceHolderPseudoColumn,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = streamPseudoScalarFunction,
+    .finalizeFunc = NULL,
+  },
+  {
     .name = "_tcurrent_ts",
     .type = FUNCTION_TYPE_TCURRENT_TS,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_PLACE_HOLDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE}},
+    .translateFunc = translatePlaceHolderPseudoColumn,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = streamPseudoScalarFunction,
+    .finalizeFunc = NULL,
+  },
+  {
+    .name = "_tnext_ts",
+    .type = FUNCTION_TYPE_TNEXT_TS,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_PLACE_HOLDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
     .parameters = {.minParamNum = 0,
                    .maxParamNum = 0,
@@ -6018,6 +6055,34 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL,
   },
   {
+    .name = "_tprev_localtime",
+    .type = FUNCTION_TYPE_TPREV_LOCALTIME,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_PLACE_HOLDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE}},
+    .translateFunc = translatePlaceHolderPseudoColumn,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = streamPseudoScalarFunction,
+    .finalizeFunc = NULL,
+  },
+  {
+    .name = "_tnext_localtime",
+    .type = FUNCTION_TYPE_TNEXT_LOCALTIME,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_PLACE_HOLDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE}},
+    .translateFunc = translatePlaceHolderPseudoColumn,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = streamPseudoScalarFunction,
+    .finalizeFunc = NULL,
+  },
+  {
     .name = "_tlocaltime",
     .type = FUNCTION_TYPE_TLOCALTIME,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_PLACE_HOLDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
@@ -6056,7 +6121,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translatePlaceHolderPseudoColumn,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
-    .sprocessFunc = NULL,
+    .sprocessFunc = streamPseudoScalarFunction,
     .finalizeFunc = NULL,
   },
   {

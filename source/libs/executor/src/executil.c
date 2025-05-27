@@ -790,6 +790,10 @@ static int32_t buildGroupInfo(SColumnInfoData* pValue, int32_t i, SArray* gInfo)
       v->data.type = pValue->info.type;
       v->data.nData = len;
       v->data.pData = taosMemoryCalloc(1, len + 1);
+      if (v->data.pData == NULL) {
+        code = terrno;
+        goto end;
+      }
       memcpy(v->data.pData, data, len);
       qDebug("buildGroupInfo:%d add json data len:%d, data:%s", i, len, (char*)v->data.pData);
     } else if (IS_VAR_DATA_TYPE(pValue->info.type)) {
@@ -800,9 +804,23 @@ static int32_t buildGroupInfo(SColumnInfoData* pValue, int32_t i, SArray* gInfo)
       v->data.type = pValue->info.type;
       v->data.nData = varDataLen(data);
       v->data.pData = taosMemoryCalloc(1, varDataLen(data) + 1);
+      if (v->data.pData == NULL) {
+        code = terrno;
+        goto end;
+      }
       memcpy(v->data.pData, varDataVal(data), varDataLen(data));
       qDebug("buildGroupInfo:%d add var data type:%d, len:%d, data:%s", i, pValue->info.type, varDataLen(data), (char*)v->data.pData);
-    } else {
+    } else if (pValue->info.type == TSDB_DATA_TYPE_DECIMAL) {  // reader todo decimal
+      v->data.type = pValue->info.type;
+      v->data.nData = pValue->info.bytes;
+      v->data.pData = taosMemoryCalloc(1, pValue->info.bytes);
+      if (v->data.pData == NULL) {
+        code = terrno;
+        goto end;
+      }
+      memcpy(&v->data.pData, data, pValue->info.bytes);
+      qDebug("buildGroupInfo:%d add data type:%d, data:%"PRId64, i, pValue->info.type, v->data.val);
+    } else {  // reader todo decimal
       v->data.type = pValue->info.type;
       memcpy(&v->data.val, data, pValue->info.bytes);
       qDebug("buildGroupInfo:%d add data type:%d, data:%"PRId64, i, pValue->info.type, v->data.val);
@@ -3148,17 +3166,17 @@ char* getStreamOpName(uint16_t opType) {
 
 void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr) {
   if (!pBlock) {
-    qInfo("%s===stream===%s: Block is Null", taskIdStr, flag);
+    qDebug("%s===stream===%s: Block is Null", taskIdStr, flag);
     return;
   } else if (pBlock->info.rows == 0) {
-    qInfo("%s===stream===%s: Block is Empty. block type %d", taskIdStr, flag, pBlock->info.type);
+    qDebug("%s===stream===%s: Block is Empty. block type %d", taskIdStr, flag, pBlock->info.type);
     return;
   }
   if (qDebugFlag & DEBUG_DEBUG) {
     char*   pBuf = NULL;
     int32_t code = dumpBlockData(pBlock, flag, &pBuf, taskIdStr);
     if (code == 0) {
-      qInfo("%s", pBuf);
+      qDebug("%s", pBuf);
       taosMemoryFree(pBuf);
     }
   }
@@ -3180,7 +3198,7 @@ void printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr
     snprintf(flagBuf, sizeof(flagBuf), "%s %s", flag, opStr);
     int32_t code = dumpBlockData(pBlock, flagBuf, &pBuf, taskIdStr);
     if (code == 0) {
-      qInfo("%s", pBuf);
+      qDebug("%s", pBuf);
       taosMemoryFree(pBuf);
     }
   }

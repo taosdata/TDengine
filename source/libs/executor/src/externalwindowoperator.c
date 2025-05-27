@@ -160,7 +160,7 @@ int32_t resetMergeAlignedExternalWindowOperator(SOperatorInfo* pOperator) {
   pMlExtInfo->curTs = INT64_MIN;
   if (pMlExtInfo->pPrefetchedBlock) blockDataCleanup(pMlExtInfo->pPrefetchedBlock);
 
-  int32_t code = resetAggSup(&pOperator->exprSupp, &pExtW->aggSup, pOperator, pTaskInfo, pPhynode->window.pFuncs, NULL,
+  int32_t code = resetAggSup(&pOperator->exprSupp, &pExtW->aggSup, pTaskInfo, pPhynode->window.pFuncs, NULL,
                              sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
                              &pTaskInfo->storageAPI.functionStore);
   if (code == 0) {
@@ -254,12 +254,12 @@ static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
   initResultSizeInfo(&pOperator->resultInfo, 512);
   int32_t code = blockDataEnsureCapacity(pExtW->binfo.pRes, pOperator->resultInfo.capacity);
   if (code == 0) {
-    code = resetAggSup(&pOperator->exprSupp, &pExtW->aggSup, pOperator, pTaskInfo, pPhynode->window.pFuncs, NULL,
+    code = resetAggSup(&pOperator->exprSupp, &pExtW->aggSup, pTaskInfo, pPhynode->window.pFuncs, NULL,
                        sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
                        &pTaskInfo->storageAPI.functionStore);
   }
   if (code == 0) {
-    code = resetExprSupp(&pExtW->scalarSupp, pOperator, pTaskInfo, pPhynode->window.pProjs, NULL,
+    code = resetExprSupp(&pExtW->scalarSupp, pTaskInfo, pPhynode->window.pProjs, NULL,
                          &pTaskInfo->storageAPI.functionStore);
   }
   if (code == 0) {

@@ -312,6 +312,8 @@ typedef enum ENodeType {
   QUERY_NODE_STREAM_TRIGGER_OPTIONS,
   QUERY_NODE_PLACE_HOLDER_TABLE,
   QUERY_NODE_TIME_RANGE,
+  QUERY_NODE_STREAM_OUT_TABLE,
+  QUERY_NODE_STREAM_CALC_RANGE,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -411,6 +413,7 @@ typedef enum ENodeType {
   QUERY_NODE_ASSIGN_LEADER_STMT,
   QUERY_NODE_SHOW_CREATE_TSMA_STMT,
   QUERY_NODE_SHOW_CREATE_VTABLE_STMT,
+  QUERY_NODE_RECALCULATE_STREAM_STMT,
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -4039,9 +4042,8 @@ typedef struct {
 } SMqVDeleteRsp;
 
 typedef struct {
-  char    name[TSDB_STREAM_FNAME_LEN];
+  char*   name;
   int8_t  igNotExists;
-  char*   sql;
 } SMDropStreamReq;
 
 typedef struct {
@@ -4062,6 +4064,35 @@ typedef struct {
 int32_t tSerializeSMDropStreamReq(void* buf, int32_t bufLen, const SMDropStreamReq* pReq);
 int32_t tDeserializeSMDropStreamReq(void* buf, int32_t bufLen, SMDropStreamReq* pReq);
 void    tFreeMDropStreamReq(SMDropStreamReq* pReq);
+
+typedef struct {
+  char*  name;
+  int8_t igNotExists;
+} SMPauseStreamReq;
+
+int32_t tSerializeSMPauseStreamReq(void* buf, int32_t bufLen, const SMPauseStreamReq* pReq);
+int32_t tDeserializeSMPauseStreamReq(void* buf, int32_t bufLen, SMPauseStreamReq* pReq);
+void    tFreeMPauseStreamReq(SMPauseStreamReq *pReq);
+
+typedef struct {
+  char*  name;
+  int8_t igNotExists;
+  int8_t igUntreated;
+} SMResumeStreamReq;
+
+int32_t tSerializeSMResumeStreamReq(void* buf, int32_t bufLen, const SMResumeStreamReq* pReq);
+int32_t tDeserializeSMResumeStreamReq(void* buf, int32_t bufLen, SMResumeStreamReq* pReq);
+void    tFreeMResumeStreamReq(SMResumeStreamReq *pReq);
+
+typedef struct {
+  char*       name;
+  int8_t      calcAll;
+  STimeWindow timeRange;
+} SMRecalcStreamReq;
+
+int32_t tSerializeSMRecalcStreamReq(void* buf, int32_t bufLen, const SMRecalcStreamReq* pReq);
+int32_t tDeserializeSMRecalcStreamReq(void* buf, int32_t bufLen, SMRecalcStreamReq* pReq);
+void    tFreeMRecalcStreamReq(SMRecalcStreamReq *pReq);
 
 typedef struct SVUpdateCheckpointInfoReq {
   SMsgHead head;
@@ -4178,47 +4209,6 @@ typedef struct SMqVgOffset {
 
 int32_t tEncodeMqVgOffset(SEncoder* pEncoder, const SMqVgOffset* pOffset);
 int32_t tDecodeMqVgOffset(SDecoder* pDecoder, SMqVgOffset* pOffset);
-
-typedef struct {
-  SMsgHead head;
-  int64_t  streamId;
-  int32_t  taskId;
-} SVPauseStreamTaskReq;
-
-typedef struct {
-  SMsgHead head;
-  int64_t  streamId;
-  int32_t  taskId;
-  int64_t  chkptId;
-} SVResetStreamTaskReq;
-
-typedef struct {
-  char   name[TSDB_STREAM_NAME_LEN];
-  int8_t igNotExists;
-} SMPauseStreamReq;
-
-int32_t tSerializeSMPauseStreamReq(void* buf, int32_t bufLen, const SMPauseStreamReq* pReq);
-int32_t tDeserializeSMPauseStreamReq(void* buf, int32_t bufLen, SMPauseStreamReq* pReq);
-
-typedef struct {
-  SMsgHead head;
-  int32_t  taskId;
-  int64_t  streamId;
-  int8_t   igUntreated;
-} SVResumeStreamTaskReq;
-
-typedef struct {
-  int8_t reserved;
-} SVResumeStreamTaskRsp;
-
-typedef struct {
-  char   name[TSDB_STREAM_NAME_LEN];
-  int8_t igNotExists;
-  int8_t igUntreated;
-} SMResumeStreamReq;
-
-int32_t tSerializeSMResumeStreamReq(void* buf, int32_t bufLen, const SMResumeStreamReq* pReq);
-int32_t tDeserializeSMResumeStreamReq(void* buf, int32_t bufLen, SMResumeStreamReq* pReq);
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];

@@ -134,6 +134,8 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorResetStateFn(pOperator, resetAggregateOperatorState);
 
+  pOperator->pPhyNode = pAggNode;
+
   if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pTableScanInfo = downstream->info;
     pTableScanInfo->base.pdInfo.pExprSup = &pOperator->exprSupp;
@@ -854,11 +856,31 @@ void functionCtxRestore(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus) {
 
 static int32_t resetAggregateOperatorState(SOperatorInfo* pOper) {
   SAggOperatorInfo* pAgg = pOper->info;
-  pAgg->groupKeyOptimized = false;
-  pAgg->hasValidBlock = false;
-  pAgg->hasCountFunc = false;
-  pAgg->cleanGroupResInfo = false;
-  pAgg->groupId = INT64_MAX;
+  SAggPhysiNode*   pAggNode = (SAggPhysiNode*)pOper->pPhyNode;
+  
+  size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
+  SExecTaskInfo*  pTaskInfo = pOper->pTaskInfo;
+  cleanupResultInfo(pTaskInfo, &pOper->exprSupp, &pAgg->groupResInfo, &pAgg->aggSup,
+                      pAgg->cleanGroupResInfo);
+  cleanupGroupResInfo(&pAgg->groupResInfo);
   resetBasicOperatorState(&pAgg->binfo);
+  
+  int32_t code = resetAggSup(&pOper->exprSupp, &pAgg->aggSup, pTaskInfo, pAggNode->pAggFuncs, pAggNode->pGroupKeys,
+    keyBufSize, pTaskInfo->id.str, pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
+
+  if (code == 0) {
+    code = resetExprSupp(&pAgg->scalarExprSup, pTaskInfo, pAggNode->pExprs, NULL,
+                          &pTaskInfo->storageAPI.functionStore);
+  }
+
+  pAgg->binfo.mergeResultBlock = pAggNode->mergeDataBlock;
+  pAgg->groupKeyOptimized = pAggNode->groupKeyOptimized;
+  pAgg->groupId = UINT64_MAX;
+  pAgg->binfo.inputTsOrder = pAggNode->node.inputTsOrder;
+  pAgg->binfo.outputTsOrder = pAggNode->node.outputTsOrder;
+  pAgg->hasCountFunc = pAggNode->hasCountLikeFunc;
+  pAgg->cleanGroupResInfo = false;
+
+  pAgg->hasValidBlock = false;
   return 0;
 }

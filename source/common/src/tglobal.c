@@ -2173,7 +2173,6 @@ int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
       }
       continue;
     }
-    pItem->stype = CFG_STYPE_CFG_FILE;
     switch (pItem->dtype) {
       {
         case CFG_DTYPE_NONE:
@@ -2212,6 +2211,86 @@ _exit:
   }
   cJSON_Delete(pRoot);
   return code;
+}
+
+int32_t stypeConfigDeserialize(SArray *array, char *buf) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  cJSON  *pRoot = cJSON_Parse(buf);
+  if (pRoot == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  cJSON *stypes = cJSON_GetObjectItem(pRoot, "config_stypes");
+  if (stypes == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+  int32_t sz = taosArrayGetSize(array);
+  for (int i = 0; i < sz; i++) {
+    SConfigItem *pItem = (SConfigItem *)taosArrayGet(array, i);
+    cJSON       *pJson = cJSON_GetObjectItem(stypes, pItem->name);
+    if (pJson == NULL) {
+      continue;
+    }
+    pItem->stype = pJson->valueint;
+  }
+  cJSON_Delete(pRoot);
+_exit:
+  return code;
+}
+
+int32_t readStypeConfigFile(const char *path) {
+  int32_t   code = 0;
+  char      filename[CONFIG_FILE_LEN] = {0};
+  SArray   *array = NULL;
+  char     *buf = NULL;
+  TdFilePtr pFile = NULL;
+
+  array = taosGetLocalCfg(tsCfg);
+  if (array == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  snprintf(filename, sizeof(filename), "%s%sdnode%sconfig%sstype.json", path, TD_DIRSEP, TD_DIRSEP, TD_DIRSEP);
+  uInfo("start to read stype config file:%s", filename);
+  if (!taosCheckExistFile(filename)) {
+    uInfo("stype config file:%s does not exist", filename);
+    goto _exit;
+  }
+  int64_t fileSize = 0;
+  if (taosStatFile(filename, &fileSize, NULL, NULL) < 0) {
+    code = terrno;
+    goto _exit;
+  }
+  buf = (char *)taosMemoryMalloc(fileSize + 1);
+  if (buf == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+  pFile = taosOpenFile(filename, TD_FILE_READ);
+  if (pFile == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+  if (taosReadFile(pFile, buf, fileSize) != fileSize) {
+    code = terrno;
+    goto _exit;
+  }
+  buf[fileSize] = '\0';
+
+  code = stypeConfigDeserialize(array, buf);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("failed to deserialize stype config file:%s since %s", filename, tstrerror(code));
+    goto _exit;
+  }
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("failed to read stype config file:%s since %s", filename, tstrerror(code));
+  }
+  taosMemoryFree(buf);
+  (void)taosCloseFile(&pFile);
+  TAOS_RETURN(code);
 }
 
 int32_t readCfgFile(const char *path, bool isGlobal) {
@@ -2259,7 +2338,7 @@ int32_t readCfgFile(const char *path, bool isGlobal) {
     uError("failed to read file:%s , config since %s", filename, tstrerror(code));
     goto _exit;
   }
-  buf[fileSize] = 0;
+  buf[fileSize] = '\0';  // 添加字符串结束符
   code = cfgDeserialize(array, buf, isGlobal);
   if (code != TSDB_CODE_SUCCESS) {
     uError("failed to deserialize config from %s since %s", filename, tstrerror(code));
@@ -2290,6 +2369,11 @@ int32_t tryLoadCfgFromDataDir(SConfig *pCfg) {
     code = readCfgFile(tsDataDir, false);
     if (code != TSDB_CODE_SUCCESS) {
       uError("failed to read local config from %s since %s", tsDataDir, tstrerror(code));
+      TAOS_RETURN(code);
+    }
+    code = readStypeConfigFile(tsDataDir);
+    if (code != TSDB_CODE_SUCCESS) {
+      uError("failed to read stype config from %s since %s", tsDataDir, tstrerror(code));
       TAOS_RETURN(code);
     }
   }
@@ -3137,6 +3221,34 @@ _exit:
   return terrno;
 }
 
+int32_t stypeConfigSerialize(SArray *array, char **serialized) {
+  char   buf[30];
+  cJSON *json = cJSON_CreateObject();
+  if (json == NULL) goto _exit;
+
+  int sz = taosArrayGetSize(array);
+
+  cJSON *cField = cJSON_CreateObject();
+  if (cField == NULL) goto _exit;
+  if (cJSON_AddNumberToObject(json, "file_version", LOCAL_CONFIG_FILE_VERSION) == NULL) goto _exit;
+  if (!cJSON_AddItemToObject(json, "config_stypes", cField)) goto _exit;
+
+  // cjson only support int32_t or double
+  // string are used to prohibit the loss of precision
+  for (int i = 0; i < sz; i++) {
+    SConfigItem *item = (SConfigItem *)taosArrayGet(array, i);
+    if (cJSON_AddNumberToObject(cField, item->name, item->stype) == NULL) goto _exit;
+  }
+  char *pSerialized = tjsonToString(json);
+_exit:
+  if (terrno != TSDB_CODE_SUCCESS) {
+    uError("failed to serialize local config since %s", tstrerror(terrno));
+  }
+  cJSON_Delete(json);
+  *serialized = pSerialized;
+  return terrno;
+}
+
 int32_t taosPersistGlobalConfig(SArray *array, const char *path, int32_t version) {
   int32_t   code = 0;
   int32_t   lino = 0;
@@ -3181,11 +3293,14 @@ int32_t taosPersistLocalConfig(const char *path) {
   int32_t   lino = 0;
   char     *buffer = NULL;
   TdFilePtr pFile = NULL;
-  char     *serialized = NULL;
+  char     *serializedCfg = NULL;
+  char     *serializedStype = NULL;
   char      filepath[CONFIG_FILE_LEN] = {0};
   char      filename[CONFIG_FILE_LEN] = {0};
+  char      stypeFilename[CONFIG_FILE_LEN] = {0};
   snprintf(filepath, sizeof(filepath), "%s%sconfig", path, TD_DIRSEP);
   snprintf(filename, sizeof(filename), "%s%sconfig%slocal.json", path, TD_DIRSEP, TD_DIRSEP);
+  snprintf(stypeFilename, sizeof(stypeFilename), "%s%sconfig%sstype.json", path, TD_DIRSEP, TD_DIRSEP);
 
   // TODO(beryl) need to check if the file is existed
   TAOS_CHECK_GOTO(taosMkDir(filepath), &lino, _exit);
@@ -3199,11 +3314,27 @@ int32_t taosPersistLocalConfig(const char *path) {
     TAOS_RETURN(code);
   }
 
-  TAOS_CHECK_GOTO(localConfigSerialize(taosGetLocalCfg(tsCfg), &serialized), &lino, _exit);
-  if (taosWriteFile(pConfigFile, serialized, strlen(serialized)) < 0) {
+  TdFilePtr pStypeFile =
+      taosOpenFile(stypeFilename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+  if (pStypeFile == NULL) {
+    code = TAOS_SYSTEM_ERROR(terrno);
+    uError("failed to open file:%s since %s", stypeFilename, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  TAOS_CHECK_GOTO(localConfigSerialize(taosGetLocalCfg(tsCfg), &serializedCfg), &lino, _exit);
+  if (taosWriteFile(pConfigFile, serializedCfg, strlen(serializedCfg)) < 0) {
     lino = __LINE__;
     code = TAOS_SYSTEM_ERROR(terrno);
     uError("failed to write file:%s since %s", filename, tstrerror(code));
+    goto _exit;
+  }
+
+  TAOS_CHECK_GOTO(stypeConfigSerialize(taosGetLocalCfg(tsCfg), &serializedStype), &lino, _exit);
+  if (taosWriteFile(pStypeFile, serializedStype, strlen(serializedStype)) < 0) {
+    lino = __LINE__;
+    code = TAOS_SYSTEM_ERROR(terrno);
+    uError("failed to write file:%s since %s", stypeFilename, tstrerror(code));
     goto _exit;
   }
 
@@ -3212,7 +3343,9 @@ _exit:
     uError("failed to persist local config at line:%d, since %s", lino, tstrerror(code));
   }
   (void)taosCloseFile(&pConfigFile);
-  taosMemoryFree(serialized);
+  (void)taosCloseFile(&pStypeFile);
+  taosMemoryFree(serializedCfg);
+  taosMemoryFree(serializedStype);
   return code;
 }
 
@@ -3301,43 +3434,6 @@ _exit:
     uError("failed to deserialize SConfigItem at line:%d, since %s", lino, tstrerror(code));
   }
   return code;
-}
-
-void printConfigNotMatch(SArray *array) {
-  uError(
-      "The global configuration parameters in the configuration file do not match those in the cluster. Please "
-      "turn off the forceReadConfigFile option or modify the global configuration parameters that are not "
-      "configured.");
-  int32_t sz = taosArrayGetSize(array);
-  for (int i = 0; i < sz; i++) {
-    SConfigItem *item = (SConfigItem *)taosArrayGet(array, i);
-    switch (item->dtype) {
-      {
-        case CFG_DTYPE_NONE:
-          break;
-        case CFG_DTYPE_BOOL:
-          uError("config %s in cluster value is:%d", item->name, item->bval);
-          break;
-        case CFG_DTYPE_INT32:
-          uError("config %s in cluster value is:%d", item->name, item->i32);
-          break;
-        case CFG_DTYPE_INT64:
-          uError("config %s in cluster value is:%" PRId64, item->name, item->i64);
-          break;
-        case CFG_DTYPE_FLOAT:
-        case CFG_DTYPE_DOUBLE:
-          uError("config %s in cluster value is:%f", item->name, item->fval);
-          break;
-        case CFG_DTYPE_STRING:
-        case CFG_DTYPE_DIR:
-        case CFG_DTYPE_LOCALE:
-        case CFG_DTYPE_CHARSET:
-        case CFG_DTYPE_TIMEZONE:
-          uError("config %s in cluster value is:%s", item->name, item->str);
-          break;
-      }
-    }
-  }
 }
 
 bool isConifgItemLazyMode(SConfigItem *item) {

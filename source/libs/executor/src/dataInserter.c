@@ -1153,8 +1153,14 @@ static int32_t getTagValsFromStreamInserterInfo(SStreamDataInserterInfo* pInsert
     STagVal tagVal = {
         .cid = preCols + i + 1,
         .type = pTagInfo->val.data.type,
-        .i64 = pTagInfo->val.data.val,
     };
+    if (IS_VAR_DATA_TYPE(pTagInfo->val.data.type)) {
+      tagVal.nData = pTagInfo->val.data.nData;
+      tagVal.pData = pTagInfo->val.data.pData;
+    } else {
+      tagVal.i64 = pTagInfo->val.data.val;
+    }
+    
     if (NULL == taosArrayPush(*ppTagVals, &tagVal)) {
       code = terrno;
       goto _end;
@@ -1601,6 +1607,7 @@ static int32_t putStreamDataBlock(SDataSinkHandle* pHandle, const SInputData* pI
     }
 
     if (pInserter->submitRes.code) {
+      code = pInserter->submitRes.code;
       stError("submitRes err:%s, code:%d", tstrerror(pInserter->submitRes.code), pInserter->submitRes.code);
       QUERY_CHECK_CODE(pInserter->submitRes.code, lino, _return);
     }

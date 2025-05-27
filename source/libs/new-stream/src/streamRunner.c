@@ -5,6 +5,7 @@
 #include "plannodes.h"
 #include "tdatablock.h"
 #include "streamInt.h"
+#include "scalar.h"
 
 static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pTaskExec);
 
@@ -49,6 +50,7 @@ static void stRunnerTaskExecMgrDestroyFinalize(SStreamRunnerTask* pTask) {
   tdListFreeP(pMgr->pRunningExecs, stRunnerDestroyTaskExecution);
   taosThreadMutexDestroy(&pMgr->lock);
   pTask->undeployCb(pTask->undeployParam);
+  nodesDestroyList(pTask->output.pTagValExprs);
 }
 
 static void stRunnerDestroyTaskExecMgrAsync(SStreamRunnerTask* pTask) {
@@ -144,14 +146,14 @@ static void stSetRunnerOutputInfo(SStreamRunnerTask* pTask, const SStreamRunnerD
 }
 
 int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
-  ST_TASK_ILOG("deploy runner task for %s.%s", pMsg->outDBFName, pMsg->outTblName);
+  ST_TASK_ILOG("deploy runner task for %s.%s, runner plan:%s", pMsg->outDBFName, pMsg->outTblName, (char*)(pMsg->pPlan));
   pTask->pPlan = pMsg->pPlan;
   pTask->forceOutCols = pMsg->forceOutCols;
   pTask->parallelExecutionNun = pMsg->execReplica;
   pTask->output.outStbVersion = pMsg->outStbSversion;
   pTask->topTask = pMsg->topPlan;
-  pTask->output.pTagValExprs = pMsg->tagValueExpr;
   int32_t code = nodesStringToList(pMsg->tagValueExpr, &pTask->output.pTagValExprs);
+  ST_TASK_ELOG("pTagValExprs: %s", (char*)pMsg->tagValueExpr);
   if (code != 0) {
     ST_TASK_ELOG("failed to convert tag value expr to node err: %s expr: %s", strerror(code), (char*)pMsg->tagValueExpr);
     pTask->task.status = STREAM_STATUS_FAILED;
@@ -201,17 +203,26 @@ static int32_t stMakeSValueFromColInfoData(SStreamRunnerTask* pTask, SStreamGrou
     size_t len = 0;
     if (IS_VAR_DATA_TYPE(pVal->data.type)) {
       len = varDataLen(p);
-      pVal->data.pData = taosMemoryCalloc(1, len + 1);
+      pVal->data.pData = taosMemoryCalloc(1, len);
       if (!pVal->data.pData) {
         code = terrno;
         ST_TASK_ELOG("failed to make svalue from col info data: %s", strerror(code));
+        return code;
       }
+      memcpy(pVal->data.pData, varDataVal(p), len);
+      pVal->data.nData = len;
+    } else if (pVal->data.type == TSDB_DATA_TYPE_DECIMAL){
+      pVal->data.pData = taosMemoryCalloc(1, tDataTypes[TSDB_DATA_TYPE_DECIMAL].bytes);
+      if (!pVal->data.pData) {
+        code = terrno;
+        ST_TASK_ELOG("failed to make svalue from col info data: %s", strerror(code));
+        return code;
+      }
+      memcpy(pVal->data.pData, p, pCol->info.bytes);
+      pVal->data.nData = pCol->info.bytes;
     } else {
-      if (pVal->data.type == TSDB_DATA_TYPE_DECIMAL)
-        pVal->data.pData = taosMemoryCalloc(1, tDataTypes[TSDB_DATA_TYPE_DECIMAL].bytes);
-      len = tDataTypes[pVal->data.type].bytes;
+      valueSetDatum(&pVal->data, pVal->data.type, p, pCol->info.bytes);
     }
-    valueSetDatum(&pVal->data, pVal->data.type, p, len);
   }
   return code;
 }
@@ -251,11 +262,14 @@ static int32_t stRunnerCalcSubTbTagVal(SStreamRunnerTask* pTask, SStreamRunnerTa
     dst.numOfRows = 1;
     dst.columnData = pCol;
     code = streamCalcOneScalarExpr(pNode, &dst, &pExec->runtimeInfo.funcInfo);
-    if (code != 0) break;
+    if (code != 0) {
+      sclFreeParam(&dst);
+      break;
+    }
     SStreamTagInfo tagInfo = {0};
     tstrncpy(tagInfo.tagName, pTagField->name, TSDB_COL_NAME_LEN);
     code = stMakeSValueFromColInfoData(pTask, &tagInfo.val, dst.columnData);
-    // TODO sclFreeParam(&dst);
+    sclFreeParam(&dst);
     if (NULL == taosArrayPush(*ppTagVals, &tagInfo)) {
       if (IS_VAR_DATA_TYPE(tagInfo.val.data.type) || tagInfo.val.data.type == TSDB_DATA_TYPE_DECIMAL)
         taosMemoryFreeClear(tagInfo.val.data.pData);
@@ -264,10 +278,7 @@ static int32_t stRunnerCalcSubTbTagVal(SStreamRunnerTask* pTask, SStreamRunnerTa
     }
     if (code != 0) break;
   }
-  if (code != 0 && *ppTagVals) {
-    taosArrayDestroyEx(*ppTagVals, stRunnerFreeTagInfo);
-    *ppTagVals = NULL;
-  }
+  
   return code;
 }
 
@@ -301,6 +312,7 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
                      pExec->tbname, createTb, pExec->runtimeInfo.funcInfo.groupId);
         printDataBlock(pBlock, "output block to sink", "runner");
       }
+      taosArrayDestroyEx(pTagVals, stRunnerFreeTagInfo);
     }
   }
   return code;
@@ -472,7 +484,6 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   pExec->runtimeInfo.funcInfo.groupId = pReq->gid;
   pExec->runtimeInfo.pForceOutputCols = pTask->forceOutCols;
   pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals = pReq->params;
-  pExec->runtimeInfo.funcInfo.groupId = pReq->gid;
   pExec->runtimeInfo.funcInfo.sessionId = pReq->sessionId;
 
   int32_t winNum = taosArrayGetSize(pReq->params);

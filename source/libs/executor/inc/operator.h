@@ -193,10 +193,10 @@ void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, in
 
 void resetOperatorState(SOperatorInfo* pOper);
 
-int32_t resetAggSup(SExprSupp* pExprSupp, SAggSupporter* pSup, SOperatorInfo* pOperator, SExecTaskInfo* pTaskInfo,
+int32_t resetAggSup(SExprSupp* pExprSupp, SAggSupporter* pSup, SExecTaskInfo* pTaskInfo,
                     SNodeList* pNodeList, SNodeList* pGroupKeys, size_t keyBufSize, const char* pKey, void* pState,
                     SFunctionStateStore* pStore);
-int32_t resetExprSupp(SExprSupp* pExprSupp, SOperatorInfo* pOperator, SExecTaskInfo* pTaskInfo, SNodeList* pNodeList,
+int32_t resetExprSupp(SExprSupp* pExprSupp, SExecTaskInfo* pTaskInfo, SNodeList* pNodeList,
                       SNodeList* pGroupKeys, SFunctionStateStore* pStore);
 
 #ifdef __cplusplus

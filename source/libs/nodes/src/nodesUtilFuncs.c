@@ -397,6 +397,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_STREAM:
       code = makeNode(type, sizeof(SStreamNode), &pNode);
       break;
+    case QUERY_NODE_STREAM_OUT_TABLE:
+      code = makeNode(type, sizeof(SStreamOutTableNode), &pNode);
+      break;
     case QUERY_NODE_JOIN_TABLE:
       code = makeNode(type, sizeof(SJoinTableNode), &pNode);
       break;
@@ -426,6 +429,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_STREAM_TRIGGER:
       code = makeNode(type, sizeof(SStreamTriggerNode), &pNode);
+      break;
+    case QUERY_NODE_STREAM_CALC_RANGE:
+      code = makeNode(type, sizeof(SStreamCalcRangeNode), &pNode);
+      break;
+    case QUERY_NODE_STREAM_TAG_DEF:
+      code = makeNode(type, sizeof(SStreamTagDefNode), &pNode);
       break;
     case QUERY_NODE_NODE_LIST:
       code = makeNode(type, sizeof(SNodeListNode), &pNode);
@@ -662,6 +671,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_RESUME_STREAM_STMT:
       code = makeNode(type, sizeof(SResumeStreamStmt), &pNode);
+      break;
+    case QUERY_NODE_RECALCULATE_STREAM_STMT:
+      code = makeNode(type, sizeof(SRecalcStreamStmt), &pNode);
       break;
 
     case QUERY_NODE_BALANCE_VGROUP_STMT:

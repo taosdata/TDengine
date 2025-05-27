@@ -1640,10 +1640,10 @@ static int32_t mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
 static int32_t mndCreateTSMABuildDropStreamReq(SCreateTSMACxt *pCxt) {
   tstrncpy(pCxt->pDropStreamReq->name, pCxt->streamName, TSDB_STREAM_FNAME_LEN);
   pCxt->pDropStreamReq->igNotExists = false;
-  pCxt->pDropStreamReq->sql = taosStrdup(pCxt->pDropSmaReq->name);
-  if (!pCxt->pDropStreamReq->sql) {
-    return terrno;
-  }
+ // pCxt->pDropStreamReq->sql = taosStrdup(pCxt->pDropSmaReq->name);
+ // if (!pCxt->pDropStreamReq->sql) {
+ //   return terrno;
+  //}
   return TSDB_CODE_SUCCESS;
 }
 

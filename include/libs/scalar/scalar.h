@@ -39,6 +39,7 @@ int32_t scalarConvertOpValueNodeTs(SOperatorNode *node);
 pDst need to freed in caller
 */
 int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, const void* pExtraParam, void* streamTsRange);
+void    sclFreeParam(SScalarParam* param);
 
 int32_t scalarGetOperatorParamNum(EOperatorType type);
 int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, STypeMod typeMod, int8_t processType);

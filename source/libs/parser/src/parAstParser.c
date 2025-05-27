@@ -103,7 +103,6 @@ typedef struct SCollectMetaKeyCxt {
   SParseContext*   pParseCxt;
   SParseMetaCache* pMetaCache;
   SNode*           pStmt;
-  bool             collectVSubTables;
   bool             collectVStbRefDbs;
 } SCollectMetaKeyCxt;
 
@@ -201,9 +200,6 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
 static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SRealTableNode* pRealTable) {
   pCxt->errCode = collectMetaKeyFromRealTableImpl(pCxt->pComCxt, pRealTable->table.dbName, pRealTable->table.tableName,
                                                   AUTH_TYPE_READ);
-  if (TSDB_CODE_SUCCESS == pCxt->errCode && pCxt->pComCxt->collectVSubTables) {
-    pCxt->errCode = reserveVSubTableInCache(pCxt->pComCxt->pParseCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, pCxt->pComCxt->pMetaCache);
-  }
   if (TSDB_CODE_SUCCESS == pCxt->errCode && pCxt->pComCxt->collectVStbRefDbs) {
     pCxt->errCode = reserveVStbRefDbsInCache(pCxt->pComCxt->pParseCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, pCxt->pComCxt->pMetaCache);
   }
@@ -615,12 +611,12 @@ static int32_t collectMetaKeyFromDescribe(SCollectMetaKeyCxt* pCxt, SDescribeStm
 }
 
 static int32_t collectMetaKeyFromCreateStream(SCollectMetaKeyCxt* pCxt, SCreateStreamStmt* pStmt) {
-  pCxt->collectVSubTables = true;
-
   int32_t code = TSDB_CODE_SUCCESS;
 
-  PAR_ERR_RET(reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->targetDbName, pStmt->targetTabName, pCxt->pMetaCache));
-  reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->targetDbName, pStmt->targetTabName, pCxt->pMetaCache);
+  if (strcmp(pStmt->targetTabName, "") != 0) {
+    PAR_ERR_RET(reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->targetDbName, pStmt->targetTabName, pCxt->pMetaCache));
+    reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->targetDbName, pStmt->targetTabName, pCxt->pMetaCache);
+  }
   SRealTableNode *pTriggerTable = (SRealTableNode*)((SStreamTriggerNode*)pStmt->pTrigger)->pTrigerTable;
   if (pTriggerTable) {
     reserveTableMetaInCache(pCxt->pParseCxt->acctId, pTriggerTable->table.dbName, pTriggerTable->table.tableName, pCxt->pMetaCache);
@@ -632,6 +628,11 @@ static int32_t collectMetaKeyFromCreateStream(SCollectMetaKeyCxt* pCxt, SCreateS
 
   return code;
 }
+
+static int32_t collectMetaKeyFromRecalculateStream(SCollectMetaKeyCxt* pCxt, SRecalcStreamStmt* pStmt) {
+  return reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->streamDbName, pCxt->pMetaCache);
+}
+
 
 static int32_t collectMetaKeyFromShowDnodes(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   if (pCxt->pParseCxt->enableSysInfo) {
@@ -1146,6 +1147,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromCompactVgroups(pCxt, (SCompactVgroupsStmt*)pStmt);
     case QUERY_NODE_CREATE_STREAM_STMT:
       return collectMetaKeyFromCreateStream(pCxt, (SCreateStreamStmt*)pStmt);
+    case QUERY_NODE_RECALCULATE_STREAM_STMT:
+      return collectMetaKeyFromRecalculateStream(pCxt, (SRecalcStreamStmt*)pStmt);
     case QUERY_NODE_GRANT_STMT:
       return collectMetaKeyFromGrant(pCxt, (SGrantStmt*)pStmt);
     case QUERY_NODE_REVOKE_STMT:

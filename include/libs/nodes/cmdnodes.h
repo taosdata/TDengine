@@ -240,6 +240,7 @@ typedef struct SStreamTagDefNode {
   char      tagName[TSDB_COL_NAME_LEN];
   SDataType dataType;
   SNode*    pTagExpr;
+  SNode*    pComment;
 } SStreamTagDefNode;
 
 typedef struct SCreateTableStmt {
@@ -614,8 +615,8 @@ typedef struct SStreamTriggerOptions {
   SNode*    pPreFilter;
   SNode*    pWaterMark;
   SNode*    pMaxDelay;
+  SNode*    pExpiredTime;
   int64_t   pEventType;
-  int64_t   expiredTime;
   int64_t   fillHistoryStartTime;
   bool      ignoreDisorder;
   bool      deleteRecalc;
@@ -657,22 +658,32 @@ typedef struct SCreateStreamStmt {
 
 typedef struct SDropStreamStmt {
   ENodeType type;
+  char      streamDbName[TSDB_DB_NAME_LEN];
   char      streamName[TSDB_TABLE_NAME_LEN];
   bool      ignoreNotExists;
 } SDropStreamStmt;
 
 typedef struct SPauseStreamStmt {
   ENodeType type;
+  char      streamDbName[TSDB_DB_NAME_LEN];
   char      streamName[TSDB_TABLE_NAME_LEN];
   bool      ignoreNotExists;
 } SPauseStreamStmt;
 
 typedef struct SResumeStreamStmt {
   ENodeType type;
+  char      streamDbName[TSDB_DB_NAME_LEN];
   char      streamName[TSDB_TABLE_NAME_LEN];
   bool      ignoreNotExists;
   bool      ignoreUntreated;
 } SResumeStreamStmt;
+
+typedef struct SRecalcStreamStmt {
+  ENodeType type;
+  char      streamDbName[TSDB_DB_NAME_LEN];
+  char      streamName[TSDB_TABLE_NAME_LEN];
+  SNode*    pRange;
+} SRecalcStreamStmt;
 
 typedef struct SCreateFunctionStmt {
   ENodeType type;

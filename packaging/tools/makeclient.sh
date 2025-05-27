@@ -78,14 +78,20 @@ if [ "$osType" != "Darwin" ]; then
         ${script_dir}/set_core.sh \
         ${script_dir}/get_client.sh"
   fi
-  lib_files="${build_dir}/lib/libtaos.so.${version}"
-  nativelib_files="${build_dir}/lib/libtaosnative.so.${version}"
+  lib_files="${build_dir}/lib/libtaos.so"
+  nativelib_files="${build_dir}/lib/libtaosnative.so"
   wslib_files="${build_dir}/lib/libtaosws.so"
+  pkg_lib_files="libtaos.so.${version}"
+  pkg_nativelib_files="libtaosnative.so.${version}"
+  pkg_wslib_files="libtaosws.so.${version}"
 else
   bin_files="${build_dir}/bin/${clientName} ${script_dir}/remove_client.sh"
-  lib_files="${build_dir}/lib/libtaos.${version}.dylib"
-  nativelib_files="${build_dir}/lib/libtaosnative.${version}.dylib"
+  lib_files="${build_dir}/lib/libtaos.dylib"
+  nativelib_files="${build_dir}/lib/libtaosnative.dylib"
   wslib_files="${build_dir}/lib/libtaosws.dylib"
+  pkg_lib_files="libtaos.${version}.dylib"
+  pkg_nativelib_files="libtaosnative.${version}.dylib"
+  pkg_wslib_files="libtaosws.${version}.dylib"
 fi
 
 header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h ${code_dir}/include/util/tdef.h ${code_dir}/include/libs/function/taosudf.h"
@@ -225,13 +231,13 @@ if [[ $productName == "TDengine" ]] && [ "$verMode" != "cloud" ]; then
 fi
 # Copy driver
 mkdir -p ${install_dir}/driver
-cp ${lib_files} ${install_dir}/driver
-cp ${nativelib_files} ${install_dir}/driver
+cp ${lib_files} ${install_dir}/driver/${pkg_lib_files}
+cp ${nativelib_files} ${install_dir}/driver/${pkg_nativelib_files}
 
 # Copy connector
 connector_dir="${code_dir}/connector"
 mkdir -p ${install_dir}/connector
-[ -f ${wslib_files} ] && cp ${wslib_files} ${install_dir}/driver
+cp ${wslib_files} ${install_dir}/driver/${pkg_wslib_files}
 
 if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   if [ "$osType" != "Darwin" ]; then

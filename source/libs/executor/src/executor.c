@@ -334,6 +334,20 @@ _error:
   return code;
 }
 
+int32_t qResetTableScan(qTaskInfo_t* pInfo, STimeWindow range){
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)pInfo;
+  SOperatorInfo* pOperator = pTaskInfo->pRoot;
+  STableScanInfo*  pScanInfo = pOperator->info;
+  STableScanBase*  pScanBaseInfo = &pScanInfo->base;
+
+  if (range.skey != 0 && range.ekey != 0) {
+    pScanBaseInfo->cond.twindows = range;
+  }
+  setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
+  qStreamSetOpen(pTaskInfo);
+  return pTaskInfo->storageAPI.tsdReader.tsdReaderResetStatus(pScanBaseInfo->dataReader, &pScanBaseInfo->cond);
+}
+
 int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle* readers,
                                   SStreamInserterParam* pInserterParams, int32_t vgId, int32_t taskId) {
   if (msg == NULL) {
