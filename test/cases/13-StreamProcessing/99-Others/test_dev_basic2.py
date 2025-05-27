@@ -9,7 +9,7 @@ class TestStreamDevBasic:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_dev_basic(self):
-        """basic test 1
+        """basic test 2
 
         Verification testing during the development process.
 
@@ -63,12 +63,12 @@ class TestStreamDevBasic:
         tdSql.checkKeyExist("stream_trigger")
 
         tdLog.info(f"=============== create stream")
-        tdSql.pause()
-        stream_sql1 = "create stream s1 interval(1s) sliding(1s) from stream_trigger partition by tbname into stream_out as select _twstart, avg(id) from stream_query where ts >= _twstart and ts < _twend;"
-        
-        tdSql.execute(
-            "create stream s1 interval(1s) sliding(1s) from stream_trigger partition by tbname into stream_out tags (gid bigint as _tgrpid) as select _twstart ts, count(*) c1, avg(id) c2  from stream_query where ts >= _twstart and ts < _twend;"
-        )
+        sql1 = "create stream s1 interval(1s) sliding(1s) from stream_trigger partition by tbname into stream_out1 tags (gid bigint as _tgrpid) as select _twstart ts, count(*) c1, avg(id) c2  from stream_query where ts >= _twstart and ts < _twend;"
+        sql2 = "create stream s2 interval(1s) sliding(1s) from stream_trigger partition by tbname into stream_out2 as select _twstart ts, count(*) c1, avg(id) from stream_query where ts >= _twstart and ts < _twend;"
+
+        tdSql.execute(sql1)
+        tdSql.execute(sql2)
+
         tdStream.checkStreamStatus()
 
         tdLog.info(f"=============== write trigger data")
@@ -77,12 +77,10 @@ class TestStreamDevBasic:
         )
 
         tdLog.info(f"=============== check stream result")
-        result_sql = "select ts, c1, c2 from test.stream_out"
 
-        tdSql.checkResultsByFunc(f"show stables", lambda: tdSql.getRows() == 2)
-
+        result_sql1 = "select ts, c1, c2 from test.stream_out1"
         tdSql.checkResultsByFunc(
-            sql=result_sql,
+            sql=result_sql1,
             func=lambda: tdSql.getRows() == 2
             and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
             and tdSql.compareData(0, 1, 2)
@@ -92,24 +90,16 @@ class TestStreamDevBasic:
             and tdSql.compareData(1, 2, 1.5),
         )
 
+        result_sql2 = "select ts, c1, `avg(id)` from test.stream_out2"
         tdSql.checkResultsByFunc(
-            result_sql,
-            lambda: tdSql.getRows() >= 2
-            and tdSql.getData(0, 2) == 0.5
-            and tdSql.getData(1, 2) == 1.5,
-            retry=0,
+            sql=result_sql2,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 2)
+            and tdSql.compareData(0, 2, 0.5)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:01.000")
+            and tdSql.compareData(1, 1, 2)
+            and tdSql.compareData(1, 2, 1.5),
         )
 
-        exp_sql = "select _wstart, count(*), avg(id) from test.stream_query interval(1s) limit 2"
-        exp_result = tdSql.getResult(exp_sql)
-        tdSql.checkResultsByArray(
-            sql=result_sql,
-            exp_result=exp_result,
-            exp_sql=exp_sql,
-        )
-
-        exp_sql = result_sql
-        tdSql.checkResultsBySql(
-            sql=result_sql,
-            exp_sql=exp_sql,
-        )
+        tdSql.pause()
