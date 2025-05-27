@@ -577,7 +577,10 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       code = vnodePreProcessDropTtlMsg(pVnode, pMsg);
     } break;
     case TDMT_VND_SUBMIT: {
+      int64_t start = taosGetTimestampUs();
       code = vnodePreProcessSubmitMsg(pVnode, pMsg);
+      int64_t cost = taosGetTimestampUs() - start;
+      (void)atomic_add_fetch_64(&pVnode->writeMetrics.preprocess_time, cost);
     } break;
     case TDMT_VND_DELETE: {
       code = vnodePreProcessDeleteMsg(pVnode, pMsg);
@@ -682,9 +685,14 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       if (vnodeProcessCreateTSmaReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
     /* TSDB */
-    case TDMT_VND_SUBMIT:
+    case TDMT_VND_SUBMIT: {
+      int64_t apply_start_ts = taosGetTimestampUs();
       if (vnodeProcessSubmitReq(pVnode, ver, pMsg->pCont, pMsg->contLen, pRsp, pMsg) < 0) goto _err;
+      int64_t apply_end_ts = taosGetTimestampUs();
+      (void)atomic_add_fetch_64(&pVnode->writeMetrics.apply_bytes, (int64_t)pMsg->contLen);
+      (void)atomic_add_fetch_64(&pVnode->writeMetrics.apply_time, apply_end_ts - apply_start_ts);
       break;
+    }
     case TDMT_VND_DELETE:
       if (vnodeProcessDeleteReq(pVnode, ver, pReq, len, pRsp, pMsg) < 0) goto _err;
       break;
@@ -828,11 +836,14 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     }
 
     // start a new one
+    int64_t begin_ts = taosGetTimestampUs();
     code = vnodeBegin(pVnode);
     if (code) {
       vError("vgId:%d, failed to begin vnode since %s.", TD_VID(pVnode), tstrerror(terrno));
       goto _err;
     }
+    int64_t end_ts = taosGetTimestampUs();
+    (void)atomic_add_fetch_64(&pVnode->writeMetrics.memtable_wait_time, end_ts - begin_ts);
   }
 
 _exit:
@@ -896,6 +907,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
 }
 
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
   vTrace("vgId:%d, msg:%p in fetch queue is processing", pVnode->config.vgId, pMsg);
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
        pMsg->msgType == TDMT_VND_BATCH_META || pMsg->msgType == TDMT_VND_TABLE_NAME ||
@@ -924,8 +936,14 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return vnodeGetTableMeta(pVnode, pMsg, true);
     case TDMT_VND_TABLE_CFG:
       return vnodeGetTableCfg(pVnode, pMsg, true);
-    case TDMT_VND_BATCH_META:
-      return vnodeGetBatchMeta(pVnode, pMsg);
+    case TDMT_VND_BATCH_META: {
+      int64_t start = taosGetTimestampUs();
+      code = vnodeGetBatchMeta(pVnode, pMsg);
+      int64_t cost = taosGetTimestampUs() - start;
+      (void)atomic_add_fetch_64(&pVnode->writeMetrics.fetch_batch_meta_time, cost);
+      (void)atomic_add_fetch_64(&pVnode->writeMetrics.fetch_batch_meta_count, 1);
+      return code;
+    }
     case TDMT_VND_VSUBTABLES_META:
       return vnodeGetVSubtablesMeta(pVnode, pMsg);
     case TDMT_VND_VSTB_REF_DBS:
@@ -2157,6 +2175,11 @@ _exit:
   (void)atomic_add_fetch_64(&pVnode->statis.nInsert, pSubmitRsp->affectedRows);
   (void)atomic_add_fetch_64(&pVnode->statis.nInsertSuccess, pSubmitRsp->affectedRows);
   (void)atomic_add_fetch_64(&pVnode->statis.nBatchInsert, 1);
+
+  // update metrics
+  (void)atomic_add_fetch_64(&pVnode->writeMetrics.total_requests, 1);
+  (void)atomic_add_fetch_64(&pVnode->writeMetrics.total_rows, pSubmitRsp->affectedRows);
+  (void)atomic_add_fetch_64(&pVnode->writeMetrics.total_bytes, pSubmitRsp->affectedRows * sizeof(STSRow));
 
   if (tsEnableMonitor && tsMonitorFqdn[0] != 0 && tsMonitorPort != 0 && pSubmitRsp->affectedRows > 0 &&
       strlen(pOriginalMsg->info.conn.user) > 0 && tsInsertCounter != NULL) {

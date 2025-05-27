@@ -14,12 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tglobal.h"
 #include "cJSON.h"
 #include "defines.h"
 #include "os.h"
 #include "osString.h"
 #include "tconfig.h"
+#include "tglobal.h"
 #include "tgrant.h"
 #include "tjson.h"
 #include "tlog.h"
@@ -45,7 +45,8 @@ int32_t       tsVersion = 30000000;
 int32_t       tsForceReadConfig = 0;
 int32_t       tsdmConfigVersion = -1;
 int32_t       tsConfigInited = 0;
-int32_t       tsStatusInterval = 1;  // second
+int32_t       tsStatusInterval = 1;   // second
+int32_t       tsMetricsInterval = 5;  // second
 int32_t       tsNumOfSupportVnodes = 256;
 char          tsEncryptAlgorithm[16] = {0};
 char          tsEncryptScope[100] = {0};
@@ -53,7 +54,7 @@ EEncryptAlgor tsiEncryptAlgorithm = 0;
 EEncryptScope tsiEncryptScope = 0;
 // char     tsAuthCode[500] = {0};
 // char     tsEncryptKey[17] = {0};
-char tsEncryptKey[17] = {0};
+char   tsEncryptKey[17] = {0};
 int8_t tsEnableStrongPassword = 1;
 
 // common
@@ -65,7 +66,7 @@ int8_t tsMemPoolFullFunc = 0;
 #ifndef TD_ASTRA
 int8_t tsQueryUseMemoryPool = 1;
 #else
-int8_t tsQueryUseMemoryPool = 0;
+int8_t  tsQueryUseMemoryPool = 0;
 #endif
 int32_t tsQueryBufferPoolSize = 0;       // MB
 int32_t tsSingleQueryMaxMemorySize = 0;  // MB
@@ -146,7 +147,7 @@ bool tsCompareAsStrInGreatest = true;
 #ifdef USE_MONITOR
 bool tsEnableMonitor = true;
 #else
-bool tsEnableMonitor = false;
+bool    tsEnableMonitor = false;
 #endif
 int32_t  tsMonitorInterval = 30;
 char     tsMonitorFqdn[TSDB_FQDN_LEN] = {0};
@@ -157,7 +158,7 @@ bool     tsMonitorLogProtocol = false;
 #ifdef USE_MONITOR
 bool tsMonitorForceV2 = true;
 #else
-bool tsMonitorForceV2 = false;
+bool    tsMonitorForceV2 = false;
 #endif
 
 // audit
@@ -352,7 +353,7 @@ char    tsUdfdLdLibPath[512] = "";
 #ifdef USE_STREAM
 bool tsDisableStream = false;
 #else
-bool tsDisableStream = true;
+bool    tsDisableStream = true;
 #endif
 int64_t tsStreamBufferSize = 128 * 1024 * 1024;
 int64_t tsStreamFailedTimeout = 30 * 60 * 1000;
@@ -402,6 +403,8 @@ int32_t tsStreamVirtualMergeMaxMemKb = 16 * 1024;    // 16MB
 int32_t tsStreamVirtualMergeWaitMode = 0;            // 0 wait forever, 1 wait for max delay, 2 wait for max mem
 
 int32_t taosCheckCfgStrValueLen(const char *name, const char *value, int32_t len);
+
+bool tsInsertPerfEnabled = false;
 
 #define TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, pName) \
   if ((pItem = cfgGetItem(pCfg, pName)) == NULL) {  \
@@ -542,7 +545,9 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-struct SConfig *taosGetCfg() { return tsCfg; }
+struct SConfig *taosGetCfg() {
+  return tsCfg;
+}
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
@@ -552,10 +557,10 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
 
   TAOS_CHECK_RETURN(taosExpandDir(inputCfgDir, cfgDir, PATH_MAX));
   int32_t pos = strlen(cfgDir);
-  if(pos > 0) {
+  if (pos > 0) {
     pos -= 1;
   }
-  char  lastC = cfgDir[pos];  
+  char  lastC = cfgDir[pos];
   char *tdDirsep = TD_DIRSEP;
   if (lastC == '\\' || lastC == '/') {
     tdDirsep = "";
@@ -792,8 +797,12 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(
       cfgAddBool(pCfg, "streamCoverage", tsStreamCoverage, CFG_DYN_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
-  
-  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "compareAsStrInGreatest", tsCompareAsStrInGreatest, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,CFG_CATEGORY_LOCAL));
+
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "compareAsStrInGreatest", tsCompareAsStrInGreatest, CFG_SCOPE_CLIENT,
+                               CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+
+  TAOS_CHECK_RETURN(
+      cfgAddBool(pCfg, "insertPerfEnabled", tsInsertPerfEnabled, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_LOCAL));
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -2743,7 +2752,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"arbCheckSyncIntervalSec", &tsArbCheckSyncIntervalSec},
                                          {"arbSetAssignedTimeoutSec", &tsArbSetAssignedTimeoutSec},
                                          {"queryNoFetchTimeoutSec", &tsQueryNoFetchTimeoutSec},
-                                         {"enableStrongPassword", &tsEnableStrongPassword}};
+                                         {"enableStrongPassword", &tsEnableStrongPassword},
+                                         {"insertPerfEnabled", &tsInsertPerfEnabled}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
@@ -2997,7 +3007,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"bypassFlag", &tsBypassFlag},
                                          {"safetyCheckLevel", &tsSafetyCheckLevel},
                                          {"streamCoverage", &tsStreamCoverage},
-                                         {"compareAsStrInGreatest", &tsCompareAsStrInGreatest}};
+                                         {"compareAsStrInGreatest", &tsCompareAsStrInGreatest},
+                                         {"insertPerfEnabled", &tsInsertPerfEnabled}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
