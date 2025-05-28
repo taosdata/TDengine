@@ -554,7 +554,7 @@ static void mndSetVgroupInfo(SMnode * pMnode, SMountInfo * pInfo, SDbObj * pDb, 
     //   pDnode->memUsed += vgMem;
     // }
 
-    pVgid->dnodeId = pVg->dbId;
+    pVgid->dnodeId = pInfo->dnodeId;
     if (pObj->replica == 1) {
       pVgid->syncState = TAOS_SYNC_STATE_LEADER;
     } else {
@@ -585,6 +585,13 @@ static int32_t mndSetCreateDbPrepareActions(SMnode *pMnode, STrans *pTrans, SDbO
 }
 
 static int32_t mndSetCreateVgPrepareActions(SMnode *pMnode, STrans *pTrans, SVgObj *pVgs, int32_t nVgs) {
+  for (int32_t i = 0; i < nVgs; ++i) {
+    if (mndAddNewVgPrepareAction(pMnode, pTrans, (pVgs + i)) != 0) return -1;
+  }
+  return 0;
+}
+
+static int32_t mndSetCreateStbPrepareActions(SMnode *pMnode, STrans *pTrans, SStbObj *pVgs, int32_t nStbs) {
   for (int32_t i = 0; i < nVgs; ++i) {
     if (mndAddNewVgPrepareAction(pMnode, pTrans, (pVgs + i)) != 0) return -1;
   }
@@ -825,7 +832,6 @@ static int32_t mndCreateMount(SMnode * pMnode, SRpcMsg * pReq, SMountInfo * pInf
 
   // dbCfg
   // mntObj.dbCfg = pCreate->dbCfg;
-
   TSDB_CHECK_CONDITION(((nDbs = taosArrayGetSize(pInfo->pDbs)) > 0), code, lino, _exit,
                        TSDB_CODE_MND_INVALID_MOUNT_INFO);
 
@@ -856,8 +862,20 @@ static int32_t mndCreateMount(SMnode * pMnode, SRpcMsg * pReq, SMountInfo * pInf
     }
 #endif
     nVgs += taosArrayGetSize(pDb->pVgs);
-  }
 
+    int32_t nDbStbs = taosArrayGetSize(pDb->pStbs);
+    for(int32_t s = 0; s < nDbStbs; ++s) {
+      SMountStbInfo *pStb = TARRAY_GET_ELEM(pDb->pStbs, s);
+      if (pStb->stbId < 0) {
+        mError("mount:%s, db:%s, stbId:%d is invalid", pInfo->mountName, pDb->dbName, pStb->stbId);
+        TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_STB_ID);
+      }
+      if (pStb->stbId >= TSDB_MAX_DB_SINGLE_STABLE) {
+        mError("mount:%s, db:%s, stbId:%d is too large", pInfo->mountName, pDb->dbName, pStb->stbId);
+        TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_STB_ID);
+      }
+    }
+  }
   TAOS_CHECK_EXIT(mndMountDupDbIdExist(pMnode, pInfo));
 
   TSDB_CHECK_NULL((pDbs = taosMemoryCalloc(nDbs, sizeof(SDbObj))), code, lino, _exit, terrno);
@@ -1024,6 +1042,15 @@ static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp) {
     TAOS_CHECK_EXIT(pRsp->code);
   }
 
+  // wait for all retrieve response received
+  // TODO: ...
+  // make sure the clusterId from all rsp is the same, but not with the clusterId of the host cluster
+  if (mntInfo.clusterId == pMnode->clusterId) {
+    mError("mount:%s, clusterId:%" PRIi64 " from dnode is the same as host cluster:%" PRIi64, mntInfo.mountName,
+           mntInfo.clusterId, pMnode->clusterId);
+    TAOS_CHECK_EXIT(TSDB_CODE_OPS_NOT_SUPPORT);
+  }
+
   // step 2: collect the responses from dnodes, process and push to mnode write thread to run as transaction
   // TODO: multiple retrieve dnodes and paths supported later
   TSDB_CHECK_CONDITION((bufLen = tSerializeSMountInfo(NULL, 0, &mntInfo)) >= 0, code, lino, _exit, bufLen);
@@ -1063,7 +1090,7 @@ _exit:
     }
   }
   tDecoderClear(&decoder);
-  tFreeMountInfo(&mntInfo, true);
+  tFreeMountInfo(&mntInfo);
   TAOS_RETURN(code);
 }
 

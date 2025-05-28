@@ -516,6 +516,7 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
       vgId = pInfo->config.vgId;
     }
   }
+  pMountInfo->clusterId = clusterId;
 
   if (nDb > 0) {
     TSDB_CHECK_NULL((pDbInfos = taosArrayInit_s(sizeof(SMountDbInfo), nDb)), code, lino, _exit, terrno);
@@ -591,8 +592,7 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
   int32_t nDb = taosArrayGetSize(pMountInfo->pDbs);
   if (nDb > 0) {
     snprintf(path, sizeof(path), "%s%s%s", pReq->mountPath, TD_DIRSEP, dmNodeName(MNODE));
-    SMountDbInfo *pDbInfo = taosArrayGet(pMountInfo->pDbs, 0);
-    mndFetchSdbStables(pReq->mountName, path, &pDbInfo->pStbs);
+    mndFetchSdbStables(pReq->mountName, path, &pMountInfo->pStbs);
   }
 _exit:
   TAOS_RETURN(code);
@@ -659,7 +659,7 @@ _exit:
     dError("mount:%s, failed to retrieve path %s on dnode:%d, reason:%s", req.mountName, req.mountPath, req.dnodeId,
            tstrerror(code));
   }
-  tFreeMountInfo(&mountInfo, true);
+  tFreeMountInfo(&mountInfo);
   TAOS_RETURN(code);
 }
 #endif  // USE_MOUNT
