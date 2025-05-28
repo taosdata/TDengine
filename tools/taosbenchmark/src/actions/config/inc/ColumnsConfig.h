@@ -3,14 +3,14 @@
 
 #include <string>
 #include <vector>
-#include "SuperTableInfo.h"
+#include "ColumnConfig.h"
 #include "TimestampGeneratorConfig.h"
 
 struct ColumnsConfig {
     std::string source_type; // 数据来源类型：generator 或 csv
 
     struct Generator {
-        std::vector<SuperTableInfo::Column> schema; // 普通列的 Schema 定义
+        std::vector<ColumnConfig> schema; // 普通列的 Schema 定义
 
         struct TimestampStrategy {
             TimestampGeneratorConfig generator_config;

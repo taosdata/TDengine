@@ -1,5 +1,4 @@
-#ifndef CONFIG_PARSER_H
-#define CONFIG_PARSER_H
+#pragma once
 
 #include "GlobalConfig.h"
 #include "ActionConfigVariant.h"
@@ -65,13 +64,13 @@ namespace YAML {
 
 
     template<>
-    struct convert<SuperTableInfo::Column> {    
-        static bool decode(const Node& node, SuperTableInfo::Column& rhs) {
+    struct convert<ColumnConfig> {    
+        static bool decode(const Node& node, ColumnConfig& rhs) {
             if (!node["name"]) {
-                throw std::runtime_error("Missing required field 'name' for SuperTableInfo::Column.");
+                throw std::runtime_error("Missing required field 'name' for ColumnConfig.");
             }
             if (!node["type"]) {
-                throw std::runtime_error("Missing required field 'type' for SuperTableInfo::Column.");
+                throw std::runtime_error("Missing required field 'type' for ColumnConfig.");
             }
 
             rhs.name = node["name"].as<std::string>();
@@ -99,11 +98,11 @@ namespace YAML {
                 } else if (*rhs.gen_type == "function") {
                     if (node["expression"]) {
                         if (!rhs.function_config) {
-                            rhs.function_config = SuperTableInfo::Column::FunctionConfig();
+                            rhs.function_config = ColumnConfig::FunctionConfig();
                         }
                         rhs.function_config->expression = node["expression"].as<std::string>();
                     }
-                    // SuperTableInfo::Column::FunctionConfig func_config;
+                    // ColumnConfig::FunctionConfig func_config;
                     // if (node["function_config"]) {
                     //     const auto& func_node = node["function_config"];
                     //     if (func_node["expression"]) func_config.expression = func_node["expression"].as<std::string>();
@@ -119,7 +118,7 @@ namespace YAML {
                     // }
                     // rhs.function_config = func_config;
 
-                    // SuperTableInfo::Column::FunctionConfig func_config;
+                    // ColumnConfig::FunctionConfig func_config;
                     // func_config.expression = item["function"].as<std::string>(); // 解析完整表达式
                     // // 解析函数表达式的各部分
                     // // 假设函数表达式格式为：<multiple> * <function>(<args>) + <addend> * random(<random>) + <base>
@@ -223,7 +222,7 @@ namespace YAML {
                 }
                 if (node["generator"]["schema"]) {
                     for (const auto& item : node["generator"]["schema"]) {
-                        rhs.generator.schema.push_back(item.as<SuperTableInfo::Column>());
+                        rhs.generator.schema.push_back(item.as<ColumnConfig>());
                     }
                 }
             } else if (rhs.source_type == "csv") {
@@ -231,7 +230,10 @@ namespace YAML {
                 if (csv["file_path"]) rhs.csv.file_path = csv["file_path"].as<std::string>();
                 if (csv["has_header"]) rhs.csv.has_header = csv["has_header"].as<bool>();
                 if (csv["delimiter"]) rhs.csv.delimiter = csv["delimiter"].as<std::string>();
-                if (csv["exclude_index"]) rhs.csv.exclude_index = csv["exclude_index"].as<int>();
+                if (csv["exclude_indices"]) {
+                    rhs.csv.exclude_indices_str = csv["exclude_indices"].as<std::string>();
+                    rhs.csv.parse_exclude_indices();
+                }
             } else {
                 throw std::runtime_error("Invalid source_type for tags in child_table_info.");
             }
@@ -249,12 +251,12 @@ namespace YAML {
             rhs.name = node["name"].as<std::string>();
             if (node["columns"]) {
                 for (const auto& item : node["columns"]) {
-                    rhs.columns.push_back(item.as<SuperTableInfo::Column>());
+                    rhs.columns.push_back(item.as<ColumnConfig>());
                 }
             }
             if (node["tags"]) {
                 for (const auto& item : node["tags"]) {
-                    rhs.tags.push_back(item.as<SuperTableInfo::Column>());
+                    rhs.tags.push_back(item.as<ColumnConfig>());
                 }
             }
             return true;
@@ -325,7 +327,7 @@ namespace YAML {
                 }
                 const auto& generator = node["generator"];
                 if (generator["schema"]) {
-                    rhs.generator.schema = generator["schema"].as<std::vector<SuperTableInfo::Column>>();
+                    rhs.generator.schema = generator["schema"].as<std::vector<ColumnConfig>>();
                 }
                 if (generator["timestamp_strategy"]) {
                     rhs.generator.timestamp_strategy.generator_config = generator["timestamp_strategy"]["generator_config"].as<TimestampGeneratorConfig>();
@@ -887,6 +889,3 @@ namespace YAML {
         }
     };
 }
-
-
-#endif // CONFIG_PARSER_H
