@@ -21,6 +21,46 @@
 #include "ttime.h"
 #include "decimal.h"
 
+// CSV parsing configuration
+#define CSV_DEFAULT_DELIMITER ','
+#define CSV_DEFAULT_QUOTE     '"'
+#define CSV_DEFAULT_ESCAPE    '\\'
+#define CSV_MAX_FIELD_SIZE    (64 * 1024)    // 64KB max field size
+#define CSV_BUFFER_SIZE       (1024 * 1024)  // 1MB buffer for reading
+
+typedef enum {
+  CSV_STATE_FIELD_START,     // Start of a field
+  CSV_STATE_UNQUOTED_FIELD,  // Inside an unquoted field
+  CSV_STATE_QUOTED_FIELD,    // Inside a quoted field
+  CSV_STATE_QUOTE_IN_FIELD,  // Quote character found in quoted field
+  CSV_STATE_FIELD_END        // End of a field
+} ECsvParseState;
+
+typedef struct SCsvParser {
+  char      delimiter;            // Field delimiter (default: ',')
+  char      quote;                // Quote character (default: '"')
+  char      escape;               // Escape character (default: '\')
+  bool      allowNewlineInField;  // Allow newlines in quoted fields
+  char*     buffer;               // Read buffer
+  size_t    bufferSize;           // Buffer size
+  size_t    bufferPos;            // Current position in buffer
+  size_t    bufferLen;            // Valid data length in buffer
+  bool      eof;                  // End of file reached
+  TdFilePtr pFile;                // File pointer
+} SCsvParser;
+
+typedef struct SCsvField {
+  char*  data;    // Field data
+  size_t len;     // Field length
+  bool   quoted;  // Whether field was quoted
+} SCsvField;
+
+typedef struct SCsvRow {
+  SCsvField* fields;      // Array of fields
+  int32_t    fieldCount;  // Number of fields
+  int32_t    capacity;    // Capacity of fields array
+} SCsvRow;
+
 typedef struct SInsertParseContext {
   SParseContext* pComCxt;
   SMsgBuf        msg;
@@ -38,6 +78,16 @@ typedef struct SInsertParseContext {
 typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param);
 static int32_t parseBoundTagsClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt);
 static int32_t parseTagsClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, bool autoCreate);
+
+// CSV parser function declarations
+static int32_t csvParserInit(SCsvParser* parser, TdFilePtr pFile);
+static void    csvParserDestroy(SCsvParser* parser);
+static int32_t csvParserFillBuffer(SCsvParser* parser);
+static int32_t csvRowInit(SCsvRow* row, int32_t initialCapacity);
+static void    csvRowDestroy(SCsvRow* row);
+static int32_t csvRowAddField(SCsvRow* row, const char* data, size_t len, bool quoted);
+static int32_t csvParserParseRow(SCsvParser* parser, SCsvRow* row);
+static int32_t csvRowToSqlTokens(SCsvRow* row, char** pSqlRow);
 
 static uint8_t TRUE_VALUE = (uint8_t)TSDB_TRUE;
 static uint8_t FALSE_VALUE = (uint8_t)TSDB_FALSE;
@@ -2431,25 +2481,61 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
                             int32_t* pNumOfRows) {
   int32_t code = TSDB_CODE_SUCCESS;
   (*pNumOfRows) = 0;
-  char*   pLine = NULL;
-  int64_t readLen = 0;
-  bool    firstLine = (pStmt->fileProcessing == false);
+
+  // Initialize CSV parser
+  SCsvParser parser;
+  code = csvParserInit(&parser, pStmt->fp);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  // Initialize CSV row
+  SCsvRow row;
+  code = csvRowInit(&row, 16);
+  if (code != TSDB_CODE_SUCCESS) {
+    csvParserDestroy(&parser);
+    return code;
+  }
+
+  bool firstLine = (pStmt->fileProcessing == false);
   pStmt->fileProcessing = false;
-  while (TSDB_CODE_SUCCESS == code && (readLen = taosGetLineFile(pStmt->fp, &pLine)) != -1) {
-    if (('\r' == pLine[readLen - 1]) || ('\n' == pLine[readLen - 1])) {
-      pLine[--readLen] = '\0';
+
+  while (TSDB_CODE_SUCCESS == code) {
+    // Parse one row from CSV
+    code = csvParserParseRow(&parser, &row);
+    if (code != TSDB_CODE_SUCCESS) {
+      if (code == TSDB_CODE_INVALID_DATA_FMT && firstLine) {
+        // Skip invalid first line (might be header)
+        firstLine = false;
+        code = TSDB_CODE_SUCCESS;
+        continue;
+      }
+      break;
     }
 
-    if (readLen == 0) {
+    // Check if we reached end of file
+    if (row.fieldCount == 0 && parser.eof) {
+      break;
+    }
+
+    // Skip empty rows
+    if (row.fieldCount == 0) {
       firstLine = false;
       continue;
+    }
+
+    // Convert CSV row to SQL format
+    char* sqlRow = NULL;
+    code = csvRowToSqlTokens(&row, &sqlRow);
+    if (code != TSDB_CODE_SUCCESS) {
+      break;
     }
 
     bool gotRow = false;
     if (TSDB_CODE_SUCCESS == code) {
       SToken token;
-      (void)strtolower(pLine, pLine);
-      const char* pRow = pLine;
+      (void)strtolower(sqlRow, sqlRow);
+      const char* pRow = sqlRow;
       if (!pStmt->stbSyntax) {
         code = parseOneRow(pCxt, (const char**)&pRow, rowsDataCxt.pTableDataCxt, &gotRow, &token);
       } else {
@@ -2462,16 +2548,22 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
           code = taosHashPut(pStmt->pTableCxtHashObj, &pStbRowsCxt->pCtbMeta->uid, sizeof(pStbRowsCxt->pCtbMeta->uid),
                              &pData, POINTER_BYTES);
           if (TSDB_CODE_SUCCESS != code) {
+            taosMemoryFree(sqlRow);
             break;
           }
         }
       }
+
+      // Handle first line error (might be header)
       if (code && firstLine) {
         firstLine = false;
         code = 0;
+        taosMemoryFree(sqlRow);
         continue;
       }
     }
+
+    taosMemoryFree(sqlRow);
 
     if (TSDB_CODE_SUCCESS == code && gotRow) {
       (*pNumOfRows)++;
@@ -2484,7 +2576,10 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
 
     firstLine = false;
   }
-  taosMemoryFree(pLine);
+
+  // Cleanup
+  csvRowDestroy(&row);
+  csvParserDestroy(&parser);
 
   parserDebug("QID:0x%" PRIx64 ", %d rows have been parsed", pCxt->pComCxt->requestId, *pNumOfRows);
 
@@ -3422,4 +3517,315 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
     (*pQuery)->execMode = QUERY_EXEC_MODE_EMPTY_RESULT;
   }
   return code;
+}
+
+// CSV Parser Implementation
+static int32_t csvParserInit(SCsvParser* parser, TdFilePtr pFile) {
+  if (!parser || !pFile) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  memset(parser, 0, sizeof(SCsvParser));
+  parser->delimiter = CSV_DEFAULT_DELIMITER;
+  parser->quote = CSV_DEFAULT_QUOTE;
+  parser->escape = CSV_DEFAULT_ESCAPE;
+  parser->allowNewlineInField = true;
+  parser->bufferSize = CSV_BUFFER_SIZE;
+  parser->pFile = pFile;
+
+  parser->buffer = taosMemoryMalloc(parser->bufferSize);
+  if (!parser->buffer) {
+    return terrno;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static void csvParserDestroy(SCsvParser* parser) {
+  if (parser) {
+    taosMemoryFreeClear(parser->buffer);
+    memset(parser, 0, sizeof(SCsvParser));
+  }
+}
+
+static int32_t csvParserFillBuffer(SCsvParser* parser) {
+  if (parser->eof) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Move remaining data to beginning of buffer
+  if (parser->bufferPos > 0 && parser->bufferPos < parser->bufferLen) {
+    size_t remaining = parser->bufferLen - parser->bufferPos;
+    memmove(parser->buffer, parser->buffer + parser->bufferPos, remaining);
+    parser->bufferLen = remaining;
+    parser->bufferPos = 0;
+  } else if (parser->bufferPos >= parser->bufferLen) {
+    parser->bufferLen = 0;
+    parser->bufferPos = 0;
+  }
+
+  // Read more data
+  if (parser->bufferLen < parser->bufferSize) {
+    int64_t readLen =
+        taosReadFile(parser->pFile, parser->buffer + parser->bufferLen, parser->bufferSize - parser->bufferLen);
+    if (readLen < 0) {
+      return terrno;
+    } else if (readLen == 0) {
+      parser->eof = true;
+    } else {
+      parser->bufferLen += readLen;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t csvRowInit(SCsvRow* row, int32_t initialCapacity) {
+  if (!row) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  memset(row, 0, sizeof(SCsvRow));
+  row->capacity = initialCapacity > 0 ? initialCapacity : 16;
+  row->fields = taosMemoryCalloc(row->capacity, sizeof(SCsvField));
+  if (!row->fields) {
+    return terrno;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static void csvRowDestroy(SCsvRow* row) {
+  if (row) {
+    for (int32_t i = 0; i < row->fieldCount; i++) {
+      taosMemoryFreeClear(row->fields[i].data);
+    }
+    taosMemoryFreeClear(row->fields);
+    memset(row, 0, sizeof(SCsvRow));
+  }
+}
+
+static int32_t csvRowAddField(SCsvRow* row, const char* data, size_t len, bool quoted) {
+  if (!row) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // Expand capacity if needed
+  if (row->fieldCount >= row->capacity) {
+    int32_t    newCapacity = row->capacity * 2;
+    SCsvField* newFields = taosMemoryRealloc(row->fields, newCapacity * sizeof(SCsvField));
+    if (!newFields) {
+      return terrno;
+    }
+    row->fields = newFields;
+    row->capacity = newCapacity;
+  }
+
+  // Allocate and copy field data
+  SCsvField* field = &row->fields[row->fieldCount];
+  field->len = len;
+  field->quoted = quoted;
+  field->data = taosMemoryMalloc(len + 1);
+  if (!field->data) {
+    return terrno;
+  }
+
+  if (len > 0) {
+    memcpy(field->data, data, len);
+  }
+  field->data[len] = '\0';
+
+  row->fieldCount++;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t csvParserParseRow(SCsvParser* parser, SCsvRow* row) {
+  if (!parser || !row) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // Reset row
+  for (int32_t i = 0; i < row->fieldCount; i++) {
+    taosMemoryFreeClear(row->fields[i].data);
+  }
+  row->fieldCount = 0;
+
+  ECsvParseState state = CSV_STATE_FIELD_START;
+  char*          fieldBuffer = taosMemoryMalloc(CSV_MAX_FIELD_SIZE);
+  if (!fieldBuffer) {
+    return terrno;
+  }
+
+  size_t  fieldLen = 0;
+  bool    quoted = false;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  while (true) {
+    // Ensure we have data in buffer
+    if (parser->bufferPos >= parser->bufferLen) {
+      code = csvParserFillBuffer(parser);
+      if (code != TSDB_CODE_SUCCESS) {
+        break;
+      }
+      if (parser->bufferPos >= parser->bufferLen && parser->eof) {
+        // End of file reached
+        if (fieldLen > 0 || row->fieldCount > 0) {
+          // Add the last field
+          code = csvRowAddField(row, fieldBuffer, fieldLen, quoted);
+        }
+        break;
+      }
+    }
+
+    char ch = parser->buffer[parser->bufferPos++];
+
+    switch (state) {
+      case CSV_STATE_FIELD_START:
+        if (ch == parser->quote) {
+          state = CSV_STATE_QUOTED_FIELD;
+          quoted = true;
+        } else if (ch == parser->delimiter) {
+          // Empty field
+          code = csvRowAddField(row, "", 0, false);
+          if (code != TSDB_CODE_SUCCESS) goto _exit;
+          fieldLen = 0;
+          quoted = false;
+        } else if (ch == '\r') {
+          // Skip CR
+          continue;
+        } else if (ch == '\n') {
+          // End of row
+          if (fieldLen > 0 || row->fieldCount > 0) {
+            code = csvRowAddField(row, fieldBuffer, fieldLen, quoted);
+          }
+          goto _exit;
+        } else {
+          state = CSV_STATE_UNQUOTED_FIELD;
+          if (fieldLen < CSV_MAX_FIELD_SIZE - 1) {
+            fieldBuffer[fieldLen++] = ch;
+          }
+        }
+        break;
+
+      case CSV_STATE_UNQUOTED_FIELD:
+        if (ch == parser->delimiter) {
+          code = csvRowAddField(row, fieldBuffer, fieldLen, quoted);
+          if (code != TSDB_CODE_SUCCESS) goto _exit;
+          state = CSV_STATE_FIELD_START;
+          fieldLen = 0;
+          quoted = false;
+        } else if (ch == '\r') {
+          // Skip CR
+          continue;
+        } else if (ch == '\n') {
+          // End of row
+          code = csvRowAddField(row, fieldBuffer, fieldLen, quoted);
+          goto _exit;
+        } else {
+          if (fieldLen < CSV_MAX_FIELD_SIZE - 1) {
+            fieldBuffer[fieldLen++] = ch;
+          }
+        }
+        break;
+
+      case CSV_STATE_QUOTED_FIELD:
+        if (ch == parser->quote) {
+          state = CSV_STATE_QUOTE_IN_FIELD;
+        } else if (ch == parser->escape && parser->escape != parser->quote) {
+          // Handle escape character
+          if (parser->bufferPos >= parser->bufferLen) {
+            code = csvParserFillBuffer(parser);
+            if (code != TSDB_CODE_SUCCESS) goto _exit;
+            if (parser->bufferPos >= parser->bufferLen && parser->eof) {
+              // Unexpected end of file
+              code = TSDB_CODE_INVALID_DATA_FMT;
+              goto _exit;
+            }
+          }
+          char nextCh = parser->buffer[parser->bufferPos++];
+          if (fieldLen < CSV_MAX_FIELD_SIZE - 1) {
+            fieldBuffer[fieldLen++] = nextCh;
+          }
+        } else {
+          if (fieldLen < CSV_MAX_FIELD_SIZE - 1) {
+            fieldBuffer[fieldLen++] = ch;
+          }
+        }
+        break;
+
+      case CSV_STATE_QUOTE_IN_FIELD:
+        if (ch == parser->quote) {
+          // Escaped quote
+          if (fieldLen < CSV_MAX_FIELD_SIZE - 1) {
+            fieldBuffer[fieldLen++] = ch;
+          }
+          state = CSV_STATE_QUOTED_FIELD;
+        } else if (ch == parser->delimiter) {
+          code = csvRowAddField(row, fieldBuffer, fieldLen, quoted);
+          if (code != TSDB_CODE_SUCCESS) goto _exit;
+          state = CSV_STATE_FIELD_START;
+          fieldLen = 0;
+          quoted = false;
+        } else if (ch == '\r') {
+          // Skip CR
+          continue;
+        } else if (ch == '\n') {
+          // End of row
+          code = csvRowAddField(row, fieldBuffer, fieldLen, quoted);
+          goto _exit;
+        } else {
+          // Invalid character after quote
+          code = TSDB_CODE_INVALID_DATA_FMT;
+          goto _exit;
+        }
+        break;
+
+      case CSV_STATE_FIELD_END:
+        // Should not reach here
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        goto _exit;
+    }
+  }
+
+_exit:
+  taosMemoryFree(fieldBuffer);
+  return code;
+}
+
+// Convert CSV row to SQL tokens for parsing
+static int32_t csvRowToSqlTokens(SCsvRow* row, char** pSqlRow) {
+  if (!row || !pSqlRow) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // Calculate required buffer size
+  size_t totalLen = 0;
+  for (int32_t i = 0; i < row->fieldCount; i++) {
+    totalLen += row->fields[i].len;
+    if (i > 0) totalLen += 1;  // for comma
+    totalLen += 2;             // for potential quotes or spaces
+  }
+  totalLen += 1;  // for null terminator
+
+  char* sqlRow = taosMemoryMalloc(totalLen);
+  if (!sqlRow) {
+    return terrno;
+  }
+
+  size_t pos = 0;
+  for (int32_t i = 0; i < row->fieldCount; i++) {
+    if (i > 0) {
+      sqlRow[pos++] = ',';
+    }
+
+    SCsvField* field = &row->fields[i];
+    if (field->len > 0) {
+      memcpy(sqlRow + pos, field->data, field->len);
+      pos += field->len;
+    }
+  }
+  sqlRow[pos] = '\0';
+
+  *pSqlRow = sqlRow;
+  return TSDB_CODE_SUCCESS;
 }
