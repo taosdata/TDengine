@@ -634,12 +634,7 @@ int64_t msmAssignTaskId(void) {
 }
 
 int64_t msmAssignTaskSeriousId(void) {
-  uint64_t uuid = 0;
-  if (taosGetSystemUUIDU64(&uuid)) {
-    return taosGetTimestampNs();
-  }
-
-  return (int64_t)uuid;
+  return taosGetTimestampNs();
 }
 
 
@@ -1997,14 +1992,14 @@ static int32_t msmHandleStreamActions(SStmGrpCtx* pCtx) {
   int32_t lino = 0;
   SStmQNode* pQNode = NULL;
 
-  mstDebug("start to handle stream actions");
-  
   while (mndStreamActionDequeue(mStreamMgmt.actionQ, &pQNode)) {
     switch (pQNode->type) {
       case STREAM_ACT_DEPLOY:
         if (pQNode->streamAct) {
+          mstDebug("start to handle stream deploy action");
           TAOS_CHECK_EXIT(msmLaunchStreamDepolyAction(pCtx, &pQNode->action.stream));
         } else {
+          mstDebug("start to handle task deploy action");
           TAOS_CHECK_EXIT(msmLaunchTaskDepolyAction(pCtx, &pQNode->action.task));
         }
         break;

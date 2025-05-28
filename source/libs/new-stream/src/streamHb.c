@@ -40,7 +40,8 @@ static int32_t streamHbSendRequestMsg(SStreamHbMsg* pMsg, SEpSet* pEpset) {
   TAOS_CHECK_EXIT(tEncodeStreamHbMsg(&encoder, pMsg));
   tEncoderClear(&encoder);
 
-  stDebug("try to send stream hb to mnode, gid:%d, snodeId:%d", pMsg->streamGId, pMsg->snodeId);
+  stDebug("try to send stream hb to mnode, gid:%d, snodeId:%d, vgLeaders:%d, streamStatus:%d", 
+      pMsg->streamGId, pMsg->snodeId, (int32_t)taosArrayGetSize(pMsg->pVgLeaders), (int32_t)taosArrayGetSize(pMsg->pStreamStatus));
 
   SRpcMsg msg = {.msgType = TDMT_MND_STREAM_HEARTBEAT, .pCont = buf, .contLen = tlen + sizeof(SStreamMsgGrpHeader)};
 

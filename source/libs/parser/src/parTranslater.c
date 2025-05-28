@@ -13945,7 +13945,7 @@ static int32_t translatePauseStream(STranslateContext* pCxt, SPauseStreamStmt* p
   toName(pCxt->pParseCxt->acctId, pStmt->streamDbName, pStmt->streamName, &name);
   PAR_ERR_JRET(tNameExtractFullName(&name, req.name));
   req.igNotExists = (int8_t)pStmt->ignoreNotExists;
-  PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_PAUSE_STREAM, (FSerializeFunc)tSerializeSMPauseStreamReq, &req));
+  PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_STOP_STREAM, (FSerializeFunc)tSerializeSMPauseStreamReq, &req));
 
 _return:
   tFreeMPauseStreamReq(&req);
@@ -13967,7 +13967,7 @@ static int32_t translateResumeStream(STranslateContext* pCxt, SResumeStreamStmt*
 
   req.igNotExists = (int8_t)pStmt->ignoreNotExists;
   req.igUntreated = (int8_t)pStmt->ignoreUntreated;
-  PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_RESUME_STREAM, (FSerializeFunc)tSerializeSMResumeStreamReq, &req));
+  PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_START_STREAM, (FSerializeFunc)tSerializeSMResumeStreamReq, &req));
 
 _return:
   tFreeMResumeStreamReq(&req);

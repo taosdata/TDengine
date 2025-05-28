@@ -349,9 +349,10 @@ void mndStreamPostAction(SStmActionQ*       actionQ, int64_t streamId, char* str
   TAOS_STRCPY(pNode->action.stream.streamName, streamName);
   
   pNode->next = NULL;
-  
 
   mndStreamActionEnqueue(actionQ, pNode);
+
+  mstsDebug("stream action %s posted enqueue", gMndStreamAction[action]);
 }
 
 void mndStreamPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pAction, int32_t action) {
