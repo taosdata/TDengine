@@ -40,10 +40,11 @@ namespace {
 void checkError(TAOS_STMT2* stmt, int code) {
   if (code != TSDB_CODE_SUCCESS) {
     STscStmt2* pStmt = (STscStmt2*)stmt;
-    if (pStmt == nullptr || pStmt->sql.sqlStr == nullptr || pStmt->exec.pRequest == nullptr) {
+    if (pStmt == nullptr || pStmt->sql.sqlStr == nullptr) {
       printf("stmt api error\n  stats : %d\n  errstr : %s\n", pStmt->sql.status, taos_stmt2_error(stmt));
     } else {
-      printf("stmt api error\n  sql : %s\n  stats : %d\n", pStmt->sql.sqlStr, pStmt->sql.status);
+      printf("stmt api error\n  sql : %s\n  stats : %d\n  errstr : %s\n", pStmt->sql.sqlStr, pStmt->sql.status,
+             taos_stmt2_error(stmt));
     }
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
@@ -2156,6 +2157,7 @@ TEST(stmt2Case, prepare_fixedtags) {
 
   do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_prepare2");
   taos_stmt2_close(stmt);
+  taos_close(taos);
 }
 
 // TD-33582
@@ -2182,6 +2184,40 @@ TEST(stmt2Case, errcode) {
   sql = "nsert into ? (ts, name) values (?, ?)";
   code = taos_stmt_prepare(stmt, sql, 0);
   checkError(stmt, code);
+
+  do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_14");
+  taos_close(taos);
+}
+
+TEST(stmt2Case, usage_error) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+  do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_17");
+  do_query(taos, "CREATE DATABASE IF NOT EXISTS stmt2_testdb_17");
+  do_query(taos, "use stmt2_testdb_17");
+  do_query(taos, "CREATE TABLE stmt2_testdb_17.ntb(nts timestamp, nb binary(10),nvc varchar(16),ni int);");
+
+  TAOS_STMT2_OPTION option = {0};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+  char* sql = "delete from ntb";
+  int   code = taos_stmt2_prepare(stmt, sql, 0);
+  checkError(stmt, code);
+
+  int              t64_len[1] = {sizeof(int64_t)};
+  int              b_len[1] = {3};
+  int64_t          ts = 1591060628000;
+  TAOS_STMT2_BIND  params = {TSDB_DATA_TYPE_TIMESTAMP, &ts, t64_len, NULL, 1};
+  TAOS_STMT2_BIND* params1 = &params;
+
+  TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &params1};
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  ASSERT_EQ(code, TSDB_CODE_TSC_STMT_API_ERROR);
+  ASSERT_STREQ(taos_stmt2_error(stmt), "stmt only support select or insert");
+
+  taos_stmt2_close(stmt);
+  do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_14");
+  taos_close(taos);
 }
 
 void stmtAsyncBindCb(void* param, TAOS_RES* pRes, int code) {
