@@ -26,6 +26,7 @@ static void collectQueryMetricsInfo(SDnode *pDnode);
 static void collectStreamMetricsInfo(SDnode *pDnode);
 
 void dmSendMetricsReport() {
+  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0 || tsEnableMetrics) return;
   SDnode *pDnode = dmInstance();
   if (pDnode == NULL) {
     return;
