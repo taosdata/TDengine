@@ -81,6 +81,24 @@ static int32_t getTableData(SStreamReaderTaskInner* pTask, SSDataBlock** ppRes) 
   return pTask->api.tsdReader.tsdReaderRetrieveDataBlock(pTask->pReader, ppRes, NULL);
 }
 
+static int32_t buildOTableInfoRsp(const SSTriggerOrigTableInfoRsp* rsp, void** data, size_t* size) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  void*   buf = NULL;
+  int32_t len = tSerializeSTriggerOrigTableInfoRsp(NULL, 0, rsp);
+  STREAM_CHECK_CONDITION_GOTO(len <= 0, TSDB_CODE_INVALID_PARA);
+  buf = rpcMallocCont(len);
+  STREAM_CHECK_NULL_GOTO(buf, terrno);
+  int32_t actLen = tSerializeSTriggerOrigTableInfoRsp(buf, len, rsp);
+  STREAM_CHECK_CONDITION_GOTO(actLen != len, TSDB_CODE_INVALID_PARA);
+  *data = buf;
+  *size = len;
+  buf = NULL;
+end:
+  rpcFreeCont(buf);
+  return code;
+}
+
 static int32_t buildVTableInfoRsp(const SStreamMsgVTableInfo* rsp, void** data, size_t* size) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -1514,6 +1532,75 @@ end:
   return code;
 }
 
+static int32_t vnodeProcessStreamOTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SSTriggerPullRequestUnion* req) {
+  int32_t                 code = 0;
+  int32_t                 lino = 0;
+  void*                   buf = NULL;
+  size_t                  size = 0;
+  SSTriggerOrigTableInfoRsp    oTableInfo = {0};
+  SMetaReader             metaReader = {0};
+
+  stDebug("vgId:%d %s start", TD_VID(pVnode), __func__);
+
+  SStreamTriggerReaderInfo* sStreamReaderInfo = qStreamGetReaderInfo(req->base.streamId, req->base.readerTaskId);
+  STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
+
+  SStorageAPI  api = {0};
+  initStorageAPI(&api);
+  
+  SArray* cols = ((SSTriggerOrigTableInfoRequest*)req)->cols;
+  STREAM_CHECK_NULL_GOTO(cols, terrno);
+
+  oTableInfo.cols = taosArrayInit(taosArrayGetSize(cols), sizeof(OTableInfoRsp));;
+  STREAM_CHECK_NULL_GOTO(oTableInfo.cols, terrno);
+
+  api.metaReaderFn.initReader(&metaReader, pVnode, META_READER_LOCK, &api.metaFn);
+  for (size_t i = 0; i < taosArrayGetSize(cols); i++) {
+    OTableInfo* oInfo = taosArrayGet(cols, i);
+    OTableInfoRsp* vTableInfo = taosArrayReserve(oTableInfo.cols, 1);
+    STREAM_CHECK_NULL_GOTO(oInfo, terrno);
+    STREAM_CHECK_NULL_GOTO(vTableInfo, terrno);
+    STREAM_CHECK_RET_GOTO(api.metaReaderFn.getTableEntryByName(&metaReader, oInfo->refTableName));
+    vTableInfo->uid = metaReader.me.uid;
+
+    SSchemaWrapper* sSchemaWrapper = NULL;
+    if (metaReader.me.type == TD_CHILD_TABLE) {
+      int64_t suid = metaReader.me.ctbEntry.suid;
+      tDecoderClear(&metaReader.coder);
+      STREAM_CHECK_RET_GOTO(api.metaReaderFn.getTableEntryByUid(&metaReader, suid));
+      sSchemaWrapper = &metaReader.me.stbEntry.schemaRow;
+    } else if (metaReader.me.type == TD_NORMAL_TABLE) {
+      sSchemaWrapper = &metaReader.me.ntbEntry.schemaRow;
+    } else {
+      qError("invalid table type:%d", metaReader.me.type);
+    }
+
+    for (size_t j = 0; j < sSchemaWrapper->nCols; j++) {
+      SSchema* s = sSchemaWrapper->pSchema + j;
+      if (strcmp(s->name, oInfo->refColName) == 0) {
+        vTableInfo->cid = s->colId;
+        break;
+      }
+    }
+    if (vTableInfo->cid == 0) {
+      stError("vgId:%d %s, not found col %s in table %s", TD_VID(pVnode), __func__, oInfo->refColName, oInfo->refTableName);
+    }
+    tDecoderClear(&metaReader.coder);
+  }
+
+  stDebug("vgId:%d %s end", TD_VID(pVnode), __func__);
+  STREAM_CHECK_RET_GOTO(buildOTableInfoRsp(&oTableInfo, &buf, &size));
+
+end:
+  tDestroySTriggerOrigTableInfoRsp(&oTableInfo);
+  api.metaReaderFn.clearReader(&metaReader);
+  PRINT_LOG_END(code, lino);
+  SRpcMsg rsp = {
+      .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
+  tmsgSendRsp(&rsp);
+  return code;
+}
+
 static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   int32_t            code = 0;
   int32_t            lino = 0;
@@ -1643,9 +1730,9 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
         break;
       case STRIGGER_PULL_VTABLE_INFO:
         code = vnodeProcessStreamVTableInfoReq(pVnode, pMsg, &req);
-        taosArrayDestroy(((SSTriggerSetTableRequest*)&req)->cids);
         break;
       case STRIGGER_PULL_OTABLE_INFO:
+        code = vnodeProcessStreamOTableInfoReq(pVnode, pMsg, &req);
         break;
       default:
         vError("unknown inner msg type:%d in stream reader queue", req.base.type);

@@ -2268,12 +2268,87 @@ _exit:
   return code;
 }
 
+int32_t tSerializeSTriggerOrigTableInfoRsp(void* buf, int32_t bufLen, const SSTriggerOrigTableInfoRsp* pRsp){
+  SEncoder encoder = {0};
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  int32_t  tlen = 0;
+
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+
+  int32_t size = taosArrayGetSize(pRsp->cols);
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, size));
+  for (int32_t i = 0; i < size; ++i) {
+    OTableInfoRsp* oInfo = taosArrayGet(pRsp->cols, i);
+    if (oInfo == NULL) {
+      uError("col id is NULL at index %d", i);
+      code = TSDB_CODE_INVALID_PARA;
+      goto _exit;
+    }
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, oInfo->uid));
+    TAOS_CHECK_EXIT(tEncodeI16(&encoder, oInfo->cid));
+  }
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDserializeSTriggerOrigTableInfoRsp(void* buf, int32_t bufLen, SSTriggerOrigTableInfoRsp* pRsp){
+  SDecoder decoder = {0};
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+
+  int32_t size = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &size));
+  pRsp->cols = taosArrayInit(size, sizeof(OTableInfoRsp));
+  if (pRsp->cols == NULL) {
+    code = terrno;
+    uError("failed to allocate memory for cids, size: %d, errno: %d", size, code);
+    goto _exit;
+  }
+  for (int32_t i = 0; i < size; ++i) {
+    OTableInfoRsp* oInfo = taosArrayReserve(pRsp->cols, 1);
+    if (oInfo == NULL) {
+      code = terrno;
+      uError("failed to reserve memory for OTableInfo, size: %d, errno: %d", size, code);
+      goto _exit;
+    }
+    TAOS_CHECK_RETURN(tDecodeI64(&decoder, &oInfo->uid));
+    TAOS_CHECK_RETURN(tDecodeI16(&decoder, &oInfo->cid));
+  }
+
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void    tDestroySTriggerOrigTableInfoRsp(SSTriggerOrigTableInfoRsp* pRsp){
+  taosArrayDestroy(pRsp->cols);
+}
+
 void tDestroySTriggerPullRequest(SSTriggerPullRequestUnion* pReq) {
   if (pReq == NULL) return;
   if (pReq->base.type == STRIGGER_PULL_VTABLE_INFO) {
     SSTriggerVirTableInfoRequest* pRequest = (SSTriggerVirTableInfoRequest*)pReq;
     taosArrayDestroy(pRequest->cids);
-  } 
+  } else if (pReq->base.type == STRIGGER_PULL_OTABLE_INFO) {
+    SSTriggerOrigTableInfoRequest* pRequest = (SSTriggerOrigTableInfoRequest*)pReq;
+    taosArrayDestroy(pRequest->cols);
+  }
 }
 
 int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTriggerPullRequest* pReq) {
@@ -2377,6 +2452,22 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
         TAOS_CHECK_EXIT(tEncodeI16(&encoder, *pColId));
       }
       break;
+    }
+    case STRIGGER_PULL_OTABLE_INFO: {
+      SSTriggerOrigTableInfoRequest* pRequest = (SSTriggerOrigTableInfoRequest*)pReq;
+      int32_t size = taosArrayGetSize(pRequest->cols);
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, size));
+      for (int32_t i = 0; i < size; ++i) {
+        OTableInfo* oInfo = taosArrayGet(pRequest->cols, i);
+        if (oInfo == NULL) {
+          uError("col id is NULL at index %d", i);
+          code = TSDB_CODE_INVALID_PARA;
+          goto _exit;
+        }
+        TAOS_CHECK_EXIT(tEncodeCStr(&encoder, oInfo->refTableName));
+        TAOS_CHECK_EXIT(tEncodeCStr(&encoder, oInfo->refColName));
+      }
+      break; 
     }
     default: {
       uError("unknown pull type %d", pReq->type);
@@ -2505,6 +2596,28 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
           uError("failed to push cid to cids array, errno: %d", code);
           goto _exit;
         }
+      }
+      break;
+    }
+    case STRIGGER_PULL_OTABLE_INFO: {
+      SSTriggerOrigTableInfoRequest* pRequest = &(pReq->origTableInfoReq);
+      int32_t size = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &size));
+      pRequest->cols = taosArrayInit(size, sizeof(OTableInfo));
+      if (pRequest->cols == NULL) {
+        code = terrno;
+        uError("failed to allocate memory for cids, size: %d, errno: %d", size, code);
+        goto _exit;
+      }
+      for (int32_t i = 0; i < size; ++i) {
+        OTableInfo* oInfo = taosArrayReserve(pRequest->cols, 1);
+        if (oInfo == NULL) {
+          code = terrno;
+          uError("failed to reserve memory for OTableInfo, size: %d, errno: %d", size, code);
+          goto _exit;
+        }
+        TAOS_CHECK_RETURN(tDecodeCStrTo(&decoder, oInfo->refTableName));
+        TAOS_CHECK_RETURN(tDecodeCStrTo(&decoder, oInfo->refColName));
       }
       break;
     }
