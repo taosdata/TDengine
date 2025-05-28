@@ -27,6 +27,7 @@ void     mndCleanupStb(SMnode *pMnode);
 SStbObj *mndAcquireStb(SMnode *pMnode, char *stbName);
 void     mndReleaseStb(SMnode *pMnode, SStbObj *pStb);
 SSdbRaw *mndStbActionEncode(SStbObj *pStb);
+SSdbRow *mndStbActionDecode(SSdbRaw *pRaw);
 int32_t  mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbs, int32_t numOfStbs, void **ppRsp, int32_t *pRspLen);
 int32_t  mndGetNumOfStbs(SMnode *pMnode, char *dbName, int32_t *pNumOfStbs);
 

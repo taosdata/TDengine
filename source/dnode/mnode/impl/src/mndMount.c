@@ -1051,6 +1051,19 @@ static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp) {
     TAOS_CHECK_EXIT(TSDB_CODE_OPS_NOT_SUPPORT);
   }
 
+  int32_t nStbs = taosArrayGetSize(mntInfo.pStbs);
+  for (int32_t i = 0; i < nStbs; ++i) {
+    void    *pStbRaw = taosArrayGet(mntInfo.pStbs, i);
+    SSdbRow *pStbRow = mndStbActionDecode(pStbRaw);
+    if (pStbRow == NULL) {
+      mError("mount:%s, failed to decode stb[%d] from retrieve mount path rsp", mntInfo.mountName, i);
+      TAOS_CHECK_EXIT(terrno);
+    }
+
+    SStbObj *pStbObj = pStbRow->pObj;
+    mInfo("mount:%s, retrieve stb[%d]:%s, db:%s", mntInfo.mountName, i, pStbObj->name, pStbObj->db);
+  }
+
   // step 2: collect the responses from dnodes, process and push to mnode write thread to run as transaction
   // TODO: multiple retrieve dnodes and paths supported later
   TSDB_CHECK_CONDITION((bufLen = tSerializeSMountInfo(NULL, 0, &mntInfo)) >= 0, code, lino, _exit, bufLen);

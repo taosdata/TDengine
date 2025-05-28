@@ -6347,10 +6347,11 @@ void tFreeMountInfo(SMountInfo *pReq) {
       for (int32_t i = 0; i < TARRAY_SIZE(pReq->pDbs); ++i) {
         SMountDbInfo *pDbInfo = TARRAY_GET_ELEM(pReq->pDbs, i);
         taosArrayDestroy(pDbInfo->pVgs);
-        taosArrayDestroyP(pDbInfo->pStbs, NULL);
+        taosArrayDestroy(pDbInfo->pStbs);
       }
       taosArrayDestroy(pReq->pDbs);
     }
+    taosArrayDestroyP(pReq->pStbs, NULL);
   }
 }
 #endif // USE_MOUNT
