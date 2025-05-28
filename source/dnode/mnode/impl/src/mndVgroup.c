@@ -1127,7 +1127,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
   SVgObj *pVgroup = NULL;
   int32_t cols = 0;
   int64_t curMs = taosGetTimestampMs();
-  int32_t code = 0;
+  int32_t code = 0, lino = 0;
 
   SDbObj *pDb = NULL;
   if (strlen(pShow->db) > 0) {
@@ -1148,46 +1148,32 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->vgId, false);
-    if (code != 0) {
-      mError("vgId:%d, failed to set vgId, since %s", pVgroup->vgId, tstrerror(code));
-      return code;
-    }
+    COL_DATA_SET_VAL_GOTO((const char *)&pVgroup->vgId, false, pVgroup, pShow->pIter, _OVER);
 
     SName name = {0};
     char  db[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     code = tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT | T_NAME_DB);
     if (code != 0) {
       mError("vgId:%d, failed to set dbName, since %s", pVgroup->vgId, tstrerror(code));
+      sdbRelease(pSdb, pVgroup);
+      sdbCancelFetch(pSdb, pShow->pIter);
       return code;
     }
     (void)tNameGetDbName(&name, varDataVal(db));
     varDataSetLen(db, strlen(varDataVal(db)));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)db, false);
-    if (code != 0) {
-      mError("vgId:%d, failed to set dbName, since %s", pVgroup->vgId, tstrerror(code));
-      return code;
-    }
+    COL_DATA_SET_VAL_GOTO((const char *)db, false, pVgroup, pShow->pIter, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->numOfTables, false);
-    if (code != 0) {
-      mError("vgId:%d, failed to set numOfTables, since %s", pVgroup->vgId, tstrerror(code));
-      return code;
-    }
+    COL_DATA_SET_VAL_GOTO((const char *)&pVgroup->numOfTables, false, pVgroup, pShow->pIter, _OVER);
 
     // default 3 replica, add 1 replica if move vnode
     for (int32_t i = 0; i < 4; ++i) {
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       if (i < pVgroup->replica) {
         int16_t dnodeId = (int16_t)pVgroup->vnodeGid[i].dnodeId;
-        code = colDataSetVal(pColInfo, numOfRows, (const char *)&dnodeId, false);
-        if (code != 0) {
-          mError("vgId:%d, failed to set dnodeId, since %s", pVgroup->vgId, tstrerror(code));
-          return code;
-        }
+        COL_DATA_SET_VAL_GOTO((const char *)&dnodeId, false, pVgroup, pShow->pIter, _OVER);
 
         bool       exist = false;
         bool       online = false;
@@ -1241,11 +1227,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
         STR_WITH_MAXSIZE_TO_VARSTR(buf1, role, pShow->pMeta->pSchemas[cols].bytes);
 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        code = colDataSetVal(pColInfo, numOfRows, (const char *)buf1, false);
-        if (code != 0) {
-          mError("vgId:%d, failed to set role, since %s", pVgroup->vgId, tstrerror(code));
-          return code;
-        }
+        COL_DATA_SET_VAL_GOTO((const char *)buf1, false, pVgroup, pShow->pIter, _OVER);
 
         char applyStr[TSDB_SYNC_APPLY_COMMIT_LEN + 1] = {0};
         char buf[TSDB_SYNC_APPLY_COMMIT_LEN + VARSTR_HEADER_SIZE + 1] = {0};
@@ -1254,11 +1236,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
         STR_WITH_MAXSIZE_TO_VARSTR(buf, applyStr, pShow->pMeta->pSchemas[cols].bytes);
 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        code = colDataSetVal(pColInfo, numOfRows, (const char *)&buf, false);
-        if (code != 0) {
-          mError("vgId:%d, failed to set role, since %s", pVgroup->vgId, tstrerror(code));
-          return code;
-        }
+        COL_DATA_SET_VAL_GOTO((const char *)&buf, false, pVgroup, pShow->pIter, _OVER);
       } else {
         colDataSetNULL(pColInfo, numOfRows);
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1270,29 +1248,21 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     int32_t cacheUsage = (int32_t)pVgroup->cacheUsage;
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)&cacheUsage, false);
-    if (code != 0) {
-      mError("vgId:%d, failed to set cacheUsage, since %s", pVgroup->vgId, tstrerror(code));
-      return code;
-    }
+    COL_DATA_SET_VAL_GOTO((const char *)&cacheUsage, false, pVgroup, pShow->pIter, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->numOfCachedTables, false);
-    if (code != 0) {
-      mError("vgId:%d, failed to set numOfCachedTables, since %s", pVgroup->vgId, tstrerror(code));
-      return code;
-    }
+    COL_DATA_SET_VAL_GOTO((const char *)&pVgroup->numOfCachedTables, false, pVgroup, pShow->pIter, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->isTsma, false);
-    if (code != 0) {
-      mError("vgId:%d, failed to set isTsma, since %s", pVgroup->vgId, tstrerror(code));
-      return code;
-    }
+    COL_DATA_SET_VAL_GOTO((const char *)&pVgroup->isTsma, false, pVgroup, pShow->pIter, _OVER);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    COL_DATA_SET_VAL_GOTO((const char *)&pVgroup->mountVgId, false, pVgroup, pShow->pIter, _OVER);
+
     numOfRows++;
     sdbRelease(pSdb, pVgroup);
   }
-
+_OVER:
   if (pDb != NULL) {
     mndReleaseDb(pMnode, pDb);
   }

@@ -591,6 +591,32 @@ static int32_t mndSetCreateVgPrepareActions(SMnode *pMnode, STrans *pTrans, SVgO
   return 0;
 }
 
+static int32_t mndSetCreateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDbs, int32_t nDbs) {
+  int32_t code = 0;
+  for (int32_t i = 0; i < nDbs; ++i) {
+    SSdbRaw *pDbRaw = mndDbActionEncode(pDbs + i);
+    if (pDbRaw == NULL) {
+      TAOS_RETURN(terrno);
+    }
+    TAOS_CHECK_RETURN(mndTransAppendCommitlog(pTrans, pDbRaw));
+    TAOS_CHECK_RETURN(sdbSetRawStatus(pDbRaw, SDB_STATUS_READY));
+  }
+  TAOS_RETURN(code);
+}
+
+static int32_t mndSetCreateVgCommitLogs(SMnode *pMnode, STrans *pTrans, SVgObj *pVgs, int32_t nVgs) {
+  int32_t code = 0;
+  for (int32_t i = 0; i < nVgs; ++i) {
+    SSdbRaw *pDbRaw = mndVgroupActionEncode(pVgs + i);
+    if (pDbRaw == NULL) {
+      TAOS_RETURN(terrno);
+    }
+    TAOS_CHECK_RETURN(mndTransAppendCommitlog(pTrans, pDbRaw));
+    TAOS_CHECK_RETURN(sdbSetRawStatus(pDbRaw, SDB_STATUS_READY));
+  }
+  TAOS_RETURN(code);
+}
+
 #if 0
 static int32_t mndSetCreateDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
   int32_t  code = 0;
@@ -854,6 +880,8 @@ static int32_t mndCreateMount(SMnode * pMnode, SRpcMsg * pReq, SMountInfo * pInf
   TAOS_CHECK_EXIT(mndSetCreateVgPrepareActions(pMnode, pTrans, pVgs, nVgs));
   // TAOS_CHECK_EXIT(mndSetCreateMountUndoLogs(pMnode, pTrans, &mntObj));
   TAOS_CHECK_EXIT(mndSetCreateMountCommitLogs(pMnode, pTrans, &mntObj));
+  TAOS_CHECK_EXIT(mndSetCreateDbCommitLogs(pMnode, pTrans, pDbs, nDbs));
+  TAOS_CHECK_EXIT(mndSetCreateVgCommitLogs(pMnode, pTrans, pVgs, nVgs));
   // TAOS_CHECK_EXIT(mndSetCreateDbUndoActions(pMnode, pTrans, &mntObj, pVgroups));
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 
@@ -2262,23 +2290,23 @@ static int32_t mndRetrieveMounts(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
       TAOS_UNUSED(snprintf(qBuf, bufLen, "%s", pObj->name));
       varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
-      COL_DATA_SET_VAL_GOTO(pBuf, false, pObj, _exit);
+      COL_DATA_SET_VAL_GOTO(pBuf, false, pObj, pIter, _exit);
 
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
         // TAOS_UNUSED(snprintf(pBuf, bufLen, "%d", *(int32_t *)pObj->dnodeIds));  // TODO: support mutiple dnodes
-        COL_DATA_SET_VAL_GOTO((const char *)&pObj->dnodeIds[0], false, pObj, _exit);
+        COL_DATA_SET_VAL_GOTO((const char *)&pObj->dnodeIds[0], false, pObj, pIter, _exit);
       }
 
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
         // TAOS_UNUSED(snprintf(pBuf, bufLen, "%" PRIi64, pObj->createdTime));
-        COL_DATA_SET_VAL_GOTO((const char *)&pObj->createdTime, false, pObj, _exit);
+        COL_DATA_SET_VAL_GOTO((const char *)&pObj->createdTime, false, pObj, pIter, _exit);
       }
 
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
         qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
         TAOS_UNUSED(snprintf(qBuf, bufLen, "%s", pObj->paths[0]));  // TODO: support mutiple paths
         varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
-        COL_DATA_SET_VAL_GOTO(pBuf, false, pObj, _exit);
+        COL_DATA_SET_VAL_GOTO(pBuf, false, pObj, pIter, _exit);
       }
 
       sdbRelease(pSdb, pObj);
