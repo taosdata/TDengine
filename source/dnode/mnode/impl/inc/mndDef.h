@@ -498,6 +498,8 @@ typedef struct {
   int64_t    startTimeMs;
   ESyncRole  nodeRole;
   int32_t    learnerProgress;
+  int64_t    bufferSegmentUsed;
+  int64_t    bufferSegmentSize;
 } SVnodeGid;
 
 typedef struct {
@@ -573,37 +575,37 @@ typedef struct {
 } SCmprObj;
 
 typedef struct {
-  char      name[TSDB_TABLE_FNAME_LEN];
-  char      db[TSDB_DB_FNAME_LEN];
-  int64_t   createdTime;
-  int64_t   updateTime;
-  int64_t   uid;
-  int64_t   dbUid;
-  int32_t   tagVer;
-  int32_t   colVer;
-  int32_t   smaVer;
-  int32_t   nextColId;
-  int64_t   maxdelay[2];
-  int64_t   watermark[2];
-  int32_t   ttl;
-  int32_t   numOfColumns;
-  int32_t   numOfTags;
-  int32_t   numOfFuncs;
-  int32_t   commentLen;
-  int32_t   ast1Len;
-  int32_t   ast2Len;
-  SArray*   pFuncs;
-  SSchema*  pColumns;
-  SSchema*  pTags;
-  char*     comment;
-  char*     pAst1;
-  char*     pAst2;
-  SRWLatch  lock;
-  int8_t    source;
-  SColCmpr* pCmpr;
-  int64_t   keep;
+  char        name[TSDB_TABLE_FNAME_LEN];
+  char        db[TSDB_DB_FNAME_LEN];
+  int64_t     createdTime;
+  int64_t     updateTime;
+  int64_t     uid;
+  int64_t     dbUid;
+  int32_t     tagVer;
+  int32_t     colVer;
+  int32_t     smaVer;
+  int32_t     nextColId;
+  int64_t     maxdelay[2];
+  int64_t     watermark[2];
+  int32_t     ttl;
+  int32_t     numOfColumns;
+  int32_t     numOfTags;
+  int32_t     numOfFuncs;
+  int32_t     commentLen;
+  int32_t     ast1Len;
+  int32_t     ast2Len;
+  SArray*     pFuncs;
+  SSchema*    pColumns;
+  SSchema*    pTags;
+  char*       comment;
+  char*       pAst1;
+  char*       pAst2;
+  SRWLatch    lock;
+  int8_t      source;
+  SColCmpr*   pCmpr;
+  int64_t     keep;
   SExtSchema* pExtSchemas;
-  int8_t    virtualStb;
+  int8_t      virtualStb;
 } SStbObj;
 
 typedef struct {
@@ -799,7 +801,6 @@ typedef struct SStreamConf {
   int64_t watermark;
 } SStreamConf;
 
-
 typedef struct {
   char     name[TSDB_STREAM_FNAME_LEN];
   SRWLatch lock;
@@ -827,13 +828,13 @@ typedef struct {
   int32_t fixedSinkVgId;  // 0 for shuffle
 
   // transformation
-  char*   sql;
-  char*   ast;
-  char*   physicalPlan;
+  char* sql;
+  char* ast;
+  char* physicalPlan;
 
-  SArray* pTaskList;       // SArray<SArray<SStreamTask>>
-  SArray* pHTaskList;     // generate the results for already stored ts data
-  int64_t hTaskUid;        // stream task for history ts data
+  SArray* pTaskList;   // SArray<SArray<SStreamTask>>
+  SArray* pHTaskList;  // generate the results for already stored ts data
+  int64_t hTaskUid;    // stream task for history ts data
 
   SSchemaWrapper outputSchema;
   SSchemaWrapper tagSchema;
@@ -852,7 +853,7 @@ typedef struct {
   char    reserve[TSDB_RESERVE_VALUE_LEN];
 
   SSHashObj*  pVTableMap;  // do not serialize
-  SQueryPlan* pPlan;  // do not serialize
+  SQueryPlan* pPlan;       // do not serialize
 } SStreamObj;
 
 typedef struct SStreamSeq {

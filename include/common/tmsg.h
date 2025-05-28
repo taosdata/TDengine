@@ -1965,6 +1965,8 @@ typedef struct {
   int32_t learnerProgress;  // use one reservered
   int64_t syncAppliedIndex;
   int64_t syncCommitIndex;
+  int64_t bufferSegmentUsed;
+  int64_t bufferSegmentSize;
 } SVnodeLoad;
 
 typedef struct {
