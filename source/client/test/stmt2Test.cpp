@@ -1346,6 +1346,11 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
   taos_close(taos);
 }
 
+void asyncInsertDB(void* param, TAOS_RES* pRes, int code) {
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  return;
+}
+
 // TD-33419
 // TD-34075
 // TD-34504
@@ -1426,6 +1431,29 @@ TEST(stmt2Case, stmt2_insert_db) {
   }
 
   ASSERT_EQ(total_affect_rows, 12);
+  taos_stmt2_close(stmt);
+
+  // test 3
+  option = {0, true, true, asyncInsertDB, NULL};
+  do_query(taos, "use stmt2_testdb_12");
+  stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+  sql = "INSERT INTO stb1 (ts,int_tag,tbname)  VALUES (?,?,?)";
+
+  for (int i = 0; i < 3; i++) {
+    int code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code);
+
+    ts[0] += 1000;
+    ts[1] += 1000;
+
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    checkError(stmt, code);
+
+    code = taos_stmt2_exec(stmt, NULL);
+    checkError(stmt, code);
+  }
+
   taos_stmt2_close(stmt);
 
   do_query(taos, "drop database if exists stmt2_testdb_12");

@@ -1029,12 +1029,18 @@ static int32_t stmtResetStbInterlaceCache(STscStmt2* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t stmtResetStmtForPrepare(STscStmt2* pStmt) {
+static int32_t stmtDeepReset(STscStmt2* pStmt) {
   char*             db = pStmt->db;
   bool              stbInterlaceMode = pStmt->stbInterlaceMode;
   TAOS_STMT2_OPTION options = pStmt->options;
   uint32_t          reqid = pStmt->reqid;
 
+  if (pStmt->options.asyncExecFn && !pStmt->execSemWaited) {
+    if (tsem_wait(&pStmt->asyncExecSem) != 0) {
+      STMT2_ELOG_E("bind param wait asyncExecSem failed");
+    }
+    pStmt->execSemWaited = true;
+  }
   taosMemoryFree(pStmt->sql.pBindInfo);
   pStmt->sql.pBindInfo = NULL;
 
@@ -1159,7 +1165,7 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
 
   if (pStmt->sql.status >= STMT_PREPARE) {
     STMT2_DLOG("stmt status is %d, need to reset stmt2 cache before prepare", pStmt->sql.status);
-    STMT_ERR_RET(stmtResetStmtForPrepare(pStmt));
+    STMT_ERR_RET(stmtDeepReset(pStmt));
   }
 
   if (pStmt->errCode != TSDB_CODE_SUCCESS) {
@@ -2271,7 +2277,6 @@ int stmtClose2(TAOS_STMT2* stmt) {
   (void)taosThreadMutexDestroy(&pStmt->asyncBindParam.mutex);
 
   if (pStmt->options.asyncExecFn && !pStmt->execSemWaited) {
-    STMT2_TLOG_E("wait for asyncExecSem");
     if (tsem_wait(&pStmt->asyncExecSem) != 0) {
       STMT2_ELOG_E("fail to wait asyncExecSem");
     }
