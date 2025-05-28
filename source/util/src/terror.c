@@ -401,13 +401,14 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_COMPACT_DETAIL_NOT_EXIST, "compact detail doesn'
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COMPACT_ALREADY_EXIST,    "compact already exist")
 
 // mnode-mount
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_DUP_DB_EXIST,       "Database with identical name already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_DUP_DB_NAME_EXIST,  "Database with identical name already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_DUP_DB_ID_EXIST,    "Database with identical id already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_ALREADY_EXIST,      "Mount already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_NOT_EXIST,          "Mount not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_IN_CREATING,        "Mount in creating status")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_IN_DROPPING,        "Mount in dropping status")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_MOUNT_INFO,       "Invalid mount info")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_NOT_EMPTY,          "Mount db exist, please drop first")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_NOT_EMPTY,          "Mounted db exist, please drop it first")
 
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_OFFLINE,                "Dnode is offline")

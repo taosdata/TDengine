@@ -779,6 +779,28 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
 }
 #endif
 
+static int32_t mndMountDupDbIdExist(SMnode *pMnode, SMountInfo *pInfo) {
+  void   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  SDbObj *pDb = NULL;
+  int32_t nDbs = taosArrayGetSize(pInfo->pDbs);
+  while ((pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb))) {
+    if (pIter == NULL) break;
+    for (int32_t i = 0; i < nDbs; ++i) {
+      SMountDbInfo *pMountDb = TARRAY_GET_ELEM(pInfo->pDbs, i);
+      if (pMountDb->dbId == pDb->uid) {
+        mWarn("mount:%s, db:%s, dbId:%d is already exist", pInfo->mountName, pMountDb->dbName, pMountDb->dbId);
+        sdbRelease(pSdb, pDb);
+        sdbCancelFetch(pSdb, pIter);
+        return TSDB_CODE_MND_MOUNT_DUP_DB_ID_EXIST;
+      }
+    }
+    sdbRelease(pSdb, pDb);
+  }
+
+  return 0;
+}
+
 static int32_t mndCreateMount(SMnode * pMnode, SRpcMsg * pReq, SMountInfo * pInfo, SUserObj * pUser) {
   int32_t   code = 0, lino = 0;
   SUserObj  newUserObj = {0};
@@ -835,6 +857,8 @@ static int32_t mndCreateMount(SMnode * pMnode, SRpcMsg * pReq, SMountInfo * pInf
 #endif
     nVgs += taosArrayGetSize(pDb->pVgs);
   }
+
+  TAOS_CHECK_EXIT(mndMountDupDbIdExist(pMnode, pInfo));
 
   TSDB_CHECK_NULL((pDbs = taosMemoryCalloc(nDbs, sizeof(SDbObj))), code, lino, _exit, terrno);
   TSDB_CHECK_NULL((pVgs = taosMemoryCalloc(nVgs, sizeof(SVgObj))), code, lino, _exit, terrno);
@@ -1057,7 +1081,7 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
 
   if((pDb = mndAcquireDb(pMnode, createReq.mountName))) {
     mndReleaseDb(pMnode, pDb);
-    TAOS_CHECK_EXIT(TSDB_CODE_MND_MOUNT_DUP_DB_EXIST);
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_MOUNT_DUP_DB_NAME_EXIST);
   }
 
   if ((pObj = mndAcquireMount(pMnode, createReq.mountName))) {
@@ -1122,7 +1146,7 @@ static int32_t mndProcessExecuteMountReq(SRpcMsg *pReq) {
 
   if((pDb = mndAcquireDb(pMnode, mntInfo.mountName))) {
     mndReleaseDb(pMnode, pDb);
-    TAOS_CHECK_EXIT(TSDB_CODE_MND_MOUNT_DUP_DB_EXIST);
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_MOUNT_DUP_DB_NAME_EXIST);
   }
 
   if ((pObj = mndAcquireMount(pMnode, mntInfo.mountName))) {
