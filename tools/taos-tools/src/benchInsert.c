@@ -1823,6 +1823,14 @@ static void *syncWriteInterlace(void *sarg) {
         }
     }    
 
+    if (stbInfo->insert_interval > 0 && !fillBack) {
+        time(&current_time);
+        time_info = localtime(&current_time);
+        char time_buffer[80];
+        strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", time_info);
+        infoPrint("thread id: %d begine writing, current : %s, \n", pThreadInfo->threadID, time_buffer);
+    }
+    
     while (insertRows > 0) {
         int64_t tmp_total_insert_rows = 0;
         uint32_t generated = 0;
@@ -2171,7 +2179,7 @@ static void *syncWriteInterlace(void *sarg) {
                     time_info = localtime(&current_time);
                     char time_buffer[80];
                     strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", time_info);
-                    infoPrint("thread id: %d completed writing, begine sleep time: %s\n", pThreadInfo->threadID, time_buffer);
+                    infoPrint("thread id: %d completed writing, current time: %s\n", pThreadInfo->threadID, time_buffer);
 
                     debugPrint("%s() LN%d, insert_interval: %"PRIu64"\n",
                           __func__, __LINE__, stbInfo->insert_interval);
@@ -2183,7 +2191,7 @@ static void *syncWriteInterlace(void *sarg) {
                     time_info = localtime(&current_time);
                     time_buffer[80];
                     strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", time_info);
-                    infoPrint("thread id: %d end sleep time: %s, begine writing\n", pThreadInfo->threadID, time_buffer);
+                    infoPrint("thread id: %d begine writing, current : %s, \n", pThreadInfo->threadID, time_buffer);
                 }
 
                 i++;
