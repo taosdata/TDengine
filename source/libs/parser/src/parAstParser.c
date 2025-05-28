@@ -619,8 +619,7 @@ static int32_t collectMetaKeyFromCreateStream(SCollectMetaKeyCxt* pCxt, SCreateS
   }
   SRealTableNode *pTriggerTable = (SRealTableNode*)((SStreamTriggerNode*)pStmt->pTrigger)->pTrigerTable;
   if (pTriggerTable) {
-    reserveTableMetaInCache(pCxt->pParseCxt->acctId, pTriggerTable->table.dbName, pTriggerTable->table.tableName, pCxt->pMetaCache);
-    reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pTriggerTable->table.dbName, pTriggerTable->table.tableName, pCxt->pMetaCache);
+    PAR_ERR_RET(collectMetaKeyFromRealTableImpl(pCxt, pTriggerTable->table.dbName, pTriggerTable->table.tableName, AUTH_TYPE_READ));
   }
   if (pStmt->pQuery) {
     PAR_ERR_RET(collectMetaKeyFromQuery(pCxt, pStmt->pQuery));
