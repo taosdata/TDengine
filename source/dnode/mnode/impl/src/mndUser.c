@@ -18,6 +18,7 @@
 #ifndef TD_ASTRA
 #include <uv.h>
 #endif
+#include "crypt.h"
 #include "mndUser.h"
 #include "audit.h"
 #include "mndDb.h"
@@ -31,7 +32,7 @@
 // clang-format on
 
 #define USER_VER_NUMBER   6
-#define USER_RESERVE_SIZE 64
+#define USER_RESERVE_SIZE 63
 
 #define BIT_FLAG_MASK(n)              (1 << n)
 #define BIT_FLAG_SET_MASK(val, mask)  ((val) |= (mask))
@@ -1178,6 +1179,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_BINARY(pRaw, dataPos, buf, len, _OVER);
 
   SDB_SET_INT64(pRaw, dataPos, pUser->ipWhiteListVer, _OVER);
+  SDB_SET_INT8(pRaw, dataPos, pUser->passEncryptAlgorythm, _OVER);
 
   SDB_SET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
@@ -1498,6 +1500,8 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     pUser->ipWhiteListVer = taosGetTimestampMs();
   }
 
+  SDB_GET_INT8(pRaw, dataPos, &pUser->passEncryptAlgorythm, _OVER);
+
   SDB_GET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pUser->lock);
 
@@ -1705,18 +1709,47 @@ void mndReleaseUser(SMnode *pMnode, SUserObj *pUser) {
   sdbRelease(pSdb, pUser);
 }
 
+int32_t mndEncryptPass(char *pass, int8_t *algo) {
+  int32_t code = 0;
+  if (tsiEncryptPassAlgorithm == DND_CA_SM4) {
+    if (strlen(tsEncryptKey) == 0) {
+      code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+      goto _OVER;
+    }
+    unsigned char PacketData[128];
+    int           NewLen;
+
+    SCryptOpts opts = {0};
+    opts.len = 32;
+    opts.source = pass;
+    opts.result = PacketData;
+    opts.unitLen = 32;
+    tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+
+    NewLen = CBC_Encrypt(&opts);
+
+    memcpy(pass, PacketData, NewLen);
+
+    if (algo != NULL) *algo = DND_CA_SM4;
+  }
+_OVER:
+  return code;
+}
+
 static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate, SRpcMsg *pReq) {
   int32_t  code = 0;
   int32_t  lino = 0;
   SUserObj userObj = {0};
 
   if (pCreate->passIsMd5 == 1) {
-    memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
+    memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN - 1);
+    TAOS_CHECK_RETURN(mndEncryptPass(userObj.pass, &userObj.passEncryptAlgorythm));
   } else {
     if (pCreate->isImport != 1) {
       taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.pass);
+      userObj.pass[TSDB_PASSWORD_LEN - 1] = 0;
+      TAOS_CHECK_RETURN(mndEncryptPass(userObj.pass, &userObj.passEncryptAlgorythm));
     } else {
-      // mInfo("pCreate->pass:%s", pCreate->eass)
       memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
     }
   }
@@ -2420,6 +2453,8 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     } else {
       taosEncryptPass_c((uint8_t *)alterReq.pass, strlen(alterReq.pass), newUser.pass);
     }
+
+    TAOS_CHECK_GOTO(mndEncryptPass(newUser.pass, &newUser.passEncryptAlgorythm), &lino, _OVER);
 
     if (0 != strncmp(pUser->pass, newUser.pass, TSDB_PASSWORD_LEN)) {
       ++newUser.passVersion;
