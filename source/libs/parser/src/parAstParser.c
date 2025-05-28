@@ -619,7 +619,11 @@ static int32_t collectMetaKeyFromCreateStream(SCollectMetaKeyCxt* pCxt, SCreateS
   }
   SRealTableNode *pTriggerTable = (SRealTableNode*)((SStreamTriggerNode*)pStmt->pTrigger)->pTrigerTable;
   if (pTriggerTable) {
-    PAR_ERR_RET(collectMetaKeyFromRealTableImpl(pCxt, pTriggerTable->table.dbName, pTriggerTable->table.tableName, AUTH_TYPE_READ));
+    SCollectMetaKeyFromExprCxt cxt = {.pComCxt = pCxt, .hasLastRowOrLast = false, .tbnameCollect = true, .errCode = TSDB_CODE_SUCCESS};
+    cxt.pComCxt->collectVStbRefDbs = true;
+    EDealRes res = collectMetaKeyFromRealTable(&cxt, pTriggerTable);
+    PAR_ERR_RET(cxt.errCode);
+    PAR_ERR_RET(reserveDbCfgInCache(pCxt->pParseCxt->acctId, pTriggerTable->table.dbName, pCxt->pMetaCache));
   }
   if (pStmt->pQuery) {
     PAR_ERR_RET(collectMetaKeyFromQuery(pCxt, pStmt->pQuery));
