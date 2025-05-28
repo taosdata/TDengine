@@ -66,12 +66,14 @@ class TestStreamDevBasic2:
         sql3 = "create stream s3 state_window (v1)        from stream_trigger partition by tbname into out3                              as select _twstart ts, count(*) c1, avg(v1) c2 from stb;"
         sql4 = "create stream s4 state_window (v1)        from stream_trigger                     into out4                              as select _twstart ts, count(*) c1, avg(v1) c2 from stb;"
         sql6 = "create stream s6 sliding (1s)             from stream_trigger                     into out6                              as select _tcurrent_ts, now, count(v1) from stb;"
+        sql7 = "create stream s7 state_window (v1) from stream_trigger partition by tbname options(fill_history_first(1)) into out7 as select _twstart, avg(v1) from stb;"
 
         tdSql.execute(sql1)
         tdSql.execute(sql2)
         tdSql.execute(sql3)
         tdSql.execute(sql4)
         tdSql.execute(sql6)
+        tdSql.execute(sql7)
 
         tdStream.checkStreamStatus()
 
@@ -138,4 +140,16 @@ class TestStreamDevBasic2:
             and tdSql.compareData(0, 2, 6)
             and tdSql.compareData(1, 0, "2025-01-01 00:00:01.999")
             and tdSql.compareData(1, 2, 6),
+        )
+
+        result_sql7 = "select * from test.out7"
+        tdSql.checkResultsByFunc(
+            sql=result_sql7,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+            and tdSql.compareData(0, 2, 6)
+            and tdSql.compareData(0, 3, "stream_trigger")
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:01")
+            and tdSql.compareData(1, 2, 6)
+            and tdSql.compareData(1, 3, "stream_trigger"),
         )
