@@ -1,6 +1,14 @@
 
 MESSAGE(STATUS "build taos-tools unit test")
 
+IF (DEFINED TD_VER_NUMBER)
+    ADD_DEFINITIONS(-DTD_VER_NUMBER="${TD_VER_NUMBER}")
+    MESSAGE(STATUS "version:${TD_VER_NUMBER}")
+ELSE ()    
+    # abort build
+    MESSAGE(FATAL_ERROR "build taos-tools not found TD_VER_NUMBER define.")
+ENDIF ()
+
 IF(TD_LINUX)
 
     # GoogleTest requires at least C++11
@@ -20,6 +28,10 @@ IF(TD_LINUX)
         "../src/wrapDb.c"
         "../src/benchDataMix.c"
         "../src/benchJsonOpt.c"
+        "../src/benchSys.c"
+        "../src/toolsString.c"
+        "../src/toolsSys.c"
+        "../src/benchCommandOpt.c"
     )
 
     ADD_EXECUTABLE(benchmarkTest benchmarkTest.cpp ${BENCHMARK_SRC})
