@@ -87,9 +87,9 @@ class TestStreamDevBasic2:
             stream.check()
 
     def checks1(self):
-        result_sql1 = "select ts, c1, c2 from test.out1"
+        result_sql = "select ts, c1, c2 from test.out1"
         tdSql.checkResultsByFunc(
-            sql=result_sql1,
+            sql=result_sql,
             func=lambda: tdSql.getRows() == 2
             and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
             and tdSql.compareData(0, 1, 2)
@@ -99,10 +99,27 @@ class TestStreamDevBasic2:
             and tdSql.compareData(1, 2, 1.5),
         )
 
+        tdSql.query("desc test.out1")
+        tdSql.printResult()
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, "ts")
+        tdSql.checkData(1, 0, "c1")
+        tdSql.checkData(2, 0, "c2")
+        tdSql.checkData(3, 0, "gid")
+        tdSql.checkData(0, 1, "TIMESTAMP")
+        tdSql.checkData(1, 1, "BIGINT")
+        tdSql.checkData(2, 1, "DOUBLE")
+        tdSql.checkData(3, 1, "BIGINT")
+        tdSql.checkData(0, 2, "8")
+        tdSql.checkData(1, 2, "8")
+        tdSql.checkData(2, 2, "8")
+        tdSql.checkData(3, 2, "8")
+        tdSql.checkData(3, 3, "TAG")
+
     def checks2(self):
-        result_sql2 = "select ts, c1, `avg(v1)` from test.out2"
+        result_sql = "select ts, c1, `avg(v1)` from test.out2"
         tdSql.checkResultsByFunc(
-            sql=result_sql2,
+            sql=result_sql,
             func=lambda: tdSql.getRows() == 2
             and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
             and tdSql.compareData(0, 1, 2)
@@ -113,9 +130,9 @@ class TestStreamDevBasic2:
         )
 
     def checks3(self):
-        result_sql3 = "select ts, c1, c2 from test.out3"
+        result_sql = "select ts, c1, c2 from test.out3"
         tdSql.checkResultsByFunc(
-            sql=result_sql3,
+            sql=result_sql,
             func=lambda: tdSql.getRows() == 2
             and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
             and tdSql.compareData(0, 1, 6)
@@ -126,9 +143,9 @@ class TestStreamDevBasic2:
         )
 
     def checks4(self):
-        result_sql4 = "select ts, c1, c2 from test.out4"
+        result_sql = "select ts, c1, c2 from test.out4"
         tdSql.checkResultsByFunc(
-            sql=result_sql4,
+            sql=result_sql,
             func=lambda: tdSql.getRows() == 2
             and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
             and tdSql.compareData(0, 1, 6)
@@ -139,9 +156,9 @@ class TestStreamDevBasic2:
         )
 
     def checks6(self):
-        result_sql6 = "select * from test.out6"
+        result_sql = "select * from test.out6"
         tdSql.checkResultsByFunc(
-            sql=result_sql6,
+            sql=result_sql,
             func=lambda: tdSql.getRows() == 2
             and tdSql.compareData(0, 0, "2025-01-01 00:00:00.999")
             and tdSql.compareData(0, 2, 6)
@@ -150,9 +167,9 @@ class TestStreamDevBasic2:
         )
 
     def checks7(self):
-        result_sql7 = "select * from test.out7"
+        result_sql = "select * from test.out7"
         tdSql.checkResultsByFunc(
-            sql=result_sql7,
+            sql=result_sql,
             func=lambda: tdSql.getRows() == 2
             and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
             and tdSql.compareData(0, 2, 6)
@@ -163,9 +180,9 @@ class TestStreamDevBasic2:
         )
 
     def checks8(self):
-        result_sql8 = "select ts, c1, c2, ts2 from test.out8"
+        result_sql = "select ts, c1, c2, ts2 from test.out8"
         tdSql.checkResultsByFunc(
-            sql=result_sql8,
+            sql=result_sql,
             func=lambda: tdSql.getRows() == 2
             and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
             and tdSql.compareData(0, 1, 6)
