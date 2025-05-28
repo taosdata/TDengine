@@ -2647,7 +2647,7 @@ static int32_t parseDataFromFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
     }
     strncpy(filePathStr, pFilePath->z, pFilePath->n);
   }
-  pStmt->fp = taosOpenFile(filePathStr, TD_FILE_READ | TD_FILE_STREAM);
+  pStmt->fp = taosOpenFile(filePathStr, TD_FILE_READ);
   if (NULL == pStmt->fp) {
     return terrno;
   }
@@ -3801,9 +3801,16 @@ static int32_t csvRowToSqlTokens(SCsvRow* row, char** pSqlRow) {
   // Calculate required buffer size
   size_t totalLen = 0;
   for (int32_t i = 0; i < row->fieldCount; i++) {
-    totalLen += row->fields[i].len;
-    if (i > 0) totalLen += 1;  // for comma
-    totalLen += 2;             // for potential quotes or spaces
+    // Count single quotes that need escaping
+    size_t fieldLen = row->fields[i].len;
+    for (size_t j = 0; j < fieldLen; j++) {
+      if (row->fields[i].data[j] == '\'') {
+        fieldLen++;  // Each single quote becomes two
+      }
+    }
+    totalLen += fieldLen;
+    if (i > 0) totalLen += 3;  // for " , "
+    totalLen += 6;             // for potential quotes, NULL, and extra spaces
   }
   totalLen += 1;  // for null terminator
 
@@ -3815,13 +3822,49 @@ static int32_t csvRowToSqlTokens(SCsvRow* row, char** pSqlRow) {
   size_t pos = 0;
   for (int32_t i = 0; i < row->fieldCount; i++) {
     if (i > 0) {
+      sqlRow[pos++] = ' ';
       sqlRow[pos++] = ',';
+      sqlRow[pos++] = ' ';
     }
 
     SCsvField* field = &row->fields[i];
-    if (field->len > 0) {
-      memcpy(sqlRow + pos, field->data, field->len);
-      pos += field->len;
+
+    // Handle empty fields as NULL
+    if (field->len == 0) {
+      memcpy(sqlRow + pos, "NULL", 4);
+      pos += 4;
+    } else {
+      // Check if field needs quoting (contains spaces, commas, or special chars)
+      bool needsQuoting = field->quoted;
+      if (!needsQuoting) {
+        for (size_t j = 0; j < field->len; j++) {
+          char ch = field->data[j];
+          if (ch == ' ' || ch == ',' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '"' || ch == '\'' ||
+              ch == '(' || ch == ')') {
+            needsQuoting = true;
+            break;
+          }
+        }
+      }
+
+      if (needsQuoting) {
+        sqlRow[pos++] = '\'';
+        // Copy field data, escaping single quotes
+        for (size_t j = 0; j < field->len; j++) {
+          char ch = field->data[j];
+          if (ch == '\'') {
+            sqlRow[pos++] = '\'';  // Escape single quote with double quote
+          }
+          sqlRow[pos++] = ch;
+        }
+        sqlRow[pos++] = '\'';
+      } else {
+        // Simple copy for unquoted fields
+        if (field->len > 0) {
+          memcpy(sqlRow + pos, field->data, field->len);
+          pos += field->len;
+        }
+      }
     }
   }
   sqlRow[pos] = '\0';
