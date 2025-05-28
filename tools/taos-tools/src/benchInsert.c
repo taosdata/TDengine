@@ -2178,7 +2178,6 @@ static void *syncWriteInterlace(void *sarg) {
                     perfPrint("sleep %" PRIu64 " ms\n",
                                      stbInfo->insert_interval);
                     toolsMsleep((int32_t)stbInfo->insert_interval);
-                                        time(&current_time);
                 }
 
                 i++;
