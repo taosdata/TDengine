@@ -30,9 +30,8 @@ class TestStreamSubqueryBasic:
         self.createDatabase()
         self.prepareQueryData()
         self.prepareTriggerData()
-        return
         self.createStream()
-        self.trigStream()
+        self.triggerStream()
         self.checkStreamStatus()
         self.checkResults()
 
@@ -47,11 +46,11 @@ class TestStreamSubqueryBasic:
 
         tdSql.prepare(dbname="qdb", vgroups=1)
         tdSql.prepare(dbname="tdb", vgroups=1)
-        # tdSql.prepare("rdb", vgroups=1)
+        tdSql.prepare("rdb", vgroups=1)
         # tdSql.prepare("qdb2", vgroups=1)
         clusterComCheck.checkDbReady("qdb")
         clusterComCheck.checkDbReady("tdb")
-        # clusterComCheck.checkDbReady("rdb")
+        clusterComCheck.checkDbReady("rdb")
         # clusterComCheck.checkDbReady("qdb2")
 
     def prepareQueryData(self):
@@ -76,18 +75,18 @@ class TestStreamSubqueryBasic:
         tdSql.execute("create table tdb.t3 using tdb.triggers tags(1)")
 
     def createStream(self):
-        self.streams = [
+        data = [
             self.TestStreamSubqueryBaiscItem(
-                id=0,
+                id=1,
                 trigger="interval(5m) sliding(5m) from qdb.meters partition by tbname",
                 output="tags(gid bigint as _tgrpid)",
-                sub_query="select _twstart ts, count(current) cnt from qdb.meters where ts >= _twstart and ts < _twend;",
-                res_query="select ts, cnt from rdb.s0",
-                exp_query="select _wstart ts, count(current) cnt from qdb.meters interval(5m)",
+                sub_query="select _twstart ts, count(cint) c1, avg(cint) c2 from qdb.meters where ts >= _twstart and ts < _twend;",
+                res_query="select ts, c1, c2 from rdb.s1",
+                exp_query="select _wstart ts, count(cint) c1, avg(cint) c2 from qdb.meters interval(5m)",
                 exp_rows=[],
             ),
             self.TestStreamSubqueryBaiscItem(
-                id=1,
+                id=2,
                 trigger="create stream s0 interval(5m) sliding(5m) from qdb.meters into rdb.rs0 tags (gid bigint as _tgrpid)",
                 output="",
                 sub_query="select _wstart ts, count(current) cnt from qdb.meters",
@@ -97,29 +96,28 @@ class TestStreamSubqueryBasic:
             ),
         ]
 
-        self.test_list = [0]
+        self.streams = []
+        self.streams.append(data[0])
 
-        tdLog.info(f"create total:{len(self.test_list)} streams")
+        tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
-            if stream.id in self.test_list:
-                stream.createStream()
+            stream.createStream()
 
     def checkStreamStatus(self):
-        tdLog.info(f"wait total:{len(self.test_list)} streams run finish")
+        tdLog.info(f"wait total:{len(self.streams)} streams run finish")
         tdStream.checkStreamStatus()
 
-    def trigStream(self):
-        tdLog.info("write data to trig stream")
+    def triggerStream(self):
+        tdLog.info("write data to trigger stream")
         sqls = [
             "insert into tdb.t1 values ('2025-01-01 00:00:00', 0, 0), ('2025-01-01 00:05:00', 1, 1), ('2025-01-01 00:10:00', 2, 2)"
         ]
         tdSql.executes(sqls)
 
     def checkResults(self):
-        tdLog.info(f"check total:{len(self.test_list)} streams result")
+        tdLog.info(f"check total:{len(self.streams)} streams result")
         for stream in self.streams:
-            if stream.id in self.test_list:
-                stream.checkResults(print=True)
+            stream.checkResults(print=True)
 
     class TestStreamSubqueryBaiscItem:
         def __init__(
@@ -138,9 +136,11 @@ class TestStreamSubqueryBasic:
         def createStream(self):
             sql = f"create stream s{self.id} {self.trigger} into rdb.s{self.id} {self.output} as {self.sub_query}"
             tdLog.info(f"create stream:{self.name}, sql:{sql}")
+            tdSql.execute(sql)
 
         def checkResults(self, print=False):
             tdLog.info(f"check stream:{self.name} result")
+            tdSql.pause()
 
             tmp_result = tdSql.getResult(self.exp_query)
             if self.exp_rows == []:

@@ -165,14 +165,14 @@ class StreamUtil:
                 tnchar = tvarchar
                 tvarbinary = tvarchar
                 tgeometry = "POINT(1.0 1.0)" if table % 3 == 1 else "POINT(2.0 2.0)"
-                sql += f"{db}.d{table} using {db}.{stb} tags({tts}, {tint}, {tuint}, {tbigint}, {tubigint}, {tfloat}, {tdouble}, '{tvarchar}', {tsmallint}, {tusmallint}, {ttinyint}, {tutinyint}, {tbool}, '{tnchar}', '{tvarbinary}', '{tgeometry}') "
+                sql += f"{db}.t{table} using {db}.{stb} tags({tts}, {tint}, {tuint}, {tbigint}, {tubigint}, {tfloat}, {tdouble}, '{tvarchar}', {tsmallint}, {tusmallint}, {ttinyint}, {tutinyint}, {tbool}, '{tnchar}', '{tvarbinary}', '{tgeometry}') "
             tdSql.execute(sql)
 
         totalRows = rowsPerBatch * rowBatch
         tdLog.info(f"write total:{totalRows} rows, {rowsPerBatch} rows per table")
         for table in range(totalTables):
             for batch in range(rowBatch):
-                sql = f"insert into {db}.d{table} values "
+                sql = f"insert into {db}.t{table} values "
                 for row in range(rowsPerBatch):
                     rows = batch * rowsPerBatch + row
                     ts = tsStart + rows * tsInterval
@@ -363,21 +363,21 @@ class StreamUtil:
 
             tdSql.execute(
                 f"create vtable v{table}("
-                f"  d{t0}.cint"
-                f", d{t0}.cuint"
-                f", d{t1}.cbigint"
-                f", d{t1}.cubigint"
-                f", d{t2}.cfloat"
-                f", d{t2}.cdouble"
-                f", d{t3}.cvarchar"
-                f", d{t4}.csmallint"
-                f", d{t4}.cusmallint"
-                f", d{t5}.ctinyint"
-                f", d{t5}.cutinyint"
-                f", d{t7}.cbool"
-                f", d{t8}.cnchar"
-                f", d{t8}.cvarbinary"
-                f", d{t9}.cgeometry"
+                f"  t{t0}.cint"
+                f", t{t0}.cuint"
+                f", t{t1}.cbigint"
+                f", t{t1}.cubigint"
+                f", t{t2}.cfloat"
+                f", t{t2}.cdouble"
+                f", t{t3}.cvarchar"
+                f", t{t4}.csmallint"
+                f", t{t4}.cusmallint"
+                f", t{t5}.ctinyint"
+                f", t{t5}.cutinyint"
+                f", t{t7}.cbool"
+                f", t{t8}.cnchar"
+                f", t{t8}.cvarbinary"
+                f", t{t9}.cgeometry"
                 f") using {db}.{stb} tags("
                 f"  {tts}"
                 f", {tint}"
