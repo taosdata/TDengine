@@ -1395,6 +1395,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   char defaultFirstEp[TSDB_EP_LEN] = {0};
   (void)snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableIpv6");
+  tsEnableIpv6 = pItem->bval;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "firstEp");
   SEp firstEp = {0};
   TAOS_CHECK_RETURN(taosGetFqdnPortFromEp(strlen(pItem->str) == 0 ? defaultFirstEp : pItem->str, &firstEp));
@@ -1544,8 +1547,6 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "compareAsStrInGreatest");
   tsCompareAsStrInGreatest = pItem->bval;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableIpv6");
-  tsEnableIpv6 = pItem->bval;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
