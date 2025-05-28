@@ -43,11 +43,8 @@ def pytest_addoption(parser):
                     help="Path to file containing list of test files to run")
     parser.addoption("--skip_stop", action="store_true",
                     help="Do not destroy/stop the TDengine cluster after test class execution (for debugging or keeping environment alive)")
-<<<<<<< HEAD
     parser.addoption("--only_deploy", action="store_true",
                      help="Only deploy the environment without running any test cases")
-=======
->>>>>>> 3.0
     #parser.addoption("--setup_all", action="store_true",
     #                help="Setup environment once before all tests running")
 
