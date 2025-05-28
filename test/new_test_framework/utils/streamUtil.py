@@ -23,6 +23,7 @@ from .log import *
 from .sql import *
 from .server.dnodes import *
 from .common import *
+from datetime import datetime
 
 
 class StreamUtil:
@@ -76,6 +77,325 @@ class StreamUtil:
                 tdSql.execute(f"drop database {dbList[r][0]}")
 
         tdLog.info(f"drop {len(dbList)} databases, {len(streamList)} streams")
+
+    def prepareChildTables(
+        self,
+        db="qdb",
+        stb="meters",
+        precision="ms",
+        start="2025-01-01 00.00.00",
+        interval=30,
+        tbBatch=2,
+        tbPerBatch=100,
+        rowBatch=2,
+        rowsPerBatch=500,
+    ):
+        tdLog.info(f"create super table")
+        tdSql.execute(
+            f"create stable {db}.{stb} ("
+            "  ts timestamp"
+            ", cint int"
+            ", cuint int unsigned"
+            ", cbigint bigint"
+            ", cubigint bigint unsigned"
+            ", cfloat float"
+            ", cdouble double"
+            ", cvarchar varchar(32)"
+            ", csmallint smallint"
+            ", cusmallint smallint unsigned"
+            ", ctinyint tinyint"
+            ", cutinyint tinyint unsigned"
+            ", cbool bool"
+            ", cnchar nchar(32)"
+            ", cvarbinary varbinary(32)"
+            ", cdecimal8 decimal(8)"
+            ", cdecimal16 decimal(16)"
+            ", cgeometry geometry(32)"
+            ") tags("
+            "  tts timestamp"
+            ", tint int"
+            ", tuint int unsigned"
+            ", tbigint bigint"
+            ", tubigint bigint unsigned"
+            ", tfloat float"
+            ", tdouble double"
+            ", tvarchar varchar(32)"
+            ", tsmallint smallint"
+            ", tusmallint smallint unsigned"
+            ", ttinyint tinyint"
+            ", tutinyint tinyint unsigned"
+            ", tbool bool"
+            ", tnchar nchar(16)"
+            ", tvarbinary varbinary(32)"
+            ", tgeometry geometry(32)"
+            ")"
+        )
+
+        dt = datetime.strptime(start, "%Y-%m-%d %H.%M.%S")
+        if precision == "us":
+            prec = 1000 * 1000 * 1000
+        elif precision == "ns":
+            prec = 1000 * 1000
+        else:
+            prec = 1000
+
+        tsStart = int(dt.timestamp() * prec)
+        tsNext = tsStart + 86400 * prec
+        tsInterval = interval * prec
+
+        totalTables = tbBatch * tbPerBatch
+        tdLog.info(f"create total {totalTables} child tables")
+        for batch in range(tbBatch):
+            sql = "create table "
+            for tb in range(tbPerBatch):
+                table = batch * tbPerBatch + tb
+                tts = tsStart if table % 3 == 1 else tsNext
+                tint = table % 3
+                tuint = table % 4
+                tbigint = table % 5
+                tubigint = table % 6
+                tfloat = table % 7
+                tdouble = table % 8
+                tvarchar = "SanFrancisco" if table % 3 == 1 else "LosAngeles"
+                tsmallint = table % 9
+                tusmallint = table % 10
+                ttinyint = table % 11
+                tutinyint = table % 12
+                tbool = table % 2
+                tnchar = tvarchar
+                tvarbinary = tvarchar
+                tgeometry = "POINT(1.0 1.0)" if table % 3 == 1 else "POINT(2.0 2.0)"
+                sql += f"{db}.d{table} using {db}.{stb} tags({tts}, {tint}, {tuint}, {tbigint}, {tubigint}, {tfloat}, {tdouble}, '{tvarchar}', {tsmallint}, {tusmallint}, {ttinyint}, {tutinyint}, {tbool}, '{tnchar}', '{tvarbinary}', '{tgeometry}') "
+            tdSql.execute(sql)
+
+        totalRows = rowsPerBatch * rowBatch
+        tdLog.info(f"write total:{totalRows} rows, {rowsPerBatch} rows per table")
+        for table in range(totalTables):
+            for batch in range(rowBatch):
+                sql = f"insert into {db}.d{table} values "
+                for row in range(rowsPerBatch):
+                    rows = batch * rowsPerBatch + row
+                    ts = tsStart + rows * tsInterval
+                    cint = rows
+                    cuint = rows % 4
+                    cbigint = rows % 5
+                    cubigint = rows % 6
+                    cfloat = rows % 7
+                    cdouble = rows % 8
+                    cvarchar = "SanFrancisco" if rows % 3 == 1 else "LosAngeles"
+                    csmallint = rows % 9
+                    cusmallint = rows % 10
+                    ctinyint = rows % 11
+                    cutinyint = rows % 12
+                    cbool = rows % 2
+                    cnchar = cvarchar
+                    cvarbinary = cvarchar
+                    cdecimal8 = "0" if rows % 3 == 1 else "8"
+                    cdecimal16 = "4" if rows % 3 == 1 else "16"
+                    cgeometry = "POINT(1.0 1.0)" if rows % 3 == 1 else "POINT(2.0 2.0)"
+                    sql += f"({ts}, {cint}, {cuint}, {cbigint}, {cubigint}, {cfloat}, {cdouble}, '{cvarchar}', {csmallint}, {cusmallint}, {ctinyint}, {cutinyint}, {cbool}, '{cnchar}', '{cvarbinary}', '{cdecimal8}', '{cdecimal16}', '{cgeometry}') "
+                tdSql.execute(sql)
+
+    def prepareNormalTables(
+        self,
+        db="qdb",
+        precision="ms",
+        start="2025-01-01 00.00.00",
+        interval=30,
+        tables=10,
+        rowBatch=2,
+        rowsPerBatch=500,
+    ):
+        dt = datetime.strptime(start, "%Y-%m-%d %H.%M.%S")
+        if precision == "us":
+            prec = 1000 * 1000 * 1000
+        elif precision == "ns":
+            prec = 1000 * 1000
+        else:
+            prec = 1000
+
+        tsStart = int(dt.timestamp() * prec)
+        tsInterval = interval * prec
+
+        tdLog.info(f"create total {tables} normal tables")
+        for table in range(tables):
+            tdSql.execute(
+                f"create table {db}.n{table} ("
+                "  ts timestamp"
+                ", cint int"
+                ", cuint int unsigned"
+                ", cbigint bigint"
+                ", cubigint bigint unsigned"
+                ", cfloat float"
+                ", cdouble double"
+                ", cvarchar varchar(32)"
+                ", csmallint smallint"
+                ", cusmallint smallint unsigned"
+                ", ctinyint tinyint"
+                ", cutinyint tinyint unsigned"
+                ", cbool bool"
+                ", cnchar nchar(32)"
+                ", cvarbinary varbinary(32)"
+                ", cdecimal8 decimal(8)"
+                ", cdecimal16 decimal(16)"
+                ", cgeometry geometry(32)"
+                ")"
+            )
+
+        totalRows = rowsPerBatch * rowBatch
+        tdLog.info(f"write total:{totalRows} rows, {rowsPerBatch} rows per table")
+        for table in range(tables):
+            for batch in range(rowBatch):
+                sql = f"insert into {db}.n{table} values "
+                for row in range(rowsPerBatch):
+                    rows = batch * rowsPerBatch + row
+                    ts = tsStart + rows * tsInterval
+                    cint = rows
+                    cuint = rows % 4
+                    cbigint = rows % 5
+                    cubigint = rows % 6
+                    cfloat = rows % 7
+                    cdouble = rows % 8
+                    cvarchar = "SanFrancisco" if rows % 3 == 1 else "LosAngeles"
+                    csmallint = rows % 9
+                    cusmallint = rows % 10
+                    ctinyint = rows % 11
+                    cutinyint = rows % 12
+                    cbool = rows % 2
+                    cnchar = cvarchar
+                    cvarbinary = cvarchar
+                    cdecimal8 = "0" if rows % 3 == 1 else "8"
+                    cdecimal16 = "4" if rows % 3 == 1 else "16"
+                    cgeometry = "POINT(1.0 1.0)" if rows % 3 == 1 else "POINT(2.0 2.0)"
+                    sql += f"({ts}, {cint}, {cuint}, {cbigint}, {cubigint}, {cfloat}, {cdouble}, '{cvarchar}', {csmallint}, {cusmallint}, {ctinyint}, {cutinyint}, {cbool}, '{cnchar}', '{cvarbinary}', '{cdecimal8}', '{cdecimal16}', '{cgeometry}')"
+                tdSql.execute(sql)
+
+    def prepareVirtualTables(
+        self,
+        db="qdb",
+        stb="vmeters",
+        precision="ms",
+        start="2025-01-01 00.00.00",
+        tables=10,
+    ):
+        # each virtual table is sourced from 10 child-tables.
+        tdSql.execute(f"use {db}")
+
+        dt = datetime.strptime(start, "%Y-%m-%d %H.%M.%S")
+        if precision == "us":
+            prec = 1000 * 1000 * 1000
+        elif precision == "ns":
+            prec = 1000 * 1000
+        else:
+            prec = 1000
+
+        tsStart = int(dt.timestamp() * prec)
+        tsNext = tsStart + 86400 * prec
+
+        tdLog.info(f"create virtual super table")
+        tdSql.execute(
+            f"create stable {db}.{stb} ("
+            "  ts timestamp"
+            ", cint int"
+            ", cuint int unsigned"
+            ", cbigint bigint"
+            ", cubigint bigint unsigned"
+            ", cfloat float"
+            ", cdouble double"
+            ", cvarchar varchar(32)"
+            ", csmallint smallint"
+            ", cusmallint smallint unsigned"
+            ", ctinyint tinyint"
+            ", cutinyint tinyint unsigned"
+            ", cbool bool"
+            ", cnchar nchar(32)"
+            ", cvarbinary varbinary(32)"
+            ", cgeometry geometry(32)"
+            ") tags("
+            "  tts timestamp"
+            ", tint int"
+            ", tuint int unsigned"
+            ", tbigint bigint"
+            ", tubigint bigint unsigned"
+            ", tfloat float"
+            ", tdouble double"
+            ", tvarchar varchar(32)"
+            ", tsmallint smallint"
+            ", tusmallint smallint unsigned"
+            ", ttinyint tinyint"
+            ", tutinyint tinyint unsigned"
+            ", tbool bool"
+            ", tnchar nchar(16)"
+            ", tvarbinary varbinary(32)"
+            ", tgeometry geometry(32)"
+            ") VIRTUAL 1"
+        )
+
+        tdLog.info(f"create total {tables} virtual tables")
+        for table in range(tables):
+            t0 = table * 10
+            t1 = table * 10 + 1
+            t2 = table * 10 + 2
+            t3 = table * 10 + 3
+            t4 = table * 10 + 4
+            t5 = table * 10 + 5
+            t6 = table * 10 + 6
+            t7 = table * 10 + 7
+            t8 = table * 10 + 8
+            t9 = table * 10 + 9
+
+            tts = tsStart if table % 3 == 1 else tsNext
+            tint = table % 3
+            tuint = table % 4
+            tbigint = table % 5
+            tubigint = table % 6
+            tfloat = table % 7
+            tdouble = table % 8
+            tvarchar = "SanFrancisco" if table % 3 == 1 else "LosAngeles"
+            tsmallint = table % 9
+            tusmallint = table % 10
+            ttinyint = table % 11
+            tutinyint = table % 12
+            tbool = table % 2
+            tnchar = tvarchar
+            tvarbinary = tvarchar
+            tgeometry = "POINT(1.0 1.0)" if table % 3 == 1 else "POINT(2.0 2.0)"
+
+            tdSql.execute(
+                f"create vtable v{table}("
+                f"  d{t0}.cint"
+                f", d{t0}.cuint"
+                f", d{t1}.cbigint"
+                f", d{t1}.cubigint"
+                f", d{t2}.cfloat"
+                f", d{t2}.cdouble"
+                f", d{t3}.cvarchar"
+                f", d{t4}.csmallint"
+                f", d{t4}.cusmallint"
+                f", d{t5}.ctinyint"
+                f", d{t5}.cutinyint"
+                f", d{t7}.cbool"
+                f", d{t8}.cnchar"
+                f", d{t8}.cvarbinary"
+                f", d{t9}.cgeometry"
+                f") using {db}.{stb} tags("
+                f"  {tts}"
+                f", {tint}"
+                f", {tuint}"
+                f", {tbigint}"
+                f", {tubigint}"
+                f", {tfloat}"
+                f", {tdouble}"
+                f", '{tvarchar}'"
+                f", {tsmallint}"
+                f", {tusmallint}"
+                f", {ttinyint}"
+                f", {tutinyint}"
+                f", {tbool}"
+                f", '{tnchar}'"
+                f", '{tvarbinary}'"
+                f", '{tgeometry}') "
+            )
 
 
 tdStream = StreamUtil()
