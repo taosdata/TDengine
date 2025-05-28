@@ -14,7 +14,7 @@ duration_lists = [
 
 columns = ["ts_col", "col1", "col2", "tag1", "tag2", "tag3"]
 placeholders = ["_tcurrent_ts", "_twstart", "_twend", "_twduration", "_twrownum", "_tgrpid", "_tlocaltime", "%%1", "%%2", "%%3", "%%tbname", "%%trows"]
-out_columns = ["ts_col", "col1", "col2", "col3", "col4", "col5", "col6"]
+out_columns = ["col1", "col2", "col3", "col4", "col5", "col6", "col7", "col8", "col9", "col10"]
 out_tags = ["tag1", "tag2", "tag3", "tag4", "tag5"]
 counts = [10, 100]
 slidings = [1, 5]
@@ -416,49 +416,32 @@ def generate_tag_expr(max_depth=3):
         # generate numeric type expression
         return gen_numeric_expr(depth=0, max_depth=max_depth)
 
-def generate_output_subtable(max_depth=3, partition_list=None, into_null=False):
-    valid = True
-    if into_null:
-        if random_bool(0.8):
-            return "", True
+
+def generate_column_section_base(out_col_list, out_col_num=6, into_exist=False, valid=True):
+    if valid:
+        pk_index = 1
+        if into_exist:
+            selected = out_col_list[:out_col_num]
         else:
-            valid = False
-
-    if partition_list is None:
-        if random_bool(0.8):
-            return "", True
-        else:
-            valid = False
-
-    valid_list = partition_list
-    invalid_list = list(set(partition_columns_valid + partition_columns_invalid) - set(valid_list))
-
-    if random_bool(0.2):
-        # 20% chance to generate invalid OUTPUT_SUBTABLE
-        expr = gen_string_expr(0, max_depth, invalid_list, valid_list, False)
+            selected = random.sample(out_col_list, out_col_num)
     else:
-        # 80% chance to generate valid OUTPUT_SUBTABLE
-        expr = gen_string_expr(0, max_depth, invalid_list, valid_list, True)
+        pk_index = random_from_list([i for i in range(0, out_col_num) if i != 1])
+        if into_exist:
+            col_num = random_int(1, out_col_num)
+            selected = random.choices(out_col_list, k=col_num)
+        else:
+            col_num = random_from_list([i for i in range(1, out_col_num + 3) if i != out_col_num])
+            selected = random.choices(out_col_list, k=col_num)
 
-    return f" OUTPUT_SUBTABLE({expr}) ", valid
-
-def generate_column_section_base(out_col_list, include_probability=0.8, max_cols=6, with_primary_key_prob=0.6):
-    if not random_bool(include_probability):
-        return ""
-    num_cols = random_int(1, min(max_cols, len(out_col_list)))
-    selected = random.sample(out_col_list, num_cols)
-    with_primary = random_bool(with_primary_key_prob)
-    pk_index = random_int(0, num_cols - 1) if with_primary else None
+    with_primary = random_bool(0.5)
     col_defs = []
     for i, col in enumerate(selected):
-        if i == pk_index:
+        if i == pk_index and with_primary:
             col_defs.append(f"{col} PRIMARY KEY")
         else:
             col_defs.append(col)
     return f" ({', '.join(col_defs)}) "
 
-def generate_column_list_section(include_probability=0.8, max_cols=6, with_primary_key_prob=0.6):
-    return generate_column_section_base(out_columns, include_probability, max_cols, with_primary_key_prob)
 
 out_types = ["BIGINT", "SMALLINT"]
 
@@ -646,41 +629,81 @@ def generate_random_notif_def_section(
 
     return notify_urls + notify_events + notify_conditions + notify_options, valid
 
+def generate_random_column_list_section(out_col_num=1, into_exist=False):
+    random_value = random.random()
+    if random_value < 0.2:
+        # 20% chance to generate empty column list
+        return "", True
+    elif random_value < 0.5:
+        # 20% chance to generate invalid column list
+        return generate_column_section_base(out_columns, out_col_num, into_exist=into_exist, valid=False), False
+    else:
+        return generate_column_section_base(out_columns, out_col_num, into_exist=into_exist, valid=True), True
+
+def generate_random_output_subtable(max_depth=3, partition_list=None, into_null=False):
+    valid = True
+    if into_null:
+        if random_bool(0.8):
+            return "", True
+        else:
+            valid = False
+
+    if partition_list is None:
+        if random_bool(0.8):
+            return "", True
+        else:
+            valid = False
+
+    valid_list = partition_list
+    invalid_list = list(set(partition_columns_valid + partition_columns_invalid) - set(valid_list))
+
+    if random_bool(0.2):
+        # 20% chance to generate invalid OUTPUT_SUBTABLE
+        expr = gen_string_expr(0, max_depth, invalid_list, valid_list, False)
+        valid = False
+    else:
+        # 80% chance to generate valid OUTPUT_SUBTABLE
+        expr = gen_string_expr(0, max_depth, invalid_list, valid_list, True)
+
+    return f" OUTPUT_SUBTABLE({expr}) ", valid
+
 def gen_create_stream_variants():
     base_template = "CREATE STREAM{if_not_exists} {stream_name}{stream_options}{into_clause}{output_subtable}{columns}{tags}{as_subquery};"
     trigger_types = generate_trigger_section()
     sql_variants = []
     stream_index = 0
-    for if_not_exists, as_subquery in product(
-            if_not_exists_opts, as_subquery_opts
+    for if_not_exists in product(
+            if_not_exists_opts
     ):
         for trigger_type in trigger_types:
-            stream_db, v1 = generate_random_stream_db_section()
-            trigger_table, v2, trigger_null, trigger_has_tag = generate_random_trigger_table_section()
-            into_table, v3, into_null, into_exist = generate_random_into_table_section()
-            partition, v4, partition_cols = generate_random_partition_section(trigger_null = trigger_null, trigger_has_tag = trigger_has_tag)
-            stream_opt, v5 = generate_options_section(partition_list=partition_cols, trigger_null = trigger_null)
-            notify_opt, v6 = generate_random_notif_def_section(trigger_null = trigger_null)
-            output, v7 = generate_output_subtable(partition_list=partition_cols, into_null=into_null)
-            sql = base_template.format(
-               if_not_exists=if_not_exists,
-               stream_name=stream_db + "stream_" + str(stream_index),
-               stream_options=trigger_type + trigger_table + partition + stream_opt + notify_opt,
-               into_clause=into_table,
-               output_subtable=output,
-               columns=generate_column_list_section(),
-               tags=generate_tags_clause() + " ",
-               as_subquery=as_subquery
-            )
-            sql_variants.append(sql.strip())
-            stream_index += 1
-            if stream_index > 100000:
-                return sql_variants
+            for as_subquery, v0, out_col_num in as_subquery_opts:
+                stream_db, v1 = generate_random_stream_db_section()
+                trigger_table, v2, trigger_null, trigger_has_tag = generate_random_trigger_table_section()
+                into_table, v3, into_null, into_exist = generate_random_into_table_section()
+                partition, v4, partition_cols = generate_random_partition_section(trigger_null = trigger_null, trigger_has_tag = trigger_has_tag)
+                stream_opt, v5 = generate_options_section(partition_list=partition_cols, trigger_null = trigger_null)
+                notify_opt, v6 = generate_random_notif_def_section(trigger_null = trigger_null)
+                output, v7 = generate_random_output_subtable(partition_list=partition_cols, into_null=into_null)
+                columns, v8 = generate_random_column_list_section(out_col_num=out_col_num, into_exist=into_exist)
+                sql = base_template.format(
+                   if_not_exists=if_not_exists,
+                   stream_name=stream_db + "stream_" + str(stream_index),
+                   stream_options=trigger_type + trigger_table + partition + stream_opt + notify_opt,
+                   into_clause=into_table,
+                   output_subtable=output,
+                   columns=columns,
+                   tags=generate_tags_clause() + " ",
+                   as_subquery=as_subquery
+                )
+                sql_variants.append(sql.strip())
+                stream_index += 1
+                if stream_index > 100000:
+                    return sql_variants
     print(stream_index)
     return sql_variants
 
 
 for i in range(10000):
     print("======================")
-    sql, valid = generate_options_section(partition_list=partition_columns_valid)
-    print(sql)
+    sql, valid = generate_random_column_list_section(6, True)
+    print(sql, valid)

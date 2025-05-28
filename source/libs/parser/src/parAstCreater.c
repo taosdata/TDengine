@@ -4218,7 +4218,7 @@ SNode* createStreamTagDefNode(SAstCreateContext* pCxt, SToken* pTagName, SDataTy
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM_TAG_DEF, (SNode**)&pTagDef);
   CHECK_MAKE_NODE(pTagDef);
-  tstrncpy(pTagDef->tagName, pTagName->z, sizeof(pTagDef->tagName));
+  COPY_STRING_FORM_ID_TOKEN(pTagDef->tagName, pTagName);
   pTagDef->dataType = dataType;
   pTagDef->pTagExpr = tagExpression;
   pTagDef->pComment = pComment;
