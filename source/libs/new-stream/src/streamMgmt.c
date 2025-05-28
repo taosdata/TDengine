@@ -450,8 +450,8 @@ int32_t smUndeployTask(SStreamTaskUndeploy* pUndeploy) {
   
   SStreamTask** ppTask = taosHashAcquire(gStreamMgmt.taskMap, key, sizeof(key));
   if (NULL == ppTask) {
-    stsInfo("stream already not exists while try to undeploy task %" PRId64, key[1]);
-    goto _exit;
+    stsWarn("TASK:%" PRIx64 " already not exists in taskMap while try to undeploy it", key[1]);
+    return code;
   }
 
   SStreamTask task = **ppTask;

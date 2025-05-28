@@ -2229,8 +2229,8 @@ int32_t msmUpdateStreamLastActTs(int64_t streamId, int64_t currTs) {
   int32_t lino = 0;
   SStmStatus* pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
   if (NULL == pStatus) {
-    mstsError("stream not exists in streamMap, mapSize:%d", taosHashGetSize(mStreamMgmt.streamMap));
-    TSDB_CHECK_NULL(pStatus, code, lino, _exit, TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+    mstsWarn("stream already not exists in streamMap, mapSize:%d", taosHashGetSize(mStreamMgmt.streamMap));
+    return TSDB_CODE_SUCCESS;
   }
   
   pStatus->lastActionTs = currTs;
