@@ -2948,9 +2948,9 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, const SStreamTriggerDeplo
     }
   }
   pTask->singleVnodePerGroup = pTask->singleVnodePerGroup || taosArrayGetSize(pTask->readerList) == 1;
-  pTask->needRowNumber = pMsg->placeHolderBitmap & (1 << 4);
-  pTask->needGroupColValue = (pMsg->placeHolderBitmap & (1 << 6)) || (pMsg->placeHolderBitmap & (1 << 7));
-  pTask->needCacheData = pMsg->placeHolderBitmap & (1 << 8);
+  pTask->needRowNumber = pMsg->placeHolderBitmap & PLACE_HOLDER_WROWNUM;
+  pTask->needGroupColValue = (pMsg->placeHolderBitmap & PLACE_HOLDER_PARTITION_IDX) || (pMsg->placeHolderBitmap & PLACE_HOLDER_PARTITION_TBNAME);
+  pTask->needCacheData = pMsg->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS;
 
   pTask->calcParamLimit = 10;  // todo(kjq): adjust dynamically
   pTask->nextSessionId = 1;
