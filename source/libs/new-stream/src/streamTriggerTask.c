@@ -187,7 +187,7 @@ int32_t streamTriggerKickCalc() {
   int32_t lino = 0;
   bool    locked = false;
 
-  code = taosThreadMutexUnlock(&gStreamTriggerCalcMutex);
+  code = taosThreadMutexLock(&gStreamTriggerCalcMutex);
   QUERY_CHECK_CODE(code, lino, _end);
   locked = true;
 
@@ -2191,15 +2191,14 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
     SSTriggerRealtimeGroup *pGroup = pContext->pCalcGroup;
     SSTriggerCalcParam     *pFirstWin = taosArrayGet(pReq->params, 0);
     SSTriggerCalcParam     *pLastWin = taosArrayGet(pReq->params, taosArrayGetSize(pReq->params) - 1);
-    int64_t                 startTime = pFirstWin->wstart;
-    int64_t                 endTime = pLastWin->wend;
     if (IS_TRIGGER_WAL_META_MERGER_EMPTY(pMerger)) {
       // build session window merger
       SSTriggerWalMeta *pMetas = taosArrayGet(pGroup->pMetas, 0);
       int32_t           nMetas = taosArrayGetSize(pGroup->pMetas);
       code = stwmSetWalMetas(pMerger, pMetas, nMetas, pTask->calcTsIndex);
       QUERY_CHECK_CODE(code, lino, _end);
-      code = stwmBuildDataMerger(pMerger, pFirstWin->wstart, pLastWin->wend);
+      code = stwmBuildDataMerger(pMerger, pFirstWin->wstart,
+                                 pLastWin->wend - (pTask->triggerType == STREAM_TRIGGER_SLIDING));
       QUERY_CHECK_CODE(code, lino, _end);
       if (pContext->pCalcDataCache == NULL) {
         int32_t cleanMode = DATA_CLEAN_IMMEDIATE;
@@ -2236,10 +2235,29 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
           QUERY_CHECK_CODE(code, lino, _end);
           break;
         }
-        // todo(kjq): put data to cache with specific window start and end time
-        code = putStreamDataCache(pContext->pCalcDataCache, pGroup->groupId, startTime, endTime, pDataBlock, startIdx,
-                                  endIdx - 1);
-        QUERY_CHECK_CODE(code, lino, _end);
+        SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pMerger->tsSlotId);
+        int32_t idx = startIdx;
+        while (idx < endIdx) {
+          SSTriggerCalcParam *pParam = NULL;
+          int64_t             ts = *(int64_t *)colDataGetNumData(pTsCol, idx);
+          for (int32_t i = 0; i < TARRAY_SIZE(pReq->params); ++i) {
+            pParam = taosArrayGet(pReq->params, i);
+            if (pParam->wstart <= ts && ts <= (pParam->wend - (pTask->triggerType == STREAM_TRIGGER_SLIDING))) {
+              break;
+            }
+          }
+          int32_t nextIdx = idx;
+          while (nextIdx < endIdx) {
+            int64_t nextTs = *(int64_t *)colDataGetNumData(pTsCol, nextIdx);
+            if (nextTs > (pParam->wend - (pTask->triggerType == STREAM_TRIGGER_SLIDING))) {
+              break;
+            }
+            nextIdx++;
+          }
+          code = putStreamDataCache(pContext->pCalcDataCache, pGroup->groupId, pParam->wstart, pParam->wend - (pTask->triggerType == STREAM_TRIGGER_SLIDING), pDataBlock, idx, nextIdx - 1);
+          QUERY_CHECK_CODE(code, lino, _end);
+          idx = nextIdx;
+        }
         if (needFree) {
           blockDataDestroy(pDataBlock);
           pDataBlock = NULL;
@@ -2277,6 +2295,11 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
   SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
   pMsgHead->contLen = htonl(msg.contLen);
   pMsgHead->vgId = htonl(SNODE_HANDLE);
+  for (int32_t i = 0; i < TARRAY_SIZE(pReq->params); ++i) {
+    SSTriggerCalcParam *pParam = taosArrayGet(pReq->params, i);
+    ST_TASK_ILOG("[calc param %d]: wstart=%" PRId64 ", wend=%" PRId64 ", nrows=%" PRId64, i, pParam->wstart,
+                 pParam->wend, pParam->wrownum);
+  }
   int32_t tlen = tSerializeSTriggerCalcRequest(msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pReq);
   QUERY_CHECK_CONDITION(tlen == msg.contLen - sizeof(SMsgHead), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   code = tmsgSendReq(&pRunner->addr.epset, &msg);

@@ -427,7 +427,7 @@ int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY we
     stError("putStreamDataCache param invalid, pCache is NULL");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
-  if (wstart < 0 || wstart >= wend) {
+  if (wstart < 0 || wstart > wend) {
     stError("putStreamDataCache param invalid, wstart:%" PRId64 "wend:%" PRId64, wstart, wend);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
