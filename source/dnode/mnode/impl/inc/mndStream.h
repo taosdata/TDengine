@@ -31,7 +31,7 @@ typedef enum {
 #define MND_STM_STATE_NORMAL  2
 #define MND_STM_STATE_RESTART 3
 
-static const char* gMndStreamState[] = {"W", "N", "R"};
+static const char* gMndStreamState[] = {"X", "W", "N", "R"};
 
 
 #define MND_STREAM_RUNNER_DEPLOY_NUM 3
@@ -205,7 +205,7 @@ typedef struct SStmStatus {
   int32_t           runnerReplica;
 
   bool              allTaskBuilt;
-  int64_t           lastActTs;
+  int64_t           lastActionTs;
 
   SArray*           trigReaders;        // SArray<SStmTaskStatus>
   SArray*           calcReaders;        // SArray<SStmTaskStatus>  

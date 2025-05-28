@@ -399,7 +399,7 @@ void mndStreamLogSStreamObj(char* tips, SStreamObj* p) {
   int32_t outTagNum = taosArrayGetSize(q->outTags);
   int32_t forceOutColNum = taosArrayGetSize(q->forceOutCols);
 
-  mstsDebugL("create_info: name:%d sql:%s streamDB:%s triggerDB:%s outDB:%s calcDBNum:%d triggerTblName:%s outTblName:%s "
+  mstsDebugL("create_info: name:%s sql:%s streamDB:%s triggerDB:%s outDB:%s calcDBNum:%d triggerTblName:%s outTblName:%s "
       "igExists:%d triggerType:%d igDisorder:%d deleteReCalc:%d deleteOutTbl:%d fillHistory:%d fillHistroyFirst:%d "
       "calcNotifyOnly:%d lowLatencyCalc:%d notifyUrlNum:%d notifyEventTypes:%d notifyErrorHandle:%d notifyHistory:%d "
       "outColsNum:%d outTagsNum:%d maxDelay:%" PRId64 " fillHistoryStartTs:%" PRId64 " watermark:%" PRId64 " expiredTime:%" PRId64 " "
@@ -414,17 +414,17 @@ void mndStreamLogSStreamObj(char* tips, SStreamObj* p) {
       q->eventTypes, q->flags, q->tsmaId, q->placeHolderBitmap, q->tsSlotId,
       q->triggerTblVgId, q->outTblVgId, calcScanNum, forceOutColNum);
 
-  mstsDebugL("create_info: triggerCols:[%s]", q->triggerCols);
+  mstsDebugL("create_info: triggerCols:[%s]", (char*)q->triggerCols);
 
-  mstsDebugL("create_info: partitionCols:[%s]", q->partitionCols);
+  mstsDebugL("create_info: partitionCols:[%s]", (char*)q->partitionCols);
 
-  mstsDebugL("create_info: triggerScanPlan:[%s]", q->triggerScanPlan);
+  mstsDebugL("create_info: triggerScanPlan:[%s]", (char*)q->triggerScanPlan);
 
-  mstsDebugL("create_info: calcPlan:[%s]", q->calcPlan);
+  mstsDebugL("create_info: calcPlan:[%s]", (char*)q->calcPlan);
 
-  mstsDebugL("create_info: subTblNameExpr:[%s]", q->subTblNameExpr);
+  mstsDebugL("create_info: subTblNameExpr:[%s]", (char*)q->subTblNameExpr);
 
-  mstsDebugL("create_info: tagValueExpr:[%s]", q->tagValueExpr);
+  mstsDebugL("create_info: tagValueExpr:[%s]", (char*)q->tagValueExpr);
 
 
   for (int32_t i = 0; i < calcDBNum; ++i) {
@@ -435,7 +435,7 @@ void mndStreamLogSStreamObj(char* tips, SStreamObj* p) {
   for (int32_t i = 0; i < calcScanNum; ++i) {
     SStreamCalcScan* pScan = taosArrayGet(q->calcScanPlanList, i);
     int32_t vgNum = taosArrayGetSize(pScan->vgList);
-    mstsDebugL("create_info: calcScanPlan[%d] - readFromCache:%d vgNum:%d scanPlan:[%s]", i, pScan->readFromCache, vgNum, pScan->scanPlan);
+    mstsDebugL("create_info: calcScanPlan[%d] - readFromCache:%d vgNum:%d scanPlan:[%s]", i, pScan->readFromCache, vgNum, (char*)pScan->scanPlan);
     for (int32_t v = 0; v < vgNum; ++v) {
       mstsDebug("create_info: calcScanPlan[%d] vg[%d] - vgId:%d", i, v, *(int32_t*)taosArrayGet(pScan->vgList, v));
     }
@@ -480,9 +480,9 @@ void mndStreamLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p) {
   }
 
   mstsDebug("%s: stream status", tips);
-  mstsDebug("name:%s runnerNum:%d runnerDeploys:%d runnerReplica:%d allTaskBuilt:%d lastActTs:%" PRId64
+  mstsDebug("name:%s runnerNum:%d runnerDeploys:%d runnerReplica:%d allTaskBuilt:%d lastActionTs:%" PRId64
            " trigReaders:%d calcReaders:%d trigger:%d runners:%d",
-      p->streamName, p->runnerNum, p->runnerDeploys, p->runnerReplica, p->allTaskBuilt, p->lastActTs,
+      p->streamName, p->runnerNum, p->runnerDeploys, p->runnerReplica, p->allTaskBuilt, p->lastActionTs,
       trigReaderNum, calcReaderNum, triggerNum, runnerNum);
 
   SStmTaskStatus* pTask = NULL;
@@ -502,6 +502,10 @@ void mndStreamLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p) {
 
   for (int32_t i = 0; i < p->runnerDeploys; ++i) {
     int32_t num = taosArrayGetSize(p->runners[i]);
+    if (num <= 0) {
+      continue;
+    }
+    
     mstsDebug("the %dth deploy runners status", i);
     for (int32_t m = 0; m < num; ++m) {
       pTask = taosArrayGet(p->runners[i], m);
