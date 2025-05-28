@@ -228,3 +228,7 @@ taosd -y  {encryptKey}
 ```
 
 Updating the key configuration requires stopping taosd first, and using the exact same key, meaning the key cannot be changed after the database is created.
+
+### encrypt user password
+
+The user password is stored as MD5 string format. The behavior can be changed by configurating encryptPassAlgorithm. encryptPassAlgorithm is unset as default value. When encryptPassAlgorithm is set as SM4, the user password is stored as encrypted string via SM4 encryption algorithm. The key need be Configured before encryptPassAlgorithm is set.
