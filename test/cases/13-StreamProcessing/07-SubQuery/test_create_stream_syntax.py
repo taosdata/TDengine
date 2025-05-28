@@ -410,7 +410,7 @@ def gen_numeric_func(func, expr=None):
     expr = expr or gen_numeric_expr(depth=2)
     return f"{func}({expr})"
 
-def gen_string_expr(depth, max_depth):
+def gen_string_expr(depth=0, max_depth=3, invalid_col_list=None,valid_col_list=None):
     if depth >= max_depth or random_bool(0.3):
         return random_expr_atom()
     func = random_from_list(string_func_names)
@@ -425,9 +425,20 @@ def generate_tag_expr(max_depth=3):
         # generate numeric type expression
         return gen_numeric_expr(depth=0, max_depth=max_depth)
 
-def generate_output_subtable(max_depth=3, include_probability=0.7):
-    if not random_bool(include_probability):
-        return ""  # Do not include OUTPUT_SUBTABLE
+def generate_output_subtable(max_depth=3, partition_list=None, into_null=False):
+    valid = True
+    if into_null:
+        if random_bool(0.8):
+            return "", True
+        else:
+            valid = False
+
+    if partition_list is None:
+        if random_bool(0.8):
+            return "", True
+        else:
+            valid = False
+
     expr = gen_string_expr(0, max_depth)
     return f" OUTPUT_SUBTABLE({expr}) "
 
