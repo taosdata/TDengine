@@ -126,6 +126,20 @@ class ForecastTest(unittest.TestCase):
         # rows = len(r["res"][0])
         # draw_fc_results(data, False, r["res"], rows, "gpt")
 
+    def test_prophet(self):
+        """test prophet algorithm"""
+        s = loader.get_service("prophet")
+        data, ts = self.get_input_list()
+
+        s.set_input_list(data, ts)
+        self.assertRaises(ValueError, s.execute)
+
+        s.set_params({"rows": 10, "start_ts": 171000000, "time_step": 60, "p_cfg_tpl": "demo"})
+
+        r = s.execute()
+
+        rows = len(r["res"][0])
+        draw_fc_results(data, len(r["res"]) > 2, s.conf, r["res"], "prophet")
 
 if __name__ == '__main__':
     unittest.main()
