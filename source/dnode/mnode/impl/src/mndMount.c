@@ -518,7 +518,7 @@ static int32_t mndSetDbInfo(SMountInfo *pInfo, SMountDbInfo *pDb, SDbObj *pObj) 
   return 0;
 }
 
-static void mndSetVgroupInfo(SMnode * pMnode, SMountInfo * pInfo, SMountDbInfo * pDb, SMountVgInfo * pVg, SVgObj * pObj,
+static void mndSetVgroupInfo(SMnode * pMnode, SMountInfo * pInfo, SDbObj * pDb, SMountVgInfo * pVg, SVgObj * pObj,
                              int32_t *maxVgId) {
   int32_t  allocedVgroups = 0;
   
@@ -530,8 +530,8 @@ static void mndSetVgroupInfo(SMnode * pMnode, SMountInfo * pInfo, SMountDbInfo *
   pObj->version = 1;
   pObj->hashBegin = pVg->hashBegin;
   pObj->hashEnd = pVg->hashEnd;
-  tsnprintf(pObj->dbName, sizeof(pObj->dbName), pDb->dbName);
-  pObj->dbUid = pDb->dbId;
+  tsnprintf(pObj->dbName, sizeof(pObj->dbName), pDb->name);
+  pObj->dbUid = pDb->uid;
   pObj->replica = pVg->replications;
   pObj->mountVgId = pVg->vgId;
 
@@ -873,7 +873,7 @@ static int32_t mndCreateMount(SMnode * pMnode, SRpcMsg * pReq, SMountInfo * pInf
     int32_t nDbVgs = taosArrayGetSize(pDbInfo->pVgs);
     for (int32_t v = 0; v < nDbVgs; ++v) {
       SMountVgInfo *pVgInfo = TARRAY_GET_ELEM(pDbInfo->pVgs, v);
-      mndSetVgroupInfo(pMnode, pInfo, pDbInfo, pVgInfo, &pVgs[vgIdx++], &maxVgId);
+      mndSetVgroupInfo(pMnode, pInfo, pDb, pVgInfo, &pVgs[vgIdx++], &maxVgId);
     }
   }
 
