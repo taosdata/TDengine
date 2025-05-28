@@ -21,7 +21,7 @@
 #include "tcommon.h"
 #include "tdef.h"
 #include "thash.h"
-#include "tskiplist.h"
+#include "trbtree.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -56,7 +56,10 @@ extern "C" {
 
   // 每个块写入的 window 保存：list, endtime, len
 
- extern int64_t gDSFileBlockDefaultSize;
+extern int64_t gDSFileBlockDefaultSize;
+extern int64_t gDSMaxMemSizeDefault;
+extern int64_t gMemReservedSizeForWrite;
+extern int64_t gMemReservedSize;
 
 typedef enum {
   DATA_SAVEMODE_BLOCK = 1,
@@ -91,26 +94,14 @@ typedef struct SWindowDataInFile {
   SFileBlockInfo blockInfo;  // offset in file
 } SWindowDataInFile;
 
-typedef struct SGroupFileDataMgr {
-  int64_t        groupId;
-  int64_t        lastWstartInFile;
-  int64_t        allWindowDataLen;
-
-
-
-  SFileBlockInfo blockInfo;         // offset and size in file
-  SArray*        windowDataInFile;  // array SWindowDataInFile <wstart, start block num in file>
-  bool           hasDataInFile;
-} SGroupFileDataMgr;
 
 typedef struct SDataSinkFileMgr {
-  char       fileName[FILENAME_MAX];
-  int64_t    fileSize;
-  int64_t    fileBlockCount;
-  int64_t    fileBlockUsedCount;
-  int64_t    fileGroupBlockMaxSize;
-  SSkipList* pFreeBlockSkipList;  // skiplist: <groupDataStartOffSet, SFileBlockInfo>
-  SHashObj*  groupBlockList;     // hash <groupId, SGroupFileDataMgr>
+  char      fileName[FILENAME_MAX];
+  int64_t   fileSize;
+  int64_t   fileBlockCount;
+  int64_t   fileBlockUsedCount;
+  int64_t   fileGroupBlockMaxSize;
+  SRBTree   pFreeFileBlockList;  // <groupDataStartOffSet, SFileBlockInfo>
 
   int64_t   readingGroupId;
   int64_t   writingGroupId;
@@ -155,7 +146,6 @@ typedef struct SAlignBlocksInMem {
 
 typedef struct SBlocksInfoFile {
   int64_t        groupOffset;  // offset in file
-  int64_t        dataStartOffset;
   int64_t        dataLen;
   int64_t        capacity;  // size in file
   // SSlidingWindowInMem *windowDataInFile;  // array SSlidingWindowInMem 实际数据，反序列化保存至文件
@@ -206,28 +196,30 @@ typedef struct SAlignGrpMgr {
 } SAlignGrpMgr;
 
 struct SGroupDSManager {
-  int64_t               groupId;
-  int64_t               usedMemSize;
-
-  SArray*               winDataInMem;  // array SWindowData <wstart, SSDataBlock*>
-
-  SBlocksInfoFile blocksInFile;
-  SSlidingTaskDSMgr* pSinkManager;   // todo parent ptr, delete
+  int64_t            groupId;
+  int64_t            usedMemSize;
+  SArray*            winDataInMem;  // array SWindowData <wstart, SSDataBlock*>
+  SBlocksInfoFile    blocksInFile;
+  SSlidingTaskDSMgr* pSinkManager;  // todo parent ptr, delete
 };
 
 typedef enum {
   DATA_SINK_MEM = 0,
   DATA_SINK_FILE,
+  DATA_SINK_ALL_TMP,   // all in tmp file, not in mem
+  DATA_SINK_PART_TMP,  // part in tmp file, part in other position
 } SDataSinkPos;
 
 typedef struct SResultIter {
-  SCleanMode        cleanMode;    // 1 - immediate, 2 - expired
-  void*             groupData;    // SGroupDSManager(data in mem) or SGroupFileDataMgr(data in file)
-  SDataSinkFileMgr* pFileMgr;     // when has data in file, pFileMgr is not NULL
-  int32_t           tsColSlotId;  // ts column slot id
-  int32_t           winIndex;     // only for immediate clean mode, index of the window in the block
-  int64_t           offset;       // array index, start from 0
-  SDataSinkPos      dataPos;      // 0 - data in mem, 1 - data in file
+  SCleanMode        cleanMode;       // 1 - immediate, 2 - expired
+  void*             groupData;       // SAlignGrpMgr(data in mem) or SSlidingGrpMgr(data in file)
+  SDataSinkFileMgr* pFileMgr;        // when has data in file, pFileMgr is not NULL
+  int32_t           tsColSlotId;     // ts column slot id
+  int32_t           winIndex;        // only for immediate clean mode, index of the window in the block
+                                     // when tmpBlocksInMem is not NULL, this is the index of the current tmpBlocksInMem's block
+  int64_t           offset;          // array index, start from 0
+  SArray*           tmpBlocksInMem;  // SSlidingWindowInMem, read from file,
+  SDataSinkPos      dataPos;         // 0 - data in mem, 1 - data in file
   int64_t           groupId;
   int64_t           reqStartTime;
   int64_t           reqEndTime;
@@ -297,28 +289,27 @@ void setDataSinkMaxMemSize(int64_t maxMemSize);
 //----------------- 以下函数 DataSink 内部调用，不提供于其他模块   -----------------//
 //----------------- **************************************   -----------------//
 int32_t initDataSinkFileDir();
-
 int32_t initStreamDataSinkOnce();
+int32_t checkAndMoveMemCache(bool forWrite);
+int32_t moveSlidingTaskMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr);
+bool    hasEnoughMemSize();
+int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMgr* pSlidingGrp);
 
-void checkAndReleaseBuffer();
+void* getWindowDataBuf(SSlidingWindowInMem* pWindowData);
 
 int32_t buildSlidingWindowInMem(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t startIndex, int32_t endIndex,
                                 SSlidingWindowInMem** ppSlidingWinInMem);
-void    destorySlidingWindowInMem(void* ppSlidingWinInMem);
+void    destorySlidingWindowInMem(void* pSlidingWinInMem);
+void    destorySlidingWindowInMemPP(void* ppSlidingWinInMem);
 
 int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY wstart,
                                    TSKEY wend);
 int32_t buildMoveAlignWindowInMem(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY wstart,
                                    TSKEY wend);
-// @brief 写入数据到文件
-int32_t writeToFile(SSlidingTaskDSMgr* pStreamDataSink, int64_t groupId, TSKEY wstart, TSKEY wend,
-                    SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex);
 
 // @brief 读取数据从内存
 int32_t readDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, bool* finished);
-int32_t readDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, int32_t tsColSlotId, bool* finished);
-int32_t getFirstDataIterFromFile(SDataSinkFileMgr* pFileMgr, int64_t groupId, TSKEY start, TSKEY end,
-                                 void** ppResult);
+int32_t readDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, int32_t tsColSlotId);
 
 // @brief 从内存查找下一组数据位置
 // return true: 需要继续查看文件, false: 不需要继续查看文件
@@ -335,14 +326,6 @@ void    destroyInserterGrpInfo();
 void destoryAlignBlockInMem(void* ppData);
 
 void destroyStreamDataSinkFile(SDataSinkFileMgr** ppDaSinkFileMgr);
-
-//----------------- ***************************************  -----------------//
-//----------------- data sink file: block manager interface  -----------------//
-//----------------- ***************************************  -----------------//
-int32_t         createFileBlockSkipList(SSkipList** ppSkipList);
-void            destroyFileBlockSkipList(SSkipList* pSkipList);
-SFileBlockInfo* findFirstGreaterThan(SSkipList* pSkipList, int64_t size);
-
 
 #ifdef __cplusplus
 }

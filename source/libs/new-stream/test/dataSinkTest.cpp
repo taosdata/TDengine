@@ -730,7 +730,7 @@ TEST(dataSinkTest, allWriteMultiStreamToFileTest) {
 
 TEST(dataSinkTest, testWriteFileSize) {
   SSDataBlock* pBlock = createTestBlock(baseTestTime1, 0);
-  setDataSinkMaxMemSize(0);
+  setDataSinkMaxMemSize(gMemReservedSize + 1024 * 1024);
   int64_t streamId = 1;
   void*   pCache = NULL;
   int64_t taskId = 1;
@@ -746,11 +746,20 @@ TEST(dataSinkTest, testWriteFileSize) {
     ASSERT_EQ(code, 0);
   }
   blockDataDestroy(pBlock);
+
+  destroyStreamDataCache(pCache);
 }
 
 int main(int argc, char** argv) {
   taos_init();
   ::testing::InitGoogleTest(&argc, argv);
+
+  if (argc > 1) {
+    ::testing::GTEST_FLAG(filter) = argv[1];
+  } else {
+    ::testing::GTEST_FLAG(filter) = "*";
+  }
+
   int ret = RUN_ALL_TESTS();
   taos_cleanup();
   return ret;

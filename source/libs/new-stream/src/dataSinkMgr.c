@@ -26,8 +26,10 @@
 #include "thash.h"
 
 SDataSinkManager2 g_pDataSinkManager = {0};
-int64_t           gDSMaxMemSizeDefault = (1024 * 1024 * 1024);   // 1G
-int64_t           gDSFileBlockDefaultSize = (10 * 1024 * 1024);  // 10M
+int64_t           gDSMaxMemSizeDefault = (1024 * 1024 * 1024);    // 1G
+int64_t           gMemReservedSizeForWrite = (20 * 1024 * 1024);  // 20M
+int64_t           gMemReservedSize = (30 * 1024 * 1024);          // 30M
+int64_t           gDSFileBlockDefaultSize = (10 * 1024 * 1024);   // 10M
 
 void setDataSinkMaxMemSize(int64_t maxMemSize) {
   if (maxMemSize >= 0) {
@@ -100,6 +102,9 @@ static void destroyAlignTaskDSMgr(SAlignTaskDSMgr** pData) {
   if (pAlignTaskDSMgr == NULL) {
     return;
   }
+  if (pAlignTaskDSMgr->pFileMgr) {
+    destroyStreamDataSinkFile(&pAlignTaskDSMgr->pFileMgr);
+  }
 
   taosMemoryFreeClear(pAlignTaskDSMgr);
 }
@@ -111,11 +116,10 @@ static void destroySStreamDSTaskMgr(void* pData) {
   }
   SCleanMode cleanMode = getCleanModeFromDSMgr(*(void**)pData);
   if (cleanMode == DATA_CLEAN_IMMEDIATE) {
-    destroySlidingTaskDSMgr((SSlidingTaskDSMgr**)pData);
+    destroyAlignTaskDSMgr((SAlignTaskDSMgr**)pData);
     return;
   } else if (cleanMode == DATA_CLEAN_EXPIRED) {
-    destroyAlignTaskDSMgr((SAlignTaskDSMgr**)pData);
-
+    destroySlidingTaskDSMgr((SSlidingTaskDSMgr**)pData);
     return;
   } else {
     stError("invalid clean mode: %d", cleanMode);
@@ -205,7 +209,8 @@ static void destroySSlidingGrpMgr(void* pData) {
     pGroupData->winDataInMem = NULL;
   }
   if (pGroupData->blocksInFile) {
-    taosArrayDestroyP(pGroupData->blocksInFile, NULL);
+    // todo destroy blocks in file
+    taosArrayDestroy(pGroupData->blocksInFile);
     pGroupData->blocksInFile = NULL;
   }
   taosMemoryFreeClear(pGroupData);
@@ -247,17 +252,27 @@ int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int32_t cleanMode,
   void** ppStreamTaskDSManager = (void**)taosHashGet(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
   if (ppStreamTaskDSManager == NULL) {
     if (cleanMode == DATA_CLEAN_IMMEDIATE) {
-      return createAlignTaskMgr(streamId, taskId, tsSlotId, ppCache);
+      code = createAlignTaskMgr(streamId, taskId, tsSlotId, ppCache);
     } else {
-      return createSlidingTaskMgr(streamId, taskId, tsSlotId, ppCache);
+      code = createSlidingTaskMgr(streamId, taskId, tsSlotId, ppCache);
     }
-
+    if (code != 0) {
+      stError("failed to create stream task data sink manager, cleanMode:%d, err: %s", cleanMode, terrMsg);
+      return code;
+    } else {
+      code = taosHashPut(g_pDataSinkManager.dsStreamTaskList, key, strlen(key), ppCache, sizeof(void*));
+      if (code != 0) {
+        destroyStreamDataCache(*ppCache);
+        stError("failed to put stream task data sink manager, err: %s", terrMsg);
+        return code;
+      }
+      stDebug("streamId: %" PRId64 " taskId: %" PRId64 " data sink manager created", streamId, taskId);
+    }
   } else {
     stError("streamId: %" PRId64 " taskId: %" PRId64 " already exist", streamId, taskId);
-
     *ppCache = *ppStreamTaskDSManager;
   }
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 // @brief 销毁数据缓存
@@ -336,7 +351,6 @@ int32_t putDataToSlidingTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t group
     stError("failed to get or create group data sink manager, err: %s", terrMsg);
     return code;
   }
-  checkAndReleaseBuffer();
 
   SSlidingWindowInMem* pSlidingWinInMem = NULL;
   code = buildSlidingWindowInMem(pBlock, pStreamTaskMgr->tsSlotId, startIndex, endIndex, &pSlidingWinInMem);
@@ -346,7 +360,7 @@ int32_t putDataToSlidingTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t group
   }
   void* p = taosArrayPush(pSlidingGrpMgr->winDataInMem, &pSlidingWinInMem);
   if (p == NULL) {
-    destorySlidingWindowInMem(&pSlidingWinInMem);
+    destorySlidingWindowInMem(pSlidingWinInMem);
     stError("failed to push window data into group data sink manager, err: %s", terrMsg);
     return terrno;
   }
@@ -365,7 +379,6 @@ int32_t putDataToAlignTaskMgr(SAlignTaskDSMgr* pStreamTaskMgr, int64_t groupId, 
     stError("failed to get or create group data sink manager, err: %s", terrMsg);
     return code;
   }
-  checkAndReleaseBuffer();
   if (pAlignGrpMgr->blocksInMem == NULL) {
     pAlignGrpMgr->blocksInMem = taosArrayInit(0, sizeof(SAlignBlocksInMem*));
     if (pAlignGrpMgr->blocksInMem == NULL) {
@@ -391,7 +404,6 @@ int32_t moveDataToAlignTaskMgr(SAlignTaskDSMgr* pStreamTaskMgr, SSDataBlock* pBl
     stError("failed to get or create group data sink manager, err: %s", terrMsg);
     return code;
   }
-  checkAndReleaseBuffer();
   if (pAlignGrpMgr->blocksInMem == NULL) {
     pAlignGrpMgr->blocksInMem = taosArrayInit(0, sizeof(SAlignBlocksInMem*));
     if (pAlignGrpMgr->blocksInMem == NULL) {
@@ -427,13 +439,24 @@ int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY we
     stError("DataSinkManager is not ready");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
+  code = checkAndMoveMemCache(true);
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to check and move mem cache for write, err: %s", terrMsg);
+    return code;
+  }
   if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_IMMEDIATE) {
     SAlignTaskDSMgr* pStreamTaskMgr = (SAlignTaskDSMgr*)pCache;
-    return putDataToAlignTaskMgr(pStreamTaskMgr, groupId, wstart, wend, pBlock, startIndex, endIndex);
+    code = putDataToAlignTaskMgr(pStreamTaskMgr, groupId, wstart, wend, pBlock, startIndex, endIndex);
   } else {
     SSlidingTaskDSMgr* pStreamTaskMgr = (SSlidingTaskDSMgr*)pCache;
-    return putDataToSlidingTaskMgr(pStreamTaskMgr, groupId, pBlock, startIndex, endIndex);
+    code = putDataToSlidingTaskMgr(pStreamTaskMgr, groupId, pBlock, startIndex, endIndex);
   }
+  code = checkAndMoveMemCache(false);
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to check and move mem cache not for write, err: %s", terrMsg);
+    return TSDB_CODE_SUCCESS;
+  }
+  return code;
 }
 
 int32_t moveStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock) {
@@ -593,6 +616,17 @@ void releaseDataResult(void** pIter) {
     taosMemoryFree(pResult);
     *pIter = NULL;
   }
+  if (pResult->tmpBlocksInMem) {
+    for (int32_t i = 0; i < pResult->tmpBlocksInMem->size; ++i) {
+      SSDataBlock** ppBlk = (SSDataBlock**)taosArrayGet(pResult->tmpBlocksInMem, i);
+      if (*ppBlk != NULL) {
+        taosMemoryFree(*ppBlk);
+        *ppBlk = NULL;
+      }
+    }
+    taosArrayClear(pResult->tmpBlocksInMem);
+    pResult->tmpBlocksInMem = NULL;
+  }
 }
 
 void moveToNextIterator(void** ppIter) {
@@ -609,8 +643,22 @@ void moveToNextIterator(void** ppIter) {
       pResult->offset = -1;
       finished = setNextIteratorFromMem((SResultIter**)ppIter);
     }
-  } else {
+  } else if (pResult->dataPos == DATA_SINK_MEM) {
     finished = setNextIteratorFromMem((SResultIter**)ppIter);
+  } else if (pResult->dataPos == DATA_SINK_ALL_TMP) {
+    pResult->winIndex++;
+    if (pResult->winIndex >= pResult->tmpBlocksInMem->size) {
+      finished = true;
+      taosArrayClear(pResult->tmpBlocksInMem);
+    }
+  } else {
+    // DATA_SINK_PART_TMP
+    pResult->winIndex++;
+    if (pResult->winIndex >= pResult->tmpBlocksInMem->size) {
+      pResult->dataPos = DATA_SINK_FILE;  // switch to file
+      taosArrayClear(pResult->tmpBlocksInMem);
+      return moveToNextIterator(ppIter);
+    }
   }
   if (finished) {
     releaseDataResult(ppIter);
@@ -631,14 +679,35 @@ int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock) {
   if (pResult == NULL) {
     return TSDB_CODE_SUCCESS;
   }
+  code = checkAndMoveMemCache(true);
+  QUERY_CHECK_CODE(code, lino, _end);
+
   bool finished = false;
+
   if (pResult->dataPos == DATA_SINK_MEM) {
     code = readDataFromMem(pResult, ppBlock, &finished);
     QUERY_CHECK_CODE(code, lino, _end);
-  } else {
-    code = readDataFromFile(pResult, ppBlock, pResult->tsColSlotId, &finished);
+  } else if (pResult->dataPos == DATA_SINK_FILE) {
+    finished = false;
+    code = readDataFromFile(pResult, ppBlock, pResult->tsColSlotId);
     QUERY_CHECK_CODE(code, lino, _end);
+  } else {
+    if (pResult->tmpBlocksInMem != NULL) {
+      if (pResult->winIndex < pResult->tmpBlocksInMem->size) {
+        SSDataBlock** ppBlk = (SSDataBlock**)taosArrayGet(pResult->tmpBlocksInMem, pResult->winIndex);
+        if (*ppBlk != NULL) {
+          *ppBlock = *ppBlk;
+          *ppBlk = NULL;  // clear the block to avoid double free
+
+          return TSDB_CODE_SUCCESS;
+        } else {
+          code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+      }
+    }
   }
+
   if (finished) {
     releaseDataResult(pIter);
     *pIter = NULL;
@@ -673,4 +742,56 @@ void useMemSizeAdd(int64_t size) { atomic_fetch_add_64(&g_pDataSinkManager.usedM
 
 void useMemSizeSub(int64_t size) { atomic_fetch_sub_64(&g_pDataSinkManager.usedMemSize, size); }
 
-void checkAndReleaseBuffer() {}
+bool hasEnoughMemSize() {
+  int64_t usedMemSize = atomic_load_64(&g_pDataSinkManager.usedMemSize);
+  return (usedMemSize < g_pDataSinkManager.maxMemSize - gMemReservedSize);
+}
+
+int32_t moveMemCache() {
+  if (g_pDataSinkManager.dsStreamTaskList == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  stInfo("moveMemCache started, used mem size: %" PRId64 ", max mem size: %" PRId64, g_pDataSinkManager.usedMemSize,
+         g_pDataSinkManager.maxMemSize);
+
+  STaskDSMgr** ppTaskMgr = taosHashIterate(g_pDataSinkManager.dsStreamTaskList, NULL);
+  while (ppTaskMgr != NULL) {
+    STaskDSMgr* pTaskMgr = *ppTaskMgr;
+    if (pTaskMgr == NULL) continue;
+    if (pTaskMgr->cleanMode == DATA_CLEAN_EXPIRED) {
+      SSlidingTaskDSMgr* pSlidingTaskMgr = (SSlidingTaskDSMgr*)pTaskMgr;
+      int32_t            code = moveSlidingTaskMemCache(pSlidingTaskMgr);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosHashCancelIterate(g_pDataSinkManager.dsStreamTaskList, ppTaskMgr);
+        stError("failed to move sliding task mem cache, lino:%d err: %s", __LINE__, terrMsg);
+        return code;
+      }
+      if (hasEnoughMemSize()) {
+        break;
+      }
+    }
+
+    ppTaskMgr = taosHashIterate(g_pDataSinkManager.dsStreamTaskList, ppTaskMgr);
+  }
+  if(ppTaskMgr != NULL) {
+    taosHashCancelIterate(g_pDataSinkManager.dsStreamTaskList, ppTaskMgr);
+  }
+  stInfo("moveMemCache finished, used mem size: %" PRId64 ", max mem size: %" PRId64, g_pDataSinkManager.usedMemSize,
+         g_pDataSinkManager.maxMemSize);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t checkAndMoveMemCache(bool forWrite) {
+  if ((forWrite && g_pDataSinkManager.usedMemSize < g_pDataSinkManager.maxMemSize - gMemReservedSizeForWrite) ||
+      (!forWrite && hasEnoughMemSize())) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (forWrite) {
+    return moveMemCache();
+  } else {
+
+    stDebug("checkAndReleaseBuffer, used mem size: %" PRId64 ", max mem size: %" PRId64 ", for write: %d",
+           g_pDataSinkManager.usedMemSize, g_pDataSinkManager.maxMemSize, forWrite);
+  }
+  return TSDB_CODE_SUCCESS;
+}

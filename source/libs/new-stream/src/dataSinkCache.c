@@ -95,7 +95,7 @@ static int32_t getWindowDataInMem(SResultIter* pResult, SWindowData* pWindowData
   }
 }
 
-static void* getWindowDataBuf(SSlidingWindowInMem* pWindowData) { return (void*)pWindowData + sizeof(SSlidingWindowInMem); }
+void* getWindowDataBuf(SSlidingWindowInMem* pWindowData) { return (void*)pWindowData + sizeof(SSlidingWindowInMem); }
 
 static int32_t getRangeInWindowBlock(SSlidingWindowInMem* pWindowData, int32_t tsColSlotId, TSKEY start, TSKEY end, SSDataBlock** ppBlock) {
   int32_t      code = TSDB_CODE_SUCCESS;
@@ -225,6 +225,8 @@ static int32_t getSlidingDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock
       continue;
     }
     if (pWindowData->endTime < pResult->reqStartTime) {
+      // todo
+      // destorySlidingWindowInMem(&pWindowData);
       // clear expired data
       continue;  // to check next window
     } else if (pWindowData->startTime > pResult->reqEndTime) {
@@ -304,16 +306,18 @@ _end:
   return code;
 }
 
-void destorySlidingWindowInMem(void* ppData) {
-  SSlidingWindowInMem* pSlidingWinInMem = *(SSlidingWindowInMem**)ppData;
+void destorySlidingWindowInMem(void* pData) {
+  SSlidingWindowInMem* pSlidingWinInMem = (SSlidingWindowInMem*)pData;
   if (pSlidingWinInMem) {
+    atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pSlidingWinInMem->dataLen + sizeof(SSlidingWindowInMem));
     taosMemoryFree(pSlidingWinInMem);
   }
 }
 
-void destoryAlignWindowInMem(void* ppData) {
-  SSlidingWindowInMem* pSlidingWinInMem = *(SSlidingWindowInMem**)ppData;
+void destorySlidingWindowInMemPP(void* pData) {
+  SSlidingWindowInMem* pSlidingWinInMem = *(SSlidingWindowInMem**)pData;
   if (pSlidingWinInMem) {
+    atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pSlidingWinInMem->dataLen + sizeof(SSlidingWindowInMem));
     taosMemoryFree(pSlidingWinInMem);
   }
 }
@@ -425,4 +429,25 @@ _end:
     stError("failed to encode data since %s, lineno:%d", tstrerror(code), lino);
   }
   return code;
+}
+
+int32_t moveSlidingTaskMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr) {
+  SSlidingGrpMgr** ppSlidingGrpMgr = (SSlidingGrpMgr**)taosHashIterate(pSlidingTaskMgr->pSlidingGrpList, NULL);
+  while (ppSlidingGrpMgr != NULL) {
+    SSlidingGrpMgr* pSlidingGrp = *ppSlidingGrpMgr;
+    if (pSlidingGrp == NULL) {
+      ppSlidingGrpMgr = taosHashIterate(pSlidingTaskMgr->pSlidingGrpList, ppSlidingGrpMgr);
+      continue;
+    }
+    int32_t code = moveSlidingGrpMemCache(pSlidingTaskMgr, pSlidingGrp);
+    if (code != TSDB_CODE_SUCCESS) {
+      stError("failed to move sliding group mem cache, err: %s", terrMsg);
+      return code;
+    }
+    if (hasEnoughMemSize()) {
+      break;
+    }
+    ppSlidingGrpMgr = taosHashIterate(pSlidingTaskMgr->pSlidingGrpList, ppSlidingGrpMgr);
+  }
+  return TSDB_CODE_SUCCESS;
 }
