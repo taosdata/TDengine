@@ -122,7 +122,10 @@ Options:
 - `--skip_deploy`: Only run test without start TDengine
 - `--testlist`: Path to file containing list of test files to run. Each line should contain one Python test file path, and lines starting with # will be ignored.
 - `--skip_stop`: Do not destroy/stop the TDengine cluster after test class execution (for debugging or keeping environment alive)
+<<<<<<< HEAD
 - `--only_deploy`: Only do deploy without running test
+=======
+>>>>>>> 3.0
 
 ## 4.4 Run tests by configuration file
 
