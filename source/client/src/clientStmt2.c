@@ -1810,7 +1810,7 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
 
   cleanup_root:
     STMT2_ELOG("parse query statment unexpected failed code:%d, need to clean node", code);
-    if (pStmt->sql.pQuery->pRoot) {
+    if (pStmt->sql.pQuery && pStmt->sql.pQuery->pRoot) {
       nodesDestroyNode(pStmt->sql.pQuery->pRoot);
       pStmt->sql.pQuery->pRoot = NULL;
     }
