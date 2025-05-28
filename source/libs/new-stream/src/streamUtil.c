@@ -52,7 +52,7 @@ int32_t stmAddStreamStatus(SArray** ppStatus, SStreamTasksInfo* pStream, int64_t
   }
 
   if (pStream->taskNum <= 0) {
-    mstDebug("ignore stream status update since stream taskNum %d is invalid", pStream->taskNum);
+    stsDebug("ignore stream status update since stream taskNum %d is invalid", pStream->taskNum);
     goto _exit;
   }
   
@@ -68,11 +68,11 @@ int32_t stmAddStreamStatus(SArray** ppStatus, SStreamTasksInfo* pStream, int64_t
     TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pReader->task), code, lino, _exit, terrno);
   }
 
-  mstDebug("%d reader tasks status added to hb", taskNum);
+  stsDebug("%d reader tasks status added to hb", taskNum);
 
   if (pStream->triggerTask) {
     TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pStream->triggerTask->task), code, lino, _exit, terrno);
-    mstDebug("%d trigger tasks status added to hb", 1);
+    stsDebug("%d trigger tasks status added to hb", 1);
   }
 
   taskNum = taosArrayGetSize(pStream->runnerList);
@@ -81,9 +81,9 @@ int32_t stmAddStreamStatus(SArray** ppStatus, SStreamTasksInfo* pStream, int64_t
     TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pRunner->task), code, lino, _exit, terrno);
   }
 
-  mstDebug("%d runner tasks status added to hb", taskNum);
+  stsDebug("%d runner tasks status added to hb", taskNum);
 
-  mstDebug("total %zu:%d tasks status added to hb", taosArrayGetSize(*ppStatus) - origTaskNum, pStream->taskNum);
+  stsDebug("total %zu:%d tasks status added to hb", taosArrayGetSize(*ppStatus) - origTaskNum, pStream->taskNum);
 
 _exit:
 

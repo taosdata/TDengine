@@ -424,6 +424,8 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->type));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->streamId));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->taskId));
+
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->flags));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->seriousId));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->nodeId));
   // SKIP SESSIONID
@@ -443,6 +445,8 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, (int32_t*)&pTask->type));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->streamId));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->taskId));
+  
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->flags));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->seriousId));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->nodeId));
   // SKIP SESSIONID
@@ -571,6 +575,7 @@ int32_t tEncodeSStreamReaderDeployFromCalc(SEncoder* pEncoder, const SStreamRead
   int32_t code = 0;
   int32_t lino;
 
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pMsg->execReplica));
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pMsg->calcScanPlan, pMsg->calcScanPlan == NULL ? 0 : (int32_t)strlen(pMsg->calcScanPlan) + 1));
 
 _exit:
@@ -967,6 +972,7 @@ int32_t tDecodeSStreamReaderDeployFromCalc(SDecoder* pDecoder, SStreamReaderDepl
   int32_t code = 0;
   int32_t lino;
 
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pMsg->execReplica));
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->calcScanPlan, NULL));
 
 _exit:
@@ -1625,6 +1631,7 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
   int32_t subTblNameExprLen = pReq->subTblNameExpr == NULL ? 0 : (int32_t)strlen((char*)pReq->subTblNameExpr) + 1;
   int32_t tagValueExprLen = pReq->tagValueExpr == NULL ? 0 : (int32_t)strlen((char*)pReq->tagValueExpr) + 1;
 
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->numOfCalcSubplan));
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->calcPlan, calcPlanLen));
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->subTblNameExpr, subTblNameExprLen));
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->tagValueExpr, tagValueExprLen));
@@ -1890,6 +1897,7 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
     }
   }
 
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->numOfCalcSubplan));
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->calcPlan, NULL));
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->subTblNameExpr, NULL));
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->tagValueExpr, NULL));

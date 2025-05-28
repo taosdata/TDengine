@@ -21,6 +21,33 @@
 #include "taoserror.h"
 #include "tmisce.h"
 
+void mstWaitRLock(SRWLatch* pLock) {
+  while (taosRTryLockLatch(pLock)) {
+    taosMsleep(1);
+  }
+}
+
+void mstDestroySStmVgStreamStatus(void* p) { 
+  SStmVgStreamStatus* pStatus = (SStmVgStreamStatus*)p;
+  taosArrayDestroy(pStatus->trigReaders); 
+  taosArrayDestroy(pStatus->calcReaders); 
+}
+
+void mstDestroySStmSnodeStreamStatus(void* p) { 
+  SStmSnodeStreamStatus* pStatus = (SStmSnodeStreamStatus*)p;
+  taosMemoryFreeClear(pStatus->trigger); 
+  for (int32_t i = 0; i < MND_STREAM_RUNNER_DEPLOY_NUM; ++i) {
+    taosArrayDestroy(pStatus->runners[i]);
+    pStatus->runners[i] = NULL;
+  }
+}
+
+
+void mstDestroyVgroupStatus(SStmVgroupStatus* pVgStatus) {
+  taosHashCleanup(pVgStatus->streamTasks);
+  pVgStatus->streamTasks = NULL;
+}
+
 int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped) {
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
@@ -269,6 +296,18 @@ int32_t mstCheckSnodeExists(SMnode *pMnode) {
   return TSDB_CODE_SNODE_NOT_DEPLOYED;
 }
 
+void mstSetTaskStatusFromMsg(SStmGrpCtx* pCtx, SStmTaskStatus* pTask, SStmTaskStatusMsg* pMsg) {
+  pTask->id.taskId = pMsg->taskId;
+  pTask->id.deployId = pMsg->deployId;
+  pTask->id.seriousId = pMsg->seriousId;
+  pTask->id.nodeId = pMsg->nodeId;
+  pTask->id.taskIdx = pMsg->taskIdx;
+
+  pTask->type = pMsg->type;
+  pTask->flags = pMsg->flags;
+  pTask->status = pMsg->status;
+  pTask->lastUpTs = pCtx->currTs;
+}
 
 bool mndStreamActionDequeue(SStmActionQ* pQueue, SStmQNode **param) {
   while (0 == atomic_load_64(&pQueue->qRemainNum)) {
@@ -300,7 +339,7 @@ void mndStreamActionEnqueue(SStmActionQ* pQueue, SStmQNode* param) {
 void mndStreamPostAction(SStmActionQ*       actionQ, int64_t streamId, char* streamName, int32_t action) {
   SStmQNode *pNode = taosMemoryMalloc(sizeof(SStmQNode));
   if (NULL == pNode) {
-    mstError("%s failed at line %d, error:%s", __FUNCTION__, __LINE__, tstrerror(terrno));
+    mstsError("%s failed at line %d, error:%s", __FUNCTION__, __LINE__, tstrerror(terrno));
     return;
   }
 
@@ -319,7 +358,7 @@ void mndStreamPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pActio
   SStmQNode *pNode = taosMemoryMalloc(sizeof(SStmQNode));
   if (NULL == pNode) {
     int64_t streamId = pAction->streamId;
-    mstError("%s failed at line %d, error:%s", __FUNCTION__, __LINE__, tstrerror(terrno));
+    mstsError("%s failed at line %d, error:%s", __FUNCTION__, __LINE__, tstrerror(terrno));
     return;
   }
 
@@ -332,4 +371,147 @@ void mndStreamPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pActio
   mndStreamActionEnqueue(actionQ, pNode);
 }
 
+void mndStreamLogSStreamObj(char* tips, SStreamObj* p) {
+  if (!(stDebugFlag & DEBUG_DEBUG)) {
+    return;
+  }
+  
+  if (NULL == p) {
+    mstDebug("%s: stream is NULL", tips);
+    return;
+  }
+
+  mstDebug("%s: stream obj", tips);
+  mstDebug("name:%s mainSnodeId:%d userDropped:%d userStopped:%d createTime:%" PRId64 " updateTime:%" PRId64,
+      p->name, p->mainSnodeId, p->userDropped, p->userStopped, p->createTime, p->updateTime);
+
+  SCMCreateStreamReq* q = p->pCreate;
+  if (NULL == q) {
+    mstDebug("stream pCreate is NULL");
+    return;
+  }
+
+  int64_t streamId = q->streamId;
+  int32_t calcDBNum = taosArrayGetSize(q->calcDB);
+  int32_t calcScanNum = taosArrayGetSize(q->calcScanPlanList);
+  int32_t notifyUrlNum = taosArrayGetSize(q->pNotifyAddrUrls);
+  int32_t outColNum = taosArrayGetSize(q->outCols);
+  int32_t outTagNum = taosArrayGetSize(q->outTags);
+  int32_t forceOutColNum = taosArrayGetSize(q->forceOutCols);
+
+  mstsDebugL("create_info: name:%s sql:%s streamDB:%s triggerDB:%s outDB:%s calcDBNum:%d triggerTblName:%s outTblName:%s "
+      "igExists:%d triggerType:%d igDisorder:%d deleteReCalc:%d deleteOutTbl:%d fillHistory:%d fillHistroyFirst:%d "
+      "calcNotifyOnly:%d lowLatencyCalc:%d notifyUrlNum:%d notifyEventTypes:%d notifyErrorHandle:%d notifyHistory:%d "
+      "outColsNum:%d outTagsNum:%d maxDelay:%" PRId64 " fillHistoryStartTs:%" PRId64 " watermark:%" PRId64 " expiredTime:%" PRId64 " "
+      "triggerTblType:%d triggerTblUid:%" PRIu64 " outTblType:%d outStbExists:%d outStbUid:%" PRIu64 " outStbSversion:%d "
+      "eventTypes:0x%" PRIx64 " flags:0x%" PRIx64 " tsmaId:0x%" PRIx64 " placeHolderBitmap:0x%" PRIx64 " tsSlotId:%d "
+      "triggerTblVgId:%d outTblVgId:%d calcScanPlanNum:%d forceOutCols:%d",
+      q->name, q->sql, q->streamDB, q->triggerDB, q->outDB, calcDBNum, q->triggerTblName, q->outTblName,
+      q->igExists, q->triggerType, q->igDisorder, q->deleteReCalc, q->deleteOutTbl, q->fillHistory, q->fillHistoryFirst,
+      q->calcNotifyOnly, q->lowLatencyCalc, notifyUrlNum, q->notifyEventTypes, q->notifyErrorHandle, q->notifyHistory,
+      outColNum, outTagNum, q->maxDelay, q->fillHistoryStartTime, q->watermark, q->expiredTime,
+      q->triggerTblType, q->triggerTblUid, q->outTblType, q->outStbExists, q->outStbUid, q->outStbSversion,
+      q->eventTypes, q->flags, q->tsmaId, q->placeHolderBitmap, q->tsSlotId,
+      q->triggerTblVgId, q->outTblVgId, calcScanNum, forceOutColNum);
+
+  mstsDebugL("create_info: triggerCols:[%s]", (char*)q->triggerCols);
+
+  mstsDebugL("create_info: partitionCols:[%s]", (char*)q->partitionCols);
+
+  mstsDebugL("create_info: triggerScanPlan:[%s]", (char*)q->triggerScanPlan);
+
+  mstsDebugL("create_info: calcPlan:[%s]", (char*)q->calcPlan);
+
+  mstsDebugL("create_info: subTblNameExpr:[%s]", (char*)q->subTblNameExpr);
+
+  mstsDebugL("create_info: tagValueExpr:[%s]", (char*)q->tagValueExpr);
+
+
+  for (int32_t i = 0; i < calcDBNum; ++i) {
+    char* dbName = taosArrayGetP(q->calcDB, i);
+    mstsDebug("create_info: calcDB[%d] - %s", i, dbName);
+  }
+
+  for (int32_t i = 0; i < calcScanNum; ++i) {
+    SStreamCalcScan* pScan = taosArrayGet(q->calcScanPlanList, i);
+    int32_t vgNum = taosArrayGetSize(pScan->vgList);
+    mstsDebugL("create_info: calcScanPlan[%d] - readFromCache:%d vgNum:%d scanPlan:[%s]", i, pScan->readFromCache, vgNum, (char*)pScan->scanPlan);
+    for (int32_t v = 0; v < vgNum; ++v) {
+      mstsDebug("create_info: calcScanPlan[%d] vg[%d] - vgId:%d", i, v, *(int32_t*)taosArrayGet(pScan->vgList, v));
+    }
+  }
+
+  for (int32_t i = 0; i < notifyUrlNum; ++i) {
+    char* url = taosArrayGetP(q->pNotifyAddrUrls, i);
+    mstsDebug("create_info: notifyUrl[%d] - %s", i, url);
+  }
+
+  for (int32_t i = 0; i < outColNum; ++i) {
+    SFieldWithOptions* o = taosArrayGet(q->outCols, i);
+    mstsDebug("create_info: outCol[%d] - name:%s type:%d flags:%d bytes:%d compress:%u typeMod:%d", 
+        i, o->name, o->type, o->flags, o->bytes, o->compress, o->typeMod);
+  }
+      
+}
+
+void mndStreamLogSStmTaskStatus(char* name, int64_t streamId, SStmTaskStatus* pTask, int32_t idx) {
+  mstsDebug("%s[%d]: task %" PRIx64 " deployId:%d SID:%" PRId64 " nodeId:%d tidx:%d type:%s flags:%" PRIx64 " status:%s lastUpTs:%" PRId64, 
+      name, idx, pTask->id.taskId, pTask->id.deployId, pTask->id.seriousId, pTask->id.nodeId, pTask->id.taskIdx,
+      gStreamTaskTypeStr[pTask->type], pTask->flags, gStreamStatusStr[pTask->status], pTask->lastUpTs);
+}
+
+void mndStreamLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p) {
+  if (!(stDebugFlag & DEBUG_DEBUG)) {
+    return;
+  }
+  
+  if (NULL == p) {
+    mstsDebug("%s: stream status is NULL", tips);
+    return;
+  }
+
+  int32_t trigReaderNum = taosArrayGetSize(p->trigReaders);
+  int32_t calcReaderNum = taosArrayGetSize(p->calcReaders);
+  int32_t triggerNum = p->triggerTask ? 1 : 0;
+  int32_t runnerNum = 0;
+
+  for (int32_t i = 0; i < p->runnerDeploys; ++i) {
+    runnerNum += taosArrayGetSize(p->runners[i]);
+  }
+
+  mstsDebug("%s: stream status", tips);
+  mstsDebug("name:%s runnerNum:%d runnerDeploys:%d runnerReplica:%d allTaskBuilt:%d lastActionTs:%" PRId64
+           " trigReaders:%d calcReaders:%d trigger:%d runners:%d",
+      p->streamName, p->runnerNum, p->runnerDeploys, p->runnerReplica, p->allTaskBuilt, p->lastActionTs,
+      trigReaderNum, calcReaderNum, triggerNum, runnerNum);
+
+  SStmTaskStatus* pTask = NULL;
+  for (int32_t i = 0; i < trigReaderNum; ++i) {
+    pTask = taosArrayGet(p->trigReaders, i);
+    mndStreamLogSStmTaskStatus("trigReader task", streamId, pTask, i);
+  }
+
+  for (int32_t i = 0; i < calcReaderNum; ++i) {
+    pTask = taosArrayGet(p->calcReaders, i);
+    mndStreamLogSStmTaskStatus("calcReader task", streamId, pTask, i);
+  }
+
+  if (triggerNum > 0) {
+    mndStreamLogSStmTaskStatus("trigger task", streamId, p->triggerTask, 0);
+  }
+
+  for (int32_t i = 0; i < p->runnerDeploys; ++i) {
+    int32_t num = taosArrayGetSize(p->runners[i]);
+    if (num <= 0) {
+      continue;
+    }
+    
+    mstsDebug("the %dth deploy runners status", i);
+    for (int32_t m = 0; m < num; ++m) {
+      pTask = taosArrayGet(p->runners[i], m);
+      mndStreamLogSStmTaskStatus("runner task", streamId, pTask, m);
+    }
+  }
+      
+}
 

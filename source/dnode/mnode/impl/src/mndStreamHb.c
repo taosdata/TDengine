@@ -26,12 +26,12 @@ void mndStreamHbSendRsp(int32_t code, SRpcHandleInfo *pRpcInfo, SMStreamHbRspMsg
 
   tEncodeSize(tEncodeStreamHbRsp, pRsp, tlen, ret);
   if (ret < 0) {
-    stError("encode stream hb msg rsp failed, code:%s", tstrerror(ret));
+    mstError("encode stream hb msg rsp failed, code:%s", tstrerror(ret));
   }
 
   buf = rpcMallocCont(tlen + sizeof(SStreamMsgGrpHeader));
   if (buf == NULL) {
-    stError("encode stream hb msg rsp failed, code:%s", tstrerror(terrno));
+    mstError("encode stream hb msg rsp failed, code:%s", tstrerror(terrno));
     return;
   }
 
@@ -43,7 +43,7 @@ void mndStreamHbSendRsp(int32_t code, SRpcHandleInfo *pRpcInfo, SMStreamHbRspMsg
   if ((code = tEncodeStreamHbRsp(&encoder, pRsp)) < 0) {
     rpcFreeCont(buf);
     tEncoderClear(&encoder);
-    stError("encode stream hb msg rsp failed, code:%s", tstrerror(code));
+    mstError("encode stream hb msg rsp failed, code:%s", tstrerror(code));
     return;
   }
   tEncoderClear(&encoder);
@@ -65,7 +65,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   int32_t      len = pReq->contLen - sizeof(SStreamMsgGrpHeader);
   int64_t      currTs = taosGetTimestampMs();
 
-  stDebug("start to process stream hb req msg");
+  mstDebug("start to process stream hb req msg");
 
   if ((code = grantCheckExpire(TSDB_GRANT_STREAMS)) < 0) {
     TAOS_CHECK_EXIT(msmHandleGrantExpired(pMnode));
@@ -74,15 +74,17 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   tDecoderInit(&decoder, msg, len);
   code = tDecodeStreamHbMsg(&decoder, &req);
   if (code < 0) {
-    stError("failed to decode stream hb msg, error:%s", tstrerror(terrno));
+    mstError("failed to decode stream hb msg, error:%s", tstrerror(terrno));
     tCleanupStreamHbMsg(&req);
     tDecoderClear(&decoder);
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
   tDecoderClear(&decoder);
 
-  stDebug("start to process grp %d stream-hb from dnode:%d, snodeId:%d, vgLeaders:%d, streamStatus:%d", 
+  mstDebug("start to process grp %d stream-hb from dnode:%d, snodeId:%d, vgLeaders:%d, streamStatus:%d", 
       req.streamGId, req.dnodeId, req.snodeId, (int32_t)taosArrayGetSize(req.pVgLeaders), (int32_t)taosArrayGetSize(req.pStreamStatus));
+
+  rsp.streamGId = req.streamGId;
   
   (void)msmHandleStreamHbMsg(pMnode, currTs, &req, &rsp);
 
@@ -93,7 +95,7 @@ _exit:
   msmCleanStreamGrpCtx(&req);
   msmClearStreamToDeployMaps(&req);
 
-  stDebug("end to process stream hb req msg, code:%d", code);
+  mstDebug("end to process stream hb req msg, code:%d", code);
 
   return code;
 }
