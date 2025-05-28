@@ -146,14 +146,14 @@ static void stSetRunnerOutputInfo(SStreamRunnerTask* pTask, const SStreamRunnerD
 }
 
 int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
-  ST_TASK_ILOG("deploy runner task for %s.%s, runner plan:%s", pMsg->outDBFName, pMsg->outTblName, (char*)(pMsg->pPlan));
+  ST_TASK_DLOG("deploy runner task for %s.%s, runner plan:%s", pMsg->outDBFName, pMsg->outTblName, (char*)(pMsg->pPlan));
   pTask->pPlan = pMsg->pPlan;
   pTask->forceOutCols = pMsg->forceOutCols;
   pTask->parallelExecutionNun = pMsg->execReplica;
   pTask->output.outStbVersion = pMsg->outStbSversion;
   pTask->topTask = pMsg->topPlan;
   int32_t code = nodesStringToList(pMsg->tagValueExpr, &pTask->output.pTagValExprs);
-  ST_TASK_ELOG("pTagValExprs: %s", (char*)pMsg->tagValueExpr);
+  ST_TASK_DLOG("pTagValExprs: %s", (char*)pMsg->tagValueExpr);
   if (code != 0) {
     ST_TASK_ELOG("failed to convert tag value expr to node err: %s expr: %s", strerror(code), (char*)pMsg->tagValueExpr);
     pTask->task.status = STREAM_STATUS_FAILED;
