@@ -1640,7 +1640,6 @@ static void mndTransResetAction(SMnode *pMnode, STrans *pTrans, STransAction *pA
   } else {
     mInfo("trans:%d, %s:%d execute status is reset", pTrans->id, mndTransStr(pAction->stage), pAction->id);
   }
-  // TODO dmchen only for group
   //  pAction->errCode = 0;
 }
 
@@ -2310,7 +2309,6 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans, bool 
     code = TSDB_CODE_INTERNAL_ERROR;
   }
 
-  // TODO dmchen compatible
   if (code != 0 && code != TSDB_CODE_MND_TRANS_CTX_SWITCH && code != TSDB_CODE_ACTION_IN_PROGRESS &&
       mndTransIsInSyncContext(topHalf)) {
     pTrans->lastErrorNo = code;
