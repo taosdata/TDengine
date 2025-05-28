@@ -159,6 +159,7 @@ SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactInterval, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
+  SDB_SET_UINT8(pRaw, dataPos, pDb->cfg.flags, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
   terrno = 0;
@@ -260,8 +261,11 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactStartTime, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactEndTime, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactInterval, _OVER)
-
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
+  if (dataPos + sizeof(uint8_t) <= pRaw->dataLen) {
+    SDB_GET_UINT8(pRaw, dataPos, &pDb->cfg.flags, _OVER)
+  }
+
   taosInitRWLatch(&pDb->lock);
 
   if (pDb->cfg.s3ChunkSize == 0) {
@@ -424,7 +428,7 @@ bool mndDbIsExist(SMnode *pMnode, const char *db) {
   }
 }
 
-static int32_t mndCheckDbName(const char *dbName, SUserObj *pUser) {
+int32_t mndCheckDbName(const char *dbName, SUserObj *pUser) {
   char *pos = strstr(dbName, TS_PATH_DELIMITER);
   if (pos == NULL) {
     return TSDB_CODE_MND_INVALID_DB;
@@ -443,7 +447,7 @@ static int32_t mndCheckDbName(const char *dbName, SUserObj *pUser) {
   return 0;
 }
 
-static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
+int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   int32_t code = TSDB_CODE_MND_INVALID_DB_OPTION;
 
   if (pCfg->numOfVgroups < TSDB_MIN_VNODES_PER_DB || pCfg->numOfVgroups > TSDB_MAX_VNODES_PER_DB) return code;
@@ -637,7 +641,7 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->encryptAlgorithm < 0) pCfg->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
 }
 
-static int32_t mndSetCreateDbPrepareAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+int32_t mndSetCreateDbPrepareAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   SSdbRaw *pDbRaw = mndDbActionEncode(pDb);
   if (pDbRaw == NULL) return -1;
 
@@ -1030,6 +1034,10 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(mndCheckDbDnodeList(pMnode, createReq.db, createReq.dnodeListStr, dnodeList), &lino, _OVER);
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser), &lino, _OVER);
+
+  if (sdbGetSize(pMnode->pSdb, SDB_MOUNT) > 0) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_MOUNT_NOT_EMPTY, &lino, _OVER);
+  }
 
   TAOS_CHECK_GOTO(mndCreateDb(pMnode, pReq, &createReq, pUser, dnodeList), &lino, _OVER);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -2165,6 +2173,11 @@ static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb) {
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
+
+    if (pVgroup->dbUid != pDb->uid) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
 
     SMsgHead *pHead = rpcMallocCont(contLen);
     if (pHead == NULL) {

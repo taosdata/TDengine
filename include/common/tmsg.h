@@ -1792,11 +1792,17 @@ typedef struct {
   int16_t  hashPrefix;
   int16_t  hashSuffix;
   int16_t  sttTrigger;
+  // syncInfo
+  int32_t replications;
   // tsdbInfo
   int8_t  precision;
   int8_t  compression;
   int8_t  slLevel;
   int32_t daysPerFile;
+  int32_t keep0;
+  int32_t keep1;
+  int32_t keep2;
+  int32_t keepTimeOffset;
   int32_t minRows;
   int32_t maxRows;
   int32_t tsdbPageSize;

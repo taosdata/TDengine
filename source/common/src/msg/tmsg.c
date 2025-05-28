@@ -4130,7 +4130,6 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->precision));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->compression));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->replications));
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->strict));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->cacheLast));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->schemaless));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->walRetentionPeriod));
@@ -4204,7 +4203,6 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->precision));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->compression));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->replications));
-  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->strict));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->cacheLast));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->schemaless));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->walRetentionPeriod));
@@ -6210,10 +6208,15 @@ int32_t tSerializeSMountInfo(void *buf, int32_t bufLen, SMountInfo *pInfo) {
       TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pVgInfo->hashPrefix));
       TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pVgInfo->hashSuffix));
       TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pVgInfo->sttTrigger));
+      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->replications));
       TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->precision));
       TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->compression));
       TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->slLevel));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->daysPerFile));
+      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->keep0));
+      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->keep1));
+      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->keep2));
+      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->keepTimeOffset));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->minRows));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->maxRows));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->tsdbPageSize));
@@ -6285,10 +6288,15 @@ int32_t tDeserializeSMountInfo(SDecoder *decoder, SMountInfo *pInfo) {
           TAOS_CHECK_EXIT(tDecodeI16v(decoder, &pVgInfo->hashPrefix));
           TAOS_CHECK_EXIT(tDecodeI16v(decoder, &pVgInfo->hashSuffix));
           TAOS_CHECK_EXIT(tDecodeI16v(decoder, &pVgInfo->sttTrigger));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->replications));
           TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->precision));
           TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->compression));
           TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->slLevel));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->daysPerFile));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->keep0));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->keep1));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->keep2));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->keepTimeOffset));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->minRows));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->maxRows));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->tsdbPageSize));
