@@ -288,20 +288,20 @@ CREATE STABLE phase_stb (
 Assume there are four devices: d1001, d1002, d1003, and d1004. To create subtables for their current, voltage, and phase measurements, use the following SQL statements:
 
 ```sql
-create table current_d1001 using current_stb(deviceid, location, group_id) tags("d1001", "California.SanFrancisco", 2);
-create table current_d1002 using current_stb(deviceid, location, group_id) tags("d1002", "California.SanFrancisco", 3);
-create table current_d1003 using current_stb(deviceid, location, group_id) tags("d1003", "California.LosAngeles", 3);
-create table current_d1004 using current_stb(deviceid, location, group_id) tags("d1004", "California.LosAngeles", 2);
+create table current_d1001 using current_stb(device_id, location, group_id) tags("d1001", "California.SanFrancisco", 2);
+create table current_d1002 using current_stb(device_id, location, group_id) tags("d1002", "California.SanFrancisco", 3);
+create table current_d1003 using current_stb(device_id, location, group_id) tags("d1003", "California.LosAngeles", 3);
+create table current_d1004 using current_stb(device_id, location, group_id) tags("d1004", "California.LosAngeles", 2);
 
-create table voltage_d1001 using voltage_stb(deviceid, location, group_id) tags("d1001", "California.SanFrancisco", 2);
-create table voltage_d1002 using voltage_stb(deviceid, location, group_id) tags("d1002", "California.SanFrancisco", 3);
-create table voltage_d1003 using voltage_stb(deviceid, location, group_id) tags("d1003", "California.LosAngeles", 3);
-create table voltage_d1004 using voltage_stb(deviceid, location, group_id) tags("d1004", "California.LosAngeles", 2);
+create table voltage_d1001 using voltage_stb(device_id, location, group_id) tags("d1001", "California.SanFrancisco", 2);
+create table voltage_d1002 using voltage_stb(device_id, location, group_id) tags("d1002", "California.SanFrancisco", 3);
+create table voltage_d1003 using voltage_stb(device_id, location, group_id) tags("d1003", "California.LosAngeles", 3);
+create table voltage_d1004 using voltage_stb(device_id, location, group_id) tags("d1004", "California.LosAngeles", 2);
 
-create table phase_d1001 using phase_stb(deviceid, location, group_id) tags("d1001", "California.SanFrancisco", 2);
-create table phase_d1002 using phase_stb(deviceid, location, group_id) tags("d1002", "California.SanFrancisco", 3);
-create table phase_d1003 using phase_stb(deviceid, location, group_id) tags("d1003", "California.LosAngeles", 3);
-create table phase_d1004 using phase_stb(deviceid, location, group_id) tags("d1004", "California.LosAngeles", 2);
+create table phase_d1001 using phase_stb(device_id, location, group_id) tags("d1001", "California.SanFrancisco", 2);
+create table phase_d1002 using phase_stb(device_id, location, group_id) tags("d1002", "California.SanFrancisco", 3);
+create table phase_d1003 using phase_stb(device_id, location, group_id) tags("d1003", "California.LosAngeles", 3);
+create table phase_d1004 using phase_stb(device_id, location, group_id) tags("d1004", "California.LosAngeles", 2);
 ```
 
 A virtual supertable can be used to aggregate these three types of measurements into a single table. The SQL statement to create the virtual supertable is as follows:
