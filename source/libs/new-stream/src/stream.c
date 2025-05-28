@@ -37,7 +37,6 @@ void streamCleanup(void) {
   //STREAMTODO
   streamTriggerEnvCleanup();
   destroyDataSinkMgr();
-  destroyInserterGrpInfo();
 }
 
 int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode) {

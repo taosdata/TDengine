@@ -186,8 +186,6 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   void* pIter = NULL;
 
   // Test invalid parameters
-  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 100);
-  ASSERT_NE(code, 0);
   code = getStreamDataCache(pCache, groupID, wend, wstart, &pIter);
   ASSERT_EQ(code, TSDB_CODE_STREAM_INTERNAL_ERROR);
   code = getStreamDataCache(NULL, groupID, wstart, wend, &pIter);
@@ -404,6 +402,7 @@ TEST(dataSinkTest, cancelStreamDataCacheIterateTest) {
   ASSERT_NE(pIter, nullptr);
   ASSERT_EQ(pBlock1, pBlock);
   cancelStreamDataCacheIterate(&pIter);
+  
 
   blockDataDestroy(pBlock1);  // pBlock1 has moveout, can destroy
   // blockDataDestroy(pBlock2); // pBlock2 has not moveout, can not destroy
@@ -729,9 +728,38 @@ TEST(dataSinkTest, allWriteMultiStreamToFileTest) {
   destroyDataSinkMgr();
 }
 
+TEST(dataSinkTest, testWriteFileSize) {
+  SSDataBlock* pBlock = createTestBlock(baseTestTime1, 0);
+  setDataSinkMaxMemSize(gMemReservedSize + 1024 * 1024);
+  int64_t streamId = 1;
+  void*   pCache = NULL;
+  int64_t taskId = 1;
+  int32_t cleanMode = DATA_CLEAN_EXPIRED;
+  int32_t code = initStreamDataCache(streamId, taskId, cleanMode, 0, &pCache);
+  ASSERT_NE(pBlock, nullptr);
+  for (int32_t i = 0; i < 100000; i++) {
+    int64_t groupID = i;
+    TSKEY   wstart = baseTestTime1 + 0;
+    TSKEY   wend = baseTestTime1 + 100;
+    ASSERT_EQ(code, 0);
+    code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
+    ASSERT_EQ(code, 0);
+  }
+  blockDataDestroy(pBlock);
+
+  destroyStreamDataCache(pCache);
+}
+
 int main(int argc, char** argv) {
   taos_init();
   ::testing::InitGoogleTest(&argc, argv);
+
+  if (argc > 1) {
+    ::testing::GTEST_FLAG(filter) = argv[1];
+  } else {
+    ::testing::GTEST_FLAG(filter) = "*";
+  }
+
   int ret = RUN_ALL_TESTS();
   taos_cleanup();
   return ret;

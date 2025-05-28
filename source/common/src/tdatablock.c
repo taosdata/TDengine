@@ -4192,6 +4192,9 @@ int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, int3
   int32_t lastRowNumNext = getFirstBiggerThanTSRowNum(pts, firstRowNum, numOfRows, end);
   if (lastRowNumNext < 0) {
     lastRowNumNext = numOfRows;
+  } else if (lastRowNumNext == 0) {
+    pBlock->info.rows = 0;
+    return TSDB_CODE_SUCCESS;
   }
 
   int32_t realRows = lastRowNumNext - firstRowNum;
@@ -4292,7 +4295,7 @@ int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, int3
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getStreamBlockTS(SSDataBlock* pBlock, int32_t row, int32_t tsColSlotId, TSKEY* ts) {
+int32_t getStreamBlockTS(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t row, TSKEY* ts) {
   if (pBlock == NULL || ts == NULL) {
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
