@@ -694,10 +694,28 @@ typedef struct SSTriggerVirTableInfoRequest {
   SArray*              cids;  // SArray<int64_t>, col ids of the virtual table
 } SSTriggerVirTableInfoRequest;
 
+typedef struct OTableInfoRsp {
+  int64_t  uid;;
+  col_id_t cid;
+} OTableInfoRsp;
+
+typedef struct OTableInfo {
+  char     refTableName[TSDB_TABLE_NAME_LEN];
+  char     refColName[TSDB_COL_NAME_LEN];
+} OTableInfo;
+
 typedef struct SSTriggerOrigTableInfoRequest {
   SSTriggerPullRequest base;
-  SArray*              cols;  // SArray<SColRef>
+  SArray*              cols;  // SArray<OTableInfo>
 } SSTriggerOrigTableInfoRequest;
+
+typedef struct SSTriggerOrigTableInfoRsp {
+  SArray*              cols;  // SArray<OTableInfoRsp>
+} SSTriggerOrigTableInfoRsp;
+
+int32_t tSerializeSTriggerOrigTableInfoRsp(void* buf, int32_t bufLen, const SSTriggerOrigTableInfoRsp* pReq);
+int32_t tDserializeSTriggerOrigTableInfoRsp(void* buf, int32_t bufLen, SSTriggerOrigTableInfoRsp* pReq);
+void    tDestroySTriggerOrigTableInfoRsp(SSTriggerOrigTableInfoRsp* pReq);
 
 typedef union SSTriggerPullRequestUnion {
   SSTriggerPullRequest                base;
