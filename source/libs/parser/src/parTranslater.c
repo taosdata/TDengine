@@ -13863,12 +13863,14 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   SSelectStmt*           pTriggerSelect = NULL;
   SHashObj*              pTriggerSlotHash = NULL;
   SNode*                 pNotifyCond = NULL;
+  SName                  streamName;
 
   PAR_ERR_JRET(taosGetSystemUUIDU64(&pReq->streamId));
 
+  toName(pCxt->pParseCxt->acctId, pStmt->streamDbName, pStmt->streamName, &streamName);
   // name
   pReq->streamDB = taosMemoryMalloc(TSDB_DB_FNAME_LEN);
-  pReq->name = taosStrdup(pStmt->streamName);
+  pReq->name = taosMemoryCalloc(1, TSDB_STREAM_FNAME_LEN);
   pReq->outDB = taosMemoryMalloc(TSDB_DB_FNAME_LEN);
   pReq->outTblName = taosStrdup(pStmt->targetTabName);
 
@@ -13879,6 +13881,7 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
     PAR_ERR_JRET(terrno);
   }
 
+  PAR_ERR_JRET(tNameExtractFullName(&streamName, pReq->name));
   (void)snprintf(pReq->streamDB, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pParseCxt->acctId, pStmt->streamDbName);
   (void)snprintf(pReq->outDB, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pParseCxt->acctId, pStmt->targetDbName);
 
