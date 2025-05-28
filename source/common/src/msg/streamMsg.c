@@ -2268,6 +2268,14 @@ _exit:
   return code;
 }
 
+void tDestroySTriggerPullRequest(SSTriggerPullRequestUnion* pReq) {
+  if (pReq == NULL) return;
+  if (pReq->base.type == STRIGGER_PULL_VTABLE_INFO) {
+    SSTriggerVirTableInfoRequest* pRequest = (SSTriggerVirTableInfoRequest*)pReq;
+    taosArrayDestroy(pRequest->cids);
+  } 
+}
+
 int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTriggerPullRequest* pReq) {
   SEncoder encoder = {0};
   int32_t  code = TSDB_CODE_SUCCESS;
@@ -2355,6 +2363,21 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->gid));
       break;
     }
+    case STRIGGER_PULL_VTABLE_INFO: {
+      SSTriggerVirTableInfoRequest* pRequest = (SSTriggerVirTableInfoRequest*)pReq;
+      int32_t size = taosArrayGetSize(pRequest->cids);
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, size));
+      for (int32_t i = 0; i < size; ++i) {
+        col_id_t* pColId = taosArrayGet(pRequest->cids, i);
+        if (pColId == NULL) {
+          uError("col id is NULL at index %d", i);
+          code = TSDB_CODE_INVALID_PARA;
+          goto _exit;
+        }
+        TAOS_CHECK_EXIT(tEncodeI16(&encoder, *pColId));
+      }
+      break;
+    }
     default: {
       uError("unknown pull type %d", pReq->type);
       code = TSDB_CODE_INVALID_PARA;
@@ -2373,6 +2396,7 @@ _exit:
   tEncoderClear(&encoder);
   return tlen;
 }
+
 
 int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullRequestUnion* pReq) {
   SDecoder decoder = {0};
@@ -2461,6 +2485,27 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
     case STRIGGER_PULL_GROUP_COL_VALUE: {
       SSTriggerGroupColValueRequest* pRequest = &(pReq->groupColValueReq);
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->gid));
+      break;
+    }
+    case STRIGGER_PULL_VTABLE_INFO: {
+      SSTriggerVirTableInfoRequest* pRequest = &(pReq->virTableInfoReq);
+      int32_t size = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &size));
+      pRequest->cids = taosArrayInit(size, sizeof(col_id_t));
+      if (pRequest->cids == NULL) {
+        code = terrno;
+        uError("failed to allocate memory for cids, size: %d, errno: %d", size, code);
+        goto _exit;
+      }
+      for (int32_t i = 0; i < size; ++i) {
+        col_id_t cid = 0;
+        TAOS_CHECK_EXIT(tDecodeI16(&decoder, &cid));
+        if (taosArrayPush(pRequest->cids, &cid) == NULL) {
+          code = terrno;
+          uError("failed to push cid to cids array, errno: %d", code);
+          goto _exit;
+        }
+      }
       break;
     }
     default: {
@@ -2759,6 +2804,91 @@ int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pIn
   TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &pInfo->withExternalWindow));
 _exit:
   return code;
+}
+
+int32_t tSerializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, const SStreamMsgVTableInfo* pRsp){
+  SEncoder encoder = {0};
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  int32_t  tlen = 0;
+
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+
+  TAOS_CHECK_EXIT(tEncodeSSchemaWrapper(&encoder, &pRsp->schema));
+
+  int32_t size = taosArrayGetSize(pRsp->infos);
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, size));
+  for (int32_t i = 0; i < size; ++i) {
+    VTableInfo* info = taosArrayGet(pRsp->infos, i);
+    if (info == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, info->gId));
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, info->uid));
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, info->ver));
+    TAOS_CHECK_EXIT(tEncodeSColRefWrapper(&encoder, &info->cols));
+  }
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, SStreamMsgVTableInfo *vTableInfo){
+  SDecoder decoder = {0};
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  int32_t  size = 0;
+
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+
+  TAOS_CHECK_EXIT(tDecodeSSchemaWrapper(&decoder, &vTableInfo->schema));
+
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &size));
+  vTableInfo->infos = taosArrayInit(sizeof(VTableInfo), size);
+  if (vTableInfo->infos == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+  for (int32_t i = 0; i < size; ++i) {
+    VTableInfo* info = taosArrayReserve(vTableInfo->infos, 1);
+    if (info == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &info->gId));
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &info->uid));
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &info->ver));
+    TAOS_CHECK_EXIT(tDecodeSColRefWrapperEx(&decoder, &info->cols));
+  }
+
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tDestroySStreamMsgVTableInfo(SStreamMsgVTableInfo *ptr) {
+  if (ptr == NULL) return;
+  tDeleteSchemaWrapper(&ptr->schema);
+  ptr->schema.pSchema = NULL;
+  for (int32_t i = 0; i < taosArrayGetSize(ptr->infos); ++i) {
+    VTableInfo* info = taosArrayGet(ptr->infos, i);
+    if (info != NULL) {
+      taosMemoryFree(&info->cols.pColRef);
+      info->cols.pColRef = NULL;
+    }
+  }
+  taosArrayDestroy(ptr->infos);
+  ptr->infos = NULL;
 }
 
 int32_t tSerializeSStreamTsResponse(void* buf, int32_t bufLen, const SStreamTsResponse* pRsp) {

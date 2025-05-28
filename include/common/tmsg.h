@@ -644,6 +644,8 @@ typedef struct {
   SColRef*  pColRef;
 } SColRefWrapper;
 
+int32_t tEncodeSColRefWrapper(SEncoder *pCoder, const SColRefWrapper *pWrapper);
+int32_t tDecodeSColRefWrapperEx(SDecoder *pDecoder, SColRefWrapper *pWrapper);
 typedef struct {
   int32_t vgId;
   SColRef colRef;
