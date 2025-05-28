@@ -61,12 +61,12 @@ class TestStreamDevBasic2:
         tdSql.checkKeyExist("stream_trigger")
 
         tdLog.info(f"=============== create stream")
-        sql1 = "create stream s1 interval(1s) sliding(1s) from stream_trigger partition by tbname into out1 tags (gid bigint as _tgrpid) as select _twstart ts, count(*) c1, avg(v1) c2 from stb where ts >= _twstart and ts < _twend;"
-        sql2 = "create stream s2 interval(1s) sliding(1s) from stream_trigger partition by tbname into out2                              as select _twstart ts, count(*) c1, avg(v1)    from stb where ts >= _twstart and ts < _twend;"
-        sql3 = "create stream s3 state_window (v1)        from stream_trigger partition by tbname into out3                              as select _twstart ts, count(*) c1, avg(v1) c2 from stb;"
-        sql4 = "create stream s4 state_window (v1)        from stream_trigger                     into out4                              as select _twstart ts, count(*) c1, avg(v1) c2 from stb;"
-        sql6 = "create stream s6 sliding (1s)             from stream_trigger                     into out6                              as select _tcurrent_ts, now, count(v1) from stb;"
-        sql7 = "create stream s7 state_window (v1) from stream_trigger partition by tbname options(fill_history_first(1)) into out7 as select _twstart, avg(v1) from stb;"
+        sql1 = "create stream s1 interval(1s) sliding(1s) from stream_trigger partition by tbname into out1 tags (gid bigint as _tgrpid)    as select _twstart ts, count(*) c1, avg(v1) c2 from stb where ts >= _twstart and ts < _twend;"
+        sql2 = "create stream s2 interval(1s) sliding(1s) from stream_trigger partition by tbname into out2                                 as select _twstart ts, count(*) c1, avg(v1)    from stb where ts >= _twstart and ts < _twend;"
+        sql3 = "create stream s3 state_window (v1)        from stream_trigger partition by tbname into out3                                 as select _twstart ts, count(*) c1, avg(v1) c2 from stb;"
+        sql4 = "create stream s4 state_window (v1)        from stream_trigger                     into out4                                 as select _twstart ts, count(*) c1, avg(v1) c2 from stb;"
+        sql6 = "create stream s6 sliding (1s)             from stream_trigger                     into out6                                 as select _tcurrent_ts, now, count(v1) from stb;"
+        sql7 = "create stream s7 state_window (v1)        from stream_trigger partition by tbname options(fill_history_first(1)) into out7  as select _twstart, avg(v1), count(v1) from stb;"
 
         tdSql.execute(sql1)
         tdSql.execute(sql2)
