@@ -62,7 +62,7 @@ class TestStreamDevBasic:
         tdSql.checkKeyExist("stream_trigger")
 
         tdLog.info(f"=============== create stream")
-        sql = "create stream s6 sliding (1s)  from stream_trigger into out6 as select now, _tcurrent_ts, avg(v1) from stb;"
+        sql = "create stream s7 state_window (v1)  from stream_trigger into out7 partition by tbname options(fill_history_first(1)) as select _twstart, avg(id) from stb;"
         tdSql.execute(sql)
 
         tdStream.checkStreamStatus()
@@ -74,8 +74,8 @@ class TestStreamDevBasic:
 
         tdLog.info(f"=============== check stream result")
 
-        result_sql3 = "select * test.out6"
+        result_sql7 = "select * from test.out7"
         tdSql.checkResultsByFunc(
-            sql=result_sql3,
+            sql=result_sql7,
             func=lambda: tdSql.getRows() > 0,
         )
