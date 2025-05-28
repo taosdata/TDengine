@@ -23,7 +23,7 @@ use std::{
     sync::OnceLock,
     time::Duration,
 };
-use taos::*;
+use taos::{taos_query::common::RowView, *};
 use taos_query::Manager;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{error, info, instrument, Instrument};
@@ -59,8 +59,11 @@ use tracing_subscriber::{
     util::SubscriberInitExt,
 };
 
+use sql::need_limit;
+
 mod favorites;
 mod qid;
+mod sql;
 pub mod verification;
 
 #[derive(Clone)]
@@ -1620,31 +1623,34 @@ impl Args {
             .map(|f| (f.name().to_string(), f.ty().to_string(), f.bytes()))
             .collect_vec();
         debug!("Got fields {column_meta:?}, fetching data.");
-        let data = set
-            .to_records()
-            .await?
+
+        let convert_value = |value: taos::Value| match value {
+            taos::Value::Timestamp(ts) => {
+                let ts_with_tz = tz.from_utc_datetime(&ts.to_naive_datetime());
+                serde_json::Value::String(ts_with_tz.to_rfc3339_opts(seconds_format, true))
+            }
+            taos::Value::VarBinary(vb) => {
+                serde_json::Value::String(format!("\\x{}", hex::encode(vb).to_uppercase()))
+            }
+            taos::Value::Geometry(geo) => {
+                serde_json::Value::String(parse_geometry_from_bytes(&geo))
+            }
+            taos::Value::Float(f) => serde_json::Value::from(f),
+            _ => value.to_json_value(),
+        };
+        let data = if need_limit(sql) {
+            // select 语句如果不包含 limit，默认返回 1000 条
+            set.rows()
+                .take(1000)
+                .map_ok(RowView::into_values)
+                .try_collect::<Vec<_>>()
+                .await?
+        } else {
+            set.to_records().await?
+        };
+        let data = data
             .into_iter()
-            .map(|row| {
-                row.into_iter()
-                    .map(|v| match v {
-                        taos::Value::Timestamp(ts) => {
-                            let ts_with_tz = tz.from_utc_datetime(&ts.to_naive_datetime());
-                            serde_json::Value::String(
-                                ts_with_tz.to_rfc3339_opts(seconds_format, true),
-                            )
-                        }
-                        taos::Value::VarBinary(vb) => serde_json::Value::String(format!(
-                            "\\x{}",
-                            hex::encode(vb).to_uppercase()
-                        )),
-                        taos::Value::Geometry(geo) => {
-                            serde_json::Value::String(parse_geometry_from_bytes(&geo))
-                        }
-                        taos::Value::Float(f) => serde_json::Value::from(f),
-                        _ => v.to_json_value(),
-                    })
-                    .collect_vec()
-            })
+            .map(|row| row.into_iter().map(convert_value).collect_vec())
             .collect_vec();
         debug!("SQL result: {data:?}");
         Ok(RestOkResponse {
