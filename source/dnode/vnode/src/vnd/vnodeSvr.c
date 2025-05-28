@@ -544,10 +544,14 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
          pMsg->info.conn.applyTerm);
 
   if (!(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm)) {
+    vError("vgId:%d, write request applyTerm is not in order, current: %" PRId64 ", request: %" PRId64, TD_VID(pVnode),
+           pVnode->state.applyTerm, pMsg->info.conn.applyTerm);
     return terrno = TSDB_CODE_INTERNAL_ERROR;
   }
 
   if (!(pVnode->state.applied + 1 == ver)) {
+    vError("vgId:%d, write request ver is not in order, current: %" PRId64 ", request: %" PRId64, TD_VID(pVnode),
+           pVnode->state.applied + 1, ver);
     return terrno = TSDB_CODE_INTERNAL_ERROR;
   }
 
