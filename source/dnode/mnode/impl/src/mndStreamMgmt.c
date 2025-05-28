@@ -3014,7 +3014,7 @@ int32_t msmWatchHandleHbMsg(SStmGrpCtx* pCtx) {
     TAOS_CHECK_EXIT(msmWatchHandleStatusUpdate(pCtx));
   }
 
-  if (((pCtx->currTs - mStreamMgmt.activeBeginTs) > MND_STREAM_WATCH_DURATION) &&
+  if (((pCtx->currTs - mStreamMgmt.activeBegin.ts) > MND_STREAM_WATCH_DURATION) &&
       (0 == atomic_val_compare_exchange_8(&mStreamMgmt.watch.ending, 0, 1))) {
     TAOS_CHECK_EXIT(msmWatchHandleEnding(pCtx));
   }
@@ -3140,11 +3140,10 @@ int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, 
 }
 
 void msmHandleBecomeLeader(SMnode *pMnode) {
-  if (0 == atomic_val_compare_exchange_8(&mStreamMgmt.active, 0, 1)) {
-    taosWLockLatch(&mStreamMgmt.runtimeLock);
-    msmInitRuntimeInfo(pMnode);
-    taosWUnLockLatch(&mStreamMgmt.runtimeLock);
-  }
+  taosWLockLatch(&mStreamMgmt.runtimeLock);
+  msmInitRuntimeInfo(pMnode);
+  taosWUnLockLatch(&mStreamMgmt.runtimeLock);
+  atomic_store_8(&mStreamMgmt.active, 1);
 }
 
 void msmHandleBecomeNotLeader(SMnode *pMnode) {  
@@ -3459,6 +3458,10 @@ void msmCheckTasksStatus(SMnode *pMnode) {
 }
 
 void msmHealthCheck(SMnode *pMnode, bool checkAll, bool needLock) {
+  if (0 == atomic_load_8(&mStreamMgmt.active)) {
+    return;
+  }
+  
   if (checkAll) {
     mStreamMgmt.healthCtx.checkAll = true;
   } else {
@@ -3489,8 +3492,7 @@ static bool msmUpdateProfileStreams(SMnode *pMnode, void *pObj, void *p1, void *
   
   pStream->updateTime = *(int64_t*)p1;
   
-  (*(int64_t*)p2) ^= pStream->pCreate->streamId;
-  (*(int32_t*)p3)++;
+  (*(int32_t*)p2)++;
   
   return true;
 }
@@ -3503,7 +3505,8 @@ int32_t msmInitRuntimeInfo(SMnode *pMnode) {
   int32_t snodeNum = sdbGetSize(pMnode->pSdb, SDB_SNODE);
   int32_t dnodeNum = sdbGetSize(pMnode->pSdb, SDB_DNODE);
 
-  mStreamMgmt.activeBeginTs = taosGetTimestampMs();
+  mStreamMgmt.activeBegin.ts = taosGetTimestampMs();
+  mStreamMgmt.activeBegin.handled = false;
   mStreamMgmt.threadNum = tsNumOfMnodeStreamMgmtThreads;
   mStreamMgmt.tCtx = taosMemoryCalloc(mStreamMgmt.threadNum, sizeof(SStmThreadCtx));
   if (NULL == mStreamMgmt.tCtx) {
@@ -3597,10 +3600,9 @@ int32_t msmInitRuntimeInfo(SMnode *pMnode) {
   TAOS_CHECK_EXIT(msmSTAddSnodesToMap(pMnode));
   TAOS_CHECK_EXIT(msmSTAddDnodesToMap(pMnode));
 
-  mStreamMgmt.profile = mStreamMgmt.activeBeginTs;
   mStreamMgmt.activeStreamNum = 0;
   
-  sdbTraverse(pMnode->pSdb, SDB_STREAM, msmUpdateProfileStreams, &mStreamMgmt.activeBeginTs, &mStreamMgmt.profile, &mStreamMgmt.activeStreamNum);
+  sdbTraverse(pMnode->pSdb, SDB_STREAM, msmUpdateProfileStreams, &mStreamMgmt.activeBegin.ts, &mStreamMgmt.activeStreamNum, NULL);
 
   mStreamMgmt.lastTaskId = 1;
 

@@ -617,6 +617,8 @@ static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
     return code;
   }
 
+  pStream->updateTime = taosGetTimestampMs();
+
   atomic_store_8(&pStream->userStopped, 1);
 
   msmUndeployStream(pMnode, streamId, pStream->pCreate->name);
@@ -784,6 +786,8 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   }
 
   mstsInfo("start to drop stream %s", pStream->pCreate->name);
+
+  pStream->updateTime = taosGetTimestampMs();
 
   atomic_store_8(&pStream->userDropped, 1);
 

@@ -207,6 +207,9 @@ typedef struct SStmStatus {
 
   bool              allTaskBuilt;
   int64_t           lastActionTs;
+  int32_t           fatalError;
+  int64_t           fatalRetryTs;
+  int64_t           fatalRetryTimes;
 
   SArray*           trigReaders;        // SArray<SStmTaskStatus>
   SArray*           calcReaders;        // SArray<SStmTaskStatus>  
@@ -328,23 +331,34 @@ typedef struct SStmCheckStatusCtx {
   int32_t checkedNum;
 } SStmCheckStatusCtx;
 
+typedef struct SStmLastTs {
+  int64_t ts;
+  bool    handled;
+} SStmLastTs;
+
 typedef struct SStmRuntime {
   int8_t           active;
-  
-  SRWLatch         runtimeLock;
   int32_t          activeStreamNum;
-  int64_t          profile;
-  int64_t          activeBeginTs;
+  SStmLastTs       activeBegin;
   int8_t           state;
   int32_t          fatalError;
+  int64_t          fatalRetryTs;
+  int64_t          fatalRetryTimes;
+  int64_t          lastTaskId;
+  SStmLastTs       createStream;
+  SStmLastTs       dropStream;
+  SStmLastTs       stopStream;
+  SStmLastTs       startStream;
+  SStmLastTs       createSnode;
+  SStmLastTs       dropSnode;
+    
+  SRWLatch         runtimeLock;
 
   SRWLatch         actionQLock;
   SStmActionQ*     actionQ;
   
   int32_t           threadNum;
   SStmThreadCtx*    tCtx;
-
-  int64_t          lastTaskId;
 
   // ST
   SHashObj*        streamMap;  // streamId => SStmStatus
