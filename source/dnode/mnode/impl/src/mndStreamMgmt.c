@@ -512,6 +512,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
     addr.nodeId = pStatus->id.nodeId;
     addr.epset = mndGetVgroupEpsetById(pMnode, pStatus->id.nodeId);
     TSDB_CHECK_NULL(taosArrayPush(pMsg->readerList, &addr), code, lino, _exit, terrno);
+    mstsDebug("the %dth trigReader src added to trigger's readerList, TASK:%" PRIx64 " nodeId:%d", i, addr.taskId, addr.nodeId);
   }
 
   if (0 == pInfo->runnerNum) {
@@ -539,6 +540,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
     runner.addr.epset = mndGetDnodeEpsetById(pMnode, pStatus->id.nodeId);
     runner.execReplica = pInfo->runnerReplica; 
     TSDB_CHECK_NULL(taosArrayPush(pMsg->runnerList, &runner), code, lino, _exit, terrno);
+    mstsDebug("the %dth runner target added to trigger's runnerList, TASK:%" PRIx64 , i, runner.addr.taskId);
   }
 
 _exit:
@@ -885,6 +887,7 @@ static int32_t msmTDAddTrigReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
       void *pIter = NULL;
       while (1) {
         SVgObj *pVgroup = NULL;
+        SStmTaskDeploy info = {0};
         pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
         if (pIter == NULL) {
           break;
@@ -903,7 +906,8 @@ static int32_t msmTDAddTrigReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
           pState->status = STREAM_STATUS_NA;
           pState->lastUpTs = pCtx->currTs;
 
-          SStmTaskDeploy info = {0};
+          sdbRelease(pSdb, pVgroup);
+
           info.task.type = pState->type;
           info.task.streamId = streamId;
           info.task.taskId = pState->id.taskId;
@@ -914,8 +918,6 @@ static int32_t msmTDAddTrigReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
           TSDB_CHECK_CODE(msmBuildReaderDeployInfo(&info, pStream, NULL, pInfo, true), lino, _exit);
           TSDB_CHECK_CODE(msmTDAddToVgroupMap(mStreamMgmt.toDeployVgMap, &info, streamId), lino, _exit);
         }
-      
-        sdbRelease(pSdb, pVgroup);
       }
       break;
     }
@@ -1031,7 +1033,7 @@ static int32_t msmTDAddCalcReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
     
     int32_t vgNum = taosArrayGetSize(pScan->vgList);
     for (int32_t m = 0; m < vgNum; ++m) {
-      pState = taosArrayReserve(pInfo->trigReaders, 1);
+      pState = taosArrayReserve(pInfo->calcReaders, 1);
 
       pState->id.taskId = msmAssignTaskId();
       pState->id.deployId = -1;
