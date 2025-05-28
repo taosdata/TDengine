@@ -322,7 +322,7 @@ int32_t getStreamDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY end
     stError("getStreamDataCache param invalid, pCache or pIter is NULL");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
-  if (start < 0 || start >= end) {
+  if (start < 0 || start > end) {
     stError("getStreamDataCache param invalid, start > end");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }

@@ -176,6 +176,8 @@ static void releaseStreamReaderInfo(void* p) {
   taosMemoryFree(pInfo->calcSchema);
   destroyExprInfo(pInfo->pExprInfo, pInfo->numOfExpr);
   taosMemoryFreeClear(pInfo->pExprInfo);
+  destroyExprInfo(pInfo->pCalcExprInfo, pInfo->numOfCalcExpr);
+  taosMemoryFreeClear(pInfo->pCalcExprInfo);
   taosMemoryFree(pInfo);
 }
 
@@ -310,16 +312,14 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(const SStreamReaderDeplo
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->triggerResBlock, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
   STREAM_CHECK_RET_GOTO(buildSTSchemaAndSetColId(&sStreamReaderInfo->triggerSchema, sStreamReaderInfo->triggerCols,
                                                  sStreamReaderInfo->triggerResBlock));
-
-  // process calcCacheScanPlan
-  STREAM_CHECK_RET_GOTO(nodesStringToNode(pMsg->msg.trigger.calcCacheScanPlan, (SNode**)(&sStreamReaderInfo->calcAst)));
-
   SNodeList* pseudoCols = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scan.pScanPseudoCols;
   if (pseudoCols != NULL) {
     STREAM_CHECK_RET_GOTO(createExprInfo(pseudoCols, NULL, 
       &sStreamReaderInfo->pExprInfo, &sStreamReaderInfo->numOfExpr));
   }
 
+  // process calcCacheScanPlan
+  STREAM_CHECK_RET_GOTO(nodesStringToNode(pMsg->msg.trigger.calcCacheScanPlan, (SNode**)(&sStreamReaderInfo->calcAst)));
   if (sStreamReaderInfo->calcAst != NULL) {
     STREAM_CHECK_CONDITION_GOTO(
         QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN != nodeType(sStreamReaderInfo->calcAst->pNode) &&
@@ -342,6 +342,11 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(const SStreamReaderDeplo
 
     STREAM_CHECK_RET_GOTO(buildSTSchemaAndSetColId(&sStreamReaderInfo->calcSchema, sStreamReaderInfo->calcCols,
                                                    sStreamReaderInfo->calcResBlock));
+    SNodeList* pseudoCols = ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.pScanPseudoCols;
+    if (pseudoCols != NULL) {
+      STREAM_CHECK_RET_GOTO(createExprInfo(pseudoCols, NULL, 
+        &sStreamReaderInfo->pCalcExprInfo, &sStreamReaderInfo->numOfCalcExpr));
+    }
   }
 
   sStreamReaderInfo->groupIdMap =

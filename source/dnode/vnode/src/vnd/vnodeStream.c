@@ -523,7 +523,7 @@ static int32_t processTag(SVnode* pVnode, SExprInfo* pExpr, int32_t numOfExpr, S
     int32_t          dstSlotId = pExpr1->base.resSchema.slotId;
 
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotId);
-
+    STREAM_CHECK_NULL_GOTO(pColInfoData, terrno);
     if (mr.me.name == NULL) {
       colDataSetNNULL(pColInfoData, 0, pBlock->info.rows);
       continue;
@@ -574,8 +574,8 @@ end:
   return code;
 }
 
-static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStreamInfo, SSDataBlock* p,
-                                 STSchema* schemas, int64_t ver, int64_t uid, STimeWindow* window,
+static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStreamInfo, bool trigger,
+                                 int64_t ver, int64_t uid, STimeWindow* window,
                                  SSDataBlock** pBlock) {
   int32_t      code = 0;
   int32_t      lino = 0;
@@ -584,6 +584,11 @@ static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStre
   SStorageAPI  api = {0};
   SSDataBlock* pBlock1 = NULL;
   SSDataBlock* pBlock2 = NULL;
+
+  SSDataBlock* p         = trigger ? sStreamInfo->triggerResBlock : sStreamInfo->calcResBlock; 
+  STSchema*    schemas   = trigger ? sStreamInfo->triggerSchema : sStreamInfo->calcSchema;
+  SExprInfo*   pExpr     = trigger ? sStreamInfo->pExprInfo : sStreamInfo->pCalcExprInfo;
+  int32_t      numOfExpr = trigger ? sStreamInfo->numOfExpr : sStreamInfo->numOfCalcExpr;
 
   if (sStreamInfo->pConditions != NULL) {
     STREAM_CHECK_RET_GOTO(filterInitFromNode(sStreamInfo->pConditions, &pFilterInfo, 0, NULL));
@@ -601,7 +606,7 @@ static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStre
 
   STREAM_CHECK_RET_GOTO(scanWalOneVer(pVnode, pTableList, pBlock1, pBlock2, schemas, ver, uid, window));
 
-  STREAM_CHECK_RET_GOTO(processTag(pVnode, sStreamInfo->pExprInfo, sStreamInfo->numOfExpr, &api, pBlock2));
+  STREAM_CHECK_RET_GOTO(processTag(pVnode, pExpr, numOfExpr, &api, pBlock2));
 
   STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock2, pFilterInfo));
   printDataBlock(pBlock2, "wal data block filter", "task id");
@@ -1286,8 +1291,7 @@ static int32_t vnodeProcessStreamWalTsDataReq(SVnode* pVnode, SRpcMsg* pMsg, SST
   SStreamTriggerReaderInfo* sStreamReaderInfo = qStreamGetReaderInfo(req->base.streamId, req->base.readerTaskId);
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
 
-  STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, sStreamReaderInfo->triggerResBlock,
-                                          sStreamReaderInfo->triggerSchema, req->walTsDataReq.ver,
+  STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, true, req->walTsDataReq.ver,
                                           req->walTsDataReq.uid, NULL, &pBlock))
   stDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
   STREAM_CHECK_RET_GOTO(buildRsp(pBlock, &buf, &size));
@@ -1315,8 +1319,7 @@ static int32_t vnodeProcessStreamWalTriggerDataReq(SVnode* pVnode, SRpcMsg* pMsg
   SStreamTriggerReaderInfo* sStreamReaderInfo = qStreamGetReaderInfo(req->base.streamId, req->base.readerTaskId);
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
 
-  STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, sStreamReaderInfo->triggerResBlock,
-                                          sStreamReaderInfo->triggerSchema, req->walTriggerDataReq.ver,
+  STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, true, req->walTriggerDataReq.ver,
                                           req->walTriggerDataReq.uid, NULL, &pBlock));
 
   stDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
@@ -1348,12 +1351,11 @@ static int32_t vnodeProcessStreamWalCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg, S
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
 
   STimeWindow window = {.skey = req->walCalcDataReq.skey, .ekey = req->walCalcDataReq.ekey};
-  STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, sStreamReaderInfo->calcResBlock,
-                                          sStreamReaderInfo->calcSchema, req->walCalcDataReq.ver,
+  STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, false, req->walCalcDataReq.ver,
                                           req->walCalcDataReq.uid, &window, &pBlock));
 
   stDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
-
+  printDataBlock(pBlock, "wal calc block", "task id");
   STREAM_CHECK_RET_GOTO(buildRsp(pBlock, &buf, &size));
 
 end:
