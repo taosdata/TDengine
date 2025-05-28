@@ -43,10 +43,11 @@ static const char* gMndStreamState[] = {"X", "W", "N", "R"};
 #define STREAM_RUNNER_MAX_DEPLOYS 
 #define STREAM_RUNNER_MAX_REPLICA 
 
-#define STREAM_ACT_DEPLOY (1 << 0)
-#define STREAM_ACT_UNDEPLOY (1 << 1)
-#define STREAM_ACT_START (1 << 2)
-#define STREAM_ACT_ERR_HANDLE (1 << 3)
+#define STREAM_ACT_DEPLOY 0
+#define STREAM_ACT_UNDEPLOY 1
+#define STREAM_ACT_START 2
+
+static const char* gMndStreamAction[] = {"DEPLOY", "UNDEPLOY", "START"};
 
 #define STREAM_FLAG_TRIGGER_READER (1 << 0)
 #define STREAM_FLAG_TOP_RUNNER     (1 << 1)

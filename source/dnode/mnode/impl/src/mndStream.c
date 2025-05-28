@@ -670,6 +670,8 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
     }
   }
 
+  pStream->updateTime = taosGetTimestampMs();
+
   int64_t streamId = pStream->pCreate->streamId;
 
   atomic_store_8(&pStream->userStopped, 0);
