@@ -2183,6 +2183,10 @@ static int32_t mndTransExecuteRedoActionGroup(SMnode *pMnode, STrans *pTrans, bo
   int32_t groupCount = taosHashGetSize(pTrans->redoGroupActions);
 
   SHashObj *pHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
+  if(pHash == NULL){
+    mError("trans:%d, failed to init hash since %s", pTrans->id, terrorstr());
+    return -1;
+  }
   for (int32_t i = 0; i < taosArrayGetSize(pTrans->redoActions); ++i) {
     STransAction *pAction = taosArrayGet(pTrans->redoActions, i);
     int32_t       code = taosHashPut(pHash, &pAction->id, sizeof(int32_t), &pAction->msgSent, sizeof(int8_t));
