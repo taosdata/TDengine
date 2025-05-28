@@ -219,14 +219,14 @@ typedef struct {
 } SStreamCalcScan;
 
 typedef struct {
-  char*   name;
+  char*   name;         // full name
   int64_t streamId;
   char*   sql;
 
-  char*   streamDB;
-  char*   triggerDB;
-  char*   outDB;
-  SArray* calcDB;  // char*
+  char*   streamDB;    // db full name
+  char*   triggerDB;   // db full name
+  char*   outDB;       // db full name
+  SArray* calcDB;      // char*, db full name
 
   char* triggerTblName;  // table name
   char* outTblName;      // table name
@@ -283,7 +283,8 @@ typedef struct {
   void*   triggerPrevFilter;  // filter for trigger table
 
   // runner part
-  void*   calcPlan;  // for calc action
+  int32_t numOfCalcSubplan;
+  void*   calcPlan;        // for calc action
   void*   subTblNameExpr;
   void*   tagValueExpr;
   SArray* forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
@@ -319,7 +320,9 @@ typedef struct SStreamTask {
   int64_t taskId;    // ID of the current task
   /** KEEP TOGETHER **/
 
+  int64_t       flags;
   int64_t       seriousId;  // task deploy idx
+  int32_t       deployId;   // runner task's deploy id
   int32_t       nodeId;     // ID of the vgroup/snode
   int64_t       sessionId;  // ID of the current session (real-time, historical, or recalculation)
   int16_t       taskIdx;
@@ -357,7 +360,8 @@ typedef struct {
 } SStreamReaderDeployFromTrigger;
 
 typedef struct {
-  void* calcScanPlan;
+  int32_t execReplica;
+  void*   calcScanPlan;
 } SStreamReaderDeployFromCalc;
 
 typedef union {

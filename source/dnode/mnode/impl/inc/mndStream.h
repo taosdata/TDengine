@@ -27,12 +27,12 @@ typedef enum {
   STM_ERR_TASK_NOT_EXISTS = 1,
 } EStmErrType;
 
-typedef enum {
-  MND_STM_PHASE_WATCH = 0,
-  MND_STM_PHASE_NORMAL,
-  MND_STM_PHASE_CLEANUP,
-  MND_STM_PHASE_DEPLOYALL
-} EMndStmPhase;
+#define MND_STM_STATE_WATCH   1
+#define MND_STM_STATE_NORMAL  2
+#define MND_STM_STATE_RESTART 3
+
+static const char* gMndStreamState[] = {"X", "W", "N", "R"};
+
 
 #define MND_STREAM_RUNNER_DEPLOY_NUM 3
 #define MND_STREAM_ISOLATION_PERIOD_NUM 3
@@ -49,8 +49,10 @@ typedef enum {
 #define STREAM_ACT_ERR_HANDLE (1 << 3)
 
 #define STREAM_FLAG_TRIGGER_READER (1 << 0)
+#define STREAM_FLAG_TOP_RUNNER     (1 << 1)
 
 #define STREAM_IS_TRIGGER_READER(_flags) ((_flags) & STREAM_FLAG_TRIGGER_READER)
+#define STREAM_IS_TOP_RUNNER(_flags) ((_flags) & STREAM_FLAG_TOP_RUNNER)
 
 #define MND_STREAM_RESERVE_SIZE      64
 #define MND_STREAM_VER_NUMBER        6
@@ -69,6 +71,54 @@ typedef enum {
 
 #define GOT_SNODE(_snodeId) ((_snodeId) != 0)
 #define STREAM_IS_RUNNING(_status) (STREAM_STATUS_RUNNING == (_status))
+
+// clang-format off
+#define mstFatal(...) do { if (stDebugFlag & DEBUG_FATAL) { taosPrintLog("MSTM FATAL ", DEBUG_FATAL, 255,         __VA_ARGS__); }} while(0)
+#define mstError(...) do { if (stDebugFlag & DEBUG_ERROR) { taosPrintLog("MSTM ERROR ", DEBUG_ERROR, 255,         __VA_ARGS__); }} while(0)
+#define mstWarn(...)  do { if (stDebugFlag & DEBUG_WARN)  { taosPrintLog("MSTM WARN  ", DEBUG_WARN,  255,         __VA_ARGS__); }} while(0)
+#define mstInfo(...)  do { if (stDebugFlag & DEBUG_INFO)  { taosPrintLog("MSTM INFO  ", DEBUG_INFO,  255,         __VA_ARGS__); }} while(0)
+#define mstDebug(...) do { if (stDebugFlag & DEBUG_DEBUG) { taosPrintLog("MSTM DEBUG ", DEBUG_DEBUG, stDebugFlag, __VA_ARGS__); }} while(0)
+#define mstDebugL(...) do { if (stDebugFlag & DEBUG_DEBUG) { taosPrintLongString("MSTM DEBUG ", DEBUG_DEBUG, stDebugFlag, __VA_ARGS__); }} while(0)
+#define mstTrace(...) do { if (stDebugFlag & DEBUG_TRACE) { taosPrintLog("MSTM TRACE ", DEBUG_TRACE, stDebugFlag, __VA_ARGS__); }} while(0)
+// clang-format on
+
+#define msttFatal(param, ...)                                                                               \
+  mstFatal("%s NODE:%d %" PRIx64 " %s TASK:%" PRIx64 " SID:%" PRId64 " " param, gMndStreamState[mStreamMgmt.state],\
+          ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, gStreamTaskTypeStr[((SStreamTask *)pTask)->type],   \
+           ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, __VA_ARGS__)
+#define msttError(param, ...)                                                                               \
+  mstError("%s NODE:%d %" PRIx64 " %s TASK:%" PRIx64 " SID:%" PRId64 " " param, gMndStreamState[mStreamMgmt.state],\
+          ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, gStreamTaskTypeStr[((SStreamTask *)pTask)->type],   \
+           ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, __VA_ARGS__)
+#define msttWarn(param, ...)                                                                              \
+  mstWarn("%s NODE:%d %" PRIx64 " %s TASK:%" PRIx64 " SID:%" PRId64 " " param, gMndStreamState[mStreamMgmt.state],\
+          ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, gStreamTaskTypeStr[((SStreamTask *)pTask)->type],   \
+           ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, __VA_ARGS__)
+#define msttInfo(param, ...)                                                                              \
+  mstInfo("%s NODE:%d %" PRIx64 " %s TASK:%" PRIx64 " SID:%" PRId64 " " param, gMndStreamState[mStreamMgmt.state],\
+          ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, gStreamTaskTypeStr[((SStreamTask *)pTask)->type],   \
+           ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, __VA_ARGS__)
+#define msttDebug(param, ...)                                                                               \
+  mstDebug("%s NODE:%d %" PRIx64 " %s TASK:%" PRIx64 " SID:%" PRId64 " " param, gMndStreamState[mStreamMgmt.state],\
+          ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, gStreamTaskTypeStr[((SStreamTask *)pTask)->type],   \
+           ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, __VA_ARGS__)
+#define msttDebugL(param, ...)                                                                               \
+  mstDebugL("%s NODE:%d %" PRIx64 " %s TASK:%" PRIx64 " SID:%" PRId64 " " param, gMndStreamState[mStreamMgmt.state],\
+          ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, gStreamTaskTypeStr[((SStreamTask *)pTask)->type],   \
+           ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, __VA_ARGS__)
+#define msttTrace(param, ...)                                                                               \
+  mstTrace("%s NODE:%d %" PRIx64 " %s TASK:%" PRIx64 " SID:%" PRId64 " " param, gMndStreamState[mStreamMgmt.state],\
+          ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, gStreamTaskTypeStr[((SStreamTask *)pTask)->type],   \
+           ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, __VA_ARGS__)
+
+#define mstsFatal(param, ...) mstFatal("%s %" PRIx64 " " param, gMndStreamState[mStreamMgmt.state], streamId, __VA_ARGS__)
+#define mstsError(param, ...) mstError("%s %" PRIx64 " " param, gMndStreamState[mStreamMgmt.state], streamId, __VA_ARGS__)
+#define mstsWarn(param, ...)  mstWarn("%s %" PRIx64 " " param, gMndStreamState[mStreamMgmt.state], streamId, __VA_ARGS__)
+#define mstsInfo(param, ...)  mstInfo("%s %" PRIx64 " " param, gMndStreamState[mStreamMgmt.state], streamId, __VA_ARGS__)
+#define mstsDebug(param, ...) mstDebug("%s %" PRIx64 " " param, gMndStreamState[mStreamMgmt.state], streamId, __VA_ARGS__)
+#define mstsDebugL(param, ...) mstDebugL("%s %" PRIx64 " " param, gMndStreamState[mStreamMgmt.state], streamId, __VA_ARGS__)
+#define mstsTrace(param, ...) mstTrace("%s %" PRIx64 " " param, gMndStreamState[mStreamMgmt.state], streamId, __VA_ARGS__)
+
 
 typedef struct SStmStreamAction {
   int64_t              streamId;
@@ -106,7 +156,9 @@ typedef struct SStmTaskAction {
   SStmTaskStatus* triggerStatus;
   
   EStreamTaskType type;
-  int64_t    flag;
+  bool            multiRunner;
+  
+  int64_t         flag;
 } SStmTaskAction;
 
 typedef union {
@@ -146,36 +198,47 @@ typedef struct SStmTaskSrcAddr {
 } SStmTaskSrcAddr;
 
 typedef struct SStmStatus {
+  // static part
   char*             streamName;
-  int64_t           lastActTs;
-  int32_t           triggerReaderNum;  
-  SArray*           readerList;        // SArray<SStmTaskStatus>
-  SStmTaskStatus*   triggerTask;
+  int32_t           runnerNum;        // task num for one deploy
   int32_t           runnerDeploys;
   int32_t           runnerReplica;
-  SArray*           runnerTopIdx;      // top runner task index in runnerList, num is runnerDeploys
-  SArray*           runnerList;        // SArray<SStmTaskStatus>
+
+  bool              allTaskBuilt;
+  int64_t           lastActionTs;
+
+  SArray*           trigReaders;        // SArray<SStmTaskStatus>
+  SArray*           calcReaders;        // SArray<SStmTaskStatus>  
+  SStmTaskStatus*   triggerTask;
+  SArray*           runners[MND_STREAM_RUNNER_DEPLOY_NUM];  // SArray<SStmTaskStatus>
 } SStmStatus;
+
 
 typedef struct SStmTaskStatusExt{
   int64_t         streamId;
   SStmTaskStatus* status;
 } SStmTaskStatusExt;
 
-typedef struct SStmSnodeTasksStatus {
+typedef struct SStmSnodeStreamStatus {
+  SStmTaskStatus*  trigger;       
+  SArray*          runners[MND_STREAM_RUNNER_DEPLOY_NUM];       // SArray<SStmTaskStatus*>
+} SStmSnodeStreamStatus;
+
+typedef struct SStmSnodeStatus {
   int32_t  runnerThreadNum; // runner thread num in snode
   int64_t  lastUpTs;
-  SRWLatch lock;
-  SArray*  triggerList;     // SArray<SStmTaskStatusExt>
-  SArray*  runnerList;      // SArray<SStmTaskStatusExt>
-} SStmSnodeTasksStatus;
+  SHashObj* streamTasks;   // streamId => SStmSnodeStreamStatus
+} SStmSnodeStatus;
 
-typedef struct SStmVgroupTasksStatus {
-  SRWLatch lock;
-  int32_t  leaderDnodeId;
-  int64_t  streamVer;
+typedef struct SStmVgStreamStatus {
+  SArray*  trigReaders;       // SArray<SStmTaskStatus*>
+  SArray*  calcReaders;       // SArray<SStmTaskStatus*>
+} SStmVgStreamStatus;
+
+typedef struct SStmVgroupStatus {
+  SHashObj* streamTasks;   // streamId => SStmVgStreamStatus
   SArray*  taskList;       // SArray<SStmTaskStatusExt>
-} SStmVgroupTasksStatus;
+} SStmVgroupStatus;
 
 typedef struct SStmTaskToDeployExt {
   bool            deployed;
@@ -237,21 +300,42 @@ typedef struct SStmThreadCtx {
 } SStmThreadCtx;
 
 typedef struct SStmHealthCheckCtx {
+  bool      checkAll;
   int32_t   slotIdx;
   
   int64_t   currentTs;
   int32_t   validStreamNum;
-
-  SHashObj* streamRunners;     // streamId => deploy num
 } SStmHealthCheckCtx;
 
+typedef struct SStmRuntimeStat {
+  int64_t  activeTimes;
+  int64_t  inactiveTimes;
+  
+} SStmRuntimeStat;
+
+typedef struct SStmWatchCtx {
+  int8_t   ending;
+  int8_t   taskRemains;
+  int32_t  processing;
+} SStmWatchCtx;
+
+typedef struct SStmCheckStatusCtx {
+  bool    checkAll;
+  
+  int32_t code;
+  int32_t handledNum;
+  int32_t checkedNum;
+} SStmCheckStatusCtx;
+
 typedef struct SStmRuntime {
-  bool             initialized;
-  bool             isLeader;
+  int8_t           active;
+  
   SRWLatch         runtimeLock;
   int32_t          activeStreamNum;
-  int64_t          startTs;
-  EMndStmPhase     phase;
+  int64_t          profile;
+  int64_t          activeBeginTs;
+  int8_t           state;
+  int32_t          fatalError;
 
   SRWLatch         actionQLock;
   SStmActionQ*     actionQ;
@@ -264,8 +348,8 @@ typedef struct SStmRuntime {
   // ST
   SHashObj*        streamMap;  // streamId => SStmStatus
   SHashObj*        taskMap;    // streamId + taskId => SStmTaskStatus*
-  SHashObj*        vgroupMap;  // vgId => SStmVgroupTasksStatus (only reader tasks)
-  SHashObj*        snodeMap;   // snodeId => SStmSnodeTasksStatus (only trigger and runner tasks)
+  SHashObj*        vgroupMap;  // vgId => SStmVgroupStatus (only reader tasks)
+  SHashObj*        snodeMap;   // snodeId => SStmSnodeStatus (only trigger and runner tasks)
   SHashObj*        dnodeMap;   // dnodeId => lastUpTs
 
   // TD
@@ -280,6 +364,9 @@ typedef struct SStmRuntime {
 
   // HEALTH
   SStmHealthCheckCtx healthCtx;
+
+  SStmWatchCtx       watch;
+  SStmRuntimeStat    stat;
 } SStmRuntime;
 
 extern SStmRuntime         mStreamMgmt;
@@ -287,6 +374,7 @@ extern SStmRuntime         mStreamMgmt;
 int32_t mndInitStream(SMnode *pMnode);
 void    mndCleanupStream(SMnode *pMnode);
 int32_t mndAcquireStream(SMnode *pMnode, char *streamName, SStreamObj **pStream);
+int32_t mndAcquireStreamById(SMnode *pMnode, int64_t streamId, SStreamObj **pStream);
 void    mndReleaseStream(SMnode *pMnode, SStreamObj *pStream);
 int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 
@@ -311,6 +399,7 @@ int32_t mndStreamTransAppend(SStreamObj *pStream, STrans *pTrans, int32_t status
 int32_t mndStreamCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnConflct conflict, const char *name, STrans **ppTrans);
 int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows);
 int32_t mstCheckSnodeExists(SMnode *pMnode);
+void mstSetTaskStatusFromMsg(SStmGrpCtx* pCtx, SStmTaskStatus* pTask, SStmTaskStatusMsg* pMsg);
 void msmClearStreamToDeployMaps(SStreamHbMsg* pHb);
 void msmCleanStreamGrpCtx(SStreamHbMsg* pHb);
 int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, SMStreamHbRspMsg* pRsp);
@@ -320,11 +409,17 @@ void msmHandleBecomeLeader(SMnode *pMnode);
 void msmHandleBecomeNotLeader(SMnode *pMnode);
 int32_t msmUndeployStream(SMnode* pMnode, int64_t streamId, char* streamName);
 int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped);
-void msmHealthCheck(SMnode *pMnode);
+void mstWaitRLock(SRWLatch* pLock);
+void msmHealthCheck(SMnode *pMnode, bool checkAll, bool needLock);
 void mndStreamPostAction(SStmActionQ*       actionQ, int64_t streamId, char* streamName, int32_t action);
 void mndStreamPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pAction, int32_t action);
 int32_t msmAssignRandomSnodeId(SMnode* pMnode, int64_t streamId);
 int32_t msmCheckSnodeReassign(SMnode *pMnode, SSnodeObj* pSnode, SArray** ppRes);
+void mndStreamLogSStreamObj(char* tips, SStreamObj* p);
+void mndStreamLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p);
+void mstDestroySStmVgStreamStatus(void* p);
+void mstDestroyVgroupStatus(SStmVgroupStatus* pVgStatus);
+void mstDestroySStmSnodeStreamStatus(void* p);
 
 #ifdef __cplusplus
 }

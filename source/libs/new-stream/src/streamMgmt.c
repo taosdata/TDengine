@@ -63,7 +63,7 @@ static int32_t smAddTaskToVgroupMap(SStreamReaderTask* pTask) {
 _return:
 
   if (code) {
-    mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+    stsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
   
   return code;
@@ -84,7 +84,7 @@ _return:
 
   taosWUnLockLatch(&gStreamMgmt.snodeLock);
 
-  mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  stsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
 
   return code;
 }
@@ -171,9 +171,9 @@ _exit:
   taosRUnLockLatch(&pStream->taskLock);
 
   if (code) {
-    mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+    stsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   } else {
-    mstDebug("all %d deploy tasks added to streamMap&taskMap", readerNum + triggerNum + runnerNum);
+    stsDebug("all %d deploy tasks added to streamMap&taskMap", readerNum + triggerNum + runnerNum);
   }
   
   return code;
@@ -186,7 +186,7 @@ int32_t smDeployTasks(SStmStreamDeploy* pDeploy) {
   int32_t lino = 0;
   SHashObj* pGrp = gStreamMgmt.stmGrp[gid];
 
-  mstInfo("start to deploy stream, readerNum:%zu, triggerNum:%d, runnerNum:%zu", 
+  stsInfo("start to deploy stream, readerNum:%zu, triggerNum:%d, runnerNum:%zu", 
       taosArrayGetSize(pDeploy->readerTasks), pDeploy->triggerTask ? 1 : 0, taosArrayGetSize(pDeploy->runnerTasks));      
   
   if (NULL == pGrp) {
@@ -198,7 +198,7 @@ int32_t smDeployTasks(SStmStreamDeploy* pDeploy) {
   int32_t taskNum = 0;
   SStreamTasksInfo* pStream = taosHashGet(pGrp, &streamId, sizeof(streamId));
   if (NULL != pStream) {
-    mstDebug("stream already exists, remain taskNum:%d", pStream->taskNum);
+    stsDebug("stream already exists, remain taskNum:%d", pStream->taskNum);
     TAOS_CHECK_EXIT(smAddTasksToStreamMap(pDeploy, pStream));
     taskNum = atomic_load_32(&pStream->taskNum);
   } else {
@@ -214,13 +214,13 @@ int32_t smDeployTasks(SStmStreamDeploy* pDeploy) {
     taskNum = stream.taskNum;
   }
   
-  mstInfo("stream deploy succeed, current taskNum:%d", taskNum);
+  stsInfo("stream deploy succeed, current taskNum:%d", taskNum);
 
   return code;
 
 _exit:
 
-  mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  stsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
 
   return code;
 }
@@ -242,7 +242,7 @@ int32_t smDeployStreams(SStreamDeployActions* actions) {
 
 _exit:
 
-  mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  stsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
 
   return code;
 }
@@ -256,7 +256,7 @@ int32_t smStartStreamTasks(SStreamTaskStart* pStart) {
   
   SStreamTask** ppTask = taosHashGet(gStreamMgmt.taskMap, &pStart->task.streamId, sizeof(pStart->task.streamId) + sizeof(pStart->task.taskId));
   if (NULL == ppTask) {
-    mstError("stream not exists while try to start task %" PRId64, pStart->task.taskId);
+    stsError("stream not exists while try to start task %" PRId64, pStart->task.taskId);
     goto _exit;
   }
 
@@ -270,7 +270,7 @@ int32_t smStartStreamTasks(SStreamTaskStart* pStart) {
 
 _exit:
 
-  mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  stsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
 
   return code;
 }
@@ -319,15 +319,15 @@ void smRemoveTaskPostCheck(int64_t streamId, SStreamTasksInfo* pStream, bool* is
     int32_t readerNum = taosArrayGetSize(pStream->readerList);
     int32_t runnerNum = taosArrayGetSize(pStream->runnerList);
     if (readerNum > 0) {
-      mstError("remain readerNum %d while taskNum %d", readerNum, remainTasks);
+      stsError("remain readerNum %d while taskNum %d", readerNum, remainTasks);
       taskRemains = true;
     }
     if (pStream->triggerTask) {
-      mstError("trigger task remain while taskNum %d", readerNum);
+      stsError("trigger task remain while taskNum %d", readerNum);
       taskRemains = true;
     }
     if (runnerNum > 0) {
-      mstError("remain runnerNum %d while taskNum %d", runnerNum, remainTasks);
+      stsError("remain runnerNum %d while taskNum %d", runnerNum, remainTasks);
       taskRemains = true;
     }
 
@@ -391,9 +391,9 @@ void smRemoveTaskCb(void* param) {
       if (isLastTask) {
         int32_t code = taosHashRemove(pGrp, &streamId, sizeof(streamId));
         if (TSDB_CODE_SUCCESS == code) {
-          mstInfo("stream removed from streamGrpHash %d, remainStream:%d", gid, taosHashGetSize(pGrp));
+          stsInfo("stream removed from streamGrpHash %d, remainStream:%d", gid, taosHashGetSize(pGrp));
         } else {
-          mstWarn("stream remove from streamGrpHash %d failed, remainStream:%d, error:%s", 
+          stsWarn("stream remove from streamGrpHash %d failed, remainStream:%d, error:%s", 
               gid, taosHashGetSize(pGrp), tstrerror(code));
         }
       }
@@ -450,7 +450,7 @@ int32_t smUndeployTask(SStreamTaskUndeploy* pUndeploy) {
   
   SStreamTask** ppTask = taosHashAcquire(gStreamMgmt.taskMap, key, sizeof(key));
   if (NULL == ppTask) {
-    mstInfo("stream already not exists while try to undeploy task %" PRId64, key[1]);
+    stsInfo("stream already not exists while try to undeploy task %" PRId64, key[1]);
     goto _exit;
   }
 
@@ -481,7 +481,7 @@ int32_t smUndeployTask(SStreamTaskUndeploy* pUndeploy) {
 _exit:
 
   if (code) {
-    mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+    stsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   } else {
     ST_TASK_ILOG("task undeploy succeed, tidx:%d", pTask->taskIdx);
   }
@@ -541,9 +541,9 @@ void smHandleRemovedTask(SStreamTasksInfo* pStream, int64_t streamId, int32_t gi
   
   int32_t code = taosHashRemove(gStreamMgmt.stmGrp[gid], &streamId, sizeof(streamId));
   if (TSDB_CODE_SUCCESS == code) {
-    mstInfo("stream removed from streamGrpHash %d, remainStream:%d", gid, taosHashGetSize(gStreamMgmt.stmGrp[gid]));
+    stsInfo("stream removed from streamGrpHash %d, remainStream:%d", gid, taosHashGetSize(gStreamMgmt.stmGrp[gid]));
   } else {
-    mstWarn("stream remove from streamGrpHash %d failed, remainStream:%d, error:%s", 
+    stsWarn("stream remove from streamGrpHash %d failed, remainStream:%d, error:%s", 
         gid, taosHashGetSize(gStreamMgmt.stmGrp[gid]), tstrerror(code));
   }
 }
@@ -567,7 +567,7 @@ int32_t smStartTasks(SStreamStartActions* actions) {
 
 _exit:
 
-  mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  stsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
 
   return code;
 }
@@ -593,7 +593,7 @@ int32_t smUndeployTasks(SStreamUndeployActions* actions) {
 
 _exit:
 
-  mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  stsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
 
   return code;
 }

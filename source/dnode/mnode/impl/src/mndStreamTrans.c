@@ -33,16 +33,16 @@ int32_t mndStreamCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq,
 
   STrans *p = mndTransCreate(pMnode, TRN_POLICY_RETRY, conflict, pReq, name);
   if (p == NULL) {
-    mstError("failed to build trans:%s, reason: %s", name, tstrerror(terrno));
+    mstsError("failed to build trans:%s, reason: %s", name, tstrerror(terrno));
     return terrno;
   }
 
-  mstInfo("start to build trans %s, transId:%d", name, p->id);
+  mstsInfo("start to build trans %s, transId:%d", name, p->id);
   p->ableToBeKilled = true;
 
   mndTransSetDbName(p, pStream->pCreate->streamDB, pStream->pCreate->outTblName);
   if ((code = mndTransCheckConflict(pMnode, p)) != 0) {
-    mstError("failed to build trans:%s for stream, code:%s", name, tstrerror(terrno));
+    mstsError("failed to build trans:%s for stream, code:%s", name, tstrerror(terrno));
     mndTransDrop(p);
     return code;
   }
@@ -91,13 +91,13 @@ _over:
 
   taosMemoryFreeClear(buf);
   if (code != TSDB_CODE_SUCCESS) {
-    mstError("failed to encode stream %s to raw:%p at line:%d since %s", pStream->pCreate->name, pRaw, lino, tstrerror(code));
+    mstsError("failed to encode stream %s to raw:%p at line:%d since %s", pStream->pCreate->name, pRaw, lino, tstrerror(code));
     sdbFreeRaw(pRaw);
     terrno = code;
     return NULL;
   }
 
-  mstTrace("stream %s encoded to raw:%p", pStream->pCreate->name, pRaw);
+  mstsTrace("stream %s encoded to raw:%p", pStream->pCreate->name, pRaw);
          
   return pRaw;
 }
@@ -106,20 +106,20 @@ int32_t mndStreamTransAppend(SStreamObj *pStream, STrans *pTrans, int32_t status
   int64_t streamId = pStream->pCreate->streamId;
   SSdbRaw *pCommitRaw = mndStreamActionEncode(pStream);
   if (pCommitRaw == NULL) {
-    mstError("failed to encode stream since %s", terrstr());
+    mstsError("failed to encode stream since %s", terrstr());
     mndTransDrop(pTrans);
     return terrno;
   }
 
   if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mstError("stream trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    mstsError("stream trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
     sdbFreeRaw(pCommitRaw);
     mndTransDrop(pTrans);
     return terrno;
   }
 
   if (sdbSetRawStatus(pCommitRaw, status) != 0) {
-    mstError("stream trans:%d failed to set raw status:%d since %s", pTrans->id, status, terrstr());
+    mstsError("stream trans:%d failed to set raw status:%d since %s", pTrans->id, status, terrstr());
     sdbFreeRaw(pCommitRaw);
     mndTransDrop(pTrans);
     return terrno;

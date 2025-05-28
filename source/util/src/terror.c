@@ -431,7 +431,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_TTL_CHG_ON_WR,  "ttlChangeOnWrite not 
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_EN_WHITELIST,   "enableWhiteList not match")
 TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_STOPPED,                "Mnode stopped")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_COMPACT_TASKS,  "Invalid max compact tasks")
-TAOS_DEFINE_ERROR(TSDB_CODE_SNODE_NO_ALIVE_NODE,          "No alive snode now")
+TAOS_DEFINE_ERROR(TSDB_CODE_SNODE_NO_AVAILABLE_NODE,      "No stream available snode now")
 
 // vnode
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VGROUP_ID,        "Vnode is closed or removed")
@@ -933,6 +933,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND, "Insert table info n
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INSERT_SCHEMA_NOT_MATCH, "Insert table info not match")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN,     "Not a table scan plan in stream reader task")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_SNODE_IN_USE,        "Snode still in use with streams")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_PLAN_ERROR,          "Stream plan error")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_NODE_NOT_EXISTS,     "Dnode/snode not exists")
 
 #ifdef TAOS_ERROR_C
 };

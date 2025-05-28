@@ -110,6 +110,7 @@ typedef struct SStreamCacheReadInfo {
 #define stWarn(...)  do { if (stDebugFlag & DEBUG_WARN)  { taosPrintLog("STM WARN  ", DEBUG_WARN,  255,         __VA_ARGS__); }} while(0)
 #define stInfo(...)  do { if (stDebugFlag & DEBUG_INFO)  { taosPrintLog("STM INFO  ", DEBUG_INFO,  255,         __VA_ARGS__); }} while(0)
 #define stDebug(...) do { if (stDebugFlag & DEBUG_DEBUG) { taosPrintLog("STM DEBUG ", DEBUG_DEBUG, stDebugFlag, __VA_ARGS__); }} while(0)
+#define stDebugL(...) do { if (stDebugFlag & DEBUG_DEBUG) { taosPrintLongString("STM DEBUG ", DEBUG_DEBUG, stDebugFlag, __VA_ARGS__); }} while(0)
 #define stTrace(...) do { if (stDebugFlag & DEBUG_TRACE) { taosPrintLog("STM TRACE ", DEBUG_TRACE, stDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
@@ -138,18 +139,24 @@ typedef struct SStreamCacheReadInfo {
           gStreamTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->nodeId,                    \
           ((SStreamTask *)pTask)->streamId, ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, ((SStreamTask *)pTask)->sessionId, \
           __VA_ARGS__)
+#define ST_TASK_DLOGL(param, ...)                                                                               \
+    stDebugL("TYPE: %s, NODE:%d, STREAM:%" PRIx64 ", TASK:%" PRIx64 ",SID:%" PRId64 ", SESSION:%" PRIx64 " " param,               \
+            gStreamTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->nodeId,                    \
+            ((SStreamTask *)pTask)->streamId, ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, ((SStreamTask *)pTask)->sessionId, \
+            __VA_ARGS__)
 #define ST_TASK_TLOG(param, ...)                                                                               \
   stTrace("TYPE: %s, NODE:%d, STREAM:%" PRIx64 ", TASK:%" PRIx64 ",SID:%" PRId64 ", SESSION:%" PRIx64 " " param,               \
           gStreamTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->nodeId,                    \
           ((SStreamTask *)pTask)->streamId, ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, ((SStreamTask *)pTask)->sessionId, \
           __VA_ARGS__)
 
-#define mstFatal(param, ...) stFatal("STREAM:%" PRIx64 " " param, streamId, __VA_ARGS__)
-#define mstError(param, ...) stError("STREAM:%" PRIx64 " " param, streamId, __VA_ARGS__)
-#define mstWarn(param, ...)  stWarn("STREAM:%" PRIx64 " " param, streamId, __VA_ARGS__)
-#define mstInfo(param, ...)  stInfo("STREAM:%" PRIx64 " " param, streamId, __VA_ARGS__)
-#define mstDebug(param, ...) stDebug("STREAM:%" PRIx64 " " param, streamId, __VA_ARGS__)
-#define mstTrace(param, ...) stTrace("STREAM:%" PRIx64 " " param, streamId, __VA_ARGS__)
+#define stsFatal(param, ...) stFatal("%" PRIx64 " " param, streamId, __VA_ARGS__)
+#define stsError(param, ...) stError("%" PRIx64 " " param, streamId, __VA_ARGS__)
+#define stsWarn(param, ...)  stWarn("%" PRIx64 " " param, streamId, __VA_ARGS__)
+#define stsInfo(param, ...)  stInfo("%" PRIx64 " " param, streamId, __VA_ARGS__)
+#define stsDebug(param, ...) stDebug("%" PRIx64 " " param, streamId, __VA_ARGS__)
+#define stsDebugL(param, ...) stDebugL("%" PRIx64 " " param, streamId, __VA_ARGS__)
+#define stsTrace(param, ...) stTrace("%" PRIx64 " " param, streamId, __VA_ARGS__)
 
 int32_t streamGetThreadIdx(int32_t threadNum, int64_t streamGId);
 void    streamRemoveVnodeLeader(int32_t vgId);
