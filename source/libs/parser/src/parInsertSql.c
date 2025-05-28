@@ -3527,7 +3527,7 @@ static int32_t csvParserInit(SCsvParser* parser, TdFilePtr pFile) {
 
   memset(parser, 0, sizeof(SCsvParser));
   parser->delimiter = CSV_DEFAULT_DELIMITER;
-  parser->quote = CSV_DEFAULT_QUOTE;
+  parser->quote = CSV_DEFAULT_QUOTE;  // Default to double quote
   parser->escape = CSV_DEFAULT_ESCAPE;
   parser->allowNewlineInField = true;
   parser->bufferSize = CSV_BUFFER_SIZE;
@@ -3536,6 +3536,30 @@ static int32_t csvParserInit(SCsvParser* parser, TdFilePtr pFile) {
   parser->buffer = taosMemoryMalloc(parser->bufferSize);
   if (!parser->buffer) {
     return terrno;
+  }
+
+  // Fill initial buffer
+  int32_t code = csvParserFillBuffer(parser);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(parser->buffer);
+    parser->buffer = NULL;
+    return code;
+  }
+
+  // Auto-detect quote character from the first line
+  // Look for the first non-whitespace character that could be a quote
+  for (size_t i = 0; i < parser->bufferLen && i < 100; i++) {
+    char ch = parser->buffer[i];
+    if (ch == '"') {
+      parser->quote = '"';
+      break;
+    } else if (ch == '\'') {
+      parser->quote = '\'';
+      break;
+    } else if (ch == '\n' || ch == '\r') {
+      // End of first line, stop looking
+      break;
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -3755,7 +3779,7 @@ static int32_t csvParserParseRow(SCsvParser* parser, SCsvRow* row) {
 
       case CSV_STATE_QUOTE_IN_FIELD:
         if (ch == parser->quote) {
-          // Escaped quote
+          // Escaped quote - add single quote to field data
           if (fieldLen < CSV_MAX_FIELD_SIZE - 1) {
             fieldBuffer[fieldLen++] = ch;
           }
@@ -3798,21 +3822,12 @@ static int32_t csvRowToSqlTokens(SCsvRow* row, char** pSqlRow) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  // Calculate required buffer size
+  // Calculate required buffer size (conservative estimate)
   size_t totalLen = 0;
   for (int32_t i = 0; i < row->fieldCount; i++) {
-    // Count single quotes that need escaping
-    size_t fieldLen = row->fields[i].len;
-    for (size_t j = 0; j < fieldLen; j++) {
-      if (row->fields[i].data[j] == '\'') {
-        fieldLen++;  // Each single quote becomes two
-      }
-    }
-    totalLen += fieldLen;
-    if (i > 0) totalLen += 3;  // for " , "
-    totalLen += 6;             // for potential quotes, NULL, and extra spaces
+    totalLen += row->fields[i].len * 2 + 10;  // Double for potential escaping + quotes/commas
   }
-  totalLen += 1;  // for null terminator
+  totalLen += 50;  // Extra padding
 
   char* sqlRow = taosMemoryMalloc(totalLen);
   if (!sqlRow) {
@@ -3822,51 +3837,75 @@ static int32_t csvRowToSqlTokens(SCsvRow* row, char** pSqlRow) {
   size_t pos = 0;
   for (int32_t i = 0; i < row->fieldCount; i++) {
     if (i > 0) {
-      sqlRow[pos++] = ' ';
       sqlRow[pos++] = ',';
-      sqlRow[pos++] = ' ';
     }
 
     SCsvField* field = &row->fields[i];
 
-    // Handle empty fields as NULL
+    // Handle empty/null fields
     if (field->len == 0) {
       memcpy(sqlRow + pos, "NULL", 4);
       pos += 4;
-    } else {
-      // Check if field needs quoting (contains spaces, commas, or special chars)
-      bool needsQuoting = field->quoted;
-      if (!needsQuoting) {
-        for (size_t j = 0; j < field->len; j++) {
-          char ch = field->data[j];
-          if (ch == ' ' || ch == ',' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '"' || ch == '\'' ||
-              ch == '(' || ch == ')') {
-            needsQuoting = true;
-            break;
-          }
+      continue;
+    }
+
+    // If this field was originally quoted in CSV, it's a string
+    // If not quoted, check if it's numeric
+    bool needsQuotes = field->quoted;
+
+    if (!needsQuotes) {
+      // Check if unquoted field is purely numeric
+      bool isNumeric = true;
+      bool hasDecimal = false;
+      bool hasSign = false;
+
+      for (size_t j = 0; j < field->len; j++) {
+        char ch = field->data[j];
+        if (j == 0 && (ch == '+' || ch == '-')) {
+          hasSign = true;
+          continue;
+        }
+        if (ch == '.' && !hasDecimal) {
+          hasDecimal = true;
+          continue;
+        }
+        if (ch < '0' || ch > '9') {
+          isNumeric = false;
+          break;
         }
       }
 
-      if (needsQuoting) {
-        sqlRow[pos++] = '\'';
-        // Copy field data, escaping single quotes
-        for (size_t j = 0; j < field->len; j++) {
-          char ch = field->data[j];
-          if (ch == '\'') {
-            sqlRow[pos++] = '\'';  // Escape single quote with double quote
-          }
+      // Don't treat a standalone sign as numeric
+      if (isNumeric && field->len == 1 && hasSign) {
+        isNumeric = false;
+      }
+
+      needsQuotes = !isNumeric;
+    }
+
+    if (needsQuotes) {
+      // For string values, add quotes and handle internal quote escaping
+      sqlRow[pos++] = '\'';
+
+      for (size_t j = 0; j < field->len; j++) {
+        char ch = field->data[j];
+        if (ch == '\'') {
+          // Escape single quotes by doubling them
+          sqlRow[pos++] = '\'';
+          sqlRow[pos++] = '\'';
+        } else {
           sqlRow[pos++] = ch;
         }
-        sqlRow[pos++] = '\'';
-      } else {
-        // Simple copy for unquoted fields
-        if (field->len > 0) {
-          memcpy(sqlRow + pos, field->data, field->len);
-          pos += field->len;
-        }
       }
+
+      sqlRow[pos++] = '\'';
+    } else {
+      // For numeric values, copy as-is without quotes
+      memcpy(sqlRow + pos, field->data, field->len);
+      pos += field->len;
     }
   }
+
   sqlRow[pos] = '\0';
 
   *pSqlRow = sqlRow;
