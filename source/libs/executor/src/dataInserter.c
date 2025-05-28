@@ -1101,9 +1101,22 @@ static int32_t buildTSchmaFromInserter(SStreamInserterParam* pInsertParam, STSch
     pTSchema->version = pInsertParam->sver;
   }
   pTSchema->numOfCols = numOfCols;
+
+  SFieldWithOptions* pField = taosArrayGet(pInsertParam->pFields, 0);
+  if (NULL == pField) {
+    code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    goto _end;
+  }
+  pTSchema->columns[0].colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  pTSchema->columns[0].type = pField->type;
+  pTSchema->columns[0].flags = pField->flags | COL_IS_KEY;
+  pTSchema->columns[0].bytes = TYPE_BYTES[pField->type];
+  pTSchema->columns[0].offset = -1;
+
+
   pTSchema->tlen = 0;
   pTSchema->flen = 0;
-  for (int32_t i = 0; i < numOfCols; ++i) {
+  for (int32_t i = 1; i < numOfCols; ++i) {
     SFieldWithOptions* pField = taosArrayGet(pInsertParam->pFields, i);
     if (NULL == pField) {
       code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
@@ -1125,7 +1138,6 @@ static int32_t buildTSchmaFromInserter(SStreamInserterParam* pInsertParam, STSch
 
     pTSchema->flen += TYPE_BYTES[pField->type];
   }
-  pTSchema->columns[0].flags |= COL_IS_KEY;
 
 #if 1
   pTSchema->tlen += (int32_t)TD_BITMAP_BYTES(numOfCols);
