@@ -456,16 +456,24 @@ static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pOldCfg, SDbCfg *pN
   TAOS_RETURN(code);
 }
 #endif
-static void mndSetDbInfo(SMountInfo *pInfo, SMountDbInfo *pDb, SDbObj *pObj) {
+static int32_t mndSetDbInfo(SMountInfo *pInfo, SMountDbInfo *pDb, SDbObj *pObj) {
   SDbCfg       *pCfg = &pObj->cfg;
   SMountVgInfo *pVg = taosArrayGet(pDb->pVgs, 0);
+
   // dbObj
-  tsnprintf(pObj->name, sizeof(pObj->name), "%s_%s", pInfo->mountName, pDb->dbName);
+
+  int32_t acctId = 0;
+  char   *pDbName = strstr(pDb->dbName, ".");
+  if (!pDbName) return TSDB_CODE_INVALID_PARA;
+  terrno = 0;
+  acctId = taosStr2Int32(pDb->dbName, NULL, 10);
+  if (terrno != 0) return terrno;
+  tsnprintf(pObj->name, sizeof(pObj->name), "%d.%s_%s", acctId, pInfo->mountName, pDbName + 1);
   tsnprintf(pObj->acct, sizeof(pObj->acct), "%s", TSDB_DEFAULT_USER);
   tsnprintf(pObj->createUser, sizeof(pObj->createUser), "%s", TSDB_DEFAULT_USER);
   pObj->createdTime = taosGetTimestampMs();  // TODO: get the DB create time from mnode sdb
   pObj->updateTime = pObj->createdTime;
-  pObj->uid = pDb->dbId; // TODO: make sure the uid is unique, add check later
+  pObj->uid = pDb->dbId;  // TODO: make sure the uid is unique, add check later
   pObj->cfgVersion = 1;
   pObj->vgVersion = 1;
   pObj->tsmaVersion = 1;
@@ -506,6 +514,8 @@ static void mndSetDbInfo(SMountInfo *pInfo, SMountDbInfo *pDb, SDbObj *pObj) {
   pCfg->s3Compact = pVg->s3Compact;
   pCfg->withArbitrator = pVg->replications == 2 ? TSDB_MAX_DB_WITH_ARBITRATOR : TSDB_MIN_DB_WITH_ARBITRATOR;
   pCfg->encryptAlgorithm = pVg->encryptAlgorithm;
+
+  return 0;
 }
 
 static void mndSetVgroupInfo(SMnode * pMnode, SMountInfo * pInfo, SMountDbInfo * pDb, SMountVgInfo * pVg, SVgObj * pObj,
@@ -775,7 +785,7 @@ static int32_t mndCreateMount(SMnode * pMnode, SRpcMsg * pReq, SMountInfo * pInf
   for (int32_t i = 0; i < nDbs; ++i) {
     SMountDbInfo *pDb = taosArrayGet(pInfo->pDbs, i);
     SDbObj        dbObj = {0};
-    mndSetDbInfo(pInfo, pDb, &dbObj);
+    TAOS_CHECK_EXIT(mndSetDbInfo(pInfo, pDb, &dbObj));
     if ((code = mndCheckDbCfg(pMnode, &dbObj.cfg)) != 0) {
       mError("mount:%s, failed to create db:%s, check db cfg failed, since %s", pInfo->mountName, pDb->dbName,
              tstrerror(code));
@@ -784,7 +794,7 @@ static int32_t mndCreateMount(SMnode * pMnode, SRpcMsg * pReq, SMountInfo * pInf
     if ((code = mndCheckDbName(dbObj.name, pUser)) != 0) {
       mError("mount:%s, failed to create db:%s, check db name failed, since %s", pInfo->mountName, pDb->dbName,
              tstrerror(code));
-      TAOS_RETURN(code);
+      TAOS_CHECK_EXIT(code);
     }
 #if 0  // N/A for mount db
     if (dbObj.cfg.hashPrefix > 0) {
@@ -809,7 +819,7 @@ static int32_t mndCreateMount(SMnode * pMnode, SRpcMsg * pReq, SMountInfo * pInf
   for (int32_t i = 0; i < nDbs; ++i) {
     SMountDbInfo *pDbInfo = taosArrayGet(pInfo->pDbs, i);
     SDbObj       *pDb = &pDbs[i];
-    mndSetDbInfo(pInfo, pDbInfo, pDb);
+    TAOS_CHECK_EXIT(mndSetDbInfo(pInfo, pDbInfo, pDb));
     int32_t nDbVgs = taosArrayGetSize(pDbInfo->pVgs);
     for (int32_t v = 0; v < nDbVgs; ++v) {
       SMountVgInfo *pVgInfo = TARRAY_GET_ELEM(pDbInfo->pVgs, v);
@@ -855,6 +865,8 @@ _exit:
   mndMountFreeObj(&mntObj);
   mndUserFreeObj(&newUserObj);
   mndTransDrop(pTrans);
+  taosMemFreeClear(pDbs);
+  taosMemFreeClear(pVgs);
   TAOS_RETURN(code);
 }
 #if 0

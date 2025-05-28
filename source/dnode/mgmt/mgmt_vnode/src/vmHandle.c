@@ -521,55 +521,54 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
     TSDB_CHECK_NULL((pDbInfos = taosArrayInit_s(sizeof(SMountDbInfo), nDb)), code, lino, _exit, terrno);
     int32_t dbIdx = -1;
     for (int32_t i = 0; i < nVgCfg; ++i) {
-      SVnodeInfo *pVgCfg = TARRAY_GET_ELEM(pVgCfgs, i);
+      SVnodeInfo   *pVgCfg = TARRAY_GET_ELEM(pVgCfgs, i);
+      SMountDbInfo *pDbInfo = NULL;
       if (i == 0 || ((SMountDbInfo *)TARRAY_GET_ELEM(pDbInfos, dbIdx))->dbId != pVgCfg->config.dbId) {
-        SMountDbInfo *pDbInfo = TARRAY_GET_ELEM(pDbInfos, ++dbIdx);
+        pDbInfo = TARRAY_GET_ELEM(pDbInfos, ++dbIdx);
         pDbInfo->dbId = pVgCfg->config.dbId;
         snprintf(pDbInfo->dbName, sizeof(pDbInfo->dbName), "%s", pVgCfg->config.dbname);
         TSDB_CHECK_NULL((pDbInfo->pVgs = taosArrayInit(nVgCfg / nDb, sizeof(SMountVgInfo))), code, lino, _exit, terrno);
-        SMountVgInfo vgInfo = {.vgId = pVgCfg->config.vgId};
-        TSDB_CHECK_NULL(taosArrayPush(pDbInfo->pVgs, &vgInfo), code, lino, _exit, terrno);
       } else {
-        SMountDbInfo *pDbInfo = TARRAY_GET_ELEM(pDbInfos, dbIdx);
-        SMountVgInfo  vgInfo = {
-             .vgId = pVgCfg->config.vgId,
-             .cacheLastSize = pVgCfg->config.cacheLastSize,
-             .szPage = pVgCfg->config.szPage,
-             .szCache = pVgCfg->config.szCache,
-             .szBuf = pVgCfg->config.szBuf,
-             .cacheLast = pVgCfg->config.cacheLast,
-             .standby = pVgCfg->config.standby,
-             .hashMethod = pVgCfg->config.hashMethod,
-             .hashBegin = pVgCfg->config.hashBegin,
-             .hashEnd = pVgCfg->config.hashEnd,
-             .hashPrefix = pVgCfg->config.hashPrefix,
-             .hashSuffix = pVgCfg->config.hashSuffix,
-             .sttTrigger = pVgCfg->config.sttTrigger,
-             .replications = pVgCfg->config.syncCfg.replicaNum,
-             .precision = pVgCfg->config.tsdbCfg.precision,
-             .compression = pVgCfg->config.tsdbCfg.compression,
-             .slLevel = pVgCfg->config.tsdbCfg.slLevel,
-             .daysPerFile = pVgCfg->config.tsdbCfg.days,
-             .keep0 = pVgCfg->config.tsdbCfg.keep0,
-             .keep1 = pVgCfg->config.tsdbCfg.keep1,
-             .keep2 = pVgCfg->config.tsdbCfg.keep2,
-             .keepTimeOffset = pVgCfg->config.tsdbCfg.keepTimeOffset,
-             .minRows = pVgCfg->config.tsdbCfg.minRows,
-             .maxRows = pVgCfg->config.tsdbCfg.maxRows,
-             .tsdbPageSize = pVgCfg->config.tsdbPageSize,
-             .s3ChunkSize = pVgCfg->config.s3ChunkSize,
-             .s3KeepLocal = pVgCfg->config.s3KeepLocal,
-             .s3Compact = pVgCfg->config.s3Compact,
-             .walFsyncPeriod = pVgCfg->config.walCfg.fsyncPeriod,
-             .walRetentionPeriod = pVgCfg->config.walCfg.retentionPeriod,
-             .walRollPeriod = pVgCfg->config.walCfg.rollPeriod,
-             .walRetentionSize = pVgCfg->config.walCfg.retentionSize,
-             .walSegSize = pVgCfg->config.walCfg.segSize,
-             .walLevel = pVgCfg->config.walCfg.level,
-             .encryptAlgorithm = pVgCfg->config.walCfg.encryptAlgorithm,
-        };
-        TSDB_CHECK_NULL(taosArrayPush(pDbInfo->pVgs, &vgInfo), code, lino, _exit, terrno);
+        pDbInfo = TARRAY_GET_ELEM(pDbInfos, dbIdx);
       }
+      SMountVgInfo vgInfo = {
+          .vgId = pVgCfg->config.vgId,
+          .cacheLastSize = pVgCfg->config.cacheLastSize,
+          .szPage = pVgCfg->config.szPage,
+          .szCache = pVgCfg->config.szCache,
+          .szBuf = pVgCfg->config.szBuf,
+          .cacheLast = pVgCfg->config.cacheLast,
+          .standby = pVgCfg->config.standby,
+          .hashMethod = pVgCfg->config.hashMethod,
+          .hashBegin = pVgCfg->config.hashBegin,
+          .hashEnd = pVgCfg->config.hashEnd,
+          .hashPrefix = pVgCfg->config.hashPrefix,
+          .hashSuffix = pVgCfg->config.hashSuffix,
+          .sttTrigger = pVgCfg->config.sttTrigger,
+          .replications = pVgCfg->config.syncCfg.replicaNum,
+          .precision = pVgCfg->config.tsdbCfg.precision,
+          .compression = pVgCfg->config.tsdbCfg.compression,
+          .slLevel = pVgCfg->config.tsdbCfg.slLevel,
+          .daysPerFile = pVgCfg->config.tsdbCfg.days,
+          .keep0 = pVgCfg->config.tsdbCfg.keep0,
+          .keep1 = pVgCfg->config.tsdbCfg.keep1,
+          .keep2 = pVgCfg->config.tsdbCfg.keep2,
+          .keepTimeOffset = pVgCfg->config.tsdbCfg.keepTimeOffset,
+          .minRows = pVgCfg->config.tsdbCfg.minRows,
+          .maxRows = pVgCfg->config.tsdbCfg.maxRows,
+          .tsdbPageSize = pVgCfg->config.tsdbPageSize,
+          .s3ChunkSize = pVgCfg->config.s3ChunkSize,
+          .s3KeepLocal = pVgCfg->config.s3KeepLocal,
+          .s3Compact = pVgCfg->config.s3Compact,
+          .walFsyncPeriod = pVgCfg->config.walCfg.fsyncPeriod,
+          .walRetentionPeriod = pVgCfg->config.walCfg.retentionPeriod,
+          .walRollPeriod = pVgCfg->config.walCfg.rollPeriod,
+          .walRetentionSize = pVgCfg->config.walCfg.retentionSize,
+          .walSegSize = pVgCfg->config.walCfg.segSize,
+          .walLevel = pVgCfg->config.walCfg.level,
+          .encryptAlgorithm = pVgCfg->config.walCfg.encryptAlgorithm,
+      };
+      TSDB_CHECK_NULL(taosArrayPush(pDbInfo->pVgs, &vgInfo), code, lino, _exit, terrno);
     }
   }
 
