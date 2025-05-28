@@ -32,13 +32,21 @@ int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType op
 int32_t mndCheckTopicPrivilege(SMnode *pMnode, const char *user, EOperType operType, SMqTopicObj *pTopic) { return 0; }
 
 int32_t mndSetUserWhiteListDualRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhiteListRsp *pWhiteListRsp) {
+  int32_t code = 0;
   memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
-  pWhiteListRsp->numWhiteLists = 1;
+  if (pUser->pIpWhiteListDual == NULL) {
+    pWhiteListRsp->numWhiteLists = 0;
+    pWhiteListRsp->pWhiteListsDual = NULL;
+    return 0;
+  }
+
+  pWhiteListRsp->numWhiteLists = pUser->pIpWhiteListDual->num;
   pWhiteListRsp->pWhiteListsDual = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpRange));
   if (pWhiteListRsp->pWhiteListsDual == NULL) {
     return terrno;
   }
-  memset(pWhiteListRsp->pWhiteListsDual, 0, pWhiteListRsp->numWhiteLists * sizeof(SIpRange));
+  memcpy(pWhiteListRsp->pWhiteListsDual, pUser->pIpWhiteListDual->pIpRanges,
+         pWhiteListRsp->numWhiteLists * sizeof(SIpRange));
 
   return 0;
 }
