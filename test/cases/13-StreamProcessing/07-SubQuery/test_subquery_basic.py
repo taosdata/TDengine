@@ -26,94 +26,67 @@ class TestStreamSubqueryBasic:
 
         """
 
-        self.init_variables()
-        self.create_snode()
-        self.create_db()
-        self.create_stb()
-        self.create_stream()
-        self.write_data()
-        self.wait_stream_run_finish()
-        self.check_result()
-        
+        self.createSnode()
+        self.createDatabase()
+        self.prepareQueryData()
+        self.prepareTriggerData()
+        self.createStream()
+        self.triggerStream()
+        self.checkStreamStatus()
+        self.checkResults()
+
         tdSql.pause()
 
-    def init_variables(self):
-        tdLog.info("init variables")
-
-        self.child_tb_num = 10
-        self.batch_per_tb = 3
-        self.rows_per_batch = 40
-        self.rows_per_tb = self.batch_per_tb * self.rows_per_batch
-        self.total_rows = self.rows_per_tb * self.child_tb_num
-        self.ts_start = 1704038400000  # 2024-01-01 00:00:00
-        self.ts_interval = 30 * 1000
-
-    def create_snode(self):
+    def createSnode(self):
         tdLog.info("create snode")
         tdStream.createSnode(1)
 
-    def create_db(self):
+    def createDatabase(self):
         tdLog.info(f"create database")
 
-        tdSql.prepare("qdb", vgroups=1)
+        tdSql.prepare(dbname="qdb", vgroups=1)
+        tdSql.prepare(dbname="tdb", vgroups=1)
         tdSql.prepare("rdb", vgroups=1)
         # tdSql.prepare("qdb2", vgroups=1)
         clusterComCheck.checkDbReady("qdb")
+        clusterComCheck.checkDbReady("tdb")
         clusterComCheck.checkDbReady("rdb")
         # clusterComCheck.checkDbReady("qdb2")
 
-    def create_stb(self):
-        tdLog.info(f"create super table")
+    def prepareQueryData(self):
+        tdLog.info("prepare child tables for query")
+        tdStream.prepareChildTables(db="qdb", stb="meters", tbBatch=2, rowBatch=2)
 
+        tdLog.info("prepare normal tables for query")
+        tdStream.prepareNormalTables(db="qdb", tables=10, rowBatch=2)
+
+        tdLog.info("prepare virtual tables for query")
+        tdStream.prepareVirtualTables(db="qdb", tables=10)
+        
+        tdSql.query("select cint from qdb.v0")
+
+    def prepareTriggerData(self):
+        tdLog.info("prepare child tables for trigger")
         tdSql.execute(
-            f"create stable qdb.meters (ts timestamp, current float, voltage int, phase float) TAGS (location varchar(64), group_id int)"
+            "create table tdb.triggers (ts timestamp, c1 int, c2 int) tags(t1 int);"
         )
+        tdSql.execute("create table tdb.t1 using tdb.triggers tags(1)")
+        tdSql.execute("create table tdb.t2 using tdb.triggers tags(1)")
+        tdSql.execute("create table tdb.t3 using tdb.triggers tags(1)")
 
-        for table in range(self.child_tb_num):
-            if table % 2 == 1:
-                group_id = 1
-                location = "California.SanFrancisco"
-            else:
-                group_id = 2
-                location = "California.LosAngeles"
-
-            tdSql.execute(
-                f"create table qdb.d{table} using qdb.meters tags('{location}', {group_id})"
-            )
-
-        tdSql.query("show qdb.tables")
-        tdSql.checkRows(self.child_tb_num)
-
-    def write_data(self):
-        tdLog.info(
-            f"write total:{self.total_rows} rows, {self.child_tb_num} tables, {self.rows_per_tb} rows per table"
-        )
-
-        for batch in range(self.batch_per_tb):
-            for table in range(self.child_tb_num):
-                insert_sql = f"insert into qdb.d{table} values"
-                for row in range(self.rows_per_batch):
-                    rows = row + batch * self.rows_per_batch
-                    ts = self.ts_start + self.ts_interval * rows
-                    insert_sql += f"({ts}, {batch}, {row}, {rows})"
-                tdSql.execute(insert_sql)
-
-        tdSql.query(f"select count(*) from qdb.meters")
-        tdSql.checkData(0, 0, self.total_rows)
-
-    def create_stream(self):
-        self.streams = [
+    def createStream(self):
+        data = [
             self.TestStreamSubqueryBaiscItem(
-                id=0,
+                id=1,
                 trigger="interval(5m) sliding(5m) from qdb.meters partition by tbname",
                 output="tags(gid bigint as _tgrpid)",
-                sub_query="select _twstart ts, count(current) cnt from qdb.meters where ts >= _twstart and ts < _twend;",
-                res_query="select ts, cnt from rdb.s0",
-                exp_query="select _wstart ts, count(current) cnt from qdb.meters interval(5m)",
+                sub_query="select _twstart ts, count(cint) c1, avg(cint) c2 from qdb.meters where ts >= _twstart and ts < _twend;",
+                res_query="select ts, c1, c2 from rdb.s1",
+                exp_query="select _wstart ts, count(cint) c1, avg(cint) c2 from qdb.meters interval(5m)",
                 exp_rows=[],
             ),
             self.TestStreamSubqueryBaiscItem(
-                id=1,
+                id=2,
                 trigger="create stream s0 interval(5m) sliding(5m) from qdb.meters into rdb.rs0 tags (gid bigint as _tgrpid)",
                 output="",
                 sub_query="select _wstart ts, count(current) cnt from qdb.meters",
@@ -123,27 +96,33 @@ class TestStreamSubqueryBasic:
             ),
         ]
 
-        self.test_list = [0]
+        self.streams = []
+        self.streams.append(data[0])
 
-        tdLog.info(f"create total:{len(self.test_list)} streams")
+        tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
-            if stream.id in self.test_list:
-                stream.create_stream()
+            stream.createStream()
 
-    def wait_stream_run_finish(self):
-        tdLog.info(f"wait total:{len(self.test_list)} streams run finish")
-        for stream in self.streams:
-            if stream.id in self.test_list:
-                stream.wait_stream_run_finish()
+    def checkStreamStatus(self):
+        tdLog.info(f"wait total:{len(self.streams)} streams run finish")
+        tdStream.checkStreamStatus()
 
-    def check_result(self):
-        tdLog.info(f"check total:{len(self.test_list)} streams result")
+    def triggerStream(self):
+        tdLog.info("write data to trigger stream")
+        sqls = [
+            "insert into tdb.t1 values ('2025-01-01 00:00:00', 0, 0), ('2025-01-01 00:05:00', 1, 1), ('2025-01-01 00:10:00', 2, 2)"
+        ]
+        tdSql.executes(sqls)
+
+    def checkResults(self):
+        tdLog.info(f"check total:{len(self.streams)} streams result")
         for stream in self.streams:
-            if stream.id in self.test_list:
-                stream.check_result(print=True)
+            stream.checkResults(print=True)
 
     class TestStreamSubqueryBaiscItem:
-        def __init__(self, id, trigger, output, sub_query, res_query, exp_query, exp_rows=[]):
+        def __init__(
+            self, id, trigger, output, sub_query, res_query, exp_query, exp_rows=[]
+        ):
             self.id = id
             self.name = f"s{id}"
             self.trigger = trigger
@@ -154,16 +133,14 @@ class TestStreamSubqueryBasic:
             self.exp_rows = exp_rows
             self.exp_result = []
 
-        def create_stream(self):
+        def createStream(self):
             sql = f"create stream s{self.id} {self.trigger} into rdb.s{self.id} {self.output} as {self.sub_query}"
             tdLog.info(f"create stream:{self.name}, sql:{sql}")
+            tdSql.execute(sql)
 
-        def wait_stream_run_finish(self):
-            tdStream.checkStreamStatus()
-            tdLog.info(f"wait stream:{self.name} run finish")
-
-        def check_result(self, print=False):
+        def checkResults(self, print=False):
             tdLog.info(f"check stream:{self.name} result")
+            tdSql.pause()
 
             tmp_result = tdSql.getResult(self.exp_query)
             if self.exp_rows == []:

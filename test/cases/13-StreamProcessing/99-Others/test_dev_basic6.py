@@ -39,34 +39,32 @@ class TestStreamDevBasic:
         tdSql.prepare(dbname="test", vgroups=1)
 
         tdLog.info(f"=============== create super table")
-        tdSql.execute(
-            f"create stable stream_query (ts timestamp, id int, c1 int) tags(t1 int);"
-        )
+        tdSql.execute(f"create stable stb (ts timestamp, v1 int, v2 int) tags(t1 int);")
         tdSql.query(f"show stables")
         tdSql.checkRows(1)
 
         tdLog.info(f"=============== write query data")
         sqls = [
-            "insert into t1 using stream_query tags(1) values ('2025-01-01 00:00:00', 0, 0);",
-            "insert into t2 using stream_query tags(2) values ('2025-01-01 00:00:00.102', 1, 0)",
-            "insert into t1 using stream_query tags(1) values ('2025-01-01 00:00:01', 1, 1);",
-            "insert into t2 using stream_query tags(2) values ('2025-01-01 00:00:01.400', 2, 1);",
-            "insert into t1 using stream_query tags(1) values ('2025-01-01 00:00:02', 2, 2);",
-            "insert into t2 using stream_query tags(2) values ('2025-01-01 00:00:02.600', 3, 2);",
+            "insert into t1 using stb tags(1) values ('2025-01-01 00:00:00'    , 0, 0);",
+            "insert into t2 using stb tags(2) values ('2025-01-01 00:00:00.102', 1, 0);",
+            "insert into t1 using stb tags(1) values ('2025-01-01 00:00:01'    , 1, 1);",
+            "insert into t2 using stb tags(2) values ('2025-01-01 00:00:01.400', 2, 1);",
+            "insert into t1 using stb tags(1) values ('2025-01-01 00:00:02'    , 2, 2);",
+            "insert into t2 using stb tags(2) values ('2025-01-01 00:00:02.600', 3, 2);",
         ]
         tdSql.executes(sqls)
-        tdSql.query("select _wstart, avg(id) from stream_query interval(1s)")
+        tdSql.query("select _wstart, avg(v1) from stb interval(1s)")
         tdSql.printResult()
 
         tdLog.info(f"=============== create trigger table")
-        tdSql.execute("create table stream_trigger (ts timestamp, id int, c1 int);")
+        tdSql.execute("create table stream_trigger (ts timestamp, v1 int, v2 int);")
         tdSql.query(f"show tables")
         tdSql.checkKeyExist("stream_trigger")
 
         tdLog.info(f"=============== create stream")
-        tdSql.execute(
-            "create stream s5 sliding (1s)  from stream_trigger into stream_out5 as select now ts , _tcurrent_ts c1 , count(*) c2, avg(id) c3 from stream_query;"
-        )
+        sql = "create stream s7 state_window (v1)  from stream_trigger into out7 partition by tbname options(fill_history_first(1)) as select _twstart, avg(id) from stb;"
+        tdSql.execute(sql)
+
         tdStream.checkStreamStatus()
 
         tdLog.info(f"=============== write trigger data")
@@ -75,9 +73,9 @@ class TestStreamDevBasic:
         )
 
         tdLog.info(f"=============== check stream result")
-        result_sql = "select ts, c1, c2, c3 from test.stream_out5"
 
+        result_sql7 = "select * from test.out7"
         tdSql.checkResultsByFunc(
-            sql=result_sql,
-            func=lambda: tdSql.getRows() == 2,
+            sql=result_sql7,
+            func=lambda: tdSql.getRows() > 0,
         )
