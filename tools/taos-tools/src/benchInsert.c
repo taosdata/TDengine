@@ -2181,7 +2181,7 @@ static void *syncWriteInterlace(void *sarg) {
                                         time(&current_time);
 
                     time_info = localtime(&current_time);
-                    char time_buffer[80];
+                    time_buffer[80];
                     strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", time_info);
                     infoPrint("thread id: %d end sleep time: %s, begine writing\n", pThreadInfo->threadID, time_buffer);
                 }
