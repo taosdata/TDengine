@@ -1620,6 +1620,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfCompactThreads");
   tsNumOfCompactThreads = pItem->i32;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableIpv6");
+  tsEnableIpv6 = pItem->bval;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "retentionSpeedLimitMB");
   tsRetentionSpeedLimitMB = pItem->i32;
 
@@ -1959,9 +1962,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamVirtualMergeWaitMode");
   tsStreamVirtualMergeWaitMode = pItem->i32;
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableIpv6");
-  tsEnableIpv6 = pItem->bval;
 
   // GRANT_CFG_GET;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
