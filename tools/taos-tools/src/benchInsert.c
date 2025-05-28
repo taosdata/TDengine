@@ -1770,6 +1770,8 @@ static void *syncWriteInterlace(void *sarg) {
     uint64_t   tableSeq = pThreadInfo->start_table_from;
     int disorderRange = stbInfo->disorderRange;
     int32_t i = 0;
+    time_t current_time;
+    struct tm *time_info;
 
     loadChildTableInfo(pThreadInfo);
     // check if filling back mode
@@ -1855,6 +1857,7 @@ static void *syncWriteInterlace(void *sarg) {
             if (stbInfo->ttl != 0) {
                 snprintf(ttl, SMALL_BUFF_LEN, "TTL %d", stbInfo->ttl);
             }
+
             switch (stbInfo->iface) {
                 case REST_IFACE:
                 case TAOSC_IFACE: {
@@ -2164,11 +2167,23 @@ static void *syncWriteInterlace(void *sarg) {
 
                 // if fillBack mode , can't sleep
                 if (stbInfo->insert_interval > 0 && !fillBack) {
+                    time(&current_time);
+                    time_info = localtime(&current_time);
+                    char time_buffer[80];
+                    strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", time_info);
+                    infoPrint("thread id: %d completed writing, begine sleep time: %s\n", pThreadInfo->threadID, time_buffer);
+
                     debugPrint("%s() LN%d, insert_interval: %"PRIu64"\n",
                           __func__, __LINE__, stbInfo->insert_interval);
                     perfPrint("sleep %" PRIu64 " ms\n",
                                      stbInfo->insert_interval);
                     toolsMsleep((int32_t)stbInfo->insert_interval);
+                                        time(&current_time);
+
+                    time_info = localtime(&current_time);
+                    char time_buffer[80];
+                    strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", time_info);
+                    infoPrint("thread id: %d end sleep time: %s, begine writing\n", pThreadInfo->threadID, time_buffer);
                 }
 
                 i++;
