@@ -1126,7 +1126,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   }
   code = taosValidFqdn(tsEnableIpv6, createReq.fqdn);
   if (code != 0) {
-    mError("ipv6 flag %d, the local FQDN %s does not resolve to the ip address since %d", tsEnableIpv6, tsLocalFqdn,
+    mError("ipv6 flag %d, the local FQDN %s does not resolve to the ip address since %s", tsEnableIpv6, tsLocalFqdn,
            tstrerror(code));
     goto _OVER;
   }
