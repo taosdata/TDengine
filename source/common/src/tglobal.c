@@ -336,8 +336,6 @@ bool    tsDiskIDCheckEnabled = false;
 int32_t tsTransPullupInterval = 2;
 int32_t tsCompactPullupInterval = 10;
 int32_t tsMqRebalanceInterval = 2;
-float   tsSinkDataRate = 2.0;
-int32_t tsMaxConcurrentCheckpoint = 1;
 int32_t tsTtlUnit = 86400;
 int32_t tsTtlPushIntervalSec = 10;
 int32_t tsTrimVDbIntervalSec = 60 * 60;    // interval of trimming db in all vgroups
@@ -350,7 +348,6 @@ char    tsUdfdLdLibPath[512] = "";
 bool    tsDisableStream = false;
 int64_t tsStreamBufferSize = 128 * 1024 * 1024;
 bool    tsFilterScalarMode = false;
-int     tsStreamAggCnt = 100000;
 bool    tsStreamCoverage = false;
 
 char     tsAdapterFqdn[TSDB_FQDN_LEN] = "localhost";

@@ -144,6 +144,12 @@ event_types_valid = ["WINDOW_OPEN", "WINDOW_CLOSE"]
 
 event_types_invalid = ["INVALID_EVENT", "ANOTHER_INVALID_EVENT", ""]
 
+urls_valid = [" 'http://example.com/notify' ", " 'http://localhost:8000/callback' ", " 'https://api.test.com/hook' "]
+urls_invalid = [" 'invalid_url' ", " http://example.com/invalid ", " 12345678 "]
+
+notify_option_valid = ["NOTIFY_HISTORY", "ON_FAILURE_PAUSE"]
+notify_option_invalid = ["NOTIFY_WHAT", "NOTIFY_INVALID"]
+
 def random_from_list(lst, n=1):
     """Return n random elements from a list."""
     if n == 1:
@@ -302,19 +308,18 @@ def random_option(valid=True, partition_list=None):
 
     return option_type()
 
-def generate_options_section(max_options=10, partition_list = None):
-    count = random_int(1, max_options)
-    options = [random_option(valid=True, partition_list=partition_list) for _ in range(count - 1)]
+def generate_options_section(max_options=10, partition_list = None, trigger_null = False):
+    options = pick_random_combo(random_option(valid=True, partition_list=partition_list), max_options)
     rand_val = random.random()
     if rand_val < 0.2:
         # 20% chance to generate empty options clause
         return "", True
-    elif rand_val < 0.5:
-        # 30% chance to generate invalid options clause
+    elif rand_val < 0.3:
+        # 10% chance to generate invalid options clause
         options.append(random_option(valid=False, partition_list=partition_list))
         valid = False
     else:
-        # 50% chance to generate valid options clause
+        # 70% chance to generate valid options clause
         options.append(random_option(valid=True, partition_list=partition_list))
         valid = True
     combined = '|'.join(options)
@@ -323,40 +328,17 @@ def generate_options_section(max_options=10, partition_list = None):
     if "FILL_HISTORY(" in combined and "FILL_HISTORY_FIRST(" in combined:
         valid = False
 
+    # If no trigger table, options should not appear
+    if trigger_null:
+        valid = False
+
     return f" OPTIONS({combined}) ", valid
 
 def pick_random_combo(source_list, max_len):
-    length = random_int(0, max_len)
-    return [random_from_list(source_list) for _ in range(length)] if length > 0 else []
-
-def pick_random_combo_fix(source_list, max_len):
+    if max_len == 0:
+        return []
     length = random_int(1, max_len)
     return [random_from_list(source_list) for _ in range(length)] if length > 0 else []
-
-def generate_notif_def_section(
-        total, max_urls=2, max_events=2, max_options=2, max_condition_depth=2
-):
-    result = []
-    for _ in range(total):
-        parts = []
-        # optional NOTIFY(url [, ...])
-        notify_urls = pick_random_combo_fix(urls, max_urls)
-        if notify_urls:
-            parts.append(f" NOTIFY({', '.join(notify_urls)}) ")
-        # optional ON (event_types)
-        selected_events = pick_random_combo(event_types, max_events)
-        if selected_events:
-            parts.append(f" ON ({'|'.join(selected_events)}) ")
-        # optional WHERE condition (using generate_logical_condition)
-        if random_bool():
-            condition = generate_logical_condition(max_depth=max_condition_depth)
-            parts.append(f" WHERE {condition} ")
-        # optional NOTIFY_OPTIONS(...)
-        selected_options = pick_random_combo(notify_option_list, max_options)
-        if selected_options:
-            parts.append(f" NOTIFY_OPTIONS({'|'.join(selected_options)}) ")
-        result.append(" ".join(parts))
-    return result
 
 string_literals = ["'_v1'", "'_2024'", "'_tag'", "'_out'", "'_ts'", "'_X'"]
 numeric_literals = [str(i) for i in range(0, 10)]
@@ -540,53 +522,145 @@ def generate_random_into_table_section():
         into_table = random_from_list(into_option_list_invalid)
         return f" {into_table} ", False, False
 
-def generate_random_partition_section(max_partition_len = 5):
+def generate_random_partition_section(max_partition_len = 5, trigger_null = False, trigger_has_tag = False):
     rand_val = random.random()
-    length = random_int(1, max_partition_len)
+    if trigger_null:
+        if random_bool(0.2):
+            # 20% chance to generate invalid partition clause
+            selected = pick_random_combo(partition_columns_valid, max_partition_len)
+            return f" PARTITION BY {', '.join(selected)} ", False, selected
+        else:
+            return "", True, []
+
+    if trigger_has_tag:
+        valid_columns = partition_columns_valid
+        invalid_columns = partition_columns_invalid
+    else:
+        valid_columns = ["tbname"]
+        invalid_columns = list(set(partition_columns_valid + partition_columns_invalid) - set(valid_columns))
+
     # 20% chance to generate empty partition clause
     if rand_val < 0.2:
         return "", True, []
     # 30% chance to generate invalid partition clause
     elif rand_val < 0.5:
-        selected = random.sample(partition_columns_valid, length - 1) + [random.choice(partition_columns_invalid)]
-        random.shuffle(selected)
-        return f" PARTITION BY {', '.join(selected)} ", False, []
+        selected = pick_random_combo(valid_columns, max_partition_len - 1) + pick_random_combo(invalid_columns, 1)
+        return f" PARTITION BY {', '.join(selected)} ", False, selected
     # 50% chance to generate valid partition clause
     else:
-        selected = random.sample(partition_columns_valid, length)
+        selected = pick_random_combo(valid_columns, max_partition_len)
         return f" PARTITION BY {', '.join(selected)} ", True, selected
+
+def generate_random_notif_def_section(
+        max_urls=2, max_events=2, max_options=2, max_condition_depth=2, trigger_null = False
+):
+    # Each part has 20% chance to be invalid, and 80% chance to be valid. And total's invalid change is also 20%.
+    valid = True
+
+    if trigger_null and random_bool(0.8):
+        # 80% chance to generate empty NOTIFY clause
+        return "", True
+
+    # optional NOTIFY(url [, ...])
+    if random_bool(0.2):
+        # 20% chance to generate invalid NOTIFY clause
+        if random_bool(0.5):
+            notify_urls = ""
+        else:
+            # pick at least one URL, but may include invalid URLs
+            notify_url = pick_random_combo(urls_valid, max_urls - 1) + pick_random_combo(urls_invalid, 1)
+            notify_urls = f" NOTIFY({', '.join(notify_url)}) "
+        valid = False
+    else:
+        # 80% chance to generate valid NOTIFY clause
+        # pick at least one URL
+        notify_url = pick_random_combo(urls_valid, max_urls)
+        notify_urls = f" NOTIFY({', '.join(notify_url)}) "
+
+
+    # optional ON (event_types)
+    if valid == True and random_bool(0.2):
+        # 20% chance to generate invalid NOTIFY_OPTIONS clause
+        notify_event = pick_random_combo(event_types_valid, max_events - 1) + pick_random_combo(event_types_invalid, 1)
+        notify_events = f" ON ({'|'.join(notify_event)}) "
+        valid = False
+    else:
+        # 80% chance to generate valid NOTIFY_OPTIONS clause
+        if random_bool(0.2):
+            # 20% chance to generate empty ON clause
+            notify_events = ""
+        else:
+            selected_events = pick_random_combo(event_types_valid, max_events)
+            notify_events = f" ON ({'|'.join(selected_events)}) "
+
+    # optional WHERE condition (using generate_logical_condition)
+    if valid == True and random_bool(0.2):
+        # 20% chance to generate invalid WHERE clause
+        # TODO(smj) : pass in the query's full column list and valid column list to generate_logical_condition
+        condition = generate_logical_condition(max_depth=max_condition_depth, valid=False)
+        notify_conditions = f" WHERE {condition} "
+        valid = False
+    else:
+        # 80% chance to generate valid WHERE clause
+        if random_bool(0.2):
+            # 20% chance to generate empty WHERE clause
+            notify_conditions = ""
+        else:
+            # TODO(smj) : pass in the query's full column list and valid column list to generate_logical_condition
+            condition = generate_logical_condition(max_depth=max_condition_depth, valid=True)
+            notify_conditions = f" WHERE {condition} "
+
+    # optional NOTIFY_OPTIONS(...)
+    if valid == True and random_bool(0.2):
+        # 20% chance to generate invalid NOTIFY_OPTIONS clause
+        notify_option = pick_random_combo(notify_option_valid, max_options - 1) + pick_random_combo(notify_option_invalid, 1)
+        notify_options = f" NOTIFY_OPTIONS({'|'.join(notify_option)}) "
+        valid = False
+    else:
+        # 80% chance to generate valid NOTIFY_OPTIONS clause
+        if random_bool(0.2):
+            # 20% chance to generate empty NOTIFY_OPTIONS clause
+            notify_options = ""
+        else:
+            # pick at least one option
+            notify_option = pick_random_combo(notify_option_list, max_options)
+            notify_options = f" NOTIFY_OPTIONS({'|'.join(notify_option)}) "
+
+    if notify_urls != "" or notify_events != "" or notify_conditions != "" or notify_options != "":
+        if trigger_null:
+            valid = False
+
+    return notify_urls + notify_events + notify_conditions + notify_options, valid
 
 def gen_create_stream_variants():
     base_template = "CREATE STREAM{if_not_exists} {stream_name}{stream_options}{into_clause}{output_subtable}{columns}{tags}{as_subquery};"
     trigger_types = generate_trigger_section()
-    stream_options = generate_options_section(10, max_options=10)
-    notify_options = generate_notif_def_section(total=10)
     sql_variants = []
     stream_index = 0
     for if_not_exists, as_subquery in product(
             if_not_exists_opts, as_subquery_opts
     ):
         for trigger_type in trigger_types:
-            for notify in notify_options:
-                stream_db, v1 = generate_random_stream_db_section()
-                trigger_table, v2, trigger_null, trigger_has_tag = generate_random_trigger_table_section()
-                into_table, v3, into_null = generate_random_into_table_section()
-                partition, v4, partition_cols = generate_random_partition_section()
-                stream_opt, v5 = generate_options_section(partition_list=partition_cols)
-                sql = base_template.format(
-                   if_not_exists=if_not_exists,
-                   stream_name=stream_db + "stream_" + str(stream_index),
-                   stream_options=trigger_type + trigger_table + partition + stream_opt + notify,
-                   into_clause=into_table,
-                   output_subtable=generate_output_subtable(),
-                   columns=generate_column_list_section(),
-                   tags=generate_tags_clause() + " ",
-                   as_subquery=as_subquery
-                )
-                sql_variants.append(sql.strip())
-                stream_index += 1
-                if stream_index > 100000:
-                    return sql_variants
+            stream_db, v1 = generate_random_stream_db_section()
+            trigger_table, v2, trigger_null, trigger_has_tag = generate_random_trigger_table_section()
+            into_table, v3, into_null = generate_random_into_table_section()
+            partition, v4, partition_cols = generate_random_partition_section(trigger_null = trigger_null, trigger_has_tag = trigger_has_tag)
+            stream_opt, v5 = generate_options_section(partition_list=partition_cols, trigger_null = trigger_null)
+            notify_opt, v6 = generate_random_notif_def_section(trigger_null = trigger_null)
+            sql = base_template.format(
+               if_not_exists=if_not_exists,
+               stream_name=stream_db + "stream_" + str(stream_index),
+               stream_options=trigger_type + trigger_table + partition + stream_opt + notify_opt,
+               into_clause=into_table,
+               output_subtable=generate_output_subtable(),
+               columns=generate_column_list_section(),
+               tags=generate_tags_clause() + " ",
+               as_subquery=as_subquery
+            )
+            sql_variants.append(sql.strip())
+            stream_index += 1
+            if stream_index > 100000:
+                return sql_variants
     print(stream_index)
     return sql_variants
 
