@@ -71,8 +71,6 @@ func (r *Reporter) Init(c gin.IRouter) {
 	c.GET("metrics/query", r.metricsQueryHandlerFunc())
 	c.GET("metrics/summary", r.metricsSummaryHandlerFunc())
 	c.GET("metrics/vgroups", r.metricsVgroupsHandlerFunc())
-	c.GET("dnode-metrics/query", r.dnodeMetricsQueryHandlerFunc())
-	c.GET("dnode-metrics/summary", r.dnodeMetricsSummaryHandlerFunc())
 	r.createDatabase()
 	r.creatTables()
 	// todo: it can delete in the future.
@@ -783,81 +781,6 @@ func (r *Reporter) insertDnodeMetricsSql(metrics DnodeMetricsInfo, dnodeId int, 
 		dnodeId, dnodeId, dnodeEp, clusterId,
 		metrics.RpcQueueMemoryAllowed, metrics.RpcQueueMemoryUsed, 
 		metrics.ApplyMemoryAllowed, metrics.ApplyMemoryUsed)
-}
-
-func (r *Reporter) dnodeMetricsQueryHandlerFunc() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		dnodeId := c.Query("dnode_id")
-		startTime := c.Query("start_time")
-		endTime := c.Query("end_time")
-		interval := c.DefaultQuery("interval", "1m")
-		limit := c.DefaultQuery("limit", "1000")
-
-		var sql string
-		if dnodeId != "" {
-			sql = fmt.Sprintf(`SELECT _wstart as ts, dnode_id, 
-				avg(rpc_queue_memory_allowed) as rpc_queue_memory_allowed,
-				avg(rpc_queue_memory_used) as rpc_queue_memory_used,
-				avg(apply_memory_allowed) as apply_memory_allowed,
-				avg(apply_memory_used) as apply_memory_used
-			FROM %s.dnode_metrics 
-			WHERE dnode_id = %s`, r.dbname, dnodeId)
-		} else {
-			sql = fmt.Sprintf(`SELECT _wstart as ts, dnode_id,
-				avg(rpc_queue_memory_allowed) as rpc_queue_memory_allowed,
-				avg(rpc_queue_memory_used) as rpc_queue_memory_used,
-				avg(apply_memory_allowed) as apply_memory_allowed,
-				avg(apply_memory_used) as apply_memory_used
-			FROM %s.dnode_metrics`, r.dbname)
-		}
-
-		if startTime != "" && endTime != "" {
-			sql += fmt.Sprintf(" AND ts >= '%s' AND ts <= '%s'", startTime, endTime)
-		} else if startTime != "" {
-			sql += fmt.Sprintf(" AND ts >= '%s'", startTime)
-		} else if endTime != "" {
-			sql += fmt.Sprintf(" AND ts <= '%s'", endTime)
-		}
-
-		sql += fmt.Sprintf(" INTERVAL(%s) GROUP BY dnode_id ORDER BY ts DESC LIMIT %s", interval, limit)
-
-		r.executeQueryAndRespond(c, sql)
-	}
-}
-
-func (r *Reporter) dnodeMetricsSummaryHandlerFunc() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		timeRange := c.DefaultQuery("time_range", "1h")
-		
-		var timeFilter string
-		switch timeRange {
-		case "1h":
-			timeFilter = "ts >= now - 1h"
-		case "6h":
-			timeFilter = "ts >= now - 6h" 
-		case "24h":
-			timeFilter = "ts >= now - 24h"
-		case "7d":
-			timeFilter = "ts >= now - 7d"
-		default:
-			timeFilter = "ts >= now - 1h"
-		}
-
-		sql := fmt.Sprintf(`SELECT 
-			dnode_id,
-			max(rpc_queue_memory_allowed) as max_rpc_queue_memory_allowed,
-			max(rpc_queue_memory_used) as max_rpc_queue_memory_used,
-			avg(rpc_queue_memory_used * 100.0 / rpc_queue_memory_allowed) as avg_rpc_queue_memory_usage_percent,
-			max(apply_memory_allowed) as max_apply_memory_allowed,
-			max(apply_memory_used) as max_apply_memory_used,
-			avg(apply_memory_used * 100.0 / apply_memory_allowed) as avg_apply_memory_usage_percent
-		FROM %s.dnode_metrics 
-		WHERE %s 
-		GROUP BY dnode_id 
-		ORDER BY dnode_id`, r.dbname, timeFilter)
-
-		r.executeQueryAndRespond(c, sql)
-	}
 }
 
 func (r *Reporter) dnodeMetricsBatchHandlerFunc() gin.HandlerFunc {

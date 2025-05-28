@@ -161,31 +161,31 @@ const char *getMetricString(const SMetric *pMetric) {
 void initWriteMetricsEx(SWriteMetricsEx *pMetrics) {
   if (pMetrics == NULL) return;
   pMetrics->vgId = 0;
-  initMetric(&pMetrics->total_requests, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
-  initMetric(&pMetrics->total_rows, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
-  initMetric(&pMetrics->total_bytes, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
-  initMetric(&pMetrics->fetch_batch_meta_time, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
-  initMetric(&pMetrics->fetch_batch_meta_count, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
-  initMetric(&pMetrics->preprocess_time, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
-  initMetric(&pMetrics->wal_write_bytes, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
-  initMetric(&pMetrics->wal_write_time, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
-  initMetric(&pMetrics->apply_bytes, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
-  initMetric(&pMetrics->apply_time, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
-  initMetric(&pMetrics->commit_count, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
-  initMetric(&pMetrics->commit_time, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
-  initMetric(&pMetrics->memtable_wait_time, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
-  initMetric(&pMetrics->block_commit_count, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
-  initMetric(&pMetrics->blocked_commit_time, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
-  initMetric(&pMetrics->merge_count, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
-  initMetric(&pMetrics->merge_time, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
+  initMetric(&pMetrics->total_requests, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&pMetrics->total_rows, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&pMetrics->total_bytes, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&pMetrics->fetch_batch_meta_time, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&pMetrics->fetch_batch_meta_count, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&pMetrics->preprocess_time, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&pMetrics->wal_write_bytes, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&pMetrics->wal_write_time, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&pMetrics->apply_bytes, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&pMetrics->apply_time, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&pMetrics->commit_count, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&pMetrics->commit_time, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&pMetrics->memtable_wait_time, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&pMetrics->block_commit_count, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&pMetrics->blocked_commit_time, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&pMetrics->merge_count, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&pMetrics->merge_time, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
 }
 
 void initDnodeMetricsEx(SDnodeMetricsEx *pMetrics) {
   if (pMetrics == NULL) return;
-  initMetric(&pMetrics->rpcQueueMemoryAllowed, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
-  initMetric(&pMetrics->rpcQueueMemoryUsed, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
-  initMetric(&pMetrics->applyMemoryAllowed, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
-  initMetric(&pMetrics->applyMemoryUsed, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
+  initMetric(&pMetrics->rpcQueueMemoryAllowed, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&pMetrics->rpcQueueMemoryUsed, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&pMetrics->applyMemoryAllowed, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&pMetrics->applyMemoryUsed, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
 }
 
 void cleanupMetrics() { destroyMetricsManager(); }
