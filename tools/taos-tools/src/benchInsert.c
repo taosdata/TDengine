@@ -2305,8 +2305,8 @@ static void *syncWriteInterlace(void *sarg) {
     char end_time_buffer[80];
     strftime(end_time_buffer, sizeof(end_time_buffer), "%Y-%m-%d %H:%M:%S", end_time_info);
 
-    long diff_sec = end_time_info.tv_sec - begine_time_info.tv_sec;
-    long diff_nsec = end_time_info.tv_nsec - begine_time_info.tv_nsec;
+    long diff_sec = end_time_info->tv_sec - begine_time_info->tv_sec;
+    long diff_nsec = end_time_info->tv_nsec - begine_time_info->tv_nsec;
     long diff_msec = diff_sec * 1000 + diff_nsec / 1000000;
 
     infoPrint("thread id: %d begin time: %s, completed time: %s, time consuming: %ld msec\n", pThreadInfo->threadID, begine_time_buffer, end_time_buffer, diff_msec);
