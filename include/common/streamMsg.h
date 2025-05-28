@@ -588,7 +588,7 @@ typedef struct SSTriggerPullRequest {
 
 typedef struct SSTriggerSetTableRequest {
   SSTriggerPullRequest base;
-  SArray               uids;  // SArray<int64_t>, uid of the table to set
+  SArray*              cids;  // SArray<int64_t>, uid of the table to set
 } SSTriggerSetTableRequest;
 
 typedef struct SSTriggerLastTsRequest {
@@ -691,11 +691,12 @@ typedef struct SSTriggerGroupColValueRequest {
 
 typedef struct SSTriggerVirTableInfoRequest {
   SSTriggerPullRequest base;
+  SArray*              cids;  // SArray<int64_t>, col ids of the virtual table
 } SSTriggerVirTableInfoRequest;
 
 typedef struct SSTriggerOrigTableInfoRequest {
   SSTriggerPullRequest base;
-  SArray               cols;  // SArray<SColRef>
+  SArray*              cols;  // SArray<SColRef>
 } SSTriggerOrigTableInfoRequest;
 
 typedef union SSTriggerPullRequestUnion {
@@ -724,6 +725,7 @@ typedef union SSTriggerPullRequestUnion {
 
 int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTriggerPullRequest* pReq);
 int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullRequestUnion* pReq);
+void    tDestroySTriggerPullRequest(SSTriggerPullRequestUnion* pReq);
 
 typedef struct SSTriggerCalcParam {
   // These fields only have values when used in the statement, otherwise they are 0
@@ -781,6 +783,22 @@ typedef struct STsInfo {
   int64_t gId;
   int64_t  ts;
 } STsInfo;
+
+typedef struct VTableInfo {
+  int64_t gId;        // group id
+  int64_t uid;        // table uid
+  int64_t ver;        // table version
+  SColRefWrapper cols;    
+} VTableInfo;
+
+typedef struct SStreamMsgVTableInfo {
+  SSchemaWrapper schema;
+  SArray*        infos;     // SArray<VTableInfo>
+} SStreamMsgVTableInfo;
+
+int32_t tSerializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, const SStreamMsgVTableInfo* pRsp);
+int32_t tDeserializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, SStreamMsgVTableInfo *pBlock);
+void    tDestroySStreamMsgVTableInfo(SStreamMsgVTableInfo *ptr);
 
 typedef struct SStreamTsResponse {
   int64_t ver;
