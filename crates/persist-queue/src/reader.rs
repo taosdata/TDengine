@@ -1,5 +1,6 @@
 use std::{ops::ControlFlow, time::Duration};
 
+use futures::FutureExt;
 use tokio_util::sync::CancellationToken;
 
 use crate::Entry;
@@ -63,56 +64,72 @@ where
         }
     }
 
+    #[cfg(windows)]
     pub async fn run(mut self, token: CancellationToken) -> super::Result<()> {
-        // 初始化时先尝试清理数据
+        let mut ticker = tokio::time::interval(self.vacuum_interval);
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+        const MAX_WAIT_DURATION: Duration = Duration::from_millis(100);
+        let mut wait_duration = Duration::from_millis(10);
+        loop {
+            if token.is_cancelled() {
+                break;
+            }
+            if ticker.tick().now_or_never().is_some() {
+                self.reader.vacuum().await?;
+            }
+            let entries = self.reader.read(self.batch_size).await?;
+            if entries.is_empty() {
+                if token
+                    .run_until_cancelled(tokio::time::sleep(wait_duration))
+                    .await
+                    .is_none()
+                {
+                    break;
+                }
+                wait_duration = MAX_WAIT_DURATION.min(wait_duration * 2);
+                continue;
+            }
+            wait_duration = Duration::from_millis(10);
+            for entry in entries {
+                if self.send_entry(entry, token.child_token()).await.is_break() {
+                    break;
+                }
+            }
+        }
+
+        // 退出时再尝试清理数据
         self.reader.vacuum().await?;
 
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    pub async fn run(mut self, token: CancellationToken) -> super::Result<()> {
         let mut ticker = tokio::time::interval(self.vacuum_interval);
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
         loop {
-            #[cfg(unix)]
-            {
-                tokio::select! {
-                    res = self.reader.read_util(1, self.batch_size, Some(self.vacuum_interval)) => {
-                        let entries = res?;
-                        if entries.is_empty() {
-                            self.reader.vacuum().await?;
-                            continue;
-                        }
-                        for entry in entries {
-                            if self.send_entry(entry, token.child_token()).await.is_break() {
-                                break;
-                            }
-                        }
-                    },
-                    _ = ticker.tick() => {
-                        self.reader.vacuum().await?;
-                    }
-                    _ = token.cancelled() => break
-                }
+            if token.is_cancelled() {
+                break;
             }
-            #[cfg(windows)]
-            {
-                if token.is_cancelled() {
+            if ticker.tick().now_or_never().is_some() {
+                self.reader.vacuum().await?;
+            }
+            let entries = self
+                .reader
+                .read_util(1, self.batch_size, Some(DEFAULT_VACUUM_DURATION), &token)
+                .await?;
+            if entries.is_empty() {
+                continue;
+            }
+            for entry in entries {
+                if self.send_entry(entry, token.child_token()).await.is_break() {
                     break;
                 }
-                let entries = self.reader.read(self.batch_size).await?;
-                if entries.is_empty() {
-                    tokio::select! {
-                        _ = tokio::time::sleep(Duration::from_millis(10)) => {},
-                        _ = ticker.tick() => {
-                            self.reader.vacuum().await?;
-                        }
-                        _ = token.cancelled() => break,
-                    }
-                    continue;
-                }
-                for entry in entries {
-                    if self.send_entry(entry, token.child_token()).await.is_break() {
-                        break;
-                    }
-                }
+            }
+            if ticker.tick().now_or_never().is_some() {
+                self.reader.vacuum().await?;
             }
         }
 

@@ -13,7 +13,7 @@ use notify::{event::ModifyKind, Watcher};
 use parking_lot::Mutex;
 use snafu::ResultExt;
 use tokio::{io::AsyncSeekExt, time::timeout_at};
-use tokio_util::codec::FramedRead;
+use tokio_util::{codec::FramedRead, sync::CancellationToken};
 
 use crate::{
     fs::format_segment_id, AddWatchSnafu, BuildWatcherSnafu, DelWatchSnafu, Entry, FileLockedSnafu,
@@ -322,6 +322,7 @@ impl Reader {
         &mut self,
         state: ReadState,
         deadline: Option<tokio::time::Instant>,
+        cancel: &CancellationToken,
     ) -> Result<ReadState> {
         if let ReadState::Reader(inner) = &state {
             self.file_watcher
@@ -338,7 +339,7 @@ impl Reader {
         loop {
             match self.new_state(from).await? {
                 state @ ReadState::Position(_) => {
-                    match wait(deadline, self.dir_modify_notifier.notified()).await {
+                    match wait(deadline, cancel, self.dir_modify_notifier.notified()).await {
                         Some(_) => continue,
                         None => return Ok(state),
                     }
@@ -441,6 +442,7 @@ impl RawReader for Reader {
         min_batch_size: usize,
         max_batch_size: usize,
         timeout: Option<std::time::Duration>,
+        cancel: &CancellationToken,
     ) -> Result<Vec<Entry<Self::EntryPosition>>> {
         let deadline = timeout.map(|timeout| tokio::time::Instant::now() + timeout);
 
@@ -448,10 +450,17 @@ impl RawReader for Reader {
         let mut inner = match std::mem::replace(&mut self.state, current_position) {
             ReadState::Reader(inner) => inner,
             ReadState::Position(from) => {
-                match self
-                    .rotate_timeout_at(ReadState::Position(from), deadline)
-                    .await?
-                {
+                let Some(res) = cancel
+                    .run_until_cancelled(self.rotate_timeout_at(
+                        ReadState::Position(from),
+                        deadline,
+                        cancel,
+                    ))
+                    .await
+                else {
+                    return Ok(vec![]);
+                };
+                match res? {
                     ReadState::Position(_) => {
                         return Ok(vec![]);
                     }
@@ -461,7 +470,7 @@ impl RawReader for Reader {
         };
 
         let mut entries = Vec::with_capacity(max_batch_size);
-        while let Some(res) = wait(deadline, inner.framed.next()).await {
+        while let Some(res) = wait(deadline, cancel, inner.framed.next()).await {
             match res.transpose()? {
                 Some(entry) => {
                     entries.push(entry);
@@ -477,7 +486,7 @@ impl RawReader for Reader {
                     if self.need_rotate(&inner) {
                         tracing::info!("perssit file reader will rotate to next file");
                         match self
-                            .rotate_timeout_at(ReadState::Reader(inner), deadline)
+                            .rotate_timeout_at(ReadState::Reader(inner), deadline, cancel)
                             .await?
                         {
                             ReadState::Position(from) => {
@@ -499,7 +508,7 @@ impl RawReader for Reader {
                     }
 
                     // 等待文件新内容，超时返回
-                    if wait(deadline, self.file_modify_notifier.notified())
+                    if wait(deadline, cancel, self.file_modify_notifier.notified())
                         .await
                         .is_none()
                     {
@@ -560,15 +569,24 @@ impl RawReader for Reader {
     }
 }
 
-async fn wait<F, T>(deadline: Option<tokio::time::Instant>, future: F) -> Option<T>
+async fn wait<F, T>(
+    deadline: Option<tokio::time::Instant>,
+    cancel: &CancellationToken,
+    future: F,
+) -> Option<T>
 where
     F: Future<Output = T>,
 {
     match deadline {
-        Some(deadline) => match timeout_at(deadline, future).await {
-            Ok(res) => Some(res),
-            Err(_) => None,
-        },
-        None => Some(future.await),
+        Some(deadline) => {
+            let Some(Ok(res)) = cancel
+                .run_until_cancelled(timeout_at(deadline, future))
+                .await
+            else {
+                return None;
+            };
+            Some(res)
+        }
+        None => cancel.run_until_cancelled(future).await,
     }
 }

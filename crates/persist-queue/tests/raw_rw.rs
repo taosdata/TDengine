@@ -7,6 +7,7 @@ use persist_queue::{
 };
 use tempfile::tempdir;
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
+use tokio_util::sync::CancellationToken;
 
 mod common;
 
@@ -261,12 +262,16 @@ async fn bad_checksum_rotate() -> anyhow::Result<()> {
 #[tokio::test]
 async fn rw_timeout_read() -> anyhow::Result<()> {
     let dir = tempdir()?;
+    let cancel = CancellationToken::new();
+
     let mut queue = FsQueue::builder(dir.path()).build().await?;
 
     let mut reader = queue.new_reader(ReadFrom::Earliest).await?;
 
     // 当前目录下没有 segment，等待超时
-    let entries = reader.read_util(1, 1, Some(Duration::from_secs(1))).await?;
+    let entries = reader
+        .read_util(1, 1, Some(Duration::from_secs(1)), &cancel)
+        .await?;
     assert!(entries.is_empty());
 
     // 写入部分数据
@@ -276,7 +281,7 @@ async fn rw_timeout_read() -> anyhow::Result<()> {
 
     // 现在可以读取到数据，但直到超时也只读取到 5 条
     let entries = reader
-        .read_util(5, 10, Some(Duration::from_secs(1)))
+        .read_util(5, 10, Some(Duration::from_secs(1)), &cancel)
         .await?;
     assert_eq!(entries.len(), 5);
 
@@ -291,7 +296,7 @@ async fn rw_timeout_read() -> anyhow::Result<()> {
         },
         async {
             let entries = reader
-                .read_util(12, 20, Some(Duration::from_secs(3)))
+                .read_util(12, 20, Some(Duration::from_secs(3)), &cancel)
                 .await?;
             assert_eq!(entries.len(), 12);
             anyhow::Ok(())
@@ -303,6 +308,8 @@ async fn rw_timeout_read() -> anyhow::Result<()> {
 #[tokio::test]
 async fn rw_timeout_rotate_read() -> anyhow::Result<()> {
     let dir = tempdir()?;
+    let cancel = CancellationToken::new();
+
     let mut queue = FsQueue::builder(dir.path())
         .segment_size(100)
         .build()
@@ -320,7 +327,7 @@ async fn rw_timeout_rotate_read() -> anyhow::Result<()> {
             anyhow::Ok(())
         },
         async {
-            let entries = reader.read_util(20, 20, None).await?;
+            let entries = reader.read_util(20, 20, None, &cancel).await?;
             assert_eq!(entries.len(), 20);
             anyhow::Ok(())
         }

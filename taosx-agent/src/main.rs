@@ -641,6 +641,7 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
                     } else {
                         tracing::error!("Connection closed. Retry in 5 seconds");
                         if args.keep_online {
+                            tokio::time::sleep(Duration::from_secs(5)).await;
                             continue
                         }
                         if let Err(err) = error_gate.tick(err) {

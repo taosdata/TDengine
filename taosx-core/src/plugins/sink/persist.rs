@@ -2,7 +2,10 @@ use std::{
     collections::HashMap,
     ops::Deref,
     path::PathBuf,
-    sync::{atomic::AtomicU64, Arc, LazyLock},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, LazyLock,
+    },
     time::Duration,
 };
 
@@ -38,7 +41,8 @@ const DEFAULT_BATCH_CHUNK_SIZE: usize = 100;
 
 const METRICS_PERSIST_READ_MESSAGES: FastStr = FastStr::from_static_str("persist_read_messages");
 const METRICS_PERSIST_WRITE_MESSAGES: FastStr = FastStr::from_static_str("persist_write_messages");
-const METRICS_PERSIST_INFLIGHT_ACKS: FastStr = FastStr::from_static_str("persist_inflight_acks");
+const METRICS_PERSIST_RECEIVED_ACKS: FastStr = FastStr::from_static_str("persist_received_acks");
+const METRICS_PERSIST_SEND_BATCHES: FastStr = FastStr::from_static_str("persist_send_batches");
 
 static TASK_PERSIST_METRICS: LazyLock<scc::HashIndex<i64, Arc<PersistMetrics>>> =
     LazyLock::new(scc::HashIndex::new);
@@ -249,6 +253,9 @@ where
         .or_insert(Arc::new(PersistMetrics::new(metrics)));
     let metrics = metric_entry.get();
     metrics.reset();
+    let _metrics_guard = utils::defer::defer(|| {
+        metrics.reset();
+    });
 
     let path = persist.dir;
 
@@ -450,7 +457,7 @@ where
         let token = token.clone();
         let breakpoint_db = persist.breakpoint_db.clone();
         let path = path.clone();
-        tracing::info!(?path, "persist queue deserialize records task exit");
+        tracing::info!(?path, "persist queue deserialize records task start");
         async move {
             let _guard = utils::defer::defer(|| {
                 tracing::info!(?path, "persist queue deserialize records task exit");
@@ -573,7 +580,7 @@ where
                         let Some(Ok::<LushAck, RecvError>(ack)) = res else {
                             break
                         };
-                        metrics.sub_persist_inflight_acks();
+                        metrics.add_persist_received_acks();
 
                         // 无论成功与否，都写断点
                         if let Some(context) = ack.context() {
@@ -601,14 +608,7 @@ where
                             break
                         };
                         futs.push_back(ack_rx);
-                        metrics.add_persist_inflight_acks();
-                        if tracing::enabled!(tracing::Level::TRACE) {
-                            tracing::trace!(
-                                ?path,
-                                inflight_acks = metrics.get_persist_inflight_acks(),
-                                "update persist queue inflight acks",
-                            );
-                        }
+                        metrics.add_persist_send_batches();
                     },
                     _ = token.cancelled() => break
                 }
@@ -623,9 +623,10 @@ where
 struct PersistMetrics {
     core_metrics: Option<Arc<CoreMetrics>>,
 
-    pub persist_read_messages: AtomicU64,
-    pub persist_write_messages: AtomicU64,
-    pub persist_inflight_acks: AtomicU64,
+    persist_read_messages: AtomicU64,
+    persist_write_messages: AtomicU64,
+    persist_received_acks: AtomicU64,
+    persist_send_batches: AtomicU64,
 
     instant: Mutex<std::time::Instant>,
 }
@@ -636,7 +637,8 @@ impl PersistMetrics {
             core_metrics,
             persist_read_messages: AtomicU64::default(),
             persist_write_messages: AtomicU64::default(),
-            persist_inflight_acks: AtomicU64::default(),
+            persist_received_acks: AtomicU64::default(),
+            persist_send_batches: AtomicU64::default(),
             instant: Mutex::new(std::time::Instant::now()),
         }
     }
@@ -663,20 +665,25 @@ impl PersistMetrics {
             .load(std::sync::atomic::Ordering::SeqCst)
     }
 
-    fn add_persist_inflight_acks(&self) {
-        self.persist_inflight_acks
+    fn add_persist_received_acks(&self) {
+        self.persist_received_acks
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         self.update();
     }
 
-    fn sub_persist_inflight_acks(&self) {
-        self.persist_inflight_acks
-            .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+    fn get_persist_received_acks(&self) -> u64 {
+        self.persist_received_acks
+            .load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    fn add_persist_send_batches(&self) {
+        self.persist_send_batches
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         self.update();
     }
 
-    fn get_persist_inflight_acks(&self) -> u64 {
-        self.persist_inflight_acks
+    fn get_persist_send_batches(&self) -> u64 {
+        self.persist_send_batches
             .load(std::sync::atomic::Ordering::SeqCst)
     }
 
@@ -684,15 +691,25 @@ impl PersistMetrics {
         let Some(core_metrics) = self.core_metrics.clone() else {
             return;
         };
+        self.persist_read_messages.store(0, Ordering::SeqCst);
         core_metrics
             .ipc()
             .set_extra_metric(&METRICS_PERSIST_READ_MESSAGES, 0);
+
+        self.persist_write_messages.store(0, Ordering::SeqCst);
         core_metrics
             .ipc()
             .set_extra_metric(&METRICS_PERSIST_WRITE_MESSAGES, 0);
+
+        self.persist_received_acks.store(0, Ordering::SeqCst);
         core_metrics
             .ipc()
-            .set_extra_metric(&METRICS_PERSIST_INFLIGHT_ACKS, 0);
+            .set_extra_metric(&METRICS_PERSIST_RECEIVED_ACKS, 0);
+
+        self.persist_send_batches.store(0, Ordering::SeqCst);
+        core_metrics
+            .ipc()
+            .set_extra_metric(&METRICS_PERSIST_SEND_BATCHES, 0);
     }
 
     fn update(&self) {
@@ -715,8 +732,12 @@ impl PersistMetrics {
             self.get_persist_write_messages(),
         );
         core_metrics.ipc().set_extra_metric(
-            &METRICS_PERSIST_INFLIGHT_ACKS,
-            self.get_persist_inflight_acks(),
+            &METRICS_PERSIST_RECEIVED_ACKS,
+            self.get_persist_received_acks(),
+        );
+        core_metrics.ipc().set_extra_metric(
+            &METRICS_PERSIST_SEND_BATCHES,
+            self.get_persist_send_batches(),
         );
         *instant = std::time::Instant::now();
     }
