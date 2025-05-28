@@ -64,6 +64,7 @@ extern int32_t       tsConfigInited;
 extern int32_t       tsStatusInterval;
 extern int32_t       tsEnableMetrics;
 extern int32_t       tsMetricsInterval;
+extern int32_t       tsMetricsFlag;
 extern int32_t       tsNumOfSupportVnodes;
 extern char          tsEncryptAlgorithm[];
 extern char          tsEncryptScope[];
