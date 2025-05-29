@@ -88,7 +88,7 @@ class TestStreamDevBasic:
     def checkResults(self):
         tdLog.info("check stream result")
         
-        tdSql.checkResultsByFunc("show rdb.stables", func=lambda: tdSql.getRows() == 1)
+        tdSql.checkResultsByFunc("show rdb.tables", func=lambda: tdSql.getRows() == 1)
 
         # res_query = "select ts, c1, c2 from rdb.s1"
         # exp_query = "select _wstart ts, count(cint) c1, avg(cint) c2 from qdb.meters interval(5m)"
