@@ -37,7 +37,8 @@ void moveBlockBuf(SAlignBlocksInMem* pAlignBlockInfo, size_t dataEncodeBufSize) 
 
 void* getWindowDataBuf(SSlidingWindowInMem* pWindowData) { return (void*)pWindowData + sizeof(SSlidingWindowInMem); }
 
-static int32_t getRangeInWindowBlock(SSlidingWindowInMem* pWindowData, int32_t tsColSlotId, TSKEY start, TSKEY end, SSDataBlock** ppBlock) {
+static int32_t getRangeInWindowBlock(SSlidingWindowInMem* pWindowData, int32_t tsColSlotId, TSKEY start, TSKEY end,
+                                     SSDataBlock** ppBlock) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
@@ -56,7 +57,7 @@ _end:
       blockDataDestroy(pBlock);
     }
   } else {
-    if(pBlock->info.rows == 0) {
+    if (pBlock->info.rows == 0) {
       blockDataDestroy(pBlock);
       *ppBlock = NULL;
       return TSDB_CODE_SUCCESS;
@@ -73,7 +74,7 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
   SAlignGrpMgr* pAlignGrpMgr = (SAlignGrpMgr*)pResult->groupData;
   for (; pAlignGrpMgr->blocksInMem->size > 0;) {
     SAlignBlocksInMem** ppBlockInfo = (SAlignBlocksInMem**)taosArrayGet(pAlignGrpMgr->blocksInMem, 0);
-    SAlignBlocksInMem* pBlockInfo = *ppBlockInfo;
+    SAlignBlocksInMem*  pBlockInfo = *ppBlockInfo;
     if (pBlockInfo == NULL) {
       stError("failed to get block info from mem, since block is NULL");
       return TSDB_CODE_STREAM_INTERNAL_ERROR;
@@ -82,7 +83,7 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
       SSlidingWindowInMem* pWindowData = ((void*)pBlockInfo + sizeof(SAlignBlocksInMem) + pResult->offset);
 
       bool found = false;
-      if(pWindowData->startTime > pResult->reqEndTime) {
+      if (pWindowData->startTime > pResult->reqEndTime) {
         *finished = true;
         return code;
       }
@@ -299,7 +300,7 @@ int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlo
   char*   pStart = getWindowDataBuf(pSlidingWinInMem);
   int32_t len = 0;
   len = blockEncode(pBlock, pStart, dataEncodeBufSize, numOfCols);
-  if(len < 0) {
+  if (len < 0) {
     stError("failed to encode data since %s, lineno:%d", tstrerror(len), lino);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }

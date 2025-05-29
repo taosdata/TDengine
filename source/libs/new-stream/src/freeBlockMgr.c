@@ -23,7 +23,7 @@ int32_t compareFreeBlock(const SRBTreeNode *a, const SRBTreeNode *b) {
 }
 
 FreeBlock *createFreeBlock(int start, int length) {
-  FreeBlock *block =  taosMemCalloc(1, sizeof(FreeBlock));
+  FreeBlock *block = taosMemCalloc(1, sizeof(FreeBlock));
   if (!block) return NULL;
 
   block->start = start;
@@ -54,15 +54,15 @@ void insertFreeBlock(SRBTree *tree, FreeBlock *newBlock) {
 }
 
 FreeBlock *findBestFitBlock(SRBTree *tree, int requestLength) {
-  // Create a temporary key node for comparison 
-  FreeBlock tempKey = { .length = requestLength };
+  // Create a temporary key node for comparison
+  FreeBlock    tempKey = {.length = requestLength};
   SRBTreeNode *pNode = tree->root;
   SRBTreeNode *candidate = NULL;
 
   while (pNode != tree->NIL) {
-    int cmp = compareFreeBlock((SRBTreeNode*)&tempKey, pNode);
+    int cmp = compareFreeBlock((SRBTreeNode *)&tempKey, pNode);
     if (cmp < 0) {
-      candidate = pNode; // It may be the upper bound, continue to the left 
+      candidate = pNode;  // It may be the upper bound, continue to the left
       pNode = pNode->left;
     } else {
       pNode = pNode->right;

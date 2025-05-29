@@ -67,12 +67,12 @@ typedef struct SFileBlockInfo {
 } SFileBlockInfo;
 
 typedef struct SDataSinkFileMgr {
-  char      fileName[FILENAME_MAX];
-  int64_t   fileSize;
-  int64_t   fileBlockCount;
-  int64_t   fileBlockUsedCount;
-  int64_t   fileGroupBlockMaxSize;
-  SRBTree   pFreeFileBlockList;  // <groupDataStartOffSet, SFileBlockInfo>
+  char    fileName[FILENAME_MAX];
+  int64_t fileSize;
+  int64_t fileBlockCount;
+  int64_t fileBlockUsedCount;
+  int64_t fileGroupBlockMaxSize;
+  SRBTree pFreeFileBlockList;  // <groupDataStartOffSet, SFileBlockInfo>
 
   int64_t   readingGroupId;
   int64_t   writingGroupId;
@@ -116,14 +116,14 @@ typedef struct SAlignBlocksInMem {
 } SAlignBlocksInMem;
 
 typedef struct SBlocksInfoFile {
-  int64_t        groupOffset;  // offset in file
-  int64_t        dataLen;
-  int64_t        capacity;  // size in file
+  int64_t groupOffset;  // offset in file
+  int64_t dataLen;
+  int64_t capacity;  // size in file
   // SSlidingWindowInMem *windowDataInFile;  // array SSlidingWindowInMem 实际数据，反序列化保存至文件
 } SBlocksInfoFile;
 
 typedef struct STaskDSMgr {
-  int8_t            cleanMode;  // 1 - immediate, 2 - expired
+  int8_t cleanMode;  // 1 - immediate, 2 - expired
 } STaskDSMgr;
 
 typedef struct SAlignTaskDSMgr {
@@ -174,18 +174,18 @@ typedef enum {
 } SDataSinkPos;
 
 typedef struct SResultIter {
-  SCleanMode        cleanMode;       // 1 - immediate, 2 - expired
-  void*             groupData;       // SAlignGrpMgr(data in mem) or SSlidingGrpMgr(data in file)
-  SDataSinkFileMgr* pFileMgr;        // when has data in file, pFileMgr is not NULL
-  int32_t           tsColSlotId;     // ts column slot id
-  int32_t           winIndex;        // only for immediate clean mode, index of the window in the block
-                                     // when tmpBlocksInMem is not NULL, this is the index of the current tmpBlocksInMem's block
-  int64_t           offset;          // array index, start from 0
-  SArray*           tmpBlocksInMem;  // SSlidingWindowInMem, read from file,
-  SDataSinkPos      dataPos;         // 0 - data in mem, 1 - data in file
-  int64_t           groupId;
-  int64_t           reqStartTime;
-  int64_t           reqEndTime;
+  SCleanMode        cleanMode;    // 1 - immediate, 2 - expired
+  void*             groupData;    // SAlignGrpMgr(data in mem) or SSlidingGrpMgr(data in file)
+  SDataSinkFileMgr* pFileMgr;     // when has data in file, pFileMgr is not NULL
+  int32_t           tsColSlotId;  // ts column slot id
+  int32_t           winIndex;     // only for immediate clean mode, index of the window in the block
+                     // when tmpBlocksInMem is not NULL, this is the index of the current tmpBlocksInMem's block
+  int64_t      offset;          // array index, start from 0
+  SArray*      tmpBlocksInMem;  // SSlidingWindowInMem, read from file,
+  SDataSinkPos dataPos;         // 0 - data in mem, 1 - data in file
+  int64_t      groupId;
+  int64_t      reqStartTime;
+  int64_t      reqEndTime;
 } SResultIter;
 
 // @brief 创建一个数据缓存
@@ -215,7 +215,7 @@ int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY we
 //        1. 会移交 pBlock 的所有权
 //        2. 如果返回 success，pBlock 的内存释放由 Cache Sink 负责；
 //        3. 如果返回 error，pBlock 的内存释放由调用者负责；
-int32_t moveStreamDataCache(void *pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock *pBlock);
+int32_t moveStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock);
 
 // @brief 从数据缓存中读取数据
 // @param pCache 数据缓存,使用 StreamDataCacheInit 创建
@@ -268,7 +268,7 @@ void    destorySlidingWindowInMemPP(void* ppSlidingWinInMem);
 int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY wstart,
                                    TSKEY wend);
 int32_t buildMoveAlignWindowInMem(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY wstart,
-                                   TSKEY wend);
+                                  TSKEY wend);
 
 // @brief 读取数据从内存
 int32_t readDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, bool* finished);
@@ -283,7 +283,7 @@ void    releaseDataResult(void** ppResult);
 
 void slidingGrpMgrUsedMemAdd(SSlidingGrpMgr* pSlidingGrpCacheMgr, int64_t size);
 
-void    destroyInserterGrpInfo();
+void destroyInserterGrpInfo();
 
 void destoryAlignBlockInMem(void* ppData);
 

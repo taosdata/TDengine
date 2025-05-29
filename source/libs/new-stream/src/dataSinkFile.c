@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include "dataSink.h"
+#include "freeBlockMgr.h"
 #include "osFile.h"
 #include "osMemory.h"
 #include "osTime.h"
@@ -25,7 +26,6 @@
 #include "tdatablock.h"
 #include "tdef.h"
 #include "thash.h"
-#include "freeBlockMgr.h"
 
 char      gDataSinkFilePath[PATH_MAX] = {0};
 const int gFileGroupBlockMaxSize = 64 * 1024;  // 64K
@@ -99,13 +99,11 @@ static int32_t initStreamDataSinkFile(SSlidingTaskDSMgr* pStreamDataSink) {
   return TSDB_CODE_SUCCESS;
 }
 
-
-
 static int32_t openFileForWrite(SDataSinkFileMgr* pFileMgr) {
   if (pFileMgr->writeFilePtr == NULL) {
     pFileMgr->writeFilePtr = taosOpenFile(pFileMgr->fileName, TD_FILE_CREATE | TD_FILE_WRITE);
     if (pFileMgr->writeFilePtr == NULL) {
-      stError("open file %s failed, err: %s", pFileMgr->fileName, terrMsg);  
+      stError("open file %s failed, err: %s", pFileMgr->fileName, terrMsg);
       return terrno;
     }
   }
@@ -116,7 +114,7 @@ static int32_t openFileForRead(SDataSinkFileMgr* pFileMgr) {
   if (pFileMgr->readFilePtr == NULL) {
     pFileMgr->readFilePtr = taosOpenFile(pFileMgr->fileName, TD_FILE_CREATE | TD_FILE_READ);
     if (pFileMgr->readFilePtr == NULL) {
-      stError("open file %s failed, err: %s", pFileMgr->fileName, terrMsg);  
+      stError("open file %s failed, err: %s", pFileMgr->fileName, terrMsg);
       return terrno;
     }
   }
@@ -140,8 +138,8 @@ static void getFreeBlock(SDataSinkFileMgr* pFileMgr, int32_t needSize, SFileBloc
 }
 
 static int32_t addToFreeBlock(SDataSinkFileMgr* pFileMgr, const SFileBlockInfo* pBlockInfo) {
-  if(pBlockInfo->size <= 0) return TSDB_CODE_SUCCESS;
-  FreeBlock * pFreeBlock = createFreeBlock(pBlockInfo->offset, pBlockInfo->size);
+  if (pBlockInfo->size <= 0) return TSDB_CODE_SUCCESS;
+  FreeBlock* pFreeBlock = createFreeBlock(pBlockInfo->offset, pBlockInfo->size);
   if (pFreeBlock == NULL) {
     stError("failed to create free block, err: %s", terrMsg);
     return terrno;
@@ -151,8 +149,8 @@ static int32_t addToFreeBlock(SDataSinkFileMgr* pFileMgr, const SFileBlockInfo* 
 }
 
 bool setNextIteratorFromFile(SResultIter** ppResult) {
-  SResultIter*       pResult = *ppResult;
-    if (pResult->cleanMode == DATA_CLEAN_EXPIRED) {
+  SResultIter* pResult = *ppResult;
+  if (pResult->cleanMode == DATA_CLEAN_EXPIRED) {
     SSlidingGrpMgr* pSlidingGrpMgr = (SSlidingGrpMgr*)pResult->groupData;
     if (++pResult->offset < pSlidingGrpMgr->blocksInFile->size) {
       return false;
@@ -169,7 +167,7 @@ bool setNextIteratorFromFile(SResultIter** ppResult) {
 }
 
 static int32_t appendTmpSBlocksInMem(SResultIter* pResult, SSDataBlock* pBlock) {
-  if(pBlock == NULL) {
+  if (pBlock == NULL) {
     return TSDB_CODE_SUCCESS;
   }
   if (pResult->tmpBlocksInMem == NULL) {
@@ -322,9 +320,9 @@ int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMg
   if (pSlidingGrp->winDataInMem == NULL || pSlidingGrp->winDataInMem->size == 0) {
     return TSDB_CODE_SUCCESS;
   }
-  int32_t       code = 0;
-  int32_t       lino = 0;
-  TaosIOVec*    iov = NULL;
+  int32_t    code = 0;
+  int32_t    lino = 0;
+  TaosIOVec* iov = NULL;
 
   if (!pSlidingTaskMgr->pFileMgr) {
     code = initStreamDataSinkFile(pSlidingTaskMgr);
@@ -356,7 +354,7 @@ int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMg
     if (pSlidingWin->dataLen == 0) {
       // todo
     }
-    if(needSize + pSlidingWin->dataLen + sizeof(SSlidingWindowInMem) > gDSFileBlockDefaultSize) {
+    if (needSize + pSlidingWin->dataLen + sizeof(SSlidingWindowInMem) > gDSFileBlockDefaultSize) {
       break;
     }
     ++moveWinCount;
@@ -373,7 +371,7 @@ int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMg
     }
   }
   SBlocksInfoFile fileBlockInfo = {0};
-  SFileBlockInfo groupBlockOffset = {0};
+  SFileBlockInfo  groupBlockOffset = {0};
   getFreeBlock(pFileMgr, needSize, &groupBlockOffset);
   int64_t groupOffset;  // offset in file
   int64_t dataStartOffset;
@@ -382,22 +380,23 @@ int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMg
   fileBlockInfo.groupOffset = groupBlockOffset.offset;
   fileBlockInfo.capacity = groupBlockOffset.size;
   fileBlockInfo.dataLen = needSize;
-  stDebug("move sliding group memory cache, groupId:%" PRId64 ", moveWinCount:%d, needSize:%d, "
-           "groupOffset:%" PRId64 ", capacity:%" PRId64 ", dataLen:%" PRId64,
-           pSlidingGrp->groupId, moveWinCount, needSize, fileBlockInfo.groupOffset, fileBlockInfo.capacity,
-           fileBlockInfo.dataLen);
+  stDebug("move sliding group memory cache, groupId:%" PRId64
+          ", moveWinCount:%d, needSize:%d, "
+          "groupOffset:%" PRId64 ", capacity:%" PRId64 ", dataLen:%" PRId64,
+          pSlidingGrp->groupId, moveWinCount, needSize, fileBlockInfo.groupOffset, fileBlockInfo.capacity,
+          fileBlockInfo.dataLen);
 
   if (false) {  // 续写
 
   } else {  // 第一次写入
     int64_t ret = taosLSeekFile(pFileMgr->writeFilePtr, fileBlockInfo.groupOffset, SEEK_SET);
-    if(ret < 0) {
+    if (ret < 0) {
       code = terrno;
       QUERY_CHECK_CODE(code, lino, _exit);
     }
 
     int64_t writeLen = taosWritevFile(pFileMgr->writeFilePtr, iov, moveWinCount);
-    if(writeLen != needSize) {
+    if (writeLen != needSize) {
       code = terrno;
       QUERY_CHECK_CODE(code, lino, _exit);
     }

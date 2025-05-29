@@ -773,7 +773,7 @@ int32_t moveMemCache() {
 
     ppTaskMgr = taosHashIterate(g_pDataSinkManager.dsStreamTaskList, ppTaskMgr);
   }
-  if(ppTaskMgr != NULL) {
+  if (ppTaskMgr != NULL) {
     taosHashCancelIterate(g_pDataSinkManager.dsStreamTaskList, ppTaskMgr);
   }
   stInfo("moveMemCache finished, used mem size: %" PRId64 ", max mem size: %" PRId64, g_pDataSinkManager.usedMemSize,
@@ -789,9 +789,8 @@ int32_t checkAndMoveMemCache(bool forWrite) {
   if (forWrite) {
     return moveMemCache();
   } else {
-
     stDebug("checkAndReleaseBuffer, used mem size: %" PRId64 ", max mem size: %" PRId64 ", for write: %d",
-           g_pDataSinkManager.usedMemSize, g_pDataSinkManager.maxMemSize, forWrite);
+            g_pDataSinkManager.usedMemSize, g_pDataSinkManager.maxMemSize, forWrite);
   }
   return TSDB_CODE_SUCCESS;
 }

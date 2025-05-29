@@ -402,7 +402,6 @@ TEST(dataSinkTest, cancelStreamDataCacheIterateTest) {
   ASSERT_NE(pIter, nullptr);
   ASSERT_EQ(pBlock1, pBlock);
   cancelStreamDataCacheIterate(&pIter);
-  
 
   blockDataDestroy(pBlock1);  // pBlock1 has moveout, can destroy
   // blockDataDestroy(pBlock2); // pBlock2 has not moveout, can not destroy
