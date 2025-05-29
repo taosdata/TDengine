@@ -2621,13 +2621,15 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
       continue;
     }
 
-    if (TSDB_CODE_SUCCESS == code) {
-      if (gotRow) {
-        (*pNumOfRows)++;
-      }
-    } else {
+    if (TSDB_CODE_SUCCESS == code && gotRow) {
+      (*pNumOfRows)++;
+    }
+
+    if (TSDB_CODE_SUCCESS == code && (*pNumOfRows) >= tsMaxInsertBatchRows) {
+      pStmt->fileProcessing = true;
       break;
     }
+    firstLine = false;
   }
 
   csvParserDestroy(&parser);
