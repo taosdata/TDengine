@@ -15,6 +15,7 @@
 
 #include <stdatomic.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include "dataSinkInt.h"
 #include "dataSinkMgt.h"
 #include "executor.h"
@@ -37,7 +38,6 @@
 #include "tqueue.h"
 
 extern SDataSinkStat gDataSinkStat;
-SHashObj*            gStreamGrpTableHash = NULL;
 typedef struct SSubmitRes {
   int64_t      affectedRows;
   int32_t      code;
@@ -65,8 +65,9 @@ typedef struct SDataInserterHandle {
   AUTO_CREATE_TABLE_MODE autoCreateTableMode;
   SSchemaWrapper*        pTagSchema;
   const char*            dbFName;
-  SHashObj*              dbVgInfoMap;  // 存储数据库和vgroup信息的映射
-  SUseDbRsp*             pRsp;         // 用于存储数据库信息响应
+  SHashObj*              dbVgInfoMap;    // 存储数据库和vgroup信息的映射
+  SUseDbRsp*             pRsp;           // 用于存储数据库信息响应
+  SHashObj*              pGrpTableHash;  // 缓存流组表信息
   // SExecTaskInfo*      pTaskInfo;    // 用于存储任务信息
 } SDataInserterHandle;
 
@@ -79,21 +80,6 @@ typedef struct SInsertTableRes {
   int64_t uid;
   int32_t version;
 } SInsertTableRes;
-
-int32_t initInserterGrpInfo() {
-  static int8_t initGrpInfo = 0;
-  int8_t        flag = atomic_val_compare_exchange_8(&initGrpInfo, 0, 1);
-  if (flag != 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  gStreamGrpTableHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
-  if (NULL == gStreamGrpTableHash) {
-    qError("failed to create stream group table hash");
-    return terrno;
-  }
-  return TSDB_CODE_SUCCESS;
-}
 
 static int32_t checkResAndGetTableId(const SSubmitRes* pSubmitRes, int8_t tbType, SInsertTableRes* res) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -120,13 +106,13 @@ static int32_t checkResAndGetTableId(const SSubmitRes* pSubmitRes, int8_t tbType
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t saveCreateGrpTableInfo(int64_t groupId, const SSubmitRes* pSubmitRes, int8_t tbType) {
+static int32_t saveCreateGrpTableInfo(SDataInserterHandle* pInserter, int64_t groupId, const SSubmitRes* pSubmitRes, int8_t tbType) {
   SInsertTableRes res = {0};
   int32_t         code = checkResAndGetTableId(pSubmitRes, tbType, &res);
   if (code) {
     return code;
   }
-  code = taosHashPut(gStreamGrpTableHash, &groupId, sizeof(groupId), &res, sizeof(SInsertTableRes));
+  code = taosHashPut(pInserter->pGrpTableHash, &groupId, sizeof(groupId), &res, sizeof(SInsertTableRes));
   if (code) {
     return code;
   }
@@ -241,7 +227,7 @@ static int32_t checkAndSaveCreateGrpTableInfo(SDataInserterHandle* pInserthandle
     return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
   }
 
-  code = taosHashPut(gStreamGrpTableHash, &groupId, sizeof(groupId), &res, sizeof(SInsertTableRes));
+  code = taosHashPut(pInserthandle->pGrpTableHash, &groupId, sizeof(groupId), &res, sizeof(SInsertTableRes));
   if (code) {
     return code;
   }
@@ -295,7 +281,7 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
     }
 
     if (pParam->putParam != NULL && ((SStreamDataInserterInfo*)pParam->putParam)->isAutoCreateTable) {
-      saveCreateGrpTableInfo(((SStreamDataInserterInfo*)pParam->putParam)->groupId, &pInserter->submitRes,
+      saveCreateGrpTableInfo(pInserter, ((SStreamDataInserterInfo*)pParam->putParam)->groupId, &pInserter->submitRes,
                              pInserter->pParam->streamInserterParam->tbType);
     }
 
@@ -1004,8 +990,8 @@ int32_t dataBlocksToSubmitReq(SDataInserterHandle* pInserter, void** pMsg, int32
   return code;
 }
 
-static int32_t getStreamTableId(int64_t groupId, SInsertTableRes* pTbInfo) {
-  SInsertTableRes* pTbRes = taosHashGet(gStreamGrpTableHash, &groupId, sizeof(groupId));
+static int32_t getStreamTableId(SDataInserterHandle* pInserter, int64_t groupId, SInsertTableRes* pTbInfo) {
+  SInsertTableRes* pTbRes = taosHashGet(pInserter->pGrpTableHash, &groupId, sizeof(groupId));
   if (NULL == pTbRes) {
     return TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND;
   }
@@ -1189,6 +1175,13 @@ static int32_t buildStreamSubTableCreateReq(SDataInserterHandle* pInserter, SStr
   }
   if (pInserterInfo->pTagVals == NULL || pInserterInfo->pTagVals->size == 0) {
     stError("buildStreamSubTableCreateReq, pTagVals is NULL");
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  if (pInsertParam->suid <= 0 || pInsertParam->sver <= 0) {
+    stError("buildStreamSubTableCreateReq, suid:%" PRId64
+            ", sver:%d"
+            " must be greater than 0",
+            pInsertParam->suid, pInsertParam->sver);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
   int32_t nTags = pInserterInfo->pTagVals->size;
@@ -1449,7 +1442,7 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
     pInsertParam->vgid = *vgId;
   } else {
     SInsertTableRes tbInfo = {0};
-    code = getStreamTableId(pInserterInfo->groupId, &tbInfo);
+    code = getStreamTableId(pInserter, pInserterInfo->groupId, &tbInfo);
     QUERY_CHECK_CODE(code, lino, _end);
 
     tbData.uid = tbInfo.uid;
@@ -1494,6 +1487,10 @@ int32_t streamDataBlocksToSubmitReq(SDataInserterHandle* pInserter, SStreamDataI
     if (NULL == pDataBlock) {
       return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
+    stDebug("streamDataBlocksToSubmitReq, insertHandle:%p, groupID:%" PRId64
+            " tbname:%s autoCreateTable:%d pDataBlock->info.rows:%" PRId64,
+            pInserter, pInserterInfo->groupId, pInserterInfo->tbName, pInserterInfo->isAutoCreateTable,
+            pDataBlock->info.rows);
     code = buildStreamSubmitReqFromBlock(pInserter, pInserterInfo, &pReq, pDataBlock, &vgId);
     if (code) {
       if (pReq) {
@@ -1547,7 +1544,7 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
 
 static int32_t resetInserterTbVersion(SDataInserterHandle* pInserter, const SInputData* pInput) {
   SInsertTableRes pTbInfo = {0};
-  int32_t         code = getStreamTableId(pInput->pStreamDataInserterInfo->groupId, &pTbInfo);
+  int32_t         code = getStreamTableId(pInserter, pInput->pStreamDataInserterInfo->groupId, &pTbInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -1650,6 +1647,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   taosArrayDestroy(pInserter->pDataBlocks);
   taosMemoryFree(pInserter->pSchema);
   destoryStreamInserterParam(pInserter->pParam->streamInserterParam);
+  taosHashCleanup(pInserter->pGrpTableHash);
   taosMemoryFree(pInserter->pParam);
   taosHashCleanup(pInserter->pCols);
   nodesDestroyNode((SNode*)pInserter->pNode);
@@ -1783,7 +1781,7 @@ int32_t createStreamDataInserter(SDataSinkManager* pManager, DataSinkHandle* pHa
 
   SDataInserterHandle* inserter = taosMemoryCalloc(1, sizeof(SDataInserterHandle));
   if (NULL == inserter) {
-    taosMemoryFree(pParam);
+    code = terrno;
     goto _return;
   }
 
@@ -1801,12 +1799,16 @@ int32_t createStreamDataInserter(SDataSinkManager* pManager, DataSinkHandle* pHa
   inserter->queryEnd = false;
   inserter->explain = false;
 
-  // todo get inserter->pSchema, inserter->pTagSchema
-  // todo get inserter->dbFName
-  // inserter->fullOrderColList inserter->pCols  应该可以不需要，仅使用 inserter->pSchema
+  inserter->pGrpTableHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+  if (NULL == inserter->pGrpTableHash) {
+    code = terrno;
+    qError("failed to create stream group table hash");
+    goto _return;
+  }
 
   inserter->pDataBlocks = taosArrayInit(1, POINTER_BYTES);
   if (NULL == inserter->pDataBlocks) {
+    code = terrno;
     goto _return;
   }
   QRY_ERR_JRET(taosThreadMutexInit(&inserter->mutex, NULL));
@@ -1826,5 +1828,5 @@ _return:
     taosMemoryFree(pManager);
   }
 
-  return terrno;
+  return code;
 }

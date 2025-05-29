@@ -256,7 +256,7 @@ static int32_t checkInsertParam(SStreamInserterParam* streamInserterParam) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (streamInserterParam->tbType == TSDB_CHILD_TABLE && streamInserterParam->suid <= 0) {
+  if (streamInserterParam->tbType == TSDB_SUPER_TABLE && streamInserterParam->suid <= 0) {
     stError("insertParam: invalid suid:%" PRIx64 " for child table", streamInserterParam->suid);
     return TSDB_CODE_INVALID_PARA;
   }
