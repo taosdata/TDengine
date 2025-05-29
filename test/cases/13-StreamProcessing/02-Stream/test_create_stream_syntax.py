@@ -14,8 +14,8 @@ duration_lists = [
 
 columns = ["ts_col", "col1", "col2", "tag1", "tag2", "tag3"]
 placeholders = ["_tcurrent_ts", "_twstart", "_twend", "_twduration", "_twrownum", "_tgrpid", "_tlocaltime", "%%1", "%%2", "%%3", "%%tbname", "%%trows"]
-out_columns = ["col1", "col2", "col3", "col4", "col5", "col6", "col7", "col8", "col9", "col10"]
-out_tags = ["tag1", "tag2", "tag3", "tag4", "tag5"]
+out_columns = ["out_col1", "out_col2", "out_col3", "out_col4", "out_col5", "out_col6", "out_col7", "out_col8", "out_col9", "out_col10"]
+out_tags = ["out_tag1", "out_tag2", "out_tag3", "out_tag4", "out_tag5", "out_tag6", "out_tag7", "out_tag8", "out_tag9", "out_tag10"]
 counts = [10, 100]
 slidings = [1, 5]
 ops = ["=", "<>", "!=", ">", "<", ">=", "<="]
@@ -26,8 +26,8 @@ notify_option_list = ["NOTIFY_HISTORY", "ON_FAILURE_PAUSE"]
 as_subquery_opts = [(" AS SELECT * FROM query_table", True, 7),
                     (" AS SELECT first(ts), avg(col1) from query_table", True, 2),
                     (" AS SELECT first(ts), avg(col1) from query_table WHERE col1 > 0", True, 2),
-                    (" AS SELECT first(ts), avg(col1) from query_table WHERE col1 > 0 INTERVAL(1s)", True, 2),
-                    (" AS SELECT first(ts), avg(col1) from query_table WHERE col1 > 0 GROUP BY col2", True, 2),
+                    (" AS SELECT first(ts), avg(col1), max(col2) from query_table WHERE col1 > 0 INTERVAL(1s)", True, 3),
+                    (" AS SELECT first(ts), avg(col1), max(col2) from query_table WHERE col1 > 0 GROUP BY col2", True, 3),
                     (" AS SELECT first(ts), avg(col1) from query_table WHERE col1 > 0 GROUP BY col2 HAVING avg(col1) > 0", True, 2),
                     (" AS SELECT first(ts), avg(col1) from query_table WHERE col1 > 0 GROUP BY col2 HAVING avg(col1) > 0 ORDER BY col2", True, 2),
                     (" AS SELECT _tcurrent_ts, avg(col1), sum(col2) from query_table", True, 3),
@@ -38,8 +38,8 @@ as_subquery_opts = [(" AS SELECT * FROM query_table", True, 7),
                     (" AS SELECT _twrownum, avg(col1), sum(col2) from query_table WHERE _twrownum > 1", True, 3),
                     (" AS SELECT _tgrpid, avg(col1), sum(col2) from query_table WHERE _tgrpid > 1", False, 3),
                     (" AS SELECT _tlocaltime, avg(col1), sum(col2) from query_table WHERE _tlocaltime > 1", True, 3),
-                    (" AS SELECT __twstart, %%1, avg(col1), sum(col2) from query_table", True, 4),
-                    (" AS SELECT __twstart, %%1, %%4, avg(col1), sum(col2) from query_table", True, 5),
+                    (" AS SELECT _twstart, %%1, avg(col1), sum(col2) from query_table", True, 4),
+                    (" AS SELECT _twstart, %%1, %%4, avg(col1), sum(col2) from query_table", True, 5),
                     (" AS SELECT %%tbname, avg(col1), sum(col2) from query_table", False, 3),
                     (" AS SELECT 1 from %%tbname", False, 1),
                     (" AS SELECT col1 from %%tbname", False, 1),
@@ -56,6 +56,7 @@ db_name_list_invalid = ["non_exists_db."]
 trigger_table_list_valid = ["trigger_table", "trigger_stable", "trigger_ctable"]
 trigger_table_list_invalid = ["non_exists_table", ""]
 
+# TODO(smj) : add different column_num and tag_num's table
 into_option_list_valid = [
     " INTO create_stream_db.new_table",
     " INTO create_stream_db.exist_super_table",
@@ -68,9 +69,20 @@ into_option_list_valid = [
     ""
 ]
 
+# trigger_table(col1 timestamp, col2 int, col3 int, col4 int, col5 int, col6 int)
+# trigger_stable(col1 timestamp, col2 int, col3 int, col4 int, col5 int, col6 int) tags(tag1 int, tag2 int, tag3 int, tag4 int)
+# exist_super_table(out_col1 timestamp, out_col2 int, out_col3 int) tags(out_tag1 int, out_tag2 int)
+# exist_normal_table(out_col1 timestamp, out_col2 int, out_col3 int)
+# query_table(col1 timestamp, col2 int, col3 int, col4 int, col5 int, col6 int)
+
 into_option_list_invalid = [
     " INTO non_exists_db.new_table",
 ]
+trigger_column_valid = ["col1", "col2", "col3", "col4", "col5", "col6"]
+trigger_column_invalid = ["col7", "col8", "col9", "col10", "ts_col", "tag1", "tag2", "tag3", "tag4"]
+
+trigger_tag_valid = ["tag1", "tag2", "tag3", "tag4"]
+trigger_tag_invalid = ["tag5", "tag6", "tag7", "tag8", "col1", "col2", "col3", "col4", "col5", "col6"]
 
 partition_columns_valid = ["tag1", "tag2", "tag3", "tag4", "tbname"]
 partition_columns_invalid = ["ts_col", "tag5", "tag6", "now"]
@@ -110,6 +122,46 @@ expired_time_list_invalid = [
     "a", "b", "c", "d", "e", "f", "g", "h", "i", "j",
 ]
 
+# 10a - 3650d
+period_time_list_valid = [
+    "10a", "10s", "10m", "10h", "10d",
+    "20a", "20s", "20m", "20h", "20d",
+    "120a", "120s", "120m", "120h", "120d",
+    "360a", "360s", "360m", "360h", "360d",
+    "720a", "720s", "720m", "720h", "720d",
+    "1440a", "1440s", "1440m", "1440h", "1440d",
+    "3650a", "3650s", "3650m", "3650h", "3650d"
+]
+
+period_time_list_invalid = [
+    "10x", "20x", "120x", "360x", "720x", "1440x", "3650x",
+    "10b", "20b", "120b", "360b", "720b", "1440b", "3650b",
+    "10u", "20u", "120u", "360u", "720u", "1440u", "3650u",
+    "10w", "20w", "120w", "360w", "720w", "1440w", "3650w",
+    "10n", "20n", "120n", "360n", "720n", "1440n", "3650n",
+    "10y", "20y", "120y", "360y", "720y", "1440y", "3650y",
+    "a", "b", "c", "d", "e", "f", "g", "h", "i", "j",
+]
+
+period_offset_list_valid = [
+    "1a", "1s", "1m", "1h",
+    "2a", "2s", "2m", "2h",
+    "5a", "5s", "5m", "5h",
+    "7a", "7s", "7m", "7h",
+    "12a", "12s", "12m", "12h",
+    "30a", "30s", "30m", "30h",
+]
+
+period_offset_list_invalid = [
+    "1x", "2x", "5x", "7x", "12x", "30x",
+    "1b", "2b", "5b", "7b", "12b", "30b",
+    "1u", "2u", "5u", "7u", "12u", "30u",
+    "1w", "2w", "5w", "7w", "12w", "30w",
+    "1n", "2n", "5n", "7n", "12n", "30n",
+    "1y", "2y", "5y", "7y", "12y", "30y",
+    "a", "b", "c", "d", "e", "f", "g", "h", "i", "j",
+]
+
 start_time_valid = [" '2025-05-27 14:29:42' ", " '1970-01-01 08:00:00' ",
                     " 2025-05-27 14:29:42 ", " 1970-01-01 08:00:00 ",
                     " 1748327382161 ", " 1 "]
@@ -135,6 +187,9 @@ urls_invalid = [" 'invalid_url' ", " http://example.com/invalid ", " 12345678 "]
 
 notify_option_valid = ["NOTIFY_HISTORY", "ON_FAILURE_PAUSE"]
 notify_option_invalid = ["NOTIFY_WHAT", "NOTIFY_INVALID"]
+
+out_tag_type_valid = ["INT"]
+out_tag_type_invalid = ["INVALID_TYPE", "BIGINT", "VARCHAR(20)"]
 
 def random_from_list(lst, n=1):
     """Return n random elements from a list."""
@@ -187,69 +242,96 @@ def generate_event_window_conditions(num_pairs=10):
         for _ in range(num_pairs)
     ]
 
+def random_from_combined(valid_list, invalid_list):
+    if random.random() < 0.2 and invalid_list:
+        return random.choice(invalid_list), False
+    return random.choice(valid_list), True
+
 def generate_trigger_section():
     triggers = []
     # SESSION
-    for col in columns:
-        dur = random_from_list(duration_lists)
-        triggers.append(f" SESSION({col}, '{dur}') ")
-        triggers.append(f" SESSION({col}, {dur}) ")
+    max_session_count = 50
+    for _ in range(0, max_session_count + 1):
+        col, v1 = random_from_combined(trigger_column_valid, trigger_column_invalid)
+        dur, v2 = random_from_combined(duration_lists_valid, duration_lists_invalid)
+        triggers.extend([
+            (f" SESSION({col}) ", v1),
+            (f" SESSION({col}, '{dur}') ", v1 and v2),
+            (f" SESSION({col}, {dur}) ", v1 and v2),
+        ])
+
     # STATE_WINDOW
-    for col in columns:
-        triggers.append(f" STATE_WINDOW({col}) ")
-        dur = random_from_list(duration_lists)
-        triggers.append(f" STATE_WINDOW({col}) TRUE_FOR('{dur}') ")
+    max_state_count = 50
+    for _ in range(0, max_state_count + 1):
+        col, v1 = random_from_combined(trigger_column_valid, trigger_column_invalid)
+        dur, v2 = random_from_combined(duration_lists_valid, duration_lists_invalid)
+        triggers.extend([
+            (f" STATE_WINDOW({col}) ", v1),
+            (f" STATE_WINDOW({col}) TRUE_FOR('{dur}') ", v1 and v2),
+        ])
+
     # INTERVAL + SLIDING
-    max_sliding_count = 20
+    max_sliding_count = 50
     for _ in range(0, max_sliding_count + 1):
-        interval = random_from_list(duration_lists)
-        offset = random_from_list(duration_lists)
-        slide = random_from_list(duration_lists)
-        slide_offset = random_from_list(duration_lists)
+        interval, v1 = random_from_combined(duration_lists_valid, duration_lists_invalid)
+        offset, v2 = random_from_combined(duration_lists_valid, duration_lists_invalid)
+        slide, v3 = random_from_combined(duration_lists_valid, duration_lists_invalid)
+        slide_offset, v4 = random_from_combined(duration_lists_valid, duration_lists_invalid)
+
+        is_all_valid = v1 and v2 and v3 and v4
+
         int_part = f" INTERVAL('{interval}') "
         int_part_with_offset = f" INTERVAL('{interval}', '{offset}') "
         slide_part = f" SLIDING('{slide}') "
         slide_part_with_offset = f" SLIDING('{slide}', '{slide_offset}') "
+
         triggers.extend([
-            slide_part,
-            slide_part_with_offset,
-            f" {int_part} {slide_part} ",
-            f" {int_part} {slide_part_with_offset} ",
-            f" {int_part_with_offset} {slide_part} ",
-            f" {int_part_with_offset} {slide_part_with_offset} "
+            (slide_part, v3),
+            (slide_part_with_offset, v3 and v4),
+            (f" {int_part} {slide_part} ", v1 and v3),
+            (f" {int_part} {slide_part_with_offset} ", v1 and v3 and v4),
+            (f" {int_part_with_offset} {slide_part} ", v1 and v2 and v3),
+            (f" {int_part_with_offset} {slide_part_with_offset} ", is_all_valid)
         ])
+
     # EVENT_WINDOW
-    max_event_count = 20
+    max_event_count = 50
     for _ in range(0, max_event_count + 1):
-        start = generate_logical_condition()
-        end = generate_logical_condition()
-        ew = f" EVENT_WINDOW(START WITH {start} END WITH {end}) "
-        triggers.append(ew)
+        start_valid = random_bool(0.8)
+        end_valid = random_bool(0.8)
+        start = generate_logical_condition(full_column_list=trigger_column_invalid + trigger_column_valid, valid_column_list=trigger_column_valid, valid=start_valid)
+        end = generate_logical_condition(full_column_list=trigger_column_invalid + trigger_column_valid, valid_column_list=trigger_column_valid, valid=end_valid)
+        triggers.append((f" EVENT_WINDOW(START WITH {start} END WITH {end}) ", start_valid and end_valid))
+
     # COUNT_WINDOW
-    max_col_len = 3
-    max_samples_per_len = 10
-    for count in [1, 10, 20]:
-        for slide in [None, 10, 20]:
-            for length in range(0, max_col_len + 1):
-                all_combinations = list(product(columns, repeat=length))
-                sampled_combinations = (
-                    random.sample(all_combinations, min(len(all_combinations), max_samples_per_len))
-                    if all_combinations else [()]
-                )
-                for cols in sampled_combinations:
-                    parts = [str(count)]
-                    if slide is not None:
-                        parts.append(str(slide))
-                    if cols:
-                        parts.extend(cols)
-                    triggers.append(f" COUNT_WINDOW({', '.join(parts)}) ")
+    max_count_count = 50
+    for _ in range(0, max_count_count + 1):
+        count = random_from_list([1, 10, 20])
+        slide = random_from_list([None, 10, 20])
+        col_length = random_int(0, 5)
+        if random_bool(0.3):
+            valid = False
+            count_columns = random.choices(trigger_column_invalid, k=col_length + 1)
+        else:
+            valid = True
+            count_columns = random.choices(trigger_column_valid, k=col_length)
+
+        parts = [str(count)]
+        if slide is not None:
+            parts.append(str(slide))
+        for cols in count_columns:
+            parts.append(cols)
+        triggers.append((f" COUNT_WINDOW({', '.join(parts)}) ", valid))
+
     # PERIOD
-    max_period_count = 20
+    max_period_count = 50
     for _ in range(0, max_period_count + 1):
-        period = random_from_list(duration_lists)
-        offset = random_from_list(duration_lists)
-        triggers.append(f" PERIOD('{period}', '{offset}') ")
-        triggers.append(f" PERIOD('{period}') ")
+        period, v1 = random_from_combined(period_time_list_valid, period_time_list_invalid)
+        offset, v2 = random_from_combined(period_offset_list_valid, period_offset_list_invalid)
+        triggers.extend([
+            (f" PERIOD('{period}') ", v1),
+            (f" PERIOD('{period}', '{offset}') ", v1 and v2)
+        ])
     return triggers
 
 def generate_random_event_types(valid=True):
@@ -342,10 +424,10 @@ def random_expr_atom(column_list=None):
         k=1
     )[0]
 
-def random_numeric_atom():
+def random_numeric_atom(column_list=None):
     return random.choices(
-        population=columns + numeric_literals,
-        weights=[7] * len(columns) + [3] * len(numeric_literals),
+        population=column_list + numeric_literals,
+        weights=[7] * len(column_list) + [3] * len(numeric_literals),
         k=1
     )[0]
 
@@ -383,22 +465,22 @@ def gen_string_func(func, expr=None, invalid_col_list=None, valid_col_list=None,
     else:
         raise ValueError(f"Unknown string func: {func}")
 
-def gen_numeric_expr(depth=0, max_depth=3):
+def gen_numeric_expr(depth=0, max_depth=3, invalid_col_list=None, valid_col_list=None, valid=True):
     if depth >= max_depth or random_bool(0.3):
-        return random_numeric_atom()
+        return random_numeric_atom(valid_col_list if valid else invalid_col_list)
     if random_bool(0.4):
         # function
         func = random_from_list(numeric_func_names)
-        return gen_numeric_func(func, gen_numeric_expr(depth + 1, max_depth))
+        return gen_numeric_func(func, gen_numeric_expr(depth + 1, max_depth, invalid_col_list, valid_col_list, valid))
     else:
         # operators
-        left = gen_numeric_expr(depth + 1, max_depth)
+        left = gen_numeric_expr(depth + 1, max_depth, invalid_col_list, valid_col_list, valid)
         op = random_from_list(arithmetic_ops)
-        right = gen_numeric_expr(depth + 1, max_depth)
+        right = gen_numeric_expr(depth + 1, max_depth, invalid_col_list, valid_col_list, valid)
         return f"({left} {op} {right})"
 
-def gen_numeric_func(func, expr=None):
-    expr = expr or gen_numeric_expr(depth=2)
+def gen_numeric_func(func, expr=None, invalid_col_list=None, valid_col_list=None, valid=True):
+    expr = expr or gen_numeric_expr(2, 3, invalid_col_list, valid_col_list, valid)
     return f"{func}({expr})"
 
 def gen_string_expr(depth=0, max_depth=3, invalid_col_list=None, valid_col_list=None, valid=True):
@@ -408,13 +490,13 @@ def gen_string_expr(depth=0, max_depth=3, invalid_col_list=None, valid_col_list=
     inner = gen_string_expr(depth + 1, max_depth, invalid_col_list, valid_col_list, valid)
     return gen_string_func(func, inner, invalid_col_list, valid_col_list, valid)
 
-def generate_tag_expr(max_depth=3):
-    if random_bool(0.5):
+def generate_tag_expr(max_depth=3, invalid_col_list=None, valid_col_list=None, valid=True):
+    if random_bool(0):
         # generate string type expression
-        return gen_string_expr(0, max_depth)
+        return gen_string_expr(0, max_depth, invalid_col_list, valid_col_list, valid)
     else:
         # generate numeric type expression
-        return gen_numeric_expr(depth=0, max_depth=max_depth)
+        return gen_numeric_expr(0, max_depth, invalid_col_list, valid_col_list, valid)
 
 
 def generate_column_section_base(out_col_list, out_col_num=6, into_exist=False, valid=True):
@@ -422,18 +504,21 @@ def generate_column_section_base(out_col_list, out_col_num=6, into_exist=False, 
         pk_index = 1
         if into_exist:
             selected = out_col_list[:out_col_num]
+            with_primary = False
         else:
             selected = random.sample(out_col_list, out_col_num)
+            with_primary = random_bool(0.5)
     else:
         pk_index = random_from_list([i for i in range(0, out_col_num) if i != 1])
         if into_exist:
             col_num = random_int(1, out_col_num)
             selected = random.choices(out_col_list, k=col_num)
+            with_primary = random_bool(0.5)
         else:
             col_num = random_from_list([i for i in range(1, out_col_num + 3) if i != out_col_num])
             selected = random.choices(out_col_list, k=col_num)
+            with_primary = random_bool(0.5)
 
-    with_primary = random_bool(0.5)
     col_defs = []
     for i, col in enumerate(selected):
         if i == pk_index and with_primary:
@@ -442,24 +527,8 @@ def generate_column_section_base(out_col_list, out_col_num=6, into_exist=False, 
             col_defs.append(col)
     return f" ({', '.join(col_defs)}) "
 
-
-out_types = ["BIGINT", "SMALLINT"]
-
 def random_string(length=5):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
-
-def generate_tags_clause(include_probability=0.7, max_tags=4, allow_comment=True):
-    if not random_bool(include_probability):
-        return ""
-    num_tags = random_int(1, min(max_tags, len(out_tags)))
-    selected_tags = random.sample(out_tags, num_tags)
-    tag_defs = []
-    for tag in selected_tags:
-        type_name = random_from_list(out_types)
-        comment_str = f" COMMENT '{random_string(6)}'" if allow_comment and random_bool(0.5) else ""
-        expr = generate_tag_expr(max_depth=2)
-        tag_defs.append(f"{tag} {type_name}{comment_str} AS {expr}")
-    return f" TAGS ({', '.join(tag_defs)}) "
 
 def generate_random_stream_db_section():
     if random_bool():
@@ -510,10 +579,7 @@ def generate_random_into_table_section():
         if into_table == "":
             return "", True, True, False
         else:
-            if "exist" in into_table:
-                return f" {into_table} ", True, False, True
-            else:
-                return f" {into_table} ", True, False, False
+            return f" {into_table} ", True, False, "exist" in into_table, "super_table" in into_table
     else:
         # Generate an invalid into table section
         into_table = random_from_list(into_option_list_invalid)
@@ -667,32 +733,88 @@ def generate_random_output_subtable(max_depth=3, partition_list=None, into_null=
 
     return f" OUTPUT_SUBTABLE({expr}) ", valid
 
+def generate_random_tags_clause(partition_list=None, allow_comment=True, into_exist=False, into_stable=False):
+
+    valid = True
+    if partition_list == None or (into_exist and not into_stable):
+        if random_bool(0.8):
+            return "", True
+        else:
+            valid = False
+
+    if random_bool(0.2):
+        # 20% chance to generate invalid TAGS clause
+        return "", True
+
+    if random_bool(0.2) and valid:
+        # 20% chance to generate invalid TAGS clause
+        num_tags = random_from_list([i for i in range(1, len(out_tags)) if i != len(partition_list)])
+        valid = False
+    else:
+        # 80% chance to generate valid TAGS clause
+        num_tags = len(partition_list)
+
+    if random_bool(0.2) and valid:
+        selected_tags = random.sample(out_tags, num_tags)
+        valid = False
+    else:
+        selected_tags = out_tags[:num_tags]
+
+    if random_bool(0.2) and valid:
+        # 20% chance to generate invalid tag type
+        out_type_list = out_tag_type_invalid
+        valid = False
+    else:
+        out_type_list = out_tag_type_valid
+
+    if random_bool(0.2) and valid:
+        # 20% chance to generate invalid tag type
+        gen_valid_expr = False
+        valid = False
+    else:
+        gen_valid_expr = True
+
+    tag_defs = []
+    for tag in selected_tags:
+        type_name = random_from_list(out_type_list)
+        comment_str = f" COMMENT '{random_string(6)}'" if allow_comment and random_bool(0.5) else ""
+        valid_list = partition_list
+        invalid_list = list(set(partition_columns_valid + partition_columns_invalid) - set(valid_list))
+        expr = generate_tag_expr(max_depth=2, invalid_col_list=invalid_list, valid_col_list=valid_list, valid=gen_valid_expr)
+        tag_defs.append(f"{tag} {type_name}{comment_str} AS {expr}")
+    return f" TAGS ({', '.join(tag_defs)}) ", valid
+
+
 def gen_create_stream_variants():
     base_template = "CREATE STREAM{if_not_exists} {stream_name}{stream_options}{into_clause}{output_subtable}{columns}{tags}{as_subquery};"
-    trigger_types = generate_trigger_section()
     sql_variants = []
     stream_index = 0
     for if_not_exists in product(
             if_not_exists_opts
     ):
-        for trigger_type in trigger_types:
-            for as_subquery, v0, out_col_num in as_subquery_opts:
-                stream_db, v1 = generate_random_stream_db_section()
-                trigger_table, v2, trigger_null, trigger_has_tag = generate_random_trigger_table_section()
-                into_table, v3, into_null, into_exist = generate_random_into_table_section()
-                partition, v4, partition_cols = generate_random_partition_section(trigger_null = trigger_null, trigger_has_tag = trigger_has_tag)
-                stream_opt, v5 = generate_options_section(partition_list=partition_cols, trigger_null = trigger_null)
-                notify_opt, v6 = generate_random_notif_def_section(trigger_null = trigger_null)
-                output, v7 = generate_random_output_subtable(partition_list=partition_cols, into_null=into_null)
-                columns, v8 = generate_random_column_list_section(out_col_num=out_col_num, into_exist=into_exist)
+        for trigger_type, v0 in generate_trigger_section():
+            for as_subquery, v1, out_col_num in as_subquery_opts:
+                stream_db, v2 = generate_random_stream_db_section()
+                trigger_table, v3, trigger_null, trigger_has_tag = generate_random_trigger_table_section()
+                into_table, v4, into_null, into_exist, into_stable = generate_random_into_table_section()
+                partition, v5, partition_cols = generate_random_partition_section(trigger_null = trigger_null, trigger_has_tag = trigger_has_tag)
+                stream_opt, v6 = generate_options_section(partition_list=partition_cols, trigger_null = trigger_null)
+                notify_opt, v7 = generate_random_notif_def_section(trigger_null = trigger_null)
+                output, v8 = generate_random_output_subtable(partition_list=partition_cols, into_null=into_null)
+                column, v9 = generate_random_column_list_section(out_col_num=out_col_num, into_exist=into_exist)
+                tag, v10 = generate_random_tags_clause(partition_list=partition_cols, into_exist=into_exist, into_stable=into_stable)
+
+                if out_col_num != 3 and into_exist:
+                    v11 = False
+
                 sql = base_template.format(
                    if_not_exists=if_not_exists,
                    stream_name=stream_db + "stream_" + str(stream_index),
                    stream_options=trigger_type + trigger_table + partition + stream_opt + notify_opt,
                    into_clause=into_table,
                    output_subtable=output,
-                   columns=columns,
-                   tags=generate_tags_clause() + " ",
+                   columns=column,
+                   tags= tag,
                    as_subquery=as_subquery
                 )
                 sql_variants.append(sql.strip())
@@ -703,7 +825,9 @@ def gen_create_stream_variants():
     return sql_variants
 
 
-for i in range(10000):
+for i in range(1):
     print("======================")
-    sql, valid = generate_random_column_list_section(6, True)
-    print(sql, valid)
+    tuple = generate_trigger_section()
+    for item in tuple:
+        sql, valid = item
+        print(sql, valid)
