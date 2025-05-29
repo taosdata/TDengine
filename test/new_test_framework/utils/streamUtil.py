@@ -93,7 +93,7 @@ class StreamUtil:
         tdLog.info(f"create super table")
         tdSql.execute(
             f"create stable {db}.{stb} ("
-            "  ts timestamp"
+            "  cts timestamp"
             ", cint int"
             ", cuint int unsigned"
             ", cbigint bigint"
@@ -150,7 +150,7 @@ class StreamUtil:
             for tb in range(tbPerBatch):
                 table = batch * tbPerBatch + tb
                 tts = tsStart if table % 3 == 1 else tsNext
-                tint = table % 3
+                tint = table % 3 if table % 20 != 1 else 'NULL'
                 tuint = table % 4
                 tbigint = table % 5
                 tubigint = table % 6
@@ -165,7 +165,7 @@ class StreamUtil:
                 tnchar = tvarchar
                 tvarbinary = tvarchar
                 tgeometry = "POINT(1.0 1.0)" if table % 3 == 1 else "POINT(2.0 2.0)"
-                sql += f"{db}.t{table} using {db}.{stb} tags({tts}, {tint}, {tuint}, {tbigint}, {tubigint}, {tfloat}, {tdouble}, '{tvarchar}', {tsmallint}, {tusmallint}, {ttinyint}, {tutinyint}, {tbool}, '{tnchar}', '{tvarbinary}', '{tgeometry}') "
+                sql += f"{db}.t{table} using {db}.{stb} tags({tts}, '{tint}', {tuint}, {tbigint}, {tubigint}, {tfloat}, {tdouble}, '{tvarchar}', {tsmallint}, {tusmallint}, {ttinyint}, {tutinyint}, {tbool}, '{tnchar}', '{tvarbinary}', '{tgeometry}') "
             tdSql.execute(sql)
 
         totalRows = rowsPerBatch * rowBatch
@@ -221,7 +221,7 @@ class StreamUtil:
         for table in range(tables):
             tdSql.execute(
                 f"create table {db}.n{table} ("
-                "  ts timestamp"
+                "  cts timestamp"
                 ", cint int"
                 ", cuint int unsigned"
                 ", cbigint bigint"
@@ -295,7 +295,7 @@ class StreamUtil:
         tdLog.info(f"create virtual super table")
         tdSql.execute(
             f"create stable {db}.{stb} ("
-            "  ts timestamp"
+            "  cts timestamp"
             ", cint int"
             ", cuint int unsigned"
             ", cbigint bigint"
