@@ -13,14 +13,14 @@ void test_format_create_super_table_with_columns_and_tags() {
 
     // 添加列
     config.super_table_info.columns = {
-        {"col1", "INT", false, {}, 1, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}},
-        {"col2", "BINARY", false, 10, 1, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}}
+        {"col1", "INT", "random", 1, 10},
+        {"col2", "BINARY", "random", 10}
     };
 
     // 添加标签
     config.super_table_info.tags = {
-        {"tag1", "FLOAT", false, {}, 1, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}},
-        {"tag2", "NCHAR", false, 20, 1, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}}
+        {"tag1", "FLOAT", "random", 0, 200},
+        {"tag2", "NCHAR", "random", 20},
     };
 
     auto formatter = FormatterFactory::instance().create_formatter<CreateSuperTableConfig>(format);
@@ -45,7 +45,7 @@ void test_format_create_super_table_without_columns() {
 
     // 添加标签
     config.super_table_info.tags = {
-        {"tag1", "FLOAT", false, {}, 1, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}}
+        {"tag1", "FLOAT", "random", 0, 200}
     };
 
     auto formatter = FormatterFactory::instance().create_formatter<CreateSuperTableConfig>(format);
@@ -67,7 +67,7 @@ void test_format_create_super_table_without_tags() {
 
     // 添加列
     config.super_table_info.columns = {
-        {"col1", "INT", false, {}, 1, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}}
+        {"col1", "INT", "random", 1, 10},
     };
 
     // 没有标签

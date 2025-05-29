@@ -31,8 +31,8 @@ add_library(actions_generator STATIC
 # 包含头文件目录
 target_include_directories(actions_generator PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/inc
-    ${CMAKE_CURRENT_SOURCE_DIR}/../config/inc
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../common/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../config/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../common/inc
 )
 
 # 添加测试

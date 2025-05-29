@@ -1,5 +1,4 @@
-#ifndef COLUMNS_CONFIG_H
-#define COLUMNS_CONFIG_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -23,17 +22,21 @@ struct ColumnsConfig {
         std::string delimiter = ",";
 
         struct TimestampStrategy {
-            std::string strategy_type = "original";
+            std::string strategy_type = "original"; // 时间戳策略类型：original 或 generator
 
-            struct OriginalConfig {
-                int column_index = 0;
-                std::string precision = "ms";
-                std::string offset_config;
-            } original_config;
+            struct TimestampOriginalConfig {
+                int timestamp_index = 0; // 指定原始时间列的索引（从 0 开始）
+                std::string precision = "ms"; // 时间精度，可选值："s"、"ms"、"us"、"ns"
 
-            TimestampGeneratorConfig generator_config;
+                struct OffsetConfig {
+                    std::string offset_type; // 时间戳偏移类型："relative" 或 "absolute"
+                    std::variant<std::string, int64_t> value; // 偏移量或起始时间戳
+                };
+
+                std::optional<OffsetConfig> offset_config; // 偏移配置
+            };
+
+            std::variant<TimestampOriginalConfig, TimestampGeneratorConfig> timestamp_config;
         } timestamp_strategy;
     } csv;
 };
-
-#endif // COLUMNS_CONFIG_H

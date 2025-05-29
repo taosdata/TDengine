@@ -197,8 +197,8 @@ namespace YAML {
                 if (csv["delimiter"]) {
                     rhs.csv.delimiter = csv["delimiter"].as<std::string>();
                 }
-                if (csv["column_index"]) {
-                    rhs.csv.column_index = csv["column_index"].as<int>();
+                if (csv["tbname_index"]) {
+                    rhs.csv.tbname_index = csv["tbname_index"].as<int>();
                 }
             } else {
                 throw std::runtime_error("Invalid 'source_type' in TableNameConfig: " + rhs.source_type);

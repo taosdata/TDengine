@@ -6,8 +6,6 @@
 #include <cstdint>
 #include "ColumnType.h"
 
-struct RandomTag {};
-struct OrderTag {};
 
 struct ColumnConfig {
     std::string name;
@@ -54,21 +52,22 @@ struct ColumnConfig {
     ColumnConfig(
         const std::string& name,
         const std::string& type,
-        RandomTag,
-        std::optional<double> min = {},
-        std::optional<double> max = {},
-        bool primary_key = false,
-        int count = 1
-    ) : name(name), type(type), gen_type("random"), min(min), max(max), primary_key(primary_key), count(count) {}
+        std::optional<std::string> gen_type
+    ) : name(name), type(type), gen_type(gen_type) {}
 
     ColumnConfig(
         const std::string& name,
         const std::string& type,
-        OrderTag,
-        std::optional<int64_t> min = {},
-        std::optional<int64_t> max = {},
-        bool primary_key = false,
-        int count = 1
-    ) : name(name), type(type), gen_type("order"), order_min(min), order_max(max), primary_key(primary_key), count(count) {}
+        std::optional<std::string> gen_type,
+        std::optional<int> len
+    ) : name(name), type(type), gen_type(gen_type), len(len) {}
+
+    ColumnConfig(
+        const std::string& name,
+        const std::string& type,
+        std::optional<std::string> gen_type,
+        std::optional<double> min,
+        std::optional<double> max
+    ) : name(name), type(type), gen_type(gen_type), min(min), max(max) {}
 
 };

@@ -26,16 +26,16 @@ add_library(actions_create STATIC
 target_include_directories(actions_create PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}/inc
     ${CMAKE_CURRENT_SOURCE_DIR}/../../common/inc
-    ${CMAKE_CURRENT_SOURCE_DIR}/../base
-    ${CMAKE_CURRENT_SOURCE_DIR}/../config/inc
-    ${CMAKE_CURRENT_SOURCE_DIR}/../connector/inc
-    ${CMAKE_CURRENT_SOURCE_DIR}/../formatter/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../base
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../config/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../components/connector/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../components/formatter/inc
 )
 
 # 链接依赖库
-link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../config/build)
-link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../connector/build)
-link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../formatter/build)
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../config/build)
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../components/connector/build)
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../components/formatter/build)
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../common/build)
 target_link_libraries(actions_create PUBLIC
     common

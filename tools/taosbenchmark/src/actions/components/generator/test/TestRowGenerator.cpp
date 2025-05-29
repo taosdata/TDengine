@@ -4,9 +4,9 @@
 
 void test_generate_row_without_timestamp() {
     std::vector<ColumnConfig> col_configs = {
-        {"col1", "int", RandomTag(), 10, 20},
-        {"col2", "double", RandomTag(), 1.5, 3.5},
-        {"col3", "bool", RandomTag()}
+        {"col1", "int", "random", 10, 20},
+        {"col2", "double", "random", 1.5, 3.5},
+        {"col3", "bool", "random"}
     };
 
     RowGenerator generator(col_configs);
@@ -32,8 +32,8 @@ void test_generate_row_with_timestamp() {
     ts_config.timestamp_precision = "ms";
 
     std::vector<ColumnConfig> col_configs = {
-        {"col1", "int", RandomTag(), 10, 20},
-        {"col2", "double", RandomTag(), 1.5, 3.5}
+        {"col1", "int", "random", 10, 20},
+        {"col2", "double", "random", 1.5, 3.5}
     };
 
     RowGenerator generator(ts_config, col_configs);
@@ -60,8 +60,8 @@ void test_generate_multiple_rows() {
     ts_config.timestamp_precision = "ms";
 
     std::vector<ColumnConfig> col_configs = {
-        {"col1", "int", RandomTag(), 10, 20},
-        {"col2", "double", RandomTag(), 1.5, 3.5}
+        {"col1", "int", "random", 10, 20},
+        {"col2", "double", "random", 1.5, 3.5}
     };
 
     RowGenerator generator(ts_config, col_configs);

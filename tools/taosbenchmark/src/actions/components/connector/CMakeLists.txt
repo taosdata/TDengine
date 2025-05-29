@@ -27,11 +27,8 @@ add_library(actions_connector STATIC
 
 # 包含头文件目录
 target_include_directories(actions_connector PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/inc
-    ${CMAKE_CURRENT_SOURCE_DIR}/..
-    ${CMAKE_CURRENT_SOURCE_DIR}/../config/inc
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../config/inc
 )
 
 # 添加测试

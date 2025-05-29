@@ -1,5 +1,4 @@
-#ifndef TABLE_NAME_CONFIG_H
-#define TABLE_NAME_CONFIG_H
+#pragma once
 
 #include <string>
 
@@ -16,8 +15,6 @@ struct TableNameConfig {
         std::string file_path;
         bool has_header = true;
         std::string delimiter = ",";
-        int column_index = 0;
+        int tbname_index = 0;
     } csv;
 };
-
-#endif // TABLE_NAME_CONFIG_H
