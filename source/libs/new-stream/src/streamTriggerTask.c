@@ -3161,6 +3161,11 @@ int32_t streamTriggerProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp) {
             pResBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
             QUERY_CHECK_NULL(pResBlock, code, lino, _end, terrno);
             pContext->pullResDataBlock[pReq->type] = pResBlock;
+            if (pReq->type == STRIGGER_PULL_WAL_TS_DATA || pReq->type == STRIGGER_PULL_WAL_TRIGGER_DATA ||
+                pReq->type == STRIGGER_PULL_WAL_CALC_DATA) {
+              // ownership of the data block will be transfered to the merger
+              pContext->pullResDataBlock[pReq->type] = NULL;
+            }
           }
           if (pRsp->contLen == 0) {
             blockDataEmpty(pResBlock);
@@ -3175,11 +3180,6 @@ int32_t streamTriggerProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp) {
           }
           code = strtcProcessPullRsp(pContext, pResBlock);
           QUERY_CHECK_CODE(code, lino, _end);
-          if (pReq->type == STRIGGER_PULL_WAL_TS_DATA || pReq->type == STRIGGER_PULL_WAL_TRIGGER_DATA ||
-              pReq->type == STRIGGER_PULL_WAL_CALC_DATA) {
-            // ownership of the data block has been transfered to the merger
-            pContext->pullResDataBlock[pReq->type] = NULL;
-          }
         } else {
           // todo(kjq): handle error code
         }
