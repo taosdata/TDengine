@@ -23,6 +23,8 @@ IF(TD_WEBSOCKET)
             GIT_REPOSITORY ${_git_url}
             GIT_TAG main
             GIT_SHALLOW TRUE
+            UPDATE_DISCONNECTED ${UPDATE_DISCONNECTED}
+            UPDATE_COMMAND ${UPDATE_COMMAND}
             BUILD_IN_SOURCE TRUE
             DEPENDS ${TAOS_LIB}
             CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
@@ -64,6 +66,8 @@ ELSEIF(TD_BUILD_TAOSA_INTERNAL)
         PREFIX "${_base}"
         GIT_TAG main
         GIT_SHALLOW TRUE
+        UPDATE_DISCONNECTED ${UPDATE_DISCONNECTED}
+        UPDATE_COMMAND ${UPDATE_COMMAND}
         BUILD_IN_SOURCE TRUE
         DEPENDS ${TAOS_NATIVE_LIB}
         CONFIGURE_COMMAND ""
@@ -123,6 +127,8 @@ ELSE()
             PREFIX "${_base}"
             GIT_TAG main
             GIT_SHALLOW TRUE
+            UPDATE_DISCONNECTED ${UPDATE_DISCONNECTED}
+            UPDATE_COMMAND ${UPDATE_COMMAND}
             BUILD_IN_SOURCE TRUE
             DEPENDS ${TAOS_NATIVE_LIB}
             CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -194,6 +200,8 @@ IF(TD_BUILD_KEEPER)
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/keeper
             BUILD_ALWAYS off
             BUILD_IN_SOURCE 1
+            UPDATE_DISCONNECTED ${UPDATE_DISCONNECTED}
+            UPDATE_COMMAND ${UPDATE_COMMAND}
             CONFIGURE_COMMAND cmake -E echo "taoskeeper no need cmake to config"
             PATCH_COMMAND
             COMMAND git clean -f -d
