@@ -134,13 +134,13 @@ class TestStreamOldCaseTwa:
 
         time.sleep(1)
         tdLog.info(f"2 sql select * from streamt where ta == 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where ta == 1;",
             lambda: tdSql.getRows() < 5,
         )
 
         tdLog.info(f"2 sql select * from streamt where ta == 2;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where ta == 2;",
             lambda: tdSql.getRows() < 5,
         )
@@ -179,13 +179,13 @@ class TestStreamOldCaseTwa:
         time.sleep(2)
 
         tdLog.info(f"2 sql select * from streamt where ta == 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where ta == 1;",
             lambda: tdSql.getRows() < 5,
         )
 
         tdLog.info(f"2 sql select * from streamt where ta == 2;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where ta == 2;",
             lambda: tdSql.getRows() < 5,
         )
@@ -223,13 +223,13 @@ class TestStreamOldCaseTwa:
 
         time.sleep(2)
         tdLog.info(f"2 sql select * from streamt where ta == 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where ta == 1;",
             lambda: tdSql.getRows() < 5,
         )
 
         tdLog.info(f"2 sql select * from streamt where ta == 2;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where ta == 2;",
             lambda: tdSql.getRows() < 5,
         )
@@ -283,13 +283,13 @@ class TestStreamOldCaseTwa:
         query2_data = tdSql.getData(0, 1)
 
         tdLog.info(f"2 sql select * from streamt where ta == 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where ta == 1;",
             lambda: tdSql.getRows() >= 6 and tdSql.getData(0, 1) == query1_data,
         )
 
         tdLog.info(f"2 sql select * from streamt where ta == 2;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where ta == 2;",
             lambda: tdSql.getRows() >= 6 and tdSql.getData(0, 1) == query2_data,
         )
@@ -336,13 +336,13 @@ class TestStreamOldCaseTwa:
         query2_data = tdSql.getData(0, 1)
 
         tdLog.info(f"2 sql select * from streamt where ta == 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where ta == 1;",
             lambda: tdSql.getRows() >= 6 and tdSql.getData(0, 1) == query1_data,
         )
 
         tdLog.info(f"2 sql select * from streamt where ta == 2;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where ta == 2;",
             lambda: tdSql.getRows() >= 6 and tdSql.getData(0, 1) == query2_data,
         )
@@ -387,7 +387,7 @@ class TestStreamOldCaseTwa:
         query2_data11 = tdSql.getData(1, 1)
 
         tdLog.info(f"2 sql select * from streamt where ta == 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where ta == 1;",
             lambda: tdSql.getRows() >= 2
             and tdSql.getData(0, 1) == query1_data01
@@ -395,7 +395,7 @@ class TestStreamOldCaseTwa:
         )
 
         tdLog.info(f"2 sql select * from streamt where ta == 2;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where ta == 2;",
             lambda: tdSql.getRows() >= 2
             and tdSql.getData(0, 1) == query2_data01
@@ -432,7 +432,7 @@ class TestStreamOldCaseTwa:
         query1_data11 = tdSql.getData(1, 1)
 
         tdLog.info(f"2 sql select * from streamt where ta == 1 order by 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where ta == 1 order by 1;",
             lambda: tdSql.getRows() >= 2
             and tdSql.getData(0, 1) == query1_data01
@@ -453,7 +453,7 @@ class TestStreamOldCaseTwa:
         query1_data31 = tdSql.getData(3, 1)
 
         tdLog.info(f"2 sql select * from streamt where ta == 1 order by 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where ta == 1 order by 1;",
             lambda: tdSql.getRows() >= 4
             and tdSql.getData(2, 1) == query1_data21
@@ -474,7 +474,7 @@ class TestStreamOldCaseTwa:
         query1_data51 = tdSql.getData(5, 1)
 
         tdLog.info(f"2 sql select * from streamt where ta == 1 order by 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where ta == 1 order by 1;",
             lambda: tdSql.getRows() >= 6
             and tdSql.getData(4, 1) == query1_data41
@@ -511,7 +511,7 @@ class TestStreamOldCaseTwa:
         query_data01 = tdSql.getData(0, 1)
 
         tdLog.info(f"2 sql select * from streamt3 order by 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt3 order by 1;",
             lambda: tdSql.getRows() >= 1 and tdSql.getData(0, 1) == query_data01,
         )
@@ -551,7 +551,7 @@ class TestStreamOldCaseTwa:
         )
 
         tdLog.info(f"2 sql select * from streamt order by")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where ta == 1;",
             lambda: tdSql.getRows() >= 2
             and tdSql.getData(0, 1) == 3
@@ -559,7 +559,7 @@ class TestStreamOldCaseTwa:
         )
 
         tdLog.info(f"2 sql select * from streamt where ta == 2;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where ta == 2;",
             lambda: tdSql.getRows() >= 2
             and tdSql.getData(0, 1) == 3
@@ -623,33 +623,33 @@ class TestStreamOldCaseTwa:
         )
 
         tdLog.info(f"sql select * from streamt1 order by 1, 2;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt1 order by 1, 2;",
             lambda: tdSql.getRows() >= query1_rows
             and tdSql.getData(0, 1) == query1_data01,
         )
 
         tdLog.info(f"sql select * from streamt2 order by 1, 2;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt2 order by 1, 2;",
             lambda: tdSql.getRows() >= query1_rows
             and tdSql.getData(0, 1) == query1_data01,
         )
 
         tdLog.info(f"sql select * from streamt3 order by 1, 2;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt3 order by 1, 2;",
             lambda: tdSql.getRows() >= query1_rows,
         )
 
         tdLog.info(f"sql select * from streamt4 order by 1, 2;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt4 order by 1, 2;",
             lambda: tdSql.getRows() >= query1_rows,
         )
 
         tdLog.info(f"sql select * from streamt5 order by 1, 2;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt5 order by 1, 2;",
             lambda: tdSql.getRows() >= query1_rows
             and tdSql.getData(0, 1) == query1_data01,
@@ -681,7 +681,7 @@ class TestStreamOldCaseTwa:
 
         tdSql.execute(f"insert into t1 values(now +  3s,1,1,1);")
         tdLog.info(f"2 sql select cc,* from streamt6;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select cc,* from streamt6;",
             lambda: tdSql.getRows() >= 2 and tdSql.getData(0, 0) == 1,
         )
@@ -703,7 +703,7 @@ class TestStreamOldCaseTwa:
         tdSql.checkRows(1)
 
         tdLog.info(f"2 sql select cc,* from streamt7;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select cc,* from streamt7;",
             lambda: tdSql.getRows() >= 2 and tdSql.getData(0, 0) == 1,
         )
@@ -725,7 +725,7 @@ class TestStreamOldCaseTwa:
         tdSql.checkRows(1)
 
         tdLog.info(f"2 sql select cc,* from streamt8;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select cc,* from streamt8;",
             lambda: tdSql.getRows() >= 1 and tdSql.getData(0, 0) == 1,
         )
@@ -782,7 +782,7 @@ class TestStreamOldCaseTwa:
 
         tdSql.execute(f"insert into t1234567890t1 values(now +  3s,100000,1,1);")
         tdLog.info(f"2 sql select cc,ta, * from streamt9;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select cc,ta, * from streamt9;",
             lambda: tdSql.getRows() >= 2
             and tdSql.getData(0, 0) == 1
@@ -809,7 +809,7 @@ class TestStreamOldCaseTwa:
         tdSql.checkRows(1)
 
         tdLog.info(f"2 sql select cc,ta, * from streamt10;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select cc,ta, * from streamt10;",
             lambda: tdSql.getRows() >= 2
             and tdSql.getData(0, 0) == 1
@@ -836,7 +836,7 @@ class TestStreamOldCaseTwa:
         tdSql.checkRows(1)
 
         tdLog.info(f"2 sql select cc,ta,* from streamt11;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select cc,ta,* from streamt11;",
             lambda: tdSql.getRows() >= 1
             and tdSql.getData(0, 0) == 1

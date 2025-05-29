@@ -247,6 +247,8 @@ static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew) {
         pNewGid->syncCanRead = pOldGid->syncCanRead;
         pNewGid->syncAppliedIndex = pOldGid->syncAppliedIndex;
         pNewGid->syncCommitIndex = pOldGid->syncCommitIndex;
+        pNewGid->bufferSegmentUsed = pOldGid->bufferSegmentUsed;
+        pNewGid->bufferSegmentSize = pOldGid->bufferSegmentSize;
       }
     }
   }
@@ -1460,6 +1462,20 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       code = colDataSetVal(pColInfo, numOfRows, (const char *)&unappliedCount, false);
       if (code != 0) {
         mError("vgId:%d, failed to set syncRestore, since %s", pVgroup->vgId, tstrerror(code));
+        return code;
+      }
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)&pGid->bufferSegmentUsed, false);
+      if (code != 0) {
+        mError("vgId:%d, failed to set buffer segment used, since %s", pVgroup->vgId, tstrerror(code));
+        return code;
+      }
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)&pGid->bufferSegmentSize, false);
+      if (code != 0) {
+        mError("vgId:%d, failed to set buffer segment size, since %s", pVgroup->vgId, tstrerror(code));
         return code;
       }
 

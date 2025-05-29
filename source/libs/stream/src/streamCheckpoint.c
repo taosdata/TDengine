@@ -129,7 +129,7 @@ int32_t streamTaskProcessCheckpointTriggerRsp(SStreamTask* pTask, SCheckpointTri
   }
 
   if (pRsp->rspCode != TSDB_CODE_SUCCESS) {
-    stDebug("s-task:%s retrieve checkpoint-trgger rsp from upstream:0x%x invalid, code:%s", id, pRsp->upstreamTaskId,
+    stDebug("s-task:%s retrieve checkpoint-trigger rsp from upstream:0x%x invalid, code:%s", id, pRsp->upstreamTaskId,
             tstrerror(pRsp->rspCode));
     return TSDB_CODE_SUCCESS;
   }

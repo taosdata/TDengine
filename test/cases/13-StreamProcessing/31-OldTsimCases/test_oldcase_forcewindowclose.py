@@ -70,7 +70,7 @@ class TestStreamOldCaseForceWindowClose:
             time.sleep(0.5)
             tdSql.execute(f"insert into tu11 values(now, 1);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select sum(`count(*)`) from (select * from str_dst1)",
             lambda: tdSql.getRows() > 0 and tdSql.getData(0, 0) == 100,
             retry=60,
@@ -97,7 +97,7 @@ class TestStreamOldCaseForceWindowClose:
             tdSql.execute(f"insert into tu1 values(now, 1);")
 
         tdSql.execute("resume stream stream1")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select sum(`count(*)`) from (select * from str_dst)",
             lambda: tdSql.getRows() > 0 and tdSql.getData(0, 0) == 20,
             retry=60,
@@ -128,7 +128,7 @@ class TestStreamOldCaseForceWindowClose:
             tdSql.execute(f"insert into tu1 values(now, 1);")
 
         tdSql.execute("resume stream stream1")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select sum(`count(*)`) from (select * from str_dst)",
             lambda: tdSql.getRows() > 0 and tdSql.getData(0, 0) == 20,
             retry=60,
@@ -149,13 +149,13 @@ class TestStreamOldCaseForceWindowClose:
             time.sleep(0.5)
             tdSql.execute(f"insert into tu1 values(now, 1);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select sum(`count(*)`) from (select * from str_dst)",
             lambda: tdSql.getRows() > 0 and tdSql.getData(0, 0) == 19,
             retry=60,
         )
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select round(timediff(`now()`, `_wstart`)/1000000) from str_dst;",
             lambda: tdSql.getRows() > 0 and tdSql.getData(0, 0) == 35.000000000,
             retry=60,
@@ -210,7 +210,7 @@ class TestStreamOldCaseForceWindowClose:
         query2_data11 = tdSql.getData(1, 1)
 
         tdLog.info(f"2 sql select * from streamt where ta == 1 order by 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where ta == 1 order by 1;",
             lambda: tdSql.getRows() >= 2
             and tdSql.getData(0, 1) == query1_data01
@@ -219,7 +219,7 @@ class TestStreamOldCaseForceWindowClose:
         )
 
         tdLog.info(f"2 sql select * from streamt where ta == 2 order by 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where ta == 2 order by 1;",
             lambda: tdSql.getRows() >= 2
             and tdSql.getData(0, 1) == query2_data01
@@ -227,7 +227,7 @@ class TestStreamOldCaseForceWindowClose:
         )
 
         tdLog.info(f"2 sql select * from streamt;")
-        tdStream.checkQueryResults(f"select * from streamt;", lambda: tdSql.getRows() >= 6)
+        tdSql.checkResultsByFunc(f"select * from streamt;", lambda: tdSql.getRows() >= 6)
 
         tdLog.info(f"step2")
         tdLog.info(f"=============== create database")
@@ -261,7 +261,7 @@ class TestStreamOldCaseForceWindowClose:
         query1_data11 = tdSql.getData(1, 1)
 
         tdLog.info(f"2 sql select * from streamt where ta == 1 order by 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where ta == 1 order by 1;",
             lambda: tdSql.getRows() > 1 and tdSql.getData(0, 1) == query1_data01,
             retry=60,
@@ -275,7 +275,7 @@ class TestStreamOldCaseForceWindowClose:
         )
 
         tdLog.info(f"2 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() >= 10 and tdSql.getData(0, 1) == query1_data01,
             retry=60,
@@ -305,21 +305,21 @@ class TestStreamOldCaseForceWindowClose:
         tdSql.query(f"select * from t1;")
 
         tdLog.info(f"2 sql select * from streamt where a == 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where a == 1;",
             lambda: tdSql.getRows() >= 2,
             retry=60,
         )
 
         tdLog.info(f"2 sql select * from streamt where a == 2;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where a == 2;",
             lambda: tdSql.getRows() >= 2,
             retry=60,
         )
 
         tdLog.info(f"2 sql select * from streamt where a == 3;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where a == 3;",
             lambda: tdSql.getRows() >= 5,
             retry=60,
@@ -346,7 +346,7 @@ class TestStreamOldCaseForceWindowClose:
         tdLog.info(f"sql select * from t1;")
 
         tdLog.info(f"2 sql select * from streamt where a is null;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where a is null;",
             lambda: tdSql.getRows() >= 5,
             retry=60,
@@ -374,7 +374,7 @@ class TestStreamOldCaseForceWindowClose:
         tdSql.query(f"select * from t1;")
 
         tdLog.info(f"2 sql select * from streamt where a == 100;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where a == 100;",
             lambda: tdSql.getRows() >= 5,
             retry=60,
@@ -422,91 +422,91 @@ class TestStreamOldCaseForceWindowClose:
         tdSql.query(f"select * from t3;")
 
         tdLog.info(f"2 sql select * from streamt where a == 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where a == 1;",
             lambda: tdSql.getRows() >= 2,
             retry=60,
         )
 
         tdLog.info(f"2 sql select * from streamt where a == 21;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where a == 21;",
             lambda: tdSql.getRows() >= 2,
             retry=60,
         )
 
         tdLog.info(f"2 sql select * from streamt where a == 31;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where a == 31;",
             lambda: tdSql.getRows() >= 2,
             retry=60,
         )
 
         tdLog.info(f"sql select * from streamt where a == 2;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where a == 2;",
             lambda: tdSql.getRows() >= 2,
             retry=60,
         )
 
         tdLog.info(f"3 sql select * from streamt where a == 22;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where a == 22;",
             lambda: tdSql.getRows() >= 2,
             retry=60,
         )
 
         tdLog.info(f"3 sql select * from streamt where a == 32;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where a == 32;",
             lambda: tdSql.getRows() >= 2,
             retry=60,
         )
 
         tdLog.info(f"4 sql select * from streamt where a == 3;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where a == 3;",
             lambda: tdSql.getRows() >= 2,
             retry=60,
         )
 
         tdLog.info(f"4 sql select * from streamt where a == 23;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where a == 23;",
             lambda: tdSql.getRows() >= 2,
             retry=60,
         )
 
         tdLog.info(f"4 sql select * from streamt where a == 33;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where a == 33;",
             lambda: tdSql.getRows() >= 2,
             retry=60,
         )
 
         tdLog.info(f"5 sql select * from streamt where a == 3;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where a == 3;",
             lambda: tdSql.getRows() >= 5,
             retry=60,
         )
 
         tdLog.info(f"5 sql select * from streamt where a == 23;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where a == 23;",
             lambda: tdSql.getRows() >= 5,
             retry=60,
         )
 
         tdLog.info(f"5 sql select * from streamt where a == 33;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where a == 33;",
             lambda: tdSql.getRows() >= 5,
             retry=60,
         )
 
         tdLog.info(f"2 sql select * from streamt where a == 3;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where a == 3;",
             lambda: tdSql.getRows() >= 5,
             retry=60,
@@ -553,7 +553,7 @@ class TestStreamOldCaseForceWindowClose:
         tdSql.query(f"select * from t3;")
 
         tdLog.info(f"2 sql select * from streamt where a is null;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where a is null;",
             lambda: tdSql.getRows() >= 5,
             retry=60,
@@ -599,7 +599,7 @@ class TestStreamOldCaseForceWindowClose:
         tdSql.query(f"select * from t3;")
 
         tdLog.info(f"2 sql select * from streamt where a == 100;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where a == 100;",
             lambda: tdSql.getRows() >= 10,
             retry=60,
