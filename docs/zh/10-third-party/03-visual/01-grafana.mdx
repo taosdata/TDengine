@@ -57,6 +57,7 @@ sudo -u grafana grafana-cli --pluginUrl \
       https://github.com/taosdata/grafanaplugin/releases/download/v3.7.2/tdengine-datasource-3.7.2.zip \
       plugins install tdengine-datasource
 ```
+
 对于 Windows，首先请确保插件安装目录存在（默认是 Grafana 安装目录下 data/plugins）, 然后在 Grafana 安装目录的 bin 目录下以管理员账号执行下面的命令：
 ```bash
 ./grafana-cli.exe --pluginUrl https://github.com/taosdata/grafanaplugin/releases/download/v3.7.2/tdengine-datasource-3.7.2.zip plugins install tdengine-datasource
