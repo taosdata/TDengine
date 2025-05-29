@@ -2,26 +2,30 @@
   <div>
     <p>
       {{ $t('docs.virtual.grafana.topdesc') }}<a href="https://www.grafana.com/"> Grafana</a
-      >{{ $t('docs.virtual.grafana.topdesc1')
-      }}<a href="https://github.com/taosdata/grafanaplugin/blob/master/README.md">GitHub</a>.
+    >{{
+        $t('docs.virtual.grafana.topdesc1')
+      }}<a href="https://github.com/taosdata/grafanaplugin/blob/master/README.md">
+      GitHub</a>{{ $t('docs.virtual.grafana.topdesc2') }}
     </p>
     <h2 id="install-grafana">{{ $t('docs.virtual.grafana.step1') }}</h2>
     <p>
       {{ $t('docs.virtual.grafana.step1desc') }}(<a href="https://grafana.com/grafana/download"
-        >https://grafana.com/grafana/download</a
-      >).
+    >https://grafana.com/grafana/download</a
+    >).
     </p>
     <h2 id="install-tdengine-plugin">{{ $t('docs.virtual.grafana.step2') }}</h2>
     <el-tabs v-model="activeTab">
-      <el-tab-pane name="plugins" label="Plugins">
-        <!-- <p>{{$t('docs.virtual.grafana.pluginsdesc')}}</p> -->
-        <p v-dompurify-html="$t('docs.virtual.grafana.plugin1desc')"></p>
-        <p v-dompurify-html="$t('docs.virtual.grafana.plugin2desc')"></p>
-        <p v-dompurify-htmlurify-html="$t('docs.virtual.grafana.plugin3desc')"></p>
-        <p v-dompurify-html="$t('docs.virtual.grafana.plugin4desc')"></p>
+      <el-tab-pane name="Grafana Cli" label="Grafana Cli">
+        <p v-dompurify-html="$t('docs.virtual.grafana.step2desc')"></p>
+        <pre
+          v-highlight="`sudo -u grafana grafana-cli --pluginUrl https://github.com/taosdata/grafanaplugin/releases/download/v3.7.2/tdengine-datasource-3.7.2.zip plugins install tdengine-datasource
+`
+          "
+        ><code
+          class="language-bash"></code></pre>
       </el-tab-pane>
       <el-tab-pane name="script" label="Script"
-        ><p>{{ $t('docs.virtual.grafana.script1') }}</p>
+      ><p>{{ $t('docs.virtual.grafana.script1') }}</p>
         <pre
           v-highlight="
             `bash -c &quot;$(curl -fsSL https://raw.githubusercontent.com/taosdata/grafanaplugin/master/install.sh)&quot;
@@ -41,7 +45,7 @@
     <p>{{ $t('docs.virtual.grafana.step3desc') }}</p>
     <p>
       <el-icon color="gold" :size="20">
-        <Opportunity />
+        <Opportunity/>
       </el-icon>
       <span class="docker-tip">{{ $t('dockerTip', [`${url.split('//')[1]}`]) }}</span>
     </p>
@@ -71,8 +75,8 @@
       <span v-if="!$IS_OEM">
         {{ $t('docs.virtual.grafana.step4desc1') }}
         <a :href="`${$t('urlPart')}/third-party/grafana#create-dashboard`">{{
-          $t('docs.virtual.grafana.step4desc2')
-        }}</a>
+            $t('docs.virtual.grafana.step4desc2')
+          }}</a>
         {{ $t('docs.virtual.grafana.step4desc3') }}</span
       >
     </p>
@@ -80,12 +84,12 @@
 </template>
 
 <script setup lang="ts">
-import { DocsProps } from '../utils';
+import {DocsProps} from '../utils';
 
 defineProps<DocsProps>();
-const { $IS_OEM } = inject('globalCustomProperties') as GlobalCustomProperties;
+const {$IS_OEM} = inject('globalCustomProperties') as GlobalCustomProperties;
 
-const activeTab = ref('plugins');
+const activeTab = ref('Grafana Cli');
 </script>
 <style>
 .pre-code {
