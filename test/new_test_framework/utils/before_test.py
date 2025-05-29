@@ -213,6 +213,7 @@ class BeforeTest:
                 "endpoint": f"localhost:{6030 + i * 100}",
                 "config_dir": dnode_cfg_path,
                 "taosdPath": os.path.join(request.session.taos_bin_path, "taosd"),
+                "system": sys.platform,
                 "config": {
                     "dataDir": data_path,
                     "logDir": log_path,
@@ -560,11 +561,10 @@ class BeforeTest:
             if sys.platform == "win32":
                 return f"C:\\TDengine\\bin\\{binary}.exe"
             elif sys.platform == "darwin":
-                if os.path.exists("/usr/local/bin/{binary}"):
+                if os.path.exists(f"/usr/local/bin/{binary}"):
                     return f"/usr/local/bin/{binary}"
                 else:
                     tdLog.error(f"taosd binary not found in /usr/local/bin/{binary}")
-                    #raise Exception(f"taosd binary not found in debug/build/bin or /usr/local/bin/{binary}")
                     return None
             else:
                 tdLog.debug(f"taos_bin_path: {os.path.exists('/usr/bin/{binary}')}")
@@ -573,7 +573,6 @@ class BeforeTest:
                 else:
                     tdLog.error(f"taosd binary not found in /usr/bin/{binary}")
                     return None
-                        #raise Exception(f"taosd binary not found in debug/build/bin or /usr/bin/{binary}")
         return paths[0]
 
     def get_taos_bin_path(self, taos_bin_path):

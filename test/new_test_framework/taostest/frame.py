@@ -575,6 +575,9 @@ class TaosTestFrame:
         #                             self._env_mgr._remote.cmd(host, ["mkdir -p {} ".format(dirName)])
         #                 else:
         #                     pass
+        if platform.system() != "Linux":
+            self._logger.info("Skip core_pattern setup: not Linux")
+            return
         
         host = platform.node()
         if host == self._local_host or host == "localhost":
@@ -608,6 +611,10 @@ class TaosTestFrame:
         self._init_taostest()
 
     def _collect_taostest(self):
+        if platform.system() != "Linux":
+            self._logger.info("Skip core_pattern setup: not Linux")
+            return
+        
         host = platform.node()
         self._logger.debug("collect coredump files {}, etc.".format(host))
         logDir = self._run_log_dir
