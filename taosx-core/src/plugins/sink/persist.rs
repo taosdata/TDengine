@@ -696,9 +696,10 @@ impl PersistMetrics {
     }
 
     fn reset(&self, init: bool) {
-        if self.open.fetch_not(Ordering::SeqCst) && init {
+        if self.open.load(Ordering::SeqCst) && init {
             return;
-        };
+        }
+        self.open.fetch_not(Ordering::SeqCst);
 
         let Some(core_metrics) = self.core_metrics.clone() else {
             return;
