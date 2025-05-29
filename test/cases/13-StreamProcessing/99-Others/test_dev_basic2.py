@@ -60,6 +60,7 @@ class TestStreamDevBasic2:
         sql2 = "create stream s2 interval(1s) sliding(1s) from stream_trigger partition by tbname into out2                                 as select _twstart ts, count(*) c1, avg(v1)    from stb where ts >= _twstart and ts < _twend;"
         sql3 = "create stream s3 state_window (v1)        from stream_trigger partition by tbname into out3                                 as select _twstart ts, count(*) c1, avg(v1) c2 from stb;"
         sql4 = "create stream s4 state_window (v1)        from stream_trigger                     into out4                                 as select _twstart ts, count(*) c1, avg(v1) c2 from stb;"
+        sql5 = "create stream s5 state_window (v1)        from stream_trigger                     into out5                                 as select _twstart ts, count(*) c1, avg(v1) c2, first(v1) c3, last(v1) c4 from %%trows;"
         sql6 = "create stream s6 sliding (1s)             from stream_trigger                     into out6                                 as select _tcurrent_ts, now, count(v1) from stb;"
         sql7 = "create stream s7 state_window (v1)        from stream_trigger partition by tbname options(fill_history_first(1)) into out7  as select _twstart, avg(v1), count(v1) from stb;"
         sql8 = "create stream s8 state_window (v1)        from stream_trigger partition by tbname into out8                                 as select _twstart ts, count(*) c1, avg(v1) c2, _twstart + 1 as ts2 from stb;"
@@ -69,6 +70,7 @@ class TestStreamDevBasic2:
             self.StreamItem(sql2, self.checks2),
             self.StreamItem(sql3, self.checks3),
             self.StreamItem(sql4, self.checks4),
+            self.StreamItem(sql5, self.checks5),
             self.StreamItem(sql6, self.checks6),
             self.StreamItem(sql7, self.checks7),
             self.StreamItem(sql8, self.checks8),
@@ -153,6 +155,23 @@ class TestStreamDevBasic2:
             and tdSql.compareData(1, 0, "2025-01-01 00:00:01.000")
             and tdSql.compareData(1, 1, 6)
             and tdSql.compareData(1, 2, 1.5),
+        )
+
+    def checks5(self):
+        result_sql = "select ts, c1, c2, c3, c4 from test.out5"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 1)
+            and tdSql.compareData(0, 2, 0)
+            and tdSql.compareData(0, 3, 0)
+            and tdSql.compareData(0, 4, 0)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:01.000")
+            and tdSql.compareData(1, 1, 1)
+            and tdSql.compareData(1, 2, 1)
+            and tdSql.compareData(1, 3, 1)
+            and tdSql.compareData(1, 4, 1),
         )
 
     def checks6(self):
