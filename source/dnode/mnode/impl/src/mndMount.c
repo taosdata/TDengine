@@ -1456,6 +1456,35 @@ static int32_t mndSetDropMountCommitLogs(SMnode *pMnode, STrans *pTrans, SMountO
 #endif
   TAOS_RETURN(code);
 }
+
+static int32_t mndSetDropMountDbLogs(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
+  int32_t code = 0, lino = 0;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+
+  while (1) {
+    SDbObj *pDb = NULL;
+    pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb);
+    if (pIter == NULL) break;
+    if (pDb->cfg.isMount) {
+      const char *pDbName = strstr(pDb->name, ".");
+      const char *pMountPrefix = pDbName ? strstr(pDbName + 1, pObj->name) : NULL;
+      if (pMountPrefix && (pMountPrefix == (pDbName + 1)) && (pMountPrefix[strlen(pObj->name)] == '_')) {
+        mInfo("db:%s, is mount db, start to drop", pDb->name);
+        if ((code = mndSetDropDbPrepareLogs(pMnode, pTrans, pDb)) != 0 ||
+            (code = mndSetDropDbCommitLogs(pMnode, pTrans, pDb)) != 0) {
+          sdbCancelFetch(pSdb, pIter);
+          sdbRelease(pSdb, pDb);
+          TAOS_CHECK_EXIT(code);
+        }
+      }
+    }
+    sdbRelease(pSdb, pDb);
+  }
+_exit:
+  TAOS_RETURN(code);
+}
+
 #if 0
 static int32_t mndBuildDropVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup) {
   int32_t code = 0;
@@ -1522,7 +1551,6 @@ static int32_t mndBuildDropMountRsp(SMountObj *pObj, int32_t *pRspLen, void **pp
 
 static int32_t mndDropMount(SMnode *pMnode, SRpcMsg *pReq, SMountObj *pObj) {
   int32_t code = -1, lino = 0;
-  SSdb   *pSdb = pMnode->pSdb;
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "drop-mount");
   if (pTrans == NULL) {
@@ -1545,29 +1573,7 @@ static int32_t mndDropMount(SMnode *pMnode, SRpcMsg *pReq, SMountObj *pObj) {
 
   TAOS_CHECK_EXIT(mndSetDropMountPrepareLogs(pMnode, pTrans, pObj));
   TAOS_CHECK_EXIT(mndSetDropMountCommitLogs(pMnode, pTrans, pObj));
-
-  // drop mount dbs/vgs/stbs
-  void *pIter = NULL;
-  while (1) {
-    SDbObj *pDb = NULL;
-    pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb);
-    if (pIter == NULL) break;
-    if (pDb->cfg.isMount) {
-      const char *pDbName = strstr(pDb->name, ".");
-      const char *pMountPrefix = pDbName ? strstr(pDbName + 1, pObj->name) : NULL;
-      if (pMountPrefix && (pMountPrefix == (pDbName + 1)) && (pMountPrefix[strlen(pObj->name)] == '_')) {
-        mInfo("db:%s, is mount db, start to drop", pDb->name);
-        if ((code = mndSetDropDbPrepareLogs(pMnode, pTrans, pDb)) != 0 ||
-            (code = mndSetDropDbCommitLogs(pMnode, pTrans, pDb)) != 0) {
-          sdbCancelFetch(pSdb, pIter);
-          sdbRelease(pSdb, pDb);
-          TAOS_CHECK_EXIT(code);
-        }
-      }
-    }
-    sdbRelease(pSdb, pDb);
-  }
-
+  TAOS_CHECK_EXIT(mndSetDropMountDbLogs(pMnode, pTrans, pObj));  // drop mount dbs/vgs/stbs
   //   TAOS_CHECK_GOTO(mndDropStreamByDb(pMnode, pTrans, pDb), NULL, _exit);
   // #ifdef TD_ENTERPRISE
   //   TAOS_CHECK_GOTO(mndDropViewByDb(pMnode, pTrans, pDb), NULL, _exit);
@@ -1587,6 +1593,9 @@ static int32_t mndDropMount(SMnode *pMnode, SRpcMsg *pReq, SMountObj *pObj) {
   code = 0;
 
 _exit:
+  if (code != 0) {
+    mError("mount:%s, failed to drop at line:%d since %s", pObj->name, lino, tstrerror(code));
+  }
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
 }
