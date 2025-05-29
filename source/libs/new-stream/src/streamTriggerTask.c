@@ -2212,8 +2212,8 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
             cleanMode = DATA_CLEAN_EXPIRED;
           }
         }
-        code = initStreamDataCache(pTask->task.streamId, pTask->task.taskId, cleanMode, pTask->calcTsIndex,
-                                   &pContext->pCalcDataCache);
+        code = initStreamDataCache(pTask->task.streamId, pTask->task.taskId, pContext->sessionId, cleanMode,
+                                   pTask->calcTsIndex, &pContext->pCalcDataCache);
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }

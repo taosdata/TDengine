@@ -192,7 +192,7 @@ typedef struct SResultIter {
 // @param cleanMode 清理模式，具体含义如下:
 //        1. 一行数据只会被读取一次，所以读取结束后可以立刻被清理
 //        2. 一行数据可能被读取多次，所以等到下次读取时，才清理时间范围之前的数据
-int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int32_t cleanMode, int32_t tsSlotId, void** ppCache);
+int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int32_t cleanMode, int32_t tsSlotId, void** ppCache);
 
 // @brief 清理数据缓存，包括缓存的数据文件和内存
 void destroyStreamDataCache(void* pCache);

@@ -240,7 +240,8 @@ static int32_t createSlidingTaskMgr(int64_t streamId, int64_t taskId, int32_t ts
 }
 
 // @brief 初始化数据缓存
-int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int32_t cleanMode, int32_t tsSlotId, void** ppCache) {
+int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int32_t cleanMode, int32_t tsSlotId,
+                            void** ppCache) {
   int32_t code = initStreamDataSinkOnce();
   if (code != 0) {
     return code;
