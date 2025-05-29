@@ -64,47 +64,6 @@ where
         }
     }
 
-    #[cfg(windows)]
-    pub async fn run(mut self, token: CancellationToken) -> super::Result<()> {
-        let mut ticker = tokio::time::interval(self.vacuum_interval);
-        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-
-        const MAX_WAIT_DURATION: Duration = Duration::from_millis(100);
-        let mut wait_duration = Duration::from_millis(10);
-        loop {
-            if token.is_cancelled() {
-                break;
-            }
-            if ticker.tick().now_or_never().is_some() {
-                self.reader.vacuum().await?;
-            }
-            let entries = self.reader.read(self.batch_size).await?;
-            if entries.is_empty() {
-                if token
-                    .run_until_cancelled(tokio::time::sleep(wait_duration))
-                    .await
-                    .is_none()
-                {
-                    break;
-                }
-                wait_duration = MAX_WAIT_DURATION.min(wait_duration * 2);
-                continue;
-            }
-            wait_duration = Duration::from_millis(10);
-            for entry in entries {
-                if self.send_entry(entry, token.child_token()).await.is_break() {
-                    break;
-                }
-            }
-        }
-
-        // 退出时再尝试清理数据
-        self.reader.vacuum().await?;
-
-        Ok(())
-    }
-
-    #[cfg(unix)]
     pub async fn run(mut self, token: CancellationToken) -> super::Result<()> {
         let mut ticker = tokio::time::interval(self.vacuum_interval);
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -127,9 +86,6 @@ where
                 if self.send_entry(entry, token.child_token()).await.is_break() {
                     break;
                 }
-            }
-            if ticker.tick().now_or_never().is_some() {
-                self.reader.vacuum().await?;
             }
         }
 

@@ -9,15 +9,15 @@ use std::{
 
 use fs2::{lock_contended_error, FileExt};
 use futures::StreamExt;
-use notify::{event::ModifyKind, Watcher};
+use notify::Watcher;
 use parking_lot::Mutex;
 use snafu::ResultExt;
 use tokio::{io::AsyncSeekExt, time::timeout_at};
 use tokio_util::{codec::FramedRead, sync::CancellationToken};
 
 use crate::{
-    fs::format_segment_id, AddWatchSnafu, BuildWatcherSnafu, DelWatchSnafu, Entry, FileLockedSnafu,
-    LockFileSnafu, OpenFileSnafu, RawReader, RemoveFileSnafu, Result, SeekFileSnafu,
+    fs::format_segment_id, AddWatchSnafu, DelWatchSnafu, Entry, FileLockedSnafu, LockFileSnafu,
+    OpenFileSnafu, RawReader, RemoveFileSnafu, Result, SeekFileSnafu,
 };
 
 use super::{codec::ReadCodec, EntryPosition, ReadFrom, LOCK_FILE_EXTENSION};
@@ -260,16 +260,26 @@ impl Reader {
         let state = ReadState::new(&dir, segment_size, buffer_size, from, segments.clone()).await?;
 
         let file_modify_notifier = Arc::new(tokio::sync::Notify::new());
-        let mut watcher = notify::recommended_watcher({
-            let file_modify_notifier = file_modify_notifier.clone();
-            move |event: std::result::Result<notify::Event, notify::Error>| {
-                let Ok(event) = event else { return };
-                if matches!(event.kind, notify::EventKind::Modify(ModifyKind::Data(_))) {
-                    file_modify_notifier.notify_one();
+
+        let mut watcher = {
+            use crate::BuildWatcherSnafu;
+            use notify::event::ModifyKind;
+            let handler = {
+                let file_modify_notifier = file_modify_notifier.clone();
+                move |event: std::result::Result<notify::Event, notify::Error>| {
+                    let Ok(event) = event else { return };
+                    if matches!(
+                        event.kind,
+                        notify::EventKind::Modify(ModifyKind::Data(_))
+                            | notify::EventKind::Modify(ModifyKind::Any)
+                    ) {
+                        file_modify_notifier.notify_one();
+                    }
                 }
-            }
-        })
-        .context(BuildWatcherSnafu)?;
+            };
+            notify::RecommendedWatcher::new(handler, notify::Config::default())
+                .context(BuildWatcherSnafu)?
+        };
         if let ReadState::Reader(inner) = &state {
             watcher
                 .watch(&inner.segment, notify::RecursiveMode::NonRecursive)
@@ -484,7 +494,7 @@ impl RawReader for Reader {
                     }
                     // 文件被删除，或者是读到了文件结尾，则切换下一个文件
                     if self.need_rotate(&inner) {
-                        tracing::info!("perssit file reader will rotate to next file");
+                        tracing::info!(path = ?inner.segment, "perssit file reader will rotate to next file");
                         match self
                             .rotate_timeout_at(ReadState::Reader(inner), deadline, cancel)
                             .await?

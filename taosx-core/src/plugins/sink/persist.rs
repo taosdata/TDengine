@@ -3,7 +3,7 @@ use std::{
     ops::Deref,
     path::PathBuf,
     sync::{
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, LazyLock,
     },
     time::Duration,
@@ -252,9 +252,15 @@ where
         .entry(persist.task_id)
         .or_insert(Arc::new(PersistMetrics::new(metrics)));
     let metrics = metric_entry.get();
-    metrics.reset();
-    let _metrics_guard = utils::defer::defer(|| {
-        metrics.reset();
+    metrics.reset(true);
+    tasks.spawn({
+        let token = token.clone();
+        let metrics = metrics.clone();
+        async move {
+            token.cancelled().await;
+            metrics.reset(false);
+            Ok(())
+        }
     });
 
     let path = persist.dir;
@@ -629,6 +635,7 @@ struct PersistMetrics {
     persist_send_batches: AtomicU64,
 
     instant: Mutex<std::time::Instant>,
+    open: AtomicBool,
 }
 
 impl PersistMetrics {
@@ -640,6 +647,7 @@ impl PersistMetrics {
             persist_received_acks: AtomicU64::default(),
             persist_send_batches: AtomicU64::default(),
             instant: Mutex::new(std::time::Instant::now()),
+            open: AtomicBool::default(),
         }
     }
 
@@ -687,7 +695,11 @@ impl PersistMetrics {
             .load(std::sync::atomic::Ordering::SeqCst)
     }
 
-    fn reset(&self) {
+    fn reset(&self, init: bool) {
+        if self.open.fetch_not(Ordering::SeqCst) && init {
+            return;
+        };
+
         let Some(core_metrics) = self.core_metrics.clone() else {
             return;
         };

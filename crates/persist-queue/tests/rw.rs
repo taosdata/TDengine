@@ -44,10 +44,10 @@ async fn rw() -> anyhow::Result<()> {
             match write_handle.await {
                 Ok(Ok(_)) => {}
                 Ok(Err(e)) => {
-                    panic!("write task exit with error: {e}");
+                    panic!("write task exit with error: {e:#}");
                 }
                 Err(e) => {
-                    panic!("write task panicked: {e}");
+                    panic!("write task panicked: {e:#}");
                 }
             }
             anyhow::Ok(())
@@ -73,10 +73,10 @@ async fn rw() -> anyhow::Result<()> {
     match read_handle.await {
         Ok(Ok(_)) => {}
         Ok(Err(e)) => {
-            panic!("write task exit with error: {e}");
+            panic!("write task exit with error: {e:#}");
         }
         Err(e) => {
-            panic!("write task panicked: {e}");
+            panic!("write task panicked: {e:#}");
         }
     }
 
