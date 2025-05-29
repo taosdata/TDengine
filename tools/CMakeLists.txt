@@ -13,11 +13,11 @@ IF (TD_WEBSOCKET)
             BUILD_ALWAYS        off
             DEPENDS             taos
             BUILD_IN_SOURCE     1
+            PDATE_DISCONNECTED  TRUE
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
             PATCH_COMMAND
             COMMAND     git clean -f -d
             BUILD_COMMAND
-            COMMAND cargo update
             COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static cargo build --release -p taos-ws-sys --features rustls
             INSTALL_COMMAND
             COMMAND cp target/release/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib
@@ -32,11 +32,11 @@ IF (TD_WEBSOCKET)
             BUILD_ALWAYS        off
             DEPENDS             taos
             BUILD_IN_SOURCE     1
+            PDATE_DISCONNECTED  TRUE
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
             PATCH_COMMAND
             COMMAND     git clean -f -d
             BUILD_COMMAND
-            COMMAND cargo update
             COMMAND cargo build --release -p taos-ws-sys --features rustls
             INSTALL_COMMAND
             COMMAND cp target/release/taosws.dll ${CMAKE_BINARY_DIR}/build/lib
@@ -52,11 +52,11 @@ IF (TD_WEBSOCKET)
             BUILD_ALWAYS        off
             DEPENDS             taos
             BUILD_IN_SOURCE     1
+            PDATE_DISCONNECTED  TRUE
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
             PATCH_COMMAND
             COMMAND     git clean -f -d
             BUILD_COMMAND
-            COMMAND cargo update
             COMMAND cargo build --release -p taos-ws-sys --features rustls
             INSTALL_COMMAND
             COMMAND cp target/release/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib
@@ -134,6 +134,7 @@ ELSE ()
             BUILD_ALWAYS         off
             DEPENDS             taos
             BUILD_IN_SOURCE     1
+            PDATE_DISCONNECTED  TRUE
             CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
             PATCH_COMMAND
             COMMAND     git clean -f -d
@@ -163,6 +164,7 @@ ELSE ()
                 BUILD_ALWAYS         off
                 DEPENDS             taos
                 BUILD_IN_SOURCE     1
+                PDATE_DISCONNECTED  TRUE
                 CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
                 PATCH_COMMAND
                 COMMAND     git clean -f -d
@@ -188,6 +190,7 @@ ELSE ()
             BUILD_ALWAYS         off
             DEPENDS             taos
             BUILD_IN_SOURCE     1
+            PDATE_DISCONNECTED  TRUE
             CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
             PATCH_COMMAND
             COMMAND     git clean -f -d
