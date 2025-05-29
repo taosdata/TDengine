@@ -2184,7 +2184,7 @@ static int32_t mndTransExecuteRedoActionGroup(SMnode *pMnode, STrans *pTrans, bo
 
   SHashObj *pHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
   if(pHash == NULL){
-    mError("trans:%d, failed to init hash since %s", pTrans->id, terrorstr());
+    mError("trans:%d, failed to init hash since %s", pTrans->id, terrstr());
     return -1;
   }
   for (int32_t i = 0; i < taosArrayGetSize(pTrans->redoActions); ++i) {
