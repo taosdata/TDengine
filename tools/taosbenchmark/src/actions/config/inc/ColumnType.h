@@ -28,7 +28,7 @@ struct Geometry {
 };
 
 
-using ColumnTypeVariant = std::variant<
+using ColumnType = std::variant<
     Timestamp,            // timestamp
     bool,                 // bool
     int8_t,               // tinyint
@@ -48,3 +48,6 @@ using ColumnTypeVariant = std::variant<
     std::vector<uint8_t>, // varbinary
     Geometry              // geometry
 >;
+
+using ColumnTypeVector = std::vector<ColumnType>;
+using RowType = ColumnTypeVector;

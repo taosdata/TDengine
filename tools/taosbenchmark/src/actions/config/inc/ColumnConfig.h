@@ -4,10 +4,12 @@
 #include <vector>
 #include <optional>
 #include <cstdint>
-#include "ColumnTypeVariant.h"
+#include "ColumnType.h"
 
+struct RandomTag {};
+struct OrderTag {};
 
-struct Column {
+struct ColumnConfig {
     std::string name;
     std::string type;
     bool primary_key = false;
@@ -46,4 +48,27 @@ struct Column {
         std::optional<int> offset; // 函数参数：偏移量
     };
     std::optional<FunctionConfig> function_config;
+
+    ColumnConfig() = default;
+
+    ColumnConfig(
+        const std::string& name,
+        const std::string& type,
+        RandomTag,
+        std::optional<double> min = {},
+        std::optional<double> max = {},
+        bool primary_key = false,
+        int count = 1
+    ) : name(name), type(type), gen_type("random"), min(min), max(max), primary_key(primary_key), count(count) {}
+
+    ColumnConfig(
+        const std::string& name,
+        const std::string& type,
+        OrderTag,
+        std::optional<int64_t> min = {},
+        std::optional<int64_t> max = {},
+        bool primary_key = false,
+        int count = 1
+    ) : name(name), type(type), gen_type("order"), order_min(min), order_max(max), primary_key(primary_key), count(count) {}
+
 };
