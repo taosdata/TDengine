@@ -64,7 +64,7 @@ static int32_t csvParserInit(SCsvParser* parser, TdFilePtr pFile);
 static void    csvParserDestroy(SCsvParser* parser);
 static int32_t csvParserFillBuffer(SCsvParser* parser);
 static int32_t csvParserReadLine(SCsvParser* parser, char** pLine);
-
+static void    destroySavedCsvParser(SVnodeModifyOpStmt* pStmt);
 
 static uint8_t TRUE_VALUE = (uint8_t)TSDB_TRUE;
 static uint8_t FALSE_VALUE = (uint8_t)TSDB_FALSE;
@@ -2562,20 +2562,29 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
   int32_t code = TSDB_CODE_SUCCESS;
   (*pNumOfRows) = 0;
 
-  // Initialize CSV parser
-  SCsvParser parser;
-  code = csvParserInit(&parser, pStmt->fp);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
+  // Initialize or use existing CSV parser in pStmt
+  if (pStmt->pCsvParser == NULL) {
+    // First time - allocate and initialize CSV parser
+    pStmt->pCsvParser = taosMemoryMalloc(sizeof(SCsvParser));
+    if (!pStmt->pCsvParser) {
+      return terrno;
+    }
+    code = csvParserInit(pStmt->pCsvParser, pStmt->fp);
+    if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFree(pStmt->pCsvParser);
+      pStmt->pCsvParser = NULL;
+      return code;
+    }
   }
+  // If pStmt->pCsvParser exists, we continue from where we left off
 
   bool firstLine = (pStmt->fileProcessing == false);
   pStmt->fileProcessing = false;
 
   while (TSDB_CODE_SUCCESS == code) {
-    // Read one line from CSV
+    // Read one line from CSV using the parser in pStmt
     char* csvLine = NULL;
-    code = csvParserReadLine(&parser, &csvLine);
+    code = csvParserReadLine(pStmt->pCsvParser, &csvLine);
     if (code == TSDB_CODE_TSC_QUERY_CANCELLED) {
       // End of file
       code = TSDB_CODE_SUCCESS;
@@ -2626,13 +2635,14 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
     }
 
     if (TSDB_CODE_SUCCESS == code && (*pNumOfRows) >= tsMaxInsertBatchRows) {
+      // Reached batch limit - keep the parser in pStmt for next batch
       pStmt->fileProcessing = true;
       break;
     }
     firstLine = false;
   }
 
-  csvParserDestroy(&parser);
+  // Don't destroy the parser here - it will be cleaned up when file processing is complete
 
   parserDebug("QID:0x%" PRIx64 ", %d rows have been parsed", pCxt->pComCxt->requestId, *pNumOfRows);
 
@@ -2662,6 +2672,8 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
       rowsDataCxt.pTableDataCxt->pData->flags |= SUBMIT_REQ_FROM_FILE;
     }
     if (!pStmt->fileProcessing) {
+      // File processing is complete, clean up saved CSV parser
+      destroySavedCsvParser(pStmt);
       code = taosCloseFile(&pStmt->fp);
       if (TSDB_CODE_SUCCESS != code) {
         parserWarn("QID:0x%" PRIx64 ", failed to close file.", pCxt->pComCxt->requestId);
@@ -2673,6 +2685,8 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
       return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is exclusive", NULL);
     }
   } else {
+    // On error, also clean up saved CSV parser
+    destroySavedCsvParser(pStmt);
     return buildInvalidOperationMsg(&pCxt->msg, tstrerror(code));
   }
 
@@ -3069,6 +3083,7 @@ static int32_t createVnodeModifOpStmt(SInsertParseContext* pCxt, bool reentry, S
   pStmt->freeHashFunc = insDestroyTableDataCxtHashMap;
   pStmt->freeArrayFunc = insDestroyVgroupDataCxtList;
   pStmt->freeStbRowsCxtFunc = destroyStbRowsDataContext;
+  pStmt->pCsvParser = NULL;
 
   if (!reentry) {
     pStmt->pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
@@ -3676,4 +3691,13 @@ static int32_t csvParserFillBuffer(SCsvParser* parser) {
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+// Destroy saved CSV parser in SVnodeModifyOpStmt
+static void destroySavedCsvParser(SVnodeModifyOpStmt* pStmt) {
+  if (pStmt && pStmt->pCsvParser) {
+    csvParserDestroy(pStmt->pCsvParser);
+    taosMemoryFree(pStmt->pCsvParser);
+    pStmt->pCsvParser = NULL;
+  }
 }
