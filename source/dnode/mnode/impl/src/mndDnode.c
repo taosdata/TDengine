@@ -1315,10 +1315,35 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  bool isEmpty = mndIsEmptyDnode(pMnode, pDnode->id);
-  if (!isonline && !force && !isEmpty) {
-    code = TSDB_CODE_DNODE_OFFLINE;
-    mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id, tstrerror(code),
+  bool    vnodeOffline = false;
+  void   *pIter = NULL;
+  int32_t vgId = -1;
+  while (1) {
+    SVgObj *pVgroup = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+
+    for (int32_t i = 0; i < pVgroup->replica; ++i) {
+      if (pVgroup->vnodeGid[i].dnodeId == pDnode->id) {
+        if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_OFFLINE) {
+          vgId = pVgroup->vgId;
+          vnodeOffline = true;
+          break;
+        }
+      }
+    }
+
+    sdbRelease(pMnode->pSdb, pVgroup);
+
+    if (vnodeOffline) {
+      sdbCancelFetch(pMnode->pSdb, pIter);
+      break;
+    }
+  }
+
+  if (vnodeOffline && !force) {
+    code = TSDB_CODE_VND_VNODE_OFFLINE;
+    mError("dnode:%d, failed to drop since vgId:%d is offline, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id, vgId,
            numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
     goto _OVER;
   }
