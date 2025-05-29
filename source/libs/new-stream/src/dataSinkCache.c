@@ -35,66 +35,6 @@ void moveBlockBuf(SAlignBlocksInMem* pAlignBlockInfo, size_t dataEncodeBufSize) 
   pAlignBlockInfo->dataLen += dataEncodeBufSize;
 }
 
-static void freeWindowsBufferImmediate(SWindowData* pWindowData) {
-  if (pWindowData->pDataBuf) {
-    taosMemoryFree(pWindowData->pDataBuf);
-    pWindowData->pDataBuf = NULL;
-  }
-  pWindowData->dataLen = 0;
-}
-static void windowsBufferMoveout(SWindowData* pWindowData) {
-  pWindowData->saveMode = DATA_BLOCK_MOVED;
-  pWindowData->pDataBuf = NULL;
-  pWindowData->dataLen = 0;
-}
-
-static int32_t getBuffInMem(SResultIter* pResult, SWindowData* pWindowData, SSDataBlock** ppBlock, SCleanMode cleanMode) {
-  int32_t      code = TSDB_CODE_SUCCESS;
-  int32_t      lino = 0;
-  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  if (pBlock == NULL) {
-    return terrno;
-  }
-  QUERY_CHECK_CODE(code, lino, _end);
-
-  code = blockDecode(pBlock, pWindowData->pDataBuf, NULL);
-  QUERY_CHECK_CODE(code, lino, _end);
-
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    stError("failed to decode data since %s, lineno:%d", tstrerror(code), lino);
-    if (pBlock) {
-      blockDataDestroy(pBlock);
-    }
-  } else {
-    if (cleanMode == DATA_CLEAN_IMMEDIATE) {
-      freeWindowsBufferImmediate(pWindowData);
-      // 不用立即释放 pwindow 本身的资源，占用空间少，且需要移动 group 上 window array 的数据表，batch 方式处理
-    }
-    *ppBlock = pBlock;
-  }
-  return code;
-}
-
-static int32_t getBlockInMem(SResultIter* pResult, SWindowData* pWindowData, SSDataBlock** ppBlock) {
-  *ppBlock = pWindowData->pDataBuf;
-  windowsBufferMoveout(pWindowData);
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t getWindowDataInMem(SResultIter* pResult, SWindowData* pWindowData, SSDataBlock** ppBlock,
-                                  SCleanMode cleanMode) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (pWindowData->saveMode == DATA_SAVEMODE_BUFF) {
-    return getBuffInMem(pResult, pWindowData, ppBlock, cleanMode);
-  } else if (pWindowData->saveMode == DATA_BLOCK_MOVED) {
-    stError("failed to get data from cache, since block cache cannot be reread.");
-    return TSDB_CODE_STREAM_INTERNAL_ERROR;
-  } else {
-    return getBlockInMem(pWindowData->pDataBuf, pWindowData, ppBlock);
-  }
-}
-
 void* getWindowDataBuf(SSlidingWindowInMem* pWindowData) { return (void*)pWindowData + sizeof(SSlidingWindowInMem); }
 
 static int32_t getRangeInWindowBlock(SSlidingWindowInMem* pWindowData, int32_t tsColSlotId, TSKEY start, TSKEY end, SSDataBlock** ppBlock) {
@@ -125,31 +65,6 @@ _end:
   }
   return code;
 }
-
-/*
-static int32_t getSlidingWindowLaterDataInMem(SWindowData* pWindowData, int32_t tsColSlotId, TSKEY start,
-                                              SSDataBlock** ppBlock) {
-  return getRangeInWindowBlock(pWindowData, tsColSlotId, start, INT64_MAX, ppBlock);
-}
-
-static int32_t getSlidingWindowEarlierDataInMem(SWindowData* pWindowData, int32_t tsColSlotId, TSKEY end,
-                                                SSDataBlock** ppBlock) {
-  return getRangeInWindowBlock(pWindowData, tsColSlotId, INT64_MIN, end, ppBlock);
-}
-
-static int32_t getSlidingWindowDataInMem(SResultIter* pResult, SGroupDSManager* pGroupData, SWindowData* pWindowData,
-                                         SSDataBlock** ppBlock) {
-  if (pWindowData->wstart >= pResult->reqStartTime && pWindowData->wend <= pResult->reqEndTime) {
-    return getWindowDataInMem(pResult, pWindowData, ppBlock, DATA_CLEAN_EXPIRED);
-  } else if (pResult->reqStartTime >= pWindowData->wstart && pResult->reqStartTime <= pWindowData->wend) {
-    return getSlidingWindowLaterDataInMem(pWindowData, pGroupData->pSinkManager->tsSlotId, pResult->reqStartTime,
-                                          ppBlock);
-  } else {  // (pResult->reqEndTime >= pWindowData->wstart && pResult->reqEndTime <= pWindowData->wend)
-    return getSlidingWindowEarlierDataInMem(pWindowData, pGroupData->pSinkManager->tsSlotId, pResult->reqEndTime,
-                                            ppBlock);
-  }
-}
-  */
 
 static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, bool* finished) {
   int32_t code = TSDB_CODE_SUCCESS;

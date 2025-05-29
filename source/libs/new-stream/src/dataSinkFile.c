@@ -30,9 +30,6 @@
 char      gDataSinkFilePath[PATH_MAX] = {0};
 const int gFileGroupBlockMaxSize = 64 * 1024;  // 64K
 
-void syncWindowDataFileAdd(SWindowDataInFile* pWindowData);
-void syncWindowDataFileDel(SWindowDataInFile* pWindowData);
-
 int32_t initDataSinkFileDir() {
   int32_t code = 0;
   int     ret = tsnprintf(gDataSinkFilePath, sizeof(gDataSinkFilePath), "%s/tdengine_stream_data/", tsTempDir);
@@ -153,15 +150,6 @@ static int32_t addToFreeBlock(SDataSinkFileMgr* pFileMgr, const SFileBlockInfo* 
   return TSDB_CODE_SUCCESS;
 }
 
-void destorySWindowDataInFilePP(void* pData) {
-  SWindowDataInFile** ppWindowData = (SWindowDataInFile**)pData;
-  if (ppWindowData == NULL || (*ppWindowData) == NULL) {
-    return;
-  }
-  syncWindowDataFileDel(*ppWindowData);
-  taosMemoryFree((*ppWindowData));
-}
-
 bool setNextIteratorFromFile(SResultIter** ppResult) {
   SResultIter*       pResult = *ppResult;
     if (pResult->cleanMode == DATA_CLEAN_EXPIRED) {
@@ -178,20 +166,6 @@ bool setNextIteratorFromFile(SResultIter** ppResult) {
     return pAlignGrpMgr->blocksInMem->size == 0;
   }
   return true;
-}
-
-void syncWindowDataFileAdd(SWindowDataInFile* pWindowData) {
-  int32_t size = pWindowData->dataLen;
-  // atomic_add_fetch_64(&pWindowData->pGroupDataInfoMgr->usedMemSize, size);
-  // atomic_add_fetch_64(&pWindowData->pGroupDataInfoMgr->pSinkManager->usedMemSize, size);
-  // atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, size);
-}
-
-void syncWindowDataFileDel(SWindowDataInFile* pWindowData) {
-  int32_t size = pWindowData->dataLen;
-  // atomic_sub_fetch_64(&pWindowData->pGroupDataInfoMgr->usedMemSize, size);
-  // atomic_sub_fetch_64(&pWindowData->pGroupDataInfoMgr->pSinkManager->usedMemSize, size);
-  // atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, size);
 }
 
 static int32_t appendTmpSBlocksInMem(SResultIter* pResult, SSDataBlock* pBlock) {
