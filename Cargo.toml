@@ -32,6 +32,7 @@ arrow-flight = { version = "54.2.0" }
 arrow-schema = { version = "54.2.0", features = ["serde"] }
 arrow-compute-ext = { path = "crates/arrow-compute-ext" }
 arrow-cast-guess-precision = { path = "crates/arrow-cast-guess-precision" }
+serde_arrow = { version = "0.13.3", features = ["arrow-54"] }
 futures-ext = { path = "crates/futures-ext" }
 dashmap = "6.1.0"
 faststr = { version = "0.2.31", features = ["serde"] }
@@ -72,6 +73,9 @@ rand = "0.8"
 bitfield = "0.16.1"
 bigdecimal = "0.4"
 
+prost = "0.13"
+prost-build = "0.13"
+
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
 rev = "c5d5b9b1"
@@ -81,7 +85,7 @@ features = ["ws", "optin", "deadpool"]
 
 [workspace.package]
 version = "1.10.0"
-rust-version = "1.78.0"
+rust-version = "1.83.0"
 
 [workspace.lints.clippy]
 too_many_arguments = "allow"

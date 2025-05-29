@@ -493,6 +493,7 @@ pub async fn init_task_metrics(
             | "pi"
             | "pibackfill"
             | "mqtt"
+            | runners::sparkplugb::SPARKPLUGB_ID
             | "influxdb"
             | "opentsdb"
             | runners::kafka::KAFKA_ID

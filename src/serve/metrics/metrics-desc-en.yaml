@@ -103,3 +103,7 @@ out_of_range_rows: Number of rows out of time range in this task run
 total_out_of_range_rows: Total number of rows out of time range
 archived_rows: Number of rows archived
 total_archived_rows: Total number of rows archived
+spb_received_messages: Total number of messages fetched in this task run
+spb_received_metrics: Total number of metrics fetched in this task run
+spb_fetched_acks: Total number of ACKs received in this task run
+spb_sent_batches: Number of batches sent in this task run

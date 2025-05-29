@@ -159,7 +159,7 @@ pub(crate) struct Certificates {
     cert_key: Option<Vec<u8>>,
 }
 
-fn parse_tls_certificates(dsn: &Dsn) -> anyhow::Result<Option<Certificates>> {
+pub(crate) fn parse_tls_certificates(dsn: &Dsn) -> anyhow::Result<Option<Certificates>> {
     let ca = parse_from_param_or_file(dsn, "ca")?;
     let cert = parse_from_param_or_file(dsn, "cert")?;
     let cert_key = parse_from_param_or_file(dsn, "cert_key")?;
@@ -167,7 +167,9 @@ fn parse_tls_certificates(dsn: &Dsn) -> anyhow::Result<Option<Certificates>> {
     Ok(ca.map(|ca| Certificates { ca, cert, cert_key }))
 }
 
-pub fn build_tls_config(certificates: Option<&Certificates>) -> anyhow::Result<TlsConfiguration> {
+pub(crate) fn build_tls_config(
+    certificates: Option<&Certificates>,
+) -> anyhow::Result<TlsConfiguration> {
     let mut root_cert_store = rustls::RootCertStore::empty();
     // 添加机器上的 ca
     root_cert_store.add_parsable_certificates(
@@ -245,14 +247,14 @@ pub fn build_tls_config(certificates: Option<&Certificates>) -> anyhow::Result<T
     Ok(tls_config)
 }
 
-fn parse_host_port(dsn: &Dsn) -> anyhow::Result<(String, u16)> {
+pub fn parse_host_port(dsn: &Dsn) -> anyhow::Result<(String, u16)> {
     dsn.addresses
         .first()
         .and_then(|addr| addr.host.clone().zip(addr.port))
         .context("mqtt invalid address")
 }
 
-fn parse_keep_alive(dsn: &Dsn) -> anyhow::Result<Duration> {
+pub fn parse_keep_alive(dsn: &Dsn) -> anyhow::Result<Duration> {
     let keep_alive = parse_simple_params::<u64>(dsn, "keep_alive")?.unwrap_or(5);
     anyhow::ensure!(
         keep_alive >= 5,
@@ -261,22 +263,22 @@ fn parse_keep_alive(dsn: &Dsn) -> anyhow::Result<Duration> {
     Ok(Duration::from_secs(keep_alive))
 }
 
-fn parse_version(dsn: &Dsn) -> anyhow::Result<Version> {
+pub fn parse_version(dsn: &Dsn) -> anyhow::Result<Version> {
     parse_simple_params(dsn, "version")?.context("MQTT version is required")
 }
 
-fn parse_client_id(dsn: &Dsn) -> anyhow::Result<String> {
+pub fn parse_client_id(dsn: &Dsn) -> anyhow::Result<String> {
     dsn.get("client_id")
         .map(|v| v.trim().to_string())
         .filter(|v| !v.is_empty())
         .context("MQTT client id is requeired")
 }
 
-fn parse_clean_session(dsn: &Dsn) -> anyhow::Result<bool> {
+pub fn parse_clean_session(dsn: &Dsn) -> anyhow::Result<bool> {
     Ok(parse_simple_params(dsn, "clean_session")?.unwrap_or(true))
 }
 
-fn parse_topics(dsn: &Dsn) -> anyhow::Result<HashMap<String, u8>> {
+pub fn parse_topics(dsn: &Dsn) -> anyhow::Result<HashMap<String, u8>> {
     dsn.get("topics")
         .map(|v| v.trim())
         .filter(|v| !v.is_empty())

@@ -14,6 +14,7 @@ chrono-tz = { workspace = true }
 arrow = { workspace = true }
 arrow-schema = { workspace = true, features = ["serde"] }
 arrow-flight = { workspace = true }
+serde_arrow = { workspace = true }
 faststr = { workspace = true }
 parquet = { workspace = true }
 rayon = { workspace = true }
@@ -178,6 +179,8 @@ awaitgroup = "0.7.0"
 
 persist-queue = { path = "../crates/persist-queue" }
 
+prost.workspace = true
+
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
 openssl = "0.10.55"
@@ -209,7 +212,7 @@ disable-enterprise-connector-validation = []
 [build-dependencies]
 dotenv = "0.15.0"
 shadow-rs = { workspace = true }
-
+prost-build.workspace = true
 
 [dev-dependencies]
 pretty_env_logger = "0.5.0"

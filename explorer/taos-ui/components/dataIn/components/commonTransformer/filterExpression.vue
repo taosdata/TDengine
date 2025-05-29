@@ -24,7 +24,7 @@
 </template>
 <script setup lang="ts">
 import { t } from 'locales';
-import { transformerState } from './util';
+import { transformerState, supportTransform } from './util';
 import { getDataInProps } from 'components/dataIn/model/useDataIn';
 const dataInProps = getDataInProps();
 
@@ -125,7 +125,23 @@ async function getParserData(data: any) {
         ]);
     transformerState.showResultTb = true;
     transformerState.resultTbTitle = 'filterResTb';
-    transformerState.transformResultTable = tableData.value;
+    transformerState.transformResultTable = supportTransform.is_sparkplugb ? result.map((entry: any) => {
+      return entry.columns.map((data: any) => {
+        return Object.fromEntries(
+          entry.fields
+            .map((item: { name: any }, index: string | number) => {
+              return [
+                item.name,
+                filterEmpty(data[index])
+                  ? Array.isArray(data[index])
+                    ? JSON.stringify(data[index])
+                    : data[index].toString()
+                  : null
+              ];
+            })
+        );
+      });
+    }).flat(Infinity) : tableData.value;
 
     const transformerColumns = [
       {
@@ -155,6 +171,16 @@ async function getParserData(data: any) {
     console.log(error);
   }
 }
+function filterEmpty(val: any) {
+  if (Object.is(val, undefined) || Object.is(val, '') || Object.is(val, null)) {
+    return '';
+  }
+  if (Object.is(val, 0) || Object.is(val, false) || Object.is(val, true) || typeof val == 'object') {
+    return val.toString();
+  }
+  return val;
+}
+
 //删除filter
 function deleteFilter() {
   emit('delete-filter', props.itemData.key);
@@ -163,15 +189,28 @@ function deleteFilter() {
 const generateInput = inject('generateInput');
 //提交
 function submitFilter() {
-  const parser = {
-    parser: {
-      parse: transformerState.topParse?.parser.parse,
-      mutate: transformerState.transformExtractParseData
-        ? [{ ...transformerState.transformExtractParseData }, { filter: ruleForm.filter_name.trim() }]
-        : [{ filter: ruleForm.filter_name.trim() }]
-    },
-    input: props.datasourceType === 'csv' ? transformerState.csvTransformerParser?.inputList : generateInput()
-  };
+  let parser;
+  if (supportTransform.is_sparkplugb) {
+    parser = {
+      parser: {
+        parse: transformerState.topParse?.parser.parse,
+        mutate: transformerState.transformExtractParseData
+          ? [{ ...transformerState.transformExtractParseData }, { filter: ruleForm.filter_name.trim() }]
+          : [{ filter: ruleForm.filter_name.trim() }],
+      },
+      samples: Array.from(Object.values(generateInput()[0]))
+    };
+  } else {
+    parser = {
+      parser: {
+        parse: transformerState.topParse?.parser.parse,
+        mutate: transformerState.transformExtractParseData
+          ? [{ ...transformerState.transformExtractParseData }, { filter: ruleForm.filter_name.trim() }]
+          : [{ filter: ruleForm.filter_name.trim() }],
+      },
+      input: props.datasourceType === 'csv' ? transformerState.csvTransformerParser?.inputList : generateInput()
+    };
+  }
 
   transformerState.transformerFilterParseData = {
     filter: ruleForm.filter_name

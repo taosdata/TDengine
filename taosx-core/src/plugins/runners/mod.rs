@@ -28,6 +28,7 @@ pub mod opentsdb;
 pub mod oracle;
 pub mod pi;
 pub mod postgres;
+pub mod sparkplugb;
 
 pub const ENV_PLUGINS_HOME: &str = "PLUGINS_HOME";
 pub const ENV_TAOSX_PLUGINS_HOME: &str = "TAOSX_PLUGINS_HOME";

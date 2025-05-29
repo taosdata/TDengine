@@ -10,7 +10,6 @@ use clap::Parser;
 use crossterm::event::EventStream;
 use faststr::FastStr;
 use futures::{future::Either, StreamExt};
-use rand::distributions::{Alphanumeric, DistString};
 use rumqttc::{
     v5::{
         mqttbytes::{
@@ -28,7 +27,7 @@ use tokio_util::sync::CancellationToken;
 
 use taosx_tools::{
     codec::{Compression, Encoding, Processor},
-    csv_reader, select3,
+    csv_reader, generate_random_string, select3,
     topic::TopicFaker,
     topic_fuzzy::TopicFuzzer,
     Select3,
@@ -485,10 +484,6 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn generate_random_string(length: usize) -> String {
-    Alphanumeric.sample_string(&mut rand::thread_rng(), length)
-}
-
 fn timeout_or_never(
     fut: Option<tokio::time::Instant>,
 ) -> Either<tokio::time::Sleep, std::future::Pending<()>> {
@@ -588,7 +583,7 @@ type = "object"
 
 [schema.payload.properties]
 ts = { type = "timestamp", start_time = 2025-10-01T00:00:00.888888888, interval = "1ns" }
-value = { type = "option", value = { type = "string", length = { range = { min = 10, max = 1000 } } } }
+value = { type = "option", value = { type = "string", random = { length = { range = { min = 10, max = 1000 } } } } }
         "#,
         )?;
         assert_eq!(schema.schema.len(), 1);
@@ -617,7 +612,7 @@ type = "option"
 
 [properties.value.value]
 type = "string"
-length = { range = { min = 10, max = 1000 } }
+random = { length = { range = { min = 10, max = 1000 } } }
         "#
             )?
         );

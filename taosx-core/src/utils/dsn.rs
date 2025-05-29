@@ -51,7 +51,7 @@ pub fn dsn_to_json(dsn: &Dsn) -> serde_json::Value {
     }
     // custom parameters for different drivers
     match dsn.driver.to_lowercase().as_str() {
-        "mqtt" | "kafka" => {
+        "mqtt" | "kafka" | "sparkplugb" => {
             // 192.168.1.45:1883,192.168.1.46:1883,...
             let endpoint = dsn
                 .addresses
@@ -198,7 +198,7 @@ pub fn json_to_dsn(json: &serde_json::Value) -> anyhow::Result<Dsn> {
     dsn.subject = params_map.remove("subject").map(|s| s.to_string());
     // custom parameters for different drivers
     match dsn.driver.to_lowercase().as_str() {
-        "mqtt" | "kafka" => {
+        "mqtt" | "kafka" | "sparkplugb" => {
             // 192.168.1.45:1883,192.168.1.46:1883,...
             let endpoint = params_map.remove("endpoint").map(|s| s.to_string());
             if let Some(endpoint) = endpoint {

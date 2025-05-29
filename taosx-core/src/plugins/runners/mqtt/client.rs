@@ -1,4 +1,4 @@
-use std::{future::Future, string::FromUtf8Error};
+use std::future::Future;
 
 use bytes::Bytes;
 
@@ -13,59 +13,17 @@ const MAX_RETRY_COUNT: i32 = 10;
 
 #[derive(Debug, snafu::Snafu)]
 pub enum Error {
-    #[snafu(display("Invalid mqtt tls config"))]
-    InvalidTls { source: anyhow::Error },
-    #[snafu(display("Invalid QoS: {qos}"))]
-    InvalidQoS { qos: u8 },
-    #[snafu(display("Receive unexpected MQTT packet, expected ConnAck"))]
-    ExpectedConnAck,
-    #[snafu(display("Receive unexpected MQTT packet, expected SubAck"))]
-    ExpectedSubAck,
-    #[snafu(display("MQTT connection error"))]
-    ConnectionErrorV3 { source: rumqttc::ConnectionError },
-    #[snafu(display("MQTT connect failed with code: {code:?}"))]
-    ConnFailedWithCodeV3 { code: rumqttc::ConnectReturnCode },
-    #[snafu(display("MQTT subscribe {topic:?} failed with code: {code:?}"))]
-    SubFailedWithCodeV3 {
-        topic: Option<String>,
-        code: rumqttc::SubscribeReasonCode,
-    },
-    #[snafu(display("MQTT connection error"))]
-    ConnectionErrorV5 {
-        source: rumqttc::v5::ConnectionError,
-    },
-    #[snafu(display("MQTT connect failed with code: {code:?}"))]
-    ConnFailedWithCodeV5 {
-        code: rumqttc::v5::mqttbytes::v5::ConnectReturnCode,
-    },
-    #[snafu(display("MQTT subscribe {topic:?} failed with code: {code:?}"))]
-    SubFailedWithCodeV5 {
-        topic: Option<String>,
-        code: rumqttc::v5::mqttbytes::v5::SubscribeReasonCode,
-    },
-    #[snafu(display("MQTT task exited"))]
-    TaskExited,
-    #[snafu(display("MQTT connection error"))]
-    UnexpectedPollErrorV3 { source: rumqttc::ConnectionError },
-    #[snafu(display("MQTT connection error"))]
-    UnexpectedPollErrorV5 {
-        source: rumqttc::v5::ConnectionError,
-    },
-    #[snafu(display("MQTT reconnect failed for too many times"))]
-    RetryTooManyTimesV3 { source: rumqttc::ConnectionError },
-    #[snafu(display("MQTT reconnect failed for too many times"))]
-    RetryTooManyTimesV5 {
-        source: rumqttc::v5::ConnectionError,
-    },
-    #[snafu(display("Invalid UTF-8"))]
-    InvalidUtf8 { source: FromUtf8Error },
-    #[snafu(display("MQTT subscription not found"))]
-    SubscriptionEmpty,
     #[snafu(display("Invalid MQTT version"))]
     InvalidVersion { version: String },
+    #[snafu(display("Invalid QoS: {qos}"))]
+    InvalidQoS { qos: u8 },
+    #[snafu(context(false))]
+    V3 { source: v3::Error },
+    #[snafu(context(false))]
+    V5 { source: v5::Error },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Version {
     V3,
     V5,
@@ -84,17 +42,24 @@ impl std::str::FromStr for Version {
 }
 
 pub trait MessagePoller {
+    type Client;
+    type Error;
+
+    fn client(&self) -> Self::Client;
+
     fn from_config<I>(
         config: &MqttConnectConfig,
         subscriptions: I,
-    ) -> impl Future<Output = Result<Self, Error>> + Send
+    ) -> impl Future<Output = Result<Self, Self::Error>> + Send
     where
         I: IntoIterator<Item = (String, u8)> + Send,
         Self: Sized;
 
-    fn try_connect(config: &MqttConnectConfig) -> impl Future<Output = Result<(), Error>> + Send;
+    fn try_connect(
+        config: &MqttConnectConfig,
+    ) -> impl Future<Output = Result<(), Self::Error>> + Send;
 
-    fn poll(&mut self) -> impl Future<Output = Result<Message, Error>> + Send;
+    fn poll(&mut self) -> impl Future<Output = Result<Message, Self::Error>> + Send;
 }
 
 #[derive(Clone)]
@@ -105,12 +70,44 @@ pub struct Message {
     pub payload: Bytes,
 }
 
+#[derive(Clone)]
+pub enum GenericClient {
+    V3(rumqttc::AsyncClient),
+    V5(rumqttc::v5::AsyncClient),
+}
+
+impl GenericClient {
+    pub async fn publish(&self, topic: &str, qos: u8, payload: Vec<u8>) -> Result<bool, Error> {
+        match self {
+            GenericClient::V3(client) => {
+                let qos = rumqttc::qos(qos).map_err(|_| InvalidQoSSnafu { qos }.build())?;
+                Ok(client.publish(topic, qos, false, payload).await.is_ok())
+            }
+            GenericClient::V5(client) => {
+                let qos =
+                    rumqttc::v5::mqttbytes::qos(qos).ok_or(InvalidQoSSnafu { qos }.build())?;
+                Ok(client.publish(topic, qos, false, payload).await.is_ok())
+            }
+        }
+    }
+}
+
 pub enum GenericMessagePoller {
     V3(v3::MessagePoller),
     V5(v5::MessagePoller),
 }
 
 impl MessagePoller for GenericMessagePoller {
+    type Client = GenericClient;
+    type Error = Error;
+
+    fn client(&self) -> Self::Client {
+        match self {
+            GenericMessagePoller::V3(poller) => GenericClient::V3(poller.client()),
+            GenericMessagePoller::V5(poller) => GenericClient::V5(poller.client()),
+        }
+    }
+
     async fn from_config<I>(config: &MqttConnectConfig, subscriptions: I) -> Result<Self, Error>
     where
         I: IntoIterator<Item = (String, u8)> + Send,
@@ -127,15 +124,15 @@ impl MessagePoller for GenericMessagePoller {
 
     async fn try_connect(config: &MqttConnectConfig) -> Result<(), Error> {
         match config.version {
-            Version::V3 => v3::MessagePoller::try_connect(config).await,
-            Version::V5 => v5::MessagePoller::try_connect(config).await,
+            Version::V3 => Ok(v3::MessagePoller::try_connect(config).await?),
+            Version::V5 => Ok(v5::MessagePoller::try_connect(config).await?),
         }
     }
 
     async fn poll(&mut self) -> Result<Message, Error> {
         match self {
-            GenericMessagePoller::V3(poller) => poller.poll().await,
-            GenericMessagePoller::V5(poller) => poller.poll().await,
+            GenericMessagePoller::V3(poller) => Ok(poller.poll().await?),
+            GenericMessagePoller::V5(poller) => Ok(poller.poll().await?),
         }
     }
 }

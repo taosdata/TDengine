@@ -100,3 +100,7 @@ out_of_range_rows: 本次运行此任务超出时间范围的行数
 total_out_of_range_rows: 累计超出时间范围的行数
 archived_rows: 本次运行此任务归档的行数
 total_archived_rows: 累计归档的行数
+spb_received_messages: 本次运行任务消息拉取总数量
+spb_received_metrics: 本次运行任务指标拉取总数量
+spb_fetched_acks: 本次运行任务接收到的 ACK 总数
+spb_sent_batches: 本次运行任务已发送的批次数量

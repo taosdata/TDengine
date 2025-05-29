@@ -17,6 +17,7 @@ flate2 = "1.0.34"
 flume.workspace = true
 fundu.workspace = true
 futures.workspace = true
+faststr.workspace = true
 lz4 = "1.28.0"
 rand.workspace = true
 rayon.workspace = true
@@ -44,7 +45,7 @@ socket2 = "0.5.8"
 num-traits = "0.2"
 num-integer = "0.1"
 num-bigint = "0.4"
-faststr.workspace = true
+prost.workspace = true
 paste = "1"
 
 [lints]

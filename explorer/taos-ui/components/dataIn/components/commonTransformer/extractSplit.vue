@@ -1,60 +1,36 @@
 <template>
-  <div
-    :class="[
-      'extract-split',
-      itemData.columnname && itemData.columnname == transformerState.transResultName ? 'active' : ''
-    ]"
-  >
+  <div :class="[
+    'extract-split',
+    itemData.columnname && itemData.columnname == transformerState.transResultName ? 'active' : ''
+  ]">
     <div class="extract-item">
       <el-form ref="extractFormRef" :model="ruleForm" :rules="rules" size="default">
         <el-form-item prop="col_name">
-          <el-select
-            v-model="ruleForm.col_name"
-            :placeholder="t('dataIn.transformer.col_select')"
-            :disabled="ruleForm.col_name != '' && itemData.columnname != ''"
-            @change="selectCol"
-          >
-            <el-option
-              v-for="(item, index) in extractColumns"
-              :key="index"
-              :label="item.name"
-              :value="item.name"
-              :disabled="!item.show"
-            ></el-option>
+          <el-select v-model="ruleForm.col_name" :placeholder="t('dataIn.transformer.col_select')"
+            :disabled="ruleForm.col_name != '' && itemData.columnname != ''" @change="selectCol">
+            <el-option v-for="(item, index) in extractColumns" :key="index" :label="item.name" :value="item.name"
+              :disabled="!item.show"></el-option>
           </el-select>
         </el-form-item>
         <el-form-item prop="filter_name">
-          <el-select
-            v-model="ruleForm.filter_name"
-            :placeholder="t('dataIn.transformer.filter_type')"
-            :disabled="isViewable"
-            style="width: 120px; min-width: 120px"
-            @change="changeExtractType"
-          >
-            <el-option
-              v-for="item in extractTypes"
-              :key="item"
-              :label="item"
-              :value="item"
-              :disabled="item == 'join' && itemData.value_type !== 'array'"
-            ></el-option>
+          <el-select v-model="ruleForm.filter_name" :placeholder="t('dataIn.transformer.filter_type')"
+            :disabled="isViewable" style="width: 120px; min-width:120px;" @change="changeExtractType">
+            <el-option v-for="item in extractTypes" :key="item" :label="item" :value="item"
+              :disabled="item == 'join' && itemData.value_type !== 'array'"></el-option>
           </el-select>
         </el-form-item>
         <el-form-item prop="filter_expres">
           <template v-if="ruleForm.filter_name == 'split'">
-            <SplitExpression
-              ref="splitExpressionRef"
-              :rule-form="itemData.splitParams"
-              :is-viewable="isViewable"
-            ></SplitExpression>
+            <SplitExpression ref="splitExpressionRef" :rule-form="itemData.splitParams" :is-viewable="isViewable">
+            </SplitExpression>
           </template>
-          <el-input
-            v-else
-            v-model="ruleForm.filter_expres"
-            :placeholder="t('dataIn.transformer.expre_' + ruleForm.filter_name)"
-            :disabled="isViewable"
-            @input="changeExtractExpr"
-          ></el-input>
+          <template v-else-if="ruleForm.filter_name == 'convert'">
+            <ConvertExpression ref="convertExpressionRef" :rule-form="itemData.convertParams" :is-viewable="isViewable">
+            </ConvertExpression>
+          </template>
+          <el-input v-else v-model="ruleForm.filter_expres"
+            :placeholder="t('dataIn.transformer.expre_' + ruleForm.filter_name)" :disabled="isViewable"
+            @input="changeExtractExpr"></el-input>
         </el-form-item>
       </el-form>
 
@@ -80,10 +56,11 @@
 <script setup lang="ts">
 import { getTimeParser } from 'components/dataIn/model/util';
 import SplitExpression from './splitExpression.vue';
+import ConvertExpression from './convertExpression.vue';
 import { cloneDeep } from 'lodash-es';
 import { transformerState, supportTransform, defaultColsMap, hiddenColsMap, checkParseData, filterEmpty } from './util';
 import { t } from 'locales';
-import { TransformExtractParseDataType, TopParseType } from './type';
+import { TransformExtractParseDataType, TopParseType, SpbTopParseType } from './type';
 import { getDataInProps } from 'components/dataIn/model/useDataIn';
 const dataInProps = getDataInProps();
 
@@ -137,6 +114,7 @@ const rules = reactive({
 
 const tableData = ref<Recordable[]>([]);
 const splitExpressionRef = ref();
+const convertExpressionRef = ref();
 const extractFormRef = ref();
 
 const emit = defineEmits([
@@ -250,16 +228,16 @@ async function getParserData(data: any, isall: boolean | undefined) {
       props.datasourceType == 'csv'
         ? result[0].fields
         : result[0].fields.filter((val: { name: string }) => {
-            if (props.datasourceType == 'mqtt' && !defaultColsMap.mqtt.includes(val.name)) {
-              return val;
-            } else if (props.datasourceType == 'kafka' && !defaultColsMap.kafka.includes(val.name)) {
-              return val;
-            } else if (props.datasourceType == 'mongodb' && !defaultColsMap.mongodb.includes(val.name)) {
-              return val;
-            } else {
-              return val;
-            }
-          })
+          if (props.datasourceType == 'mqtt' && !defaultColsMap.mqtt.includes(val.name)) {
+            return val;
+          } else if (props.datasourceType == 'kafka' && !defaultColsMap.kafka.includes(val.name)) {
+            return val;
+          } else if (props.datasourceType == 'mongodb' && !defaultColsMap.mongodb.includes(val.name)) {
+            return val;
+          } else {
+            return val;
+          }
+        })
     ).map((item: { name: any; type: string }) => {
       return {
         description: item.name,
@@ -270,20 +248,37 @@ async function getParserData(data: any, isall: boolean | undefined) {
       };
     });
 
-    tbdata = result[0].columns.map((data: { toString: () => any }[]) => {
-      return Object.fromEntries(
-        result[0].fields.map((item: { name: any }, index: number) => {
-          return [
-            item.name,
-            filterEmpty(data[index])
-              ? Array.isArray(data[index])
-                ? JSON.stringify(data[index])
-                : data[index].toString()
-              : null
-          ];
-        })
-      );
-    });
+    tbdata = supportTransform.is_sparkplugb ?
+      result.map((result: any) => {
+        return result.columns.map((data: { toString: () => any }[]) => {
+          return Object.fromEntries(
+            result.fields.map((item: { name: any }, index: number) => {
+              return [
+                item.name,
+                filterEmpty(data[index])
+                  ? Array.isArray(data[index])
+                    ? JSON.stringify(data[index])
+                    : data[index].toString()
+                  : null
+              ];
+            })
+          );
+        });
+      }).flat(Infinity)
+      : result[0].columns.map((data: { toString: () => any }[]) => {
+        return Object.fromEntries(
+          result[0].fields.map((item: { name: any }, index: number) => {
+            return [
+              item.name,
+              filterEmpty(data[index])
+                ? Array.isArray(data[index])
+                  ? JSON.stringify(data[index])
+                  : data[index].toString()
+                : null
+            ];
+          })
+        );
+      });
 
     if (isall) {
       transformerColumns.splice(1, 1, mappingObj);
@@ -384,8 +379,8 @@ function getInputList(resultMsgbody: string[], isall?: boolean): Recordable[] {
               ? msg
               : isJson.value
                 ? JSON.stringify({
-                    [`${props.itemData.columnname}`]: JSON.parse(msg.replace(/\n/g, '\\n'))[props.itemData.columnname]
-                  })
+                  [`${props.itemData.columnname}`]: JSON.parse(msg.replace(/\n/g, '\\n'))[props.itemData.columnname]
+                })
                 : msg;
           } else {
             inputobj[item.name] = item.type == 'timestamp' ? getTimeParser(new Date()) : item.name;
@@ -396,8 +391,8 @@ function getInputList(resultMsgbody: string[], isall?: boolean): Recordable[] {
               ? msg
               : isJson.value
                 ? JSON.stringify({
-                    [`${props.itemData.columnname}`]: JSON.parse(msg)[props.itemData.columnname]
-                  })
+                  [`${props.itemData.columnname}`]: JSON.parse(msg)[props.itemData.columnname]
+                })
                 : msg;
           } else {
             inputobj[item.name] = item.type == 'timestamp' ? getTimeParser(new Date()) : item.name;
@@ -408,8 +403,8 @@ function getInputList(resultMsgbody: string[], isall?: boolean): Recordable[] {
               ? msg
               : isJson.value
                 ? JSON.stringify({
-                    [`${props.itemData.columnname}`]: JSON.parse(msg)[props.itemData.columnname]
-                  })
+                  [`${props.itemData.columnname}`]: JSON.parse(msg)[props.itemData.columnname]
+                })
                 : msg;
           } else {
             inputobj[item.name] = item.type == 'timestamp' ? getTimeParser(new Date()) : item.name;
@@ -455,17 +450,29 @@ function getExtractData(): Recordable {
         Object.hasOwnProperty.call(splitobj, 'names') ? (splitobj['names'] = splitobj['names'].split(',')) : splitobj;
         value = splitobj;
       } else if (item.type === 'convert') {
-        value = item.expression ? JSON.parse(item.expression) : {};
+        const convertobj: Recordable = Object.fromEntries(
+          Object.entries(item.convertParams).filter(([value]) => value != null && value !== '')
+        );
+        value = {
+          convert: typeof convertobj.convert == "string" ? JSON.parse(convertobj.convert) : convertobj.convert,
+          new_field_name: convertobj.new_field_name
+        };
       } else {
         // 处理其他类型
         value = item.expression ? item.expression.split(';').map((str: string) => str.trim()) : item.expression;
       }
 
-      return {
-        [`${item.columnname}`]: {
-          [`${item.type}`]: value
-        }
-      };
+      if (item.type === 'convert') {
+        return {
+          [`${item.columnname}`]: value
+        };
+      } else {
+        return {
+          [`${item.columnname}`]: {
+            [`${item.type}`]: value
+          }
+        };
+      }
     })
     .forEach(val => {
       Object.assign(extractParseData['extract'], val);
@@ -485,17 +492,38 @@ function getParserParams(isall?: boolean): Recordable {
   const resultMsgbody = getResultMsgbody();
   const inputList = getInputList(resultMsgbody, isall);
   const slicedObj = getExtractData();
-  const topparse = cloneDeep(transformerState.topParse) as TopParseType;
 
-  topparse['parser']['mutate'] = isall
-    ? [{ extract: slicedObj }]
-    : [
+  if (supportTransform.is_sparkplugb) {
+    const topparse = cloneDeep(transformerState.topParse) as SpbTopParseType;
+    topparse['parser']['mutate'] = isall
+      ? [{ extract: slicedObj }]
+      : [
         {
           extract: {
             [`${props.itemData.columnname}`]: extractParseData['extract'][props.itemData.columnname]
           }
         }
       ];
+    return {
+      parser: {
+        parse: topparse.parser.parse,
+        mutate: topparse['parser']['mutate']
+      },
+      samples: topparse.samples
+    }
+  }
+
+  const topparse = cloneDeep(transformerState.topParse) as TopParseType;
+
+  topparse['parser']['mutate'] = isall
+    ? [{ extract: slicedObj }]
+    : [
+      {
+        extract: {
+          [`${props.itemData.columnname}`]: extractParseData['extract'][props.itemData.columnname]
+        }
+      }
+    ];
 
   const parser = {
     parser: {
@@ -507,22 +535,22 @@ function getParserParams(isall?: boolean): Recordable {
         ? isall
           ? transformerState.csvTransformerParser?.inputList
           : transformerState.csvTransformerParser?.inputList.map(item => {
-              if (Object.keys(item).includes(props.itemData.columnname)) {
-                return {
-                  [props.itemData.columnname]: item[props.itemData.columnname]
-                };
-              }
-            })
+            if (Object.keys(item).includes(props.itemData.columnname)) {
+              return {
+                [props.itemData.columnname]: item[props.itemData.columnname]
+              };
+            }
+          })
         : supportTransform.supportSQL
           ? isall
             ? topparse.input
             : [
-                topparse.input.map((_item, index) => {
-                  return {
-                    [`${props.itemData.columnname}`]: topparse.input[index][props.itemData.columnname]
-                  };
-                })
-              ]
+              topparse.input.map((_item, index) => {
+                return {
+                  [`${props.itemData.columnname}`]: topparse.input[index][props.itemData.columnname]
+                };
+              })
+            ]
           : inputList
   };
 

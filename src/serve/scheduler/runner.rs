@@ -25,7 +25,7 @@ use taosx_core::{
         save_task_metrics_finally, CoreMetrics, TaskMetrics, GLOBAL_METRICS,
     },
     dsv::DataSourceValidation,
-    plugins,
+    plugins::{self, transform::sample::DsSamples},
     sink::ipc_metric::IpcMetrics,
     task_set::prelude::EventLevel,
     utils::{
@@ -297,7 +297,7 @@ impl AgentRuntimeRef {
         }
     }
 
-    pub async fn get_sample(&self, agent_id: i64, dsn: String) -> anyhow::Result<DsSampleIn> {
+    pub async fn get_sample(&self, agent_id: i64, dsn: String) -> anyhow::Result<DsSamples> {
         match self {
             Self::Server(rt) => rt.get_sample(agent_id, dsn).await,
             Self::Client(_) => {

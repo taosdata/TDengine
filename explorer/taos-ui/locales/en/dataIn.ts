@@ -355,6 +355,8 @@ export default {
     sp: 'Please select the target super table',
     septip: 'Please enter the separator',
     sepntip: 'Please enter the separator number',
+    convtip: 'Please enter the rules',
+    convnametip: 'Please enter new field name',
     csvtip: 'The number of custom columns must be equal to the number of CSV columns',
     identified: '1. Column Identified',
     preview: 'Preview',

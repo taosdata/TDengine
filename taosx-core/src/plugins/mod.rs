@@ -10,9 +10,9 @@ use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 use tracing::Instrument;
 use tracing::Span;
+use transform::sample::DsSamples;
 
 use crate::dsv::DataSourceValidation;
-use crate::plugins::transform::sample::DsSampleIn;
 use crate::runners::influxdb::influxdb_datasets;
 use crate::utils::dsn::json_to_dsn;
 use crate::utils::mask_dsn;
@@ -237,6 +237,9 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
             "influxdb" => runners::influxdb::is_valid(&dsn).await,
             runners::kafka::KAFKA_ID => runners::kafka::is_valid(&dsn).await,
             runners::mqtt::MQTT_ID => runners::mqtt::is_valid(&dsn).await,
+            runners::sparkplugb::SPARKPLUGB_ID => {
+                runners::sparkplugb::validate::is_valid(&dsn).await
+            }
             "opc" | "opcda" | "opcua" => runners::opc::is_valid(&dsn).await,
             "opentsdb" => runners::opentsdb::is_valid(&dsn).await,
             "pi" | "pibackfill" => runners::pi::is_pi_valid(&dsn).await,
@@ -258,29 +261,52 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
     }
 }
 
-pub async fn get_sample(dsn: impl IntoDsn) -> anyhow::Result<DsSampleIn> {
+pub async fn get_sample(dsn: impl IntoDsn) -> anyhow::Result<DsSamples> {
     let dsn = dsn
         .into_dsn()
         .map_err(|err| anyhow::format_err!("invalid dsn, cause: {err}"))?;
     match dsn.driver.as_str() {
-        runners::historian::AVEVA_HISTORIAN_ID => runners::historian::get_sample(&dsn).await,
+        runners::historian::AVEVA_HISTORIAN_ID => runners::historian::get_sample(&dsn)
+            .await
+            .map(DsSamples::Simple),
         runners::kafka::KAFKA_ID => {
             let limit = parse_sample_limit(&dsn);
             let timeout = parse_sample_timeout(&dsn);
-            runners::kafka::get_sample(&dsn, limit, timeout).await
+            runners::kafka::get_sample(&dsn, limit, timeout)
+                .await
+                .map(DsSamples::Simple)
         }
         runners::mqtt::MQTT_ID => {
             let limit = parse_sample_limit(&dsn);
             let timeout = parse_sample_timeout(&dsn);
-            runners::mqtt::get_sample(&dsn, limit, timeout).await
+            runners::mqtt::get_sample(&dsn, limit, timeout)
+                .await
+                .map(DsSamples::Simple)
         }
-        runners::mysql::MYSQL_ID => runners::mysql::get_sample(&dsn).await,
-        runners::postgres::POSTGRES_ID => runners::postgres::get_sample(&dsn).await,
-        runners::oracle::ORACLE_ID => runners::oracle::get_sample(&dsn).await,
-        runners::mssql::MSSQL_ID => runners::mssql::get_sample(&dsn).await,
-        runners::mongodb::MONGODB_ID => runners::mongodb::get_sample(&dsn).await,
-        _ => Err(anyhow::anyhow!(
-            "get sample from data source is unsupported"
+        runners::sparkplugb::SPARKPLUGB_ID => {
+            let limit = parse_sample_limit(&dsn);
+            let timeout = parse_sample_timeout(&dsn);
+            runners::sparkplugb::sample::get_sample(&dsn, limit, timeout)
+                .await
+                .map(DsSamples::MultiSchema)
+        }
+        runners::mysql::MYSQL_ID => runners::mysql::get_sample(&dsn)
+            .await
+            .map(DsSamples::Simple),
+        runners::postgres::POSTGRES_ID => runners::postgres::get_sample(&dsn)
+            .await
+            .map(DsSamples::Simple),
+        runners::oracle::ORACLE_ID => runners::oracle::get_sample(&dsn)
+            .await
+            .map(DsSamples::Simple),
+        runners::mssql::MSSQL_ID => runners::mssql::get_sample(&dsn)
+            .await
+            .map(DsSamples::Simple),
+        runners::mongodb::MONGODB_ID => runners::mongodb::get_sample(&dsn)
+            .await
+            .map(DsSamples::Simple),
+        s => Err(anyhow::anyhow!(
+            "get sample from data source {s} is unsupported"
         )),
     }
 }

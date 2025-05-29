@@ -7,6 +7,7 @@ use arrow::array::RecordBatch;
 use chrono::NaiveDate;
 use core_metrics::get_metrics_arc_from_i64;
 use flume::Receiver;
+use plugins::runners::sparkplugb::sparkplugb_to_taos;
 use plugins::transform::handling_strategy::archive::Archive;
 use plugins::transform::handling_strategy::cache::Cache;
 use serde::Deserialize;
@@ -236,6 +237,10 @@ impl TaskOpts {
         // debug_assert!(qid.task_id() > 0);
         // Run task
         {
+            let task_id_number = task_id
+                .as_ref()
+                .map(|t| t.parse::<i64>().context("parse task id"))
+                .transpose()?;
             match (from.driver.as_str(), to.driver.as_str()) {
                 ("tmq" | "sync", "taos") => {
                     let mut from = from.clone();
@@ -271,10 +276,7 @@ impl TaskOpts {
                         transform.clone(),
                         to.clone(),
                         cancel.clone(),
-                        task_id
-                            .as_deref()
-                            .map(|t| t.parse().context("parse task id"))
-                            .transpose()?,
+                        task_id_number,
                     )
                     .await?;
                 }
@@ -302,10 +304,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         None,
-                        task_id
-                            .as_deref()
-                            .map(|t| t.parse().context("parse task id"))
-                            .transpose()?,
+                        task_id_number,
                         notify.clone(),
                     )
                     .await?;
@@ -320,10 +319,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         None,
-                        task_id
-                            .as_deref()
-                            .map(|t| t.parse().context("parse task id"))
-                            .transpose()?,
+                        task_id_number,
                         notify.clone(),
                     )
                     .await?;
@@ -337,11 +333,20 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         None,
-                        task_id
-                            .as_deref()
-                            .map(|t| t.parse().context("parse task id"))
-                            .transpose()?,
+                        task_id_number,
                         notify.clone(),
+                    )
+                    .await?;
+                }
+                (runners::sparkplugb::SPARKPLUGB_ID, "taos") => {
+                    sparkplugb_to_taos(
+                        from,
+                        to,
+                        with_agent.clone(),
+                        parser.clone(),
+                        task_id_number,
+                        notify.clone(),
+                        cancel,
                     )
                     .await?;
                 }
@@ -355,10 +360,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         None,
-                        task_id
-                            .as_deref()
-                            .map(|t| t.parse().context("parse task id"))
-                            .transpose()?,
+                        task_id_number,
                         notify.clone(),
                     )
                     .await?;
@@ -373,10 +375,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         None,
-                        task_id
-                            .as_deref()
-                            .map(|t| t.parse().context("parse task id"))
-                            .transpose()?,
+                        task_id_number,
                         notify.clone(),
                     )
                     .await?;
@@ -390,10 +389,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         None,
-                        task_id
-                            .as_deref()
-                            .map(|t| t.parse().context("parse task id"))
-                            .transpose()?,
+                        task_id_number,
                         notify.clone(),
                     )
                     .await?;
@@ -424,10 +420,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         None,
-                        task_id
-                            .as_deref()
-                            .map(|t| t.parse().context("parse task id"))
-                            .transpose()?,
+                        task_id_number,
                         notify.clone(),
                     )
                     .await?;
@@ -443,10 +436,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         None,
-                        task_id
-                            .as_deref()
-                            .map(|t| t.parse().context("parse task id"))
-                            .transpose()?,
+                        task_id_number,
                         notify.clone(),
                     )
                     .await?;
@@ -477,10 +467,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         None,
-                        task_id
-                            .as_deref()
-                            .map(|t| t.parse().context("parse task id"))
-                            .transpose()?,
+                        task_id_number,
                         notify.clone(),
                     )
                     .await?;
@@ -496,10 +483,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         None,
-                        task_id
-                            .as_deref()
-                            .map(|t| t.parse().context("parse task id"))
-                            .transpose()?,
+                        task_id_number,
                         notify.clone(),
                     )
                     .await?;
@@ -515,10 +499,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         None,
-                        task_id
-                            .as_deref()
-                            .map(|t| t.parse().context("parse task id"))
-                            .transpose()?,
+                        task_id_number,
                         notify.clone(),
                     )
                     .await?;
@@ -534,10 +515,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         None,
-                        task_id
-                            .as_deref()
-                            .map(|t| t.parse().context("parse task id"))
-                            .transpose()?,
+                        task_id_number,
                         notify.clone(),
                     )
                     .await?;
@@ -553,10 +531,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         None,
-                        task_id
-                            .as_deref()
-                            .map(|t| t.parse().context("parse task id"))
-                            .transpose()?,
+                        task_id_number,
                         notify.clone(),
                     )
                     .await?;

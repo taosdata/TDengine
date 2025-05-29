@@ -892,7 +892,7 @@ pub(super) async fn get_task_metrics(
                     let status: &Status = task.status();
                     get_task_metrics_string(status, metrics)
                 }
-                None => "".to_string(),
+                None => "{}".to_string(),
             }
         }
         Ok(None) => "{}".to_string(),

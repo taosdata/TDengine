@@ -22,7 +22,8 @@ use arrow::{
         Array, ArrayRef, AsArray, BinaryArray, BooleanArray, Decimal128Array, Float16Array,
         Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array,
         LargeBinaryArray, LargeStringArray, NullArray, StringArray, TimestampMicrosecondArray,
-        TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray, UInt64Array,
+        TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray, UInt16Array,
+        UInt32Array, UInt64Array, UInt8Array,
     },
     compute::concat_batches,
     datatypes::{DataType, Field, Schema},
@@ -87,7 +88,7 @@ pub mod sample;
 
 pub mod handling_strategy;
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone)]
 pub struct Pipeline {
     #[serde(default)]
     global: Arc<TableOptions>,
@@ -102,6 +103,13 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
+    pub fn with_parse(self, parse: ParserImpl) -> Self {
+        Self {
+            parse: Some(parse),
+            ..self
+        }
+    }
+
     pub fn transform(&self, records: &RecordBatch) -> Result<Vec<ModeledRecordBatch>, Error> {
         self.check()?;
         let batch = self
@@ -1970,13 +1978,13 @@ pub fn pivot(
                             value_array!(name, Int64Array, row)
                         }
                         DataType::UInt8 => {
-                            value_array!(name, Int8Array, row)
+                            value_array!(name, UInt8Array, row)
                         }
                         DataType::UInt16 => {
-                            value_array!(name, Int16Array, row)
+                            value_array!(name, UInt16Array, row)
                         }
                         DataType::UInt32 => {
-                            value_array!(name, Int32Array, row)
+                            value_array!(name, UInt32Array, row)
                         }
                         DataType::Decimal128(precision, scale) => {
                             let value_column = value_column
@@ -2008,7 +2016,7 @@ pub fn pivot(
                             }
                         }
                         DataType::UInt64 => {
-                            value_array!(name, Int32Array, row)
+                            value_array!(name, UInt64Array, row)
                         }
                         DataType::Float16 => {
                             value_array!(name, Float16Array, row)

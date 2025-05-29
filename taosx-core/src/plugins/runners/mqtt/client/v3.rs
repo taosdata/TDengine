@@ -1,3 +1,5 @@
+use std::string::FromUtf8Error;
+
 use chrono::Utc;
 use rumqttc::{
     AsyncClient, ConnAck, ConnectReturnCode, ConnectionError, Event, EventLoop, Incoming,
@@ -5,17 +7,43 @@ use rumqttc::{
 };
 use snafu::{IntoError, OptionExt, ResultExt};
 
-use crate::runners::mqtt::{
-    client::RetryTooManyTimesV3Snafu,
-    config::{build_tls_config, MqttConnectConfig},
-};
+use crate::runners::mqtt::config::{build_tls_config, MqttConnectConfig};
 
-use super::{
-    ConnFailedWithCodeV3Snafu, ConnectionErrorV3Snafu, ExpectedConnAckSnafu, ExpectedSubAckSnafu,
-    InvalidQoSSnafu, InvalidTlsSnafu, SubFailedWithCodeV3Snafu, SubscriptionEmptySnafu,
-    TaskExitedSnafu, UnexpectedPollErrorV3Snafu, MAX_RETRY_COUNT, MAX_RETRY_INTERVAL,
-    MIN_RETRY_INTERVAL,
-};
+use super::{MAX_RETRY_COUNT, MAX_RETRY_INTERVAL, MIN_RETRY_INTERVAL};
+
+#[derive(Debug, snafu::Snafu)]
+pub enum Error {
+    #[snafu(display("Invalid mqtt tls config"))]
+    InvalidTls { source: anyhow::Error },
+    #[snafu(display("Invalid QoS: {qos}"))]
+    InvalidQoS { qos: u8 },
+    #[snafu(display("Receive unexpected MQTT packet, expected ConnAck"))]
+    ExpectedConnAck,
+    #[snafu(display("Receive unexpected MQTT packet, expected SubAck"))]
+    ExpectedSubAck,
+    #[snafu(display("MQTT task exited"))]
+    TaskExited,
+    #[snafu(display("Invalid UTF-8"))]
+    InvalidUtf8 { source: FromUtf8Error },
+    #[snafu(display("MQTT subscription not found"))]
+    SubscriptionEmpty,
+
+    #[snafu(display("MQTT connection error"))]
+    ConnectionFailed { source: rumqttc::ConnectionError },
+    #[snafu(display("MQTT connect failed with code: {code:?}"))]
+    ConnFailedWithCode { code: rumqttc::ConnectReturnCode },
+    #[snafu(display("MQTT subscribe {topic:?} failed with code: {code:?}"))]
+    SubFailedWithCode {
+        topic: Option<String>,
+        code: rumqttc::SubscribeReasonCode,
+    },
+    #[snafu(display("MQTT connection error"))]
+    UnexpectedPollFailed { source: rumqttc::ConnectionError },
+    #[snafu(display("MQTT reconnect failed for too many times"))]
+    RetryTooManyTimes { source: rumqttc::ConnectionError },
+}
+
+type Result<T> = std::result::Result<T, Error>;
 
 pub struct MessagePoller {
     client: AsyncClient,
@@ -25,10 +53,14 @@ pub struct MessagePoller {
 }
 
 impl super::MessagePoller for MessagePoller {
-    async fn from_config<I>(
-        config: &MqttConnectConfig,
-        subscriptions: I,
-    ) -> Result<Self, super::Error>
+    type Client = AsyncClient;
+    type Error = Error;
+
+    fn client(&self) -> Self::Client {
+        self.client.clone()
+    }
+
+    async fn from_config<I>(config: &MqttConnectConfig, subscriptions: I) -> Result<Self>
     where
         I: IntoIterator<Item = (String, u8)>,
     {
@@ -52,7 +84,7 @@ impl super::MessagePoller for MessagePoller {
             .map_err(|_| TaskExitedSnafu.build())?;
         // sub ack
         loop {
-            match event_loop.poll().await.context(ConnectionErrorV3Snafu)? {
+            match event_loop.poll().await.context(ConnectionFailedSnafu)? {
                 Event::Incoming(Incoming::SubAck(SubAck { return_codes, .. })) => {
                     for (idx, code) in return_codes.into_iter().enumerate() {
                         let topic = filters.get(idx).map(|f| f.path.clone());
@@ -60,7 +92,7 @@ impl super::MessagePoller for MessagePoller {
                             SubscribeReasonCode::Success(qos) => {
                                 tracing::info!(?topic, ?qos, "subscribe success");
                             }
-                            code => return SubFailedWithCodeV3Snafu { topic, code }.fail(),
+                            code => return SubFailedWithCodeSnafu { topic, code }.fail(),
                         }
                     }
                     return Ok(Self {
@@ -76,12 +108,12 @@ impl super::MessagePoller for MessagePoller {
         }
     }
 
-    async fn try_connect(config: &MqttConnectConfig) -> Result<(), super::Error> {
+    async fn try_connect(config: &MqttConnectConfig) -> Result<()> {
         let _ = try_connect(config).await?;
         Ok(())
     }
 
-    async fn poll(&mut self) -> Result<super::Message, super::Error> {
+    async fn poll(&mut self) -> Result<super::Message> {
         let mut retry_count = 0;
         let mut retry_interval = None;
 
@@ -95,7 +127,7 @@ impl super::MessagePoller for MessagePoller {
                 }))) => {
                     if code != ConnectReturnCode::Success {
                         tracing::error!("MQTT reconnect refused by server with code: {code:?}");
-                        return Err(UnexpectedPollErrorV3Snafu
+                        return Err(UnexpectedPollFailedSnafu
                             .into_error(ConnectionError::ConnectionRefused(code)));
                     }
                     // reset retry state
@@ -170,7 +202,7 @@ impl super::MessagePoller for MessagePoller {
                         | ConnectionError::NetworkTimeout
                         | ConnectionError::FlushTimeout => {
                             if retry_count >= MAX_RETRY_COUNT {
-                                return Err(RetryTooManyTimesV3Snafu.into_error(e));
+                                return Err(RetryTooManyTimesSnafu.into_error(e));
                             }
                             retry_count += 1;
                             let duration = match retry_interval {
@@ -188,7 +220,7 @@ impl super::MessagePoller for MessagePoller {
                         | ConnectionError::RequestsDone
                         | ConnectionError::ConnectionRefused(_)
                         | ConnectionError::NotConnAck(_) => {
-                            return Err(UnexpectedPollErrorV3Snafu.into_error(e));
+                            return Err(UnexpectedPollFailedSnafu.into_error(e));
                         }
                     }
                 }
@@ -199,9 +231,7 @@ impl super::MessagePoller for MessagePoller {
 }
 
 /// 尝试 tcp -> tls without ca / tls with ca 方法
-async fn try_connect(
-    config: &MqttConnectConfig,
-) -> Result<(AsyncClient, EventLoop, bool), super::Error> {
+async fn try_connect(config: &MqttConnectConfig) -> Result<(AsyncClient, EventLoop, bool)> {
     if config.certificates.is_none() {
         // tcp
         let mut opts = build_options(config)?;
@@ -224,25 +254,23 @@ async fn try_connect(
     try_connect_inner(opts).await
 }
 
-async fn try_connect_inner(
-    config: MqttOptions,
-) -> Result<(AsyncClient, EventLoop, bool), super::Error> {
+async fn try_connect_inner(config: MqttOptions) -> Result<(AsyncClient, EventLoop, bool)> {
     let (client, mut event_loop) = AsyncClient::new(config, 10);
 
-    match event_loop.poll().await.context(ConnectionErrorV3Snafu)? {
+    match event_loop.poll().await.context(ConnectionFailedSnafu)? {
         Event::Incoming(Incoming::ConnAck(ConnAck {
             session_present,
             code: ConnectReturnCode::Success,
             ..
         })) => Ok((client, event_loop, session_present)),
         Event::Incoming(Incoming::ConnAck(ConnAck { code, .. })) => {
-            ConnFailedWithCodeV3Snafu { code }.fail()
+            ConnFailedWithCodeSnafu { code }.fail()
         }
         _ => ExpectedConnAckSnafu.fail(),
     }
 }
 
-fn build_options(config: &MqttConnectConfig) -> Result<MqttOptions, super::Error> {
+fn build_options(config: &MqttConnectConfig) -> Result<MqttOptions> {
     let mut options = MqttOptions::new(&config.client_id, &config.host, config.port);
 
     // username, password
@@ -262,7 +290,7 @@ fn build_options(config: &MqttConnectConfig) -> Result<MqttOptions, super::Error
     Ok(options)
 }
 
-fn build_subscribe_filters<I>(subscriptions: I) -> Result<Vec<SubscribeFilter>, super::Error>
+fn build_subscribe_filters<I>(subscriptions: I) -> Result<Vec<SubscribeFilter>>
 where
     I: IntoIterator<Item = (String, u8)>,
 {

@@ -185,7 +185,7 @@ impl fake_json::StringSchema {
         Ok(StringArray::from_iter_values(
             (0..batch_size)
                 .into_par_iter()
-                .map(|_| self.rand_string_value().context(JsonSnafu))
+                .map(|_| self.rand_value().context(JsonSnafu))
                 .collect::<Result<Vec<_>>>()?,
         ))
     }
@@ -195,7 +195,7 @@ impl fake_json::BoolSchema {
     pub fn rand_array(&self, batch_size: usize) -> Result<BooleanArray> {
         Ok((0..batch_size)
             .into_par_iter()
-            .map(|_| self.rand_bool_value().context(JsonSnafu))
+            .map(|_| self.rand_value().context(JsonSnafu))
             .collect::<Result<Vec<bool>>>()?
             .into())
     }
@@ -208,7 +208,7 @@ macro_rules! impl_rand_number_array {
                 Ok(<$array_t>::from_iter_values(
                     (0..batch_size)
                         .into_par_iter()
-                        .map(|_| self.rand_number_value().context(JsonSnafu))
+                        .map(|_| self.rand_value().context(JsonSnafu))
                         .collect::<Result<Vec<_>>>()?,
                 ))
             }
@@ -235,7 +235,7 @@ impl fake_json::TimestampSchema {
                 Arc::new(TimestampSecondArray::from_iter_values(
                     (0..batch_size)
                         .into_par_iter()
-                        .map(|_| self.get_timestamp_value().context(JsonSnafu))
+                        .map(|_| self.next_value().context(JsonSnafu))
                         .collect::<Result<Vec<_>>>()?,
                 ))
             }
@@ -243,7 +243,7 @@ impl fake_json::TimestampSchema {
                 Arc::new(TimestampMillisecondArray::from_iter_values(
                     (0..batch_size)
                         .into_par_iter()
-                        .map(|_| self.get_timestamp_value().context(JsonSnafu))
+                        .map(|_| self.next_value().context(JsonSnafu))
                         .collect::<Result<Vec<_>>>()?,
                 ))
             }
@@ -251,7 +251,7 @@ impl fake_json::TimestampSchema {
                 Arc::new(TimestampMicrosecondArray::from_iter_values(
                     (0..batch_size)
                         .into_par_iter()
-                        .map(|_| self.get_timestamp_value().context(JsonSnafu))
+                        .map(|_| self.next_value().context(JsonSnafu))
                         .collect::<Result<Vec<_>>>()?,
                 ))
             }
@@ -259,7 +259,7 @@ impl fake_json::TimestampSchema {
                 Arc::new(TimestampNanosecondArray::from_iter_values(
                     (0..batch_size)
                         .into_par_iter()
-                        .map(|_| self.get_timestamp_value().context(JsonSnafu))
+                        .map(|_| self.next_value().context(JsonSnafu))
                         .collect::<Result<Vec<_>>>()?,
                 ))
             }
@@ -300,8 +300,7 @@ fixed = "integer"
 
 [point_name]
 type = "utf8"
-length = { fixed = 3 }
-charset = "abcd"
+random = { length = { fixed = 3 }, charset = "abcd" }
         "#;
 
         assert!(DataFaker::from_string(100, s).is_ok());

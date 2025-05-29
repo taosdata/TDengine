@@ -63,7 +63,7 @@ async fn main() -> anyhow::Result<()> {
     let read_dir = tokio::fs::read_dir(&dir).await?;
     let mut files = ReadDirStream::new(read_dir)
         .try_filter_map(|entry| async move {
-            if !entry.path().extension().is_some_and(|v| v == "seg") {
+            if entry.path().extension().is_none_or(|v| v != "seg") {
                 return Ok(None);
             }
             let Some(segment_id) = parse_segment_id(entry.path()) else {

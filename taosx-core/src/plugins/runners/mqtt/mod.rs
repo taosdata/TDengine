@@ -31,11 +31,11 @@ use crate::{build_ipc, Parser, Transferred};
 use super::{get_data_dir, set_tcp_keepalive};
 
 mod batch;
-mod client;
-mod config;
+pub mod client;
+pub mod config;
 mod dump;
 mod metrics;
-mod topic;
+pub mod topic;
 
 pub const MQTT_ID: &str = "mqtt";
 

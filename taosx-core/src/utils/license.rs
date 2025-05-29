@@ -572,6 +572,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                 "mqtt" => "mqtt",
                 "tmq" => "td3.0",
                 "taos" => "td2.6",
+                crate::runners::sparkplugb::SPARKPLUGB_ID => "sparkplugb",
                 crate::runners::mysql::MYSQL_ID => "mysql",
                 crate::runners::postgres::POSTGRES_ID => "postgres",
                 crate::runners::oracle::ORACLE_ID => "oracle",
@@ -815,6 +816,7 @@ mod tests {
             ("postgres", "postgres", "PostgreSQL"),
             ("oracle", "oracle", "Oracle"),
             ("mqtt", "mqtt", "MQTT"),
+            ("sparkplugb", "sparkplugb", "SparkplugB"),
         ];
 
         for (id, grant, display) in connectors {

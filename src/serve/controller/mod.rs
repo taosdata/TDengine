@@ -57,7 +57,7 @@ use crate::serve::task::{DeleteTaskParam, ExportTaskDetail, ExportTasksResult};
 use taosx_core::core_metrics::clear_metrics;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::runners::opc::csv::CsvParser;
-use taosx_core::plugins::transform::sample::DsSampleIn;
+use taosx_core::plugins::transform::sample::DsSamples;
 use taosx_core::runners::opc::config::OPCConfig;
 use taosx_core::tmq_to_local::conf::BackupConfigBuilder;
 use taosx_core::utils::breakpoints::{breakpoints_get_all, export_breakpoints_to_compressed_csv};
@@ -2158,11 +2158,7 @@ impl TaskController {
         }
     }
 
-    pub async fn get_sample_via_agent(
-        &self,
-        agent: i64,
-        dsn: String,
-    ) -> anyhow::Result<DsSampleIn> {
+    pub async fn get_sample_via_agent(&self, agent: i64, dsn: String) -> anyhow::Result<DsSamples> {
         let scheduler = self.scheduler.clone();
         if !self.agent_alive(agent).await {
             bail!("Agent {} is not alive", agent);

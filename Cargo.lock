@@ -1284,6 +1284,20 @@ name = "bytemuck"
 version = "1.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ef657dfab802224e671f5818e9a4935f9b1957ed18e58292690cc39e7a4092a3"
+dependencies = [
+ "bytemuck_derive",
+]
+
+[[package]]
+name = "bytemuck_derive"
+version = "1.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ecc273b49b3205b83d648f0690daa588925572cc5063745bfe547fe7ec8e1a1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.98",
+]
 
 [[package]]
 name = "byteorder"
@@ -3566,6 +3580,7 @@ version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6dd08c532ae367adf81c312a4580bc67f1d0fe8bc9c460520283f4c0ff277888"
 dependencies = [
+ "bytemuck",
  "cfg-if",
  "crunchy",
  "num-traits",
@@ -4812,6 +4827,21 @@ dependencies = [
  "once_cell",
  "pprof_util",
  "tracing",
+]
+
+[[package]]
+name = "marrow"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3641f6a55539a8b6e5349b3bdfb5b315714fbceda3253815838f49e40e3ea757"
+dependencies = [
+ "arrow-array",
+ "arrow-buffer",
+ "arrow-data",
+ "arrow-schema",
+ "bytemuck",
+ "half",
+ "serde",
 ]
 
 [[package]]
@@ -7496,6 +7526,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_arrow"
+version = "0.13.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a0462b8e06478cd310e8de11ea2e64c214522275a0b537b3879dbed24a9e01b5"
+dependencies = [
+ "arrow-array",
+ "arrow-schema",
+ "bytemuck",
+ "chrono",
+ "half",
+ "marrow",
+ "serde",
+]
+
+[[package]]
 name = "serde_bytes"
 version = "0.11.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8794,6 +8839,8 @@ dependencies = [
  "paste",
  "persist-queue",
  "pretty_env_logger",
+ "prost",
+ "prost-build",
  "rand 0.8.5",
  "rayon",
  "rdkafka 0.37.0",
@@ -8809,6 +8856,7 @@ dependencies = [
  "scc",
  "semver",
  "serde",
+ "serde_arrow",
  "serde_json",
  "serde_json_path",
  "serde_regex",
@@ -8908,6 +8956,7 @@ dependencies = [
  "num-traits",
  "parquet",
  "paste",
+ "prost",
  "rand 0.8.5",
  "rayon",
  "rdkafka 0.36.2",

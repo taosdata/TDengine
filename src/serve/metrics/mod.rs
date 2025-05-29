@@ -91,7 +91,8 @@ pub async fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<C
         | runners::postgres::POSTGRES_ID
         | runners::oracle::ORACLE_ID
         | runners::mssql::MSSQL_ID
-        | runners::mongodb::MONGODB_ID => try_get_metrics::<IpcMetrics>(task_id, &dsn).await,
+        | runners::mongodb::MONGODB_ID
+        | runners::sparkplugb::SPARKPLUGB_ID => try_get_metrics::<IpcMetrics>(task_id, &dsn).await,
         _ => None,
     }
 }

@@ -160,7 +160,8 @@ export function filterEmpty(val: any) {
 export const supportTransform = reactive({
   supportSQL: false,
   supportTransform: false,
-  supportTopicBody: false
+  supportTopicBody: false,
+  is_sparkplugb: false
 });
 
 // 确认 transform 类型
@@ -175,8 +176,10 @@ export function configureSupportFlags(data: string) {
     data == 'mssql' ||
     data == 'kafka' ||
     data == 'mqtt' ||
-    data == 'mongodb';
-  supportTransform.supportTopicBody = data == 'mqtt';
+    data == 'mongodb' ||
+    data == 'sparkplugb';
+  supportTransform.supportTopicBody = data == 'mqtt' || data == 'sparkplugb';
+  supportTransform.is_sparkplugb = data == 'sparkplugb'
 }
 
 const initialState: TransformerState = {

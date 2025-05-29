@@ -520,8 +520,6 @@ where
         async move {
             let _guard = utils::defer::defer(|| {
                 tracing::debug!("persist queue ack task exit");
-            });
-            let _metrics_guard = crate::utils::defer::defer(|| {
                 metrics.reset();
             });
             use oneshot::error::RecvError;
@@ -592,7 +590,7 @@ where
         let mut watch_stream = WatchStream::from_changes(metrics_rx);
         let dir = persist.dir.clone();
         async move {
-            let _metrics_guard = crate::utils::defer::defer(|| {
+            let _metrics_guard = utils::defer::defer(|| {
                 tracing::debug!("persist queue metrics task exit");
                 metrics.reset()
             });
