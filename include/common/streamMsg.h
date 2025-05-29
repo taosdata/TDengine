@@ -270,7 +270,7 @@ typedef struct {
   int64_t  placeHolderBitmap;
   int16_t  tsSlotId; // only used when using %%trows
 
-  // only for child table and normal table
+  // only for (virtual) child table and normal table
   int32_t triggerTblVgId;
   int32_t outTblVgId;
 
@@ -326,7 +326,9 @@ typedef struct SStreamTask {
   int32_t       nodeId;     // ID of the vgroup/snode
   int64_t       sessionId;  // ID of the current session (real-time, historical, or recalculation)
   int16_t       taskIdx;
+
   EStreamStatus status;
+  int32_t       errorCode;
 
   SRWLatch      lock;      // concurrent undeloy
 } SStreamTask;
@@ -408,6 +410,7 @@ typedef struct {
   int64_t placeHolderBitmap;
   int16_t tsSlotId;  // only used when using %%trows
   void*   partitionCols;
+  void*   calcPlan;  // only for virtual table(child/normal/super) trigger
 
   SArray* readerList;  // SArray<SStreamTaskAddr>
   SArray* runnerList;  // SArray<SStreamRunnerTarget>

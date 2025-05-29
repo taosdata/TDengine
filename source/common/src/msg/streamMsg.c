@@ -431,6 +431,7 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   // SKIP SESSIONID
   TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pTask->taskIdx));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->status));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->errorCode));
 
 _exit:
 
@@ -452,6 +453,7 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   // SKIP SESSIONID
   TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pTask->taskIdx));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, (int32_t*)&pTask->status));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->errorCode));
 
 _exit:
 

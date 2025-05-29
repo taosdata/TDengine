@@ -25,6 +25,7 @@ extern "C" {
 
 typedef enum {
   STM_ERR_TASK_NOT_EXISTS = 1,
+  STM_ERR_STREAM_STOPPED,
 } EStmErrType;
 
 #define MND_STM_STATE_WATCH   1
@@ -72,6 +73,8 @@ static const char* gMndStreamAction[] = {"DEPLOY", "UNDEPLOY", "START"};
 
 #define GOT_SNODE(_snodeId) ((_snodeId) != 0)
 #define STREAM_IS_RUNNING(_status) (STREAM_STATUS_RUNNING == (_status))
+#define STREAM_IS_VIRTUAL_TABLE(_type, _flags) (TSDB_VIRTUAL_CHILD_TABLE == (_type) || TSDB_VIRTUAL_NORMAL_TABLE == (_type) || (TSDB_SUPER_TABLE == (_type) && ((_flags) & VIRTUAL_TABLE_FLAG)))
+
 
 // clang-format off
 #define mstFatal(...) do { if (stDebugFlag & DEBUG_FATAL) { taosPrintLog("MSTM FATAL ", DEBUG_FATAL, 255,         __VA_ARGS__); }} while(0)
@@ -138,6 +141,7 @@ typedef struct SStmTaskId {
 
 typedef struct SStmTaskStatus {
   SStmTaskId      id;
+  SStmStatus*     pStream;
   EStreamTaskType type;
   int64_t         flags;
   EStreamStatus   status;
@@ -205,7 +209,7 @@ typedef struct SStmStatus {
   int32_t           runnerDeploys;
   int32_t           runnerReplica;
 
-  bool              allTaskBuilt;
+  int8_t            stopped;
   int64_t           lastActionTs;
   int32_t           fatalError;
   int64_t           fatalRetryTs;
@@ -336,10 +340,23 @@ typedef struct SStmLastTs {
   bool    handled;
 } SStmLastTs;
 
+typedef enum {
+  STM_OP_ACTIVE_BEGIN = 0,
+  STM_OP_NORMAL_BEGIN,
+  STM_OP_CREATE_STREAM,
+  STM_OP_DROP_STREAM,
+  STM_OP_STOP_STREAM,
+  STM_OP_START_STREAM,
+  STM_OP_CREATE_SNODE,
+  STM_OP_DROP_SNODE,
+  
+} SStmLastOp;
+
 typedef struct SStmRuntime {
   int8_t           active;
   int32_t          activeStreamNum;
   SStmLastTs       activeBegin;
+  SStmLastTs       normalBegin;
   int8_t           state;
   int32_t          fatalError;
   int64_t          fatalRetryTs;

@@ -481,9 +481,9 @@ void mndStreamLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p) {
   }
 
   mstsDebug("%s: stream status", tips);
-  mstsDebug("name:%s runnerNum:%d runnerDeploys:%d runnerReplica:%d allTaskBuilt:%d lastActionTs:%" PRId64
+  mstsDebug("name:%s runnerNum:%d runnerDeploys:%d runnerReplica:%d lastActionTs:%" PRId64
            " trigReaders:%d calcReaders:%d trigger:%d runners:%d",
-      p->streamName, p->runnerNum, p->runnerDeploys, p->runnerReplica, p->allTaskBuilt, p->lastActionTs,
+      p->streamName, p->runnerNum, p->runnerDeploys, p->runnerReplica, p->lastActionTs,
       trigReaderNum, calcReaderNum, triggerNum, runnerNum);
 
   SStmTaskStatus* pTask = NULL;
