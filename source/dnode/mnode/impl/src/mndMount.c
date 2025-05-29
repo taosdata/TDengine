@@ -478,6 +478,7 @@ static int32_t mndSetDbInfo(SMountInfo *pInfo, SMountDbInfo *pDb, SDbObj *pObj) 
   pObj->vgVersion = 1;
   pObj->tsmaVersion = 1;
   // dbCfg
+  pCfg->isMount = 1;
   pCfg->numOfVgroups = taosArrayGetSize(pDb->pVgs);
   pCfg->numOfStables = TSDB_DEFAULT_DB_SINGLE_STABLE;
   pCfg->buffer = pVg->szBuf / 1048576;  // convert to MB
@@ -591,10 +592,10 @@ static int32_t mndSetCreateVgPrepareActions(SMnode *pMnode, STrans *pTrans, SVgO
   return 0;
 }
 
-static int32_t mndSetCreateStbPrepareActions(SMnode *pMnode, STrans *pTrans, SStbObj *pVgs, int32_t nStbs) {
-  for (int32_t i = 0; i < nVgs; ++i) {
-    if (mndAddNewVgPrepareAction(pMnode, pTrans, (pVgs + i)) != 0) return -1;
-  }
+static int32_t mndSetCreateStbPrepareActions(SMnode *pMnode, STrans *pTrans, SStbObj *pStbs, int32_t nStbs) {
+  // for (int32_t i = 0; i < nStbs; ++i) {
+  //   if (mndAddNewVgPrepareAction(pMnode, pTrans, (pStbs + i)) != 0) return -1;
+  // }
   return 0;
 }
 
@@ -863,18 +864,18 @@ static int32_t mndCreateMount(SMnode * pMnode, SRpcMsg * pReq, SMountInfo * pInf
 #endif
     nVgs += taosArrayGetSize(pDb->pVgs);
 
-    int32_t nDbStbs = taosArrayGetSize(pDb->pStbs);
-    for(int32_t s = 0; s < nDbStbs; ++s) {
-      SMountStbInfo *pStb = TARRAY_GET_ELEM(pDb->pStbs, s);
-      if (pStb->stbId < 0) {
-        mError("mount:%s, db:%s, stbId:%d is invalid", pInfo->mountName, pDb->dbName, pStb->stbId);
-        TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_STB_ID);
-      }
-      if (pStb->stbId >= TSDB_MAX_DB_SINGLE_STABLE) {
-        mError("mount:%s, db:%s, stbId:%d is too large", pInfo->mountName, pDb->dbName, pStb->stbId);
-        TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_STB_ID);
-      }
-    }
+    // int32_t nDbStbs = taosArrayGetSize(pDb->pStbs);
+    // for(int32_t s = 0; s < nDbStbs; ++s) {
+    //   SMountStbInfo *pStb = TARRAY_GET_ELEM(pDb->pStbs, s);
+    //   if (pStb->stbId < 0) {
+    //     mError("mount:%s, db:%s, stbId:%d is invalid", pInfo->mountName, pDb->dbName, pStb->stbId);
+    //     TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_STB_ID);
+    //   }
+    //   if (pStb->stbId >= TSDB_MAX_DB_SINGLE_STABLE) {
+    //     mError("mount:%s, db:%s, stbId:%d is too large", pInfo->mountName, pDb->dbName, pStb->stbId);
+    //     TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_STB_ID);
+    //   }
+    // }
   }
   TAOS_CHECK_EXIT(mndMountDupDbIdExist(pMnode, pInfo));
 
@@ -1037,8 +1038,8 @@ static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp) {
       // .contLen = pRsp->info.rspLen,
               .info = *(SRpcHandleInfo *)mntInfo.pVal,
   };
+  rspToClient = true;
   if (pRsp->code != 0) {
-    rspToClient = true;
     TAOS_CHECK_EXIT(pRsp->code);
   }
 
@@ -1048,7 +1049,7 @@ static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp) {
   if (mntInfo.clusterId == pMnode->clusterId) {
     mError("mount:%s, clusterId:%" PRIi64 " from dnode is the same as host cluster:%" PRIi64, mntInfo.mountName,
            mntInfo.clusterId, pMnode->clusterId);
-    TAOS_CHECK_EXIT(TSDB_CODE_OPS_NOT_SUPPORT);
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_MOUNT_DUP_CLUSTER_EXIST);
   }
 
   int32_t nStbs = taosArrayGetSize(mntInfo.pStbs);
@@ -1060,7 +1061,7 @@ static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp) {
       TAOS_CHECK_EXIT(terrno);
     }
 
-    SStbObj *pStbObj = pStbRow->pObj;
+    SStbObj *pStbObj = (SStbObj *)pStbRow->pObj;
     mInfo("mount:%s, retrieve stb[%d]:%s, db:%s", mntInfo.mountName, i, pStbObj->name, pStbObj->db);
   }
 
@@ -1521,6 +1522,7 @@ static int32_t mndBuildDropMountRsp(SMountObj *pObj, int32_t *pRspLen, void **pp
 
 static int32_t mndDropMount(SMnode *pMnode, SRpcMsg *pReq, SMountObj *pObj) {
   int32_t code = -1, lino = 0;
+  SSdb   *pSdb = pMnode->pSdb;
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "drop-mount");
   if (pTrans == NULL) {
@@ -1543,6 +1545,29 @@ static int32_t mndDropMount(SMnode *pMnode, SRpcMsg *pReq, SMountObj *pObj) {
 
   TAOS_CHECK_EXIT(mndSetDropMountPrepareLogs(pMnode, pTrans, pObj));
   TAOS_CHECK_EXIT(mndSetDropMountCommitLogs(pMnode, pTrans, pObj));
+
+  // drop mount dbs/vgs/stbs
+  void *pIter = NULL;
+  while (1) {
+    SDbObj *pDb = NULL;
+    pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb);
+    if (pIter == NULL) break;
+    if (pDb->cfg.isMount) {
+      const char *pDbName = strstr(pDb->name, ".");
+      const char *pMountPrefix = pDbName ? strstr(pDbName + 1, pObj->name) : NULL;
+      if (pMountPrefix && (pMountPrefix == (pDbName + 1)) && (pMountPrefix[strlen(pObj->name)] == '_')) {
+        mInfo("db:%s, is mount db, start to drop", pDb->name);
+        if ((code = mndSetDropDbPrepareLogs(pMnode, pTrans, pDb)) != 0 ||
+            (code = mndSetDropDbCommitLogs(pMnode, pTrans, pDb)) != 0) {
+          sdbCancelFetch(pSdb, pIter);
+          sdbRelease(pSdb, pDb);
+          TAOS_CHECK_EXIT(code);
+        }
+      }
+    }
+    sdbRelease(pSdb, pDb);
+  }
+
   //   TAOS_CHECK_GOTO(mndDropStreamByDb(pMnode, pTrans, pDb), NULL, _exit);
   // #ifdef TD_ENTERPRISE
   //   TAOS_CHECK_GOTO(mndDropViewByDb(pMnode, pTrans, pDb), NULL, _exit);

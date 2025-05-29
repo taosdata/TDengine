@@ -311,8 +311,6 @@ int32_t sdbWriteWithoutFreeStb(SSdb *pSdb, SSdbRaw *pRaw) {
     return terrno;
   }
 
-  SStbObj *pStb = (SStbObj *)((char *)pRaw + sizeof(SSdbRaw));
-
   int32_t keySize = sizeof(SSdbRaw) + pRaw->dataLen;
   int32_t code = 0;
   switch (pRaw->status) {

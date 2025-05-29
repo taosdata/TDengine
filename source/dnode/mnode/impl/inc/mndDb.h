@@ -31,6 +31,8 @@ int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUs
 int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg);
 int32_t mndCheckDbName(const char *dbName, SUserObj *pUser);
 int32_t mndSetCreateDbPrepareAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
+int32_t mndSetDropDbPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
+int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 bool    mndIsDbReady(SMnode *pMnode, SDbObj *pDb);
 void    mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList);
 bool    mndDbIsExist(SMnode *pMnode, const char *db);

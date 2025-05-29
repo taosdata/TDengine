@@ -1509,7 +1509,7 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetDropDbPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+int32_t mndSetDropDbPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   int32_t  code = 0;
   SSdbRaw *pRedoRaw = mndDbActionEncode(pDb);
   if (pRedoRaw == NULL) {
@@ -1542,7 +1542,7 @@ static int32_t mndSetDropDbPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *p
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   int32_t  code = 0;
   SSdbRaw *pCommitRaw = mndDbActionEncode(pDb);
   if (pCommitRaw == NULL) {
