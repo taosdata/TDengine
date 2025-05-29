@@ -616,6 +616,7 @@ typedef struct SStreamTriggerOptions {
   SNode*    pWaterMark;
   SNode*    pMaxDelay;
   SNode*    pExpiredTime;
+  SNode*    pFillHisStartTime;
   int64_t   pEventType;
   int64_t   fillHistoryStartTime;
   bool      ignoreDisorder;
