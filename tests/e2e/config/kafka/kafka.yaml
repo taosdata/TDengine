@@ -1,7 +1,7 @@
 # kafka server
 KafkaServer:
   broker: '192.168.1.45'
-  port: 9092
+  port: 9095
   topics:
     -
       topicname: test_taosx
