@@ -2205,6 +2205,7 @@ void stmtAsyncBindCb2(void* param, TAOS_RES* pRes, int code) {
   return;
 }
 
+// interlace mode = aysnc bind
 void stmt2_async_test(std::atomic<bool>& stop_task) {
   int CTB_NUMS = 2;
   int ROW_NUMS = 2;
@@ -2268,7 +2269,7 @@ void stmt2_async_test(std::atomic<bool>& stop_task) {
       // bind
       TAOS_STMT2_BINDV bindv = {CTB_NUMS, tbs, NULL, paramv};
       bool             finish = false;
-      code = taos_stmt2_bind_param_a(stmt, &bindv, -1, stmtAsyncBindCb, (void*)&finish);
+      code = taos_stmt2_bind_param(stmt, &bindv, -1);
 
       checkError(stmt, code);
 
@@ -2292,11 +2293,8 @@ void stmt2_async_test(std::atomic<bool>& stop_task) {
       }
       // bind
       TAOS_STMT2_BINDV bindv = {CTB_NUMS, tbs, NULL, paramv};
-      bool             finish = false;
-      code = taos_stmt2_bind_param_a(stmt, &bindv, -1, stmtAsyncBindCb, (void*)&finish);
-      while (!finish) {
-        taosMsleep(100);
-      }
+      code = taos_stmt2_bind_param(stmt, &bindv, -1);
+
       checkError(stmt, code);
     }
     // exec
@@ -2304,13 +2302,15 @@ void stmt2_async_test(std::atomic<bool>& stop_task) {
     checkError(stmt, code);
   }
 
-  // case 3 : bind->exec_a->bind->exec_a->...
+  // case 3 : prepare->bind_a->exec_a->prepare->bind_a->exec_a->...
   {
     printf("case 3 : bind->exec_a->bind->exec_a->...\n");
     for (int r = 0; r < CYC_NUMS; r++) {
+      // reprepare
+      int code = taos_stmt2_prepare(stmt, sql, 0);
+      checkError(stmt, code);
       // bind
       TAOS_STMT2_BINDV bindv = {CTB_NUMS, tbs, NULL, paramv};
-      bool             finish = false;
       code = taos_stmt2_bind_param(stmt, &bindv, -1);
 
       checkError(stmt, code);
@@ -2326,8 +2326,7 @@ void stmt2_async_test(std::atomic<bool>& stop_task) {
     printf("case 4 : bind_a->close\n");
     // bind
     TAOS_STMT2_BINDV bindv = {CTB_NUMS, tbs, NULL, paramv};
-    bool             finish = false;
-    code = taos_stmt2_bind_param_a(stmt, &bindv, -1, stmtAsyncBindCb, (void*)&finish);
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
     checkError(stmt, code);
     taos_stmt2_close(stmt);
     checkError(stmt, code);
@@ -2343,8 +2342,7 @@ void stmt2_async_test(std::atomic<bool>& stop_task) {
     checkError(stmt, code);
     // bind
     TAOS_STMT2_BINDV bindv = {CTB_NUMS, tbs, NULL, paramv};
-    bool             finish = false;
-    code = taos_stmt2_bind_param_a(stmt, &bindv, -1, stmtAsyncBindCb, (void*)&finish);
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
     checkError(stmt, code);
     // exec
     code = taos_stmt2_exec(stmt, NULL);
@@ -2369,8 +2367,7 @@ void stmt2_async_test(std::atomic<bool>& stop_task) {
     for (int r = 0; r < CYC_NUMS; r++) {
       // bind
       TAOS_STMT2_BINDV bindv = {CTB_NUMS, tbs, NULL, paramv};
-      bool             finish = false;
-      code = taos_stmt2_bind_param_a(stmt, &bindv, -1, stmtAsyncBindCb, (void*)&finish);
+      code = taos_stmt2_bind_param(stmt, &bindv, -1);
       checkError(stmt, code);
       // exec
       code = taos_stmt2_exec(stmt, NULL);
@@ -2378,23 +2375,10 @@ void stmt2_async_test(std::atomic<bool>& stop_task) {
     }
   }
 
-  // case 7 (error:no wait error) : bind_a->bind_a
-  {
-    printf("case 7 (error:no wait error) : bind_a->bind_a\n");
-    // bind
-    TAOS_STMT2_BINDV bindv = {CTB_NUMS, tbs, NULL, paramv};
-    bool             finish = false;
-    code = taos_stmt2_bind_param_a(stmt, &bindv, -1, stmtAsyncBindCb2, (void*)&finish);
-    checkError(stmt, code);
-    taosMsleep(200);
-    code = taos_stmt2_bind_param_a(stmt, &bindv, -1, stmtAsyncBindCb2, (void*)&finish);
-    ASSERT_EQ(code, TSDB_CODE_TSC_STMT_API_ERROR);
-    while (!finish) {
-      taosMsleep(100);
-    }
-  }
   // close
   taos_stmt2_close(stmt);
+  do_query(taos, "drop database if exists stmt2_testdb_15");
+  taos_close(taos);
 
   // free memory
   for (int i = 0; i < CTB_NUMS; i++) {
@@ -2414,27 +2398,27 @@ void stmt2_async_test(std::atomic<bool>& stop_task) {
   stop_task = true;
 }
 
-// TEST(stmt2Case, async_order) {
-//   std::atomic<bool> stop_task(false);
-//   std::thread       t(stmt2_async_test, std::ref(stop_task));
+TEST(stmt2Case, async_order) {
+  std::atomic<bool> stop_task(false);
+  std::thread       t(stmt2_async_test, std::ref(stop_task));
 
-//   // 等待 60 秒钟
-//   auto start_time = std::chrono::steady_clock::now();
-//   while (!stop_task) {
-//     auto elapsed_time = std::chrono::steady_clock::now() - start_time;
-//     if (std::chrono::duration_cast<std::chrono::seconds>(elapsed_time).count() > 100) {
-//       if (t.joinable()) {
-//         t.detach();
-//       }
-//       FAIL() << "Test[stmt2_async_test] timed out";
-//       break;
-//     }
-//     std::this_thread::sleep_for(std::chrono::seconds(1));  // 每 1s 检查一次
-//   }
-//   if (t.joinable()) {
-//     t.join();
-//   }
-// }
+  // 等待 60 秒钟
+  auto start_time = std::chrono::steady_clock::now();
+  while (!stop_task) {
+    auto elapsed_time = std::chrono::steady_clock::now() - start_time;
+    if (std::chrono::duration_cast<std::chrono::seconds>(elapsed_time).count() > 100) {
+      if (t.joinable()) {
+        t.detach();
+      }
+      FAIL() << "Test[stmt2_async_test] timed out";
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::seconds(1));  // 每 1s 检查一次
+  }
+  if (t.joinable()) {
+    t.join();
+  }
+}
 
 TEST(stmt2Case, rowformat_bind) {
   TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
