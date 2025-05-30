@@ -90,14 +90,19 @@
               {% else %}
                 {% with docstring_lines = function.docstring.value.split("\n") %}
                   {% set summary = docstring_lines[0] if docstring_lines else "" %}
+                  {% set stop_keywords = ["Catalog:", "Since:", "Labels:", "Jira:", "History:"] %}
                   {% set details = [] %}
-                  {% with ns = namespace(in_description=true) %}
-                    {% for line in docstring_lines[2:] if docstring_lines|length > 2 %}
-                      {% if line.strip() == "" %}
-                        {% set ns.in_description = false %}
-                      {% endif %}
-                      {% if ns.in_description and line.strip() != "" %}
-                        {% set _ = details.append(line.strip()) %}
+                  {% with ns = namespace(stop=false) %}
+                    {% for line in docstring_lines[2:] %}
+                      {% if not ns.stop %}
+                        {% for kw in stop_keywords %}
+                          {% if line.strip().startswith(kw) %}
+                            {% set ns.stop = true %}
+                          {% endif %}
+                        {% endfor %}
+                        {% if not ns.stop %}
+                          {% set _ = details.append(line) %}
+                        {% endif %}
                       {% endif %}
                     {% endfor %}
                   {% endwith %}
@@ -108,9 +113,12 @@
                   {% if details %}
                     <div class="doc doc-docstring doc-description">
                       <strong>Description:</strong>
-                      {% for line in details %}
-                        <p style="margin: 0;">{{ line|safe }}</p>
-                      {% endfor %}
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                        {% for line in details %}
+                          {% set indent = (line|length - line.lstrip()|length) %}
+                          <div style="margin-left: {{ indent * 0.8 }}em; white-space: pre-wrap;">{{ line }}</div>
+                        {% endfor %}
+                      </div>
                     </div>
                   {% endif %}
                   <div class="doc doc-docstring doc-function.path">
