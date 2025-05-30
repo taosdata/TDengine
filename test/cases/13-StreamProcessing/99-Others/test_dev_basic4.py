@@ -32,7 +32,7 @@ class TestStreamDevBasic:
         self.prepareQueryData()
         self.prepareTriggerTable()
         self.createStream()
-        # self.writeTriggerData()
+        self.writeTriggerData()
         self.checkResults()
 
     def createSnode(self):
