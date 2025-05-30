@@ -262,6 +262,10 @@ int32_t bseTableMgtCommit(STableMgt *pMgt, SBseLiveFileInfo *pInfo) {
   int8_t  commited = 0;
 
   SSubTableMgt    *pSubMgt = pMgt->pCurrTableMgt;
+  if (pMgt->pCurrTableMgt == NULL) {
+    bseInfo("nothing to commit table");
+    return code;
+  }
 
   code = tableBuilderMgtCommit(pSubMgt->pBuilderMgt, pInfo, &commited);
   TSDB_CHECK_CODE(code, lino, _error);

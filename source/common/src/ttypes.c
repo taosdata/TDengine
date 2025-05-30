@@ -309,6 +309,8 @@ int32_t calcSchemaBytesFromTypeBytes(int32_t type, int32_t varTypeBytes, bool is
     return varTypeBytes + VARSTR_HEADER_SIZE;
   } else if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_JSON) {
     return varTypeBytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
+  } else if (IS_STR_DATA_BLOB(type)) {
+    return varTypeBytes + BLOBSTR_HEADER_SIZE;
   }
   return varTypeBytes;
 }
