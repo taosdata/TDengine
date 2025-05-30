@@ -76,21 +76,40 @@ class TestStreamDevBasic:
     def writeTriggerData(self):
         tdLog.info("write data to trigger table")
         sqls = [
-            "insert into tdb.t1 values ('2025-01-01 00:00:00', 0, 0), ('2025-01-01 00:05:00', 1, 1), ('2025-01-01 00:10:00', 2, 2)"
+            "insert into tdb.t1 values ('2025-01-01 00:00:00', 0, 0), ('2025-01-01 00:05:00', 1, 1), ('2025-01-01 00:10:00', 2, 2)",
+            "insert into tdb.t1 values ('2025-01-01 00:11:00', 0, 0), ('2025-01-01 00:12:00', 1, 1), ('2025-01-01 00:15:00', 2, 2)",
+            "insert into tdb.t1 values ('2025-01-01 00:21:00', 0, 0)",
         ]
         tdSql.executes(sqls)
 
     def createStream(self):
         tdLog.info("create stream")
-        sql = "create stream rdb.s1 interval(1s) sliding(1s) from tdb.triggers into rdb.st1  as select _twstart ts, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend;"
+        sql = "create stream rdb.s1 interval(5m) sliding(5m) from tdb.triggers into rdb.st1  as select _twstart ts, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend;"
         tdSql.execute(sql)
 
     def checkResults(self):
         tdLog.info("check stream result")
-        
+
         tdSql.checkResultsByFunc("show rdb.tables", func=lambda: tdSql.getRows() == 1)
 
-        # res_query = "select ts, c1, c2 from rdb.s1"
+        res_query = "select ts, c1, c2 from rdb.st1"
+        tdSql.checkResultsByFunc(
+            sql=res_query,
+            func=lambda: tdSql.getRows() >= 4
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 2, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 3, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(1, 0, 1000)
+            and tdSql.compareData(1, 1, 1000)
+            and tdSql.compareData(1, 2, 1000)
+            and tdSql.compareData(1, 3, 1000)
+            and tdSql.compareData(2, 0, 4.5)
+            and tdSql.compareData(2, 1, 14.5)
+            and tdSql.compareData(2, 2, 24.5)
+            and tdSql.compareData(2, 3, 34.5),
+        )
+
         # exp_query = "select _wstart ts, count(cint) c1, avg(cint) c2 from qdb.meters interval(5m)"
 
         # exp_result = tdSql.getResult(exp_query)
