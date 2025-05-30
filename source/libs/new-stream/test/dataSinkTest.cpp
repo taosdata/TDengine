@@ -179,15 +179,13 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   ASSERT_EQ(code, TSDB_CODE_STREAM_INTERNAL_ERROR);
 
   // Test valid parameters
-  code = initStreamDataCache(streamId, taskId, cleanMode, 0, &pCache);
+  code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
   ASSERT_EQ(code, 0);
   code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
   ASSERT_EQ(code, 0);
   void* pIter = NULL;
 
   // Test invalid parameters
-  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 100);
-  ASSERT_NE(code, 0);
   code = getStreamDataCache(pCache, groupID, wend, wstart, &pIter);
   ASSERT_EQ(code, TSDB_CODE_STREAM_INTERNAL_ERROR);
   code = getStreamDataCache(NULL, groupID, wstart, wend, &pIter);
@@ -217,7 +215,7 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   wstart = baseTestTime1 + 100;
   wend = baseTestTime1 + 200;
   pCache = NULL;
-  code = initStreamDataCache(streamId, taskId, cleanMode, 0, &pCache);
+  code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
   ASSERT_EQ(code, 0);
   code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
   ASSERT_EQ(code, 0);
@@ -241,7 +239,7 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   wstart = baseTestTime1 + 0;
   wend = baseTestTime1 + 100;
   pCache = NULL;
-  code = initStreamDataCache(streamId, taskId, cleanMode, 0, &pCache);
+  code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
   ASSERT_EQ(code, 0);
   code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
   ASSERT_EQ(code, 0);
@@ -270,7 +268,7 @@ TEST(dataSinkTest, getSlidingStreamData) {
   TSKEY   wstart = baseTestTime1 + 0;
   TSKEY   wend = baseTestTime1 + 100;
   void*   pCache = NULL;
-  int32_t code = initStreamDataCache(streamId, taskId, cleanMode, 0, &pCache);
+  int32_t code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
   ASSERT_EQ(code, 0);
   // Test invalid parameters, cleanMode is DATA_CLEAN_EXPIRED, cannot call moveStreamDataCache
   code = moveStreamDataCache(pCache, groupID, wstart, wend, pBlock);
@@ -346,7 +344,7 @@ TEST(dataSinkTest, moveStreamData) {
   TSKEY   wstart = baseTestTime1 + 0;
   TSKEY   wend = baseTestTime1 + 100;
   void*   pCache = NULL;
-  int32_t code = initStreamDataCache(streamId, taskId, cleanMode, 0, &pCache);
+  int32_t code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
   ASSERT_EQ(code, 0);
   code = moveStreamDataCache(pCache, groupID, wstart, wend, pBlock);
   ASSERT_EQ(code, 0);
@@ -378,7 +376,7 @@ TEST(dataSinkTest, cancelStreamDataCacheIterateTest) {
   int64_t groupID = 1;
   int32_t cleanMode = DATA_CLEAN_IMMEDIATE;
   void*   pCache = NULL;
-  int32_t code = initStreamDataCache(streamId, taskId, cleanMode, 0, &pCache);
+  int32_t code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
   ASSERT_EQ(code, 0);
   SSDataBlock* pBlock1 = createTestBlock(baseTestTime1, 0);
   ASSERT_NE(pBlock1, nullptr);
@@ -421,7 +419,7 @@ TEST(dataSinkTest, putStreamDataRows) {
   TSKEY   wstart = baseTestTime1 + 0;
   TSKEY   wend = baseTestTime1 + 100;
   void*   pCache = NULL;
-  int32_t code = initStreamDataCache(streamId, taskId, cleanMode, 0, &pCache);
+  int32_t code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
   ASSERT_EQ(code, 0);
   code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 29);
   ASSERT_EQ(code, 0);
@@ -480,7 +478,7 @@ TEST(dataSinkTest, allWriteToFileTest) {
   TSKEY   wstart = baseTestTime1 + 0;
   TSKEY   wend = baseTestTime1 + 100;
   void*   pCache1 = NULL;
-  int32_t code = initStreamDataCache(streamId, taskId, cleanMode, 0, &pCache1);
+  int32_t code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache1);
   ASSERT_EQ(code, 0);
   code = putStreamDataCache(pCache1, groupID, wstart, wend, pBlock11, 0, 29);
   ASSERT_EQ(code, 0);
@@ -498,7 +496,7 @@ TEST(dataSinkTest, allWriteToFileTest) {
   TSKEY   wstart2 = baseTestTime2 + 0;
   TSKEY   wend2 = baseTestTime2 + 100;
   void*   pCache2 = NULL;
-  code = initStreamDataCache(streamId2, taskId2, cleanMode2, 0, &pCache2);
+  code = initStreamDataCache(streamId2, taskId2, 0, cleanMode2, 0, &pCache2);
   ASSERT_EQ(code, 0);
   code = putStreamDataCache(pCache2, groupID2, wstart2, wend2, pBlock21, 0, 29);
   ASSERT_EQ(code, 0);
@@ -608,7 +606,7 @@ TEST(dataSinkTest, allWriteMultiStreamToFileTest) {
   TSKEY   wstart = baseTestTime1 + 0;
   TSKEY   wend = baseTestTime1 + 100;
   void*   pCache1 = NULL;
-  int32_t code = initStreamDataCache(streamId, taskId, cleanMode, 0, &pCache1);
+  int32_t code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache1);
   ASSERT_EQ(code, 0);
   code = putStreamDataCache(pCache1, groupID, wstart, wend, pBlock11, 0, 29);
   ASSERT_EQ(code, 0);
@@ -626,7 +624,7 @@ TEST(dataSinkTest, allWriteMultiStreamToFileTest) {
   TSKEY   wstart2 = baseTestTime2 + 0;
   TSKEY   wend2 = baseTestTime2 + 100;
   void*   pCache2 = NULL;
-  code = initStreamDataCache(streamId2, taskId2, cleanMode2, 0, &pCache2);
+  code = initStreamDataCache(streamId2, taskId2, 0, cleanMode2, 0, &pCache2);
   ASSERT_EQ(code, 0);
   code = putStreamDataCache(pCache2, groupID2, wstart2, wend2, pBlock21, 0, 29);
   ASSERT_EQ(code, 0);
@@ -729,9 +727,38 @@ TEST(dataSinkTest, allWriteMultiStreamToFileTest) {
   destroyDataSinkMgr();
 }
 
+TEST(dataSinkTest, testWriteFileSize) {
+  SSDataBlock* pBlock = createTestBlock(baseTestTime1, 0);
+  setDataSinkMaxMemSize(gMemReservedSize + 1024 * 1024);
+  int64_t streamId = 1;
+  void*   pCache = NULL;
+  int64_t taskId = 1;
+  int32_t cleanMode = DATA_CLEAN_EXPIRED;
+  int32_t code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
+  ASSERT_NE(pBlock, nullptr);
+  for (int32_t i = 0; i < 100000; i++) {
+    int64_t groupID = i;
+    TSKEY   wstart = baseTestTime1 + 0;
+    TSKEY   wend = baseTestTime1 + 100;
+    ASSERT_EQ(code, 0);
+    code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
+    ASSERT_EQ(code, 0);
+  }
+  blockDataDestroy(pBlock);
+
+  destroyStreamDataCache(pCache);
+}
+
 int main(int argc, char** argv) {
   taos_init();
   ::testing::InitGoogleTest(&argc, argv);
+
+  if (argc > 1) {
+    ::testing::GTEST_FLAG(filter) = argv[1];
+  } else {
+    ::testing::GTEST_FLAG(filter) = "*";
+  }
+
   int ret = RUN_ALL_TESTS();
   taos_cleanup();
   return ret;

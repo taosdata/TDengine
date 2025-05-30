@@ -52,6 +52,16 @@ extern "C" {
 #define TD_PATH_MAX _POSIX_PATH_MAX
 #endif
 
+#ifdef WINDOWS
+typedef struct {
+  void  *base;
+  size_t len;
+} TaosIOVec;
+#else
+#include <sys/uio.h>
+typedef struct iovec TaosIOVec;
+#endif
+
 typedef struct TdFile *TdFilePtr;
 
 #define TD_FILE_CREATE        0x0001
@@ -132,6 +142,8 @@ int    taosSetAutoDelFile(char *path);
 
 FILE   *taosOpenFileForStream(const char *path, int32_t tdFileOptions);
 bool    lastErrorIsFileNotExist();
+
+int64_t taosWritevFile(TdFilePtr pFile, const TaosIOVec *iov, int iovcnt);
 
 #ifdef BUILD_WITH_RAND_ERR
 #define STUB_RAND_NETWORK_ERR(ret)                                        \

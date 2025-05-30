@@ -47,11 +47,11 @@ class TestStreamDevBasic:
 
         tdLog.info(f"=============== write query data")
         sqls = [
-            "insert into t1 using stb tags(1) values ('2025-01-01 00:00:00', 0, 0);",
+            "insert into t1 using stb tags(1) values ('2025-01-01 00:00:00'    , 0, 0);",
             "insert into t2 using stb tags(2) values ('2025-01-01 00:00:00.102', 1, 0)",
-            "insert into t1 using stb tags(1) values ('2025-01-01 00:00:01', 1, 1);",
+            "insert into t1 using stb tags(1) values ('2025-01-01 00:00:01'    , 1, 1);",
             "insert into t2 using stb tags(2) values ('2025-01-01 00:00:01.400', 2, 1);",
-            "insert into t1 using stb tags(1) values ('2025-01-01 00:00:02', 2, 2);",
+            "insert into t1 using stb tags(1) values ('2025-01-01 00:00:02'    , 2, 2);",
             "insert into t2 using stb tags(2) values ('2025-01-01 00:00:02.600', 3, 2);",
         ]
         tdSql.executes(sqls)

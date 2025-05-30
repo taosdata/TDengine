@@ -143,6 +143,9 @@ void    tCleanupStreamRetrieveReq(struct SStreamRetrieveReq* pReq);
 #define PLACE_HOLDER_PARTITION_ROWS   BIT_FLAG_MASK(12)
 #define PLACE_HOLDER_GRPID            BIT_FLAG_MASK(13)
 
+#define CREATE_STREAM_FLAG_NONE                     0
+#define CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB      BIT_FLAG_MASK(0)
+
 typedef enum EStreamPlaceholder {
   SP_NONE = 0,
   SP_CURRENT_TS = 1,
@@ -591,7 +594,7 @@ typedef struct SSTriggerPullRequest {
 
 typedef struct SSTriggerSetTableRequest {
   SSTriggerPullRequest base;
-  SArray               uids;  // SArray<int64_t>, uid of the table to set
+  SArray*              cids;  // SArray<int64_t>, uid of the table to set
 } SSTriggerSetTableRequest;
 
 typedef struct SSTriggerLastTsRequest {
@@ -694,12 +697,31 @@ typedef struct SSTriggerGroupColValueRequest {
 
 typedef struct SSTriggerVirTableInfoRequest {
   SSTriggerPullRequest base;
+  SArray*              cids;  // SArray<int64_t>, col ids of the virtual table
 } SSTriggerVirTableInfoRequest;
+
+typedef struct OTableInfoRsp {
+  int64_t  uid;;
+  col_id_t cid;
+} OTableInfoRsp;
+
+typedef struct OTableInfo {
+  char     refTableName[TSDB_TABLE_NAME_LEN];
+  char     refColName[TSDB_COL_NAME_LEN];
+} OTableInfo;
 
 typedef struct SSTriggerOrigTableInfoRequest {
   SSTriggerPullRequest base;
-  SArray               cols;  // SArray<SColRef>
+  SArray*              cols;  // SArray<OTableInfo>
 } SSTriggerOrigTableInfoRequest;
+
+typedef struct SSTriggerOrigTableInfoRsp {
+  SArray*              cols;  // SArray<OTableInfoRsp>
+} SSTriggerOrigTableInfoRsp;
+
+int32_t tSerializeSTriggerOrigTableInfoRsp(void* buf, int32_t bufLen, const SSTriggerOrigTableInfoRsp* pReq);
+int32_t tDserializeSTriggerOrigTableInfoRsp(void* buf, int32_t bufLen, SSTriggerOrigTableInfoRsp* pReq);
+void    tDestroySTriggerOrigTableInfoRsp(SSTriggerOrigTableInfoRsp* pReq);
 
 typedef union SSTriggerPullRequestUnion {
   SSTriggerPullRequest                base;
@@ -727,6 +749,7 @@ typedef union SSTriggerPullRequestUnion {
 
 int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTriggerPullRequest* pReq);
 int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullRequestUnion* pReq);
+void    tDestroySTriggerPullRequest(SSTriggerPullRequestUnion* pReq);
 
 typedef struct SSTriggerCalcParam {
   // These fields only have values when used in the statement, otherwise they are 0
@@ -785,6 +808,22 @@ typedef struct STsInfo {
   int64_t  ts;
 } STsInfo;
 
+typedef struct VTableInfo {
+  int64_t gId;        // group id
+  int64_t uid;        // table uid
+  int64_t ver;        // table version
+  SColRefWrapper cols;    
+} VTableInfo;
+
+typedef struct SStreamMsgVTableInfo {
+  SSchemaWrapper schema;
+  SArray*        infos;     // SArray<VTableInfo>
+} SStreamMsgVTableInfo;
+
+int32_t tSerializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, const SStreamMsgVTableInfo* pRsp);
+int32_t tDeserializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, SStreamMsgVTableInfo *pBlock);
+void    tDestroySStreamMsgVTableInfo(SStreamMsgVTableInfo *ptr);
+
 typedef struct SStreamTsResponse {
   int64_t ver;
   SArray* tsInfo;  // SArray<STsInfo>
@@ -792,6 +831,9 @@ typedef struct SStreamTsResponse {
 
 int32_t tSerializeSStreamTsResponse(void* buf, int32_t bufLen, const SStreamTsResponse* pRsp);
 int32_t tDeserializeSStreamTsResponse(void* buf, int32_t bufLen, void *pBlock);
+
+
+
 
 typedef struct SStreamGroupValue {
   SValue  data;

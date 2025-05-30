@@ -4197,6 +4197,7 @@ SNode* createStreamTriggerOptions(SAstCreateContext* pCxt) {
   pOptions->pWaterMark = NULL;
   pOptions->pMaxDelay = NULL;
   pOptions->pExpiredTime = NULL;
+  pOptions->pFillHisStartTime = NULL;
   pOptions->pEventType = EVENT_WINDOW_CLOSE;
   pOptions->calcNotifyOnly = false;
   pOptions->deleteOutputTable = false;
@@ -4206,7 +4207,6 @@ SNode* createStreamTriggerOptions(SAstCreateContext* pCxt) {
   pOptions->lowLatencyCalc = false;
   pOptions->forceOutput = false;
   pOptions->ignoreDisorder = false;
-  pOptions->fillHistoryStartTime = 0;
   return (SNode*)pOptions;
 _err:
   nodesDestroyNode((SNode*)pOptions);
@@ -4218,7 +4218,7 @@ SNode* createStreamTagDefNode(SAstCreateContext* pCxt, SToken* pTagName, SDataTy
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM_TAG_DEF, (SNode**)&pTagDef);
   CHECK_MAKE_NODE(pTagDef);
-  tstrncpy(pTagDef->tagName, pTagName->z, sizeof(pTagDef->tagName));
+  COPY_STRING_FORM_ID_TOKEN(pTagDef->tagName, pTagName);
   pTagDef->dataType = dataType;
   pTagDef->pTagExpr = tagExpression;
   pTagDef->pComment = pComment;
@@ -4255,7 +4255,7 @@ SNode* setStreamTriggerOptions(SAstCreateContext* pCxt, SNode* pOptions, SStream
         goto _err;
       }
       pStreamOptions->fillHistory = true;
-      pStreamOptions->fillHistoryStartTime = *(int64_t*)nodesGetValueFromNode((SValueNode*)pOptionUnit->pNode);
+      pStreamOptions->pFillHisStartTime = pOptionUnit->pNode;
       break;
     case STREAM_TRIGGER_OPTION_FILL_HISTORY_FIRST:
       if (pStreamOptions->fillHistory) {
@@ -4264,7 +4264,7 @@ SNode* setStreamTriggerOptions(SAstCreateContext* pCxt, SNode* pOptions, SStream
         goto _err;
       }
       pStreamOptions->fillHistoryFirst = true;
-      pStreamOptions->fillHistoryStartTime = *(int64_t*)nodesGetValueFromNode((SValueNode*)pOptionUnit->pNode);
+      pStreamOptions->pFillHisStartTime = pOptionUnit->pNode;
       break;
     case STREAM_TRIGGER_OPTION_IGNORE_DISORDER:
       pStreamOptions->ignoreDisorder = true;

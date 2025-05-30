@@ -12553,7 +12553,7 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
   }
 
   if (strlen(pStmt->targetDbName) == 0 && strlen(pStmt->targetTabName) == 0) {
-    if ((pTrigger->pNotify && !pStmt->pQuery) || (pTriggerOptions->calcNotifyOnly)) {
+    if ((pTrigger->pNotify && !pStmt->pQuery) || (pTriggerOptions && pTriggerOptions->calcNotifyOnly)) {
       // *only notify no query* or *query res only notify no save*
       // out table can be null. do nothing here.
     } else {
@@ -12978,7 +12978,7 @@ static int32_t modifyVtableSrcNumBasedOnCols(SVCTableRefCols* pTb, SArray* pColI
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, SStreamTriggerOptions* pOptions, SCMCreateStreamReq* pReq) {
+static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, const char* streamDb, SStreamTriggerOptions* pOptions, SCMCreateStreamReq* pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
   // TODO(smj) : check expiredTime/maxDelay/watermark
 //  if (TSDB_CODE_SUCCESS == code) {
@@ -12995,7 +12995,11 @@ static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, SStre
   pReq->fillHistoryFirst = pOptions ? (int8_t)pOptions->fillHistoryFirst : 0;
   pReq->calcNotifyOnly = pOptions ? (int8_t)pOptions->calcNotifyOnly : 0;
   pReq->lowLatencyCalc = pOptions ? (int8_t)pOptions->lowLatencyCalc : 0;
-  pReq->fillHistoryStartTime = pOptions ? pOptions->fillHistoryStartTime : 0;
+  STimeWindow range = {.skey = 0, .ekey = 0};
+  if (pOptions && pOptions->pFillHisStartTime) {
+    PAR_ERR_RET(translateTimeRange(pCxt, streamDb, pOptions->pFillHisStartTime, NULL, &range));
+  }
+  pReq->fillHistoryStartTime = range.skey;
   pReq->expiredTime = pOptions ? (NULL != pOptions->pExpiredTime ? ((SValueNode*)pOptions->pExpiredTime)->datum.i : 0) : 0;
   pReq->eventTypes = pOptions ? pOptions->pEventType : EVENT_WINDOW_CLOSE;
   pReq->maxDelay = pOptions ? (NULL != pOptions->pMaxDelay ? ((SValueNode*)pOptions->pMaxDelay)->datum.i : 0) : 0;
@@ -13553,6 +13557,10 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
 
   switch (pTriggerTableMeta->tableType) {
     case TSDB_SUPER_TABLE:
+      if (isVirtualSTable(pTriggerTableMeta)) {
+        BIT_FLAG_SET_MASK(pReq->flags, CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB);
+      }
+      break;
     case TSDB_CHILD_TABLE:
     case TSDB_NORMAL_TABLE:
     case TSDB_VIRTUAL_CHILD_TABLE:
@@ -13697,6 +13705,10 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
   SHashObj*    pDbs = NULL;
   SHashObj*    pPlanMap = NULL;
   bool         withExtWindow = false;
+
+  if (!pStmt->pQuery) {
+      return code;
+  }
 
   if (nodeType(pStmt->pQuery) != QUERY_NODE_SELECT_STMT) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY);
@@ -13888,7 +13900,10 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   (void)snprintf(pReq->outDB, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pParseCxt->acctId, pStmt->targetDbName);
 
   pReq->igExists = (int8_t)pStmt->ignoreExists;
-  PAR_ERR_JRET(createStreamReqBuildTriggerOptions(pCxt, pTriggerOptions, pReq));
+  pReq->flags = CREATE_STREAM_FLAG_NONE;
+  pReq->placeHolderBitmap = PLACE_HOLDER_NONE;
+
+  PAR_ERR_JRET(createStreamReqBuildTriggerOptions(pCxt, pStmt->streamDbName, pTriggerOptions, pReq));
   PAR_ERR_JRET(createStreamReqBuildStreamNotifyOptions(pCxt, pNotifyOptions, &pNotifyCond, pReq));
   PAR_ERR_JRET(createStreamReqBuildTrigger(pCxt, pStmt, pTrigger, pReq, &pTriggerSelect, &pTriggerSlotHash));
   PAR_ERR_JRET(createStreamReqBuildCalcPlan(pCxt, pStmt, pTrigger->pPartitionList, pTriggerSelect, pTriggerSlotHash, pNotifyCond, pReq));

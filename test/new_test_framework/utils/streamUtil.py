@@ -93,7 +93,7 @@ class StreamUtil:
         tdLog.info(f"create super table")
         tdSql.execute(
             f"create stable {db}.{stb} ("
-            "  ts timestamp"
+            "  cts timestamp"
             ", cint int"
             ", cuint int unsigned"
             ", cbigint bigint"
@@ -150,7 +150,7 @@ class StreamUtil:
             for tb in range(tbPerBatch):
                 table = batch * tbPerBatch + tb
                 tts = tsStart if table % 3 == 1 else tsNext
-                tint = table % 3
+                tint = table % 3 if table % 20 != 1 else "NULL"
                 tuint = table % 4
                 tbigint = table % 5
                 tubigint = table % 6
@@ -165,7 +165,7 @@ class StreamUtil:
                 tnchar = tvarchar
                 tvarbinary = tvarchar
                 tgeometry = "POINT(1.0 1.0)" if table % 3 == 1 else "POINT(2.0 2.0)"
-                sql += f"{db}.t{table} using {db}.{stb} tags({tts}, {tint}, {tuint}, {tbigint}, {tubigint}, {tfloat}, {tdouble}, '{tvarchar}', {tsmallint}, {tusmallint}, {ttinyint}, {tutinyint}, {tbool}, '{tnchar}', '{tvarbinary}', '{tgeometry}') "
+                sql += f"{db}.t{table} using {db}.{stb} tags({tts}, '{tint}', {tuint}, {tbigint}, {tubigint}, {tfloat}, {tdouble}, '{tvarchar}', {tsmallint}, {tusmallint}, {ttinyint}, {tutinyint}, {tbool}, '{tnchar}', '{tvarbinary}', '{tgeometry}') "
             tdSql.execute(sql)
 
         totalRows = rowsPerBatch * rowBatch
@@ -221,7 +221,7 @@ class StreamUtil:
         for table in range(tables):
             tdSql.execute(
                 f"create table {db}.n{table} ("
-                "  ts timestamp"
+                "  cts timestamp"
                 ", cint int"
                 ", cuint int unsigned"
                 ", cbigint bigint"
@@ -295,7 +295,7 @@ class StreamUtil:
         tdLog.info(f"create virtual super table")
         tdSql.execute(
             f"create stable {db}.{stb} ("
-            "  ts timestamp"
+            "  cts timestamp"
             ", cint int"
             ", cuint int unsigned"
             ", cbigint bigint"
@@ -396,6 +396,106 @@ class StreamUtil:
                 f", '{tvarbinary}'"
                 f", '{tgeometry}') "
             )
+
+    def prepareJsonTables(
+        self,
+        db="qdb",
+        stb="jmeters",
+        precision="ms",
+        start="2025-01-01 00.00.00",
+        interval=30,
+        tbBatch=1,
+        tbPerBatch=10,
+        rowBatch=2,
+        rowsPerBatch=500,
+    ):
+        tdLog.info(f"create super table")
+        tdSql.execute(
+            f"create stable {db}.{stb} ("
+            "  cts timestamp"
+            ", cint int composite key"
+            ", cuint int unsigned"
+            ", cbigint bigint"
+            ", cubigint bigint unsigned"
+            ", cfloat float"
+            ", cdouble double"
+            ", cvarchar varchar(32)"
+            ", csmallint smallint"
+            ", cusmallint smallint unsigned"
+            ", ctinyint tinyint"
+            ", cutinyint tinyint unsigned"
+            ", cbool bool"
+            ", cnchar nchar(32)"
+            ", cvarbinary varbinary(32)"
+            ", cdecimal8 decimal(8)"
+            ", cdecimal16 decimal(16)"
+            ", cgeometry geometry(32)"
+            ") tags("
+            "  tjson JSON"
+            ")"
+        )
+
+        dt = datetime.strptime(start, "%Y-%m-%d %H.%M.%S")
+        if precision == "us":
+            prec = 1000 * 1000 * 1000
+        elif precision == "ns":
+            prec = 1000 * 1000
+        else:
+            prec = 1000
+
+        tsStart = int(dt.timestamp() * prec)
+        tsNext = tsStart + 86400 * prec
+        tsInterval = interval * prec
+
+        totalTables = tbBatch * tbPerBatch
+        tdLog.info(f"create total {totalTables} child tables")
+        str1 = '{\\"k1\\":\\"v1\\",\\"k2\\":\\"v2\\"}'
+        str2 = '{\\"k1\\":\\"v1\\",\\"k2\\":\\"v2\\"}'
+        for batch in range(tbBatch):
+            sql = "create table "
+            for tb in range(tbPerBatch):
+                table = batch * tbPerBatch + tb
+                tjson = str1 if table % 3 == 1 else str2
+                sql += f'{db}.j{table} using {db}.{stb} tags("{tjson}")'
+            tdSql.execute(sql)
+
+        totalRows = rowsPerBatch * rowBatch
+        tdLog.info(f"write total:{totalRows} rows, {rowsPerBatch} rows per table")
+        for table in range(totalTables):
+            for batch in range(rowBatch):
+                sql = f"insert into {db}.j{table} values "
+                for row in range(rowsPerBatch - 1):
+                    rows = batch * rowsPerBatch + row
+                    ts = (
+                        tsStart + rows * tsInterval
+                        if rows % 2 == 0
+                        else tsStart + (rows - 1) * tsInterval
+                    )
+                    cint = rows
+                    cuint = rows % 4
+                    cbigint = rows % 5
+                    cubigint = rows % 6
+                    cfloat = rows % 7
+                    cdouble = rows % 8
+                    cvarchar = "SanFrancisco" if rows % 3 == 1 else "LosAngeles"
+                    csmallint = rows % 9
+                    cusmallint = rows % 10
+                    ctinyint = rows % 11
+                    cutinyint = rows % 12
+                    cbool = rows % 2
+                    cnchar = cvarchar
+                    cvarbinary = cvarchar
+                    cdecimal8 = "0" if rows % 3 == 1 else "8"
+                    cdecimal16 = "4" if rows % 3 == 1 else "16"
+                    cgeometry = "POINT(1.0 1.0)" if rows % 3 == 1 else "POINT(2.0 2.0)"
+                    sql += f"({ts}, {cint}, {cuint}, {cbigint}, {cubigint}, {cfloat}, {cdouble}, '{cvarchar}', {csmallint}, {cusmallint}, {ctinyint}, {cutinyint}, {cbool}, '{cnchar}', '{cvarbinary}', '{cdecimal8}', '{cdecimal16}', '{cgeometry}') "
+                tdSql.execute(sql)
+
+                rows = rows + 1
+                ts = tsStart + rows * tsInterval
+                cint = rows
+                sql = f"insert into {db}.j{table} (cts, cint) values ({ts}, {cint})"
+                tdSql.execute(sql)
 
 
 tdStream = StreamUtil()

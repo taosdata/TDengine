@@ -256,7 +256,7 @@ static int32_t checkInsertParam(SStreamInserterParam* streamInserterParam) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (streamInserterParam->tbType == TSDB_CHILD_TABLE && streamInserterParam->suid <= 0) {
+  if (streamInserterParam->tbType == TSDB_SUPER_TABLE && streamInserterParam->suid <= 0) {
     stError("insertParam: invalid suid:%" PRIx64 " for child table", streamInserterParam->suid);
     return TSDB_CODE_INVALID_PARA;
   }
@@ -1836,6 +1836,7 @@ void qStreamDestroyTableList(void* pTableListInfo) { tableListDestroy(pTableList
 uint64_t qStreamGetGroupId(void* pTableListInfo, int64_t uid) { return tableListGetTableGroupId(pTableListInfo, uid); }
 
 int32_t qStreamGetTableListGroupNum(const void* pTableList) { return ((STableListInfo*)pTableList)->numOfOuputGroups; }
+SArray* qStreamGetTableArrayList(const void* pTableList) { return ((STableListInfo*)pTableList)->pTableList; }
 
 int32_t qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo) { return doFilter(pBlock, pFilterInfo, NULL); }
 

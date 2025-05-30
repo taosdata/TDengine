@@ -674,6 +674,8 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
     }
   }
 
+  pStream->updateTime = taosGetTimestampMs();
+
   int64_t streamId = pStream->pCreate->streamId;
 
   mstsInfo("start to start stream %s from stopped", resumeReq.name);
