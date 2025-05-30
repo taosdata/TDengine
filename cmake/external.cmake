@@ -1,9 +1,11 @@
 option(TD_EXTERNALS_USE_ONLY "external dependencies use only, otherwise download-build-install" OFF)
 option(TD_ALIGN_EXTERNAL "keep externals' CMAKE_BUILD_TYPE align with the main project" ON)
 
-if(DEFINED ENV{EXTERNAL_PROJECT_NO_UPDATE} AND $ENV{EXTERNAL_PROJECT_NO_UPDATE})
-    set(UPDATE_DISCONNECTED TRUE)
-    set(UPDATE_COMMAND "")
+if(DEFINED ENV{EXTERNAL_PROJECT_NO_UPDATE})
+    if($ENV{EXTERNAL_PROJECT_NO_UPDATE})
+        set(UPDATE_DISCONNECTED TRUE)
+        set(UPDATE_COMMAND "")
+    endif()
 endif()
 
 # eg.: cmake -B debug -DCMAKE_BUILD_TYPE:STRING=Debug
