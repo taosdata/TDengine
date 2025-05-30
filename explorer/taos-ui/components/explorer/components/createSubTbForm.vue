@@ -21,6 +21,99 @@
           </template>
           <el-input v-model="formData.name" size="default" :maxlength="192" :title="formData.name" :disabled="isEdit" />
         </el-form-item>
+        <!-- virtual columns -->
+        <el-collapse v-if="isVirtual" :model-value="['1']">
+          <el-collapse-item :title="t('stb.columns')" name="1">
+            <el-form-item
+              v-for="(column, index) in formData.columns"
+              :key="'column' + index"
+              label-width="0"
+              :prop="'columns.' + index + '.value'"
+              :rules="virtualColumnRule"
+            >
+              <div class="flex" style="gap: 8px">
+                <!-- Field:Type display -->
+                <p class="no-wrap" style="display: inline; min-width: 120px" :title="column.type">
+                  {{ `${column.field}:${column.type}` }}
+                </p>
+
+                <!-- Database Select -->
+                <el-select
+                  v-model="column.database"
+                  style="width: 180px"
+                  :placeholder="t('taosuser.tipSelectTarget')"
+                  filterable
+                  clearable
+                  @change="onDatabaseChange(column, index)"
+                >
+                  <el-option
+                    v-for="db in formData.databases"
+                    :key="db['node-key']"
+                    :label="db.name"
+                    :value="db.name"
+                  ></el-option>
+                </el-select>
+
+                <!-- Table Name Select -->
+                <el-select
+                  v-model="column.table"
+                  style="width: 180px"
+                  :props="{
+                    checkStrictly: false,
+                    emitPath: false,
+                    label: 'label',
+                    value: 'value'
+                  }"
+                  :placeholder="t('stb.virtualTableColumn')"
+                  :disabled="!column.database"
+                  clearable
+                  filterable
+                  remote
+                  :remote-method="remoteTablesForVirtualTableRef(column)"
+                >
+                  <el-option
+                    v-for="option in column.tableNameOptions"
+                    :key="option.value"
+                    :label="option.label"
+                    :value="option.value"
+                  ></el-option>
+                </el-select>
+
+                <!-- Table Column Cascader -->
+                <el-select
+                  v-model="column.value"
+                  style="width: 180px"
+                  :props="{
+                    checkStrictly: true,
+                    emitPath: false,
+                    label: 'label',
+                    value: 'value'
+                  }"
+                  :placeholder="t('stb.virtualTableColumn')"
+                  :disabled="!column.table || !column.database"
+                  clearable
+                  filterable
+                  @focus="onColumnSelect(column)"
+                >
+                  <el-option
+                    v-for="option in column.cascaderOptions"
+                    :key="option.value"
+                    :label="option.label"
+                    :value="option.value"
+                  ></el-option>
+                </el-select>
+
+                <!-- Confirm Button (edit mode) -->
+                <el-button
+                  v-if="isEdit"
+                  :disabled="!column.value"
+                  icon="check"
+                  @click="virtualColumnSourceChange(column)"
+                ></el-button>
+              </div>
+            </el-form-item>
+          </el-collapse-item>
+        </el-collapse>
         <!-- Tags -->
         <el-collapse :model-value="['1']">
           <el-collapse-item :title="t('stb.tags')" name="1">
@@ -71,8 +164,11 @@ import { generateCreateSubTableSql, stbNameRule } from './utils';
 import { VariableTableColumnType } from 'constants1/index';
 import { ElMessage, FormInstance } from 'element-plus';
 import {
+  getDbList,
   getSubtbInitStruct,
   getSubtbCurrentStruct,
+  getValidTablesForVirtualTableRef,
+  getValidColumnsForVirtualTableRef,
   createTableReq,
   changeTableStruct,
   changeStbStructData
@@ -86,11 +182,13 @@ const props = withDefaults(defineProps<CreateSubTbProps>(), {
 const { isEdit } = toRefs(props);
 const formData = reactive<CreateSubTbForm>({
   name: '',
+  columns: [],
   tags: [],
   stbTmpl: props.stbName
 });
 const formIns = ref<FormInstance | null>(null);
 const currentDBName = computed(() => props.dbData?.name);
+const isVirtual = computed(() => props.isVirtual);
 const loading = ref(false);
 const formTitle = computed(() => {
   if (!isEdit.value) {
@@ -99,6 +197,13 @@ const formTitle = computed(() => {
     return t('stb.editTb', [formData.name]);
   }
 });
+const virtualColumnRule = [
+  {
+    required: true,
+    message: t('common.requiredTemp', [t('stb.virtualTableColumn')]),
+    trigger: 'blur'
+  }
+];
 const tagRule = [
   {
     required: true,
@@ -109,19 +214,71 @@ const tagRule = [
 const emits = defineEmits(['success', 'cancel']);
 
 defineExpose({
-  generateSql: () => generateCreateSubTableSql(formData, currentDBName.value)
+  generateSql: () => generateCreateSubTableSql(formData, currentDBName.value, isVirtual)
 });
 setFormData();
-function setFormData() {
-  (props.isEdit
+async function setFormData() {
+  if (props.isVirtual) {
+    try {
+      formData.databases = await getDbList();
+    } catch (error) {
+      ElMessage.error(t('msg.getDbListFailed'));
+      formData.databases = [];
+    }
+  }
+  const promise = props.isEdit
     ? getSubtbCurrentStruct(props.dbData.name, props.stbName!, props.tbName!)
-    : getSubtbInitStruct(props.dbData.name, props.stbName!)
-  ).then(data => {
-    formData.name = data.name;
-    formData.tags = data.tags;
-  });
+    : getSubtbInitStruct(props.dbData.name, props.stbName!);
+  const data = await promise;
+  formData.name = data.name;
+  if (props.isVirtual) {
+    formData.isVirtual = true;
+    formData.columns = data.columns
+      .filter((_, index) => index !== 0)
+      .map(column => {
+        column.database = column.database || props.dbData.name;
+        return column;
+      });
+  }
+  formData.tags = data.tags;
 }
 
+function remoteTablesForVirtualTableRef(column) {
+  return async (query: string) => {
+    if (loading.value) return;
+    if (query == column.value && query != '') {
+      console.log('remoteTablesForVirtualTableRef: same query, skip');
+      return;
+    }
+    loading.value = true;
+    try {
+      const tables = await getValidTablesForVirtualTableRef(column.database, column.type, query);
+      column.tableNameOptions = tables.map(table => ({
+        label: table,
+        value: table
+      }));
+    } catch (error) {
+      ElMessage.error(t('msg.getTableListFailed'));
+    } finally {
+      loading.value = false;
+    }
+  };
+}
+async function onColumnSelect(column) {
+  if (loading.value) return;
+  loading.value = true;
+  try {
+    const columns = await getValidColumnsForVirtualTableRef(column.database, column.table, column.type);
+    column.cascaderOptions = columns.map(col => ({
+      label: col.field,
+      value: col.field
+    }));
+  } catch (error) {
+    ElMessage.error(t('msg.getTableColumnsFailed'));
+  } finally {
+    loading.value = false;
+  }
+}
 function handleCreateTable() {
   if (loading.value || !formIns.value) return;
   formIns.value.validate().then(() => {
@@ -135,6 +292,17 @@ function handleCreateTable() {
 }
 function handleData() {
   formData.tags = formData.tags.filter(item => item.value);
+  formData.columns = formData.columns.filter(item => item.value);
+}
+// 当修改虚拟表结构的列时，列的来源发生变化的
+function virtualColumnSourceChange(tag: SubTbTagStruct) {
+  const isString = VariableTableColumnType.some(item => tag.type.startsWith(item));
+  const value = isString ? `'${escapeSpecialChar(tag.value)}'` : tag.value;
+  const params: changeStbStructData = {
+    operation: 'set column',
+    first_field: `\`${column.field}\` = ${value}`
+  };
+  updateData(params);
 }
 // 当修改表结构的tag时，tag的value发生变化的
 function tagValueChange(tag: SubTbTagStruct) {

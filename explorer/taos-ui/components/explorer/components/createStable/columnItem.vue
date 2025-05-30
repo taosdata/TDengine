@@ -119,7 +119,7 @@
             ></el-button>
             <el-button v-else :disabled="btnDisabled" icon="check" @click="emits('typeChange')"></el-button>
           </template>
-          <el-button v-if="!isTag && !isEdit" size="small" :disabled="isTimestamp" @click="emits('moveTag')">
+          <el-button v-if="canMoveToTag && !isEdit" size="small" :disabled="isTimestamp" @click="emits('moveTag')">
             <Icon name="tag" style="width: 14px; height: 12px"></Icon>
           </el-button>
         </template>
@@ -147,13 +147,19 @@ const props = withDefaults(defineProps<ColumnItemProps>(), {
   loading: false,
   placeholder: t('stb.columnName'),
   isTimestamp: false,
-  isCanSetPrimaryKey: false
+  isCanSetPrimaryKey: false,
+  canMoveToTag: true
 });
 
 let minTypeLength = 8;
 const errorText = ref('');
 const dataType = computed(() => (props.isTag ? TDengineDataType.concat(['JSON']) : TDengineDataType));
 const isVerGte3300 = computed(() => isGte3300(props.version));
+const canMoveToTag = computed(() => {
+  console.log('canMoveToTag', props);
+  if (props.isTag) return false;
+  return props.canMoveToTag;
+});
 const inputDisabled = computed(() => (props.isAdd || props.isTag ? false : props.isEdit));
 const btnDisabled = computed(() =>
   props.isAdd || props.isTag

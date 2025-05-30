@@ -27,12 +27,20 @@ export function parseTime(time, cFormat) {
 
 /**
  * 针对TDengine的restful接口中返回的head和data，返回一个适合table组件的对象
- * @param head
- * @param data
- * @returns
+ * @param head 表头数组，每项为 [字段名, ...]
+ * @param data 数据数组，每项为字段值数组
+ * @returns 对象数组，键为字段名，值为对应数据
  */
-export function compHeadAndData(head: any[], data: any[]) {
-  return data.map(item => Object.fromEntries(head.map((a, b) => [a[0], item[b] || ''])));
+export function compHeadAndData(head: Array<[string, ...any[]]>, data: any[][]): Record<string, any>[] {
+  if (!Array.isArray(head) || !Array.isArray(data)) return [];
+  const keys = head.map(h => h[0]);
+  return data.map(row => {
+    const obj: Record<string, any> = {};
+    keys.forEach((key, idx) => {
+      obj[key] = row[idx] ?? '';
+    });
+    return obj;
+  });
 }
 function handlerData(data) {
   return data
