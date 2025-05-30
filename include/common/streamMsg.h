@@ -143,6 +143,9 @@ void    tCleanupStreamRetrieveReq(struct SStreamRetrieveReq* pReq);
 #define PLACE_HOLDER_PARTITION_ROWS   BIT_FLAG_MASK(12)
 #define PLACE_HOLDER_GRPID            BIT_FLAG_MASK(13)
 
+#define CREATE_STREAM_FLAG_NONE                     0
+#define CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB      BIT_FLAG_MASK(0)
+
 typedef enum EStreamPlaceholder {
   SP_NONE = 0,
   SP_CURRENT_TS = 1,
