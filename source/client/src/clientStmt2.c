@@ -140,7 +140,6 @@ static int32_t stmtSwitchStatus(STscStmt2* pStmt, STMT_STATUS newStatus) {
   int32_t code = 0;
 
   if (newStatus >= STMT_INIT && newStatus < STMT_MAX) {
-    STMT2_ELOG("stmt already failed with err:%s", tstrerror(pStmt->errCode));
     STMT_LOG_SEQ(newStatus);
   }
 
@@ -315,14 +314,21 @@ static int32_t stmtParseSql(STscStmt2* pStmt) {
 
   pStmt->bInfo.needParse = false;
 
-  if (pStmt->sql.pQuery->pRoot && 0 == pStmt->sql.type) {
+  if (pStmt->sql.pQuery->pRoot && LEGAL_INSERT(nodeType(pStmt->sql.pQuery->pRoot))) {
     pStmt->sql.type = STMT_TYPE_INSERT;
     pStmt->sql.stbInterlaceMode = false;
-  } else if (pStmt->sql.pQuery->pPrepareRoot) {
+  } else if (pStmt->sql.pQuery->pPrepareRoot && LEGAL_SELECT(nodeType(pStmt->sql.pQuery->pPrepareRoot))) {
     pStmt->sql.type = STMT_TYPE_QUERY;
     pStmt->sql.stbInterlaceMode = false;
 
     return TSDB_CODE_SUCCESS;
+  } else {
+    pStmt->bInfo.needParse = true;
+    STMT2_ELOG_E("only support select or insert sql");
+    if (pStmt->exec.pRequest->msgBuf) {
+      tstrncpy(pStmt->exec.pRequest->msgBuf, "stmt only support select or insert", pStmt->exec.pRequest->msgBufLen);
+    }
+    return TSDB_CODE_TSC_STMT_API_ERROR;
   }
 
   STableDataCxt** pSrc =
@@ -1029,12 +1035,18 @@ static int32_t stmtResetStbInterlaceCache(STscStmt2* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t stmtResetStmtForPrepare(STscStmt2* pStmt) {
+static int32_t stmtDeepReset(STscStmt2* pStmt) {
   char*             db = pStmt->db;
   bool              stbInterlaceMode = pStmt->stbInterlaceMode;
   TAOS_STMT2_OPTION options = pStmt->options;
   uint32_t          reqid = pStmt->reqid;
 
+  if (pStmt->options.asyncExecFn && !pStmt->execSemWaited) {
+    if (tsem_wait(&pStmt->asyncExecSem) != 0) {
+      STMT2_ELOG_E("bind param wait asyncExecSem failed");
+    }
+    pStmt->execSemWaited = true;
+  }
   taosMemoryFree(pStmt->sql.pBindInfo);
   pStmt->sql.pBindInfo = NULL;
 
@@ -1159,7 +1171,7 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
 
   if (pStmt->sql.status >= STMT_PREPARE) {
     STMT2_DLOG("stmt status is %d, need to reset stmt2 cache before prepare", pStmt->sql.status);
-    STMT_ERR_RET(stmtResetStmtForPrepare(pStmt));
+    STMT_ERR_RET(stmtDeepReset(pStmt));
   }
 
   if (pStmt->errCode != TSDB_CODE_SUCCESS) {
@@ -1810,7 +1822,7 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
 
   cleanup_root:
     STMT2_ELOG("parse query statment unexpected failed code:%d, need to clean node", code);
-    if (pStmt->sql.pQuery->pRoot) {
+    if (pStmt->sql.pQuery && pStmt->sql.pQuery->pRoot) {
       nodesDestroyNode(pStmt->sql.pQuery->pRoot);
       pStmt->sql.pQuery->pRoot = NULL;
     }
@@ -2271,7 +2283,6 @@ int stmtClose2(TAOS_STMT2* stmt) {
   (void)taosThreadMutexDestroy(&pStmt->asyncBindParam.mutex);
 
   if (pStmt->options.asyncExecFn && !pStmt->execSemWaited) {
-    STMT2_TLOG_E("wait for asyncExecSem");
     if (tsem_wait(&pStmt->asyncExecSem) != 0) {
       STMT2_ELOG_E("fail to wait asyncExecSem");
     }
