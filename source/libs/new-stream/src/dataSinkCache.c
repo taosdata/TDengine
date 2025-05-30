@@ -23,8 +23,10 @@
 #include "tarray.h"
 #include "tdatablock.h"
 #include "tdef.h"
+#include "thash.h"
 
 extern SDataSinkManager2 g_pDataSinkManager;
+SSlidingGrpMemList g_slidigGrpMemList = {0};
 
 void* getNextBuffStart(SAlignBlocksInMem* pAlignBlockInfo) {
   return (void*)pAlignBlockInfo + sizeof(SAlignBlocksInMem) + pAlignBlockInfo->dataLen;
@@ -129,6 +131,44 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
   return code;
 }
 
+bool shouldWriteSlidingGrpMemList(SSlidingGrpMgr* pSlidingGrpMgr) {
+  if (pSlidingGrpMgr->usedMemSize < (1 * 1024 * 1024)) {
+    return false;
+  }
+  int64_t size = taosHashGetSize(g_slidigGrpMemList.pSlidingGrpList);
+  if (size == 0) {
+    return true;
+  }
+
+  if (g_slidigGrpMemList.allUsedMemSize < gMemAlertQuitSize ||
+      (pSlidingGrpMgr->usedMemSize >
+       g_slidigGrpMemList.allUsedMemSize / taosHashGetSize(g_slidigGrpMemList.pSlidingGrpList))) {
+    return true;
+  }
+  return false;
+}
+
+static void updateSlidingGrpUsedMemSize(SSlidingGrpMgr* pSlidingGrpMgr) {
+  if (!g_slidigGrpMemList.enabled) {
+    return;
+  }
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (shouldWriteSlidingGrpMemList(pSlidingGrpMgr)) {
+    int64_t* oldSize = taosHashGet(g_slidigGrpMemList.pSlidingGrpList, &pSlidingGrpMgr, sizeof(SSlidingGrpMgr*));
+    if (oldSize == NULL) {
+      code = taosHashPut(g_slidigGrpMemList.pSlidingGrpList, &pSlidingGrpMgr, sizeof(SSlidingGrpMgr*),
+                         &pSlidingGrpMgr->usedMemSize, sizeof(int64_t));
+      if (code == TSDB_CODE_SUCCESS) {
+        atomic_add_fetch_64(&g_slidigGrpMemList.allUsedMemSize, pSlidingGrpMgr->usedMemSize);
+      }
+    } else {
+      atomic_add_fetch_64(&g_slidigGrpMemList.allUsedMemSize, pSlidingGrpMgr->usedMemSize);
+      atomic_sub_fetch_64(&g_slidigGrpMemList.allUsedMemSize, *oldSize);
+    }
+  }
+}
+
 static int32_t getSlidingDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, bool* finished) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -141,12 +181,14 @@ static int32_t getSlidingDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock
       continue;
     }
     if (pWindowData->endTime < pResult->reqStartTime) {
-      // todo
-      // destorySlidingWindowInMem(&pWindowData);
-      // clear expired data
-      continue;  // to check next window
+      destorySlidingWindowInMem(pWindowData);
+      // todo: remove from array has low performance, need to optimize.
+      taosArrayRemove(pSlidingGrpMgr->winDataInMem, pResult->offset);
+      --pResult->offset;  // adjust offset since we removed the current window
+      continue;           // to check next window
     } else if (pWindowData->startTime > pResult->reqEndTime) {
       *finished = true;
+      updateSlidingGrpUsedMemSize(pSlidingGrpMgr);
       return code;
     } else {
       return getRangeInWindowBlock(pWindowData, pResult->tsColSlotId, pResult->reqStartTime, pResult->reqEndTime,
@@ -154,6 +196,7 @@ static int32_t getSlidingDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock
     }
   }
   *finished = true;
+  updateSlidingGrpUsedMemSize(pSlidingGrpMgr);
   return code;
 }
 
