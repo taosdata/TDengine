@@ -9,9 +9,9 @@
     </p>
     <h2 id="install-grafana">{{ $t('docs.virtual.grafana.step1') }}</h2>
     <p>
-      {{ $t('docs.virtual.grafana.step1desc') }}(<a href="https://grafana.com/grafana/download"
+      {{ $t('docs.virtual.grafana.step1desc') }}<a href="https://grafana.com/grafana/download"
     >https://grafana.com/grafana/download</a
-    >).
+    >{{ $t('docs.virtual.grafana.step1desc1') }}
     </p>
     <h2 id="install-tdengine-plugin">{{ $t('docs.virtual.grafana.step2') }}</h2>
     <el-tabs v-model="activeTab">
@@ -23,6 +23,13 @@
           "
         ><code
           class="language-bash"></code></pre>
+        <p v-dompurify-html="$t('docs.virtual.grafana.step2desc1')"></p>
+        <pre
+          v-highlight="
+            `./grafana-cli.exe --pluginUrl https://github.com/taosdata/grafanaplugin/releases/download/v3.7.2/tdengine-datasource-3.7.2.zip plugins install tdengine-datasource
+`
+          "
+        ><code class="language-bash"></code></pre>
       </el-tab-pane>
       <el-tab-pane name="script" label="Script"
       ><p>{{ $t('docs.virtual.grafana.script1') }}</p>
