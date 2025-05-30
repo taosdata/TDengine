@@ -43,7 +43,7 @@ extern "C" {
 
 typedef struct SStreamTriggerReaderInfo {
   int32_t      order;
-  SArray*      schemas;
+  // SArray*      schemas;
   STimeWindow  twindows;
   uint64_t     suid;
   uint64_t     uid;
@@ -68,6 +68,9 @@ typedef struct SStreamTriggerReaderInfo {
   int32_t      numOfExpr;
   SExprInfo*   pCalcExprInfo;
   int32_t      numOfCalcExpr;
+  SArray*      uidList;       // for virtual table stream, uid list
+  SArray*      uidListIndex;
+  SHashObj*    uidHash;
 } SStreamTriggerReaderInfo;
 
 typedef struct SStreamTriggerReaderCalcInfo {
@@ -99,6 +102,7 @@ typedef struct SStreamTriggerReaderTaskInnerOptions {
   SNode*      pTagIndexCond;
   SNode*      pConditions;
   SNodeList*  partitionCols;
+  bool        initReader;  // whether to init the reader
 } SStreamTriggerReaderTaskInnerOptions;
 
 typedef struct SStreamReaderTaskInner {
@@ -106,7 +110,6 @@ typedef struct SStreamReaderTaskInner {
   int64_t                              sessionId;
   SStorageAPI                          api;
   void*                                pReader;
-  SHashObj*                            pIgnoreTables;
   SSDataBlock*                         pResBlock;
   SSDataBlock*                         pResBlockDst;
   SStreamTriggerReaderTaskInnerOptions options;
@@ -114,6 +117,7 @@ typedef struct SStreamReaderTaskInner {
   int32_t                              currentGroupIndex;
   SFilterInfo*                         pFilterInfo;
   char*                                idStr;
+  int32_t                              index;
 } SStreamReaderTaskInner;
 
 int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order, void* schemas, bool isSchema,
