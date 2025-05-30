@@ -34,6 +34,10 @@ extern "C" {
 #define GRANT_FLAG_ALL       (0x01)
 #define GRANT_FLAG_AUDIT     (0x02)
 #define GRANT_FLAG_VIEW      (0x04)
+// ...
+#define GRANT_FLAG_EX_MULTI_TIER (0x10000)
+#define GRANT_FLAG_EX_MEMORY     (0x20000)
+#define GRANT_FLAG_EX_STORAGE    (0x40000)
 
 typedef enum {
   TSDB_GRANT_ALL,
