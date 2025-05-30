@@ -250,7 +250,10 @@ where
 
     let metric_entry = TASK_PERSIST_METRICS
         .entry(persist.task_id)
-        .or_insert(Arc::new(PersistMetrics::new(metrics)));
+        .or_insert(Arc::new(PersistMetrics::new(
+            metrics,
+            Duration::from_millis(100),
+        )));
     let metrics = metric_entry.get();
     metrics.reset(true);
     tasks.spawn({
@@ -635,11 +638,12 @@ struct PersistMetrics {
     persist_send_batches: AtomicU64,
 
     instant: Mutex<std::time::Instant>,
-    open: AtomicBool,
+    update_interval: Duration,
+    running: AtomicBool,
 }
 
 impl PersistMetrics {
-    fn new(core_metrics: Option<Arc<CoreMetrics>>) -> Self {
+    fn new(core_metrics: Option<Arc<CoreMetrics>>, update_interval: Duration) -> Self {
         Self {
             core_metrics,
             persist_read_messages: AtomicU64::default(),
@@ -647,79 +651,79 @@ impl PersistMetrics {
             persist_received_acks: AtomicU64::default(),
             persist_send_batches: AtomicU64::default(),
             instant: Mutex::new(std::time::Instant::now()),
-            open: AtomicBool::default(),
+            update_interval,
+            running: AtomicBool::default(),
         }
     }
 
     fn add_persist_read_messages(&self, additional: u64) {
         self.persist_read_messages
-            .fetch_add(additional, std::sync::atomic::Ordering::SeqCst);
+            .fetch_add(additional, Ordering::SeqCst);
         self.update();
     }
 
     fn get_persist_read_messages(&self) -> u64 {
-        self.persist_read_messages
-            .load(std::sync::atomic::Ordering::SeqCst)
+        self.persist_read_messages.load(Ordering::SeqCst)
     }
 
     fn add_persist_write_messages(&self) {
-        self.persist_write_messages
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.persist_write_messages.fetch_add(1, Ordering::SeqCst);
         self.update();
     }
 
     fn get_persist_write_messages(&self) -> u64 {
-        self.persist_write_messages
-            .load(std::sync::atomic::Ordering::SeqCst)
+        self.persist_write_messages.load(Ordering::SeqCst)
     }
 
     fn add_persist_received_acks(&self) {
-        self.persist_received_acks
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.persist_received_acks.fetch_add(1, Ordering::SeqCst);
         self.update();
     }
 
     fn get_persist_received_acks(&self) -> u64 {
-        self.persist_received_acks
-            .load(std::sync::atomic::Ordering::SeqCst)
+        self.persist_received_acks.load(Ordering::SeqCst)
     }
 
     fn add_persist_send_batches(&self) {
-        self.persist_send_batches
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.persist_send_batches.fetch_add(1, Ordering::SeqCst);
         self.update();
     }
 
     fn get_persist_send_batches(&self) -> u64 {
-        self.persist_send_batches
-            .load(std::sync::atomic::Ordering::SeqCst)
+        self.persist_send_batches.load(Ordering::SeqCst)
     }
 
     fn reset(&self, init: bool) {
-        if self.open.load(Ordering::SeqCst) && init {
+        if self
+            .running
+            .compare_exchange(!init, init, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
             return;
         }
-        self.open.fetch_not(Ordering::SeqCst);
+        // 退出时不改变指标值
+        if !init {
+            return;
+        }
+
+        self.persist_read_messages.store(0, Ordering::SeqCst);
+        self.persist_write_messages.store(0, Ordering::SeqCst);
+        self.persist_received_acks.store(0, Ordering::SeqCst);
+        self.persist_send_batches.store(0, Ordering::SeqCst);
 
         let Some(core_metrics) = self.core_metrics.clone() else {
             return;
         };
-        self.persist_read_messages.store(0, Ordering::SeqCst);
+
         core_metrics
             .ipc()
             .set_extra_metric(&METRICS_PERSIST_READ_MESSAGES, 0);
-
-        self.persist_write_messages.store(0, Ordering::SeqCst);
         core_metrics
             .ipc()
             .set_extra_metric(&METRICS_PERSIST_WRITE_MESSAGES, 0);
-
-        self.persist_received_acks.store(0, Ordering::SeqCst);
         core_metrics
             .ipc()
             .set_extra_metric(&METRICS_PERSIST_RECEIVED_ACKS, 0);
-
-        self.persist_send_batches.store(0, Ordering::SeqCst);
         core_metrics
             .ipc()
             .set_extra_metric(&METRICS_PERSIST_SEND_BATCHES, 0);
@@ -732,7 +736,7 @@ impl PersistMetrics {
         let Some(mut instant) = self.instant.try_lock() else {
             return;
         };
-        if instant.elapsed() <= Duration::from_millis(100) {
+        if instant.elapsed() <= self.update_interval {
             return;
         }
 
@@ -954,5 +958,65 @@ mod tests {
         ]);
 
         Schema::new_with_metadata(fields, meta)
+    }
+
+    #[test]
+    fn metrics_test() -> anyhow::Result<()> {
+        let metrics = PersistMetrics::new(None, Duration::ZERO);
+        metrics.add_persist_read_messages(1);
+        metrics.add_persist_received_acks();
+        metrics.add_persist_send_batches();
+        metrics.add_persist_write_messages();
+        assert_eq!(metrics.get_persist_read_messages(), 1);
+        assert_eq!(metrics.get_persist_received_acks(), 1);
+        assert_eq!(metrics.get_persist_send_batches(), 1);
+        assert_eq!(metrics.get_persist_write_messages(), 1);
+
+        metrics.reset(true);
+        assert_eq!(metrics.get_persist_read_messages(), 0);
+        assert_eq!(metrics.get_persist_received_acks(), 0);
+        assert_eq!(metrics.get_persist_send_batches(), 0);
+        assert_eq!(metrics.get_persist_write_messages(), 0);
+
+        metrics.add_persist_read_messages(1);
+        metrics.add_persist_received_acks();
+        metrics.add_persist_send_batches();
+        metrics.add_persist_write_messages();
+        assert_eq!(metrics.get_persist_read_messages(), 1);
+        assert_eq!(metrics.get_persist_received_acks(), 1);
+        assert_eq!(metrics.get_persist_send_batches(), 1);
+        assert_eq!(metrics.get_persist_write_messages(), 1);
+
+        // 只能初始化一次
+        metrics.reset(true);
+        assert_eq!(metrics.get_persist_read_messages(), 1);
+        assert_eq!(metrics.get_persist_received_acks(), 1);
+        assert_eq!(metrics.get_persist_send_batches(), 1);
+        assert_eq!(metrics.get_persist_write_messages(), 1);
+
+        // 退出时不重置更新
+        metrics.reset(false);
+        assert_eq!(metrics.get_persist_read_messages(), 1);
+        assert_eq!(metrics.get_persist_received_acks(), 1);
+        assert_eq!(metrics.get_persist_send_batches(), 1);
+        assert_eq!(metrics.get_persist_write_messages(), 1);
+
+        // 再次初始化后可以更新
+        metrics.reset(true);
+        assert_eq!(metrics.get_persist_read_messages(), 0);
+        assert_eq!(metrics.get_persist_received_acks(), 0);
+        assert_eq!(metrics.get_persist_send_batches(), 0);
+        assert_eq!(metrics.get_persist_write_messages(), 0);
+
+        metrics.add_persist_read_messages(1);
+        metrics.add_persist_received_acks();
+        metrics.add_persist_send_batches();
+        metrics.add_persist_write_messages();
+        assert_eq!(metrics.get_persist_read_messages(), 1);
+        assert_eq!(metrics.get_persist_received_acks(), 1);
+        assert_eq!(metrics.get_persist_send_batches(), 1);
+        assert_eq!(metrics.get_persist_write_messages(), 1);
+
+        Ok(())
     }
 }
