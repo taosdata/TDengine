@@ -5697,6 +5697,44 @@ _exit:
   return code;
 }
 
+int32_t tSerializeSS3MigrateDbRsp(void *buf, int32_t bufLen, SS3MigrateDbRsp *pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->s3MigrateId));
+  TAOS_CHECK_EXIT(tEncodeBool(&encoder, pRsp->bAccepted));
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSS3MigrateDbRsp(void *buf, int32_t bufLen, SS3MigrateDbRsp *pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->s3MigrateId));
+  TAOS_CHECK_EXIT(tDecodeBool(&decoder, &pRsp->bAccepted));
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
 int32_t tSerializeSS3MigrateVnodeReq(void *buf, int32_t bufLen, SS3MigrateVnodeReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
@@ -5732,6 +5770,82 @@ _exit:
   tDecoderClear(&decoder);
   return code;
 }
+
+
+int32_t tSerializeSQueryS3MigrateProgressReq(void* buf, int32_t bufLen, SQueryS3MigrateProgressReq* pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->s3MigrateId));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->timestamp));
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSQueryS3MigrateProgressReq(void* buf, int32_t bufLen, SQueryS3MigrateProgressReq* pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->s3MigrateId));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->timestamp));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSQueryS3MigrateProgressRsp(void* buf, int32_t bufLen, SQueryS3MigrateProgressRsp* pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->s3MigrateId));
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSQueryS3MigrateProgressRsp(void* buf, int32_t bufLen, SQueryS3MigrateProgressRsp* pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->s3MigrateId));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
 
 int32_t tSerializeSVDropTtlTableReq(void *buf, int32_t bufLen, SVDropTtlTableReq *pReq) {
   SEncoder encoder = {0};

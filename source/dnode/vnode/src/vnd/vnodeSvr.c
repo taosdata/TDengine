@@ -1096,15 +1096,15 @@ extern int32_t vnodeAsyncS3Migrate(SVnode *pVnode, int64_t now);
 
 static int32_t vnodeProcessS3MigrateReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
   int32_t          code = 0;
-  SVS3MigrateDbReq s3migrateReq = {0};
+  SS3MigrateVnodeReq s3migrateReq = {0};
 
   // decode
-  if (tDeserializeSVS3MigrateDbReq(pReq, len, &s3migrateReq) != 0) {
+  if (tDeserializeSS3MigrateVnodeReq(pReq, len, &s3migrateReq) != 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
 
-  vInfo("vgId:%d, process s3migrate vnode request, time:%d", pVnode->config.vgId, s3migrateReq.timestamp);
+  vInfo("vgId:%d, process s3migrate vnode request, time:%ld", pVnode->config.vgId, s3migrateReq.timestamp);
 
   code = vnodeAsyncS3Migrate(pVnode, s3migrateReq.timestamp);
 

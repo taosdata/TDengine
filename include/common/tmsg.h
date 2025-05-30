@@ -1664,21 +1664,35 @@ int32_t tSerializeSS3MigrateDbRsp(void* buf, int32_t bufLen, SS3MigrateDbRsp* pR
 int32_t tDeserializeSS3MigrateDbRsp(void* buf, int32_t bufLen, SS3MigrateDbRsp* pRsp);
 
 typedef struct {
-  int64_t     dbUid;
-  char        db[TSDB_DB_FNAME_LEN];
-  int64_t     s3MigrateStartTime;
-  int32_t     s3MigrateId;
+  int64_t timestamp;
 } SS3MigrateVnodeReq;
 
 int32_t tSerializeSS3MigrateVnodeReq(void* buf, int32_t bufLen, SS3MigrateVnodeReq* pReq);
 int32_t tDeserializeSS3MigrateVnodeReq(void* buf, int32_t bufLen, SS3MigrateVnodeReq* pReq);
 
 typedef struct {
-  int32_t timestamp;
-} SVS3MigrateDbReq;
+  int32_t s3MigrateId;
+  int64_t timestamp;
+} SQueryS3MigrateProgressReq;
 
-int32_t tSerializeSVS3MigrateDbReq(void* buf, int32_t bufLen, SVS3MigrateDbReq* pReq);
-int32_t tDeserializeSVS3MigrateDbReq(void* buf, int32_t bufLen, SVS3MigrateDbReq* pReq);
+int32_t tSerializeSQueryS3MigrateProgressReq(void* buf, int32_t bufLen, SQueryS3MigrateProgressReq* pReq);
+int32_t tDeserializeSQueryS3MigrateProgressReq(void* buf, int32_t bufLen, SQueryS3MigrateProgressReq* pReq);
+
+typedef struct {
+  int32_t s3MigrateId;
+  #if 0
+  int32_t compactId;
+  int32_t vgId;
+  int32_t dnodeId;
+  int32_t numberFileset;
+  int32_t finished;
+  int32_t progress;
+  int64_t remainingTime;
+  #endif
+} SQueryS3MigrateProgressRsp;
+
+int32_t tSerializeSQueryS3MigrateProgressRsp(void* buf, int32_t bufLen, SQueryS3MigrateProgressRsp* pRsp);
+int32_t tDeserializeSQueryS3MigrateProgressRsp(void* buf, int32_t bufLen, SQueryS3MigrateProgressRsp* pRsp);
 
 typedef struct {
   int32_t timestampSec;

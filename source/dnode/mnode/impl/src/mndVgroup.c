@@ -3821,13 +3821,11 @@ int32_t mndBuildCompactVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
 }
 
 static void *mndBuildS3MigrateVnodeReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen, int64_t compactTs) {
-  SS3MigrateVnodeReq compactReq = {0};
-  compactReq.dbUid = pDb->uid;
-  compactReq.compactStartTime = compactTs;
-  tstrncpy(compactReq.db, pDb->name, TSDB_DB_FNAME_LEN);
+  SS3MigrateVnodeReq migrateReq = {0};
+  migrateReq.timestamp = compactTs;
 
   mInfo("vgId:%d, build s3migrate vnode config req", pVgroup->vgId);
-  int32_t contLen = tSerializeSS3MigrateVnodeReq(NULL, 0, &compactReq);
+  int32_t contLen = tSerializeSS3MigrateVnodeReq(NULL, 0, &migrateReq);
   if (contLen < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -3844,7 +3842,7 @@ static void *mndBuildS3MigrateVnodeReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgr
   pHead->contLen = htonl(contLen);
   pHead->vgId = htonl(pVgroup->vgId);
 
-  if (tSerializeSS3MigrateVnodeReq((char *)pReq + sizeof(SMsgHead), contLen, &compactReq) < 0) {
+  if (tSerializeSS3MigrateVnodeReq((char *)pReq + sizeof(SMsgHead), contLen, &migrateReq) < 0) {
     taosMemoryFree(pReq);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;

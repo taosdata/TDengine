@@ -441,7 +441,7 @@ int32_t tsdbDoSsMigrate(SRTNer *rtner) {
   }
   
   if (!vnodeIsLeader(rtner->tsdb->pVnode)) {
-    // TODO:
+    return 0; // TODO
   }
 
   // head file
