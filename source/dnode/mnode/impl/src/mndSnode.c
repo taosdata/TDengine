@@ -327,12 +327,12 @@ static int32_t mndSetCreateSnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
   TAOS_RETURN(code);
 }
 
-static int32_t mndCreateSnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMCreateSnodeReq *pCreate, int32_t replicaId) {
+static int32_t mndCreateSnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMCreateSnodeReq *pCreate, int32_t replicaId, int64_t currTs) {
   int32_t code = -1;
 
   SSnodeObj snodeObj = {0};
   snodeObj.id = pDnode->id;
-  snodeObj.createdTime = taosGetTimestampMs();
+  snodeObj.createdTime = currTs;
   snodeObj.updateTime = snodeObj.createdTime;
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-snode");
@@ -418,7 +418,7 @@ _exit:
   return code;  
 }
 
-static int32_t mndCreateSnodeWithReplicaId(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMCreateSnodeReq *pCreate) {
+static int32_t mndCreateSnodeWithReplicaId(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMCreateSnodeReq *pCreate, int64_t currTs) {
   int32_t replicaId = 0;
   SSnodeObj* noReplicaSnode = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
@@ -429,7 +429,7 @@ static int32_t mndCreateSnodeWithReplicaId(SMnode *pMnode, SRpcMsg *pReq, SDnode
   SSnodeObj snodeObj = {0};
   snodeObj.id = pDnode->id;
   snodeObj.replicaId = replicaId;
-  snodeObj.createdTime = taosGetTimestampMs();
+  snodeObj.createdTime = currTs;
   snodeObj.updateTime = snodeObj.createdTime;
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-snode");
@@ -495,14 +495,19 @@ static int32_t mndProcessCreateSnodeReq(SRpcMsg *pReq) {
   }
 
   int32_t replicaId = 0;
+  int64_t currTs = taosGetTimestampMs();
   int32_t snodeNum = sdbGetSize(pMnode->pSdb, SDB_SNODE);
   if (snodeNum > 0) {
-    code = mndCreateSnodeWithReplicaId(pMnode, pReq, pDnode, &createReq);
+    code = mndCreateSnodeWithReplicaId(pMnode, pReq, pDnode, &createReq, currTs);
   } else {
-    code = mndCreateSnode(pMnode, pReq, pDnode, &createReq, replicaId);
+    code = mndCreateSnode(pMnode, pReq, pDnode, &createReq, replicaId, currTs);
   }
   
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  if (code == 0) {
+    code = TSDB_CODE_ACTION_IN_PROGRESS;
+    
+    MND_STREAM_SET_LAST_TS(STM_OP_CREATE_SNODE, currTs);
+  }
 
 _OVER:
 
@@ -773,7 +778,11 @@ static int32_t mndProcessDropSnodeReq(SRpcMsg *pReq) {
 
   // check deletable
   code = mndDropSnode(pMnode, pReq, pObj);
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  if (code == 0) {
+    code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+    MND_STREAM_SET_LAST_TS(STM_OP_DROP_SNODE, taosGetTimestampMs());
+  }
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {

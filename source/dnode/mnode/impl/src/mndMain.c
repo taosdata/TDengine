@@ -398,7 +398,7 @@ void mndDoTimerCheckTask(SMnode *pMnode, int64_t sec) {
     mndSyncCheckTimeout(pMnode);
   }
   if (sec % MND_STREAM_HEALTH_CHECK_PERIOD_SEC == 0) {
-    msmHealthCheck(pMnode, false, true);
+    msmHealthCheck(pMnode);
   }
 }
 

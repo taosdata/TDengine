@@ -30,9 +30,8 @@ typedef enum {
 
 #define MND_STM_STATE_WATCH   1
 #define MND_STM_STATE_NORMAL  2
-#define MND_STM_STATE_RESTART 3
 
-static const char* gMndStreamState[] = {"X", "W", "N", "R"};
+static const char* gMndStreamState[] = {"X", "W", "N"};
 
 
 #define MND_STREAM_RUNNER_DEPLOY_NUM 3
@@ -141,7 +140,7 @@ typedef struct SStmTaskId {
 
 typedef struct SStmTaskStatus {
   SStmTaskId      id;
-  SStmStatus*     pStream;
+  void*           pStream;
   EStreamTaskType type;
   int64_t         flags;
   EStreamStatus   status;
@@ -308,7 +307,6 @@ typedef struct SStmThreadCtx {
 } SStmThreadCtx;
 
 typedef struct SStmHealthCheckCtx {
-  bool      checkAll;
   int32_t   slotIdx;
   
   int64_t   currentTs;
@@ -340,6 +338,14 @@ typedef struct SStmLastTs {
   bool    handled;
 } SStmLastTs;
 
+#define MND_STREAM_SET_LAST_TS(_op, _ts) do {        \
+  mStreamMgmt.lastTs[(_op)].ts = (_ts);         \
+  mStreamMgmt.lastTs[(_op)].handled = false;    \
+} while (0)
+
+#define MND_STREAM_GET_LAST_TS(_op) mStreamMgmt.lastTs[(_op)].ts
+#define MND_STREAM_CLR_LAST_TS(_op) mStreamMgmt.lastTs[(_op)].handled = true
+
 typedef enum {
   STM_OP_ACTIVE_BEGIN = 0,
   STM_OP_NORMAL_BEGIN,
@@ -349,12 +355,13 @@ typedef enum {
   STM_OP_START_STREAM,
   STM_OP_CREATE_SNODE,
   STM_OP_DROP_SNODE,
-  
+  STM_OP_MAX_VALUE
 } SStmLastOp;
 
 typedef struct SStmRuntime {
   int8_t           active;
   int32_t          activeStreamNum;
+  SStmLastTs       lastTs[STM_OP_MAX_VALUE];
   SStmLastTs       activeBegin;
   SStmLastTs       normalBegin;
   int8_t           state;

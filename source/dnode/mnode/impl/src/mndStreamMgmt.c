@@ -43,8 +43,7 @@ static void msmSetInitRuntimeState(int8_t state) {
       mStreamMgmt.watch.processing = 0;
       break;
     case MND_STM_STATE_NORMAL:
-      break;
-    case MND_STM_STATE_RESTART:
+      MND_STREAM_SET_LAST_TS(STM_OP_NORMAL_BEGIN, taosGetTimestampMs());
       break;
     default:
       return;
@@ -2599,7 +2598,8 @@ int32_t msmNormalHandleStatusUpdate(SStmGrpCtx* pCtx) {
       continue;
     }
 
-    if ((*ppStatus)->pStream->stopped) {
+    SStmStatus* pStream = (SStmStatus*)(*ppStatus)->pStream;
+    if (pStream->stopped) {
       msttWarn("stream already stopped, will try to undeploy current task, taskIdx:%d", pTask->taskIdx);
       msmHandleStatusUpdateErr(pCtx, STM_ERR_STREAM_STOPPED, pTask);
       continue;
@@ -2990,19 +2990,12 @@ int32_t msmWatchHandleEnding(SStmGrpCtx* pCtx) {
     (void)sched_yield();
   }
 
-  msmHealthCheck(pCtx->pMnode, true, false);
-
 _exit:
+
+  msmSetInitRuntimeState(MND_STM_STATE_NORMAL);
 
   if (code) {
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
-  }
-
-  if (mStreamMgmt.fatalError) {
-    mstError("streamMgmt switch to %s state cause of fatal error:%s", gMndStreamState[MND_STM_STATE_RESTART], tstrerror(mStreamMgmt.fatalError));
-    msmSetInitRuntimeState(MND_STM_STATE_RESTART);
-  } else {
-    msmSetInitRuntimeState(MND_STM_STATE_NORMAL);
   }
 
   return code;
@@ -3030,7 +3023,7 @@ int32_t msmWatchHandleHbMsg(SStmGrpCtx* pCtx) {
     TAOS_CHECK_EXIT(msmWatchHandleStatusUpdate(pCtx));
   }
 
-  if (((pCtx->currTs - mStreamMgmt.activeBegin.ts) > MND_STREAM_WATCH_DURATION) &&
+  if (((pCtx->currTs - MND_STREAM_GET_LAST_TS(STM_OP_ACTIVE_BEGIN)) > MND_STREAM_WATCH_DURATION) &&
       (0 == atomic_val_compare_exchange_8(&mStreamMgmt.watch.ending, 0, 1))) {
     TAOS_CHECK_EXIT(msmWatchHandleEnding(pCtx));
   }
@@ -3093,26 +3086,6 @@ _exit:
 }
 
 
-int32_t msmRestartHandleHbMsg(SStmGrpCtx* pCtx) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-
-  TAOS_CHECK_EXIT(msmCheckUpdateDnodeTs(pCtx));
-  
-  if (taosArrayGetSize(pCtx->pReq->pStreamStatus) > 0) {
-    pCtx->pRsp->undeploy.undeployAll = 1;
-  }
-
-_exit:
-
-  if (code) {
-    mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
-  }
-
-  return code;
-}
-
-
 int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, SMStreamHbRspMsg* pRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -3140,9 +3113,6 @@ int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, 
       break;
     case MND_STM_STATE_NORMAL:
       code = msmNormalHandleHbMsg(pCtx);
-      break;
-    case MND_STM_STATE_RESTART:
-      code = msmRestartHandleHbMsg(pCtx);
       break;
     default:
       mstError("Invalid stream state: %d", mStreamMgmt.state);
@@ -3473,31 +3443,27 @@ void msmCheckTasksStatus(SMnode *pMnode) {
   msmCheckSnodeStatus(pMnode);
 }
 
-void msmHealthCheck(SMnode *pMnode, bool checkAll, bool needLock) {
-  if (0 == atomic_load_8(&mStreamMgmt.active)) {
+void msmCheckSnodesState(SMnode *pMnode) {
+
+}
+
+void msmHealthCheck(SMnode *pMnode) {
+  if (0 == atomic_load_8(&mStreamMgmt.active || MND_STM_STATE_NORMAL != atomic_load_8(&mStreamMgmt.state))) {
     return;
   }
   
-  if (checkAll) {
-    mStreamMgmt.healthCtx.checkAll = true;
-  } else {
-    mStreamMgmt.healthCtx.slotIdx = (mStreamMgmt.healthCtx.slotIdx + 1) % MND_STREAM_ISOLATION_PERIOD_NUM;
-  }
-  
+  mStreamMgmt.healthCtx.slotIdx = (mStreamMgmt.healthCtx.slotIdx + 1) % MND_STREAM_ISOLATION_PERIOD_NUM;
   mStreamMgmt.healthCtx.currentTs = taosGetTimestampMs();
 
   mstDebug("start health check, soltIdx:%d, currentTs:%" PRId64, mStreamMgmt.healthCtx.slotIdx, mStreamMgmt.healthCtx.currentTs);
 
-  if (needLock) {
-    taosWLockLatch(&mStreamMgmt.runtimeLock);
-  }
+  taosWLockLatch(&mStreamMgmt.runtimeLock);
   
   msmCheckStreamsStatus(pMnode);
+  msmCheckSnodesState(pMnode);
   msmCheckTasksStatus(pMnode);
 
-  if (needLock) {
-    taosWUnLockLatch(&mStreamMgmt.runtimeLock);
-  }
+  taosWUnLockLatch(&mStreamMgmt.runtimeLock);
 }
 
 static bool msmUpdateProfileStreams(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
@@ -3521,8 +3487,8 @@ int32_t msmInitRuntimeInfo(SMnode *pMnode) {
   int32_t snodeNum = sdbGetSize(pMnode->pSdb, SDB_SNODE);
   int32_t dnodeNum = sdbGetSize(pMnode->pSdb, SDB_DNODE);
 
-  mStreamMgmt.activeBegin.ts = taosGetTimestampMs();
-  mStreamMgmt.activeBegin.handled = false;
+  MND_STREAM_SET_LAST_TS(STM_OP_ACTIVE_BEGIN, taosGetTimestampMs());
+
   mStreamMgmt.threadNum = tsNumOfMnodeStreamMgmtThreads;
   mStreamMgmt.tCtx = taosMemoryCalloc(mStreamMgmt.threadNum, sizeof(SStmThreadCtx));
   if (NULL == mStreamMgmt.tCtx) {
@@ -3618,7 +3584,7 @@ int32_t msmInitRuntimeInfo(SMnode *pMnode) {
 
   mStreamMgmt.activeStreamNum = 0;
   
-  sdbTraverse(pMnode->pSdb, SDB_STREAM, msmUpdateProfileStreams, &mStreamMgmt.activeBegin.ts, &mStreamMgmt.activeStreamNum, NULL);
+  sdbTraverse(pMnode->pSdb, SDB_STREAM, msmUpdateProfileStreams, &MND_STREAM_GET_LAST_TS(STM_OP_ACTIVE_BEGIN), &mStreamMgmt.activeStreamNum, NULL);
 
   mStreamMgmt.lastTaskId = 1;
 

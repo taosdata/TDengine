@@ -621,6 +621,8 @@ static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
 
   atomic_store_8(&pStream->userStopped, 1);
 
+  MND_STREAM_SET_LAST_TS(STM_OP_STOP_STREAM, pStream->updateTime);
+
   msmUndeployStream(pMnode, streamId, pStream->pCreate->name);
 
   // stop stream
@@ -672,12 +674,8 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
     }
   }
 
-  pStream->updateTime = taosGetTimestampMs();
-
   int64_t streamId = pStream->pCreate->streamId;
 
-  atomic_store_8(&pStream->userStopped, 0);
-  
   mstsInfo("start to start stream %s from stopped", resumeReq.name);
 
   code = mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->pCreate->streamDB);
@@ -686,6 +684,12 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
     sdbRelease(pMnode->pSdb, pStream);
     return code;
   }
+
+  pStream->updateTime = taosGetTimestampMs();
+
+  atomic_store_8(&pStream->userStopped, 0);
+
+  MND_STREAM_SET_LAST_TS(STM_OP_START_STREAM, pStream->updateTime);
 
   STrans *pTrans = NULL;
   code = mndStreamCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_START_NAME, &pTrans);
@@ -790,6 +794,8 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   pStream->updateTime = taosGetTimestampMs();
 
   atomic_store_8(&pStream->userDropped, 1);
+
+  MND_STREAM_SET_LAST_TS(STM_OP_DROP_STREAM, pStream->updateTime);
 
   msmUndeployStream(pMnode, streamId, pStream->pCreate->name);
 
@@ -917,6 +923,8 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 
   auditRecord(pReq, pMnode->clusterId, "createStream", pCreate->streamDB, pCreate->name, pCreate->sql, strlen(pCreate->sql));
+
+  MND_STREAM_SET_LAST_TS(STM_OP_CREATE_STREAM, taosGetTimestampMs());
 
   mndStreamPostAction(mStreamMgmt.actionQ, streamId, pStream->pCreate->name, STREAM_ACT_DEPLOY);
 
