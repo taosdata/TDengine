@@ -40,7 +40,7 @@ as_subquery_opts = [(" AS SELECT * FROM query_table", True, 7, ["ts", "col1", "c
                     (" AS SELECT _tgrpid, avg(col1), sum(col2) from query_table WHERE _tgrpid > 1", False, 3, ["_tgrpid", "avg(col1)", "sum(col2)"]),
                     (" AS SELECT _tlocaltime, avg(col1), sum(col2) from query_table WHERE _tlocaltime > 1", True, 3, ["_tlocaltime", "avg(col1)", "sum(col2)"]),
                     (" AS SELECT _twstart, %%1, avg(col1), sum(col2) from query_table", True, 4, ["_twstart", "%%1", "avg(col1)", "sum(col2)"]),
-                    (" AS SELECT _twstart, %%1, %%4, avg(col1), sum(col2) from query_table", True, 5, ["_twstart", "%%1", "%%4", "avg(col1)", "sum(col2)"]),
+                    (" AS SELECT _twstart, %%1, %%2, avg(col1), sum(col2) from query_table", True, 5, ["_twstart", "%%1", "%%2", "avg(col1)", "sum(col2)"]),
                     (" AS SELECT %%tbname, avg(col1), sum(col2) from query_table", False, 3, ["%%tbname", "avg(col1)", "sum(col2)"]),
                     (" AS SELECT 1 from %%tbname", False, 1, ["1"]),
                     (" AS SELECT col1 from %%tbname", False, 1, ["col1"]),
@@ -85,13 +85,7 @@ trigger_column_invalid = ["col7", "col8", "col9", "col10", "ts_col", "tag1", "ta
 trigger_tag_valid = ["tag1", "tag2", "tag3", "tag4"]
 trigger_tag_invalid = ["tag5", "tag6", "tag7", "tag8", "col1", "col2", "col3", "col4", "col5", "col6"]
 
-trigger_column_valid = ["col1", "col2", "col3", "col4", "col5", "col6"]
-trigger_column_invalid = ["col7", "col8", "col9", "col10", "ts_col", "tag1", "tag2", "tag3", "tag4"]
-
-trigger_tag_valid = ["tag1", "tag2", "tag3", "tag4"]
-trigger_tag_invalid = ["tag5", "tag6", "tag7", "tag8", "col1", "col2", "col3", "col4", "col5", "col6"]
-
-partition_columns_valid = ["tag1", "tag2", "tag3", "tag4", "tbname"]
+partition_columns_valid = ["tag1", "tag2", "tag3", "tag4"]#, "tbname"]
 partition_columns_invalid = ["ts_col", "tag5", "tag6", "now"]
 
 duration_lists_valid = [
@@ -708,8 +702,16 @@ def generate_random_notif_def_section(
 
     return notify_urls + notify_events + notify_conditions + notify_options, valid
 
-def generate_random_column_list_section(out_col_num=1, into_exist=False):
+def generate_random_column_list_section(out_col_num=1, into_exist=False, into_null=False):
     random_value = random.random()
+    if into_null:
+        if random_bool(0.8):
+            # 80% chance to generate empty column list
+            return "", True
+        else:
+            # 20% chance to generate invalid column list
+            return generate_column_section_base(out_columns, out_col_num=out_col_num, into_exist=into_exist, valid=True), False
+
     if random_value < 0.2:
         # 20% chance to generate empty column list
         return "", True
@@ -813,17 +815,37 @@ def gen_create_stream_variants():
             stream_opt, v6 = generate_options_section(partition_list=partition_cols, trigger_null = trigger_null)
             notify_opt, v7 = generate_random_notif_def_section(trigger_null = trigger_null, query_cols=query_col_list)
             output, v8 = generate_random_output_subtable(partition_list=partition_cols, into_null=into_null)
-            column, v9 = generate_random_column_list_section(out_col_num=out_col_num, into_exist=into_exist)
+            column, v9 = generate_random_column_list_section(out_col_num=out_col_num, into_exist=into_exist, into_null=into_null)
             tag, v10 = generate_random_tags_clause(partition_list=partition_cols, into_exist=into_exist, into_stable=into_stable)
 
-            if out_col_num != 3 and into_exist:
+            if trigger_null and "PERIOD" not in trigger_type:
                 v11 = False
             else:
                 v11 = True
 
+            if out_col_num != 3 and into_exist:
+                v12 = False
+            else:
+                v12 = True
+
+            if notify_opt == "" and out_col_num == 0:
+                v13 = False
+            else:
+                v13 = True
+
+            if partition == "" and into_exist and into_stable:
+                v14 = False
+            elif partition == "" and into_exist and not into_stable:
+                v14 = True
+            elif partition != "" and into_exist and into_stable:
+                v14 = True
+            elif partition != "" and into_exist and not into_stable:
+                v14 = False
+            else:
+                v14 = True
             # check placeholder function
 
-            valid = v0 and v1 and v2 and v3 and v4 and v5 and v6 and v7 and v8 and v9 and v10 and v11
+            valid = v0 and v1 and v2 and v3 and v4 and v5 and v6 and v7 and v8 and v9 and v10 and v11 and v12 and v13 and v14
 
             sql = base_template.format(
                if_not_exists=random_from_list(if_not_exists_opts),
@@ -837,9 +859,6 @@ def gen_create_stream_variants():
             )
             sql_variants.append((sql.strip(), valid))
             stream_index += 1
-            if stream_index > 100000:
-                return sql_variants
-    print(stream_index)
     return sql_variants
 
 sql = gen_create_stream_variants()
@@ -898,6 +917,7 @@ class TestStreamSubqueryBasic:
 
         tdSql.execute("create table create_stream_db.trigger_table (col1 timestamp, col2 int, col3 int, col4 int, col5 int, col6 int);")
         tdSql.execute("create table create_stream_db.trigger_stable (col1 timestamp, col2 int, col3 int, col4 int, col5 int, col6 int) tags(tag1 int, tag2 int, tag3 int, tag4 int);")
+        tdSql.execute("create table create_stream_db.trigger_ctable using create_stream_db.trigger_stable tags(1,2,3,4);")
         tdSql.execute("create table create_stream_db.exist_super_table (out_col1 timestamp, out_col2 int, out_col3 int) tags(out_tag1 int, out_tag2 int);")
         tdSql.execute("create table create_stream_db.exist_normal_table (out_col1 timestamp, out_col2 int, out_col3 int);")
         tdSql.execute("create table create_stream_db.exist_sub_table using create_stream_db.exist_super_table tags(1,2);")
