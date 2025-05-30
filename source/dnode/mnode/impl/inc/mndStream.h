@@ -28,6 +28,23 @@ typedef enum {
   STM_ERR_STREAM_STOPPED,
 } EStmErrType;
 
+
+typedef enum {
+  STM_OP_ACTIVE_BEGIN = 0,
+  STM_OP_NORMAL_BEGIN,
+  STM_OP_CREATE_STREAM,
+  STM_OP_DROP_STREAM,
+  STM_OP_STOP_STREAM,
+  STM_OP_START_STREAM,
+  STM_OP_CREATE_SNODE,
+  STM_OP_DROP_SNODE,
+  STM_OP_LOOP_SDB,
+  STM_OP_LOOP_MAP,
+  STM_OP_LOOP_SNODE,
+  STM_OP_MAX_VALUE
+} SStmLastOp;
+
+
 #define MND_STM_STATE_WATCH   1
 #define MND_STM_STATE_NORMAL  2
 
@@ -37,8 +54,22 @@ static const char* gMndStreamState[] = {"X", "W", "N"};
 #define MND_STREAM_RUNNER_DEPLOY_NUM 3
 #define MND_STREAM_ISOLATION_PERIOD_NUM 3
 #define MND_STREAM_REPORT_PERIOD  (STREAM_HB_INTERVAL_MS * STREAM_MAX_GROUP_NUM)
-#define MND_STREAM_WATCH_DURATION (MND_STREAM_REPORT_PERIOD * MND_STREAM_ISOLATION_PERIOD_NUM)
+#define MST_ISOLATION_DURATION (MND_STREAM_REPORT_PERIOD * MND_STREAM_ISOLATION_PERIOD_NUM)
 #define MND_STREAM_HEALTH_CHECK_PERIOD_SEC (MND_STREAM_REPORT_PERIOD / 1000)
+
+#define MST_PASS_ISOLATION(_ts, _n) (((_ts) + (_n) * MST_ISOLATION_DURATION) <= mStreamMgmt.hCtx.currentTs)
+#define MST_STM_STATIC_PASS_ISOLATION(_s) (MST_PASS_ISOLATION((_s)->updateTime, 1))
+#define MST_STM_PROC_PASS_ISOLATION(_d) (MST_PASS_ISOLATION((_d)->lastActionTs, 1))
+#define MST_STM_PASS_ISOLATION(_s, _d) (MST_STM_STATIC_PASS_ISOLATION(_s) && MST_STM_PROC_PASS_ISOLATION(_d))
+
+#define MST_NORMAL_STATUS_NEED_HANDLE() ((!mStreamMgmt.lastTs[STM_OP_NORMAL_BEGIN].handled) && MST_PASS_ISOLATION(mStreamMgmt.lastTs[STM_OP_NORMAL_BEGIN].ts, 1))
+#define MST_USER_OP_NEED_HANDLE(_op) ((!mStreamMgmt.lastTs[(_op)].handled) && MST_PASS_ISOLATION(mStreamMgmt.lastTs[(_op)].ts, 5))
+#define MST_CREATE_START_STM_NEED_HANDLE() (MST_USER_OP_NEED_HANDLE(STM_OP_CREATE_STREAM) || MST_USER_OP_NEED_HANDLE(STM_OP_START_STREAM))
+#define MST_DROP_STOP_STM_NEED_HANDLE() (MST_USER_OP_NEED_HANDLE(STM_OP_DROP_STREAM) || MST_USER_OP_NEED_HANDLE(STM_OP_STOP_STREAM))
+#define MST_OP_TIMEOUT_NEED_HANDLE(_op) ((!mStreamMgmt.lastTs[(_op)].handled) && MST_PASS_ISOLATION(mStreamMgmt.lastTs[(_op)].ts, 100))
+#define MST_READY_FOR_SDB_LOOP() (MST_NORMAL_STATUS_NEED_HANDLE() || MST_CREATE_START_STM_NEED_HANDLE() || MST_DROP_STOP_STM_NEED_HANDLE() || MST_OP_TIMEOUT_NEED_HANDLE(STM_OP_LOOP_SDB))
+#define MST_READY_FOR_MAP_LOOP() (MST_DROP_STOP_STM_NEED_HANDLE() || MST_OP_TIMEOUT_NEED_HANDLE(STM_OP_LOOP_MAP))
+#define MST_READY_FOR_SNODE_LOOP() (MST_USER_OP_NEED_HANDLE(STM_OP_DROP_SNODE) || MST_OP_TIMEOUT_NEED_HANDLE(STM_OP_LOOP_SNODE))
 
 #define STREAM_RUNNER_MAX_DEPLOYS 
 #define STREAM_RUNNER_MAX_REPLICA 
@@ -72,7 +103,7 @@ static const char* gMndStreamAction[] = {"DEPLOY", "UNDEPLOY", "START"};
 
 #define GOT_SNODE(_snodeId) ((_snodeId) != 0)
 #define STREAM_IS_RUNNING(_status) (STREAM_STATUS_RUNNING == (_status))
-#define STREAM_IS_VIRTUAL_TABLE(_type, _flags) (TSDB_VIRTUAL_CHILD_TABLE == (_type) || TSDB_VIRTUAL_NORMAL_TABLE == (_type) || (TSDB_SUPER_TABLE == (_type) && ((_flags) & VIRTUAL_TABLE_FLAG)))
+#define STREAM_IS_VIRTUAL_TABLE(_type, _flags) (TSDB_VIRTUAL_CHILD_TABLE == (_type) || TSDB_VIRTUAL_NORMAL_TABLE == (_type) || (TSDB_SUPER_TABLE == (_type) && BIT_FLAG_TEST_MASK((_flags), CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB)))
 
 
 // clang-format off
@@ -326,8 +357,6 @@ typedef struct SStmWatchCtx {
 } SStmWatchCtx;
 
 typedef struct SStmCheckStatusCtx {
-  bool    checkAll;
-  
   int32_t code;
   int32_t handledNum;
   int32_t checkedNum;
@@ -346,35 +375,16 @@ typedef struct SStmLastTs {
 #define MND_STREAM_GET_LAST_TS(_op) mStreamMgmt.lastTs[(_op)].ts
 #define MND_STREAM_CLR_LAST_TS(_op) mStreamMgmt.lastTs[(_op)].handled = true
 
-typedef enum {
-  STM_OP_ACTIVE_BEGIN = 0,
-  STM_OP_NORMAL_BEGIN,
-  STM_OP_CREATE_STREAM,
-  STM_OP_DROP_STREAM,
-  STM_OP_STOP_STREAM,
-  STM_OP_START_STREAM,
-  STM_OP_CREATE_SNODE,
-  STM_OP_DROP_SNODE,
-  STM_OP_MAX_VALUE
-} SStmLastOp;
 
 typedef struct SStmRuntime {
   int8_t           active;
   int32_t          activeStreamNum;
   SStmLastTs       lastTs[STM_OP_MAX_VALUE];
-  SStmLastTs       activeBegin;
-  SStmLastTs       normalBegin;
   int8_t           state;
   int32_t          fatalError;
   int64_t          fatalRetryTs;
   int64_t          fatalRetryTimes;
   int64_t          lastTaskId;
-  SStmLastTs       createStream;
-  SStmLastTs       dropStream;
-  SStmLastTs       stopStream;
-  SStmLastTs       startStream;
-  SStmLastTs       createSnode;
-  SStmLastTs       dropSnode;
     
   SRWLatch         runtimeLock;
 
@@ -402,7 +412,7 @@ typedef struct SStmRuntime {
   SHashObj*        toUpdateScanMap;   // streamId + subplanId => SStmTaskSrcAddr (only scan's target runner tasks)
 
   // HEALTH
-  SStmHealthCheckCtx healthCtx;
+  SStmHealthCheckCtx hCtx;
 
   SStmWatchCtx       watch;
   SStmRuntimeStat    stat;
@@ -449,7 +459,7 @@ void msmHandleBecomeNotLeader(SMnode *pMnode);
 int32_t msmUndeployStream(SMnode* pMnode, int64_t streamId, char* streamName);
 int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped);
 void mstWaitRLock(SRWLatch* pLock);
-void msmHealthCheck(SMnode *pMnode, bool checkAll, bool needLock);
+void msmHealthCheck(SMnode *pMnode);
 void mndStreamPostAction(SStmActionQ*       actionQ, int64_t streamId, char* streamName, int32_t action);
 void mndStreamPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pAction, int32_t action);
 int32_t msmAssignRandomSnodeId(SMnode* pMnode, int64_t streamId);

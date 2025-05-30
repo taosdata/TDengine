@@ -1652,7 +1652,7 @@ _exit:
   if (code) {
     if (NULL != pStatus) {
       atomic_store_8(&pStatus->stopped, 1);
-      mstsError("stream build error, will try to stop current stream");
+      mstsError("stream build error:%s, will try to stop current stream", tstrerror(code));
     }
     
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
@@ -1954,7 +1954,6 @@ static int32_t msmRemoveStreamFromMaps(SMnode* pMnode, int64_t streamId) {
 
   mstsInfo("start to remove stream from maps, current stream num:%d", taosHashGetSize(mStreamMgmt.streamMap));
 
-  //TAOS_CHECK_EXIT(msmRemoveStreamFromActionQ(streamId));
   //TAOS_CHECK_EXIT(msmTDRemoveStream(streamId));
   TAOS_CHECK_EXIT(msmSTRemoveStream(streamId));
 
@@ -2928,6 +2927,9 @@ _exit:
   return code;  
 }
 
+void msmUndeployNodeAllStreams(SStmGrpCtx* pCtx) {
+  //STREAMTODO
+}
 
 int32_t msmCheckUpdateSnodeTs(SStmGrpCtx* pCtx) {
   int32_t  code = TSDB_CODE_SUCCESS;
@@ -2939,7 +2941,8 @@ int32_t msmCheckUpdateSnodeTs(SStmGrpCtx* pCtx) {
     pStatus = taosHashGet(mStreamMgmt.snodeMap, &pCtx->pReq->snodeId, sizeof(pCtx->pReq->snodeId));
     if (NULL == pStatus) {
       if (noExists) {
-        mstWarn("snode %d not exists in snodeMap, may be dropped", pCtx->pReq->snodeId);
+        mstWarn("snode %d not exists in snodeMap, may be dropped, try to undeploy all", pCtx->pReq->snodeId);
+        msmUndeployNodeAllStreams(pCtx);
         TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_NODE_NOT_EXISTS);
       }
 
@@ -3023,7 +3026,7 @@ int32_t msmWatchHandleHbMsg(SStmGrpCtx* pCtx) {
     TAOS_CHECK_EXIT(msmWatchHandleStatusUpdate(pCtx));
   }
 
-  if (((pCtx->currTs - MND_STREAM_GET_LAST_TS(STM_OP_ACTIVE_BEGIN)) > MND_STREAM_WATCH_DURATION) &&
+  if (((pCtx->currTs - MND_STREAM_GET_LAST_TS(STM_OP_ACTIVE_BEGIN)) > MST_ISOLATION_DURATION) &&
       (0 == atomic_val_compare_exchange_8(&mStreamMgmt.watch.ending, 0, 1))) {
     TAOS_CHECK_EXIT(msmWatchHandleEnding(pCtx));
   }
@@ -3196,35 +3199,38 @@ _exit:
 }
 
 void msmCheckStreamConsistency(SStmStatus* pStatus, SStreamObj* pStream) {
-  if (pStatus->allTaskBuilt) {
 
-  }
 }
 
-static bool msmCheckStreamStatus(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
+static bool msmCheckLoopStreamSdb(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
   SStreamObj* pStream = pObj;
-  SStmCheckStatusCtx* pCtx = (SStmCheckStatusCtx*)p1;
   int64_t streamId = pStream->pCreate->streamId;
+  SStmStatus* pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
+  SStmCheckStatusCtx* pCtx = (SStmCheckStatusCtx*)p1;
   int8_t userDropped = atomic_load_8(&pStream->userDropped), userStopped = atomic_load_8(&pStream->userStopped);
   
-  if (userDropped || userStopped) {
-    mstsDebug("stream userDropped %d userStopped %d, ignore check it", userDropped, userStopped);
+  if ((userDropped || userStopped) && (NULL == pStatus)) {
+    mstsDebug("stream userDropped %d userStopped %d and not in streamMap, ignore it", userDropped, userStopped);
+    return true;
+  }
+  
+  if (pStatus && !MST_STM_PASS_ISOLATION(pStream, pStatus)) {
+    mstsDebug("stream not pass isolation time, updateTime:%" PRId64 ", lastActionTs:%" PRId64 ", currentTs %" PRId64 ", ignore check it", 
+        pStream->updateTime, pStatus->lastActionTs, mStreamMgmt.hCtx.currentTs);
     return true;
   }
 
-  pCtx->handledNum++;
-  
-  if ((!pCtx->checkAll) && (pStream->updateTime + MND_STREAM_WATCH_DURATION) > mStreamMgmt.healthCtx.currentTs) {
-    mstsDebug("stream updateTime %" PRId64 " is too new, currentTs %" PRId64 ", ignore check it", pStream->updateTime, mStreamMgmt.healthCtx.currentTs);
+  if (NULL == pStatus && !MST_STM_STATIC_PASS_ISOLATION(pStream)) {
+    mstsDebug("stream not pass static isolation time, updateTime:%" PRId64 ", currentTs %" PRId64 ", ignore check it", 
+        pStream->updateTime, mStreamMgmt.hCtx.currentTs);
     return true;
-  }
+  }  
 
-  pCtx->checkedNum++;
-  
-  void* p = taosHashGet(mStreamMgmt.streamMap, &pStream->pCreate->streamId, sizeof(pStream->pCreate->streamId));
-  if (p) {
-    mstsDebug("stream status check OK, updateTime %" PRId64, pStream->updateTime);
-    msmCheckStreamConsistency((SStmStatus*)p, pStream);
+  if (pStatus) {
+    if (userDropped || userStopped || atomic_load_8(&pStatus->stopped)) {
+      (void)msmRemoveStreamFromMaps(pMnode, streamId);
+    }
+
     return true;
   }
 
@@ -3233,17 +3239,49 @@ static bool msmCheckStreamStatus(SMnode *pMnode, void *pObj, void *p1, void *p2,
   return true;
 }
 
+void msmCheckLoopStreamMap(SMnode *pMnode) {
+  SStmStatus* pStatus = NULL;
+  void* pIter = NULL;
+  while (true) {
+    pIter = taosHashIterate(mStreamMgmt.streamMap, pIter);
+    if (NULL == pIter) {
+      break;
+    }
+
+    pStatus = (SStmStatus*)pIter;
+    if (atomic_load_8(&pStatus->stopped)) {
+      (void)msmRemoveStreamFromMaps(pMnode, *(int64_t*)taosHashGetKey(pIter, NULL));
+      continue;
+    }
+
+    if (!sdbCheckExists(pMnode->pSdb, SDB_STREAM, pStatus->streamName)) {
+      (void)msmRemoveStreamFromMaps(pMnode, *(int64_t*)taosHashGetKey(pIter, NULL));
+      continue;
+    }
+  }
+}
+
 void msmCheckStreamsStatus(SMnode *pMnode) {
   SStmCheckStatusCtx ctx = {0};
-  sdbTraverse(pMnode->pSdb, SDB_STREAM, msmCheckStreamStatus, &ctx, NULL, NULL);
+  if (MST_READY_FOR_SDB_LOOP()) {
+    mstDebug("ready to check sdb loop, lastTs:%" PRId64, mStreamMgmt.lastTs[STM_OP_LOOP_SDB].ts);
+    sdbTraverse(pMnode->pSdb, SDB_STREAM, msmCheckLoopStreamSdb, &ctx, NULL, NULL);
+    MND_STREAM_SET_LAST_TS(STM_OP_LOOP_SDB, mStreamMgmt.hCtx.currentTs);
+  }
+
+  if (MST_READY_FOR_MAP_LOOP()) {
+    mstDebug("ready to check map loop, lastTs:%" PRId64, mStreamMgmt.lastTs[STM_OP_LOOP_MAP].ts);
+    msmCheckLoopStreamMap(pMnode);
+    MND_STREAM_SET_LAST_TS(STM_OP_LOOP_MAP, mStreamMgmt.hCtx.currentTs);
+  }
 }
 
 void msmCheckTaskListStatus(int64_t streamId, SStmTaskStatus** pList, int32_t taskNum) {
   for (int32_t i = 0; i < taskNum; ++i) {
     SStmTaskStatus* pTask = *(pList + i);
     
-    int64_t noUpTs = mStreamMgmt.healthCtx.currentTs - pTask->lastUpTs;
-    if (noUpTs < MND_STREAM_WATCH_DURATION) {
+    int64_t noUpTs = mStreamMgmt.hCtx.currentTs - pTask->lastUpTs;
+    if (noUpTs < MST_ISOLATION_DURATION) {
       continue;
     }
 
@@ -3299,7 +3337,7 @@ void msmCheckVgroupStatus(SMnode *pMnode) {
     }
 
     int32_t vgId = *(int32_t*)taosHashGetKey(pIter, NULL);
-    if ((vgId % MND_STREAM_ISOLATION_PERIOD_NUM) != mStreamMgmt.healthCtx.slotIdx) {
+    if ((vgId % MND_STREAM_ISOLATION_PERIOD_NUM) != mStreamMgmt.hCtx.slotIdx) {
       continue;
     }
     
@@ -3414,7 +3452,7 @@ void msmCheckSnodeStatus(SMnode *pMnode) {
     }
 
     int32_t snodeId = *(int32_t*)taosHashGetKey(pIter, NULL);
-    if ((snodeId % MND_STREAM_ISOLATION_PERIOD_NUM) != mStreamMgmt.healthCtx.slotIdx) {
+    if ((snodeId % MND_STREAM_ISOLATION_PERIOD_NUM) != mStreamMgmt.hCtx.slotIdx) {
       continue;
     }
     
@@ -3424,8 +3462,8 @@ void msmCheckSnodeStatus(SMnode *pMnode) {
       continue;
     }
     
-    int64_t snodeNoUpTs = mStreamMgmt.healthCtx.currentTs - pSnode->lastUpTs;
-    if (snodeNoUpTs >= MND_STREAM_WATCH_DURATION) {
+    int64_t snodeNoUpTs = mStreamMgmt.hCtx.currentTs - pSnode->lastUpTs;
+    if (snodeNoUpTs >= MST_STREAM_ISOLATION_DURATION) {
       stInfo("snode %d lost, lastUpTs:%" PRId64 ", runnerThreadNum:%d, streamNum:%d", 
           snodeId, pSnode->lastUpTs, pSnode->runnerThreadNum, (int32_t)taosHashGetSize(pSnode->streamTasks));
       
@@ -3444,26 +3482,67 @@ void msmCheckTasksStatus(SMnode *pMnode) {
 }
 
 void msmCheckSnodesState(SMnode *pMnode) {
+  if (!MST_READY_FOR_SNODE_LOOP()) {
+    return;
+  }
 
+  mstDebug("ready to check snode loop, lastTs:%" PRId64, mStreamMgmt.lastTs[STM_OP_LOOP_SNODE].ts);
+
+  void* pIter = NULL;
+  int32_t snodeId = 0;
+  while (true) {
+    pIter = taosHashIterate(mStreamMgmt.snodeMap, pIter);
+    if (NULL == pIter) {
+      break;
+    }
+
+    snodeId = *(int32_t*)taosHashGetKey(pIter, NULL);
+    if (sdbCheckExists(pMnode->pSdb, SDB_SNODE, &snodeId)) {
+      continue;
+    }
+
+    SStmSnodeStatus* pSnode = (SStmSnodeStatus*)pIter;
+    if (NULL == pSnode->streamTasks) {
+      mstDebug("snode %d already cleanup, try to rm it", snodeId);
+      taosHashRemove(mStreamMgmt.snodeMap, &snodeId, sizeof(snodeId));
+      continue;
+    }
+    
+    mstWarn("snode %d lost while streams remain, will redeploy all and rm it, lastUpTs:%" PRId64 ", runnerThreadNum:%d, streamNum:%d", 
+        snodeId, pSnode->lastUpTs, pSnode->runnerThreadNum, (int32_t)taosHashGetSize(pSnode->streamTasks));
+    
+    msmHandleSnodeLost(pMnode, pSnode);
+  }
+
+  MND_STREAM_SET_LAST_TS(STM_OP_LOOP_MAP, mStreamMgmt.hCtx.currentTs);
 }
 
 void msmHealthCheck(SMnode *pMnode) {
-  if (0 == atomic_load_8(&mStreamMgmt.active || MND_STM_STATE_NORMAL != atomic_load_8(&mStreamMgmt.state))) {
+  int8_t active = atomic_load_8(&mStreamMgmt.active), state = atomic_load_8(&mStreamMgmt.state);
+  if (0 == active || MND_STM_STATE_NORMAL != state) {
+    mstTrace("ignore health check since active:%d state:%d", active, state);
+    return;
+  }
+
+  if (sdbGetSize(pMnode->pSdb, SDB_STREAM) <= 0) {
+    mstTrace("ignore health check since no stream now");
     return;
   }
   
-  mStreamMgmt.healthCtx.slotIdx = (mStreamMgmt.healthCtx.slotIdx + 1) % MND_STREAM_ISOLATION_PERIOD_NUM;
-  mStreamMgmt.healthCtx.currentTs = taosGetTimestampMs();
+  mStreamMgmt.hCtx.slotIdx = (mStreamMgmt.hCtx.slotIdx + 1) % MND_STREAM_ISOLATION_PERIOD_NUM;
+  mStreamMgmt.hCtx.currentTs = taosGetTimestampMs();
 
-  mstDebug("start health check, soltIdx:%d, currentTs:%" PRId64, mStreamMgmt.healthCtx.slotIdx, mStreamMgmt.healthCtx.currentTs);
+  mstDebug("start health check, soltIdx:%d, checkStartTs:%" PRId64, mStreamMgmt.hCtx.slotIdx, mStreamMgmt.hCtx.currentTs);
 
   taosWLockLatch(&mStreamMgmt.runtimeLock);
   
   msmCheckStreamsStatus(pMnode);
-  msmCheckSnodesState(pMnode);
   msmCheckTasksStatus(pMnode);
+  msmCheckSnodesState(pMnode);
 
   taosWUnLockLatch(&mStreamMgmt.runtimeLock);
+
+  mstDebug("end health check, soltIdx:%d, checkStartTs:%" PRId64, mStreamMgmt.hCtx.slotIdx, mStreamMgmt.hCtx.currentTs);
 }
 
 static bool msmUpdateProfileStreams(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
