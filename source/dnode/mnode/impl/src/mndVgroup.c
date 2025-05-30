@@ -3819,3 +3819,66 @@ int32_t mndBuildCompactVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
   TAOS_CHECK_RETURN(mndAddCompactVnodeAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw, metaOnly));
   return 0;
 }
+
+static void *mndBuildS3MigrateVnodeReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen, int64_t compactTs) {
+  SS3MigrateVnodeReq compactReq = {0};
+  compactReq.dbUid = pDb->uid;
+  compactReq.compactStartTime = compactTs;
+  tstrncpy(compactReq.db, pDb->name, TSDB_DB_FNAME_LEN);
+
+  mInfo("vgId:%d, build s3migrate vnode config req", pVgroup->vgId);
+  int32_t contLen = tSerializeSS3MigrateVnodeReq(NULL, 0, &compactReq);
+  if (contLen < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  contLen += sizeof(SMsgHead);
+
+  void *pReq = taosMemoryMalloc(contLen);
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  SMsgHead *pHead = pReq;
+  pHead->contLen = htonl(contLen);
+  pHead->vgId = htonl(pVgroup->vgId);
+
+  if (tSerializeSS3MigrateVnodeReq((char *)pReq + sizeof(SMsgHead), contLen, &compactReq) < 0) {
+    taosMemoryFree(pReq);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  *pContLen = contLen;
+  return pReq;
+}
+
+static int32_t mndAddS3MigrateVnodeAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, int64_t compactTs) {
+  int32_t      code = 0;
+  STransAction action = {0};
+  action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
+
+  int32_t contLen = 0;
+  void   *pReq = mndBuildS3MigrateVnodeReq(pMnode, pDb, pVgroup, &contLen, compactTs);
+  if (pReq == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
+
+  action.pCont = pReq;
+  action.contLen = contLen;
+  action.msgType = TDMT_VND_S3MIGRATE;
+
+  if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
+    taosMemoryFree(pReq);
+    TAOS_RETURN(code);
+  }
+
+  TAOS_RETURN(code);
+}
+
+int32_t mndBuildS3MigrateVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, int64_t compactTs) {
+  TAOS_CHECK_RETURN(mndAddS3MigrateVnodeAction(pMnode, pTrans, pDb, pVgroup, compactTs));
+  return 0;
+}

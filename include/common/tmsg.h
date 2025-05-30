@@ -164,6 +164,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_USAGE,
   TSDB_MGMT_TABLE_FILESETS,
   TSDB_MGMT_TABLE_TRANSACTION_DETAIL,
+  TSDB_MGMT_TABLE_S3MIGRATE,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -1653,6 +1654,24 @@ typedef struct {
 
 int32_t tSerializeSS3MigrateDbReq(void* buf, int32_t bufLen, SS3MigrateDbReq* pReq);
 int32_t tDeserializeSS3MigrateDbReq(void* buf, int32_t bufLen, SS3MigrateDbReq* pReq);
+
+typedef struct {
+  int32_t s3MigrateId;
+  bool    bAccepted;
+} SS3MigrateDbRsp;
+
+int32_t tSerializeSS3MigrateDbRsp(void* buf, int32_t bufLen, SS3MigrateDbRsp* pRsp);
+int32_t tDeserializeSS3MigrateDbRsp(void* buf, int32_t bufLen, SS3MigrateDbRsp* pRsp);
+
+typedef struct {
+  int64_t     dbUid;
+  char        db[TSDB_DB_FNAME_LEN];
+  int64_t     s3MigrateStartTime;
+  int32_t     s3MigrateId;
+} SS3MigrateVnodeReq;
+
+int32_t tSerializeSS3MigrateVnodeReq(void* buf, int32_t bufLen, SS3MigrateVnodeReq* pReq);
+int32_t tDeserializeSS3MigrateVnodeReq(void* buf, int32_t bufLen, SS3MigrateVnodeReq* pReq);
 
 typedef struct {
   int32_t timestamp;

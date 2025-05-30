@@ -20,6 +20,7 @@
 #include "mndCluster.h"
 #include "mndCompact.h"
 #include "mndCompactDetail.h"
+#include "mndS3Migrate.h"
 #include "mndConfig.h"
 #include "mndConsumer.h"
 #include "mndDb.h"
@@ -132,7 +133,7 @@ static void mndPullupTtl(SMnode *pMnode) {
 }
 
 static void mndPullupTrimDb(SMnode *pMnode) {
-  mTrace("pullup s3migrate");
+  mTrace("pullup trim");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRIM_DB_TIMER, .pCont = pReq, .contLen = contLen};
@@ -143,7 +144,7 @@ static void mndPullupTrimDb(SMnode *pMnode) {
 }
 
 static void mndPullupS3MigrateDb(SMnode *pMnode) {
-  mTrace("pullup trim");
+  mTrace("pullup s3migrate");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   // TODO check return value
@@ -656,6 +657,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-view", mndInitView, mndCleanupView));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-compact", mndInitCompact, mndCleanupCompact));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-compact-detail", mndInitCompactDetail, mndCleanupCompactDetail));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-s3migrate", mndInitS3Migrate, mndCleanupS3Migrate));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-sdb", mndOpenSdb, NULL));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-profile", mndInitProfile, mndCleanupProfile));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-show", mndInitShow, mndCleanupShow));

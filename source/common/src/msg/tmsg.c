@@ -5697,7 +5697,7 @@ _exit:
   return code;
 }
 
-int32_t tSerializeSVS3MigrateDbReq(void *buf, int32_t bufLen, SVS3MigrateDbReq *pReq) {
+int32_t tSerializeSS3MigrateVnodeReq(void *buf, int32_t bufLen, SS3MigrateVnodeReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -5705,7 +5705,8 @@ int32_t tSerializeSVS3MigrateDbReq(void *buf, int32_t bufLen, SVS3MigrateDbReq *
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->timestamp));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->timestamp));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -5718,17 +5719,15 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeSVS3MigrateDbReq(void *buf, int32_t bufLen, SVS3MigrateDbReq *pReq) {
+int32_t tDeserializeSS3MigrateVnodeReq(void *buf, int32_t bufLen, SS3MigrateVnodeReq *pReq) {
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->timestamp));
-
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->timestamp));
   tEndDecode(&decoder);
-
 _exit:
   tDecoderClear(&decoder);
   return code;
