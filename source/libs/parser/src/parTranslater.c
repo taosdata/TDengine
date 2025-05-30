@@ -3601,11 +3601,20 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
         SValueNode* pIndex = (SValueNode*)nodesListGetNode((*pFunc)->pParameterList, 0);
         int64_t     index = *(int64_t*)nodesGetValueFromNode(pIndex);
         SExprNode*  pExpr = (SExprNode*)nodesListGetNode(pCxt->createStreamTriggerPartitionList, (int32_t)index - 1);
+        if (pExpr == NULL) {
+          pCxt->errCode = TSDB_CODE_FUNC_FUNTION_ERROR;
+          parserError("partition index out of range");
+          return DEAL_RES_ERROR;
+        }
+
         int32_t     code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&extraValue);
         if (TSDB_CODE_SUCCESS == code) {
           ((SValueNode*)extraValue)->node.resType.type = pExpr->resType.type;
           ((SValueNode*)extraValue)->node.resType.bytes = pExpr->resType.bytes;
           ((SValueNode*)extraValue)->isNull = true;
+        } else {
+          pCxt->errCode = code;
+          return DEAL_RES_ERROR;
         }
         (*pFunc)->node.resType.type = pExpr->resType.type;
         (*pFunc)->node.resType.bytes = pExpr->resType.bytes;
@@ -12560,6 +12569,9 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Out table in stream must be specified");
     }
   }
+
+  SDbCfgInfo dbCfg = {0};
+  PAR_ERR_RET(getDBCfg(pCxt, pStmt->streamDbName, &dbCfg));
 
   return TSDB_CODE_SUCCESS;
 }
