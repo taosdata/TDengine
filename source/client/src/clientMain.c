@@ -761,6 +761,18 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
         (void)memcpy(str + len, row[i], copyLen);
         len += copyLen;
       } break;
+      case TSDB_DATA_TYPE_BLOB:
+      case TSDB_DATA_TYPE_MEDIUMBLOB: {
+        int32_t charLen = blobDataLen((char *)row[i] - BLOBSTR_HEADER_SIZE);
+        // if (charLen > fields[i].bytes * TSDB_NCHAR_SIZE || charLen < 0) {
+        //   tscError("taos_print_row error. charLen:%d, fields[i].bytes:%d", charLen, fields[i].bytes);
+        //   break;
+        // }
+
+        uint32_t copyLen = TMIN(size - len - 1, charLen);
+        (void)memcpy(str + len, row[i], copyLen);
+        len += copyLen;
+      } break;
 
       case TSDB_DATA_TYPE_TIMESTAMP:
         len += tsnprintf(str + len, size - len, "%" PRId64, *((int64_t *)row[i]));

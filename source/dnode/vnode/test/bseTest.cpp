@@ -136,7 +136,7 @@ int32_t getDataAndValid(SBse *pBse, std::string &inStr, std::vector<int64_t> *se
           if (strncmp((const char *)value, inStr.c_str(), len) != 0) {
             ASSERT(0);
           } else {
-            printf("succ to get key %"PRId64"\n",seq);
+            printf("succ to get key %d\n",(int32_t)seq);
           }
         }
         taosMemoryFree(value);

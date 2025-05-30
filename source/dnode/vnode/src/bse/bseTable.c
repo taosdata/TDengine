@@ -259,7 +259,7 @@ int32_t tableBuilderFlush(STableBuilder *p, int8_t type) {
 
   SBlkHandle handle = {.size = len, .offset = p->offset, .range = p->blockRange};
 
-  bseDebug("bse flush at offset %" PRId64 " len: %" PRId64 ", block range sseq:%ld, eseq:%ld", p->offset, len,
+  bseDebug("bse flush at offset %" PRId64 " len: %d, block range sseq:%" PRId64 ", eseq:%" PRId64 "", p->offset, len,
            handle.range.sseq, handle.range.eseq);
 
   (void)taosLSeekFile(p->pDataFile, handle.offset, SEEK_SET);
@@ -914,7 +914,7 @@ _error:
   if (code != 0) {
     bseError("failed to flush table builder at line %d since %s", lino, tstrerror(code));
   } else {
-    bseDebug("flush at offset %d, size %d", pHandle->offset, len);
+    bseDebug("flush at offset %" PRId64 ", size %d", pHandle->offset, len);
   }
   return code;
 }
@@ -968,10 +968,10 @@ int32_t tableLoadBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBlk
   }
 _error:
   if (code != 0) {
-    bseError("failed to load block at lino %d since %s, read at offset %d, size:%d", lino, tstrerror(code),
-             pHandle->offset, pHandle->size);
+    bseError("failed to load block at lino %d since %s, read at offset %" PRId64 ", size:%" PRId64 "", lino,
+             tstrerror(code), pHandle->offset, pHandle->size);
   } else {
-    bseDebug("read at offset %d, size %d", pHandle->offset, pHandle->size);
+    bseDebug("read at offset %" PRId64 ", size %" PRId64 "", pHandle->offset, pHandle->size);
   }
 
   blockWrapperCleanup(&pHelp);

@@ -98,7 +98,7 @@ int32_t bseCompressData(int8_t type, void *src, int32_t srcSize, void *dst, int3
   if (type < 0 || type >= sizeof(bseCompressFuncSet) / sizeof(bseCompressFuncSet[0])) {
     return TSDB_CODE_INVALID_CFG;
   }
-  bseDebug("compress %s ,srcSize %d, dstSize %d", bseCompressFuncSet[type].name, srcSize, dstSize);
+  bseDebug("compress %s ,srcSize %d, dstSize %d", bseCompressFuncSet[type].name, srcSize, *dstSize);
   return bseCompressFuncSet[type].compress(src, srcSize, dst, dstSize);
 }
 
@@ -108,7 +108,7 @@ int32_t bseDecompressData(int8_t type, void *src, int32_t srcSize, void *dst, in
     return TSDB_CODE_INVALID_CFG;
   }
 
-  bseDebug("decompress %s, srcSize %d, dstSize %d", bseCompressFuncSet[type].name, srcSize, dstSize);
+  bseDebug("decompress %s, srcSize %d, dstSize %d", bseCompressFuncSet[type].name, srcSize, *dstSize);
   return bseCompressFuncSet[type].decompress(src, srcSize, dst, dstSize);
 }
 
@@ -145,11 +145,11 @@ void bseBuildFullTempMetaName(SBse *pBse, char *name, char *path) {
 
 void bseBuildMetaName(int64_t ts, char *name) {
   // refactor later
-  snprintf(name, BSE_FILE_FULL_LEN, "%d.%s", ts, BSE_META_SUFFIX);
+  snprintf(name, BSE_FILE_FULL_LEN, "%" PRId64 ".%s", ts, BSE_META_SUFFIX);
 }
 void bseBuildTempMetaName(int64_t ts, char *name) {
   // refactor later
-  snprintf(name, BSE_FILE_FULL_LEN, "%d.%s-temp", ts, BSE_META_SUFFIX);
+  snprintf(name, BSE_FILE_FULL_LEN, "%" PRId64 ".%s-temp", ts, BSE_META_SUFFIX);
 }
 
 void bseBuildFullName(SBse *pBse, char *name, char *fullname) {
