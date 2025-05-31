@@ -21,6 +21,26 @@
 #include "ttime.h"
 #include "decimal.h"
 
+// CSV delimiter and quote character definitions
+#define CSV_DEFAULT_DELIMITER ','
+#define CSV_QUOTE_SINGLE      '\''
+#define CSV_QUOTE_DOUBLE      '"'
+#define CSV_ESCAPE_CHAR       '\\'
+#define CSV_QUOTE_NONE        '\0'
+
+typedef struct SCsvParser {
+  char      delimiter;            // Field delimiter (default: ',')
+  char      quote;                // Quote character (default: '"')
+  char      escape;               // Escape character (default: '\')
+  bool      allowNewlineInField;  // Allow newlines in quoted fields
+  char*     buffer;               // Read buffer
+  size_t    bufferSize;           // Buffer size
+  size_t    bufferPos;            // Current position in buffer
+  size_t    bufferLen;            // Valid data length in buffer
+  bool      eof;                  // End of file reached
+  TdFilePtr pFile;                // File pointer
+} SCsvParser;
+
 typedef struct SInsertParseContext {
   SParseContext* pComCxt;
   SMsgBuf        msg;
@@ -38,6 +58,13 @@ typedef struct SInsertParseContext {
 typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param);
 static int32_t parseBoundTagsClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt);
 static int32_t parseTagsClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, bool autoCreate);
+
+// CSV parser function declarations
+static int32_t csvParserInit(SCsvParser* parser, TdFilePtr pFile);
+static void    csvParserDestroy(SCsvParser* parser);
+static int32_t csvParserFillBuffer(SCsvParser* parser);
+static int32_t csvParserReadLine(SCsvParser* parser, char** pLine);
+static void    destroySavedCsvParser(SVnodeModifyOpStmt* pStmt);
 
 static uint8_t TRUE_VALUE = (uint8_t)TSDB_TRUE;
 static uint8_t FALSE_VALUE = (uint8_t)TSDB_FALSE;
@@ -2427,50 +2454,180 @@ static int32_t parseValuesClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
   return code;
 }
 
+// Simplified CSV parser - only handles newlines within quotes
+static int32_t csvParserReadLine(SCsvParser* parser, char** pLine) {
+  if (!parser || !pLine) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *pLine = NULL;
+
+  // Initial buffer for the line
+  size_t lineCapacity = 1024;
+  char*  line = taosMemoryMalloc(lineCapacity);
+  if (!line) {
+    return terrno;
+  }
+
+  size_t  lineLen = 0;
+  bool    inQuotes = false;
+  char    currentQuote = '\0';  // Track which quote character we're inside
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  while (true) {
+    // Fill buffer if needed
+    if (parser->bufferPos >= parser->bufferLen) {
+      code = csvParserFillBuffer(parser);
+      if (code != TSDB_CODE_SUCCESS) {
+        break;
+      }
+      if (parser->bufferPos >= parser->bufferLen && parser->eof) {
+        // End of file
+        if (lineLen == 0) {
+          code = TSDB_CODE_TSC_QUERY_CANCELLED;  // Use this to indicate EOF
+        }
+        break;
+      }
+    }
+
+    char ch = parser->buffer[parser->bufferPos++];
+
+    // Handle quotes - support both single and double quotes
+    if (!inQuotes && (ch == CSV_QUOTE_SINGLE || ch == CSV_QUOTE_DOUBLE)) {
+      // Starting a quoted section
+      inQuotes = true;
+      currentQuote = ch;
+    } else if (inQuotes && ch == currentQuote) {
+      // Check for escaped quote (double quote)
+      if (parser->bufferPos < parser->bufferLen && parser->buffer[parser->bufferPos] == currentQuote) {
+        // Escaped quote - consume the next quote character and add one quote to output
+        parser->bufferPos++;
+        // Add the quote character to the line
+        if (lineLen >= lineCapacity - 1) {
+          lineCapacity *= 2;
+          char* newLine = taosMemoryRealloc(line, lineCapacity);
+          if (!newLine) {
+            code = terrno;
+            break;
+          }
+          line = newLine;
+        }
+        line[lineLen++] = ch;
+        continue;
+      } else {
+        // End of quoted section
+        inQuotes = false;
+        currentQuote = '\0';
+      }
+    }
+
+    // Handle newlines
+    if (ch == '\n' && !inQuotes) {
+      // End of line (not inside quotes)
+      break;
+    }
+
+    // Skip \r characters
+    if (ch == '\r') {
+      continue;
+    }
+
+    // Expand buffer if needed
+    if (lineLen >= lineCapacity - 1) {
+      lineCapacity *= 2;
+      char* newLine = taosMemoryRealloc(line, lineCapacity);
+      if (!newLine) {
+        code = terrno;
+        break;
+      }
+      line = newLine;
+    }
+
+    // Add character to line
+    line[lineLen++] = ch;
+  }
+
+  if (code == TSDB_CODE_SUCCESS) {
+    line[lineLen] = '\0';
+    *pLine = line;
+  } else {
+    taosMemoryFree(line);
+  }
+
+  return code;
+}
+
 static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SRowsDataContext rowsDataCxt,
                             int32_t* pNumOfRows) {
   int32_t code = TSDB_CODE_SUCCESS;
   (*pNumOfRows) = 0;
-  char*   pLine = NULL;
-  int64_t readLen = 0;
-  bool    firstLine = (pStmt->fileProcessing == false);
+
+  // Initialize or use existing CSV parser in pStmt
+  if (pStmt->pCsvParser == NULL) {
+    // First time - allocate and initialize CSV parser
+    pStmt->pCsvParser = taosMemoryMalloc(sizeof(SCsvParser));
+    if (!pStmt->pCsvParser) {
+      return terrno;
+    }
+    code = csvParserInit(pStmt->pCsvParser, pStmt->fp);
+    if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFree(pStmt->pCsvParser);
+      pStmt->pCsvParser = NULL;
+      return code;
+    }
+  }
+  // If pStmt->pCsvParser exists, we continue from where we left off
+
+  bool firstLine = (pStmt->fileProcessing == false);
   pStmt->fileProcessing = false;
-  while (TSDB_CODE_SUCCESS == code && (readLen = taosGetLineFile(pStmt->fp, &pLine)) != -1) {
-    if (('\r' == pLine[readLen - 1]) || ('\n' == pLine[readLen - 1])) {
-      pLine[--readLen] = '\0';
+
+  while (TSDB_CODE_SUCCESS == code) {
+    // Read one line from CSV using the parser in pStmt
+    char* csvLine = NULL;
+    code = csvParserReadLine(pStmt->pCsvParser, &csvLine);
+    if (code == TSDB_CODE_TSC_QUERY_CANCELLED) {
+      // End of file
+      code = TSDB_CODE_SUCCESS;
+      break;
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      break;
     }
 
-    if (readLen == 0) {
+    // Skip empty lines
+    if (!csvLine || strlen(csvLine) == 0) {
+      taosMemoryFree(csvLine);
       firstLine = false;
       continue;
     }
 
-    bool gotRow = false;
-    if (TSDB_CODE_SUCCESS == code) {
-      SToken token;
-      (void)strtolower(pLine, pLine);
-      const char* pRow = pLine;
-      if (!pStmt->stbSyntax) {
-        code = parseOneRow(pCxt, (const char**)&pRow, rowsDataCxt.pTableDataCxt, &gotRow, &token);
-      } else {
-        STableDataCxt* pTableDataCxt = NULL;
-        code =
-            parseOneStbRow(pCxt, pStmt, (const char**)&pRow, rowsDataCxt.pStbRowsCxt, &gotRow, &token, &pTableDataCxt);
-        if (code == TSDB_CODE_SUCCESS) {
-          SStbRowsDataContext* pStbRowsCxt = rowsDataCxt.pStbRowsCxt;
-          void*                pData = pTableDataCxt;
-          code = taosHashPut(pStmt->pTableCxtHashObj, &pStbRowsCxt->pCtbMeta->uid, sizeof(pStbRowsCxt->pCtbMeta->uid),
-                             &pData, POINTER_BYTES);
-          if (TSDB_CODE_SUCCESS != code) {
-            break;
-          }
+    bool   gotRow = false;
+    SToken token;
+    (void)strtolower(csvLine, csvLine);
+    const char* pRow = csvLine;
+
+    if (!pStmt->stbSyntax) {
+      code = parseOneRow(pCxt, (const char**)&pRow, rowsDataCxt.pTableDataCxt, &gotRow, &token);
+    } else {
+      STableDataCxt* pTableDataCxt = NULL;
+      code = parseOneStbRow(pCxt, pStmt, (const char**)&pRow, rowsDataCxt.pStbRowsCxt, &gotRow, &token, &pTableDataCxt);
+      if (code == TSDB_CODE_SUCCESS) {
+        SStbRowsDataContext* pStbRowsCxt = rowsDataCxt.pStbRowsCxt;
+        void*                pData = pTableDataCxt;
+        code = taosHashPut(pStmt->pTableCxtHashObj, &pStbRowsCxt->pCtbMeta->uid, sizeof(pStbRowsCxt->pCtbMeta->uid),
+                           &pData, POINTER_BYTES);
+        if (TSDB_CODE_SUCCESS != code) {
+          taosMemoryFree(csvLine);
+          break;
         }
       }
-      if (code && firstLine) {
-        firstLine = false;
-        code = 0;
-        continue;
-      }
+    }
+    taosMemoryFree(csvLine);
+
+    if (code && firstLine) {
+      firstLine = false;
+      code = 0;
+      continue;
     }
 
     if (TSDB_CODE_SUCCESS == code && gotRow) {
@@ -2478,13 +2635,14 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
     }
 
     if (TSDB_CODE_SUCCESS == code && (*pNumOfRows) >= tsMaxInsertBatchRows) {
+      // Reached batch limit - keep the parser in pStmt for next batch
       pStmt->fileProcessing = true;
       break;
     }
-
     firstLine = false;
   }
-  taosMemoryFree(pLine);
+
+  // Don't destroy the parser here - it will be cleaned up when file processing is complete
 
   parserDebug("QID:0x%" PRIx64 ", %d rows have been parsed", pCxt->pComCxt->requestId, *pNumOfRows);
 
@@ -2514,6 +2672,8 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
       rowsDataCxt.pTableDataCxt->pData->flags |= SUBMIT_REQ_FROM_FILE;
     }
     if (!pStmt->fileProcessing) {
+      // File processing is complete, clean up saved CSV parser
+      destroySavedCsvParser(pStmt);
       code = taosCloseFile(&pStmt->fp);
       if (TSDB_CODE_SUCCESS != code) {
         parserWarn("QID:0x%" PRIx64 ", failed to close file.", pCxt->pComCxt->requestId);
@@ -2525,6 +2685,8 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
       return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is exclusive", NULL);
     }
   } else {
+    // On error, also clean up saved CSV parser
+    destroySavedCsvParser(pStmt);
     return buildInvalidOperationMsg(&pCxt->msg, tstrerror(code));
   }
 
@@ -2552,7 +2714,7 @@ static int32_t parseDataFromFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
     }
     strncpy(filePathStr, pFilePath->z, pFilePath->n);
   }
-  pStmt->fp = taosOpenFile(filePathStr, TD_FILE_READ | TD_FILE_STREAM);
+  pStmt->fp = taosOpenFile(filePathStr, TD_FILE_READ);
   if (NULL == pStmt->fp) {
     return terrno;
   }
@@ -2921,6 +3083,7 @@ static int32_t createVnodeModifOpStmt(SInsertParseContext* pCxt, bool reentry, S
   pStmt->freeHashFunc = insDestroyTableDataCxtHashMap;
   pStmt->freeArrayFunc = insDestroyVgroupDataCxtList;
   pStmt->freeStbRowsCxtFunc = destroyStbRowsDataContext;
+  pStmt->pCsvParser = NULL;
 
   if (!reentry) {
     pStmt->pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
@@ -3422,4 +3585,119 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
     (*pQuery)->execMode = QUERY_EXEC_MODE_EMPTY_RESULT;
   }
   return code;
+}
+
+// CSV Parser Implementation
+static int32_t csvParserInit(SCsvParser* parser, TdFilePtr pFile) {
+  if (!parser || !pFile) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  memset(parser, 0, sizeof(SCsvParser));
+
+  // Set default CSV format
+  parser->delimiter = CSV_DEFAULT_DELIMITER;
+  parser->quote = CSV_QUOTE_SINGLE;  // Default to single quote for TDengine compatibility
+  parser->escape = CSV_ESCAPE_CHAR;
+  parser->allowNewlineInField = true;
+
+  // Initialize buffer
+  parser->bufferSize = 64 * 1024;  // 64KB buffer
+  parser->buffer = taosMemoryMalloc(parser->bufferSize);
+  if (!parser->buffer) {
+    return terrno;
+  }
+
+  parser->bufferPos = 0;
+  parser->bufferLen = 0;
+  parser->eof = false;
+  parser->pFile = pFile;
+
+  // Fill initial buffer to detect quote type
+  int32_t code = csvParserFillBuffer(parser);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(parser->buffer);
+    return code;
+  }
+
+  // Auto-detect quote character by finding the first quote in the file
+  // Skip the header line and look for the first quote character in data
+  bool foundFirstQuote = false;
+  bool inFirstLine = true;
+  
+  for (size_t i = 0; i < parser->bufferLen && !foundFirstQuote; i++) {
+    char ch = parser->buffer[i];
+    
+    // Skip the first line (header)
+    if (inFirstLine) {
+      if (ch == '\n') {
+        inFirstLine = false;
+      }
+      continue;
+    }
+    
+    // Look for the first quote character in data lines
+    if (ch == CSV_QUOTE_SINGLE) {
+      parser->quote = CSV_QUOTE_SINGLE;
+      foundFirstQuote = true;
+    } else if (ch == CSV_QUOTE_DOUBLE) {
+      parser->quote = CSV_QUOTE_DOUBLE;
+      foundFirstQuote = true;
+    }
+  }
+
+  // If no quotes found, keep default (single quote for TDengine compatibility)
+  
+  // Reset buffer position for actual parsing
+  parser->bufferPos = 0;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static void csvParserDestroy(SCsvParser* parser) {
+  if (parser) {
+    taosMemoryFree(parser->buffer);
+    memset(parser, 0, sizeof(SCsvParser));
+  }
+}
+
+static int32_t csvParserFillBuffer(SCsvParser* parser) {
+  if (!parser || parser->eof) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Move remaining data to beginning of buffer
+  if (parser->bufferPos < parser->bufferLen) {
+    size_t remaining = parser->bufferLen - parser->bufferPos;
+    memmove(parser->buffer, parser->buffer + parser->bufferPos, remaining);
+    parser->bufferLen = remaining;
+  } else {
+    parser->bufferLen = 0;
+  }
+  parser->bufferPos = 0;
+
+  // Read more data
+  size_t spaceLeft = parser->bufferSize - parser->bufferLen;
+  if (spaceLeft > 0) {
+    int64_t bytesRead = taosReadFile(parser->pFile, parser->buffer + parser->bufferLen, spaceLeft);
+    if (bytesRead < 0) {
+      return TAOS_SYSTEM_ERROR(errno);
+    }
+    if (bytesRead == 0) {
+      parser->eof = true;
+    } else {
+      parser->bufferLen += bytesRead;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+// Destroy saved CSV parser in SVnodeModifyOpStmt
+static void destroySavedCsvParser(SVnodeModifyOpStmt* pStmt) {
+  if (pStmt && pStmt->pCsvParser) {
+    csvParserDestroy(pStmt->pCsvParser);
+    taosMemoryFree(pStmt->pCsvParser);
+    pStmt->pCsvParser = NULL;
+  }
 }
