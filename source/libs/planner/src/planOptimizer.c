@@ -13,11 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stdint.h>
+#include <string.h>
+#include <time.h>
 #include "filter.h"
 #include "functionMgt.h"
+#include "nodes.h"
+#include "osString.h"
 #include "parser.h"
 #include "planInt.h"
+#include "querynodes.h"
 #include "systable.h"
+#include "taoserror.h"
+#include "tcommon.h"
 #include "tglobal.h"
 #include "ttime.h"
 #include "scalar.h"
@@ -4405,6 +4413,10 @@ static bool lastRowScanOptCheckFuncList(SLogicNode* pNode, int8_t cacheLastModel
       if (QUERY_NODE_COLUMN == nodeType(pParam)) {
         SColumnNode* pCol = (SColumnNode*)pParam;
         if (COLUMN_TYPE_COLUMN == pCol->colType && PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId) {
+          if(pCol->node.relatedTo > 0) 
+          { // select cols(last_row(ts), ts, c0), min(c0) from st; c0 is not pk col or cache col
+            return false;
+          }
           if (selectNonPKColId != pCol->colId) {
             selectNonPKColId = pCol->colId;
             selectNonPKColNum++;
@@ -4523,7 +4535,7 @@ static void lastRowScanOptSetLastTargets(SNodeList* pTargets, SNodeList* pLastCo
         break;
       }
     }
-    if (!found && nodeListNodeEqual(pLastRowCols, pTarget)) {
+    if (found || nodeListNodeEqual(pLastRowCols, pTarget)) {
       found = true;
     }
 
@@ -4596,6 +4608,81 @@ static int32_t lastRowScanBuildFuncTypes(SScanLogicNode* pScan, SColumnNode* pCo
 
   taosMemoryFree(pFuncTypeParam);
   return TSDB_CODE_SUCCESS;
+}
+
+static EDealRes doRewriteLastScanTargets(SNode* pNode, void* pContext) {
+  #define RELEATED_LEN 8
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    int32_t releatedTo = ((SColumnNode*)pNode)->node.relatedTo;
+    if (releatedTo == 0) {
+      return DEAL_RES_IGNORE_CHILD;
+    }
+    char relatedToStr[RELEATED_LEN];
+    snprintf(relatedToStr, sizeof(relatedToStr), ".%d", releatedTo);
+
+    SNodeList* pTaragetList = *(SNodeList**)pContext;
+    SNode*     pTarget = NULL;
+    FOREACH(pTarget, pTaragetList) {
+      if (nodesEqualNode(pTarget, pNode) && releatedTo == ((SColumnNode*)pTarget)->node.relatedTo) {
+        TAOS_STRCAT(((SColumnNode*)pNode)->colName, relatedToStr);
+        TAOS_STRCAT(((SColumnNode*)pTarget)->colName, relatedToStr);
+        return DEAL_RES_IGNORE_CHILD;
+      }
+    }
+    SNode* pNew = NULL;
+    TAOS_STRCAT(((SColumnNode*)pNode)->colName, relatedToStr);
+    int32_t code = nodesCloneNode(pNode, &pNew);
+    if (code != TSDB_CODE_SUCCESS) {
+      return DEAL_RES_ERROR;
+    }
+    code = nodesListMakeAppend((SNodeList**)pContext, pNew);
+    if (code != TSDB_CODE_SUCCESS) {
+      return DEAL_RES_ERROR;
+    }
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t rewriteLastScanTargets(SNodeList* pAggFuncs, SNodeList** ppLastScanTargets) {
+  int32_t code = 0;
+  SNode*  pNode;
+  FOREACH(pNode, pAggFuncs) {
+    if (nodeType(pNode) != QUERY_NODE_FUNCTION || ((SFunctionNode*)pNode)->funcType != FUNCTION_TYPE_SELECT_VALUE) {
+      continue;
+    }
+
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    SNode*         pParam = NULL;
+    FOREACH(pParam, pFunc->pParameterList) { nodesWalkExpr(pParam, doRewriteLastScanTargets, ppLastScanTargets); }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static void rewriteLastScanCols(SNodeList* pAggFuncs, SNodeList* pLastScanCols) {
+  SNode* pNode;
+  FOREACH(pNode, pAggFuncs) {
+    if (nodeType(pNode) != QUERY_NODE_FUNCTION) {
+      continue;
+    }
+    if (((SFunctionNode*)pNode)->funcType != FUNCTION_TYPE_CACHE_LAST &&
+        ((SFunctionNode*)pNode)->funcType != FUNCTION_TYPE_CACHE_LAST_ROW) {
+      continue;
+    }
+    SNode* pParam = nodesListGetNode(((SFunctionNode*)pNode)->pParameterList, 0);
+    if (nodeType(pParam) != QUERY_NODE_COLUMN) {
+      continue;
+    }
+    SNode* pCol = NULL;
+    FOREACH(pCol, pLastScanCols) {
+      if (nodesEqualNode(pParam, pCol)) {
+        SColumnNode* pColNode = (SColumnNode*)pCol;
+        pColNode->node.bindExprID = ((SColumnNode*)pParam)->node.bindExprID;
+        pColNode->node.relatedTo = ((SColumnNode*)pParam)->node.relatedTo;
+        break;
+      }
+    }
+  }
 }
 
 static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
@@ -4824,6 +4911,10 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
 
     nodesClearList(cxt.pLastCols);
   }
+
+  rewriteLastScanTargets(pAgg->pAggFuncs, &pScan->node.pTargets);
+  rewriteLastScanCols(pAgg->pAggFuncs, pScan->pScanCols);
+
   nodesClearList(cxt.pOtherCols);
 
   pAgg->hasLastRow = false;
