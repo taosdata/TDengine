@@ -69,3 +69,58 @@ taos> select to_base64(substring('北京涛思.com', 1, 4)) == to_base64('北京
 ===================================================================
  true                                                             |
 
+taos> select to_base64(true)
+ to_base64(true) |
+==================
+ MQ==            |
+
+taos> select to_base64(true) = to_base64(1)
+ to_base64(true) = to_base64(1) |
+=================================
+ false                          |
+
+taos> select to_base64(false)
+ to_base64(false) |
+===================
+ MA==             |
+
+taos> select to_base64(false) = to_base64(0)
+ to_base64(false) = to_base64(0) |
+==================================
+ false                           |
+
+taos> select to_base64(1234)
+ to_base64(1234) |
+==================
+ MTIzNA==        |
+
+taos> select to_base64(1234) = to_base64("1234")
+ to_base64(1234) = to_base64("1234") |
+======================================
+ true                                |
+
+taos> select to_base64(1234.567)
+ to_base64(1234.567) |
+======================
+ MTIzNC41Njc=        |
+
+taos> select to_base64(1234.567) = to_base64('1234.567')
+ to_base64(1234.567) = to_base64('1234.567') |
+==============================================
+ true                                        |
+
+taos> select to_base64(1234.567 + 0.1) = to_base64('1234.667')
+ to_base64(1234.567 + 0.1) = to_base64('1234.667') |
+====================================================
+ true                                              |
+
+taos> select to_base64(TO_TIMESTAMP("2000-01-01 00:00:00+00", "yyyy-mm-dd hh24:mi:ss")) = to_base64(TO_CHAR(TO_TIMESTAMP("2000-01-01 00:00:00+00", "yyyy-mm-dd hh24:mi:ss"), "yyyy-mm-dd hh24:mi:ss"))
+ to_base64(to_timestamp("2000-01-01 00:00:00+00", "yyyy-mm-dd hh2 |
+===================================================================
+ true                                                             |
+
+taos> select to_base64(TO_TIMESTAMP("2000-01-01 00:00:00+00", "yyyy-mm-dd hh24:mi:ss")) = to_base64("2000-01-01 00:00:00")
+ to_base64(to_timestamp("2000-01-01 00:00:00+00", "yyyy-mm-dd hh2 |
+===================================================================
+ true                                                             |
+
