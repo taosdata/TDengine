@@ -527,6 +527,135 @@ static FORCE_INLINE int8_t tsdbMemSkipListRandLevel(SMemSkipList *pSl) {
 
   return level;
 }
+
+static int32_t tsdbRebuildRow(STsdb *pTsdb, TSDBROW *pRowIn, TSDBROW **ppRowOut, STSchema *pTSchema) {
+  int32_t code = 0;
+  SVnode *pVnode = pTsdb->pVnode;
+
+  if (NULL == pRowIn && pRowIn->type != TSDBROW_ROW_FMT) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SRow *pRow = pRowIn->pTSRow;
+  SRow *pNewRow = NULL;
+
+  // Iter to get the column data
+  SArray *pColValArray = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal));
+  if (NULL == pColValArray) {
+    code = terrno;
+    goto _exit;
+  }
+
+  SRowIter *pIter = NULL;
+  code = tRowIterOpen(pRow, pTSchema, &pIter);
+  if (code) {
+    taosArrayDestroy(pColValArray);
+    goto _exit;
+  }
+
+#define TEST_UPPER "***TEST***"
+#define TEST_LOWER "***test***"
+#define TEST_HTMIX "***TesT***"
+
+#define algoA(key, len) (MurmurHash3_32((key), (len)))
+#define algoB(key, len) (taosDJB2Hash((key), (len)))
+
+  const int   nameColId = 2;
+  const int   locaColId = 3;
+  bool        isOdd = (1 == pVnode->batchCount % 2);
+  const char *nameValue = NULL;
+  int32_t     namelen = 0;
+  uint32_t    parHash = 0;
+  int         parIdx = 1;
+
+  if (pVnode->partitionCount <= 0) {
+    pVnode->partitionCount = 1;
+  }
+
+  int parCount = pVnode->partitionCount;
+
+  for (;;) {
+    SColVal *pColVal = tRowIterNext(pIter);
+    if (pColVal == NULL) {
+      break;
+    }
+
+    if (pColVal->cid == nameColId) {
+      nameValue = pColVal->value.pData;
+      namelen = pColVal->value.nData;
+
+      if (strstr(nameValue, TEST_UPPER)) {
+        if (isOdd) {
+          parHash = algoA(nameValue, namelen);
+        } else {
+          parHash = algoB(nameValue, namelen);
+        }
+      } else if (strstr(nameValue, TEST_LOWER)) {
+        if (isOdd) {
+          parHash = algoB(nameValue, namelen);
+        } else {
+          // parIdx = 0;
+        }
+      } else if (strstr(nameValue, TEST_HTMIX)) {
+        if (isOdd) {
+          // parIdx = 0;
+        } else {
+          parHash = algoA(nameValue, namelen);
+        }
+      } else {
+        parHash = algoA(nameValue, namelen);
+      }
+    }
+
+    if (parCount > 1) {
+      parIdx = parHash % parCount + 1;
+    }
+
+    if (pColVal->cid == locaColId) {
+      pColVal->value.val = parIdx;
+    }
+
+    if (NULL == taosArrayPush(pColValArray, pColVal)) {
+      code = terrno;
+      taosArrayDestroy(pColValArray);
+      tRowIterClose(&pIter);
+    }
+  }
+
+  tRowIterClose(&pIter);
+
+  // Build a new row
+  code = tRowBuild(pColValArray, pTSchema, &pNewRow);
+  if (code) {
+    taosArrayDestroy(pColValArray);
+    goto _exit;
+  }
+  taosArrayDestroy(pColValArray);
+
+  // Build the new row
+  *ppRowOut = taosMemCalloc(1, sizeof(TSDBROW));
+  if (NULL == *ppRowOut) {
+    code = terrno;
+    taosMemoryFree(pNewRow);
+    goto _exit;
+  }
+  (*ppRowOut)->version = pRowIn->version;
+  (*ppRowOut)->type = pRowIn->type;
+  (*ppRowOut)->pTSRow = pNewRow;
+
+_exit:
+  return code;
+}
+
+static void tsdbFreeRebuildRow(TSDBROW **ppRow) {
+  if (ppRow && *ppRow) {
+    if ((*ppRow)->type == TSDBROW_ROW_FMT) {
+      taosMemoryFree((*ppRow)->pTSRow);
+    }
+    taosMemoryFree(*ppRow);
+  }
+}
+
 static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListNode **pos, TSDBROW *pRow,
                            int8_t forward) {
   int32_t           code = 0;
@@ -534,6 +663,19 @@ static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListN
   SMemSkipListNode *pNode = NULL;
   SVBufPool        *pPool = pMemTable->pTsdb->pVnode->inUse;
   int64_t           nSize;
+
+  TSDBROW  *pNewRow = NULL;
+  STSchema *pTSchema = NULL;
+  SVnode   *pVnode = pMemTable->pTsdb->pVnode;
+  code = metaGetTbTSchemaEx(pVnode->pMeta, pTbData->suid, pTbData->uid, -1, &pTSchema);
+
+  code = tsdbRebuildRow(pMemTable->pTsdb, pRow, &pNewRow, pTSchema);
+  taosMemoryFreeClear(pTSchema);
+  pTSchema = NULL;
+  if (code) {
+    return code;
+  }
+  pRow = pNewRow;
 
   // create node
   level = tsdbMemSkipListRandLevel(&pTbData->sl);
@@ -595,6 +737,7 @@ static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListN
   }
 
 _exit:
+  tsdbFreeRebuildRow(&pNewRow);
   return code;
 }
 
