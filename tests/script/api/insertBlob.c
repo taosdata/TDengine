@@ -22,6 +22,8 @@
 #include <string.h>
 #include "taos.h"  // TAOS header file
 
+#define BLOB_LEN 1024 * 100
+
 static void queryDB(TAOS *taos, char *command) {
   int       i;
   TAOS_RES *pSql = NULL;
@@ -53,7 +55,7 @@ static void queryDB(TAOS *taos, char *command) {
 void Test(TAOS *taos, char *qstr);
 
 int main(int argc, char *argv[]) {
-  char *qstr = (char *)malloc(1024 * 100);
+  char *qstr = (char *)malloc(BLOB_LEN);
 
   // connect to server
   if (argc < 2) {
@@ -81,9 +83,9 @@ void Test(TAOS *taos, char *qstr) {
   printf("success to create table\n");
 
   int  i = 0;
-  char buf[10 * 1024] = {0};
+  char *buf = calloc(1, BLOB_LEN);
 
-  for (i = 0; i < sizeof(buf) - 1; ++i) {
+  for (i = 0; i < BLOB_LEN - 1000; ++i) {
     buf[i] = 'a' + (i % 26);  // fill with 'a' to 'z'
   }
 
@@ -134,12 +136,13 @@ void Test(TAOS *taos, char *qstr) {
   printf("select * from table order by ts desc, result:\n");
   // fetch the records row by row
   while ((row = taos_fetch_row(result))) {
-    char *temp = calloc(1, 1024 * 100);
+    char *temp = calloc(1, BLOB_LEN);
     rows++;
     taos_print_row(temp, row, fields, num_fields);
-    printf("%s\n", temp);
+    printf("strlen %d\n", (int)(strlen(temp)));
     free(temp);
   }
+  free(buf);
 
   taos_free_result(result);
 }
