@@ -35,7 +35,7 @@ func NewConnector(username, password, host string, port int, usessl bool) (*Conn
 	} else {
 		protocol = "http"
 	}
-	dbLogger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: util.GetQidOwn()})
+	dbLogger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: util.GetQidOwn(config.Conf.InstanceID)})
 	dbLogger.Tracef("connect to adapter, host:%s, port:%d, usessl:%v", host, port, usessl)
 
 	db, err := sql.Open("taosRestful", fmt.Sprintf("%s:%s@%s(%s:%d)/?skipVerify=true", username, password, protocol, host, port))
@@ -56,7 +56,7 @@ func NewConnectorWithDb(username, password, host string, port int, dbname string
 		protocol = "http"
 	}
 
-	dbLogger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: util.GetQidOwn()})
+	dbLogger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: util.GetQidOwn(config.Conf.InstanceID)})
 	dbLogger.Tracef("connect to adapter, host:%s, port:%d, usessl:%v", host, port, usessl)
 
 	db, err := sql.Open("taosRestful", fmt.Sprintf("%s:%s@%s(%s:%d)/%s?skipVerify=true", username, password, protocol, host, port, dbname))

@@ -307,7 +307,7 @@ func (p *Processor) Prepare() {
 
 		err := pool.GoroutinePool.Submit(func() {
 			defer wg.Done()
-			data, err := p.dbConn.Query(p.ctx, fmt.Sprintf("describe %s", p.withDBName(tableName)), util.GetQidOwn())
+			data, err := p.dbConn.Query(p.ctx, fmt.Sprintf("describe %s", p.withDBName(tableName)), util.GetQidOwn(config.Conf.InstanceID))
 			if err != nil {
 				var tdEngineError *taosError.TaosError
 				if errors.As(err, &tdEngineError) {
@@ -465,7 +465,7 @@ func (p *Processor) Process() {
 		}
 		sql := b.String()
 		pool.BytesPoolPut(b)
-		data, err := p.dbConn.Query(p.ctx, sql, util.GetQidOwn())
+		data, err := p.dbConn.Query(p.ctx, sql, util.GetQidOwn(config.Conf.InstanceID))
 		logger.Debug(sql)
 		if err != nil {
 			logger.WithError(err).Errorln("select data sql:", sql)

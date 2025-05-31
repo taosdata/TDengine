@@ -11,13 +11,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/taosdata/taoskeeper/db"
+	"github.com/taosdata/taoskeeper/infrastructure/config"
 	"github.com/taosdata/taoskeeper/util"
 )
 
 var router_inited bool = false
 
 func TestClusterBasic(t *testing.T) {
-	cfg := util.GetCfg()
+	cfg := config.GetCfg()
 
 	CreateDatabase(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl, cfg.Metrics.Database.Name, cfg.Metrics.Database.Options)
 
@@ -45,7 +46,7 @@ func TestClusterBasic(t *testing.T) {
 	conn, err := db.NewConnectorWithDb(gm.username, gm.password, gm.host, gm.port, gm.database, gm.usessl)
 	assert.NoError(t, err)
 	defer func() {
-		_, _ = conn.Query(context.Background(), fmt.Sprintf("drop database if exists %s", gm.database), util.GetQidOwn())
+		_, _ = conn.Query(context.Background(), fmt.Sprintf("drop database if exists %s", gm.database), util.GetQidOwn(config.Conf.InstanceID))
 	}()
 
 	t.Run(testcfg.name, func(t *testing.T) {
@@ -55,7 +56,7 @@ func TestClusterBasic(t *testing.T) {
 		router.ServeHTTP(w, req)
 		assert.Equal(t, 200, w.Code)
 
-		data, err := conn.Query(context.Background(), fmt.Sprintf("select ts, cluster_id from %s.%s where ts=%d", gm.database, testcfg.tbname, testcfg.ts), util.GetQidOwn())
+		data, err := conn.Query(context.Background(), fmt.Sprintf("select ts, cluster_id from %s.%s where ts=%d", gm.database, testcfg.tbname, testcfg.ts), util.GetQidOwn(config.Conf.InstanceID))
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(data.Data))
 		assert.Equal(t, testcfg.expect, data.Data[0][1])
@@ -109,7 +110,7 @@ func TestClusterBasic(t *testing.T) {
 	conn, err = db.NewConnectorWithDb(gm.username, gm.password, gm.host, gm.port, gm.database, gm.usessl)
 	assert.NoError(t, err)
 	defer func() {
-		_, _ = conn.Query(context.Background(), fmt.Sprintf("drop database if exists %s", gm.database), util.GetQidOwn())
+		_, _ = conn.Query(context.Background(), fmt.Sprintf("drop database if exists %s", gm.database), util.GetQidOwn(config.Conf.InstanceID))
 	}()
 
 	t.Run(testcfg.name, func(t *testing.T) {
@@ -120,7 +121,7 @@ func TestClusterBasic(t *testing.T) {
 		router.ServeHTTP(w, req)
 		assert.Equal(t, 200, w.Code)
 
-		data, err := conn.Query(context.Background(), fmt.Sprintf("select start_ts, cluster_id from %s.%s where start_ts=%d", gm.database, testcfg.tbname, testcfg.ts), util.GetQidOwn())
+		data, err := conn.Query(context.Background(), fmt.Sprintf("select start_ts, cluster_id from %s.%s where start_ts=%d", gm.database, testcfg.tbname, testcfg.ts), util.GetQidOwn(config.Conf.InstanceID))
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(data.Data))
 		assert.Equal(t, testcfg.expect, data.Data[0][1])
@@ -128,7 +129,7 @@ func TestClusterBasic(t *testing.T) {
 }
 
 func TestGenMetric(t *testing.T) {
-	cfg := util.GetCfg()
+	cfg := config.GetCfg()
 
 	CreateDatabase(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl, cfg.Metrics.Database.Name, cfg.Metrics.Database.Options)
 
@@ -236,7 +237,7 @@ func TestGenMetric(t *testing.T) {
 	conn, err := db.NewConnectorWithDb(gm.username, gm.password, gm.host, gm.port, gm.database, gm.usessl)
 	assert.NoError(t, err)
 	defer func() {
-		_, _ = conn.Query(context.Background(), fmt.Sprintf("drop database if exists %s", gm.database), util.GetQidOwn())
+		_, _ = conn.Query(context.Background(), fmt.Sprintf("drop database if exists %s", gm.database), util.GetQidOwn(config.Conf.InstanceID))
 	}()
 
 	t.Run(testcfg.name, func(t *testing.T) {
@@ -248,7 +249,7 @@ func TestGenMetric(t *testing.T) {
 
 		for _, tbname := range testcfg.tbname {
 			for _, ts := range testcfg.ts {
-				data, err := conn.Query(context.Background(), fmt.Sprintf("select _ts, cluster_id from %s.%s where _ts=%d", gm.database, tbname, ts), util.GetQidOwn())
+				data, err := conn.Query(context.Background(), fmt.Sprintf("select _ts, cluster_id from %s.%s where _ts=%d", gm.database, tbname, ts), util.GetQidOwn(config.Conf.InstanceID))
 				assert.NoError(t, err)
 				assert.Equal(t, 1, len(data.Data))
 				assert.Equal(t, testcfg.expect, data.Data[0][1])
@@ -364,8 +365,8 @@ func Test_createSTables(t *testing.T) {
 	defer conn.Close()
 
 	dbName := "db_202412031527"
-	conn.Exec(context.Background(), "create database "+dbName, util.GetQidOwn())
-	defer conn.Exec(context.Background(), "drop database "+dbName, util.GetQidOwn())
+	conn.Exec(context.Background(), "create database "+dbName, util.GetQidOwn(config.Conf.InstanceID))
+	defer conn.Exec(context.Background(), "drop database "+dbName, util.GetQidOwn(config.Conf.InstanceID))
 
 	conn, _ = db.NewConnectorWithDb("root", "taosdata", "127.0.0.1", 6041, dbName, false)
 	defer conn.Close()
@@ -385,11 +386,11 @@ func Test_createSTables(t *testing.T) {
 	}
 
 	conn.Exec(context.Background(),
-		"create table d0 using taosd_cluster_basic tags('cluster_id')", util.GetQidOwn())
+		"create table d0 using taosd_cluster_basic tags('cluster_id')", util.GetQidOwn(config.Conf.InstanceID))
 
 	for _, tc := range testCases {
 		sql := fmt.Sprintf("insert into d0 (ts, first_ep) values(%d, '%s')", time.Now().UnixMilli(), tc.ep)
-		_, err := conn.Exec(context.Background(), sql, util.GetQidOwn())
+		_, err := conn.Exec(context.Background(), sql, util.GetQidOwn(config.Conf.InstanceID))
 		if tc.wantErr {
 			assert.Error(t, err) // [0x2653] Value too long for column/tag: endpoint
 		} else {

@@ -291,7 +291,7 @@ func (a *Audit) createDatabase() error {
 	defer func() { _ = conn.Close() }()
 	sql := a.createDBSql()
 	auditLogger.Infof("create database, sql:%s", sql)
-	_, err = conn.Exec(context.Background(), sql, util.GetQidOwn())
+	_, err = conn.Exec(context.Background(), sql, util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
 		auditLogger.Errorf("create database error, msg:%s", err)
 		return err
@@ -327,7 +327,7 @@ func (a *Audit) createSTables() error {
 	if a.conn == nil {
 		return errNoConnection
 	}
-	_, err := a.conn.Exec(context.Background(), createTableSql, util.GetQidOwn())
+	_, err := a.conn.Exec(context.Background(), createTableSql, util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
 		auditLogger.Errorf("## create stable error, msg:%s", err)
 		return err
