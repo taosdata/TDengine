@@ -42,6 +42,7 @@
   } while (0)
 
 // define signed number sum with check overflow
+ #ifndef NO_UNALIGNED_ACCESS
 #define CHECK_OVERFLOW_SUM_SIGNED(pAvgRes, val)                                    \
   do {                                                                             \
     SAvgRes* out = pAvgRes;                                                        \
@@ -102,6 +103,46 @@
       out->sum.usum += val;                                \
     }                                                      \
   } while (0)
+ #else
+ // val is big than INT64_MAX, val come from merge
+ #define CHECK_OVERFLOW_SUM_SIGNED_BIG(pAvgRes, val, big)                                                             \
+   do {                                                                                                               \
+     SAvgRes* out = pAvgRes;                                                                                          \
+     if (out->sum.overflow) {                                                                                         \
+       taosAddDoubleAligned(&out->sum.dsum, (double)val);                                                             \
+     } else {                                                                                                         \
+       int64_t isum = taosGetInt64Aligned(&out->sum.isum);                                                            \
+       if (big || isum > 0 && val > 0 && INT64_MAX - isum <= val || isum < 0 && val < 0 && INT64_MIN - isum >= val) { \
+         out->sum.overflow = true;                                                                                    \
+         taosSetDoubleAligned(&out->sum.dsum, (double)isum + (double)val);                                            \
+       } else {                                                                                                       \
+         SUM_RES_INC_ISUM(&AVG_RES_GET_SUM(out), val);                                                                \
+       }                                                                                                              \
+     }                                                                                                                \
+   } while (0)
+
+ #define CHECK_OVERFLOW_SUM_SIGNED(pAvgRes, val) CHECK_OVERFLOW_SUM_SIGNED_BIG(pAvgRes, val, false)
+
+ // val is big than UINT64_MAX, val come from merge
+ #define CHECK_OVERFLOW_SUM_UNSIGNED_BIG(pAvgRes, val, big)                \
+   do {                                                                    \
+     SAvgRes* out = pAvgRes;                                               \
+     if (out->sum.overflow) {                                              \
+       out->sum.dsum += val;                                               \
+     } else {                                                              \
+       uint64_t usum = taosGetUInt64Aligned(&out->sum.usum);               \
+       if (big || UINT64_MAX - usum <= val) {                              \
+         out->sum.overflow = true;                                         \
+         taosSetDoubleAligned(&out->sum.dsum, (double)usum + (double)val); \
+       } else {                                                            \
+         taosAddUInt64Aligned(&out->sum.usum, val);                        \
+       }                                                                   \
+     }                                                                     \
+   } while (0)
+
+ // define unsigned number sum with check overflow
+ #define CHECK_OVERFLOW_SUM_UNSIGNED(pAvgRes, val) CHECK_OVERFLOW_SUM_UNSIGNED_BIG(pAvgRes, val, false)
+ #endif
 
 int32_t getAvgInfoSize(SFunctionNode* pFunc) {
   if (pFunc->pSrcFuncRef) return AVG_RES_GET_SIZE(pFunc->pSrcFuncRef->srcFuncInputType.type);
@@ -612,13 +653,17 @@ int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int64_t count = AVG_RES_GET_COUNT(pRes, true, type);
 
   if (AVG_RES_GET_COUNT(pRes, true, pCtx->inputType) > 0) {
-    
-    if(AVG_RES_GET_SUM_OVERFLOW(pRes, true, pCtx->inputType)) {
-      AVG_RES_GET_AVG(pRes) = SUM_RES_GET_DSUM(&AVG_RES_GET_SUM(pRes)) / ((double)AVG_RES_GET_COUNT(pRes, false, 0));
-    }else if (IS_SIGNED_NUMERIC_TYPE(type)) {
-      AVG_RES_GET_AVG(pRes) = SUM_RES_GET_ISUM(&AVG_RES_GET_SUM(pRes)) / ((double)AVG_RES_GET_COUNT(pRes, false, 0));
+    if (AVG_RES_GET_SUM_OVERFLOW(pRes, true, pCtx->inputType)) {
+      taosSetLDoubleAlignedx(AVG_RES_GET_AVG(pRes), taosGetDoubleAlignedx(SUM_RES_GET_DSUM(&AVG_RES_GET_SUM(pRes))) /
+                                                        ((double)AVG_RES_GET_COUNT(pRes, false, 0)));
+    } else if (IS_SIGNED_NUMERIC_TYPE(type)) {
+      taosSetLDoubleAlignedx(AVG_RES_GET_AVG(pRes),
+                             (double)taosGetInt64Alignedx(SUM_RES_GET_ISUM(&AVG_RES_GET_SUM(pRes))) /
+                                 ((double)AVG_RES_GET_COUNT(pRes, false, 0)));
     } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-      AVG_RES_GET_AVG(pRes) = SUM_RES_GET_USUM(&AVG_RES_GET_SUM(pRes)) / ((double)AVG_RES_GET_COUNT(pRes, false, 0));
+      taosSetLDoubleAlignedx(AVG_RES_GET_AVG(pRes),
+                             (double)taosGetUInt64Alignedx(SUM_RES_GET_USUM(&AVG_RES_GET_SUM(pRes))) /
+                                 ((double)AVG_RES_GET_COUNT(pRes, false, 0)));
     } else if (IS_DECIMAL_TYPE(type)) {
       int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
       SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
@@ -640,13 +685,16 @@ int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
         return code;
       }
     } else {
-      AVG_RES_GET_AVG(pRes) = SUM_RES_GET_DSUM(&AVG_RES_GET_SUM(pRes)) / ((double)AVG_RES_GET_COUNT(pRes, false, 0));
+      taosSetLDoubleAlignedx(AVG_RES_GET_AVG(pRes),
+                             SUM_RES_GET_DSUM(&AVG_RES_GET_SUM(pRes)) / ((double)AVG_RES_GET_COUNT(pRes, false, 0)));
     }
   }
   if (AVG_RES_GET_COUNT(pRes, true, pCtx->inputType) == 0) {
     pEntryInfo->numOfRes = 0;
   } else if (!IS_DECIMAL_TYPE(pCtx->inputType)) {
-    if (isinf(AVG_RES_GET_AVG(pRes)) || isnan(AVG_RES_GET_AVG(pRes))) pEntryInfo->numOfRes = 0;
+    if (isinf(taosGetDoubleAligned(&AVG_RES_GET_AVG(pRes))) || isnan(taosGetDoubleAligned(&AVG_RES_GET_AVG(pRes)))) {
+      pEntryInfo->numOfRes = 0;
+    }
   } else {
     pEntryInfo->numOfRes = 1;
   }

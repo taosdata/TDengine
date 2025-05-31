@@ -613,8 +613,8 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
     goto _exit;
   }
 
-  pBlockData->suid = pTbData->suid;
-  pBlockData->uid = pTbData->uid;
+  taosSetInt64Alignedx(pBlockData->suid, pTbData->suid);
+  taosSetInt64Alignedx(pBlockData->uid, pTbData->uid);
   pBlockData->nRow = aColData[0].nVal;
   pBlockData->aUid = NULL;
   pBlockData->aVersion = vnodeBufPoolMalloc(pPool, aColData[0].nData);

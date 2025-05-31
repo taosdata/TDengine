@@ -1011,7 +1011,7 @@ int32_t taosAscii2Hex(const char *z, uint32_t n, void **data, uint32_t *size) {
   return 0;
 }
 
-int64_t tsnprintf(char *dst, int64_t size, const char *format, ...) {
+int64_t tsnprintf(char *dst, size_t size, const char *format, ...) {
   if (dst == NULL || format == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
