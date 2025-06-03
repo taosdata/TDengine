@@ -16,8 +16,8 @@ dateparser==1.2.1
 distro==1.9.0
 exceptiongroup==1.2.2
 execnet==2.1.1
-fabric==2.7.1
-fabric2==2.7.1
+fabric==3.0.0
+fabric2==3.0.0
 Faker==37.0.0
 faster-fifo==1.5.2
 fonttools==4.56.0
@@ -25,7 +25,7 @@ httmock==1.4.0
 idna==3.10
 importlib_resources==6.5.2
 iniconfig==2.0.0
-invoke==1.7.3
+invoke==2.1.0
 iso8601==1.0.2
 kiwisolver==1.4.7
 matplotlib==3.9.4
@@ -33,7 +33,6 @@ numpy==2.0.2
 packaging==24.2
 pandas==2.2.3
 paramiko==3.5.1
-patchwork==1.0.1
 pathlib2==2.3.7.post1
 pillow==11.1.0
 pluggy==1.5.0
