@@ -2499,7 +2499,6 @@ static int32_t csvParserReadLine(SCsvParser* parser) {
         // Ensure enough space for both quote characters
         code = csvParserExpandLineBuffer(parser, lineLen + 2);
         if (code != TSDB_CODE_SUCCESS) {
-          code = code;
           break;
         }
 
@@ -2532,7 +2531,6 @@ static int32_t csvParserReadLine(SCsvParser* parser) {
     // Expand buffer if needed
     code = csvParserExpandLineBuffer(parser, lineLen + 1);
     if (code != TSDB_CODE_SUCCESS) {
-      code = code;
       break;
     }
 
@@ -2585,7 +2583,6 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
 
     // Skip empty lines
     if (!pStmt->pCsvParser->lineBuffer || strlen(pStmt->pCsvParser->lineBuffer) == 0) {
-      taosMemoryFree(pStmt->pCsvParser->lineBuffer);
       firstLine = false;
       continue;
     }
