@@ -136,11 +136,11 @@ _return:
 static int32_t msmSTAddToTaskMap(SStmGrpCtx* pCtx, int64_t streamId, SArray* pTasks, SStmTaskStatus* pTask) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  int32_t taskNum = pTasks ? taosArrayGetSize(pTasks) : 1;
+  int32_t taskNum = pTask ? 1 : taosArrayGetSize(pTasks);
   int64_t key[2] = {streamId, 0};
   
   for (int32_t i = 0; i < taskNum; ++i) {
-    SStmTaskStatus* pStatus = pTasks ? taosArrayGet(pTasks, i) : pTask;
+    SStmTaskStatus* pStatus = pTask ? pTask : taosArrayGet(pTasks, i);
     key[1] = pStatus->id.taskId;
     TAOS_CHECK_EXIT(taosHashPut(mStreamMgmt.taskMap, key, sizeof(key), &pStatus, POINTER_BYTES));
     mstsDebug("task %"PRId64" tidx %d added to taskMap", pStatus->id.taskId, pStatus->id.taskIdx);

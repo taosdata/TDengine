@@ -48,10 +48,10 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   STraceId   *trace = &pMsg->info.traceId;
   dGTrace("msg:%p, get from snode-stream-trigger queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
 
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t      code = TSDB_CODE_SUCCESS;
+  SStreamTask *pTask = NULL;
   switch (pMsg->msgType) {
     case TDMT_STREAM_TRIGGER_PULL_RSP: {
-      SStreamTask *pTask = NULL;
       SSTriggerPullRequest *pReq = pMsg->info.ahandle;
       if (pReq == NULL) {
         code = TSDB_CODE_INVALID_PARA;
@@ -59,24 +59,30 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
         break;
       }
       code = streamGetTask(pReq->streamId, pReq->triggerTaskId, &pTask);
-      if (code == TSDB_CODE_SUCCESS) {
-        code = streamTriggerProcessRsp(pTask, pMsg);
-      }
       break;
     }
     case TDMT_STREAM_TRIGGER_CALC_RSP: {
-      SStreamTask *pTask = NULL;
       SSTriggerCalcRequest *pReq = pMsg->info.ahandle;
-      code = streamGetTask(pReq->streamId, pReq->triggerTaskId, &pTask);
-      if (code == TSDB_CODE_SUCCESS) {
-        code = streamTriggerProcessRsp(pTask, pMsg);
+      if (pReq == NULL) {
+        code = TSDB_CODE_INVALID_PARA;
+        dError("msg:%p, invalid calc request in snode-stream-trigger queue", pMsg);
+        break;
       }
+      code = streamGetTask(pReq->streamId, pReq->triggerTaskId, &pTask);
       break;
     }
     default: {
       dError("msg:%p, invalid msg type %d in snode-stream-trigger queue", pMsg, pMsg->msgType);
       code = TSDB_CODE_INVALID_PARA;
       break;
+    }
+  }
+
+  if (code == TSDB_CODE_SUCCESS) {
+    int64_t errTaskId = 0;
+    code = streamTriggerProcessRsp(pTask, pMsg, &errTaskId);
+    if (code != TSDB_CODE_SUCCESS) {
+      // todo(dapan): handle error code: {pTask->streamId, errTaskId, code}
     }
   }
 

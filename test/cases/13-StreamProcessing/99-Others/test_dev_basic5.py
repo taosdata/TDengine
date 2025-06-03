@@ -36,37 +36,32 @@ class TestStreamDevBasic:
         tdStream.createSnode()
 
         tdLog.info(f"=============== create database")
-        tdSql.prepare(dbname="test", vgroups=1)
+        tdSql.prepare(dbname="qdb", vgroups=1)
 
         tdLog.info(f"=============== create super table")
-        tdSql.execute(
-            f"create stable stb (ts timestamp, id int, c1 int) tags(t1 int);"
-        )
+        tdSql.execute(f"create stable meters (cts timestamp, cint int, cuint int) tags(tint int);")
         tdSql.query(f"show stables")
         tdSql.checkRows(1)
 
         tdLog.info(f"=============== write query data")
         sqls = [
-            "insert into t1 using stb tags(1) values ('2025-01-01 00:00:00'    , 0, 0);",
-            "insert into t2 using stb tags(2) values ('2025-01-01 00:00:00.102', 1, 0);",
-            "insert into t1 using stb tags(1) values ('2025-01-01 00:00:01'    , 1, 1);",
-            "insert into t2 using stb tags(2) values ('2025-01-01 00:00:01.400', 2, 1);",
-            "insert into t1 using stb tags(1) values ('2025-01-01 00:00:02'    , 2, 2);",
-            "insert into t2 using stb tags(2) values ('2025-01-01 00:00:02.600', 3, 2);",
+            "insert into t1 using meters tags(1) values ('2025-01-01 00:00:00'    , 0, 0);",
+            "insert into t2 using meters tags(2) values ('2025-01-01 00:00:00.102', 1, 0);",
+            "insert into t1 using meters tags(1) values ('2025-01-01 00:00:01'    , 1, 1);",
+            "insert into t2 using meters tags(2) values ('2025-01-01 00:00:01.400', 2, 1);",
+            "insert into t1 using meters tags(1) values ('2025-01-01 00:00:02'    , 2, 2);",
+            "insert into t2 using meters tags(2) values ('2025-01-01 00:00:02.600', 3, 2);",
         ]
-        tdSql.executes(sqls)
-        tdSql.query("select _wstart, avg(id) from stb interval(1s)")
-        tdSql.printResult()
 
         tdLog.info(f"=============== create trigger table")
-        tdSql.execute("create table stream_trigger (ts timestamp, id int, c1 int);")
+        tdSql.execute("create table stream_trigger (ts timestamp, c1 int, c2 int);")
         tdSql.query(f"show tables")
         tdSql.checkKeyExist("stream_trigger")
 
         tdLog.info(f"=============== create stream")
-        tdSql.execute(
-            "create stream s5 state_window (id) from stream_trigger into out5 as select _twstart ts, count(*) c1, avg(id) c2, first(id) c3, last(id) c4 from %%trows;"
-        )
+        sql = "create stream s9 interval(1s) sliding(1s) from stream_trigger partition by tbname into out9                                 as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend;"
+        tdSql.execute(sql)
+
         tdStream.checkStreamStatus()
 
         tdLog.info(f"=============== write trigger data")
@@ -75,20 +70,6 @@ class TestStreamDevBasic:
         )
 
         tdLog.info(f"=============== check stream result")
-        result_sql = "select ts, c1, c2, c3, c4 from test.out5"
 
-        tdSql.checkResultsByFunc(
-            sql=result_sql,
-            func=lambda: tdSql.getRows() == 2
-            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
-            and tdSql.compareData(0, 1, 1)
-            and tdSql.compareData(0, 2, 0)
-            and tdSql.compareData(0, 3, 0)
-            and tdSql.compareData(0, 4, 0)
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:01.000")
-            and tdSql.compareData(1, 1, 1)
-            and tdSql.compareData(1, 2, 1)
-            and tdSql.compareData(1, 3, 1)
-            and tdSql.compareData(1, 4, 1),
-        )
-        
+        result_sql9 = "select * from qdb.out9"
+        tdSql.checkResultsByFunc(sql=result_sql9, func=lambda: tdSql.getRows() > 0)

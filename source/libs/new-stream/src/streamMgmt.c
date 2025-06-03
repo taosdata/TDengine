@@ -262,6 +262,7 @@ int32_t smStartStreamTasks(SStreamTaskStart* pStart) {
 
   SStreamTask* pTask = *ppTask;
 
+  pStart->startMsg.header.msgType = STREAM_MSG_START;
   TAOS_CHECK_EXIT(stTriggerTaskExecute((SStreamTriggerTask *)pTask, (SStreamMsg *)&pStart->startMsg));
 
   ST_TASK_ILOG("stream start succeed, tidx:%d", pTask->taskIdx);

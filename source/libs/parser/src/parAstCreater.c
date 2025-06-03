@@ -4197,7 +4197,8 @@ SNode* createStreamTriggerOptions(SAstCreateContext* pCxt) {
   pOptions->pWaterMark = NULL;
   pOptions->pMaxDelay = NULL;
   pOptions->pExpiredTime = NULL;
-  pOptions->pEventType = EVENT_WINDOW_CLOSE;
+  pOptions->pFillHisStartTime = NULL;
+  pOptions->pEventType = EVENT_NONE;
   pOptions->calcNotifyOnly = false;
   pOptions->deleteOutputTable = false;
   pOptions->deleteRecalc = false;
@@ -4206,7 +4207,6 @@ SNode* createStreamTriggerOptions(SAstCreateContext* pCxt) {
   pOptions->lowLatencyCalc = false;
   pOptions->forceOutput = false;
   pOptions->ignoreDisorder = false;
-  pOptions->fillHistoryStartTime = 0;
   return (SNode*)pOptions;
 _err:
   nodesDestroyNode((SNode*)pOptions);
@@ -4234,18 +4234,43 @@ SNode* setStreamTriggerOptions(SAstCreateContext* pCxt, SNode* pOptions, SStream
   SStreamTriggerOptions* pStreamOptions = (SStreamTriggerOptions*)pOptions;
   switch (pOptionUnit->type) {
     case STREAM_TRIGGER_OPTION_CALC_NOTIFY_ONLY:
+      if (pStreamOptions->calcNotifyOnly) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                      "CALC_NOTIFY_ONLY specified multiple times");
+        goto _err;
+      }
       pStreamOptions->calcNotifyOnly = true;
       break;
     case STREAM_TRIGGER_OPTION_DELETE_OUTPUT_TABLE:
+      if (pStreamOptions->deleteOutputTable) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                      "DELETE_OUTPUT_TABLE specified multiple times");
+        goto _err;
+      }
       pStreamOptions->deleteOutputTable = true;
       break;
     case STREAM_TRIGGER_OPTION_DELETE_RECALC:
+      if (pStreamOptions->deleteRecalc) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                      "DELETE_RECALC specified multiple times");
+        goto _err;
+      }
       pStreamOptions->deleteRecalc = true;
       break;
     case STREAM_TRIGGER_OPTION_EXPIRED_TIME:
+      if (pStreamOptions->pExpiredTime != NULL) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                "EXPIRED_TIME specified multiple times");
+        goto _err;
+      }
       pStreamOptions->pExpiredTime = pOptionUnit->pNode;
       break;
     case STREAM_TRIGGER_OPTION_FORCE_OUTPUT:
+      if (pStreamOptions->forceOutput) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                      "FORCE_OUTPUT specified multiple times");
+        goto _err;
+      }
       pStreamOptions->forceOutput = true;
       break;
     case STREAM_TRIGGER_OPTION_FILL_HISTORY:
@@ -4254,8 +4279,13 @@ SNode* setStreamTriggerOptions(SAstCreateContext* pCxt, SNode* pOptions, SStream
                                                 "FILL_HISTORY_FIRST and FILL_HISTORY cannot be used at the same time");
         goto _err;
       }
+      if (pStreamOptions->pFillHisStartTime != NULL) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                      "FILL_HISTORY specified multiple times");
+        goto _err;
+      }
       pStreamOptions->fillHistory = true;
-      pStreamOptions->fillHistoryStartTime = *(int64_t*)nodesGetValueFromNode((SValueNode*)pOptionUnit->pNode);
+      pStreamOptions->pFillHisStartTime = pOptionUnit->pNode;
       break;
     case STREAM_TRIGGER_OPTION_FILL_HISTORY_FIRST:
       if (pStreamOptions->fillHistory) {
@@ -4263,25 +4293,60 @@ SNode* setStreamTriggerOptions(SAstCreateContext* pCxt, SNode* pOptions, SStream
                                                 "FILL_HISTORY_FIRST and FILL_HISTORY cannot be used at the same time");
         goto _err;
       }
+      if (pStreamOptions->pFillHisStartTime != NULL) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                      "FILL_HISTORY_FIRST specified multiple times");
+        goto _err;
+      }
       pStreamOptions->fillHistoryFirst = true;
-      pStreamOptions->fillHistoryStartTime = *(int64_t*)nodesGetValueFromNode((SValueNode*)pOptionUnit->pNode);
+      pStreamOptions->pFillHisStartTime = pOptionUnit->pNode;
       break;
     case STREAM_TRIGGER_OPTION_IGNORE_DISORDER:
+      if (pStreamOptions->ignoreDisorder) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                      "IGNORE_DISORDER specified multiple times");
+        goto _err;
+      }
       pStreamOptions->ignoreDisorder = true;
       break;
     case STREAM_TRIGGER_OPTION_LOW_LATENCY_CALC:
+      if (pStreamOptions->lowLatencyCalc) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                      "LOW_LATENCY_CALC specified multiple times");
+        goto _err;
+      }
       pStreamOptions->lowLatencyCalc = true;
       break;
     case STREAM_TRIGGER_OPTION_MAX_DELAY:
+      if (pStreamOptions->pMaxDelay != NULL) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                      "MAX_DELAY specified multiple times");
+        goto _err;
+      }
       pStreamOptions->pMaxDelay = pOptionUnit->pNode;
       break;
     case STREAM_TRIGGER_OPTION_WATERMARK:
+      if (pStreamOptions->pWaterMark != NULL) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                      "WATERMARK specified multiple times");
+        goto _err;
+      }
       pStreamOptions->pWaterMark = pOptionUnit->pNode;
       break;
     case STREAM_TRIGGER_OPTION_PRE_FILTER:
+      if (pStreamOptions->pPreFilter != NULL) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                      "PRE_FILTER specified multiple times");
+        goto _err;
+      }
       pStreamOptions->pPreFilter = pOptionUnit->pNode;
       break;
     case STREAM_TRIGGER_OPTION_EVENT_TYPE:
+      if (pStreamOptions->pEventType != EVENT_NONE) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                      "EVENT_TYPE specified multiple times");
+        goto _err;
+      }
       pStreamOptions->pEventType = pOptionUnit->flag;
       break;
     default:

@@ -55,6 +55,8 @@ extern int64_t gDSFileBlockDefaultSize;
 extern int64_t gDSMaxMemSizeDefault;
 extern int64_t gMemReservedSizeForWrite;
 extern int64_t gMemReservedSize;
+extern int64_t gMemAlertSize;
+extern int64_t gMemAlertQuitSize;
 
 typedef enum {
   DATA_SAVEMODE_BLOCK = 1,
@@ -89,7 +91,6 @@ typedef enum {
 typedef struct SDataSinkManager2 {
   int8_t    status;  // 0 - init, 1 - running
   int64_t   usedMemSize;
-  int64_t   maxMemSize;
   int64_t   fileBlockSize;
   int64_t   readDataFromFileTimes;
   SHashObj* dsStreamTaskList;  // hash <streamId + taskId, SSlidingTaskDSMgr/SAlignTaskDSMgr>
@@ -130,6 +131,7 @@ typedef struct SAlignTaskDSMgr {
   int8_t            cleanMode;  // 1 - immediate, 2 - expired
   int64_t           streamId;
   int64_t           taskId;
+  int64_t           sessionId;  // sessionId is used to distinguish different sessions in the same task
   int32_t           tsSlotId;
   SHashObj*         pAlignGrpList;  // hash <groupId, SAlignGrpMgr>
   SDataSinkFileMgr* pFileMgr;
@@ -139,6 +141,7 @@ typedef struct SSlidingTaskDSMgr {
   int8_t            cleanMode;  // 1 - immediate, 2 - expired
   int64_t           streamId;
   int64_t           taskId;
+  int64_t           sessionId;  // sessionId is used to distinguish different sessions in the same task
   int32_t           tsSlotId;
   int64_t           capacity;         // group 在文件中的每个 block 块大小
   SHashObj*         pSlidingGrpList;  // hash <groupId, SSlidingGrpMgr>
@@ -187,6 +190,17 @@ typedef struct SResultIter {
   int64_t      reqStartTime;
   int64_t      reqEndTime;
 } SResultIter;
+
+typedef struct SSlidingGrpMemList {
+  bool      enabled;
+  SHashObj* pSlidingGrpList;  // hash <SSlidingGrpMgr*, size>
+  int64_t   waitMoveMemSize;   // used memory size in bytes
+} SSlidingGrpMemList;
+extern SSlidingGrpMemList g_slidigGrpMemList;
+
+//----------------- **************************************   -----------------//
+//----------------- 以下函数 DataSink 对外提供接口   -----------------//
+//----------------- **************************************   -----------------//
 
 // @brief 创建一个数据缓存
 // @param cleanMode 清理模式，具体含义如下:
@@ -257,6 +271,7 @@ int32_t checkAndMoveMemCache(bool forWrite);
 int32_t moveSlidingTaskMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr);
 bool    hasEnoughMemSize();
 int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMgr* pSlidingGrp);
+int32_t moveMemFromWaitList();
 
 void* getWindowDataBuf(SSlidingWindowInMem* pWindowData);
 
