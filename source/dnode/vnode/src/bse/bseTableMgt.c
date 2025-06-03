@@ -160,6 +160,9 @@ int32_t bseTableMgtGet(STableMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *
     }
   } else {
     pSubMgt = pMgt->pCurrTableMgt;
+    if (pSubMgt == NULL) {
+      return code;
+    }
     readOnly = 0;
   }
 

@@ -931,10 +931,15 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, 
     } else {
       pBind = bind + c;
     }
-
-    code = tColDataAddValueByBind2(pCol, pBind,
-                                   IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
-                                   initCtxAsText, checkWKB);
+    int32_t bytes = -1;
+    if (IS_VAR_DATA_TYPE(pColSchema->type)) {
+      if (IS_STR_DATA_BLOB(pColSchema->type)) {
+        bytes = BLOB_MAX_LEN;
+      } else {
+        bytes = pColSchema->bytes - VARSTR_HEADER_SIZE;
+      }
+    }
+    code = tColDataAddValueByBind2(pCol, pBind, bytes, initCtxAsText, checkWKB);
     if (code) {
       goto _return;
     }
@@ -985,19 +990,16 @@ int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* b
     pBind = bind;
   }
 
-  int32_t bytes = 0;
+  int32_t bytes = -1;
   if (IS_VAR_DATA_TYPE(pColSchema->type)) {
     if (IS_STR_DATA_BLOB(pColSchema->type)) {
-      bytes = pColSchema->bytes - BLOBSTR_HEADER_SIZE;
+      bytes = BLOB_MAX_LEN;
     } else {
       bytes = pColSchema->bytes - VARSTR_HEADER_SIZE;
     }
   } else {
     bytes = -1;
   }
-  // code = tColDataAddValueByBind2(pCol, pBind,
-  //                                IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
-  //                                initCtxAsText, checkWKB);
   code = tColDataAddValueByBind2(pCol, pBind, bytes, initCtxAsText, checkWKB);
 
   parserDebug("stmt col %d bind %d rows data", colIdx, rowNum);
