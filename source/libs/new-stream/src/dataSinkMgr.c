@@ -765,12 +765,11 @@ bool hasEnoughMemSize() {
   return (usedMemSize < gDSMaxMemSizeDefault - gMemReservedSize);
 }
 
-int32_t moveMemCache() {
+int32_t moveMemCacheAllList() {
   if (g_pDataSinkManager.dsStreamTaskList == NULL) {
     return TSDB_CODE_SUCCESS;
   }
-  stInfo("moveMemCache started, used mem size: %" PRId64 ", max mem size: %" PRId64, g_pDataSinkManager.usedMemSize,
-         gDSMaxMemSizeDefault);
+  stInfo("moveMemCache started, from all list");
 
   STaskDSMgr** ppTaskMgr = taosHashIterate(g_pDataSinkManager.dsStreamTaskList, NULL);
   while (ppTaskMgr != NULL) {
@@ -794,9 +793,31 @@ int32_t moveMemCache() {
   if (ppTaskMgr != NULL) {
     taosHashCancelIterate(g_pDataSinkManager.dsStreamTaskList, ppTaskMgr);
   }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t moveMemCache() {
+  if (g_pDataSinkManager.dsStreamTaskList == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  stInfo("moveMemCache started, used mem size: %" PRId64 ", max mem size: %" PRId64, g_pDataSinkManager.usedMemSize,
+         gDSMaxMemSizeDefault);
+
+  int32_t code = moveMemFromWaitList();
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to move mem from wait list, err: %s", terrMsg);
+  }
+
+  if (!hasEnoughMemSize()) {
+    code = moveMemCacheAllList();
+    if (code != TSDB_CODE_SUCCESS) {
+      stError("failed to move mem cache all list, err: %s", terrMsg);
+    }
+  }
   stInfo("moveMemCache finished, used mem size: %" PRId64 ", max mem size: %" PRId64, g_pDataSinkManager.usedMemSize,
          gDSMaxMemSizeDefault);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t enableSlidingGrpMemList() {

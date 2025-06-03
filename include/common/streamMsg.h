@@ -630,7 +630,7 @@ typedef struct SSTriggerPullRequest {
 
 typedef struct SSTriggerSetTableRequest {
   SSTriggerPullRequest base;
-  SArray*              cids;  // SArray<int64_t>, uid of the table to set
+  SArray*              uids;  // SArray<int64_t,int64_t>, suid,uid of the table to set
 } SSTriggerSetTableRequest;
 
 typedef struct SSTriggerLastTsRequest {
@@ -647,12 +647,9 @@ typedef struct SSTriggerTsdbMetaRequest {
   int64_t              startTime;
 } SSTriggerTsdbMetaRequest;
 
-typedef struct SSTriggerTsdbMetaNextRequest {
-  SSTriggerPullRequest base;
-} SSTriggerTsdbMetaNextRequest;
-
 typedef struct SSTriggerTsdbTsDataRequest {
   SSTriggerPullRequest base;
+  int64_t              suid;
   int64_t              uid;
   int64_t              skey;
   int64_t              ekey;
@@ -663,10 +660,6 @@ typedef struct SSTriggerTsdbTriggerDataRequest {
   int64_t              startTime;
 } SSTriggerTsdbTriggerDataRequest;
 
-typedef struct SSTriggerTsdbTriggerDataNextRequest {
-  SSTriggerPullRequest base;
-} SSTriggerTsdbTriggerDataNextRequest;
-
 typedef struct SSTriggerTsdbCalcDataRequest {
   SSTriggerPullRequest base;
   int64_t              gid;
@@ -674,22 +667,14 @@ typedef struct SSTriggerTsdbCalcDataRequest {
   int64_t              ekey;
 } SSTriggerTsdbCalcDataRequest;
 
-typedef struct SSTriggerTsdbCalcDataNextRequest {
-  SSTriggerPullRequest base;
-} SSTriggerTsdbCalcDataNextRequest;
-
 typedef struct SSTriggerTsdbDataRequest {
   SSTriggerPullRequest base;
+  int64_t              suid;
   int64_t              uid;
   int64_t              skey;
   int64_t              ekey;
-  SArray               cols;  // SArray<col_id_t>, col_id starts from 0
+  SArray*              cids;  // SArray<col_id_t>, col_id starts from 0
 } SSTriggerTsdbDataRequest;
-
-typedef struct SSTriggerTsdbDataNextRequest {
-  SSTriggerPullRequest base;
-  int64_t              uid;
-} SSTriggerTsdbDataNextRequest;
 
 typedef struct SSTriggerWalMetaRequest {
   SSTriggerPullRequest base;
@@ -721,9 +706,7 @@ typedef struct SSTriggerWalDataRequest {
   SSTriggerPullRequest base;
   int64_t              uid;
   int64_t              ver;
-  int64_t              skey;
-  int64_t              ekey;
-  SArray               cols;  // SArray<col_id_t>, col_id starts from 0
+  SArray*              cids;  // SArray<col_id_t>, col_id starts from 0
 } SSTriggerWalDataRequest;
 
 typedef struct SSTriggerGroupColValueRequest {
@@ -737,7 +720,8 @@ typedef struct SSTriggerVirTableInfoRequest {
 } SSTriggerVirTableInfoRequest;
 
 typedef struct OTableInfoRsp {
-  int64_t  uid;;
+  int64_t  suid;
+  int64_t  uid;
   col_id_t cid;
 } OTableInfoRsp;
 
@@ -765,14 +749,10 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerLastTsRequest              lastTsReq;
   SSTriggerFirstTsRequest             firstTsReq;
   SSTriggerTsdbMetaRequest            tsdbMetaReq;
-  SSTriggerTsdbMetaNextRequest        tsdbMetaNextReq;
   SSTriggerTsdbTsDataRequest          tsdbTsDataReq;
   SSTriggerTsdbTriggerDataRequest     tsdbTriggerDataReq;
-  SSTriggerTsdbTriggerDataNextRequest tsdbTriggerDataNextReq;
   SSTriggerTsdbCalcDataRequest        tsdbCalcDataReq;
-  SSTriggerTsdbCalcDataNextRequest    tsdbCalcDataNextReq;
   SSTriggerTsdbDataRequest            tsdbDataReq;
-  SSTriggerTsdbDataNextRequest        tsdbDataNextReq;
   SSTriggerWalMetaRequest             walMetaReq;
   SSTriggerWalTsDataRequest           walTsDataReq;
   SSTriggerWalTriggerDataRequest      walTriggerDataReq;
@@ -789,16 +769,27 @@ void    tDestroySTriggerPullRequest(SSTriggerPullRequestUnion* pReq);
 
 typedef struct SSTriggerCalcParam {
   // These fields only have values when used in the statement, otherwise they are 0
+  // Placeholder for Sliding Trigger
+  int64_t prevTs;
   int64_t currentTs;
+  int64_t nextTs;
+
+  // Placeholder for Window Trigger
   int64_t wstart;
   int64_t wend;
   int64_t wduration;
   int64_t wrownum;
-  int64_t triggerTime;
 
-  int32_t notifyType;          // See also: ESTriggerEventType
-  char*   extraNotifyContent;  // NULL if not available
-  char*   resultNotifyContent; // does not serialize
+  // Placeholder for Period Trigger
+  int64_t prevLocalTime;
+  int64_t nextLocalTime;
+
+  // General Placeholder
+  int64_t triggerTime;  // _tlocaltime
+
+  int32_t notifyType;           // See also: ESTriggerEventType
+  char*   extraNotifyContent;   // NULL if not available
+  char*   resultNotifyContent;  // does not serialize
 } SSTriggerCalcParam;
 
 typedef struct SSTriggerCalcRequest {
