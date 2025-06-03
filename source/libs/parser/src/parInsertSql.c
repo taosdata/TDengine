@@ -66,7 +66,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
 static int32_t csvParserInit(SCsvParser* parser, TdFilePtr pFile);
 static void    csvParserDestroy(SCsvParser* parser);
 static int32_t csvParserFillBuffer(SCsvParser* parser);
-static int32_t csvParserReadLine(SCsvParser* parser, char** pLine);
+static int32_t csvParserReadLine(SCsvParser* parser);
 static void    destroySavedCsvParser(SVnodeModifyOpStmt* pStmt);
 
 static uint8_t TRUE_VALUE = (uint8_t)TSDB_TRUE;
@@ -2458,12 +2458,10 @@ static int32_t parseValuesClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
 }
 
 // Simplified CSV parser - only handles newlines within quotes
-static int32_t csvParserReadLine(SCsvParser* parser, char** pLine) {
-  if (!parser || !pLine) {
+static int32_t csvParserReadLine(SCsvParser* parser) {
+  if (!parser) {
     return TSDB_CODE_INVALID_PARA;
   }
-
-  *pLine = NULL;
 
   size_t  lineLen = 0;
   bool    inQuotes = false;
@@ -2555,7 +2553,6 @@ static int32_t csvParserReadLine(SCsvParser* parser, char** pLine) {
       return terrno;
     }
     memcpy(line, parser->lineBuffer, lineLen + 1);
-    *pLine = line;
   }
 
   return code;
@@ -2587,8 +2584,7 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
 
   while (TSDB_CODE_SUCCESS == code) {
     // Read one line from CSV using the parser in pStmt
-    char* csvLine = NULL;
-    code = csvParserReadLine(pStmt->pCsvParser, &csvLine);
+    code = csvParserReadLine(pStmt->pCsvParser);
     if (code == TSDB_CODE_TSC_QUERY_CANCELLED) {
       // End of file
       code = TSDB_CODE_SUCCESS;
@@ -2599,16 +2595,16 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
     }
 
     // Skip empty lines
-    if (!csvLine || strlen(csvLine) == 0) {
-      taosMemoryFree(csvLine);
+    if (!pStmt->pCsvParser->lineBuffer || strlen(pStmt->pCsvParser->lineBuffer) == 0) {
+      taosMemoryFree(pStmt->pCsvParser->lineBuffer);
       firstLine = false;
       continue;
     }
 
     bool   gotRow = false;
     SToken token;
-    (void)strtolower(csvLine, csvLine);
-    const char* pRow = csvLine;
+    (void)strtolower(pStmt->pCsvParser->lineBuffer, pStmt->pCsvParser->lineBuffer);
+    const char* pRow = pStmt->pCsvParser->lineBuffer;
 
     if (!pStmt->stbSyntax) {
       code = parseOneRow(pCxt, (const char**)&pRow, rowsDataCxt.pTableDataCxt, &gotRow, &token);
@@ -2621,12 +2617,10 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
         code = taosHashPut(pStmt->pTableCxtHashObj, &pStbRowsCxt->pCtbMeta->uid, sizeof(pStbRowsCxt->pCtbMeta->uid),
                            &pData, POINTER_BYTES);
         if (TSDB_CODE_SUCCESS != code) {
-          taosMemoryFree(csvLine);
           break;
         }
       }
     }
-    taosMemoryFree(csvLine);
 
     if (code && firstLine) {
       firstLine = false;
@@ -2686,6 +2680,7 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
       parserDebug("QID:0x%" PRIx64 ", insert from csv. File is too large, do it in batches.", pCxt->pComCxt->requestId);
     }
     if (pStmt->insertType != TSDB_QUERY_TYPE_FILE_INSERT) {
+      destroySavedCsvParser(pStmt);
       return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is exclusive", NULL);
     }
   } else {
@@ -3616,7 +3611,6 @@ static int32_t csvParserInit(SCsvParser* parser, TdFilePtr pFile) {
   parser->lineBufferCapacity = 64 * 1024;  // Initial 64KB line buffer
   parser->lineBuffer = taosMemoryMalloc(parser->lineBufferCapacity);
   if (!parser->lineBuffer) {
-    taosMemoryFree(parser->buffer);
     return terrno;
   }
 
@@ -3628,7 +3622,6 @@ static int32_t csvParserInit(SCsvParser* parser, TdFilePtr pFile) {
   // Fill initial buffer to detect quote type
   int32_t code = csvParserFillBuffer(parser);
   if (code != TSDB_CODE_SUCCESS) {
-    taosMemoryFree(parser->buffer);
     return code;
   }
 
