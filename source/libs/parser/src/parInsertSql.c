@@ -39,6 +39,9 @@ typedef struct SCsvParser {
   size_t    bufferLen;            // Valid data length in buffer
   bool      eof;                  // End of file reached
   TdFilePtr pFile;                // File pointer
+  // Line buffer for reuse to avoid frequent memory allocation
+  char*  lineBuffer;          // Reusable line buffer
+  size_t lineBufferCapacity;  // Line buffer capacity
 } SCsvParser;
 
 typedef struct SInsertParseContext {
@@ -2462,13 +2465,6 @@ static int32_t csvParserReadLine(SCsvParser* parser, char** pLine) {
 
   *pLine = NULL;
 
-  // Initial buffer for the line
-  size_t lineCapacity = 1024;
-  char*  line = taosMemoryMalloc(lineCapacity);
-  if (!line) {
-    return terrno;
-  }
-
   size_t  lineLen = 0;
   bool    inQuotes = false;
   char    currentQuote = '\0';  // Track which quote character we're inside
@@ -2503,16 +2499,18 @@ static int32_t csvParserReadLine(SCsvParser* parser, char** pLine) {
         // Escaped quote - consume the next quote character and add one quote to output
         parser->bufferPos++;
         // Add the quote character to the line
-        if (lineLen >= lineCapacity - 1) {
-          lineCapacity *= 2;
-          char* newLine = taosMemoryRealloc(line, lineCapacity);
-          if (!newLine) {
+        if (lineLen >= parser->lineBufferCapacity - 1) {
+          // Expand line buffer
+          size_t newCapacity = parser->lineBufferCapacity * 2;
+          char*  newLineBuffer = taosMemoryRealloc(parser->lineBuffer, newCapacity);
+          if (!newLineBuffer) {
             code = terrno;
             break;
           }
-          line = newLine;
+          parser->lineBuffer = newLineBuffer;
+          parser->lineBufferCapacity = newCapacity;
         }
-        line[lineLen++] = ch;
+        parser->lineBuffer[lineLen++] = ch;
         continue;
       } else {
         // End of quoted section
@@ -2527,31 +2525,37 @@ static int32_t csvParserReadLine(SCsvParser* parser, char** pLine) {
       break;
     }
 
-    // Skip \r characters
-    if (ch == '\r') {
+    // Skip \r characters only when outside quotes
+    if (ch == '\r' && !inQuotes) {
       continue;
     }
 
     // Expand buffer if needed
-    if (lineLen >= lineCapacity - 1) {
-      lineCapacity *= 2;
-      char* newLine = taosMemoryRealloc(line, lineCapacity);
-      if (!newLine) {
+    if (lineLen >= parser->lineBufferCapacity - 1) {
+      size_t newCapacity = parser->lineBufferCapacity * 2;
+      char*  newLineBuffer = taosMemoryRealloc(parser->lineBuffer, newCapacity);
+      if (!newLineBuffer) {
         code = terrno;
         break;
       }
-      line = newLine;
+      parser->lineBuffer = newLineBuffer;
+      parser->lineBufferCapacity = newCapacity;
     }
 
     // Add character to line
-    line[lineLen++] = ch;
+    parser->lineBuffer[lineLen++] = ch;
   }
 
   if (code == TSDB_CODE_SUCCESS) {
-    line[lineLen] = '\0';
+    parser->lineBuffer[lineLen] = '\0';
+
+    // Allocate new memory for the returned line (caller expects to free this)
+    char* line = taosMemoryMalloc(lineLen + 1);
+    if (!line) {
+      return terrno;
+    }
+    memcpy(line, parser->lineBuffer, lineLen + 1);
     *pLine = line;
-  } else {
-    taosMemoryFree(line);
   }
 
   return code;
@@ -3608,6 +3612,14 @@ static int32_t csvParserInit(SCsvParser* parser, TdFilePtr pFile) {
     return terrno;
   }
 
+  // Initialize line buffer for reuse
+  parser->lineBufferCapacity = 64 * 1024;  // Initial 64KB line buffer
+  parser->lineBuffer = taosMemoryMalloc(parser->lineBufferCapacity);
+  if (!parser->lineBuffer) {
+    taosMemoryFree(parser->buffer);
+    return terrno;
+  }
+
   parser->bufferPos = 0;
   parser->bufferLen = 0;
   parser->eof = false;
@@ -3657,6 +3669,7 @@ static int32_t csvParserInit(SCsvParser* parser, TdFilePtr pFile) {
 static void csvParserDestroy(SCsvParser* parser) {
   if (parser) {
     taosMemoryFree(parser->buffer);
+    taosMemoryFree(parser->lineBuffer);
     memset(parser, 0, sizeof(SCsvParser));
   }
 }
@@ -3667,13 +3680,9 @@ static int32_t csvParserFillBuffer(SCsvParser* parser) {
   }
 
   // Move remaining data to beginning of buffer
-  if (parser->bufferPos < parser->bufferLen) {
-    size_t remaining = parser->bufferLen - parser->bufferPos;
-    memmove(parser->buffer, parser->buffer + parser->bufferPos, remaining);
-    parser->bufferLen = remaining;
-  } else {
-    parser->bufferLen = 0;
-  }
+  // Since this function is only called when bufferPos >= bufferLen,
+  // we can simplify by always resetting the buffer
+  parser->bufferLen = 0;
   parser->bufferPos = 0;
 
   // Read more data
