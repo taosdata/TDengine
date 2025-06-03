@@ -107,7 +107,6 @@ jobs:
 
       - name: Build taosx
         run: |
-          source ~/.bashrc
           cargo make taosx
 
       - name: Copy files
@@ -131,7 +130,6 @@ jobs:
 
       - name: Build agent
         run: |
-          source ~/.bashrc
           cargo make taosx-agent
 
       - name: Copy files
@@ -148,7 +146,6 @@ jobs:
 
       - name: Build explorer
         run: |
-          source ~/.bashrc
           cargo make explorer
 
       - name: Copy files

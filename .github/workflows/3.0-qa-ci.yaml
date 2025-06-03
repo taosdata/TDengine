@@ -70,7 +70,6 @@ jobs:
       - name: Print Env
         run: |
           pwd
-          source ~/.bashrc
           rustup --version
           cargo --version
           rustup component add llvm-tools-preview
@@ -78,11 +77,9 @@ jobs:
       
       - name: Build Explorer
         run: |
-          source ~/.bashrc
           cargo make explorer
       - name: Build taosX
         run: |
-          source ~/.bashrc
           # build taosx and taosx-agent
           # export RUSTFLAGS="-C instrument-coverage --cfg tokio_unstable"
           rm -rf ./target/debug/taosx-profraw/
@@ -90,7 +87,6 @@ jobs:
           cargo build --target-dir ./target/debug/taosx-build/
       - name: taosX unit test
         run: |
-          source ~/.bashrc
           echo "run taosx unit test"
           # export LLVM_PROFILE_FILE="./target/debug/taosx-profraw/taosx-%p-%m.profraw"
           # cargo test --target-dir ./target/debug/taosx-build/
@@ -98,7 +94,6 @@ jobs:
           cargo llvm-cov report --lcov --output-path $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-unit-test-lcov.info
       - name: Build agent
         run: |
-          source ~/.bashrc
           # build agent
           rm -rf ./target/debug/taosx-agent-profraw/
           # export RUSTFLAGS="-C instrument-coverage --cfg tokio_unstable"
@@ -129,13 +124,11 @@ jobs:
           go version
       - name: Build opc
         run: |
-          source ~/.bashrc
           cd plugins/opc
           go build -cover -o taosx-opc
       - name: Run OPC Unit Test
         continue-on-error: true
         run: |
-          source ~/.bashrc
           cd plugins/opc
           # pip3 install opcua
           # nohup python3 plugins/opc/test/ua_server.py & disown
@@ -255,7 +248,6 @@ jobs:
           echo "see report at $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/allure_report/"
       - name: taosx & agent Report
         run: |
-          source ~/.bashrc
           # taosx merged report
           grcov $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-profraw/ -s $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx --binary-path $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx -t lcov --branch --ignore-not-existing --ignore build.rs -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx.info
           grcov $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-agent-profraw/ -s $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx --binary-path $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent -t lcov --branch --ignore-not-existing --ignore build.rs -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx-agent.info
