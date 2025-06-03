@@ -243,7 +243,7 @@ nohup python chronos-server.py > service_output.out 2>&1 &
 pip install timesfm
 pip install torch==2.4.1
 pip install jax
-pip intall flask
+pip install flask
 ```
 
 调整 timesfm-server.py 文件中设置服务地址（如果需要）。然后执行下述命令启动服务。
