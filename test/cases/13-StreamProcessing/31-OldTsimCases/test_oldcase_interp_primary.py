@@ -59,7 +59,7 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"insert into t1 values(1648791213000,9,9,9,9.0);")
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1,
         )
@@ -67,7 +67,7 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"insert into t1 values(1648791213000,10,10,10,10.0);")
         tdSql.execute(f"insert into t1 values(1648791213009,30,30,30,30.0);")
         tdLog.info(f"1 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 9,
         )
@@ -83,7 +83,7 @@ class TestStreamOldCaseInterpPrimary:
         )
 
         tdLog.info(f"2 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(1, 1) == 20
@@ -112,7 +112,7 @@ class TestStreamOldCaseInterpPrimary:
 
         tdSql.execute(f"insert into t1 values(1648791213000,9,9,9,9.0);")
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1,
         )
@@ -121,7 +121,7 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"insert into t1 values(1648791213009,30,30,30,30.0);")
 
         tdLog.info(f"1 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 10,
         )
@@ -136,7 +136,7 @@ class TestStreamOldCaseInterpPrimary:
             f"select _irowts, interp(b) from t1 range(1648791212000, 1648791217001) every(1s) fill(prev);"
         )
         tdLog.info(f"2 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(0, 1) == 10
@@ -165,7 +165,7 @@ class TestStreamOldCaseInterpPrimary:
 
         tdSql.execute(f"insert into t1 values(1648791213000,9,9,10,9.0);")
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1,
         )
@@ -174,7 +174,7 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"insert into t1 values(1648791213009,30,30,10,30.0);")
 
         tdLog.info(f"1 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 9,
         )
@@ -189,7 +189,7 @@ class TestStreamOldCaseInterpPrimary:
             f"select _irowts, interp(b) from t1 range(1648791212000, 1648791217001) every(1s) fill(prev);"
         )
         tdLog.info(f"2 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(0, 1) == 9
@@ -223,12 +223,12 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"insert into t1 values(1648791213000,10,10,10,10.0);")
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(f"select * from streamt;", lambda: tdSql.getRows() == 1)
+        tdSql.checkResultsByFunc(f"select * from streamt;", lambda: tdSql.getRows() == 1)
 
         tdSql.execute(f"insert into t1 values(1648791213000,9,9,9,9.0);")
         tdSql.execute(f"insert into t1 values(1648791213009,30,30,30,30.0);")
         tdLog.info(f"1 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 9,
         )
@@ -246,7 +246,7 @@ class TestStreamOldCaseInterpPrimary:
         )
 
         tdLog.info(f"2 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(0, 1) == 9
@@ -276,7 +276,7 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"insert into t1 values(1648791213000,10,10,10,10.0);")
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1,
         )
@@ -285,7 +285,7 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"insert into t1 values(1648791213009,30,30,30,30.0);")
 
         tdLog.info(f"1 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 9,
         )
@@ -303,7 +303,7 @@ class TestStreamOldCaseInterpPrimary:
         )
 
         tdLog.info(f"2 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(0, 1) == 9
@@ -333,7 +333,7 @@ class TestStreamOldCaseInterpPrimary:
 
         tdSql.execute(f"insert into t1 values(1648791213000,10,10,10,10.0);")
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1,
         )
@@ -342,7 +342,7 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"insert into t1 values(1648791213009,30,30,10,30.0);")
 
         tdLog.info(f"1 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 9,
         )
@@ -360,7 +360,7 @@ class TestStreamOldCaseInterpPrimary:
         )
 
         tdLog.info(f"2 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(0, 1) == 9
@@ -394,7 +394,7 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"insert into t1 values(1648791213000,9,9,9,9.0);")
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1,
         )
@@ -403,7 +403,7 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"insert into t1 values(1648791213009,30,30,30,30.0);")
 
         tdLog.info(f"1 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 9,
         )
@@ -420,7 +420,7 @@ class TestStreamOldCaseInterpPrimary:
         )
 
         tdLog.info(f"2 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(0, 1) == 9
@@ -450,7 +450,7 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"insert into t1 values(1648791213000,9,9,9,9.0);")
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1,
         )
@@ -459,7 +459,7 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"insert into t1 values(1648791213009,30,30,30,30.0);")
 
         tdLog.info(f"1 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 10,
         )
@@ -475,7 +475,7 @@ class TestStreamOldCaseInterpPrimary:
         )
 
         tdLog.info(f"2 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(0, 1) == 10
@@ -505,7 +505,7 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"insert into t1 values(1648791213000,9,9,10,9.0);")
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1,
         )
@@ -514,7 +514,7 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"insert into t1 values(1648791213009,30,30,10,30.0);")
 
         tdLog.info(f"1 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 9,
         )
@@ -530,7 +530,7 @@ class TestStreamOldCaseInterpPrimary:
         )
 
         tdLog.info(f"2 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(0, 1) == 9
@@ -564,7 +564,7 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"insert into t1 values(1648791213000,9,9,9,9.0);")
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1,
         )
@@ -573,7 +573,7 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"insert into t1 values(1648791213009,30,30,30,30.0);")
 
         tdLog.info(f"1 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 9,
         )
@@ -590,7 +590,7 @@ class TestStreamOldCaseInterpPrimary:
         )
 
         tdLog.info(f"2 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(0, 1) == 9
@@ -620,7 +620,7 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"insert into t1 values(1648791213000,9,9,9,9.0);")
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1,
         )
@@ -629,7 +629,7 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"insert into t1 values(1648791213009,30,30,30,30.0);")
 
         tdLog.info(f"1 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 10,
         )
@@ -645,7 +645,7 @@ class TestStreamOldCaseInterpPrimary:
         )
 
         tdLog.info(f"2 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(0, 1) == 10
@@ -675,7 +675,7 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"insert into t1 values(1648791213000,9,9,10,9.0);")
 
         tdLog.info(f"0 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1,
         )
@@ -684,7 +684,7 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"insert into t1 values(1648791213009,30,30,10,30.0);")
 
         tdLog.info(f"1 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 9,
         )
@@ -700,7 +700,7 @@ class TestStreamOldCaseInterpPrimary:
         )
 
         tdLog.info(f"2 sql select * from streamt;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 5
             and tdSql.getData(0, 1) == 9

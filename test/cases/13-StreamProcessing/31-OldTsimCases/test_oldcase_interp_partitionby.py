@@ -85,7 +85,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"0 sql select * from streamt where b = 0 and c = 0 order by 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where b = 0 and c = 0 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0
@@ -103,7 +103,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"1 sql select * from streamt where b = 1 and c = 1 order by 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where b = 1 and c = 1 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0
@@ -121,7 +121,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"2 sql select * from streamt where b = 2 and c = 2 order by 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where b = 2 and c = 2 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0
@@ -186,7 +186,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"0 sql select * from streamt2 where b = 0 and c = 0 order by 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt2 where b = 0 and c = 0 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0
@@ -204,7 +204,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"1 sql select * from streamt2 where b = 1 and c = 1 order by 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt2 where b = 1 and c = 1 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0
@@ -222,7 +222,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"2 sql select * from streamt2 where b = 2 and c = 2 order by 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt2 where b = 2 and c = 2 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0
@@ -293,7 +293,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"0 sql select * from streamt where b = 0 and c = 0 order by 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where b = 0 and c = 0 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0
@@ -311,7 +311,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"1 sql select * from streamt where b = 1 and c = 1 order by 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where b = 1 and c = 1 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0
@@ -329,7 +329,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"2 sql select * from streamt where b = 2 and c = 2 order by 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt where b = 2 and c = 2 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0
@@ -380,7 +380,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"0 sql select * from streamt2 where b = 0 and c = 0 order by 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt2 where b = 0 and c = 0 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0
@@ -405,7 +405,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"1 sql select * from streamt2 where b = 1 and c = 1 order by 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt2 where b = 1 and c = 1 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0
@@ -430,7 +430,7 @@ class TestStreamOldCaseInterpPartitionBy:
         )
 
         tdLog.info(f"2 sql select * from streamt2 where b = 2 and c = 2 order by 1;")
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt2 where b = 2 and c = 2 order by 1;",
             lambda: tdSql.getRows() == 6
             and tdSql.getData(0, 1) == 0

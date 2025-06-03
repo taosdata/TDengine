@@ -124,6 +124,7 @@ int64_t tsMndSdbWriteDelta = 200;
 int64_t tsMndLogRetention = 2000;
 bool    tsMndSkipGrant = false;
 bool    tsEnableWhiteList = false;  // ip white list cfg
+bool    tsForceKillTrans = false;
 
 // arbitrator
 int32_t tsArbHeartBeatIntervalSec = 2;
@@ -336,6 +337,8 @@ int32_t tsCompactPullupInterval = 10;
 int32_t tsMqRebalanceInterval = 2;
 int32_t tsStreamCheckpointInterval = 300;
 float   tsSinkDataRate = 2.0;
+int32_t tsThresholdItemsInWriteQueue = 1000;
+int32_t tsThresholdItemsInStreamQueue = 25;
 int32_t tsStreamNodeCheckInterval = 240;   // 3min
 int32_t tsMaxConcurrentCheckpoint = 1;
 int32_t tsTtlUnit = 86400;
@@ -990,6 +993,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "checkpointInterval", tsStreamCheckpointInterval, 60, 1800, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddFloat(pCfg, "streamSinkDataRate", tsSinkDataRate, 0.1, 5, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "concurrentCheckpoint", tsMaxConcurrentCheckpoint, 1, 10, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "itemsInWriteQ", tsThresholdItemsInWriteQueue, 100, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "itemsInStreamQ", tsThresholdItemsInStreamQueue, 10, 5000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
 
@@ -1013,6 +1018,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "minDiskFreeSize", tsMinDiskFreeSize, TFS_MIN_DISK_FREE_SIZE, TFS_MIN_DISK_FREE_SIZE_MAX, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableWhiteList", tsEnableWhiteList, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "forceKillTrans", tsForceKillTrans, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamNotifyMessageSize", tsStreamNotifyMessageSize, 8, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamNotifyFrameSize", tsStreamNotifyFrameSize, 8, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
@@ -1121,6 +1127,18 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   pItem = cfgGetItem(pCfg, "ratioOfVnodeStreamThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
     pItem->fval = tsRatioOfVnodeStreamThreads;
+    pItem->stype = stype;
+  }
+
+  pItem = cfgGetItem(pCfg, "itemsInWriteQ");
+  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
+    pItem->i32 = tsThresholdItemsInWriteQueue;
+    pItem->stype = stype;
+  }
+
+  pItem = cfgGetItem(pCfg, "itemsInStreamQ");
+  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
+    pItem->i32 = tsThresholdItemsInStreamQueue;
     pItem->stype = stype;
   }
 
@@ -1623,6 +1641,12 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ratioOfVnodeStreamThreads");
   tsRatioOfVnodeStreamThreads = pItem->fval;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "itemsInWriteQ");
+  tsThresholdItemsInWriteQueue = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "itemsInStreamQ");
+  tsThresholdItemsInStreamQueue = pItem->i32;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfVnodeFetchThreads");
   tsNumOfVnodeFetchThreads = pItem->i32;
 
@@ -1825,6 +1849,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableWhiteList");
   tsEnableWhiteList = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "forceKillTrans");
+  tsForceKillTrans = pItem->bval;
 #ifdef USE_UDF
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "udf");
   tsStartUdfd = pItem->bval;
@@ -2721,7 +2748,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"arbCheckSyncIntervalSec", &tsArbCheckSyncIntervalSec},
                                          {"arbSetAssignedTimeoutSec", &tsArbSetAssignedTimeoutSec},
                                          {"queryNoFetchTimeoutSec", &tsQueryNoFetchTimeoutSec},
-                                         {"enableStrongPassword", &tsEnableStrongPassword}};
+                                         {"enableStrongPassword", &tsEnableStrongPassword},
+                                        {"forceKillTrans", &tsForceKillTrans}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);

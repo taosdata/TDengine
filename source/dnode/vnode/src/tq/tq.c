@@ -1142,7 +1142,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
 }
 
 int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg) {
-  return tqStreamTaskProcessDispatchReq(pTq->pStreamMeta, pMsg);
+  return tqStreamTaskProcessDispatchReq(pTq->pStreamMeta, pMsg, &pTq->pVnode->msgCb);
 }
 
 int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
@@ -1453,4 +1453,3 @@ int32_t tqProcessTaskCheckpointReadyRsp(STQ* pTq, SRpcMsg* pMsg) {
 int32_t tqProcessTaskChkptReportRsp(STQ* pTq, SRpcMsg* pMsg) {
   return tqStreamProcessChkptReportRsp(pTq->pStreamMeta, pMsg);
 }
-

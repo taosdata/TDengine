@@ -148,6 +148,7 @@ extern int64_t tsMndSdbWriteDelta;
 extern int64_t tsMndLogRetention;
 extern bool    tsMndSkipGrant;
 extern bool    tsEnableWhiteList;
+extern bool    tsForceKillTrans;
 
 // dnode
 extern int64_t tsDndStart;
@@ -278,6 +279,8 @@ extern int32_t tsTransPullupInterval;
 extern int32_t tsCompactPullupInterval;
 extern int32_t tsMqRebalanceInterval;
 extern int32_t tsStreamCheckpointInterval;
+extern int32_t tsThresholdItemsInWriteQueue;
+extern int32_t tsThresholdItemsInStreamQueue;
 extern float   tsSinkDataRate;
 extern int32_t tsStreamNodeCheckInterval;
 extern int32_t tsMaxConcurrentCheckpoint;
