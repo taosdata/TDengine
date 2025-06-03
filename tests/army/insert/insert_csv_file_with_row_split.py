@@ -47,7 +47,7 @@ class TDTestCase(TBase):
         tdLog.info(f"check create ctb using csv file")
         tdSql.execute("USE vehicle_prod2")
         tdSql.query("select * from up_topic;")
-        tdSql.checkRows(3)
+        tdSql.checkRows(4)
         
     # run
     def run(self):

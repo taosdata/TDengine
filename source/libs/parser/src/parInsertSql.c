@@ -68,6 +68,7 @@ static void    csvParserDestroy(SCsvParser* parser);
 static int32_t csvParserFillBuffer(SCsvParser* parser);
 static int32_t csvParserReadLine(SCsvParser* parser);
 static void    destroySavedCsvParser(SVnodeModifyOpStmt* pStmt);
+static int32_t csvParserExpandLineBuffer(SCsvParser* parser, size_t requiredLen);
 
 static uint8_t TRUE_VALUE = (uint8_t)TSDB_TRUE;
 static uint8_t FALSE_VALUE = (uint8_t)TSDB_FALSE;
@@ -2494,20 +2495,20 @@ static int32_t csvParserReadLine(SCsvParser* parser) {
     } else if (inQuotes && ch == currentQuote) {
       // Check for escaped quote (double quote)
       if (parser->bufferPos < parser->bufferLen && parser->buffer[parser->bufferPos] == currentQuote) {
-        // Escaped quote - consume the next quote character and add one quote to output
-        parser->bufferPos++;
-        // Add the quote character to the line
-        if (lineLen >= parser->lineBufferCapacity - 1) {
-          // Expand line buffer
-          size_t newCapacity = parser->lineBufferCapacity * 2;
-          char*  newLineBuffer = taosMemoryRealloc(parser->lineBuffer, newCapacity);
-          if (!newLineBuffer) {
-            code = terrno;
-            break;
-          }
-          parser->lineBuffer = newLineBuffer;
-          parser->lineBufferCapacity = newCapacity;
+        // Escaped quote - keep both quotes in line for subsequent processing
+        // Ensure enough space for both quote characters
+        code = csvParserExpandLineBuffer(parser, lineLen + 2);
+        if (code != TSDB_CODE_SUCCESS) {
+          code = code;
+          break;
         }
+
+        // Add the first quote character to the line
+        parser->lineBuffer[lineLen++] = ch;
+
+        // Consume and add the second quote character
+        parser->bufferPos++;
+        ch = parser->buffer[parser->bufferPos - 1];  // The second quote
         parser->lineBuffer[lineLen++] = ch;
         continue;
       } else {
@@ -2529,15 +2530,10 @@ static int32_t csvParserReadLine(SCsvParser* parser) {
     }
 
     // Expand buffer if needed
-    if (lineLen >= parser->lineBufferCapacity - 1) {
-      size_t newCapacity = parser->lineBufferCapacity * 2;
-      char*  newLineBuffer = taosMemoryRealloc(parser->lineBuffer, newCapacity);
-      if (!newLineBuffer) {
-        code = terrno;
-        break;
-      }
-      parser->lineBuffer = newLineBuffer;
-      parser->lineBufferCapacity = newCapacity;
+    code = csvParserExpandLineBuffer(parser, lineLen + 1);
+    if (code != TSDB_CODE_SUCCESS) {
+      code = code;
+      break;
     }
 
     // Add character to line
@@ -2546,13 +2542,6 @@ static int32_t csvParserReadLine(SCsvParser* parser) {
 
   if (code == TSDB_CODE_SUCCESS) {
     parser->lineBuffer[lineLen] = '\0';
-
-    // Allocate new memory for the returned line (caller expects to free this)
-    char* line = taosMemoryMalloc(lineLen + 1);
-    if (!line) {
-      return terrno;
-    }
-    memcpy(line, parser->lineBuffer, lineLen + 1);
   }
 
   return code;
@@ -3702,4 +3691,24 @@ static void destroySavedCsvParser(SVnodeModifyOpStmt* pStmt) {
     taosMemoryFree(pStmt->pCsvParser);
     pStmt->pCsvParser = NULL;
   }
+}
+
+static int32_t csvParserExpandLineBuffer(SCsvParser* parser, size_t requiredLen) {
+  if (!parser || requiredLen <= parser->lineBufferCapacity) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  size_t newCapacity = parser->lineBufferCapacity;
+  while (newCapacity < requiredLen) {
+    newCapacity *= 2;
+  }
+
+  char* newLineBuffer = taosMemoryRealloc(parser->lineBuffer, newCapacity);
+  if (!newLineBuffer) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  parser->lineBuffer = newLineBuffer;
+  parser->lineBufferCapacity = newCapacity;
+  return TSDB_CODE_SUCCESS;
 }
