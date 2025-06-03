@@ -864,7 +864,7 @@ trigger_type(A) ::= SESSION NK_LP column_reference(B) NK_COMMA interval_sliding_
 trigger_type(A) ::= STATE_WINDOW NK_LP expr_or_subquery(B) NK_RP true_for_opt(C).                                           { A = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, B), C); }
 trigger_type(A) ::= interval_opt(B) SLIDING NK_LP sliding_expr(C) NK_RP.                                                    { A = createIntervalWindowNodeExt(pCxt, B, C); }
 trigger_type(A) ::= EVENT_WINDOW NK_LP START WITH search_condition(B) END WITH search_condition(C) NK_RP true_for_opt(D).   { A = createEventWindowNode(pCxt, B, C, D); }
-trigger_type(A) ::= COUNT_WINDOW NK_LP NK_INTEGER(B) sliding_val_opt(C) count_col_list_opt(D) NK_RP.                        { A = createCountWindowNode(pCxt, &B, &C, D); }
+trigger_type(A) ::= COUNT_WINDOW NK_LP count_window_args(B) NK_RP.                                                          { A = createCountWindowNodeFromArgs(pCxt, B); }
 trigger_type(A) ::= PERIOD NK_LP duration_literal(B) offset_opt(C) NK_RP.                                                   { A = createPeriodWindowNode(pCxt, releaseRawExprNode(pCxt, B), C); }
 
 interval_opt(A) ::= .                                                                                                       { A = NULL; }
@@ -877,13 +877,6 @@ sliding_expr(A) ::= interval_sliding_duration_literal(B) NK_COMMA duration_liter
 
 %type sliding_val_opt                                                             { SToken }
 %destructor sliding_val_opt                                                       { }
-sliding_val_opt(A) ::= .                                                          { A = nil_token; }
-sliding_val_opt(A) ::= NK_COMMA NK_INTEGER(B).                                    { A = B; }
-
-%type count_col_list_opt                                                          { SNodeList* }
-%destructor count_col_list_opt                                                    { nodesDestroyList($$); }
-count_col_list_opt(A) ::= .                                                       { A = NULL; }
-count_col_list_opt(A) ::= column_name_list(B).                                    { A = B; }
 
 offset_opt(A) ::= .                                                               { A = NULL; }
 offset_opt(A) ::= NK_COMMA duration_literal(B).                                   { A = releaseRawExprNode(pCxt, B); }
@@ -1852,10 +1845,7 @@ twindow_clause_opt(A) ::=
   AUTO(C) NK_RP sliding_opt(D) fill_opt(E).                                       { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, B), createDurationValueNode(pCxt, &C), D, E); }
 twindow_clause_opt(A) ::= EVENT_WINDOW START WITH search_condition(B)
   END WITH search_condition(C) true_for_opt(D).                                   { A = createEventWindowNode(pCxt, B, C, D); }
-twindow_clause_opt(A) ::=
-  COUNT_WINDOW NK_LP NK_INTEGER(B) NK_RP.                                         { A = createCountWindowNode(pCxt, &B, &B, NULL); }
-twindow_clause_opt(A) ::=
-  COUNT_WINDOW NK_LP NK_INTEGER(B) NK_COMMA NK_INTEGER(C) NK_RP.                  { A = createCountWindowNode(pCxt, &B, &C, NULL); }
+twindow_clause_opt(A) ::= COUNT_WINDOW NK_LP count_window_args(B) NK_RP.          { A = createCountWindowNodeFromArgs(pCxt, B); }
 twindow_clause_opt(A) ::=
   ANOMALY_WINDOW NK_LP expr_or_subquery(B) NK_RP.                                 { A = createAnomalyWindowNode(pCxt, releaseRawExprNode(pCxt, B), NULL); }
 twindow_clause_opt(A) ::=
@@ -1880,6 +1870,11 @@ fill_opt(A) ::= fill_value(B).                                                  
 
 fill_value(A) ::= FILL NK_LP VALUE NK_COMMA expression_list(B) NK_RP.             { A = createFillNode(pCxt, FILL_MODE_VALUE, createNodeListNode(pCxt, B)); }
 fill_value(A) ::= FILL NK_LP VALUE_F NK_COMMA expression_list(B) NK_RP.           { A = createFillNode(pCxt, FILL_MODE_VALUE_F, createNodeListNode(pCxt, B)); }
+
+count_window_args(A) ::= NK_INTEGER(B).                                           { A = createCountWindowArgs(pCxt, &B, NULL, NULL); }
+count_window_args(A) ::= NK_INTEGER(B) NK_COMMA NK_INTEGER(C).                    { A = createCountWindowArgs(pCxt, &B, &C, NULL); }
+count_window_args(A) ::= NK_INTEGER(B) NK_COMMA column_name_list(D).              { A = createCountWindowArgs(pCxt, &B, NULL, D); }
+count_window_args(A) ::= NK_INTEGER(B) NK_COMMA NK_INTEGER(C) NK_COMMA column_name_list(D). { A = createCountWindowArgs(pCxt, &B, &C, D); }
 
 %type fill_mode                                                                   { EFillMode }
 %destructor fill_mode                                                             { }

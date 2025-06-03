@@ -1741,6 +1741,14 @@ static int32_t createWindowLogicNodeByCount(SLogicPlanContext* pCxt, SCountWindo
     nodesDestroyNode((SNode*)pWindow);
     return code;
   }
+  if (pCount->pColList != NULL) {
+    nodesCloneList(pCount->pColList, &pWindow->pColList);
+    if (NULL == pWindow->pColList) {
+      nodesDestroyNode((SNode*)pWindow);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
   return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
 }
 
