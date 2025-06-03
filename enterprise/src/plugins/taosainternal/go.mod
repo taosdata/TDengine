@@ -2,7 +2,7 @@ module taosainternal
 
 go 1.23.0
 
-replace github.com/taosdata/taosadapter/v3 => ../../../../.externals/build/taosadapter/src/ext_taosadapter
+replace github.com/taosdata/taosadapter/v3 => ../../../../.internals/build/ext_taosadapter/src/ext_taosadapter
 
 require (
 	github.com/gin-contrib/static v0.0.1
