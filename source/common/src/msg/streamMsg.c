@@ -2517,6 +2517,13 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
       break;
     }
+    case STRIGGER_PULL_WAL_DATA: {
+      SSTriggerWalDataRequest* pRequest = (SSTriggerWalDataRequest*)pReq;
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->uid));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
+      TAOS_CHECK_EXIT(encodeColsArray(&encoder, pRequest->cids));
+      break;
+    }
     case STRIGGER_PULL_GROUP_COL_VALUE: {
       SSTriggerGroupColValueRequest* pRequest = (SSTriggerGroupColValueRequest*)pReq;
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->gid));
@@ -2680,6 +2687,13 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
+      break;
+    }
+    case STRIGGER_PULL_WAL_DATA: {
+      SSTriggerWalDataRequest* pRequest = &(pReq->walDataReq);
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->uid));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
+      TAOS_CHECK_EXIT(decodeColsArray(&decoder, &pRequest->cids));
       break;
     }
     case STRIGGER_PULL_GROUP_COL_VALUE: {
