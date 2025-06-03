@@ -497,5 +497,65 @@ class StreamUtil:
                 sql = f"insert into {db}.j{table} (cts, cint) values ({ts}, {cint})"
                 tdSql.execute(sql)
 
+    def prepareViews(
+        self,
+        db="qdb",
+        views=10,
+    ):
+        tdSql.execute(f"use {db}")
+
+        tdLog.info(f"create total {views} views")
+        for v in range(views):
+            sql = f"create view view{v} as select cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cgeometry from qdb.t{v}"
+            tdSql.execute(sql)
+
 
 tdStream = StreamUtil()
+
+
+class StreamItem:
+    def __init__(
+        self,
+        id,
+        stream,
+        res_query,
+        exp_query="",
+        exp_rows=[],
+        check_func=None,
+    ):
+        self.id = id
+        self.stream = stream
+        self.res_query = res_query
+        self.exp_query = exp_query
+        self.exp_rows = exp_rows
+        self.check_func = check_func
+
+    def createStream(self):
+        tdLog.info(self.stream)
+        tdSql.execute(self.stream)
+
+    def checkResults(self, print=False):
+        tdLog.info(f"check stream:s{self.id} result")
+        tdSql.pause()
+
+        if self.check_func != None:
+            self.check_func()
+
+        if self.exp_query != "":
+            if self.exp_rows == []:
+                exp_result = tdSql.getResult(self.exp_query)
+            else:
+                exp_result = []
+                tmp_result = tdSql.getResult(self.exp_query)
+                for r in self.exp_rows:
+                    exp_result.append(tmp_result[r])
+
+            if print:
+                tdSql.printResult(
+                    f"s{self.id} expect",
+                    input_result=exp_result,
+                    input_sql=self.exp_query,
+                )
+            tdSql.checkResultsByArray(self.res_query, self.exp_result, self.exp_query)
+
+        tdLog.info(f"check stream:s{self.id} result successfully")
