@@ -169,7 +169,7 @@ int32_t streamInit(void *pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode
 void    streamCleanup(void);
 int32_t streamGetTask(int64_t streamId, int64_t taskId, SStreamTask** ppTask);
 int32_t streamTriggerKickCalc();
-int32_t streamTriggerProcessRsp(SStreamTask *pTask, SRpcMsg *pRsp);
+int32_t streamTriggerProcessRsp(SStreamTask *pTask, SRpcMsg *pRsp, int64_t *pErrTaskId);
 
 #define STREAM_TRIGGER_MAX_WIN_NUM_PER_REQUEST 4096
 

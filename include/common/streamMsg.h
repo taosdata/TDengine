@@ -293,9 +293,40 @@ typedef struct {
   SArray* forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
 } SCMCreateStreamReq;
 
+typedef enum SStreamMsgType {
+  STREAM_MSG_START,
+  STREAM_MSG_UNDEPLOY,
+  STREAM_MSG_ORIGTBL_READER_INFO,
+} SStreamMsgType;
+
 typedef struct SStreamMsg {
-  int32_t msgType;
+  SStreamMsgType msgType;
 } SStreamMsg;
+
+int32_t tEncodeSStreamMsg(SEncoder* pEncoder, const SStreamMsg* pMsg);
+int32_t tDecodeSStreamMsg(SDecoder* pDecoder, SStreamMsg* pMsg);
+
+typedef struct SStreamStartTaskMsg {
+  SStreamMsg header;
+} SStreamStartTaskMsg;
+
+int32_t tEncodeSStreamStartTaskMsg(SEncoder* pEncoder, const SStreamStartTaskMsg* pMsg);
+int32_t tDecodeSStreamStartTaskMsg(SDecoder* pDecoder, SStreamStartTaskMsg* pMsg);
+
+typedef struct SStreamUndeployTaskMsg {
+  SStreamMsg header;
+  int8_t     doCheckpoint;
+  int8_t     doCleanup;
+} SStreamUndeployTaskMsg;
+
+int32_t tEncodeSStreamUndeployTaskMsg(SEncoder* pEncoder, const SStreamUndeployTaskMsg* pMsg);
+int32_t tDecodeSStreamUndeployTaskMsg(SDecoder* pDecoder, SStreamUndeployTaskMsg* pMsg);
+
+typedef struct SStreamOrigTblReaderInfoMsg {
+  SStreamMsg header;
+  SArray*    vgIds;       // SArray<int32_t>, same size and order as fullTableNames in SStreamTriggerOrigTblReaderReq
+  SArray*    readerList;  // SArray<SStreamTaskAddr>, each SStreamTaskAddr has an unique nodeId
+} SStreamOrigTblReaderInfoMsg;
 
 typedef enum {
   STREAM_STATUS_NA = 0,
@@ -315,6 +346,23 @@ typedef enum EStreamTaskType {
 
 static const char* gStreamTaskTypeStr[] = {"Reader", "Trigger", "Runner"};
 
+typedef enum SStreamMgmtReqType {
+  STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER = 0,
+} SStreamMgmtReqType;
+
+typedef struct SStreamMgmtReq {
+  SStreamMgmtReqType type;
+} SStreamMgmtReq;
+
+typedef struct SStreamTriggerOrigTblReaderReq {
+  SStreamMgmtReq header;
+  SArray*        fullTableNames;  // SArray<char*>, full table names ("<dbname>.<tbname>") of the original tables
+} SStreamTriggerOrigTblReaderReq;
+
+typedef union SStreamMgmtReqUnion {
+  SStreamTriggerOrigTblReaderReq req;
+} SStreamMgmtReqUnion;
+
 typedef struct SStreamTask {
   EStreamTaskType type;
 
@@ -332,6 +380,8 @@ typedef struct SStreamTask {
 
   EStreamStatus status;
   int32_t       errorCode;
+
+  SStreamMgmtReqUnion pMgmtReq;  // request that should be handled by stream mgmt thread
 
   SRWLatch      lock;      // concurrent undeloy
 } SStreamTask;
@@ -466,11 +516,6 @@ typedef struct {
 } SStreamDeployActions;
 
 typedef struct {
-  SStreamMsg header;
-
-} SStreamStartTaskMsg;
-
-typedef struct {
   SStreamTask         task;
   SStreamStartTaskMsg startMsg;
 } SStreamTaskStart;
@@ -478,12 +523,6 @@ typedef struct {
 typedef struct {
   SArray* taskList;  // SArray<SStreamTaskStart>
 } SStreamStartActions;
-
-typedef struct {
-  SStreamMsg header;
-  int8_t     doCheckpoint;
-  int8_t     doCleanup;
-} SStreamUndeployTaskMsg;
 
 typedef struct {
   SStreamTask            task;

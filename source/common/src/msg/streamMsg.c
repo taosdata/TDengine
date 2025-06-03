@@ -864,11 +864,33 @@ _exit:
   return code;
 }
 
+int32_t tEncodeSStreamMsg(SEncoder* pEncoder, const SStreamMsg* pMsg) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pMsg->msgType));
+
+_exit:
+  return code;
+}
+
+int32_t tDecodeSStreamMsg(SDecoder* pDecoder, SStreamMsg* pMsg) {
+  int32_t code = 0;
+  int32_t lino;
+
+  int32_t type = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &type));
+  pMsg->msgType = type;
+
+_exit:
+  return code;
+}
+
 int32_t tEncodeSStreamStartTaskMsg(SEncoder* pEncoder, const SStreamStartTaskMsg* pStart) {
   int32_t code = 0;
   int32_t lino;
 
-  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pStart->header.msgType));
+  TAOS_CHECK_EXIT(tEncodeSStreamMsg(pEncoder, &pStart->header));
 
 _exit:
 
@@ -891,7 +913,7 @@ int32_t tEncodeSStreamUndeployTaskMsg(SEncoder* pEncoder, const SStreamUndeployT
   int32_t code = 0;
   int32_t lino;
 
-  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pUndeploy->header.msgType));
+  TAOS_CHECK_EXIT(tEncodeSStreamMsg(pEncoder, &pUndeploy->header));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pUndeploy->doCheckpoint));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pUndeploy->doCleanup));
 
@@ -1300,7 +1322,7 @@ int32_t tDecodeSStreamStartTaskMsg(SDecoder* pDecoder, SStreamStartTaskMsg* pSta
   int32_t code = 0;
   int32_t lino;
 
-  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pStart->header.msgType));
+  TAOS_CHECK_EXIT(tDecodeSStreamMsg(pDecoder, &pStart->header));
 
 _exit:
 
@@ -1325,7 +1347,7 @@ int32_t tDecodeSStreamUndeployTaskMsg(SDecoder* pDecoder, SStreamUndeployTaskMsg
   int32_t code = 0;
   int32_t lino;
 
-  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pUndeploy->header.msgType));
+  TAOS_CHECK_EXIT(tDecodeSStreamMsg(pDecoder, &pUndeploy->header));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pUndeploy->doCheckpoint));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pUndeploy->doCleanup));
 

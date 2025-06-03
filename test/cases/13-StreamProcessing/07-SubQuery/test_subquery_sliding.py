@@ -35,16 +35,21 @@ class TestStreamSubquerySliding:
                 View queries
 
         4. Include the following combinations in step 3 query results:
-            Use all data types: numeric, binary, string, geometry, etc.
+            Use all data types: numeric, binary, string, geometry, json, etc.
             Use all pseudo-columns: _qstart, _qend, _wstart, _wend, _wduration, _c0, _rowts, irowts, _irowtsorigin, tbname, etc.
             Include data columns and tag columns
             Randomly include None and NULL in result sets
             Result set sizes: 1 row, n rows
             Include duplicate timestamp in result sets
 
-        5. Validation checks:
+        5. Test placeholder usage in step 3's queries, including:
+            Placeholders in various positions like FROM, SELECT, WHERE
+            Each placeholder: _twstart, _twend, _twduration, _twrownum, _tcurrent_ts, _tgrpid, _tlocaltime, %%n, %%tbname, %%tbrows
+
+        6. Validation checks:
             Verify table structures and table counts
             Validate correctness of calculation results
+            Validate the accuracy of placeholder data, such as %%trows
 
         Catalog:
             - Streams:SubQuery
@@ -112,7 +117,9 @@ class TestStreamSubquerySliding:
     def writeTriggerData(self):
         tdLog.info("write data to trigger table")
         sqls = [
-            "insert into tdb.t1 values ('2025-01-01 00:00:00', 0, 0), ('2025-01-01 00:05:00', 1, 1), ('2025-01-01 00:10:00', 2, 2)"
+            "insert into tdb.t1 values ('2025-01-01 00:00:00', 0, 0), ('2025-01-01 00:05:00', 1, 1), ('2025-01-01 00:10:00', 2, 2)",
+            "insert into tdb.t1 values ('2025-01-01 00:00:11', 0, 0), ('2025-01-01 00:12:00', 1, 1), ('2025-01-01 00:15:00', 2, 2)",
+            "insert into tdb.t1 values ('2025-01-01 00:00:21', 0, 0)",
         ]
         tdSql.executes(sqls)
 
@@ -136,91 +143,108 @@ class TestStreamSubquerySliding:
 
         subqueries = [
             # 0
-            "select _twstart ts, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend;",
-            "select _twstart ts, count(*) c1, avg(v1) c2, first(v1) c3, last(v1) c4 from %%trows;",
-            "select _twstart ts, count(*) c1, avg(v1) c2, _twstart + 1 as ts2 from qdb.meters;",
-            "select count(current) cnt from qdb.meters where ts >= 1704038400000 and ts < 1704038700000",
-            "select _wtstart ts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cdecimal8, cdecimal16, cgeometry from qdb.t1 order by cts limit 1",
-            "select _wtstart ts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cdecimal8, cdecimal16, cgeometry from qdb.n1 order by cts limit 1",
-            "select _wtstart ts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cgeometry from qdb.v1 order by cts limit 1",
-            "select _wtstart ts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cdecimal8, cdecimal16, cgeometry from qdb.meters where tbname='t2' order by cts limit 1",
-            "select _wtstart ts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cgeometry from qdb.vmeters where tbname='t2' order by cts limit 1",
-            "select _wtstart ts, name, create_time information_schema.ins_users",
+            "select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend;",
+            "select _twstart ts, %%tbname tb, %%1, %%trows, count(*) c1, avg(v1) c2, first(v1) c3, last(v1) c4 from %%trows;",
+            "select _twstart ts, count(*) c1, avg(v1) c2, _twstart + 1 as ts2, %%trows, _tgrpid from qdb.meters partition by %%tbname where _twduration > 10",
+            "select _wend tw, count(current) c1, _tgrpid tg, _tlocaltime tl  from qdb.meters where ts >= 1704038400000 and ts < 1704038700000 partition by %%1",
+            "select _wtstart ts, name, create_time, %%tbname information_schema.ins_users",
+            "select _tcurrent_ts tc, _tprev_ts tp, _tnext_ts tn, _tgrpid tg, _tlocaltime tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend and _tprev_ts > '2024-12-30' and _tcurrent_ts > '2024-12-30' and _tnext_ts > '2024-12-30'",
+            "select _tcurrent_ts tc, _tprev_ts - _tnext_ts tx, %%tbname tb, %%1, %%trows, count(*) c1, avg(v1) c2, first(v1) c3, last(v1) c4 from %%trows;",
+            "select _tcurrent_ts tc,  _tlocaltime - _tcurrent_ts tx1, _tcurrent_ts-_tprev_ts tx2, _tnext_ts-_tcurrent_ts tx3, count(*) c1, avg(v1) c2, _tnext_ts + 1 as ts2, %%trows, _tgrpid from qdb.meters partition by %%tbname;",
+            "select _tnext_ts tn, TIMETRUNCATE(_tnext_ts, '1d'), count(current) c1, _tgrpid tg, _tlocaltime tl  from qdb.meters where ts >= 1704038400000 and ts < 1704038700000 partition by %%1",
+            "select _tcurrent_ts ts, name, create_time, %%tbname, %%1, %%trows, information_schema.ins_users",
             # 10
             "select _wtstart ts, count(*), sum(`vgroups`), avg(ntables) from information_schema.ins_databases where name != `information_schema` and name != 'performance_schema'",
             "select _wtstart ts, ABS(cint), ACOS(cuint), ASIN(cbigint), ATAN(cubigint), CEIL(cfloat), COS(cdouble), DEGREES(csmallint), EXP(cusmallint), FLOOR(ctinyint), LN(cutinyint), LOG(cbool), MOD(cdecimal8, cdecimal16), PI(), POW(cuint, 2), RADIANS(cbigint), ROUND(cfloat), SIGN(cdouble), SQRT(csmallint), TAN(cfloat), TRUNCATE(cdouble, 1), CRC32(cvarchar) from qdb.meters where tbname=%%1 order by cts limit 1",
-            "select _wtstart ts, ASCII(cvarchar), CHAR(cnchar), CHAR_LENGTH(cvarchar), CONCAT(cvarchar, cnchar), CONCAT_WS('--', cvarchar, cnchar), LENGTH(cnchar), LOWER(cvarchar), LTRIM(cnchar), POSITION('a', cvarchar), REPEAT(cnchar, 3), REPLACE(cvarchar, 'a', 'b'), RTRIM(cnchar), SUBSTRING(cvarchar, 'a'), SUBSTRG(cvarchar, 'a'), SUBSTRING_INDEX(cnchar, 1, 'a'), TRIM(cvarchar), UPPER(cnchar) from qdb.n1 order by cts limit 1",
-            "select _wtstart ts, CAST(cint as varchar), TO_CHAR(cts, 'yyyy-mm-dd'), TO_ISO8601(cts), TO_TIMESTAMP(TO_CHAR(cts, 'yyyy-mm-dd'), 'yyyy-mm-dd'), TO_UNIXTIMESTAMP(TO_CHAR(cts, 'yyyy-mm-dd')) from qdb.v1 order by cts limit 1",
-            "select _wtstart ts, DAYOFWEEK(cvarchar), TIMEDIFF(_wstart, cts), TIMETRUNCATE(cts, '1y'), WEEK(cts), WEEKDAY(cts), WEEKOFYEAR(cts) from qdb.v5 order by cts desc limit 1",
-            "select _wtstart ts, RAND(), NOW(), TODAY(), TIMEZONE() from qdb.n2 order by cts desc limit 1",
-            "select _wtstart ts, APERCENTILE(cint), AVG(cuint), COUNT(cbigint), ELAPSED(cubigint), HISTOGRAM(cfloat, 'user_input', '[1, 3, 5, 7]', 1), HYPERLOGLOG(cdouble), LEASTSQUARES(csmallint, 1, 2), PERCENTILE(cusmallint, 90), SPREAD(ctinyint), STDDEV(cutinyint), STDDEV_POP(cbool), SUM(cdecimal8), VAR_POP(cbigint) from qdb.meters where ts >= _twstart and ts < _twend;",
+            "select _wtstart ts, ASCII(cvarchar), CHAR(cnchar), CHAR_LENGTH(%%tbname), CHAR_LENGTH(%%n), CHAR_LENGTH(cvarchar), CONCAT(cvarchar, cnchar), CONCAT_WS('--', cvarchar, cnchar), LENGTH(cnchar), LOWER(cvarchar), LTRIM(cnchar), POSITION('a', cvarchar), REPEAT(cnchar, 3), REPLACE(cvarchar, 'a', 'b'), RTRIM(cnchar), SUBSTRING(cvarchar, 'a'), SUBSTRG(cvarchar, 'a'), SUBSTRING_INDEX(cnchar, 1, 'a'), TRIM(cvarchar), UPPER(cnchar) from qdb.n1 order by cts limit 1",
+            "select _wtstart ts, CAST(cint as varchar), TO_CHAR(cts, 'yyyy-mm-dd'), TO_ISO8601(cts), TO_TIMESTAMP(TO_CHAR(cts, 'yyyy-mm-dd'), 'yyyy-mm-dd'), TO_UNIXTIMESTAMP(TO_CHAR(cts, 'yyyy-mm-dd')) from qdb.v1 where _tlocaltime > > '2024-12-30' order by cts limit 1",
+            "select _wtstart ts, DAYOFWEEK(_twstart), DAYOFWEEK(_twend), DAYOFWEEK(_tlocaltime), TIMEDIFF(_twstart, _twend), _wduration, DAYOFWEEK(cvarchar), TIMEDIFF(_wstart, cts), TIMETRUNCATE(cts, '1y'), WEEK(cts), WEEKDAY(cts), WEEKOFYEAR(cts) from qdb.v5 order by cts desc limit 1",
+            "select _wtstart ts, RAND(), NOW(), TODAY(), TIMEZONE() from qdb.n2 where _tgrpid != 0 order by cts desc limit 1",
+            "select _wtstart ts, APERCENTILE(cint), AVG(cuint), SUM(_twrownum), COUNT(_tgrpid), COUNT(cbigint), ELAPSED(cubigint), HISTOGRAM(cfloat, 'user_input', '[1, 3, 5, 7]', 1), HYPERLOGLOG(cdouble), LEASTSQUARES(csmallint, 1, 2), PERCENTILE(cusmallint, 90), SPREAD(ctinyint), STDDEV(cutinyint), STDDEV_POP(cbool), SUM(cdecimal8), VAR_POP(cbigint) from qdb.meters where ts >= _twstart and ts < _twend;",
             "select _wtstart ts, BOTTOM(cint, 1), FIRST(cuint), LAST(cbigint), LAST_ROW(cubigint), GREATEST(cfloat, cdouble), LEAST(cdouble, csmallint), PERCENTILE(cusmallint, 90), MAX(ctinyint), MIN(cutinyint), MODE(cbool), SAMPLE(cdecimal8, 1), TAIL(cbigint, 1), TOP(cbigint, 1) from qdb.n2 where ts >= _twstart and ts < _twend;",
             "select _wtstart ts, CSUM(cint) + CSUM(cuint), DERIVATIVE(cbigint, 5, 0), IRATE(cubigint), MAVG(cfloat, 1), STATECOUNT(cdouble, 'LT', 5), STATEDURATION(cusmallint, , 'LT', 5, '1m'), TWA(ctinyint) from qdb.v3 where ts >= _twstart and ts < _twend;",
-            "select ST_GeomFromText(cgeometry), ST_AsText(cgeometry), ST_Contains(cgeometry, cgeometry), ST_ContainsProperly(cgeometry, cgeometry), ST_Covers(cgeometry, cgeometry), ST_Equals(cgeometry, cgeometry), ST_Intersects(cgeometry, cgeometry), ST_Touches(cgeometry, cgeometry) from qdb.meters where tbname='t4'"
+            "select _wtstart ts, ST_GeomFromText(cgeometry), ST_AsText(cgeometry), ST_Contains(cgeometry, cgeometry), ST_ContainsProperly(cgeometry, cgeometry), ST_Covers(cgeometry, cgeometry), ST_Equals(cgeometry, cgeometry), ST_Intersects(cgeometry, cgeometry), ST_Touches(cgeometry, cgeometry) from qdb.meters where tbname='t4'"
             # 20
             "select CLIENT_VERSION(), CURRENT_USER(), SERVER_STATUS(), SERVER_VERSION(), DATABASE()",
-            "select cts, tail(cint, 5) from qdb.meters where tbname='%%1' and ts >= _twstart and ts < _twend;",
-            "select cts, diff(cint, 5) c3 from qdb.meters where tbname='%%1' and ts >= _twstart and ts < _twenda and c3 > 5 ",
+            "select cts, tail(cint, 5) from qdb.meters where tbname='%%1' and cts >= _twstart and cts < _twend and _twrownum > 0;",
+            "select cts, diff(cint, 5) c3 from qdb.meters where tbname='%%1' and ts >= _twstart and ts < _twenda and c3 > 5 and _twrownum > 1 ",
             "select cts, top(cint, 5) from qdb.meters where tbname='%%1' and ts >= _twstart and ts < _twend limit 2 offset 2;",
             "select cts, last(cint, 5) from qdb.meters where tbname='%%1' and ts >= _twstart and ts < _twend;",
             "select cts, last_row(cint, 5) from qdb.meters where tbname='%%1' and ts >= _twstart and ts < _twend ",
             "select cts, sum(cint), sum(cint) from qdb.meters where tbname='%%1' and ts >= _twstart and ts < _twend;",
-            "select interp",
-            "select UNIQUE",
+            "select deviceid, ts, diff(faev) as diff_faev FROM (SELECT deviceid, ts, faev FROM ((SELECT deviceid, ts, faev FROM (SELECT deviceid, _ts AS ts, faev, DIFF(ROUND(faev*1000)/1000) AS diff_faev FROM demo WHERE deviceid in ('201000008','K201000258') AND _ts >= '2023-12-01 00:00:00' AND _ts < '2024-01-01 00:00:00' PARTITION BY deviceid) WHERE diff_faev < 0)UNION ALL(SELECT deviceid, ts, faev FROM (SELECT deviceid, ts, faev, DIFF(ROUND(faev*1000)/1000) as diff_faev FROM (SELECT deviceid, _ts as ts , faev FROM demo WHERE deviceid in ('201000008','K201000258')AND _ts >= '2023-12-01 00:00:00' AND _ts < '2024-01-01 00:00:00' ORDER BY ts desc) PARTITION BY deviceid) WHERE diff_faev > 0)UNION ALL(SELECT deviceid, _wstart AS ts, LAST(faev) AS faev FROM demo WHERE deviceid in ('201000008','K201000258') AND _ts >= '2023-11-01 00:00:00' AND _ts < '2024-01-01 00:00:00' PARTITION BY deviceid INTERVAL(1n))) ORDER BY deviceid, ts) PARTITION by deviceid;",
+            "select ts, c1 from union_tb1 order by ts asc limit 10) union all (select ts, c1 from union_tb0 order by ts desc limit 2) union all (select ts, c1 from union_tb2 order by ts asc limit 10) order by ts",
             # 30
-            "selectCOLS",
-            "to_json",
-            "select _twstart, count(*), avg(cint) from qdb.meters interval(1m) where ts >= _twstart and ts < _twend;",
+            "select cols(last(ts), ts, c0), count(1) {t1} from {from_table} group by t1 order by t1",
+            "select  c11, c21, _rowts from (select cols(last_row(c0), ts as t1, c1 as c11), cols(first(c0), ts as t2, c1 c21), first(c0)  from test.meters where c0 < 4)"
+            "select _twstart, count(*), avg(cint) from qdb.meters interval(1m) where tbname != %%tbname and ts >= _twstart and ts < _twend;",
             "select _twstart, sum(cts), FIRST(cint) from qdb.meters interval(2m)",
             "select _twstart, count(cts) from qdb.meters partition by tbname count(1000) where t1 < xx",
             "select _twstart, count(cts) from qdb.meters partition by tbname state(cint) where t2 = xx",
             "select _twstart, count(cts) from qdb.meters partition by tbname session(cbigint)  where ts >= _twstart and ts < _twend;",
             "select _twstart, count(cts) from qdb.meters partition by tbname event(cbigint) _qstart, _qend, _wstart, _wend, _wduration, _c0, _rowts, irowts, _irowtsorigin, tbname where ts >= _twstart and ts < _twend;",
-            "select * from tb where tb in()",
+            "select dictintc from qdb.meters where tbname in(%%tbname)",
+            "select first(ts2), tbname, sum(v_int) from (select t1.ts ts1, t2.ts ts2, t2.v_int, t2.tbname from db1_st1 t1 right join db1_st2 t2 on t1.ts=t2.ts and t2.ts <= now and (t2.v_binary like '%abc%' or t2.v_binary not like '%abc%') where t2.v_binary like '%abc%' or t2.v_binary not like '%abc%') group by tbname order by tbname;",
             # 40
-            "select * join",
-            "select * window join",
-            "select * asof join",
-            "show qdb.tables where",
-            "nest  uqeries" "select count (*) group by",
-            "select count (*) group by 1 slimit 1 soffset 1",
+            "select t1.ts, t2.ts, t1.v_int, t2.v_int from db1_st1 t1 left join db1_st2 t2 on t1.ts=t2.ts and (t1.t_bigint >= t2.t_bigint or t1.t_bigint < t2.t_bigint) and t2.t_bigint_empty is null order by t1.ts;",
+            "select _wend, count(*) from (select t1.ts ts1, t2.ts ts2, t1.v_bigint v_bigint1, t2.v_bigint v_bigint2, t1.tbname from db1_st1 t1 left window join db1_st2 t2 window_offset(-100a, 100a) jlimit 10 order by t1.ts) where v_bigint1 + v_bigint2 > 0 and ts1 between '2024-01-01 12:00:00.400' and now and ts2 != '2024-01-01 12:00:00.300' partition by tbname interval(1s) order by _wend;",
+            "select t1.ts, t2.ts from db1_st1 t1 right asof join db1_st2 t2 where t1.v_int >= 0 and (cos(t2.t_double) >= 0 or cos(t2.t_double) < 0) order by t1.ts, t2.ts;",
+            "show dnode 1 variables like 'bypassFlag'",
+            "SELECT a.voltage, count(*) FROM ct_join_1 a left JOIN ct_join_2 b ON a.ts = b.ts group by a.voltage having b.voltage > 14;",
+            "select tb1.nchar_16_col from test_vtable_join.vtb_virtual_ctb_1 as tb1 join test_vtable_join.vtb_virtual_ctb_2 as tb2 on tb1.ts=tb2.ts where tb1.nchar_16_col is not null group by tb1.nchar_16_col having tb1.nchar_16_col is not null order by 1 slimit 20 limit 20",
             "select count (*) group by 1 slimit 1 soffset 1 union select count (*) group by 1 slimit 1",
             "select varchar+nchar, cint+cuint, ctinyint-cdouble, cfloat*cdouble, cbigint*12, -ctinyint from xx limit 1 offset 1 ",
             "select cvarchar like 'a', not like, regexp, not regexp from xx limit 1 offset 1 ",
             # 50
             "select 1&2, 2|3  and or && || casefrom xx limit 1 offset 1 ",
-            "select xx where = > >= < <= <> != is NULL is NOT NULL BETWEEN AND NOT BETWEEN AND",
-            "select json, to_json",
-            "select tts, tint, count  from xx",
-            "select tts, tint, count  from xx where tuint",
-            "select 1 as c1, 'abc' as c2, NULL as c3 from information_schema.ins_users",
-            "select '2025-5-29' union '2025-5-29'",
+            "select xx where = > >= < <= <> != is NULL is NOT NULL  NOT BETWEEN AND",
+            "select json, to_json from %%trows where BETWEEN AND",
+            # 53
+            "select cmpl_cd, count(prc) from"
+            " (select cmpl_cd, last(clqn_prc) - last(opqn_prc) prc "
+            "  from kline_1d ta"
+            " where quot_time between {inputDate1} and {inputDate2}"
+            "  partition by comp_cd"
+            "     interval(1d)"
+            "    having (prc > 0)"
+            " ) tb"
+            "partition by comp_cd"
+            "having count(prc) > {inputNum}",
+            # 54
+            " select cmpl_cd, sum(mtch_amt) amount"
+            "   from kline_1m"
+            "   where quot_time between {inputDate1} and {inputDate2}"
+            "   partition by comp_cd"
+            "   having sum(mtch_amt) > {inputMount}",
+            # 55
+            "select 1 as c1, 'abc' as c2, NULL as c3 from information_schema.ins_users union all select 1 as c1, 'abc' as c2, NULL as c3 from information_schema.ins_users union all",
+            "select diff(faev) from (select _ts, faev, deviceid from demo union all select _ts + 1s, faev, deviceid from demo order by faev, _ts, deviceid) partition by faev",
             "select from view",
-            "select rand()",
+            "select rand() where rand() >= 0 and rand() < 1;",
             # 60
-            "0",
-            "1",
-            "2",
-            "3",
-            "4",
-            "5",
-            "6",
-            "7",
-            "8",
-            "9",
+            "select twa(c1) from (select c1 from nest_tb0)",
+            "select avg(f1),count(f1),sum(f1),twa(f1) from tb1 group by f1 having twa(f1) > 3",
+            "select _wstart, twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:07:00' interval(1m)",
+            "select interp(cbigint) from qdb.v1 where ctinyint > 0 and cint > 2 RANGE('2025-01-01 00:02:00.000', '2025-01-01 00:08:00.000') EVERY (1m) FILL(linear) limit 50;",
+            "select interp(csmallint) from qdb.meters partition by tbname where ctinyint > 0 and cint > 2 RANGE('2025-01-01 00:02:00.000') EVERY (1m) FILL(linear)",
+            "select interp(csmallint) from qdb.meters partition by tbname where ctinyint > 0 and cint > 2 RANGE('2025-01-01 00:02:00.000', '2025-01-01 00:08:00.000') EVERY (1m) FILL(linear) limit 50;",
+            "select interp(cts), interp(cint), interp(cuint), interp(cbigint), interp(cubigint), interp(cfloat), interp(cdouble), interp(csmallint), interp(cusmallint), interp(ctinyint) from qdb.meters partition by %%1 RANGE(_twstart) fill(linear)",
+            "select interp(cts), interp(cint), interp(cuint), interp(cbigint), interp(cubigint), interp(cfloat), interp(cdouble), interp(csmallint), interp(cusmallint), interp(ctinyint) from qdb.meters RANGE(_twstart) fill(linear)",
+            "show tags from st_json_104",
+            "select ts,jtag from {dbname}.jsons1 order by ts limit 2,3",
             # 70
-            "0",
-            "1",
-            "2",
-            "3",
-            "4",
-            "5",
-            "6",
-            "7",
-            "8",
-            "9",
+            "select avg(jtag->'tag1'), max from {dbname}.jsons1",
+            "select jtag->'tag2' from {dbname}.jsons1_6 partiton by %%1",
+            "select _wtstart ts, cts, %%tbname tb, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cdecimal8, cdecimal16, cgeometry from qdb.t1 order by cts limit 1",
+            "select _wtstart ts, cts, %%1 tn,  cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cdecimal8, cdecimal16, cgeometry from qdb.n1 order by cts limit 1",
+            "select _wtstart ts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cgeometry from qdb.v1 order by cts limit 1",
+            "select _wtstart ts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cdecimal8, cdecimal16, cgeometry from qdb.meters where tbname='t2' order by cts limit 1",
+            "select _wtstart ts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cgeometry from qdb.vmeters where tbname='t2' order by cts limit 1",
+            "select _wtstart ts, count(c1), sum(c2) from %trows",
+            "select _wtstart ts, _wstart, count(c1), sum(c2) from %trow interval(1m) fill(1m)",
+            "select _wtstart ts, interp(ts), interp(c1), interp(c2), _twend, _twduration, _twrownum from %trows where c1 > _twrownum",
             # 80
-            "0",
+            "select _wstart, count(c1), sum(c2), %%n, %%tbname, _tlocaltime, _tgrpid from %trows count_window(1) ",
         ]
 
         outputs = [

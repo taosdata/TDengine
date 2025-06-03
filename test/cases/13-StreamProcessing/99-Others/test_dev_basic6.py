@@ -62,7 +62,7 @@ class TestStreamDevBasic:
         tdSql.checkKeyExist("stream_trigger")
 
         tdLog.info(f"=============== create stream")
-        sql = "create stream s9 PERIOD(10s, 10a) into out9 as select _tprev_localtime, now, max(v1) from stb;"
+        sql = "create stream s9 PERIOD(10s, 10a) into out9 as select _tlocaltime, _tprev_localtime, _tnext_localtime, now, max(v1) from stb;"
         tdSql.execute(sql)
 
         tdStream.checkStreamStatus()

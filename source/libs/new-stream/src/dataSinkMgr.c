@@ -16,12 +16,11 @@
 #include <stdint.h>
 #include <stdio.h>
 #include "dataSink.h"
-#include "osFile.h"
+#include "osAtomic.h"
 #include "osMemory.h"
 #include "stream.h"
 #include "taoserror.h"
 #include "tarray.h"
-#include "tcompare.h"
 #include "tdef.h"
 #include "thash.h"
 
@@ -29,12 +28,13 @@ SDataSinkManager2 g_pDataSinkManager = {0};
 int64_t           gDSMaxMemSizeDefault = (1024 * 1024 * 1024);    // 1G
 int64_t           gMemReservedSizeForWrite = (20 * 1024 * 1024);  // 20M
 int64_t           gMemReservedSize = (30 * 1024 * 1024);          // 30M
+int64_t           gMemAlertSize = (100 * 1024 * 1024);            // 100M
+int64_t           gMemAlertQuitSize = (300 * 1024 * 1024);        // 300M
 int64_t           gDSFileBlockDefaultSize = (10 * 1024 * 1024);   // 10M
 
 void setDataSinkMaxMemSize(int64_t maxMemSize) {
   if (maxMemSize >= 0) {
     gDSMaxMemSizeDefault = maxMemSize;
-    g_pDataSinkManager.maxMemSize = maxMemSize;
   }
   stInfo("set data sink max mem size to %" PRId64, gDSMaxMemSizeDefault);
 }
@@ -54,7 +54,6 @@ int32_t     initStreamDataSinkOnce() {
   }
 
   g_pDataSinkManager.usedMemSize = 0;
-  g_pDataSinkManager.maxMemSize = gDSMaxMemSizeDefault;
   g_pDataSinkManager.fileBlockSize = 0;
   g_pDataSinkManager.readDataFromFileTimes = 0;
   g_pDataSinkManager.dsStreamTaskList =
@@ -156,7 +155,7 @@ static void destroyAlignGrpMgr(void* pData) {
   taosMemoryFreeClear(pGroupData);
 }
 
-static int32_t createAlignTaskMgr(int64_t streamId, int64_t taskId, int32_t tsSlotId, void** ppCache) {
+static int32_t createAlignTaskMgr(int64_t streamId, int64_t taskId, int64_t sessionId, int32_t tsSlotId, void** ppCache) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   SAlignTaskDSMgr* pAlignTaskDSMgr = taosMemCalloc(1, sizeof(SAlignTaskDSMgr));
@@ -167,6 +166,7 @@ static int32_t createAlignTaskMgr(int64_t streamId, int64_t taskId, int32_t tsSl
   pAlignTaskDSMgr->cleanMode = DATA_CLEAN_IMMEDIATE;
   pAlignTaskDSMgr->streamId = streamId;
   pAlignTaskDSMgr->taskId = taskId;
+  pAlignTaskDSMgr->sessionId = sessionId;
   pAlignTaskDSMgr->tsSlotId = tsSlotId;
   pAlignTaskDSMgr->pFileMgr = NULL;
   pAlignTaskDSMgr->pAlignGrpList =
@@ -216,7 +216,7 @@ static void destroySSlidingGrpMgr(void* pData) {
   taosMemoryFreeClear(pGroupData);
 }
 
-static int32_t createSlidingTaskMgr(int64_t streamId, int64_t taskId, int32_t tsSlotId, void** ppCache) {
+static int32_t createSlidingTaskMgr(int64_t streamId, int64_t taskId, int64_t sessionId, int32_t tsSlotId, void** ppCache) {
   SSlidingTaskDSMgr* pSlidingTaskDSMgr = taosMemCalloc(1, sizeof(SSlidingTaskDSMgr));
   if (pSlidingTaskDSMgr == NULL) {
     return terrno;
@@ -224,6 +224,7 @@ static int32_t createSlidingTaskMgr(int64_t streamId, int64_t taskId, int32_t ts
   pSlidingTaskDSMgr->cleanMode = DATA_CLEAN_EXPIRED;
   pSlidingTaskDSMgr->streamId = streamId;
   pSlidingTaskDSMgr->taskId = taskId;
+  pSlidingTaskDSMgr->sessionId = sessionId;
   pSlidingTaskDSMgr->tsSlotId = tsSlotId;
   pSlidingTaskDSMgr->capacity = gDSFileBlockDefaultSize;
   pSlidingTaskDSMgr->pFileMgr = NULL;
@@ -248,14 +249,14 @@ int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
   }
   *ppCache = NULL;
   char key[64] = {0};
-  snprintf(key, sizeof(key), "%" PRId64 "_%" PRId64, streamId, taskId);
+  snprintf(key, sizeof(key), "%" PRId64 "_%" PRId64 "_%"PRId64, streamId, taskId, sessionId);
 
   void** ppStreamTaskDSManager = (void**)taosHashGet(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
   if (ppStreamTaskDSManager == NULL) {
     if (cleanMode == DATA_CLEAN_IMMEDIATE) {
-      code = createAlignTaskMgr(streamId, taskId, tsSlotId, ppCache);
+      code = createAlignTaskMgr(streamId, taskId, sessionId, tsSlotId, ppCache);
     } else {
-      code = createSlidingTaskMgr(streamId, taskId, tsSlotId, ppCache);
+      code = createSlidingTaskMgr(streamId, taskId, sessionId, tsSlotId, ppCache);
     }
     if (code != 0) {
       stError("failed to create stream task data sink manager, cleanMode:%d, err: %s", cleanMode, terrMsg);
@@ -281,13 +282,29 @@ void destroyStreamDataCache(void* pCache) {
   if (pCache == NULL) {
     return;
   }
-  SSlidingTaskDSMgr* pStreamDataSink = (SSlidingTaskDSMgr*)pCache;
-  char               key[64] = {0};
-  snprintf(key, sizeof(key), "%" PRId64 "_%" PRId64, pStreamDataSink->streamId, pStreamDataSink->taskId);
-  SSlidingTaskDSMgr** ppStreamTaskDSManager =
-      (SSlidingTaskDSMgr**)taosHashGet(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
-  if (ppStreamTaskDSManager != NULL) {
-    taosHashRemove(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
+  if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_IMMEDIATE) {
+    SAlignTaskDSMgr* pStreamDataSink = (SAlignTaskDSMgr*)pCache;
+    char             key[64] = {0};
+    snprintf(key, sizeof(key), "%" PRId64 "_%" PRId64 "_%" PRId64, pStreamDataSink->streamId, pStreamDataSink->taskId,
+             pStreamDataSink->sessionId);
+    SAlignTaskDSMgr** ppStreamTaskDSManager =
+        (SAlignTaskDSMgr**)taosHashGet(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
+    if (ppStreamTaskDSManager != NULL) {
+      taosHashRemove(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
+    }
+    destroyAlignTaskDSMgr(ppStreamTaskDSManager);
+  } else if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_EXPIRED) {
+    SSlidingTaskDSMgr* pStreamDataSink = (SSlidingTaskDSMgr*)pCache;
+    char               key[64] = {0};
+    snprintf(key, sizeof(key), "%" PRId64 "_%" PRId64 "_%" PRId64, pStreamDataSink->streamId, pStreamDataSink->taskId,
+             pStreamDataSink->sessionId);
+    SSlidingTaskDSMgr** ppStreamTaskDSManager =
+        (SSlidingTaskDSMgr**)taosHashGet(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
+    if (ppStreamTaskDSManager != NULL) {
+      taosHashRemove(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
+    }
+  } else {
+    stError("invalid clean mode: %d", getCleanModeFromDSMgr(pCache));
   }
 }
 
@@ -745,7 +762,7 @@ void useMemSizeSub(int64_t size) { atomic_fetch_sub_64(&g_pDataSinkManager.usedM
 
 bool hasEnoughMemSize() {
   int64_t usedMemSize = atomic_load_64(&g_pDataSinkManager.usedMemSize);
-  return (usedMemSize < g_pDataSinkManager.maxMemSize - gMemReservedSize);
+  return (usedMemSize < gDSMaxMemSizeDefault - gMemReservedSize);
 }
 
 int32_t moveMemCache() {
@@ -753,7 +770,7 @@ int32_t moveMemCache() {
     return TSDB_CODE_SUCCESS;
   }
   stInfo("moveMemCache started, used mem size: %" PRId64 ", max mem size: %" PRId64, g_pDataSinkManager.usedMemSize,
-         g_pDataSinkManager.maxMemSize);
+         gDSMaxMemSizeDefault);
 
   STaskDSMgr** ppTaskMgr = taosHashIterate(g_pDataSinkManager.dsStreamTaskList, NULL);
   while (ppTaskMgr != NULL) {
@@ -778,12 +795,52 @@ int32_t moveMemCache() {
     taosHashCancelIterate(g_pDataSinkManager.dsStreamTaskList, ppTaskMgr);
   }
   stInfo("moveMemCache finished, used mem size: %" PRId64 ", max mem size: %" PRId64, g_pDataSinkManager.usedMemSize,
-         g_pDataSinkManager.maxMemSize);
+         gDSMaxMemSizeDefault);
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t enableSlidingGrpMemList() {
+  if (!g_slidigGrpMemList.enabled) {
+    g_slidigGrpMemList.enabled = true;
+    static int8_t slidingGrpMemListInit = 0;
+    int8_t        init = atomic_val_compare_exchange_8(&slidingGrpMemListInit, 0, 1);
+    if (init != 0) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    if (g_slidigGrpMemList.pSlidingGrpList == NULL) {
+      g_slidigGrpMemList.pSlidingGrpList =
+          taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+      if (g_slidigGrpMemList.pSlidingGrpList == NULL) {
+        stError("failed to create sliding group mem list, err: %s", terrMsg);
+        return terrno;
+      }
+    }
+    stInfo("enableSlidingGrpMemList, sliding group mem list set enabled");
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static void disableSlidingGrpMemList() {
+  if (g_slidigGrpMemList.enabled) {
+    g_slidigGrpMemList.enabled = false;
+    if (g_slidigGrpMemList.pSlidingGrpList) {
+      taosHashClear(g_slidigGrpMemList.pSlidingGrpList);
+    }
+    stInfo("disableSlidingGrpMemList, sliding group mem list set disabled");
+  }
+}
+
 int32_t checkAndMoveMemCache(bool forWrite) {
-  if ((forWrite && g_pDataSinkManager.usedMemSize < g_pDataSinkManager.maxMemSize - gMemReservedSizeForWrite) ||
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (!g_slidigGrpMemList.enabled && g_pDataSinkManager.usedMemSize > gDSMaxMemSizeDefault - gMemAlertSize) {
+    return enableSlidingGrpMemList();
+  } else if (g_slidigGrpMemList.enabled && g_pDataSinkManager.usedMemSize < gDSMaxMemSizeDefault - gMemAlertQuitSize) {
+    disableSlidingGrpMemList();
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if ((forWrite && g_pDataSinkManager.usedMemSize < gDSMaxMemSizeDefault - gMemReservedSizeForWrite) ||
       (!forWrite && hasEnoughMemSize())) {
     return TSDB_CODE_SUCCESS;
   }
@@ -791,7 +848,7 @@ int32_t checkAndMoveMemCache(bool forWrite) {
     return moveMemCache();
   } else {
     stDebug("checkAndReleaseBuffer, used mem size: %" PRId64 ", max mem size: %" PRId64 ", for write: %d",
-            g_pDataSinkManager.usedMemSize, g_pDataSinkManager.maxMemSize, forWrite);
+            g_pDataSinkManager.usedMemSize, gDSMaxMemSizeDefault, forWrite);
   }
   return TSDB_CODE_SUCCESS;
 }

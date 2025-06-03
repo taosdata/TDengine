@@ -3070,28 +3070,42 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
-  if (pTask->pRealtimeCtx == NULL) {
-    pTask->pRealtimeCtx = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeContext));
-    QUERY_CHECK_NULL(pTask->pRealtimeCtx, code, lino, _end, terrno);
-    code = strtcInit(pTask->pRealtimeCtx, pTask);
-    QUERY_CHECK_CODE(code, lino, _end);
+  switch (pMsg->msgType) {
+    case STREAM_MSG_START: {
+      if (pTask->pRealtimeCtx == NULL) {
+        pTask->pRealtimeCtx = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeContext));
+        QUERY_CHECK_NULL(pTask->pRealtimeCtx, code, lino, _end, terrno);
+        code = strtcInit(pTask->pRealtimeCtx, pTask);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      if (pTask->pHistoryCtx == NULL) {
+        pTask->pHistoryCtx = taosMemoryCalloc(1, sizeof(SSTriggerHistoryContext));
+        QUERY_CHECK_NULL(pTask->pHistoryCtx, code, lino, _end, terrno);
+        code = sthcInit(pTask->pHistoryCtx, pTask);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      if (taosArrayGetSize(pTask->readerList) == 0) {
+        code = strtcResumeCheck(pTask->pRealtimeCtx);
+        QUERY_CHECK_CODE(code, lino, _end);
+      } else {
+        pTask->pRealtimeCtx->curReaderIdx = 0;
+        SStreamTaskAddr *pReader = taosArrayGet(pTask->readerList, 0);
+        code = strtcSendPullReq(pTask->pRealtimeCtx, STRIGGER_PULL_LAST_TS, pReader);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      pTask->task.status = STREAM_STATUS_RUNNING;
+      break;
+    }
+    case STREAM_MSG_ORIGTBL_READER_INFO: {
+      // todo(kjq): handle original table reader info
+      break;
+    }
+    default: {
+      ST_TASK_ELOG("invalid stream trigger message type %d", pMsg->msgType);
+      code = TSDB_CODE_INVALID_PARA;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
   }
-  if (pTask->pHistoryCtx == NULL) {
-    pTask->pHistoryCtx = taosMemoryCalloc(1, sizeof(SSTriggerHistoryContext));
-    QUERY_CHECK_NULL(pTask->pHistoryCtx, code, lino, _end, terrno);
-    code = sthcInit(pTask->pHistoryCtx, pTask);
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
-  if (taosArrayGetSize(pTask->readerList) == 0) {
-    code = strtcResumeCheck(pTask->pRealtimeCtx);
-    QUERY_CHECK_CODE(code, lino, _end);
-  } else {
-    pTask->pRealtimeCtx->curReaderIdx = 0;
-    SStreamTaskAddr *pReader = taosArrayGet(pTask->readerList, 0);
-    code = strtcSendPullReq(pTask->pRealtimeCtx, STRIGGER_PULL_LAST_TS, pReader);
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
-  pTask->task.status = STREAM_STATUS_RUNNING;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -3100,10 +3114,12 @@ _end:
   return code;
 }
 
-int32_t streamTriggerProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp) {
+int32_t streamTriggerProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t *pErrTaskId) {
   int32_t             code = 0;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = (SStreamTriggerTask *)pStreamTask;
+
+  *pErrTaskId = pStreamTask->taskId;
 
   if (gStreamTriggerToStop) {
     ST_TASK_DLOG("skip process stream trigger response %p with type %d since dnode is stopping", pRsp, pRsp->msgType);
