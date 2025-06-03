@@ -40,7 +40,7 @@ concurrency:
 
 jobs:
   remove_artifacts:
-    runs-on: [self-hosted, linux, x64, qa, test]
+    runs-on: [ self-hosted, linux, x64, qa, test ]
     steps:
       - name: Remove artifacts
         run: |
@@ -49,46 +49,47 @@ jobs:
 
   check:
     name: Check
-    runs-on: [self-hosted, linux, x64, app2]
+    runs-on: [ self-hosted, linux, x64, app2 ]
     steps:
       - uses: actions/checkout@v3
         with:
           clean: false
-
       - uses: rustsec/audit-check@v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Format check
         run: |
           cargo fmt --check --all
-
       - name: Typos check
         run: |
           typos --version || cargo install typos-cli
           typos src taosx-* README.md
-
       - name: Clippy check
         run: |
           cargo clippy --locked --workspace --all --tests --examples -- --no-deps -Dwarnings
 
   unit-test:
-    needs: [check]
+    needs: [ check ]
     name: Unit Test
-    runs-on: [self-hosted, linux, x64, app2]
+    runs-on: [ self-hosted, linux, x64, app2 ]
     steps:
       - uses: actions/checkout@v3
         with:
           clean: false
       - name: Unit Test
         run: |
-          cargo make test 
+          cargo make test
+      - name: upload taosx-unit-test.xml
+        uses: actions/upload-artifact@v4
+        with:
+          name: taosx-unit-test.xml
+          path: target/nextest/ci/taosx-unit-tests.xml
 
   # need install qemu support for host: apt-get install qemu binfmt-support qemu-user-static
   check-arm:
     name: Check Arm
     if: github.event.pull_request.base.ref == 'main'
-    runs-on: [self-hosted, linux, x64, app2]
+    runs-on: [ self-hosted, linux, x64, app2 ]
     steps:
       - uses: actions/checkout@v3
         with:
@@ -98,16 +99,15 @@ jobs:
           cargo make zigbuild-aarch64-taosx
 
   build_taosx:
-    needs: [check]
+    needs: [ check ]
     if: ${{ success() || ( needs.check.result == 'success' && needs.check-arm.result == 'skipped') }}
-    runs-on: [self-hosted, linux, x64, qa, test]
+    runs-on: [ self-hosted, linux, x64, qa, test ]
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
 
       - name: Build taosx
         run: |
-          source ~/.bashrc
           cargo make taosx
 
       - name: Copy files
@@ -122,16 +122,15 @@ jobs:
           rm $ARTIFACT_BASE_DIR/$DIR_PATH/taosx.tar.gz
 
   build_agent:
-    needs: [check]
+    needs: [ check ]
     if: ${{ success() || ( needs.check.result == 'success' && needs.check-arm.result == 'skipped') }}
-    runs-on: [self-hosted, linux, x64, qa, test]
+    runs-on: [ self-hosted, linux, x64, qa, test ]
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
 
       - name: Build agent
         run: |
-          source ~/.bashrc
           cargo make taosx-agent
 
       - name: Copy files
@@ -141,14 +140,13 @@ jobs:
 
   build_explorer:
     needs: remove_artifacts
-    runs-on: [self-hosted, linux, x64, qa, test]
+    runs-on: [ self-hosted, linux, x64, qa, test ]
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
 
       - name: Build explorer
         run: |
-          source ~/.bashrc
           cargo make explorer
 
       - name: Copy files
@@ -158,7 +156,7 @@ jobs:
 
   build_go:
     needs: remove_artifacts
-    runs-on: [self-hosted, linux, x64, qa, test]
+    runs-on: [ self-hosted, linux, x64, qa, test ]
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -192,7 +190,7 @@ jobs:
 
   build_java:
     needs: remove_artifacts
-    runs-on: [self-hosted, linux, x64, qa, test]
+    runs-on: [ self-hosted, linux, x64, qa, test ]
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -236,8 +234,8 @@ jobs:
           scp -r ./target/* root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/opentsdb/
 
   deploy_with_docker:
-    runs-on: [self-hosted, linux, x64, qa, test]
-    needs: [build_taosx, build_agent, build_go, build_java, build_explorer]
+    runs-on: [ self-hosted, linux, x64, qa, test ]
+    needs: [ build_taosx, build_agent, build_go, build_java, build_explorer ]
     if: ${{ always() && needs.build_taosx.result == 'success' && needs.build_agent.result == 'success' && needs.build_go.result == 'success' && needs.build_java.result == 'success' && needs.build_explorer.result == 'success'  }}
     outputs:
       CONTAINER_ID: ${{ steps.run_container.outputs.container_id }}
@@ -291,7 +289,7 @@ jobs:
           cd /data/github/TestNG_taosX/ && source setenv.sh && /root/.local/bin/poetry run python3 testng_taosx/ci_util.py ${{ steps.run_container.outputs.rpc_port }} eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIsImlhdCI6MTcyMjIzNzU5MH0.JB6VfC34jTvJmN-9juw476-SN9aw-CFw6m8oAmo73OM
 
   run_test:
-    runs-on: [self-hosted, linux, x64, qa, test]
+    runs-on: [ self-hosted, linux, x64, qa, test ]
     needs: deploy_with_docker
     if: ${{ always() && needs.deploy_with_docker.result == 'success' }}
     steps:
@@ -318,11 +316,15 @@ jobs:
           docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/taosx/tests/e2e/ && source ./setenv.sh && poetry run pytest test_function/global_setup.py::test_teardown"
 
   generate_report:
-    runs-on: [self-hosted, linux, x64, qa, test]
-    needs: [deploy_with_docker, run_test]
+    runs-on: [ self-hosted, linux, x64, qa, test ]
+    needs: [ deploy_with_docker, run_test, unit-test ]
     # if: ${{ needs.run_test.result == success() || needs.run_test.result == failure() }}
     if: always()
     steps:
+      - name: download taosx-unit-test.xml
+        uses: actions/download-artifact@v4
+        with:
+          name: taosx-unit-test.xml
       - name: allure report
         run: |
           # 报告生成
@@ -333,6 +335,7 @@ jobs:
           echo "POETRY_VERSION=$(docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c 'poetry --version')" >> $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile/environment.properties
           echo "PYTHON_VERSION=$(docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c 'python --version')" >> $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile/environment.properties
           # echo "WINDOWS_AGENT_PROCESS_ID=${{needs.deploy_with_docker.outputs.WINDOWS_AGENT_PROCESS_ID}}" >> $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile/environment.properties
+          cp taosx-unit-tests.xml $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile/
           allure generate $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile -o $COVERAGE_BASE_DIR/$DIR_PATH/allure_report/ --clean
           echo "see report at $REPORT_BASE_URL/$DIR_PATH/allure_report/"
           pass_rate=$(cd /data/github/TestNG_taosX/ && /root/.local/bin/poetry run python3 testng_taosx/ci_calculate_pass_rate.py $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile)
@@ -341,8 +344,8 @@ jobs:
           awk "BEGIN {exit ($pass_rate < 100)}"
 
   clean_up:
-    runs-on: [self-hosted, linux, x64, qa, test]
-    needs: [deploy_with_docker, run_test, generate_report]
+    runs-on: [ self-hosted, linux, x64, qa, test ]
+    needs: [ deploy_with_docker, run_test, generate_report ]
     # needs: [deploy_with_docker, run_test]
     if: ${{ always() && needs.deploy_with_docker.result == 'success' && needs.run_test.result == 'success' && needs.generate_report.result == 'success' }}
     steps:
@@ -355,8 +358,8 @@ jobs:
 
 
   feishu_report:
-    runs-on: [self-hosted, linux, x64, qa, test]
-    needs: [deploy_with_docker, run_test, generate_report, clean_up]
+    runs-on: [ self-hosted, linux, x64, qa, test ]
+    needs: [ deploy_with_docker, run_test, generate_report, clean_up ]
     if: failure()
     steps:
       - name: Send Feishu Message

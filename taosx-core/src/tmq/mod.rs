@@ -1084,9 +1084,7 @@ mod tests {
     /// ```
     #[tokio::test]
     async fn test_check_tmq_dsn_with_taos() -> anyhow::Result<()> {
-        let host = std::env::var("HOST")
-            .ok()
-            .unwrap_or(String::from("127.0.0.1"));
+        let host = std::env::var("HOST").unwrap_or(String::from("127.0.0.1"));
         let db = format!("test{}", Utc::now().timestamp());
 
         // create test database

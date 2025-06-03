@@ -210,7 +210,7 @@ const { t } = useI18n();
 const store = useStore();
 const router = useRouter();
 const { getGrantsFull } = useLicense();
-const { $IS_COMMUNITY, $IS_OEM, $INDUSTRY, $error } = inject('globalCustomProperties') as GlobalCustomProperties;
+const { $IS_COMMUNITY, $IS_TSDBLITE, $IS_OEM, $INDUSTRY, $error } = inject('globalCustomProperties') as GlobalCustomProperties;
 const usernameRef = ref<HTMLElement | null>();
 const phoneEmailRef = ref<HTMLElement | null>();
 const captchaRef = ref<HTMLElement | null>();
@@ -365,7 +365,8 @@ async function init() {
   await getClusterAndDashboardUrl();
   localStorage.setItem('supportWebsite', dataJson.supportWebsite);
   localStorage.setItem('documentWebsite', dataJson.documentWebsite);
-  if ($IS_COMMUNITY) {
+  console.log("IS_TSDBLITE", $IS_TSDBLITE);
+  if ($IS_COMMUNITY && !$IS_TSDBLITE) {
     await getIsbinding();
   }
 }
