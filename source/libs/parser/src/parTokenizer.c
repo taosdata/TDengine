@@ -369,7 +369,7 @@ static SKeyword keywordTable[] = {
     {"_TWROWNUM",            TK_TWROWNUM},
     {"_TPREV_LOCALTIME",     TK_TPREV_LOCALTIME},
     {"_TNEXT_LOCALTIME",     TK_TNEXT_LOCALTIME},
-    {"_TLOCALTIME",         TK_TLOCALTIME},
+    {"_TLOCALTIME",          TK_TLOCALTIME},
     {"_TGRPID",              TK_TGRPID},
     {"ALIVE",                TK_ALIVE},
     {"VARBINARY",            TK_VARBINARY},

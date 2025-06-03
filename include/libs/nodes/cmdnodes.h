@@ -235,14 +235,6 @@ typedef struct SColumnDefNode {
   bool      sma;
 } SColumnDefNode;
 
-typedef struct SStreamTagDefNode {
-  ENodeType type;
-  char      tagName[TSDB_COL_NAME_LEN];
-  SDataType dataType;
-  SNode*    pTagExpr;
-  SNode*    pComment;
-} SStreamTagDefNode;
-
 typedef struct SCreateTableStmt {
   ENodeType      type;
   char           dbName[TSDB_DB_NAME_LEN];

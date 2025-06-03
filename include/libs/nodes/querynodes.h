@@ -450,8 +450,17 @@ typedef struct SStreamCalcRangeNode {
   SNode*                pEnd;
 } SStreamCalcRangeNode;
 
+typedef struct SStreamTagDefNode {
+  ENodeType type;
+  char      tagName[TSDB_COL_NAME_LEN];
+  SDataType dataType;
+  SNode*    pTagExpr;
+  SNode*    pComment;
+} SStreamTagDefNode;
+
 typedef struct SPeriodWindowNode {
   ENodeType type;  // QUERY_NODE_PERIOD_WINDOW
+  SNode*    pCol;      // timestamp primary key
   SNode*    pPeroid;
   SNode*    pOffset;
 } SPeriodWindowNode;
