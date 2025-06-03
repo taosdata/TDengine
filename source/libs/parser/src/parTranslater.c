@@ -6979,6 +6979,113 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
   return TSDB_CODE_SUCCESS;
 }
 
+// checrk left time is greater than right time
+static int32_t checkTimeGreater(SValueNode* pLeftTime, SValueNode* pRightTime, uint8_t precision, bool greateEqual) {
+  bool needConvert = IS_CALENDAR_TIME_DURATION(pLeftTime->unit) || IS_CALENDAR_TIME_DURATION(pRightTime->unit);
+  if (needConvert) {
+    double  leftMonth = 0, rightMonth = 0;
+    PAR_ERR_RET(getMonthsFromTimeVal(pLeftTime->datum.i, precision, pLeftTime->unit, &leftMonth));
+    PAR_ERR_RET(getMonthsFromTimeVal(pRightTime->datum.i, precision, pRightTime->unit, &rightMonth));
+    if (greateEqual) {
+      if (leftMonth < rightMonth) {
+        PAR_ERR_RET(TSDB_CODE_FAILED);
+      }
+    } else {
+      if (leftMonth <= rightMonth) {
+        PAR_ERR_RET(TSDB_CODE_FAILED);
+      }
+    }
+  } else {
+    if (greateEqual) {
+      if (pLeftTime->datum.i < pRightTime->datum.i) {
+        PAR_ERR_RET(TSDB_CODE_FAILED);
+      }
+    } else {
+      if (pLeftTime->datum.i <= pRightTime->datum.i) {
+        PAR_ERR_RET(TSDB_CODE_FAILED);
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t checkStreamIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode* pInterval) {
+  uint8_t     precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
+  SValueNode* pInter = (SValueNode*)pInterval->pInterval;
+  SValueNode* pOffset = (SValueNode*)pInterval->pOffset;
+  SValueNode* pSliding = (SValueNode*)pInterval->pSliding;
+  SValueNode* pSOffset = (SValueNode*)pInterval->pSOffset;
+
+  if (pInter) {
+    bool        valInter = IS_CALENDAR_TIME_DURATION(pInter->unit);
+    if (pInter->datum.i <= 0 || (!valInter && pInter->datum.i < tsMinIntervalTime)) {
+      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL, tsMinIntervalTime,
+                                       getPrecisionStr(precision)));
+    } else if (pInter->datum.i / getPrecisionMultiple(precision) > tsdbMaxKeepMS) {
+      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_BIG, 1000, "years"));
+    }
+  }
+
+  if (pOffset) {
+    if(!pInter) {
+      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PLAN_INTERNAL_ERROR, "Offset without interval"));
+    }
+
+    if (pOffset->datum.i < 0) {
+      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_NEGATIVE));
+    }
+
+    if (pInter->unit == 'n' && pOffset->unit == 'y') {
+      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_UNIT));
+    }
+
+    if (checkTimeGreater(pInter, pOffset, precision, false) != TSDB_CODE_SUCCESS) {
+      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG));
+    }
+  }
+
+  if (pSliding) {
+    const static int32_t INTERVAL_SLIDING_FACTOR = 100;
+    if (IS_CALENDAR_TIME_DURATION(pSliding->unit)) {
+      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_UNIT));
+    }
+
+    if (pSliding->datum.i < tsMinSlidingTime ||
+        (pInter && (pInter->datum.i / pSliding->datum.i > INTERVAL_SLIDING_FACTOR))) {
+      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_TOO_SMALL));
+    }
+
+    if (pInter && checkTimeGreater(pInter, pSliding, precision, true) != TSDB_CODE_SUCCESS) {
+      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_TOO_BIG));
+    }
+  } else {
+    PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Sliding window is required for stream query"));
+  }
+
+  if (pSOffset) {
+    if (!pSliding) {
+      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PLAN_INTERNAL_ERROR, "Sliding offset without sliding"));
+    }
+
+    if (pSOffset->datum.i < 0) {
+      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_NEGATIVE));
+    }
+
+    if (pSOffset->unit != 'a' && pSOffset->unit != 's' &&
+        pSOffset->unit != 'm' && pSOffset->unit != 'h') {
+      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_UNIT));
+    }
+
+    if (checkTimeGreater(pSliding, pSOffset, precision, false) != TSDB_CODE_SUCCESS) {
+      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG));
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 void tryCalcIntervalAutoOffset(SIntervalWindowNode *pInterval) {
   SValueNode* pOffset = (SValueNode*)pInterval->pOffset;
   uint8_t     precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
@@ -7032,6 +7139,47 @@ static int32_t translateIntervalWindow(STranslateContext* pCxt, SSelectStmt* pSe
   return code;
 }
 
+static const int64_t periodLowerBound = 10;
+static const int64_t periodUpperBound = (int64_t) 3650 * 24 * 60 * 60 * 1000; // 10 years in milliseconds
+
+static int32_t checkPeriodWindow(STranslateContext* pCxt, SPeriodWindowNode* pPeriod) {
+  uint8_t     precision = ((SColumnNode*)pPeriod->pCol)->node.resType.precision;
+  SValueNode* pPer = (SValueNode*)pPeriod->pPeroid;
+  SValueNode* pOffset = (SValueNode*)pPeriod->pOffset;
+
+  if (pPer) {
+    if (pPer->unit != 'a' && pPer->unit != 's' &&
+        pPer->unit != 'm' && pPer->unit != 'h' && pPer->unit != 'd') {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT, "period window get invalid time uni");
+    }
+    if (pPer->datum.i / getPrecisionMultiple(precision) < periodLowerBound ||
+        pPer->datum.i / getPrecisionMultiple(precision) > periodUpperBound) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT, "period window get invalid time range");
+    }
+  }
+
+  if (pOffset) {
+    if(!pPer) {
+      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PLAN_INTERNAL_ERROR, "Offset without period"));
+    }
+
+    if (pOffset->datum.i < 0) {
+      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_NEGATIVE));
+    }
+
+    if (pOffset->unit != 'a' && pOffset->unit != 's' &&
+        pOffset->unit != 'm' && pOffset->unit != 'h') {
+      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_UNIT));
+    }
+
+    if (checkTimeGreater(pPer, pOffset, precision, false) != TSDB_CODE_SUCCESS) {
+      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG));
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t checkStateExpr(STranslateContext* pCxt, SNode* pNode) {
   int32_t type = ((SExprNode*)pNode)->resType.type;
   if (!IS_INTEGER_TYPE(type) && type != TSDB_DATA_TYPE_BOOL && !IS_VAR_DATA_TYPE(type)) {
@@ -7059,6 +7207,12 @@ static int32_t checkTrueForLimit(STranslateContext *pCxt, SNode *pNode) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t checkStateWindow(STranslateContext* pCxt, SStateWindowNode* pState) {
+  PAR_ERR_RET(checkStateExpr(pCxt, pState->pExpr));
+  PAR_ERR_RET(checkTrueForLimit(pCxt, pState->pTrueForLimit));
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateStateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
       !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
@@ -7066,12 +7220,17 @@ static int32_t translateStateWindow(STranslateContext* pCxt, SSelectStmt* pSelec
                                    "STATE_WINDOW requires valid time series input");
   }
 
-  SStateWindowNode* pState = (SStateWindowNode*)pSelect->pWindow;
-  int32_t           code = checkStateExpr(pCxt, pState->pExpr);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = checkTrueForLimit(pCxt, pState->pTrueForLimit);
+  return checkStateWindow(pCxt, (SStateWindowNode*)pSelect->pWindow);
+}
+
+static int32_t checkSessionWindow(STranslateContext* pCxt, SSessionWindowNode* pSession) {
+  if ('y' == pSession->pGap->unit || 'n' == pSession->pGap->unit || 0 == pSession->pGap->datum.i) {
+    PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SESSION_GAP));
   }
-  return code;
+  if (!isPrimaryKeyImpl((SNode*)pSession->pCol)) {
+    PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SESSION_COL));
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateSessionWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
@@ -7081,14 +7240,51 @@ static int32_t translateSessionWindow(STranslateContext* pCxt, SSelectStmt* pSel
                                    "SESSION requires valid time series input");
   }
 
-  SSessionWindowNode* pSession = (SSessionWindowNode*)pSelect->pWindow;
-  if ('y' == pSession->pGap->unit || 'n' == pSession->pGap->unit || 0 == pSession->pGap->datum.i) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SESSION_GAP);
+  return checkSessionWindow(pCxt, (SSessionWindowNode*)pSelect->pWindow);
+}
+
+static EDealRes collectWindowsPseudocolumns(SNode* pNode, void* pContext) {
+  SCollectWindowsPseudocolumnsContext* pCtx = pContext;
+  SNodeList*                           pCols = pCtx->pCols;
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (FUNCTION_TYPE_WSTART == pFunc->funcType || FUNCTION_TYPE_WEND == pFunc->funcType ||
+        FUNCTION_TYPE_WDURATION == pFunc->funcType) {
+      SNode* pClonedNode = NULL;
+      if (TSDB_CODE_SUCCESS != (pCtx->code = nodesCloneNode(pNode, &pClonedNode))) return DEAL_RES_ERROR;
+      if (TSDB_CODE_SUCCESS != (pCtx->code = nodesListStrictAppend(pCols, pClonedNode))) {
+        return DEAL_RES_ERROR;
+      }
+    }
   }
-  if (!isPrimaryKeyImpl((SNode*)pSession->pCol)) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SESSION_COL);
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t checkWindowsConditonValid(SEventWindowNode* pEventWindowNode) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  SNodeList*  pCols = NULL;
+
+  PAR_ERR_JRET(nodesMakeList(&pCols));
+
+  SCollectWindowsPseudocolumnsContext ctx = {.code = 0, .pCols = pCols};
+  nodesWalkExpr(pEventWindowNode->pStartCond, collectWindowsPseudocolumns, &ctx);
+  if (TSDB_CODE_SUCCESS == ctx.code && pCols->length > 0) {
+    PAR_ERR_JRET(TSDB_CODE_QRY_INVALID_WINDOW_CONDITION);
   }
-  return TSDB_CODE_SUCCESS;
+
+  nodesWalkExpr(pEventWindowNode->pEndCond, collectWindowsPseudocolumns, &ctx);
+  if (TSDB_CODE_SUCCESS == ctx.code && pCols->length > 0) {
+    PAR_ERR_JRET(TSDB_CODE_QRY_INVALID_WINDOW_CONDITION);
+  }
+
+_return:
+  nodesDestroyList(pCols);
+  return code;
+}
+
+static int32_t checkEventWindow(STranslateContext* pCxt, SEventWindowNode* pEvent) {
+  PAR_ERR_RET(checkTrueForLimit(pCxt, pEvent->pTrueForLimit));
+  PAR_RET(checkWindowsConditonValid(pEvent));
 }
 
 static int32_t translateEventWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
@@ -7097,36 +7293,39 @@ static int32_t translateEventWindow(STranslateContext* pCxt, SSelectStmt* pSelec
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
                                    "EVENT_WINDOW requires valid time series input");
   }
-  return checkTrueForLimit(pCxt, ((SEventWindowNode*)pSelect->pWindow)->pTrueForLimit);
+  return checkEventWindow(pCxt, (SEventWindowNode*)pSelect->pWindow);
 }
 
-static int32_t translateCountWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  SCountWindowNode* pCountWin = (SCountWindowNode*)pSelect->pWindow;
+static int32_t checkCountWindow(STranslateContext* pCxt, SCountWindowNode* pCountWin) {
   if (pCountWin->windowCount <= 1) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                   "Size of Count window must exceed 1.");
+    PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                        "Size of Count window must exceed 1."));
   }
 
   if (pCountWin->windowSliding <= 0) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                   "Size of Count window must exceed 0.");
+    PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                        "Size of Count window must exceed 0."));
   }
 
   if (pCountWin->windowSliding > pCountWin->windowCount) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                   "sliding value no larger than the count value.");
+    PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                        "sliding value no larger than the count value."));
   }
 
   if (pCountWin->windowCount > INT32_MAX) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                   "Size of Count window must less than 2147483647(INT32_MAX).");
+    PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                        "Size of Count window must less than 2147483647(INT32_MAX)."));
   }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateCountWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
       !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
                                    "COUNT_WINDOW requires valid time series input");
   }
-  return TSDB_CODE_SUCCESS;
+  return checkCountWindow(pCxt, (SCountWindowNode*)pSelect->pWindow);
 }
 
 static int32_t checkAnomalyExpr(STranslateContext* pCxt, SNode* pNode) {
@@ -7193,49 +7392,6 @@ static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSe
   return TSDB_CODE_SUCCESS;
 }
 
-static EDealRes collectWindowsPseudocolumns(SNode* pNode, void* pContext) {
-  SCollectWindowsPseudocolumnsContext* pCtx = pContext;
-  SNodeList*                           pCols = pCtx->pCols;
-  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
-    SFunctionNode* pFunc = (SFunctionNode*)pNode;
-    if (FUNCTION_TYPE_WSTART == pFunc->funcType || FUNCTION_TYPE_WEND == pFunc->funcType ||
-        FUNCTION_TYPE_WDURATION == pFunc->funcType) {
-      SNode* pClonedNode = NULL;
-      if (TSDB_CODE_SUCCESS != (pCtx->code = nodesCloneNode(pNode, &pClonedNode))) return DEAL_RES_ERROR;
-      if (TSDB_CODE_SUCCESS != (pCtx->code = nodesListStrictAppend(pCols, pClonedNode))) {
-        return DEAL_RES_ERROR;
-      }
-    }
-  }
-  return DEAL_RES_CONTINUE;
-}
-
-static int32_t checkWindowsConditonValid(SNode* pNode) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (QUERY_NODE_EVENT_WINDOW != nodeType(pNode)) return code;
-
-  SEventWindowNode* pEventWindowNode = (SEventWindowNode*)pNode;
-  SNodeList*        pCols = NULL;
-  code = nodesMakeList(&pCols);
-  if (NULL == pCols) {
-    return code;
-  }
-  SCollectWindowsPseudocolumnsContext ctx = {.code = 0, .pCols = pCols};
-  nodesWalkExpr(pEventWindowNode->pStartCond, collectWindowsPseudocolumns, &ctx);
-  if (TSDB_CODE_SUCCESS == ctx.code && pCols->length > 0) {
-    code = TSDB_CODE_QRY_INVALID_WINDOW_CONDITION;
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    nodesWalkExpr(pEventWindowNode->pEndCond, collectWindowsPseudocolumns, &ctx);
-    if (TSDB_CODE_SUCCESS == ctx.code && pCols->length > 0) {
-      code = TSDB_CODE_QRY_INVALID_WINDOW_CONDITION;
-    }
-  }
-
-  nodesDestroyList(pCols);
-  return code;
-}
-
 static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL == pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
@@ -7277,9 +7433,6 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   code = translateExpr(pCxt, &pSelect->pWindow);
   if (TSDB_CODE_SUCCESS == code) {
     code = translateSpecificWindow(pCxt, pSelect);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = checkWindowsConditonValid(pSelect->pWindow);
   }
   return code;
 }
@@ -12538,14 +12691,11 @@ static bool crossTableWithUdaf(SSelectStmt* pSelect) {
 }
 
 static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
-  if (NULL == pStmt->pQuery) {
-    return TSDB_CODE_SUCCESS;
-  }
   SStreamTriggerNode*    pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
   SStreamTriggerOptions* pTriggerOptions = (SStreamTriggerOptions*)pTrigger->pOptions;
 
   // TODO(smj) : proper error code
-  if (QUERY_NODE_SELECT_STMT != nodeType(pStmt->pQuery)) {
+  if (pStmt->pQuery && QUERY_NODE_SELECT_STMT != nodeType(pStmt->pQuery)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
   }
 
@@ -12570,12 +12720,11 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
     }
   }
 
-  if (pStmt->pCols) {
-    if (LIST_LENGTH(pStmt->pCols) < TSDB_MIN_COLUMNS) {
-      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "The number of columns in stream output must be greater than 1"));
-    }
-    if (LIST_LENGTH(pStmt->pCols) != LIST_LENGTH(((SSelectStmt*)pStmt->pQuery)->pProjectionList)) {
-      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "The number of columns in stream output must match the number of query"));
+  if (pStmt->pQuery == NULL) {
+    if (strlen(pStmt->targetDbName) == 0 && strlen(pStmt->targetTabName) == 0 && pStmt->pCols == NULL && pStmt->pTags == NULL) {
+      // a stream with no query, no out table, no columns and no tags, which is valid
+    } else {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Can not specify out table when no query in stream");
     }
   }
 
@@ -12932,7 +13081,14 @@ static int32_t createStreamReqBuildStreamTagExprStr(STranslateContext* pCxt, SNo
     SStreamTagDefNode* pTag = (SStreamTagDefNode*)pNode;
     if (pTag->pTagExpr) {
       PAR_ERR_JRET(translateCreateStreamTagSubtableExpr(pCxt, pPartitionByList, &pTag->pTagExpr));
-      // TODO(smj) : check tag expr's type
+      SExprNode* pTagExpr = (SExprNode*)pTag->pTagExpr;
+      if (pTagExpr->resType.type != pTag->dataType.type ||
+          pTagExpr->resType.precision != pTag->dataType.precision ||
+          pTagExpr->resType.scale != pTag->dataType.scale) {
+        PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                    "Tag data type does not match tag expression data type: %s, %d", pTag->tagName,
+                    pTagExpr->resType.type));
+      }
       PAR_ERR_JRET(createStreamSetNodeSlotId(pTag->pTagExpr, pTriggerSlotHash, NULL));
       PAR_ERR_JRET(nodesListMakeAppend(&pExprList, pTag->pTagExpr));
     } else {
@@ -13237,6 +13393,7 @@ static int8_t createStreamReqWindowGetUnit(SNode* pVal) {
 
 static int32_t createStreamReqBuildTriggerSessionWindow(STranslateContext* pCxt, SSessionWindowNode* pTriggerWindow, SCMCreateStreamReq* pReq, STableMeta *pMeta) {
   pReq->triggerType = WINDOW_TYPE_SESSION;
+  PAR_ERR_RET(checkSessionWindow(pCxt, pTriggerWindow));
   pReq->trigger.session.slotId = pTriggerWindow->pCol->slotId;
   pReq->trigger.session.sessionVal = createStreamReqWindowGetBigInt((SNode*)pTriggerWindow->pGap);
   return TSDB_CODE_SUCCESS;
@@ -13244,7 +13401,8 @@ static int32_t createStreamReqBuildTriggerSessionWindow(STranslateContext* pCxt,
 
 static int32_t createStreamReqBuildTriggerIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode* pTriggerWindow, SCMCreateStreamReq* pReq) {
   pReq->triggerType = WINDOW_TYPE_INTERVAL;
-  //pReq->trigger.sliding.precision = trigger table's precision;
+  PAR_ERR_RET(checkStreamIntervalWindow(pCxt, pTriggerWindow));
+  pReq->trigger.sliding.precision = ((SColumnNode*)pTriggerWindow->pCol)->node.resType.precision;
   pReq->trigger.sliding.intervalUnit = createStreamReqWindowGetUnit(pTriggerWindow->pInterval);
   pReq->trigger.sliding.offsetUnit = createStreamReqWindowGetUnit(pTriggerWindow->pOffset);
   pReq->trigger.sliding.slidingUnit = createStreamReqWindowGetUnit(pTriggerWindow->pSliding);
@@ -13258,6 +13416,7 @@ static int32_t createStreamReqBuildTriggerIntervalWindow(STranslateContext* pCxt
 
 static int32_t createStreamReqBuildTriggerEventWindow(STranslateContext* pCxt, SEventWindowNode* pTriggerWindow, SCMCreateStreamReq* pReq) {
   pReq->triggerType = WINDOW_TYPE_EVENT;
+  PAR_ERR_RET(checkEventWindow(pCxt, pTriggerWindow));
   PAR_ERR_RET(nodesNodeToString(pTriggerWindow->pStartCond, false, (char**)&pReq->trigger.event.startCond, NULL));
   PAR_ERR_RET(nodesNodeToString(pTriggerWindow->pEndCond, false, (char**)&pReq->trigger.event.endCond, NULL));
   pReq->trigger.event.trueForDuration = createStreamReqWindowGetBigInt(pTriggerWindow->pTrueForLimit);
@@ -13266,16 +13425,18 @@ static int32_t createStreamReqBuildTriggerEventWindow(STranslateContext* pCxt, S
 
 static int32_t createStreamReqBuildTriggerPeriodWindow(STranslateContext* pCxt, SPeriodWindowNode* pTriggerWindow, SCMCreateStreamReq* pReq) {
   pReq->triggerType = WINDOW_TYPE_PERIOD;
+  PAR_ERR_RET(checkPeriodWindow(pCxt, pTriggerWindow));
   pReq->trigger.period.period = createStreamReqWindowGetBigInt(pTriggerWindow->pPeroid);
   pReq->trigger.period.offset = createStreamReqWindowGetBigInt(pTriggerWindow->pOffset);
   pReq->trigger.period.periodUnit = createStreamReqWindowGetUnit(pTriggerWindow->pPeroid);
   pReq->trigger.period.offsetUnit = createStreamReqWindowGetUnit(pTriggerWindow->pOffset);
-  //pReq->trigger.period.precision = trigger table's precision;
+  pReq->trigger.period.precision = ((SColumnNode*)pTriggerWindow->pCol)->node.resType.precision;
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t createStreamReqBuildTriggerCountWindow(STranslateContext* pCxt, SCountWindowNode* pTriggerWindow, SCMCreateStreamReq* pReq) {
   pReq->triggerType = WINDOW_TYPE_COUNT;
+  PAR_ERR_RET(checkCountWindow(pCxt, pTriggerWindow));
   pReq->trigger.count.sliding = pTriggerWindow->windowSliding;
   pReq->trigger.count.countVal = pTriggerWindow->windowCount;
   PAR_ERR_RET(nodesNodeToString(pTriggerWindow->pCol, false, (char**)&pReq->trigger.count.condCols, NULL));
@@ -13284,6 +13445,7 @@ static int32_t createStreamReqBuildTriggerCountWindow(STranslateContext* pCxt, S
 
 static int32_t createStreamReqBuildTriggerStateWindow(STranslateContext* pCxt, SStateWindowNode* pTriggerWindow, SCMCreateStreamReq* pReq) {
   pReq->triggerType = WINDOW_TYPE_STATE;
+  PAR_ERR_RET(checkStateWindow(pCxt, pTriggerWindow));
   pReq->trigger.stateWin.slotId = ((SColumnNode*)pTriggerWindow->pExpr)->slotId;
   pReq->trigger.stateWin.trueForDuration = createStreamReqWindowGetBigInt(pTriggerWindow->pTrueForLimit);
   return TSDB_CODE_SUCCESS;
@@ -13432,7 +13594,7 @@ static int32_t createStreamReqSetDefaultOutCols(STranslateContext* pCxt, SCreate
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode = NULL;
   int32_t index = 0;
-  bool    pColExists = (pStmt->pCols != NULL);
+  bool    pColExists = false;
   int32_t bound = LIST_LENGTH(pCalcProjection);
 
   if (pStmt->pTrigger) {
@@ -13440,6 +13602,18 @@ static int32_t createStreamReqSetDefaultOutCols(STranslateContext* pCxt, SCreate
     SStreamNotifyOptions* pNotify = (SStreamNotifyOptions*)pTrigger->pNotify;
     if (pNotify && pNotify->pWhere) {
       bound--;  // ignore notify where condition in calculation projection
+    }
+  }
+
+  if (pStmt->pCols) {
+    pColExists = true;
+    if (LIST_LENGTH(pStmt->pCols) < TSDB_MIN_COLUMNS) {
+      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "The number of columns in stream output must be greater than 1"));
+    }
+    if (pStmt->pQuery) {
+      if (LIST_LENGTH(pStmt->pCols) != bound) {
+        PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "The number of columns in stream output must match the number of query"));
+      }
     }
   }
 
@@ -13765,8 +13939,25 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
     }
   }
   if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PARTITION_TBNAME)) {
-    // TODO(smj): partition must have tbname
-
+    bool   hasTbname = false;
+    SNode *pNode = NULL;
+    FOREACH(pNode, pTriggerPartition) {
+      switch (nodeType(pNode)) {
+        case QUERY_NODE_FUNCTION: {
+          SFunctionNode *pFunction = (SFunctionNode*)pNode;
+          if (pFunction->funcType == FUNCTION_TYPE_TBNAME) {
+            hasTbname = true;
+            break;
+          }
+          continue;
+        }
+        default:
+          continue;
+      }
+    }
+    if (!hasTbname) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "%%tbname can only be used when partition with tbname"));
+    }
   }
 
   pVgArray = taosArrayInit(1, sizeof(SStreamCalcScan));

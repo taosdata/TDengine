@@ -4526,7 +4526,7 @@ static int32_t jsonToPlan(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesMakeList(&pNode->pSubplans);
   }
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && pTopSubplan) {
     SNode* pGroupItem = NULL;
     FOREACH(pGroupItem, pTopSubplan->pNodeList) {
       if (nodeType(pGroupItem) == QUERY_NODE_PHYSICAL_SUBPLAN) {
@@ -5572,6 +5572,7 @@ static int32_t jsonToSlidingWindowNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkPeriodWindowTsCol = "tsCols";
 static const char* jkPeriodWindowOffset = "Offset";
 static const char* jkPeriodWindowPeriod = "Period";
 
@@ -5581,6 +5582,9 @@ static int32_t periodWindowNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkPeriodWindowOffset, nodeToJson, pNode->pOffset);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkPeriodWindowTsCol, nodeToJson, pNode->pCol);
+  }
   return code;
 }
 
@@ -5589,6 +5593,9 @@ static int32_t jsonToPeriodWindowNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToNodeObject(pJson, jkPeriodWindowPeriod, (SNode**)&pNode->pPeroid);
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkPeriodWindowOffset, (SNode**)&pNode->pOffset);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkPeriodWindowTsCol, (SNode**)&pNode->pCol);
   }
 
   return code;

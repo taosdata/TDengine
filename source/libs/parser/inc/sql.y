@@ -873,7 +873,7 @@ interval_opt(A) ::= INTERVAL NK_LP interval_sliding_duration_literal(C)
                     NK_COMMA interval_sliding_duration_literal(D) NK_RP.                                                    { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D), NULL, NULL); }
 
 sliding_expr(A) ::= interval_sliding_duration_literal(B).                                                                   { A = createSlidingWindowNode(pCxt, releaseRawExprNode(pCxt, B), NULL); }
-sliding_expr(A) ::= interval_sliding_duration_literal(B) NK_COMMA duration_literal(C) NK_RP.                                { A = createSlidingWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
+sliding_expr(A) ::= interval_sliding_duration_literal(B) NK_COMMA interval_sliding_duration_literal(C).                     { A = createSlidingWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
 
 %type sliding_val_opt                                                             { SToken }
 %destructor sliding_val_opt                                                       { }

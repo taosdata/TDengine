@@ -429,6 +429,14 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&pPeriod->pPeroid, order, rewriter, pContext);
       }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pPeriod->pCol, order, rewriter, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_STREAM_TAG_DEF: {
+      SStreamTagDefNode* pTagDef = (SStreamTagDefNode*)pNode;
+      res = rewriteExpr(&pTagDef->pTagExpr, order, rewriter, pContext);
       break;
     }
     default:

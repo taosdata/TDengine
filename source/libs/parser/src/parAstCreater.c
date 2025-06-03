@@ -1605,6 +1605,8 @@ SNode* createIntervalWindowNodeExt(SAstCreateContext* pCxt, SNode* pInter, SNode
     pCxt->errCode = nodesMakeNode(QUERY_NODE_INTERVAL_WINDOW, (SNode**)&pInterval);
     CHECK_MAKE_NODE(pInterval);
   }
+  pInterval->pCol = createPrimaryKeyCol(pCxt, NULL);
+  CHECK_MAKE_NODE(pInterval->pCol);
   pInterval->pSliding = ((SSlidingWindowNode*)pSliding)->pSlidingVal;
   pInterval->pSOffset = ((SSlidingWindowNode*)pSliding)->pOffset;
   return (SNode*)pInterval;
@@ -1644,6 +1646,8 @@ SNode* createPeriodWindowNode(SAstCreateContext* pCxt, SNode* pPeriodTime, SNode
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_PERIOD_WINDOW, (SNode**)&pPeriod);
   CHECK_MAKE_NODE(pPeriod);
+  pPeriod->pCol = createPrimaryKeyCol(pCxt, NULL);
+  CHECK_MAKE_NODE(pPeriod->pCol);
   pPeriod->pOffset = pOffset;
   pPeriod->pPeroid = pPeriodTime;
   return (SNode*)pPeriod;
