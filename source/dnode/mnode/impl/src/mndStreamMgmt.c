@@ -2717,6 +2717,10 @@ int32_t msmWatchHandleStatusUpdate(SStmGrpCtx* pCtx) {
   for (int32_t i = 0; i < num; ++i) {
     SStmTaskStatusMsg* pTask = taosArrayGet(pCtx->pReq->pStreamStatus, i);
     msttDebug("task status %s got, taskIdx:%d", gStreamStatusStr[pTask->status], pTask->taskIdx);
+
+    if (pTask->taskId >= mStreamMgmt.lastTaskId) {
+      mStreamMgmt.lastTaskId = pTask->taskId + 1;
+    }
     
     SStmTaskStatus** ppStatus = taosHashGet(mStreamMgmt.taskMap, &pTask->streamId, sizeof(pTask->streamId) + sizeof(pTask->taskId));
     if (NULL == ppStatus) {
@@ -2994,6 +2998,10 @@ int32_t msmWatchHandleEnding(SStmGrpCtx* pCtx) {
   }
 
 _exit:
+
+  mStreamMgmt.lastTaskId += 1000;
+
+  mstInfo("watch state end, new taskId begin from:%" PRIx64, mStreamMgmt.lastTaskId);
 
   msmSetInitRuntimeState(MND_STM_STATE_NORMAL);
 
@@ -3667,15 +3675,11 @@ int32_t msmInitRuntimeInfo(SMnode *pMnode) {
 
   mStreamMgmt.lastTaskId = 1;
 
-/*
   if (mStreamMgmt.activeStreamNum > 0) {
     msmSetInitRuntimeState(MND_STM_STATE_WATCH);
   } else {
     msmSetInitRuntimeState(MND_STM_STATE_NORMAL);
   }
-*/
-
-  msmSetInitRuntimeState(MND_STM_STATE_NORMAL);
 
   //taosHashSetFreeFp(mStreamMgmt.nodeMap, freeTaskList);
   //taosHashSetFreeFp(mStreamMgmt.streamMap, freeTaskList);
