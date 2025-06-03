@@ -726,7 +726,7 @@ func (gm *GeneralMetric) initColumnSeqMap() error {
     order by stable_name asc;
 	`, gm.database)
 
-	data, err := gm.conn.Query(context.Background(), query, util.GetQidOwn())
+	data, err := gm.conn.Query(context.Background(), query, util.GetQidOwn(config.Conf.InstanceID))
 
 	if err != nil {
 		return err
@@ -739,7 +739,7 @@ func (gm *GeneralMetric) initColumnSeqMap() error {
 	}
 	//set gColumnSeqMap with desc stables
 	for tableName, columnSeq := range gColumnSeqMap {
-		data, err := gm.conn.Query(context.Background(), fmt.Sprintf(`desc %s.%s;`, gm.database, tableName), util.GetQidOwn())
+		data, err := gm.conn.Query(context.Background(), fmt.Sprintf(`desc %s.%s;`, gm.database, tableName), util.GetQidOwn(config.Conf.InstanceID))
 
 		if err != nil {
 			return err
@@ -776,7 +776,7 @@ func (gm *GeneralMetric) createSTables() error {
 		"(ts timestamp, first_ep varchar(255), first_ep_dnode_id INT, cluster_version varchar(20)) " +
 		"tags (cluster_id varchar(50))"
 
-	_, err := gm.conn.Exec(context.Background(), createTableSql, util.GetQidOwn())
+	_, err := gm.conn.Exec(context.Background(), createTableSql, util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
 		return err
 	}
@@ -786,6 +786,6 @@ func (gm *GeneralMetric) createSTables() error {
 		"type TINYINT, rows_num BIGINT, sql varchar(16384), process_name varchar(32), process_id varchar(32)) " +
 		"tags (db varchar(1024), `user` varchar(32), ip varchar(32), cluster_id varchar(32))"
 
-	_, err = gm.conn.Exec(context.Background(), createTableSql, util.GetQidOwn())
+	_, err = gm.conn.Exec(context.Background(), createTableSql, util.GetQidOwn(config.Conf.InstanceID))
 	return err
 }
