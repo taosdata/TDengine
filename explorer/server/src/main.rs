@@ -936,13 +936,16 @@ async fn proxy(
 
         // Forward the request.
         let mut builder = client.get(url);
-        if append_headers.is_some() {
-            builder = builder.headers(append_headers.unwrap());
+        if let Some(headers) = append_headers {
+            builder = builder.headers(headers);
         }
 
         let builder = real_ip_forward(&req, builder);
 
-        let target_response = builder.send().await.unwrap();
+        let target_response = builder
+            .send()
+            .await
+            .map_err(error::ErrorInternalServerError)?;
 
         // Make sure the server is willing to accept the websocket.
         let status = target_response.status().as_u16();
@@ -999,8 +1002,8 @@ async fn proxy(
             .request(req.method().clone(), url)
             .timeout(Duration::from_secs(u64::MAX))
             .body(reqwest::Body::wrap_stream(UnboundedReceiverStream::new(rx)));
-        if append_headers.is_some() {
-            builder = builder.headers(append_headers.unwrap());
+        if let Some(headers) = append_headers {
+            builder = builder.headers(headers);
         }
         builder = real_ip_forward(&req, builder);
         builder

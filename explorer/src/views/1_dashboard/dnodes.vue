@@ -238,10 +238,16 @@ async function loadDnodes() {
 
 }
 
+function tryLoadDNodes() {
+  return loadDnodes().catch(error => {
+    console.error(error);
+    ElMessage.error("Load dnodes error:", error.desc || error);
+  });
+}
 
-loadDnodes();
+tryLoadDNodes();
 let timer: any = setInterval(() => {
-  loadDnodes();
+  tryLoadDNodes();
 }, 30000);
 
 onUnmounted(() => {

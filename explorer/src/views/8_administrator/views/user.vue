@@ -232,6 +232,7 @@ async function getUserData() {
   } catch (error) {
     loading.value = false;
     console.log(error);
+    ElMessage.error("Get user error:", error);
   }
 }
 

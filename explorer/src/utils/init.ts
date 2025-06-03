@@ -3,9 +3,10 @@ import { clearLoginStateWhenReopen } from '@/utils/token';
 import { setLocale, setExecuteSqlFn, setGetDbListFn } from 'taos-ui/config';
 import { sendSQLReq } from '@/api/explorer';
 import { getDBListReq } from '@/api/database';
-export const $IS_COMMUNITY = (import.meta.env.VITE_APP_COMMUNITY && import.meta.env.VITE_APP_COMMUNITY === "community") ? true : false;
+export const $IS_TSDBLITE = import.meta.env.VITE_APP_CUS_NAME && import.meta.env.VITE_APP_CUS_NAME === "TDengine TSDB-Lite";
+export const $IS_COMMUNITY = (import.meta.env.VITE_APP_COMMUNITY && import.meta.env.VITE_APP_COMMUNITY === "community" || $IS_TSDBLITE) ? true : false;
 export const $INDUSTRY = import.meta.env.VITE_APP_INDUSTRY
-export const $IS_OEM = import.meta.env.VITE_APP_CUS_NAME && import.meta.env.VITE_APP_CUS_NAME !== "TDengine"
+export const $IS_OEM = !$IS_TSDBLITE && import.meta.env.VITE_APP_CUS_NAME && import.meta.env.VITE_APP_CUS_NAME !== "TDengine"
 export const OEM_NAME =
   import.meta.env.VITE_APP_CUS_NAME && import.meta.env.VITE_APP_CUS_NAME !== "TDengine"
     ? import.meta.env.VITE_APP_CUS_NAME
