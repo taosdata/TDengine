@@ -21,10 +21,20 @@
 #include "taoserror.h"
 #include "tmisce.h"
 
-void mstWaitRLock(SRWLatch* pLock) {
-  while (taosRTryLockLatch(pLock)) {
+bool mstWaitLock(SRWLatch* pLock, bool readLock) {
+  if (readLock) {
+    while (taosRTryLockLatch(pLock)) {
+      taosMsleep(1);
+    }
+
+    return true;
+  }
+
+  while (taosWTryLockLatch(pLock)) {
     taosMsleep(1);
   }
+
+  return true;
 }
 
 void mndStreamDestroySStreamMgmtRsp(SStreamMgmtRsp* p) {

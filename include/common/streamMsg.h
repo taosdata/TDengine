@@ -409,8 +409,8 @@ typedef struct SStreamHbMsg {
   int32_t snodeId;
   int32_t runnerThreadNum;
   SArray* pVgLeaders;     // SArray<int32_t>
-  SArray* pStreamStatus;  // SArray<SStmTaskStatusMsg>
-  SArray* pStreamReq;     // SArray<int32_t>, task index in pStreamStatus
+  SArray* pStreamStatus;  // SArray<SStmTaskStatusMsg>, not including req
+  SArray* pStreamReq;     // SArray<SStmTaskStatusMsg>, including req
 } SStreamHbMsg;
 
 int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq);

@@ -463,7 +463,7 @@ void msmHandleBecomeLeader(SMnode *pMnode);
 void msmHandleBecomeNotLeader(SMnode *pMnode);
 int32_t msmUndeployStream(SMnode* pMnode, int64_t streamId, char* streamName);
 int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped);
-void mstWaitRLock(SRWLatch* pLock);
+bool mstWaitLock(SRWLatch* pLock, bool readLock);
 void msmHealthCheck(SMnode *pMnode);
 void mndStreamPostAction(SStmActionQ*       actionQ, int64_t streamId, char* streamName, int32_t action);
 void mndStreamPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pAction, int32_t action);

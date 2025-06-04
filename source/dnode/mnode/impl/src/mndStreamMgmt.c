@@ -2800,7 +2800,7 @@ void msmRspAddStreamStart(int64_t streamId, SStmGrpCtx* pCtx, int32_t streamNum,
   }
 
   SStmTaskId* pId = &pAction->start.triggerId;
-  SStreamTaskStart start;
+  SStreamTaskStart start = {0};
   start.task.type = STREAM_TRIGGER_TASK;
   start.task.streamId = streamId;
   start.task.taskId = pId->taskId;
@@ -3213,13 +3213,12 @@ int32_t msmNormalHandleHbMsg(SStmGrpCtx* pCtx) {
   
   if (atomic_load_64(&mStreamMgmt.actionQ->qRemainNum) > 0 && 0 == taosWTryLockLatch(&mStreamMgmt.actionQLock)) {
     code = msmHandleStreamActions(pCtx);
-    if (code) {
-      taosWUnLockLatch(&mStreamMgmt.actionQLock);
-      TAOS_CHECK_EXIT(code);
-    }
-    if (taosArrayGetSize(pReq->pStreamReq) > 0) {
-      code = msmHandleStreamRequests(pCtx);
-    }
+    taosWUnLockLatch(&mStreamMgmt.actionQLock);
+    TAOS_CHECK_EXIT(code);
+  }
+
+  if (taosArrayGetSize(pReq->pStreamReq) > 0 && mstWaitLock(&mStreamMgmt.actionQLock, false)) {
+    code = msmHandleStreamRequests(pCtx);
     taosWUnLockLatch(&mStreamMgmt.actionQLock);
     TAOS_CHECK_EXIT(code);
   }
@@ -3262,7 +3261,7 @@ int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, 
     return code;
   }
 
-  mstWaitRLock(&mStreamMgmt.runtimeLock);
+  mstWaitLock(&mStreamMgmt.runtimeLock, true);
 
   int32_t tidx = streamGetThreadIdx(mStreamMgmt.threadNum, pHb->streamGId);
   SStmGrpCtx* pCtx = &mStreamMgmt.tCtx[tidx].grpCtx[pHb->streamGId];
