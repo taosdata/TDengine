@@ -233,13 +233,15 @@ class TaosD:
                     cfg: dict = dnode["config"] if 'config' in dnode else {}
                     # cat /proc/sys/kernel/core_pattern
                     # scp coredump files to logDir/data/{fqdn}/coredump
-                    coreDir = "{}/data/{}/coredump".format(logDir, host)
-                    os.system("mkdir -p {}".format(coreDir))
-                    corePattern = self._remote.cmd(host, ["cat /proc/sys/kernel/core_pattern"])
-                    if not corePattern is None:
-                        dirName = os.path.dirname(corePattern)
-                        if dirName.startswith("/"):
-                            self._remote.get(host, dirName, coreDir)
+                    system_platform = dnode["system"] if "system" in dnode.keys() else "linux"
+                    if system_platform.lower() == "linux":
+                        coreDir = "{}/data/{}/coredump".format(logDir, host)
+                        os.system("mkdir -p {}".format(coreDir))
+                        corePattern = self._remote.cmd(host, ["cat /proc/sys/kernel/core_pattern"])
+                        if not corePattern is None:
+                            dirName = os.path.dirname(corePattern)
+                            if dirName.startswith("/"):
+                                self._remote.get(host, dirName, coreDir)
                     # default data dir & log dir
                     remoteDataDir = "/var/lib/taos"
                     remoteLogDir = "/var/log/taos"

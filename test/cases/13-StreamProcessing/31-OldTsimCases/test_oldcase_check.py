@@ -61,7 +61,7 @@ class TestStreamOldCaseCheck:
         )
         tdSql.printResult()
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from result.streamt0 order by ta;",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 1) == 1
@@ -102,7 +102,7 @@ class TestStreamOldCaseCheck:
         )
         tdSql.printResult()
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from result1.streamt1 order by ta;",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 1) == 10
@@ -185,7 +185,7 @@ class TestStreamOldCaseCheck:
         )
         tdSql.printResult()
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from result3.streamt3;",
             lambda: tdSql.getRows() == 1
             and tdSql.getData(0, 1) == 40
@@ -237,7 +237,7 @@ class TestStreamOldCaseCheck:
         )
         tdSql.printResult()
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from result4.streamt4 order by tg1;",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 1) == 10
@@ -277,7 +277,7 @@ class TestStreamOldCaseCheck:
         )
         tdSql.printResult()
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from result5.streamt5 order by tg1;",
             lambda: tdSql.getRows() == 1
             and tdSql.getData(0, 1) == None
@@ -313,7 +313,7 @@ class TestStreamOldCaseCheck:
 
         tdSql.execute(f"insert into t1 values(1648791233000,1,2,3,1.0);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt8;",
             lambda: tdSql.getRows() == 1
             and tdSql.getData(0, 1) == None
@@ -341,7 +341,7 @@ class TestStreamOldCaseCheck:
         tdSql.execute(f"insert into t1 values(1648791211000,1,2,3);")
         tdSql.execute(f"insert into t1 values(1648791212000,2,2,3);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt1;",
             lambda: tdSql.getRows() == 2,
         )
@@ -363,7 +363,7 @@ class TestStreamOldCaseCheck:
         tdSql.execute(f"insert into t2 values(1648791213000,1,2,3);")
         tdSql.execute(f"insert into t1 values(1648791214000,1,2,3);")
 
-        tdStream.checkQueryResults(
+        tdSql.checkResultsByFunc(
             f"select * from streamt1;",
             lambda: tdSql.getRows() == 4,
         )

@@ -1984,30 +1984,32 @@ typedef struct STbVerInfo {
     int64_t errors;
   } SVnodesStat;
 
-  typedef struct {
-    int32_t vgId;
-    int8_t  syncState;
-    int8_t  syncRestore;
-    int64_t syncTerm;
-    int64_t roleTimeMs;
-    int64_t startTimeMs;
-    int8_t  syncCanRead;
-    int64_t cacheUsage;
-    int64_t numOfTables;
-    int64_t numOfTimeSeries;
-    int64_t totalStorage;
-    int64_t compStorage;
-    int64_t pointsWritten;
-    int64_t numOfSelectReqs;
-    int64_t numOfInsertReqs;
-    int64_t numOfInsertSuccessReqs;
-    int64_t numOfBatchInsertReqs;
-    int64_t numOfBatchInsertSuccessReqs;
-    int32_t numOfCachedTables;
-    int32_t learnerProgress;  // use one reservered
-    int64_t syncAppliedIndex;
-    int64_t syncCommitIndex;
-  } SVnodeLoad;
+typedef struct {
+  int32_t vgId;
+  int8_t  syncState;
+  int8_t  syncRestore;
+  int64_t syncTerm;
+  int64_t roleTimeMs;
+  int64_t startTimeMs;
+  int8_t  syncCanRead;
+  int64_t cacheUsage;
+  int64_t numOfTables;
+  int64_t numOfTimeSeries;
+  int64_t totalStorage;
+  int64_t compStorage;
+  int64_t pointsWritten;
+  int64_t numOfSelectReqs;
+  int64_t numOfInsertReqs;
+  int64_t numOfInsertSuccessReqs;
+  int64_t numOfBatchInsertReqs;
+  int64_t numOfBatchInsertSuccessReqs;
+  int32_t numOfCachedTables;
+  int32_t learnerProgress;  // use one reservered
+  int64_t syncAppliedIndex;
+  int64_t syncCommitIndex;
+  int64_t bufferSegmentUsed;
+  int64_t bufferSegmentSize;
+} SVnodeLoad;
 
   typedef struct {
     int32_t     vgId;

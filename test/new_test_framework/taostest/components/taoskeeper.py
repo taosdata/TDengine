@@ -4,7 +4,7 @@ import winrm
 from threading import Thread
 import platform
 
-from new_test_framework.utils.frame.log import tdLog
+from new_test_framework.utils.log import tdLog
 from ..util.file import dict2toml, dict2file
 from ..util.remote import Remote
 from ..util.common import TDCom
