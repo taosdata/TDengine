@@ -235,7 +235,13 @@ class TDSql:
             raise (ex)
 
     def query(
-        self, sql, row_tag=None, queryTimes=10, count_expected_res=None, show=False
+        self,
+        sql,
+        row_tag=None,
+        queryTimes=10,
+        count_expected_res=None,
+        show=False,
+        exit=True,
     ):
         """
         Executes a SQL query and fetches the results.
@@ -279,12 +285,16 @@ class TDSql:
                     return self.queryResult
                 return self.queryRows
             except Exception as e:
-                tdLog.notice("Try to query again, query times: %d " % i)
+                if exit:
+                    tdLog.notice("Try to query again, query times: %d " % i)
                 if i == queryTimes:
-                    caller = inspect.getframeinfo(inspect.stack()[1][0])
-                    args = (caller.filename, caller.lineno, sql, repr(e))
-                    tdLog.error("%s(%d) failed: sql:%s, %s" % args)
-                    raise Exception(repr(e))
+                    if exit:
+                        caller = inspect.getframeinfo(inspect.stack()[1][0])
+                        args = (caller.filename, caller.lineno, sql, repr(e))
+                        tdLog.error("%s(%d) failed: sql:%s, %s" % args)
+                        raise Exception(repr(e))
+                    else:
+                        return False
                 i += 1
                 time.sleep(1)
                 pass
@@ -2384,11 +2394,10 @@ class TDSql:
             retry = 1
 
         for loop in range(retry):
-            self.query(sql)
-
-            if func():
-                self.printResult(f"check succeed in {loop} seconds")
-                return
+            if self.query(sql, queryTimes=1, exit=False):
+                if func():
+                    self.printResult(f"check succeed in {loop} seconds")
+                    return
 
             if loop != retry - 1:
                 if show:

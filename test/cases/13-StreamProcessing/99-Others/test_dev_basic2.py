@@ -217,7 +217,7 @@ class TestStreamDevBasic2:
         
     def checks9(self):
         result_sql = "select * from qdb.st9"
-        # tdSql.checkResultsByFunc(sql=result_sql, func=lambda: tdSql.getRows() > 0)
+        tdSql.checkResultsByFunc(sql=result_sql, func=lambda: tdSql.getRows() > 0)
 
     class StreamItem:
         def __init__(self, sql, checkfunc):
