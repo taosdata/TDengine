@@ -2294,6 +2294,12 @@ int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t c
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
 
+  if (pStmt->sql.stbInterlaceMode) {
+    tscError("interlace mode don't support async bind param");
+    terrno = TSDB_CODE_TSC_STMT_API_ERROR;
+    return terrno;
+  }
+
   ThreadArgs *args = (ThreadArgs *)taosMemoryMalloc(sizeof(ThreadArgs));
   args->stmt = stmt;
   args->bindv = bindv;
