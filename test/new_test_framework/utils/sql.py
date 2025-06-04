@@ -289,7 +289,7 @@ class TDSql:
                 time.sleep(1)
                 pass
 
-    def query_success_failed(
+    def querySuccessailed(
         self,
         sql,
         row_tag=None,
@@ -495,7 +495,7 @@ class TDSql:
             raise Exception(repr(e))
         return (self.queryRows, timeout)
 
-    def is_err_sql(self, sql):
+    def isErrorSql(self, sql):
         """
         Executes a SQL statement and checks if it results in an error.(Not used)
 
@@ -673,7 +673,7 @@ class TDSql:
 
             return self.error_info
 
-    def no_error(self, sql):
+    def noError(self, sql):
         caller = inspect.getframeinfo(inspect.stack()[1][0])
         expectErrOccurred = False
 
@@ -847,7 +847,7 @@ class TDSql:
     #  check session
     #
 
-    def checkRows(self, expectedRows):
+    def checkRows(self, expectedRows, show=False):
         """
         Checks if the number of rows fetched by the last query matches the expected number of rows.
 
@@ -860,7 +860,7 @@ class TDSql:
         Raises:
             SystemExit: If the number of rows does not match the expected number.
         """
-        return self.checkEqual(self.queryRows, expectedRows)
+        return self.checkEqual(self.queryRows, expectedRows, show=show)
 
     def checkRowsV2(
         self,
@@ -920,7 +920,7 @@ class TDSql:
             tdLog.error(f"checkRows failed: {str(e)}")
             return False
 
-    def checkRows_not_exited(self, expectedRows):
+    def checkRowsNotExited(self, expectedRows):
         """
             Check if the query rows is equal to the expected rows
 
@@ -935,7 +935,7 @@ class TDSql:
         else:
             return False
 
-    def checkRows_range(self, excepte_row_list):
+    def checkRowsRange(self, excepte_row_list):
         """
         Checks if the number of rows fetched by the last query is within the expected range.(Not used)
 
@@ -1490,7 +1490,8 @@ class TDSql:
             if self.queryResult[i][col] == data:
                 row = i
 
-        tdLog.info(f"find key:{key}, row:{row} col:{col}, data:{data}")
+        if show:
+            tdLog.info(f"find key:{key}, row:{row} col:{col}, data:{data}")
 
         if row == -1:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
@@ -1500,13 +1501,21 @@ class TDSql:
         if show:
             tdLog.info("check key successfully")
 
-    def printResult(self):
+    def checkKeyExist(self, key, show=False):
+        return self.checkKeyData(key, 0, key, show=show)
+
+    def printResult(self, name=""):
         tdLog.info(
-            f"print result, rows:{self.queryRows}, cols:{self.queryCols}, sql:{self.sql}"
+            f"==== {name}, rows:{self.queryRows}, cols:{self.queryCols}, sql:{self.sql}"
         )
         for r in range(self.queryRows):
+            data = "==== "
             for c in range(self.queryCols):
-                tdLog.info(f"data[{r}][{c}]=[{self.queryResult[r][c]}]")
+                data += f"d[{r}][{c}]={self.queryResult[r][c]} "
+            tdLog.info(data)
+        if exit:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            tdLog.exit(f"{name} {caller.filename}({caller.lineno})")
 
     def expectKeyData(self, key, col, data, show=False):
         """
@@ -1842,11 +1851,11 @@ class TDSql:
         self.query(sql)
         self.checkData(row, col, data)
 
-    def check_rows_loop(self, expectedRows, sql, loopCount, waitTime):
+    def checkRowsLoop(self, expectedRows, sql, loopCount, waitTime):
         # loop check util checkData return true
         for i in range(loopCount):
             self.query(sql)
-            if self.checkRows_not_exited(expectedRows):
+            if self.checkRowsNotExited(expectedRows):
                 return
             else:
                 time.sleep(waitTime)
@@ -1939,7 +1948,7 @@ class TDSql:
         # tdLog.info("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
         raise Exception("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
 
-    def checkEqual(self, elm, expect_elm):
+    def checkEqual(self, elm, expect_elm, show=False):
         """
         Checks if the given element is equal to the expected element.
 
@@ -1954,10 +1963,16 @@ class TDSql:
             Exception: If the element does not match the expected element.
         """
         if elm == expect_elm:
-            tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
+            if show:
+                tdLog.info(
+                    "sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm)
+                )
             return True
         if self.__check_equal(elm, expect_elm):
-            tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
+            if show:
+                tdLog.info(
+                    "sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm)
+                )
             return True
         self.print_error_frame_info(elm, expect_elm)
 
@@ -2050,7 +2065,7 @@ class TDSql:
     # others session
     #
 
-    def get_times(self, time_str, precision="ms"):
+    def getTimes(self, time_str, precision="ms"):
         """
         Converts a time string to a timestamp based on the specified precision.(Not used)
 
@@ -2102,7 +2117,7 @@ class TDSql:
         elif precision == "ns":
             return int(times * 1000 * 1000)
 
-    def get_type(self, col):
+    def getType(self, col):
         """
         Retrieves the data type of the specified column in the last query result.(Not used)
 
@@ -2198,7 +2213,7 @@ class TDSql:
         tdLog.info("dir: %s is created" % dir)
         pass
 
-    def get_db_vgroups(self, db_name: str = "test") -> list:
+    def getDbVgroups(self, db_name: str = "test") -> list:
         db_vgroups_list = []
         tdSql.query(f"show {db_name}.vgroups")
         for result in tdSql.queryResult:
@@ -2208,7 +2223,7 @@ class TDSql:
         tdSql.query("select * from information_schema.ins_vnodes")
         return db_vgroups_list
 
-    def get_cluseter_dnodes(self) -> list:
+    def getCluseterDnodes(self) -> list:
         cluset_dnodes_list = []
         tdSql.query("show dnodes")
         for result in tdSql.queryResult:
@@ -2242,9 +2257,9 @@ class TDSql:
         tdSql.query(redistribute_sql)
         tdLog.debug("redistributeSql ok")
 
-    def redistribute_db_all_vgroups(self, db_name: str = "test", replica: int = 1):
-        db_vgroups_list = self.get_db_vgroups(db_name)
-        cluset_dnodes_list = self.get_cluseter_dnodes()
+    def redistributeDbAllVgroups(self, db_name: str = "test", replica: int = 1):
+        db_vgroups_list = self.getDbVgroups(db_name)
+        cluset_dnodes_list = self.getCluseterDnodes()
         useful_trans_dnodes_list = cluset_dnodes_list.copy()
         tdSql.query("select * from information_schema.ins_vnodes")
         # result: dnode_id|vgroup_id|db_name|status|role_time|start_time|restored|

@@ -949,7 +949,7 @@ int32_t walSaveMeta(SWal* pWal) {
   int64_t  metaVer = -1;
   char fnameStr[WAL_FILE_LEN];
   char tmpFnameStr[WAL_FILE_LEN];
-  int      n;
+  int       n;
   TdFilePtr pMetaFile = NULL;
   char*     serialized = NULL;
 

@@ -36,20 +36,6 @@ target_link_libraries(
     PUBLIC os
 )
 
-set_target_properties(
-    ${TAOS_NATIVE_LIB}
-    PROPERTIES
-    CLEAN_DIRECT_OUTPUT
-    1
-)
-
-set_target_properties(
-    ${TAOS_NATIVE_LIB}
-    PROPERTIES
-    VERSION ${TD_VER_NUMBER}
-    SOVERSION 1
-)
-
 add_library(${TAOS_NATIVE_LIB_STATIC} STATIC ${CLIENT_SRC})
 
 if(${TD_DARWIN})
