@@ -226,6 +226,7 @@ The effective value of charset is UTF-8.
 |compactPullupInterval     |          |Supported, effective immediately  |Internal parameter, frequency of data reorganization timer|
 |walFsyncDataSizeLimit     |          |Supported, effective immediately  |Internal parameter, threshold for WAL to perform FSYNC|
 |transPullupInterval       |          |Supported, effective immediately  |Internal parameter, retry interval for mnode to execute transactions|
+|forceKillTrans            |3.3.7.0   |Supported, effective immediately  |Internal parameter, for debugging mnode module to execute transactions|
 |mqRebalanceInterval       |          |Supported, effective immediately  |Internal parameter, interval for consumer rebalancing|
 |uptimeInterval            |          |Supported, effective immediately  |Internal parameter, for recording system uptime|
 |timeseriesThreshold       |          |Supported, effective immediately  |Internal parameter, for usage statistics|

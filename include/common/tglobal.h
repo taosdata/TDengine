@@ -150,6 +150,7 @@ extern int64_t tsMndSdbWriteDelta;
 extern int64_t tsMndLogRetention;
 extern bool    tsMndSkipGrant;
 extern bool    tsEnableWhiteList;
+extern bool    tsForceKillTrans;
 
 // dnode
 extern int64_t tsDndStart;
