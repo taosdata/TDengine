@@ -176,7 +176,11 @@ int32_t cleanupTaskQueue() {
 
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) {
   SSchedMsg* pSchedMsg; 
-  int32_t rc = taosAllocateQitem(sizeof(SSchedMsg), DEF_QITEM, 0, (void **)&pSchedMsg);
+  int32_t size = 0;
+  if (code != NULL) {
+     size = *code;
+  } 
+  int32_t rc = taosAllocateQitem(sizeof(SSchedMsg), DEF_QITEM, size, (void **)&pSchedMsg);
   if (rc) return rc;
   pSchedMsg->fp = NULL;
   pSchedMsg->ahandle = execFn;

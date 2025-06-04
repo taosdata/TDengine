@@ -1892,8 +1892,8 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
 
   arg->msg = *pMsg;
   arg->pEpset = tEpSet;
-
-  if ((code = taosAsyncExec(doProcessMsgFromServer, arg, NULL)) != 0) {
+  int32_t sz = pMsg->contLen;
+  if ((code = taosAsyncExec(doProcessMsgFromServer, arg, &sz)) != 0) {
     pMsg->code = code;
     taosMemoryFree(arg);
     goto _exit;

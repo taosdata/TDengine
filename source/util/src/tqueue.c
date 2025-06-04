@@ -251,6 +251,8 @@ int32_t taosWriteQitem(STaosQueue *queue, void *pItem) {
   }
   return code;
 }
+#define QUEUE_SIZE_LIMIT 512
+#define QUEUE_MEM_LIMIT  (1024 * 1024 * 1024 * 4L)
 
 void taosReadQitem(STaosQueue *queue, void **ppItem) {
   STaosQnode *pNode = NULL;
@@ -271,6 +273,12 @@ void taosReadQitem(STaosQueue *queue, void **ppItem) {
     }
     uTrace("item:%p, is read out from queue:%p, items:%d mem:%" PRId64, *ppItem, queue, queue->numOfItems,
            queue->memOfItems);
+  }
+
+  if (queue) {
+    if (queue->numOfItems >= QUEUE_SIZE_LIMIT || queue->memOfItems >= QUEUE_MEM_LIMIT) {
+      uInfo("queue:%p, items:%d mem:%" PRId64 ", is too large, reset it", queue, queue->numOfItems, queue->memOfItems);
+    }
   }
 
   (void)taosThreadMutexUnlock(&queue->mutex);
