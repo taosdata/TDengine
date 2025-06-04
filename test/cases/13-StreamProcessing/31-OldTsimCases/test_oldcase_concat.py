@@ -50,28 +50,28 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.error(
-            f"create stream streams1 interval(10s) sliding(10s) from st into streamt1(a, b, c, d) as select _wstart, count(*) c1, max(a) from st interval(10s);"
+            f"create stream streams1 interval(10s) sliding(10s) from st into streamt1(a, b, c, d) as select _twstart, count(*) c1, max(a) from st where ts >= _twstart and ts < _twend;"
         )
         tdSql.error(
-            f"create stream streams2 interval(10s) sliding(10s) from st into streamt2(a, b) as select _wstart, count(*) c1, max(a) from st interval(10s);"
+            f"create stream streams2 interval(10s) sliding(10s) from st into streamt2(a, b) as select _twstart, count(*) c1, max(a) from st where ts >= _twstart and ts < _twend;"
         )
         tdSql.error(
-            f"create stream streams3 interval(10s) sliding(10s) from st into streamt3(a, b) as select count(*) c1, max(a) from st interval(10s);"
+            f"create stream streams3 interval(10s) sliding(10s) from st into streamt3(a, b) as select count(*) c1, max(a) from st where ts >= _twstart and ts < _twend;"
         )
         tdSql.execute(
-            f"create stream streams4 interval(10s) sliding(10s) from st into streamt4(a, b, c) as select _wstart, count(*) c1, max(a) from st interval(10s);"
+            f"create stream streams4 interval(10s) sliding(10s) from st into streamt4(a, b, c) as select _twstart, count(*) c1, max(a) from st where ts >= _twstart and ts < _twend;"
         )
         tdSql.execute(
-            f"create stream streams5 interval(10s) sliding(10s) from st partition by tbname into streamt5(a, b, c) as select _wstart, count(*) c1, max(a) from st partition by tbname interval(10s);"
+            f"create stream streams5 interval(10s) sliding(10s) from st partition by tbname into streamt5(a, b, c) as select _twstart, count(*) c1, max(a) from st where ts >= _twstart and ts < _twend partition by tbname;"
         )
         tdSql.execute(
-            f"create stream streams6 interval(10s) sliding(10s) from st partition by tbname into streamt6(a, b, c) tags(tbn varchar(60) as %%tbname) as select _wstart, count(*) c1, max(a) from st partition by tbname tbn interval(10s);"
+            f"create stream streams6 interval(10s) sliding(10s) from st partition by tbname into streamt6(a, b, c) tags(tbn varchar(60) as %%tbname) as select _twstart, count(*) c1, max(a) from st where ts >= _twstart and ts < _twend partition by tbname tbn;"
         )
         tdSql.execute(
-            f"create stream streams7 interval(10s) sliding(10s) from st partition by tbname into streamt7(a, b primary key, c) tags(tbn varchar(60) as %%tbname) as select _wstart, count(*) c1, max(a) from st partition by tbname tbn interval(10s);"
+            f"create stream streams7 interval(10s) sliding(10s) from st partition by tbname into streamt7(a, b primary key, c) tags(tbn varchar(60) as %%tbname) as select _twstart, count(*) c1, max(a) from st where ts >= _twstart and ts < _twend partition by tbname tbn;"
         )
         tdSql.error(
-            f"create stream streams8 interval(10s) sliding(10s) from st into streamt8(a, b, c primary key) as select _wstart, count(*) c1, max(a) from st interval(10s);"
+            f"create stream streams8 interval(10s) sliding(10s) from st into streamt8(a, b, c primary key) as select _twstart, count(*) c1, max(a) from st where ts >= _twstart and ts < _twend;"
         )
         return
         tdSql.execute(
@@ -93,7 +93,7 @@ class TestStreamOldCaseConcat:
             f"create stream streams14 interval(10s) sliding(10s) from st into streamt14 tags(tc varchar(60)) as select count(*) tc, max(a) c1, max(b) from st partition by tbname tc interval(10s);"
         )
         tdSql.error(
-            f"create stream streams15 interval(10s) sliding(10s) from st into streamt15 tags(tc varchar(100) primary key) as select _wstart, count(*) c1, max(a) from st partition by tbname tc interval(10s);"
+            f"create stream streams15 interval(10s) sliding(10s) from st into streamt15 tags(tc varchar(100) primary key) as select _twstart, count(*) c1, max(a) from st partition by tbname tc interval(10s);"
         )
 
         tdSql.checkResultsByFunc(
@@ -109,13 +109,13 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"create table t2 using st tags(2,2,2);")
 
         tdSql.error(
-            f"create stream streams16 interval(10s) sliding(10s) from st into streamt16 as select _wstart, count(*) c1, max(a) from st partition by tbname tc state_window(b);"
+            f"create stream streams16 interval(10s) sliding(10s) from st into streamt16 as select _twstart, count(*) c1, max(a) from st partition by tbname tc state_window(b);"
         )
         tdSql.error(
-            f"create stream streams17 interval(10s) sliding(10s) from st into streamt17 as select _wstart, count(*) c1, max(a) from st partition by tbname tc event_window start with a = 0 end with a = 9;"
+            f"create stream streams17 interval(10s) sliding(10s) from st into streamt17 as select _twstart, count(*) c1, max(a) from st partition by tbname tc event_window start with a = 0 end with a = 9;"
         )
         tdSql.error(
-            f"create stream streams18 interval(10s) sliding(10s) options(watermark(10s)) from st into streamt18 as select _wstart, count(*) c1, max(a) from st partition by tbname tc count_window(2);"
+            f"create stream streams18 interval(10s) sliding(10s) options(watermark(10s)) from st into streamt18 as select _twstart, count(*) c1, max(a) from st partition by tbname tc count_window(2);"
         )
 
         tdLog.info(f"===== step2")
@@ -183,7 +183,7 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"create table t2 using st tags(2,2,2);")
 
         tdSql.execute(
-            f'create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result.streamt SUBTABLE(concat("aaa-", tbname)) as select _wstart, count(*) c1 from st partition by tbname interval(10s);'
+            f'create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result.streamt SUBTABLE(concat("aaa-", tbname)) as select _twstart, count(*) c1 from st partition by tbname interval(10s);'
         )
 
         tdStream.checkStreamStatus()
@@ -215,7 +215,7 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"create table t2 using st tags(2,2,2);")
 
         tdSql.execute(
-            f'create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result2.streamt2 TAGS(cc varchar(100)) as select _wstart, count(*) c1 from st partition by concat("tag-", tbname) as cc interval(10s);'
+            f'create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result2.streamt2 TAGS(cc varchar(100)) as select _twstart, count(*) c1 from st partition by concat("tag-", tbname) as cc interval(10s);'
         )
 
         tdStream.checkStreamStatus()
@@ -257,7 +257,7 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"create table t2 using st tags(2,2,2);")
 
         tdSql.execute(
-            f'create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result3.streamt3 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-", tbname)) as select _wstart, count(*) c1 from st partition by concat("tag-", tbname) as dd, tbname interval(10s);'
+            f'create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result3.streamt3 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-", tbname)) as select _twstart, count(*) c1 from st partition by concat("tag-", tbname) as dd, tbname interval(10s);'
         )
 
         tdStream.checkStreamStatus()
@@ -305,7 +305,7 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"create table t3 using st tags(3,3,3);")
 
         tdSql.execute(
-            f'create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result4.streamt4 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-", tbname)) as select _wstart, count(*) c1 from st partition by concat("tag-", tbname) as dd, tbname interval(10s);'
+            f'create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result4.streamt4 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-", tbname)) as select _twstart, count(*) c1 from st partition by concat("tag-", tbname) as dd, tbname interval(10s);'
         )
 
         tdStream.checkStreamStatus()
@@ -365,7 +365,7 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f'create table t3 using st tags("3",3,3);')
 
         tdSql.execute(
-            f'create stream streams6 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result6.streamt6 TAGS(dd int) as select _wstart, count(*) c1 from st partition by concat(ta, "0") as dd, tbname interval(10s);'
+            f'create stream streams6 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result6.streamt6 TAGS(dd int) as select _twstart, count(*) c1 from st partition by concat(ta, "0") as dd, tbname interval(10s);'
         )
         tdStream.checkStreamStatus()
 
@@ -399,7 +399,7 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"create table t2 using st tags(2,2,2);")
 
         tdSql.execute(
-            f'create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result.streamt SUBTABLE( concat("aaa-", cast(a as varchar(10) ) )  ) as select _wstart, count(*) c1 from st partition by a interval(10s);'
+            f'create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result.streamt SUBTABLE( concat("aaa-", cast(a as varchar(10) ) )  ) as select _twstart, count(*) c1 from st partition by a interval(10s);'
         )
 
         tdStream.checkStreamStatus()
@@ -432,7 +432,7 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"create table t2 using st tags(2,2,2);")
 
         tdSql.execute(
-            f'create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result2.streamt2 TAGS(cc varchar(100)) as select _wstart, count(*) c1 from st partition by concat("col-", cast(a as varchar(10) ) ) as cc interval(10s);'
+            f'create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result2.streamt2 TAGS(cc varchar(100)) as select _twstart, count(*) c1 from st partition by concat("col-", cast(a as varchar(10) ) ) as cc interval(10s);'
         )
         tdStream.checkStreamStatus()
 
@@ -473,7 +473,7 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"create table t2 using st tags(2,2,2);")
 
         tdSql.execute(
-            f'create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result3.streamt3 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-",  cast(a as varchar(10) ) ) ) as select _wstart, count(*) c1 from st partition by concat("col-", cast(a as varchar(10) ) ) as dd, a interval(10s);'
+            f'create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result3.streamt3 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-",  cast(a as varchar(10) ) ) ) as select _twstart, count(*) c1 from st partition by concat("col-", cast(a as varchar(10) ) ) as dd, a interval(10s);'
         )
 
         tdStream.checkStreamStatus()
@@ -521,7 +521,7 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"create table t3 using st tags(3,3,3);")
 
         tdSql.execute(
-            f'create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result4.streamt4 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-", dd)) as select _wstart, count(*) c1 from st partition by concat("t", cast(a as varchar(10) ) ) as dd interval(10s);'
+            f'create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result4.streamt4 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-", dd)) as select _twstart, count(*) c1 from st partition by concat("t", cast(a as varchar(10) ) ) as dd interval(10s);'
         )
 
         tdStream.checkStreamStatus()
@@ -555,7 +555,7 @@ class TestStreamOldCaseConcat:
             f"create stable streamt5(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);"
         )
         tdSql.execute(
-            f"create stream streams5 trigger at_once ignore expired 0 ignore update 0 into streamt5(ts,b,a) as select _wstart, count(*), 1000 c1 from t1 interval(10s);"
+            f"create stream streams5 trigger at_once ignore expired 0 ignore update 0 into streamt5(ts,b,a) as select _twstart, count(*), 1000 c1 from t1 interval(10s);"
         )
 
         tdStream.checkStreamStatus()
@@ -592,7 +592,7 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"create table t2 using st tags(2,2,2);")
 
         tdSql.execute(
-            f'create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result.streamt SUBTABLE("aaa") as select _wstart, count(*) c1 from st interval(10s);'
+            f'create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result.streamt SUBTABLE("aaa") as select _twstart, count(*) c1 from st interval(10s);'
         )
 
         tdStream.checkStreamStatus()
@@ -626,7 +626,7 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"create table t2 using st tags(2,2,2);")
 
         tdSql.execute(
-            f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result2.streamt2 TAGS(cc varchar(100)) as select _wstart, count(*) c1 from st interval(10s);"
+            f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result2.streamt2 TAGS(cc varchar(100)) as select _twstart, count(*) c1 from st interval(10s);"
         )
         tdStream.checkStreamStatus()
 
@@ -664,7 +664,7 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"create table t2 using st tags(2,2,2);")
 
         tdSql.execute(
-            f'create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result3.streamt3 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-",  "1") ) as select _wstart, count(*) c1 from st interval(10s);'
+            f'create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result3.streamt3 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-",  "1") ) as select _twstart, count(*) c1 from st interval(10s);'
         )
 
         tdStream.checkStreamStatus()
@@ -709,7 +709,7 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"create table t3 using st tags(3,3,3);")
 
         tdSql.execute(
-            f'create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result4.streamt4 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-", "1")) as select _wstart, count(*) c1 from st interval(10s);'
+            f'create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result4.streamt4 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-", "1")) as select _twstart, count(*) c1 from st interval(10s);'
         )
 
         tdStream.checkStreamStatus()
@@ -743,13 +743,13 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"create table t2 using st tags(2,2,2);")
 
         tdSql.execute(
-            f'create stream streams51 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result5.streamt51 SUBTABLE("aaa") as select _wstart, count(*) c1 from st interval(10s);'
+            f'create stream streams51 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result5.streamt51 SUBTABLE("aaa") as select _twstart, count(*) c1 from st interval(10s);'
         )
         tdSql.execute(
-            f"create stream streams52 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result5.streamt52 TAGS(cc varchar(100)) as select _wstart, count(*) c1 from st interval(10s);"
+            f"create stream streams52 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result5.streamt52 TAGS(cc varchar(100)) as select _twstart, count(*) c1 from st interval(10s);"
         )
         tdSql.execute(
-            f'create stream streams53 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result5.streamt53 TAGS(dd varchar(100)) SUBTABLE(concat("aaa-", "1") ) as select _wstart, count(*) c1 from st interval(10s);'
+            f'create stream streams53 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result5.streamt53 TAGS(dd varchar(100)) SUBTABLE(concat("aaa-", "1") ) as select _twstart, count(*) c1 from st interval(10s);'
         )
 
         tdStream.checkStreamStatus()
