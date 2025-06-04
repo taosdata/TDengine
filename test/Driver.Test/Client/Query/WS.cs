@@ -2,6 +2,7 @@
 using System.Text;
 using TDengine.Driver;
 using TDengine.Driver.Client;
+using TDengine.Driver.Client.Websocket;
 using Xunit;
 
 namespace Driver.Test.Client.Query
@@ -254,6 +255,50 @@ namespace Driver.Test.Client.Query
             {
                 Assert.True(timeout);
             }
+        }
+
+        [Theory]
+        // Test SSL and non-SSL cases
+        [InlineData(false, 0, "localhost", "", "ws://localhost:6041/ws")]
+        [InlineData(true, 0, "example.com", "xyz", "wss://example.com:443/ws?token=xyz")]
+
+        // Test custom ports
+        [InlineData(false, 8080, "127.0.0.1", "abc", "ws://127.0.0.1:8080/ws?token=abc")]
+        [InlineData(true, 8443, "api.test", "", "wss://api.test:8443/ws")]
+
+        // Test IPv6 addresses
+        [InlineData(false, 0, "2001:db8::1", "a&b", "ws://[2001:db8::1]:6041/ws?token=a&b")]
+        [InlineData(true, 443, "2001:db8::1", "", "wss://[2001:db8::1]:443/ws")]
+
+        // Test edge cases
+        [InlineData(false, 6041, "localhost", null, "ws://localhost:6041/ws")]
+        [InlineData(true, 443, "localhost", " ", "wss://localhost:443/ws?token= ")]
+        public void GetUrl_ShouldReturnCorrectUrl(bool useSsl, int port, string host, string token, string expectedUrl)
+        {
+            // Arrange
+            var builder = new ConnectionStringBuilder("")
+            {
+                UseSSL = useSsl,
+                Port = port,
+                Host = host,
+                Token = token
+            };
+
+            // Act
+            string actualUrl = WSClient.GetUrl(builder);
+
+            // Assert
+            Assert.Equal(expectedUrl, actualUrl);
+        }
+
+        [Fact]
+        public void GetUrl_ShouldHandleNullBuilder()
+        {
+            // Arrange
+            ConnectionStringBuilder? builder = null;
+
+            // Act & Assert
+            Assert.Throws<NullReferenceException>(() => WSClient.GetUrl(builder));
         }
     }
 }

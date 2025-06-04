@@ -13,7 +13,7 @@ namespace TDengine.Driver.Impl.WebSocketMethods
         {
         }
 
-        private static string GetUrl(TMQOptions options)
+        public static string GetUrl(TMQOptions options)
         {
             var schema = "ws";
             var port = options.TDConnectPort;
@@ -33,14 +33,21 @@ namespace TDengine.Driver.Impl.WebSocketMethods
                 }
             }
 
-            if (string.IsNullOrEmpty(options.TDToken))
+            var token = options.TDToken;
+            var uriBuilder = new UriBuilder
             {
-                return $"{schema}://{options.TDConnectIp}:{port}/rest/tmq";
-            }
-            else
+                Scheme = schema,
+                Host = options.TDConnectIp,
+                Port = Convert.ToInt32(port),
+                Path = "/rest/tmq"
+            };
+
+            if (!string.IsNullOrEmpty(token))
             {
-                return $"{schema}://{options.TDConnectIp}:{port}/rest/tmq?token={options.TDToken}";
+                uriBuilder.Query = $"token={token}";
             }
+
+            return uriBuilder.ToString();
         }
 
         public WSTMQSubscribeResp Subscribe(List<string> topics, TMQOptions options)

@@ -81,6 +81,17 @@ jobs:
           path: server.tar.gz
           key: ${{ runner.os }}-build-${{ inputs.tbBranch }}-${{ steps.get_commit_id.outputs.commit_id }}
 
+      - name: Cache externals built
+        if: >
+          (github.event_name == 'workflow_dispatch' && steps.cache-server-manually.outputs.cache-hit != 'true') ||
+          (github.event_name == 'pull_request' && steps.cache-server-pr.outputs.cache-hit != 'true') ||
+          (github.event_name == 'push' && steps.cache-server-push.outputs.cache-hit != 'true')
+        uses: actions/cache@v4
+        id: cache-ext
+        with:
+          path: TDengine/.externals
+          key: ${{ runner.os }}-${{ matrix.os }}-${{ hashFiles('TDengine/cmake/external.cmake', 'cmake/in/**') }}-build-ext-v3
+
       - name: install TDengine
         if: >
           (github.event_name == 'workflow_dispatch' && steps.cache-server-manually.outputs.cache-hit != 'true') ||
@@ -90,7 +101,7 @@ jobs:
           cd TDengine
           mkdir debug
           cd debug
-          cmake .. -DBUILD_TEST=off -DBUILD_HTTP=false -DVERNUMBER=3.9.9.9
+          cmake .. -DBUILD_TEST=off -DBUILD_HTTP=false
           make -j8
 
       - name: package
@@ -102,9 +113,9 @@ jobs:
           mkdir -p ./release
           cp ./TDengine/debug/build/bin/taos ./release/
           cp ./TDengine/debug/build/bin/taosd ./release/
-          cp ./TDengine/tools/taosadapter/taosadapter ./release/
-          cp ./TDengine/debug/build/lib/libtaos.so.3.9.9.9 ./release/
-          cp ./TDengine/debug/build/lib/libtaosnative.so.3.9.9.9 ./release/
+          cp ./TDengine/debug/build/bin/taosadapter ./release/
+          cp ./TDengine/debug/build/lib/libtaos.so ./release/
+          cp ./TDengine/debug/build/lib/libtaosnative.so ./release/
           cp ./TDengine/include/client/taos.h ./release/
           cat >./release/install.sh<<EOF 
           chmod +x ./taos
@@ -112,12 +123,9 @@ jobs:
           cp ./taos /bin/
           cp ./taosd /bin/
           cp ./taosadapter /bin/
-          cp ./libtaos.so.3.9.9.9 /usr/lib
-          cp ./libtaosnative.so.3.9.9.9 /usr/lib
-          ln -sf /usr/lib/libtaos.so.3.9.9.9 /usr/lib/libtaos.so.1
-          ln -sf /usr/lib/libtaos.so.1 /usr/lib/libtaos.so
-          ln -sf /usr/lib/libtaosnative.so.3.9.9.9 /usr/lib/libtaosnative.so.1
-          ln -sf /usr/lib/libtaosnative.so.1 /usr/lib/libtaosnative.so
+          cp ./libtaos.so /usr/lib
+          cp ./libtaosnative.so /usr/lib
+          ln -sf /usr/lib/libtaos.so /usr/lib/libtaos.so.1
           cp ./taos.h /usr/include
           EOF
           tar -zcvf server.tar.gz ./release

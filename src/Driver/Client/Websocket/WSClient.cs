@@ -24,7 +24,7 @@ namespace TDengine.Driver.Client.Websocket
             _builder = builder;
         }
 
-        private static string GetUrl(ConnectionStringBuilder builder)
+        public static string GetUrl(ConnectionStringBuilder builder)
         {
             var schema = "ws";
             var port = builder.Port;
@@ -44,14 +44,21 @@ namespace TDengine.Driver.Client.Websocket
                 }
             }
 
-            if (string.IsNullOrEmpty(builder.Token))
+            var token = builder.Token;
+            var uriBuilder = new UriBuilder
             {
-                return $"{schema}://{builder.Host}:{port}/ws";
-            }
-            else
+                Scheme = schema,
+                Host = builder.Host,
+                Port = port,
+                Path = "/ws"
+            };
+
+            if (!string.IsNullOrEmpty(token))
             {
-                return $"{schema}://{builder.Host}:{port}/ws?token={builder.Token}";
+                uriBuilder.Query = $"token={token}";
             }
+
+            return uriBuilder.ToString();
         }
 
         public void Dispose()

@@ -1,4 +1,7 @@
-﻿using Xunit;
+﻿using System;
+using System.Collections.Generic;
+using TDengine.Driver.Impl.WebSocketMethods;
+using Xunit;
 
 namespace Driver.Test.Client.TMQ
 {
@@ -34,6 +37,52 @@ namespace Driver.Test.Client.TMQ
             var db = "ws_tmq_auto_commit_test";
             var topic = "ws_tmq_auto_commit_test_topic";
             this.ConsumerAutoCommitTest(this._wsConnectString, db, topic, this._wsTMQCfgAutoCommit);
+        }
+
+        [Theory]
+        // Test SSL and non-SSL cases
+        [InlineData("false", "", "localhost", "", "ws://localhost:6041/rest/tmq")]
+        [InlineData("true", "", "example.com", "xyz", "wss://example.com:443/rest/tmq?token=xyz")]
+
+        // Test custom ports
+        [InlineData("false", "8080", "127.0.0.1", "abc", "ws://127.0.0.1:8080/rest/tmq?token=abc")]
+        [InlineData("true", "8443", "api.test", "", "wss://api.test:8443/rest/tmq")]
+
+        // Test IPv6 addresses
+        [InlineData("false", "", "2001:db8::1", "a&b", "ws://[2001:db8::1]:6041/rest/tmq?token=a&b")]
+        [InlineData("true", "443", "2001:db8::1", "", "wss://[2001:db8::1]:443/rest/tmq")]
+
+        // Test edge cases
+        [InlineData("false", "6041", "localhost", null, "ws://localhost:6041/rest/tmq")]
+        [InlineData("true", "443", "localhost", " ", "wss://localhost:443/rest/tmq?token= ")]
+        public void GetUrl_ShouldReturnCorrectUrl(string useSsl, string port, string host, string token,
+            string expectedUrl)
+        {
+            // Arrange
+            var cfg = new Dictionary<string, string>()
+            {
+                { "useSSL", useSsl },
+                { "td.connect.port", port },
+                { "td.connect.ip", host },
+                { "token", token }
+            };
+
+            var options = new TMQOptions(cfg);
+            // Act
+            string actualUrl = TMQConnection.GetUrl(options);
+
+            // Assert
+            Assert.Equal(expectedUrl, actualUrl);
+        }
+
+        [Fact]
+        public void GetUrl_ShouldHandleNullBuilder()
+        {
+            // Arrange
+            TMQOptions? options = null;
+
+            // Act & Assert
+            Assert.Throws<NullReferenceException>(() => TMQConnection.GetUrl(options));
         }
     }
 }
