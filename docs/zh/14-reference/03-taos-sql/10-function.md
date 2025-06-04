@@ -1195,9 +1195,7 @@ TO_BASE64(expr)
 
 **返回结果类型**: VARCHAR
 
-**适用数据类型**:
-
-- `expr`: VARCHAR, NCHAR.
+**适用数据类型**: 任何类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -1205,15 +1203,33 @@ TO_BASE64(expr)
 
 **使用说明**:
 
-- 若 expr 为 NULL，返回 NULL。
+- 若 `expr` 为 NULL，返回 NULL。
+- 如果 `expr` 为空字符串，则返回空字符串。
+- 如果 `expr` 为非字符串，则将其解释为字符串。
+- 此函数是多字节安全的。
 
 **举例**:
 
 ```sql
+taos> select to_base64(NULL);
+ to_base64(null) |
+==================
+ NULL            |
+
 taos> select to_base64("");
  to_base64("") |
 ================
                |
+
+taos> select to_base64(14324);
+ to_base64(14324) |
+=====================
+ MTQzMjQ=           |
+
+taos> select to_base64("14324");
+ to_base64("14324") |
+=====================
+ MTQzMjQ=           |
 
 taos> select to_base64("Hello, world!");
  to_base64("Hello, world!") |
