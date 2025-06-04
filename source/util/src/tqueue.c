@@ -466,6 +466,9 @@ void taosRemoveFromQset(STaosQset *qset, STaosQueue *queue) {
   uDebug("queue:%p, is removed from qset:%p", queue, qset);
 }
 
+#define QUEUE_SIZE_LIMIT 512
+#define QUEUE_MEM_LIMIT  (1024 * 1024 * 1024 * 4L)
+
 int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, SQueueInfo *qinfo) {
   STaosQnode *pNode = NULL;
   int32_t     code = 0;
@@ -495,12 +498,20 @@ int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, SQueueInfo *qinfo)
 
       queue->head = pNode->next;
       if (queue->head == NULL) queue->tail = NULL;
-      // queue->numOfItems--;
+
+      queue->numOfItems--;
       queue->memOfItems -= (pNode->size + pNode->dataSize);
       (void)atomic_sub_fetch_32(&qset->numOfItems, 1);
       code = 1;
       uTrace("item:%p, is read out from queue:%p, items:%d mem:%" PRId64, *ppItem, queue, queue->numOfItems - 1,
              queue->memOfItems);
+
+      if (queue) {
+        if (queue->numOfItems >= QUEUE_SIZE_LIMIT || queue->memOfItems >= QUEUE_MEM_LIMIT) {
+          uInfo("queue:%p, items:%d mem:%" PRId64 ", is too large, reset it", queue, queue->numOfItems,
+                queue->memOfItems);
+        }
+      }
     }
 
     (void)taosThreadMutexUnlock(&queue->mutex);

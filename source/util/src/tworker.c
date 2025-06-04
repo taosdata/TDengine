@@ -71,6 +71,7 @@ void tQWorkerCleanup(SQWorkerPool *pool) {
   uInfo("worker:%s is closed", pool->name);
 }
 
+
 static void *tQWorkerThreadFp(SQueueWorker *worker) {
   SQWorkerPool *pool = worker->pool;
   SQueueInfo    qinfo = {0};
