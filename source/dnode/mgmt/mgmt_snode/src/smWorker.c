@@ -82,7 +82,7 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     int64_t errTaskId = 0;
     code = streamTriggerProcessRsp(pTask, pMsg, &errTaskId);
     if (code != TSDB_CODE_SUCCESS) {
-      // todo(dapan): handle error code: {pTask->streamId, errTaskId, code}
+      streamHandleTaskError(pTask->streamId, errTaskId, code);
     }
   }
 

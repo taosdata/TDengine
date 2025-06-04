@@ -70,7 +70,7 @@ int32_t streamHbBuildRequestMsg(SStreamHbMsg* pMsg, bool* skipHb) {
   pMsg->runnerThreadNum = tsNumOfStreamRunnerThreads;
   pMsg->streamGId = stmAddFetchStreamGid();
 
-  TAOS_CHECK_EXIT(stmBuildStreamsStatus(&pMsg->pStreamStatus, pMsg->streamGId));
+  TAOS_CHECK_EXIT(stmBuildStreamsStatusReq(&pMsg->pStreamStatus, &pMsg->pStreamReq, pMsg->streamGId));
 
   if (NULL == pMsg->pStreamStatus) {
     if (0 != pMsg->streamGId || gStreamMgmt.hbReported) {
@@ -91,7 +91,6 @@ int32_t streamHbBuildRequestMsg(SStreamHbMsg* pMsg, bool* skipHb) {
   pMsg->pVgLeaders = taosArrayDup(gStreamMgmt.vgLeaders, NULL);
   taosRUnLockLatch(&gStreamMgmt.vgLeadersLock);
   
-
   return code;
   
 _exit:
@@ -173,6 +172,10 @@ int32_t streamHbProcessRspMsg(SMStreamHbRspMsg* pRsp) {
     //STREAMTODO
   } else if (pRsp->undeploy.taskList) {
     TAOS_CHECK_EXIT(smUndeployTasks(&pRsp->undeploy));
+  }
+
+  if (pRsp->rsps.rspList) {
+    TAOS_CHECK_EXIT(smHandleMgmtRsp(&pRsp->rsps));
   }
 
 _exit:

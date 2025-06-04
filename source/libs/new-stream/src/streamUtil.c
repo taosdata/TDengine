@@ -35,9 +35,25 @@ int32_t stmAddFetchStreamGid(void) {
   return gStreamMgmt.stmGrpIdx;
 }
 
+int32_t stmAddMgmtReq(int64_t streamId, SArray** ppReq, int32_t idx) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
 
+  if (NULL == ppReq) {
+    *ppReq = taosArrayInit(5, sizeof(int32_t));
+    TSDB_CHECK_NULL(*ppReq, code, lino, _exit, terrno);
+  }
 
-int32_t stmAddStreamStatus(SArray** ppStatus, SStreamTasksInfo* pStream, int64_t streamId, int32_t gid) {
+  TSDB_CHECK_NULL(taosArrayPush(*ppReq, &idx), code, lino, _exit, terrno);
+
+  stsDebug("task with mgmtReq added, idx:%d", idx);
+
+_exit:
+
+  return code;
+}
+
+int32_t stmAddStreamStatus(SArray** ppStatus, SArray** ppReq, SStreamTasksInfo* pStream, int64_t streamId, int32_t gid) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
@@ -66,6 +82,9 @@ int32_t stmAddStreamStatus(SArray** ppStatus, SStreamTasksInfo* pStream, int64_t
   for (int32_t i = 0; i < taskNum; ++i) {
     SStreamReaderTask* pReader = taosArrayGet(pStream->readerList, i);
     TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pReader->task), code, lino, _exit, terrno);
+    if (pReader->task.pMgmtReq) {
+      TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, ppReq, taosArrayGetSize(*ppStatus) - 1));
+    }
   }
 
   stsDebug("%d reader tasks status added to hb", taskNum);
@@ -73,12 +92,18 @@ int32_t stmAddStreamStatus(SArray** ppStatus, SStreamTasksInfo* pStream, int64_t
   if (pStream->triggerTask) {
     TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pStream->triggerTask->task), code, lino, _exit, terrno);
     stsDebug("%d trigger tasks status added to hb", 1);
+    if (pStream->triggerTask->task.pMgmtReq) {
+      TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, ppReq, taosArrayGetSize(*ppStatus) - 1));
+    }
   }
 
   taskNum = taosArrayGetSize(pStream->runnerList);
   for (int32_t i = 0; i < taskNum; ++i) {
     SStreamRunnerTask* pRunner = taosArrayGet(pStream->runnerList, i);
     TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pRunner->task), code, lino, _exit, terrno);
+    if (pRunner->task.pMgmtReq) {
+      TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, ppReq, taosArrayGetSize(*ppStatus) - 1));
+    }
   }
 
   stsDebug("%d runner tasks status added to hb", taskNum);
@@ -96,7 +121,7 @@ _exit:
   return code;
 }
 
-int32_t stmBuildStreamsStatus(SArray** ppStatus, int32_t gid) {
+int32_t stmBuildStreamsStatusReq(SArray** ppStatus, SArray** ppReq, int32_t gid) {
   SHashObj* pHash = gStreamMgmt.stmGrp[gid];
   if (NULL == pHash) {
     return TSDB_CODE_SUCCESS;
@@ -113,7 +138,7 @@ int32_t stmBuildStreamsStatus(SArray** ppStatus, int32_t gid) {
     SStreamTasksInfo* pStream = (SStreamTasksInfo*)pIter;
     int64_t* streamId = taosHashGetKey(pIter, NULL);
 
-    stmAddStreamStatus(ppStatus, pStream, *streamId, gid);
+    stmAddStreamStatus(ppStatus, ppReq, pStream, *streamId, gid);
   }
 
   return code;
@@ -121,6 +146,14 @@ int32_t stmBuildStreamsStatus(SArray** ppStatus, int32_t gid) {
 
 void stmDestroySStreamTasksInfo(SStreamTasksInfo* p) {
   // STREAMTODO
+}
+
+void stmDestroySStreamMgmtReq(SStreamMgmtReq* pReq) {
+  if (NULL == pReq) {
+    return;
+  }
+  
+  taosArrayDestroy(pReq->cont.fullTableNames);
 }
 
 #define JSON_CHECK_ADD_ITEM(obj, str, item) \

@@ -322,11 +322,6 @@ typedef struct SStreamUndeployTaskMsg {
 int32_t tEncodeSStreamUndeployTaskMsg(SEncoder* pEncoder, const SStreamUndeployTaskMsg* pMsg);
 int32_t tDecodeSStreamUndeployTaskMsg(SDecoder* pDecoder, SStreamUndeployTaskMsg* pMsg);
 
-typedef struct SStreamOrigTblReaderInfoMsg {
-  SStreamMsg header;
-  SArray*    vgIds;       // SArray<int32_t>, same size and order as fullTableNames in SStreamTriggerOrigTblReaderReq
-  SArray*    readerList;  // SArray<SStreamTaskAddr>, each SStreamTaskAddr has an unique nodeId
-} SStreamOrigTblReaderInfoMsg;
 
 typedef enum {
   STREAM_STATUS_NA = 0,
@@ -346,22 +341,27 @@ typedef enum EStreamTaskType {
 
 static const char* gStreamTaskTypeStr[] = {"Reader", "Trigger", "Runner"};
 
+
+
 typedef enum SStreamMgmtReqType {
   STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER = 0,
 } SStreamMgmtReqType;
 
-typedef struct SStreamMgmtReq {
+typedef struct SStreamDbTableName {
+  char dbFName[TSDB_DB_FNAME_LEN];
+  char tbName[TSDB_TABLE_NAME_LEN];
+} SStreamDbTableName;
+
+typedef struct SStreamMgmtReqCont {
+  SArray*            fullTableNames;  // SArray<SStreamDbTableName>, full table names of the original tables
+} SStreamMgmtReqCont;
+
+typedef union SStreamMgmtReq {
+  int64_t            reqId;
   SStreamMgmtReqType type;
+  SStreamMgmtReqCont cont;
 } SStreamMgmtReq;
 
-typedef struct SStreamTriggerOrigTblReaderReq {
-  SStreamMgmtReq header;
-  SArray*        fullTableNames;  // SArray<char*>, full table names ("<dbname>.<tbname>") of the original tables
-} SStreamTriggerOrigTblReaderReq;
-
-typedef union SStreamMgmtReqUnion {
-  SStreamTriggerOrigTblReaderReq req;
-} SStreamMgmtReqUnion;
 
 typedef struct SStreamTask {
   EStreamTaskType type;
@@ -381,10 +381,25 @@ typedef struct SStreamTask {
   EStreamStatus status;
   int32_t       errorCode;
 
-  SStreamMgmtReqUnion pMgmtReq;  // request that should be handled by stream mgmt thread
+  SStreamMgmtReq* pMgmtReq;  // request that should be handled by stream mgmt thread
 
   SRWLatch      lock;      // concurrent undeloy
 } SStreamTask;
+
+typedef struct SStreamMgmtRspCont {
+  SArray*    vgIds;       // SArray<int32_t>, same size and order as fullTableNames in SStreamMgmtReqCont
+  SArray*    readerList;  // SArray<SStreamTaskAddr>, each SStreamTaskAddr has an unique nodeId
+} SStreamMgmtRspCont;
+
+typedef union SStreamMgmtRsp {
+  SStreamMsg         header;
+  int64_t            reqId;
+  int32_t            code;
+  SStreamTask        task;
+  SStreamMgmtRspCont cont;
+} SStreamMgmtRsp;
+
+
 
 typedef SStreamTask SStmTaskStatusMsg;
 
@@ -395,6 +410,7 @@ typedef struct SStreamHbMsg {
   int32_t runnerThreadNum;
   SArray* pVgLeaders;     // SArray<int32_t>
   SArray* pStreamStatus;  // SArray<SStmTaskStatusMsg>
+  SArray* pStreamReq;     // SArray<int32_t>, task index in pStreamStatus
 } SStreamHbMsg;
 
 int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq);
@@ -535,6 +551,10 @@ typedef struct {
 } SStreamUndeployActions;
 
 typedef struct {
+  SArray* rspList;   // SArray<SStreamMgmtRsp>
+} SStreamMgmtRsps;
+
+typedef struct {
   int32_t streamGid;
 } SStreamMsgGrpHeader;
 
@@ -543,6 +563,7 @@ typedef struct {
   SStreamDeployActions   deploy;
   SStreamStartActions    start;
   SStreamUndeployActions undeploy;
+  SStreamMgmtRsps        rsps;
 } SMStreamHbRspMsg;
 
 int32_t tEncodeStreamHbRsp(SEncoder* pEncoder, const SMStreamHbRspMsg* pRsp);

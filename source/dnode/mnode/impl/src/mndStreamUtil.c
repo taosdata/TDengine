@@ -27,6 +27,11 @@ void mstWaitRLock(SRWLatch* pLock) {
   }
 }
 
+void mndStreamDestroySStreamMgmtRsp(SStreamMgmtRsp* p) {
+  taosArrayDestroy(p->cont.vgIds);
+  taosArrayDestroy(p->cont.readerList);
+}
+
 void mstDestroySStmVgStreamStatus(void* p) { 
   SStmVgStreamStatus* pStatus = (SStmVgStreamStatus*)p;
   taosArrayDestroy(pStatus->trigReaders); 
@@ -371,6 +376,151 @@ void mndStreamPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pActio
 
   mndStreamActionEnqueue(actionQ, pNode);
 }
+
+void mndStreamDestroyDbVgroupsHash(SSHashObj *pDbVgs) {
+  int32_t iter = 0;
+  SDBVgHashInfo* pVg = NULL;
+  void* p = NULL;
+  while (NULL != (p = tSimpleHashIterate(pDbVgs, p, &iter))) {
+    pVg = (SDBVgHashInfo*)p;
+    taosArrayDestroy(pVg->vgArray);
+  }
+  
+  tSimpleHashCleanup(pDbVgs);
+}
+
+
+int32_t mndStreamBuildDBVgroupsMap(SMnode* pMnode, SSHashObj** ppRes) {
+  void*   pIter = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SArray* pTarget = NULL;
+  SArray* pNew = NULL;
+  SDbObj* pDb = NULL;
+  SDBVgHashInfo dbInfo = {0}, *pDbInfo = NULL;
+  SVgObj* pVgroup = NULL;
+
+  SSHashObj* pDbVgroup = tSimpleHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  TSDB_CHECK_NULL(pDbVgroup, code, lino, _exit, terrno);
+
+  while (1) {
+    pIter = sdbFetch(pMnode->pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
+    if (pIter == NULL) {
+      break;
+    }
+
+    pDbInfo = (SDBVgHashInfo*)tSimpleHashGet(pDbVgroup, pVgroup->dbName, strlen(pVgroup->dbName) + 1);
+    if (NULL == pDbInfo) {
+      pNew = taosArrayInit(20, sizeof(SVGroupHashInfo));
+      TSDB_CHECK_NULL(pNew, code, lino, _exit, terrno);
+
+      pDb = mndAcquireDb(pMnode, pVgroup->dbName);
+      TSDB_CHECK_NULL(pNew, code, lino, _exit, terrno);
+
+      dbInfo.vgSorted = false;
+      dbInfo.hashMethod = pDb->cfg.hashMethod;
+      dbInfo.hashPrefix = pDb->cfg.hashPrefix;
+      dbInfo.hashSuffix = pDb->cfg.hashSuffix;
+      dbInfo.vgArray = pNew;
+      
+      mndReleaseDb(pMnode, pDb);
+
+      pTarget = pNew;
+    } else {
+      pTarget = pDbInfo->vgArray;
+    }
+
+    SVGroupHashInfo vgInfo = {.vgId = pVgroup->vgId, .hashBegin = pVgroup->hashBegin, .hashEnd = pVgroup->hashEnd};
+    TSDB_CHECK_NULL(taosArrayPush(pTarget, &vgInfo), code, lino, _exit, terrno);
+
+    if (NULL == pDbInfo) {
+      TAOS_CHECK_EXIT(tSimpleHashPut(pDbVgroup, pVgroup->dbName, strlen(pVgroup->dbName) + 1, &dbInfo, sizeof(dbInfo)));
+      pNew = NULL;
+    }
+
+    sdbRelease(pMnode->pSdb, pVgroup);
+    pVgroup = NULL;
+  }
+
+  *ppRes = pDbVgroup;
+  
+_exit:
+
+  taosArrayDestroy(pNew);
+  sdbRelease(pMnode->pSdb, pVgroup);
+
+  if (code) {
+    mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+
+  return code;
+}
+
+int mstDbVgInfoComp(const void* lp, const void* rp) {
+  SVGroupHashInfo* pLeft = (SVGroupHashInfo*)lp;
+  SVGroupHashInfo* pRight = (SVGroupHashInfo*)rp;
+  if (pLeft->hashBegin < pRight->hashBegin) {
+    return -1;
+  } else if (pLeft->hashBegin > pRight->hashBegin) {
+    return 1;
+  }
+
+  return 0;
+}
+
+int32_t mstTableHashValueComp(void const* lp, void const* rp) {
+  uint32_t*    key = (uint32_t*)lp;
+  SVgroupInfo* pVg = (SVgroupInfo*)rp;
+
+  if (*key < pVg->hashBegin) {
+    return -1;
+  } else if (*key > pVg->hashEnd) {
+    return 1;
+  }
+
+  return 0;
+}
+
+
+int32_t mndStreamGetTableVgId(SSHashObj* pDbVgroups, char* dbFName, char *tbName, int32_t* vgId) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SVgroupInfo* vgInfo = NULL;
+  char         tbFullName[TSDB_TABLE_FNAME_LEN];
+
+  SDBVgHashInfo* dbInfo = (SDBVgHashInfo*)tSimpleHashGet(pDbVgroups, dbFName, strlen(dbFName) + 1);
+  if (NULL == dbInfo) {
+    mstError("db %s does not exist", dbFName);
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_DB_NOT_EXIST);
+  }
+  
+  (void)snprintf(tbFullName, sizeof(tbFullName), "%s.%s", dbFName, tbName);
+  uint32_t hashValue = taosGetTbHashVal(tbFullName, (uint32_t)strlen(tbFullName), dbInfo->hashMethod,
+                                        dbInfo->hashPrefix, dbInfo->hashSuffix);
+
+  if (!dbInfo->vgSorted) {
+    taosArraySort(dbInfo->vgArray, mstDbVgInfoComp);
+    dbInfo->vgSorted = true;
+  }
+
+  vgInfo = taosArraySearch(dbInfo->vgArray, &hashValue, mstTableHashValueComp, TD_EQ);
+  if (NULL == vgInfo) {
+    mstError("no hash range found for hash value [%u], dbFName:%s, numOfVgId:%d", hashValue, dbFName,
+             (int32_t)taosArrayGetSize(dbInfo->vgArray));
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+  }
+
+  *vgId = vgInfo->vgId;
+
+_exit:
+
+  if (code) {
+    mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+
+  return code;
+}
+
 
 void mndStreamLogSStreamObj(char* tips, SStreamObj* p) {
   if (!(stDebugFlag & DEBUG_DEBUG)) {

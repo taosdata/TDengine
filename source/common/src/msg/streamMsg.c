@@ -417,6 +417,67 @@ _exit:
 
 void tCleanupStreamRetrieveReq(SStreamRetrieveReq* pReq) { taosMemoryFree(pReq->pRetrieve); }
 
+int32_t tEncodeSStreamMgmtReq(SEncoder* pEncoder, const SStreamMgmtReq* pReq) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->reqId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->type));
+  switch (pReq->type) {
+    case STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER: {
+      if (pReq->cont.fullTableNames) {
+        int32_t num = taosArrayGetSize(pReq->cont.fullTableNames);
+        TAOS_CHECK_EXIT(tEncodeI32(pEncoder, num));
+        for (int32_t i = 0; i < num; ++i) {
+          SStreamDbTableName* pName = taosArrayGetP(pReq->cont.fullTableNames, i);
+          TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, pName->dbFName, strlen(pName->dbFName) + 1));
+          TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, pName->tbName, strlen(pName->tbName) + 1));
+        }
+      } else {
+        TAOS_CHECK_EXIT(tEncodeI32(pEncoder, 0));
+      }
+      break;
+    }
+    default:
+      code = TSDB_CODE_STREAM_INVALID_TASK_TYPE;
+      break;
+  }
+
+_exit:
+
+  return code;
+}
+
+int32_t tDecodeSStreamMgmtReq(SDecoder* pDecoder, SStreamMgmtReq* pReq) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->reqId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, (int32_t*)&pReq->type));
+  switch (pReq->type) {
+    case STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER: {
+      int32_t num = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &num));
+      if (num > 0) {
+        pReq->cont.fullTableNames = taosArrayInit(num, sizeof(SStreamDbTableName));
+        TSDB_CHECK_NULL(pReq->cont.fullTableNames, code, lino, _exit, terrno);
+        for (int32_t i = 0; i < num; ++i) {
+          SStreamDbTableName* p = taosArrayReserve(pReq->cont.fullTableNames, 1);
+          TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->dbFName));
+          TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->tbName));
+        }
+      }
+      break;
+    }
+    default:
+      code = TSDB_CODE_STREAM_INVALID_TASK_TYPE;
+      break;
+  }
+
+_exit:
+
+  return code;  
+}
+
 int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   int32_t code = 0;
   int32_t lino;
@@ -432,6 +493,12 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pTask->taskIdx));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->status));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->errorCode));
+  if (pTask->pMgmtReq) {
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, 1));
+    TAOS_CHECK_EXIT(tEncodeSStreamMgmtReq(pEncoder, pTask->pMgmtReq));
+  } else {
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, 0));
+  }
 
 _exit:
 
@@ -454,6 +521,13 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pTask->taskIdx));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, (int32_t*)&pTask->status));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->errorCode));
+  int32_t req = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &req));
+  if (req) {
+    pTask->pMgmtReq = taosMemoryCalloc(1, sizeof(SStreamMgmtReq));
+    TSDB_CHECK_NULL(pTask->pMgmtReq, code, lino, _exit, terrno);
+    TAOS_CHECK_EXIT(tDecodeSStreamMgmtReq(pDecoder, pTask->pMgmtReq));
+  }
 
 _exit:
 
@@ -934,6 +1008,46 @@ _exit:
   return code;
 }
 
+int32_t tEncodeSStreamMgmtRspCont(SEncoder* pEncoder, const SStreamMgmtRspCont* pRsp) {
+  int32_t code = 0;
+  int32_t lino;
+
+  int32_t vgNum = taosArrayGetSize(pRsp->vgIds);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, vgNum));
+
+  for (int32_t i = 0; i < vgNum; ++i) {
+    int32_t* vgId = taosArrayGet(pRsp->vgIds, i);
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, *vgId));
+  }
+
+  int32_t readerNum = taosArrayGetSize(pRsp->readerList);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, readerNum));
+  
+  for (int32_t i = 0; i < readerNum; ++i) {
+    SStreamTaskAddr* addr = taosArrayGet(pRsp->readerList, i);
+    TAOS_CHECK_EXIT(tEncodeSStreamTaskAddr(pEncoder, addr));
+  }
+
+_exit:
+
+  return code;
+}
+
+int32_t tEncodeSStreamMgmtRsp(SEncoder* pEncoder, const SStreamMgmtRsp* pRsp) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tEncodeSStreamMsg(pEncoder, &pRsp->header));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pRsp->reqId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->code));
+  TAOS_CHECK_EXIT(tEncodeStreamTask(pEncoder, &pRsp->task));
+  TAOS_CHECK_EXIT(tEncodeSStreamMgmtRspCont(pEncoder, (SStreamMgmtRspCont*)&pRsp->cont));
+
+_exit:
+
+  return code;
+}
+
 
 int32_t tEncodeStreamHbRsp(SEncoder* pEncoder, const SMStreamHbRspMsg* pRsp) {
   int32_t code = 0;
@@ -963,6 +1077,13 @@ int32_t tEncodeStreamHbRsp(SEncoder* pEncoder, const SMStreamHbRspMsg* pRsp) {
       SStreamTaskUndeploy* pTask = (SStreamTaskUndeploy*)taosArrayGet(pRsp->undeploy.taskList, i);
       TAOS_CHECK_EXIT(tEncodeSStreamTaskUndeploy(pEncoder, pTask));
     }
+  }
+
+  int32_t rspNum = taosArrayGetSize(pRsp->rsps.rspList);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, rspNum));
+  for (int32_t i = 0; i < rspNum; ++i) {
+    SStreamMgmtRsp* pMgmtRsp = (SStreamMgmtRsp*)taosArrayGet(pRsp->rsps.rspList, i);
+    TAOS_CHECK_EXIT(tEncodeSStreamMgmtRsp(pEncoder, pMgmtRsp));
   }
   
 _exit:
@@ -1370,6 +1491,53 @@ _exit:
 }
 
 
+int32_t tDecodeSStreamMgmtRspCont(SDecoder* pDecoder, SStreamMgmtRspCont* pCont) {
+  int32_t code = 0;
+  int32_t lino;
+
+  int32_t vgNum = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &vgNum));  
+  if (vgNum > 0) {
+    pCont->vgIds = taosArrayInit_s(sizeof(int32_t), vgNum);
+    TSDB_CHECK_NULL(pCont->vgIds, code, lino, _exit, terrno);
+  }
+  for (int32_t i = 0; i < vgNum; ++i) {
+    int32_t *vgId = taosArrayGet(pCont->vgIds, i);
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, vgId));  
+  }
+
+  int32_t readerNum = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &readerNum));  
+  if (readerNum > 0) {
+    pCont->readerList = taosArrayInit_s(sizeof(SStreamTaskAddr), readerNum);
+    TSDB_CHECK_NULL(pCont->readerList, code, lino, _exit, terrno);
+  }
+  for (int32_t i = 0; i < readerNum; ++i) {
+    SStreamTaskAddr *addr = taosArrayGet(pCont->readerList, i);
+    TAOS_CHECK_EXIT(tDecodeSStreamTaskAddr(pDecoder, addr));  
+  }
+
+_exit:
+
+  return code;
+}
+
+
+int32_t tDecodeSStreamMgmtRsp(SDecoder* pDecoder, SStreamMgmtRsp* pRsp) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tDecodeSStreamMsg(pDecoder, &pRsp->header));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pRsp->reqId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->code));
+  TAOS_CHECK_EXIT(tDecodeStreamTask(pDecoder, &pRsp->task));
+  TAOS_CHECK_EXIT(tDecodeSStreamMgmtRspCont(pDecoder, &pRsp->cont));
+
+_exit:
+
+  return code;
+}
+
 
 int32_t tDecodeStreamHbRsp(SDecoder* pDecoder, SMStreamHbRspMsg* pRsp) {
   int32_t code = 0;
@@ -1412,6 +1580,17 @@ int32_t tDecodeStreamHbRsp(SDecoder* pDecoder, SMStreamHbRspMsg* pRsp) {
       TAOS_CHECK_EXIT(tDecodeSStreamTaskUndeploy(pDecoder, pTask));
     }
   }  
+
+  int32_t rspNum = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &rspNum));
+  if (rspNum > 0) {
+    pRsp->rsps.rspList = taosArrayInit_s(sizeof(SStreamMgmtRsp), rspNum);
+    TSDB_CHECK_NULL(pRsp->rsps.rspList, code, lino, _exit, terrno);
+    for (int32_t i = 0; i < rspNum; ++i) {
+      SStreamMgmtRsp* pMgmtRsp = (SStreamMgmtRsp*)taosArrayGet(pRsp->rsps.rspList, i);
+      TAOS_CHECK_EXIT(tDecodeSStreamMgmtRsp(pDecoder, pMgmtRsp));
+    }
+  }
 
   tEndDecode(pDecoder);
 

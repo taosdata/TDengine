@@ -306,8 +306,13 @@ typedef struct SStmStreamUndeploy{
   int8_t      doCleanup;
 } SStmStreamUndeploy;
 
+typedef struct SStmStreamStart {
+  SStmTaskId      triggerId;
+} SStmStreamStart;
+
 typedef struct SStmAction {
   int32_t            actions;
+  SStmStreamStart    start;
   SStmStreamDeploy   deploy;
   SStmStreamUndeploy undeploy;
 } SStmAction;
@@ -469,6 +474,10 @@ void mndStreamLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p);
 void mstDestroySStmVgStreamStatus(void* p);
 void mstDestroyVgroupStatus(SStmVgroupStatus* pVgStatus);
 void mstDestroySStmSnodeStreamStatus(void* p);
+int32_t mndStreamBuildDBVgroupsMap(SMnode* pMnode, SSHashObj** ppRes);
+int32_t mndStreamGetTableVgId(SSHashObj* pDbVgroups, char* dbFName, char *tbName, int32_t* vgId);
+void mndStreamDestroySStreamMgmtRsp(SStreamMgmtRsp* p);
+void mndStreamDestroyDbVgroupsHash(SSHashObj *pDbVgs);
 
 #ifdef __cplusplus
 }

@@ -97,10 +97,11 @@ int32_t streamTimerInit(void** ppTimer);
 int32_t streamHbInit(SStreamHbInfo* pHb);
 int32_t smDeployTasks(SStmStreamDeploy* pDeploy);
 int32_t smUndeployTasks(SStreamUndeployActions* actions);
+int32_t smHandleMgmtRsp(SStreamMgmtRsps* rsps);
 int32_t smStartTasks(SStreamStartActions* actions);
 void smUndeployAllTasks(void);
 void streamTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* pParam, void* pHandle, tmr_h* pTmrId, const char* pMsg);
-int32_t stmBuildStreamsStatus(SArray** ppStatus, int32_t gid);
+int32_t stmBuildStreamsStatusReq(SArray** ppStatus, SArray** ppReq, int32_t gid);
 int32_t stmAddFetchStreamGid(void);
 
 // initialize global request limit of stream triggers
@@ -116,6 +117,7 @@ void smHandleRemovedTask(SStreamTasksInfo* pStream, int64_t streamId, int32_t gi
 void smUndeployVgTasks(int32_t vgId);
 int32_t smDeployStreams(SStreamDeployActions* actions);
 void stmDestroySStreamTasksInfo(SStreamTasksInfo* p);
+void stmDestroySStreamMgmtReq(SStreamMgmtReq* pReq);
 int32_t streamBuildStateNotifyContent(ESTriggerEventType eventType, int16_t dataType, const char* pFromState,
                                       const char* pToState, char** ppContent);
 int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t rowIdx,

@@ -102,6 +102,29 @@ typedef struct SStreamCacheReadInfo {
   SSDataBlock *pBlock;
 } SStreamCacheReadInfo;
 
+#define STM_CHK_SET_ERROR(CMD)        \
+    do {                              \
+      code = (CMD);                   \
+      if (code < TSDB_CODE_SUCCESS) { \
+        atomic_store_32(&((SStreamTask *)pTask)->errorCode, code);  \
+        atomic_store_32((int32_t*)&((SStreamTask *)pTask)->status, STREAM_STATUS_FAILED);         \
+        ST_TASK_ELOG("task failed in %s at line %d", __FUNCTION__, __LINE__);       \
+      }                               \
+    } while (0)
+
+
+#define STM_CHK_SET_ERROR_EXIT(CMD)        \
+    do {                              \
+      code = (CMD);                   \
+      if (code < TSDB_CODE_SUCCESS) { \
+        lino = __LINE__;              \
+        atomic_store_32(&((SStreamTask *)pTask)->errorCode, code);  \
+        atomic_store_32((int32_t*)&((SStreamTask *)pTask)->status, STREAM_STATUS_FAILED);         \
+        ST_TASK_ELOG("task failed in %s at line %d", __FUNCTION__, __LINE__);       \
+        goto _exit;                   \
+      }                               \
+    } while (0)
+
 #define STREAM_GID(_streamId) ((uint64_t)(_streamId) % STREAM_MAX_GROUP_NUM)
 
 // clang-format off
@@ -168,6 +191,7 @@ int32_t streamHbHandleRspErr(int32_t errCode, int64_t currTs);
 int32_t streamInit(void *pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode);
 void    streamCleanup(void);
 int32_t streamGetTask(int64_t streamId, int64_t taskId, SStreamTask** ppTask);
+void streamHandleTaskError(int64_t streamId, int64_t taskId, int32_t errCode);
 int32_t streamTriggerKickCalc();
 int32_t streamTriggerProcessRsp(SStreamTask *pTask, SRpcMsg *pRsp, int64_t *pErrTaskId);
 

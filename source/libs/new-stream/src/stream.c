@@ -138,4 +138,16 @@ int32_t streamGetTask(int64_t streamId, int64_t taskId, SStreamTask** ppTask) {
   return TSDB_CODE_SUCCESS;
 }
 
+void streamHandleTaskError(int64_t streamId, int64_t taskId, int32_t errCode) {
+  int64_t key[2] = {streamId, taskId};
+
+  SStreamTask** task = taosHashGet(gStreamMgmt.taskMap, key, sizeof(key));
+  if (NULL == task) {
+    stError("stream %" PRIx64 " task %" PRIx64 " not exists in taskMap", streamId, taskId);
+    return;
+  }
+
+  atomic_store_32(&(*task)->errorCode, errCode);
+  atomic_store_32((int32_t*)&(*task)->status, STREAM_STATUS_FAILED);
+}
 
