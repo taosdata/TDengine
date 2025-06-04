@@ -1982,6 +1982,7 @@ static int32_t createDynQueryCtrlPhysiNode(SPhysiPlanContext* pCxt, SNodeList* p
   }
 
   pDynCtrl->qType = pLogicNode->qType;
+  pDynCtrl->dynTbname = pLogicNode->dynTbname;
   *pPhyNode = (SPhysiNode*)pDynCtrl;
 
   return code;
@@ -2445,6 +2446,7 @@ static int32_t doCreateExchangePhysiNode(SPhysiPlanContext* pCxt, SExchangeLogic
   pExchange->srcStartGroupId = pExchangeLogicNode->srcStartGroupId;
   pExchange->srcEndGroupId = pExchangeLogicNode->srcEndGroupId;
   pExchange->seqRecvData = pExchangeLogicNode->seqRecvData;
+  pExchange->dynTbname = pExchangeLogicNode->dynTbname;
 
   int32_t code = setConditionsSlotId(pCxt, (const SLogicNode*)pExchangeLogicNode, (SPhysiNode*)pExchange);
   if (TSDB_CODE_SUCCESS == code) {
@@ -3205,6 +3207,7 @@ static int32_t makeSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubplan
   pSubplan->isView = pCxt->pPlanCxt->isView;
   pSubplan->isAudit = pCxt->pPlanCxt->isAudit;
   pSubplan->processOneBlock = pLogicSubplan->processOneBlock;
+  pSubplan->dynTbname = pLogicSubplan->dynTbname;
   if (NULL != pCxt->pPlanCxt->pUser) {
     snprintf(pSubplan->user, sizeof(pSubplan->user), "%s", pCxt->pPlanCxt->pUser);
   }
