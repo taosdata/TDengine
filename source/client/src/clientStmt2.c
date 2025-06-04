@@ -314,7 +314,7 @@ static int32_t stmtParseSql(STscStmt2* pStmt) {
 
   pStmt->bInfo.needParse = false;
 
-  if (pStmt->sql.status == 0) {
+  if (pStmt->sql.type == 0) {
     if (pStmt->sql.pQuery->pRoot && LEGAL_INSERT(nodeType(pStmt->sql.pQuery->pRoot))) {
       pStmt->sql.type = STMT_TYPE_INSERT;
       pStmt->sql.stbInterlaceMode = false;
