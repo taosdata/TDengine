@@ -566,7 +566,7 @@ def package_on_windows():
 
 def copy_docs_to_explorer(explorer_path):
     print("copy docs to explorer")
-    if release_info.CustomPrompt != 'taos' or release_info.CustomName != 'TDengine':
+    if release_info.CustomPrompt != 'taos' and release_info.CustomName != 'TDengine':
         zh_doc_zip_path = os.path.join(explorer_path, "..", f"docs-{release_info.CustomPrompt}.zip")
         zh_doc_public_path = os.path.join(explorer_path, "public", "docs")
         if os.path.exists(zh_doc_zip_path):
