@@ -740,37 +740,15 @@ bool fmIsGroupIdFunc(int32_t funcId) {
   return FUNCTION_TYPE_GROUP_ID == funcMgtBuiltins[funcId].type;
 }
 
-int32_t fmGetStreamPseudoFuncType(int32_t funcId) {
-  switch (funcMgtBuiltins[funcId].type) {
-    case FUNCTION_TYPE_TCURRENT_TS:
-      return STREAM_PSEUDO_FUNC_CURRENT_TS;
-    case FUNCTION_TYPE_TWSTART:
-      return STREAM_PSEUDO_FUNC_TWSTART;
-    case FUNCTION_TYPE_TWEND:
-      return STREAM_PSEUDO_FUNC_TWEND;
-    case FUNCTION_TYPE_TWDURATION:
-      return STREAM_PSEUDO_FUNC_TWDURATION;
-    case FUNCTION_TYPE_TWROWNUM:
-      return STREAM_PSEUDO_FUNC_TWROWNUM;
-    case FUNCTION_TYPE_TLOCALTIME:
-      return STREAM_PSEUDO_FUNC_TLOCALTIME;
-    case FUNCTION_TYPE_TGRPID:
-      return STREAM_PSEUDO_FUNC_TGRPID;
-    case FUNCTION_TYPE_PLACEHOLDER_COLUMN:
-      return STREAM_PSEUDO_FUNC_PLACEHOLDER_COLUMN;
-    case FUNCTION_TYPE_PLACEHOLDER_TBNAME:
-      return STREAM_PSEUDO_FUNC_PLACEHOLDER_TBNAME;
-    default:
-      break;
-  }
-  return -1;
-}
-
 const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo) {
   SSTriggerCalcParam *pParams = taosArrayGet(pStreamRuntimeFuncInfo->pStreamPesudoFuncVals, pStreamRuntimeFuncInfo->curIdx);
   switch (funcMgtBuiltins[funcId].type) {
+    case FUNCTION_TYPE_TPREV_TS:
+      return &pParams->prevTs;
     case FUNCTION_TYPE_TCURRENT_TS:
       return &pParams->currentTs;
+    case FUNCTION_TYPE_TNEXT_TS:
+      return &pParams->nextTs;
     case FUNCTION_TYPE_TWSTART:
       return &pParams->wstart;
     case FUNCTION_TYPE_TWEND:
@@ -779,8 +757,12 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
       return &pParams->wduration;
     case FUNCTION_TYPE_TWROWNUM:
       return &pParams->wrownum;
+    case FUNCTION_TYPE_TPREV_LOCALTIME:
+      return &pParams->prevLocalTime;
     case FUNCTION_TYPE_TLOCALTIME:
       return &pParams->triggerTime;
+    case FUNCTION_TYPE_TNEXT_LOCALTIME:
+      return &pParams->nextLocalTime;
     case FUNCTION_TYPE_TGRPID:
       return &pStreamRuntimeFuncInfo->groupId;
     case  FUNCTION_TYPE_PLACEHOLDER_COLUMN:
@@ -800,28 +782,25 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
   }
   int32_t code = 0;
   SArray *pVals1 = NULL, *pVals2 = NULL;
-  SNode* pFirstParam = NULL;
-  int32_t t = fmGetStreamPseudoFuncType(funcId);
-  if (STREAM_PSEUDO_FUNC_TGRPID == t) {
+  SNode* pFirstParam = nodesListGetNode(pParamNodes, 0);
+  if (nodeType(pFirstParam) != QUERY_NODE_VALUE) {
+    uError("invalid param node type: %d for func: %d", nodeType(pFirstParam), funcId);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  int32_t t = funcMgtBuiltins[funcId].type;
+  uInfo("set stream pseudo func param val, funcId: %d, pStreamRuntimeInfo: %p", funcId, pStreamRuntimeInfo);
+  if (FUNCTION_TYPE_TGRPID == t) {
     SValue v = {0};
     v.type = TSDB_DATA_TYPE_BIGINT;
     v.val = *(int64_t*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
-    pFirstParam = nodesListGetNode(pParamNodes, 0);
-    if (nodeType(pFirstParam) != QUERY_NODE_VALUE) {
-      uError("invalid param node type: %d for func: %d", nodeType(pFirstParam), funcId);
-      return TSDB_CODE_INTERNAL_ERROR;
-    }
+    
     code = nodesSetValueNodeValue((SValueNode*)pFirstParam, VALUE_GET_DATUM(&v, pFirstParam->type));
     if (code != 0) {
       uError("failed to set value node value: %s", tstrerror(code));
       return code;
     }
-  } else if (STREAM_PSEUDO_FUNC_PLACEHOLDER_COLUMN == t) {
-    SNode* pFirstParam = nodesListGetNode(pParamNodes, 0);
-    if (nodeType(pFirstParam) != QUERY_NODE_VALUE) {
-      uError("invalid param node type: %d for func: %d", nodeType(pFirstParam), funcId);
-      return TSDB_CODE_INTERNAL_ERROR;
-    }
+  } else if (FUNCTION_TYPE_PLACEHOLDER_COLUMN == t) {
     SNode* pSecondParam = nodesListGetNode(pParamNodes, 1);
     if (nodeType(pSecondParam) != QUERY_NODE_VALUE) {
       uError("invalid param node type: %d for func: %d", nodeType(pSecondParam), funcId);
@@ -856,11 +835,6 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
   } else if (LIST_LENGTH(pParamNodes) == 1) {
     // twstart, twend
     const void* pVal = fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
-    pFirstParam = nodesListGetNode(pParamNodes, 0);
-    if (nodeType(pFirstParam) != QUERY_NODE_VALUE) {
-      uError("invalid param node type: %d for func: %d", nodeType(pFirstParam), funcId);
-      return TSDB_CODE_INTERNAL_ERROR;
-    }
     if (!pVal) {
       uError("failed to set stream pseudo func param val, NULL val for funcId: %d", funcId);
       return TSDB_CODE_INTERNAL_ERROR;

@@ -97,17 +97,17 @@ class TestStreamDevBasic:
             sql=res_query,
             func=lambda: tdSql.getRows() >= 4
             and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
-            and tdSql.compareData(0, 1, "2025-01-01 00:00:00.000")
-            and tdSql.compareData(0, 2, "2025-01-01 00:00:00.000")
-            and tdSql.compareData(0, 3, "2025-01-01 00:00:00.000")
-            and tdSql.compareData(1, 0, 1000)
+            and tdSql.compareData(1, 0, "2025-01-01 00:05:00.000")
+            and tdSql.compareData(2, 0, "2025-01-01 00:10:00.000")
+            and tdSql.compareData(3, 0, "2025-01-01 00:15:00.000")
+            and tdSql.compareData(0, 1, 1000)
             and tdSql.compareData(1, 1, 1000)
-            and tdSql.compareData(1, 2, 1000)
-            and tdSql.compareData(1, 3, 1000)
-            and tdSql.compareData(2, 0, 4.5)
-            and tdSql.compareData(2, 1, 14.5)
+            and tdSql.compareData(2, 1, 1000)
+            and tdSql.compareData(3, 1, 1000)
+            and tdSql.compareData(0, 2, 4.5)
+            and tdSql.compareData(1, 2, 14.5)
             and tdSql.compareData(2, 2, 24.5)
-            and tdSql.compareData(2, 3, 34.5),
+            and tdSql.compareData(3, 2, 34.5),
         )
 
         # exp_query = "select _wstart ts, count(cint) c1, avg(cint) c2 from qdb.meters interval(5m)"

@@ -23,7 +23,7 @@ static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRu
   if (!pMgr->pFreeExecs) return terrno;
 
   for (int32_t i = 0; i < pTask->parallelExecutionNun && code == 0; ++i) {
-    exec.runtimeInfo.execId = i;
+    exec.runtimeInfo.execId = i + pTask->task.deployId * pTask->parallelExecutionNun;
     if (pMsg->outTblType == TSDB_NORMAL_TABLE) {
       strncpy(exec.tbname, pMsg->outTblName, TSDB_TABLE_NAME_LEN);
     }
@@ -308,7 +308,7 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
         SInputData              input = {.pData = pBlock, .pStreamDataInserterInfo = &d};
         bool                    cont = false;
         code = dsPutDataBlock(pExec->pSinkHandle, &input, &cont);
-        ST_TASK_DLOG("runner output block to sink: rows: %" PRId64 ", tbname: %s, createTb: %d, gid: %"PRId64, pBlock->info.rows,
+        ST_TASK_DLOG("runner output block to sink code:%d, rows: %" PRId64 ", tbname: %s, createTb: %d, gid: %"PRId64, code, pBlock->info.rows,
                      pExec->tbname, createTb, pExec->runtimeInfo.funcInfo.groupId);
         printDataBlock(pBlock, "output block to sink", "runner");
       }

@@ -3176,7 +3176,7 @@ void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr
     char*   pBuf = NULL;
     int32_t code = dumpBlockData(pBlock, flag, &pBuf, taskIdStr);
     if (code == 0) {
-      qDebug("%s", pBuf);
+      qDebugL("%s", pBuf);
       taosMemoryFree(pBuf);
     }
   }
