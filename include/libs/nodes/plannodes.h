@@ -263,6 +263,7 @@ typedef struct SDynQueryCtrlLogicNode {
   EDynQueryType        qType;
   SDynQueryCtrlStbJoin stbJoin;
   SDynQueryCtrlVtbScan vtbScan;
+  bool                 dynTbname;
 } SDynQueryCtrlLogicNode;
 
 typedef enum EModifyTableType { MODIFY_TABLE_TYPE_INSERT = 1, MODIFY_TABLE_TYPE_DELETE } EModifyTableType;
@@ -291,6 +292,7 @@ typedef struct SExchangeLogicNode {
   int32_t    srcStartGroupId;
   int32_t    srcEndGroupId;
   bool       seqRecvData;
+  bool       dynTbname;
 } SExchangeLogicNode;
 
 typedef struct SMergeLogicNode {
@@ -419,6 +421,7 @@ typedef struct SLogicSubplan {
   int32_t       splitFlag;
   int32_t       numOfComputeNodes;
   bool          processOneBlock;
+  bool          dynTbname;
 } SLogicSubplan;
 
 typedef struct SQueryLogicPlan {
@@ -658,6 +661,7 @@ typedef struct SVtbScanDynCtrlBasic {
 typedef struct SDynQueryCtrlPhysiNode {
   SPhysiNode    node;
   EDynQueryType qType;
+  bool          dynTbname;
   union {
     SStbJoinDynCtrlBasic stbJoin;
     SVtbScanDynCtrlBasic vtbScan;
@@ -694,6 +698,7 @@ typedef struct SExchangePhysiNode {
   bool       singleChannel;
   SNodeList* pSrcEndPoints;  // element is SDownstreamSource, scheduler fill by calling qSetSuplanExecutionNode
   bool       seqRecvData;
+  bool       dynTbname;
 } SExchangePhysiNode;
 
 typedef struct SMergePhysiNode {
@@ -874,6 +879,7 @@ typedef struct SSubplan {
   bool           dynamicRowThreshold;
   int32_t        rowsThreshold;
   bool           processOneBlock;
+  bool           dynTbname;
 } SSubplan;
 
 typedef enum EExplainMode { EXPLAIN_MODE_DISABLE = 1, EXPLAIN_MODE_STATIC, EXPLAIN_MODE_ANALYZE } EExplainMode;

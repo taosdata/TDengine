@@ -3169,7 +3169,8 @@ enum {
   PHY_EXCHANGE_CODE_SRC_END_GROUP_ID,
   PHY_EXCHANGE_CODE_SINGLE_CHANNEL,
   PHY_EXCHANGE_CODE_SRC_ENDPOINTS,
-  PHY_EXCHANGE_CODE_SEQ_RECV_DATA
+  PHY_EXCHANGE_CODE_SEQ_RECV_DATA,
+  PHY_EXCHANGE_CODE_DYN_TBNAME
 };
 
 static int32_t physiExchangeNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3190,6 +3191,9 @@ static int32_t physiExchangeNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_EXCHANGE_CODE_SEQ_RECV_DATA, pNode->seqRecvData);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_EXCHANGE_CODE_DYN_TBNAME, pNode->dynTbname);
   }
 
   return code;
@@ -3219,6 +3223,9 @@ static int32_t msgToPhysiExchangeNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_EXCHANGE_CODE_SEQ_RECV_DATA:
         code = tlvDecodeBool(pTlv, &pNode->seqRecvData);
+        break;
+      case PHY_EXCHANGE_CODE_DYN_TBNAME:
+        code = tlvDecodeBool(pTlv, &pNode->dynTbname);
         break;
       default:
         break;
@@ -4392,6 +4399,7 @@ enum {
   PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_ACCOUNT_ID,
   PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_EP_SET,
   PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_SCAN_COLS,
+  PHY_DYN_QUERY_CTRL_CODE_DYN_TBNAME
 };
 
 static int32_t physiDynQueryCtrlNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -4448,6 +4456,9 @@ static int32_t physiDynQueryCtrlNodeToMsg(const void* pObj, STlvEncoder* pEncode
         return TSDB_CODE_INVALID_PARA;
     }
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_DYN_QUERY_CTRL_CODE_DYN_TBNAME, pNode->dynTbname);
+  }
   return code;
 }
 
@@ -4502,6 +4513,10 @@ static int32_t msgToPhysiDynQueryCtrlNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_SCAN_COLS:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->vtbScan.pScanCols);
+        break;
+      case PHY_DYN_QUERY_CTRL_CODE_DYN_TBNAME:
+        code = tlvDecodeBool(pTlv, &pNode->dynTbname);
+        break;
       default:
         break;
     }
@@ -4628,6 +4643,9 @@ static int32_t subplanInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueBool(pEncoder, pNode->processOneBlock);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueBool(pEncoder, pNode->dynTbname);
+  }
   return code;
 }
 
@@ -4690,6 +4708,9 @@ static int32_t msgToSubplanInline(STlvDecoder* pDecoder, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueBool(pDecoder, &pNode->processOneBlock);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueBool(pDecoder, &pNode->dynTbname);
   }
   return code;
 }

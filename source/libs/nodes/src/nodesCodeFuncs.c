@@ -1525,6 +1525,7 @@ static const char* jkDynQueryCtrlLogicPlanQueryType = "QueryType";
 static const char* jkDynQueryCtrlLogicPlanStbJoinBatchFetch = "BatchFetch";
 static const char* jkDynQueryCtrlLogicPlanStbJoinVgList = "VgroupList";
 static const char* jkDynQueryCtrlLogicPlanStbJoinUidList = "UidList";
+static const char* jkDynQueryCtrlLogicPlanDynTbname = "DynTbname";
 
 static int32_t logicDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
   const SDynQueryCtrlLogicNode* pNode = (const SDynQueryCtrlLogicNode*)pObj;
@@ -1541,6 +1542,9 @@ static int32_t logicDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkDynQueryCtrlLogicPlanStbJoinUidList, pNode->stbJoin.pUidList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkDynQueryCtrlLogicPlanDynTbname, pNode->dynTbname);
   }
 
   return code;
@@ -1561,6 +1565,9 @@ static int32_t jsonToLogicDynQueryCtrlNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkDynQueryCtrlLogicPlanStbJoinUidList, &pNode->stbJoin.pUidList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkDynQueryCtrlLogicPlanDynTbname, &pNode->dynTbname);
   }
 
   return code;
@@ -2941,6 +2948,7 @@ static const char* jkExchangePhysiPlanSrcStartGroupId = "SrcStartGroupId";
 static const char* jkExchangePhysiPlanSrcEndGroupId = "SrcEndGroupId";
 static const char* jkExchangePhysiPlanSrcEndPoints = "SrcEndPoints";
 static const char* jkExchangePhysiPlanSeqRecvData = "SeqRecvData";
+static const char* jkExchangePhysiPlanDynTbname = "DynTbname";
 
 static int32_t physiExchangeNodeToJson(const void* pObj, SJson* pJson) {
   const SExchangePhysiNode* pNode = (const SExchangePhysiNode*)pObj;
@@ -2957,6 +2965,9 @@ static int32_t physiExchangeNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkExchangePhysiPlanSeqRecvData, pNode->seqRecvData);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkExchangePhysiPlanDynTbname, pNode->dynTbname);
   }
 
   return code;
@@ -2977,6 +2988,9 @@ static int32_t jsonToPhysiExchangeNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkExchangePhysiPlanSeqRecvData, &pNode->seqRecvData);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkExchangePhysiPlanDynTbname, &pNode->dynTbname);
   }
 
   return code;
@@ -3978,6 +3992,7 @@ static const char* jkDynQueryCtrlPhysiPlanUidSlot0 = "UidSlot[0]";
 static const char* jkDynQueryCtrlPhysiPlanUidSlot1 = "UidSlot[1]";
 static const char* jkDynQueryCtrlPhysiPlanSrcScan0 = "SrcScan[0]";
 static const char* jkDynQueryCtrlPhysiPlanSrcScan1 = "SrcScan[1]";
+static const char* jkDynQueryCtrlPhysiPlanDynTbname = "DynTbname";
 
 static int32_t physiDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
   const SDynQueryCtrlPhysiNode* pNode = (const SDynQueryCtrlPhysiNode*)pObj;
@@ -4013,6 +4028,9 @@ static int32_t physiDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
       default:
         return TSDB_CODE_INVALID_PARA;
     }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkDynQueryCtrlPhysiPlanDynTbname, pNode->dynTbname);
   }
   return code;
 }
@@ -4055,7 +4073,9 @@ static int32_t jsonToPhysiDynQueryCtrlNode(const SJson* pJson, void* pObj) {
         return TSDB_CODE_INVALID_PARA;
     }
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkDynQueryCtrlPhysiPlanDynTbname, &pNode->dynTbname);
+  }
   return code;
 }
 

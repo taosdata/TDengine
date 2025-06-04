@@ -56,6 +56,7 @@ typedef struct SPlanContext {
   char        pGroupIdName[TSDB_COL_NAME_LEN];
   char        pIsWindowFilledName[TSDB_COL_NAME_LEN];
   bool        virtualStableQuery;
+  bool        phTbnameQuery;
   SNode*      streamTriggerScanSubplan;
   SArray*     pStreamCalcVgArray;
   SHashObj*   pStreamCalcDbs;

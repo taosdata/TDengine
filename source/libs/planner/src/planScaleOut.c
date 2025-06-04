@@ -40,6 +40,7 @@ static SLogicSubplan* singleCloneSubLogicPlan(SScaleOutContext* pCxt, SLogicSubp
   pDst->id.groupId = pSrc->id.groupId;
   pDst->id.subplanId = pCxt->subplanId++;
   pDst->processOneBlock = pSrc->processOneBlock;
+  pDst->dynTbname = pSrc->dynTbname;
   return pDst;
 }
 

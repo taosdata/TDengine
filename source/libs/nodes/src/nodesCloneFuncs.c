@@ -650,6 +650,7 @@ static int32_t logicExchangeCopy(const SExchangeLogicNode* pSrc, SExchangeLogicN
   COPY_SCALAR_FIELD(srcStartGroupId);
   COPY_SCALAR_FIELD(srcEndGroupId);
   COPY_SCALAR_FIELD(seqRecvData);
+  COPY_SCALAR_FIELD(dynTbname);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -773,6 +774,7 @@ static int32_t logicGroupCacheCopy(const SGroupCacheLogicNode* pSrc, SGroupCache
 
 static int32_t logicDynQueryCtrlCopy(const SDynQueryCtrlLogicNode* pSrc, SDynQueryCtrlLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  COPY_SCALAR_FIELD(dynTbname);
   COPY_SCALAR_FIELD(qType);
   COPY_SCALAR_FIELD(stbJoin.batchFetch);
   CLONE_NODE_LIST_FIELD(stbJoin.pVgList);
@@ -792,6 +794,7 @@ static int32_t logicSubplanCopy(const SLogicSubplan* pSrc, SLogicSubplan* pDst) 
   COPY_SCALAR_FIELD(level);
   COPY_SCALAR_FIELD(splitFlag);
   COPY_SCALAR_FIELD(processOneBlock);
+  COPY_SCALAR_FIELD(dynTbname);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -974,6 +977,7 @@ static int32_t physiSubplanCopy(const SSubplan* pSrc, SSubplan* pDst) {
   COPY_SCALAR_FIELD(dynamicRowThreshold);
   COPY_SCALAR_FIELD(rowsThreshold);
   COPY_SCALAR_FIELD(processOneBlock);
+  COPY_SCALAR_FIELD(dynTbname);
   return TSDB_CODE_SUCCESS;
 }
 

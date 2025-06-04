@@ -13903,8 +13903,40 @@ static int32_t replaceSubPlanFromList(SNode* pTarget, SNodeList* pList) {
   return code;
 }
 
+typedef struct SCheckNotifyCondContext {
+  STranslateContext *pTransCxt;
+  bool               valid;
+} SCheckNotifyCondContext;
+
+static EDealRes doCheckNotifyCond(SNode* pNode, void* pContext) {
+  SCheckNotifyCondContext* pCxt = (SCheckNotifyCondContext*)pContext;
+  SSelectStmt*             pSelect = (SSelectStmt*)pCxt->pTransCxt->pCurrStmt;
+  SNode*                   pProj = NULL;
+
+  if (nodeType(pNode) == QUERY_NODE_VALUE) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  FOREACH(pProj, pSelect->pProjectionList) {
+    if (nodesEqualNode(pProj, pNode)) {
+      return DEAL_RES_IGNORE_CHILD;
+    }
+    if (nodesIsStar(pProj) && nodeType(pProj) == QUERY_NODE_COLUMN) {
+      // if projection is *, then all columns are valid
+      return DEAL_RES_IGNORE_CHILD;
+    }
+  }
+
+  if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+    pCxt->valid = false;
+    return DEAL_RES_ERROR;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
 static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTriggerPartition, SNode* pTriggerTbl,
-                                        SSelectStmt* pStreamCalcQuery, bool* withExtWindow) {
+                                        SSelectStmt* pStreamCalcQuery, SNode* pNotifyCond, bool* withExtWindow) {
   int32_t    code = TSDB_CODE_SUCCESS;
   ESqlClause currClause = pCxt->currClause;
   SNode*     pCurrStmt = pCxt->pCurrStmt;
@@ -13916,6 +13948,17 @@ static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTri
   pCxt->createStreamTriggerTbl = pTriggerTbl;
   pCxt->createStreamTriggerPartitionList = pTriggerPartition;
   pCxt->createStreamCalc = true;
+  pCxt->pCurrStmt = (SNode*)pStreamCalcQuery;
+
+  if (pNotifyCond) {
+    SCheckNotifyCondContext checkNotifyCondCxt = {.pTransCxt = pCxt, .valid = true};
+    nodesWalkExpr(pNotifyCond, doCheckNotifyCond, &checkNotifyCondCxt);
+    if (!checkNotifyCondCxt.valid) {
+      PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "notify condition can only contain expr from query clause"));
+    }
+    PAR_ERR_JRET(nodesListMakeAppend(&pStreamCalcQuery->pProjectionList, pNotifyCond));
+  }
+
   PAR_ERR_JRET(translateSelect(pCxt, pStreamCalcQuery));
   pCxt->createStreamCalc = false;
   pCxt->createStreamTriggerTbl = NULL;
@@ -13940,16 +13983,6 @@ static bool findNodeInList(SNode* pTarget, SNodeList* pList) {
   return false;
 }
 
-//typedef struct SCheckNotifyCondContext {
-//  STranslateContext *
-//} SCheckNotifyCondContext;
-//
-//static EDealRes doCheckNotifyCond(SNode* pNode, void* pContext) {
-//  STranslateContext* pCxt = (STranslateContext*)pContext;
-//  SSelectStmt*       pSelect = (SSelectStmt*)pCxt->pCurrStmt;
-//  return true;
-//}
-
 static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStreamStmt* pStmt,
                                             SNodeList *pTriggerPartition, SSelectStmt* pTriggerSelect,
                                             SHashObj* pTriggerSlotHash, SNode* pNotifyCond, SCMCreateStreamReq* pReq) {
@@ -13968,12 +14001,7 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY);
   }
 
-  if (pNotifyCond) {
-    //nodesWalkExpr(pNotifyCond, doCheckNotifyCond, pCxt);
-    PAR_ERR_JRET(nodesListMakeAppend(&((SSelectStmt*)pStmt->pQuery)->pProjectionList, pNotifyCond));
-  }
-
-  PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect ? pTriggerSelect->pFromTable : NULL, (SSelectStmt*)pStmt->pQuery, &withExtWindow));
+  PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect ? pTriggerSelect->pFromTable : NULL, (SSelectStmt*)pStmt->pQuery, pNotifyCond, &withExtWindow));
 
   pReq->placeHolderBitmap = pCxt->placeHolderBitmap;
 
