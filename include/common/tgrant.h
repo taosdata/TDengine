@@ -88,6 +88,8 @@ bool    grantCheckDualReplicaDnodes(void *pMnode);
       {.name = "timeseries", .bytes = 43 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},   \
       {.name = "dnodes", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},       \
       {.name = "cpu_cores", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},    \
+      {.name = "vnodes", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},       \
+      {.name = "storage_size", .bytes = 43 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true}, \
   }
 #else
 #define GRANTS_SCHEMA                                                                                              \
@@ -100,6 +102,8 @@ bool    grantCheckDualReplicaDnodes(void *pMnode);
       {.name = "timeseries", .bytes = 43 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},   \
       {.name = "dnodes", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},       \
       {.name = "cpu_cores", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},    \
+      {.name = "vnodes", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},       \
+      {.name = "storage_size", .bytes = 43 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true}, \
   }
 #endif
 // #define GRANT_CFG_ADD
