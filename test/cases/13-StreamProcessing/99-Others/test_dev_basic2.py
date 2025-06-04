@@ -34,7 +34,7 @@ class TestStreamDevBasic2:
         tdSql.prepare(dbname="qdb", vgroups=1)
 
         tdLog.info(f"=============== create super table")
-        tdSql.execute(f"create stable meters (cts timestamp, cint int, cuint int) tags(tint int);")
+        tdSql.execute(f"create stable meters (cts timestamp, cint int, cuint int unsigned) tags(tint int);")
 
         tdLog.info(f"=============== write query data")
         sqls = [

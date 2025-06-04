@@ -2489,6 +2489,7 @@ int32_t tSerializeSTriggerOrigTableInfoRsp(void* buf, int32_t bufLen, const SSTr
       code = TSDB_CODE_INVALID_PARA;
       goto _exit;
     }
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, oInfo->suid));
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, oInfo->uid));
     TAOS_CHECK_EXIT(tEncodeI16(&encoder, oInfo->cid));
   }
@@ -2528,6 +2529,7 @@ int32_t tDserializeSTriggerOrigTableInfoRsp(void* buf, int32_t bufLen, SSTrigger
       uError("failed to reserve memory for OTableInfo, size: %d, errno: %d", size, code);
       goto _exit;
     }
+    TAOS_CHECK_RETURN(tDecodeI64(&decoder, &oInfo->suid));
     TAOS_CHECK_RETURN(tDecodeI64(&decoder, &oInfo->uid));
     TAOS_CHECK_RETURN(tDecodeI16(&decoder, &oInfo->cid));
   }
@@ -2551,7 +2553,60 @@ void tDestroySTriggerPullRequest(SSTriggerPullRequestUnion* pReq) {
   } else if (pReq->base.type == STRIGGER_PULL_OTABLE_INFO) {
     SSTriggerOrigTableInfoRequest* pRequest = (SSTriggerOrigTableInfoRequest*)pReq;
     taosArrayDestroy(pRequest->cols);
+  } else if (pReq->base.type == STRIGGER_PULL_SET_TABLE) {
+    SSTriggerSetTableRequest* pRequest = (SSTriggerSetTableRequest*)pReq;
+    taosArrayDestroy(pRequest->uids);
+  } 
+}
+
+int32_t encodeColsArray(SEncoder* encoder, SArray* cids) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  int32_t size = taosArrayGetSize(cids);
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, size));
+  for (int32_t i = 0; i < size; ++i) {
+    col_id_t* pColId = taosArrayGet(cids, i);
+    if (pColId == NULL) {
+      uError("col id is NULL at index %d", i);
+      code = TSDB_CODE_INVALID_PARA;
+      goto _exit;
+    }
+    TAOS_CHECK_EXIT(tEncodeI16(encoder, *pColId));
   }
+  _exit:
+
+  return code;
+}
+
+int32_t decodeColsArray(SDecoder* decoder, SArray** cids) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t size = 0;
+
+  TAOS_CHECK_EXIT(tDecodeI32(decoder, &size));
+  *cids = taosArrayInit(size, sizeof(col_id_t));
+  if (*cids == NULL) {
+    code = terrno;
+    uError("failed to allocate memory for cids, size: %d, errno: %d", size, code);
+    goto _exit;
+  }
+
+  for (int32_t i = 0; i < size; ++i) {
+    col_id_t* pColId = taosArrayReserve(*cids, 1);
+    if (pColId == NULL) {
+      code = terrno;
+      uError("failed to reserve memory for col id at index %d, errno: %d", i, code);
+      goto _exit;
+    }
+    TAOS_CHECK_RETURN(tDecodeI16(decoder, pColId));
+  }
+  
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(*cids);
+    *cids = NULL;
+  }
+  return code;
 }
 
 int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTriggerPullRequest* pReq) {
@@ -2569,6 +2624,22 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->sessionId));
 
   switch (pReq->type) {
+    case STRIGGER_PULL_SET_TABLE: {
+      SSTriggerSetTableRequest* pRequest = (SSTriggerSetTableRequest*)pReq;
+      int32_t size = taosArrayGetSize(pRequest->uids);
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, size));
+      for (int32_t i = 0; i < size; ++i) {
+        int64_t* uids = taosArrayGet(pRequest->uids, i);
+        if (uids == NULL) {
+          uError("uid is NULL at index %d", i);
+          code = TSDB_CODE_INVALID_PARA;
+          goto _exit;
+        }
+        TAOS_CHECK_EXIT(tEncodeI64(&encoder, uids[0]));
+        TAOS_CHECK_EXIT(tEncodeI64(&encoder, uids[1]));
+      }
+      break;
+    }
     case STRIGGER_PULL_LAST_TS: {
       break;
     }
@@ -2587,6 +2658,7 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
     }
     case STRIGGER_PULL_TSDB_TS_DATA: {
       SSTriggerTsdbTsDataRequest* pRequest = (SSTriggerTsdbTsDataRequest*)pReq;
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->suid));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->uid));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->skey));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
@@ -2608,6 +2680,18 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       break;
     }
     case STRIGGER_PULL_TSDB_CALC_DATA_NEXT: {
+      break;
+    }
+    case STRIGGER_PULL_TSDB_DATA: {
+      SSTriggerTsdbDataRequest* pRequest = (SSTriggerTsdbDataRequest*)pReq;
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->suid));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->uid));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->skey));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
+      TAOS_CHECK_EXIT(encodeColsArray(&encoder, pRequest->cids));
+      break;
+    }
+    case STRIGGER_PULL_TSDB_DATA_NEXT: {
       break;
     }
     case STRIGGER_PULL_WAL_META: {
@@ -2636,6 +2720,13 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
       break;
     }
+    case STRIGGER_PULL_WAL_DATA: {
+      SSTriggerWalDataRequest* pRequest = (SSTriggerWalDataRequest*)pReq;
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->uid));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
+      TAOS_CHECK_EXIT(encodeColsArray(&encoder, pRequest->cids));
+      break;
+    }
     case STRIGGER_PULL_GROUP_COL_VALUE: {
       SSTriggerGroupColValueRequest* pRequest = (SSTriggerGroupColValueRequest*)pReq;
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->gid));
@@ -2643,17 +2734,7 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
     }
     case STRIGGER_PULL_VTABLE_INFO: {
       SSTriggerVirTableInfoRequest* pRequest = (SSTriggerVirTableInfoRequest*)pReq;
-      int32_t size = taosArrayGetSize(pRequest->cids);
-      TAOS_CHECK_EXIT(tEncodeI32(&encoder, size));
-      for (int32_t i = 0; i < size; ++i) {
-        col_id_t* pColId = taosArrayGet(pRequest->cids, i);
-        if (pColId == NULL) {
-          uError("col id is NULL at index %d", i);
-          code = TSDB_CODE_INVALID_PARA;
-          goto _exit;
-        }
-        TAOS_CHECK_EXIT(tEncodeI16(&encoder, *pColId));
-      }
+      TAOS_CHECK_EXIT(encodeColsArray(&encoder, pRequest->cids));
       break;
     }
     case STRIGGER_PULL_OTABLE_INFO: {
@@ -2709,6 +2790,28 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pBase->sessionId));
 
   switch (type) {
+    case STRIGGER_PULL_SET_TABLE: {
+      SSTriggerSetTableRequest* pRequest = &(pReq->setTableReq);
+      int32_t size = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &size));
+      pRequest->uids = taosArrayInit(size, 2 * sizeof(int64_t));
+      if (pRequest->uids == NULL) {
+        code = terrno;
+        uError("failed to allocate memory for uids, size: %d, errno: %d", size, code);
+        goto _exit;
+      }
+      for (int32_t i = 0; i < size; ++i) {
+        int64_t* uid = taosArrayReserve(pRequest->uids, 1);
+        if (uid == NULL) {
+          code = terrno;
+          uError("failed to reserve memory for uid, size: %d, errno: %d", size, code);
+          goto _exit;
+        }
+        TAOS_CHECK_RETURN(tDecodeI64(&decoder, uid));
+        TAOS_CHECK_RETURN(tDecodeI64(&decoder, uid + 1));
+      }
+      break;
+    }
     case STRIGGER_PULL_LAST_TS: {
       break;
     }
@@ -2727,6 +2830,7 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
     }
     case STRIGGER_PULL_TSDB_TS_DATA: {
       SSTriggerTsdbTsDataRequest* pRequest = &(pReq->tsdbTsDataReq);
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->suid));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->uid));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
@@ -2748,6 +2852,18 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
       break;
     }
     case STRIGGER_PULL_TSDB_CALC_DATA_NEXT: {
+      break;
+    }
+    case STRIGGER_PULL_TSDB_DATA: {
+      SSTriggerTsdbDataRequest* pRequest = &(pReq->tsdbDataReq);
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->suid));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->uid));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
+      TAOS_CHECK_EXIT(decodeColsArray(&decoder, &pRequest->cids));
+      break;
+    }
+    case STRIGGER_PULL_TSDB_DATA_NEXT: {
       break;
     }
     case STRIGGER_PULL_WAL_META: {
@@ -2776,6 +2892,13 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
       break;
     }
+    case STRIGGER_PULL_WAL_DATA: {
+      SSTriggerWalDataRequest* pRequest = &(pReq->walDataReq);
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->uid));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
+      TAOS_CHECK_EXIT(decodeColsArray(&decoder, &pRequest->cids));
+      break;
+    }
     case STRIGGER_PULL_GROUP_COL_VALUE: {
       SSTriggerGroupColValueRequest* pRequest = &(pReq->groupColValueReq);
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->gid));
@@ -2783,23 +2906,7 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
     }
     case STRIGGER_PULL_VTABLE_INFO: {
       SSTriggerVirTableInfoRequest* pRequest = &(pReq->virTableInfoReq);
-      int32_t size = 0;
-      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &size));
-      pRequest->cids = taosArrayInit(size, sizeof(col_id_t));
-      if (pRequest->cids == NULL) {
-        code = terrno;
-        uError("failed to allocate memory for cids, size: %d, errno: %d", size, code);
-        goto _exit;
-      }
-      for (int32_t i = 0; i < size; ++i) {
-        col_id_t cid = 0;
-        TAOS_CHECK_EXIT(tDecodeI16(&decoder, &cid));
-        if (taosArrayPush(pRequest->cids, &cid) == NULL) {
-          code = terrno;
-          uError("failed to push cid to cids array, errno: %d", code);
-          goto _exit;
-        }
-      }
+      TAOS_CHECK_EXIT(decodeColsArray(&decoder, &pRequest->cids));
       break;
     }
     case STRIGGER_PULL_OTABLE_INFO: {
@@ -2848,11 +2955,19 @@ static int32_t tSerializeSTriggerCalcParam(SEncoder* pEncoder, SArray* pParams, 
     if (param == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
+
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->prevTs));
     TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->currentTs));
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->nextTs));
+
     TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->wstart));
     TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->wend));
     TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->wduration));
     TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->wrownum));
+
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->prevLocalTime));
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->nextLocalTime));
+
     TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->triggerTime));
     if (ignoreNotificationInfo) {
       TAOS_CHECK_EXIT(tEncodeI32(pEncoder, param->notifyType));
@@ -2903,11 +3018,18 @@ static int32_t tDeserializeSTriggerCalcParam(SDecoder* pDecoder, SArray**ppParam
     if (param == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->prevTs));
     TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->currentTs));
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->nextTs));
+
     TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->wstart));
     TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->wend));
     TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->wduration));
     TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->wrownum));
+
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->prevLocalTime));
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->nextLocalTime));
+
     TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->triggerTime));
     if (ignoreNotificationInfo) {
       TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &param->notifyType));

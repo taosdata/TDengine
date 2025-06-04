@@ -23,6 +23,7 @@
 #include "taoserror.h"
 #include "tdatablock.h"
 #include "thash.h"
+#include "tmsg.h"
 #include "tref.h"
 
 typedef struct SNodeMemChunk {
@@ -495,6 +496,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_COUNT_WINDOW:
       code = makeNode(type, sizeof(SCountWindowNode), &pNode);
+      break;
+    case QUERY_NODE_COUNT_WINDOW_ARGS:
+      code = makeNode(type, sizeof(SCountWindowArgs), &pNode);
       break;
     case QUERY_NODE_ANOMALY_WINDOW:
       code = makeNode(type, sizeof(SAnomalyWindowNode), &pNode);
@@ -1304,6 +1308,11 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_COUNT_WINDOW: {
       SCountWindowNode* pEvent = (SCountWindowNode*)pNode;
       nodesDestroyNode(pEvent->pCol);
+      break;
+    }
+    case QUERY_NODE_COUNT_WINDOW_ARGS: {
+      SCountWindowArgs* pEvent = (SCountWindowArgs*)pNode;
+      nodesDestroyList(pEvent->pColList);
       break;
     }
     case QUERY_NODE_ANOMALY_WINDOW: {

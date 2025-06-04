@@ -314,7 +314,7 @@ typedef enum ENodeType {
   QUERY_NODE_TIME_RANGE,
   QUERY_NODE_STREAM_OUT_TABLE,
   QUERY_NODE_STREAM_CALC_RANGE,
-
+  QUERY_NODE_COUNT_WINDOW_ARGS,
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
   QUERY_NODE_SELECT_STMT,

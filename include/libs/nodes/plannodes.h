@@ -357,7 +357,8 @@ typedef struct SWindowLogicNode {
   SNode*           pAnomalyExpr;
   char             anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
   int64_t          recalculateInterval;
-  SNodeList*       pProjs; // for external window
+  SNodeList*       pColList;  // use for count window
+  SNodeList*       pProjs;  // for external window
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {

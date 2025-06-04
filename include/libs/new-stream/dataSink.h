@@ -194,7 +194,7 @@ typedef struct SResultIter {
 typedef struct SSlidingGrpMemList {
   bool      enabled;
   SHashObj* pSlidingGrpList;  // hash <SSlidingGrpMgr*, size>
-  int64_t   allUsedMemSize;   // used memory size in bytes
+  int64_t   waitMoveMemSize;   // used memory size in bytes
 } SSlidingGrpMemList;
 extern SSlidingGrpMemList g_slidigGrpMemList;
 
@@ -271,6 +271,7 @@ int32_t checkAndMoveMemCache(bool forWrite);
 int32_t moveSlidingTaskMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr);
 bool    hasEnoughMemSize();
 int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMgr* pSlidingGrp);
+int32_t moveMemFromWaitList();
 
 void* getWindowDataBuf(SSlidingWindowInMem* pWindowData);
 

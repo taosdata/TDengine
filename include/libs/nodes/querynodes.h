@@ -390,11 +390,19 @@ typedef struct SEventWindowNode {
   SNode*    pTrueForLimit;
 } SEventWindowNode;
 
+typedef struct {
+  ENodeType  type;  // QUERY_NODE_COUNT_WINDOW_PARAM
+  int64_t    count;
+  int64_t    sliding;
+  SNodeList* pColList;
+} SCountWindowArgs;
+
 typedef struct SCountWindowNode {
-  ENodeType type;  // QUERY_NODE_EVENT_WINDOW
-  SNode*    pCol;  // timestamp primary key
-  int64_t   windowCount;
-  int64_t   windowSliding;
+  ENodeType  type;  // QUERY_NODE_COUNT_WINDOW
+  SNode*     pCol;  // timestamp primary key
+  int64_t    windowCount;
+  int64_t    windowSliding;
+  SNodeList* pColList;  // SColumnNodeList
 } SCountWindowNode;
 
 typedef struct SAnomalyWindowNode {
@@ -442,8 +450,17 @@ typedef struct SStreamCalcRangeNode {
   SNode*                pEnd;
 } SStreamCalcRangeNode;
 
+typedef struct SStreamTagDefNode {
+  ENodeType type;
+  char      tagName[TSDB_COL_NAME_LEN];
+  SDataType dataType;
+  SNode*    pTagExpr;
+  SNode*    pComment;
+} SStreamTagDefNode;
+
 typedef struct SPeriodWindowNode {
   ENodeType type;  // QUERY_NODE_PERIOD_WINDOW
+  SNode*    pCol;      // timestamp primary key
   SNode*    pPeroid;
   SNode*    pOffset;
 } SPeriodWindowNode;

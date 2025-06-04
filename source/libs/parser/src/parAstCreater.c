@@ -1518,7 +1518,8 @@ _err:
   return NULL;
 }
 
-SNode* createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken, const SToken* pSlidingToken, SNodeList* pColList) {
+SNode* createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken, const SToken* pSlidingToken,
+                             SNodeList* pColList) {
   SCountWindowNode* pCount = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_COUNT_WINDOW, (SNode**)&pCount);
@@ -1526,10 +1527,53 @@ SNode* createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken,
   pCount->pCol = createPrimaryKeyCol(pCxt, NULL);
   CHECK_MAKE_NODE(pCount->pCol);
   pCount->windowCount = taosStr2Int64(pCountToken->z, NULL, 10);
-  pCount->windowSliding = taosStr2Int64(pSlidingToken->z, NULL, 10);
+  if (pSlidingToken == NULL) {
+    pCount->windowSliding = taosStr2Int64(pSlidingToken->z, NULL, 10);
+  } else {
+    pCount->windowSliding = taosStr2Int64(pCountToken->z, NULL, 10);
+  }
+  pCount->pColList = pColList;
   return (SNode*)pCount;
 _err:
   nodesDestroyNode((SNode*)pCount);
+  return NULL;
+}
+
+SNode* createCountWindowNodeFromArgs(SAstCreateContext* pCxt, SNode* arg) {
+  SCountWindowArgs* args = (SCountWindowArgs*)arg;
+  SCountWindowNode* pCount = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_COUNT_WINDOW, (SNode**)&pCount);
+  CHECK_MAKE_NODE(pCount);
+  pCount->pCol = createPrimaryKeyCol(pCxt, NULL);
+  CHECK_MAKE_NODE(pCount->pCol);
+  pCount->windowCount = args->count;
+  pCount->windowSliding = args->sliding;
+  pCount->pColList = args->pColList;
+  args->pColList = NULL;
+  nodesDestroyNode(arg);
+  return (SNode*)pCount;
+_err:
+  nodesDestroyNode((SNode*)pCount);
+  return NULL;
+}
+
+SNode* createCountWindowArgs(SAstCreateContext* pCxt, const SToken* countToken, const SToken* slidingToken,
+                             SNodeList* colList) {
+  CHECK_PARSER_STATUS(pCxt);
+
+  SCountWindowArgs* args = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_COUNT_WINDOW_ARGS, (SNode**)&args);
+  CHECK_MAKE_NODE(args);
+  args->count = taosStr2Int64(countToken->z, NULL, 10);
+  if (slidingToken && slidingToken->type == TK_NK_INTEGER) {
+    args->sliding = taosStr2Int64(slidingToken->z, NULL, 10);
+  } else {
+    args->sliding = taosStr2Int64(countToken->z, NULL, 10);
+  }
+  args->pColList = colList;
+  return (SNode*)args;
+_err:
   return NULL;
 }
 
@@ -1561,6 +1605,8 @@ SNode* createIntervalWindowNodeExt(SAstCreateContext* pCxt, SNode* pInter, SNode
     pCxt->errCode = nodesMakeNode(QUERY_NODE_INTERVAL_WINDOW, (SNode**)&pInterval);
     CHECK_MAKE_NODE(pInterval);
   }
+  pInterval->pCol = createPrimaryKeyCol(pCxt, NULL);
+  CHECK_MAKE_NODE(pInterval->pCol);
   pInterval->pSliding = ((SSlidingWindowNode*)pSliding)->pSlidingVal;
   pInterval->pSOffset = ((SSlidingWindowNode*)pSliding)->pOffset;
   return (SNode*)pInterval;
@@ -1600,6 +1646,8 @@ SNode* createPeriodWindowNode(SAstCreateContext* pCxt, SNode* pPeriodTime, SNode
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_PERIOD_WINDOW, (SNode**)&pPeriod);
   CHECK_MAKE_NODE(pPeriod);
+  pPeriod->pCol = createPrimaryKeyCol(pCxt, NULL);
+  CHECK_MAKE_NODE(pPeriod->pCol);
   pPeriod->pOffset = pOffset;
   pPeriod->pPeroid = pPeriodTime;
   return (SNode*)pPeriod;

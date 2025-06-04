@@ -36,36 +36,36 @@ class TestStreamDevBasic:
         tdStream.createSnode()
 
         tdLog.info(f"=============== create database")
-        tdSql.prepare(dbname="test", vgroups=1)
+        tdSql.prepare(dbname="qdb", vgroups=1)
 
         tdLog.info(f"=============== create super table")
         tdSql.execute(
-            f"create stable stb (ts timestamp, v1 int, v2 int) tags(t1 int);"
+            f"create stable meters (cts timestamp, cint int, cuint int unsigned) tags(tint int);"
         )
         tdSql.query(f"show stables")
         tdSql.checkRows(1)
 
         tdLog.info(f"=============== write query data")
         sqls = [
-            "insert into t1 using stb tags(1) values ('2025-01-01 00:00:00'    , 0, 0);",
-            "insert into t2 using stb tags(2) values ('2025-01-01 00:00:00.102', 1, 0)",
-            "insert into t1 using stb tags(1) values ('2025-01-01 00:00:01'    , 1, 1);",
-            "insert into t2 using stb tags(2) values ('2025-01-01 00:00:01.400', 2, 1);",
-            "insert into t1 using stb tags(1) values ('2025-01-01 00:00:02'    , 2, 2);",
-            "insert into t2 using stb tags(2) values ('2025-01-01 00:00:02.600', 3, 2);",
+            "insert into t1 using meters tags(1) values ('2025-01-01 00:00:00'    , 0, 0);",
+            "insert into t2 using meters tags(2) values ('2025-01-01 00:00:00.102', 1, 0)",
+            "insert into t1 using meters tags(1) values ('2025-01-01 00:00:01'    , 1, 1);",
+            "insert into t2 using meters tags(2) values ('2025-01-01 00:00:01.400', 2, 1);",
+            "insert into t1 using meters tags(1) values ('2025-01-01 00:00:02'    , 2, 2);",
+            "insert into t2 using meters tags(2) values ('2025-01-01 00:00:02.600', 3, 2);",
         ]
         tdSql.executes(sqls)
-        tdSql.query("select _wstart, avg(v1) from stb interval(1s)")
+        tdSql.query("select _wstart, avg(cint) from meters interval(1s)")
         tdSql.printResult()
 
         tdLog.info(f"=============== create trigger table")
-        tdSql.execute("create table stream_trigger (ts timestamp, v1 int, v2 int);")
+        tdSql.execute("create table stream_trigger (ts timestamp, c1 int, c2 int);")
         tdSql.query(f"show tables")
         tdSql.checkKeyExist("stream_trigger")
 
         tdLog.info(f"=============== create stream")
         tdSql.execute(
-            "create stream s1 interval(1s) sliding(1s) from stream_trigger partition by tbname into out tags (gid bigint as _tgrpid) as select _twstart ts, count(*) c1, avg(v1) c2  from stb where ts >= _twstart and ts < _twend;"
+            "create stream s1 interval(1s) sliding(1s) from stream_trigger partition by tbname into st1 tags (gid bigint as _tgrpid) as select _twstart ts, count(*) c1, avg(cint) c2  from meters where cts >= _twstart and cts < _twend;"
         )
         tdStream.checkStreamStatus()
 
@@ -75,7 +75,7 @@ class TestStreamDevBasic:
         )
 
         tdLog.info(f"=============== check stream result")
-        result_sql = "select ts, c1, c2 from test.out"
+        result_sql = "select ts, c1, c2 from qdb.st1"
 
         tdSql.checkResultsByFunc(f"show stables", lambda: tdSql.getRows() == 2)
 
@@ -98,7 +98,7 @@ class TestStreamDevBasic:
             retry=0,
         )
 
-        exp_sql = "select _wstart, count(*), avg(v1) from test.stb interval(1s) limit 2"
+        exp_sql = "select _wstart, count(*), avg(cint) from qdb.meters interval(1s) limit 2"
         exp_result = tdSql.getResult(exp_sql)
         tdSql.checkResultsByArray(
             sql=result_sql,

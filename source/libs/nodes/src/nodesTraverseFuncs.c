@@ -15,6 +15,7 @@
 
 #include "plannodes.h"
 #include "querynodes.h"
+#include "tmsg.h"
 
 typedef enum ETraversalOrder {
   TRAVERSAL_PREORDER = 1,
@@ -428,6 +429,14 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&pPeriod->pPeroid, order, rewriter, pContext);
       }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pPeriod->pCol, order, rewriter, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_STREAM_TAG_DEF: {
+      SStreamTagDefNode* pTagDef = (SStreamTagDefNode*)pNode;
+      res = rewriteExpr(&pTagDef->pTagExpr, order, rewriter, pContext);
       break;
     }
     default:
@@ -521,8 +530,12 @@ void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewrit
     case SQL_CLAUSE_PARTITION_BY:
       nodesRewriteExpr(&(pSelect->pWindow), rewriter, pContext);
     case SQL_CLAUSE_WINDOW:
-      if (NULL != pSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
-        nodesRewriteExpr(&(((SIntervalWindowNode*)pSelect->pWindow)->pFill), rewriter, pContext);
+      if (NULL != pSelect->pWindow) {
+        if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
+          nodesRewriteExpr(&(((SIntervalWindowNode*)pSelect->pWindow)->pFill), rewriter, pContext);
+        } else if (QUERY_NODE_COUNT_WINDOW == nodeType(pSelect->pWindow)) {
+          nodesRewriteExprs(((SCountWindowNode*)pSelect->pWindow)->pColList, rewriter, pContext);
+        }
       }
     case SQL_CLAUSE_FILL:
       nodesRewriteExprs(pSelect->pGroupByList, rewriter, pContext);
