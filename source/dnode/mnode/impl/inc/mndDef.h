@@ -485,6 +485,7 @@ typedef struct {
   SRWLatch lock;
   int64_t  stateTs;
   int64_t  compactStartTime;
+  int64_t  s3MigrateStartTime;
   int32_t  tsmaVersion;
 } SDbObj;
 
@@ -916,6 +917,15 @@ typedef struct {
   int64_t startTime;
   SArray* compactDetail;
 } SCompactObj;
+
+
+typedef struct {
+  int32_t s3MigrateId;
+  int64_t dbUid;
+  char    dbname[TSDB_TABLE_FNAME_LEN];
+  int64_t startTime;
+  SArray* s3MigrateDetail; // not used yet
+} SS3MigrateObj;
 
 // SGrantLogObj
 typedef enum {

@@ -408,6 +408,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_COMPACT_ID,       "Invalid compact id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COMPACT_DETAIL_NOT_EXIST, "compact detail doesn't exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COMPACT_ALREADY_EXIST,    "compact already exist")
 
+//mnode-compact
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_S3MIGRATE_ID,     "Invalid s3migrate id")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_S3MIGRATE_DETAIL_NOT_EXIST, "s3migrate detail doesn't exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_S3MIGRATE_ALREADY_EXIST,  "s3migrate already exist")
+
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_OFFLINE,                "Dnode is offline")
 TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_NOT_FOUND,              "Mnode not found")

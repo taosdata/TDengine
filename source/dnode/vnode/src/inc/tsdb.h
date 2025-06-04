@@ -380,6 +380,7 @@ struct STsdb {
   struct STFileSystem *pFS;  // new
   SRocksCache          rCache;
   SCompMonitor        *pCompMonitor;
+  SVnodeS3MigrateState *pS3MigrateMonitor;
   struct {
     SVHashTable *ht;
     SArray      *arr;
