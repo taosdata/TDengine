@@ -2429,7 +2429,78 @@ class TDSql:
 
     def checkResultsBySql(self, sql, exp_sql, delay=0.0, retry=20, show=False):
         exp_result = tdSql.getResult(exp_sql)
-        return self.checkResultsByArray(sql, exp_result, exp_sql, delay, retry, show)
+        self.checkResultsByArray(sql, exp_result, exp_sql, delay, retry, show)
+
+    def checkTableType(
+        self,
+        dbname,
+        tbname,
+        typename,
+        columns,
+        tags=0,
+        stbname=None,
+        delay=0.0,
+        retry=20,
+        show=False,
+    ):
+        if tags == 0:
+            sql = f"select * from information_schema.ins_tables where db_name='{dbname}' and table_name='{tbname}'"
+            self.checkResultsByFunc(
+                sql=sql,
+                func=lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, tbname)
+                and tdSql.compareData(0, 1, dbname)
+                and tdSql.compareData(0, 3, columns)
+                and tdSql.compareData(0, 4, stbname)
+                and tdSql.compareData(0, 9, typename),
+                delay=delay,
+                retry=retry,
+                show=show,
+            )
+        else:
+            sql = f"select * from information_schema.ins_stables where db_name='{dbname}' and stable_name='{stbname}'"
+            self.checkResultsByFunc(
+                sql=sql,
+                func=lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, stbname)
+                and tdSql.compareData(0, 1, dbname)
+                and tdSql.compareData(0, 3, columns)
+                and tdSql.compareData(0, 4, tags),
+                delay=delay,
+                retry=retry,
+                show=show,
+            )
+
+    def checkTableSchema(
+        self,
+        dbname,
+        tbname,
+        schema,
+        delay=0.0,
+        retry=20,
+        show=False,
+    ):
+        sql = f"desc {dbname}.{tbname}"
+        self.checkResultsByFunc(
+            sql=sql,
+            func=lambda: self.compareSchema(schema),
+            delay=delay,
+            retry=retry,
+            show=show,
+        )
+
+    def compareSchema(self, schema):
+        row = len(schema)
+        for r in range(row):
+            if (
+                schema[r][0] != self.queryResult[r][0]  # field
+                or schema[r][1] != self.queryResult[r][1]  # type
+                or schema[r][2] != self.queryResult[r][2]  # length
+                or schema[r][3] != self.queryResult[r][3]  # note
+            ):
+                return False
+
+        return True
 
     def compareResults(self, res_result, exp_result, show=False):
         exp_rows = len(exp_result)

@@ -536,7 +536,6 @@ class StreamItem:
 
     def checkResults(self, print=False):
         tdLog.info(f"check stream:s{self.id} result")
-        tdSql.pause()
 
         if self.check_func != None:
             self.check_func()
@@ -556,6 +555,6 @@ class StreamItem:
                     input_result=exp_result,
                     input_sql=self.exp_query,
                 )
-            tdSql.checkResultsByArray(self.res_query, self.exp_result, self.exp_query)
+            tdSql.checkResultsByArray(self.res_query, exp_result, self.exp_query)
 
         tdLog.info(f"check stream:s{self.id} result successfully")

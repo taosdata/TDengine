@@ -108,7 +108,7 @@ class TestStreamDevBasic:
 
         stream = StreamItem(
             id=0,
-            stream="create stream rdb.r0 interval(5m) sliding(5m) from tdb.triggers into rdb.r0 as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null;",
+            stream="create stream rdb.s0 interval(5m) sliding(5m) from tdb.triggers into rdb.r0 as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null;",
             res_query="select ts, te, td, tw, tg, c1, c2 from rdb.r0;",
             exp_query="select _wstart ts, _wend te, _wduration td, count(cts) tw, 0 as tg, count(cint) c1, avg(cint) c2 from qdb.meters where (cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:25:00') or (cts >= '2025-01-01 02:00:00' and cts < '2025-01-01 02:15:00') interval(5m);",
             check_func=self.check0,
