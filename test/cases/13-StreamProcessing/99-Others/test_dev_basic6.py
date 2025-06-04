@@ -1,6 +1,6 @@
 import time
 import math
-from new_test_framework.utils import tdLog, tdSql, tdStream
+from new_test_framework.utils import tdLog, tdSql, clusterComCheck, tdStream, StreamItem
 
 
 class TestStreamDevBasic:
@@ -9,7 +9,7 @@ class TestStreamDevBasic:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_dev_basic(self):
-        """basic test 3
+        """basic test
 
         Verification testing during the development process.
 
@@ -27,52 +27,128 @@ class TestStreamDevBasic:
 
         """
 
-        self.basic1()
-        # self.basic2()
+        self.createSnode()
+        self.createDatabase()
+        self.prepareQueryData()
+        self.prepareTriggerTable()
+        self.createStreams()
+        self.writeTriggerData()
+        self.checkStreamStatus()
+        self.checkResults()
 
-    def basic1(self):
-        tdLog.info(f"basic test 1")
-        tdStream.dropAllStreamsAndDbs()
-        tdStream.createSnode()
+    def createSnode(self):
+        tdLog.info("create snode")
+        tdStream.createSnode(1)
 
-        tdLog.info(f"=============== create database")
-        tdSql.prepare(dbname="test", vgroups=1)
+    def createDatabase(self):
+        tdLog.info(f"create database")
 
-        tdLog.info(f"=============== create super table")
-        tdSql.execute(f"create stable stb (ts timestamp, v1 int, v2 int) tags(t1 int);")
-        tdSql.query(f"show stables")
-        tdSql.checkRows(1)
+        tdSql.prepare(dbname="qdb", vgroups=1)
+        tdSql.prepare(dbname="tdb", vgroups=1)
+        tdSql.prepare(dbname="rdb", vgroups=1)
+        clusterComCheck.checkDbReady("qdb")
+        clusterComCheck.checkDbReady("tdb")
+        clusterComCheck.checkDbReady("rdb")
 
-        tdLog.info(f"=============== write query data")
+    def prepareQueryData(self):
+        tdLog.info("prepare child tables for query")
+        tdStream.prepareChildTables(tbBatch=1, rowBatch=1, rowsPerBatch=400)
+
+        tdLog.info("prepare normal tables for query")
+        tdStream.prepareNormalTables(tables=10, rowBatch=1)
+
+        tdLog.info("prepare virtual tables for query")
+        tdStream.prepareVirtualTables(tables=10)
+
+        tdLog.info("prepare json tag tables for query, include None and primary key")
+        tdStream.prepareJsonTables(tbBatch=1, tbPerBatch=10)
+
+        tdLog.info("prepare view")
+        tdStream.prepareViews(views=5)
+
+    def prepareTriggerTable(self):
+        tdLog.info("prepare tables for trigger")
+
+        stb = "create table tdb.triggers (ts timestamp, c1 int, c2 int) tags(id int);"
+        ctb = "create table tdb.t1 using tdb.triggers tags(1) tdb.t2 using tdb.triggers tags(2) tdb.t3 using tdb.triggers tags(3)"
+        tdSql.execute(stb)
+        tdSql.execute(ctb)
+
+        ntb = "create table tdb.n1 (ts timestamp, c1 int, c2 int)"
+        tdSql.execute(ntb)
+
+        vstb = "create stable tdb.vtriggers (ts timestamp, c1 int, c2 int) tags(id int) VIRTUAL 1"
+        vctb = "create vtable tdb.v1 (tdb.t1.c1, tdb.t2.c2) using tdb.vtriggers tags(1)"
+        tdSql.execute(vstb)
+        tdSql.execute(vctb)
+
+    def writeTriggerData(self):
+        tdLog.info("write data to trigger table")
         sqls = [
-            "insert into t1 using stb tags(1) values ('2025-01-01 00:00:00'    , 0, 0);",
-            "insert into t2 using stb tags(2) values ('2025-01-01 00:00:00.102', 1, 0);",
-            "insert into t1 using stb tags(1) values ('2025-01-01 00:00:01'    , 1, 1);",
-            "insert into t2 using stb tags(2) values ('2025-01-01 00:00:01.400', 2, 1);",
-            "insert into t1 using stb tags(1) values ('2025-01-01 00:00:02'    , 2, 2);",
-            "insert into t2 using stb tags(2) values ('2025-01-01 00:00:02.600', 3, 2);",
+            "insert into tdb.t1 values ('2025-01-01 00:00:00', 0,  0  ) ('2025-01-01 00:05:00', 5,  50 ) ('2025-01-01 00:10:00', 10, 100)",
+            "insert into tdb.t2 values ('2025-01-01 00:11:00', 11, 110) ('2025-01-01 00:12:00', 12, 120) ('2025-01-01 00:15:00', 15, 150)",
+            "insert into tdb.t3 values ('2025-01-01 00:21:00', 21, 210)",
+            "insert into tdb.n1 values ('2025-01-01 00:25:00', 25, 250) ('2025-01-01 00:26:00', 26, 260) ('2025-01-01 00:27:00', 27, 270)",
+            "insert into tdb.t1 values ('2025-01-01 00:30:00', 30, 300) ('2025-01-01 00:32:00', 32, 320) ('2025-01-01 00:36:00', 36, 360)",
+            "insert into tdb.n1 values ('2025-01-01 00:40:00', 40, 400) ('2025-01-01 00:42:00', 42, 420)",
         ]
         tdSql.executes(sqls)
-        tdSql.query("select _wstart, avg(v1) from stb interval(1s)")
-        tdSql.printResult()
 
-        tdLog.info(f"=============== create trigger table")
-        tdSql.execute("create table stream_trigger (ts timestamp, v1 int, v2 int);")
-        tdSql.query(f"show tables")
-        tdSql.checkKeyExist("stream_trigger")
-
-        tdLog.info(f"=============== create stream")
-        sql = "create stream s9 PERIOD(10s, 10a) into out9 as select cast(_tlocaltime/1000000 as timestamp), _tprev_localtime/1000000, _tnext_localtime/1000000, now, max(v1) from stb;"
-        tdSql.execute(sql)
-
+    def checkStreamStatus(self):
+        tdLog.info(f"wait total:{len(self.streams)} streams run finish")
         tdStream.checkStreamStatus()
 
-        tdLog.info(f"=============== write trigger data")
-        tdSql.execute(
-            "insert into stream_trigger values ('2025-01-01 00:00:00', 0, 0), ('2025-01-01 00:00:01', 1, 1), ('2025-01-01 00:00:02', 2, 2);"
+    def checkResults(self):
+        tdLog.info(f"check total:{len(self.streams)} streams result")
+        for stream in self.streams:
+            stream.checkResults()
+
+    def createStreams(self):
+        self.streams = []
+
+        stream = StreamItem(
+            id=2,
+            stream="create stream rdb.s3 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r3 as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, tint ti, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend and tint =%%1 partition by tint",
+            res_query="select ts, te, td, tw, tg, tl, tb, c1, c2 from rdb.r2;",
+            # exp_query="select _wstart ts, _wend te, _wduration td, count(cint) tw, 0 tg, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
+            check_func=self.check2,
         )
+        self.streams.append(stream)
 
-        tdLog.info(f"=============== check stream result")
+        tdLog.info(f"create total:{len(self.streams)} streams")
+        for stream in self.streams:
+            stream.createStream()
 
-        result_sql9 = "select * from test.out9"
-        tdSql.checkResultsByFunc(sql=result_sql9, func=lambda: tdSql.getRows() > 0)
+    def check2(self):
+        tdSql.checkTableType(
+            dbname="rdb",
+            stbname="r2",
+            columns=9,
+            tags=1,
+        )
+        tdSql.checkTableSchema(
+            dbname="rdb",
+            tbname="r2",
+            schema=[
+                ["ts", "TIMESTAMP", 8, ""],
+                ["te", "TIMESTAMP", 8, ""],
+                ["td", "TIMESTAMP", 8, ""],
+                ["tw", "BIGINT", 8, ""],
+                ["tg", "BIGINT", 8, ""],
+                ["tl", "TIMESTAMP", 8, ""],
+                ["ti", "INT", 4, ""],
+                ["c1", "BIGINT", 8, ""],
+                ["c2", "DOUBLE", 8, ""],
+                ["tag_tbname", "VARCHAR", 270, "TAG"],
+            ],
+        )
+        tdSql.checkResultsByFunc(
+            sql="select ts, te, td, tw, tg, tl, tb, c1, c2, tag_tbname from rdb.r2 where tag_tbname='t2'",
+            func=lambda: self.getRows() == 7
+            and self.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and self.compareData(0, 6, "t2")
+            and self.compareData(0, 7, 10)
+            and self.compareData(6, 0, "2025-01-01 00:30:00.000")
+            and self.compareData(6, 6, "t2")
+            and self.compareData(6, 7, 10),
+        )
