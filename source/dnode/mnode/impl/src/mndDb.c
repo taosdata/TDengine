@@ -36,6 +36,7 @@
 #include "systable.h"
 #include "thttp.h"
 #include "tjson.h"
+#include "mndS3Migrate.h"
 
 #define DB_VER_NUMBER   1
 #define DB_RESERVE_SIZE 14
@@ -2225,6 +2226,151 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+static int32_t mndSetS3MigrateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t s3MigrateTs) {
+  int32_t code = 0;
+  SDbObj  dbObj = {0};
+  memcpy(&dbObj, pDb, sizeof(SDbObj));
+  dbObj.s3MigrateStartTime = s3MigrateTs;
+
+  SSdbRaw *pCommitRaw = mndDbActionEncode(&dbObj);
+  if (pCommitRaw == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
+  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
+    sdbFreeRaw(pCommitRaw);
+    TAOS_RETURN(code);
+  }
+
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndSetS3MigrateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t s3MigrateTs, SS3MigrateDbRsp *pS3MigrateRsp) {
+  int32_t code = 0;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+
+  SS3MigrateObj s3Migrate;
+  if ((code = mndAddS3MigrateToTran(pMnode, pTrans, &s3Migrate, pDb, pS3MigrateRsp)) != 0) {
+    TAOS_RETURN(code);
+  }
+
+  int32_t j = 0;
+  while (1) {
+    SVgObj *pVgroup = NULL;
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+
+    if (pVgroup->dbUid == pDb->uid) {
+      if ((code = mndBuildS3MigrateVgroupAction(pMnode, pTrans, pDb, pVgroup, s3MigrateTs)) != 0) {
+        sdbCancelFetch(pSdb, pIter);
+        sdbRelease(pSdb, pVgroup);
+        TAOS_RETURN(code);
+      }
+
+      #if 0
+      for (int32_t i = 0; i < pVgroup->replica; i++) {
+        SVnodeGid *gid = &pVgroup->vnodeGid[i];
+        if ((code = mndAddS3MigrateDetailToTran(pMnode, pTrans, &s3Migrate, pVgroup, gid, j)) != 0) {
+          sdbCancelFetch(pSdb, pIter);
+          sdbRelease(pSdb, pVgroup);
+          TAOS_RETURN(code);
+        }
+        j++;
+      }
+        #endif
+    }
+
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  TAOS_RETURN(code);
+}
+
+static int32_t mndBuildS3MigrateDbRsp(SS3MigrateDbRsp *pS3MigrateRsp, int32_t *pRspLen, void **ppRsp, bool useRpcMalloc) {
+  int32_t code = 0;
+  int32_t rspLen = tSerializeSS3MigrateDbRsp(NULL, 0, pS3MigrateRsp);
+  void   *pRsp = NULL;
+  if (useRpcMalloc) {
+    pRsp = rpcMallocCont(rspLen);
+  } else {
+    pRsp = taosMemoryMalloc(rspLen);
+  }
+
+  if (pRsp == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_RETURN(code);
+  }
+
+  (void)tSerializeSS3MigrateDbRsp(pRsp, rspLen, pS3MigrateRsp);
+  *pRspLen = rspLen;
+  *ppRsp = pRsp;
+  TAOS_RETURN(code);
+}
+
+int32_t mndS3MigrateDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
+  int32_t       code = 0;
+  SS3MigrateDbRsp s3MigrateRsp = {0};
+
+  bool  isExist = false;
+  void *pIter = NULL;
+  while (1) {
+    SS3MigrateObj *pS3Migrate = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_S3MIGRATE, pIter, (void **)&pS3Migrate);
+    if (pIter == NULL) break;
+
+    if (strcmp(pS3Migrate->dbname, pDb->name) == 0) {
+      isExist = true;
+    }
+    sdbRelease(pMnode->pSdb, pS3Migrate);
+  }
+  if (isExist) {
+    mInfo("s3Migrate db:%s already exist", pDb->name);
+
+    if (pReq) {
+      int32_t rspLen = 0;
+      void   *pRsp = NULL;
+      s3MigrateRsp.s3MigrateId = 0;
+      s3MigrateRsp.bAccepted = false;
+      TAOS_CHECK_RETURN(mndBuildS3MigrateDbRsp(&s3MigrateRsp, &rspLen, &pRsp, true));
+
+      pReq->info.rsp = pRsp;
+      pReq->info.rspLen = rspLen;
+    }
+
+    return TSDB_CODE_MND_S3MIGRATE_ALREADY_EXIST;
+  }
+
+  int64_t s3MigrateTs = taosGetTimestampMs();
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "s3migrate-db");
+  if (pTrans == NULL) goto _OVER;
+
+  mInfo("trans:%d, used to s3migrate db:%s", pTrans->id, pDb->name);
+  mndTransSetDbName(pTrans, pDb->name, NULL);
+  TAOS_CHECK_GOTO(mndTrancCheckConflict(pMnode, pTrans), NULL, _OVER);
+
+  TAOS_CHECK_GOTO(mndSetS3MigrateDbCommitLogs(pMnode, pTrans, pDb, s3MigrateTs), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetS3MigrateDbRedoActions(pMnode, pTrans, pDb, s3MigrateTs, &s3MigrateRsp), NULL, _OVER);
+
+  if (pReq) {
+    int32_t rspLen = 0;
+    void   *pRsp = NULL;
+    s3MigrateRsp.bAccepted = true;
+    TAOS_CHECK_GOTO(mndBuildS3MigrateDbRsp(&s3MigrateRsp, &rspLen, &pRsp, false), NULL, _OVER);
+    mndTransSetRpcRsp(pTrans, pRsp, rspLen);
+  }
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
+  code = 0;
+
+_OVER:
+  mndTransDrop(pTrans);
+  TAOS_RETURN(code);
+}
+
+#if 0
 static int32_t mndS3MigrateDb(SMnode *pMnode, SDbObj *pDb) {
   SSdb            *pSdb = pMnode->pSdb;
   SVgObj          *pVgroup = NULL;
@@ -2267,6 +2413,7 @@ static int32_t mndS3MigrateDb(SMnode *pMnode, SDbObj *pDb) {
 
   return 0;
 }
+#endif
 
 static int32_t mndProcessS3MigrateDbReq(SRpcMsg *pReq) {
   SMnode         *pMnode = pReq->info.node;
@@ -2287,7 +2434,7 @@ static int32_t mndProcessS3MigrateDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB, pDb), NULL, _OVER);
 
-  code = mndS3MigrateDb(pMnode, pDb);
+  code = mndS3MigrateDb(pMnode, pReq, pDb);
 
 _OVER:
   if (code != 0) {
