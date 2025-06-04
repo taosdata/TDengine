@@ -589,6 +589,7 @@ typedef struct SVnodeModifyOpStmt {
   struct STableMeta*    pTableMeta;
   SNode*                pTagCond;
   SArray*               pTableTag;
+  SArray*               pMissCacheNameList;  // SArray<SName>, miss cache name list
   SHashObj*             pVgroupsHashObj;     // SHashObj<vgId, SVgInfo>
   SHashObj*             pTableBlockHashObj;  // SHashObj<tuid, STableDataCxt*>
   SHashObj*             pSubTableHashObj;    // SHashObj<table_name, STableMeta*>

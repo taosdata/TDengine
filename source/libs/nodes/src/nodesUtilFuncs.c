@@ -1377,6 +1377,7 @@ void nodesDestroyNode(SNode* pNode) {
       taosMemoryFreeClear(pStmt->pTableMeta);
       nodesDestroyNode(pStmt->pTagCond);
       taosArrayDestroy(pStmt->pTableTag);
+      taosArrayDestroy(pStmt->pMissCacheNameList);
       taosHashCleanup(pStmt->pVgroupsHashObj);
       taosHashCleanup(pStmt->pSubTableHashObj);
       taosHashCleanup(pStmt->pSuperTableHashObj);

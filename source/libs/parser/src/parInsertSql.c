@@ -2889,16 +2889,30 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   int32_t code = TSDB_CODE_SUCCESS;
   bool    hasData = true;
   // for each table
-  while (TSDB_CODE_SUCCESS == code && hasData && !pCxt->missCache && !pStmt->fileProcessing) {
+  while (TSDB_CODE_SUCCESS == code && hasData && !pStmt->fileProcessing) {
     // pStmt->pSql -> tb_name ...
     NEXT_TOKEN(pStmt->pSql, token);
     code = checkTableClauseFirstToken(pCxt, pStmt, &token, &hasData);
     if (TSDB_CODE_SUCCESS == code && hasData) {
       code = parseInsertTableClause(pCxt, pStmt, &token);
     }
+    if (TSDB_CODE_SUCCESS == code) {
+      if (pCxt->missCache) {
+        if (NULL == taosArrayPush(pStmt->pMissCacheNameList, &pStmt->targetTableName)) {
+          code = terrno;
+        }
+      } else {
+        STableMeta* pBackup = NULL;
+        code = cloneTableMeta(pStmt->pTableMeta, &pBackup);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = taosHashPut(pStmt->pSubTableHashObj, pStmt->targetTableName.tname,
+                             strlen(pStmt->targetTableName.tname), &pBackup, POINTER_BYTES);
+        }
+      }
+    }
   }
 
-  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
+  if (TSDB_CODE_SUCCESS == code) {
     code = parseInsertBodyBottom(pCxt, pStmt);
   }
   return code;
@@ -2921,6 +2935,7 @@ static int32_t createVnodeModifOpStmt(SInsertParseContext* pCxt, bool reentry, S
   pStmt->freeHashFunc = insDestroyTableDataCxtHashMap;
   pStmt->freeArrayFunc = insDestroyVgroupDataCxtList;
   pStmt->freeStbRowsCxtFunc = destroyStbRowsDataContext;
+  pStmt->pMissCacheNameList = taosArrayInit(128, sizeof(SName));
 
   if (!reentry) {
     pStmt->pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
