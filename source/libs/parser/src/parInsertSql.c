@@ -38,6 +38,9 @@ typedef struct SInsertParseContext {
 typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param);
 static int32_t parseBoundTagsClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt);
 static int32_t parseTagsClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, bool autoCreate);
+static int32_t processPendingTableData(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, const char* tbFName,
+                                       const SMetaData* pMetaData);
+static void    destroyPendingTableData(void* p);
 
 static uint8_t TRUE_VALUE = (uint8_t)TSDB_TRUE;
 static uint8_t FALSE_VALUE = (uint8_t)TSDB_FALSE;
@@ -1902,6 +1905,15 @@ typedef union SRowsDataContext {
   SStbRowsDataContext* pStbRowsCxt;
 } SRowsDataContext;
 
+typedef struct SPendingTableData {
+  SName       tableName;
+  const char* pBoundCols;
+  const char* pDataStart;
+  int32_t     dataLen;
+  bool        isFile;
+  char        filePath[TSDB_FILENAME_LEN];
+} SPendingTableData;
+
 int32_t parseTbnameToken(SMsgBuf* pMsgBuf, char* tname, SToken* pToken, bool* pFoundCtbName) {
   *pFoundCtbName = false;
 
@@ -2700,6 +2712,232 @@ static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModif
   return code;
 }
 
+static int32_t saveOneRowData(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+  SToken      token;
+  const char* pDataStart = pStmt->pSql;
+
+  // Save bound columns start position if exists
+  const char* pBoundColsStart = NULL;
+  int32_t     boundColsLen = 0;
+
+  // Parse bound columns if exists
+  int32_t index = 0;
+  NEXT_TOKEN_KEEP_SQL(pStmt->pSql, token, index);
+  if (TK_NK_LP == token.type) {
+    pBoundColsStart = pStmt->pSql;
+    pStmt->pSql += index;
+    int32_t parenCount = 1;
+    while (parenCount > 0) {
+      NEXT_TOKEN(pStmt->pSql, token);
+      if (TK_NK_LP == token.type) {
+        parenCount++;
+      } else if (TK_NK_RP == token.type) {
+        parenCount--;
+      } else if (0 == token.n) {
+        return buildSyntaxErrMsg(&pCxt->msg, ") expected", NULL);
+      }
+    }
+    boundColsLen = pStmt->pSql - pBoundColsStart;
+  }
+
+  // Parse VALUES or FILE clause
+  NEXT_TOKEN(pStmt->pSql, token);
+  if (token.type != TK_VALUES && token.type != TK_FILE) {
+    return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is expected", token.z);
+  }
+
+  if (token.type == TK_VALUES) {
+    // Skip all value rows
+    while (true) {
+      index = 0;
+      NEXT_TOKEN_KEEP_SQL(pStmt->pSql, token, index);
+      if (TK_NK_LP != token.type) {
+        break;
+      }
+      pStmt->pSql += index;
+
+      int32_t parenCount = 1;
+      while (parenCount > 0) {
+        NEXT_TOKEN(pStmt->pSql, token);
+        if (TK_NK_LP == token.type) {
+          parenCount++;
+        } else if (TK_NK_RP == token.type) {
+          parenCount--;
+        } else if (0 == token.n) {
+          return buildSyntaxErrMsg(&pCxt->msg, ") expected", NULL);
+        }
+      }
+    }
+
+    // Create a pending table data entry
+    SPendingTableData* pPendingData = taosMemoryCalloc(1, sizeof(SPendingTableData));
+    if (!pPendingData) {
+      return terrno;
+    }
+
+    tNameAssign(&pPendingData->tableName, &pStmt->targetTableName);
+    pPendingData->isFile = false;
+    pPendingData->dataLen = pStmt->pSql - pDataStart;
+
+    // Allocate memory to store the data
+    char* pSavedData = taosMemoryMalloc(pPendingData->dataLen + 1);
+    if (!pSavedData) {
+      taosMemoryFree(pPendingData);
+      return terrno;
+    }
+    memcpy(pSavedData, pDataStart, pPendingData->dataLen);
+    pSavedData[pPendingData->dataLen] = '\0';
+    pPendingData->pDataStart = pSavedData;
+
+    if (pBoundColsStart) {
+      char* pSavedBoundCols = taosMemoryMalloc(boundColsLen + 1);
+      if (!pSavedBoundCols) {
+        taosMemoryFree(pSavedData);
+        taosMemoryFree(pPendingData);
+        return terrno;
+      }
+      memcpy(pSavedBoundCols, pBoundColsStart, boundColsLen);
+      pSavedBoundCols[boundColsLen] = '\0';
+      pPendingData->pBoundCols = pSavedBoundCols;
+    }
+
+    // Initialize row data hash if needed
+    if (!pStmt->pRowDataHashObj) {
+      pStmt->pRowDataHashObj = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK);
+      if (!pStmt->pRowDataHashObj) {
+        taosMemoryFree((void*)pPendingData->pDataStart);
+        taosMemoryFree((void*)pPendingData->pBoundCols);
+        taosMemoryFree(pPendingData);
+        return terrno;
+      }
+      taosHashSetFreeFp(pStmt->pRowDataHashObj, destroyPendingTableData);
+    }
+
+    // Use table name as key
+    char tbFName[TSDB_TABLE_FNAME_LEN];
+    tNameExtractFullName(&pStmt->targetTableName, tbFName);
+
+    // Add to row data hash
+    if (taosHashPut(pStmt->pRowDataHashObj, tbFName, strlen(tbFName), &pPendingData, POINTER_BYTES) != 0) {
+      taosMemoryFree((void*)pPendingData->pDataStart);
+      taosMemoryFree((void*)pPendingData->pBoundCols);
+      taosMemoryFree(pPendingData);
+      return terrno;
+    }
+
+  } else if (token.type == TK_FILE) {
+    // Skip file path
+    NEXT_TOKEN(pStmt->pSql, token);
+    if (0 == token.n || (TK_NK_STRING != token.type && TK_NK_ID != token.type)) {
+      return buildSyntaxErrMsg(&pCxt->msg, "file path is required following keyword FILE", token.z);
+    }
+
+    // Create pending data for file
+    SPendingTableData* pPendingData = taosMemoryCalloc(1, sizeof(SPendingTableData));
+    if (!pPendingData) {
+      return terrno;
+    }
+
+    tNameAssign(&pPendingData->tableName, &pStmt->targetTableName);
+    pPendingData->isFile = true;
+    pPendingData->dataLen = pStmt->pSql - pDataStart;
+
+    // Extract file path
+    if (token.type == TK_NK_STRING) {
+      strncpy(pPendingData->filePath, token.z + 1, token.n - 2);
+      pPendingData->filePath[token.n - 2] = '\0';
+    } else {
+      strncpy(pPendingData->filePath, token.z, token.n);
+      pPendingData->filePath[token.n] = '\0';
+    }
+
+    if (pBoundColsStart) {
+      char* pSavedBoundCols = taosMemoryMalloc(boundColsLen + 1);
+      if (!pSavedBoundCols) {
+        taosMemoryFree(pPendingData);
+        return terrno;
+      }
+      memcpy(pSavedBoundCols, pBoundColsStart, boundColsLen);
+      pSavedBoundCols[boundColsLen] = '\0';
+      pPendingData->pBoundCols = pSavedBoundCols;
+    }
+
+    // Initialize row data hash if needed
+    if (!pStmt->pRowDataHashObj) {
+      pStmt->pRowDataHashObj = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK);
+      if (!pStmt->pRowDataHashObj) {
+        taosMemoryFree((void*)pPendingData->pBoundCols);
+        taosMemoryFree(pPendingData);
+        return terrno;
+      }
+      taosHashSetFreeFp(pStmt->pRowDataHashObj, destroyPendingTableData);
+    }
+
+    // Use table name as key
+    char tbFName[TSDB_TABLE_FNAME_LEN];
+    tNameExtractFullName(&pStmt->targetTableName, tbFName);
+
+    // Add to row data hash
+    if (taosHashPut(pStmt->pRowDataHashObj, tbFName, strlen(tbFName), &pPendingData, POINTER_BYTES) != 0) {
+      taosMemoryFree((void*)pPendingData->pBoundCols);
+      taosMemoryFree(pPendingData);
+      return terrno;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t processPendingTableData(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, const char* tbFName,
+                                       const SMetaData* pMetaData) {
+  if (!pStmt->pRowDataHashObj) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SPendingTableData** ppPendingData = taosHashGet(pStmt->pRowDataHashObj, tbFName, strlen(tbFName));
+  if (!ppPendingData || !*ppPendingData) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SPendingTableData* pPendingData = *ppPendingData;
+
+  // Set the SQL pointer to the saved data
+  const char* pOriginalSql = pStmt->pSql;
+  pStmt->pSql = pPendingData->pDataStart;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (pPendingData->isFile) {
+    // Process FILE clause
+    SRowsDataContext rowsDataCxt = {0};
+    STableDataCxt*   pTableCxt = NULL;
+    code = parseSchemaClauseBottom(pCxt, pStmt, &pTableCxt);
+    if (TSDB_CODE_SUCCESS == code) {
+      rowsDataCxt.pTableDataCxt = pTableCxt;
+      // Set the file path and process
+      SToken fileToken = {0};
+      fileToken.z = pPendingData->filePath;
+      fileToken.n = strlen(pPendingData->filePath);
+      fileToken.type = TK_NK_STRING;
+      code = parseDataFromFile(pCxt, pStmt, &fileToken, rowsDataCxt);
+    }
+  } else {
+    // Process VALUES clause
+    SRowsDataContext rowsDataCxt = {0};
+    STableDataCxt*   pTableCxt = NULL;
+    code = parseSchemaClauseBottom(pCxt, pStmt, &pTableCxt);
+    if (TSDB_CODE_SUCCESS == code) {
+      rowsDataCxt.pTableDataCxt = pTableCxt;
+      code = parseDataClause(pCxt, pStmt, rowsDataCxt);
+    }
+  }
+
+  // Restore original SQL pointer
+  pStmt->pSql = pOriginalSql;
+
+  return code;
+}
+
 // input pStmt->pSql:
 //   1. [(tag1_name, ...)] ...
 //   2. VALUES ... | FILE ...
@@ -2742,8 +2980,12 @@ static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStm
 static int32_t parseInsertTableClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SToken* pTbName) {
   resetEnvPreTable(pCxt, pStmt);
   int32_t code = parseSchemaClauseTop(pCxt, pStmt, pTbName);
-  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
-    code = parseInsertTableClauseBottom(pCxt, pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pCxt->missCache) {
+      code = saveOneRowData(pCxt, pStmt);
+    } else {
+      code = parseInsertTableClauseBottom(pCxt, pStmt);
+    }
   }
 
   return code;
@@ -3422,4 +3664,21 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
     (*pQuery)->execMode = QUERY_EXEC_MODE_EMPTY_RESULT;
   }
   return code;
+}
+
+static void destroyPendingTableData(void* p) {
+  SPendingTableData** ppData = (SPendingTableData**)p;
+  if (ppData && *ppData) {
+    SPendingTableData* pData = *ppData;
+    if (pData->pDataStart) {
+      taosMemoryFree((void*)pData->pDataStart);
+      pData->pDataStart = NULL;
+    }
+    if (pData->pBoundCols) {
+      taosMemoryFree((void*)pData->pBoundCols);
+      pData->pBoundCols = NULL;
+    }
+    taosMemoryFree(pData);
+    *ppData = NULL;
+  }
 }

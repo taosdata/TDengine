@@ -61,4 +61,6 @@ void    insDestroyVgroupDataCxtHashMap(SHashObj *pVgCxtHash);
 void    insDestroyTableDataCxt(STableDataCxt *pTableCxt);
 void    insDestroyBoundColInfo(SBoundColInfo *pInfo);
 
+int32_t extractTableNamesFromInsert(const char *pSql, SArray **ppTableNames, SMsgBuf *pMsgBuf);
+
 #endif  // TDENGINE_PAR_INSERT_UTIL_H

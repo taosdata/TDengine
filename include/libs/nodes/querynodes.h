@@ -611,6 +611,8 @@ typedef struct SVnodeModifyOpStmt {
   struct SCreateTbInfo*     pCreateTbInfo;
   struct SParseFileContext* pParFileCxt;
   FDestroyParseFileContext  destroyParseFileCxt;
+  SHashObj*                 pPendingTablesHash;  // hash table for pending table data
+  SHashObj*                 pRowDataHashObj;     // hash table for saveOneRowData function
 } SVnodeModifyOpStmt;
 
 typedef struct SExplainOptions {
