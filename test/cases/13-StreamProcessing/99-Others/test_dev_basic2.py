@@ -64,6 +64,7 @@ class TestStreamDevBasic2:
         sql6 = "create stream s6 sliding (1s)             from stream_trigger                     into st6                                 as select _tcurrent_ts, now, count(cint) from meters;"
         sql7 = "create stream s7 state_window (c1)        from stream_trigger partition by tbname options(fill_history_first(1)) into st7  as select _twstart, avg(cint), count(cint) from meters;"
         sql8 = "create stream s8 state_window (c1)        from stream_trigger partition by tbname into st8                                 as select _twstart ts, count(*) c1, avg(cint) c2, _twstart + 1 as ts2 from meters;"
+        sql9 = "create stream s9 PERIOD(10s, 10a)                                                 into st9                                 as select cast(_tlocaltime/1000000 as timestamp) as tl, _tprev_localtime/1000000 tp, _tnext_localtime/1000000 tn, now, max(cint) from meters;"
 
         streams = [
             self.StreamItem(sql1, self.checks1),
@@ -74,6 +75,7 @@ class TestStreamDevBasic2:
             self.StreamItem(sql6, self.checks6),
             self.StreamItem(sql7, self.checks7),
             self.StreamItem(sql8, self.checks8),
+            self.StreamItem(sql9, self.checks9),
         ]
 
         for stream in streams:
@@ -212,6 +214,10 @@ class TestStreamDevBasic2:
             and tdSql.compareData(1, 2, 1.5)
             and tdSql.compareData(1, 3, "2025-01-01 00:00:01.001"),
         )
+        
+    def checks9(self):
+        result_sql = "select * from qdb.st9"
+        # tdSql.checkResultsByFunc(sql=result_sql, func=lambda: tdSql.getRows() > 0)
 
     class StreamItem:
         def __init__(self, sql, checkfunc):

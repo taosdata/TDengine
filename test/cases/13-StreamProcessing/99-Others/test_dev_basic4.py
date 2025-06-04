@@ -84,7 +84,7 @@ class TestStreamDevBasic:
 
     def createStream(self):
         tdLog.info("create stream")
-        sql = "create stream rdb.s1 interval(5m) sliding(5m) from tdb.triggers into rdb.st1  as select _twstart ts, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend;"
+        sql = "create stream rdb.s1 interval(5m) sliding(5m) from tdb.triggers into rdb.r1  as select _twstart ts, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend;"
         tdSql.execute(sql)
 
     def checkResults(self):
@@ -92,7 +92,7 @@ class TestStreamDevBasic:
 
         tdSql.checkResultsByFunc("show rdb.tables", func=lambda: tdSql.getRows() == 1)
 
-        res_query = "select ts, c1, c2 from rdb.st1"
+        res_query = "select ts, c1, c2 from rdb.r1"
         tdSql.checkResultsByFunc(
             sql=res_query,
             func=lambda: tdSql.getRows() >= 4
