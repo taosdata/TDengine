@@ -3759,7 +3759,7 @@ static int32_t msgToPhysiEventWindowNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { PHY_COUNT_CODE_WINDOW = 1, PHY_COUNT_CODE_WINDOW_COUNT, PHY_COUNT_CODE_WINDOW_SLIDING };
+enum { PHY_COUNT_CODE_WINDOW = 1, PHY_COUNT_CODE_WINDOW_COUNT, PHY_COUNT_CODE_WINDOW_SLIDING, PHY_COUNT_CODE_WINDOW_COLS};
 
 static int32_t physiCountWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SCountWinodwPhysiNode* pNode = (const SCountWinodwPhysiNode*)pObj;
@@ -3770,6 +3770,9 @@ static int32_t physiCountWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI64(pEncoder, PHY_COUNT_CODE_WINDOW_SLIDING, pNode->windowSliding);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_COUNT_CODE_WINDOW_COLS, nodeListToMsg, pNode->pColList);
   }
 
   return code;
@@ -3790,6 +3793,9 @@ static int32_t msgToPhysiCountWindowNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_COUNT_CODE_WINDOW_SLIDING:
         code = tlvDecodeI64(pTlv, &pNode->windowSliding);
+        break;
+      case PHY_COUNT_CODE_WINDOW_COLS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pColList);
         break;
       default:
         break;

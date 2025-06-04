@@ -2720,6 +2720,7 @@ static int32_t createEventWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
 
 static int32_t createCountWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                           SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
+                                            int32_t code = TSDB_CODE_SUCCESS;
   ENodeType type = QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT;
 
   SCountWinodwPhysiNode* pCount = (SCountWinodwPhysiNode*)makePhysiNode(
@@ -2730,9 +2731,13 @@ static int32_t createCountWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
   pCount->windowCount = pWindowLogicNode->windowCount;
   pCount->windowSliding = pWindowLogicNode->windowSliding;
 
-  int32_t code = createWindowPhysiNodeFinalize(pCxt, pChildren, &pCount->window, pWindowLogicNode);
+  code = createWindowPhysiNodeFinalize(pCxt, pChildren, &pCount->window, pWindowLogicNode);
   if (TSDB_CODE_SUCCESS == code) {
     *pPhyNode = (SPhysiNode*)pCount;
+    SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
+    if (TSDB_CODE_SUCCESS == code && NULL != pWindowLogicNode->pColList) {
+      code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pWindowLogicNode->pColList, &pCount->pColList);
+    }
   } else {
     nodesDestroyNode((SNode*)pCount);
   }

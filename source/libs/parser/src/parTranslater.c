@@ -7101,6 +7101,7 @@ static int32_t translateEventWindow(STranslateContext* pCxt, SSelectStmt* pSelec
 }
 
 static int32_t translateCountWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  int32_t code = TSDB_CODE_SUCCESS;
   SCountWindowNode* pCountWin = (SCountWindowNode*)pSelect->pWindow;
   if (pCountWin->windowCount <= 1) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
@@ -7126,7 +7127,10 @@ static int32_t translateCountWindow(STranslateContext* pCxt, SSelectStmt* pSelec
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
                                    "COUNT_WINDOW requires valid time series input");
   }
-  return TSDB_CODE_SUCCESS;
+  if(pCountWin->pColList != NULL) {
+    code = translateExprList(pCxt, pCountWin->pColList);
+  }
+  return code;
 }
 
 static int32_t checkAnomalyExpr(STranslateContext* pCxt, SNode* pNode) {

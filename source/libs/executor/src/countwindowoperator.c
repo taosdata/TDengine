@@ -13,11 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stdbool.h>
+#include <stdint.h>
 #include "executorInt.h"
 #include "filter.h"
 #include "function.h"
 #include "functionMgt.h"
+#include "nodes.h"
 #include "operator.h"
+#include "querynodes.h"
 #include "querytask.h"
 #include "tcommon.h"
 #include "tcompare.h"
@@ -25,7 +29,8 @@
 #include "ttime.h"
 
 typedef struct SCountWindowResult {
-  int32_t    winRows;
+  int32_t    winRows;       // number of all rows in the current window
+  int32_t    winCountRows;  // number of count rows in the current window
   SResultRow row;
 } SCountWindowResult;
 
@@ -45,6 +50,7 @@ typedef struct SCountWindowOperatorInfo {
   SResultRow*        pRow;
   int32_t            windowCount;
   int32_t            windowSliding;
+  SNodeList*         pColList;
   SCountWindowSupp   countSup;
   SSDataBlock*       pPreDataBlock;
   int32_t            preStateIndex;
@@ -66,7 +72,10 @@ void destroyCountWindowOperatorInfo(void* param) {
 
 static int32_t countWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
 
-static void clearWinStateBuff(SCountWindowResult* pBuff) { pBuff->winRows = 0; }
+static void clearWinStateBuff(SCountWindowResult* pBuff) {
+  pBuff->winRows = 0;
+  pBuff->winCountRows = 0;
+}
 
 static SCountWindowResult* getCountWinStateInfo(SCountWindowSupp* pCountSup) {
   SCountWindowResult* pBuffInfo = taosArrayGet(pCountSup->pWinStates, pCountSup->stateIndex);
@@ -103,9 +112,53 @@ _end:
   return code;
 }
 
-static int32_t updateCountWindowInfo(int32_t start, int32_t blockRows, int32_t countWinRows, int32_t* pCurrentRows) {
-  int32_t rows = TMIN(countWinRows - (*pCurrentRows), blockRows - start);
-  (*pCurrentRows) += rows;
+static int32_t updateCountWindowInfo(int32_t start, int32_t blockRows, int32_t countWinRows,
+                                     SCountWindowResult* pBuffInfo) {
+  int32_t rows = TMIN(countWinRows - pBuffInfo->winCountRows, blockRows - start);
+  pBuffInfo->winCountRows += rows;
+  pBuffInfo->winRows = pBuffInfo->winCountRows;
+  return rows;
+}
+
+static int32_t updateCountWindowInfoWithCols(SCountWindowOperatorInfo* pInfo, SSDataBlock* pBlock, int32_t start,
+                                             SCountWindowResult* pBuffInfo) {
+  int32_t rows = 0;
+
+  bool   hasNull = false;
+  SNode* pNode = NULL;
+  FOREACH(pNode, pInfo->pColList) {
+    int32_t          slotId = ((SColumnNode*)pNode)->slotId;
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, slotId);
+    if (pColInfo->hasNull) {
+      hasNull = true;
+      break;
+    }
+  }
+  if (!hasNull) {
+    // no null column, we can use the fast path
+    return updateCountWindowInfo(start, pBlock->info.rows, pInfo->windowCount, pBuffInfo);
+  }
+
+  for (int32_t i = start; i < pBlock->info.rows; i++) {
+    SNode* pNode = NULL;
+    bool   hasNull = false;
+    FOREACH(pNode, pInfo->pColList) {
+      int32_t          slotId = ((SColumnNode*)pNode)->slotId;
+      SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, slotId);
+      if (colDataIsNull_s(pColInfo, i)) {
+        hasNull = true;
+        break;
+      }
+    }
+    ++rows;
+    if (!hasNull) {
+      ++pBuffInfo->winCountRows;
+      if (pBuffInfo->winCountRows == pInfo->windowCount) {
+        break;
+      }
+    }
+  }
+  pBuffInfo->winRows += rows;
   return rows;
 }
 
@@ -141,7 +194,13 @@ void doCountWindowAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       T_LONG_JMP(pTaskInfo->env, code);
     }
     int32_t prevRows = pBuffInfo->winRows;
-    int32_t num = updateCountWindowInfo(i, pBlock->info.rows, pInfo->windowCount, &pBuffInfo->winRows);
+    int32_t num = 0;
+    bool    windowFinished = false;
+    if (pInfo->pColList == NULL) {
+      num = updateCountWindowInfo(i, pBlock->info.rows, pInfo->windowCount, pBuffInfo);
+    } else {
+      num = updateCountWindowInfoWithCols(pInfo, pBlock, i, pBuffInfo);
+    }
     int32_t step = num;
     if (prevRows == 0) {
       pInfo->pRow->win.skey = tsCols[i];
@@ -163,7 +222,7 @@ void doCountWindowAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
         step = 0;
       }
     }
-    if (pBuffInfo->winRows == pInfo->windowCount) {
+    if (pBuffInfo->winCountRows == pInfo->windowCount) {
       doUpdateNumOfRows(pExprSup->pCtx, pInfo->pRow, pExprSup->numOfExprs, pExprSup->rowEntryInfoOffset);
       code = copyResultrowToDataBlock(pExprSup->pExprInfo, pExprSup->numOfExprs, pInfo->pRow, pExprSup->pCtx, pRes,
                                       pExprSup->rowEntryInfoOffset, pTaskInfo);
@@ -358,6 +417,8 @@ int32_t createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   pInfo->binfo.outputTsOrder = physiNode->outputTsOrder;
   pInfo->windowCount = pCountWindowNode->windowCount;
   pInfo->windowSliding = pCountWindowNode->windowSliding;
+  pInfo->pColList = pCountWindowNode->pColList;
+  pCountWindowNode->pColList = NULL;
   // sizeof(SCountWindowResult)
   int32_t itemSize = sizeof(int32_t) + pInfo->aggSup.resultRowSize;
   int32_t numOfItem = 1;

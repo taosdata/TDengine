@@ -777,6 +777,7 @@ typedef struct SCountWinodwPhysiNode {
   SWindowPhysiNode window;
   int64_t          windowCount;
   int64_t          windowSliding;
+  SNodeList*       pColList;
 } SCountWinodwPhysiNode;
 
 typedef struct SAnomalyWindowPhysiNode {
