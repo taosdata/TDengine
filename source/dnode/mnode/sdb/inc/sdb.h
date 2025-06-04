@@ -169,7 +169,8 @@ typedef enum {
   SDB_ARBGROUP = 27,
   SDB_ANODE = 28,
   SDB_CFG = 29,
-  SDB_MAX = 30
+  SDB_S3MIGRATE = 30,
+  SDB_MAX = 31
 } ESdbType;
 
 typedef struct SSdbRaw {

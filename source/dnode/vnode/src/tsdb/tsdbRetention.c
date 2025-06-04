@@ -380,17 +380,25 @@ _exit:
 }
 
 static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now, bool s3Migrate) {
+  void tsdbS3MigrateMonitorAddFileSet(STsdb *tsdb, int32_t fid);
+
   int32_t code = 0;
   int32_t lino = 0;
 
   // check if background task is disabled
   if (tsdb->bgTaskDisabled) {
-    tsdbInfo("vgId:%d, background task is disabled, skip retention", TD_VID(tsdb->pVnode));
+    if (s3Migrate) {
+      tsdbInfo("vgId:%d, background task is disabled, skip s3 migration", TD_VID(tsdb->pVnode));
+    } else {
+      tsdbInfo("vgId:%d, background task is disabled, skip retention", TD_VID(tsdb->pVnode));
+    }
     return 0;
   }
 
   STFileSet *fset;
   TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
+    // TODO: when migrating to S3, skip fset that should not be migrated
+
     SRtnArg *arg = taosMemoryMalloc(sizeof(*arg));
     if (arg == NULL) {
       TAOS_CHECK_GOTO(terrno, &lino, _exit);
@@ -401,6 +409,7 @@ static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now, bool s3Migrate) 
     arg->fid = fset->fid;
     arg->s3Migrate = s3Migrate;
 
+    tsdbS3MigrateMonitorAddFileSet(tsdb, fset->fid);
     code = vnodeAsync(RETENTION_TASK_ASYNC, EVA_PRIORITY_LOW, tsdbRetention, tsdbRetentionCancel, arg,
                       &fset->retentionTask);
     if (code) {
@@ -426,6 +435,7 @@ int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now) {
 
 #ifdef USE_S3
 
+#if 0 // TODO: remove this block of code
 static int32_t tsdbMigrateDataFileLCS3(SRTNer *rtner, const STFileObj *fobj, int64_t size, int64_t chunksize) {
   int32_t   code = 0;
   int32_t   lino = 0;
@@ -706,8 +716,9 @@ _exit:
   }
   return code;
 }
+#endif
 
-int32_t tsdbAsyncS3Migrate(STsdb *tsdb, int64_t now) {
+int32_t tsdbAsyncS3Migrate(STsdb *tsdb, SS3MigrateVnodeReq *pReq) {
   int32_t code = 0;
 
   #if 0
@@ -724,8 +735,11 @@ int32_t tsdbAsyncS3Migrate(STsdb *tsdb, int64_t now) {
   }
     #endif
 
+  void tsdbStartS3MigrateMonitor(STsdb *tsdb);
+
   (void)taosThreadMutexLock(&tsdb->mutex);
-  code = tsdbAsyncRetentionImpl(tsdb, now, true);
+  tsdbStartS3MigrateMonitor(tsdb);
+  code = tsdbAsyncRetentionImpl(tsdb, pReq->timestamp, true);
   (void)taosThreadMutexUnlock(&tsdb->mutex);
 
   if (code) {
