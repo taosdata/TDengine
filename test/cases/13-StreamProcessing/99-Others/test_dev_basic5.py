@@ -85,12 +85,12 @@ class TestStreamDevBasic:
     def writeTriggerData(self):
         tdLog.info("write data to trigger table")
         sqls = [
-            "insert into tdb.t1 values ('2025-01-01 00:00:00', 0, 0), ('2025-01-01 00:05:00', 5, 50), ('2025-01-01 00:10:00', 10, 100)",
-            "insert into tdb.t2 values ('2025-01-01 00:11:00', 11, 110), ('2025-01-01 00:12:00', 12, 20), ('2025-01-01 00:15:00', 15, 150)",
+            "insert into tdb.t1 values ('2025-01-01 00:00:00', 0,  0  ) ('2025-01-01 00:05:00', 5,  50 ) ('2025-01-01 00:10:00', 10, 100)",
+            "insert into tdb.t2 values ('2025-01-01 00:11:00', 11, 110) ('2025-01-01 00:12:00', 12, 120) ('2025-01-01 00:15:00', 15, 150)",
             "insert into tdb.t3 values ('2025-01-01 00:21:00', 21, 210)",
-            "insert into tdb.n1 values ('2025-01-01 01:00:00', 100, 1000), ('2025-01-01 01:05:00', 105, 1050), ('2025-01-01 01:10:00', 110, 1100)",
-            "insert into tdb.t1 values ('2025-01-01 02:00:00', 200, 2000), ('2025-01-01 02:05:00', 205, 2050), ('2025-01-01 02:10:00', 210, 3100)",
-            "insert into tdb.n1 values ('2025-01-01 03:00:00', 300, 3000) ('2025-01-01 03:10:00', 310, 3100)",
+            "insert into tdb.n1 values ('2025-01-01 00:25:00', 25, 250) ('2025-01-01 00:26:00', 26, 260) ('2025-01-01 00:27:00', 27, 270)",
+            "insert into tdb.t1 values ('2025-01-01 00:30:00', 30, 300) ('2025-01-01 00:32:00', 32, 320) ('2025-01-01 00:36:00', 36, 360)",
+            "insert into tdb.n1 values ('2025-01-01 00:40:00', 40, 400) ('2025-01-01 00:42:00', 42, 420)",
         ]
         tdSql.executes(sqls)
 
@@ -107,11 +107,11 @@ class TestStreamDevBasic:
         self.streams = []
 
         stream = StreamItem(
-            id=0,
-            stream="create stream rdb.s0 interval(5m) sliding(5m) from tdb.triggers into rdb.r0 as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null;",
-            res_query="select ts, te, td, tw, tg, c1, c2 from rdb.r0;",
-            exp_query="select _wstart ts, _wend te, _wduration td, count(cts) tw, 0 as tg, count(cint) c1, avg(cint) c2 from qdb.meters where (cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:25:00') or (cts >= '2025-01-01 02:00:00' and cts < '2025-01-01 02:15:00') interval(5m);",
-            check_func=self.check0,
+            id=2,
+            stream="create stream rdb.s2 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r2 as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, %%tbname tb, %%1 tg1, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null and %%tbname is not null and %%1 is not null;",
+            res_query="select ts, te, td, tw, tg, tl, tb, tg1 c1, c2 from rdb.r1;",
+            exp_query="select _wstart ts, _wend te, _wduration td, count(cint) tw, 0 tg, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
+            check_func=self.check2,
         )
         self.streams.append(stream)
 
@@ -119,12 +119,11 @@ class TestStreamDevBasic:
         for stream in self.streams:
             stream.createStream()
 
-    def check0(self):
-        tdSql.checkTableType("rdb", "r0", "NORMAL_TABLE", 8)
-
+    def check2(self):
+        tdSql.checkTableType("rdb", "r1", "NORMAL_TABLE", 8)
         tdSql.checkTableSchema(
             dbname="rdb",
-            tbname="r0",
+            tbname="r1",
             schema=[
                 ["ts", "TIMESTAMP", 8, ""],
                 ["te", "TIMESTAMP", 8, ""],
