@@ -391,17 +391,25 @@ int32_t taosGetIpv6FromFqdn(const char *fqdn, SIpAddr *pAddr) {
   }
 #else
   struct addrinfo hints = {0};
-  hints.ai_family = AF_INET6;
+  hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
 
   struct addrinfo *result = NULL;
 
   int32_t ret = getaddrinfo(fqdn, NULL, &hints, &result);
   if (result) {
-    struct sockaddr    *sa = result->ai_addr;
-    struct sockaddr_in *si = (struct sockaddr_in *)sa;
-    struct in_addr      ia = si->sin_addr;
-    *ip = ia.s_addr;
+    if (result->ai_family == AF_INET6) {
+      struct sockaddr_in6 *p6 = (struct sockaddr_in6 *)result->ai_addr;
+      inet_ntop(AF_INET6, &p6->sin6_addr, pAddr->ipv6, sizeof(pAddr->ipv6));
+      pAddr->type = 1;
+    } else if (result->ai_family == AF_INET) {
+      struct sockaddr_in *p4 = (struct sockaddr_in *)result->ai_addr;
+      inet_ntop(AF_INET, &p4->sin_addr, pAddr->ipv4, sizeof(pAddr->ipv4));
+      pAddr->type = 0;
+    } else {
+      code = TSDB_CODE_RPC_FQDN_ERROR;
+      goto _err;
+    }
     freeaddrinfo(result);
     goto _err;
   } else {
@@ -414,10 +422,6 @@ int32_t taosGetIpv6FromFqdn(const char *fqdn, SIpAddr *pAddr) {
 #else
     // printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
 #endif
-
-    *ip = 0xFFFFFFFF;
-    code = TSDB_CODE_RPC_FQDN_ERROR;
-    goto _err;
   }
 #endif
 _err:
