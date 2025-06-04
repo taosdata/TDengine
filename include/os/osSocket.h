@@ -75,6 +75,7 @@ extern "C" {
 typedef int socklen_t;
 #define TAOS_EPOLL_WAIT_TIME 100
 #define INET6_ADDRSTRLEN     46
+#define INET_ADDRSTRLEN      16
 typedef SOCKET eventfd_t;
 #define eventfd(a, b) -1
 #ifndef EPOLLWAKEUP
