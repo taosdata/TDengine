@@ -120,7 +120,9 @@ class TestStreamDevBasic:
             stream.createStream()
 
     def check0(self):
-        tdSql.checkTableType("rdb", "r0", "NORMAL_TABLE", 3)
+        tdSql.checkTableType(
+            dbname="rdb", tbname="r0", typename="NORMAL_TABLE", columns=3
+        )
 
         tdSql.checkTableSchema(
             dbname="rdb",

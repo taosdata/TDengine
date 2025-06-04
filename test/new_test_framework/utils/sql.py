@@ -2410,7 +2410,9 @@ class TDSql:
             res_result = self.getResult(sql)
 
             if self.compareResults(res_result, exp_result):
-                self.printResult(f"check succeed in {loop} seconds", input_result=res_result)
+                self.printResult(
+                    f"check succeed in {loop} seconds", input_result=res_result
+                )
                 return
 
             if loop != retry - 1:
@@ -2434,11 +2436,11 @@ class TDSql:
     def checkTableType(
         self,
         dbname,
-        tbname,
-        typename,
         columns,
         tags=0,
         stbname=None,
+        tbname=None,
+        typename=None,
         delay=0.0,
         retry=20,
         show=False,
