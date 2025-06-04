@@ -58,6 +58,7 @@ int8_t tsEnableStrongPassword = 1;
 char          tsEncryptPassAlgorithm[16] = {0};
 EEncryptAlgor tsiEncryptPassAlgorithm = 0;
 
+
 // common
 int32_t tsMaxShellConns = 50000;
 int32_t tsShellActivityTimer = 3;  // second
