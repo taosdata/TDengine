@@ -64,17 +64,17 @@ On Linux or macOS, run the following command in your terminal:
 
 ```shell
 grafana-cli --pluginUrl \
-      https://github.com/taosdata/grafanaplugin/releases/download/v3.7.2/tdengine-datasource-3.7.2.zip \
+      https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip \
       plugins install tdengine-datasource
 # with sudo
 sudo -u grafana grafana-cli --pluginUrl \
-      https://github.com/taosdata/grafanaplugin/releases/download/v3.7.2/tdengine-datasource-3.7.2.zip \
+      https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip \
       plugins install tdengine-datasource
 ```
 On Windows, first ensure that the plugin installation directory exists (by default, it is located in the data/plugins subdirectory of your Grafana installation directory). Then, run the following command in the bin directory of the Grafana installation path using an administrator account:
 
 ```shell
-./grafana-cli.exe --pluginUrl https://github.com/taosdata/grafanaplugin/releases/download/v3.7.2/tdengine-datasource-3.7.2.zip plugins install tdengine-datasource
+./grafana-cli.exe --pluginUrl https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip plugins install tdengine-datasource
 ```
 
 Afterward, users can directly access the Grafana server at `http://localhost:3000` (username/password: admin/admin), and add a data source through `Configuration -> Data Sources`,
@@ -91,18 +91,16 @@ Click `Save & Test` to test, if successful, it will prompt: `TDengine Data sourc
 
 <TabItem value="manual" label="Manual Installation">
 
-Download the .zip file from [GitHub](https://github.com/taosdata/grafanaplugin/releases/tag/latest) to your local machine and unzip it into the Grafana plugins directory. Example command line download is as follows:
+Download [tdengine-datasource.zip](https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip) to your local machine and unzip it into the Grafana plugins directory. Example command line download is as follows:
 
 ```shell
-GF_VERSION=3.7.2
-# from GitHub
-wget https://github.com/taosdata/grafanaplugin/releases/download/v$GF_VERSION/tdengine-datasource-$GF_VERSION.zip
+wget https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip
 ```
 
 For CentOS 7.2 operating system, unzip the plugin package into the /var/lib/grafana/plugins directory and restart Grafana.
 
 ```shell
-sudo unzip tdengine-datasource-$GF_VERSION.zip -d /var/lib/grafana/plugins/
+sudo unzip tdengine-datasource.zip -d /var/lib/grafana/plugins/
 ```
 
 Afterward, users can directly access the Grafana server at `http://localhost:3000` (username/password: admin/admin), and add a data source through `Configuration -> Data Sources`,
@@ -124,7 +122,7 @@ Refer to [Grafana containerized installation instructions](https://grafana.com/d
 docker run -d \
   -p 3000:3000 \
   --name=grafana \
-  -e "GF_INSTALL_PLUGINS=https://github.com/taosdata/grafanaplugin/releases/download/v3.7.2/tdengine-datasource-3.7.2.zip;tdengine-datasource" \
+  -e "GF_INSTALL_PLUGINS=https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip;tdengine-datasource" \
   grafana/grafana
 ```
 
@@ -173,7 +171,7 @@ Using docker-compose, configure Grafana Provisioning for automated setup, and ex
           - grafana-data:/var/lib/grafana
         environment:
           # install tdengine plugin at start
-          GF_INSTALL_PLUGINS: "https://github.com/taosdata/grafanaplugin/releases/download/v3.7.2/tdengine-datasource-3.7.2.zip;tdengine-datasource"
+          GF_INSTALL_PLUGINS: "https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip;tdengine-datasource"
           TDENGINE_API: "http://tdengine:6041"
           #printf "$TDENGINE_USER:$TDENGINE_PASSWORD" | base64
           TDENGINE_BASIC_AUTH: "cm9vdDp0YW9zZGF0YQ=="
