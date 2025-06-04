@@ -2276,18 +2276,18 @@ class TDSql:
 
     def getDbVgroups(self, db_name: str = "test") -> list:
         db_vgroups_list = []
-        tdSql.query(f"show {db_name}.vgroups")
-        for result in tdSql.queryResult:
+        self.query(f"show {db_name}.vgroups")
+        for result in self.queryResult:
             db_vgroups_list.append(result[0])
         vgroup_nums = len(db_vgroups_list)
         tdLog.debug(f"{db_name} has {vgroup_nums} vgroups :{db_vgroups_list}")
-        tdSql.query("select * from information_schema.ins_vnodes")
+        self.query("select * from information_schema.ins_vnodes")
         return db_vgroups_list
 
     def getCluseterDnodes(self) -> list:
         cluset_dnodes_list = []
-        tdSql.query("show dnodes")
-        for result in tdSql.queryResult:
+        self.query("show dnodes")
+        for result in self.queryResult:
             cluset_dnodes_list.append(result[0])
         self.clust_dnode_nums = len(cluset_dnodes_list)
         tdLog.debug(
@@ -2315,17 +2315,17 @@ class TDSql:
         else:
             raise ValueError(f"Replica count must be 1 or 3,but got {replica}")
         tdLog.debug(f"redistributeSql:{redistribute_sql}")
-        tdSql.query(redistribute_sql)
+        self.query(redistribute_sql)
         tdLog.debug("redistributeSql ok")
 
     def redistributeDbAllVgroups(self, db_name: str = "test", replica: int = 1):
         db_vgroups_list = self.getDbVgroups(db_name)
         cluset_dnodes_list = self.getCluseterDnodes()
         useful_trans_dnodes_list = cluset_dnodes_list.copy()
-        tdSql.query("select * from information_schema.ins_vnodes")
+        self.query("select * from information_schema.ins_vnodes")
         # result: dnode_id|vgroup_id|db_name|status|role_time|start_time|restored|
 
-        results = list(tdSql.queryResult)
+        results = list(self.queryResult)
         for vnode_group_id in db_vgroups_list:
             for result in results:
                 print(
@@ -2384,18 +2384,18 @@ class TDSql:
             retry = 1
 
         for loop in range(retry):
-            tdSql.query(sql)
+            self.query(sql)
 
             if func():
-                tdSql.printResult(f"check succeed in {loop} seconds")
+                self.printResult(f"check succeed in {loop} seconds")
                 return
 
             if loop != retry - 1:
                 if show:
-                    tdSql.printResult("check continue")
+                    self.printResult("check continue")
                 time.sleep(1)
 
-        tdSql.printResult(f"check failed for {retry} seconds", exit=True)
+        self.printResult(f"check failed for {retry} seconds", exit=True)
 
     def checkResultsByArray(
         self, sql, exp_result, exp_sql="", delay=0.0, retry=20, show=False
@@ -2407,19 +2407,19 @@ class TDSql:
             retry = 1
 
         for loop in range(retry):
-            res_result = tdSql.getResult(sql)
+            res_result = self.getResult(sql)
 
             if self.compareResults(res_result, exp_result):
-                tdSql.printResult(f"check succeed in {loop} seconds")
+                self.printResult(f"check succeed in {loop} seconds", input_result=res_result)
                 return
 
             if loop != retry - 1:
                 if show:
-                    tdSql.printResult("check continue")
+                    self.printResult("check continue", input_result=res_result)
                 time.sleep(1)
 
-        tdSql.printResult(f"expect results", input_result=exp_result, input_sql=exp_sql)
-        tdSql.printResult(
+        self.printResult(f"expect results", input_result=exp_result, input_sql=exp_sql)
+        self.printResult(
             f"check failed for {retry} seconds", input_result=res_result, input_sql=sql
         )
         self.compareResults(res_result, exp_result, show=True)
@@ -2428,7 +2428,7 @@ class TDSql:
         tdLog.exit(f"{caller.filename}(caller.lineno)  check result failed")
 
     def checkResultsBySql(self, sql, exp_sql, delay=0.0, retry=20, show=False):
-        exp_result = tdSql.getResult(exp_sql)
+        exp_result = self.getResult(exp_sql)
         self.checkResultsByArray(sql, exp_result, exp_sql, delay, retry, show)
 
     def checkTableType(
@@ -2447,12 +2447,12 @@ class TDSql:
             sql = f"select * from information_schema.ins_tables where db_name='{dbname}' and table_name='{tbname}'"
             self.checkResultsByFunc(
                 sql=sql,
-                func=lambda: tdSql.getRows() == 1
-                and tdSql.compareData(0, 0, tbname)
-                and tdSql.compareData(0, 1, dbname)
-                and tdSql.compareData(0, 3, columns)
-                and tdSql.compareData(0, 4, stbname)
-                and tdSql.compareData(0, 9, typename),
+                func=lambda: self.getRows() == 1
+                and self.compareData(0, 0, tbname)
+                and self.compareData(0, 1, dbname)
+                and self.compareData(0, 3, columns)
+                and self.compareData(0, 4, stbname)
+                and self.compareData(0, 9, typename),
                 delay=delay,
                 retry=retry,
                 show=show,
@@ -2461,11 +2461,11 @@ class TDSql:
             sql = f"select * from information_schema.ins_stables where db_name='{dbname}' and stable_name='{stbname}'"
             self.checkResultsByFunc(
                 sql=sql,
-                func=lambda: tdSql.getRows() == 1
-                and tdSql.compareData(0, 0, stbname)
-                and tdSql.compareData(0, 1, dbname)
-                and tdSql.compareData(0, 3, columns)
-                and tdSql.compareData(0, 4, tags),
+                func=lambda: self.getRows() == 1
+                and self.compareData(0, 0, stbname)
+                and self.compareData(0, 1, dbname)
+                and self.compareData(0, 3, columns)
+                and self.compareData(0, 4, tags),
                 delay=delay,
                 retry=retry,
                 show=show,

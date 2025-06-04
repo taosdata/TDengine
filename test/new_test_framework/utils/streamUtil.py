@@ -176,7 +176,7 @@ class StreamUtil:
                 for row in range(rowsPerBatch):
                     rows = batch * rowsPerBatch + row
                     ts = tsStart + rows * tsInterval
-                    cint = rows 
+                    cint = rows
                     cuint = rows % 4
                     cbigint = rows % 5
                     cubigint = rows % 6
@@ -534,7 +534,7 @@ class StreamItem:
         tdLog.info(self.stream)
         tdSql.execute(self.stream)
 
-    def checkResults(self, print=False):
+    def checkResults(self):
         tdLog.info(f"check stream:s{self.id} result")
 
         if self.check_func != None:
@@ -549,12 +549,6 @@ class StreamItem:
                 for r in self.exp_rows:
                     exp_result.append(tmp_result[r])
 
-            if print:
-                tdSql.printResult(
-                    f"s{self.id} expect",
-                    input_result=exp_result,
-                    input_sql=self.exp_query,
-                )
             tdSql.checkResultsByArray(self.res_query, exp_result, self.exp_query)
 
         tdLog.info(f"check stream:s{self.id} result successfully")
