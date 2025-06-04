@@ -390,7 +390,8 @@ static bool rpcRfp(int32_t code, tmsg_t msgType) {
 }
 static bool rpcNoDelayMsg(tmsg_t msgType) {
   if (msgType == TDMT_VND_FETCH_TTL_EXPIRED_TBS || msgType == TDMT_VND_S3MIGRATE || msgType == TDMT_VND_S3MIGRATE ||
-      msgType == TDMT_VND_QUERY_COMPACT_PROGRESS || msgType == TDMT_VND_DROP_TTL_TABLE) {
+      msgType == TDMT_VND_QUERY_COMPACT_PROGRESS || msgType == TDMT_VND_DROP_TTL_TABLE ||
+      msgType == TDMT_VND_FOLLOWER_S3MIGRATE) {
     return true;
   }
   return false;
