@@ -460,7 +460,6 @@ typedef struct SStreamTagDefNode {
 
 typedef struct SPeriodWindowNode {
   ENodeType type;  // QUERY_NODE_PERIOD_WINDOW
-  SNode*    pCol;      // timestamp primary key
   SNode*    pPeroid;
   SNode*    pOffset;
 } SPeriodWindowNode;

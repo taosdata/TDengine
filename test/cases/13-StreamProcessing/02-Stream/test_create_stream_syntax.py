@@ -23,6 +23,8 @@ arith_ops = ["+", "-", "*", "/"]
 logic_ops = ["AND", "OR"]
 notify_option_list = ["NOTIFY_HISTORY", "ON_FAILURE_PAUSE"]
 
+query_table_col_list = ["ts", "q_col1", "q_col2", "q_col3", "q_col4", "q_col5", "q_col6"]
+
 as_subquery_opts = [(" AS SELECT * FROM query_table", True, 7, ["ts", "q_col1", "q_col2", "q_col3", "q_col4", "q_col5", "q_col6"], False),
                     (" AS SELECT first(ts), avg(q_col1) from query_table", True, 2, ["first(ts)", "avg(q_col1)"], False),
                     (" AS SELECT first(ts), avg(q_col1) from query_table WHERE q_col1 > 0", True, 2, ["first(ts)", "avg(q_col1)"], False),
@@ -82,8 +84,8 @@ into_option_list_invalid = [
 session_column_valid = ["col1"]
 session_column_invalid = ["col2", "col3", "col4", "col5", "col6", "ts_col", "tag1", "tag2", "tag3", "tag4"]
 
-state_column_valid = ["col1", "col2", "col3", "col4", "col5", "col6"]
-state_column_invalid = ["col7", "col8", "col9", "col10", "ts_col", "tag5", "tag6", "tag7", "tag8"]
+state_column_valid = ["col2", "col3", "col4", "col5", "col6"]
+state_column_invalid = ["col1", "col7", "col8", "col9", "col10", "ts_col", "tag5", "tag6", "tag7", "tag8"]
 
 trigger_column_valid = ["col1", "col2", "col3", "col4", "col5", "col6"]
 trigger_column_invalid = ["col7", "col8", "col9", "col10", "ts_col", "tag1", "tag2", "tag3", "tag4"]
@@ -106,6 +108,82 @@ duration_lists_valid = [
 
 duration_lists_invalid = [
     "1x", "2x", "5x", "7x", "12x", "30x", "365x",
+    "a", "b", "c", "d", "e", "f", "g", "h", "i", "j",
+]
+
+slide_lists_valid = [
+    "1a", "1s", "1m", "1h", "1d", "1w",
+    "2a", "2s", "2m", "2h", "2d", "2w",
+    "5a", "5s", "5m", "5h", "5d", "5w",
+    "7a", "7s", "7m", "7h", "7d", "7w",
+    "12a", "12s", "12m", "12h", "12d", "12w",
+    "30a", "30s", "30m", "30h", "30d", "30w",
+    "365a", "365s", "365m", "365h", "365d", "365w",
+]
+
+slide_lists_invalid = [
+    "1x", "2x", "5x", "7x", "12x", "30x", "365x",
+    "1b", "2b", "5b", "7b", "12b", "30b", "365b",
+    "1u", "2u", "5u", "7u", "12u", "30u", "365u",
+    "1n", "2n", "5n", "7n", "12n", "30n", "365n",
+    "1y", "2y", "5y", "7y", "12y", "30y", "365y",
+    "a", "b", "c", "d", "e", "f", "g", "h", "i", "j",
+]
+
+slide_offset_lists_valid = [
+    "1a", "1s", "1m", "1h",
+    "2a", "2s", "2m", "2h",
+    "5a", "5s", "5m", "5h",
+    "7a", "7s", "7m", "7h",
+    "12a", "12s", "12m", "12h",
+    "30a", "30s", "30m", "30h",
+    "365a", "365s", "365m", "365h",
+]
+
+slide_offset_lists_invalid = [
+    "1x", "2x", "5x", "7x", "12x", "30x", "365x",
+    "1b", "2b", "5b", "7b", "12b", "30b", "365b",
+    "1u", "2u", "5u", "7u", "12u", "30u", "365u",
+    "1d", "2d", "5d", "7d", "12d", "30d", "365d",
+    "1w", "2w", "5w", "7w", "12w", "30w", "365w",
+    "1n", "2n", "5n", "7n", "12n", "30n", "365n",
+    "1y", "2y", "5y", "7y", "12y", "30y", "365y",
+    "a", "b", "c", "d", "e", "f", "g", "h", "i", "j",
+]
+
+session_lists_valid = [
+    "1a", "1s", "1m", "1h", "1d", "1w",
+    "2a", "2s", "2m", "2h", "2d", "2w",
+    "5a", "5s", "5m", "5h", "5d", "5w",
+    "7a", "7s", "7m", "7h", "7d", "7w",
+    "12a", "12s", "12m", "12h", "12d", "12w",
+    "30a", "30s", "30m", "30h", "30d", "30w",
+    "365a", "365s", "365m", "365h", "365d", "365w",
+]
+
+session_lists_invalid = [
+    "1x", "2x", "5x", "7x", "12x", "30x", "365x",
+    "1n", "2n", "5n", "7n", "12n", "30n", "365n",
+    "1y", "2y", "5y", "7y", "12y", "30y", "365y",
+    "1b", "2b", "5b", "7b", "12b", "30b", "365b",
+    "1u", "2u", "5u", "7u", "12u", "30u", "365u",
+    "a", "b", "c", "d", "e", "f", "g", "h", "i", "j",
+]
+
+true_for_lists_valid = [
+    "1b", "1u", "1a", "1s", "1m", "1h", "1d", "1w",
+    "2b", "2u", "2a", "2s", "2m", "2h", "2d", "2w",
+    "5b", "5u", "5a", "5s", "5m", "5h", "5d", "5w",
+    "7b", "7u", "7a", "7s", "7m", "7h", "7d", "7w",
+    "12b", "12u", "12a", "12s", "12m", "12h", "12d", "12w",
+    "30b", "30u", "30a", "30s", "30m", "30h", "30d", "30w",
+    "365b", "365u", "365a", "365s", "365m", "365h", "365d", "365w",
+]
+
+true_for_lists_invalid = [
+    "1x", "2x", "5x", "7x", "12x", "30x", "365x",
+    "1n", "2n", "5n", "7n", "12n", "30n", "365n",
+    "1y", "2y", "5y", "7y", "12y", "30y", "365y",
     "a", "b", "c", "d", "e", "f", "g", "h", "i", "j",
 ]
 
@@ -291,7 +369,7 @@ def generate_trigger_section():
     max_session_count = 50
     for _ in range(0, max_session_count + 1):
         col, v1 = random_from_combined(session_column_valid, session_column_invalid)
-        dur, v2 = random_from_combined(duration_lists_valid, duration_lists_invalid)
+        dur, v2 = random_from_combined(session_lists_valid, session_lists_invalid)
         triggers.extend([
             (f" SESSION({col}) ", False),
             (f" SESSION({col}, '{dur}') ", v1 and v2),
@@ -302,7 +380,7 @@ def generate_trigger_section():
     max_state_count = 50
     for _ in range(0, max_state_count + 1):
         col, v1 = random_from_combined(state_column_valid, state_column_invalid)
-        dur, v2 = random_from_combined(duration_lists_valid, duration_lists_invalid)
+        dur, v2 = random_from_combined(true_for_lists_valid, true_for_lists_invalid)
         triggers.extend([
             (f" STATE_WINDOW({col}) ", v1),
             (f" STATE_WINDOW({col}) TRUE_FOR('{dur}') ", v1 and v2),
@@ -313,8 +391,8 @@ def generate_trigger_section():
     for _ in range(0, max_sliding_count + 1):
         interval, v1 = random_from_combined(duration_lists_valid, duration_lists_invalid)
         offset, v2 = random_from_combined(duration_lists_valid, duration_lists_invalid)
-        slide, v3 = random_from_combined(duration_lists_valid, duration_lists_invalid)
-        slide_offset, v4 = random_from_combined(duration_lists_valid, duration_lists_invalid)
+        slide, v3 = random_from_combined(slide_lists_valid, slide_lists_invalid)
+        slide_offset, v4 = random_from_combined(slide_offset_lists_valid, slide_offset_lists_invalid)
 
         interval_val = duration_to_nanoseconds(interval) if interval else None
         offset_val = duration_to_nanoseconds(offset) if offset else None
@@ -336,7 +414,17 @@ def generate_trigger_section():
         else:
             v7 = True
 
-        is_all_valid = v1 and v2 and v3 and v4 and v5 and v6 and v7
+        if 'y' in interval and 'n' in slide:
+            v8 = False
+        else:
+            v8 = True
+
+        if interval_val and slide_val:
+            v9 = interval_val / slide_val < 100
+        else:
+            v9 = True
+
+        is_all_valid = v1 and v2 and v3 and v4 and v5 and v6 and v7 and v8 and v9
 
         int_part = f" INTERVAL('{interval}') "
         int_part_with_offset = f" INTERVAL('{interval}', '{offset}') "
@@ -346,9 +434,9 @@ def generate_trigger_section():
         triggers.extend([
             (slide_part, v3),
             (slide_part_with_offset, v3 and v4 and v6),
-            (f" {int_part} {slide_part} ", v1 and v3 and v5),
-            (f" {int_part} {slide_part_with_offset} ", v1 and v3 and v4 and v6 and v7),
-            (f" {int_part_with_offset} {slide_part} ", v1 and v2 and v3 and v5 and v7),
+            (f" {int_part} {slide_part} ", v1 and v3 and v7 and v8 and v9),
+            (f" {int_part} {slide_part_with_offset} ", v1 and v3 and v4 and v6 and v7 and v8 and v9),
+            (f" {int_part_with_offset} {slide_part} ", v1 and v2 and v3 and v5 and v7 and v8 and v9),
             (f" {int_part_with_offset} {slide_part_with_offset} ", is_all_valid)
         ])
 
@@ -364,7 +452,7 @@ def generate_trigger_section():
     # COUNT_WINDOW
     max_count_count = 50
     for _ in range(0, max_count_count + 1):
-        count = random_from_list([1, 10, 20])
+        count = random_from_list([5, 10, 20])
         slide = random_from_list([None, 10, 20])
         col_length = random_int(0, 5)
         if random_bool(0.3):
@@ -691,6 +779,7 @@ def generate_random_notif_def_section(
         # 80% chance to generate empty NOTIFY clause
         return "", True
 
+
     # optional NOTIFY(url [, ...])
     if random_bool(0.2):
         # 20% chance to generate invalid NOTIFY clause
@@ -727,18 +816,16 @@ def generate_random_notif_def_section(
     if valid == True and random_bool(0.2):
         # 20% chance to generate invalid WHERE clause
         if query_cols is None:
-            query_cols = ["1", "2", "3"]
+            query_cols = ["col1", "col2", "col3"]
         condition = generate_logical_condition(max_depth=max_condition_depth, full_column_list=partition_columns_valid, valid_column_list=query_cols, valid=False)
         notify_conditions = f" WHERE {condition} "
         valid = False
     else:
         # 80% chance to generate valid WHERE clause
-        if random_bool(0.2):
+        if random_bool(0.2) or query_cols is None:
             # 20% chance to generate empty WHERE clause
             notify_conditions = ""
         else:
-            if query_cols is None:
-                query_cols = ["1", "2", "3"]
             condition = generate_logical_condition(max_depth=max_condition_depth, full_column_list=partition_columns_valid, valid_column_list=query_cols, valid=True)
             notify_conditions = f" WHERE {condition} "
 
@@ -968,14 +1055,18 @@ def gen_create_stream_variants():
             else:
                 v22 = True
 
-
+            if column == "" and into_exist and as_subquery != "":
+                v23 = False
+            else:
+                v23 = True
 
             valid = (v0 and v1 and v2 and v3 and v4 and v5 and v6 and v7 and v8 and v9 and
-                     v10 and v11 and v12 and v13 and v14 and v15 and v16 and v17 and v18 and v19 and v20 and v21 and v22)
+                     v10 and v11 and v12 and v13 and v14 and v15 and v16 and v17 and v18 and v19 and
+                     v20 and v21 and v22 and v23)
             print(f"stream_index: {stream_index}, v0: {v0}, v1: {v1}, v2: {v2}, v3: {v3}, v4: {v4}, "
                   f"v5: {v5}, v6: {v6}, v7: {v7}, v8: {v8}, v9: {v9}, v10: {v10}, v11: {v11}, "
                   f"v12: {v12}, v13: {v13}, v14: {v14}, v15: {v15}, v16: {v16}, v17: {v17}, "
-                  f"v18: {v18}, v19: {v19}, v20: {v20}, v21: {v21}, v22: {v22}")
+                  f"v18: {v18}, v19: {v19}, v20: {v20}, v21: {v21}, v22: {v22}, v23: {v23}")
 
             sql = base_template.format(
                if_not_exists=random_from_list(if_not_exists_opts),

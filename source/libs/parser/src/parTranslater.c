@@ -7143,7 +7143,7 @@ static const int64_t periodLowerBound = 10;
 static const int64_t periodUpperBound = (int64_t) 3650 * 24 * 60 * 60 * 1000; // 10 years in milliseconds
 
 static int32_t checkPeriodWindow(STranslateContext* pCxt, SPeriodWindowNode* pPeriod) {
-  uint8_t     precision = ((SColumnNode*)pPeriod->pCol)->node.resType.precision;
+  uint8_t     precision = TSDB_TIME_PRECISION_MILLI;
   SValueNode* pPer = (SValueNode*)pPeriod->pPeroid;
   SValueNode* pOffset = (SValueNode*)pPeriod->pOffset;
 
@@ -12693,6 +12693,7 @@ static bool crossTableWithUdaf(SSelectStmt* pSelect) {
 static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
   SStreamTriggerNode*    pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
   SStreamTriggerOptions* pTriggerOptions = (SStreamTriggerOptions*)pTrigger->pOptions;
+  SStreamNotifyOptions*  pNotifyOptions = (SStreamNotifyOptions*)pTrigger->pNotify;
 
   // TODO(smj) : proper error code
   if (pStmt->pQuery && QUERY_NODE_SELECT_STMT != nodeType(pStmt->pQuery)) {
@@ -12726,6 +12727,10 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
     } else {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Can not specify out table when no query in stream");
     }
+  }
+
+  if (pStmt->pQuery == NULL && pNotifyOptions->pWhere) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Can not specify notify where when no query in stream");
   }
 
   SDbCfgInfo dbCfg = {0};
@@ -13238,7 +13243,6 @@ static int32_t createStreamCheckOutTags(STranslateContext* pCxt, SNodeList* pTag
     }
     extractTypeFromTypeMod(pMeta->schema[tagIndex].type, pMeta->schemaExt[tagIndex].typeMod, &precision, &scale, &bytes);
     if (pTagDef->dataType.type != pMeta->schema[tagIndex].type ||
-        pTagDef->dataType.bytes != pMeta->schema[tagIndex].bytes ||
         pTagDef->dataType.scale != scale ||
         pTagDef->dataType.precision != precision ||
         strcmp(pTagDef->tagName, pMeta->schema[tagIndex].name) != 0) {
@@ -13272,7 +13276,7 @@ static int32_t createStreamCheckOutCols(STranslateContext* pCxt, SNodeList* pCol
     int32_t bytes = 0;
     extractTypeFromTypeMod(pMeta->schema[colIndex].type, pMeta->schemaExt[colIndex].typeMod, &precision, &scale, &bytes);
     if (pColDef->dataType.type != pMeta->schema[colIndex].type ||
-        pColDef->dataType.bytes != pMeta->schema[colIndex].bytes ||
+        calcTypeBytes(pColDef->dataType) != pMeta->schema[colIndex].bytes ||
         pColDef->dataType.scale != scale ||
         pColDef->dataType.precision != precision ||
         strcmp(pColDef->colName, pMeta->schema[colIndex].name) != 0) {
@@ -13430,7 +13434,7 @@ static int32_t createStreamReqBuildTriggerPeriodWindow(STranslateContext* pCxt, 
   pReq->trigger.period.offset = createStreamReqWindowGetBigInt(pTriggerWindow->pOffset);
   pReq->trigger.period.periodUnit = createStreamReqWindowGetUnit(pTriggerWindow->pPeroid);
   pReq->trigger.period.offsetUnit = createStreamReqWindowGetUnit(pTriggerWindow->pOffset);
-  pReq->trigger.period.precision = ((SColumnNode*)pTriggerWindow->pCol)->node.resType.precision;
+  pReq->trigger.period.precision = TSDB_TIME_PRECISION_MILLI;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -13894,6 +13898,16 @@ static bool findNodeInList(SNode* pTarget, SNodeList* pList) {
   return false;
 }
 
+//typedef struct SCheckNotifyCondContext {
+//  STranslateContext *
+//} SCheckNotifyCondContext;
+//
+//static EDealRes doCheckNotifyCond(SNode* pNode, void* pContext) {
+//  STranslateContext* pCxt = (STranslateContext*)pContext;
+//  SSelectStmt*       pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+//  return true;
+//}
+
 static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStreamStmt* pStmt,
                                             SNodeList *pTriggerPartition, SSelectStmt* pTriggerSelect,
                                             SHashObj* pTriggerSlotHash, SNode* pNotifyCond, SCMCreateStreamReq* pReq) {
@@ -13905,7 +13919,7 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
   bool         withExtWindow = false;
 
   if (!pStmt->pQuery) {
-      return code;
+    return code;
   }
 
   if (nodeType(pStmt->pQuery) != QUERY_NODE_SELECT_STMT) {
@@ -13913,6 +13927,7 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
   }
 
   if (pNotifyCond) {
+    //nodesWalkExpr(pNotifyCond, doCheckNotifyCond, pCxt);
     PAR_ERR_JRET(nodesListMakeAppend(&((SSelectStmt*)pStmt->pQuery)->pProjectionList, pNotifyCond));
   }
 
