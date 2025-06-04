@@ -2518,10 +2518,10 @@ static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, uint8_t *pData,
       if (code) goto _exit;
       pColData->aOffset[pColData->nVal] = pColData->nData;
       if (nData) {
-        code = tRealloc(&pColData->pData, pColData->nData + cvtNData);
+        code = tRealloc(&pColData->pData, pColData->nData + nData);
         if (code) goto _exit;
-        (void)memcpy(pColData->pData + pColData->nData, pData, cvtNData);
-        pColData->nData += cvtNData;
+        (void)memcpy(pColData->pData + pColData->nData, pData, nData);
+        pColData->nData += nData;
       }
 
     } else {

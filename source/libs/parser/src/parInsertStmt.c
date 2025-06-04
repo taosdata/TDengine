@@ -380,11 +380,6 @@ int32_t qBindStmtStbColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind
     pBindInfos[c].columnId = pColSchema->colId;
     pBindInfos[c].bind = pBind;
     pBindInfos[c].type = pColSchema->type;
-
-    // code = tColDataAddValueByBind(pCol, pBind, IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes -
-    // VARSTR_HEADER_SIZE: -1); if (code) {
-    //   goto _return;
-    // }
   }
 
   code = tRowBuildFromBind(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols, &pDataBlock->ordered,

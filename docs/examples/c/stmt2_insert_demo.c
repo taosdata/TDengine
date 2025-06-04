@@ -22,7 +22,7 @@
 #include <sys/time.h>
 #include "taos.h"
 
-#define NUM_OF_SUB_TABLES 10
+#define NUM_OF_SUB_TABLES 1
 #define NUM_OF_ROWS       1
 
 /**
