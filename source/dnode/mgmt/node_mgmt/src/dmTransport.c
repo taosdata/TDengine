@@ -589,7 +589,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   if (code != 0) {
     dError("ipv6 flag %d, the local FQDN %s does not resolve to the ip address since %s", tsEnableIpv6, tsLocalFqdn,
            tstrerror(code));
-    return code;
+    code = 0;
   }
 
   SRpcInit rpcInit = {0};
