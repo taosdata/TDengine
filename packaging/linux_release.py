@@ -142,9 +142,9 @@ def build_and_install_taosx_on_linux(release_info, mode='release'):
     os.chdir(top_dir)
 
     if mode.lower() == 'release':
-        os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=release cargo make deploy-taosx')
+        os.system(f"VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME='{release_info.CustomName}' CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=release cargo make deploy-taosx")
     else:
-        os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=dev cargo make deploy-taosx')
+        os.system(f"VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME='{release_info.CustomName}' CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=dev cargo make deploy-taosx")
     logging.info("taosx built successfully")
 
     shutil.copy(binary_file,dst_dir)
