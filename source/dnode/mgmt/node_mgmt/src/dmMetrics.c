@@ -59,7 +59,9 @@ static void collectWriteMetricsInfo(SDnode *pDnode) {
   SMgmtWrapper *pWrapper = &pDnode->wrappers[VNODE];
   if (dmMarkWrapper(pWrapper) == 0) {
     if (pWrapper->pMgmt != NULL) {
-      vmUpdateMetricsInfo(pWrapper->pMgmt);
+      // Get cluster ID for metrics collection
+      int64_t clusterId = dmGetClusterId();
+      vmUpdateMetricsInfo(pWrapper->pMgmt, clusterId);
     }
     dmReleaseWrapper(pWrapper);
   }

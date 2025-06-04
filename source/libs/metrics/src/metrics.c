@@ -46,6 +46,16 @@ static void destroyWriteMetricsEx(void *p) { taosMemoryFree(*(SWriteMetricsEx **
 
 static void destroyDnodeMetricsEx(void *p) { taosMemoryFree(*(SDnodeMetricsEx **)p); }
 
+static void destroyMetricsManager() {
+  if (gMetricsManager.pDnodeMetrics) {
+    taosMemoryFree(gMetricsManager.pDnodeMetrics);
+    gMetricsManager.pDnodeMetrics = NULL;
+  }
+  taosHashClear(gMetricsManager.pWriteMetrics);
+  taosHashClear(gMetricsManager.pQueryMetrics);
+  taosHashClear(gMetricsManager.pStreamMetrics);
+}
+
 int32_t initMetricsManager() {
   int32_t code = 0;
 
@@ -85,16 +95,6 @@ int32_t initMetricsManager() {
 _err:
   destroyMetricsManager();
   return code;
-}
-
-static void destroyMetricsManager() {
-  if (gMetricsManager.pDnodeMetrics) {
-    taosMemoryFree(gMetricsManager.pDnodeMetrics);
-    gMetricsManager.pDnodeMetrics = NULL;
-  }
-  taosHashClear(gMetricsManager.pWriteMetrics);
-  taosHashClear(gMetricsManager.pQueryMetrics);
-  taosHashClear(gMetricsManager.pStreamMetrics);
 }
 
 void initMetric(SMetric *pMetric, EMetricType type, EMetricLevel level) {
@@ -190,11 +190,13 @@ void initDnodeMetricsEx(SDnodeMetricsEx *pMetrics) {
 
 void cleanupMetrics() { destroyMetricsManager(); }
 
-static void updateFormattedFromRaw(SWriteMetricsEx *fmt, const SRawWriteMetrics *raw, int32_t vgId, int32_t dnodeId) {
+static void updateFormattedFromRaw(SWriteMetricsEx *fmt, const SRawWriteMetrics *raw, int32_t vgId, int32_t dnodeId,
+                                   int64_t clusterId) {
   if (fmt == NULL || raw == NULL) return;
 
   fmt->vgId = vgId;
   fmt->dnodeId = dnodeId;
+  fmt->clusterId = clusterId;
 
   setMetricInt64(&fmt->total_requests, raw->total_requests);
   setMetricInt64(&fmt->total_rows, raw->total_rows);
@@ -225,7 +227,7 @@ static void updateDnodeFormattedFromRaw(SDnodeMetricsEx *fmt, const SRawDnodeMet
   setMetricInt64(&fmt->applyMemoryUsed, raw->applyMemoryUsed);
 }
 
-int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, const SRawWriteMetrics *pRawMetrics) {
+int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, int64_t clusterId, const SRawWriteMetrics *pRawMetrics) {
   if (pRawMetrics == NULL || gMetricsManager.pWriteMetrics == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -242,7 +244,7 @@ int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, const SRawWriteMetrics *p
       return TSDB_CODE_OUT_OF_MEMORY;
     }
     initWriteMetricsEx(pMetricEx);
-    updateFormattedFromRaw(pMetricEx, pRawMetrics, vgId, dnodeId);
+    updateFormattedFromRaw(pMetricEx, pRawMetrics, vgId, dnodeId, clusterId);
     code = taosHashPut(gMetricsManager.pWriteMetrics, &vgId, sizeof(vgId), &pMetricEx, sizeof(SWriteMetricsEx *));
     if (code != TSDB_CODE_SUCCESS) {
       taosMemoryFree(pMetricEx);
@@ -252,7 +254,7 @@ int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, const SRawWriteMetrics *p
     }
   } else {
     pMetricEx = *ppMetricEx;
-    updateFormattedFromRaw(pMetricEx, pRawMetrics, vgId, dnodeId);
+    updateFormattedFromRaw(pMetricEx, pRawMetrics, vgId, dnodeId, clusterId);
   }
   return code;
 }
@@ -296,6 +298,12 @@ static SJson *writeMetricsToJson(SWriteMetricsEx *pMetrics) {
   tjsonAddStringToObject(pJson, "ts", buf);
   tjsonAddDoubleToObject(pJson, "dnodeId", pMetrics->dnodeId);
   tjsonAddDoubleToObject(pJson, "vgId", pMetrics->vgId);
+
+  // Convert clusterId to string for JSON output
+  char clusterIdStr[32] = {0};
+  snprintf(clusterIdStr, sizeof(clusterIdStr), "%" PRId64, pMetrics->clusterId);
+  tjsonAddStringToObject(pJson, "clusterId", clusterIdStr);
+
   tjsonAddDoubleToObject(pJson, "total_requests", getMetricInt64(&pMetrics->total_requests));
   tjsonAddDoubleToObject(pJson, "total_rows", getMetricInt64(&pMetrics->total_rows));
   tjsonAddDoubleToObject(pJson, "total_bytes", getMetricInt64(&pMetrics->total_bytes));

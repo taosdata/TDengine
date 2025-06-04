@@ -16,12 +16,12 @@
 #define _DEFAULT_SOURCE
 #include "taos_monitor.h"
 #include "vmInt.h"
-#include "vnodeInt.h"  // Include the definition of struct SVnode
+#include "vnodeInt.h"
 
 extern taos_counter_t *tsInsertCounter;
 
 // Forward declaration for function defined in metrics.c
-extern int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, const SRawWriteMetrics *pRawMetrics);
+extern int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, int64_t clusterId, const SRawWriteMetrics *pRawMetrics);
 
 void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
   pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoad));
@@ -1091,7 +1091,7 @@ _OVER:
   }
 }
 
-void vmUpdateMetricsInfo(SVnodeMgmt *pMgmt) {
+void vmUpdateMetricsInfo(SVnodeMgmt *pMgmt, int64_t clusterId) {
   (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
 
   void *pIter = taosHashIterate(pMgmt->runngingHash, NULL);
@@ -1105,8 +1105,8 @@ void vmUpdateMetricsInfo(SVnodeMgmt *pMgmt) {
     if (!pVnode->failed) {
       SRawWriteMetrics metrics = {0};
       if (vnodeGetRawWriteMetrics(pVnode->pImpl, &metrics) == 0) {
-        // Add the metrics to the global metrics system
-        int32_t code = addWriteMetrics(pVnode->vgId, pMgmt->pData->dnodeId, &metrics);
+        // Add the metrics to the global metrics system with cluster ID
+        int32_t code = addWriteMetrics(pVnode->vgId, pMgmt->pData->dnodeId, clusterId, &metrics);
         if (code != TSDB_CODE_SUCCESS) {
           dError("Failed to add write metrics for vgId: %d, code: %d", pVnode->vgId, code);
         } else {

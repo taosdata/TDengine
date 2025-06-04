@@ -13,27 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_METRICS_INT_H_
-#define _TD_METRICS_INT_H_
+#ifndef _TD_METRICS_INT_H
+#define _TD_METRICS_INT_H
 
-#include "libs/metrics/metrics.h"
-#include "taoserror.h"
-#include "tarray.h"
-#include "thash.h"
-#include "tlog.h"
-#include "tthread.h"
+#include "metrics.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// Function declarations used internally in metrics.c
-static void     destroyMetricsManager();
-static uint32_t writeMetricsHashFn(const void *key, uint32_t keyLen, uint32_t seed);
-static int32_t  writeMetricsKeyCompareFn(const void *key, int32_t keyLen, const void *pData);
+// Internal functions declarations that are not exposed in public API
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _TD_METRICS_INT_H_ */
+#endif /*_TD_METRICS_INT_H_*/
