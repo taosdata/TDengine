@@ -159,7 +159,11 @@ done
 
 tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${inspect_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
 if [ "${verMode}" == "cluster" ]; then
-  services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
+  if [ "${productName}" == "TDengine TSDB-Lite" ]; then
+    services=(${serverName} ${adapterName} ${explorerName} ${keeperName})
+  else
+    services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
+  fi
 elif [ "${verMode}" == "edge" ]; then
   if [ "${pagMode}" == "full" ]; then
     services=(${serverName} ${adapterName} ${keeperName} ${explorerName})
@@ -776,7 +780,7 @@ function install_service_on_systemd() {
 
   cfg_source_dir=${script_dir}/cfg
   if [[ "$1" == "${xname}" || "$1" == "${explorerName}" ]]; then
-    if [ "$verMode" == "cluster" ]; then
+    if [ "$verMode" == "cluster" ] && [ "${productName}" != "TDengine TSDB-Lite" ]; then
       cfg_source_dir=${script_dir}/${xname}/etc/systemd/system
     else
       cfg_source_dir=${script_dir}/cfg
@@ -970,7 +974,7 @@ function updateProduct() {
     fi
 
     echo -e "${GREEN_DARK}To start ${clientName}keeper ${NC}\t\t: sudo systemctl start ${clientName}keeper ${NC}"
-    if [ "$verMode" == "cluster" ]; then
+    if [ "$verMode" == "cluster" ] && [ "${productName}" != "TDengine TSDB-Lite" ]; then
       echo -e "${GREEN_DARK}To start ${clientName}x ${NC}\t\t\t: sudo systemctl start ${clientName}x ${NC}"
     fi
     echo -e "${GREEN_DARK}To start ${clientName}-explorer ${NC}\t\t: sudo systemctl start ${clientName}-explorer ${NC}"
@@ -1069,7 +1073,7 @@ function installProduct() {
 
     echo -e "${GREEN_DARK}To start ${clientName}keeper ${NC}\t\t: sudo systemctl start ${clientName}keeper ${NC}"
 
-    if [ "$verMode" == "cluster" ]; then
+    if [ "$verMode" == "cluster" ] && [ "${productName}" != "TDengine TSDB-Lite" ]; then
       echo -e "${GREEN_DARK}To start ${clientName}x ${NC}\t\t\t: sudo systemctl start ${clientName}x ${NC}"
     fi
     echo -e "${GREEN_DARK}To start ${clientName}-explorer ${NC}\t\t: sudo systemctl start ${clientName}-explorer ${NC}"
