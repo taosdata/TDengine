@@ -85,7 +85,87 @@
 extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool s3Migrate);
 
 
+// migrate monitor related functions
+int32_t tsdbOpenS3MigrateMonitor(STsdb *tsdb) {
+  tsdb->pS3MigrateMonitor = (SVnodeS3MigrateState *)taosMemoryCalloc(1, sizeof(SVnodeS3MigrateState));
+  if (tsdb->pS3MigrateMonitor == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
+  tsdb->pS3MigrateMonitor->dnodeId = vnodeNodeId(tsdb->pVnode);
+  tsdb->pS3MigrateMonitor->pFileSetStates = taosArrayInit(16, sizeof(SFileSetS3MigrateState));
+  if (tsdb->pS3MigrateMonitor->pFileSetStates == NULL) {
+    taosMemoryFree(tsdb->pS3MigrateMonitor);
+    tsdb->pS3MigrateMonitor = NULL;
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  tsdb->pS3MigrateMonitor->vgId = TD_VID(tsdb->pVnode);
+  return 0;
+}
+
+void tsdbCloseS3MigrateMonitor(STsdb *tsdb) {
+  if (!tsdb->pS3MigrateMonitor) {
+    return;
+  }
+
+  tFreeSVnodeS3MigrateState(tsdb->pS3MigrateMonitor);
+  taosMemoryFree(tsdb->pS3MigrateMonitor);
+  tsdb->pS3MigrateMonitor = NULL;
+}
+
+void tsdbStartS3MigrateMonitor(STsdb *tsdb) {
+  tsdb->pS3MigrateMonitor->startTimeSec = taosGetTimestampSec();
+  taosArrayClear(tsdb->pS3MigrateMonitor->pFileSetStates);
+}
+
+void tsdbS3MigrateMonitorAddFileSet(STsdb *tsdb, int32_t fid) {
+  // no need to lock mutex here, since the caller should have already locked it
+  // TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
+  SFileSetS3MigrateState state = { .fid = fid, .state = FILE_SET_MIGRATE_STATE_IN_PROGRESS };
+  taosArrayPush(tsdb->pS3MigrateMonitor->pFileSetStates, &state);
+  // TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
+}
+
+void tsdbS3MigrateMonitorSetFileSetState(STsdb *tsdb, int32_t fid, int32_t state) {
+  TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
+
+  for(int32_t i = 0; i < taosArrayGetSize(tsdb->pS3MigrateMonitor->pFileSetStates); i++) {
+    SFileSetS3MigrateState *pState = taosArrayGet(tsdb->pS3MigrateMonitor->pFileSetStates, i);
+    if (pState->fid == fid) {
+      pState->state = state;
+      break;
+    }
+  }
+
+  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
+}
+
+int32_t tsdbQueryS3MigrateProgress(STsdb *tsdb, int32_t s3MigrateId, int32_t *rspSize, void** ppRsp) {
+  SVnodeS3MigrateState *pState = tsdb->pS3MigrateMonitor;
+
+  TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
+  pState->s3MigrateId = s3MigrateId; // TODO: should not be set here
+  *rspSize = tSerializeSQueryS3MigrateProgressRsp(NULL, 0, pState);
+  if (*rspSize < 0) {
+    TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  *ppRsp = rpcMallocCont(*rspSize);
+  if (*ppRsp == NULL) {
+    TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
+    vError("rpcMallocCont %d failed", *rspSize);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tSerializeSQueryS3MigrateProgressRsp(*ppRsp, *rspSize, pState);
+  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
+
+  return 0;
+}
+
+
+// migrate file related functions
 int32_t tsdbSsFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int32_t s3KeepLocal, int64_t nowSec) {
   int32_t localFid;
   TSKEY   key;
@@ -436,29 +516,38 @@ int32_t tsdbDoSsMigrate(SRTNer *rtner) {
   SVnodeCfg *pCfg = &rtner->tsdb->pVnode->config;
   STFileSet *fset = rtner->fset;
   
-  if (!shouldMigrate(rtner, &code)) {
-    return code;
-  }
-  
   if (!vnodeIsLeader(rtner->tsdb->pVnode)) {
-    // TODO:
+    return 0; // TODO
+    /*
+    循环检测状态，如果传完则不论自身是否 leader 都同步；
+    如果自身变成 leader 但未传完，则标记状态为失败后退出。
+    */
+  }
+
+  if (!shouldMigrate(rtner, &code)) {
+    int32_t state = (code == TSDB_CODE_SUCCESS) ? FILE_SET_MIGRATE_STATE_SKIPPED : FILE_SET_MIGRATE_STATE_FAILED;
+    tsdbS3MigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, state);
+    return code;
   }
 
   // head file
   code = tsdbMigrateFile(rtner, vid, fset->farr[TSDB_FTYPE_HEAD]);
   if (code != TSDB_CODE_SUCCESS) {
+    tsdbS3MigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_FAILED);
     return code;
   }
 
   // sma file
   code = tsdbMigrateFile(rtner, vid, fset->farr[TSDB_FTYPE_SMA]);
   if (code != TSDB_CODE_SUCCESS) {
+    tsdbS3MigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_FAILED);
     return code;
   }
 
   // tomb file
   code = tsdbMigrateFile(rtner, vid, fset->farr[TSDB_FTYPE_TOMB]);
   if (code != TSDB_CODE_SUCCESS) {
+    tsdbS3MigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_FAILED);
     return code;
   }
 
@@ -469,6 +558,7 @@ int32_t tsdbDoSsMigrate(SRTNer *rtner) {
     TARRAY2_FOREACH(lvl->fobjArr, fobj) {
       code = tsdbMigrateFile(rtner, vid, fobj);
       if (code != TSDB_CODE_SUCCESS) {
+        tsdbS3MigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_FAILED);
         return code;
       }
     }
@@ -477,9 +567,17 @@ int32_t tsdbDoSsMigrate(SRTNer *rtner) {
   // data file
   code = migrateDataFile(rtner, fset->farr[TSDB_FTYPE_DATA]);
   if (code != TSDB_CODE_SUCCESS) {
+    tsdbS3MigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_FAILED);
     return code;
   }
 
   // manifest, this also commit the migration
-  return uploadManifest(vnodeNodeId(rtner->tsdb->pVnode), vid, fset);
+  code = uploadManifest(vnodeNodeId(rtner->tsdb->pVnode), vid, fset);
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbS3MigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_FAILED);
+    return code;
+  }
+
+  tsdbS3MigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_SUCCEEDED);
+  return TSDB_CODE_SUCCESS;
 }
