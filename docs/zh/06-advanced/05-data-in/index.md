@@ -86,13 +86,19 @@ JSON 解析支持 JSONObject 或者 JSONArray。如下 JSON 示例数据，可�
 
 后续示例仅以 JSONObject 为例说明。
 
-如下嵌套结构的 JSON 数据，可自动解析出字段`groupid`、`data_voltage`、`data_current`、`ts`、`inuse`、`location_0_province`、`location_0_city`、`location_0_datun`，也可以选择要解析的字段，并设置解析的别名。
+对于如下嵌套结构的 JSON 数据，指定了 `depth` 参数为 `1` 既可自动解析出字段`groupid`、`data_voltage`、`data_current`、`ts`、`inuse`。`depth` 参数表示自动解析的 Json 数据最大层数。对于嵌套数组类型的 `location` 字段，需要在输入框中写 Json PATH 进行手动解析。也可以使用 Json PATH 来设置解析的别名。
 
 ``` json
 {"groupid": 170001, "data": { "voltage": "221V", "current": 12.3 }, "ts": "2023-12-18T22:12:00", "inuse": true, "location": [{"province": "beijing", "city":"chaoyang", "street": "datun"}]}
 ```
 
+如果需要保留原始数据，则需要开启 `keep` 选项，对于 Kafka 数据源，原始数据会保留在 `value` 列中，对于 `MQTT` 数据源，原始数据会保留在 `payload` 列中。
+
 ![JSON 解析](./pic/transform-02.png)
+
+点击预览按钮获取解析结果
+
+![JSON 预览](./pic/transform-05.png)
 
 > 注意：JSON 属性名称中不能含有`.`；如果含有，则必须使用名称 alias 将名称转义。
 
