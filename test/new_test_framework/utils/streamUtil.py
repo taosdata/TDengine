@@ -176,7 +176,7 @@ class StreamUtil:
                 for row in range(rowsPerBatch):
                     rows = batch * rowsPerBatch + row
                     ts = tsStart + rows * tsInterval
-                    cint = rows
+                    cint = rows 
                     cuint = rows % 4
                     cbigint = rows % 5
                     cubigint = rows % 6
@@ -187,7 +187,7 @@ class StreamUtil:
                     cusmallint = rows % 10
                     ctinyint = rows % 11
                     cutinyint = rows % 12
-                    cbool = rows % 2
+                    cbool = rows % 2 if rows % 20 != 1 else "NULL"
                     cnchar = cvarchar
                     cvarbinary = cvarchar
                     cdecimal8 = "0" if rows % 3 == 1 else "8"
