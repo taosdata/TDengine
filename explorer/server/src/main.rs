@@ -66,6 +66,10 @@ mod qid;
 mod sql;
 pub mod verification;
 
+#[cfg(feature = "mimalloc")]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 #[derive(Clone)]
 struct UserPool {
     password: String,

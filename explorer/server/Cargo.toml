@@ -60,6 +60,8 @@ assert_cmd = "2.0.16"
 assert_fs = "1.1.2"
 regex = "1"
 
+mimalloc = { version = "0.1.43", default-features = false, optional = true }
+
 [dependencies.taos]
 workspace = true
 
@@ -71,3 +73,6 @@ mockito = "1.6.1"
 
 [lints]
 workspace = true
+
+[features]
+default = ["mimalloc"]

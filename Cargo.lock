@@ -8432,6 +8432,7 @@ dependencies = [
  "http-auth-basic",
  "lazy_static",
  "log",
+ "mimalloc",
  "mockito",
  "rand 0.8.5",
  "regex",
