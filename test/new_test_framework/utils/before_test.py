@@ -201,6 +201,8 @@ class BeforeTest:
         adapter_config_template = load_yaml_config(os.path.join(self.root_dir, 'env', 'taosadapter_config.yaml'))
         taoskeeper_config_template = load_yaml_config(os.path.join(self.root_dir, 'env', 'taoskeeper_config.yaml'))
         servers = []
+        port_base = dnode_config_template["port"] if "port" in dnode_config_template else 6030
+        mqttport_base = dnode_config_template["mqttPort"] if "mqttPort" in dnode_config_template else 6083
         for i in range(request.session.denodes_num):
             dnode_cfg_path = os.path.join(work_dir, f"dnode{i+1}", "cfg")
             log_path = os.path.join(work_dir, f"dnode{i+1}", "log")
@@ -216,14 +218,17 @@ class BeforeTest:
             else:
                 data_path = os.path.join(work_dir, f"dnode{i+1}", "data")
             dnode_config = copy.deepcopy(dnode_config_template)
+            dnode_config.pop("port", None)
+            dnode_config["mqttPort"] = mqttport_base + i * 100
             dnode_config["dataDir"] = data_path
             dnode_config["logDir"] = log_path
             dnode = {
-                "endpoint": f"localhost:{6030 + i * 100}",
+                "endpoint": f"localhost:{port_base + i * 100}",
                 "config_dir": dnode_cfg_path,
                 "taosdPath": os.path.join(request.session.taos_bin_path, "taosd"),
                 "system": sys.platform,
-                "config": dnode_config
+                "config": dnode_config,
+                "mqttPort": dnode_config["mqttPort"],
             }
             tdLog.debug(f"[BeforeTest.ci_init_config] dnode: {dnode}")
             if request.session.query_policy > 1:
@@ -242,7 +247,8 @@ class BeforeTest:
                 "endpoint": dnode["endpoint"],
                 "log_dir": log_path,
                 "data_dir": data_path,
-                "config": dnode["config"]
+                "config": dnode["config"],
+                "mqttPort": dnode["mqttPort"],
             }
             servers.append(server)
         request.session.servers = servers

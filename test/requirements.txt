@@ -69,3 +69,4 @@ urllib3==1.26.20
 wcwidth==0.2.13
 xmltodict==0.14.2
 zipp==3.21.0
+decorator==5.2.1
