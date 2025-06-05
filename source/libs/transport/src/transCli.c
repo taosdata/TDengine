@@ -1861,7 +1861,7 @@ static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, S
 
   SIpAddr* v = taosHashGet(cache, fqdn, len);
   if (v == NULL) {
-    code = taosGetIpFromFqdn(fqdn, &ipAddr);
+    code = taosGetIpFromFqdn(tsEnableIpv6, fqdn, &ipAddr);
     if (code != 0) {
       code = TSDB_CODE_RPC_FQDN_ERROR;
       tError("ipv6Enable(%d), failed to get ip from fqdn:%s since %s", enableIpv6, fqdn, tstrerror(code));
@@ -1884,7 +1884,7 @@ static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, S
 static FORCE_INLINE int32_t cliUpdateFqdnCache(SHashObj* cache, char* fqdn) {
   // impl later
   SIpAddr addr = {0};
-  int32_t code = taosGetIpFromFqdn(fqdn, &addr);
+  int32_t code = taosGetIpFromFqdn(tsEnableIpv6, fqdn, &addr);
   if (code == 0) {
     size_t   len = strlen(fqdn);
     SIpAddr* v = taosHashGet(cache, fqdn, len);

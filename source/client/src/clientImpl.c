@@ -1589,7 +1589,7 @@ int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* p
     }
     // uint32_t addr = 0;
     SIpAddr addr = {0};
-    code = taosGetIpFromFqdn(mgmtEpSet->eps[mgmtEpSet->numOfEps].fqdn, &addr);
+    code = taosGetIpFromFqdn(tsEnableIpv6, mgmtEpSet->eps[mgmtEpSet->numOfEps].fqdn, &addr);
     if (code) {
       tscError("failed to resolve firstEp fqdn: %s, code:%s", mgmtEpSet->eps[mgmtEpSet->numOfEps].fqdn,
                tstrerror(TSDB_CODE_TSC_INVALID_FQDN));
@@ -1610,7 +1610,7 @@ int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* p
       return code;
     }
     SIpAddr addr = {0};
-    code = taosGetIpFromFqdn(mgmtEpSet->eps[mgmtEpSet->numOfEps].fqdn, &addr);
+    code = taosGetIpFromFqdn(tsEnableIpv6, mgmtEpSet->eps[mgmtEpSet->numOfEps].fqdn, &addr);
     if (code) {
       tscError("failed to resolve secondEp fqdn: %s, code:%s", mgmtEpSet->eps[mgmtEpSet->numOfEps].fqdn,
                tstrerror(TSDB_CODE_TSC_INVALID_FQDN));

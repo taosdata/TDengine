@@ -432,10 +432,103 @@ _err:
   return code;
 }
 
-int32_t taosGetIpFromFqdn(const char *fqdn, SIpAddr *addr) {
+int32_t taosGetIp4FromFqdn(const char *fqdn, SIpAddr *pAddr) {
+  int32_t code = 0;
+  OS_PARAM_CHECK(fqdn);
+  int64_t limitMs = 1000;
+  int64_t st = taosGetTimestampMs(), cost = 0;
+#ifdef WINDOWS
+  // Initialize Winsock
+  WSADATA wsaData;
+  int     iResult;
+  iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+  if (iResult != 0) {
+    code = TAOS_SYSTEM_WINSOCKET_ERROR(WSAGetLastError());
+    goto _err;
+  }
+#endif
+
+#if defined(LINUX)
+  struct addrinfo hints = {0};
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_STREAM;
+
+  struct addrinfo *result = NULL;
+  bool             inRetry = false;
+
+  char ipStr[INET6_ADDRSTRLEN];
+  while (true) {
+    int32_t ret = getaddrinfo(fqdn, NULL, &hints, &result);
+    if (ret) {
+      if (EAI_AGAIN == ret && !inRetry) {
+        inRetry = true;
+        continue;
+      } else if (EAI_SYSTEM == ret) {
+        code = TAOS_SYSTEM_ERROR(ERRNO);
+        goto _err;
+      }
+
+      code = TAOS_SYSTEM_ERROR(ERRNO);
+      goto _err;
+    }
+
+    if (result->ai_family == AF_INET) {
+      struct sockaddr_in *p4 = (struct sockaddr_in *)result->ai_addr;
+      inet_ntop(AF_INET, &p4->sin_addr, pAddr->ipv4, sizeof(pAddr->ipv4));
+      pAddr->type = 0;
+    } else {
+      code = TSDB_CODE_RPC_FQDN_ERROR;
+      goto _err;
+    }
+
+    freeaddrinfo(result);
+    goto _err;
+  }
+#else
+  struct addrinfo hints = {0};
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+
+  struct addrinfo *result = NULL;
+
+  int32_t ret = getaddrinfo(fqdn, NULL, &hints, &result);
+  if (result) {
+    if (result->ai_family == AF_INET) {
+      struct sockaddr_in *p4 = (struct sockaddr_in *)result->ai_addr;
+      inet_ntop(AF_INET, &p4->sin_addr, pAddr->ipv4, sizeof(pAddr->ipv4));
+      pAddr->type = 0;
+    } else {
+      code = TSDB_CODE_RPC_FQDN_ERROR;
+      goto _err;
+    }
+    freeaddrinfo(result);
+    goto _err;
+  } else {
+#ifdef EAI_SYSTEM
+    if (ret == EAI_SYSTEM) {
+      // printf("failed to get the ip address, fqdn:%s, errno:%d, since:%s", fqdn, ERRNO, strerror(ERRNO));
+    } else {
+      // printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
+    }
+#else
+    // printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
+#endif
+  }
+#endif
+_err:
+  cost = taosGetTimestampMs() - st;
+  if (cost >= limitMs) {
+    uWarn("get ip from fqdn:%s, cost:%" PRId64 "ms", fqdn, cost);
+  }
+  return code;
+}
+int32_t taosGetIpFromFqdn(int8_t enableIpv6, const char *fqdn, SIpAddr *addr) {
   int32_t  code = 0;
-  uint32_t ipAddr = 0;
-  code = taosGetIpv6FromFqdn(fqdn, addr);
+  if (enableIpv6) {
+    code = taosGetIpv6FromFqdn(fqdn, addr);
+  } else {
+    code = taosGetIp4FromFqdn(fqdn, addr);
+  }
   return code;
 }
 

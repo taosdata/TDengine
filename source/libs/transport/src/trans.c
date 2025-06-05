@@ -27,7 +27,7 @@ void (*taosUnRefHandle[])(void* handle) = {transUnrefSrvHandle, NULL};
 int (*transReleaseHandle[])(void* handle, int32_t status) = {transReleaseSrvHandle, transReleaseCliHandle};
 
 static int32_t transValidLocalFqdn(const char* localFqdn, SIpAddr* addr) {
-  int32_t code = taosGetIpFromFqdn(localFqdn, addr);
+  int32_t code = taosGetIpFromFqdn(tsEnableIpv6, localFqdn, addr);
   if (code != 0) {
     return TSDB_CODE_RPC_FQDN_ERROR;
   }

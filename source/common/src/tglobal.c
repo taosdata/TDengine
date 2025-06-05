@@ -2116,7 +2116,7 @@ _exit:
 static int32_t taosCheckGlobalCfg() {
   SIpAddr addr = {0};
   uInfo("check global fqdn:%s and port:%u", tsLocalFqdn, tsServerPort);
-  int32_t code = taosGetIpFromFqdn(tsLocalFqdn, &addr);
+  int32_t code = taosGetIpFromFqdn(tsEnableIpv6, tsLocalFqdn, &addr);
   if (code) {
     uError("failed to get ip from fqdn:%s since %s, can not be initialized", tsLocalFqdn, tstrerror(code));
     TAOS_RETURN(TSDB_CODE_RPC_FQDN_ERROR);

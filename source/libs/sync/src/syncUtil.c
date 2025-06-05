@@ -51,7 +51,7 @@ bool syncUtilNodeInfo2RaftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* 
 
   int32_t code = 0;
   for (int32_t i = 0; i < FQDNRETRYTIMES; i++) {
-    code = taosGetIpFromFqdn(pInfo->nodeFqdn, &addr);
+    code = taosGetIpFromFqdn(tsEnableIpv6, pInfo->nodeFqdn, &addr);
     if (code) {
       sError("vgId:%d, failed to resolve sync addr, dnode:%d fqdn:%s, retry", vgId, pInfo->nodeId, pInfo->nodeFqdn);
       taosSsleep(1);

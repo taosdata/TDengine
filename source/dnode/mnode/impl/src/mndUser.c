@@ -293,7 +293,7 @@ int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8
 
   SIpRange range = {0};
   SIpAddr  addr = {0};
-  int32_t  code = taosGetIpFromFqdn(fqdn, &addr);
+  int32_t  code = taosGetIpFromFqdn(tsEnableIpv6, fqdn, &addr);
   if (code) {
     mError("failed to get ip from fqdn: %s at line %d since %s", fqdn, lino, tstrerror(code));
     TAOS_RETURN(TSDB_CODE_TSC_INVALID_FQDN);

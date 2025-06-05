@@ -184,7 +184,8 @@ typedef struct {
 
 int32_t taosGetIpv6FromFqdn(const char *fqdn, SIpAddr *ip);
 
-int32_t taosGetIpFromFqdn(const char *fqdn, SIpAddr *addr);
+int32_t taosGetIp4FromFqdn(const char *fqdn, SIpAddr *addr);
+int32_t taosGetIpFromFqdn(int8_t enableIpv6, const char *fqdn, SIpAddr *addr);
 
 #define IP_ADDR_STR(ip) ((ip)->type == 0 ? (ip)->ipv4 : (ip)->ipv6)
 #define IP_ADDR_MASK(ip) ((ip)->type == 0 ? (ip)->ipv4.mask : (ip)->ipv6.mask)
