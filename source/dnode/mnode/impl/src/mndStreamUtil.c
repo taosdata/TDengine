@@ -676,3 +676,83 @@ void mndStreamLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p) {
       
 }
 
+int32_t setStreamAttrInResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_t numOfRows) {
+  int32_t code = 0;
+  int32_t cols = 0;
+  int32_t lino = 0;
+
+  char streamName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  STR_WITH_MAXSIZE_TO_VARSTR(streamName, mndGetDbStr(pStream->name), sizeof(streamName));
+  SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)streamName, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  // create time
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)&pStream->createTime, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  // stream id
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)&pStream->pCreate->streamId, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  // sql
+  char sql[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
+  STR_WITH_MAXSIZE_TO_VARSTR(sql, pStream->pCreate->sql, sizeof(sql));
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)sql, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  // todo status
+  char   status[20 + VARSTR_HEADER_SIZE] = {0};
+  char   status2[MND_STREAM_TRIGGER_NAME_SIZE] = {0};
+  //mndShowStreamStatus(status2, streamStatus);
+  STR_WITH_MAXSIZE_TO_VARSTR(status, status2, sizeof(status));
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)&status, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  // streamDB
+  char streamDB[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  STR_WITH_MAXSIZE_TO_VARSTR(streamDB, mndGetDbStr(pStream->pCreate->streamDB), sizeof(streamDB));
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)&streamDB, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  // snodeLeader
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)&pStream->mainSnodeId, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  // snodeReplica
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)&pStream->mainSnodeId, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  // todo msg
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  char msg[TSDB_RESERVE_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
+  if (true) {
+    STR_TO_VARSTR(msg, " ")
+  } else {
+    STR_TO_VARSTR(msg, " ")
+  }
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)msg, false);
+
+_end:
+  if (code) {
+    mError("error happens when build stream attr result block, lino:%d, code:%s", lino, tstrerror(code));
+  }
+  return code;
+}

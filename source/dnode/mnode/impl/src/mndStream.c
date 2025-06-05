@@ -531,8 +531,7 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pShow->pIter = sdbFetch(pSdb, SDB_STREAM, pShow->pIter, (void **)&pStream);
     if (pShow->pIter == NULL) break;
 
-    //STREAMTODO
-    //code = mndStreamGenerateResBlock(pStream, pBlock, numOfRows);
+    code = setStreamAttrInResBlock(pStream, pBlock, numOfRows);
     if (code == 0) {
       numOfRows++;
     }
