@@ -214,7 +214,7 @@ int32_t mndS3MigrateActionInsert(SSdb *pSdb, SS3MigrateObj *pS3Migrate) {
 }
 
 int32_t mndS3MigrateActionDelete(SSdb *pSdb, SS3MigrateObj *pS3Migrate) {
-  mTrace("s3migrate:%" PRId32 ", perform insert action", pS3Migrate->s3MigrateId);
+  mTrace("s3migrate:%" PRId32 ", perform delete action", pS3Migrate->s3MigrateId);
   tFreeS3MigrateObj(pS3Migrate);
   return 0;
 }
