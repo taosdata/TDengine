@@ -18,7 +18,7 @@ class TestStreamOldCaseInterpDelete:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common, ci
 
         Jira: None
 
@@ -45,15 +45,15 @@ class TestStreamOldCaseInterpDelete:
         tdSql.execute(f"create database test vgroups 1;")
         tdSql.execute(f"use test;")
 
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int , c int, d double);")
+        tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(prev);"
+            f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(prev);"
         )
 
         tdStream.checkStreamStatus()
 
         tdSql.execute(
-            f"insert into t1 values(1648791212001,1,1,1,1.0) (1648791214000,8,1,1,1.0) (1648791215000,10,1,1,1.0) (1648791215009,15,1,1,1.0) (1648791217001,4,1,1,1.0);"
+            f"insert into t1 values(1648791212001, 1, 1, 1, 1.0) (1648791214000, 8, 1, 1, 1.0) (1648791215000, 10, 1, 1, 1.0) (1648791215009, 15, 1, 1, 1.0) (1648791217001, 4, 1, 1, 1.0);"
         )
 
         tdLog.info(
@@ -148,15 +148,15 @@ class TestStreamOldCaseInterpDelete:
         tdSql.execute(f"create database test2 vgroups 1;")
         tdSql.execute(f"use test2;")
 
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int , c int, d double);")
+        tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(next);"
+            f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(next);"
         )
 
         tdStream.checkStreamStatus()
 
         tdSql.execute(
-            f"insert into t1 values(1648791212001,1,1,1,1.0) (1648791214000,8,1,1,1.0) (1648791215000,10,1,1,1.0) (1648791215009,15,1,1,1.0) (1648791217001,4,1,1,1.0);"
+            f"insert into t1 values(1648791212001, 1, 1, 1, 1.0) (1648791214000, 8, 1, 1, 1.0) (1648791215000, 10, 1, 1, 1.0) (1648791215009, 15, 1, 1, 1.0) (1648791217001, 4, 1, 1, 1.0);"
         )
 
         tdLog.info(
@@ -257,15 +257,15 @@ class TestStreamOldCaseInterpDelete:
         tdSql.execute(f"create database test vgroups 1;")
         tdSql.execute(f"use test;")
 
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int , c int, d double);")
+        tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(NULL);"
+            f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(NULL);"
         )
 
         tdStream.checkStreamStatus()
 
         tdSql.execute(
-            f"insert into t1 values(1648791212001,1,1,1,1.0) (1648791214000,8,1,1,1.0) (1648791215000,10,1,1,1.0) (1648791215009,15,1,1,1.0) (1648791217001,4,1,1,1.0);"
+            f"insert into t1 values(1648791212001, 1, 1, 1, 1.0) (1648791214000, 8, 1, 1, 1.0) (1648791215000, 10, 1, 1, 1.0) (1648791215009, 15, 1, 1, 1.0) (1648791217001, 4, 1, 1, 1.0);"
         )
 
         tdLog.info(
@@ -361,22 +361,22 @@ class TestStreamOldCaseInterpDelete:
         tdSql.execute(f"create database test2 vgroups 1;")
         tdSql.execute(f"use test2;")
 
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int , c int, d double);")
+        tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(value,100,200,300,400);"
+            f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(value, 100, 200, 300, 400);"
         )
 
         tdStream.checkStreamStatus()
 
         tdSql.execute(
-            f"insert into t1 values(1648791212001,1,1,1,1.0) (1648791214000,8,1,1,1.0) (1648791215000,10,1,1,1.0) (1648791215009,15,1,1,1.0) (1648791217001,4,1,1,1.0);"
+            f"insert into t1 values(1648791212001, 1, 1, 1, 1.0) (1648791214000, 8, 1, 1, 1.0) (1648791215000, 10, 1, 1, 1.0) (1648791215009, 15, 1, 1, 1.0) (1648791217001, 4, 1, 1, 1.0);"
         )
 
         tdLog.info(
-            f"sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(value,100,200,300,400);"
+            f"sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(value, 100, 200, 300, 400);"
         )
         tdSql.query(
-            f"select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(value,100,200,300,400);"
+            f"select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(value, 100, 200, 300, 400);"
         )
 
         tdLog.info(f"0 sql select * from streamt;")
@@ -398,10 +398,10 @@ class TestStreamOldCaseInterpDelete:
         )
 
         tdLog.info(
-            f"sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(value,100,200,300,400);"
+            f"sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(value, 100, 200, 300, 400);"
         )
         tdSql.query(
-            f"select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(value,100,200,300,400);"
+            f"select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(value, 100, 200, 300, 400);"
         )
 
         tdLog.info(f"0 sql select * from streamt;")
@@ -423,10 +423,10 @@ class TestStreamOldCaseInterpDelete:
         )
 
         tdLog.info(
-            f"sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(value,100,200,300,400);"
+            f"sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(value, 100, 200, 300, 400);"
         )
         tdSql.query(
-            f"select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(value,100,200,300,400);"
+            f"select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(value, 100, 200, 300, 400);"
         )
 
         tdLog.info(f"0 sql select * from streamt;")
@@ -447,10 +447,10 @@ class TestStreamOldCaseInterpDelete:
         )
 
         tdLog.info(
-            f"sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(value,100,200,300,400);"
+            f"sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(value, 100, 200, 300, 400);"
         )
         tdSql.query(
-            f"select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(value,100,200,300,400);"
+            f"select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(value, 100, 200, 300, 400);"
         )
 
         tdLog.info(f"0 sql select * from streamt;")
@@ -470,15 +470,15 @@ class TestStreamOldCaseInterpDelete:
         tdSql.execute(f"create database test vgroups 1;")
         tdSql.execute(f"use test;")
 
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int , c int, d double);")
+        tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(linear);"
+            f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(linear);"
         )
 
         tdStream.checkStreamStatus()
 
         tdSql.execute(
-            f"insert into t1 values(1648791212001,1,1,1,1.0) (1648791214000,8,1,1,1.0) (1648791215000,10,1,1,1.0) (1648791215009,15,1,1,1.0) (1648791217001,4,1,1,1.0);"
+            f"insert into t1 values(1648791212001, 1, 1, 1, 1.0) (1648791214000, 8, 1, 1, 1.0) (1648791215000, 10, 1, 1, 1.0) (1648791215009, 15, 1, 1, 1.0) (1648791217001, 4, 1, 1, 1.0);"
         )
 
         tdLog.info(

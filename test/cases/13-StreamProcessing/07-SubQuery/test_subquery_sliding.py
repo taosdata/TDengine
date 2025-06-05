@@ -160,6 +160,7 @@ class TestStreamSubquerySliding:
             exp_query="select _wstart ts, _wend te, _wduration td, count(cint) tw, 0 tg, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
             check_func=self.check1,
         )
+        # 要加上 tbname 的筛选条件
         # self.streams.append(stream)
 
         stream = StreamItem(
@@ -169,11 +170,19 @@ class TestStreamSubquerySliding:
             exp_query="select _wstart ts, count(cint) c1, avg(cint) c2 from qdb.meters interval(5m)",
             check_func=self.check2,
         )
-        # from %%tbname
-        # from %%1
-        # from %%trows
+        
+        id=3
+        stream="create stream rdb.s2 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r2 as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, tbname tb, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null and tbname=%%tbname partition by tbname",
+        id=4    
+        # 里面和外面都要分组
+        # stream="create stream rdb.s2 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r2 as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, %%tbname tb, %%1 tg1, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null and %%tbname is not null and %%1 is not null;",
+        # from %%tbname partition by %%tbname select
+        # from %%1 partition by %%tbname select
+        # from %%trows partition by %%tbname select
         # self.streams.append(stream)
 
+
+        ##############
         stream = StreamItem(
             id=2,
             stream="create stream rdb.s0 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.s2 tags(gid bigint as _tgrpid) as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null;",

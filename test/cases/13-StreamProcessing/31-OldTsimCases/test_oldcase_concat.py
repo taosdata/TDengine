@@ -17,7 +17,7 @@ class TestStreamOldCaseConcat:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common, ci
 
         Jira: None
 
@@ -103,10 +103,10 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"create database test1 vgroups 4;")
         tdSql.execute(f"use test1;")
         tdSql.execute(
-            f"create stable st(ts timestamp, a int primary key, b int, c int) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int primary key, b int, c int) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.error(
             f"create stream streams16 interval(10s) sliding(10s) from st into streamt16 as select _twstart, count(*) c1, max(a) from st partition by tbname tc state_window(b);"
@@ -136,16 +136,16 @@ class TestStreamOldCaseConcat:
         )
 
         tdSql.execute(
-            f"create stream streams19 trigger at_once ignore expired 0 ignore update 0 into streamt19 as select ts,a, b from t1;"
+            f"create stream streams19 trigger at_once ignore expired 0 ignore update 0 into streamt19 as select ts, a, b from t1;"
         )
         tdSql.execute(
-            f"create stream streams20 trigger at_once ignore expired 0 ignore update 0 into streamt20(ts, a primary key, b) as select ts,a, b from t1;"
+            f"create stream streams20 trigger at_once ignore expired 0 ignore update 0 into streamt20(ts, a primary key, b) as select ts, a, b from t1;"
         )
         tdSql.execute(
-            f"create stream streams21 trigger at_once ignore expired 0 ignore update 0 into rst as select ts,a, b from t1;"
+            f"create stream streams21 trigger at_once ignore expired 0 ignore update 0 into rst as select ts, a, b from t1;"
         )
         tdSql.error(
-            f"create stream streams22 trigger at_once ignore expired 0 ignore update 0 into streamt22 as select ts,1, b from rct1;"
+            f"create stream streams22 trigger at_once ignore expired 0 ignore update 0 into streamt22 as select ts, 1, b from rct1;"
         )
         tdSql.execute(
             f"create stream streams23 trigger at_once ignore expired 0 ignore update 0 into streamt23 as select ts, a, b from rct1;"
@@ -177,10 +177,10 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"use test;")
 
         tdSql.execute(
-            f"create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.execute(
             f'create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result.streamt SUBTABLE(concat("aaa-", tbname)) as select _twstart, count(*) c1 from st partition by tbname interval(10s);'
@@ -188,8 +188,8 @@ class TestStreamOldCaseConcat:
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3);")
-        tdSql.execute(f"insert into t2 values(1648791213000,1,2,3);")
+        tdSql.execute(f"insert into t1 values(1648791213000, 1, 2, 3);")
+        tdSql.execute(f"insert into t2 values(1648791213000, 1, 2, 3);")
 
         tdSql.checkResultsByFunc(
             f'select table_name from information_schema.ins_tables where db_name="result" order by 1;',
@@ -209,10 +209,10 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"use test2;")
 
         tdSql.execute(
-            f"create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.execute(
             f'create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result2.streamt2 TAGS(cc varchar(100)) as select _twstart, count(*) c1 from st partition by concat("tag-", tbname) as cc interval(10s);'
@@ -220,8 +220,8 @@ class TestStreamOldCaseConcat:
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3);")
-        tdSql.execute(f"insert into t2 values(1648791213000,1,2,3);")
+        tdSql.execute(f"insert into t1 values(1648791213000, 1, 2, 3);")
+        tdSql.execute(f"insert into t2 values(1648791213000, 1, 2, 3);")
 
         tdSql.checkResultsByFunc(
             f'select tag_name from information_schema.ins_tags where db_name="result2" and stable_name = "streamt2" order by 1;',
@@ -251,10 +251,10 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"use test3;")
 
         tdSql.execute(
-            f"create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.execute(
             f'create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result3.streamt3 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-", tbname)) as select _twstart, count(*) c1 from st partition by concat("tag-", tbname) as dd, tbname interval(10s);'
@@ -262,8 +262,8 @@ class TestStreamOldCaseConcat:
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3);")
-        tdSql.execute(f"insert into t2 values(1648791213000,1,2,3);")
+        tdSql.execute(f"insert into t1 values(1648791213000, 1, 2, 3);")
+        tdSql.execute(f"insert into t2 values(1648791213000, 1, 2, 3);")
 
         tdSql.checkResultsByFunc(
             f'select tag_name from information_schema.ins_tags where db_name="result3" and stable_name = "streamt3" order by 1;',
@@ -298,11 +298,11 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"use test4;")
 
         tdSql.execute(
-            f"create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
-        tdSql.execute(f"create table t3 using st tags(3,3,3);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
+        tdSql.execute(f"create table t3 using st tags(3, 3, 3);")
 
         tdSql.execute(
             f'create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result4.streamt4 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-", tbname)) as select _twstart, count(*) c1 from st partition by concat("tag-", tbname) as dd, tbname interval(10s);'
@@ -311,7 +311,7 @@ class TestStreamOldCaseConcat:
         tdStream.checkStreamStatus()
 
         tdSql.execute(
-            f"insert into t1 values(1648791213000,1,1,1) t2 values(1648791213000,2,2,2) t3 values(1648791213000,3,3,3);"
+            f"insert into t1 values(1648791213000, 1, 1, 1) t2 values(1648791213000, 2, 2, 2) t3 values(1648791213000, 3, 3, 3);"
         )
 
         tdSql.checkResultsByFunc(
@@ -358,11 +358,11 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"use test6;")
 
         tdSql.execute(
-            f"create stable st(ts timestamp,a int,b int,c int) tags(ta varchar(20), tb int, tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int) tags(ta varchar(20), tb int, tc int);"
         )
-        tdSql.execute(f'create table t1 using st tags("1",1,1);')
-        tdSql.execute(f'create table t2 using st tags("2",2,2);')
-        tdSql.execute(f'create table t3 using st tags("3",3,3);')
+        tdSql.execute(f'create table t1 using st tags("1", 1, 1);')
+        tdSql.execute(f'create table t2 using st tags("2", 2, 2);')
+        tdSql.execute(f'create table t3 using st tags("3", 3, 3);')
 
         tdSql.execute(
             f'create stream streams6 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result6.streamt6 TAGS(dd int) as select _twstart, count(*) c1 from st partition by concat(ta, "0") as dd, tbname interval(10s);'
@@ -370,7 +370,7 @@ class TestStreamOldCaseConcat:
         tdStream.checkStreamStatus()
 
         tdSql.execute(
-            f"insert into t1 values(1648791213000,1,1,1) t2 values(1648791213000,2,2,2) t3 values(1648791213000,3,3,3);"
+            f"insert into t1 values(1648791213000, 1, 1, 1) t2 values(1648791213000, 2, 2, 2) t3 values(1648791213000, 3, 3, 3);"
         )
 
         tdSql.checkResultsByFunc(
@@ -393,10 +393,10 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"use test;")
 
         tdSql.execute(
-            f"create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.execute(
             f'create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result.streamt SUBTABLE( concat("aaa-", cast(a as varchar(10) ) ) ) as select _twstart, count(*) c1 from st partition by a interval(10s);'
@@ -405,8 +405,8 @@ class TestStreamOldCaseConcat:
         tdStream.checkStreamStatus()
 
         tdLog.info(f"===== insert into 1")
-        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3);")
-        tdSql.execute(f"insert into t2 values(1648791213000,2,2,3);")
+        tdSql.execute(f"insert into t1 values(1648791213000, 1, 2, 3);")
+        tdSql.execute(f"insert into t2 values(1648791213000, 2, 2, 3);")
 
         tdSql.checkResultsByFunc(
             f'select table_name from information_schema.ins_tables where db_name="result" order by 1;',
@@ -422,14 +422,14 @@ class TestStreamOldCaseConcat:
         tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"create database result2 vgroups 1;")
-        tdSql.execute(f"create database test2  vgroups 4;")
+        tdSql.execute(f"create database test2 vgroups 4;")
         tdSql.execute(f"use test2;")
 
         tdSql.execute(
-            f"create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.execute(
             f'create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result2.streamt2 TAGS(cc varchar(100)) as select _twstart, count(*) c1 from st partition by concat("col-", cast(a as varchar(10) ) ) as cc interval(10s);'
@@ -437,8 +437,8 @@ class TestStreamOldCaseConcat:
         tdStream.checkStreamStatus()
 
         tdLog.info(f"===== insert into 2")
-        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3);")
-        tdSql.execute(f"insert into t2 values(1648791213000,2,2,3);")
+        tdSql.execute(f"insert into t1 values(1648791213000, 1, 2, 3);")
+        tdSql.execute(f"insert into t2 values(1648791213000, 2, 2, 3);")
 
         tdSql.checkResultsByFunc(
             f'select tag_name from information_schema.ins_tags where db_name="result2" and stable_name = "streamt2" order by 1;',
@@ -467,10 +467,10 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"use test3;")
 
         tdSql.execute(
-            f"create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.execute(
             f'create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result3.streamt3 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-", cast(a as varchar(10) ) ) ) as select _twstart, count(*) c1 from st partition by concat("col-", cast(a as varchar(10) ) ) as dd, a interval(10s);'
@@ -479,8 +479,8 @@ class TestStreamOldCaseConcat:
         tdStream.checkStreamStatus()
 
         tdLog.info(f"===== insert into 3")
-        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3);")
-        tdSql.execute(f"insert into t2 values(1648791213000,2,2,3);")
+        tdSql.execute(f"insert into t1 values(1648791213000, 1, 2, 3);")
+        tdSql.execute(f"insert into t2 values(1648791213000, 2, 2, 3);")
 
         tdSql.checkResultsByFunc(
             f'select tag_name from information_schema.ins_tags where db_name="result3" and stable_name = "streamt3" order by 1;',
@@ -514,11 +514,11 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"use test4;")
 
         tdSql.execute(
-            f"create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
-        tdSql.execute(f"create table t3 using st tags(3,3,3);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
+        tdSql.execute(f"create table t3 using st tags(3, 3, 3);")
 
         tdSql.execute(
             f'create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result4.streamt4 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-", dd)) as select _twstart, count(*) c1 from st partition by concat("t", cast(a as varchar(10) ) ) as dd interval(10s);'
@@ -527,7 +527,7 @@ class TestStreamOldCaseConcat:
         tdStream.checkStreamStatus()
 
         tdSql.execute(
-            f"insert into t1 values(1648791213000,1,1,1) t2 values(1648791213000,2,2,2) t3 values(1648791213000,3,3,3);"
+            f"insert into t1 values(1648791213000, 1, 1, 1) t2 values(1648791213000, 2, 2, 2) t3 values(1648791213000, 3, 3, 3);"
         )
 
         tdSql.checkResultsByFunc(
@@ -552,18 +552,18 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"use test5;")
         tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stable streamt5(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);"
+            f"create stable streamt5(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
         )
         tdSql.execute(
-            f"create stream streams5 trigger at_once ignore expired 0 ignore update 0 into streamt5(ts,b,a) as select _twstart, count(*), 1000 c1 from t1 interval(10s);"
+            f"create stream streams5 trigger at_once ignore expired 0 ignore update 0 into streamt5(ts, b, a) as select _twstart, count(*), 1000 c1 from t1 interval(10s);"
         )
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
-        tdSql.execute(f"insert into t1 values(1648791223001,2,2,3,1.1);")
-        tdSql.execute(f"insert into t1 values(1648791233002,3,2,3,2.1);")
-        tdSql.execute(f"insert into t1 values(1648791243003,4,2,3,3.1);")
+        tdSql.execute(f"insert into t1 values(1648791213000, 1, 2, 3, 1.0);")
+        tdSql.execute(f"insert into t1 values(1648791223001, 2, 2, 3, 1.1);")
+        tdSql.execute(f"insert into t1 values(1648791233002, 3, 2, 3, 2.1);")
+        tdSql.execute(f"insert into t1 values(1648791243003, 4, 2, 3, 3.1);")
 
         tdSql.checkResultsByFunc(
             f"select * from streamt5;",
@@ -586,10 +586,10 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"use test;")
 
         tdSql.execute(
-            f"create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.execute(
             f'create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result.streamt SUBTABLE("aaa") as select _twstart, count(*) c1 from st interval(10s);'
@@ -598,8 +598,8 @@ class TestStreamOldCaseConcat:
         tdStream.checkStreamStatus()
 
         tdLog.info(f"===== insert into 1")
-        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3);")
-        tdSql.execute(f"insert into t2 values(1648791213000,2,2,3);")
+        tdSql.execute(f"insert into t1 values(1648791213000, 1, 2, 3);")
+        tdSql.execute(f"insert into t2 values(1648791213000, 2, 2, 3);")
 
         tdSql.checkResultsByFunc(
             f'select table_name from information_schema.ins_tables where db_name="result" order by 1;',
@@ -620,10 +620,10 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"use test2;")
 
         tdSql.execute(
-            f"create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.execute(
             f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result2.streamt2 TAGS(cc varchar(100)) as select _twstart, count(*) c1 from st interval(10s);"
@@ -631,8 +631,8 @@ class TestStreamOldCaseConcat:
         tdStream.checkStreamStatus()
 
         tdLog.info(f"===== insert into 2")
-        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3);")
-        tdSql.execute(f"insert into t2 values(1648791213000,2,2,3);")
+        tdSql.execute(f"insert into t1 values(1648791213000, 1, 2, 3);")
+        tdSql.execute(f"insert into t2 values(1648791213000, 2, 2, 3);")
 
         tdSql.checkResultsByFunc(
             f'select tag_name from information_schema.ins_tags where db_name="result2" and stable_name = "streamt2" order by 1;',
@@ -658,10 +658,10 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"use test3;")
 
         tdSql.execute(
-            f"create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.execute(
             f'create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result3.streamt3 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-", "1") ) as select _twstart, count(*) c1 from st interval(10s);'
@@ -670,8 +670,8 @@ class TestStreamOldCaseConcat:
         tdStream.checkStreamStatus()
 
         tdLog.info(f"===== insert into 3")
-        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3);")
-        tdSql.execute(f"insert into t2 values(1648791213000,2,2,3);")
+        tdSql.execute(f"insert into t1 values(1648791213000, 1, 2, 3);")
+        tdSql.execute(f"insert into t2 values(1648791213000, 2, 2, 3);")
 
         tdSql.checkResultsByFunc(
             f'select tag_name from information_schema.ins_tags where db_name="result3" and stable_name = "streamt3" order by 1;',
@@ -702,11 +702,11 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"use test4;")
 
         tdSql.execute(
-            f"create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
-        tdSql.execute(f"create table t3 using st tags(3,3,3);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
+        tdSql.execute(f"create table t3 using st tags(3, 3, 3);")
 
         tdSql.execute(
             f'create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result4.streamt4 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-", "1")) as select _twstart, count(*) c1 from st interval(10s);'
@@ -715,7 +715,7 @@ class TestStreamOldCaseConcat:
         tdStream.checkStreamStatus()
 
         tdSql.execute(
-            f"insert into t1 values(1648791213000,1,1,1) t2 values(1648791213000,2,2,2) t3 values(1648791213000,3,3,3);"
+            f"insert into t1 values(1648791213000, 1, 1, 1) t2 values(1648791213000, 2, 2, 2) t3 values(1648791213000, 3, 3, 3);"
         )
 
         tdSql.checkResultsByFunc(
@@ -737,10 +737,10 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"use test5;")
 
         tdSql.execute(
-            f"create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.execute(
             f'create stream streams51 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result5.streamt51 SUBTABLE("aaa") as select _twstart, count(*) c1 from st interval(10s);'
@@ -754,8 +754,8 @@ class TestStreamOldCaseConcat:
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3);")
-        tdSql.execute(f"insert into t2 values(1648791213000,2,2,3);")
+        tdSql.execute(f"insert into t1 values(1648791213000, 1, 2, 3);")
+        tdSql.execute(f"insert into t2 values(1648791213000, 2, 2, 3);")
 
         tdSql.checkResultsByFunc(
             f'select table_name from information_schema.ins_tables where db_name="result5" order by 1;',

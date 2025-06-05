@@ -17,7 +17,7 @@ class TestStreamOldCaseBasic2:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common, ci
 
         Jira: None
 
@@ -30,11 +30,11 @@ class TestStreamOldCaseBasic2:
 
         """
 
-        self.pauseAndResume()
+        # self.pauseAndResume()
         self.sliding()
-        self.tag()
-        self.triggerInterval0()
-        self.windowClose()
+        # self.tag()
+        # self.triggerInterval0()
+        # self.windowClose()
 
     def pauseAndResume(self):
         tdLog.info(f"pauseAndResume")
@@ -46,15 +46,15 @@ class TestStreamOldCaseBasic2:
         tdSql.execute(f"create database test vgroups 3;")
         tdSql.execute(f"use test;")
         tdSql.execute(
-            f"create stable st(ts timestamp, a int, b int , c int, d double) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table ts1 using st tags(1,1,1);")
-        tdSql.execute(f"create table ts2 using st tags(2,2,2);")
-        tdSql.execute(f"create table ts3 using st tags(3,2,2);")
-        tdSql.execute(f"create table ts4 using st tags(4,2,2);")
+        tdSql.execute(f"create table ts1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table ts2 using st tags(2, 2, 2);")
+        tdSql.execute(f"create table ts3 using st tags(3, 2, 2);")
+        tdSql.execute(f"create table ts4 using st tags(4, 2, 2);")
 
         tdSql.execute(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt1 as select  _wstart, count(*) c1, sum(a) c3 from st interval(10s);"
+            f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt1 as select _twstart, count(*) c1, sum(a) c3 from st interval(10s);"
         )
 
         tdStream.checkStreamStatus()
@@ -65,11 +65,11 @@ class TestStreamOldCaseBasic2:
 
         tdSql.execute(f"pause stream streams1;")
 
-        tdSql.execute(f"insert into ts1 values(1648791213001,1,12,3,1.0);")
-        tdSql.execute(f"insert into ts2 values(1648791213001,1,12,3,1.0);")
+        tdSql.execute(f"insert into ts1 values(1648791213001, 1, 12, 3, 1.0);")
+        tdSql.execute(f"insert into ts2 values(1648791213001, 1, 12, 3, 1.0);")
 
-        tdSql.execute(f"insert into ts3 values(1648791213001,1,12,3,1.0);")
-        tdSql.execute(f"insert into ts4 values(1648791213001,1,12,3,1.0);")
+        tdSql.execute(f"insert into ts3 values(1648791213001, 1, 12, 3, 1.0);")
+        tdSql.execute(f"insert into ts4 values(1648791213001, 1, 12, 3, 1.0);")
 
         tdLog.info(f"1 select * from streamt1;")
         tdSql.checkResultsByFunc(
@@ -85,10 +85,10 @@ class TestStreamOldCaseBasic2:
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 4,
         )
 
-        tdSql.execute(f"insert into ts1 values(1648791223002,2,2,3,1.1);")
-        tdSql.execute(f"insert into ts2 values(1648791223002,3,2,3,2.1);")
-        tdSql.execute(f"insert into ts3 values(1648791223002,4,2,43,73.1);")
-        tdSql.execute(f"insert into ts4 values(1648791223002,24,22,23,4.1);")
+        tdSql.execute(f"insert into ts1 values(1648791223002, 2, 2, 3, 1.1);")
+        tdSql.execute(f"insert into ts2 values(1648791223002, 3, 2, 3, 2.1);")
+        tdSql.execute(f"insert into ts3 values(1648791223002, 4, 2, 43, 73.1);")
+        tdSql.execute(f"insert into ts4 values(1648791223002, 24, 22, 23, 4.1);")
 
         tdLog.info(f"3 select * from streamt1;")
         tdSql.checkResultsByFunc(
@@ -99,26 +99,26 @@ class TestStreamOldCaseBasic2:
         )
 
         tdLog.info(f"===== idle for 70 sec for checkpoint gen")
-        tdLog.info(f"===== idle 70 sec completed , continue")
+        tdLog.info(f"===== idle 70 sec completed, continue")
         tdLog.info(f"===== step 1 over")
         tdLog.info(f"===== step2")
         tdStream.dropAllStreamsAndDbs()
         tdSql.execute(f"drop database if exists test;")
         tdSql.execute(f"drop stream if exists streams2;")
         tdSql.execute(f"drop database if exists test2;")
-        tdSql.execute(f"create database test2  vgroups 1;")
+        tdSql.execute(f"create database test2 vgroups 1;")
         tdSql.execute(f"use test2;")
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int , c int, d double);")
+        tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
 
         tdSql.execute(
-            f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt2 as select  _wstart, count(*) c1, sum(a) c3 from t1 interval(10s);"
+            f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt2 as select _twstart, count(*) c1, sum(a) c3 from t1 interval(10s);"
         )
 
         tdSql.error(
-            f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt2 as select  _wstart, count(*) c1, sum(a) c3 from t1 interval(10s);"
+            f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt2 as select _twstart, count(*) c1, sum(a) c3 from t1 interval(10s);"
         )
         tdSql.execute(
-            f"create stream if not exists streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt2 as select  _wstart, count(*) c1, sum(a) c3 from t1 interval(10s);"
+            f"create stream if not exists streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt2 as select _twstart, count(*) c1, sum(a) c3 from t1 interval(10s);"
         )
 
         tdLog.info(f"start to check stream status")
@@ -127,7 +127,7 @@ class TestStreamOldCaseBasic2:
         tdLog.info(f"pause stream2")
         tdSql.execute(f"pause stream streams2;")
 
-        tdSql.execute(f"insert into t1 values(1648791213001,1,12,3,1.0);")
+        tdSql.execute(f"insert into t1 values(1648791213001, 1, 12, 3, 1.0);")
         tdLog.info(f"1 select * from streamt2;")
         tdSql.checkResultsByFunc(
             f"select * from streamt2;",
@@ -142,7 +142,7 @@ class TestStreamOldCaseBasic2:
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 1,
         )
 
-        tdSql.execute(f"insert into t1 values(1648791223002,2,2,3,1.1);")
+        tdSql.execute(f"insert into t1 values(1648791223002, 2, 2, 3, 1.1);")
 
         tdLog.info(f"3 select * from streamt2;")
         tdSql.checkResultsByFunc(
@@ -154,8 +154,8 @@ class TestStreamOldCaseBasic2:
 
         tdSql.execute(f"pause stream streams2;")
 
-        tdSql.execute(f"insert into t1 values(1648791223003,2,2,3,1.1);")
-        tdSql.execute(f"insert into t1 values(1648791233003,2,2,3,1.1);")
+        tdSql.execute(f"insert into t1 values(1648791223003, 2, 2, 3, 1.1);")
+        tdSql.execute(f"insert into t1 values(1648791233003, 2, 2, 3, 1.1);")
         tdSql.query("resume stream  IGNORE UNTREATED streams2;")
 
         tdLog.info(f"4 select * from streamt2;")
@@ -173,35 +173,35 @@ class TestStreamOldCaseBasic2:
         tdSql.execute(f"drop database if exists test2;")
         tdSql.execute(f"drop stream if exists streams3;")
         tdSql.execute(f"drop database if exists test3;")
-        tdSql.execute(f"create database test3  vgroups 3;")
+        tdSql.execute(f"create database test3 vgroups 3;")
         tdSql.execute(f"use test3;")
 
         tdSql.execute(
-            f"create stable st(ts timestamp, a int, b int , c int, d double) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table ts1 using st tags(1,1,1);")
-        tdSql.execute(f"create table ts2 using st tags(2,2,2);")
-        tdSql.execute(f"create table ts3 using st tags(3,2,2);")
-        tdSql.execute(f"create table ts4 using st tags(4,2,2);")
+        tdSql.execute(f"create table ts1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table ts2 using st tags(2, 2, 2);")
+        tdSql.execute(f"create table ts3 using st tags(3, 2, 2);")
+        tdSql.execute(f"create table ts4 using st tags(4, 2, 2);")
         tdSql.execute(
-            f"create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt3 as select  _wstart, count(*) c1, sum(a) c3 from st interval(10s);"
-        )
-        tdSql.execute(
-            f"create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt4 as select  _wstart, count(*) c1, sum(a) c3 from st interval(10s);"
+            f"create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt3 as select _twstart, count(*) c1, sum(a) c3 from st interval(10s);"
         )
         tdSql.execute(
-            f"create stream streams5 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt5 as select  _wstart, count(*) c1, sum(a) c3 from ts1 interval(10s);"
+            f"create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt4 as select _twstart, count(*) c1, sum(a) c3 from st interval(10s);"
+        )
+        tdSql.execute(
+            f"create stream streams5 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt5 as select _twstart, count(*) c1, sum(a) c3 from ts1 interval(10s);"
         )
 
         tdStream.checkStreamStatus()
 
         tdSql.execute(f"pause stream streams3;")
 
-        tdSql.execute(f"insert into ts1 values(1648791213001,1,12,3,1.0);")
-        tdSql.execute(f"insert into ts2 values(1648791213001,1,12,3,1.0);")
+        tdSql.execute(f"insert into ts1 values(1648791213001, 1, 12, 3, 1.0);")
+        tdSql.execute(f"insert into ts2 values(1648791213001, 1, 12, 3, 1.0);")
 
-        tdSql.execute(f"insert into ts3 values(1648791213001,1,12,3,1.0);")
-        tdSql.execute(f"insert into ts4 values(1648791213001,1,12,3,1.0);")
+        tdSql.execute(f"insert into ts3 values(1648791213001, 1, 12, 3, 1.0);")
+        tdSql.execute(f"insert into ts4 values(1648791213001, 1, 12, 3, 1.0);")
 
         tdLog.info(f"1 select * from streamt4;")
         tdSql.checkResultsByFunc(
@@ -232,36 +232,36 @@ class TestStreamOldCaseBasic2:
         tdSql.execute(f"drop database if exists test3;")
         tdSql.execute(f"drop stream if exists streams6;")
         tdSql.execute(f"drop database if exists test6;")
-        tdSql.execute(f"create database test6  vgroups 10;")
+        tdSql.execute(f"create database test6 vgroups 10;")
         tdSql.execute(f"use test6;")
         tdSql.execute(
-            f"create stable st(ts timestamp, a int, b int , c int, d double) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table ts1 using st tags(1,1,1);")
-        tdSql.execute(f"create table ts2 using st tags(2,2,2);")
-        tdSql.execute(f"create table ts3 using st tags(3,2,2);")
-        tdSql.execute(f"create table ts4 using st tags(4,2,2);")
+        tdSql.execute(f"create table ts1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table ts2 using st tags(2, 2, 2);")
+        tdSql.execute(f"create table ts3 using st tags(3, 2, 2);")
+        tdSql.execute(f"create table ts4 using st tags(4, 2, 2);")
         tdSql.execute(
-            f"create stream streams6 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt6 as select  _wstart, count(*) c1 from st interval(10s);"
+            f"create stream streams6 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt6 as select _twstart, count(*) c1 from st interval(10s);"
         )
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into ts1 values(1648791213001,1,12,3,1.0);")
-        tdSql.execute(f"insert into ts2 values(1648791213001,1,12,3,1.0);")
+        tdSql.execute(f"insert into ts1 values(1648791213001, 1, 12, 3, 1.0);")
+        tdSql.execute(f"insert into ts2 values(1648791213001, 1, 12, 3, 1.0);")
 
-        tdSql.execute(f"insert into ts3 values(1648791213001,1,12,3,1.0);")
-        tdSql.execute(f"insert into ts4 values(1648791213001,1,12,3,1.0);")
+        tdSql.execute(f"insert into ts3 values(1648791213001, 1, 12, 3, 1.0);")
+        tdSql.execute(f"insert into ts4 values(1648791213001, 1, 12, 3, 1.0);")
 
         tdSql.execute(f"pause stream streams6;")
 
-        tdSql.execute(f"insert into ts1 values(1648791223001,1,12,3,1.0);")
-        tdSql.execute(f"insert into ts2 values(1648791233001,1,12,3,1.0);")
+        tdSql.execute(f"insert into ts1 values(1648791223001, 1, 12, 3, 1.0);")
+        tdSql.execute(f"insert into ts2 values(1648791233001, 1, 12, 3, 1.0);")
 
         tdSql.query("resume stream streams6;")
 
-        tdSql.execute(f"insert into ts3 values(1648791243001,1,12,3,1.0);")
-        tdSql.execute(f"insert into ts4 values(1648791253001,1,12,3,1.0);")
+        tdSql.execute(f"insert into ts3 values(1648791243001, 1, 12, 3, 1.0);")
+        tdSql.execute(f"insert into ts4 values(1648791253001, 1, 12, 3, 1.0);")
 
         tdLog.info(f"2 select * from streamt6;")
         tdSql.checkResultsByFunc(
@@ -274,18 +274,18 @@ class TestStreamOldCaseBasic2:
         tdLog.info(f"===== step6")
         tdStream.dropAllStreamsAndDbs()
         tdSql.execute(f"drop database if exists test6;")
-        tdSql.execute(f"create database test7  vgroups 1;")
+        tdSql.execute(f"create database test7 vgroups 1;")
         tdSql.execute(f"use test7;")
         tdSql.execute(
-            f"create stable st(ts timestamp, a int, b int , c int, d double) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table ts1 using st tags(1,1,1);")
+        tdSql.execute(f"create table ts1 using st tags(1, 1, 1);")
 
         tdSql.execute(
-            f"create stream streams8 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt8 as select  _wstart, count(*) c1 from st interval(10s);"
+            f"create stream streams8 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt8 as select _twstart, count(*) c1 from st interval(10s);"
         )
         tdSql.execute(
-            f"create stream streams9 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt9 as select  _wstart, count(*) c1 from st partition by tbname interval(10s);"
+            f"create stream streams9 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt9 as select _twstart, count(*) c1 from st partition by tbname interval(10s);"
         )
 
         tdStream.checkStreamStatus()
@@ -331,7 +331,7 @@ class TestStreamOldCaseBasic2:
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into ts1 values(1648791213001,1,12,3,1.0);")
+        tdSql.execute(f"insert into ts1 values(1648791213001, 1, 12, 3, 1.0);")
         tdSql.checkResultsByFunc(
             f"select * from streamt8;",
             lambda: tdSql.getRows() == 1,
@@ -355,40 +355,40 @@ class TestStreamOldCaseBasic2:
 
         tdSql.execute(f"use test;")
         tdSql.execute(
-            f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
         tdSql.execute(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s) sliding (5s);"
-        )
-        tdSql.execute(
-            f"create stream streams2 trigger at_once watermark 1d IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt2 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s) sliding (5s);"
+            f"create stream streams1 interval(10s) sliding (5s) from t1 options(MAX_DELAY(1s)) into streamt as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 where ts >= _twstart and ts < _twend;"
         )
         tdSql.execute(
-            f"create stream stream_t1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamtST as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s) sliding (5s);"
+            f"create stream streams2 interval(10s) sliding (5s) from t1 options(MAX_DELAY(1s) | WATERMARK(1d)) into streamt2 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 where ts >= _twstart and ts < _twend;"
         )
         tdSql.execute(
-            f"create stream stream_t2 trigger at_once watermark 1d IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamtST2 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s) sliding (5s);"
+            f"create stream stream_t1 interval(10s) sliding (5s) from t1 options(MAX_DELAY(1s)) into streamtST as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st where ts >= _twstart and ts < _twend;"
+        )
+        tdSql.execute(
+            f"create stream stream_t2 interval(10s) sliding (5s) from t1 options(MAX_DELAY(1s) | WATERMARK(1d)) into streamtST2 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st where ts >= _twstart and ts < _twend;"
         )
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t1 values(1648791210000,1,2,3,1.0);")
-        tdSql.execute(f"insert into t1 values(1648791216000,2,2,3,1.1);")
-        tdSql.execute(f"insert into t1 values(1648791220000,3,2,3,2.1);")
+        tdSql.execute(f"insert into t1 values(1648791210000, 1, 2, 3, 1.0);")
+        tdSql.execute(f"insert into t1 values(1648791216000, 2, 2, 3, 1.1);")
+        tdSql.execute(f"insert into t1 values(1648791220000, 3, 2, 3, 2.1);")
 
-        tdSql.execute(f"insert into t1 values(1648791210000,1,2,3,1.0);")
-        tdSql.execute(f"insert into t1 values(1648791216000,2,2,3,1.1);")
-        tdSql.execute(f"insert into t1 values(1648791220000,3,2,3,2.1);")
+        tdSql.execute(f"insert into t1 values(1648791210000, 1, 2, 3, 1.0);")
+        tdSql.execute(f"insert into t1 values(1648791216000, 2, 2, 3, 1.1);")
+        tdSql.execute(f"insert into t1 values(1648791220000, 3, 2, 3, 2.1);")
 
-        tdSql.execute(f"insert into t2 values(1648791210000,1,2,3,1.0);")
-        tdSql.execute(f"insert into t2 values(1648791216000,2,2,3,1.1);")
-        tdSql.execute(f"insert into t2 values(1648791220000,3,2,3,2.1);")
+        tdSql.execute(f"insert into t2 values(1648791210000, 1, 2, 3, 1.0);")
+        tdSql.execute(f"insert into t2 values(1648791216000, 2, 2, 3, 1.1);")
+        tdSql.execute(f"insert into t2 values(1648791220000, 3, 2, 3, 2.1);")
 
-        tdSql.execute(f"insert into t2 values(1648791210000,1,2,3,1.0);")
-        tdSql.execute(f"insert into t2 values(1648791216000,2,2,3,1.1);")
-        tdSql.execute(f"insert into t2 values(1648791220000,3,2,3,2.1);")
+        tdSql.execute(f"insert into t2 values(1648791210000, 1, 2, 3, 1.0);")
+        tdSql.execute(f"insert into t2 values(1648791216000, 2, 2, 3, 1.1);")
+        tdSql.execute(f"insert into t2 values(1648791220000, 3, 2, 3, 2.1);")
 
         tdLog.info(f"step 0")
         tdSql.checkResultsByFunc(
@@ -447,7 +447,7 @@ class TestStreamOldCaseBasic2:
         )
 
         tdLog.info(f"step 3.1")
-        tdSql.execute(f"insert into t1 values(1648791216001,2,2,3,1.1);")
+        tdSql.execute(f"insert into t1 values(1648791216001, 2, 2, 3, 1.1);")
         tdSql.checkResultsByFunc(
             f"select * from streamt2;",
             lambda: tdSql.getRows() > 3
@@ -466,31 +466,31 @@ class TestStreamOldCaseBasic2:
         tdSql.execute(f"create database test1 vgroups 1")
         tdSql.execute(f"use test1")
         tdSql.execute(
-            f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.execute(
-            f"create stream streams11 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s, 5s);"
+            f"create stream streams11 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 interval(10s, 5s);"
         )
         tdSql.execute(
-            f"create stream streams12 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt2 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s, 5s);"
+            f"create stream streams12 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt2 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st interval(10s, 5s);"
         )
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
-        tdSql.execute(f"insert into t1 values(1648791223001,2,2,3,1.1);")
-        tdSql.execute(f"insert into t1 values(1648791233002,3,2,3,2.1);")
-        tdSql.execute(f"insert into t1 values(1648791243003,4,2,3,3.1);")
-        tdSql.execute(f"insert into t1 values(1648791213004,4,2,3,4.1);")
+        tdSql.execute(f"insert into t1 values(1648791213000, 1, 2, 3, 1.0);")
+        tdSql.execute(f"insert into t1 values(1648791223001, 2, 2, 3, 1.1);")
+        tdSql.execute(f"insert into t1 values(1648791233002, 3, 2, 3, 2.1);")
+        tdSql.execute(f"insert into t1 values(1648791243003, 4, 2, 3, 3.1);")
+        tdSql.execute(f"insert into t1 values(1648791213004, 4, 2, 3, 4.1);")
 
-        tdSql.execute(f"insert into t2 values(1648791213000,1,2,3,1.0);")
-        tdSql.execute(f"insert into t2 values(1648791223001,2,2,3,1.1);")
-        tdSql.execute(f"insert into t2 values(1648791233002,3,2,3,2.1);")
-        tdSql.execute(f"insert into t2 values(1648791243003,4,2,3,3.1);")
-        tdSql.execute(f"insert into t2 values(1648791213004,4,2,3,4.1);")
+        tdSql.execute(f"insert into t2 values(1648791213000, 1, 2, 3, 1.0);")
+        tdSql.execute(f"insert into t2 values(1648791223001, 2, 2, 3, 1.1);")
+        tdSql.execute(f"insert into t2 values(1648791233002, 3, 2, 3, 2.1);")
+        tdSql.execute(f"insert into t2 values(1648791243003, 4, 2, 3, 3.1);")
+        tdSql.execute(f"insert into t2 values(1648791213004, 4, 2, 3, 4.1);")
 
         tdSql.checkResultsByFunc(
             f"select * from streamt",
@@ -528,31 +528,31 @@ class TestStreamOldCaseBasic2:
         tdSql.execute(f"create database test2 vgroups 6;")
         tdSql.execute(f"use test2;")
         tdSql.execute(
-            f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.execute(
-            f"create stream streams21 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt21 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s, 5s);"
+            f"create stream streams21 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt21 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 interval(10s, 5s);"
         )
         tdSql.execute(
-            f"create stream streams22 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt22 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s, 5s);"
+            f"create stream streams22 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt22 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st interval(10s, 5s);"
         )
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t1 values(1648791213000,1,1,1,1.0);")
-        tdSql.execute(f"insert into t1 values(1648791223001,2,2,2,1.1);")
-        tdSql.execute(f"insert into t1 values(1648791233002,3,3,3,2.1);")
-        tdSql.execute(f"insert into t1 values(1648791243003,4,4,4,3.1);")
-        tdSql.execute(f"insert into t1 values(1648791213004,4,5,5,4.1);")
+        tdSql.execute(f"insert into t1 values(1648791213000, 1, 1, 1, 1.0);")
+        tdSql.execute(f"insert into t1 values(1648791223001, 2, 2, 2, 1.1);")
+        tdSql.execute(f"insert into t1 values(1648791233002, 3, 3, 3, 2.1);")
+        tdSql.execute(f"insert into t1 values(1648791243003, 4, 4, 4, 3.1);")
+        tdSql.execute(f"insert into t1 values(1648791213004, 4, 5, 5, 4.1);")
 
-        tdSql.execute(f"insert into t2 values(1648791213000,1,6,6,1.0);")
-        tdSql.execute(f"insert into t2 values(1648791223001,2,7,7,1.1);")
-        tdSql.execute(f"insert into t2 values(1648791233002,3,8,8,2.1);")
-        tdSql.execute(f"insert into t2 values(1648791243003,4,9,9,3.1);")
-        tdSql.execute(f"insert into t2 values(1648791213004,4,10,10,4.1);")
+        tdSql.execute(f"insert into t2 values(1648791213000, 1, 6, 6, 1.0);")
+        tdSql.execute(f"insert into t2 values(1648791223001, 2, 7, 7, 1.1);")
+        tdSql.execute(f"insert into t2 values(1648791233002, 3, 8, 8, 2.1);")
+        tdSql.execute(f"insert into t2 values(1648791243003, 4, 9, 9, 3.1);")
+        tdSql.execute(f"insert into t2 values(1648791213004, 4, 10, 10, 4.1);")
 
         tdSql.checkResultsByFunc(
             f"select * from streamt21;",
@@ -586,28 +586,28 @@ class TestStreamOldCaseBasic2:
         tdSql.execute(f"create database test3 vgroups 6;")
         tdSql.execute(f"use test3;")
         tdSql.execute(
-            f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.execute(
-            f"create stream streams23 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt23 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(20s) sliding(10s);"
+            f"create stream streams23 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt23 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st interval(20s) sliding(10s);"
         )
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t1 values(1648791213000,1,1,1,1.0);")
-        tdSql.execute(f"insert into t1 values(1648791223001,2,2,2,1.1);")
-        tdSql.execute(f"insert into t1 values(1648791233002,3,3,3,2.1);")
-        tdSql.execute(f"insert into t1 values(1648791243003,4,4,4,3.1);")
-        tdSql.execute(f"insert into t1 values(1648791213004,4,5,5,4.1);")
+        tdSql.execute(f"insert into t1 values(1648791213000, 1, 1, 1, 1.0);")
+        tdSql.execute(f"insert into t1 values(1648791223001, 2, 2, 2, 1.1);")
+        tdSql.execute(f"insert into t1 values(1648791233002, 3, 3, 3, 2.1);")
+        tdSql.execute(f"insert into t1 values(1648791243003, 4, 4, 4, 3.1);")
+        tdSql.execute(f"insert into t1 values(1648791213004, 4, 5, 5, 4.1);")
 
-        tdSql.execute(f"insert into t2 values(1648791213000,1,6,6,1.0);")
-        tdSql.execute(f"insert into t2 values(1648791223001,2,7,7,1.1);")
-        tdSql.execute(f"insert into t2 values(1648791233002,3,8,8,2.1);")
-        tdSql.execute(f"insert into t2 values(1648791243003,4,9,9,3.1);")
-        tdSql.execute(f"insert into t2 values(1648791213004,4,10,10,4.1);")
+        tdSql.execute(f"insert into t2 values(1648791213000, 1, 6, 6, 1.0);")
+        tdSql.execute(f"insert into t2 values(1648791223001, 2, 7, 7, 1.1);")
+        tdSql.execute(f"insert into t2 values(1648791233002, 3, 8, 8, 2.1);")
+        tdSql.execute(f"insert into t2 values(1648791243003, 4, 9, 9, 3.1);")
+        tdSql.execute(f"insert into t2 values(1648791213004, 4, 10, 10, 4.1);")
 
         tdLog.info(f"step 7")
         tdSql.checkResultsByFunc(
@@ -620,8 +620,8 @@ class TestStreamOldCaseBasic2:
             and tdSql.getData(4, 1) == 2,
         )
 
-        tdSql.execute(f"insert into t1 values(1648791343003,4,4,4,3.1);")
-        tdSql.execute(f"insert into t1 values(1648791213004,4,5,5,4.1);")
+        tdSql.execute(f"insert into t1 values(1648791343003, 4, 4, 4, 3.1);")
+        tdSql.execute(f"insert into t1 values(1648791213004, 4, 5, 5, 4.1);")
 
         tdSql.checkResultsByFunc(
             f"select * from streamt23;",
@@ -643,21 +643,21 @@ class TestStreamOldCaseBasic2:
         tdSql.execute(f"create database test4 vgroups 6;")
         tdSql.execute(f"use test4;")
         tdSql.execute(
-            f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.execute(
-            f"create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt4 as select  _wstart as ts, count(*),min(a) c1 from st interval(10s) sliding(5s);"
+            f"create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt4 as select _twstart as ts, count(*), min(a) c1 from st interval(10s) sliding(5s);"
         )
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t1 values(1648791213000,1,1,1,1.0);")
-        tdSql.execute(f"insert into t1 values(1648791243000,2,1,1,1.0);")
-        tdSql.execute(f"insert into t2 values(1648791273000,3,1,1,1.0);")
-        tdSql.execute(f"insert into t2 values(1648791313000,4,1,1,1.0);")
+        tdSql.execute(f"insert into t1 values(1648791213000, 1, 1, 1, 1.0);")
+        tdSql.execute(f"insert into t1 values(1648791243000, 2, 1, 1, 1.0);")
+        tdSql.execute(f"insert into t2 values(1648791273000, 3, 1, 1, 1.0);")
+        tdSql.execute(f"insert into t2 values(1648791313000, 4, 1, 1, 1.0);")
 
         tdSql.checkResultsByFunc(
             f"select * from streamt4 order by 1;",
@@ -690,23 +690,23 @@ class TestStreamOldCaseBasic2:
         tdSql.execute(f"use test;")
 
         tdSql.execute(
-            f"create table st1(ts timestamp, a int, b int , c int, d double) tags(x int);"
+            f"create table st1(ts timestamp, a int, b int, c int, d double) tags(x int);"
         )
         tdSql.execute(f"create table t1 using st1 tags(1);")
         tdSql.execute(f"create table t2 using st1 tags(2);")
         tdSql.execute(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt as select  _wstart as s, count(*) c1 from st1 where x>=2 interval(60s) ;"
+            f"create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt as select _twstart as s, count(*) c1 from st1 where x>=2 interval(60s) ;"
         )
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t2 values(1648791213000,0,1,1,1.0);")
-        tdSql.execute(f"insert into t2 values(1648791213001,9,2,2,1.1);")
-        tdSql.execute(f"insert into t2 values(1648791213009,0,3,3,1.0);")
+        tdSql.execute(f"insert into t2 values(1648791213000, 0, 1, 1, 1.0);")
+        tdSql.execute(f"insert into t2 values(1648791213001, 9, 2, 2, 1.1);")
+        tdSql.execute(f"insert into t2 values(1648791213009, 0, 3, 3, 1.0);")
 
-        tdSql.execute(f"insert into t1 values(1648791223000,0,1,1,1.0);")
-        tdSql.execute(f"insert into t1 values(1648791223001,9,2,2,1.1);")
-        tdSql.execute(f"insert into t1 values(1648791223009,0,3,3,1.0);")
+        tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
+        tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
+        tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
 
         tdSql.checkResultsByFunc(
             f"select * from streamt;",
@@ -715,9 +715,9 @@ class TestStreamOldCaseBasic2:
 
         tdSql.execute(f"alter table t1 set tag x=3;")
 
-        tdSql.execute(f"insert into t1 values(1648791233000,0,1,1,1.0);")
-        tdSql.execute(f"insert into t1 values(1648791233001,9,2,2,1.1);")
-        tdSql.execute(f"insert into t1 values(1648791233009,0,3,3,1.0);")
+        tdSql.execute(f"insert into t1 values(1648791233000, 0, 1, 1, 1.0);")
+        tdSql.execute(f"insert into t1 values(1648791233001, 9, 2, 2, 1.1);")
+        tdSql.execute(f"insert into t1 values(1648791233009, 0, 3, 3, 1.0);")
 
         tdSql.checkResultsByFunc(
             f"select * from streamt;",
@@ -727,8 +727,8 @@ class TestStreamOldCaseBasic2:
         tdSql.execute(f"alter table t1 set tag x=1;")
         tdSql.execute(f"alter table t2 set tag x=1;")
 
-        tdSql.execute(f"insert into t1 values(1648791243000,0,1,1,1.0);")
-        tdSql.execute(f"insert into t1 values(1648791243001,9,2,2,1.1);")
+        tdSql.execute(f"insert into t1 values(1648791243000, 0, 1, 1, 1.0);")
+        tdSql.execute(f"insert into t1 values(1648791243001, 9, 2, 2, 1.1);")
 
         tdSql.checkResultsByFunc(
             f"select * from streamt;",
@@ -744,26 +744,26 @@ class TestStreamOldCaseBasic2:
         tdSql.query(f"select * from information_schema.ins_databases")
         tdSql.checkRows(3)
 
-        tdLog.info(f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)}")
+        tdLog.info(f"{tdSql.getData(0, 0)} {tdSql.getData(0, 1)} {tdSql.getData(0, 2)}")
 
         tdSql.execute(f"use test")
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int , c int, d double);")
+        tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams1 trigger window_close IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s);"
+            f"create stream streams1 trigger window_close IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _twstart, count(*) c1, count(d) c2, sum(a) c3, max(b) c4, min(c) c5 from t1 interval(10s);"
         )
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t1 values(1648791213001,1,2,3,1.0);")
+        tdSql.execute(f"insert into t1 values(1648791213001, 1, 2, 3, 1.0);")
         tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 0,
         )
 
-        tdSql.execute(f"insert into t1 values(1648791223001,2,2,3,1.1);")
-        tdSql.execute(f"insert into t1 values(1648791223002,2,2,3,1.1);")
-        tdSql.execute(f"insert into t1 values(1648791223003,2,2,3,1.1);")
-        tdSql.execute(f"insert into t1 values(1648791223001,2,2,3,1.1);")
+        tdSql.execute(f"insert into t1 values(1648791223001, 2, 2, 3, 1.1);")
+        tdSql.execute(f"insert into t1 values(1648791223002, 2, 2, 3, 1.1);")
+        tdSql.execute(f"insert into t1 values(1648791223003, 2, 2, 3, 1.1);")
+        tdSql.execute(f"insert into t1 values(1648791223001, 2, 2, 3, 1.1);")
 
         tdLog.info(f"step 0")
         tdSql.checkResultsByFunc(
@@ -771,7 +771,7 @@ class TestStreamOldCaseBasic2:
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 1,
         )
 
-        tdSql.execute(f"insert into t1 values(1648791233001,2,2,3,1.1);")
+        tdSql.execute(f"insert into t1 values(1648791233001, 2, 2, 3, 1.1);")
 
         tdSql.checkResultsByFunc(
             f"select * from streamt;",
@@ -780,9 +780,9 @@ class TestStreamOldCaseBasic2:
             and tdSql.getData(1, 1) == 3,
         )
 
-        tdSql.execute(f"insert into t1 values(1648791223004,2,2,3,1.1);")
-        tdSql.execute(f"insert into t1 values(1648791223004,2,2,3,1.1);")
-        tdSql.execute(f"insert into t1 values(1648791223005,2,2,3,1.1);")
+        tdSql.execute(f"insert into t1 values(1648791223004, 2, 2, 3, 1.1);")
+        tdSql.execute(f"insert into t1 values(1648791223004, 2, 2, 3, 1.1);")
+        tdSql.execute(f"insert into t1 values(1648791223005, 2, 2, 3, 1.1);")
 
         tdSql.checkResultsByFunc(
             f"select * from streamt;",
@@ -791,9 +791,9 @@ class TestStreamOldCaseBasic2:
             and tdSql.getData(1, 1) == 5,
         )
 
-        tdSql.execute(f"insert into t1 values(1648791233002,3,2,3,2.1);")
-        tdSql.execute(f"insert into t1 values(1648791213002,4,2,3,3.1)")
-        tdSql.execute(f"insert into t1 values(1648791213002,4,2,3,4.1);")
+        tdSql.execute(f"insert into t1 values(1648791233002, 3, 2, 3, 2.1);")
+        tdSql.execute(f"insert into t1 values(1648791213002, 4, 2, 3, 3.1)")
+        tdSql.execute(f"insert into t1 values(1648791213002, 4, 2, 3, 4.1);")
 
         tdLog.info(f"step 3")
 
@@ -813,7 +813,7 @@ class TestStreamOldCaseBasic2:
         tdSql.query(f"select * from information_schema.ins_databases")
         tdSql.checkRows(3)
 
-        tdLog.info(f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)}")
+        tdLog.info(f"{tdSql.getData(0, 0)} {tdSql.getData(0, 1)} {tdSql.getData(0, 2)}")
 
         tdSql.execute(f"use test")
         tdSql.execute(f"create stable st(ts timestamp, a int) tags(t int);")
@@ -821,7 +821,7 @@ class TestStreamOldCaseBasic2:
         tdSql.execute(f"create table tu2 using st tags(2);")
 
         tdSql.execute(
-            f"create stream stream1 trigger window_close into streamt as select  _wstart, sum(a) from st interval(10s);"
+            f"create stream stream1 trigger window_close into streamt as select _twstart, sum(a) from st interval(10s);"
         )
 
         tdStream.checkStreamStatus()
@@ -841,42 +841,42 @@ class TestStreamOldCaseBasic2:
         tdSql.execute(f"create table t2 using st tags(2);")
 
         tdSql.execute(
-            f"create stream stream2 trigger window_close into streamt2 as select  _wstart, sum(a) from st interval(10s);"
+            f"create stream stream2 trigger window_close into streamt2 as select _twstart, sum(a) from st interval(10s);"
         )
         tdSql.execute(
-            f"create stream stream3 trigger max_delay 5s into streamt3 as select  _wstart, sum(a) from st interval(10s);"
+            f"create stream stream3 trigger max_delay 5s into streamt3 as select _twstart, sum(a) from st interval(10s);"
         )
         tdSql.execute(
-            f"create stream stream4 trigger window_close into streamt4 as select  _wstart, sum(a) from t1 interval(10s);"
+            f"create stream stream4 trigger window_close into streamt4 as select _twstart, sum(a) from t1 interval(10s);"
         )
         tdSql.execute(
-            f"create stream stream5 trigger max_delay 5s into streamt5 as select  _wstart, sum(a) from t1 interval(10s);"
+            f"create stream stream5 trigger max_delay 5s into streamt5 as select _twstart, sum(a) from t1 interval(10s);"
         )
         tdSql.execute(
-            f"create stream stream6 trigger window_close into streamt6 as select  _wstart, sum(a) from st session(ts, 10s);"
+            f"create stream stream6 trigger window_close into streamt6 as select _twstart, sum(a) from st session(ts, 10s);"
         )
         tdSql.execute(
-            f"create stream stream7 trigger max_delay 5s into streamt7 as select  _wstart, sum(a) from st session(ts, 10s);"
+            f"create stream stream7 trigger max_delay 5s into streamt7 as select _twstart, sum(a) from st session(ts, 10s);"
         )
         tdSql.execute(
-            f"create stream stream8 trigger window_close into streamt8 as select  _wstart, sum(a) from t1 session(ts, 10s);"
+            f"create stream stream8 trigger window_close into streamt8 as select _twstart, sum(a) from t1 session(ts, 10s);"
         )
         tdSql.execute(
-            f"create stream stream9 trigger max_delay 5s into streamt9 as select  _wstart, sum(a) from t1 session(ts, 10s);"
+            f"create stream stream9 trigger max_delay 5s into streamt9 as select _twstart, sum(a) from t1 session(ts, 10s);"
         )
         tdSql.execute(
-            f"create stream stream10 trigger window_close into streamt10 as select  _wstart, sum(a) from t1 state_window(b);"
+            f"create stream stream10 trigger window_close into streamt10 as select _twstart, sum(a) from t1 state_window(b);"
         )
         tdSql.execute(
-            f"create stream stream11 trigger max_delay 5s into streamt11 as select  _wstart, sum(a) from t1 state_window(b);"
+            f"create stream stream11 trigger max_delay 5s into streamt11 as select _twstart, sum(a) from t1 state_window(b);"
         )
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t1 values(1648791213000,1,1);")
-        tdSql.execute(f"insert into t1 values(1648791213001,2,1);")
-        tdSql.execute(f"insert into t1 values(1648791213002,3,1);")
-        tdSql.execute(f"insert into t1 values(1648791233000,4,2);")
+        tdSql.execute(f"insert into t1 values(1648791213000, 1, 1);")
+        tdSql.execute(f"insert into t1 values(1648791213001, 2, 1);")
+        tdSql.execute(f"insert into t1 values(1648791213002, 3, 1);")
+        tdSql.execute(f"insert into t1 values(1648791233000, 4, 2);")
 
         tdSql.checkResultsByFunc(
             f"select * from streamt2;",
@@ -932,16 +932,16 @@ class TestStreamOldCaseBasic2:
         tdStream.dropAllStreamsAndDbs()
         tdSql.execute(f"create database test3 vgroups 4;")
         tdSql.execute(f"use test3;")
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int , c int, d double);")
+        tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
 
         tdSql.execute(
-            f"create stream stream13 trigger max_delay 5s into streamt13 as select  _wstart, sum(a), now from t1 interval(10s);"
+            f"create stream stream13 trigger max_delay 5s into streamt13 as select _twstart, sum(a), now from t1 interval(10s);"
         )
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
-        tdSql.execute(f"insert into t1 values(1648791223001,2,2,3,1.1);")
+        tdSql.execute(f"insert into t1 values(1648791213000, 1, 2, 3, 1.0);")
+        tdSql.execute(f"insert into t1 values(1648791223001, 2, 2, 3, 1.1);")
 
         tdSql.checkResultsByFunc(
             f"select * from streamt13;",
@@ -966,22 +966,22 @@ class TestStreamOldCaseBasic2:
         tdSql.execute(f"use test4;")
 
         tdSql.execute(
-            f"create stable st(ts timestamp, a int, b int , c int, d double) tags(ta int,tb int,tc int);"
+            f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
         )
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
-        tdSql.execute(f"create table t2 using st tags(2,2,2);")
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.execute(
-            f"create stream stream14 trigger max_delay 5s into streamt14 as select  _wstart, sum(a), now from st partition by tbname interval(10s);"
+            f"create stream stream14 trigger max_delay 5s into streamt14 as select _twstart, sum(a), now from st partition by tbname interval(10s);"
         )
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
-        tdSql.execute(f"insert into t1 values(1648791223000,2,2,3,1.1);")
+        tdSql.execute(f"insert into t1 values(1648791213000, 1, 2, 3, 1.0);")
+        tdSql.execute(f"insert into t1 values(1648791223000, 2, 2, 3, 1.1);")
 
-        tdSql.execute(f"insert into t2 values(1648791213000,3,2,3,1.0);")
-        tdSql.execute(f"insert into t2 values(1648791223000,4,2,3,1.1);")
+        tdSql.execute(f"insert into t2 values(1648791213000, 3, 2, 3, 1.0);")
+        tdSql.execute(f"insert into t2 values(1648791223000, 4, 2, 3, 1.1);")
 
         tdSql.checkResultsByFunc(
             f"select * from streamt14 order by 2;",
@@ -1006,16 +1006,16 @@ class TestStreamOldCaseBasic2:
         tdStream.dropAllStreamsAndDbs()
         tdSql.execute(f"create database test15 vgroups 4;")
         tdSql.execute(f"use test15;")
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int , c int, d double);")
+        tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
 
         tdSql.execute(
-            f"create stream stream15 trigger max_delay 5s into streamt13 as select  _wstart, sum(a), now from t1 session(ts, 10s);"
+            f"create stream stream15 trigger max_delay 5s into streamt13 as select _twstart, sum(a), now from t1 session(ts, 10s);"
         )
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
-        tdSql.execute(f"insert into t1 values(1648791233001,2,2,3,1.1);")
+        tdSql.execute(f"insert into t1 values(1648791213000, 1, 2, 3, 1.0);")
+        tdSql.execute(f"insert into t1 values(1648791233001, 2, 2, 3, 1.1);")
 
         tdSql.checkResultsByFunc(
             f"select * from streamt13;",
@@ -1038,16 +1038,16 @@ class TestStreamOldCaseBasic2:
         tdStream.dropAllStreamsAndDbs()
         tdSql.execute(f"create database test16 vgroups 4;")
         tdSql.execute(f"use test16;")
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int , c int, d double);")
+        tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
 
         tdSql.execute(
-            f"create stream stream16 trigger max_delay 5s into streamt13 as select  _wstart, sum(a), now from t1 state_window(a);"
+            f"create stream stream16 trigger max_delay 5s into streamt13 as select _twstart, sum(a), now from t1 state_window(a);"
         )
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
-        tdSql.execute(f"insert into t1 values(1648791233001,2,2,3,1.1);")
+        tdSql.execute(f"insert into t1 values(1648791213000, 1, 2, 3, 1.0);")
+        tdSql.execute(f"insert into t1 values(1648791233001, 2, 2, 3, 1.1);")
 
         tdSql.checkResultsByFunc(
             f"select * from streamt13;",
@@ -1070,19 +1070,19 @@ class TestStreamOldCaseBasic2:
         tdStream.dropAllStreamsAndDbs()
         tdSql.execute(f"create database test17 vgroups 4;")
         tdSql.execute(f"use test17;")
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int , c int, d double);")
+        tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
 
         tdSql.execute(
-            f"create stream stream17 trigger max_delay 5s into streamt13 as select  _wstart, sum(a), now from t1 event_window start with a = 1 end with a = 9;"
+            f"create stream stream17 trigger max_delay 5s into streamt13 as select _twstart, sum(a), now from t1 event_window start with a = 1 end with a = 9;"
         )
 
         tdStream.checkStreamStatus()
 
-        tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
-        tdSql.execute(f"insert into t1 values(1648791213001,9,2,3,1.0);")
+        tdSql.execute(f"insert into t1 values(1648791213000, 1, 2, 3, 1.0);")
+        tdSql.execute(f"insert into t1 values(1648791213001, 9, 2, 3, 1.0);")
 
-        tdSql.execute(f"insert into t1 values(1648791233001,1,2,3,1.1);")
-        tdSql.execute(f"insert into t1 values(1648791233009,9,2,3,1.1);")
+        tdSql.execute(f"insert into t1 values(1648791233001, 1, 2, 3, 1.1);")
+        tdSql.execute(f"insert into t1 values(1648791233009, 9, 2, 3, 1.1);")
 
         tdSql.checkResultsByFunc(
             f"select * from streamt13;",
