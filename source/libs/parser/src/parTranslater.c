@@ -13326,9 +13326,6 @@ static int32_t createStreamCheckOutCols(STranslateContext* pCxt, SNodeList* pCol
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                      "Out table cols type mismatch");
     }
-    if (colIndex != PRIMARYKEY_TIMESTAMP_COL_ID && pColOptions->bPrimaryKey) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SECOND_COL_PK);
-    }
     colIndex++;
   }
 
