@@ -486,7 +486,7 @@ int32_t taosGetIp4FromFqdn(const char *fqdn, SIpAddr *pAddr) {
   }
 #else
   struct addrinfo hints = {0};
-  hints.ai_family = AF_UNSPEC;
+  hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
 
   struct addrinfo *result = NULL;
