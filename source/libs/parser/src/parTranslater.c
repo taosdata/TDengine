@@ -3558,7 +3558,7 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
       }
       case FUNCTION_TYPE_TWDURATION: {
         BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_WDURATION);
-        nodesMakeValueNodeFromTimestamp(0, &extraValue);
+        nodesMakeValueNodeFromInt64(0, &extraValue);
         break;
       }
       case FUNCTION_TYPE_TWROWNUM: {
@@ -13485,7 +13485,7 @@ static int32_t createStreamReqBuildTriggerCountWindow(STranslateContext* pCxt, S
   PAR_ERR_RET(checkCountWindow(pCxt, pTriggerWindow));
   pReq->trigger.count.sliding = pTriggerWindow->windowSliding;
   pReq->trigger.count.countVal = pTriggerWindow->windowCount;
-  PAR_ERR_RET(nodesNodeToString(pTriggerWindow->pCol, false, (char**)&pReq->trigger.count.condCols, NULL));
+  PAR_ERR_RET(nodesListToString(pTriggerWindow->pColList, false, (char**)&pReq->trigger.count.condCols, NULL));
   return TSDB_CODE_SUCCESS;
 }
 

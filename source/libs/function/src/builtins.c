@@ -1135,7 +1135,6 @@ static int32_t translatePlaceHolderPseudoColumn(SFunctionNode* pFunc, char* pErr
     case FUNCTION_TYPE_TNEXT_TS:
     case FUNCTION_TYPE_TWSTART:
     case FUNCTION_TYPE_TWEND:
-    case FUNCTION_TYPE_TWDURATION:
     case FUNCTION_TYPE_TLOCALTIME: {
       pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes,
                                         .type = TSDB_DATA_TYPE_TIMESTAMP,
@@ -1149,6 +1148,7 @@ static int32_t translatePlaceHolderPseudoColumn(SFunctionNode* pFunc, char* pErr
                                         .precision = TSDB_TIME_PRECISION_NANO};
       break;
     }
+    case FUNCTION_TYPE_TWDURATION:
     case FUNCTION_TYPE_TWROWNUM:
     case FUNCTION_TYPE_TGRPID: {
       pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes,
@@ -6033,7 +6033,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .parameters = {.minParamNum = 0,
                    .maxParamNum = 0,
                    .paramInfoPattern = 0,
-                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE}},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE}},
     .translateFunc = translatePlaceHolderPseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
