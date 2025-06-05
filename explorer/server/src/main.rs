@@ -135,7 +135,7 @@ async fn main() -> anyhow::Result<()> {
     // info!(env!("CUS_NAME"));
 
     #[cfg(target_os = "windows")]
-    let path = format!("C:\\{}\\cfg", env!("CUS_NAME"));
+    let path = format!("C:\\{}\\cfg", env!("CANONICAL_CUS_NAME"));
 
     #[cfg(not(target_os = "windows"))]
     let path = format!("/etc/{}", env!("CUS_PROMPT"));
@@ -274,7 +274,7 @@ async fn main() -> anyhow::Result<()> {
         Some(path) => path,
         None => {
             if cfg!(windows) {
-                format!("C:\\{}\\data\\explorer", env!("CUS_NAME"))
+                format!("C:\\{}\\data\\explorer", env!("CANONICAL_CUS_NAME"))
             } else {
                 format!("/var/lib/{}/explorer", env!("CUS_PROMPT"))
             }
@@ -1551,7 +1551,7 @@ impl Default for LogOpts {
 
 fn get_default_log_path() -> PathBuf {
     if cfg!(windows) {
-        PathBuf::from(format!("C:\\{}\\log", env!("CUS_NAME")))
+        PathBuf::from(format!("C:\\{}\\log", env!("CANONICAL_CUS_NAME")))
     } else {
         PathBuf::from(format!("/var/log/{}", env!("CUS_PROMPT")))
     }
