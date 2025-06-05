@@ -21,6 +21,8 @@
 #include "ttime.h"
 #include "decimal.h"
 
+#define prepare_table_meta 1
+
 typedef struct SInsertParseContext {
   SParseContext* pComCxt;
   SMsgBuf        msg;
@@ -3210,6 +3212,9 @@ static int32_t setRefreshMeta(SQuery* pQuery) {
 //       VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
 //   [...];
 static int32_t parseInsertSqlFromStart(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+  if (prepare_table_meta) {
+    
+  }
   int32_t code = skipInsertInto(&pStmt->pSql, &pCxt->msg);
   if (TSDB_CODE_SUCCESS == code) {
     code = parseInsertBody(pCxt, pStmt);
@@ -3422,4 +3427,177 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
     (*pQuery)->execMode = QUERY_EXEC_MODE_EMPTY_RESULT;
   }
   return code;
+}
+
+// Extract all table names from INSERT SQL
+int32_t extractTableNamesFromInsertSql(const char* pSql, SArray** ppTableNames) {
+  if (!pSql || !ppTableNames) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // Initialize table names array
+  *ppTableNames = taosArrayInit(4, TSDB_TABLE_FNAME_LEN);
+  if (!*ppTableNames) {
+    return terrno;
+  }
+
+  const char* sql = pSql;
+  SToken      token;
+
+  // Skip INSERT INTO keywords
+  NEXT_TOKEN(sql, token);
+  if (token.type != TK_INSERT) {
+    taosArrayDestroy(*ppTableNames);
+    *ppTableNames = NULL;
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  NEXT_TOKEN(sql, token);
+  if (token.type != TK_INTO) {
+    taosArrayDestroy(*ppTableNames);
+    *ppTableNames = NULL;
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  // Parse multiple table clauses
+  while (true) {
+    // Get table name
+    NEXT_TOKEN(sql, token);
+
+    // Check if we've reached the end or hit a non-table token
+    if (0 == token.n) {
+      break;
+    }
+
+    // Skip non-identifier tokens that might appear between tables
+    if (token.type != TK_NK_ID && token.type != TK_NK_QUESTION) {
+      continue;
+    }
+
+    // Extract main table name
+    char tableName[TSDB_TABLE_FNAME_LEN] = {0};
+    if (token.type == TK_NK_ID) {
+      // Handle qualified table names (db.table)
+      SToken      nextToken;
+      const char* tempSql = sql;
+      NEXT_TOKEN(tempSql, nextToken);
+
+      if (nextToken.type == TK_NK_DOT) {
+        // This is a qualified name: db.table
+        sql = tempSql;
+        NEXT_TOKEN(sql, nextToken);
+        if (nextToken.type == TK_NK_ID) {
+          snprintf(tableName, sizeof(tableName), "%.*s.%.*s", token.n, token.z, nextToken.n, nextToken.z);
+        }
+      } else {
+        // Simple table name
+        snprintf(tableName, sizeof(tableName), "%.*s", token.n, token.z);
+      }
+
+      // Add main table name to array
+      if (strlen(tableName) > 0) {
+        taosArrayPush(*ppTableNames, tableName);
+      }
+    }
+
+    // Look for USING clause to extract super table name
+    const char* savedSql = sql;
+    NEXT_TOKEN(sql, token);
+
+    if (token.type == TK_USING) {
+      NEXT_TOKEN(sql, token);
+      if (token.type == TK_NK_ID) {
+        char superTableName[TSDB_TABLE_FNAME_LEN] = {0};
+
+        // Handle qualified super table names
+        SToken      nextToken;
+        const char* tempSql = sql;
+        NEXT_TOKEN(tempSql, nextToken);
+
+        if (nextToken.type == TK_NK_DOT) {
+          sql = tempSql;
+          NEXT_TOKEN(sql, nextToken);
+          if (nextToken.type == TK_NK_ID) {
+            snprintf(superTableName, sizeof(superTableName), "%.*s.%.*s", token.n, token.z, nextToken.n, nextToken.z);
+          }
+        } else {
+          snprintf(superTableName, sizeof(superTableName), "%.*s", token.n, token.z);
+        }
+
+        // Add super table name to array
+        if (strlen(superTableName) > 0) {
+          taosArrayPush(*ppTableNames, superTableName);
+        }
+      }
+    } else {
+      // Restore position if no USING clause
+      sql = savedSql;
+    }
+
+    // Skip until we find VALUES, FILE, or next table name
+    // This handles bound columns, TAGS clause, etc.
+    bool    foundDataClause = false;
+    int32_t parenLevel = 0;
+
+    while (true) {
+      NEXT_TOKEN(sql, token);
+      if (0 == token.n) {
+        foundDataClause = true;
+        break;
+      }
+
+      if (token.type == TK_NK_LP) {
+        parenLevel++;
+      } else if (token.type == TK_NK_RP) {
+        parenLevel--;
+      } else if (parenLevel == 0) {
+        if (token.type == TK_VALUES) {
+          // Skip VALUES data until we find next table or end
+          while (true) {
+            NEXT_TOKEN(sql, token);
+            if (0 == token.n) {
+              foundDataClause = true;
+              break;
+            }
+            if (token.type == TK_NK_LP) {
+              parenLevel++;
+            } else if (token.type == TK_NK_RP) {
+              parenLevel--;
+            } else if (parenLevel == 0 && token.type == TK_NK_ID) {
+              // Potential next table name, check if it's followed by valid table syntax
+              const char* checkSql = sql;
+              SToken      checkToken;
+              NEXT_TOKEN(checkSql, checkToken);
+
+              // If followed by '(' (bound columns), 'USING', 'VALUES', or 'FILE', it's likely a table
+              if (checkToken.type == TK_NK_LP || checkToken.type == TK_USING || checkToken.type == TK_VALUES ||
+                  checkToken.type == TK_FILE) {
+                // Go back to process this as a new table
+                sql = sql - token.n;
+                foundDataClause = true;
+                break;
+              }
+            }
+          }
+          break;
+        } else if (token.type == TK_FILE) {
+          // Skip FILE path
+          NEXT_TOKEN(sql, token);
+          foundDataClause = true;
+          break;
+        } else if (token.type == TK_NK_ID) {
+          // Potential next table name, go back and check
+          sql = sql - token.n;
+          foundDataClause = true;
+          break;
+        }
+      }
+    }
+
+    if (!foundDataClause) {
+      break;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
