@@ -1285,6 +1285,7 @@ int32_t hbGatherAppInfo(void) {
 }
 
 static void *hbThreadFunc(void *param) {
+  int64_t count = 0;
   setThreadName("hb");
 #ifdef WINDOWS
   if (taosCheckCurrentInDll()) {
@@ -1389,6 +1390,11 @@ static void *hbThreadFunc(void *param) {
     if (TSDB_CODE_SUCCESS != taosThreadMutexUnlock(&clientHbMgr.lock)) {
       tscError("taosThreadMutexLock failed");
       return NULL;
+    }
+    count++;
+    if (tsTrimMemInterval > 0 && (count % (tsTrimMemInterval)) == 0) {
+      taosMemoryTrim(0, NULL);
+    } else {
     }
     taosMsleep(HEARTBEAT_INTERVAL);
   }
