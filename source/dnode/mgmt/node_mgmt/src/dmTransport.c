@@ -99,7 +99,7 @@ static void dmUpdateRpcIpWhite(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
   code = rpcSetIpWhite(pTrans, &ipWhite);
   pData->ipWhiteVer = ipWhite.ver;
 
-  (void)tFreeSUpdateIpWhiteReq(&ipWhite);
+  (void)tFreeSUpdateIpWhiteDualReq(&ipWhite);
 
   rpcFreeCont(pRpc->pCont);
 }

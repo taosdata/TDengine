@@ -293,7 +293,7 @@ int32_t uvWhiteListToStr(SWhiteUserList* plist, char* user, char** ppBuf) {
   return len;
 }
 void uvWhiteListDebug(SIpWhiteListTab* pWrite) {
-  int32_t   code = 0;
+  int32_t   len = 0;
   SHashObj* pWhiteList = pWrite->pList;
   void*     pIter = taosHashIterate(pWhiteList, NULL);
   while (pIter) {
@@ -305,10 +305,9 @@ void uvWhiteListDebug(SIpWhiteListTab* pWrite) {
     SWhiteUserList* pUserList = *(SWhiteUserList**)pIter;
 
     char* buf = NULL;
-
-    code = uvWhiteListToStr(pUserList, user, &buf);
-    if (code != 0) {
-      tDebug("ip-white-list failed to debug to str since %s", buf);
+    len = uvWhiteListToStr(pUserList, user, &buf);
+    if (len > 0) {
+      tTrace("ip-white-list debug str %s ", buf);
     }
     taosMemoryFree(buf);
     pIter = taosHashIterate(pWhiteList, pIter);

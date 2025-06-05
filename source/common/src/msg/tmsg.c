@@ -2490,7 +2490,6 @@ int32_t tDeserializeSUpdateIpWhiteDual(void *buf, int32_t bufLen, SUpdateIpWhite
   }
 
   tEndDecode(&decoder);
-  return code;
 _exit:
   if (code < 0) {
     uError("Failed to deserialize SUpdateIpWhiteDual at line %d, code: %s", lino, tstrerror(code));
