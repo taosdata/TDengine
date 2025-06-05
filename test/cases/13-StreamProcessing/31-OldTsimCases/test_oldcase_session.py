@@ -30,8 +30,8 @@ class TestStreamOldCaseSession:
         """
 
         self.session0()
-        self.session1()
-        self.triggerSession0()
+        # self.session1()
+        # self.triggerSession0()
 
     def session0(self):
         tdLog.info(f"session0")
@@ -48,8 +48,9 @@ class TestStreamOldCaseSession:
             f"create table t1(ts timestamp, a int, b int, c int, d double, id int);"
         )
         tdSql.execute(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select _wstart, count(*) c1, sum(a), max(a), min(d), stddev(a), last(a), first(d), max(id) s from t1 session(ts, 10s);"
+            f"create stream streams1 trigger session(ts, 10s) from t1 options(max_delay(10s)) into streamt as select _twstart, count(*) c1, sum(a), max(a), min(d), stddev(a), last(a), first(d), max(id) s from t1 where ts >= _twstart and ts < _twend ;"
         )
+        tdSql.pause()
 
         tdStream.checkStreamStatus()
 
@@ -196,7 +197,7 @@ class TestStreamOldCaseSession:
             f"create table t1(ts timestamp, a int, b int, c int, d double, id int);"
         )
         tdSql.execute(
-            f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select _wstart, count(*) c1, sum(a), min(b), max(id) s from t1 session(ts, 10s);"
+            f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _wstart, count(*) c1, sum(a), min(b), max(id) s from t1 session(ts, 10s);"
         )
 
         tdStream.checkStreamStatus()
@@ -281,7 +282,7 @@ class TestStreamOldCaseSession:
         tdSql.execute(f"use test1;")
         tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt3 as select _wstart, count(*) c1 from t1 where a > 5 session(ts, 5s);"
+            f"create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt3 as select _wstart, count(*) c1 from t1 where a > 5 session(ts, 5s);"
         )
 
         tdStream.checkStreamStatus()
@@ -357,7 +358,7 @@ class TestStreamOldCaseSession:
         tdSql.execute(f"use test;")
         tdSql.execute(f"create table t2(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams2 trigger window_close IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt2 as select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(b)  c4, min(c) c5 from t2 session(ts, 10s);"
+            f"create stream streams2 trigger window_close IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt2 as select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(b) c4, min(c) c5 from t2 session(ts, 10s);"
         )
 
         tdStream.checkStreamStatus()

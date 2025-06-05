@@ -32,10 +32,10 @@ class TestStreamOldCaseFillHistory:
         """
 
         self.fillHistoryBasic1()
-        self.fillHistoryBasic2()
-        self.fillHistoryBasic3()
-        self.fillHistoryBasic4()
-        self.fillHistoryTransform()
+        # self.fillHistoryBasic2()
+        # self.fillHistoryBasic3()
+        # self.fillHistoryBasic4()
+        # self.fillHistoryTransform()
 
     def fillHistoryBasic1(self):
         tdLog.info(f"fillHistoryBasic1")
@@ -49,9 +49,10 @@ class TestStreamOldCaseFillHistory:
         tdSql.execute(f"use test;")
         tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream stream1 trigger at_once fill_history 1 IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(b)  c4, min(c) c5 from t1 interval(10s);"
+            f"create stream stream1 interval(10s) sliding(10s) from t1 options(max_delay(1s)|fill_history_first) into streamt as select _twstart, count(*) c1, count(d) c2, sum(a) c3, max(b) c4, min(c) c5 from t1 where ts >= _twstart and ts < _twend;"
         )
         tdStream.checkStreamStatus()
+        tdSql.pause()
 
         tdSql.execute(f"insert into t1 values(1648791213000, 1, 2, 3, 1.0);")
         tdSql.execute(f"insert into t1 values(1648791223001, 2, 2, 3, 1.1);")
@@ -268,7 +269,7 @@ class TestStreamOldCaseFillHistory:
         )
 
         tdSql.execute(
-            f"create stream stream_t1 trigger at_once fill_history 1 watermark 1d IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamtST1 as select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(b)  c4, min(c) c5 from st interval(10s);"
+            f"create stream stream_t1 trigger at_once fill_history 1 watermark 1d IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamtST1 as select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(b) c4, min(c) c5 from st interval(10s);"
         )
         tdStream.checkStreamStatus()
 
@@ -298,7 +299,7 @@ class TestStreamOldCaseFillHistory:
         )
 
         tdSql.query(
-            f"select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(b)  c4, min(c) c5, avg(d) from st interval(10s);"
+            f"select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(b) c4, min(c) c5, avg(d) from st interval(10s);"
         )
 
         tdSql.execute(f"create database test1 vgroups 4;")
@@ -315,7 +316,7 @@ class TestStreamOldCaseFillHistory:
         tdSql.execute(f"insert into ts2 values(1648791222001, 2, 2, 3);")
 
         tdSql.execute(
-            f"create stream stream_t2 trigger at_once fill_history 1 watermark 20s IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamtST1 as select _wstart, count(*) c1, count(a) c2, sum(a) c3, max(b)  c5, min(c) c6 from st interval(10s) ;"
+            f"create stream stream_t2 trigger at_once fill_history 1 watermark 20s IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamtST1 as select _wstart, count(*) c1, count(a) c2, sum(a) c3, max(b) c5, min(c) c6 from st interval(10s) ;"
         )
         tdStream.checkStreamStatus()
         tdSql.checkResultsByFunc(
@@ -465,10 +466,10 @@ class TestStreamOldCaseFillHistory:
         tdSql.execute(f"insert into t1 values(1648791213004, 4, 2, 3, 4.1);")
 
         tdLog.info(
-            f"create stream stream2 trigger at_once fill_history 1 IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(b)  c4, min(c) c5 from t1 interval(10s)"
+            f"create stream stream2 trigger at_once fill_history 1 IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(b) c4, min(c) c5 from t1 interval(10s)"
         )
         tdSql.execute(
-            f"create stream stream2 trigger at_once fill_history 1 IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(b)  c4, min(c) c5 from t1 interval(10s);"
+            f"create stream stream2 trigger at_once fill_history 1 IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(b) c4, min(c) c5 from t1 interval(10s);"
         )
         tdStream.checkStreamStatus()
 

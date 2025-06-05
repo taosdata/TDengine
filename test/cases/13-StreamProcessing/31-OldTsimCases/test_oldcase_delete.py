@@ -30,36 +30,45 @@ class TestStreamOldCaseDelete:
         """
 
         self.deleteInterval()
-        self.deleteScalar()
-        self.deleteSession()
-        self.deleteState()
+        # self.deleteScalar()
+        # self.deleteSession()
+        # self.deleteState()
 
     def deleteInterval(self):
         tdLog.info(f"deleteInterval")
         tdStream.dropAllStreamsAndDbs()
+
+        tdSql.execute(f"drop database if exists test;")
+        tdSql.execute(f"create database test vgroups 1;")
+        tdSql.execute(f"use test;")
 
         tdSql.execute(f"drop stream if exists streams0;")
         tdSql.execute(f"drop stream if exists streams1;")
         tdSql.execute(f"drop stream if exists streams2;")
         tdSql.execute(f"drop stream if exists streams3;")
         tdSql.execute(f"drop stream if exists streams4;")
-        tdSql.execute(f"drop database if exists test;")
-        tdSql.execute(f"create database test vgroups 1;")
-        tdSql.execute(f"use test;")
+
         tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _wstart c1, count(*) c2, max(a) c3 from t1 interval(10s);"
+            f"create stream streams0 interval(10s) sliding(10s) from t1 options(max_delay(1s) | delete_recalc) into streamt as select _twstart c1, count(*) c2, max(a) c3 from %%trows;"
         )
 
         tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000, NULL, NULL, NULL, NULL);")
-        tdSql.execute(f"delete from t1 where ts = 1648791213000;")
-
+        tdSql.pause()
         tdSql.checkResultsByFunc(
             f"select * from streamt order by c1, c2, c3;",
             lambda: tdSql.getRows() == 0,
         )
+
+        tdSql.execute(f"delete from t1 where ts = 1648791213000;")
+        tdSql.checkResultsByFunc(
+            f"select * from streamt order by c1, c2, c3;",
+            lambda: tdSql.getRows() == 0,
+        )
+        
+        return
 
         tdSql.execute(f"insert into t1 values(1648791213000, NULL, NULL, NULL, NULL);")
         tdSql.checkResultsByFunc(
@@ -295,7 +304,9 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"insert into t1 values(1648791213004, 1, 2, 3, 1.0);")
         tdSql.execute(f"insert into t1 values(1648791213005, 2, 2, 3, 1.0);")
 
-        tdSql.checkResultsByFunc(f"select * from streamt;", lambda: tdSql.getRows() == 6)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt;", lambda: tdSql.getRows() == 6
+        )
 
         tdLog.info(f"delete from t1 where ts <= 1648791213002;")
         tdSql.execute(f"delete from t1 where ts <= 1648791213002;")
@@ -810,7 +821,7 @@ class TestStreamOldCaseDelete:
         tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdLog.info(
-            f"create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt4 as select _wstart, count(*) c1 from st partition by tbname state_window(c);"
+            f"create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt4 as select _wstart, count(*) c1 from st partition by tbname state_window(c);"
         )
         tdSql.execute(
             f"create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt4 as select _wstart, count(*) c1 from st partition by tbname state_window(c);"

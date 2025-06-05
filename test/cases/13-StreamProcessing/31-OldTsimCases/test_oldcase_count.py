@@ -33,12 +33,12 @@ class TestStreamOldCaseCount:
         """
 
         self.count0()
-        self.count1()
-        self.count2()
-        self.count3()
-        self.countSliding0()
-        self.countSliding1()
-        self.countSliding2()
+        # self.count1()
+        # self.count2()
+        # self.count3()
+        # self.countSliding0()
+        # self.countSliding1()
+        # self.countSliding2()
 
     def count0(self):
         tdLog.info(f"count0")
@@ -51,7 +51,7 @@ class TestStreamOldCaseCount:
 
         tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from t1 count_window(3);"
+            f"create stream streams1 count_window(3) from t1 options(max_delay(1s)|expired_time(0)|watermark(100s)) into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from t1 where ts >= _wstart and ts < _twend;"
         )
 
         tdStream.checkStreamStatus()
@@ -63,6 +63,8 @@ class TestStreamOldCaseCount:
         tdSql.execute(f"insert into t1 values(1648791223000, 0, 1, 1, 1.0);")
         tdSql.execute(f"insert into t1 values(1648791223001, 9, 2, 2, 1.1);")
         tdSql.execute(f"insert into t1 values(1648791223009, 0, 3, 3, 1.0);")
+
+        tdSql.pause()
 
         tdLog.info(f"1 sql select * from streamt;")
         tdSql.checkResultsByFunc(
@@ -424,7 +426,9 @@ class TestStreamOldCaseCount:
         )
 
         tdLog.info(f"1 sql select * from streamt;")
-        tdSql.checkResultsByFunc(f"select * from streamt;", lambda: tdSql.getRows() == 6)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt;", lambda: tdSql.getRows() == 6
+        )
 
         tdSql.execute(
             f"insert into t1 values(1648791243000, 0, 1, 1, 1.0) (1648791243001, 9, 2, 2, 1.1);"

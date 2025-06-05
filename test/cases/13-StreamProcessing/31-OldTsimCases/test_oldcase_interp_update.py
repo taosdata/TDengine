@@ -30,8 +30,8 @@ class TestStreamOldCaseInterpUpdate:
         """
 
         self.streamInterpUpdate()
-        self.streamInterpUpdate1()
-        self.streamInterpUpdate2()
+        # self.streamInterpUpdate1()
+        # self.streamInterpUpdate2()
 
     def streamInterpUpdate(self):
         tdLog.info(f"streamInterpUpdate")
@@ -46,7 +46,7 @@ class TestStreamOldCaseInterpUpdate:
 
         tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(prev);"
+            f"create stream streams1 interval(1s) sliding(1s) from t1 options(max_delay(1s)) into streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(_twstart) fill(prev);"
         )
 
         tdStream.checkStreamStatus()

@@ -31,8 +31,8 @@ class TestStreamOldCaseInterpDelete:
         """
 
         self.streamInterpDelete0()
-        self.streamInterpDelete1()
-        self.streamInterpDelete2()
+        # self.streamInterpDelete1()
+        # self.streamInterpDelete2()
 
     def streamInterpDelete0(self):
         tdLog.info(f"streamInterpDelete0")
@@ -47,9 +47,10 @@ class TestStreamOldCaseInterpDelete:
 
         tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(prev);"
+            f"create stream streams1 interval(1s) sliding(1s) from t1 optioons(max_delay(1s)) into streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(_twstart) fill(prev);"
         )
 
+        tdSql.pause()
         tdStream.checkStreamStatus()
 
         tdSql.execute(

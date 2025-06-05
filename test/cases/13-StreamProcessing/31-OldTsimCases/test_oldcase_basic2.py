@@ -472,10 +472,10 @@ class TestStreamOldCaseBasic2:
         tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.execute(
-            f"create stream streams11 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 interval(10s, 5s);"
+            f"create stream streams11 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 interval(10s, 5s);"
         )
         tdSql.execute(
-            f"create stream streams12 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt2 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st interval(10s, 5s);"
+            f"create stream streams12 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt2 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st interval(10s, 5s);"
         )
 
         tdStream.checkStreamStatus()
@@ -534,10 +534,10 @@ class TestStreamOldCaseBasic2:
         tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.execute(
-            f"create stream streams21 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt21 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 interval(10s, 5s);"
+            f"create stream streams21 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt21 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 interval(10s, 5s);"
         )
         tdSql.execute(
-            f"create stream streams22 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt22 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st interval(10s, 5s);"
+            f"create stream streams22 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt22 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st interval(10s, 5s);"
         )
 
         tdStream.checkStreamStatus()
@@ -592,7 +592,7 @@ class TestStreamOldCaseBasic2:
         tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.execute(
-            f"create stream streams23 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt23 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st interval(20s) sliding(10s);"
+            f"create stream streams23 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt23 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st interval(20s) sliding(10s);"
         )
 
         tdStream.checkStreamStatus()
@@ -649,7 +649,7 @@ class TestStreamOldCaseBasic2:
         tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.execute(
-            f"create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt4 as select _twstart as ts, count(*), min(a) c1 from st interval(10s) sliding(5s);"
+            f"create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt4 as select _twstart as ts, count(*), min(a) c1 from st interval(10s) sliding(5s);"
         )
 
         tdStream.checkStreamStatus()

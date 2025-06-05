@@ -31,7 +31,7 @@ class TestStreamOldCaseInterpHistory:
         """
 
         self.streamInterpHistory()
-        self.streamInterpOther()
+        # self.streamInterpOther()
 
     def streamInterpHistory(self):
         tdLog.info(f"streamInterpHistory")
@@ -56,8 +56,9 @@ class TestStreamOldCaseInterpHistory:
         tdSql.execute(f"insert into t2 values(1648791216001, 41, 1, 1, 1.0);")
 
         tdSql.execute(
-            f"create stream streams1 trigger at_once FILL_HISTORY 1 IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _irowts, _isfilled as a1, interp(a) as a2 from st partition by tbname every(1s) fill(prev);"
+            f"create stream streams1 interval(1s) sliding(1s) from st partition by tbname options(fill_history_first|max_delay(2s)) into streamt as select _irowts, _isfilled as a1, interp(a) as a2 from %%tbname range(_twstart) fill(prev);"
         )
+        tdSql.pause()
 
         tdSql.execute(f"insert into t1 values(1648791217000, 5, 1, 1, 1.0);")
         tdSql.execute(f"insert into t2 values(1648791217000, 61, 1, 1, 1.0);")

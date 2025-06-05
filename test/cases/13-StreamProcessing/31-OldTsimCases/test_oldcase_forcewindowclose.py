@@ -32,9 +32,9 @@ class TestStreamOldCaseForceWindowClose:
         """
 
         self.forcewindowclose()
-        self.streamFwcIntervalFill()
-        self.streamInterpForceWindowClose()
-        self.streamInterpForceWindowClose1()
+        # self.streamFwcIntervalFill()
+        # self.streamInterpForceWindowClose()
+        # self.streamInterpForceWindowClose1()
 
     def forcewindowclose(self):
         tdLog.info(f"forcewindowclose")

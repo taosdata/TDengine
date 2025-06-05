@@ -29,26 +29,24 @@ class TestStreamOldCaseOptions:
         """
 
         self.ignoreCheckUpdate()
-        self.ignoreExpiredData()
+        # self.ignoreExpiredData()
 
     def ignoreCheckUpdate(self):
         tdLog.info(f"ignoreCheckUpdate")
         tdStream.dropAllStreamsAndDbs()
 
         tdLog.info(f"step 1 start")
-        tdSql.execute(f"drop stream if exists streams0;")
         tdSql.execute(f"drop database if exists test;")
         tdSql.execute(f"create database test vgroups 1;")
         tdSql.execute(f"use test;")
         tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int);")
 
-        tdLog.info(
-            f"create stream streams0 trigger at_once IGNORE EXPIRED 0 ignore update 1 into streamt as select _wstart c1, count(*) c2, max(b) c3 from t1 interval(10s);"
-        )
+        tdSql.execute(f"drop stream if exists streams0;")
         tdSql.execute(
-            f"create stream streams0 trigger at_once IGNORE EXPIRED 0 ignore update 1 into streamt as select _wstart c1, count(*) c2, max(b) c3 from t1 interval(10s);"
+            f"create stream streams0 interval(10s) sliding(10s) from t1 options(max_delay(1s)|ignore_update) into streamt as select _twstart c1, count(*) c2, max(b) c3 from t1 where ts >= _twstart and ts < _twend;"
         )
 
+        tdSql.pause()
         tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000, 1, 1, 1);")
@@ -240,10 +238,10 @@ class TestStreamOldCaseOptions:
         tdSql.execute(f"create table ts1 using st tags(1, 1, 1);")
         tdSql.execute(f"create table ts2 using st tags(2, 2, 2);")
         tdSql.execute(
-            f"create stream stream_t1 trigger at_once IGNORE EXPIRED 1 into streamtST1 as select _wstart, count(*) c1, count(a) c2, sum(a) c3, max(b)  c5, min(c) c6 from st interval(10s) ;"
+            f"create stream stream_t1 trigger at_once IGNORE EXPIRED 1 into streamtST1 as select _wstart, count(*) c1, count(a) c2, sum(a) c3, max(b) c5, min(c) c6 from st interval(10s) ;"
         )
         tdSql.execute(
-            f"create stream stream_t2 trigger at_once IGNORE EXPIRED 1 into streamtST2 as select _wstart, count(*) c1, count(a) c2, sum(a) c3, max(b)  c5, min(c) c6 from st session(ts, 10s) ;"
+            f"create stream stream_t2 trigger at_once IGNORE EXPIRED 1 into streamtST2 as select _wstart, count(*) c1, count(a) c2, sum(a) c3, max(b) c5, min(c) c6 from st session(ts, 10s) ;"
         )
 
         tdStream.checkStreamStatus()

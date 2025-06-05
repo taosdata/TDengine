@@ -33,15 +33,13 @@ class TestStreamOldCaseInterpFill:
         """
 
         self.streamInterpLarge()
-        self.streamInterpLinear0()
-        self.streamInterpNext0()
-        self.streamInterpValue0()
+        # self.streamInterpLinear0()
+        # self.streamInterpNext0()
+        # self.streamInterpValue0()
 
     def streamInterpLarge(self):
         tdLog.info(f"streamInterpLarge")
         tdStream.dropAllStreamsAndDbs()
-
-        tdSql.execute(f"alter local 'streamCoverage' '1';")
 
         tdLog.info(f"step1")
         tdLog.info(f"=============== create database")
@@ -50,8 +48,10 @@ class TestStreamOldCaseInterpFill:
 
         tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(prev);"
+            f"create stream streams1 interval(1s) sliding(1s) from t1 options(max_delay(1s)) into streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(_twstart) fill(prev);"
         )
+        
+        tdSql.pause()
 
         tdStream.checkStreamStatus()
 

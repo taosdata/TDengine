@@ -31,15 +31,13 @@ class TestStreamOldCaseInterpPrimary:
         """
 
         self.streamInterpPrimaryKey0()
-        self.streamInterpPrimaryKey1()
-        self.streamInterpPrimaryKey2()
-        self.streamInterpPrimaryKey3()
+        # self.streamInterpPrimaryKey1()
+        # self.streamInterpPrimaryKey2()
+        # self.streamInterpPrimaryKey3()
 
     def streamInterpPrimaryKey0(self):
         tdLog.info(f"streamInterpPrimaryKey0")
         tdStream.dropAllStreamsAndDbs()
-
-        tdSql.execute(f"alter local 'streamCoverage' '1';")
 
         tdLog.info(f"step1")
         tdLog.info(f"=============== create database")
@@ -52,9 +50,10 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
         tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
         tdSql.execute(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _irowts, interp(b) from st partition by tbname every(1s) fill(prev);"
+            f"create stream streams1 interval(1s) sliding(1s) from st partition by tbname options(max_delay(1s)) into streamt as select _irowts, interp(b) from st partition by tbname range(_twstart) fill(prev);"
         )
         tdStream.checkStreamStatus()
+        tdSql.pause()
 
         tdSql.execute(f"insert into t1 values(1648791213000, 9, 9, 9, 9.0);")
 

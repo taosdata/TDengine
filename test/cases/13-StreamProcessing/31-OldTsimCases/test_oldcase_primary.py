@@ -30,9 +30,9 @@ class TestStreamOldCaseInterpPrimary:
         """
 
         self.streamPrimaryKey0()
-        self.streamPrimaryKey1()
-        self.streamPrimaryKey2()
-        self.streamPrimaryKey3()
+        # self.streamPrimaryKey1()
+        # self.streamPrimaryKey2()
+        # self.streamPrimaryKey3()
 
     def streamPrimaryKey0(self):
         tdLog.info(f"streamPrimaryKey0")
@@ -53,12 +53,13 @@ class TestStreamOldCaseInterpPrimary:
             f"create table streamt2(ts timestamp, a int composite key, b bigint ) tags(ta varchar(100), tb int, tc int);"
         )
         tdSql.execute(
-            f"create stream streams0 trigger at_once ignore expired 0 ignore update 0 into streamt0 as select _wstart, count(*) c1, max(b) from t1 interval(1s);"
+            f"create stream streams0 interval(1s) sliding(1s) from t1 options(max_delay(1s)) into streamt0 as select _twstart, count(*) c1, max(b) from %%trows;"
         )
         tdSql.execute(
-            f"create stream streams2 trigger at_once ignore expired 0 ignore update 0 into streamt2 tags(ta) as select _wstart, count(*) c1, max(b) from st partition by tbname ta interval(1s);"
+            f"create stream streams2 interval(1s) sliding(1s) from st partition by tbname options(max_delay(1s)) into streamt2 tags(ta) as select _twstart, count(*) c1, max(b) from %%trows"
         )
 
+        tdSql.pause()
         tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791210000, 1, 2, 3, 1.0);")

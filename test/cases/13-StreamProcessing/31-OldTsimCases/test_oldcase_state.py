@@ -34,6 +34,7 @@ class TestStreamOldCaseState:
     def state0(self):
         tdLog.info(f"state0")
         tdStream.dropAllStreamsAndDbs()
+        tdStream.createSnode()
 
         tdLog.info(f"=============== create database")
         tdSql.execute(f"create database test vgroups 1 buffer 16;")
@@ -43,7 +44,7 @@ class TestStreamOldCaseState:
             f"create table t1(ts timestamp, a int, b int, c int, d double, id int);"
         )
 
-        sql = "create stream streams1 state_window(a) from t1 options(max_delay(1s)) into streamt1 as select _twstart, count(*) c1, count(d) c2, sum(a) c3, max(a)  c4, min(c) c5, max(id) c from t1 where ts >= _twstart and ts < _twend;"
+        sql = "create stream streams1 state_window(a) from t1 options(max_delay(1s)) into streamt1 as select _twstart, count(*) c1, count(d) c2, sum(a) c3, max(a) c4, min(c) c5, max(id) c from t1 where ts >= _twstart and ts < _twend;"
         tdLog.info(sql)
         tdSql.execute(sql)
 
@@ -178,11 +179,11 @@ class TestStreamOldCaseState:
         )
 
         tdLog.info(
-            f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt1 as select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(a)  c4, min(c) c5, max(id) c from t1 state_window(a);"
+            f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt1 as select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(a) c4, min(c) c5, max(id) c from t1 state_window(a);"
         )
 
         tdSql.execute(
-            f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt1 as select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(a)  c4, min(c) c5, max(id) c from t1 state_window(a);"
+            f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt1 as select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(a) c4, min(c) c5, max(id) c from t1 state_window(a);"
         )
 
         tdStream.checkStreamStatus()
@@ -207,11 +208,11 @@ class TestStreamOldCaseState:
         )
 
         tdLog.info(
-            f"create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt3 as select _wstart, count(*) c1, sum(b) c3 from t1 state_window(a);"
+            f"create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt3 as select _wstart, count(*) c1, sum(b) c3 from t1 state_window(a);"
         )
 
         tdSql.execute(
-            f"create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt3 as select _wstart, count(*) c1, sum(b) c3 from t1 state_window(a);"
+            f"create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt3 as select _wstart, count(*) c1, sum(b) c3 from t1 state_window(a);"
         )
 
         tdStream.checkStreamStatus()
@@ -393,10 +394,10 @@ class TestStreamOldCaseState:
             f"create table t1(ts timestamp, a int, b int, c int, d double, id int);"
         )
         tdLog.info(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt1 as select _wstart, count(*) c1 from t1 state_window(a);"
+            f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt1 as select _wstart, count(*) c1 from t1 state_window(a);"
         )
         tdSql.execute(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt1 as select _wstart, count(*) c1 from t1 state_window(a);"
+            f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt1 as select _wstart, count(*) c1 from t1 state_window(a);"
         )
         tdStream.checkStreamStatus()
 

@@ -41,6 +41,7 @@ class TestStreamOldCaseBasic1:
     def stream_basic_0(self):
         tdLog.info(f"stream_basic_0")
         tdStream.dropAllStreamsAndDbs()
+        tdStream.createSnode()
 
         tdLog.info(f"=============== create database")
         tdSql.execute(f"create database d0 vgroups 1")
@@ -122,7 +123,7 @@ class TestStreamOldCaseBasic1:
 
         tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(b)  c4, min(c) c5 from t1 interval(10s);"
+            f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(b) c4, min(c) c5 from t1 interval(10s);"
         )
         tdStream.checkStreamStatus("streams1")
 

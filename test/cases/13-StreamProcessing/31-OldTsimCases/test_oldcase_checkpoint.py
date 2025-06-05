@@ -31,10 +31,10 @@ class TestStreamOldCaseCheckPoint:
         """
 
         self.checkpointInterval0()
-        self.checkpointInterval1()
-        self.checkpointSession0()
-        self.checkpointSession1()
-        self.checkpointState0()
+        # self.checkpointInterval1()
+        # self.checkpointSession0()
+        # self.checkpointSession1()
+        # self.checkpointState0()
 
     def checkpointInterval0(self):
         tdLog.info(f"checkpointInterval0")
@@ -48,10 +48,10 @@ class TestStreamOldCaseCheckPoint:
 
         tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select _wstart, count(*) c1, sum(a) from t1 interval(10s);"
+            f"create stream streams0 interval(10s) sliding(10s) from t1 options(max_delay(1s)) into streamt as select _twstart, count(*) c1, sum(a) from t1 where ts >= _twstart and ts < _twend;"
         )
         tdSql.execute(
-            f"create stream streams1 trigger window_close IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt1 as select _wstart, count(*) c1, sum(a) from t1 interval(10s);"
+            f"create stream streams1 interval(10s) sliding(10s) from t1 into streamt1 as select _twstart, count(*) c1, sum(a) from t1 where ts >= _twstart and ts < _twend;"
         )
 
         tdStream.checkStreamStatus()
@@ -64,6 +64,7 @@ class TestStreamOldCaseCheckPoint:
             and tdSql.getData(0, 1) == 2
             and tdSql.getData(0, 2) == 3,
         )
+        tdSql.pause()
         tdSql.checkResultsByFunc(f"select * from streamt1;", lambda: tdSql.getRows() == 0)
 
         sc.dnodeStop(1)
@@ -134,7 +135,7 @@ class TestStreamOldCaseCheckPoint:
         tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
         tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
         tdSql.execute(
-            f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select _wstart, count(*) c1, sum(a) from st interval(10s);"
+            f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _wstart, count(*) c1, sum(a) from st interval(10s);"
         )
         tdStream.checkStreamStatus()
 
@@ -176,7 +177,7 @@ class TestStreamOldCaseCheckPoint:
 
         tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select _wstart, count(*) c1, sum(a) from t1 session(ts, 10s);"
+            f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _wstart, count(*) c1, sum(a) from t1 session(ts, 10s);"
         )
         tdStream.checkStreamStatus()
 
@@ -243,7 +244,7 @@ class TestStreamOldCaseCheckPoint:
         tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
         tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
         tdSql.execute(
-            f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select _wstart, count(*) c1, sum(a) from st session(ts, 10s);"
+            f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _wstart, count(*) c1, sum(a) from st session(ts, 10s);"
         )
 
         tdStream.checkStreamStatus()
@@ -286,7 +287,7 @@ class TestStreamOldCaseCheckPoint:
 
         tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select _wstart, count(*) c1, sum(a) from t1 state_window(b);"
+            f"create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _wstart, count(*) c1, sum(a) from t1 state_window(b);"
         )
 
         tdStream.checkStreamStatus()

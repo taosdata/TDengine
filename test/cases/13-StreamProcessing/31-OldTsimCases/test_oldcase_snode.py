@@ -36,7 +36,6 @@ class TestStreamOldCaseSnode:
 
         tdSql.execute(f"create database test vgroups 2;")
         tdSql.execute(f"create database target vgroups 1;")
-
         tdSql.execute(f"create snode on dnode 1")
 
         tdSql.execute(f"use test;")
@@ -48,7 +47,7 @@ class TestStreamOldCaseSnode:
         tdSql.execute(f"create table ts3 using st tags(3, 2, 2);")
         tdSql.execute(f"create table ts4 using st tags(4, 2, 2);")
         tdSql.execute(
-            f"create stream stream_t1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into target.streamtST1 as select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(b)  c4, min(c) c5 from st interval(10s);"
+            f"create stream stream_t1 interval(10s) sliding(10s) from st options(max_delay(1s)) into target.streamtST1 as select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(b) c4, min(c) c5 from %%trows"
         )
         tdStream.checkStreamStatus()
 
@@ -138,5 +137,5 @@ class TestStreamOldCaseSnode:
         )
 
         tdSql.query(
-            f"select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(b)  c4, min(c) c5, avg(d) from st interval(10s);"
+            f"select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(b) c4, min(c) c5, avg(d) from st interval(10s);"
         )
