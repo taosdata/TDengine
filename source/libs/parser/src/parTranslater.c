@@ -13418,6 +13418,9 @@ _return:
 
 static int32_t createStreamReqBuildTriggerTable(STranslateContext* pCxt, SRealTableNode* pTriggerTable, STableMeta* pMeta, SCMCreateStreamReq* pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
+
+  PAR_ERR_RET(getTableVgId(pCxt, pTriggerTable->table.dbName, pTriggerTable->table.tableName, &pReq->triggerTblVgId));
+
   pReq->triggerDB = taosMemoryMalloc(TSDB_DB_FNAME_LEN);
   pReq->triggerTblName = taosStrdup(pTriggerTable->table.tableName);
   if (NULL == pReq->triggerDB || NULL == pReq->triggerTblName) {
@@ -13487,7 +13490,6 @@ static int32_t createStreamReqBuildTriggerCountWindow(STranslateContext* pCxt, S
   PAR_ERR_RET(checkCountWindow(pCxt, pTriggerWindow));
   pReq->trigger.count.sliding = pTriggerWindow->windowSliding;
   pReq->trigger.count.countVal = pTriggerWindow->windowCount;
-  PAR_ERR_RET(nodesListToString(pTriggerWindow->pColList, false, (char**)&pReq->trigger.count.condCols, NULL));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -13783,6 +13785,35 @@ _return:
   return code;
 }
 
+static int32_t extractCondFromCountWindow(STranslateContext* pCxt, SCountWindowNode* pCountWindow, SNode** pCond) {
+  if (LIST_LENGTH(pCountWindow->pColList) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNodeList* pCondList = NULL;
+  SNode*     pNode = NULL;
+  SNode*     pLogicCond = NULL;
+
+  FOREACH(pNode, pCountWindow->pColList) {
+    if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+      SColumnNode* pCol = (SColumnNode*)pNode;
+      SNode*       pNameCond = NULL;
+      PAR_ERR_RET(createOperatorNode(OP_TYPE_IS_NOT_NULL, pCol->colName, (SNode*)pCol, &pNameCond));
+      PAR_ERR_RET(nodesListMakeAppend(&pCondList, pNameCond));
+    } else {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
+                                     "COUNT_WINDOW has invalid col name input");
+    }
+  }
+
+  PAR_ERR_RET(nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, &pLogicCond));
+  ((SLogicConditionNode*)pLogicCond)->pParameterList = pCondList;
+  ((SLogicConditionNode*)pLogicCond)->condType = LOGIC_COND_TYPE_OR;
+
+  *pCond = pLogicCond;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t createSimpleSelectStmtFromCols(const char* pDb, const char* pTable, int32_t numOfProjs, const char* const pProjCol[], SSelectStmt** pStmt);
 static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStreamStmt* pStmt,
                                            SStreamTriggerNode* pTrigger, SCMCreateStreamReq* pReq,
@@ -13799,6 +13830,14 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
     PAR_ERR_JRET(translateExpr(pCxt, &pTriggerWindow));
     PAR_RET(createStreamReqBuildTriggerWindow(pCxt, pTriggerWindow, NULL, pReq));
   }
+
+  if (pTriggerWindow->type == QUERY_NODE_COUNT_WINDOW) {
+    SCountWindowNode *pCountWindow = (SCountWindowNode*)pTriggerWindow;
+    SNode*            pLogicCond = NULL;
+    PAR_ERR_JRET(extractCondFromCountWindow(pCxt, pCountWindow, &pLogicCond));
+    PAR_ERR_JRET(nodesMergeNode(&pTriggerFilter, &pLogicCond));
+  }
+
   PAR_ERR_JRET(getTableMeta(pCxt, pTriggerTable->table.dbName, pTriggerTable->table.tableName, &pTriggerTableMeta));
 
   switch (pTriggerTableMeta->tableType) {
@@ -13817,7 +13856,6 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
       PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY));
   }
 
-  PAR_ERR_JRET(getTableVgId(pCxt, pTriggerTable->table.dbName, pTriggerTable->table.tableName, &pReq->triggerTblVgId));
   PAR_ERR_JRET(createStreamReqBuildTriggerTable(pCxt, pTriggerTable, pTriggerTableMeta, pReq));
   PAR_ERR_JRET(createSimpleSelectStmtFromCols(pTriggerTable->table.dbName, pTriggerTable->table.tableName, 0, NULL, pTriggerSelect));
 
