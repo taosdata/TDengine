@@ -13306,19 +13306,6 @@ static int32_t createStreamCheckOutCols(STranslateContext* pCxt, SNodeList* pCol
     return code;
   }
 
-  if (pMeta == NULL) {
-    // only check primary key
-    FOREACH(pNode, pCols) {
-      SColumnDefNode* pColDef = (SColumnDefNode*)pNode;
-      SColumnOptions* pColOptions = (SColumnOptions*)pColDef->pOptions;
-      if (colIndex != PRIMARYKEY_TIMESTAMP_COL_ID && pColOptions && pColOptions->bPrimaryKey) {
-        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SECOND_COL_PK);
-      }
-      colIndex++;
-    }
-    return code;
-  }
-
   if (LIST_LENGTH(pCols) != pMeta->tableInfo.numOfColumns) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                    "Out table cols count mismatch");
@@ -13370,7 +13357,6 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                        "Out super table no tags or cols");
       }
-      PAR_ERR_JRET(createStreamCheckOutCols(pCxt, pStmt->pCols, NULL));
     } else {
       // create normal table
       pReq->outStbExists = false;
@@ -13385,7 +13371,6 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                        "Out normal table no out cols");
       }
-      PAR_ERR_JRET(createStreamCheckOutCols(pCxt, pStmt->pCols, NULL));
     }
     code = TSDB_CODE_SUCCESS;
   } else if (TSDB_CODE_SUCCESS == code) {
@@ -13417,6 +13402,7 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
     PAR_ERR_JRET(code);
   }
 
+  PAR_ERR_JRET(checkTableSchemaImpl(pCxt, pStmt->pTags, pStmt->pCols, NULL));
   if (pReq->outTblType == TSDB_SUPER_TABLE) {
     PAR_ERR_JRET(streamTagDefNodeToField(pStmt->pTags, &pReq->outTags, false));
     PAR_ERR_JRET(createStreamReqBuildStreamTagExprStr(pCxt, pStmt->pTags, ((SStreamTriggerNode*)pStmt->pTrigger)->pPartitionList, pTriggerSlotHash, (char**)&pReq->tagValueExpr));
