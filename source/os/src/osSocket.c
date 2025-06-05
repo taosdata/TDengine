@@ -757,7 +757,7 @@ int32_t taosSetSockOpt2(int32_t fd) {
 int32_t taosValidFqdn(int8_t enableIpv6, char *fqdn) {
   int32_t code = 0;
   SIpAddr addr = {0};
-  code = taosGetIpv6FromFqdn(fqdn, &addr);
+  code = taosGetIpFromFqdn(enableIpv6, fqdn, &addr);
   if (code != 0) {
     return code;
   }
