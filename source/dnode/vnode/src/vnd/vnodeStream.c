@@ -554,7 +554,8 @@ int32_t scanWalOneVer(SVnode* pVnode, void* pTableList, SSDataBlock* pBlock, SSD
       continue;
     }
     STREAM_CHECK_RET_GOTO(retrieveWalData(pSubmitTbData, pTableList, pBlock, schemas, window));
-    printDataBlock(pBlock, "wal data block", "task id");
+    printDataBlock(pBlock, __func__, "");
+
     blockDataMerge(pBlockRet, pBlock);
     blockDataCleanup(pBlock);
   }
@@ -671,7 +672,7 @@ static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStre
   STREAM_CHECK_RET_GOTO(processTag(pVnode, pExpr, numOfExpr, &api, pBlock2));
 
   STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock2, pFilterInfo));
-  printDataBlock(pBlock2, "wal data block filter", "task id");
+  printDataBlock(pBlock2, __func__, "");
 
   *pBlock = pBlock2;
   pBlock2 = NULL;
@@ -750,7 +751,7 @@ static int32_t processWalVerDataVTable(SVnode* pVnode, SArray *cids, int64_t ver
   pBlock1->info.id.uid = uid;
 
   STREAM_CHECK_RET_GOTO(scanWalOneVer(pVnode, pTableList, pBlock1, pBlock2, sSchema, ver, uid, window));
-  printDataBlock(pBlock2, "wal data block filter", "task id");
+  printDataBlock(pBlock2, __func__, "");
 
   *pBlock = pBlock2;
   pBlock2 = NULL;
@@ -1719,6 +1720,7 @@ static int32_t vnodeProcessStreamWalMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
 
   stDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
   STREAM_CHECK_RET_GOTO(buildRsp(pBlock, &buf, &size));
+  printDataBlock(pBlock, __func__, "");
 
 end:
   PRINT_LOG_END(code, lino);
@@ -1810,7 +1812,7 @@ static int32_t vnodeProcessStreamWalCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg, S
                                           req->walCalcDataReq.uid, &window, &pBlock));
 
   stDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
-  printDataBlock(pBlock, "wal calc block", "task id");
+  printDataBlock(pBlock, __func__, "");
   STREAM_CHECK_RET_GOTO(buildRsp(pBlock, &buf, &size));
 
 end:
@@ -2095,7 +2097,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   while (1) {
     uint64_t ts = 0;
     STREAM_CHECK_RET_GOTO(qExecTask(sStreamReaderCalcInfo->pTaskInfo, &pBlock, &ts));
-    printDataBlock(pBlock, "calc fetch block", "task id");
+    printDataBlock(pBlock, __func__, "");
 
     if (req.pStRtFuncInfo->withExternalWindow && pBlock != NULL) {
       STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, sStreamReaderCalcInfo->pFilterInfo));
@@ -2123,10 +2125,10 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   SSTriggerPullRequestUnion req = {0};
 
   vDebug("vgId:%d, msg:%p in stream reader queue is processing", pVnode->config.vgId, pMsg);
-  // if (!syncIsReadyForRead(pVnode->sync)) {
-  // vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
-  // return 0;
-  // }
+  if (!syncIsReadyForRead(pVnode->sync)) {
+    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
+    return 0;
+  }
 
   if (pMsg->msgType == TDMT_STREAM_FETCH) {
     return vnodeProcessStreamFetchMsg(pVnode, pMsg);
