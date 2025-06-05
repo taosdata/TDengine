@@ -744,6 +744,27 @@ TEST(dataSinkTest, testWriteFileSize) {
     code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
     ASSERT_EQ(code, 0);
   }
+
+  for (int32_t i = 0; i < 100000; i++) {
+    int64_t groupID = i;
+    TSKEY   wstart = baseTestTime1 + 0;
+    TSKEY   wend = baseTestTime1 + 100;
+    void*   pIter = NULL;
+    code = getStreamDataCache(pCache, groupID, wstart, wend, &pIter);
+    ASSERT_EQ(code, 0);
+    ASSERT_NE(pIter, nullptr);
+    SSDataBlock* pBlock1 = NULL;
+    code = getNextStreamDataCache(&pIter, &pBlock1);
+    ASSERT_EQ(code, 0);
+    ASSERT_NE(pBlock1, nullptr);
+    ASSERT_EQ(pIter, nullptr);
+    int rows = pBlock1->info.rows;
+    ASSERT_EQ(rows, 100);
+    bool equal = compareBlock(pBlock, pBlock1);
+    ASSERT_EQ(equal, true);
+    blockDataDestroy(pBlock1);
+  }
+
   blockDataDestroy(pBlock);
 
   destroyStreamDataCache(pCache);
