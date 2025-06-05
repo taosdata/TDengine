@@ -205,8 +205,7 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
     if (val != NULL) {
       pObj->optionInfo.userIp = taosInetAddr(val);
 
-      SIpAddr  addr = {0};
-      SIpRange ipUint = {0};
+      SIpAddr addr = {0};
       code = taosGetIpFromFqdn(tsEnableIpv6, val, &addr);
       if (code != 0) {
         goto END;

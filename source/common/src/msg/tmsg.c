@@ -45,6 +45,12 @@
 #include "tcol.h"
 #include "tlog.h"
 
+#if defined(WINDOWS)
+#include <IPHlpApi.h>
+#include <WS2tcpip.h>
+#include <Winsock2.h>
+#endif
+
 #define DECODESQL()                                                               \
   do {                                                                            \
     if (!tDecodeIsEnd(&decoder)) {                                                \
