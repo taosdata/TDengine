@@ -41,7 +41,7 @@ class TestStreamOldCaseConcat:
         tdLog.info(f"===== step2")
         tdLog.info(f"===== table name")
 
-        tdSql.execute(f"create database test  vgroups 4;")
+        tdSql.execute(f"create database test vgroups 4;")
         tdSql.execute(f"use test;")
         tdSql.execute(
             f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
@@ -73,34 +73,34 @@ class TestStreamOldCaseConcat:
         tdSql.error(
             f"create stream streams8 interval(10s) sliding(10s) from st into streamt8(a, b, c primary key) as select _twstart, count(*) c1, max(a) from st where ts >= _twstart and ts < _twend;"
         )
+        tdSql.error(
+            f"create stream streams9 interval(10s) sliding(10s) from st into streamt9(a primary key, b, c) as select _twstart, count(*) c1, max(a) from st where ts >= _twstart and ts < _twend;"
+        )
+        tdSql.error(
+            f"create stream streams10 interval(10s) sliding(10s) from st into streamt10(a, b primary key, c) as select count(*) c1, max(a), max(b) from st where ts >= _twstart and ts < _twend;"
+        )
+        tdSql.error(
+            f"create stream streams11 interval(10s) sliding(10s) from st into streamt11(a, b, a) as select _twstart, count(*) c1, max(b) from st where ts >= _twstart and ts < _twend;"
+        )
         return
-        tdSql.execute(
-            f"create stream streams9 interval(10s) sliding(10s) from st into streamt9(a primary key, b) as select count(*) c1, max(a) from st interval(10s);"
+        tdSql.error(
+            f"create stream streams12 interval(10s) sliding(10s) from st into streamt12(a, b, c) tags(c varchar(60)) as select count(*) c1, max(a), max(b) from st partition by tbname c where ts >= _twstart and ts < _twend;"
         )
         tdSql.error(
-            f"create stream streams10 interval(10s) sliding(10s) from st into streamt10(a, b primary key, c) as select count(*) c1, max(a), max(b) from st interval(10s);"
+            f"create stream streams13 interval(10s) sliding(10s) from st into streamt13(a, b, c) tags(tc varchar(60)) as select count(*) c1, max(a) c1, max(b) from st partition by tbname tc where ts >= _twstart and ts < _twend;"
         )
         tdSql.error(
-            f"create stream streams11 interval(10s) sliding(10s) from st into streamt11(a, b , a) as select count(*) c1, max(a), max(b) from st interval(10s);"
+            f"create stream streams14 interval(10s) sliding(10s) from st into streamt14 tags(tc varchar(60)) as select count(*) tc, max(a) c1, max(b) from st partition by tbname tc where ts >= _twstart and ts < _twend;"
         )
         tdSql.error(
-            f"create stream streams12 interval(10s) sliding(10s) from st into streamt12(a, b , c) tags(c varchar(60)) as select count(*) c1, max(a), max(b) from st partition by tbname c interval(10s);"
-        )
-        tdSql.error(
-            f"create stream streams13 interval(10s) sliding(10s) from st into streamt13(a, b , c) tags(tc varchar(60)) as select count(*) c1, max(a) c1, max(b) from st partition by tbname tc interval(10s);"
-        )
-        tdSql.error(
-            f"create stream streams14 interval(10s) sliding(10s) from st into streamt14 tags(tc varchar(60)) as select count(*) tc, max(a) c1, max(b) from st partition by tbname tc interval(10s);"
-        )
-        tdSql.error(
-            f"create stream streams15 interval(10s) sliding(10s) from st into streamt15 tags(tc varchar(100) primary key) as select _twstart, count(*) c1, max(a) from st partition by tbname tc interval(10s);"
+            f"create stream streams15 interval(10s) sliding(10s) from st into streamt15 tags(tc varchar(100) primary key) as select _twstart, count(*) c1, max(a) from st partition by tbname tc where ts >= _twstart and ts < _twend;"
         )
 
         tdSql.checkResultsByFunc(
             sql="desc streamt3;", func=lambda: tdSql.getRows() == 4
         )
 
-        tdSql.execute(f"create database test1  vgroups 4;")
+        tdSql.execute(f"create database test1 vgroups 4;")
         tdSql.execute(f"use test1;")
         tdSql.execute(
             f"create stable st(ts timestamp, a int primary key, b int, c int) tags(ta int,tb int,tc int);"
@@ -121,7 +121,7 @@ class TestStreamOldCaseConcat:
         tdLog.info(f"===== step2")
         tdLog.info(f"===== scalar")
         tdStream.dropAllStreamsAndDbs()
-        tdSql.execute(f"create database test2  vgroups 4;")
+        tdSql.execute(f"create database test2 vgroups 4;")
         tdSql.execute(f"use test2;")
         tdSql.execute(f"create table t1 (ts timestamp, a int, b int);")
         tdSql.execute(
@@ -139,10 +139,10 @@ class TestStreamOldCaseConcat:
             f"create stream streams19 trigger at_once ignore expired 0 ignore update 0 into streamt19 as select ts,a, b from t1;"
         )
         tdSql.execute(
-            f"create stream streams20 trigger at_once ignore expired 0 ignore update 0 into streamt20(ts, a primary key, b)  as select ts,a, b from t1;"
+            f"create stream streams20 trigger at_once ignore expired 0 ignore update 0 into streamt20(ts, a primary key, b) as select ts,a, b from t1;"
         )
         tdSql.execute(
-            f"create stream streams21 trigger at_once ignore expired 0 ignore update 0 into rst  as select ts,a, b from t1;"
+            f"create stream streams21 trigger at_once ignore expired 0 ignore update 0 into rst as select ts,a, b from t1;"
         )
         tdSql.error(
             f"create stream streams22 trigger at_once ignore expired 0 ignore update 0 into streamt22 as select ts,1, b from rct1;"
@@ -173,7 +173,7 @@ class TestStreamOldCaseConcat:
         tdLog.info(f"===== table name")
 
         tdSql.execute(f"create database result vgroups 1;")
-        tdSql.execute(f"create database test  vgroups 4;")
+        tdSql.execute(f"create database test vgroups 4;")
         tdSql.execute(f"use test;")
 
         tdSql.execute(
@@ -205,7 +205,7 @@ class TestStreamOldCaseConcat:
         tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"create database result2 vgroups 1;")
-        tdSql.execute(f"create database test2  vgroups 4;")
+        tdSql.execute(f"create database test2 vgroups 4;")
         tdSql.execute(f"use test2;")
 
         tdSql.execute(
@@ -247,7 +247,7 @@ class TestStreamOldCaseConcat:
         tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"create database result3 vgroups 1;")
-        tdSql.execute(f"create database test3  vgroups 4;")
+        tdSql.execute(f"create database test3 vgroups 4;")
         tdSql.execute(f"use test3;")
 
         tdSql.execute(
@@ -294,7 +294,7 @@ class TestStreamOldCaseConcat:
         tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"create database result4 vgroups 1;")
-        tdSql.execute(f"create database test4  vgroups 4;")
+        tdSql.execute(f"create database test4 vgroups 4;")
         tdSql.execute(f"use test4;")
 
         tdSql.execute(
@@ -354,7 +354,7 @@ class TestStreamOldCaseConcat:
 
         tdSql.execute(f"create database result6 vgroups 1;")
 
-        tdSql.execute(f"create database test6  vgroups 4;")
+        tdSql.execute(f"create database test6 vgroups 4;")
         tdSql.execute(f"use test6;")
 
         tdSql.execute(
@@ -389,7 +389,7 @@ class TestStreamOldCaseConcat:
         tdLog.info(f"===== table name")
 
         tdSql.execute(f"create database result vgroups 1;")
-        tdSql.execute(f"create database test  vgroups 4;")
+        tdSql.execute(f"create database test vgroups 4;")
         tdSql.execute(f"use test;")
 
         tdSql.execute(
@@ -399,7 +399,7 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"create table t2 using st tags(2,2,2);")
 
         tdSql.execute(
-            f'create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result.streamt SUBTABLE( concat("aaa-", cast(a as varchar(10) ) )  ) as select _twstart, count(*) c1 from st partition by a interval(10s);'
+            f'create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result.streamt SUBTABLE( concat("aaa-", cast(a as varchar(10) ) ) ) as select _twstart, count(*) c1 from st partition by a interval(10s);'
         )
 
         tdStream.checkStreamStatus()
@@ -463,7 +463,7 @@ class TestStreamOldCaseConcat:
         tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"create database result3 vgroups 1;")
-        tdSql.execute(f"create database test3  vgroups 4;")
+        tdSql.execute(f"create database test3 vgroups 4;")
         tdSql.execute(f"use test3;")
 
         tdSql.execute(
@@ -473,7 +473,7 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"create table t2 using st tags(2,2,2);")
 
         tdSql.execute(
-            f'create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result3.streamt3 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-",  cast(a as varchar(10) ) ) ) as select _twstart, count(*) c1 from st partition by concat("col-", cast(a as varchar(10) ) ) as dd, a interval(10s);'
+            f'create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result3.streamt3 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-", cast(a as varchar(10) ) ) ) as select _twstart, count(*) c1 from st partition by concat("col-", cast(a as varchar(10) ) ) as dd, a interval(10s);'
         )
 
         tdStream.checkStreamStatus()
@@ -510,7 +510,7 @@ class TestStreamOldCaseConcat:
         tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"create database result4 vgroups 1;")
-        tdSql.execute(f"create database test4  vgroups 4;")
+        tdSql.execute(f"create database test4 vgroups 4;")
         tdSql.execute(f"use test4;")
 
         tdSql.execute(
@@ -548,9 +548,9 @@ class TestStreamOldCaseConcat:
 
         tdLog.info(f"===== step6")
         tdStream.dropAllStreamsAndDbs()
-        tdSql.execute(f"create database test5  vgroups 4;")
+        tdSql.execute(f"create database test5 vgroups 4;")
         tdSql.execute(f"use test5;")
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int , c int, d double);")
+        tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
             f"create stable streamt5(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);"
         )
@@ -582,7 +582,7 @@ class TestStreamOldCaseConcat:
         tdLog.info(f"===== table name")
 
         tdSql.execute(f"create database result vgroups 1;")
-        tdSql.execute(f"create database test  vgroups 4;")
+        tdSql.execute(f"create database test vgroups 4;")
         tdSql.execute(f"use test;")
 
         tdSql.execute(
@@ -616,7 +616,7 @@ class TestStreamOldCaseConcat:
         tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"create database result2 vgroups 1;")
-        tdSql.execute(f"create database test2  vgroups 4;")
+        tdSql.execute(f"create database test2 vgroups 4;")
         tdSql.execute(f"use test2;")
 
         tdSql.execute(
@@ -654,7 +654,7 @@ class TestStreamOldCaseConcat:
         tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"create database result3 vgroups 1;")
-        tdSql.execute(f"create database test3  vgroups 4;")
+        tdSql.execute(f"create database test3 vgroups 4;")
         tdSql.execute(f"use test3;")
 
         tdSql.execute(
@@ -664,7 +664,7 @@ class TestStreamOldCaseConcat:
         tdSql.execute(f"create table t2 using st tags(2,2,2);")
 
         tdSql.execute(
-            f'create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result3.streamt3 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-",  "1") ) as select _twstart, count(*) c1 from st interval(10s);'
+            f'create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into result3.streamt3 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-", "1") ) as select _twstart, count(*) c1 from st interval(10s);'
         )
 
         tdStream.checkStreamStatus()
@@ -698,7 +698,7 @@ class TestStreamOldCaseConcat:
         tdStream.checkStreamStatus()
 
         tdSql.execute(f"create database result4 vgroups 1;")
-        tdSql.execute(f"create database test4  vgroups 1;")
+        tdSql.execute(f"create database test4 vgroups 1;")
         tdSql.execute(f"use test4;")
 
         tdSql.execute(
@@ -733,7 +733,7 @@ class TestStreamOldCaseConcat:
         tdStream.dropAllStreamsAndDbs()
 
         tdSql.execute(f"create database result5 vgroups 1;")
-        tdSql.execute(f"create database test5  vgroups 1;")
+        tdSql.execute(f"create database test5 vgroups 1;")
         tdSql.execute(f"use test5;")
 
         tdSql.execute(
