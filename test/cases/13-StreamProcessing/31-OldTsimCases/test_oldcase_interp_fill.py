@@ -32,6 +32,8 @@ class TestStreamOldCaseInterpFill:
 
         """
 
+        tdStream.createSnode()
+
         self.streamInterpLarge()
         # self.streamInterpLinear0()
         # self.streamInterpNext0()

@@ -30,6 +30,8 @@ class TestStreamOldCaseInterpHistory:
 
         """
 
+        tdStream.createSnode()
+
         self.streamInterpHistory()
         # self.streamInterpOther()
 

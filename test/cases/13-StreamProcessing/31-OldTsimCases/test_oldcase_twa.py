@@ -32,6 +32,8 @@ class TestStreamOldCaseTwa:
 
         """
 
+        tdStream.createSnode()
+
         self.streamTwaError()
         # self.streamTwaFwcFill()
         # self.streamTwaFwcFillPrimaryKey()

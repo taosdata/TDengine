@@ -27,6 +27,8 @@ class TestStreamOldCaseCheck:
 
         """
 
+        tdStream.createSnode()
+
         self.checkStreamSTable()
         # self.checkStreamSTable1()
 

@@ -30,6 +30,8 @@ class TestStreamOldCaseCheckPoint:
 
         """
 
+        tdStream.createSnode()
+
         self.checkpointInterval0()
         # self.checkpointInterval1()
         # self.checkpointSession0()

@@ -29,6 +29,8 @@ class TestStreamOldCaseSession:
 
         """
 
+        tdStream.createSnode()
+
         self.session0()
         # self.session1()
         # self.triggerSession0()

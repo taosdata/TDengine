@@ -30,6 +30,8 @@ class TestStreamOldCaseDistribute:
 
         """
 
+        tdStream.createSnode()
+
         self.distributeInterval0()
         # self.distributeIntervalRetrive0()
         # self.distributeMultiLevelInterval0()

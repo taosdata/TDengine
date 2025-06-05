@@ -28,6 +28,8 @@ class TestStreamOldCaseSnode:
 
         """
 
+        tdStream.createSnode()
+
         self.schedSnode()
 
     def schedSnode(self):

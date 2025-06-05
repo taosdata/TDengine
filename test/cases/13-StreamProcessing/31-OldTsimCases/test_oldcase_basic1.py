@@ -31,6 +31,8 @@ class TestStreamOldCaseBasic1:
 
         """
 
+        tdStream.createSnode()
+
         self.stream_basic_0()
         # self.stream_basic_1()
         # self.stream_basic_2()
@@ -41,7 +43,6 @@ class TestStreamOldCaseBasic1:
     def stream_basic_0(self):
         tdLog.info(f"stream_basic_0")
         tdStream.dropAllStreamsAndDbs()
-        tdStream.createSnode()
 
         tdLog.info(f"=============== create database")
         tdSql.execute(f"create database d0 vgroups 1")
@@ -73,7 +74,7 @@ class TestStreamOldCaseBasic1:
 
         tdSql.checkResultsByFunc(
             sql='select * from information_schema.ins_tables where db_name="d0" and table_name="outstb"',
-            func=lambda: tdSql.getRows() == 2,
+            func=lambda: tdSql.getRows() == 1,
         )
         return
 

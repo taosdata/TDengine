@@ -29,6 +29,8 @@ class TestStreamOldCaseEvent:
 
         """
 
+        tdStream.createSnode()
+
         self.event0()
         # self.event1()
         # self.event2()

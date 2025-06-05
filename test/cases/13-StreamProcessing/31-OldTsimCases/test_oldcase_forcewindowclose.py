@@ -31,6 +31,8 @@ class TestStreamOldCaseForceWindowClose:
 
         """
 
+        tdStream.createSnode()
+
         self.forcewindowclose()
         # self.streamFwcIntervalFill()
         # self.streamInterpForceWindowClose()

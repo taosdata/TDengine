@@ -29,6 +29,8 @@ class TestStreamOldCaseInterpPrimary:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/streamPrimaryKey3.sim
         """
 
+        tdStream.createSnode()
+
         self.streamPrimaryKey0()
         # self.streamPrimaryKey1()
         # self.streamPrimaryKey2()

@@ -28,6 +28,8 @@ class TestStreamOldCaseOptions:
 
         """
 
+        tdStream.createSnode()
+
         self.ignoreCheckUpdate()
         # self.ignoreExpiredData()
 

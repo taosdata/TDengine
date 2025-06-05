@@ -29,6 +29,8 @@ class TestStreamOldCaseConcat:
 
         """
 
+        tdStream.createSnode()
+
         self.udTableAndCol0()
         # self.udTableAndTag0()
         # self.udTableAndTag1()

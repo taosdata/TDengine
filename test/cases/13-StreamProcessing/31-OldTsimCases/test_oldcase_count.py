@@ -32,6 +32,8 @@ class TestStreamOldCaseCount:
 
         """
 
+        tdStream.createSnode()
+
         self.count0()
         # self.count1()
         # self.count2()

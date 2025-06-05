@@ -29,6 +29,8 @@ class TestStreamOldCaseDelete:
 
         """
 
+        tdStream.createSnode()
+
         self.deleteInterval()
         # self.deleteScalar()
         # self.deleteSession()

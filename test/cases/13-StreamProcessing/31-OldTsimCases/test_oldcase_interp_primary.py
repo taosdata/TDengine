@@ -30,6 +30,8 @@ class TestStreamOldCaseInterpPrimary:
 
         """
 
+        tdStream.createSnode()
+
         self.streamInterpPrimaryKey0()
         # self.streamInterpPrimaryKey1()
         # self.streamInterpPrimaryKey2()

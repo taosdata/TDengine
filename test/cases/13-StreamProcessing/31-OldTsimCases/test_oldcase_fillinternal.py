@@ -34,6 +34,8 @@ class TestStreamOldCaseFillInterval:
 
         """
 
+        tdStream.createSnode()
+
         self.fillIntervalDelete0()
         # self.fillIntervalDelete1()
         # self.fillIntervalLinear()

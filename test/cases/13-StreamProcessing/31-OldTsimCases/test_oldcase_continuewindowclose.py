@@ -27,6 +27,8 @@ class TestStreamOldCaseContinueWindowClose:
 
         """
 
+        tdStream.createSnode()
+
         self.nonblockIntervalBasic()
         # self.nonblockIntervalHistory()
 

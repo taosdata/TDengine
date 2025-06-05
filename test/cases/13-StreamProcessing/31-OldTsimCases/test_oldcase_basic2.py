@@ -30,6 +30,8 @@ class TestStreamOldCaseBasic2:
 
         """
 
+        tdStream.createSnode()
+
         # self.pauseAndResume()
         self.sliding()
         # self.tag()

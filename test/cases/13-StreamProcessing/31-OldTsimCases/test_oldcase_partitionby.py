@@ -31,6 +31,8 @@ class TestStreamOldCasePartitionBy:
             - 2025-5-15 Simon Guan Migrated from tsim/stream/partitionbyColumnState.sim
         """
 
+        tdStream.createSnode()
+
         self.partitionby()
         # self.partitionby1()
         # self.partitionbyColumnInterval()

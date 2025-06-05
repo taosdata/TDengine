@@ -29,6 +29,8 @@ class TestStreamOldCaseInterpUpdate:
 
         """
 
+        tdStream.createSnode()
+
         self.streamInterpUpdate()
         # self.streamInterpUpdate1()
         # self.streamInterpUpdate2()

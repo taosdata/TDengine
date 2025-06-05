@@ -28,13 +28,14 @@ class TestStreamOldCaseState:
 
         """
 
+        tdStream.createSnode()
+
         self.state0()
         # self.state1()
 
     def state0(self):
         tdLog.info(f"state0")
         tdStream.dropAllStreamsAndDbs()
-        tdStream.createSnode()
 
         tdLog.info(f"=============== create database")
         tdSql.execute(f"create database test vgroups 1 buffer 16;")

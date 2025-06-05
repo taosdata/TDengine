@@ -30,6 +30,8 @@ class TestStreamOldCaseInterpDelete:
 
         """
 
+        tdStream.createSnode()
+
         self.streamInterpDelete0()
         # self.streamInterpDelete1()
         # self.streamInterpDelete2()

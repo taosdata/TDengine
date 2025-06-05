@@ -31,6 +31,8 @@ class TestStreamOldCaseFillHistory:
 
         """
 
+        tdStream.createSnode()
+
         self.fillHistoryBasic1()
         # self.fillHistoryBasic2()
         # self.fillHistoryBasic3()

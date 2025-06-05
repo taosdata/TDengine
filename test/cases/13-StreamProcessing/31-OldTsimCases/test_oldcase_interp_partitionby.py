@@ -28,6 +28,8 @@ class TestStreamOldCaseInterpPartitionBy:
 
         """
 
+        tdStream.createSnode()
+
         self.streamInterpPartitionBy0()
         # self.streamInterpPartitionBy1()
 
