@@ -222,7 +222,7 @@ class TDTestCase:
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
         tdLog.info(len(tdSql.queryResult))
-        tdSql.checkEqual(True, len(tdSql.queryResult) in range(325, 326))
+        tdSql.checkEqual(True, len(tdSql.queryResult) in range(327, 328))
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
         tdSql.checkEqual(62, len(tdSql.queryResult))
 
@@ -272,6 +272,8 @@ class TDTestCase:
             'timeseries':'Timeseries',
             'dnodes':'Dnodes',
             'cpu_cores':'CPU Cores',
+            'vnodes':'Vnodes',
+            'storage_size':'Storage Size',
             'stream':'Stream',
             'subscription':'Subscription',
             'view':'View',
@@ -300,6 +302,18 @@ class TDTestCase:
             'mongodb':'MongoDB',
             'csv':'CSV',
             'sparkplugb':"SparkplugB",
+            'ta_ts_attr': 'TA_TS_ATTR',
+            'ta_ts_attr':'Time-Series Attributes',
+            'ta_nts_attr':'Non-Time-Series Attributes',
+            'ta_element':'Elements',
+            'ta_server':'Servers',
+            'ta_cpu_core':'CPU Cores',
+            'ta_user':'Users',
+            'ta_version_ctrl':'Version Control',
+            'ta_data_forecast':'Data Forecast',
+            'ta_data_detect':'Data Detect',
+            'ta_data_quality':'Data Quality',
+            'ta_ai_chat_gen':'AI Chat/Generate',
         }
 
         tdSql.execute('drop database if exists db2')
