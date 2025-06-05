@@ -895,15 +895,18 @@ int32_t tDeserializeSStreamTsResponse(void* buf, int32_t bufLen, void *pBlock);
 
 
 typedef struct SStreamGroupValue {
-  SValue  data;
-  bool    isNull;
+  SValue        data;
+  bool          isNull;
+  bool          isTbname;
+  int64_t       uid;
+  int32_t       vgId;
 } SStreamGroupValue;
 
 typedef struct SStreamGroupInfo {
   SArray* gInfo;  // SArray<SStreamGroupValue>
 } SStreamGroupInfo;
 
-int32_t tSerializeSStreamGroupInfo(void* buf, int32_t bufLen, const SStreamGroupInfo* gInfo);
+int32_t tSerializeSStreamGroupInfo(void* buf, int32_t bufLen, const SStreamGroupInfo* gInfo, int32_t vgId);
 int32_t tDeserializeSStreamGroupInfo(void* buf, int32_t bufLen, SStreamGroupInfo* gInfo);
 void    tDestroySStreamGroupValue(void *ptr);
 

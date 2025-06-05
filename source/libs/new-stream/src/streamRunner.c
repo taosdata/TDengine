@@ -576,7 +576,8 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
   int32_t code = 0;
 
   ST_TASK_DLOG("vgId:%d start to build stream task", vgId);
-  SReadHandle handle = {.pMsgCb = pTask->pMsgCb};
+  SReadHandle handle = {0};
+  handle.pMsgCb = pTask->pMsgCb;
   if (pTask->topTask) {
     SStreamInserterParam params = {.dbFName = pTask->output.outDbFName,
       .tbname =  pExec->tbname,

@@ -2981,6 +2981,8 @@ static int32_t addTbnameToMap(SHashObj* groupIdMap, int64_t uid, void* vnode, SS
   char str[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
   code = pAPI->metaFn.getTableNameByUid(vnode, uid, str);
   v->isNull = false;
+  v->isTbname = true;
+  v->uid = uid;
   v->data.nData = varDataLen(str);
   v->data.pData = taosStrdup(varDataVal(str));
   v->data.type = TSDB_DATA_TYPE_BINARY;
@@ -3122,6 +3124,10 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
     return TSDB_CODE_INVALID_PARA;
   }
 
+  if (pHandle->uid != 0) {
+    pScanNode->uid = pHandle->uid;
+    pScanNode->tableType = TSDB_CHILD_TABLE;
+  }
   uint8_t digest[17] = {0};
   int32_t code = getTableList(pHandle->vnode, pScanNode, pTagCond, pTagIndexCond, pTableListInfo, digest, idStr,
                               &pTaskInfo->storageAPI);

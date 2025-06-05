@@ -6135,7 +6135,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translatePlaceHolderPseudoColumn,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
-    .sprocessFunc = NULL,
+    .sprocessFunc = streamPseudoScalarFunction,
     .finalizeFunc = NULL,
   },
 };

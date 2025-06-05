@@ -3592,7 +3592,7 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
       }
       case FUNCTION_TYPE_PLACEHOLDER_TBNAME: {
         BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_TBNAME);
-        nodesMakeValueNodeFromString("_ph_tbname", (SValueNode**)&extraValue);
+        nodesMakeValueNodeFromString("", (SValueNode**)&extraValue);
         break;
       }
       case FUNCTION_TYPE_PLACEHOLDER_COLUMN: {

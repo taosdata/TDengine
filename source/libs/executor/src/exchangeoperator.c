@@ -43,10 +43,11 @@ typedef struct SSourceDataInfo {
   bool               tableSeq;
   char*              decompBuf;
   int32_t            decompBufSize;
-  SOrgTbInfo*     colMap;
+  SOrgTbInfo*        colMap;
   bool               isVtbRefScan;
   STimeWindow        window;
   bool               fetchSent; // need reset
+  int32_t            vgId;
 } SSourceDataInfo;
 
 static void destroyExchangeOperatorInfo(void* param);
@@ -438,6 +439,10 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
   QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->seqLoadData = pExNode->seqRecvData;
+  pInfo->dynTbname = pExNode->dynTbname;
+  if (pInfo->dynTbname) {
+    pInfo->seqLoadData = true;
+  }
   pInfo->pTransporter = pTransporter;
 
   setOperatorInfo(pOperator, "ExchangeOperator", QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, false, OP_NOT_OPENED, pInfo,
@@ -715,6 +720,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     req.queryId = pTaskInfo->id.queryId;
     req.execId = pSource->execId;
     if (pTaskInfo->pStreamRuntimeInfo) {
+      req.dynTbname = pExchangeInfo->dynTbname;
       req.execId = pTaskInfo->pStreamRuntimeInfo->execId;
       req.pStRtFuncInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
       if (!pDataInfo->fetchSent) {
@@ -1022,10 +1028,34 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
   size_t  totalSources = taosArrayGetSize(pExchangeInfo->pSources);
   int64_t startTs = taosGetTimestampUs();
 
+  int32_t vgId = 0;
+  if (pExchangeInfo->dynTbname) {
+    SArray* vals = pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPartColVals;
+    for (int32_t i = 0; i < taosArrayGetSize(vals); ++i) {
+      SStreamGroupValue* pValue = taosArrayGet(vals, i);
+      if (pValue != NULL && pValue->isTbname) {
+        vgId = pValue->vgId;
+        break;
+      }
+    }
+  }
+
   while (1) {
     if (pExchangeInfo->current >= totalSources) {
       setAllSourcesCompleted(pOperator);
       return TSDB_CODE_SUCCESS;
+    }
+
+    SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, pExchangeInfo->current);
+    if (!pSource) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      pTaskInfo->code = terrno;
+      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    }
+
+    if (vgId != 0 && pSource->addr.nodeId != vgId){
+      pExchangeInfo->current += 1;
+      continue;
     }
 
     SSourceDataInfo* pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, pExchangeInfo->current);
@@ -1045,13 +1075,6 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
 
     code = exchangeWait(pOperator, pExchangeInfo);
     if (code != TSDB_CODE_SUCCESS || isTaskKilled(pTaskInfo)) {
-      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
-    }
-
-    SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, pExchangeInfo->current);
-    if (!pSource) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-      pTaskInfo->code = terrno;
       T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
     }
 

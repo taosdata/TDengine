@@ -199,6 +199,7 @@ typedef struct SExchangeInfo {
   SSDataBlock* pDummyBlock;      // dummy block, not keep data
   bool         seqLoadData;      // sequential load data or not, false by default
   bool         dynamicOp;
+  bool         dynTbname;         // %%tbname for stream    
   int32_t      current;
   SLoadRemoteDataInfo loadInfo;
   uint64_t            self;

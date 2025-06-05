@@ -3058,7 +3058,7 @@ _exit:
   return code;
 }
 
-static int32_t tSerializeStriggerGroupColVals(SEncoder* pEncoder, SArray* pGroupColVals) {
+static int32_t tSerializeStriggerGroupColVals(SEncoder* pEncoder, SArray* pGroupColVals, int32_t vgId) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
@@ -3072,6 +3072,12 @@ static int32_t tSerializeStriggerGroupColVals(SEncoder* pEncoder, SArray* pGroup
     TAOS_CHECK_EXIT(tEncodeBool(pEncoder, pValue->isNull));
     if (pValue->isNull) {
       continue;
+    }
+    TAOS_CHECK_EXIT(tEncodeBool(pEncoder, pValue->isTbname));
+    if (pValue->isTbname) {
+      TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pValue->uid));
+      if (vgId != -1) { pValue->vgId = vgId; }
+      TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pValue->vgId));
     }
     TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pValue->data.type));
     if (IS_VAR_DATA_TYPE(pValue->data.type)) {
@@ -3101,16 +3107,20 @@ static int32_t tDeserializeStriggerGroupColVals(SDecoder* pDecoder, SArray** ppG
     } else {
       TAOS_CHECK_EXIT(taosArrayEnsureCap(*ppGroupColVals, size));
     }
-    TARRAY_SIZE(*ppGroupColVals) = size;
   }
   for (int32_t i = 0; i < size; ++i) {
-    SStreamGroupValue* pValue = taosArrayGet(*ppGroupColVals, i);
+    SStreamGroupValue* pValue = taosArrayReserve(*ppGroupColVals, 1);
     if (pValue == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
     TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &pValue->isNull));
     if (pValue->isNull) {
       continue;
+    }
+    TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &pValue->isTbname));
+    if (pValue->isTbname) {
+      TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pValue->uid));
+      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pValue->vgId));
     }
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pValue->data.type));
     if (IS_VAR_DATA_TYPE(pValue->data.type)) {
@@ -3125,7 +3135,7 @@ _exit:
   return code;
 }
 
-int32_t tSerializeSStreamGroupInfo(void* buf, int32_t bufLen, const SStreamGroupInfo* gInfo) {
+int32_t tSerializeSStreamGroupInfo(void* buf, int32_t bufLen, const SStreamGroupInfo* gInfo, int32_t vgId) {
   SEncoder encoder = {0};
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
@@ -3134,7 +3144,7 @@ int32_t tSerializeSStreamGroupInfo(void* buf, int32_t bufLen, const SStreamGroup
   tEncoderInit(&encoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
 
-  TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(&encoder, gInfo->gInfo));
+  TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(&encoder, gInfo->gInfo, vgId));
 
   tEndEncode(&encoder);
 
@@ -3182,7 +3192,7 @@ int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTrigger
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->gid));
 
   TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(&encoder, pReq->params, false));
-  TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(&encoder, pReq->groupColVals));
+  TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(&encoder, pReq->groupColVals, -1));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->createTable));
 
   tEndEncode(&encoder);
@@ -3238,7 +3248,7 @@ void tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq) {
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo) {
   int32_t code = 0, lino = 0;
   TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(pEncoder, pInfo->pStreamPesudoFuncVals, true));
-  TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(pEncoder, pInfo->pStreamPartColVals));
+  TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(pEncoder, pInfo->pStreamPartColVals, -1));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->groupId));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pInfo->curIdx));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->sessionId));

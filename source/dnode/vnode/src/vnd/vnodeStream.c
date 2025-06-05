@@ -1866,11 +1866,11 @@ static int32_t vnodeProcessStreamGroupColValueReq(SVnode* pVnode, SRpcMsg* pMsg,
   SStreamGroupInfo pGroupInfo = {0};
   pGroupInfo.gInfo = *gInfo;
 
-  size = tSerializeSStreamGroupInfo(NULL, 0, &pGroupInfo);
+  size = tSerializeSStreamGroupInfo(NULL, 0, &pGroupInfo, TD_VID(pVnode));
   STREAM_CHECK_CONDITION_GOTO(size < 0, size);
   buf = rpcMallocCont(size);
   STREAM_CHECK_NULL_GOTO(buf, terrno);
-  size = tSerializeSStreamGroupInfo(buf, size, &pGroupInfo);
+  size = tSerializeSStreamGroupInfo(buf, size, &pGroupInfo, TD_VID(pVnode));
   STREAM_CHECK_CONDITION_GOTO(size < 0, size);
 end:
   if (code != 0) {
@@ -2069,9 +2069,22 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
 
   if (req.reset || sStreamReaderCalcInfo->pTaskInfo == NULL) {
     qDestroyTask(sStreamReaderCalcInfo->pTaskInfo);
+    int64_t uid = 0;
+    if (req.dynTbname) {
+      SArray* vals = req.pStRtFuncInfo->pStreamPartColVals;
+      for (int32_t i = 0; i < taosArrayGetSize(vals); ++i) {
+        SStreamGroupValue* pValue = taosArrayGet(vals, i);
+        if (pValue != NULL && pValue->isTbname) {
+          uid = pValue->uid;
+          break;
+        }
+      }
+    }
+    
     SReadHandle handle = {
         .vnode = pVnode,
         .winRange = {0},
+        .uid = uid,
     };
 
     initStorageAPI(&handle.api);
