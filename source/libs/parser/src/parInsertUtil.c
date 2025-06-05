@@ -602,6 +602,11 @@ int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo
 int32_t qBuildStmtFinOutput1(SQuery* pQuery, SHashObj* pAllVgHash, SArray* pVgDataBlocks) {
   int32_t             code = TSDB_CODE_SUCCESS;
   SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
+  // check duplicated uid
+  code = qCheckVgDataBlocks(pVgDataBlocks);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
 
   if (TSDB_CODE_SUCCESS == code) {
     code = insBuildVgDataBlocks(pAllVgHash, pVgDataBlocks, &pStmt->pDataBlocks, true);
@@ -624,6 +629,8 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
     vgId = (int32_t)ctbReq->uid;
     uid = 0;
     pTbCtx->pMeta->vgId = (int32_t)ctbReq->uid;
+    pTbCtx->pMeta->uid = 0;
+    pTbCtx->pData->uid = 0;
     ctbReq->uid = 0;
     pTbCtx->pData->pCreateTbReq = ctbReq;
     code = TSDB_CODE_SUCCESS;
@@ -851,6 +858,44 @@ static void destroyVgDataBlocks(void* p) {
   SVgDataBlocks* pVg = p;
   taosMemoryFree(pVg->pData);
   taosMemoryFree(pVg);
+}
+
+int32_t qCheckVgDataBlocks(SArray* pVgDataCxtList) {
+  size_t numOfVg = taosArrayGetSize(pVgDataCxtList);
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (size_t i = 0; TSDB_CODE_SUCCESS == code && i < numOfVg; ++i) {
+    SVgroupDataCxt* src = taosArrayGetP(pVgDataCxtList, i);
+    size_t          sz = taosArrayGetSize(src->pData->aSubmitTbData);
+    if (sz <= 0) {
+      continue;
+    }
+    SSHashObj* uidHash = tSimpleHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    if (NULL == uidHash) {
+      return terrno;
+    }
+    for (size_t j = 0; j < sz; ++j) {
+      SSubmitTbData* pTbData = taosArrayGet(src->pData->aSubmitTbData, j);
+      if (pTbData->uid <= 0) {
+        continue;
+      }
+      if (tSimpleHashGet(uidHash, &pTbData->uid, sizeof(int64_t)) != NULL) {
+        code = TSDB_CODE_PAR_TBNAME_DUPLICATED;
+        qError("duplicated uid:%" PRId64 " in vgId:%d", pTbData->uid, src->vgId);
+        tSimpleHashCleanup(uidHash);
+        return code;
+      }
+      code = tSimpleHashPut(uidHash, &pTbData->uid, sizeof(int64_t), NULL, 0);
+      if (TSDB_CODE_SUCCESS != code) {
+        qError("put uid:%" PRId64 " to hash failed, code:%d", pTbData->uid, code);
+        tSimpleHashCleanup(uidHash);
+        return code;
+      }
+    }
+    tSimpleHashCleanup(uidHash);
+  }
+
+  return code;
 }
 
 int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, SArray** pVgDataBlocks, bool append) {

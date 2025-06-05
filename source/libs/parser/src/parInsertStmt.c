@@ -75,6 +75,12 @@ int32_t qBuildStmtFinOutput(SQuery* pQuery, SHashObj* pAllVgHash, SArray* pVgDat
   int32_t             code = TSDB_CODE_SUCCESS;
   SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
 
+  // check duplicated uid
+  code = qCheckVgDataBlocks(pVgDataBlocks);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = insBuildVgDataBlocks(pAllVgHash, pVgDataBlocks, &pStmt->pDataBlocks, true);
   }

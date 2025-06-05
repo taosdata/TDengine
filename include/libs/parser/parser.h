@@ -162,6 +162,7 @@ void    qCleanupKeywordsTable();
 int32_t qAppendStmtTableOutput(SQuery* pQuery, SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
                                SStbInterlaceInfo* pBuildInfo, SVCreateTbReq* ctbReq);
 int32_t qBuildStmtFinOutput(SQuery* pQuery, SHashObj* pAllVgHash, SArray* pVgDataBlocks);
+int32_t qCheckVgDataBlocks(SArray* pVgDataCxtList);
 // int32_t     qBuildStmtOutputFromTbList(SQuery* pQuery, SHashObj* pVgHash, SArray* pBlockList, STableDataCxt* pTbCtx,
 // int32_t tbNum);
 int32_t     qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash);
