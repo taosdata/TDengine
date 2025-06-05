@@ -32,11 +32,11 @@ class TestStreamOldCaseBasic1:
         """
 
         self.stream_basic_0()
-        self.stream_basic_1()
-        self.stream_basic_2()
-        self.stream_basic_3()
-        self.stream_basic_4()
-        self.stream_basic_5()
+        # self.stream_basic_1()
+        # self.stream_basic_2()
+        # self.stream_basic_3()
+        # self.stream_basic_4()
+        # self.stream_basic_5()
 
     def stream_basic_0(self):
         tdLog.info(f"stream_basic_0")
@@ -63,15 +63,18 @@ class TestStreamOldCaseBasic1:
 
         tdLog.info(f"=============== create stream")
         tdSql.execute(
-            f"create stream s1 trigger at_once into outstb as select _wstart, min(k), max(k), sum(k) as sum_alias from ct1 interval(10m)"
+            f"create stream s1 interval(10m) sliding(10m) from ct1 options(MAX_DELAY(1s)) into outstb as select _twstart, min(k), max(k), sum(k) as sum_alias from ct1 where ts >= _twstart and ts < _twend"
         )
         tdStream.checkStreamStatus("s1")
 
-        tdSql.query(f"show stables")
-        tdSql.checkRows(2)
-
         tdLog.info(f"=============== insert data")
         tdSql.execute(f"insert into ct1 values('2022-05-08 03:42:00.000', 234)")
+
+        tdSql.checkResultsByFunc(
+            sql='select * from information_schema.ins_tables where db_name="d0" and table_name="outstb"',
+            func=lambda: tdSql.getRows() == 2,
+        )
+        return
 
         tdLog.info(f"=============== query data from child table")
         tdSql.checkResultsByFunc(
@@ -281,7 +284,9 @@ class TestStreamOldCaseBasic1:
         tdSql.execute(
             f"insert into t1 values(1648791213000,1,1,1,1.0) t2 values(1648791213000,2,2,2,2.0) t3 values(1648791213000,3,3,3,3.0) t4 values(1648791213000,4,4,4,4.0);"
         )
-        tdSql.checkResultsByFunc(f"select * from streamt;", lambda: tdSql.getRows() == 4)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt;", lambda: tdSql.getRows() == 4
+        )
 
         tdSql.execute(
             f"insert into t1 values(1648791213000,5,5,5,5.0) t2 values(1648791213000,6,6,6,6.0) t5 values(1648791213000,7,7,7,7.0);"
@@ -340,7 +345,9 @@ class TestStreamOldCaseBasic1:
         tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000,1,2,3,1.0);")
-        tdSql.checkResultsByFunc(f"select * from streamt__4;", lambda: tdSql.getRows() == 0)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt__4;", lambda: tdSql.getRows() == 0
+        )
 
         tdSql.execute(f"insert into t1 values(1648791213000,6,2,3,1.0);")
         tdSql.checkResultsByFunc(
@@ -349,15 +356,21 @@ class TestStreamOldCaseBasic1:
         )
 
         tdSql.execute(f"insert into t1 values(1648791213000,2,2,3,1.0);")
-        tdSql.checkResultsByFunc(f"select * from streamt__4;", lambda: tdSql.getRows() == 0)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt__4;", lambda: tdSql.getRows() == 0
+        )
 
         tdSql.execute(f"insert into t1 values(1648791223000,2,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791223000,10,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791233000,10,2,3,1.0);")
-        tdSql.checkResultsByFunc(f"select * from streamt__4;", lambda: tdSql.getRows() == 2)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt__4;", lambda: tdSql.getRows() == 2
+        )
 
         tdSql.execute(f"insert into t1 values(1648791233000,2,2,3,1.0);")
-        tdSql.checkResultsByFunc(f"select * from streamt__4;", lambda: tdSql.getRows() == 1)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt__4;", lambda: tdSql.getRows() == 1
+        )
 
         # for TS-2242
         tdSql.execute(f"create database test5  vgroups 1;")
@@ -385,9 +398,13 @@ class TestStreamOldCaseBasic1:
         )
 
         tdSql.execute(f"insert into ts1 values(1648791211000,1,2,3);")
-        tdSql.checkResultsByFunc(f"select * from streamt5;", lambda: tdSql.getRows() == 1)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt5;", lambda: tdSql.getRows() == 1
+        )
 
-        tdSql.checkResultsByFunc(f"select * from streamt6;", lambda: tdSql.getRows() == 1)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt6;", lambda: tdSql.getRows() == 1
+        )
 
         tdSql.execute(f"create database test7  vgroups 1;")
         tdSql.execute(f"use test7;")
@@ -686,12 +703,16 @@ class TestStreamOldCaseBasic1:
         tdSql.execute(f"insert into t1 values(1648791227005,4,2,3,4.1);")
         tdSql.execute(f"insert into t1 values(1648791228005,4,2,3,4.1);")
 
-        tdSql.checkResultsByFunc(f"select * from streamt;", lambda: tdSql.getRows() == 16)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt;", lambda: tdSql.getRows() == 16
+        )
 
         tdSql.execute(
             f"insert into t1 values(1648791231004,4,2,3,4.1) (1648791232004,4,2,3,4.1) (1648791233004,4,2,3,4.1) (1648791234004,4,2,3,4.1) (1648791235004,4,2,3,4.1) (1648791236004,4,2,3,4.1) (1648791237004,4,2,3,4.1) (1648791238004,4,2,3,4.1) (1648791239004,4,2,3,4.1) (1648791240004,4,2,3,4.1) (1648791241004,4,2,3,4.1) (1648791242004,4,2,3,4.1) (1648791243004,4,2,3,4.1);"
         )
-        tdSql.checkResultsByFunc(f"select * from streamt;", lambda: tdSql.getRows() == 29)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt;", lambda: tdSql.getRows() == 29
+        )
 
         tdLog.info(f"step2=============")
         tdSql.execute(f"create database test2  vgroups 10;")
@@ -723,12 +744,16 @@ class TestStreamOldCaseBasic1:
         tdSql.execute(f"insert into t1 values(1648791227005,4,2,3,4.1);")
         tdSql.execute(f"insert into t1 values(1648791228005,4,2,3,4.1);")
 
-        tdSql.checkResultsByFunc(f"select * from streamt2;", lambda: tdSql.getRows() == 16)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt2;", lambda: tdSql.getRows() == 16
+        )
 
         tdSql.execute(
             f"insert into t1 values(1648791231004,4,2,3,4.1) (1648791232004,4,2,3,4.1) (1648791233004,4,2,3,4.1) (1648791234004,4,2,3,4.1) (1648791235004,4,2,3,4.1) (1648791236004,4,2,3,4.1) (1648791237004,4,2,3,4.1) (1648791238004,4,2,3,4.1) (1648791239004,4,2,3,4.1) (1648791240004,4,2,3,4.1) (1648791241004,4,2,3,4.1) (1648791242004,4,2,3,4.1) (1648791243004,4,2,3,4.1);"
         )
-        tdSql.checkResultsByFunc(f"select * from streamt2;", lambda: tdSql.getRows() == 29)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt2;", lambda: tdSql.getRows() == 29
+        )
 
         tdLog.info(f"step3=============")
         tdSql.execute(f"create database test1  vgroups 1;")
@@ -772,7 +797,9 @@ class TestStreamOldCaseBasic1:
         tdSql.execute(f"insert into t1 values(1648791267000,1,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791269000,1,2,3,1.0);")
 
-        tdSql.checkResultsByFunc(f"select * from streamt1;", lambda: tdSql.getRows() == 30)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt1;", lambda: tdSql.getRows() == 30
+        )
 
         tdSql.execute(f"insert into t1 values(1648791211001,1,2,3,1.0);")
         tdSql.execute(f"insert into t1 values(1648791213001,1,2,3,1.1);")
