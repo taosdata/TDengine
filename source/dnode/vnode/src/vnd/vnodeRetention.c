@@ -18,6 +18,7 @@
 extern int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now);
 extern int32_t tsdbAsyncS3Migrate(STsdb *tsdb, SS3MigrateVnodeReq *pReq);
 extern int32_t tsdbQueryS3MigrateProgress(STsdb *tsdb, int32_t s3MigrateId, int32_t *rspSize, void** ppRsp);
+extern int32_t tsdbUpdateS3MigrateState(STsdb* tsdb, SVnodeS3MigrateState* pState);
 
 
 int32_t vnodeAsyncRetention(SVnode *pVnode, int64_t now) {
@@ -62,4 +63,8 @@ _exit:
 
   tmsgSendRsp(&rspMsg);
   return 0;
+}
+
+int32_t vnodeFollowerS3Migrate(SVnode *pVnode, SVnodeS3MigrateState *pState) {
+  return tsdbUpdateS3MigrateState(pVnode->pTsdb, pState);
 }
