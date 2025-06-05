@@ -652,7 +652,7 @@ static bool isDefaultRange(SIpRange *pRange) {
   code = createDefaultIp4Range(&range4);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = createDefaultIp6Range(&range4);
+  code = createDefaultIp6Range(&range6);
   TSDB_CHECK_CODE(code, lino, _error);
 
   if (isIpRangeEqual(pRange, &range4) || (isIpRangeEqual(pRange, &range6))) {
@@ -1772,6 +1772,31 @@ void mndReleaseUser(SMnode *pMnode, SUserObj *pUser) {
   sdbRelease(pSdb, pUser);
 }
 
+static int32_t addDefaultIpToTable(int8_t enableIpv6, SHashObj *pUniqueTab) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  int32_t dummpy = 0;
+
+  SIpRange ipv4 = {0}, ipv6 = {0};
+  code = createDefaultIp4Range(&ipv4);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = taosHashPut(pUniqueTab, &ipv4, sizeof(ipv4), &dummpy, sizeof(dummpy));
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  if (enableIpv6) {
+    code = createDefaultIp6Range(&ipv6);
+    TSDB_CHECK_CODE(code, lino, _error);
+
+    code = taosHashPut(pUniqueTab, &ipv6, sizeof(ipv6), &dummpy, sizeof(dummpy));
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
+_error:
+  if (code != 0) {
+    mError("failed to add default ip range to table since %s", tstrerror(code));
+  }
+  return code;
+}
 static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate, SRpcMsg *pReq) {
   int32_t  code = 0;
   int32_t  lino = 0;
@@ -1819,7 +1844,8 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
         TAOS_RETURN(code);
       }
     }
-    if ((code = taosHashPut(pUniqueTab, &defaultIpRange, sizeof(defaultIpRange), &dummpy, sizeof(dummpy))) != 0) {
+    code = addDefaultIpToTable(tsEnableIpv6, pUniqueTab);
+    if (code != 0) {
       taosHashCleanup(pUniqueTab);
       TAOS_RETURN(code);
     }
