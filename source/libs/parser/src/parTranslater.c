@@ -13306,6 +13306,19 @@ static int32_t createStreamCheckOutCols(STranslateContext* pCxt, SNodeList* pCol
     return code;
   }
 
+  if (pMeta == NULL) {
+    // only check primary key
+    FOREACH(pNode, pCols) {
+      SColumnDefNode* pColDef = (SColumnDefNode*)pNode;
+      SColumnOptions* pColOptions = (SColumnOptions*)pColDef->pOptions;
+      if (colIndex != PRIMARYKEY_TIMESTAMP_COL_ID && pColOptions && pColOptions->bPrimaryKey) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SECOND_COL_PK);
+      }
+      colIndex++;
+    }
+    return code;
+  }
+
   if (LIST_LENGTH(pCols) != pMeta->tableInfo.numOfColumns) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                    "Out table cols count mismatch");
@@ -13313,9 +13326,10 @@ static int32_t createStreamCheckOutCols(STranslateContext* pCxt, SNodeList* pCol
 
   FOREACH(pNode, pCols) {
     SColumnDefNode* pColDef = (SColumnDefNode*)pNode;
-    int8_t  scale = 0;
-    int8_t  precision = 0;
-    int32_t bytes = 0;
+    SColumnOptions* pColOptions = (SColumnOptions*)pColDef->pOptions;
+    int8_t          scale = 0;
+    int8_t          precision = 0;
+    int32_t         bytes = 0;
     extractTypeFromTypeMod(pMeta->schema[colIndex].type, pMeta->schemaExt[colIndex].typeMod, &precision, &scale, &bytes);
     if (pColDef->dataType.type != pMeta->schema[colIndex].type ||
         calcTypeBytes(pColDef->dataType) != pMeta->schema[colIndex].bytes ||
@@ -13324,6 +13338,9 @@ static int32_t createStreamCheckOutCols(STranslateContext* pCxt, SNodeList* pCol
         strcmp(pColDef->colName, pMeta->schema[colIndex].name) != 0) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                      "Out table cols type mismatch");
+    }
+    if (colIndex != PRIMARYKEY_TIMESTAMP_COL_ID && pColOptions->bPrimaryKey) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SECOND_COL_PK);
     }
     colIndex++;
   }
@@ -13353,6 +13370,7 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                        "Out super table no tags or cols");
       }
+      PAR_ERR_JRET(createStreamCheckOutCols(pCxt, pStmt->pCols, NULL));
     } else {
       // create normal table
       pReq->outStbExists = false;
@@ -13367,6 +13385,7 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                        "Out normal table no out cols");
       }
+      PAR_ERR_JRET(createStreamCheckOutCols(pCxt, pStmt->pCols, NULL));
     }
     code = TSDB_CODE_SUCCESS;
   } else if (TSDB_CODE_SUCCESS == code) {
