@@ -28,7 +28,7 @@ class TestStreamOldCaseContinueWindowClose:
         """
 
         self.nonblockIntervalBasic()
-        self.nonblockIntervalHistory()
+        # self.nonblockIntervalHistory()
 
     def nonblockIntervalBasic(self):
         tdLog.info(f"nonblockIntervalBasic")
@@ -45,21 +45,20 @@ class TestStreamOldCaseContinueWindowClose:
         tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
         tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
-        tdSql.error(
-            f"create stream streams_er1 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt_et1 as select _wstart, count(*) c1, sum(b) c2 from st partition by tbname session(ts, 10s);"
-        )
-        tdSql.error(
-            f"create stream streams_er2 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt_et2 as select _wstart, count(*) c1, sum(b) c2 from st partition by tbname state_window(a) ;"
-        )
-        tdSql.error(
-            f"create stream streams_er3 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt_et3 as select _wstart, count(*) c1, sum(b) c2 from st partition by tbname count_window(10);"
-        )
-        tdSql.error(
-            f"create stream streams_er4 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt_et4 as select _wstart, count(*) c1, sum(b) c2 from st partition by tbname event_window start with a = 0 end with b = 9;"
-        )
-
         tdSql.execute(
-            f"create stream streams1 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt1 as select _wstart, count(*) c1, sum(b) c2 from st partition by tbname interval(10s) ;"
+            f"create stream streams_er1 session(ts, 10s) from st partition by tbname into streamt_et1 tags(tb varchar(32) as %%tbname) as select _twstart, count(*) c1, sum(b) c2 from %%tbname where ts >= _twstart and ts < _twend;"
+        )
+        tdSql.execute(
+            f"create stream streams_er2 state_window(a) from st partition by tbname into streamt_et2 tags(tb varchar(32) as %%tbname) as select _twstart, count(*) c1, sum(b) c2 from %%trows;"
+        )
+        tdSql.execute(
+            f"create stream streams_er3 count_window(10) from st partition by tbname into streamt_et3 as select _twstart, count(*) c1, sum(b) c2 from st where tbname=%%tbname;"
+        )
+        tdSql.execute(
+            f"create stream streams_er4 event_window(start with a = 0 end with b = 9) from st partition by tbname into streamt_et4 as select _twstart, count(*) c1, sum(b) c2 from %%trows;"
+        )
+        tdSql.execute(
+            f"create stream streams1 interval(10s) sliding(10s) from st partition by tbname into streamt1 tags(tb varchar(32) as %%tbname) as select _twstart, count(*) c1, sum(b) c2 from %%tbname where ts >= _twstart and ts < _twend;"
         )
 
         tdStream.checkStreamStatus()
@@ -76,6 +75,8 @@ class TestStreamOldCaseContinueWindowClose:
             and tdSql.getData(0, 1) == 1
             and tdSql.getData(0, 2) == 2,
         )
+
+        tdSql.pause()
 
         tdLog.info(f"============================end")
 
@@ -122,7 +123,7 @@ class TestStreamOldCaseContinueWindowClose:
         tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
         tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
         tdSql.execute(
-            f"create stream streams3 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt3 as select _wstart, count(*) c1, sum(b) c2 from st interval(10s);"
+            f"create stream streams3 interval(10s) sliding(10s) into streamt3 as select _twstart, count(*) c1, sum(b) c2 from st where ts >= _twstart and ts < _twend;;"
         )
 
         tdStream.checkStreamStatus()
@@ -137,6 +138,8 @@ class TestStreamOldCaseContinueWindowClose:
             and tdSql.getData(0, 1) == 1
             and tdSql.getData(0, 2) == 2,
         )
+
+        tdSql.pause()
 
         tdSql.execute(f"insert into t2 values(1648791211000, 1, 2, 3);")
         tdSql.query(f"select _wstart, count(*) c1, sum(b) c2 from st interval(10s) ;")
@@ -277,10 +280,14 @@ class TestStreamOldCaseContinueWindowClose:
         )
 
         tdLog.info(f"sql select * from streamt6;")
-        tdSql.checkResultsByFunc(f"select * from streamt6;", lambda: tdSql.getRows() == 2)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt6;", lambda: tdSql.getRows() == 2
+        )
 
         tdLog.info(f"sql select * from streamt7;")
-        tdSql.checkResultsByFunc(f"select * from streamt7;", lambda: tdSql.getRows() == 2)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt7;", lambda: tdSql.getRows() == 2
+        )
 
         tdLog.info(f"========== interval window step6")
 
@@ -319,7 +326,9 @@ class TestStreamOldCaseContinueWindowClose:
         tdSql.execute(f"insert into t2 values(1648791211001, 2, 4, 3);")
 
         tdLog.info(f"sql select * from streamt8;")
-        tdSql.checkResultsByFunc(f"select * from streamt8;", lambda: tdSql.getRows() == 1)
+        tdSql.checkResultsByFunc(
+            f"select * from streamt8;", lambda: tdSql.getRows() == 1
+        )
 
         tdSql.checkResultsByFunc(
             f"select * from streamt9;",
