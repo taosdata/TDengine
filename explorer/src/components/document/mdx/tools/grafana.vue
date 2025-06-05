@@ -18,17 +18,13 @@
       <el-tab-pane name="Grafana Cli" label="Grafana Cli">
         <p v-dompurify-html="$t('docs.virtual.grafana.step2desc')"></p>
         <pre
-          v-highlight="`sudo -u grafana grafana-cli --pluginUrl https://github.com/taosdata/grafanaplugin/releases/download/v3.7.2/tdengine-datasource-3.7.2.zip plugins install tdengine-datasource
-`
-          "
+          v-highlight="`sudo -u grafana grafana-cli --pluginUrl ${$t('docs.virtual.grafana.step2link')} plugins install tdengine-datasource`"
         ><code
           class="language-bash"></code></pre>
         <p v-dompurify-html="$t('docs.virtual.grafana.step2desc1')"></p>
         <pre
           v-highlight="
-            `./grafana-cli.exe --pluginUrl https://github.com/taosdata/grafanaplugin/releases/download/v3.7.2/tdengine-datasource-3.7.2.zip plugins install tdengine-datasource
-`
-          "
+            `./grafana-cli.exe --pluginUrl ${$t('docs.virtual.grafana.step2link')} plugins install tdengine-datasource`"
         ><code class="language-bash"></code></pre>
       </el-tab-pane>
       <el-tab-pane name="script" label="Script"
