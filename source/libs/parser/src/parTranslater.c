@@ -412,6 +412,10 @@ static int32_t  createLastTsSelectStmt(char* pDb, const char* pTable, const char
 static int32_t  setQuery(STranslateContext* pCxt, SQuery* pQuery);
 static int32_t  setRefreshMeta(STranslateContext* pCxt, SQuery* pQuery);
 
+static int32_t createOperatorNode(EOperatorType opType, const char* pColName, const SNode* pRight, SNode** pOp);
+static int32_t insertCondIntoSelectStmt(SSelectStmt* pSelect, SNode** pCond);
+static int32_t extractCondFromCountWindow(STranslateContext* pCxt, SCountWindowNode* pCountWindow, SNode** pCond);
+
 static bool isWindowJoinStmt(SSelectStmt* pSelect) {
   return (QUERY_NODE_JOIN_TABLE == nodeType(pSelect->pFromTable)) &&
          IS_WINDOW_JOIN(((SJoinTableNode*)pSelect->pFromTable)->subType);
@@ -7319,8 +7323,6 @@ static int32_t checkCountWindow(STranslateContext* pCxt, SCountWindowNode* pCoun
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t createOperatorNode(EOperatorType opType, const char* pColName, const SNode* pRight, SNode** pOp);
-static int32_t insertCondIntoSelectStmt(SSelectStmt* pSelect, SNode** pCond);
 static int32_t translateCountWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -7330,44 +7332,20 @@ static int32_t translateCountWindow(STranslateContext* pCxt, SSelectStmt* pSelec
                                    "COUNT_WINDOW requires valid time series input");
   }
 
-  SNodeList* pCols = ((SCountWindowNode*)pSelect->pWindow)->pColList;
-  if (NULL != pCols && pCols->length > 0) {
-    code = translateExprList(pCxt, pCols);
-    if (TSDB_CODE_SUCCESS != code) {
-      parserError("Failed to translate COUNT_WINDOW columns, code=%d", code);
-      return code;
-    }
-    SNode* pNode = NULL;
-    FOREACH(pNode, pCols) {
-      if (QUERY_NODE_COLUMN == nodeType(pNode)) {
-        SColumnNode* pCol = (SColumnNode*)pNode;
-        if (COLUMN_TYPE_COLUMN == pCol->colType) {
-          SNode* pNameCond = NULL;
-          code = createOperatorNode(OP_TYPE_IS_NOT_NULL, pCol->colName, (SNode*)pCol, &pNameCond);
-          if (TSDB_CODE_SUCCESS == code) {
-            code = insertCondIntoSelectStmt(pSelect, &pNameCond);
-          }
-          if (code != TSDB_CODE_SUCCESS) {
-            nodesDestroyNode(pNameCond);
-            return code;
-          }
-        } else {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
-                                         "COUNT_WINDOW has invalid col name input");
-        }
-      } else {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
-                                       "COUNT_WINDOW has invalid col name input");
-      }
-    }
-    code = translateExpr(pCxt, &pSelect->pWhere);
-    if (TSDB_CODE_SUCCESS != code) {
-      parserError("Failed to translate COUNT_WINDOW where condition, code=%d", code);
-      return code;
-    }
-  }
+  SNode* pLogicCond = NULL;
+  PAR_ERR_JRET(extractCondFromCountWindow(pCxt, (SCountWindowNode*)pSelect->pWindow, &pLogicCond));
+
+  PAR_ERR_JRET(insertCondIntoSelectStmt(pSelect, &pLogicCond));
+
+  PAR_ERR_JRET(translateExpr(pCxt, &pSelect->pWhere));
 
   return checkCountWindow(pCxt, (SCountWindowNode*)pSelect->pWindow);
+
+_return:
+  if (pLogicCond) {
+    nodesDestroyNode(pLogicCond);
+  }
+  return code;
 }
 
 static int32_t checkAnomalyExpr(STranslateContext* pCxt, SNode* pNode) {
