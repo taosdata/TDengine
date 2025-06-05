@@ -2667,6 +2667,7 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
     case STRIGGER_PULL_TSDB_TRIGGER_DATA: {
       SSTriggerTsdbTriggerDataRequest* pRequest = (SSTriggerTsdbTriggerDataRequest*)pReq;
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->startTime));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRequest->order));
       break;
     }
     case STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT: {
@@ -2689,6 +2690,7 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->skey));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
       TAOS_CHECK_EXIT(encodeColsArray(&encoder, pRequest->cids));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRequest->order));
       break;
     }
     case STRIGGER_PULL_TSDB_DATA_NEXT: {
@@ -2839,6 +2841,7 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
     case STRIGGER_PULL_TSDB_TRIGGER_DATA: {
       SSTriggerTsdbTriggerDataRequest* pRequest = &(pReq->tsdbTriggerDataReq);
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->startTime));
+      TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRequest->order));
       break;
     }
     case STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT: {
@@ -2861,6 +2864,7 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
       TAOS_CHECK_EXIT(decodeColsArray(&decoder, &pRequest->cids));
+      TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRequest->order));
       break;
     }
     case STRIGGER_PULL_TSDB_DATA_NEXT: {

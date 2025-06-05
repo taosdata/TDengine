@@ -682,6 +682,7 @@ typedef struct SSTriggerTsdbTsDataRequest {
 typedef struct SSTriggerTsdbTriggerDataRequest {
   SSTriggerPullRequest base;
   int64_t              startTime;
+  int8_t               order;  // 0 for sequence, 1 for reverse
 } SSTriggerTsdbTriggerDataRequest;
 
 typedef struct SSTriggerTsdbCalcDataRequest {
@@ -698,6 +699,7 @@ typedef struct SSTriggerTsdbDataRequest {
   int64_t              skey;
   int64_t              ekey;
   SArray*              cids;  // SArray<col_id_t>, col_id starts from 0
+  int8_t               order;  // 0 for sequence, 1 for reverse
 } SSTriggerTsdbDataRequest;
 
 typedef struct SSTriggerWalMetaRequest {
