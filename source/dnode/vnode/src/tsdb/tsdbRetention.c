@@ -739,7 +739,8 @@ int32_t tsdbAsyncS3Migrate(STsdb *tsdb, SS3MigrateVnodeReq *pReq) {
 
   (void)taosThreadMutexLock(&tsdb->mutex);
   tsdbStartS3MigrateMonitor(tsdb);
-  code = tsdbAsyncRetentionImpl(tsdb, pReq->timestamp, true);
+  // pReq->timestamp is ms, we need s
+  code = tsdbAsyncRetentionImpl(tsdb, pReq->timestamp/1000, true);
   (void)taosThreadMutexUnlock(&tsdb->mutex);
 
   if (code) {
