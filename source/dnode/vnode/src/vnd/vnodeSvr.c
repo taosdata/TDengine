@@ -1142,6 +1142,9 @@ _exit:
   return code;
 }
 
+
+extern int32_t vnodeFollowerS3Migrate(SVnode *pVnode, SFollowerS3MigrateReq *pReq);
+
 static int32_t vnodeProcessFollowerS3MigrateReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
   int32_t          code = 0;
   SFollowerS3MigrateReq req = {0};
@@ -1154,9 +1157,10 @@ static int32_t vnodeProcessFollowerS3MigrateReq(SVnode *pVnode, int64_t ver, voi
 
   vInfo("vgId:%d, process follower s3migrate request, time:%ld", pVnode->config.vgId, req.startTimeSec);
 
-  // code = vnodeAsyncS3Migrate(pVnode, &req);
+  code = vnodeFollowerS3Migrate(pVnode, &req);
 
 _exit:
+  tFreeSFollowerS3MigrateReq(&req);
   return code;
 }
 

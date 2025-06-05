@@ -359,7 +359,7 @@ typedef struct {
 } SCacheFlushState;
 
 typedef struct SCompMonitor SCompMonitor;
-
+typedef struct SS3MigrateMonitor SS3MigrateMonitor;
 struct STsdb {
   char                *path;
   SVnode              *pVnode;
@@ -380,7 +380,7 @@ struct STsdb {
   struct STFileSystem *pFS;  // new
   SRocksCache          rCache;
   SCompMonitor        *pCompMonitor;
-  SVnodeS3MigrateState *pS3MigrateMonitor;
+  SS3MigrateMonitor   *pS3MigrateMonitor;
   struct {
     SVHashTable *ht;
     SArray      *arr;
