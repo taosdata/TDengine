@@ -73,8 +73,7 @@ dependencies = [
 [[package]]
 name = "actix-http"
 version = "3.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d48f96fc3003717aeb9856ca3d02a8c7de502667ad76eeacd830b48d2e91fac4"
+source = "git+https://github.com/bitcapybara/actix-web?rev=bf4f6e7a69e8b9805b5c74a81b8524a8fc53f6ed#bf4f6e7a69e8b9805b5c74a81b8524a8fc53f6ed"
 dependencies = [
  "actix-codec",
  "actix-rt",
@@ -8415,6 +8414,7 @@ dependencies = [
  "actix-embed",
  "actix-files",
  "actix-web",
+ "actix-ws",
  "anyhow",
  "assert_cmd",
  "assert_fs",
@@ -8426,6 +8426,7 @@ dependencies = [
  "clap-verbosity-flag",
  "const_format",
  "deadpool",
+ "futures",
  "geos",
  "hex",
  "http 0.2.12",
@@ -8434,6 +8435,7 @@ dependencies = [
  "log",
  "mimalloc",
  "mockito",
+ "pin-project-lite",
  "rand 0.8.5",
  "regex",
  "reqwest 0.11.27",

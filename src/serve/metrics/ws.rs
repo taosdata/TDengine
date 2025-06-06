@@ -13,6 +13,7 @@ use futures_util::{
 };
 use taosx_core::core_metrics::CoreMetrics;
 use tokio::{pin, time::interval};
+use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
 use crate::serve::{controller::TaskControllerRef, Failed};
@@ -29,8 +30,10 @@ const SEND_METRICS_INTERVAL: Duration = Duration::from_secs(2);
 pub async fn echo_heartbeat_ws(
     mut session: actix_ws::Session,
     mut msg_stream: actix_ws::MessageStream,
+    cancel: CancellationToken,
 ) {
     tracing::info!("connected");
+    let _cancel_guard = cancel.drop_guard();
 
     let mut last_heartbeat = std::time::Instant::now();
     let mut interval = interval(HEARTBEAT_INTERVAL);
@@ -100,7 +103,9 @@ pub async fn echo_heartbeat_ws(
                 }
 
                 // send heartbeat ping
-                let _ = session.ping(b"").await;
+                if session.ping(b"").await.is_err() {
+                    break None;
+                };
             }
         }
     };
@@ -111,7 +116,12 @@ pub async fn echo_heartbeat_ws(
     tracing::info!("disconnected");
 }
 
-async fn send_task_metrics_ws(task_id: i64, req: HttpRequest, mut session: Session) {
+async fn send_task_metrics_ws(
+    task_id: i64,
+    req: HttpRequest,
+    mut session: Session,
+    cancel: CancellationToken,
+) {
     let task_store = req.app_data::<Data<TaskControllerRef>>().unwrap();
     let get_task_result = task_store.get(task_id).await;
     if let Err(err) = get_task_result {
@@ -169,7 +179,13 @@ async fn send_task_metrics_ws(task_id: i64, req: HttpRequest, mut session: Sessi
             tracing::info!("ws session closed");
             break;
         }
-        sleep(SEND_METRICS_INTERVAL).await;
+        if cancel
+            .run_until_cancelled(sleep(SEND_METRICS_INTERVAL))
+            .await
+            .is_none()
+        {
+            break;
+        }
     }
 }
 
@@ -188,7 +204,13 @@ pub(crate) async fn send_task_metrics(
 
     let (res, session, msg_stream) = actix_ws::handle(&req, stream)?;
     // spawn websocket handler (and don't await it) so that the response is returned immediately
-    rt::spawn(send_task_metrics_ws(task_id, req, session.clone()));
-    rt::spawn(echo_heartbeat_ws(session.clone(), msg_stream));
+    let cancel = CancellationToken::new();
+    rt::spawn(send_task_metrics_ws(
+        task_id,
+        req,
+        session.clone(),
+        cancel.clone(),
+    ));
+    rt::spawn(echo_heartbeat_ws(session, msg_stream, cancel));
     Ok(res)
 }

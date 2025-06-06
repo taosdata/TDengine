@@ -26,6 +26,7 @@ use std::{
 use taos::{taos_query::common::RowView, *};
 use taos_query::Manager;
 use tokio_stream::wrappers::UnboundedReceiverStream;
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info, instrument, Instrument};
 use tracing_actix_web::TracingLogger;
 
@@ -61,9 +62,12 @@ use tracing_subscriber::{
 
 use sql::need_limit;
 
+use crate::stream_with_cancel::StreamWithCancel;
+
 mod favorites;
 mod qid;
 mod sql;
+mod stream_with_cancel;
 pub mod verification;
 
 #[cfg(feature = "mimalloc")]
@@ -973,21 +977,29 @@ async fn proxy(
             .map_err(error::ErrorInternalServerError)?;
         let (target_rx, mut target_tx) = tokio::io::split(target_upgrade);
 
+        let cancel = CancellationToken::new();
+
         // Copy byte stream from the client to the target.
-        tokio::task::spawn_local(async move {
-            let mut client_stream = payload.map(|result| {
-                result.map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))
-            });
-            let mut client_read = tokio_util::io::StreamReader::new(&mut client_stream);
-            let result = tokio::io::copy(&mut client_read, &mut target_tx).await;
-            if let Err(err) = result {
-                tracing::error!("Error proxying websocket client bytes to target: {err}")
+        tokio::task::spawn_local({
+            let cancel = cancel.clone();
+            async move {
+                let mut client_stream =
+                    payload.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e));
+                let mut client_read = tokio_util::io::StreamReader::new(&mut client_stream);
+                if let Some(Err(e)) = cancel
+                    .run_until_cancelled(tokio::io::copy(&mut client_read, &mut target_tx))
+                    .await
+                {
+                    tracing::error!("Error proxying websocket client bytes to target: {e}");
+                };
+
+                tracing::info!("Websocket client closed");
             }
-            tracing::info!("Websocket client closed");
         });
 
         // Copy byte stream from the target back to the client.
-        let target_stream = tokio_util::io::ReaderStream::new(target_rx);
+        let target_stream =
+            StreamWithCancel::new(tokio_util::io::ReaderStream::new(target_rx), cancel);
         Ok(client_response.streaming(target_stream))
     } else {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();

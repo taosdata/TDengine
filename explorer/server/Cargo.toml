@@ -7,10 +7,11 @@ description = "TDengine Explorer UI"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-actix-cors = "0.7.0"
+actix-cors.workspace = true
 actix-embed = "0.1.0"
-actix-files = "0.6.6"
-actix-web = { version = "4.7.0", features = ["rustls-0_23"] }
+actix-files.workspace = true
+actix-web.workspace = true
+actix-ws.workspace = true
 rustls = { version = "0.23.18", default-features = false, features = ["ring"] }
 rustls-pemfile = "2.1.2"
 reqwest = { version = "0.11.27", default-features = false, features = [
@@ -24,7 +25,7 @@ anyhow.workspace = true
 clap = { workspace = true, features = ["derive", "env"] }
 sqlx = { version = "0.8", features = ["sqlite", "chrono", "runtime-tokio"] }
 tokio = { workspace = true, features = ["full"] }
-tokio-util.workspace = true
+tokio-util = { workspace = true, features = ["compat"] }
 tokio-stream.workspace = true
 log = { version = "0.4", features = ["serde"] }
 http-auth-basic = "0.3"
@@ -61,6 +62,8 @@ assert_fs = "1.1.2"
 regex = "1"
 
 mimalloc = { version = "0.1.43", default-features = false, optional = true }
+futures.workspace = true
+pin-project-lite = "0.2.14"
 
 [dependencies.taos]
 workspace = true

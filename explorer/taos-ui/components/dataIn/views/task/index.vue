@@ -475,6 +475,8 @@ async function getList() {
       const { activity, close } = useActivitySubscription(dataInProps.task.webSoketUrl);
       connectData.activity = activity;
       connectData.close = close;
+    } else {
+      closeConnect();
     }
   });
 }
@@ -843,7 +845,7 @@ function getStatusClass(status: string) {
 function closeConnect() {
   hasConnect.value = false;
   if (connectData && connectData.close) {
-    connectData.close(dataInProps.agent.webSoketUrl);
+    connectData.close(dataInProps.task.webSoketUrl);
   }
 }
 

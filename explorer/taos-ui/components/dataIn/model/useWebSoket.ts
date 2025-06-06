@@ -14,7 +14,7 @@ export class WebSocketManager {
 
   public status = ref<string>('CLOSED');
 
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): WebSocketManager {
     if (!WebSocketManager.instance) {
@@ -45,7 +45,7 @@ export class WebSocketManager {
       connection?.close();
       this.connections.delete(url);
       this.status.value = 'CLOSED';
-      console.log('close: 关闭连接');
+      console.log('close: 关闭连接', url);
     }
   };
 }
