@@ -62,17 +62,19 @@ class StreamUtil:
         tdLog.exit(f"stream task status not ready in {loop} seconds")
 
     def dropAllStreamsAndDbs(self):
+        return
         streamNum = 0
         dbList = tdSql.query("show databases", row_tag=True)
         for r in range(len(dbList)):
             dbname = dbList[r][0]
             if dbname != "information_schema" and dbname != "performance_schema":
-                streamList = tdSql.query(f"show {dbname}streams", row_tag=True)
+                streamList = tdSql.query(f"show {dbname}.streams", row_tag=True)
                 for r in range(len(streamList)):
                     streamNum = streamNum + 1
                     streamName = streamList[r][0]
                     tdSql.execute(f"drop stream {streamList[r][0]}")
-                tdSql.execute(f"drop database {streamName}")
+                tdLog.info(f"drop database {dbname}")
+                tdSql.execute(f"drop database {dbname}")
 
         tdLog.info(f"drop {len(dbList)} databases, {streamNum} streams")
 
