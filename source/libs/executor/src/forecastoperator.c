@@ -793,11 +793,16 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
 
             int32_t num = 0;
             char**  pList = strsplit(buf, " ", &num);
-            printf("num is:%d\n", num);
+            if (num != pSupp->forecastRows) {
+              qError(
+                  "%s the rows:%d of future dynamic real column data is not equalled to the forecasting rows:%" PRId64,
+                  id, num, pSupp->forecastRows);
+              goto _end;
+            }
+
             d.numOfRows = num;
 
             colInfoDataEnsureCapacity(&d.data, num, true);
-
             for (int32_t j = 0; j < num; ++j) {
               char* ps = NULL;
               if (j == 0) {
@@ -812,7 +817,8 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
 
             void* noret = taosArrayPush(pSupp->pDynamicRealList, &d);
             if (noret == NULL) {
-              qError("%s failed to add column info in dynmaic real column info", id);
+              qError("%s failed to add column info in dynamic real column info", id);
+              goto _end;
             }
           }
         }
