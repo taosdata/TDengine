@@ -62,7 +62,7 @@ jobs:
       specified_pr_number: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_pr_number }}
 
   run-tests-on-windows:
-    uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml@main
+    uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml@tomchon-patch-4
     with:
       tdinternal: false
       specified_source_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_source_branch }}
