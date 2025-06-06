@@ -6755,7 +6755,7 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeW
   if (pCxt->createStreamCalc && pCxt->currClause == SQL_CLAUSE_WHERE) {
     PAR_ERR_JRET(filterExtractTsCond(&pCond, pTimeRangeExpr));
     // some node may be replaced
-    *pWhere = pCond;
+    TSWAP(*pWhere, pCond);
     goto _return;
   }
 
@@ -13300,7 +13300,7 @@ static int32_t createStreamCheckOutCols(STranslateContext* pCxt, SNodeList* pCol
         calcTypeBytes(pColDef->dataType) != pMeta->schema[colIndex].bytes ||
         pColDef->dataType.scale != scale ||
         pColDef->dataType.precision != precision ||
-        strcmp(pColDef->colName, pMeta->schema[colIndex].name) != 0) {
+        strncmp(pColDef->colName, pMeta->schema[colIndex].name, strlen(pColDef->colName)) != 0) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                      "Out table cols type mismatch");
     }
