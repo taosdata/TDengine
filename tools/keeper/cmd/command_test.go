@@ -14,6 +14,7 @@ import (
 )
 
 func TestTransferTaosdClusterBasicInfo(t *testing.T) {
+	//
 	config.InitConfig()
 
 	conn, _ := db.NewConnector("root", "taosdata", "127.0.0.1", 6041, false)
