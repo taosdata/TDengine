@@ -1,6 +1,8 @@
 #pragma once
-#include <vector>
+
 #include <cstdint>
+#include <memory>
+#include <vector>
 #include "TimestampGeneratorConfig.h"
 
 
@@ -11,6 +13,10 @@ public:
     Timestamp generate() const;
     
     std::vector<Timestamp> generate(size_t count) const;
+
+    static std::unique_ptr<TimestampGenerator> create(const TimestampGeneratorConfig& config) {
+        return std::make_unique<TimestampGenerator>(config);
+    }
 
 private:
     TimestampGeneratorConfig config_;
