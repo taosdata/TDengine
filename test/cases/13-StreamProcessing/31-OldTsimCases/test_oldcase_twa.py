@@ -56,13 +56,11 @@ class TestStreamOldCaseTwa:
         tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
         tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
-
-        return
-        # fill(prev)
         tdSql.execute(
-            f"create stream streams1 period(2s) from st partition by tbname, ta options(expired_time(0) | ignore_disorder | FORCE_OUTPUT(prev)) into streamt as select _tprev_localtime, twa(a) from st where tbname=%%1 and ta=%%2 and ts >= _tprev_localtime and ts < _tlocaltime;"
+            f"create stream streams1 period(2s) from st partition by tbname, ta options(expired_time(0) | ignore_disorder | FORCE_OUTPUT) into streamt as select _tprev_localtime, twa(a) from st where tbname=%%1 and ta=%%2 and ts >= _tprev_localtime and ts < _tlocaltime;"
         )
 
+        return
         
         tdSql.error(
             f"create stream streams2 interval(2s) sliding(2s) from st partition by tbname, ta options(FORCE_OUTPUT) into streamt2 as select _wstart, twa(a) from st partition by tbname, ta interval(2s) fill(prev);"
