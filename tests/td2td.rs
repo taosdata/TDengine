@@ -106,7 +106,7 @@ async fn test_ts6499_with_taos() -> anyhow::Result<()> {
         .output()?;
     let err = String::from_utf8_lossy(&output.stderr);
     assert!(err.is_empty(), "{}", err);
-    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+    tokio::time::sleep(Duration::from_secs(5)).await;
 
     // 5. create a schema only synchronization task
     println!("====== start schema only synchronization task again =====");
