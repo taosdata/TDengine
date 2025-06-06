@@ -40,16 +40,29 @@ int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
     goto _exit;
   }
 
-  if (tjsonAddDoubleToObject(pJson, "deployed", deployed) < 0) {
-    code = terrno;
-    dError("failed to add deployed to json object since %s", tstrerror(code));
-    goto _exit;
-  }
-  if (tjsonAddIntegerToObject(pJson, "replicaId", createReq.replicaId) < 0) {
-    code = terrno;
-    dError("failed to add replicaId to json object since %s", tstrerror(code));
-    goto _exit;
-  }
+  TAOS_CHECK_EXIT(tjsonAddDoubleToObject(pJson, "deployed", deployed));
+  TAOS_CHECK_EXIT(tjsonAddIntegerToObject(pJson, "snodeId", createReq.snodeId));
+
+  SJson *leader0 = tjsonCreateObject();
+  TAOS_CHECK_EXIT(tjsonAddItemToObject(pJson, "leader0", leader0));
+  TAOS_CHECK_EXIT(tjsonAddIntegerToObject(leader0, "nodeId", createReq.leaders[0].nodeId));
+  TAOS_CHECK_EXIT(tjsonAddIntegerToObject(leader0, "inUse", createReq.leaders[0].epSet.inUse));
+  TAOS_CHECK_EXIT(tjsonAddIntegerToObject(leader0, "numOfEps", createReq.leaders[0].epSet.numOfEps));
+  TAOS_CHECK_EXIT(tjsonAddArray(leader0, "eps", epToJson, createReq.leaders[0].epSet.eps, sizeof(SEp), createReq.leaders[0].epSet.numOfEps));
+
+  SJson *leader1 = tjsonCreateObject();
+  TAOS_CHECK_EXIT(tjsonAddItemToObject(pJson, "leader1", leader1));
+  TAOS_CHECK_EXIT(tjsonAddIntegerToObject(leader1, "nodeId", createReq.leaders[1].nodeId));
+  TAOS_CHECK_EXIT(tjsonAddIntegerToObject(leader1, "inUse", createReq.leaders[1].epSet.inUse));
+  TAOS_CHECK_EXIT(tjsonAddIntegerToObject(leader1, "numOfEps", createReq.leaders[1].epSet.numOfEps));
+  TAOS_CHECK_EXIT(tjsonAddArray(leader1, "eps", epToJson, createReq.leaders[1].epSet.eps, sizeof(SEp), createReq.leaders[1].epSet.numOfEps));
+
+  SJson *replica = tjsonCreateObject();
+  TAOS_CHECK_EXIT(tjsonAddItemToObject(pJson, "replica", replica));
+  TAOS_CHECK_EXIT(tjsonAddIntegerToObject(replica, "nodeId", createReq.replica.nodeId));
+  TAOS_CHECK_EXIT(tjsonAddIntegerToObject(replica, "inUse", createReq.replica.epSet.inUse));
+  TAOS_CHECK_EXIT(tjsonAddIntegerToObject(replica, "numOfEps", createReq.replica.epSet.numOfEps));
+  TAOS_CHECK_EXIT(tjsonAddArray(replica, "eps", epToJson, createReq.replica.epSet.eps, sizeof(SEp), createReq.replica.epSet.numOfEps));
 
   char path[TSDB_FILENAME_LEN];
   snprintf(path, TSDB_FILENAME_LEN, "%s%ssnode%d", pInput->path, TD_DIRSEP, createReq.snodeId);
@@ -67,7 +80,7 @@ int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
     goto _exit;
   }
 
-  dInfo("snode %d created, replicaId:%d", createReq.snodeId, createReq.replicaId);
+  dInfo("snode %d created, replicaId:%d", createReq.snodeId, createReq.replica.nodeId);
 
 _exit:
 

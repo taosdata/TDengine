@@ -281,8 +281,10 @@ typedef struct {
   SQnodeLoad load;
 } SQnodeObj;
 
+
 typedef struct {
   int32_t    id;
+  int32_t    leadersId[2];
   int32_t    replicaId;
   int64_t    createdTime;
   int64_t    updateTime;
@@ -292,7 +294,10 @@ typedef struct {
 typedef struct {
   SSnodeObj* target;
   int32_t    affNum;
-  SSnodeObj* affSnode[2];
+  SSnodeObj  affSnode[2];
+  SSnodeObj  affNewReplica[2];
+  SSnodeObj  replicaSnode;
+  SSnodeObj  replicaNewLeader;
 } SSnodeDropTraversaCtx;
 
 typedef struct {
