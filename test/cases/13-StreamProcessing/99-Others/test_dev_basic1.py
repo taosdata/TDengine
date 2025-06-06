@@ -33,7 +33,6 @@ class TestStreamDevBasic:
     def basic1(self):
         tdLog.info(f"basic test 1")
         tdStream.dropAllStreamsAndDbs()
-        tdStream.createSnode()
 
         tdLog.info(f"=============== create database")
         tdSql.prepare(dbname="qdb", vgroups=1)
@@ -64,9 +63,12 @@ class TestStreamDevBasic:
         tdSql.checkKeyExist("stream_trigger")
 
         tdLog.info(f"=============== create stream")
-        tdSql.execute(
-            "create stream s1 interval(1s) sliding(1s) from stream_trigger partition by tbname into st1 tags (gid bigint as _tgrpid) as select _twstart ts, count(*) c1, avg(cint) c2  from meters where cts >= _twstart and cts < _twend;"
-        )
+        sql = "create stream s1 interval(1s) sliding(1s) from stream_trigger partition by tbname into st1 tags (gid bigint as _tgrpid) as select _twstart ts, count(*) c1, avg(cint) c2  from meters where cts >= _twstart and cts < _twend;"
+        tdSql.error(sql)
+
+        tdStream.createSnode()
+        tdSql.execute(sql)
+
         tdStream.checkStreamStatus()
 
         tdLog.info(f"=============== write trigger data")
@@ -98,12 +100,11 @@ class TestStreamDevBasic:
             retry=0,
         )
 
-        exp_sql = "select _wstart, count(*), avg(cint) from qdb.meters interval(1s) limit 2"
-        exp_result = tdSql.getResult(exp_sql)
-        tdSql.checkResultsByArray(
-            sql=result_sql,
-            exp_result=exp_result
+        exp_sql = (
+            "select _wstart, count(*), avg(cint) from qdb.meters interval(1s) limit 2"
         )
+        exp_result = tdSql.getResult(exp_sql)
+        tdSql.checkResultsByArray(sql=result_sql, exp_result=exp_result)
 
         tdSql.checkResultsBySql(
             sql=result_sql,
