@@ -891,6 +891,11 @@ _exit:
 int32_t msmAssignRandomSnodeId(SMnode* pMnode, int64_t streamId) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  int32_t snodeIdx = 0;
+  int32_t snodeId = 0;
+  void      *pIter = NULL;
+  SSnodeObj *pObj = NULL;
+  bool alive = false;
   int32_t snodeNum = sdbGetSize(pMnode->pSdb, SDB_SNODE);
   if (snodeNum <= 0) {
     mstsInfo("no available snode now, num:%d", snodeNum);
@@ -898,11 +903,6 @@ int32_t msmAssignRandomSnodeId(SMnode* pMnode, int64_t streamId) {
   }
 
   int32_t snodeTarget = taosRand() % snodeNum;
-  int32_t snodeIdx = 0;
-  int32_t snodeId = 0;
-  void      *pIter = NULL;
-  SSnodeObj *pObj = NULL;
-  bool alive = false;
 
   while (1) {
     pIter = sdbFetch(pMnode->pSdb, SDB_SNODE, pIter, (void **)&pObj);
@@ -2762,8 +2762,8 @@ bool msmCheckStreamStartCond(int64_t streamId, int32_t snodeId) {
 
   for (int32_t i = 0; i < pStream->runnerDeploys; ++i) {
     int32_t runnerNum = taosArrayGetSize(pStream->runners[i]);
-    for (int32_t i = 0; i < runnerNum; ++i) {
-      SStmTaskStatus* pStatus = taosArrayGet(pStream->runners[i], i);
+    for (int32_t m = 0; m < runnerNum; ++m) {
+      SStmTaskStatus* pStatus = taosArrayGet(pStream->runners[i], m);
       if (STREAM_STATUS_INIT != pStatus->status && STREAM_STATUS_RUNNING != pStatus->status) {
         return false;
       }
