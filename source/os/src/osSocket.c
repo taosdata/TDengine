@@ -429,6 +429,10 @@ _err:
   if (cost >= limitMs) {
     uWarn("get ip from fqdn:%s, cost:%" PRId64 "ms", fqdn, cost);
   }
+
+#ifdef WINDOWS
+  WSACleanup();
+#endif
   return code;
 }
 
@@ -493,15 +497,10 @@ int32_t taosGetIp4FromFqdn(const char *fqdn, SIpAddr *pAddr) {
 
   int32_t ret = getaddrinfo(fqdn, NULL, &hints, &result);
   if (result) {
-    if (result->ai_family == AF_INET) {
-      struct sockaddr_in *p4 = (struct sockaddr_in *)result->ai_addr;
-      inet_ntop(AF_INET, &p4->sin_addr, pAddr->ipv4, sizeof(pAddr->ipv4));
-      pAddr->type = 0;
-    } else {
-      code = TSDB_CODE_RPC_FQDN_ERROR;
-      goto _err;
-    }
+    struct sockaddr_in *p4 = (struct sockaddr_in *)result->ai_addr;
+    inet_ntop(AF_INET, &p4->sin_addr, pAddr->ipv4, sizeof(pAddr->ipv4));
     freeaddrinfo(result);
+    pAddr->type = 0;
     goto _err;
   } else {
 #ifdef EAI_SYSTEM
@@ -515,11 +514,15 @@ int32_t taosGetIp4FromFqdn(const char *fqdn, SIpAddr *pAddr) {
 #endif
   }
 #endif
+
 _err:
   cost = taosGetTimestampMs() - st;
   if (cost >= limitMs) {
     uWarn("get ip from fqdn:%s, cost:%" PRId64 "ms", fqdn, cost);
   }
+#ifdef WINDOWS
+  WSACleanup();
+#endif
   return code;
 }
 int32_t taosGetIpFromFqdn(int8_t enableIpv6, const char *fqdn, SIpAddr *addr) {
