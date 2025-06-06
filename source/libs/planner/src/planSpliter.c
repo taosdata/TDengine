@@ -47,6 +47,10 @@ typedef struct SFindSplitNodeCtx {
 typedef bool (*FSplFindSplitNode)(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode, void* pInfo);
 
 static int32_t cloneVgroups(SVgroupsInfo **pDst, SVgroupsInfo* pSrc) {
+  if (pSrc == NULL) {
+    *pDst = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
   int32_t len = VGROUPS_INFO_SIZE(pSrc);
   *pDst = taosMemoryMalloc(len);
   if (NULL == *pDst) {

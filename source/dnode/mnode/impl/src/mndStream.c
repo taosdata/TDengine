@@ -636,6 +636,7 @@ int32_t mndStreamUpdateTagsRefFlag(SMnode *pMnode, int64_t suid, SSchema* pTags,
   }
 
   sdbTraverse(pMnode->pSdb, SDB_STREAM, mndStreamUpdateTagsFlag, &suid, pTags, &tagNum);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {

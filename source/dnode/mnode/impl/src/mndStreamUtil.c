@@ -133,6 +133,7 @@ int32_t mstCheckDbInUse(SMnode *pMnode, char *dbFName, bool *dbStream, bool *vta
 
   SStmCheckDbInUseCtx ctx = {dbStream, vtableStream, ignoreCurrDb};
   sdbTraverse(pMnode->pSdb, SDB_STREAM, mstChkSetDbInUse, dbFName, &ctx, NULL);
+  return TSDB_CODE_SUCCESS;
 }
 
 static void mstShowStreamStatus(char *dst, int8_t status, int32_t bufLen) {

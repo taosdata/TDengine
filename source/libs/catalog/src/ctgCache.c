@@ -2561,7 +2561,7 @@ int32_t ctgOpDropStbMeta(SCtgCacheOperation *operation) {
 
   if ((0 != msg->dbId) && (dbCache->dbId != msg->dbId)) {
     ctgDebug("stb:%s, dbId already modified, current:0x%" PRIx64 ", dbId:0x%" PRIx64 ", db:%s, suid:0x%" PRIx64,
-             msg->stbName ? msg->stbName : "null", dbCache->dbId, msg->dbId, msg->dbFName, msg->suid);
+             strcmp(msg->stbName, "") != 0 ? msg->stbName : "null", dbCache->dbId, msg->dbId, msg->dbFName, msg->suid);
     goto _return;
   }
 
