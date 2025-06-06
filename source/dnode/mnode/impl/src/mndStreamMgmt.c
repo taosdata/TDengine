@@ -29,9 +29,48 @@
 #include "mndSnode.h"
 
 void msmDestroyRuntimeInfo(SMnode *pMnode) {
-  // TODO
+  // STREAMTODO
 
   memset(&mStreamMgmt, 0, sizeof(mStreamMgmt));
+}
+
+
+int32_t msmStopStreamByError(int64_t streamId, SStmStatus* pStatus, int32_t errCode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SStmStatus* pStream = NULL;
+
+  mstsInfo("try to stop stream for error: %s", tstrerror(errCode));
+
+  if (NULL == pStatus) {
+    pStream = (SStmStatus*)taosHashAcquire(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
+    if (NULL == pStream) {
+      mstsInfo("stream already not in streamMap, error:%s", tstrerror(terrno));
+      goto _exit;
+    }
+
+    pStatus = pStream;
+  }
+
+  int64_t currTs = taosGetTimestampMs();
+  pStatus->fatalRetryTimes++;
+  pStatus->fatalError = errCode;
+  pStatus->fatalRetryDuration = (pStatus->fatalRetryTimes > 10) ? MST_MAX_RETRY_DURATION : MST_ISOLATION_DURATION;
+  pStatus->fatalRetryTs = currTs + pStatus->fatalRetryDuration;
+  
+  atomic_store_8(&pStatus->stopped, 1);
+
+  MND_STREAM_SET_LAST_TS(STM_EVENT_STREAM_ERROR, currTs);
+
+_exit:
+
+  taosHashRelease(mStreamMgmt.streamMap, pStream);
+
+  if (code) {
+    mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+
+  return code;
 }
 
 
@@ -43,7 +82,7 @@ static void msmSetInitRuntimeState(int8_t state) {
       mStreamMgmt.watch.processing = 0;
       break;
     case MND_STM_STATE_NORMAL:
-      MND_STREAM_SET_LAST_TS(STM_OP_NORMAL_BEGIN, taosGetTimestampMs());
+      MND_STREAM_SET_LAST_TS(STM_EVENT_NORMAL_BEGIN, taosGetTimestampMs());
       break;
     default:
       return;
@@ -365,28 +404,25 @@ _exit:
 
 
 
-static int32_t msmTDAddSnodeTask(SHashObj* pHash, SStmTaskDeploy* pDeploy, SStreamObj* pStream, bool triggerTask, bool lowestRunner) {
+static int32_t msmTDAddTriggerToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj* pStream) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
   SStmSnodeTasksDeploy snode = {0};
   SStmTaskToDeployExt ext;
   SStreamTask* pTask = &pDeploy->task;
-  SArray** ppList = triggerTask ? &snode.triggerList : &snode.runnerList;
-
-  ext.lowestRunner = lowestRunner;
 
   while (true) {
-    SStmSnodeTasksDeploy* pSnode = taosHashAcquire(pHash, &pDeploy->task.nodeId, sizeof(pDeploy->task.nodeId));
+    SStmSnodeTasksDeploy* pSnode = taosHashAcquire(mStreamMgmt.toDeploySnodeMap, &pDeploy->task.nodeId, sizeof(pDeploy->task.nodeId));
     if (NULL == pSnode) {
-      *ppList = taosArrayInit(10, sizeof(SStmTaskToDeployExt));
-      TSDB_CHECK_NULL(*ppList, code, lino, _return, terrno);
+      snode.triggerList = taosArrayInit(10, sizeof(SStmTaskToDeployExt));
+      TSDB_CHECK_NULL(snode.triggerList, code, lino, _return, terrno);
 
       ext.deploy = *pDeploy;
       ext.deployed = false;
-      TSDB_CHECK_NULL(taosArrayPush(*ppList, &ext), code, lino, _return, terrno);
+      TSDB_CHECK_NULL(taosArrayPush(snode.triggerList, &ext), code, lino, _return, terrno);
 
-      code = taosHashPut(pHash, &pDeploy->task.nodeId, sizeof(pDeploy->task.nodeId), &snode, sizeof(snode));
+      code = taosHashPut(mStreamMgmt.toDeploySnodeMap, &pDeploy->task.nodeId, sizeof(pDeploy->task.nodeId), &snode, sizeof(snode));
       if (TSDB_CODE_SUCCESS == code) {
         goto _return;
       }
@@ -395,31 +431,93 @@ static int32_t msmTDAddSnodeTask(SHashObj* pHash, SStmTaskDeploy* pDeploy, SStre
         goto _return;
       }    
 
-      taosArrayDestroy(*ppList);
+      taosArrayDestroy(snode.triggerList);
       continue;
     }
-
-    ppList = triggerTask ? &pSnode->triggerList : &pSnode->runnerList;
     
     taosWLockLatch(&pSnode->lock);
-    if (NULL == *ppList) {
-      *ppList = taosArrayInit(10, sizeof(SStmTaskToDeployExt));
-      if (NULL == *ppList) {
+    if (NULL == pSnode->triggerList) {
+      pSnode->triggerList = taosArrayInit(10, sizeof(SStmTaskToDeployExt));
+      if (NULL == pSnode->triggerList) {
         taosWUnLockLatch(&pSnode->lock);
-        TSDB_CHECK_NULL(*ppList, code, lino, _return, terrno);
+        TSDB_CHECK_NULL(pSnode->triggerList, code, lino, _return, terrno);
       }
     }
     
     ext.deploy = *pDeploy;
     ext.deployed = false;
     
-    if (NULL == taosArrayPush(*ppList, &ext)) {
+    if (NULL == taosArrayPush(pSnode->triggerList, &ext)) {
       taosWUnLockLatch(&pSnode->lock);
       TSDB_CHECK_NULL(NULL, code, lino, _return, terrno);
     }
     taosWUnLockLatch(&pSnode->lock);
     
-    taosHashRelease(pHash, pSnode);
+    taosHashRelease(mStreamMgmt.toDeploySnodeMap, pSnode);
+    break;
+  }
+  
+_return:
+
+  if (code) {
+    mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  } else {
+    msttDebug("trigger task added to toDeploySnodeMap, tidx:%d", pTask->taskIdx);
+  }
+
+  return code;
+}
+
+static int32_t msmTDAddRunnerToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj* pStream) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int64_t streamId = pStream->pCreate->streamId;
+  SStmSnodeTasksDeploy snode = {0};
+  SStmTaskToDeployExt ext;
+  SStreamTask* pTask = &pDeploy->task;
+
+  while (true) {
+    SStmSnodeTasksDeploy* pSnode = taosHashAcquire(mStreamMgmt.toDeploySnodeMap, &pDeploy->task.nodeId, sizeof(pDeploy->task.nodeId));
+    if (NULL == pSnode) {
+      snode.runnerList = taosArrayInit(10, sizeof(SStmTaskToDeployExt));
+      TSDB_CHECK_NULL(snode.runnerList, code, lino, _return, terrno);
+
+      ext.deploy = *pDeploy;
+      ext.deployed = false;
+      TSDB_CHECK_NULL(taosArrayPush(snode.runnerList, &ext), code, lino, _return, terrno);
+
+      code = taosHashPut(mStreamMgmt.toDeploySnodeMap, &pDeploy->task.nodeId, sizeof(pDeploy->task.nodeId), &snode, sizeof(snode));
+      if (TSDB_CODE_SUCCESS == code) {
+        goto _return;
+      }
+
+      if (TSDB_CODE_DUP_KEY != code) {
+        goto _return;
+      }    
+
+      taosArrayDestroy(snode.runnerList);
+      continue;
+    }
+    
+    taosWLockLatch(&pSnode->lock);
+    if (NULL == pSnode->runnerList) {
+      pSnode->runnerList = taosArrayInit(10, sizeof(SStmTaskToDeployExt));
+      if (NULL == pSnode->runnerList) {
+        taosWUnLockLatch(&pSnode->lock);
+        TSDB_CHECK_NULL(pSnode->runnerList, code, lino, _return, terrno);
+      }
+    }
+    
+    ext.deploy = *pDeploy;
+    ext.deployed = false;
+    
+    if (NULL == taosArrayPush(pSnode->runnerList, &ext)) {
+      taosWUnLockLatch(&pSnode->lock);
+      TSDB_CHECK_NULL(NULL, code, lino, _return, terrno);
+    }
+    taosWUnLockLatch(&pSnode->lock);
+    
+    taosHashRelease(mStreamMgmt.toDeploySnodeMap, pSnode);
     break;
   }
   
@@ -429,6 +527,30 @@ _return:
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   } else {
     msttDebug("task added to toDeploySnodeMap, tidx:%d", pTask->taskIdx);
+  }
+
+  return code;
+}
+
+static int32_t msmTDAddRunnersToSnodeMap(SArray* runnerList, SStreamObj* pStream) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t runnerNum = taosArrayGetSize(runnerList);
+  SStmTaskDeploy* pDeploy = NULL;
+  int64_t streamId = pStream->pCreate->streamId;
+
+  for (int32_t i = 0; i < runnerNum; ++i) {
+    pDeploy = taosArrayGet(runnerList, i);
+    
+    TAOS_CHECK_EXIT(msmTDAddRunnerToSnodeMap(pDeploy, pStream));
+    
+    atomic_add_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);    
+  }
+
+_exit:
+
+  if (code) {
+    mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 
   return code;
@@ -475,11 +597,70 @@ int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, SStreamObj* pStream, v
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t msmBuildTriggerRunnerTargets(SMnode* pMnode, SStmStatus* pInfo, int64_t streamId, SArray** ppRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (pInfo->runnerDeploys > 0) {
+    *ppRes = taosArrayInit(pInfo->runnerDeploys, sizeof(SStreamTaskAddr));
+    TSDB_CHECK_NULL(*ppRes, code, lino, _exit, terrno);
+  }
+  
+  for (int32_t i = 0; i < pInfo->runnerDeploys; ++i) {
+    SStmTaskStatus* pStatus = taosArrayGetLast(pInfo->runners[i]);
+    TSDB_CHECK_NULL(pStatus, code, lino, _exit, terrno);
+
+    if (!STREAM_IS_TOP_RUNNER(pStatus->flags)) {
+      mstsError("the last runner task %" PRIx64 " SID:%" PRId64 " tidx:%d in deploy %d is not top runner", 
+          pStatus->id.taskId, pStatus->id.seriousId, pStatus->id.taskIdx, i);
+      TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);    
+    }
+    
+    SStreamRunnerTarget runner;
+    runner.addr.taskId = pStatus->id.taskId;
+    runner.addr.epset = mndGetDnodeEpsetById(pMnode, pStatus->id.nodeId);
+    runner.execReplica = pInfo->runnerReplica; 
+    TSDB_CHECK_NULL(taosArrayPush(*ppRes, &runner), code, lino, _exit, terrno);
+    mstsDebug("the %dth runner target added to trigger's runnerList, TASK:%" PRIx64 , i, runner.addr.taskId);
+  }
+
+_exit:
+
+  if (code) {
+    mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t msmBuildStreamSnodeInfo(SMnode* pMnode, SStreamObj* pStream, SStreamSnodeInfo* pInfo) {
+  int64_t streamId = pStream->pCreate->streamId;
+  int32_t leaderSnodeId = atomic_load_32(&pStream->mainSnodeId);
+  SSnodeObj* pSnode = mndAcquireSnode(pMnode, leaderSnodeId);
+  if (NULL == pSnode) {
+    mstsError("snode %d not longer exists, ignore build stream snode info", leaderSnodeId);
+    return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+  }
+  
+  pInfo->leaderSnodeId = leaderSnodeId;
+  pInfo->replicaSnodeId = pSnode->replicaId;
+
+  mndReleaseSnode(pMnode, pSnode);
+
+  pInfo->leaderEpSet = mndGetDnodeEpsetById(pMnode, pInfo->leaderSnodeId);
+  if (GOT_SNODE(pInfo->replicaSnodeId)) {
+    pInfo->replicaEpSet = mndGetDnodeEpsetById(pMnode, pInfo->replicaSnodeId);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDeploy* pDeploy, SStreamObj* pStream) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
   SStreamTriggerDeployMsg* pMsg = &pDeploy->msg.trigger;
+  
   pMsg->triggerType = pStream->pCreate->triggerType;
   pMsg->igDisorder = pStream->pCreate->igDisorder;
   pMsg->fillHistory = pStream->pCreate->fillHistory;
@@ -526,33 +707,16 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
     return code;
   }
 
-  if (pInfo->runnerDeploys > 0) {
-    pMsg->runnerList = taosArrayInit(pInfo->runnerDeploys, sizeof(SStreamTaskAddr));
-    TSDB_CHECK_NULL(pMsg->runnerList, code, lino, _exit, terrno);
-  }
-  
-  for (int32_t i = 0; i < pInfo->runnerDeploys; ++i) {
-    SStmTaskStatus* pStatus = taosArrayGetLast(pInfo->runners[i]);
-    TSDB_CHECK_NULL(pStatus, code, lino, _exit, terrno);
+  TAOS_CHECK_EXIT(msmBuildTriggerRunnerTargets(pMnode, pInfo, streamId, &pMsg->runnerList));
 
-    if (!STREAM_IS_TOP_RUNNER(pStatus->flags)) {
-      mstsError("the last runner task %" PRIx64 " SID:%" PRId64 " tidx:%d in deploy %d is not top runner", 
-          pStatus->id.taskId, pStatus->id.seriousId, pStatus->id.taskIdx, i);
-      TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);    
-    }
-    
-    SStreamRunnerTarget runner;
-    runner.addr.taskId = pStatus->id.taskId;
-    runner.addr.epset = mndGetDnodeEpsetById(pMnode, pStatus->id.nodeId);
-    runner.execReplica = pInfo->runnerReplica; 
-    TSDB_CHECK_NULL(taosArrayPush(pMsg->runnerList, &runner), code, lino, _exit, terrno);
-    mstsDebug("the %dth runner target added to trigger's runnerList, TASK:%" PRIx64 , i, runner.addr.taskId);
-  }
+  TAOS_CHECK_EXIT(msmBuildStreamSnodeInfo(pMnode, pStream, &pMsg->snode));
 
 _exit:
 
   if (code) {
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  } else {
+    mstsDebug("trigger deploy info built, readerNum:%d, runnerNum:%d", (int32_t)taosArrayGetSize(pMsg->readerList), (int32_t)taosArrayGetSize(pMsg->runnerList));
   }
   
   return TSDB_CODE_SUCCESS;
@@ -730,7 +894,7 @@ int32_t msmAssignRandomSnodeId(SMnode* pMnode, int64_t streamId) {
   int32_t snodeNum = sdbGetSize(pMnode->pSdb, SDB_SNODE);
   if (snodeNum <= 0) {
     mstsInfo("no available snode now, num:%d", snodeNum);
-    return 0;
+    goto _exit;
   }
 
   int32_t snodeTarget = taosRand() % snodeNum;
@@ -762,7 +926,7 @@ int32_t msmAssignRandomSnodeId(SMnode* pMnode, int64_t streamId) {
     if (snodeIdx == snodeTarget) {
       sdbRelease(pMnode->pSdb, pObj);
       sdbCancelFetch(pMnode->pSdb, pIter);
-      return snodeId;
+      goto _exit;
     }
 
     snodeIdx++;
@@ -772,6 +936,10 @@ _exit:
 
   if (code) {
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+
+  if (0 == snodeId) {
+    terrno = TSDB_CODE_SNODE_NO_AVAILABLE_NODE;
   }
 
   return snodeId;
@@ -823,7 +991,7 @@ static int32_t msmBuildTriggerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStream
   info.task.nodeId =  pInfo->triggerTask->id.nodeId;
   info.task.taskIdx =  pInfo->triggerTask->id.taskIdx;
   TSDB_CHECK_CODE(msmBuildTriggerDeployInfo(pCtx->pMnode, pInfo, &info, pStream), lino, _return);
-  TSDB_CHECK_CODE(msmTDAddSnodeTask(mStreamMgmt.toDeploySnodeMap, &info, pStream, true, false), lino, _return);
+  TSDB_CHECK_CODE(msmTDAddTriggerToSnodeMap(&info, pStream), lino, _return);
   
   atomic_add_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);
 
@@ -1101,47 +1269,6 @@ _return:
   return code;
 }
 
-
-
-static void msmCalcReadersNum(SMnode* pMnode, SStreamObj* pStream, int32_t* taskNum) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int64_t streamId = pStream->pCreate->streamId;
-  
-  switch (pStream->pCreate->triggerTblType) {
-    case TSDB_NORMAL_TABLE:
-    case TSDB_CHILD_TABLE: {
-      *taskNum = 1;
-      break;
-    }
-    case TSDB_SUPER_TABLE: {
-      SDbObj* pDb = mndAcquireDb(pMnode, pStream->pCreate->triggerDB);
-      if (NULL == pDb) {
-        code = terrno;
-        mstsError("failed to acquire db %s, error:%s", pStream->pCreate->triggerDB, terrstr());
-        break;
-      }
-
-      *taskNum = pDb->cfg.numOfVgroups;
-      break;
-    }
-    case TSDB_VIRTUAL_CHILD_TABLE:
-    case TSDB_VIRTUAL_NORMAL_TABLE: {
-      //STREAMTODO
-      break;
-    }
-    default:
-      *taskNum = 0;
-      mstsDebug("%s ignore triggerTblType %d", __FUNCTION__, pStream->pCreate->triggerTblType);
-      break;
-  }
-
-  int32_t calcTasksNum = taosArrayGetSize(pStream->pCreate->calcScanPlanList);
-  for (int32_t i = 0; i < calcTasksNum; ++i) {
-    SStreamCalcScan* pScan = taosArrayGet(pStream->pCreate->calcScanPlanList, i);
-    *taskNum += taosArrayGetSize(pScan->vgList);
-  }
-}
-
 static int32_t msmBuildReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStreamObj* pStream) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -1189,10 +1316,10 @@ int32_t msmGetTaskIdFromSubplanId(SStreamObj* pStream, SArray* pRunners, int32_t
   int64_t streamId = pStream->pCreate->streamId;
   int32_t runnerNum = taosArrayGetSize(pRunners);
   for (int32_t i = beginIdx; i < runnerNum; ++i) {
-    SStmTaskToDeployExt* pExt = taosArrayGet(pRunners, i);
-    SSubplan* pPlan = pExt->deploy.msg.runner.pPlan;
+    SStmTaskDeploy* pDeploy = taosArrayGet(pRunners, i);
+    SSubplan* pPlan = pDeploy->msg.runner.pPlan;
     if (pPlan->id.subplanId == subplanId) {
-      *taskId = pExt->deploy.task.taskId;
+      *taskId = pDeploy->task.taskId;
       return TSDB_CODE_SUCCESS;
     }
   }
@@ -1209,13 +1336,14 @@ int32_t msmUpdateLowestPlanSourceAddr(SSubplan* pPlan, SStmTaskDeploy* pDeploy, 
   SNode* pNode = NULL;
   FOREACH(pNode, pPlan->pChildren) {
     if (QUERY_NODE_VALUE != nodeType(pNode)) {
-      mstsError("invalid node type %d for runner's child subplan", nodeType(pNode));
-      TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+      mstsDebug("node type %d is not valueNode", nodeType(pNode));
+      break;
     }
+    
     SValueNode* pVal = (SValueNode*)pNode;
     if (TSDB_DATA_TYPE_BIGINT != pVal->node.resType.type) {
-      mstsError("invalid value node data type %d for runner's child subplan", pVal->node.resType.type);
-      TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+      mstsDebug("invalid value node data type %d for runner's child subplan", pVal->node.resType.type);
+      break;
     }
 
     key[1] = MND_GET_RUNNER_SUBPLANID(pVal->datum.i);
@@ -1242,16 +1370,13 @@ _exit:
   return code;
 }
 
-int32_t msmUpdateRunnerPlan(SStmGrpCtx* pCtx, SArray* pRunners, int32_t beginIdx, SStmTaskToDeployExt* pExt, SStreamObj* pStream) {
+int32_t msmUpdateRunnerPlan(SStmGrpCtx* pCtx, SArray* pRunners, int32_t beginIdx, SStmTaskDeploy* pDeploy, SStreamObj* pStream) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  SStmTaskDeploy* pDeploy = &pExt->deploy;
   SSubplan* pPlan = pDeploy->msg.runner.pPlan;
   int64_t streamId = pStream->pCreate->streamId;
 
-  if (pExt->lowestRunner) {
-    TAOS_CHECK_EXIT(msmUpdateLowestPlanSourceAddr(pPlan, pDeploy, streamId));
-  }
+  TAOS_CHECK_EXIT(msmUpdateLowestPlanSourceAddr(pPlan, pDeploy, streamId));
   
   if (NULL == pPlan->pParents) {
     goto _exit;
@@ -1279,19 +1404,19 @@ _exit:
   return code;
 }
 
-int32_t msmUpdateRunnerPlans(SStmGrpCtx* pCtx, SArray* pRunners, SStreamObj* pStream, int32_t taskNum) {
+int32_t msmUpdateRunnerPlans(SStmGrpCtx* pCtx, SArray* pRunners, SStreamObj* pStream) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
   int32_t runnerNum = taosArrayGetSize(pRunners);
   
-  for (int32_t i = runnerNum - taskNum; i <= runnerNum - 1; ++i) {
-    SStmTaskToDeployExt* pExt = taosArrayGet(pRunners, i);
-    TAOS_CHECK_EXIT(msmUpdateRunnerPlan(pCtx, pRunners, i, pExt, pStream));
-    TAOS_CHECK_EXIT(nodesNodeToString((SNode*)pExt->deploy.msg.runner.pPlan, false, (char**)&pExt->deploy.msg.runner.pPlan, NULL));
+  for (int32_t i = 0; i < runnerNum; ++i) {
+    SStmTaskDeploy* pDeploy = taosArrayGet(pRunners, i);
+    TAOS_CHECK_EXIT(msmUpdateRunnerPlan(pCtx, pRunners, i, pDeploy, pStream));
+    TAOS_CHECK_EXIT(nodesNodeToString((SNode*)pDeploy->msg.runner.pPlan, false, (char**)&pDeploy->msg.runner.pPlan, NULL));
 
-    SStreamTask* pTask = &pExt->deploy.task;
-    msttDebugL("runner updated task plan:%s", (const char*)pExt->deploy.msg.runner.pPlan);
+    SStreamTask* pTask = &pDeploy->task;
+    msttDebugL("runner updated task plan:%s", (const char*)pDeploy->msg.runner.pPlan);
   }
 
 _exit:
@@ -1307,6 +1432,14 @@ int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* 
   int32_t code = 0;
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
+  SArray* deployTaskList = NULL;
+  SArray* deployList = NULL;
+  int32_t deployNodeId = 0;
+  SStmTaskStatus* pState = NULL;
+  int32_t taskIdx = 0;
+  SNodeListNode *plans = NULL;
+  int32_t        taskNum = 0;
+  int32_t        totalTaskNum = 0;
 
   if (pDag->numOfSubplans <= 0) {
     mstsError("invalid subplan num:%d", pDag->numOfSubplans);
@@ -1325,9 +1458,6 @@ int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* 
   }
 
   int32_t        lowestLevelIdx = levelNum - 1;
-  SNodeListNode *plans = NULL;
-  int32_t        taskNum = 0;
-  int32_t        totalTaskNum = 0;
   
   plans = (SNodeListNode *)nodesListGetNode(pDag->pSubplans, 0);
   if (QUERY_NODE_NODE_LIST != nodeType(plans)) {
@@ -1341,9 +1471,8 @@ int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* 
     TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
   }
 
-  SArray* deployList = NULL;
-  int32_t deployNodeId = 0;
-  SStmTaskStatus* pState = NULL;
+  deployTaskList = taosArrayInit_s(sizeof(SStmTaskDeploy), pDag->numOfSubplans);
+  TSDB_CHECK_NULL(deployTaskList, code, lino, _exit, terrno);
   
   for (int32_t deployId = 0; deployId < pInfo->runnerDeploys; ++deployId) {
     totalTaskNum = 0;
@@ -1354,6 +1483,8 @@ int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* 
       TAOS_CHECK_EXIT(terrno);
     }
 
+    taskIdx = 0;
+    
     for (int32_t i = lowestLevelIdx; i >= 0; --i) {
       plans = (SNodeListNode *)nodesListGetNode(pDag->pSubplans, i);
       if (NULL == plans) {
@@ -1393,20 +1524,16 @@ int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* 
         pState->lastUpTs = pCtx->currTs;
         pState->pStream = pInfo;
 
-        SStmTaskDeploy info = {0};
-        info.task.type = pState->type;
-        info.task.streamId = streamId;
-        info.task.taskId = pState->id.taskId;
-        info.task.flags = pState->flags;
-        info.task.seriousId = pState->id.seriousId;
-        info.task.deployId = pState->id.deployId;
-        info.task.nodeId = pState->id.nodeId;
-        info.task.taskIdx = pState->id.taskIdx;
-        TSDB_CHECK_CODE(msmBuildRunnerDeployInfo(&info, plan, pStream, pInfo->runnerReplica, 0 == i), lino, _exit);
-
-        TSDB_CHECK_CODE(msmTDAddSnodeTask(mStreamMgmt.toDeploySnodeMap, &info, pStream, false, i == lowestLevelIdx), lino, _exit);
-        
-        atomic_add_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);        
+        SStmTaskDeploy* pDeploy = taosArrayGet(deployTaskList, taskIdx++);
+        pDeploy->task.type = pState->type;
+        pDeploy->task.streamId = streamId;
+        pDeploy->task.taskId = pState->id.taskId;
+        pDeploy->task.flags = pState->flags;
+        pDeploy->task.seriousId = pState->id.seriousId;
+        pDeploy->task.deployId = pState->id.deployId;
+        pDeploy->task.nodeId = pState->id.nodeId;
+        pDeploy->task.taskIdx = pState->id.taskIdx;
+        TSDB_CHECK_CODE(msmBuildRunnerDeployInfo(pDeploy, plan, pStream, pInfo->runnerReplica, 0 == i), lino, _exit);
       }
 
       mstsDebug("deploy %d level %d initialized, taskNum:%d", deployId, i, taskNum);
@@ -1417,10 +1544,9 @@ int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* 
       TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
     }
 
-    SStmSnodeTasksDeploy* pSnodeDeploy = taosHashGet(mStreamMgmt.toDeploySnodeMap, &pState->id.nodeId, sizeof(pState->id.nodeId));
-    TSDB_CHECK_NULL(pSnodeDeploy, code, lino, _exit, terrno);
-    
-    TAOS_CHECK_EXIT(msmUpdateRunnerPlans(pCtx, pSnodeDeploy->runnerList, pStream, totalTaskNum));
+    TAOS_CHECK_EXIT(msmUpdateRunnerPlans(pCtx, deployTaskList, pStream));
+
+    TSDB_CHECK_CODE(msmTDAddRunnersToSnodeMap(deployTaskList, pStream), lino, _exit);
 
     TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pDag));
 
@@ -1440,6 +1566,8 @@ _exit:
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 
+  taosArrayDestroy(deployTaskList);
+
   return code;
 }
 
@@ -1456,9 +1584,9 @@ int32_t msmReBuildRunnerTasks(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* pI
   int32_t        deployId = 0;
   SStmTaskStatus* pRunner = NULL;
   SStmTaskStatus* pStartRunner = NULL;
-
-  plans = (SNodeListNode *)nodesListGetNode(pDag->pSubplans, 0);
-  taskNum = (int32_t)LIST_LENGTH(plans->pNodeList);
+  int32_t taskIdx = 0;
+  SArray* deployTaskList = taosArrayInit_s(sizeof(SStmTaskDeploy), pDag->numOfSubplans);
+  TSDB_CHECK_NULL(deployTaskList, code, lino, _exit, terrno);
 
   for (int32_t r = 0; r < pAction->deployNum; ++r) {
     deployId = pAction->deployId[r];
@@ -1473,11 +1601,15 @@ int32_t msmReBuildRunnerTasks(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* pI
       TAOS_CHECK_EXIT(terrno);
     }
 
+    taskIdx = 0;
+    
     for (int32_t i = lowestLevelIdx; i >= 0; --i) {
       plans = (SNodeListNode *)nodesListGetNode(pDag->pSubplans, i);
       taskNum = (int32_t)LIST_LENGTH(plans->pNodeList);
       totalTaskNum += taskNum;
 
+      pRunner->flags &= STREAM_FLAG_REDEPLOY_RUNNER;
+      
       for (int32_t n = 0; n < taskNum; ++n) {
         SSubplan *plan = (SSubplan *)nodesListGetNode(plans->pNodeList, n);
 
@@ -1489,19 +1621,15 @@ int32_t msmReBuildRunnerTasks(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* pI
 
         pRunner->id.nodeId = newNodeId;
 
-        SStmTaskDeploy info = {0};
-        info.task.type = pRunner->type;
-        info.task.streamId = streamId;
-        info.task.taskId = pRunner->id.taskId;
-        info.task.flags = pRunner->flags;
-        info.task.seriousId = pRunner->id.seriousId;
-        info.task.nodeId = pRunner->id.nodeId;
-        info.task.taskIdx = pRunner->id.taskIdx;
-        TSDB_CHECK_CODE(msmBuildRunnerDeployInfo(&info, plan, pStream, pInfo->runnerReplica, 0 == i), lino, _exit);
-
-        TSDB_CHECK_CODE(msmTDAddSnodeTask(mStreamMgmt.toDeploySnodeMap, &info, pStream, false, i == lowestLevelIdx), lino, _exit);
-        
-        atomic_add_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);     
+        SStmTaskDeploy* pDeploy = taosArrayGet(deployTaskList, taskIdx++);
+        pDeploy->task.type = pRunner->type;
+        pDeploy->task.streamId = streamId;
+        pDeploy->task.taskId = pRunner->id.taskId;
+        pDeploy->task.flags = pRunner->flags;
+        pDeploy->task.seriousId = pRunner->id.seriousId;
+        pDeploy->task.nodeId = pRunner->id.nodeId;
+        pDeploy->task.taskIdx = pRunner->id.taskIdx;
+        TSDB_CHECK_CODE(msmBuildRunnerDeployInfo(pDeploy, plan, pStream, pInfo->runnerReplica, 0 == i), lino, _exit);
 
         pRunner++;
       }
@@ -1509,13 +1637,9 @@ int32_t msmReBuildRunnerTasks(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* pI
       mstsDebug("level %d initialized, taskNum:%d", i, taskNum);
     }
 
-    SStmSnodeTasksDeploy* pSnodeDeploy = taosHashGet(mStreamMgmt.toDeploySnodeMap, &newNodeId, sizeof(newNodeId));
-    TSDB_CHECK_NULL(pSnodeDeploy, code, lino, _exit, terrno);
-    
-    TAOS_CHECK_EXIT(msmUpdateRunnerPlans(pCtx, pSnodeDeploy->runnerList, pStream, totalTaskNum));
+    TAOS_CHECK_EXIT(msmUpdateRunnerPlans(pCtx, deployTaskList, pStream));
 
-    int32_t num = ((uint64_t)pRunner - (uint64_t)pStartRunner) / sizeof(SStmTaskStatus);
-    TAOS_CHECK_EXIT(msmSTAddToSnodeMap(pCtx, streamId, NULL, pStartRunner, num, r));
+    TSDB_CHECK_CODE(msmTDAddRunnersToSnodeMap(deployTaskList, pStream), lino, _exit);
 
     TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pDag));
   }
@@ -1525,6 +1649,8 @@ _exit:
   if (code) {
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
+
+  taosArrayDestroy(deployTaskList);
 
   return code;
 }
@@ -1585,6 +1711,8 @@ static int32_t msmBuildStreamTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStreamO
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
 
+  mstsInfo("start to deploy stream tasks, deployTimes:%" PRId64, pInfo->deployTimes);
+
   pCtx->triggerTaskId = msmAssignTaskId();
   pCtx->triggerNodeId = msmAssignTaskSnodeId(pCtx->pMnode, pStream, true);
   if (!GOT_SNODE(pCtx->triggerNodeId)) {
@@ -1610,10 +1738,12 @@ static int32_t msmInitStmStatus(SStmStatus* pStatus, SStreamObj* pStream) {
   int64_t streamId = pStream->pCreate->streamId;
 
   pStatus->lastActionTs = INT64_MIN;
-  
-  pStatus->streamName = taosStrdup(pStream->name);
-  TSDB_CHECK_NULL(pStatus->streamName, code, lino, _exit, terrno);
 
+  if (NULL == pStatus->streamName) {
+    pStatus->streamName = taosStrdup(pStream->name);
+    TSDB_CHECK_NULL(pStatus->streamName, code, lino, _exit, terrno);
+  }
+  
   if (pStream->pCreate->numOfCalcSubplan > 0) {
     pStatus->runnerNum = pStream->pCreate->numOfCalcSubplan;
     
@@ -1629,18 +1759,22 @@ _exit:
   return code;
 }
 
-static int32_t msmDeployStreamTasks(SStmGrpCtx* pCtx, SStreamObj* pStream) {
+static int32_t msmDeployStreamTasks(SStmGrpCtx* pCtx, SStreamObj* pStream, SStmStatus* pStatus) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
   SStmStatus info = {0};
-  SStmStatus* pStatus = NULL;
 
-  TAOS_CHECK_EXIT(msmInitStmStatus(&info, pStream));
+  if (NULL == pStatus) {
+    TAOS_CHECK_EXIT(msmInitStmStatus(&info, pStream));
 
-  TAOS_CHECK_EXIT(taosHashPut(mStreamMgmt.streamMap, &streamId, sizeof(streamId), &info, sizeof(info)));
+    TAOS_CHECK_EXIT(taosHashPut(mStreamMgmt.streamMap, &streamId, sizeof(streamId), &info, sizeof(info)));
 
-  pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
+    pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
+  }
+
+  pStatus->deployTimes++;
+  atomic_store_8(&pStatus->stopped, 0);
   
   TAOS_CHECK_EXIT(msmBuildStreamTasks(pCtx, pStatus, pStream));
 
@@ -1650,7 +1784,7 @@ _exit:
 
   if (code) {
     if (NULL != pStatus) {
-      atomic_store_8(&pStatus->stopped, 1);
+      msmStopStreamByError(streamId, pStatus, code);
       mstsError("stream build error:%s, will try to stop current stream", tstrerror(code));
     }
     
@@ -1669,7 +1803,7 @@ static int32_t msmLaunchStreamDepolyAction(SStmGrpCtx* pCtx, SStmStreamAction* p
   SStreamObj* pStream = NULL;
 
   SStmStatus** ppStream = (SStmStatus**)taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
-  if (ppStream) {
+  if (ppStream && 0 == atomic_load_8(&(*ppStream)->stopped)) {
     mstsError("stream %s already in streamMap", pAction->streamName);
     code = TSDB_CODE_STREAM_INTERNAL_ERROR;
     goto _exit;
@@ -1690,7 +1824,7 @@ static int32_t msmLaunchStreamDepolyAction(SStmGrpCtx* pCtx, SStmStreamAction* p
     goto _exit;
   }
   
-  TAOS_CHECK_EXIT(msmDeployStreamTasks(pCtx, pStream));
+  TAOS_CHECK_EXIT(msmDeployStreamTasks(pCtx, pStream, ppStream ? *ppStream : NULL));
 
 _exit:
 
@@ -1703,6 +1837,147 @@ _exit:
   return code;
 }
 
+static int32_t msmReLaunchReaderTask(SStreamObj* pStream, SStmTaskAction* pAction, SStmStatus* pStatus) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int64_t streamId = pAction->streamId;
+  SStmTaskStatus** ppTask = taosHashGet(mStreamMgmt.taskMap, &pAction->streamId, sizeof(pAction->streamId) + sizeof(pAction->id.taskId));
+  if (NULL == ppTask) {
+    mstsError("TASK:%" PRId64 " not in taskMap, remain:%d", pAction->id.taskId, taosHashGetSize(mStreamMgmt.taskMap));
+    TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
+  }
+  
+  SStmTaskDeploy info = {0};
+  info.task.type = pAction->type;
+  info.task.streamId = pAction->streamId;
+  info.task.taskId = pAction->id.taskId;
+  info.task.seriousId = (*ppTask)->id.seriousId;
+  info.task.nodeId = pAction->id.nodeId;
+  info.task.taskIdx = pAction->id.taskIdx;
+  
+  bool isTriggerReader = STREAM_IS_TRIGGER_READER(pAction->flag);
+  void* scanPlan = NULL;
+  if (!isTriggerReader) {
+    scanPlan = taosArrayGet(pStream->pCreate->calcScanPlanList, pAction->id.taskIdx);
+    if (NULL == scanPlan) {
+      mstsError("fail to get TASK:%" PRId64 " scanPlan, taskIdx:%d, scanPlanNum:%zu", 
+          pAction->id.taskId, pAction->id.taskIdx, taosArrayGetSize(pStream->pCreate->calcScanPlanList));
+      TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
+    }
+  }
+  
+  TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, pStream, scanPlan, pStatus, isTriggerReader));
+  TAOS_CHECK_EXIT(msmTDAddToVgroupMap(mStreamMgmt.toDeployVgMap, &info, pAction->streamId));
+
+_exit:
+
+  if (code) {
+    mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+
+  return code;
+}
+
+/*
+static int32_t msmReLaunchTriggerTask(SStmGrpCtx* pCtx, SStreamObj* pStream, SStmTaskAction* pAction, SStmStatus* pStatus) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int64_t streamId = pAction->streamId;
+  SStmTaskStatus** ppTask = taosHashGet(mStreamMgmt.taskMap, &pAction->streamId, sizeof(pAction->streamId) + sizeof(pAction->id.taskId));
+  if (NULL == ppTask) {
+    mstsError("TASK:%" PRId64 " not in taskMap, remain:%d", pAction->id.taskId, taosHashGetSize(mStreamMgmt.taskMap));
+    TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
+  }
+  
+  (*ppTask)->id.nodeId = msmAssignTaskSnodeId(pCtx->pMnode, pStream, true);
+  if (!GOT_SNODE((*ppTask)->id.nodeId)) {
+    mstsError("no avaible snode for deploying trigger task, seriousId: %" PRId64, (*ppTask)->id.seriousId);
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  SStmTaskDeploy info = {0};
+  info.task.type = pAction->type;
+  info.task.streamId = streamId;
+  info.task.taskId = pAction->id.taskId;
+  info.task.seriousId = (*ppTask)->id.seriousId;
+  info.task.nodeId = (*ppTask)->id.nodeId;
+  info.task.taskIdx = pAction->id.taskIdx;
+  
+  TAOS_CHECK_EXIT(msmBuildTriggerDeployInfo(pCtx->pMnode, pStatus, &info, pStream));
+  TAOS_CHECK_EXIT(msmTDAddTriggerToSnodeMap(&info, pStream));
+  TAOS_CHECK_EXIT(msmSTAddToSnodeMap(pCtx, streamId, NULL, *ppTask, 1, -1));
+  
+  atomic_add_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);
+
+_exit:
+
+  if (code) {
+    mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+
+  return code;
+}
+*/
+
+static int32_t msmReLaunchRunnerDeploy(SStmGrpCtx* pCtx, SStreamObj* pStream, SStmTaskAction* pAction, SStmStatus* pStatus) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int64_t streamId = pAction->streamId;
+  
+/*
+  if (pAction->triggerStatus) {
+    pCtx->triggerTaskId = pAction->triggerStatus->id.taskId;
+    pAction->triggerStatus->id.nodeId = msmAssignTaskSnodeId(pCtx->pMnode, pStream, true);
+    if (!GOT_SNODE(pAction->triggerStatus->id.nodeId)) {
+      mstsError("no avaible snode for deploying trigger task, seriousId:%" PRId64, pAction->triggerStatus->id.seriousId);
+      return TSDB_CODE_SUCCESS;
+    }
+  
+    pCtx->triggerNodeId = pAction->triggerStatus->id.nodeId;
+  } else {
+*/
+  pCtx->triggerTaskId = pStatus->triggerTask->id.taskId;
+  pCtx->triggerNodeId = pStatus->triggerTask->id.nodeId;
+//  }
+  
+  TAOS_CHECK_EXIT(msmUPPrepareReaderTasks(pCtx, pStatus, pStream));
+  
+  SQueryPlan* pPlan = NULL;
+  TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pPlan));
+  
+  TAOS_CHECK_EXIT(msmReBuildRunnerTasks(pCtx, pPlan, pStatus, pStream, pAction));
+  
+  taosHashClear(mStreamMgmt.toUpdateScanMap);
+  mStreamMgmt.toUpdateScanNum = 0;
+  
+/*
+  if (pAction->triggerStatus) {
+    SStmTaskDeploy info = {0};
+    info.task.type = STREAM_TRIGGER_TASK;
+    info.task.streamId = streamId;
+    info.task.taskId = pCtx->triggerTaskId;
+    info.task.seriousId = pAction->triggerStatus->id.seriousId;
+    info.task.nodeId = pCtx->triggerNodeId;
+    info.task.taskIdx = 0;
+  
+    TAOS_CHECK_EXIT(msmBuildTriggerDeployInfo(pCtx->pMnode, pStatus, &info, pStream));
+    TAOS_CHECK_EXIT(msmTDAddTriggerToSnodeMap(&info, pStream));
+    TAOS_CHECK_EXIT(msmSTAddToSnodeMap(pCtx, streamId, NULL, pAction->triggerStatus, 1, -1));
+    
+    atomic_add_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);
+  }
+*/
+
+_exit:
+
+  if (code) {
+    mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+
+  return code;
+}
+
+
 static int32_t msmLaunchTaskDepolyAction(SStmGrpCtx* pCtx, SStmTaskAction* pAction) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -1714,8 +1989,14 @@ static int32_t msmLaunchTaskDepolyAction(SStmGrpCtx* pCtx, SStmTaskAction* pActi
 
   SStmStatus* pStatus = taosHashGet(mStreamMgmt.streamMap, &pAction->streamId, sizeof(pAction->streamId));
   if (NULL == pStatus) {
-    mstsError("stream not in streamMap, remain:%d", taosHashGetSize(mStreamMgmt.streamMap));
-    TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
+    mstsWarn("stream not in streamMap, remain:%d", taosHashGetSize(mStreamMgmt.streamMap));
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int8_t stopped = atomic_load_8(&pStatus->stopped);
+  if (stopped) {
+    mstsWarn("stream %s is already stopped %d, ignore task deploy", pStatus->streamName, stopped);
+    return TSDB_CODE_SUCCESS;
   }
 
   code = mndAcquireStream(pCtx->pMnode, pStatus->streamName, &pStream);
@@ -1734,113 +2015,27 @@ static int32_t msmLaunchTaskDepolyAction(SStmGrpCtx* pCtx, SStmTaskAction* pActi
   }
 
   switch (pAction->type) {
-    case STREAM_READER_TASK: {
-      SStmTaskStatus** ppTask = taosHashGet(mStreamMgmt.taskMap, &pAction->streamId, sizeof(pAction->streamId) + sizeof(pAction->id.taskId));
-      if (NULL == ppTask) {
-        mstsError("TASK:%" PRId64 " not in taskMap, remain:%d", pAction->id.taskId, taosHashGetSize(mStreamMgmt.taskMap));
-        TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
-      }
-
-      SStmTaskDeploy info = {0};
-      info.task.type = pAction->type;
-      info.task.streamId = streamId;
-      info.task.taskId = pAction->id.taskId;
-      info.task.seriousId = (*ppTask)->id.seriousId;
-      info.task.nodeId = pAction->id.nodeId;
-      info.task.taskIdx = pAction->id.taskIdx;
-
-      bool isTriggerReader = STREAM_IS_TRIGGER_READER(pAction->flag);
-      void* scanPlan = NULL;
-      if (!isTriggerReader) {
-        scanPlan = taosArrayGet(pStream->pCreate->calcScanPlanList, pAction->id.taskIdx);
-        if (NULL == scanPlan) {
-          mstsError("fail to get TASK:%" PRId64 " scanPlan, taskIdx:%d, scanPlanNum:%zu", 
-              pAction->id.taskId, pAction->id.taskIdx, taosArrayGetSize(pStream->pCreate->calcScanPlanList));
-          TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
-        }
-      }
-      
-      TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, pStream, scanPlan, pStatus, isTriggerReader));
-      TAOS_CHECK_EXIT(msmTDAddToVgroupMap(mStreamMgmt.toDeployVgMap, &info, streamId));
+    case STREAM_READER_TASK:
+      TAOS_CHECK_EXIT(msmReLaunchReaderTask(pStream, pAction, pStatus));
       break;
-    }
-    case STREAM_TRIGGER_TASK: {
-      SStmTaskStatus** ppTask = taosHashGet(mStreamMgmt.taskMap, &pAction->streamId, sizeof(pAction->streamId) + sizeof(pAction->id.taskId));
-      if (NULL == ppTask) {
-        mstsError("TASK:%" PRId64 " not in taskMap, remain:%d", pAction->id.taskId, taosHashGetSize(mStreamMgmt.taskMap));
-        TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
-      }
-
-      (*ppTask)->id.nodeId = msmAssignTaskSnodeId(pCtx->pMnode, pStream, true);
-      if (!GOT_SNODE((*ppTask)->id.nodeId)) {
-        mstsError("no avaible snode for deploying trigger task, seriousId: %" PRId64, (*ppTask)->id.seriousId);
-        return TSDB_CODE_SUCCESS;
-      }
-      
-      SStmTaskDeploy info = {0};
-      info.task.type = pAction->type;
-      info.task.streamId = streamId;
-      info.task.taskId = pAction->id.taskId;
-      info.task.seriousId = (*ppTask)->id.seriousId;
-      info.task.nodeId = (*ppTask)->id.nodeId;
-      info.task.taskIdx = pAction->id.taskIdx;
-
-      TAOS_CHECK_EXIT(msmBuildTriggerDeployInfo(pCtx->pMnode, pStatus, &info, pStream));
-      TAOS_CHECK_EXIT(msmTDAddSnodeTask(mStreamMgmt.toDeploySnodeMap, &info, pStream, true, false));
-      TAOS_CHECK_EXIT(msmSTAddToSnodeMap(pCtx, streamId, NULL, *ppTask, 1, -1));
-      
-      atomic_add_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);
+/*
+    case STREAM_TRIGGER_TASK:
+      TAOS_CHECK_EXIT(msmReLaunchTriggerTask(pCtx, pStream, pAction, pStatus));
       break;
-    }
-    case STREAM_RUNNER_TASK: {
-      if (pAction->triggerStatus) {
-        pCtx->triggerTaskId = pAction->triggerStatus->id.taskId;
-        pAction->triggerStatus->id.nodeId = msmAssignTaskSnodeId(pCtx->pMnode, pStream, true);
-        if (!GOT_SNODE(pAction->triggerStatus->id.nodeId)) {
-          mstsError("no avaible snode for deploying trigger task, seriousId:%" PRId64, pAction->triggerStatus->id.seriousId);
-          return TSDB_CODE_SUCCESS;
-        }
-
-        pCtx->triggerNodeId = pAction->triggerStatus->id.nodeId;
+*/
+    case STREAM_RUNNER_TASK:
+      if (pAction->multiRunner) {
+        TAOS_CHECK_EXIT(msmReLaunchRunnerDeploy(pCtx, pStream, pAction, pStatus));
       } else {
-        pCtx->triggerTaskId = pStatus->triggerTask->id.taskId;
-        pCtx->triggerNodeId = pStatus->triggerTask->id.nodeId;
+        mstsError("runner TASK:%" PRId64 " requires relaunch", pAction->id.taskId);
+        TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
       }
-
-      TAOS_CHECK_EXIT(msmUPPrepareReaderTasks(pCtx, pStatus, pStream));
-      
-      SQueryPlan* pPlan = NULL;
-      TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pPlan));
-      
-      TAOS_CHECK_EXIT(msmReBuildRunnerTasks(pCtx, pPlan, pStatus, pStream, pAction));
-      
-      taosHashClear(mStreamMgmt.toUpdateScanMap);
-      mStreamMgmt.toUpdateScanNum = 0;
-
-      if (pAction->triggerStatus) {
-        SStmTaskDeploy info = {0};
-        info.task.type = STREAM_TRIGGER_TASK;
-        info.task.streamId = streamId;
-        info.task.taskId = pCtx->triggerTaskId;
-        info.task.seriousId = pAction->triggerStatus->id.seriousId;
-        info.task.nodeId = pCtx->triggerNodeId;
-        info.task.taskIdx = 0;
-
-        TAOS_CHECK_EXIT(msmBuildTriggerDeployInfo(pCtx->pMnode, pStatus, &info, pStream));
-        TAOS_CHECK_EXIT(msmTDAddSnodeTask(mStreamMgmt.toDeploySnodeMap, &info, pStream, true, false));
-        TAOS_CHECK_EXIT(msmSTAddToSnodeMap(pCtx, streamId, NULL, pAction->triggerStatus, 1, -1));
-        
-        atomic_add_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);
-      }
-      
       break;
-    }
     default:
       mstsError("TASK:%" PRId64 " invalid task type:%d", pAction->id.taskId, pAction->type);
       TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
       break;
   }
-
 
 _exit:
 
@@ -1849,6 +2044,7 @@ _exit:
   }
 
   if (code) {
+    msmStopStreamByError(streamId, pStatus, code);
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 
@@ -1903,7 +2099,7 @@ static int32_t msmTDRemoveStream(int64_t streamId) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t msmSTRemoveStream(int64_t streamId) {
+static int32_t msmSTRemoveStream(int64_t streamId, bool fromStreamMap) {
   int32_t code = TSDB_CODE_SUCCESS;
   void* pIter = NULL;
   
@@ -1937,11 +2133,13 @@ static int32_t msmSTRemoveStream(int64_t streamId) {
     }
   }
 
-  code = taosHashRemove(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
-  if (code) {
-    mstsError("stream remove from streamMap failed, error:%s", tstrerror(code));
-  } else {
-    mstsDebug("stream removed from streamMap, remains:%d", taosHashGetSize(mStreamMgmt.streamMap));
+  if (fromStreamMap) {
+    code = taosHashRemove(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
+    if (code) {
+      mstsError("stream remove from streamMap failed, error:%s", tstrerror(code));
+    } else {
+      mstsDebug("stream removed from streamMap, remains:%d", taosHashGetSize(mStreamMgmt.streamMap));
+    }
   }
   
   return code;
@@ -1953,8 +2151,7 @@ static int32_t msmRemoveStreamFromMaps(SMnode* pMnode, int64_t streamId) {
 
   mstsInfo("start to remove stream from maps, current stream num:%d", taosHashGetSize(mStreamMgmt.streamMap));
 
-  //TAOS_CHECK_EXIT(msmTDRemoveStream(streamId));
-  TAOS_CHECK_EXIT(msmSTRemoveStream(streamId));
+  TAOS_CHECK_EXIT(msmSTRemoveStream(streamId, true));
 
 _exit:
 
@@ -1977,7 +2174,9 @@ int32_t msmUndeployStream(SMnode* pMnode, int64_t streamId, char* streamName) {
     goto _exit;
   }
 
-  atomic_store_8(&(*ppStream)->stopped, 1);
+  atomic_store_8(&(*ppStream)->stopped, 2);
+
+  mstsInfo("stream %s stopped by user", streamName);
 
 _exit:
 
@@ -1990,6 +2189,8 @@ _exit:
   return code;
 }
 
+
+
 static int32_t msmHandleStreamActions(SStmGrpCtx* pCtx) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -2000,10 +2201,10 @@ static int32_t msmHandleStreamActions(SStmGrpCtx* pCtx) {
       case STREAM_ACT_DEPLOY:
         if (pQNode->streamAct) {
           mstDebug("start to handle stream deploy action");
-          TAOS_CHECK_EXIT(msmLaunchStreamDepolyAction(pCtx, &pQNode->action.stream));
+          msmLaunchStreamDepolyAction(pCtx, &pQNode->action.stream);
         } else {
           mstDebug("start to handle task deploy action");
-          TAOS_CHECK_EXIT(msmLaunchTaskDepolyAction(pCtx, &pQNode->action.task));
+          msmLaunchTaskDepolyAction(pCtx, &pQNode->action.task);
         }
         break;
       default:
@@ -2457,6 +2658,32 @@ _exit:
   return code;
 }
 
+int32_t msmGrpAddActionUpdateTrigger(SHashObj* pHash, int64_t streamId) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t action = STREAM_ACT_UPDATE_TRIGGER;
+  
+  SStmAction *pAction = taosHashGet(pHash, &streamId, sizeof(streamId));
+  if (pAction) {
+    pAction->actions |= action;
+    mstsDebug("stream append UPDATE_TRIGGER action, actions:%x", pAction->actions);
+  } else {
+    SStmAction newAction = {0};
+    newAction.actions = action;
+    TAOS_CHECK_EXIT(taosHashPut(pHash, &streamId, sizeof(streamId), &newAction, sizeof(newAction)));
+    mstsDebug("stream add UPDATE_TRIGGER action, actions:%x", newAction.actions);
+  }
+
+_exit:
+
+  if (code) {
+    mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+
+  return code;
+}
+
+
 
 int32_t msmGrpAddActionUndeploy(SStmGrpCtx* pCtx, int64_t streamId, SStreamTask* pTask) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -2547,7 +2774,7 @@ bool msmCheckStreamStartCond(int64_t streamId, int32_t snodeId) {
 }
 
 
-int32_t msmHandleTaskAbnormalStatus(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pMsg) {
+void msmHandleTaskAbnormalStatus(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pMsg, SStmTaskStatus* pTaskStatus) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t action = 0;
@@ -2559,29 +2786,36 @@ int32_t msmHandleTaskAbnormalStatus(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pMsg) {
   SStmStatus* pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
   if (NULL == pStatus) {
     msttInfo("stream no longer exists in streamMap, try to undeploy current task, idx:%d", pMsg->taskIdx);
-    return msmGrpAddActionUndeploy(pCtx, streamId, pTask);
+    TAOS_CHECK_EXIT(msmGrpAddActionUndeploy(pCtx, streamId, pTask));
+    return;
   }
 
   if (atomic_load_8(&pStatus->stopped)) {
     msttInfo("stream stopped, try to undeploy current task, idx:%d", pMsg->taskIdx);
-    return msmGrpAddActionUndeploy(pCtx, streamId, pTask);
+    TAOS_CHECK_EXIT(msmGrpAddActionUndeploy(pCtx, streamId, pTask));
+    return;
   }
   
   switch (pMsg->status) {
     case STREAM_STATUS_INIT:
+      if (STREAM_RUNNER_TASK == pMsg->type && STREAM_IS_REDEPLOY_RUNNER(pTaskStatus->flags)) {
+        TAOS_CHECK_EXIT(msmGrpAddActionUpdateTrigger(pCtx->actionStm, streamId));
+        return;
+      }
+      
       if (STREAM_TRIGGER_TASK != pMsg->type) {
         msttTrace("task status is INIT and not trigger task, ignore it, currTs:%" PRId64 ", lastTs:%" PRId64, pCtx->currTs, pStatus->lastActionTs);
-        return code;
+        return;
       }
       
       if (INT64_MIN == pStatus->lastActionTs) {
         msttDebug("task still not deployed, ignore it, currTs:%" PRId64 ", lastTs:%" PRId64, pCtx->currTs, pStatus->lastActionTs);
-        return code;
+        return;
       }
       
       if ((pCtx->currTs - pStatus->lastActionTs) < STREAM_ACT_MIN_DELAY_MSEC) {
         msttDebug("task wait not enough between actions, currTs:%" PRId64 ", lastTs:%" PRId64, pCtx->currTs, pStatus->lastActionTs);
-        return code;
+        return;
       }
 
       if (STREAM_IS_RUNNING(pStatus->triggerTask->status)) {
@@ -2590,8 +2824,11 @@ int32_t msmHandleTaskAbnormalStatus(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pMsg) {
         TAOS_CHECK_EXIT(msmGrpAddActionStart(pCtx->actionStm, streamId, &pStatus->triggerTask->id));
       }
       break;
-    case STREAM_STATUS_STOPPED:
     case STREAM_STATUS_FAILED:
+      //STREAMTODO ADD ERRCODE HANDLE
+      msttInfo("task failed with error:%s, try to undeploy current task, idx:%d", tstrerror(pMsg->errorCode), pMsg->taskIdx);
+      TAOS_CHECK_EXIT(msmGrpAddActionUndeploy(pCtx, streamId, pTask));
+      break;
     default:
       break;
   }
@@ -2599,10 +2836,9 @@ int32_t msmHandleTaskAbnormalStatus(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pMsg) {
 _exit:
 
   if (code) {
+    msmStopStreamByError(streamId, pStatus, code);
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
-
-  return code;
 }
 
 void msmHandleStatusUpdateErr(SStmGrpCtx* pCtx, EStmErrType err, SStmTaskStatusMsg* pStatus) {
@@ -2645,8 +2881,9 @@ int32_t msmNormalHandleStatusUpdate(SStmGrpCtx* pCtx) {
     }
 
     SStmStatus* pStream = (SStmStatus*)(*ppStatus)->pStream;
-    if (pStream->stopped) {
-      msttWarn("stream already stopped, will try to undeploy current task, taskIdx:%d", pTask->taskIdx);
+    int8_t stopped = atomic_load_8(&pStream->stopped);
+    if (stopped) {
+      msttWarn("stream already stopped %d, will try to undeploy current task, taskIdx:%d", stopped, pTask->taskIdx);
       msmHandleStatusUpdateErr(pCtx, STM_ERR_STREAM_STOPPED, pTask);
       continue;
     }
@@ -2663,7 +2900,7 @@ int32_t msmNormalHandleStatusUpdate(SStmGrpCtx* pCtx) {
     (*ppStatus)->lastUpTs = pCtx->currTs;
     
     if (STREAM_STATUS_RUNNING != pTask->status) {
-      TAOS_CHECK_EXIT(msmHandleTaskAbnormalStatus(pCtx, pTask));
+      msmHandleTaskAbnormalStatus(pCtx, pTask, *ppStatus);
     }
   }
 
@@ -2850,6 +3087,41 @@ _exit:
   mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
 }
 
+void msmRspAddTriggerUpdate(SMnode * pMnode, int64_t streamId, SStmGrpCtx* pCtx, SStmAction *pAction) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  SStmStatus* pStream = (SStmStatus*)taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
+  if (NULL == pStream) {
+    mstsDebug("stream already not exists in streamMap, ignore trigger update, streamRemain:%d", taosHashGetSize(mStreamMgmt.streamMap));
+    return;
+  }
+
+  if (NULL == pStream->triggerTask) {
+    mstsWarn("no triggerTask exists, ignore trigger update, stopped:%d", atomic_load_8(&pStream->stopped));
+    return;
+  }
+
+  SStreamMgmtRsp rsp = {0};
+  rsp.reqId = INT64_MIN;
+  rsp.header.msgType = STREAM_MSG_UPDATE_RUNNER;
+  rsp.task.streamId = streamId;
+  rsp.task.taskId = pStream->triggerTask->id.taskId;
+
+  TAOS_CHECK_EXIT(msmBuildTriggerRunnerTargets(pMnode, pStream, streamId, &rsp.cont.runnerList));  
+
+  TSDB_CHECK_NULL(taosArrayPush(pCtx->pRsp->rsps.rspList, &rsp), code, lino, _exit, terrno);
+
+_exit:
+
+  if (code) {
+    mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  } else {
+    mstsDebug("trigger update rsp added, runnerNum:%d", (int32_t)taosArrayGetSize(rsp.cont.runnerList));
+  }
+}
+
+
 
 int32_t msmHandleHbPostActions(SStmGrpCtx* pCtx) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -2870,6 +3142,11 @@ int32_t msmHandleHbPostActions(SStmGrpCtx* pCtx) {
     
     if (STREAM_ACT_UNDEPLOY & pAction->actions) {
       msmRspAddStreamUndeploy(*pStreamId, pCtx, pAction);
+      continue;
+    }
+
+    if (STREAM_ACT_UPDATE_TRIGGER & pAction->actions) {
+      msmRspAddTriggerUpdate(pCtx->pMnode, *pStreamId, pCtx, pAction);
     }
 
     if ((STREAM_ACT_START & pAction->actions)) {
@@ -3039,7 +3316,7 @@ int32_t msmWatchHandleHbMsg(SStmGrpCtx* pCtx) {
     TAOS_CHECK_EXIT(msmWatchHandleStatusUpdate(pCtx));
   }
 
-  if (((pCtx->currTs - MND_STREAM_GET_LAST_TS(STM_OP_ACTIVE_BEGIN)) > MST_ISOLATION_DURATION) &&
+  if (((pCtx->currTs - MND_STREAM_GET_LAST_TS(STM_EVENT_ACTIVE_BEGIN)) > MST_ISOLATION_DURATION) &&
       (0 == atomic_val_compare_exchange_8(&mStreamMgmt.watch.ending, 0, 1))) {
     TAOS_CHECK_EXIT(msmWatchHandleEnding(pCtx));
   }
@@ -3307,6 +3584,22 @@ void msmHandleBecomeNotLeader(SMnode *pMnode) {
   }
 }
 
+static void msmResetAndRedeployStream(int64_t streamId, SStmStatus* pStatus) {
+  msmSTRemoveStream(streamId, false);  
+
+  taosArrayDestroy(pStatus->trigReaders);
+  pStatus->trigReaders = NULL;
+  taosArrayDestroy(pStatus->calcReaders);
+  pStatus->calcReaders = NULL;
+  taosMemoryFreeClear(pStatus->triggerTask);
+  for (int32_t i = 0; i < MND_STREAM_RUNNER_DEPLOY_NUM; ++i) {
+    taosArrayDestroy(pStatus->runners[i]);
+    pStatus->runners[i] = NULL;
+  }
+
+  mndStreamPostAction(mStreamMgmt.actionQ, streamId, pStatus->streamName, STREAM_ACT_DEPLOY);
+}
+
 static bool msmCheckStreamAssign(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -3387,7 +3680,7 @@ static bool msmCheckLoopStreamSdb(SMnode *pMnode, void *pObj, void *p1, void *p2
   }  
 
   if (pStatus) {
-    if (userDropped || userStopped || atomic_load_8(&pStatus->stopped)) {
+    if (userDropped || userStopped || 2 == atomic_load_8(&pStatus->stopped)) {
       (void)msmRemoveStreamFromMaps(pMnode, streamId);
     }
 
@@ -3402,6 +3695,8 @@ static bool msmCheckLoopStreamSdb(SMnode *pMnode, void *pObj, void *p1, void *p2
 void msmCheckLoopStreamMap(SMnode *pMnode) {
   SStmStatus* pStatus = NULL;
   void* pIter = NULL;
+  int8_t stopped = 0;
+  
   while (true) {
     pIter = taosHashIterate(mStreamMgmt.streamMap, pIter);
     if (NULL == pIter) {
@@ -3409,7 +3704,9 @@ void msmCheckLoopStreamMap(SMnode *pMnode) {
     }
 
     pStatus = (SStmStatus*)pIter;
-    if (atomic_load_8(&pStatus->stopped)) {
+
+    stopped = atomic_load_8(&pStatus->stopped);
+    if (2 == stopped) {
       (void)msmRemoveStreamFromMaps(pMnode, *(int64_t*)taosHashGetKey(pIter, NULL));
       continue;
     }
@@ -3418,21 +3715,30 @@ void msmCheckLoopStreamMap(SMnode *pMnode) {
       (void)msmRemoveStreamFromMaps(pMnode, *(int64_t*)taosHashGetKey(pIter, NULL));
       continue;
     }
+
+    if (1 == stopped) {
+      if (mStreamMgmt.hCtx.currentTs < pStatus->fatalRetryTs) {
+        MND_STREAM_SET_LAST_TS(STM_EVENT_STREAM_ERROR, mStreamMgmt.hCtx.currentTs);
+        continue;
+      }
+
+      msmResetAndRedeployStream(*(int64_t*)taosHashGetKey(pIter, NULL), pStatus);
+    }
   }
 }
 
 void msmCheckStreamsStatus(SMnode *pMnode) {
   SStmCheckStatusCtx ctx = {0};
   if (MST_READY_FOR_SDB_LOOP()) {
-    mstDebug("ready to check sdb loop, lastTs:%" PRId64, mStreamMgmt.lastTs[STM_OP_LOOP_SDB].ts);
+    mstDebug("ready to check sdb loop, lastTs:%" PRId64, mStreamMgmt.lastTs[STM_EVENT_LOOP_SDB].ts);
     sdbTraverse(pMnode->pSdb, SDB_STREAM, msmCheckLoopStreamSdb, &ctx, NULL, NULL);
-    MND_STREAM_SET_LAST_TS(STM_OP_LOOP_SDB, mStreamMgmt.hCtx.currentTs);
+    MND_STREAM_SET_LAST_TS(STM_EVENT_LOOP_SDB, mStreamMgmt.hCtx.currentTs);
   }
 
   if (MST_READY_FOR_MAP_LOOP()) {
-    mstDebug("ready to check map loop, lastTs:%" PRId64, mStreamMgmt.lastTs[STM_OP_LOOP_MAP].ts);
+    mstDebug("ready to check map loop, lastTs:%" PRId64, mStreamMgmt.lastTs[STM_EVENT_LOOP_MAP].ts);
     msmCheckLoopStreamMap(pMnode);
-    MND_STREAM_SET_LAST_TS(STM_OP_LOOP_MAP, mStreamMgmt.hCtx.currentTs);
+    MND_STREAM_SET_LAST_TS(STM_EVENT_LOOP_MAP, mStreamMgmt.hCtx.currentTs);
   }
 }
 
@@ -3443,6 +3749,14 @@ void msmCheckTaskListStatus(int64_t streamId, SStmTaskStatus** pList, int32_t ta
     int64_t noUpTs = mStreamMgmt.hCtx.currentTs - pTask->lastUpTs;
     if (noUpTs < MST_ISOLATION_DURATION) {
       continue;
+    }
+
+    if (STREAM_RUNNER_TASK == pTask->type || STREAM_TRIGGER_TASK == pTask->type) {
+      mstsError("%s TASK:%" PRId64 " status not updated for %" PRId64 "ms, will try to redeploy it", 
+          gStreamTaskTypeStr[pTask->type], pTask->id.taskId, noUpTs);
+          
+      msmStopStreamByError(streamId, NULL, TSDB_CODE_MND_STREAM_TASK_LOST);
+      break;
     }
 
     mstsInfo("TASK:%" PRId64 " status not updated for %" PRId64 "ms, will try to redeploy it", 
@@ -3547,25 +3861,22 @@ void msmHandleSnodeLost(SMnode *pMnode, SStmSnodeStatus* pSnode) {
     task.streamId = streamId;
     
     pStream = (SStmSnodeStreamStatus*)pIter;
-    msmHandleRunnerRedeploy(streamId, pStream, &task.deployNum, task.deployId);
-    if (task.deployNum > 0) {
-      task.triggerStatus = pStream->trigger;
-      task.multiRunner = true;
-      task.type = STREAM_RUNNER_TASK;
+    if (pStream->trigger) {
+      mstsInfo("snode lost with trigger task %" PRIx64 ", will try to restart current stream", pStream->trigger->id.taskId);
       
-      mndStreamPostTaskAction(mStreamMgmt.actionQ, &task, STREAM_ACT_DEPLOY);
+      msmStopStreamByError(streamId, NULL, TSDB_CODE_MND_STREAM_SNODE_LOST);
+    } else {
+      msmHandleRunnerRedeploy(streamId, pStream, &task.deployNum, task.deployId);
       
-      mstsDebug("runner tasks %d redeploys added to actionQ", task.deployNum);
-    } else if (pStream->trigger) {
-      int64_t newSid = atomic_add_fetch_64(&pStream->trigger->id.seriousId, 1);
-      mstsDebug("task %" PRIx64 " SID updated from to %" PRIx64, task.id.taskId, newSid);
-
-      task.id = pStream->trigger->id;
-      task.flag = pStream->trigger->flags;
-      task.type = pStream->trigger->type;
-      
-      mndStreamPostTaskAction(mStreamMgmt.actionQ, &task, STREAM_ACT_DEPLOY);
-      mstsDebug("trigger task %" PRIx64 " redeploy added to actionQ", task.id.taskId);
+      if (task.deployNum > 0) {
+        //task.triggerStatus = pStream->trigger;
+        task.multiRunner = true;
+        task.type = STREAM_RUNNER_TASK;
+        
+        mndStreamPostTaskAction(mStreamMgmt.actionQ, &task, STREAM_ACT_DEPLOY);
+        
+        mstsInfo("runner tasks %d redeploys added to actionQ", task.deployNum);
+      }
     }
   }
 
@@ -3646,7 +3957,7 @@ void msmCheckSnodesState(SMnode *pMnode) {
     return;
   }
 
-  mstDebug("ready to check snode loop, lastTs:%" PRId64, mStreamMgmt.lastTs[STM_OP_LOOP_SNODE].ts);
+  mstDebug("ready to check snode loop, lastTs:%" PRId64, mStreamMgmt.lastTs[STM_EVENT_LOOP_SNODE].ts);
 
   void* pIter = NULL;
   int32_t snodeId = 0;
@@ -3674,7 +3985,7 @@ void msmCheckSnodesState(SMnode *pMnode) {
     msmHandleSnodeLost(pMnode, pSnode);
   }
 
-  MND_STREAM_SET_LAST_TS(STM_OP_LOOP_MAP, mStreamMgmt.hCtx.currentTs);
+  MND_STREAM_SET_LAST_TS(STM_EVENT_LOOP_MAP, mStreamMgmt.hCtx.currentTs);
 }
 
 void msmHealthCheck(SMnode *pMnode) {
@@ -3726,7 +4037,7 @@ int32_t msmInitRuntimeInfo(SMnode *pMnode) {
   int32_t snodeNum = sdbGetSize(pMnode->pSdb, SDB_SNODE);
   int32_t dnodeNum = sdbGetSize(pMnode->pSdb, SDB_DNODE);
 
-  MND_STREAM_SET_LAST_TS(STM_OP_ACTIVE_BEGIN, taosGetTimestampMs());
+  MND_STREAM_SET_LAST_TS(STM_EVENT_ACTIVE_BEGIN, taosGetTimestampMs());
 
   mStreamMgmt.threadNum = tsNumOfMnodeStreamMgmtThreads;
   mStreamMgmt.tCtx = taosMemoryCalloc(mStreamMgmt.threadNum, sizeof(SStmThreadCtx));
@@ -3823,7 +4134,7 @@ int32_t msmInitRuntimeInfo(SMnode *pMnode) {
 
   mStreamMgmt.activeStreamNum = 0;
   
-  sdbTraverse(pMnode->pSdb, SDB_STREAM, msmUpdateProfileStreams, &MND_STREAM_GET_LAST_TS(STM_OP_ACTIVE_BEGIN), &mStreamMgmt.activeStreamNum, NULL);
+  sdbTraverse(pMnode->pSdb, SDB_STREAM, msmUpdateProfileStreams, &MND_STREAM_GET_LAST_TS(STM_EVENT_ACTIVE_BEGIN), &mStreamMgmt.activeStreamNum, NULL);
 
   mStreamMgmt.lastTaskId = 1;
 

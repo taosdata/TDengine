@@ -506,7 +506,7 @@ static int32_t mndProcessCreateSnodeReq(SRpcMsg *pReq) {
   if (code == 0) {
     code = TSDB_CODE_ACTION_IN_PROGRESS;
     
-    MND_STREAM_SET_LAST_TS(STM_OP_CREATE_SNODE, currTs);
+    MND_STREAM_SET_LAST_TS(STM_EVENT_CREATE_SNODE, currTs);
   }
 
 _OVER:
@@ -781,7 +781,7 @@ static int32_t mndProcessDropSnodeReq(SRpcMsg *pReq) {
   if (code == 0) {
     code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-    MND_STREAM_SET_LAST_TS(STM_OP_DROP_SNODE, taosGetTimestampMs());
+    MND_STREAM_SET_LAST_TS(STM_EVENT_DROP_SNODE, taosGetTimestampMs());
   }
 
 _OVER:

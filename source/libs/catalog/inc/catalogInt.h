@@ -1028,7 +1028,7 @@ void    ctgdShowClusterCache(SCatalog* pCtg);
 int32_t ctgdShowCacheInfo(void);
 int32_t ctgdShowStatInfo(void);
 
-int32_t ctgRemoveTbMetaFromCache(SCatalog* pCtg, SName* pTableName, bool syncReq);
+int32_t ctgRemoveTbMetaFromCache(SCatalog* pCtg, SName* pTableName, bool syncReq, bool related);
 int32_t ctgGetTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
 int32_t ctgGetTbMetasFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetasCtx* ctx, int32_t dbIdx,
                                int32_t* fetchIdx, int32_t baseResIdx, SArray* pList, bool autoCreate);
@@ -1175,7 +1175,7 @@ void    ctgFreeQNode(SCtgQNode* node);
 void    ctgClearHandle(SCatalog* pCtg);
 void    ctgFreeTbCacheImpl(SCtgTbCache* pCache, bool lock);
 void    ctgFreeViewCacheImpl(SCtgViewCache* pCache, bool lock);
-int32_t ctgRemoveTbMeta(SCatalog* pCtg, SName* pTableName);
+int32_t ctgRemoveTbMeta(SCatalog* pCtg, SName* pTableName, bool related);
 int32_t ctgRemoveCacheUser(SCatalog* pCtg, SCtgUserAuth* pUser, const char* user);
 int32_t ctgGetTbHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SVgroupInfo* pVgroup,
                            bool* exists);

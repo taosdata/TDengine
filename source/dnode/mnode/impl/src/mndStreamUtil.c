@@ -86,31 +86,53 @@ int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mstGetStreamsNumInDb(SMnode *pMnode, char *dbName, int32_t *pNumOfStreams) {
-  SSdb   *pSdb = pMnode->pSdb;
-  SDbObj *pDb = mndAcquireDb(pMnode, dbName);
-  if (pDb == NULL) {
-    TAOS_RETURN(TSDB_CODE_MND_DB_NOT_SELECTED);
+typedef struct SStmCheckDbInUseCtx {
+  bool* dbStream;
+  bool* vtableStream;
+  bool  ignoreCurrDb;
+} SStmCheckDbInUseCtx;
+
+static bool mstChkSetDbInUse(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
+  SStreamObj *pStream = pObj;
+  if (atomic_load_8(&pStream->userDropped)) {
+    return true;
   }
 
-  int32_t numOfStreams = 0;
-  void   *pIter = NULL;
-  while (1) {
-    SStreamObj *pStream = NULL;
-    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
-    if (pIter == NULL) break;
+  SStmCheckDbInUseCtx* pCtx = (SStmCheckDbInUseCtx*)p2;
+  if (pCtx->ignoreCurrDb && 0 == strcmp(pStream->pCreate->streamDB, p1)) {
+    return true;
+  }
+  
+  if (pStream->pCreate->triggerDB && 0 == strcmp(pStream->pCreate->triggerDB, p1)) {
+    *pCtx->dbStream = true;
+    return false;
+  }
 
-/* STREAMTODO
-    if (pStream->sourceDbUid == pDb->uid) {
-      numOfStreams++;
+  int32_t calcDBNum = taosArrayGetSize(pStream->pCreate->calcDB);
+  for (int32_t i = 0; i < calcDBNum; ++i) {
+    char* calcDB = taosArrayGetP(pStream->pCreate->calcDB, i);
+    if (0 == strcmp(calcDB, p1)) {
+      *pCtx->dbStream = true;
+      return false;
     }
-*/
-    sdbRelease(pSdb, pStream);
   }
 
-  *pNumOfStreams = numOfStreams;
-  mndReleaseDb(pMnode, pDb);
-  return 0;
+  if (pStream->pCreate->vtableCalc || STREAM_IS_VIRTUAL_TABLE(pStream->pCreate->triggerTblType, pStream->pCreate->flags)) {
+    *pCtx->vtableStream = true;
+    return true;
+  }
+  
+  return true;
+}
+
+int32_t mstCheckDbInUse(SMnode *pMnode, char *dbFName, bool *dbStream, bool *vtableStream, bool ignoreCurrDb) {
+  int32_t streamNum = sdbGetSize(pMnode->pSdb, SDB_STREAM);
+  if (streamNum <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SStmCheckDbInUseCtx ctx = {dbStream, vtableStream, ignoreCurrDb};
+  sdbTraverse(pMnode->pSdb, SDB_STREAM, mstChkSetDbInUse, dbFName, &ctx, NULL);
 }
 
 static void mstShowStreamStatus(char *dst, int8_t status, int32_t bufLen) {
@@ -564,14 +586,14 @@ void mndStreamLogSStreamObj(char* tips, SStreamObj* p) {
       "igExists:%d triggerType:%d igDisorder:%d deleteReCalc:%d deleteOutTbl:%d fillHistory:%d fillHistroyFirst:%d "
       "calcNotifyOnly:%d lowLatencyCalc:%d notifyUrlNum:%d notifyEventTypes:%d notifyErrorHandle:%d notifyHistory:%d "
       "outColsNum:%d outTagsNum:%d maxDelay:%" PRId64 " fillHistoryStartTs:%" PRId64 " watermark:%" PRId64 " expiredTime:%" PRId64 " "
-      "triggerTblType:%d triggerTblUid:%" PRIu64 " outTblType:%d outStbExists:%d outStbUid:%" PRIu64 " outStbSversion:%d "
+      "triggerTblType:%d triggerTblUid:%" PRIx64 " triggerTblSuid:%" PRIx64 " vtableCalc:%d outTblType:%d outStbExists:%d outStbUid:%" PRIu64 " outStbSversion:%d "
       "eventTypes:0x%" PRIx64 " flags:0x%" PRIx64 " tsmaId:0x%" PRIx64 " placeHolderBitmap:0x%" PRIx64 " tsSlotId:%d "
       "triggerTblVgId:%d outTblVgId:%d calcScanPlanNum:%d forceOutCols:%d",
       q->name, q->sql, q->streamDB, q->triggerDB, q->outDB, calcDBNum, q->triggerTblName, q->outTblName,
       q->igExists, q->triggerType, q->igDisorder, q->deleteReCalc, q->deleteOutTbl, q->fillHistory, q->fillHistoryFirst,
       q->calcNotifyOnly, q->lowLatencyCalc, notifyUrlNum, q->notifyEventTypes, q->notifyErrorHandle, q->notifyHistory,
       outColNum, outTagNum, q->maxDelay, q->fillHistoryStartTime, q->watermark, q->expiredTime,
-      q->triggerTblType, q->triggerTblUid, q->outTblType, q->outStbExists, q->outStbUid, q->outStbSversion,
+      q->triggerTblType, q->triggerTblUid, q->triggerTblSuid, q->vtableCalc, q->outTblType, q->outStbExists, q->outStbUid, q->outStbSversion,
       q->eventTypes, q->flags, q->tsmaId, q->placeHolderBitmap, q->tsSlotId,
       q->triggerTblVgId, q->outTblVgId, calcScanNum, forceOutColNum);
 

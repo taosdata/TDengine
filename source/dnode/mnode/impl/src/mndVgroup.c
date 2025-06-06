@@ -3366,15 +3366,6 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
   SDbObj  dbObj = {0};
   SArray *pArray = mndBuildDnodesArray(pMnode, 0, NULL);
 
-  int32_t numOfStreams = 0;
-  if ((code = mstGetStreamsNumInDb(pMnode, pDb->name, &numOfStreams)) != 0) {
-    goto _OVER;
-  }
-  if (numOfStreams > 0) {
-    code = TSDB_CODE_MND_STREAM_MUST_BE_DELETED;
-    goto _OVER;
-  }
-
 #if defined(USE_S3)
   extern int8_t tsS3Enabled;
   if (tsS3Enabled) {

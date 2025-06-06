@@ -30,6 +30,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
+#include "mndStream.h"
 #include "tname.h"
 
 #define STB_VER_NUMBER   3
@@ -1672,6 +1673,9 @@ static int32_t mndCheckAlterColForTopic(SMnode *pMnode, const char *stbFullName,
 }
 
 static int32_t mndCheckAlterColForStream(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId) {
+  return 0;
+  
+  /* STREAMTODO
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
@@ -1680,7 +1684,6 @@ static int32_t mndCheckAlterColForStream(SMnode *pMnode, const char *stbFullName
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
     if (pIter == NULL) break;
 
-/* STREAMTODO
     SNode *pAst = NULL;
     if (nodesStringToNode(pStream->ast, &pAst) != 0) {
       code = TSDB_CODE_MND_INVALID_STREAM_OPTION;
@@ -1719,10 +1722,10 @@ static int32_t mndCheckAlterColForStream(SMnode *pMnode, const char *stbFullName
     }
 
   NEXT:
-*/  
     sdbRelease(pSdb, pStream);
   }
   TAOS_RETURN(code);
+*/  
 }
 
 static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId) {
@@ -2238,7 +2241,7 @@ static int32_t mndSetAlterStbRedoActions2(SMnode *pMnode, STrans *pTrans, SDbObj
   TAOS_RETURN(code);
 }
 
-static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbName, STableMetaRsp *pRsp) {
+static int32_t mndBuildStbSchemaImp(SMnode *pMnode, SDbObj *pDb, SStbObj *pStb, const char *tbName, STableMetaRsp *pRsp, bool refByStm) {
   int32_t code = 0;
   taosRLockLatch(&pStb->lock);
 
@@ -2280,7 +2283,7 @@ static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbNa
     pSchema->colId = pSrcSchema->colId;
     pSchema->bytes = pSrcSchema->bytes;
   }
-
+  
   for (int32_t i = 0; i < pStb->numOfTags; ++i) {
     SSchema *pSchema = &pRsp->pSchemas[i + pStb->numOfColumns];
     SSchema *pSrcSchema = &pStb->pTags[i];
@@ -2290,6 +2293,11 @@ static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbNa
     pSchema->colId = pSrcSchema->colId;
     pSchema->bytes = pSrcSchema->bytes;
   }
+
+  if (refByStm) {
+    mndStreamUpdateTagsRefFlag(pMnode, pStb->uid, &pRsp->pSchemas[pStb->numOfColumns], pStb->numOfTags);
+  }
+
   for (int32_t i = 0; i < pStb->numOfColumns; i++) {
     SColCmpr   *pCmpr = &pStb->pCmpr[i];
     SSchemaExt *pSchEx = &pRsp->pSchemaExt[i];
@@ -2420,7 +2428,7 @@ static int32_t mndValidateStbVersion(SMnode *pMnode, SSTableVersion *pStbVer, bo
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mndBuildStbSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp) {
+static int32_t mndBuildStbSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp, bool refByStm) {
   int32_t code = 0;
   char    tbFName[TSDB_TABLE_FNAME_LEN] = {0};
   snprintf(tbFName, sizeof(tbFName), "%s.%s", dbFName, tbName);
@@ -2438,7 +2446,7 @@ static int32_t mndBuildStbSchema(SMnode *pMnode, const char *dbFName, const char
     TAOS_RETURN(code);
   }
 
-  code = mndBuildStbSchemaImp(pDb, pStb, tbName, pRsp);
+  code = mndBuildStbSchemaImp(pMnode, pDb, pStb, tbName, pRsp, refByStm);
   mndReleaseDb(pMnode, pDb);
   mndReleaseStb(pMnode, pStb);
   TAOS_RETURN(code);
@@ -2483,7 +2491,7 @@ static int32_t mndBuildSMAlterStbRsp(SDbObj *pDb, SStbObj *pObj, void **pCont, i
     TAOS_RETURN(code);
   }
 
-  code = mndBuildStbSchemaImp(pDb, pObj, name.tname, alterRsp.pMeta);
+  code = mndBuildStbSchemaImp(NULL, pDb, pObj, name.tname, alterRsp.pMeta, false);
   if (code) {
     tFreeSMAlterStbRsp(&alterRsp);
     return code;
@@ -2543,7 +2551,7 @@ int32_t mndBuildSMCreateStbRsp(SMnode *pMnode, char *dbFName, char *stbFName, vo
     goto _OVER;
   }
 
-  code = mndBuildStbSchemaImp(pDb, pObj, name.tname, stbRsp.pMeta);
+  code = mndBuildStbSchemaImp(NULL, pDb, pObj, name.tname, stbRsp.pMeta, false);
   if (code) {
     tFreeSMCreateStbRsp(&stbRsp);
     goto _OVER;
@@ -3098,7 +3106,7 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(mndBuildPerfsTableSchema(pMnode, infoReq.dbFName, infoReq.tbName, &metaRsp), NULL, _OVER);
   } else {
     mInfo("stb:%s.%s, start to retrieve meta", infoReq.dbFName, infoReq.tbName);
-    TAOS_CHECK_GOTO(mndBuildStbSchema(pMnode, infoReq.dbFName, infoReq.tbName, &metaRsp), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndBuildStbSchema(pMnode, infoReq.dbFName, infoReq.tbName, &metaRsp, true), NULL, _OVER);
   }
 
   int32_t rspLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
@@ -3230,7 +3238,7 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
     if (schema) {
       STableMetaRsp metaRsp = {0};
       mInfo("stb:%s.%s, start to retrieve meta", pStbVersion->dbFName, pStbVersion->stbName);
-      if (mndBuildStbSchema(pMnode, pStbVersion->dbFName, pStbVersion->stbName, &metaRsp) != 0) {
+      if (mndBuildStbSchema(pMnode, pStbVersion->dbFName, pStbVersion->stbName, &metaRsp, false) != 0) {
         metaRsp.numOfColumns = -1;
         metaRsp.suid = pStbVersion->suid;
         tstrncpy(metaRsp.dbFName, pStbVersion->dbFName, sizeof(metaRsp.dbFName));

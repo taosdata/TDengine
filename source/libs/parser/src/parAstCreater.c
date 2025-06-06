@@ -2352,7 +2352,7 @@ _err:
   return NULL;
 }
 
-SNode* createDropDatabaseStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pDbName) {
+SNode* createDropDatabaseStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pDbName, bool force) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkDbName(pCxt, pDbName, false));
   SDropDatabaseStmt* pStmt = NULL;
@@ -2360,6 +2360,7 @@ SNode* createDropDatabaseStmt(SAstCreateContext* pCxt, bool ignoreNotExists, STo
   CHECK_MAKE_NODE(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
   pStmt->ignoreNotExists = ignoreNotExists;
+  pStmt->force = force;
   return (SNode*)pStmt;
 _err:
   return NULL;
@@ -4672,12 +4673,13 @@ _err:
   return NULL;
 }
 
-SNode* createSplitVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId) {
+SNode* createSplitVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId, bool force) {
   CHECK_PARSER_STATUS(pCxt);
   SSplitVgroupStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_SPLIT_VGROUP_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->vgId = taosStr2Int32(pVgId->z, NULL, 10);
+  pStmt->force = force;
   return (SNode*)pStmt;
 _err:
   return NULL;

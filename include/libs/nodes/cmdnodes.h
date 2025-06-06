@@ -151,6 +151,7 @@ typedef struct SDropDatabaseStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
   bool      ignoreNotExists;
+  bool      force;
 } SDropDatabaseStmt;
 
 typedef struct SAlterDatabaseStmt {
@@ -756,6 +757,7 @@ typedef struct SRedistributeVgroupStmt {
 typedef struct SSplitVgroupStmt {
   ENodeType type;
   int32_t   vgId;
+  bool      force;
 } SSplitVgroupStmt;
 
 typedef struct STSMAOptions {

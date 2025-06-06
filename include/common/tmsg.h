@@ -754,6 +754,7 @@ void tFreeSSubmitRsp(SSubmitRsp* pRsp);
 #define COL_SET_VAL    ((int8_t)0x20)
 #define COL_IS_SYSINFO ((int8_t)0x40)
 #define COL_HAS_TYPE_MOD ((int8_t)0x80)
+#define COL_REF_BY_STM   ((int8_t)0x08)
 
 #define COL_IS_SET(FLG)  (((FLG) & (COL_SET_VAL | COL_SET_NULL)) != 0)
 #define COL_CLR_SET(FLG) ((FLG) &= (~(COL_SET_VAL | COL_SET_NULL)))
@@ -1601,6 +1602,7 @@ void    tFreeSAlterDbReq(SAlterDbReq* pReq);
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   int8_t  ignoreNotExists;
+  int8_t  force;
   int32_t sqlLen;
   char*   sql;
 } SDropDbReq;
@@ -2938,6 +2940,7 @@ int32_t tSerializeSForceBecomeFollowerReq(void* buf, int32_t bufLen, SForceBecom
 
 typedef struct {
   int32_t vgId;
+  bool    force;
 } SSplitVgroupReq;
 
 int32_t tSerializeSSplitVgroupReq(void* buf, int32_t bufLen, SSplitVgroupReq* pReq);

@@ -8454,15 +8454,26 @@ static int32_t jsonToRedistributeVgroupStmt(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkSplitVgroupStmtVgroupId = "VgroupId";
+static const char* jkSplitVgroupStmtForce = "Force";
 
 static int32_t splitVgroupStmtToJson(const void* pObj, SJson* pJson) {
   const SSplitVgroupStmt* pNode = (const SSplitVgroupStmt*)pObj;
-  return tjsonAddIntegerToObject(pJson, jkSplitVgroupStmtVgroupId, pNode->vgId);
+  int32_t code = tjsonAddIntegerToObject(pJson, jkSplitVgroupStmtVgroupId, pNode->vgId);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkSplitVgroupStmtForce, pNode->force);
+  }
+
+  return code;
 }
 
 static int32_t jsonToSplitVgroupStmt(const SJson* pJson, void* pObj) {
   SSplitVgroupStmt* pNode = (SSplitVgroupStmt*)pObj;
-  return tjsonGetIntValue(pJson, jkSplitVgroupStmtVgroupId, &pNode->vgId);
+  int32_t code = tjsonGetIntValue(pJson, jkSplitVgroupStmtVgroupId, &pNode->vgId);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkSplitVgroupStmtForce, &pNode->force);
+  }
+
+  return code;
 }
 
 static const char* jkGrantStmtUserName = "UserName";

@@ -61,8 +61,6 @@ _exit:
 
 void tFreeStreamObj(SStreamObj *pStream) {
   tFreeSCMCreateStreamReq(pStream->pCreate);
-
-  //STREAMTODO
 }
 
 SMqVgEp *tCloneSMqVgEp(const SMqVgEp *pVgEp) {

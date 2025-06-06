@@ -263,6 +263,8 @@ typedef struct {
 
   int8_t   triggerTblType;
   uint64_t triggerTblUid;  // suid or uid
+  uint64_t triggerTblSuid;
+  int8_t   vtableCalc;     // virtual table calc exits
   int8_t   outTblType;
   int8_t   outStbExists;
   uint64_t outStbUid;
@@ -297,6 +299,7 @@ typedef enum SStreamMsgType {
   STREAM_MSG_START,
   STREAM_MSG_UNDEPLOY,
   STREAM_MSG_ORIGTBL_READER_INFO,
+  STREAM_MSG_UPDATE_RUNNER,
 } SStreamMsgType;
 
 typedef struct SStreamMsg {
@@ -389,6 +392,7 @@ typedef struct SStreamTask {
 typedef struct SStreamMgmtRspCont {
   SArray*    vgIds;       // SArray<int32_t>, same size and order as fullTableNames in SStreamMgmtReqCont
   SArray*    readerList;  // SArray<SStreamTaskAddr>, each SStreamTaskAddr has an unique nodeId
+  SArray*    runnerList;  // SArray<SStreamRunnerTarget>, full runner list
 } SStreamMgmtRspCont;
 
 typedef union SStreamMgmtRsp {
@@ -456,6 +460,13 @@ typedef struct SStreamRunnerTarget {
   int32_t         execReplica;
 } SStreamRunnerTarget;
 
+typedef struct SStreamSnodeInfo {
+  int32_t leaderSnodeId;
+  int32_t replicaSnodeId;
+  SEpSet  leaderEpSet;
+  SEpSet  replicaEpSet; // may be empty
+} SStreamSnodeInfo;
+
 typedef struct {
   int8_t triggerType;
   int8_t igDisorder;
@@ -483,6 +494,8 @@ typedef struct {
 
   SArray* readerList;  // SArray<SStreamTaskAddr>
   SArray* runnerList;  // SArray<SStreamRunnerTarget>
+
+  SStreamSnodeInfo snode;
 } SStreamTriggerDeployMsg;
 
 typedef struct SStreamRunnerDeployMsg {

@@ -1811,6 +1811,21 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
     sdbRelease(pSdb, pVgroup);
   }
 
+  bool dbStream = false;
+  bool vtableStream = false;
+  code = mstCheckDbInUse(pMnode, dropReq.db, &dbStream, &vtableStream, true);
+  if (dbStream) {
+    code = TSDB_CODE_MND_STREAM_DB_IN_USE;
+    mError("db:%s used by streams, drop db not allowed", dropReq.db);
+    goto _OVER;
+  }
+
+  if (vtableStream && !dropReq.force) {
+    code = TSDB_CODE_MND_STREAM_VTABLE_EXITS;
+    mError("db:%s, vtable stream exists, drop db not allowed", dropReq.db);
+    goto _OVER;
+  }
+
   code = mndDropDb(pMnode, pReq, pDb);
   if (code == TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_ACTION_IN_PROGRESS;

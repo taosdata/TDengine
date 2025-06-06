@@ -804,7 +804,7 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, con
 
   SName* name = taosHashIterate(pTb, NULL);
   while (name) {
-    CTG_ERR_JRET(ctgRemoveTbMeta(pCtg, name));
+    CTG_ERR_JRET(ctgRemoveTbMeta(pCtg, name, false));
     name = taosHashIterate(pTb, name);
   }
 
@@ -1674,7 +1674,7 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
         }
 
         ctgError("no tbmeta got, tbName:%s", tNameGetTableName(pName));
-        (void)ctgRemoveTbMetaFromCache(pCtg, pName, false);  // update cache not fatal error
+        (void)ctgRemoveTbMetaFromCache(pCtg, pName, false, false);  // update cache not fatal error
 
         CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
       }
@@ -1692,7 +1692,7 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
 
       if (CTG_IS_META_NULL(pOut->metaType)) {
         ctgError("no tbmeta got, tbName:%s", tNameGetTableName(pName));
-        (void)ctgRemoveTbMetaFromCache(pCtg, pName, false);  // update cache not fatal error
+        (void)ctgRemoveTbMetaFromCache(pCtg, pName, false, false);  // update cache not fatal error
         CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
       }
 
@@ -1882,7 +1882,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
         }
 
         ctgTaskError("no tbmeta got, tbName:%s", tNameGetTableName(pName));
-        (void)ctgRemoveTbMetaFromCache(pCtg, pName, false);  // cache update not fatal error
+        (void)ctgRemoveTbMetaFromCache(pCtg, pName, false, false);  // cache update not fatal error
 
         CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
       }
@@ -1900,7 +1900,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
 
       if (CTG_IS_META_NULL(pOut->metaType)) {
         ctgTaskError("no tbmeta got, tbName:%s", tNameGetTableName(pName));
-        (void)ctgRemoveTbMetaFromCache(pCtg, pName, false);  // cache update not fatal error
+        (void)ctgRemoveTbMetaFromCache(pCtg, pName, false, false);  // cache update not fatal error
         CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
       }
 
@@ -2147,7 +2147,7 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
         }
 
         ctgTaskError("no tbmeta got, tbName:%s", tNameGetTableName(pName));
-        (void)ctgRemoveTbMetaFromCache(pCtg, pName, false);  // cache update not fatal error
+        (void)ctgRemoveTbMetaFromCache(pCtg, pName, false, false);  // cache update not fatal error
 
         CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
       }
@@ -3077,7 +3077,7 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
 
       if (CTG_IS_META_NULL(pOut->metaType)) {
         ctgTaskError("no tbmeta found when fetching tsma source tb meta:%s.%s", pTbName->dbname, pTbName->tname);
-        (void)ctgRemoveTbMetaFromCache(pCtg, pTbName, false);  // ignore cache error
+        (void)ctgRemoveTbMetaFromCache(pCtg, pTbName, false, false);  // ignore cache error
         CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
       }
 

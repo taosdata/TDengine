@@ -798,7 +798,7 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
     TAOS_CHECK_EXIT(tEncodeSStreamRunnerTarget(pEncoder, pTarget));
   }
 
-  //STREAMTODO VTABLE
+  //STREAMTODO snode
 
 _exit:
 
@@ -1271,7 +1271,7 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
     TAOS_CHECK_EXIT(tDecodeSStreamRunnerTarget(pDecoder, pTarget));
   }
 
-  //STREAMTODO VTABLE
+  //STREAMTODO snode
 
 _exit:
 
@@ -1797,6 +1797,8 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
 
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->triggerTblType));
   TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pReq->triggerTblUid));
+  TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pReq->triggerTblSuid));
+  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->vtableCalc));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->outTblType));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->outStbExists));
   TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pReq->outStbUid));
@@ -2053,6 +2055,8 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
 
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->triggerTblType));
   TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pReq->triggerTblUid));
+  TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pReq->triggerTblSuid));
+  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->vtableCalc));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->outTblType));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->outStbExists));
   TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pReq->outStbUid));
@@ -2201,6 +2205,9 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   if (NULL == pReq) {
     return;
   }
+
+  //STREAMTODO
+  
 }
 
 int32_t tSerializeSMPauseStreamReq(void *buf, int32_t bufLen, const SMPauseStreamReq *pReq) {

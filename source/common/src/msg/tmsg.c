@@ -4461,6 +4461,7 @@ int32_t tSerializeSDropDbReq(void *buf, int32_t bufLen, SDropDbReq *pReq) {
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->db));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->ignoreNotExists));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->force));
   ENCODESQL();
   tEndEncode(&encoder);
 
@@ -4483,6 +4484,7 @@ int32_t tDeserializeSDropDbReq(void *buf, int32_t bufLen, SDropDbReq *pReq) {
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->db));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->ignoreNotExists));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->force));
   DECODESQL();
   tEndDecode(&decoder);
 
@@ -8380,6 +8382,7 @@ int32_t tSerializeSSplitVgroupReq(void *buf, int32_t bufLen, SSplitVgroupReq *pR
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->vgId));
+  TAOS_CHECK_EXIT(tEncodeBool(&encoder, pReq->force));
   tEndEncode(&encoder);
 
 _exit:
@@ -8400,6 +8403,7 @@ int32_t tDeserializeSSplitVgroupReq(void *buf, int32_t bufLen, SSplitVgroupReq *
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->vgId));
+  TAOS_CHECK_EXIT(tDecodeBool(&decoder, &pReq->force));
   tEndDecode(&decoder);
 
 _exit:

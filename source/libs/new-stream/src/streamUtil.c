@@ -145,7 +145,15 @@ int32_t stmBuildStreamsStatusReq(SArray** ppStatus, SArray** ppReq, int32_t gid)
 }
 
 void stmDestroySStreamTasksInfo(SStreamTasksInfo* p) {
-  // STREAMTODO
+  taosArrayDestroy(p->readerList);
+  p->readerList = NULL;
+  taosMemoryFreeClear(p->triggerTask);
+  taosArrayDestroy(p->runnerList);
+  p->runnerList = NULL;
+  taosArrayDestroy(p->undeployReaders);
+  p->undeployReaders = NULL;
+  taosArrayDestroy(p->undeployRunners);
+  p->undeployRunners = NULL;
 }
 
 void stmDestroySStreamMgmtReq(SStreamMgmtReq* pReq) {

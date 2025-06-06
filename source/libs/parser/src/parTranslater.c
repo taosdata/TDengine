@@ -10189,6 +10189,7 @@ static int32_t translateDropDatabase(STranslateContext* pCxt, SDropDatabaseStmt*
   if (TSDB_CODE_SUCCESS != code) return code;
   (void)tNameGetFullDbName(&name, dropReq.db);
   dropReq.ignoreNotExists = pStmt->ignoreNotExists;
+  dropReq.force = pStmt->force;
 
   code = buildCmdMsg(pCxt, TDMT_MND_DROP_DB, (FSerializeFunc)tSerializeSDropDbReq, &dropReq);
   tFreeSDropDbReq(&dropReq);
@@ -13380,6 +13381,7 @@ static int32_t createStreamReqBuildTriggerTable(STranslateContext* pCxt, SRealTa
 
   pReq->triggerTblType = pMeta->tableType;
   pReq->triggerTblUid = pMeta->uid;
+  pReq->triggerTblSuid = pMeta->suid;
   return code;
 }
 
@@ -13970,7 +13972,8 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
 
   PAR_ERR_JRET(createStreamReqBuildForceOutput(pCxt, pStmt, pReq));
 
-  SPlanContext calcCxt = {.pAstRoot = pStmt->pQuery,
+  SPlanContext calcCxt = {.acctId = pCxt->pParseCxt->acctId,
+                          .pAstRoot = pStmt->pQuery,
                           .streamCalcQuery = true,
                           .pStreamCalcVgArray = pVgArray,
                           .pStreamCalcDbs = pDbs,
@@ -14584,7 +14587,7 @@ static int32_t translateRedistributeVgroup(STranslateContext* pCxt, SRedistribut
 }
 
 static int32_t translateSplitVgroup(STranslateContext* pCxt, SSplitVgroupStmt* pStmt) {
-  SSplitVgroupReq req = {.vgId = pStmt->vgId};
+  SSplitVgroupReq req = {.vgId = pStmt->vgId, .force = pStmt->force};
   return buildCmdMsg(pCxt, TDMT_MND_SPLIT_VGROUP, (FSerializeFunc)tSerializeSSplitVgroupReq, &req);
 }
 
@@ -17989,6 +17992,10 @@ static int32_t buildUpdateTagValReqImpl2(STranslateContext* pCxt, SAlterTableStm
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Invalid tag name: %s", colName);
   }
 
+  if (pSchema->flags & COL_REF_BY_STM) {
+    return TSDB_CODE_PAR_COL_TAG_REF_BY_STM;
+  }
+
   pReq->tagName = taosStrdup(colName);
   if (NULL == pReq->tagName) {
     TAOS_CHECK_GOTO(terrno, &lino, _err);
@@ -18060,6 +18067,10 @@ static int32_t buildUpdateTagValReqImpl(STranslateContext* pCxt, SAlterTableStmt
   SSchema* pSchema = getTagSchema(pTableMeta, colName);
   if (NULL == pSchema) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Invalid tag name: %s", colName);
+  }
+
+  if (pSchema->flags & COL_REF_BY_STM) {
+    return TSDB_CODE_PAR_COL_TAG_REF_BY_STM;
   }
 
   pReq->tagName = taosStrdup(colName);
