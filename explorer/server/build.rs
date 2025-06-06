@@ -72,9 +72,9 @@ fn main() -> shadow_rs::SdResult<()> {
     std::fs::write(&service_path, service).unwrap();
 
     let canonical_cus_name = if cus_name == "TDengine TSDB-Lite" {
-        cus_name
-    } else {
         "TDengine"
+    } else {
+        cus_name
     };
     println!("cargo:rustc-env=CUS_NAME={cus_name}");
     println!("cargo:rustc-env=CUS_PROMPT={cus_prompt}");
