@@ -16,10 +16,12 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
 add_subdirectory(csv)
 
 # 编译静态库
-add_library(actions_reader STATIC)
+add_library(actions_reader STATIC reader.cpp)
 
 # 链接 csv 静态库到 actions_reader
-target_link_libraries(actions_reader PRIVATE reader_csv)
+target_link_libraries(actions_reader PUBLIC
+    reader_csv
+)
 
 # 包含头文件目录
 target_include_directories(actions_reader PUBLIC

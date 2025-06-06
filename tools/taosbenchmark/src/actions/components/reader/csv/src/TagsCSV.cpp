@@ -11,8 +11,14 @@
 
 
 TagsCSV::TagsCSV(const TagsConfig::CSV& config, std::optional<ColumnTypeVector> tag_types)
-    : config_(config) {
+    : config_(config), tag_types_(tag_types) {
     validate_config();
+}
+
+void TagsCSV::validate_config() {
+    if (config_.file_path.empty()) {
+        throw std::invalid_argument("CSV file path is empty for tags data");
+    }
 
     // Create a CSV reader to get total columns
     CSVReader reader(
@@ -34,9 +40,9 @@ TagsCSV::TagsCSV(const TagsConfig::CSV& config, std::optional<ColumnTypeVector> 
     }
 
     // Validate tag_types size if provided
-    if (tag_types && tag_types->size() != valid_indices_.size()) {
+    if (tag_types_ && tag_types_->size() != valid_indices_.size()) {
         std::stringstream ss;
-        ss << "Tag types size (" << tag_types->size() 
+        ss << "Tag types size (" << tag_types_->size() 
            << ") does not match number of valid columns (" << valid_indices_.size()
            << ") in file: " << config_.file_path;
         throw std::invalid_argument(ss.str());
@@ -44,14 +50,8 @@ TagsCSV::TagsCSV(const TagsConfig::CSV& config, std::optional<ColumnTypeVector> 
 
     // Initialize column_type_map_
     for (size_t i = 0; i < valid_indices_.size(); ++i) {
-        ColumnType type = tag_types ? (*tag_types)[i] : std::string{};
+        ColumnType type = tag_types_ ? (*tag_types_)[i] : std::string{};
         column_type_map_.emplace_back(valid_indices_[i], type);
-    }
-}
-
-void TagsCSV::validate_config() const {
-    if (config_.file_path.empty()) {
-        throw std::invalid_argument("CSV file path is empty for tags data");
     }
 }
 

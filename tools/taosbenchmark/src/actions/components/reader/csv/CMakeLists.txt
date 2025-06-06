@@ -22,7 +22,7 @@ add_library(reader_csv STATIC
     src/CSVReader.cpp
     src/TableNameCSV.cpp
     src/TagsCSV.cpp
-    # src/ColumnsCSV.cpp
+    src/ColumnsCSV.cpp
     # src/TimestampCSVProcessor.cpp
 )
 
@@ -33,6 +33,13 @@ target_include_directories(reader_csv PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../../generator/inc
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../../common/inc
 )
+
+# 链接依赖库
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../../components/generator/build)
+target_link_libraries(reader_csv PUBLIC
+    actions_generator
+)
+
 
 # 添加测试
 # Test CSVReader
@@ -61,4 +68,13 @@ target_link_libraries(TestTagsCSV PRIVATE
     reader_csv
 )
 add_test(NAME TestTagsCSV COMMAND TestTagsCSV)
+
+# Test ColumnsCSV
+add_executable(TestColumnsCSV
+    test/TestColumnsCSV.cpp
+)
+target_link_libraries(TestColumnsCSV PRIVATE 
+    reader_csv
+)
+add_test(NAME TestColumnsCSV COMMAND TestColumnsCSV)
 

@@ -24,10 +24,11 @@ public:
 
 private:
     TagsConfig::CSV config_;
+    std::optional<ColumnTypeVector> tag_types_;
     size_t total_columns_ = 0;
     std::vector<std::pair<size_t, ColumnType>> column_type_map_;
 
-    void validate_config() const;
+    void validate_config();
 
     template <typename T>
     T convert_to_type(const std::string& value) const;
