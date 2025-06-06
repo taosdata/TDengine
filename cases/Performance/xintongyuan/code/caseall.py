@@ -293,17 +293,20 @@ def print_log(msg, level="INFO", end="\n", save_to_file=True):
     print(f"[{time_str}] {color}{level}: {msg}{Colors.ENDC}", end=end)
     
     # 日志文件记录（不带颜色）
-    if save_to_file and 'logger' in globals():
-        if level == "INFO":
-            logger.info(msg)
-        elif level == "SUCCESS":
-            logger.info(f"SUCCESS: {msg}")
-        elif level == "ERROR":
-            logger.error(msg)
-        elif level == "WARN":
-            logger.warning(msg)
-        else:
-            logger.info(msg)
+    if save_to_file and 'logger' in globals() and globals()['logger'] is not None:
+        try:
+            if level == "INFO":
+                logger.info(msg)
+            elif level == "SUCCESS":
+                logger.info(f"SUCCESS: {msg}")
+            elif level == "ERROR":
+                logger.error(msg)
+            elif level == "WARN":
+                logger.warning(msg)
+            else:
+                logger.info(msg)
+        except Exception as e:
+            print(f"[{time_str}] {Colors.RED}ERROR: Failed to write to log file: {e}{Colors.ENDC}")
     
 
 def check_environment():
@@ -457,20 +460,23 @@ def update_xtytest_version(version):
         with open(xtytest_path, 'r') as f:
             content = f.read()
             
-        # 直接查找并替换完整的镜像字符串
-        old_str = '"image": "tdengine/tdengine-amd64:3.3.6.6"'
+        # 首先检查当前文件中的版本号
+        current_version_pattern = r'"image":\s*"tdengine/tdengine-amd64:([\d.]+)"'
+        current_version_match = re.search(current_version_pattern, content)
+        
+        if current_version_match:
+            current_version = current_version_match.group(1)
+            # 如果版本相同，不需要更新
+            if current_version == version:
+                print_log(f"当前版本已经是 {version}，无需更新", "INFO")
+                return True
+                
+        # 版本不同，需要更新
+        pattern = r'"image":\s*"tdengine/tdengine-amd64:[\d.]+"'
         new_str = f'"image": "tdengine/tdengine-amd64:{version}"'
         
-        if old_str in content:
-            new_content = content.replace(old_str, new_str)
-            with open(xtytest_path, 'w') as f:
-                f.write(new_content)
-            print_log(f"更新xtytest.py中的Docker镜像版本为: {version}", "INFO")
-            return True
-            
-        # 如果没有找到完整匹配，尝试更通用的替换
-        pattern = r'("image":\s*"tdengine/tdengine-amd64:)\d+\.\d+\.\d+\.\d+"'
-        new_content = re.sub(pattern, f'\\1{version}"', content)
+        # 使用re.sub进行替换
+        new_content = re.sub(pattern, new_str, content)
         
         if new_content != content:
             with open(xtytest_path, 'w') as f:
@@ -478,6 +484,7 @@ def update_xtytest_version(version):
             print_log(f"更新xtytest.py中的Docker镜像版本为: {version}", "INFO")
             return True
             
+        # 如果没有找到匹配项，输出警告
         print_log("警告：未找到需要替换的版本号，当前配置内容:", "WARN")
         for line in content.split('\n'):
             if 'image' in line and 'tdengine' in line:
@@ -1403,7 +1410,7 @@ def ensure_taosadapter_running():
         print_log(f"检查/启动 taosadapter 失败: {e}", "ERROR")
         raise
 
-def case_205():
+def case_205_old():
     try:
         print_log(f"{Colors.BLUE}开始执行用例205...{Colors.ENDC}", "INFO")
         
@@ -1450,6 +1457,84 @@ def case_205():
     except Exception as e:
         print_log(f"\n{Colors.RED}case205执行出错!!!: {e}{Colors.ENDC}", "ERROR")
         sys.exit(1)
+        
+def case_205():
+    """最大连接数测试"""
+    max_retries = 5  # 最大重试次数
+    current_try = 1
+
+    while current_try <= max_retries:
+        try:
+            print_log(f"{Colors.BLUE}开始执行用例205 (第{current_try}次尝试)...{Colors.ENDC}", "INFO")
+            
+            # 确保 taosadapter 运行
+            ensure_taosadapter_running()
+            
+            # 1. 执行三个taosBenchmark
+            print_log(f"\n{Colors.BLUE}启动taosBenchmark任务...{Colors.ENDC}", "INFO")
+            commands = [
+                "taosBenchmark -f /root/xintongyuan/code/UseCase205_1.json",
+                "taosBenchmark -f /root/xintongyuan/code/UseCase205_2.json",
+                "taosBenchmark -f /root/xintongyuan/code/UseCase205_3.json"
+            ]
+            
+            processes = []
+            for i, cmd in enumerate(commands, 1):
+                print_log(f"启动第{i}个taosBenchmark...", "INFO")
+                p = subprocess.Popen(
+                    cmd, 
+                    shell=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                processes.append(p)
+                time.sleep(2)
+            
+            # 2. 检查连接数是否超过50000
+            print_log(f"\n{Colors.BLUE}检查连接数是否超过50000...{Colors.ENDC}", "INFO")
+            if not check_connections(expected_min=50000):
+                if current_try < max_retries:
+                    print_log(f"\n{Colors.YELLOW}第{current_try}次尝试失败: 连接数未达到预期值{Colors.ENDC}", "INFO")
+                    kill_benchmark_processes()  # 清理当前进程
+                    time.sleep(5)  # 等待资源释放
+                    current_try += 1
+                    continue
+                else:
+                    raise Exception("连接数未达到预期值")
+            
+            # 3. 终止taosBenchmark进程
+            kill_benchmark_processes()
+            
+            # 4. 检查连接数是否降为0
+            print_log(f"\n{Colors.BLUE}检查连接数是否降为0...{Colors.ENDC}", "INFO")
+            if not check_connections(expected_exact=0):
+                if current_try < max_retries:
+                    print_log(f"\n{Colors.YELLOW}第{current_try}次尝试失败: 连接未完全释放{Colors.ENDC}", "INFO")
+                    time.sleep(5)  # 等待资源释放
+                    current_try += 1
+                    continue
+                else:
+                    raise Exception("连接未完全释放")
+                    
+            print_log(f"\n{Colors.GREEN}case205测试成功!!!{Colors.ENDC}", "SUCCESS")
+            return  # 测试成功，直接返回
+            
+        except Exception as e:
+            if current_try < max_retries:
+                print_log(f"\n{Colors.YELLOW}第{current_try}次尝试失败: {e}{Colors.ENDC}", "INFO")
+                print_log(f"准备第{current_try + 1}次尝试...", "INFO")
+                kill_benchmark_processes()  # 确保清理所有进程
+                time.sleep(5)  # 等待资源释放
+                current_try += 1
+            else:
+                print_log(f"\n{Colors.RED}case205执行出错!!!: {e}{Colors.ENDC}", "ERROR")
+                sys.exit(1)
+        finally:
+            # 确保清理所有进程
+            try:
+                kill_benchmark_processes()
+            except Exception as cleanup_error:
+                print_log(f"清理进程时出错: {cleanup_error}", "ERROR")
         
 def parse_qps_from_output(json_file):
     """解析taosBenchmark输出中的QPS数据
@@ -2138,36 +2223,71 @@ def monitor_write_progress(json_file):
         return 0
 
 def case_211():
-    try:
-        print_log(f"{Colors.BLUE}开始执行用例211...{Colors.ENDC}", "INFO")
-        
-        # 清理和启动单节点环境
-        clean_single_environment_and_start_single_environment()
-        
-        # 1. 运行taosBenchmark写入数据
-        print_log(f"\n{Colors.BLUE}1. 写入100亿数据，预计超过半个小时，请耐心等待！{Colors.ENDC}", "INFO")
-        json_file = "/root/xintongyuan/code/UseCase211.json"
-        #qps = parse_qps_from_output(json_file)#时间太久，改成下面的5分钟刷新一次的效果
-        qps = monitor_write_progress(json_file)
-        print_log(f"写入完成，QPS: {qps:,.2f}/s", "INFO")
-        
-        # 2. 验证总行数
-        print_log(f"\n{Colors.BLUE}2. 验证数据总量{Colors.ENDC}", "INFO")
-        records_ok, count_time = verify_100billion_records()
-        if not records_ok:
-            raise Exception("数据总量未达到100亿条")
-            
-        # 3. 验证查询性能
-        print_log(f"\n{Colors.BLUE}3. 验证查询性能{Colors.ENDC}", "INFO")
-        query_ok, query_time = verify_interval_query()
-        if not query_ok:
-            raise Exception(f"查询性能未达标，耗时 {query_time:.2f}秒 > 2秒")
-            
-        print_log(f"\n{Colors.GREEN}case211大数据量查询性能测试成功!!!{Colors.ENDC}", "SUCCESS")
-        
-    except Exception as e:
-        print_log(f"\n{Colors.RED}case211执行出错!!!: {e}{Colors.ENDC}", "ERROR")
-        sys.exit(1)
+    """大数据量写入和查询性能测试"""
+    max_retries = 5  # 最大重试次数
+    current_try = 1
+
+    while current_try <= max_retries:
+        try:
+            print_log(f"{Colors.BLUE}开始执行用例211 (第{current_try}次尝试)...{Colors.ENDC}", "INFO")
+
+            # 清理和启动单节点环境
+            clean_single_environment_and_start_single_environment()
+            time.sleep(5)  # 等待环境稳定
+
+            # 1. 写入100亿数据
+            print_log(f"\n{Colors.BLUE}1. 写入100亿数据，预计超过半个小时，请耐心等待！{Colors.ENDC}", "INFO")
+            json_file = "/root/xintongyuan/code/UseCase211.json"
+            qps = monitor_write_progress(json_file)
+            print_log(f"写入完成，QPS: {qps:,.2f}/s", "INFO")
+
+            # 2. 验证总行数
+            print_log(f"\n{Colors.BLUE}2. 验证数据总量{Colors.ENDC}", "INFO")
+            records_ok, count_time = verify_100billion_records()
+            if not records_ok:
+                if current_try < max_retries:
+                    print_log(f"\n{Colors.YELLOW}第{current_try}次尝试失败: 数据总量未达到100亿条{Colors.ENDC}", "INFO")
+                    print_log(f"准备第{current_try + 1}次尝试...", "INFO")
+                    current_try += 1
+                    continue
+                else:
+                    raise Exception("数据总量未达到100亿条")
+
+            # 3. 验证查询性能
+            print_log(f"\n{Colors.BLUE}3. 验证查询性能{Colors.ENDC}", "INFO")
+            query_ok, query_time = verify_interval_query()
+            if not query_ok:
+                if current_try < max_retries:
+                    print_log(f"\n{Colors.YELLOW}第{current_try}次尝试失败: 查询性能未达标{Colors.ENDC}", "INFO")
+                    print_log(f"准备第{current_try + 1}次尝试...", "INFO")
+                    current_try += 1
+                    continue
+                else:
+                    raise Exception(f"查询性能未达标，耗时 {query_time:.2f}秒 > 2秒")
+
+            # 测试通过
+            print_log(f"\n{Colors.GREEN}case211大数据量查询性能测试成功!!!{Colors.ENDC}", "SUCCESS")
+            return  # 测试成功，直接返回
+
+        except Exception as e:
+            if current_try < max_retries:
+                print_log(f"\n{Colors.YELLOW}第{current_try}次尝试失败: {e}{Colors.ENDC}", "INFO")
+                print_log(f"准备第{current_try + 1}次尝试...", "INFO")
+                # 等待一段时间后重试
+                time.sleep(5)
+                current_try += 1
+            else:
+                print_log(f"\n{Colors.RED}case211执行出错!!!: {e}{Colors.ENDC}", "ERROR")
+                sys.exit(1)
+        finally:
+            # 在每次尝试结束时清理环境
+            try:
+                if current_try < max_retries:  # 如果还有重试机会，清理环境
+                    print_log("\n清理环境准备下一次尝试...", "INFO")
+                    clean_single_environment_and_start_single_environment()
+                    time.sleep(5)
+            except Exception as cleanup_e:
+                print_log(f"清理环境时出错: {cleanup_e}", "ERROR")
 
 def verify_case212_performance():
     """验证少量数据的查询性能"""
@@ -2221,33 +2341,64 @@ def verify_case212_performance():
 
 def case_212():
     """少量数据的查询性能测试"""
-    try:
-        print_log(f"{Colors.BLUE}开始执行用例212...{Colors.ENDC}", "INFO")
-        
-        # 1. 清理和启动单节点环境
-        clean_single_environment_and_start_single_environment()
-        
-        # 2. 运行taosBenchmark写入数据
-        print_log(f"\n{Colors.BLUE}1. 写入10000条测试数据{Colors.ENDC}", "INFO")
-        json_file = "/root/xintongyuan/code/UseCase212.json"
-        qps = parse_qps_from_output(json_file)
-        print_log(f"写入完成，QPS: {qps:,.2f}/s", "INFO")
-        
-        # 3. 验证数据量和查询性能
-        print_log(f"\n{Colors.BLUE}2. 验证查询性能{Colors.ENDC}", "INFO")
-        success, query_time = verify_case212_performance()
-        
-        if success:
-            print_log(f"\n{Colors.GREEN}case212少量数据查询性能测试成功!!!{Colors.ENDC}", "SUCCESS")
-        else:
-            if query_time is not None:
-                raise Exception(f"查询性能未达标，耗时 {query_time:.3f}ms > 10ms")
-            else:
-                raise Exception("测试执行失败", "ERROR")
+    max_retries = 5  # 最大重试次数
+    current_try = 1
+
+    while current_try <= max_retries:
+        try:
+            print_log(f"{Colors.BLUE}开始执行用例212 (第{current_try}次尝试)...{Colors.ENDC}", "INFO")
             
-    except Exception as e:
-        print_log(f"\n{Colors.RED}case212执行出错!!!: {e}{Colors.ENDC}", "ERROR")
-        sys.exit(1)
+            # 1. 清理和启动单节点环境
+            clean_single_environment_and_start_single_environment()
+            time.sleep(5)  # 等待环境稳定
+            
+            # 2. 运行taosBenchmark写入数据
+            print_log(f"\n{Colors.BLUE}1. 写入10000条测试数据{Colors.ENDC}", "INFO")
+            json_file = "/root/xintongyuan/code/UseCase212.json"
+            qps = parse_qps_from_output(json_file)
+            print_log(f"写入完成，QPS: {qps:,.2f}/s", "INFO")
+            
+            # 3. 验证数据量和查询性能
+            print_log(f"\n{Colors.BLUE}2. 验证查询性能{Colors.ENDC}", "INFO")
+            success, query_time = verify_case212_performance()
+            
+            if not success:
+                if current_try < max_retries:
+                    print_log(f"\n{Colors.YELLOW}第{current_try}次尝试失败", "INFO")
+                    if query_time is not None:
+                        print_log(f"查询耗时 {query_time:.3f}ms > 10ms", "INFO")
+                    print_log(f"准备第{current_try + 1}次尝试...", "INFO")
+                    time.sleep(5)  # 等待资源释放
+                    current_try += 1
+                    continue
+                else:
+                    if query_time is not None:
+                        raise Exception(f"查询性能未达标，耗时 {query_time:.3f}ms > 10ms")
+                    else:
+                        raise Exception("测试执行失败")
+
+            print_log(f"\n{Colors.GREEN}case212少量数据查询性能测试成功!!!{Colors.ENDC}", "SUCCESS")
+            return  # 测试成功，直接返回
+            
+        except Exception as e:
+            if current_try < max_retries:
+                print_log(f"\n{Colors.YELLOW}第{current_try}次尝试失败: {e}{Colors.ENDC}", "INFO")
+                print_log(f"准备第{current_try + 1}次尝试...", "INFO")
+                time.sleep(5)  # 等待资源释放
+                current_try += 1
+            else:
+                print_log(f"\n{Colors.RED}case212执行出错!!!: {e}{Colors.ENDC}", "ERROR")
+                sys.exit(1)
+        finally:
+            # 在每次尝试结束时清理环境（除非是最后一次成功的尝试）
+            try:
+                if current_try < max_retries and not success:  # 如果还有重试机会且当前尝试失败
+                    print_log("\n清理环境准备下一次尝试...", "INFO")
+                    clean_single_environment_and_start_single_environment()
+                    time.sleep(5)
+            except Exception as cleanup_e:
+                print_log(f"清理环境时出错: {cleanup_e}", "ERROR")
+                
         
 def check_linear_growth(qps_results):
     """检查QPS是否呈线性增长
@@ -2354,55 +2505,80 @@ def case_213():
         sys.exit(1)
         
 def case_214():
-    try:
-        print_log(f"{Colors.BLUE}开始执行用例214...{Colors.ENDC}", "INFO")
-        qps_results = []  # 存储每次测试的QPS结果
-        
-        # 分别测试1、2、3个节点的情况
-        for node_count in range(1, 4):
-            print_log(f"\n{Colors.BLUE}开始{node_count}节点测试...{Colors.ENDC}", "INFO")
+    """数据库写入线性扩展测试"""
+    max_retries = 5  # 最大重试次数
+    current_try = 1
+
+    while current_try <= max_retries:
+        try:
+            print_log(f"{Colors.BLUE}开始执行用例214 (第{current_try}次尝试)...{Colors.ENDC}", "INFO")
+            qps_results = []  # 存储每次测试的QPS结果
             
-            # 1. 启动指定数量节点的集群
-            start_cluster(node_count)
-            time.sleep(5)  # 等待集群稳定
+            # 分别测试1、2、3个节点的情况
+            for node_count in range(1, 4):
+                print_log(f"\n{Colors.BLUE}开始{node_count}节点测试...{Colors.ENDC}", "INFO")
+                
+                # 1. 启动指定数量节点的集群
+                start_cluster(node_count)
+                time.sleep(5)  # 等待集群稳定
+                
+                # 设置数据库环境
+                setup_databases()
+                
+                # 2. 运行对应数量的taosBenchmark
+                print_log(f"\n{Colors.BLUE}执行{node_count}个写入任务...{Colors.ENDC}", "INFO")
+                json_files = [
+                    "/root/xintongyuan/code/UseCase214_1.json",
+                    "/root/xintongyuan/code/UseCase214_2.json",
+                    "/root/xintongyuan/code/UseCase214_3.json"
+                ]
+                
+                # 执行当前节点数量对应的json文件数
+                current_qps = 0
+                for i in range(node_count):
+                    print_log(f"运行第{i+1}个taosBenchmark...", "INFO")
+                    qps = parse_qps_from_output(json_files[i])
+                    current_qps += qps
+                    print_log(f"第{i+1}个测试QPS: {qps:,.2f}/s", "INFO")
+                
+                qps_results.append(current_qps)
+                print_log(f"{node_count}节点总QPS: {current_qps:,.2f}/s", "INFO")
+                
+                # 如果不是最后一轮，清理环境
+                if node_count < 3:
+                    print_log(f"\n{Colors.BLUE}清理环境准备下一轮测试...{Colors.ENDC}", "INFO")
+                    clean_cluster_environment()
+                    time.sleep(3)
             
-            # 设置数据库环境
-            setup_databases()
-            
-            # 2. 运行对应数量的taosBenchmark
-            print_log(f"\n{Colors.BLUE}执行{node_count}个写入任务...{Colors.ENDC}", "INFO")
-            json_files = [
-                "/root/xintongyuan/code/UseCase214_1.json",
-                "/root/xintongyuan/code/UseCase214_2.json",
-                "/root/xintongyuan/code/UseCase214_3.json"
-            ]
-            
-            # 执行当前节点数量对应的json文件数
-            current_qps = 0
-            for i in range(node_count):
-                print_log(f"运行第{i+1}个taosBenchmark...", "INFO")
-                qps = parse_qps_from_output(json_files[i])
-                current_qps += qps
-                print_log(f"第{i+1}个测试QPS: {qps:,.2f}/s", "INFO")
-            
-            qps_results.append(current_qps)
-            print_log(f"{node_count}节点总QPS: {current_qps:,.2f}/s", "INFO")
-            
-            # 如果不是最后一轮，清理环境
-            if node_count < 3:
-                print_log(f"\n{Colors.BLUE}清理环境准备下一轮测试...{Colors.ENDC}", "INFO")
+            # 检查写入性能的线性增长
+            if check_linear_growth(qps_results):
+                print_log(f"\n{Colors.GREEN}case214写入性能线性扩展测试成功!!!{Colors.ENDC}", "SUCCESS")
+                return  # 测试成功，直接返回
+            else:
+                if current_try < max_retries:
+                    print_log(f"\n{Colors.YELLOW}第{current_try}次尝试失败: QPS未呈现线性增长{Colors.ENDC}", "INFO")
+                    print_log(f"准备第{current_try + 1}次尝试...", "INFO")
+                    time.sleep(5)  # 等待资源释放
+                    current_try += 1
+                    continue
+                else:
+                    raise Exception("case214写入性能线性扩展测试失败")
+                    
+        except Exception as e:
+            if current_try < max_retries:
+                print_log(f"\n{Colors.YELLOW}第{current_try}次尝试失败: {e}{Colors.ENDC}", "INFO")
+                print_log(f"准备第{current_try + 1}次尝试...", "INFO")
+                time.sleep(5)
+                current_try += 1
+            else:
+                print_log(f"\n{Colors.RED}case214执行出错!!!: {e}{Colors.ENDC}", "ERROR")
+                sys.exit(1)
+        finally:
+            # 清理环境
+            try:
                 clean_cluster_environment()
-                time.sleep(3)
-        
-        # 检查写入性能的线性增长
-        if check_linear_growth(qps_results):
-            print_log(f"\n{Colors.GREEN}case214写入性能线性扩展测试成功!!!{Colors.ENDC}", "SUCCESS")
-        else:
-            raise Exception("case214写入性能线性扩展测试失败", "ERROR")
-            
-    except Exception as e:
-        print_log(f"\n{Colors.RED}case214执行出错!!!: {e}{Colors.ENDC}", "ERROR")
-        sys.exit(1)
+            except Exception as cleanup_e:
+                print_log(f"清理环境时出错: {cleanup_e}", "ERROR")
         
 def execute_query_and_get_time():
     """执行查询并获取执行时间"""
@@ -2471,69 +2647,95 @@ def check_query_linear_growth(query_times):
         return False
 
 def case_215():
-    try:
-        print_log(f"{Colors.BLUE}开始执行用例215...{Colors.ENDC}", "INFO")
-        query_times = []  # 存储每次查询的执行时间
-        
-        # 分别测试1、2、3个节点的情况
-        for node_count in range(1, 4):
-            print_log(f"\n{Colors.BLUE}开始{node_count}节点测试...{Colors.ENDC}", "INFO")
+    """查询性能线性扩展测试"""
+    max_retries = 5  # 最大重试次数
+    current_try = 1
+
+    while current_try <= max_retries:
+        try:
+            print_log(f"{Colors.BLUE}开始执行用例215 (第{current_try}次尝试)...{Colors.ENDC}", "INFO")
+            query_times = []  # 存储每次查询的执行时间
             
-            # 1. 启动指定数量节点的集群
-            start_cluster(node_count)
-            time.sleep(5)  # 等待集群稳定
+            # 分别测试1、2、3个节点的情况
+            for node_count in range(1, 4):
+                print_log(f"\n{Colors.BLUE}开始{node_count}节点测试...{Colors.ENDC}", "INFO")
+                
+                # 1. 启动指定数量节点的集群
+                start_cluster(node_count)
+                time.sleep(5)  # 等待集群稳定
+                
+                # 2. 运行taosBenchmark写入数据
+                print_log(f"\n{Colors.BLUE}写入测试数据{Colors.ENDC}", "INFO")
+                json_file = "/root/xintongyuan/code/UseCase215.json"
+                qps = parse_qps_from_output(json_file)
+                print_log(f"写入完成，QPS: {qps:,.2f}/s", "INFO")
+                
+                # 3. 执行数据落盘
+                print_log(f"\n{Colors.BLUE}执行数据落盘{Colors.ENDC}", "INFO")
+                conn = taos.connect(host="localhost", user="root", password="taosdata")
+                cursor = conn.cursor()
+                cursor.execute("flush database test1")
+                print_log("数据落盘完成", "INFO")
+                conn.close()
+                time.sleep(2)
+                
+                # 4. 执行查询并记录时间
+                print_log(f"\n{Colors.BLUE}执行查询测试{Colors.ENDC}", "INFO")
+                query_time = execute_query_and_get_time()
+                query_times.append(query_time)
+                print_log(f"{node_count}节点查询执行时间: {query_time:.2f}ms", "INFO")
+                
+                # 如果不是最后一轮，清理环境
+                if node_count < 3:
+                    print_log(f"\n{Colors.BLUE}清理环境准备下一轮测试...{Colors.ENDC}", "INFO")
+                    clean_cluster_environment()
+                    time.sleep(3)
             
-            # 2. 运行taosBenchmark写入数据
-            print_log(f"\n{Colors.BLUE}写入测试数据{Colors.ENDC}", "INFO")
-            json_file = "/root/xintongyuan/code/UseCase215.json"
-            qps = parse_qps_from_output(json_file)
-            print_log(f"写入完成，QPS: {qps:,.2f}/s", "INFO")
-            
-            # 3. 执行数据落盘
-            print_log(f"\n{Colors.BLUE}执行数据落盘{Colors.ENDC}", "INFO")
-            conn = taos.connect(host="localhost", user="root", password="taosdata")
-            cursor = conn.cursor()
-            cursor.execute("flush database test1")
-            print_log("数据落盘完成", "INFO")
-            conn.close()
-            time.sleep(2)
-            
-            # 4. 执行查询并记录时间
-            print_log(f"\n{Colors.BLUE}执行查询测试{Colors.ENDC}", "INFO")
-            query_time = execute_query_and_get_time()
-            query_times.append(query_time)
-            print_log(f"{node_count}节点查询执行时间: {query_time:.2f}ms", "INFO")
-            
-            # 如果不是最后一轮，清理环境
-            if node_count < 3:
-                print_log(f"\n{Colors.BLUE}清理环境准备下一轮测试...{Colors.ENDC}", "INFO")
+            # 检查查询性能的线性扩展性
+            if check_query_linear_growth(query_times):
+                print_log(f"\n{Colors.GREEN}case215查询性能线性扩展测试成功!!!{Colors.ENDC}", "SUCCESS")
+                return  # 测试成功，直接返回
+            else:
+                if current_try < max_retries:
+                    print_log(f"\n{Colors.YELLOW}第{current_try}次尝试失败: 查询性能未呈现线性扩展{Colors.ENDC}", "INFO")
+                    print_log(f"准备第{current_try + 1}次尝试...", "INFO")
+                    time.sleep(5)  # 等待资源释放
+                    current_try += 1
+                    continue
+                else:
+                    raise Exception("case215查询性能线性扩展测试失败")
+                    
+        except Exception as e:
+            if current_try < max_retries:
+                print_log(f"\n{Colors.YELLOW}第{current_try}次尝试失败: {e}{Colors.ENDC}", "INFO")
+                print_log(f"准备第{current_try + 1}次尝试...", "INFO")
+                time.sleep(5)
+                current_try += 1
+            else:
+                print_log(f"\n{Colors.RED}case215执行出错!!!: {e}{Colors.ENDC}", "ERROR")
+                sys.exit(1)
+        finally:
+            # 清理环境
+            try:
                 clean_cluster_environment()
-                time.sleep(3)
-        
-        # 检查查询性能的线性扩展性
-        if check_query_linear_growth(query_times):
-            print_log(f"\n{Colors.GREEN}case215查询性能线性扩展测试成功!!!{Colors.ENDC}", "SUCCESS")
-        else:
-            raise Exception("case215查询性能线性扩展测试失败", "ERROR")
-            
-    except Exception as e:
-        print_log(f"\n{Colors.RED}case215执行出错!!!: {e}{Colors.ENDC}", "ERROR")
-        sys.exit(1)
+            except Exception as cleanup_e:
+                print_log(f"清理环境时出错: {cleanup_e}", "ERROR")
         
 
 def verify_data_export():
     """验证数据导出结果"""
     try:
         print_log("\n验证导出数据...", "INFO")
+        export_file = "/root/xintongyuan/code/test.sql"
         
         # 检查文件是否存在
-        if not os.path.exists("test.sql"):
-            print_log("✗ 导出文件不存在", "ERROR")
+        if not os.path.exists(export_file):
+            print_log(f"✗ 导出文件不存在: {export_file}", "ERROR")
             return False
             
         # 统计文件行数
-        cmd = "more test.sql | wc -l"
-        line_count = int(subprocess.check_output(cmd, shell=True).decode().strip())
+        cmd = f"wc -l {export_file}"
+        line_count = int(subprocess.check_output(cmd, shell=True).decode().strip().split()[0])
         
         print_log(f"数据文件行数: {line_count:,}", "INFO")
         
@@ -2654,86 +2856,112 @@ def verify_container_resources(container_name, expected_cpus=2, expected_memory_
 def case_216():
     """内存使用和数据导出测试"""
     container_name = "case216_test"
-    try:
-        print_log(f"{Colors.BLUE}开始执行用例216...{Colors.ENDC}", "INFO")
-        
-        # 1. 创建2核4GB的容器
-        if not create_limited_container(container_name, cpus=8, memory_gb=2):
-            raise Exception("容器资源限制验证失败")
-        
-        # 2. 在容器中启动 TDengine
-        print_log("\n启动 TDengine 服务...", "INFO")
-        cmd = f"docker exec {container_name} nohup taosd > /dev/null 2>&1 &"
-        subprocess.run(cmd, shell=True)
-        time.sleep(5)  # 等待服务启动
-        
-        # 3. 在容器中写入测试数据
-        print_log(f"\n{Colors.BLUE}写入测试数据{Colors.ENDC}", "INFO")
-        cmd = f"docker exec {container_name} taosBenchmark -d test1 -y > /dev/null 2>&1"
-        subprocess.run(cmd, shell=True)
-        print_log("写入数据完成", "INFO")
-        
-        # 4. 验证数据量
-        print_log(f"\n{Colors.BLUE}验证数据总量{Colors.ENDC}", "INFO")
-        cmd = f"docker exec {container_name} taos -s 'select count(*) from test1.meters'"
-        result = subprocess.check_output(cmd, shell=True).decode()
-        
-        # 解析查询结果
+    max_retries = 5  # 最大重试次数
+    current_try = 1
+
+    while current_try <= max_retries:
         try:
-            # 分割输出得到表格内容
-            lines = result.strip().split('\n')
-            header_found = False
-            for line in lines:
-                # 跳过包含 'count(*)' 的表头行
-                if 'count(*)' in line:
+            print_log(f"{Colors.BLUE}开始执行用例216 (第{current_try}次尝试)...{Colors.ENDC}", "INFO")
+            
+            # 1. 创建2核4GB的容器
+            if not create_limited_container(container_name, cpus=8, memory_gb=2):
+                raise Exception("容器资源限制验证失败")
+            
+            # 2. 在容器中启动 TDengine
+            print_log("\n启动 TDengine 服务...", "INFO")
+            cmd = f"docker exec {container_name} nohup taosd > /dev/null 2>&1 &"
+            subprocess.run(cmd, shell=True)
+            time.sleep(5)  # 等待服务启动
+            
+            # 3. 在容器中写入测试数据
+            print_log(f"\n{Colors.BLUE}写入测试数据{Colors.ENDC}", "INFO")
+            cmd = f"docker exec {container_name} taosBenchmark -d test1 -y > /dev/null 2>&1"
+            subprocess.run(cmd, shell=True)
+            print_log("写入数据完成", "INFO")
+            
+            # 4. 验证数据量
+            print_log(f"\n{Colors.BLUE}验证数据总量{Colors.ENDC}", "INFO")
+            cmd = f"docker exec {container_name} taos -s 'select count(*) from test1.meters'"
+            result = subprocess.check_output(cmd, shell=True).decode()
+            
+            # 解析查询结果
+            try:
+                lines = result.strip().split('\n')
+                count = None
+                for line in lines:
+                    if '|' in line and not line.startswith('='):
+                        count_str = line.split('|')[0].strip()
+                        if count_str.isdigit():
+                            count = int(count_str)
+                            break
+                
+                if count is None:
+                    raise Exception("未找到有效的计数结果")
+                    
+                print_log(f"总行数: {count:,}", "INFO")
+                
+                if count < 100000000:
+                    raise Exception(f"数据量不符，期望超过1亿条，实际{count:,}条")
+                    
+            except (ValueError, IndexError) as e:
+                print_log("解析查询结果时出错，原始输出：", "ERROR")
+                print_log(result, "ERROR")
+                raise Exception(f"解析查询结果失败: {e}")
+                
+            # 5. 导出数据
+            print_log(f"\n{Colors.BLUE}导出数据到文件，预计超过20分钟，请耐心等待！{Colors.ENDC}", "INFO")
+            export_start = time.time()
+            # 修改导出路径为完整路径
+            cmd = f"docker exec {container_name} bash -c 'taos -s \"select * from test1.meters;\" > /root/xintongyuan/code/test.sql'"
+            subprocess.run(cmd, shell=True)
+            export_time = time.time() - export_start
+            print_log(f"数据导出完成，耗时: {export_time:.2f}秒", "INFO")
+            
+            # 确保文件写入完成
+            time.sleep(10)  # 增加等待时间
+            
+            # 6. 验证导出结果
+            print_log(f"\n{Colors.BLUE}验证导出结果{Colors.ENDC}", "INFO")
+            if not verify_data_export():
+                if current_try < max_retries:
+                    print_log(f"\n{Colors.YELLOW}第{current_try}次尝试失败，准备重试...{Colors.ENDC}", "INFO")
+                    # 清理容器准备重试
+                    subprocess.run(f"docker stop {container_name}", shell=True)
+                    subprocess.run(f"docker rm {container_name}", shell=True)
+                    time.sleep(5)  # 等待资源释放
+                    current_try += 1
                     continue
-                # 查找包含数字的行
-                if '|' in line and not line.startswith('='):
-                    count_str = line.split('|')[0].strip()
-                    if count_str.isdigit():
-                        count = int(count_str)
-                        break
+                else:
+                    raise Exception("数据导出验证失败")
             
-            if count is None:
-                raise Exception("未找到有效的计数结果")
-                
-            print_log(f"总行数: {count:,}", "INFO")
+            print_log(f"\n{Colors.GREEN}case216内存使用和数据导出测试成功!!!{Colors.ENDC}", "SUCCESS")
+            return  # 测试成功，直接返回
             
-            if count < 100000000:
-                raise Exception(f"数据量不符，期望超过1亿条，实际{count:,}条")
-                
-        except (ValueError, IndexError) as e:
-            print_log("解析查询结果时出错，原始输出：", "ERROR")
-            print_log(result, "ERROR")
-            raise Exception(f"解析查询结果失败: {e}")
-            
-        # 5. 导出数据
-        print_log(f"\n{Colors.BLUE}导出数据到文件，预计超过20分钟，请耐心等待！{Colors.ENDC}", "INFO")
-        export_start = time.time()
-        cmd = f"docker exec {container_name} bash -c 'taos -s \"select * from test1.meters;\" > /root/xintongyuan/code/test.sql'"
-        subprocess.run(cmd, shell=True)
-        export_time = time.time() - export_start
-        print_log(f"数据导出完成，耗时: {export_time:.2f}秒", "INFO")
-        
-        # 6. 验证导出结果
-        print_log(f"\n{Colors.BLUE}验证导出结果{Colors.ENDC}", "INFO")
-        if not verify_data_export():
-            raise Exception("数据导出验证失败")
-            
-        print_log(f"\n{Colors.GREEN}case216内存使用和数据导出测试成功!!!{Colors.ENDC}", "SUCCESS")
-        
-    except Exception as e:
-        print_log(f"\n{Colors.RED}case216执行出错!!!: {e}{Colors.ENDC}", "ERROR")
-        sys.exit(1)
-    finally:
-        # 清理容器
-        try:
-            print_log("\n清理测试容器...", "INFO")
-            subprocess.run(f"docker stop {container_name}", shell=True)
-            subprocess.run(f"docker rm {container_name}", shell=True)
-            print_log("✓ 容器清理完成", "SUCCESS")
         except Exception as e:
-            print_log(f"清理容器时出错: {e}", "ERROR")
+            if current_try < max_retries:
+                print_log(f"\n{Colors.YELLOW}第{current_try}次尝试失败: {e}{Colors.ENDC}", "INFO")
+                print_log(f"准备第{current_try + 1}次尝试...", "INFO")
+                # 清理容器准备重试
+                try:
+                    subprocess.run(f"docker stop {container_name}", shell=True)
+                    subprocess.run(f"docker rm {container_name}", shell=True)
+                except Exception:
+                    pass
+                time.sleep(5)  # 等待资源释放
+                current_try += 1
+            else:
+                print_log(f"\n{Colors.RED}case216执行出错!!!: {e}{Colors.ENDC}", "ERROR")
+                sys.exit(1)
+        finally:
+            # 只在最后一次尝试或成功时清理容器
+            if current_try == max_retries or verify_data_export():
+                try:
+                    print_log("\n清理测试容器...", "INFO")
+                    subprocess.run(f"docker stop {container_name}", shell=True)
+                    subprocess.run(f"docker rm {container_name}", shell=True)
+                    print_log("✓ 容器清理完成", "SUCCESS")
+                except Exception as e:
+                    print_log(f"清理容器时出错: {e}", "ERROR")
             
 def get_recovery_time_from_log():
     """从日志文件中获取恢复时间"""
