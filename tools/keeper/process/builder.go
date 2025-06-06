@@ -26,7 +26,7 @@ func ExpandMetricsFromConfig(ctx context.Context, conn *db.Connector, cfg *confi
 	}
 
 	sql := fmt.Sprintf(GetStableNameListSql(), cfg.Database.Name)
-	data, err := conn.Query(ctx, sql, util.GetQidOwn(config.Conf.InstanceID))
+	data, err := conn.QueryWithRetryForever(ctx, sql, util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
 		return nil, err
 	}
