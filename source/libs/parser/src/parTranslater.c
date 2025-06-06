@@ -14080,7 +14080,7 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
   PAR_ERR_JRET(createStreamReqSetDefaultOutCols(pCxt, pStmt, ((SSelectStmt*)pStmt->pQuery)->pProjectionList, pReq));
 
   PAR_ERR_JRET(createStreamReqBuildForceOutput(pCxt, pStmt, pReq));
-  
+
   SQuery pQuery = {.pRoot = pStmt->pQuery};
   PAR_ERR_JRET(calculateConstant(pCxt->pParseCxt, &pQuery));
 

@@ -784,15 +784,10 @@ def generate_random_partition_section(max_partition_len = 3, trigger_null = Fals
         return f" PARTITION BY {', '.join(selected)} ", True, selected
 
 def generate_random_notif_def_section(
-        max_urls=2, max_events=2, max_options=2, max_condition_depth=2, trigger_null = False, query_cols = None
+        max_urls=2, max_events=2, max_options=2, max_condition_depth=2, query_cols = None
 ):
     # Each part has 20% chance to be invalid, and 80% chance to be valid. And total's invalid change is also 20%.
     valid = True
-
-    if trigger_null and random_bool(0.8):
-        # 80% chance to generate empty NOTIFY clause
-        return "", True
-
 
     # optional NOTIFY(url [, ...])
     if random_bool(0.1):
@@ -862,10 +857,6 @@ def generate_random_notif_def_section(
     if notify_urls == "" and (notify_events != "" or notify_conditions != "" or notify_options != ""):
         # If URLs are empty, but other parts are not, it's invalid
         valid = False
-
-    if notify_urls != "" or notify_events != "" or notify_conditions != "" or notify_options != "":
-        if trigger_null:
-            valid = False
 
     return notify_urls + notify_events + notify_conditions + notify_options, valid
 
@@ -980,7 +971,7 @@ def gen_create_stream_variants():
             into_table, v4, into_null, into_exist, into_stable = generate_random_into_table_section(stream_index)
             partition, v5, partition_cols = generate_random_partition_section(trigger_null = trigger_null, trigger_has_tag = trigger_has_tag)
             stream_opt, v6 = generate_options_section(partition_list=partition_cols, trigger_null = trigger_null)
-            notify_opt, v7 = generate_random_notif_def_section(trigger_null = trigger_null, query_cols=query_col_list)
+            notify_opt, v7 = generate_random_notif_def_section(query_cols=query_col_list)
             output, v8 = generate_random_output_subtable(partition_list=partition_cols, into_null=into_null)
             column, v9 = generate_random_column_list_section(out_col_num=out_col_num, into_exist=into_exist, into_null=into_null)
             tag, v10 = generate_random_tags_clause(partition_list=partition_cols, into_exist=into_exist, into_stable=into_stable, into_null=into_null)
