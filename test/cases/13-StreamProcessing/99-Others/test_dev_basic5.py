@@ -106,22 +106,17 @@ class TestStreamDevBasic:
     def createStreams(self):
         self.streams = []
 
-        tdLog.info(
-            "execute create stream rdb.s23 interval(5m) sliding(5m) from tdb.triggers into rdb.r23 as select _twstart ts, `name` as cname, `super` csuper, create_time cctime from information_schema.ins_users;"
+        stream = StreamItem(
+            id=23,
+            stream="create stream rdb.s23 interval(5m) sliding(5m) from tdb.triggers into rdb.r23 as select _twstart ts, `name` as cname, `super` csuper, create_time cctime from information_schema.ins_users;",
+            # res_query="select ts, cname, csuper, 1000 from rdb.r23",
+            # exp_query="select _wstart ts, 'root',  1, count(cint) from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
         )
-        tdSql.pause()
+        self.streams.append(stream)
 
-        # stream = StreamItem(
-        #     id=23,
-        #     stream="create stream rdb.s23 interval(5m) sliding(5m) from tdb.triggers into rdb.r23 as select _twstart ts, `name` as cname, `super` csuper, create_time cctime from information_schema.ins_users;",
-        #     # res_query="select ts, cname, csuper, 1000 from rdb.r23",
-        #     # exp_query="select _wstart ts, 'root',  1, count(cint) from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
-        # )
-        # self.streams.append(stream)
-
-        # tdLog.info(f"create total:{len(self.streams)} streams")
-        # for stream in self.streams:
-        #     stream.createStream()
+        tdLog.info(f"create total:{len(self.streams)} streams")
+        for stream in self.streams:
+            stream.createStream()
 
     def check23(self):
         tdSql.checkTableType(
