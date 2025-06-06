@@ -160,6 +160,7 @@ class TestStreamSubquerySliding:
             exp_query="select _wstart ts, _wend te, _wduration td, count(cint) tw, 0 tg, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
             check_func=self.check1,
         )
+        # test_dev_basic4.py
         # self.streams.append(stream)
         
         stream = StreamItem(
@@ -386,6 +387,7 @@ class TestStreamSubquerySliding:
             exp_query="select count(current) cnt from qdb.meters where ts >= 1704038400000 and ts < 1704038700000",
             exp_rows=(0 for _ in range(12)),
         )
+        # test_dev_basic5.py
         # self.streams.append(stream)
 
         stream = StreamItem(

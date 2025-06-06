@@ -84,10 +84,10 @@ class TestStreamOldCaseConcat:
         tdSql.error(
             f"create stream streams11 interval(10s) sliding(10s) from st into streamt11(a, b, a) as select _twstart, count(*) c1, max(b) from st where ts >= _twstart and ts < _twend;"
         )
-        return
         tdSql.error(
-            f"create stream streams12 interval(10s) sliding(10s) from st into streamt12(a, b, c) tags(c varchar(60)) as select count(*) c1, max(a), max(b) from st partition by tbname c where ts >= _twstart and ts < _twend;"
+            f"create stream streams12 interval(10s) sliding(10s) from st partition by tbname into streamt12(a, b, c) tags(c varchar(60) as %%tbname) as select _twstart, count(*) c1, max(a), max(b) from st where tbname=%%tbname and ts >= _twstart and ts < _twend;"
         )
+        return
         tdSql.error(
             f"create stream streams13 interval(10s) sliding(10s) from st into streamt13(a, b, c) tags(tc varchar(60)) as select count(*) c1, max(a) c1, max(b) from st partition by tbname tc where ts >= _twstart and ts < _twend;"
         )
