@@ -50,6 +50,7 @@ void printErrCmdCodeStr(char *cmd, int32_t code, TAOS_RES *res);
 void randomFillCols(uint16_t* cols, uint16_t max, uint16_t cnt);
 uint32_t appendRowRuleOld(SSuperTable* stb, char* pstr, uint32_t len, int64_t timestamp);
 int32_t parseFunArgs(char* value, uint8_t funType, int64_t* min ,int64_t* max, int32_t* step ,int32_t* period ,int32_t* offset);
+uint8_t parseFuns(char* expr, float* multiple, float* addend, float* base, int32_t* random, int64_t* min ,int64_t* max, int32_t* step ,int32_t* period ,int32_t* offset);
 
 #ifdef __cplusplus
 }
@@ -235,6 +236,24 @@ TEST(benchJsonOpt, parseFunArgs) {
 
 }
 
+TEST(benchJsonOpt, parseFun) {
+    float multiple = 0, addend = 0, base = 0; 
+    int32_t random = -1; 
+    int64_t min = -1, max = -1; 
+    int32_t step = -1, period = -1, offset = -1
+    char* expr = "2.5*sin(10,20,30,40)+3.14-1.5*random(50)+100";
+    
+    uint8_t type = parseFuns(expr, &multiple, &addend, &base, &random, 
+                           &min, &max, &step, &period, &offset);
+    
+    assert(type == FUNTYPE_SIN);
+    assert(multiple == 2.5f);
+    assert(addend == 3.14f);
+    assert(base == 100.0f);
+    assert(random == 50);
+    assert(min == 10 && max == 20);
+    assert(step == 30 && offset == 40);
+}
 
 // main
 int main(int argc, char **argv) {
