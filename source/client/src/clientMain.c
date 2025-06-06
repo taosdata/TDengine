@@ -217,7 +217,9 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
       }
 
     } else {
+      SIpRange dualIp = {0};
       pObj->optionInfo.userIp = INADDR_NONE;
+      pObj->optionInfo.userDualIp = dualIp;
     }
   }
 
