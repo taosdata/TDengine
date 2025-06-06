@@ -518,7 +518,7 @@ class StreamItem:
         self,
         id,
         stream,
-        res_query,
+        res_query="",
         exp_query="",
         exp_rows=[],
         check_func=None,
