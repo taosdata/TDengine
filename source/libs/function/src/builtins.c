@@ -1157,7 +1157,7 @@ static int32_t translatePlaceHolderPseudoColumn(SFunctionNode* pFunc, char* pErr
       break;
     }
     case FUNCTION_TYPE_PLACEHOLDER_TBNAME: {
-      pFunc->node.resType = (SDataType){.bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE,
+      pFunc->node.resType = (SDataType){.bytes = TSDB_TABLE_NAME_LEN,
                                         .type = TSDB_DATA_TYPE_BINARY};
       break;
     }
