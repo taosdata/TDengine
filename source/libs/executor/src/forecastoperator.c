@@ -752,10 +752,12 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
   void*       pIter = NULL;
   size_t      keyLen = 0;
   const char* p = "dynamic_real_";
+
   while ((pIter = taosHashIterate(pHashMap, pIter))) {
     const char* pVal = pIter;
     char*       pKey = taosHashGetKey((void*)pVal, &keyLen);
     int32_t     idx = 0;
+    char        nameBuf[512] = {0};
 
     if (strncmp(pKey, p, strlen(p)) == 0) {
 
@@ -768,59 +770,75 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
         continue;
       }
 
-      char    nameBuf[512] = {0};
-
       memcpy(nameBuf, pKey, keyLen);
       strncpy(&nameBuf[keyLen], "_col", strlen("_col"));
 
       void* pCol = taosHashGet(pHashMap, nameBuf, strlen(nameBuf));
       if (pCol == NULL) {
-        // return error
+        qError("%s dynamic real column related:%s column name:%s not specified", id, pKey, nameBuf);
+        code = TSDB_CODE_ANA_INTERNAL_ERROR;
+        goto _end;
       } else {
         // build dynamic_real_feature
-        SColFutureData d = {0};
-        d.pName = taosStrndupi(pCol, taosHashGetValueSize(pCol));
+        SColFutureData d = {.pName = taosStrndupi(pCol, taosHashGetValueSize(pCol))};
+        if (d.pName == NULL) {
+          qError("%s failed to clone the future dynamic real column name:%s", id, (char*) pCol);
+          code = terrno;
+          goto _end;
+        }
 
+        int32_t index = -1;
         for (int32_t i = 0; i < taosArrayGetSize(pSupp->pCovariateSlotList); ++i) {
           SColumn* pColx = taosArrayGet(pSupp->pCovariateSlotList, i);
           if (strcmp(pColx->name, d.pName) == 0) {
-            d.data.info.slotId = pColx->slotId;
-            d.data.info.type = pColx->type;
-            d.data.info.bytes = pColx->bytes;
-
-            char*   buf = taosStrndup(pVal, taosHashGetValueSize((void*)pVal));
-            int32_t unused = strdequote((char*)buf);
-
-            int32_t num = 0;
-            char**  pList = strsplit(buf, " ", &num);
-            if (num != pSupp->forecastRows) {
-              qError(
-                  "%s the rows:%d of future dynamic real column data is not equalled to the forecasting rows:%" PRId64,
-                  id, num, pSupp->forecastRows);
-              goto _end;
-            }
-
-            d.numOfRows = num;
-
-            colInfoDataEnsureCapacity(&d.data, num, true);
-            for (int32_t j = 0; j < num; ++j) {
-              char* ps = NULL;
-              if (j == 0) {
-                ps = strstr(pList[j], "[") + 1;
-              } else {
-                ps = pList[j];
-              }
-
-              int32_t t1 = taosStr2Int32(ps, NULL, 10);
-              colDataSetVal(&d.data, j, (const char*)&t1, false);
-            }
-
-            void* noret = taosArrayPush(pSupp->pDynamicRealList, &d);
-            if (noret == NULL) {
-              qError("%s failed to add column info in dynamic real column info", id);
-              goto _end;
-            }
+            index = i;
+            break;
           }
+        }
+
+        if (index == -1) {
+          qError("%s not found the required future dynamic real column:%s", id, d.pName);
+          code = TSDB_CODE_ANA_INTERNAL_ERROR;
+          goto _end;
+        }
+
+        SColumn* pColx = taosArrayGet(pSupp->pCovariateSlotList, index);
+        d.data.info.slotId = pColx->slotId;
+        d.data.info.type = pColx->type;
+        d.data.info.bytes = pColx->bytes;
+
+        char*   buf = taosStrndup(pVal, taosHashGetValueSize((void*)pVal));
+        int32_t unused = strdequote((char*)buf);
+
+        int32_t num = 0;
+        char**  pList = strsplit(buf, " ", &num);
+        if (num != pSupp->forecastRows) {
+          qError("%s the rows:%d of future dynamic real column data is not equalled to the forecasting rows:%" PRId64,
+                 id, num, pSupp->forecastRows);
+          code = TSDB_CODE_ANA_INTERNAL_ERROR;
+          goto _end;
+        }
+
+        d.numOfRows = num;
+
+        colInfoDataEnsureCapacity(&d.data, num, true);
+        for (int32_t j = 0; j < num; ++j) {
+          char* ps = NULL;
+          if (j == 0) {
+            ps = strstr(pList[j], "[") + 1;
+          } else {
+            ps = pList[j];
+          }
+
+          int32_t t1 = taosStr2Int32(ps, NULL, 10);
+          colDataSetVal(&d.data, j, (const char*)&t1, false);
+        }
+
+        void* noret = taosArrayPush(pSupp->pDynamicRealList, &d);
+        if (noret == NULL) {
+          qError("%s failed to add column info in dynamic real column info", id);
+          code = terrno;
+          goto _end;
         }
       }
     }
@@ -854,8 +872,7 @@ static int32_t forecastCreateBuf(SForecastSupp* pSupp) {
   int32_t numOfPastDynamicReal = taosArrayGetSize(pSupp->pCovariateSlotList);
 
   if (numOfPastDynamicReal >= numOfDynamicReal) {
-    int32_t i = 0;
-    for(i = 0; i < numOfDynamicReal; ++i) {
+    for(int32_t i = 0; i < numOfDynamicReal; ++i) {
       SColFutureData* pData = taosArrayGet(pSupp->pDynamicRealList, i);
 
       for(int32_t k = 0; k < taosArrayGetSize(pSupp->pCovariateSlotList); ++k) {
@@ -876,7 +893,7 @@ static int32_t forecastCreateBuf(SForecastSupp* pSupp) {
     }
 
     numOfPastDynamicReal = taosArrayGetSize(pSupp->pCovariateSlotList);
-    for (int32_t j = 0; i < numOfPastDynamicReal; ++i, ++j) {
+    for (int32_t j = 0; j < numOfPastDynamicReal; ++j) {
       SColumn* pCol = taosArrayGet(pSupp->pCovariateSlotList, j);
 
       char name[128] = {0};

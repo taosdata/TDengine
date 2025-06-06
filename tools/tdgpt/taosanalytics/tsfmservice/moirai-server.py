@@ -130,8 +130,13 @@ def handle_covariate_forecast(input_data, prediction_length, interval, past_dyna
     }
 
     # set the past_dynamic_real data
-    for i in range(len(past_dynamic_real)):
-        d[f'past_dynamic_real_{i}'] = past_dynamic_real[i]
+    if len(past_dynamic_real) > 0:
+        if len(dynamic_real) > 0:
+            for i in range(len(past_dynamic_real)):
+                d[f'past_dynamic_real_{i}'] = past_dynamic_real[i] + np.random.normal(size=prediction_length).tolist()
+        else:
+            for i in range(len(past_dynamic_real)):
+                d[f'past_dynamic_real_{i}'] = past_dynamic_real[i]
 
     # set the dynamic_real data
     for i in range(len(dynamic_real)):
