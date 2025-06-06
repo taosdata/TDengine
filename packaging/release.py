@@ -512,7 +512,7 @@ def build_taos_explorer(explorer_path, mode):
     check_directory(explorer_exe_path)
     if release_info.OS.lower() == 'windows':
         os.chdir(taosx_dir)
-        os.system(f'cargo make -e VER_NUMBER={release_info.TdengineVersion} -e CUS_PROMPT={release_info.CustomPrompt} -e CUS_NAME="{release_info.CustomName}" CUS_EMAIL={release_info.CustomEmail} deploy-explorer')
+        os.system(f'cargo make -e VER_NUMBER={release_info.TdengineVersion} -e CUS_PROMPT={release_info.CustomPrompt} -e CUS_NAME="{release_info.CustomName}" -e CUS_EMAIL={release_info.CustomEmail} deploy-explorer')
     else:
         os.chdir(taosx_dir)
         os.system(f'cargo make -e VER_NUMBER={release_info.TdengineVersion} -e CUS_PROMPT={release_info.CustomPrompt} -e CUS_NAME="{release_info.CustomName}" -e CUS_EMAIL={release_info.CustomEmail} deploy-explorer')
