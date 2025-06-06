@@ -65,6 +65,7 @@ jobs:
           files: coverage.out
           fail_ci_if_error: true
           verbose: true
+          slug: taosdata/taoskeeper
 
       - name: Clean up
         if: always()
