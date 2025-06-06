@@ -9869,7 +9869,9 @@ _exit:
 }
 
 void    tDestroySResFetchReq(SResFetchReq* pReq){
-  // todo
+  if (pReq != NULL) {
+    tDestroyStRtFuncInfo(pReq->pStRtFuncInfo);
+  }
 }
 
 int32_t tSerializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
