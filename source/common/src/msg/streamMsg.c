@@ -2674,6 +2674,7 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
     case STRIGGER_PULL_TSDB_TRIGGER_DATA: {
       SSTriggerTsdbTriggerDataRequest* pRequest = (SSTriggerTsdbTriggerDataRequest*)pReq;
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->startTime));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRequest->order));
       break;
     }
     case STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT: {
@@ -2696,6 +2697,7 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->skey));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
       TAOS_CHECK_EXIT(encodeColsArray(&encoder, pRequest->cids));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRequest->order));
       break;
     }
     case STRIGGER_PULL_TSDB_DATA_NEXT: {
@@ -2711,12 +2713,16 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       SSTriggerWalTsDataRequest* pRequest = (SSTriggerWalTsDataRequest*)pReq;
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->uid));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->skey));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
       break;
     }
     case STRIGGER_PULL_WAL_TRIGGER_DATA: {
       SSTriggerWalTriggerDataRequest* pRequest = (SSTriggerWalTriggerDataRequest*)pReq;
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->uid));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->skey));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
       break;
     }
     case STRIGGER_PULL_WAL_CALC_DATA: {
@@ -2731,6 +2737,8 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       SSTriggerWalDataRequest* pRequest = (SSTriggerWalDataRequest*)pReq;
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->uid));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->skey));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
       TAOS_CHECK_EXIT(encodeColsArray(&encoder, pRequest->cids));
       break;
     }
@@ -2846,6 +2854,7 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
     case STRIGGER_PULL_TSDB_TRIGGER_DATA: {
       SSTriggerTsdbTriggerDataRequest* pRequest = &(pReq->tsdbTriggerDataReq);
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->startTime));
+      TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRequest->order));
       break;
     }
     case STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT: {
@@ -2868,6 +2877,7 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
       TAOS_CHECK_EXIT(decodeColsArray(&decoder, &pRequest->cids));
+      TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRequest->order));
       break;
     }
     case STRIGGER_PULL_TSDB_DATA_NEXT: {
@@ -2883,12 +2893,16 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
       SSTriggerWalTsDataRequest* pRequest = &(pReq->walTsDataReq);
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->uid));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
       break;
     }
     case STRIGGER_PULL_WAL_TRIGGER_DATA: {
       SSTriggerWalTriggerDataRequest* pRequest = &(pReq->walTriggerDataReq);
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->uid));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
       break;
     }
     case STRIGGER_PULL_WAL_CALC_DATA: {
@@ -2903,6 +2917,8 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
       SSTriggerWalDataRequest* pRequest = &(pReq->walDataReq);
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->uid));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
       TAOS_CHECK_EXIT(decodeColsArray(&decoder, &pRequest->cids));
       break;
     }
@@ -3049,7 +3065,7 @@ _exit:
   return code;
 }
 
-static int32_t tSerializeStriggerGroupColVals(SEncoder* pEncoder, SArray* pGroupColVals) {
+static int32_t tSerializeStriggerGroupColVals(SEncoder* pEncoder, SArray* pGroupColVals, int32_t vgId) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
@@ -3063,6 +3079,12 @@ static int32_t tSerializeStriggerGroupColVals(SEncoder* pEncoder, SArray* pGroup
     TAOS_CHECK_EXIT(tEncodeBool(pEncoder, pValue->isNull));
     if (pValue->isNull) {
       continue;
+    }
+    TAOS_CHECK_EXIT(tEncodeBool(pEncoder, pValue->isTbname));
+    if (pValue->isTbname) {
+      TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pValue->uid));
+      if (vgId != -1) { pValue->vgId = vgId; }
+      TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pValue->vgId));
     }
     TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pValue->data.type));
     if (IS_VAR_DATA_TYPE(pValue->data.type)) {
@@ -3092,16 +3114,20 @@ static int32_t tDeserializeStriggerGroupColVals(SDecoder* pDecoder, SArray** ppG
     } else {
       TAOS_CHECK_EXIT(taosArrayEnsureCap(*ppGroupColVals, size));
     }
-    TARRAY_SIZE(*ppGroupColVals) = size;
   }
   for (int32_t i = 0; i < size; ++i) {
-    SStreamGroupValue* pValue = taosArrayGet(*ppGroupColVals, i);
+    SStreamGroupValue* pValue = taosArrayReserve(*ppGroupColVals, 1);
     if (pValue == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
     TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &pValue->isNull));
     if (pValue->isNull) {
       continue;
+    }
+    TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &pValue->isTbname));
+    if (pValue->isTbname) {
+      TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pValue->uid));
+      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pValue->vgId));
     }
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pValue->data.type));
     if (IS_VAR_DATA_TYPE(pValue->data.type)) {
@@ -3116,7 +3142,7 @@ _exit:
   return code;
 }
 
-int32_t tSerializeSStreamGroupInfo(void* buf, int32_t bufLen, const SStreamGroupInfo* gInfo) {
+int32_t tSerializeSStreamGroupInfo(void* buf, int32_t bufLen, const SStreamGroupInfo* gInfo, int32_t vgId) {
   SEncoder encoder = {0};
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
@@ -3125,7 +3151,7 @@ int32_t tSerializeSStreamGroupInfo(void* buf, int32_t bufLen, const SStreamGroup
   tEncoderInit(&encoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
 
-  TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(&encoder, gInfo->gInfo));
+  TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(&encoder, gInfo->gInfo, vgId));
 
   tEndEncode(&encoder);
 
@@ -3173,7 +3199,7 @@ int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTrigger
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->gid));
 
   TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(&encoder, pReq->params, false));
-  TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(&encoder, pReq->groupColVals));
+  TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(&encoder, pReq->groupColVals, -1));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->createTable));
 
   tEndEncode(&encoder);
@@ -3229,7 +3255,7 @@ void tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq) {
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo) {
   int32_t code = 0, lino = 0;
   TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(pEncoder, pInfo->pStreamPesudoFuncVals, true));
-  TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(pEncoder, pInfo->pStreamPartColVals));
+  TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(pEncoder, pInfo->pStreamPartColVals, -1));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->groupId));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pInfo->curIdx));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->sessionId));

@@ -65,6 +65,7 @@ typedef struct {
   struct SStorageAPI api;
   void*              pWorkerCb;
   bool               localExec;
+  int64_t            uid;
 } SReadHandle;
 
 typedef struct SStreamInserterParam {

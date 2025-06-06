@@ -187,7 +187,7 @@ class StreamUtil:
                     cusmallint = rows % 10
                     ctinyint = rows % 11
                     cutinyint = rows % 12
-                    cbool = rows % 2
+                    cbool = rows % 2 if rows % 20 != 1 else "NULL"
                     cnchar = cvarchar
                     cvarbinary = cvarchar
                     cdecimal8 = "0" if rows % 3 == 1 else "8"
@@ -534,9 +534,8 @@ class StreamItem:
         tdLog.info(self.stream)
         tdSql.execute(self.stream)
 
-    def checkResults(self, print=False):
+    def checkResults(self):
         tdLog.info(f"check stream:s{self.id} result")
-        tdSql.pause()
 
         if self.check_func != None:
             self.check_func()
@@ -550,12 +549,6 @@ class StreamItem:
                 for r in self.exp_rows:
                     exp_result.append(tmp_result[r])
 
-            if print:
-                tdSql.printResult(
-                    f"s{self.id} expect",
-                    input_result=exp_result,
-                    input_sql=self.exp_query,
-                )
-            tdSql.checkResultsByArray(self.res_query, self.exp_result, self.exp_query)
+            tdSql.checkResultsByArray(self.res_query, exp_result, self.exp_query)
 
         tdLog.info(f"check stream:s{self.id} result successfully")

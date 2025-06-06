@@ -583,6 +583,24 @@ _return:
   return code;
 }
 
+void resetDbVgInfo(SDataInserterHandle* pInserter, const char* dbFName) {
+  if (pInserter->dbVgInfoMap == NULL) {
+    return;
+  }
+
+  SUseDbOutput** find = (SUseDbOutput**)taosHashGet(pInserter->dbVgInfoMap, dbFName, strlen(dbFName));
+  if (find == NULL) {
+    return;
+  } else {
+    SUseDbOutput* output = *find;
+    if (output) {
+      freeUseDbOutput_tmp(find);
+      taosHashRemove(pInserter->dbVgInfoMap, dbFName, strlen(dbFName));
+    }
+  }
+  return;
+}
+
 static int32_t sendSubmitRequest(SDataInserterHandle* pInserter, void* putParam, void* pMsg, int32_t msgLen,
                                  void* pTransporter, SEpSet* pEpset) {
   // send the fetch remote task result reques
@@ -1434,7 +1452,7 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
     } else if (pInsertParam->tbType == TSDB_SUPER_TABLE) {
       code = buildStreamSubTableCreateReq(pInserter, pInsertParam, pInserterInfo, &tbData, vgId);
     } else {
-      code = TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND;
+      code = TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
       stError("buildStreamSubmitReqFromBlock, unknown table type %d", pInsertParam->tbType);
     }
     QUERY_CHECK_CODE(code, lino, _end);
@@ -1608,10 +1626,20 @@ static int32_t putStreamDataBlock(SDataSinkHandle* pHandle, const SInputData* pI
       QUERY_CHECK_CODE(code, lino, _return);
     }
 
+    if (pInserter->submitRes.code == TSDB_CODE_TDB_TABLE_NOT_EXIST &&
+        !pInput->pStreamDataInserterInfo->isAutoCreateTable) {
+      resetDbVgInfo(pInserter, pInserter->pParam->streamInserterParam->dbFName);
+      stInfo("putStreamDataBlock, stream inserter table info not found, groupId:%" PRId64
+             ", tbName:%s. so reset dbVgInfo",
+             pInput->pStreamDataInserterInfo->groupId, pInput->pStreamDataInserterInfo->tbName);
+      code = TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND;
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+
     if (pInserter->submitRes.code) {
       code = pInserter->submitRes.code;
       stError("submitRes err:%s, code:%d", tstrerror(pInserter->submitRes.code), pInserter->submitRes.code);
-      QUERY_CHECK_CODE(pInserter->submitRes.code, lino, _return);
+      QUERY_CHECK_CODE(code, lino, _return);
     }
 
     *pContinue = true;

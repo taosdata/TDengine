@@ -526,7 +526,7 @@ static int32_t hashExternalWindowProject(SOperatorInfo* pOperator, SSDataBlock* 
   return code;
 }
 
-static bool hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputBlock) {
+static void hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputBlock) {
   SExternalWindowOperator* pExtW = (SExternalWindowOperator*)pOperator->info;
   SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
   SExprSupp*               pSup = &pOperator->exprSupp;
@@ -580,7 +580,6 @@ static bool hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
       T_LONG_JMP(pTaskInfo->env, ret);
     }
   }
-  return true;
 }
 
 static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
@@ -623,7 +622,7 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (!pExtW->scalarMode) {
-      if (hashExternalWindowAgg(pOperator, pBlock)) break;
+      hashExternalWindowAgg(pOperator, pBlock);
     } else {
       // scalar mode, no need to do agg, just output rows partitioned by window
       code = hashExternalWindowProject(pOperator, pBlock);

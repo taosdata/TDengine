@@ -2099,6 +2099,8 @@ static int32_t strtcSendPullReq(SSTriggerRealtimeContext *pContext, ESTriggerPul
       QUERY_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       pReq->uid = pMeta->uid;
       pReq->ver = pMeta->ver;
+      pReq->skey = pMeta->skey;
+      pReq->ekey = pMeta->ekey;
       break;
     }
     case STRIGGER_PULL_WAL_TRIGGER_DATA: {
@@ -2110,6 +2112,8 @@ static int32_t strtcSendPullReq(SSTriggerRealtimeContext *pContext, ESTriggerPul
       QUERY_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       pReq->uid = pMeta->uid;
       pReq->ver = pMeta->ver;
+      pReq->skey = pMeta->skey;
+      pReq->ekey = pMeta->ekey;
       break;
     }
     case STRIGGER_PULL_WAL_CALC_DATA: {
@@ -3230,6 +3234,7 @@ int32_t streamTriggerProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
     QUERY_CHECK_CONDITION(pReq == &pContext->calcReq, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
     if (pRsp->code == TSDB_CODE_SUCCESS) {
       taosArrayClearEx(pReq->params, tDestroySSTriggerCalcParam);
+      taosArrayClearEx(pReq->groupColVals, tDestroySStreamGroupValue);
       code = strtcProcessCalcRsp(pContext, pRsp->code);
       QUERY_CHECK_CODE(code, lino, _end);
     } else {

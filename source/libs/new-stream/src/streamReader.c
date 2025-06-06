@@ -420,14 +420,19 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
     stDebug("triggerScanPlan:%s", (char*)(pMsg->msg.trigger.triggerScanPlan));
     stDebug("calcCacheScanPlan:%s", (char*)(pMsg->msg.trigger.calcCacheScanPlan));
     pTask->info = createStreamReaderInfo(pMsg);
-
+    STREAM_CHECK_NULL_GOTO(pTask->info, terrno);
   } else {
     stDebug("calcScanPlan:%s", (char*)(pMsg->msg.calc.calcScanPlan));
-    pTask->info = createStreamReaderCalcInfo(pMsg);
+    pTask->info = taosArrayInit(pMsg->msg.calc.execReplica, POINTER_BYTES);
+    STREAM_CHECK_NULL_GOTO(pTask->info, terrno);
+    for (int32_t i = 0; i < pMsg->msg.calc.execReplica; ++i) {
+      SStreamTriggerReaderCalcInfo* pCalcInfo = createStreamReaderCalcInfo(pMsg);
+      STREAM_CHECK_NULL_GOTO(pCalcInfo, terrno);
+      STREAM_CHECK_NULL_GOTO(taosArrayPush(pTask->info, &pCalcInfo), terrno);
+    }
   }
   stInfo("stReaderTaskDeploy: stream %" PRIx64 " task %" PRIx64 " vgId:%d pTask:%p, info:%p", pTask->task.streamId,
          pTask->task.taskId, pTask->task.nodeId, pTask, pTask->info);
-  STREAM_CHECK_NULL_GOTO(pTask->info, terrno);
 
   pTask->task.status = STREAM_STATUS_INIT;
 
@@ -450,7 +455,7 @@ int32_t stReaderTaskUndeploy(SStreamReaderTask** ppTask, const SStreamUndeployTa
   if ((*ppTask)->triggerReader == 1) {
     releaseStreamReaderInfo((*ppTask)->info);
   } else {
-    releaseStreamReaderCalcInfo((*ppTask)->info);
+    taosArrayDestroyP((*ppTask)->info, releaseStreamReaderCalcInfo);
   }
   (*ppTask)->info = NULL;
 

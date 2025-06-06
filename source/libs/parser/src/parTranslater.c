@@ -412,6 +412,10 @@ static int32_t  createLastTsSelectStmt(char* pDb, const char* pTable, const char
 static int32_t  setQuery(STranslateContext* pCxt, SQuery* pQuery);
 static int32_t  setRefreshMeta(STranslateContext* pCxt, SQuery* pQuery);
 
+static int32_t createOperatorNode(EOperatorType opType, const char* pColName, const SNode* pRight, SNode** pOp);
+static int32_t insertCondIntoSelectStmt(SSelectStmt* pSelect, SNode** pCond);
+static int32_t extractCondFromCountWindow(STranslateContext* pCxt, SCountWindowNode* pCountWindow, SNode** pCond);
+
 static bool isWindowJoinStmt(SSelectStmt* pSelect) {
   return (QUERY_NODE_JOIN_TABLE == nodeType(pSelect->pFromTable)) &&
          IS_WINDOW_JOIN(((SJoinTableNode*)pSelect->pFromTable)->subType);
@@ -3558,7 +3562,7 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
       }
       case FUNCTION_TYPE_TWDURATION: {
         BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_WDURATION);
-        nodesMakeValueNodeFromTimestamp(0, &extraValue);
+        nodesMakeValueNodeFromInt64(0, &extraValue);
         break;
       }
       case FUNCTION_TYPE_TWROWNUM: {
@@ -3588,7 +3592,7 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
       }
       case FUNCTION_TYPE_PLACEHOLDER_TBNAME: {
         BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_TBNAME);
-        nodesMakeValueNodeFromString("_ph_tbname", (SValueNode**)&extraValue);
+        nodesMakeValueNodeFromString("", (SValueNode**)&extraValue);
         break;
       }
       case FUNCTION_TYPE_PLACEHOLDER_COLUMN: {
@@ -6751,7 +6755,7 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeW
   if (pCxt->createStreamCalc && pCxt->currClause == SQL_CLAUSE_WHERE) {
     PAR_ERR_JRET(filterExtractTsCond(&pCond, pTimeRangeExpr));
     // some node may be replaced
-    *pWhere = pCond;
+    TSWAP(*pWhere, pCond);
     goto _return;
   }
 
@@ -7143,7 +7147,7 @@ static const int64_t periodLowerBound = 10;
 static const int64_t periodUpperBound = (int64_t) 3650 * 24 * 60 * 60 * 1000; // 10 years in milliseconds
 
 static int32_t checkPeriodWindow(STranslateContext* pCxt, SPeriodWindowNode* pPeriod) {
-  uint8_t     precision = ((SColumnNode*)pPeriod->pCol)->node.resType.precision;
+  uint8_t     precision = TSDB_TIME_PRECISION_MILLI;
   SValueNode* pPer = (SValueNode*)pPeriod->pPeroid;
   SValueNode* pOffset = (SValueNode*)pPeriod->pOffset;
 
@@ -7320,12 +7324,28 @@ static int32_t checkCountWindow(STranslateContext* pCxt, SCountWindowNode* pCoun
 }
 
 static int32_t translateCountWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
   if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
       !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
                                    "COUNT_WINDOW requires valid time series input");
   }
+
+  SNode* pLogicCond = NULL;
+  PAR_ERR_JRET(extractCondFromCountWindow(pCxt, (SCountWindowNode*)pSelect->pWindow, &pLogicCond));
+
+  PAR_ERR_JRET(insertCondIntoSelectStmt(pSelect, &pLogicCond));
+
+  PAR_ERR_JRET(translateExpr(pCxt, &pSelect->pWhere));
+
   return checkCountWindow(pCxt, (SCountWindowNode*)pSelect->pWindow);
+
+_return:
+  if (pLogicCond) {
+    nodesDestroyNode(pLogicCond);
+  }
+  return code;
 }
 
 static int32_t checkAnomalyExpr(STranslateContext* pCxt, SNode* pNode) {
@@ -12694,6 +12714,7 @@ static bool crossTableWithUdaf(SSelectStmt* pSelect) {
 static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
   SStreamTriggerNode*    pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
   SStreamTriggerOptions* pTriggerOptions = (SStreamTriggerOptions*)pTrigger->pOptions;
+  SStreamNotifyOptions*  pNotifyOptions = (SStreamNotifyOptions*)pTrigger->pNotify;
 
   // TODO(smj) : proper error code
   if (pStmt->pQuery && QUERY_NODE_SELECT_STMT != nodeType(pStmt->pQuery)) {
@@ -12727,6 +12748,10 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
     } else {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Can not specify out table when no query in stream");
     }
+  }
+
+  if (pStmt->pQuery == NULL && pNotifyOptions->pWhere) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Can not specify notify where when no query in stream");
   }
 
   SDbCfgInfo dbCfg = {0};
@@ -13239,7 +13264,6 @@ static int32_t createStreamCheckOutTags(STranslateContext* pCxt, SNodeList* pTag
     }
     extractTypeFromTypeMod(pMeta->schema[tagIndex].type, pMeta->schemaExt[tagIndex].typeMod, &precision, &scale, &bytes);
     if (pTagDef->dataType.type != pMeta->schema[tagIndex].type ||
-        pTagDef->dataType.bytes != pMeta->schema[tagIndex].bytes ||
         pTagDef->dataType.scale != scale ||
         pTagDef->dataType.precision != precision ||
         strcmp(pTagDef->tagName, pMeta->schema[tagIndex].name) != 0) {
@@ -13268,15 +13292,16 @@ static int32_t createStreamCheckOutCols(STranslateContext* pCxt, SNodeList* pCol
 
   FOREACH(pNode, pCols) {
     SColumnDefNode* pColDef = (SColumnDefNode*)pNode;
-    int8_t  scale = 0;
-    int8_t  precision = 0;
-    int32_t bytes = 0;
+    SColumnOptions* pColOptions = (SColumnOptions*)pColDef->pOptions;
+    int8_t          scale = 0;
+    int8_t          precision = 0;
+    int32_t         bytes = 0;
     extractTypeFromTypeMod(pMeta->schema[colIndex].type, pMeta->schemaExt[colIndex].typeMod, &precision, &scale, &bytes);
     if (pColDef->dataType.type != pMeta->schema[colIndex].type ||
-        pColDef->dataType.bytes != pMeta->schema[colIndex].bytes ||
+        calcTypeBytes(pColDef->dataType) != pMeta->schema[colIndex].bytes ||
         pColDef->dataType.scale != scale ||
         pColDef->dataType.precision != precision ||
-        strcmp(pColDef->colName, pMeta->schema[colIndex].name) != 0) {
+        strncmp(pColDef->colName, pMeta->schema[colIndex].name, strlen(pColDef->colName)) != 0) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                      "Out table cols type mismatch");
     }
@@ -13353,6 +13378,7 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
     PAR_ERR_JRET(code);
   }
 
+  PAR_ERR_JRET(checkTableSchemaImpl(pCxt, pStmt->pTags, pStmt->pCols, NULL));
   if (pReq->outTblType == TSDB_SUPER_TABLE) {
     PAR_ERR_JRET(streamTagDefNodeToField(pStmt->pTags, &pReq->outTags, false));
     PAR_ERR_JRET(createStreamReqBuildStreamTagExprStr(pCxt, pStmt->pTags, ((SStreamTriggerNode*)pStmt->pTrigger)->pPartitionList, pTriggerSlotHash, (char**)&pReq->tagValueExpr));
@@ -13371,6 +13397,9 @@ _return:
 
 static int32_t createStreamReqBuildTriggerTable(STranslateContext* pCxt, SRealTableNode* pTriggerTable, STableMeta* pMeta, SCMCreateStreamReq* pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
+
+  PAR_ERR_RET(getTableVgId(pCxt, pTriggerTable->table.dbName, pTriggerTable->table.tableName, &pReq->triggerTblVgId));
+
   pReq->triggerDB = taosMemoryMalloc(TSDB_DB_FNAME_LEN);
   pReq->triggerTblName = taosStrdup(pTriggerTable->table.tableName);
   if (NULL == pReq->triggerDB || NULL == pReq->triggerTblName) {
@@ -13432,7 +13461,7 @@ static int32_t createStreamReqBuildTriggerPeriodWindow(STranslateContext* pCxt, 
   pReq->trigger.period.offset = createStreamReqWindowGetBigInt(pTriggerWindow->pOffset);
   pReq->trigger.period.periodUnit = createStreamReqWindowGetUnit(pTriggerWindow->pPeroid);
   pReq->trigger.period.offsetUnit = createStreamReqWindowGetUnit(pTriggerWindow->pOffset);
-  pReq->trigger.period.precision = ((SColumnNode*)pTriggerWindow->pCol)->node.resType.precision;
+  pReq->trigger.period.precision = TSDB_TIME_PRECISION_MILLI;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -13441,7 +13470,6 @@ static int32_t createStreamReqBuildTriggerCountWindow(STranslateContext* pCxt, S
   PAR_ERR_RET(checkCountWindow(pCxt, pTriggerWindow));
   pReq->trigger.count.sliding = pTriggerWindow->windowSliding;
   pReq->trigger.count.countVal = pTriggerWindow->windowCount;
-  PAR_ERR_RET(nodesNodeToString(pTriggerWindow->pCol, false, (char**)&pReq->trigger.count.condCols, NULL));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -13737,6 +13765,35 @@ _return:
   return code;
 }
 
+static int32_t extractCondFromCountWindow(STranslateContext* pCxt, SCountWindowNode* pCountWindow, SNode** pCond) {
+  if (LIST_LENGTH(pCountWindow->pColList) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNodeList* pCondList = NULL;
+  SNode*     pNode = NULL;
+  SNode*     pLogicCond = NULL;
+
+  FOREACH(pNode, pCountWindow->pColList) {
+    if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+      SColumnNode* pCol = (SColumnNode*)pNode;
+      SNode*       pNameCond = NULL;
+      PAR_ERR_RET(createOperatorNode(OP_TYPE_IS_NOT_NULL, pCol->colName, (SNode*)pCol, &pNameCond));
+      PAR_ERR_RET(nodesListMakeAppend(&pCondList, pNameCond));
+    } else {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
+                                     "COUNT_WINDOW has invalid col name input");
+    }
+  }
+
+  PAR_ERR_RET(nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, &pLogicCond));
+  ((SLogicConditionNode*)pLogicCond)->pParameterList = pCondList;
+  ((SLogicConditionNode*)pLogicCond)->condType = LOGIC_COND_TYPE_OR;
+
+  *pCond = pLogicCond;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t createSimpleSelectStmtFromCols(const char* pDb, const char* pTable, int32_t numOfProjs, const char* const pProjCol[], SSelectStmt** pStmt);
 static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStreamStmt* pStmt,
                                            SStreamTriggerNode* pTrigger, SCMCreateStreamReq* pReq,
@@ -13753,6 +13810,14 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
     PAR_ERR_JRET(translateExpr(pCxt, &pTriggerWindow));
     PAR_RET(createStreamReqBuildTriggerWindow(pCxt, pTriggerWindow, NULL, pReq));
   }
+
+  if (pTriggerWindow->type == QUERY_NODE_COUNT_WINDOW) {
+    SCountWindowNode *pCountWindow = (SCountWindowNode*)pTriggerWindow;
+    SNode*            pLogicCond = NULL;
+    PAR_ERR_JRET(extractCondFromCountWindow(pCxt, pCountWindow, &pLogicCond));
+    PAR_ERR_JRET(nodesMergeNode(&pTriggerFilter, &pLogicCond));
+  }
+
   PAR_ERR_JRET(getTableMeta(pCxt, pTriggerTable->table.dbName, pTriggerTable->table.tableName, &pTriggerTableMeta));
 
   switch (pTriggerTableMeta->tableType) {
@@ -13771,7 +13836,6 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
       PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY));
   }
 
-  PAR_ERR_JRET(getTableVgId(pCxt, pTriggerTable->table.dbName, pTriggerTable->table.tableName, &pReq->triggerTblVgId));
   PAR_ERR_JRET(createStreamReqBuildTriggerTable(pCxt, pTriggerTable, pTriggerTableMeta, pReq));
   PAR_ERR_JRET(createSimpleSelectStmtFromCols(pTriggerTable->table.dbName, pTriggerTable->table.tableName, 0, NULL, pTriggerSelect));
 
@@ -13859,8 +13923,40 @@ static int32_t replaceSubPlanFromList(SNode* pTarget, SNodeList* pList) {
   return code;
 }
 
+typedef struct SCheckNotifyCondContext {
+  STranslateContext *pTransCxt;
+  bool               valid;
+} SCheckNotifyCondContext;
+
+static EDealRes doCheckNotifyCond(SNode* pNode, void* pContext) {
+  SCheckNotifyCondContext* pCxt = (SCheckNotifyCondContext*)pContext;
+  SSelectStmt*             pSelect = (SSelectStmt*)pCxt->pTransCxt->pCurrStmt;
+  SNode*                   pProj = NULL;
+
+  if (nodeType(pNode) == QUERY_NODE_VALUE) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  FOREACH(pProj, pSelect->pProjectionList) {
+    if (nodesEqualNode(pProj, pNode)) {
+      return DEAL_RES_IGNORE_CHILD;
+    }
+    if (nodesIsStar(pProj) && nodeType(pProj) == QUERY_NODE_COLUMN) {
+      // if projection is *, then all columns are valid
+      return DEAL_RES_IGNORE_CHILD;
+    }
+  }
+
+  if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+    pCxt->valid = false;
+    return DEAL_RES_ERROR;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
 static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTriggerPartition, SNode* pTriggerTbl,
-                                        SSelectStmt* pStreamCalcQuery, bool* withExtWindow) {
+                                        SSelectStmt* pStreamCalcQuery, SNode* pNotifyCond, bool* withExtWindow) {
   int32_t    code = TSDB_CODE_SUCCESS;
   ESqlClause currClause = pCxt->currClause;
   SNode*     pCurrStmt = pCxt->pCurrStmt;
@@ -13872,6 +13968,17 @@ static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTri
   pCxt->createStreamTriggerTbl = pTriggerTbl;
   pCxt->createStreamTriggerPartitionList = pTriggerPartition;
   pCxt->createStreamCalc = true;
+  pCxt->pCurrStmt = (SNode*)pStreamCalcQuery;
+
+  if (pNotifyCond) {
+    SCheckNotifyCondContext checkNotifyCondCxt = {.pTransCxt = pCxt, .valid = true};
+    nodesWalkExpr(pNotifyCond, doCheckNotifyCond, &checkNotifyCondCxt);
+    if (!checkNotifyCondCxt.valid) {
+      PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "notify condition can only contain expr from query clause"));
+    }
+    PAR_ERR_JRET(nodesListMakeAppend(&pStreamCalcQuery->pProjectionList, pNotifyCond));
+  }
+
   PAR_ERR_JRET(translateSelect(pCxt, pStreamCalcQuery));
   pCxt->createStreamCalc = false;
   pCxt->createStreamTriggerTbl = NULL;
@@ -13907,18 +14014,14 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
   bool         withExtWindow = false;
 
   if (!pStmt->pQuery) {
-      return code;
+    return code;
   }
 
   if (nodeType(pStmt->pQuery) != QUERY_NODE_SELECT_STMT) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY);
   }
 
-  if (pNotifyCond) {
-    PAR_ERR_JRET(nodesListMakeAppend(&((SSelectStmt*)pStmt->pQuery)->pProjectionList, pNotifyCond));
-  }
-
-  PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect ? pTriggerSelect->pFromTable : NULL, (SSelectStmt*)pStmt->pQuery, &withExtWindow));
+  PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect ? pTriggerSelect->pFromTable : NULL, (SSelectStmt*)pStmt->pQuery, pNotifyCond, &withExtWindow));
 
   pReq->placeHolderBitmap = pCxt->placeHolderBitmap;
 

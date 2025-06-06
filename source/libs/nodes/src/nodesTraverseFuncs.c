@@ -184,6 +184,14 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       }
       break;
     }
+    case QUERY_NODE_PERIOD_WINDOW: {
+      SPeriodWindowNode* pPeriod = (SPeriodWindowNode*)pNode;
+      res = walkExpr(pPeriod->pOffset, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pPeriod->pPeroid, order, walker, pContext);
+      }
+      break;
+    }
     case QUERY_NODE_COUNT_WINDOW: {
       SCountWindowNode* pEvent = (SCountWindowNode*)pNode;
       res = walkExpr(pEvent->pCol, order, walker, pContext);
@@ -345,6 +353,9 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
         res = rewriteExpr(&(pInterval->pSliding), order, rewriter, pContext);
       }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&(pInterval->pSOffset), order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&(pInterval->pFill), order, rewriter, pContext);
       }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
@@ -429,9 +440,6 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&pPeriod->pPeroid, order, rewriter, pContext);
       }
-      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = rewriteExpr(&pPeriod->pCol, order, rewriter, pContext);
-      }
       break;
     }
     case QUERY_NODE_STREAM_TAG_DEF: {
@@ -491,8 +499,13 @@ void nodesWalkSelectStmtImpl(SSelectStmt* pSelect, ESqlClause clause, FNodeWalke
     case SQL_CLAUSE_PARTITION_BY:
       nodesWalkExpr(pSelect->pWindow, walker, pContext);
     case SQL_CLAUSE_WINDOW:
-      if (NULL != pSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
-        nodesWalkExpr(((SIntervalWindowNode*)pSelect->pWindow)->pFill, walker, pContext);
+      if (NULL != pSelect->pWindow) {
+        if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
+          nodesWalkExpr(((SIntervalWindowNode*)pSelect->pWindow)->pFill, walker, pContext);
+        }
+        else if (QUERY_NODE_COUNT_WINDOW == nodeType(pSelect->pWindow)) {
+          nodesWalkExprs(((SCountWindowNode*)pSelect->pWindow)->pColList, walker, pContext);
+        }
       }
     case SQL_CLAUSE_FILL:
       nodesWalkExprs(pSelect->pGroupByList, walker, pContext);

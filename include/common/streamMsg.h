@@ -695,6 +695,7 @@ typedef struct SSTriggerTsdbTsDataRequest {
 typedef struct SSTriggerTsdbTriggerDataRequest {
   SSTriggerPullRequest base;
   int64_t              startTime;
+  int8_t               order;  // 0 for sequence, 1 for reverse
 } SSTriggerTsdbTriggerDataRequest;
 
 typedef struct SSTriggerTsdbCalcDataRequest {
@@ -711,6 +712,7 @@ typedef struct SSTriggerTsdbDataRequest {
   int64_t              skey;
   int64_t              ekey;
   SArray*              cids;  // SArray<col_id_t>, col_id starts from 0
+  int8_t               order;  // 0 for sequence, 1 for reverse
 } SSTriggerTsdbDataRequest;
 
 typedef struct SSTriggerWalMetaRequest {
@@ -723,12 +725,16 @@ typedef struct SSTriggerWalTsDataRequest {
   SSTriggerPullRequest base;
   int64_t              uid;
   int64_t              ver;
+  int64_t              skey;
+  int64_t              ekey;
 } SSTriggerWalTsDataRequest;
 
 typedef struct SSTriggerWalTriggerDataRequest {
   SSTriggerPullRequest base;
   int64_t              uid;
   int64_t              ver;
+  int64_t              skey;
+  int64_t              ekey;
 } SSTriggerWalTriggerDataRequest;
 
 typedef struct SSTriggerWalCalcDataRequest {
@@ -743,6 +749,8 @@ typedef struct SSTriggerWalDataRequest {
   SSTriggerPullRequest base;
   int64_t              uid;
   int64_t              ver;
+  int64_t              skey;
+  int64_t              ekey;
   SArray*              cids;  // SArray<col_id_t>, col_id starts from 0
 } SSTriggerWalDataRequest;
 
@@ -900,15 +908,18 @@ int32_t tDeserializeSStreamTsResponse(void* buf, int32_t bufLen, void *pBlock);
 
 
 typedef struct SStreamGroupValue {
-  SValue  data;
-  bool    isNull;
+  SValue        data;
+  bool          isNull;
+  bool          isTbname;
+  int64_t       uid;
+  int32_t       vgId;
 } SStreamGroupValue;
 
 typedef struct SStreamGroupInfo {
   SArray* gInfo;  // SArray<SStreamGroupValue>
 } SStreamGroupInfo;
 
-int32_t tSerializeSStreamGroupInfo(void* buf, int32_t bufLen, const SStreamGroupInfo* gInfo);
+int32_t tSerializeSStreamGroupInfo(void* buf, int32_t bufLen, const SStreamGroupInfo* gInfo, int32_t vgId);
 int32_t tDeserializeSStreamGroupInfo(void* buf, int32_t bufLen, SStreamGroupInfo* gInfo);
 void    tDestroySStreamGroupValue(void *ptr);
 

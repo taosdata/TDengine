@@ -865,7 +865,7 @@ trigger_type(A) ::= STATE_WINDOW NK_LP expr_or_subquery(B) NK_RP true_for_opt(C)
 trigger_type(A) ::= interval_opt(B) SLIDING NK_LP sliding_expr(C) NK_RP.                                                    { A = createIntervalWindowNodeExt(pCxt, B, C); }
 trigger_type(A) ::= EVENT_WINDOW NK_LP START WITH search_condition(B) END WITH search_condition(C) NK_RP true_for_opt(D).   { A = createEventWindowNode(pCxt, B, C, D); }
 trigger_type(A) ::= COUNT_WINDOW NK_LP count_window_args(B) NK_RP.                                                          { A = createCountWindowNodeFromArgs(pCxt, B); }
-trigger_type(A) ::= PERIOD NK_LP duration_literal(B) offset_opt(C) NK_RP.                                                   { A = createPeriodWindowNode(pCxt, releaseRawExprNode(pCxt, B), C); }
+trigger_type(A) ::= PERIOD NK_LP interval_sliding_duration_literal(B) offset_opt(C) NK_RP.                                  { A = createPeriodWindowNode(pCxt, releaseRawExprNode(pCxt, B), C); }
 
 interval_opt(A) ::= .                                                                                                       { A = NULL; }
 interval_opt(A) ::= INTERVAL NK_LP interval_sliding_duration_literal(C) NK_RP.                                              { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, C), NULL, NULL, NULL); }
@@ -879,7 +879,7 @@ sliding_expr(A) ::= interval_sliding_duration_literal(B) NK_COMMA interval_slidi
 %destructor sliding_val_opt                                                       { }
 
 offset_opt(A) ::= .                                                               { A = NULL; }
-offset_opt(A) ::= NK_COMMA duration_literal(B).                                   { A = releaseRawExprNode(pCxt, B); }
+offset_opt(A) ::= NK_COMMA interval_sliding_duration_literal(B).                  { A = releaseRawExprNode(pCxt, B); }
 
 /***** trigger_table_opt *****/
 
@@ -1462,7 +1462,7 @@ pseudo_column(A) ::= TNEXT_LOCALTIME(B).                                        
 pseudo_column(A) ::= TLOCALTIME(B).                                               { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= TGRPID(B).                                                   { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= NK_PH NK_INTEGER(B).                                         { A = createRawExprNode(pCxt, &B, createPlaceHolderColumnNode(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B))); }
-pseudo_column(A) ::= NK_PH TBNAME(B).                                             { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= NK_PH TBNAME(B).                                             { A = createRawExprNode(pCxt, &B, createPHTbnameFunctionNode(pCxt, &B, NULL)); }
 
 function_expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP(D).                        { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::= star_func(B) NK_LP star_func_para_list(C) NK_RP(D).                        { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
