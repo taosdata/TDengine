@@ -2509,6 +2509,7 @@ class TDSql:
                 or schema[r][2] != self.queryResult[r][2]  # length
                 or schema[r][3] != self.queryResult[r][3]  # note
             ):
+                tdLog.info(f"exp_schema[{r}]={schema[r]}, res_schema[{r}]={self.queryResult[r]}")
                 return False
 
         return True
