@@ -27,7 +27,7 @@ TimestampGenerator::TimestampGenerator(const TimestampGeneratorConfig& config)
             throw std::runtime_error("Invalid start_timestamp value: " + start);
         }
     } else {
-        current_ = std::get<Timestamp>(config_.start_timestamp).value;
+        current_ = std::get<Timestamp>(config_.start_timestamp);
     }
 }
 

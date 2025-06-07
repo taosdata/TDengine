@@ -9,7 +9,12 @@ void test_generate_row_without_timestamp() {
         {"col3", "bool", "random"}
     };
 
-    RowGenerator generator(col_configs);
+    std::vector<ColumnConfigInstance> col_instances;
+    for (size_t i = 0; i < col_configs.size(); ++i) {
+        col_instances.emplace_back(col_configs[i]);
+    }
+
+    RowGenerator generator(col_instances);
     RowType row = generator.generate();
 
     assert(row.size() == col_configs.size());
@@ -36,13 +41,18 @@ void test_generate_row_with_timestamp() {
         {"col2", "double", "random", 1.5, 3.5}
     };
 
-    RowGenerator generator(ts_config, col_configs);
+    std::vector<ColumnConfigInstance> col_instances;
+    for (size_t i = 0; i < col_configs.size(); ++i) {
+        col_instances.emplace_back(col_configs[i]);
+    }
+
+    RowGenerator generator(ts_config, col_instances);
     RowType row = generator.generate();
 
     assert(row.size() == col_configs.size() + 1);
 
     assert(std::holds_alternative<Timestamp>(row[0]));
-    assert(std::get<Timestamp>(row[0]).value == 1000);
+    assert(std::get<Timestamp>(row[0]) == 1000);
 
     assert(std::holds_alternative<int>(row[1]));
     assert(std::get<int>(row[1]) >= 10 && std::get<int>(row[1]) < 20);
@@ -64,7 +74,12 @@ void test_generate_multiple_rows() {
         {"col2", "double", "random", 1.5, 3.5}
     };
 
-    RowGenerator generator(ts_config, col_configs);
+    std::vector<ColumnConfigInstance> col_instances;
+    for (size_t i = 0; i < col_configs.size(); ++i) {
+        col_instances.emplace_back(col_configs[i]);
+    }
+
+    RowGenerator generator(ts_config, col_instances);
     std::vector<RowType> rows = generator.generate(5);
 
     assert(rows.size() == 5);
@@ -75,7 +90,7 @@ void test_generate_multiple_rows() {
         assert(row.size() == col_configs.size() + 1);
 
         assert(std::holds_alternative<Timestamp>(row[0]));
-        assert(std::get<Timestamp>(row[0]).value == 1000 + i * 10);
+        assert(std::get<Timestamp>(row[0]) == 1000 + i * 10);
 
         assert(std::holds_alternative<int>(row[1]));
         assert(std::get<int>(row[1]) >= 10 && std::get<int>(row[1]) < 20);

@@ -12,10 +12,10 @@ void test_generate_single_timestamp() {
     TimestampGenerator generator(config);
 
     Timestamp ts = generator.generate();
-    assert(ts.value == 1000);
+    assert(ts == 1000);
 
     ts = generator.generate();
-    assert(ts.value == 1010);
+    assert(ts == 1010);
 
     std::cout << "test_generate_single_timestamp passed.\n";
 }
@@ -30,11 +30,11 @@ void test_generate_multiple_timestamps() {
 
     std::vector<Timestamp> timestamps = generator.generate(5);
     assert(timestamps.size() == 5);
-    assert(timestamps[0].value == 2000);
-    assert(timestamps[1].value == 2005);
-    assert(timestamps[2].value == 2010);
-    assert(timestamps[3].value == 2015);
-    assert(timestamps[4].value == 2020);
+    assert(timestamps[0] == 2000);
+    assert(timestamps[1] == 2005);
+    assert(timestamps[2] == 2010);
+    assert(timestamps[3] == 2015);
+    assert(timestamps[4] == 2020);
 
     std::cout << "test_generate_multiple_timestamps passed.\n";
 }
@@ -67,7 +67,7 @@ void test_start_timestamp_now() {
         TimestampGenerator generator(config);
         Timestamp ts = generator.generate();
 
-        assert(ts.value >= expected && ts.value <= expected + 1);
+        assert(ts >= expected && ts <= expected + 1);
         std::cout << "test_start_timestamp_now (ms) passed.\n";
     }
 
@@ -84,7 +84,7 @@ void test_start_timestamp_now() {
         TimestampGenerator generator(config);
         Timestamp ts = generator.generate();
 
-        assert(ts.value >= expected && ts.value < expected + 1'000);
+        assert(ts >= expected && ts < expected + 1'000);
         std::cout << "test_start_timestamp_now (us) passed.\n";
     }
 
@@ -101,7 +101,7 @@ void test_start_timestamp_now() {
         TimestampGenerator generator(config);
         Timestamp ts = generator.generate();
 
-        assert(ts.value >= expected && ts.value < expected + 1'000'000);
+        assert(ts >= expected && ts < expected + 1'000'000);
         std::cout << "test_start_timestamp_now (ns) passed.\n";
     }
 }

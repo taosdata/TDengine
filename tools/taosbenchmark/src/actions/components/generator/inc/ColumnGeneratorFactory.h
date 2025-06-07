@@ -1,9 +1,9 @@
 #pragma once
 #include <memory>
 #include "ColumnGenerator.h"
-#include "ColumnsConfig.h"
+#include "ColumnConfigInstance.h"
 
 class ColumnGeneratorFactory {
 public:
-    static std::unique_ptr<ColumnGenerator> create(const ColumnConfig& config);
+    static std::unique_ptr<ColumnGenerator> create(const ColumnConfigInstance& instance);
 };

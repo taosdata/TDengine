@@ -10,7 +10,9 @@ void test_factory_create_random_column_generator() {
     config.min = 5;
     config.max = 15;
 
-    auto generator = ColumnGeneratorFactory::create(config);
+    ColumnConfigInstance instance(config);
+
+    auto generator = ColumnGeneratorFactory::create(instance);
     assert(generator != nullptr); // Ensure the generator is created successfully
 
     for (int i = 0; i < 100; ++i) {

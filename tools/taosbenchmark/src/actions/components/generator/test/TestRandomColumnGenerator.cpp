@@ -7,8 +7,9 @@ void test_generate_int_column() {
     config.type = "int";
     config.min = 10;
     config.max = 20;
+    ColumnConfigInstance instance(config);
 
-    RandomColumnGenerator generator(config);
+    RandomColumnGenerator generator(instance);
 
     for (int i = 0; i < 100; ++i) {
         ColumnType value = generator.generate();
@@ -25,8 +26,9 @@ void test_generate_double_column() {
     config.type = "double";
     config.min = 1.5;
     config.max = 3.5;
+    ColumnConfigInstance instance(config);
 
-    RandomColumnGenerator generator(config);
+    RandomColumnGenerator generator(instance);
 
     for (int i = 0; i < 100; ++i) {
         ColumnType value = generator.generate();
@@ -41,8 +43,9 @@ void test_generate_double_column() {
 void test_generate_bool_column() {
     ColumnConfig config;
     config.type = "bool";
+    ColumnConfigInstance instance(config);
 
-    RandomColumnGenerator generator(config);
+    RandomColumnGenerator generator(instance);
 
     for (int i = 0; i < 100; ++i) {
         ColumnType value = generator.generate();
@@ -54,10 +57,11 @@ void test_generate_bool_column() {
 
 void test_generate_string_column_with_corpus() {
     ColumnConfig config;
-    config.type = "string";
+    config.type = "varchar";
     config.corpus = std::string("abc");
+    ColumnConfigInstance instance(config);
 
-    RandomColumnGenerator generator(config);
+    RandomColumnGenerator generator(instance);
 
     for (int i = 0; i < 100; ++i) {
         ColumnType value = generator.generate();
@@ -75,8 +79,9 @@ void test_generate_multiple_values() {
     config.type = "int";
     config.min = 1;
     config.max = 10;
+    ColumnConfigInstance instance(config);
 
-    RandomColumnGenerator generator(config);
+    RandomColumnGenerator generator(instance);
     auto values = generator.generate(10);
 
     assert(values.size() == 10);

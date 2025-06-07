@@ -4,7 +4,7 @@
 class RandomColumnGenerator : public ColumnGenerator {
 public:
     using ColumnGenerator::ColumnGenerator;
-    // RandomColumnGenerator(const ColumnConfig& config);
+    // RandomColumnGenerator(const ColumnConfigInstance& instance);
     // ~RandomColumnGenerator() override = default;
 
     ColumnType generate() const override;

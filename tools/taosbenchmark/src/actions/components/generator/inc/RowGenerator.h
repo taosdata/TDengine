@@ -9,9 +9,9 @@
 class RowGenerator {
 public:
 
-    explicit RowGenerator(const std::vector<ColumnConfig>& col_configs);
+    explicit RowGenerator(const std::vector<ColumnConfigInstance>& col_instances);
 
-    RowGenerator(const TimestampGeneratorConfig& ts_config, const std::vector<ColumnConfig>& col_configs);
+    RowGenerator(const TimestampGeneratorConfig& ts_config, const std::vector<ColumnConfigInstance>& col_instances);
 
     RowType generate() const;
 

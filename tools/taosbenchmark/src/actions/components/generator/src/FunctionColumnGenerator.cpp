@@ -7,10 +7,10 @@
 static thread_local std::mt19937_64 random_engine(std::random_device{}());
 
 ColumnType FunctionColumnGenerator::generate() const {
-    if (!config_.function_config) {
+    if (!instance_.config().function_config) {
         throw std::runtime_error("Missing function config for function column");
     }
-    const auto& func = *config_.function_config;
+    const auto& func = *instance_.config().function_config;
     
     if (func.function == "sinusoid") {
         if (!func.period || !func.offset) {

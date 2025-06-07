@@ -5,7 +5,7 @@
 class OrderColumnGenerator : public ColumnGenerator {
 public:
     // using ColumnGenerator::ColumnGenerator;
-    OrderColumnGenerator(const ColumnConfig& config);
+    OrderColumnGenerator(const ColumnConfigInstance& instance);
     ~OrderColumnGenerator() override = default;
 
     ColumnType generate() const override;

@@ -3,19 +3,19 @@
 #include "ColumnGeneratorFactory.h"
 
 
-RowGenerator::RowGenerator(const std::vector<ColumnConfig>& col_configs) {
-    for (const auto& config : col_configs) {
-        auto generator = ColumnGeneratorFactory::create(config);
+RowGenerator::RowGenerator(const std::vector<ColumnConfigInstance>& col_instances) {
+    for (const auto& instance : col_instances) {
+        auto generator = ColumnGeneratorFactory::create(instance);
         if (generator) {
             column_gens_.push_back(std::move(generator));
         } else {
-            throw std::runtime_error("Failed to create generator for column: " + config.name);
+            throw std::runtime_error("Failed to create generator for column: " + instance.name());
         }
     }
 }
 
-RowGenerator::RowGenerator(const TimestampGeneratorConfig& ts_config, const std::vector<ColumnConfig>& col_configs)
-    : RowGenerator(col_configs) {
+RowGenerator::RowGenerator(const TimestampGeneratorConfig& ts_config, const std::vector<ColumnConfigInstance>& col_instances)
+    : RowGenerator(col_instances) {
     timestamp_gen_ = std::make_unique<TimestampGenerator>(ts_config);
 }
 

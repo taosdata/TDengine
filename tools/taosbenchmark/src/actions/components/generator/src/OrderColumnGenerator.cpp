@@ -2,22 +2,22 @@
 #include <stdexcept>
 
 
-OrderColumnGenerator::OrderColumnGenerator(const ColumnConfig& config) 
-    : ColumnGenerator(config), current_(0)
+OrderColumnGenerator::OrderColumnGenerator(const ColumnConfigInstance& instance) 
+    : ColumnGenerator(instance), current_(0)
 {
-    if (!config.order_min) {
+    if (!instance.config().order_min) {
         throw std::runtime_error("Missing order_min for order column");
     }
-    current_ = *config.order_min;
+    current_ = *instance.config().order_min;
     
-    if (config.order_max && *config.order_max <= current_) {
+    if (instance.config().order_max && *instance.config().order_max <= current_) {
         throw std::runtime_error("Invalid order range");
     }
 }
 
 ColumnType OrderColumnGenerator::generate() const {
-    if (config_.order_max && current_ >= *config_.order_max) {
-        current_ = *config_.order_min;
+    if (instance_.config().order_max && current_ >= *instance_.config().order_max) {
+        current_ = *instance_.config().order_min;
     }
     
     int64_t value = current_;
@@ -30,7 +30,7 @@ std::vector<ColumnType> OrderColumnGenerator::generate(size_t count) const {
     values.reserve(count);
 
     for (size_t i = 0; i < count; ++i) {
-        if (config_.order_max && current_ > *config_.order_max) {
+        if (instance_.config().order_max && current_ > *instance_.config().order_max) {
             throw std::runtime_error("Order column value exceeded max");
         }
         
