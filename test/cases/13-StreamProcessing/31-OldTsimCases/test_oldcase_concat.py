@@ -110,7 +110,7 @@ class TestStreamOldCaseConcat:
                 ["a", "TIMESTAMP", 8, ""],
                 ["b", "BIGINT", 8, ""],
                 ["c", "INT", 4, ""],
-                ["tag_tbname", "VARCHAR", 270, "TAG"],
+                ["tag_tbname", "VARCHAR", 272, "TAG"],
             ],
         )
 
@@ -179,7 +179,7 @@ class TestStreamOldCaseConcat:
                 ["a", "TIMESTAMP", 8, ""],
                 ["b", "BIGINT", 8, ""],
                 ["c", "INT", 4, ""],
-                ["tag_tbname", "VARCHAR", 270, "TAG"],
+                ["tag_tbname", "VARCHAR", 272, "TAG"],
             ],
         )
 

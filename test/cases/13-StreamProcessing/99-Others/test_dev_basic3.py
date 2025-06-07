@@ -167,10 +167,10 @@ class TestStreamDevBasic:
                 ["tw", "BIGINT", 8, ""],
                 ["tg", "BIGINT", 8, ""],
                 ["tl", "TIMESTAMP", 8, ""],
-                ["tb", "VARCHAR", 270, ""],
+                ["tb", "VARCHAR", 272, ""],
                 ["c1", "BIGINT", 8, ""],
                 ["c2", "DOUBLE", 8, ""],
-                ["tag_tbname", "VARCHAR", 270, "TAG"],
+                ["tag_tbname", "VARCHAR", 272, "TAG"],
             ],
         )
         tdSql.checkResultsByFunc(
