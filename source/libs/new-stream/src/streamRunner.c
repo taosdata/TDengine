@@ -480,13 +480,13 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   }
 
   pTask->task.sessionId = pReq->sessionId;
-  pExec->runtimeInfo.funcInfo.pStreamPartColVals = pReq->groupColVals;
+  TSWAP(pExec->runtimeInfo.funcInfo.pStreamPartColVals, pReq->groupColVals);
+  TSWAP(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, pReq->params);
   pExec->runtimeInfo.funcInfo.groupId = pReq->gid;
   pExec->runtimeInfo.pForceOutputCols = pTask->forceOutCols;
-  pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals = pReq->params;
   pExec->runtimeInfo.funcInfo.sessionId = pReq->sessionId;
 
-  int32_t winNum = taosArrayGetSize(pReq->params);
+  int32_t winNum = taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals);
   if (winNum > STREAM_TRIGGER_MAX_WIN_NUM_PER_REQUEST) {
     ST_TASK_ELOG("too many windows in one request, max:%d, cur:%d", STREAM_TRIGGER_MAX_WIN_NUM_PER_REQUEST, winNum);
     code = TSDB_CODE_STREAM_TASK_IVLD_STATUS;
@@ -551,7 +551,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
         if (pBlock) {
           code = createOneDataBlock(pBlock, true, (SSDataBlock**)&pReq->pOutBlock);
         } else {
-          blockDataCleanup(pReq->pOutBlock);
+          blockDataDestroy(pReq->pOutBlock);
           pReq->pOutBlock = NULL;
         }
         break;

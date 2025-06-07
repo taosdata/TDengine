@@ -125,15 +125,14 @@ static bool mstChkSetDbInUse(SMnode *pMnode, void *pObj, void *p1, void *p2, voi
   return true;
 }
 
-int32_t mstCheckDbInUse(SMnode *pMnode, char *dbFName, bool *dbStream, bool *vtableStream, bool ignoreCurrDb) {
+void mstCheckDbInUse(SMnode *pMnode, char *dbFName, bool *dbStream, bool *vtableStream, bool ignoreCurrDb) {
   int32_t streamNum = sdbGetSize(pMnode->pSdb, SDB_STREAM);
   if (streamNum <= 0) {
-    return TSDB_CODE_SUCCESS;
+    return;
   }
 
   SStmCheckDbInUseCtx ctx = {dbStream, vtableStream, ignoreCurrDb};
   sdbTraverse(pMnode->pSdb, SDB_STREAM, mstChkSetDbInUse, dbFName, &ctx, NULL);
-  return TSDB_CODE_SUCCESS;
 }
 
 static void mstShowStreamStatus(char *dst, int8_t status, int32_t bufLen) {

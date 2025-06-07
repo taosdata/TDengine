@@ -483,8 +483,8 @@ int32_t mndStreamBuildDBVgroupsMap(SMnode* pMnode, SSHashObj** ppRes);
 int32_t mndStreamGetTableVgId(SSHashObj* pDbVgroups, char* dbFName, char *tbName, int32_t* vgId);
 void mndStreamDestroySStreamMgmtRsp(SStreamMgmtRsp* p);
 void mndStreamDestroyDbVgroupsHash(SSHashObj *pDbVgs);
-int32_t mndStreamUpdateTagsRefFlag(SMnode *pMnode, int64_t suid, SSchema* pTags, int32_t tagNum);
-int32_t mstCheckDbInUse(SMnode *pMnode, char *dbFName, bool *dbStream, bool *vtableStream, bool ignoreCurrDb);
+void mndStreamUpdateTagsRefFlag(SMnode *pMnode, int64_t suid, SSchema* pTags, int32_t tagNum);
+void mstCheckDbInUse(SMnode *pMnode, char *dbFName, bool *dbStream, bool *vtableStream, bool ignoreCurrDb);
 
 #ifdef __cplusplus
 }

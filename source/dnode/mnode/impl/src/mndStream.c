@@ -629,14 +629,13 @@ static bool mndStreamUpdateTagsFlag(SMnode *pMnode, void *pObj, void *p1, void *
 }
 
 
-int32_t mndStreamUpdateTagsRefFlag(SMnode *pMnode, int64_t suid, SSchema* pTags, int32_t tagNum) {
+void mndStreamUpdateTagsRefFlag(SMnode *pMnode, int64_t suid, SSchema* pTags, int32_t tagNum) {
   int32_t streamNum = sdbGetSize(pMnode->pSdb, SDB_STREAM);
   if (streamNum <= 0) {
-    return TSDB_CODE_SUCCESS;
+    return;
   }
 
   sdbTraverse(pMnode->pSdb, SDB_STREAM, mndStreamUpdateTagsFlag, &suid, pTags, &tagNum);
-  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {

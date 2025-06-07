@@ -13,34 +13,6 @@
 extern "C" {
 #endif
 
-#define STREAM_CHECK_RET_GOTO(CMD) \
-  code = (CMD);                    \
-  if (code != TSDB_CODE_SUCCESS) { \
-    lino = __LINE__;               \
-    goto end;                      \
-  }
-
-#define STREAM_CHECK_NULL_GOTO(CMD, ret) \
-  if ((CMD) == NULL) {                   \
-    code = ret;                          \
-    lino = __LINE__;                     \
-    goto end;                            \
-  }
-
-#define STREAM_CHECK_CONDITION_GOTO(CMD, ret) \
-  if (CMD) {                                  \
-    code = ret;                               \
-    lino = __LINE__;                          \
-    goto end;                                 \
-  }
-
-#define PRINT_LOG_END(code, lino)                                              \
-  if (code != 0) {                                                             \
-    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code)); \
-  } else {                                                                     \
-    stDebug("%s done success", __func__);                                      \
-  }
-
 typedef struct SStreamTriggerReaderInfo {
   int32_t      order;
   // SArray*      schemas;

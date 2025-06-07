@@ -61,6 +61,7 @@ static int32_t handleTriggerCalcReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
     req.curWinIdx = 0;
     code = stRunnerTaskExecute(pTask, &req);
   }
+  tDestroySTriggerCalcRequest(&req);
   SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_TRIGGER_CALC_RSP, .contLen = 0, .pCont = NULL, .info = pRpcMsg->info};
   rpcSendResponse(&rsp);
   return code;
@@ -138,6 +139,8 @@ static int32_t handleStreamFetchData(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   if (code == 0) {
     code = buildFetchRsp(calcReq.pOutBlock, &buf, &size, 0);
   }
+  tDestroySTriggerCalcRequest(&calcReq);
+  tDestroySResFetchReq(&req);
   SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_FETCH_FROM_RUNNER_RSP, .contLen = size, .pCont = buf, .info = pRpcMsg->info};
   tmsgSendRsp(&rsp);
   return code;
@@ -162,9 +165,9 @@ static int32_t handleStreamFetchFromCache(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   size_t size = 0;
   if (code == 0) {
     code = buildFetchRsp(readInfo.pBlock, &buf, &size, 0);
-    blockDataCleanup(readInfo.pBlock);
-    readInfo.pBlock = NULL;
   }
+  blockDataDestroy(readInfo.pBlock);
+  tDestroySResFetchReq(&req);
   SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_FETCH_FROM_CACHE_RSP, .contLen = size, .pCont = buf, .info = pRpcMsg->info};
   tmsgSendRsp(&rsp);
   return code;

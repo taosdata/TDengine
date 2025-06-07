@@ -39,7 +39,7 @@ int32_t createDataBlockForStream(SArray* schemas, SSDataBlock** pBlockRet) {
   STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pBlock, STREAM_RETURN_ROWS_NUM));
 
 end:
-  PRINT_LOG_END(code, lino)
+  STREAM_PRINT_LOG_END(code, lino)
   if (code != TSDB_CODE_SUCCESS) {
     blockDataDestroy(pBlock);
     pBlock = NULL;
@@ -100,7 +100,7 @@ int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order,
   }
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pCond->colList);
     taosMemoryFree(pCond->pSlotList);
@@ -154,7 +154,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
   pTask = NULL;
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   releaseStreamTask(pTask);
   destroyOptions(options);
   return code;
@@ -199,6 +199,7 @@ static void releaseStreamReaderCalcInfo(void* p) {
   // blockDataDestroy(pInfo->calcResBlock);
   // taosMemoryFree(pInfo->triggerSchema);
   // taosMemoryFree(pInfo->calcSchema);
+  tDestroyStRtFuncInfo(&pInfo->rtInfo.funcInfo);
   taosMemoryFree(pInfo);
 }
 
@@ -249,7 +250,7 @@ static int32_t buildSTSchemaAndSetColId(STSchema** sSchema, SNodeList* list, SSD
   STREAM_CHECK_NULL_GOTO(*sSchema, terrno);
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
 
   taosMemoryFree(pSchema);
   return code;
@@ -361,7 +362,7 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(const SStreamReaderDeplo
   taosHashSetFreeFp(sStreamReaderInfo->streamTaskMap, releaseStreamTask);
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
 
   if (code != 0) {
     releaseStreamReaderInfo(sStreamReaderInfo);
@@ -400,7 +401,7 @@ static SStreamTriggerReaderCalcInfo* createStreamReaderCalcInfo(const SStreamRea
   sStreamReaderCalcInfo->pTaskInfo = NULL;
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
 
   if (code != 0) {
     releaseStreamReaderCalcInfo(sStreamReaderCalcInfo);
@@ -438,7 +439,7 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
 
 end:
 
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
 
   if (code) {
     pTask->task.status = STREAM_STATUS_FAILED;
@@ -460,7 +461,7 @@ int32_t stReaderTaskUndeploy(SStreamReaderTask** ppTask, const SStreamUndeployTa
   (*ppTask)->info = NULL;
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   (*cb)(ppTask);
 
   return code;
@@ -477,7 +478,7 @@ void* qStreamGetReaderInfo(int64_t streamId, int64_t taskId) {
   STREAM_CHECK_RET_GOTO(streamGetTask(streamId, taskId, &pTask));
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   if (code == TSDB_CODE_SUCCESS) {
     // stDebug("stream %" PRIx64 " task %" PRIx64 "  in qStreamGetReaderInfo, pTask:%p, info:%p", streamId, taskId,
     // pTask, ((SStreamReaderTask*)pTask)->info.triggerReaderInfo);

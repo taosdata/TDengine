@@ -862,8 +862,6 @@ void    tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq);
 typedef struct SStreamRuntimeFuncInfo {
   SArray* pStreamPesudoFuncVals;
   SArray* pStreamPartColVals;
-  SArray* pStreamPesudoFuncValNodes;
-  SArray* pStreamPartColValNodes;
   int64_t groupId;
   int32_t curIdx; // for pesudo func calculation
   int64_t sessionId;
@@ -874,7 +872,7 @@ typedef struct SStreamRuntimeFuncInfo {
 
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo);
 int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);
-
+int32_t tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo);
 typedef struct STsInfo {
   int64_t gId;
   int64_t  ts;
