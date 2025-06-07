@@ -938,7 +938,17 @@ A simple tool to execute various functions of the system in a randomized way, ho
 
 ```bash
 cd tests/pytest
-python3 auto_crash_gen.py
+python3 crash_gen_bootstrap.py \
+    --max-dbs=2 \
+    --connector-type=native \
+    --larger-data \
+    --dynamic-db-table-names \
+    --per-thread-db-connection \
+    --max-steps=50 \
+    --num-threads=2 \
+    --continue-on-exception \
+    --run-with-pkg \
+    -g 0x32c,0x32d,0x3d3,0x18,0x2501,0x369,0x388,0x061a,0x2550,0x0203,0x4012
 ```
 
 #### 8.3.5.2 How to add new cases?
