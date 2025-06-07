@@ -12717,6 +12717,11 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
   SStreamNotifyOptions*  pNotifyOptions = (SStreamNotifyOptions*)pTrigger->pNotify;
 
   // TODO(smj) : proper error code
+  if (NULL != strchr(pStmt->streamName, '.')) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME,
+                                   "The stream name cannot contain '.'");
+  }
+
   if (pStmt->pQuery && QUERY_NODE_SELECT_STMT != nodeType(pStmt->pQuery)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
   }
