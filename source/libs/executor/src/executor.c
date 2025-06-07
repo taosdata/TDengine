@@ -2034,7 +2034,7 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, const SStreamRuntimeF
   return code;
 }
 
-void destoryStreamInserterParam(SStreamInserterParam* pParam) {
+void destroyStreamInserterParam(SStreamInserterParam* pParam) {
   if (pParam) {
     if (pParam->tbname) {
       taosMemFree(pParam->tbname);
@@ -2117,7 +2117,7 @@ int32_t cloneStreamInserterParam(SStreamInserterParam** ppDst, SStreamInserterPa
 
 _err:
   if (code != 0 && *ppDst) {
-    destoryStreamInserterParam(*ppDst);
+    destroyStreamInserterParam(*ppDst);
     *ppDst = NULL;
   }
   return code;

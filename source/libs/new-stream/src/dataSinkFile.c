@@ -407,7 +407,7 @@ int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMg
     QUERY_CHECK_CODE(code, lino, _exit);
   }
 
-  taosArrayRemoveBatch(pSlidingGrp->winDataInMem, 0, moveWinCount, destorySlidingWindowInMemPP);
+  taosArrayRemoveBatch(pSlidingGrp->winDataInMem, 0, moveWinCount, destroySlidingWindowInMemPP);
 
   void* pBlocksInFile = taosArrayPush(pSlidingGrp->blocksInFile, &fileBlockInfo);
   if (pBlocksInFile == NULL) {

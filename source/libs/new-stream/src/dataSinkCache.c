@@ -111,7 +111,7 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
       if (++pResult->winIndex >= pBlockInfo->nWindow) {
         pResult->winIndex = 0;
         pResult->offset += 0;
-        destoryAlignBlockInMemPP(ppBlockInfo);
+        destroyAlignBlockInMemPP(ppBlockInfo);
         taosArrayRemove(pAlignGrpMgr->blocksInMem, 0);
         if (pAlignGrpMgr->blocksInMem->size == 0) {
           *finished = true;
@@ -187,7 +187,7 @@ static int32_t getSlidingDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock
       continue;
     }
     if (pWindowData->endTime < pResult->reqStartTime) {
-      destorySlidingWindowInMem(pWindowData);
+      destroySlidingWindowInMem(pWindowData);
       // todo: remove from array has low performance, need to optimize.
       taosArrayRemove(pSlidingGrpMgr->winDataInMem, pResult->offset);
       --pResult->offset;  // adjust offset since we removed the current window
@@ -271,7 +271,7 @@ _end:
   return code;
 }
 
-void destorySlidingWindowInMem(void* pData) {
+void destroySlidingWindowInMem(void* pData) {
   SSlidingWindowInMem* pSlidingWinInMem = (SSlidingWindowInMem*)pData;
   if (pSlidingWinInMem) {
     atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pSlidingWinInMem->dataLen + sizeof(SSlidingWindowInMem));
@@ -279,7 +279,7 @@ void destorySlidingWindowInMem(void* pData) {
   }
 }
 
-void destorySlidingWindowInMemPP(void* pData) {
+void destroySlidingWindowInMemPP(void* pData) {
   SSlidingWindowInMem* pSlidingWinInMem = *(SSlidingWindowInMem**)pData;
   if (pSlidingWinInMem) {
     atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pSlidingWinInMem->dataLen + sizeof(SSlidingWindowInMem));
@@ -287,7 +287,7 @@ void destorySlidingWindowInMemPP(void* pData) {
   }
 }
 
-void destoryAlignBlockInMemPP(void* ppData) {
+void destroyAlignBlockInMemPP(void* ppData) {
   SAlignBlocksInMem* pAlignBlockInfo = *(SAlignBlocksInMem**)ppData;
   if (pAlignBlockInfo) {
     taosMemoryFree(pAlignBlockInfo);
@@ -295,7 +295,7 @@ void destoryAlignBlockInMemPP(void* ppData) {
   }
 }
 
-void destoryAlignBlockInMem(void* pData) {
+void destroyAlignBlockInMem(void* pData) {
   SAlignBlocksInMem* pAlignBlockInfo = (SAlignBlocksInMem*)pData;
   if (pAlignBlockInfo) {
     taosMemoryFree(pAlignBlockInfo);

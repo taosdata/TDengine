@@ -277,8 +277,8 @@ void* getWindowDataBuf(SSlidingWindowInMem* pWindowData);
 
 int32_t buildSlidingWindowInMem(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t startIndex, int32_t endIndex,
                                 SSlidingWindowInMem** ppSlidingWinInMem);
-void    destorySlidingWindowInMem(void* pSlidingWinInMem);
-void    destorySlidingWindowInMemPP(void* ppSlidingWinInMem);
+void    destroySlidingWindowInMem(void* pSlidingWinInMem);
+void    destroySlidingWindowInMemPP(void* ppSlidingWinInMem);
 
 int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY wstart,
                                    TSKEY wend);
@@ -300,8 +300,8 @@ void slidingGrpMgrUsedMemAdd(SSlidingGrpMgr* pSlidingGrpCacheMgr, int64_t size);
 
 void destroyInserterGrpInfo();
 
-void destoryAlignBlockInMem(void* pData);
-void destoryAlignBlockInMemPP(void* ppData);
+void destroyAlignBlockInMem(void* pData);
+void destroyAlignBlockInMemPP(void* ppData);
 
 void destroyStreamDataSinkFile(SDataSinkFileMgr** ppDaSinkFileMgr);
 
