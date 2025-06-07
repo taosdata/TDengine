@@ -32,6 +32,7 @@ class TestStreamDevBasic:
 
     def basic1(self):
         tdLog.info(f"basic test 1")
+        tdSql.error("show streams")
         tdStream.dropAllStreamsAndDbs()
 
         tdLog.info(f"=============== create database")
@@ -165,3 +166,15 @@ class TestStreamDevBasic:
         tdSql.execute(
             f"create stream streams13 interval(2s) sliding(2s) from st options(expired_time(0s)|ignore_disorder) into streams10 as select _twstart, sum(a) from st where ts >= _twstart and ts < _twend;"
         )
+
+        tdSql.query("show qdb.streams;")
+        tdSql.checkRows(1)
+        tdSql.query("show test.streams;")
+        tdSql.checkRows(12)
+        tdSql.query("select * from information_schema.ins_streams;")
+        tdSql.checkRows(13)
+        tdSql.query("select * from information_schema.ins_streams where db_name='qdb';")
+        tdSql.checkRows(1)
+        tdSql.query("select * from information_schema.ins_streams where db_name='test';")
+        tdSql.checkRows(12)
+        
