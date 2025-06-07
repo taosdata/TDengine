@@ -94,7 +94,10 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
         found = true;
         if (pWindowData->dataLen == 0) {
           SMoveWindowInfo* pMoveWinInfo = getWindowDataBuf(pWindowData);
-          *ppBlock = pMoveWinInfo->pData;
+          if (pMoveWinInfo->pData != NULL) {
+            *ppBlock = pMoveWinInfo->pData;
+            pMoveWinInfo->pData = NULL;
+          }
           atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pMoveWinInfo->moveSize);
         } else {
           code = getRangeInWindowBlock(pWindowData, pResult->tsColSlotId, pResult->reqStartTime, pResult->reqEndTime,
@@ -108,7 +111,7 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
       if (++pResult->winIndex >= pBlockInfo->nWindow) {
         pResult->winIndex = 0;
         pResult->offset += 0;
-        destoryAlignBlockInMem(ppBlockInfo);
+        destoryAlignBlockInMemPP(ppBlockInfo);
         taosArrayRemove(pAlignGrpMgr->blocksInMem, 0);
         if (pAlignGrpMgr->blocksInMem->size == 0) {
           *finished = true;
@@ -118,7 +121,7 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
           break;  // break the while loop
         }
       } else {
-        pResult->offset += pWindowData->dataLen;
+        pResult->offset += pWindowData->dataLen == 0 ? (sizeof(SAlignBlocksInMem) + sizeof(SMoveWindowInfo)) : pWindowData->dataLen;
         if (!found) {
           continue;  // to check next window
         }
@@ -250,7 +253,7 @@ int32_t buildSlidingWindowInMem(SSDataBlock* pBlock, int32_t tsColSlotId, int32_
   code = getStreamBlockTS(pBlock, tsColSlotId, endIndex, &(*ppSlidingWinInMem)->endTime);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  code = getStreamBlockTS(pBlock, tsColSlotId, 0, &(*ppSlidingWinInMem)->startTime);
+  code = getStreamBlockTS(pBlock, tsColSlotId, startIndex, &(*ppSlidingWinInMem)->startTime);
   QUERY_CHECK_CODE(code, lino, _end);
 
   char*   pStart = buf + sizeof(SSlidingWindowInMem);
@@ -284,10 +287,18 @@ void destorySlidingWindowInMemPP(void* pData) {
   }
 }
 
-void destoryAlignBlockInMem(void* ppData) {
-  SAlignBlocksInMem* ppAlignBlockInfo = *(SAlignBlocksInMem**)ppData;
-  if (ppAlignBlockInfo) {
-    taosMemoryFree(ppAlignBlockInfo);
+void destoryAlignBlockInMemPP(void* ppData) {
+  SAlignBlocksInMem* pAlignBlockInfo = *(SAlignBlocksInMem**)ppData;
+  if (pAlignBlockInfo) {
+    taosMemoryFree(pAlignBlockInfo);
+    atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, gDSFileBlockDefaultSize + sizeof(SAlignBlocksInMem));
+  }
+}
+
+void destoryAlignBlockInMem(void* pData) {
+  SAlignBlocksInMem* pAlignBlockInfo = (SAlignBlocksInMem*)pData;
+  if (pAlignBlockInfo) {
+    taosMemoryFree(pAlignBlockInfo);
     atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, gDSFileBlockDefaultSize + sizeof(SAlignBlocksInMem));
   }
 }

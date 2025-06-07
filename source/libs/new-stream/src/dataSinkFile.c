@@ -234,8 +234,12 @@ static int32_t readFileDataToSlidingWindows(SResultIter* pResult, SSlidingGrpMgr
       code = blockSpecialDecodeLaterPart(pBlock, getWindowDataBuf(pWindowData), tsColSlotId, pResult->reqStartTime,
                                          pResult->reqEndTime);
       QUERY_CHECK_CODE(code, lino, _exit);
-      code = appendTmpSBlocksInMem(pResult, pBlock);
-      QUERY_CHECK_CODE(code, lino, _exit);
+      if (pBlock->info.rows == 0) {
+        blockDataDestroy(pBlock);
+      } else {
+        code = appendTmpSBlocksInMem(pResult, pBlock);
+        QUERY_CHECK_CODE(code, lino, _exit);
+      }
     }
     start += sizeof(SSlidingWindowInMem) + pWindowData->dataLen;
     if (start >= buf + pBlockInfo->dataLen) {

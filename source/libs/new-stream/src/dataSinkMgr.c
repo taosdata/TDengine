@@ -103,6 +103,11 @@ static void destroyAlignTaskDSMgr(SAlignTaskDSMgr** pData) {
   }
   if (pAlignTaskDSMgr->pFileMgr) {
     destroyStreamDataSinkFile(&pAlignTaskDSMgr->pFileMgr);
+    pAlignTaskDSMgr->pFileMgr = NULL;
+  }
+  if(pAlignTaskDSMgr->pAlignGrpList) {
+    taosHashCleanup(pAlignTaskDSMgr->pAlignGrpList);
+    pAlignTaskDSMgr->pAlignGrpList = NULL;
   }
 
   taosMemoryFreeClear(pAlignTaskDSMgr);
@@ -630,7 +635,7 @@ void releaseDataResult(void** pIter) {
     return;
   }
   SResultIter* pResult = (SResultIter*)*pIter;
-  if (pResult->tmpBlocksInMem) {
+  if (pResult && pResult->tmpBlocksInMem) {
     for (int32_t i = 0; i < pResult->tmpBlocksInMem->size; ++i) {
       SSDataBlock** ppBlk = (SSDataBlock**)taosArrayGet(pResult->tmpBlocksInMem, i);
       if (*ppBlk != NULL) {
@@ -638,7 +643,7 @@ void releaseDataResult(void** pIter) {
         *ppBlk = NULL;
       }
     }
-    taosArrayClear(pResult->tmpBlocksInMem);
+    taosArrayDestroy(pResult->tmpBlocksInMem);
     pResult->tmpBlocksInMem = NULL;
   }
   if (pResult != NULL) {

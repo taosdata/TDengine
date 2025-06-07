@@ -300,7 +300,8 @@ void slidingGrpMgrUsedMemAdd(SSlidingGrpMgr* pSlidingGrpCacheMgr, int64_t size);
 
 void destroyInserterGrpInfo();
 
-void destoryAlignBlockInMem(void* ppData);
+void destoryAlignBlockInMem(void* pData);
+void destoryAlignBlockInMemPP(void* ppData);
 
 void destroyStreamDataSinkFile(SDataSinkFileMgr** ppDaSinkFileMgr);
 
