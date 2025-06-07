@@ -53,19 +53,9 @@ async fn test_td34829_with_taos() -> anyhow::Result<()> {
             .await?
     };
 
-    loop {
-        let result = taos
-            .exec_many(vec![
-                format!("drop topic if exists `{topic_name}`"),
-                format!("drop stream if exists `{STREAM}`"),
-            ])
-            .await;
-        if result.is_ok() {
-            break;
-        }
-    }
-
     taos.exec_many(vec![
+        format!("drop topic if exists force `{topic_name}`"),
+        format!("drop stream if exists `{STREAM}`"),
         format!("drop database if exists `{DB_SRC}`"),
         format!("drop database if exists `{DB_DST}`"),
         format!("create database if not exists `{DB_SRC}`"),
@@ -152,18 +142,9 @@ async fn test_td34829_with_taos() -> anyhow::Result<()> {
 
     // 5. clean
     println!("====== clean up =====");
-    loop {
-        let result = taos
-            .exec_many(vec![
-                format!("drop topic if exists `{topic_name}`"),
-                format!("drop stream if exists `{STREAM}`"),
-            ])
-            .await;
-        if result.is_ok() {
-            break;
-        }
-    }
     taos.exec_many(vec![
+        format!("drop topic if exists force `{topic_name}`"),
+        format!("drop stream if exists `{STREAM}`"),
         format!("drop database if exists `{DB_SRC}`"),
         format!("drop database if exists `{DB_DST}`"),
     ])
