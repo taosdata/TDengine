@@ -2,3 +2,4 @@
 
 #include "SqlDatabaseFormatter.h"
 #include "SqlSuperTableFormatter.h"
+#include "SqlChildTableFormatter.h"

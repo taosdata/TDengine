@@ -22,6 +22,11 @@ struct FormatterTraits<CreateSuperTableConfig> {
     static constexpr const char* prefix = "supertable";
 };
 
+template<>
+struct FormatterTraits<CreateChildTableConfig> {
+    using Interface = IChildTableFormatter;
+    static constexpr const char* prefix = "childtable";
+};
 
 
 class FormatterFactory {

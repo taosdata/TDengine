@@ -29,6 +29,12 @@ target_include_directories(actions_formatter PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../common/inc
 )
 
+# 链接依赖库
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../config/build)
+target_link_libraries(actions_formatter PUBLIC 
+    actions_config
+)
+
 # 添加测试
 # test SqlDatabaseFormatter
 add_executable(TestSqlDatabaseFormatter
@@ -47,3 +53,12 @@ target_link_libraries(TestSqlSuperTableFormatter PRIVATE
     actions_formatter
 )
 add_test(NAME TestSqlSuperTableFormatter COMMAND TestSqlSuperTableFormatter)
+
+# test SqlChildTableFormatter
+add_executable(TestSqlChildTableFormatter
+    test/TestSqlChildTableFormatter.cpp
+)
+target_link_libraries(TestSqlChildTableFormatter PRIVATE 
+    actions_formatter
+)
+add_test(NAME TestSqlChildTableFormatter COMMAND TestSqlChildTableFormatter)

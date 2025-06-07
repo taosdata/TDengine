@@ -26,7 +26,7 @@ public:
 
 class IChildTableFormatter : public IFormatter {
     public:
-        virtual FormatResult format(const CreateChildTableConfig&) const = 0;
+        virtual FormatResult format(const CreateChildTableConfig& config, std::vector<std::string> table_names, std::vector<RowType> tags) const = 0;
     };
 
 
