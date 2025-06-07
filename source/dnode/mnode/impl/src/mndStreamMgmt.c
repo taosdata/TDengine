@@ -2168,19 +2168,19 @@ int32_t msmUndeployStream(SMnode* pMnode, int64_t streamId, char* streamName) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
-  SStmStatus** ppStream = (SStmStatus**)taosHashAcquire(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
-  if (NULL == ppStream) {
+  SStmStatus* pStream = (SStmStatus*)taosHashAcquire(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
+  if (NULL == pStream) {
     mstsInfo("stream %s already not in streamMap", streamName);
     goto _exit;
   }
 
-  atomic_store_8(&(*ppStream)->stopped, 2);
+  atomic_store_8(&pStream->stopped, 2);
 
   mstsInfo("stream %s stopped by user", streamName);
 
 _exit:
 
-  taosHashRelease(mStreamMgmt.streamMap, ppStream);
+  taosHashRelease(mStreamMgmt.streamMap, pStream);
 
   if (code) {
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
