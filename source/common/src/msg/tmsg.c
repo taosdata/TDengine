@@ -2545,7 +2545,7 @@ int32_t cloneSUpdateIpWhiteReq(SUpdateIpWhite *pReq, SUpdateIpWhite **pUpdateMsg
 
     int32_t sz = pOld->numOfRange * sizeof(SIpRange);
     pNew->pIpDualRanges = taosMemoryCalloc(1, sz);
-    if (pNew->pIpRanges == NULL) {
+    if (pNew->pIpDualRanges == NULL) {
       code = terrno;
       break;
     }

@@ -150,7 +150,7 @@ static void setUserInfoIpToConn(SConnObj *connObj, SIpRange *pRange) {
   }
   code = tIpUintToStr(pRange, &connObj->addr);
   if (code != 0) {
-    mError("conn:%u, failed to set user ip to conn since %s", connObj->id, terrstr());
+    mError("conn:%u, failed to set user ip to conn since %s", connObj->id, tstrerror(code));
     return;
   }
 }
