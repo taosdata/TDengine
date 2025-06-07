@@ -38,7 +38,7 @@ optional arguments:
 - `backend`：后台运行安装工具，默认前台运行。
 - `test-item`：检查项目。可选项目为 all（disk 和 network）、disk 和 network。默认值为 all。
 - `log-level`：输出日志级别，目前支持 debug 和 info，模式为 info。
-- `ip`：指定目标机器IP地址，当配置ip后仅测试本机与目标机器间的网络传输能力。
+- `ip`：指定目标机器 IP 地址，当配置 ip 后仅测试本机与目标机器间的网络传输能力。
 
 ### ssh 模式
 
