@@ -401,6 +401,8 @@ SNode* createShowTSMASStmt(SAstCreateContext* pCxt, SNode* dbName);
 SNode* createShowDiskUsageStmt(SAstCreateContext* pCxt, SNode* dbName, ENodeType type);
 SNodeList* createColsFuncParamNodeList(SAstCreateContext* pCxt, SNode* pFuncNode, SNodeList* pNodeList, SToken* pAlias);
 
+SNode* createShowStreamsStmt(SAstCreateContext* pCxt,  SNode* dbName, ENodeType type);
+
 #ifdef __cplusplus
 }
 #endif
