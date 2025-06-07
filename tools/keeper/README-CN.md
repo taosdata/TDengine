@@ -1,7 +1,8 @@
 <!-- omit in toc -->
 # taosKeeper
 
-[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/taosdata/TDengine/taoskeeper-ci-build.yml)](https://github.com/taosdata/TDengine/actions/workflows/taoskeeper-ci-build.yml)
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/taosdata/TDengine/taoskeeper-build.yml)](https://github.com/taosdata/TDengine/actions/workflows/taoskeeper-build.yml)
+[![codecov](https://codecov.io/gh/taosdata/taoskeeper/graph/badge.svg)](https://codecov.io/gh/taosdata/taoskeeper)
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/taosdata/TDengine)
 ![GitHub License](https://img.shields.io/github/license/taosdata/TDengine)
 ![GitHub Release](https://img.shields.io/github/v/release/taosdata/tdengine)

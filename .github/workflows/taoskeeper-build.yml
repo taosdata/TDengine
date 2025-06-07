@@ -3,10 +3,10 @@ name: taosKeeper Build
 on:
   pull_request:
     branches:
-      - 'main'
-      - '3.0'
+      - "main"
+      - "3.0"
     paths:
-      - 'tools/keeper/**'
+      - "tools/keeper/**"
 
 jobs:
   build:
@@ -57,7 +57,15 @@ jobs:
         run: |
           go mod tidy
           sudo go test -v -ldflags="-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true'" -coverpkg=./... -coverprofile=coverage.out ./...
-          go tool cover -func=coverage.out
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.KEEPER_CODECOV_TOKEN }}
+          files: coverage.out
+          fail_ci_if_error: true
+          verbose: true
+          slug: taosdata/taoskeeper
 
       - name: Clean up
         if: always()
