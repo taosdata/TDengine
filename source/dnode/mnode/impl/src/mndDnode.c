@@ -1112,15 +1112,18 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   int32_t         code = -1;
   SDnodeObj      *pDnode = NULL;
   SCreateDnodeReq createReq = {0};
+  int32_t         lino = 0;
 
   if ((code = grantCheck(TSDB_GRANT_DNODE)) != 0 || (code = grantCheck(TSDB_GRANT_CPU_CORES)) != 0) {
     goto _OVER;
   }
 
-  TAOS_CHECK_GOTO(tDeserializeSCreateDnodeReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
+  code = tDeserializeSCreateDnodeReq(pReq->pCont, pReq->contLen, &createReq);
+  TAOS_CHECK_GOTO(code, &lino, _OVER);
 
   mInfo("dnode:%s:%d, start to create", createReq.fqdn, createReq.port);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DNODE), NULL, _OVER);
+  code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DNODE);
+  TAOS_CHECK_GOTO(code, &lino, _OVER);
 
   if (createReq.fqdn[0] == 0 || createReq.port <= 0 || createReq.port > UINT16_MAX) {
     code = TSDB_CODE_MND_INVALID_DNODE_EP;
