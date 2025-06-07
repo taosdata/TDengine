@@ -1719,6 +1719,7 @@ int32_t tSerializeSS3MigrateDbRsp(void* buf, int32_t bufLen, SS3MigrateDbRsp* pR
 int32_t tDeserializeSS3MigrateDbRsp(void* buf, int32_t bufLen, SS3MigrateDbRsp* pRsp);
 
 typedef struct {
+  int32_t s3MigrateId;
   int64_t timestamp;
 } SS3MigrateVnodeReq;
 
@@ -1733,7 +1734,6 @@ typedef struct {
 int32_t tSerializeSQueryS3MigrateProgressReq(void* buf, int32_t bufLen, SQueryS3MigrateProgressReq* pReq);
 int32_t tDeserializeSQueryS3MigrateProgressReq(void* buf, int32_t bufLen, SQueryS3MigrateProgressReq* pReq);
 
-
 #define FILE_SET_MIGRATE_STATE_IN_PROGRESS 0
 #define FILE_SET_MIGRATE_STATE_SUCCEEDED 1
 #define FILE_SET_MIGRATE_STATE_SKIPPED 2
@@ -1745,7 +1745,11 @@ typedef struct {
 } SFileSetS3MigrateState;
 
 typedef struct {
-  int32_t s3MigrateId;
+  // if all taosd were restarted during the migration, then vnode migrate id will be 0,
+  // that's mnode will repeatedly request the migration progress. to avoid this, we need
+  // to save mnode migrate id in the response, so that mnode can drop it.
+  int32_t mnodeMigrateId; // migrate id requested by mnode
+  int32_t vnodeMigrateId; // migrate id reponsed by vnode
   int32_t dnodeId;
   int32_t vgId;
   int64_t startTimeSec;
