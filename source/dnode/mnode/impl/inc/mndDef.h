@@ -402,7 +402,7 @@ typedef struct {
   int32_t       authVersion;
   int32_t       passVersion;
   int64_t       ipWhiteListVer;
-  SIpWhiteList* pIpWhiteList;
+  SIpWhiteListDual* pIpWhiteListDual;
 
   SHashObj* readDbs;
   SHashObj* writeDbs;

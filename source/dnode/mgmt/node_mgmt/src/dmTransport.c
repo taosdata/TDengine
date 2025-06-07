@@ -91,7 +91,7 @@ static int32_t dmConvertErrCode(tmsg_t msgType, int32_t code) {
 static void dmUpdateRpcIpWhite(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
   int32_t        code = 0;
   SUpdateIpWhite ipWhite = {0};  // aosMemoryCalloc(1, sizeof(SUpdateIpWhite));
-  code = tDeserializeSUpdateIpWhite(pRpc->pCont, pRpc->contLen, &ipWhite);
+  code = tDeserializeSUpdateIpWhiteDual(pRpc->pCont, pRpc->contLen, &ipWhite);
   if (code < 0) {
     dError("failed to update rpc ip-white since: %s", tstrerror(code));
     return;
@@ -99,7 +99,7 @@ static void dmUpdateRpcIpWhite(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
   code = rpcSetIpWhite(pTrans, &ipWhite);
   pData->ipWhiteVer = ipWhite.ver;
 
-  (void)tFreeSUpdateIpWhiteReq(&ipWhite);
+  (void)tFreeSUpdateIpWhiteDualReq(&ipWhite);
 
   rpcFreeCont(pRpc->pCont);
 }
@@ -144,12 +144,12 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     goto _OVER;
   }
   if ((code = taosCheckVersionCompatible(pRpc->info.cliVer, svrVer, 3)) != 0) {
-    dError("Version not compatible, cli ver: %d, svr ver: %d, ip:0x%x", pRpc->info.cliVer, svrVer,
-           pRpc->info.conn.clientIp);
+    dError("Version not compatible, cli ver: %d, svr ver: %d, ip:%s", pRpc->info.cliVer, svrVer,
+           IP_ADDR_STR(&pRpc->info.conn.cliAddr));
     goto _OVER;
   }
 
-  bool isForbidden = dmIsForbiddenIp(pRpc->info.forbiddenIp, pRpc->info.conn.user, pRpc->info.conn.clientIp);
+  bool isForbidden = dmIsForbiddenIp(pRpc->info.forbiddenIp, pRpc->info.conn.user, 0);
   if (isForbidden) {
     code = TSDB_CODE_IP_NOT_IN_WHITE_LIST;
     goto _OVER;
@@ -173,6 +173,9 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
       }
       break;
     case TDMT_MND_RETRIEVE_IP_WHITE_RSP:
+      dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
+      return;
+    case TDMT_MND_RETRIEVE_IP_WHITE_DUAL_RSP:
       dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
     case TDMT_MND_RETRIEVE_ANAL_ALGO_RSP:
@@ -436,6 +439,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.notWaitAvaliableConn = 0;
   rpcInit.startReadTimer = 1;
   rpcInit.readTimeout = tsReadTimeout;
+  rpcInit.ipv6 = tsEnableIpv6;
 
   if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
     dError("failed to convert version string:%s to int", td_version);
@@ -485,6 +489,7 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.startReadTimer = 0;
   rpcInit.readTimeout = 0;
+  rpcInit.ipv6 = tsEnableIpv6;
 
   if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
     dError("failed to convert version string:%s to int", td_version);
@@ -535,6 +540,7 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.startReadTimer = 1;
   rpcInit.readTimeout = tsReadTimeout;
+  rpcInit.ipv6 = tsEnableIpv6;
 
   if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
     dError("failed to convert version string:%s to int", td_version);
@@ -576,10 +582,12 @@ void dmCleanupSyncClient(SDnode *pDnode) {
 }
 
 int32_t dmInitServer(SDnode *pDnode) {
+  int32_t      code = 0;
   SDnodeTrans *pTrans = &pDnode->trans;
 
   SRpcInit rpcInit = {0};
   tstrncpy(rpcInit.localFqdn, tsLocalFqdn, TSDB_FQDN_LEN);
+
   rpcInit.localPort = tsServerPort;
   rpcInit.label = "DND-S";
   rpcInit.numOfThreads = tsNumOfRpcThreads;
@@ -590,6 +598,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   rpcInit.parent = pDnode;
   rpcInit.compressSize = tsCompressMsgSize;
   rpcInit.shareConnLimit = tsShareConnLimit * 16;
+  rpcInit.ipv6 = tsEnableIpv6;
 
   if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
     dError("failed to convert version string:%s to int", td_version);
