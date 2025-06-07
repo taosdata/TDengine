@@ -39,13 +39,13 @@ typedef struct SStreamHbInfo {
   SStreamHbMsg hbMsg;
 } SStreamHbInfo;
 
-typedef struct SStreamTasksInfo {
-  SRWLatch            taskLock;
+typedef struct SStreamInfo {
+  SRWLatch            lock;
   int32_t             taskNum;
   
   SArray*             readerList;        // SArray<SStreamReaderTask>
   
-  SRWLatch            triggerTaskLock;
+  int8_t              triggerUndeployed;
   SStreamTriggerTask* triggerTask;
   
   SArray*             runnerList;        // SArray<SStreamRunnerTask>
@@ -57,7 +57,7 @@ typedef struct SStreamTasksInfo {
   SRWLatch            undeployRunnersLock;
   SArray*             undeployRunners;        // SArray<taskId>
 
-} SStreamTasksInfo;
+} SStreamInfo;
 
 typedef struct SStreamVgReaderTasks {
   SRWLatch lock;
@@ -86,7 +86,7 @@ typedef struct SStreamMgmtInfo {
   SArray*                vgLeaders;
 
   int8_t                 stmGrpIdx;
-  SHashObj*              stmGrp[STREAM_MAX_GROUP_NUM];    // streamId => SStreamTasksInfo
+  SHashObj*              stmGrp[STREAM_MAX_GROUP_NUM];    // streamId => SStreamInfo
   SHashObj*              taskMap;                         // streamId + taskId => SStreamTask*
   SHashObj*              vgroupMap;                       // vgId => SStreamVgReaderTasks
 
@@ -103,7 +103,7 @@ int32_t smHandleMgmtRsp(SStreamMgmtRsps* rsps);
 int32_t smStartTasks(SStreamStartActions* actions);
 void smUndeployAllTasks(void);
 void streamTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* pParam, void* pHandle, tmr_h* pTmrId, const char* pMsg);
-int32_t stmBuildStreamsStatusReq(SArray** ppStatus, SArray** ppReq, int32_t gid);
+int32_t stmBuildHbStreamsStatusReq(SArray** ppStatus, SArray** ppReq, int32_t gid);
 int32_t stmAddFetchStreamGid(void);
 
 // initialize global request limit of stream triggers
@@ -115,10 +115,10 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
 int32_t stReaderTaskUndeploy(SStreamReaderTask** ppTask, const SStreamUndeployTaskMsg* pMsg, taskUndeplyCallback cb);
 int32_t stReaderTaskExecute(SStreamReaderTask* pTask, SStreamMsg* pMsg);
 
-void smHandleRemovedTask(SStreamTasksInfo* pStream, int64_t streamId, int32_t gid, bool isReader);
+void smHandleRemovedTask(SStreamInfo* pStream, int64_t streamId, int32_t gid, bool isReader);
 void smUndeployVgTasks(int32_t vgId);
 int32_t smDeployStreams(SStreamDeployActions* actions);
-void stmDestroySStreamTasksInfo(SStreamTasksInfo* p);
+void stmDestroySStreamInfo(SStreamInfo* p);
 void stmDestroySStreamMgmtReq(SStreamMgmtReq* pReq);
 int32_t streamBuildStateNotifyContent(ESTriggerEventType eventType, int16_t dataType, const char* pFromState,
                                       const char* pToState, char** ppContent);

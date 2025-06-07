@@ -70,7 +70,7 @@ int32_t streamHbBuildRequestMsg(SStreamHbMsg* pMsg, bool* skipHb) {
   pMsg->runnerThreadNum = tsNumOfStreamRunnerThreads;
   pMsg->streamGId = stmAddFetchStreamGid();
 
-  TAOS_CHECK_EXIT(stmBuildStreamsStatusReq(&pMsg->pStreamStatus, &pMsg->pStreamReq, pMsg->streamGId));
+  TAOS_CHECK_EXIT(stmBuildHbStreamsStatusReq(&pMsg->pStreamStatus, &pMsg->pStreamReq, pMsg->streamGId));
 
   if (NULL == pMsg->pStreamStatus) {
     if (0 != pMsg->streamGId || gStreamMgmt.hbReported) {

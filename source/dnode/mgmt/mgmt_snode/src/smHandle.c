@@ -103,6 +103,8 @@ int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
     goto _exit;
   }
 
+  smUpdateSnodeInfo(&createReq);
+
   dInfo("snode %d created, replicaId:%d", createReq.snodeId, createReq.replica.nodeId);
 
 _exit:
