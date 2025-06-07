@@ -169,10 +169,20 @@ class TestStreamDevBasic:
 
         tdSql.query("show qdb.streams;")
         tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "s1")
+        
         tdSql.query("show test.streams;")
         tdSql.checkRows(12)
+        tdSql.checkKeyData("streams1", 0, "streams1")
+        tdSql.checkKeyData("streams2", 0, "streams2")
+        tdSql.checkKeyData("streams3", 0, "streams3")
+        
         tdSql.query("select * from information_schema.ins_streams;")
         tdSql.checkRows(13)
+        tdSql.checkKeyData("s1", 1, "qdb")
+        tdSql.checkKeyData("streams5", 1, "test")
+        tdSql.checkKeyData("streams6", 1, "test")
+        
         tdSql.query("select * from information_schema.ins_streams where db_name='qdb';")
         tdSql.checkRows(1)
         tdSql.query("select * from information_schema.ins_streams where db_name='test';")
