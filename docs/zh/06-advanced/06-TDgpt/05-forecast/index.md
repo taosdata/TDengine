@@ -3,6 +3,9 @@ title: 预测分析
 description: 介绍 TDgpt 内置时序数据预测模型
 ---
 
+import covariate from './pic/fc-covariate.png';
+
+
 时序数据预测分析以持续一个时间段的时序数据作为输入，预测接下一个连续时间区间内时间序列数据趋势，并且用户可以指定（预测）输出的时间序列数据点数量。TDengine 引入新的 SQL 函数 `FORECAST` 提供预测分析功能。基础（用于预测的历史时间序列）数据是该函数的输入，输出即为预测结果。用户可以通过 `FORECAST` 函数调用 TDgpt 提供的预测算法提供的服务。预测分析通常只能针对超级表的子表或者不同表中同一个时间序列。
 
 在后续章节中，使用时序数据表 `foo` 作为示例，介绍预测和异常检测算法的使用方式，`foo` 表模式定义如下：
@@ -105,6 +108,12 @@ TDgpt 支持单变量分析预测 (single-variable forecasting) 。3.3.6.4 版�
 
 需要注意的是协变量分析预测只能搭配 moirai 时序基础模型，为此需要部署 moirai 时序数据基础模型。此时，参数 `algo` 只能是 `moiria`。
 在后续的版本中，我们将提供其他时序基础模型（如 timesfm）的协变量预测分析能力。
+
+<figure style={{textAlign:"center"}}>
+<img src={covariate} alt="协变量预测" />
+</figure>
+
+上图中包含两个协变量，一个目标变量（又称为主变量）。其中 `Target` 是预测分析的目标，`Predication value` 是预测结果。 `Past dynamic real features`  是历史协变量，`Dynamic real feature` 是未来协变量。历史协变量和未来协变量数据在时间段上与目标变量相同时间区间上的数据是从时序数据库中获取，未来协变量中与目标时间段对应的数据需要在 SQL 语句中输入。具体使用方式见下面的详细介绍。
 
 ### 历史协变量预测
 
