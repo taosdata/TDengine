@@ -46,7 +46,7 @@ int32_t vnodeQueryS3MigrateProgress(SVnode *pVnode, SRpcMsg *pMsg) {
   SQueryS3MigrateProgressRsp rsp = {0};
 
   // deserialize request
-  code = tDeserializeSQueryS3MigrateProgressReq(pMsg->pCont, pMsg->contLen, &req);
+  code = tDeserializeSQueryS3MigrateProgressReq(pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead), &req);
   if (code) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;

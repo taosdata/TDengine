@@ -6193,6 +6193,7 @@ int32_t tSerializeSS3MigrateVnodeReq(void *buf, int32_t bufLen, SS3MigrateVnodeR
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->s3MigrateId));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->timestamp));
 
   tEndEncode(&encoder);
@@ -6214,6 +6215,7 @@ int32_t tDeserializeSS3MigrateVnodeReq(void *buf, int32_t bufLen, SS3MigrateVnod
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->s3MigrateId));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->timestamp));
   tEndDecode(&decoder);
 _exit:
@@ -6268,7 +6270,8 @@ int32_t tSerializeSVnodeS3MigrateState(void* buf, int32_t bufLen, SVnodeS3Migrat
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pState->s3MigrateId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pState->mnodeMigrateId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pState->vnodeMigrateId));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pState->dnodeId));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pState->vgId));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pState->startTimeSec));
@@ -6301,7 +6304,8 @@ int32_t tDeserializeSVnodeS3MigrateState(void* buf, int32_t bufLen, SVnodeS3Migr
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pState->s3MigrateId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pState->mnodeMigrateId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pState->vnodeMigrateId));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pState->dnodeId));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pState->vgId));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pState->startTimeSec));
