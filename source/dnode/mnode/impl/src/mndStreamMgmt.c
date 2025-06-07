@@ -28,7 +28,43 @@
 #include "mndVgroup.h"
 #include "mndSnode.h"
 
+void msmDestroyActionQ() {
+  SStmQNode* pQNode = NULL;
+
+  if (NULL == mStreamMgmt.actionQ) {
+    return;
+  }
+
+  while (mndStreamActionDequeue(mStreamMgmt.actionQ, &pQNode)) {
+    taosMemoryFree(pQNode);
+  }
+
+  taosMemoryFree(mStreamMgmt.actionQ->head);
+  taosMemoryFree(mStreamMgmt.actionQ);
+}
+
+void msmDestroySStmThreadCtx(SStmThreadCtx* pCtx) {
+  for (int32_t m = 0; m < STREAM_MAX_GROUP_NUM; ++m) {
+    taosHashCleanup(pCtx->deployStm[m]);
+    taosHashCleanup(pCtx->actionStm[m]);
+  }
+}
+
+void msmDestroyThreadCtxs() {
+  if (NULL == mStreamMgmt.tCtx) {
+    return;
+  }
+  
+  for (int32_t i = 0; i < mStreamMgmt.threadNum; ++i) {
+    msmDestroySStmThreadCtx(mStreamMgmt.tCtx + i);
+  }
+}
+
+
 void msmDestroyRuntimeInfo(SMnode *pMnode) {
+  msmDestroyActionQ();
+  msmDestroyThreadCtxs();
+
   // STREAMTODO
 
   memset(&mStreamMgmt, 0, sizeof(mStreamMgmt));
@@ -2210,6 +2246,8 @@ static int32_t msmHandleStreamActions(SStmGrpCtx* pCtx) {
       default:
         break;
     }
+
+    taosMemoryFree(pQNode);
   }
 
 _exit:
