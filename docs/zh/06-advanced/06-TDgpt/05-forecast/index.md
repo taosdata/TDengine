@@ -69,7 +69,6 @@ algo=expr1
 - 对于某些不需要计算置信区间的算法，即使指定了置信区间，返回的结果中其上下界退化成为一个点。
 - rows 的最大输出值是 1024，即只能预测 1024 个值。超过输出范围的参数会被自动设置为 1024。
 - 预测分析需要至少 10 行数据作为预测依据，最多允许 40000 行数据作为预测依据，部分分析模型接受的输入数据行数更少。
-- 预测分析的结果可能是浮点数，最后生成的预测结果会转换为来源数据的类型。如果数据类型是整型，会导致预测结果损失。
 
 ### 示例
 
@@ -101,23 +100,38 @@ taos> select _flow, _fhigh, _frowts, forecast(val) from foo;
 
 ## 单变量与协变量分析预测
 
-TDgpt 支持单变量分析预测 (single-variable forecasting) 。3.3.6.4 版本以后支持历史协变量分析预测 (co-variate forecasting) ，
-暂不支持**未来协变量**和**静态协变量**。
+TDgpt 支持单变量分析预测 (single-variable forecasting) 。3.3.6.4 版本开始支持历史协变量分析预测 (co-variate forecasting) ，
+暂不支持**静态协变量**。
 
-需要注意的是协变量分析预测只能搭配 moirai 时序基础模型使用。当您使用协变量预测分析的时候，参数 `algo` 只能是 `moiria`。
-为此，需要部署 moirai 时序数据基础模型。在后续的版本中，我们将提供其他时序基础模型（如 timesfm）的协变量预测分析能力。
+需要注意的是协变量分析预测只能搭配 moirai 时序基础模型，为此需要部署 moirai 时序数据基础模型。此时，参数 `algo` 只能是 `moiria`。
+在后续的版本中，我们将提供其他时序基础模型（如 timesfm）的协变量预测分析能力。
 
-使用协变量分析非常简单，使用如下语句即可调用协变量预测分析服务 (以下语句只能在 3.3.6.4 及以后的版本运行)。
+### 历史协变量预测
 
-当 `forecast` 函数的输入单列的时候，即默认的单变量分析预测模式。多列输入的时候，第一列为**固定**主变量，之后的输入数据列是协变量。
-所有的输入列均只能是数值类型。每次预测查询允许的输入的历史协变量数据（列）限制为 10 列，如下的 SQL 语句展示了调用 moirai 的协变量预测分析功能。
+使用历史协变量预测非常简单，使用如下语句即可调用协变量预测分析服务 (以下语句只能在 3.3.6.4 及以后的版本运行)。
+
+当 `forecast` 函数的输入单列的时候，即默认的单变量分析预测模式。多列输入的时候，第一列为**主变量**，之后的输入数据列是协变量。
+所有的输入列均只能是数值类型。每次预测查询允许的输入的历史协变量数据（列）限制为 10 列，如下 SQL 语句展示了使用协变量的预测分析功能。
 
 ```sql
 ---- 第一列（val）为主变量，之后的列（past_co_val）为历史协变量，调用 moirai 基础时序模型
 select _frowts, forecast(val, past_co_val, 'algo=moirai') from foo;
 
----- 
-select _frowts, forecast(val, past_co_val, future_co_val, "algo=moirai, dynamic_real_1=[1 1 1 1], dynamic_real_1_col=future_co_val") from foo;
+```
+
+### 未来协变量预测
+
+未来协变量预测的时候，需要设置未来的输入值以及该输入值对应的写变量列。
+协变量列的输入需要在 SQL 语句中补充，采用中括号内数组方式，不同的数值之间采用空格分割。数量应该等于预测分析的数量，如果两个数量不等会导致报错。
+未来协变量采用 `dynamic_real_` 做为名称的前缀。例如有多个未来写变量，可以分别命名为 `dynamic_real_1` 、`dynamic_real_2`、`dynamic_real_3`...，以此类推。
+对于每个未来写变量数据，需要设置其关联的未来协变量列。`dynamic_real_1` 关联的列通过参数 `dynamic_real_1_col` 设置，`dynamic_real_2` 关联的列通过参数 `dynamic_real_2_col` 设置。
+
+如下所示，预测分析针对 `val` 列进行，同时提供一个历史协变量列 `past_co_val`，一个未来协变量列 `future_co_val`，未来协变量列数值通过 `dynamic_real_1` 设置，数组中有 4 个未来值，通过 `dynamic_real_1_col=future_co_val` 设置关联的未来协变列是 `future_co_val`。
+
+```sql
+
+select _frowts, forecast(val, past_co_val, future_co_val, "algo=moirai,rows=4,dynamic_real_1=[1 1 1 1], dynamic_real_1_col=future_co_val") from foo;
+
 ```
 
 
