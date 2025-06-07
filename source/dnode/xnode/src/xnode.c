@@ -22,7 +22,8 @@ int32_t xndOpen(const SXnodeOpt *pOption, SXnode **pXnode) {
   *pXnode = taosMemoryCalloc(1, sizeof(SXnode));
   if (NULL == *pXnode) {
     xndError("calloc SXnode failed");
-    return terrno;
+    code = terrno;
+    TAOS_RETURN(code);
   }
 
   (*pXnode)->msgCb = pOption->msgCb;
@@ -32,10 +33,15 @@ int32_t xndOpen(const SXnodeOpt *pOption, SXnode **pXnode) {
   if (TSDB_XNODE_OPT_PROTO_MQTT == (*pXnode)->protocol) {
     if ((code = mqttMgmtStartMqttd((*pXnode)->dnodeId)) != 0) {
       xndError("failed to start taosudf since %s", tstrerror(code));
-      return code;
+
+      taosMemoryFree(*pXnode);
+      TAOS_RETURN(code);
     }
   } else {
     xndError("Unknown xnode proto: %hhd.", (*pXnode)->protocol);
+
+    taosMemoryFree(*pXnode);
+    TAOS_RETURN(code);
   }
 
   xndInfo("Xnode opened.");

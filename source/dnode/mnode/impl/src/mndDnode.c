@@ -1221,7 +1221,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
   }
 
   if (pXObj != NULL) {
-    mInfo("trans:%d, snode on dnode:%d will be dropped", pTrans->id, pDnode->id);
+    mInfo("trans:%d, xnode on dnode:%d will be dropped", pTrans->id, pDnode->id);
     TAOS_CHECK_GOTO(mndSetDropXnodeInfoToTrans(pMnode, pTrans, pXObj, force), NULL, _OVER);
   }
 

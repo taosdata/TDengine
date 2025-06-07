@@ -177,6 +177,9 @@ static int32_t mndSetCreateXnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
   code = tSerializeSMCreateXnodeReq(pReq, contLen, &createReq);
   if (code < 0) {
     mError("xnode:%d, failed to serialize create drop xnode request since %s", createReq.dnodeId, terrstr());
+
+    taosMemoryFree(pReq);
+    TAOS_RETURN(code);
   }
 
   STransAction action = {0};
@@ -278,12 +281,7 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
     code = terrno;
     goto _OVER;
   }
-  /*
-  if (sdbGetSize(pMnode->pSdb, SDB_XNODE) >= 1) {
-    code = TSDB_CODE_MND_XNODE_ALREADY_EXIST;
-    goto _OVER;
-  }
-  */
+
   pDnode = mndAcquireDnode(pMnode, createReq.dnodeId);
   if (pDnode == NULL) {
     code = TSDB_CODE_MND_DNODE_NOT_EXIST;
@@ -414,6 +412,11 @@ static int32_t mndProcessDropXnodeReq(SRpcMsg *pReq) {
   pDnode = mndAcquireDnode(pMnode, dropReq.dnodeId);
   if (pDnode == NULL) {
     code = TSDB_CODE_MND_DNODE_NOT_EXIST;
+    goto _OVER;
+  }
+
+  if (!mndIsDnodeOnline(pDnode, taosGetTimestampMs())) {
+    code = TSDB_CODE_DNODE_OFFLINE;
     goto _OVER;
   }
 
