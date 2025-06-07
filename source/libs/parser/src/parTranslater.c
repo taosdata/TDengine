@@ -12725,6 +12725,14 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
   }
 
+  if (pTrigger->pTrigerTable == NULL && pTriggerOptions&& pTriggerOptions->pPreFilter) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "No prev filter when no triggertable");
+  }
+
+  if (pTrigger->pTrigerTable == NULL && LIST_LENGTH(pTrigger->pPartitionList) != 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "No partition when no triggertable");
+  }
+
   if (pTrigger->pPartitionList == NULL && pStmt->pSubtable) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "cannot specify output_subtable when no partition in trigger");
   }
@@ -12753,6 +12761,7 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
   if (pStmt->pQuery == NULL && pNotifyOptions && pNotifyOptions->pWhere) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Can not specify notify where when no query in stream");
   }
+
 
   SDbCfgInfo dbCfg = {0};
   PAR_ERR_RET(getDBCfg(pCxt, pStmt->streamDbName, &dbCfg));
