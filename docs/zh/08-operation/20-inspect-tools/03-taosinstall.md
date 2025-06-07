@@ -225,7 +225,7 @@ taos-explorer
 ```
 ./taosinstall install -m local
 ```
-在集群所有节点安装数据库, 日志级别配置为debug
+在集群所有节点安装数据库，日志级别配置为 debug
 ```
 ./taosinstall install -m ssh -l debug
 ```
