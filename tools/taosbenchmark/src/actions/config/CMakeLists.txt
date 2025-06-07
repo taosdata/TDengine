@@ -18,6 +18,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
 # 添加主库
 add_library(actions_config STATIC 
     src/ConnectionInfo.cpp
+    src/ColumnType.cpp
 )
 
 # 包含头文件目录
@@ -34,3 +35,12 @@ target_link_libraries(TestConnectionInfo PRIVATE
     actions_config
 )
 add_test(NAME TestConnectionInfo COMMAND TestConnectionInfo)
+
+# test ColumnInstance
+add_executable(TestColumnInstance
+    test/TestColumnInstance.cpp
+)
+target_link_libraries(TestColumnInstance PRIVATE 
+    actions_config
+)
+add_test(NAME TestColumnInstance COMMAND TestColumnInstance)
