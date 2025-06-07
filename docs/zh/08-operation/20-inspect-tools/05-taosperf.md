@@ -36,7 +36,7 @@ optional arguments:
 - `config`：工具加载的配置文件，其具体配置方式详见 **配置文件使用说明** 章节。 参数时配置文件默认路径为工具运行当前目录。
 - `result`：结果文件的存储目录，不配置 result 参数时默认路径为工具运行当前目录。
 - `backend`：后台运行安装工具，默认前台运行。
-- `test-item`：检查项目。可选项目为 all（ disk 和 network ）、disk 和 network。默认值为 all。
+- `test-item`：检查项目。可选项目为 all（disk 和 network）、disk 和 network。默认值为 all。
 - `log-level`：输出日志级别，目前支持 debug 和 info，模式为 info。
 - `ip`：指定目标机器IP地址，当配置ip后仅测试本机与目标机器间的网络传输能力。
 
