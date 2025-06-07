@@ -470,10 +470,13 @@ static int32_t stRunnerTopTaskHandleOutputBlockProj(SStreamRunnerTask* pTask, SS
 }
 
 int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq) {
-  ST_TASK_DLOG("start to handle runner task calc request, topTask: %d", pTask->topTask);
+  int32_t code = 0;
+  int32_t lino = 0;
+  SSDataBlock* pForceOutBlock = NULL;
   SStreamRunnerTaskExecution* pExec = NULL;
+  ST_TASK_DLOG("start to handle runner task calc request, topTask: %d", pTask->topTask);
 
-  int32_t code = stRunnerTaskExecMgrAcquireExec(pTask, pReq->execId, &pExec);
+  code = stRunnerTaskExecMgrAcquireExec(pTask, pReq->execId, &pExec);
   if (code != 0) {
     ST_TASK_ELOG("failed to get task exec for stream code:%s", tstrerror(code));
     return code;
@@ -487,17 +490,12 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   pExec->runtimeInfo.funcInfo.sessionId = pReq->sessionId;
 
   int32_t winNum = taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals);
-  if (winNum > STREAM_TRIGGER_MAX_WIN_NUM_PER_REQUEST) {
-    ST_TASK_ELOG("too many windows in one request, max:%d, cur:%d", STREAM_TRIGGER_MAX_WIN_NUM_PER_REQUEST, winNum);
-    code = TSDB_CODE_STREAM_TASK_IVLD_STATUS;
-  }
-  if (code == 0) {
-    if (!pExec->pExecutor) {
-      code = streamBuildTask(pTask, pExec);
-    } else {
-      if (pReq->brandNew)
-        code = streamResetTaskExec(pExec, pTask->output.outTblType == TSDB_NORMAL_TABLE);
-    }
+  STREAM_CHECK_CONDITION_GOTO(winNum > STREAM_TRIGGER_MAX_WIN_NUM_PER_REQUEST, TSDB_CODE_STREAM_TASK_IVLD_STATUS);
+
+  if (!pExec->pExecutor) {
+    STREAM_CHECK_RET_GOTO(streamBuildTask(pTask, pExec));
+  } else if (pReq->brandNew) {
+    STREAM_CHECK_RET_GOTO(streamResetTaskExec(pExec, pTask->output.outTblType == TSDB_NORMAL_TABLE));
   }
 
   streamSetTaskRuntimeInfo(pExec->pExecutor, &pExec->runtimeInfo);
@@ -506,56 +504,45 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   pExec->runtimeInfo.funcInfo.curOutIdx = pReq->curWinIdx;
   bool createTable = pReq->createTable;
   int32_t nextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx;
-  SSDataBlock* pForceOutBlock = NULL;
   while (pExec->runtimeInfo.funcInfo.curOutIdx < winNum && code == 0) {
     bool         finished = false;
     SSDataBlock* pBlock = NULL;
     uint64_t     ts = 0;
-    if (code == 0) {
-      code = streamExecuteTask(pExec->pExecutor, &pBlock, &ts, &finished);
-    }
-    if (code != 0) {
-      ST_TASK_ELOG("failed to exec task code: %s", tstrerror(code));
-      break;
-    } else {
-      if (pTask->topTask) {
-        if (pExec->runtimeInfo.funcInfo.withExternalWindow) {
-          if (pExec->runtimeInfo.funcInfo.extWinProjMode) {
-            code =
-                stRunnerTopTaskHandleOutputBlockProj(pTask, pExec, pBlock, &pForceOutBlock, &nextOutIdx, &createTable);
-          } else {
-            code =
-                stRunnerTopTaskHandleOutputBlockAgg(pTask, pExec, pBlock, &pForceOutBlock, &nextOutIdx, &createTable);
-          }
+    STREAM_CHECK_RET_GOTO(streamExecuteTask(pExec->pExecutor, &pBlock, &ts, &finished));
+    if (pTask->topTask) {
+      if (pExec->runtimeInfo.funcInfo.withExternalWindow) {
+        if (pExec->runtimeInfo.funcInfo.extWinProjMode) {
+          code =
+              stRunnerTopTaskHandleOutputBlockProj(pTask, pExec, pBlock, &pForceOutBlock, &nextOutIdx, &createTable);
         } else {
-          // no external window, only one window to calc, force output and output block
-          if (!pBlock || pBlock->info.rows == 0) {
-            if (nextOutIdx <= pExec->runtimeInfo.funcInfo.curOutIdx) {
-              if (pForceOutBlock) blockDataCleanup(pForceOutBlock);
-              code = streamForceOutput(pExec->pExecutor, &pForceOutBlock, nextOutIdx);
-              if (code == 0) {
-                code = stRunnerHandleResultBlock(pTask, pExec, pForceOutBlock, &createTable);
-              }
-              ++nextOutIdx;
-            }
-          } else {
-            code = stRunnerHandleResultBlock(pTask, pExec, pBlock, &createTable);
-            nextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx + 1;
-          }
-          if (finished) {
-            ++pExec->runtimeInfo.funcInfo.curIdx;
-            ++pExec->runtimeInfo.funcInfo.curOutIdx;
-          }
+          code =
+              stRunnerTopTaskHandleOutputBlockAgg(pTask, pExec, pBlock, &pForceOutBlock, &nextOutIdx, &createTable);
         }
       } else {
-        if (pBlock) {
-          code = createOneDataBlock(pBlock, true, (SSDataBlock**)&pReq->pOutBlock);
+        // no external window, only one window to calc, force output and output block
+        if (!pBlock || pBlock->info.rows == 0) {
+          if (nextOutIdx <= pExec->runtimeInfo.funcInfo.curOutIdx) {
+            if (pForceOutBlock) blockDataCleanup(pForceOutBlock);
+            code = streamForceOutput(pExec->pExecutor, &pForceOutBlock, nextOutIdx);
+            if (code == 0) {
+              code = stRunnerHandleResultBlock(pTask, pExec, pForceOutBlock, &createTable);
+            }
+            ++nextOutIdx;
+          }
         } else {
-          blockDataDestroy(pReq->pOutBlock);
-          pReq->pOutBlock = NULL;
+          code = stRunnerHandleResultBlock(pTask, pExec, pBlock, &createTable);
+          nextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx + 1;
         }
-        break;
+        if (finished) {
+          ++pExec->runtimeInfo.funcInfo.curIdx;
+          ++pExec->runtimeInfo.funcInfo.curOutIdx;
+        }
       }
+    } else {
+      if (pBlock) {
+        STREAM_CHECK_RET_GOTO(createOneDataBlock(pBlock, true, (SSDataBlock**)&pReq->pOutBlock));
+      } 
+      break;
     }
     if (finished) {
       streamResetTaskExec(pExec, true);
@@ -563,8 +550,10 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
     }
   }
 
+
+end:
   stRunnerTaskExecMgrReleaseExec(pTask, pExec);
-  if (pForceOutBlock) blockDataDestroy(pForceOutBlock);
+  if (pForceOutBlock != NULL) blockDataDestroy(pForceOutBlock);
   return code;
 }
 
