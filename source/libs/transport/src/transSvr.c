@@ -354,7 +354,7 @@ static bool uvWhiteListIsDefaultAddr(SIpAddr* ip) {
   code = tIpStrToUint(ip, &target);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
-  if (target.type) {
+  if (target.type == 0) {
     code = createDefaultIp4Range(&addr4);
     TAOS_CHECK_GOTO(code, &lino, _error);
 
