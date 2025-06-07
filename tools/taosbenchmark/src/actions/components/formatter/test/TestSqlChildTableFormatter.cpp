@@ -18,7 +18,7 @@ void test_format_create_child_table_single() {
     SqlChildTableFormatter formatter(format);
     std::string result = formatter.format(config, table_name, tags);
 
-    assert(result == "CREATE TABLE IF NOT EXISTS `test_db`.`child_table_1` USING `test_super_table` TAGS (3.14, 'California');");
+    assert(result == "CREATE TABLE IF NOT EXISTS `test_db`.`child_table_1` USING `test_db`.`test_super_table` TAGS (3.14, 'California');");
     std::cout << "test_format_create_child_table_single passed!" << std::endl;
 }
 
@@ -41,8 +41,8 @@ void test_format_create_child_table_multiple() {
 
     assert(std::holds_alternative<std::string>(result));
     assert(std::get<std::string>(result) ==
-           "CREATE TABLE IF NOT EXISTS `test_db`.`child_table_1` USING `test_super_table` TAGS (3.14, 'California');\n"
-           "CREATE TABLE IF NOT EXISTS `test_db`.`child_table_2` USING `test_super_table` TAGS (2.71, 'New York');");
+           "CREATE TABLE IF NOT EXISTS `test_db`.`child_table_1` USING `test_db`.`test_super_table` TAGS (3.14, 'California');\n"
+           "CREATE TABLE IF NOT EXISTS `test_db`.`child_table_2` USING `test_db`.`test_super_table` TAGS (2.71, 'New York');");
     std::cout << "test_format_create_child_table_multiple passed!" << std::endl;
 }
 
@@ -60,7 +60,7 @@ void test_format_create_child_table_empty_tags() {
     SqlChildTableFormatter formatter(format);
     std::string result = formatter.format(config, table_name, tags);
 
-    assert(result == "CREATE TABLE IF NOT EXISTS `test_db`.`child_table_1` USING `test_super_table` TAGS ();");
+    assert(result == "CREATE TABLE IF NOT EXISTS `test_db`.`child_table_1` USING `test_db`.`test_super_table` TAGS ();");
     std::cout << "test_format_create_child_table_empty_tags passed!" << std::endl;
 }
 

@@ -13,9 +13,8 @@ public:
     std::string format(const CreateChildTableConfig& config, std::string table_name, RowType tags) const {
         std::ostringstream result;
         result << "CREATE TABLE IF NOT EXISTS `" 
-               << config.database_info.name << "`.`" 
-               << table_name << "` USING `"
-               << config.super_table_info.name << "` TAGS (";
+               << config.database_info.name << "`.`"  << table_name << "` USING `"
+               << config.database_info.name << "`.`"  << config.super_table_info.name << "` TAGS (";
 
         for (size_t i = 0; i < tags.size(); ++i) {
             if (i > 0) {
