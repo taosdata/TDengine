@@ -34,12 +34,12 @@
 #include "tmqttBrokerInt.h"
 #endif
 
+#include "tmqtt.h"
 #include "ttqMemory.h"
 #include "ttqNet.h"
 #include "ttqSend.h"
 #include "ttqTime.h"
 #include "ttqTls.h"
-#include "tmqtt.h"
 #include "ttqUtil.h"
 
 #ifdef WITH_WEBSOCKETS
@@ -120,13 +120,6 @@ int tmqtt__check_keepalive(struct tmqtt *ttq) {
 }
 
 uint16_t tmqtt__mid_generate(struct tmqtt *ttq) {
-  /* FIXME - this would be better with atomic increment, but this is safer
-   * for now for a bug fix release.
-   *
-   * If this is changed to use atomic increment, callers of this function
-   * will have to be aware that they may receive a 0 result, which may not be
-   * used as a mid.
-   */
   uint16_t mid;
 
   ttq_pthread_mutex_lock(&ttq->mid_mutex);
