@@ -124,7 +124,7 @@ root hard stack=65536
 ```
 ./taospreset -m ssh -d
 ```
-以 SSH 模式在所有节点执行安装前预配置,开启日志 debug 级别
+以 SSH 模式在所有节点执行安装前预配置，开启日志 debug 级别
 ```
 ./taospreset -m ssh -l debug
 ```
