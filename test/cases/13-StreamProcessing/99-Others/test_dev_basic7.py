@@ -91,7 +91,9 @@ class TestStreamDevBasic:
 
         stream = StreamItem(
             id=0,
-            stream="create stream rdb.s0 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r0 as select _twstart ts, count(c1), avg(c2) from %%tbname where ts >= _twstart and ts < _twend and %%tbname = 't1'",
+            stream="create stream rdb.s0 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r0 as select _twstart ts, count(c1), avg(c2), from %%tbname where ts >= _twstart and ts < _twend and %%tbname = 't1'",
+            # stream="create stream rdb.s0 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r0 as select _twstart ts, count(c1), avg(c2), %%tbname from %%tbname where ts >= _twstart and ts < _twend and %%tbname = 't1'",
+            # stream="create stream rdb.s0 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r0 as select _twstart ts, count(c1), avg(c2) from %%tbname where ts >= _twstart and ts < _twend",
             res_query="",
             check_func=self.check0,
         )
@@ -108,34 +110,34 @@ class TestStreamDevBasic:
 
         tdSql.checkResultsByFunc(
             sql="select *, tag_tbname from rdb.r0 where tag_tbname='t1'",
-            func=lambda: self.getRows() == 7
-            and self.compareData(0, 0, "2025-01-01 00:00:00.000")
-            and self.compareData(1, 0, "2025-01-01 00:05:00.000")
-            and self.compareData(2, 0, "2025-01-01 00:10:00.000")
-            and self.compareData(3, 0, "2025-01-01 00:15:00.000")
-            and self.compareData(4, 0, "2025-01-01 00:20:00.000")
-            and self.compareData(5, 0, "2025-01-01 00:25:00.000")
-            and self.compareData(6, 0, "2025-01-01 00:30:00.000")
-            and self.compareData(0, 1, 1)
-            and self.compareData(1, 1, 1)
-            and self.compareData(2, 1, 1)
-            and self.compareData(3, 1, 0)
-            and self.compareData(4, 1, 0)
-            and self.compareData(5, 1, 0)
-            and self.compareData(6, 1, 2)
-            and self.compareData(0, 2, 0)
-            and self.compareData(1, 2, 50)
-            and self.compareData(2, 2, 100)
-            and self.compareData(3, 2, None)
-            and self.compareData(4, 2, None)
-            and self.compareData(5, 2, None)
-            and self.compareData(6, 2, 310)
+            func=lambda: tdSql.getRows() == 7
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.001")
+            and tdSql.compareData(1, 0, "2025-01-01 00:05:00.000")
+            and tdSql.compareData(2, 0, "2025-01-01 00:10:00.000")
+            and tdSql.compareData(3, 0, "2025-01-01 00:15:00.000")
+            and tdSql.compareData(4, 0, "2025-01-01 00:20:00.000")
+            and tdSql.compareData(5, 0, "2025-01-01 00:25:00.000")
+            and tdSql.compareData(6, 0, "2025-01-01 00:30:00.000")
+            and tdSql.compareData(0, 1, 1)
+            and tdSql.compareData(1, 1, 1)
+            and tdSql.compareData(2, 1, 1)
+            and tdSql.compareData(3, 1, 0)
+            and tdSql.compareData(4, 1, 0)
+            and tdSql.compareData(5, 1, 0)
+            and tdSql.compareData(6, 1, 2)
+            and tdSql.compareData(0, 2, 0)
+            and tdSql.compareData(1, 2, 50)
+            and tdSql.compareData(2, 2, 100)
+            and tdSql.compareData(3, 2, None)
+            and tdSql.compareData(4, 2, None)
+            and tdSql.compareData(5, 2, None)
+            and tdSql.compareData(6, 2, 310)
         )
 
         tdSql.checkResultsByFunc(
             sql="select *, tag_tbname from rdb.r0 where tag_tbname='t2'",
-            func=lambda: self.getRows() == 1
-            and self.compareData(0, 0, "2025-01-01 00:10:00.000")
-            and self.compareData(0, 1, 2)
-            and self.compareData(0, 2, 115),
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "2025-01-01 00:10:00.000")
+            and tdSql.compareData(0, 1, 2)
+            and tdSql.compareData(0, 2, 115),
         )

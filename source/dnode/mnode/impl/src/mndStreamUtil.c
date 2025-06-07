@@ -125,10 +125,10 @@ static bool mstChkSetDbInUse(SMnode *pMnode, void *pObj, void *p1, void *p2, voi
   return true;
 }
 
-int32_t mstCheckDbInUse(SMnode *pMnode, char *dbFName, bool *dbStream, bool *vtableStream, bool ignoreCurrDb) {
+void mstCheckDbInUse(SMnode *pMnode, char *dbFName, bool *dbStream, bool *vtableStream, bool ignoreCurrDb) {
   int32_t streamNum = sdbGetSize(pMnode->pSdb, SDB_STREAM);
   if (streamNum <= 0) {
-    return TSDB_CODE_SUCCESS;
+    return;
   }
 
   SStmCheckDbInUseCtx ctx = {dbStream, vtableStream, ignoreCurrDb};
@@ -711,6 +711,14 @@ int32_t setStreamAttrInResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_
   code = colDataSetVal(pColInfo, numOfRows, (const char*)streamName, false);
   TSDB_CHECK_CODE(code, lino, _end);
 
+  // db_name
+  char streamDB[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  STR_WITH_MAXSIZE_TO_VARSTR(streamDB, mndGetDbStr(pStream->pCreate->streamDB), sizeof(streamDB));
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)&streamDB, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
   // create time
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
@@ -739,14 +747,6 @@ int32_t setStreamAttrInResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
   code = colDataSetVal(pColInfo, numOfRows, (const char*)&status, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // streamDB
-  char streamDB[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-  STR_WITH_MAXSIZE_TO_VARSTR(streamDB, mndGetDbStr(pStream->pCreate->streamDB), sizeof(streamDB));
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-  code = colDataSetVal(pColInfo, numOfRows, (const char*)&streamDB, false);
   TSDB_CHECK_CODE(code, lino, _end);
 
   // snodeLeader

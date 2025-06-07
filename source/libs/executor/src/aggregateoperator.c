@@ -789,8 +789,15 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
       idata.info.scale = pCtx[k].pExpr->base.resSchema.scale;
       idata.pData = p;
 
-      const void* val = fmGetStreamPesudoFuncVal(pCtx[k].functionId, &taskInfo->pStreamRuntimeInfo->funcInfo);
-      colDataSetInt64(&idata, 0, (void*)val);
+      if (IS_VAR_DATA_TYPE(idata.info.type)) {   //stream todo
+        // void* data = NULL; stream todo
+        // int32_t size = 0;
+        // fmGetStreamPesudoFuncValTbname(pCtx[k].functionId, &taskInfo->pStreamRuntimeInfo->funcInfo, &data, &size);
+        // code = varColSetVarData(&idata, 0, data, size, false);
+      } else {
+        const void* val = fmGetStreamPesudoFuncVal(pCtx[k].functionId, &taskInfo->pStreamRuntimeInfo->funcInfo);
+        colDataSetInt64(&idata, 0, (void*)val);
+      }
       if (code != 0) {
         qError("col set data failed at %d, code: %s", __LINE__, tstrerror(code));
         taskInfo->code = code;

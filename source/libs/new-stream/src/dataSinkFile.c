@@ -413,7 +413,7 @@ int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMg
 
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
-    stError("failed to move sliding group memory cache, err: %s, lineno:%d", terrMsg, lino);
+    stError("failed to move sliding group memory cache, code: %d, lineno:%d", code, lino);
     addToFreeBlock(pFileMgr, &groupBlockOffset);
   }
   taosMemoryFree(iov);

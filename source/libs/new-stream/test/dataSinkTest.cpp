@@ -12,11 +12,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include <gtest/gtest.h>
 
+#include <gtest/gtest.h>
 #include <stdint.h>
+#include <unistd.h>
+#include <thread>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+#include <vector>
+#include <random>
+
 #include "dataSink.h"
 #include "tdatablock.h"
+
 
 const int64_t baseTestTime1 = 1745142096000;
 const int64_t baseTestTime2 = 1745142097000;
@@ -63,17 +72,18 @@ SSDataBlock* createTestBlock(int64_t basetime, int64_t timeOffset) {
   SColumnInfoData* p0 = (SColumnInfoData*)taosArrayGet(b->pDataBlock, 0);
   SColumnInfoData* p1 = (SColumnInfoData*)taosArrayGet(b->pDataBlock, 1);
 
-  printf("binary column length:%d\n", *(int32_t*)p1->pData);
+  //printf("binary column length:%d\n", *(int32_t*)p1->pData);
 
   char* pData = colDataGetData(p1, 2);
-  printf("the second row of binary:%s, length:%d\n", (char*)varDataVal(pData), varDataLen(pData));
+  //printf("the second row of binary:%s, length:%d\n", (char*)varDataVal(pData), varDataLen(pData));
   pData = colDataGetData(p1, 3);
-  printf("the third row: %s, length:%d\n", (char*)varDataVal(pData), varDataLen(pData));
+  //printf("the third row: %s, length:%d\n", (char*)varDataVal(pData), varDataLen(pData));
   return b;
 }
 
 bool compareBlock(SSDataBlock* b1, SSDataBlock* b2) {
   if (b1->info.rows != b2->info.rows) {
+    printf("compareBlock: rows not equal, b1:%" PRId64 ", b2:%" PRId64 "\n", b1->info.rows, b2->info.rows);
     return false;
   }
 
@@ -82,6 +92,8 @@ bool compareBlock(SSDataBlock* b1, SSDataBlock* b2) {
     SColumnInfoData* p1 = (SColumnInfoData*)taosArrayGet(b2->pDataBlock, 0);
 
     if (*(int32_t*)colDataGetData(p0, i) != *(int32_t*)colDataGetData(p1, i)) {
+      printf("compareBlock: timestamp not equal at row %d, b1:%" PRId64 ", b2:%" PRId64 "\n", i,
+             *(int64_t*)colDataGetData(p0, i), *(int64_t*)colDataGetData(p1, i));
       return false;
     }
   }
@@ -89,9 +101,9 @@ bool compareBlock(SSDataBlock* b1, SSDataBlock* b2) {
   SColumnInfoData* p2 = (SColumnInfoData*)taosArrayGet(b2->pDataBlock, 1);
 
   char* pData = colDataGetData(p1, 3);
-  printf("b1 the third row of binary:%s, length:%d\n", (char*)varDataVal(pData), varDataLen(pData));
+  //printf("b1 the third row of binary:%s, length:%d\n", (char*)varDataVal(pData), varDataLen(pData));
   pData = colDataGetData(p1, 3);
-  printf("b2 the third row of binary:%s, length:%d\n", (char*)varDataVal(pData), varDataLen(pData));
+  //printf("b2 the third row of binary:%s, length:%d\n", (char*)varDataVal(pData), varDataLen(pData));
   return true;
 }
 
@@ -102,11 +114,15 @@ bool compareBlockRow(SSDataBlock* b1, SSDataBlock* b2, int32_t row1, int32_t row
 
     if (i == 0) {
       if (*(int64_t*)colDataGetData(p1, row1) != *(int64_t*)colDataGetData(p2, row2)) {
+        printf("compareBlockRow: timestamp not equal at row %d, b1:%" PRId64 ", b2:%" PRId64 "\n", row1,
+               *(int64_t*)colDataGetData(p1, row1), *(int64_t*)colDataGetData(p2, row2));
         return false;
       }
       continue;
     } else {
       if (colDataIsNull(p1, b1->info.rows, row1, NULL) != colDataIsNull(p2, b2->info.rows, row2, NULL)) {
+        printf("compareBlockRow: null status not equal at row %d, b1:%d, b2:%d\n", row1,
+               colDataIsNull(p1, b1->info.rows, row1, NULL), colDataIsNull(p2, b2->info.rows, row2, NULL));
         return false;
       }
       if (colDataIsNull(p1, b1->info.rows, row1, NULL) == true) {
@@ -116,13 +132,19 @@ bool compareBlockRow(SSDataBlock* b1, SSDataBlock* b2, int32_t row1, int32_t row
         char* pData = colDataGetData(p1, row1);
         char* pData2 = colDataGetData(p2, row2);
         if (varDataLen(pData) != varDataLen(pData2)) {
+          printf("compareBlockRow: var data length not equal at row %d, b1:%d, b2:%d\n", row1, varDataLen(pData),
+                 varDataLen(pData2));
           return false;
         }
         if (memcmp(varDataVal(pData), varDataVal(pData2), varDataLen(pData)) != 0) {
+          printf("compareBlockRow: var data not equal at row %d, b1:%s, b2:%s\n", row1, (char*)varDataVal(pData),
+                 (char*)varDataVal(pData2));
           return false;
         }
       } else {
         if (*(int32_t*)colDataGetData(p1, row1) != *(int32_t*)colDataGetData(p2, row2)) {
+          printf("compareBlockRow: data not equal at row %d, b1:%d, b2:%d\n", row1,
+                 *(int32_t*)colDataGetData(p1, row1), *(int32_t*)colDataGetData(p2, row2));
           return false;
         }
       }
@@ -285,6 +307,7 @@ TEST(dataSinkTest, getSlidingStreamData) {
   ASSERT_EQ(code, 0);
   void* pIter = NULL;
   blockDataDestroy(pBlock);
+  pBlock = NULL;
   code = getStreamDataCache(pCache, groupID, baseTestTime1 + 50, baseTestTime1 + 150, &pIter);
   ASSERT_EQ(code, 0);
   SSDataBlock* pBlock1 = NULL;
@@ -302,6 +325,7 @@ TEST(dataSinkTest, getSlidingStreamData) {
   rows = pBlock1->info.rows;
   ASSERT_EQ(rows, 51);
   blockDataDestroy(pBlock1);
+  pBlock1 = NULL;
 
   pBlock = createTestBlock(baseTestTime1, 200);
   cleanMode = DATA_CLEAN_EXPIRED;
@@ -319,6 +343,8 @@ TEST(dataSinkTest, getSlidingStreamData) {
   ASSERT_NE(pIter, nullptr);
   rows = pBlock1->info.rows;
   ASSERT_EQ(rows, 50);
+  blockDataDestroy(pBlock1);
+  pBlock1 = NULL;
   code = getNextStreamDataCache(&pIter, &pBlock1);
   ASSERT_EQ(code, 0);
   ASSERT_NE(pBlock1, nullptr);
@@ -766,6 +792,120 @@ TEST(dataSinkTest, testWriteFileSize) {
   }
 
   blockDataDestroy(pBlock);
+
+  destroyStreamDataCache(pCache);
+}
+
+TEST(dataSinkTest, multiThreadGet) {
+  const int producerCount = 1;
+  const int consumerCount = 1;
+  const int taskPerProducer = 10000;
+
+  struct Task {
+    int64_t      groupID;
+    TSKEY        wstart;
+    TSKEY        wend;
+    SSDataBlock* pBlock;
+  };
+
+  std::queue<Task>        taskQueue;
+  std::mutex              queueMutex;
+  std::condition_variable queueCV;
+  bool                    done = false;
+
+  int32_t groups[100] = {0};
+  // 初始化数据缓存
+  setDataSinkMaxMemSize(gMemReservedSize + 1024 * 1024);
+  int64_t streamId = 100;
+  int64_t taskId = 100;
+  int32_t cleanMode = DATA_CLEAN_EXPIRED;
+  void*   pCache = NULL;
+  int32_t code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
+  ASSERT_EQ(code, 0);
+
+  std::random_device                     rd;
+  std::mt19937                           gen(rd());
+  std::uniform_int_distribution<int64_t> dist(0, 99);
+
+  // 生产者线程
+  auto producer = [&](int tid) {
+    for (int i = 0; i < taskPerProducer; ++i) {
+      int64_t      groupId = dist(gen);
+      TSKEY        wstart = baseTestTime1 + groups[groupId] * 100;
+      TSKEY        wend = baseTestTime1 + (++groups[groupId]) * 100;
+      SSDataBlock* pBlock = createTestBlock(wstart, 0);
+      code = putStreamDataCache(pCache, groupId, wstart, wend, pBlock, 0, 99);
+      ASSERT_EQ(code, 0);
+
+      // 放入任务队列
+      {
+        std::lock_guard<std::mutex> lock(queueMutex);
+        taskQueue.push(Task{groupId, wstart, wend, pBlock});
+      }
+      queueCV.notify_one();
+    }
+  };
+
+  // 消费者线程
+  auto consumer = [&]() {
+    while (true) {
+      Task task;
+      {
+        std::unique_lock<std::mutex> lock(queueMutex);
+        queueCV.wait(lock, [&] { return !taskQueue.empty() || done; });
+        if (taskQueue.empty() && done) break;
+        if (taskQueue.empty()) continue;
+        task = taskQueue.front();
+        taskQueue.pop();
+      }
+      // 消费任务：get 数据并校验
+      void*   pIter = NULL;
+      int32_t code2 = getStreamDataCache(pCache, task.groupID, task.wstart, task.wend - 1, &pIter);
+      ASSERT_EQ(code2, 0);
+      ASSERT_NE(pIter, nullptr);
+      SSDataBlock* pBlock1 = NULL;
+      code2 = getNextStreamDataCache(&pIter, &pBlock1);
+      ASSERT_EQ(code2, 0);
+      ASSERT_NE(pBlock1, nullptr);
+      ASSERT_EQ(pBlock1->info.rows, 100);
+      bool equal = compareBlock(task.pBlock, pBlock1);
+      ASSERT_EQ(equal, true);
+      blockDataDestroy(pBlock1);
+      pBlock1 = NULL;
+      if (pIter != nullptr) {
+        code2 = getNextStreamDataCache(&pIter, &pBlock1);
+        ASSERT_EQ(code2, 0);
+        ASSERT_EQ(pBlock1, nullptr);
+        ASSERT_EQ(pIter, nullptr);
+      }
+      blockDataDestroy(task.pBlock);
+    }
+  };
+
+  // 启动生产者线程
+  std::vector<std::thread> producers;
+  for (int i = 0; i < producerCount; ++i) {
+    producers.emplace_back(producer, i);
+  }
+
+  // 启动消费者线程
+  std::vector<std::thread> consumers;
+  for (int i = 0; i < consumerCount; ++i) {
+    consumers.emplace_back(consumer);
+  }
+
+  // 等待生产者结束
+  for (auto& t : producers) t.join();
+
+  // 通知消费者结束
+  {
+    std::lock_guard<std::mutex> lock(queueMutex);
+    done = true;
+  }
+  queueCV.notify_all();
+
+  // 等待消费者结束
+  for (auto& t : consumers) t.join();
 
   destroyStreamDataCache(pCache);
 }

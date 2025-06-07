@@ -3023,21 +3023,12 @@ void tDestroySStreamGroupValue(void* ptr) {
 static int32_t tDeserializeSTriggerCalcParam(SDecoder* pDecoder, SArray**ppParams, bool ignoreNotificationInfo) {
   int32_t size = 0, code = 0, lino = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &size));
-  taosArrayClearP(*ppParams, tDestroySSTriggerCalcParam);
-  SArray* pParams = NULL;
-  if (size > 0) {
-    if (*ppParams == NULL) {
-      *ppParams = taosArrayInit(size, sizeof(SSTriggerCalcParam));
-      if (*ppParams == NULL) {
-        TAOS_CHECK_EXIT(terrno);
-      }
-    } else {
-      TAOS_CHECK_EXIT(taosArrayEnsureCap(*ppParams, size));      
-    }
-    TARRAY_SIZE(*ppParams) = size;
+  *ppParams = taosArrayInit(size, sizeof(SSTriggerCalcParam));
+  if (*ppParams == NULL) {
+    TAOS_CHECK_EXIT(terrno);
   }
   for (int32_t i = 0; i < size; ++i) {
-    SSTriggerCalcParam* param = taosArrayGet(*ppParams, i);
+    SSTriggerCalcParam* param = taosArrayReserve(*ppParams, 1);
     if (param == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
@@ -3104,7 +3095,7 @@ static int32_t tDeserializeStriggerGroupColVals(SDecoder* pDecoder, SArray** ppG
   int32_t size = 0;
 
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &size));
-  taosArrayClearP(*ppGroupColVals, tDestroySStreamGroupValue);
+  taosArrayClearEx(*ppGroupColVals, tDestroySStreamGroupValue);
   if (size > 0) {
     if (*ppGroupColVals == NULL) {
       *ppGroupColVals = taosArrayInit(size, sizeof(SStreamGroupValue));
@@ -3242,13 +3233,14 @@ _exit:
 void tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq) {
   if (pReq != NULL) {
     if (pReq->params != NULL) {
-      taosArrayDestroyP(pReq->params, tDestroySSTriggerCalcParam);
+      taosArrayDestroyEx(pReq->params, tDestroySSTriggerCalcParam);
       pReq->params = NULL;
     }
     if (pReq->groupColVals != NULL) {
-      taosArrayDestroyP(pReq->groupColVals, tDestroySStreamGroupValue);
+      taosArrayDestroyEx(pReq->groupColVals, tDestroySStreamGroupValue);
       pReq->groupColVals = NULL;
     }
+    blockDataDestroy(pReq->pOutBlock);
   }
 }
 
@@ -3275,6 +3267,19 @@ int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pIn
   TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &pInfo->withExternalWindow));
 _exit:
   return code;
+}
+
+int32_t tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo){
+  if (pInfo == NULL) return TSDB_CODE_SUCCESS;
+  if (pInfo->pStreamPesudoFuncVals != NULL) {
+    taosArrayDestroyEx(pInfo->pStreamPesudoFuncVals, tDestroySSTriggerCalcParam);
+    pInfo->pStreamPesudoFuncVals = NULL;
+  }
+  if (pInfo->pStreamPartColVals != NULL) {
+    taosArrayDestroyEx(pInfo->pStreamPartColVals, tDestroySStreamGroupValue);
+    pInfo->pStreamPartColVals = NULL;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tSerializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, const SStreamMsgVTableInfo* pRsp){

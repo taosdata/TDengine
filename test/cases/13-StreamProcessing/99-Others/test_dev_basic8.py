@@ -113,8 +113,16 @@ class TestStreamDevBasic:
 
     def basic2(self):
         tdLog.info(f"streamTwaError")
-        tdStream.dropAllStreamsAndDbs()
+        dbList = tdSql.query("show databases", row_tag=True)
+        for r in range(len(dbList)):
+            dbname = dbList[r][0]
+            if dbname != "information_schema" and dbname != "performance_schema":
+                tdLog.info(f"drop database {dbname}")
+                tdSql.execute(f"drop database {dbname}")
 
+        tdLog.info(f"drop {len(dbList)} databases")
+        
+        
         tdLog.info(f"step1")
         tdLog.info(f"=============== create database")
         tdSql.execute(f"create database test vgroups 1;")

@@ -127,6 +127,34 @@ typedef struct SStreamCacheReadInfo {
 
 #define STREAM_GID(_streamId) ((uint64_t)(_streamId) % STREAM_MAX_GROUP_NUM)
 
+#define STREAM_CHECK_RET_GOTO(CMD) \
+  code = (CMD);                    \
+  if (code != TSDB_CODE_SUCCESS) { \
+    lino = __LINE__;               \
+    goto end;                      \
+  }
+
+#define STREAM_CHECK_NULL_GOTO(CMD, ret) \
+  if ((CMD) == NULL) {                   \
+    code = ret;                          \
+    lino = __LINE__;                     \
+    goto end;                            \
+  }
+
+#define STREAM_CHECK_CONDITION_GOTO(CMD, ret) \
+  if (CMD) {                                  \
+    code = ret;                               \
+    lino = __LINE__;                          \
+    goto end;                                 \
+  }
+
+#define STREAM_PRINT_LOG_END(code, lino)                                              \
+  if (code != 0) {                                                             \
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code)); \
+  } else {                                                                     \
+    stDebug("%s done success", __func__);                                      \
+  }
+
 // clang-format off
 #define stFatal(...) do { if (stDebugFlag & DEBUG_FATAL) { taosPrintLog("STM FATAL ", DEBUG_FATAL, 255,         __VA_ARGS__); }} while(0)
 #define stError(...) do { if (stDebugFlag & DEBUG_ERROR) { taosPrintLog("STM ERROR ", DEBUG_ERROR, 255,         __VA_ARGS__); }} while(0)
@@ -191,9 +219,12 @@ int32_t streamHbHandleRspErr(int32_t errCode, int64_t currTs);
 int32_t streamInit(void *pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode);
 void    streamCleanup(void);
 int32_t streamGetTask(int64_t streamId, int64_t taskId, SStreamTask** ppTask);
-void streamHandleTaskError(int64_t streamId, int64_t taskId, int32_t errCode);
+void    streamHandleTaskError(int64_t streamId, int64_t taskId, int32_t errCode);
 int32_t streamTriggerKickCalc();
 int32_t streamTriggerProcessRsp(SStreamTask *pTask, SRpcMsg *pRsp, int64_t *pErrTaskId);
+int32_t streamWriteCheckPoint(int64_t streamId, int32_t snodeId, void* data, int64_t dataLen);
+int32_t streamReadCheckPoint(int64_t streamId, int32_t snodeId, void** data, int64_t* dataLen);
+int32_t streamDeleteCheckPoint(int64_t streamId, int32_t snodeId);
 
 #define STREAM_TRIGGER_MAX_WIN_NUM_PER_REQUEST 4096
 

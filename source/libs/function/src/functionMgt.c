@@ -768,11 +768,23 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
     case FUNCTION_TYPE_PLACEHOLDER_COLUMN:
       return pStreamRuntimeFuncInfo->pStreamPartColVals;
     case FUNCTION_TYPE_PLACEHOLDER_TBNAME:
-      return &pStreamRuntimeFuncInfo->pStreamPartColVals;
+      return pStreamRuntimeFuncInfo->pStreamPartColVals;
     default:
       break;
   }
   return NULL;
+}
+
+void fmGetStreamPesudoFuncValTbname(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo, void** data, int32_t* dataLen) {
+  SArray* pVal = (SArray*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeFuncInfo);
+  for (int32_t i = 0; i < taosArrayGetSize(pVal); ++i) {
+    SStreamGroupValue* pValue = taosArrayGet(pVal, i);
+    if (pValue != NULL && pValue->isTbname) {
+      *data = pValue->data.pData;
+      *dataLen = pValue->data.nData;
+      break;
+    }
+  }
 }
 
 int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, const SStreamRuntimeFuncInfo* pStreamRuntimeInfo) {
@@ -833,11 +845,6 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
     }
     ((SValueNode*)pFirstParam)->isNull = pValue->isNull;
   } else if (FUNCTION_TYPE_PLACEHOLDER_TBNAME == t) {
-    SNode* pSecondParam = nodesListGetNode(pParamNodes, 1);
-    if (nodeType(pSecondParam) != QUERY_NODE_VALUE) {
-      uError("invalid param node type: %d for func: %d", nodeType(pSecondParam), funcId);
-      return TSDB_CODE_INTERNAL_ERROR;
-    }
     SArray* pVal = (SArray*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
     for (int32_t i = 0; i < taosArrayGetSize(pVal); ++i) {
       SStreamGroupValue* pValue = taosArrayGet(pVal, i);

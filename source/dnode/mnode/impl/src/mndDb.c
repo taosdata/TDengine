@@ -1813,7 +1813,7 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
 
   bool dbStream = false;
   bool vtableStream = false;
-  code = mstCheckDbInUse(pMnode, dropReq.db, &dbStream, &vtableStream, true);
+  mstCheckDbInUse(pMnode, dropReq.db, &dbStream, &vtableStream, true);
   if (dbStream) {
     code = TSDB_CODE_MND_STREAM_DB_IN_USE;
     mError("db:%s used by streams, drop db not allowed", dropReq.db);

@@ -4224,13 +4224,17 @@ int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, int3
       pStart += sizeof(int32_t) * firstRowNum;
       memcpy(pColInfoData->varmeta.offset, pStart, sizeof(int32_t) * realRows);
       pStart += sizeof(int32_t) * realRows;
-      pStart += sizeof(int32_t) * leftRows;
 
       offset = resetVarDataOffset(pColInfoData->varmeta.offset, realRows);
-      if(leftRows > 0) {
-        leftlen = oneColsLen - pColInfoData->varmeta.offset[lastRowNumNext];
+      if (leftRows > 0) {
+        for (int32_t j = 0; j < leftRows; ++j) {
+          if (*((int32_t*)pStart + j) != -1) {
+            leftlen = oneColsLen - *((int32_t*)pStart + j);
+          }
+        }
       }
       oneColsLen -= (offset + leftlen);
+      pStart += sizeof(int32_t) * leftRows;
 
       if (oneColsLen > 0 && pColInfoData->varmeta.allocLen < oneColsLen) {
         char* tmp = taosMemoryRealloc(pColInfoData->pData, oneColsLen);

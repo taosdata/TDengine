@@ -7154,11 +7154,11 @@ static int32_t checkPeriodWindow(STranslateContext* pCxt, SPeriodWindowNode* pPe
   if (pPer) {
     if (pPer->unit != 'a' && pPer->unit != 's' &&
         pPer->unit != 'm' && pPer->unit != 'h' && pPer->unit != 'd') {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT, "period window get invalid time uni");
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT, pPer->unit);
     }
     if (pPer->datum.i / getPrecisionMultiple(precision) < periodLowerBound ||
         pPer->datum.i / getPrecisionMultiple(precision) > periodUpperBound) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT, "period window get invalid time range");
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT, pPer->unit);
     }
   }
 
@@ -12725,6 +12725,14 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
   }
 
+  if (pTrigger->pTrigerTable == NULL && pTriggerOptions&& pTriggerOptions->pPreFilter) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "No prev filter when no triggertable");
+  }
+
+  if (pTrigger->pTrigerTable == NULL && LIST_LENGTH(pTrigger->pPartitionList) != 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "No partition when no triggertable");
+  }
+
   if (pTrigger->pPartitionList == NULL && pStmt->pSubtable) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "cannot specify output_subtable when no partition in trigger");
   }
@@ -12750,9 +12758,10 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
     }
   }
 
-  if (pStmt->pQuery == NULL && pNotifyOptions->pWhere) {
+  if (pStmt->pQuery == NULL && pNotifyOptions && pNotifyOptions->pWhere) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Can not specify notify where when no query in stream");
   }
+
 
   SDbCfgInfo dbCfg = {0};
   PAR_ERR_RET(getDBCfg(pCxt, pStmt->streamDbName, &dbCfg));
@@ -13082,6 +13091,10 @@ static int32_t createStreamReqBuildOutSubtable(STranslateContext* pCxt, const ch
   }
 
   PAR_ERR_JRET(translateCreateStreamTagSubtableExpr(pCxt, pPartitionByList, &pSubtableExpr));
+  if (!nodesIsExprNode(pSubtableExpr) || ((SExprNode*)pSubtableExpr)->resType.type != TSDB_DATA_TYPE_BINARY) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                   "Subtable name expression must be a binary type expression");
+  }
   PAR_ERR_JRET(createStreamSetNodeSlotId(pSubtableExpr, pTriggerSlotHash, NULL));
   PAR_ERR_JRET(nodesNodeToString(pSubtableExpr, false, subTblNameExpr, NULL));
   return code;
@@ -13815,7 +13828,9 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
     SCountWindowNode *pCountWindow = (SCountWindowNode*)pTriggerWindow;
     SNode*            pLogicCond = NULL;
     PAR_ERR_JRET(extractCondFromCountWindow(pCxt, pCountWindow, &pLogicCond));
-    PAR_ERR_JRET(nodesMergeNode(&pTriggerFilter, &pLogicCond));
+    if (pLogicCond) {
+      PAR_ERR_JRET(nodesMergeNode(&pTriggerFilter, &pLogicCond));
+    }
   }
 
   PAR_ERR_JRET(getTableMeta(pCxt, pTriggerTable->table.dbName, pTriggerTable->table.tableName, &pTriggerTableMeta));
@@ -14074,6 +14089,9 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SCreateStre
   PAR_ERR_JRET(createStreamReqSetDefaultOutCols(pCxt, pStmt, ((SSelectStmt*)pStmt->pQuery)->pProjectionList, pReq));
 
   PAR_ERR_JRET(createStreamReqBuildForceOutput(pCxt, pStmt, pReq));
+
+  SQuery pQuery = {.pRoot = pStmt->pQuery};
+  PAR_ERR_JRET(calculateConstant(pCxt->pParseCxt, &pQuery));
 
   SPlanContext calcCxt = {.acctId = pCxt->pParseCxt->acctId,
                           .pAstRoot = pStmt->pQuery,

@@ -205,7 +205,7 @@ static int32_t resetTsdbReader(SStreamReaderTaskInner* pTask) {
   STREAM_CHECK_RET_GOTO(pTask->api.tsdReader.tsdReaderResetStatus(pTask->pReader, &pCond));
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   return code;
 }
 
@@ -225,7 +225,7 @@ static int32_t buildWalMetaBlock(SSDataBlock* pBlock, int8_t type, int64_t gid, 
   STREAM_CHECK_RET_GOTO(addColData(pBlock, index++, &rows));
 
 end:
-  PRINT_LOG_END(code, lino)
+  STREAM_PRINT_LOG_END(code, lino)
   return code;
 }
 
@@ -290,7 +290,7 @@ int32_t retrieveWalMetaData(SSubmitTbData* pSubmitTbData, void* pTableList, bool
 
 end:
   taosMemoryFree(pTSchema);
-  PRINT_LOG_END(code, lino)
+  STREAM_PRINT_LOG_END(code, lino)
   return code;
 }
 
@@ -394,7 +394,7 @@ int32_t retrieveWalData(SSubmitTbData* pSubmitTbData, void* pTableList, SSDataBl
   pBlock->info.rows = numOfRows;
 
 end:
-  PRINT_LOG_END(code, lino)
+  STREAM_PRINT_LOG_END(code, lino)
   return code;
 }
 
@@ -520,7 +520,7 @@ end:
     code = TSDB_CODE_SUCCESS;
     terrno = TSDB_CODE_SUCCESS;
   }
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   return code;
 }
 
@@ -564,7 +564,7 @@ end:
   tDestroySubmitReq(&submit, TSDB_MSG_FLG_DECODE);
   walCloseReader(pWalReader);
   tDecoderClear(&decoder);
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   return code;
 }
 
@@ -634,7 +634,7 @@ static int32_t processTag(SVnode* pVnode, SExprInfo* pExpr, int32_t numOfExpr, S
 end:
   api->metaReaderFn.clearReader(&mr);
 
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   return code;
 }
 
@@ -678,7 +678,7 @@ static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStre
   pBlock2 = NULL;
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   filterFreeInfo(pFilterInfo);
   blockDataDestroy(pBlock1);
   blockDataDestroy(pBlock2);
@@ -757,7 +757,7 @@ static int32_t processWalVerDataVTable(SVnode* pVnode, SArray *cids, int64_t ver
   pBlock2 = NULL;
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   blockDataDestroy(pBlock1);
   blockDataDestroy(pBlock2);
   qStreamDestroyTableList(pTableList);
@@ -837,7 +837,7 @@ end:
     nodesDestroyNode((SNode*)op1);
     nodesDestroyNode((SNode*)cond);
   }
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
 
   return code;
 }
@@ -874,7 +874,7 @@ end:
     nodesDestroyNode((SNode*)pAndCondition);
     nodesDestroyNode((SNode*)cond);
   }
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
 
   return code;
 }
@@ -1071,7 +1071,7 @@ static int32_t getTableList(SArray** pList, int32_t* pNum, int64_t* suid, int32_
   }
   *pNum = iEnd - iStart;
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   return code;
 }
 
@@ -1305,7 +1305,7 @@ static int32_t vnodeProcessStreamSetTableReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
   STREAM_CHECK_NULL_GOTO(taosArrayPush(sStreamReaderInfo->uidListIndex, &cnt), terrno);
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
@@ -1342,7 +1342,7 @@ static int32_t vnodeProcessStreamLastTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTrig
   STREAM_CHECK_RET_GOTO(buildTsRsp(&lastTsRsp, &buf, &size))
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
@@ -1381,7 +1381,7 @@ static int32_t vnodeProcessStreamFirstTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   STREAM_CHECK_RET_GOTO(buildTsRsp(&firstTsRsp, &buf, &size));
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
@@ -1432,7 +1432,7 @@ static int32_t vnodeProcessStreamTsdbMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
   STREAM_CHECK_RET_GOTO(buildRsp(pTask->pResBlockDst, &buf, &size));
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
@@ -1481,7 +1481,7 @@ static int32_t vnodeProcessStreamTsDataReq(SVnode* pVnode, SRpcMsg* pMsg, SSTrig
   STREAM_CHECK_RET_GOTO(buildRsp(pTask->pResBlockDst, &buf, &size));
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
@@ -1548,7 +1548,7 @@ static int32_t vnodeProcessStreamTsdbTriggerDataReq(SVnode* pVnode, SRpcMsg* pMs
   stDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pTask->pResBlockDst->info.rows);
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
@@ -1609,7 +1609,7 @@ static int32_t vnodeProcessStreamCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
   stDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pTask->pResBlockDst->info.rows);
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
@@ -1681,7 +1681,7 @@ static int32_t vnodeProcessStreamDataReq(SVnode* pVnode, SRpcMsg* pMsg, SSTrigge
   stDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pTask->pResBlockDst->info.rows);
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
@@ -1723,7 +1723,7 @@ static int32_t vnodeProcessStreamWalMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   printDataBlock(pBlock, __func__, "");
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
@@ -1754,7 +1754,7 @@ static int32_t vnodeProcessStreamWalTsDataReq(SVnode* pVnode, SRpcMsg* pMsg, SST
   STREAM_CHECK_RET_GOTO(buildRsp(pBlock, &buf, &size));
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
@@ -1784,7 +1784,7 @@ static int32_t vnodeProcessStreamWalTriggerDataReq(SVnode* pVnode, SRpcMsg* pMsg
   STREAM_CHECK_RET_GOTO(buildRsp(pBlock, &buf, &size));
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
@@ -1816,7 +1816,7 @@ static int32_t vnodeProcessStreamWalCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg, S
   STREAM_CHECK_RET_GOTO(buildRsp(pBlock, &buf, &size));
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
@@ -1842,7 +1842,7 @@ static int32_t vnodeProcessStreamWalDataReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   STREAM_CHECK_RET_GOTO(buildRsp(pBlock, &buf, &size));
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
@@ -1878,7 +1878,7 @@ end:
     buf = NULL;
     size = 0;
   }
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
@@ -1971,7 +1971,7 @@ end:
   qStreamDestroyTableList(pTableList);
   tDestroySStreamMsgVTableInfo(&vTableInfo);
   api.metaReaderFn.clearReader(&metaReader);
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
@@ -2041,7 +2041,7 @@ static int32_t vnodeProcessStreamOTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
 end:
   tDestroySTriggerOrigTableInfoRsp(&oTableInfo);
   api.metaReaderFn.clearReader(&metaReader);
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
@@ -2093,7 +2093,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
       STREAM_CHECK_RET_GOTO(processCalaTimeRange(sStreamReaderCalcInfo, &req, node, &handle));
     }
 
-    sStreamReaderCalcInfo->rtInfo.funcInfo = *req.pStRtFuncInfo;
+    TSWAP(sStreamReaderCalcInfo->rtInfo.funcInfo, *req.pStRtFuncInfo);
 
     // if (sStreamReaderCalcInfo->pTaskInfo == NULL) {
     STREAM_CHECK_RET_GOTO(qCreateStreamExecTaskInfo(&sStreamReaderCalcInfo->pTaskInfo,
@@ -2125,7 +2125,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   STREAM_CHECK_RET_GOTO(buildFetchRsp(pBlock, &buf, &size, pVnode->config.tsdbCfg.precision));
 
 end:
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {.msgType = TDMT_STREAM_FETCH_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
   tDestroySResFetchReq(&req);
@@ -2213,6 +2213,6 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   }
 end:
   tDestroySTriggerPullRequest(&req);
-  PRINT_LOG_END(code, lino);
+  STREAM_PRINT_LOG_END(code, lino);
   return code;
 }

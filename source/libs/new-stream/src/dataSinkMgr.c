@@ -459,7 +459,7 @@ int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY we
   }
   code = checkAndMoveMemCache(true);
   if (code != TSDB_CODE_SUCCESS) {
-    stError("failed to check and move mem cache for write, err: %s", terrMsg);
+    stError("failed to check and move mem cache for write, code: %d err: %s", code, terrMsg);
     return code;
   }
   if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_IMMEDIATE) {
@@ -471,7 +471,7 @@ int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY we
   }
   code = checkAndMoveMemCache(false);
   if (code != TSDB_CODE_SUCCESS) {
-    stError("failed to check and move mem cache not for write, err: %s", terrMsg);
+    stError("failed to check and move mem cache not for write, code: %d err: %s", code, terrMsg);
     return TSDB_CODE_SUCCESS;
   }
   return code;
@@ -630,10 +630,6 @@ void releaseDataResult(void** pIter) {
     return;
   }
   SResultIter* pResult = (SResultIter*)*pIter;
-  if (pResult != NULL) {
-    taosMemoryFree(pResult);
-    *pIter = NULL;
-  }
   if (pResult->tmpBlocksInMem) {
     for (int32_t i = 0; i < pResult->tmpBlocksInMem->size; ++i) {
       SSDataBlock** ppBlk = (SSDataBlock**)taosArrayGet(pResult->tmpBlocksInMem, i);
@@ -644,6 +640,10 @@ void releaseDataResult(void** pIter) {
     }
     taosArrayClear(pResult->tmpBlocksInMem);
     pResult->tmpBlocksInMem = NULL;
+  }
+  if (pResult != NULL) {
+    taosMemoryFree(pResult);
+    *pIter = NULL;
   }
 }
 
@@ -780,7 +780,7 @@ int32_t moveMemCacheAllList() {
       int32_t            code = moveSlidingTaskMemCache(pSlidingTaskMgr);
       if (code != TSDB_CODE_SUCCESS) {
         taosHashCancelIterate(g_pDataSinkManager.dsStreamTaskList, ppTaskMgr);
-        stError("failed to move sliding task mem cache, lino:%d err: %s", __LINE__, terrMsg);
+        stError("failed to move sliding task mem cache, lino:%d code: %d err: %s", __LINE__, code, terrMsg);
         return code;
       }
       if (hasEnoughMemSize()) {
