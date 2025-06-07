@@ -282,6 +282,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
             connReq.passwd);
     code = TSDB_CODE_MND_AUTH_FAILURE;
     goto _OVER;
+    
   }
 
   if (connReq.db[0]) {
