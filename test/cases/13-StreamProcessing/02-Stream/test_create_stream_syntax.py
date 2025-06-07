@@ -425,7 +425,12 @@ def generate_trigger_section(each_window_count=200):
         else:
             v9 = True
 
-        is_all_valid = v1 and v2 and v3 and v4 and v5 and v6 and v7 and v8 and v9
+        if 'n' in interval and 'y' in offset:
+            v10 = False
+        else:
+            v10 = True
+
+        is_all_valid = v1 and v2 and v3 and v4 and v5 and v6 and v7 and v8 and v9 and v10
 
         int_part = f" INTERVAL('{interval}') "
         int_part_with_offset = f" INTERVAL('{interval}', '{offset}') "
@@ -437,7 +442,7 @@ def generate_trigger_section(each_window_count=200):
             (slide_part_with_offset, v3 and v4 and v6),
             (f" {int_part} {slide_part} ", v1 and v3 and v7 and v8 and v9),
             (f" {int_part} {slide_part_with_offset} ", v1 and v3 and v4 and v6 and v7 and v8 and v9),
-            (f" {int_part_with_offset} {slide_part} ", v1 and v2 and v3 and v5 and v7 and v8 and v9),
+            (f" {int_part_with_offset} {slide_part} ", v1 and v2 and v3 and v5 and v7 and v8 and v9 and v10),
             (f" {int_part_with_offset} {slide_part_with_offset} ", is_all_valid)
         ])
 
@@ -502,7 +507,7 @@ def generate_random_event_types(valid=True):
         types = [random_from_list(event_types_invalid)] + [random_from_list(event_types_valid) for _ in range(random_int(1, 2))]
     return "|".join(types)
 
-def random_option(valid=True, partition_list=None, max_options=3):
+def random_option(valid=True, max_options=3, trigger_has_tag=False):
     if max_options == 0:
         return []
 
@@ -518,8 +523,8 @@ def random_option(valid=True, partition_list=None, max_options=3):
         max_delay = random_from_list(expired_time_list_invalid)
 
     prev_filter = generate_logical_condition(
-        full_column_list = partition_columns_valid + partition_columns_invalid,
-        valid_column_list = partition_list if partition_list else ["1", "2", "3", "4"],
+        full_column_list = trigger_column_valid + trigger_column_invalid,
+        valid_column_list = trigger_column_valid + trigger_tag_valid if trigger_has_tag else trigger_column_valid,
         valid = valid)
 
     if valid:
@@ -553,15 +558,15 @@ def random_option(valid=True, partition_list=None, max_options=3):
 
     return [f() for f in option_type]
 
-def generate_options_section(max_options=10, partition_list = None, trigger_null = False):
-    options = random_option(valid=True, partition_list=partition_list, max_options=max_options)
+def generate_options_section(max_options=10, trigger_has_tag = False):
+    options = random_option(valid=True, trigger_has_tag=trigger_has_tag, max_options=max_options)
     rand_val = random.random()
     if rand_val < 0.2:
         # 20% chance to generate empty options clause
         return "", True
     elif rand_val < 0.3:
         # 10% chance to generate invalid options clause
-        options = options + random_option(valid=False, partition_list=partition_list, max_options=1)
+        options = options + random_option(valid=False, trigger_has_tag=trigger_has_tag, max_options=1)
         valid = False
     else:
         # 70% chance to generate valid options clause
@@ -918,11 +923,9 @@ def generate_random_tags_clause(partition_list=None, allow_comment=True, into_ex
             valid = False
 
     if random_bool(0.1):
-        # 20% chance to generate invalid TAGS clause
         return "", True
 
     if random_bool(0.1) and valid and into_exist and into_stable:
-        # 20% chance to generate invalid TAGS clause
         num_tags = random_from_list([i for i in range(1, len(out_tags)) if i != 2])
         valid = False
     else:
@@ -930,7 +933,7 @@ def generate_random_tags_clause(partition_list=None, allow_comment=True, into_ex
         num_tags = 2
 
     if random_bool(0.1) and valid and into_exist:
-        selected_tags = random.sample(out_tags, num_tags)
+        selected_tags = random.sample(out_tags, num_tags - 1)
         valid = False
     else:
         selected_tags = out_tags[:num_tags]
@@ -964,13 +967,13 @@ def gen_create_stream_variants():
     base_template = "CREATE STREAM{if_not_exists} {stream_name}{stream_options}{into_clause}{output_subtable}{columns}{tags}{as_subquery};"
     sql_variants = []
     stream_index = 0
-    for trigger_type, v0 in generate_trigger_section(200):
+    for trigger_type, v0 in generate_trigger_section(500):
         for as_subquery, v1, out_col_num, query_col_list, with_ph_column in as_subquery_opts:
             stream_db, v2 = generate_random_stream_db_section()
             trigger_table, v3, trigger_null, trigger_has_tag = generate_random_trigger_table_section()
             into_table, v4, into_null, into_exist, into_stable = generate_random_into_table_section(stream_index)
             partition, v5, partition_cols = generate_random_partition_section(trigger_null = trigger_null, trigger_has_tag = trigger_has_tag)
-            stream_opt, v6 = generate_options_section(partition_list=partition_cols, trigger_null = trigger_null)
+            stream_opt, v6 = generate_options_section(trigger_has_tag=trigger_has_tag)
             notify_opt, v7 = generate_random_notif_def_section(query_cols=query_col_list)
             output, v8 = generate_random_output_subtable(partition_list=partition_cols, into_null=into_null)
             column, v9 = generate_random_column_list_section(out_col_num=out_col_num, into_exist=into_exist, into_null=into_null)
@@ -1082,14 +1085,19 @@ def gen_create_stream_variants():
             else:
                 v25 = True
 
+            if trigger_null and 'PRE_FILTER' in stream_opt:
+                v26 = False
+            else:
+                v26 = True
+
             valid = (v0 and v1 and v2 and v3 and v4 and v5 and v6 and v7 and v8 and v9 and
                      v10 and v11 and v12 and v13 and v14 and v15 and v16 and v17 and v18 and v19 and
-                     v20 and v21 and v22 and v23 and v24 and v25)
+                     v20 and v21 and v22 and v23 and v24 and v25 and v26)
             print(f"stream_index: {stream_index}, v0: {v0}, v1: {v1}, v2: {v2}, v3: {v3}, v4: {v4}, "
                   f"v5: {v5}, v6: {v6}, v7: {v7}, v8: {v8}, v9: {v9}, v10: {v10}, v11: {v11}, "
                   f"v12: {v12}, v13: {v13}, v14: {v14}, v15: {v15}, v16: {v16}, v17: {v17}, "
                   f"v18: {v18}, v19: {v19}, v20: {v20}, v21: {v21}, v22: {v22}, v23: {v23}, "
-                  f"v24: {v24}, v25: {v25}, valid: {valid}")
+                  f"v24: {v24}, v25: {v25}, v26: {v26}, valid: {valid}")
 
             sql = base_template.format(
                if_not_exists=random_from_list(if_not_exists_opts),
