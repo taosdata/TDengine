@@ -15,21 +15,17 @@
 
 #include "ttqSend.h"
 
-#include <stdio.h>
-#include <string.h>
-
+#include "tmqtt.h"
 #include "tmqttBrokerInt.h"
-
+#include "tmqttInt.h"
+#include "tmqttProto.h"
 #include "ttqLogging.h"
 #include "ttqMemory.h"
 #include "ttqNet.h"
 #include "ttqPacket.h"
 #include "ttqProperty.h"
-#include "ttqTime.h"
-#include "tmqtt.h"
-#include "tmqttInt.h"
-#include "tmqttProto.h"
 #include "ttqSystree.h"
+#include "ttqTime.h"
 #include "ttqUtil.h"
 
 int send__pingreq(struct tmqtt *ttq) {
