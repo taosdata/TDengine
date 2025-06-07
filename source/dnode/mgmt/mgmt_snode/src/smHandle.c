@@ -16,10 +16,33 @@
 #define _DEFAULT_SOURCE
 #include "smInt.h"
 
+SSnodeInfo gSnode = {0};
+
+
 void smGetMonitorInfo(SSnodeMgmt *pMgmt, SMonSmInfo *smInfo) {}
+
+static int32_t epToJson(const void* pObj, SJson* pJson) {
+  const SEp* pNode = (const SEp*)pObj;
+
+  int32_t code = tjsonAddStringToObject(pJson, "fqdn", pNode->fqdn);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "port", pNode->port);
+  }
+
+  return code;
+}
+
+void smUpdateSnodeInfo(SDCreateSnodeReq* pReq) {
+  taosWLockLatch(&gSnode.snodeLock);
+  gSnode.snodeLeaders[0] = pReq->leaders[0];
+  gSnode.snodeLeaders[1] = pReq->leaders[1];  
+  gSnode.snodeReplica = pReq->replica;
+  taosWUnLockLatch(&gSnode.snodeLock);
+}
 
 int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   int32_t          code = 0;
+  int32_t          lino = 0;
   SDCreateSnodeReq createReq = {0};
   if (tDeserializeSDCreateSNodeReq(pMsg->pCont, pMsg->contLen, &createReq) != 0) {
     code = TSDB_CODE_INVALID_MSG;

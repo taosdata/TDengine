@@ -798,7 +798,7 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
     TAOS_CHECK_EXIT(tEncodeSStreamRunnerTarget(pEncoder, pTarget));
   }
 
-  //STREAMTODO snode
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pMsg->leaderSnodeId));
 
 _exit:
 
@@ -1271,7 +1271,7 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
     TAOS_CHECK_EXIT(tDecodeSStreamRunnerTarget(pDecoder, pTarget));
   }
 
-  //STREAMTODO snode
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pMsg->leaderSnodeId));
 
 _exit:
 

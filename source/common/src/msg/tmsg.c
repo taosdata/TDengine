@@ -3184,8 +3184,8 @@ _exit:
 
 int32_t tEncodeSNodeEpSet(SEncoder* pEncoder, SNodeEpSet *pNode) {
   int32_t code = 0;
-  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pNode->nodeId));
-  TAOS_CHECK_EXIT(tEncodeSEpSet(pEncoder, &pNode->epSet));
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pNode->nodeId));
+  TAOS_CHECK_RETURN(tEncodeSEpSet(pEncoder, &pNode->epSet));
 
 _exit:
 

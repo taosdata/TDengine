@@ -90,6 +90,7 @@ _return:
   return code;
 }
 
+/*
 static int32_t smAddTaskToSnodeList(SStreamTask* pTask) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -109,6 +110,7 @@ _return:
 
   return code;
 }
+*/
 
 int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamTasksInfo* pStream) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -611,8 +613,29 @@ _exit:
   return code;
 }
 
-void smUndeploySnodeTasks() {
+void smUndeploySnodeTasks(void) {
+/*
+  SStreamVgReaderTasks* pVg = taosHashAcquire(gStreamMgmt.vgroupMap, &vgId, sizeof(vgId));
+  if (NULL == pVg) {
+    stDebug("no tasks in vgourp %d, ignore undeploy vg tasks", vgId);
+    return;
+  }
 
+  SStreamTaskUndeploy undeploy = {0};
+  undeploy.undeployMsg.doCheckpoint = true;
+  undeploy.undeployMsg.doCleanup = false;
+  
+  taosWLockLatch(&pVg->lock);
+  int32_t taskNum = taosArrayGetSize(pVg->taskList);
+  for (int32_t i = 0; i < taskNum; ++i) {
+    SStreamTask* pTask = taosArrayGetP(pVg->taskList, i);
+    undeploy.task = *pTask;
+    (void)smUndeployTask(&undeploy);
+  }
+  taosWUnLockLatch(&pVg->lock);
+
+  taosHashRelease(gStreamMgmt.vgroupMap, pVg);
+*/  
 }
 
 void smUndeployAllTasks(void) {

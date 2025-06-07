@@ -425,7 +425,8 @@ static int32_t mndSnodeAppendUpdateToTrans(SMnode *pMnode, SSnodeObj* pObj, STra
   
   SSnodeObj snodeObj2 = {0};
   snodeObj2.id = pObj->id;
-  snodeObj2.leadersId = pObj->leadersId;
+  snodeObj2.leadersId[0] = pObj->leadersId[0];
+  snodeObj2.leadersId[1] = pObj->leadersId[1];
   snodeObj2.replicaId = pObj->replicaId;
   snodeObj2.createdTime = pObj->createdTime;
   snodeObj2.updateTime = taosGetTimestampMs();
@@ -460,7 +461,7 @@ static int32_t mndCreateSnodeWithReplicaId(SMnode *pMnode, SRpcMsg *pReq, SDnode
   SSnodeObj snodeObj = {0};
   snodeObj.id = pDnode->id;
   if (leaderSnode) {
-    snodeObj->leadersId[0] = leaderSnode->id;
+    snodeObj.leadersId[0] = leaderSnode->id;
   }
   snodeObj.replicaId = replicaSnode->id;
   snodeObj.createdTime = currTs;
@@ -805,13 +806,13 @@ static int32_t mndDropSnode(SMnode *pMnode, SRpcMsg *pReq, SSnodeObj *pObj) {
   mndSnodeRemoveLeaderId(&ctx.replicaSnode, pObj->id);
   mndSnodeRemoveLeaderId(&ctx.replicaNewLeader, pObj->id);
 
-  ctx.affSnode[0].replicaId = ctx->affNewReplica[0].id;
-  ctx.affSnode[1].replicaId = ctx->affNewReplica[1].id;
-  ctx.replicaSnode.replicaId = ctx->replicaNewLeader.id;
+  ctx.affSnode[0].replicaId = ctx.affNewReplica[0].id;
+  ctx.affSnode[1].replicaId = ctx.affNewReplica[1].id;
+  ctx.replicaSnode.replicaId = ctx.replicaNewLeader.id;
 
-  mndSnodeAddLeaderId(&ctx->affNewReplica[0], ctx.affSnode[0].id);
-  mndSnodeAddLeaderId(&ctx->affNewReplica[1], ctx.affSnode[1].id);
-  mndSnodeAddLeaderId(&ctx->replicaNewLeader, ctx.replicaSnode.id);
+  mndSnodeAddLeaderId(&ctx.affNewReplica[0], ctx.affSnode[0].id);
+  mndSnodeAddLeaderId(&ctx.affNewReplica[1], ctx.affSnode[1].id);
+  mndSnodeAddLeaderId(&ctx.replicaNewLeader, ctx.replicaSnode.id);
 
   if (ctx.affSnode[0].id > 0) {
     mInfo("trans:%d, used to update snode:%d", pTrans->id, ctx.affSnode[0].id);

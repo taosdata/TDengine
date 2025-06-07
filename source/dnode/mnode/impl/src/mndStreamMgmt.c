@@ -709,7 +709,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
 
   TAOS_CHECK_EXIT(msmBuildTriggerRunnerTargets(pMnode, pInfo, streamId, &pMsg->runnerList));
 
-  TAOS_CHECK_EXIT(msmBuildStreamSnodeInfo(pMnode, pStream, &pMsg->snode));
+  pMsg->leaderSnodeId = pStream->mainSnodeId;
 
 _exit:
 

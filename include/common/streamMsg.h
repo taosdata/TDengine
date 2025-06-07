@@ -495,7 +495,7 @@ typedef struct {
   SArray* readerList;  // SArray<SStreamTaskAddr>
   SArray* runnerList;  // SArray<SStreamRunnerTarget>
 
-  SStreamSnodeInfo snode;
+  int32_t leaderSnodeId;
 } SStreamTriggerDeployMsg;
 
 typedef struct SStreamRunnerDeployMsg {
