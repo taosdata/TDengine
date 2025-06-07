@@ -3203,7 +3203,8 @@ static bool needDbShowStmt(ENodeType type) {
          QUERY_NODE_SHOW_VGROUPS_STMT == type || QUERY_NODE_SHOW_INDEXES_STMT == type ||
          QUERY_NODE_SHOW_TAGS_STMT == type || QUERY_NODE_SHOW_TABLE_TAGS_STMT == type ||
          QUERY_NODE_SHOW_VIEWS_STMT == type || QUERY_NODE_SHOW_TSMAS_STMT == type ||
-         QUERY_NODE_SHOW_USAGE_STMT == type || QUERY_NODE_SHOW_VTABLES_STMT == type;
+         QUERY_NODE_SHOW_USAGE_STMT == type || QUERY_NODE_SHOW_VTABLES_STMT == type ||
+         QUERY_NODE_SHOW_STREAMS_STMT == type;
 }
 
 SNode* createShowStmtWithLike(SAstCreateContext* pCxt, ENodeType type,   SNode*  pLikePattern) {
@@ -4916,5 +4917,27 @@ SNode* createShowDiskUsageStmt(SAstCreateContext* pCxt, SNode* dbName, ENodeType
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode(dbName);
+  return NULL;
+}
+
+SNode* createShowStreamsStmt(SAstCreateContext* pCxt, SNode* pDbName, ENodeType type) {
+  CHECK_PARSER_STATUS(pCxt);
+
+  if (needDbShowStmt(type) && NULL == pDbName) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "database not specified");
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+    CHECK_PARSER_STATUS(pCxt);
+  }
+
+  SShowStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->withFull = false;
+  pStmt->pDbName = pDbName;
+
+  return (SNode*)pStmt;
+
+_err:
+  nodesDestroyNode(pDbName);
   return NULL;
 }
