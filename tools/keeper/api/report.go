@@ -72,7 +72,7 @@ func (r *Reporter) Init(c gin.IRouter) {
 }
 
 func (r *Reporter) getConn() *db.Connector {
-	conn, err := db.NewConnector(r.username, r.password, r.host, r.port, r.usessl)
+	conn, err := db.NewConnectorWithRetryForever(r.username, r.password, r.host, r.port, r.usessl)
 	if err != nil {
 		qid := util.GetQidOwn(config.Conf.InstanceID)
 
@@ -172,7 +172,7 @@ func (r *Reporter) shouldDetectFields() bool {
 }
 
 func (r *Reporter) serverVersion(ctx context.Context, conn *db.Connector) (version string, err error) {
-	res, err := conn.Query(ctx, "select server_version()", util.GetQidOwn(config.Conf.InstanceID))
+	res, err := conn.QueryWithRetryForever(ctx, "select server_version()", util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
 		logger.Errorf("get server version error, msg:%s", err)
 		return
@@ -194,7 +194,7 @@ func (r *Reporter) serverVersion(ctx context.Context, conn *db.Connector) (versi
 }
 
 func (r *Reporter) columnInfo(ctx context.Context, conn *db.Connector, table string, field string) (exists bool, colType string) {
-	res, err := conn.Query(ctx, fmt.Sprintf("select col_type from information_schema.ins_columns where table_name='%s' and db_name='%s' and col_name='%s'", table, r.dbname, field), util.GetQidOwn(config.Conf.InstanceID))
+	res, err := conn.QueryWithRetryForever(ctx, fmt.Sprintf("select col_type from information_schema.ins_columns where table_name='%s' and db_name='%s' and col_name='%s'", table, r.dbname, field), util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
 		logger.Errorf("get %s field type error, msg:%s", r.dbname, err)
 		panic(err)
@@ -216,7 +216,7 @@ func (r *Reporter) columnInfo(ctx context.Context, conn *db.Connector, table str
 }
 
 func (r *Reporter) tagExist(ctx context.Context, conn *db.Connector, stable string, tag string) (exists bool) {
-	res, err := conn.Query(ctx, fmt.Sprintf("select tag_name from information_schema.ins_tags where stable_name='%s' and db_name='%s' and tag_name='%s'", stable, r.dbname, tag), util.GetQidOwn(config.Conf.InstanceID))
+	res, err := conn.QueryWithRetryForever(ctx, fmt.Sprintf("select tag_name from information_schema.ins_tags where stable_name='%s' and db_name='%s' and tag_name='%s'", stable, r.dbname, tag), util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
 		logger.Errorf("get %s tag_name error, msg:%s", r.dbname, err)
 		panic(err)
@@ -237,21 +237,21 @@ func (r *Reporter) tagExist(ctx context.Context, conn *db.Connector, stable stri
 }
 
 func (r *Reporter) dropColumn(ctx context.Context, conn *db.Connector, table string, field string) {
-	if _, err := conn.Exec(ctx, fmt.Sprintf("alter table %s.%s drop column %s", r.dbname, table, field), util.GetQidOwn(config.Conf.InstanceID)); err != nil {
+	if _, err := conn.ExecWithRetryForever(ctx, fmt.Sprintf("alter table %s.%s drop column %s", r.dbname, table, field), util.GetQidOwn(config.Conf.InstanceID)); err != nil {
 		logger.Errorf("drop column %s from table %s error, msg:%s", field, table, err)
 		panic(err)
 	}
 }
 
 func (r *Reporter) dropTag(ctx context.Context, conn *db.Connector, stable string, tag string) {
-	if _, err := conn.Exec(ctx, fmt.Sprintf("alter stable %s.%s drop tag %s", r.dbname, stable, tag), util.GetQidOwn(config.Conf.InstanceID)); err != nil {
+	if _, err := conn.ExecWithRetryForever(ctx, fmt.Sprintf("alter stable %s.%s drop tag %s", r.dbname, stable, tag), util.GetQidOwn(config.Conf.InstanceID)); err != nil {
 		logger.Errorf("drop tag %s from stable %s error, msg:%s", tag, stable, err)
 		panic(err)
 	}
 }
 
 func (r *Reporter) addColumn(ctx context.Context, conn *db.Connector, table string, field string, fieldType string) {
-	if _, err := conn.Exec(ctx, fmt.Sprintf("alter table %s.%s add column %s %s", r.dbname, table, field, fieldType), util.GetQidOwn(config.Conf.InstanceID)); err != nil {
+	if _, err := conn.ExecWithRetryForever(ctx, fmt.Sprintf("alter table %s.%s add column %s %s", r.dbname, table, field, fieldType), util.GetQidOwn(config.Conf.InstanceID)); err != nil {
 		logger.Errorf("add column %s to table %s error, msg:%s", field, table, err)
 		panic(err)
 	}
@@ -265,7 +265,7 @@ func (r *Reporter) createDatabase() {
 	createDBSql := r.generateCreateDBSql()
 	logger.Warningf("create database sql: %s", createDBSql)
 
-	if _, err := conn.Exec(ctx, createDBSql, util.GetQidOwn(config.Conf.InstanceID)); err != nil {
+	if _, err := conn.ExecWithRetryForever(ctx, createDBSql, util.GetQidOwn(config.Conf.InstanceID)); err != nil {
 		logger.Errorf("create database %s error, msg:%v", r.dbname, err)
 		panic(err)
 	}
@@ -292,7 +292,7 @@ func (r *Reporter) generateCreateDBSql() string {
 
 func (r *Reporter) creatTables() {
 	ctx := context.Background()
-	conn, err := db.NewConnectorWithDb(r.username, r.password, r.host, r.port, r.dbname, r.usessl)
+	conn, err := db.NewConnectorWithDbWithRetryForever(r.username, r.password, r.host, r.port, r.dbname, r.usessl)
 	if err != nil {
 		logger.Errorf("connect to database error, msg:%s", err)
 		return
@@ -301,7 +301,7 @@ func (r *Reporter) creatTables() {
 
 	for _, createSql := range createList {
 		logger.Infof("execute sql:%s", createSql)
-		if _, err = conn.Exec(ctx, createSql, util.GetQidOwn(config.Conf.InstanceID)); err != nil {
+		if _, err = conn.ExecWithRetryForever(ctx, createSql, util.GetQidOwn(config.Conf.InstanceID)); err != nil {
 			logger.Errorf("execute sql:%s, error:%s", createSql, err)
 		}
 	}

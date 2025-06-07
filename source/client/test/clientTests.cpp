@@ -803,20 +803,22 @@ TEST(clientCase, insert_test) {
 }
 
 TEST(clientCase, projection_query_tables) {
-#if 0
+#if 1
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
   TAOS_RES* pRes = NULL;
 
-  pRes= taos_query(pConn, "use abc1");
+  pRes= taos_query(pConn, "use test");
   taos_free_result(pRes);
 
-//  pRes = taos_query(pConn, "select forecast(k,'algo=arima,wncheck=0') from t1 where ts<='2024-11-15 1:7:44'");
-//  if (taos_errno(pRes) != 0) {
-//    (void)printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
-//  }
-//  taos_free_result(pRes);
+  pRes = taos_query(pConn, "select forecast(val,past_co_val,future_col_val, 'algo=moirai,rows=3,wncheck=0,dynamic_real_1=[1.0 2.0 3.0],dynamic_real_1_col=future_col_val ') from foo;");
+
+//  pRes = taos_query(pConn, "select forecast(k,'algo=moirai,wncheck=0,') from t1 where ts<='2024-11-15 1:7:44'");
+  if (taos_errno(pRes) != 0) {
+    (void)printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
+  }
+  taos_free_result(pRes);
 
   pRes = taos_query(pConn, "create table t1 (ts timestamp, v1 varchar(20) primary key, v2 int)");
   if (taos_errno(pRes) != 0) {
