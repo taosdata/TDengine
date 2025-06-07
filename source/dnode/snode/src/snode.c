@@ -179,6 +179,9 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
     case TDMT_STREAM_TRIGGER_CALC:
       code = handleTriggerCalcReq(pSnode, pMsg);
       break;
+    case TDMT_STREAM_SYNC_CHECKPOINT:
+      code = handleTriggerCalcReq(pSnode, pMsg);
+      break;
     case TDMT_STREAM_FETCH_FROM_RUNNER:
       code = handleStreamFetchData(pSnode, pMsg);
       break;

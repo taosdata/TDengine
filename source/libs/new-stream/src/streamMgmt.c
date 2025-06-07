@@ -185,6 +185,12 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamTasksInfo* pStre
           taosHashRemove(gStreamMgmt.taskMap, &pTask->streamId, sizeof(pTask->streamId) + sizeof(pTask->taskId));
           taosMemoryFreeClear(pStream->triggerTask);
         }
+        int32_t leaderSid = pDeploy->triggerTask->msg.trigger.leaderSnodeId;
+        int32_t localSid = gStreamMgmt.getDnode(gStreamMgmt.dnode);
+        SEpSet* epSet = gStreamMgmt.getSynEpset(leaderSid);
+        if (epSet != NULL){
+          streamSyncCheckpoint(streamId, localSid, epSet);
+        }
       }
 
       if (TSDB_CODE_SUCCESS == code) {

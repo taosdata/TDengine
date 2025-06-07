@@ -1,4 +1,5 @@
 #include "stream.h"
+#include "trpc.h"
 
 static int32_t getFileName(char* filepath, int64_t streamId, int32_t snodeId) {
   if (snprintf(filepath, PATH_MAX, "%s%ssnode%ssnode%d%s%" PRId64 ".ck", tsDataDir, TD_DIRSEP, TD_DIRSEP, snodeId,
@@ -87,6 +88,25 @@ end:
   return code;
 }
 
+int32_t streamReadCheckPointVer(int64_t streamId, int32_t snodeId, int32_t* ver) {
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  char      filepath[PATH_MAX] = {0};
+  TdFilePtr pFile = NULL;
+  STREAM_CHECK_NULL_GOTO(ver, TSDB_CODE_INVALID_PARA);
+  STREAM_CHECK_RET_GOTO(getFileName(filepath, streamId, snodeId));
+
+  pFile = taosOpenFile(filepath, TD_FILE_READ);
+  STREAM_CHECK_NULL_GOTO(pFile, terrno);
+
+  STREAM_CHECK_CONDITION_GOTO(taosReadFile(pFile, ver, INT_BYTES) != INT_BYTES, terrno);
+
+end:
+  (void)taosCloseFile(&pFile);
+  STREAM_PRINT_LOG_END(code, lino);
+  return code;
+}
+
 int32_t streamDeleteCheckPoint(int64_t streamId, int32_t snodeId) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -100,6 +120,34 @@ int32_t streamDeleteCheckPoint(int64_t streamId, int32_t snodeId) {
     stDebug("checkpoint file does not exist for streamId:%" PRId64 ", snodeId:%d, file:%s", streamId, snodeId,
             filepath);
   }
+
+end:
+  STREAM_PRINT_LOG_END(code, lino);
+  return code;
+}
+
+static int32_t sendMsg(int32_t ver, SEpSet* epSet ){
+  int32_t code = 0;
+  SRpcMsg msg = {.msgType = TDMT_STREAM_SYNC_CHECKPOINT};
+  msg.contLen = sizeof(int32_t) + sizeof(SMsgHead);
+  msg.pCont = rpcMallocCont(msg.contLen);
+  if (msg.pCont == NULL) {
+    return terrno;
+  }
+  SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
+  pMsgHead->contLen = htonl(msg.contLen);
+  pMsgHead->vgId = htonl(SNODE_HANDLE);
+  *(int32_t*)(msg.pCont + sizeof(SMsgHead)) = ver;
+  return tmsgSendReq(epSet, &msg);
+}
+
+int32_t streamSyncCheckpoint(int64_t streamId, int32_t snodeId, SEpSet* epSet) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  int32_t ver = 0;
+  STREAM_CHECK_RET_GOTO(streamReadCheckPointVer(streamId, snodeId, &ver));
+  STREAM_CHECK_RET_GOTO(sendMsg(ver, epSet));
 
 end:
   STREAM_PRINT_LOG_END(code, lino);

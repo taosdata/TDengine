@@ -36,6 +36,7 @@ typedef struct SSnodeMgmt {
 
 typedef struct SSnodeInfo {
   SRWLatch               snodeLock;
+  int32_t                snodeId;
   SNodeEpSet             snodeLeaders[2];
   SNodeEpSet             snodeReplica;
 } SSnodeInfo;
