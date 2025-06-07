@@ -135,7 +135,7 @@ int32_t mndProcessSplitVgroupMsgImp(SRpcMsg *pReq) {
 
   bool dbStream = false;
   bool vtableStream = false;
-  code = mstCheckDbInUse(pMnode, pVgroup->dbName, &dbStream, &vtableStream, false);
+  mstCheckDbInUse(pMnode, pVgroup->dbName, &dbStream, &vtableStream, false);
   if (dbStream) {
     code = TSDB_CODE_MND_STREAM_DB_IN_USE;
     mError("vgId:%d, db:%s, stream exists, split vgroup not allowed", req.vgId, pVgroup->dbName);
