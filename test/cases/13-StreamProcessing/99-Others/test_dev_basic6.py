@@ -131,12 +131,12 @@ class TestStreamDevBasic:
             tbname="r6",
             schema=[
                 ["ts", "TIMESTAMP", 8, ""],
-                ["tb", "VARCHAR", 270, ""],
-                ["_placeholder_column", "VARCHAR", 270, ""],
+                ["tb", "VARCHAR", 272, ""],
+                ["_placeholder_column", "VARCHAR", 272, ""],
                 ["v1", "BIGINT", 8, ""],
                 ["v2", "DOUBLE", 8, ""],
                 ["v3", "INT", 4, ""],
                 ["v4", "INT", 4, ""],
-                ["tag_tbname", "VARCHAR", 270, "TAG"],
+                ["tag_tbname", "VARCHAR", 272, "TAG"],
             ],
         )
