@@ -9,7 +9,7 @@ void test_generate_row_without_timestamp() {
         {"col3", "bool", "random"}
     };
 
-    std::vector<ColumnConfigInstance> col_instances;
+    ColumnConfigInstanceVector col_instances;
     for (size_t i = 0; i < col_configs.size(); ++i) {
         col_instances.emplace_back(col_configs[i]);
     }
@@ -41,7 +41,7 @@ void test_generate_row_with_timestamp() {
         {"col2", "double", "random", 1.5, 3.5}
     };
 
-    std::vector<ColumnConfigInstance> col_instances;
+    ColumnConfigInstanceVector col_instances;
     for (size_t i = 0; i < col_configs.size(); ++i) {
         col_instances.emplace_back(col_configs[i]);
     }
@@ -74,7 +74,7 @@ void test_generate_multiple_rows() {
         {"col2", "double", "random", 1.5, 3.5}
     };
 
-    std::vector<ColumnConfigInstance> col_instances;
+    ColumnConfigInstanceVector col_instances;
     for (size_t i = 0; i < col_configs.size(); ++i) {
         col_instances.emplace_back(col_configs[i]);
     }

@@ -3,7 +3,7 @@
 #include "ColumnGeneratorFactory.h"
 
 
-RowGenerator::RowGenerator(const std::vector<ColumnConfigInstance>& col_instances) {
+RowGenerator::RowGenerator(const ColumnConfigInstanceVector& col_instances) {
     for (const auto& instance : col_instances) {
         auto generator = ColumnGeneratorFactory::create(instance);
         if (generator) {
@@ -14,7 +14,7 @@ RowGenerator::RowGenerator(const std::vector<ColumnConfigInstance>& col_instance
     }
 }
 
-RowGenerator::RowGenerator(const TimestampGeneratorConfig& ts_config, const std::vector<ColumnConfigInstance>& col_instances)
+RowGenerator::RowGenerator(const TimestampGeneratorConfig& ts_config, const ColumnConfigInstanceVector& col_instances)
     : RowGenerator(col_instances) {
     timestamp_gen_ = std::make_unique<TimestampGenerator>(ts_config);
 }
