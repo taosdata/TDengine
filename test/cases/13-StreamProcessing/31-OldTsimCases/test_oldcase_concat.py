@@ -43,7 +43,7 @@ class TestStreamOldCaseConcat:
         tdLog.info(f"===== step2")
         tdLog.info(f"===== table name")
 
-        tdSql.execute(f"create database test vgroups 4;")
+        tdSql.execute(f"create database test vgroups 1;")
         tdSql.execute(f"use test;")
         tdSql.execute(
             f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
@@ -85,24 +85,106 @@ class TestStreamOldCaseConcat:
             f"create stream streams11 interval(10s) sliding(10s) from st into streamt11(a, b, a) as select _twstart, count(*) c1, max(b) from st where ts >= _twstart and ts < _twend;"
         )
         tdSql.error(
-            f"create stream streams12 interval(10s) sliding(10s) from st partition by tbname into streamt12(a, b, c) tags(c varchar(60) as %%tbname) as select _twstart, count(*) c1, max(a), max(b) from st where tbname=%%tbname and ts >= _twstart and ts < _twend;"
+            f"create stream streams12 interval(10s) sliding(10s) from st partition by tbname into streamt12(a, b, c, d) tags(c varchar(60) as %%tbname) as select _twstart, count(*) c1, max(a), max(b) from st where tbname=%%tbname and ts >= _twstart and ts < _twend;"
         )
+        tdSql.error(
+            f"create stream streams13 interval(10s) sliding(10s) from st partition by tbname, tc options(max_delay(1s)) into streamt13(a, b, c, d) tags(tx varchar(60)) as select _twstart, count(*) c1, max(a) c2, max(b) from %%trows where ts >= _twstart and ts < _twend;"
+        )
+        tdSql.error(
+            f"create stream streams14 interval(10s) sliding(10s) from st partition by tbname, tc into streamt14 tags(tx varchar(60) as tc) as select _twstart, count(*) tc, max(a) c1, max(b) from st where tbname=%%tbname and tc=%%2 and ts >= _twstart and ts < _twend;"
+        )
+        tdSql.execute(
+            f"create stream streams14 interval(10s) sliding(10s) from st partition by tbname, tc into streamt14 tags(tx int as tc) as select _twstart, count(*) tc, max(a) c1, max(b) from st where tbname=%%tbname and tc=%%2 and ts >= _twstart and ts < _twend;"
+        )
+        tdSql.execute(
+            f"create stream streams15 interval(10s) sliding(10s) from st partition by tbname, tc into streamt15 tags(tx int as tc, tz varchar(50) as '12') as select _twstart, count(*) c1, max(a) from st where tbname=%%1 and tc=%%2 and ts >= _twstart and ts < _twend;"
+        )
+        tdSql.execute(
+            f"create stream streams16 interval(10s) sliding(10s) from st partition by tbname, tc into streamt16 tags(tx int as tc, tb varchar(32) as %%tbname) as select _twstart, count(*) c1, max(a) from st where tbname=%%1 and tc=%%2 and ts >= _twstart and ts < _twend;"
+        )
+
+        tdSql.checkTableSchema(
+            dbname="test",
+            tbname="streamt5;",
+            schema=[
+                ["a", "TIMESTAMP", 8, ""],
+                ["b", "BIGINT", 8, ""],
+                ["c", "INT", 4, ""],
+                ["tag_tbname", "VARCHAR", 270, "TAG"],
+            ],
+        )
+
+        tdSql.checkTableSchema(
+            dbname="test",
+            tbname="streamt6;",
+            schema=[
+                ["a", "TIMESTAMP", 8, ""],
+                ["b", "BIGINT", 8, ""],
+                ["c", "INT", 4, ""],
+                ["tbn", "VARCHAR", 60, "TAG"],
+            ],
+        )
+
+        tdSql.checkTableSchema(
+            dbname="test",
+            tbname="streamt7;",
+            schema=[
+                ["a", "TIMESTAMP", 8, ""],
+                ["b", "BIGINT", 8, ""],
+                ["c", "INT", 4, ""],
+                ["tbn", "VARCHAR", 60, "TAG"],
+            ],
+        )
+
+        tdSql.checkTableSchema(
+            dbname="test",
+            tbname="streamt14;",
+            schema=[
+                ["_twstart", "TIMESTAMP", 8, ""],
+                ["tc", "BIGINT", 8, ""],
+                ["c1", "INT", 4, ""],
+                ["max(b)", "INT", 4, ""],
+                ["tx", "INT", 4, "TAG"],
+            ],
+        )
+
+        tdSql.checkTableSchema(
+            dbname="test",
+            tbname="streamt15;",
+            schema=[
+                ["_twstart", "TIMESTAMP", 8, ""],
+                ["c1", "BIGINT", 8, ""],
+                ["max(a)", "INT", 4, ""],
+                ["tx", "INT", 4, "TAG"],
+                ["tz", "VARCHAR", 50, "TAG"],
+            ],
+        )
+
+        tdSql.checkTableSchema(
+            dbname="test",
+            tbname="streamt16;",
+            schema=[
+                ["_twstart", "TIMESTAMP", 8, ""],
+                ["c1", "BIGINT", 8, ""],
+                ["max(a)", "INT", 4, ""],
+                ["tx", "INT", 4, "TAG"],
+                ["tb", "VARCHAR", 32, "TAG"],
+            ],
+        )
+
+        tdSql.checkTableSchema(
+            dbname="test",
+            tbname="streamt5;",
+            schema=[
+                ["a", "TIMESTAMP", 8, ""],
+                ["b", "BIGINT", 8, ""],
+                ["c", "INT", 4, ""],
+                ["tag_tbname", "VARCHAR", 270, "TAG"],
+            ],
+        )
+
         return
-        tdSql.error(
-            f"create stream streams13 interval(10s) sliding(10s) from st into streamt13(a, b, c) tags(tc varchar(60)) as select count(*) c1, max(a) c1, max(b) from st partition by tbname tc where ts >= _twstart and ts < _twend;"
-        )
-        tdSql.error(
-            f"create stream streams14 interval(10s) sliding(10s) from st into streamt14 tags(tc varchar(60)) as select count(*) tc, max(a) c1, max(b) from st partition by tbname tc where ts >= _twstart and ts < _twend;"
-        )
-        tdSql.error(
-            f"create stream streams15 interval(10s) sliding(10s) from st into streamt15 tags(tc varchar(100) primary key) as select _twstart, count(*) c1, max(a) from st partition by tbname tc where ts >= _twstart and ts < _twend;"
-        )
-
-        tdSql.checkResultsByFunc(
-            sql="desc streamt3;", func=lambda: tdSql.getRows() == 4
-        )
-
-        tdSql.execute(f"create database test1 vgroups 4;")
+        tdSql.execute(f"create database test1 vgroups 1;")
         tdSql.execute(f"use test1;")
         tdSql.execute(
             f"create stable st(ts timestamp, a int primary key, b int, c int) tags(ta int, tb int, tc int);"
