@@ -920,11 +920,16 @@ typedef struct {
 
 
 typedef struct {
+  int32_t vgId;
+  bool done;
+} SVnodeS3MigrateDetail;
+
+typedef struct {
   int32_t s3MigrateId;
   int64_t dbUid;
   char    dbname[TSDB_TABLE_FNAME_LEN];
   int64_t startTime;
-  SArray* s3MigrateDetail; // not used yet
+  SArray* vnodeMigrateDetails;
 } SS3MigrateObj;
 
 // SGrantLogObj
