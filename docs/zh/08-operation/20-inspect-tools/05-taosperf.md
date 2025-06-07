@@ -157,7 +157,7 @@ fio --name=db_read_test --filename=[file] --size=5G --bs=1M --rw=randread --ioen
 ```
 ./taosperf -m local
 ```
-测试本机的磁盘读写性能和本机到指定节点( 192.168.1.1 )的网络传输能力
+测试本机的磁盘读写性能和本机到指定节点 ( 192.168.1.1 ) 的网络传输能力
 ```
 ./taosperf -m local -i 192.168.1.1
 ```
