@@ -19,6 +19,7 @@ use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::Code;
+use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 use utoipa::*;
 
@@ -797,12 +798,21 @@ pub(crate) async fn send_all_tasks_activities(
 ) -> Result<HttpResponse, Error> {
     let (res, session, msg_stream) = actix_ws::handle(&req, stream)?;
     // spawn websocket handler (and don't await it) so that the response is returned immediately
-    rt::spawn(send_all_tasks_activities_ws(req, session.clone()));
-    rt::spawn(echo_heartbeat_ws(session.clone(), msg_stream));
+    let cancel = CancellationToken::new();
+    rt::spawn(send_all_tasks_activities_ws(
+        req,
+        session.clone(),
+        cancel.clone(),
+    ));
+    rt::spawn(echo_heartbeat_ws(session, msg_stream, cancel));
     Ok(res)
 }
 
-async fn send_all_tasks_activities_ws(req: HttpRequest, mut session: Session) {
+async fn send_all_tasks_activities_ws(
+    req: HttpRequest,
+    mut session: Session,
+    cancel: CancellationToken,
+) {
     let task_store = match req.app_data::<Data<TaskControllerRef>>() {
         Some(store) => store,
         None => {
@@ -853,7 +863,10 @@ async fn send_all_tasks_activities_ws(req: HttpRequest, mut session: Session) {
     let notify_channel = scheduler.notify_channel();
     let mut rx = notify_channel;
     'loop_send: loop {
-        match rx.recv().await {
+        let Some(res) = cancel.run_until_cancelled(rx.recv()).await else {
+            break;
+        };
+        match res {
             Ok(notify) => match notify {
                 crate::serve::scheduler::SchedulerNotify::TaskActivity(activity) => {
                     if let Err(err) = session

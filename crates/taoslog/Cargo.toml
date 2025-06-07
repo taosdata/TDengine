@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-actix-web = { version = "*", default-features = false }
+actix-web.workspace = true
 tracing-actix-web = { version = "*" }
 tracing = { workspace = true }
 tracing-subscriber = { version = "*", default-features = false, features = [
