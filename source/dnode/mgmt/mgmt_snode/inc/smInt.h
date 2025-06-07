@@ -34,6 +34,12 @@ typedef struct SSnodeMgmt {
   SDispatchWorkerPool triggerWorkerPool;
 } SSnodeMgmt;
 
+typedef struct SSnodeInfo {
+  SRWLatch               snodeLock;
+  SNodeEpSet             snodeLeaders[2];
+  SNodeEpSet             snodeReplica;
+} SSnodeInfo;
+
 // smHandle.c
 SArray *smGetMsgHandles();
 int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);

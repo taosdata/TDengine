@@ -550,6 +550,8 @@ void dumpSnode(SSdb *pSdb, SJson *json) {
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(status)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "id", i642str(pObj->id)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "replicaId", i642str(pObj->replicaId)), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "leaderId0", i642str(pObj->leadersId[0])), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "leaderId1", i642str(pObj->leadersId[1])), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime)), pObj, &lino, _OVER);
     sdbRelease(pSdb, pObj);

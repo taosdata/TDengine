@@ -3182,6 +3182,25 @@ _exit:
   return code;
 }
 
+int32_t tEncodeSNodeEpSet(SEncoder* pEncoder, SNodeEpSet *pNode) {
+  int32_t code = 0;
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pNode->nodeId));
+  TAOS_CHECK_RETURN(tEncodeSEpSet(pEncoder, &pNode->epSet));
+
+_exit:
+
+  return code;
+}
+
+int32_t tDecodeSNodeEpSet(SDecoder *pDecoder, SNodeEpSet *pNode) {
+  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pNode->nodeId));
+  TAOS_CHECK_RETURN(tDecodeSEpSet(pDecoder, &pNode->epSet));
+
+  return 0;
+}
+
+
+
 int32_t tSerializeSDCreateSNodeReq(void *buf, int32_t bufLen, SDCreateSnodeReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
@@ -3191,7 +3210,9 @@ int32_t tSerializeSDCreateSNodeReq(void *buf, int32_t bufLen, SDCreateSnodeReq *
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->snodeId));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->replicaId));
+  TAOS_CHECK_EXIT(tEncodeSNodeEpSet(&encoder, &pReq->leaders[0]));
+  TAOS_CHECK_EXIT(tEncodeSNodeEpSet(&encoder, &pReq->leaders[1]));
+  TAOS_CHECK_EXIT(tEncodeSNodeEpSet(&encoder, &pReq->replica));
   ENCODESQL();
   tEndEncode(&encoder);
 
@@ -3213,7 +3234,9 @@ int32_t tDeserializeSDCreateSNodeReq(void *buf, int32_t bufLen, SDCreateSnodeReq
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->snodeId));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->replicaId));
+  TAOS_CHECK_EXIT(tDecodeSNodeEpSet(&decoder, &pReq->leaders[0]));
+  TAOS_CHECK_EXIT(tDecodeSNodeEpSet(&decoder, &pReq->leaders[1]));
+  TAOS_CHECK_EXIT(tDecodeSNodeEpSet(&decoder, &pReq->replica));
   DECODESQL();
   tEndDecode(&decoder);
 

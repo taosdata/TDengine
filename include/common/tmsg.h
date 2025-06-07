@@ -2702,11 +2702,19 @@ typedef struct {
 int32_t tSerializeSCreateDropMQSNodeReq(void* buf, int32_t bufLen, SMCreateQnodeReq* pReq);
 int32_t tDeserializeSCreateDropMQSNodeReq(void* buf, int32_t bufLen, SMCreateQnodeReq* pReq);
 
+
 typedef struct {
-  int32_t snodeId;
-  int32_t replicaId;
-  int32_t sqlLen;
-  char*   sql;
+  int32_t nodeId;
+  SEpSet  epSet;
+} SNodeEpSet;
+
+
+typedef struct {
+  int32_t    snodeId;
+  SNodeEpSet leaders[2];
+  SNodeEpSet replica;
+  int32_t    sqlLen;
+  char*      sql;
 } SDCreateSnodeReq;
 
 int32_t tSerializeSDCreateSNodeReq(void *buf, int32_t bufLen, SDCreateSnodeReq *pReq);

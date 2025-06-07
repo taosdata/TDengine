@@ -56,8 +56,8 @@ int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode
   gStreamMgmt.vgroupMap = taosHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   TSDB_CHECK_NULL(gStreamMgmt.vgroupMap, code, lino, _exit, terrno);
 
-  gStreamMgmt.snodeTasks = taosArrayInit(20, POINTER_BYTES);
-  TSDB_CHECK_NULL(gStreamMgmt.snodeTasks, code, lino, _exit, terrno);
+//  gStreamMgmt.snodeTasks = taosArrayInit(20, POINTER_BYTES);
+//  TSDB_CHECK_NULL(gStreamMgmt.snodeTasks, code, lino, _exit, terrno);
   
   TAOS_CHECK_EXIT(streamTimerInit(&gStreamMgmt.timer));
 

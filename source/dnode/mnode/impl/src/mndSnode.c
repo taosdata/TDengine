@@ -231,11 +231,22 @@ static int32_t mndSetCreateSnodeCommitLogs(STrans *pTrans, SSnodeObj *pObj) {
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetCreateSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SSnodeObj *pObj, int32_t replicaId) {
+static int32_t mndSetCreateSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SSnodeObj *pObj, SMnode *pMnode) {
   int32_t          code = 0;
   SDCreateSnodeReq createReq = {0};
   createReq.snodeId = pDnode->id;
-  createReq.replicaId = replicaId;
+  createReq.leaders[0].nodeId = pObj->leadersId[0];
+  if (createReq.leaders[0].nodeId > 0) {
+    createReq.leaders[0].epSet = mndGetDnodeEpsetById(pMnode, createReq.leaders[0].nodeId);
+  }
+  createReq.leaders[1].nodeId = pObj->leadersId[1];
+  if (createReq.leaders[1].nodeId > 0) {
+    createReq.leaders[1].epSet = mndGetDnodeEpsetById(pMnode, createReq.leaders[1].nodeId);
+  }
+  createReq.replica.nodeId = pObj->replicaId;
+  if (createReq.replica.nodeId > 0) {
+    createReq.replica.epSet = mndGetDnodeEpsetById(pMnode, createReq.replica.nodeId);
+  }
 
   int32_t contLen = tSerializeSDCreateSNodeReq(NULL, 0, &createReq);
   void   *pReq = taosMemoryMalloc(contLen);
@@ -263,11 +274,22 @@ static int32_t mndSetCreateSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetUpdateSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SSnodeObj *pObj, int32_t replicaId) {
+static int32_t mndSetUpdateSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SSnodeObj *pObj, SMnode *pMnode) {
   int32_t          code = 0;
   SDCreateSnodeReq createReq = {0};
   createReq.snodeId = pDnode->id;
-  createReq.replicaId = replicaId;
+  createReq.leaders[0].nodeId = pObj->leadersId[0];
+  if (createReq.leaders[0].nodeId > 0) {
+    createReq.leaders[0].epSet = mndGetDnodeEpsetById(pMnode, createReq.leaders[0].nodeId);
+  }
+  createReq.leaders[1].nodeId = pObj->leadersId[1];
+  if (createReq.leaders[1].nodeId > 0) {
+    createReq.leaders[1].epSet = mndGetDnodeEpsetById(pMnode, createReq.leaders[1].nodeId);
+  }
+  createReq.replica.nodeId = pObj->replicaId;
+  if (createReq.replica.nodeId > 0) {
+    createReq.replica.epSet = mndGetDnodeEpsetById(pMnode, createReq.replica.nodeId);
+  }
 
   int32_t contLen = tSerializeSDCreateSNodeReq(NULL, 0, &createReq);
   void   *pReq = taosMemoryMalloc(contLen);
@@ -327,7 +349,7 @@ static int32_t mndSetCreateSnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
   TAOS_RETURN(code);
 }
 
-static int32_t mndCreateSnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMCreateSnodeReq *pCreate, int32_t replicaId, int64_t currTs) {
+static int32_t mndCreateSnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMCreateSnodeReq *pCreate, int64_t currTs) {
   int32_t code = -1;
 
   SSnodeObj snodeObj = {0};
@@ -348,7 +370,7 @@ static int32_t mndCreateSnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
   TAOS_CHECK_GOTO(mndSetCreateSnodeRedoLogs(pTrans, &snodeObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateSnodeUndoLogs(pTrans, &snodeObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateSnodeCommitLogs(pTrans, &snodeObj), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateSnodeRedoActions(pTrans, pDnode, &snodeObj, replicaId), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetCreateSnodeRedoActions(pTrans, pDnode, &snodeObj, pMnode), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateSnodeUndoActions(pTrans, pDnode, &snodeObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
@@ -361,18 +383,25 @@ _OVER:
 
 static bool mndSnodeTraverseForCreate(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
   SSnodeObj* pSnode = pObj;
-  int32_t* id = (int32_t*)p1;
-  SSnodeObj** ppSnode = (SSnodeObj**)p2;
+  SSnodeObj** ppReplica = (SSnodeObj**)p1;
+  SSnodeObj** ppLeader = (SSnodeObj**)p2;
+  bool* noLeaderGot = (bool*)p3;
 
-  if (pSnode->id > *id) {
-    *id = pSnode->id;
+  if (0 == pSnode->leadersId[0]) {
+    *ppReplica = pSnode;
+    if (*ppLeader) {
+      return false;
+    }
+
+    *noLeaderGot = true;
+  } else if (NULL == *ppReplica && 0 == pSnode->leadersId[1]) {
+    *ppReplica = pSnode;
   }
 
-  if (0 == pSnode->replicaId) {
-    if (NULL == *ppSnode) {
-      *ppSnode = pSnode;
-    } else {
-      mError("already got no replicaId snode:%d, new no replicaId snode:%d", (*ppSnode)->id, pSnode->id);
+  if (0 == pSnode->replicaId && NULL == *ppLeader) {
+    *ppLeader = pSnode;
+    if (*noLeaderGot) {
+      return false;
     }
   }
 
@@ -380,11 +409,12 @@ static bool mndSnodeTraverseForCreate(SMnode *pMnode, void *pObj, void *p1, void
 }
 
 
-void mndSnodeGetReplicaId(SMnode *pMnode, SMCreateSnodeReq *pCreate, int32_t *replicaId, SSnodeObj** ppSnode) {
-  sdbTraverse(pMnode->pSdb, SDB_SNODE, mndSnodeTraverseForCreate, replicaId, ppSnode, NULL);
+void mndSnodeGetReplicaSnode(SMnode *pMnode, SMCreateSnodeReq *pCreate, SSnodeObj **ppReplica, SSnodeObj** ppLeader) {
+  bool noLeaderGot = false;
+  sdbTraverse(pMnode->pSdb, SDB_SNODE, mndSnodeTraverseForCreate, ppReplica, ppLeader, &noLeaderGot);
 }
 
-static int32_t mndSnodeAppendUpdateToTrans(SMnode *pMnode, SSnodeObj* pObj, STrans *pTrans, int32_t replicaId) {
+static int32_t mndSnodeAppendUpdateToTrans(SMnode *pMnode, SSnodeObj* pObj, STrans *pTrans) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SDnodeObj *pDnode2 = mndAcquireDnode(pMnode, pObj->id);
@@ -395,7 +425,9 @@ static int32_t mndSnodeAppendUpdateToTrans(SMnode *pMnode, SSnodeObj* pObj, STra
   
   SSnodeObj snodeObj2 = {0};
   snodeObj2.id = pObj->id;
-  snodeObj2.replicaId = replicaId;
+  snodeObj2.leadersId[0] = pObj->leadersId[0];
+  snodeObj2.leadersId[1] = pObj->leadersId[1];
+  snodeObj2.replicaId = pObj->replicaId;
   snodeObj2.createdTime = pObj->createdTime;
   snodeObj2.updateTime = taosGetTimestampMs();
   
@@ -404,7 +436,7 @@ static int32_t mndSnodeAppendUpdateToTrans(SMnode *pMnode, SSnodeObj* pObj, STra
   TAOS_CHECK_EXIT(mndSetUpdateSnodeRedoLogs(pTrans, &snodeObj2));
   //TAOS_CHECK_EXIT(mndSetCreateSnodeUndoLogs(pTrans, &snodeObj2));
   TAOS_CHECK_EXIT(mndSetCreateSnodeCommitLogs(pTrans, &snodeObj2));
-  TAOS_CHECK_EXIT(mndSetUpdateSnodeRedoActions(pTrans, pDnode2, &snodeObj2, snodeObj2.replicaId));
+  TAOS_CHECK_EXIT(mndSetUpdateSnodeRedoActions(pTrans, pDnode2, &snodeObj2, pMnode));
   //TAOS_CHECK_EXIT(mndSetCreateSnodeUndoActions(pTrans, pDnode2, &snodeObj2));
 
 _exit:
@@ -419,18 +451,33 @@ _exit:
 }
 
 static int32_t mndCreateSnodeWithReplicaId(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMCreateSnodeReq *pCreate, int64_t currTs) {
-  int32_t replicaId = 0;
-  SSnodeObj* noReplicaSnode = NULL;
+  SSnodeObj* replicaSnode = NULL;
+  SSnodeObj* leaderSnode = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
-  mndSnodeGetReplicaId(pMnode, pCreate, &replicaId, &noReplicaSnode);
+  mndSnodeGetReplicaSnode(pMnode, pCreate, &replicaSnode, &leaderSnode);
 
   SSnodeObj snodeObj = {0};
   snodeObj.id = pDnode->id;
-  snodeObj.replicaId = replicaId;
+  if (leaderSnode) {
+    snodeObj.leadersId[0] = leaderSnode->id;
+  }
+  snodeObj.replicaId = replicaSnode->id;
   snodeObj.createdTime = currTs;
   snodeObj.updateTime = snodeObj.createdTime;
+
+  if (leaderSnode) {
+    leaderSnode->replicaId = snodeObj.id;
+  }
+
+  if (replicaSnode) {
+    if (replicaSnode->leadersId[0] > 0) {
+      replicaSnode->leadersId[1] = snodeObj.id;
+    } else {
+      replicaSnode->leadersId[0] = snodeObj.id;
+    }
+  }
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-snode");
   if (pTrans == NULL) {
@@ -446,11 +493,15 @@ static int32_t mndCreateSnodeWithReplicaId(SMnode *pMnode, SRpcMsg *pReq, SDnode
   TAOS_CHECK_EXIT(mndSetCreateSnodeRedoLogs(pTrans, &snodeObj));
   TAOS_CHECK_EXIT(mndSetCreateSnodeUndoLogs(pTrans, &snodeObj));
   TAOS_CHECK_EXIT(mndSetCreateSnodeCommitLogs(pTrans, &snodeObj));
-  TAOS_CHECK_EXIT(mndSetCreateSnodeRedoActions(pTrans, pDnode, &snodeObj, snodeObj.replicaId));
+  TAOS_CHECK_EXIT(mndSetCreateSnodeRedoActions(pTrans, pDnode, &snodeObj, pMnode));
   TAOS_CHECK_EXIT(mndSetCreateSnodeUndoActions(pTrans, pDnode, &snodeObj));
 
-  if (noReplicaSnode) {
-    TAOS_CHECK_EXIT(mndSnodeAppendUpdateToTrans(pMnode, noReplicaSnode, pTrans, pDnode->id));
+  if (leaderSnode) {
+    TAOS_CHECK_EXIT(mndSnodeAppendUpdateToTrans(pMnode, leaderSnode, pTrans));
+  }
+
+  if (replicaSnode && replicaSnode != leaderSnode) {
+    TAOS_CHECK_EXIT(mndSnodeAppendUpdateToTrans(pMnode, replicaSnode, pTrans));
   }
 
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
@@ -494,13 +545,12 @@ static int32_t mndProcessCreateSnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  int32_t replicaId = 0;
   int64_t currTs = taosGetTimestampMs();
   int32_t snodeNum = sdbGetSize(pMnode->pSdb, SDB_SNODE);
   if (snodeNum > 0) {
     code = mndCreateSnodeWithReplicaId(pMnode, pReq, pDnode, &createReq, currTs);
   } else {
-    code = mndCreateSnode(pMnode, pReq, pDnode, &createReq, replicaId, currTs);
+    code = mndCreateSnode(pMnode, pReq, pDnode, &createReq, currTs);
   }
   
   if (code == 0) {
@@ -595,119 +645,142 @@ static bool mndSnodeTraverseForDropAff(SMnode *pMnode, void *pObj, void *p1, voi
 
   if (pSnode->replicaId == ctx->target->id) {
     if (ctx->affNum <= 1) {
-      ctx->affSnode[ctx->affNum++] = pSnode;
+      ctx->affSnode[ctx->affNum++] = *pSnode;
     } else {
-      mError("%d snodes with same replicaId:%d, %p, %p, %p", ctx->affNum + 1, ctx->target->id, 
-          ctx->affSnode[0], ctx->affSnode[1], pSnode);
+      mError("%d snodes with same replicaId:%d, %d, %d, %d", ctx->affNum + 1, ctx->target->id, 
+          ctx->affSnode[0].id, ctx->affSnode[1].id, pSnode->id);
+    }
+  }
+
+  if (pSnode->leadersId[0] && pSnode->leadersId[0] == ctx->target->id) {
+    if (ctx->replicaSnode.id) {
+      mError("snode %d got new replicaSnode %d while already got replicaSnode %d", ctx->target->id, pSnode->id, ctx->replicaSnode.id);
+    } else {
+      ctx->replicaSnode = *pSnode;
+    }
+  }
+
+  if (pSnode->leadersId[1] && pSnode->leadersId[1] == ctx->target->id) {
+    if (ctx->replicaSnode.id) {
+      mError("snode %d got new replicaSnode %d while already got replicaSnode %d", ctx->target->id, pSnode->id, ctx->replicaSnode.id);
+    } else {
+      ctx->replicaSnode = *pSnode;
     }
   }
 
   return true;
 }
 
-static bool mndSnodeTraverseForReplicaNum(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
-  SSnodeObj* pSnode = pObj;
-  SSnodeObj* pTarget = (SSnodeObj*)p1;
-
-  if (pSnode == p1) {
-    return true;
-  }
-
-  if (pSnode->replicaId == pTarget->id) {
-    *(int32_t*)p2 += 1;
-  }
-
-  return true;
-}
-
-
-static int32_t mndSnodeGetReplicaNum(SMnode *pMnode, void *pObj) {
-  int32_t n = 0;
-  sdbTraverse(pMnode->pSdb, SDB_SNODE, mndSnodeTraverseForReplicaNum, pObj, &n, NULL);
-
-  return n;
-}
-
 static bool mndSnodeTraverseForNewReplica(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
   SSnodeObj* pSnode = pObj;
+  SSnodeObj* pSnode1 = (SSnodeObj*)p1;
+  SSnodeObj* pSnode2 = (SSnodeObj*)p2;
 
-  if (pSnode == p1 || pSnode == p2) {
+  if (pSnode->id == pSnode1->id || pSnode->id == pSnode2->id) {
     return true;
   }
 
-  int32_t n = mndSnodeGetReplicaNum(pMnode, pSnode);
+  int32_t n = pSnode->leadersId[0] ? (pSnode->leadersId[1] ? 2 : 1) : 0;
   if (0 == n) {
-    *(int32_t*)p3 = pSnode->id;
+    *(SSnodeObj*)p3 = *pSnode;
     return false;
-  } else if (1 == n && 0 == *(int32_t*)p3) {
-    *(int32_t*)p3 = pSnode->id;
+  } else if (1 == n && 0 == ((SSnodeObj*)p3)->id) {
+    *(SSnodeObj*)p3 = *pSnode;
   }
 
   return true;
 }
 
 
-static int32_t mndSnodeCheckDropReplica(SMnode *pMnode, SSnodeObj* pObj, SSnodeObj** ppAff1, int32_t* newRId1, SSnodeObj** ppAff2, int32_t* newRId2) {
+static int32_t mndSnodeCheckDropReplica(SMnode *pMnode, SSnodeObj* pObj, SSnodeDropTraversaCtx* pCtx) {
   int32_t snodeNum = sdbGetSize(pMnode->pSdb, SDB_SNODE);
-  if (0 == pObj->replicaId) {
-    mInfo("no need to get drop snode replica, replicaId:%d, remainSnode:%d", pObj->replicaId, snodeNum);
-    return TSDB_CODE_SUCCESS;
-  }
-
   if (snodeNum <= 1) {
     mWarn("no need to get drop snode replica, replicaId:%d, remainSnode:%d", pObj->replicaId, snodeNum);
     return TSDB_CODE_SUCCESS;
   }
 
-  SSnodeDropTraversaCtx ctx = {0};
-  ctx.target = pObj;
+  sdbTraverse(pMnode->pSdb, SDB_SNODE, mndSnodeTraverseForDropAff, pCtx, NULL, NULL);
 
-  sdbTraverse(pMnode->pSdb, SDB_SNODE, mndSnodeTraverseForDropAff, &ctx, NULL, NULL);
-
-  if (0 == ctx.affNum) {
+  if (0 == pCtx->affNum) {
     mDebug("no affected snode for dropping snode %d", pObj->id);
     return TSDB_CODE_SUCCESS;
   }
 
-  if (2 == ctx.affNum) {
-    *ppAff1 = ctx.affSnode[0];
-    *ppAff2 = ctx.affSnode[1];
-    *newRId1 = (*ppAff2)->id;
-    *newRId2 = (*ppAff1)->id;
+  if (2 == pCtx->affNum) {
+    sdbTraverse(pMnode->pSdb, SDB_SNODE, mndSnodeTraverseForNewReplica, pCtx->target, &pCtx->affSnode[0], &pCtx->affNewReplica[0]);
+    sdbTraverse(pMnode->pSdb, SDB_SNODE, mndSnodeTraverseForNewReplica, pCtx->target, &pCtx->affSnode[1], &pCtx->affNewReplica[1]);
 
     mDebug("two affected snodes for dropping snode %d, first:%d newRId:%d, sencod:%d newRId:%d", 
-        pObj->id, ctx.affSnode[0]->id, *newRId1, ctx.affSnode[1]->id, *newRId2);
+        pObj->id, pCtx->affSnode[0].id, pCtx->affNewReplica[0].id, pCtx->affSnode[1].id, pCtx->affNewReplica[1].id);
 
     return TSDB_CODE_SUCCESS;
   }
 
-  *ppAff1 = ctx.affSnode[0];
-  
-  if (ctx.affSnode[0]->id != ctx.target->replicaId) {
-    *newRId1 = ctx.target->replicaId;
-
-    mDebug("one affected snodes for dropping snode %d, first:%d newRId:%d", pObj->id, ctx.affSnode[0]->id, *newRId1);
-
-    return TSDB_CODE_SUCCESS;
+  if (pCtx->affSnode[0].id == pCtx->replicaSnode.id) {
+    pCtx->replicaSnode.id = 0;
+    sdbTraverse(pMnode->pSdb, SDB_SNODE, mndSnodeTraverseForNewReplica, pCtx->target, &pCtx->affSnode[0], &pCtx->replicaSnode);
   }
 
-  sdbTraverse(pMnode->pSdb, SDB_SNODE, mndSnodeTraverseForNewReplica, ctx.target, ctx.affSnode[0], newRId1);
+  pCtx->affNewReplica[0] = pCtx->replicaSnode;
+  pCtx->replicaNewLeader = pCtx->affSnode[0];
 
-  mDebug("one affected snodes for dropping snode %d, first:%d newRId:%d", pObj->id, ctx.affSnode[0]->id, *newRId1);
+  mDebug("one affected snodes for dropping snode %d, first:%d newRId:%d", pObj->id, pCtx->affSnode[0].id, pCtx->affNewReplica[0].id);
 
   return TSDB_CODE_SUCCESS;
 }
 
+static void mndSnodeRemoveLeaderId(SSnodeObj *pObj, int32_t leaderId) {
+  if (NULL == pObj || 0 == pObj->id) {
+    return;
+  }
+  
+  if (pObj->leadersId[1] == leaderId) {
+    pObj->leadersId[1] = 0;
+    return;
+  }
+
+  if (pObj->leadersId[0] == leaderId) {
+    if (pObj->leadersId[1] > 0) {
+      pObj->leadersId[0] = pObj->leadersId[1];
+      pObj->leadersId[1] = 0;
+      return;
+    }
+
+    pObj->leadersId[0] = 0;
+  }
+}
+
+static void mndSnodeAddLeaderId(SSnodeObj *pObj, int32_t leaderId) {
+  if (NULL == pObj || 0 == pObj->id || 0 == leaderId) {
+    return;
+  }
+  
+  if (0 == pObj->leadersId[0]) {
+    pObj->leadersId[0] = leaderId;
+    return;
+  }
+
+  if (0 == pObj->leadersId[1]) {
+    pObj->leadersId[0] = leaderId;
+    return;
+  }
+
+  mError("snode %d can't add new leaderId %d since already has two leaders:%d, %d", pObj->id, leaderId, pObj->leadersId[0], pObj->leadersId[1]);
+}
+
+
 static int32_t mndDropSnode(SMnode *pMnode, SRpcMsg *pReq, SSnodeObj *pObj) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  SSnodeObj* pAffected1 = NULL, *pAffected2 = NULL;
-  int32_t newReplicaId1 = 0, newReplicaId2 = 0;
   STrans *pTrans = NULL;
   SArray* streamList = NULL;
   
   TAOS_CHECK_EXIT(msmCheckSnodeReassign(pMnode, pObj, &streamList));
-  TAOS_CHECK_EXIT(mndSnodeCheckDropReplica(pMnode, pObj, &pAffected1, &newReplicaId1, &pAffected2, &newReplicaId2));
+
+  SSnodeDropTraversaCtx ctx = {0};
+  ctx.target = pObj;
+  
+  TAOS_CHECK_EXIT(mndSnodeCheckDropReplica(pMnode, pObj, &ctx));
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "drop-snode");
   if (pTrans == NULL) {
@@ -726,14 +799,44 @@ static int32_t mndDropSnode(SMnode *pMnode, SRpcMsg *pReq, SSnodeObj *pObj) {
     }
   }
 
-  if (pAffected1) {
-    mInfo("trans:%d, used to update snode:%d replica to %d", pTrans->id, pAffected1->id, newReplicaId1);
-    TAOS_CHECK_EXIT(mndSnodeAppendUpdateToTrans(pMnode, pAffected1, pTrans, newReplicaId1));
-  }
+  mndSnodeRemoveLeaderId(&ctx.affSnode[0], pObj->id);
+  mndSnodeRemoveLeaderId(&ctx.affSnode[1], pObj->id);
+  mndSnodeRemoveLeaderId(&ctx.affNewReplica[0], pObj->id);
+  mndSnodeRemoveLeaderId(&ctx.affNewReplica[1], pObj->id);
+  mndSnodeRemoveLeaderId(&ctx.replicaSnode, pObj->id);
+  mndSnodeRemoveLeaderId(&ctx.replicaNewLeader, pObj->id);
 
-  if (pAffected2) {
-    mInfo("trans:%d, used to update snode:%d replica to %d", pTrans->id, pAffected2->id, newReplicaId2);
-    TAOS_CHECK_EXIT(mndSnodeAppendUpdateToTrans(pMnode, pAffected2, pTrans, newReplicaId2));
+  ctx.affSnode[0].replicaId = ctx.affNewReplica[0].id;
+  ctx.affSnode[1].replicaId = ctx.affNewReplica[1].id;
+  ctx.replicaSnode.replicaId = ctx.replicaNewLeader.id;
+
+  mndSnodeAddLeaderId(&ctx.affNewReplica[0], ctx.affSnode[0].id);
+  mndSnodeAddLeaderId(&ctx.affNewReplica[1], ctx.affSnode[1].id);
+  mndSnodeAddLeaderId(&ctx.replicaNewLeader, ctx.replicaSnode.id);
+
+  if (ctx.affSnode[0].id > 0) {
+    mInfo("trans:%d, used to update snode:%d", pTrans->id, ctx.affSnode[0].id);
+    TAOS_CHECK_EXIT(mndSnodeAppendUpdateToTrans(pMnode, &ctx.affSnode[0], pTrans));
+  }
+  if (ctx.affSnode[1].id > 0) {
+    mInfo("trans:%d, used to update snode:%d", pTrans->id, ctx.affSnode[1].id);
+    TAOS_CHECK_EXIT(mndSnodeAppendUpdateToTrans(pMnode, &ctx.affSnode[1], pTrans));
+  }
+  if (ctx.affNewReplica[0].id > 0) {
+    mInfo("trans:%d, used to update snode:%d", pTrans->id, ctx.affNewReplica[0].id);
+    TAOS_CHECK_EXIT(mndSnodeAppendUpdateToTrans(pMnode, &ctx.affNewReplica[0], pTrans));
+  }
+  if (ctx.affNewReplica[1].id > 0) {
+    mInfo("trans:%d, used to update snode:%d", pTrans->id, ctx.affNewReplica[1].id);
+    TAOS_CHECK_EXIT(mndSnodeAppendUpdateToTrans(pMnode, &ctx.affNewReplica[1], pTrans));
+  }
+  if (ctx.replicaSnode.id > 0) {
+    mInfo("trans:%d, used to update snode:%d", pTrans->id, ctx.replicaSnode.id);
+    TAOS_CHECK_EXIT(mndSnodeAppendUpdateToTrans(pMnode, &ctx.replicaSnode, pTrans));
+  }
+  if (ctx.replicaNewLeader.id > 0) {
+    mInfo("trans:%d, used to update snode:%d", pTrans->id, ctx.replicaNewLeader.id);
+    TAOS_CHECK_EXIT(mndSnodeAppendUpdateToTrans(pMnode, &ctx.replicaNewLeader, pTrans));
   }
 
   mInfo("trans:%d, used to drop snode:%d", pTrans->id, pObj->id);

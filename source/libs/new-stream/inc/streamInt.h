@@ -70,6 +70,9 @@ typedef struct SStreamMgmtInfo {
   void*                  timer;
   void*                  dnode;
   bool                   snodeEnabled;
+  SRWLatch               snodeLock;
+  SNodeEpSet             snodeLeaders[2];
+  SNodeEpSet             snodeReplica;
   
 //  SStorageAPI*           api;
   getMnodeEpset_f         getMnode;
@@ -87,7 +90,6 @@ typedef struct SStreamMgmtInfo {
   SHashObj*              taskMap;                         // streamId + taskId => SStreamTask*
   SHashObj*              vgroupMap;                       // vgId => SStreamVgReaderTasks
 
-  SRWLatch               snodeLock;
   SArray*                snodeTasks;                      // SArray<SStreamTask*>
 } SStreamMgmtInfo;
 

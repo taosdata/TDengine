@@ -24,23 +24,24 @@
 
 
 void smRemoveReaderFromVgMap(SStreamTask* pTask) {
-  SStreamVgReaderTasks* pTasks = taosHashGet(gStreamMgmt.vgroupMap, &pTask->nodeId, sizeof(pTask->nodeId));
-  if (NULL == pTasks) {
+  SStreamVgReaderTasks* pVg = taosHashGet(gStreamMgmt.vgroupMap, &pTask->nodeId, sizeof(pTask->nodeId));
+  if (NULL == pVg) {
     ST_TASK_WLOG("vgroup not exists, tidx:%d", pTask->taskIdx);
     return;
   }
 
-  taosWLockLatch(&pTasks->lock);
-  int32_t taskNum = taosArrayGetSize(pTasks->taskList);
+  taosWLockLatch(&pVg->lock);
+  int32_t taskNum = taosArrayGetSize(pVg->taskList);
   for (int32_t i = 0; i < taskNum; ++i) {
-    SStreamTask** ppTask = taosArrayGet(pTasks->taskList, i);
+    SStreamTask** ppTask = taosArrayGet(pVg->taskList, i);
     if ((*ppTask)->taskId == pTask->taskId) {
       ST_TASK_ILOG("task removed from vgroupMap, tidx:%d", pTask->taskIdx);
-      taosArrayRemove(pTasks->taskList, i);
+      taosArrayRemove(pVg->taskList, i);
       break;
     }
   }
-  taosWUnLockLatch(&pTasks->lock);
+
+  taosWUnLockLatch(&pVg->lock);
 }
 
 
@@ -90,6 +91,7 @@ _return:
   return code;
 }
 
+/*
 static int32_t smAddTaskToSnodeList(SStreamTask* pTask) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -109,6 +111,7 @@ _return:
 
   return code;
 }
+*/
 
 int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamTasksInfo* pStream) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -386,10 +389,6 @@ void smRemoveTaskCb(void* param) {
   SHashObj* pGrp = gStreamMgmt.stmGrp[gid];
   int64_t streamId = pTask->streamId;
 
-  if (STREAM_READER_TASK == pTask->type) {
-    smRemoveReaderFromVgMap(pTask);
-  }
-
   if (NULL == pGrp) {
     ST_TASK_ELOG("stream grp is null, gid:%d", gid);
     goto _exit;
@@ -479,7 +478,7 @@ _exit:
 }
 
 
-int32_t smUndeployTask(SStreamTaskUndeploy* pUndeploy) {
+int32_t smUndeployTask(SStreamTaskUndeploy* pUndeploy, bool rmFromVg) {
   int64_t streamId = pUndeploy->task.streamId;
   int64_t key[2] = {streamId, pUndeploy->task.taskId};
   int32_t code = TSDB_CODE_SUCCESS;
@@ -502,6 +501,9 @@ int32_t smUndeployTask(SStreamTaskUndeploy* pUndeploy) {
   
   switch (pTask->type) {
     case STREAM_READER_TASK:
+      if (rmFromVg) {
+        smRemoveReaderFromVgMap(pTask);
+      }
       code = stReaderTaskUndeploy((SStreamReaderTask**)ppTask, &pUndeploy->undeployMsg, smRemoveTaskCb);
       break;
     case STREAM_TRIGGER_TASK:
@@ -543,9 +545,13 @@ void smUndeployVgTasks(int32_t vgId) {
   for (int32_t i = 0; i < taskNum; ++i) {
     SStreamTask* pTask = taosArrayGetP(pVg->taskList, i);
     undeploy.task = *pTask;
-    (void)smUndeployTask(&undeploy);
+    (void)smUndeployTask(&undeploy, false);
   }
+  taosArrayDestroy(pVg->taskList);
+  pVg->taskList = NULL;
   taosWUnLockLatch(&pVg->lock);
+
+  taosHashRemove(gStreamMgmt.vgroupMap, &vgId, sizeof(vgId));
 
   taosHashRelease(gStreamMgmt.vgroupMap, pVg);
 }
@@ -611,8 +617,29 @@ _exit:
   return code;
 }
 
-void smUndeploySnodeTasks() {
+void smUndeploySnodeTasks(void) {
+/*
+  SStreamVgReaderTasks* pVg = taosHashAcquire(gStreamMgmt.vgroupMap, &vgId, sizeof(vgId));
+  if (NULL == pVg) {
+    stDebug("no tasks in vgourp %d, ignore undeploy vg tasks", vgId);
+    return;
+  }
 
+  SStreamTaskUndeploy undeploy = {0};
+  undeploy.undeployMsg.doCheckpoint = true;
+  undeploy.undeployMsg.doCleanup = false;
+  
+  taosWLockLatch(&pVg->lock);
+  int32_t taskNum = taosArrayGetSize(pVg->taskList);
+  for (int32_t i = 0; i < taskNum; ++i) {
+    SStreamTask* pTask = taosArrayGetP(pVg->taskList, i);
+    undeploy.task = *pTask;
+    (void)smUndeployTask(&undeploy);
+  }
+  taosWUnLockLatch(&pVg->lock);
+
+  taosHashRelease(gStreamMgmt.vgroupMap, pVg);
+*/  
 }
 
 void smUndeployAllTasks(void) {
@@ -629,7 +656,7 @@ int32_t smUndeployTasks(SStreamUndeployActions* actions) {
     SStreamTaskUndeploy* pUndeploy = taosArrayGet(actions->taskList, i);
     streamId = pUndeploy->task.streamId;
     
-    smUndeployTask(pUndeploy);
+    smUndeployTask(pUndeploy, true);
   }
 
   return code;
