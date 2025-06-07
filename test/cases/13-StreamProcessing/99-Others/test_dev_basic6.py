@@ -137,6 +137,6 @@ class TestStreamDevBasic:
                 ["v2", "DOUBLE", 8, ""],
                 ["v3", "INT", 4, ""],
                 ["v4", "INT", 4, ""],
-                ["tag_tbname", "VARCHAR", 270, ""],
+                ["tag_tbname", "VARCHAR", 270, "TAG"],
             ],
         )
