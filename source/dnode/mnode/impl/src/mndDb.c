@@ -2252,10 +2252,11 @@ static int32_t mndSetS3MigrateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbO
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
 
-  SS3MigrateObj s3Migrate;
-  if ((code = mndAddS3MigrateToTran(pMnode, pTrans, &s3Migrate, pDb, pS3MigrateRsp)) != 0) {
+  SS3MigrateObj s3Migrate = { .startTime = s3MigrateTs };
+  if ((code = mndAddS3MigrateToTran(pMnode, pTrans, &s3Migrate, pDb)) != 0) {
     TAOS_RETURN(code);
   }
+  pS3MigrateRsp->s3MigrateId = s3Migrate.s3MigrateId;
 
   int32_t j = 0;
   while (1) {
@@ -2263,24 +2264,15 @@ static int32_t mndSetS3MigrateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbO
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
-    if (pVgroup->dbUid == pDb->uid) {
-      if ((code = mndBuildS3MigrateVgroupAction(pMnode, pTrans, pDb, pVgroup, s3MigrateTs)) != 0) {
-        sdbCancelFetch(pSdb, pIter);
-        sdbRelease(pSdb, pVgroup);
-        TAOS_RETURN(code);
-      }
+    if (pVgroup->dbUid != pDb->uid) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
 
-      #if 0
-      for (int32_t i = 0; i < pVgroup->replica; i++) {
-        SVnodeGid *gid = &pVgroup->vnodeGid[i];
-        if ((code = mndAddS3MigrateDetailToTran(pMnode, pTrans, &s3Migrate, pVgroup, gid, j)) != 0) {
-          sdbCancelFetch(pSdb, pIter);
-          sdbRelease(pSdb, pVgroup);
-          TAOS_RETURN(code);
-        }
-        j++;
-      }
-        #endif
+    if ((code = mndBuildS3MigrateVgroupAction(pMnode, pTrans, pDb, pVgroup, &s3Migrate)) != 0) {
+      sdbCancelFetch(pSdb, pIter);
+      sdbRelease(pSdb, pVgroup);
+      TAOS_RETURN(code);
     }
 
     sdbRelease(pSdb, pVgroup);
@@ -2345,7 +2337,10 @@ int32_t mndS3MigrateDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
 
   int64_t s3MigrateTs = taosGetTimestampMs();
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "s3migrate-db");
-  if (pTrans == NULL) goto _OVER;
+  if (pTrans == NULL) {
+    mError("failed to create s3migrate-db trans since %s", terrstr());
+    goto _OVER;
+  }
 
   mInfo("trans:%d, used to s3migrate db:%s", pTrans->id, pDb->name);
   mndTransSetDbName(pTrans, pDb->name, NULL);
@@ -2432,7 +2427,7 @@ static int32_t mndProcessS3MigrateDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB, pDb), NULL, _OVER);
+  // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB, pDb), NULL, _OVER);
 
   code = mndS3MigrateDb(pMnode, pReq, pDb);
 
