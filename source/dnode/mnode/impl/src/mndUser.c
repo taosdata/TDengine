@@ -1541,6 +1541,9 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       SDB_GET_INT64(pRaw, dataPos, &pUser->ipWhiteListVer, _OVER);
 
       code = cvtIpWhiteListToDual(pIpWhiteList, &pUser->pIpWhiteListDual);
+      if (code != 0) {
+        taosMemoryFreeClear(pIpWhiteList);
+      }
       TAOS_CHECK_GOTO(code, &lino, _OVER);
 
       taosMemoryFreeClear(pIpWhiteList);

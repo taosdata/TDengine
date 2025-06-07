@@ -417,7 +417,6 @@ int32_t fetchWhiteListCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
   taosMemoryFree(pInfo);
   tFreeSGetUserWhiteListRsp(&wlRsp);
   return code;
-  return code;
 }
 
 void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *param) {
@@ -512,7 +511,6 @@ int32_t fetchWhiteListDualStackCallbackFn(void *param, SDataBuf *pMsg, int32_t c
   if (code != TSDB_CODE_SUCCESS) {
     pInfo->userCbFn(pInfo->userParam, code, taos, 0, NULL);
     TAOS_CHECK_GOTO(code, &lino, _error);
-    return code;
   }
 
   if ((code = tDeserializeSGetUserWhiteListDualRsp(pMsg->pData, pMsg->len, &wlRsp)) != TSDB_CODE_SUCCESS) {

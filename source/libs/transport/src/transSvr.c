@@ -799,7 +799,7 @@ static int32_t uvPrepareSendData(SSvrRespMsg* smsg, uv_buf_t* wb) {
   int32_t len = transMsgLenFromCont(pMsg->contLen);
 
   STrans* pInst = pConn->pInst;
-  if (pMsg->info.compressed == 0 && taosIpAddrIsEqual(&pConn->clientIp, &pConn->serverIp) &&
+  if (pMsg->info.compressed == 0 && !taosIpAddrIsEqual(&pConn->clientIp, &pConn->serverIp) &&
       pInst->compressSize != -1 && pInst->compressSize < pMsg->contLen) {
     len = transCompressMsg(pMsg->pCont, pMsg->contLen) + sizeof(STransMsgHead);
     pHead->msgLen = (int32_t)htonl((uint32_t)len);

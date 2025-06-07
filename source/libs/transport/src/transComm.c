@@ -921,13 +921,13 @@ int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) {
 int32_t transUtilSWhiteListToStr(SIpWhiteListDual* pList, char** ppBuf) {
   int32_t code = 0;
   int32_t lino = 0;
-
+  char*   pBuf = NULL;
   int32_t len = 0;
   if (pList->num == 0) {
     TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_PARA, lino, _error);
   }
 
-  char* pBuf = taosMemoryCalloc(1, pList->num * IP_RESERVE_CAP);
+  pBuf = taosMemoryCalloc(1, pList->num * IP_RESERVE_CAP);
   if (pBuf == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }

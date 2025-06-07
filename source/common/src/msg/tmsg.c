@@ -2149,7 +2149,11 @@ int32_t cvtIpWhiteListToDual(SIpWhiteList *pWhiteList, SIpWhiteListDual **pWhite
   pList->num++;
 
 _OVER:
-  *pWhiteListDual = pList;
+  if (code != 0) {
+    taosMemoryFree(pList);
+  } else {
+    *pWhiteListDual = pList;
+  }
   return code;
 }
 
@@ -2284,6 +2288,9 @@ static int32_t getIpv4Range(SUpdateUserIpWhite *pReq, SIpV4Range **pIpRange, int
   }
 
   SIpV4Range *p = taosMemoryCalloc(1, pReq->numOfRange * sizeof(SIpV4Range));
+  if (p == NULL) {
+    return terrno;
+  }
 
   int32_t cnt = 0;
   for (int32_t i = 0; i < pReq->numOfRange; i++) {

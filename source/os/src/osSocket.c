@@ -509,6 +509,7 @@ int32_t taosGetIp4FromFqdn(const char *fqdn, SIpAddr *pAddr) {
     } else {
       // printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
     }
+    code = TSDB_CODE_RPC_FQDN_ERROR;
 #else
     // printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
 #endif
