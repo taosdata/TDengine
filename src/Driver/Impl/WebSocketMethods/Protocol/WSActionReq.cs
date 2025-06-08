@@ -4,6 +4,7 @@ namespace TDengine.Driver.Impl.WebSocketMethods.Protocol
 {
     public static class WSAction
     {
+        public const string Version = "version";
         public const string Conn = "conn";
         public const string Query = "query";
         public const string Fetch = "fetch";

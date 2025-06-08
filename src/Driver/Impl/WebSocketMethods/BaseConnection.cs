@@ -109,6 +109,17 @@ namespace TDengine.Driver.Impl.WebSocketMethods
             }
 
             Task.Run(async () => { await ReceiveLoop().ConfigureAwait(false); });
+            try
+            {
+                var versionResp =
+                    SendJsonBackJson<WSVersionReq, WSVersionResp>(WSAction.Version, new WSVersionReq(), 0);
+                TDengineVersion.CheckVersionCompatibility(versionResp.Version);
+            }
+            catch (Exception)
+            {
+                Close();
+                throw;
+            }
         }
 
         protected static ulong _GetReqId()
