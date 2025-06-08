@@ -19,11 +19,11 @@ include_directories(/usr/include)
 
 # 添加目标对象
 add_library(reader_csv STATIC
+    src/CSVUtils.cpp
     src/CSVReader.cpp
     src/TableNameCSV.cpp
     src/TagsCSV.cpp
     src/ColumnsCSV.cpp
-    # src/TimestampCSVProcessor.cpp
 )
 
 # 包含头文件目录

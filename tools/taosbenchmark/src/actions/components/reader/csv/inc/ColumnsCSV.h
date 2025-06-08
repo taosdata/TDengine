@@ -10,6 +10,7 @@
 #include "CSVReader.h"
 #include "TimestampGenerator.h"
 #include "TimestampOriginalConfig.h"
+#include "ColumnConfigInstance.h"
 
 
 struct TableData {
@@ -20,7 +21,7 @@ struct TableData {
 
 class ColumnsCSV {
 public:
-    ColumnsCSV(const ColumnsConfig::CSV& config, std::optional<ColumnTypeVector> column_types);
+    ColumnsCSV(const ColumnsConfig::CSV& config, std::optional<ColumnConfigInstanceVector> instances);
     
     ColumnsCSV(const ColumnsCSV&) = delete;
     ColumnsCSV& operator=(const ColumnsCSV&) = delete;
@@ -29,17 +30,20 @@ public:
     
     ~ColumnsCSV() = default;
     
-    std::vector<TableData> generate_table_data() const;
+    std::vector<TableData> generate() const;
 
 private:
     ColumnsConfig::CSV config_;
-    std::optional<ColumnTypeVector> column_types_;
+    std::optional<ColumnConfigInstanceVector> instances_;
     size_t total_columns_ = 0;
     size_t actual_columns_ = 0;
     
     void validate_config();
 
-    ColumnType convert_to_type(const std::string& value, const ColumnType& target_type) const;
+    template <typename T>
+    T convert_value(const std::string& value) const;
+
+    ColumnType convert_to_type(const std::string& value, ColumnTypeTag target_type) const;
 
     static void trim(std::string& str);
 };

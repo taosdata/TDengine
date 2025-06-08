@@ -43,7 +43,7 @@ void test_generate_names_valid_csv() {
     config.tbname_index = 0;
 
     TableNameCSV table_name_csv(config);
-    auto names = table_name_csv.generate_names();
+    auto names = table_name_csv.generate();
 
     assert(names.size() == 2 && "Expected 2 table names");
     assert(names[0] == "table1" && "Expected first table name to be 'table1'");
@@ -64,7 +64,7 @@ void test_generate_names_invalid_column_index() {
 
     try {
         TableNameCSV table_name_csv(config);
-        table_name_csv.generate_names();
+        table_name_csv.generate();
         assert(false && "Expected exception for invalid column index");
     } catch (const std::out_of_range& e) {
         std::cout << "test_generate_names_invalid_column_index passed\n";
@@ -84,7 +84,7 @@ void test_generate_names_empty_table_name() {
 
     try {
         TableNameCSV table_name_csv(config);
-        table_name_csv.generate_names();
+        table_name_csv.generate();
         assert(false && "Expected exception for empty table name");
     } catch (const std::runtime_error& e) {
         std::cout << "test_generate_names_empty_table_name passed\n";

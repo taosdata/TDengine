@@ -8,10 +8,11 @@
 #include <locale>
 #include <iomanip>
 #include "ColumnType.h"
+#include "CSVUtils.h"
 
 
-TagsCSV::TagsCSV(const TagsConfig::CSV& config, std::optional<ColumnTypeVector> tag_types)
-    : config_(config), tag_types_(tag_types) {
+TagsCSV::TagsCSV(const TagsConfig::CSV& config, std::optional<ColumnConfigInstanceVector> instances)
+    : config_(config), instances_(instances) {
     validate_config();
 }
 
@@ -40,9 +41,9 @@ void TagsCSV::validate_config() {
     }
 
     // Validate tag_types size if provided
-    if (tag_types_ && tag_types_->size() != valid_indices_.size()) {
+    if (instances_ && instances_->size() != valid_indices_.size()) {
         std::stringstream ss;
-        ss << "Tag types size (" << tag_types_->size() 
+        ss << "Tag types size (" << instances_->size() 
            << ") does not match number of valid columns (" << valid_indices_.size()
            << ") in file: " << config_.file_path;
         throw std::invalid_argument(ss.str());
@@ -50,7 +51,7 @@ void TagsCSV::validate_config() {
 
     // Initialize column_type_map_
     for (size_t i = 0; i < valid_indices_.size(); ++i) {
-        ColumnType type = tag_types_ ? (*tag_types_)[i] : std::string{};
+        ColumnTypeTag type = instances_ ? (*instances_)[i].config().type_tag : ColumnTypeTag::VARCHAR;
         column_type_map_.emplace_back(valid_indices_[i], type);
     }
 }
@@ -66,58 +67,15 @@ void TagsCSV::trim(std::string& str) {
 }
 
 template <typename T>
-T TagsCSV::convert_to_type(const std::string& value) const {
-    std::string trimmed = value;
-    trim(trimmed);
-
-    try {
-        // Convert based on type
-        if constexpr (std::is_same_v<T, bool>) {
-            std::string lower;
-            std::transform(trimmed.begin(), trimmed.end(), std::back_inserter(lower),
-                           [](unsigned char c) { return std::tolower(c); });
-
-            if (lower == "true" || lower == "1" || lower == "t") {
-                return true;
-            }
-            if (lower == "false" || lower == "0" || lower == "f") {
-                return false;
-            }
-            throw std::runtime_error("Invalid boolean value: " + trimmed);
-        } else if constexpr (std::is_integral_v<T>) {
-            T val;
-            auto result = std::from_chars(trimmed.data(), trimmed.data() + trimmed.size(), val);
-            if (result.ec == std::errc()) {
-                return val;
-            }
-            throw std::runtime_error("Invalid integer value: " + trimmed);
-        } else if constexpr (std::is_floating_point_v<T>) {
-            T val;
-            auto result = std::from_chars(trimmed.data(), trimmed.data() + trimmed.size(), val);
-            if (result.ec == std::errc()) {
-                return val;
-            }
-            throw std::runtime_error("Invalid floating-point value: " + trimmed);
-        } else if constexpr (std::is_same_v<T, std::string>) {
-            return trimmed; // Directly return the string
-        } else if constexpr (std::is_same_v<T, std::u16string>) {
-            // UTF-8 to UTF-16 (simplified example, actual implementation needed)
-            std::u16string utf16;
-            for (char c : trimmed) {
-                utf16.push_back(static_cast<char16_t>(c)); // Simplified handling
-            }
-            return utf16;
-        } else {
-            throw std::runtime_error("Unsupported type");
-        }
-    } catch (const std::exception& e) {
-        std::stringstream ss;
-        ss << "Failed to convert value '" << value << "' to type: " << e.what();
-        throw std::runtime_error(ss.str());
-    }
+T TagsCSV::convert_value(const std::string& value) const {
+    return CSVUtils::convert_value<T>(value);
 }
 
-std::vector<ColumnTypeVector> TagsCSV::generate_tags() const {
+ColumnType TagsCSV::convert_to_type(const std::string& value, ColumnTypeTag target_type) const {
+    return CSVUtils::convert_to_type(value, target_type);
+}
+
+std::vector<ColumnTypeVector> TagsCSV::generate() const {
     try {
         // Create a CSV reader
         CSVReader reader(
@@ -152,15 +110,7 @@ std::vector<ColumnTypeVector> TagsCSV::generate_tags() const {
             
             // Process each valid column
             for (const auto& [col_idx, type] : column_type_map_) {
-                tag_row.push_back(
-                    std::visit(
-                        [&](auto&& type) -> ColumnType {
-                            using T = std::decay_t<decltype(type)>;
-                            return convert_to_type<T>(row[col_idx]);
-                        },
-                        type
-                    )
-                );
+                tag_row.push_back(convert_to_type(row[col_idx], type));
             }
 
             tags.push_back(std::move(tag_row));

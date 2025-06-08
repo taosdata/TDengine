@@ -27,10 +27,14 @@ void test_validate_config_mismatched_tag_types() {
     test_file << "Alice,30,New York\n";
     test_file.close();
 
-    ColumnTypeVector tag_types = {std::string{}, int32_t{}};
+    ColumnConfigVector tag_configs = {
+        {"name", "varchar", std::nullopt},
+        {"age", "int", std::nullopt}
+    };
+    auto instances = ColumnConfigInstanceFactory::create(tag_configs);    
 
     try {
-        TagsCSV tags_csv(config, tag_types);
+        TagsCSV tags_csv(config, instances);
         assert(false && "Expected exception for mismatched tag types size");
     } catch (const std::invalid_argument& e) {
         std::cout << "test_validate_config_mismatched_tag_types passed\n";
@@ -48,10 +52,15 @@ void test_generate_tags_valid_csv() {
     test_file << "Bob,25,Los Angeles\n";
     test_file.close();
 
-    ColumnTypeVector tag_types = {std::string{}, int32_t{}, std::string{}};
+    ColumnConfigVector tag_configs = {
+        {"name", "varchar", std::nullopt},
+        {"age", "int", std::nullopt},
+        {"city", "varchar", std::nullopt}
+    };
+    auto instances = ColumnConfigInstanceFactory::create(tag_configs);
 
-    TagsCSV tags_csv(config, tag_types);
-    auto tags = tags_csv.generate_tags();
+    TagsCSV tags_csv(config, instances);
+    auto tags = tags_csv.generate();
 
     assert(tags.size() == 2 && "Expected 2 rows of tags");
     assert(std::get<std::string>(tags[0][0]) == "Alice" && "Expected first tag to be 'Alice'");
@@ -72,10 +81,15 @@ void test_generate_tags_excluded_columns() {
     test_file << "Bob,25,Los Angeles\n";
     test_file.close();
 
-    ColumnTypeVector tag_types = {std::string{}, std::string{}};
+    ColumnConfigVector tag_configs = {
+        {"name", "varchar", std::nullopt},
+        {"city", "varchar", std::nullopt}
+    };
+    auto instances = ColumnConfigInstanceFactory::create(tag_configs);
 
-    TagsCSV tags_csv(config, tag_types);
-    auto tags = tags_csv.generate_tags();
+
+    TagsCSV tags_csv(config, instances);
+    auto tags = tags_csv.generate();
 
     assert(tags.size() == 2 && "Expected 2 rows of tags");
     assert(std::get<std::string>(tags[0][0]) == "Alice" && "Expected first tag to be 'Alice'");
@@ -95,7 +109,7 @@ void test_generate_tags_default_tag_types() {
     test_file.close();
 
     TagsCSV tags_csv(config, std::nullopt); // No tag types provided
-    auto tags = tags_csv.generate_tags();
+    auto tags = tags_csv.generate();
 
     assert(tags.size() == 2 && "Expected 2 rows of tags");
     assert(std::get<std::string>(tags[0][0]) == "Alice" && "Expected first tag to be 'Alice'");

@@ -30,7 +30,7 @@ void TableNameCSV::validate_config() const {
     }
 }
 
-std::vector<std::string> TableNameCSV::generate_names() const {
+std::vector<std::string> TableNameCSV::generate() const {
     try {
         // Create a CSV reader
         CSVReader reader(

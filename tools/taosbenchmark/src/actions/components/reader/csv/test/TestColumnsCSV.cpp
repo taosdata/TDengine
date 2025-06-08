@@ -30,10 +30,14 @@ void test_validate_config_mismatched_column_types() {
     test_file << "Alice,30,New York\n";
     test_file.close();
 
-    ColumnTypeVector column_types = {std::string{}, int32_t{}}; // Mismatched size
+    ColumnConfigVector col_configs = {
+        {"name", "varchar", std::nullopt},
+        {"age", "int", std::nullopt}            // Mismatched size
+    };
+    auto instances = ColumnConfigInstanceFactory::create(col_configs);
 
     try {
-        ColumnsCSV columns_csv(config, column_types);
+        ColumnsCSV columns_csv(config, instances);
         assert(false && "Expected exception for mismatched column types size");
     } catch (const std::invalid_argument& e) {
         std::cout << "test_validate_config_mismatched_column_types passed\n";
@@ -52,9 +56,14 @@ void test_generate_table_data_with_default_timestamp() {
     test_file << "1622592000000,Bob,Los Angeles\n";
     test_file.close();
 
-    ColumnTypeVector column_types = {std::string{}, std::string{}};
-    ColumnsCSV columns_csv(config, column_types);
-    auto table_data = columns_csv.generate_table_data();
+    ColumnConfigVector col_configs = {
+        {"name", "varchar", std::nullopt},
+        {"city", "varchar", std::nullopt}
+    };
+    auto instances = ColumnConfigInstanceFactory::create(col_configs);
+
+    ColumnsCSV columns_csv(config, instances);
+    auto table_data = columns_csv.generate();
 
     assert(table_data.size() == 1 && "Expected 1 table");
     assert(table_data[0].timestamps.size() == 2 && "Expected 2 timestamps");
@@ -78,10 +87,14 @@ void test_generate_table_data_with_timestamp() {
     test_file << "Bob,1622592000000,Los Angeles\n";
     test_file.close();
 
-    ColumnTypeVector column_types = {std::string{}, std::string{}};
+    ColumnConfigVector col_configs = {
+        {"name", "varchar", std::nullopt},
+        {"city", "varchar", std::nullopt}
+    };
+    auto instances = ColumnConfigInstanceFactory::create(col_configs);
 
-    ColumnsCSV columns_csv(config, column_types);
-    auto table_data = columns_csv.generate_table_data();
+    ColumnsCSV columns_csv(config, instances);
+    auto table_data = columns_csv.generate();
 
     assert(table_data.size() == 1 && "Expected 1 table");
     assert(table_data[0].timestamps.size() == 2 && "Expected 2 timestamps");
@@ -107,10 +120,15 @@ void test_generate_table_data_with_generated_timestamp() {
     test_file << "Bob,25,Los Angeles\n";
     test_file.close();
 
-    ColumnTypeVector column_types = {std::string{}, int32_t{}, std::string{}};
+    ColumnConfigVector col_configs = {
+        {"name", "varchar", std::nullopt},
+        {"age", "int", std::nullopt},
+        {"city", "varchar", std::nullopt}
+    };
+    auto instances = ColumnConfigInstanceFactory::create(col_configs);
 
-    ColumnsCSV columns_csv(config, column_types);
-    auto table_data = columns_csv.generate_table_data();
+    ColumnsCSV columns_csv(config, instances);
+    auto table_data = columns_csv.generate();
 
     assert(table_data.size() == 1 && "Expected 1 table");
     assert(table_data[0].timestamps.size() == 2 && "Expected 2 timestamps");
@@ -135,10 +153,14 @@ void test_generate_table_data_include_tbname() {
     test_file << "table2,25,Los Angeles\n";
     test_file.close();
 
-    ColumnTypeVector column_types = {int32_t{}, std::string{}};
+    ColumnConfigVector col_configs = {
+        {"age", "int", std::nullopt},
+        {"city", "varchar", std::nullopt}
+    };
+    auto instances = ColumnConfigInstanceFactory::create(col_configs);
 
-    ColumnsCSV columns_csv(config, column_types);
-    auto table_data = columns_csv.generate_table_data();
+    ColumnsCSV columns_csv(config, instances);
+    auto table_data = columns_csv.generate();
 
     // 验证表数量
     assert(table_data.size() == 2 && "Expected 2 tables");
@@ -181,9 +203,8 @@ void test_generate_table_data_default_column_types() {
     test_file << "1622592000000,Bob,25,Los Angeles\n";
     test_file.close();
 
-
     ColumnsCSV columns_csv(config, std::nullopt); // No column types provided
-    auto table_data = columns_csv.generate_table_data();
+    auto table_data = columns_csv.generate();
 
     assert(table_data.size() == 1 && "Expected 1 table");
     assert(table_data[0].data_rows.size() == 2 && "Expected 2 rows of data");

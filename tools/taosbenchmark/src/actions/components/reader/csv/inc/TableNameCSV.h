@@ -18,7 +18,7 @@ public:
     
     ~TableNameCSV() = default;
     
-    std::vector<std::string> generate_names() const;
+    std::vector<std::string> generate() const;
 
 private:
     TableNameConfig::CSV config_;

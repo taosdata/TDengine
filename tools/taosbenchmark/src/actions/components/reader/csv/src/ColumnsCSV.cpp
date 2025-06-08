@@ -13,6 +13,7 @@
 #include <ctime>
 #include <unordered_map>
 #include "ColumnType.h"
+#include "CSVUtils.h"
 
 
 
@@ -24,8 +25,8 @@ constexpr int64_t HOUR_MS   = 60 * 60 * 1000LL;
 constexpr int64_t MINUTE_MS = 60 * 1000LL;
 constexpr int64_t SECOND_MS = 1000LL;
 
-ColumnsCSV::ColumnsCSV(const ColumnsConfig::CSV& config, std::optional<ColumnTypeVector> column_types)
-    : config_(config), column_types_(column_types) {
+ColumnsCSV::ColumnsCSV(const ColumnsConfig::CSV& config, std::optional<ColumnConfigInstanceVector> instances)
+    : config_(config), instances_(instances) {
 
     validate_config();
 }
@@ -81,74 +82,22 @@ void ColumnsCSV::validate_config() {
     actual_columns_ = actual_columns;
 
     // 验证列类型大小
-    if (column_types_ && column_types_->size() != actual_columns) {
+    if (instances_ && instances_->size() != actual_columns) {
         std::stringstream ss;
-        ss << "Column types size (" << column_types_->size()
+        ss << "Column types size (" << instances_->size()
            << ") does not match number of actual columns (" << actual_columns
            << ") in file: " << config_.file_path;
         throw std::invalid_argument(ss.str());
     }
 }
 
-ColumnType ColumnsCSV::convert_to_type(const std::string& value, const ColumnType& target_type) const {
-    std::string trimmed = value;
-    trim(trimmed);
-    
-    try {
-        return std::visit([&](auto&& arg) -> ColumnType {
-            using T = std::decay_t<decltype(arg)>;
-            
-            if constexpr (std::is_same_v<T, bool>) {
-                std::string lower;
-                std::transform(trimmed.begin(), trimmed.end(), std::back_inserter(lower), 
-                              [](unsigned char c) { return std::tolower(c); });
-                
-                if (lower == "true" || lower == "1" || lower == "t") {
-                    return true;
-                }
-                if (lower == "false" || lower == "0" || lower == "f") {
-                    return false;
-                }
-                throw std::runtime_error("Invalid boolean value: " + trimmed);
-            }
-            else if constexpr (std::is_same_v<T, int8_t>) {
-                return static_cast<int8_t>(std::stoi(trimmed));
-            }
-            else if constexpr (std::is_same_v<T, int16_t>) {
-                return static_cast<int16_t>(std::stoi(trimmed));
-            }
-            else if constexpr (std::is_same_v<T, int32_t>) {
-                return std::stoi(trimmed);
-            }
-            else if constexpr (std::is_same_v<T, int64_t>) {
-                return std::stoll(trimmed);
-            }
-            else if constexpr (std::is_same_v<T, float>) {
-                return std::stof(trimmed);
-            }
-            else if constexpr (std::is_same_v<T, double>) {
-                return std::stod(trimmed);
-            }
-            else if constexpr (std::is_same_v<T, std::string>) {
-                return trimmed;
-            }
-            else if constexpr (std::is_same_v<T, std::u16string>) {
-                std::u16string utf16;
-                for (char c : trimmed) {
-                    utf16.push_back(static_cast<char16_t>(c));
-                }
-                return utf16;
-            }
-            else {
-                return trimmed; // 默认返回字符串
-            }
-        }, target_type);
-        
-    } catch (const std::exception& e) {
-        std::stringstream ss;
-        ss << "Failed to convert value '" << value << "': " << e.what();
-        throw std::runtime_error(ss.str());
-    }
+template <typename T>
+T ColumnsCSV::convert_value(const std::string& value) const {
+    return CSVUtils::convert_value<T>(value);
+}
+
+ColumnType ColumnsCSV::convert_to_type(const std::string& value, ColumnTypeTag target_type) const {
+    return CSVUtils::convert_to_type(value, target_type);
 }
 
 void ColumnsCSV::trim(std::string& str) {
@@ -161,7 +110,7 @@ void ColumnsCSV::trim(std::string& str) {
     }).base(), str.end());
 }
 
-std::vector<TableData> ColumnsCSV::generate_table_data() const {
+std::vector<TableData> ColumnsCSV::generate() const {
     try {
         // 创建 CSV 读取器
         CSVReader reader(
@@ -259,7 +208,7 @@ std::vector<TableData> ColumnsCSV::generate_table_data() const {
                 if (!gen_ptr) {
                     gen_ptr = TimestampGenerator::create(gen_config);
                 }
-                timestamp = gen_ptr->generate().value;
+                timestamp = gen_ptr->generate();
             }
 
             data.timestamps.push_back(timestamp);
@@ -269,7 +218,7 @@ std::vector<TableData> ColumnsCSV::generate_table_data() const {
             std::vector<ColumnType> data_row;
             data_row.reserve(actual_columns_);
 
-            size_t type_index = 0;
+            size_t index = 0;
 
             for (size_t col_idx = 0; col_idx < total_columns_; ++col_idx) {
                 // 跳过表名列和时间戳列
@@ -277,11 +226,11 @@ std::vector<TableData> ColumnsCSV::generate_table_data() const {
                 if (timestamp_index && col_idx == *timestamp_index) continue;
                 
                 // 转换值类型
-                if (column_types_) {
+                if (instances_) {
                     // 使用提供的列类型
-                    const ColumnType& target_type = (*column_types_)[type_index];
-                    data_row.push_back(convert_to_type(row[col_idx], target_type));
-                    type_index++;
+                    const ColumnConfigInstance& instance = (*instances_)[index];
+                    data_row.push_back(convert_to_type(row[col_idx], instance.config().type_tag));
+                    index++;
                 } else {
                     // 默认作为字符串处理
                     std::string val = row[col_idx];

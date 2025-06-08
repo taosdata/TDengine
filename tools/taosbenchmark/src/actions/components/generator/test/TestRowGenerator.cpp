@@ -3,7 +3,7 @@
 #include "RowGenerator.h"
 
 void test_generate_row_without_timestamp() {
-    std::vector<ColumnConfig> col_configs = {
+    ColumnConfigVector col_configs = {
         {"col1", "int", "random", 10, 20},
         {"col2", "double", "random", 1.5, 3.5},
         {"col3", "bool", "random"}
@@ -36,7 +36,7 @@ void test_generate_row_with_timestamp() {
     ts_config.timestamp_step = 10;
     ts_config.timestamp_precision = "ms";
 
-    std::vector<ColumnConfig> col_configs = {
+    ColumnConfigVector col_configs = {
         {"col1", "int", "random", 10, 20},
         {"col2", "double", "random", 1.5, 3.5}
     };
@@ -69,7 +69,7 @@ void test_generate_multiple_rows() {
     ts_config.timestamp_step = 10;
     ts_config.timestamp_precision = "ms";
 
-    std::vector<ColumnConfig> col_configs = {
+    ColumnConfigVector col_configs = {
         {"col1", "int", "random", 10, 20},
         {"col2", "double", "random", 1.5, 3.5}
     };
