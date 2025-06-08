@@ -1,21 +1,12 @@
 #include "CSVUtils.h"
+#include "StringUtils.h"
 
 namespace CSVUtils {
-
-    void trim(std::string& str) {
-        str.erase(str.begin(), std::find_if(str.begin(), str.end(), [](unsigned char ch) {
-            return !std::isspace(ch);
-        }));
-
-        str.erase(std::find_if(str.rbegin(), str.rend(), [](unsigned char ch) {
-            return !std::isspace(ch);
-        }).base(), str.end());
-    }
 
     template <typename T>
     T convert_value(const std::string& value) {
         std::string trimmed = value;
-        trim(trimmed);
+        StringUtils::trim(trimmed);
 
         if constexpr (std::is_same_v<T, bool>) {
             std::string lower;

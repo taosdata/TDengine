@@ -10,11 +10,11 @@ struct TagsConfig {
     std::string source_type; // 数据来源类型：generator 或 csv
 
     struct Generator {
-        std::vector<ColumnConfig> schema;
+        ColumnConfigVector schema;
     } generator;
 
     struct CSV {
-        std::vector<ColumnConfig> schema;
+        ColumnConfigVector schema;
         std::string file_path;
         bool has_header = true;
         std::string delimiter = ",";

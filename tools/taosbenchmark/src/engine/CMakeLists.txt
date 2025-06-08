@@ -28,7 +28,7 @@ target_include_directories(engine PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/inc
     ${CMAKE_CURRENT_SOURCE_DIR}/..
-    ${CMAKE_CURRENT_SOURCE_DIR}/../common/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../workflow/inc
     ${CMAKE_CURRENT_SOURCE_DIR}/../actions/config/inc
     ${CMAKE_CURRENT_SOURCE_DIR}/../actions/base
 )

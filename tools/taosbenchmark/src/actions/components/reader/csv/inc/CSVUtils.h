@@ -11,9 +11,6 @@
 
 namespace CSVUtils {
 
-    // Trim whitespace from both ends of a string
-    void trim(std::string& str);
-
     // Convert a string value to a specific type
     template <typename T>
     T convert_value(const std::string& value);

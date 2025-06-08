@@ -1,12 +1,12 @@
 #include <iostream>
 #include <cassert>
-#include "ColumnInstance.h"
+#include "ColumnConfigInstance.h"
 
 void test_column_instance_single() {
     std::cout << "Running test_column_instance_single..." << std::endl;
 
     ColumnConfig config("col", "int", std::nullopt);
-    ColumnInstance instance(config);
+    ColumnConfigInstance instance(config);
 
     assert(instance.name() == "col");
     assert(instance.type() == "int");
@@ -21,7 +21,7 @@ void test_column_instance_multiple() {
     ColumnConfig config("col", "int", std::nullopt);
     config.count = 3;
 
-    auto instances = ColumnInstanceFactory::create(config);
+    auto instances = ColumnConfigInstanceFactory::create(config);
 
     assert(instances.size() == 3);
     assert(instances[0].name() == "col1");
@@ -40,7 +40,7 @@ void test_column_instance_with_length() {
     std::cout << "Running test_column_instance_with_length..." << std::endl;
 
     ColumnConfig config("col", "varchar", std::nullopt, 50);
-    ColumnInstance instance(config);
+    ColumnConfigInstance instance(config);
 
     assert(instance.name() == "col");
     assert(instance.type() == "varchar");
@@ -53,7 +53,7 @@ void test_column_instance_with_min_max() {
     std::cout << "Running test_column_instance_with_min_max..." << std::endl;
 
     ColumnConfig config("col", "float", std::nullopt, 1.0, 10.0);
-    ColumnInstance instance(config);
+    ColumnConfigInstance instance(config);
 
     assert(instance.name() == "col");
     assert(instance.type() == "float");
@@ -63,13 +63,13 @@ void test_column_instance_with_min_max() {
 }
 
 int main() {
-    std::cout << "Running ColumnInstance tests..." << std::endl;
+    std::cout << "Running ColumnConfigInstance tests..." << std::endl;
 
     test_column_instance_single();
     test_column_instance_multiple();
     test_column_instance_with_length();
     test_column_instance_with_min_max();
 
-    std::cout << "All ColumnInstance tests passed!" << std::endl;
+    std::cout << "All ColumnConfigInstance tests passed!" << std::endl;
     return 0;
 }

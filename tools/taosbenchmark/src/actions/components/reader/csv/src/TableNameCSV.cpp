@@ -2,19 +2,8 @@
 #include <stdexcept>
 #include <algorithm>
 #include <sstream>
+#include "StringUtils.h"
 
-namespace {
-    // Trim leading and trailing whitespace from a string
-    void trim(std::string& str) {
-        str.erase(str.begin(), std::find_if(str.begin(), str.end(), [](unsigned char ch) {
-            return !std::isspace(ch);
-        }));
-
-        str.erase(std::find_if(str.rbegin(), str.rend(), [](unsigned char ch) {
-            return !std::isspace(ch);
-        }).base(), str.end());
-    }
-}
 
 TableNameCSV::TableNameCSV(const TableNameConfig::CSV& config) : config_(config) {
     validate_config();
@@ -72,7 +61,7 @@ std::vector<std::string> TableNameCSV::generate() const {
             
             // Add table name
             std::string name = row[name_index];
-            trim(name);
+            StringUtils::trim(name);
             names.push_back(std::move(name));
         }
         

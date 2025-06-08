@@ -12,7 +12,7 @@ enable_testing()
 # 添加调试符号信息
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../common/inc)
+# include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../utils/inc)
 
 # 添加子目录
 add_subdirectory(config)

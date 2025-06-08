@@ -8,6 +8,6 @@
 
 struct SuperTableInfo {
     std::string name;
-    std::vector<ColumnConfig> columns;
-    std::vector<ColumnConfig> tags;
+    ColumnConfigVector columns;
+    ColumnConfigVector tags;
 };

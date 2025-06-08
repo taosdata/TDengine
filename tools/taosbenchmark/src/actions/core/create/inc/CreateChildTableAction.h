@@ -1,17 +1,16 @@
 #pragma once
+#include <iostream>
 #include "ActionBase.h"
 #include "ActionFactory.h"
 #include "CreateChildTableConfig.h"
-#include <iostream>
+#include "DatabaseConnector.h"
+
 
 class CreateChildTableAction : public ActionBase {
 public:
     explicit CreateChildTableAction(const CreateChildTableConfig& config) : config_(config) {}
 
-    void execute() override {
-        std::cout << "Creating child table for super table: " << config_.super_table_info.name << std::endl;
-        // 在此处实现具体的创建子表逻辑
-    }
+    void execute() override;
 
 private:
     CreateChildTableConfig config_;

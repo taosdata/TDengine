@@ -26,6 +26,7 @@ struct Geometry {
 };
 
 enum class ColumnTypeTag {
+    UNKNOWN,
     BOOL,
     TINYINT,
     TINYINT_UNSIGNED,
@@ -40,6 +41,7 @@ enum class ColumnTypeTag {
     DECIMAL,
     NCHAR,       // std::u16string
     VARCHAR,     // std::string (varchar/binary)
+    BINARY,      // std::string (varchar/binary)
     JSON,        // std::string (json)
     VARBINARY,   // std::vector<uint8_t>
     GEOMETRY     // Geometry

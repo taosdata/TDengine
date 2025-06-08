@@ -12,6 +12,7 @@
 #include <iomanip>
 #include <ctime>
 #include <unordered_map>
+#include "StringUtils.h"
 #include "ColumnType.h"
 #include "CSVUtils.h"
 
@@ -100,16 +101,6 @@ ColumnType ColumnsCSV::convert_to_type(const std::string& value, ColumnTypeTag t
     return CSVUtils::convert_to_type(value, target_type);
 }
 
-void ColumnsCSV::trim(std::string& str) {
-    str.erase(str.begin(), std::find_if(str.begin(), str.end(), [](unsigned char ch) {
-        return !std::isspace(ch);
-    }));
-    
-    str.erase(std::find_if(str.rbegin(), str.rend(), [](unsigned char ch) {
-        return !std::isspace(ch);
-    }).base(), str.end());
-}
-
 std::vector<TableData> ColumnsCSV::generate() const {
     try {
         // 创建 CSV 读取器
@@ -161,7 +152,7 @@ std::vector<TableData> ColumnsCSV::generate() const {
             std::string table_name = "default_table";
             if (tbname_index >= 0) {
                 table_name = row[static_cast<size_t>(tbname_index)];
-                trim(table_name);
+                StringUtils::trim(table_name);
             }
             
             // 获取或创建 TableData
@@ -234,7 +225,7 @@ std::vector<TableData> ColumnsCSV::generate() const {
                 } else {
                     // 默认作为字符串处理
                     std::string val = row[col_idx];
-                    trim(val);
+                    StringUtils::trim(val);
                     data_row.push_back(val);
                 }
             }

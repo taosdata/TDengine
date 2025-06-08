@@ -24,18 +24,18 @@ void test_create_super_table_action() {
     config.data_format = format;
     config.data_channel = channel;
     config.database_info.name = "test_action_db";
-    config.super_table_info.name = "test_table";
+    config.super_table_info.name = "test_super_table";
 
     // 添加列
     config.super_table_info.columns = {
-        {"col1", "INT", false, {}, 1, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}},
-        {"col2", "BINARY", false, 10, 1, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}}
+        {"col1", "INT", "random"},
+        {"col2", "BINARY", "random", 10}
     };
 
     // 添加标签
     config.super_table_info.tags = {
-        {"tag1", "FLOAT", false, {}, 1, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}},
-        {"tag2", "NCHAR", false, 20, 1, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}}
+        {"tag1", "FLOAT", "random"},
+        {"tag2", "NCHAR", "random", 20}
     };
 
     // 创建动作实例

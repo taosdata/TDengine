@@ -25,12 +25,12 @@ add_library(parameter STATIC
 target_include_directories(parameter PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/inc
-    ${CMAKE_CURRENT_SOURCE_DIR}/../common/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../workflow/inc
     ${CMAKE_CURRENT_SOURCE_DIR}/../actions/config/inc
 )
 
 # 链接依赖库
-link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../actions/build/config)
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../actions/config/build)
 target_link_libraries(parameter PUBLIC 
     nlohmann_json::nlohmann_json 
     yaml-cpp

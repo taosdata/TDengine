@@ -32,7 +32,15 @@ add_library(actions_generator STATIC
 target_include_directories(actions_generator PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/inc
     ${CMAKE_CURRENT_SOURCE_DIR}/../../config/inc
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../../common/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../utils/inc
+)
+
+# 链接依赖库
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../../utils/build)
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../config/build)
+target_link_libraries(actions_generator PUBLIC
+    actions_config
+    utils
 )
 
 # 添加测试

@@ -5,6 +5,7 @@
 #include <optional>
 #include <cstdint>
 #include "ColumnType.h"
+#include "StringUtils.h"
 
 
 struct ColumnConfig {
@@ -48,75 +49,14 @@ struct ColumnConfig {
     };
     std::optional<FunctionConfig> function_config;
 
-
-    static ColumnTypeTag get_type_tag(const std::string& type_str) {
-        if (type_str == "bool")
-            return ColumnTypeTag::BOOL;
-        if (type_str == "tinyint")
-            return ColumnTypeTag::TINYINT;
-        if (type_str == "tinyint unsigned")
-            return ColumnTypeTag::TINYINT_UNSIGNED;
-        if (type_str == "smallint")
-            return ColumnTypeTag::SMALLINT;
-        if (type_str == "smallint unsigned")
-            return ColumnTypeTag::SMALLINT_UNSIGNED;
-        if (type_str == "int")
-            return ColumnTypeTag::INT;
-        if (type_str == "int unsigned")
-            return ColumnTypeTag::INT_UNSIGNED;
-        if (type_str == "bigint")
-            return ColumnTypeTag::BIGINT;
-        if (type_str == "bigint unsigned")
-            return ColumnTypeTag::BIGINT_UNSIGNED;
-        if (type_str == "float")
-            return ColumnTypeTag::FLOAT;
-        if (type_str == "double")
-            return ColumnTypeTag::DOUBLE;
-        if (type_str == "decimal")
-            return ColumnTypeTag::DECIMAL;
-        if (type_str == "nchar")
-            return ColumnTypeTag::NCHAR;
-        if (type_str == "varchar" || type_str == "binary") 
-            return ColumnTypeTag::VARCHAR; // std::string
-        if (type_str == "json") 
-            return ColumnTypeTag::JSON; // std::string (json)
-        if (type_str == "varbinary")
-            return ColumnTypeTag::VARBINARY;
-        if (type_str == "geometry")
-            return ColumnTypeTag::GEOMETRY;
-        throw std::runtime_error("Unsupported type: " + type_str);
-    }
+    static ColumnTypeTag get_type_tag(const std::string& type_str);
 
     ColumnConfig() = default;
+    ColumnConfig(const std::string& name, const std::string& type, std::optional<std::string> gen_type);
+    ColumnConfig(const std::string& name, const std::string& type, std::optional<std::string> gen_type, std::optional<int> len);
+    ColumnConfig(const std::string& name, const std::string& type, std::optional<std::string> gen_type, std::optional<double> min, std::optional<double> max);
 
-    ColumnConfig(
-        const std::string& name,
-        const std::string& type,
-        std::optional<std::string> gen_type
-    ) : name(name), type(type), gen_type(gen_type) {
-        type_tag = get_type_tag(type);
-    }
-
-    ColumnConfig(
-        const std::string& name,
-        const std::string& type,
-        std::optional<std::string> gen_type,
-        std::optional<int> len
-    ) : name(name), type(type), gen_type(gen_type), len(len) {
-        type_tag = get_type_tag(type);
-    }
-
-    ColumnConfig(
-        const std::string& name,
-        const std::string& type,
-        std::optional<std::string> gen_type,
-        std::optional<double> min,
-        std::optional<double> max
-    ) : name(name), type(type), gen_type(gen_type), min(min), max(max) {
-        type_tag = get_type_tag(type);
-    }
-
-    void calc_type_tag() {
-        type_tag = get_type_tag(type);
-    }   
+    void calc_type_tag();
 };
+
+using ColumnConfigVector = std::vector<ColumnConfig>;

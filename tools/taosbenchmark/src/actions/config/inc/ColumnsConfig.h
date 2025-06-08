@@ -10,7 +10,7 @@ struct ColumnsConfig {
     std::string source_type; // 数据来源类型：generator 或 csv
 
     struct Generator {
-        std::vector<ColumnConfig> schema; // 普通列的 Schema 定义
+        ColumnConfigVector schema; // 普通列的 Schema 定义
 
         struct TimestampStrategy {
             TimestampGeneratorConfig generator_config;

@@ -34,6 +34,4 @@ private:
     T convert_value(const std::string& value) const;
 
     ColumnType convert_to_type(const std::string& value, ColumnTypeTag target_type) const;
-
-    static void trim(std::string& str);
 };

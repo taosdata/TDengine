@@ -327,7 +327,7 @@ namespace YAML {
                 }
                 const auto& generator = node["generator"];
                 if (generator["schema"]) {
-                    rhs.generator.schema = generator["schema"].as<std::vector<ColumnConfig>>();
+                    rhs.generator.schema = generator["schema"].as<ColumnConfigVector>();
                 }
                 if (generator["timestamp_strategy"]) {
                     rhs.generator.timestamp_strategy.generator_config = generator["timestamp_strategy"]["generator_config"].as<TimestampGeneratorConfig>();

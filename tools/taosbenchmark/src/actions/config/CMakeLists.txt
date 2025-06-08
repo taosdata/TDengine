@@ -19,11 +19,19 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
 add_library(actions_config STATIC 
     src/ConnectionInfo.cpp
     src/ColumnType.cpp
+    src/ColumnConfig.cpp
 )
 
 # 包含头文件目录
 target_include_directories(actions_config PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../utils/inc
+)
+
+# 链接依赖库
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../utils/build)
+target_link_libraries(actions_config PUBLIC 
+    utils
 )
 
 # 添加测试
@@ -36,11 +44,21 @@ target_link_libraries(TestConnectionInfo PRIVATE
 )
 add_test(NAME TestConnectionInfo COMMAND TestConnectionInfo)
 
-# test ColumnInstance
-add_executable(TestColumnInstance
-    test/TestColumnInstance.cpp
+# test ColumnConfig
+add_executable(TestColumnConfig
+    test/TestColumnConfig.cpp
 )
-target_link_libraries(TestColumnInstance PRIVATE 
+target_link_libraries(TestColumnConfig PRIVATE 
     actions_config
 )
-add_test(NAME TestColumnInstance COMMAND TestColumnInstance)
+add_test(NAME TestColumnConfig COMMAND TestColumnConfig)
+
+# test ColumnConfigInstance
+add_executable(TestColumnConfigInstance
+    test/TestColumnConfigInstance.cpp
+)
+target_link_libraries(TestColumnConfigInstance PRIVATE 
+    actions_config
+)
+add_test(NAME TestColumnConfigInstance COMMAND TestColumnConfigInstance)
+

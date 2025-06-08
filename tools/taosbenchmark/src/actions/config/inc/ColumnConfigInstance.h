@@ -5,9 +5,9 @@
 #include "ColumnConfig.h"
 
 
-class ColumnInstance {
+class ColumnConfigInstance {
 public:
-    ColumnInstance(const ColumnConfig& config, size_t index = 1) : config_(config) {
+    ColumnConfigInstance(const ColumnConfig& config, size_t index = 1) : config_(config) {
         config_.calc_type_tag();
 
         if (config_.count > 1) {
@@ -29,6 +29,10 @@ public:
         return config_.type_tag;
     }    
 
+    const std::optional<std::string>& gen_type() const {
+        return config_.gen_type;
+    }
+
     const ColumnConfig& config() const {
         return config_;
     }
@@ -38,15 +42,26 @@ private:
     ColumnConfig config_;
 };
 
+using ColumnConfigInstanceVector = std::vector<ColumnConfigInstance>;
 
-class ColumnInstanceFactory {
+class ColumnConfigInstanceFactory {
 public:
-    static std::vector<ColumnInstance> create(const ColumnConfig& config) {
-        std::vector<ColumnInstance> instances;
+    static ColumnConfigInstanceVector create(const ColumnConfig& config) {
+        ColumnConfigInstanceVector instances;
         instances.reserve(config.count);
         for (size_t i = 1; i <= config.count; ++i) {
             instances.emplace_back(config, i);
         }
         return instances;
     }
+
+    static ColumnConfigInstanceVector create(const ColumnConfigVector& configs) {
+        ColumnConfigInstanceVector instances;
+        for (const auto& config : configs) {
+            auto config_instances = create(config);
+            instances.insert(instances.end(), config_instances.begin(), config_instances.end());
+        }
+        return instances;
+    }
+
 };

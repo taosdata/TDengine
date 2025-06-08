@@ -29,17 +29,20 @@ add_library(reader_csv STATIC
 # 包含头文件目录
 target_include_directories(reader_csv PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../../utils/inc
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../config/inc
     ${CMAKE_CURRENT_SOURCE_DIR}/../../generator/inc
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../../../common/inc
 )
 
 # 链接依赖库
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../../../utils/build)
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../../config/build)
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../../components/generator/build)
 target_link_libraries(reader_csv PUBLIC
+    actions_config
     actions_generator
+    utils
 )
-
 
 # 添加测试
 # Test CSVReader

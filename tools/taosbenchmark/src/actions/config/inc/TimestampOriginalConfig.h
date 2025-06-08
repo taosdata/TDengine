@@ -11,6 +11,7 @@
 #include <iomanip>
 #include <ctime>
 #include <algorithm>
+#include "StringUtils.h"
 
 struct TimestampOriginalConfig {
     size_t timestamp_index = 0;                     // Index of the original timestamp column (starting from 0)
@@ -89,15 +90,6 @@ struct TimestampOriginalConfig {
     std::optional<OffsetConfig> offset_config;
 
 
-    static void trim(std::string& str) {
-        str.erase(str.begin(), std::find_if(str.begin(), str.end(), [](unsigned char ch) {
-            return !std::isspace(ch);
-        }));
-        str.erase(std::find_if(str.rbegin(), str.rend(), [](unsigned char ch) {
-            return !std::isspace(ch);
-        }).base(), str.end());
-    }
-
     // 解析时间戳值
     static int64_t parse_timestamp_value(const std::variant<std::string, int64_t>& value, const std::string& precision) {
         if (std::holds_alternative<int64_t>(value)) {
@@ -106,7 +98,7 @@ struct TimestampOriginalConfig {
     
         const std::string& time_str = std::get<std::string>(value);
         std::string trimmed = time_str;
-        trim(trimmed);
+        StringUtils::trim(trimmed);
     
         // 支持 "now" 或 "now()" 字符串语义
         if (trimmed == "now" || trimmed == "now()") {
