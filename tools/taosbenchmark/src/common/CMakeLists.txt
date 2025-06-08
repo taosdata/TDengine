@@ -18,6 +18,7 @@ find_package(yaml-cpp REQUIRED)
 # 添加主库
 add_library(common STATIC
     src/Job.cpp
+    src/StringUtils.cpp
 )
 
 # 包含头文件目录
