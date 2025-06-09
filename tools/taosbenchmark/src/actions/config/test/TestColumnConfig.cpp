@@ -25,6 +25,14 @@ void test_column_config_default_constructor() {
     assert(config.count == 1);
 }
 
+void test_column_config_with_name_type() {
+    ColumnConfig config("column1", "int");
+    assert(config.name == "column1");
+    assert(config.type == "int");
+    assert(config.gen_type == std::nullopt);
+    assert(config.type_tag == ColumnTypeTag::INT);
+}
+
 void test_column_config_with_name_type_gen_type() {
     ColumnConfig config("column1", "int", "random");
     assert(config.name == "column1");
@@ -65,6 +73,7 @@ void test_calc_type_tag() {
 int main() {
     test_get_type_tag();
     test_column_config_default_constructor();
+    test_column_config_with_name_type();
     test_column_config_with_name_type_gen_type();
     test_column_config_with_name_type_gen_type_len();
     test_column_config_with_name_type_gen_type_min_max();

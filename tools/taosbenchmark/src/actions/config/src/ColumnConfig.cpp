@@ -42,6 +42,13 @@ ColumnTypeTag ColumnConfig::get_type_tag(const std::string& type_str) {
 
 ColumnConfig::ColumnConfig(
     const std::string& name,
+    const std::string& type
+) : name(name), type(type) {
+    type_tag = get_type_tag(type);
+}
+
+ColumnConfig::ColumnConfig(
+    const std::string& name,
     const std::string& type,
     std::optional<std::string> gen_type
 ) : name(name), type(type), gen_type(gen_type) {

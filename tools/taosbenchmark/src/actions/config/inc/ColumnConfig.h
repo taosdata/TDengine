@@ -52,6 +52,7 @@ struct ColumnConfig {
     static ColumnTypeTag get_type_tag(const std::string& type_str);
 
     ColumnConfig() = default;
+    ColumnConfig(const std::string& name, const std::string& type);
     ColumnConfig(const std::string& name, const std::string& type, std::optional<std::string> gen_type);
     ColumnConfig(const std::string& name, const std::string& type, std::optional<std::string> gen_type, std::optional<int> len);
     ColumnConfig(const std::string& name, const std::string& type, std::optional<std::string> gen_type, std::optional<double> min, std::optional<double> max);
