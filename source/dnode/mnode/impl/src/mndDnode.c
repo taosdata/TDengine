@@ -1129,12 +1129,12 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
     code = TSDB_CODE_MND_INVALID_DNODE_EP;
     goto _OVER;
   }
-  code = taosValidFqdn(tsEnableIpv6, createReq.fqdn);
-  if (code != 0) {
-    mError("ipv6 flag %d, the local FQDN %s does not resolve to the ip address since %s", tsEnableIpv6, tsLocalFqdn,
-           tstrerror(code));
-    goto _OVER;
-  }
+  // code = taosValidFqdn(tsEnableIpv6, createReq.fqdn);
+  // if (code != 0) {
+  //   mError("ipv6 flag %d, the local FQDN %s does not resolve to the ip address since %s", tsEnableIpv6, tsLocalFqdn,
+  //          tstrerror(code));
+  //   goto _OVER;
+  // }
 
   char ep[TSDB_EP_LEN];
   (void)snprintf(ep, TSDB_EP_LEN, "%s:%d", createReq.fqdn, createReq.port);
