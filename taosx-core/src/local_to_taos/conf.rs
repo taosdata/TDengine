@@ -2,7 +2,7 @@ use crate::s3::{S3Config, S3_ENABLE};
 use crate::tmq::BackupObject;
 use crate::utils;
 use crate::utils::sql::connect_taos_root;
-use anyhow::Context;
+use anyhow::{bail, Context};
 use chrono::{DateTime, Utc};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -36,116 +36,13 @@ pub struct LocalRestoreConfig {
     #[allow(unused)]
     /// 恢复到指定的数据库，如果为 None，则使用 topic_meta.db_name
     pub database: Option<String>,
-    // 强制恢复，如果为 true，则删除已存在的数据库或表。默认为 true
-    // pub force: bool,
     /// S3 存储配置
     pub s3_config: Option<S3Config>,
+    /// 恢复成功后的操作
+    pub post_action: Option<PostAction>,
 }
 
 impl LocalRestoreConfig {
-    // 从目标 taosd 中查询备份对象
-    // pub async fn is_obj_existed(&self) -> anyhow::Result<bool> {
-    //     Ok(self.query_obj().await?.is_some())
-    // }
-
-    // pub async fn query_obj(&self) -> anyhow::Result<Option<BackupObject>> {
-    //     // 如果target database 不为空，则使用target database; 否则使用backup object中的db_name
-    //     let db_name = match &self.database {
-    //         Some(db_name) => db_name.clone(),
-    //         None => self.backup_obj.db_name,
-    //     };
-    //
-    //     // taos://xxx/db2?stable=stb
-    //     let mut dsn = Dsn {
-    //         subject: Some(db_name),
-    //         ..self.raw_to.clone()
-    //     };
-    //     if let Some(stable) = &self.backup_obj.stable_name {
-    //         dsn.params.insert("stable".to_string(), stable.to_string());
-    //     }
-    //
-    //     BackupObject::try_from_taos(&dsn)
-    //         .await
-    //         .context(format!("failed to query backup object from taos: {}", &dsn))
-    // }
-
-    // 删除备份对象的元信息
-    // pub async fn delete_obj(&self) -> anyhow::Result<()> {
-    //     let taos = connect_taos_root(&self.raw_to).await?;
-    //
-    //     let db_name = match &self.database {
-    //         None => self.backup_obj.db_name.clone(),
-    //         Some(db_name) => db_name.clone(),
-    //     };
-    //
-    //     // drop topic
-    //     // if let Some(topic) = &self.backup_obj.topic {
-    //     //     let sql = format!("DROP TOPIC IF EXISTS `{}`", topic);
-    //     //     tracing::info!("exec sql: {sql}");
-    //     //     taos.exec(sql).await.context("failed to drop topic")?;
-    //     // }
-    //
-    //     // drop stable
-    //     match &self.backup_obj.stable_name {
-    //         Some(stable_name) => {
-    //             let sql = format!("DROP TABLE IF EXISTS `{}`.`{}`", db_name, stable_name);
-    //             tracing::info!("exec sql: {sql}");
-    //             taos.exec(sql).await.context("failed to drop stable")?;
-    //         }
-    //         None => {
-    //             let sql = format!("DROP DATABASE IF EXISTS `{}`", db_name);
-    //             tracing::info!("exec sql: {sql}");
-    //             taos.exec(sql).await.context("failed to drop database")?;
-    //         }
-    //     }
-    //
-    //     Ok(())
-    // }
-
-    // 向 taosd 中写入备份对象的元信息
-    // pub async fn restore_obj(&self) -> anyhow::Result<()> {
-    //     let taos = connect_taos_root(&self.raw_to).await?;
-    //
-    //     let db_name = match &self.database {
-    //         None => self.backup_obj.db_name.clone(),
-    //         Some(db_name) => db_name.clone(),
-    //     };
-    //
-    //     match &self.backup_obj.stable_sql {
-    //         None => {
-    //             // create database
-    //             let sql = self.backup_obj.db_sql.clone();
-    //             let sql = sql.replace(&self.backup_obj.db_name, &db_name);
-    //             tracing::info!("exec sql: {}", sql);
-    //             taos.exec(sql).await?;
-    //         }
-    //         Some(stable_sql) => {
-    //             // create stable
-    //             let sql = format!("USE `{}`", db_name);
-    //             tracing::info!("exec sql: {}", sql);
-    //             let res = taos.exec(sql.clone()).await;
-    //             if let Err(e) = res {
-    //                 if e.to_string().to_lowercase().contains("database not exist") {
-    //                     let db_sql = self.backup_obj.db_sql.clone();
-    //                     let db_sql = db_sql.replace(&self.backup_obj.db_name, &db_name);
-    //                     tracing::info!("exec sql: {}", db_sql);
-    //                     taos.exec(db_sql).await?;
-    //                     taos.exec(sql).await?;
-    //                 } else {
-    //                     return Err(anyhow::Error::from(e).context("failed to use database"));
-    //                 }
-    //             }
-    //
-    //             let sql = stable_sql.clone();
-    //             let sql = sql.replace(&self.backup_obj.db_name, &db_name);
-    //             tracing::info!("exec sql: {}", sql);
-    //             taos.exec(sql).await?;
-    //         }
-    //     }
-    //
-    //     Ok(())
-    // }
-
     #[allow(unused)]
     pub async fn connect_taos(&self) -> anyhow::Result<Taos> {
         let taos = connect_taos_root(&self.raw_to).await?;
@@ -192,9 +89,6 @@ impl LocalRestoreConfigBuilder {
             "failed to parse backup object in dsn: {}",
             &self.from
         ))?;
-        // if backup_obj.topic.is_none() {
-        //     return Err(anyhow::anyhow!("topic not found in dsn"));
-        // }
 
         // backup directory
         let mut backup_dir = utils::parse_dir_in_dsn(&self.from, None)?
@@ -235,8 +129,8 @@ impl LocalRestoreConfigBuilder {
         let error_retry_interval = utils::parse_duration_in_dsn(&self.to, "retry_interval")?
             .unwrap_or(Duration::from_secs(5));
 
-        // force
-        // let force = utils::parse_key_in_dsn::<bool>(&self.to, "force")?.unwrap_or(true);
+        // post action
+        let post_action = PostAction::try_from_dsn(&self.from)?;
 
         Ok(LocalRestoreConfig {
             task_id: self.task_id.clone(),
@@ -251,11 +145,87 @@ impl LocalRestoreConfigBuilder {
             error_retry_interval,
             database: self.to.subject.clone(),
             s3_config,
+            post_action,
         })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum PostAction {
+    Delete,
+    /// Move the restored data to a specified path.
+    /// The path can contain a date-time pattern, which will be replaced with the backup file's timestamp.
+    /// For example, if the path is "/data/tmp/%Y-%m-%dT%H:%M:%S",
+    /// it will be replaced with "/data/restore/2023-10-01T12:00:00" if the backup file is x85c20042893-1749192649912-501-2.z
+    Move(String),
+}
+
+impl PostAction {
+    fn try_from_dsn(dsn: &Dsn) -> anyhow::Result<Option<Self>> {
+        const POST_ACTION: &str = "post_action";
+        const MOVE_TO: &str = "move_to";
+
+        let post_action = dsn.get(POST_ACTION);
+        if let Some(action) = post_action {
+            match action.to_lowercase().as_str() {
+                "delete" | "del" | "remove" | "rm" => Ok(Some(Self::Delete)),
+                "move" | "mv" => {
+                    let path = dsn
+                        .get(MOVE_TO)
+                        .ok_or(anyhow::anyhow!("move_to is required for post_action: MOVE"))?;
+                    // Check the path
+                    if path.is_empty() {
+                        bail!("move_to cannot be empty for post_action: MOVE");
+                    }
+                    Ok(Some(Self::Move(path.to_string())))
+                }
+                _ => bail!("unknown post action: {}", action),
+            }
+        } else {
+            Ok(None)
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    // TODO: add tests
+    use super::*;
+    use taos::IntoDsn;
+
+    #[test]
+    fn test_post_action() {
+        let dsn = "local:/path/to/backup?post_action=delete"
+            .into_dsn()
+            .unwrap();
+        let action = PostAction::try_from_dsn(&dsn).unwrap();
+        assert_eq!(action, Some(PostAction::Delete));
+
+        let dsn = "local:/path/to/backup?post_action=move&move_to=/path/to/move"
+            .into_dsn()
+            .unwrap();
+        let action = PostAction::try_from_dsn(&dsn).unwrap();
+        assert_eq!(action, Some(PostAction::Move("/path/to/move".to_string())));
+
+        let dsn = "local:/path/to/backup?post_action=move".into_dsn().unwrap();
+        assert!(
+            PostAction::try_from_dsn(&dsn).is_err(),
+            "move action without move_to should fail"
+        );
+
+        let dsn = "local:/path/to/backup?post_action=move&move_to=/home/taosx/tmp/s%Y-%m-%dT%H:%M:%S%.3f%:z"
+            .into_dsn()
+            .unwrap();
+        let action = PostAction::try_from_dsn(&dsn).unwrap();
+        assert_eq!(
+            action,
+            Some(PostAction::Move(
+                "/home/taosx/tmp/s%Y-%m-%dT%H:%M:%S%.3f%:z".to_string()
+            ))
+        );
+
+        let dsn = "local:/path/to/backup?post_action=unknown"
+            .into_dsn()
+            .unwrap();
+        assert!(PostAction::try_from_dsn(&dsn).is_err());
+    }
 }

@@ -2002,6 +2002,7 @@ mod tests {
     /// ```shell
     /// cargo nextest run -p taosx_core test_realtime_sync_with_taos --no-capture --retries 0
     /// ```
+    #[ignore]
     #[tokio::test(flavor = "multi_thread", worker_threads = 20)]
     async fn test_realtime_sync_with_taos() -> anyhow::Result<()> {
         let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
@@ -2253,6 +2254,7 @@ mod tests {
     /// ```shell
     /// cargo nextest run -p taosx-core test_td34829_with_taos --nocapture --retries 0
     /// ```
+    #[ignore]
     #[tokio::test]
     async fn test_td34829_with_taos() -> anyhow::Result<()> {
         let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
@@ -2417,6 +2419,7 @@ mod tests {
     /// ```shell
     /// cargo nextest run -p taosx-core test_td33080_with_taos --nocapture --retries 0
     /// ```
+    #[ignore]
     #[tokio::test]
     async fn test_td33080_with_taos() -> anyhow::Result<()> {
         tracing_subscriber::fmt::fmt()

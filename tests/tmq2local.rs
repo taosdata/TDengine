@@ -15,9 +15,9 @@ mod test_tmq_to_local {
     use taosx_core::{local_to_taos, tmq_to_local};
     use tokio_util::sync::CancellationToken;
 
-    /// # Case
+    /// # description_cn
     /// 测试备份数据到本地
-    /// # Example
+    /// # example
     /// 1. 备份到临时目录，默认先创建一个 test_backup 数据库，用 taosBenchmark 写入 1 亿行（ 1 万子表，1 万行/表），备份到本地
     /// ```shell
     /// BACKUP_DSN=tmq+ws://192.168.2.139:6041 cargo nextest run test_backup_with_taos --nocapture --retries 0
