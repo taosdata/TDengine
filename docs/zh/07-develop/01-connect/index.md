@@ -194,7 +194,7 @@ taos = { version = "*", default-features = false, features = ["ws"] }
 <TabItem label="Node.js" value="node">
 
 - **安装前准备**
-    - 安装 Node.js 开发环境，使用 14 以上版本。下载链接：https://nodejs.org/en/download/
+    - 安装 Node.js 开发环境，使用 14 以上版本。下载链接：[Download Node.js](https://nodejs.org/en/download)
 
 - **安装**
     - 使用 npm 安装 Node.js 连接器
