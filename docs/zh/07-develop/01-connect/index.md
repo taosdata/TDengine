@@ -343,19 +343,20 @@ DSN 的详细说明和如何使用详见 [连接功能](../../reference/connecto
 
     - **protocol**: 使用 websocket 协议建立连接。例如`ws://localhost:6041`
     - **username/password**: 数据库的用户名和密码。
-    - **host/port**: 主机地址和端口号支持 IPV4 和 IPV6 两种地址。例如 `localhost:6041` 或 `[::1]:6041`
+    - **host/port**: 主机地址和端口号支持 IPV4 和 IPV6 两种地址格式，对于 IPv6 地址，必须使用中括号括起来（例如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免端口号解析冲突。
     - **database**: 数据库名称。
     - **params**: 其他参数。例如 token。
 
     - 完整 DSN 示例：
     
     ```js
-    // IPV4:
-    ws://root:taosdata@localhost:6041
+        // IPV4:
+        ws://root:taosdata@localhost:6041
     
-    // IPV6:
-    ws://root:taosdata@[::1]:6041
+        // IPV6:
+        ws://root:taosdata@[::1]:6041
     ``` 
+
     </TabItem>
 
     <TabItem label="C#" value="csharp">
