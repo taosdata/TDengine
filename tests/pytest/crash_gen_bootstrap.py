@@ -14,10 +14,9 @@ import sys
 from crash_gen.crash_gen_main import MainExec
 
 if __name__ == "__main__":
-    
     mExec = MainExec()
     mExec.init()
     exitCode = mExec.run()
 
-    print("\nCrash_Gen is now exiting with status code: {}".format(exitCode))
+    # print("\nCrash_Gen is now exiting with status code: {}".format(exitCode))
     sys.exit(exitCode)

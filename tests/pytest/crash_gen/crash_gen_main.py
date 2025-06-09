@@ -2975,6 +2975,9 @@ class ThreadStacks:  # stack info for all threads
 
 class ClientManager:
     def __init__(self):
+        Logging.info(
+            "\n\n-------------------------- New Test Start ----------------------------\n")
+        Logging.info(f'Run command: python3 {" ".join(sys.argv)}\n')
         Logging.info("Starting service manager")
         # signal.signal(signal.SIGTERM, self.sigIntHandler)
         # signal.signal(signal.SIGINT, self.sigIntHandler)
@@ -3109,7 +3112,8 @@ class ClientManager:
         # h = hpy()
         # print("\n----- Final Python Heap -----\n")
         # print(h.heap())
-
+        Logging.info("Crash_Gen is now exiting with status code: {}".format(ret))
+        Logging.info("Crash_Gen log file: /var/log/taos/crash_gen.log")
         return ret
 
     def conclude(self):

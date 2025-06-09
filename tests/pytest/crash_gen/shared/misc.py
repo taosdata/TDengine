@@ -56,13 +56,18 @@ class Logging:
     def clsInit(cls, debugMode: bool):
         if cls.logger:
             return
-        
+
         # Logging Stuff
         # global misc.logger
         _logger = logging.getLogger('CrashGen')  # real logger
         _logger.addFilter(LoggingFilter())
         ch = logging.StreamHandler(sys.stdout) # Ref: https://stackoverflow.com/questions/14058453/making-python-loggers-output-all-messages-to-stdout-in-addition-to-log-file
         _logger.addHandler(ch)
+        logFile = "/var/log/taos/crash_gen.log"
+        os.makedirs(os.path.dirname(logFile), exist_ok=True)
+        # logFile = os.path.join(os.path.dirname(cls.cfgPath), "crash_gen.log")
+        fh = logging.FileHandler(logFile)
+        _logger.addHandler(fh)
 
         # Logging adapter, to be used as a logger
         # print("setting logger variable")
