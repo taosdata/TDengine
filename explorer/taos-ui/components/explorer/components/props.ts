@@ -97,6 +97,7 @@ export interface TagStruct {
   field: string;
   type: string;
   length: number;
+  length2: number;
 }
 
 export interface ComponentCommonProps {

@@ -173,10 +173,10 @@ const isEdit = toRef(props, 'isEdit');
 const formData = reactive<CreateStableForm>({
   name: '',
   columns: [
-    { type: 'TIMESTAMP', field: '', length: 8, ...columnNewField.value.TIMESTAMP },
-    { type: 'INT', field: '', length: 8, ...columnNewField.value.INT }
+    { type: 'TIMESTAMP', field: '', length: 8, length2: 0, ...columnNewField.value.TIMESTAMP },
+    { type: 'INT', field: '', length: 8, length2: 0, ...columnNewField.value.INT }
   ],
-  tags: [{ type: 'INT', field: '', length: 8 }]
+  tags: [{ type: 'INT', field: '', length: 8, length2: 0 }]
 });
 const formIns = ref<FormInstance | null>(null);
 const currentEditType = ref('');
@@ -200,6 +200,7 @@ const columnStruct = computed(() => {
     field: '',
     type: 'INT',
     length: 8,
+    length2: 0,
     ...(version_gte_3300.value ? type_default_version_gte_3300.INT : {})
   };
 });

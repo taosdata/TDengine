@@ -14,7 +14,7 @@
           <el-option v-for="item in dataType" :key="item" :value="item"></el-option>
         </el-select>
         <el-input
-          v-if="VariableTableColumnType.includes(currentValue.type)"
+          v-if="VariableTableColumnType.includes(currentValue.type) || TwoVariableTableColumnType.includes(currentValue.type)"
           v-model="currentValue.length"
           class="custom-length"
           size="default"
@@ -23,6 +23,18 @@
           clearable
           :max="VariableTableColumnTypeMaxLenthMap[currentValue.type as ColumnTypeMaxLenMapKey]"
           @change="processTypeLength"
+        ></el-input>
+        <el-input
+          v-if="TwoVariableTableColumnType.includes(currentValue.type)"
+          v-model="currentValue.length2"
+          class="custom-length"
+          size="default"
+          type="number"
+          :min="8"
+          default-value=0
+          clearable
+          :max="VariableTableColumnTypeMaxLenthMap[currentValue.type as ColumnTypeMaxLenMapKey]"
+          @change="processTypeLength2"
         ></el-input>
       </section>
       <template v-if="!isTag && isVerGte3300">
@@ -130,7 +142,7 @@
 </template>
 
 <script lang="ts" setup>
-import { VariableTableColumnType, TDengineDataType, VariableTableColumnTypeMaxLenthMap } from 'constants1/index';
+import { VariableTableColumnType, TDengineDataType, VariableTableColumnTypeMaxLenthMap, TwoVariableTableColumnType } from 'constants1/index';
 import { parmaryKeyType, levelList, getStbEncodeAndCompressListByType } from './utils';
 import { hasOwnProperty } from 'utils/validate';
 import { validTDKeywords } from 'utils/validate';
@@ -171,6 +183,7 @@ const currentValue: any = reactive({
   primaryKey: false,
   type: 'TIMESTAMP',
   length: 8,
+  length2: 0,
   compress: 'lz4',
   encode: 'simple8b',
   level: 'medium'
@@ -218,6 +231,12 @@ function processTypeLength(val: number | string) {
     Math.max(val, minTypeLength),
     VariableTableColumnTypeMaxLenthMap[currentValue.type as ColumnTypeMaxLenMapKey]
   );
+  valueChange();
+}
+
+function processTypeLength2(val: number | string) {
+  if (!val) return (currentValue.length2 = 0);
+  val = Number(val);
   valueChange();
 }
 
