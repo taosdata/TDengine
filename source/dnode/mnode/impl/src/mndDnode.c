@@ -133,9 +133,6 @@ int32_t mndInitDnode(SMnode *pMnode) {
   return sdbSetTable(pMnode->pSdb, table);
 }
 
-SIpWhiteList *mndCreateIpWhiteOfDnode(SMnode *pMnode);
-SIpWhiteList *mndAddIpWhiteOfDnode(SIpWhiteList *pIpWhiteList, char *fqdn);
-SIpWhiteList *mndRmIpWhiteOfDnode(SIpWhiteList *pIpWhiteList, char *fqdn);
 void          mndCleanupDnode(SMnode *pMnode) {}
 
 static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
@@ -1116,20 +1113,29 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   int32_t         code = -1;
   SDnodeObj      *pDnode = NULL;
   SCreateDnodeReq createReq = {0};
+  int32_t         lino = 0;
 
   if ((code = grantCheck(TSDB_GRANT_DNODE)) != 0 || (code = grantCheck(TSDB_GRANT_CPU_CORES)) != 0) {
     goto _OVER;
   }
 
-  TAOS_CHECK_GOTO(tDeserializeSCreateDnodeReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
+  code = tDeserializeSCreateDnodeReq(pReq->pCont, pReq->contLen, &createReq);
+  TAOS_CHECK_GOTO(code, &lino, _OVER);
 
   mInfo("dnode:%s:%d, start to create", createReq.fqdn, createReq.port);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DNODE), NULL, _OVER);
+  code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DNODE);
+  TAOS_CHECK_GOTO(code, &lino, _OVER);
 
   if (createReq.fqdn[0] == 0 || createReq.port <= 0 || createReq.port > UINT16_MAX) {
     code = TSDB_CODE_MND_INVALID_DNODE_EP;
     goto _OVER;
   }
+  // code = taosValidFqdn(tsEnableIpv6, createReq.fqdn);
+  // if (code != 0) {
+  //   mError("ipv6 flag %d, the local FQDN %s does not resolve to the ip address since %s", tsEnableIpv6, tsLocalFqdn,
+  //          tstrerror(code));
+  //   goto _OVER;
+  // }
 
   char ep[TSDB_EP_LEN];
   (void)snprintf(ep, TSDB_EP_LEN, "%s:%d", createReq.fqdn, createReq.port);
