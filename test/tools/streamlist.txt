@@ -4,6 +4,8 @@ pytest --clean cases/13-StreamProcessing/99-Others/test_dev_basic1.py
 pytest --clean cases/13-StreamProcessing/99-Others/test_dev_basic2.py 
 ../tests/script/sh/stop_dnodes.sh 
 pytest --clean cases/13-StreamProcessing/99-Others/test_dev_basic3.py 
+../tests/script/sh/stop_dnodes.sh 
+
 #pytest --clean cases/13-StreamProcessing/99-Others/test_dev_basic4.py 
 #pytest --clean cases/13-StreamProcessing/99-Others/test_dev_basic5.py 
 #pytest --clean cases/13-StreamProcessing/99-Others/test_dev_basic6.py 

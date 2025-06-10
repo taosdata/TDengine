@@ -2201,13 +2201,65 @@ void tFreeMDropStreamReq(SMDropStreamReq *pReq) {
   taosMemoryFreeClear(pReq->name);
 }
 
+static FORCE_INLINE void tFreeStreamCalcScan(void* pScan) {
+  if (pScan == NULL) {
+    return;
+  }
+  SStreamCalcScan *pCalcScan = (SStreamCalcScan *)pScan;
+  taosArrayDestroy(pCalcScan->vgList);
+  taosMemoryFreeClear(pCalcScan->scanPlan);
+}
+
+static FORCE_INLINE void tFreeStreamOutCol(void* pCol) {
+  if (pCol == NULL) {
+    return;
+  }
+  SStreamOutCol *pOutCol = (SStreamOutCol *)pCol;
+  taosMemoryFreeClear(pOutCol->expr);
+}
+
 void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   if (NULL == pReq) {
     return;
   }
+  taosMemoryFreeClear(pReq->name);
+  taosMemoryFreeClear(pReq->sql);
+  taosMemoryFreeClear(pReq->streamDB);
+  taosMemoryFreeClear(pReq->triggerDB);
+  taosMemoryFreeClear(pReq->outDB);
+  taosMemoryFreeClear(pReq->triggerTblName);
+  taosMemoryFreeClear(pReq->outTblName);
 
-  //STREAMTODO
-  
+  taosArrayDestroyP(pReq->calcDB, NULL);
+  taosArrayDestroyP(pReq->pNotifyAddrUrls, NULL);
+
+  taosMemoryFreeClear(pReq->triggerFilterCols);
+  taosMemoryFreeClear(pReq->triggerCols);
+  taosMemoryFreeClear(pReq->partitionCols);
+
+  taosArrayDestroy(pReq->outTags);
+  taosArrayDestroy(pReq->outCols);
+
+  switch (pReq->triggerType) {
+    case WINDOW_TYPE_EVENT:
+      taosMemoryFreeClear(pReq->trigger.event.startCond);
+      taosMemoryFreeClear(pReq->trigger.event.endCond);
+      break;
+    case WINDOW_TYPE_COUNT:
+      taosMemoryFreeClear(pReq->trigger.count.condCols);
+      break;
+    default:
+      break;
+  }
+
+  taosMemoryFreeClear(pReq->triggerScanPlan);
+  taosArrayDestroyEx(pReq->triggerScanPlan, tFreeStreamCalcScan);
+  taosMemoryFreeClear(pReq->triggerPrevFilter);
+
+  taosMemoryFreeClear(pReq->calcPlan);
+  taosMemoryFreeClear(pReq->subTblNameExpr);
+  taosMemoryFreeClear(pReq->tagValueExpr);
+  taosArrayDestroyEx(pReq->forceOutCols, tFreeStreamOutCol);
 }
 
 int32_t tSerializeSMPauseStreamReq(void *buf, int32_t bufLen, const SMPauseStreamReq *pReq) {
