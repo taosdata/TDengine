@@ -31,5 +31,6 @@ void       insertFreeBlock(SRBTree *tree, FreeBlock *newBlock);
 FreeBlock *findBestFitBlock(SRBTree *tree, int requestLength);
 FreeBlock *popBestFitBlock(SRBTree *tree, int requestLength);
 int32_t    compareFreeBlock(const SRBTreeNode *a, const SRBTreeNode *b);
+void       clearAllFreeBlocks(SRBTree *tree);
 
 #endif  // _TD_UTIL_FREE_BLOCK_H_
