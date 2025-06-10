@@ -27,7 +27,7 @@
 #define epoll_ctl    EPOLL_CTL_FUNC_TAOS_FORBID
 #define epoll_wait   EPOLL_WAIT_FUNC_TAOS_FORBID
 #define inet_ntoa    INET_NTOA_FUNC_TAOS_FORBID
-#define inet_addr    INET_ADDR_FUNC_TAOS_FORBID
+// #define inet_addr    INET_ADDR_FUNC_TAOS_FORBID
 #endif
 
 #if defined(WINDOWS)
@@ -74,6 +74,8 @@ extern "C" {
 #if defined(WINDOWS)
 typedef int socklen_t;
 #define TAOS_EPOLL_WAIT_TIME 100
+#define INET6_ADDRSTRLEN     46
+#define INET_ADDRSTRLEN      16
 typedef SOCKET eventfd_t;
 #define eventfd(a, b) -1
 #ifndef EPOLLWAKEUP
@@ -148,11 +150,11 @@ int32_t taosWinSocketInit();
 /*
  * set timeout(ms)
  */
-int32_t taosCreateSocketWithTimeout(uint32_t timeout);
+int32_t taosCreateSocketWithTimeout(uint32_t timeout, int8_t type);
 
 TdSocketPtr       taosOpenUdpSocket(uint32_t localIp, uint16_t localPort);
 TdSocketPtr       taosOpenTcpClientSocket(uint32_t ip, uint16_t port, uint32_t localIp);
-bool              taosValidIpAndPort(uint32_t ip, uint16_t port);
+int8_t            taosValidIpAndPort(uint32_t ip, uint16_t port);
 TdSocketServerPtr taosOpenTcpServerSocket(uint32_t ip, uint16_t port);
 int32_t           taosKeepTcpAlive(TdSocketPtr pSocket);
 TdSocketPtr       taosAcceptTcpConnectSocket(TdSocketServerPtr pServerSocket, struct sockaddr *destAddr, int *addrLen);
@@ -169,6 +171,30 @@ const char *taosInetNtop(struct in_addr ipInt, char *dstStr, int32_t len);
 
 uint64_t taosHton64(uint64_t val);
 uint64_t taosNtoh64(uint64_t val);
+
+typedef struct {
+  int8_t type;
+  union {
+    char ipv6[INET6_ADDRSTRLEN];
+    char ipv4[INET_ADDRSTRLEN];
+  };
+  uint16_t mask;  
+  uint16_t port;
+} SIpAddr;
+
+int32_t taosGetIpv6FromFqdn(const char *fqdn, SIpAddr *ip);
+
+int32_t taosGetIp4FromFqdn(const char *fqdn, SIpAddr *addr);
+int32_t taosGetIpFromFqdn(int8_t enableIpv6, const char *fqdn, SIpAddr *addr);
+
+#define IP_ADDR_STR(ip) ((ip)->type == 0 ? (ip)->ipv4 : (ip)->ipv6)
+#define IP_ADDR_MASK(ip) ((ip)->type == 0 ? (ip)->ipv4.mask : (ip)->ipv6.mask)
+
+#define IP_RESERVE_CAP (128 + 32)
+
+int8_t taosIpAddrIsEqual(SIpAddr *ip1, SIpAddr *ip2);
+
+int32_t taosValidFqdn(int8_t enableIpv6, char *fqdn);
 
 #ifdef __cplusplus
 }
