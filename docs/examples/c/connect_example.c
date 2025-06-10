@@ -15,7 +15,6 @@ int main() {
 
   taos_options_connection(taos, TSDB_OPTION_CONNECTION_USER_IP, "localhost");
   sleep(5);
-
   {
     TAOS_RES *res = taos_query(taos, "show connections");
     if (taos == NULL) {
