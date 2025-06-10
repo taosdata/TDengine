@@ -2744,9 +2744,14 @@ static int32_t parseInsertTableClause(SInsertParseContext* pCxt, SVnodeModifyOpS
   int32_t code = parseSchemaClauseTop(pCxt, pStmt, pTbName);
   if (TSDB_CODE_SUCCESS == code) {
     if (pCxt->missCache) {
-      SValuesToken token = tStrGetValues(pStmt->pSql);
-      parserDebug("QID:0x%" PRIx64 ", miss cache, parse values: %s, len: %d", pCxt->pComCxt->requestId, token.z,
-                  token.n);
+      SBoundColumnsToken boundColumnsToken = tStrGetBoundColumns(pStmt->pSql);
+      parserDebug("QID:0x%" PRIx64 ", miss cache, parse bound columns: %s, len: %d", pCxt->pComCxt->requestId,
+                  boundColumnsToken.z, boundColumnsToken.n);
+      pStmt->pSql += boundColumnsToken.n;
+      SValuesToken valuesToken = tStrGetValues(pStmt->pSql);
+      parserDebug("QID:0x%" PRIx64 ", miss cache, parse bound columns: %s, len: %d, parse values: %s, len: %d",
+                  pCxt->pComCxt->requestId, boundColumnsToken.z, boundColumnsToken.n, valuesToken.z, valuesToken.n);
+      pStmt->pSql += valuesToken.n;
     } else {
       code = parseInsertTableClauseBottom(pCxt, pStmt);
     }

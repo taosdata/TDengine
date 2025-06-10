@@ -46,6 +46,12 @@ typedef struct {
   int32_t     n;  // Length of VALUES content
 } SValuesToken;
 
+// used to denote bound columns section in INSERT statement
+typedef struct {
+  const char *z;  // Pointer to bound columns content
+  int32_t     n;  // Length of bound columns content
+} SBoundColumnsToken;
+
 /**
  * check if it is a number or not
  * @param pToken
@@ -84,6 +90,17 @@ SToken tStrGetToken(const char *str, int32_t *i, bool isPrevOptr, bool *pIgnoreC
  * @return SValuesToken containing pointer and length of VALUES content
  */
 SValuesToken tStrGetValues(const char *str);
+
+/**
+ * Parse bound columns section in INSERT statement
+ * Extracts column names list from INSERT statement
+ * Example: insert into t1 (col1, col2, col3) values ...
+ * Returns: (col1, col2, col3)
+ *
+ * @param str input string
+ * @return SBoundColumnsToken containing pointer and length of bound columns content
+ */
+SBoundColumnsToken tStrGetBoundColumns(const char *str);
 
 /**
  * check if it is a keyword or not

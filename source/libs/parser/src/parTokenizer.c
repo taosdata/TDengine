@@ -875,6 +875,9 @@ SValuesToken tStrGetValues(const char* str) {
   SValuesToken result = {0};
   int32_t      i = 0;
 
+  // Record start position of VALUES content
+  int32_t start = i;
+
   if (str[i] == 0) {
     return result;
   }
@@ -900,8 +903,6 @@ SValuesToken tStrGetValues(const char* str) {
     return result;
   }
 
-  // Record start position of VALUES content
-  int32_t start = i;
   bool    foundValues = false;
   bool    inParentheses = false;
   int32_t parenLevel = 0;
@@ -987,13 +988,97 @@ parse_end:
   if (foundValues) {
     result.z = str + start;
     result.n = i - start;
+  }
 
-    // Remove trailing whitespace and comma
-    while (result.n > 0 &&
-           (result.z[result.n - 1] == ' ' || result.z[result.n - 1] == '\t' || result.z[result.n - 1] == '\n' ||
-            result.z[result.n - 1] == '\r' || result.z[result.n - 1] == '\f' || result.z[result.n - 1] == ',')) {
-      result.n--;
+  return result;
+}
+
+SBoundColumnsToken tStrGetBoundColumns(const char* str) {
+  SBoundColumnsToken result = {0};
+  int32_t            i = 0;
+  int32_t            start = i;
+
+  if (str[i] == 0) {
+    return result;
+  }
+
+  // Skip whitespace characters
+  while (str[i] && (str[i] == ' ' || str[i] == '\t' || str[i] == '\n' || str[i] == '\r' || str[i] == '\f')) {
+    i++;
+  }
+
+  // Check if reached end of string
+  if (str[i] == 0) {
+    return result;
+  }
+
+  // Look for the first left parenthesis which should contain column names
+  bool    foundColumns = false;
+  int32_t parenLevel = 0;
+
+  int32_t end = 0;
+
+  // Use token-based parsing to find bound columns
+  while (str[i]) {
+    SToken token;
+    bool   ignoreComma = false;
+
+    // Get next token
+    token = tStrGetToken(str, &i, false, &ignoreComma);
+
+    // Check if we've reached end or invalid token
+    if (token.type == 0 || token.n == 0) {
+      break;
     }
+
+    switch (token.type) {
+      case TK_NK_LP:  // Left parenthesis '('
+        parenLevel++;
+        if (parenLevel == 1 && !foundColumns) {
+          // First left parenthesis - this should be the start of column list
+          // Record the position including the parenthesis
+          start = token.z - str;
+          foundColumns = true;
+        }
+        break;
+
+      case TK_NK_RP:  // Right parenthesis ')'
+        parenLevel--;
+        if (parenLevel == 0 && foundColumns) {
+          // Found the closing parenthesis of column list
+          // Record the end position including the closing parenthesis
+          end = (token.z + token.n) - str;
+          goto parse_end;
+        }
+        break;
+
+      // Keywords that indicate we've moved past column definitions
+      case TK_VALUES:
+      case TK_USING:
+      case TK_FILE:
+        if (parenLevel == 0) {
+          // We've reached VALUES/USING/FILE without finding column list
+          // This means there are no bound columns specified
+          goto parse_end;
+        }
+        break;
+
+      case TK_NK_SEMI:  // Semicolon ';'
+        // Statement end
+        goto parse_end;
+
+      default:
+        // For identifiers and other tokens inside parentheses, continue parsing
+        // We're looking for the complete parentheses structure
+        break;
+    }
+  }
+
+parse_end:
+  // Generate result and statistics at the end
+  if (foundColumns && end > start) {
+    result.z = str + start;
+    result.n = end - start;
   }
 
   return result;
