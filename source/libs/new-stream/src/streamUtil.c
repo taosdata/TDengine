@@ -53,12 +53,9 @@ _exit:
   return code;
 }
 
-int32_t stmHbAddStreamStatus(SArray** ppStatus, SArray** ppReq, SStreamInfo* pStream, int64_t streamId, int32_t gid) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-
-  taosWLockLatch(&pStream->lock);
-
+void stmHandleStreamRemovedTasks(SStreamInfo* pStream, int64_t streamId, int32_t gid) {
+  bool isLastTask = false;
+  
   if (taosArrayGetSize(pStream->undeployReaders) > 0) {
     smHandleRemovedTask(pStream, streamId, gid, true);
   }
@@ -66,6 +63,45 @@ int32_t stmHbAddStreamStatus(SArray** ppStatus, SArray** ppReq, SStreamInfo* pSt
   if (taosArrayGetSize(pStream->undeployRunners) > 0) {
     smHandleRemovedTask(pStream, streamId, gid, false);
   }
+
+  taosWLockLatch(&pStream->undeployLock);
+  if (0 == pStream->undeployTriggerId) {
+    taosWUnLockLatch(&pStream->undeployLock);
+    return;
+  }
+  
+  if (pStream->triggerTask->task.taskId != pStream->undeployTriggerId) {
+    stsWarn("undeploy trigger task %" PRIx64 " mismatch with current trigger taskId:%" PRIx64, pStream->undeployTriggerId, pStream->triggerTask->task.taskId);
+    pStream->undeployTriggerId = 0;
+    taosWUnLockLatch(&pStream->undeployLock);
+    return;
+  }
+
+  pStream->undeployTriggerId = 0;
+  taosMemoryFreeClear(pStream->triggerTask);
+  smRemoveTaskPostCheck(streamId, pStream, &isLastTask);
+  taosWUnLockLatch(&pStream->undeployLock);
+
+  if (!isLastTask) {
+    return;
+  }
+
+  int32_t code = taosHashRemove(gStreamMgmt.stmGrp[gid], &streamId, sizeof(streamId));
+  if (TSDB_CODE_SUCCESS == code) {
+    stsInfo("stream removed from streamGrpHash %d, remainStream:%d", gid, taosHashGetSize(gStreamMgmt.stmGrp[gid]));
+  } else {
+    stsWarn("stream remove from streamGrpHash %d failed, remainStream:%d, error:%s", 
+        gid, taosHashGetSize(gStreamMgmt.stmGrp[gid]), tstrerror(code));
+  }
+}
+
+int32_t stmHbAddStreamStatus(SArray** ppStatus, SArray** ppReq, SStreamInfo* pStream, int64_t streamId, int32_t gid) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  taosWLockLatch(&pStream->lock);
+
+  stmHandleStreamRemovedTasks(pStream, streamId, gid);
 
   if (pStream->taskNum <= 0) {
     stsDebug("ignore stream status update since stream taskNum %d is invalid", pStream->taskNum);

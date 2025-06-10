@@ -386,7 +386,7 @@ typedef struct SStreamTask {
 
   SStreamMgmtReq* pMgmtReq;  // request that should be handled by stream mgmt thread
 
-  SRWLatch      lock;      // concurrent undeloy
+  int8_t          deployed;      // concurrent undeloy
 } SStreamTask;
 
 typedef struct SStreamMgmtRspCont {

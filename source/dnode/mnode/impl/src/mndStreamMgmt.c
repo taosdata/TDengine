@@ -36,7 +36,6 @@ void msmDestroyActionQ() {
   }
 
   while (mndStreamActionDequeue(mStreamMgmt.actionQ, &pQNode)) {
-    taosMemoryFree(pQNode);
   }
 
   taosMemoryFree(mStreamMgmt.actionQ->head);
@@ -2256,8 +2255,6 @@ static int32_t msmHandleStreamActions(SStmGrpCtx* pCtx) {
       default:
         break;
     }
-
-    taosMemoryFree(pQNode);
   }
 
 _exit:
