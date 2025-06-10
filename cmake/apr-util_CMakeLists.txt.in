@@ -1,7 +1,7 @@
 # apr-util
 ExternalProject_Add(aprutil-1
         URL https://dlcdn.apache.org//apr/apr-util-1.6.3.tar.gz
-        URL_HASH SHA256=2b74d8932703826862ca305b094eef2983c27b39d5c9414442e9976a9acf1983
+       #URL_HASH SHA256=2b74d8932703826862ca305b094eef2983c27b39d5c9414442e9976a9acf1983
         DOWNLOAD_NO_PROGRESS 1
         DOWNLOAD_DIR "${TD_CONTRIB_DIR}/deps-download"
         #GIT_REPOSITORY https://github.com/apache/apr-util.git

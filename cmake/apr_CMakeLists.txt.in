@@ -1,7 +1,7 @@
 # apr
 ExternalProject_Add(apr-1
-        URL https://dlcdn.apache.org//apr/apr-1.7.4.tar.gz
-        URL_HASH SHA256=a4137dd82a185076fa50ba54232d920a17c6469c30b0876569e1c2a05ff311d9
+        URL https://dlcdn.apache.org//apr/apr-1.6.5.tar.gz
+       #URL_HASH SHA256=a4137dd82a185076fa50ba54232d920a17c6469c30b0876569e1c2a05ff311d9
         DOWNLOAD_NO_PROGRESS 1
         DOWNLOAD_DIR "${TD_CONTRIB_DIR}/deps-download"
         #GIT_REPOSITORY https://github.com/apache/apr.git
