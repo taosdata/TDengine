@@ -99,6 +99,7 @@ extern int32_t tsNumOfRpcThreads;
 extern int32_t tsNumOfRpcSessions;
 extern int32_t tsShareConnLimit;
 extern int32_t tsReadTimeout;
+extern int8_t  tsEnableIpv6;
 extern int32_t tsTimeToGetAvailableConn;
 extern int32_t tsNumOfCommitThreads;
 extern int32_t tsNumOfTaskQueueThreads;
