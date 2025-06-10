@@ -50,10 +50,10 @@ typedef struct SStreamInfo {
   SArray*             runnerList;        // SArray<SStreamRunnerTask>
 
 
-  SRWLatch            undeployReadersLock;
+  SRWLatch            undeployLock;
+
   SArray*             undeployReaders;        // SArray<taskId>
-  
-  SRWLatch            undeployRunnersLock;
+  int64_t             undeployTriggerId;
   SArray*             undeployRunners;        // SArray<taskId>
 
 } SStreamInfo;
@@ -131,6 +131,7 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, int32_t triggerType, int64_t
 int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int64_t groupId, TSKEY start,
                             TSKEY end, void*** pppIter);
 void streamTimerCleanUp();
+void smRemoveTaskPostCheck(int64_t streamId, SStreamInfo* pStream, bool* isLastTask);
 
 #ifdef __cplusplus
 }

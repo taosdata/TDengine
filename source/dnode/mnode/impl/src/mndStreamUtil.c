@@ -358,6 +358,8 @@ bool mndStreamActionDequeue(SStmActionQ* pQueue, SStmQNode **param) {
 
   *param = node;
 
+  taosMemoryFreeClear(orig);
+
   atomic_sub_fetch_64(&pQueue->qRemainNum, 1);
 
   return true;

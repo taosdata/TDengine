@@ -296,8 +296,6 @@ typedef struct {
   int32_t    affNum;
   SSnodeObj  affSnode[2];
   SSnodeObj  affNewReplica[2];
-  SSnodeObj  replicaSnode;
-  SSnodeObj  replicaNewLeader;
 } SSnodeDropTraversaCtx;
 
 typedef struct {
