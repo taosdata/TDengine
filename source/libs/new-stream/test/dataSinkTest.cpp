@@ -589,7 +589,7 @@ TEST(dataSinkTest, allWriteToFileTest) {
   code = getStreamDataCache(pCache1, notExistGroupID, baseTestTime1 + 50, baseTestTime1 + 150, &pIter1);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(pIter1, nullptr);
-  code = getStreamDataCache(pCache1, groupID, baseTestTime1 + 50, baseTestTime1 + 150, &pIter1);
+  code = getStreamDataCache(pCache1, groupID, baseTestTime1 + 50, baseTestTime1 + 149, &pIter1);
   ASSERT_EQ(code, 0);
   ASSERT_NE(pIter1, nullptr);
   SSDataBlock* pBlock1 = NULL;
@@ -658,6 +658,12 @@ TEST(dataSinkTest, allWriteToFileTest) {
   ASSERT_EQ(compareBlockRow(pBlock1, pBlock12, 2, 2), true);
   ASSERT_EQ(compareBlockRow(pBlock1, pBlock12, 49, 49), true);
   blockDataDestroy(pBlock1);
+  pBlock1 = NULL;
+
+  code = getNextStreamDataCache(&pIter1, &pBlock1);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pBlock1, nullptr);
+  ASSERT_EQ(pIter1, nullptr);
 
   blockDataDestroy(pBlock11);
   blockDataDestroy(pBlock12);

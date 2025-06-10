@@ -117,3 +117,23 @@ FreeBlock *popBestFitBlock(SRBTree *tree, int requestLength) {
 
   return bestFit;  // Return the best fit block itself
 }
+
+void clearAllFreeBlocks(SRBTree *tree) {
+  if (!tree || tree->root == tree->NIL) return;
+
+  SRBTreeIter iter;
+  iter = tRBTreeIterCreate(tree, 1);
+
+  FreeBlock *current = NULL;
+
+  while ((current = (FreeBlock *)tRBTreeIterNext(&iter)) != NULL) {
+    FreeBlock *block = current;
+    while (block != NULL) {
+      FreeBlock *next = block->nextInBucket;
+      destroyFreeBlock(block);
+      block = next;
+    }
+  }
+
+  tRBTreeClear(tree);
+}

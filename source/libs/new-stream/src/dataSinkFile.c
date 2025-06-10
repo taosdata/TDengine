@@ -88,6 +88,8 @@ void destroyStreamDataSinkFile(SDataSinkFileMgr** ppDaSinkFileMgr) {
       taosRemoveFile((*ppDaSinkFileMgr)->fileName);
       (*ppDaSinkFileMgr)->fileName[0] = '\0';
     }
+
+    clearAllFreeBlocks(&(*ppDaSinkFileMgr)->pFreeFileBlockList);
     taosMemoryFreeClear((*ppDaSinkFileMgr));
   }
 }
