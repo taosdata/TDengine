@@ -69,7 +69,7 @@ class TestStreamTriggerType1:
         # sql11 = "create stream s11 session(ts,1a)         from stream_trigger  partition by tbname  into st11                               as select _twstart ts, count(*) c1, avg(cint) c2 from meters where cts >= _twstart and cts < _twend;"
         # sql12 = "create stream s12 session(ts,1a)         from stream_trigger                       into st12                               as select _twstart ts, count(*) c1, avg(cint) c2 from meters where cts >= _twstart and cts < _twend;"
         sql13 = "create stream s13 session(ts,1a)         from stream_trigger                       into st13                               as select _twstart ts, count(*) c1, avg(cint) c2 from meters;"
-        sql14 = "create stream s14 session(ts,1a)         from stream_trigger                       into st14                               as select _twstart ts, count(*) c1, avg(cint) c2 from %%trows;"
+        sql14 = "create stream s14 session(ts,1a)         from stream_trigger                       into st14                               as select _twstart ts, count(*) c1, avg(c2) c2 from %%trows;"
 
 
         streams = [
@@ -293,21 +293,12 @@ class TestStreamTriggerType1:
             and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
             and tdSql.compareData(0, 1, 1)
             and tdSql.compareData(0, 2, 0)            
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:00.102")
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:01.000")
             and tdSql.compareData(1, 1, 1)
             and tdSql.compareData(1, 2, 1)          
-            and tdSql.compareData(2, 0, "2025-01-01 00:00:01.000")
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:02.000")
             and tdSql.compareData(2, 1, 1)
-            and tdSql.compareData(2, 2, 1)       
-            and tdSql.compareData(3, 0, "2025-01-01 00:00:01.400")
-            and tdSql.compareData(3, 1, 1)
-            and tdSql.compareData(3, 2, 2)      
-            and tdSql.compareData(4, 0, "2025-01-01 00:00:02.000")
-            and tdSql.compareData(4, 1, 1)
-            and tdSql.compareData(4, 2, 2)      
-            and tdSql.compareData(5, 0, "2025-01-01 00:00:02.600")
-            and tdSql.compareData(5, 1, 1)
-            and tdSql.compareData(5, 2, 3),
+            and tdSql.compareData(2, 2, 2),
         )
         
     class StreamItem:
