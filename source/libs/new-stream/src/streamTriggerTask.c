@@ -2872,6 +2872,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, const SStreamTriggerDeplo
   int32_t lino = 0;
 
   // todo (kjq): add more check of pMsg
+  pTask->leaderSnodeId = pMsg->leaderSnodeId;
   pTask->primaryTsIndex = 0;
   EWindowType type = pMsg->triggerType;
   switch (pMsg->triggerType) {
@@ -3062,9 +3063,28 @@ int32_t stTriggerTaskUndeploy(SStreamTriggerTask **ppTask, const SStreamUndeploy
 
   // todo
   // remove checkpoint if drop stream
-  //streamDeleteCheckPoint((*ppTask)->task.streamId);
+  // if (delete checkpoint){
+    //streamDeleteCheckPoint((*ppTask)->task.streamId);
+    // int32_t leaderSid = (*ppTask)->leaderSnodeId;
+    //   SEpSet* epSet = gStreamMgmt.getSynEpset(leaderSid);
+    //   if (epSet != NULL){
+    //     code = streamSyncDeleteCheckpoint((*ppTask)->task.streamId, epSet);
+    //   }
+  // } else {    // write checkpoint
   // checkpoint format: ver(int32)+streamId(int64)+data
-  //code = streamWriteCheckPoint((*ppTask)->task.streamId, NULL, 0);
+  // void *data = NULL;
+  // int64_t dataLen = 0;
+  // code = streamWriteCheckPoint((*ppTask)->task.streamId, data, dataLen);
+  // if (code == 0){
+  //   int32_t leaderSid = (*ppTask)->leaderSnodeId;
+  //   SEpSet* epSet = gStreamMgmt.getSynEpset(leaderSid);
+  //   if (epSet != NULL){
+  //     code = streamSyncWriteCheckpoint((*ppTask)->task.streamId, epSet, data, dataLen);
+  //   }
+  // }
+  // }
+
+  
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {

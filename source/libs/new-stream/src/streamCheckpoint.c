@@ -142,7 +142,7 @@ end:
   return;
 }
 
-static int32_t sendMsg(void* data, int64_t dataLen, SEpSet* epSet){
+static int32_t sendSyncMsg(void* data, int64_t dataLen, SEpSet* epSet){
   int32_t code = 0;
   SRpcMsg msg = {.msgType = TDMT_STREAM_SYNC_CHECKPOINT};
   msg.contLen = dataLen + sizeof(SMsgHead);
@@ -157,7 +157,22 @@ static int32_t sendMsg(void* data, int64_t dataLen, SEpSet* epSet){
   return tmsgSendReq(epSet, &msg);
 }
 
-static int32_t streamCheckpointSetNotReady(int64_t streamId) {
+static int32_t sendDeleteMsg(int64_t streamId, SEpSet* epSet){
+  int32_t code = 0;
+  SRpcMsg msg = {.msgType = TDMT_STREAM_DELETE_CHECKPOINT};
+  msg.contLen = LONG_BYTES + sizeof(SMsgHead);
+  msg.pCont = rpcMallocCont(msg.contLen);
+  if (msg.pCont == NULL) {
+    return terrno;
+  }
+  SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
+  pMsgHead->contLen = htonl(msg.contLen);
+  pMsgHead->vgId = htonl(SNODE_HANDLE);
+  memcpy(msg.pCont + sizeof(SMsgHead), &streamId, LONG_BYTES);
+  return tmsgSendReq(epSet, &msg);
+}
+
+int32_t streamCheckpointSetNotReady(int64_t streamId) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -212,20 +227,28 @@ bool streamCheckpointIsReady(int64_t streamId) {
   return ready;
 }
 
-int32_t streamSyncCheckpoint(int64_t streamId, SEpSet* epSet) {
+int32_t streamSyncWriteCheckpoint(int64_t streamId, SEpSet* epSet, void* data, int64_t dataLen) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  int32_t ver = 0;
-
-  void*   data = NULL;
-  int64_t dataLen = 0;
-  STREAM_CHECK_RET_GOTO(streamReadCheckPoint(streamId, &data, &dataLen));
-  STREAM_CHECK_RET_GOTO(sendMsg(data, dataLen, epSet));
-  STREAM_CHECK_RET_GOTO(streamCheckpointSetNotReady(streamId));
+  if (data == NULL) {
+    STREAM_CHECK_RET_GOTO(streamReadCheckPoint(streamId, &data, &dataLen));
+  }
+  STREAM_CHECK_RET_GOTO(sendSyncMsg(data, dataLen, epSet));
   stDebug("sync checkpoint for streamId:%" PRId64 ", dataLen:%" PRId64, streamId, dataLen);
 end:
   taosMemoryFreeClear(data);
+  STREAM_PRINT_LOG_END(code, lino);
+  return code;
+}
+
+int32_t streamSyncDeleteCheckpoint(int64_t streamId, SEpSet* epSet) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  STREAM_CHECK_RET_GOTO(sendDeleteMsg(streamId, epSet));
+  stDebug("delete checkpoint for streamId:%" PRId64, streamId);
+end:
   STREAM_PRINT_LOG_END(code, lino);
   return code;
 }
@@ -257,7 +280,7 @@ int32_t streamSyncAllCheckpoints(SEpSet* epSet) {
       stError("failed to convert file name:%s to streamId", name);
       continue;
     }
-    code = streamSyncCheckpoint(streamId, epSet);
+    code = streamSyncWriteCheckpoint(streamId, epSet, NULL, 0);
     if (code != TSDB_CODE_SUCCESS) {
       stError("failed to sync checkpoint for streamId:%" PRId64 ", code:%d", streamId, code);
       continue;

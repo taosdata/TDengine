@@ -228,6 +228,8 @@ typedef struct SSTriggerHistoryContext {
 
 typedef struct SStreamTriggerTask {
   SStreamTask task;
+
+  int32_t leaderSnodeId;
   // trigger options
   EStreamTriggerType triggerType;
   union {

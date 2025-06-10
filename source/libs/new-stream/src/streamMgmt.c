@@ -184,7 +184,10 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
           int32_t leaderSid = pDeploy->triggerTask->msg.trigger.leaderSnodeId;
           SEpSet* epSet = gStreamMgmt.getSynEpset(leaderSid);
           if (epSet != NULL){
-            code = streamSyncCheckpoint(streamId, epSet);
+            code = streamSyncWriteCheckpoint(streamId, epSet, NULL, 0);
+            if (code == 0) {
+              code = streamCheckpointSetNotReady(streamId);
+            }
           }
         }
         if (code) {

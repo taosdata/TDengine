@@ -226,8 +226,10 @@ int32_t streamTriggerProcessRsp(SStreamTask *pTask, SRpcMsg *pRsp, int64_t *pErr
 int32_t streamWriteCheckPoint(int64_t streamId, void* data, int64_t dataLen);
 int32_t streamReadCheckPoint(int64_t streamId, void** data, int64_t* dataLen);
 void    streamDeleteCheckPoint(int64_t streamId);
-int32_t streamSyncCheckpoint(int64_t streamId, SEpSet* epSet);
+int32_t streamSyncWriteCheckpoint(int64_t streamId, SEpSet* epSet, void* data, int64_t dataLen);
+int32_t streamSyncDeleteCheckpoint(int64_t streamId, SEpSet* epSet);
 int32_t streamCheckpointSetReady(int64_t streamId);
+int32_t streamCheckpointSetNotReady(int64_t streamId);
 bool    streamCheckpointIsReady(int64_t streamId);
 int32_t streamSyncAllCheckpoints(SEpSet* epSet);
 void    streamDeleteAllCheckpoints();

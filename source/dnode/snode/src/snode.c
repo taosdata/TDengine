@@ -67,7 +67,13 @@ static int32_t handleTriggerCalcReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   return code;
 }
 
-static int32_t handleSyncCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
+static int32_t handleSyncDeleteCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
+  int64_t streamId = *(int64_t*)POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead));
+  streamDeleteCheckPoint(streamId);
+  return 0;
+}
+
+static int32_t handleSyncWriteCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   int32_t ver = *(int32_t*)POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead));
   int64_t streamId = *(int64_t*)POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead) + INT_BYTES);
 
@@ -87,7 +93,7 @@ static int32_t handleSyncCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   return 0;
 }
 
-static int32_t handleSyncCheckPointRsp(SSnode* pSnode, SRpcMsg* pRpcMsg) {
+static int32_t handleSyncWriteCheckPointRsp(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   void* data = POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead));
   int32_t dataLen = pRpcMsg->contLen - sizeof(SMsgHead);
   if (dataLen <= 0) {
@@ -213,11 +219,14 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
     case TDMT_STREAM_TRIGGER_CALC:
       code = handleTriggerCalcReq(pSnode, pMsg);
       break;
+    case TDMT_STREAM_DELETE_CHECKPOINT:
+      code = handleSyncDeleteCheckPointReq(pSnode, pMsg);
+      break;
     case TDMT_STREAM_SYNC_CHECKPOINT:
-      code = handleSyncCheckPointReq(pSnode, pMsg);
+      code = handleSyncWriteCheckPointReq(pSnode, pMsg);
       break;
     case TDMT_STREAM_SYNC_CHECKPOINT_RSP:
-      code = handleSyncCheckPointRsp(pSnode, pMsg);
+      code = handleSyncWriteCheckPointRsp(pSnode, pMsg);
       break;
     case TDMT_STREAM_FETCH_FROM_RUNNER:
       code = handleStreamFetchData(pSnode, pMsg);
