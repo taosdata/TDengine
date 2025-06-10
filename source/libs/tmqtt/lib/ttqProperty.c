@@ -18,10 +18,10 @@
 #include <errno.h>
 #include <string.h>
 
+#include "tmqttProto.h"
 #include "ttqLogging.h"
 #include "ttqMemory.h"
 #include "ttqPacket.h"
-#include "tmqttProto.h"
 
 static int property__read(struct tmqtt__packet *packet, uint32_t *len, tmqtt_property *property) {
   int      rc;
@@ -226,7 +226,7 @@ void property__free(tmqtt_property **property) {
       break;
   }
 
-  free(*property);
+  ttq_free(*property);
   *property = NULL;
 }
 
@@ -1082,7 +1082,7 @@ const tmqtt_property *tmqtt_property_read_string_pair(const tmqtt_property *prop
     *value = calloc(1, (size_t)p->value.s.len + 1);
     if (!(*value)) {
       if (name) {
-        free(*name);
+        ttq_free(*name);
         *name = NULL;
       }
       return NULL;

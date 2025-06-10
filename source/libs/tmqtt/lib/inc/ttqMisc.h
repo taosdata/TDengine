@@ -25,7 +25,6 @@ extern "C" {
 
 FILE *tmqtt__fopen(const char *path, const char *mode, bool restrict_read);
 char *misc__trimblanks(char *str);
-char *fgets_extending(char **buf, int *buflen, FILE *stream);
 
 #ifdef __cplusplus
 }
