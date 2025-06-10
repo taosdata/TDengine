@@ -137,14 +137,16 @@ void mndCleanupProfile(SMnode *pMnode) {
 }
 
 static void getUserIpFromConnObj(SConnObj *pConn, char *dst) {
+  static char *none = "0.0.0.0";
   if (pConn->userIp != 0 && pConn->userIp != INADDR_NONE) {
     taosInetNtoa(varDataVal(dst), pConn->userIp);
     varDataLen(dst) = strlen(varDataVal(dst));
   }
 
-  if (pConn->addr.ipv4[0] != 0) {
-    int32_t len = strlen(IP_ADDR_STR(&pConn->addr));
-    memcpy(varDataVal(dst), IP_ADDR_STR(&pConn->addr), len);
+  if (pConn->addr.ipv4[0] != 0 && strncmp(pConn->addr.ipv4, none, strlen(none)) != 0) {
+    char   *ipstr = IP_ADDR_STR(&pConn->addr);
+    int32_t len = strlen(ipstr);
+    memcpy(varDataVal(dst), ipstr, len);
     varDataLen(dst) = len;
   }
   return;
