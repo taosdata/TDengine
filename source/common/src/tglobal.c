@@ -161,6 +161,15 @@ bool tsMonitorForceV2 = true;
 bool tsMonitorForceV2 = false;
 #endif
 
+// this is test
+#ifdef USE_TEST
+bool tsEnableTest = true;
+#else
+bool tsEnableTest = false;
+#endif
+
+// this is another log
+
 // audit
 #ifdef USE_AUDIT
 bool    tsEnableAudit = true;
