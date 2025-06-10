@@ -37,7 +37,6 @@ use self::{
         TaskScheduler,
     },
 };
-use crate::build;
 use crate::serve::controller::agent::{
     Activity, ActivityOrder, Agent, AgentActivityFilter, AgentConnectors, AgentProps, AgentStatus,
     AgentToken, AgentUpdates, AgentWithToken, LevelFilter,
@@ -45,6 +44,7 @@ use crate::serve::controller::agent::{
 use crate::serve::opc::AddPointReq;
 use crate::serve::opc::GetPointsHeaderReq;
 use crate::serve::opc::PointDetail;
+use crate::{build, executor_worker_threads};
 use controller::*;
 use data_sources::*;
 use taoslog::middleware::TaosRootSpanBuilder;
@@ -143,6 +143,15 @@ pub(super) struct Cli {
 
     #[clap(long, env = "TAOSX_REQUEST_TIMEOUT")]
     pub request_timeout: Option<u64>,
+
+    #[clap(long, hide = true)]
+    pub rest_api_threads: Option<usize>,
+
+    #[clap(long, hide = true)]
+    pub grpc_threads: Option<usize>,
+
+    #[clap(long, hide = true)]
+    pub scheduler_threads: Option<usize>,
 }
 
 impl Cli {
@@ -160,6 +169,7 @@ impl Cli {
         update_if_none!(listen, ssl_cert, ssl_key, ssl_ca);
         update_if_none!(database_url, secret_prefix, do_not_resume, request_timeout);
         update_if_none!(grpc, grpc_ssl_cert, grpc_ssl_key, grpc_ssl_ca);
+        update_if_none!(scheduler_threads, rest_api_threads, grpc_threads);
         self
     }
 }
@@ -574,6 +584,10 @@ impl Cli {
             tracing::error!("Start HTTP server error: {:?} (addr: {})", err, addr);
             anyhow::format_err!("Start HTTP server error: {err} (addr: {addr})")
         })?
+        .workers(
+            self.rest_api_threads
+                .unwrap_or_else(|| executor_worker_threads(0)),
+        )
         .run();
 
         tokio::select! {

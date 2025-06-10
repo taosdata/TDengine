@@ -42,6 +42,15 @@ instanceId = 16
 #
 #grpc = "0.0.0.0:6055"
 
+# number of threads used for rest api service, default to 0 (means cores * 2)
+#rest_api_threads = 0
+
+# number of threads used for grpc service, default to 0 (means cores * 2)
+#grpc_threads = 0
+
+# number of threads used for scheduler service, default to 0 (means cores * 2)
+#scheduler_threads = 0
+
 [monitor]
 # FQDN of taosKeeper service, no default value
 #fqdn = "localhost"

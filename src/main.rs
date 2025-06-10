@@ -186,9 +186,9 @@ struct Global {
     #[clap(long, global = true)]
     no_async_log: bool,
 
-    /// Number of jobs, default to 0, will use `jobs` number of works for TMQ.
+    /// Number of threads for taosx default tokio runtime, default to 0.
     #[clap(short, long, value_parser, default_value = "0", global = true)]
-    jobs: usize,
+    jobs: Option<usize>,
 
     /// Enable OpenTelemetry tracing and metrics exporter.
     #[clap(long, action = clap::ArgAction::SetTrue, env = "ENABLE_OTEL", global = true)]
@@ -459,7 +459,7 @@ impl Args {
         if let Some(monitor_cfg) = configurable_opts.monitor.as_ref() {
             args.monitor.merge_from(monitor_cfg);
         }
-        args.global.jobs = executor_worker_threads(args.global.jobs);
+        args.global.jobs = Some(executor_worker_threads(args.global.jobs.unwrap_or(0)));
 
         if let Some(Commands::Serve(cli)) = &mut args.commands {
             let mut serve = configurable_opts.serve.unwrap_or_default();
@@ -479,7 +479,12 @@ impl Args {
                 take_or_not!(listen, ssl_cert, ssl_key, ssl_ca);
                 take_or_not!(grpc, grpc_ssl_cert, grpc_ssl_key, grpc_ssl_ca);
             }
+
             cli.merge_from(serve);
+            cli.rest_api_threads = Some(executor_worker_threads(cli.rest_api_threads.unwrap_or(0)));
+            cli.grpc_threads = Some(executor_worker_threads(cli.grpc_threads.unwrap_or(0)));
+            cli.scheduler_threads =
+                Some(executor_worker_threads(cli.scheduler_threads.unwrap_or(0)));
         }
 
         // Set environment variables.
@@ -545,15 +550,16 @@ impl Global {
     }
 }
 
-pub fn executor_worker_threads(jobs: usize) -> usize {
-    let min = std::thread::available_parallelism()
+const MIN_NUM_THREAD: usize = 8;
+pub fn executor_worker_threads(num_thread: usize) -> usize {
+    let double_cpus = std::thread::available_parallelism()
         .map(|v| v.get() * 2)
-        .unwrap_or(16)
-        .max(16);
-    if &jobs + 2 > min {
-        jobs + 2
-    } else {
-        min
+        .unwrap_or(MIN_NUM_THREAD)
+        .max(MIN_NUM_THREAD);
+    match num_thread {
+        0 => double_cpus,
+        n if n < MIN_NUM_THREAD => MIN_NUM_THREAD,
+        _ => num_thread,
     }
 }
 
@@ -811,7 +817,7 @@ fn print_effective_config(level_filter: &LevelFilter, args: &Args) {
     if let Some(opts) = log_opts {
         s += format!("{:<w$}{:<w2$}{}\n", ' ', "log", opts).as_str();
     }
-    s += format!("{:<w$}{:<w2$}{}\n", ' ', "jobs", args.global.jobs).as_str();
+    s += format!("{:<w$}{:<w2$}{}\n", ' ', "jobs", args.global.jobs.unwrap_or(0)).as_str();
     if let Commands::Serve(cli) = args.commands.as_ref().unwrap_or(&Commands::Serve(Default::default())) {
         let value = serde_json::to_value(cli).unwrap_or_default();
         if let Some(obj) = value.as_object() {
@@ -923,8 +929,12 @@ fn main() -> Result<()> {
         config_file.display()
     );
 
-    let worker_threads = args.global.jobs;
-    let runtime = build_runtime(&format!("{}x", build::CUS_PROMPT), worker_threads)?;
+    let runtime = build_runtime(
+        &format!("{}x-default-rt", build::CUS_PROMPT),
+        args.global
+            .jobs
+            .unwrap_or_else(|| executor_worker_threads(0)),
+    )?;
     tracing::info!("{}x version: {version}", build::CUS_PROMPT);
     tracing::info!("commit id: {commit_id}");
     tracing::info!("build time: {build_time}");
@@ -968,8 +978,10 @@ fn main() -> Result<()> {
                 let addr = serve.get_listen_address();
                 let port = addr.split(':').last().unwrap();
                 let scheduler_rt = build_runtime(
-                    &format!("{}x-server", build::CUS_PROMPT),
-                    worker_threads * 2,
+                    &format!("{}x-scheduler", build::CUS_PROMPT),
+                    serve
+                        .scheduler_threads
+                        .unwrap_or_else(|| executor_worker_threads(0)),
                 )?;
                 let (
                     agent_integration_channel,
@@ -982,9 +994,13 @@ fn main() -> Result<()> {
                 let scheduler = scheduler_rt
                     .block_on(serve.scheduler(scheduler_notifier, agent_integration_channel))?;
 
-                let grpc_rt = build_runtime("grpc-server", worker_threads)?;
+                let grpc_rt = build_runtime(
+                    "grpc-server",
+                    serve
+                        .grpc_threads
+                        .unwrap_or_else(|| executor_worker_threads(0)),
+                )?;
 
-                // let api_rt = build_runtime(worker_threads)?;
                 let max_activities_per_entity =
                     args.global.max_activities_per_entity.unwrap_or(100);
 
@@ -995,9 +1011,9 @@ fn main() -> Result<()> {
                 debug!("Starting monitor");
                 let monitor = monitor::Monitor::new(args.monitor.clone(), port, ctl.clone());
                 let api_ctl = ctl.clone();
-                let serve_api = serve.clone();
+                let grpc_serve = serve.clone();
                 debug!("Starting gRPC server");
-                let grpc_handle = grpc_rt.spawn(serve_api.grpc(
+                let grpc_handle = grpc_rt.spawn(grpc_serve.grpc(
                     ctl.clone(),
                     agent_rpc_channel,
                     agent_spawn_sender,
