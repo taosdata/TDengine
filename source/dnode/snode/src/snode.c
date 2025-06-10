@@ -67,6 +67,46 @@ static int32_t handleTriggerCalcReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   return code;
 }
 
+static int32_t handleSyncDeleteCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
+  int64_t streamId = *(int64_t*)POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead));
+  streamDeleteCheckPoint(streamId);
+  return 0;
+}
+
+static int32_t handleSyncWriteCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
+  int32_t ver = *(int32_t*)POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead));
+  int64_t streamId = *(int64_t*)POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead) + INT_BYTES);
+
+  void*   data = NULL;
+  int64_t dataLen = 0;
+  int32_t code = streamReadCheckPoint(streamId, &data, &dataLen);
+  if (code == 0 && ver > *(int32_t*)data) {
+    code = streamWriteCheckPoint(streamId, pRpcMsg->pCont, pRpcMsg->contLen);
+    stDebug("streamId:%" PRId64 ", checkpoint updated, ver:%d, dataLen:%" PRId64, streamId, ver, dataLen);
+  }
+  if (code != 0 || ver >= *(int32_t*)data) {
+    dataLen = 0;
+    taosMemoryFreeClear(data);
+  }
+  SRpcMsg rsp = {.code = 0, .msgType = TDMT_STREAM_SYNC_CHECKPOINT_RSP, .contLen = dataLen, .pCont = data, .info = pRpcMsg->info};
+  rpcSendResponse(&rsp);
+  return 0;
+}
+
+static int32_t handleSyncWriteCheckPointRsp(SSnode* pSnode, SRpcMsg* pRpcMsg) {
+  void* data = POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead));
+  int32_t dataLen = pRpcMsg->contLen - sizeof(SMsgHead);
+  if (dataLen <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int64_t streamId = *(int64_t*)(POINTER_SHIFT(data, dataLen - LONG_BYTES));
+  int32_t code = streamWriteCheckPoint(streamId, data, dataLen - LONG_BYTES);
+  if (code == 0) {
+    code = streamCheckpointSetReady(streamId);
+  }  
+  return code;
+}
+
 static int32_t buildFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int8_t precision) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -178,6 +218,15 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
   switch (pMsg->msgType) {
     case TDMT_STREAM_TRIGGER_CALC:
       code = handleTriggerCalcReq(pSnode, pMsg);
+      break;
+    case TDMT_STREAM_DELETE_CHECKPOINT:
+      code = handleSyncDeleteCheckPointReq(pSnode, pMsg);
+      break;
+    case TDMT_STREAM_SYNC_CHECKPOINT:
+      code = handleSyncWriteCheckPointReq(pSnode, pMsg);
+      break;
+    case TDMT_STREAM_SYNC_CHECKPOINT_RSP:
+      code = handleSyncWriteCheckPointRsp(pSnode, pMsg);
       break;
     case TDMT_STREAM_FETCH_FROM_RUNNER:
       code = handleStreamFetchData(pSnode, pMsg);

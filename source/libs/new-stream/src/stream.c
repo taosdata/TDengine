@@ -39,13 +39,14 @@ void streamCleanup(void) {
   destroyDataSinkMgr();
 }
 
-int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode) {
+int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode, getSynEpset_f getSynEpset) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
   gStreamMgmt.dnode = pDnode;
   gStreamMgmt.getMnode = getMnode;
   gStreamMgmt.getDnode = getDnode;
+  gStreamMgmt.getSynEpset = getSynEpset;
 
   gStreamMgmt.vgLeaders = taosArrayInit(20, sizeof(int32_t));
   TSDB_CHECK_NULL(gStreamMgmt.vgLeaders, code, lino, _exit, terrno);

@@ -146,7 +146,7 @@ static void stSetRunnerOutputInfo(SStreamRunnerTask* pTask, const SStreamRunnerD
 }
 
 int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
-  ST_TASK_DLOG("deploy runner task for %s.%s, runner plan:%s", pMsg->outDBFName, pMsg->outTblName, (char*)(pMsg->pPlan));
+  ST_TASK_DLOGL("deploy runner task for %s.%s, runner plan:%s", pMsg->outDBFName, pMsg->outTblName, (char*)(pMsg->pPlan));
   pTask->pPlan = pMsg->pPlan;
   pTask->forceOutCols = pMsg->forceOutCols;
   pTask->parallelExecutionNun = pMsg->execReplica;

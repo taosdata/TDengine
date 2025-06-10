@@ -77,7 +77,7 @@ typedef struct SStreamMgmtInfo {
 //  SStorageAPI*           api;
   getMnodeEpset_f         getMnode;
   getDnodeId_f            getDnode;
-  
+  getSynEpset_f           getSynEpset;
   SStreamHbInfo           hb;
 
   bool                   hbReported;

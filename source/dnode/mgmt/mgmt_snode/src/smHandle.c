@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "smInt.h"
+#include "stream.h"
 
 SSnodeInfo gSnode = {0};
 
@@ -34,10 +35,29 @@ static int32_t epToJson(const void* pObj, SJson* pJson) {
 
 void smUpdateSnodeInfo(SDCreateSnodeReq* pReq) {
   taosWLockLatch(&gSnode.snodeLock);
+  gSnode.snodeId = pReq->snodeId;
+  if (gSnode.snodeLeaders[0].nodeId != pReq->leaders[0].nodeId ||
+      gSnode.snodeLeaders[1].nodeId != pReq->leaders[1].nodeId ||
+      pReq->replica.nodeId != gSnode.snodeReplica.nodeId) {
+    int32_t ret = streamSyncAllCheckpoints(&pReq->replica.epSet);
+    dInfo("sync all checkpoint from snode %d to replicaId:%d, return:%d", pReq->snodeId, pReq->replica.nodeId, ret);
+  }
   gSnode.snodeLeaders[0] = pReq->leaders[0];
   gSnode.snodeLeaders[1] = pReq->leaders[1];  
   gSnode.snodeReplica = pReq->replica;
   taosWUnLockLatch(&gSnode.snodeLock);
+}
+
+SEpSet* dmGetSynEpset(int32_t leaderId) {
+  if (gSnode.snodeId == leaderId && gSnode.snodeReplica.nodeId > 0) {
+    return &gSnode.snodeReplica.epSet;
+  } 
+  for (int32_t i = 0; i < 2; ++i) {
+    if (gSnode.snodeLeaders[i].nodeId == leaderId) {
+      return &gSnode.snodeLeaders[i].epSet;
+    }
+  }
+  return NULL;
 }
 
 int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
@@ -133,6 +153,8 @@ int32_t smProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   char path[TSDB_FILENAME_LEN];
   snprintf(path, TSDB_FILENAME_LEN, "%s%ssnode%d", pInput->path, TD_DIRSEP, dropReq.dnodeId);
 
+  streamDeleteAllCheckpoints();
+
   bool deployed = false;
   if ((code = dmWriteFile(path, pInput->name, deployed)) != 0) {
     dError("failed to write snode file since %s", tstrerror(code));
@@ -148,6 +170,11 @@ SArray *smGetMsgHandles() {
   int32_t code = -1;
   SArray *pArray = taosArrayInit(4, sizeof(SMgmtHandle));
   if (pArray == NULL) goto _OVER;
+
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_SYNC_CHECKPOINT, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_SYNC_CHECKPOINT_RSP, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
+  
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_DELETE_CHECKPOINT, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
 
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_CALC, smPutMsgToRunnerQueue, 1) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_FETCH_FROM_RUNNER, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
