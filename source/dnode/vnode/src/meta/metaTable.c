@@ -1355,10 +1355,6 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   SSchema *pNewSchema = NULL;
   switch (pAlterTbReq->action) {
     case TSDB_ALTER_TABLE_ADD_COLUMN:
-      if (pSchema->nCols + 1 > TSDB_MAX_COLUMNS) {
-        terrno = TSDB_CODE_PAR_INVALID_COLUMNS_NUM;
-        goto _err;
-      }
       if (pColumn) {
         terrno = TSDB_CODE_VND_COL_ALREADY_EXISTS;
         goto _err;
