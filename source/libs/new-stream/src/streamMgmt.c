@@ -180,16 +180,17 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
 
       if (TSDB_CODE_SUCCESS == code) {
         code = stTriggerTaskDeploy(pStream->triggerTask, &pDeploy->triggerTask->msg.trigger);
+        if (code == 0){
+          int32_t leaderSid = pDeploy->triggerTask->msg.trigger.leaderSnodeId;
+          SEpSet* epSet = gStreamMgmt.getSynEpset(leaderSid);
+          if (epSet != NULL){
+            code = streamSyncCheckpoint(streamId, epSet);
+          }
+        }
         if (code) {
           ST_TASK_ELOG("trigger task fail to deploy, error:%s", tstrerror(code));
           taosHashRemove(gStreamMgmt.taskMap, &pTask->streamId, sizeof(pTask->streamId) + sizeof(pTask->taskId));
           taosMemoryFreeClear(pStream->triggerTask);
-        }
-        int32_t leaderSid = pDeploy->triggerTask->msg.trigger.leaderSnodeId;
-        int32_t localSid = gStreamMgmt.getDnode(gStreamMgmt.dnode);
-        SEpSet* epSet = gStreamMgmt.getSynEpset(leaderSid);
-        if (epSet != NULL){
-          streamSyncCheckpoint(streamId, localSid, epSet);
         }
       }
 

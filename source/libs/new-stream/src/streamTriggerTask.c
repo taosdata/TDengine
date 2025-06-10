@@ -3060,6 +3060,12 @@ int32_t stTriggerTaskUndeploy(SStreamTriggerTask **ppTask, const SStreamUndeploy
     taosMemFreeClear((*ppTask)->pCalcExecCount);
   }
 
+  // todo
+  // remove checkpoint if drop stream
+  //streamDeleteCheckPoint((*ppTask)->task.streamId);
+  // checkpoint format: ver(int32)+streamId(int64)+data
+  //code = streamWriteCheckPoint((*ppTask)->task.streamId, NULL, 0);
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -3076,6 +3082,16 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
 
   switch (pMsg->msgType) {
     case STREAM_MSG_START: {
+
+      // todo
+      // if (streamCheckpointIsReady(pTask->task.streamId)){
+      //   void* data = NULL;
+      //   int64_t dataLen = 0;
+      //   code = streamReadCheckPoint(pTask->task.streamId, &data, &dataLen);
+      // } else {
+      //   // retry
+      // }
+      
       if (pTask->pRealtimeCtx == NULL) {
         pTask->pRealtimeCtx = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeContext));
         QUERY_CHECK_NULL(pTask->pRealtimeCtx, code, lino, _end, terrno);
