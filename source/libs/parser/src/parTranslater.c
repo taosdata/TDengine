@@ -12996,7 +12996,12 @@ static EDealRes doStreamSetSlotId(SNode* pNode, void* pContext) {
     }
     ((SColumnNode*)pNode)->slotId = *slotId;
     if (pCxt->pCollect) {
-      pCxt->errCode = nodesListAppend(pCxt->pCollect, pNode);
+      SNode *tmpNode = NULL;
+      pCxt->errCode = nodesCloneNode(pNode, &tmpNode);
+      if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+        return DEAL_RES_ERROR;
+      }
+      pCxt->errCode = nodesListAppend(pCxt->pCollect, tmpNode);
       if (TSDB_CODE_SUCCESS != pCxt->errCode) {
         return DEAL_RES_ERROR;
       }
@@ -13008,7 +13013,12 @@ static EDealRes doStreamSetSlotId(SNode* pNode, void* pContext) {
     SStreamSetSlotIdCxt* pCxt = (SStreamSetSlotIdCxt*)pContext;
     if (FUNCTION_TYPE_TBNAME == pFunc->funcType) {
       if (pCxt->pCollect) {
-        pCxt->errCode = nodesListAppend(pCxt->pCollect, pNode);
+        SNode *tmpNode = NULL;
+        pCxt->errCode = nodesCloneNode(pNode, &tmpNode);
+        if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+          return DEAL_RES_ERROR;
+        }
+        pCxt->errCode = nodesListAppend(pCxt->pCollect, tmpNode);
         if (TSDB_CODE_SUCCESS != pCxt->errCode) {
           return DEAL_RES_ERROR;
         }
@@ -13048,6 +13058,11 @@ static int32_t createStreamReqBuildOutSubtable(STranslateContext* pCxt, const ch
                                                SNodeList* pPartitionByList, char** subTblNameExpr) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pSubtableExpr = NULL;
+  if (NULL == pPartitionByList) {
+    *subTblNameExpr = NULL;
+    return code;  // no partition by list, no subtable name expression
+  }
+
   if (pSubtable) {
     pSubtableExpr = pSubtable;
   } else {
@@ -13197,19 +13212,20 @@ static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, const
   if (pOptions->pExpiredTime) {
     PAR_ERR_JRET(checkExpiredDelayTime(pCxt, (SValueNode*)pOptions->pExpiredTime));
     PAR_ERR_JRET(translateExpr(pCxt, &pOptions->pExpiredTime));
-    pReq->expiredTime = getBigintFromValueNode((SValueNode*)pOptions->pExpiredTime);
+    pReq->expiredTime = ((SValueNode*)pOptions->pExpiredTime)->datum.i;
   }
 
   if (pOptions->pMaxDelay) {
     PAR_ERR_JRET(checkExpiredDelayTime(pCxt, (SValueNode*)pOptions->pMaxDelay));
     PAR_ERR_JRET(translateExpr(pCxt, &pOptions->pMaxDelay));
-    pReq->maxDelay = getBigintFromValueNode((SValueNode*)pOptions->pMaxDelay);
+    pReq->maxDelay = ((SValueNode*)pOptions->pMaxDelay)->datum.i;
   }
 
   if (pOptions->pWaterMark) {
     PAR_ERR_JRET(translateExpr(pCxt, &pOptions->pWaterMark));
-    pReq->watermark = getBigintFromValueNode((SValueNode*)pOptions->pWaterMark);
+    pReq->watermark = ((SValueNode*)pOptions->pWaterMark)->datum.i;
   }
+
 
   if (pOptions->pFillHisStartTime) {
     STimeWindow range = {.skey = 0, .ekey = 0};
@@ -13490,7 +13506,7 @@ static int32_t createStreamReqBuildTriggerIntervalWindow(STranslateContext* pCxt
   pReq->trigger.sliding.interval = createStreamReqWindowGetBigInt(pTriggerWindow->pInterval);
   pReq->trigger.sliding.offset = createStreamReqWindowGetBigInt(pTriggerWindow->pOffset);
   pReq->trigger.sliding.sliding = createStreamReqWindowGetBigInt(pTriggerWindow->pSliding);
-  pReq->trigger.sliding.offset = createStreamReqWindowGetBigInt(pTriggerWindow->pSOffset);
+  pReq->trigger.sliding.soffset = createStreamReqWindowGetBigInt(pTriggerWindow->pSOffset);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -13519,6 +13535,7 @@ static int32_t createStreamReqBuildTriggerCountWindow(STranslateContext* pCxt, S
   PAR_ERR_RET(checkCountWindow(pCxt, pTriggerWindow));
   pReq->trigger.count.sliding = pTriggerWindow->windowSliding;
   pReq->trigger.count.countVal = pTriggerWindow->windowCount;
+  pReq->trigger.count.condCols = NULL;
   return TSDB_CODE_SUCCESS;
 }
 

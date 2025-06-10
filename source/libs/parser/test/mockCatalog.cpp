@@ -266,6 +266,25 @@ void generateDatabases(MockCatalogService* mcs) {
   generateTestStables(g_mockCatalogService.get(), "cache_db");
   mcs->createDatabase("rollup_db", true);
   mcs->createDatabase("testus", false, 0, TSDB_TIME_PRECISION_NANO);
+
+  mcs->createDatabase("stream_streamdb");
+  mcs->createDatabase("stream_streamdb_2");
+  mcs->createDatabase("stream_querydb");
+  mcs->createDatabase("stream_querydb_2");
+  mcs->createDatabase("stream_triggerdb");
+  mcs->createDatabase("stream_triggerdb_2");
+  mcs->createDatabase("stream_outdb");
+  mcs->createDatabase("stream_outdb_2");
+
+  generateTestTables(g_mockCatalogService.get(), "stream_querydb");
+  generateTestStables(g_mockCatalogService.get(), "stream_querydb");
+  generateTestTables(g_mockCatalogService.get(), "stream_querydb_2");
+  generateTestStables(g_mockCatalogService.get(), "stream_querydb_2");
+  generateTestTables(g_mockCatalogService.get(), "stream_triggerdb");
+  generateTestStables(g_mockCatalogService.get(), "stream_triggerdb");
+  generateTestTables(g_mockCatalogService.get(), "stream_triggerdb_2");
+  generateTestStables(g_mockCatalogService.get(), "stream_triggerdb_2");
+
 }
 
 }  // namespace
