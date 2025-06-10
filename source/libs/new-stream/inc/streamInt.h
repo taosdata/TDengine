@@ -45,7 +45,6 @@ typedef struct SStreamInfo {
   
   SArray*             readerList;        // SArray<SStreamReaderTask>
   
-  int8_t              triggerUndeployed;
   SStreamTriggerTask* triggerTask;
   
   SArray*             runnerList;        // SArray<SStreamRunnerTask>
@@ -131,6 +130,7 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, int32_t triggerType, int64_t
 
 int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int64_t groupId, TSKEY start,
                             TSKEY end, void*** pppIter);
+void streamTimerCleanUp();
 
 #ifdef __cplusplus
 }

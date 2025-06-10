@@ -213,7 +213,7 @@ int32_t streamGetThreadIdx(int32_t threadNum, int64_t streamGId);
 void    streamRemoveVnodeLeader(int32_t vgId);
 void    streamAddVnodeLeader(int32_t vgId);
 void    streamSetSnodeEnabled(void);
-void    streamSetSnodeDisabled(void);
+void    streamSetSnodeDisabled(bool cleanup);
 int32_t streamHbProcessRspMsg(SMStreamHbRspMsg *pRsp);
 int32_t streamHbHandleRspErr(int32_t errCode, int64_t currTs);
 int32_t streamInit(void *pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode);
@@ -225,6 +225,7 @@ int32_t streamTriggerProcessRsp(SStreamTask *pTask, SRpcMsg *pRsp, int64_t *pErr
 int32_t streamWriteCheckPoint(int64_t streamId, int32_t snodeId, void* data, int64_t dataLen);
 int32_t streamReadCheckPoint(int64_t streamId, int32_t snodeId, void** data, int64_t* dataLen);
 int32_t streamDeleteCheckPoint(int64_t streamId, int32_t snodeId);
+void smUndeploySnodeTasks(bool cleanup);
 
 #define STREAM_TRIGGER_MAX_WIN_NUM_PER_REQUEST 4096
 

@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "smInt.h"
+#include "stream.h"
 
 SSnodeInfo gSnode = {0};
 
@@ -139,6 +140,8 @@ int32_t smProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
     tFreeSMCreateQnodeReq(&dropReq);
     return code;
   }
+
+  smUndeploySnodeTasks(true);
 
   tFreeSMCreateQnodeReq(&dropReq);
   return 0;
