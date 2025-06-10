@@ -25,7 +25,6 @@ extern "C" {
 #include "tmsg.h"
 #include "tsimplehash.h"
 #include "tvariant.h"
-#include "ttypes.h"
 
 #define TABLE_TOTAL_COL_NUM(pMeta) ((pMeta)->tableInfo.numOfColumns + (pMeta)->tableInfo.numOfTags)
 #define TABLE_META_SIZE(pMeta) \
@@ -589,6 +588,7 @@ typedef struct SVnodeModifyOpStmt {
   struct STableMeta*    pTableMeta;
   SNode*                pTagCond;
   SArray*               pTableTag;
+  SHashObj*             pInsertTokensHashObj;  // SHashObj<table_name, SInsertTokens*>
   SHashObj*             pVgroupsHashObj;     // SHashObj<vgId, SVgInfo>
   SHashObj*             pTableBlockHashObj;  // SHashObj<tuid, STableDataCxt*>
   SHashObj*             pSubTableHashObj;    // SHashObj<table_name, STableMeta*>

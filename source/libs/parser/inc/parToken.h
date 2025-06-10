@@ -52,6 +52,12 @@ typedef struct {
   int32_t     n;  // Length of bound columns content
 } SBoundColumnsToken;
 
+// used to denote INSERT SQL components (VALUES and bound columns)
+typedef struct {
+  SValuesToken       values;     // VALUES section token
+  SBoundColumnsToken boundCols;  // Bound columns token
+} SInsertTokens;
+
 /**
  * check if it is a number or not
  * @param pToken

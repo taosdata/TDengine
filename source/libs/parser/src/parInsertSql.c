@@ -2752,6 +2752,17 @@ static int32_t parseInsertTableClause(SInsertParseContext* pCxt, SVnodeModifyOpS
       parserDebug("QID:0x%" PRIx64 ", miss cache, parse bound columns: %s, len: %d, parse values: %s, len: %d",
                   pCxt->pComCxt->requestId, boundColumnsToken.z, boundColumnsToken.n, valuesToken.z, valuesToken.n);
       pStmt->pSql += valuesToken.n;
+      SInsertTokens* pInsertTokens = taosMemoryMalloc(sizeof(SInsertTokens));
+      if (NULL == pInsertTokens) {
+        return terrno;
+      }
+      pInsertTokens->boundCols = boundColumnsToken;
+      pInsertTokens->values = valuesToken;
+      code = taosHashPut(pStmt->pInsertTokensHashObj, pTbName->z, pTbName->n, pInsertTokens, sizeof(SInsertTokens));
+      if (TSDB_CODE_SUCCESS != code) {
+        taosMemoryFree(pInsertTokens);
+        return code;
+      }
     } else {
       code = parseInsertTableClauseBottom(pCxt, pStmt);
     }
@@ -2917,6 +2928,8 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
 
 static void destroySubTableHashElem(void* p) { taosMemoryFree(*(STableMeta**)p); }
 
+static void destroyInsertTokensHashElem(void* p) { taosMemoryFree(*(SInsertTokens**)p); }
+
 static int32_t createVnodeModifOpStmt(SInsertParseContext* pCxt, bool reentry, SNode** pOutput) {
   SVnodeModifyOpStmt* pStmt = NULL;
   int32_t             code = nodesMakeNode(QUERY_NODE_VNODE_MODIFY_STMT, (SNode**)&pStmt);
@@ -2943,18 +2956,22 @@ static int32_t createVnodeModifOpStmt(SInsertParseContext* pCxt, bool reentry, S
           taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
     }
   }
+  pStmt->pInsertTokensHashObj =
+      taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK);
   pStmt->pSubTableHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK);
   pStmt->pSuperTableHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK);
   pStmt->pTableNameHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK);
   pStmt->pDbFNameHashObj = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK);
   if ((!reentry && (NULL == pStmt->pVgroupsHashObj || NULL == pStmt->pTableBlockHashObj)) ||
-      NULL == pStmt->pSubTableHashObj || NULL == pStmt->pTableNameHashObj || NULL == pStmt->pDbFNameHashObj) {
+      NULL == pStmt->pSubTableHashObj || NULL == pStmt->pTableNameHashObj || NULL == pStmt->pDbFNameHashObj ||
+      NULL == pStmt->pInsertTokensHashObj) {
     nodesDestroyNode((SNode*)pStmt);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   taosHashSetFreeFp(pStmt->pSubTableHashObj, destroySubTableHashElem);
   taosHashSetFreeFp(pStmt->pSuperTableHashObj, destroySubTableHashElem);
+  taosHashSetFreeFp(pStmt->pInsertTokensHashObj, destroyInsertTokensHashElem);
 
   *pOutput = (SNode*)pStmt;
   return TSDB_CODE_SUCCESS;

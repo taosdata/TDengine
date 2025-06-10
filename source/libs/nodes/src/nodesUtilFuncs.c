@@ -1383,6 +1383,7 @@ void nodesDestroyNode(SNode* pNode) {
       taosHashCleanup(pStmt->pTableNameHashObj);
       taosHashCleanup(pStmt->pDbFNameHashObj);
       taosHashCleanup(pStmt->pTableCxtHashObj);
+      taosHashCleanup(pStmt->pInsertTokensHashObj);
       if (pStmt->freeHashFunc) {
         pStmt->freeHashFunc(pStmt->pTableBlockHashObj);
       }
