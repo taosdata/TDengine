@@ -65,6 +65,16 @@ void msmDestroyRuntimeInfo(SMnode *pMnode) {
   msmDestroyActionQ();
   msmDestroyThreadCtxs();
 
+  taosHashCleanup(mStreamMgmt.toUpdateScanMap);
+  taosHashCleanup(mStreamMgmt.toDeployVgMap);
+  taosHashCleanup(mStreamMgmt.toDeploySnodeMap);
+
+  taosHashCleanup(mStreamMgmt.dnodeMap);
+  taosHashCleanup(mStreamMgmt.snodeMap);
+  taosHashCleanup(mStreamMgmt.vgroupMap);
+  taosHashCleanup(mStreamMgmt.taskMap);
+  taosHashCleanup(mStreamMgmt.streamMap);
+
   // STREAMTODO
 
   memset(&mStreamMgmt, 0, sizeof(mStreamMgmt));

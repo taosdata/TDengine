@@ -43,7 +43,7 @@ int32_t sndInit(SSnode *pSnode) {
 }
 
 void sndClose(SSnode *pSnode) {
-  streamSetSnodeDisabled();
+  streamSetSnodeDisabled(false);
   taosMemoryFree(pSnode);
 }
 

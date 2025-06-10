@@ -162,6 +162,8 @@ int32_t smProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
     return code;
   }
 
+  smUndeploySnodeTasks(true);
+
   tFreeSMCreateQnodeReq(&dropReq);
   return 0;
 }
