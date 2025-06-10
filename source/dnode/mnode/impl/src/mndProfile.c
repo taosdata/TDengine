@@ -136,6 +136,19 @@ void mndCleanupProfile(SMnode *pMnode) {
   }
 }
 
+static void getUserIpFromConnObj(SConnObj *pConn, char *dst) {
+  if (pConn->userIp != 0 && pConn->userIp != INADDR_NONE) {
+    taosInetNtoa(varDataVal(dst), pConn->userIp);
+    varDataLen(dst) = strlen(varDataVal(dst));
+  }
+
+  if (pConn->addr.ipv4[0] != 0) {
+    int32_t len = strlen(IP_ADDR_STR(&pConn->addr));
+    memcpy(varDataVal(dst), IP_ADDR_STR(&pConn->addr), len);
+    varDataLen(dst) = len;
+  }
+  return;
+}
 static void setUserInfo2Conn(SConnObj *connObj, char *userApp, uint32_t userIp) {
   if (connObj == NULL) {
     return;
@@ -962,16 +975,7 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }
 
     char userIp[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    if (pConn->userIp != 0 && pConn->userIp != INADDR_NONE) {
-      taosInetNtoa(varDataVal(userIp), pConn->userIp);
-      varDataLen(userIp) = strlen(varDataVal(userIp));
-    }
-
-    if (pConn->addr.ipv4[0] != 0) {
-      int32_t len = strlen(IP_ADDR_STR(&pConn->addr));
-      memcpy(varDataVal(userIp), IP_ADDR_STR(&pConn->addr), len);
-      varDataLen(userIp) = len;
-    }
+    getUserIpFromConnObj(pConn, userIp);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)userIp, false);
@@ -1165,10 +1169,8 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     }
 
     char userIp[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    if (pConn->userIp != 0 && pConn->userIp != INADDR_NONE) {
-      taosInetNtoa(varDataVal(userIp), pConn->userIp);
-      varDataLen(userIp) = strlen(varDataVal(userIp));
-    }
+    getUserIpFromConnObj(pConn, userIp);
+
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, curRowIndex, (const char *)userIp, false);
     if (code != 0) {
