@@ -168,6 +168,8 @@ bool tsEnableTest = true;
 bool tsEnableTest = false;
 #endif
 
+// this is another log
+
 // audit
 #ifdef USE_AUDIT
 bool    tsEnableAudit = true;
