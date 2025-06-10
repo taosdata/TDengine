@@ -1216,6 +1216,10 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_RAW_EXPR:
       nodesDestroyNode(((SRawExprNode*)pNode)->pNode);
       break;
+    case QUERY_NODE_STREAM_TAG_DEF:
+      nodesDestroyNode(((SStreamTagDefNode*)pNode)->pTagExpr);
+      nodesDestroyNode(((SStreamTagDefNode*)pNode)->pComment);
+      break;
     case QUERY_NODE_TARGET:
       nodesDestroyNode(((STargetNode*)pNode)->pExpr);
       break;
