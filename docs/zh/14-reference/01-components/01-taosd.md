@@ -1518,7 +1518,7 @@ charset 的有效值是 UTF-8。
 - 支持版本：从 v3.1.0.0 版本引入，v3.3.0.0 以后废弃。
 
 #### enableIpv6 
-- 说明：用于节点直接通过ipv6通信, firstep/second/fqdn都要能解析为ipv6，且不支持同一集群 ipv4 和 ipv6 混合部署 
+- 说明：用于节点直接通过 ipv6 通信，firstep/second/fqdn都要能解析为ipv6，且不支持同一集群 ipv4 和 ipv6 混合部署 
 - 动态修改：不支持动态修改 
 - 支持版本：从v3.3.7.0 版本引入
 
