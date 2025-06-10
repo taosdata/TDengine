@@ -1258,6 +1258,9 @@ static int32_t getTargetTableMetaAndVgroup(SInsertParseContext* pCxt, SVnodeModi
       if (TSDB_CODE_SUCCESS == code) {
         if (NULL != pStmt->pTableMeta) {
           if (pStmt->pTableMeta->tableType == TSDB_SUPER_TABLE) {
+            parserDebug(
+                "[async]QID:0x%" PRIx64 "stbSyntax switch true,pTableMeta uid:0x%" PRIx64 ", suid:%" PRIx64 ", vgId:%d",
+                pCxt->pComCxt->requestId, pStmt->pTableMeta->uid, pStmt->pTableMeta->suid, pStmt->pTableMeta->vgId);
             pStmt->stbSyntax = true;
           } else {
             code = taosHashPut(pStmt->pVgroupsHashObj, (const char*)&vg.vgId, sizeof(vg.vgId), (char*)&vg, sizeof(vg));
@@ -1271,6 +1274,9 @@ static int32_t getTargetTableMetaAndVgroup(SInsertParseContext* pCxt, SVnodeModi
     code = getTableMeta(pCxt, &pStmt->targetTableName, &pStmt->pTableMeta, pMissCache, bUsingTable);
     if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
       if (TSDB_SUPER_TABLE == pStmt->pTableMeta->tableType) {
+        parserDebug("[missCache]QID:0x%" PRIx64 "stbSyntax switch true,pTableMeta uid:0x%" PRIx64 ", suid:0x%" PRIx64
+                    ", vgId:%d",
+                    pCxt->pComCxt->requestId, pStmt->pTableMeta->uid, pStmt->pTableMeta->suid, pStmt->pTableMeta->vgId);
         pStmt->stbSyntax = true;
       }
       if (!pStmt->stbSyntax) {
@@ -1400,6 +1406,10 @@ static int32_t parseUsingTableNameImpl(SInsertParseContext* pCxt, SVnodeModifyOp
   if (TSDB_CODE_SUCCESS == code) {
     code = getUsingTableSchema(pCxt, pStmt, &ctbCacheHit);
     if (TSDB_CODE_SUCCESS == code && ctbCacheHit) {
+      parserDebug(
+          "QID:0x%" PRIx64
+          ", [ctbCacheHit], switch usingTableProcessing false, pStmt->pSql: %s\n targetTbname:%s, usingTbname:%s",
+          pCxt->pComCxt->requestId, pStmt->pSql, pStmt->targetTableName.tname, pStmt->usingTableName.tname);
       pStmt->usingTableProcessing = false;
       return ignoreUsingClauseAndCheckTagValues(pCxt, pStmt);
     }
@@ -2666,6 +2676,11 @@ static int32_t constructStbRowsDataContext(SVnodeModifyOpStmt* pStmt, SStbRowsDa
 static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (!pStmt->pBoundCols) {
+    parserError("QID:0x%" PRIx64
+                ", no bound columns for supertable insertion, sql:%s\n stbSyntax:%d ,usingProcssing:%d, "
+                "targtTableName:%s, usingTableName:%s",
+                pCxt->pComCxt->requestId, pStmt->pSql, pStmt->stbSyntax, pStmt->usingTableProcessing,
+                pStmt->targetTableName.tname, pStmt->usingTableName.tname);
     return buildSyntaxErrMsg(&pCxt->msg, "(...tbname, ts...) bounded cols is expected for supertable insertion",
                              pStmt->pSql);
   }
@@ -3103,6 +3118,9 @@ static int32_t setVnodeModifOpStmt(SInsertParseContext* pCxt, SCatalogReq* pCata
   }
   if (code == TSDB_CODE_SUCCESS) {
     if (pStmt->pTableMeta->tableType == TSDB_SUPER_TABLE && !pStmt->usingTableProcessing) {
+      parserDebug("[usingTableProcessing]QID:0x%" PRIx64 ", stbSyntax switch true,pTableMeta uid:0x%" PRIx64
+                  ", suid:0x%" PRIx64 ", vgId:%d",
+                  pCxt->pComCxt->requestId, pStmt->pTableMeta->uid, pStmt->pTableMeta->suid, pStmt->pTableMeta->vgId);
       pStmt->stbSyntax = true;
     }
     if (!pStmt->stbSyntax) {
