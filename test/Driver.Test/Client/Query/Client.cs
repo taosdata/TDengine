@@ -10,34 +10,28 @@ namespace Driver.Test.Client.Query
     public partial class Client
     {
         private readonly ITestOutputHelper _output;
-        private readonly string _createTableSql;
         private readonly string _nativeConnectString;
         private readonly string _wsConnectString;
+        private readonly string? _cloudConnectString;
 
         public Client(ITestOutputHelper output)
         {
             this._output = output;
-            this._createTableSql = "create table if not exists all_type(ts timestamp," +
-                                   "c1 bool," +
-                                   "c2 tinyint," +
-                                   "c3 smallint," +
-                                   "c4 int," +
-                                   "c5 bigint," +
-                                   "c6 tinyint unsigned," +
-                                   "c7 smallint unsigned," +
-                                   "c8 int unsigned," +
-                                   "c9 bigint unsigned," +
-                                   "c10 float," +
-                                   "c11 double," +
-                                   "c12 binary(20)," +
-                                   "c13 nchar(20)," +
-                                   "c14 varbinary(20)," +
-                                   "c15 geometry(100)" +
-                                   ")" +
-                                   "tags(t json)";
             this._nativeConnectString = "host=localhost;port=6030;username=root;password=taosdata";
             this._wsConnectString =
                 "protocol=WebSocket;host=localhost;port=6041;useSSL=false;username=root;password=taosdata;enableCompression=true";
+            var cloudHost = Environment.GetEnvironmentVariable("TDENGINE_CLOUD_ENDPOINT");
+            var cloudToken = Environment.GetEnvironmentVariable("TDENGINE_CLOUD_TOKEN");
+            if (!string.IsNullOrEmpty(cloudHost) && !string.IsNullOrEmpty(cloudToken))
+            {
+                this._cloudConnectString = GetCloudConnectString(cloudHost, cloudToken);
+            }
+        }
+
+        private static string GetCloudConnectString(string host, string token)
+        {
+            return
+                $"protocol=WebSocket;host={host};port=443;useSSL=true;token={token};enableCompression=true";
         }
 
         private object?[][] GenerateValue(TDenginePrecision precision, out string sql)
@@ -102,6 +96,29 @@ namespace Driver.Test.Client.Query
             };
         }
 
+        private static string GenerateCreateTableSql(string tableName)
+        {
+            var createTableSql = $"create table if not exists {tableName} (ts timestamp," +
+                                 "c1 bool," +
+                                 "c2 tinyint," +
+                                 "c3 smallint," +
+                                 "c4 int," +
+                                 "c5 bigint," +
+                                 "c6 tinyint unsigned," +
+                                 "c7 smallint unsigned," +
+                                 "c8 int unsigned," +
+                                 "c9 bigint unsigned," +
+                                 "c10 float," +
+                                 "c11 double," +
+                                 "c12 binary(20)," +
+                                 "c13 nchar(20)," +
+                                 "c14 varbinary(20)," +
+                                 "c15 geometry(100)" +
+                                 ")" +
+                                 "tags(t json)";
+            return createTableSql;
+        }
+
         private static Array[] TransposeToTypedArrays(object?[][] data)
         {
             var aTs = new DateTime[] { (DateTime)data[0][0]!, (DateTime)data[1][0]! };
@@ -139,23 +156,36 @@ namespace Driver.Test.Client.Query
             return "ms";
         }
 
+        private static bool IsCloudTest(ConnectionStringBuilder builder)
+        {
+            return !string.IsNullOrEmpty(builder.Token);
+        }
+
         private void QueryTest(string connectString, string db, TDenginePrecision precision)
         {
             var data = this.GenerateValue(precision, out var insertSql);
-
             var builder = new ConnectionStringBuilder(connectString);
+            var inCloud = IsCloudTest(builder);
             using (var client = DbDriver.Open(builder))
             {
+                var now = DateTime.Now;
+                var superTableName = $"all_type_stb_{now.Ticks}";
+                var subTableName = $"all_type_ctb_{now.Ticks}";
                 try
                 {
-                    client.Exec($"drop database if exists {db}");
-                    client.Exec($"create database {db} precision '{PrecisionString(precision)}'");
+                    if (!inCloud)
+                    {
+                        client.Exec($"drop database if exists {db}");
+                        client.Exec($"create database {db} precision '{PrecisionString(precision)}'");
+                    }
+
                     client.Exec($"use {db}");
-                    client.Exec(this._createTableSql);
-                    string insertQuery = string.Format("insert into t1 using all_type tags('{{\"a\":\"b\"}}') {0}",
-                        insertSql);
+                    var createTableSql = GenerateCreateTableSql(superTableName);
+                    client.Exec(createTableSql);
+                    string insertQuery =
+                        $"insert into {subTableName} using {superTableName} tags('{{\"a\":\"b\"}}') {insertSql}";
                     client.Exec(insertQuery);
-                    string query = "select * from all_type order by ts asc";
+                    string query = $"select * from {superTableName} order by ts asc";
                     using (var rows = client.Query(query))
                     {
                         this.AssertColumn(rows);
@@ -169,7 +199,11 @@ namespace Driver.Test.Client.Query
                 }
                 finally
                 {
-                    client.Exec($"drop database if exists {db}");
+                    client.Exec($"drop table if exists {superTableName}");
+                    if (!inCloud)
+                    {
+                        client.Exec($"drop database if exists {db}");
+                    }
                 }
             }
         }
@@ -177,20 +211,28 @@ namespace Driver.Test.Client.Query
         private void QueryWithReqIDTest(string connectString, string db, TDenginePrecision precision)
         {
             var data = this.GenerateValue(precision, out var insertSql);
-
             var builder = new ConnectionStringBuilder(connectString);
+            var inCloud = IsCloudTest(builder);
             using (var client = DbDriver.Open(builder))
             {
+                var now = DateTime.Now;
+                var superTableName = $"all_type_stb_{now.Ticks}";
+                var subTableName = $"all_type_ctb_{now.Ticks}";
                 try
                 {
-                    client.Exec($"drop database if exists {db}", ReqId.GetReqId());
-                    client.Exec($"create database {db} precision '{PrecisionString(precision)}'", ReqId.GetReqId());
+                    if (!inCloud)
+                    {
+                        client.Exec($"drop database if exists {db}", ReqId.GetReqId());
+                        client.Exec($"create database {db} precision '{PrecisionString(precision)}'", ReqId.GetReqId());
+                    }
+
                     client.Exec($"use {db}", ReqId.GetReqId());
-                    client.Exec(this._createTableSql, ReqId.GetReqId());
-                    string insertQuery = string.Format("insert into t1 using all_type tags('{{\"a\":\"b\"}}') {0}",
-                        insertSql);
+                    string createTableSql = GenerateCreateTableSql(superTableName);
+                    client.Exec(createTableSql, ReqId.GetReqId());
+                    string insertQuery =
+                        $"insert into {subTableName} using {superTableName} tags('{{\"a\":\"b\"}}') {insertSql}";
                     client.Exec(insertQuery, ReqId.GetReqId());
-                    string query = "select * from all_type order by ts asc";
+                    string query = $"select * from {superTableName} order by ts asc";
                     using (var rows = client.Query(query, ReqId.GetReqId()))
                     {
                         this.AssertColumn(rows);
@@ -204,7 +246,11 @@ namespace Driver.Test.Client.Query
                 }
                 finally
                 {
-                    client.Exec($"drop database if exists {db}");
+                    client.Exec($"drop table if exists {superTableName}", ReqId.GetReqId());
+                    if (!inCloud)
+                    {
+                        client.Exec($"drop database if exists {db}", ReqId.GetReqId());
+                    }
                 }
             }
         }
@@ -213,16 +259,24 @@ namespace Driver.Test.Client.Query
         private void StmtTest(string connectString, string db, TDenginePrecision precision)
         {
             var data = this.GenerateValue(precision, out _);
-
             var builder = new ConnectionStringBuilder(connectString);
+            var inCloud = IsCloudTest(builder);
             using (var client = DbDriver.Open(builder))
             {
+                var now = DateTime.Now;
+                var superTableName = $"all_type_stb_{now.Ticks}";
+                var subTableName = $"all_type_ctb_{now.Ticks}";
                 try
                 {
-                    client.Exec($"drop database if exists {db}");
-                    client.Exec($"create database {db} precision '{PrecisionString(precision)}'");
+                    if (!inCloud)
+                    {
+                        client.Exec($"drop database if exists {db}");
+                        client.Exec($"create database {db} precision '{PrecisionString(precision)}'");
+                    }
+
                     client.Exec($"use {db}");
-                    client.Exec(this._createTableSql);
+                    var createTableSql = GenerateCreateTableSql(superTableName);
+                    client.Exec(createTableSql);
                     var stmt = client.StmtInit();
                     StringBuilder questionMarks = new StringBuilder();
                     var count = data[0].Length;
@@ -236,10 +290,10 @@ namespace Driver.Test.Client.Query
                     }
 
                     var values = questionMarks.ToString();
-                    stmt.Prepare($"insert into ? using all_type tags(?) values({values})");
+                    stmt.Prepare($"insert into ? using {superTableName} tags(?) values({values})");
                     var isInsert = stmt.IsInsert();
                     Assert.True(isInsert);
-                    stmt.SetTableName("t1");
+                    stmt.SetTableName(subTableName);
                     stmt.SetTags(new object[] { "{\"a\":\"b\"}" });
                     stmt.BindRow(data[0]);
                     stmt.BindRow(data[1]);
@@ -247,7 +301,7 @@ namespace Driver.Test.Client.Query
                     stmt.Exec();
                     var affected = stmt.Affected();
                     Assert.Equal((long)2, affected);
-                    stmt.Prepare("select * from all_type where ts >= ? order by ts asc");
+                    stmt.Prepare($"select * from {superTableName} where ts >= ? order by ts asc");
                     isInsert = stmt.IsInsert();
                     Assert.False(isInsert);
                     stmt.BindRow(new object[] { data[0][0]! });
@@ -266,7 +320,11 @@ namespace Driver.Test.Client.Query
                 }
                 finally
                 {
-                    client.Exec($"drop database if exists {db}");
+                    client.Exec($"drop table if exists {superTableName}");
+                    if (!inCloud)
+                    {
+                        client.Exec($"drop database if exists {db}");
+                    }
                 }
             }
         }
@@ -275,16 +333,24 @@ namespace Driver.Test.Client.Query
         private void StmtWithReqIDTest(string connectString, string db, TDenginePrecision precision)
         {
             var data = this.GenerateValue(precision, out _);
-
             var builder = new ConnectionStringBuilder(connectString);
+            var inCloud = IsCloudTest(builder);
             using (var client = DbDriver.Open(builder))
             {
+                var now = DateTime.Now;
+                var superTableName = $"all_type_stb_{now.Ticks}";
+                var subTableName = $"all_type_ctb_{now.Ticks}";
                 try
                 {
-                    client.Exec($"drop database if exists {db}", ReqId.GetReqId());
-                    client.Exec($"create database {db} precision '{PrecisionString(precision)}'", ReqId.GetReqId());
+                    if (!inCloud)
+                    {
+                        client.Exec($"drop database if exists {db}", ReqId.GetReqId());
+                        client.Exec($"create database {db} precision '{PrecisionString(precision)}'", ReqId.GetReqId());
+                    }
+
                     client.Exec($"use {db}", ReqId.GetReqId());
-                    client.Exec(this._createTableSql, ReqId.GetReqId());
+                    var createTableSql = GenerateCreateTableSql(superTableName);
+                    client.Exec(createTableSql, ReqId.GetReqId());
                     var stmt = client.StmtInit(ReqId.GetReqId());
                     StringBuilder questionMarks = new StringBuilder();
                     var count = data[0].Length;
@@ -298,10 +364,10 @@ namespace Driver.Test.Client.Query
                     }
 
                     var values = questionMarks.ToString();
-                    stmt.Prepare($"insert into ? using all_type tags(?) values({values})");
+                    stmt.Prepare($"insert into ? using {superTableName} tags(?) values({values})");
                     var isInsert = stmt.IsInsert();
                     Assert.True(isInsert);
-                    stmt.SetTableName("t1");
+                    stmt.SetTableName(subTableName);
                     stmt.SetTags(new object[] { "{\"a\":\"b\"}" });
                     stmt.BindRow(data[0]);
                     stmt.BindRow(data[1]);
@@ -309,7 +375,7 @@ namespace Driver.Test.Client.Query
                     stmt.Exec();
                     var affected = stmt.Affected();
                     Assert.Equal((long)2, affected);
-                    stmt.Prepare("select * from all_type where ts >= ? order by ts asc");
+                    stmt.Prepare($"select * from {superTableName} where ts >= ? order by ts asc");
                     isInsert = stmt.IsInsert();
                     Assert.False(isInsert);
                     stmt.BindRow(new object[] { data[0][0]! });
@@ -328,7 +394,11 @@ namespace Driver.Test.Client.Query
                 }
                 finally
                 {
-                    client.Exec($"drop database if exists {db}");
+                    client.Exec($"drop table if exists {superTableName}", ReqId.GetReqId());
+                    if (!inCloud)
+                    {
+                        client.Exec($"drop database if exists {db}");
+                    }
                 }
             }
         }
@@ -341,19 +411,29 @@ namespace Driver.Test.Client.Query
 
             var builder =
                 new ConnectionStringBuilder(connectString);
+            var inCloud = IsCloudTest(builder);
             using (var client = DbDriver.Open(builder))
             {
+                var now = DateTime.Now;
+                var superTableName = $"all_type_stb_{now.Ticks}";
+                var subTableName = $"all_type_ctb_{now.Ticks}";
                 try
                 {
-                    client.Exec($"drop database if exists {db}", ReqId.GetReqId());
-                    client.Exec($"create database {db} precision '{PrecisionString(precision)}'", ReqId.GetReqId());
+                    if (!inCloud)
+                    {
+                        client.Exec($"drop database if exists {db}", ReqId.GetReqId());
+                        client.Exec($"create database {db} precision '{PrecisionString(precision)}'", ReqId.GetReqId());
+                    }
+
                     client.Exec($"use {db}");
-                    client.Exec(this._createTableSql);
+                    var createTableSql = GenerateCreateTableSql(superTableName);
+                    client.Exec(createTableSql);
                     var stmt = client.StmtInit(ReqId.GetReqId());
-                    stmt.Prepare("insert into ? using all_type tags(?) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+                    stmt.Prepare(
+                        $"insert into ? using {superTableName} tags(?) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
                     var isInsert = stmt.IsInsert();
                     Assert.True(isInsert);
-                    stmt.SetTableName("t1");
+                    stmt.SetTableName(subTableName);
                     stmt.SetTags(new object[] { "{\"a\":\"b\"}" });
                     var fields = stmt.GetColFields();
                     stmt.BindColumn(fields, transposedData);
@@ -361,7 +441,7 @@ namespace Driver.Test.Client.Query
                     stmt.Exec();
                     var affected = stmt.Affected();
                     Assert.Equal((long)2, affected);
-                    stmt.Prepare("select * from all_type where ts >= ? order by ts asc");
+                    stmt.Prepare($"select * from {superTableName} where ts >= ? order by ts asc");
                     isInsert = stmt.IsInsert();
                     Assert.False(isInsert);
                     stmt.BindRow(new object[] { data[0][0]! });
@@ -380,7 +460,11 @@ namespace Driver.Test.Client.Query
                 }
                 finally
                 {
-                    client.Exec($"drop database if exists {db}");
+                    client.Exec($"drop table if exists {superTableName}");
+                    if (!inCloud)
+                    {
+                        client.Exec($"drop database if exists {db}", ReqId.GetReqId());
+                    }
                 }
             }
         }
@@ -389,20 +473,26 @@ namespace Driver.Test.Client.Query
         private void VarbinaryTest(string connectString, string db)
         {
             DateTime dateTime = DateTime.Now;
-            var ts = (dateTime.ToUniversalTime().Ticks - TDengineConstant.TimeZero.Ticks) * 100;
-            var now = TDengineConstant.ConvertTimeToDatetime(ts, TDenginePrecision.TSDB_TIME_PRECISION_NANO);
+            var ts = (dateTime.ToUniversalTime().Ticks - TDengineConstant.TimeZero.Ticks) / 10000;
+            var now = TDengineConstant.ConvertTimeToDatetime(ts, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
             var builder =
                 new ConnectionStringBuilder(connectString);
+            var inCloud = IsCloudTest(builder);
             using (var client = DbDriver.Open(builder))
             {
+                var tableName = $"test_varbinary_{dateTime.Ticks}";
                 try
                 {
-                    client.Exec($"drop database if exists {db}", ReqId.GetReqId());
-                    client.Exec($"create database {db} precision 'ns'");
+                    if (!inCloud)
+                    {
+                        client.Exec($"drop database if exists {db}", ReqId.GetReqId());
+                        client.Exec($"create database {db} precision 'ms'");
+                    }
+
                     client.Exec($"use {db}");
-                    client.Exec("create table if not exists test_varbinary(ts timestamp,c1 varbinary(65517))");
+                    client.Exec($"create table if not exists {tableName}(ts timestamp,c1 varbinary(65517))");
                     var stmt = client.StmtInit(ReqId.GetReqId());
-                    stmt.Prepare("insert into test_varbinary values(?,?)");
+                    stmt.Prepare($"insert into {tableName} values(?,?)");
                     var isInsert = stmt.IsInsert();
                     Assert.True(isInsert);
                     var fields = stmt.GetColFields();
@@ -418,7 +508,7 @@ namespace Driver.Test.Client.Query
                     stmt.Exec();
                     var affected = stmt.Affected();
                     Assert.Equal((long)1, affected);
-                    stmt.Prepare("select * from test_varbinary where c1 = ?");
+                    stmt.Prepare($"select * from {tableName} where c1 = ?");
                     stmt.BindRow(new object[] { data });
                     stmt.AddBatch();
                     stmt.Exec();
@@ -437,7 +527,11 @@ namespace Driver.Test.Client.Query
                 }
                 finally
                 {
-                    client.Exec($"drop database if exists {db}");
+                    client.Exec($"drop table if exists {tableName}");
+                    if (!inCloud)
+                    {
+                        client.Exec($"drop database if exists {db}");
+                    }
                 }
             }
         }
@@ -447,12 +541,17 @@ namespace Driver.Test.Client.Query
         {
             var builder =
                 new ConnectionStringBuilder(connectString);
+            var inCloud = IsCloudTest(builder);
             using (var client = DbDriver.Open(builder))
             {
                 try
                 {
-                    client.Exec($"drop database if exists {db}");
-                    client.Exec($"create database {db} precision 'ns'");
+                    if (!inCloud)
+                    {
+                        client.Exec($"drop database if exists {db}");
+                        client.Exec($"create database {db} precision 'ns'");
+                    }
+
                     client.Exec($"use {db}");
                     var data =
                         @"http_response,host=host161,method=GET,result=success,server=http://localhost,status_code=404 response_time=0.003226372,http_response_code=404i,content_length=19i,result_type=""success"",result_code=0i 1648090640000000000
@@ -555,7 +654,10 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                 }
                 finally
                 {
-                    client.Exec($"drop database if exists {db}");
+                    if (!inCloud)
+                    {
+                        client.Exec($"drop database if exists {db}");
+                    }
                 }
             }
         }
@@ -564,12 +666,17 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
         {
             var builder =
                 new ConnectionStringBuilder(connectString);
+            var inCloud = IsCloudTest(builder);
             using (var client = DbDriver.Open(builder))
             {
                 try
                 {
-                    client.Exec($"drop database if exists {db}");
-                    client.Exec($"create database {db} precision 'ns'");
+                    if (!inCloud)
+                    {
+                        client.Exec($"drop database if exists {db}");
+                        client.Exec($"create database {db} precision 'ns'");
+                    }
+
                     client.Exec($"use {db}");
                     var data = new string[]
                     {
@@ -586,7 +693,10 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                 }
                 finally
                 {
-                    client.Exec($"drop database if exists {db}");
+                    if (!inCloud)
+                    {
+                        client.Exec($"drop database if exists {db}");
+                    }
                 }
             }
         }
@@ -595,12 +705,17 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
         {
             var builder =
                 new ConnectionStringBuilder(connectString);
+            var inCloud = IsCloudTest(builder);
             using (var client = DbDriver.Open(builder))
             {
                 try
                 {
-                    client.Exec($"drop database if exists {db}");
-                    client.Exec($"create database {db} precision 'ns'");
+                    if (!inCloud)
+                    {
+                        client.Exec($"drop database if exists {db}");
+                        client.Exec($"create database {db} precision 'ns'");
+                    }
+
                     client.Exec($"use {db}");
                     var data = new string[]
                     {
@@ -624,7 +739,10 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                 }
                 finally
                 {
-                    client.Exec($"drop database if exists {db}");
+                    if (!inCloud)
+                    {
+                        client.Exec($"drop database if exists {db}");
+                    }
                 }
             }
         }
@@ -674,14 +792,19 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
         {
             var precision = TDenginePrecision.TSDB_TIME_PRECISION_MILLI;
             var builder = new ConnectionStringBuilder(connectString);
+            var inCloud = IsCloudTest(builder);
             var client = DbDriver.Open(builder);
             var count = 30;
             try
             {
-                client.Exec($"drop database if exists {db}");
-                client.Exec($"create database {db} precision '{PrecisionString(precision)}'");
+                if (!inCloud)
+                {
+                    client.Exec($"drop database if exists {db}");
+                    client.Exec($"create database {db} precision '{PrecisionString(precision)}'");
+                }
+
                 client.Exec($"use {db}");
-                client.Exec("create table t1 (ts timestamp, a int, b float, c binary(10))");
+                client.Exec("create table if not exists t1 (ts timestamp, a int, b float, c binary(10))");
                 var ts = new long[count];
                 var dateTime = DateTime.Now;
                 var tsv = new DateTime[count];
@@ -734,7 +857,12 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
             }
             finally
             {
-                client.Exec($"drop database if exists {db}");
+                client.Exec($"drop table if exists t1");
+                if (!inCloud)
+                {
+                    client.Exec($"drop database if exists {db}");
+                }
+
                 client.Dispose();
             }
         }

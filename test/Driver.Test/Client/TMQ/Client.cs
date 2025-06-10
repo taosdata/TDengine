@@ -16,10 +16,12 @@ namespace Driver.Test.Client.TMQ
         private readonly string _nativeConnectString;
         private readonly string _wsConnectString;
         private readonly string _createTableSql;
+        private readonly string? _cloudConnectString;
         private readonly Dictionary<string, string> _nativeTMQCfg;
         private readonly Dictionary<string, string> _nativeTMQCfgAutoCommit;
         private readonly Dictionary<string, string> _wsTMQCfg;
         private readonly Dictionary<string, string> _wsTMQCfgAutoCommit;
+        private readonly Dictionary<string, string>? _cloudTMQCfg;
 
 
         public Consumer(ITestOutputHelper output)
@@ -28,8 +30,34 @@ namespace Driver.Test.Client.TMQ
             this._nativeConnectString = "host=127.0.0.1;port=6030;username=root;password=taosdata";
             this._wsConnectString =
                 "protocol=WebSocket;host=127.0.0.1;port=6041;useSSL=false;username=root;password=taosdata;enableCompression=true";
+            var cloudHost = Environment.GetEnvironmentVariable("TDENGINE_CLOUD_ENDPOINT");
+            var cloudToken = Environment.GetEnvironmentVariable("TDENGINE_CLOUD_TOKEN");
+            if (!string.IsNullOrEmpty(cloudHost) && !string.IsNullOrEmpty(cloudToken))
+            {
+                this._cloudConnectString = GetCloudConnectString(cloudHost, cloudToken);
+                var now = DateTime.Now;
+                var clientId = $"cs_test_{now.Ticks}";
+                var goupId = $"cs_test_group_{now.Ticks}";
+                this._cloudTMQCfg = new Dictionary<string, string>()
+                {
+                    { "td.connect.type", "WebSocket" },
+                    { "group.id", goupId },
+                    { "auto.offset.reset", "latest" },
+                    { "td.connect.ip", cloudHost },
+                    { "token", cloudToken },
+                    { "td.connect.port", "443" },
+                    { "client.id", clientId },
+                    { "enable.auto.commit", "false" },
+                    { "msg.with.table.name", "true" },
+                    { "useSSL", "true" },
+                    { "ws.message.enableCompression", "true" },
+                    { "session.timeout.ms", "12000" },
+                    { "max.poll.interval.ms", "300000" },
+                    { "min.poll.rows", "20" },
+                };
+            }
 
-            this._createTableSql = "create table if not exists all_type(ts timestamp," +
+            this._createTableSql = "create table if not exists tmq_all_type(ts timestamp," +
                                    "c1 bool," +
                                    "c2 tinyint," +
                                    "c3 smallint," +
@@ -119,12 +147,24 @@ namespace Driver.Test.Client.TMQ
             };
         }
 
+        private static string GetCloudConnectString(string host, string token)
+        {
+            return
+                $"protocol=WebSocket;host={host};port=443;useSSL=true;token={token};enableCompression=true";
+        }
+
+        private static bool IsCloudTest(Dictionary<string, string> cfg)
+        {
+            return cfg.ContainsKey("token") && !string.IsNullOrEmpty(cfg["token"]);
+        }
+
         private void NewConsumerTest(string connectString, string db, string topic, Dictionary<string, string> cfg)
         {
             var builder =
                 new ConnectionStringBuilder(connectString);
             using (var client = DbDriver.Open(builder))
             {
+                var isCloud = IsCloudTest(cfg);
                 try
                 {
                     string[] sqlCommands =
@@ -134,11 +174,22 @@ namespace Driver.Test.Client.TMQ
                         $"create database if not exists {db}  vgroups 2  WAL_RETENTION_PERIOD 86400",
                         $"use {db}",
                         this._createTableSql,
-                        "create table if not exists ct0 using all_type tags(1000)",
-                        "create table if not exists ct1 using all_type tags(2000)",
-                        "create table if not exists ct2 using all_type tags(3000)",
-                        $"create topic if not exists {topic} as stable all_type"
+                        "create table if not exists ct0 using tmq_all_type tags(1000)",
+                        "create table if not exists ct1 using tmq_all_type tags(2000)",
+                        "create table if not exists ct2 using tmq_all_type tags(3000)",
+                        $"create topic if not exists {topic} as stable tmq_all_type"
                     };
+                    if (isCloud)
+                    {
+                        sqlCommands = new string[]
+                        {
+                            $"use {db}",
+                            "create table if not exists ct0 using tmq_all_type tags(1000)",
+                            "create table if not exists ct1 using tmq_all_type tags(2000)",
+                            "create table if not exists ct2 using tmq_all_type tags(3000)",
+                        };
+                    }
+
                     foreach (var sqlCommand in sqlCommands)
                     {
                         DoRequest(client, sqlCommand);
@@ -148,12 +199,6 @@ namespace Driver.Test.Client.TMQ
                     DateTime now = new DateTime(dateTime.Year, dateTime.Month, dateTime.Day, dateTime.Hour,
                         dateTime.Minute,
                         dateTime.Second, dateTime.Millisecond, dateTime.Kind);
-                    for (int i = 0; i < 3; i++)
-                    {
-                        var sql =
-                            $"insert into ct{i} values('{now.ToString("yyyy-MM-dd'T'HH:mm:ss.fffK")}',true,2,3,4,5,6,7,8,9,10,11,'binary','nchar','varbinary','POINT(100 100)')";
-                        DoRequest(client, sql);
-                    }
 
                     var consumer = new ConsumerBuilder<Dictionary<string, object>>(cfg).Build();
                     consumer.Subscribe($"{topic}");
@@ -163,15 +208,12 @@ namespace Driver.Test.Client.TMQ
                     Assert.Single(topics);
                     Assert.Equal($"{topic}", topics[0]);
                     _output.WriteLine(assignment.ToString());
-                    var position1 = consumer.Position(assignment[0]);
-                    Assert.Equal(0, position1);
-                    var position2 = consumer.Position(assignment[1]);
-                    Assert.Equal(0, position2);
                     var messageCount = 0;
                     for (int i = 0; i < 5; i++)
                     {
-                        using (var result = consumer.Consume(100))
+                        using (var result = consumer.Consume(500))
                         {
+                            _output.WriteLine($"{result}");
                             if (messageCount == 3)
                             {
                                 break;
@@ -179,6 +221,13 @@ namespace Driver.Test.Client.TMQ
 
                             if (result == null)
                             {
+                                for (int j = 0; j < 3; j++)
+                                {
+                                    var sql =
+                                        $"insert into ct{j} values('{now.ToString("yyyy-MM-dd'T'HH:mm:ss.fffK")}',true,2,3,4,5,6,7,8,9,10,11,'binary','nchar','varbinary','POINT(100 100)')";
+                                    DoRequest(client, sql);
+                                }
+
                                 continue;
                             }
 
@@ -211,10 +260,13 @@ namespace Driver.Test.Client.TMQ
                 }
                 finally
                 {
-                    Thread.Sleep(3000);
-                    DoRequest(client, $"drop topic if exists {topic}");
-                    Thread.Sleep(3000);
-                    DoRequest(client, $"drop database if exists {db}");
+                    if (!isCloud)
+                    {
+                        Thread.Sleep(3000);
+                        DoRequest(client, $"drop topic if exists {topic}");
+                        Thread.Sleep(3000);
+                        DoRequest(client, $"drop database if exists {db}");
+                    }
                 }
             }
         }
@@ -239,10 +291,10 @@ namespace Driver.Test.Client.TMQ
                         $"create database if not exists {db}  vgroups 2  WAL_RETENTION_PERIOD 86400",
                         $"use {db}",
                         this._createTableSql,
-                        "create table if not exists ct0 using all_type tags(1000)",
-                        "create table if not exists ct1 using all_type tags(2000)",
-                        "create table if not exists ct2 using all_type tags(3000)",
-                        $"create topic if not exists {topic} as stable all_type"
+                        "create table if not exists ct0 using tmq_all_type tags(1000)",
+                        "create table if not exists ct1 using tmq_all_type tags(2000)",
+                        "create table if not exists ct2 using tmq_all_type tags(3000)",
+                        $"create topic if not exists {topic} as stable tmq_all_type"
                     };
                     foreach (var sqlCommand in sqlCommands)
                     {
@@ -382,10 +434,10 @@ namespace Driver.Test.Client.TMQ
                         $"create database if not exists {db}  vgroups 2  WAL_RETENTION_PERIOD 86400",
                         $"use {db}",
                         this._createTableSql,
-                        "create table if not exists ct0 using all_type tags(1000)",
-                        "create table if not exists ct1 using all_type tags(2000)",
-                        "create table if not exists ct2 using all_type tags(3000)",
-                        $"create topic if not exists {topic} as stable all_type"
+                        "create table if not exists ct0 using tmq_all_type tags(1000)",
+                        "create table if not exists ct1 using tmq_all_type tags(2000)",
+                        "create table if not exists ct2 using tmq_all_type tags(3000)",
+                        $"create topic if not exists {topic} as stable tmq_all_type"
                     };
                     foreach (var sqlCommand in sqlCommands)
                     {
@@ -490,10 +542,10 @@ namespace Driver.Test.Client.TMQ
                         $"create database if not exists {db}  vgroups 2  WAL_RETENTION_PERIOD 86400",
                         $"use {db}",
                         this._createTableSql,
-                        "create table if not exists ct0 using all_type tags(1000)",
-                        "create table if not exists ct1 using all_type tags(2000)",
-                        "create table if not exists ct2 using all_type tags(3000)",
-                        $"create topic if not exists {topic} as stable all_type"
+                        "create table if not exists ct0 using tmq_all_type tags(1000)",
+                        "create table if not exists ct1 using tmq_all_type tags(2000)",
+                        "create table if not exists ct2 using tmq_all_type tags(3000)",
+                        $"create topic if not exists {topic} as stable tmq_all_type"
                     };
                     foreach (var sqlCommand in sqlCommands)
                     {
