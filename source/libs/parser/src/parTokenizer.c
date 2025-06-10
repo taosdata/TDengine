@@ -891,77 +891,87 @@ SValuesToken tStrGetValues(const char* str) {
 
   // Record start position of VALUES content
   int32_t start = i;
-  int32_t parenLevel = 0;
-  bool    inString = false;
-  char    stringDelim = 0;
-  bool    prevBackslash = false;
   bool    foundValues = false;
+  bool    inParentheses = false;
+  int32_t parenLevel = 0;
 
+  // Use token-based parsing similar to parseValues and parseOneRow
   while (str[i]) {
-    char c = str[i];
+    SToken token;
+    bool   ignoreComma = false;
 
-    if (!inString) {
-      // Processing when not inside a string
-      if (c == '(' && !prevBackslash) {
-        parenLevel++;
-        foundValues = true;
-      } else if (c == ')' && !prevBackslash) {
-        parenLevel--;
-      } else if ((c == '\'' || c == '"' || c == '`') && !prevBackslash) {
-        inString = true;
-        stringDelim = c;
-      } else if (parenLevel == 0 && foundValues) {
-        // Outside parentheses and already found VALUES content
-        if (c == ',' || c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f') {
-          // Skip comma and whitespace characters
-          if (c == ',') {
-            i++;
-            // Skip whitespace after comma
-            while (str[i] && (str[i] == ' ' || str[i] == '\t' || str[i] == '\n' || str[i] == '\r' || str[i] == '\f')) {
-              i++;
-            }
-            // Check if there's a left parenthesis after comma (new value group)
-            if (str[i] == '(') {
-              continue;  // Continue parsing next value group
-            } else {
-              // Not a left parenthesis after comma, might be table name, end parsing
-              i -= 1;  // Back to comma position
-              break;
-            }
-          }
-        } else if (c == ';') {
-          // Statement end
-          break;
-        } else if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || (c & 0x80)) {
-          // Might be identifier start (table name), check if there's enough whitespace before
-          int32_t j = i - 1;
-          while (j >= start &&
-                 (str[j] == ' ' || str[j] == '\t' || str[j] == '\n' || str[j] == '\r' || str[j] == '\f')) {
-            j--;
-          }
-          if (j >= start && str[j] == ')') {
-            // Indeed a right parenthesis before, this is likely a table name
-            break;
-          }
-        }
-      }
-    } else {
-      // Processing when inside a string
-      if (c == stringDelim && !prevBackslash) {
-        // Check if it's quote escaping
-        if (str[i + 1] == stringDelim) {
-          i++;  // Skip the second quote
-        } else {
-          inString = false;
-          stringDelim = 0;
-        }
-      }
+    // Get next token like NEXT_TOKEN_WITH_PREV_EXT does
+    token = tStrGetToken(str, &i, false, &ignoreComma);
+
+    // Check if we've reached end or invalid token
+    if (token.type == 0 || token.n == 0) {
+      break;
     }
 
-    prevBackslash = (c == '\\' && !prevBackslash);
-    i++;
+    switch (token.type) {
+      case TK_NK_LP:  // Left parenthesis '('
+        parenLevel++;
+        inParentheses = true;
+        foundValues = true;
+        break;
+
+      case TK_NK_RP:  // Right parenthesis ')'
+        parenLevel--;
+        if (parenLevel == 0) {
+          inParentheses = false;
+        }
+        break;
+
+      case TK_NK_COMMA:  // Comma ','
+        if (parenLevel == 0 && foundValues) {
+          // We're outside parentheses and found a comma
+          // Check if next token is a left parenthesis (new value group)
+          int32_t nextPos = i;
+          SToken  nextToken = tStrGetToken(str, &nextPos, false, NULL);
+
+          if (nextToken.type == TK_NK_LP) {
+            // Continue parsing next value group
+            continue;
+          } else {
+            // Not a left parenthesis, might be table name, end parsing
+            goto parse_end;
+          }
+        }
+        break;
+
+      case TK_NK_SEMI:  // Semicolon ';'
+        // Statement end
+        goto parse_end;
+
+      case TK_NK_ID:  // Identifier (potential table name)
+      case TK_NK_STRING:
+        if (parenLevel == 0 && foundValues) {
+          // We're outside parentheses and found an identifier
+          // This is likely a table name, end parsing
+          goto parse_end;
+        }
+        break;
+
+      // Handle keywords that might indicate end of VALUES
+      case TK_INSERT:
+      case TK_INTO:
+      case TK_USING:
+      case TK_TAGS:
+      case TK_VALUES:
+      case TK_FILE:
+        if (parenLevel == 0 && foundValues) {
+          goto parse_end;
+        }
+        break;
+
+      default:
+        // For other tokens, continue parsing if we're inside parentheses
+        // or haven't found VALUES content yet
+        break;
+    }
   }
 
+parse_end:
   // Set result
   if (foundValues) {
     result.z = str + start;
