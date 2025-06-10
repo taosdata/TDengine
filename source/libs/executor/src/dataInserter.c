@@ -235,10 +235,6 @@ static int32_t buildDbVgInfoMapForInserter(SDataInserterHandle* pInserter, SRead
   QUERY_CHECK_CODE(code, lino, _return);
 
 _return:
-  if (code) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    taosMemoryFree(buf1);
-  }
   taosMemoryFree(pReq);
   if (pInserter->pRsp) {
     tFreeSUsedbRsp(pInserter->pRsp);
