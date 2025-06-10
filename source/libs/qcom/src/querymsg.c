@@ -339,7 +339,7 @@ static int32_t queryConvertTableMetaMsg(STableMetaRsp *pMetaMsg) {
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
-  if (pMetaMsg->numOfColumns > TSDB_MAX_COLUMNS || pMetaMsg->numOfColumns <= 0) {
+  if (pMetaMsg->numOfColumns > TSDB_MAX_COLUMNS + 1 || pMetaMsg->numOfColumns <= 0) {
     qError("invalid numOfColumns[%d] in table meta rsp msg", pMetaMsg->numOfColumns);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }

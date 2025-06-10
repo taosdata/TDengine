@@ -191,7 +191,7 @@ typedef enum ELogicConditionType {
 // this is the length of its string representation, including the terminator zero
 #define TSDB_ACCT_ID_LEN 11
 
-#define TSDB_MAX_COLUMNS 5000
+#define TSDB_MAX_COLUMNS 4096
 #define TSDB_MIN_COLUMNS 2  // PRIMARY COLUMN(timestamp) + other columns
 
 #define TSDB_NODE_NAME_LEN            64
