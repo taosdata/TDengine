@@ -83,7 +83,7 @@ SToken tStrGetToken(const char *str, int32_t *i, bool isPrevOptr, bool *pIgnoreC
  * @param i current position pointer
  * @return SValuesToken containing pointer and length of VALUES content
  */
-SValuesToken tStrGetValues(const char *str, int32_t *i);
+SValuesToken tStrGetValues(const char *str);
 
 /**
  * check if it is a keyword or not

@@ -871,33 +871,34 @@ void taosCleanupKeywordsTable() {
   }
 }
 
-SValuesToken tStrGetValues(const char* str, int32_t* i) {
+SValuesToken tStrGetValues(const char* str) {
   SValuesToken result = {0};
+  int32_t      i = 0;
 
-  if (str[*i] == 0) {
+  if (str[i] == 0) {
     return result;
   }
 
   // Skip whitespace characters
-  while (str[*i] && (str[*i] == ' ' || str[*i] == '\t' || str[*i] == '\n' || str[*i] == '\r' || str[*i] == '\f')) {
-    (*i)++;
+  while (str[i] && (str[i] == ' ' || str[i] == '\t' || str[i] == '\n' || str[i] == '\r' || str[i] == '\f')) {
+    i++;
   }
 
   // Check if reached end of string
-  if (str[*i] == 0) {
+  if (str[i] == 0) {
     return result;
   }
 
   // Record start position of VALUES content
-  int32_t start = *i;
+  int32_t start = i;
   int32_t parenLevel = 0;
   bool    inString = false;
   char    stringDelim = 0;
   bool    prevBackslash = false;
   bool    foundValues = false;
 
-  while (str[*i]) {
-    char c = str[*i];
+  while (str[i]) {
+    char c = str[i];
 
     if (!inString) {
       // Processing when not inside a string
@@ -914,18 +915,17 @@ SValuesToken tStrGetValues(const char* str, int32_t* i) {
         if (c == ',' || c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f') {
           // Skip comma and whitespace characters
           if (c == ',') {
-            (*i)++;
+            i++;
             // Skip whitespace after comma
-            while (str[*i] &&
-                   (str[*i] == ' ' || str[*i] == '\t' || str[*i] == '\n' || str[*i] == '\r' || str[*i] == '\f')) {
-              (*i)++;
+            while (str[i] && (str[i] == ' ' || str[i] == '\t' || str[i] == '\n' || str[i] == '\r' || str[i] == '\f')) {
+              i++;
             }
             // Check if there's a left parenthesis after comma (new value group)
-            if (str[*i] == '(') {
+            if (str[i] == '(') {
               continue;  // Continue parsing next value group
             } else {
               // Not a left parenthesis after comma, might be table name, end parsing
-              *i -= 1;  // Back to comma position
+              i -= 1;  // Back to comma position
               break;
             }
           }
@@ -934,7 +934,7 @@ SValuesToken tStrGetValues(const char* str, int32_t* i) {
           break;
         } else if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || (c & 0x80)) {
           // Might be identifier start (table name), check if there's enough whitespace before
-          int32_t j = *i - 1;
+          int32_t j = i - 1;
           while (j >= start &&
                  (str[j] == ' ' || str[j] == '\t' || str[j] == '\n' || str[j] == '\r' || str[j] == '\f')) {
             j--;
@@ -949,8 +949,8 @@ SValuesToken tStrGetValues(const char* str, int32_t* i) {
       // Processing when inside a string
       if (c == stringDelim && !prevBackslash) {
         // Check if it's quote escaping
-        if (str[*i + 1] == stringDelim) {
-          (*i)++;  // Skip the second quote
+        if (str[i + 1] == stringDelim) {
+          i++;  // Skip the second quote
         } else {
           inString = false;
           stringDelim = 0;
@@ -959,13 +959,13 @@ SValuesToken tStrGetValues(const char* str, int32_t* i) {
     }
 
     prevBackslash = (c == '\\' && !prevBackslash);
-    (*i)++;
+    i++;
   }
 
   // Set result
   if (foundValues) {
     result.z = str + start;
-    result.n = *i - start;
+    result.n = i - start;
 
     // Remove trailing whitespace and comma
     while (result.n > 0 &&
