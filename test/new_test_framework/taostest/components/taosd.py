@@ -112,10 +112,12 @@ class TaosD:
             start_cmd = f"screen -L -d -m {valgrind_cmdline} {taosd_path} -c {dnode['config_dir']}  "
         else:
             if error_output:
-                start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']} 2>{error_output}"
+                asan_lib = subprocess.getoutput("gcc -print-file-name=libasan.so")
+                start_cmd = f"LD_PRELOAD={asan_lib} screen -L -d -m {taosd_path} -c {dnode['config_dir']} 2>{error_output}"
             else:
                 start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']}  "
 
+        self.logger.debug("start cmd: %s" % start_cmd)
         self._remote.cmd(cfg["fqdn"], ["ulimit -n 1048576", start_cmd])
         
         if self.taosd_valgrind == 0:
@@ -233,13 +235,15 @@ class TaosD:
                     cfg: dict = dnode["config"] if 'config' in dnode else {}
                     # cat /proc/sys/kernel/core_pattern
                     # scp coredump files to logDir/data/{fqdn}/coredump
-                    coreDir = "{}/data/{}/coredump".format(logDir, host)
-                    os.system("mkdir -p {}".format(coreDir))
-                    corePattern = self._remote.cmd(host, ["cat /proc/sys/kernel/core_pattern"])
-                    if not corePattern is None:
-                        dirName = os.path.dirname(corePattern)
-                        if dirName.startswith("/"):
-                            self._remote.get(host, dirName, coreDir)
+                    system_platform = dnode["system"] if "system" in dnode.keys() else "linux"
+                    if system_platform.lower() == "linux":
+                        coreDir = "{}/data/{}/coredump".format(logDir, host)
+                        os.system("mkdir -p {}".format(coreDir))
+                        corePattern = self._remote.cmd(host, ["cat /proc/sys/kernel/core_pattern"])
+                        if not corePattern is None:
+                            dirName = os.path.dirname(corePattern)
+                            if dirName.startswith("/"):
+                                self._remote.get(host, dirName, coreDir)
                     # default data dir & log dir
                     remoteDataDir = "/var/lib/taos"
                     remoteLogDir = "/var/log/taos"
@@ -331,6 +335,17 @@ class TaosD:
                         win_taosd.run_cmd(f"rd /S /Q {dir_win}")
 
                 else:
+                    if "system" in i.keys() and i["system"].lower() == "darwin":
+                        stop_service_cmd = "launchctl unload /Library/LaunchDaemons/com.taosdata.taosd.plist"
+                    else:
+                        stop_service_cmd = "systemctl is-active taosd && systemctl stop taosd || true"
+                    self.logger.debug(f"Executing stop command on {fqdn}: {stop_service_cmd}")
+                    self._remote.cmd(fqdn, [stop_service_cmd])
+                    
+                    kill_all_taosd_cmd = "ps -ef | grep '[t]aosd' | grep -v grep | awk '{print $2}' | xargs -r kill -9"
+                    self.logger.debug(f"Executing kill command on {fqdn}: {kill_all_taosd_cmd}")
+                    self._remote.cmd(fqdn, [kill_all_taosd_cmd])
+                    
                     if "asanDir" in i:
                         if fqdn == "localhost":
                             killCmd = ["ps -ef | grep -w %s | grep -v grep | awk '{print $2}' | xargs kill " % nodeDict["name"]]
