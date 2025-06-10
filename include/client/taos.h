@@ -249,11 +249,21 @@ typedef struct TAOS_STMT2_BINDV {
   TAOS_STMT2_BIND **bind_cols;
 } TAOS_STMT2_BINDV;
 
+typedef struct TAOS_STMT2_BIND2 {
+  int      buffer_type;  // select need
+  void    *buffer;       // one col data
+  int32_t *length;       // to remove and inbuffer
+  char    *is_null;      // to add in buffer
+  // int      num;          // number of rows
+} TAOS_STMT2_BIND2;
+
 DLL_EXPORT TAOS_STMT2 *taos_stmt2_init(TAOS *taos, TAOS_STMT2_OPTION *option);
 DLL_EXPORT int         taos_stmt2_prepare(TAOS_STMT2 *stmt, const char *sql, unsigned long length);
 DLL_EXPORT int         taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx);
 DLL_EXPORT int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx, __taos_async_fn_t fp,
                                        void *param);
+DLL_EXPORT int taos_stmt2_bind_param_test(TAOS_STMT2 *stmt, TAOS_STMT2_BIND2 *bindv, int row_num);
+
 DLL_EXPORT int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows);
 DLL_EXPORT int taos_stmt2_close(TAOS_STMT2 *stmt);
 DLL_EXPORT int taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert);

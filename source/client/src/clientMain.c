@@ -2290,6 +2290,111 @@ out:
   return code;
 }
 
+DLL_EXPORT int taos_stmt2_bind_param_test(TAOS_STMT2 *stmt, TAOS_STMT2_BIND2 *bindv, int row_num) {
+  if (stmt == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  STscStmt2 *pStmt = (STscStmt2 *)stmt;
+  STMT2_DLOG_E("start to bind param");
+  if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 1) {
+    STMT2_ELOG_E("async bind param is still working, please try again later");
+    terrno = TSDB_CODE_TSC_STMT_API_ERROR;
+    return terrno;
+  }
+
+  if (pStmt->options.asyncExecFn && !pStmt->execSemWaited) {
+    if (tsem_wait(&pStmt->asyncExecSem) != 0) {
+      STMT2_ELOG_E("bind param wait asyncExecSem failed");
+    }
+    pStmt->execSemWaited = true;
+  }
+
+  char   *src = (char *)bindv[0].buffer;
+  int32_t offset_tag1 = 0;
+  int32_t offset_tag2 = 0;
+  int32_t offset_col1 = 0;
+  int32_t offset_col2 = 0;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int i = 0; i < row_num; ++i) {
+    char *tbname = (char *)taosMemoryMalloc(bindv[0].length[i]);
+    memcpy(tbname, src, bindv[0].length[i]);
+    src += bindv[0].length[i];
+    code = stmtSetTbName2(stmt, tbname);
+    if (code) {
+      terrno = code;
+      STMT2_ELOG("set tbname failed, code:%s", tstrerror(code));
+      goto out;
+    }
+
+    SVCreateTbReq *pCreateTbReq = NULL;
+    // if (bindv->tags && bindv->tags[i]) {
+
+    TAOS_STMT2_BIND *tags = taosMemoryMalloc(2 * sizeof(TAOS_STMT2_BIND));
+    tags[0] = (TAOS_STMT2_BIND){bindv[1].buffer_type, bindv[1].buffer + offset_tag1, &bindv[1].length[i], NULL, 1};
+    tags[1] = (TAOS_STMT2_BIND){bindv[2].buffer_type, bindv[2].buffer + offset_tag1, &bindv[2].length[i], NULL, 1};
+
+    offset_tag1 += bindv[2].length[i];
+    offset_tag2 += bindv[2].length[i];
+
+    code = stmtSetTbTags2(stmt, tags, &pCreateTbReq);
+    // } else if (pStmt->bInfo.tbNameFlag & IS_FIXED_TAG) {
+    //   code = stmtCheckTags2(stmt, &pCreateTbReq);
+    // } else {
+    //   if (pStmt->sql.autoCreateTbl) {
+    //     pStmt->sql.autoCreateTbl = false;
+    //     STMT2_WLOG_E("sql is autoCreateTbl, but no tags");
+    //   }
+    // }
+
+    if (code) {
+      terrno = code;
+      STMT2_ELOG("set tags failed, code:%s", tstrerror(code));
+      goto out;
+    }
+
+    // if (bindv->bind_cols && bindv->bind_cols[i]) {
+    TAOS_STMT2_BIND *bind = taosMemoryMalloc(2 * sizeof(TAOS_STMT2_BIND));
+    bind[0] = (TAOS_STMT2_BIND){bindv[3].buffer_type, bindv[3].buffer + offset_col1, &bindv[3].length[i], NULL, 1};
+    bind[1] = (TAOS_STMT2_BIND){bindv[4].buffer_type, bindv[4].buffer + offset_col2, &bindv[4].length[i], NULL, 1};
+    offset_col1 += bindv[3].length[i];
+    offset_col2 += bindv[4].length[i];
+    // TAOS_STMT2_BIND *bind = bindv->bind_cols[i];
+
+    if (bind->num <= 0 || bind->num > INT16_MAX) {
+      STMT2_ELOG("bind num:%d must > 0 and < INT16_MAX", bind->num);
+      code = terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
+      goto out;
+    }
+
+    int32_t insert = 0;
+    (void)stmtIsInsert2(stmt, &insert);
+    if (0 == insert && bind->num > 1) {
+      STMT2_ELOG_E("only one row data allowed for query");
+      code = terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
+      goto out;
+    }
+
+    code = stmtBindBatch2(stmt, bind, -1, pCreateTbReq);
+    if (TSDB_CODE_SUCCESS != code) {
+      terrno = code;
+      STMT2_ELOG("bind batch failed, code:%s", tstrerror(code));
+      goto out;
+    }
+    taosMemoryFree(bind);
+    taosMemoryFree(tags);
+    taosMemoryFree(tbname);
+  }
+  // }
+
+out:
+
+  return code;
+}
+
 int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx, __taos_async_fn_t fp,
                             void *param) {
   if (stmt == NULL || bindv == NULL || fp == NULL) {
