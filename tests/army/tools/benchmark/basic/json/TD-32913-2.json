@@ -1,6 +1,7 @@
 {
 	"filetype":	"insert",
 	"cfgdir":	"/etc/taos",
+	"dsn": "http://127.0.0.1:6041",
 	"host":	"127.0.0.1",
 	"port":	"6030",
 	"user":	"root",
