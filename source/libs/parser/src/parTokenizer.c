@@ -870,3 +870,110 @@ void taosCleanupKeywordsTable() {
     taosHashCleanup(m);
   }
 }
+
+SValuesToken tStrGetValues(const char* str, int32_t* i) {
+  SValuesToken result = {0};
+
+  if (str[*i] == 0) {
+    return result;
+  }
+
+  // Skip whitespace characters
+  while (str[*i] && (str[*i] == ' ' || str[*i] == '\t' || str[*i] == '\n' || str[*i] == '\r' || str[*i] == '\f')) {
+    (*i)++;
+  }
+
+  // Check if reached end of string
+  if (str[*i] == 0) {
+    return result;
+  }
+
+  // Record start position of VALUES content
+  int32_t start = *i;
+  int32_t parenLevel = 0;
+  bool    inString = false;
+  char    stringDelim = 0;
+  bool    prevBackslash = false;
+  bool    foundValues = false;
+
+  while (str[*i]) {
+    char c = str[*i];
+
+    if (!inString) {
+      // Processing when not inside a string
+      if (c == '(' && !prevBackslash) {
+        parenLevel++;
+        foundValues = true;
+      } else if (c == ')' && !prevBackslash) {
+        parenLevel--;
+      } else if ((c == '\'' || c == '"' || c == '`') && !prevBackslash) {
+        inString = true;
+        stringDelim = c;
+      } else if (parenLevel == 0 && foundValues) {
+        // Outside parentheses and already found VALUES content
+        if (c == ',' || c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f') {
+          // Skip comma and whitespace characters
+          if (c == ',') {
+            (*i)++;
+            // Skip whitespace after comma
+            while (str[*i] &&
+                   (str[*i] == ' ' || str[*i] == '\t' || str[*i] == '\n' || str[*i] == '\r' || str[*i] == '\f')) {
+              (*i)++;
+            }
+            // Check if there's a left parenthesis after comma (new value group)
+            if (str[*i] == '(') {
+              continue;  // Continue parsing next value group
+            } else {
+              // Not a left parenthesis after comma, might be table name, end parsing
+              *i -= 1;  // Back to comma position
+              break;
+            }
+          }
+        } else if (c == ';') {
+          // Statement end
+          break;
+        } else if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || (c & 0x80)) {
+          // Might be identifier start (table name), check if there's enough whitespace before
+          int32_t j = *i - 1;
+          while (j >= start &&
+                 (str[j] == ' ' || str[j] == '\t' || str[j] == '\n' || str[j] == '\r' || str[j] == '\f')) {
+            j--;
+          }
+          if (j >= start && str[j] == ')') {
+            // Indeed a right parenthesis before, this is likely a table name
+            break;
+          }
+        }
+      }
+    } else {
+      // Processing when inside a string
+      if (c == stringDelim && !prevBackslash) {
+        // Check if it's quote escaping
+        if (str[*i + 1] == stringDelim) {
+          (*i)++;  // Skip the second quote
+        } else {
+          inString = false;
+          stringDelim = 0;
+        }
+      }
+    }
+
+    prevBackslash = (c == '\\' && !prevBackslash);
+    (*i)++;
+  }
+
+  // Set result
+  if (foundValues) {
+    result.z = str + start;
+    result.n = *i - start;
+
+    // Remove trailing whitespace and comma
+    while (result.n > 0 &&
+           (result.z[result.n - 1] == ' ' || result.z[result.n - 1] == '\t' || result.z[result.n - 1] == '\n' ||
+            result.z[result.n - 1] == '\r' || result.z[result.n - 1] == '\f' || result.z[result.n - 1] == ',')) {
+      result.n--;
+    }
+  }
+
+  return result;
+}

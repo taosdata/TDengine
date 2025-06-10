@@ -40,6 +40,12 @@ typedef struct SToken {
   char    *z;
 } SToken;
 
+// used to denote VALUES section in INSERT statement
+typedef struct {
+  const char *z;  // Pointer to VALUES content
+  int32_t     n;  // Length of VALUES content
+} SValuesToken;
+
 /**
  * check if it is a number or not
  * @param pToken
@@ -66,6 +72,18 @@ uint32_t tGetToken(const char *z, uint32_t *tokenType, char* dupQuoteChar);
  * @return
  */
 SToken tStrGetToken(const char *str, int32_t *i, bool isPrevOptr, bool *pIgnoreComma);
+
+/**
+ * Parse VALUES section in INSERT statement
+ * Each call reads complete VALUES content until next table name or statement end
+ * Example: insert into t1 values (now,1),(now,2) t2 values ...
+ * First call returns: (now,1),(now,2)
+ *
+ * @param str input string
+ * @param i current position pointer
+ * @return SValuesToken containing pointer and length of VALUES content
+ */
+SValuesToken tStrGetValues(const char *str, int32_t *i);
 
 /**
  * check if it is a keyword or not
