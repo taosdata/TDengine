@@ -53,11 +53,11 @@ _exit:
   return code;
 }
 
-int32_t stmAddStreamStatus(SArray** ppStatus, SArray** ppReq, SStreamTasksInfo* pStream, int64_t streamId, int32_t gid) {
+int32_t stmHbAddStreamStatus(SArray** ppStatus, SArray** ppReq, SStreamInfo* pStream, int64_t streamId, int32_t gid) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
-  taosWLockLatch(&pStream->taskLock);
+  taosWLockLatch(&pStream->lock);
 
   if (taosArrayGetSize(pStream->undeployReaders) > 0) {
     smHandleRemovedTask(pStream, streamId, gid, true);
@@ -112,7 +112,7 @@ int32_t stmAddStreamStatus(SArray** ppStatus, SArray** ppReq, SStreamTasksInfo* 
 
 _exit:
 
-  taosWUnLockLatch(&pStream->taskLock);
+  taosWUnLockLatch(&pStream->lock);
 
   if (code) {
     stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
@@ -121,7 +121,7 @@ _exit:
   return code;
 }
 
-int32_t stmBuildStreamsStatusReq(SArray** ppStatus, SArray** ppReq, int32_t gid) {
+int32_t stmBuildHbStreamsStatusReq(SArray** ppStatus, SArray** ppReq, int32_t gid) {
   SHashObj* pHash = gStreamMgmt.stmGrp[gid];
   if (NULL == pHash) {
     return TSDB_CODE_SUCCESS;
@@ -135,16 +135,16 @@ int32_t stmBuildStreamsStatusReq(SArray** ppStatus, SArray** ppReq, int32_t gid)
       break;
     }
 
-    SStreamTasksInfo* pStream = (SStreamTasksInfo*)pIter;
+    SStreamInfo* pStream = (SStreamInfo*)pIter;
     int64_t* streamId = taosHashGetKey(pIter, NULL);
 
-    stmAddStreamStatus(ppStatus, ppReq, pStream, *streamId, gid);
+    stmHbAddStreamStatus(ppStatus, ppReq, pStream, *streamId, gid);
   }
 
   return code;
 }
 
-void stmDestroySStreamTasksInfo(SStreamTasksInfo* p) {
+void stmDestroySStreamInfo(SStreamInfo* p) {
   taosArrayDestroy(p->readerList);
   p->readerList = NULL;
   taosMemoryFreeClear(p->triggerTask);

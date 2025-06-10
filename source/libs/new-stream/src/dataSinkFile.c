@@ -88,6 +88,8 @@ void destroyStreamDataSinkFile(SDataSinkFileMgr** ppDaSinkFileMgr) {
       taosRemoveFile((*ppDaSinkFileMgr)->fileName);
       (*ppDaSinkFileMgr)->fileName[0] = '\0';
     }
+
+    clearAllFreeBlocks(&(*ppDaSinkFileMgr)->pFreeFileBlockList);
     taosMemoryFreeClear((*ppDaSinkFileMgr));
   }
 }
@@ -234,8 +236,12 @@ static int32_t readFileDataToSlidingWindows(SResultIter* pResult, SSlidingGrpMgr
       code = blockSpecialDecodeLaterPart(pBlock, getWindowDataBuf(pWindowData), tsColSlotId, pResult->reqStartTime,
                                          pResult->reqEndTime);
       QUERY_CHECK_CODE(code, lino, _exit);
-      code = appendTmpSBlocksInMem(pResult, pBlock);
-      QUERY_CHECK_CODE(code, lino, _exit);
+      if (pBlock->info.rows == 0) {
+        blockDataDestroy(pBlock);
+      } else {
+        code = appendTmpSBlocksInMem(pResult, pBlock);
+        QUERY_CHECK_CODE(code, lino, _exit);
+      }
     }
     start += sizeof(SSlidingWindowInMem) + pWindowData->dataLen;
     if (start >= buf + pBlockInfo->dataLen) {
@@ -403,7 +409,7 @@ int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMg
     QUERY_CHECK_CODE(code, lino, _exit);
   }
 
-  taosArrayRemoveBatch(pSlidingGrp->winDataInMem, 0, moveWinCount, destorySlidingWindowInMemPP);
+  taosArrayRemoveBatch(pSlidingGrp->winDataInMem, 0, moveWinCount, destroySlidingWindowInMemPP);
 
   void* pBlocksInFile = taosArrayPush(pSlidingGrp->blocksInFile, &fileBlockInfo);
   if (pBlocksInFile == NULL) {

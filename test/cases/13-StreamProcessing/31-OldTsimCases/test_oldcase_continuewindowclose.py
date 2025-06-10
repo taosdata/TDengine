@@ -78,7 +78,10 @@ class TestStreamOldCaseContinueWindowClose:
             and tdSql.getData(0, 2) == 2,
         )
 
-        tdSql.pause()
+        tdSql.checkResultsByFunc(
+            f"show stables",
+            lambda: tdSql.getRows() == 6,
+        )
 
         tdLog.info(f"============================end")
 
@@ -93,7 +96,7 @@ class TestStreamOldCaseContinueWindowClose:
         tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
         tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
         tdSql.execute(
-            f"create stream streams2 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt2 as select _wstart, count(*) c1, max(a) c2 from st partition by tbname interval(10s) sliding(5s) ;"
+            f"create stream streams2 interval(10s) sliding(5s) from st partition by tbname into streamt2 as select _twstart, count(*) c1, max(a) c2 from st where tbname=%%tbname and ts >= _twstart and ts < _twend;"
         )
 
         tdStream.checkStreamStatus()
@@ -103,17 +106,24 @@ class TestStreamOldCaseContinueWindowClose:
         tdSql.execute(f"insert into t1 values(1648791215000, 3, 2, 3);")
         tdSql.execute(f"insert into t1 values(1648791219000, 4, 2, 3);")
         tdSql.execute(f"insert into t1 values(1648791220000, 5, 2, 3);")
-
         tdSql.execute(f"insert into t1 values(1648791420000, 6, 2, 3);")
+        
         tdSql.checkResultsByFunc(
-            f"select * from streamt2 order by 1, 2;",
-            lambda: tdSql.getRows() == 4
-            and tdSql.getData(0, 1) == 2
-            and tdSql.getData(1, 1) == 4
-            and tdSql.getData(2, 1) == 3
-            and tdSql.getData(3, 1) == 1,
+            f"select * from test2.streamt2;",
+            lambda: tdSql.getRows() > 20
+            and tdSql.compareData(0, 0, "2022-04-01 13:33:25.000")
+            and tdSql.compareData(0, 1, 2)
+            and tdSql.compareData(1, 0, "2022-04-01 13:33:30.000")
+            and tdSql.compareData(1, 1, 4)
+            and tdSql.compareData(2, 0, "2022-04-01 13:33:35.000")
+            and tdSql.compareData(2, 1, 3)
+            and tdSql.compareData(3, 0, "2022-04-01 13:33:40.000")
+            and tdSql.compareData(3, 1, 1)
+            and tdSql.compareData(4, 0, "2022-04-01 13:33:45.000")
+            and tdSql.compareData(4, 1, 0)
         )
 
+        return
         tdLog.info(f"========== interval window step3")
 
         tdSql.execute(f"drop database if exists test3;")

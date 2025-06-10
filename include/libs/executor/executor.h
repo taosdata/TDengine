@@ -302,7 +302,7 @@ extern SGlobalExecInfo gExecInfo;
 void    gExecInfoInit(void* pDnode, getDnodeId_f getDnodeId, getMnodeEpset_f getMnode);
 int32_t getCurrentMnodeEpset(SEpSet* pEpSet);
 int32_t cloneStreamInserterParam(SStreamInserterParam** pDst, SStreamInserterParam* pSrc);
-void    destoryStreamInserterParam(SStreamInserterParam* pParam);
+void    destroyStreamInserterParam(SStreamInserterParam* pParam);
 int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes, int32_t winIdx);
 int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamRuntimeFuncInfo* pExtraParams);
 

@@ -173,6 +173,7 @@ TEST(dataSinkTest, test_name) {
   void*   pCache = NULL;
   int32_t code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 1);
   ASSERT_EQ(code, TSDB_CODE_STREAM_INTERNAL_ERROR);
+  blockDataDestroy(pBlock);
 }
 
 TEST(dataSinkTest, putStreamDataCacheTest) {
@@ -416,9 +417,15 @@ TEST(dataSinkTest, cancelStreamDataCacheIterateTest) {
   wend = baseTestTime1 + 200;
   code = moveStreamDataCache(pCache, groupID, wstart, wend, pBlock2);
   ASSERT_EQ(code, 0);
+  SSDataBlock* pBlock3 = createTestBlock(baseTestTime1, 200);
+  ASSERT_NE(pBlock2, nullptr);
+  wstart = baseTestTime1 + 200;
+  wend = baseTestTime1 + 300;
+  code = moveStreamDataCache(pCache, groupID, wstart, wend, pBlock2);
+  ASSERT_EQ(code, 0);
 
   void* pIter = NULL;
-  code = getStreamDataCache(pCache, groupID, baseTestTime1, baseTestTime1 + 100, &pIter);
+  code = getStreamDataCache(pCache, groupID, baseTestTime1, baseTestTime1 + 99, &pIter);
   ASSERT_EQ(code, 0);
   ASSERT_NE(pIter, nullptr);
   SSDataBlock* pBlock = NULL;
@@ -427,10 +434,36 @@ TEST(dataSinkTest, cancelStreamDataCacheIterateTest) {
   ASSERT_NE(pBlock, nullptr);
   ASSERT_NE(pIter, nullptr);
   ASSERT_EQ(pBlock1, pBlock);
+  blockDataDestroy(pBlock);
+  pBlock = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlock);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pBlock, nullptr);
+  ASSERT_EQ(pIter, nullptr);
+
+  code = getStreamDataCache(pCache, groupID, baseTestTime1 + 100, baseTestTime1 + 199, &pIter);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pIter, nullptr);
+  code = getNextStreamDataCache(&pIter, &pBlock);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlock, nullptr);
+  ASSERT_NE(pIter, nullptr);
+  ASSERT_EQ(pBlock2, pBlock);
+  blockDataDestroy(pBlock);
+  pBlock = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlock);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pBlock, nullptr);
+  ASSERT_EQ(pIter, nullptr);
+
+  code = getStreamDataCache(pCache, groupID, baseTestTime1 + 200, baseTestTime1 + 299, &pIter);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pIter, nullptr);
+
   cancelStreamDataCacheIterate(&pIter);
 
-  blockDataDestroy(pBlock1);  // pBlock1 has moveout, can destroy
-  // blockDataDestroy(pBlock2); // pBlock2 has not moveout, can not destroy
+
+  blockDataDestroy(pBlock3); // pBlock3 has not moveout, destroyDataSinkMgr should destory it, but now has not finished.
 
   destroyDataSinkMgr();
 }
@@ -465,6 +498,7 @@ TEST(dataSinkTest, putStreamDataRows) {
   ASSERT_EQ(code, 0);
   void* pIter = NULL;
   blockDataDestroy(pBlock);
+  pBlock = NULL;
   code = getStreamDataCache(pCache, groupID, baseTestTime1 + 50, baseTestTime1 + 150, &pIter);
   ASSERT_EQ(code, 0);
   SSDataBlock* pBlock1 = NULL;
@@ -475,6 +509,7 @@ TEST(dataSinkTest, putStreamDataRows) {
   int rows = pBlock1->info.rows;
   ASSERT_EQ(rows, 30);
   blockDataDestroy(pBlock1);
+  pBlock1 = NULL;
   code = getNextStreamDataCache(&pIter, &pBlock1);
   ASSERT_EQ(code, 0);
   ASSERT_NE(pBlock1, nullptr);
@@ -482,12 +517,21 @@ TEST(dataSinkTest, putStreamDataRows) {
   rows = pBlock1->info.rows;
   ASSERT_EQ(rows, 20);
   blockDataDestroy(pBlock1);
+  pBlock1 = NULL;
   code = getNextStreamDataCache(&pIter, &pBlock1);
   ASSERT_EQ(code, 0);
   ASSERT_NE(pBlock1, nullptr);
   ASSERT_NE(pIter, nullptr);
   rows = pBlock1->info.rows;
   ASSERT_EQ(rows, 50);
+  blockDataDestroy(pBlock1);
+  pBlock1 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlock1);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlock1, nullptr);
+  ASSERT_EQ(pIter, nullptr);
+  rows = pBlock1->info.rows;
+  ASSERT_EQ(rows, 1);
   blockDataDestroy(pBlock1);
 
   destroyDataSinkMgr();
@@ -545,7 +589,7 @@ TEST(dataSinkTest, allWriteToFileTest) {
   code = getStreamDataCache(pCache1, notExistGroupID, baseTestTime1 + 50, baseTestTime1 + 150, &pIter1);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(pIter1, nullptr);
-  code = getStreamDataCache(pCache1, groupID, baseTestTime1 + 50, baseTestTime1 + 150, &pIter1);
+  code = getStreamDataCache(pCache1, groupID, baseTestTime1 + 50, baseTestTime1 + 149, &pIter1);
   ASSERT_EQ(code, 0);
   ASSERT_NE(pIter1, nullptr);
   SSDataBlock* pBlock1 = NULL;
@@ -614,6 +658,12 @@ TEST(dataSinkTest, allWriteToFileTest) {
   ASSERT_EQ(compareBlockRow(pBlock1, pBlock12, 2, 2), true);
   ASSERT_EQ(compareBlockRow(pBlock1, pBlock12, 49, 49), true);
   blockDataDestroy(pBlock1);
+  pBlock1 = NULL;
+
+  code = getNextStreamDataCache(&pIter1, &pBlock1);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pBlock1, nullptr);
+  ASSERT_EQ(pIter1, nullptr);
 
   blockDataDestroy(pBlock11);
   blockDataDestroy(pBlock12);
@@ -673,7 +723,7 @@ TEST(dataSinkTest, allWriteMultiStreamToFileTest) {
   code = getStreamDataCache(pCache1, notExistGroupID, baseTestTime1 + 50, baseTestTime1 + 150, &pIter1);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(pIter1, nullptr);
-  code = getStreamDataCache(pCache1, groupID, baseTestTime1 + 50, baseTestTime1 + 150, &pIter1);
+  code = getStreamDataCache(pCache1, groupID, baseTestTime1 + 50, baseTestTime1 + 149, &pIter1);
   ASSERT_EQ(code, 0);
   ASSERT_NE(pIter1, nullptr);
   SSDataBlock* pBlock1 = NULL;
@@ -744,6 +794,11 @@ TEST(dataSinkTest, allWriteMultiStreamToFileTest) {
   ASSERT_EQ(compareBlockRow(pBlock1, pBlock12, 2, 2), true);
   ASSERT_EQ(compareBlockRow(pBlock1, pBlock12, 49, 49), true);
   blockDataDestroy(pBlock1);
+  pBlock1 = NULL;
+  code = getNextStreamDataCache(&pIter1, &pBlock1);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pBlock1, nullptr);
+  ASSERT_EQ(pIter1, nullptr);
 
   blockDataDestroy(pBlock11);
   blockDataDestroy(pBlock12);
@@ -756,7 +811,7 @@ TEST(dataSinkTest, allWriteMultiStreamToFileTest) {
 TEST(dataSinkTest, testWriteFileSize) {
   SSDataBlock* pBlock = createTestBlock(baseTestTime1, 0);
   setDataSinkMaxMemSize(gMemReservedSize + 1024 * 1024);
-  int64_t streamId = 1;
+  int64_t streamId = 3;
   void*   pCache = NULL;
   int64_t taskId = 1;
   int32_t cleanMode = DATA_CLEAN_EXPIRED;
@@ -774,7 +829,7 @@ TEST(dataSinkTest, testWriteFileSize) {
   for (int32_t i = 0; i < 100000; i++) {
     int64_t groupID = i;
     TSKEY   wstart = baseTestTime1 + 0;
-    TSKEY   wend = baseTestTime1 + 100;
+    TSKEY   wend = baseTestTime1 + 99;
     void*   pIter = NULL;
     code = getStreamDataCache(pCache, groupID, wstart, wend, &pIter);
     ASSERT_EQ(code, 0);
@@ -783,12 +838,18 @@ TEST(dataSinkTest, testWriteFileSize) {
     code = getNextStreamDataCache(&pIter, &pBlock1);
     ASSERT_EQ(code, 0);
     ASSERT_NE(pBlock1, nullptr);
-    ASSERT_EQ(pIter, nullptr);
     int rows = pBlock1->info.rows;
     ASSERT_EQ(rows, 100);
     bool equal = compareBlock(pBlock, pBlock1);
     ASSERT_EQ(equal, true);
     blockDataDestroy(pBlock1);
+    pBlock1 = NULL;
+    if (pIter != nullptr) {
+      code = getNextStreamDataCache(&pIter, &pBlock1);
+      ASSERT_EQ(code, 0);
+      ASSERT_EQ(pBlock1, nullptr);
+      ASSERT_EQ(pIter, nullptr);
+    }
   }
 
   blockDataDestroy(pBlock);

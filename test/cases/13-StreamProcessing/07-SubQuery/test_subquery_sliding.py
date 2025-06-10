@@ -229,11 +229,12 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=6,
-            stream="create stream rdb.s0 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r0 as select _twstart ts, %%tbname tb, %%1, count(*) c1, avg(v1) c2, first(v1) c3, last(v1) c4 from %%trows where v2 > 0;",
-            res_query="select count(current) cnt from rdb.r1 interval(5m)",
-            exp_query="select count(current) cnt from qdb.meters where ts >= 1704038400000 and ts < 1704038700000",
-            exp_rows=(0 for _ in range(12)),
+            stream="create stream rdb.s6 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r6 as select _twstart ts, %%tbname tb, %%1, count(*) v1, avg(c1) v2, first(c1) v3, last(c1) v4 from %%trows where c2 > 0;",
+            res_query="select ts, tb, _placeholder_column, v2, v3, v4, tag_tbname from rdb.r6 where tb='t1'",
+            exp_query="select _wstart, 't1', 't1', avg(c1) v2, first(c1) v3, last(c1) v4, 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:35:00' interval(5m) fill(NULL);",
+            check_func=self.check6,
         )
+        # dev_basic6.py
         # self.streams.append(stream)
 
         stream = StreamItem(
