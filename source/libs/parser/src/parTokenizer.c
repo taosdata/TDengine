@@ -889,6 +889,17 @@ SValuesToken tStrGetValues(const char* str) {
     return result;
   }
 
+  // Skip VALUES keyword if present
+  SToken valuesToken = tStrGetToken(str, &i, false, NULL);
+  if (valuesToken.type == TK_VALUES) {
+    // Skip whitespace after VALUES keyword
+    while (str[i] && (str[i] == ' ' || str[i] == '\t' || str[i] == '\n' || str[i] == '\r' || str[i] == '\f')) {
+      i++;
+    }
+  } else {
+    return result;
+  }
+
   // Record start position of VALUES content
   int32_t start = i;
   bool    foundValues = false;

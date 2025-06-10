@@ -2742,8 +2742,14 @@ static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStm
 static int32_t parseInsertTableClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SToken* pTbName) {
   resetEnvPreTable(pCxt, pStmt);
   int32_t code = parseSchemaClauseTop(pCxt, pStmt, pTbName);
-  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
-    code = parseInsertTableClauseBottom(pCxt, pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pCxt->missCache) {
+      SValuesToken token = tStrGetValues(pStmt->pSql);
+      parserDebug("QID:0x%" PRIx64 ", miss cache, parse values: %s, len: %d", pCxt->pComCxt->requestId, token.z,
+                  token.n);
+    } else {
+      code = parseInsertTableClauseBottom(pCxt, pStmt);
+    }
   }
 
   return code;
