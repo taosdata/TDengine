@@ -171,6 +171,8 @@ typedef struct SSTriggerRealtimeContext {
 
   void *pCalcDataCache;
   void *pCalcDataCacheIter;
+
+  bool retryPull;
 } SSTriggerRealtimeContext;
 
 /// structure definitions for trigger history calculation

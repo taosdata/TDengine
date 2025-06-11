@@ -2346,7 +2346,35 @@ static int32_t strtcResumeCheck(SSTriggerRealtimeContext *pContext) {
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pContext->pTask;
 
-  if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
+  if (pContext->retryPull) {
+    pContext->retryPull = false;
+    SSTriggerPullRequest *pReq = &pContext->pullReq.base;
+    SStreamTaskAddr      *pReader = NULL;
+    for (int32_t i = 0; i < taosArrayGetSize(pTask->readerList); i++) {
+      SStreamTaskAddr *pCurReader = taosArrayGet(pTask->readerList, i);
+      if (pCurReader->taskId == pReq->readerTaskId) {
+        pReader = pCurReader;
+        break;
+      }
+    }
+    QUERY_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_PULL, .info.notFreeAhandle = true};
+    msg.info.ahandle = pReq;
+    msg.contLen = tSerializeSTriggerPullRequest(NULL, 0, pReq);
+    QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    msg.contLen += sizeof(SMsgHead);
+    msg.pCont = rpcMallocCont(msg.contLen);
+    QUERY_CHECK_NULL(msg.pCont, code, lino, _end, terrno);
+    SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
+    pMsgHead->contLen = htonl(msg.contLen);
+    pMsgHead->vgId = htonl(pReader->nodeId);
+    int32_t tlen = tSerializeSTriggerPullRequest(msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pReq);
+    QUERY_CHECK_CONDITION(tlen == msg.contLen - sizeof(SMsgHead), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    code = tmsgSendReq(&pReader->epset, &msg);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    pContext->pullStatus = STRIGGER_REQUEST_RUNNING;
+  } else if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
     int64_t                 gid = 0;
     void                   *px = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
     SSTriggerRealtimeGroup *pGroup = NULL;
@@ -3236,8 +3264,15 @@ int32_t streamTriggerProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
           }
           code = strtcProcessPullRsp(pContext, pResBlock);
           QUERY_CHECK_CODE(code, lino, _end);
+        } else if (pRsp->code == TSDB_CODE_STREAM_TASK_NOT_EXIST) {
+          pContext->retryPull = true;
+          int64_t resumeTime = taosGetTimestampMs() + STREAM_ACT_MIN_DELAY_MSEC;
+          code = streamTriggerAddWaitTask(pTask, resumeTime);
+          QUERY_CHECK_CODE(code, lino, _end);
         } else {
-          // todo(kjq): handle error code
+          *pErrTaskId = pReq->readerTaskId;
+          code = pRsp->code;
+          QUERY_CHECK_CODE(code, lino, _end);
         }
         break;
       }
@@ -3253,8 +3288,15 @@ int32_t streamTriggerProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
           pCalcReq->groupColVals = groupInfo.gInfo;
           code = strtcSendCalcReq(pContext);
           QUERY_CHECK_CODE(code, lino, _end);
+        } else if (pRsp->code == TSDB_CODE_STREAM_TASK_NOT_EXIST) {
+          pContext->retryPull = true;
+          int64_t resumeTime = taosGetTimestampMs() + STREAM_ACT_MIN_DELAY_MSEC;
+          code = streamTriggerAddWaitTask(pTask, resumeTime);
+          QUERY_CHECK_CODE(code, lino, _end);
         } else {
-          // todo(kjq): handle error code
+          *pErrTaskId = pReq->readerTaskId;
+          code = pRsp->code;
+          QUERY_CHECK_CODE(code, lino, _end);
         }
         break;
       }
