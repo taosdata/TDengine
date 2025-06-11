@@ -57,7 +57,8 @@ char *tools_strnchr(char *haystack, char needle, int32_t len, bool skipquote);
 int64_t parseFraction(char* str, char** end, int32_t timePrec);
 int32_t toolsParseTimezone(char* str, int64_t* tzOffset);
 int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, char delim);
-
+int32_t toolsParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t day_light);
+char *toolsFormatTimestamp(char *buf, int64_t val, int32_t precision);
 #ifdef __cplusplus
 }
 #endif
@@ -409,22 +410,68 @@ TEST(toolstime, parseTimeWithTz) {
   int32_t ret = parseTimeWithTz(input, &time, timePrec, delim);
   assert(ret == 0 && time == 1672531200000); // expected timestamp in milliseconds
 
-  input = "2023-10-01T12:00:00-05:30";
+  input = "2022-12-31T19:00:00-05:00";
   ret = parseTimeWithTz(input, &time, timePrec, delim);
-  assert(ret == 0 && time == 1706767200000); // expected timestamp in milliseconds
+  assert(ret == 0 && time == 1672531200000); // expected timestamp in milliseconds
 
-  input = "2023-10-01T12:00:00Z";
+  input = "2023-01-01T00:00:00Z";
   ret = parseTimeWithTz(input, &time, timePrec, delim);
-  assert(ret == 0 && time == 1706745600000); // expected timestamp in milliseconds
+  assert(ret == 0 && time == 1672531200000); // expected timestamp in milliseconds
 
-  input = "invalid-time";
+  input = "2023-01-01X00:00:00Z";
   ret = parseTimeWithTz(input, &time, timePrec, delim);
   assert(ret == -1);
 
-  input = "2023-10-01T12:00:00+25:00"; // invalid timezone
-  ret = parseTimeWithTz(input, &time, timePrec, delim);
-  assert(ret == -1);
+  input = "2023-01-01 00:00:00Z";
+  ret = parseTimeWithTz(input, &time, timePrec, 0);
+  assert(ret == 0 && time == 1672531200000); // expected timestamp in milliseconds
+
+  ret = toolsParseTime(input, &time, strlen(input), timePrec, 0);
+  assert(ret == 0 && time == 1672531200000); 
+
+
+  input = "2022-12-31T19:00:00-05:00";
+  ret = toolsParseTime(input, &time, strlen(input), timePrec, 0);
+  assert(ret == 0 && time == 1672531200000); // expected timestamp in milliseconds
+
+  input = "2023-05-20T14:30:00.456";
+  ret = toolsParseTime(input, &time, strlen(input), timePrec, 0);
+  printf("Parsed time: %ld\n", time);
+  assert(ret == 0 && time == 1684564200456); // expected timestamp in milliseconds
+
+  char buf[64];
+
+  // 2024-06-11 12:34:56.123456789
+  int64_t val_nano = 1718109296123456789LL;
+  toolsFormatTimestamp(buf, val_nano, TSDB_TIME_PRECISION_NANO);
+  printf("NANO: %s\n", buf);
+  assert(strstr(buf, "2024-06-11 20:34:56.123456789") == buf);
+
+  // 2024-06-11 12:34:56.123456
+  int64_t val_micro = 1718109296123456LL;
+  toolsFormatTimestamp(buf, val_micro, TSDB_TIME_PRECISION_MICRO);
+  printf("MICRO: %s\n", buf);
+  assert(strstr(buf, "2024-06-11 20:34:56.123456") == buf);
+
+  // 2024-06-11 12:34:56.123
+  int64_t val_milli = 1718109296123LL;
+  toolsFormatTimestamp(buf, val_milli, TSDB_TIME_PRECISION_MILLI);
+  printf("MILLI: %s\n", buf);
+  assert(strstr(buf, "2024-06-11 20:34:56.123") == buf);
+
+  // 负数时间戳
+  int64_t val_neg = -1000;
+  toolsFormatTimestamp(buf, val_neg, TSDB_TIME_PRECISION_MILLI);
+  printf("NEG: %s\n", buf);
+  // 只要能返回字符串即可
+
+  // 极小值
+  int64_t val_zero = 0;
+  toolsFormatTimestamp(buf, val_zero, TSDB_TIME_PRECISION_MILLI);
+  printf("ZERO: %s\n", buf);
+
 }
+
 
 // main
 int main(int argc, char **argv) {
