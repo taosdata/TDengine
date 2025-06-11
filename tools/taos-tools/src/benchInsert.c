@@ -443,19 +443,14 @@ skip:
         Field * col = benchArrayGet(stbInfo->cols, i);
         if (col->sma) {
             if (first_sma) {
-                n = snprintf(command + length,
-                                   TSDB_MAX_ALLOWED_SQL_LEN - length,
-                        " SMA(%s", col->name);
+                n = snprintf(command + length, TSDB_MAX_ALLOWED_SQL_LEN - length, " SMA(%s", col->name);
                 first_sma = false;
             } else {
-                n = snprintf(command + length,
-                                   TSDB_MAX_ALLOWED_SQL_LEN - length,
-                        ",%s", col->name);
+                n = snprintf(command + length, TSDB_MAX_ALLOWED_SQL_LEN - length, ",%s", col->name);
             }
 
             if (n < 0 || n > TSDB_MAX_ALLOWED_SQL_LEN - length) {
-                errorPrint("%s() LN%d snprintf overflow on %d iteral\n",
-                           __func__, __LINE__, i);
+                errorPrint("%s() LN%d snprintf overflow on %d iteral\n", __func__, __LINE__, i);
                 break;
             } else {
                 length += n;
