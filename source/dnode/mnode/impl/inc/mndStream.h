@@ -23,6 +23,9 @@
 extern "C" {
 #endif
 
+bool mstEventPassIsolation(int32_t num, int32_t event);
+bool mstEventHandledChkSet(int32_t event);
+
 typedef enum {
   STM_ERR_TASK_NOT_EXISTS = 1,
   STM_ERR_STREAM_STOPPED,
@@ -45,6 +48,8 @@ typedef enum {
   STM_EVENT_MAX_VALUE
 } SStmLastEvent;
 
+static const char* gMndStreamEvent[] = {"ACTIVE_BEGIN", "NORMAL_BEGIN", "CREATE_STREAM", "DROP_STREAM", "STOP_STREAM", "START_STREAM",
+    "CREATE_SNODE", "DROP_SNODE", "LOOP_SDB", "LOOP_MAP", "LOOP_SNODE", "STREAM_ERROR", "MAX_VALUE"};
 
 #define MND_STM_STATE_WATCH   1
 #define MND_STM_STATE_NORMAL  2
@@ -65,12 +70,12 @@ static const char* gMndStreamState[] = {"X", "W", "N"};
 #define MST_STM_PASS_ISOLATION(_s, _d) (MST_STM_STATIC_PASS_ISOLATION(_s) && MST_STM_PROC_PASS_ISOLATION(_d))
 
 #define MST_EVENT_HANDLED_CHECK_SET(_ev) (0 == atomic_val_compare_exchange_8((int8_t*)&mStreamMgmt.lastTs[(_ev)].handled, 0, 1))
-#define MST_NORMAL_STATUS_NEED_HANDLE() (MST_EVENT_HANDLED_CHECK_SET(STM_EVENT_NORMAL_BEGIN) && MST_PASS_ISOLATION(mStreamMgmt.lastTs[STM_EVENT_NORMAL_BEGIN].ts, 1))
-#define MST_USER_OP_NEED_HANDLE(_op) (MST_EVENT_HANDLED_CHECK_SET(_op) && MST_PASS_ISOLATION(mStreamMgmt.lastTs[(_op)].ts, 5))
+#define MST_NORMAL_STATUS_NEED_HANDLE() (mstEventPassIsolation(1, STM_EVENT_NORMAL_BEGIN) && mstEventHandledChkSet(STM_EVENT_NORMAL_BEGIN))
+#define MST_USER_OP_NEED_HANDLE(_op) (mstEventPassIsolation(5, (_op)) && mstEventHandledChkSet(_op))
 #define MST_CREATE_START_STM_NEED_HANDLE() (MST_USER_OP_NEED_HANDLE(STM_EVENT_CREATE_STREAM) || MST_USER_OP_NEED_HANDLE(STM_EVENT_START_STREAM))
 #define MST_DROP_STOP_STM_NEED_HANDLE() (MST_USER_OP_NEED_HANDLE(STM_EVENT_DROP_STREAM) || MST_USER_OP_NEED_HANDLE(STM_EVENT_STOP_STREAM))
-#define MST_OP_TIMEOUT_NEED_HANDLE(_op) (MST_EVENT_HANDLED_CHECK_SET(_op) && MST_PASS_ISOLATION(mStreamMgmt.lastTs[(_op)].ts, 100))
-#define MST_STREAM_ERROR_NEED_HANDLE() (MST_EVENT_HANDLED_CHECK_SET(STM_EVENT_STREAM_ERROR) && MST_PASS_ISOLATION(mStreamMgmt.lastTs[(STM_EVENT_STREAM_ERROR)].ts, 1))
+#define MST_OP_TIMEOUT_NEED_HANDLE(_op) (mstEventPassIsolation(100, (_op)) && mstEventHandledChkSet(_op))
+#define MST_STREAM_ERROR_NEED_HANDLE() (mstEventPassIsolation(1, STM_EVENT_STREAM_ERROR) && mstEventHandledChkSet(STM_EVENT_STREAM_ERROR))
 #define MST_READY_FOR_SDB_LOOP() (MST_NORMAL_STATUS_NEED_HANDLE() || MST_CREATE_START_STM_NEED_HANDLE() || MST_DROP_STOP_STM_NEED_HANDLE() || MST_OP_TIMEOUT_NEED_HANDLE(STM_EVENT_LOOP_SDB))
 #define MST_READY_FOR_MAP_LOOP() (MST_STREAM_ERROR_NEED_HANDLE() || MST_DROP_STOP_STM_NEED_HANDLE() || MST_OP_TIMEOUT_NEED_HANDLE(STM_EVENT_LOOP_MAP))
 #define MST_READY_FOR_SNODE_LOOP() (MST_USER_OP_NEED_HANDLE(STM_EVENT_DROP_SNODE) || MST_OP_TIMEOUT_NEED_HANDLE(STM_EVENT_LOOP_SNODE))
@@ -81,9 +86,9 @@ static const char* gMndStreamState[] = {"X", "W", "N"};
 #define STREAM_ACT_DEPLOY   (1 << 0)
 #define STREAM_ACT_UNDEPLOY (1 << 1)
 #define STREAM_ACT_START    (1 << 2)
-#define STREAM_ACT_UPDATE_TRIGGER ( 1 << 3)
+#define STREAM_ACT_UPDATE_TRIGGER (1 << 3)
 
-static const char* gMndStreamAction[] = {"DEPLOY", "UNDEPLOY", "START"};
+static const char* gMndStreamAction[] = {"", "DEPLOY", "UNDEPLOY", "", "START", "", "", "", "UPDATE TRIGGER"};
 
 #define STREAM_FLAG_TRIGGER_READER  (1 << 0)
 #define STREAM_FLAG_TOP_RUNNER      (1 << 1)
@@ -284,7 +289,6 @@ typedef struct SStmVgStreamStatus {
 
 typedef struct SStmVgroupStatus {
   SHashObj* streamTasks;   // streamId => SStmVgStreamStatus
-  SArray*  taskList;       // SArray<SStmTaskStatusExt>
 } SStmVgroupStatus;
 
 typedef struct SStmTaskToDeployExt {
@@ -383,6 +387,7 @@ typedef struct SStmLastTs {
 #define MND_STREAM_SET_LAST_TS(_op, _ts) do {        \
   mStreamMgmt.lastTs[(_op)].ts = (_ts);         \
   mStreamMgmt.lastTs[(_op)].handled = false;    \
+  mstDebug("update event %s lastTs to %" PRId64, gMndStreamEvent[(_op)], (_ts));   \
 } while (0)
 
 #define MND_STREAM_GET_LAST_TS(_op) mStreamMgmt.lastTs[(_op)].ts
@@ -391,7 +396,6 @@ typedef struct SStmLastTs {
 
 typedef struct SStmRuntime {
   int8_t           active;
-  int32_t          activeStreamNum;
   SStmLastTs       lastTs[STM_EVENT_MAX_VALUE];
   int8_t           state;
   int64_t          lastTaskId;
@@ -485,6 +489,12 @@ void mndStreamDestroySStreamMgmtRsp(SStreamMgmtRsp* p);
 void mndStreamDestroyDbVgroupsHash(SSHashObj *pDbVgs);
 void mndStreamUpdateTagsRefFlag(SMnode *pMnode, int64_t suid, SSchema* pTags, int32_t tagNum);
 void mstCheckDbInUse(SMnode *pMnode, char *dbFName, bool *dbStream, bool *vtableStream, bool ignoreCurrDb);
+void mstDestroySStmSnodeTasksDeploy(void* param);
+void mstDestroySStmStatus(void* param);
+void mstDestroySStmVgroupStatus(void* param);
+void mstDestroySStmSnodeStatus(void* param);
+void mstDestroySStmVgTasksToDeploy(void* param);
+
 
 #ifdef __cplusplus
 }

@@ -50,7 +50,6 @@ void mstDestroySStmVgStreamStatus(void* p) {
 
 void mstDestroySStmSnodeStreamStatus(void* p) { 
   SStmSnodeStreamStatus* pStatus = (SStmSnodeStreamStatus*)p;
-  taosMemoryFreeClear(pStatus->trigger); 
   for (int32_t i = 0; i < MND_STREAM_RUNNER_DEPLOY_NUM; ++i) {
     taosArrayDestroy(pStatus->runners[i]);
     pStatus->runners[i] = NULL;
@@ -61,6 +60,48 @@ void mstDestroySStmSnodeStreamStatus(void* p) {
 void mstDestroyVgroupStatus(SStmVgroupStatus* pVgStatus) {
   taosHashCleanup(pVgStatus->streamTasks);
   pVgStatus->streamTasks = NULL;
+}
+
+void mstDestroySStmTaskToDeployExt(void* param) {
+  SStmTaskToDeployExt* pExt = (SStmTaskToDeployExt*)param;
+  if (STREAM_TRIGGER_TASK != pExt->deploy.task.type) {
+    return;
+  }
+
+  taosArrayDestroy(pExt->deploy.msg.trigger.readerList);
+  taosArrayDestroy(pExt->deploy.msg.trigger.runnerList);
+}
+
+void mstDestroySStmSnodeTasksDeploy(void* param) {
+  SStmSnodeTasksDeploy* pSnode = (SStmSnodeTasksDeploy*)param;
+  taosArrayDestroyEx(pSnode->triggerList, mstDestroySStmTaskToDeployExt);
+  taosArrayDestroy(pSnode->runnerList);
+}
+
+void mstDestroySStmVgTasksToDeploy(void* param) {
+  SStmVgTasksToDeploy* pVg = (SStmVgTasksToDeploy*)param;
+  taosArrayDestroy(pVg->taskList);
+}
+
+void mstDestroySStmSnodeStatus(void* param) {
+  SStmSnodeStatus* pSnode = (SStmSnodeStatus*)param;
+  taosHashCleanup(pSnode->streamTasks);
+}
+
+void mstDestroySStmVgroupStatus(void* param) {
+  SStmVgroupStatus* pVg = (SStmVgroupStatus*)param;
+  taosHashCleanup(pVg->streamTasks);
+}
+
+void mstDestroySStmStatus(void* param) {
+  SStmStatus* pStatus = (SStmStatus*)param;
+  taosMemoryFreeClear(pStatus->streamName);
+  taosArrayDestroy(pStatus->trigReaders);
+  taosArrayDestroy(pStatus->calcReaders);
+  taosMemoryFreeClear(pStatus->triggerTask);
+  for (int32_t i = 0; i < MND_STREAM_RUNNER_DEPLOY_NUM; ++i) {
+    taosArrayDestroy(pStatus->runners[i]);
+  }
 }
 
 int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped) {
@@ -374,6 +415,22 @@ void mndStreamActionEnqueue(SStmActionQ* pQueue, SStmQNode* param) {
   atomic_add_fetch_64(&pQueue->qRemainNum, 1);
 }
 
+char* mstGetStreamActionString(int32_t action) {
+  switch (action) {
+    case STREAM_ACT_DEPLOY:
+      return "DEPLOY";
+    case STREAM_ACT_UNDEPLOY:
+      return "UNDEPLOY";
+    case STREAM_ACT_START:
+      return "START";
+    case STREAM_ACT_UPDATE_TRIGGER:
+      return "UPDATE TRIGGER";
+    default:
+      break;
+  }
+
+  return "UNKNOWN";
+}
 
 void mndStreamPostAction(SStmActionQ*       actionQ, int64_t streamId, char* streamName, int32_t action) {
   SStmQNode *pNode = taosMemoryMalloc(sizeof(SStmQNode));
@@ -391,7 +448,7 @@ void mndStreamPostAction(SStmActionQ*       actionQ, int64_t streamId, char* str
 
   mndStreamActionEnqueue(actionQ, pNode);
 
-  mstsDebug("stream action %s posted enqueue", gMndStreamAction[action]);
+  mstsDebug("stream action %s posted enqueue", mstGetStreamActionString(action));
 }
 
 void mndStreamPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pAction, int32_t action) {
@@ -698,6 +755,24 @@ void mndStreamLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p) {
     }
   }
       
+}
+
+bool mstEventPassIsolation(int32_t num, int32_t event) {
+  bool ret = ((mStreamMgmt.lastTs[event].ts + num * MST_ISOLATION_DURATION) <= mStreamMgmt.hCtx.currentTs);
+  if (ret) {
+    mstDebug("event %s passed %d isolation, last:%" PRId64 ", curr:%" PRId64, 
+        gMndStreamEvent[event], num, mStreamMgmt.lastTs[event].ts, mStreamMgmt.hCtx.currentTs);
+  }
+
+  return ret;
+}
+
+bool mstEventHandledChkSet(int32_t event) {
+  if (0 == atomic_val_compare_exchange_8((int8_t*)&mStreamMgmt.lastTs[event].handled, 0, 1)) {
+    mstDebug("event %s set handled", gMndStreamEvent[event]);
+    return true;
+  }
+  return false;
 }
 
 int32_t setStreamAttrInResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_t numOfRows) {
