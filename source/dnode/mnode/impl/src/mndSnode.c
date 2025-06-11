@@ -389,23 +389,23 @@ _OVER:
 
 static bool mndSnodeTraverseForCreate(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
   SSnodeObj* pSnode = pObj;
-  SSnodeObj** ppReplica = (SSnodeObj**)p1;
-  SSnodeObj** ppLeader = (SSnodeObj**)p2;
+  SSnodeObj* pReplica = (SSnodeObj*)p1;
+  SSnodeObj* pLeader = (SSnodeObj*)p2;
   bool* noLeaderGot = (bool*)p3;
 
   if (0 == pSnode->leadersId[0]) {
-    *ppReplica = pSnode;
-    if (*ppLeader) {
+    *pReplica = *pSnode;
+    if (pLeader->id > 0) {
       return false;
     }
 
     *noLeaderGot = true;
-  } else if (NULL == *ppReplica && 0 == pSnode->leadersId[1]) {
-    *ppReplica = pSnode;
+  } else if (0 == pReplica->id && 0 == pSnode->leadersId[1]) {
+    *pReplica = *pSnode;
   }
 
-  if (0 == pSnode->replicaId && NULL == *ppLeader) {
-    *ppLeader = pSnode;
+  if (0 == pSnode->replicaId && 0 == pLeader->id) {
+    *pLeader = *pSnode;
     if (*noLeaderGot) {
       return false;
     }
@@ -415,9 +415,9 @@ static bool mndSnodeTraverseForCreate(SMnode *pMnode, void *pObj, void *p1, void
 }
 
 
-void mndSnodeGetReplicaSnode(SMnode *pMnode, SMCreateSnodeReq *pCreate, SSnodeObj **ppReplica, SSnodeObj** ppLeader) {
+void mndSnodeGetReplicaSnode(SMnode *pMnode, SMCreateSnodeReq *pCreate, SSnodeObj *pReplica, SSnodeObj* pLeader) {
   bool noLeaderGot = false;
-  sdbTraverse(pMnode->pSdb, SDB_SNODE, mndSnodeTraverseForCreate, ppReplica, ppLeader, &noLeaderGot);
+  sdbTraverse(pMnode->pSdb, SDB_SNODE, mndSnodeTraverseForCreate, pReplica, pLeader, &noLeaderGot);
 }
 
 static int32_t mndSnodeAppendUpdateToTrans(SMnode *pMnode, SSnodeObj* pObj, STrans *pTrans) {
@@ -457,8 +457,8 @@ _exit:
 }
 
 static int32_t mndCreateSnodeWithReplicaId(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMCreateSnodeReq *pCreate, int64_t currTs) {
-  SSnodeObj* replicaSnode = NULL;
-  SSnodeObj* leaderSnode = NULL;
+  SSnodeObj replicaSnode = {0};
+  SSnodeObj leaderSnode = {0};
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
@@ -466,22 +466,26 @@ static int32_t mndCreateSnodeWithReplicaId(SMnode *pMnode, SRpcMsg *pReq, SDnode
 
   SSnodeObj snodeObj = {0};
   snodeObj.id = pDnode->id;
-  if (leaderSnode) {
-    snodeObj.leadersId[0] = leaderSnode->id;
+  if (leaderSnode.id > 0) {
+    snodeObj.leadersId[0] = leaderSnode.id;
   }
-  snodeObj.replicaId = replicaSnode->id;
+  snodeObj.replicaId = replicaSnode.id;
   snodeObj.createdTime = currTs;
   snodeObj.updateTime = snodeObj.createdTime;
 
-  if (leaderSnode) {
-    leaderSnode->replicaId = snodeObj.id;
+  if (leaderSnode.id > 0) {
+    leaderSnode.replicaId = snodeObj.id;
   }
 
-  if (replicaSnode) {
-    if (replicaSnode->leadersId[0] > 0) {
-      replicaSnode->leadersId[1] = snodeObj.id;
+  if (replicaSnode.id > 0) {
+    SSnodeObj* pTarget = &replicaSnode;
+    if (replicaSnode.id == leaderSnode.id) {
+      pTarget = &leaderSnode;
+    }
+    if (pTarget->leadersId[0] > 0) {
+      pTarget->leadersId[1] = snodeObj.id;
     } else {
-      replicaSnode->leadersId[0] = snodeObj.id;
+      pTarget->leadersId[0] = snodeObj.id;
     }
   }
 
@@ -502,12 +506,12 @@ static int32_t mndCreateSnodeWithReplicaId(SMnode *pMnode, SRpcMsg *pReq, SDnode
   TAOS_CHECK_EXIT(mndSetCreateSnodeRedoActions(pTrans, pDnode, &snodeObj, pMnode));
   TAOS_CHECK_EXIT(mndSetCreateSnodeUndoActions(pTrans, pDnode, &snodeObj));
 
-  if (leaderSnode) {
-    TAOS_CHECK_EXIT(mndSnodeAppendUpdateToTrans(pMnode, leaderSnode, pTrans));
+  if (leaderSnode.id > 0) {
+    TAOS_CHECK_EXIT(mndSnodeAppendUpdateToTrans(pMnode, &leaderSnode, pTrans));
   }
 
-  if (replicaSnode && replicaSnode != leaderSnode) {
-    TAOS_CHECK_EXIT(mndSnodeAppendUpdateToTrans(pMnode, replicaSnode, pTrans));
+  if (replicaSnode.id > 0 && replicaSnode.id != leaderSnode.id) {
+    TAOS_CHECK_EXIT(mndSnodeAppendUpdateToTrans(pMnode, &replicaSnode, pTrans));
   }
 
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
