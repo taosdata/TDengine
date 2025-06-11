@@ -781,7 +781,7 @@ int32_t setStreamAttrInResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_
   int32_t lino = 0;
 
   char streamName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-  STR_WITH_MAXSIZE_TO_VARSTR(streamName, mndGetDbStr(pStream->name), sizeof(streamName));
+  STR_WITH_MAXSIZE_TO_VARSTR(streamName, mndGetStableStr(pStream->name), sizeof(streamName));
   SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
 
@@ -803,9 +803,13 @@ int32_t setStreamAttrInResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_
   TSDB_CHECK_CODE(code, lino, _end);
 
   // stream id
+  char streamId2[19] = {0};
+  char streamId[19 + VARSTR_HEADER_SIZE] = {0};
+  snprintf(streamId2, sizeof(streamId2), "0x%" PRIX64, pStream->pCreate->streamId);
+  STR_WITH_MAXSIZE_TO_VARSTR(streamId, streamId2, sizeof(streamId));
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-  code = colDataSetVal(pColInfo, numOfRows, (const char*)&pStream->pCreate->streamId, false);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)streamId, false);
   TSDB_CHECK_CODE(code, lino, _end);
 
   // sql

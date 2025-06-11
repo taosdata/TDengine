@@ -286,6 +286,7 @@ void    streamSetTaskRuntimeInfo(qTaskInfo_t tinfo, SStreamRuntimeInfo* pRuntime
 typedef void (*getMnodeEpset_f)(void *pDnode, SEpSet *pEpset);
 typedef int32_t (*getDnodeId_f)(void *pData);
 typedef void (*taskUndeplyCallback)(void*);
+typedef SEpSet* (*getSynEpset_f)(int32_t leaderId);
 
 typedef struct SGlobalExecInfo {
   void*           dnode;
@@ -301,7 +302,7 @@ extern SGlobalExecInfo gExecInfo;
 void    gExecInfoInit(void* pDnode, getDnodeId_f getDnodeId, getMnodeEpset_f getMnode);
 int32_t getCurrentMnodeEpset(SEpSet* pEpSet);
 int32_t cloneStreamInserterParam(SStreamInserterParam** pDst, SStreamInserterParam* pSrc);
-void    destoryStreamInserterParam(SStreamInserterParam* pParam);
+void    destroyStreamInserterParam(SStreamInserterParam* pParam);
 int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes, int32_t winIdx);
 int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamRuntimeFuncInfo* pExtraParams);
 

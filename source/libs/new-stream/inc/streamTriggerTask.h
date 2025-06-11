@@ -171,6 +171,8 @@ typedef struct SSTriggerRealtimeContext {
 
   void *pCalcDataCache;
   void *pCalcDataCacheIter;
+
+  bool retryPull;
 } SSTriggerRealtimeContext;
 
 /// structure definitions for trigger history calculation
@@ -228,6 +230,8 @@ typedef struct SSTriggerHistoryContext {
 
 typedef struct SStreamTriggerTask {
   SStreamTask task;
+
+  int32_t leaderSnodeId;
   // trigger options
   EStreamTriggerType triggerType;
   union {

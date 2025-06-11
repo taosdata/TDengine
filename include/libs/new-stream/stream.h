@@ -216,16 +216,23 @@ void    streamSetSnodeEnabled(void);
 void    streamSetSnodeDisabled(bool cleanup);
 int32_t streamHbProcessRspMsg(SMStreamHbRspMsg *pRsp);
 int32_t streamHbHandleRspErr(int32_t errCode, int64_t currTs);
-int32_t streamInit(void *pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode);
+int32_t streamInit(void *pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode, getSynEpset_f getSynEpset);
 void    streamCleanup(void);
 int32_t streamGetTask(int64_t streamId, int64_t taskId, SStreamTask** ppTask);
 void    streamHandleTaskError(int64_t streamId, int64_t taskId, int32_t errCode);
 int32_t streamTriggerKickCalc();
 int32_t streamTriggerProcessRsp(SStreamTask *pTask, SRpcMsg *pRsp, int64_t *pErrTaskId);
-int32_t streamWriteCheckPoint(int64_t streamId, int32_t snodeId, void* data, int64_t dataLen);
-int32_t streamReadCheckPoint(int64_t streamId, int32_t snodeId, void** data, int64_t* dataLen);
-int32_t streamDeleteCheckPoint(int64_t streamId, int32_t snodeId);
 void smUndeploySnodeTasks(bool cleanup);
+int32_t streamWriteCheckPoint(int64_t streamId, void* data, int64_t dataLen);
+int32_t streamReadCheckPoint(int64_t streamId, void** data, int64_t* dataLen);
+void    streamDeleteCheckPoint(int64_t streamId);
+int32_t streamSyncWriteCheckpoint(int64_t streamId, SEpSet* epSet, void* data, int64_t dataLen);
+int32_t streamSyncDeleteCheckpoint(int64_t streamId, SEpSet* epSet);
+int32_t streamCheckpointSetReady(int64_t streamId);
+int32_t streamCheckpointSetNotReady(int64_t streamId);
+bool    streamCheckpointIsReady(int64_t streamId);
+int32_t streamSyncAllCheckpoints(SEpSet* epSet);
+void    streamDeleteAllCheckpoints();
 
 #define STREAM_TRIGGER_MAX_WIN_NUM_PER_REQUEST 4096
 

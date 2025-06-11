@@ -103,6 +103,11 @@ static void destroyAlignTaskDSMgr(SAlignTaskDSMgr** pData) {
   }
   if (pAlignTaskDSMgr->pFileMgr) {
     destroyStreamDataSinkFile(&pAlignTaskDSMgr->pFileMgr);
+    pAlignTaskDSMgr->pFileMgr = NULL;
+  }
+  if(pAlignTaskDSMgr->pAlignGrpList) {
+    taosHashCleanup(pAlignTaskDSMgr->pAlignGrpList);
+    pAlignTaskDSMgr->pAlignGrpList = NULL;
   }
 
   taosMemoryFreeClear(pAlignTaskDSMgr);
@@ -145,7 +150,7 @@ int32_t createAlignGrpMgr(int64_t groupId, SAlignGrpMgr** ppAlignGrpMgr) {
 static void destroyAlignGrpMgr(void* pData) {
   SAlignGrpMgr* pGroupData = *(SAlignGrpMgr**)pData;
   if (pGroupData->blocksInMem) {
-    taosArrayDestroyP(pGroupData->blocksInMem, destoryAlignBlockInMem);
+    taosArrayDestroyP(pGroupData->blocksInMem, destroyAlignBlockInMem);
     pGroupData->blocksInMem = NULL;
   }
   if (pGroupData->blocksInFile) {
@@ -205,7 +210,7 @@ int32_t createSlidingGrpMgr(int64_t groupId, SSlidingGrpMgr** ppSlidingGrpMgr) {
 static void destroySSlidingGrpMgr(void* pData) {
   SSlidingGrpMgr* pGroupData = *(SSlidingGrpMgr**)pData;
   if (pGroupData->winDataInMem) {
-    taosArrayDestroyP(pGroupData->winDataInMem, destorySlidingWindowInMem);
+    taosArrayDestroyP(pGroupData->winDataInMem, destroySlidingWindowInMem);
     pGroupData->winDataInMem = NULL;
   }
   if (pGroupData->blocksInFile) {
@@ -378,7 +383,7 @@ int32_t putDataToSlidingTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t group
   }
   void* p = taosArrayPush(pSlidingGrpMgr->winDataInMem, &pSlidingWinInMem);
   if (p == NULL) {
-    destorySlidingWindowInMem(pSlidingWinInMem);
+    destroySlidingWindowInMem(pSlidingWinInMem);
     stError("failed to push window data into group data sink manager, err: %s", terrMsg);
     return terrno;
   }
@@ -630,7 +635,7 @@ void releaseDataResult(void** pIter) {
     return;
   }
   SResultIter* pResult = (SResultIter*)*pIter;
-  if (pResult->tmpBlocksInMem) {
+  if (pResult && pResult->tmpBlocksInMem) {
     for (int32_t i = 0; i < pResult->tmpBlocksInMem->size; ++i) {
       SSDataBlock** ppBlk = (SSDataBlock**)taosArrayGet(pResult->tmpBlocksInMem, i);
       if (*ppBlk != NULL) {
@@ -638,7 +643,7 @@ void releaseDataResult(void** pIter) {
         *ppBlk = NULL;
       }
     }
-    taosArrayClear(pResult->tmpBlocksInMem);
+    taosArrayDestroy(pResult->tmpBlocksInMem);
     pResult->tmpBlocksInMem = NULL;
   }
   if (pResult != NULL) {

@@ -237,6 +237,8 @@ void    dmRemoveDnodePairs(SDnodeData *pData);
 void    dmGetDnodeEp(void *pData, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort);
 int32_t dmUpdateEncryptKey(char *key, bool toLogFile);
 int32_t dmGetEncryptKey();
+
+SEpSet* dmGetSynEpset(int32_t leaderId);
 #ifdef __cplusplus
 }
 #endif
