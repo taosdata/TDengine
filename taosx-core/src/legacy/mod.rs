@@ -464,8 +464,9 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
                         remap.as_ref(),
                         target_opts,
                         true,
+                        true,
                         actions,
-                        metrics_arc.clone(),
+                        metrics_arc,
                     )
                     .in_current_span()
                     .await?;
@@ -1166,9 +1167,10 @@ pub async fn sync_super_table_schema_with_subs(
     to: &Taos,
     remap: Option<&Arc<HashMap<String, String>>>,
     target_opts: &TargetOpts,
-    is_v3: bool,
+    source_is_v3: bool,
+    target_is_v3: bool,
     actions: &[Action],
-    metrics_arc: Arc<CoreMetrics>,
+    metrics_arc: &Arc<CoreMetrics>,
 ) -> anyhow::Result<()> {
     debug_assert!(!name.is_empty());
     let metrics = metrics_arc.legacy();
@@ -1187,21 +1189,36 @@ pub async fn sync_super_table_schema_with_subs(
         .join(",");
 
     let stable_name_for_to = transform_tbname_with_actions(name, actions, true)?;
-    let sql = if is_v3 {
+    let sql = if target_is_v3 {
         format!("SELECT distinct tbname, {tag_names} FROM `{stable_name_for_to}` WHERE tbname IN ({cond_for_to})")
     } else {
         format!("SELECT tbname, {tag_names} FROM `{stable_name_for_to}` WHERE tbname IN ({cond_for_to})")
     };
-    let res_to: HashMap<_, _> = to
+
+    let meta = to
         .query(transform_sql_with_remap(sql, remap))
         .await?
         .to_records()
-        .await?
+        .await?;
+
+    if cfg!(test) {
+        // Ensure that the number of metadata rows does not exceed the number of subs.
+        if meta.len() > subs.len() {
+            bail!(
+                "Metadata rows ({}) exceed subs ({}) for table `{}`",
+                meta.len(),
+                subs.len(),
+                name
+            );
+        }
+    }
+    debug_assert!(meta.len() <= subs.len());
+    let res_to: HashMap<_, _> = meta
         .into_iter()
         .map(|mut v| (format!("{}", v.remove(0)), v))
         .collect();
     let (exists, non_exists): (Vec<_>, Vec<_>) =
-        query_sub_tables_from_source(from, is_v3, subs, name, &tag_names)
+        query_sub_tables_from_source(from, source_is_v3, subs, name, &tag_names)
             .await?
             .into_iter()
             .map(|mut v| (format!("{}", v.remove(0)), v))
@@ -1302,7 +1319,10 @@ async fn query_sub_tables_from_source(
     } else {
         let mut sub_tables: Vec<Vec<Value>> = Vec::new();
         for sub in subs {
-            let sql = format!("SELECT tbname, {tag_names} FROM `{}`", sub.as_ref());
+            let sql = format!(
+                "SELECT distinct tbname, {tag_names} FROM `{}`",
+                sub.as_ref()
+            );
             tracing::trace!(sql, "query sub tables from source");
             let result = from.query(sql).await;
             match result {
@@ -4057,6 +4077,8 @@ fn process_unit_value(option_value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use crate::legacy_metric::LegacyToTaosMetrics;
+
     use super::*;
 
     /// # description
@@ -4610,5 +4632,69 @@ mod tests {
         let chunks = range.to_chunks(unit);
 
         dbg!(&chunks);
+    }
+
+    #[tokio::test]
+    async fn test_ts6646_select_distinct_with_taos() -> anyhow::Result<()> {
+        let builder = TaosBuilder::from_dsn("taos:///")?.pool()?;
+        let taos = builder.get().await?;
+        let db = "test_ts6646";
+        taos.exec_many([
+            format!("drop database if exists `{db}`"),
+            format!("create database `{db}`"),
+            format!("use {db}"),
+            "create stable `st1` (ts timestamp, v1 int) tags(t1 int)".to_string(),
+            "create table `t1` using `st1` tags(1)".to_string(),
+            "insert into `t1` values(now + 1s, 1)".to_string(),
+            "insert into `t1` values(now + 2s, 2)".to_string(),
+            "insert into `t1` values(now + 3s, 3)".to_string(),
+            "insert into `t1` values(now + 4s, 4)".to_string(),
+        ])
+        .await?;
+
+        let rows: usize = taos
+            .query_one("select count(*) from `t1`")
+            .await?
+            .unwrap_or_default();
+        assert_eq!(rows, 4);
+
+        let target_opts = TargetOpts::default();
+        let metrics = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::default()));
+        sync_super_table_schema_with_subs(
+            &taos,
+            "st1",
+            &["t1"],
+            &taos,
+            None,
+            &target_opts,
+            false,
+            true,
+            &[],
+            &metrics,
+        )
+        .await?;
+
+        let result_use_v2_style_in_v3 = sync_super_table_schema_with_subs(
+            &taos,
+            "st1",
+            &["t1"],
+            &taos,
+            None,
+            &target_opts,
+            false,
+            false,
+            &[],
+            &metrics,
+        )
+        .await
+        .inspect_err(|e| {
+            println!("sync_super_table_schema_with_subs failed: {e}");
+        });
+        assert!(
+            result_use_v2_style_in_v3.is_err(),
+            "should not use v2 style in v3"
+        );
+        taos.exec(format!("drop database `{}`", db)).await?;
+        Ok(())
     }
 }

@@ -189,8 +189,9 @@ async fn worker(
                                 remap.as_ref(),
                                 &opts,
                                 source_is_v3,
+                                target_is_v3,
                                 &actions,
-                                metrics_arc.clone(),
+                                &metrics_arc,
                             )
                             .await
                             {

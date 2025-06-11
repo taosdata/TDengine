@@ -456,8 +456,9 @@ pub(super) async fn write_with_raw_block(
                             None,
                             &target_opts,
                             true,
+                            true,
                             actions,
-                            metrics_arc,
+                            &metrics_arc,
                         )
                         .await
                         .context("Create sub table error")?;
@@ -1147,8 +1148,9 @@ impl Worker {
                                         None,
                                         &target_opts,
                                         true,
+                                        true,
                                         &self.options.actions,
-                                        metrics_arc,
+                                        &metrics_arc,
                                     )
                                     .await
                                     .context("Create sub table error")?;
