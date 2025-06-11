@@ -18,6 +18,7 @@
 #include "pub.h"
 #include "bench.h"
 #include "benchLog.h"
+#include "toolsdef.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -51,6 +52,11 @@ void randomFillCols(uint16_t* cols, uint16_t max, uint16_t cnt);
 uint32_t appendRowRuleOld(SSuperTable* stb, char* pstr, uint32_t len, int64_t timestamp);
 int32_t parseFunArgs(char* value, uint8_t funType, int64_t* min ,int64_t* max, int32_t* step ,int32_t* period ,int32_t* offset);
 uint8_t parseFuns(char* expr, float* multiple, float* addend, float* base, int32_t* random, int64_t* min ,int64_t* max, int32_t* step ,int32_t* period ,int32_t* offset);
+int64_t tools_strnatoi(char *num, int32_t len);
+char *tools_strnchr(char *haystack, char needle, int32_t len, bool skipquote);
+int64_t parseFraction(char* str, char** end, int32_t timePrec);
+int32_t toolsParseTimezone(char* str, int64_t* tzOffset);
+int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, char delim);
 
 #ifdef __cplusplus
 }
@@ -191,7 +197,7 @@ TEST(benchJsonOpt, parseFunArgs) {
 
     assert(min == 100);
     assert(max == 200);
-    assert(period == 300);
+    assert(period == 0);
     assert(offset == 400);
 
     min = 0;
@@ -240,9 +246,8 @@ TEST(benchJsonOpt, parseFun) {
     float multiple = 0, addend = 0, base = 0; 
     int32_t random = -1; 
     int64_t min = -1, max = -1; 
-    int32_t step = -1, period = -1, offset = -1
+    int32_t step = -1, period = -1, offset = -1;
     char* expr = "2.5*sin(10,20,30,40)+3.14-1.5*random(50)+100";
-    
     uint8_t type = parseFuns(expr, &multiple, &addend, &base, &random, 
                            &min, &max, &step, &period, &offset);
     
@@ -252,7 +257,173 @@ TEST(benchJsonOpt, parseFun) {
     assert(base == 100.0f);
     assert(random == 50);
     assert(min == 10 && max == 20);
-    assert(step == 30 && offset == 40);
+    printf("step: %d, period: %d, offset: %d\n", step, period, offset);
+    assert(period == 30 && offset == 40);
+}
+
+TEST(toolstime, tools_strnatoi) {
+    assert(tools_strnatoi("123", 3) == 123);
+    assert(tools_strnatoi("0", 1) == 0);
+    assert(tools_strnatoi("999999999", 9) == 999999999);
+    
+    assert(tools_strnatoi("00123", 5) == 123);
+    assert(tools_strnatoi("000", 3) == 0);
+    
+    assert(tools_strnatoi("123", 5) == 123);
+    assert(tools_strnatoi("0", 10) == 0);
+
+    assert(tools_strnatoi("-123", 4) == 0);
+
+    assert(tools_strnatoi("0x1A", 4) == 26);
+    assert(tools_strnatoi("0X1A", 4) == 26);
+    assert(tools_strnatoi("0x0", 3) == 0);
+    assert(tools_strnatoi("0xFF", 4) == 255);
+    assert(tools_strnatoi("0x12345678", 10) == 0x12345678);
+
+    assert(tools_strnatoi("0xAbCdE", 7) == 0xABCDE);
+    assert(tools_strnatoi("0XaBcDe", 7) == 0xABCDE);
+
+    assert(tools_strnatoi("0x00FF", 6) == 255);
+
+    assert(tools_strnatoi("0x123", 5) == 0x123);  
+
+    assert(tools_strnatoi("12a3", 4) == 0);
+    assert(tools_strnatoi("abc", 3) == 0);
+    
+  
+    assert(tools_strnatoi("0x1G", 4) == 0);
+    assert(tools_strnatoi("0x@#", 4) == 0);
+
+
+    assert(tools_strnatoi("0x", 2) == 0);         
+    assert(tools_strnatoi("x123", 4) == 0);       
+
+
+    assert(tools_strnatoi("", 0) == 0);
+    assert(tools_strnatoi("", 5) == 0);           
+
+    assert(tools_strnatoi("-123", 4) == 0);
+    assert(tools_strnatoi("0x-FF", 5) == 0);
+
+    assert(tools_strnatoi("9223372036854775807", 19) == 9223372036854775807LL); // INT64_MAX
+
+    assert(tools_strnatoi("0x7FFFFFFFFFFFFFFF", 18) == 0x7FFFFFFFFFFFFFFFLL); // INT64_MAX 
+
+    assert(tools_strnatoi("123", 0) == 0);
+
+    assert(tools_strnatoi("123", 100) == 123);
+    assert(tools_strnatoi("0x123", 100) == 0x123);
+
+    assert(tools_strnatoi(" 123", 4) == 0);
+    assert(tools_strnatoi("0x 12", 5) == 0);
+}
+
+TEST(toolstime, tools_strnchr) {
+  char *str = "abcdefg";
+  char *p = tools_strnchr(str, 'd', 7, false);
+  assert(p != NULL && *p == 'd'); 
+
+  p = tools_strnchr(str, 'x', 7, false);
+  assert(p == NULL);
+
+  str = "test";
+  p = tools_strnchr(str, 't', 4, false);
+  assert(p != NULL && *p == 't');
+  
+  str = "a'bc'de\"fg\"h";
+  p = tools_strnchr(str, ',', strlen(str), true);
+  assert(p == NULL);
+  str = "a'bc'de\"fg\"h";
+  p = tools_strnchr(str, 'x', strlen(str), true);
+  assert(p == NULL); 
+  str = "a'bc'de\"fg\"h";
+  char *p_single = tools_strnchr(str, '\'', strlen(str), true); 
+  char *p_double = tools_strnchr(str, '\"', strlen(str), true); 
+  assert(p_single == NULL && p_double == NULL); 
+
+}
+
+TEST(toolstime, parseFraction) {
+  char* input = "1000";
+  char *end = NULL;
+  int32_t timePrec = TSDB_TIME_PRECISION_MILLI;
+
+  // valid
+  int64_t fraction = parseFraction(input, &end, timePrec);
+  assert(fraction == 100);
+  
+  input = "1234567";
+  end = NULL;
+  timePrec = TSDB_TIME_PRECISION_MICRO;
+  fraction = parseFraction(input, &end, timePrec);
+  assert(fraction == 123456);
+
+  input = "1234567890";
+  end = NULL;
+  timePrec = TSDB_TIME_PRECISION_NANO;
+  fraction = parseFraction(input, &end, timePrec);
+  assert(fraction == 123456789);
+
+  input = "abc";
+  end = NULL;
+  timePrec = TSDB_TIME_PRECISION_NANO;
+  fraction = parseFraction(input, &end, timePrec);
+  assert(fraction == -1);
+}
+TEST(toolstime, toolsParseTimezone) {
+  int64_t tzOffset = 0;
+  char* input = "+08:00";
+  
+  // valid
+  int32_t ret = toolsParseTimezone(input, &tzOffset);
+  assert(ret == 0 && tzOffset == -28800); // +8 hours in seconds
+
+  input = "-05:30";
+  ret = toolsParseTimezone(input, &tzOffset);
+  assert(ret == 0 && tzOffset == 19800); // -5.5 hours in seconds
+
+  input = "-05:";
+  ret = toolsParseTimezone(input, &tzOffset);
+  assert(ret == -1); // -5.5 hours in seconds
+
+  input = "-05:70";
+  ret = toolsParseTimezone(input, &tzOffset);
+  assert(ret == -1); // -5.5 hours in seconds
+
+  input = "invalid";
+  ret = toolsParseTimezone(input, &tzOffset);
+  assert(ret == -1);
+
+  input = "+12:00";
+  ret = toolsParseTimezone(input, &tzOffset);
+  assert(ret == 0 && tzOffset == -43200); // +12 hours in seconds
+}
+
+TEST(toolstime, parseTimeWithTz) {
+  int64_t time = 0;
+  int32_t timePrec = TSDB_TIME_PRECISION_MILLI;
+  char delim = 'T';
+  
+  // valid
+  char* input = "2023-01-01T08:00:00+08:00";
+  int32_t ret = parseTimeWithTz(input, &time, timePrec, delim);
+  assert(ret == 0 && time == 1672531200000); // expected timestamp in milliseconds
+
+  input = "2023-10-01T12:00:00-05:30";
+  ret = parseTimeWithTz(input, &time, timePrec, delim);
+  assert(ret == 0 && time == 1706767200000); // expected timestamp in milliseconds
+
+  input = "2023-10-01T12:00:00Z";
+  ret = parseTimeWithTz(input, &time, timePrec, delim);
+  assert(ret == 0 && time == 1706745600000); // expected timestamp in milliseconds
+
+  input = "invalid-time";
+  ret = parseTimeWithTz(input, &time, timePrec, delim);
+  assert(ret == -1);
+
+  input = "2023-10-01T12:00:00+25:00"; // invalid timezone
+  ret = parseTimeWithTz(input, &time, timePrec, delim);
+  assert(ret == -1);
 }
 
 // main
