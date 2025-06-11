@@ -18,7 +18,6 @@
 #include "clientInt.h"
 #include "osSemaphore.h"
 #include "taoserror.h"
-#include "tglobal.h"
 #include "thash.h"
 
 #pragma GCC diagnostic push
@@ -27,7 +26,6 @@
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
 
-#include "executor.h"
 #include "taos.h"
 
 namespace {
