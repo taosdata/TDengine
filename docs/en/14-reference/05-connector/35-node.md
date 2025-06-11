@@ -50,10 +50,12 @@ For specific connector error codes, please refer to:
 | 104        | connection creation failed                                      | Connection creation failed, please check if the network is normal.                                                            |
 | 105        | websocket request timeout                                       | Request timed out                                                                                                             |
 | 106        | authentication fail                                             | Authentication failed, please check if the username and password are correct.                                                 |
-| 107        | unknown sql type in tdengine                                    | Please check the Data Type types supported by TDengine.                                                                       |
-| 108        | connection has been closed                                      | The connection has been closed, please check if the Connection is used again after closing, or if the connection is normal.   |
-| 109        | fetch block data parse fail                                     | Failed to parse the fetched query data                                                                                        |
-| 110        | websocket connection has reached its maximum limit              | WebSocket connection has reached its maximum limit                                                                            |
+| 107        | unknown sql type in tdengine                                    | Please check the Data Type types supported by TDengine.     |
+| 108        | connection has been closed                                      | The connection has been closed, please check if the Connection is used again after closing, or if the connection is normal. |
+| 109        | fetch block data parse fail                                     | Failed to parse the fetched query data.   |
+| 110        | websocket connection has reached its maximum limit              | WebSocket connection has reached its maximum limit.     |
+| 111     | topic partitions and positions are not equal in length             | The data obtained for the current offset of the given partition does not match the topic partition.    |
+| 112     | version mismatch. The minimum required TDengine version is 3.3.2.0 | TDengine versions lower than 3.3.2.0 are not supported by connectors, and users need to upgrade to versions 3.3.2.0 or higher.  |
 
 - [TDengine Node.js Connector Error Code](https://github.com/taosdata/taos-connector-node/blob/main/nodejs/src/common/wsError.ts)
 - For errors from other TDengine modules, please refer to [Error Codes](../../error-codes/)
@@ -121,14 +123,18 @@ Node.js connector (`@tdengine/websocket`), which connects to a TDengine instance
 
 - **protocol**: Use the websocket protocol to establish a connection. For example, `ws://localhost:6041`
 - **username/password**: Username and password for the database.
-- **host/port**: Host address and port number. For example, `localhost:6041`
+- **host/port**: The host_name parameter supports valid domain names or IP addresses. The `@tdengine/websocket` supports both IPv4 and IPv6 formats. For IPv6 addresses, square brackets must be used (e.g., [::1] or [2001:db8:1234:5678::1]) to avoid port number parsing conflicts.
 - **database**: Database name.
 - **params**: Other parameters. For example, token.
 
-- Complete URL example:
+- Complete DSN example:
 
 ```js
-    ws://root:taosdata@localhost:6041
+  // IPV4:
+  ws://root:taosdata@localhost:6041
+    
+  // IPV6:
+  ws://root:taosdata@[::1]:6041
 ```
 
 ### WSConfig
