@@ -112,8 +112,10 @@ class TaosD:
             start_cmd = f"screen -L -d -m {valgrind_cmdline} {taosd_path} -c {dnode['config_dir']}  "
         else:
             if error_output:
-                asan_lib = subprocess.getoutput("gcc -print-file-name=libasan.so")
-                start_cmd = f"LD_PRELOAD={asan_lib} screen -L -d -m {taosd_path} -c {dnode['config_dir']} 2>{error_output}"
+                asan_lib = subprocess.getoutput('realpath "$(gcc -print-file-name=libasan.so)"')
+                libstdcpp = subprocess.getoutput('realpath "$(gcc -print-file-name=libstdc++.so)"')
+                ld_preload = f"{asan_lib} {libstdcpp}"
+                start_cmd = f"LD_PRELOAD={ld_preload} screen -L -d -m {taosd_path} -c {dnode['config_dir']} 2>{error_output}"
             else:
                 start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']}  "
 
