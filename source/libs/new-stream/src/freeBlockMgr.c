@@ -128,6 +128,7 @@ void clearAllFreeBlocks(SRBTree *tree) {
 
   while ((current = (FreeBlock *)tRBTreeIterNext(&iter)) != NULL) {
     FreeBlock *block = current;
+    tRBTreeDrop(tree, &block->node);
     while (block != NULL) {
       FreeBlock *next = block->nextInBucket;
       destroyFreeBlock(block);

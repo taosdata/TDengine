@@ -368,54 +368,85 @@ static int32_t getOrCreateAlignGrpMgr(SAlignTaskDSMgr* pStreamTaskMgr, int64_t g
 int32_t putDataToSlidingTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t groupId, SSDataBlock* pBlock,
                                 int32_t startIndex, int32_t endIndex) {
   int32_t         code = TSDB_CODE_SUCCESS;
+  int32_t         lino = 0;
   SSlidingGrpMgr* pSlidingGrpMgr = NULL;
   code = getOrCreateSSlidingGrpMgr(pStreamTaskMgr, groupId, &pSlidingGrpMgr);
   if (code != 0) {
     stError("failed to get or create group data sink manager, err: %s", terrMsg);
     return code;
   }
+  bool canPut = changeMgrStatus(&pSlidingGrpMgr->status, GRP_DATA_WRITING);
+  if (!canPut) {
+    stError("failed to change group data sink manager status when put data, status: %d", pSlidingGrpMgr->status);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
 
   SSlidingWindowInMem* pSlidingWinInMem = NULL;
   code = buildSlidingWindowInMem(pBlock, pStreamTaskMgr->tsSlotId, startIndex, endIndex, &pSlidingWinInMem);
-  if (code != 0) {
-    stError("failed to build sliding window in mem, err: %s", terrMsg);
-    return code;
-  }
+  QUERY_CHECK_CODE(code, lino, _end);
+
   void* p = taosArrayPush(pSlidingGrpMgr->winDataInMem, &pSlidingWinInMem);
   if (p == NULL) {
     destroySlidingWindowInMem(pSlidingWinInMem);
     stError("failed to push window data into group data sink manager, err: %s", terrMsg);
-    return terrno;
+    code = terrno;
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   slidingGrpMgrUsedMemAdd(pSlidingGrpMgr, sizeof(SSlidingWindowInMem) + pSlidingWinInMem->dataLen);
 
-  return TSDB_CODE_SUCCESS;
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to put data to align task manager, lino:%d err: %0x", lino, code);
+    if (pSlidingGrpMgr) {
+      (void)changeMgrStatus(&pSlidingGrpMgr->status, GRP_DATA_IDLE);
+    }
+  } else {
+    (void)changeMgrStatus(&pSlidingGrpMgr->status, GRP_DATA_WIAT_READ);
+  }
+
+  return code;
 }
 
 int32_t putDataToAlignTaskMgr(SAlignTaskDSMgr* pStreamTaskMgr, int64_t groupId, TSKEY wstart, TSKEY wend,
                               SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex) {
   int32_t       code = TSDB_CODE_SUCCESS;
+  int32_t       lino = 0;
   SAlignGrpMgr* pAlignGrpMgr = NULL;
   code = getOrCreateAlignGrpMgr(pStreamTaskMgr, groupId, &pAlignGrpMgr);
   if (code != 0) {
     stError("failed to get or create group data sink manager, err: %s", terrMsg);
     return code;
   }
+  bool canPut = changeMgrStatus(&pAlignGrpMgr->status, GRP_DATA_WRITING);
+  if (!canPut) {
+    stError("failed to change group data sink manager status when put data, status: %d", pAlignGrpMgr->status);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+
   if (pAlignGrpMgr->blocksInMem == NULL) {
     pAlignGrpMgr->blocksInMem = taosArrayInit(0, sizeof(SAlignBlocksInMem*));
     if (pAlignGrpMgr->blocksInMem == NULL) {
       stError("failed to create window data in mem, err: %s", terrMsg);
-      return terrno;
+      code = terrno;
+      QUERY_CHECK_CODE(code, lino, _end);
     }
   }
 
   code = buildAlignWindowInMemBlock(pAlignGrpMgr, pBlock, pStreamTaskMgr->tsSlotId, wstart, wend);
-  if (code != 0) {
-    stError("failed to get or create group data sink manager, err: %s", terrMsg);
-    return code;
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to put data to align task manager, lino:%d err: %0x", lino, code);
+    if (pAlignGrpMgr) {
+      (void)changeMgrStatus(&pAlignGrpMgr->status, GRP_DATA_IDLE);
+    }
+  } else {
+    (void)changeMgrStatus(&pAlignGrpMgr->status, GRP_DATA_WIAT_READ);
   }
-  return TSDB_CODE_SUCCESS;
+
+  return code;
 }
 
 int32_t moveDataToAlignTaskMgr(SAlignTaskDSMgr* pStreamTaskMgr, SSDataBlock* pBlock, int64_t groupId, TSKEY wstart,
@@ -474,11 +505,8 @@ int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY we
     SSlidingTaskDSMgr* pStreamTaskMgr = (SSlidingTaskDSMgr*)pCache;
     code = putDataToSlidingTaskMgr(pStreamTaskMgr, groupId, pBlock, startIndex, endIndex);
   }
-  code = checkAndMoveMemCache(false);
-  if (code != TSDB_CODE_SUCCESS) {
-    stError("failed to check and move mem cache not for write, code: %d err: %s", code, terrMsg);
-    return TSDB_CODE_SUCCESS;
-  }
+  (void)checkAndMoveMemCache(false);
+
   return code;
 }
 
@@ -556,8 +584,14 @@ int32_t getSlidingDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY en
     return code;
   }
   SSlidingGrpMgr* pExistGrpMgr = *ppExistGrpMgr;
+  bool            canRead = changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_READING);
+  if (!canRead) {
+    stError("failed to change group data sink manager status when get data, status: %d", pExistGrpMgr->status);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
 
   if (pExistGrpMgr->winDataInMem->size == 0 && (!pExistGrpMgr->blocksInFile || pExistGrpMgr->blocksInFile->size == 0)) {
+    (void)changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_IDLE);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -584,6 +618,7 @@ int32_t getSlidingDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY en
   }
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_READING);
     releaseDataResult((void**)&pResultIter);
     *pIter = NULL;
     stError("failed to get sliding data cache, err: %s, lineno:%d", terrMsg, lino);
@@ -646,6 +681,14 @@ void releaseDataResult(void** pIter) {
     taosArrayDestroy(pResult->tmpBlocksInMem);
     pResult->tmpBlocksInMem = NULL;
   }
+  if (pResult->cleanMode == DATA_CLEAN_EXPIRED) {
+    SSlidingGrpMgr* pSlidingGrpMgr = (SSlidingGrpMgr*)pResult->groupData;
+    changeMgrStatus(&pSlidingGrpMgr->status, GRP_DATA_IDLE);
+  } else {
+    SAlignGrpMgr* pAlignGrpMgr = (SAlignGrpMgr*)pResult->groupData;
+    changeMgrStatus(&pAlignGrpMgr->status, GRP_DATA_IDLE);
+  }
+
   if (pResult != NULL) {
     taosMemoryFree(pResult);
     *pIter = NULL;
@@ -670,7 +713,7 @@ void moveToNextIterator(void** ppIter) {
     finished = setNextIteratorFromMem((SResultIter**)ppIter);
   } else if (pResult->dataPos == DATA_SINK_ALL_TMP) {
     pResult->winIndex++;
-    if (pResult->winIndex >= pResult->tmpBlocksInMem->size) {
+    if (pResult->tmpBlocksInMem == NULL || pResult->winIndex >= pResult->tmpBlocksInMem->size) {
       finished = true;
       taosArrayClear(pResult->tmpBlocksInMem);
     }
@@ -806,14 +849,26 @@ int32_t moveMemCache() {
   if (g_pDataSinkManager.dsStreamTaskList == NULL) {
     return TSDB_CODE_SUCCESS;
   }
+
+  int8_t status = atomic_val_compare_exchange_8(&g_slidigGrpMemList.status, DATA_NORMAL, DATA_MOVING);
+  if (status != DATA_NORMAL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   stInfo("moveMemCache started, used mem size: %" PRId64 ", max mem size: %" PRId64, g_pDataSinkManager.usedMemSize,
          gDSMaxMemSizeDefault);
 
-  int32_t code = moveMemFromWaitList();
+  int32_t code = moveMemFromWaitList(0);
   if (code != TSDB_CODE_SUCCESS) {
     stError("failed to move mem from wait list, err: %s", terrMsg);
   }
 
+  if (!hasEnoughMemSize()) {
+    code = moveMemFromWaitList(GRP_DATA_WAITREAD_MOVING);
+    if (code != TSDB_CODE_SUCCESS) {
+      stError("failed to move mem from wait list, err: %s", terrMsg);
+    }
+  }
   if (!hasEnoughMemSize()) {
     code = moveMemCacheAllList();
     if (code != TSDB_CODE_SUCCESS) {
@@ -822,6 +877,8 @@ int32_t moveMemCache() {
   }
   stInfo("moveMemCache finished, used mem size: %" PRId64 ", max mem size: %" PRId64, g_pDataSinkManager.usedMemSize,
          gDSMaxMemSizeDefault);
+  atomic_val_compare_exchange_8(&g_slidigGrpMemList.status, DATA_MOVING, DATA_NORMAL);
+
   return code;
 }
 
@@ -877,4 +934,78 @@ int32_t checkAndMoveMemCache(bool forWrite) {
             g_pDataSinkManager.usedMemSize, gDSMaxMemSizeDefault, forWrite);
   }
   return TSDB_CODE_SUCCESS;
+}
+
+bool isValidStatusChange(int8_t oldStatus, int8_t newStatus, int8_t mode) {
+  bool valid = false;
+  switch (oldStatus) {
+    case GRP_DATA_IDLE:
+      valid = true;  // always valid to change from idle to any status
+      break;
+    case GRP_DATA_WRITING:
+      valid = (newStatus == GRP_DATA_IDLE || newStatus == GRP_DATA_WIAT_READ);
+      break;
+    case GRP_DATA_WIAT_READ:
+      valid = (newStatus == GRP_DATA_IDLE || newStatus == GRP_DATA_READING || newStatus == GRP_DATA_WRITING ||
+               (mode | GRP_DATA_WAITREAD_MOVING));
+      break;
+    case GRP_DATA_READING:
+      valid = (newStatus == GRP_DATA_IDLE);
+      break;
+    case GRP_DATA_MOVING:
+      valid = newStatus == GRP_DATA_IDLE;
+      break;
+    default:
+      valid = false;  // invalid old status
+  }
+  return valid;
+}
+
+bool changeMgrStatus(int8_t* pStatus, int8_t status) {
+  int8_t        oldStatus = 0;
+  int32_t       nums = 0;
+  const int32_t retryInterval = 10;  // milliseconds to wait before retrying
+  const int32_t maxRetry = 500;      // maximum retry count to change status
+  while (true) {
+    oldStatus = atomic_load_8(pStatus);
+    if (oldStatus == status) {
+      return true;  // already in the target status
+    }
+    if (isValidStatusChange(oldStatus, status, 0)) {
+      // try to change status
+      int8_t tmp = atomic_val_compare_exchange_8(pStatus, oldStatus, status);
+      if (tmp == oldStatus) {
+        return true;  // successfully changed status
+      }
+    } else if (status == GRP_DATA_MOVING) {
+      return false;
+    }
+    nums++;
+    if (nums > maxRetry) {
+      stError("failed to change status from %d to %d, oldStatus:%d, nums:%d", *pStatus, status, oldStatus, nums);
+      return false;
+    }
+    taosMsleep(retryInterval);  // wait for a while before retrying
+  }
+}
+
+bool changeMgrStatusToMoving(int8_t* pStatus, int8_t mode) {
+  int8_t        oldStatus = 0;
+  int32_t       nums = 0;
+  const int32_t retryInterval = 10;  // milliseconds to wait before retrying
+  const int32_t maxRetry = 500;      // maximum retry count to change status
+  while (true) {
+    oldStatus = atomic_load_8(pStatus);
+    if (oldStatus == GRP_DATA_MOVING) {
+      return true;  // already in the target status
+    }
+    if (isValidStatusChange(oldStatus, GRP_DATA_WAITREAD_MOVING, mode)) {
+      // try to change status
+      int8_t tmp = atomic_val_compare_exchange_8(pStatus, oldStatus, GRP_DATA_MOVING);
+      if (tmp == oldStatus) {
+        return true;  // successfully changed status
+      }
+    }
+    return false;
+  }
 }
