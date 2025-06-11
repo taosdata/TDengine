@@ -407,7 +407,7 @@ Node.js connector uses DSN to create connections, the basic structure of the DSN
 
 - **protocol**: Establish a connection using the websocket protocol. For example, `ws://localhost:6041`
 - **username/password**: Username and password for the database.
-- **host/port**: The host address and port number support both IPv4 and IPv6 address formats. For IPv6 addresses, square brackets must be used (e.g., [::1] or [2001:db8:1f01:5678::1]) to avoid port number parsing conflicts.
+- **host/port**: The host_name parameter supports valid domain names or IP addresses. The `@tdengine/websocket` supports both IPv4 and IPv6 formats. For IPv6 addresses, square brackets must be used (e.g., [::1] or [2001:db8:1234:5678::1]) to avoid port number parsing conflicts.
 - **database**: Database name.
 - **params**: Other parameters. For example, token.
 
