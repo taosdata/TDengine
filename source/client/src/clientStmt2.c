@@ -342,7 +342,7 @@ static int32_t stmtParseSql(STscStmt2* pStmt) {
       (STableDataCxt**)taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
   if (NULL == pSrc || NULL == *pSrc) {
     STMT2_ELOG("fail to get exec.pBlockHash, maybe parse failed, tbFName:%s", pStmt->bInfo.tbFName);
-    return TSDB_CODE_TSC_STMT_CACHE_ERROR;
+    STMT_ERR_RET(TSDB_CODE_TSC_STMT_CACHE_ERROR);
   }
 
   STableDataCxt* pTableCtx = *pSrc;
