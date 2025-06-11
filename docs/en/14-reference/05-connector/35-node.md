@@ -25,6 +25,7 @@ Support all platforms that can run Node.js.
 
 | Node.js Connector Version | Major Changes                                                            | TDengine Version            |
 | ------------------------- | ------------------------------------------------------------------------ | --------------------------- |
+| 3.1.7                     | Fix cloud service TMQ connection parameter issue | - | 
 | 3.1.6                     | 1. Check if the connector supports database version  <br/> 2. The connector supports adding new subscription parameters | - |  
 | 3.1.5                     | Password supports special characters. |  - |
 | 3.1.4                     | Modified the readme.| -                           |
