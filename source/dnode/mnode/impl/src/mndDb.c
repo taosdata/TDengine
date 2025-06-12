@@ -2256,7 +2256,7 @@ static int32_t mndSetS3MigrateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbO
   if ((code = mndAddS3MigrateToTran(pMnode, pTrans, &s3Migrate, pDb)) != 0) {
     TAOS_RETURN(code);
   }
-  pS3MigrateRsp->s3MigrateId = s3Migrate.s3MigrateId;
+  pS3MigrateRsp->s3MigrateId = s3Migrate.id;
 
   int32_t j = 0;
   while (1) {
