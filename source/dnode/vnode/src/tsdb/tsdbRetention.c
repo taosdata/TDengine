@@ -202,6 +202,7 @@ _exit:
 typedef struct {
   STsdb  *tsdb;
   int64_t now;
+  int32_t nodeId; // node id of leader vnode in s3 migration
   int32_t fid;
   bool    s3Migrate;
 } SRtnArg;
@@ -328,6 +329,7 @@ static int32_t tsdbRetention(void *arg) {
           .szPage = pVnode->config.tsdbPageSize,
           .now = rtnArg->now,
           .cid = tsdbFSAllocEid(pTsdb->pFS),
+          .nodeId = rtnArg->nodeId,
   };
 
   // begin task
@@ -379,7 +381,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now, bool s3Migrate) {
+static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now, bool s3Migrate, int32_t nodeId) {
   void tsdbS3MigrateMonitorAddFileSet(STsdb *tsdb, int32_t fid);
 
   int32_t code = 0;
@@ -407,6 +409,7 @@ static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now, bool s3Migrate) 
     arg->tsdb = tsdb;
     arg->now = now;
     arg->fid = fset->fid;
+    arg->nodeId = nodeId;
     arg->s3Migrate = s3Migrate;
 
     tsdbS3MigrateMonitorAddFileSet(tsdb, fset->fid);
@@ -428,7 +431,7 @@ _exit:
 int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now) {
   int32_t code = 0;
   (void)taosThreadMutexLock(&tsdb->mutex);
-  code = tsdbAsyncRetentionImpl(tsdb, now, false);
+  code = tsdbAsyncRetentionImpl(tsdb, now, false, 0);
   (void)taosThreadMutexUnlock(&tsdb->mutex);
   return code;
 }
@@ -718,7 +721,7 @@ _exit:
 }
 #endif
 
-int32_t tsdbAsyncS3Migrate(STsdb *tsdb, SS3MigrateVnodeReq *pReq) {
+int32_t tsdbAsyncS3Migrate(STsdb *tsdb, SS3MigrateVgroupReq *pReq) {
   int32_t code = 0;
 
   #if 0
@@ -740,7 +743,7 @@ int32_t tsdbAsyncS3Migrate(STsdb *tsdb, SS3MigrateVnodeReq *pReq) {
   (void)taosThreadMutexLock(&tsdb->mutex);
   tsdbStartS3MigrateMonitor(tsdb, pReq->s3MigrateId);
   // pReq->timestamp is ms, we need s
-  code = tsdbAsyncRetentionImpl(tsdb, pReq->timestamp/1000, true);
+  code = tsdbAsyncRetentionImpl(tsdb, pReq->timestamp/1000, true, pReq->nodeId);
   (void)taosThreadMutexUnlock(&tsdb->mutex);
 
   if (code) {
