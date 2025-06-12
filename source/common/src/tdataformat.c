@@ -310,7 +310,8 @@ static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo
               }
             }
           } else {
-            (void)memcpy(fixed + schema->columns[i].offset, &colValArray[colValIndex].value.val,
+            (void)memcpy(fixed + schema->columns[i].offset,
+                         VALUE_GET_DATUM(&colValArray[colValIndex].value, schema->columns[i].type),
                          tDataTypes[schema->columns[i].type].bytes);
           }
         } else if (COL_VAL_IS_NULL(&colValArray[colValIndex])) {  // NULL
@@ -425,7 +426,8 @@ static int32_t tRowBuildTupleWithBlob(SArray *aColVal, const SRowBuildScanInfo *
               }
             }
           } else {
-            (void)memcpy(fixed + schema->columns[i].offset, &colValArray[colValIndex].value.val,
+            (void)memcpy(fixed + schema->columns[i].offset,
+                         VALUE_GET_DATUM(&colValArray[colValIndex].value, schema->columns[i].type),
                          tDataTypes[schema->columns[i].type].bytes);
           }
         } else if (COL_VAL_IS_NULL(&colValArray[colValIndex])) {  // NULL
