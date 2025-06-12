@@ -571,6 +571,26 @@ _exit:
   return code;
 }
 
+
+int32_t vnodePreProcessS3MigrateReq(SVnode* pVnode, SRpcMsg* pMsg) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SS3MigrateVgroupReq req = {0};
+
+  code = tDeserializeSS3MigrateVgroupReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead), &req);
+  if (code < 0) {
+    terrno = code;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  req.nodeId = vnodeNodeId(pVnode);
+  tSerializeSS3MigrateVgroupReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead), &req);
+
+_exit:
+  return code;
+}
+
+
 int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = 0;
 
@@ -600,6 +620,9 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     } break;
     case TDMT_VND_DROP_TABLE: {
       code = vnodePreProcessDropTbMsg(pVnode, pMsg);
+    } break;
+    case TDMT_VND_S3MIGRATE: {
+      code = vnodePreProcessS3MigrateReq(pVnode, pMsg);
     } break;
     default:
       break;
@@ -1122,14 +1145,18 @@ _exit:
   return code;
 }
 
-extern int32_t vnodeAsyncS3Migrate(SVnode *pVnode, SS3MigrateVnodeReq *pReq);
+extern int32_t vnodeAsyncS3Migrate(SVnode *pVnode, SS3MigrateVgroupReq *pReq);
 
 static int32_t vnodeProcessS3MigrateReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
   int32_t          code = 0;
-  SS3MigrateVnodeReq req = {0};
+  SS3MigrateVgroupReq req = {0};
+  SS3MigrateVgroupRsp rsp = {0};
+  pRsp->msgType = TDMT_VND_S3MIGRATE_RSP;
+  pRsp->code = 0;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
 
-  // decode
-  if (tDeserializeSS3MigrateVnodeReq(pReq, len, &req) != 0) {
+  if (tDeserializeSS3MigrateVgroupReq(pReq, len, &req) != 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
@@ -1137,8 +1164,30 @@ static int32_t vnodeProcessS3MigrateReq(SVnode *pVnode, int64_t ver, void *pReq,
   vInfo("vgId:%d, process s3migrate vnode request, time:%ld", pVnode->config.vgId, req.timestamp);
 
   code = vnodeAsyncS3Migrate(pVnode, &req);
+  if (code != TSDB_CODE_SUCCESS) {
+    vError("vgId:%d, failed to async s3migrate since %s", TD_VID(pVnode), tstrerror(code));
+    pRsp->code = code;
+    goto _exit;
+  }
+
+  rsp.s3MigrateId = req.s3MigrateId;
+  rsp.vgId = TD_VID(pVnode);
+  rsp.nodeId = req.nodeId;
+
+  pRsp->code = TSDB_CODE_SUCCESS;
+  pRsp->contLen = tSerializeSS3MigrateVgroupRsp(NULL, 0, &rsp);
+  pRsp->pCont = rpcMallocCont(pRsp->contLen);
+  if (pRsp->pCont == NULL) {
+    vError("vgId:%d, failed to allocate memory for s3migrate response", TD_VID(pVnode));
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+  tSerializeSS3MigrateVgroupRsp(pRsp->pCont, pRsp->contLen, &rsp);
 
 _exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    pRsp->code = code;
+  }
   return code;
 }
 
@@ -1154,8 +1203,6 @@ static int32_t vnodeProcessFollowerS3MigrateReq(SVnode *pVnode, int64_t ver, voi
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
-
-  vInfo("vgId:%d, process follower s3migrate request, time:%ld", pVnode->config.vgId, req.startTimeSec);
 
   code = vnodeFollowerS3Migrate(pVnode, &req);
 

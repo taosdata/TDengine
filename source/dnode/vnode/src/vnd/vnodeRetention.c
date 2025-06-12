@@ -16,7 +16,7 @@
 #include "vnd.h"
 
 extern int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now);
-extern int32_t tsdbAsyncS3Migrate(STsdb *tsdb, SS3MigrateVnodeReq *pReq);
+extern int32_t tsdbAsyncS3Migrate(STsdb *tsdb, SS3MigrateVgroupReq *pReq);
 extern int32_t tsdbQueryS3MigrateProgress(STsdb *tsdb, int32_t s3MigrateId, int32_t *rspSize, void** ppRsp);
 extern int32_t tsdbUpdateS3MigrateState(STsdb* tsdb, SVnodeS3MigrateState* pState);
 
@@ -26,7 +26,7 @@ int32_t vnodeAsyncRetention(SVnode *pVnode, int64_t now) {
   return tsdbAsyncRetention(pVnode->pTsdb, now);
 }
 
-int32_t vnodeAsyncS3Migrate(SVnode *pVnode, SS3MigrateVnodeReq *pReq) {
+int32_t vnodeAsyncS3Migrate(SVnode *pVnode, SS3MigrateVgroupReq *pReq) {
   // async migration
 #ifdef USE_S3
   return tsdbAsyncS3Migrate(pVnode->pTsdb, pReq);

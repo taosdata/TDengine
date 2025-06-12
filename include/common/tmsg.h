@@ -1720,24 +1720,34 @@ int32_t tDeserializeSS3MigrateDbRsp(void* buf, int32_t bufLen, SS3MigrateDbRsp* 
 
 typedef struct {
   int32_t s3MigrateId;
+  int32_t nodeId; // node id of the leader vnode
   int64_t timestamp;
-} SS3MigrateVnodeReq;
+} SS3MigrateVgroupReq;
 
-int32_t tSerializeSS3MigrateVnodeReq(void* buf, int32_t bufLen, SS3MigrateVnodeReq* pReq);
-int32_t tDeserializeSS3MigrateVnodeReq(void* buf, int32_t bufLen, SS3MigrateVnodeReq* pReq);
+int32_t tSerializeSS3MigrateVgroupReq(void* buf, int32_t bufLen, SS3MigrateVgroupReq* pReq);
+int32_t tDeserializeSS3MigrateVgroupReq(void* buf, int32_t bufLen, SS3MigrateVgroupReq* pReq);
 
 typedef struct {
   int32_t s3MigrateId;
-  int64_t timestamp;
+  int32_t vgId;   // vgroup id
+  int32_t nodeId; // node id of the leader vnode
+} SS3MigrateVgroupRsp;
+
+int32_t tSerializeSS3MigrateVgroupRsp(void* buf, int32_t bufLen, SS3MigrateVgroupRsp* pRsp);
+int32_t tDeserializeSS3MigrateVgroupRsp(void* buf, int32_t bufLen, SS3MigrateVgroupRsp* pRsp);
+
+typedef struct {
+  int32_t s3MigrateId;
+  int32_t vgId;
 } SQueryS3MigrateProgressReq;
 
 int32_t tSerializeSQueryS3MigrateProgressReq(void* buf, int32_t bufLen, SQueryS3MigrateProgressReq* pReq);
 int32_t tDeserializeSQueryS3MigrateProgressReq(void* buf, int32_t bufLen, SQueryS3MigrateProgressReq* pReq);
 
-#define FILE_SET_MIGRATE_STATE_IN_PROGRESS 0
-#define FILE_SET_MIGRATE_STATE_SUCCEEDED 1
-#define FILE_SET_MIGRATE_STATE_SKIPPED 2
-#define FILE_SET_MIGRATE_STATE_FAILED 3
+#define FILE_SET_MIGRATE_STATE_IN_PROGRESS  0
+#define FILE_SET_MIGRATE_STATE_SUCCEEDED    1
+#define FILE_SET_MIGRATE_STATE_SKIPPED      2
+#define FILE_SET_MIGRATE_STATE_FAILED       3
 
 typedef struct {
   int32_t fid;  // file set id

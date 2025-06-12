@@ -921,15 +921,16 @@ typedef struct {
 
 typedef struct {
   int32_t vgId;
+  int32_t nodeId; // dnode id of the leader vnode
   bool done;
-} SVnodeS3MigrateDetail;
+} SVgroupS3MigrateDetail;
 
 typedef struct {
-  int32_t s3MigrateId;
+  int32_t id;
   int64_t dbUid;
   char    dbname[TSDB_TABLE_FNAME_LEN];
   int64_t startTime;
-  SArray* vnodeMigrateDetails;
+  SArray* vgroups;  // SArray<SVgroupS3MigrateDetail>
 } SS3MigrateObj;
 
 // SGrantLogObj
