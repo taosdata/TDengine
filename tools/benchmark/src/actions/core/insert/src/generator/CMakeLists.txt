@@ -20,7 +20,7 @@ include_directories(/usr/include)
 # 添加主库
 add_library(insert_generator STATIC 
     src/RowDataGenerator.cpp
-    # src/DataGeneratorCoordinator.cpp
+    src/TableDataManager.cpp
 )
 
 # 包含头文件目录
@@ -53,3 +53,12 @@ target_link_libraries(TestRowDataGenerator PRIVATE
     insert_generator
 )
 add_test(NAME TestRowDataGenerator COMMAND TestRowDataGenerator)
+
+# Test TableDataManager
+add_executable(TestTableDataManager
+    test/TestTableDataManager.cpp
+)
+target_link_libraries(TestTableDataManager PRIVATE 
+    insert_generator
+)
+add_test(NAME TestTableDataManager COMMAND TestTableDataManager)

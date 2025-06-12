@@ -12,41 +12,52 @@ class TableDataManager {
 public:
     struct TableState {
         std::unique_ptr<RowDataGenerator> generator;
-        int64_t rows_generated = 0;         // 该表已生成的总行数
-        int64_t interlace_counter = 0;      // 交错模式下当前已生成的行数
-        bool completed = false;             // 该表是否已完成
+        int64_t rows_generated = 0;         // Total rows generated for this table
+        int64_t interlace_counter = 0;      // Current row count in interlace mode
+        bool completed = false;             // Whether this table is completed
+
+        TableState(const TableState&) = delete;
+        TableState& operator=(const TableState&) = delete;
+    
+        TableState(TableState&&) = default;
+        TableState& operator=(TableState&&) = default;
+    
+        TableState() = default;
     };
     
     explicit TableDataManager(const InsertDataConfig& config);
     
-    // 初始化表数据管理器
+    // Initialize the table data manager
     bool init(const std::vector<std::string>& table_names);
     
-    // 获取下一批数据（一个表的多行数据）
-    std::optional<std::pair<std::string, std::vector<RowData>>> next_batch();
+    // Get the next batch of data
+    std::optional<MultiBatch> next_multi_batch();
     
-    // 检查是否还有更多数据
+    // Check if there is more data available
     bool has_more() const;
     
-    // 获取当前表名
+    // Get the current table name
     std::string current_table() const;
     
-    // 获取表状态
+    // Get table states
     const std::unordered_map<std::string, TableState>& table_states() const;
-    
+
 private:
     const InsertDataConfig& config_;
     std::unordered_map<std::string, TableState> table_states_;
-    std::vector<std::string> table_order_;      // 表名顺序
-    size_t current_table_index_ = 0;            // 当前表索引
-    int64_t interlace_rows_ = 1;                // 交错模式下每个表每次生成的行数
+    std::vector<std::string> table_order_;      // Order of table names
+    size_t current_table_index_ = 0;            // Current table index
+    int64_t interlace_rows_ = 1;                // Number of rows to generate per table in interlace mode
     
-    // 获取下一个有数据的表
+    // Get the next table with available data
     TableState* get_next_active_table();
     
-    // 计算当前表需要生成的行数
+    // Calculate number of rows to generate for current table
     int64_t calculate_rows_to_generate(TableState& state) const;
     
-    // 切换到下一个表
+    // Switch to the next table
     void advance_to_next_table();
+
+    // Get batch data respecting size limits
+    MultiBatch collect_batch_data(int64_t max_rows);
 };
