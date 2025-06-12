@@ -13020,13 +13020,33 @@ _exit:
   return code;
 }
 
+static int32_t tPreCheckSubmitTbData(const SSubmitTbData *pSubmitData, int8_t *hasBlog) {
+  int32_t code = 0;
+  int32_t line = 0;
+  if (pSubmitData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+    return 0;
+  } else {
+    if (tBlobRowSize(pSubmitData->pBlobRow) > 0) {
+      *hasBlog = 1;
+      return code;
+    }
+  }
+  return 0;
+}
 static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubmitTbData) {
   int32_t code = 0;
   int32_t lino;
+  int8_t  hasBlog = 0;
+
+  TAOS_CHECK_EXIT(tPreCheckSubmitTbData(pSubmitTbData, &hasBlog));
 
   TAOS_CHECK_EXIT(tStartEncode(pCoder));
 
   int32_t flags = pSubmitTbData->flags | ((SUBMIT_REQUEST_VERSION) << 8);
+
+  if (hasBlog) {
+    flags |= SUBMIT_REQ_WITH_BLOB;
+  }
   TAOS_CHECK_EXIT(tEncodeI32v(pCoder, flags));
 
   // auto create table
@@ -13047,20 +13067,27 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
     uint64_t  nColData = TARRAY_SIZE(pSubmitTbData->aCol);
     SColData *aColData = (SColData *)TARRAY_DATA(pSubmitTbData->aCol);
 
+    uError("encode %d row data", (int32_t)(nColData));
     TAOS_CHECK_EXIT(tEncodeU64v(pCoder, nColData));
 
     for (uint64_t i = 0; i < nColData; i++) {
       TAOS_CHECK_EXIT(tEncodeColData(SUBMIT_REQUEST_VERSION, pCoder, &aColData[i]));
     }
   } else {
+    uError("encode %d row data", (int32_t)(TARRAY_SIZE(pSubmitTbData->aRowP)));
     TAOS_CHECK_EXIT(tEncodeU64v(pCoder, TARRAY_SIZE(pSubmitTbData->aRowP)));
 
     SRow **rows = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
     for (int32_t iRow = 0; iRow < TARRAY_SIZE(pSubmitTbData->aRowP); ++iRow) {
       TAOS_CHECK_EXIT(tEncodeRow(pCoder, rows[iRow]));
     }
+    uError("encode row data size %d", (int32_t)(TARRAY_SIZE(pSubmitTbData->aRowP)));
   }
   TAOS_CHECK_EXIT(tEncodeI64(pCoder, pSubmitTbData->ctimeMs));
+
+  if (hasBlog) {
+    tEncodeBlobRow2(pCoder, pSubmitTbData->pBlobRow);
+  }
 
   tEndEncode(pCoder);
 _exit:
@@ -13073,15 +13100,19 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
   int32_t flags;
   uint8_t version;
 
-  uint8_t *dataAfterCreate = NULL;
-  uint8_t *dataStart = pCoder->data + pCoder->pos;
-  uint32_t posAfterCreate = 0;
+  int8_t hasBlob = 0;
+  uint8_t*      dataAfterCreate = NULL;
+  uint8_t*      dataStart = pCoder->data + pCoder->pos;
+  uint32_t      posAfterCreate = 0;
 
   TAOS_CHECK_EXIT(tStartDecode(pCoder));
   uint32_t pos = pCoder->pos;
   TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &flags));
   uint32_t flagsLen = pCoder->pos - pos;
 
+  if (flags & SUBMIT_REQ_WITH_BLOB) {
+    hasBlob = 1;
+  }
   pSubmitTbData->flags = flags & 0xff;
   version = (flags >> 8) & 0xff;
 
@@ -13118,6 +13149,7 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
     uint64_t nRow = 0;
     TAOS_CHECK_EXIT(tDecodeU64v(pCoder, &nRow));
 
+    uError("decode %d row data", (int32_t)nRow);
     pSubmitTbData->aRowP = taosArrayInit(nRow, sizeof(SRow *));
     if (pSubmitTbData->aRowP == NULL) {
       TAOS_CHECK_EXIT(terrno);
@@ -13131,11 +13163,16 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
 
       TAOS_CHECK_EXIT(tDecodeRow(pCoder, ppRow));
     }
+    uError("decode row data size %d", (int32_t)(TARRAY_SIZE(pSubmitTbData->aRowP)));
   }
 
   pSubmitTbData->ctimeMs = 0;
   if (!tDecodeIsEnd(pCoder)) {
     TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSubmitTbData->ctimeMs));
+  }
+
+  if (!tDecodeIsEnd(pCoder) && hasBlob) {
+    TAOS_CHECK_EXIT(tDecodeBlobRow2(pCoder, &pSubmitTbData->pBlobRow));
   }
 
   if (rawData != NULL) {
@@ -13265,6 +13302,10 @@ void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
     }
   }
 
+  if (pTbData->pBlobRow) {
+    tBlobRowDestroy(pTbData->pBlobRow);
+    pTbData->pBlobRow = NULL;
+  }
   pTbData->aRowP = NULL;
 }
 

@@ -40,15 +40,25 @@ typedef struct SRowIter   SRowIter;
 typedef struct STagVal    STagVal;
 typedef struct STag       STag;
 typedef struct SColData   SColData;
+typedef struct SBlobRow   SBlobRow;
+typedef struct SBlobRow2  SBlobRow2;
 
-typedef struct SRowKey      SRowKey;
-typedef struct SValueColumn SValueColumn;
+typedef struct SRowKey           SRowKey;
+typedef struct SValueColumn      SValueColumn;
+typedef struct SRowBuildScanInfo SRowBuildScanInfo;
+
+#define ROW_BUILD_NONE   ((uint8_t)0x1)
+#define ROW_BUILD_UPDATE ((uint8_t)0x2)
+#define ROW_BUILD_MERGE  ((uint8_t)0x4)
+
+typedef struct SBlobValOffset SBlobValOffset;
 struct SColumnDataAgg;
-typedef struct SColumnDataAgg* SColumnDataAggPtr;
+typedef struct SColumnDataAgg *SColumnDataAggPtr;
 
 #define HAS_NONE  ((uint8_t)0x1)
 #define HAS_NULL  ((uint8_t)0x2)
 #define HAS_VALUE ((uint8_t)0x4)
+#define HAS_BLOB  ((uint8_t)0x8)
 
 // bitmap ================================
 const static uint8_t BIT1_MAP[8] = {0b11111110, 0b11111101, 0b11111011, 0b11110111,
@@ -130,8 +140,32 @@ int32_t tValueColumnCompressInfoDecode(SBufferReader *reader, SValueColumnCompre
 int32_t tValueCompare(const SValue *tv1, const SValue *tv2);
 
 // SRow ================================
-int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow);
+int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SRowBuildScanInfo *pScanInfo);
+int32_t tRowBuildWithBlob(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlobRow2 *pBlobRow,
+                          SRowBuildScanInfo *sinfo);
+int32_t tRowBuildWithMerge(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow);
 int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
+
+typedef struct {
+  uint64_t offset;
+  uint32_t len;
+  uint32_t dataOffset;
+  int8_t   nextRow;
+} SBlobValue;
+
+typedef struct {
+  uint64_t seq;
+  uint32_t seqOffsetInRow;
+  int32_t  rowIndex;
+  void    *data;
+  int32_t  dataLen;
+} SBlobItem;
+int32_t tBlobRowCreate(int64_t cap, SBlobRow2 **ppBlobRow);
+int32_t tBlobRowPush(SBlobRow2 *pBlobRow, SBlobItem *pBlobItem, uint64_t *seq, int8_t nextRow);
+int32_t tBlobRowDestroy(SBlobRow2 *pBlowRow);
+int32_t tBlobRowSize(SBlobRow2 *pBlobRow);
+
+int32_t tRowGetBlobSeq(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal, uint64_t *seq);
 void    tRowDestroy(SRow *pRow);
 int32_t tRowSort(SArray *aRowP);
 int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag);
@@ -208,6 +242,9 @@ int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData);
 int32_t tEncodeRow(SEncoder *pEncoder, SRow *pRow);
 int32_t tDecodeRow(SDecoder *pDecoder, SRow **ppRow);
 
+int32_t tEncodeBlobRow2(SEncoder *pEncoder, SBlobRow2 *pRow);
+int32_t tDecodeBlobRow2(SDecoder *pDecoder, SBlobRow2 **pBlobRow);
+
 // STRUCT ================================
 struct STColumn {
   col_id_t colId;
@@ -241,6 +278,24 @@ struct SRow {
   uint8_t  data[];
 };
 
+struct SBlobRow {
+  uint8_t  flag;
+  uint8_t  numOfPKs;
+  uint16_t sver;
+  uint32_t len;
+  uint8_t  data[];
+};
+
+struct SBlobRow2 {
+  SHashObj *pSeqToffset;
+  int64_t  seq;
+  int64_t  len;
+  int32_t  cap;
+  uint8_t  compress;
+  SArray  *pSeqTable;
+  uint8_t *data;
+};
+
 typedef struct {
   int8_t   type;
   uint32_t offset;
@@ -259,10 +314,15 @@ struct SValue {
   };
 };
 
-#define VALUE_GET_DATUM(pVal, type)  \
-  (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_DECIMAL) ? (pVal)->pData : (void*)&(pVal)->val
+struct SBlobValOffset {
+  uint64_t seq;
+  uint32_t offset;
+  uint32_t rowNum;
+};
+#define VALUE_GET_DATUM(pVal, type) \
+  (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_DECIMAL) ? (pVal)->pData : (void *)&(pVal)->val
 
-#define VALUE_GET_TRIVIAL_DATUM(pVal) ((pVal)->val)
+#define VALUE_GET_TRIVIAL_DATUM(pVal)    ((pVal)->val)
 #define VALUE_SET_TRIVIAL_DATUM(pVal, v) (pVal)->val = v
 
 void valueSetDatum(SValue *pVal, int8_t type, void *pDatum, uint32_t len);
@@ -410,6 +470,34 @@ typedef struct {
 int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
                            SArray *rowArray, bool *pOrdered, bool *pDupTs);
 
+struct SRowBuildScanInfo {
+  int32_t numOfNone;
+  int32_t numOfNull;
+  int32_t numOfValue;
+  int32_t numOfPKs;
+  int8_t  flag;
+
+  // tuple
+  int8_t           tupleFlag;
+  SPrimaryKeyIndex tupleIndices[TD_MAX_PK_COLS];
+  int32_t          tuplePKSize;      // primary key size
+  int32_t          tupleBitmapSize;  // bitmap size
+  int32_t          tupleFixedSize;   // fixed part size
+  int32_t          tupleVarSize;     // var part size
+  int32_t          tupleRowSize;
+
+  // key-value
+  int8_t           kvFlag;
+  SPrimaryKeyIndex kvIndices[TD_MAX_PK_COLS];
+  int32_t          kvMaxOffset;
+  int32_t          kvPKSize;       // primary key size
+  int32_t          kvIndexSize;    // offset array size
+  int32_t          kvPayloadSize;  // payload size
+  int32_t          kvRowSize;
+
+  int8_t hasBlob;
+  int8_t scanType;
+};
 #endif
 
 #ifdef __cplusplus

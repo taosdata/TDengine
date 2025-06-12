@@ -47,6 +47,7 @@
 #include "ttimer.h"
 #include "wal.h"
 
+#include "bse.h"
 #include "vnode.h"
 
 #include "taos_monitor.h"
@@ -88,17 +89,19 @@ typedef struct SStreamNotifyHandleMap SStreamNotifyHandleMap;
 #define VNODE_META_TMP_DIR    "meta.tmp"
 #define VNODE_META_BACKUP_DIR "meta.backup"
 
-#define VNODE_META_DIR       "meta"
-#define VNODE_TSDB_DIR       "tsdb"
-#define VNODE_TQ_DIR         "tq"
-#define VNODE_WAL_DIR        "wal"
-#define VNODE_TSMA_DIR       "tsma"
-#define VNODE_RSMA_DIR       "rsma"
-#define VNODE_RSMA0_DIR      "tsdb"
-#define VNODE_RSMA1_DIR      "rsma1"
-#define VNODE_RSMA2_DIR      "rsma2"
-#define VNODE_TQ_STREAM      "stream"
-#define VNODE_CACHE_DIR      "cache.rdb"
+#define VNODE_META_DIR  "meta"
+#define VNODE_TSDB_DIR  "tsdb"
+#define VNODE_TQ_DIR    "tq"
+#define VNODE_WAL_DIR   "wal"
+#define VNODE_TSMA_DIR  "tsma"
+#define VNODE_RSMA_DIR  "rsma"
+#define VNODE_RSMA0_DIR "tsdb"
+#define VNODE_RSMA1_DIR "rsma1"
+#define VNODE_RSMA2_DIR "rsma2"
+#define VNODE_TQ_STREAM "stream"
+#define VNODE_CACHE_DIR "cache.rdb"
+#define VNODE_BSE_DIR   "bse"
+
 #define VNODE_TSDB_CACHE_DIR VNODE_TSDB_DIR TD_DIRSEP VNODE_CACHE_DIR
 
 #if SUSPEND_RESUME_TEST  // only for test purpose
@@ -170,8 +173,8 @@ int             metaTtlFindExpired(SMeta* pMeta, int64_t timePointMs, SArray* tb
 int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq, STableMetaRsp* pMetaRsp);
 int             metaUpdateChangeTimeWithLock(SMeta* pMeta, tb_uid_t uid, int64_t changeTimeMs);
 SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, SExtSchema** extSchema);
-int64_t         metaGetTableCreateTime(SMeta *pMeta, tb_uid_t uid, int lock);
-SExtSchema*     metaGetSExtSchema(const SMetaEntry *pME);
+int64_t         metaGetTableCreateTime(SMeta* pMeta, tb_uid_t uid, int lock);
+SExtSchema*     metaGetSExtSchema(const SMetaEntry* pME);
 int32_t         metaGetTbTSchemaNotNull(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema);
 int32_t         metaGetTbTSchemaMaybeNull(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock);
@@ -493,6 +496,7 @@ struct SVnode {
 
   // commit variables
   SVATaskID commitTask;
+  SVATaskID commitTask2;
 
   struct {
     TdThreadRwlock metaRWLock;
@@ -505,6 +509,7 @@ struct SVnode {
   STsdb*        pTsdb;
   SWal*         pWal;
   STQ*          pTq;
+  SBse*         pBse;
   SSink*        pSink;
   int64_t       sync;
   TdThreadMutex lock;
@@ -583,6 +588,7 @@ enum {
   SNAP_DATA_STREAM_STATE_BACKEND = 12,
   SNAP_DATA_TQ_CHECKINFO = 13,
   SNAP_DATA_RAW = 14,
+  SNAP_DATA_BSE = 15,
 };
 
 struct SSnapDataHdr {

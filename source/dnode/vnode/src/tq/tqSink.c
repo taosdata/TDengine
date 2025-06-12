@@ -167,7 +167,7 @@ end:
   return ret;
 }
 
-static int32_t encodeDropChildTableForRPC(void* pReqs, int32_t vgId, void** ppBuf, int32_t *contLen) {
+static int32_t encodeDropChildTableForRPC(void* pReqs, int32_t vgId, void** ppBuf, int32_t* contLen) {
   int32_t  code = 0;
   SEncoder ec = {0};
   tEncodeSize(tEncodeSVDropTbBatchReq, pReqs, *contLen, code);
@@ -200,7 +200,9 @@ end:
   return code;
 }
 
-static int32_t tqPutReqToQueue(SVnode* pVnode, void* pReqs, int32_t(*encoder)(void* pReqs, int32_t vgId, void** ppBuf, int32_t *contLen), tmsg_t msgType) {
+static int32_t tqPutReqToQueue(SVnode* pVnode, void* pReqs,
+                               int32_t (*encoder)(void* pReqs, int32_t vgId, void** ppBuf, int32_t* contLen),
+                               tmsg_t msgType) {
   void*   buf = NULL;
   int32_t tlen = 0;
 
@@ -456,7 +458,7 @@ static int32_t doBuildAndSendDropTableMsg(SVnode* pVnode, char* pStbFullname, SS
   tbName[varDataLen(pData) + 1] = 0;
   req.name = tbName;
   if (taosArrayPush(batchReq.pArray, &req) == NULL) {
-    TSDB_CHECK_CODE(terrno, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   SMetaReader mr = {0};
@@ -465,7 +467,8 @@ static int32_t doBuildAndSendDropTableMsg(SVnode* pVnode, char* pStbFullname, SS
   code = metaGetTableEntryByName(&mr, tbName);
   if (TSDB_CODE_SUCCESS == code && isValidDstChildTable(&mr, TD_VID(pVnode), tbName, pTask->outputInfo.tbSink.stbUid)) {
     STableSinkInfo* pTableSinkInfo = NULL;
-    bool alreadyCached = doGetSinkTableInfoFromCache(pTask->outputInfo.tbSink.pTbInfo, pDataBlock->info.id.groupId, &pTableSinkInfo);
+    bool            alreadyCached =
+        doGetSinkTableInfoFromCache(pTask->outputInfo.tbSink.pTbInfo, pDataBlock->info.id.groupId, &pTableSinkInfo);
     if (alreadyCached) {
       pTableSinkInfo->uid = mr.me.uid;
     }
@@ -474,7 +477,6 @@ static int32_t doBuildAndSendDropTableMsg(SVnode* pVnode, char* pStbFullname, SS
   tqDebug("s-task:%s build drop %d table(s) msg", id, rows);
   code = tqPutReqToQueue(pVnode, &batchReq, encodeDropChildTableForRPC, TDMT_VND_DROP_TABLE);
   TSDB_CHECK_CODE(code, lino, _exit);
-
 
   code = doWaitForDstTableDropped(pVnode, pTask, tbName);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -658,7 +660,7 @@ int32_t buildAutoCreateTableReq(const char* stbFullName, int64_t suid, int32_t n
   }
 
   STagVal tagVal = {.cid = numOfCols, .type = TSDB_DATA_TYPE_UBIGINT, .i64 = pDataBlock->info.id.groupId};
-  void* p = taosArrayPush(pTagArray, &tagVal);
+  void*   p = taosArrayPush(pTagArray, &tagVal);
   if (p == NULL) {
     return terrno;
   }
@@ -745,9 +747,10 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
   SArray* pVals = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal));
   pTableData->aRowP = taosArrayInit(numOfRows, sizeof(SRow*));
 
-  if (pTableData->aRowP == NULL || pVals == NULL) {
-    taosArrayDestroy(pTableData->aRowP);
-    pTableData->aRowP = NULL;
+  code = tBlobRowCreate(4096 * 4, &pTableData->pBlobRow);
+
+  if (pTableData->aRowP == NULL || pVals == NULL || code != 0) {
+    tBlobRowDestroy(pTableData->pBlobRow);
     taosArrayDestroy(pVals);
     code = terrno;
     tqError("s-task:%s failed to prepare write stream res blocks, code:%s", id, tstrerror(code));
@@ -790,7 +793,7 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
           break;
         }
         SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
-        void* p = taosArrayPush(pVals, &cv);
+        void*   p = taosArrayPush(pVals, &cv);
         if (p == NULL) {
           return terrno;
         }
@@ -802,13 +805,13 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
 
         if (colDataIsNull_s(pColData, j)) {
           if (pCol->flags & COL_IS_KEY) {
-            qError("ts:%" PRId64 " primary key column should not be null, colId:%" PRIi16 ", colType:%" PRIi8,
-                   ts, pCol->colId, pCol->type);
+            qError("ts:%" PRId64 " primary key column should not be null, colId:%" PRIi16 ", colType:%" PRIi8, ts,
+                   pCol->colId, pCol->type);
             break;
           }
 
           SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
-          void* p = taosArrayPush(pVals, &cv);
+          void*   p = taosArrayPush(pVals, &cv);
           if (p == NULL) {
             return terrno;
           }
@@ -817,18 +820,28 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
         } else {
           void* colData = colDataGetData(pColData, j);
           if (IS_VAR_DATA_TYPE(pCol->type)) {  // address copy, no value
-            SValue sv =
-                (SValue){.type = pCol->type, .nData = varDataLen(colData), .pData = (uint8_t*)varDataVal(colData)};
-            SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
-            void* p = taosArrayPush(pVals, &cv);
-            if (p == NULL) {
-              return terrno;
+            if (IS_STR_DATA_BLOB(pCol->type)) {
+              SValue sv =
+                  (SValue){.type = pCol->type, .nData = blobDataLen(colData), .pData = (uint8_t*)blobDataVal(colData)};
+              SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
+              void*   p = taosArrayPush(pVals, &cv);
+              if (p == NULL) {
+                return terrno;
+              }
+            } else {
+              SValue sv =
+                  (SValue){.type = pCol->type, .nData = varDataLen(colData), .pData = (uint8_t*)varDataVal(colData)};
+              SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
+              void*   p = taosArrayPush(pVals, &cv);
+              if (p == NULL) {
+                return terrno;
+              }
             }
           } else {
             SValue sv = {.type = pCol->type};
             valueSetDatum(&sv, pCol->type, colData, tDataTypes[pCol->type].bytes);
             SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
-            void* p = taosArrayPush(pVals, &cv);
+            void*   p = taosArrayPush(pVals, &cv);
             if (p == NULL) {
               return terrno;
             }
@@ -838,12 +851,13 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
       }
     }
 
-    SRow* pRow = NULL;
-    code = tRowBuild(pVals, (STSchema*)pTSchema, &pRow);
+    SRow*             pRow = NULL;
+    SRowBuildScanInfo sinfo = {0};
+    code = tRowBuild(pVals, (STSchema*)pTSchema, &pRow, &sinfo);
     if (code != TSDB_CODE_SUCCESS) {
       tDestroySubmitTbData(pTableData, TSDB_MSG_FLG_ENCODE);
       taosArrayDestroy(pVals);
-      tqError("s-task:%s build rows for submit failed, ts:%"PRId64, id, ts);
+      tqError("s-task:%s build rows for submit failed, ts:%" PRId64, id, ts);
       return code;
     }
 
@@ -874,7 +888,7 @@ int32_t doWaitForDstTableCreated(SVnode* pVnode, SStreamTask* pTask, STableSinkI
     int64_t waitingDuration = taosGetTimestampSec() - start;
     if (waitingDuration > timeout) {
       tqError("s-task:%s wait for table-creating:%s more than %dsec, failed", id, dstTableName, timeout);
-      return  TSDB_CODE_PAR_TABLE_NOT_EXIST;
+      return TSDB_CODE_PAR_TABLE_NOT_EXIST;
     }
 
     // wait for the table to be created
@@ -904,8 +918,8 @@ int32_t doWaitForDstTableCreated(SVnode* pVnode, SStreamTask* pTask, STableSinkI
 }
 
 static int32_t doWaitForDstTableDropped(SVnode* pVnode, SStreamTask* pTask, const char* dstTableName) {
-  int32_t vgId = TD_VID(pVnode);
-  int64_t suid = pTask->outputInfo.tbSink.stbUid;
+  int32_t     vgId = TD_VID(pVnode);
+  int64_t     suid = pTask->outputInfo.tbSink.stbUid;
   const char* id = pTask->id.idStr;
 
   while (1) {
@@ -986,7 +1000,8 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
         tqDebug("s-task:%s failed to build auto create table-name:%s, groupId:0x%" PRId64, id, dstTableName, groupId);
         return code;
       } else {
-        tqDebug("s-task:%s no table name given, generated sub-table-name:%s, groupId:0x%" PRId64, id, dstTableName, groupId);
+        tqDebug("s-task:%s no table name given, generated sub-table-name:%s, groupId:0x%" PRId64, id, dstTableName,
+                groupId);
       }
     } else {
       if (pTask->subtableWithoutMd5 != 1 && !isAutoTableName(dstTableName) &&
@@ -1222,7 +1237,8 @@ bool hasOnlySubmitData(const SArray* pBlocks, int32_t numOfBlocks) {
   return true;
 }
 
-int32_t doPutSinkTableInfoIntoCache(SSHashObj* pSinkTableMap, STableSinkInfo* pTableSinkInfo, uint64_t groupId, const char* id) {
+int32_t doPutSinkTableInfoIntoCache(SSHashObj* pSinkTableMap, STableSinkInfo* pTableSinkInfo, uint64_t groupId,
+                                    const char* id) {
   int32_t code = tSimpleHashPut(pSinkTableMap, &groupId, sizeof(uint64_t), &pTableSinkInfo, POINTER_BYTES);
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFreeClear(pTableSinkInfo);
@@ -1413,7 +1429,8 @@ void rebuildAndSendMultiResBlock(SStreamTask* pTask, const SArray* pBlocks, SVno
   }
 }
 
-int32_t handleResultBlockMsg(SStreamTask* pTask, SSDataBlock* pDataBlock, int32_t index, SVnode* pVnode, int64_t earlyTs) {
+int32_t handleResultBlockMsg(SStreamTask* pTask, SSDataBlock* pDataBlock, int32_t index, SVnode* pVnode,
+                             int64_t earlyTs) {
   int32_t     code = 0;
   STSchema*   pTSchema = pTask->outputInfo.tbSink.pTSchema;
   int64_t     suid = pTask->outputInfo.tbSink.stbUid;

@@ -31,6 +31,7 @@ exe:
 	gcc $(CFLAGS) ./stmt-crash.c  -o $(ROOT)stmt-crash $(LFLAGS)
 	gcc $(CFLAGS) ./stmt-insert-dupkeys.c  -o $(ROOT)stmt-insert-dupkeys $(LFLAGS)
 	gcc $(CFLAGS) ./stmt2-insert-dupkeys.c  -o $(ROOT)stmt2-insert-dupkeys $(LFLAGS)
+	gcc $(CFLAGS) ./insertBlob.c  -o $(ROOT)insertBlob $(LFLAGS)
 
 clean:
 	rm $(ROOT)batchprepare
@@ -51,3 +52,4 @@ clean:
 	rm $(ROOT)stmt-crash
 	rm $(ROOT)stmt-insert-dupkeys
 	rm $(ROOT)stmt2-insert-dupkeys
+	rm $(ROOT)insertBlob
