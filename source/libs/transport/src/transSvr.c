@@ -240,7 +240,7 @@ static bool uvCheckIp(SIpRange* pRange, SIpAddr* ip) {
     }
     return subnetCheckIp(&subnet, ipUint.ipV4.ip);
   } else if (pRange->type == 1) {
-    return true;
+    return transUtilCheckDualIp(pRange, &ipUint);
   }
 
   return false;

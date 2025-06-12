@@ -353,7 +353,6 @@ TEST(TcsTest, InterfaceNonBlobTest) {
   const char *object_name_arr[] = {object_name};
   code = tcsDeleteObjects(object_name_arr, 1);
   GTEST_ASSERT_EQ(code, 0);
-
   tcsUninit();
 #endif
 }

@@ -103,13 +103,9 @@ static void dmUpdateRpcIpWhite(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
 
   rpcFreeCont(pRpc->pCont);
 }
-static bool dmIsForbiddenIp(int8_t forbidden, char *user, uint32_t clientIp) {
+static bool dmIsForbiddenIp(int8_t forbidden, char *user, SIpAddr *clientIp) {
   if (forbidden) {
-    SIpV4Range range = {.ip = clientIp, .mask = 32};
-    char       buf[36] = {0};
-
-    (void)rpcUtilSIpRangeToStr(&range, buf);
-    dError("User:%s host:%s not in ip white list", user, buf);
+    dError("User:%s host:%s not in ip white list", user, IP_ADDR_STR(clientIp));
     return true;
   } else {
     return false;
@@ -149,7 +145,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     goto _OVER;
   }
 
-  bool isForbidden = dmIsForbiddenIp(pRpc->info.forbiddenIp, pRpc->info.conn.user, 0);
+  bool isForbidden = dmIsForbiddenIp(pRpc->info.forbiddenIp, pRpc->info.conn.user, &pRpc->info.conn.cliAddr);
   if (isForbidden) {
     code = TSDB_CODE_IP_NOT_IN_WHITE_LIST;
     goto _OVER;
