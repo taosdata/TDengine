@@ -24,11 +24,14 @@
 #include <random>
 
 #include "dataSink.h"
+#include "osSleep.h"
 #include "tdatablock.h"
 
 
 const int64_t baseTestTime1 = 1745142096000;
 const int64_t baseTestTime2 = 1745142097000;
+
+int32_t gTestMode = 1;
 
 SSDataBlock* createTestBlock(int64_t basetime, int64_t timeOffset) {
   SSDataBlock* b = NULL;
@@ -859,7 +862,7 @@ TEST(dataSinkTest, testWriteFileSize) {
 
 TEST(dataSinkTest, multiThreadGet) {
   const int producerCount = 1;
-  const int consumerCount = 1;
+  const int consumerCount = 16;
   const int taskPerProducer = 10000;
 
   struct Task {
@@ -869,13 +872,14 @@ TEST(dataSinkTest, multiThreadGet) {
     SSDataBlock* pBlock;
   };
 
-  std::queue<Task>        taskQueue;
-  std::mutex              queueMutex;
-  std::condition_variable queueCV;
-  bool                    done = false;
+  // Each queue has its own mutex and condition_variabl
+  std::vector<std::queue<Task>>        taskQueues(consumerCount);
+  std::vector<std::mutex>              queueMutexes(consumerCount);
+  std::vector<std::condition_variable> queueCVs(consumerCount);
+  std::vector<bool>                    doneFlags(consumerCount, false);
 
   int32_t groups[100] = {0};
-  // 初始化数据缓存
+  // Initialize data cache
   setDataSinkMaxMemSize(gMemReservedSize + 1024 * 1024);
   int64_t streamId = 100;
   int64_t taskId = 100;
@@ -888,7 +892,7 @@ TEST(dataSinkTest, multiThreadGet) {
   std::mt19937                           gen(rd());
   std::uniform_int_distribution<int64_t> dist(0, 99);
 
-  // 生产者线程
+  // Producer thread
   auto producer = [&](int tid) {
     for (int i = 0; i < taskPerProducer; ++i) {
       int64_t      groupId = dist(gen);
@@ -898,28 +902,29 @@ TEST(dataSinkTest, multiThreadGet) {
       code = putStreamDataCache(pCache, groupId, wstart, wend, pBlock, 0, 99);
       ASSERT_EQ(code, 0);
 
-      // 放入任务队列
+      // Assign to different queues according to groupId
+      int queueIdx = groupId % consumerCount;
       {
-        std::lock_guard<std::mutex> lock(queueMutex);
-        taskQueue.push(Task{groupId, wstart, wend, pBlock});
+        std::lock_guard<std::mutex> lock(queueMutexes[queueIdx]);
+        taskQueues[queueIdx].push(Task{groupId, wstart, wend, pBlock});
       }
-      queueCV.notify_one();
+       queueCVs[queueIdx].notify_one();
     }
   };
 
-  // 消费者线程
-  auto consumer = [&]() {
+  // Consumer thread
+  auto consumer = [&](int idx) {
     while (true) {
       Task task;
       {
-        std::unique_lock<std::mutex> lock(queueMutex);
-        queueCV.wait(lock, [&] { return !taskQueue.empty() || done; });
-        if (taskQueue.empty() && done) break;
-        if (taskQueue.empty()) continue;
-        task = taskQueue.front();
-        taskQueue.pop();
+        std::unique_lock<std::mutex> lock(queueMutexes[idx]);
+        queueCVs[idx].wait(lock, [&] { return !taskQueues[idx].empty() || doneFlags[idx]; });
+        if (taskQueues[idx].empty() && doneFlags[idx]) break;
+        if (taskQueues[idx].empty()) continue;
+        task = taskQueues[idx].front();
+        taskQueues[idx].pop();
       }
-      // 消费任务：get 数据并校验
+      //  Consume task: get data and check
       void*   pIter = NULL;
       int32_t code2 = getStreamDataCache(pCache, task.groupID, task.wstart, task.wend - 1, &pIter);
       ASSERT_EQ(code2, 0);
@@ -940,32 +945,35 @@ TEST(dataSinkTest, multiThreadGet) {
         ASSERT_EQ(pIter, nullptr);
       }
       blockDataDestroy(task.pBlock);
+      if (gTestMode == 1) {
+        taosMsleep(10);  // This is done to create a backlog of data
+      }
     }
   };
 
-  // 启动生产者线程
+  // Start producer threads
   std::vector<std::thread> producers;
   for (int i = 0; i < producerCount; ++i) {
     producers.emplace_back(producer, i);
   }
 
-  // 启动消费者线程
+  // Start consumer threads
   std::vector<std::thread> consumers;
   for (int i = 0; i < consumerCount; ++i) {
-    consumers.emplace_back(consumer);
+    consumers.emplace_back(consumer, i);
   }
 
-  // 等待生产者结束
+  // Wait for producers to finish
   for (auto& t : producers) t.join();
 
-  // 通知消费者结束
-  {
-    std::lock_guard<std::mutex> lock(queueMutex);
-    done = true;
+  // Notify all consumers that this producer has finished
+  for (int i = 0; i < consumerCount; ++i) {
+    std::lock_guard<std::mutex> lock(queueMutexes[i]);
+    doneFlags[i] = true;
+    queueCVs[i].notify_all();
   }
-  queueCV.notify_all();
 
-  // 等待消费者结束
+  // Wait for consumers to finish
   for (auto& t : consumers) t.join();
 
   destroyStreamDataCache(pCache);
@@ -982,6 +990,11 @@ int main(int argc, char** argv) {
   }
 
   int ret = RUN_ALL_TESTS();
+
+  gTestMode = 0; // Reset test mode to 0 for the next run
+  ::testing::GTEST_FLAG(filter) = "dataSinkTest.multiThreadGet";
+  int ret2 = RUN_ALL_TESTS();
+
   taos_cleanup();
-  return ret;
+  return ret || ret2;
 }

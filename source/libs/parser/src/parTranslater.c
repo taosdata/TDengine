@@ -7164,20 +7164,20 @@ static int32_t checkPeriodWindow(STranslateContext* pCxt, SPeriodWindowNode* pPe
 
   if (pOffset) {
     if(!pPer) {
-      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PLAN_INTERNAL_ERROR, "Offset without period"));
+      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER, "Offset without period"));
     }
 
     if (pOffset->datum.i < 0) {
-      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_NEGATIVE));
+      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER, "Negative period offset value"));
     }
 
     if (pOffset->unit != 'a' && pOffset->unit != 's' &&
         pOffset->unit != 'm' && pOffset->unit != 'h') {
-      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_UNIT));
+      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT, pOffset->unit));
     }
 
     if (checkTimeGreater(pPer, pOffset, precision, false) != TSDB_CODE_SUCCESS) {
-      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG));
+      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER, "Period offset value is greater than period value"));
     }
   }
 
@@ -7316,7 +7316,7 @@ static int32_t checkCountWindow(STranslateContext* pCxt, SCountWindowNode* pCoun
                                         "sliding value no larger than the count value."));
   }
 
-  if (pCountWin->windowCount > INT32_MAX) {
+  if (pCountWin->windowCount >= INT32_MAX) {
     PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                         "Size of Count window must less than 2147483647(INT32_MAX)."));
   }
@@ -12996,7 +12996,12 @@ static EDealRes doStreamSetSlotId(SNode* pNode, void* pContext) {
     }
     ((SColumnNode*)pNode)->slotId = *slotId;
     if (pCxt->pCollect) {
-      pCxt->errCode = nodesListAppend(pCxt->pCollect, pNode);
+      SNode *tmpNode = NULL;
+      pCxt->errCode = nodesCloneNode(pNode, &tmpNode);
+      if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+        return DEAL_RES_ERROR;
+      }
+      pCxt->errCode = nodesListAppend(pCxt->pCollect, tmpNode);
       if (TSDB_CODE_SUCCESS != pCxt->errCode) {
         return DEAL_RES_ERROR;
       }
@@ -13008,7 +13013,12 @@ static EDealRes doStreamSetSlotId(SNode* pNode, void* pContext) {
     SStreamSetSlotIdCxt* pCxt = (SStreamSetSlotIdCxt*)pContext;
     if (FUNCTION_TYPE_TBNAME == pFunc->funcType) {
       if (pCxt->pCollect) {
-        pCxt->errCode = nodesListAppend(pCxt->pCollect, pNode);
+        SNode *tmpNode = NULL;
+        pCxt->errCode = nodesCloneNode(pNode, &tmpNode);
+        if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+          return DEAL_RES_ERROR;
+        }
+        pCxt->errCode = nodesListAppend(pCxt->pCollect, tmpNode);
         if (TSDB_CODE_SUCCESS != pCxt->errCode) {
           return DEAL_RES_ERROR;
         }
@@ -13048,6 +13058,11 @@ static int32_t createStreamReqBuildOutSubtable(STranslateContext* pCxt, const ch
                                                SNodeList* pPartitionByList, char** subTblNameExpr) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pSubtableExpr = NULL;
+  if (NULL == pPartitionByList) {
+    *subTblNameExpr = NULL;
+    return code;  // no partition by list, no subtable name expression
+  }
+
   if (pSubtable) {
     pSubtableExpr = pSubtable;
   } else {
@@ -13197,19 +13212,20 @@ static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, const
   if (pOptions->pExpiredTime) {
     PAR_ERR_JRET(checkExpiredDelayTime(pCxt, (SValueNode*)pOptions->pExpiredTime));
     PAR_ERR_JRET(translateExpr(pCxt, &pOptions->pExpiredTime));
-    pReq->expiredTime = getBigintFromValueNode((SValueNode*)pOptions->pExpiredTime);
+    pReq->expiredTime = ((SValueNode*)pOptions->pExpiredTime)->datum.i;
   }
 
   if (pOptions->pMaxDelay) {
     PAR_ERR_JRET(checkExpiredDelayTime(pCxt, (SValueNode*)pOptions->pMaxDelay));
     PAR_ERR_JRET(translateExpr(pCxt, &pOptions->pMaxDelay));
-    pReq->maxDelay = getBigintFromValueNode((SValueNode*)pOptions->pMaxDelay);
+    pReq->maxDelay = ((SValueNode*)pOptions->pMaxDelay)->datum.i;
   }
 
   if (pOptions->pWaterMark) {
     PAR_ERR_JRET(translateExpr(pCxt, &pOptions->pWaterMark));
-    pReq->watermark = getBigintFromValueNode((SValueNode*)pOptions->pWaterMark);
+    pReq->watermark = ((SValueNode*)pOptions->pWaterMark)->datum.i;
   }
+
 
   if (pOptions->pFillHisStartTime) {
     STimeWindow range = {.skey = 0, .ekey = 0};
@@ -13490,7 +13506,7 @@ static int32_t createStreamReqBuildTriggerIntervalWindow(STranslateContext* pCxt
   pReq->trigger.sliding.interval = createStreamReqWindowGetBigInt(pTriggerWindow->pInterval);
   pReq->trigger.sliding.offset = createStreamReqWindowGetBigInt(pTriggerWindow->pOffset);
   pReq->trigger.sliding.sliding = createStreamReqWindowGetBigInt(pTriggerWindow->pSliding);
-  pReq->trigger.sliding.offset = createStreamReqWindowGetBigInt(pTriggerWindow->pSOffset);
+  pReq->trigger.sliding.soffset = createStreamReqWindowGetBigInt(pTriggerWindow->pSOffset);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -13519,6 +13535,7 @@ static int32_t createStreamReqBuildTriggerCountWindow(STranslateContext* pCxt, S
   PAR_ERR_RET(checkCountWindow(pCxt, pTriggerWindow));
   pReq->trigger.count.sliding = pTriggerWindow->windowSliding;
   pReq->trigger.count.countVal = pTriggerWindow->windowCount;
+  pReq->trigger.count.condCols = NULL;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -14096,7 +14113,7 @@ static int32_t createStreamReqCheckPlaceHolder(STranslateContext* pCxt, SCMCreat
   if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WSTART) || BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WEND) ||
       BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WDURATION) || BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WROWNUM)) {
     if (pReq->triggerType == WINDOW_TYPE_PERIOD || (pReq->triggerType == WINDOW_TYPE_INTERVAL && pReq->trigger.sliding.interval == 0)) {
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY, "_twstart/_twend/_twduration/_twrownum can only be used in event window"));
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY, "_twstart/_twend/_twduration/_twrownum can not be used in period window and sliding window without interval"));
     }
   }
   if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PREV_LOCAL) || BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_NEXT_LOCAL)) {
