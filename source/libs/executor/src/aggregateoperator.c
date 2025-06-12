@@ -173,7 +173,7 @@ void destroyAggOperatorInfo(void* param) {
     pInfo->pOperator = NULL;
   }
   cleanupAggSup(&pInfo->aggSup);
-  cleanupExprSupp(&pInfo->scalarExprSup);
+  cleanupExprSuppWithoutFilter(&pInfo->scalarExprSup);
   cleanupGroupResInfo(&pInfo->groupResInfo);
   taosMemoryFreeClear(param);
 }

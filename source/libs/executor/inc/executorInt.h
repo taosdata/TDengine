@@ -1032,6 +1032,7 @@ void cleanupBasicInfo(SOptrBasicInfo* pInfo);
 
 int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr, SFunctionStateStore* pStore);
 void    cleanupExprSupp(SExprSupp* pSup);
+void    cleanupExprSuppWithoutFilter(SExprSupp* pSupp);
 
 void     cleanupResultInfoInStream(SExecTaskInfo* pTaskInfo, void* pState, SExprSupp* pSup,
                                    SGroupResInfo* pGroupResInfo);

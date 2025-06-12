@@ -1025,7 +1025,7 @@ void initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock) {
   initResultRowInfo(&pInfo->resultRowInfo);
 }
 
-static void destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_t numOfOutput) {
+void destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_t numOfOutput) {
   if (pCtx == NULL) {
     return;
   }
@@ -1084,6 +1084,17 @@ void cleanupExprSupp(SExprSupp* pSupp) {
   }
 
   taosMemoryFree(pSupp->rowEntryInfoOffset);
+  memset(pSupp, 0, sizeof(SExprSupp));
+}
+
+void cleanupExprSuppWithoutFilter(SExprSupp* pSupp) {
+  destroySqlFunctionCtx(pSupp->pCtx, pSupp->pExprInfo, pSupp->numOfExprs);
+  if (pSupp->pExprInfo != NULL) {
+    destroyExprInfo(pSupp->pExprInfo, pSupp->numOfExprs);
+    taosMemoryFreeClear(pSupp->pExprInfo);
+  }
+
+  taosMemoryFreeClear(pSupp->rowEntryInfoOffset);
   memset(pSupp, 0, sizeof(SExprSupp));
 }
 

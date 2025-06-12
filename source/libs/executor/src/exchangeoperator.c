@@ -404,7 +404,37 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
   return initDataSource(numOfSources, pInfo, id);
 }
 
-int32_t resetExchangeOperState(SOperatorInfo* pOper);
+int32_t resetExchangeOperState(SOperatorInfo* pOper) {
+  SExchangeInfo* pInfo = pOper->info;
+  pInfo->current = 0;
+  pInfo->loadInfo.totalElapsed = 0;
+  pInfo->loadInfo.totalRows = 0;
+  pInfo->loadInfo.totalSize = 0;
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pSourceDataInfo); ++i) {
+    SSourceDataInfo* pDataInfo = taosArrayGet(pInfo->pSourceDataInfo, i);
+    taosMemoryFreeClear(pDataInfo->decompBuf);
+    taosMemoryFreeClear(pDataInfo->pRsp);
+
+    SSourceDataInfo dataInfo = {0};
+    dataInfo.status = EX_SOURCE_DATA_NOT_READY;
+    dataInfo.taskId = pInfo->pTaskId;
+    dataInfo.index = i;
+    *pDataInfo = dataInfo;
+  }
+
+  taosArrayClearEx(pInfo->pResultBlockList, freeBlock);
+  taosArrayClearEx(pInfo->pRecycledBlocks, freeBlock);
+
+  blockDataCleanup(pInfo->pDummyBlock);
+
+  void   *data = NULL;
+  int32_t iter = 0;
+  while ((data = tSimpleHashIterate(pInfo->pHashSources, data, &iter))) {
+    ((SExchangeSrcIndex *)data)->inUseIdx = -1;
+  }
+  
+  return 0;
+}
 
 int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNode, SExecTaskInfo* pTaskInfo,
                                    SOperatorInfo** pOptrInfo) {
@@ -1406,19 +1436,4 @@ static int32_t exchangeWait(SOperatorInfo* pOperator, SExchangeInfo* pExchangeIn
     }
   }
   return TSDB_CODE_SUCCESS;
-}
-
-int32_t resetExchangeOperState(SOperatorInfo* pOper) {
-  SExchangeInfo* pInfo = pOper->info;
-  pInfo->current = 0;
-  pInfo->loadInfo.totalElapsed = 0;
-  pInfo->loadInfo.totalRows = 0;
-  pInfo->loadInfo.totalSize = 0;
-  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pSourceDataInfo); ++i) {
-    SSourceDataInfo* pDataInfo = taosArrayGet(pInfo->pSourceDataInfo, i);
-    pDataInfo->fetchSent = false;
-    pDataInfo->code = 0;
-    pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
-  }
-  return 0;
 }

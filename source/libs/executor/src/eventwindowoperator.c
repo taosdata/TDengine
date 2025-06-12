@@ -27,11 +27,34 @@
 static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** pRes);
 static void    destroyEWindowOperatorInfo(void* param);
 static int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo, SSDataBlock* pBlock);
+void cleanupResultInfoInEventWindow(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo);
 
-static void resetEventWindowOperState(SOperatorInfo* pOper) {
+static int32_t resetEventWindowOperState(SOperatorInfo* pOper) {
   SEventWindowOperatorInfo* pEvent = pOper->info;
+  SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
+  SEventWinodwPhysiNode* pPhynode = (SEventWinodwPhysiNode*)pOper->pPhyNode;
+
   resetBasicOperatorState(&pEvent->binfo);
+  taosMemoryFree(pEvent->pRow);
+
+  pEvent->groupId = 0;
   pEvent->pPreDataBlock = NULL;
+  pEvent->inWindow = false;
+
+  colDataDestroy(&pEvent->twAggSup.timeWindowData);
+  int32_t code = initExecTimeWindowInfo(&pEvent->twAggSup.timeWindowData, &pTaskInfo->window);
+  cleanupResultInfoInEventWindow(pOper, pEvent);
+
+  if (code == 0) {
+    code = resetAggSup(&pOper->exprSupp, &pEvent->aggSup, pTaskInfo, pPhynode->window.pFuncs, NULL,
+                       sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
+                       &pTaskInfo->storageAPI.functionStore);
+  }
+  if (code == 0) {
+    code = resetExprSupp(&pEvent->scalarSup, pTaskInfo, pPhynode->window.pExprs, NULL,
+                         &pTaskInfo->storageAPI.functionStore);
+  }
+  return code;
 }
 
 int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode,
@@ -47,6 +70,7 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
     goto _error;
   }
 
+  pOperator->pPhyNode = physiNode;
   pOperator->exprSupp.hasWindowOrGroup = true;
 
   SEventWinodwPhysiNode* pEventWindowNode = (SEventWinodwPhysiNode*)physiNode;
@@ -114,6 +138,7 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, eventWindowAggregateNext, NULL, destroyEWindowOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
+  setOperatorResetStateFn(pOperator, resetEventWindowOperState);
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
