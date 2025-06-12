@@ -21,7 +21,7 @@
 
 #define GRANT_ITEM_SHOW(display)                               \
   do {                                                         \
-    if ((cols++) >= nCols) goto _end;                          \
+    if ((++cols) >= nCols) goto _end;                          \
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols))) { \
       src = (display);                                         \
       STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);                \
