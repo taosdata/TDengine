@@ -38,6 +38,8 @@ extern "C" {
 
 // --------  OS IMPL ---------
 #ifdef WINDOWS
+#include <windows.h>
+
 typedef CRITICAL_SECTION     TdThreadMutex;      // windows api
 typedef HANDLE               TdThreadMutexAttr;  // windows api
 #else
