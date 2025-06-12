@@ -166,7 +166,7 @@ class TDTestCase(TBase):
         tdLog.info(f"check table with same name")
         tdSql.execute("USE test")
         tdSql.execute("CREATE STABLE IF NOT EXISTS stb3 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT)")
-        tdSql.error("INSERT INTO stb3 USING stb3 TAGS (30) VALUES ('2024-01-01 00:00:00', 1, 2.0, 'test')", expectErrInfo="Table already exists")
+        tdSql.error("INSERT INTO stb3 USING stb3 TAGS (30) VALUES ('2024-01-01 00:00:00', 1, 2.0, 'test')", expectErrInfo="Table already exists in other stables")
         tdSql.query("select * from stb3")
         tdSql.checkRows(0)
 
