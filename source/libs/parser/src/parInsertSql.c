@@ -1351,7 +1351,7 @@ static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   }
 
   if (strcmp(stableFName, ctableFName) == 0) {
-    return TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
+    return TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE;
   }
 
   if (!pCxt->missCache) {
