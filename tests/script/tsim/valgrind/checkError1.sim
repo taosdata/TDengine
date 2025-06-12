@@ -119,6 +119,7 @@ if $rows != 3 then
   return -1
 endi
 
+
 sql show variables;
 if $rows != 93 then
   return -1
