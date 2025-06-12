@@ -292,7 +292,7 @@ typedef struct HashMapEntry {
 // Define the hash table structure
 typedef struct HashMap {
     HashMapEntry *buckets[HASH32_MAP_MAX_BUCKETS];
-    pthread_mutex_t lock;
+    TdThreadMutex lock;
 } HashMap;
 
 

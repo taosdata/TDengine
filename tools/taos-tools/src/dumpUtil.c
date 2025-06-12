@@ -436,17 +436,17 @@ uint32_t bkdrHash(const char *str) {
 // Initialize the hash table
 void hashMapInit(HashMap *map) {
     memset(map->buckets, 0, sizeof(map->buckets));
-    pthread_mutex_init(&map->lock, NULL);
+    taosThreadMutexInit(&map->lock, NULL);
 }
 
 // Insert a key-value pair
 bool hashMapInsert(HashMap *map, const char *key, void *value) {
     // lock map
-    pthread_mutex_lock(&map->lock);
+    taosThreadMutexLock(&map->lock);
     uint32_t hash = bkdrHash(key) % HASH32_MAP_MAX_BUCKETS;
     HashMapEntry *entry = (HashMapEntry *)malloc(sizeof(HashMapEntry));
     if (entry == NULL) {
-        pthread_mutex_unlock(&map->lock);
+        taosThreadMutexUnlock(&map->lock);
         return false;
     }
     
@@ -457,7 +457,7 @@ bool hashMapInsert(HashMap *map, const char *key, void *value) {
     map->buckets[hash] = entry;
     
     // unlock map
-    pthread_mutex_unlock(&map->lock);
+    taosThreadMutexUnlock(&map->lock);
     return true;
 }
 
@@ -491,7 +491,7 @@ void hashMapDestroy(HashMap *map) {
             entry = next;
         }
     }
-    pthread_mutex_destroy(&map->lock);
+    taosThreadMutexDestroy(&map->lock);
 } 
 
 

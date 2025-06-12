@@ -146,3 +146,47 @@ uint16_t defaultPort(int8_t connMode, char *dsn) {
     */
 }
  
+//
+// ---------- pthread mutex impl -------------
+//
+
+int32_t taosThreadMutexInit(TdThreadMutex *mutex, const TdThreadMutexAttr *attr) {
+#ifdef WINDOWS
+  /**
+   * Windows Server 2003 and Windows XP:  In low memory situations, InitializeCriticalSection can raise a
+   * STATUS_NO_MEMORY exception. Starting with Windows Vista, this exception was eliminated and
+   * InitializeCriticalSection always succeeds, even in low memory situations.
+   */
+  InitializeCriticalSection(mutex);
+  return 0;
+#else
+  return pthread_mutex_init(mutex, attr);
+#endif
+}
+
+int32_t taosThreadMutexDestroy(TdThreadMutex *mutex) {
+#ifdef WINDOWS
+  DeleteCriticalSection(mutex);
+  return 0;
+#else
+  return pthread_mutex_destroy(mutex);
+#endif
+}
+
+int32_t taosThreadMutexLock(TdThreadMutex *mutex) {
+#ifdef WINDOWS
+  EnterCriticalSection(mutex);
+  return 0;
+#else
+  return pthread_mutex_lock(mutex);
+#endif
+}
+
+int32_t taosThreadMutexUnlock(TdThreadMutex *mutex) {
+#ifdef WINDOWS
+  LeaveCriticalSection(mutex);
+  return 0;
+#else
+  return pthread_mutex_unlock(mutex);
+#endif
+}
