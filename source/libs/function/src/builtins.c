@@ -1055,6 +1055,12 @@ static int32_t translateOutBigInt(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateOutUnsignedInt(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_UINT].bytes, .type = TSDB_DATA_TYPE_UINT};
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateSum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
 
@@ -5151,6 +5157,27 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .pPartialFunc = "_std_partial",
     .pStateFunc = "_std_state",
     .pMergeFunc   = "_stdvar_merge"
+  },
+  {
+    .name = "crc32",
+    .type = FUNCTION_TYPE_CRC32,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_UINT_TYPE}},
+    .translateFunc = translateOutUnsignedInt,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = crc32Function,
+    .finalizeFunc = NULL
   },
   {
     .name = "_stdvar_merge",

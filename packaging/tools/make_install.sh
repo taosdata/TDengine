@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # This file is used to install TAOS time-series database on linux systems. The operating system
 # is required to use systemd to manage services at boot
@@ -237,7 +237,7 @@ function install_bin() {
 
 function install_jemalloc() {
   if [ "$osType" != "Darwin" ]; then
-    /usr/bin/install -c -d /usr/local/bin
+    ${csudo}/usr/bin/install -c -d /usr/local/bin
 
     if [ -f "${binary_dir}/build/bin/jemalloc-config" ]; then
       ${csudo}/usr/bin/install -c -m 755 ${binary_dir}/build/bin/jemalloc-config /usr/local/bin
@@ -312,9 +312,11 @@ function install_lib() {
   # Remove links
   remove_links() {
     local dir=$1
-    find ${dir} -name "libtaos.*" -exec ${csudo}rm -f {} \; || :
-    find ${dir} -name "libtaosnative.so" -exec ${csudo}rm -f {} \; || :
-    find ${dir} -name "libtaosws.so" -exec ${csudo}rm -f {} \; || :
+    if [ -d "$dir" ]; then
+      for pattern in "libtaos.*" "libtaosnative.*" "libtaosws.*"; do
+          ${csudo}find "$dir" -name "$pattern" -exec ${csudo}rm -f {} \; || :
+      done      
+    fi
   }
 
   remove_links ${lib_link_dir}
@@ -342,41 +344,46 @@ function install_lib() {
   }
 
   if [ "$osType" != "Darwin" ]; then
-    ${csudo}cp ${binary_dir}/build/lib/libtaos.so.${verNumber} \
-      ${install_main_dir}/driver &&
+    ${csudo}cp ${binary_dir}/build/lib/libtaos.so \
+      ${install_main_dir}/driver/libtaos.so.${verNumber} &&
       ${csudo}chmod 777 ${install_main_dir}/driver/libtaos.so.${verNumber}
 
-    ${csudo}cp ${binary_dir}/build/lib/libtaosnative.so.${verNumber} \
-      ${install_main_dir}/driver &&
+    ${csudo}cp ${binary_dir}/build/lib/libtaosnative.so \
+      ${install_main_dir}/driver/libtaosnative.so.${verNumber} &&
       ${csudo}chmod 777 ${install_main_dir}/driver/libtaosnative.so.${verNumber}  
 
-    ${csudo}ln -sf ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1 > /dev/null 2>&1
+    ${csudo}ln -sf ${install_main_dir}/driver/libtaos.so.${verNumber} ${lib_link_dir}/libtaos.so.1 > /dev/null 2>&1
     ${csudo}ln -sf ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so > /dev/null 2>&1
     if [ -d "${lib64_link_dir}" ]; then
-        ${csudo}ln -sf ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1 > /dev/null 2>&1
+        ${csudo}ln -sf ${install_main_dir}/driver/libtaos.so.${verNumber} ${lib64_link_dir}/libtaos.so.1 > /dev/null 2>&1
         ${csudo}ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so > /dev/null 2>&1
     fi
 
-    ${csudo}ln -sf ${install_main_dir}/driver/libtaosnative.* ${lib_link_dir}/libtaosnative.so.1 > /dev/null 2>&1
-     ${csudo}ln -sf ${lib_link_dir}/libtaosnative.so.1 ${lib_link_dir}/libtaosnative.so > /dev/null 2>&1
+    ${csudo}ln -sf ${install_main_dir}/driver/libtaosnative.so.${verNumber} ${lib_link_dir}/libtaosnative.so.1 > /dev/null 2>&1
+    ${csudo}ln -sf ${lib_link_dir}/libtaosnative.so.1 ${lib_link_dir}/libtaosnative.so > /dev/null 2>&1
     if [ -d "${lib64_link_dir}" ]; then
-        ${csudo}ln -sf ${install_main_dir}/driver/libtaosnative.* ${lib64_link_dir}/libtaosnative.so.1 > /dev/null 2>&1
+        ${csudo}ln -sf ${install_main_dir}/driver/libtaosnative.so.${verNumber} ${lib64_link_dir}/libtaosnative.so.1 > /dev/null 2>&1
         ${csudo}ln -sf ${lib64_link_dir}/libtaosnative.so.1 ${lib64_link_dir}/libtaosnative.so > /dev/null 2>&1
     fi
 
     if [ -f ${binary_dir}/build/lib/libtaosws.so ]; then
         ${csudo}cp ${binary_dir}/build/lib/libtaosws.so \
-            ${install_main_dir}/driver &&
-            ${csudo}chmod 777 ${install_main_dir}/driver/libtaosws.so ||:
+            ${install_main_dir}/driver/libtaosws.so.${verNumber} &&
+            ${csudo}chmod 777 ${install_main_dir}/driver/libtaosws.so.${verNumber} ||:
 
-        ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so ${lib_link_dir}/libtaosws.so > /dev/null 2>&1 || :
+        ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so.${verNumber} ${lib_link_dir}/libtaosws.so.1 > /dev/null 2>&1
+        ${csudo}ln -sf ${lib_link_dir}/libtaosws.so.1 ${lib_link_dir}/libtaosws.so > /dev/null 2>&1
+        if [ -d "${lib64_link_dir}" ]; then
+            ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so.${verNumber} ${lib64_link_dir}/libtaosws.so.1 > /dev/null 2>&1
+            ${csudo}ln -sf ${lib64_link_dir}/libtaosws.so.1 ${lib64_link_dir}/libtaosws.so > /dev/null 2>&1
+        fi
     fi
   else
-    ${csudo}cp -Rf ${binary_dir}/build/lib/libtaos.${verNumber}.dylib \
-      ${install_main_dir}/driver && ${csudo}chmod 777 ${install_main_dir}/driver/*
+    ${csudo}cp -Rf ${binary_dir}/build/lib/libtaos.dylib \
+      ${install_main_dir}/driver/libtaos.${verNumber}.dylib && ${csudo}chmod 777 ${install_main_dir}/driver/*
 
-    ${csudo}cp -Rf ${binary_dir}/build/lib/libtaosnative.${verNumber}.dylib \
-      ${install_main_dir}/driver && ${csudo}chmod 777 ${install_main_dir}/driver/*
+    ${csudo}cp -Rf ${binary_dir}/build/lib/libtaosnative.dylib \
+      ${install_main_dir}/driver/libtaosnative.${verNumber}.dylib && ${csudo}chmod 777 ${install_main_dir}/driver/*
 
     ${csudo}ln -sf ${install_main_dir}/driver/libtaos.${verNumber}.dylib \
       ${lib_link_dir}/libtaos.1.dylib > /dev/null 2>&1 || :
@@ -390,10 +397,10 @@ function install_lib() {
 
     if [ -f ${binary_dir}/build/lib/libtaosws.dylib ]; then
         ${csudo}cp ${binary_dir}/build/lib/libtaosws.dylib \
-            ${install_main_dir}/driver &&
-            ${csudo}chmod 777 ${install_main_dir}/driver/libtaosws.dylib ||:
+            ${install_main_dir}/driver/libtaosws.${verNumber}.dylib  &&
+            ${csudo}chmod 777 ${install_main_dir}/driver/libtaosws.${verNumber}.dylib ||:
 
-        ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.dylib ${lib_link_dir}/libtaosws.dylib > /dev/null 2>&1 || :
+        ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.${verNumber}.dylib ${lib_link_dir}/libtaosws.dylib > /dev/null 2>&1 || :
     fi
   fi
 

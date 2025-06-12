@@ -40,7 +40,7 @@ jobs:
           else
             BRANCH_NAME="${{ github.ref_name }}"
           fi
-          # BRANCH_NAME="main"
+          #BRANCH_NAME="3.0"
           echo "Target branch is $BRANCH_NAME"
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
 
@@ -53,15 +53,8 @@ jobs:
           cp -r test/docs/$BRANCH_NAME ../test_docs_backup || true
           git checkout -
           mkdir -p test/docs/$BRANCH_NAME
-          cp -r ../test_docs_backup/* test/docs/ || true
+          cp -r ../test_docs_backup/util_funcs_docs test/docs/ || true
           rm -rf ../test_docs_backup
-
-      - name: Get all changed case files
-        id: changed-case-files
-        uses: tj-actions/changed-files@v45
-        with:
-          files: |
-            test/cases/**/test_*.py
 
       - name: Get all changed utils files
         id: changed-utils-files
@@ -71,36 +64,9 @@ jobs:
             test/new_test_framework/utils/*.py
 
       - name: Generate Markdown files
-        if: steps.changed-case-files.outputs.any_changed == 'true'
-        env:
-          ALL_CHANGED_CASE_FILES: ${{ steps.changed-case-files.outputs.all_changed_files }}
         run: |
-          modified_flag=false
           mkdir -p test/docs/case_list_docs
-          for file in ${ALL_CHANGED_CASE_FILES}; do
-            echo "Processing $file"
-            module_path=$(echo "$file" | sed 's|/|.|g' | sed 's|.py$||' | sed 's|^test.cases.||')
-            markdown_file="test/docs/case_list_docs/$(echo "${module_path}" | sed 's|\.[^\.]*$||' | sed 's|\.|/|g').md"
-            echo "module_path: $module_path"
-            mkdir -p "$(dirname "$markdown_file")"
-
-            if [ ! -f "$markdown_file" ]; then
-              echo "Generating $markdown_file"
-              echo "::: ${module_path}" > "$markdown_file"
-              modified_flag=true
-            else
-              echo "Appending to $markdown_file"
-              if ! grep -q "::: ${module_path}" "$markdown_file"; then
-                echo "::: ${module_path}" >> "$markdown_file"
-                modified_flag=true
-              else
-                echo "Content already exists in $markdown_file"
-              fi
-            fi
-            echo "End $file. markdown_file: $markdown_file. modified_flag: $modified_flag"
-            cat $markdown_file
-          done
-          echo "modified_flag=$modified_flag" >> $GITHUB_ENV
+          python .github/scripts/generate_case_md.py "test/mkdocs.yml" "test/docs/case_list_docs" ""
         shell: bash
 
       - name: Generate Markdown files for utils
@@ -116,6 +82,21 @@ jobs:
             markdown_file="test/docs/util_funcs_docs/new_test_framework/utils.md"
             mkdir -p "$(dirname "$markdown_file")"
 
+            if [[ -f "$file" ]]; then
+              echo "File $file exists."
+            else
+              echo "File $file does not exist."
+              echo "Removing $file_name from $markdown_file"
+              sed -i "/::: ${file_name}/d" "$markdown_file"
+              if [ ! -s "$markdown_file" ]; then
+                echo "File $markdown_file is empty after removal. Deleting it."
+                rm -f "$markdown_file"
+                modified_util=true
+              else
+                echo "File $markdown_file is not empty after removal."
+              fi
+              continue
+            fi
             if [ ! -f "$markdown_file" ]; then
               echo "Generating $markdown_file"
               echo "::: ${file_name}" > "$markdown_file"
@@ -151,11 +132,8 @@ jobs:
           git checkout gh-pages || git checkout -b gh-pages
           echo test/docs/$BRANCH_NAME
           mkdir -p test/docs/$BRANCH_NAME
-          if [ "$modified_flag" == "true" ]; then
-            cp -r test/docs/case_list_docs test/docs/$BRANCH_NAME/
-            git add test/docs/$BRANCH_NAME/case_list_docs
-          fi
           if [ "$modified_util" == "true" ]; then
+            rm -rf test/docs/$BRANCH_NAME/util_funcs_docs
             cp -r test/docs/util_funcs_docs test/docs/$BRANCH_NAME/
             git add test/docs/$BRANCH_NAME/util_funcs_docs
           fi

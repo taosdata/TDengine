@@ -2065,11 +2065,11 @@ uint32_t bindParamBatch(threadInfo *pThreadInfo, uint32_t batch, int64_t startTi
   SSuperTable *stbInfo = pThreadInfo->stbInfo;
   uint32_t     columnCount = stbInfo->cols->size;
 
-  // if (!pThreadInfo->stmtBind || stbInfo->interlaceRows > 0 ) {
-  {
-    pThreadInfo->stmtBind = true;
-    memset(pThreadInfo->bindParams, 0, (sizeof(TAOS_MULTI_BIND) * (columnCount + 1)));
-    memset(pThreadInfo->is_null, 0, batch);
+    //if (!pThreadInfo->stmtBind || stbInfo->interlaceRows > 0 ) {
+    {
+        pThreadInfo->stmtBind = true;
+        memset(pThreadInfo->bindParams, 0,
+            (sizeof(TAOS_MULTI_BIND) * (columnCount + 1)));
 
     for (int c = 0; c <= columnCount; c++) {
       TAOS_MULTI_BIND *param = (TAOS_MULTI_BIND *)(pThreadInfo->bindParams + sizeof(TAOS_MULTI_BIND) * c);

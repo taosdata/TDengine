@@ -539,6 +539,15 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     } else if (QUERY_NODE_PHYSICAL_PLAN_PROJECT == type) {
       code = createProjectOperatorInfo(NULL, (SProjectPhysiNode*)pPhyNode, pTaskInfo, &pOperator);
     } else if (QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN == type && model != OPTR_EXEC_MODEL_STREAM) {
+      SVirtualScanPhysiNode* pVirtualTableScanNode = (SVirtualScanPhysiNode*)pPhyNode;
+      // NOTE: this is an patch to fix the physical plan
+
+      code = initQueriedTableSchemaInfo(pHandle, &pVirtualTableScanNode->scan, dbname, pTaskInfo);
+      if (code) {
+        pTaskInfo->code = code;
+        return code;
+      }
+
       code = createVirtualTableMergeOperatorInfo(NULL, pHandle, NULL, 0, (SVirtualScanPhysiNode*)pPhyNode, pTaskInfo, &pOperator);
     } else {
       code = TSDB_CODE_INVALID_PARA;
@@ -685,6 +694,12 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
 
     if (pVirtualTableScanNode->scan.node.pLimit != NULL) {
       pVirtualTableScanNode->groupSort = true;
+    }
+
+    code = initQueriedTableSchemaInfo(pHandle, &pVirtualTableScanNode->scan, dbname, pTaskInfo);
+    if (code) {
+      pTaskInfo->code = code;
+      return code;
     }
 
     STableListInfo* pTableListInfo = tableListCreate();

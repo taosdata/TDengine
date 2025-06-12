@@ -64,7 +64,7 @@ It is worth mentioning that the community edition and enterprise edition of taos
 
 ## taosX
 
-As a data pipeline component of TDengine Enterprise, taosX aims to provide users with an easy way to connect to third-party data sources without the need for coding, facilitating convenient data import. Currently, taosX supports numerous mainstream data sources, including AVEVA PI System, AVEVA Historian, OPC-UA/DA, InfluxDB, OpenTSDB, MQTT, Kafka, CSV, TDengine 2.x, TDengine 3.x, MySQL, PostgreSQL, and Oracle, among others.
+As a data pipeline component of TDengine Enterprise, taosX aims to provide users with an easy way to connect to third-party data sources without the need for coding, facilitating convenient data import. Currently, taosX supports numerous mainstream data sources, including AVEVA PI System, AVEVA Historian, OPC-UA/DA, InfluxDB, OpenTSDB, MQTT, Kafka, CSV, TDengine Query, TDengine Data Subscription, MySQL, PostgreSQL, and Oracle, among others.
 
 In practice, users usually do not need to interact directly with taosX. Instead, they can easily access and utilize the powerful features of taosX through the browser user interface provided by taosExplorer. This design simplifies the operation process, lowers the usage threshold, and allows users to focus more on data processing and analysis, thereby improving work efficiency.
 

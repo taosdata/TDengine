@@ -253,6 +253,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
   if (pMsg == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
+  PRINT_LOG_START
   int32_t         code = 0;
   SMnode         *pMnode = pMsg->info.node;
   SMqHbReq        req = {0};
@@ -266,6 +267,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
   mDebug("consumer:0x%" PRIx64 " receive hb pollFlag:%d pollStatus:%d", consumerId, req.pollFlag, pConsumer->pollStatus);
   if (req.pollFlag == 1){
     atomic_store_32(&pConsumer->pollStatus, 0);
+    pConsumer->pollTime = taosGetTimestampMs();
   }
 
   storeOffsetRows(pMnode, &req, pConsumer);
@@ -276,6 +278,7 @@ END:
   tDestroySMqHbRsp(&rsp);
   mndReleaseConsumer(pMnode, pConsumer);
   tDestroySMqHbReq(&req);
+  PRINT_LOG_END(code)
   return code;
 }
 
@@ -426,6 +429,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
   SMqAskEpRsp rsp = {0};
   int32_t     code = 0;
   SMqConsumerObj *pConsumer = NULL;
+  PRINT_LOG_START
 
   MND_TMQ_RETURN_CHECK(tDeserializeSMqAskEpReq(pMsg->pCont, pMsg->contLen, &req));
   int64_t consumerId = req.consumerId;
@@ -460,6 +464,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
 END:
   tDeleteSMqAskEpRsp(&rsp);
   mndReleaseConsumer(pMnode, pConsumer);
+  PRINT_LOG_END(code);
   return code;
 }
 
@@ -599,7 +604,7 @@ static int32_t buildSubConsumer(SMnode *pMnode, SCMSubscribeReq *subscribe, SMqC
   SMqConsumerObj *pExistedConsumer = NULL;
   int32_t code = mndAcquireConsumer(pMnode, consumerId, &pExistedConsumer);
   if (code != 0) {
-    mInfo("receive subscribe request from new consumer:0x%" PRIx64
+    mInfo("receive tmq subscribe request from new consumer:0x%" PRIx64
               ",cgroup:%s, numOfTopics:%d", consumerId,
           subscribe->cgroup, (int32_t)taosArrayGetSize(subscribe->topicNames));
 
@@ -607,7 +612,7 @@ static int32_t buildSubConsumer(SMnode *pMnode, SCMSubscribeReq *subscribe, SMqC
   } else {
     int32_t status = atomic_load_32(&pExistedConsumer->status);
 
-    mInfo("receive subscribe request from existed consumer:0x%" PRIx64
+    mInfo("receive tmq subscribe request from existed consumer:0x%" PRIx64
               ",cgroup:%s, current status:%d(%s), subscribe topic num: %d",
           consumerId, subscribe->cgroup, status, mndConsumerStatusName(status),
           (int32_t)taosArrayGetSize(subscribe->topicNames));
@@ -641,6 +646,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   SMqConsumerObj *pConsumerNew = NULL;
   STrans         *pTrans = NULL;
 
+  PRINT_LOG_START
   SCMSubscribeReq subscribe = {0};
   MND_TMQ_RETURN_CHECK(tDeserializeSCMSubscribeReq(msgStr, &subscribe, pMsg->contLen));
   bool unSubscribe = (taosArrayGetSize(subscribe.topicNames) == 0);
@@ -669,7 +675,9 @@ END:
   mndTransDrop(pTrans);
   tDeleteSMqConsumerObj(pConsumerNew);
   taosArrayDestroyP(subscribe.topicNames, NULL);
-  return (code == TSDB_CODE_TMQ_NO_NEED_REBALANCE || code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) ? 0 : code;
+  code = (code == TSDB_CODE_TMQ_NO_NEED_REBALANCE || code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) ? 0 : code;
+  PRINT_LOG_END(code);
+  return code;
 }
 
 SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {
@@ -820,7 +828,7 @@ static void removeFromTopicList(SArray *topicList, const char *pTopic, int64_t c
       taosArrayRemove(topicList, i);
       taosMemoryFree(p);
 
-      mInfo("[rebalance] consumer:0x%" PRIx64 " remove topic:%s in the %s topic list, remain newTopics:%d",
+      mInfo("tmq rebalance consumer:0x%" PRIx64 " remove topic:%s in the %s topic list, remain newTopics:%d",
             consumerId, pTopic, type, (int)taosArrayGetSize(topicList));
       break;
     }
@@ -864,7 +872,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
   } else if (pNewConsumer->updateType == CONSUMER_UPDATE_REB) {
     (void)atomic_add_fetch_32(&pOldConsumer->epoch, 1);
     pOldConsumer->rebalanceTime = taosGetTimestampMs();
-    mInfo("[rebalance] consumer:0x%" PRIx64 " rebalance update, only rebalance time", pOldConsumer->consumerId);
+    mInfo("tmq rebalance consumer:0x%" PRIx64 " rebalance update, only rebalance time", pOldConsumer->consumerId);
   } else if (pNewConsumer->updateType == CONSUMER_ADD_REB) {
     void *tmp = taosArrayGetP(pNewConsumer->rebNewTopics, 0);
     if (tmp == NULL){
@@ -877,7 +885,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
     removeFromTopicList(pOldConsumer->rebNewTopics, pNewTopic, pOldConsumer->consumerId, "new");
     bool existing = existInCurrentTopicList(pOldConsumer, pNewTopic);
     if (existing) {
-      mError("[rebalance] consumer:0x%" PRIx64 " add new topic:%s should not in currentTopics", pOldConsumer->consumerId, pNewTopic);
+      mError("tmq rebalance consumer:0x%" PRIx64 " add new topic:%s should not in currentTopics", pOldConsumer->consumerId, pNewTopic);
       taosMemoryFree(pNewTopic);
     } else {
       if (taosArrayPush(pOldConsumer->currentTopics, &pNewTopic) == NULL) {
@@ -896,7 +904,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
     pOldConsumer->rebalanceTime = taosGetTimestampMs();
     (void)atomic_add_fetch_32(&pOldConsumer->epoch, 1);
 
-    mInfo("[rebalance] consumer:0x%" PRIx64 " rebalance update add, state (%d)%s -> (%d)%s, new epoch:%d, reb-time:%" PRId64
+    mInfo("tmq rebalance consumer:0x%" PRIx64 " rebalance update add, state (%d)%s -> (%d)%s, new epoch:%d, reb-time:%" PRId64
           ", current topics:%d, newTopics:%d, removeTopics:%d",
           pOldConsumer->consumerId, status, mndConsumerStatusName(status), pOldConsumer->status,
           mndConsumerStatusName(pOldConsumer->status), pOldConsumer->epoch, pOldConsumer->rebalanceTime,
@@ -919,7 +927,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
     pOldConsumer->rebalanceTime = taosGetTimestampMs();
     (void)atomic_add_fetch_32(&pOldConsumer->epoch, 1);
 
-    mInfo("[rebalance]consumer:0x%" PRIx64 " rebalance update remove, state (%d)%s -> (%d)%s, new epoch:%d, reb-time:%" PRId64
+    mInfo("tmq rebalanceconsumer:0x%" PRIx64 " rebalance update remove, state (%d)%s -> (%d)%s, new epoch:%d, reb-time:%" PRId64
           ", current topics:%d, newTopics:%d, removeTopics:%d",
           pOldConsumer->consumerId, status, mndConsumerStatusName(status), pOldConsumer->status,
           mndConsumerStatusName(pOldConsumer->status), pOldConsumer->epoch, pOldConsumer->rebalanceTime,
@@ -1086,6 +1094,11 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
       MND_TMQ_NULL_CHECK(pColInfo);
       MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)parasStr, false));
       taosMemoryFreeClear(parasStr);
+
+      // rebalance time
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      MND_TMQ_NULL_CHECK(pColInfo);
+      MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)&pConsumer->pollTime, pConsumer->pollTime == 0));
       numOfRows++;
     }
 

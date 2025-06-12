@@ -979,8 +979,6 @@ int32_t benchParseSingleOpt(int32_t key, char *arg);
 
 void printErrCmdCodeStr(char *cmd, int32_t code, TAOS_RES *res);
 
-int32_t benchGetTotalMemory(int64_t *totalKB);
-
 #ifndef LINUX
 int32_t benchParseArgsNoArgp(int argc, char *argv[]);
 #endif

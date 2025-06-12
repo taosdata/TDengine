@@ -7595,13 +7595,12 @@ static int32_t setTableVgroupsFromEqualTbnameCond(STranslateContext* pCxt, SSele
 }
 
 static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  int32_t code = TSDB_CODE_SUCCESS;
   pCxt->currClause = SQL_CLAUSE_WHERE;
-  int32_t code = translateExpr(pCxt, &pSelect->pWhere);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = getQueryTimeRange(pCxt, pSelect->pWhere, &pSelect->timeRange);
-  }
+  PAR_ERR_RET(translateExpr(pCxt, &pSelect->pWhere));
+  PAR_ERR_RET(getQueryTimeRange(pCxt, pSelect->pWhere, &pSelect->timeRange));
   if (pSelect->pWhere != NULL && pCxt->pParseCxt->topicQuery == false) {
-    code = setTableVgroupsFromEqualTbnameCond(pCxt, pSelect);
+    PAR_ERR_RET(setTableVgroupsFromEqualTbnameCond(pCxt, pSelect));
   }
   return code;
 }
@@ -9752,7 +9751,8 @@ static int32_t checkColumnOptions(SNodeList* pList) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkTableKeepOption(STranslateContext* pCxt, STableOptions* pOptions, bool createStable) {
+static int32_t checkTableKeepOption(STranslateContext* pCxt, STableOptions* pOptions, bool createStable,
+                                    int32_t daysToKeep2) {
   if (pOptions == NULL || (pOptions->keep == -1 && pOptions->pKeepNode == NULL)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -9777,6 +9777,11 @@ static int32_t checkTableKeepOption(STranslateContext* pCxt, STableOptions* pOpt
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_VALUE_OUT_OF_RANGE,
                                    "Invalid option keep value: %lld, should be in range [%d, %d]", pOptions->keep,
                                    TSDB_MIN_KEEP, TSDB_MAX_KEEP);
+  }
+  if (pOptions->keep > daysToKeep2) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_VALUE_OUT_OF_RANGE,
+                                   "Invalid option keep value: %lld, should less than db config daysToKeep2: %d",
+                                   pOptions->keep, daysToKeep2);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -10280,7 +10285,7 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
     code = checkColumnOptions(pStmt->pCols);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkTableKeepOption(pCxt, pStmt->pOptions, createStable);
+    code = checkTableKeepOption(pCxt, pStmt->pOptions, createStable, dbCfg.daysToKeep2);
   }
   if (TSDB_CODE_SUCCESS == code) {
     if (createStable && pStmt->pOptions->ttl != 0) {
@@ -11090,7 +11095,7 @@ static int32_t checkAlterSuperTable(STranslateContext* pCxt, SAlterTableStmt* pS
     code = checkAlterSuperTableBySchema(pCxt, pStmt, pTableMeta);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkTableKeepOption(pCxt, pStmt->pOptions, true);
+    code = checkTableKeepOption(pCxt, pStmt->pOptions, true, dbCfg.daysToKeep2);
   }
   taosMemoryFree(pTableMeta);
   return code;
@@ -11148,11 +11153,18 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
 
   createReq.numIpRanges = pStmt->numIpRanges;
   if (pStmt->numIpRanges > 0) {
-    createReq.pIpRanges = taosMemoryMalloc(createReq.numIpRanges * sizeof(SIpV4Range));
+    createReq.pIpRanges = taosMemoryCalloc(1, createReq.numIpRanges * sizeof(SIpV4Range));
     if (!createReq.pIpRanges) {
       return terrno;
     }
-    memcpy(createReq.pIpRanges, pStmt->pIpRanges, sizeof(SIpV4Range) * createReq.numIpRanges);
+
+    createReq.pIpDualRanges = taosMemoryMalloc(createReq.numIpRanges * sizeof(SIpRange));
+    if (!createReq.pIpDualRanges) {
+      tFreeSCreateUserReq(&createReq);
+      return terrno;
+    }
+
+    memcpy(createReq.pIpDualRanges, pStmt->pIpRanges, sizeof(SIpRange) * createReq.numIpRanges);
   }
   code = buildCmdMsg(pCxt, TDMT_MND_CREATE_USER, (FSerializeFunc)tSerializeSCreateUserReq, &createReq);
   tFreeSCreateUserReq(&createReq);
@@ -11200,11 +11212,18 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
 
   alterReq.numIpRanges = pStmt->numIpRanges;
   if (pStmt->numIpRanges > 0) {
-    alterReq.pIpRanges = taosMemoryMalloc(alterReq.numIpRanges * sizeof(SIpV4Range));
+    alterReq.pIpRanges = taosMemoryCalloc(1, alterReq.numIpRanges * sizeof(SIpV4Range));
     if (!alterReq.pIpRanges) {
+      tFreeSAlterUserReq(&alterReq);
       return terrno;
     }
-    memcpy(alterReq.pIpRanges, pStmt->pIpRanges, sizeof(SIpV4Range) * alterReq.numIpRanges);
+
+    alterReq.pIpDualRanges = taosMemoryMalloc(alterReq.numIpRanges * sizeof(SIpRange));
+    if (!alterReq.pIpDualRanges) {
+      tFreeSAlterUserReq(&alterReq);
+      return terrno;
+    }
+    memcpy(alterReq.pIpDualRanges, pStmt->pIpRanges, sizeof(SIpRange) * alterReq.numIpRanges);
   }
   code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &alterReq);
   tFreeSAlterUserReq(&alterReq);

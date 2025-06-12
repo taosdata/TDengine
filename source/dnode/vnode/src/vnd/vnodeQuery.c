@@ -221,6 +221,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     goto _exit;
   }
   if (hasRefCol(mer1.me.type)) {
+    metaRsp.rversion = mer1.me.colRef.version;
     metaRsp.pColRefs = (SColRef*)taosMemoryMalloc(sizeof(SColRef) * metaRsp.numOfColumns);
     if (metaRsp.pColRefs) {
       code = fillTableColRef(&mer1, metaRsp.pColRefs, metaRsp.numOfColumns);
@@ -912,6 +913,20 @@ _return:
   return code;
 }
 
+static void vnodeGetBufferInfo(SVnode *pVnode, int64_t *bufferSegmentUsed, int64_t *bufferSegmentSize) {
+  *bufferSegmentUsed = 0;
+  *bufferSegmentSize = 0;
+  if (pVnode) {
+    taosThreadMutexLock(&pVnode->mutex);
+
+    if (pVnode->inUse) {
+      *bufferSegmentUsed = pVnode->inUse->size;
+    }
+    *bufferSegmentSize = pVnode->config.szBuf / VNODE_BUFPOOL_SEGMENTS;
+
+    taosThreadMutexUnlock(&pVnode->mutex);
+  }
+}
 
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   SSyncState state = syncGetState(pVnode->sync);
@@ -938,6 +953,7 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->numOfInsertSuccessReqs = atomic_load_64(&pVnode->statis.nInsertSuccess);
   pLoad->numOfBatchInsertReqs = atomic_load_64(&pVnode->statis.nBatchInsert);
   pLoad->numOfBatchInsertSuccessReqs = atomic_load_64(&pVnode->statis.nBatchInsertSuccess);
+  vnodeGetBufferInfo(pVnode, &pLoad->bufferSegmentUsed, &pLoad->bufferSegmentSize);
   return 0;
 }
 
@@ -1137,15 +1153,17 @@ int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t vnodeGetStbKeep(SVnode *pVnode, tb_uid_t suid, int64_t *keep) {
+int32_t vnodeGetStbInfo(SVnode *pVnode, tb_uid_t suid, int64_t *keep, int8_t *flags) {
   SMetaReader mr = {0};
   metaReaderDoInit(&mr, pVnode->pMeta, META_READER_NOLOCK);
 
   int32_t code = metaReaderGetTableEntryByUid(&mr, suid);
   if (code == TSDB_CODE_SUCCESS) {
-    *keep = mr.me.stbEntry.keep;
+    if (keep) *keep = mr.me.stbEntry.keep;
+    if (flags) *flags = mr.me.flags;
   } else {
-    *keep = 0;  // Default value if not found
+    if (keep) *keep = 0;
+    if (flags) *flags = 0;
   }
 
   metaReaderClear(&mr);
@@ -1251,11 +1269,14 @@ int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
 
     int64_t ctbNum = 0;
     int32_t numOfCols = 0;
-    code = metaGetStbStats(pVnode, suid, &ctbNum, &numOfCols);
+    int8_t  flags = 0;
+    code = metaGetStbStats(pVnode, suid, &ctbNum, &numOfCols, &flags);
     if (TSDB_CODE_SUCCESS != code) {
       goto _exit;
     }
-    *num += ctbNum * (numOfCols - 1);
+    if (!TABLE_IS_VIRTUAL(flags)) {
+      *num += ctbNum * (numOfCols - 1);
+    }
   }
 
 _exit:

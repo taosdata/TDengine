@@ -132,11 +132,20 @@ void transFreeMsg(void* msg) {
   taosMemoryFree((char*)msg - sizeof(STransMsgHead));
 }
 void transSockInfo2Str(struct sockaddr* sockname, char* dst) {
-  struct sockaddr_in addr = *(struct sockaddr_in*)sockname;
+  char     buf[IP_RESERVE_CAP] = {0};
+  uint16_t port = 0;
+  if (sockname->sa_family == AF_INET) {
+    struct sockaddr_in* addr = (struct sockaddr_in*)sockname;
 
-  char buf[20] = {0};
-  int  r = uv_ip4_name(&addr, (char*)buf, sizeof(buf));
-  sprintf(dst, "%s:%d", buf, ntohs(addr.sin_port));
+    int r = uv_ip4_name(addr, (char*)buf, sizeof(buf));
+
+    port = ntohs(addr->sin_port);
+  } else if (sockname->sa_family == AF_INET6) {
+    struct sockaddr_in6* addr = (struct sockaddr_in6*)sockname;
+    uv_ip6_name(addr, buf, sizeof(buf));
+    port = ntohs(addr->sin6_port);
+  }
+  sprintf(dst, "%s:%d", buf, port);
 }
 int32_t transInitBuffer(SConnBuffer* buf) {
   buf->buf = taosMemoryCalloc(1, BUFFER_CAP);
@@ -384,7 +393,9 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
 
 void transCtxInit(STransCtx* ctx) {
   // init transCtx
-  ctx->args = taosHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  ctx->args = taosHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  ctx->brokenVal.val = NULL;
+  ctx->freeFunc = NULL;
 }
 void transCtxCleanup(STransCtx* ctx) {
   if (ctx == NULL || ctx->args == NULL) {
@@ -407,26 +418,52 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
   if (src->args == NULL || src->freeFunc == NULL) {
     return;
   }
+  SRpcBrokenlinkVal tval = {0};
+  void (*freeFunc)(const void* arg) = NULL;
+
   if (dst->args == NULL) {
     dst->args = src->args;
     dst->brokenVal = src->brokenVal;
     dst->freeFunc = src->freeFunc;
     src->args = NULL;
     return;
+  } else {
+    tval = dst->brokenVal;
+    freeFunc = dst->freeFunc;
+
+    dst->brokenVal = src->brokenVal;
+    dst->freeFunc = src->freeFunc;
   }
-  void*  key = NULL;
+
   size_t klen = 0;
   void*  iter = taosHashIterate(src->args, NULL);
   while (iter) {
     STransCtxVal* sVal = (STransCtxVal*)iter;
-    key = taosHashGetKey(sVal, &klen);
+    int32_t*      msgType = taosHashGetKey(sVal, &klen);
 
-    int32_t code = taosHashPut(dst->args, key, klen, sVal, sizeof(*sVal));
+    STransCtxVal* dVal = taosHashGet(dst->args, msgType, sizeof(*msgType));
+    if (dVal != NULL) {
+      tDebug("free msg type %s dump func", TMSG_INFO(*(int32_t*)msgType));
+      dst->freeFunc(dVal->val);
+      dVal->val = NULL;
+
+      TAOS_UNUSED(taosHashRemove(dst->args, msgType, sizeof(*msgType)));
+    }
+
+    int32_t code = taosHashPut(dst->args, msgType, sizeof(*msgType), sVal, sizeof(*sVal));
     if (code != 0) {
       tError("failed to put val to hash since %s", tstrerror(code));
+      tDebug("put msg type %s dump func", TMSG_INFO(*(int32_t*)msgType));
+      if (src->freeFunc) (src->freeFunc)(sVal->val);
+      sVal->val = NULL;
     }
     iter = taosHashIterate(src->args, iter);
   }
+  if (freeFunc != NULL && tval.val != NULL) {
+    freeFunc(tval.val);
+    tval.val = NULL;
+  }
+
   taosHashCleanup(src->args);
 }
 void* transCtxDumpVal(STransCtx* ctx, int32_t key) {
@@ -881,42 +918,64 @@ int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) {
   return len;
 }
 
-int32_t transUtilSWhiteListToStr(SIpWhiteList* pList, char** ppBuf) {
+int32_t transUtilSWhiteListToStr(SIpWhiteListDual* pList, char** ppBuf) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  char*   pBuf = NULL;
+  int32_t len = 0;
   if (pList->num == 0) {
-    *ppBuf = NULL;
-    return 0;
+    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_PARA, lino, _error);
   }
 
-  int32_t len = 0;
-  char*   pBuf = taosMemoryCalloc(1, pList->num * 36);
+  pBuf = taosMemoryCalloc(1, pList->num * IP_RESERVE_CAP);
   if (pBuf == NULL) {
-    return terrno;
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
 
   for (int i = 0; i < pList->num; i++) {
-    SIpV4Range* pRange = &pList->pIpRange[i];
+    SIpRange* pRange = &pList->pIpRanges[i];
+    SIpAddr   addr = {0};
+    code = tIpUintToStr(pRange, &addr);
+    TSDB_CHECK_CODE(code, lino, _error);
 
-    char tbuf[32] = {0};
-    int  tlen = transUtilSIpRangeToStr(pRange, tbuf);
-    if (tlen < 0) {
-      taosMemoryFree(pBuf);
-      return tlen;
-    }
-
-    len += sprintf(pBuf + len, "%s,", tbuf);
+    len += sprintf(pBuf + len, "%s,", IP_ADDR_STR(&addr));
   }
   if (len > 0) {
     pBuf[len - 1] = 0;
   }
 
   *ppBuf = pBuf;
+_error:
+  if (code != 0) {
+    taosMemoryFree(pBuf);
+    *ppBuf = NULL;
+  }
+
   return len;
 }
 
-// int32_t transGenRandomError(int32_t status) {
-//   STUB_RAND_NETWORK_ERR(status)
-//   return status;
-// }
+bool transUtilCheckIpDual(SIpRange* range, SIpRange* ip) {
+  SIpV6Range* p6 = &range->ipV6;
+  SIpV6Range* pIp = &ip->ipV6;
+
+  if (p6->mask == 0) {
+    return true;
+  } else if (p6->mask == 128) {
+    return p6->addr[0] == pIp->addr[0] && p6->addr[1] == pIp->addr[1];
+  }
+
+  uint64_t maskHigh = 0, maskLow = 0;
+  if (p6->mask <= 64) {
+    maskHigh = (0xFFFFFFFFFFFFFFFFULL << (64 - p6->mask));
+    maskLow = 0;
+  } else {
+    maskHigh = 0xFFFFFFFFFFFFFFFFULL;
+    maskLow = (0xFFFFFFFFFFFFFFFFULL << (128 - p6->mask));
+  }
+
+  return ((pIp->addr[0] & maskHigh) == (p6->addr[0] & maskHigh)) &&
+         ((pIp->addr[1] & maskLow) == (p6->addr[1] & maskLow));
+}
 
 int32_t initWQ(queue* wq) {
   int32_t code = 0;
@@ -1091,9 +1150,7 @@ int32_t transCompressMsg(char* msg, int32_t len) {
   taosMemoryFree(buf);
   return ret;
 }
-int32_t transDecompressMsg(char** msg, int32_t* len) {
-  return 0;
-}
+int32_t transDecompressMsg(char** msg, int32_t* len) { return 0; }
 
 void transFreeMsg(void* msg) {
   if (msg == NULL) {
@@ -1285,7 +1342,7 @@ void* procClientMsg(void* arg) {
       } else {
         tError("taosc failed to find callback for msg type:%s", TMSG_INFO(pRpcMsg->msgType));
       }
-      taosFreeQitem(pRpcMsg);      
+      taosFreeQitem(pRpcMsg);
     }
     taosUpdateItemSize(qinfo.queue, numOfMsgs);
   }

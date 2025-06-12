@@ -165,6 +165,7 @@ static const SSysDbTableSchema userStbsSchema[] = {
     {.name = "rollup", .bytes = 128 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "uid", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
     {.name = "isvirtual", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL, .sysInfo = false},
+    {.name = "keep",.bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
 };
 
 static const SSysDbTableSchema streamSchema[] = {
@@ -378,6 +379,8 @@ static const SSysDbTableSchema vnodesSchema[] = {
     {.name = "restored", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL, .sysInfo = true},
     {.name = "apply_finish_time", .bytes = TSDB_SYNC_RESTORE_lEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "unapplied", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "buffer_segment_used", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "buffer_segment_size", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
 };
 
 static const SSysDbTableSchema userUserPrivilegesSchema[] = {
@@ -479,6 +482,7 @@ static const SSysDbTableSchema userGrantsLogsSchema[] = {
     {.name = "active", .bytes = 512 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "machine", .bytes = TSDB_GRANT_LOG_COL_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "active_info", .bytes = 512 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "revoke_info", .bytes = 30 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
 };
 
 static const SSysDbTableSchema userMachinesSchema[] = {
@@ -574,6 +578,8 @@ static const SSysDbTableSchema consumerSchema[] = {
     {.name = "subscribe_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "rebalance_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "parameters", .bytes = 128 + TSDB_OFFSET_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
+    {.name = "poll_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+
 };
 
 static const SSysDbTableSchema offsetSchema[] = {

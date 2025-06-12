@@ -28,6 +28,10 @@ target_link_libraries(
     PRIVATE os common transport geometry util
 )
 
+IF(TD_WEBSOCKET)
+    ADD_DEPENDENCIES(shell ext_taosws)
+ENDIF()
+
 target_include_directories(
     shell
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"

@@ -582,11 +582,12 @@ int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo
     code = catalogGetTableMeta((SCatalog*)pBuildInfo->pCatalog, &conn, &sname, &pTableMeta);
 
     if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
-      parserDebug("tb:%s.%s not exist", sname.dbname, sname.tname);
+      parserWarn("stmt2 async bind don't find table:%s.%s, try auto create table", sname.dbname, sname.tname);
       return code;
     }
 
     if (TSDB_CODE_SUCCESS != code) {
+      parserError("stmt2 async get table meta:%s.%s failed, code:%d", sname.dbname, sname.tname, code);
       return code;
     }
 
@@ -632,8 +633,8 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
     pTbCtx->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
     vgId = (int32_t)ctbReq->uid;
     uid = 0;
-    pTbCtx->pMeta->vgId=(int32_t)ctbReq->uid;
-    ctbReq->uid=0;
+    pTbCtx->pMeta->vgId = (int32_t)ctbReq->uid;
+    ctbReq->uid = 0;
     pTbCtx->pData->pCreateTbReq = ctbReq;
     code = TSDB_CODE_SUCCESS;
   } else {
@@ -644,8 +645,11 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
     pTbCtx->pMeta->uid = uid;
     pTbCtx->pData->uid = uid;
     pTbCtx->pData->pCreateTbReq = NULL;
+
     if (ctbReq != NULL) {
       tdDestroySVCreateTbReq(ctbReq);
+      taosMemoryFree(ctbReq);
+      ctbReq = NULL;
     }
   }
 

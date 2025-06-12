@@ -81,6 +81,7 @@ bool chkRequestKilled(void* param) {
 void cleanupAppInfo() {
   taosHashCleanup(appInfo.pInstMap);
   taosHashCleanup(appInfo.pInstMapByClusterId);
+  tscInfo("cluster instance map cleaned");
 }
 
 static int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __taos_async_fn_t fp, void* param,
@@ -92,6 +93,7 @@ int32_t taos_connect_internal(const char* ip, const char* user, const char* pass
   if (!validateUserName(user)) {
     TSC_ERR_RET(TSDB_CODE_TSC_INVALID_USER_LENGTH);
   }
+  int32_t code = 0;
 
   char localDb[TSDB_DB_NAME_LEN] = {0};
   if (db != NULL && strlen(db) > 0) {
@@ -135,9 +137,17 @@ int32_t taos_connect_internal(const char* ip, const char* user, const char* pass
   for (int32_t i = 0; i < epSet.epSet.numOfEps; ++i) {
     tscInfo("ep:%d, %s:%u", i, epSet.epSet.eps[i].fqdn, epSet.epSet.eps[i].port);
   }
+  // for (int32_t i = 0; i < epSet.epSet.numOfEps; i++) {
+  //   if ((code = taosValidFqdn(tsEnableIpv6, epSet.epSet.eps[i].fqdn)) != 0) {
+  //     taosMemFree(key);
+  //     tscError("ipv6 flag %d, the local FQDN %s does not resolve to the ip address since %s", tsEnableIpv6,
+  //              epSet.epSet.eps[i].fqdn, tstrerror(code));
+  //     TSC_ERR_RET(code);
+  //   }
+  // }
 
   SAppInstInfo** pInst = NULL;
-  int32_t        code = taosThreadMutexLock(&appInfo.mutex);
+  code = taosThreadMutexLock(&appInfo.mutex);
   if (TSDB_CODE_SUCCESS != code) {
     tscError("failed to lock app info, code:%s", tstrerror(TAOS_SYSTEM_ERROR(code)));
     TSC_ERR_RET(code);
@@ -960,7 +970,8 @@ int32_t handleQueryExecRes(SRequestObj* pRequest, void* res, SCatalog* pCatalog,
       code = terrno;
       goto _return;
     }
-    STbSVersion tbSver = {.tbFName = tbInfo->tbFName, .sver = tbInfo->sversion, .tver = tbInfo->tversion};
+    STbSVersion tbSver = {
+        .tbFName = tbInfo->tbFName, .sver = tbInfo->sversion, .tver = tbInfo->tversion, .rver = tbInfo->rversion};
     if (NULL == taosArrayPush(pArray, &tbSver)) {
       code = terrno;
       goto _return;
@@ -1576,8 +1587,9 @@ int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* p
       terrno = TSDB_CODE_TSC_INVALID_FQDN;
       return terrno;
     }
-    uint32_t addr = 0;
-    code = taosGetIpv4FromFqdn(mgmtEpSet->eps[mgmtEpSet->numOfEps].fqdn, &addr);
+    // uint32_t addr = 0;
+    SIpAddr addr = {0};
+    code = taosGetIpFromFqdn(tsEnableIpv6, mgmtEpSet->eps[mgmtEpSet->numOfEps].fqdn, &addr);
     if (code) {
       tscError("failed to resolve firstEp fqdn: %s, code:%s", mgmtEpSet->eps[mgmtEpSet->numOfEps].fqdn,
                tstrerror(TSDB_CODE_TSC_INVALID_FQDN));
@@ -1597,8 +1609,8 @@ int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* p
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
-    uint32_t addr = 0;
-    code = taosGetIpv4FromFqdn(mgmtEpSet->eps[mgmtEpSet->numOfEps].fqdn, &addr);
+    SIpAddr addr = {0};
+    code = taosGetIpFromFqdn(tsEnableIpv6, mgmtEpSet->eps[mgmtEpSet->numOfEps].fqdn, &addr);
     if (code) {
       tscError("failed to resolve secondEp fqdn: %s, code:%s", mgmtEpSet->eps[mgmtEpSet->numOfEps].fqdn,
                tstrerror(TSDB_CODE_TSC_INVALID_FQDN));
@@ -2676,6 +2688,7 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.readTimeout = tsReadTimeout;
+  rpcInit.ipv6 = tsEnableIpv6;
   if (TSDB_CODE_SUCCESS != taosVersionStrToInt(td_version, &rpcInit.compatibilityVer)) {
     tscError("faild to convert taos version from str to int, errcode:%s", terrstr());
     goto _OVER;

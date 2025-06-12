@@ -3,11 +3,10 @@ name: TDengine Release Build
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 */2 * * *'
+    - cron: '0 */6 * * *'
   push:
     branches:
-      - 'main'
-      - '3.*'
+      - main
     paths-ignore:
       - 'docs/**'
       - 'packaging/**'
@@ -65,8 +64,6 @@ jobs:
             gflags \
             geos \
             jansson \
-            openssl \
-            pkg-config \
             snappy \
             zlib
 
@@ -91,7 +88,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_DEPENDENCY_TESTS=false
           make -j 4
-          sudo make install
+          make install
           which taosd
           which taosadapter
           which taoskeeper
@@ -108,9 +105,9 @@ jobs:
 
       - name: Start taosd
         run: |
-          cp /etc/taos/taos.cfg ./
-          sudo echo "supportVnodes 256" >> taos.cfg
-          nohup sudo taosd -c taos.cfg &
+          # sudo bash -c 'echo "fqdn localhost" >> /etc/taos/taos.cfg'
+          sudo bash -c 'echo "supportVnodes 256" >> /etc/taos/taos.cfg'
+          nohup sudo taosd &
 
       - name: Start taosadapter
         run: nohup sudo taosadapter &

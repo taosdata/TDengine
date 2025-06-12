@@ -74,7 +74,7 @@ After modifying configuration file parameters, you need to restart the *taosd* s
 |queryBufferSize         |          |Supported, effective after restart|Not effective yet|
 |queryRspPolicy          |          |Supported, effective immediately  |Query response strategy|
 |queryUseMemoryPool      |          |Not supported                     |Whether query will use memory pool to manage memory, default value: 1 (on); 0: off, 1: on|
-|minReservedMemorySize   |          |Not supported                     |The minimum reserved system available memory size, all memory except reserved can be used for queries, unit: MB, default reserved size is 20% of system physical memory, value range 1024-1000000000|
+|minReservedMemorySize   |          |Supported, effective immediately  |The minimum reserved system available memory size, all memory except reserved can be used for queries, unit: MB, default reserved size is 20% of system physical memory, value range 1024-1000000000|
 |singleQueryMaxMemorySize|          |Not supported                     |The memory limit that a single query can use on a single node (dnode), exceeding this limit will return an error, unit: MB, default value: 0 (no limit), value range 0-1000000000|
 |filterScalarMode        |          |Not supported                     |Force scalar filter mode, 0: off; 1: on, default value 0|
 |queryRsmaTolerance      |          |Not supported                     |Internal parameter, tolerance time for determining which level of rsma data to query, in milliseconds|
@@ -225,6 +225,7 @@ The effective value of charset is UTF-8.
 |compactPullupInterval     |          |Supported, effective immediately  |Internal parameter, frequency of data reorganization timer|
 |walFsyncDataSizeLimit     |          |Supported, effective immediately  |Internal parameter, threshold for WAL to perform FSYNC|
 |transPullupInterval       |          |Supported, effective immediately  |Internal parameter, retry interval for mnode to execute transactions|
+|forceKillTrans            |3.3.7.0   |Supported, effective immediately  |Internal parameter, for debugging mnode module to execute transactions|
 |mqRebalanceInterval       |          |Supported, effective immediately  |Internal parameter, interval for consumer rebalancing|
 |uptimeInterval            |          |Supported, effective immediately  |Internal parameter, for recording system uptime|
 |timeseriesThreshold       |          |Supported, effective immediately  |Internal parameter, for usage statistics|
@@ -258,7 +259,7 @@ The effective value of charset is UTF-8.
 | minimalLogDirGB |          |Not supported                     | Stops writing logs when the available space on the disk where the log folder is located is less than this value, unit GB, default value 1 |
 | numOfLogLines   |          |Supported, effective immediately  | Maximum number of lines allowed in a single log file, default value 10,000,000 |
 | asyncLog        |          |Supported, effective immediately  | Log writing mode, 0: synchronous, 1: asynchronous, default value 1 |
-| logKeepDays     |          |Supported, effective immediately  | Maximum retention time for log files, unit: days, default value 0, which means unlimited retention, log files will not be renamed, nor will new log files be rolled out, but the content of the log files may continue to roll depending on the log file size setting; when set to a value greater than 0, when the log file size reaches the set limit, it will be renamed to taosdlog.yyy, where yyy is the timestamp of the last modification of the log file, and a new log file will be rolled out |
+| logKeepDays     |          |Supported, effective immediately  | Maximum retention time for log files, unit: days, default value 0, which means unlimited retention, log files will not be renamed, nor will new log files be rolled out, but the content of the log files may continue to roll depending on the log file size setting; when set to a value greater than 0, when the log file size reaches the set limit, it will be renamed to taosdlog.yyy, where yyy is the timestamp of the last modification of the log file, and a new log file will be rolled out, and log files whose creation time exceeds logKeepDays will be removed; Considering the usage habits of users of TDengine 2.0, starting from TDengine 3.3.6.6, when the value is set to less than 0, except that log files whose creation time exceeds -logKeepDays will be removed, other behaviors are the same as those when the value is greater than 0(For TDengine versions between 3.0.0.0 and 3.3.6.5, it is not recommended to set the value to less than 0) |
 | slowLogThreshold| 3.3.3.0 onwards |Supported, effective immediately  | Slow query threshold, queries taking longer than or equal to this threshold are considered slow, unit seconds, default value 3 |
 | slowLogMaxLen   | 3.3.3.0 onwards |Supported, effective immediately  | Maximum length of slow query logs, range 1-16384, default value 4096 |
 | slowLogScope    | 3.3.3.0 onwards |Supported, effective immediately  | Type of slow query records, range ALL/QUERY/INSERT/OTHERS/NONE, default value QUERY |

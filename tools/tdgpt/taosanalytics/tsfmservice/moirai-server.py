@@ -35,14 +35,17 @@ def uni2ts():
             }), 400
 
         input_data = data['input']
-        input_data = input_data[:_max_input_length]
+        input_data = input_data[-_max_input_length:]
 
         prediction_length = data.get('next_len', 10)
         interval = data.get('conf_interval', 0.95)   # confidence interval
 
         past_dynamic_real = data.get('past_dynamic_real', [])
 
-        if len(past_dynamic_real) == 0:  # uni-variate forecasting processing
+        for i in range(len(past_dynamic_real)):
+            past_dynamic_real[i] = past_dynamic_real[i][-_max_input_length:]
+
+        if len(past_dynamic_real) == 0:  # single-variate forecasting processing
             resp = handle_singlevariate_forecast(input_data, prediction_length, interval)
         else: # co-variate forecasting processing
             resp = handle_covariate_forecast(input_data, prediction_length, interval, past_dynamic_real)
@@ -106,6 +109,7 @@ def handle_singlevariate_forecast(input_data, prediction_length, interval):
         'upper': res.quantile(0.5 + interval/2, dim=0).tolist(),
         'conf_interval':interval
     }
+
 
 def handle_covariate_forecast(input_data, prediction_length, interval, past_dynamic_real):
     """co-variate forecasting processing"""

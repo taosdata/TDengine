@@ -1044,33 +1044,6 @@ FORCE_INLINE void printErrCmdCodeStr(char *cmd, int32_t code, TAOS_RES *res) {
     taos_free_result(res);
 }
 
-int32_t benchGetTotalMemory(int64_t *totalKB) {
-#ifdef WINDOWS
-  MEMORYSTATUSEX memsStat;
-  memsStat.dwLength = sizeof(memsStat);
-  if (!GlobalMemoryStatusEx(&memsStat)) {
-    return -1;
-  }
-
-  *totalKB = memsStat.ullTotalPhys / 1024;
-  return 0;
-#elif defined(_TD_DARWIN_64)
-  int64_t phys_mem;
-  size_t len = sizeof(phys_mem);
-
-  if (sysctl((int[]){CTL_HW, HW_MEMSIZE}, 2, &phys_mem, &len, NULL, 0) == -1) {
-    return -1;
-  }
-
-  *totalKB = phys_mem / 1024;
-  return 0;
-#else
-  int64_t pageSizeKB = sysconf(_SC_PAGESIZE) / 1024;
-  *totalKB = (int64_t)(sysconf(_SC_PHYS_PAGES) * pageSizeKB);
-  return 0;
-#endif
-}
-
 // geneate question mark string , using insert into ... values(?,?,?...)
 // return value must call tmfree to free memory
 char* genQMark( int32_t QCnt) {

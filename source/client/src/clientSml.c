@@ -790,20 +790,11 @@ static int32_t smlCheckMeta(SSchema *schema, int32_t length, SArray *cols) {
     if (sTmp == NULL) {
       SML_CHECK_CODE(TSDB_CODE_SML_INVALID_DATA);
     }
-    if (IS_VAR_DATA_TYPE(kv->type)) {
-      if (IS_STR_DATA_BLOB(kv->type)) {
-        if ((kv->length + BLOBSTR_HEADER_SIZE) > sTmp->bytes) {
-          uError("column %s (type %s) bytes invalid. db bytes:%d, kv bytes:%zu", sTmp->name,
-                 tDataTypes[sTmp->type].name, sTmp->bytes, kv->length);
-          SML_CHECK_CODE(TSDB_CODE_INTERNAL_ERROR);
-        }
-      } else {
-        if ((kv->length + VARSTR_HEADER_SIZE) > sTmp->bytes) {
-          uError("column %s (type %s) bytes invalid. db bytes:%d, kv bytes:%zu", sTmp->name,
-                 tDataTypes[sTmp->type].name, sTmp->bytes, kv->length);
-          SML_CHECK_CODE(TSDB_CODE_INTERNAL_ERROR);
-        }
-      }
+    if ((kv->type == TSDB_DATA_TYPE_VARCHAR && kv->length + VARSTR_HEADER_SIZE > sTmp->bytes) ||
+        (kv->type == TSDB_DATA_TYPE_NCHAR && kv->length * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE > sTmp->bytes)) {
+      uError("column %s (type %s) bytes invalid. db bytes:%d, kv bytes:%zu", sTmp->name,
+             tDataTypes[sTmp->type].name, sTmp->bytes, kv->length);
+      SML_CHECK_CODE(TSDB_CODE_MND_INVALID_SCHEMA_VER);
     }
   }
 

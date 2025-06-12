@@ -3941,18 +3941,14 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
             .type = infos[iInfo].type,
         };
         if (IS_VAR_DATA_TYPE(infos[iInfo].type)) {
-          if (IS_STR_DATA_BLOB(infos[iInfo].type)) {
-          } else {
-            int32_t   length = infos[iInfo].bind->length[iRow];
-            uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo];
-            value.nData = length;
-
-            if (value.nData > pTSchema->columns[iInfo].bytes - VARSTR_HEADER_SIZE) {
-              code = TSDB_CODE_INVALID_PARA;
-              goto _exit;
-            }
-            value.pData = *data;
-            *data += length;
+          int32_t   length = infos[iInfo].bind->length[iRow];
+          uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo];
+          value.nData = length;
+          if (value.nData > pTSchema->columns[infos[iInfo].columnId - 1].bytes - VARSTR_HEADER_SIZE) {
+            code = TSDB_CODE_PAR_VALUE_TOO_LONG;
+            uError("stmt bind param[%d] length:%d  greater than type maximum lenght: %d", iInfo, value.nData,
+                   pTSchema->columns[infos[iInfo].columnId - 1].bytes);
+            goto _exit;
           }
           // value.pData = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow;
         } else {
