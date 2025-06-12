@@ -2024,16 +2024,12 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
       }
       case WINDOW_TYPE_EVENT: {
         // event trigger
-        int32_t eventWindowStartCondLen = pReq->trigger.event.startCond == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.event.startCond);
-        int32_t eventWindowEndCondLen = pReq->trigger.event.endCond == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.event.endCond);
-
         TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->trigger.event.startCond, NULL));
         TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->trigger.event.endCond, NULL));
         TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.event.trueForDuration));
         break;
       }
       case WINDOW_TYPE_COUNT: {
-        int32_t countWindowCondColsLen = pReq->trigger.count.condCols == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.count.condCols);
         TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->trigger.count.condCols, NULL));
 
         TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.count.countVal));
@@ -2244,9 +2240,6 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
     case WINDOW_TYPE_EVENT:
       taosMemoryFreeClear(pReq->trigger.event.startCond);
       taosMemoryFreeClear(pReq->trigger.event.endCond);
-      break;
-    case WINDOW_TYPE_COUNT:
-      taosMemoryFreeClear(pReq->trigger.count.condCols);
       break;
     default:
       break;

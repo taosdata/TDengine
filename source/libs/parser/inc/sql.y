@@ -930,7 +930,7 @@ notify_url_list(A) ::= notify_url_list(B) NK_COMMA NK_STRING(C).                
 
 %type notify_on_opt                                                               { int64_t }
 %destructor notify_on_opt                                                         { }
-notify_on_opt(A) ::= .                                                            { A = EVENT_WINDOW_CLOSE; }
+notify_on_opt(A) ::= .                                                            { A = EVENT_NONE; }
 notify_on_opt(A) ::= ON NK_LP event_type_list(B) NK_RP.                           { A = B; }
 
 %type notify_options_opt                                                          { int64_t }
