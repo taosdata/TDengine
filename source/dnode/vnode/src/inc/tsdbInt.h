@@ -19,6 +19,7 @@
 typedef struct {
   STsdb  *tsdb;
   int32_t szPage;
+  int32_t nodeId; // node id of leader vnode in s3 migration
   int64_t now;
   int64_t cid;
 
