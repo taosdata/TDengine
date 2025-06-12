@@ -284,7 +284,8 @@ void generateDatabases(MockCatalogService* mcs) {
   generateTestStables(g_mockCatalogService.get(), "stream_triggerdb");
   generateTestTables(g_mockCatalogService.get(), "stream_triggerdb_2");
   generateTestStables(g_mockCatalogService.get(), "stream_triggerdb_2");
-
+  generateTestTables(g_mockCatalogService.get(), "stream_outdb");
+  generateTestStables(g_mockCatalogService.get(), "stream_outdb");
 }
 
 }  // namespace

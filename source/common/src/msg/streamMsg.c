@@ -1933,9 +1933,11 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
 
   int32_t addrSize = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &addrSize));
-  pReq->pNotifyAddrUrls = taosArrayInit(addrSize, POINTER_BYTES);
-  if (pReq->pNotifyAddrUrls == NULL) {
-    TAOS_CHECK_EXIT(terrno);
+  if (addrSize > 0) {
+    pReq->pNotifyAddrUrls = taosArrayInit(addrSize, POINTER_BYTES);
+    if (pReq->pNotifyAddrUrls == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
   }
   for (int32_t i = 0; i < addrSize; ++i) {
     char *url = NULL;
@@ -2227,14 +2229,18 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   taosMemoryFreeClear(pReq->outTblName);
 
   taosArrayDestroyP(pReq->calcDB, NULL);
+  pReq->calcDB = NULL;
   taosArrayDestroyP(pReq->pNotifyAddrUrls, NULL);
+  pReq->pNotifyAddrUrls = NULL;
 
   taosMemoryFreeClear(pReq->triggerFilterCols);
   taosMemoryFreeClear(pReq->triggerCols);
   taosMemoryFreeClear(pReq->partitionCols);
 
   taosArrayDestroy(pReq->outTags);
+  pReq->outTags = NULL;
   taosArrayDestroy(pReq->outCols);
+  pReq->outCols = NULL;
 
   switch (pReq->triggerType) {
     case WINDOW_TYPE_EVENT:
@@ -2246,13 +2252,15 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   }
 
   taosMemoryFreeClear(pReq->triggerScanPlan);
-  taosArrayDestroyEx(pReq->triggerScanPlan, tFreeStreamCalcScan);
+  taosArrayDestroyEx(pReq->calcScanPlanList, tFreeStreamCalcScan);
+  pReq->calcScanPlanList = NULL;
   taosMemoryFreeClear(pReq->triggerPrevFilter);
 
   taosMemoryFreeClear(pReq->calcPlan);
   taosMemoryFreeClear(pReq->subTblNameExpr);
   taosMemoryFreeClear(pReq->tagValueExpr);
   taosArrayDestroyEx(pReq->forceOutCols, tFreeStreamOutCol);
+  pReq->forceOutCols = NULL;
 }
 
 int32_t tSerializeSMPauseStreamReq(void *buf, int32_t bufLen, const SMPauseStreamReq *pReq) {

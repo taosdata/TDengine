@@ -13137,6 +13137,7 @@ static int32_t createStreamReqBuildStreamTagExprStr(STranslateContext* pCxt, SNo
   SNodeList* pExprList = NULL;
   int32_t    pExprListLen = 0;
   SNode*     pNode = NULL;
+  SNode*     tmpExpr = NULL;
 
   if (LIST_LENGTH(pList) == 0) {
     return code;
@@ -13157,7 +13158,9 @@ static int32_t createStreamReqBuildStreamTagExprStr(STranslateContext* pCxt, SNo
                     pTagExpr->resType.type));
       }
       PAR_ERR_JRET(createStreamSetNodeSlotId(pTag->pTagExpr, pTriggerSlotHash, NULL));
-      PAR_ERR_JRET(nodesListMakeAppend(&pExprList, pTag->pTagExpr));
+      PAR_ERR_JRET(nodesCloneNode(pTag->pTagExpr, &tmpExpr));
+      PAR_ERR_JRET(nodesListMakeAppend(&pExprList, tmpExpr));
+      tmpExpr = NULL;  // reset tmpExpr to avoid double free
     } else {
       PAR_ERR_JRET(TSDB_CODE_STREAM_INVALID_OUT_TABLE);
     }
@@ -13169,6 +13172,7 @@ _return:
   if (code) {
     parserError("createStreamReqBuildStreamTagExprStr failed, code:%d, errmsg:%s", code, pCxt->msgBuf.buf);
   }
+  nodesDestroyNode(tmpExpr);
   nodesDestroyList(pExprList);
   return code;
 }
@@ -13314,7 +13318,9 @@ static int32_t createStreamCheckOutTags(STranslateContext* pCxt, SNodeList* pTag
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                      "Out table tag count mismatch");
     }
-    extractTypeFromTypeMod(pMeta->schema[tagIndex].type, pMeta->schemaExt[tagIndex].typeMod, &precision, &scale, &bytes);
+    if (pMeta->schemaExt) {
+       extractTypeFromTypeMod(pMeta->schema[tagIndex].type, pMeta->schemaExt[tagIndex].typeMod, &precision, &scale, &bytes);
+    }
     if (pTagDef->dataType.type != pMeta->schema[tagIndex].type ||
         pTagDef->dataType.scale != scale ||
         pTagDef->dataType.precision != precision ||
@@ -13348,9 +13354,12 @@ static int32_t createStreamCheckOutCols(STranslateContext* pCxt, SNodeList* pCol
     int8_t          scale = 0;
     int8_t          precision = 0;
     int32_t         bytes = 0;
-    extractTypeFromTypeMod(pMeta->schema[colIndex].type, pMeta->schemaExt[colIndex].typeMod, &precision, &scale, &bytes);
+    if (pMeta->schemaExt) {
+      extractTypeFromTypeMod(pMeta->schema[colIndex].type, pMeta->schemaExt[colIndex].typeMod, &precision, &scale, &bytes);
+    }
+
     if (pColDef->dataType.type != pMeta->schema[colIndex].type ||
-        calcTypeBytes(pColDef->dataType) != pMeta->schema[colIndex].bytes ||
+        pColDef->dataType.bytes != pMeta->schema[colIndex].bytes ||
         pColDef->dataType.scale != scale ||
         pColDef->dataType.precision != precision ||
         strncmp(pColDef->colName, pMeta->schema[colIndex].name, strlen(pColDef->colName)) != 0) {
@@ -13653,7 +13662,7 @@ static int32_t createStreamReqSetDefaultTag(STranslateContext* pCxt, SCreateStre
   }
 
   FOREACH(pNode, pTriggerPartition) {
-    PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN_DEF, (SNode**)&pTagDef));
+    PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_STREAM_TAG_DEF, (SNode**)&pTagDef));
     pTagDef->pComment = NULL;
     switch (nodeType(pNode)) {
       case QUERY_NODE_FUNCTION: {
