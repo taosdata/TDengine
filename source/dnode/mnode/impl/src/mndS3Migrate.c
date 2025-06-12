@@ -56,7 +56,7 @@ int32_t mndInitS3Migrate(SMnode *pMnode) {
 void mndCleanupS3Migrate(SMnode *pMnode) { mDebug("mnd s3migrate cleanup"); }
 
 void tFreeS3MigrateObj(SS3MigrateObj *pS3Migrate) {
-  taosArrayDestroy(pS3Migrate->vnodeMigrateDetails);
+  taosArrayDestroy(pS3Migrate->vgroups);
 }
 
 int32_t tSerializeSS3MigrateObj(void *buf, int32_t bufLen, const SS3MigrateObj *pObj) {
@@ -67,18 +67,19 @@ int32_t tSerializeSS3MigrateObj(void *buf, int32_t bufLen, const SS3MigrateObj *
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->s3MigrateId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->id));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pObj->dbUid));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->dbname));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pObj->startTime));
   int32_t numVnode = 0;
-  if (pObj->vnodeMigrateDetails) {
-    numVnode = taosArrayGetSize(pObj->vnodeMigrateDetails);
+  if (pObj->vgroups) {
+    numVnode = taosArrayGetSize(pObj->vgroups);
   }
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, numVnode));
   for (int32_t i = 0; i < numVnode; ++i) {
-    SVnodeS3MigrateDetail *pDetail = (SVnodeS3MigrateDetail *)taosArrayGet(pObj->vnodeMigrateDetails, i);
+    SVgroupS3MigrateDetail *pDetail = (SVgroupS3MigrateDetail *)taosArrayGet(pObj->vgroups, i);
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pDetail->vgId));
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pDetail->nodeId));
     TAOS_CHECK_EXIT(tEncodeBool(&encoder, pDetail->done));
   }
   tEndEncode(&encoder);
@@ -100,23 +101,24 @@ int32_t tDeserializeSS3MigrateObj(void *buf, int32_t bufLen, SS3MigrateObj *pObj
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->s3MigrateId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->id));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pObj->dbUid));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->dbname));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pObj->startTime));
 
   int32_t numVnode = 0;
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &numVnode));
-  if (pObj->vnodeMigrateDetails) {
-    taosArrayClear(pObj->vnodeMigrateDetails);
+  if (pObj->vgroups) {
+    taosArrayClear(pObj->vgroups);
   } else {
-    pObj->vnodeMigrateDetails = taosArrayInit(numVnode, sizeof(SVnodeS3MigrateDetail));
+    pObj->vgroups = taosArrayInit(numVnode, sizeof(SVgroupS3MigrateDetail));
   }
   for (int32_t i = 0; i < numVnode; ++i) {
-    SVnodeS3MigrateDetail detail;
+    SVgroupS3MigrateDetail detail;
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &detail.vgId));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &detail.nodeId));
     TAOS_CHECK_EXIT(tDecodeBool(&decoder, &detail.done));
-    taosArrayPush(pObj->vnodeMigrateDetails, &detail);
+    taosArrayPush(pObj->vgroups, &detail);
   }
 
   tEndDecode(&decoder);
@@ -167,12 +169,12 @@ SSdbRaw *mndS3MigrateActionEncode(SS3MigrateObj *pS3Migrate) {
 OVER:
   taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
-    mError("s3migrate:%" PRId32 ", failed to encode to raw:%p since %s", pS3Migrate->s3MigrateId, pRaw, terrstr());
+    mError("s3migrate:%" PRId32 ", failed to encode to raw:%p since %s", pS3Migrate->id, pRaw, terrstr());
     sdbFreeRaw(pRaw);
     return NULL;
   }
 
-  mTrace("s3migrate:%" PRId32 ", encode to raw:%p, row:%p", pS3Migrate->s3MigrateId, pRaw, pS3Migrate);
+  mTrace("s3migrate:%" PRId32 ", encode to raw:%p, row:%p", pS3Migrate->id, pRaw, pS3Migrate);
   return pRaw;
 }
 
@@ -224,28 +226,28 @@ SSdbRow *mndS3MigrateActionDecode(SSdbRaw *pRaw) {
 OVER:
   taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
-    mError("s3migrate:%" PRId32 ", failed to decode from raw:%p since %s", pS3Migrate->s3MigrateId, pRaw, terrstr());
+    mError("s3migrate:%" PRId32 ", failed to decode from raw:%p since %s", pS3Migrate->id, pRaw, terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
 
-  mTrace("s3migrate:%" PRId32 ", decode from raw:%p, row:%p", pS3Migrate->s3MigrateId, pRaw, pS3Migrate);
+  mTrace("s3migrate:%" PRId32 ", decode from raw:%p, row:%p", pS3Migrate->id, pRaw, pS3Migrate);
   return pRow;
 }
 
 int32_t mndS3MigrateActionInsert(SSdb *pSdb, SS3MigrateObj *pS3Migrate) {
-  mTrace("s3migrate:%" PRId32 ", perform insert action", pS3Migrate->s3MigrateId);
+  mTrace("s3migrate:%" PRId32 ", perform insert action", pS3Migrate->id);
   return 0;
 }
 
 int32_t mndS3MigrateActionDelete(SSdb *pSdb, SS3MigrateObj *pS3Migrate) {
-  mTrace("s3migrate:%" PRId32 ", perform delete action", pS3Migrate->s3MigrateId);
+  mTrace("s3migrate:%" PRId32 ", perform delete action", pS3Migrate->id);
   tFreeS3MigrateObj(pS3Migrate);
   return 0;
 }
 
 int32_t mndS3MigrateActionUpdate(SSdb *pSdb, SS3MigrateObj *pOldS3Migrate, SS3MigrateObj *pNewS3Migrate) {
-  mTrace("s3migrate:%" PRId32 ", perform update action, old row:%p new row:%p", pOldS3Migrate->s3MigrateId, pOldS3Migrate,
+  mTrace("s3migrate:%" PRId32 ", perform update action, old row:%p new row:%p", pOldS3Migrate->id, pOldS3Migrate,
          pNewS3Migrate);
 
   return 0;
@@ -287,11 +289,11 @@ int32_t mndAddS3MigrateToTran(SMnode *pMnode, STrans *pTrans, SS3MigrateObj *pS3
   void   *pIter = NULL;
 
   pS3Migrate->dbUid = pDb->uid;
-  pS3Migrate->s3MigrateId = tGenIdPI32();
+  pS3Migrate->id = tGenIdPI32();
   tstrncpy(pS3Migrate->dbname, pDb->name, sizeof(pS3Migrate->dbname));
 
-  pS3Migrate->vnodeMigrateDetails = taosArrayInit(8, sizeof(SVnodeS3MigrateDetail));
-  if (pS3Migrate->vnodeMigrateDetails == NULL) {
+  pS3Migrate->vgroups = taosArrayInit(8, sizeof(SVgroupS3MigrateDetail));
+  if (pS3Migrate->vgroups == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     terrno = code;
     TAOS_RETURN(code);
@@ -303,8 +305,8 @@ int32_t mndAddS3MigrateToTran(SMnode *pMnode, STrans *pTrans, SS3MigrateObj *pS3
     if (pIter == NULL) break;
 
     if (pVgroup->dbUid == pDb->uid) {
-      SVnodeS3MigrateDetail detail = {.vgId = pVgroup->vgId, .done = false };
-      taosArrayPush(pS3Migrate->vnodeMigrateDetails, &detail);
+      SVgroupS3MigrateDetail detail = {.vgId = pVgroup->vgId, .done = false };
+      taosArrayPush(pS3Migrate->vgroups, &detail);
     }
 
     sdbRelease(pSdb, pVgroup);
@@ -312,24 +314,24 @@ int32_t mndAddS3MigrateToTran(SMnode *pMnode, STrans *pTrans, SS3MigrateObj *pS3
 
   SSdbRaw *pVgRaw = mndS3MigrateActionEncode(pS3Migrate);
   if (pVgRaw == NULL) {
-    taosArrayDestroy(pS3Migrate->vnodeMigrateDetails);
+    taosArrayDestroy(pS3Migrate->vgroups);
     code = TSDB_CODE_SDB_OBJ_NOT_THERE;
     if (terrno != 0) code = terrno;
     TAOS_RETURN(code);
   }
   if ((code = mndTransAppendPrepareLog(pTrans, pVgRaw)) != 0) {
-    taosArrayDestroy(pS3Migrate->vnodeMigrateDetails);
+    taosArrayDestroy(pS3Migrate->vgroups);
     sdbFreeRaw(pVgRaw);
     TAOS_RETURN(code);
   }
 
   if ((code = sdbSetRawStatus(pVgRaw, SDB_STATUS_READY)) != 0) {
-    taosArrayDestroy(pS3Migrate->vnodeMigrateDetails);
+    taosArrayDestroy(pS3Migrate->vgroups);
     sdbFreeRaw(pVgRaw);
     TAOS_RETURN(code);
   }
 
-  mInfo("trans:%d, s3migrate:%d, db:%s, has been added", pTrans->id, pS3Migrate->s3MigrateId, pS3Migrate->dbname);
+  mInfo("trans:%d, s3migrate:%d, db:%s, has been added", pTrans->id, pS3Migrate->id, pS3Migrate->dbname);
   return 0;
 }
 
@@ -366,8 +368,8 @@ int32_t mndRetrieveS3Migrate(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
     char tmpBuf[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pS3Migrate->s3MigrateId, false), pS3Migrate, &lino,
-                        _OVER);
+    RETRIEVE_CHECK_GOTO(
+        colDataSetVal(pColInfo, numOfRows, (const char *)&pS3Migrate->id, false), pS3Migrate, &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (pDb != NULL || !IS_SYS_DBNAME(pS3Migrate->dbname)) {
@@ -480,8 +482,8 @@ static int32_t mndUpdateS3MigrateProgress(SMnode *pMnode, SRpcMsg *pReq, SQueryS
     TAOS_RETURN(code);
   }
 
-  for(int32_t i = 0; i < taosArrayGetSize(pS3Migrate->vnodeMigrateDetails); i++) {
-    SVnodeS3MigrateDetail *pDetail = taosArrayGet(pS3Migrate->vnodeMigrateDetails, i);
+  for(int32_t i = 0; i < taosArrayGetSize(pS3Migrate->vgroups); i++) {
+    SVgroupS3MigrateDetail *pDetail = taosArrayGet(pS3Migrate->vgroups, i);
     if (pDetail->vgId == rsp->vgId) {
       pDetail->done = true;
     }
@@ -587,49 +589,50 @@ static int32_t mndProcessQueryS3MigrateProgressRsp(SRpcMsg *pMsg) {
 
 void mndSendQueryS3MigrateProgressReq(SMnode *pMnode, SS3MigrateObj *pS3Migrate) {
   SSdb            *pSdb = pMnode->pSdb;
-  SVgObj          *pVgroup = NULL;
   void            *pIter = NULL;
-  SQueryS3MigrateProgressReq req = {
-    .s3MigrateId = pS3Migrate->s3MigrateId,
-    .timestamp = taosGetTimestampSec(),
-  };
+  SQueryS3MigrateProgressReq req = { .s3MigrateId = pS3Migrate->id };
   int32_t          reqLen = tSerializeSQueryS3MigrateProgressReq(NULL, 0, &req);
   int32_t          contLen = reqLen + sizeof(SMsgHead);
   int32_t          code = 0;
 
   while (1) {
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    SDnodeObj *pDnode = NULL;
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
     if (pIter == NULL) break;
 
-    if (pVgroup->dbUid != pS3Migrate->dbUid) continue;
+    for(int32_t i = 0; i < taosArrayGetSize(pS3Migrate->vgroups); i++) {
+      SVgroupS3MigrateDetail *pDetail = taosArrayGet(pS3Migrate->vgroups, i);
+      if (pDetail->nodeId != pDnode->id) {
+        continue;
+      }
 
-    SMsgHead *pHead = rpcMallocCont(contLen);
-    if (pHead == NULL) {
-      sdbCancelFetch(pSdb, pIter);
-      sdbRelease(pSdb, pVgroup);
-      continue;
-    }
-    pHead->contLen = htonl(contLen);
-    pHead->vgId = htonl(pVgroup->vgId);
-    int32_t ret = 0;
-    if ((ret = tSerializeSQueryS3MigrateProgressReq((char *)pHead + sizeof(SMsgHead), reqLen, &req)) < 0) {
-      sdbCancelFetch(pSdb, pIter);
-      sdbRelease(pSdb, pVgroup);
-      return;
-    }
+      SMsgHead *pHead = rpcMallocCont(contLen);
+      if (pHead == NULL) {
+        continue;
+      }
+      pHead->contLen = htonl(contLen);
+      pHead->vgId = htonl(pDetail->vgId);
+      tSerializeSQueryS3MigrateProgressReq((char *)pHead + sizeof(SMsgHead), reqLen, &req);
 
-    SRpcMsg rpcMsg = {.msgType = TDMT_VND_QUERY_S3MIGRATE_PROGRESS, .pCont = pHead, .contLen = contLen};
-    SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
-    int32_t code = tmsgSendReq(&epSet, &rpcMsg);
-    if (code != 0) {
-      mError("s3migrate:%d, vgId:%d, failed to send s3migrate-query-progress request since 0x%x",
-            pS3Migrate->s3MigrateId,
-            pVgroup->vgId,
-            code);
-    } else {
-      mInfo("s3migrate:%d, vgId:%d, s3migrate-query-progress request sent", pS3Migrate->s3MigrateId, pVgroup->vgId);
+      SRpcMsg rpcMsg = {.msgType = TDMT_VND_QUERY_S3MIGRATE_PROGRESS, .pCont = pHead, .contLen = contLen};
+
+      // we need to send the msg to dnode instead of vgroup, because migration may take a long time,
+      // and leader may change during the migration process, while only the initial leader vnode
+      // can handle the migration progress query.
+      SEpSet epSet = mndGetDnodeEpset(pDnode);
+      int32_t code = tmsgSendReq(&epSet, &rpcMsg);
+      if (code != 0) {
+        mError("s3migrate:%d, vgId:%d, failed to send s3migrate-query-progress request since 0x%x",
+              pS3Migrate->id,
+              pDetail->vgId,
+              code);
+      } else {
+        mInfo("s3migrate:%d, vgId:%d, s3migrate-query-progress request sent", pS3Migrate->id, pDetail->vgId);
+      }
+
+      break;
     }
-    sdbRelease(pSdb, pVgroup);
+    sdbRelease(pSdb, pDnode);
   }
 }
 
@@ -659,4 +662,67 @@ static int32_t mndProcessQueryS3MigrateProgressTimer(SRpcMsg *pReq) {
   }
 
   return 0;
+}
+
+int32_t mndTransProcessS3MigrateVgroupRsp(SRpcMsg *pRsp) {
+  int32_t code = 0;
+  SMnode *pMnode = pRsp->info.node;
+
+  SS3MigrateVgroupRsp rsp = {0};
+  code = tDeserializeSS3MigrateVgroupRsp(pRsp->pCont, pRsp->contLen, &rsp);
+  mInfo("vgId:%d, s3MigrateId:%d, nodeId:%d", rsp.vgId, rsp.s3MigrateId, rsp.nodeId);
+
+  SS3MigrateObj *pS3Migrate = mndAcquireS3Migrate(pMnode, rsp.s3MigrateId);
+  if (pS3Migrate == NULL) {
+    mError("s3migrate:%d, failed to acquire s3migrate since %s", rsp.s3MigrateId, terrstr());
+    return mndTransProcessRsp(pRsp);
+  }
+
+  for(int32_t i = 0; i < taosArrayGetSize(pS3Migrate->vgroups); i++) {
+    SVgroupS3MigrateDetail *pDetail = taosArrayGet(pS3Migrate->vgroups, i);
+    if (pDetail->vgId == rsp.vgId) {
+      pDetail->nodeId = rsp.nodeId;
+      break;
+    }
+  }
+
+  STrans* pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, NULL, "update-s3migrate-nodeid");
+  if (pTrans == NULL) {
+    mError("failed to create update-s3migrate-nodeid trans since %s", terrstr());
+    return mndTransProcessRsp(pRsp);
+  }
+
+  mndTransSetDbName(pTrans, pS3Migrate->dbname, NULL);
+  mInfo("trans:%d, s3migrate:%d, vgId:%d, %s-trans created", pTrans->id, rsp.s3MigrateId, rsp.vgId, pTrans->opername);
+
+  SSdbRaw *pRaw = mndS3MigrateActionEncode(pS3Migrate);
+  if (pRaw == NULL) {
+    mndTransDrop(pTrans);
+    mndReleaseS3Migrate(pMnode, pS3Migrate);
+    return mndTransProcessRsp(pRsp);
+  }
+
+  if ((code = mndTransAppendCommitlog(pTrans, pRaw)) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    mndReleaseS3Migrate(pMnode, pS3Migrate);
+    return mndTransProcessRsp(pRsp);
+  }
+
+  if ((code = sdbSetRawStatus(pRaw, SDB_STATUS_UPDATE)) != 0) {
+    mndTransDrop(pTrans);
+    mndReleaseS3Migrate(pMnode, pS3Migrate);
+    return mndTransProcessRsp(pRsp);
+  }
+
+  mndReleaseS3Migrate(pMnode, pS3Migrate);
+
+  if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return mndTransProcessRsp(pRsp);
+  }
+
+  mndTransDrop(pTrans);
+  return mndTransProcessRsp(pRsp);
 }
