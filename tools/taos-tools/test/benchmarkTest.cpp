@@ -473,8 +473,6 @@ TEST(toolstime, parseTimeWithTz) {
 
 }
 
-
->>>>>>> feat/TD-34267-3.0
 // main
 int main(int argc, char **argv) {
   // init
