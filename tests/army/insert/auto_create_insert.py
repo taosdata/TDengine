@@ -154,6 +154,13 @@ class TDTestCase(TBase):
         tdSql.error("INSERT INTO t_20 USING stb TAGS (20) VALUES ('2024-01-01 00:00:00', 1, 2.0, 'test')", expectErrInfo="Table already exists in other stables")
         tdSql.error("INSERT INTO t_20 USING stb TAGS (20) VALUES ('2024-01-01 00:00:00', 1, 2.0, 'test')", expectErrInfo="Table already exists in other stables")
 
+    def check_table_with_same_name(self):
+        tdLog.info(f"check table with same name")
+        tdSql.execute("USE test")
+        tdSql.execute("CREATE STABLE IF NOT EXISTS stb3 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT)")
+        tdSql.error("INSERT INTO stb3 USING stb3 TAGS (30) VALUES ('2024-01-01 00:00:00', 1, 2.0, 'test')", expectErrInfo="Table already exists in other stables")
+        tdSql.query("select * from stb3")
+        tdSql.checkRows(0)
 
     # run
     def run(self):
