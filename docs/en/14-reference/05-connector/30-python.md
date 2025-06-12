@@ -56,7 +56,7 @@ Python Connector historical versions (it is recommended to use the latest versio
 
 |Python Connector Version | Major Changes                                                                           | TDengine Version|
 | --------- | ----------------------------------------------------------------------------------------------------- | ----------------- |
-|2.8.1 | Add two functions to set the connect property                                                                               | - |
+|2.8.1 | Add two functions to set the connect property                                                               | - |
 |2.8.0 | Remove Apache Superset Driver                                                                               | - |
 |2.7.23 | Supports DECIMAL data type                                                                                 | - |
 |2.7.22 | Supports Python 3.12 and above                                                                             | - |
@@ -75,6 +75,7 @@ WebSocket Connector Historical Versions:
 
 |WebSocket Connector Version | Major Changes                                                                                    | TDengine Version|
 | ----------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
+|0.5.2 | Upgrade Rust connector to fix dsn token param issue                                                                     | - |
 |0.5.1 | Support WebSocket STMT2 writing and querying                                                                            | - |
 |0.4.0 | Support dynamic add tmq attribute                                                                                       | - |
 |0.3.9 | Fixes the problem of incomplete data retrieval when customizing the number of rows with the "fetchmany" method          | - |
