@@ -1338,13 +1338,24 @@ static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     pCxt->missCache = true;
     return TSDB_CODE_SUCCESS;
   }
+  char stableFName[TSDB_TABLE_FNAME_LEN];
+  code = tNameExtractFullName(&pStmt->usingTableName, stableFName);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  char ctableFName[TSDB_TABLE_FNAME_LEN];
+  code = tNameExtractFullName(&pStmt->targetTableName, ctableFName);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  if (strcmp(stableFName, ctableFName) == 0) {
+    return TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
+  }
+
   if (!pCxt->missCache) {
-    char tbFName[TSDB_TABLE_FNAME_LEN];
-    code = tNameExtractFullName(&pStmt->usingTableName, tbFName);
-    if (TSDB_CODE_SUCCESS != code) {
-      return code;
-    }
-    STableMeta** ppStableMeta = taosHashGet(pStmt->pSuperTableHashObj, tbFName, strlen(tbFName));
+    STableMeta** ppStableMeta = taosHashGet(pStmt->pSuperTableHashObj, stableFName, strlen(stableFName));
     if (NULL != ppStableMeta) {
       pStableMeta = *ppStableMeta;
     }
@@ -1352,7 +1363,7 @@ static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt
       bool bUsingTable = true;
       code = getTableMeta(pCxt, &pStmt->usingTableName, &pStableMeta, &pCxt->missCache, bUsingTable);
       if (TSDB_CODE_SUCCESS == code) {
-        code = taosHashPut(pStmt->pSuperTableHashObj, tbFName, strlen(tbFName), &pStableMeta, POINTER_BYTES);
+        code = taosHashPut(pStmt->pSuperTableHashObj, stableFName, strlen(stableFName), &pStableMeta, POINTER_BYTES);
       } else {
         taosMemoryFreeClear(pStableMeta);
       }
