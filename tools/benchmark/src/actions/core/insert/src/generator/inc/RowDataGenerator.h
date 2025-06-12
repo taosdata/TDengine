@@ -16,7 +16,7 @@ public:
     RowDataGenerator(const std::string& table_name, 
                     const ColumnsConfig& columns_config,
                     const InsertDataConfig::Control& control,
-                    const std::string& db_precision);
+                    const std::string& target_precision);
     
     // 获取下一行数据
     std::optional<RowData> next_row();
@@ -47,7 +47,7 @@ private:
     std::string table_name_;
     ColumnsConfig columns_config_;
     InsertDataConfig::Control control_;
-    std::string db_precision_;  // 数据库时间精度
+    std::string target_precision_;
 
     // 数据源组件
     std::unique_ptr<RowGenerator> row_generator_;

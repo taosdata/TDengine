@@ -11,11 +11,11 @@
 RowDataGenerator::RowDataGenerator(const std::string& table_name, 
                                   const ColumnsConfig& columns_config,
                                   const InsertDataConfig::Control& control,
-                                  const std::string& db_precision)
+                                  const std::string& target_precision)
     : table_name_(table_name), 
       columns_config_(columns_config),
       control_(control),
-      db_precision_(db_precision) {
+      target_precision_(target_precision) {
 
     if (columns_config.source_type == "generator") {
         init_generator();
@@ -72,15 +72,11 @@ void RowDataGenerator::init_csv_reader() {
     for (const auto& table_data : all_tables) {
         if (table_data.table_name == table_name_) {
             found = true;
-            // 将TableData转换为RowData缓存
-            // if (table_data.timestamps.size() != table_data.rows.size()) {
-            //     throw std::runtime_error("Timestamp count and row count mismatch for table: " + table_name_);
-            // }
-            
+
             for (size_t i = 0; i < table_data.rows.size(); i++) {
                 RowData row;
                 row.table_name = table_name_;
-                row.timestamp = TimestampUtils::convert_timestamp_precision(table_data.timestamps[i], csv_precision_, db_precision_);
+                row.timestamp = TimestampUtils::convert_timestamp_precision(table_data.timestamps[i], csv_precision_, target_precision_);
                 row.columns = table_data.rows[i];
                 csv_rows_.push_back(row);
             }
