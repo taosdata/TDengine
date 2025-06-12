@@ -187,6 +187,7 @@ typedef struct SStmTaskStatus {
   EStreamTaskType type;
   int64_t         flags;
   EStreamStatus   status;
+  int64_t         runningStartTs;
   int64_t         lastUpTs;
 } SStmTaskStatus;
 
@@ -244,6 +245,11 @@ typedef struct SStmTaskSrcAddr {
   SEpSet  epset;
 } SStmTaskSrcAddr;
 
+typedef struct SStmStat {
+  int32_t lastError;
+  
+} SStmStat;
+
 typedef struct SStmStatus {
   // static part
   char*             streamName;
@@ -263,6 +269,8 @@ typedef struct SStmStatus {
   SArray*           calcReaders;        // SArray<SStmTaskStatus>  
   SStmTaskStatus*   triggerTask;
   SArray*           runners[MND_STREAM_RUNNER_DEPLOY_NUM];  // SArray<SStmTaskStatus>
+
+  SStmStat          stat;
 } SStmStatus;
 
 
@@ -288,6 +296,7 @@ typedef struct SStmVgStreamStatus {
 } SStmVgStreamStatus;
 
 typedef struct SStmVgroupStatus {
+  int64_t   lastUpTs;
   SHashObj* streamTasks;   // streamId => SStmVgStreamStatus
 } SStmVgroupStatus;
 

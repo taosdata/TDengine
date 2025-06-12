@@ -179,6 +179,7 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
 
       if (TSDB_CODE_SUCCESS == code) {
         code = stTriggerTaskDeploy(pStream->triggerTask, &pDeploy->triggerTask->msg.trigger);
+/*
         if (code == 0){
           int32_t leaderSid = pDeploy->triggerTask->msg.trigger.leaderSnodeId;
           SEpSet* epSet = gStreamMgmt.getSynEpset(leaderSid);
@@ -189,6 +190,7 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
             }
           }
         }
+*/
         if (code) {
           ST_TASK_ELOG("trigger task fail to deploy, error:%s", tstrerror(code));
           taosHashRemove(gStreamMgmt.taskMap, &pTask->streamId, sizeof(pTask->streamId) + sizeof(pTask->taskId));
