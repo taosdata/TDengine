@@ -98,12 +98,33 @@ else
     echo "No old *gcda files found. Continuing without errors."
 fi
 
+# docker run \
+#     --name taos_coverage \
+#     -v /var/lib/jenkins/workspace/TDinternal/:/home/TDinternal/ \
+#     -v /var/lib/jenkins/workspace/debugNoSan/:/home/TDinternal/debug \
+#     --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd /home/TDinternal/debug/build/bin ; ./osAtomicTests;./osDirTests; cd /home/TDinternal/community/tests/script/api/; timeout 30m ./test.sh " || true
 docker run \
     --name taos_coverage \
+    --rm \
+    --ulimit core=-1 \
     -v /var/lib/jenkins/workspace/TDinternal/:/home/TDinternal/ \
     -v /var/lib/jenkins/workspace/debugNoSan/:/home/TDinternal/debug \
-    --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd /home/TDinternal/debug/build/bin ; ./osAtomicTests;./osDirTests;" || true
+    taos_test:v1.0 \
+    sh -c '\
+        cd /home/TDinternal/debug/build/bin && \
+        ./osAtomicTests && \
+        ./osDirTests && \
+    ' || true
 
+        # cd /home/TDinternal/community/tests/script/api/ && \
+        # (timeout 30m ./test.sh > test_full.log 2>&1 & \
+        # test_pid=$! && \
+        # echo "正在执行测试..." && \
+        # tail -f test_full.log | grep --line-buffered -E "FAIL|ERROR|PASS|^Test" & \
+        # tail_pid=$! && \
+        # wait $test_pid || true && \
+        # kill $tail_pid) \
+    
 cd ${WORKDIR}/debugNoSan
 if ls -lR ${WORKDIR}/debugNoSan | grep '\.gcda$'; then
     echo "New *gcda files found."
