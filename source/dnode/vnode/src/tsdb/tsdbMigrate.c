@@ -92,6 +92,11 @@ typedef struct SS3MigrateMonitor {
 } SS3MigrateMonitor;
 
 
+static int32_t getS3MigrateId(STsdb* tsdb) {
+  return tsdb->pS3MigrateMonitor->state.vnodeMigrateId;
+}
+
+
 int32_t tsdbOpenS3MigrateMonitor(STsdb *tsdb) {
   SS3MigrateMonitor* pmm = (SS3MigrateMonitor*)taosMemCalloc(1, sizeof(SS3MigrateMonitor));
   if (pmm == NULL) {
@@ -359,12 +364,31 @@ static int32_t downloadManifest(SVnode* pVnode, int32_t fid, STFileSet** ppFileS
 }
 
 
-static int32_t uploadManifest(int32_t dnode, int32_t vnode, STFileSet* fset) {
+static int32_t uploadManifest(int32_t dnode, int32_t vnode, STFileSet* fset, int32_t mid) {
   int32_t code = 0;
 
   cJSON* json = cJSON_CreateObject();
   if (json == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  // update migration id for all files in the file set
+  STFileObj* fobj = fset->farr[TSDB_FTYPE_HEAD];
+  fobj->f->mid = mid;
+  fobj = fset->farr[TSDB_FTYPE_SMA];
+  fobj->f->mid = mid;
+  fobj = fset->farr[TSDB_FTYPE_DATA];
+  fobj->f->mid = mid;
+  fobj = fset->farr[TSDB_FTYPE_TOMB];
+  if (fobj != NULL) {
+    fobj->f->mid = mid;
+  }
+
+  SSttLvl* lvl;
+  TARRAY2_FOREACH(fset->lvlArr, lvl) {
+    TARRAY2_FOREACH(lvl->fobjArr, fobj) {
+      fobj->f->mid = mid;
+    }
   }
   
   cJSON_AddNumberToObject(json, "fmtv", 1);
@@ -398,23 +422,23 @@ static int32_t uploadFile(SRTNer* rtner, STFileObj* fobj) {
     return TSDB_CODE_SUCCESS;
   }
 
-  const char* fname = strrchr(fobj->fname, TD_DIRSEP_CHAR) + 1;
-  int32_t vid = TD_VID(rtner->tsdb->pVnode);
+  const char* ext = strchr(strrchr(fobj->fname, TD_DIRSEP_CHAR), '.');
+  int32_t vid = TD_VID(rtner->tsdb->pVnode), mid = getS3MigrateId(rtner->tsdb);
   STFile* f = fobj->f;
   
   char path[TSDB_FILENAME_LEN];
   if (f->type == TSDB_FTYPE_SMA) {
-    snprintf(path, sizeof(path), "vnode%d/f%d/%s.%d", vid, f->fid, fname, ++f->mcount);
+    snprintf(path, sizeof(path), "vnode%d/f%d/v%df%dver%" PRId64 "m%d%s.%d", vid, f->fid, vid, f->fid, f->cid, mid, ext, ++f->mcount);
     STFileOp op = (STFileOp){.optype = TSDB_FOP_MODIFY, .fid = f->fid, .of = *f, .nf = *f};
     op.of.mcount--;
     TARRAY2_APPEND(&rtner->fopArr, op);
   } else {
-    snprintf(path, sizeof(path), "vnode%d/f%d/%s", vid, f->fid, fname);
+    snprintf(path, sizeof(path), "vnode%d/f%d/v%df%dver%" PRId64 "m%d%s", vid, f->fid, vid, f->fid, f->cid, mid, ext);
   }
 
   int code = tssUploadFileToDefault(path, fobj->fname, 0, -1);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("vgId:%d, fid:%d, failed to upload file %s since %s", vid, f->fid, fname, tstrerror(code));
+    tsdbError("vgId:%d, fid:%d, failed to upload file %s since %s", vid, f->fid, fobj->fname, tstrerror(code));
     return code;
   }
 
@@ -428,15 +452,15 @@ static int32_t downloadFile(SRTNer* rtner, STFileObj* fobj) {
     return TSDB_CODE_SUCCESS;
   }
 
-  const char* fname = strrchr(fobj->fname, TD_DIRSEP_CHAR) + 1;
+  const char* ext = strchr(strrchr(fobj->fname, TD_DIRSEP_CHAR), '.');
   int32_t vid = TD_VID(rtner->tsdb->pVnode);
   STFile* f = fobj->f;
   
   char path[TSDB_FILENAME_LEN];
   if (f->type == TSDB_FTYPE_SMA) {
-    snprintf(path, sizeof(path), "vnode%d/f%d/%s.%d", vid, f->fid, fname, f->mcount);
+    snprintf(path, sizeof(path), "vnode%d/f%d/v%df%dver%" PRId64 "m%d%s.%d", vid, f->fid, vid, f->fid, f->cid, f->mid, ext, f->mcount);
   } else {
-    snprintf(path, sizeof(path), "vnode%d/f%d/%s", vid, f->fid, fname);
+    snprintf(path, sizeof(path), "vnode%d/f%d/v%df%dver%" PRId64 "m%d%s", vid, f->fid, vid, f->fid, f->cid, f->mid, ext);
   }
 
   int code = tssDownloadFileFromDefault(path, fobj->fname, 0, -1);
@@ -458,6 +482,8 @@ static int32_t downloadDataFileLastChunk(SRTNer* rtner, STFileObj* fobj) {
 
   char localPath[TSDB_FILENAME_LEN], path[TSDB_FILENAME_LEN];
   tsdbTFileLastChunkName(rtner->tsdb, f, localPath);
+  char* fname = strrchr(localPath, TD_DIRSEP_CHAR) + 1;
+  sprintf(fname, "v%df%dver%" PRId64 "m%d.%d.data", vid, f->fid, f->cid, f->mid, f->lcn);
 
   sprintf(path, "vnode%d/f%d/v%df%dver%" PRId64 ".%d.data.%d", vid, f->fid, vid, f->fid, f->cid, f->lcn, f->mcount);
 
@@ -535,6 +561,20 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
   op.nf = *f;
   TARRAY2_APPEND(&rtner->fopArr, op);
 
+  // manifest must be uploaded before copy last chunk, otherwise, failed to upload manifest
+  // will result in a broken migration
+  tsdbInfo("vgId:%d, fid:%d, data file migrated, begin generate & upload manifest file", vid, f->fid);
+
+  // manifest, this also commit the migration
+  code = uploadManifest(vnodeNodeId(rtner->tsdb->pVnode), vid, rtner->fset, getS3MigrateId(rtner->tsdb));
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbS3MigrateMonitorSetFileSetState(rtner->tsdb, f->fid, FILE_SET_MIGRATE_STATE_FAILED);
+    return code;
+  }
+
+  tsdbS3MigrateMonitorSetFileSetState(rtner->tsdb, f->fid, FILE_SET_MIGRATE_STATE_SUCCEEDED);
+  tsdbInfo("vgId:%d, fid:%d, manifest file uploaded, leader migration succeeded", vid, f->fid);
+
   // no new chunks generated, no need to copy the last chunk
   if (totalChunks == lcn) {
     return 0;
@@ -542,7 +582,7 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
 
   // copy the last chunk to the new file
   char newPath[TSDB_FILENAME_LEN];
-  tsdbTFileLastChunkName(rtner->tsdb, f, newPath);
+  tsdbTFileLastChunkName(rtner->tsdb, &op.nf, newPath);
 
   int64_t offset = (int64_t)(totalChunks - lcn) * szChunk;
   int64_t size = szChunk;
@@ -727,6 +767,8 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
     tsdbTFileSetClear(&pRemoteFset);
     return code;
   }
+  STFileOp op = {.optype = TSDB_FOP_MODIFY, .fid = fset->fid, .of = *fset->farr[TSDB_FTYPE_HEAD]->f, .nf = *pRemoteFset->farr[TSDB_FTYPE_HEAD]->f};
+  TARRAY2_APPEND(&rtner->fopArr, op);
 
   tsdbInfo("vgId:%d, fid:%d, head file downloaded, begin downloading sma file", vid, fset->fid);
   code = downloadFile(rtner, pRemoteFset->farr[TSDB_FTYPE_SMA]);
@@ -734,6 +776,8 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
     tsdbTFileSetClear(&pRemoteFset);
     return code;
   }
+  op = (STFileOp) {.optype = TSDB_FOP_MODIFY, .fid = fset->fid, .of = *fset->farr[TSDB_FTYPE_SMA]->f, .nf = *pRemoteFset->farr[TSDB_FTYPE_SMA]->f};
+  TARRAY2_APPEND(&rtner->fopArr, op);
 
   tsdbInfo("vgId:%d, fid:%d, sma file downloaded, begin downloading tomb file", vid, fset->fid);
   code = downloadFile(rtner, pRemoteFset->farr[TSDB_FTYPE_TOMB]);
@@ -741,9 +785,27 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
     tsdbTFileSetClear(&pRemoteFset);
     return code;
   }
+  if (fset->farr[TSDB_FTYPE_TOMB] != NULL && pRemoteFset->farr[TSDB_FTYPE_TOMB] != NULL) {
+    op = (STFileOp) {.optype = TSDB_FOP_MODIFY, .fid = fset->fid, .of = *fset->farr[TSDB_FTYPE_TOMB]->f, .nf = *pRemoteFset->farr[TSDB_FTYPE_TOMB]->f};
+    TARRAY2_APPEND(&rtner->fopArr, op);
+  } else if (fset->farr[TSDB_FTYPE_TOMB] != NULL) {
+    // the remote tomb file is not found, but local tomb file exists, we should remove it
+    op = (STFileOp) {.optype = TSDB_FOP_REMOVE, .fid = fset->fid, .of = *fset->farr[TSDB_FTYPE_TOMB]->f};
+    TARRAY2_APPEND(&rtner->fopArr, op);
+  } else if (pRemoteFset->farr[TSDB_FTYPE_TOMB] != NULL) {
+    op = (STFileOp) {.optype = TSDB_FOP_CREATE, .fid = fset->fid, .nf = *pRemoteFset->farr[TSDB_FTYPE_TOMB]->f};
+    TARRAY2_APPEND(&rtner->fopArr, op);
+  }
 
   tsdbInfo("vgId:%d, fid:%d, tomb file downloaded, begin downloading stt files", vid, fset->fid);
   SSttLvl* lvl;
+  TARRAY2_FOREACH(fset->lvlArr, lvl) {
+    STFileObj* fobj;
+    TARRAY2_FOREACH(lvl->fobjArr, fobj) {
+      op = (STFileOp) {.optype = TSDB_FOP_REMOVE, .fid = fset->fid, .of = *fobj->f};
+      TARRAY2_APPEND(&rtner->fopArr, op);
+    }
+  }
   TARRAY2_FOREACH(pRemoteFset->lvlArr, lvl) {
     STFileObj* fobj;
     TARRAY2_FOREACH(lvl->fobjArr, fobj) {
@@ -752,6 +814,8 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
         tsdbTFileSetClear(&pRemoteFset);
         return code;
       }
+      op = (STFileOp) {.optype = TSDB_FOP_CREATE, .fid = fset->fid, .nf = *fobj->f};
+      TARRAY2_APPEND(&rtner->fopArr, op);
     }
   }
 
@@ -761,6 +825,8 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
     tsdbTFileSetClear(&pRemoteFset);
     return code;
   }
+  op = (STFileOp) {.optype = TSDB_FOP_MODIFY, .fid = fset->fid, .of = *fset->farr[TSDB_FTYPE_DATA]->f, .nf = *pRemoteFset->farr[TSDB_FTYPE_DATA]->f};
+  TARRAY2_APPEND(&rtner->fopArr, op);
 
   tsdbInfo("vgId:%d, fid:%d, data file downloaded", vid, fset->fid);
   tsdbTFileSetClear(&pRemoteFset);
@@ -830,18 +896,6 @@ static int32_t tsdbLeaderDoSsMigrate(SRTNer *rtner) {
     tsdbS3MigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_FAILED);
     return code;
   }
-
-  tsdbInfo("vgId:%d, fid:%d, data file migrated, begin generate & upload manifest file", vid, fset->fid);
-
-  // manifest, this also commit the migration
-  code = uploadManifest(vnodeNodeId(rtner->tsdb->pVnode), vid, fset);
-  if (code != TSDB_CODE_SUCCESS) {
-    tsdbS3MigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_FAILED);
-    return code;
-  }
-
-  tsdbS3MigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_SUCCEEDED);
-  tsdbInfo("vgId:%d, fid:%d, manifest file uploaded, leader migration succeeded", vid, fset->fid);
 
   return TSDB_CODE_SUCCESS;
 }

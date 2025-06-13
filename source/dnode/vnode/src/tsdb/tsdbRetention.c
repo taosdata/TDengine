@@ -170,6 +170,7 @@ static int32_t tsdbDoMigrateFileObj(SRTNer *rtner, const STFileObj *fobj, const 
               .fid = fobj->f->fid,
               .minVer = fobj->f->minVer,
               .maxVer = fobj->f->maxVer,
+              .mid = fobj->f->mid,
               .cid = fobj->f->cid,
               .size = fobj->f->size,
               .lcn = lcn,
