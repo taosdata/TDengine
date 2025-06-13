@@ -96,7 +96,15 @@ curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root
 Prometheus 使用的由 \*NIX 内核暴露的硬件和操作系统指标的输出器
 
 - 启用 taosAdapter 的配置 node_exporter.enable
-- 设置 node_exporter 的相关配置
+- 在 Prometheus 的配置文件中设置 node_exporter 的相关配置，比如：
+  ```shell
+job_name: node
+    # If prometheus-node-exporter is installed, grab stats about the local
+    # machine by default.
+    static_configs:
+      - targets: ['localhost:9100']
+```
+- 重新启动 Prometheus
 - 重新启动 taosAdapter
 
 ### Prometheus remote_read 和 remote_write
