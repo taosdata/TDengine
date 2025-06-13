@@ -6223,7 +6223,7 @@ static int64_t writeResultDebugNative(
 
         totalRows++;
         count++;
-        i(fp) fprintf(fp, "%s", tmpBuffer);
+        if(fp) fprintf(fp, "%s", tmpBuffer);
 
         if (totalRows >= lastRowsPrint) {
             infoPrint(" %"PRId64 " rows already be dump-out from %s.%s\n",
