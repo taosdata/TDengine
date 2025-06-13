@@ -394,6 +394,11 @@ taosAdapter deployed separately from taosd must be upgraded by upgrading the TDe
 
 Use the command rmtaos to remove the TDengine server software, including taosAdapter.
 
+## IPv6 Support
+
+Starting from **version 3.3.7.0**, taosAdapter supports IPv6. No additional configuration is required.
+taosAdapter automatically detects the system's IPv6 support: when available, it enables IPv6 and simultaneously listens on both IPv4 and IPv6 addresses.
+
 ## Monitoring Metrics
 
 Currently, taosAdapter only collects monitoring indicators for RESTful/WebSocket related requests. There are no monitoring indicators for other interfaces.
