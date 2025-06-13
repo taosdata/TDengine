@@ -1,0 +1,1 @@
+python3 .\test.py -f tools\taosdump\native\taosdumpSchemaChange.py
