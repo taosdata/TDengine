@@ -20,6 +20,7 @@ include_directories(/usr/include)
 # 添加主库
 add_library(insert_generator STATIC 
     src/RowDataGenerator.cpp
+    src/RateLimiter.cpp
     src/TableDataManager.cpp
 )
 

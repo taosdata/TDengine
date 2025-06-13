@@ -13,6 +13,13 @@ TableDataManager::TableDataManager(const InsertDataConfig& config)
     } else {
         interlace_rows_ = std::numeric_limits<int64_t>::max();
     }
+
+    // 初始化流控
+    if (config_.control.data_generation.flow_control.enabled) {
+        rate_limiter_ = std::make_unique<RateLimiter>(
+            config_.control.data_generation.flow_control.rate_limit
+        );
+    }
 }
 
 bool TableDataManager::init(const std::vector<std::string>& table_names) {
@@ -49,6 +56,10 @@ bool TableDataManager::init(const std::vector<std::string>& table_names) {
     return true;
 }
 
+void TableDataManager::acquire_tokens(int64_t tokens) {
+    rate_limiter_->acquire(tokens);
+}
+
 std::optional<MultiBatch> TableDataManager::next_multi_batch() {
     if (!has_more()) {
         return std::nullopt;
@@ -72,6 +83,7 @@ MultiBatch TableDataManager::collect_batch_data(int64_t max_rows) {
         
         const std::string& table_name = table_order_[current_table_index_];
         std::vector<RowData> batch;
+        int64_t actual_generated = 0;
         
         // Calculate how many rows we can still add
         int64_t remaining_batch_space = max_rows - result.total_rows;
@@ -81,13 +93,18 @@ MultiBatch TableDataManager::collect_batch_data(int64_t max_rows) {
             calculate_rows_to_generate(*table_state),
             remaining_batch_space
         );
-        
+    
         // Generate data
-        for (int64_t i = 0; i < rows_to_generate; i++) {
+        for (int64_t i = 0; i < rows_to_generate; ++i) {
             if (auto row = table_state->generator->next_row()) {
+                if (row->timestamp < 0) {
+                    --i;
+                    continue;
+                }
                 batch.push_back(std::move(*row));
                 table_state->rows_generated++;
                 table_state->interlace_counter++;
+                actual_generated++;
             } else {
                 table_state->completed = true;
                 break;
@@ -100,9 +117,15 @@ MultiBatch TableDataManager::collect_batch_data(int64_t max_rows) {
             table_state->rows_generated >= config_.control.data_generation.per_table_rows) {
             advance_to_next_table();
         }
-        
+
         if (!batch.empty()) {
-            result.total_rows += batch.size();
+            int64_t batch_size = batch.size();
+
+            // Handle flow control
+            if (rate_limiter_) {
+                acquire_tokens(batch_size);
+            }
+            result.total_rows += batch_size;
             result.table_batches.emplace_back(table_name, std::move(batch));
         }
     }

@@ -4,31 +4,31 @@
 
 
 void test_generator_mode_basic() {
-    // 构建基本配置
+    // Setup basic configuration
     ColumnsConfig columns_config;
     columns_config.source_type = "generator";
     
-    // 设置时间戳策略
+    // Setup timestamp strategy
     auto& ts_config = columns_config.generator.timestamp_strategy.timestamp_config;
     ts_config.start_timestamp = Timestamp{1000};
     ts_config.timestamp_step = 10;
     ts_config.timestamp_precision = "ms";
     
-    // 设置列模式
+    // Setup schema
     auto& schema = columns_config.generator.schema;
     schema = {
         {"col1", "INT", "random", 1, 100},
         {"col2", "FLOAT", "random", 0.0, 1.0}
     };
 
-    // 设置控制参数
+    // Setup control parameters
     InsertDataConfig::Control control;
     control.data_generation.per_table_rows = 5;
 
-    // 创建生成器
+    // Create generator
     RowDataGenerator generator("test_table", columns_config, control, "ms");
 
-    // 验证行数生成
+    // Verify row generation
     int count = 0;
     while (auto row = generator.next_row()) {
         assert(row->table_name == "test_table");
@@ -82,6 +82,98 @@ void test_generator_reset() {
     }
     
     std::cout << "test_generator_reset passed.\n";
+}
+
+void test_generator_with_cache() {
+    ColumnsConfig columns_config;
+    columns_config.source_type = "generator";
+    
+    auto& ts_config = columns_config.generator.timestamp_strategy.timestamp_config;
+    ts_config.start_timestamp = Timestamp{1000};
+    ts_config.timestamp_step = 10;
+    ts_config.timestamp_precision = "ms";
+    
+    auto& schema = columns_config.generator.schema;
+    schema = {{"col1", "INT", "random", 1, 100}};
+
+    InsertDataConfig::Control control;
+    control.data_generation.per_table_rows = 10;
+    control.data_generation.data_cache.enabled = true;
+    control.data_generation.data_cache.cache_size = 5;
+
+    RowDataGenerator generator("test_table", columns_config, control, "ms");
+
+    // First batch should come from cache
+    std::vector<RowData> first_batch;
+    for (int i = 0; i < 5; i++) {
+        auto row = generator.next_row();
+        assert(row);
+        first_batch.push_back(*row);
+    }
+
+    // Second batch should be generated on-the-fly
+    std::vector<RowData> second_batch;
+    for (int i = 0; i < 5; i++) {
+        auto row = generator.next_row();
+        assert(row);
+        second_batch.push_back(*row);
+    }
+
+    assert(!generator.next_row());
+    std::cout << "test_generator_with_cache passed.\n";
+}
+
+void test_generator_with_disorder() {
+    ColumnsConfig columns_config;
+    columns_config.source_type = "generator";
+    
+    auto& ts_config = columns_config.generator.timestamp_strategy.timestamp_config;
+    ts_config.start_timestamp = Timestamp{1000};
+    ts_config.timestamp_step = 1;
+    ts_config.timestamp_precision = "ms";
+    
+    auto& schema = columns_config.generator.schema;
+    schema = {{"col1", "INT", "random", 1, 100}};
+
+    InsertDataConfig::Control control;
+    control.data_generation.per_table_rows = 30;
+    control.data_quality.data_disorder.enabled = true;
+    
+    // Add a disorder interval
+    InsertDataConfig::Control::DataQuality::DataDisorder::Interval interval;
+    interval.time_start = "1000";
+    interval.time_end = "1100";
+    interval.ratio = 1.0;  // 100% disorder
+    interval.latency_range = 20;
+    control.data_quality.data_disorder.intervals.push_back(interval);
+
+    RowDataGenerator generator("test_table", columns_config, control, "ms");
+
+    // Collect all rows
+    std::vector<int64_t> timestamps;
+    std::vector<RowData> rows;
+    while (auto row = generator.next_row()) {
+        if (row->timestamp >= 0) {  // Skip delayed rows
+            timestamps.push_back(row->timestamp);
+            rows.push_back(*row);
+        }
+    }
+
+    for (const auto& row : rows) {
+        std::cout << "Row: " << row.table_name << ", Timestamp: " << row.timestamp << ", Columns: " << row.columns <<"\n";
+    }
+
+    // Verify some disorder occurred
+    bool found_disorder = false;
+    for (size_t i = 1; i < timestamps.size(); i++) {
+        if (timestamps[i] < timestamps[i-1]) {
+            found_disorder = true;
+            break;
+        }
+    }
+    assert(found_disorder);
+
+    std::cout << "test_generator_with_disorder passed.\n";
 }
 
 void setup_test_csv() {
@@ -237,6 +329,8 @@ void test_invalid_source_type() {
 int main() {
     test_generator_mode_basic();
     test_generator_reset();
+    test_generator_with_cache();
+    test_generator_with_disorder();
     test_csv_mode_basic();
     test_csv_precision_conversion();
     test_invalid_source_type();

@@ -7,6 +7,7 @@
 #include <optional>
 #include "RowDataGenerator.h"
 #include "InsertDataConfig.h"
+#include "RateLimiter.h"
 
 class TableDataManager {
 public:
@@ -42,6 +43,9 @@ public:
     // Get table states
     const std::unordered_map<std::string, TableState>& table_states() const;
 
+    // Acquire tokens for flow control
+    void acquire_tokens(int64_t tokens);
+
 private:
     const InsertDataConfig& config_;
     std::unordered_map<std::string, TableState> table_states_;
@@ -60,4 +64,7 @@ private:
 
     // Get batch data respecting size limits
     MultiBatch collect_batch_data(int64_t max_rows);
+
+    // Flow control
+    std::unique_ptr<RateLimiter> rate_limiter_;
 };

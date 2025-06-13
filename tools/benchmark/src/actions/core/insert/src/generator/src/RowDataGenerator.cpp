@@ -17,24 +17,62 @@ RowDataGenerator::RowDataGenerator(const std::string& table_name,
       control_(control),
       target_precision_(target_precision) {
 
-    if (columns_config.source_type == "generator") {
+    init_raw_source();
+
+    if (control_.data_generation.data_cache.enabled) {
+        init_cache();
+    }
+
+    if (control_.data_quality.data_disorder.enabled) {
+        init_disorder();
+    }
+}
+
+void RowDataGenerator::init_cache() {
+    // 预生成数据填充缓存
+    cache_.clear();
+    cache_.reserve(control_.data_generation.data_cache.cache_size);
+    while (cache_.size() < control_.data_generation.data_cache.cache_size && has_more()) {
+        if (auto row = fetch_raw_row()) {
+            cache_.push_back(*row);
+        } else {
+            break;
+        }
+    }
+}
+
+void RowDataGenerator::init_disorder() {
+    // 初始化乱序区间
+    disorder_intervals_.clear();
+    for (const auto& interval : control_.data_quality.data_disorder.intervals) {
+        DisorderInterval disorder_interval;
+        disorder_interval.start_time = TimestampUtils::parse_timestamp(interval.time_start, target_precision_);
+        disorder_interval.end_time = TimestampUtils::parse_timestamp(interval.time_end, target_precision_);
+        disorder_interval.ratio = interval.ratio;
+        disorder_interval.latency_range = interval.latency_range;
+        disorder_intervals_.push_back(disorder_interval);
+    }
+}
+
+void RowDataGenerator::init_raw_source() {
+    if (columns_config_.source_type == "generator") {
         init_generator();
-        total_rows_ = control.data_generation.per_table_rows;
-    } else if (columns_config.source_type == "csv") {
+        total_rows_ = control_.data_generation.per_table_rows;
+    } else if (columns_config_.source_type == "csv") {
         init_csv_reader();
         total_rows_ = csv_rows_.size();
     } else {
-        throw std::invalid_argument("Unsupported source_type: " + columns_config.source_type);
+        throw std::invalid_argument("Unsupported source_type: " + columns_config_.source_type);
     }
     
     // 初始化时间戳生成器
-    if (columns_config.source_type == "generator") {
+    if (columns_config_.source_type == "generator") {
         timestamp_generator_ = std::make_unique<TimestampGenerator>(
-            columns_config.generator.timestamp_strategy.timestamp_config
+            columns_config_.generator.timestamp_strategy.timestamp_config
         );
-    } else if (columns_config.source_type == "csv" && columns_config.csv.timestamp_strategy.strategy_type == "generator") {
+    } else if (columns_config_.source_type == "csv" && columns_config_.csv.timestamp_strategy.strategy_type == "generator") {
         timestamp_generator_ = std::make_unique<TimestampGenerator>(
-            std::get<TimestampGeneratorConfig>(columns_config.csv.timestamp_strategy.timestamp_config)
+            std::get<TimestampGeneratorConfig>(columns_config_.csv.timestamp_strategy.timestamp_config)
         );
     }
 }
@@ -48,9 +86,6 @@ void RowDataGenerator::init_generator() {
     row_generator_ = std::make_unique<RowGenerator>(
         col_instances
     );
-    
-    // 设置时间戳步长
-    // timestamp_step_ = columns_config_.generator.timestamp_strategy.timestamp_config.timestamp_step;
 }
 
 void RowDataGenerator::init_csv_reader() {
@@ -89,30 +124,88 @@ void RowDataGenerator::init_csv_reader() {
     }
 }
 
+
 std::optional<RowData> RowDataGenerator::next_row() {
     if (generated_rows_ >= total_rows_) {
         return std::nullopt;
     }
+
+    // 处理延迟队列
+    process_delay_queue();
     
+    // 优先从缓存中取数据
+    if (!cache_.empty()) {
+        auto row = cache_.back();
+        cache_.pop_back();
+        generated_rows_++;
+        return row;
+    }
+    
+    // 从原始源获取数据
+    auto row_opt = fetch_raw_row();
+    if (!row_opt) {
+        return std::nullopt;
+    }
+    
+    // 更新当前时间轴
+    current_timestamp_ = row_opt->timestamp;
+    
+    // 应用乱序策略
+    auto delay = apply_disorder(*row_opt);
+    if (!delay) {
+        generated_rows_++;
+    }
+    
+    return row_opt;
+}
+
+bool RowDataGenerator::apply_disorder(RowData& row) {
+    if (!control_.data_quality.data_disorder.enabled) {
+        return false;
+    }
+    
+    // 检查数据时间戳是否在乱序区间
+    for (const auto& interval : disorder_intervals_) {
+        if (row.timestamp >= interval.start_time && row.timestamp < interval.end_time) {
+            // 按概率决定是否延迟
+            if (static_cast<double>(rand()) / RAND_MAX < interval.ratio) {
+                int latency = rand() % interval.latency_range;
+                int64_t deliver_time = row.timestamp + latency;
+                
+                // 放入延迟队列
+                delay_queue_.push(DelayedRow{deliver_time, row});
+                row.timestamp = -1;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void RowDataGenerator::process_delay_queue() {
+    while (!delay_queue_.empty() && delay_queue_.top().deliver_timestamp <= current_timestamp_) {
+        cache_.push_back(delay_queue_.top().row);
+        delay_queue_.pop();
+    }
+}
+
+std::optional<RowData> RowDataGenerator::fetch_raw_row() {
     RowData row_data;
-    row_data.table_name = table_name_;
     
     try {
         if (use_generator_) {
             row_data = generate_from_generator();
         } else {
             if (auto csv_row = generate_from_csv()) {
-                row_data = *csv_row;
+                row_data = std::move(*csv_row);
             } else {
                 total_rows_ = generated_rows_;
                 return std::nullopt;
             }
         }
-        
-        generated_rows_++;
+
         return row_data;
     } catch (const std::exception& e) {
-        // 记录错误并返回空值
         std::cerr << "Error generating row: " << e.what() << std::endl;
         return std::nullopt;
     }

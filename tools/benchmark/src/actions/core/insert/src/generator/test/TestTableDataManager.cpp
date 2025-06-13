@@ -189,6 +189,34 @@ void test_per_request_rows_limit() {
     std::cout << "test_per_request_rows_limit passed.\n";
 }
 
+void test_data_generation_with_flow_control() {
+    auto config = create_test_config();
+    config.control.data_generation.flow_control.enabled = true;
+    config.control.data_generation.flow_control.rate_limit = 100;  // 100 rows per second
+    config.control.data_generation.per_table_rows = 5;
+    TableDataManager manager(config);
+    
+    std::vector<std::string> table_names = {"test_table_1"};
+    assert(manager.init(table_names));
+    
+    auto start_time = std::chrono::steady_clock::now();
+    
+    while (auto batch = manager.next_multi_batch()) {
+        for (const auto& [table_name, rows] : batch->table_batches) {
+            assert(table_name == "test_table_1");
+            assert(!rows.empty());
+        }
+    }
+    
+    auto end_time = std::chrono::steady_clock::now();
+    auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+    
+    // With rate limit of 100 rows/s, 5 rows should take at least 50ms
+    assert(duration_ms >= 50);
+    
+    std::cout << "test_data_generation_with_flow_control passed.\n";
+}
+
 int main() {
     test_init_with_empty_tables();
     test_init_with_valid_tables();
@@ -198,6 +226,7 @@ int main() {
     test_data_generation_basic();
     test_data_generation_with_interlace();
     test_per_request_rows_limit();
+    test_data_generation_with_flow_control();
     
     std::cout << "All tests passed.\n";
     return 0;
