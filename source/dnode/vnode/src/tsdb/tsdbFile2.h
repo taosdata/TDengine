@@ -61,10 +61,21 @@ struct STFile {
   tsdb_ftype_t type;
   SDiskID      did;     // disk id
   int32_t      fid;     // file id
-  int32_t      lcn;     // last chunk number, also number of chunks, only for data file
-  int32_t      mcount;  // shared storage migration counter for sma & data file,
-                        // for sma file, this counter is for the whole file,
-                        // for data file, this counter is for the last chunk.
+
+  // last chunk number, also number of chunks, only for data file. compaction resets this
+  // field.
+  int32_t      lcn;
+
+  // shared storage migration counter for sma & data file, for sma file, this counter is
+  // for the whole file; for data file, this counter is for the last chunk. compaction
+  // resets this counter to 0.
+  int32_t      mcount;
+
+  // migration id. note this id is only be updated after file is downloaded from shared
+  // storage, but not after file is uploaded to shared storage. compaction resets this id
+  // to 0.
+  int32_t      mid;
+
   int64_t cid;          // commit id
   int64_t size;         // the logical file size, not the physical size
   int64_t minVer;
