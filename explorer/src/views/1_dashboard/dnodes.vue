@@ -163,7 +163,7 @@ async function loadDnodes() {
 
   dnodeList.value = dnode_res.data.map((dnode: any) => {
     const [_ts, ep, cpu_cores, cpu_system, mem_total, mem_free, io_write_disk, io_read_disk, system_net_in, system_net_out] = dnode;
-    const cpu_usage = cpu_system / cpu_cores;
+    const cpu_usage = cpu_system;
     const mem_usage = (mem_total - mem_free) / mem_total * 100;
 
     const netio = `${formatKB(system_net_in)} | ${formatKB(system_net_out)}`;
