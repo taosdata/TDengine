@@ -31,7 +31,6 @@ void test_generator_mode_basic() {
     // Verify row generation
     int count = 0;
     while (auto row = generator.next_row()) {
-        assert(row->table_name == "test_table");
         assert(row->timestamp == 1000 + count * 10);
         assert(row->columns.size() == 2);
         count++;
@@ -160,7 +159,7 @@ void test_generator_with_disorder() {
     }
 
     for (const auto& row : rows) {
-        std::cout << "Row: " << row.table_name << ", Timestamp: " << row.timestamp << ", Columns: " << row.columns <<"\n";
+        std::cout << "Row ==> " << "Timestamp: " << row.timestamp << ", Columns: " << row.columns <<"\n";
     }
 
     // Verify some disorder occurred
@@ -223,7 +222,6 @@ void test_csv_mode_basic() {
         // 验证第一行
         auto row1 = generator.next_row();
         assert(row1);
-        assert(row1->table_name == "table1");
         assert(row1->timestamp == 1622505600000);
         assert(row1->columns.size() == 2);
         assert(std::get<int32_t>(row1->columns[0]) == 12);
@@ -232,7 +230,6 @@ void test_csv_mode_basic() {
         // 验证第二行
         auto row2 = generator.next_row();
         assert(row2);
-        assert(row2->table_name == "table1");
         assert(row2->timestamp == 1622505601000);
         assert(row2->columns.size() == 2);
         assert(std::get<int32_t>(row2->columns[0]) == 25);
@@ -249,7 +246,6 @@ void test_csv_mode_basic() {
         
         auto row = generator.next_row();
         assert(row);
-        assert(row->table_name == "table2");
         assert(row->timestamp == 1622592000000);
         assert(row->columns.size() == 2);
         assert(std::get<int32_t>(row->columns[0]) == 85);

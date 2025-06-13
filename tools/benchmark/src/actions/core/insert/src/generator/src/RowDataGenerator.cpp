@@ -110,7 +110,7 @@ void RowDataGenerator::init_csv_reader() {
 
             for (size_t i = 0; i < table_data.rows.size(); i++) {
                 RowData row;
-                row.table_name = table_name_;
+                // row.table_name = table_name_;
                 row.timestamp = TimestampUtils::convert_timestamp_precision(table_data.timestamps[i], csv_precision_, target_precision_);
                 row.columns = table_data.rows[i];
                 csv_rows_.push_back(row);
@@ -226,7 +226,7 @@ void RowDataGenerator::reset() {
 
 RowData RowDataGenerator::generate_from_generator() {
     RowData row_data;
-    row_data.table_name = table_name_;
+    // row_data.table_name = table_name_;
     
     // 生成时间戳
     row_data.timestamp = timestamp_generator_->generate();
