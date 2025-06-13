@@ -1344,6 +1344,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f eco-system/manager/schema_change.py -N 3 -M 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_window_true_for.py
+,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 
 #tsim test
 ,,y,script,./test.sh -f tsim/query/timeline.sim
@@ -1887,5 +1888,3 @@
 
 # new test
 ,,y,test_new,./pytest.sh python3 ./test.py -f storage/compact/test_compact_meta.py
-
-,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
