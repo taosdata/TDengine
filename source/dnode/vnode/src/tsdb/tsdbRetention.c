@@ -174,7 +174,6 @@ static int32_t tsdbDoMigrateFileObj(SRTNer *rtner, const STFileObj *fobj, const 
               .cid = fobj->f->cid,
               .size = fobj->f->size,
               .lcn = lcn,
-              .mcount = fobj->f->mcount,
               .stt[0] =
                   {
                       .level = fobj->f->stt[0].level,
