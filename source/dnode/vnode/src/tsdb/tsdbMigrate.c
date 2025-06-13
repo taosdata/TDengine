@@ -416,25 +416,32 @@ static int32_t uploadManifest(int32_t dnode, int32_t vnode, STFileSet* fset, int
 }
 
 
-
+// upload local files to shared storage
+//
+// local file name is like:
+//     [base]/vnode2/f1736/v2f1736ver16.head
+// or
+//     [base]/vnode2/f1736/v2f1736ver16.m334233.head
+//
+// remote file name is like:
+//     vnode2/f1736/v2f1736ver16.m13552343.head
+//
+// NOTE: the migration id is always included in the remote file name, because
+// the commit id may be different between the vnodes of the same vgroup,
+// that's an interrupted migration may overwrite some of the remote files
+// while leaving the others intact if we don't include the migration id in
+// the remote file name.
 static int32_t uploadFile(SRTNer* rtner, STFileObj* fobj) {
   if (fobj == NULL) {
     return TSDB_CODE_SUCCESS;
   }
 
-  const char* ext = strchr(strrchr(fobj->fname, TD_DIRSEP_CHAR), '.');
+  const char* ext = strrchr(fobj->fname, '.');
   int32_t vid = TD_VID(rtner->tsdb->pVnode), mid = getS3MigrateId(rtner->tsdb);
   STFile* f = fobj->f;
   
   char path[TSDB_FILENAME_LEN];
-  if (f->type == TSDB_FTYPE_SMA) {
-    snprintf(path, sizeof(path), "vnode%d/f%d/v%df%dver%" PRId64 "m%d%s.%d", vid, f->fid, vid, f->fid, f->cid, mid, ext, ++f->mcount);
-    STFileOp op = (STFileOp){.optype = TSDB_FOP_MODIFY, .fid = f->fid, .of = *f, .nf = *f};
-    op.of.mcount--;
-    TARRAY2_APPEND(&rtner->fopArr, op);
-  } else {
-    snprintf(path, sizeof(path), "vnode%d/f%d/v%df%dver%" PRId64 "m%d%s", vid, f->fid, vid, f->fid, f->cid, mid, ext);
-  }
+  snprintf(path, sizeof(path), "vnode%d/f%d/v%df%dver%" PRId64 ".m%d%s", vid, f->fid, vid, f->fid, f->cid, mid, ext);
 
   int code = tssUploadFileToDefault(path, fobj->fname, 0, -1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -452,17 +459,12 @@ static int32_t downloadFile(SRTNer* rtner, STFileObj* fobj) {
     return TSDB_CODE_SUCCESS;
   }
 
-  const char* ext = strchr(strrchr(fobj->fname, TD_DIRSEP_CHAR), '.');
+  const char* fname = strrchr(fobj->fname, TD_DIRSEP_CHAR) + 1;
   int32_t vid = TD_VID(rtner->tsdb->pVnode);
   STFile* f = fobj->f;
   
   char path[TSDB_FILENAME_LEN];
-  if (f->type == TSDB_FTYPE_SMA) {
-    snprintf(path, sizeof(path), "vnode%d/f%d/v%df%dver%" PRId64 "m%d%s.%d", vid, f->fid, vid, f->fid, f->cid, f->mid, ext, f->mcount);
-  } else {
-    snprintf(path, sizeof(path), "vnode%d/f%d/v%df%dver%" PRId64 "m%d%s", vid, f->fid, vid, f->fid, f->cid, f->mid, ext);
-  }
-
+  snprintf(path, sizeof(path), "vnode%d/f%d/%s", vid, f->fid, fname);
   int code = tssDownloadFileFromDefault(path, fobj->fname, 0, -1);
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("vgId:%d, fid:%d, failed to download file %s since %s", vid, f->fid, path, tstrerror(code));
@@ -473,23 +475,24 @@ static int32_t downloadFile(SRTNer* rtner, STFileObj* fobj) {
 }
 
 
-
+// download the last chunk of a data file
+// remote file name is like:
+//      vnode2/f1736/v2f1736ver16.m13552343.4.data
 static int32_t downloadDataFileLastChunk(SRTNer* rtner, STFileObj* fobj) {
   int32_t code = 0;
   int32_t vid = TD_VID(rtner->tsdb->pVnode);
   SVnodeCfg *pCfg = &rtner->tsdb->pVnode->config;
   STFile *f = fobj->f;
 
-  char localPath[TSDB_FILENAME_LEN], path[TSDB_FILENAME_LEN];
-  tsdbTFileLastChunkName(rtner->tsdb, f, localPath);
-  char* fname = strrchr(localPath, TD_DIRSEP_CHAR) + 1;
-  sprintf(fname, "v%df%dver%" PRId64 "m%d.%d.data", vid, f->fid, f->cid, f->mid, f->lcn);
+  char lpath[TSDB_FILENAME_LEN], rpath[TSDB_FILENAME_LEN];
+  tsdbTFileLastChunkName(rtner->tsdb, f, lpath);
+  char* fname = strrchr(lpath, TD_DIRSEP_CHAR) + 1;
 
-  sprintf(path, "vnode%d/f%d/v%df%dver%" PRId64 ".%d.data.%d", vid, f->fid, vid, f->fid, f->cid, f->lcn, f->mcount);
+  sprintf(rpath, "vnode%d/f%d/%s", vid, f->fid, fname);
 
-  code = tssDownloadFileFromDefault(path, localPath, 0, -1);
+  code = tssDownloadFileFromDefault(rpath, lpath, 0, -1);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("vgId:%d, fid:%d, failed to download data file %s since %s", vid, f->fid, path, tstrerror(code));
+    tsdbError("vgId:%d, fid:%d, failed to download data file %s since %s", vid, f->fid, rpath, tstrerror(code));
     return code;
   }
 
@@ -497,10 +500,15 @@ static int32_t downloadDataFileLastChunk(SRTNer* rtner, STFileObj* fobj) {
 }
 
 
-
+// while other files all include the migration id in the remote file name, only the last
+// chunk of a data file does the same. this is ok because:
+// 1. without a compaction, data file is always uploaded chunk by chunk, only the last
+//    chunk may be modified.
+// 2. after a compaction, all of the data is downloaded to local, so overwriting remote
+//    data chunks won't cause any problem.
 static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
   int32_t code = 0;
-  int32_t vid = TD_VID(rtner->tsdb->pVnode);
+  int32_t vid = TD_VID(rtner->tsdb->pVnode), mid = getS3MigrateId(rtner->tsdb);
   SVnodeCfg *pCfg = &rtner->tsdb->pVnode->config;
   int64_t szFile = 0, szChunk = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
   STFile *f = fobj->f;
@@ -529,9 +537,6 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
   }
 
   int lcn = f->lcn < 1 ? 1 : f->lcn;
-  if (totalChunks > lcn) { // reset migration counter if there are new chunks
-    f->mcount = 0;
-  }
 
   // upload chunks one by one, the first chunk may already been uploaded, but may be
   // modified thereafter, so we need to upload it again
@@ -542,10 +547,10 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
         size = szFile % szChunk;
     }
 
-    // only include the migration counter in the last chunk filename
+    // only include the migration id in the last chunk filename
     char rpath[TSDB_FILENAME_LEN];
     if (i == totalChunks) {
-      sprintf(rpath, "vnode%d/f%d/v%df%dver%" PRId64 ".%d.data.%d", vid, f->fid, vid, f->fid, f->cid, i, ++f->mcount);
+      sprintf(rpath, "vnode%d/f%d/v%df%dver%" PRId64 ".m%d.%d.data", vid, f->fid, vid, f->fid, f->cid, mid, i);
     } else {
       sprintf(rpath, "vnode%d/f%d/v%df%dver%" PRId64 ".%d.data", vid, f->fid, vid, f->fid, f->cid, i);
     }
@@ -705,7 +710,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
     return false;
   }
 
-  if (fremote->f->lcn != flocal->f->lcn || fremote->f->mcount != flocal->f->mcount) {
+  if (fremote->f->lcn != flocal->f->lcn) {
     tsdbError("vgId:%d, fid:%d, migration cancelled, remote and local data file information mismatch", vid, pLocalFset->fid);
     tsdbTFileSetClear(&pRemoteFset);
     *pCode = TSDB_CODE_FILE_CORRUPTED;
