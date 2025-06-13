@@ -66,11 +66,6 @@ struct STFile {
   // field.
   int32_t      lcn;
 
-  // shared storage migration counter for sma & data file, for sma file, this counter is
-  // for the whole file; for data file, this counter is for the last chunk. compaction
-  // resets this counter to 0.
-  int32_t      mcount;
-
   // migration id. note this id is only be updated after file is downloaded from shared
   // storage, but not after file is uploaded to shared storage. compaction resets this id
   // to 0.
