@@ -31,11 +31,17 @@ pub async fn get_sample(
 
     let mut tasks = JoinSet::new();
     let (payload_tx, payload_rx) = flume::bounded(limit);
-    for config in spb_config
+    for mut config in spb_config
         .mqtt
         .mqtt_config()
         .context("parse mqtt config error")?
     {
+        let client_id = format!(
+            "_taosx_sample_spb_{}_{}",
+            config.client_id,
+            uuid::Uuid::new_v4().simple()
+        );
+        config.client_id = client_id;
         let poller = GenericMessagePoller::from_config(&config, subscriptions.clone())
             .await
             .context("build poller error")?;

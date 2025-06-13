@@ -1078,7 +1078,7 @@ function handleCurrentChange(val: number) {
 
 //编辑回显数据--编辑状态不自动显示result table
 async function echoParser(parse: TransformerfullparamsType | TransformerSpbfullparamsType | null) {
-  if (supportTransform.supportSQL) {
+  if (supportTransform.supportSQL || sourceForm.type == 'sparkplugb') {
     const params: Recordable = { dsn: sourceForm };
     params.sample_data_limit = transformerState.limitOffset;
     const result = await dataInProps.transform.api.getSampleDataMsgbody(params);
@@ -1105,29 +1105,20 @@ async function echoParser(parse: TransformerfullparamsType | TransformerSpbfullp
       initColumnLists(columns);
     }
 
-    if (sourceForm.type == 'sparkplugb') {
-      const parseData = parse as TransformerSpbfullparamsType | null;
-
-      msgForm.msgbody = JSON.stringify({
-        parser: parseData?.parser,
-        samples: parseData?.samples
+    const parseData = parse as TransformerfullparamsType | null;
+    msgForm.msgbody =
+      sourceForm.type == 'mqtt'
+        ? parseData?.input.map(item => item.payload).join(' ') || ''
+        : isCSV.value
+          ? csvechoTransData?.msgBody || ''
+          : parseData?.input.map(item => item.value).join(' ') || '';
+    // 回填解析 topic 的值
+    if (supportTransform.supportTopicBody) {
+      parseData?.input.map(item => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { payload, ...rest } = item;
+        msgForm.topicbody.push(rest);
       });
-    } else {
-      const parseData = parse as TransformerfullparamsType | null;
-      msgForm.msgbody =
-        sourceForm.type == 'mqtt'
-          ? parseData?.input.map(item => item.payload).join(' ') || ''
-          : isCSV.value
-            ? csvechoTransData?.msgBody || ''
-            : parseData?.input.map(item => item.value).join(' ') || '';
-      // 回填解析 topic 的值
-      if (supportTransform.supportTopicBody) {
-        parseData?.input.map(item => {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { payload, ...rest } = item;
-          msgForm.topicbody.push(rest);
-        });
-      }
     }
 
     let tagKey = '';
