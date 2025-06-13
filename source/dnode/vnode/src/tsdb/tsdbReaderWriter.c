@@ -35,7 +35,7 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
 
       int32_t     vid = 0;
       const char *object_name = taosDirEntryBaseName((char *)path);
-      (void)sscanf(object_name, "v%df%dver%" PRId64 ".data", &vid, &pFD->fid, &pFD->cid);
+      (void)sscanf(object_name, "v%df%dver%" PRId64, &vid, &pFD->fid, &pFD->cid);
 
       char *dot = strrchr(lc_path, '.');
       if (!dot) {
