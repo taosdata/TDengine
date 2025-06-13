@@ -554,7 +554,7 @@ function install_taosx_config() {
 function install_explorer_config() {
   [ ! -z $1 ] && return 0 || : # only install client
 
-  if [ "$verMode" == "cluster" ]; then
+  if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
     file_name="${script_dir}/${xname}/etc/${PREFIX}/explorer.toml"
   else
     file_name="${script_dir}/cfg/explorer.toml"
