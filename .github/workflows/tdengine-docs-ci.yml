@@ -9,7 +9,6 @@ on:
     paths:
       - 'docs/**'
       - '**/*.md'
-
 env:
   DOC_WKC: '/root/doc_ci_work'
   ZH_DOC_REPO: 'docs.taosdata.com'
@@ -64,8 +63,23 @@ jobs:
         with:
           reviewdog: true
           args: ./docs/zh/*  ./docs/en/*  **/*.md
-        
-        
+
+  check-markdownlint-cli2:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tdengine Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0       
+      - name: check with markdownlint
+        uses: DavidAnson/markdownlint-cli2-action@v20
+        with:
+          config: 'docs/.markdownlint-cli2.jsonc'
+          globs: |
+            **/*.md
+            docs/**/[!_]*.md
+            docs/**/[!_]*.mdx
+          
           
   build-doc:
     runs-on:
