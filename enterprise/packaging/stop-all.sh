@@ -7,8 +7,9 @@ fi
 
 prefix="taos"
 versionType="enterprise"
+mode="full"
 
-if [ "${versionType}" == "enterprise" ]; then
+if [ "${versionType}" == "enterprise" ] && [ "${mode}" == "full" ]; then
     services=(${prefix}"d" ${prefix}"adapter" ${prefix}"x" ${prefix}"-explorer" ${prefix}"keeper")
 else
     services=(${prefix}"d" ${prefix}"adapter" ${prefix}"-explorer" ${prefix}"keeper")
