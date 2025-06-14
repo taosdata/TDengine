@@ -26,7 +26,7 @@ taosKeeper needs to be executed in the operating system terminal, and this tool 
 For explanations of command line parameters and environment variables, refer to the output of the command `taoskeeper --help`. Below is an example:
 
 ```shell
-Usage of taoskeeper v3.3.3.0:
+Usage of taoskeeper:
   -R, --RotationInterval string                      interval for refresh metrics, such as "300ms", Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h". Env "TAOS_KEEPER_ROTATION_INTERVAL" (default "15s")
   -c, --config string                                config path default /etc/taos/taoskeeper.toml
       --drop string                                  run taoskeeper in command mode, only support old_taosd_metric_stables. 
@@ -34,6 +34,7 @@ Usage of taoskeeper v3.3.3.0:
       --fromTime string                              parameter of transfer, example: 2020-01-01T00:00:00+08:00 (default "2020-01-01T00:00:00+08:00")
       --gopoolsize int                               coroutine size. Env "TAOS_KEEPER_POOL_SIZE" (default 50000)
   -h, --help                                         Print this help message and exit
+  -H, --host string                                  http host. Env "TAOS_KEEPER_HOST"
       --instanceId int                               instance ID. Env "TAOS_KEEPER_INSTANCE_ID" (default 64)
       --log.compress                                 whether to compress old log. Env "TAOS_KEEPER_LOG_COMPRESS"
       --log.keepDays uint                            log retention days, must be a positive integer. Env "TAOS_KEEPER_LOG_KEEP_DAYS" (default 30)
@@ -50,7 +51,7 @@ Usage of taoskeeper v3.3.3.0:
       --metrics.database.options.keep int            database option buffer for audit database. Env "TAOS_KEEPER_METRICS_KEEP" (default 90)
       --metrics.database.options.vgroups int         database option vgroups for audit database. Env "TAOS_KEEPER_METRICS_VGROUPS" (default 1)
       --metrics.prefix string                        prefix in metrics names. Env "TAOS_KEEPER_METRICS_PREFIX"
-      --metrics.tables stringArray                   export some tables that are not supertable, multiple values split with white space. Env "TAOS_KEEPER_METRICS_TABLES"
+      --metrics.tables stringArray                   export some tables that are not super table, multiple values split with white space. Env "TAOS_KEEPER_METRICS_TABLES"
   -P, --port int                                     http port. Env "TAOS_KEEPER_PORT" (default 6043)
       --tdengine.host string                         TDengine server's ip. Env "TAOS_KEEPER_TDENGINE_HOST" (default "127.0.0.1")
       --tdengine.password string                     TDengine server's password. Env "TAOS_KEEPER_TDENGINE_PASSWORD" (default "taosdata")
@@ -58,7 +59,7 @@ Usage of taoskeeper v3.3.3.0:
       --tdengine.username string                     TDengine server's username. Env "TAOS_KEEPER_TDENGINE_USERNAME" (default "root")
       --tdengine.usessl                              TDengine server use ssl or not. Env "TAOS_KEEPER_TDENGINE_USESSL"
       --transfer string                              run taoskeeper in command mode, only support old_taosd_metric. transfer old metrics data to new tables and exit
-  -V, --version                                      Print the version and exit
+  -V, --version                                      Print the version and exit                                   Print the version and exit
 ```
 
 ### Configuration File
@@ -73,6 +74,8 @@ If neither a taosKeeper configuration file is specified nor does `/etc/taos/taos
 # The ID of the currently running taoskeeper instance, default is 64.
 instanceId = 64
 
+# Listening host, supports IPv4/Ipv6, default is ""
+host = ""
 # Listening port, default is 6043.
 port = 6043
 
@@ -318,29 +321,29 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 
 ##### Related Metrics and Their Meanings
 
-| Metric Name                              | Type    | Meaning                                       |
-| ---------------------------------------- | ------- | --------------------------------------------- |
-| taos_cluster_info_connections_total      | counter | Total number of connections                   |
-| taos_cluster_info_dbs_total              | counter | Total number of databases                     |
-| taos_cluster_info_dnodes_alive           | counter | Number of alive dnodes                        |
-| taos_cluster_info_dnodes_total           | counter | Total number of dnodes                        |
-| taos_cluster_info_first_ep               | gauge   | First endpoint, label value indicates endpoint value |
-| taos_cluster_info_first_ep_dnode_id      | counter | dnode ID of the first endpoint                |
-| taos_cluster_info_master_uptime          | gauge   | Master node uptime in days                    |
-| taos_cluster_info_mnodes_alive           | counter | Number of alive mnodes                        |
-| taos_cluster_info_mnodes_total           | counter | Total number of mnodes                        |
-| taos_cluster_info_stbs_total             | counter | Total number of supertables                  |
-| taos_cluster_info_streams_total          | counter | Total number of streams                       |
-| taos_cluster_info_tbs_total              | counter | Total number of tables                        |
-| taos_cluster_info_topics_total           | counter | Total number of topics                        |
-| taos_cluster_info_version                | gauge   | Version information, label value indicates version number |
-| taos_cluster_info_vgroups_alive          | counter | Number of alive virtual groups                |
-| taos_cluster_info_vgroups_total          | counter | Total number of virtual groups                |
-| taos_cluster_info_vnodes_alive           | counter | Number of alive virtual nodes                 |
-| taos_cluster_info_vnodes_total           | counter | Total number of virtual nodes                 |
-| taos_grants_info_expire_time             | counter | Remaining time until cluster authorization expires (in seconds) |
-| taos_grants_info_timeseries_total        | counter | Total number of time-series allowed by cluster authorization |
-| taos_grants_info_timeseries_used         | counter | Number of time-series currently owned by the cluster |
+| Metric Name                         | Type    | Meaning                                                         |
+| ----------------------------------- | ------- | --------------------------------------------------------------- |
+| taos_cluster_info_connections_total | counter | Total number of connections                                     |
+| taos_cluster_info_dbs_total         | counter | Total number of databases                                       |
+| taos_cluster_info_dnodes_alive      | counter | Number of alive dnodes                                          |
+| taos_cluster_info_dnodes_total      | counter | Total number of dnodes                                          |
+| taos_cluster_info_first_ep          | gauge   | First endpoint, label value indicates endpoint value            |
+| taos_cluster_info_first_ep_dnode_id | counter | dnode ID of the first endpoint                                  |
+| taos_cluster_info_master_uptime     | gauge   | Master node uptime in days                                      |
+| taos_cluster_info_mnodes_alive      | counter | Number of alive mnodes                                          |
+| taos_cluster_info_mnodes_total      | counter | Total number of mnodes                                          |
+| taos_cluster_info_stbs_total        | counter | Total number of supertables                                     |
+| taos_cluster_info_streams_total     | counter | Total number of streams                                         |
+| taos_cluster_info_tbs_total         | counter | Total number of tables                                          |
+| taos_cluster_info_topics_total      | counter | Total number of topics                                          |
+| taos_cluster_info_version           | gauge   | Version information, label value indicates version number       |
+| taos_cluster_info_vgroups_alive     | counter | Number of alive virtual groups                                  |
+| taos_cluster_info_vgroups_total     | counter | Total number of virtual groups                                  |
+| taos_cluster_info_vnodes_alive      | counter | Number of alive virtual nodes                                   |
+| taos_cluster_info_vnodes_total      | counter | Total number of virtual nodes                                   |
+| taos_grants_info_expire_time        | counter | Remaining time until cluster authorization expires (in seconds) |
+| taos_grants_info_timeseries_total   | counter | Total number of time-series allowed by cluster authorization    |
+| taos_grants_info_timeseries_used    | counter | Number of time-series currently owned by the cluster            |
 
 #### dnode
 
@@ -352,30 +355,30 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 
 ##### Relevant Metrics and Their Meanings
 
-| Metric Name                    | Type    | Meaning                                                                                   |
-| ------------------------------ | ------- | ---------------------------------------------------------------------------------------- |
+| Metric Name                    | Type    | Meaning                                                                                                               |
+| ------------------------------ | ------- | --------------------------------------------------------------------------------------------------------------------- |
 | taos_d_info_status             | gauge   | dnode status, the label value indicates the status, ready means normal, offline means offline, unknown means unknown. |
-| taos_dnodes_info_cpu_cores     | gauge   | Number of CPU cores                                                                       |
-| taos_dnodes_info_cpu_engine    | gauge   | Percentage of CPU used by the process on this dnode (range 0~100)                        |
-| taos_dnodes_info_cpu_system    | gauge   | Percentage of CPU used by the system on this dnode (range 0~100)                         |
-| taos_dnodes_info_disk_engine   | counter | Disk capacity used by the process on this dnode (unit Byte)                              |
-| taos_dnodes_info_disk_total    | counter | Total disk capacity of this dnode (unit Byte)                                            |
-| taos_dnodes_info_disk_used     | counter | Disk capacity used on this dnode (unit Byte)                                             |
-| taos_dnodes_info_has_mnode     | counter | Whether there is an mnode                                                                |
-| taos_dnodes_info_has_qnode     | counter | Whether there is a qnode                                                                 |
-| taos_dnodes_info_has_snode     | counter | Whether there is an snode                                                                |
-| taos_dnodes_info_io_read       | gauge   | IO read rate of this dnode (unit Byte/s)                                                 |
-| taos_dnodes_info_io_read_disk  | gauge   | Disk IO read rate of this dnode (unit Byte/s)                                            |
-| taos_dnodes_info_io_write      | gauge   | IO write rate of this dnode (unit Byte/s)                                                |
-| taos_dnodes_info_io_write_disk | gauge   | Disk IO write rate of this dnode (unit Byte/s)                                           |
-| taos_dnodes_info_masters       | counter | Number of master nodes                                                                   |
-| taos_dnodes_info_mem_engine    | counter | Memory used by the process on this dnode (unit KB)                                       |
-| taos_dnodes_info_mem_system    | counter | Memory used by the system on this dnode (unit KB)                                        |
-| taos_dnodes_info_mem_total     | counter | Total memory of this dnode (unit KB)                                                     |
-| taos_dnodes_info_net_in        | gauge   | Network incoming rate of this dnode (unit Byte/s)                                        |
-| taos_dnodes_info_net_out       | gauge   | Network outgoing rate of this dnode (unit Byte/s)                                        |
-| taos_dnodes_info_uptime        | gauge   | Uptime of this dnode (unit seconds)                                                      |
-| taos_dnodes_info_vnodes_num    | counter | Number of vnodes on this dnode                                                           |
+| taos_dnodes_info_cpu_cores     | gauge   | Number of CPU cores                                                                                                   |
+| taos_dnodes_info_cpu_engine    | gauge   | Percentage of CPU used by the process on this dnode (range 0~100)                                                     |
+| taos_dnodes_info_cpu_system    | gauge   | Percentage of CPU used by the system on this dnode (range 0~100)                                                      |
+| taos_dnodes_info_disk_engine   | counter | Disk capacity used by the process on this dnode (unit Byte)                                                           |
+| taos_dnodes_info_disk_total    | counter | Total disk capacity of this dnode (unit Byte)                                                                         |
+| taos_dnodes_info_disk_used     | counter | Disk capacity used on this dnode (unit Byte)                                                                          |
+| taos_dnodes_info_has_mnode     | counter | Whether there is an mnode                                                                                             |
+| taos_dnodes_info_has_qnode     | counter | Whether there is a qnode                                                                                              |
+| taos_dnodes_info_has_snode     | counter | Whether there is an snode                                                                                             |
+| taos_dnodes_info_io_read       | gauge   | IO read rate of this dnode (unit Byte/s)                                                                              |
+| taos_dnodes_info_io_read_disk  | gauge   | Disk IO read rate of this dnode (unit Byte/s)                                                                         |
+| taos_dnodes_info_io_write      | gauge   | IO write rate of this dnode (unit Byte/s)                                                                             |
+| taos_dnodes_info_io_write_disk | gauge   | Disk IO write rate of this dnode (unit Byte/s)                                                                        |
+| taos_dnodes_info_masters       | counter | Number of master nodes                                                                                                |
+| taos_dnodes_info_mem_engine    | counter | Memory used by the process on this dnode (unit KB)                                                                    |
+| taos_dnodes_info_mem_system    | counter | Memory used by the system on this dnode (unit KB)                                                                     |
+| taos_dnodes_info_mem_total     | counter | Total memory of this dnode (unit KB)                                                                                  |
+| taos_dnodes_info_net_in        | gauge   | Network incoming rate of this dnode (unit Byte/s)                                                                     |
+| taos_dnodes_info_net_out       | gauge   | Network outgoing rate of this dnode (unit Byte/s)                                                                     |
+| taos_dnodes_info_uptime        | gauge   | Uptime of this dnode (unit seconds)                                                                                   |
+| taos_dnodes_info_vnodes_num    | counter | Number of vnodes on this dnode                                                                                        |
 
 #### Data Directory
 
@@ -389,11 +392,11 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 
 ##### Related Metrics and Their Meanings
 
-| Metric Name                          | Type  | Meaning                  |
-| ------------------------------------ | ----- | ------------------------ |
-| taos_taosd_dnodes_data_dirs_avail    | gauge | Available space (in Byte)|
-| taos_taosd_dnodes_data_dirs_total    | gauge | Total space (in Byte)    |
-| taos_taosd_dnodes_data_dirs_used     | gauge | Used space (in Byte)     |
+| Metric Name                       | Type  | Meaning                   |
+| --------------------------------- | ----- | ------------------------- |
+| taos_taosd_dnodes_data_dirs_avail | gauge | Available space (in Byte) |
+| taos_taosd_dnodes_data_dirs_total | gauge | Total space (in Byte)     |
+| taos_taosd_dnodes_data_dirs_used  | gauge | Used space (in Byte)      |
 
 #### Log Directory
 
@@ -406,11 +409,11 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 
 ##### Related Metrics and Their Meanings
 
-| Metric Name                         | Type  | Meaning                  |
-| ----------------------------------- | ----- | ------------------------ |
-| taos_taosd_dnodes_log_dirs_avail    | gauge | Available space (in Byte)|
-| taos_taosd_dnodes_log_dirs_total    | gauge | Total space (in Byte)    |
-| taos_taosd_dnodes_log_dirs_used     | gauge | Used space (in Byte)     |
+| Metric Name                      | Type  | Meaning                   |
+| -------------------------------- | ----- | ------------------------- |
+| taos_taosd_dnodes_log_dirs_avail | gauge | Available space (in Byte) |
+| taos_taosd_dnodes_log_dirs_total | gauge | Total space (in Byte)     |
+| taos_taosd_dnodes_log_dirs_used  | gauge | Used space (in Byte)      |
 
 #### Log Count
 
@@ -422,12 +425,12 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 
 ##### Related Metrics and Their Meanings
 
-| Metric Name               | Type    | Meaning          |
-| ------------------------- | ------- | ---------------- |
-| taos_log_summary_debug    | counter | Number of debug logs |
-| taos_log_summary_error    | counter | Number of error logs |
-| taos_log_summary_info     | counter | Number of info logs  |
-| taos_log_summary_trace    | counter | Number of trace logs |
+| Metric Name            | Type    | Meaning              |
+| ---------------------- | ------- | -------------------- |
+| taos_log_summary_debug | counter | Number of debug logs |
+| taos_log_summary_error | counter | Number of error logs |
+| taos_log_summary_info  | counter | Number of info logs  |
+| taos_log_summary_trace | counter | Number of trace logs |
 
 #### taosadapter
 
@@ -438,23 +441,23 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 
 ##### Related Metrics and Their Meanings
 
-| Metric Name                               | Type    | Meaning                  |
-| ----------------------------------------- | ------- | ------------------------ |
-| taos_adapter_requests_fail                | counter | Number of failed requests|
-| taos_adapter_requests_in_process          | counter | Number of requests in process|
-| taos_adapter_requests_other               | counter | Number of other type requests|
-| taos_adapter_requests_other_fail          | counter | Number of failed other type requests|
-| taos_adapter_requests_other_success       | counter | Number of successful other type requests|
-| taos_adapter_requests_query               | counter | Number of query requests |
-| taos_adapter_requests_query_fail          | counter | Number of failed query requests|
-| taos_adapter_requests_query_in_process    | counter | Number of queries in process|
-| taos_adapter_requests_query_success       | counter | Number of successful query requests|
-| taos_adapter_requests_success             | counter | Number of successful requests|
-| taos_adapter_requests_total               | counter | Total number of requests |
-| taos_adapter_requests_write               | counter | Number of write requests |
-| taos_adapter_requests_write_fail          | counter | Number of failed write requests|
-| taos_adapter_requests_write_in_process    | counter | Number of writes in process|
-| taos_adapter_requests_write_success       | counter | Number of successful write requests|
+| Metric Name                            | Type    | Meaning                                  |
+| -------------------------------------- | ------- | ---------------------------------------- |
+| taos_adapter_requests_fail             | counter | Number of failed requests                |
+| taos_adapter_requests_in_process       | counter | Number of requests in process            |
+| taos_adapter_requests_other            | counter | Number of other type requests            |
+| taos_adapter_requests_other_fail       | counter | Number of failed other type requests     |
+| taos_adapter_requests_other_success    | counter | Number of successful other type requests |
+| taos_adapter_requests_query            | counter | Number of query requests                 |
+| taos_adapter_requests_query_fail       | counter | Number of failed query requests          |
+| taos_adapter_requests_query_in_process | counter | Number of queries in process             |
+| taos_adapter_requests_query_success    | counter | Number of successful query requests      |
+| taos_adapter_requests_success          | counter | Number of successful requests            |
+| taos_adapter_requests_total            | counter | Total number of requests                 |
+| taos_adapter_requests_write            | counter | Number of write requests                 |
+| taos_adapter_requests_write_fail       | counter | Number of failed write requests          |
+| taos_adapter_requests_write_in_process | counter | Number of writes in process              |
+| taos_adapter_requests_write_success    | counter | Number of successful write requests      |
 
 #### taoskeeper
 
@@ -464,10 +467,10 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 
 ##### Related Metrics and Their Meanings
 
-| Metric Name                | Type  | Meaning                                      |
-| -------------------------- | ----- | -------------------------------------------- |
-| taos_keeper_monitor_cpu    | gauge | taoskeeper CPU usage rate (range 0~1)        |
-| taos_keeper_monitor_mem    | gauge | taoskeeper memory usage rate (range 0~1)     |
+| Metric Name             | Type  | Meaning                                  |
+| ----------------------- | ----- | ---------------------------------------- |
+| taos_keeper_monitor_cpu | gauge | taoskeeper CPU usage rate (range 0~1)    |
+| taos_keeper_monitor_mem | gauge | taoskeeper memory usage rate (range 0~1) |
 
 #### Other taosd Cluster Monitoring Items
 
@@ -562,9 +565,9 @@ taosKeeper also writes the monitoring data it collects into a monitoring databas
 
 The `keeper_monitor` records taoskeeper monitoring data.
 
-| field    | type      | is_tag | comment        |
-| :------- | :-------- | :------ | :----------- |
-| ts       | TIMESTAMP |         | timestamp    |
-| cpu      | DOUBLE    |         | CPU usage    |
-| mem      | DOUBLE    |         | Memory usage |
-| identify | NCHAR     | tag     | Identity information |
+| field    | type      | is_tag | comment              |
+| :------- | :-------- | :----- | :------------------- |
+| ts       | TIMESTAMP |        | timestamp            |
+| cpu      | DOUBLE    |        | CPU usage            |
+| mem      | DOUBLE    |        | Memory usage         |
+| identify | NCHAR     | tag    | Identity information |

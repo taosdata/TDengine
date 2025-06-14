@@ -80,7 +80,7 @@ func Init() *http.Server {
 	}
 
 	server := &http.Server{
-		Addr:    ":" + strconv.Itoa(conf.Port),
+		Addr:    conf.Host + ":" + strconv.Itoa(conf.Port),
 		Handler: router,
 	}
 
