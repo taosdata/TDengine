@@ -636,6 +636,7 @@ static int32_t collectMetaKeyFromCreateStream(SCollectMetaKeyCxt* pCxt, SCreateS
     cxt.pComCxt->collectVStbRefDbs = true;
     EDealRes res = collectMetaKeyFromRealTable(&cxt, pTriggerTable);
     PAR_ERR_RET(cxt.errCode);
+    PAR_ERR_RET(reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, pTriggerTable->table.dbName, pCxt->pMetaCache));
     PAR_ERR_RET(reserveDbCfgInCache(pCxt->pParseCxt->acctId, pTriggerTable->table.dbName, pCxt->pMetaCache));
   }
   if (pStmt->pQuery) {
