@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
 import sys
-from ..log import *
-from ..sql import *
+from .log import *
+from .sql import *
 import threading
 import random
 import string
