@@ -30,6 +30,7 @@ jobs:
       - name: Check all docs for typos
         uses: crate-ci/typos@v1.31.1
         with:
+          files: '**/*.{md,mdx}'  # 匹配所有 Markdown/MDX 文件
           config: docs/typos.toml
 
   check-docs-linter-formatter:
