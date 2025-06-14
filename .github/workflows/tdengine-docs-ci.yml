@@ -31,9 +31,9 @@ jobs:
         uses: crate-ci/typos@v1.31.1
         with:
           files: |
-            docs/**/*.md
-            docs/**/*.mdx
-            ./*.md
+            'docs/**/*.md'
+            'docs/**/*.mdx'
+            '/*.md'
           config: docs/typos.toml
 
   check-docs-linter-formatter:
