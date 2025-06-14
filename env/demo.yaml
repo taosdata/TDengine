@@ -1,0 +1,98 @@
+settings:
+  - name: taosd
+    fqdn: [node232]
+    spec:
+      version: 2.4.0.121111  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: node232:6030
+      dnodes:
+        - endpoint: node232:6030
+          config_dir: /etc/taos
+          code_dir: /root/TDengine
+          update_branch: main
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 135
+            supportVnodes: 1024
+            logKeepDays:  -1
+            numOfLogLines: 300000000
+            checkpointInterval: 60
+            snodeAddress: 127.0.0.1:873
+            ratioOfVnodeStreamThreads: 4
+            maxInsertBatchRows: 10000
+            UdfdLdLibPath: /usr/local/lib/python3.8/site-packages/taospyudf:/usr/local/lib/python3.8/dist-packages/taospyudf
+  - name: taospy
+    fqdn: [node232]
+    spec:
+      version: 2.2.0111
+      client_version: 2.4.0.12111
+      config:
+        firstEP: node232:6030
+        logDir: /var/log/taos
+        debugFlag: 135
+        asyncLog: 0
+        maxQueryTimeRange: 3
+        disableCount: 0
+        queryTableNotExistAsEmpty: false
+        maxInsertBatchRows: 10000
+
+  - name: taosAdapter
+    fqdn: [node232]
+    spec:
+      version: 2.4.0.12
+      config_file: /etc/taos/taosadapter.toml
+      adapter_config:
+        logLevel: info
+        port: 6041
+        taosConfigDir: /etc/taos
+        log:
+          path: /var/log/taos
+        opentsdb_telnet:
+          enable: true
+          maxTCPConnections: 250
+          tcpKeepAlive: false
+          dbs: ["telnet_tcp"]
+          ports: [6046]
+          user: root
+          password: taosdata
+          worker: 1000
+
+      taos_config:
+        firstEP: node232:6030
+        logDir: /var/log/taos
+        debugFlag: 135
+  - name: taosBenchmark
+    fqdn: [node232]
+    spec:
+      version: 3.0.1.8
+      taos_version: 3.0.1.8
+      config_dir: /etc/taos
+      taos_config:
+        firstEP: node232:6030
+        logDir: /var/log/taos
+        debugFlag: 131
+
+  - name: prometheus
+    fqdn: [node232]
+    spec:
+      server:
+        run_dir: /opt/prometheus
+        config:
+          global:
+            evaluation_interval: 10s
+            scrape_interval: 15s
+            scrape_timeout: 15s
+          scrape_configs:
+            job_name: prometheus
+            targets: [192.168.1.232:9090]
+      node_exporter:
+        fqdn: [node232]
+        run_dir: /opt/node_exporter
+      process_exporter:
+        fqdn: [node232]
+        run_dir: /opt/process_exporter
+        config:
+          common_process: [taosd, taosBenchmark]
+          custom_process:
+            node232: [taosd, taosBenchmark]
