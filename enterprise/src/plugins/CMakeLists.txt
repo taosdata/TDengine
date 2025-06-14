@@ -53,17 +53,17 @@ IF(TD_BUILD_TAOSA_INTERNAL)
       set(ext_taosadapter_static taosadapter.a)
       set(taosadapter_exe        taosadapter)
       set(_rpath                 "-Wl,-rpath=\$ORIGIN/../lib")
-      set(_shell_cmd             sh -c "go build -a -o ${taosadapter_exe} -ldflags \"${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=$(cd ${TD_EXTERNALS_BASE_DIR}/build/taosadapter/src/ext_taosadapter && git rev-parse HEAD)'\"")
+      set(_shell_cmd             sh -c "go build -a -o ${taosadapter_exe} -ldflags \"${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=$(cd ${TD_INTERNALS_BASE_DIR}/build/ext_taosadapter/src/ext_taosadapter && git rev-parse HEAD)'\"")
   elseif(${TD_DARWIN})
       set(ext_taosadapter_static taosadapter.a)
       set(taosadapter_exe        taosadapter)
       set(_rpath                 "-Wl,-rpath,\$ORIGIN/../lib")
-      set(_shell_cmd             sh -c "go build -a -o ${taosadapter_exe} -ldflags \"${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=$(cd ${TD_EXTERNALS_BASE_DIR}/build/taosadapter/src/ext_taosadapter && git rev-parse HEAD)'\"")
+      set(_shell_cmd             sh -c "go build -a -o ${taosadapter_exe} -ldflags \"${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=$(cd ${TD_INTERNALS_BASE_DIR}/build/ext_taosadapter/src/ext_taosadapter && git rev-parse HEAD)'\"")
   elseif(${TD_WINDOWS})
       set(ext_taosadapter_static taosadapter.lib)
       set(taosadapter_exe        taosadapter.exe)
       set(_rpath                 "")
-      set(_shell_cmd             cmd /c for /f %i in ('git -C ${TD_EXTERNALS_BASE_DIR}/build/taosadapter/src/ext_taosadapter rev-parse HEAD') do go build -a -o ${taosadapter_exe} -ldflags "${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=%i'")
+      set(_shell_cmd             cmd /c for /f %i in ('git -C ${TD_INTERNALS_BASE_DIR}/build/ext_taosadapter/src/ext_taosadapter rev-parse HEAD') do go build -a -o ${taosadapter_exe} -ldflags "${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=%i'")
   endif()
 
 
@@ -88,8 +88,8 @@ IF(TD_BUILD_TAOSA_INTERNAL)
     COMMAND "${CMAKE_COMMAND}" -E echo "Copy taosadapter"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${taosadapter_exe} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${taosadapter_exe}
     COMMAND "${CMAKE_COMMAND}" -E echo "Copy taosadapter.toml"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_EXTERNALS_BASE_DIR}/build/taosadapter/src/ext_taosadapter/example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/taosadapter.toml
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_EXTERNALS_BASE_DIR}/build/taosadapter/src/ext_taosadapter/taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/taosadapter.service
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_INTERNALS_BASE_DIR}/build/ext_taosadapter/src/ext_taosadapter/example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/taosadapter.toml
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_INTERNALS_BASE_DIR}/build/ext_taosadapter/src/ext_taosadapter/taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/taosadapter.service
   )
   ADD_DEPENDENCIES(taosainternal ext_taosadapter)
 ENDIF()
