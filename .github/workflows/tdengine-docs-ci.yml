@@ -30,10 +30,7 @@ jobs:
       - name: Check all docs for typos
         uses: crate-ci/typos@v1.31.1
         with:
-          files: |
-            'docs/**/*.md'
-            'docs/**/*.mdx'
-            '/*.md'
+          files: 'docs/**/*.md docs/**/*.mdx ./*.md'
           config: docs/typos.toml
 
   check-docs-linter-formatter:
