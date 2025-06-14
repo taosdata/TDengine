@@ -22,6 +22,7 @@ add_library(insert_generator STATIC
     src/RowDataGenerator.cpp
     src/RateLimiter.cpp
     src/TableDataManager.cpp
+    src/TableNameManager.cpp
 )
 
 # 包含头文件目录
@@ -63,3 +64,12 @@ target_link_libraries(TestTableDataManager PRIVATE
     insert_generator
 )
 add_test(NAME TestTableDataManager COMMAND TestTableDataManager)
+
+# Test TableNameManager
+add_executable(TestTableNameManager
+    test/TestTableNameManager.cpp
+)
+target_link_libraries(TestTableNameManager PRIVATE 
+    insert_generator
+)
+add_test(NAME TestTableNameManager COMMAND TestTableNameManager)
