@@ -284,6 +284,12 @@ TEST(stmt2Case, stmt2_test_limit) {
   int         code = taos_stmt2_prepare(stmt, sql, 0);
   checkError(stmt, code);
 
+  int             fieldNum = 0;
+  TAOS_FIELD_ALL* pFields = NULL;
+  code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+  checkError(stmt, code);
+  ASSERT_EQ(fieldNum, 3);
+
   int              t64_len[1] = {sizeof(int64_t)};
   int              b_len[1] = {3};
   int              x = 2;
@@ -1565,6 +1571,12 @@ TEST(stmt2Case, stmt2_query) {
   const char* sql = "select * from stmt2_testdb_7.stb where ts = ?";
   int         code = taos_stmt2_prepare(stmt, sql, 0);
   checkError(stmt, code);
+
+  int             fieldNum = 0;
+  TAOS_FIELD_ALL* pFields = NULL;
+  code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+  checkError(stmt, code);
+  ASSERT_EQ(fieldNum, 1);
 
   int              t64_len[1] = {sizeof(int64_t)};
   int              b_len[1] = {3};

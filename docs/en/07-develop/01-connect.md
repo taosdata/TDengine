@@ -242,7 +242,7 @@ taos = { version = "*", default-features = false, features = ["ws"] }
 <TabItem label="Node.js" value="node">
 
 - **Pre-installation Preparation**
-  - Install the Node.js development environment, using version 14 or above. Download link: [https://nodejs.org/en/download/](https://nodejs.org/en/download/)
+  - Install the Node.js development environment, using version 14 or above. Download link: [Download Node.js](https://nodejs.org/en/download)
 
 - **Installation**
   - Use npm to install the Node.js connector
@@ -407,15 +407,19 @@ Node.js connector uses DSN to create connections, the basic structure of the DSN
 
 - **protocol**: Establish a connection using the websocket protocol. For example, `ws://localhost:6041`
 - **username/password**: Username and password for the database.
-- **host/port**: Host address and port number. For example, `localhost:6041`
+- **host/port**: The host_name parameter supports valid domain names or IP addresses. The `@tdengine/websocket` supports both IPv4 and IPv6 formats. For IPv6 addresses, square brackets must be used (e.g., [::1] or [2001:db8:1234:5678::1]) to avoid port number parsing conflicts.
 - **database**: Database name.
 - **params**: Other parameters. For example, token.
 
 - Complete DSN example:
 
 ```js
-    ws://root:taosdata@localhost:6041
-```
+  // IPV4:
+  ws://root:taosdata@localhost:6041
+    
+  // IPV6:
+  ws://root:taosdata@[::1]:6041
+``` 
 
 </TabItem>
 
