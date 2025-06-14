@@ -28,22 +28,10 @@ jobs:
       - name: Checkout Actions Repository
         uses: actions/checkout@v4
 
-      - name: Use custom zh config file
+      - name: Check all docs for typos
         uses: crate-ci/typos@v1.31.1
         with:
-          files: 'docs/zh/**/*.md'
-          config: docs/typos.toml
-
-      - name: Use custom en config file
-        uses: crate-ci/typos@v1.31.1
-        with:
-          files: 'docs/en/**/*.md'
-          config: docs/typos.toml
-
-      - name: Use custom en config file
-        uses: crate-ci/typos@v1.31.1
-        with:
-          files: '**/*.md'
+          files: '**/*.{md,mdx}'  # 匹配所有 Markdown/MDX 文件
           config: docs/typos.toml
 
   check-with-autocorrect:
@@ -76,7 +64,9 @@ jobs:
         uses: tj-actions/changed-files@v46
         id: changed-files
         with:
-          files: '**/*.md'
+          files: |
+            **/*.md
+            **/*.mdx
           separator: ","
       - name: Check with Markdownlint
         uses: DavidAnson/markdownlint-cli2-action@v20

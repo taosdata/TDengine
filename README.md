@@ -148,7 +148,7 @@ TDengine provide a few useful tools such as taosBenchmark (was named taosdemo) a
 
 TDengine requires [GCC](https://gcc.gnu.org/) 9.3.1 or higher and [CMake](https://cmake.org/) 3.18.0 or higher for building.
 
-## 4.1 Build on Linux
+## 4.1 Build on Linuex
 
 <details>
 
