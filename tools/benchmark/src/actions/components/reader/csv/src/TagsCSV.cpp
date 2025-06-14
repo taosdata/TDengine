@@ -78,7 +78,7 @@ std::vector<ColumnTypeVector> TagsCSV::generate() const {
         auto rows = reader.read_all();
     
         // Prepare result container
-        std::vector<std::vector<ColumnType>> tags;
+        std::vector<ColumnTypeVector> tags;
         tags.reserve(rows.size());
 
         // Process each row
@@ -95,7 +95,7 @@ std::vector<ColumnTypeVector> TagsCSV::generate() const {
             }
             
             // Prepare tag data for the current row
-            std::vector<ColumnType> tag_row;
+            ColumnTypeVector tag_row;
             tag_row.reserve(column_type_map_.size());
             
             // Process each valid column

@@ -28,9 +28,9 @@ std::ostream& operator<<(std::ostream& os, const ColumnType& column) {
             // os << "NChar(" << std::string(value.begin(), value.end()) << ")";
             os  << u16string_to_utf8(value);
         } else if constexpr (std::is_same_v<T, std::string>) {
-            os << "String(" << value << ")";
+            os << value;
         } else if constexpr (std::is_same_v<T, JsonValue>) {
-            os << "Json(" << value.raw_json << ")";
+            os << value.raw_json;
         } else if constexpr (std::is_same_v<T, std::vector<uint8_t>>) {
             os << "VarBinary(";
             for (size_t i = 0; i < value.size(); ++i) {

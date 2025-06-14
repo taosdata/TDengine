@@ -40,7 +40,7 @@ link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../../config/build)
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../../components/generator/build)
 target_link_libraries(reader_csv PUBLIC
     actions_config
-    actions_generator
+    components_generator
     utils
 )
 

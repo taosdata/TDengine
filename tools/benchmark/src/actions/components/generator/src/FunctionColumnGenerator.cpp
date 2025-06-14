@@ -38,8 +38,8 @@ ColumnType FunctionColumnGenerator::generate() const {
     throw std::runtime_error("Unsupported function: " + func.function);
 }
 
-std::vector<ColumnType> FunctionColumnGenerator::generate(size_t count) const {
-    std::vector<ColumnType> values;
+ColumnTypeVector FunctionColumnGenerator::generate(size_t count) const {
+    ColumnTypeVector values;
     values.reserve(count);
     
     for (size_t i = 0; i < count; ++i) {

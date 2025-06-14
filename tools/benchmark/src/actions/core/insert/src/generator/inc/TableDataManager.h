@@ -26,7 +26,7 @@ public:
         TableState() = default;
     };
     
-    explicit TableDataManager(const InsertDataConfig& config);
+    explicit TableDataManager(const InsertDataConfig& config, const ColumnConfigInstanceVector& col_instances);
     
     // Initialize the table data manager
     bool init(const std::vector<std::string>& table_names);
@@ -48,6 +48,7 @@ public:
 
 private:
     const InsertDataConfig& config_;
+    const ColumnConfigInstanceVector& col_instances_;
     std::unordered_map<std::string, TableState> table_states_;
     std::vector<std::string> table_order_;      // Order of table names
     size_t current_table_index_ = 0;            // Current table index

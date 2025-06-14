@@ -31,7 +31,8 @@ InsertDataConfig create_test_config() {
 
 void test_init_with_empty_tables() {
     auto config = create_test_config();
-    TableDataManager manager(config);
+    auto col_instances = ColumnConfigInstanceFactory::create(config.source.columns.generator.schema);
+    TableDataManager manager(config, col_instances);
     
     assert(!manager.init({}));
     std::cout << "test_init_with_empty_tables passed.\n";
@@ -39,7 +40,8 @@ void test_init_with_empty_tables() {
 
 void test_init_with_valid_tables() {
     auto config = create_test_config();
-    TableDataManager manager(config);
+    auto col_instances = ColumnConfigInstanceFactory::create(config.source.columns.generator.schema);
+    TableDataManager manager(config, col_instances);
     
     std::vector<std::string> table_names = {"test_table_1", "test_table_2"};
     assert(manager.init(table_names));
@@ -57,7 +59,8 @@ void test_init_with_valid_tables() {
 void test_has_more() {
     auto config = create_test_config();
     config.control.data_generation.per_table_rows = 5;
-    TableDataManager manager(config);
+    auto col_instances = ColumnConfigInstanceFactory::create(config.source.columns.generator.schema);
+    TableDataManager manager(config, col_instances);
     
     std::vector<std::string> table_names = {"test_table"};
     assert(manager.init(table_names));
@@ -78,7 +81,8 @@ void test_has_more() {
 void test_table_completion() {
     auto config = create_test_config();
     config.control.data_generation.per_table_rows = 2;
-    TableDataManager manager(config);
+    auto col_instances = ColumnConfigInstanceFactory::create(config.source.columns.generator.schema);
+    TableDataManager manager(config, col_instances);
     
     std::vector<std::string> table_names = {"test_table_1", "test_table_2"};
     assert(manager.init(table_names));
@@ -100,7 +104,8 @@ void test_data_generation_basic() {
     auto config = create_test_config();
     config.control.data_generation.per_table_rows = 5;
     config.control.data_generation.interlace_mode.enabled = false;
-    TableDataManager manager(config);
+    auto col_instances = ColumnConfigInstanceFactory::create(config.source.columns.generator.schema);
+    TableDataManager manager(config, col_instances);
     
     std::vector<std::string> table_names = {"test_table_1"};
     assert(manager.init(table_names));
@@ -132,7 +137,8 @@ void test_data_generation_with_interlace() {
     config.control.data_generation.interlace_mode.enabled = true;
     config.control.data_generation.interlace_mode.rows = 2;
     config.control.data_generation.per_table_rows = 4;
-    TableDataManager manager(config);
+    auto col_instances = ColumnConfigInstanceFactory::create(config.source.columns.generator.schema);
+    TableDataManager manager(config, col_instances);
     
     std::vector<std::string> table_names = {"test_table_1", "test_table_2"};
     assert(manager.init(table_names));
@@ -170,7 +176,8 @@ void test_per_request_rows_limit() {
     config.control.insert_control.per_request_rows = 3;
     config.control.data_generation.per_table_rows = 10;
     config.control.data_generation.interlace_mode.enabled = false;
-    TableDataManager manager(config);
+    auto col_instances = ColumnConfigInstanceFactory::create(config.source.columns.generator.schema);
+    TableDataManager manager(config, col_instances);
     
     std::vector<std::string> table_names = {"test_table_1", "test_table_2"};
     assert(manager.init(table_names));
@@ -194,7 +201,8 @@ void test_data_generation_with_flow_control() {
     config.control.data_generation.flow_control.enabled = true;
     config.control.data_generation.flow_control.rate_limit = 100;  // 100 rows per second
     config.control.data_generation.per_table_rows = 5;
-    TableDataManager manager(config);
+    auto col_instances = ColumnConfigInstanceFactory::create(config.source.columns.generator.schema);
+    TableDataManager manager(config, col_instances);
     
     std::vector<std::string> table_names = {"test_table_1"};
     assert(manager.init(table_names));

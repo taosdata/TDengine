@@ -10,10 +10,12 @@
 
 RowDataGenerator::RowDataGenerator(const std::string& table_name, 
                                   const ColumnsConfig& columns_config,
+                                  const ColumnConfigInstanceVector& instances,
                                   const InsertDataConfig::Control& control,
                                   const std::string& target_precision)
     : table_name_(table_name), 
       columns_config_(columns_config),
+      instances_(instances),
       control_(control),
       target_precision_(target_precision) {
 
@@ -80,12 +82,8 @@ void RowDataGenerator::init_raw_source() {
 void RowDataGenerator::init_generator() {
     use_generator_ = true;
     
-    // 创建行生成器
-    auto col_instances = ColumnConfigInstanceFactory::create(columns_config_.generator.schema);    
-
-    row_generator_ = std::make_unique<RowGenerator>(
-        col_instances
-    );
+    // 创建行生成器  
+    row_generator_ = std::make_unique<RowGenerator>(instances_);
 }
 
 void RowDataGenerator::init_csv_reader() {
@@ -94,9 +92,7 @@ void RowDataGenerator::init_csv_reader() {
     csv_precision_ = columns_config_.csv.timestamp_strategy.get_precision();
 
     // 创建ColumnsCSV读取器
-    auto col_instances = ColumnConfigInstanceFactory::create(columns_config_.csv.schema); 
-
-    columns_csv_ = std::make_unique<ColumnsCSV>(columns_config_.csv, col_instances);
+    columns_csv_ = std::make_unique<ColumnsCSV>(columns_config_.csv, instances_);
 
     // TODO: ColumnsCSV 需要支持表名索引接口
     // 获取所有表数据

@@ -11,6 +11,7 @@ public:
     explicit TimestampGenerator(const TimestampGeneratorConfig& config);
     
     Timestamp generate() const;
+    void reset();
     
     std::vector<Timestamp> generate(size_t count) const;
 

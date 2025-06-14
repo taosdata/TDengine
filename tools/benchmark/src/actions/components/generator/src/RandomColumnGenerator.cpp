@@ -58,8 +58,8 @@ ColumnType RandomColumnGenerator::generate() const {
     throw std::runtime_error("Unsupported column type: " + instance_.config().type);
 }
 
-std::vector<ColumnType> RandomColumnGenerator::generate(size_t count) const {
-    std::vector<ColumnType> values;
+ColumnTypeVector RandomColumnGenerator::generate(size_t count) const {
+    ColumnTypeVector values;
     values.reserve(count);
     
     for (size_t i = 0; i < count; ++i) {

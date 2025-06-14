@@ -1,17 +1,16 @@
 #pragma once
+#include <iostream>
 #include "ActionBase.h"
 #include "ActionFactory.h"
 #include "InsertDataConfig.h"
-#include <iostream>
+#include "DatabaseConnector.h"
+
 
 class InsertDataAction : public ActionBase {
 public:
     explicit InsertDataAction(const InsertDataConfig& config) : config_(config) {}
 
-    void execute() override {
-        std::cout << "Inserting data into table: " << config_.target.tdengine.super_table_info.name << std::endl;
-        // 在此处实现具体的数据插入逻辑
-    }
+    void execute() override;
 
 private:
     InsertDataConfig config_;

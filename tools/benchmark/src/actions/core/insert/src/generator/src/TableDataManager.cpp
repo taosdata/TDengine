@@ -4,8 +4,8 @@
 #include <iostream>
 
 
-TableDataManager::TableDataManager(const InsertDataConfig& config)
-    : config_(config) {
+TableDataManager::TableDataManager(const InsertDataConfig& config, const ColumnConfigInstanceVector& col_instances)
+    : config_(config), col_instances_(col_instances) {
     
     // Set interlace rows
     if (config_.control.data_generation.interlace_mode.enabled) {
@@ -29,31 +29,37 @@ bool TableDataManager::init(const std::vector<std::string>& table_names) {
     }
     
     table_order_ = table_names;
-
-    // Create RowDataGenerator for each table
-    for (const auto& table_name : table_names) {
-        TableState state;
-        try {
-            state.generator = std::make_unique<RowDataGenerator>(
-                table_name,
-                config_.source.columns,
-                config_.control,
-                config_.target.timestamp_precision
-            );
-            state.rows_generated = 0;
-            state.interlace_counter = 0;
-            state.completed = false;
-            
-            table_states_[table_name] = std::move(state);
-        } catch (const std::exception& e) {
-            std::cerr << "Failed to create RowDataGenerator for table: " << table_name 
-                     << " - " << e.what() << std::endl;
-            return false;
-        }
-    }
     
-    current_table_index_ = 0;
-    return true;
+    try {        
+        // Create RowDataGenerator for each table
+        for (const auto& table_name : table_names) {
+            TableState state;
+            try {
+                state.generator = std::make_unique<RowDataGenerator>(
+                    table_name,
+                    config_.source.columns,
+                    col_instances_,
+                    config_.control,
+                    config_.target.timestamp_precision
+                );
+                state.rows_generated = 0;
+                state.interlace_counter = 0;
+                state.completed = false;
+                
+                table_states_[table_name] = std::move(state);
+            } catch (const std::exception& e) {
+                std::cerr << "Failed to create RowDataGenerator for table: " << table_name 
+                         << " - " << e.what() << std::endl;
+                return false;
+            }
+        }
+        
+        current_table_index_ = 0;
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "Failed to initialize TableDataManager: " << e.what() << std::endl;
+        return false;
+    }
 }
 
 void TableDataManager::acquire_tokens(int64_t tokens) {

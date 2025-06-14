@@ -64,3 +64,12 @@ target_link_libraries(TestSqlChildTableFormatter PRIVATE
     actions_formatter
 )
 add_test(NAME TestSqlChildTableFormatter COMMAND TestSqlChildTableFormatter)
+
+# test SqlInsertDataFormatter
+add_executable(TestSqlInsertDataFormatter
+    test/TestSqlInsertDataFormatter.cpp
+)
+target_link_libraries(TestSqlInsertDataFormatter PRIVATE 
+    actions_formatter
+)
+add_test(NAME TestSqlInsertDataFormatter COMMAND TestSqlInsertDataFormatter)

@@ -28,6 +28,12 @@ struct FormatterTraits<CreateChildTableConfig> {
     static constexpr const char* prefix = "childtable";
 };
 
+template<>
+struct FormatterTraits<InsertDataConfig> {
+    using Interface = IInsertDataFormatter;
+    static constexpr const char* prefix = "insert";
+};
+
 
 class FormatterFactory {
 public:

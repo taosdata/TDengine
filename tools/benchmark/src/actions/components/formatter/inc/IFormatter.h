@@ -1,6 +1,8 @@
 #pragma once
 #include <variant>
 #include "ActionConfigVariant.h"
+#include "ColumnConfigInstance.h"
+#include "TableData.h"
 
 
 // 通用格式化结果类型
@@ -32,6 +34,6 @@ class IChildTableFormatter : public IFormatter {
 
 class IInsertDataFormatter : public IFormatter {
 public:
-    virtual FormatResult format(const InsertDataConfig&) const = 0;
+    virtual FormatResult format(const InsertDataConfig&, const ColumnConfigInstanceVector& col_instances, const MultiBatch& batch) const = 0;
 };
 

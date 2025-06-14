@@ -330,7 +330,7 @@ namespace YAML {
                     rhs.generator.schema = generator["schema"].as<ColumnConfigVector>();
                 }
                 if (generator["timestamp_strategy"]) {
-                    rhs.generator.timestamp_strategy.generator_config = generator["timestamp_strategy"]["generator_config"].as<TimestampGeneratorConfig>();
+                    rhs.generator.timestamp_strategy.timestamp_config = generator["timestamp_strategy"]["timestamp_config"].as<TimestampGeneratorConfig>();
                 }
             } else if (rhs.source_type == "csv") {
                 if (!node["csv"]) {
@@ -357,8 +357,8 @@ namespace YAML {
                             rhs.csv.timestamp_strategy.original_config.offset_config = original["offset_config"].as<std::string>();
                         }
                     }
-                    if (ts["generator_config"]) {
-                        rhs.csv.timestamp_strategy.generator_config = ts["generator_config"].as<TimestampGeneratorConfig>();
+                    if (ts["timestamp_config"]) {
+                        rhs.csv.timestamp_strategy.timestamp_config = ts["timestamp_config"].as<TimestampGeneratorConfig>();
                     }
                 }
             } else {
@@ -515,6 +515,16 @@ namespace YAML {
                 rhs.interlace_mode.enabled = interlace["enabled"].as<bool>(false);
                 rhs.interlace_mode.rows  = interlace["rows"].as<int>(1);
             }
+            if (node["data_cache"]) {
+                const auto& data_cache = node["data_cache"];
+                rhs.data_cache.enabled = data_cache["enabled"].as<bool>(false);
+                rhs.data_cache.cache_size = data_cache["cache_size"].as<int>(1000000);
+            }
+            if (node["flow_control"]) {
+                const auto& flow_control = node["flow_control"];
+                rhs.flow_control.enabled = flow_control["enabled"].as<bool>(false);
+                rhs.flow_control.rate_limit = flow_control["rate_limit"].as<int64_t>(0);
+            }
             if (node["generate_threads"]) {
                 rhs.generate_threads = node["generate_threads"].as<int>(1);
             }
@@ -612,9 +622,6 @@ namespace YAML {
             }
             if (node["data_generation"]) {
                 rhs.data_generation = node["data_generation"].as<InsertDataConfig::Control::DataGeneration>();
-            }
-            if (node["data_cache"]) {
-                rhs.data_cache = node["data_cache"].as<InsertDataConfig::Control::DataCache>();
             }
             if (node["insert_control"]) {
                 rhs.insert_control = node["insert_control"].as<InsertDataConfig::Control::InsertControl>();

@@ -5,19 +5,12 @@
 #include <unordered_map>
 #include <variant>
 #include <optional>
-#include "ColumnType.h"
+#include "TableData.h"
 #include "ColumnsConfig.h"
 #include "CSVReader.h"
 #include "TimestampGenerator.h"
 #include "TimestampOriginalConfig.h"
 #include "ColumnConfigInstance.h"
-
-
-struct TableData {
-    std::string table_name;
-    std::vector<int64_t> timestamps;
-    std::vector<std::vector<ColumnType>> data_rows;
-};
 
 class ColumnsCSV {
 public:

@@ -49,8 +49,8 @@ struct InsertDataConfig {
                 bool enabled = false;
 
                 struct Interval {
-                    std::string time_start;
-                    std::string time_end;
+                    std::variant<int64_t, std::string> time_start;
+                    std::variant<int64_t, std::string> time_end;
                     double ratio = 0.0;       // 比例
                     int latency_range = 0;    // 延迟范围
                 };
@@ -64,17 +64,22 @@ struct InsertDataConfig {
                 int rows = 1; // 行数
             } interlace_mode;
 
+            struct DataCache {
+                bool enabled = false;
+                int64_t cache_size = 1000000; // 缓存大小
+            } data_cache;
+
+            struct FlowControl {
+                bool enabled = false;
+                int64_t rate_limit = 0;             // 每秒生成的行数
+            } flow_control;
+
             int generate_threads = 1;
-            int per_table_rows = 10000;
+            int64_t per_table_rows = 10000;
         } data_generation;
 
-        struct DataCache {
-            bool enabled = false;
-            int cache_size = 1000000; // 缓存大小
-        } data_cache;
-
         struct InsertControl {
-            int per_request_rows = 30000;
+            int64_t per_request_rows = 30000;
             bool auto_create_table = false;
             int insert_threads = 8;
             std::string thread_allocation = "index_range"; // index_range or vgroup_binding

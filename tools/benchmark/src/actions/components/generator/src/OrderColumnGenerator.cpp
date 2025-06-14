@@ -25,8 +25,8 @@ ColumnType OrderColumnGenerator::generate() const {
     return value;
 }
 
-std::vector<ColumnType> OrderColumnGenerator::generate(size_t count) const {
-    std::vector<ColumnType> values;
+ColumnTypeVector OrderColumnGenerator::generate(size_t count) const {
+    ColumnTypeVector values;
     values.reserve(count);
 
     for (size_t i = 0; i < count; ++i) {

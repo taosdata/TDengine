@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(actions_reader LANGUAGES CXX)
+project(components_reader LANGUAGES CXX)
 
 # 设置 C++ 标准
 set(CMAKE_CXX_STANDARD 17)
@@ -16,14 +16,14 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
 add_subdirectory(csv)
 
 # 编译静态库
-add_library(actions_reader STATIC reader.cpp)
+add_library(components_reader STATIC reader.cpp)
 
-# 链接 csv 静态库到 actions_reader
-target_link_libraries(actions_reader PUBLIC
+# 链接 csv 静态库到 components_reader
+target_link_libraries(components_reader PUBLIC
     reader_csv
 )
 
 # 包含头文件目录
-target_include_directories(actions_reader PUBLIC
+target_include_directories(components_reader PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/csv/inc
 )

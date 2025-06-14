@@ -26,7 +26,8 @@ void test_generator_mode_basic() {
     control.data_generation.per_table_rows = 5;
 
     // Create generator
-    RowDataGenerator generator("test_table", columns_config, control, "ms");
+    auto instances = ColumnConfigInstanceFactory::create(schema); 
+    RowDataGenerator generator("test_table", columns_config, instances, control, "ms");
 
     // Verify row generation
     int count = 0;
@@ -57,7 +58,8 @@ void test_generator_reset() {
     InsertDataConfig::Control control;
     control.data_generation.per_table_rows = 3;
     
-    RowDataGenerator generator("test_table", columns_config, control, "ms");
+    auto instances = ColumnConfigInstanceFactory::create(schema); 
+    RowDataGenerator generator("test_table", columns_config, instances, control, "ms");
     
     // 第一轮生成
     std::vector<int32_t> first_round;
@@ -100,7 +102,8 @@ void test_generator_with_cache() {
     control.data_generation.data_cache.enabled = true;
     control.data_generation.data_cache.cache_size = 5;
 
-    RowDataGenerator generator("test_table", columns_config, control, "ms");
+    auto instances = ColumnConfigInstanceFactory::create(schema); 
+    RowDataGenerator generator("test_table", columns_config, instances, control, "ms");
 
     // First batch should come from cache
     std::vector<RowData> first_batch;
@@ -146,7 +149,8 @@ void test_generator_with_disorder() {
     interval.latency_range = 20;
     control.data_quality.data_disorder.intervals.push_back(interval);
 
-    RowDataGenerator generator("test_table", columns_config, control, "ms");
+    auto instances = ColumnConfigInstanceFactory::create(schema); 
+    RowDataGenerator generator("test_table", columns_config, instances, control, "ms");
 
     // Collect all rows
     std::vector<int64_t> timestamps;
@@ -212,12 +216,13 @@ void test_csv_mode_basic() {
     auto& schema = columns_config.csv.schema;
     schema.emplace_back(ColumnConfig{"age", "INT"});
     schema.emplace_back(ColumnConfig{"city", "VARCHAR"});
+    auto instances = ColumnConfigInstanceFactory::create(schema); 
     
     InsertDataConfig::Control control;
     
     // 验证table1的数据
     {
-        RowDataGenerator generator("table1", columns_config, control, "ms");
+        RowDataGenerator generator("table1", columns_config, instances, control, "ms");
         
         // 验证第一行
         auto row1 = generator.next_row();
@@ -242,7 +247,7 @@ void test_csv_mode_basic() {
     
     // 验证table2的数据
     {
-        RowDataGenerator generator("table2", columns_config, control, "ms");
+        RowDataGenerator generator("table2", columns_config, instances, control, "ms");
         
         auto row = generator.next_row();
         assert(row);
@@ -257,7 +262,7 @@ void test_csv_mode_basic() {
     
     // 验证不存在的表
     try {
-        RowDataGenerator generator("table3", columns_config, control, "ms");
+        RowDataGenerator generator("table3", columns_config, instances, control, "ms");
         assert(false && "Should throw exception for non-existent table");
     } catch (const std::runtime_error& e) {
         assert(std::string(e.what()).find("not found in CSV file") != std::string::npos);
@@ -287,17 +292,18 @@ void test_csv_precision_conversion() {
     auto& schema = columns_config.csv.schema;
     schema.emplace_back(ColumnConfig{"age", "INT"});
     schema.emplace_back(ColumnConfig{"city", "VARCHAR"});
+    auto instances = ColumnConfigInstanceFactory::create(schema); 
 
     InsertDataConfig::Control control;
 
     // 测试转换到不同精度
     {
-        RowDataGenerator generator("table1", columns_config, control, "us");
+        RowDataGenerator generator("table1", columns_config, instances, control, "us");
         auto row = generator.next_row();
         assert(row);
         assert(row->timestamp == 1622505600000000); // ms -> us
 
-        RowDataGenerator generator2("table1", columns_config, control, "ns");
+        RowDataGenerator generator2("table1", columns_config, instances, control, "ns");
         auto row2 = generator2.next_row();
         assert(row2);
         assert(row2->timestamp == 1622505600000000000); // ms -> ns
@@ -310,11 +316,12 @@ void test_csv_precision_conversion() {
 void test_invalid_source_type() {
     ColumnsConfig columns_config;
     columns_config.source_type = "invalid";
-    
-    InsertDataConfig::Control control;
+    ColumnConfigVector schema = {{"col1", "INT", "random", 1, 100}};
+    auto instances = ColumnConfigInstanceFactory::create(schema);
+    InsertDataConfig::Control control; 
     
     try {
-        RowDataGenerator generator("test_table", columns_config, control, "ms");
+        RowDataGenerator generator("test_table", columns_config, instances, control, "ms");
         assert(false && "Should throw exception for invalid source type");
     } catch (const std::invalid_argument& e) {
         assert(std::string(e.what()).find("Unsupported source_type") != std::string::npos);

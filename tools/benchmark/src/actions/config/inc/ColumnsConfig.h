@@ -13,11 +13,13 @@ struct ColumnsConfig {
         ColumnConfigVector schema; // 普通列的 Schema 定义
 
         struct TimestampStrategy {
-            TimestampGeneratorConfig generator_config;
+            TimestampGeneratorConfig timestamp_config;
         } timestamp_strategy;
     } generator;
 
     struct CSV {
+        ColumnConfigVector schema; // 普通列的 Schema 定义
+
         std::string file_path;
         bool has_header = true;
         std::string delimiter = ",";
@@ -25,8 +27,16 @@ struct ColumnsConfig {
 
         struct TimestampStrategy {
             std::string strategy_type = "original"; // 时间戳策略类型：original 或 generator
-
             std::variant<TimestampOriginalConfig, TimestampGeneratorConfig> timestamp_config;
+
+            std::string get_precision() const {
+                if (strategy_type == "original") {
+                    return std::get<TimestampOriginalConfig>(timestamp_config).timestamp_precision;
+                } else if (strategy_type == "generator") {
+                    return std::get<TimestampGeneratorConfig>(timestamp_config).timestamp_precision;
+                }
+                throw std::runtime_error("Invalid timestamp strategy type: " + strategy_type);
+            }
         } timestamp_strategy;
     } csv;
 };

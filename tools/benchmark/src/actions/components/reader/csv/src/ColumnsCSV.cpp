@@ -13,18 +13,12 @@
 #include <ctime>
 #include <unordered_map>
 #include "StringUtils.h"
+#include "TimestampUtils.h"
 #include "ColumnType.h"
 #include "CSVUtils.h"
 
 
 
-// 时间单位乘数（毫秒）
-constexpr int64_t YEAR_MS   = 365 * 24 * 60 * 60 * 1000LL;
-constexpr int64_t MONTH_MS  = 30 * 24 * 60 * 60 * 1000LL;
-constexpr int64_t DAY_MS    = 24 * 60 * 60 * 1000LL;
-constexpr int64_t HOUR_MS   = 60 * 60 * 1000LL;
-constexpr int64_t MINUTE_MS = 60 * 1000LL;
-constexpr int64_t SECOND_MS = 1000LL;
 
 ColumnsCSV::ColumnsCSV(const ColumnsConfig::CSV& config, std::optional<ColumnConfigInstanceVector> instances)
     : config_(config), instances_(instances) {
@@ -167,7 +161,7 @@ std::vector<TableData> ColumnsCSV::generate() const {
             if (timestamp_index) {
                 // original模式
                 const auto& raw_value = row[*timestamp_index];
-                int64_t raw_ts = ts_config.parse_timestamp_value(raw_value, ts_config.precision);
+                int64_t raw_ts = TimestampUtils::parse_timestamp(raw_value, ts_config.timestamp_precision);
 
                 if (ts_config.offset_config) {
                     const auto& offset = *ts_config.offset_config;
@@ -180,12 +174,32 @@ std::vector<TableData> ColumnsCSV::generate() const {
                         timestamp = offset.absolute_value + (raw_ts - first_raw_ts);
                     } else if (offset.offset_type == "relative") {
                         // 相对模式
-                        auto [years, months, days, seconds] = offset.relative_offset;
-                        timestamp = raw_ts +
-                            years   * YEAR_MS +
-                            months  * MONTH_MS +
-                            days    * DAY_MS +
-                            seconds * SECOND_MS;
+                        int64_t multiplier = TimestampUtils::get_precision_multiplier(ts_config.timestamp_precision);
+                        auto [years, months, days, hours, seconds] = offset.relative_offset;
+    
+                        // 将时间戳转换为秒
+                        std::time_t raw_time = raw_ts / multiplier;
+                        int64_t fraction = raw_ts % multiplier;
+                        
+                        // 处理时间偏移
+                        std::tm* timeinfo = std::localtime(&raw_time);
+                        if (!timeinfo) {
+                            throw std::runtime_error("Failed to convert timestamp to local time, raw_ts: " + std::to_string(raw_ts));
+                        }
+                        
+                        // 应用年月日的偏移
+                        timeinfo->tm_year += years;
+                        timeinfo->tm_mon  += months;
+                        timeinfo->tm_mday += days;
+                        timeinfo->tm_hour += hours;
+                        timeinfo->tm_sec  += seconds;
+  
+                        std::time_t new_time = std::mktime(timeinfo);
+                        if (new_time == -1) {
+                            throw std::runtime_error("Failed to apply time offset, raw_ts: " + std::to_string(raw_ts));
+                        }
+
+                        timestamp = new_time * multiplier + fraction;
                     } else {
                         throw std::runtime_error("Unsupported offset type: " + offset.offset_type);
                     }
@@ -206,7 +220,7 @@ std::vector<TableData> ColumnsCSV::generate() const {
 
 
             // 处理普通列
-            std::vector<ColumnType> data_row;
+            RowType data_row;
             data_row.reserve(actual_columns_);
 
             size_t index = 0;
@@ -230,7 +244,7 @@ std::vector<TableData> ColumnsCSV::generate() const {
                 }
             }
             
-            data.data_rows.push_back(std::move(data_row));
+            data.rows.push_back(std::move(data_row));
         }
 
         // 转换为 std::vector

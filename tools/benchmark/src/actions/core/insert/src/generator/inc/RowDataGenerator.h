@@ -16,6 +16,7 @@ class RowDataGenerator {
 public:
     RowDataGenerator(const std::string& table_name, 
                     const ColumnsConfig& columns_config,
+                    const ColumnConfigInstanceVector& instances,
                     const InsertDataConfig::Control& control,
                     const std::string& target_precision);
     
@@ -79,10 +80,11 @@ private:
     // 从CSV获取数据
     std::optional<RowData> generate_from_csv();
     
-    std::string table_name_;
-    ColumnsConfig columns_config_;
-    InsertDataConfig::Control control_;
-    std::string target_precision_;
+    const std::string& table_name_;
+    const ColumnsConfig& columns_config_;
+    const ColumnConfigInstanceVector& instances_;
+    const InsertDataConfig::Control& control_;
+    const std::string& target_precision_;
 
     // 数据源组件
     std::unique_ptr<RowGenerator> row_generator_;
