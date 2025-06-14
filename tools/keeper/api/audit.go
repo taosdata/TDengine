@@ -274,7 +274,7 @@ func getTableNameOld(audit AuditInfoOld) string {
 }
 
 func (a *Audit) initConnect() error {
-	conn, err := db.NewConnectorWithDb(a.username, a.password, a.host, a.port, a.db, a.usessl)
+	conn, err := db.NewConnectorWithDbWithRetryForever(a.username, a.password, a.host, a.port, a.db, a.usessl)
 	if err != nil {
 		auditLogger.Errorf("init db connect error, msg:%s", err)
 		return err
@@ -284,14 +284,14 @@ func (a *Audit) initConnect() error {
 }
 
 func (a *Audit) createDatabase() error {
-	conn, err := db.NewConnector(a.username, a.password, a.host, a.port, a.usessl)
+	conn, err := db.NewConnectorWithRetryForever(a.username, a.password, a.host, a.port, a.usessl)
 	if err != nil {
 		return fmt.Errorf("connect to database error, msg:%s", err)
 	}
 	defer func() { _ = conn.Close() }()
 	sql := a.createDBSql()
 	auditLogger.Infof("create database, sql:%s", sql)
-	_, err = conn.Exec(context.Background(), sql, util.GetQidOwn())
+	_, err = conn.ExecWithRetryForever(context.Background(), sql, util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
 		auditLogger.Errorf("create database error, msg:%s", err)
 		return err
@@ -327,7 +327,7 @@ func (a *Audit) createSTables() error {
 	if a.conn == nil {
 		return errNoConnection
 	}
-	_, err := a.conn.Exec(context.Background(), createTableSql, util.GetQidOwn())
+	_, err := a.conn.ExecWithRetryForever(context.Background(), createTableSql, util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
 		auditLogger.Errorf("## create stable error, msg:%s", err)
 		return err
