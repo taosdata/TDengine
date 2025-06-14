@@ -9,3 +9,10 @@ OT = "OT"
 MAPE = "MAPE"
 mosquitto = "mosquitto"
 Sur = "Sur"
+
+[files]
+include = [
+    "docs/**/*.md",
+    "docs/**/*.mdx",
+    "./*.md"
+]
