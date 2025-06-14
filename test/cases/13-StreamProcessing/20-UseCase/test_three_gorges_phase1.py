@@ -167,7 +167,7 @@ class Test_Three_Gorges_Phase1:
             "      end"
             "    ) as alarmtype,"
             "    point_path as alarmcontent"
-            f" options( fill_history('start') | pre_filter(index_code in ('emstxyc', 'bmstxyc') and dt >= today() - 1d and cz_flag = 1) )"
+            f" options( fill_history({start}) | pre_filter(index_code in ('emstxyc', 'bmstxyc') and dt >= today() - 1d and cz_flag = 1) )"
             f" into `ctg_test`.`str_station_alarmmsg_systemalarm_test` tags("
             "    cnstationno varchar(255) as %%2,"
             "    gpstationno varchar(255) as %%3,"
