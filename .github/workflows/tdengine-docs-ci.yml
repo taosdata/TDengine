@@ -68,7 +68,6 @@ jobs:
           files: |
             **/*.md
             **/*.mdx
-            ./*.md
           separator: ","
       - name: check with markdownlint
         uses: DavidAnson/markdownlint-cli2-action@v20
