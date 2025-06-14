@@ -108,6 +108,7 @@ impl FileWatcher {
         IntervalStream::new(tokio::time::interval(self.interval))
             .then(move |_| {
                 let dir = self.dir.clone();
+                tracing::info!("file watcher started: {:?}", dir);
                 let seen_files = self.seen_files.clone();
                 let stop_flag = self.stop_flag.clone();
                 let name_filter = self.name_filter.clone();

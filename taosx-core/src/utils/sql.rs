@@ -21,6 +21,18 @@ pub(crate) type TaosConnection = deadpool::managed::Object<Manager<TaosBuilder>>
 const SQL_CURRENT_DATABASE: &str = "select database()";
 const SQL_SHOW_DATABASES: &str = "show databases";
 
+pub async fn connect_taos(host: &str, ws_enable: bool) -> anyhow::Result<Taos, taos::Error> {
+    if ws_enable {
+        TaosBuilder::from_dsn(format!("taos+ws://{host}:6041"))?
+            .build()
+            .await
+    } else {
+        TaosBuilder::from_dsn(format!("taos://{host}"))?
+            .build()
+            .await
+    }
+}
+
 pub async fn get_v2_precision(taos: &taos::Taos) -> Result<taos::Precision, TaosError> {
     let database = taos
         .query_one::<_, String>(SQL_CURRENT_DATABASE)

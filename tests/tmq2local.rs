@@ -12,9 +12,10 @@ mod test_tmq_to_local {
     use taosx_core::s3::{S3Config, S3Loader};
     use taosx_core::tmq_to_local::conf::BackupConfigBuilder;
 
-    /// # Case
+    /// # description_cn
     /// 测试备份数据到本地
-    /// # Example
+    /// # example
+    /// 1. 备份到临时目录，默认先创建一个 test_backup 数据库，用 taosBenchmark 写入 1 亿行（ 1 万子表，1 万行/表），备份到本地
     /// ```shell
     /// BACKUP_DSN=tmq+ws://192.168.2.139:6041/log cargo nextest run test_backup_with_taos --nocapture --retries 0
     /// ```
