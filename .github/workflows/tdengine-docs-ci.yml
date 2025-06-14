@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: true
   
 jobs:
-  check-docs-typos:
+  check-with-typos:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Actions Repository
@@ -46,7 +46,7 @@ jobs:
           files: '**/*.md'
           config: docs/typos.toml
 
-  check-docs-linter-formatter:
+  check-with-autocorrect:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -64,16 +64,35 @@ jobs:
         with:
           reviewdog: true
           args: ./docs/zh/*  ./docs/en/*  **/*.md
-        
-        
-          
+
+  check-with-markdownlint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0       
+      - name: Detect changed files
+        uses: tj-actions/changed-files@v46
+        id: changed-files
+        with:
+          files: '**/*.md'
+          separator: ","
+      - name: Check with Markdownlint
+        uses: DavidAnson/markdownlint-cli2-action@v20
+        if: steps.changed-files.outputs.any_changed == 'true'        
+        with:
+          config: 'docs/.markdownlint-cli2.jsonc'
+          globs: ${{ steps.changed-files.outputs.all_changed_files }}
+
   build-doc:
     runs-on:
       group: CI
       labels: [self-hosted, doc-build]
     needs: 
-        - check-docs-typos
-        - check-docs-linter-formatter 
+        - check-with-typos
+        - check-with-autocorrect
+        - check-with-markdownlint
     steps:
       - name: Get the latest document contents
         run: |
@@ -141,4 +160,3 @@ jobs:
           cd ${{ env.DOC_WKC }}/${{ env.EN_DOC_REPO }}
           yarn ass local
           yarn build
-
