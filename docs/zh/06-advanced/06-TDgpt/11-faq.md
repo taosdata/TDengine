@@ -41,7 +41,19 @@ taos> select _frowts,forecast(current, 'algo=arima, alpha=95, wncheck=0, rows=20
 DB error: Analysis service can't access[0x80000441] (60.195613s)
 ```
 
-数据分析默认超时时间是 60s，出现这个问题的原因是输入数据分析过程超过默认的最长等待时间，请尝试采用限制数据输入范围的方式将输入数据规模减小或者更换分析算法再次尝试。
+出现这个问题的原因是输入数据分析过程超过默认的最长等待时间。如果您使用 `uWSGI` 驱动 TDgpt 运行，`uWSGI` 默认单个请求最长等待时间 60s。调整最长等待时间请在配置文件 `taosanode.ini` 中添加配置项：
+
+```ini
+# 工作进程在没有请求的情况下自动退出的时间，设置为 0 表示无限等待
+harakiri = 0
+
+# 接收到请求后，等待响应的超时时间，默认为 60s。这里修改为 20 分钟
+http-timeout = 1200
+```
+
+然后在查询 SQL 语句中使用 timeout 参数设置单次请求最大等待时间即可。需要注意 `timeout` 参数最大值为 1200，即单次请求最大执行时间不能够超过 20 分钟。
+
+如果您使用 Python 驱动 TDgpt 运行，在请求的 SQL 语句中调整 timeout 参数即可。
 
 ### 4. 返回结果出现非法 JSON 格式错误 (Invalid json format)
 
