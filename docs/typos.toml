@@ -9,7 +9,3 @@ OT = "OT"
 MAPE = "MAPE"
 mosquitto = "mosquitto"
 Sur = "Sur"
-
-[default]
-extend-glob = ["**/*.md", "**/*.mdx"]
-exclude-glob = ["**/*.txt"]
