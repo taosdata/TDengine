@@ -40,6 +40,7 @@ taos> select _frowts,forecast(current, 'algo=arima, alpha=95, wncheck=0, rows=20
 
 DB error: Analysis service can't access[0x80000441] (60.195613s)
 ```
+
 出现这个问题的原因是输入数据分析过程超过默认的最长等待时间。如果您使用 `uWSGI` 驱动 TDgpt 运行，`uWSGI` 默认单个请求最长等待时间 60s。调整最长等待时间请在配置文件 `taosanode.ini` 中添加配置项：
 
 ```ini
