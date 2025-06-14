@@ -1561,4 +1561,293 @@ TEST_F(ParserStreamTest, TestQuery) {
   clearCreateStreamReq();
 }
 
+TEST_F(ParserStreamTest, TestErrorName) {
+  setAsyncFlag("-1");
+
+  //run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2");
+  // db not exists
+  run("create stream non_exist_db.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_FAILED);
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 into non_exist_db.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_FAILED);
+
+  // table not exists
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from non_exist_db.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_TABLE_NOT_EXIST);
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from non_exist_db.t2", TSDB_CODE_PAR_TABLE_NOT_EXIST);
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.non_exist_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_TABLE_NOT_EXIST);
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from non_exist_db.non_exist_t2", TSDB_CODE_PAR_TABLE_NOT_EXIST);
+
+}
+
+TEST_F(ParserStreamTest, TestErrorTriggerWindow) {
+  setAsyncFlag("-1");
+
+  // wrong trigger window
+  run("create stream stream_streamdb.s1 invalid_window(1s) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+
+  // invalid session window
+
+  // missing session_val
+  run("create stream stream_streamdb.s1 session(ts) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+
+  // not ts cols
+  run("create stream stream_streamdb.s1 session(c1, 1s) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INTER_SESSION_COL);
+
+  // invalid time unit
+  run("create stream stream_streamdb.s1 session(ts, 1y) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INTER_SESSION_GAP);
+  run("create stream stream_streamdb.s1 session(ts, 1n) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INTER_SESSION_GAP);
+  run("create stream stream_streamdb.s1 session(ts, 0s) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INTER_SESSION_GAP);
+
+  // invalid state window
+
+  // invalid col type
+  run("create stream stream_streamdb.s1 state_window(ts) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE);
+
+  // invalid using tag
+  run("create stream stream_streamdb.s1 state_window(tag1) from stream_triggerdb.st1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INVALID_STATE_WIN_COL);
+
+  // invalid true for less than 0
+  run("create stream stream_streamdb.s1 state_window(c1) true_for(-1) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+
+  // invalid true for unit
+  run("create stream stream_streamdb.s1 state_window(c1) true_for(1y) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_TRUE_FOR_UNIT);
+  run("create stream stream_streamdb.s1 state_window(c1) true_for('1y') from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_TRUE_FOR_UNIT);
+  run("create stream stream_streamdb.s1 state_window(c1) true_for(1x) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+  run("create stream stream_streamdb.s1 state_window(c1) true_for('1x') from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+
+  // invalid interval window
+
+  // interval without sliding
+  run("create stream stream_streamdb.s1 interval(1s) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+  run("create stream stream_streamdb.s1 interval(2s, 1s) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+
+  // invalid sliding unit
+  run("create stream stream_streamdb.s1 sliding(1n) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INTER_SLIDING_UNIT);
+  run("create stream stream_streamdb.s1 sliding(1y) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INTER_SLIDING_UNIT);
+
+  // invalid sliding offset unit
+  run("create stream stream_streamdb.s1 sliding(1s, 1n) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INTER_OFFSET_UNIT);
+  run("create stream stream_streamdb.s1 sliding(1s, 1y) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INTER_OFFSET_UNIT);
+  run("create stream stream_streamdb.s1 sliding(1s, 1u) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INTER_OFFSET_UNIT);
+  run("create stream stream_streamdb.s1 sliding(1s, 1d) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INTER_OFFSET_UNIT);
+  run("create stream stream_streamdb.s1 sliding(1s, 1w) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INTER_OFFSET_UNIT);
+  run("create stream stream_streamdb.s1 sliding(1s, 1b) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INTER_OFFSET_UNIT);
+
+  // sliding offset bigger than sliding
+  run("create stream stream_streamdb.s1 sliding(1s, 2s) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG);
+
+  // invalid interval val
+  run("create stream stream_streamdb.s1 interval(0) sliding(3s, 2s) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL);
+
+  // invalid interval offset unit
+  run("create stream stream_streamdb.s1 interval(20n, 1y) sliding(3s, 2s) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INTER_OFFSET_UNIT);
+
+  // interval offset bigger than interval
+  run("create stream stream_streamdb.s1 interval(1s, 2s) sliding(3s, 2s) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG);
+
+  // invalid event window
+
+  // non exist col
+  run("create stream stream_streamdb.s1 event_window(start with c1 > 1 end with c10 < 1) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INVALID_COLUMN);
+
+  // invalid psedo col
+  run("create stream stream_streamdb.s1 event_window(start with _wstart > 1 end with c1 < 1) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INVALID_WINDOW_PC);
+  run("create stream stream_streamdb.s1 event_window(start with _wend > 1 end with c1 < 1) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INVALID_WINDOW_PC);
+  run("create stream stream_streamdb.s1 event_window(start with _wduration > 1 end with c1 < 1) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INVALID_WINDOW_PC);
+
+  // true for less than 0
+  run("create stream stream_streamdb.s1 event_window(start with c1 > 1 end with c1 < 1) true_for(-1) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+
+  // invalid true for unit
+  run("create stream stream_streamdb.s1 event_window(start with c1 > 1 end with c1 < 1) true_for(1y) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_TRUE_FOR_UNIT);
+  run("create stream stream_streamdb.s1 event_window(start with c1 > 1 end with c1 < 1) true_for('1y') from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_TRUE_FOR_UNIT);
+  run("create stream stream_streamdb.s1 event_window(start with c1 > 1 end with c1 < 1) true_for(1x) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+  run("create stream stream_streamdb.s1 event_window(start with c1 > 1 end with c1 < 1) true_for('1x') from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+
+  // invalid count window
+
+  // count val less equal than 1
+  run("create stream stream_streamdb.s1 count_window(1) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INVALID_STREAM_QUERY);
+
+  // count sliding less equal than 0
+  run("create stream stream_streamdb.s1 count_window(2, 0) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INVALID_STREAM_QUERY);
+
+  // count sliding bigger than count val
+  run("create stream stream_streamdb.s1 count_window(2, 3) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INVALID_STREAM_QUERY);
+
+  // count val greater equal than INT32_MAX
+  run("create stream stream_streamdb.s1 count_window(2147483647) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INVALID_STREAM_QUERY);
+  run("create stream stream_streamdb.s1 count_window(2147483648) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INVALID_STREAM_QUERY);
+
+  // invalid period window
+
+  // invalid period unit
+  run("create stream stream_streamdb.s1 period(1u) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INVALID_PERIOD_UNIT);
+  run("create stream stream_streamdb.s1 period(1b) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INVALID_PERIOD_UNIT);
+  run("create stream stream_streamdb.s1 period(1w) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INVALID_PERIOD_UNIT);
+  run("create stream stream_streamdb.s1 period(1n) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INVALID_PERIOD_UNIT);
+  run("create stream stream_streamdb.s1 period(1y) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INVALID_PERIOD_UNIT);
+
+  // period val out of [10a, 3650d]
+  run("create stream stream_streamdb.s1 period(9a) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INVALID_PERIOD_RANGE);
+  run("create stream stream_streamdb.s1 period(3660d) from stream_triggerdb.t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INVALID_PERIOD_RANGE);
+
+}
+
+TEST_F(ParserStreamTest, TestErrorTriggerTable) {
+  setAsyncFlag("-1");
+
+  // wrong trigger table type
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from information_schema.ins_tables into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_TRIGGER);
+
+  // no trigger table and not period trigger
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_NO_TRIGGER_TABLE);
+}
+
+TEST_F(ParserStreamTest, TestErrorTriggerPartition) {
+  setAsyncFlag("-1");
+
+  // partition by not exist tag
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.st1 partition by tag4 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INVALID_COLUMN);
+
+  // partition by col
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.st1 partition by c1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_TRIGGER);
+}
+
+TEST_F(ParserStreamTest, TestErrorTriggerOptions) {
+  setAsyncFlag("-1");
+
+  // invalid expired time
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 options(expired_time(1u)) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_TIME_UNIT);
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 options(expired_time(1b)) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_TIME_UNIT);
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 options(expired_time(1w)) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_TIME_UNIT);
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 options(expired_time(1n)) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_TIME_UNIT);
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 options(expired_time(1y)) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_TIME_UNIT);
+
+  // use fill_history with fill_history_first
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 options(fill_history('2022-02-02 11:11:11') | fill_history_first('2022-02-02 11:11:11')) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+
+  // invalid max delay
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 options(max_delay(1u)) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_TIME_UNIT);
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 options(max_delay(1b)) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_TIME_UNIT);
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 options(max_delay(1w)) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_TIME_UNIT);
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 options(max_delay(1n)) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_TIME_UNIT);
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 options(max_delay(1y)) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_TIME_UNIT);
+
+  // invalid event type
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 options(event_type('invalid')) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2",  TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 options(event_type(EVENT_TYPE_INVALID)) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+
+  // invalid pre filter
+  // non exist col
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 options(pre_filter(c10 > 1)) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INVALID_COLUMN);
+
+  // no trigger table
+  run("create stream stream_streamdb.s1 period(1s) options(pre_filter(c1 > 1)) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_PRE_FILTER);
+
+  // repeat same option
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 options(pre_filter(c1 > 1) | pre_filter(c2 < 2)) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 options(ignore_disorder|ignore_disorder) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+
+}
+
+TEST_F(ParserStreamTest, TestErrorNotify) {
+  setAsyncFlag("-1");
+
+  // no notify url
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 on(WINDOW_OPEN) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+
+  // invalid event type
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 NOTIFY('ws://localhost:8080') on(INVALID_EVENT) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+
+  // event type must be specified when trigger is not period or sliding without interval
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 NOTIFY('ws://localhost:8080') into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_NOTIFY);
+
+  // where condition include cols not from query
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 NOTIFY('ws://localhost:8080') where c1 > 1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_NOTIFY_COND);
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 NOTIFY('ws://localhost:8080') where c1 + 2 + 1 into stream_outdb.stream_out as select _twstart, avg(c1), c1 + 1 from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_NOTIFY_COND);
+
+  // invalid notify options
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 NOTIFY('ws://localhost:8080') notify_options(notify_what) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+
+  // no query but has condition
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 NOTIFY('ws://localhost:8080') where c1 + 2 + 1 into stream_outdb.stream_out", TSDB_CODE_STREAM_INVALID_NOTIFY_COND);
+}
+
+TEST_F(ParserStreamTest, TestErrorOutTable) {
+  setAsyncFlag("-1");
+
+  // no out table (when only notify no query / CALC_NOTIFY_ONLY is valid)
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_OUT_TABLE);
+
+  // out table type not match
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 into stream_outdb.st1 as select * from stream_querydb.t1", TSDB_CODE_STREAM_INVALID_OUT_TABLE);
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 partition by tbname into stream_outdb.t1 as select * from stream_querydb.t1", TSDB_CODE_STREAM_INVALID_OUT_TABLE);
+
+  // first column is not ts
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 into stream_outdb.stream_out as select c1, c2 from stream_querydb.t1", TSDB_CODE_STREAM_INVALID_OUT_TABLE);
+
+  // specify sub table when no partition
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 into stream_outdb.stream_out output_subtable('a') as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_SUBTABLE);
+
+  // sub table expr using column not in partition list
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 partition by tbname into stream_outdb.stream_out output_subtable(c1) as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_INVALID_COLUMN);
+
+  // sub table expr is not string expr
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out output_subtable(tag1) as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_OUT_TABLE);
+
+  // out col name not match
+
+  // default name and exists out table not match
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 into stream_outdb.t1 as select _twstart, avg(c1) as c2 from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_OUT_TABLE);
+
+  // specified name and exists out table not match
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 into stream_outdb.t1(tts, cc1, cc2) as select _twstart, avg(c1) as c2 from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_OUT_TABLE);
+
+  // out col wrong primary key
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 into stream_outdb.stream_out(tts PRIMARY KEY, c1, c2) as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_OUT_TABLE);
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 into stream_outdb.stream_out(tts, c1, c2 PRIMARY KEY) as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_OUT_TABLE);
+
+  // specify tags whe no partition
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 into stream_outdb.stream_out tags(tag1 int as 1) as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_OUT_TAGS);
+
+  // partition same col multi times
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.t1 partition by tbname, tbname into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.t2", TSDB_CODE_PAR_DUPLICATED_COLUMN);
+
+  // tag name not match
+
+  // default tag and exists out table not match
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.st1 partition by tag1, tag2 into stream_outdb.st1 as select * from stream_querydb.t1", TSDB_CODE_STREAM_INVALID_OUT_TABLE);
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.st1 partition by tag3, tag1, tag2 into stream_outdb.st1 as select * from stream_querydb.t1", TSDB_CODE_STREAM_INVALID_OUT_TABLE);
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.st1 partition by tbname, tag1, tag2 into stream_outdb.st1 as select * from stream_querydb.t1", TSDB_CODE_STREAM_INVALID_OUT_TABLE);
+
+  // specified tag name and exists out table not match
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.st1 partition by tag1, tag2, tag3 into stream_outdb.st1 tags(tag6 int as tag1, tag7 varchar(18) as tag2, tag8 timestamp as tag3) as select * from stream_querydb.t1", TSDB_CODE_STREAM_INVALID_OUT_TABLE);
+  // specified tag type and exists out table not match
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.st1 partition by tag1, tag2, tag3 into stream_outdb.st1 tags(tag1 int as tag1, tag2 varchar(18) as tag2, tag3 int as tag3) as select * from stream_querydb.t1", TSDB_CODE_STREAM_INVALID_OUT_TABLE);
+  // specified tag expr's type and specified tag type not match
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.st1 partition by tag1, tag2, tag3 into stream_outdb.st1 tags(tag1 int as cos(tag1), tag2 varchar(18) as tag2, tag3 int as tag3) as select * from stream_querydb.t1", TSDB_CODE_STREAM_INVALID_OUT_TABLE);
+
+  // out tag expr using column not in partition list
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.st1 partition by tag1, tag2 into stream_outdb.stream_out tags(tag3 int as tag3) as select * from stream_querydb.t1", TSDB_CODE_STREAM_INVALID_OUT_TABLE);
+}
+
+TEST_F(ParserStreamTest, TestErrorQueryPlaceHolder) {
+  setAsyncFlag("-1");
+
+  // _tprev_ts must be used with sliding
+  run("create stream stream_streamdb.s1 period(1s) from stream_triggerdb.t1 into stream_outdb.stream_out as select _tprev_ts, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+
+  // _tcurrent_ts must be used with sliding
+  run("create stream stream_streamdb.s1 period(1s) from stream_triggerdb.t1 into stream_outdb.stream_out as select _tcurrent_ts, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+
+  // _tnext_ts must be used with sliding
+  run("create stream stream_streamdb.s1 period(1s) from stream_triggerdb.t1 into stream_outdb.stream_out as select _tnext_ts, avg(c1) from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+
+  // _twstart must be used with trigger with window(not period or sliding without interval)
+
+
+
+
+
+}
+
 }  // namespace ParserTest

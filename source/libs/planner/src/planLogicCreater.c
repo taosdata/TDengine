@@ -1141,6 +1141,7 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
     default:
       PLAN_ERR_JRET(TSDB_CODE_PLAN_INVALID_TABLE_TYPE);
   }
+  pCxt->pPlanCxt->streamVtableCalc = true;
 
   return code;
 _return:
