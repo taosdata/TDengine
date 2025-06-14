@@ -1,5 +1,7 @@
 instanceId = 64
 
+# Listening host, supports IPv4/Ipv6, default is ""
+host = ""
 # Listen port, default is 6043
 port = 6043
 
