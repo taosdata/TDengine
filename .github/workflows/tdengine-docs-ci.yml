@@ -90,6 +90,7 @@ jobs:
     needs: 
         - check-docs-typos
         - check-docs-linter-formatter 
+        - check-markdownlint-cli2
     steps:
       - name: Get the latest document contents
         run: |
