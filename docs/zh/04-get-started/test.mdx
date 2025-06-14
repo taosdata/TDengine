@@ -1,0 +1,189 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 用安装包快速体验
+
+在 Linux 系统上,TDengine Asset Intelligence 提供 Deb 和 RPM 格式安装包,其中 Deb 支持 Debian/Ubuntu 及其衍生系统,RPM 支持 CentOS/RHEL/SUSE 及其衍生系统,用户可以根据自己的运行环境自行选择。同时我们也提供了 tar.gz 格式安装包。
+
+在 MacOS 系统上, TDengine Asset Intelligence 提供 pkg 格式安装包。
+
+在 Windows 系统上, TDengine Asset Intelligence 提供 exe 格式安装包。
+
+## 运行环境要求
+
+在各系统上运行环境最低要求如下：
+1. 操作系统: 
+  - Linux: CentOS 8 及以上版本，Ubuntu 20 及以上版本
+  - macOS: 13.0 及以上版本
+  - Windows: Windows Server 2019/2022 和 Windows 11
+2. Python: 3.10-3.12 版本
+3. Java: 21 及以上版本
+4. glibc: 2.25 及以上版本
+
+# 安装
+请根据您的操作系统类型,选择合适的安装方式,安装 TDengine AI。以下是不同安装方式的详细步骤:
+<Tabs>
+
+  <TabItem label="tar.gz 安装" value="tar">
+
+1. 从列表中下载获得 tar.gz 安装包。
+
+2. 解压并安装：
+
+   ```bash
+   tar xf TDasset-<version>.tar.gz && cd TDasset-<version>
+   ./install.sh -s
+   ```
+3. 安装完成后, TDasset 的默认安装路径为 `/usr/local/tdasset`,
+   你可以通过 `./install.sh -h` 查看更多安装选项。
+
+   ```bash
+   ./install.sh -h
+   ```
+
+  </TabItem>
+  <TabItem label="Deb 安装" value="deb">
+  
+1. 从列表中下载获得 Deb 安装包。
+
+2. 使用 `dpkg` 命令安装 Deb 包（请将 `<version>` 替换为实际版本号）：
+
+   ```bash
+   dpkg -i TDasset-<version>.deb
+   ```
+3. 安装完成后, TDasset 的默认安装路径为 `/usr/local/tdasset`
+  </TabItem>
+
+  <TabItem label="RPM 安装" value="rpm">
+
+1. 从列表中下载获得 RPM 安装包。
+
+2. 使用 `rpm` 命令安装 RPM 包（请将 `<version>` 替换为实际版本号）：
+
+   ```bash
+   rpm -i TDasset-<version>.rpm
+   ```
+3. 安装完成后, TDasset 的默认安装路径为 `/usr/local/tdasset`
+
+  </TabItem>
+
+  <TabItem label="macOS 安装" value="macos">
+1. 从列表中下载获得 macOS 的 pkg 安装包。
+
+2. 双击安装包，按照提示完成安装。
+
+3. 安装完成后, TDasset 的默认安装路径为 `/usr/local/tdasset`
+
+  </TabItem>
+  <TabItem label="Windows 安装" value="windows">
+1. 从列表中下载获得 Windows 的安装包。
+
+2. 双击安装包，按照提示完成安装。 
+
+3. 安装完成后, TDasset 的默认安装路径为 `C:\TDasset`
+
+  </TabItem>
+</Tabs>
+
+# 启动
+<Tabs>
+<TabItem label="Linux 系统" value="linux">
+
+## 启动服务
+安装完成后，你可以使用 `svc-tdasset` 命令来启动 TDengine AI 的服务进程。
+
+ ```bash
+./svc-tdasset start 
+```
+这将启动 TDengine AI 的所有相关服务，包括：
+- `tdasset-h2`：用于存储 TDengine AI 的元数据和配置。
+- `tdasset-ai`：用于处理 AI 相关的任务和分析。
+- `tdasset`：核心服务，负责管理和提供数据访问。
+
+你也可以用 `svc-tdasset` 的其他命令来查看服务状态、停止服务等操作：
+
+```bash
+./svc-tdasset status
+./svc-tdasset stop
+``` 
+
+## 手动管理服务
+如果你想手动管理这些服务，可以使用以下命令，以下示例使用 `tdasset`:
+```bash
+systemctl start tdasset
+systemctl stop tdasset
+systemctl status tdasset
+systemctl restart tdasset
+```
+
+:::info
+
+- `systemctl` 和 `svc-tdasset` 命令需要 _root_ 权限来运行，如果您非 _root_ 用户，请在命令前添加 `sudo`。
+- 如果系统中不支持 `systemd`，也可以用手动运行 `` 方式启动 TDengine AI 服务。
+
+:::
+
+</TabItem>
+
+<TabItem label="Windows 系统" value="windows">
+
+安装后，可以在拥有管理员权限的 cmd 窗口执行以下命令来启动 TDengine 服务进程。。
+```cmd
+sc start tdasset-h2
+sc start tdasset-ai
+sc start tdasset
+```
+
+</TabItem>
+
+<TabItem label="macOS 系统" value="macos">
+
+1. 安装后，可以运行 `sudo svc-tdasset start` 来启动 TDengine AI 服务进程。这将启动所有相关服务，包括：
+- `tdasset-h2`：用于存储 TDengine AI 的元数据和配置。
+- `tdasset-ai`：用于处理 AI 相关的任务和分析。
+- `tdasset`：核心服务，负责管理和提供数据访问。
+
+2. 你也可以用 `svc-tdasset` 的其他命令来查看服务状态、停止服务等操作：
+
+```bash
+sudo svc-tdasset status
+sudo svc-tdasset stop
+``` 
+
+3. 如果你想手动管理这些服务，可以使用以下命令，以下示例使用 `tdasset`:
+
+```bash
+sudo launchctl start com.taosdata.tdasset
+sudo launchctl stop com.taosdata.tdasset
+sudo launchctl list | grep tdasset
+sudo launchctl print system/com.taosdata.tdasset
+```
+
+:::info
+
+- `launchctl` 命令管理 `com.taosdata.tdasset` 需要管理员权限，务必在前面加 `sudo` 来增强安全性。
+- `sudo launchctl list | grep tdasset` 指令返回的第一列是 `tdasset` 程序的 PID, 若为 `-` 则说明 TDasset 服务未运行。
+- 故障排查：
+- 如果服务异常请查看系统日志 `launchd.log` 或者 `/usr/local/tdasset` 目录下 `logs` 日志获取更多信息。
+
+:::
+
+</TabItem>
+</Tabs>
+
+# 卸载
+1. 可通过如下命令卸载 TDasset 的服务
+
+ ```bash
+rmtdasset -e yes
+```
+2. 或者保留数据、日志和配置
+ ```bash
+rmtdasset -e no
+```
+3. 如果是通过 rpm或者 deb安装, 可以使用如下命令卸载：
+
+```bash
+dpkg -r tdasset
+rpm -e tdasset
+```

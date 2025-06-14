@@ -74,7 +74,9 @@ jobs:
       - uses: tj-actions/changed-files@v46
         id: changed-files
         with:
-          files: '**/*.md'
+          files: |
+            '**/*.md'
+            '**/*.mdx'
           separator: ","
       - name: check with markdownlint
         uses: DavidAnson/markdownlint-cli2-action@v20
