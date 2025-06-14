@@ -7054,15 +7054,6 @@ static int32_t checkStreamIntervalWindow(STranslateContext* pCxt, SIntervalWindo
     if (IS_CALENDAR_TIME_DURATION(pSliding->unit)) {
       PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_UNIT));
     }
-
-    if (pSliding->datum.i < tsMinSlidingTime ||
-        (pInter && (pInter->datum.i / pSliding->datum.i > INTERVAL_SLIDING_FACTOR))) {
-      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_TOO_SMALL));
-    }
-
-    if (pInter && checkTimeGreater(pInter, pSliding, precision, true) != TSDB_CODE_SUCCESS) {
-      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_TOO_BIG));
-    }
   } else {
     PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                      "Sliding window is required for stream query"));
@@ -7154,11 +7145,11 @@ static int32_t checkPeriodWindow(STranslateContext* pCxt, SPeriodWindowNode* pPe
   if (pPer) {
     if (pPer->unit != 'a' && pPer->unit != 's' &&
         pPer->unit != 'm' && pPer->unit != 'h' && pPer->unit != 'd') {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT, pPer->unit);
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PERIOD_UNIT, pPer->unit);
     }
     if (pPer->datum.i / getPrecisionMultiple(precision) < periodLowerBound ||
         pPer->datum.i / getPrecisionMultiple(precision) > periodUpperBound) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT, pPer->unit);
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PERIOD_RANGE, pPer->unit);
     }
   }
 
@@ -12714,32 +12705,32 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
   }
 
   if (pStmt->pQuery && !isSelectStmt(pStmt->pQuery)) {
-    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_SYNTAX,
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY,
                                          "Stream query must be a select statement"));
   }
 
   if (pTrigger->pTrigerTable == NULL && nodeType(pTrigger->pTriggerWindow) != QUERY_NODE_PERIOD_WINDOW) {
-    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_SYNTAX,
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_NO_TRIGGER_TABLE,
                                          "Trigger table must be specified when trigger window is not period window"));
   }
 
   if (pTrigger->pTrigerTable == NULL && pTriggerOptions&& pTriggerOptions->pPreFilter) {
-    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_SYNTAX,
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PRE_FILTER,
                                          "PRE_FILTER can only be specified when trigger table is specified"));
   }
 
   if (pTrigger->pTrigerTable == NULL && LIST_LENGTH(pTrigger->pPartitionList) != 0) {
-    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_SYNTAX,
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PARTITION,
                                          "PARTITION BY list can only be specified when trigger table is specified"));
   }
 
   if (pTrigger->pPartitionList == NULL && pStmt->pSubtable) {
-    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_SYNTAX,
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_SUBTABLE,
                                          "OUTPUT_SUBTABLE can only be specified when partition list is specified"));
   }
 
   if (pTrigger->pPartitionList == NULL && pStmt->pTags) {
-    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_SYNTAX,
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TAGS,
                                          "Tags can only be specified when partition list is specified"));
   }
 
@@ -12748,7 +12739,7 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
       // *only notify no query* or *query res only notify no save*
       // out table can be null. do nothing here.
     } else {
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_SYNTAX, "Out table not specified"));
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table not specified"));
     }
   }
 
@@ -12756,18 +12747,21 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
     if (strlen(pStmt->targetDbName) == 0 && strlen(pStmt->targetTabName) == 0 && pStmt->pCols == NULL && pStmt->pTags == NULL) {
       // a stream with no query, no out table, no columns and no tags, which is valid
     } else {
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_SYNTAX,
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE,
                                            "Can not specify out table when no query in stream"));
     }
   }
 
   if (pStmt->pQuery == NULL && pNotifyOptions && pNotifyOptions->pWhere) {
-    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_SYNTAX,
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_NOTIFY,
                                          "Noify WHERE clause can only be specified when query is specified"));
   }
 
   SDbCfgInfo dbCfg = {0};
   PAR_ERR_JRET(getDBCfg(pCxt, pStmt->streamDbName, &dbCfg));
+  if (strlen(pStmt->targetDbName) != 0) {
+    PAR_ERR_JRET(getDBCfg(pCxt, pStmt->targetDbName, &dbCfg));
+  }
 
   return code;
 
@@ -14079,7 +14073,7 @@ static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTri
     SCheckNotifyCondContext checkNotifyCondCxt = {.pTransCxt = pCxt, .valid = true};
     nodesWalkExpr(pNotifyCond, doCheckNotifyCond, &checkNotifyCondCxt);
     if (!checkNotifyCondCxt.valid) {
-      PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY, "notify condition can only contain expr from query clause"));
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_NOTIFY_COND, "notify condition can only contain expr from query clause"));
     }
     PAR_ERR_JRET(nodesListMakeAppend(&pStreamCalcQuery->pProjectionList, pNotifyCond));
   }
