@@ -201,11 +201,11 @@ Fail to get table info
 ### Nginx 配置巡检（可选）
 | **No** | **巡检项目** | **详细说明** | **告警规则** |
 |:-------|:------------|:-----------|:-----------|
-| 1 | **Nginx 配置**   | 各节点的 hostanme 和 ip 是否正确配置到 Nginx 配置文件 | 配置文件中 FQDN 配置信息缺失或错误 | 
+| 1 | **Nginx 配置**   | 各节点的 hostname 和 ip 是否正确配置到 Nginx 配置文件 | 配置文件中 FQDN 配置信息缺失或错误 | 
 
 
 ## 结果文件
-巡检工具运行后会在工具运行用户在 taos.cfg 中配置的 logDir 目录下生成三类文件，包含了巡检报告 inspect_report.md，巡检结构化数据 inspect.json，数据库和超级表初始化文件 stabel_schemas.md、各节点 taos、taosd 和 taosKeeper 对应的错误日志文件和各服务对应的配置文件。最后会将出错误日志文件以外的其他所有文件压缩为 results.zip
+巡检工具运行后会在工具运行用户在 taos.cfg 中配置的 logDir 目录下生成三类文件，包含了巡检报告 inspect_report.md，巡检结构化数据 inspect.json，数据库和超级表初始化文件 stable_schemas.md、各节点 taos、taosd 和 taosKeeper 对应的错误日志文件和各服务对应的配置文件。最后会将出错误日志文件以外的其他所有文件压缩为 results.zip
 
 ## 应用示例
 

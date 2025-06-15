@@ -27,10 +27,22 @@ jobs:
       - name: Checkout Actions Repository
         uses: actions/checkout@v4
 
-      - name: Check all docs for typos
+      - name: Use custom zh config file
         uses: crate-ci/typos@v1.31.1
         with:
-          files: 'docs/**/*.md docs/**/*.mdx'
+          files: 'docs/zh/'
+          config: docs/typos.toml
+
+      - name: Use custom en config file
+        uses: crate-ci/typos@v1.31.1
+        with:
+          files: 'docs/en/'
+          config: docs/typos.toml
+
+      - name: Use custom en config file
+        uses: crate-ci/typos@v1.31.1
+        with:
+          files: './*.md'
           config: docs/typos.toml
 
   check-docs-linter-formatter:
