@@ -66,6 +66,7 @@ typedef enum {
   TSDB_GRANT_DUAL_REPLICA_HA,
   TSDB_GRANT_DB_ENCRYPTION,
   TSDB_GRANT_TD_GPT,
+  TSDB_GRANT_VNODE,
 } EGrantType;
 
 int32_t checkAndGetCryptKey(const char *encryptCode, const char *machineId, char **key);

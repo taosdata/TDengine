@@ -1021,6 +1021,8 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DB), &lino, _OVER);
 
+  TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_VNODE), &lino, _OVER);
+
   if (createReq.replications == 2) {
     TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DUAL_REPLICA_HA), &lino, _OVER);
   }
