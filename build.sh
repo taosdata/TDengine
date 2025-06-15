@@ -20,6 +20,7 @@
 #   ./build.sh gen -Dxxx:type=yyy
 #   # what types are valid: cmake --help-command set | less
 #
+#
 #   # clear the xxx out of cmake cache, and let the build system automatically choose correct value for xxx
 #   ./build.sh gen -Uxxx
 #
