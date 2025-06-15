@@ -391,9 +391,25 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   if (sec % tsGrantHBInterval == 0) {  // put in the 1st place as to take effect ASAP
     mndPullupGrant(pMnode);
   }
+  if (sec % tsTtlPushIntervalSec == 0) {
+    mndPullupTtl(pMnode);
+  }
+
+  if (sec % tsTrimVDbIntervalSec == 0) {
+    mndPullupTrimDb(pMnode);
+  }
+#endif
+#ifdef USE_S3
+  if (tsS3MigrateEnabled && sec % tsS3MigrateIntervalSec == 0) {
+    mndPullupS3MigrateDb(pMnode);
+  }
 #endif
   if (sec % tsTransPullupInterval == 0) {
     mndPullupTrans(pMnode);
+  }
+
+  if (sec % tsCompactPullupInterval == 0) {
+    mndPullupCompacts(pMnode);
   }
 #ifdef USE_TOPIC
   if (sec % tsMqRebalanceInterval == 0) {
@@ -435,23 +451,6 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
     if ((code = mndPullupArbCheckSync(pMnode)) != 0) {
       mError("failed to pullup arb check sync, since:%s", tstrerror(code));
     }
-  }
-#endif
-  if (sec % tsCompactPullupInterval == 0) {
-    mndPullupCompacts(pMnode);
-  }
-#ifndef TD_ASTRA
-  if (sec % tsTtlPushIntervalSec == 0) {
-    mndPullupTtl(pMnode);
-  }
-
-  if (sec % tsTrimVDbIntervalSec == 0) {
-    mndPullupTrimDb(pMnode);
-  }
-#endif
-#ifdef USE_S3
-  if (tsS3MigrateEnabled && sec % tsS3MigrateIntervalSec == 0) {
-    mndPullupS3MigrateDb(pMnode);
   }
 #endif
 }
