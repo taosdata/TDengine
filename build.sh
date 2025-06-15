@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 # beg =========================
 # senario 1: give it a try for the first time
 #   ./build.sh first-try
