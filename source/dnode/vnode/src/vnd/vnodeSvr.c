@@ -629,10 +629,14 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
           pMsg->info.conn.applyTerm, pMsg->contLen);
 
   if (!(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm)) {
+    vError("vgId:%d, applyTerm mismatch, expected: %" PRId64 ", received: %" PRId64, TD_VID(pVnode),
+           pVnode->state.applyTerm, pMsg->info.conn.applyTerm);
     return terrno = TSDB_CODE_INTERNAL_ERROR;
   }
 
   if (!(pVnode->state.applied + 1 == ver)) {
+    vError("vgId:%d, ver mismatch, expected: %" PRId64 ", received: %" PRId64, TD_VID(pVnode),
+           pVnode->state.applied + 1, ver);
     return terrno = TSDB_CODE_INTERNAL_ERROR;
   }
 
