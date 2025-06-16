@@ -1477,7 +1477,6 @@ int32_t vnodeResetRawWriteMetrics(void *pVnode, const SRawWriteMetrics *pOldMetr
   (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.apply_time, pOldMetrics->apply_time);
   (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.commit_count, pOldMetrics->commit_count);
 
-  // commit_time and merge_time are int64_t types, use atomic_sub_fetch_64
   (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.commit_time, pOldMetrics->commit_time);
   (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.merge_time, pOldMetrics->merge_time);
 
@@ -1490,8 +1489,6 @@ int32_t vnodeResetRawWriteMetrics(void *pVnode, const SRawWriteMetrics *pOldMetr
   SSyncMetrics syncMetrics = {
       .wal_write_bytes = pOldMetrics->wal_write_bytes,
       .wal_write_time = pOldMetrics->wal_write_time,
-      .sync_bytes = 0,  // Not used in current SRawWriteMetrics
-      .sync_time = 0    // Not used in current SRawWriteMetrics
   };
   syncResetMetrics(pVnode1->sync, &syncMetrics);
 

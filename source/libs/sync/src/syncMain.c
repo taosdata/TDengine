@@ -692,8 +692,6 @@ SSyncMetrics syncGetMetrics(int64_t rid) {
   if (pSyncNode != NULL) {
     metrics.wal_write_bytes = pSyncNode->wal_write_bytes;
     metrics.wal_write_time = pSyncNode->wal_write_time;
-    metrics.sync_bytes = pSyncNode->sync_bytes;
-    metrics.sync_time = pSyncNode->sync_time;
     syncNodeRelease(pSyncNode);
   }
   return metrics;
@@ -707,8 +705,6 @@ void syncResetMetrics(int64_t rid, const SSyncMetrics* pOldMetrics) {
     // Atomically subtract the old metrics values from current metrics
     (void)atomic_sub_fetch_64(&pSyncNode->wal_write_bytes, pOldMetrics->wal_write_bytes);
     (void)atomic_sub_fetch_64(&pSyncNode->wal_write_time, pOldMetrics->wal_write_time);
-    (void)atomic_sub_fetch_64(&pSyncNode->sync_bytes, pOldMetrics->sync_bytes);
-    (void)atomic_sub_fetch_64(&pSyncNode->sync_time, pOldMetrics->sync_time);
     syncNodeRelease(pSyncNode);
   }
 }

@@ -57,13 +57,6 @@ typedef struct {
   int64_t rpcQueueMemoryUsed;
   int64_t applyMemoryAllowed;
   int64_t applyMemoryUsed;
-} SDnodeMetrics;
-
-typedef struct {
-  int64_t rpcQueueMemoryAllowed;
-  int64_t rpcQueueMemoryUsed;
-  int64_t applyMemoryAllowed;
-  int64_t applyMemoryUsed;
 } SRawDnodeMetrics;
 
 typedef struct {
@@ -128,7 +121,7 @@ typedef struct {
 
 // Metrics Manager Structure
 typedef struct {
-  SDnodeMetrics *pDnodeMetrics;
+  SDnodeMetricsEx *pDnodeMetrics;
   SHashObj      *pWriteMetrics;
   SHashObj      *pQueryMetrics;
   SHashObj      *pStreamMetrics;
@@ -162,16 +155,8 @@ typedef void *(*SVnodeMetricsLogFn)(void **pIter);
 typedef int32_t (*VnodeGetRawMetricsFn)(void *pVnode, SRawWriteMetrics *pRawMetrics);
 typedef int32_t (*MetricsLogCallback)(const char *jsonMetrics, void *param);
 
-// Metrics logging functions
-int32_t logAllVnodeMetrics(SVnodeMetricsLogFn fnGetVnode, VnodeGetRawMetricsFn fnGetRawMetrics);
-void    resetAllVnodeMetrics();
-int32_t formatMetricsToJson(int32_t vgId, char *buffer, int32_t bufferSize);
-int32_t forEachMetric(MetricsLogCallback callback, void *param);
-int32_t getAllMetricsJson(char **pJson);
-
 void reportWriteMetrics();
 void reportDnodeMetrics();
-void sendAllMetricsReport();
 
 #ifdef __cplusplus
 }
