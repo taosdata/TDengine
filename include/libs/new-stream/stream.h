@@ -230,7 +230,7 @@ int32_t streamGetTask(int64_t streamId, int64_t taskId, SStreamTask** ppTask);
 void    streamHandleTaskError(int64_t streamId, int64_t taskId, int32_t errCode);
 int32_t streamTriggerKickCalc();
 int32_t streamTriggerProcessRsp(SStreamTask *pTask, SRpcMsg *pRsp, int64_t *pErrTaskId);
-
+void smUndeploySnodeTasks(bool cleanup);
 int32_t streamWriteCheckPoint(int64_t streamId, void* data, int64_t dataLen);
 int32_t streamReadCheckPoint(int64_t streamId, void** data, int64_t* dataLen);
 void    streamDeleteCheckPoint(int64_t streamId);
