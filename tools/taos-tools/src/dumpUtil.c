@@ -411,7 +411,7 @@ TAOS_RES *taosQuery(TAOS *taos, const char *sql, int32_t *code) {
     return NULL;
 }
 
-void engineError(char * module, char * fun, int32_t code) {
+void dumpEngineError(char * module, char * fun, int32_t code) {
     errorPrint("%s %s fun=%s error code:0x%08X \n", TIP_ENGINE_ERR, module, fun, code);
 }
 

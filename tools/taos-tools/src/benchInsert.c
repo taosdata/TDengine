@@ -11,6 +11,7 @@
  */
 
 #include <bench.h>
+#include "common.h"
 #include "benchLog.h"
 #include "wrapDb.h"
 #include <benchData.h>

@@ -52,7 +52,7 @@
 #define BUFFER_LEN                 256
 
 #define VALUE_BUF_LEN              4096
-#define MAX_RECORDS_PER_REQ        32766
+#define DUMP_MAX_RECORDS_PER_REQ        32766
 #define NEED_CALC_COUNT            UINT64_MAX
 #define HUMAN_TIME_LEN             28
 #define DUMP_DIR_LEN               (MAX_DIR_LEN - (TSDB_DB_NAME_LEN + 10))
@@ -139,52 +139,6 @@ typedef struct {
     int16_t bytes;
     int8_t  type;
 } SOColInfo;
-
-
-// -------------------------- SHOW DATABASE INTERFACE-----------------------
-enum _show_db_index {
-    TSDB_SHOW_DB_NAME_INDEX,
-    TSDB_SHOW_DB_CREATED_TIME_INDEX,
-    TSDB_SHOW_DB_NTABLES_INDEX,
-    TSDB_SHOW_DB_VGROUPS_INDEX,
-    TSDB_SHOW_DB_REPLICA_INDEX,
-    TSDB_SHOW_DB_QUORUM_INDEX,
-    TSDB_SHOW_DB_DAYS_INDEX,
-    TSDB_SHOW_DB_KEEP_INDEX,
-    TSDB_SHOW_DB_CACHE_INDEX,
-    TSDB_SHOW_DB_BLOCKS_INDEX,
-    TSDB_SHOW_DB_MINROWS_INDEX,
-    TSDB_SHOW_DB_MAXROWS_INDEX,
-    TSDB_SHOW_DB_WALLEVEL_INDEX,
-    TSDB_SHOW_DB_FSYNC_INDEX,
-    TSDB_SHOW_DB_COMP_INDEX,
-    TSDB_SHOW_DB_CACHELAST_INDEX,
-    TSDB_SHOW_DB_PRECISION_INDEX,
-    TSDB_SHOW_DB_UPDATE_INDEX,
-    TSDB_SHOW_DB_STATUS_INDEX,
-    TSDB_MAX_SHOW_DB
-};
-
-// SHOW TABLES CONFIGURE -------------------------------------
-enum _show_tables_index {
-    TSDB_SHOW_TABLES_NAME_INDEX,
-    TSDB_SHOW_TABLES_CREATED_TIME_INDEX,
-    TSDB_SHOW_TABLES_COLUMNS_INDEX,
-    TSDB_SHOW_TABLES_METRIC_INDEX,
-    TSDB_SHOW_TABLES_UID_INDEX,
-    TSDB_SHOW_TABLES_TID_INDEX,
-    TSDB_SHOW_TABLES_VGID_INDEX,
-    TSDB_MAX_SHOW_TABLES
-};
-
-// DESCRIBE STABLE CONFIGURE ------------------------------
-enum _describe_table_index {
-    TSDB_DESCRIBE_METRIC_FIELD_INDEX,
-    TSDB_DESCRIBE_METRIC_TYPE_INDEX,
-    TSDB_DESCRIBE_METRIC_LENGTH_INDEX,
-    TSDB_DESCRIBE_METRIC_NOTE_INDEX,
-    TSDB_MAX_DESCRIBE_METRIC
-};
 
 #define COL_NOTE_LEN        32
 #define COL_TYPEBUF_LEN     16
@@ -342,7 +296,7 @@ typedef struct {
     enAVROTYPE  avroType;
     char      dbPath[MAX_DIR_LEN];
     DBChange  *pDbChange;
-} threadInfo;
+} dumpThreadInfo;
 
 typedef struct {
     volatile int64_t   totalRowsOfDumpOut;
@@ -398,7 +352,7 @@ typedef struct RecordSchema_S {
 // rename db 
 typedef struct SRenameDB {
     char* old;
-    char* new;
+    char* newValue;
     void* next;
 }SRenameDB;
 
@@ -460,7 +414,7 @@ typedef struct arguments {
     int32_t     retryCount;
     int32_t     retrySleepMs;  
         
-} SArguments;
+} DumpSArguments;
 
 bool isSystemDatabase(char *dbName);
 int inDatabasesSeq(const char *dbName);
@@ -543,7 +497,7 @@ int64_t dumpNormalTable(
 void* openQuery(void** taos_v , const char * sql);
 void closeQuery(void* res);
 int32_t readRow(void *res, int32_t idx, int32_t col, uint32_t *len, char **data);
-void engineError(char * module, char * fun, int32_t code);
+void dumpEngineError(char * module, char * fun, int32_t code);
 
 int getTableDes(TAOS *taos, const char* dbName, const char *table, TableDes *tableDes, const bool colOnly);
 

@@ -15,6 +15,7 @@
 #include "cus_name.h"  // include/util/
 #include "dump.h"
 #include "dumpUtil.h"
+#include "common.h"
 
 static char    **g_tsDumpInDebugFiles     = NULL;
 static char      g_dumpInCharset[64] = {0};
@@ -199,7 +200,7 @@ struct arguments g_args = {
     DEFAULT_END_TIME,   // end_time
     {0},        // humanEndTime
     "ms",       // precision
-    MAX_RECORDS_PER_REQ / 2,    // data_batch
+    DUMP_MAX_RECORDS_PER_REQ / 2,    // data_batch
     false,      // data_batch_input
     TSDB_DEFAULT_PKT_SIZE,   // max_sql_len
     false,      // allow_sys
@@ -260,7 +261,7 @@ static void printVersion(FILE *file) {
     fprintf(file, "build: %s\n", BUILD_INFO);
 }
 
-static char *typeToStr(int type) {
+char *typeToStr(int type) {
     switch (type) {
         case TSDB_DATA_TYPE_BOOL:
             return "bool";
@@ -430,8 +431,8 @@ void setRenameDbs(char* arg) {
         if(p[k] == 0 && k + 1 != j && k > 0) {
             // string end and not last end
             char* name = &p[k] + 1;
-            if (node->new == NULL) {
-                node->new = name;
+            if (node->newValue == NULL) {
+                node->newValue = name;
             } else {
                 node = newNode(name, node);
             }
@@ -447,7 +448,7 @@ char* findNewName(char* oldName) {
     SRenameDB* node = g_args.renameHead;
     while(node) {
         if (strcmp(node->old, oldName) == 0) {
-            return node->new;
+            return node->newValue;
         }
         node = (SRenameDB* )node->next;
     }
@@ -680,8 +681,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case 'B':
             g_args.data_batch_input = true;
             g_args.data_batch = atoi((const char *)arg);
-            if (g_args.data_batch > MAX_RECORDS_PER_REQ/2) {
-                g_args.data_batch = MAX_RECORDS_PER_REQ/2;
+            if (g_args.data_batch > DUMP_MAX_RECORDS_PER_REQ/2) {
+                g_args.data_batch = DUMP_MAX_RECORDS_PER_REQ/2;
             }
             break;
 
@@ -746,7 +747,7 @@ static struct argp argp = {options, parse_opt, args_doc, doc};
 
 
 static void parse_args(
-        int argc, char *argv[], SArguments *arguments) {
+        int argc, char *argv[], DumpSArguments *arguments) {
     for (int i = 1; i < argc; i++) {
         if ((strncmp(argv[i], "-p", 2) == 0)
               || (strncmp(argv[i], "--password", 10) == 0)) {
@@ -865,7 +866,7 @@ static void parseTimestampConvert(char *input, bool isStartTime) {
 }
 
 static void parse_timestamp(
-        int argc, char *argv[], SArguments *arguments) {
+        int argc, char *argv[], DumpSArguments *arguments) {
     for (int i = 1; i < argc; i++) {
         char *tmp;
 
@@ -5812,7 +5813,7 @@ static int64_t dumpInOneAvroFile(
 }
 
 static void* dumpInAvroWorkThreadFp(void *arg) {
-    threadInfo *pThreadInfo = (threadInfo*)arg;
+    dumpThreadInfo *pThreadInfo = (dumpThreadInfo*)arg;
     SET_THREAD_NAME("dumpInAvroWorkThrd");
     verbosePrint("[%d] process %"PRId64" files from %"PRId64"\n",
                     pThreadInfo->threadIndex, pThreadInfo->count,
@@ -5965,11 +5966,11 @@ static int dumpInAvroWorkThreads(const char* dbPath, const char *typeExt, DBChan
 
     enAVROTYPE avroType = createDumpinList(dbPath, typeExt, fileCount);
 
-    threadInfo *pThreadInfo;
+    dumpThreadInfo *pThreadInfo;
 
     pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
-    threadInfo *infos = (threadInfo *)calloc(
-            threads, sizeof(threadInfo));
+    dumpThreadInfo *infos = (dumpThreadInfo *)calloc(
+            threads, sizeof(dumpThreadInfo));
     TOOLS_ASSERT(pids);
     TOOLS_ASSERT(infos);
 
@@ -6101,15 +6102,15 @@ int processResultValue(
                     *((int64_t *)value));
 
         case TSDB_DATA_TYPE_UTINYINT:
-            return sprintf(pstr + curr_sqlstr_len, "%d",
+            return sprintf(pstr + curr_sqlstr_len, "%u",
                     *((uint8_t *)value));
 
         case TSDB_DATA_TYPE_USMALLINT:
-            return sprintf(pstr + curr_sqlstr_len, "%d",
+            return sprintf(pstr + curr_sqlstr_len, "%u",
                     *((uint16_t *)value));
 
         case TSDB_DATA_TYPE_UINT:
-            return sprintf(pstr + curr_sqlstr_len, "%d",
+            return sprintf(pstr + curr_sqlstr_len, "%u",
                     *((uint32_t *)value));
 
         case TSDB_DATA_TYPE_UBIGINT:
@@ -8570,7 +8571,7 @@ static int64_t dumpInOneDebugFile(
 }
 
 static void* dumpInDebugWorkThreadFp(void *arg) {
-    threadInfo *pThreadInfo = (threadInfo*)arg;
+    dumpThreadInfo *pThreadInfo = (dumpThreadInfo*)arg;
     SET_THREAD_NAME("dumpInDebugWorkThrd");
     debugPrint2("[%d] Start to process %"PRId64" files from %"PRId64"\n",
                     pThreadInfo->threadIndex,
@@ -8622,11 +8623,11 @@ static int dumpInDebugWorkThreads(const char *dbPath) {
 
     enAVROTYPE avroType = createDumpinList(dbPath, "sql", sqlFileCount);
 
-    threadInfo *pThreadInfo;
+    dumpThreadInfo *pThreadInfo;
 
     pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
-    threadInfo *infos = (threadInfo *)calloc(
-            threads, sizeof(threadInfo));
+    dumpThreadInfo *infos = (dumpThreadInfo *)calloc(
+            threads, sizeof(dumpThreadInfo));
     TOOLS_ASSERT(pids);
     TOOLS_ASSERT(infos);
 
@@ -8898,7 +8899,7 @@ static int dumpIn() {
 }
 
 static void dumpTablesOfStbNative(
-        threadInfo *pThreadInfo,
+        dumpThreadInfo *pThreadInfo,
         FILE *fp,
         char *dumpFilename) {
     for (int64_t i = pThreadInfo->from;
@@ -8949,7 +8950,7 @@ static void dumpTablesOfStbNative(
 }
 
 static void *dumpTablesOfStbThread(void *arg) {
-    threadInfo *pThreadInfo = (threadInfo *)arg;
+    dumpThreadInfo *pThreadInfo = (dumpThreadInfo *)arg;
 
     debugPrint("dump table from = \t%"PRId64"\n", pThreadInfo->from);
     debugPrint("dump table count = \t%"PRId64"\n", pThreadInfo->count);
@@ -9002,12 +9003,12 @@ int dumpSTableData(SDbInfo* dbInfo, TableDes* stbDes, char** tbNameArr, int64_t 
     int64_t mod = tbCount % threads;
 
     pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
-    threadInfo *infos = calloc(1, threads * sizeof(threadInfo));
+    dumpThreadInfo *infos = calloc(1, threads * sizeof(dumpThreadInfo));
     TOOLS_ASSERT(pids);
     TOOLS_ASSERT(infos);
 
     infoPrint("create %d thread(s) to export data ...\n", threads);
-    threadInfo *pThreadInfo;
+    dumpThreadInfo *pThreadInfo;
     for (int32_t i = 0; i < threads; i++) {
         pThreadInfo = infos + i;
         if (NULL == (pThreadInfo->taos = taosConnect(dbInfo->name))) {
@@ -9019,8 +9020,8 @@ int dumpSTableData(SDbInfo* dbInfo, TableDes* stbDes, char** tbNameArr, int64_t 
         pThreadInfo->threadIndex = i;
         pThreadInfo->count = (i < mod) ? batch+1 : batch;
         pThreadInfo->from = (i == 0)?0:
-            ((threadInfo *)(infos + i - 1))->from +
-            ((threadInfo *)(infos + i - 1))->count;
+            ((dumpThreadInfo *)(infos + i - 1))->from +
+            ((dumpThreadInfo *)(infos + i - 1))->count;
         pThreadInfo->dbInfo = dbInfo;
         pThreadInfo->precision = getPrecisionByString(dbInfo->precision);
         if (-1 == pThreadInfo->precision) {
@@ -10721,7 +10722,7 @@ static int inspectAvroFiles(int argc, char *argv[]) {
     return ret;
 }
 
-
+#ifndef UNIT_TEST
 int main(int argc, char *argv[]) {
     g_uniqueID = getUniqueIDFromEpoch();
 
@@ -10803,3 +10804,4 @@ int main(int argc, char *argv[]) {
 
     return ret;
 }
+#endif

@@ -19,6 +19,7 @@
 #include "bench.h"
 #include "benchLog.h"
 #include "toolsdef.h"
+#include "common.h"
 
 #ifdef __cplusplus
 extern "C" {

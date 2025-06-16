@@ -4,6 +4,7 @@ MESSAGE(STATUS "build taos-tools unit test")
 IF (DEFINED TD_VER_NUMBER)
     ADD_DEFINITIONS(-DTD_VER_NUMBER="${TD_VER_NUMBER}")
     ADD_DEFINITIONS(-DTAOSBENCHMARK_COMMIT_ID="${TAOSBENCHMARK_COMMIT_ID}")
+    ADD_DEFINITIONS(-DTAOSDUMP_COMMIT_ID="${TAOSDUMP_COMMIT_ID}")
     ADD_DEFINITIONS(-DBUILD_INFO="${BUILD_INFO}")  
     MESSAGE(STATUS "version:${TD_VER_NUMBER}")
 ELSE ()    
@@ -56,19 +57,50 @@ IF(TD_LINUX)
         COMMAND benchmarkTest
     )
 
-    # taosdump
-    ADD_EXECUTABLE(taosdumpTest taosdumpTest.cpp ../src/toolsSys.c)
-    DEP_ext_gtest(taosdumpTest)
-    target_link_libraries(
-        taosdumpTest
-        PRIVATE os
+    SET(TAOSDUMP_SRC 
+        "../src/taosdump.c"
+        "../src/toolsSys.c"
+        "../../src/pub.c"
+        "../src/toolsString.c"
+        "../src/wrapDb.c"
+        "../src/dumpUtil.c"
+        "../src/toolstime.c"
+        "../src/toolsDir.c"
+        "../src/benchUtil.c"
+        "../src/benchLog.c"
+        "../src/toolstime.c"
+        "../src/benchData.c"
+        "../src/benchInsert.c"
+        "../src/benchInsertMix.c"
+        "../src/benchUtilDs.c"
+        "../src/benchDataMix.c"
+        "../src/benchCommandOpt.c"
     )
+    
+    # taosdump
+    ADD_EXECUTABLE(taosdumpTest taosdumpTest.cpp ${TAOSDUMP_SRC})
+    DEP_ext_gtest(taosdumpTest)
+    DEP_ext_avro(taosdumpTest)
+    DEP_ext_zlib(taosdumpTest)
+    DEP_ext_jansson(taosdumpTest)
+    DEP_ext_snappy(taosdumpTest)
+    DEP_ext_xz(taosdumpTest)
+    target_compile_definitions(taosdumpTest PRIVATE UNIT_TEST)
+    target_link_libraries(taosdumpTest PRIVATE os)
+    TARGET_LINK_LIBRARIES(taosdumpTest PRIVATE taos)
+    target_link_libraries(taosdumpTest PRIVATE toolscJson)
+    target_link_libraries(taosdumpTest PRIVATE stdc++)
 
     target_include_directories(
         taosdumpTest
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../inc"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../deps/toolscJson/inc/"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../deps/avro/lang/c/src"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../../include/libs/decimal"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../../include/common"
     )
-    
+
     add_test(
         NAME taosdumpTest
         COMMAND taosdumpTest
