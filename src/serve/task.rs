@@ -151,6 +151,7 @@ pub(super) async fn get_tasks_count(
 
 #[derive(Debug, Deserialize, ToSchema, IntoParams)]
 pub struct ExportTasksParams {
+    /// task ids to export, split by ','
     ids: Option<String>,
 }
 
@@ -167,17 +168,26 @@ pub struct ExportTasksResult {
     pub tasks: Vec<ExportTaskDetail>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, IntoParams)]
 pub struct ExportTaskDetail {
+    /// task id
     pub id: i64,
+    /// task name
     pub name: Option<String>,
+    /// task data source configuration
     pub from: serde_json::Value,
+    /// task target cluster dsn
     pub to: String,
+    /// task parse configuration
     pub parser: Option<serde_json::Value>,
+    /// task agent id
     pub via: Option<i64>,
+    /// task parallel num
     pub jobs: u16,
+    /// cluster compression level
     pub compression_level: Option<u8>,
     pub oneshot_topic: Option<String>,
+    /// task create datetime
     pub created_at: DateTime<Utc>,
 }
 
@@ -228,6 +238,7 @@ pub struct ImportTasksParams {
     pub export_time: Option<String>,
     #[allow(dead_code)]
     pub tasks_num: Option<usize>,
+    /// task details
     pub tasks: Vec<ExportTaskDetail>,
     pub labels: Option<Vec<String>>,
 }
@@ -376,6 +387,7 @@ pub enum TaskBatchOperation {
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct TaskBatchReq {
+    /// task ids
     ids: Vec<i64>,
 }
 

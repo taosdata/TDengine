@@ -3517,18 +3517,11 @@ const fn is_false(b: &bool) -> bool {
 /// Required properties:
 ///
 /// - *name*: The task name.
-/// - *from*: The data source DSN.
+/// - *from*/*from_json* */: The data source configuration
 /// - *to*: The data sink DSN.
 ///
 #[derive(
     Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::Decode, sqlx::Encode, sqlx::FromRow,
-)]
-#[schema(
-    example = json!({
-        "name": "demo",
-        "from": "tmq:///test?group.id=test-test2&client.id=taosx",
-        "to": "taos:///test2"
-    })
 )]
 pub(crate) struct NewTask {
     stream_type: Option<String>,
@@ -3544,18 +3537,20 @@ pub(crate) struct NewTask {
     #[schema(example = "schedule:@daily")]
     pub trigger: Option<Strategy>,
     /// The stream data source.
-    #[schema(example = "tmq:///test")]
+    #[schema(example = "tmq+ws://localhost:6041/test?group.id=test-test2&client.id=taosx")]
     from: Option<String>,
+    /// the json parameters required for task execution
+    ///
+    /// the parameter values vary depending on the task type
     from_json: Option<serde_json::Value>,
     /// The stream data source cluster id.
     from_cluster: Option<String>,
 
     /// Use oneshot topic for a task, delete the topic after task deleted.
-    // #[serde(default)]
     oneshot_topic: Option<String>,
 
     /// The target of the stream.
-    #[schema(example = "local:/tmp/taosx/test")]
+    #[schema(example = "taos://localhost:6030/test2")]
     to: String,
 
     /// The parser of the task stream.
@@ -3728,17 +3723,29 @@ pub struct UpdateTask {
 #[derive(Serialize, Deserialize, Default, Clone, IntoParams)]
 #[serde(default)]
 pub struct TaskFilter {
+    /// task name
     name: Option<String>,
+    /// stream type label
     stream_type: Option<String>,
+    /// source cluster label
     from_cluster: Option<String>,
+    /// target cluster label
     to_cluster: Option<String>,
+    /// task status
     status: Option<String>,
+    /// task start time
     start_create_time: Option<String>,
+    /// task end time
     end_create_time: Option<String>,
+    /// task delete state
     with_deleted: Option<bool>,
+    /// task labels
     pub labels: Option<String>,
+    /// any labels include to filter
     any_labels: Option<String>,
+    /// filter exclude labels
     without_labels: Option<String>,
+    /// task agent id
     via: Option<i64>,
     in_scheduler: Option<bool>,
 }
