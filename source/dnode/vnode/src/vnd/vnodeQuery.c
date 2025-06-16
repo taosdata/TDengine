@@ -915,8 +915,9 @@ _return:
 
 static int32_t vnodeGetVgCompStorage(SVnode *pVnode, int64_t *output) {
   int32_t code = 0;
+#ifdef TD_ENTERPRISE
   int32_t now = taosGetTimestampSec();
-  if (abs(now - pVnode->config.vndStats.storageLastUpd) >= 60) {
+  if (abs(now - pVnode->config.vndStats.storageLastUpd) >= 30) {  // update every 30 seconds(half of tsGrantHBInterval)
     pVnode->config.vndStats.storageLastUpd = now;
 
     SDbSizeStatisInfo info = {0};
@@ -924,13 +925,15 @@ static int32_t vnodeGetVgCompStorage(SVnode *pVnode, int64_t *output) {
       int64_t compSize =
           info.l1Size + info.l2Size + info.l3Size + info.cacheSize + info.walSize + info.metaSize + +info.s3Size;
       if (compSize >= 0) {
-        *output = compSize;
+        pVnode->config.vndStats.compStorage = compSize;
       } else {
         vError("vnodeGet compStorage failed, compSize is negative:%" PRIi64, compSize);
         code = TSDB_CODE_APP_ERROR;
       }
     }
   }
+  if (output) *output = pVnode->config.vndStats.compStorage;
+#endif
   return code;
 }
 
