@@ -75,7 +75,6 @@ int64_t grantRemain(EGrantType grant);
 int32_t grantCheck(EGrantType grant);
 int32_t grantCheckEx(EGrantType grant, void *param);
 int32_t grantCheckExpire(EGrantType grant);
-
 int32_t tGetMachineId(char **result);
 bool    grantCheckDualReplicaDnodes(void *pMnode);
 

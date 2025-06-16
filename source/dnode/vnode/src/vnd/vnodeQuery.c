@@ -917,7 +917,7 @@ static int32_t vnodeGetVgCompStorage(SVnode *pVnode, int64_t *output) {
   int32_t code = 0;
 #ifdef TD_ENTERPRISE
   int32_t now = taosGetTimestampSec();
-  if (abs(now - pVnode->config.vndStats.storageLastUpd) >= 30) {  // update every 30 seconds(half of tsGrantHBInterval)
+  if (llabs(now - pVnode->config.vndStats.storageLastUpd) >= 30) {
     pVnode->config.vndStats.storageLastUpd = now;
 
     SDbSizeStatisInfo info = {0};
