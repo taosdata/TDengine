@@ -929,8 +929,8 @@ typedef struct {
   int32_t id;
   int64_t dbUid;
   char    dbname[TSDB_TABLE_FNAME_LEN];
-  int64_t startTime;
-  SArray* vgroups;  // SArray<SVgroupS3MigrateDetail>
+  int64_t startTime; // migration start time in seconds
+  SArray* vgroups;   // SArray<SVgroupS3MigrateDetail>
 } SS3MigrateObj;
 
 // SGrantLogObj
