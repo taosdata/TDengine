@@ -19,38 +19,8 @@
 #include "tmisce.h"
 
 
-void mndStreamHbSendRsp(int32_t code, SRpcHandleInfo *pRpcInfo, SMStreamHbRspMsg* pRsp) {
-  int32_t ret = 0;
-  int32_t tlen = 0;
-  void   *buf = NULL;
-
-  tEncodeSize(tEncodeStreamHbRsp, pRsp, tlen, ret);
-  if (ret < 0) {
-    mstError("encode stream hb msg rsp failed, code:%s", tstrerror(ret));
-  }
-
-  buf = rpcMallocCont(tlen + sizeof(SStreamMsgGrpHeader));
-  if (buf == NULL) {
-    mstError("encode stream hb msg rsp failed, code:%s", tstrerror(terrno));
-    return;
-  }
-
-  ((SStreamMsgGrpHeader *)buf)->streamGid = htonl(pRsp->streamGId);
-  void *abuf = POINTER_SHIFT(buf, sizeof(SStreamMsgGrpHeader));
-
-  SEncoder encoder;
-  tEncoderInit(&encoder, abuf, tlen);
-  if ((code = tEncodeStreamHbRsp(&encoder, pRsp)) < 0) {
-    rpcFreeCont(buf);
-    tEncoderClear(&encoder);
-    mstError("encode stream hb msg rsp failed, code:%s", tstrerror(code));
-    return;
-  }
-  tEncoderClear(&encoder);
-
-  SRpcMsg rsp = {.code = code, .info = *pRpcInfo, .contLen = tlen + sizeof(SStreamMsgGrpHeader), .pCont = buf};
-
-  tmsgSendRsp(&rsp);
+void mndStreamHbSendRsp(SRpcHandleInfo *pRpcInfo, SRpcMsg* pRsp) {
+  tmsgSendRsp(pRsp);
   pRpcInfo->handle = NULL;  // disable auto rsp
 }
 
@@ -85,15 +55,18 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
       req.streamGId, req.dnodeId, req.snodeId, (int32_t)taosArrayGetSize(req.pVgLeaders), (int32_t)taosArrayGetSize(req.pStreamStatus));
 
   rsp.streamGId = req.streamGId;
+
+  SRpcMsg rspMsg = {0};
   
-  (void)msmHandleStreamHbMsg(pMnode, currTs, &req, &rsp);
+  (void)msmHandleStreamHbMsg(pMnode, currTs, &req, pReq, &rspMsg);
 
 _exit:
 
-  mndStreamHbSendRsp(code, &pReq->info, &rsp);
-
-  msmCleanStreamGrpCtx(&req);
-  msmClearStreamToDeployMaps(&req);
+  if (code) {
+    msmEncodeStreamHbRsp(code, &pReq->info, &rsp, &rspMsg);
+  }
+  
+  mndStreamHbSendRsp(&pReq->info, &rspMsg);
 
   mstDebug("end to process stream hb req msg, code:%d", code);
 

@@ -149,6 +149,7 @@ int32_t streamHbHandleRspErr(int32_t errCode, int64_t currTs) {
   }
   
   gStreamMgmt.hb.lastErrCode = errCode;
+  gStreamMgmt.hb.lastErrTs = currTs;
   stError("stream hb got error:%s, currTs:%" PRId64, tstrerror(errCode), currTs);
 
   return TSDB_CODE_SUCCESS;
@@ -160,18 +161,20 @@ int32_t streamHbProcessRspMsg(SMStreamHbRspMsg* pRsp) {
 
   stDebug("start to process stream hb rsp msg");
 
+  gStreamMgmt.hb.lastErrCode = 0;
+
+  if (pRsp->undeploy.undeployAll) {
+    //STREAMTODO
+  } else if (pRsp->undeploy.taskList) {
+    TAOS_CHECK_EXIT(smUndeployTasks(&pRsp->undeploy));
+  }
+
   if (pRsp->deploy.streamList) {
     TAOS_CHECK_EXIT(smDeployStreams(&pRsp->deploy));
   }
 
   if (pRsp->start.taskList) {
     TAOS_CHECK_EXIT(smStartTasks(&pRsp->start));
-  }
-
-  if (pRsp->undeploy.undeployAll) {
-    //STREAMTODO
-  } else if (pRsp->undeploy.taskList) {
-    TAOS_CHECK_EXIT(smUndeployTasks(&pRsp->undeploy));
   }
 
   if (pRsp->rsps.rspList) {

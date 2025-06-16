@@ -43,19 +43,15 @@ typedef struct SStreamInfo {
   SRWLatch            lock;
   int32_t             taskNum;
   
-  SArray*             readerList;        // SArray<SStreamReaderTask>
-  
+  SList*              readerList;        // SStreamReaderTask
   SStreamTriggerTask* triggerTask;
-  
-  SArray*             runnerList;        // SArray<SStreamRunnerTask>
-
+  SList*              runnerList;        // SArray<SStreamRunnerTask>
 
   SRWLatch            undeployLock;
 
   SArray*             undeployReaders;        // SArray<taskId>
   int64_t             undeployTriggerId;
   SArray*             undeployRunners;        // SArray<taskId>
-
 } SStreamInfo;
 
 typedef struct SStreamVgReaderTasks {

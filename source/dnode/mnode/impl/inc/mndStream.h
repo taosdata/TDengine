@@ -62,7 +62,7 @@ static const char* gMndStreamState[] = {"X", "W", "N"};
 #define MND_STREAM_REPORT_PERIOD  (STREAM_HB_INTERVAL_MS * STREAM_MAX_GROUP_NUM)
 #define MST_ISOLATION_DURATION (MND_STREAM_REPORT_PERIOD * MND_STREAM_ISOLATION_PERIOD_NUM)
 #define MND_STREAM_HEALTH_CHECK_PERIOD_SEC (MND_STREAM_REPORT_PERIOD / 1000)
-#define MST_MAX_RETRY_DURATION (MST_ISOLATION_DURATION * 100)
+#define MST_MAX_RETRY_DURATION (MST_ISOLATION_DURATION * 40)
 
 #define MST_PASS_ISOLATION(_ts, _n) (((_ts) + (_n) * MST_ISOLATION_DURATION) <= mStreamMgmt.hCtx.currentTs)
 #define MST_STM_STATIC_PASS_ISOLATION(_s) (MST_PASS_ISOLATION((_s)->updateTime, 1))
@@ -89,14 +89,6 @@ static const char* gMndStreamState[] = {"X", "W", "N"};
 #define STREAM_ACT_UPDATE_TRIGGER (1 << 3)
 
 static const char* gMndStreamAction[] = {"", "DEPLOY", "UNDEPLOY", "", "START", "", "", "", "UPDATE TRIGGER"};
-
-#define STREAM_FLAG_TRIGGER_READER  (1 << 0)
-#define STREAM_FLAG_TOP_RUNNER      (1 << 1)
-#define STREAM_FLAG_REDEPLOY_RUNNER (1 << 2)
-
-#define STREAM_IS_TRIGGER_READER(_flags) ((_flags) & STREAM_FLAG_TRIGGER_READER)
-#define STREAM_IS_TOP_RUNNER(_flags) ((_flags) & STREAM_FLAG_TOP_RUNNER)
-#define STREAM_IS_REDEPLOY_RUNNER(_flags) ((_flags) & STREAM_FLAG_REDEPLOY_RUNNER)
 
 #define MND_STREAM_RESERVE_SIZE      64
 #define MND_STREAM_VER_NUMBER        6
@@ -253,6 +245,8 @@ typedef struct SStmStat {
 typedef struct SStmStatus {
   // static part
   char*             streamName;
+  int32_t           trigReaderNum;
+  int32_t           calcReaderNum;
   int32_t           runnerNum;        // task num for one deploy
   int32_t           runnerDeploys;
   int32_t           runnerReplica;
@@ -474,7 +468,8 @@ int32_t mstCheckSnodeExists(SMnode *pMnode);
 void mstSetTaskStatusFromMsg(SStmGrpCtx* pCtx, SStmTaskStatus* pTask, SStmTaskStatusMsg* pMsg);
 void msmClearStreamToDeployMaps(SStreamHbMsg* pHb);
 void msmCleanStreamGrpCtx(SStreamHbMsg* pHb);
-int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, SMStreamHbRspMsg* pRsp);
+int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, SRpcMsg *pReq, SRpcMsg* pRspMsg);
+void msmEncodeStreamHbRsp(int32_t code, SRpcHandleInfo *pRpcInfo, SMStreamHbRspMsg* pRsp, SRpcMsg* pMsg);
 int32_t msmHandleGrantExpired(SMnode *pMnode);
 bool mndStreamActionDequeue(SStmActionQ* pQueue, SStmQNode **param);
 void msmHandleBecomeLeader(SMnode *pMnode);

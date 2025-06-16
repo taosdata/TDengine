@@ -123,19 +123,21 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
   if (pDeploy->readerTasks) {
     readerNum = taosArrayGetSize(pDeploy->readerTasks);
     if (NULL == pStream->readerList) {
-      pStream->readerList = taosArrayInit(readerNum, sizeof(SStreamReaderTask));
+      pStream->readerList = tdListNew(sizeof(SStreamReaderTask));
       TSDB_CHECK_NULL(pStream->readerList, code, lino, _exit, terrno);
     }
     
     for (int32_t i = 0; i < readerNum; ++i) {
-      SStreamReaderTask* pTask = taosArrayReserve(pStream->readerList, 1);
+      SStreamReaderTask* pTask = tdListReserve(pStream->readerList);
+      TSDB_CHECK_NULL(pTask, code, lino, _exit, terrno);
+
       SStmTaskDeploy* pReader = taosArrayGet(pDeploy->readerTasks, i);
       pTask->task = pReader->task;
 
       code = smAddTaskToVgroupMap(pTask);
       if (code) {
         ST_TASK_ELOG("reader task fail to add to vgroup map, error:%s", tstrerror(code));
-        taosArrayPop(pStream->readerList);
+        tdListPopTail(pStream->readerList);
         continue;
       }
 
@@ -143,7 +145,7 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
       if (code) {
         ST_TASK_ELOG("reader task fail to add to taskMap, error:%s", tstrerror(code));
         smRemoveReaderFromVgMap((SStreamTask*)pTask);
-        taosArrayPop(pStream->readerList);
+        tdListPopTail(pStream->readerList);
         continue;
       }
 
@@ -152,11 +154,11 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
         ST_TASK_ELOG("reader task deploy failed, error:%s", tstrerror(code));
         smRemoveReaderFromVgMap((SStreamTask*)pTask);
         taosHashRemove(gStreamMgmt.taskMap, &pTask->task.streamId, sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId));
-        taosArrayPop(pStream->readerList);
+        tdListPopTail(pStream->readerList);
         continue;
       }
 
-      ST_TASK_DLOG("reader task deploy succeed, tidx:%d", pTask->task.taskIdx);      
+      ST_TASK_DLOG("%sReader task deploy succeed, tidx:%d", STREAM_IS_TRIGGER_READER(pTask->task.flags) ? "trig" : "calc", pTask->task.taskIdx);      
 
       atomic_add_fetch_32(&pStream->taskNum, 1);
     }
@@ -210,19 +212,21 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
   if (pDeploy->runnerTasks) {
     runnerNum = taosArrayGetSize(pDeploy->runnerTasks);
     if (NULL == pStream->runnerList) {
-      pStream->runnerList = taosArrayInit(runnerNum, sizeof(SStreamRunnerTask));
+      pStream->runnerList = tdListNew(sizeof(SStreamRunnerTask));
       TSDB_CHECK_NULL(pStream->runnerList, code, lino, _exit, terrno);
     }
     
     for (int32_t i = 0; i < runnerNum; ++i) {
-      SStreamRunnerTask* pTask = taosArrayReserve(pStream->runnerList, 1);
+      SStreamRunnerTask* pTask = tdListReserve(pStream->runnerList);
+      TSDB_CHECK_NULL(pTask, code, lino, _exit, terrno);
+
       SStmTaskDeploy* pRunner = taosArrayGet(pDeploy->runnerTasks, i);
       pTask->task = pRunner->task;
 
       code = taosHashPut(gStreamMgmt.taskMap, &pTask->task.streamId, sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId), &pTask, POINTER_BYTES);
       if (code) {
         ST_TASK_ELOG("runner task fail to add to taskMap, error:%s", tstrerror(code));
-        taosArrayPop(pStream->runnerList);
+        tdListPopTail(pStream->runnerList);
       }
       
       if (TSDB_CODE_SUCCESS == code) {
@@ -230,7 +234,7 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
         if (code) {
           ST_TASK_ELOG("runner task fail to deploy, error:%s", tstrerror(code));
           taosHashRemove(gStreamMgmt.taskMap, &pTask->task.streamId, sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId));
-          taosArrayPop(pStream->runnerList);
+          tdListPopTail(pStream->runnerList);
         }
       }
       
@@ -369,8 +373,8 @@ void smRemoveTaskPostCheck(int64_t streamId, SStreamInfo* pStream, bool* isLastT
   bool taskRemains = false;
   int32_t remainTasks = atomic_sub_fetch_32(&pStream->taskNum, 1);
   if (0 >= remainTasks) {
-    int32_t readerNum = taosArrayGetSize(pStream->readerList);
-    int32_t runnerNum = taosArrayGetSize(pStream->runnerList);
+    int32_t readerNum = pStream->readerList ? TD_DLIST_NELES(pStream->readerList) : 0;
+    int32_t runnerNum = pStream->runnerList ? TD_DLIST_NELES(pStream->runnerList) : 0;
     if (readerNum > 0) {
       stsError("remain readerNum %d while taskNum %d", readerNum, remainTasks);
       taskRemains = true;
@@ -417,7 +421,7 @@ void smRemoveTaskCb(void* param) {
   switch (pTask->type){
     case STREAM_READER_TASK:
       if (NULL == pStream->undeployReaders) {
-        int32_t num = taosArrayGetSize(pStream->readerList);
+        int32_t num = pStream->readerList ? TD_DLIST_NELES(pStream->readerList) : 0;
         SArray* pReaders = taosArrayInit(num, sizeof(int32_t));
         TSDB_CHECK_NULL(pReaders, code, lino, _exit, terrno);
         if (NULL != atomic_val_compare_exchange_ptr(&pStream->undeployReaders, NULL, pReaders)) {
@@ -436,7 +440,7 @@ void smRemoveTaskCb(void* param) {
     }
     case STREAM_RUNNER_TASK:
       if (NULL == pStream->undeployRunners) {
-        int32_t num = taosArrayGetSize(pStream->runnerList);
+        int32_t num = pStream->runnerList ? TD_DLIST_NELES(pStream->runnerList) : 0;
         SArray* pRunners = taosArrayInit(num, sizeof(int32_t));
         TSDB_CHECK_NULL(pRunners, code, lino, _exit, terrno);
         if (NULL != atomic_val_compare_exchange_ptr(&pStream->undeployRunners, NULL, pRunners)) {
@@ -554,19 +558,23 @@ void smUndeployVgTasks(int32_t vgId) {
 
 void smHandleRemovedTask(SStreamInfo* pStream, int64_t streamId, int32_t gid, bool isReader) {
   SArray* pList = isReader ? pStream->undeployReaders : pStream->undeployRunners;
-  SArray* pSrc = isReader ? pStream->readerList : pStream->runnerList;
+  SList*  pSrc = isReader ? pStream->readerList : pStream->runnerList;
   bool isLastTask = false;
+  SListNode* listNode = NULL;
   
   taosWLockLatch(&pStream->undeployLock);
+  
   int32_t unNum = taosArrayGetSize(pList);
   for (int32_t i = 0; i < unNum; ++i) {
     int32_t* taskId = taosArrayGet(pList, i);
-    int32_t num = taosArrayGetSize(pSrc);
-    for (int32_t m = 0; m < num; ++m) {
-      SStreamTask* pTask = taosArrayGet(pSrc, m);
+    SListIter iter = {0};
+    tdListInitIter(pSrc, &iter, TD_LIST_FORWARD);
+    while ((listNode = tdListNext(&iter)) != NULL) {
+      SStreamTask* pTask = (SStreamTask*)listNode->data;
       if (pTask->taskId == *taskId) {
-        taosArrayRemove(pSrc, m);
-        ST_TASK_DLOG("task removed from stream taskList, remain:%d", num - 1);
+        SListNode* tmp = tdListPopNode(pSrc, listNode);
+        ST_TASK_DLOG("task removed from stream taskList, remain:%d", TD_DLIST_NELES(pSrc));
+        taosMemoryFreeClear(tmp);
         smRemoveTaskPostCheck(streamId, pStream, &isLastTask);
         break;
       }
@@ -635,9 +643,11 @@ void smUndeployGrpSnodeTasks(SHashObj* pGrp, bool cleanup) {
       taosWUnLockLatch(&pStream->lock);
     }
 
-    int32_t runnerNum = taosArrayGetSize(pStream->runnerList);
-    for (int32_t i = 0; i < runnerNum; ++i) {
-      SStreamRunnerTask* pRunner = taosArrayGet(pStream->runnerList, i);
+    SListIter iter = {0};
+    SListNode* listNode = NULL;
+    tdListInitIter(pStream->runnerList, &iter, TD_LIST_FORWARD);
+    while ((listNode = tdListNext(&iter)) != NULL) {
+      SStreamRunnerTask* pRunner = (SStreamRunnerTask*)listNode->data;
       undeploy.task = pRunner->task;
       (void)smUndeployTask(&undeploy, false);
     }
@@ -655,6 +665,21 @@ void smUndeploySnodeTasks(bool cleanup) {
   } 
 }
 
+void smUndeployAllVgTasks() {
+  void* pIter = NULL;
+
+  stInfo("start to undeploy ALL vg tasks, remainVgNum:%d", taosHashGetSize(gStreamMgmt.vgroupMap));
+  
+  while (true) {
+    pIter = taosHashIterate(gStreamMgmt.vgroupMap, pIter);
+    if (NULL == pIter) {
+      break;
+    }
+
+    smUndeployVgTasks(*(int32_t*)taosHashGetKey(pIter, NULL));
+  }
+}
+
 void smUndeployAllTasks(void) {
   SStreamTaskUndeploy undeploy = {0};
   undeploy.undeployMsg.doCheckpoint = true;
@@ -663,7 +688,9 @@ void smUndeployAllTasks(void) {
   void* pIter = NULL;
 
   stInfo("start to undeploy ALL tasks, remains:%d", taosHashGetSize(gStreamMgmt.taskMap));
-  
+
+  smUndeployAllVgTasks();
+
   while (true) {
     pIter = taosHashIterate(gStreamMgmt.taskMap, pIter);
     if (NULL == pIter) {
