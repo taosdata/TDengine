@@ -295,7 +295,6 @@ void destroyStreamDataCache(void* pCache) {
     SAlignTaskDSMgr** ppStreamTaskDSManager =
         (SAlignTaskDSMgr**)taosHashGet(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
     if (ppStreamTaskDSManager != NULL) {
-      destroyAlignTaskDSMgr(ppStreamTaskDSManager);
       taosHashRemove(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
     }
   } else if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_EXPIRED) {
