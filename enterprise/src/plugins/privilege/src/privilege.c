@@ -333,7 +333,7 @@ int32_t mndSetUserWhiteListDualRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhit
                  pWhiteListRsp->numWhiteLists * sizeof(SIpRange));
   } else {
     (void)memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
-    pWhiteListRsp->numWhiteLists = 1;
+    pWhiteListRsp->numWhiteLists = 2;
     pWhiteListRsp->pWhiteListsDual = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpRange));
     if (pWhiteListRsp->pWhiteLists == NULL) {
       TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
