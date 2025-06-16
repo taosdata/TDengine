@@ -57,17 +57,17 @@ Select a target database from the **Target Database** dropdown list, or click th
 In the **Connection Configuration** area, fill in the **OPC-UA Service Address**, for example: `127.0.0.1:5000`, and configure the data transmission security mode, with three security modes available:
 
 1. None: Communication data is transmitted in plaintext.
-2. Sign: Communication data is verified using a digital signature to protect data integrity.
-3. SignAndEncrypt: Communication data is verified using a digital signature and encrypted using encryption algorithms to ensure data integrity, authenticity, and confidentiality.
+1. Sign: Communication data is verified using a digital signature to protect data integrity.
+1. SignAndEncrypt: Communication data is verified using a digital signature and encrypted using encryption algorithms to ensure data integrity, authenticity, and confidentiality.
 
 If you choose Sign or SignAndEncrypt as the security mode, you must select a valid security policy. Security policies define how to implement the encryption and verification mechanisms in the security mode, including the encryption algorithms used, key lengths, digital certificates, etc. Available security policies include:
 
 1. None: Only selectable when the security mode is None.
-2. Basic128Rsa15: Uses RSA algorithm and 128-bit key length to sign or encrypt communication data.
-3. Basic256: Uses AES algorithm and 256-bit key length to sign or encrypt communication data.
-4. Basic256Sha256: Uses AES algorithm and 256-bit key length, and encrypts digital signatures using the SHA-256 algorithm.
-5. Aes128Sha256RsaOaep: Uses AES-128 algorithm for encrypting and decrypting communication data, encrypts digital signatures using the SHA-256 algorithm, and uses RSA algorithm and OAEP mode for encrypting and decrypting symmetric communication keys.
-6. Aes256Sha256RsaPss: Uses AES-256 algorithm for encrypting and decrypting communication data, encrypts digital signatures using the SHA-256 algorithm, and uses RSA algorithm and PSS mode for encrypting and decrypting symmetric communication keys.
+1. Basic128Rsa15: Uses RSA algorithm and 128-bit key length to sign or encrypt communication data.
+1. Basic256: Uses AES algorithm and 256-bit key length to sign or encrypt communication data.
+1. Basic256Sha256: Uses AES algorithm and 256-bit key length, and encrypts digital signatures using the SHA-256 algorithm.
+1. Aes128Sha256RsaOaep: Uses AES-128 algorithm for encrypting and decrypting communication data, encrypts digital signatures using the SHA-256 algorithm, and uses RSA algorithm and OAEP mode for encrypting and decrypting symmetric communication keys.
+1. Aes256Sha256RsaPss: Uses AES-256 algorithm for encrypting and decrypting communication data, encrypts digital signatures using the SHA-256 algorithm, and uses RSA algorithm and PSS mode for encrypting and decrypting symmetric communication keys.
 
 <figure>
 <Image img={imgStep3} alt=""/>
@@ -78,8 +78,8 @@ If you choose Sign or SignAndEncrypt as the security mode, you must select a val
 As shown below, switch tabs to choose different authentication methods, with the following options available:
 
 1. Anonymous
-2. Username
-3. Certificate Access: Can be the same as the security communication certificate, or a different certificate.
+1. Username
+1. Certificate Access: Can be the same as the security communication certificate, or a different certificate.
 
 <figure>
 <Image img={imgStep4} alt=""/>
@@ -105,7 +105,7 @@ The encoding format of the CSV file uploaded by the user must be one of the foll
 
 (2) UTF-8 (i.e., UTF-8 without BOM)
 
-2. Header Configuration Rules
+1. Header Configuration Rules
 
 The header is the first line of the CSV file, with the following rules:
 
@@ -137,7 +137,7 @@ The header is the first line of the CSV file, with the following rules:
 
 (5) In the CSV Header, columns that are not listed in the table above can be configured, such as: sequence number, these columns will be automatically ignored.
 
-3. Row Configuration Rules
+1. Row Configuration Rules
 
 Each Row in the CSV file configures an OPC data point. The rules for Rows are as follows:
 
@@ -165,7 +165,7 @@ Each Row in the CSV file configures an OPC data point. The rules for Rows are as
 
 (3) When `point_id` is different but `tbname` is the same, `value_col` must be different. This configuration allows data from multiple data points of different types to be written to different columns in the same subtable. This method corresponds to the "OPC data into TDengine wide table" usage scenario.
 
-4. Other Rules
+1. Other Rules
 
 (1) If the number of columns in Header and Row are inconsistent, the validation fails, and the user is prompted with the line number that does not meet the requirements;
 

@@ -124,13 +124,13 @@ SELECT count(*) FROM table_name WHERE TS<1554984068000;
 
 To avoid the uncertainties brought by using string time formats, you can also directly use Unix Timestamps. Additionally, you can use timestamp strings with time zones in SQL statements, such as RFC3339 formatted timestamp strings, 2013-04-12T15:52:01.123+08:00 or ISO-8601 formatted timestamp strings 2013-04-12T15:52:01.123+0800. The conversion of these two strings to Unix Timestamps is not affected by the system's local time zone.
 
-2. TDengine provides a special field type, nchar, for storing wide characters in non-ASCII encodings such as Chinese, Japanese, and Korean. Data written to the nchar field is uniformly encoded in UCS4-LE format and sent to the server. It is important to note that the correctness of the encoding is ensured by the client. Therefore, if users want to properly use the nchar field to store non-ASCII characters such as Chinese, Japanese, and Korean, they need to correctly set the client's encoding format.
+1. TDengine provides a special field type, nchar, for storing wide characters in non-ASCII encodings such as Chinese, Japanese, and Korean. Data written to the nchar field is uniformly encoded in UCS4-LE format and sent to the server. It is important to note that the correctness of the encoding is ensured by the client. Therefore, if users want to properly use the nchar field to store non-ASCII characters such as Chinese, Japanese, and Korean, they need to correctly set the client's encoding format.
 
 The characters input by the client use the current default encoding format of the operating system, which is often UTF-8 on Linux/macOS systems, but may be GB18030 or GBK on some Chinese systems. The default encoding in a Docker environment is POSIX. In Chinese version Windows systems, the encoding is CP936. The client needs to ensure the correct setting of the character set they are using, i.e., the current encoding character set of the operating system on which the client is running, to ensure that the data in nchar is correctly converted to UCS4-LE encoding format.
 
 In Linux/macOS, the naming rule for locale is: \<language>_\<region>.\<character set encoding> such as: zh_CN.UTF-8, where zh represents Chinese, CN represents mainland China, and UTF-8 represents the character set. The character set encoding provides instructions for the client to correctly parse local strings. Linux/macOS can set the system's character encoding by setting the locale, but since Windows uses a locale format that is not POSIX standard, another configuration parameter charset is used to specify the character encoding in Windows. Charset can also be used in Linux/macOS to specify the character encoding.
 
-3. If charset is not set in the configuration file, in Linux/macOS, taos automatically reads the current locale information of the system at startup, and extracts the charset encoding format from the locale information. If it fails to automatically read the locale information, it attempts to read the charset configuration, and if reading the charset configuration also fails, it interrupts the startup process.
+1. If charset is not set in the configuration file, in Linux/macOS, taos automatically reads the current locale information of the system at startup, and extracts the charset encoding format from the locale information. If it fails to automatically read the locale information, it attempts to read the charset configuration, and if reading the charset configuration also fails, it interrupts the startup process.
 
 In Linux/macOS, the locale information includes character encoding information, so after correctly setting the locale in Linux/macOS, there is no need to set charset separately. For example:
 
@@ -324,15 +324,15 @@ The effective value of charset is UTF-8.
 Additional Notes:
 
 1. Effective in versions 3.2.0.0 ~ 3.3.0.0 (not inclusive), enabling this parameter will prevent rollback to the version before the upgrade
-2. TSZ compression algorithm is completed through data prediction technology, thus it is more suitable for data with regular changes
-3. TSZ compression time will be longer, if your server CPU is mostly idle and storage space is small, it is suitable to choose this
-4. Example: Enable lossy compression for both float and double types
+1. TSZ compression algorithm is completed through data prediction technology, thus it is more suitable for data with regular changes
+1. TSZ compression time will be longer, if your server CPU is mostly idle and storage space is small, it is suitable to choose this
+1. Example: Enable lossy compression for both float and double types
 
 ```shell
 lossyColumns     float|double
 ```
 
-5. Configuration requires service restart to take effect, if you see the following content in the taosd log after restarting, it indicates that the configuration has taken effect:
+1. Configuration requires service restart to take effect, if you see the following content in the taosd log after restarting, it indicates that the configuration has taken effect:
 
 ```sql
    02/22 10:49:27.607990 00002933 UTL  lossyColumns     float|double

@@ -118,11 +118,11 @@ This section discusses how to deploy taosAdapter, which provides RESTful and Web
 
 After the installation of TDengine Enterprise is complete, taosAdapter can be used. If you want to deploy taosAdapter on different servers, TDengine Enterprise needs to be installed on these servers.
 
-2. Single Instance Deployment
+1. Single Instance Deployment
 
 Deploying a single instance of taosAdapter is very simple. For specific commands and configuration parameters, please refer to the taosAdapter section in the manual.
 
-3. Multiple Instances Deployment
+1. Multiple Instances Deployment
 
 The main purposes of deploying multiple instances of taosAdapter are as follows:
 

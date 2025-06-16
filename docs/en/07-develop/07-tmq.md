@@ -320,10 +320,10 @@ After subscribing to a topic, consumers can start receiving and processing messa
 Steps for subscribing and consuming data:
 
   1. Call the `ws_build_topic_list` function to create a topic list `topic_list`.
-  2. If `topic_list` is `NULL`, it means creation failed, and the function returns `-1`.
-  3. Use the `ws_tmq_subscribe` function to subscribe to the topic list specified by `tmq`. If the subscription fails, print an error message.
-  4. Destroy the topic list `topic_list` to free resources.
-  5. Call the `basic_consume_loop` function to start the basic consumption loop, processing the subscribed messages.
+  1. If `topic_list` is `NULL`, it means creation failed, and the function returns `-1`.
+  1. Use the `ws_tmq_subscribe` function to subscribe to the topic list specified by `tmq`. If the subscription fails, print an error message.
+  1. Destroy the topic list `topic_list` to free resources.
+  1. Call the `basic_consume_loop` function to start the basic consumption loop, processing the subscribed messages.
 
 </TabItem>
 <TabItem label="REST API" value="rest">
@@ -403,10 +403,10 @@ Not supported
 Subscription and consumption data steps:
 
   1. Call the `build_topic_list` function to create a topic list `topic_list`.
-  2. If `topic_list` is `NULL`, it means creation failed, and the function returns `-1`.
-  3. Use the `tmq_subscribe` function to subscribe to the topic list specified by `tmq`. If the subscription fails, print an error message.
-  4. Destroy the topic list `topic_list` to free resources.
-  5. Call the `basic_consume_loop` function to start the basic consumption loop, processing the subscribed messages.
+  1. If `topic_list` is `NULL`, it means creation failed, and the function returns `-1`.
+  1. Use the `tmq_subscribe` function to subscribe to the topic list specified by `tmq`. If the subscription fails, print an error message.
+  1. Destroy the topic list `topic_list` to free resources.
+  1. Call the `basic_consume_loop` function to start the basic consumption loop, processing the subscribed messages.
 
 </TabItem>
 <TabItem label="REST API" value="rest">
@@ -428,9 +428,9 @@ Consumers can specify to start reading messages from a specific Offset in the pa
 ```
 
 1. Use the consumer.poll method to poll data until data is obtained.
-2. For the first batch of polled data, print the content of the first message and obtain the current consumer's partition assignment information.
-3. Use the consumer.seekToBeginning method to reset the offset of all partitions to the starting position and print the successful reset message.
-4. Poll data again using the consumer.poll method and print the content of the first message.
+1. For the first batch of polled data, print the content of the first message and obtain the current consumer's partition assignment information.
+1. Use the consumer.seekToBeginning method to reset the offset of all partitions to the starting position and print the successful reset message.
+1. Poll data again using the consumer.poll method and print the content of the first message.
 
 </TabItem>
 
@@ -455,10 +455,10 @@ Consumers can specify to start reading messages from a specific Offset in the pa
 ```
 
 1. By calling the consumer.assignments() method, obtain the consumer's current partition assignment information and record the initial assignment status.  
-2. Traverse each partition assignment information, for each partition: extract the topic, consumer group ID (vgroup_id), current offset (current), starting offset (begin), and ending offset (end).
+1. Traverse each partition assignment information, for each partition: extract the topic, consumer group ID (vgroup_id), current offset (current), starting offset (begin), and ending offset (end).
 Record this information.  
 1. Call the consumer.offset_seek method to set the offset to the starting position. If the operation fails, record the error information and current assignment status.  
-2. After adjusting the offset for all partitions, obtain and record the consumer's partition assignment information again to confirm the status after the offset adjustment.
+1. After adjusting the offset for all partitions, obtain and record the consumer's partition assignment information again to confirm the status after the offset adjustment.
 
 </TabItem>
 
@@ -481,11 +481,11 @@ Record this information.
 ```
 
 1. Use the `ws_tmq_get_topic_assignment` function to obtain the assignment information for a specific topic, including the number of assignments and the details of each assignment.
-2. If fetching the assignment information fails, print an error message and return.
-3. For each assignment, use the `ws_tmq_offset_seek` function to set the consumer's offset to the earliest offset.
-4. If setting the offset fails, print an error message.
-5. Release the assignment information array to free resources.
-6. Call the `basic_consume_loop` function to start a new consumption loop and process messages.
+1. If fetching the assignment information fails, print an error message and return.
+1. For each assignment, use the `ws_tmq_offset_seek` function to set the consumer's offset to the earliest offset.
+1. If setting the offset fails, print an error message.
+1. Release the assignment information array to free resources.
+1. Call the `basic_consume_loop` function to start a new consumption loop and process messages.
 
 </TabItem>
 <TabItem label="REST API" value="rest">
@@ -504,9 +504,9 @@ Not supported
 ```
 
 1. Use the consumer.poll method to poll data until data is obtained.
-2. For the first batch of polled data, print the content of the first data item and obtain the current consumer's partition assignment information.
-3. Use the consumer.seekToBeginning method to reset the offset of all partitions to the beginning position and print a message of successful reset.
-4. Poll data again using the consumer.poll method and print the content of the first data item.
+1. For the first batch of polled data, print the content of the first data item and obtain the current consumer's partition assignment information.
+1. Use the consumer.seekToBeginning method to reset the offset of all partitions to the beginning position and print a message of successful reset.
+1. Poll data again using the consumer.poll method and print the content of the first data item.
 
 </TabItem>
 
@@ -531,9 +531,9 @@ Not supported
 ```
 
 1. Obtain the consumer's current partition assignment information by calling the consumer.assignments() method and record the initial assignment status.
-2. For each partition assignment, extract the topic, consumer group ID (vgroup_id), current offset, beginning offset, and ending offset. Record this information.
-3. Use the consumer.offset_seek method to set the offset to the beginning position. If the operation fails, record the error information and the current assignment status.
-4. After adjusting the offset for all partitions, obtain and record the consumer's partition assignment information again to confirm the status after the offset adjustment.
+1. For each partition assignment, extract the topic, consumer group ID (vgroup_id), current offset, beginning offset, and ending offset. Record this information.
+1. Use the consumer.offset_seek method to set the offset to the beginning position. If the operation fails, record the error information and the current assignment status.
+1. After adjusting the offset for all partitions, obtain and record the consumer's partition assignment information again to confirm the status after the offset adjustment.
 
 </TabItem>
 <TabItem label="Node.js" value="node">
@@ -551,11 +551,11 @@ Not supported
 ```
 
 1. Use the `tmq_get_topic_assignment` function to obtain the assignment information for a specific topic, including the number of assignments and the details of each assignment.
-2. If fetching the assignment information fails, print an error message and return.
-3. For each assignment, use the `tmq_offset_seek` function to set the consumer's offset to the earliest offset.
-4. If setting the offset fails, print an error message.
-5. Release the assignment information array to free resources.
-6. Call the `basic_consume_loop` function to start a new consumption loop and process messages.
+1. If fetching the assignment information fails, print an error message and return.
+1. For each assignment, use the `tmq_offset_seek` function to set the consumer's offset to the earliest offset.
+1. If setting the offset fails, print an error message.
+1. Release the assignment information array to free resources.
+1. Call the `basic_consume_loop` function to start a new consumption loop and process messages.
 
 </TabItem>
 <TabItem label="REST API" value="rest">

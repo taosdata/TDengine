@@ -239,7 +239,6 @@ When making API calls from the browser, please configure the following Cross-Ori
 - **`cors.allowCredentials`**: Whether to allow cross-origin requests to include user credentials, such as cookies, HTTP authentication information, or client SSL certificates.
 - **`cors.allowWebSockets`**: Whether to allow WebSockets connections.
   
-
 If you are not making API calls through a browser, you do not need to worry about these configurations.
 
 The above configurations take effect for the following interfaces:

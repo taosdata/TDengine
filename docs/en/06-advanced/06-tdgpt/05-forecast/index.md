@@ -46,7 +46,7 @@ algo=expr1
 ```
 
 1. `column_expr`: The time-series data column to forecast. Enter a column whose data type is numerical.
-2. `options`: The parameters for forecasting. Enter parameters in key=value format, separating multiple parameters with a comma (,). It is not necessary to use quotation marks or escape characters. Only ASCII characters are supported. The supported parameters are described as follows:
+1. `options`: The parameters for forecasting. Enter parameters in key=value format, separating multiple parameters with a comma (,). It is not necessary to use quotation marks or escape characters. Only ASCII characters are supported. The supported parameters are described as follows:
 
 ### Parameter Description
 
@@ -173,7 +173,7 @@ table_name = passengers
 column_name = val, _c0   
 ```
 
-2. Prepare your data.
+1. Prepare your data.
 
 A sample data file `sample-fc.sql` is included in the `resource` directory. Run the following command to ingest the sample data into TDengine:
 
@@ -183,13 +183,13 @@ taos -f sample-fc.sql
 
 You can now begin the evaluation.
 
-3. Ensure that the Python environment on the local machine is operational. Then run the following command:
+1. Ensure that the Python environment on the local machine is operational. Then run the following command:
 
 ```shell
 python3.10 ./analytics_compare.py forecast
 ```
 
-4. The evaluation results are written to `fc_result.xlsx`. The first card shows the results, shown as follows, including the algorithm name, parameters, mean square error, and elapsed time.
+1. The evaluation results are written to `fc_result.xlsx`. The first card shows the results, shown as follows, including the algorithm name, parameters, mean square error, and elapsed time.
 
 | algorithm   | params                                                                    | MSE     | elapsed_time(ms.) |
 | ----------- | ------------------------------------------------------------------------- | ------- | ----------------- |

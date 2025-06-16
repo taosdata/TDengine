@@ -39,7 +39,7 @@ For example, if the maximum number of concurrent write threads for a user is 100
 100 × 3 + (10000000 / 4096) + 100 ≈ 2841 (MB)
 That is, configuring 3GB of memory is the minimum requirement.
 
-2. RESTful/WebSocket Connection Methods
+1. RESTful/WebSocket Connection Methods
 
 When using WebSocket connection methods for data writing, it is usually not a concern if memory usage is not significant. However, when performing query operations, the WebSocket connection method consumes a certain amount of memory. Next, we will discuss the memory usage in query scenarios in detail.
 
