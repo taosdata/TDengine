@@ -72,14 +72,21 @@ static int32_t skipInsertInto(const char** pSql, SMsgBuf* pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t skipParentheses(SInsertParseContext* pCxt, const char** pSql) {
+static int32_t skipParentheses(SInsertParseContext* pCxt, const char** pSql, int32_t* pSkipLen) {
   SToken  token;
   int32_t expectRightParenthesis = 1;
+  int32_t skipLen = 0;
   while (1) {
-    NEXT_TOKEN(*pSql, token);
+    int32_t index = 0;
+    NEXT_TOKEN_KEEP_SQL(*pSql, token, index);
+    skipLen += index;
+    *pSql += index;
     if (TK_NK_LP == token.type) {
       ++expectRightParenthesis;
     } else if (TK_NK_RP == token.type && 0 == --expectRightParenthesis) {
+      if (pSkipLen != NULL) {
+        *pSkipLen = skipLen;
+      }
       break;
     }
     if (0 == token.n) {
@@ -113,7 +120,7 @@ static int32_t ignoreUsingClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
 
   NEXT_TOKEN(*pSql, token);
   if (TK_NK_LP == token.type) {
-    code = skipParentheses(pCxt, pSql);
+    code = skipParentheses(pCxt, pSql, NULL);
     if (TSDB_CODE_SUCCESS == code) {
       NEXT_TOKEN(*pSql, token);
     }
@@ -131,7 +138,7 @@ static int32_t ignoreUsingClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
     if (TK_NK_LP != token.type) {
       code = buildSyntaxErrMsg(&pCxt->msg, "( is expected", token.z);
     } else {
-      code = skipParentheses(pCxt, pSql);
+      code = skipParentheses(pCxt, pSql, NULL);
     }
   }
 
@@ -1463,7 +1470,7 @@ static int32_t preParseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModif
   // pStmt->pSql -> field1_name, ...)
   pStmt->pSql += index;
   pStmt->pBoundCols = pStmt->pSql;
-  return skipParentheses(pCxt, &pStmt->pSql);
+  return skipParentheses(pCxt, &pStmt->pSql, &pStmt->boundColsSize);
 }
 
 static int32_t getTableDataCxt(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, STableDataCxt** pTableCxt) {
@@ -2744,27 +2751,36 @@ static int32_t parseInsertTableClause(SInsertParseContext* pCxt, SVnodeModifyOpS
   int32_t code = parseSchemaClauseTop(pCxt, pStmt, pTbName);
   if (TSDB_CODE_SUCCESS == code) {
     if (pCxt->missCache) {
-      SBoundColumnsToken boundColumnsToken = tStrGetBoundColumns(pStmt->pSql);
-      parserDebug("QID:0x%" PRIx64 ", miss cache, parse bound columns: %s, len: %d", pCxt->pComCxt->requestId,
-                  boundColumnsToken.z, boundColumnsToken.n);
-      pStmt->pSql += boundColumnsToken.n;
-      SValuesToken valuesToken = tStrGetValues(pStmt->pSql);
-      parserDebug("QID:0x%" PRIx64 ", miss cache, parse bound columns: %s, len: %d, parse values: %s, len: %d",
-                  pCxt->pComCxt->requestId, boundColumnsToken.z, boundColumnsToken.n, valuesToken.z, valuesToken.n);
-      pStmt->pSql += valuesToken.n;
-      SInsertTokens* pInsertTokens = taosMemoryMalloc(sizeof(SInsertTokens));
+      SInsertTokens* pInsertTokens = taosMemoryCalloc(1, sizeof(SInsertTokens));
       if (NULL == pInsertTokens) {
         return terrno;
       }
-      pInsertTokens->boundCols = boundColumnsToken;
-      pInsertTokens->values = valuesToken;
-      code = taosHashPut(pStmt->pInsertTokensHashObj, pTbName->z, pTbName->n, &pInsertTokens, POINTER_BYTES);
-      if (TSDB_CODE_SUCCESS != code) {
-        taosMemoryFree(pInsertTokens);
-        return code;
+      if (NULL != pStmt->pBoundCols) {
+        pInsertTokens->boundCols.z = pStmt->pBoundCols;
+        pInsertTokens->boundCols.n = pStmt->boundColsSize;
       }
-    } else {
-      code = parseInsertTableClauseBottom(pCxt, pStmt);
+
+      pInsertTokens->values = tStrGetValues(pStmt->pSql);
+      parserDebug("QID:0x%" PRIx64 ", miss cache, parse values: %s, len: %d", pCxt->pComCxt->requestId,
+                  pInsertTokens->values.z, pInsertTokens->values.n);
+      pStmt->pSql += pInsertTokens->values.n;
+      char tbFName[TSDB_TABLE_FNAME_LEN];
+      code = tNameExtractFullName(&pStmt->targetTableName, tbFName);
+      if (TSDB_CODE_SUCCESS == code) {
+        SArray* pInsertTokensArray = taosHashGet(pStmt->pInsertTokensHashObj, tbFName, strlen(tbFName));
+        if (pInsertTokensArray != NULL) {
+          taosArrayPush(pInsertTokensArray, &pInsertTokens);
+        } else {
+          pInsertTokensArray = taosArrayInit(1, sizeof(SInsertTokens*));
+          if (pInsertTokensArray == NULL) {
+            return terrno;
+          }
+          taosArrayPush(pInsertTokensArray, &pInsertTokens);
+          code = taosHashPut(pStmt->pInsertTokensHashObj, tbFName, strlen(tbFName), &pInsertTokensArray, POINTER_BYTES);
+        }
+      } else {
+        code = parseInsertTableClauseBottom(pCxt, pStmt);
+      }
     }
   }
 

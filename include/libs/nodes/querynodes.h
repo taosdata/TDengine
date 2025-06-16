@@ -585,6 +585,7 @@ typedef struct SVnodeModifyOpStmt {
   SName                 targetTableName;
   SName                 usingTableName;
   const char*           pBoundCols;
+  int32_t               boundColsSize;
   struct STableMeta*    pTableMeta;
   SNode*                pTagCond;
   SArray*               pTableTag;
