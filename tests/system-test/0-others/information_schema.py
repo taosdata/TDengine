@@ -272,6 +272,8 @@ class TDTestCase:
             'timeseries':'Timeseries',
             'dnodes':'Dnodes',
             'cpu_cores':'CPU Cores',
+            'vnodes':'Vnodes',
+            'storage_size':'Storage Size',
             'stream':'Stream',
             'subscription':'Subscription',
             'view':'View',
@@ -300,6 +302,17 @@ class TDTestCase:
             'mongodb':'MongoDB',
             'csv':'CSV',
             'sparkplugb':"SparkplugB",
+            'ta_ts_attr':'TDasset Time-Series Attributes',
+            'ta_nts_attr':'TDasset Non-Time-Series Attributes',
+            'ta_element':'TDasset Elements',
+            'ta_server':'TDasset Servers',
+            'ta_cpu_core':'TDasset CPU Cores',
+            'ta_user':'TDasset Users',
+            'ta_version_ctrl':'TDasset Version Control',
+            'ta_data_forecast':'TDasset Data Forecast',
+            'ta_data_detect':'TDasset Data Detect',
+            'ta_data_quality':'TDasset Data Quality',
+            'ta_ai_chat_gen':'TDasset AI Chat/Generate',
         }
 
         tdSql.execute('drop database if exists db2')

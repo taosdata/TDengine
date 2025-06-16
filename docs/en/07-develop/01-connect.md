@@ -141,7 +141,7 @@ If you are using Maven to manage your project, simply add the following dependen
     - Install a specific version
 
     ```shell
-    pip3 install taospy==2.3.0
+    pip3 install taospy==2.8.1
     ```
 
     - Install from GitHub
