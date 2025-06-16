@@ -7,3 +7,7 @@ target_include_directories(
 )
 
 target_link_libraries(metrics os util common qcom transport)
+
+if(${BUILD_TEST})
+  add_subdirectory(test)
+endif(${BUILD_TEST})

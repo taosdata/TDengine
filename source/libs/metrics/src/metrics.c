@@ -457,9 +457,9 @@ void cleanExpiredWriteMetrics(SHashObj *pValidVgroups) {
     return;
   }
 
-  SArray *pKeysToRemove = taosArrayInit(16, sizeof(void *));
-  if (pKeysToRemove == NULL) {
-    uError("Failed to initialize keys array for metrics cleanup");
+  SArray *pVgIdsToRemove = taosArrayInit(16, sizeof(int32_t));
+  if (pVgIdsToRemove == NULL) {
+    uError("Failed to initialize vgIds array for metrics cleanup");
     return;
   }
 
@@ -473,15 +473,8 @@ void cleanExpiredWriteMetrics(SHashObj *pValidVgroups) {
       void *pFound = taosHashGet(pValidVgroups, &vgId, sizeof(int32_t));
       if (pFound == NULL) {
         // This vgroup no longer exists, mark for removal
-        char *pKey = taosHashGetKey(pIter, NULL);
-        if (pKey != NULL) {
-          char *pKeyCopy = taosStrdup(pKey);
-          if (pKeyCopy != NULL) {
-            if (taosArrayPush(pKeysToRemove, &pKeyCopy) == NULL) {
-              uError("Failed to add key for removal: %s", pKeyCopy);
-              taosMemoryFree(pKeyCopy);
-            }
-          }
+        if (taosArrayPush(pVgIdsToRemove, &vgId) == NULL) {
+          uError("Failed to add vgId:%d for removal", vgId);
         }
       }
     }
@@ -489,17 +482,16 @@ void cleanExpiredWriteMetrics(SHashObj *pValidVgroups) {
   }
 
   // Remove expired metrics
-  for (int32_t i = 0; i < taosArrayGetSize(pKeysToRemove); i++) {
-    char **ppKey = taosArrayGet(pKeysToRemove, i);
-    if (ppKey && *ppKey) {
-      if (taosHashRemove(gMetricsManager.pWriteMetrics, *ppKey, strlen(*ppKey)) == 0) {
-        uInfo("Removed expired write metrics for key: %s", *ppKey);
+  for (int32_t i = 0; i < taosArrayGetSize(pVgIdsToRemove); i++) {
+    int32_t *pVgId = taosArrayGet(pVgIdsToRemove, i);
+    if (pVgId) {
+      if (taosHashRemove(gMetricsManager.pWriteMetrics, pVgId, sizeof(int32_t)) == 0) {
+        uTrace("Removed expired write metrics for vgId: %d", *pVgId);
       } else {
-        uError("Failed to remove expired write metrics for key: %s", *ppKey);
+        uError("Failed to remove expired write metrics for vgId: %d", *pVgId);
       }
-      taosMemoryFree(*ppKey);
     }
   }
 
-  taosArrayDestroy(pKeysToRemove);
+  taosArrayDestroy(pVgIdsToRemove);
 }
