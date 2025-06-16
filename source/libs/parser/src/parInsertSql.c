@@ -545,32 +545,36 @@ static int32_t parseBlob(SToken* pToken, uint8_t** pData, uint32_t* nData, int32
   int32_t  code = 0;
   int32_t  lino = 0;
   uint32_t size = 0;
-  void*    data = NULL;
+  *pData = NULL;
+
   if (isHex(pToken->z + 1, pToken->n - 2)) {
     if (!isValidateHex(pToken->z + 1, pToken->n - 2)) {
       return TSDB_CODE_PAR_INVALID_VARBINARY;
     }
+    void* data = NULL;
+
     if (taosHex2Ascii(pToken->z + 1, pToken->n - 2, &data, &size) < 0) {
       TSDB_CHECK_CODE(code, lino, _error);
     }
+    *pData = data;
+    *nData = size;
   } else {
-    size = pToken->n;
-    data = taosMemoryCalloc(1, size);
-    if (data == NULL) {
-      TSDB_CHECK_CODE(code = terrno, lino, _error);
-    }
-    memcpy(data, pToken->z, size);
+    *pData = taosMemoryCalloc(1, pToken->n);
+    if (!pData) return terrno;
+    size = trimString(pToken->z, pToken->n, (char*)*pData, pToken->n);
+    *nData = size;
   }
+
   if (size + BLOBSTR_HEADER_SIZE > TSDB_MAX_BLOB_LEN) {
     TSDB_CHECK_CODE(code = TSDB_CODE_BLOB_VALUE_TOO_LONG, lino, _error);
   }
+
 _error:
   if (code != 0) {
-    taosMemoryFree(data);
+    taosMemoryFree(pData);
     uError("parseBlob failed at lino %d code: %s", lino, tstrerror(code));
     return code;
   }
-  *pData = data;
   *nData = size;
   return TSDB_CODE_SUCCESS;
 }
@@ -896,7 +900,7 @@ int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf, i
   }
 
   // Remove quotation marks
-  if (TK_NK_STRING == pToken->type && type != TSDB_DATA_TYPE_VARBINARY) {
+  if (TK_NK_STRING == pToken->type && type != TSDB_DATA_TYPE_VARBINARY && !IS_STR_DATA_BLOB(type)) {
     if (!IS_STR_DATA_BLOB(type)) {
       if (pToken->n >= TSDB_MAX_BYTES_PER_ROW) {
         return buildSyntaxErrMsg(pMsgBuf, "too long string", pToken->z);
