@@ -98,6 +98,8 @@ void stmHandleStreamRemovedTasks(SStreamInfo* pStream, int64_t streamId, int32_t
 int32_t stmHbAddStreamStatus(SArray** ppStatus, SArray** ppReq, SStreamInfo* pStream, int64_t streamId, int32_t gid) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  SListIter iter = {0};
+  SListNode* listNode = NULL;
 
   taosWLockLatch(&pStream->lock);
 
@@ -114,17 +116,20 @@ int32_t stmHbAddStreamStatus(SArray** ppStatus, SArray** ppReq, SStreamInfo* pSt
   }
 
   int32_t origTaskNum = taosArrayGetSize(*ppStatus);
-  int32_t taskNum = taosArrayGetSize(pStream->readerList);
-  for (int32_t i = 0; i < taskNum; ++i) {
-    SStreamReaderTask* pReader = taosArrayGet(pStream->readerList, i);
-    TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pReader->task), code, lino, _exit, terrno);
-    if (pReader->task.pMgmtReq) {
-      TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, ppReq, taosArrayGetSize(*ppStatus) - 1));
+
+  if (pStream->readerList) {
+    tdListInitIter(pStream->readerList, &iter, TD_LIST_FORWARD);
+    while ((listNode = tdListNext(&iter)) != NULL) {
+      SStreamReaderTask* pReader = (SStreamReaderTask*)listNode->data;
+      TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pReader->task), code, lino, _exit, terrno);
+      if (pReader->task.pMgmtReq) {
+        TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, ppReq, taosArrayGetSize(*ppStatus) - 1));
+      }
     }
+
+    stsDebug("%d reader tasks status added to hb", TD_DLIST_NELES(pStream->readerList));
   }
-
-  stsDebug("%d reader tasks status added to hb", taskNum);
-
+  
   if (pStream->triggerTask) {
     TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pStream->triggerTask->task), code, lino, _exit, terrno);
     stsDebug("%d trigger tasks status added to hb", 1);
@@ -133,18 +138,22 @@ int32_t stmHbAddStreamStatus(SArray** ppStatus, SArray** ppReq, SStreamInfo* pSt
     }
   }
 
-  taskNum = taosArrayGetSize(pStream->runnerList);
-  for (int32_t i = 0; i < taskNum; ++i) {
-    SStreamRunnerTask* pRunner = taosArrayGet(pStream->runnerList, i);
-    TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pRunner->task), code, lino, _exit, terrno);
-    if (pRunner->task.pMgmtReq) {
-      TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, ppReq, taosArrayGetSize(*ppStatus) - 1));
+  if (pStream->runnerList) {
+    memset(&iter, 0, sizeof(iter));
+    
+    tdListInitIter(pStream->runnerList, &iter, TD_LIST_FORWARD);
+    while ((listNode = tdListNext(&iter)) != NULL) {
+      SStreamRunnerTask* pRunner = (SStreamRunnerTask*)listNode->data;
+      TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pRunner->task), code, lino, _exit, terrno);
+      if (pRunner->task.pMgmtReq) {
+        TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, ppReq, taosArrayGetSize(*ppStatus) - 1));
+      }
     }
+
+    stsDebug("%d runner tasks status added to hb", TD_DLIST_NELES(pStream->runnerList));
   }
-
-  stsDebug("%d runner tasks status added to hb", taskNum);
-
-  stsDebug("total %zu:%d tasks status added to hb", taosArrayGetSize(*ppStatus) - origTaskNum, pStream->taskNum);
+  
+  stsDebug("total %d:%d tasks status added to hb", taosArrayGetSize(*ppStatus) - origTaskNum, pStream->taskNum);
 
 _exit:
 
@@ -181,10 +190,10 @@ int32_t stmBuildHbStreamsStatusReq(SArray** ppStatus, SArray** ppReq, int32_t gi
 }
 
 void stmDestroySStreamInfo(SStreamInfo* p) {
-  taosArrayDestroy(p->readerList);
+  tdListFree(p->readerList);
   p->readerList = NULL;
   taosMemoryFreeClear(p->triggerTask);
-  taosArrayDestroy(p->runnerList);
+  tdListFree(p->runnerList);
   p->runnerList = NULL;
   taosArrayDestroy(p->undeployReaders);
   p->undeployReaders = NULL;

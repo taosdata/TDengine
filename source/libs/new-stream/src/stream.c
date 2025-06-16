@@ -35,13 +35,13 @@ void streamSetSnodeDisabled(bool cleanup) {
 }
 
 void streamMgmtCleanup() {
-  streamTimerCleanUp();
   taosArrayDestroy(gStreamMgmt.vgLeaders);
   taosHashCleanup(gStreamMgmt.taskMap);
   taosHashCleanup(gStreamMgmt.vgroupMap);
 }
 
 void streamCleanup(void) {
+  streamTimerCleanUp();
   smUndeployAllTasks();
   streamTriggerEnvCleanup();
   destroyDataSinkMgr();

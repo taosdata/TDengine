@@ -32,6 +32,14 @@ extern "C" {
 
 #define STREAM_ACT_MIN_DELAY_MSEC (STREAM_MAX_GROUP_NUM * STREAM_HB_INTERVAL_MS)
 
+#define STREAM_FLAG_TRIGGER_READER  (1 << 0)
+#define STREAM_FLAG_TOP_RUNNER      (1 << 1)
+#define STREAM_FLAG_REDEPLOY_RUNNER (1 << 2)
+
+#define STREAM_IS_TRIGGER_READER(_flags) ((_flags) & STREAM_FLAG_TRIGGER_READER)
+#define STREAM_IS_TOP_RUNNER(_flags) ((_flags) & STREAM_FLAG_TOP_RUNNER)
+#define STREAM_IS_REDEPLOY_RUNNER(_flags) ((_flags) & STREAM_FLAG_REDEPLOY_RUNNER)
+
 typedef struct SStreamReaderTask {
   SStreamTask task;
   int8_t      triggerReader;
