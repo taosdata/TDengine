@@ -239,8 +239,7 @@ export default {
               pattern: null,
               grid_two: false,
               type: 'number',
-              min: 1,
-              max: 60
+              min: 1
             },
             {
               label: 'Request Timeout',
@@ -251,8 +250,7 @@ export default {
               pattern: null,
               grid_two: false,
               type: 'number',
-              min: 1,
-              max: 60
+              min: 1
             }
           ],
           hide: false
@@ -263,7 +261,7 @@ export default {
           description: 'Configurations for collecting data from OPC',
           children: [
             {
-              label: 'Collect interval',
+              label: 'Collect Interval',
               description: 'Collect data interval in second',
               field: 'interval',
               placeholder: '',
@@ -271,8 +269,7 @@ export default {
               pattern: null,
               grid_two: false,
               type: 'number',
-              min: 1,
-              max: 60
+              min: 1
             },
             {
               label: 'Point Update Mode',

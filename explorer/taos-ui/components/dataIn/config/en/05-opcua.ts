@@ -121,8 +121,7 @@ export default {
           pattern: null,
           defaultValue: '10',
           type: 'number',
-          min: 1,
-          max: 60
+          min: 1
         }
       ]
     },
@@ -437,7 +436,7 @@ export default {
               }
             },
             {
-              label: 'Collect interval',
+              label: 'Collect Interval',
               description: 'Collect data interval in second',
               field: 'interval',
               placeholder: '',
@@ -446,7 +445,6 @@ export default {
               grid_two: false,
               type: 'number',
               min: 1,
-              max: 60,
               displayDependsOn: [
                 // 'datasets/currentTab',
                 'groups_after/collect_options/collect_mode'
@@ -466,7 +464,6 @@ export default {
               grid_two: false,
               type: 'number',
               min: 1,
-              max: 60,
               displayDependsOn: [
                 // 'datasets/currentTab',
                 'groups_after/collect_options/collect_mode'
