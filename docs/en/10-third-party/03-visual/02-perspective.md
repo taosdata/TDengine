@@ -32,11 +32,14 @@ The integration can be performed using the Node.js or Python connector.
 You can write a Perspective WebSocket server in Node.js that retrieves data from TDengine as follows:
 
 1. Import Perspective and the TDengine client library as dependencies:
+
    ```js
    import perspective from "@finos/perspective";
    import * as taos from "@tdengine/websocket";
    ```
+
 1. Configure TDengine:
+
    ```js
    const TAOS_CONNECTION_URL = '<taosadapter-url>';
    const TAOS_USER = '<tdengine-username>';
@@ -44,15 +47,19 @@ You can write a Perspective WebSocket server in Node.js that retrieves data from
    const TAOS_DATABASE = '<tdengine-database>';
    const TAOS_TABLENAME = '<tdengine-table>';
    ```
+
    Enter the connection URL as a WebSocket URL with the IP address and port of taosAdapter, for example `ws://localhost:6041`.
 1. Configure Perspective:
+
    ```js
    const PRSP_TABLE_NAME = TAOS_TABLENAME;
    const PRSP_TABLE_LIMIT = <perspective-row-limit>;
    const PRSP_TABLE_REFRESH_INTERVAL = <perspective-refresh-interval>;
    ```
+
    Specify the refresh interval in milliseconds.
 1. Connect to your TDengine database:
+
    ```js
    async function taosCreateConnection(
        url = TAOS_CONNECTION_URL, 
@@ -72,7 +79,9 @@ You can write a Perspective WebSocket server in Node.js that retrieves data from
        }
    }
    ```
+
 1. Query your TDengine table and return the timestamp column and one or more metrics as an array of objects. Note that you must convert TDengine's timestamp column to a timestamp in Node.js.
+
    ```js
    async function taosQuery(conn, databaseName = TAOS_DATABASE, tableName = TAOS_TABLENAME) {
        try {
@@ -101,7 +110,9 @@ You can write a Perspective WebSocket server in Node.js that retrieves data from
        }
    }
    ```
+
 1. Create a Perspective table to host on the WebSocket server:
+
    ```js
    async function prspCreatePerspectiveTable() {
        // Define the schema for the table.
@@ -117,11 +128,12 @@ You can write a Perspective WebSocket server in Node.js that retrieves data from
        return table;
    }
    ```
+
    To determine the Node.js data type for each metric, refer to [Data Type Mapping](https://docs.tdengine.com/tdengine-reference/client-libraries/node/#data-type-mapping).
-   
+
 1. Create the main function to orchestrate the workflow.
    In this function, you create a TDengine connection, Perspective WebSocket server, and Perspective table. Then you set up a timer to query TDengine periodically and update the Perspective table accordingly.
-   
+
    ```js
    async function main() {
        // Create a TDengine connection and a Perspective WebSocket server.
@@ -150,8 +162,10 @@ You can write a Perspective WebSocket server in Node.js that retrieves data from
        }, PRSP_TABLE_REFRESH_INTERVAL);
    }
    ```
+
    Note that the Perspective WebSocket server is always hosted at `ws://localhost:8080/websocket`.
 1. Run the main function:
+
    ```js
    main();
    ```
@@ -268,30 +282,42 @@ This section creates a quick demonstration environment using Node.js with which 
 #### Procedure
 
 1. Clone the `perspective-examples` repository from GitHub to your local machine and open the ```examples/tdengine/node``` directory.
+
    ```bash
    git clone https://github.com/ProspectiveCo/perspective-examples
    cd examples/tdengine/node
    ```
+
 1. Run the provided script to start TDengine in a Docker container:
+
    ```bash
    ./docker.sh
    ```
+
 1. Install Node.js dependencies:
+
    ```bash
    npm install
    ```
+
 1. Run the producer script to create a database and table in TDengine and insert simulated data in real time:
+
    ```bash
    node src/producer.js
    ```
+
 1. Run the server script to construct a Perspective WebSocket server and a Perspective table:
+
    ```bash
    node src/server.js
    ```
+
 1. Host the Perspective front-end with Vite.
+
    ```bash
    npm run dev
    ```
+
 1. Open the URL of the Vite development server in a web browser. The default URL is `http://localhost:3000`.
 
 ## Connect to Perspective Using Python
@@ -308,24 +334,28 @@ This section creates a quick demonstration environment using Node.js with which 
 You can write a Perspective server in Python that retrieves data from TDengine as follows:
 
 1. Import the TDengine client library as a dependency:
+
    ```python
    import taosws
    ```
-   
+
 1. Configure TDengine:
+
    ```python
    TAOS_HOST = "<taosadapter-hostname>"
    TAOS_PORT = <taosadapter-port-number>
    TAOS_USER = "<tdengine-username>"
    TAOS_PASSWORD = "<tdengine-password>"
    ```
-   
+
 1. Connect to your TDengine instance:
+
    ```python
    conn = taosws.connect(host=TAOS_HOST, port=TAOS_PORT, user=TAOS_USER, password=TAOS_PASSWORD)
    ```
-   
+
 1. Query a TDengine table to retrieve the timestamp column and one or more metrics.
+
    ```python
    def read_tdengine(conn):
        sql = """
@@ -347,8 +377,9 @@ You can write a Perspective server in Python that retrieves data from TDengine a
        ]
        return data
    ```
-   
+
 1. Create a Perspective table and update it with data from TDengine:
+
    ```python
    def perspective_thread(perspective_server, tdengine_conn):
        client = perspective_server.new_local_client()
@@ -367,9 +398,11 @@ You can write a Perspective server in Python that retrieves data from TDengine a
        callback = tornado.ioloop.PeriodicCallback(callback=updater, callback_time=250)
        callback.start()
    ```
+
    To determine the Python data type for each metric, refer to [Data Type Mapping](https://docs.tdengine.com/tdengine-reference/client-libraries/python/#data-type-mapping).
-   
+
 1. Set up a Tornado application with a WebSocket handler to serve the Perspective table:
+
    ```python
    def make_app(perspective_server):
        return tornado.web.Application([
@@ -380,10 +413,10 @@ You can write a Perspective server in Python that retrieves data from TDengine a
            ),
        ])
    ```
-   
+
 1. Create the main function to orchestrate the workflow.
    In this function, you initialize the Perspective server, connect to TDengine, and start the Tornado IOLoop:
-   
+
    ```python
    if __name__ == "__main__":
        perspective_server = perspective.Server()
@@ -525,16 +558,16 @@ This section creates a quick demonstration environment using Node.js with which 
       ```bash
       ls -l tdengine-client/driver/
       ```
-   
+
    1. Run the following command to verify whether the environment variable for the client library directory has been created:
 
-      ```
+      ```bash
       echo $LD_LIBRARY_PATH
       ```
-      
+
       If the variable has not been set, run the following command:
-      
-      ```
+
+      ```bash
       export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:<path>/tdengine-client/driver"
       ```
 
