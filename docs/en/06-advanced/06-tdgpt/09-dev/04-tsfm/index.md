@@ -10,8 +10,6 @@ TDgpt includes two TSFMs, TDtsfm and Time-MoE, but you can add more open-source 
 This document describes how to integrate an independent TSFM service into TDengine, using [Time-MoE](https://github.com/Time-MoE/Time-MoE) as an example,
 and how to use the model in SQL statements for time-series forecasting.
 
-
-
 ## Prepare Your Environment
 
 Before using TSFMs, prepare your environment as follows. Install a Python environment and use PiPy to install dependencies:
@@ -22,8 +20,8 @@ pip install flask==3.0.3
 pip install transformers==4.40.0
 pip install accelerate
 ```
-You can use the virtual Python environment installed by TDgpt or a separate environment.
 
+You can use the virtual Python environment installed by TDgpt or a separate environment.
 
 ## Configure TSFM Path
 
@@ -45,6 +43,7 @@ Change `ds_predict` to the URL that you want to use in your environment.
             debug=False     
         )
 ```
+
 In this section, you can update the port if desired. After you have set your URL and port number, restart the service.
 
 ## Run the Python Script
@@ -56,6 +55,7 @@ nohup python time-moe.py > service_output.out 2>&1 &
 The script automatically downloads [Time-MoE-200M](https://huggingface.co/Maple728/TimeMoE-200M) from Hugging Face the first time it is run. You can modify `time-moe.py` to use TimeMoE-50M if you prefer a smaller version.
 
 Check the `service-output.out` file to confirm that the model has been loaded:
+
 ```shell
 Running on all addresses (0.0.0.0)
 Running on http://127.0.0.1:5001
@@ -80,6 +80,7 @@ The following indicates that Time-MoE has been deployed:
 ```
 
 ## Load the Model into TDgpt
+
 You can modify the [timemoe.py] file and use it in TDgpt. In this example, Time-MoE is adapted to provide forecasting.
 
 ```python
@@ -160,14 +161,15 @@ Add the path for your deployment. The key is the name of the model defined in yo
 Then restart the taosanode service and run `UPDATE ALL ANODES`. You can now use Time-MoE forecasting in your SQL statements.
 
 ## Use a TSFM in SQL
+
 ```sql
 SELECT FORECAST(i32, 'algo=timemoe-fc') 
 FROM foo;
 ```
 
 ## Add Other TSFMs
-You can add more open-source or proprietary TSFMs to TDgpt by following the process described in this document. Ensure that the class and service names have been configured appropriately and that the service URL is reachable.
 
+You can add more open-source or proprietary TSFMs to TDgpt by following the process described in this document. Ensure that the class and service names have been configured appropriately and that the service URL is reachable.
 
 ### References
 
