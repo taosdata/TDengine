@@ -747,15 +747,22 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
   }
 
   while(pState->state == FILE_SET_MIGRATE_STATE_IN_PROGRESS) {
-    TAOS_UNUSED(taosThreadCondWait(&pmm->stateChanged, &rtner->tsdb->mutex));
+    struct timespec ts;
+    taosClockGetTime(CLOCK_REALTIME, &ts);
+    ts.tv_sec += 30; // TODO: make it configurable
+    code = taosThreadCondTimedWait(&pmm->stateChanged, &rtner->tsdb->mutex, &ts);
     pState = taosArrayGet(pmm->state.pFileSetStates, fsIdx);
+    if (code == TSDB_CODE_TIMEOUT_ERROR) {
+      tsdbError("vgId:%d, fid:%d, waiting leader migration timed out", vid, fset->fid);
+      pState->state = FILE_SET_MIGRATE_STATE_FAILED;
+    }
   }
 
   TAOS_UNUSED(taosThreadMutexUnlock(&rtner->tsdb->mutex));
 
   if (pState->state != FILE_SET_MIGRATE_STATE_SUCCEEDED) {
     tsdbInfo("vgId:%d, fid:%d, follower migration skipped because leader migration skipped or failed", vid, fset->fid);
-    return TSDB_CODE_FAILED;
+    return 0;
   }
 
   tsdbInfo("vgId:%d, fid:%d, follower migration started, begin downloading manifest...", vid, fset->fid);
