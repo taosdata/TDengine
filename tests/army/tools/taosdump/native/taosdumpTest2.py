@@ -110,13 +110,13 @@ class TDTestCase(TBase):
         os.system("rm ./taosdumptest/tmp/*.sql")
         os.system("rm ./taosdumptest/tmp/*.avro*")
         os.system("rm -rf ./taosdumptest/tmp/taosdump.*")
-        os.system("%s -D test -o ./taosdumptest/tmp " % binPath)
+        os.system("%s -D test -o ./taosdumptest/tmp -g" % binPath)
 
         tdSql.execute("drop database test")
         tdSql.query("show databases")
         tdSql.checkRows(3)
 
-        os.system("%s -i ./taosdumptest/tmp " % binPath)
+        os.system("%s -i ./taosdumptest/tmp -g" % binPath)
 
         tdSql.execute("use test")
         tdSql.query("show stables")
