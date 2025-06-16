@@ -2080,7 +2080,6 @@ int32_t mndProcessGetUserWhiteListReq(SRpcMsg *pReq) {
   }
 
   TAOS_CHECK_GOTO(setRspFn(pMnode, pUser, &wlRsp), &lino, _OVER);
-
   contLen = serialFn(NULL, 0, &wlRsp);
   if (contLen < 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
