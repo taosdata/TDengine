@@ -111,13 +111,13 @@ typedef struct {
   SMetric merge_time;
 } SWriteMetricsEx;
 
-// Query Metrics Extended Structure
-typedef struct {
-} SQueryMetricsEx;
+// // Query Metrics Extended Structure
+// typedef struct {
+// } SQueryMetricsEx;
 
-// Stream Metrics Extended Structure
-typedef struct {
-} SStreamMetricsEx;
+// // Stream Metrics Extended Structure
+// typedef struct {
+// } SStreamMetricsEx;
 
 // Metrics Manager Structure
 typedef struct {
