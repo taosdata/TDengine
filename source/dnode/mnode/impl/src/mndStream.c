@@ -619,7 +619,7 @@ static bool mndStreamUpdateTagsFlag(SMnode *pMnode, void *pObj, void *p1, void *
     SColumnNode* pCol = (SColumnNode*)pNode;
     for (int32_t i = 0; i < *tagNum; ++i) {
       if (pCol->colId == pTags[i].colId) {
-        pTags[i].flags &= COL_REF_BY_STM;
+        pTags[i].flags |= COL_REF_BY_STM;
         break;
       }
     }
