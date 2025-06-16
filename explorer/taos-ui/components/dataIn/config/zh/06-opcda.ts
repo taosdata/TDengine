@@ -221,8 +221,7 @@ export default {
               pattern: null,
               grid_two: false,
               type: 'number',
-              min: 1,
-              max: 60
+              min: 1
             },
             {
               label: '采集超时',
@@ -233,8 +232,7 @@ export default {
               pattern: null,
               grid_two: false,
               type: 'number',
-              min: 1,
-              max: 60
+              min: 1
             }
           ],
           hide: false
@@ -253,8 +251,7 @@ export default {
               pattern: null,
               grid_two: false,
               type: 'number',
-              min: 1,
-              max: 60
+              min: 1
             },
             {
               label: '点位更新模式',
