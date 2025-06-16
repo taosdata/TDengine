@@ -84,24 +84,14 @@ TDgpt is deployed as a Flask service through uWSGI. You can monitor its status b
 
 ### References
 
-[1] Merlion: <https://opensource.salesforce.com/Merlion/latest/index.html>
-
-[2] Kats: <https://facebookresearch.github.io/Kats/>
-
-[3] StatsModels: <https://www.statsmodels.org/stable/index.html>
-
-[4] Keras: <https://keras.io/guides/>
-
-[5] PyTorch: <https://pytorch.org/>
-
-[6] Scikit-learn: <https://scikit-learn.org/stable/index.html>
-
-[7] Time-MoE: <https://github.com/Time-MoE/Time-MoE>
-
-[8] TimeGPT: <https://docs.nixtla.io/docs/getting-started-about_timegpt>
-
-[9] DeepSeek: <https://www.deepseek.com/>
-
-[10] Llama: <https://www.llama.com/docs/overview/>
-
-[11] Spark MLlib: <https://spark.apache.org/docs/latest/ml-guide.html>
+1. [Merlion](https://opensource.salesforce.com/Merlion/latest/index.html)
+1. [Kats](https://facebookresearch.github.io/Kats/)
+1. [StatsModels](https://www.statsmodels.org/stable/index.html)
+1. [Keras](https://keras.io/guides/)
+1. [PyTorch](https://pytorch.org/)
+1. [Scikit-learn](https://scikit-learn.org/stable/index.html)
+1. [Time-MoE](https://github.com/Time-MoE/Time-MoE)
+1. [TimeGPT](https://docs.nixtla.io/docs/getting-started-about_timegpt)
+1. [DeepSeek](https://www.deepseek.com/)
+1. [Llama](https://www.llama.com/docs/overview/)
+1. [Spark MLlib](https://spark.apache.org/docs/latest/ml-guide.html)

@@ -33,4 +33,4 @@ The following algorithms are in development:
 
 ### References
 
-1. <https://en.wikipedia.org/wiki/Autoencoder>
+1. [Autoencoder](https://en.wikipedia.org/wiki/Autoencoder)
