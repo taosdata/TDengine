@@ -3317,6 +3317,9 @@ int32_t streamTriggerProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
       // todo(kjq): handle error code
+      *pErrTaskId = pReq->runnerTaskId;
+      code = pRsp->code;
+      QUERY_CHECK_CODE(code, lino, _end);
     }
   }
 
