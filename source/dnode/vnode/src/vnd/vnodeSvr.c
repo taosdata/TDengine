@@ -362,6 +362,12 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
         code = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
         TSDB_CHECK_CODE(code, lino, _exit);
       }
+
+      // Check pRow->sver
+      if (pRow->sver != submitTbData.sver) {
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
     }
   }
 
@@ -812,7 +818,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       return TSDB_CODE_INVALID_MSG;
   }
 
-  vGDebug(&pMsg->info.traceId, "vgId:%d, index:%" PRId64 ", msg processed, code:0x%x", TD_VID(pVnode), ver, pRsp->code);
+  vGInfo(&pMsg->info.traceId, "vgId:%d, index:%" PRId64 ", msg processed, code:0x%x", TD_VID(pVnode), ver, pRsp->code);
 
   walApplyVer(pVnode->pWal, ver);
 
