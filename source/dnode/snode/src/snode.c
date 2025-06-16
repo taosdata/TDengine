@@ -161,6 +161,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, SRpcMsg* pRpcMsg) {
     calcReq.runnerTaskId = req.taskId;
     calcReq.brandNew = req.reset;
     calcReq.execId = req.execId;
+    calcReq.sessionId = req.pStRtFuncInfo->sessionId;
     TSWAP(calcReq.groupColVals, req.pStRtFuncInfo->pStreamPartColVals);
     TSWAP(calcReq.params, req.pStRtFuncInfo->pStreamPesudoFuncVals);
     calcReq.gid = req.pStRtFuncInfo->groupId;
