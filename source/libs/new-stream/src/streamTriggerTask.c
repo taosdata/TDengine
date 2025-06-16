@@ -1317,7 +1317,7 @@ static int32_t strtgOpenNewWindow(SSTriggerRealtimeGroup *pGroup, int64_t ts, ch
   }
 
   SSTriggerCalcParam param = {
-      .currentTs = pWindow->skey,
+      .currentTs = pWindow->skey + 1,
       .wstart = pWindow->skey,
       .wend = pWindow->ekey,
       .wduration = pWindow->ekey - pWindow->skey,
@@ -1369,7 +1369,7 @@ static int32_t strtgCloseCurrentWindow(SSTriggerRealtimeGroup *pGroup, char *pEx
   }
 
   SSTriggerCalcParam param = {
-      .currentTs = pWindow->ekey,
+      .currentTs = pWindow->ekey + 1,
       .wstart = pWindow->skey,
       .wend = pWindow->ekey,
       .wduration = pWindow->ekey - pWindow->skey,
@@ -2240,7 +2240,7 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
           break;
         }
         SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pMerger->tsSlotId);
-        int32_t idx = startIdx;
+        int32_t          idx = startIdx;
         while (idx < endIdx) {
           SSTriggerCalcParam *pParam = NULL;
           int64_t             ts = *(int64_t *)colDataGetNumData(pTsCol, idx);
@@ -2258,7 +2258,9 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
             }
             nextIdx++;
           }
-          code = putStreamDataCache(pContext->pCalcDataCache, pGroup->groupId, pParam->wstart, pParam->wend - (pTask->triggerType == STREAM_TRIGGER_SLIDING), pDataBlock, idx, nextIdx - 1);
+          code = putStreamDataCache(pContext->pCalcDataCache, pGroup->groupId, pParam->wstart,
+                                    pParam->wend - (pTask->triggerType == STREAM_TRIGGER_SLIDING), pDataBlock, idx,
+                                    nextIdx - 1);
           QUERY_CHECK_CODE(code, lino, _end);
           idx = nextIdx;
         }
@@ -3005,7 +3007,8 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, const SStreamTriggerDeplo
   }
   pTask->singleVnodePerGroup = pTask->singleVnodePerGroup || taosArrayGetSize(pTask->readerList) == 1;
   pTask->needRowNumber = pMsg->placeHolderBitmap & PLACE_HOLDER_WROWNUM;
-  pTask->needGroupColValue = (pMsg->placeHolderBitmap & PLACE_HOLDER_PARTITION_IDX) || (pMsg->placeHolderBitmap & PLACE_HOLDER_PARTITION_TBNAME);
+  pTask->needGroupColValue = (pMsg->placeHolderBitmap & PLACE_HOLDER_PARTITION_IDX) ||
+                             (pMsg->placeHolderBitmap & PLACE_HOLDER_PARTITION_TBNAME);
   pTask->needCacheData = pMsg->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS;
 
   pTask->calcParamLimit = 10;  // todo(kjq): adjust dynamically
@@ -3092,12 +3095,12 @@ int32_t stTriggerTaskUndeploy(SStreamTriggerTask **ppTask, const SStreamUndeploy
   // todo
   // remove checkpoint if drop stream
   // if (delete checkpoint){
-    //streamDeleteCheckPoint((*ppTask)->task.streamId);
-    // int32_t leaderSid = (*ppTask)->leaderSnodeId;
-    //   SEpSet* epSet = gStreamMgmt.getSynEpset(leaderSid);
-    //   if (epSet != NULL){
-    //     code = streamSyncDeleteCheckpoint((*ppTask)->task.streamId, epSet);
-    //   }
+  // streamDeleteCheckPoint((*ppTask)->task.streamId);
+  // int32_t leaderSid = (*ppTask)->leaderSnodeId;
+  //   SEpSet* epSet = gStreamMgmt.getSynEpset(leaderSid);
+  //   if (epSet != NULL){
+  //     code = streamSyncDeleteCheckpoint((*ppTask)->task.streamId, epSet);
+  //   }
   // } else {    // write checkpoint
   // checkpoint format: ver(int32)+streamId(int64)+data
   // void *data = NULL;
@@ -3111,8 +3114,6 @@ int32_t stTriggerTaskUndeploy(SStreamTriggerTask **ppTask, const SStreamUndeploy
   //   }
   // }
   // }
-
-  
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -3130,7 +3131,6 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
 
   switch (pMsg->msgType) {
     case STREAM_MSG_START: {
-
       // todo
       // if (streamCheckpointIsReady(pTask->task.streamId)){
       //   void* data = NULL;
@@ -3139,7 +3139,7 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
       // } else {
       //   // retry
       // }
-      
+
       if (pTask->pRealtimeCtx == NULL) {
         pTask->pRealtimeCtx = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeContext));
         QUERY_CHECK_NULL(pTask->pRealtimeCtx, code, lino, _end, terrno);
