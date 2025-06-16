@@ -289,6 +289,7 @@ type WriteMetricsInfo struct {
 	VgId                  int    `json:"vgId"`
 	DnodeId               int    `json:"dnodeId"`
 	ClusterId             string `json:"clusterId"`
+	DbName                string `json:"dbname"`  // Add database name field
 	TotalRequests         int64  `json:"total_requests"`
 	TotalRows             int64  `json:"total_rows"`
 	TotalBytes            int64  `json:"total_bytes"`
@@ -327,7 +328,7 @@ var CreateWriteMetricsSql = "create table if not exists write_metrics (" +
 	"blocked_commit_time bigint, " +
 	"merge_count bigint, " +
 	"merge_time bigint " +
-	") tags (vgroup_id int, dnode_id int, cluster_id nchar(32))"
+	") tags (vgroup_id int, dnode_id int, cluster_id nchar(32), dbname nchar(64))"
 
 type WriteMetricsReport struct {
 	Ts           string              `json:"ts"`

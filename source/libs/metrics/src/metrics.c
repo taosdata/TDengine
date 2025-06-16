@@ -161,6 +161,7 @@ const char *getMetricString(const SMetric *pMetric) {
 void initWriteMetricsEx(SWriteMetricsEx *pMetrics) {
   if (pMetrics == NULL) return;
   pMetrics->vgId = 0;
+  pMetrics->dbname[0] = '\0';  // Initialize database name
   initMetric(&pMetrics->total_requests, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
   initMetric(&pMetrics->total_rows, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
   initMetric(&pMetrics->total_bytes, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
@@ -191,12 +192,24 @@ void initDnodeMetricsEx(SDnodeMetricsEx *pMetrics) {
 void cleanupMetrics() { destroyMetricsManager(); }
 
 static void updateFormattedFromRaw(SWriteMetricsEx *fmt, const SRawWriteMetrics *raw, int32_t vgId, int32_t dnodeId,
-                                   int64_t clusterId) {
+                                   int64_t clusterId, const char *dbname) {
   if (fmt == NULL || raw == NULL) return;
 
   fmt->vgId = vgId;
   fmt->dnodeId = dnodeId;
   fmt->clusterId = clusterId;
+
+  // Copy database name
+  if (dbname && dbname[0] != '\0') {
+    tstrncpy(fmt->dbname, dbname, sizeof(fmt->dbname));
+  } else {
+    fmt->dbname[0] = '\0';
+  }
+
+  // Copy database name from raw metrics if not provided via parameter
+  if (fmt->dbname[0] == '\0' && raw->dbname[0] != '\0') {
+    tstrncpy(fmt->dbname, raw->dbname, sizeof(fmt->dbname));
+  }
 
   setMetricInt64(&fmt->total_requests, raw->total_requests);
   setMetricInt64(&fmt->total_rows, raw->total_rows);
@@ -227,7 +240,8 @@ static void updateDnodeFormattedFromRaw(SDnodeMetricsEx *fmt, const SRawDnodeMet
   setMetricInt64(&fmt->applyMemoryUsed, raw->applyMemoryUsed);
 }
 
-int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, int64_t clusterId, const SRawWriteMetrics *pRawMetrics) {
+int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, int64_t clusterId, const char *dbname,
+                        const SRawWriteMetrics *pRawMetrics) {
   if (pRawMetrics == NULL || gMetricsManager.pWriteMetrics == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -244,17 +258,18 @@ int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, int64_t clusterId, const 
       return TSDB_CODE_OUT_OF_MEMORY;
     }
     initWriteMetricsEx(pMetricEx);
-    updateFormattedFromRaw(pMetricEx, pRawMetrics, vgId, dnodeId, clusterId);
+    updateFormattedFromRaw(pMetricEx, pRawMetrics, vgId, dnodeId, clusterId, dbname);
     code = taosHashPut(gMetricsManager.pWriteMetrics, &vgId, sizeof(vgId), &pMetricEx, sizeof(SWriteMetricsEx *));
     if (code != TSDB_CODE_SUCCESS) {
       taosMemoryFree(pMetricEx);
       pMetricEx = NULL;
-      uError("VgId:%d Failed to add write metrics to hash table, code:%d", vgId, code);
+      uError("VgId:%d DB:%s Failed to add write metrics to hash table, code:%d", vgId, dbname ? dbname : "unknown",
+             code);
       return code;
     }
   } else {
     pMetricEx = *ppMetricEx;
-    updateFormattedFromRaw(pMetricEx, pRawMetrics, vgId, dnodeId, clusterId);
+    updateFormattedFromRaw(pMetricEx, pRawMetrics, vgId, dnodeId, clusterId, dbname);
   }
   return code;
 }
@@ -298,6 +313,7 @@ static SJson *writeMetricsToJson(SWriteMetricsEx *pMetrics) {
   tjsonAddStringToObject(pJson, "ts", buf);
   tjsonAddDoubleToObject(pJson, "dnodeId", pMetrics->dnodeId);
   tjsonAddDoubleToObject(pJson, "vgId", pMetrics->vgId);
+  tjsonAddStringToObject(pJson, "dbname", pMetrics->dbname);
 
   // Convert clusterId to string for JSON output
   char clusterIdStr[32] = {0};
@@ -404,7 +420,7 @@ void reportWriteMetrics() {
     }
 
     if (tsMetricsPrintLog) {
-      uInfo("VgId:%d Req:%" PRId64 " Rows:%" PRId64 " Bytes:%" PRId64
+      uInfo("DB:%s VgId:%d Req:%" PRId64 " Rows:%" PRId64 " Bytes:%" PRId64
             " "
             "FetchBatchMetaTime:%" PRId64 " FetchBatchMetaCount:%" PRId64 " Preproc:%" PRId64
             " "
@@ -413,15 +429,15 @@ void reportWriteMetrics() {
             "Commits:%" PRId64 " CommitTime:%" PRId64 " MemWait:%" PRId64 " BlockCount:%" PRId64 " BlockTime:%" PRId64
             " "
             "Merges:%" PRId64 " MergeTime:%" PRId64,
-            pMetrics->vgId, getMetricInt64(&pMetrics->total_requests), getMetricInt64(&pMetrics->total_rows),
-            getMetricInt64(&pMetrics->total_bytes), getMetricInt64(&pMetrics->fetch_batch_meta_time),
-            getMetricInt64(&pMetrics->fetch_batch_meta_count), getMetricInt64(&pMetrics->preprocess_time),
-            getMetricInt64(&pMetrics->wal_write_bytes), getMetricInt64(&pMetrics->wal_write_time),
-            getMetricInt64(&pMetrics->apply_bytes), getMetricInt64(&pMetrics->apply_time),
-            getMetricInt64(&pMetrics->commit_count), getMetricInt64(&pMetrics->commit_time),
-            getMetricInt64(&pMetrics->memtable_wait_time), getMetricInt64(&pMetrics->block_commit_count),
-            getMetricInt64(&pMetrics->blocked_commit_time), getMetricInt64(&pMetrics->merge_count),
-            getMetricInt64(&pMetrics->merge_time));
+            pMetrics->dbname, pMetrics->vgId, getMetricInt64(&pMetrics->total_requests),
+            getMetricInt64(&pMetrics->total_rows), getMetricInt64(&pMetrics->total_bytes),
+            getMetricInt64(&pMetrics->fetch_batch_meta_time), getMetricInt64(&pMetrics->fetch_batch_meta_count),
+            getMetricInt64(&pMetrics->preprocess_time), getMetricInt64(&pMetrics->wal_write_bytes),
+            getMetricInt64(&pMetrics->wal_write_time), getMetricInt64(&pMetrics->apply_bytes),
+            getMetricInt64(&pMetrics->apply_time), getMetricInt64(&pMetrics->commit_count),
+            getMetricInt64(&pMetrics->commit_time), getMetricInt64(&pMetrics->memtable_wait_time),
+            getMetricInt64(&pMetrics->block_commit_count), getMetricInt64(&pMetrics->blocked_commit_time),
+            getMetricInt64(&pMetrics->merge_count), getMetricInt64(&pMetrics->merge_time));
     }
     SJson *pJson = writeMetricsToJson(pMetrics);
     if (pJson != NULL) {

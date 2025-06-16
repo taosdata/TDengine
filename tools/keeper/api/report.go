@@ -409,6 +409,11 @@ func (r *Reporter) metricsHandlerFunc() gin.HandlerFunc {
 			return
 		}
 
+		// Log metrics info with database name
+		logger.Infof("Received write metrics for VgId:%d DnodeId:%d DB:%s Requests:%d Rows:%d Bytes:%d", 
+			metricsInfo.VgId, metricsInfo.DnodeId, metricsInfo.DbName, 
+			metricsInfo.TotalRequests, metricsInfo.TotalRows, metricsInfo.TotalBytes)
+
 		sql := r.insertWriteMetricsSql(metricsInfo)
 		conn, err := db.NewConnectorWithDb(r.username, r.password, r.host, r.port, r.dbname, r.usessl)
 		if err != nil {
@@ -451,8 +456,13 @@ func (r *Reporter) metricsBatchHandlerFunc() gin.HandlerFunc {
 			return
 		}
 
+		// Log batch metrics info with database names
+		logger.Infof("Received batch write metrics: %d records", len(batchReport.WriteMetrics))
+		
 		var sqls []string
 		for _, metrics := range batchReport.WriteMetrics {
+			logger.Debugf("Batch metrics - VgId:%d DnodeId:%d DB:%s Requests:%d Rows:%d", 
+				metrics.VgId, metrics.DnodeId, metrics.DbName, metrics.TotalRequests, metrics.TotalRows)
 			sqls = append(sqls, r.insertWriteMetricsSql(metrics))
 		}
 
@@ -476,8 +486,8 @@ func (r *Reporter) metricsBatchHandlerFunc() gin.HandlerFunc {
 }
 
 func (r *Reporter) insertWriteMetricsSql(metrics WriteMetricsInfo) string {
-	return fmt.Sprintf("insert into write_metrics_%d_%d_%s using write_metrics tags (%d, %d, '%s') values (now, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)",
-		metrics.DnodeId, metrics.VgId, metrics.ClusterId, metrics.VgId, metrics.DnodeId, metrics.ClusterId,
+	return fmt.Sprintf("insert into write_metrics_%d_%d_%s using write_metrics tags (%d, %d, '%s', '%s') values (now, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)",
+		metrics.DnodeId, metrics.VgId, metrics.ClusterId, metrics.VgId, metrics.DnodeId, metrics.ClusterId, metrics.DbName,
 		metrics.TotalRequests, metrics.TotalRows, metrics.TotalBytes,
 		metrics.FetchBatchMetaTime, metrics.FetchBatchMetaCount, metrics.PreprocessTime,
 		metrics.WalWriteBytes, metrics.WalWriteTime, metrics.ApplyBytes, metrics.ApplyTime,
@@ -497,7 +507,7 @@ func (r *Reporter) metricsQueryHandlerFunc() gin.HandlerFunc {
 		var sql string
 		whereConditions := []string{}
 		
-		baseSelect := `SELECT _wstart as ts, vgroup_id, dnode_id,
+		baseSelect := `SELECT _wstart as ts, vgroup_id, dnode_id, dbname,
 			avg(total_requests) as total_requests,
 			avg(total_rows) as total_rows,
 			avg(total_bytes) as total_bytes,
@@ -538,7 +548,7 @@ func (r *Reporter) metricsQueryHandlerFunc() gin.HandlerFunc {
 			sql += fmt.Sprintf(" AND ts <= '%s'", endTime)
 		}
 
-		sql += fmt.Sprintf(" INTERVAL(%s) GROUP BY vgroup_id, dnode_id ORDER BY ts DESC LIMIT %s", interval, limit)
+		sql += fmt.Sprintf(" INTERVAL(%s) GROUP BY vgroup_id, dnode_id, dbname ORDER BY ts DESC LIMIT %s", interval, limit)
 
 		r.executeQueryAndRespond(c, sql)
 	}
@@ -565,6 +575,7 @@ func (r *Reporter) metricsSummaryHandlerFunc() gin.HandlerFunc {
 		sql := fmt.Sprintf(`SELECT 
 			vgroup_id,
 			dnode_id,
+			dbname,
 			max(total_requests) as max_total_requests,
 			max(total_rows) as max_total_rows,
 			max(total_bytes) as max_total_bytes,
@@ -584,7 +595,7 @@ func (r *Reporter) metricsSummaryHandlerFunc() gin.HandlerFunc {
 			avg(merge_time) as avg_merge_time
 		FROM %s.write_metrics 
 		WHERE %s 
-		GROUP BY vgroup_id, dnode_id 
+		GROUP BY vgroup_id, dnode_id, dbname 
 		ORDER BY vgroup_id, dnode_id`, r.dbname, timeFilter)
 
 		r.executeQueryAndRespond(c, sql)
@@ -596,11 +607,12 @@ func (r *Reporter) metricsVgroupsHandlerFunc() gin.HandlerFunc {
 		sql := fmt.Sprintf(`SELECT DISTINCT 
 			vgroup_id, 
 			dnode_id,
+			dbname,
 			count(*) as record_count,
 			min(ts) as first_ts,
 			max(ts) as last_ts
 		FROM %s.write_metrics 
-		GROUP BY vgroup_id, dnode_id 
+		GROUP BY vgroup_id, dnode_id, dbname 
 		ORDER BY vgroup_id`, r.dbname)
 
 		r.executeQueryAndRespond(c, sql)

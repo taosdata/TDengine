@@ -46,6 +46,7 @@ class MetricsTest : public ::testing::Test {
 };
 
 void MetricsTest::PrepareRawWriteMetrics(SRawWriteMetrics *pMetrics, int32_t multiplier) {
+  snprintf(pMetrics->dbname, sizeof(pMetrics->dbname), "test_db_%d", multiplier);
   pMetrics->total_requests = 100 * multiplier;
   pMetrics->total_rows = 1000 * multiplier;
   pMetrics->total_bytes = 10000 * multiplier;
@@ -77,6 +78,7 @@ void MetricsTest::ValidateWriteMetrics(SWriteMetricsEx *pMetrics, int32_t vgId, 
   ASSERT_EQ(pMetrics->vgId, vgId);
   ASSERT_EQ(pMetrics->dnodeId, dnodeId);
   ASSERT_EQ(pMetrics->clusterId, clusterId);
+  ASSERT_STRNE(pMetrics->dbname, "");  // Database name should not be empty
   
   ASSERT_EQ(getMetricInt64(&pMetrics->total_requests), 100);
   ASSERT_EQ(getMetricInt64(&pMetrics->total_rows), 1000);
@@ -126,7 +128,7 @@ TEST_F(MetricsTest, AddWriteMetrics) {
   int64_t clusterId = 123456789;
   
   // Add write metrics
-  int32_t code = addWriteMetrics(vgId, dnodeId, clusterId, &rawMetrics);
+  int32_t code = addWriteMetrics(vgId, dnodeId, clusterId, "test_db_1", &rawMetrics);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   
   // Retrieve and validate the metrics
@@ -143,7 +145,7 @@ TEST_F(MetricsTest, UpdateWriteMetrics) {
   int64_t clusterId = 123456789;
   
   // Update existing write metrics
-  int32_t code = addWriteMetrics(vgId, dnodeId, clusterId, &rawMetrics);
+  int32_t code = addWriteMetrics(vgId, dnodeId, clusterId, "test_db_2", &rawMetrics);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   
   // Retrieve and validate the updated metrics
@@ -172,7 +174,9 @@ TEST_F(MetricsTest, MultipleVgroups) {
     SRawWriteMetrics rawMetrics = {0};
     PrepareRawWriteMetrics(&rawMetrics, i - 199); // Different multipliers
     
-    int32_t code = addWriteMetrics(i, 1, 123456789, &rawMetrics);
+    char dbname[32];
+    snprintf(dbname, sizeof(dbname), "test_db_%d", i - 199);
+    int32_t code = addWriteMetrics(i, 1, 123456789, dbname, &rawMetrics);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
   
@@ -224,7 +228,7 @@ TEST_F(MetricsTest, ReportMetrics) {
 
 TEST_F(MetricsTest, ErrorHandling) {
   // Test with null parameters
-  int32_t code = addWriteMetrics(999, 1, 123456789, nullptr);
+  int32_t code = addWriteMetrics(999, 1, 123456789, "test_db", nullptr);
   ASSERT_EQ(code, TSDB_CODE_INVALID_PARA);
   
   code = addDnodeMetrics(nullptr);

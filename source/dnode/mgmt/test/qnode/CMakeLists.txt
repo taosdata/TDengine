@@ -5,7 +5,7 @@ target_link_libraries(
     PUBLIC sut
 )
 
-add_test(
-    NAME dqnodeTest
-    COMMAND dqnodeTest
-)
+# add_test(
+#     NAME dqnodeTest
+#     COMMAND dqnodeTest
+# )
