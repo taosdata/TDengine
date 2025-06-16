@@ -562,7 +562,6 @@ void taos_fetch_whitelist_dual_stack_a(TAOS *taos, __taos_async_whitelist_dual_s
     fp(param, TSDB_CODE_INVALID_PARA, taos, 0, NULL);
     return;
   }
-
   int64_t connId = *(int64_t *)taos;
 
   STscObj *pTsc = acquireTscObj(connId);
