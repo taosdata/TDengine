@@ -430,6 +430,7 @@ SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
       .sendMonitorReportFp = dmSendMonitorReport,
       .sendMetricsReportFp = dmSendMetricsReport,
       .monitorCleanExpiredSamplesFp = dmMonitorCleanExpiredSamples,
+      .metricsCleanExpiredSamplesFp = dmMetricsCleanExpiredSamples,
       .sendAuditRecordFp = auditSendRecordsInBatch,
       .getVnodeLoadsFp = dmGetVnodeLoads,
       .getVnodeLoadsLiteFp = dmGetVnodeLoadsLite,

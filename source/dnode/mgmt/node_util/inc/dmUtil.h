@@ -119,6 +119,7 @@ typedef int32_t (*ProcessDropNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef void (*SendMonitorReportFp)();
 typedef void (*SendMetricsReportFp)();
 typedef void (*MonitorCleanExpiredSamplesFp)();
+typedef void (*MetricsCleanExpiredSamplesFp)();
 typedef void (*SendAuditRecordsFp)();
 typedef void (*GetVnodeLoadsFp)(SMonVloadInfo *pInfo);
 typedef void (*GetMnodeLoadsFp)(SMonMloadInfo *pInfo);
@@ -160,7 +161,8 @@ typedef struct {
   ProcessDropNodeFp            processDropNodeFp;
   SendMonitorReportFp          sendMonitorReportFp;
   SendMetricsReportFp          sendMetricsReportFp;
-  MonitorCleanExpiredSamplesFp monitorCleanExpiredSamplesFp;
+  MonitorCleanExpiredSamplesFp  monitorCleanExpiredSamplesFp;
+  MetricsCleanExpiredSamplesFp metricsCleanExpiredSamplesFp;
   SendAuditRecordsFp           sendAuditRecordFp;
   GetVnodeLoadsFp              getVnodeLoadsFp;
   GetVnodeLoadsFp              getVnodeLoadsLiteFp;

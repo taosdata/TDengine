@@ -43,6 +43,7 @@ typedef struct SDnodeMgmt {
   SendMonitorReportFp          sendMonitorReportFp;
   SendMetricsReportFp          sendMetricsReportFp;
   MonitorCleanExpiredSamplesFp monitorCleanExpiredSamplesFp;
+  MetricsCleanExpiredSamplesFp metricsCleanExpiredSamplesFp;
   SendAuditRecordsFp           sendAuditRecordsFp;
   GetVnodeLoadsFp              getVnodeLoadsFp;
   GetVnodeLoadsFp              getVnodeLoadsLiteFp;

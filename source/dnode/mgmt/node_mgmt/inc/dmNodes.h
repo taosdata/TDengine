@@ -42,6 +42,7 @@ void qmGetQnodeLoads(void *pMgmt, SQnodeLoad *pInfo);
 void vmUpdateMetricsInfo(void *pMgmt, int64_t clusterId);
 
 void vmCleanExpriedSamples(void *pMgmt);
+void vmCleanExpiredMetrics(void *pMgmt);
 
 #ifdef __cplusplus
 }

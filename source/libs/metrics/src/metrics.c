@@ -449,3 +449,55 @@ void reportDnodeMetrics() {
     tjsonDelete(pJson);
   }
 }
+
+void cleanExpiredWriteMetrics(SHashObj *pValidVgroups) {
+  if (gMetricsManager.pWriteMetrics == NULL || pValidVgroups == NULL) {
+    return;
+  }
+
+  SArray *pKeysToRemove = taosArrayInit(16, sizeof(void *));
+  if (pKeysToRemove == NULL) {
+    uError("Failed to initialize keys array for metrics cleanup");
+    return;
+  }
+
+  void *pIter = taosHashIterate(gMetricsManager.pWriteMetrics, NULL);
+  while (pIter != NULL) {
+    SWriteMetricsEx **ppMetrics = (SWriteMetricsEx **)pIter;
+    if (ppMetrics && *ppMetrics) {
+      int32_t vgId = (*ppMetrics)->vgId;
+
+      // Check if this vgId exists in valid vgroups hash table
+      void *pFound = taosHashGet(pValidVgroups, &vgId, sizeof(int32_t));
+      if (pFound == NULL) {
+        // This vgroup no longer exists, mark for removal
+        char *pKey = taosHashGetKey(pIter, NULL);
+        if (pKey != NULL) {
+          char *pKeyCopy = taosStrdup(pKey);
+          if (pKeyCopy != NULL) {
+            if (taosArrayPush(pKeysToRemove, &pKeyCopy) == NULL) {
+              uError("Failed to add key for removal: %s", pKeyCopy);
+              taosMemoryFree(pKeyCopy);
+            }
+          }
+        }
+      }
+    }
+    pIter = taosHashIterate(gMetricsManager.pWriteMetrics, pIter);
+  }
+
+  // Remove expired metrics
+  for (int32_t i = 0; i < taosArrayGetSize(pKeysToRemove); i++) {
+    char **ppKey = taosArrayGet(pKeysToRemove, i);
+    if (ppKey && *ppKey) {
+      if (taosHashRemove(gMetricsManager.pWriteMetrics, *ppKey, strlen(*ppKey)) == 0) {
+        uInfo("Removed expired write metrics for key: %s", *ppKey);
+      } else {
+        uError("Failed to remove expired write metrics for key: %s", *ppKey);
+      }
+      taosMemoryFree(*ppKey);
+    }
+  }
+
+  taosArrayDestroy(pKeysToRemove);
+}

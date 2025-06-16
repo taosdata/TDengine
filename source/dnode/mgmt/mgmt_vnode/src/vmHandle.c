@@ -158,6 +158,37 @@ void vmCleanExpriedSamples(SVnodeMgmt *pMgmt) {
   return;
 }
 
+void vmCleanExpiredMetrics(SVnodeMgmt *pMgmt) {
+  if (!tsEnableMetrics) return;
+
+  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
+  void     *pIter = taosHashIterate(pMgmt->runngingHash, NULL);
+  SHashObj *pValidVgroups = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  if (pValidVgroups == NULL) {
+    (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
+    return;
+  }
+
+  while (pIter != NULL) {
+    SVnodeObj **ppVnode = pIter;
+    if (ppVnode && *ppVnode) {
+      int32_t vgId = (*ppVnode)->vgId;
+      char    dummy = 1;  // hash table value (we only care about the key)
+      if (taosHashPut(pValidVgroups, &vgId, sizeof(int32_t), &dummy, sizeof(char)) != 0) {
+        dError("failed to put vgId:%d to valid vgroups hash", vgId);
+      }
+    }
+    pIter = taosHashIterate(pMgmt->runngingHash, pIter);
+  }
+  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
+
+  // Clean expired metrics by removing metrics for non-existent vgroups
+  cleanExpiredWriteMetrics(pValidVgroups);
+
+  taosHashCleanup(pValidVgroups);
+  return;
+}
+
 static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   memcpy(pCfg, &vnodeCfgDefault, sizeof(SVnodeCfg));
 

@@ -155,8 +155,12 @@ typedef void *(*SVnodeMetricsLogFn)(void **pIter);
 typedef int32_t (*VnodeGetRawMetricsFn)(void *pVnode, SRawWriteMetrics *pRawMetrics);
 typedef int32_t (*MetricsLogCallback)(const char *jsonMetrics, void *param);
 
+// Reporting functions
 void reportWriteMetrics();
 void reportDnodeMetrics();
+
+// Cleanup functions for expired metrics
+void cleanExpiredWriteMetrics(SHashObj *pValidVgroups);
 
 #ifdef __cplusplus
 }

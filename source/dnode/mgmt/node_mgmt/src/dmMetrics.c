@@ -73,3 +73,24 @@ static void collectWriteMetricsInfo(SDnode *pDnode) {
 static void collectQueryMetricsInfo(SDnode *pDnode) { return; }
 
 static void collectStreamMetricsInfo(SDnode *pDnode) { return; }
+
+void dmCleanExpiredMetrics(SDnode *pDnode) {
+  SMgmtWrapper *pWrapper = &pDnode->wrappers[VNODE];
+  if (dmMarkWrapper(pWrapper) == 0) {
+    if (pWrapper->pMgmt != NULL) {
+      vmCleanExpiredMetrics(pWrapper->pMgmt);
+    }
+  }
+  dmReleaseWrapper(pWrapper);
+  return;
+}
+
+void dmMetricsCleanExpiredSamples() {
+  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0 || !tsEnableMetrics) {
+    return;
+  }
+  dTrace("clean metrics expired samples");
+
+  SDnode *pDnode = dmInstance();
+  (void)dmCleanExpiredMetrics(pDnode);
+}

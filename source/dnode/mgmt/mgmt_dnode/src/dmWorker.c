@@ -350,6 +350,7 @@ static void *dmMetricsThreadFp(void *param) {
     float interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsMetricsInterval) {
       (*pMgmt->sendMetricsReportFp)();
+      (*pMgmt->metricsCleanExpiredSamplesFp)();
       lastTime = curTime;
     }
   }

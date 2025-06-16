@@ -82,6 +82,7 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->sendMonitorReportFp = pInput->sendMonitorReportFp;
   pMgmt->sendMetricsReportFp = pInput->sendMetricsReportFp;
   pMgmt->monitorCleanExpiredSamplesFp = pInput->monitorCleanExpiredSamplesFp;
+  pMgmt->metricsCleanExpiredSamplesFp = pInput->metricsCleanExpiredSamplesFp;
   pMgmt->sendAuditRecordsFp = pInput->sendAuditRecordFp;
   pMgmt->getVnodeLoadsFp = pInput->getVnodeLoadsFp;
   pMgmt->getVnodeLoadsLiteFp = pInput->getVnodeLoadsLiteFp;
