@@ -2758,7 +2758,7 @@ static int32_t parseInsertTableClause(SInsertParseContext* pCxt, SVnodeModifyOpS
       }
       pInsertTokens->boundCols = boundColumnsToken;
       pInsertTokens->values = valuesToken;
-      code = taosHashPut(pStmt->pInsertTokensHashObj, pTbName->z, pTbName->n, pInsertTokens, sizeof(SInsertTokens));
+      code = taosHashPut(pStmt->pInsertTokensHashObj, pTbName->z, pTbName->n, &pInsertTokens, POINTER_BYTES);
       if (TSDB_CODE_SUCCESS != code) {
         taosMemoryFree(pInsertTokens);
         return code;
