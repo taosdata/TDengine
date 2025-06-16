@@ -403,25 +403,26 @@ void reportWriteMetrics() {
       continue;
     }
 
-    uInfo("VgId:%d Req:%" PRId64 " Rows:%" PRId64 " Bytes:%" PRId64
-          " "
-          "FetchBatchMetaTime:%" PRId64 " FetchBatchMetaCount:%" PRId64 " Preproc:%" PRId64
-          " "
-          "WalWriteBytes:%" PRId64 " WalWriteTime:%" PRId64 " ApplyBytes:%" PRId64 " ApplyTime:%" PRId64
-          " "
-          "Commits:%" PRId64 " CommitTime:%" PRId64 " MemWait:%" PRId64 " BlockCount:%" PRId64 " BlockTime:%" PRId64
-          " "
-          "Merges:%" PRId64 " MergeTime:%" PRId64,
-          pMetrics->vgId, getMetricInt64(&pMetrics->total_requests), getMetricInt64(&pMetrics->total_rows),
-          getMetricInt64(&pMetrics->total_bytes), getMetricInt64(&pMetrics->fetch_batch_meta_time),
-          getMetricInt64(&pMetrics->fetch_batch_meta_count), getMetricInt64(&pMetrics->preprocess_time),
-          getMetricInt64(&pMetrics->wal_write_bytes), getMetricInt64(&pMetrics->wal_write_time),
-          getMetricInt64(&pMetrics->apply_bytes), getMetricInt64(&pMetrics->apply_time),
-          getMetricInt64(&pMetrics->commit_count), getMetricInt64(&pMetrics->commit_time),
-          getMetricInt64(&pMetrics->memtable_wait_time), getMetricInt64(&pMetrics->block_commit_count),
-          getMetricInt64(&pMetrics->blocked_commit_time), getMetricInt64(&pMetrics->merge_count),
-          getMetricInt64(&pMetrics->merge_time));
-
+    if (tsMetricsPrintLog) {
+      uInfo("VgId:%d Req:%" PRId64 " Rows:%" PRId64 " Bytes:%" PRId64
+            " "
+            "FetchBatchMetaTime:%" PRId64 " FetchBatchMetaCount:%" PRId64 " Preproc:%" PRId64
+            " "
+            "WalWriteBytes:%" PRId64 " WalWriteTime:%" PRId64 " ApplyBytes:%" PRId64 " ApplyTime:%" PRId64
+            " "
+            "Commits:%" PRId64 " CommitTime:%" PRId64 " MemWait:%" PRId64 " BlockCount:%" PRId64 " BlockTime:%" PRId64
+            " "
+            "Merges:%" PRId64 " MergeTime:%" PRId64,
+            pMetrics->vgId, getMetricInt64(&pMetrics->total_requests), getMetricInt64(&pMetrics->total_rows),
+            getMetricInt64(&pMetrics->total_bytes), getMetricInt64(&pMetrics->fetch_batch_meta_time),
+            getMetricInt64(&pMetrics->fetch_batch_meta_count), getMetricInt64(&pMetrics->preprocess_time),
+            getMetricInt64(&pMetrics->wal_write_bytes), getMetricInt64(&pMetrics->wal_write_time),
+            getMetricInt64(&pMetrics->apply_bytes), getMetricInt64(&pMetrics->apply_time),
+            getMetricInt64(&pMetrics->commit_count), getMetricInt64(&pMetrics->commit_time),
+            getMetricInt64(&pMetrics->memtable_wait_time), getMetricInt64(&pMetrics->block_commit_count),
+            getMetricInt64(&pMetrics->blocked_commit_time), getMetricInt64(&pMetrics->merge_count),
+            getMetricInt64(&pMetrics->merge_time));
+    }
     SJson *pJson = writeMetricsToJson(pMetrics);
     if (pJson != NULL) {
       sendMetricsReport(pJson);
@@ -437,11 +438,12 @@ void reportDnodeMetrics() {
   }
 
   SDnodeMetricsEx *pMetrics = (SDnodeMetricsEx *)gMetricsManager.pDnodeMetrics;
-
-  uInfo("Dnode RpcQueueMemoryAllowed:%" PRId64 " RpcQueueMemoryUsed:%" PRId64 " ApplyMemoryAllowed:%" PRId64
-        " ApplyMemoryUsed:%" PRId64,
-        getMetricInt64(&pMetrics->rpcQueueMemoryAllowed), getMetricInt64(&pMetrics->rpcQueueMemoryUsed),
-        getMetricInt64(&pMetrics->applyMemoryAllowed), getMetricInt64(&pMetrics->applyMemoryUsed));
+  if (tsMetricsPrintLog) {
+    uInfo("Dnode RpcQueueMemoryAllowed:%" PRId64 " RpcQueueMemoryUsed:%" PRId64 " ApplyMemoryAllowed:%" PRId64
+          " ApplyMemoryUsed:%" PRId64,
+          getMetricInt64(&pMetrics->rpcQueueMemoryAllowed), getMetricInt64(&pMetrics->rpcQueueMemoryUsed),
+          getMetricInt64(&pMetrics->applyMemoryAllowed), getMetricInt64(&pMetrics->applyMemoryUsed));
+  }
 
   SJson *pJson = dnodeMetricsToJson(pMetrics);
   if (pJson != NULL) {
