@@ -51,6 +51,16 @@ static void destroyThreadLocalGeosCtx(void *param) {
     pGeosCtx->WKBWriter = NULL;
   }
 
+  if (pGeosCtx->GeoJSONReader) {
+    GEOSGeoJSONReader_destroy_r(pGeosCtx->handle, pGeosCtx->GeoJSONReader);
+    pGeosCtx->GeoJSONReader = NULL;
+  }
+
+  if (pGeosCtx->GeoJSONWriter) {
+    GEOSGeoJSONWriter_destroy_r(pGeosCtx->handle, pGeosCtx->GeoJSONWriter);
+    pGeosCtx->GeoJSONWriter = NULL;
+  }
+
   if (pGeosCtx->WKTRegex) {
     destroyRegexes(pGeosCtx->WKTRegex, pGeosCtx->WKTMatchData);
     pGeosCtx->WKTRegex = NULL;

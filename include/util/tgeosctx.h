@@ -33,6 +33,9 @@ typedef struct SGeosContext {
   GEOSWKBReader *WKBReader;
   GEOSWKBWriter *WKBWriter;
 
+  GEOSGeoJSONReader *GeoJSONReader;
+  GEOSGeoJSONWriter *GeoJSONWriter;
+
   pcre2_code       *WKTRegex;
   pcre2_match_data *WKTMatchData;
 
