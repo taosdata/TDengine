@@ -2252,7 +2252,8 @@ static int32_t mndSetS3MigrateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbO
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
 
-  SS3MigrateObj s3Migrate = { .startTime = s3MigrateTs };
+  // startTime is in seconds, so convert milliseconds to seconds
+  SS3MigrateObj s3Migrate = { .startTime = s3MigrateTs/1000 };
   if ((code = mndAddS3MigrateToTran(pMnode, pTrans, &s3Migrate, pDb)) != 0) {
     TAOS_RETURN(code);
   }

@@ -400,6 +400,11 @@ static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now, bool s3Migrate, 
   STFileSet *fset;
   TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
     // TODO: when migrating to S3, skip fset that should not be migrated
+    
+    if (s3Migrate && fset->lastRetention/1000 >= now) {
+      tsdbDebug("vgId:%d, fid:%d, skip migration as start time < last migration time", TD_VID(tsdb->pVnode), fset->fid);
+      continue;
+    }
 
     SRtnArg *arg = taosMemoryMalloc(sizeof(*arg));
     if (arg == NULL) {
@@ -742,8 +747,7 @@ int32_t tsdbAsyncS3Migrate(STsdb *tsdb, SS3MigrateVgroupReq *pReq) {
 
   (void)taosThreadMutexLock(&tsdb->mutex);
   tsdbStartS3MigrateMonitor(tsdb, pReq->s3MigrateId);
-  // pReq->timestamp is ms, we need s
-  code = tsdbAsyncRetentionImpl(tsdb, pReq->timestamp/1000, true, pReq->nodeId);
+  code = tsdbAsyncRetentionImpl(tsdb, pReq->timestamp, true, pReq->nodeId);
   (void)taosThreadMutexUnlock(&tsdb->mutex);
 
   if (code) {

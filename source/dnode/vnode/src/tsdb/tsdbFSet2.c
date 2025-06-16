@@ -282,6 +282,10 @@ int32_t tsdbTFileSetToJson(const STFileSet *fset, cJSON *json) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  if (cJSON_AddNumberToObject(json, "last retention", fset->lastRetention) == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   return 0;
 }
 
@@ -346,6 +350,13 @@ int32_t tsdbJsonToTFileSet(STsdb *pTsdb, const cJSON *json, STFileSet **fset) {
     (*fset)->lastCommit = item1->valuedouble;
   } else {
     (*fset)->lastCommit = 0;
+  }
+
+  item1 = cJSON_GetObjectItem(json, "last retention");
+  if (cJSON_IsNumber(item1)) {
+    (*fset)->lastRetention = item1->valuedouble;
+  } else {
+    (*fset)->lastRetention = 0;
   }
 
   return 0;
