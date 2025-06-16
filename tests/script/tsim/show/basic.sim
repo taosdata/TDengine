@@ -231,6 +231,7 @@ sql_error show create stable t0;
 
 sql show variables;
 if $rows != 91 then
+  print $rows != 91
   return -1
 endi
 
