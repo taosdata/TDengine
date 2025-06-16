@@ -176,7 +176,7 @@ Please refer to: [JDBC example](https://github.com/taosdata/TDengine/tree/main/d
 
 ## Frequently Asked Questions
 
-1. Why is there no performance improvement when using Statement’s `addBatch()` and `executeBatch()` for "batch writing/updating"?
+1. Why is there no performance improvement when using Statement's `addBatch()` and `executeBatch()` for "batch writing/updating"?
 
 **Reason**: In TDengine's JDBC implementation, SQL statements submitted through the `addBatch` method are executed in the order they were added, which does not reduce the number of interactions with the server and does not lead to performance improvements.
 

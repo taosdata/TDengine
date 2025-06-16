@@ -100,7 +100,7 @@ grubbs={}
 lof={"algorithm":"auto", "n_neighbor": 3}
 ```
 
-After the comparison program finishes running, it automatically generates a file named ·ad_result.xlsx·. The first sheet contains the algorithm execution results (as shown in the table below), including five metrics: algorithm name, execution parameters, recall, precision, and execution time.
+After the comparison program finishes running, it automatically generates a file named `ad_result.xlsx`. The first sheet contains the algorithm execution results (as shown in the table below), including five metrics: algorithm name, execution parameters, recall, precision, and execution time.
 
 | algorithm | params                                 | precision(%) | recall(%) | elapsed_time(ms.) |
 | --------- | -------------------------------------- | ------------ | --------- | ----------------- |

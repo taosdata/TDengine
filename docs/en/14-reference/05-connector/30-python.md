@@ -9,7 +9,7 @@ import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import RequestId from "../../assets/resources/_request_id.mdx";
 
-`taopsy` is the official TDengine python connector, which provides multiple access interfaces for database writing, querying, subscribing, etc.
+`taospy` is the official TDengine python connector, which provides multiple access interfaces for database writing, querying, subscribing, etc.
 
 The installation command is as follows:
 
@@ -25,7 +25,7 @@ The connector code is open sourced and hosted on Github [Taos Connector Python](
 
 ## Connection Methods
 
-`taopsy` provides three connection methods, and we recommend using WebSocket connection.
+`taospy` provides three connection methods, and we recommend using WebSocket connection.
 
 - **Native Connection**, Python connector loads TDengine client driver (libtaos.so/taos.dll), directly connects to TDengine instance, with high performance and fast speed.
  Functionally, it supports functions such as data writing, querying, data subscription, schemaless interface, and parameter binding interface.
@@ -36,8 +36,8 @@ The connector code is open sourced and hosted on Github [Taos Connector Python](
 
 For a detailed introduction of the connection method, please refer to: [Connection Method](../../../developer-guide/connecting-to-tdengine/)
 
-In addition to encapsulating Native and REST interfaces, `taopsy` also provides compliance with [the Python Data Access Specification (PEP 249)](https://peps.python.org/pep-0249/) The programming interface.
-This makes it easy to integrate `taopsy` with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) and [pandas](https://pandas.pydata.org/).
+In addition to encapsulating Native and REST interfaces, `taospy` also provides compliance with [the Python Data Access Specification (PEP 249)](https://peps.python.org/pep-0249/) The programming interface.
+This makes it easy to integrate `taospy` with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) and [pandas](https://pandas.pydata.org/).
 
 The method of establishing a connection directly with the server using the native interface provided by the client driver is referred to as "Native Connection" in the following text;
 The method of establishing a connection with the server using the REST interface or WebSocket interface provided by the taosAdapter is referred to as a "REST Connection" or "WebSocket connection" in the following text.
@@ -53,7 +53,7 @@ Supports Python 3.0 and above.
 
 ## Version History
 
-Python Connector historical versions (it is recommended to use the latest version of 'taopsy'):
+Python Connector historical versions (it is recommended to use the latest version of 'taospy'):
 
 | Python Connector Version | Major Changes                                                | TDengine Version   |
 | ------------------------ | ------------------------------------------------------------ | ------------------ |
@@ -267,7 +267,7 @@ TaosResult objects can be accessed by iterating over them to retrieve the querie
 Since version 0.5.1, an interface for binding parameters of stmt2 has been provided to achieve efficient writing.
 
 - `fn stmt2_statement(&self) -> PyResult<TaosStmt2>`
-  - **接口说明**：Create a stmt2 object using a connection object.
+  - **Interface Description**: Create a stmt2 object using a connection object.
   - **Return Value**: stmt object.
   - **Exception**: Throws `ConnectionError` on failure.
 - `fn prepare(&mut self, sql: &str) -> PyResult<()>`
@@ -477,38 +477,38 @@ TaosResult object can be iterated over to retrieve queried data.
 #### Parameter Binding
 
 - `def statement2(self, sql=None, option=None)`
-  - **Interface Description**：Creating an STMT2 object using a connection object
-  - **Parameter Description**
+  - **Interface Description**: Creating an STMT2 object using a connection object
+  - **Parameter Description**:
     - `sql`: The bound SQL statement will call the `prepare` function if it is not empty
     - `option` Pass in `TaoStmt2Option` class instance
-  - **Return Value**：STMT2 object
-  - **Exception**：Throws `ConnectionError` on failure
+  - **Return Value**: STMT2 object
+  - **Exception**: Throws `ConnectionError` on failure
 - `def prepare(self, sql)`
-  - **Interface Description**：Bind a precompiled SQL statement
-  - **Parameter Description**：
+  - **Interface Description**: Bind a precompiled SQL statement
+  - **Parameter Description**:
     - `sql`: Precompiled SQL statement
-  - **Exception**：Throws `StatementError` on failure
+  - **Exception**: Throws `StatementError` on failure
 - `def bind_param(self, tbnames, tags, datas)`
-  - **Interface Description**：Binding Data as an Independent Array
-  - **Parameter Description**：
+  - **Interface Description**: Binding Data as an Independent Array
+  - **Parameter Description**:
     - `tbnames`:Bind table name array, data type is list
     - `tags`: Bind tag column value array, data type is list
     - `datas`: Bind data column value array, data type of list
-  - **Exception**：Throws `StatementError` on failure
+  - **Exception**: Throws `StatementError` on failure
 - `def bind_param_with_tables(self, tables)`
-  - **Interface Description**：Bind data in an independent table format. Independent tables are organized by table units, with table name, TAG value, and data column attributes in table object
-  - **Parameter Description**：
+  - **Interface Description**: Bind data in an independent table format. Independent tables are organized by table units, with table name, TAG value, and data column attributes in table object
+  - **Parameter Description**:
     - `tables`: `BindTable` Independent table object array
-  - **Exception**：Throws `StatementError` on failure
+  - **Exception**: Throws `StatementError` on failure
 - `def execute(self) -> int:`
-  - **Interface Description**：Execute to write all bound data
-  - **Return Value**：Affects the number of rows
-  - **Exception**：Throws `QueryError` on failure
+  - **Interface Description**: Execute to write all bound data
+  - **Return Value**: Affects the number of rows
+  - **Exception**: Throws `QueryError` on failure
 - `def result(self)`
-  - **Interface Description**：Get parameter binding query result set
-  - **Return Value**：Returns the TaosResult object
+  - **Interface Description**: Get parameter binding query result set
+  - **Return Value**: Returns the TaosResult object
 - `def close(self)`
-  - **Interface Description**： close the STMT2 object
+  - **Interface Description**: close the STMT2 object
 
 #### Data Subscription
 

@@ -59,7 +59,7 @@ The configuration options are described as follows:
 # Anode RESTful service ip:port
 http = 127.0.0.1:6090
 
-# base directory for Anode python files， do NOT modified this
+# base directory for Anode python files, do NOT modified this
 chdir = /usr/local/taos/taosanode/lib
 
 # initialize Anode python file

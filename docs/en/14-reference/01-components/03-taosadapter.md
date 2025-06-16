@@ -239,6 +239,7 @@ When making API calls from the browser, please configure the following Cross-Ori
 - **`cors.allowCredentials`**: Whether to allow cross-origin requests to include user credentials, such as cookies, HTTP authentication information, or client SSL certificates.
 - **`cors.allowWebSockets`**: Whether to allow WebSockets connections.
   
+
 If you are not making API calls through a browser, you do not need to worry about these configurations.
 
 The above configurations take effect for the following interfaces:
@@ -369,7 +370,7 @@ The `restfulRowLimit` parameter only affects the return results of the following
 
 ### Log configuration
 
-1. You can set the taosAdapter log output detail level by setting the --log.level parameter or the environment variable TAOS_ADAPTER_LOG_LEVEL. Valid values ​​include: panic, fatal, error, warn, warning, info, debug, and trace.
+1. You can set the taosAdapter log output detail level by setting the --log.level parameter or the environment variable TAOS_ADAPTER_LOG_LEVEL. Valid values include: panic, fatal, error, warn, warning, info, debug, and trace.
 2. Starting from **3.3.5.0 version**, taosAdapter supports dynamic modification of log level through HTTP interface. Users can dynamically adjust the log level by sending HTTP PUT request to /config interface. The authentication method of this interface is the same as /rest/sql interface, and the configuration item key-value pair in JSON format must be passed in the request body.
 
 The following is an example of setting the log level to debug through the curl command:

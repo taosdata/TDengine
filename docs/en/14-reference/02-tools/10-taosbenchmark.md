@@ -214,9 +214,9 @@ In insertion scenarios, `filetype` must be set to `insert`. For this parameter a
 
 - **continue_if_fail**: Allows users to define behavior after failure
 
-  “continue_if_fail”:  “no”, taosBenchmark exits automatically upon failure, default behavior
-  “continue_if_fail”: “yes”, taosBenchmark warns the user and continues writing
-  “continue_if_fail”: “smart”, if the child table does not exist upon failure, taosBenchmark will create the child table and continue writing
+  "continue_if_fail":  "no", taosBenchmark exits automatically upon failure, default behavior
+  "continue_if_fail": "yes", taosBenchmark warns the user and continues writing
+  "continue_if_fail": "smart", if the child table does not exist upon failure, taosBenchmark will create the child table and continue writing
 
 #### Database Parameters
 
@@ -374,7 +374,7 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 
 - **prepare_rand** : The number of unique values in the generated random data. If it is 1, it means all data are the same. The default is 10000.
 
-- **pre_load_tb_meta** : Whether to pre-load the meta data of subtables, values are “yes” or "no". When there are a large number of subtables, turning on this option can improve the writing speed.
+- **pre_load_tb_meta** : Whether to pre-load the meta data of subtables, values are "yes" or "no". When there are a large number of subtables, turning on this option can improve the writing speed.
 
 ### Query Parameters
 

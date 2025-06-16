@@ -548,9 +548,9 @@ For events with "eventType" as "WINDOW_INVALIDATION", the following fields are i
 
 ## Support for Virtual Tables in Stream Computing
 
-Starting with v3.3.6.0, stream computing can use virtual tables—including virtual regular tables, virtual sub-tables, and virtual super tables—as data sources for computation. The syntax is identical to that for non‑virtual tables.
+Starting with v3.3.6.0, stream computing can use virtual tables—including virtual regular tables, virtual sub-tables, and virtual super tables—as data sources for computation. The syntax is identical to that for non-virtual tables.
 
-However, because the behavior of virtual tables differs from that of non‑virtual tables, the following restrictions apply when using stream computing:
+However, because the behavior of virtual tables differs from that of non-virtual tables, the following restrictions apply when using stream computing:
 
 1. The schema of virtual regular tables/virtual sub-tables involved in stream computing cannot be modified.
 1. During stream computing, if the data source corresponding to a column in a virtual table is changed, the stream computation will not pick up the change; it will still read from the old data source.

@@ -562,7 +562,7 @@ taos> select myfun(v1) from t;
                2.302585093 |
 ```
 
-With this, we have completed our first UDF 😊, and learned some basic debugging methods.
+With this, we have completed our first UDF and learned some basic debugging methods.
 
 #### Example 2
 

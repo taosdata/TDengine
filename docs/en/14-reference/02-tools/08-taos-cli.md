@@ -85,7 +85,7 @@ You can change the behavior of the TDengine CLI by configuring command line para
 
 ### Data Export To a File
 
-- You can use the symbol “>>” to export query results to a file, the syntax is: sql query statement >> 'output file name'; If no path is written for the output file, it will be output to the current directory. For example, `select * from d0 >> '/root/d0.csv';` will output the query results to /root/d0.csv.
+- You can use the symbol `>>` to export query results to a file, the syntax is: sql query statement >> 'output file name'; If no path is written for the output file, it will be output to the current directory. For example, `select * from d0 >> '/root/d0.csv';` will output the query results to /root/d0.csv.
 
 ### Data Import From a File
 

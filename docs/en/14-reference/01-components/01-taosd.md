@@ -540,7 +540,7 @@ The `taosd_vnodes_role` table records virtual node role information.
 | duration   | VARCHAR   | tag    | SQL execution duration, value range: 3-10s, 10-100s, 100-1000s, 1000s- |
 | cluster_id | VARCHAR   | tag    | cluster id                                                   |
 
-### taos\_slow\_sql\_detail 表
+### taos\_slow\_sql\_detail Table
 
 `taos_slow_sql_detail` records slow query detail information.The rule of the table name is `{user}_{db}_{ip}_clusterId_{cluster_id}`
 
@@ -551,7 +551,7 @@ The `taosd_vnodes_role` table records virtual node role information.
 | query\_time   | INT32_T   |         | sql exec time, ms                              |
 | code          | INT32_T   |         | sql return code, 0 success                     |
 | error\_info   | VARCHAR   |         | error info if sql exec failed                  |
-| type          | INT8_T    |         | sql type（1-query, 2-insert, 4-others）        |
+| type          | INT8_T    |         | sql type (1-query, 2-insert, 4-others)        |
 | rows\_num     | INT64_T   |         | sql result rows num                            |
 | sql           | VARCHAR   |         | sql sting                                      |
 | process\_name | VARCHAR   |         | process name                                   |

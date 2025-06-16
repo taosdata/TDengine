@@ -99,7 +99,7 @@ The syntax for granting a user access to databases and tables is as follows.
 grant privileges on resources [with tag_filter] to user_name
 privileges: {
  all,
- | priv_type [, priv_type] …
+ | priv_type [, priv_type] ...
 }
 priv_type: {
  read
