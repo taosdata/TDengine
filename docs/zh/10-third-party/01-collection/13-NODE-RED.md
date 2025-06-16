@@ -59,7 +59,7 @@ create table test.d2 using test.meters tags(3, 'workroom2');
 使用 tdengine 节点, 采集每台设备数据，操作步骤：
 - <b>增加存储节点</b> 
   1. 画布左侧区域存储项分类中选择 tdengine 节点，拖动至画布中。
-  2. 双击节点打开属性设置，名称命名为 'td-writor'，数据库项右侧点击“+”号图标。
+  2. 双击节点打开属性设置，名称命名为 'td-writer'，数据库项右侧点击“+”号图标。
   3. 弹出窗口中，名称命名为 'td124'，连接类型这里我们选择使用字符串连接，输入：
    ``` sql
    ws://root:taosdata@192.168.2.124:6041 
@@ -85,85 +85,56 @@ create table test.d2 using test.meters tags(3, 'workroom2');
    
   4. 双击节点打开属性设置，名称命名为‘inject1’，重复下拉框选择“周期性执行”，周期选择每隔 1 秒。保存返回画布。
    
+  5. 相同方法再制作另外两台设备流程。
+   
    
 - <b>增加信息输出</b> 
   1. 画布左侧区域“通用”项下选择 “debug” 节点，拖动至画布 ‘td-write’ 节点后。
-  2. 双击节点打开属性设置，输出填写 "msg.payload"，勾选“节点状态”。
+  2. 双击节点打开属性设置，勾选“节点状态”，下拉列表中选择消息数量。
 
 
 以上节点增加完成后，依次把上面节点按顺序连接起来，形成一条流水线，至此数据采集流程制作完成。
 
-### 制作报表
-1. 打开 Report Builder 开始制作报表。
-2. 创建新数据集。  
-   左侧区域内“DataSource”->“DataSource1”->“Add Dataset...”。
+点击右上角 “部署” 按钮发布修改内容，运行成功后可以看到 'td-write' 节点状态变成绿色且 debug 节点的数字在不断变化。
+![td-writer](img/td-writer.webp)
 
-   ![create-1](img/create-1.webp)
 
-   - Name：填写数据集名称。
-   - 数据集方式：选择第二项“Use a dataset embedded im my report”。
-   - Data source：选择前面创建好的“DataSource1”。
-   - Query type：选择“text”类型查询，填写如下查询分析 SQL：
-    
+### 数据查询
+数据查询流程由三个节点（inject/tdengine/debug）组成，完成每隔 1 分钟实时输出最新 1 分钟内各智能电表平均电流、电压及用电量需求。
+  1. inject 节点拖动至画布中，双击节点设置属性，名称填写 'query', msg.topic 填写并保存返回画布：
    ``` sql
-   SELECT 
-      tbname        as DeviceID, 
-      last(ts)      as last_ts, 
-      last(current) as last_current, 
-      last(voltage) as last_voltage 
-   FROM test.meters 
-   GROUP BY tbname 
-   ORDER BY tbname;
-   ```
+   select tbname, avg(current),avg(voltage),sum(p) 
+     from ( select tbname,current,voltage,current*voltage/60 as p from test.meters  where  ts > now-60s partition by tbname) 
+     group by tbname;
+   ``` 
+  2. tdengine 节点拖动至画布中，双击节点设置属性，数据库选择前面已创建好的数据源 'td124'，保存并返回画布。
+  3. debug 节点拖动至画布中，双击节点设置属性，勾选“节点状态”，下拉列表中选择“消息数量”，保存并返回画布。
+  4. 依次把以上节点按顺序连接起来，点击 “部署” 按钮发布修改内容。
+
+流程启动成功后可以看到 'td-reader' 节点状态变成“绿色” 表示流程工作正常，debug 输出节点的数字每隔一分钟更新一次，表示不断有数据汇总统计输出了。
+  
+![td-reader](img/td-reader.webp)
+  
+### 数据订阅
+数据订阅流程由两个节点（/tdengine-consumer/debug）组成，完成设备过载警告提醒功能。
+  1. 使用 taos-CLI 手工创建订阅主题 topic_overload ,  SQL 如下：
+   ``` sql
+   create topic topic_overload as 
+        select tbname,* from test.meters 
+        where current > 25 or voltage > 230;
+   ``` 
+  2. tdengine-consumer 节点拖动至画布中，双击节点设置属性，填写如下内容后保存并返回画布。
+     - 名称：       td-consumer
+     - 订阅服务器：  ws://192.168.2.124:6041
+     - 用户名：     root
+     - 密码：       taosdata
+     - 订阅主题：    topic_overload
+     - 消费开始位置：latest
+     - 其它项保持默认
    
-3. 制作报表页面。   
-   菜单“Insert”->“Table”->“Insert Table”，插入空表格，用鼠标把左侧“DataSet1”中数据列用拖到右侧报表制作区域内放置到自己想要展示的列上，如图：
+  3. debug 节点拖动至画布中，双击节点设置属性，勾选“节点状态”，下拉列表中选择“消息数量”，保存并返回画布。
+  4. 依次把以上节点按顺序连接起来，点击 “部署” 按钮发布修改内容。
+  5. 流程启动成功后可以看到 'td-consumer' 节点状态变成“绿色” 表示流程工作正常，debug 输出节点的数字每隔一分钟更新一次，表示不断有数据汇总统计输出。
+  
+![td-reader](img/td-consumer.webp)
 
-   ![create-2](img/create-2.webp)
-
-4. 预览。   
-   点击菜单“Home”->“Run”按钮，预览报表效果。
-
-   ![create-3](img/create-3.webp)
-
-5. 退出预览。  
-   点击工具栏左侧第一个图标“Design”关闭预览，回到设计界面继续设计。
-
-### 发送报表
-1. 保存报表到服务器上。  
-   点击“File”菜单->“Save”，如图：
-   
-   ![report-1](img/report-1.webp)
-
-2. 报表数据源连接组件发布到服务器。  
-   点击“File”菜单->“Publish Report Parts”。
-   ![report-2](img/report-2.webp)
-
-   选择第一项“Pubsh all report parts with default settings”，会把报表使用数据源配置一起发送至服务器。
-
-### 浏览报表
-报表发送至服务器后，报表即被共享出去了，可在任意客户端通过浏览器访问浏览报表数据。
-1. 查看报表浏览地址。  
-   报表浏览地址在 SSRS 服务器配置中，如下：
-
-   ![browser-1](img/browser-1.webp)
-
-2. 输入访问授权。  
-   客户端第一次访问报表数据时，会弹出授权窗口要求登录，输入报表服务器操作系统登录账号即可。
-
-   ![browser-2](img/browser-2.webp)
-
-   账号输入成功后，会出现如下页面，可以看到前面保存上传的报表“meters”。
-
-   ![browser-3](img/browser-3.webp)
-
-3. 分页浏览报表。  
-   点击“meters”，会分页展示小区内所有智能电表最新采集数据。
-
-   ![browser-4](img/browser-4.webp)
-
-### 管理报表
-   对 SSRS 服务器上报表进行管理，可参考 [微软官网文档](https://learn.microsoft.com/zh-cn/sql/reporting-services/report-builder/finding-viewing-and-managing-reports-report-builder-and-ssrs?view=sql-server-ver16)。
-
-
-以上流程，我们使用了 SSRS 开发了基于 TDengine 数据源的一个简单报表制作、分发、浏览系统，更多丰富的报表还有待您的进一步开发。
