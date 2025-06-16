@@ -299,6 +299,7 @@ Therefore, first, check whether all ports on the server and cluster (default 603
 If the issue still cannot be resolved, it is necessary to contact Taos technical personnel for support.
 
 ### 32 Why is the original database lost and the cluster ID changed when the data directory dataDir of the database remains unchanged on the same server?
+
 Background: When the TDengine server process (taosd) starts, if there are no valid data file subdirectories (such as mnode, dnode, and vnode) under the data directory (dataDir, which is specified in the configuration file taos.cfg), these directories will be created automatically.When a new mnode directory is created, a new cluster ID will be allocated to generate a new cluster.
 
 Cause analysis: The data directory dataDir of taosd can point to multiple different mount points.If these mount points are not configured for automatic mounting in the fstab file, after the server restarts, dataDir will only exist as a normal directory of the local disk, and it will not point to the mounted disk as expected.At this point, if the taosd service is started, it will create a new directory under dataDir to generate a new cluster.
@@ -308,14 +309,17 @@ Impact of the problem: After the server is restarted, the original database is l
 Problem solving: You should configure the automatic mount of the dataDir directory in the fstab file to ensure that the dataDir always points to the expected mount point and directory. At this point, restarting the server will retrieve the original database and cluster. In the subsequent version, we will develop a function to enable taosd to exit in the startup phase when it detects that the dataDir changes before and after startup, and provide corresponding error prompts.
 
 ### 33 How to solve MVCP1400.DLL loss when running TDengine on Windows platform?
+
 1. Reinstall Microsoft Visual C++ Redistributable: As msvcp140.dll is part of Microsoft Visual C++Redistributable, reinstalling this package usually resolves most issues. You can download the corresponding version from the official Microsoft website for installation
 2. Manually download and replace the msvcp140.dll file online: You can download the msvcp140.dll file from a reliable source and copy it to the corresponding directory in the system. Ensure that the downloaded files match your system architecture (32-bit or 64 bit) and ensure the security of the source
 
 ### 34 Which fast query data from super table with TAG filter or child table ?
+
 Directly querying from child table is fast. The query from super table with TAG filter is designed to meet the convenience of querying. It can filter data from multiple child tables at the same time. If the goal is to pursue performance and the child table has been clearly queried, directly querying from the sub table can achieve higher performance
 
 ### 35 How to view data compression ratio indicators?
-Currently, TDengine only provides compression ratios based on tables, not databases or the entire system. To view the compression ratios, execute the `SHOW TABLE DISTRIBUTED table_name;` command in the client TDengine CLI. The table_name can be a super table, regular table, or subtable. For details [Click Here](https://docs.tdengine.com/tdengine-reference/sql-manual/show-commands/#show-table-distributed)
+
+Currently, TDengine only provides compression ratios based on tables, not databases or the entire system. To view the compression ratios, execute the `SHOW TABLE DISTRIBUTED table_name;` command in the client TDengine CLI. The table_name can be a super table, regular table, or subtable. For details, see [SHOW TABLE DISTRIBUTED](https://docs.tdengine.com/tdengine-reference/sql-manual/show-commands/#show-table-distributed).
 
 ### 36 Why didn't my configuration parameter take effect even though I modified the configuration file?
 
@@ -328,7 +332,7 @@ This is because TDengine versions 3.3.5.0 and above support persisting dynamical
 **Problem Solution:**
 If you understand the feature of persistent configuration parameters but still wish to load configuration parameters from the configuration file upon restart, you can add `forceReadConfig 1` to the configuration file. This will force TDengine to read configuration parameters from the file.
 
-### 37 I have clearly modified the configuration file, but the configuration parameters haven't taken effect.
+### 37 I have clearly modified the configuration file, but the configuration parameters haven't taken effect
 
 **Problem description:**
 In TDengine versions 3.3.5.0 and above, some users may encounter an issue: they have clearly modified a certain configuration parameter in the taos.cfg file, but after restarting, they find that the modification has not taken effect, and no error reports can be found when checking the logs.
@@ -338,7 +342,6 @@ This is because TDengine versions 3.3.5.0 and above support the persistence of d
 
 **Solution to the problem:**
 If you understand the function of configuration parameter persistence but still want to load the configuration parameters from the configuration file after a restart, you can add forceReadConfig 1 to the configuration file. This will make TDengine forcefully read the configuration parameters from the configuration file.
-
 
 ### 38 Database upgrade from version 2.6 to 3.3, When data migration is carried out and data is being written in the business at the same time, will there be serious out-of-order issues?
 

@@ -213,9 +213,9 @@ SHOW db_name.ALIVE;
 
 Query the availability status of the database db_name, with return values of 0 (unavailable), 1 (fully available), or 2 (partially available, indicating that some VNODEs in the database are available while others are not).
 
-## View DB Disk Usage 
+## View DB Disk Usage
 
-```sql 
+```sql
 select * from  INFORMATION_SCHEMA.INS_DISK_USAGE where db_name = 'db_name'   
 ```  
 
@@ -224,6 +224,7 @@ View the disk usage of each module in the DB.
 ```sql
 SHOW db_name.disk_info;
 ```
+
 View the compression ratio and disk usage of the database db_name
 
 This command is essentially equivalent to `select sum(data1 + data2 + data3)/sum(raw_data), sum(data1 + data2 + data3) from information_schema.ins_disk_usage where db_name="dbname"`

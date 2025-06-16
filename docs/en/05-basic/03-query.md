@@ -81,7 +81,11 @@ The SQL above queries the supertable `meters` for data where the timestamp is gr
 Query OK, 10 row(s) in set (0.042446s)
 ```
 
-**Note**: The group by clause does not guarantee that the results are ordered in a specific sequence when aggregating data. To obtain an ordered result set, you can use the order by clause to sort the results. This allows you to adjust the order of the output results as needed to meet specific business requirements or reporting needs.
+:::note
+
+The group by clause does not guarantee that the results are ordered in a specific sequence when aggregating data. To obtain an ordered result set, you can use the order by clause to sort the results. This allows you to adjust the order of the output results as needed to meet specific business requirements or reporting needs.
+
+:::
 
 TDengine provides a variety of built-in aggregation functions. The table below shows:
 
@@ -169,11 +173,15 @@ window_clause: {
 }
 ```
 
-**Note** When using the window clause, the following rules should be observed:
+:::note
+
+When using the window clause, the following rules should be observed:
 
 1. The window clause is located after the data partitioning clause and cannot be used together with the GROUP BY clause.
-2. The window clause partitions the data by windows and performs calculations on the expressions in the SELECT list for each window. The expressions in the SELECT list can only include: constants; pseudocolumns: _wstart pseudo-column,_wend pseudo-column, and _wduration pseudo-column; aggregate functions (including selection functions and time-series specific functions that can determine the number of output rows by parameters)
+2. The window clause partitions the data by windows and performs calculations on the expressions in the SELECT list for each window. The expressions in the SELECT list can only include: constants; pseudocolumns: \_wstart pseudo-column,\_wend pseudo-column, and \_wduration pseudo-column; aggregate functions (including selection functions and time-series specific functions that can determine the number of output rows by parameters)
 3. WHERE statements can specify the start and end times of the query and other filtering conditions.
+
+:::
 
 ### Timestamp Pseudocolumns
 
@@ -242,7 +250,7 @@ Each query execution is a time window, and the time window slides forward as tim
 <figcaption>Figure 2. Sliding window logic</figcaption>
 </figure>
 
-**Note**
+:::note
 
 1. INTERVAL and SLIDING clauses need to be used in conjunction with aggregation and selection functions, therefore, the following SQL statement is illegal:
 
@@ -256,7 +264,9 @@ SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
 SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
 ```
 
-**Points to note when using time windows**
+:::
+
+Points to note when using time windows:
 
 1. The window width of the aggregation period is specified by the keyword INTERVAL, with a minimum interval of 10 milliseconds (10a); it also supports an offset (offset must be less than the interval), which is the offset of the time window division compared to "UTC moment 0". The SLIDING statement is used to specify the forward increment of the aggregation period, i.e., the duration of each window's forward slide.
 2. When using the INTERVAL statement, unless in very special circumstances, it is required to configure the timezone parameter in the taos.cfg configuration file of both client and server to the same value, to avoid frequent cross-time zone conversions by time handling functions, which could lead to severe performance impacts.
@@ -346,12 +356,14 @@ The differences between NULL, NULL_F, VALUE, and VALUE_F for different scenarios
 2. Stream computing's INTERVAL clause: NULL_F and NULL behave the same, both are non-forced modes; VALUE_F and VALUE behave the same, both are non-forced modes. That is, there is no forced mode in stream computing's INTERVAL.
 3. INTERP clause: NULL and NULL_F behave the same, both are forced modes; VALUE and VALUE_F behave the same, both are forced modes. That is, there is no non-forced mode in INTERP.
 
-**Note**
+:::note
 
 1. Using the FILL statement may generate a large amount of filled output, be sure to specify the time range for the query.
 2. For each query, the system can return no more than 10 million results with interpolation.
 3. In time dimension aggregation, the returned results have a strictly monotonic increasing time sequence.
 4. If the query target is a supertable, the aggregate function will apply to the data of all tables under the supertable that meet the value filtering conditions. If the query does not use a PARTITION BY statement, the results are returned in a strictly monotonic increasing time sequence; if the query uses a PARTITION BY statement for grouping, the results within each PARTITION are strictly monotonic increasing in time sequence.
+
+:::
 
 Example:
 

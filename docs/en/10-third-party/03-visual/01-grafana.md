@@ -58,7 +58,7 @@ Save the script and execute `./install.sh --help` to view detailed help document
 </TabItem>
 <TabItem value="command" label="Command Line Tool">
 
-Use the [`grafana-cli` command line tool](https://grafana.com/docs/grafana/latest/administration/cli/) to install the plugin. After installation, Grafana needs to be restarted. 
+Use the [`grafana-cli` command line tool](https://grafana.com/docs/grafana/latest/administration/cli/) to install the plugin. After installation, Grafana needs to be restarted.
 
 On Linux or macOS, run the following command in your terminal:
 
@@ -71,6 +71,7 @@ sudo -u grafana grafana-cli --pluginUrl \
       https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip \
       plugins install tdengine-datasource
 ```
+
 On Windows, first ensure that the plugin installation directory exists (by default, it is located in the data/plugins subdirectory of your Grafana installation directory). Then, run the following command in the bin directory of the Grafana installation path using an administrator account:
 
 ```shell

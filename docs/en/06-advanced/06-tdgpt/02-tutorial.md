@@ -5,7 +5,6 @@ sidebar_label: Installation
 
 import PkgListV3 from "/components/PkgListV3";
 
-
 This section describes how to use TDgpt in Docker
 
 ## Get Started with Docker
@@ -16,7 +15,6 @@ This section describes how to use TDgpt in Docker
 |-----------------------------------|-----------------------|
 | `tdengine/tdengine-tdgpt`         | TDtsfm v1.0       |
 | `tdengine/tdengine-tdgpt-full`    | TDtsfm v1.0 and Time-MoE   |
-
 
 ### Quick Start Guide
 
@@ -79,7 +77,6 @@ docker exec -it <container name> bash
 
 You can now run Linux commands and access TDengine.
 
-
 ## Use TDgpt in TDengine Cloud
 
 You can try TDgpt with a free TDengine Cloud account. In TDengine Cloud, open **DB Mart** and enable access to the **Time Series Prediction Analysis Dataset** database. You can run TDgpt queries on the data contained in that database, for example: `select forecast(val, 'algo=tdtsfm_1') from forecast.electricity_demand;`
@@ -120,16 +117,18 @@ Add `~/.local/bin` to the `PATH` environment variable in `~/.bashrc` or `~/.bash
 ```shell
 export PATH=$PATH:~/.local/bin
 ```
+
 The Python environment has been installed. You can now install TDgpt.
 
 #### Install a C Compiler
 
-```shell 
+```shell
 sudo apt update
 sudo apt install build-essential
 ```
 
 ### Obtain the Package
+
 1. Download the tar.gz package from the list:
 
    <PkgListV3 type={9}/>
@@ -137,7 +136,7 @@ sudo apt install build-essential
    This package contains the TDtsfm and Time-MoE foundation models for time series. Ensure that you have 16 GB of disk space available to store the models.
   
 2. Open the directory containing the downloaded package and decompress it.
-   
+
 Note: Replace `<version>` with the version that you downloaded.
 
 ```bash
@@ -163,6 +162,6 @@ The virtual Python environment for TDgpt is located in the `/var/lib/taos/taosan
 This environment is not removed y the `rmtaosanode` command. You can remove it manually if desired.
 Any algorithms or models that you create for TDgpt must be installed into this virtual environment using Pip.
 
-
 ### Uninstalling TDgpt
-You can run the `rmtaosanode` command to uninstall TDgpt. 
+
+You can run the `rmtaosanode` command to uninstall TDgpt.

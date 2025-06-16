@@ -15,7 +15,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80000015 | Unable to resolve FQDN                       | Invalid fqdn set                                             | Check fqdn settings                                          |
 | 0x80000017 | Port already in use                          | The port is already occupied by some service, and the newly started service still tries to bind to that port | 1. Change the server port of the new service 2. Kill the service that previously occupied the port |
 | 0x80000018 | Conn is broken                               | Due to network jitter or request time being too long (over 900 seconds), the system actively disconnects | 1. Set the system's maximum timeout duration 2. Check request duration |
-| 0x80000019 | Conn read timeout                            | 1. The request processing time is too long 2. The server is overwhelmed 3. The server is deadlocked | 1. Explicitly configure the readTimeout parameter 2. Analyze the stack on taos | 
+| 0x80000019 | Conn read timeout                            | 1. The request processing time is too long 2. The server is overwhelmed 3. The server is deadlocked | 1. Explicitly configure the readTimeout parameter 2. Analyze the stack on taos |
 | 0x80000020 | some vnode/qnode/mnode(s) out of service     | After multiple retries, still unable to connect to the cluster, possibly all nodes have crashed, or the surviving nodes are not Leader nodes | 1. Check the status of taosd, analyze the reasons for taosd crash 2. Analyze why the surviving taosd cannot elect a Leader |
 | 0x80000021 | some vnode/qnode/mnode(s) conn is broken     | After multiple retries, still unable to connect to the cluster, possibly due to network issues, request time too long, server deadlock, etc. | 1. Check network 2. Request execution time                   |
 | 0x80000022 | rpc open too many session                    | 1. High concurrency causing the number of occupied connections to reach the limit 2. Server BUG, causing connections not to be released | 1. Adjust configuration parameter numOfRpcSessions 2. Adjust configuration parameter timeToGetAvailableConn 3. Analyze reasons for server not releasing connections |
@@ -28,7 +28,6 @@ This document details the server error codes that may be encountered when using 
 | 0x80000029  | RPC no state                                | 1. Engine error, can be ignored, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
 | 0x8000002A  | RPC state already dropped                   | 1. Engine error, can be ignored, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
 | 0x8000002B  | RPC msg exceed limit                        | 1. Single RPC message exceeds the limit, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
-
 
 ## common  
 
@@ -77,7 +76,6 @@ This document details the server error codes that may be encountered when using 
 | 0x8000013C | Invalid disk id                   | Invalid disk id                                              | Check users whether the mounted disk is invalid or use the parameter diskIDCheckEnabled to skip the disk check. |
 | 0x8000013D | Decimal value overflow            | Decimal value overflow                                       | Check query expression and decimal values |
 | 0x8000013E | Division by zero error            | Division by zero                                             | Check division expression |
-
 
 ## tsc
 
@@ -575,7 +573,6 @@ This document details the server error codes that may be encountered when using 
 | 0x80000448 | Analysis internal error, not processed              | Internal error occurs                                         | Check the taosanode.app.log for more details                           |
 | 0x80000449 | Analysis failed since not enough rows               | Input data for forecasting are not enough                     | Increase the number of input rows (10 rows for forecasting at least)   |
 | 0x8000044A | Not support co-variate/multi-variate forecast       | The algorithm not support co-variate/multi-variate forecasting | Change the specified algorithm                                         |
-
 
 ## virtual table
 

@@ -21,7 +21,7 @@ The JDBC driver implementation for TDengine strives to be consistent with relati
 
 ## JDBC and JRE Version Compatibility
 
-- JDBC: Supports JDBC 4.2 and above. 
+- JDBC: Supports JDBC 4.2 and above.
 - JRE: Supports JRE 8 and above.
 
 ## Supported Platforms
@@ -241,7 +241,7 @@ The supported configuration parameters for native connection URLs are as follows
 - batchfetch: true: Fetch result sets in batches during query execution; false: Fetch result sets row by row. Default is true. Enabling batch fetching can effectively improve query performance when querying large data volumes.
 - batchErrorIgnore: true: Continue executing subsequent SQL statements if one fails during the execution of Statement's executeBatch. False: Do not execute any statements after a failed SQL. Default is false.
 
-**Using TDengine Client Driver Configuration File to Establish Connection**
+Using TDengine Client Driver Configuration File to Establish Connection:
 
 When connecting to a TDengine cluster using a native JDBC connection, you can use the TDengine client driver configuration file, specifying parameters such as firstEp and secondEp in the configuration file. In this case, do not specify `hostname` and `port` in the JDBC URL.
 Configuration such as `jdbc:TAOS://:/power?user=root&password=taosdata`.
@@ -250,7 +250,8 @@ In TDengine, as long as one of the nodes in firstEp and secondEp is valid, a con
 
 > **Note**: The configuration file here refers to the configuration file on the machine where the application calling the JDBC Connector is located, with the default value on Linux OS being /etc/taos/taos.cfg, and on Windows OS being C://TDengine/cfg/taos.cfg.
 
-**WebSocket Connection**
+WebSocket Connection:
+
 Using JDBC WebSocket connection does not depend on the client driver. Compared to native JDBC connections, you only need to:
 
 1. Specify driverClass as "com.taosdata.jdbc.ws.WebSocketDriver";
@@ -310,7 +311,7 @@ The configuration parameters in properties are as follows:
 - TSDBDriver.PROPERTY_KEY_CONFIG_DIR: Effective only when using native JDBC connections. Client configuration file directory path, default value on Linux OS is `/etc/taos`, on Windows OS is `C:/TDengine/cfg`.
 - TSDBDriver.PROPERTY_KEY_CHARSET: Character set used by the client, default value is the system character set.
 - TSDBDriver.PROPERTY_KEY_LOCALE: Effective only when using native JDBC connections. Client locale, default value is the current system locale.
-- TSDBDriver.PROPERTY_KEY_TIME_ZONE: 
+- TSDBDriver.PROPERTY_KEY_TIME_ZONE:
   - Native connections: Client time zone, default value is the current system time zone. Effective globally. Due to historical reasons, we only support part of the POSIX standard, such as UTC-8 (representing Shanghai, China), GMT-8, Asia/Shanghai.
   - WebSocket connections. Client time zone, default value is the current system time zone. Effective on the connection. Only IANA time zones are supported, such as Asia/Shanghai. It is recommended not to set this parameter, as using the system time zone provides better performance.
 - TSDBDriver.HTTP_CONNECT_TIMEOUT: Connection timeout, in ms, default value is 60000. Effective only in REST connections.
@@ -339,7 +340,7 @@ The configuration parameters in properties are as follows:
 
 Additionally, for native JDBC connections, other parameters such as log level and SQL length can be specified by specifying the URL and Properties.
 
-**Priority of Configuration Parameters**
+Priority of Configuration Parameters:
 
 When obtaining connections through the three methods mentioned earlier, if configuration parameters are duplicated in the URL, Properties, and client configuration file, the `priority from high to low` is as follows:
 

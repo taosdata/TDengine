@@ -127,6 +127,7 @@ FLOOR(expr)
  Other usage notes see [CEIL](#ceil) function description.
 
 #### GREATEST
+
 ```sql
 GREATEST(expr1, expr2[, expr]...)
 ```
@@ -138,10 +139,12 @@ GREATEST(expr1, expr2[, expr]...)
 **Return Type**：Refer to the comparison rules. The comparison type is the final return type.
 
 **Applicable Data Types**:
+
 - Numeric types: timestamp, bool, integer and floating point types
 - Strings types: nchar and varchar types.
 
 **Comparison rules**: The following rules describe the conversion method of the comparison operation:
+
 - If any parameter is NULL, the comparison result is NULL.
 - If all parameters in the comparison operation are string types, compare them as string types
 - If all parameters are numeric types, compare them as numeric types.
@@ -150,8 +153,8 @@ GREATEST(expr1, expr2[, expr]...)
 
 **Related configuration items**: Client configuration, compareAsStrInGreatest is 1, which means that both string types and numeric types are converted to string comparisons, and 0 means that they are converted to numeric types. The default is 1.
 
-
 #### LEAST
+
 ```sql
 LEAST(expr1, expr2[, expr]...)
 ```
@@ -637,9 +640,10 @@ taos> select radians(180);
 ```sql
 CRC32(expr)
 ```
+
 **Function Description**: Returns the unsigned 32-bit integer that represents the Cyclic Redundancy Check (CRC).
 
-**Return Type**: INT UNSIGNED. 
+**Return Type**: INT UNSIGNED.
 
 **Applicable Data Types**: Suitable for any type.
 
@@ -1345,7 +1349,7 @@ TO_CHAR(ts, format_str_literal)
 
 **Applicable to**: Tables and supertables
 
-**Supported Formats**
+Supported Formats:
 
 | **Format**            | **Description**                           | **Example**               |
 | ------------------- | ----------------------------------------- | ------------------------- |
@@ -1863,6 +1867,7 @@ STDDEV/STDDEV_POP(expr)
 **Applicable to**: Tables and supertables.
 
 **Description**:
+
 - Function `STDDEV_POP` equals `STDDEV` and is supported from ver-3.3.3.0.
 
 **Example**:
@@ -2101,7 +2106,8 @@ MAX(expr)
 
 **Applicable to**: Tables and supertables.
 
-**Usage Instructions**: 
+**Usage Instructions**:
+
 - The max function can accept strings as input parameters, and when the input parameter is a string type, it returns the largest string value(supported from ver-3.3.3.0, function `max` only accept numeric parameter before ver-3.3.3.0).
 
 ### MIN
@@ -2118,7 +2124,8 @@ MIN(expr)
 
 **Applicable to**: Tables and supertables.
 
-**Usage Instructions**: 
+**Usage Instructions**:
+
 - The min function can accept strings as input parameters, and when the input parameter is a string type, it returns the largest string value(supported from ver-3.3.3.0, function `min` only accept numeric parameter before ver-3.3.3.0).
 
 ### MODE
@@ -2216,12 +2223,12 @@ COLS​(func(expr), output_expr1, [, output_expr2] ... )​
 **Applicable to**: Tables and Super Tables.​
 
 **Usage Instructions**:
+
 - Func function type: must be a single-line selection function (output result is a single-line selection function, for example, last is a single-line selection function, but top is a multi-line selection function).​
 - Mainly used to obtain the associated columns of multiple selection function results in a single SQL query. For example: select cols(max(c0), ts), cols(max(c1), ts) from ... can be used to get the different ts values of the maximum values of columns c0 and c1.
 - The result of the parameter func is not returned. If you need to output the result of func, you can add additional output columns, such as: select first(ts), cols(first(ts), c1) from ..
 - When there is only one column in the output, you can set an alias for the function. For example, you can do it like this: "select cols(first (ts), c1) as c11 from ...".
 - Output one or more columns, and you can set an alias for each output column of the function. For example, you can do it like this: "select (first (ts), c1 as c11, c2 as c22) from ...".
-
 
 ## Time-Series Specific Functions
 
@@ -2329,7 +2336,7 @@ ignore_null_values: {
 
 **Applicable to**: Tables and supertables.
 
-**Usage Instructions**
+Usage Instructions:
 
 - INTERP is used to obtain the record value of a specified column at the specified time slice. It has a dedicated syntax (interp_clause) when used. For syntax introduction, see [reference link](../query-data/#interp).
 - When there is no row data that meets the conditions at the specified time slice, the INTERP function will interpolate according to the settings of the [FILL](../time-series-extensions/#fill-clause) parameter.

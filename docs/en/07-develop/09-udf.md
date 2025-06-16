@@ -301,6 +301,7 @@ select max_vol(vol1, vol2, vol3, deviceid) from battery;
 #### Aggregate Function Example 3 Split string and calculate average value [extract_avg](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/extract_avg.c)
 
 The `extract_avg` function converts a comma-separated string sequence into a set of numerical values, counts the results of all rows, and calculates the final average. Note when implementing:
+
 - `interBuf->numOfResult` needs to return 1 or 0 and cannot be used for count.
 - Count can use additional caches, such as the `SumCount` structure.
 - Use `varDataVal` to obtain the string.
@@ -324,6 +325,7 @@ select extract_avg(valStr) from scores;
 ```
 
 Generate `.so` file
+
 ```bash
 gcc -g -O0 -fPIC -shared extract_vag.c -o libextract_avg.so
 ```
@@ -336,7 +338,6 @@ gcc -g -O0 -fPIC -shared extract_vag.c -o libextract_avg.so
 ```
 
 </details>
-
 
 ## Developing UDFs in Python Language
 

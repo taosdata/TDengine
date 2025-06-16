@@ -13,7 +13,7 @@ When inserting data using parameter binding, it can avoid the resource consumpti
 - Precompilation: When using parameter binding, the SQL statement can be precompiled and cached. When executed later with different parameter values, the precompiled version can be used directly, improving execution efficiency.  
 - Reduced network overhead: Parameter binding also reduces the amount of data sent to the database because only parameter values need to be sent, not the complete SQL statement, especially when performing a large number of similar insert or update operations, this difference is particularly noticeable.
 
-**Tips: It is recommended to use parameter binding for data insertion**
+It is recommended to use parameter binding for data insertion.
 
    :::note
    We only recommend using the following two forms of SQL for parameter binding data insertion:

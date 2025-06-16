@@ -243,10 +243,10 @@ If you are not making API calls through a browser, you do not need to worry abou
 
 The above configurations take effect for the following interfaces:
 
-* RESTful API requests
-* WebSocket API requests
-* InfluxDB v1 write interface
-* OpenTSDB HTTP write interface
+- RESTful API requests
+- WebSocket API requests
+- InfluxDB v1 write interface
+- OpenTSDB HTTP write interface
 
 For details about the CORS protocol, please refer to: [https://www.w3.org/wiki/CORS_Enabled](https://www.w3.org/wiki/CORS_Enabled) or [https://developer.mozilla.org/docs/Web/HTTP/CORS](https://developer.mozilla.org/docs/Web/HTTP/CORS).
 
@@ -254,14 +254,14 @@ For details about the CORS protocol, please refer to: [https://www.w3.org/wiki/C
 
 taosAdapter uses a connection pool to manage connections to TDengine, improving concurrency performance and resource utilization. The connection pool configuration applies to the following interfaces, and these interfaces share a single connection pool:
 
-* RESTful API requests
-* InfluxDB v1 write interface
-* OpenTSDB JSON and telnet format writing
-* Telegraf data writing
-* collectd data writing
-* StatsD data writing
-* node_exporter data collection writing
-* Prometheus remote_read and remote_write
+- RESTful API requests
+- InfluxDB v1 write interface
+- OpenTSDB JSON and telnet format writing
+- Telegraf data writing
+- collectd data writing
+- StatsD data writing
+- node_exporter data collection writing
+- Prometheus remote_read and remote_write
 
 The configuration parameters for the connection pool are as follows:
 
@@ -277,7 +277,7 @@ taosAdapter uses the parameter `httpCodeServerError` to set whether to return a 
 
 This configuration only affects the **RESTful interface**.
 
-**Parameter Description**
+Parameter Description:
 
 - **`httpCodeServerError`**:
   - **When set to `true`**: Map the error code returned by the C interface to the corresponding HTTP status code.
@@ -289,12 +289,12 @@ taosAdapter will monitor the memory usage during its operation and adjust it thr
 
 This configuration only affects the following interfaces:
 
-* RESTful interface request
-* InfluxDB v1 write interface
-* OpenTSDB HTTP write interface
-* Prometheus remote_read and remote_write interfaces
+- RESTful interface request
+- InfluxDB v1 write interface
+- OpenTSDB HTTP write interface
+- Prometheus remote_read and remote_write interfaces
 
-**Parameter Description**
+#### Parameter Description
 
 - **`pauseQueryMemoryThreshold`**:
   - When memory usage exceeds this threshold, taosAdapter will stop processing query requests.
@@ -305,7 +305,7 @@ This configuration only affects the following interfaces:
 
 When memory usage falls below the threshold, taosAdapter will automatically resume the corresponding function.
 
-**HTTP return content:**
+#### HTTP return content
 
 - **When `pauseQueryMemoryThreshold` is exceeded**:
   - HTTP status code: `503`
@@ -315,15 +315,16 @@ When memory usage falls below the threshold, taosAdapter will automatically resu
   - HTTP status code: `503`
   - Return content: `"memory exceeds threshold"`
 
-**Status check interface:**
+#### Status check interface
 
 The memory status of taosAdapter can be checked through the following interface:
+
 - **Normal status**: `http://<fqdn>:6041/-/ping` returns `code 200`.
 - **Memory exceeds threshold**:
   - If the memory exceeds `pauseAllMemoryThreshold`, `code 503` is returned.
   - If the memory exceeds `pauseQueryMemoryThreshold` and the request parameter contains `action=query`, `code 503` is returned.
 
-**Related configuration parameters:**
+#### Related configuration parameters
 
 - **`monitor.collectDuration`**: memory monitoring interval, default value is `3s`, environment variable is `TAOS_MONITOR_COLLECT_DURATION`.
 - **`monitor.incgroup`**: whether to run in a container (set to `true` for running in a container), default value is `false`, environment variable is `TAOS_MONITOR_INCGROUP`.
@@ -345,7 +346,7 @@ The `smlAutoCreateDB` parameter only affects the following interfaces:
 - StatsD data writing
 - node_exporter data writing
 
-**Parameter Description**
+#### Parameter Description
 
 - **`smlAutoCreateDB`**:
   - **When set to `true`**: When writing to the schemaless protocol, if the target database does not exist, taosAdapter will automatically create the database.
@@ -360,7 +361,7 @@ The `restfulRowLimit` parameter only affects the return results of the following
 - RESTful interface
 - Prometheus remote_read interface
 
-**Parameter Description**
+#### Parameter Description
 
 - **`restfulRowLimit`**:
   - **When set to a positive integer**: The number of results returned by the interface will not exceed this value.
