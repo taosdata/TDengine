@@ -153,7 +153,7 @@ int32_t stmHbAddStreamStatus(SArray** ppStatus, SArray** ppReq, SStreamInfo* pSt
     stsDebug("%d runner tasks status added to hb", TD_DLIST_NELES(pStream->runnerList));
   }
   
-  stsDebug("total %d:%d tasks status added to hb", taosArrayGetSize(*ppStatus) - origTaskNum, pStream->taskNum);
+  stsDebug("total %d:%d tasks status added to hb", (int32_t)taosArrayGetSize(*ppStatus) - origTaskNum, pStream->taskNum);
 
 _exit:
 

@@ -3179,7 +3179,7 @@ int32_t msmWatchRecordNewTask(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
       int32_t readerSize = STREAM_IS_TRIGGER_READER(pTask->flags) ? pStatus->trigReaderNum : pStatus->calcReaderNum;
       if (taosArrayGetSize(pList) >= readerSize) {
         mstsError("%sReader list is already full, size:%d, expSize:%d", STREAM_IS_TRIGGER_READER(pTask->flags) ? "trig" : "calc",
-            taosArrayGetSize(pList), readerSize);
+            (int32_t)taosArrayGetSize(pList), readerSize);
         TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
       }
       
@@ -3212,7 +3212,7 @@ int32_t msmWatchRecordNewTask(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
       }
       if (taosArrayGetSize(pStatus->runners[pTask->deployId]) >= pStatus->runnerNum) {
         mstsError("deploy %d runner list is already full, size:%d, expSize:%d", pTask->deployId, 
-            taosArrayGetSize(pStatus->runners[pTask->deployId]), pStatus->runnerNum);
+            (int32_t)taosArrayGetSize(pStatus->runners[pTask->deployId]), pStatus->runnerNum);
         TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
       }    
       
