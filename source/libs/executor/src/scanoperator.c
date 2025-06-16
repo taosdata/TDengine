@@ -2746,11 +2746,12 @@ int32_t calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowI
   } else {
     code = appendCreateTableRow(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, &pInfo->tbnameCalSup,
                                 &pInfo->tagCalSup, pBlock->info.id.groupId, pBlock, rowId, pInfo->pCreateTbRes,
-                                &pInfo->stateStore);
+                                &pInfo->stateStore, idStr);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  qTrace("%s %s child_table_name:%s,groupId:%" PRIu64, idStr, __func__, pBlock->info.parTbName, pBlock->info.id.groupId);
+  qTrace("%s %s generate child_table_name:%s, groupId:%" PRIu64, idStr, __func__, pBlock->info.parTbName,
+         pBlock->info.id.groupId);
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s %s failed at line %d since %s", idStr, __func__, lino, tstrerror(code));

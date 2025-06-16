@@ -20,12 +20,12 @@
 #include "tmisce.h"
 #include "tcompare.h"
 
-int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
+int32_t taosGetIpv4FromEp(const char* ep, SEp* pEp) {
   pEp->port = 0;
   memset(pEp->fqdn, 0, TSDB_FQDN_LEN);
   tstrncpy(pEp->fqdn, ep, TSDB_FQDN_LEN);
 
-  char* temp = strchr(pEp->fqdn, ':');
+  char* temp = strrchr(pEp->fqdn, ':');
   if (temp) {
     *temp = 0;
     pEp->port = taosStr2UInt16(temp + 1, NULL, 10);
@@ -41,8 +41,38 @@ int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
   if (pEp->port <= 0) {
     return TSDB_CODE_INVALID_PARA;
   }
-
   return 0;
+}
+
+int32_t taosGetDualIpFromEp(const char* ep, SEp* pEp) {
+  int32_t code = 0;
+  memset(pEp->fqdn, 0, TSDB_FQDN_LEN);
+
+  strncpy(pEp->fqdn, ep, TSDB_FQDN_LEN - 1);
+
+  char* temp = strrchr(pEp->fqdn, ':');
+  if (temp) {
+    char* ipv6Check = strchr(pEp->fqdn, ':');
+    if (ipv6Check != temp) {
+      pEp->port = tsServerPort;
+    } else {
+      *temp = 0;
+      pEp->port = taosStr2UInt16(temp + 1, NULL, 10);
+      if (pEp->port == 0) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+    }
+  } else {
+    pEp->port = tsServerPort;
+  }
+  return code;
+}
+int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
+  if (tsEnableIpv6) {
+    return taosGetDualIpFromEp(ep, pEp);
+  } else {
+    return taosGetIpv4FromEp(ep, pEp);
+  }
 }
 
 int32_t addEpIntoEpSet(SEpSet* pEpSet, const char* fqdn, uint16_t port) {

@@ -101,6 +101,21 @@ Notes:
 
 ## 4.3 Run tests by command line arguments
 
+The template configuration files for **taosd**, **taosadapter**, and **taoskeeper** are located in the `env` directory.  
+You can update these YAML files to customize the deployment and test environment.
+
+- **taos_config.yaml**:  
+  - `port`: Base port for the first dnode (default: 6030, increments by 100 for each additional dnode)
+  - `mqttPort`: Base MQTT port (default: 6083, increments by 100 for each additional dnode)
+
+- **taosadapter_config.yaml**:  
+  - Used to configure taosadapter service.  
+  - You can set log level, port, log path, and other adapter-specific options.
+
+- **taoskeeper_config.yaml**:  
+  - Used to configure taoskeeper service.  
+  - You can set database connection info, log options, metrics, etc.
+
 Run test cases command description:
 
 Options:
@@ -115,10 +130,14 @@ Options:
 - `-C <num>`: create Dnode Numbers in one cluster
 - `-I <num>`: independentMnode Mnode
 - `--replica <num>`: set the number of replicas
+- `--clean`: Clean test env processe and workdir before deploy
 - `--tsim <file>`: tsim test file (for compatibility with the original tsim framework; not typically used in normal circumstances)
 
 - `--skip_test`: only do deploy or install without running test
 - `--skip_deploy`: Only run test without start TDengine
+- `--testlist`: Path to file containing list of test files to run. Each line should contain one Python test file path, and lines starting with # will be ignored.
+- `--skip_stop`: Do not destroy/stop the TDengine cluster after test class execution (for debugging or keeping environment alive)
+- `--only_deploy`: Only do deploy without starting TDengine cluster
 
 ## 4.4 Run tests by configuration file
 
@@ -161,7 +180,33 @@ pytest --log-level=DEBUG
 
 # 5. Run test with a specific YAML configuration file
 pytest --yaml_file=ci_default.yaml cases/data_write/sql_statement/test_insert_double.py
+
+# 6. Only do deploy
+pytest --clean --only_deploy 
 ```
+
+## 4.7 Batch Run Test Cases
+
+To run test cases in batch:
+
+Run with default test list file:
+```bash
+./start_run_test_list.sh                           #run with default test list file(test_list.txt)
+./start_run_test_list.sh path/to/case_list_file    #run with custom test list file
+```
+
+For the format of the test list file, please refer to `test_list.txt`.
+
+To stop the test execution:
+```bash
+./stop_run_test_list.sh    #the script will stop after completing the current test case.
+```
+
+Batch test results can be found in the `test_logs` directory:
+- `test_logs/case_result.txt`: Case execution results
+- `test_logs/run_tests.log`: All cases outputs
+- `test_logs/xxx.log`: Failed case outputs
+- `test_logs/allure-report`: Allure report (if allure command is supported)
 
 # 5. Add New Case
 

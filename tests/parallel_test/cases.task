@@ -19,6 +19,7 @@
 #
 # army-test
 #
+,,n,system-test,python3 ./test.py -f 0-others/compatibility_rolling_upgrade.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f multi-level/mlevel_basic.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f db-encrypt/basic.py -N 3 -M 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/arbitrator.py -N 3
@@ -99,6 +100,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py -N 3 -M 3
 ,,y,army,./pytest.sh python3 ./test.py -f create/create_ctb_using_csv_file.py
 ,,y,army,./pytest.sh python3 ./test.py -f create/create_ctb_using_csv_file.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f insert/insert_csv_file_with_row_split.py 
 
 ,,y,army,./pytest.sh python3 ./test.py -f stream/test_stream_vtable.py
 
@@ -537,6 +539,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_td32526.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_td32471.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts6115.py
+,,n,system-test,python3 ./test.py -f 7-tmq/tmq_tx484.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_replay.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqSeekAndCommit.py
 ,,n,system-test,python3 ./test.py -f 7-tmq/tmq_offset.py
@@ -613,7 +616,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_disk_usage_multilevel.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_dismatch_config.py
 
-,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
+,,n,system-test,python3 ./test.py -f 0-others/sml_restart.py
 ,,n,system-test,python3 ./test.py -f 0-others/tag_index_basic.py
 ,,n,system-test,python3 ./test.py -f 0-others/udfpy_main.py
 ,,n,system-test,python3 ./test.py -N 3 -f 0-others/walRetention.py
@@ -974,6 +977,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/backslash_g.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_ts4467.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/geometry.py
+
+,,n,system-test,python3 ./test.py -f 0-others/compatibility_rolling_upgrade_all.py -N 3
 
 ,,n,system-test,python3 ./test.py -f 2-query/queryQnode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode1mnode.py
@@ -1339,6 +1344,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f eco-system/manager/schema_change.py -N 3 -M 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_window_true_for.py
+,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 
 #tsim test
 ,,y,script,./test.sh -f tsim/query/timeline.sim
@@ -1882,3 +1888,5 @@
 
 # new test
 ,,y,test_new,./pytest.sh python3 ./test.py -f storage/compact/test_compact_meta.py
+
+

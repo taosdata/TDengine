@@ -7,7 +7,8 @@ set -e
 # set -x
 
 verMode=edge
-pagMode=full
+pkgMode=full
+entMode=full
 
 iplist=""
 serverFqdn=""
@@ -159,9 +160,13 @@ done
 
 tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${inspect_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
 if [ "${verMode}" == "cluster" ]; then
-  services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
+  if [ "${entMode}" == "lite" ]; then
+    services=(${serverName} ${adapterName} ${explorerName} ${keeperName})
+  else
+    services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
+  fi
 elif [ "${verMode}" == "edge" ]; then
-  if [ "${pagMode}" == "full" ]; then
+  if [ "${pkgMode}" == "full" ]; then
     services=(${serverName} ${adapterName} ${keeperName} ${explorerName})
     tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
   else
@@ -284,7 +289,7 @@ function install_lib() {
   ${csudo}ln -sf ${install_main_dir}/driver/libtaosnative.* ${lib_link_dir}/libtaosnative.so.1
   ${csudo}ln -sf ${lib_link_dir}/libtaosnative.so.1 ${lib_link_dir}/libtaosnative.so
 
-  [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so ${lib_link_dir}/libtaosws.so || :
+  ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so.* ${lib_link_dir}/libtaosws.so || :
 
   #link lib64/link_dir
   if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
@@ -293,7 +298,7 @@ function install_lib() {
     ${csudo}ln -sf ${install_main_dir}/driver/libtaosnative.* ${lib64_link_dir}/libtaosnative.so.1 || :
     ${csudo}ln -sf ${lib64_link_dir}/libtaosnative.so.1 ${lib64_link_dir}/libtaosnative.so || :
 
-    [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so ${lib64_link_dir}/libtaosws.so || :
+    ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so.* ${lib64_link_dir}/libtaosws.so || :
   fi
 
   ${csudo}ldconfig
@@ -549,7 +554,7 @@ function install_taosx_config() {
 function install_explorer_config() {
   [ ! -z $1 ] && return 0 || : # only install client
 
-  if [ "$verMode" == "cluster" ]; then
+  if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
     file_name="${script_dir}/${xname}/etc/${PREFIX}/explorer.toml"
   else
     file_name="${script_dir}/cfg/explorer.toml"
@@ -776,7 +781,7 @@ function install_service_on_systemd() {
 
   cfg_source_dir=${script_dir}/cfg
   if [[ "$1" == "${xname}" || "$1" == "${explorerName}" ]]; then
-    if [ "$verMode" == "cluster" ]; then
+    if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
       cfg_source_dir=${script_dir}/${xname}/etc/systemd/system
     else
       cfg_source_dir=${script_dir}/cfg
@@ -935,7 +940,7 @@ function updateProduct() {
     install_bin
     install_services
 
-    if [ "${pagMode}" != "lite" ]; then
+    if [ "${pkgMode}" != "lite" ]; then
       install_adapter_config
       install_taosx_config
       install_explorer_config
@@ -970,7 +975,7 @@ function updateProduct() {
     fi
 
     echo -e "${GREEN_DARK}To start ${clientName}keeper ${NC}\t\t: sudo systemctl start ${clientName}keeper ${NC}"
-    if [ "$verMode" == "cluster" ]; then
+    if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
       echo -e "${GREEN_DARK}To start ${clientName}x ${NC}\t\t\t: sudo systemctl start ${clientName}x ${NC}"
     fi
     echo -e "${GREEN_DARK}To start ${clientName}-explorer ${NC}\t\t: sudo systemctl start ${clientName}-explorer ${NC}"
@@ -1031,7 +1036,7 @@ function installProduct() {
     install_bin
     install_services
 
-    if [ "${pagMode}" != "lite" ]; then
+    if [ "${pkgMode}" != "lite" ]; then
       install_adapter_config
       install_taosx_config
       install_explorer_config
@@ -1069,7 +1074,7 @@ function installProduct() {
 
     echo -e "${GREEN_DARK}To start ${clientName}keeper ${NC}\t\t: sudo systemctl start ${clientName}keeper ${NC}"
 
-    if [ "$verMode" == "cluster" ]; then
+    if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
       echo -e "${GREEN_DARK}To start ${clientName}x ${NC}\t\t\t: sudo systemctl start ${clientName}x ${NC}"
     fi
     echo -e "${GREEN_DARK}To start ${clientName}-explorer ${NC}\t\t: sudo systemctl start ${clientName}-explorer ${NC}"

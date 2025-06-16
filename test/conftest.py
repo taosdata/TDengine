@@ -1,14 +1,7 @@
 import pytest
-import subprocess
-import sys
 import os
-from new_test_framework import taostest
-import logging
+import shutil
 from new_test_framework.utils import tdSql, etool, tdLog, BeforeTest, eutil
-
-import taos
-import taosws
-import yaml
 
 
 def pytest_addoption(parser):
@@ -36,6 +29,8 @@ def pytest_addoption(parser):
                     help="address sanitizer mode")
     parser.addoption("--replica", action="store",
                     help="the number of replicas")
+    parser.addoption("--clean", action="store_true",
+                    help="Clean test env processe and workdir before deploy")
     parser.addoption("--tsim", action="store",
                     help="tsim test file")
     parser.addoption("--skip_test", action="store_true",
@@ -44,6 +39,12 @@ def pytest_addoption(parser):
                     help="Only run test without start TDengine")
     parser.addoption("--debug_log", action="store_true",
                     help="Enable debug log output.")
+    parser.addoption("--testlist", action="store",
+                    help="Path to file containing list of test files to run")
+    parser.addoption("--skip_stop", action="store_true",
+                    help="Do not destroy/stop the TDengine cluster after test class execution (for debugging or keeping environment alive)")
+    parser.addoption("--only_deploy", action="store_true",
+                     help="Only deploy the environment without running any test cases")
     #parser.addoption("--setup_all", action="store_true",
     #                help="Setup environment once before all tests running")
 
@@ -69,6 +70,10 @@ def before_test_session(request):
         request.session.mnodes_num = int(request.config.getoption("-M"))
     else:
         request.session.mnodes_num = 1
+    if request.config.getoption("--clean"):
+        request.session.clean = True
+    else:
+        request.session.clean = False
     if request.config.getoption("--tsim"):
         request.session.tsim_file = request.config.getoption("--tsim")
     else:
@@ -85,6 +90,11 @@ def before_test_session(request):
         request.session.skip_test = True
     else:
         request.session.skip_test = False
+    request.session.skip_stop = bool(request.config.getoption("--skip_stop"))
+    if request.config.getoption("-A"):
+        request.session.asan = True
+    else:
+        request.session.asan = False
 
         # 读取环境变量并存入 session 变量
     request.session.taos_bin_path = os.getenv('TAOS_BIN_PATH', None)
@@ -92,7 +102,9 @@ def before_test_session(request):
     
     request.session.work_dir = os.getenv('WORK_DIR', None)
     request.session.work_dir = request.session.before_test.get_and_mkdir_workdir(request.session.work_dir)
-    
+    if request.session.clean and os.path.exists(request.session.work_dir):
+        shutil.rmtree(request.session.work_dir)
+
     # 获取yaml文件，缓存到servers变量中，供cls使用
     if request.config.getoption("--yaml_file"):
         root_dir = request.config.rootdir
@@ -124,9 +136,9 @@ def before_test_session(request):
         else:
             request.session.restful = False
         if request.config.getoption("-K"):
-            request.session.taoskeeper = True
+            request.session.set_taoskeeper = True
         else:
-            request.session.taoskeeper = False
+            request.session.set_taoskeeper = False
         if request.config.getoption("-Q"):   
             request.session.query_policy = int(request.config.getoption("-Q"))
         else:
@@ -147,10 +159,6 @@ def before_test_session(request):
             request.session.create_dnode_num = int(request.config.getoption("-C"))
         else:
             request.session.create_dnode_num = request.session.denodes_num
-        if request.config.getoption("-A"):
-            request.session.asan = True
-        else:
-            request.session.asan = False
         
         request.session.before_test.get_config_from_param(request)
     
@@ -176,11 +184,16 @@ def before_test_class(request):
     request.cls.dnode_nums = request.session.denodes_num
     request.cls.mnode_nums = request.session.mnodes_num
     request.cls.restful = request.session.restful
-    request.cls.taoskeeper = request.session.taoskeeper
+    if request.session.restful:
+        request.cls.taosadapter = request.session.adapter
+    request.cls.set_taoskeeper = request.session.set_taoskeeper
+    if request.session.set_taoskeeper:
+        request.cls.taoskeeper = request.session.taoskeeper
     request.cls.query_policy = request.session.query_policy
     request.cls.replicaVar = request.session.replicaVar
     request.cls.tsim_file = request.session.tsim_file
-    request.cls.tsim_path = request.session.tsim_path
+    if request.session.tsim_file is not None:
+        request.cls.tsim_path = request.session.tsim_path
     request.cls.taos_bin_path = request.session.taos_bin_path
     request.cls.lib_path = request.session.lib_path
     request.cls.work_dir = request.session.work_dir
@@ -191,30 +204,30 @@ def before_test_class(request):
 
     # 部署taosd，包括启动dnode，mnode，adapter
     if not request.session.skip_deploy:
-        request.session.before_test.deploy_taos(request.cls.yaml_file, request.session.mnodes_num)
+        request.session.before_test.deploy_taos(request.cls.yaml_file, request.session.mnodes_num, request.session.clean)
    
-        # 建立连接
-        request.cls.conn = request.session.before_test.get_taos_conn(request)
-        tdSql.init(request.cls.conn.cursor())
-        tdSql.replica = request.session.replicaVar
-        tdLog.debug(tdSql.query(f"show dnodes", row_tag=True))
+    # 建立连接
+    request.cls.conn = request.session.before_test.get_taos_conn(request)
+    tdSql.init(request.cls.conn.cursor())
+    tdSql.replica = request.session.replicaVar
+    tdLog.debug(tdSql.query(f"show dnodes", row_tag=True))
 
-        # 为兼容老用例，初始化原框架连接
-        #tdSql_pytest.init(request.cls.conn.cursor())
-        #tdSql_army.init(request.cls.conn.cursor())
+    # 为兼容老用例，初始化原框架连接
+    #tdSql_pytest.init(request.cls.conn.cursor())
+    #tdSql_army.init(request.cls.conn.cursor())
 
-        # 处理 -C 参数，如果未设置 -C 参数，create_dnode_num 和 -N 参数相同
-        for i in range(1, request.session.create_dnode_num):
-            tdSql.execute(f"create dnode localhost port {6030+i*100}")
+    # 处理 -C 参数，如果未设置 -C 参数，create_dnode_num 和 -N 参数相同
+    for i in range(1, request.session.create_dnode_num):
+        tdSql.execute(f"create dnode localhost port {6030+i*100}")
 
-        # 处理-Q参数，如果-Q参数不等于1，则创建qnode，并设置queryPolicy
-        if request.session.query_policy != 1:
-            tdSql.execute(f'alter local "queryPolicy" "{request.session.query_policy}"')
-            tdSql.execute("create qnode on dnode 1")
-            tdSql.execute("show local variables")
-    
-        # 为老用例兼容，初始化老框架部分实例
-        request.session.before_test.init_dnode_cluster(request, dnode_nums=request.cls.dnode_nums, mnode_nums=request.cls.mnode_nums, independentMnode=True, level=request.session.level, disk=request.session.disk)
+    # 处理-Q参数，如果-Q参数不等于1，则创建qnode，并设置queryPolicy
+    if request.session.query_policy != 1:
+        tdSql.execute(f'alter local "queryPolicy" "{request.session.query_policy}"')
+        tdSql.execute("create qnode on dnode 1")
+        tdSql.execute("show local variables")
+
+    # 为老用例兼容，初始化老框架部分实例
+    request.session.before_test.init_dnode_cluster(request, dnode_nums=request.cls.dnode_nums, mnode_nums=request.cls.mnode_nums, independentMnode=True, level=request.session.level, disk=request.session.disk)
     
     if request.session.skip_test:
         pytest.skip("skip test")
@@ -272,7 +285,7 @@ def before_test_class(request):
                 if hasattr(item, "rep_setup") and item.rep_setup.outcome == "error":
                     tdLog.debug(f"    错误原因: {str(item.rep_setup.longrepr)}")
                     if_success = False
-        if if_success:
+        if if_success and not request.session.skip_stop:
             tdLog.info(f"successfully executed")
             request.session.before_test.destroy(request.cls.yaml_file)
 
@@ -662,7 +675,36 @@ def add_common_methods(request):
 
 
 def pytest_collection_modifyitems(config, items):
+    if config.getoption("--only_deploy"):
+        dummy_items = [item for item in items if "cases/dummy/" in str(item.fspath)]
+        deselected = [item for item in items if item not in dummy_items]
+        config.hook.pytest_deselected(items=deselected)
+        items[:] = dummy_items
+        return
+    
     tsim_path = config.getoption("--tsim")
+    testlist_file = config.getoption("--testlist")
+
+    if testlist_file:
+        # 读取测试列表文件
+        try:
+            with open(testlist_file, 'r') as f:
+                test_files = set()
+                for line in f:
+                    line = line.strip()
+                    # 跳过空行和注释行
+                    if not line or line.startswith('#'):
+                        continue
+                    # 确保路径格式正确
+                    if line.endswith('.py'):
+                        test_files.add(line)
+                    else:
+                        test_files.add(f"{line}.py")
+        except FileNotFoundError:
+            pytest.exit(f"Testlist file not found: {testlist_file}")
+        except Exception as e:
+            pytest.exit(f"Error reading testlist file: {str(e)}")
+
     if tsim_path:
         for item in items:
             if item.get_closest_marker("tsim"):
@@ -705,7 +747,9 @@ def pytest_collection_modifyitems(config, items):
         if config.getoption('--replica'):
             name_suffix += f"_replica{config.getoption('--replica')}"
 
-            
+        # 筛选测试项
+        selected = []
+        deselected = []
         for item in items:
             if name_suffix != "":
                 item.name = f"{item.name}{name_suffix}"  # 有效，名称可以修改
@@ -725,6 +769,18 @@ def pytest_collection_modifyitems(config, items):
                 
                 # 确保Allure能识别新参数
                 item.callspec = type('CallSpec', (), {'params': params, 'id': param_ids[0]})
+
+            # 检查是否在测试列表中
+            if testlist_file:
+                if any(os.path.relpath(str(item.fspath)).endswith(test_file) for test_file in test_files):
+                    selected.append(item)
+                else:
+                    deselected.append(item)
+
+        if testlist_file:
+            # 更新测试项列表
+            items[:] = selected
+            config.hook.pytest_deselected(items=deselected)
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)

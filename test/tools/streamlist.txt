@@ -1,0 +1,4 @@
+../tests/script/sh/stop_dnodes.sh 
+pytest --clean cases/01-DataTypes/test_datatype_bigint.py
+pytest --clean cases/01-DataTypes/test_datatype_bool.py
+

@@ -33,6 +33,7 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 
 | taos-jdbcdriver 版本 |                                                                        主要变化                                                                        |   TDengine 版本    |
 | ------------------| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+|        3.6.3        | 解决了订阅数据库和超级表时的数据类型转换 bug   |   -  |
 |        3.6.2        | 1. 支持订阅数据库和超级表（不支持订阅元数据） <br/> 2. 解决了云服务订阅 bug <br/> 3. 优化了 setQueryTimeout 参数为 0 的实现    |   -  |
 |        3.6.1        | 解决 WebSocket 连接在小查询上的性能 bug     |   -  |
 |        3.6.0        | 在 WebSocket 连接上支持高效写入和 Decimal 数据类型     |   3.3.6.0 及更高版本  |
@@ -152,6 +153,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 | JSON              | java.lang.String     |仅在 tag 中支持|
 | VARBINARY         | byte[]               ||
 | GEOMETRY          | byte[]               ||
+| BLOB              | byte[]               |仅在 tag 中支持|
 | DECIMAL           | java.math.BigDecimal |仅在 WebSocket 连接方式支持|
 
 **注意**：由于历史原因，TDengine 中的 BINARY 底层不是真正的二进制数据，已不建议使用。请用 VARBINARY 类型代替。  
@@ -217,6 +219,9 @@ taos-jdbcdriver 实现了 JDBC 标准的 Driver 接口，提供了 3 个实现�
 #### URL 规范
 TDengine 的 JDBC URL 规范格式为：
 `jdbc:[TAOS|TAOS-WS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}]`
+
+`host_name` 参数支持合法的域名或 IP 地址。taos-jdbcdriver 同时支持 IPv4 和 IPv6 格式。对于 IPv6 地址，必须使用中括号括起来（例如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免端口号解析冲突。
+
 
 **原生连接**  
 `jdbc:TAOS://taosdemo.com:6030/power?user=root&password=taosdata`，使用了 JDBC 原生连接的 TSDBDriver，建立了到 hostname 为 taosdemo.com，端口为 6030（TDengine 的默认端口），数据库名为 power 的连接。这个 URL

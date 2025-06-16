@@ -222,9 +222,9 @@ class TDTestCase:
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
         tdLog.info(len(tdSql.queryResult))
-        tdSql.checkEqual(True, len(tdSql.queryResult) in range(325, 326))
+        tdSql.checkEqual(True, len(tdSql.queryResult) in range(327, 328))
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
-        tdSql.checkEqual(61, len(tdSql.queryResult))
+        tdSql.checkEqual(62, len(tdSql.queryResult))
 
     def ins_dnodes_check(self):
         tdSql.execute('drop database if exists db2')
@@ -272,11 +272,12 @@ class TDTestCase:
             'timeseries':'Timeseries',
             'dnodes':'Dnodes',
             'cpu_cores':'CPU Cores',
+            'vnodes':'Vnodes',
+            'storage_size':'Storage Size',
             'stream':'Stream',
             'subscription':'Subscription',
             'view':'View',
             'audit':'Audit',
-            'csv':'CSV',
             'storage':'Multi-Tier Storage',
             'backup_restore':'Data Backup & Restore',
             'object_storage':'Object Storage',
@@ -300,6 +301,18 @@ class TDTestCase:
             'mssql':'SqlServer',
             'mongodb':'MongoDB',
             'csv':'CSV',
+            'sparkplugb':"SparkplugB",
+            'ta_ts_attr':'TDasset Time-Series Attributes',
+            'ta_nts_attr':'TDasset Non-Time-Series Attributes',
+            'ta_element':'TDasset Elements',
+            'ta_server':'TDasset Servers',
+            'ta_cpu_core':'TDasset CPU Cores',
+            'ta_user':'TDasset Users',
+            'ta_version_ctrl':'TDasset Version Control',
+            'ta_data_forecast':'TDasset Data Forecast',
+            'ta_data_detect':'TDasset Data Detect',
+            'ta_data_quality':'TDasset Data Quality',
+            'ta_ai_chat_gen':'TDasset AI Chat/Generate',
         }
 
         tdSql.execute('drop database if exists db2')

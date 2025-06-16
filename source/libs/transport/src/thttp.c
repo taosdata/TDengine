@@ -695,7 +695,7 @@ static void httpHandleReq(SHttpMsg* msg) {
   }
 
   // set up timeout to avoid stuck;
-  int32_t fd = taosCreateSocketWithTimeout(5000);
+  int32_t fd = taosCreateSocketWithTimeout(5000, 0);
   if (fd < 0) {
     tError("http-report failed to open socket, dst:%s:%d, chanId:%" PRId64 ", seq:%" PRId64 ", reason:%s", cli->addr,
            cli->port, chanId, cli->seq, tstrerror(terrno));
