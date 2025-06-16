@@ -140,7 +140,7 @@ int64_t tsDndUpTime = 0;
 // dnode misc
 uint32_t tsEncryptionKeyChksum = 0;
 int8_t   tsEncryptionKeyStat = ENCRYPT_KEY_STAT_UNSET;
-int8_t   tsGrant = 1;
+uint32_t tsGrant = 1;
 
 bool tsCompareAsStrInGreatest = true;
 
@@ -3115,14 +3115,27 @@ static int32_t taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-int8_t taosGranted(int8_t type) {
+int32_t taosGranted(int8_t type) {
   switch (type) {
-    case TSDB_GRANT_ALL:
-      return atomic_load_8(&tsGrant) & GRANT_FLAG_ALL;
-    case TSDB_GRANT_AUDIT:
-      return atomic_load_8(&tsGrant) & GRANT_FLAG_AUDIT;
+    case TSDB_GRANT_ALL: {
+      if (atomic_load_32(&tsGrant) & GRANT_FLAG_ALL) {
+        return 0;
+      }
+      int32_t grantVal = atomic_load_32(&tsGrant);
+      if (grantVal & GRANT_FLAG_EX_MULTI_TIER) {
+        return TSDB_CODE_GRANT_MULTI_STORAGE_EXPIRED;
+      } else if (grantVal & GRANT_FLAG_EX_VNODE) {
+        return TSDB_CODE_GRANT_VNODE_LIMITED;
+      } else if (grantVal & GRANT_FLAG_EX_STORAGE) {
+        return TSDB_CODE_GRANT_STORAGE_LIMITED;
+      }
+      return TSDB_CODE_GRANT_EXPIRED;
+    }
+    case TSDB_GRANT_AUDIT: {
+      return (atomic_load_32(&tsGrant) & GRANT_FLAG_AUDIT) ? 0 : TSDB_CODE_GRANT_AUDIT_EXPIRED;
+    }
     case TSDB_GRANT_VIEW:
-      return atomic_load_8(&tsGrant) & GRANT_FLAG_VIEW;
+      return (atomic_load_32(&tsGrant) & GRANT_FLAG_VIEW) ? 0 : TSDB_CODE_GRANT_VIEW_EXPIRED;
     default:
       uWarn("undefined grant type:%" PRIi8, type);
       break;

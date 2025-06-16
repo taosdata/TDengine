@@ -44,37 +44,47 @@ bash -c "$(curl -fsSL \
 保存该脚本并执行 `./install.sh --help` 可查看详细帮助文档。
 
 </TabItem>
-<TabItem value="manual" label="手动安装">
-使用 [`grafana-cli` 命令行工具](https://grafana.com/docs/grafana/latest/administration/cli/)  进行插件安装。
+<TabItem value="command" label="命令行工具">
+使用 [`grafana-cli` 命令行工具](https://grafana.com/docs/grafana/latest/administration/cli/)  进行插件安装，安装后需要重启 Grafana。
 
+对于 Linux/MacOs，请在终端执行下面命令：
 ```bash
 grafana-cli --pluginUrl \
-      https://github.com/taosdata/grafanaplugin/releases/download/v3.7.2/tdengine-datasource-3.7.2.zip \
+      https://www.taosdata.com/assets-download/grafana-plugin/tdengine-datasource.zip \
       plugins install tdengine-datasource
 # with sudo
 sudo -u grafana grafana-cli --pluginUrl \
-      https://github.com/taosdata/grafanaplugin/releases/download/v3.7.2/tdengine-datasource-3.7.2.zip \
+      https://www.taosdata.com/assets-download/grafana-plugin/tdengine-datasource.zip \
       plugins install tdengine-datasource
 ```
 
-或者从 [GitHub](https://github.com/taosdata/grafanaplugin/releases/tag/latest) 下载 .zip 文件到本地并解压到 Grafana 插件目录。命令行下载示例如下：
-
+对于 Windows，首先请确保插件安装目录存在（默认是 Grafana 安装目录下 data/plugins）, 然后在 Grafana 安装目录的 bin 目录下以管理员账号执行下面的命令：
 ```bash
-GF_VERSION=3.7.2
-# from GitHub
-wget https://github.com/taosdata/grafanaplugin/releases/download/v$GF_VERSION/tdengine-datasource-$GF_VERSION.zip
+./grafana-cli.exe --pluginUrl https://www.taosdata.com/assets-download/grafana-plugin/tdengine-datasource.zip plugins install tdengine-datasource
 ```
 
-以 CentOS 7.2 操作系统为例，将插件包解压到 /var/lib/grafana/plugins 目录下，重新启动 grafana 即可。
+之后，用户可以直接通过 http://localhost:3000 的网址，登录 Grafana 服务器（用户名/密码：admin/admin），通过左侧 `Configuration -> Data Sources` 可以添加数据源，
+
+点击 `Add data source` 可进入新增数据源页面，在查询框中输入 TDengine，然后点击 `select` 选择添加后会进入数据源配置页面，按照默认提示修改相应配置：
+
+- Host：TDengine 集群中提供 REST 服务的 IP 地址与端口号，默认 `http://localhost:6041`
+- User：TDengine 用户名。
+- Password：TDengine 用户密码。
+
+点击 `Save & Test` 进行测试，成功会提示：`TDengine Data source is working`
+
+</TabItem>
+<TabItem value="manual" label="手动安装">
+下载 [tdengine-datasource.zip](https://www.taosdata.com/assets-download/grafana-plugin/tdengine-datasource.zip) 文件到本地并解压到 Grafana 插件目录。命令行下载示例如下：
 
 ```bash
-sudo unzip tdengine-datasource-$GF_VERSION.zip -d /var/lib/grafana/plugins/
+wget https://www.taosdata.com/assets-download/grafana-plugin/tdengine-datasource.zip
 ```
 
-如果 Grafana 在 Docker 环境下运行，可以使用如下的环境变量设置自动安装 TDengine 数据源插件：
+以 CentOS 7.2 操作系统为例，将插件包解压到 /var/lib/grafana/plugins 目录下，重新启动 Grafana 即可。
 
 ```bash
-GF_INSTALL_PLUGINS=tdengine-datasource
+sudo unzip tdengine-datasource.zip -d /var/lib/grafana/plugins/
 ```
 
 之后，用户可以直接通过 http://localhost:3000 的网址，登录 Grafana 服务器（用户名/密码：admin/admin），通过左侧 `Configuration -> Data Sources` 可以添加数据源，
@@ -96,7 +106,7 @@ GF_INSTALL_PLUGINS=tdengine-datasource
 docker run -d \
   -p 3000:3000 \
   --name=grafana \
-  -e "GF_INSTALL_PLUGINS=https://github.com/taosdata/grafanaplugin/releases/download/v3.7.2/tdengine-datasource-3.7.2.zip;tdengine-datasource" \
+  -e "GF_INSTALL_PLUGINS=https://www.taosdata.com/assets-download/grafana-plugin/tdengine-datasource.zip;tdengine-datasource" \
   grafana/grafana
 ```
 
@@ -145,7 +155,7 @@ docker run -d \
           - grafana-data:/var/lib/grafana
         environment:
           # install tdengine plugin at start
-          GF_INSTALL_PLUGINS: "https://github.com/taosdata/grafanaplugin/releases/download/v3.7.2/tdengine-datasource-3.7.2.zip;tdengine-datasource"
+          GF_INSTALL_PLUGINS: "https://www.taosdata.com/assets-download/grafana-plugin/tdengine-datasource.zip;tdengine-datasource"
           TDENGINE_API: "http://tdengine:6041"
           #printf "$TDENGINE_USER:$TDENGINE_PASSWORD" | base64
           TDENGINE_BASIC_AUTH: "cm9vdDp0YW9zZGF0YQ=="
