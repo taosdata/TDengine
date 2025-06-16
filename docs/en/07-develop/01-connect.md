@@ -46,7 +46,11 @@ Key differences include:
 3. Using WebSocket connection also does not require installing the client driver taosc.
 4. Connecting to cloud service instances must use REST connection or WebSocket connection.
 
-**WebSocket connection is recommended**
+:::note
+
+WebSocket connection is recommended
+
+:::
 
 ## Installing the Client Driver taosc
 
@@ -419,7 +423,7 @@ Node.js connector uses DSN to create connections, the basic structure of the DSN
     
   // IPV6:
   ws://root:taosdata@[::1]:6041
-``` 
+```
 
 </TabItem>
 
@@ -454,13 +458,12 @@ Additional parameters supported for WebSocket connections:
 - `autoReconnect`: Whether to automatically reconnect, default is false.
 - `reconnectRetryCount`: Number of retries for reconnection, default is 3.
 - `reconnectIntervalMs`: Reconnection interval in milliseconds, default is 2000.
--
 
 </TabItem>
 
 <TabItem label="C" value="c">
 
-**WebSocket Connection**
+WebSocket Connection:
 
 For C/C++ language connectors, the WebSocket connection uses the `ws_connect()` function to establish a connection with the TDengine database. Its parameter is a DSN description string, structured as follows:
 
@@ -472,7 +475,7 @@ For C/C++ language connectors, the WebSocket connection uses the `ws_connect()` 
 
 For detailed explanation of DSN and how to use it, see [Connection Features](../../tdengine-reference/client-libraries/cpp/#dsn)
 
-**Native Connection**
+Native Connection:
 
 For C/C++ language connectors, the native connection method uses the `taos_connect()` function to establish a connection with the TDengine database. Detailed parameters are as follows:
 

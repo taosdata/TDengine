@@ -91,8 +91,6 @@ You can view your backup plans and modify, clone, or delete them using the butto
 2. Determine the backup record point to which you want to restore and click the Restore icon in the **Operation** column.
 3. Select the backup file timestamp and target database and click **Confirm**.
 
-
-
 ## Troubleshooting
 
 ### Port Access Exception
@@ -122,6 +120,7 @@ Caused by:
 ```
 
 The following are some possible errors for WebSocket connections:
+
 - "Temporary failure in name resolution": DNS resolution error. Check whether the specified IP address or FQDN can be accessed normally.
 - "IO error: Connection refused (os error 111)": Port access failed. Check whether the port is configured correctly and is enabled and accessible.
 - "IO error: received corrupt message": Message parsing failed. This may be because SSL was enabled using the WSS method, but the source port is not supported.

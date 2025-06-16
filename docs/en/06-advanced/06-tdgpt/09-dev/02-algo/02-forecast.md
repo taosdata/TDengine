@@ -4,9 +4,11 @@ sidebar_label: Time-Series Forecasting
 ---
 
 ### Input Limitations
+
 `execute` is the core method of forecasting algorithms. Before calling this method, the framework configures the historical time-series data used for forecasting in the `self.list` object attribute.
 
 ### Output Limitations and Parent Class Attributes
+
 Running the `execute` method generates the following dictionary objects:
 
 ```python
@@ -16,21 +18,19 @@ return {
 }
 ```
 
-
 The parent class `AbstractForecastService` of forecasting algorithms includes the following object attributes.
 
-|Attribute|Description|Default|
-|---|---|---|
-|period|Specify the periodicity of the data, i.e. the number of data points included in each period. If the data is not periodic, enter 0.|0|
-|start_ts|Specify the start time of forecasting results.|0|
-|time_step|Specify the interval between consecutive data points in the forecast results.|0|
-|fc_rows|Specify the number of forecast rows to return.|0|
-|return_conf|Specify 1 to include a confidence interval in the forecast results or 0 to not include a confidence interval in the results. If you specify 0, the mean is returned as the upper and lower boundaries.|1|	
-|conf|Specify a confidence interval quantile.|95|
-
-
+| Attribute   | Description                                                  | Default |
+| ----------- | ------------------------------------------------------------ | ------- |
+| period      | Specify the periodicity of the data, i.e. the number of data points included in each period. If the data is not periodic, enter 0. | 0       |
+| start_ts    | Specify the start time of forecasting results.               | 0       |
+| time_step   | Specify the interval between consecutive data points in the forecast results. | 0       |
+| fc_rows     | Specify the number of forecast rows to return.               | 0       |
+| return_conf | Specify 1 to include a confidence interval in the forecast results or 0 to not include a confidence interval in the results. If you specify 0, the mean is returned as the upper and lower boundaries. | 1       |
+| conf        | Specify a confidence interval quantile.                      | 95      |
 
 ### Sample Code
+
 The following code is an sample algorithm that always returns 1 as the forecast results.
 
 ```python
