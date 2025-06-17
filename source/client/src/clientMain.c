@@ -202,22 +202,21 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
   }
 
   if (option == TSDB_OPTION_CONNECTION_USER_IP || option == TSDB_OPTION_CONNECTION_CLEAR) {
+    SIpRange dualIp = {0};
     if (val != NULL) {
       pObj->optionInfo.userIp = taosInetAddr(val);
-
       SIpAddr addr = {0};
       code = taosGetIpFromFqdn(tsEnableIpv6, val, &addr);
+      if (code == 0) {
+        code = tIpStrToUint(&addr, &pObj->optionInfo.userDualIp);
+      } 
       if (code != 0) {
-        goto END;
+        tscError("ipv6 flag %d failed to convert user ip %s to dual ip since %s", tsEnableIpv6 ?  1:0, val, tstrerror(code));
+        pObj->optionInfo.userIp = INADDR_NONE; 
+        pObj->optionInfo.userDualIp = dualIp;  
+        code = 0;
       }
-
-      code = tIpStrToUint(&addr, &pObj->optionInfo.userDualIp);
-      if (code != 0) {
-        goto END;
-      }
-
     } else {
-      SIpRange dualIp = {0};
       pObj->optionInfo.userIp = INADDR_NONE;
       pObj->optionInfo.userDualIp = dualIp;
     }
