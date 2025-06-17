@@ -622,6 +622,7 @@ int32_t qBuildStmtFinOutput1(SQuery* pQuery, SHashObj* pAllVgHash, SArray* pVgDa
 
 int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
                                   SStbInterlaceInfo* pBuildInfo, SVCreateTbReq* ctbReq) {
+  int8_t   hasBlob = 0;
   int32_t  code = TSDB_CODE_SUCCESS;
   uint64_t uid;
   int32_t  vgId;
@@ -656,8 +657,14 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
   if (!pTbData->isOrdered) {
     code = tRowSort(pTbCtx->pData->aRowP);
   }
+
   if (code == TSDB_CODE_SUCCESS && (!pTbData->isOrdered || pTbData->isDuplicateTs)) {
-    code = tRowMerge(pTbCtx->pData->aRowP, pTbCtx->pSchema, 0);
+    hasBlob = schemaHasBlob(pTbCtx->pSchema);
+    if (hasBlob == 0) {
+      code = tRowMerge(pTbCtx->pData->aRowP, pTbCtx->pSchema, 0);
+    } else {
+      code = tRowMergeWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobRow, 0);
+    }
   }
 
   if (TSDB_CODE_SUCCESS != code) {
@@ -795,7 +802,12 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
         code = tRowSort(pTableCxt->pData->aRowP);
       }
       if (code == TSDB_CODE_SUCCESS && (!pTableCxt->ordered || pTableCxt->duplicateTs)) {
-        code = tRowMerge(pTableCxt->pData->aRowP, pTableCxt->pSchema, 0);
+        int8_t hasBlob = schemaHasBlob(pTableCxt->pSchema);
+        if (hasBlob == 0) {
+          code = tRowMerge(pTableCxt->pData->aRowP, pTableCxt->pSchema, 0);
+        } else {
+          code = tRowMergeWithBlob(pTableCxt->pData->aRowP, pTableCxt->pSchema, pTableCxt->pData->pBlobRow, 0);
+        }
       }
     }
 
@@ -1157,5 +1169,17 @@ int rawBlockBindRawData(SHashObj* pVgroupHash, SArray* pVgroupList, STableMeta* 
 
   uTrace("add raw data to vgId:%d, len:%d", pTableMeta->vgId, *(int32_t*)data);
 
+  return 0;
+}
+
+int8_t schemaHasBlob(STSchema* pSchema) {
+  if (pSchema == NULL) {
+    return 0;
+  }
+  for (int i = 0; i < pSchema->numOfCols; ++i) {
+    if (IS_STR_DATA_BLOB(pSchema->columns[i].type)) {
+      return 1;
+    }
+  }
   return 0;
 }

@@ -61,4 +61,5 @@ void    insDestroyVgroupDataCxtHashMap(SHashObj *pVgCxtHash);
 void    insDestroyTableDataCxt(STableDataCxt *pTableCxt);
 void    insDestroyBoundColInfo(SBoundColInfo *pInfo);
 
+int8_t schemaHasBlob(STSchema *pSchema);
 #endif  // TDENGINE_PAR_INSERT_UTIL_H

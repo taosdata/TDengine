@@ -70,6 +70,7 @@ static int32_t csvParserReadLine(SCsvParser* parser);
 static void    destroySavedCsvParser(SVnodeModifyOpStmt* pStmt);
 static int32_t csvParserExpandLineBuffer(SCsvParser* parser, size_t requiredLen);
 
+
 static uint8_t TRUE_VALUE = (uint8_t)TSDB_TRUE;
 static uint8_t FALSE_VALUE = (uint8_t)TSDB_FALSE;
 
@@ -2397,17 +2398,6 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   return code;
 }
 
-static int8_t schemaHasBlob(STSchema* pSchema) {
-  if (pSchema == NULL) {
-    return 0;
-  }
-  for (int i = 0; i < pSchema->numOfCols; ++i) {
-    if (IS_STR_DATA_BLOB(pSchema->columns[i].type)) {
-      return 1;
-    }
-  }
-  return 0;
-}
 static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataCxt* pTableCxt, bool* pGotRow,
                        SToken* pToken) {
   SBoundColInfo*    pCols = &pTableCxt->boundColsInfo;
@@ -2462,7 +2452,7 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
   if (TSDB_CODE_SUCCESS == code && !pCxt->isStmtBind) {
     SRow** pRow = taosArrayReserve(pTableCxt->pData->aRowP, 1);
     if (schemaHasBlob(pTableCxt->pSchema)) {
-      SRowBuildScanInfo sinfo = {.hasBlob = 1};
+      SRowBuildScanInfo sinfo = {.hasBlob = 1, .scanType = ROW_BUILD_UPDATE};
       code = tRowBuildWithBlob(pTableCxt->pValues, pTableCxt->pSchema, pRow, pTableCxt->pData->pBlobRow, &sinfo);
     } else {
       SRowBuildScanInfo sinfo = {0};

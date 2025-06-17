@@ -142,7 +142,7 @@ static int32_t tRowBuildScan(SArray *colVals, const STSchema *schema, SRowBuildS
     ;
   }
 
-  *sinfo = (SRowBuildScanInfo){.tupleFixedSize = schema->flen, .hasBlob = sinfo->hasBlob};
+  *sinfo = (SRowBuildScanInfo){.tupleFixedSize = schema->flen, .hasBlob = sinfo->hasBlob, .scanType = sinfo->scanType};
 
   // loop scan
   for (int32_t i = 1; i < schema->numOfCols; i++) {
@@ -391,6 +391,12 @@ static int32_t tRowBuildTupleWithBlob(SArray *aColVal, const SRowBuildScanInfo *
           if (IS_VAR_DATA_TYPE(schema->columns[i].type)) {
             if (IS_STR_DATA_BLOB(schema->columns[i].type)) {
               hasBlob = 1;
+            }
+            if (sinfo->scanType == ROW_BUILD_MERGE && hasBlob) {
+              uInfo("merge block");
+              // if (colValArray[colValIndex].value.nData > UINT32_MAX) {
+              //   return TSDB_CODE_INVALID_PARA;
+              // }
             }
 
             *(int32_t *)(fixed + schema->columns[i].offset) = varlen - fixed - sinfo->tupleFixedSize;
@@ -685,6 +691,12 @@ static int32_t tRowBuildKVRowWithBlob(SArray *aColVal, const SRowBuildScanInfo *
             if (IS_STR_DATA_BLOB(schema->columns[i].type)) {
               hasBlob = 1;
             }
+            if (sinfo->scanType == ROW_BUILD_MERGE && hasBlob) {
+              uInfo("merge block");
+              // if (colValArray[colValIndex].value.nData > UINT32_MAX) {
+              //   return TSDB_CODE_INVALID_PARA;
+              // }
+            }
             payloadSize += tPutI16v(payload + payloadSize, colValArray[colValIndex].cid);
             payloadSize += tPutU32v(payload + payloadSize, colValArray[colValIndex].value.nData);
             if (colValArray[colValIndex].value.nData > 0) {
@@ -693,17 +705,24 @@ static int32_t tRowBuildKVRowWithBlob(SArray *aColVal, const SRowBuildScanInfo *
                              colValArray[colValIndex].value.nData);
                 payloadSize += colValArray[colValIndex].value.nData;
               } else {
-                uint64_t  seq = 0;
-                uint32_t  seqOffset = payloadSize + payload - (*ppRow)->data;
-                SBlobItem item = {.seqOffsetInRow = seqOffset,
-                                  .data = colValArray[colValIndex].value.pData,
-                                  .dataLen = colValArray[colValIndex].value.nData};
-                int32_t   code = tBlobRowPush(ppBlobRow, &item, &seq, firstBlobCol);
-                if (code != 0) return code;
-                if (firstBlobCol == 1) {
-                  firstBlobCol = 0;
+                if (sinfo->scanType == ROW_BUILD_MERGE) {
+                  uint64_t seq = 0;
+                  tGetU64(colValArray[colValIndex].value.pData, &seq);
+                  int32_t code = tBlobRowUpdate(ppBlobRow, seq, NULL);  // tBlobRow
+                  if (code != 0) return code;
+                } else {
+                  uint64_t  seq = 0;
+                  uint32_t  seqOffset = payloadSize + payload - (*ppRow)->data;
+                  SBlobItem item = {.seqOffsetInRow = seqOffset,
+                                    .data = colValArray[colValIndex].value.pData,
+                                    .dataLen = colValArray[colValIndex].value.nData};
+                  int32_t   code = tBlobRowPush(ppBlobRow, &item, &seq, firstBlobCol);
+                  if (code != 0) return code;
+                  if (firstBlobCol == 1) {
+                    firstBlobCol = 0;
+                  }
+                  payloadSize += tPutU64(payload + payloadSize, seq);
                 }
-                payloadSize += tPutU64(payload + payloadSize, seq);
               }
             } else {
               if (hasBlob) {
@@ -778,8 +797,6 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SRowB
 int32_t tRowBuildWithBlob(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlobRow2 *pBlobRow,
                           SRowBuildScanInfo *sinfo) {
   int32_t code;
-
-  sinfo->scanType = ROW_BUILD_UPDATE;
 
   code = tRowBuildScan(aColVal, pTSchema, sinfo);
   if (code) return code;
@@ -873,6 +890,18 @@ int32_t tBlobRowPush(SBlobRow2 *pBlobRow, SBlobItem *pItem, uint64_t *seq, int8_
   }
 
 _exit:
+
+  return code;
+}
+int32_t tBlobRowUpdate(SBlobRow2 *pBlobRow, uint64_t seq, SBlobItem *pItem) {
+  int32_t code = 0;
+  return code;
+  if (pBlobRow == NULL || pItem == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pBlobRow->pSeqToffset == NULL || pBlobRow->pSeqTable == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   return code;
 }
@@ -1312,6 +1341,87 @@ static int32_t tRowMergeImpl(SArray *aRowP, STSchema *pTSchema, int32_t iStart, 
   }
 
   for (int32_t iCol = 0; iCol < pTSchema->numOfCols; iCol++) {
+    SColVal *pColVal = NULL;
+
+    for (int32_t iRow = nRow - 1; iRow >= 0; --iRow) {
+      SColVal *pColValT = tRowIterNext(aIter[iRow]);
+      while (pColValT->cid < pTSchema->columns[iCol].colId) {
+        pColValT = tRowIterNext(aIter[iRow]);
+      }
+
+      // todo: take strategy according to the flag
+      if (COL_VAL_IS_VALUE(pColValT)) {
+        pColVal = pColValT;
+        break;
+      } else if (COL_VAL_IS_NULL(pColValT)) {
+        if (pColVal == NULL) {
+          pColVal = pColValT;
+        }
+      }
+    }
+
+    if (pColVal) {
+      if (taosArrayPush(aColVal, pColVal) == NULL) {
+        code = terrno;
+        goto _exit;
+      }
+    }
+  }
+
+  // build
+  SRowBuildScanInfo sinfo = {0};
+  code = tRowBuild(aColVal, pTSchema, &pRow, &sinfo);
+
+  if (code) goto _exit;
+
+  taosArrayRemoveBatch(aRowP, iStart, nRow, (FDelete)tRowPDestroy);
+  if (taosArrayInsert(aRowP, iStart, &pRow) == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+
+_exit:
+  if (aIter) {
+    for (int32_t i = 0; i < nRow; i++) {
+      tRowIterClose(&aIter[i]);
+    }
+    taosMemoryFree(aIter);
+  }
+  if (aColVal) taosArrayDestroy(aColVal);
+  if (code) tRowDestroy(pRow);
+  return code;
+}
+
+static int32_t tRowMergeWithBlobImpl(SArray *aRowP, STSchema *pTSchema, SBlobRow2 *pBlob, int32_t iStart, int32_t iEnd,
+                                     int8_t flag) {
+  int32_t code = 0;
+
+  int32_t    nRow = iEnd - iStart;
+  SRowIter **aIter = NULL;
+  SArray    *aColVal = NULL;
+  SRow      *pRow = NULL;
+  uint8_t    hasBlob = 0;
+  aIter = taosMemoryCalloc(nRow, sizeof(SRowIter *));
+  if (aIter == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+
+  for (int32_t i = 0; i < nRow; i++) {
+    SRow *pRowT = taosArrayGetP(aRowP, iStart + i);
+
+    code = tRowIterOpen(pRowT, pTSchema, &aIter[i]);
+    if (code) goto _exit;
+  }
+
+  // merge
+  aColVal = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal));
+  if (aColVal == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+
+  for (int32_t iCol = 0; iCol < pTSchema->numOfCols; iCol++) {
     SColVal  *pColVal = NULL;
     STColumn *pCol = pTSchema->columns + iCol;
     if (IS_STR_DATA_BLOB(pCol->type)) {
@@ -1344,13 +1454,8 @@ static int32_t tRowMergeImpl(SArray *aRowP, STSchema *pTSchema, int32_t iStart, 
   }
 
   // build
-  SRowBuildScanInfo sinfo = {0};
-  if (hasBlob) {
-    sinfo.hasBlob = 1;
-    code = tRowBuildWithBlob(aColVal, pTSchema, &pRow, NULL, &sinfo);
-  } else {
-    code = tRowBuild(aColVal, pTSchema, &pRow, &sinfo);
-  }
+  SRowBuildScanInfo sinfo = {.hasBlob = 1, .scanType = ROW_BUILD_MERGE};
+  code = tRowBuildWithBlob(aColVal, pTSchema, &pRow, pBlob, &sinfo);
   if (code) goto _exit;
 
   taosArrayRemoveBatch(aRowP, iStart, nRow, (FDelete)tRowPDestroy);
@@ -1403,6 +1508,39 @@ int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag) {
 
     if (iEnd - iStart > 1) {
       code = tRowMergeImpl(aRowP, pTSchema, iStart, iEnd, flag);
+      if (code) return code;
+    }
+
+    // the array is also changing, so the iStart just ++ instead of iEnd
+    iStart++;
+  }
+
+  return code;
+}
+
+int32_t tRowMergeWithBlob(SArray *aRowP, STSchema *pTSchema, SBlobRow2 *pBlobRow, int8_t flag) {
+  int32_t code = 0;
+
+  int32_t iStart = 0;
+  while (iStart < aRowP->size) {
+    SRowKey key1;
+    SRow   *row1 = (SRow *)taosArrayGetP(aRowP, iStart);
+
+    tRowGetKey(row1, &key1);
+
+    int32_t iEnd = iStart + 1;
+    while (iEnd < aRowP->size) {
+      SRowKey key2;
+      SRow   *row2 = (SRow *)taosArrayGetP(aRowP, iEnd);
+      tRowGetKey(row2, &key2);
+
+      if (tRowKeyCompare(&key1, &key2) != 0) break;
+
+      iEnd++;
+    }
+
+    if (iEnd - iStart > 1) {
+      code = tRowMergeWithBlobImpl(aRowP, pTSchema, pBlobRow, iStart, iEnd, flag);
       if (code) return code;
     }
 

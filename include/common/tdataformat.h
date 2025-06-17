@@ -162,6 +162,7 @@ typedef struct {
 } SBlobItem;
 int32_t tBlobRowCreate(int64_t cap, SBlobRow2 **ppBlobRow);
 int32_t tBlobRowPush(SBlobRow2 *pBlobRow, SBlobItem *pBlobItem, uint64_t *seq, int8_t nextRow);
+int32_t tBlobRowUpdate(SBlobRow2 *pBlobRow, uint64_t seq, SBlobItem *pBlobItem);
 int32_t tBlobRowDestroy(SBlobRow2 *pBlowRow);
 int32_t tBlobRowSize(SBlobRow2 *pBlobRow);
 
@@ -173,6 +174,7 @@ int32_t tRowUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, in
 void    tRowGetPrimaryKey(SRow *pRow, SRowKey *key);
 int32_t tRowKeyCompare(const SRowKey *key1, const SRowKey *key2);
 void    tRowKeyAssign(SRowKey *pDst, SRowKey *pSrc);
+int32_t tRowMergeWithBlob(SArray *pRow, STSchema *pTSchema, SBlobRow2 *pBlobRow, int8_t flag);
 
 // SRowIter ================================
 int32_t  tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter);
