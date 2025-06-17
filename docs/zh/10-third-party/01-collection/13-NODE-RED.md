@@ -30,12 +30,12 @@ node-red-node-tdengine 是涛思数据为 Node-RED 开发的官方插件，插�
 2. 画布左侧节点选择区域内选中 tdengine-operator 或 tdengine-consumer 节点拖至画布。
 
 3. 双击画布中选中节点，弹出属性设置窗口， 填写数据库连接信息：
-   - tdengine-operator 节点连接串格式：
+   - tdengine-operator 节点连接串格式：   
      `ws://user:password@host:port`
    - tdengine-consumer 节点连接串格式：  
      `ws://host:port`
   
-  更多详细内容请点击画布右侧上方区域中字典图标按钮，显示在线帮助文档内获取。
+    更多详细内容请点击画布右侧上方区域中字典图标按钮，显示在线帮助文档内获取。
    
 4. 配置完成后，点击右上角“部署”按钮 ，节点状态变为绿色，表示数据源配置正确且连接正常。
 
@@ -58,7 +58,8 @@ node-red-node-tdengine 是涛思数据为 Node-RED 开发的官方插件，插�
 通过数据库管理工具 taos-CLI , 为采集数据进行手工建模，采用一张设备一张表建模思路，创建超级表 meters 及三台设备对应子表 d0，d1，d2。建模 SQL 语句如下：
 ``` sql
 create database test;
-create stable test.meters (ts timestamp , current float , voltage int , phase float ) tags (groupid int, location varchar(24));
+create stable test.meters (ts timestamp, current float, voltage int, phase float ) 
+                     tags (groupid int, location varchar(24));
 create table test.d0 using test.meters tags(1, 'workshop1');
 create table test.d1 using test.meters tags(2, 'workshop1');
 create table test.d2 using test.meters tags(2, 'workshop2');
@@ -87,7 +88,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
       const value4 = Math.floor(Math.random() * (3 - 1 + 1)) + 1; // 1-3
 
       // sql
-      msg.topic = `insert into test.d0 values (now, ${value2}, ${value3}, ${value4}) ;`;
+      msg.topic = `insert into test.d0 values (now, ${value2}, ${value3}, ${value4});`;
 
       return msg;
    ```
@@ -127,8 +128,9 @@ create table test.d2 using test.meters tags(2, 'workshop2');
   1. inject 节点拖动至画布中，双击节点设置属性，名称填写 'query', msg.topic 填写并保存返回画布：
    ``` sql
    select tbname, avg(current), avg(voltage), sum(p) 
-     from ( select tbname,current,voltage,current*voltage/60 as p from test.meters  where  ts > now-60s partition by tbname) 
-     group by tbname;
+   from ( select tbname,current,voltage,current*voltage/60 as p from test.meters 
+          where  ts > now-60s partition by tbname)
+   group by tbname;
    ``` 
   2. tdengine-operator节点拖动至画布中，双击节点设置属性，数据库选择前面已创建好的数据源 'td124'，保存并返回画布。
   3. debug 节点拖动至画布中，双击节点设置属性，勾选“节点状态”，下拉列表中选择“消息数量”，保存并返回画布。
@@ -226,5 +228,5 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 ![td-all](img/td-all.webp)
 
 ## 总结
-Node-RED + TDengine 让原来需要资深开发人员才能做的物联网数据采集分析处理系统，目前只需在画布上拖拽即能完成，极大降低了开发门槛。  
-另外我们在 node-red 软件中也提供了丰富的在线帮助指引，详细介绍了插件的输入输出格式及使用。
+我们通过一个具体场景示例，详细介绍了 Node-RED 如何连接 TDengine 数据源及完成数据写入、查询及订阅功能，同时也展示了各节点输入输出数据格式及系统异常捕获等内容。    
+本文章侧重从示例角度介绍功能，全部功能文档还需要在 Node-RED 插件在线文档中获取。  
