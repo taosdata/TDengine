@@ -24,9 +24,411 @@ from .sql import *
 from .server.dnodes import *
 from .common import *
 from datetime import datetime
+from enum import Enum
+from new_test_framework.utils import clusterComCheck
 
+class StreamTableType(Enum):
+    TYPE_SUP_TABLE = "SUP_TABLE"
+    TYPE_SUB_TABLE = "SUB_TABLE"
+    TYPE_NORMAL_TABLE = "NORMAL_TABLE"
+    TYPE_VIRTUAL_TABLE = "VIRTUAL_TABLE"
+    TYPE_SYSTEM_TABLE = "SYSTEM_TABLE"
+
+
+class StreamTable:
+    def __init__(self):
+        self.streamTableType = StreamTableType.TYPE_SUP_TABLE
+        self.precision = "ms"
+        self.start="2025-01-01 00.00.00"
+        self.interval=30
 
 class StreamUtil:
+    def __init__(self):
+        self.streamTableType = StreamTableType.TYPE_SUP_TABLE
+        self.calTableType = StreamTableType.TYPE_SUP_TABLE
+        self.qdb = "qdb"
+        self.tdb = "tdb"
+        self.rdb = "rdb"
+        self.qdbPrecision = "ms"
+        self.tdbPrecision = "ms"
+        self.rdbPrecision = "ms"
+        self.vgroups = 1
+        self.start="2025-01-01 00.00.00"
+        self.interval=30
+        
+        self.tbBatch=int(2)
+        self.tbPerBatch=100
+        self.rowBatch=2
+        self.rowsPerBatch=500
+        self.initRow = self.rowBatch * self.rowsPerBatch
+        
+        self.triggerSTB = "trigger_st"
+        self.triggerNTB = "tntb"
+        self.calSTB = "meters"
+        self.calNTB = "cntb"
+        
+        self.streamTableCols = (f"("
+            "  cts timestamp"
+            ", cint int"
+            ", cuint int unsigned"
+            ", cbigint bigint"
+            ", cubigint bigint unsigned"
+            ", cfloat float"
+            ", cdouble double"
+            ", cvarchar varchar(32)"
+            ", csmallint smallint"
+            ", cusmallint smallint unsigned"
+            ", ctinyint tinyint"
+            ", cutinyint tinyint unsigned"
+            ", cbool bool"
+            ", cnchar nchar(32)"
+            ", cvarbinary varbinary(32)"
+            ", cdecimal8 decimal(8)"
+            ", cdecimal16 decimal(16)"
+            ", cgeometry geometry(32)"
+            ")")
+
+    def setTriggerTableType(self, streamTableType):
+        self.streamTableType = streamTableType
+    def setCalTableType(self, calTableType):
+        self.calTableType = calTableType
+        
+    def setQdb(self, qdb, precision="ms"):
+        self.qdb = qdb
+        self.qdbPrecision = precision
+    def setTdb(self, tdb, precision="ms"):
+        self.tdb = tdb
+        self.tdbPrecision = precision
+    def setRdb(self, rdb, precision="ms"):
+        self.rdb = rdb
+        self.rdbPrecision = precision
+    def setInitRow(self, initRow):
+        self.initRow = initRow
+    def setSubTableCount(self, count):
+        self.tbBatch = int(count / 100 if count % 100 == 0 else count / 100 + 1)
+        self.tbPerBatch = 100 if count >= 100 else count
+        
+    def init_databases(self):
+        tdLog.info(f"create databases")
+        unique_dbs = {self.qdb, self.tdb, self.rdb}
+
+        for db in unique_dbs:
+            tdSql.prepare(dbname=db, vgroups=self.vgroups)
+            clusterComCheck.checkDbReady(db)
+            
+    def init_databases(self, db):
+        tdLog.info(f"create databases {db}")
+        tdSql.prepare(dbname=db, vgroups=self.vgroups)
+        clusterComCheck.checkDbReady(db)
+
+    def createTable(self, db, tb, type, subTableCount=200):
+        if type == StreamTableType.TYPE_SUP_TABLE or type == StreamTableType.TYPE_SUB_TABLE:
+            tdLog.info(f"create super table {db}.{tb}")
+            self.tbBatch= int(subTableCount / 100 if subTableCount % 100 == 0 else subTableCount / 100 + 1)
+            self.tbPerBatch= 100 if subTableCount >= 100 else subTableCount
+            self.createDefaultSupTable(db, tb)
+            self.createDefaultSubTables(db, tb)
+        elif type == StreamTableType.TYPE_NORMAL_TABLE:
+            tdLog.info(f"create normal table {db}.{tb}")
+            self.createDBDeafaultNormalTable(db, tb)       
+            
+    def createDefaultSubTables(self, db, stb):        
+        dt = datetime.strptime(self.start, "%Y-%m-%d %H.%M.%S")
+        if self.tdbPrecision == "us":
+            prec = 1000 * 1000 * 1000
+        elif self.tdbPrecision == "ns":
+            prec = 1000 * 1000
+        else:
+            prec = 1000
+
+        tsStart = int(dt.timestamp() * prec)
+        tsNext = tsStart + 86400 * prec
+
+        totalTables = self.tbBatch * self.tbPerBatch
+        tdLog.info(f"create total {totalTables} child tables")
+        for batch in range(self.tbBatch):
+            sql = "create table "
+            for tb in range(self.tbPerBatch):
+                table = batch * self.tbPerBatch + tb
+                tts = tsStart if table % 3 == 1 else tsNext
+                tint = table % 3 if table % 20 != 1 else "NULL"
+                tuint = table % 4
+                tbigint = table % 5
+                tubigint = table % 6
+                tfloat = table % 7
+                tdouble = table % 8
+                tvarchar = "SanFrancisco" if table % 3 == 1 else "LosAngeles"
+                tsmallint = table % 9
+                tusmallint = table % 10
+                ttinyint = table % 11
+                tutinyint = table % 12
+                tbool = table % 2
+                tnchar = tvarchar
+                tvarbinary = tvarchar
+                tgeometry = "POINT(1.0 1.0)" if table % 3 == 1 else "POINT(2.0 2.0)"
+                sql += f"{db}.{stb}_{table} using {db}.{stb} tags({tts}, '{tint}', {tuint}, {tbigint}, {tubigint}, {tfloat}, {tdouble}, '{tvarchar}', {tsmallint}, {tusmallint}, {ttinyint}, {tutinyint}, {tbool}, '{tnchar}', '{tvarbinary}', '{tgeometry}') "
+            tdSql.execute(sql)
+            
+    def createDefaultSupTable(
+        self,
+        db="qdb",
+        stb="meters"
+        ):
+        tdLog.info(f"create super table")
+        tdSql.execute(
+            f"create stable {db}.{stb} {self.streamTableCols} tags("
+            "  tts timestamp"
+            ", tint int"
+            ", tuint int unsigned"
+            ", tbigint bigint"
+            ", tubigint bigint unsigned"
+            ", tfloat float"
+            ", tdouble double"
+            ", tvarchar varchar(32)"
+            ", tsmallint smallint"
+            ", tusmallint smallint unsigned"
+            ", ttinyint tinyint"
+            ", tutinyint tinyint unsigned"
+            ", tbool bool"
+            ", tnchar nchar(16)"
+            ", tvarbinary varbinary(32)"
+            ", tgeometry geometry(32)"
+            ")"
+        )
+    
+    def createDBDeafaultNormalTable(self, db, tb):
+        tdLog.info(f"create normal table")
+        tdSql.execute(
+            f"create table {db}.{tb} {self.streamTableCols}"
+        )
+
+    def appendTableData(self, fullTbName, startRow, endRows):
+        if self.tdbPrecision == "us":
+            prec = 1000 * 1000 * 1000
+        elif self.tdbPrecision == "ns":
+            prec = 1000 * 1000
+        else:
+            prec = 1000
+                        
+        dt = datetime.strptime(self.start, "%Y-%m-%d %H.%M.%S")
+        tsStart = int(dt.timestamp() * prec)
+        tsInterval = self.interval * prec
+        
+        start = startRow
+        end = endRows
+        while start < endRows:
+            end = endRows if start + self.rowsPerBatch > endRows else start + self.rowsPerBatch
+            sql = f"insert into {fullTbName} values "
+            for rows in range(startRow, endRows):
+                ts = tsStart + rows * tsInterval
+                cint = rows % 10
+                cuint = rows
+                cbigint = rows
+                cubigint = rows
+                cfloat = rows
+                cdouble = rows
+                cvarchar = f"cvar_{rows}"
+                csmallint = rows
+                cusmallint = rows
+                ctinyint = rows % 128
+                cutinyint = rows % 256
+                cbool = rows % 2 if rows % 20 != 1 else "NULL"
+                cnchar = cvarchar
+                cvarbinary = cvarchar
+                cdecimal8 = "0" if rows % 3 == 1 else "8"
+                cdecimal16 = "4" if rows % 3 == 1 else "16"
+                cgeometry = "POINT(1.0 1.0)" if rows % 3 == 1 else "POINT(2.0 2.0)"
+                sql += f"({ts}, {cint}, {cuint}, {cbigint}, {cubigint}, {cfloat}, {cdouble}, '{cvarchar}', {csmallint}, {cusmallint}, {ctinyint}, {cutinyint}, {cbool}, '{cnchar}', '{cvarbinary}', '{cdecimal8}', '{cdecimal16}', '{cgeometry}') "
+            tdSql.execute(sql)
+            start = end
+        tdLog.info(f"append {endRows - startRow} rows to table {fullTbName} from {startRow} to {endRows}")
+  
+    def updateTableRows(self, fullTbName, updateStart, updateEnd):
+        for oldDataRow in range(updateStart, updateEnd):
+            self.updateTableData(fullTbName, oldDataRow)
+
+    def updateTableData(self, fullTbName, oldDataRow):
+        newDataRow = oldDataRow + 10000
+        if self.tdbPrecision == "us":
+            prec = 1000 * 1000 * 1000
+        elif self.tdbPrecision == "ns":
+            prec = 1000 * 1000
+        else:
+            prec = 1000
+                        
+        dt = datetime.strptime(self.start, "%Y-%m-%d %H.%M.%S")
+        tsStart = int(dt.timestamp() * prec)
+        tsInterval = self.interval * prec
+        
+        sql = f"insert into {fullTbName} values "
+        ts = tsStart + oldDataRow * tsInterval
+        cint = newDataRow % 10
+        cuint = newDataRow
+        cbigint = newDataRow
+        cubigint = newDataRow
+        cfloat = newDataRow
+        cdouble = newDataRow
+        cvarchar = f"cvar_{newDataRow}"
+        csmallint = newDataRow
+        cusmallint = newDataRow
+        ctinyint = newDataRow % 128
+        cutinyint = newDataRow % 256
+        cbool = newDataRow % 2 if newDataRow % 20 != 1 else "NULL"
+        cnchar = cvarchar
+        cvarbinary = cvarchar
+        cdecimal8 = "0" if newDataRow % 3 == 1 else "8"
+        cdecimal16 = "4" if newDataRow % 3 == 1 else "16"
+        cgeometry = "POINT(1.0 1.0)" if newDataRow % 3 == 1 else "POINT(2.0 2.0)"
+        sql += f"({ts}, {cint}, {cuint}, {cbigint}, {cubigint}, {cfloat}, {cdouble}, '{cvarchar}', {csmallint}, {cusmallint}, {ctinyint}, {cutinyint}, {cbool}, '{cnchar}', '{cvarbinary}', '{cdecimal8}', '{cdecimal16}', '{cgeometry}') "
+        tdSql.execute(sql)
+
+        tdLog.info(f"update table {fullTbName} row {oldDataRow} data to row {newDataRow} data")
+
+    def deleteTableData(self, fullTbName, deleteRow):
+        if self.tdbPrecision == "us":
+            prec = 1000 * 1000 * 1000
+        elif self.tdbPrecision == "ns":
+            prec = 1000 * 1000
+        else:
+            prec = 1000
+                        
+        dt = datetime.strptime(self.start, "%Y-%m-%d %H.%M.%S")
+        tsStart = int(dt.timestamp() * prec)
+        tsInterval = self.interval * prec
+        
+        sql = f"delete from {fullTbName} where cts = {tsStart + deleteRow * tsInterval}"
+        tdSql.execute(sql)
+
+        tdLog.info(f"delete table {fullTbName} row {deleteRow}.")
+        
+    def deleteTableData(self, fullTbName, deleteStart, deleteEnd):
+        if self.tdbPrecision == "us":
+            prec = 1000 * 1000 * 1000
+        elif self.tdbPrecision == "ns":
+            prec = 1000 * 1000
+        else:
+            prec = 1000
+                        
+        dt = datetime.strptime(self.start, "%Y-%m-%d %H.%M.%S")
+        tsStart = int(dt.timestamp() * prec)
+        tsInterval = self.interval * prec
+        
+        sql = f"delete from {fullTbName} where cts >= {tsStart + deleteStart * tsInterval} and cts < {tsStart + deleteEnd * tsInterval}"
+        tdSql.execute(sql)
+
+        tdLog.info(f"delete table {fullTbName} row from {deleteStart} to {deleteEnd}.")
+
+    def appendTriggerSubTableData(self, tbIndex, startRow, endRows):
+        tbName = f"{self.tdb}.{self.triggerSTB}_{tbIndex}"
+        self.appendTableData(tbName, startRow, endRows)
+        
+    def appendCalSubTableData(self, tbIndex, startRow, endRows):
+        tbName = f"{self.rdb}.{self.calSTB}_{tbIndex}"
+        self.appendTableData(tbName, startRow, endRows)
+
+    def updateCalSubTableData(self, tbIndex, oldDataRow):
+        tbName = f"{self.rdb}.{self.calSTB}_{tbIndex}"
+        self.updateTableData(tbName, oldDataRow)
+        
+    def updateTriggerSubTableData(self, tbIndex, oldDataRow):
+        tbName = f"{self.tdb}.{self.triggerSTB}_{tbIndex}"
+        self.updateTableData(tbName, oldDataRow)
+        
+    def deleteCalSubTableData(self, tbIndex, deleteRow):
+        tbName = f"{self.rdb}.{self.calSTB}_{tbIndex}"
+        self.deleteTableData(tbName, deleteRow)
+        
+    def deleteTriggerSubTableData(self, tbIndex, deleteRow):
+        tbName = f"{self.tdb}.{self.triggerSTB}_{tbIndex}"
+        self.deleteTableData(tbName, deleteRow)
+        
+    def appendTriggerDefaultSubTablesData(self, startRow, endRow):
+        totalTables = self.tbBatch * self.tbPerBatch
+        if(endRow <= startRow or totalTables <= 0):
+            tdLog.info(f"no data to append, startRow:{startRow}, endRow:{endRow}, totalTables:{totalTables}")
+            return
+
+        for tbIndex in range(totalTables):
+            self.appendTriggerSubTableData(tbIndex, startRow, endRow)
+            
+    def appendCalDefaultSubTablesData(self, startRow, endRow):
+        totalTables = self.tbBatch * self.tbPerBatch
+        if(endRow <= startRow or totalTables <= 0):
+            tdLog.info(f"no data to append, startRow:{startRow}, endRow:{endRow}, totalTables:{totalTables}")
+            return
+
+        for tbIndex in range(totalTables):
+            self.appendCalSubTableData(tbIndex, startRow, endRow)
+     
+    def appendCalNormalTableData(self, startRow, endRows):
+        tbName = f"{self.rdb}.{self.calNTB}"
+        self.appendTableData(tbName, startRow, endRows)
+
+    def appendTriggerNormalTableData(self, startRow, endRows):
+        tbName = f"{self.tdb}.{self.triggerNTB}"
+        self.appendTableData(tbName, startRow, endRows)
+          
+    def updateCalNormalTableData(self, oldDataRow):
+        tbName = f"{self.rdb}.{self.calNTB}"
+        self.updateTableData(tbName, oldDataRow)
+        
+    def updateTriggerNormalTableData(self, oldDataRow):
+        tbName = f"{self.tdb}.{self.triggerNTB}"
+        self.updateTableData(tbName, oldDataRow)
+        
+    def deleteCalNormalTableData(self, deleteRow):
+        tbName = f"{self.rdb}.{self.calNTB}"
+        self.deleteTableData(tbName, deleteRow)
+        
+    def deleteTriggerNormalTableData(self, deleteRow):
+        tbName = f"{self.tdb}.{self.triggerNTB}"
+        self.deleteTableData(tbName, deleteRow)     
+     
+    def prepareTriggerTable(self):
+        if self.streamTableType == StreamTableType.TYPE_SUP_TABLE or self.streamTableType == StreamTableType.TYPE_SUB_TABLE:
+            tdLog.info(f"create super table:{self.triggerSTB} for trigger")
+            self.createDefaultSupTable(self.tdb, self.triggerSTB)
+            self.createDefaultSubTables(self.tdb, self.triggerSTB)
+            self.appendTriggerDefaultSubTablesData(0, self.initRow)
+        elif self.streamTableType == StreamTableType.TYPE_NORMAL_TABLE:
+            tdLog.info(f"create normal table:{self.triggerNTB} for trigger")
+            self.createDBDeafaultNormalTable(self.tdb, self.triggerNTB)
+            self.appendTriggerNormalTableData(0, self.initRow)
+        
+    def prepareCalTable(self):
+        if self.calTableType == StreamTableType.TYPE_SUP_TABLE or self.calTableType == StreamTableType.TYPE_SUB_TABLE:
+            tdLog.info(f"create super table for calculation:{self.calSTB}")
+            self.createDefaultSupTable(self.rdb,  self.calSTB)
+            self.createDefaultSubTables(self.rdb, self.calSTB)
+            self.appendCalDefaultSubTablesData(0, self.initRow)
+        elif self.calTableType == StreamTableType.TYPE_NORMAL_TABLE:
+            tdLog.info(f"create normal table for calculation:{self.calNTB}")
+            self.createDBDeafaultNormalTable(self.rdb, self.calNTB)
+            self.appendCalNormalTableData(0, self.initRow)
+        
+    def clean(self):
+        self.dropAllStreamsAndDbs() 
+        
+    def prepareData(self):
+        self.init_databases()
+        
+        self.prepareTriggerTable()
+        self.prepareCalTable()
+               
+    def triggerTable(self):
+        if self.streamTableType == StreamTableType.TYPE_SUP_TABLE or self.streamTableType == StreamTableType.TYPE_SUB_TABLE:
+            return f"{self.tdb}.{self.triggerSTB}"
+        elif self.streamTableType == StreamTableType.TYPE_NORMAL_TABLE:
+            return f"{self.tdb}.{self.triggerNTB}"
+        return ""
+    
+    def calTable(self):
+        if self.calTableType == StreamTableType.TYPE_SUP_TABLE or self.calTableType == StreamTableType.TYPE_SUB_TABLE:
+            return f"{self.rdb}.{self.calSTB}"
+        elif self.calTableType == StreamTableType.TYPE_NORMAL_TABLE:
+            return f"{self.rdb}.{self.calNTB}"
+        return ""
+        
     def createSnode(self, index=1):
         sql = f"create snode on dnode {index}"
         tdSql.execute(sql)
