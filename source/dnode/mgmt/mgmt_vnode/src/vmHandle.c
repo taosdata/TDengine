@@ -577,7 +577,7 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
 
 _exit:
   if (code != 0) {
-    dError("mount:%s, failed at line %d on dnode:%d since %s, path:%s", pReq->mountName, lino, pReq->dnodeId,
+    dError("mount:%s, failed to retrieve mount vnode at line %d on dnode:%d since %s, path:%s", pReq->mountName, lino, pReq->dnodeId,
            tstrerror(code), pReq->mountPath);
   }
   taosArrayDestroy(pVgCfgs);
@@ -598,19 +598,9 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t vmRetrieveMountPathImpl(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, SRetrieveMountPathReq *pReq,
-                                       SMountInfo *pMountInfo) {
+static int32_t vmRetrieveMountPreCheck(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pReq, SMountInfo *pMountInfo) {
   int32_t code = 0, lino = 0;
   char    path[TSDB_MOUNT_PATH_LEN + 16] = {0};
-
-  pMountInfo->dnodeId = pReq->dnodeId;
-  pMountInfo->mountUid = pReq->mountUid;
-  tsnprintf(pMountInfo->mountName, sizeof(pMountInfo->mountName), "%s", pReq->mountName);
-  tsnprintf(pMountInfo->mountPath, sizeof(pMountInfo->mountPath), "%s", pReq->mountPath);
-  pMountInfo->ignoreExist = pReq->ignoreExist;
-  pMountInfo->valLen = pReq->valLen;
-  pMountInfo->pVal = pReq->pVal;
-
   TSDB_CHECK_CONDITION(taosCheckAccessFile(pReq->mountPath, O_RDONLY), code, lino, _exit, TAOS_SYSTEM_ERROR(errno));
   snprintf(path, sizeof(path), "%s%s%s", pReq->mountPath, TD_DIRSEP, dmNodeName(DNODE));
   TSDB_CHECK_CONDITION(taosCheckAccessFile(path, O_RDONLY), code, lino, _exit, TAOS_SYSTEM_ERROR(errno));
@@ -618,13 +608,35 @@ static int32_t vmRetrieveMountPathImpl(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, SRetrie
   TSDB_CHECK_CONDITION(taosCheckAccessFile(path, O_RDONLY), code, lino, _exit, TAOS_SYSTEM_ERROR(errno));
   snprintf(path, sizeof(path), "%s%s%s", pReq->mountPath, TD_DIRSEP, dmNodeName(VNODE));
   TSDB_CHECK_CONDITION(taosCheckAccessFile(path, O_RDONLY), code, lino, _exit, TAOS_SYSTEM_ERROR(errno));
+  snprintf(path, sizeof(path), "%s%s%s%sconfig%slocal.json", pReq->mountPath, TD_DIRSEP, dmNodeName(DNODE), TD_DIRSEP,
+           TD_DIRSEP);
+  TSDB_CHECK_CONDITION(taosCheckAccessFile(path, O_RDONLY), code, lino, _exit, TAOS_SYSTEM_ERROR(errno));
   // TODO: check dnode/config/local.json, and multi-tier not supported currently.
+_exit:
+  if (code != 0) {
+    dError("mount:%s, failed to retrieve mount at line %d on dnode:%d since %s, path:%s", pReq->mountName, lino,
+           pReq->dnodeId, tstrerror(code), path);
+  }
+  TAOS_RETURN(code);
+}
+
+static int32_t vmRetrieveMountPathImpl(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, SRetrieveMountPathReq *pReq,
+                                       SMountInfo *pMountInfo) {
+  int32_t code = 0, lino = 0;
+  pMountInfo->dnodeId = pReq->dnodeId;
+  pMountInfo->mountUid = pReq->mountUid;
+  tsnprintf(pMountInfo->mountName, sizeof(pMountInfo->mountName), "%s", pReq->mountName);
+  tsnprintf(pMountInfo->mountPath, sizeof(pMountInfo->mountPath), "%s", pReq->mountPath);
+  pMountInfo->ignoreExist = pReq->ignoreExist;
+  pMountInfo->valLen = pReq->valLen;
+  pMountInfo->pVal = pReq->pVal;
+  TAOS_CHECK_EXIT(vmRetrieveMountPreCheck(pMgmt, pReq, pMountInfo));
   TAOS_CHECK_EXIT(vmRetrieveMountVnodes(pMgmt, pReq, pMountInfo));
   TAOS_CHECK_EXIT(vmRetrieveMountStbs(pMgmt, pReq, pMountInfo));
 _exit:
   if (code != 0) {
-    dError("mount:%s, failed at line %d on dnode:%d since %s, path:%s", pReq->mountName, lino, pReq->dnodeId,
-           tstrerror(code), pReq->mountPath);
+    dError("mount:%s, failed to retrieve mount at line %d on dnode:%d since %s, path:%s", pReq->mountName, lino,
+           pReq->dnodeId, tstrerror(code), pReq->mountPath);
   }
   TAOS_RETURN(code);
 }
@@ -650,14 +662,14 @@ _end:
 _exit:
   if (rspCode != 0) {
     // corner case: if occurs, the client will not receive the response, and the client should be killed manually
-    dError("mount:%s, failed at line %d since %s, dnode:%d, path:%s", req.mountName, lino, tstrerror(rspCode),
-           req.dnodeId, req.mountPath);
+    dError("mount:%s, failed to retrieve mount at line %d since %s, dnode:%d, path:%s", req.mountName, lino,
+           tstrerror(rspCode), req.dnodeId, req.mountPath);
     rpcFreeCont(pBuf);
     code = rspCode;
   } else if (code != 0) {
     // the client would receive the response with error msg
-    dError("mount:%s, failed to retrieve path %s on dnode:%d, reason:%s", req.mountName, req.mountPath, req.dnodeId,
-           tstrerror(code));
+    dError("mount:%s, failed to retrieve mount at line %d on dnode:%d since %s, path:%s", req.mountName, lino,
+           req.dnodeId, tstrerror(code), req.mountPath);
   }
   tFreeMountInfo(&mountInfo);
   TAOS_RETURN(code);
