@@ -213,21 +213,20 @@ static void updateFormattedFromRaw(SWriteMetricsEx *fmt, const SRawWriteMetrics 
   setMetricInt64(&fmt->total_requests, raw->total_requests);
   setMetricInt64(&fmt->total_rows, raw->total_rows);
   setMetricInt64(&fmt->total_bytes, raw->total_bytes);
-  // Convert time fields from microseconds to milliseconds
-  setMetricInt64(&fmt->fetch_batch_meta_time, raw->fetch_batch_meta_time / 1000);
+  setMetricInt64(&fmt->fetch_batch_meta_time, raw->fetch_batch_meta_time);
   setMetricInt64(&fmt->fetch_batch_meta_count, raw->fetch_batch_meta_count);
-  setMetricInt64(&fmt->preprocess_time, raw->preprocess_time / 1000);
+  setMetricInt64(&fmt->preprocess_time, raw->preprocess_time);
   setMetricInt64(&fmt->wal_write_bytes, raw->wal_write_bytes);
-  setMetricInt64(&fmt->wal_write_time, raw->wal_write_time / 1000);
+  setMetricInt64(&fmt->wal_write_time, raw->wal_write_time);
   setMetricInt64(&fmt->apply_bytes, raw->apply_bytes);
-  setMetricInt64(&fmt->apply_time, raw->apply_time / 1000);
+  setMetricInt64(&fmt->apply_time, raw->apply_time);
   setMetricInt64(&fmt->commit_count, raw->commit_count);
-  setMetricInt64(&fmt->commit_time, raw->commit_time / 1000);
-  setMetricInt64(&fmt->memtable_wait_time, raw->memtable_wait_time / 1000);
+  setMetricInt64(&fmt->commit_time, raw->commit_time);
+  setMetricInt64(&fmt->memtable_wait_time, raw->memtable_wait_time);
   setMetricInt64(&fmt->block_commit_count, raw->block_commit_count);
-  setMetricInt64(&fmt->blocked_commit_time, raw->blocked_commit_time / 1000);
+  setMetricInt64(&fmt->blocked_commit_time, raw->blocked_commit_time);
   setMetricInt64(&fmt->merge_count, raw->merge_count);
-  setMetricInt64(&fmt->merge_time, raw->merge_time / 1000);
+  setMetricInt64(&fmt->merge_time, raw->merge_time);
 }
 
 static void updateDnodeFormattedFromRaw(SDnodeMetricsEx *fmt, const SRawDnodeMetrics *raw) {

@@ -409,8 +409,6 @@ int32_t tsStreamVirtualMergeWaitMode = 0;            // 0 wait forever, 1 wait f
 
 int32_t taosCheckCfgStrValueLen(const char *name, const char *value, int32_t len);
 
-bool tsInsertPerfEnabled = false;
-
 #define TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, pName) \
   if ((pItem = cfgGetItem(pCfg, pName)) == NULL) {  \
     TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);           \
@@ -2782,7 +2780,6 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"arbSetAssignedTimeoutSec", &tsArbSetAssignedTimeoutSec},
                                          {"queryNoFetchTimeoutSec", &tsQueryNoFetchTimeoutSec},
                                          {"enableStrongPassword", &tsEnableStrongPassword},
-                                         {"insertPerfEnabled", &tsInsertPerfEnabled},
                                          {"enableMetrics", &tsEnableMetrics},
                                          {"metricsInterval", &tsMetricsInterval},
                                          {"metricsFlag", &tsMetricsFlag},
@@ -3041,8 +3038,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"bypassFlag", &tsBypassFlag},
                                          {"safetyCheckLevel", &tsSafetyCheckLevel},
                                          {"streamCoverage", &tsStreamCoverage},
-                                         {"compareAsStrInGreatest", &tsCompareAsStrInGreatest},
-                                         {"insertPerfEnabled", &tsInsertPerfEnabled}};
+                                         {"compareAsStrInGreatest", &tsCompareAsStrInGreatest}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);

@@ -161,7 +161,7 @@ void cleanExpiredWriteMetrics(SHashObj *pValidVgroups);
 
 // Metrics collection control macro with priority
 // Only collect metrics when monitoring is disabled or not properly configured
-// priority: 0 = high level (always collected), 1 = detailed level (only when tsMetricsFlag=1)
+// priority: 0 = detailed level (only when tsMetricsFlag=1), 1 = high level (always collected)
 #define METRICS_UPDATE(field, priority, value)                                                 \
   do {                                                                                         \
     if ((tsEnableMonitor && tsMonitorFqdn[0] != 0 && tsMonitorPort != 0 && tsEnableMetrics) && \
@@ -176,9 +176,9 @@ void cleanExpiredWriteMetrics(SHashObj *pValidVgroups);
   do {                                                                                         \
     if ((tsEnableMonitor && tsMonitorFqdn[0] != 0 && tsMonitorPort != 0 && tsEnableMetrics) && \
         ((priority) == METRIC_LEVEL_HIGH || tsMetricsFlag == 1)) {                             \
-      int64_t start_time = taosGetTimestampUs();                                               \
+      int64_t start_time = taosGetTimestampMs();                                               \
       code_block;                                                                              \
-      int64_t end_time = taosGetTimestampUs();                                                 \
+      int64_t end_time = taosGetTimestampMs();                                                 \
       atomic_add_fetch_64(&(field), end_time - start_time);                                    \
     } else {                                                                                   \
       code_block;                                                                              \
