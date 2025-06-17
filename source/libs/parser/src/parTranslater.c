@@ -4650,6 +4650,26 @@ static int32_t setSuperTableVgroupList(STranslateContext* pCxt, SName* pName, SR
   return code;
 }
 
+static int32_t setTrowsTableVgroupList(STranslateContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
+  SArray* vgroupList = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  PAR_ERR_JRET(getDBVgInfoImpl(pCxt, pName, &vgroupList));
+  pRealTable->pVgroupList = taosMemoryCalloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo));
+  if (NULL == pRealTable->pVgroupList) {
+    PAR_ERR_JRET(terrno);
+  }
+  pRealTable->pVgroupList->numOfVgroups = 1;
+  SVgroupInfo* vg = taosArrayGet(vgroupList, 0);
+  if (vg == NULL) {
+    PAR_ERR_JRET(terrno);
+  }
+  pRealTable->pVgroupList->vgroups[0] = *vg;
+
+_return:
+  taosArrayDestroy(vgroupList);
+  return code;
+}
+
 static int32_t setVSuperTableVgroupList(STranslateContext* pCxt, SName* pName, SVirtualTableNode* pVirtualTable) {
   SArray* vgroupList = NULL;
   int32_t code = getDBVgInfoImpl(pCxt, pName, &vgroupList);
@@ -4731,7 +4751,11 @@ static int32_t setTableVgroupList(STranslateContext* pCxt, SName* pName, SRealTa
   }
 
   if (TSDB_SUPER_TABLE == pRealTable->pMeta->tableType) {
-    return setSuperTableVgroupList(pCxt, pName, pRealTable);
+    if (pRealTable->placeholderType == SP_PARTITION_ROWS) {
+      return setTrowsTableVgroupList(pCxt, pName, pRealTable);
+    } else {
+      return setSuperTableVgroupList(pCxt, pName, pRealTable);
+    }
   }
 
   if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType) {
@@ -5889,9 +5913,6 @@ static int32_t translatePlaceHolderTable(STranslateContext* pCxt, SNode** pTable
     }
     case SP_PARTITION_ROWS: {
       BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS);
-      if (newPlaceHolderTable->pMeta->tableType == TSDB_SUPER_TABLE && hasTbnameFunction(pCxt->createStreamTriggerPartitionList)) {
-        newPlaceHolderTable->asChildTable = true;
-      }
       break;
     }
     default: {
@@ -5899,7 +5920,6 @@ static int32_t translatePlaceHolderTable(STranslateContext* pCxt, SNode** pTable
       break;
     }
   }
-
   nodesDestroyNode(*pTable);
   *pTable = (SNode*)newPlaceHolderTable;
 

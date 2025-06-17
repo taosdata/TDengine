@@ -2190,6 +2190,16 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
 
   QUERY_CHECK_CONDITION(pContext->calcStatus == STRIGGER_REQUEST_TO_RUN, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
+  pReq->gid = pContext->pCalcGroup->groupId;
+  pReq->createTable = true;  // todo(kjq): only create table at first time
+
+  bool needGroupColValue = pTask->needGroupColValue || (pReq->createTable && LIST_LENGTH(pTask->partitionCols) > 0);
+  if (taosArrayGetSize(pReq->groupColVals) == 0 && needGroupColValue) {
+    code = strtcSendPullReq(pContext, STRIGGER_PULL_GROUP_COL_VALUE, pContext->pCalcGroup);
+    QUERY_CHECK_CODE(code, lino, _end);
+    goto _end;
+  }
+
   if (pTask->needCacheData) {
     SSTriggerWalMetaMerger *pMerger = pContext->pMerger;
     SSTriggerRealtimeGroup *pGroup = pContext->pCalcGroup;
@@ -2273,16 +2283,6 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
     taosArrayPopFrontBatch(pGroup->pMetas, pGroup->metaIdx);
     pGroup->metaIdx = 0;
     stwmClear(pMerger);
-  }
-
-  pReq->gid = pContext->pCalcGroup->groupId;
-  pReq->createTable = true;  // todo(kjq): only create table at first time
-
-  bool needGroupColValue = pTask->needGroupColValue || (pReq->createTable && LIST_LENGTH(pTask->partitionCols) > 0);
-  if (taosArrayGetSize(pReq->groupColVals) == 0 && needGroupColValue) {
-    code = strtcSendPullReq(pContext, STRIGGER_PULL_GROUP_COL_VALUE, pContext->pCalcGroup);
-    QUERY_CHECK_CODE(code, lino, _end);
-    goto _end;
   }
 
   SStreamRunnerTarget *pRunner = NULL;
