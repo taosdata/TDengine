@@ -226,14 +226,11 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   syncMeta.term = pEntry->term;
 
   int32_t code = 0;
-  METRICS_TIMING_BLOCK(
-      pData->pSyncNode->wal_write_time,
-      {
-        code = walAppendLog(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen,
-                            &pEntry->originRpcTraceId);
-      },
-      METRIC_LEVEL_HIGH);
-  METRICS_UPDATE(pData->pSyncNode->wal_write_bytes, (int64_t)pEntry->bytes, METRIC_LEVEL_HIGH);
+  METRICS_TIMING_BLOCK(pData->pSyncNode->wal_write_time, METRIC_LEVEL_HIGH, {
+    code = walAppendLog(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen,
+                        &pEntry->originRpcTraceId);
+  });
+  METRICS_UPDATE(pData->pSyncNode->wal_write_bytes, METRIC_LEVEL_HIGH, (int64_t)pEntry->bytes);
 
   if (code != 0) {
     int32_t     err = terrno;

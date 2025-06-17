@@ -29,8 +29,8 @@ typedef enum { METRIC_TYPE_INT64 = 1, METRIC_TYPE_DOUBLE = 2, METRIC_TYPE_STRING
 
 // Metric collection level
 typedef enum {
-  METRIC_LEVEL_LOW = 1,  // Always collected
-  METRIC_LEVEL_HIGH = 2  // Disabled by default, can be enabled for debugging
+  METRIC_LEVEL_LOW = 0,  // Always collected
+  METRIC_LEVEL_HIGH = 1  // Disabled by default, can be enabled for debugging
 } EMetricLevel;
 
 // Metric definition structure
@@ -167,27 +167,27 @@ void cleanExpiredWriteMetrics(SHashObj *pValidVgroups);
 // Metrics collection control macro with priority
 // Only collect metrics when monitoring is disabled or not properly configured
 // priority: 0 = high level (always collected), 1 = detailed level (only when tsMetricsFlag=1)
-#define METRICS_UPDATE(field, priority, value)                                                   \
-  do {                                                                                           \
-    if ((!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0 || !tsEnableMetrics) && \
-        ((priority) == METRIC_LEVEL_HIGH || tsMetricsFlag == 1)) {                               \
-      atomic_add_fetch_64(&(field), (value));                                                    \
-    }                                                                                            \
+#define METRICS_UPDATE(field, priority, value)                                                 \
+  do {                                                                                         \
+    if ((tsEnableMonitor && tsMonitorFqdn[0] != 0 && tsMonitorPort != 0 && tsEnableMetrics) && \
+        ((priority) == METRIC_LEVEL_HIGH || tsMetricsFlag == 1)) {                             \
+      atomic_add_fetch_64(&(field), (value));                                                  \
+    }                                                                                          \
   } while (0)
 
 // Timing block macro with priority - wraps a code block with timing
 // priority: 0 = high level (always collected), 1 = detailed level (only when tsMetricsFlag=1)
-#define METRICS_TIMING_BLOCK(field, priority, code_block)                                        \
-  do {                                                                                           \
-    if ((!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0 || !tsEnableMetrics) && \
-        ((priority) == METRIC_LEVEL_HIGH || tsMetricsFlag == 1)) {                               \
-      int64_t start_time = taosGetTimestampUs();                                                 \
-      code_block;                                                                                \
-      int64_t end_time = taosGetTimestampUs();                                                   \
-      atomic_add_fetch_64(&(field), end_time - start_time);                                      \
-    } else {                                                                                     \
-      code_block;                                                                                \
-    }                                                                                            \
+#define METRICS_TIMING_BLOCK(field, priority, code_block)                                      \
+  do {                                                                                         \
+    if ((tsEnableMonitor && tsMonitorFqdn[0] != 0 && tsMonitorPort != 0 && tsEnableMetrics) && \
+        ((priority) == METRIC_LEVEL_HIGH || tsMetricsFlag == 1)) {                             \
+      int64_t start_time = taosGetTimestampUs();                                               \
+      code_block;                                                                              \
+      int64_t end_time = taosGetTimestampUs();                                                 \
+      atomic_add_fetch_64(&(field), end_time - start_time);                                    \
+    } else {                                                                                   \
+      code_block;                                                                              \
+    }                                                                                          \
   } while (0)
 
 #ifdef __cplusplus
