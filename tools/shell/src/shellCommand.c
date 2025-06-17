@@ -67,8 +67,13 @@ void shellGetPrevCharSize(const char *str, int32_t pos, int32_t *size, int32_t *
 
   while (--pos >= 0) {
     *size += 1;
-
-    if (str[pos] > 0 || shellCountPrefixOnes((uint8_t)str[pos]) > 1) break;
+    if ((str[pos] & 0x80) != 0) {
+      if (shellCountPrefixOnes((uint8_t)str[pos]) > 1) {
+        break;
+      }
+    } else {
+      break;
+    }
   }
 
   taosMbToWchar(&wc, str + pos, MB_CUR_MAX);
