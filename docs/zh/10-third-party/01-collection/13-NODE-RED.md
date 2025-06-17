@@ -32,6 +32,9 @@ node-red-node-tdengine 是涛思数据为 Node-RED 开发的官方插件，插�
 5. 点击右上角“部署”按钮 ，节点状态变为绿色，表示数据源配置正确且连接正常。
 
 
+## 验证方法
+参考下一节“使用示例” 方法，在 tdengine 节点前增加一个 inject 节点，配置 msg.topic 为预定写入 SQL，点击 inject 节点 "注入" 按钮触发执行 SQL, 再使用数据库管理工具 taos-CLI 查询刚才写入的数据来验证写入成功。
+
 ## 使用示例
 
 
@@ -212,7 +215,3 @@ create table test.d2 using test.meters tags(2, 'workshop2');
   5. 依次把以上节点按顺序连接起来，点击 “部署” 按钮发布修改内容。
 流程启动后如果有异常，会在 'debug4' 节点下看到所有流程发生错误的数量，当我们停止 TDengine 服务时，捕获到的错误数量会迅速增长，表明整个系统正在出现问题，可以通过 NODE-RED 日志系统排查问题。
 ![td-catch](img/td-catch.webp)
-
-### 总结
-示例通过 node-red-node-tdengine 插件构建了设备数据采集、数据查询及异常数据订阅流程，展示了 Node-RED 中如何使用 TDengine 插件全过程。
-另外我们在 node-red 软件中也提供了详细的在线帮助指引，方便在使用过程中随时查看。
