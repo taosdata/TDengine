@@ -344,7 +344,7 @@ static bool checkTsmaName(SAstCreateContext* pCxt, SToken* pTsmaToken) {
 }
 
 static bool checkMountPath(SAstCreateContext* pCxt, SToken* pMountPath) {
-  trimEscape(pMountPath);
+  trimEscape(pCxt, pMountPath);
   if (pMountPath->n >= TSDB_MOUNT_PATH_LEN || pMountPath->n == 0) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pMountPath->z);
     return false;
