@@ -834,6 +834,7 @@ int32_t mndSetForceDropCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SVgO
   action.msgType = TDMT_VND_CREATE_STB;
   action.acceptableCode = TSDB_CODE_TDB_STB_ALREADY_EXIST;
   action.retryCode = TSDB_CODE_TDB_STB_NOT_EXIST;
+  action.groupId = pVgroup->vgId;
   if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
     taosMemoryFree(pReq);
     TAOS_RETURN(code);

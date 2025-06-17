@@ -185,7 +185,7 @@ def before_test_class(request):
     request.cls.mnode_nums = request.session.mnodes_num
     request.cls.restful = request.session.restful
     if request.session.restful:
-        request.cls.taosadapter = request.session.taosadapter
+        request.cls.taosadapter = request.session.adapter
     request.cls.set_taoskeeper = request.session.set_taoskeeper
     if request.session.set_taoskeeper:
         request.cls.taoskeeper = request.session.taoskeeper

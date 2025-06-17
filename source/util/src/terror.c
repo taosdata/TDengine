@@ -467,6 +467,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_WRITE_DISABLED,           "Vnode write is disabl
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_COLUMN_COMPRESS_ALREADY_EXIST,"Same with old param")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_TTL_FLUSH_INCOMPLETION,   "Failed to flush all ttl modification to tdb")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_ALREADY_EXIST_BUT_NOT_MATCH,   "Vnode already exist but Dbid not match")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_VNODE_OFFLINE,            "Vnode is offline")
 
 
 // tsdb
@@ -585,6 +586,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_OBJECT_STROAGE_EXPIRED, "License expired for o
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DUAL_REPLICA_HA_EXPIRED,"License expired for dual-replica HA function")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DB_ENCRYPTION_EXPIRED,  "License expired for database encryption function")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_TD_GPT_EXPIRED,         "License expired for TDgpt function")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_VNODE_LIMITED,          "Number of vnodes has reached the licensed upper limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_ANODE_LIMITED,          "Number of anodes has reached the licensed upper limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_LACK_OF_TA_BASIC,       "Lack of TDasset basic functions in active code")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_MOUNTS_EXPIRED,         "License expired for mounts function")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_MOUNTS_LIMITED,         "Number of mounts has reached the licensed upper limit")
 

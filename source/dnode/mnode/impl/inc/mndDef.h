@@ -131,6 +131,7 @@ typedef enum {
 typedef enum {
   TRN_EXEC_PARALLEL = 0,
   TRN_EXEC_SERIAL = 1,
+  TRN_EXEC_GROUP_PARALLEL = 2,
 } ETrnExec;
 
 typedef enum {
@@ -209,6 +210,8 @@ typedef struct {
   TdThreadMutex mutex;
   bool          ableToBeKilled;
   ETrnKillMode  killMode;
+  SHashObj*     redoGroupActions;
+  SHashObj*     groupActionPos;
 } STrans;
 
 typedef struct {
@@ -399,7 +402,7 @@ typedef struct {
   int32_t       authVersion;
   int32_t       passVersion;
   int64_t       ipWhiteListVer;
-  SIpWhiteList* pIpWhiteList;
+  SIpWhiteListDual* pIpWhiteListDual;
 
   SHashObj* readDbs;
   SHashObj* writeDbs;

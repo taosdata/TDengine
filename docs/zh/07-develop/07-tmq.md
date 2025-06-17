@@ -50,7 +50,7 @@ TDengine 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接�
 #### group.id
 - 说明：消费组 ID，同一消费组共享消费进度
 - 类型：string
-- 备注：**必填项**。最大长度：192，超长将截断。<br />每个 topic 最多可建立 100 个 consumer group
+- 备注：**必填项**。最大长度：192，超长将截断，不可包含英文冒号':'。<br />每个 topic 最多可建立 100 个 consumer group
 
 #### client.id
 - 说明：客户端 ID

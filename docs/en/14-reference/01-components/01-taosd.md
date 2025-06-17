@@ -225,13 +225,15 @@ The effective value of charset is UTF-8.
 |compactPullupInterval     |          |Supported, effective immediately  |Internal parameter, frequency of data reorganization timer|
 |walFsyncDataSizeLimit     |          |Supported, effective immediately  |Internal parameter, threshold for WAL to perform FSYNC|
 |transPullupInterval       |          |Supported, effective immediately  |Internal parameter, retry interval for mnode to execute transactions|
+|forceKillTrans            |3.3.7.0   |Supported, effective immediately  |Internal parameter, for debugging mnode module to execute transactions|
 |mqRebalanceInterval       |          |Supported, effective immediately  |Internal parameter, interval for consumer rebalancing|
 |uptimeInterval            |          |Supported, effective immediately  |Internal parameter, for recording system uptime|
 |timeseriesThreshold       |          |Supported, effective immediately  |Internal parameter, for usage statistics|
 |udf                       |          |Supported, effective after restart|Whether to start UDF service; 0: do not start, 1: start; default value 0 |
 |udfdResFuncs              |          |Supported, effective after restart|Internal parameter, for setting UDF result sets|
 |udfdLdLibPath             |          |Supported, effective after restart|Internal parameter, indicates the library path for loading UDF|
-|enableStrongPassword      | After 3.3.6.0 |Supported, effective after restart|The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? \| ~ , .`; 0: disable, 1: enable; default value 1 |
+|enableStrongPassword      | 3.3.6.0  |Supported, effective after restart|The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? \| ~ , .`; 0: disable, 1: enable; default value 1 |
+|enableIpv6                | 3.3.7.0  |not Supported                     |force nodes to communicate directly via IPv6 only, default value is 0, notes: 1. `firstep`, `sencodep`, and `FQDN` must all resolve to IPv6 addresses. 2. Mixed IPv4/IPv6 deployment is not supported|
 
 ### Stream Computing Parameters
 

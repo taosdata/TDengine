@@ -2,14 +2,15 @@ debug
 build
 release
 .externals
+.internals
 *.swp
 compile_commands.json
 .cache
+sim
 *.pyc
 
 # TODO: rules need to be removed later
 source/util/src/version.c
-
 # these rules exist because those files would be generated when building
 # by some old versions of TDengine
 

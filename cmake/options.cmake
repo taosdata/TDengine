@@ -11,6 +11,44 @@ option(
 # TODO: tackle 'undefined pthread_atfork referenced by libuv.a' issue found on CentOS7.9/ubuntu 18
 option(TD_PTHREAD_TWEAK "tweaking pthread experimentally, especially for CentOS7.9 or ubuntu 18" OFF)
 
+# NOTE: these are not boolean options, but are very much useful
+# TAOSADAPTER_BUILD_OPTIONS
+if(NOT DEFINED TAOSADAPTER_BUILD_OPTIONS)
+  set(TAOSADAPTER_BUILD_OPTIONS "" CACHE STRING "go build options to be used by taosadapter, separated by ':'" FORCE)
+endif()
+
+# TAOSADAPTER_GIT_TAG
+# <tag/branch/commit-sha1>:[TRUE|FALSE]
+# eg.: main
+# stands for:
+#      GIT_TAG main
+#      GIT_SHALLOW TRUE
+# eg.: ver-3.3.6.0
+# stands for:
+#      GIT_TAG ver-3.3.6.0
+#      GIT_SHALLOW TRUE
+# eg.: ba3e38da6cba08a555bd67369b1829cde3dd0348:FALSE
+# stands for:
+#      GIT_TAG ba3e38da6cba08a555bd67369b1829cde3dd0348
+#      GIT_SHALLOW FALSE
+# NOTE: if you specify branch other than main, please change this to FALSE
+#       otherwise you might encounter the error like:
+#       error: pathspec 'xxx' did not match any file(s) known to git
+if(NOT DEFINED TAOSADAPTER_GIT_TAG)
+  set(TAOSADAPTER_GIT_TAG "main" CACHE STRING "which tag/branch/commit-sha1 to checkout for taosadapter.git" FORCE)
+endif()
+
+# preprocess TAOSADAPTER_GIT_TAG
+string(REPLACE ":" ";" _kv "${TAOSADAPTER_GIT_TAG}:TRUE") # NOTE: set GIT_SHALLOW to TRUE by default
+list(GET _kv 0 _k)
+list(GET _kv 1 _v)
+set(TAOSADAPTER_GIT_TAG_NAME    "${_k}" CACHE STRING "" FORCE)
+if(${_v})
+  set(TAOSADAPTER_GIT_TAG_SHALLOW TRUE CACHE BOOL "" FORCE)
+else()
+  set(TAOSADAPTER_GIT_TAG_SHALLOW FALSE CACHE BOOL "" FORCE)
+endif()
+
 IF(${TD_WINDOWS})
     IF(NOT TD_ASTRA)
         MESSAGE("build pthread Win32")
