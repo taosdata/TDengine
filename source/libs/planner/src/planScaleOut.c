@@ -144,7 +144,7 @@ static int32_t scaleOutForModify(SScaleOutContext* pCxt, SLogicSubplan* pSubplan
 }
 
 static int32_t scaleOutForScan(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pGroup) {
-  if (pSubplan->pVgroupList && !pCxt->pPlanCxt->streamTriggerQuery) {
+  if (pSubplan->pVgroupList) {
     return scaleOutByVgroups(pCxt, pSubplan, level, pGroup);
   } else {
     return scaleOutForMerge(pCxt, pSubplan, level, pGroup);

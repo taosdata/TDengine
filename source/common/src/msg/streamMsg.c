@@ -1978,13 +1978,13 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
   int32_t outTagSize = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &outTagSize));
   if (outTagSize > 0) {
-    pReq->outTags = taosArrayInit(outTagSize, sizeof(SField));
+    pReq->outTags = taosArrayInit(outTagSize, sizeof(SFieldWithOptions));
     if (pReq->outTags == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
 
     for (int32_t i = 0; i < outTagSize; ++i) {
-      SField field = {0};
+      SFieldWithOptions field = {0};
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &field.type));
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &field.flags));
       TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &field.bytes));
