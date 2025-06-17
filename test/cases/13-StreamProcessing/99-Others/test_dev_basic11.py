@@ -84,11 +84,13 @@ class TestStreamDevBasic:
         st1.appendSubTables(200, 240)
         st1.append_data(0, 40)
                  
-        sql = f"create stream s7 state_window (cint) from test.trigger partition by tbname options(fill_history_first(1)) into st7  as select _twstart, avg(cint), count(cint) from test.st;"
+        sql = f"create stream s7 state_window (cint) from test.trigger options(fill_history_first(1)) into st7  as select _twstart, avg(cint), count(cint) from test.st where cts <= _twstart;"
         
         tdSql.execute(sql)
         
         tdSql.query("select * from st7;", queryTimes=10)
         tdSql.printResult()
+        
+        #time.sleep(1000)
 
         tdLog.info("======over")

@@ -128,7 +128,7 @@ class StreamTable:
         if self.tableType == StreamTableType.TYPE_SUP_TABLE or self.tableType == StreamTableType.TYPE_SUB_TABLE:
             tdLog.info(f"create super table {self.db}.{self.tbName}")
             self.__createSupTable()
-            self.__createSubTables(0, 200)
+            self.__createSubTables(0, subTableCount)
         elif self.tableType == StreamTableType.TYPE_NORMAL_TABLE:
             tdLog.info(f"create normal table {self.db}.{self.tbName}")
             self.__createNormalTable()
