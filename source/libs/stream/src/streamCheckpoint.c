@@ -16,7 +16,7 @@
 #include "rsync.h"
 #include "streamBackendRocksdb.h"
 #include "streamInt.h"
-#include "tcs.h"
+// #include "tcs.h"
 
 static int32_t downloadCheckpointDataByName(const char* id, const char* fname, const char* dstName);
 static int32_t streamTaskUploadCheckpoint(const char* id, const char* path, int64_t checkpointId);
@@ -879,12 +879,12 @@ int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t d
     stError("s-task:%s failed to gen upload checkpoint:%" PRId64 ", reason:%s", idStr, checkpointId, tstrerror(code));
   }
 
-  if (type == DATA_UPLOAD_S3) {
-    if (code == TSDB_CODE_SUCCESS && (code = getCheckpointDataMeta(idStr, *chkptDir, toDelFiles)) != 0) {
-      stError("s-task:%s failed to get checkpointData for checkpointId:%" PRId64 ", reason:%s", idStr, checkpointId,
-              tstrerror(code));
-    }
-  }
+  // if (type == DATA_UPLOAD_S3) {
+  //   if (code == TSDB_CODE_SUCCESS && (code = getCheckpointDataMeta(idStr, *chkptDir, toDelFiles)) != 0) {
+  //     stError("s-task:%s failed to get checkpointData for checkpointId:%" PRId64 ", reason:%s", idStr, checkpointId,
+  //             tstrerror(code));
+  //   }
+  // }
 
   if (code == TSDB_CODE_SUCCESS) {
     code = streamTaskUploadCheckpoint(idStr, *chkptDir, checkpointId);
@@ -896,21 +896,21 @@ int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t d
     }
   }
 
-  int32_t num = taosArrayGetSize(toDelFiles);
-  if (code == TSDB_CODE_SUCCESS && num > 0) {
-    stDebug("s-task:%s remove redundant %d files", idStr, num);
+  // int32_t num = taosArrayGetSize(toDelFiles);
+  // if (code == TSDB_CODE_SUCCESS && num > 0) {
+  //   stDebug("s-task:%s remove redundant %d files", idStr, num);
 
-    for (int i = 0; i < num; i++) {
-      char* pName = taosArrayGetP(toDelFiles, i);
-      code = deleteCheckpointRemoteBackup(idStr, pName);
-      if (code != 0) {
-        stDebug("s-task:%s failed to remove file: %s", idStr, pName);
-        break;
-      }
-    }
+  //   for (int i = 0; i < num; i++) {
+  //     char* pName = taosArrayGetP(toDelFiles, i);
+  //     code = deleteCheckpointRemoteBackup(idStr, pName);
+  //     if (code != 0) {
+  //       stDebug("s-task:%s failed to remove file: %s", idStr, pName);
+  //       break;
+  //     }
+  //   }
 
-    stDebug("s-task:%s remove redundant files in uploading checkpointId:%" PRId64 " data", idStr, checkpointId);
-  }
+    // stDebug("s-task:%s remove redundant files in uploading checkpointId:%" PRId64 " data", idStr, checkpointId);
+  // }
 
   taosArrayDestroyP(toDelFiles, NULL);
   double el = (taosGetTimestampMs() - now) / 1000.0;
@@ -1498,90 +1498,90 @@ void streamTaskSetTriggerDispatchConfirmed(SStreamTask* pTask, int32_t vgId) {
   }
 }
 
-int32_t uploadCheckpointToS3(const char* id, const char* path) {
-  int32_t code = 0;
-  int32_t nBytes = 0;
-  /*
-  if (s3Init() != 0) {
-    return TSDB_CODE_THIRDPARTY_ERROR;
-  }
-  */
-  TdDirPtr pDir = taosOpenDir(path);
-  if (pDir == NULL) {
-    return terrno;
-  }
+// int32_t uploadCheckpointToS3(const char* id, const char* path) {
+//   int32_t code = 0;
+//   int32_t nBytes = 0;
+//   /*
+//   if (s3Init() != 0) {
+//     return TSDB_CODE_THIRDPARTY_ERROR;
+//   }
+//   */
+//   TdDirPtr pDir = taosOpenDir(path);
+//   if (pDir == NULL) {
+//     return terrno;
+//   }
 
-  TdDirEntryPtr de = NULL;
-  while ((de = taosReadDir(pDir)) != NULL) {
-    char* name = taosGetDirEntryName(de);
-    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0 || taosDirEntryIsDir(de)) continue;
+//   TdDirEntryPtr de = NULL;
+//   while ((de = taosReadDir(pDir)) != NULL) {
+//     char* name = taosGetDirEntryName(de);
+//     if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0 || taosDirEntryIsDir(de)) continue;
 
-    char filename[PATH_MAX] = {0};
-    if (path[strlen(path) - 1] == TD_DIRSEP_CHAR) {
-      nBytes = snprintf(filename, sizeof(filename), "%s%s", path, name);
-      if (nBytes <= 0 || nBytes >= sizeof(filename)) {
-        code = TSDB_CODE_OUT_OF_RANGE;
-        break;
-      }
-    } else {
-      nBytes = snprintf(filename, sizeof(filename), "%s%s%s", path, TD_DIRSEP, name);
-      if (nBytes <= 0 || nBytes >= sizeof(filename)) {
-        code = TSDB_CODE_OUT_OF_RANGE;
-        break;
-      }
-    }
+//     char filename[PATH_MAX] = {0};
+//     if (path[strlen(path) - 1] == TD_DIRSEP_CHAR) {
+//       nBytes = snprintf(filename, sizeof(filename), "%s%s", path, name);
+//       if (nBytes <= 0 || nBytes >= sizeof(filename)) {
+//         code = TSDB_CODE_OUT_OF_RANGE;
+//         break;
+//       }
+//     } else {
+//       nBytes = snprintf(filename, sizeof(filename), "%s%s%s", path, TD_DIRSEP, name);
+//       if (nBytes <= 0 || nBytes >= sizeof(filename)) {
+//         code = TSDB_CODE_OUT_OF_RANGE;
+//         break;
+//       }
+//     }
 
-    char object[PATH_MAX] = {0};
-    nBytes = snprintf(object, sizeof(object), "%s%s%s", id, TD_DIRSEP, name);
-    if (nBytes <= 0 || nBytes >= sizeof(object)) {
-      code = TSDB_CODE_OUT_OF_RANGE;
-      break;
-    }
+//     char object[PATH_MAX] = {0};
+//     nBytes = snprintf(object, sizeof(object), "%s%s%s", id, TD_DIRSEP, name);
+//     if (nBytes <= 0 || nBytes >= sizeof(object)) {
+//       code = TSDB_CODE_OUT_OF_RANGE;
+//       break;
+//     }
 
-    code = tcsPutObjectFromFile2(filename, object, 0);
-    if (code != 0) {
-      stError("[tcs] failed to upload checkpoint:%s, reason:%s", filename, tstrerror(code));
-    } else {
-      stDebug("[tcs] upload checkpoint:%s", filename);
-    }
-  }
+//     code = tcsPutObjectFromFile2(filename, object, 0);
+//     if (code != 0) {
+//       stError("[tcs] failed to upload checkpoint:%s, reason:%s", filename, tstrerror(code));
+//     } else {
+//       stDebug("[tcs] upload checkpoint:%s", filename);
+//     }
+//   }
 
-  int32_t ret = taosCloseDir(&pDir);
-  if (code == 0 && ret != 0) {
-    code = ret;
-  }
+//   int32_t ret = taosCloseDir(&pDir);
+//   if (code == 0 && ret != 0) {
+//     code = ret;
+//   }
 
-  return code;
-}
+//   return code;
+// }
 
-int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName) {
-  int32_t nBytes;
-  int32_t cap = strlen(id) + strlen(dstName) + 16;
+// int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName) {
+//   int32_t nBytes;
+//   int32_t cap = strlen(id) + strlen(dstName) + 16;
 
-  char* buf = taosMemoryCalloc(1, cap);
-  if (buf == NULL) {
-    return terrno;
-  }
+//   char* buf = taosMemoryCalloc(1, cap);
+//   if (buf == NULL) {
+//     return terrno;
+//   }
 
-  nBytes = snprintf(buf, cap, "%s/%s", id, fname);
-  if (nBytes <= 0 || nBytes >= cap) {
-    taosMemoryFree(buf);
-    return TSDB_CODE_OUT_OF_RANGE;
-  }
-  int32_t code = tcsGetObjectToFile(buf, dstName);
-  if (code != 0) {
-    taosMemoryFree(buf);
-    return TAOS_SYSTEM_ERROR(ERRNO);
-  }
-  taosMemoryFree(buf);
-  return 0;
-}
+//   nBytes = snprintf(buf, cap, "%s/%s", id, fname);
+//   if (nBytes <= 0 || nBytes >= cap) {
+//     taosMemoryFree(buf);
+//     return TSDB_CODE_OUT_OF_RANGE;
+//   }
+//   int32_t code = tcsGetObjectToFile(buf, dstName);
+//   if (code != 0) {
+//     taosMemoryFree(buf);
+//     return TAOS_SYSTEM_ERROR(ERRNO);
+//   }
+//   taosMemoryFree(buf);
+//   return 0;
+// }
 
 ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType() {
   if (strlen(tsSnodeAddress) != 0) {
     return DATA_UPLOAD_RSYNC;
-  } else if (tsS3StreamEnabled) {
-    return DATA_UPLOAD_S3;
+  // } else if (tsS3StreamEnabled) {
+  //   return DATA_UPLOAD_S3;
   } else {
     return DATA_UPLOAD_DISABLE;
   }
@@ -1599,8 +1599,8 @@ int32_t streamTaskUploadCheckpoint(const char* id, const char* path, int64_t che
     if (code != 0) {
       return TAOS_SYSTEM_ERROR(ERRNO);
     }
-  } else if (tsS3StreamEnabled) {
-    return uploadCheckpointToS3(id, path);
+  // } else if (tsS3StreamEnabled) {
+  //   return uploadCheckpointToS3(id, path);
   }
 
   return 0;
@@ -1615,8 +1615,8 @@ int32_t downloadCheckpointDataByName(const char* id, const char* fname, const ch
 
   if (strlen(tsSnodeAddress) != 0) {
     return 0;
-  } else if (tsS3StreamEnabled) {
-    return downloadCheckpointByNameS3(id, fname, dstName);
+  // } else if (tsS3StreamEnabled) {
+  //   return downloadCheckpointByNameS3(id, fname, dstName);
   }
 
   return 0;
@@ -1630,8 +1630,8 @@ int32_t streamTaskDownloadCheckpointData(const char* id, char* path, int64_t che
 
   if (strlen(tsSnodeAddress) != 0) {
     return downloadByRsync(id, path, checkpointId);
-  } else if (tsS3StreamEnabled) {
-    return tcsGetObjectsByPrefix(id, path);
+  // } else if (tsS3StreamEnabled) {
+  //   return tcsGetObjectsByPrefix(id, path);
   }
 
   return 0;
@@ -1645,27 +1645,27 @@ int32_t deleteRemoteCheckpointBackup(const char* pTaskId, int64_t checkpointId) 
 
   if (strlen(tsSnodeAddress) != 0) {
     return deleteRsync(pTaskId, checkpointId);
-  } else if (tsS3StreamEnabled) {
-    tcsDeleteObjectsByPrefix(pTaskId);
+  // } else if (tsS3StreamEnabled) {
+  //   tcsDeleteObjectsByPrefix(pTaskId);
   }
   return 0;
 }
 
-int32_t deleteCheckpointRemoteBackup(const char* id, const char* name) {
-  char object[128] = {0};
+// int32_t deleteCheckpointRemoteBackup(const char* id, const char* name) {
+//   char object[128] = {0};
 
-  int32_t nBytes = snprintf(object, sizeof(object), "%s/%s", id, name);
-  if (nBytes <= 0 || nBytes >= sizeof(object)) {
-    return TSDB_CODE_OUT_OF_RANGE;
-  }
+//   int32_t nBytes = snprintf(object, sizeof(object), "%s/%s", id, name);
+//   if (nBytes <= 0 || nBytes >= sizeof(object)) {
+//     return TSDB_CODE_OUT_OF_RANGE;
+//   }
 
-  char*   tmp = object;
-  int32_t code = tcsDeleteObjects((const char**)&tmp, 1);
-  if (code != 0) {
-    return TSDB_CODE_THIRDPARTY_ERROR;
-  }
-  return code;
-}
+//   char*   tmp = object;
+//   int32_t code = tcsDeleteObjects((const char**)&tmp, 1);
+//   if (code != 0) {
+//     return TSDB_CODE_THIRDPARTY_ERROR;
+//   }
+//   return code;
+// }
 
 int32_t streamTaskSendNegotiateChkptIdMsg(SStreamTask* pTask) {
   streamMutexLock(&pTask->lock);
