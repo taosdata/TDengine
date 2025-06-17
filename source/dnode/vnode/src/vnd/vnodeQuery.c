@@ -913,7 +913,7 @@ _return:
   return code;
 }
 
-static int32_t vnodeGetVgCompStorage(SVnode *pVnode, int64_t *output) {
+static int32_t vnodeGetCompStorage(SVnode *pVnode, int64_t *output) {
   int32_t code = 0;
 #ifdef TD_ENTERPRISE
   int32_t now = taosGetTimestampSec();
@@ -927,9 +927,11 @@ static int32_t vnodeGetVgCompStorage(SVnode *pVnode, int64_t *output) {
       if (compSize >= 0) {
         pVnode->config.vndStats.compStorage = compSize;
       } else {
-        vError("vnodeGet compStorage failed, compSize is negative:%" PRIi64, compSize);
+        vError("vnode get comp storage failed since compSize is negative:%" PRIi64, compSize);
         code = TSDB_CODE_APP_ERROR;
       }
+    } else {
+      vWarn("vnode get comp storage failed since %s", tstrerror(code));
     }
   }
   if (output) *output = pVnode->config.vndStats.compStorage;
@@ -955,7 +957,7 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   VNODE_DO_META_QUERY(pVnode, pLoad->numOfTables = metaGetTbNum(pVnode->pMeta));
   VNODE_DO_META_QUERY(pVnode, pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta, 1));
   pLoad->totalStorage = (int64_t)3 * 1073741824;  // TODO
-  vnodeGetVgCompStorage(pVnode, &pLoad->compStorage);
+  vnodeGetCompStorage(pVnode, &pLoad->compStorage);
   pLoad->pointsWritten = 100;
   pLoad->numOfSelectReqs = 1;
   pLoad->numOfInsertReqs = atomic_load_64(&pVnode->statis.nInsert);
