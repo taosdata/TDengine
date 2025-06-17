@@ -1,5 +1,6 @@
 use std::sync::atomic::Ordering::SeqCst;
 
+use super::controller::TaskController;
 use super::scheduler::runner::MultiIndexTaskJobMap;
 use super::AgentFilter;
 use super::TaskControllerRef;
@@ -138,7 +139,7 @@ impl Monitor {
         let monitor_enabled = self.cfg.fqdn.is_some();
         tokio::spawn(
             async move {
-                init_agents(controller.clone()).await.unwrap();
+                init_agents(&controller).await.unwrap();
                 use sysinfo::*;
                 tracing::info!("start update process metrics task");
                 let duration = Duration::from_secs(monitor_interval);
@@ -159,7 +160,7 @@ impl Monitor {
                         &mut sys,
                         taosx_id,
                         process_id,
-                        controller.clone(),
+                        &controller,
                         monitor_interval,
                         monitor_enabled,
                     )
@@ -186,8 +187,8 @@ impl Monitor {
                         let snapshot: taosx_metrics::Snapshot = recorder_handle.snapshot();
                         let records = snapshot2records(snapshot);
                         let mut tables = records2tables(records);
-                        add_extra_tags_to_tables(controller.clone(), &mut tables).await;
-                        add_task_metrics_tables(tasks.clone(), &mut tables, taosx_id).await;
+                        add_extra_tags_to_tables(&controller, &mut tables).await;
+                        add_task_metrics_tables(&tasks, &mut tables, taosx_id).await;
                         let stables = grouptables2stable(tables);
                         if stables.is_empty() {
                             continue;
@@ -212,7 +213,7 @@ impl Monitor {
     }
 }
 
-async fn init_agents(controller: TaskControllerRef) -> anyhow::Result<()> {
+async fn init_agents(controller: &TaskController) -> anyhow::Result<()> {
     let agents = controller.get_agents(AgentFilter::default()).await?;
     let mut agent_name_map = AGENT_NAME_MAP.write().await;
     for agent in agents {
@@ -221,7 +222,7 @@ async fn init_agents(controller: TaskControllerRef) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn get_agent_name_by_id(controller: TaskControllerRef, agent_id: &str) -> Option<String> {
+async fn get_agent_name_by_id(controller: &TaskController, agent_id: &str) -> Option<String> {
     let agent_name_map = AGENT_NAME_MAP.read().await;
     if let Some(agent_name) = agent_name_map.get(agent_id) {
         return Some(agent_name.clone());
@@ -238,7 +239,7 @@ async fn get_agent_name_by_id(controller: TaskControllerRef, agent_id: &str) -> 
 }
 
 /// 为 table 添加额外的 tag, 这些 tag 不是 metrics 自带的（即从 metrics 的 label 来的）,而是为了其它目的额外加的。
-async fn add_extra_tags_to_tables(controller: TaskControllerRef, tables: &mut [Table]) {
+async fn add_extra_tags_to_tables(controller: &TaskController, tables: &mut [Table]) {
     // 为 taosx_agent 表添加 agent_name 标签
     for table in tables.iter_mut() {
         if table.table_key.stable == "taosx_agent" {
@@ -249,7 +250,7 @@ async fn add_extra_tags_to_tables(controller: TaskControllerRef, tables: &mut [T
                 .find(|tag| tag.name == "agent_id")
                 .map(|tag| tag.value.clone());
             if let Some(agent_id) = agent_id {
-                let agent_name = get_agent_name_by_id(controller.clone(), &agent_id).await;
+                let agent_name = get_agent_name_by_id(controller, &agent_id).await;
                 if let Some(agent_name) = agent_name {
                     table.table_key.tags.push(Tag {
                         name: "agent_name".to_string(),
@@ -265,7 +266,7 @@ async fn add_extra_tags_to_tables(controller: TaskControllerRef, tables: &mut [T
 
 /// 遍历 scheduler 中的所有 task, 将 task 的 metric 转换成 Table, 并加入 tables 中
 async fn add_task_metrics_tables(
-    tasks: Arc<RwLock<MultiIndexTaskJobMap>>,
+    tasks: &Arc<RwLock<MultiIndexTaskJobMap>>,
     tables: &mut Vec<Table>,
     taosx_id: &str,
 ) {
@@ -346,7 +347,7 @@ pub async fn process_metrics(
     sys: &mut sysinfo::System,
     taosx_id: &'static str,
     process_id: sysinfo::Pid,
-    controller: TaskControllerRef,
+    controller: &TaskController,
     monitor_interval: u64,
     monitor_enabled: bool,
 ) -> anyhow::Result<()> {
@@ -620,6 +621,8 @@ impl IntoMetrics for CommonMetrics {
                 self.total_written_points.load(SeqCst)
             ),
             value2metric!("total_execute_time", self.total_execute_time.load(SeqCst)),
+            value2metric!("received_messages", self.processed_messages.load(SeqCst)),
+            value2metric!("processed_messages", self.processed_messages.load(SeqCst)),
         ]
     }
 }
@@ -679,6 +682,14 @@ impl IntoMetrics for TmqMetrics {
     fn gen_metrics(&self) -> Vec<Metric> {
         let mut vec = self.com.gen_metrics();
         vec.push(value2metric!(
+            "total_messages",
+            self.total_messages.load(SeqCst)
+        ));
+        vec.push(value2metric!(
+            "total_messages_bytes",
+            self.total_messages_bytes.load(SeqCst)
+        ));
+        vec.push(value2metric!(
             "total_messages_of_meta",
             self.total_messages_of_meta.load(SeqCst)
         ));
@@ -696,6 +707,10 @@ impl IntoMetrics for TmqMetrics {
         ));
         vec.push(value2metric!("messages", self.messages.load(SeqCst)));
         vec.push(value2metric!(
+            "messages_bytes",
+            self.messages_bytes.load(SeqCst)
+        ));
+        vec.push(value2metric!(
             "messages_of_meta",
             self.messages_of_meta.load(SeqCst)
         ));
@@ -711,6 +726,8 @@ impl IntoMetrics for TmqMetrics {
             "success_blocks",
             self.success_blocks.load(SeqCst)
         ));
+        vec.push(value2metric!("commits", self.commits.load(SeqCst)));
+        vec.push(value2metric!("consumers", self.consumers.load(SeqCst)));
 
         vec
     }

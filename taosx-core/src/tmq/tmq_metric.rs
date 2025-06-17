@@ -23,6 +23,8 @@ pub struct TmqMetrics {
     #[serde(default)]
     pub total_messages: AtomicU64,
     #[serde(default)]
+    pub total_messages_bytes: AtomicU64,
+    #[serde(default)]
     pub total_messages_of_meta: AtomicU64,
     #[serde(default)]
     pub total_messages_of_data: AtomicU64,
@@ -34,6 +36,8 @@ pub struct TmqMetrics {
     pub total_success_messages: AtomicU64,
     #[serde(default)]
     pub messages: AtomicU64,
+    #[serde(default)]
+    pub messages_bytes: AtomicU64,
     #[serde(default)]
     pub messages_of_meta: AtomicU64,
     #[serde(default)]
@@ -83,12 +87,14 @@ impl Default for TmqMetrics {
             topics: AtomicU16::new(0),
             consumers: AtomicU16::new(0),
             total_messages: AtomicU64::new(0),
+            total_messages_bytes: AtomicU64::new(0),
             total_messages_of_meta: AtomicU64::new(0),
             total_messages_of_data: AtomicU64::new(0),
             total_write_raw_fails: AtomicU64::new(0),
             total_success_blocks: AtomicU64::new(0),
             total_success_messages: AtomicU64::new(0),
             messages: AtomicU64::new(0),
+            messages_bytes: AtomicU64::new(0),
             messages_of_meta: AtomicU64::new(0),
             messages_of_data: AtomicU64::new(0),
             success_messages: AtomicU64::new(0),
@@ -126,6 +132,12 @@ impl TmqMetrics {
     pub fn add_messages(&self, n: u64) {
         self.total_messages.fetch_add(n, SeqCst);
         self.messages.fetch_add(n, SeqCst);
+    }
+
+    #[inline]
+    pub fn add_message_bytes(&self, bytes: u64) {
+        self.total_messages_bytes.fetch_add(bytes, SeqCst);
+        self.messages_bytes.fetch_add(bytes, SeqCst);
     }
 
     #[inline]
@@ -235,6 +247,7 @@ impl TaskMetrics for TmqMetrics {
         self.topics.store(0, SeqCst);
         self.consumers.store(0, SeqCst);
         self.messages.store(0, SeqCst);
+        self.messages_bytes.store(0, SeqCst);
         self.messages_of_meta.store(0, SeqCst);
         self.messages_of_data.store(0, SeqCst);
         self.success_messages.store(0, SeqCst);

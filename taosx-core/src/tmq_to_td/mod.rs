@@ -132,6 +132,7 @@ async fn write_data(
             .as_raw_data()
             .await
             .context("Data source raw data error")?;
+        metrics.add_message_bytes(raw.raw_len() as _);
         if let Err(err) = taos.write_raw_meta(&raw).await {
             let code = *err.code().deref();
             match code {
@@ -312,7 +313,9 @@ async fn write_data(
     if !has_blocks {
         if actions.is_empty() {
             if target_is_v3 {
-                if let Err(err) = taos.write_raw_meta(&data.as_raw_data().await?).await {
+                let raw = data.as_raw_data().await?;
+                metrics.add_message_bytes(raw.raw_len() as _);
+                if let Err(err) = taos.write_raw_meta(&raw).await {
                     let errstr = err.to_string();
                     if errstr.contains("[0x032C]")
                         || errstr.contains("[0x0115]")
@@ -368,6 +371,7 @@ async fn write_meta(
             if actions.is_empty() {
                 if target_is_v3 {
                     let raw_meta = meta.as_raw_meta().await?;
+                    metrics.add_message_bytes(raw_meta.raw_len() as _);
                     taos.write_raw_meta(&raw_meta)
                         .await
                         .context("Write raw meta without fallback error")?;
@@ -438,6 +442,7 @@ async fn write_meta(
     if actions.is_empty() || meta_changed {
         if target_is_v3 {
             let raw_meta = meta.as_raw_meta().await?;
+            metrics.add_message_bytes(raw_meta.raw_len() as _);
             if let Err(err) = taos.write_raw_meta(&raw_meta).await {
                 metrics.add_write_raw_fails(1);
                 // Print error no matter how we will deal with it, so that we can know what happened.
