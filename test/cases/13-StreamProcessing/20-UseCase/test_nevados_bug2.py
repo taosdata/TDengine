@@ -31,8 +31,7 @@ class Test_Nevados:
 
         tdStream.createSnode()
         self.prepare()
-        # self.windspeeds_hourly()
-        # self.kpi_db_test()
+        self.windspeeds_hourly()
 
     def prepare(self):
         db = "dev"
@@ -74,8 +73,8 @@ class Test_Nevados:
             "    direction DOUBLE"
             ") tags("
             "    id NCHAR(16),"
-            "    site NCHAR(16)"
-            "    tracker NCHAR(16)"
+            "    site NCHAR(16),"
+            "    tracker NCHAR(16),"
             "    zone NCHAR(16)"
             ")"
         )
@@ -109,7 +108,7 @@ class Test_Nevados:
                 tdSql.execute(sql)
 
     def windspeeds_hourly(self):
-        # create stream windspeeds_hourly fill_history 1 into windspeeds_hourly as select _wend as window_hourly, site, id, max(speed) as windspeed_hourly_maximum from windspeeds where _ts >= '2025-05-07' partition by site, id interval(1h);
+        tdLog.info(f"create stream windspeeds_hourly")
         tdSql.execute(
             "create stream `windspeeds_hourly`"
             "  interval(1h) sliding(1h)"
@@ -117,77 +116,46 @@ class Test_Nevados:
             "  partition by site, id"
             "  options(fill_history('2025-06-01 00:00:00') | pre_filter(_ts >= '2025-05-07'))"
             "  into `windspeeds_hourly`"
-            # "  tags("
-            # "    group_id bigint as _tgrpid"
-            # "  )"
-            "  as select _twstart, _twend as window_hourly, max(speed) as windspeed_hourly_maximum from %%trows"
-            # "  as select _twstart, _twend as window_hourly, %%1 as site, %%2 as id, max(speed) as windspeed_hourly_maximum from %%trows"
-        )
-
-    def kpi_db_test(self):
-        # create stream if not exists kpi_db_test trigger window_close watermark 10m fill_history 1 ignore update 1 into kpi_db_test as select _wend as window_end, case when last(_ts) is not null then 1 else 0 end as db_online from trackers where _ts >= '2024-10-04T00:00:00.000Z' interval(1h) sliding(1h);
-        tdSql.execute(
-            "create stream `kpi_db_test`"
-            "  interval(1h) sliding(1h)"
-            "  from windspeeds"
-            "  options(fill_history('2025-06-01 00:00:00') | watermark(10m) | ignore_disorder | pre_filter(_ts >= '2024-10-04T00:00:00.000Z'))"
-            "  into `kpi_db_test`"
-            "  as select _twstart, _twend as window_end, case when last(_ts) is not null then 1 else 0 end as db_online, count(*) from windspeeds where _ts >= _twstart and _ts <_twend"
-        )
-
-        sql = "select * from dev.kpi_db_test;"
-        exp_sql = "select tw, te, case when tl is not null then 1 else 0 end as db_online, tc from(select _wstart tw, _wend te, last(_ts) tl, count(*) tc  from windspeeds where _ts >= '2025-06-01 00:00:00.000' and _ts < '2025-06-01 09:00:00.000' interval(1h) fill(null));"
-        tdSql.checkResultsBySql(sql=sql, exp_sql=exp_sql)
-
-    def windspeeds_daily(self):
-        # create stream windspeeds_daily fill_history 1 into windspeeds_daily as select _wend as window_daily, site, id, max(windspeed_hourly_maximum) as windspeed_daily_maximum from windspeeds_hourly partition by site, id interval(1d, 5h);
-        tdSql.execute(
-            "create stream `windspeeds_daily`"
-            "  interval(1d) sliding(5h)"
-            "  from windspeeds_hourly"
-            "  partition by site, id"
-            "  options(fill_history('2025-06-01 00:00:00'))"
-            "  into `windspeeds_hourly`"
             "  tags("
             "    group_id bigint as _tgrpid"
             "  )"
-            "  as select _twstart, _twend as window_hourly, %%1 as site, %%2 as id, max(windspeed_hourly_maximum) as windspeed_daily_maximum as windspeed_hourly_maximum from %%trows"
+            "  as select _twstart, _twend as window_hourly, %%1 as site, %%2 as id, max(speed) as windspeed_hourly_maximum from %%trows"
         )
 
-    def kpi_trackers_test(self):
-        # create stream if not exists kpi_trackers_test trigger window_close watermark 10m fill_history 1 ignore update 1 into kpi_trackers_test as select _wend as window_end, site, zone, tracker, case when ((min(abs(reg_pitch - reg_move_pitch)) <= 2) or (min(reg_temp_therm2) < -10) or (max(reg_temp_therm2) > 60) or (last(reg_system_status14) = true)) then 1 else 0 end as tracker_on_target, case when last(reg_pitch) is not null then 1 else 0 end as tracker_online from trackers where _ts >= '2024-10-04T00:00:00.000Z' partition by tbname interval(1h) sliding(1h);
+        tdSql.checkTableSchema(
+            dbname="dev",
+            tbname="windspeeds_hourly",
+            schema=[
+                ["_twstart", "TIMESTAMP", 8, ""],
+                ["window_hourly", "TIMESTAMP", 8, ""],
+                ["site", "NCHAR", 16, ""],
+                ["id", "NCHAR", 16, ""],
+                ["windspeed_hourly_maximum", "DOUBLE", 8, ""],
+                ["group_id", "BIGINT", 8, "TAG"],
+            ],
+            retry=10,
+        )
+
+        tdLog.info(f"create stream windspeeds_hourly_2")
         tdSql.execute(
-            "create stream `kpi_trackers_test`"
+            "create stream `windspeeds_hourly_2`"
             "  interval(1h) sliding(1h)"
-            "  from windspeeds partition by tbname, site, zone, tracker"
-            "  options(fill_history('2025-06-01 00:00:00') | watermark(10m) | ignore_disorder | pre_filter(_ts >= '2024-10-04T00:00:00.000Z'))"
-            "  into `kpi_trackers_test`"
-            "as select _twstart, _twend as window_end, %%2 as site, %%3 as zone, %%4 as tracker, "
-            "   case when ((min(abs(speed - direction)) <= 2) or (min(speed) < -10) or (max(direction) > 60) or (last(speed) = true)) then 1 else 0 end as tracker_on_target, "
-            "   case when last(speed) is not null then 1 else 0 end as tracker_online"
-            "   from %%trows"
+            "  from windspeeds"
+            "  partition by site, id"
+            "  options(fill_history('2025-06-01 00:00:00') | pre_filter(_ts >= '2025-05-07'))"
+            "  into `windspeeds_hourly_2`"
+            "  as select _twstart, _twend as window_hourly, max(speed) as windspeed_hourly_maximum from %%trows"
         )
 
-    def off_target_trackers(self):
-        # create stream off_target_trackers ignore expired 0 ignore update 0 into off_target_trackers as select _wend as _ts, site, tracker, last(reg_pitch) as off_target_pitch, last(mode) as mode from trackers where _ts >= '2024-04-23' and _ts < now() + 1h and abs(reg_pitch-reg_move_pitch) > 2 partition by site, tracker interval(15m) sliding(5m);
-        tdSql.execute("")
-
-    def snowdepths_daily(self):
-        # create stream snowdepths_daily fill_history 1 into snowdepths_daily as select _wend as window_daily, site, id, max(snowdepth_hourly_maximum) as snowdepth_daily_maximum from snowdepths_hourly partition by site, id interval(1d, 5h);
-        tdSql.execute("")
-
-    def kpi_zones_test(self):
-        # create stream if not exists kpi_zones_test trigger window_close watermark 10m fill_history 1 ignore update 1 into kpi_zones_test as select _wend as window_end, site, zone, case when last(_ts) is not null then 1 else 0 end as zone_online from trackers where _ts >= '2024-10-04T10:00:00.000Z' partition by site, zone interval(1h) sliding(1h);
-        tdSql.execute("")
-
-    def kpi_sites_test(self):
-        # create stream if not exists kpi_sites_test trigger window_close watermark 10m fill_history 1 ignore update 1 into  kpi_sites_test as select _wend as window_end, site, case when last(_ts) is not null then 1 else 0 end as site_online from  trackers where _ts >= '2024-10-04T00:00:00.000Z' partition by site interval(1h) sliding(1h);
-        tdSql.execute("")
-
-    def trackers_motor_current_state_window(self):
-        # create stream trackers_motor_current_state_window into  trackers_motor_current_state_window as select _ts, site, tracker, max(`reg_motor_last_move_peak_mA` / 1000) as max_motor_current from  trackers where _ts >= '2024-09-22' and _ts < now() + 1h and `reg_motor_last_move_peak_mA` > 0 partition by tbname/*, site, tracker */ state_window(cast(reg_motor_last_move_count as int));
-        tdSql.execute("")
-
-    def snowdepths_hourly(self):
-        # create stream snowdepths_hourly fill_history 1 into  snowdepths_hourly as select _wend as window_hourly, site, id, max(depth) as snowdepth_hourly_maximum from  snowdepths where _ts >= '2024-01-01' partition by site, id interval(1h);
-        tdSql.execute("")
+        tdSql.checkTableSchema(
+            dbname="dev",
+            tbname="windspeeds_hourly_2",
+            schema=[
+                ["_twstart", "TIMESTAMP", 8, ""],
+                ["window_hourly", "TIMESTAMP", 8, ""],
+                ["windspeed_hourly_maximum", "DOUBLE", 8, ""],
+                ["site", "NCHAR", 16, "TAG"],
+                ["id", "NCHAR", 16, "TAG"],
+            ],
+            retry=10,
+        )
