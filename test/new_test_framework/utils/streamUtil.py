@@ -11,6 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
+import re
 from collections import defaultdict
 import random
 import string
@@ -24,9 +25,387 @@ from .sql import *
 from .server.dnodes import *
 from .common import *
 from datetime import datetime
+from enum import Enum
+from new_test_framework.utils import clusterComCheck
 
+class StreamTableType(Enum):
+    TYPE_SUP_TABLE = "SUP_TABLE"
+    TYPE_SUB_TABLE = "SUB_TABLE"
+    TYPE_NORMAL_TABLE = "NORMAL_TABLE"
+    TYPE_VIRTUAL_TABLE = "VIRTUAL_TABLE"
+    TYPE_SYSTEM_TABLE = "SYSTEM_TABLE"
+
+
+class StreamTable:
+    def __init__(self, db, tbName, type):
+        self.tableType = type
+        self.tbName = tbName
+        self.db = db
+        
+        self.precision = "ms"
+        self.start="2025-01-01 00.00.00"
+        self.interval=30
+        self.logOpen = False
+        
+        self.default_columns = (
+            "cts timestamp,"
+            "cint int,"
+            "cuint int unsigned,"
+            "cbigint bigint,"
+            "cubigint bigint unsigned,"
+            "cfloat float,"
+            "cdouble double,"
+            "cvarchar varchar(32),"
+            "csmallint smallint,"
+            "cusmallint smallint unsigned,"
+            "ctinyint tinyint,"
+            "cutinyint tinyint unsigned,"
+            "cbool bool,"
+            "cnchar nchar(32),"
+            "cvarbinary varbinary(32),"
+            "cdecimal8 decimal(8),"
+            "cdecimal16 decimal(16),"
+            "cgeometry geometry(32)"
+        )
+        self.default_tags = (
+            "  tts timestamp"
+            ", tint int"
+            ", tuint int unsigned"
+            ", tbigint bigint"
+            ", tubigint bigint unsigned"
+            ", tfloat float"
+            ", tdouble double"
+            ", tvarchar varchar(32)"
+            ", tsmallint smallint"
+            ", tusmallint smallint unsigned"
+            ", ttinyint tinyint"
+            ", tutinyint tinyint unsigned"
+            ", tbool bool"
+            ", tnchar nchar(16)"
+            ", tvarbinary varbinary(32)"
+            ", tgeometry geometry(32)"
+        )
+        self.columns = self.default_columns  # 当前使用的列定义（可被自定义覆盖）
+        self.tags = self.default_tags
+        
+    def setInterval(self, interval):
+        """
+        设置时间间隔
+        :param interval: int, 时间间隔，单位为秒
+        """
+        self.interval = interval
+        
+    def setPrecision(self, precision):
+        """
+        设置时间精度
+        :param precision: str, 时间精度，支持 "ms", "us", "ns"
+        """
+        if precision not in ["ms", "us", "ns"]:
+            raise ValueError("Invalid precision. Supported values are 'ms', 'us', 'ns'.")
+        self.precision = precision
+        
+    def setStart(self, start):
+        """
+        设置起始时间
+        :param start: str, 起始时间，格式为 "YYYY-MM-DD HH.MM.SS"
+        """
+        try:
+            datetime.strptime(start, "%Y-%m-%d %H.%M.%S")
+            self.start = start
+        except ValueError:
+            raise ValueError("Invalid start time format. Use 'YYYY-MM-DD HH.MM.SS'.")
+        
+    def setLogOpen(self, logOpen):
+        """
+        设置日志开关
+        :param logOpen: bool, 是否开启日志
+        """
+        self.logOpen = logOpen
+                   
+    def createTable(self, subTableCount=200):
+        if self.tableType == StreamTableType.TYPE_SUP_TABLE or self.tableType == StreamTableType.TYPE_SUB_TABLE:
+            tdLog.info(f"create super table {self.db}.{self.tbName}")
+            self.__createSupTable()
+            self.__createSubTables(0, 200)
+        elif self.tableType == StreamTableType.TYPE_NORMAL_TABLE:
+            tdLog.info(f"create normal table {self.db}.{self.tbName}")
+            self.__createNormalTable()
+    
+    def appendSubTables(self, startTbIndex, endTbIndex):
+        """
+        向超级表中追加子表
+        :param startTbIndex: int, 起始子表索引
+        :param endTbIndex: int, 结束子表索引
+        """
+        if self.tableType == StreamTableType.TYPE_SUP_TABLE or self.tableType == StreamTableType.TYPE_SUB_TABLE:
+            tdLog.info(f"create sub tables to sub tables from {startTbIndex} to {endTbIndex}")
+            self.__createSubTables(startTbIndex, endTbIndex)
+        
+    def set_columns(self, column_def: str):
+        """
+        允许用户自定义列定义
+        :param column_def: str，例如 "ts timestamp, val int"
+        """
+        self.columns = column_def
+        
+    def reset_columns(self):
+        """重置为默认列定义"""
+        self.columns = self.default_columns
+        
+    def append_subtable_data(self, tbName, start_row, end_row):
+        """
+        向指定子表追加数据
+        :param tbName: str, 子表名称
+        :param start_row: int, 起始行索引
+        :param end_row: int, 结束行索引
+        """
+        full_table_name = f"{self.db}.{tbName}"
+        
+        if self.tableType == StreamTableType.TYPE_SUP_TABLE or self.tableType == StreamTableType.TYPE_SUB_TABLE:
+            self.__info(f"append data to sub table {full_table_name} from {start_row} to {end_row}")
+            self.__append_data(full_table_name, start_row, end_row)
+        
+    def append_data(self, start_row, end_row):
+        """
+        向表中追加数据
+        :param start_row: int, 起始行索引
+        :param end_row: int, 结束行索引
+        """
+        full_table_name = f"{self.db}.{self.tbName}"
+        
+        if self.tableType == StreamTableType.TYPE_SUP_TABLE or self.tableType == StreamTableType.TYPE_SUB_TABLE:
+            tbList = tdSql.query(f"select table_name from information_schema.ins_tables where stable_name='{self.tbName}'", row_tag=True)
+            for r in range(len(tbList)):
+                tbName = tbList[r][0]
+                fullName = f"{self.db}.{tbName}"
+                self.__info(f"append data to sub table {fullName} from {start_row} to {end_row}")
+                self.__append_data(fullName, start_row, end_row)
+        elif self.tableType == StreamTableType.TYPE_NORMAL_TABLE:
+            self.__append_data(full_table_name, start_row, end_row)
+
+    def update_data(self, start_row, end_row):
+        """
+        更新表中的数据
+        :param start_row: int, 起始行索引
+        :param end_row: int, 结束行索引
+        """
+        full_table_name = f"{self.db}.{self.tbName}"
+        
+        if self.tableType == StreamTableType.TYPE_SUP_TABLE or self.tableType == StreamTableType.TYPE_SUB_TABLE:
+            tbList = tdSql.query(f"select table_name from information_schema.ins_tables where stable_name='{self.tbName}'", row_tag=True)
+            for r in range(len(tbList)):
+                tbName = tbList[r][0]
+                fullName = f"{self.db}.{tbName}"
+                self.__info(f"update data in sub table {fullName} from {start_row} to {end_row}")
+                self.__append_data(fullName, start_row, end_row, offset=10000)
+        elif self.tableType == StreamTableType.TYPE_NORMAL_TABLE:
+            self.__append_data(full_table_name, start_row, end_row, offset=10000)
+
+    def update_subtable_data(self, tbName, start_row, end_row):
+        """
+        更新指定子表中的数据
+        :param tbName: str, 子表名称
+        :param start_row: int, 起始行索引
+        :param end_row: int, 结束行索引
+        """
+        full_table_name = f"{self.db}.{tbName}"
+        
+        if self.tableType == StreamTableType.TYPE_SUP_TABLE or self.tableType == StreamTableType.TYPE_SUB_TABLE:
+            self.__info(f"update data in sub table {full_table_name} from {start_row} to {end_row}")
+            self.__append_data(full_table_name, start_row, end_row, offset=10000)
+    
+    def delete_data(self, start_row, end_row):
+        """
+        删除表中的数据
+        :param start_row: int, 起始行索引
+        :param end_row: int, 结束行索引
+        """
+        full_table_name = f"{self.db}.{self.tbName}"
+        
+        if self.tableType == StreamTableType.TYPE_SUP_TABLE or self.tableType == StreamTableType.TYPE_SUB_TABLE:
+            tbList = tdSql.query(f"select table_name from information_schema.ins_tables where stable_name='{self.tbName}'", row_tag=True)
+            for r in range(len(tbList)):
+                tbName = tbList[r][0]
+                fullName = f"{self.db}.{tbName}"
+                self.__info(f"delete data in sub table {fullName} from {start_row} to {end_row}")
+                self.__delete_data(fullName, start_row, end_row)
+        elif self.tableType == StreamTableType.TYPE_NORMAL_TABLE:
+            self.__delete_data(full_table_name, start_row, end_row)
+            
+    def delete_subtable_data(self, tbName, start_row, end_row):
+        """
+        删除指定子表中的数据
+        :param tbName: str, 子表名称
+        :param start_row: int, 起始行索引
+        :param end_row: int, 结束行索引
+        """
+        full_table_name = f"{self.db}.{tbName}"
+        
+        if self.tableType == StreamTableType.TYPE_SUP_TABLE or self.tableType == StreamTableType.TYPE_SUB_TABLE:
+            tdLog.info(f"delete data in sub table {full_table_name} from {start_row} to {end_row}")
+            self.__delete_data(full_table_name, start_row, end_row)
+            
+    def __append_data(self, full_table_name, start_row, end_row, offset = 0):
+        # 时间精度
+        prec = {
+            "us": 1_000_000_000,
+            "ns": 1_000_000,
+        }.get(self.precision, 1_000)
+
+        # 解析时间
+        dt = datetime.strptime(self.start, "%Y-%m-%d %H.%M.%S")
+        ts_start = int(dt.timestamp() * prec)
+        ts_interval = self.interval * prec
+
+        # 解析列名和类型
+        columns = self._parse_columns(self.columns)
+
+        start = start_row
+        while start < end_row:
+            end = min(start + 100, end_row)
+            value_list = []
+
+            for row in range(start, end):
+                values = []
+                for col_name, col_type in columns:
+                    values.append(self._generate_value(col_name, col_type, row + offset, ts_start + row * ts_interval))
+                value_list.append(f"({', '.join(values)})")
+
+            sql = f"INSERT INTO {full_table_name} VALUES " + ", ".join(value_list)
+            tdSql.execute(sql)
+            start = end
+
+        self.__info(f"Appended {end_row - start_row} rows to {full_table_name} from {start_row} to {end_row}")
+
+    def __delete_data(self, full_table_name, start_row, end_row):
+        """删除指定范围内的数据"""
+        # 时间精度
+        prec = {
+            "us": 1_000_000_000,
+            "ns": 1_000_000,
+        }.get(self.precision, 1_000)
+
+        # 解析时间
+        dt = datetime.strptime(self.start, "%Y-%m-%d %H.%M.%S")
+        ts_start = int(dt.timestamp() * prec)
+        ts_interval = self.interval * prec
+        
+        ts1 = ts_start + start_row * ts_interval
+        ts2 = ts_start + end_row * ts_interval
+        sql = f"DELETE FROM {full_table_name} WHERE cts >= {ts1} and cts < {ts2}"
+        tdSql.execute(sql)
+
+        self.__info(f"Deleted rows from {full_table_name} from {start_row} to {end_row}")
+        
+        
+    def _parse_columns(self, column_str):
+        """将列字符串解析为 [(name, type), ...]"""
+        parts = [p.strip() for p in column_str.strip().split(',')]
+        columns = []
+        for p in parts:
+            match = re.match(r"(\w+)\s+([\w()]+(?:\s+unsigned)?)", p)
+            if match:
+                col_name, col_type = match.groups()
+                columns.append((col_name, col_type.lower()))
+        return columns
+
+    def _generate_value(self, name, col_type, row, ts):
+        """根据列类型自动生成测试值"""
+        if "timestamp" in col_type:
+            return str(ts)
+        elif "int" in col_type:
+            if "tinyint" in col_type:
+                return str(row % 128)
+            elif "smallint" in col_type:
+                return str(row % 32000)
+            elif "bigint" in col_type:
+                return str(row)
+            elif "unsigned" in col_type:
+                return str(abs(row))
+            else:
+                return str(row % 100)
+        elif "float" in col_type:
+            return str(float(row))
+        elif "double" in col_type:
+            return str(float(row) * 1.1)
+        elif "bool" in col_type:
+            return "NULL" if row % 20 == 1 else str(row % 2)
+        elif "varchar" in col_type or "nchar" in col_type:
+            return f"'{name}_{row}'"
+        elif "varbinary" in col_type:
+            return f"'{name}_{row}'"
+        elif "decimal" in col_type:
+            return "'0'" if row % 3 == 1 else "'8'"
+        elif "geometry" in col_type:
+            return "'POINT(1.0 1.0)'" if row % 3 == 1 else "'POINT(2.0 2.0)'"
+        else:
+            return "'UNKNOWN'"
+
+    def __createNormalTable(self):
+        self.__info(f"create normal table")
+        tdSql.execute(
+            f"create table {self.db}.{self.tbName} ({self.columns})"
+        )
+    
+    def __createSubTables(self, startTbIndex, endTbIndex):        
+        dt = datetime.strptime(self.start, "%Y-%m-%d %H.%M.%S")
+        if self.precision == "us":
+            prec = 1000 * 1000 * 1000
+        elif self.precision == "ns":
+            prec = 1000 * 1000
+        else:
+            prec = 1000
+
+        tsStart = int(dt.timestamp() * prec)
+        tsNext = tsStart + 86400 * prec
+
+        self.__info(f"create total {endTbIndex-startTbIndex} child tables")
+        
+        start = startTbIndex
+        while start < endTbIndex:
+            end = min(start + 100, endTbIndex)
+            sql = "create table "
+            for table in range(start, end):
+                tts = tsStart if table % 3 == 1 else tsNext
+                tint = table % 3 if table % 20 != 1 else "NULL"
+                tuint = table % 4
+                tbigint = table % 5
+                tubigint = table % 6
+                tfloat = table % 7
+                tdouble = table % 8
+                tvarchar = "SanFrancisco" if table % 3 == 1 else "LosAngeles"
+                tsmallint = table % 9
+                tusmallint = table % 10
+                ttinyint = table % 11
+                tutinyint = table % 12
+                tbool = table % 2
+                tnchar = tvarchar
+                tvarbinary = tvarchar
+                tgeometry = "POINT(1.0 1.0)" if table % 3 == 1 else "POINT(2.0 2.0)"
+                sql += f"{self.db}.{self.tbName}_{table} using {self.db}.{self.tbName} tags({tts}, '{tint}', {tuint}, {tbigint}, {tubigint}, {tfloat}, {tdouble}, '{tvarchar}', {tsmallint}, {tusmallint}, {ttinyint}, {tutinyint}, {tbool}, '{tnchar}', '{tvarbinary}', '{tgeometry}') "
+            tdSql.execute(sql)
+            start = end
+            
+    def __createSupTable(self):
+        self.__info(f"create super table")
+        tdSql.execute(f"create stable {self.db}.{self.tbName} ({self.columns}) tags({self.tags})")
+        
+    def __info(self, info, *args, **kwargs):
+        if self.logOpen:
+            tdLog.info(info, args, kwargs)
 
 class StreamUtil:
+    def __init__(self):
+        self.vgroups = 1  # 默认分区组数
+    
+    def init_database(self, db):
+        tdLog.info(f"create databases {db}")
+        tdSql.prepare(dbname=db, vgroups=self.vgroups)
+        clusterComCheck.checkDbReady(db)
+
+    def clean(self):
+        self.dropAllStreamsAndDbs() 
+        
     def createSnode(self, index=1):
         sql = f"create snode on dnode {index}"
         tdSql.execute(sql)
