@@ -13387,8 +13387,7 @@ static int32_t createStreamCheckOutCols(STranslateContext* pCxt, SNodeList* pCol
 }
 
 static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStreamStmt* pStmt,
-                                            SSelectStmt* pTriggerSelect, SHashObj* pTriggerSlotHash,
-                                            SCMCreateStreamReq* pReq) {
+                                            SHashObj* pTriggerSlotHash, SCMCreateStreamReq* pReq) {
   int32_t         code = TSDB_CODE_SUCCESS;
   STableMeta*     pMeta = NULL;
 
@@ -14028,8 +14027,7 @@ _return:
   return code;
 }
 
-static int32_t eliminateNodeFromList(SNode* pTarget, SNodeList* pList) {
-  int32_t code = TSDB_CODE_SUCCESS;
+static void eliminateNodeFromList(SNode* pTarget, SNodeList* pList) {
   SNode*  pNode = NULL;
   WHERE_EACH(pNode, pList) {
     if (nodesEqualNode(pNode, pTarget)) {
@@ -14039,7 +14037,6 @@ static int32_t eliminateNodeFromList(SNode* pTarget, SNodeList* pList) {
     }
     WHERE_NEXT;
   }
-  return code;
 }
 
 static int32_t replaceSubPlanFromList(SNode* pTarget, SNodeList* pList) {
@@ -14226,8 +14223,10 @@ _return:
 
 static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SQueryPlan* calcPlan,
                                             SArray* pVgArray, SCMCreateStreamReq* pReq) {
-  int32_t      code = TSDB_CODE_SUCCESS;
-  SHashObj*    pPlanMap = NULL;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  SHashObj*        pPlanMap = NULL;
+  SStreamCalcScan* pCalcScan = NULL;
+  bool             cutoff = false;
 
   pReq->calcScanPlanList = taosArrayInit(1, sizeof(SStreamCalcScan));
   pPlanMap = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
@@ -14237,14 +14236,18 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SQueryPlan*
 
   pReq->tsSlotId = -1;
   for (int32_t i = 0; i < taosArrayGetSize(pVgArray); i++) {
-    SStreamCalcScan *pCalcScan = taosArrayGet(pVgArray, i);
-    SSubplan        *pScanSubPlan = (SSubplan*)pCalcScan->scanPlan;
-    SNode           *pTargetNode = (SNode*)pScanSubPlan->pNode;
-    SNode           *pNode = NULL;
-    int64_t          hashKey = (int64_t) pScanSubPlan->id.groupId << 32 | pScanSubPlan->id.subplanId;
+    pCalcScan = taosArrayGet(pVgArray, i);
+    if (pCalcScan == NULL) {
+      PAR_ERR_JRET(terrno);
+    }
+    cutoff = false;
+    SSubplan* pScanSubPlan = (SSubplan*)pCalcScan->scanPlan;
+    SNode*    pTargetNode = (SNode*)pScanSubPlan->pNode;
+    SNode*    pNode = NULL;
+    int64_t   hashKey = (int64_t) pScanSubPlan->id.groupId << 32 | pScanSubPlan->id.subplanId;
 
     if (((SPhysiNode*)pTargetNode)->pParent) {
-      PAR_ERR_JRET(eliminateNodeFromList(pTargetNode, ((SPhysiNode*)pTargetNode)->pParent->pChildren));
+      eliminateNodeFromList(pTargetNode, ((SPhysiNode*)pTargetNode)->pParent->pChildren);
       ((SPhysiNode*)pTargetNode)->pParent = NULL;
     }
 
@@ -14258,7 +14261,7 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SQueryPlan*
     WHERE_EACH(pNode, calcPlan->pSubplans) {
       SNodeListNode* pGroup = (SNodeListNode*)pNode;
       if (findNodeInList((SNode*)pScanSubPlan, pGroup->pNodeList)) {
-        PAR_ERR_JRET(eliminateNodeFromList((SNode*)pScanSubPlan, pGroup->pNodeList));
+        eliminateNodeFromList((SNode*)pScanSubPlan, pGroup->pNodeList);
         if (LIST_LENGTH(pGroup->pNodeList) == 0) {
           REPLACE_NODE(NULL);
           ERASE_NODE(calcPlan->pSubplans);
@@ -14268,6 +14271,8 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SQueryPlan*
       }
       WHERE_NEXT;
     }
+
+    cutoff = true;
 
     if (taosHashGet(pPlanMap, &hashKey, sizeof(int64_t)) != NULL) {
       continue;
@@ -14298,13 +14303,21 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SQueryPlan*
     if (NULL == taosArrayPush(pReq->calcScanPlanList, &pNewScan)) {
       PAR_ERR_JRET(terrno);
     }
+    taosArrayDestroy(pCalcScan->vgList);
+    nodesDestroyNode(pCalcScan->scanPlan);
+    cutoff = false;
   }
 
   pReq->numOfCalcSubplan = calcPlan->numOfSubplans;
   PAR_ERR_JRET(nodesNodeToString((SNode*)calcPlan, false, (char**)&pReq->calcPlan, NULL));
 
+  taosHashCleanup(pPlanMap);
   return code;
 _return:
+  if (cutoff) {
+    taosArrayDestroy(pCalcScan->vgList);
+    nodesDestroyNode(pCalcScan->scanPlan);
+  }
   parserError("createStreamReqBuildCalcPlan failed, code:%d", code);
   taosHashCleanup(pPlanMap);
   return code;
@@ -14403,7 +14416,7 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   PAR_ERR_JRET(createStreamReqBuildStreamNotifyOptions(pCxt, pNotifyOptions, &pNotifyCond, pReq));
   PAR_ERR_JRET(createStreamReqBuildTrigger(pCxt, pStmt, &pTriggerSelect, &pTriggerSlotHash, pReq));
   PAR_ERR_JRET(createStreamReqBuildCalc(pCxt, pStmt, pTrigger->pPartitionList, pTriggerSelect, pTriggerSlotHash, pNotifyCond, pReq));
-  PAR_ERR_JRET(createStreamReqBuildOutTable(pCxt, pStmt, pTriggerSelect, pTriggerSlotHash, pReq));
+  PAR_ERR_JRET(createStreamReqBuildOutTable(pCxt, pStmt, pTriggerSlotHash, pReq));
 
 _return:
   if (code) {

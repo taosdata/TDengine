@@ -492,6 +492,8 @@ void checkCreateStreamTriggerScanPlan(SCMCreateStreamReq *expect, SCMCreateStrea
 
   cJSON_Delete(j1);
   cJSON_Delete(j2);
+  free(j1Str);
+  free(j2Str);
 }
 
 void checkCreateStreamCalcPlan(SCMCreateStreamReq *expect, SCMCreateStreamReq *req) {
@@ -520,6 +522,8 @@ void checkCreateStreamCalcPlan(SCMCreateStreamReq *expect, SCMCreateStreamReq *r
 
   cJSON_Delete(j1);
   cJSON_Delete(j2);
+  free(j1Str);
+  free(j2Str);
 }
 
 void checkCreateStreamReq(SCMCreateStreamReq *expect, SCMCreateStreamReq *req) {
