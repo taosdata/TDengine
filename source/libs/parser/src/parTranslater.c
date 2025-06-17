@@ -4137,6 +4137,9 @@ static bool fromSingleTable(SNode* table) {
     if (type == TSDB_CHILD_TABLE || type == TSDB_NORMAL_TABLE || type == TSDB_SYSTEM_TABLE) {
       return true;
     }
+    if (((SRealTableNode*)table)->asChildTable) {
+      return true;
+    }
   }
   return false;
 }
@@ -5867,21 +5870,6 @@ static int32_t translatePlaceHolderTable(STranslateContext* pCxt, SNode** pTable
     PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "create stream trigger table is NULL"));
   }
 
-  switch (pPlaceHolderTable->placeholderType) {
-    case SP_PARTITION_TBNAME: {
-      BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_TBNAME);
-      break;
-    }
-    case SP_PARTITION_ROWS: {
-      BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS);
-      break;
-    }
-    default: {
-      PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "invalid placeholder table type"));
-      break;
-    }
-  }
-
   PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&newPlaceHolderTable));
   newPlaceHolderTable->placeholderType = pPlaceHolderTable->placeholderType;
 
@@ -5890,6 +5878,27 @@ static int32_t translatePlaceHolderTable(STranslateContext* pCxt, SNode** pTable
   tstrncpy(newPlaceHolderTable->table.tableAlias, pTriggerTable->table.tableName, sizeof(newPlaceHolderTable->table.tableAlias));
 
   PAR_ERR_JRET(translateTable(pCxt, (SNode**)&newPlaceHolderTable, false));
+
+  switch (pPlaceHolderTable->placeholderType) {
+    case SP_PARTITION_TBNAME: {
+      BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_TBNAME);
+      if (newPlaceHolderTable->pMeta->tableType == TSDB_SUPER_TABLE) {
+        newPlaceHolderTable->asChildTable = true;
+      }
+      break;
+    }
+    case SP_PARTITION_ROWS: {
+      BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS);
+      if (newPlaceHolderTable->pMeta->tableType == TSDB_SUPER_TABLE && hasTbnameFunction(pCxt->createStreamTriggerPartitionList)) {
+        newPlaceHolderTable->asChildTable = true;
+      }
+      break;
+    }
+    default: {
+      PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "invalid placeholder table type"));
+      break;
+    }
+  }
 
   nodesDestroyNode(*pTable);
   *pTable = (SNode*)newPlaceHolderTable;
@@ -14160,23 +14169,7 @@ static int32_t createStreamReqCheckPlaceHolder(STranslateContext* pCxt, SCMCreat
   }
 
   if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PARTITION_TBNAME)) {
-    bool   hasTbname = false;
-    SNode *pNode = NULL;
-    FOREACH(pNode, pTriggerPartition) {
-      switch (nodeType(pNode)) {
-        case QUERY_NODE_FUNCTION: {
-          SFunctionNode *pFunction = (SFunctionNode*)pNode;
-          if (pFunction->funcType == FUNCTION_TYPE_TBNAME) {
-            hasTbname = true;
-            break;
-          }
-          continue;
-        }
-        default:
-          continue;
-      }
-    }
-    if (!hasTbname) {
+    if (!hasTbnameFunction(pTriggerPartition)) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "%%tbname can only be used when partition with tbname"));
     }
   }
