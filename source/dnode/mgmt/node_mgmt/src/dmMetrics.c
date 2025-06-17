@@ -22,8 +22,7 @@
 
 static void collectDnodeMetricsInfo(SDnode *pDnode);
 static void collectWriteMetricsInfo(SDnode *pDnode);
-static void collectQueryMetricsInfo(SDnode *pDnode);
-static void collectStreamMetricsInfo(SDnode *pDnode);
+
 
 void dmSendMetricsReport() {
   if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0 || !tsEnableMetrics) {
@@ -36,8 +35,6 @@ void dmSendMetricsReport() {
 
   collectDnodeMetricsInfo(pDnode);
   collectWriteMetricsInfo(pDnode);
-  collectQueryMetricsInfo(pDnode);
-  collectStreamMetricsInfo(pDnode);
 
   reportDnodeMetrics();
   reportWriteMetrics();
@@ -69,10 +66,6 @@ static void collectWriteMetricsInfo(SDnode *pDnode) {
   }
   return;
 }
-
-static void collectQueryMetricsInfo(SDnode *pDnode) { return; }
-
-static void collectStreamMetricsInfo(SDnode *pDnode) { return; }
 
 void dmCleanExpiredMetrics(SDnode *pDnode) {
   SMgmtWrapper *pWrapper = &pDnode->wrappers[VNODE];
