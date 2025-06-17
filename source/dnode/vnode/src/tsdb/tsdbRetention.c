@@ -207,12 +207,13 @@ typedef struct {
   bool    s3Migrate;
 } SRtnArg;
 
-static int32_t tsdbDoRetentionEnd(SRTNer *rtner) {
+static int32_t tsdbDoRetentionEnd(SRTNer *rtner, bool s3Migrate) {
   int32_t code = 0;
   int32_t lino = 0;
 
   if (TARRAY2_SIZE(&rtner->fopArr) > 0) {
-    TAOS_CHECK_GOTO(tsdbFSEditBegin(rtner->tsdb->pFS, &rtner->fopArr, TSDB_FEDIT_RETENTION), &lino, _exit);
+    EFEditT etype = s3Migrate ? TSDB_FEDIT_S3MIGRATE : TSDB_FEDIT_RETENTION;
+    TAOS_CHECK_GOTO(tsdbFSEditBegin(rtner->tsdb->pFS, &rtner->fopArr, etype), &lino, _exit);
 
     (void)taosThreadMutexLock(&rtner->tsdb->mutex);
 
@@ -361,7 +362,7 @@ static int32_t tsdbRetention(void *arg) {
       TAOS_CHECK_GOTO(tsdbDoRetention(&rtner), &lino, _exit);
     }
 
-    TAOS_CHECK_GOTO(tsdbDoRetentionEnd(&rtner), &lino, _exit);
+    TAOS_CHECK_GOTO(tsdbDoRetentionEnd(&rtner, rtnArg->s3Migrate), &lino, _exit);
   }
 
 _exit:
@@ -401,7 +402,7 @@ static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now, bool s3Migrate, 
   TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
     // TODO: when migrating to S3, skip fset that should not be migrated
     
-    if (s3Migrate && fset->lastRetention/1000 >= now) {
+    if (s3Migrate && fset->lastMigrate/1000 >= now) {
       tsdbDebug("vgId:%d, fid:%d, skip migration as start time < last migration time", TD_VID(tsdb->pVnode), fset->fid);
       continue;
     }
