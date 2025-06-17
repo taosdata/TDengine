@@ -3,5 +3,6 @@
 #NA,NA,y or n,script,./test.sh -f tsim/user/basic.sim
 
 #unit-test
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/information_schema.py
 ,,y,script,./test.sh -f tsim/show/basic.sim
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/information_schema.py
+
