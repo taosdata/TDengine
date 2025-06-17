@@ -179,7 +179,7 @@ static int32_t adjustScanDataRequirement(SScanLogicNode* pScan, EDataOrderLevel 
   if (requirement < DATA_ORDER_LEVEL_IN_BLOCK) {
     requirement = DATA_ORDER_LEVEL_IN_BLOCK;
   }
-  if (DATA_ORDER_LEVEL_IN_BLOCK == requirement || pScan->placeholderType == SP_PARTITION_TBNAME) {
+  if (DATA_ORDER_LEVEL_IN_BLOCK == requirement || pScan->placeholderType == SP_PARTITION_TBNAME || pScan->placeholderType == SP_PARTITION_ROWS) {
     pScan->scanType = SCAN_TYPE_TABLE;
   } else if (TSDB_SUPER_TABLE == pScan->tableType) {
     pScan->scanType = SCAN_TYPE_TABLE_MERGE;

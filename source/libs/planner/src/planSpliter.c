@@ -271,7 +271,9 @@ static bool stbSplHasGatherExecFunc(const SNodeList* pFuncs) {
 }
 
 static bool stbSplIsMultiTbScan(SScanLogicNode* pScan) {
-  return ((NULL != pScan->pVgroupList && pScan->pVgroupList->numOfVgroups > 1) || pScan->needSplit) && pScan->placeholderType != SP_PARTITION_TBNAME;
+  return ((NULL != pScan->pVgroupList && pScan->pVgroupList->numOfVgroups > 1) || pScan->needSplit) &&
+         pScan->placeholderType != SP_PARTITION_TBNAME &&
+         pScan->placeholderType != SP_PARTITION_ROWS;
 }
 
 static bool stbSplHasMultiTbScan(SLogicNode* pNode) {
