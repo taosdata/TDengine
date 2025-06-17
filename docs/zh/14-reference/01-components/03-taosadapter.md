@@ -23,7 +23,7 @@ taosAdapter 提供了以下功能：
 
 - WebSocket 接口：
   支持通过 WebSocket 协议执行 SQL、无模式数据写入、参数绑定和数据订阅功能。
-- 兼容 InfluxDB v1 写接口：
+- InfluxDB v1 数据写入：
   [https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/](https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/)
 - 兼容 OpenTSDB JSON 和 telnet 格式写入：
   - [http://opentsdb.net/docs/build/html/api_http/put.html](http://opentsdb.net/docs/build/html/api_http/put.html)
@@ -47,7 +47,7 @@ taosAdapter 提供了以下功能：
 
 各语言连接器通过 taosAdapter 的 WebSocket 接口，能够实现 SQL 执行、无模式写入、参数绑定和数据订阅功能。参考 [开发指南](../../../develop/connect/#websocket-连接)。
 
-### 兼容 InfluxDB v1 写接口
+### InfluxDB v1 数据写入
 
 您可以使用任何支持 HTTP 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/influxdb/v1/write` 来写入 InfluxDB 兼容格式的数据到 TDengine。
 
@@ -66,7 +66,7 @@ taosAdapter 提供了以下功能：
 curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"
 ```
 
-### 兼容 OpenTSDB JSON 和 telnet 格式写入
+### OpenTSDB JSON 和 telnet 格式写入
 
 您可以使用任何支持 HTTP 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/<APIEndPoint>` 来写入 OpenTSDB 兼容格式的数据到 TDengine。EndPoint 如下：
 
@@ -590,10 +590,13 @@ taosAdapter 将指标上报到 taosKeeper 进行统一管理，参数如下：
 
 ### 环境变量
 
-配置项与环境变量对应如下：
+配置项与环境变量对应如下表：
+
+<details>
+<summary>详细信息</summary>
 
 | 参数                                    | 环境变量                                                  |
-|:---------------------------------------|:-------------------------------------------------------|
+|:--------------------------------------|:------------------------------------------------------|
 | `collectd.db`                         | `TAOS_ADAPTER_COLLECTD_DB`                            |
 | `collectd.enable`                     | `TAOS_ADAPTER_COLLECTD_ENABLE`                        |
 | `collectd.password`                   | `TAOS_ADAPTER_COLLECTD_PASSWORD`                      |
@@ -691,6 +694,8 @@ taosAdapter 将指标上报到 taosKeeper 进行统一管理，参数如下：
 | `uploadKeeper.timeout`                | `TAOS_ADAPTER_UPLOAD_KEEPER_TIMEOUT`                  |
 | `uploadKeeper.url`                    | `TAOS_ADAPTER_UPLOAD_KEEPER_URL`                      |
 
+</details>
+
 ## 服务管理
 
 ### 启动/停止 taosAdapter
@@ -710,9 +715,12 @@ taosAdapter 和 TDengine server 需要使用相同版本。请通过升级 TDeng
 
 taosAdapter 目前仅采集 RESTful/WebSocket 相关请求的监控指标，其他接口暂无监控指标。
 
-taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosKeeper 写入监控数据库，默认是 `log` 库，可以在 taoskeeper 配置文件中修改。以下是这些监控指标的详细介绍。
+taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosKeeper 写入监控数据库，默认是 `log` 库，可以在 taosKeeper 配置文件中修改。以下是这些监控指标的详细介绍。
 
-`adapter_requests` 表记录 taosAdapter 监控数据，字段如下：
+`adapter_requests` 表记录 taosAdapter 监控数据：
+
+<details>
+<summary>详细信息</summary>
 
 | field              | type         | is\_tag | comment                     |
 |:-------------------|:-------------|:--------|:----------------------------|
@@ -735,25 +743,30 @@ taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosK
 | endpoint           | VARCHAR      |         | 请求端点                        |
 | req\_type          | NCHAR        | TAG     | 请求类型：0 为 REST，1 为 WebSocket |
 
-`adapter_status` 表记录 taosAdapter 状态数据，字段如下：
+</details>
 
-| field                     | type      | is\_tag | comment                                 |
-|:--------------------------|:----------|:--------|:----------------------------------------|
-| _ts                       | TIMESTAMP |         | 数据采集时间戳                                 |
-| go_heap_sys               | DOUBLE    |         | Go 运行时系统分配的堆内存大小（字节）                    |
-| go_heap_inuse             | DOUBLE    |         | Go 运行时正在使用的堆内存大小（字节）                    |
-| go_stack_sys              | DOUBLE    |         | Go 运行时系统分配的栈内存大小（字节）                    |
-| go_stack_inuse            | DOUBLE    |         | Go 运行时正在使用的栈内存大小（字节）                    |
-| rss                       | DOUBLE    |         | 进程实际占用的物理内存大小（字节）                       |
-| ws_query_conn             | DOUBLE    |         | `/rest/ws` 接口当前 WebSocket 连接数           |
-| ws_stmt_conn              | DOUBLE    |         | `/rest/stmt` 接口当前 WebSocket 连接数         |
-| ws_sml_conn               | DOUBLE    |         | `/rest/schemaless` 接口当前 WebSocket 连接数   |
-| ws_ws_conn                | DOUBLE    |         | `/ws` 接口当前 WebSocket 连接数                |
-| ws_tmq_conn               | DOUBLE    |         | `/rest/tmq` 接口当前 WebSocket 连接数          |
-| async_c_limit             | DOUBLE    |         | C 同步接口并发限制总数                            |
-| async_c_inflight          | DOUBLE    |         | C 同步接口当前并发数                             |
-| sync_c_limit              | DOUBLE    |         | C 异步接口并发限制总数                            |
-| sync_c_inflight           | DOUBLE    |         | C 异步接口当前并发数                             |
+`adapter_status` 表记录 taosAdapter 状态数据：
+
+<details>
+<summary>详细信息</summary>
+
+| field                     | type      | is\_tag | comment                                  |
+|:--------------------------|:----------|:--------|:-----------------------------------------|
+| _ts                       | TIMESTAMP |         | 数据采集时间戳                                  |
+| go_heap_sys               | DOUBLE    |         | Go 运行时系统分配的堆内存大小（字节）                     |
+| go_heap_inuse             | DOUBLE    |         | Go 运行时正在使用的堆内存大小（字节）                     |
+| go_stack_sys              | DOUBLE    |         | Go 运行时系统分配的栈内存大小（字节）                     |
+| go_stack_inuse            | DOUBLE    |         | Go 运行时正在使用的栈内存大小（字节）                     |
+| rss                       | DOUBLE    |         | 进程实际占用的物理内存大小（字节）                        |
+| ws_query_conn             | DOUBLE    |         | `/rest/ws` 接口当前 WebSocket 连接数            |
+| ws_stmt_conn              | DOUBLE    |         | `/rest/stmt` 接口当前 WebSocket 连接数          |
+| ws_sml_conn               | DOUBLE    |         | `/rest/schemaless` 接口当前 WebSocket 连接数    |
+| ws_ws_conn                | DOUBLE    |         | `/ws` 接口当前 WebSocket 连接数                 |
+| ws_tmq_conn               | DOUBLE    |         | `/rest/tmq` 接口当前 WebSocket 连接数           |
+| async_c_limit             | DOUBLE    |         | C 同步接口并发限制总数                             |
+| async_c_inflight          | DOUBLE    |         | C 同步接口当前并发数                              |
+| sync_c_limit              | DOUBLE    |         | C 异步接口并发限制总数                             |
+| sync_c_inflight           | DOUBLE    |         | C 异步接口当前并发数                              |
 | ws_query_conn_inc         | DOUBLE    |         | /rest/ws 接口新增连接（3.3.6.10 及以上）            |
 | ws_query_conn_dec         | DOUBLE    |         | /rest/ws 接口减少连接（3.3.6.10 及以上）            |
 | ws_stmt_conn_inc          | DOUBLE    |         | /rest/stmt 接口新增连接（3.3.6.10 及以上）          |
@@ -769,9 +782,14 @@ taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosK
 | ws_ws_sql_result_count    | DOUBLE    |         | /ws 接口当前持有 SQL 查询结果数量（3.3.6.10 及以上）      |
 | ws_ws_stmt_count          | DOUBLE    |         | /ws 接口当前持有 stmt 数量（3.3.6.10 及以上）         |
 | ws_ws_stmt2_count         | DOUBLE    |         | /ws 接口当前持有 stmt2 数量（3.3.6.10 及以上）        |
-| endpoint                  | NCHAR     | TAG     | 请求端点                                    |
+| endpoint                  | NCHAR     | TAG     | 请求端点                                     |
 
-`adapter_conn_pool` 表记录 taosAdapter 连接池监控数据，字段如下：
+</details>
+
+`adapter_conn_pool` 表记录 taosAdapter 连接池监控数据：
+
+<details>
+<summary>详细信息</summary>
 
 | field            | type      | is\_tag | comment       |
 |:-----------------|:----------|:--------|:--------------|
@@ -781,7 +799,12 @@ taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosK
 | endpoint         | NCHAR     | TAG     | 请求端点          |
 | user             | NCHAR     | TAG     | 连接池所属的用户名     |
 
-从 **3.3.6.10** 版本开始新增 `adapter_c_interface` 表记录 taosAdapter 调用 C 接口次数数据，字段如下：
+</details>
+
+从 **3.3.6.10** 版本开始新增 `adapter_c_interface` 表记录 taosAdapter 调用 C 接口次数数据：
+
+<details>
+<summary>详细信息</summary>
 
 | field                                               | type      | is\_tag | comment                |
 |:----------------------------------------------------|:----------|:--------|:-----------------------|
@@ -1044,6 +1067,8 @@ taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosK
 | tmq_commit_offset_sync_success                      | DOUBLE    |         | tmq 同步提交偏移量成功的次数       |
 | endpoint                                            | NCHAR     | TAG     | 请求端点                   |
 
+</details>
+
 ## httpd 升级为 taosAdapter 的变化
 
 在 TDengine server 2.2.x.x 或更早期版本中，taosd 进程包含一个内嵌的 http 服务（httpd）。如前面所述，taosAdapter 是一个使用 systemd 管理的独立软件，拥有自己的进程。并且两者有一些配置参数和行为是不同的，请见下表：
@@ -1052,7 +1077,7 @@ taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosK
 |-------|---------------------|-------------------------------|------------------------------------------------------------------------------------------------|
 | 1     | httpEnableRecordSql | --logLevel=debug              |                                                                                                |
 | 2     | httpMaxThreads      | n/a                           | taosAdapter 自动管理线程池，无需此参数                                                                      |
-| 3     | telegrafUseFieldNum | 请参考 taosAdapter telegraf 配置方法 ||
+| 3     | telegrafUseFieldNum | 请参考 taosAdapter telegraf 配置方法 |                                                                                                |
 | 4     | restfulRowLimit     | restfulRowLimit               | 内嵌 httpd 默认输出 10240 行数据，最大允许值为 102400。taosAdapter 也提供 restfulRowLimit 但是默认不做限制。您可以根据实际场景需求进行配置 |
 | 5     | httpDebugFlag       | 不适用                           | httpdDebugFlag 对 taosAdapter 不起作用                                                              |
 | 6     | httpDBNameMandatory | 不适用                           | taosAdapter 要求 URL 中必须指定数据库名                                                                   |

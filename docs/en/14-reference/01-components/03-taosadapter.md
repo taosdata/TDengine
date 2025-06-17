@@ -28,11 +28,11 @@ The taosAdapter provides the following features:
 
 - WebSocket Interface:
   Supports executing SQL, schemaless writing, parameter binding, and data subscription through the WebSocket protocol.
-- Compatible with InfluxDB v1 write interface:
+- InfluxDB v1 write interface:
   [https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/](https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/)
 - Compatible with OpenTSDB JSON and telnet format writing:
   - [http://opentsdb.net/docs/build/html/api_http/put.html](http://opentsdb.net/docs/build/html/api_http/put.html)
-  - [http://opentsdb.net/docs/build/html/api_telnet/put.html](http://opentsdb.net/docs/build/html/api_telnet/put.html)
+  - [http://opentsdb .net/docs/build/html/api_telnet/put.html](http://opentsdb.net/docs/build/html/api_telnet/put.html)
 - collectd data writing:
   collectd is a system statistics collection daemon, visit [https://collectd.org/](https://collectd.org/) for more information.
 - StatsD data writing:
@@ -52,7 +52,7 @@ The taosAdapter provides the following features:
 
 Through the WebSocket interface of taosAdapter, connectors in various languages can achieve SQL execution, schemaless writing, parameter binding, and data subscription functionalities. Refer to the [Development Guide](../../../developer-guide/connecting-to-tdengine/#websocket-connection) for more details.
 
-### Compatible with InfluxDB v1 write interface
+### InfluxDB v1 write interface
 
 You can use any client that supports the HTTP protocol to write data in InfluxDB compatible format to TDengine by accessing the Restful interface URL `http://<fqdn>:6041/influxdb/v1/write`.
 
@@ -67,7 +67,7 @@ Supported InfluxDB parameters are as follows:
 Note: Currently, InfluxDB's token authentication method is not supported, only Basic authentication and query parameter verification are supported.
 Example: `curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"`
 
-### Compatible with OpenTSDB JSON and telnet format writing
+### OpenTSDB JSON and telnet format writing
 
 You can use any client that supports the HTTP protocol to write data in OpenTSDB compatible format to TDengine by accessing the Restful interface URL `http://<fqdn>:6041/<APIEndPoint>`. EndPoint as follows:
 
@@ -598,6 +598,9 @@ taosAdapter reports metrics to taosKeeper with these parameters:
 
 Configuration Parameters and their corresponding environment variables:
 
+<details>
+<summary>Details</summary>
+
 | Configuration Parameter               | Environment Variable                                  |
 |:--------------------------------------|:------------------------------------------------------|
 | `collectd.db`                         | `TAOS_ADAPTER_COLLECTD_DB`                            |
@@ -697,6 +700,8 @@ Configuration Parameters and their corresponding environment variables:
 | `uploadKeeper.timeout`                | `TAOS_ADAPTER_UPLOAD_KEEPER_TIMEOUT`                  |
 | `uploadKeeper.url`                    | `TAOS_ADAPTER_UPLOAD_KEEPER_URL`                      |
 
+</details>
+
 ## Service Management
 
 ### Starting/Stopping taosAdapter
@@ -718,7 +723,10 @@ Currently, taosAdapter only collects monitoring indicators for RESTful/WebSocket
 
 taosAdapter reports monitoring indicators to taosKeeper, which will be written to the monitoring database by taosKeeper. The default is the `log` database, which can be modified in the taoskeeper configuration file. The following is a detailed introduction to these monitoring indicators.
 
-The `adapter_requests` table records taosAdapter monitoring data, and the fields are as follows:
+The `adapter_requests` table records taosAdapter monitoring data:
+
+<details>
+<summary>Details</summary>
 
 | field            | type         | is_tag | comment                                   |
 |:-----------------|:-------------|:-------|:------------------------------------------|
@@ -741,7 +749,12 @@ The `adapter_requests` table records taosAdapter monitoring data, and the fields
 | endpoint         | VARCHAR      |        | request endpoint                          |
 | req_type         | NCHAR        | tag    | request type: 0 for REST, 1 for WebSocket |
 
-The `adapter_status` table records the status data of taosAdapter, and the fields are as follows:
+</details>
+
+The `adapter_status` table records the status data of taosAdapter:
+
+<details>
+<summary>Details</summary>
 
 | field                       | type      | is\_tag | comment                                                                            |
 |:----------------------------|:----------|:--------|:-----------------------------------------------------------------------------------|
@@ -777,7 +790,12 @@ The `adapter_status` table records the status data of taosAdapter, and the field
 | `ws_ws_stmt2_count`         | DOUBLE    |         | Current stmt2 objects held by `/ws` interface (Available since v3.3.6.10)          |
 | endpoint                    | NCHAR     | TAG     | request endpoint                                                                   |
 
-The `adapter_conn_pool` table records the connection pool monitoring data of taosAdapter, and the fields are as follows:
+</details>
+
+The `adapter_conn_pool` table records the connection pool monitoring data of taosAdapter:
+
+<details>
+<summary>Details</summary>
 
 | field            | type      | is\_tag | comment                                                     |
 |:-----------------|:----------|:--------|:------------------------------------------------------------|
@@ -787,7 +805,12 @@ The `adapter_conn_pool` table records the connection pool monitoring data of tao
 | endpoint         | NCHAR     | TAG     | request endpoint                                            |
 | user             | NCHAR     | TAG     | username to which the connection pool belongs               |
 
-Starting from version **3.3.6.10**, the `adapter_c_interface` table has been added to record taosAdapter C interface call metrics, with the following fields:
+</details>
+
+Starting from version **3.3.6.10**, the `adapter_c_interface` table has been added to record taosAdapter C interface call metrics:
+
+<details>
+<summary>Details</summary>
 
 | field                                               | type      | is\_tag | comment                                                  |
 |:----------------------------------------------------|:----------|:--------|:---------------------------------------------------------|
@@ -1049,6 +1072,8 @@ Starting from version **3.3.6.10**, the `adapter_c_interface` table has been add
 | tmq_commit_offset_sync_total                        | DOUBLE    |         | Count of TMQ sync offset commits                         |
 | tmq_commit_offset_sync_success                      | DOUBLE    |         | Count of successful TMQ sync offset commits              |
 | endpoint                                            | NCHAR     | TAG     | Request endpoint                                         |
+
+</details>
 
 ## Changes after upgrading httpd to taosAdapter
 
