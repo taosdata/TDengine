@@ -179,6 +179,7 @@ typedef struct SStmTaskStatus {
   EStreamTaskType type;
   int64_t         flags;
   EStreamStatus   status;
+  int32_t         errCode;
   int64_t         runningStartTs;
   int64_t         lastUpTs;
 } SStmTaskStatus;
@@ -463,7 +464,8 @@ int32_t mndStreamSetStopStreamTasksActions(SMnode* pMnode, STrans *pTrans, uint6
 int32_t msmInitRuntimeInfo(SMnode *pMnode);
 int32_t mndStreamTransAppend(SStreamObj *pStream, STrans *pTrans, int32_t status);
 int32_t mndStreamCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnConflct conflict, const char *name, STrans **ppTrans);
-int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows);
+int32_t mstSetStreamAttrResBlock(SMnode *pMnode, SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows);
+int32_t mstSetStreamTasksResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_t* numOfRows, int32_t rowsCapacity);
 int32_t mstCheckSnodeExists(SMnode *pMnode);
 void mstSetTaskStatusFromMsg(SStmGrpCtx* pCtx, SStmTaskStatus* pTask, SStmTaskStatusMsg* pMsg);
 void msmClearStreamToDeployMaps(SStreamHbMsg* pHb);
