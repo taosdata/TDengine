@@ -39,6 +39,39 @@ void test_queue_capacity() {
     std::cout << "test_queue_capacity passed.\n";
 }
 
+void test_try_pop() {
+    DataQueue<int> queue(2);
+    
+    // Test try_pop on empty queue
+    auto result1 = queue.try_pop();
+    assert(result1.status == PopStatus::Timeout);
+    
+    // Add item and test try_pop
+    queue.push(1);
+    auto result2 = queue.try_pop();
+    assert(result2.status == PopStatus::Success);
+    assert(*result2.data == 1);
+    
+    // Test try_pop after termination on empty queue
+    queue.terminate();
+    auto result3 = queue.try_pop();
+    assert(result3.status == PopStatus::Terminated);
+    
+    // Test try_pop after termination with data
+    DataQueue<int> queue2(2);
+    queue2.push(2);
+    queue2.terminate();
+    
+    auto result4 = queue2.try_pop();
+    assert(result4.status == PopStatus::Success);
+    assert(*result4.data == 2);
+    
+    auto result5 = queue2.try_pop();
+    assert(result5.status == PopStatus::Terminated);
+    
+    std::cout << "test_try_pop passed.\n";
+}
+
 void test_termination() {
     DataQueue<int> queue(2);
     
@@ -121,6 +154,7 @@ void test_size_and_empty() {
 int main() {
     test_basic_operations();
     test_queue_capacity();
+    test_try_pop();
     test_termination();
     test_concurrent_operations();
     test_timeout();

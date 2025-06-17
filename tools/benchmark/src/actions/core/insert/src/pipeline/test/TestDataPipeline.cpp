@@ -127,6 +127,10 @@ void test_termination() {
     }
     
     auto result = pipeline.fetch_data(0);
+    assert(result.status == DataPipeline<int>::Status::Success);
+    assert(result.data.has_value() && "Data should exist after termination");
+    assert(result.data.value() == 42 && "Data should be the one pushed before termination");
+    result = pipeline.fetch_data(0);
     assert(result.status == DataPipeline<int>::Status::Terminated);
     
     std::cout << "test_termination passed.\n";

@@ -78,13 +78,12 @@ public:
 
     PopResult try_pop() {
         std::unique_lock<std::mutex> lock(mutex_);
-        
-        if (terminated_) {
-            return PopResult{std::nullopt, PopStatus::Terminated};
-        }
-        
+    
         if (queue_.empty()) {
-            return PopResult{std::nullopt, PopStatus::Timeout};
+            if (terminated_)
+                return PopResult{std::nullopt, PopStatus::Terminated};
+            else
+                return PopResult{std::nullopt, PopStatus::Timeout};
         }
         
         T item = std::move(queue_.front());
