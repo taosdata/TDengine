@@ -271,10 +271,6 @@ int32_t syncSnapSendMsg(SSyncSnapshotSender *pSender, int32_t seq, void *pBlock,
   }
   int64_t snap_sync_end_ts = taosGetTimestampUs();
 
-  // Note: pMsg->dataLen might be 0 for messages like begin/end, which is fine.
-  (void)atomic_add_fetch_64(&pSender->pSyncNode->sync_bytes, (int64_t)pMsg->dataLen);
-  (void)atomic_add_fetch_64(&pSender->pSyncNode->sync_time, snap_sync_end_ts - snap_sync_start_ts);
-
 _OUT:
   TAOS_RETURN(code);
 }

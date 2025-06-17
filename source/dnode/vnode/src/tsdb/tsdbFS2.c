@@ -910,18 +910,17 @@ void tsdbFSCheckCommit(STsdb *tsdb, int32_t fid) {
   if (fset) {
     blockCommit = fset->blockCommit;
   }
-  int64_t begin_ts = taosGetTimestampUs();
   if (fset) {
-    while (fset->blockCommit) {
-      fset->numWaitCommit++;
-      (void)taosThreadCondWait(&fset->canCommit, &tsdb->mutex);
-      fset->numWaitCommit--;
-    }
+    METRICS_TIMING_BLOCK(tsdb->pVnode->writeMetrics.block_commit_time, METRIC_LEVEL_HIGH, {
+      while (fset->blockCommit) {
+        fset->numWaitCommit++;
+        (void)taosThreadCondWait(&fset->canCommit, &tsdb->mutex);
+        fset->numWaitCommit--;
+      }
+    });
   }
-  int64_t end_ts = taosGetTimestampUs();
   if (blockCommit) {
-    atomic_add_fetch_64(&tsdb->pVnode->writeMetrics.block_commit_count, 1);
-    atomic_add_fetch_64(&tsdb->pVnode->writeMetrics.block_commit_time, end_ts - begin_ts);
+    METRICS_UPDATE(tsdb->pVnode->writeMetrics.block_commit_count, METRIC_LEVEL_HIGH, 1);
   }
   (void)taosThreadMutexUnlock(&tsdb->mutex);
   return;

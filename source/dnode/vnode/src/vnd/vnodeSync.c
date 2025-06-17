@@ -319,8 +319,8 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
     code = vnodeProposeMsg(pVnode, pMsg, isWeak);
 
     // update metrics
-    (void)atomic_add_fetch_64(&pVnode->writeMetrics.total_requests, 1);
-    (void)atomic_add_fetch_64(&pVnode->writeMetrics.total_bytes, pMsg->contLen);
+    METRICS_UPDATE(pVnode->writeMetrics.total_requests, METRIC_LEVEL_HIGH, 1);
+    METRICS_UPDATE(pVnode->writeMetrics.total_bytes, METRIC_LEVEL_HIGH, pMsg->contLen);
 
     vGTrace(&pMsg->info.traceId, "vgId:%d, msg:%p, is freed, code:0x%x", vgId, pMsg, code);
     rpcFreeCont(pMsg->pCont);

@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "cJSON.h"
+#include "metrics.h"
 #include "tdef.h"
 #include "tlrucache.h"
 #include "tmsgcb.h"

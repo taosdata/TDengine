@@ -1615,14 +1615,7 @@ int32_t syncLogReplSendTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex ind
           "vgId:%d, index:%" PRId64 ", replicate one msg to dest addr:0x%" PRIx64 ", term:%" PRId64 " prevterm:%" PRId64,
           pNode->vgId, pEntry->index, pDestId->addr, pEntry->term, prevLogTerm);
 
-  int64_t sync_start_ts = taosGetTimestampUs();  // Start timer
   TAOS_CHECK_GOTO(syncNodeSendAppendEntries(pNode, pDestId, &msgOut), &lino, _err);
-  int64_t sync_end_ts = taosGetTimestampUs();  // End timer
-
-  // Atomically update sync metrics
-  (void)atomic_add_fetch_64(&pNode->sync_bytes, (int64_t)pEntry->bytes);
-  (void)atomic_add_fetch_64(&pNode->sync_time, sync_end_ts - sync_start_ts);
-
   if (!inBuf) {
     syncEntryDestroy(pEntry);
     pEntry = NULL;

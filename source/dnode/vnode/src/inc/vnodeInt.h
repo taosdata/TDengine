@@ -49,6 +49,7 @@
 
 #include "vnode.h"
 
+#include "metrics.h"
 #include "taos_monitor.h"
 
 #ifdef __cplusplus

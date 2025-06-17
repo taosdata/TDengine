@@ -358,17 +358,17 @@ static int32_t vnodeCommit(void *arg) {
   SCommitInfo *pInfo = (SCommitInfo *)arg;
   SVnode      *pVnode = pInfo->pVnode;
 
-  int64_t begin_ts = taosGetTimestampUs();
   // commit
-  if ((code = vnodeCommitImpl(pInfo))) {
-    vFatal("vgId:%d, failed to commit vnode since %s", TD_VID(pVnode), terrstr());
-    taosMsleep(100);
-    exit(EXIT_FAILURE);
-    goto _exit;
-  }
+  METRICS_TIMING_BLOCK(pVnode->writeMetrics.commit_time, METRIC_LEVEL_HIGH, {
+    if ((code = vnodeCommitImpl(pInfo))) {
+      vFatal("vgId:%d, failed to commit vnode since %s", TD_VID(pVnode), terrstr());
+      taosMsleep(100);
+      exit(EXIT_FAILURE);
+      goto _exit;
+    }
+  });
 
-  atomic_add_fetch_64(&pVnode->writeMetrics.commit_time, taosGetTimestampUs() - begin_ts);
-  atomic_add_fetch_64(&pVnode->writeMetrics.commit_count, 1);
+  METRICS_UPDATE(pVnode->writeMetrics.commit_count, METRIC_LEVEL_HIGH, 1);
 
   vnodeReturnBufPool(pVnode);
 
