@@ -1838,13 +1838,14 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   SUserObj userObj = {0};
 
   if (pCreate->passIsMd5 == 1) {
-    memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN - 1);
-    TAOS_CHECK_RETURN(mndEncryptPass(userObj.pass, &userObj.passEncryptAlgorythm));
+    memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
+    //memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN - 1);
+    //TAOS_CHECK_RETURN(mndEncryptPass(userObj.pass, &userObj.passEncryptAlgorythm));
   } else {
     if (pCreate->isImport != 1) {
       taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.pass);
-      userObj.pass[TSDB_PASSWORD_LEN - 1] = 0;
-      TAOS_CHECK_RETURN(mndEncryptPass(userObj.pass, &userObj.passEncryptAlgorythm));
+      //userObj.pass[TSDB_PASSWORD_LEN - 1] = 0;
+      //TAOS_CHECK_RETURN(mndEncryptPass(userObj.pass, &userObj.passEncryptAlgorythm));
     } else {
       memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
     }
@@ -2573,7 +2574,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       taosEncryptPass_c((uint8_t *)alterReq.pass, strlen(alterReq.pass), newUser.pass);
     }
 
-    TAOS_CHECK_GOTO(mndEncryptPass(newUser.pass, &newUser.passEncryptAlgorythm), &lino, _OVER);
+    //TAOS_CHECK_GOTO(mndEncryptPass(newUser.pass, &newUser.passEncryptAlgorythm), &lino, _OVER);
 
     if (0 != strncmp(pUser->pass, newUser.pass, TSDB_PASSWORD_LEN)) {
       ++newUser.passVersion;
