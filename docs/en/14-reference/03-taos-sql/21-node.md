@@ -52,7 +52,9 @@ The value is the parameter's value and needs to be in character format. For exam
 ```sql
 ALTER DNODE 1 'debugFlag' '143';
 ```
-### Additional Notes:
+
+### Additional Notes
+
 Configuration parameters in a dnode are divided into global configuration parameters and local configuration parameters. You can check the category field in SHOW VARIABLES or SHOW DNODE dnode_id VARIABLE to determine whether a configuration parameter is a global configuration parameter or a local configuration parameter:
 
 Local configuration parameters: You can use ALTER DNODE or ALTER ALL DNODES to update the local configuration parameters of a specific dnode or all dnodes.
@@ -131,7 +133,6 @@ ALTER LOCAL local_option
 You can use the above syntax to modify the client's configuration parameters, and there is no need to restart the client. The changes take effect immediately.
 
 To check whether a configuration parameter supports dynamic modification, please refer to the following page:[taosc Reference](/tdengine-reference/components/taosc/)
-
 
 ## View Client Configuration
 
