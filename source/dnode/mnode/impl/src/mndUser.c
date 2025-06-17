@@ -1786,20 +1786,19 @@ int32_t mndEncryptPass(char *pass, int8_t *algo) {
       code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
       goto _OVER;
     }
-    unsigned char PacketData[128];
-    int           NewLen;
+    unsigned char packetData[TSDB_PASSWORD_LEN] = {0};
+    int           newLen = 0;
 
     SCryptOpts opts = {0};
-    opts.len = 32;
+    opts.len = TSDB_PASSWORD_LEN;
     opts.source = pass;
-    opts.result = PacketData;
-    opts.unitLen = 32;
+    opts.result = packetData;
+    opts.unitLen = TSDB_PASSWORD_LEN;
     tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
 
-    memcpy(PacketData, pass, 32);
-    //NewLen = CBC_Encrypt(&opts);
+    newLen = CBC_Encrypt(&opts);
 
-    memcpy(pass, PacketData, NewLen);
+    memcpy(pass, packetData, newLen);
 
     if (algo != NULL) *algo = DND_CA_SM4;
   }

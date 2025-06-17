@@ -280,8 +280,8 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  char tmpPass[32] = {0};
-  strcpy(tmpPass, connReq.passwd);
+  char tmpPass[TSDB_PASSWORD_LEN] = {0};
+  tstrncpy(tmpPass, connReq.passwd, TSDB_PASSWORD_LEN);
 
   if (pUser->passEncryptAlgorythm != 0) {
     if (pUser->passEncryptAlgorythm != tsiEncryptPassAlgorithm) {
