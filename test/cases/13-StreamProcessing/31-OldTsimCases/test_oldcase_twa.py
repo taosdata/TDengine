@@ -99,40 +99,40 @@ class TestStreamOldCaseTwa:
         tdLog.info(f"end")
 
     def streamTwaFwcFill(self):
-        # tdLog.info(f"streamTwaFwcFill")
-        # tdStream.dropAllStreamsAndDbs()
+        tdLog.info(f"streamTwaFwcFill")
+        tdStream.dropAllStreamsAndDbs()
 
-        # tdLog.info(f"step1")
-        # tdLog.info(f"=============== create database")
-        # tdSql.execute(f"create database test vgroups 1;")
-        # tdSql.execute(f"use test;")
+        tdLog.info(f"step1")
+        tdLog.info(f"=============== create database")
+        tdSql.execute(f"create database test vgroups 1;")
+        tdSql.execute(f"use test;")
 
-        # tdSql.execute(
-        #     f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
-        # )
-        # tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
-        # tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
+        tdSql.execute(
+            f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
+        )
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
-        # tdSql.execute(
-        #     f"create stream streams1 interval(2s) sliding(2s) from st partition by tbname, ta options(expired_time(0s)|ignore_disorder) into streamt as select _twstart, twa(a), twa(b), elapsed(ts), now, timezone() from %%trows;"
-        # )
+        tdSql.execute(
+            f"create stream streams1 interval(2s) sliding(2s) from st partition by tbname, ta options(expired_time(0s)|ignore_disorder) into streamt as select _twstart, twa(a), twa(b), elapsed(ts), now, timezone() from %%trows;"
+        )
 
-        # tdSql.execute(
-        #     f"insert into t1 values('2025-06-01 00:00:03', 1, 1, 1) ('2025-06-01 00:00:04', 10, 1, 1)  ('2025-06-01 00:00:07', 20, 2, 2) ('2025-06-01 00:00:08', 30, 3, 3) ('2025-06-01 00:00:11', 40, 4, 4) ('2025-06-01 00:00:12', 50, 5, 5);"
-        # )
-        # tdSql.execute(
-        #     f"insert into t2 values('2025-06-01 00:00:05', 1, 1, 1) ('2025-06-01 00:00:06', 10, 1, 1)  ('2025-06-01 00:00:09', 20, 2, 2) ('2025-06-01 00:00:10', 30, 3, 3) ('2025-06-01 00:00:13', 40, 4, 4) ('2025-06-01 00:00:14', 50, 5, 5);"
-        # )
+        tdSql.execute(
+            f"insert into t1 values('2025-06-01 00:00:03', 1, 1, 1) ('2025-06-01 00:00:04', 10, 1, 1)  ('2025-06-01 00:00:07', 20, 2, 2) ('2025-06-01 00:00:08', 30, 3, 3) ('2025-06-01 00:00:11', 40, 4, 4) ('2025-06-01 00:00:12', 50, 5, 5);"
+        )
+        tdSql.execute(
+            f"insert into t2 values('2025-06-01 00:00:05', 1, 1, 1) ('2025-06-01 00:00:06', 10, 1, 1)  ('2025-06-01 00:00:09', 20, 2, 2) ('2025-06-01 00:00:10', 30, 3, 3) ('2025-06-01 00:00:13', 40, 4, 4) ('2025-06-01 00:00:14', 50, 5, 5);"
+        )
 
-        # tdSql.checkResultsByFunc(
-        #     f"select * from test.streamt where ta == 1;",
-        #     lambda: tdSql.getRows() == 5,
-        # )
+        tdSql.checkResultsByFunc(
+            f"select * from test.streamt where ta == 1;",
+            lambda: tdSql.getRows() == 5,
+        )
 
-        # tdSql.checkResultsByFunc(
-        #     f"select * from test.streamt where ta == 2;",
-        #     lambda: tdSql.getRows() == 5,
-        # )
+        tdSql.checkResultsByFunc(
+            f"select * from test.streamt where ta == 2;",
+            lambda: tdSql.getRows() == 5,
+        )
 
         tdLog.info(f"step2")
         tdStream.dropAllStreamsAndDbs()
