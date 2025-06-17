@@ -1588,9 +1588,7 @@ static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** 
     *pFound = true;
     return TSDB_CODE_SUCCESS;
   }
-  // 处理超级表
   if (TSDB_SUPER_TABLE == pMeta->tableType) {
-    // 处理tbname列
     if (0 == strcmp(pCol->colName, "tbname")) {
       SFunctionNode* tbnameFuncNode = NULL;
       code = createTbnameFunctionNode(pCol, &tbnameFuncNode);
