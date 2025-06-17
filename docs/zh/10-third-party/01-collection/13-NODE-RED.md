@@ -89,17 +89,17 @@ create table test.d2 using test.meters tags(2, 'workshop2');
    
   5. 相同方法再制作完成另外两台设备流程。
    
-   
 - <b>增加信息输出</b> 
-  1. 节点选择区域内选中 “debug” 节点，拖动至画布 ‘td-write’ 节点后。
+  1. 节点选择区域内选中 “debug” 节点，拖动至画布 ‘td-writer’ 节点后。
   2. 双击节点打开属性设置，名称填写 ‘debug1’，勾选“节点状态”，下拉列表中选择消息数量。
 
 
 以上节点增加完成后，依次把上面节点按顺序连接起来，形成一条流水线，至此数据采集流程制作完成。
 
-点击右上角 “部署” 按钮发布修改内容，运行成功后可以看到 'td-write' 节点状态变成绿色（绿色表示工作正常）且 'debug1' 节点数字在不断增加（数字表示写入记录数）。
+点击右上角 “部署” 按钮发布修改内容，运行成功后可以看到 'td-writer' 节点状态变成绿色（绿色表示工作正常）且 'debug1' 节点数字在不断增加（数字表示写入记录数）。
 ![td-writer](img/td-writer.webp)
 
+以下为 'td-writer' 向下游节点输出的写入成功的结果信息，若写入失败，会抛出异常且并不会向下游节点推结果：
 ``` json
 {
   "topic":  "insert into test.d1 values (now, 20, 203, 2);",
@@ -112,7 +112,6 @@ create table test.d2 using test.meters tags(2, 'workshop2');
   }
 }
 ```
-
 
 ### 数据查询
 
@@ -131,6 +130,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
   
 ![td-reader](img/td-reader.webp)
 
+以下为 'td-reader' 向下游节点输出的查询结果，若查询失败，会抛出异常且并不会向下游节点推结果：
 ``` json
 {
   "topic":  "select tbname,avg(current) ...",
@@ -157,10 +157,8 @@ create table test.d2 using test.meters tags(2, 'workshop2');
     }
   ]
 }
-
 ```
 
-  
 ### 数据订阅
 数据订阅流程由两个节点（/tdengine-consumer/debug）组成，完成设备过载警告提醒功能。
   1. 使用 taos-CLI 手工创建订阅主题 topic_overload ,  SQL 如下：
@@ -184,8 +182,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
   
 ![td-consumer](img/td-consumer.webp)
 
-运行一段时间后订阅收到的异常设备过载警告数据：
-
+以下是 'td-consumer' 向下游节点推送的过载设备警告信息：
 ``` json
 {
   "topic": "topic_overload",
@@ -215,3 +212,11 @@ create table test.d2 using test.meters tags(2, 'workshop2');
   5. 依次把以上节点按顺序连接起来，点击 “部署” 按钮发布修改内容。
 流程启动后如果有异常，会在 'debug4' 节点下看到所有流程发生错误的数量，当我们停止 TDengine 服务时，捕获到的错误数量会迅速增长，表明整个系统正在出现问题，可以通过 NODE-RED 日志系统排查问题。
 ![td-catch](img/td-catch.webp)
+
+### 运行效果
+全部流程制作完成后，点击 “部署” 后， 从“数据采集->实时查询->订阅”整个物联网数据处理系统即建立起来了，运行效果如下：
+![td-all](img/td-all.webp)
+
+## 总结
+Node-RED + TDengine 让原来需要资深开发人员才能做的物联网数据采集分析处理系统，目前只需在画布上拖拽即能完成，极大降低了开发门槛。
+另外我们在 node-red 软件中也提供了丰富的在线帮助指引，详细介绍了插件的输入输出格式及使用。
