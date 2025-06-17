@@ -69,6 +69,7 @@ export async function getAgentList(api: any) {
     });
   });
 }
+
 interface checkResultProp {
   data_source?: string;
   valid?: boolean;
@@ -77,6 +78,7 @@ interface checkResultProp {
   message?: string;
   namespaces?: string[];
 }
+
 // 连通性检查的结果
 export const connectivityCheckResult = ref<checkResultProp>({
   valid: true,
@@ -97,6 +99,7 @@ export const TimeFormats = [
   'BackfillStartTime',
   'BackfillEndTime'
 ];
+
 export function getFieldClassMarkName(field: string) {
   return field.replace(/[^\w-]/g, '-');
 }
@@ -138,6 +141,7 @@ export function validateFormFields(formRef: FormInstance, onValid: AnyFunction, 
     }
   });
 }
+
 // 获取需要在点击通性检查之前的必填字段
 export const getValidFieldList = (data: any, result: any[], parent = 'data') => {
   for (const val of data) {
@@ -157,6 +161,7 @@ export const getValidFieldList = (data: any, result: any[], parent = 'data') => 
     }
   }
 };
+
 // mongodb 查询排序字段输入框校验函数
 export function checkJson(_: any, value: string, callback: AnyFunction) {
   function isValidJSON(text: string) {
@@ -287,6 +292,10 @@ export function formatFromData(from: Recordable) {
 
 // 将配置数据合入为 from.data 参数，也就是3.3.6.0版本之前的 dsn 字符串的 对象表达形式
 function mergeToFromData(data: Recordable, fromData: Recordable, fullNameMap: any = {}, parentKey?: string) {
+  if (!data || typeof data !== 'object') {
+    return;
+  }
+
   if (data['only-choose-one$'] && typeof data[data['only-choose-one$']] === 'object') {
     mergeToFromData(data[data['only-choose-one$']], fromData, fullNameMap, data['only-choose-one$']);
     return;
@@ -302,7 +311,7 @@ function mergeToFromData(data: Recordable, fromData: Recordable, fullNameMap: an
 
     if (typeof data[key] === 'object') {
       // 对象或数组类型
-      if (data[key].length !== undefined) {
+      if (data[key]?.length !== undefined) {
         fromData[key] = data[key].join(',');
       } else {
         mergeToFromData(data[key], fromData, fullNameMap, key);
@@ -400,6 +409,7 @@ export function getCSVOptions(data: Recordable) {
 
 // 以下函数 for test
 import { hasOwnProperty } from 'utils/validate';
+
 const ReplacePoint = '~';
 export const ComposeParams = [
   'timeout',
