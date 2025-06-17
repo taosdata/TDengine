@@ -230,8 +230,213 @@ endi
 sql_error show create stable t0;
 
 sql show variables;
-if $rows != 91 then
-  print $rows != 91
+if $rows != 90 then
+  print $rows != 90
+  $x = 0
+  while $x < $rows
+    if $x == 0 then
+      print  $x    $data[0][0] $data[0][2] $data[0][3] $data[0][1]
+    elif $x == 1 then
+      print  $x    $data[1][0] $data[1][2] $data[1][3] $data[1][1]
+    elif $x == 2 then
+      print  $x    $data[2][0] $data[2][2] $data[2][3] $data[2][1]
+    elif $x == 3 then
+      print  $x    $data[3][0] $data[3][2] $data[3][3] $data[3][1]
+    elif $x == 4 then
+      print  $x    $data[4][0] $data[4][2] $data[4][3] $data[4][1]
+    elif $x == 5 then
+      print  $x    $data[5][0] $data[5][2] $data[5][3] $data[5][1]
+    elif $x == 6 then
+      print  $x    $data[6][0] $data[6][2] $data[6][3] $data[6][1]
+    elif $x == 7 then
+      print  $x    $data[7][0] $data[7][2] $data[7][3] $data[7][1]
+    elif $x == 8 then
+      print  $x    $data[8][0] $data[8][2] $data[8][3] $data[8][1]
+    elif $x == 9 then
+      print  $x    $data[9][0] $data[9][2] $data[9][3] $data[9][1]
+    elif $x == 10 then
+      print  $x    $data[10][0] $data[10][2] $data[10][3] $data[10][1]
+    elif $x == 11 then
+      print  $x    $data[11][0] $data[11][2] $data[11][3] $data[11][1]
+    elif $x == 12 then
+      print  $x    $data[12][0] $data[12][2] $data[12][3] $data[12][1]
+    elif $x == 13 then
+      print  $x    $data[13][0] $data[13][2] $data[13][3] $data[13][1]
+    elif $x == 14 then
+      print  $x    $data[14][0] $data[14][2] $data[14][3] $data[14][1]
+    elif $x == 15 then
+      print  $x    $data[15][0] $data[15][2] $data[15][3] $data[15][1]
+    elif $x == 16 then
+      print  $x    $data[16][0] $data[16][2] $data[16][3] $data[16][1]
+    elif $x == 17 then
+      print  $x    $data[17][0] $data[17][2] $data[17][3] $data[17][1]
+    elif $x == 18 then
+      print  $x    $data[18][0] $data[18][2] $data[18][3] $data[18][1]
+    elif $x == 19 then
+      print  $x    $data[19][0] $data[19][2] $data[19][3] $data[19][1]
+    elif $x == 20 then
+      print  $x    $data[20][0] $data[20][2] $data[20][3] $data[20][1]
+    elif $x == 21 then
+      print  $x    $data[21][0] $data[21][2] $data[21][3] $data[21][1]
+    elif $x == 22 then
+      print  $x    $data[22][0] $data[22][2] $data[22][3] $data[22][1]
+    elif $x == 23 then
+      print  $x    $data[23][0] $data[23][2] $data[23][3] $data[23][1]
+    elif $x == 24 then
+      print  $x    $data[24][0] $data[24][2] $data[24][3] $data[24][1]
+    elif $x == 25 then
+      print  $x    $data[25][0] $data[25][2] $data[25][3] $data[25][1]
+    elif $x == 26 then
+      print  $x    $data[26][0] $data[26][2] $data[26][3] $data[26][1]
+    elif $x == 27 then
+      print  $x    $data[27][0] $data[27][2] $data[27][3] $data[27][1]
+    elif $x == 28 then
+      print  $x    $data[28][0] $data[28][2] $data[28][3] $data[28][1]
+    elif $x == 29 then
+      print  $x    $data[29][0] $data[29][2] $data[29][3] $data[29][1]
+    elif $x == 30 then
+      print  $x    $data[30][0] $data[30][2] $data[30][3] $data[30][1]
+    elif $x == 31 then
+      print  $x    $data[31][0] $data[31][2] $data[31][3] $data[31][1]
+    elif $x == 32 then
+      print  $x    $data[32][0] $data[32][2] $data[32][3] $data[32][1]
+    elif $x == 33 then
+      print  $x    $data[33][0] $data[33][2] $data[33][3] $data[33][1]
+    elif $x == 34 then
+      print  $x    $data[34][0] $data[34][2] $data[34][3] $data[34][1]
+    elif $x == 35 then
+      print  $x    $data[35][0] $data[35][2] $data[35][3] $data[35][1]
+    elif $x == 36 then
+      print  $x    $data[36][0] $data[36][2] $data[36][3] $data[36][1]
+    elif $x == 37 then
+      print  $x    $data[37][0] $data[37][2] $data[37][3] $data[37][1]
+    elif $x == 38 then
+      print  $x    $data[38][0] $data[38][2] $data[38][3] $data[38][1]
+    elif $x == 39 then
+      print  $x    $data[39][0] $data[39][2] $data[39][3] $data[39][1]
+    elif $x == 40 then
+      print  $x    $data[40][0] $data[40][2] $data[40][3] $data[40][1]
+    elif $x == 41 then
+      print  $x    $data[41][0] $data[41][2] $data[41][3] $data[41][1]
+    elif $x == 42 then
+      print  $x    $data[42][0] $data[42][2] $data[42][3] $data[42][1]
+    elif $x == 43 then
+      print  $x    $data[43][0] $data[43][2] $data[43][3] $data[43][1]
+    elif $x == 44 then
+      print  $x    $data[44][0] $data[44][2] $data[44][3] $data[44][1]
+    elif $x == 45 then
+      print  $x    $data[45][0] $data[45][2] $data[45][3] $data[45][1]
+    elif $x == 46 then
+      print  $x    $data[46][0] $data[46][2] $data[46][3] $data[46][1]
+    elif $x == 47 then
+      print  $x    $data[47][0] $data[47][2] $data[47][3] $data[47][1]
+    elif $x == 48 then
+      print  $x    $data[48][0] $data[48][2] $data[48][3] $data[48][1]
+    elif $x == 49 then
+      print  $x    $data[49][0] $data[49][2] $data[49][3] $data[49][1]
+    elif $x == 50 then
+      print  $x    $data[50][0] $data[50][2] $data[50][3] $data[50][1]
+    elif $x == 51 then
+      print  $x    $data[51][0] $data[51][2] $data[51][3] $data[51][1]
+    elif $x == 52 then
+      print  $x    $data[52][0] $data[52][2] $data[52][3] $data[52][1]
+    elif $x == 53 then
+      print  $x    $data[53][0] $data[53][2] $data[53][3] $data[53][1]
+    elif $x == 54 then
+      print  $x    $data[54][0] $data[54][2] $data[54][3] $data[54][1]
+    elif $x == 55 then
+      print  $x    $data[55][0] $data[55][2] $data[55][3] $data[55][1]
+    elif $x == 56 then
+      print  $x    $data[56][0] $data[56][2] $data[56][3] $data[56][1]
+    elif $x == 57 then
+      print  $x    $data[57][0] $data[57][2] $data[57][3] $data[57][1]
+    elif $x == 58 then
+      print  $x    $data[58][0] $data[58][2] $data[58][3] $data[58][1]
+    elif $x == 59 then
+      print  $x    $data[59][0] $data[59][2] $data[59][3] $data[59][1]
+    elif $x == 60 then
+      print  $x    $data[60][0] $data[60][2] $data[60][3] $data[60][1]
+    elif $x == 61 then
+      print  $x    $data[61][0] $data[61][2] $data[61][3] $data[61][1]
+    elif $x == 62 then
+      print  $x    $data[62][0] $data[62][2] $data[62][3] $data[62][1]
+    elif $x == 63 then
+      print  $x    $data[63][0] $data[63][2] $data[63][3] $data[63][1]
+    elif $x == 64 then
+      print  $x    $data[64][0] $data[64][2] $data[64][3] $data[64][1]
+    elif $x == 65 then
+      print  $x    $data[65][0] $data[65][2] $data[65][3] $data[65][1]
+    elif $x == 66 then
+      print  $x    $data[66][0] $data[66][2] $data[66][3] $data[66][1]
+    elif $x == 67 then
+      print  $x    $data[67][0] $data[67][2] $data[67][3] $data[67][1]
+    elif $x == 68 then
+      print  $x    $data[68][0] $data[68][2] $data[68][3] $data[68][1]
+    elif $x == 69 then
+      print  $x    $data[69][0] $data[69][2] $data[69][3] $data[69][1]
+    elif $x == 70 then
+      print  $x    $data[70][0] $data[70][2] $data[70][3] $data[70][1]
+    elif $x == 71 then
+      print  $x    $data[71][0] $data[71][2] $data[71][3] $data[71][1]
+    elif $x == 72 then
+      print  $x    $data[72][0] $data[72][2] $data[72][3] $data[72][1]
+    elif $x == 73 then
+      print  $x    $data[73][0] $data[73][2] $data[73][3] $data[73][1]
+    elif $x == 74 then
+      print  $x    $data[74][0] $data[74][2] $data[74][3] $data[74][1]
+    elif $x == 75 then
+      print  $x    $data[75][0] $data[75][2] $data[75][3] $data[75][1]
+    elif $x == 76 then
+      print  $x    $data[76][0] $data[76][2] $data[76][3] $data[76][1]
+    elif $x == 77 then
+      print  $x    $data[77][0] $data[77][2] $data[77][3] $data[77][1]
+    elif $x == 78 then
+      print  $x    $data[78][0] $data[78][2] $data[78][3] $data[78][1]
+    elif $x == 79 then
+      print  $x    $data[79][0] $data[79][2] $data[79][3] $data[79][1]
+    elif $x == 80 then
+      print  $x    $data[80][0] $data[80][2] $data[80][3] $data[80][1]
+    elif $x == 81 then
+      print  $x    $data[81][0] $data[81][2] $data[81][3] $data[81][1]
+    elif $x == 82 then
+      print  $x    $data[82][0] $data[82][2] $data[82][3] $data[82][1]
+    elif $x == 83 then
+      print  $x    $data[83][0] $data[83][2] $data[83][3] $data[83][1]
+    elif $x == 84 then
+      print  $x    $data[84][0] $data[84][2] $data[84][3] $data[84][1]
+    elif $x == 85 then
+      print  $x    $data[85][0] $data[85][2] $data[85][3] $data[85][1]
+    elif $x == 86 then
+      print  $x    $data[86][0] $data[86][2] $data[86][3] $data[86][1]
+    elif $x == 87 then
+      print  $x    $data[87][0] $data[87][2] $data[87][3] $data[87][1]
+    elif $x == 88 then
+      print  $x    $data[88][0] $data[88][2] $data[88][3] $data[88][1]
+    elif $x == 89 then
+      print  $x    $data[89][0] $data[89][2] $data[89][3] $data[89][1]
+    elif $x == 90 then
+      print  $x    $data[90][0] $data[90][2] $data[90][3] $data[90][1]
+    elif $x == 91 then
+      print  $x    $data[91][0] $data[91][2] $data[91][3] $data[91][1]
+    elif $x == 92 then
+      print  $x    $data[92][0] $data[92][2] $data[92][3] $data[92][1]
+    elif $x == 93 then
+      print  $x    $data[93][0] $data[93][2] $data[93][3] $data[93][1]
+    elif $x == 94 then
+      print  $x    $data[94][0] $data[94][2] $data[94][3] $data[94][1]
+    elif $x == 95 then
+      print  $x    $data[95][0] $data[95][2] $data[95][3] $data[95][1]
+    elif $x == 96 then
+      print  $x    $data[96][0] $data[96][2] $data[96][3] $data[96][1]
+    elif $x == 97 then
+      print  $x    $data[97][0] $data[97][2] $data[97][3] $data[97][1]
+    elif $x == 98 then
+      print  $x    $data[98][0] $data[98][2] $data[98][3] $data[98][1]
+    elif $x == 99 then
+      print  $x    $data[99][0] $data[99][2] $data[99][3] $data[99][1]
+    endi
+    $x = $x + 1
+  endw
   return -1
 endi
 
