@@ -1007,7 +1007,7 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
       break;
   }
 
-  if (pCxt->pPlanCxt->streamTriggerQuery) {
+  if (pCxt->pPlanCxt->streamTriggerQuery && !pCxt->pPlanCxt->streamTriggerScanSubplan) {
     pCxt->pPlanCxt->streamTriggerScanSubplan = (SNode*)pSubplan;
   }
   if (pCxt->pPlanCxt->streamCalcQuery) {

@@ -903,19 +903,19 @@ trigger_option_list(A) ::= trigger_option_list(B) NK_BITOR trigger_option(C).   
 
 %type trigger_option                                                               { SStreamTriggerOption }
 %destructor trigger_option                                                         { }
-trigger_option(A) ::= CALC_NOTIFY_ONLY.                                            { A.type = STREAM_TRIGGER_OPTION_CALC_NOTIFY_ONLY; }
-trigger_option(A) ::= DELETE_RECALC.                                               { A.type = STREAM_TRIGGER_OPTION_DELETE_RECALC; }
-trigger_option(A) ::= DELETE_OUTPUT_TABLE.                                         { A.type = STREAM_TRIGGER_OPTION_DELETE_OUTPUT_TABLE; }
+trigger_option(A) ::= CALC_NOTIFY_ONLY.                                            { A.type = STREAM_TRIGGER_OPTION_CALC_NOTIFY_ONLY; A.pNode = NULL; }
+trigger_option(A) ::= DELETE_RECALC.                                               { A.type = STREAM_TRIGGER_OPTION_DELETE_RECALC; A.pNode = NULL; }
+trigger_option(A) ::= DELETE_OUTPUT_TABLE.                                         { A.type = STREAM_TRIGGER_OPTION_DELETE_OUTPUT_TABLE; A.pNode = NULL; }
 trigger_option(A) ::= EXPIRED_TIME NK_LP duration_literal(B) NK_RP.                { A.type = STREAM_TRIGGER_OPTION_EXPIRED_TIME; A.pNode = releaseRawExprNode(pCxt, B); }
 trigger_option(A) ::= FILL_HISTORY NK_LP time_point(B) NK_RP.                      { A.type = STREAM_TRIGGER_OPTION_FILL_HISTORY; A.pNode = B; }
 trigger_option(A) ::= FILL_HISTORY_FIRST NK_LP time_point(B) NK_RP.                { A.type = STREAM_TRIGGER_OPTION_FILL_HISTORY_FIRST; A.pNode = B; }
-trigger_option(A) ::= FORCE_OUTPUT.                                                { A.type = STREAM_TRIGGER_OPTION_FORCE_OUTPUT; }
-trigger_option(A) ::= IGNORE_DISORDER.                                             { A.type = STREAM_TRIGGER_OPTION_IGNORE_DISORDER;}
-trigger_option(A) ::= LOW_LATENCY_CALC.                                            { A.type = STREAM_TRIGGER_OPTION_LOW_LATENCY_CALC; }
+trigger_option(A) ::= FORCE_OUTPUT.                                                { A.type = STREAM_TRIGGER_OPTION_FORCE_OUTPUT; A.pNode = NULL; }
+trigger_option(A) ::= IGNORE_DISORDER.                                             { A.type = STREAM_TRIGGER_OPTION_IGNORE_DISORDER; A.pNode = NULL; }
+trigger_option(A) ::= LOW_LATENCY_CALC.                                            { A.type = STREAM_TRIGGER_OPTION_LOW_LATENCY_CALC; A.pNode = NULL; }
 trigger_option(A) ::= MAX_DELAY NK_LP duration_literal(B) NK_RP.                   { A.type = STREAM_TRIGGER_OPTION_MAX_DELAY; A.pNode = releaseRawExprNode(pCxt, B); }
 trigger_option(A) ::= PRE_FILTER NK_LP search_condition(B) NK_RP.                  { A.type = STREAM_TRIGGER_OPTION_PRE_FILTER; A.pNode = B; }
 trigger_option(A) ::= WATERMARK NK_LP duration_literal(B) NK_RP.                   { A.type = STREAM_TRIGGER_OPTION_WATERMARK; A.pNode = releaseRawExprNode(pCxt, B); }
-trigger_option(A) ::= EVENT_TYPE NK_LP event_type_list(B) NK_RP.                   { A.type = STREAM_TRIGGER_OPTION_EVENT_TYPE; A.flag = B; }
+trigger_option(A) ::= EVENT_TYPE NK_LP event_type_list(B) NK_RP.                   { A.type = STREAM_TRIGGER_OPTION_EVENT_TYPE; A.flag = B; A.pNode = NULL; }
 
 /***** notification_opt *****/
 notification_opt(A) ::= .                                                         { A = NULL; }
