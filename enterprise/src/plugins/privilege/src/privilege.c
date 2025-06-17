@@ -339,6 +339,8 @@ int32_t mndSetUserWhiteListDualRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhit
       TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
     (void)memset(pWhiteListRsp->pWhiteListsDual, 0, pWhiteListRsp->numWhiteLists * sizeof(SIpRange));
+    pWhiteListRsp->pWhiteListsDual[0].type = 1;
+    pWhiteListRsp->pWhiteListsDual[1].type = 1;
   }
   TAOS_RETURN(0);
 
