@@ -400,6 +400,73 @@ _exit:
   return code;
 }
 
+int32_t initCtxAsGeoJSON() {
+  int32_t       code = TSDB_CODE_FAILED;
+  SGeosContext *geosCtx = NULL;
+
+  TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
+
+  if (geosCtx->handle == NULL) {
+    geosCtx->handle = GEOS_init_r();
+    if (geosCtx->handle == NULL) {
+      return code;
+    }
+
+    (void)GEOSContext_setErrorMessageHandler_r(geosCtx->handle, geosErrMsgeHandler, geosCtx->errMsg);
+  }
+
+  if (geosCtx->WKBReader == NULL) {
+    geosCtx->WKBReader = GEOSWKBReader_create_r(geosCtx->handle);
+    if (geosCtx->WKBReader == NULL) {
+      return code;
+    }
+  }
+
+  if (geosCtx->GeoJSONWriter == NULL) {
+    geosCtx->GeoJSONWriter = GEOSGeoJSONWriter_create_r(geosCtx->handle);
+    if (geosCtx->GeoJSONWriter == NULL) {
+      return code;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+// outputGeoJSON is a zero ending string
+// need to call geosFreeBuffer(*outputWKT) later
+int32_t doAsGeoJSON(const unsigned char *inputGeom, size_t size, char **outputGeoJSON) {
+  int32_t       code = TSDB_CODE_FAILED;
+  SGeosContext *geosCtx = NULL;
+
+  TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
+
+  GEOSGeometry *geom = NULL;
+  char         *geojson = NULL;
+
+  geom = GEOSWKBReader_read_r(geosCtx->handle, geosCtx->WKBReader, inputGeom, size);
+  if (geom == NULL) {
+    code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    goto _exit;
+  }
+
+  geojson = GEOSGeoJSONWriter_writeGeometry_r(geosCtx->handle, geosCtx->GeoJSONWriter, geom, -1);
+  if (geojson == NULL) {
+    code = TSDB_CODE_MSG_DECODE_ERROR;
+    goto _exit;
+  }
+  *outputGeoJSON = geojson;
+
+  code = TSDB_CODE_SUCCESS;
+
+_exit:
+  if (geom) {
+    GEOSGeom_destroy_r(geosCtx->handle, geom);
+    geom = NULL;
+  }
+
+  return code;
+}
+
 int32_t initCtxRelationFunc() {
   int32_t       code = TSDB_CODE_FAILED;
   SGeosContext *geosCtx = NULL;

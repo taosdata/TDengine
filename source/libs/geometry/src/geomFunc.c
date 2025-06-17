@@ -167,6 +167,36 @@ _exit:
   return code;
 }
 
+// both input and output are with VARSTR format
+// need to call taosMemoryFree(*output) later
+int32_t doAsGeoJSONFunc(unsigned char *input, char **output) {
+  int32_t code = TSDB_CODE_FAILED;
+
+  if ((varDataLen(input)) == 0) {  // empty value
+    *output = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  char *outputWKT = NULL;
+  TAOS_CHECK_GOTO(doAsGeoJSON(varDataVal(input), varDataLen(input), &outputWKT), NULL, _exit);
+
+  size_t size = strlen(outputWKT);
+  *output = taosMemoryCalloc(1, size + VARSTR_HEADER_SIZE);
+  if (*output == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+
+  (void)memcpy(varDataVal(*output), outputWKT, size);
+  varDataSetLen(*output, size);
+  code = TSDB_CODE_SUCCESS;
+
+_exit:
+  geosFreeBuffer(outputWKT);
+
+  return code;
+}
+
 int32_t executeMakePointFunc(SColumnInfoData *pInputData[], int32_t iLeft, int32_t iRight,
                              SColumnInfoData *pOutputData) {
   int32_t code = TSDB_CODE_FAILED;
@@ -213,6 +243,23 @@ _exit:
   return code;
 }
 
+int32_t executeAsTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData) {
+  int32_t code = TSDB_CODE_FAILED;
+
+  unsigned char *input = colDataGetData(pInputData, i);
+  char          *output = NULL;
+
+  TAOS_CHECK_GOTO(doAsTextFunc(input, &output), NULL, _exit);
+  TAOS_CHECK_GOTO(colDataSetVal(pOutputData, i, output, (output == NULL)), NULL, _exit);
+
+_exit:
+  if (output) {
+    taosMemoryFree(output);
+  }
+
+  return code;
+}
+
 static int32_t executeGeomFromGeoJSONFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData) {
   int32_t code = TSDB_CODE_FAILED;
 
@@ -234,13 +281,13 @@ _exit:
   return code;
 }
 
-int32_t executeAsTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData) {
+int32_t executeAsGeoJSONFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData) {
   int32_t code = TSDB_CODE_FAILED;
 
   unsigned char *input = colDataGetData(pInputData, i);
   char          *output = NULL;
 
-  TAOS_CHECK_GOTO(doAsTextFunc(input, &output), NULL, _exit);
+  TAOS_CHECK_GOTO(doAsGeoJSONFunc(input, &output), NULL, _exit);
   TAOS_CHECK_GOTO(colDataSetVal(pOutputData, i, output, (output == NULL)), NULL, _exit);
 
 _exit:
@@ -424,6 +471,10 @@ int32_t asTextFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 
 int32_t geomFromGeoJSONFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return geomOneParamFunction(pInput, pOutput, initCtxGeomFromGeoJSON, executeGeomFromGeoJSONFunc);
+}
+
+int32_t asGeoJSONFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return geomOneParamFunction(pInput, pOutput, initCtxAsGeoJSON, executeAsGeoJSONFunc);
 }
 
 int32_t intersectsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {

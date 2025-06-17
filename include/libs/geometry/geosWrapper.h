@@ -41,6 +41,9 @@ int32_t checkWKB(const unsigned char *wkb, size_t size);
 int32_t initCtxGeomFromGeoJSON();
 int32_t doGeomFromGeoJSON(const char *inputGeoJSON, unsigned char **outputGeom, size_t *size);
 
+int32_t initCtxAsGeoJSON();
+int32_t doAsGeoJSON(const unsigned char *inputGeom, size_t size, char **outputGeoJSON);
+
 int32_t initCtxRelationFunc();
 int32_t doIntersects(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
                      bool swapped, char *res);
