@@ -14184,16 +14184,6 @@ static int32_t createStreamReqCheckPlaceHolder(STranslateContext* pCxt, SCMCreat
     }
   }
 
-  if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PARTITION_IDX)) {
-    if (pTriggerSelect->pFromTable == NULL || nodeType(pTriggerSelect->pFromTable) != QUERY_NODE_REAL_TABLE) {
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "%%n can only be used when query from trigger table"));
-    }
-    SRealTableNode* pQueryTable = (SRealTableNode*)pTriggerSelect->pFromTable;
-    if (pQueryTable->pMeta->tableType != pReq->triggerTblType || pQueryTable->pMeta->uid != pReq->triggerTblUid || pQueryTable->pMeta->suid != pReq->triggerTblSuid) {
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "%%n can only be used when query from trigger table"));
-    }
-  }
-
   return code;
 _return:
   parserError("createStreamReqCheckPlaceHolder failed, code:%d", code);
