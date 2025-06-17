@@ -88,6 +88,8 @@ class StreamTable:
         self.columns = self.default_columns  # 当前使用的列定义（可被自定义覆盖）
         self.tags = self.default_tags
         
+        self.custom_generators = {}  # name -> function(row, ts) -> str
+        
     def setInterval(self, interval):
         """
         设置时间间隔
@@ -245,6 +247,14 @@ class StreamTable:
             tdLog.info(f"delete data in sub table {full_table_name} from {start_row} to {end_row}")
             self.__delete_data(full_table_name, start_row, end_row)
             
+    def register_column_generator(self, column_name: str, generator_func):
+        """
+        注册某个列名的自定义数据生成函数
+        :param column_name: str, 列名
+        :param generator_func: function(row_index: int, timestamp: int) -> str
+        """
+        self.custom_generators[column_name] = generator_func
+            
     def __append_data(self, full_table_name, start_row, end_row, offset = 0):
         # 时间精度
         prec = {
@@ -310,6 +320,8 @@ class StreamTable:
         return columns
 
     def _generate_value(self, name, col_type, row, ts):
+        if name in self.custom_generators:
+            return self.custom_generators[name](row)
         """根据列类型自动生成测试值"""
         if "timestamp" in col_type:
             return str(ts)

@@ -30,6 +30,10 @@ class TestStreamDevBasic:
         self.basic1()
         self.basic2()
         
+    @staticmethod
+    def custom_cint_generator(row):
+        return str(row * 10)  # 每行的 cint 为 row * 10
+        
     def basic1(self):
         tdLog.info(f"basic test 1")
 
@@ -57,6 +61,7 @@ class TestStreamDevBasic:
         
         ntb2 = StreamTable("test1", "ntb2", StreamTableType.TYPE_NORMAL_TABLE)
         ntb2.set_columns("ts timestamp, c0 int, c1 int, c2 int")
+        ntb2.register_column_generator("c0", self.custom_cint_generator)
         ntb2.createTable()
         ntb2.append_data(0, 10)
         ntb2.append_data(20, 30)
