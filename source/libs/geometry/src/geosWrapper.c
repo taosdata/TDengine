@@ -314,26 +314,6 @@ _exit:
   return code;
 }
 
-int32_t checkWKB(const unsigned char *wkb, size_t size) {
-  int32_t       code = TSDB_CODE_SUCCESS;
-  GEOSGeometry *geom = NULL;
-  SGeosContext *geosCtx = NULL;
-
-  TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
-
-  geom = GEOSWKBReader_read_r(geosCtx->handle, geosCtx->WKBReader, wkb, size);
-  if (geom == NULL) {
-    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
-  }
-
-_exit:
-  if (geom) {
-    GEOSGeom_destroy_r(geosCtx->handle, geom);
-    geom = NULL;
-  }
-  return code;
-}
-
 int32_t initCtxGeomFromGeoJSON() {
   int32_t       code = TSDB_CODE_FAILED;
   SGeosContext *geosCtx = NULL;
@@ -562,6 +542,26 @@ int32_t doContains(const GEOSGeometry *geom1, const GEOSPreparedGeometry *prepar
 int32_t doContainsProperly(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1,
                            const GEOSGeometry *geom2, bool swapped, char *res) {
   return doGeosRelation(geom1, preparedGeom1, geom2, swapped, res, NULL, NULL, GEOSPreparedContainsProperly_r, NULL);
+}
+
+int32_t checkWKB(const unsigned char *wkb, size_t size) {
+  int32_t       code = TSDB_CODE_SUCCESS;
+  GEOSGeometry *geom = NULL;
+  SGeosContext *geosCtx = NULL;
+
+  TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
+
+  geom = GEOSWKBReader_read_r(geosCtx->handle, geosCtx->WKBReader, wkb, size);
+  if (geom == NULL) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+  }
+
+_exit:
+  if (geom) {
+    GEOSGeom_destroy_r(geosCtx->handle, geom);
+    geom = NULL;
+  }
+  return code;
 }
 
 // input is with VARSTR format
