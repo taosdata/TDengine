@@ -363,8 +363,9 @@ void vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
                     pMsg, tstrerror(ret), count, pMsg->info.conn.applyIndex);
           count++;
           taosMsleep(200);  // wait for a while before retrying
-        } else
+        } else{
           break;
+        } 
       }
     }
 
