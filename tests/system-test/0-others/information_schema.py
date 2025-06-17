@@ -76,10 +76,6 @@ class TDTestCase:
             tdSql.execute(f"create table {self.stbname}_{i} using {self.stbname} tags({self.tag_values[0]}, {self.tag_values[1]})")
             self.insert_data(self.column_dict,f'{self.stbname}_{i}',self.rowNum)
     def count_check(self):
-        tdSql.query('select * from information_schema.ins_tables')
-        for i in range(len(tdSql.queryResult)):
-            tdLog.info(f"ins_tables row {i}: {tdSql.queryResult[i]}")
-        time.sleep(86400)
         tdSql.query('select count(*) from information_schema.ins_tables')
         tdSql.checkEqual(tdSql.queryResult[0][0],self.tbnum+len(self.ins_list)+len(self.perf_list))
         tdSql.query(f'select count(*) from information_schema.ins_tables where db_name = "{self.dbname}"')
@@ -225,9 +221,6 @@ class TDTestCase:
             tdSql.checkEqual(20470,len(tdSql.queryResult))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
-        tdLog.info(len(tdSql.queryResult))
-        for i in range (len(tdSql.queryResult)):
-            tdLog.info(f'index: {i}, {tdSql.queryResult[i][0]}, {tdSql.queryResult[i][1]}, {tdSql.queryResult[i][2]}, {tdSql.queryResult[i][3]}, {tdSql.queryResult[i][4]}')
         tdSql.checkRows(327)
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
         tdSql.checkRows(62)
