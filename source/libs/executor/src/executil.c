@@ -834,6 +834,155 @@ end:
   return code;
 }
 
+static void getColInfoResultForGroupbyForStream(void* pVnode, SNodeList* group, STableListInfo* pTableListInfo,
+                                   SStorageAPI* pAPI, SHashObj* groupIdMap) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  SArray*      pBlockList = NULL;
+  SSDataBlock* pResBlock = NULL;
+  SArray*      groupData = NULL;
+  SArray*      pUidTagList = NULL;
+  SArray*      gInfo = NULL;
+  int32_t      tbNameIndex = 0;
+
+  int32_t rows = taosArrayGetSize(pTableListInfo->pTableList);
+  if (rows == 0) {
+    return;
+  }
+
+  pUidTagList = taosArrayInit(8, sizeof(STUidTagInfo));
+  QUERY_CHECK_NULL(pUidTagList, code, lino, end, terrno);
+
+  for (int32_t i = 0; i < rows; ++i) {
+    STableKeyInfo* pkeyInfo = taosArrayGet(pTableListInfo->pTableList, i);
+    QUERY_CHECK_NULL(pkeyInfo, code, lino, end, terrno);
+    STUidTagInfo info = {.uid = pkeyInfo->uid};
+    void*        tmp = taosArrayPush(pUidTagList, &info);
+    QUERY_CHECK_NULL(tmp, code, lino, end, terrno);
+  }
+
+  code = pAPI->metaFn.getTableTags(pVnode, pTableListInfo->idInfo.suid, pUidTagList);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto end;
+  }
+
+  SArray* pColList = NULL;
+  code = qGetColumnsFromNodeList(group, true, &pColList);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto end;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pColList); ++i) {
+    SColumnInfo* tmp = (SColumnInfo*)taosArrayGet(pColList, i);
+    if (tmp != NULL && tmp->colId == -1) {
+      tbNameIndex = i;
+    }
+  }
+  
+  int32_t numOfTables = taosArrayGetSize(pUidTagList);
+  pResBlock = createTagValBlockForFilter(pColList, numOfTables, pUidTagList, pVnode, pAPI);
+  taosArrayDestroy(pColList);
+  if (pResBlock == NULL) {
+    code = terrno;
+    goto end;
+  }
+
+  pBlockList = taosArrayInit(2, POINTER_BYTES);
+  QUERY_CHECK_NULL(pBlockList, code, lino, end, terrno);
+
+  void* tmp = taosArrayPush(pBlockList, &pResBlock);
+  QUERY_CHECK_NULL(tmp, code, lino, end, terrno);
+
+  groupData = taosArrayInit(2, POINTER_BYTES);
+  QUERY_CHECK_NULL(groupData, code, lino, end, terrno);
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, group) {
+    SScalarParam output = {0};
+
+    switch (nodeType(pNode)) {
+      case QUERY_NODE_VALUE:
+        break;
+      case QUERY_NODE_COLUMN:
+      case QUERY_NODE_OPERATOR:
+      case QUERY_NODE_FUNCTION: {
+        SExprNode* expNode = (SExprNode*)pNode;
+        code = createResultData(&expNode->resType, rows, &output);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto end;
+        }
+        break;
+      }
+
+      default:
+        code = TSDB_CODE_OPS_NOT_SUPPORT;
+        goto end;
+    }
+
+    if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+      SColumnNode*     pSColumnNode = (SColumnNode*)pNode;
+      SColumnInfoData* pColInfo = (SColumnInfoData*)taosArrayGet(pResBlock->pDataBlock, pSColumnNode->slotId);
+      QUERY_CHECK_NULL(pColInfo, code, lino, end, terrno);
+      code = colDataAssign(output.columnData, pColInfo, rows, NULL);
+    } else if (nodeType(pNode) == QUERY_NODE_VALUE) {
+      continue;
+    } else {
+      code = scalarCalculate(pNode, pBlockList, &output, NULL, NULL);
+    }
+
+    if (code != TSDB_CODE_SUCCESS) {
+      releaseColInfoData(output.columnData);
+      goto end;
+    }
+
+    void* tmp = taosArrayPush(groupData, &output.columnData);
+    QUERY_CHECK_NULL(tmp, code, lino, end, terrno);
+  }
+
+  for (int i = 0; i < rows; i++) {
+    gInfo = taosArrayInit(rows, sizeof(SStreamGroupValue));
+    QUERY_CHECK_NULL(gInfo, code, lino, end, terrno);
+
+    STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
+    QUERY_CHECK_NULL(info, code, lino, end, terrno);
+
+    for (int j = 0; j < taosArrayGetSize(groupData); j++) {
+      SColumnInfoData* pValue = (SColumnInfoData*)taosArrayGetP(groupData, j);
+        int32_t ret = buildGroupInfo(pValue, i, gInfo);
+        if (ret != TSDB_CODE_SUCCESS) {
+          qError("buildGroupInfo failed at line %d since %s", __LINE__, tstrerror(ret));
+          goto end;
+        }
+        if (j == tbNameIndex) {
+          SStreamGroupValue* v = taosArrayGetLast(gInfo);
+          if (v != NULL){
+            v->isTbname = true;
+            v->uid = info->uid;
+          }
+        }
+    }
+
+    int32_t ret = taosHashPut(groupIdMap, &info->uid, sizeof(info->uid), &gInfo, POINTER_BYTES);
+    if (ret != TSDB_CODE_SUCCESS) {
+      qError("put groupid to map failed at line %d since %s", __LINE__, tstrerror(ret));
+      goto end;
+    }
+    qDebug("put groupid to map gid:%" PRIu64, info->uid);
+    gInfo = NULL;
+  }
+
+end:
+  blockDataDestroy(pResBlock);
+  taosArrayDestroy(pBlockList);
+  taosArrayDestroyEx(pUidTagList, freeItem);
+  taosArrayDestroyP(groupData, releaseColInfoData);
+  taosArrayDestroyEx(gInfo, tDestroySStreamGroupValue);
+
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+}
+
 int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInfo* pTableListInfo, uint8_t* digest,
                                    SStorageAPI* pAPI, bool initRemainGroups, SHashObj* groupIdMap) {
   int32_t      code = TSDB_CODE_SUCCESS;
@@ -2764,7 +2913,7 @@ void tableListGetSourceTableInfo(const STableListInfo* pTableList, uint64_t* psu
 uint64_t tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tableUid) {
   int32_t* slot = taosHashGet(pTableList->map, &tableUid, sizeof(tableUid));
   if (slot == NULL) {
-    qInfo("table:%" PRIu64 " not found in table list", tableUid);
+    qDebug("table:%" PRIu64 " not found in table list", tableUid);
     return -1;
   }
 
@@ -2966,43 +3115,6 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t addTbnameToMap(SHashObj* groupIdMap, int64_t uid, void* vnode, SStorageAPI* pAPI) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  SArray* gInfo = taosArrayInit(4, sizeof(SStreamGroupValue));
-  if (gInfo == NULL) {
-    return terrno;
-  }
-  SStreamGroupValue* v = taosArrayReserve(gInfo, 1);
-  if (v == NULL) {
-    taosArrayDestroy(gInfo);
-    return terrno;
-  }
-
-  char str[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-  code = pAPI->metaFn.getTableNameByUid(vnode, uid, str);
-  v->isNull = false;
-  v->isTbname = true;
-  v->uid = uid;
-  v->data.nData = varDataLen(str);
-  v->data.pData = taosStrdup(varDataVal(str));
-  v->data.type = TSDB_DATA_TYPE_BINARY;
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-    taosMemoryFree(v->data.pData);
-    taosArrayDestroy(gInfo);
-    return code;
-  }
-  code = taosHashPut(groupIdMap, &uid, sizeof(uid), &gInfo, POINTER_BYTES);
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-    taosMemoryFree(v->data.pData);
-    taosArrayDestroy(gInfo);
-    return code;
-  }
-  qDebug("table uid:%" PRId64 ":%s added into groupIdMap, groupIdMap size:%d", uid, varDataVal(str), taosHashGetSize(groupIdMap));
-  return code;
-}
-
 int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SScanPhysiNode* pScanNode,
                                     SNodeList* group, bool groupSort, uint8_t* digest, SStorageAPI* pAPI, SHashObj* groupIdMap) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -3028,12 +3140,8 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
           return terrno;
         }
         info->groupId = groupByTbname ? info->uid : 0;
-        if (groupIdMap){
-          code = addTbnameToMap(groupIdMap, info->uid, pHandle->vnode, pAPI);
-          if (code != TSDB_CODE_SUCCESS) {
-            qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-            return code;
-          }
+        if (groupIdMap && group != NULL){
+          getColInfoResultForGroupbyForStream(pHandle->vnode, group, pTableListInfo, pAPI, groupIdMap);
         }
         int32_t tempRes = taosHashPut(pTableListInfo->remainGroups, &(info->groupId), sizeof(info->groupId),
                                       &(info->uid), sizeof(info->uid));
@@ -3050,12 +3158,8 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
           return terrno;
         }
         info->groupId = groupByTbname ? info->uid : 0;
-        if (groupIdMap){
-          code = addTbnameToMap(groupIdMap, info->uid, pHandle->vnode, pAPI);
-          if (code != TSDB_CODE_SUCCESS) {
-            qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-            return code;
-          }
+        if (groupIdMap && group != NULL){
+          getColInfoResultForGroupbyForStream(pHandle->vnode, group, pTableListInfo, pAPI, groupIdMap);
         }
       }
     }
