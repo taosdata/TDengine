@@ -6,7 +6,8 @@
       </el-form-item>
       <el-form-item :label="$t('taosuser.password')" prop="pwd">
         <el-popover trigger="click" placement="right-end">
-          <ol v-dompurify-html="$t(enableStrongPassword ? 'login.passwordTip' : 'login.passwordNotStrictTip')" style="padding-left: 10px; list-style: unset"></ol>
+          <ol v-dompurify-html="$t(enableStrongPassword ? 'login.passwordTip' : 'login.passwordNotStrictTip')"
+              style="padding-left: 10px; list-style: unset"></ol>
           <template #reference>
             <el-input v-model.trim="ruleForm.pwd" clear maxlength="255" :show-password="true" minlength="8"></el-input>
           </template>
@@ -14,6 +15,37 @@
       </el-form-item>
       <div class="line"></div>
 
+      <!-- SYSINFO -->
+      <el-form-item :label="$t('taosuser.sysinfo')">
+        <el-popover trigger="hover" placement="right-end">
+          <ol v-dompurify-html="$t('taosuser.sysinfoTip')" style="padding-left: 10px; list-style: unset"></ol>
+          <template #reference>
+            <el-switch v-model="ruleForm.sysinfo" :active-value="1" :inactive-value="0"/>
+          </template>
+        </el-popover>
+      </el-form-item>
+
+      <!-- CREATEDB -->
+      <el-form-item :label="$t('taosuser.createdb')">
+        <el-popover trigger="hover" placement="right-end">
+          <ol v-dompurify-html="$t('taosuser.createdbTip')" style="padding-left: 10px; list-style: unset"></ol>
+          <template #reference>
+            <el-switch v-model="ruleForm.createdb" :active-value="1" :inactive-value="0"/>
+          </template>
+        </el-popover>
+      </el-form-item>
+
+      <!-- ALLOWED_HOST -->
+      <el-form-item :label="$t('taosuser.allowed_host')">
+        <el-popover trigger="hover" placement="right-end">
+          <ol v-dompurify-html="$t('taosuser.allowed_hostTip')" style="padding-left: 10px; list-style: unset"></ol>
+          <template #reference>
+            <el-input-tag v-model="ruleForm.allowed_host"></el-input-tag>
+          </template>
+        </el-popover>
+      </el-form-item>
+
+      <!-- DATABASE privileges -->
       <el-form-item v-if="databaseList.length > 0" :label="$t('taosuser.database')" class="database-item">
         <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!$IS_COMMUNITY">
           <template #content>
@@ -30,6 +62,8 @@
           </ul>
         </el-tooltip>
       </el-form-item>
+
+      <!-- topic privileges -->
       <el-form-item v-if="topicList.length > 0" :label="$t('taosuser.subscription')" class="database-item">
         <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!$IS_COMMUNITY">
           <template #content>
@@ -40,8 +74,9 @@
               <label class="db-label">{{ item }}</label>
               <el-checkbox-group v-model="selectedTopicPrivileges[item]" class="db-pri">
                 <el-checkbox :disabled="$IS_COMMUNITY" label="Subscribe" value="Subscribe">{{
-                  $t('subscribe')
-                }}</el-checkbox>
+                    $t('subscribe')
+                  }}
+                </el-checkbox>
               </el-checkbox-group>
             </li>
           </ul>
@@ -55,23 +90,24 @@
       </el-col>
       <el-col :span="5" :push="4">
         <el-button size="default" :disabled="confirmStatus" class="w100" type="primary" @click="submit(ruleFormRef)">{{
-          $t('confirm')
-        }}</el-button>
+            $t('confirm')
+          }}
+        </el-button>
       </el-col>
     </el-row>
   </div>
 </template>
 
 <script setup lang="ts">
-import { sendSQLReq } from '@/api/explorer';
-import { getDatabaseVariables } from '@/api/database';
-import { FormInstance, FormRules } from 'element-plus';
-import { validPassword, validPasswordNotStrict } from '@/utils/validate';
+import {sendSQLReq} from '@/api/explorer';
+import {getDatabaseVariables} from '@/api/database';
+import {FormInstance, FormRules} from 'element-plus';
+import {validPassword, validPasswordNotStrict} from '@/utils/validate';
 
 const globalCustomProperties: any = inject('globalCustomProperties');
-const { $IS_COMMUNITY, $error } = globalCustomProperties;
+const {$IS_COMMUNITY, $error} = globalCustomProperties;
 
-const { t } = useI18n();
+const {t} = useI18n();
 
 const emit = defineEmits(['close']);
 
@@ -105,10 +141,17 @@ const isEdit = computed(() => props.user !== '');
 interface RuleForm {
   user: string;
   pwd: string;
+  sysinfo: number;
+  createdb: number;
+  allowed_host: string[];
 }
+
 const ruleForm = reactive<RuleForm>({
   user: props.user,
-  pwd: ''
+  pwd: '',
+  sysinfo: 1,
+  createdb: 0,
+  allowed_host: ['127.0.0.1'],
 });
 
 const rules = reactive<FormRules<typeof ruleForm>>({
@@ -123,7 +166,7 @@ const rules = reactive<FormRules<typeof ruleForm>>({
       required: !isEdit.value,
       message: t('taosuser.password') + t('requiredMessage')
     },
-    { validator: checkPassword, trigger: 'blur' }
+    {validator: checkPassword, trigger: 'blur'}
   ]
 });
 let databaseList = reactive([]);
@@ -134,6 +177,13 @@ let selectedDatabasePrivileges: Record<string, any> = reactive({});
 let selectedTopicPrivileges: Record<string, any> = reactive({});
 const loading: Ref<boolean> = ref(true);
 const confirmStatus: Ref<boolean> = ref(false);
+const ruleFormOld = ref<RuleForm>({
+  user: '',
+  pwd: '',
+  sysinfo: 1,
+  createdb: 0,
+  allowed_host: []
+});
 
 watch(
   () => props.status,
@@ -179,6 +229,7 @@ async function getDatabaseList() {
     console.log(error);
   }
 }
+
 async function getTopicList() {
   try {
     const res = await sendSQLReq(`show topics;`);
@@ -198,10 +249,40 @@ async function getTopicList() {
     console.log(error);
   }
 }
+
 async function getUserPrivileges() {
   try {
+    const user = await sendSQLReq(
+      `select *
+       from information_schema.ins_users
+       where name = '${ruleForm.user}';`
+    );
+    console.log(user);
+    if (user.data && user.data.length > 0) {
+      const userRow = user.data[0];
+      const meta = user.column_meta;
+      const fieldIndex: Record<string, number> = {};
+      meta.forEach((item: string[], index: number) => {
+        fieldIndex[item[0]] = index;
+      });
+      // set sysinfo
+      ruleFormOld.value.sysinfo = userRow[fieldIndex['sysinfo']];
+      ruleForm.sysinfo = userRow[fieldIndex['sysinfo']];
+      // set createdb
+      ruleFormOld.value.createdb = userRow[fieldIndex['createdb']];
+      ruleForm.createdb = userRow[fieldIndex['createdb']];
+      // set allowed_host
+      const allowedHost = userRow[fieldIndex['allowed_host']] || '';
+      const allowedHostArr = allowedHost.split(',') || [];
+      ruleFormOld.value.allowed_host = allowedHostArr;
+      ruleForm.allowed_host = allowedHostArr;
+    }
+
     const res = await sendSQLReq(
-      `select * from information_schema.ins_user_privileges where user_name = '${ruleForm.user}' and privilege<>'subscribe';`
+      `select *
+       from information_schema.ins_user_privileges
+       where user_name = '${ruleForm.user}'
+         and privilege <> 'subscribe';`
     );
     res.data.map((data: string[]) => {
       if (selectedDatabasePrivileges[data[2]] === undefined) {
@@ -227,7 +308,10 @@ async function getUserPrivileges() {
 async function getUserTopics() {
   try {
     const res = await sendSQLReq(
-      `select * from information_schema.ins_user_privileges where user_name = '${ruleForm.user}' and privilege = 'subscribe';`
+      `select *
+       from information_schema.ins_user_privileges
+       where user_name = '${ruleForm.user}'
+         and privilege = 'subscribe';`
     );
     loading.value = false;
     res.data.map((data: (string | number)[]) => {
@@ -239,6 +323,7 @@ async function getUserTopics() {
     console.log(error);
   }
 }
+
 function cancel() {
   emit('close');
   databaseList = [];
@@ -249,79 +334,88 @@ function cancel() {
 
 async function grantPrivilege(privileges: string, dbName: string, userName: string) {
   return await sendSQLReq(`GRANT ${privileges} ON \`${dbName}\`.*  to \`${userName}\``)
-    .then((res: any) => {
-      return Promise.resolve(res);
-    })
-    .catch((err: any) => {
-      return Promise.reject(err);
-    });
+  .then((res: any) => {
+    return Promise.resolve(res);
+  })
+  .catch((err: any) => {
+    return Promise.reject(err);
+  });
 }
+
 async function grantTopic(topicName: string, userName: string) {
   return await sendSQLReq(`GRANT subscribe ON \`${topicName}\` to \`${userName}\``)
-    .then((res: any) => {
-      return Promise.resolve(res);
-    })
-    .catch((err: any) => {
-      return Promise.reject(err);
-    });
+  .then((res: any) => {
+    return Promise.resolve(res);
+  })
+  .catch((err: any) => {
+    return Promise.reject(err);
+  });
 }
+
 async function alterUser() {
   return await sendSQLReq(`alter USER \`${props.user}\` PASS '${ruleForm.pwd}';`)
-    .then((res: any) => {
-      return Promise.resolve(res);
-    })
-    .catch((err: any) => {
-      return Promise.reject(err);
-    });
+  .then((res: any) => {
+    return Promise.resolve(res);
+  })
+  .catch((err: any) => {
+    return Promise.reject(err);
+  });
 }
+
 async function cancelPrivilege(privilege: string, dbName: string) {
   return await sendSQLReq(`REVOKE ${privilege} ON \`${dbName}\`.* FROM \`${props.user}\`;`)
-    .then((res: any) => {
-      return Promise.resolve(res);
-    })
-    .catch((err: any) => {
-      return Promise.reject(err);
-    });
+  .then((res: any) => {
+    return Promise.resolve(res);
+  })
+  .catch((err: any) => {
+    return Promise.reject(err);
+  });
 }
+
 async function cancelTopic(topicName: string) {
   return await sendSQLReq(`REVOKE subscribe ON \`${topicName}\` FROM \`${props.user}\`;`)
-    .then((res: any) => {
-      return Promise.resolve(res);
-    })
-    .catch((err: any) => {
-      return Promise.reject(err);
-    });
+  .then((res: any) => {
+    return Promise.resolve(res);
+  })
+  .catch((err: any) => {
+    return Promise.reject(err);
+  });
 }
+
 function createUser(formEl: FormInstance | undefined) {
   if (!formEl) return;
   formEl.validate(valid => {
     if (valid) {
       try {
-        return sendSQLReq(`CREATE USER \`${ruleForm.user}\` PASS '${ruleForm.pwd}';`)
-          .then(() => {
-            for (const key in selectedDatabasePrivileges) {
-              if (selectedDatabasePrivileges[key].length > 0) {
-                const privileges = selectedDatabasePrivileges[key];
-                privileges.forEach(async (item: string) => {
-                  await grantPrivilege(item, key, ruleForm.user);
-                });
-              }
+        const allowedHosts = ruleForm.allowed_host && ruleForm.allowed_host.length > 0 ? ruleForm.allowed_host.map(h => `'${h.trim()}'`).filter(Boolean) : [];
+        const hostStr = allowedHosts.length > 0 ? `HOST ${allowedHosts.join(',')}` : '';
+        return sendSQLReq(
+          `CREATE USER \`${ruleForm.user}\` PASS '${ruleForm.pwd}' SYSINFO ${ruleForm.sysinfo} CREATEDB ${ruleForm.createdb} ${hostStr};`
+        )
+        .then(() => {
+          for (const key in selectedDatabasePrivileges) {
+            if (selectedDatabasePrivileges[key].length > 0) {
+              const privileges = selectedDatabasePrivileges[key];
+              privileges.forEach(async (item: string) => {
+                await grantPrivilege(item, key, ruleForm.user);
+              });
             }
-            for (const key in selectedTopicPrivileges) {
-              if (selectedTopicPrivileges[key].length > 0) {
-                const privileges = selectedTopicPrivileges[key];
-                privileges.forEach(async () => {
-                  await grantTopic(key, ruleForm.user);
-                });
-              }
+          }
+          for (const key in selectedTopicPrivileges) {
+            if (selectedTopicPrivileges[key].length > 0) {
+              const privileges = selectedTopicPrivileges[key];
+              privileges.forEach(async () => {
+                await grantTopic(key, ruleForm.user);
+              });
             }
-            ElMessage.success(t('taosuser.createNewUserSucTip'));
-            cancel();
-          })
-          .catch((err: { desc: any }) => {
-            err && err.desc && $error(err.desc);
-            return Promise.reject(err);
-          });
+          }
+          ElMessage.success(t('taosuser.createNewUserSucTip'));
+          cancel();
+        })
+        .catch((err: { desc: any }) => {
+          err && err.desc && $error(err.desc);
+          return Promise.reject(err);
+        });
       } catch (error) {
         console.log(error);
       }
@@ -330,6 +424,7 @@ function createUser(formEl: FormInstance | undefined) {
     }
   });
 }
+
 function editUser(formEl: FormInstance | undefined) {
   if (!formEl) return;
   formEl.validate(async valid => {
@@ -338,27 +433,51 @@ function editUser(formEl: FormInstance | undefined) {
         if (ruleForm.pwd) {
           await alterUser();
         }
+        // alter sysinfo
+        if (ruleFormOld.value.sysinfo !== ruleForm.sysinfo) {
+          await sendSQLReq(`ALTER USER \`${props.user}\` SYSINFO ${ruleForm.sysinfo};`);
+        }
+        // alter createdb
+        if (ruleFormOld.value.createdb !== ruleForm.createdb) {
+          await sendSQLReq(`ALTER USER \`${props.user}\` CREATEDB ${ruleForm.createdb};`);
+        }
+        // alter allowed_host
+        const oldHost = new Set(ruleFormOld.value.allowed_host);
+        const newHost = new Set(ruleForm.allowed_host);
+        // drop hosts
+        for (const host of oldHost) {
+          if (!newHost.has(host)) {
+            await sendSQLReq(`ALTER USER \`${props.user}\` DROP HOST '${host}';`);
+          }
+        }
+        // add hosts
+        for (const host of newHost) {
+          if (!oldHost.has(host)) {
+            await sendSQLReq(`ALTER USER \`${props.user}\` ADD HOST '${host}';`);
+          }
+        }
+
         for (const key in prevDatabasePrivileges) {
           const privileges = prevDatabasePrivileges[key];
 
           if (selectedDatabasePrivileges[key] === undefined) {
-            privileges.forEach(async (item: string) => {
+            for (const item of privileges) {
               await cancelPrivilege(item, key);
-            });
+            }
           } else {
-            privileges.forEach(async (item: string) => {
+            for (const item of privileges) {
               if (selectedDatabasePrivileges[key].indexOf(item) === -1) {
                 await cancelPrivilege(item, key);
               }
-            });
+            }
           }
         }
         for (const key in selectedDatabasePrivileges) {
           if (selectedDatabasePrivileges[key].length > 0) {
             const privileges = selectedDatabasePrivileges[key];
-            privileges.forEach(async (item: string) => {
+            for (const item of privileges) {
               await grantPrivilege(item, key, props.user);
-            });
+            }
           }
         }
 
@@ -375,9 +494,9 @@ function editUser(formEl: FormInstance | undefined) {
         for (const key in selectedTopicPrivileges) {
           if (selectedTopicPrivileges[key].length > 0) {
             const privileges = selectedTopicPrivileges[key];
-            privileges.forEach(async () => {
+            for (const item of privileges) {
               await grantTopic(key, ruleForm.user);
-            });
+            }
           }
         }
         ElMessage.success(t('operateSucc'));

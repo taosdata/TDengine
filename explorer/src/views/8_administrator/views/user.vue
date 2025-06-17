@@ -13,7 +13,8 @@
           :disabled="!isRoot || $IS_COMMUNITY"
           style="font-size: 14px"
           @click="importDialog = true"
-          >{{ $t('import') }}</el-button
+        >{{ $t('import') }}
+        </el-button
         >
       </el-tooltip>
       <el-button
@@ -24,7 +25,8 @@
         :disabled="!isRoot"
         style="font-size: 14px"
         @click="showDialog"
-        >{{ $t('add') }}</el-button
+      >{{ $t('add') }}
+      </el-button
       >
     </div>
     <el-table v-loading="loading" style="margin-top: 20px" :data="usersList" size="small">
@@ -72,7 +74,7 @@
       v-model="dialog"
       align="center"
       :title="$t('taosuser.adduser')"
-      width="680px"
+      width="700px"
       :close-on-click-modal="false"
     >
       <UserForm v-if="dialog" :status="dialog" user="" @close="closeDialog"></UserForm>
@@ -82,7 +84,7 @@
       v-model="editDialog"
       align="center"
       :title="$t('taosuser.edituser')"
-      width="680px"
+      width="700px"
       :close-on-click-modal="false"
     >
       <UserForm :user="editUser" :status="editDialog" @close="closeEditDialog"></UserForm>
@@ -102,14 +104,14 @@
 <script setup lang="ts">
 import UserForm from './components/userForm/index.vue';
 import ImportInfo from './components/ImportForm/index.vue';
-import { sendSQLReq } from '@/api/explorer';
-import { useStore } from 'vuex';
-import { useSorted } from '@vueuse/core';
+import {sendSQLReq} from '@/api/explorer';
+import {useStore} from 'vuex';
+import {useSorted} from '@vueuse/core';
 
 const globalCustomProperties: any = inject('globalCustomProperties');
-const { $IS_COMMUNITY } = globalCustomProperties;
+const {$IS_COMMUNITY} = globalCustomProperties;
 
-const { t } = useI18n();
+const {t} = useI18n();
 const store = useStore();
 const isRoot = localStorage.getItem('username') === 'root';
 const pageSize = ref(10);
@@ -129,14 +131,17 @@ function getCurrentUser() {
     currentUser = res;
   });
 }
+
 function closeDialog() {
   dialog.value = false;
   getUserData();
 }
+
 function closeEditDialog() {
   editDialog.value = false;
   getUserData();
 }
+
 function closeImportDialog() {
   importDialog.value = false;
 }
@@ -145,7 +150,9 @@ function showDialog() {
   dialog.value = true;
 }
 
-function handlePageChange() {}
+function handlePageChange() {
+}
+
 function del(data: { name: string }) {
   ElMessageBox.confirm(t('isDel', [data.name]), t('wraning'), {
     confirmButtonText: t('confirm'),
@@ -160,6 +167,7 @@ function del(data: { name: string }) {
     });
   });
 }
+
 function edit(data: { name: string }) {
   (editUser.value = data.name), (editDialog.value = true);
 }
@@ -188,7 +196,8 @@ function changeState(data: { name: string; enable: number | string }) {
 async function getUserData() {
   try {
     loading.value = true;
-    const res = await sendSQLReq(`select * from information_schema.ins_users;`);
+    const res = await sendSQLReq(`select *
+                                  from information_schema.ins_users;`);
     const permissionMap = res.data.map((data: { [x: string]: any }) => {
       return Object.fromEntries(
         res.column_meta.map((item: any[], index: string | number) => {
@@ -197,7 +206,8 @@ async function getUserData() {
       );
     });
 
-    const res1 = await sendSQLReq(`select * from information_schema.ins_user_privileges;`);
+    const res1 = await sendSQLReq(`select *
+                                   from information_schema.ins_user_privileges;`);
     const privilegeMap = res1.data.map((data: { [x: string]: any }) => {
       return Object.fromEntries(
         res.column_meta.map((item: any[], index: string | number) => {
