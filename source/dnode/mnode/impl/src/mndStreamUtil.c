@@ -809,7 +809,7 @@ int32_t mstGetStreamStatusStr(SStreamObj* pStream, char* status, int32_t statusS
   char tmpBuf[256];
   if (1 == atomic_load_8(&pStatus->stopped)) {
     STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_FAILED], statusSize);
-    snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s, Failed times: %d", pStatus->fatalError, pStatus->fatalRetryTimes);
+    snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s, Failed times: %" PRId64, tstrerror(pStatus->fatalError), pStatus->fatalRetryTimes);
     STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
     goto _exit;
   }
