@@ -152,11 +152,6 @@ void             initDnodeMetricsEx(SDnodeMetricsEx *pMetrics);
 int32_t          addDnodeMetrics(const SRawDnodeMetrics *pRawMetrics);
 SDnodeMetricsEx *getDnodeMetrics();
 
-// Function type definition for vnode callbacks
-typedef void *(*SVnodeMetricsLogFn)(void **pIter);
-typedef int32_t (*VnodeGetRawMetricsFn)(void *pVnode, SRawWriteMetrics *pRawMetrics);
-typedef int32_t (*MetricsLogCallback)(const char *jsonMetrics, void *param);
-
 // Reporting functions
 void reportWriteMetrics();
 void reportDnodeMetrics();
