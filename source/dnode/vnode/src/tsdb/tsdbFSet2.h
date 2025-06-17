@@ -94,7 +94,7 @@ struct STFileSet {
   TSttLvlArray lvlArr[1];             // level array
   TSKEY        lastCompact;
   TSKEY        lastCommit;
-  TSKEY        lastRetention;
+  TSKEY        lastMigrate;
 
   SVATaskID mergeTask;
   SVATaskID compactTask;

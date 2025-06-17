@@ -637,9 +637,28 @@ void mndSendQueryS3MigrateProgressReq(SMnode *pMnode, SS3MigrateObj *pS3Migrate)
 }
 
 
+int32_t mndS3MigrateDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb);
+
 static int32_t mndProcessS3MigrateDbTimer(SRpcMsg *pReq) {
-  // TODO:
-  return 0;
+  SMnode         *pMnode = pReq->info.node;
+  void *pIter = NULL;
+
+  while (1) {
+    SDbObj *pDb = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_DB, pIter, (void **)&pDb);
+    if (pIter == NULL) {
+      break;
+    }
+    int32_t code = mndS3MigrateDb(pMnode, NULL, pDb);
+    sdbRelease(pMnode->pSdb, pDb);
+    if (code == TSDB_CODE_SUCCESS) {
+      mInfo("s3migrate db:%s, has been triggered by timer", pDb->name);
+    } else {
+      mError("failed to trigger s3migrate db:%s, code:%d, %s", pDb->name, code, tstrerror(code));
+    }
+  }
+
+  TAOS_RETURN(0);
 }
 
 

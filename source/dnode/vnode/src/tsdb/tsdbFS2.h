@@ -28,6 +28,7 @@ typedef enum {
   TSDB_FEDIT_MERGE,
   TSDB_FEDIT_COMPACT,
   TSDB_FEDIT_RETENTION,
+  TSDB_FEDIT_S3MIGRATE,
 } EFEditT;
 
 typedef enum {

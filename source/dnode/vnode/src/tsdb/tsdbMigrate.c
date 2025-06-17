@@ -20,67 +20,6 @@
 #include "vnd.h"
 #include "tsdbInt.h"
 
-/* manifest format
-{
-    "fmtver": 1,
-    "vnode": 3,
-    "fid": 1736,
-    "head": {
-        "did.level": 0,
-        "did.id": 0,
-        "lcn": 0,
-        "mcount": 0,
-        "fid": 1736,
-        "cid": 16,
-        "size": 28138,
-        "minVer": 4998,
-        "maxVer": 6055
-    },
-    "data": {
-        "did.level": 0,
-        "did.id": 0,
-        "lcn": 4,
-        "mcount": 1,
-        "fid": 1736,
-        "cid": 3,
-        "size": 61904100,
-        "minVer": 4998,
-        "maxVer": 6055
-    },
-    "sma": {
-        "did.level": 0,
-        "did.id": 0,
-        "lcn": 0,
-        "mcount": 1,
-        "fid": 1736,
-        "cid": 3,
-        "size": 245978,
-        "minVer": 4998,
-        "maxVer": 6055
-    },
-    "stt lvl": [
-        {
-            "level": 0,
-            "files": [
-                {
-                    "did.level": 0,
-                    "did.id": 0,
-                    "lcn": 0,
-                    "mcount": 0,
-                    "fid": 1736,
-                    "cid": 15,
-                    "size": 1296689,
-                    "minVer": 6057,
-                    "maxVer": 6078,
-                    "level": 0
-                }
-            ]
-        }
-    ],
-    "last compact": 0,
-    "last commit": 1747209152547
-}
-*/
 
 extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool s3Migrate);
 
@@ -118,37 +57,6 @@ int32_t tsdbOpenS3MigrateMonitor(STsdb *tsdb) {
   return 0;
 }
 
-#if 0
-// TODO: remove this block of code
-void tsdbCancelS3Migration(STsdb* tsdb) {
-  SS3MigrateMonitor* pmm = tsdb->pS3MigrateMonitor;
-  if (pmm == NULL) {
-    return;
-  }
-
-  TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
-  pmm->canceled = true;
-  TAOS_UNUSED(taosThreadCondBroadcast(&pmm->stateChanged));
-  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
-
-  while(1) {
-    bool finished = true;
-    TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
-    for(int32_t i = 0; i < taosArrayGetSize(pmm->state.pFileSetStates); i++) {
-      SFileSetS3MigrateState *pState = taosArrayGet(pmm->state.pFileSetStates, i);
-      if (pState->state == FILE_SET_MIGRATE_STATE_IN_PROGRESS) {
-        finished = false;
-        break;
-      }
-    }
-    TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
-    if (finished) {
-      break;
-    }
-    taosMsleep(100);
-  }
-}
-  #endif
 
 void tsdbCloseS3MigrateMonitor(STsdb *tsdb) {
   SS3MigrateMonitor* pmm = tsdb->pS3MigrateMonitor;
