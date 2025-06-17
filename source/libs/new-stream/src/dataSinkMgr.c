@@ -297,7 +297,6 @@ void destroyStreamDataCache(void* pCache) {
     if (ppStreamTaskDSManager != NULL) {
       taosHashRemove(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
     }
-    destroyAlignTaskDSMgr(ppStreamTaskDSManager);
   } else if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_EXPIRED) {
     SSlidingTaskDSMgr* pStreamDataSink = (SSlidingTaskDSMgr*)pCache;
     char               key[64] = {0};

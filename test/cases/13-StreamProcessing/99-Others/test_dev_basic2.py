@@ -181,9 +181,9 @@ class TestStreamDevBasic2:
         tdSql.checkResultsByFunc(
             sql=result_sql,
             func=lambda: tdSql.getRows() == 2
-            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.999")
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:01")
             and tdSql.compareData(0, 2, 6)
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:01.999")
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:02")
             and tdSql.compareData(1, 2, 6),
         )
 

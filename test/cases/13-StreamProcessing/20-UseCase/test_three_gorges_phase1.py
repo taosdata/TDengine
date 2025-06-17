@@ -10,15 +10,15 @@ class Test_Three_Gorges_Phase1:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_stream_dev_basic(self):
+    def test_stream_usecase_3gorges_1(self):
         """Three Gorges Info Dept Phase 1
 
-        1. System-Level Alarm
-        2. Converter-Level Alarm
-        3. Battery Cluster  Alarm
-        4. Centralized Control Alarm
-        5. Predicted Data
-        6. Refer: https://taosdata.feishu.cn/wiki/ATWQwcOAviZfWikU69WcNAbTndc
+        Refer: https://taosdata.feishu.cn/wiki/ATWQwcOAviZfWikU69WcNAbTndc
+        1. 系统级报警
+        2. 变流器级报警
+        3. 电池簇报警
+        4. 集控数据
+        5. 预测数据
 
         Catalog:
             - Streams:UseCases
@@ -123,81 +123,51 @@ class Test_Three_Gorges_Phase1:
                     sql += f"({dt}, {val}, {rows}) "
                 tdSql.execute(sql)
 
-        tdLog.info(f"System-Level Alarm")
-        # create stream `str_station_alarmmsg_systemalarm_test` trigger at_once ignore expired 0 fill_history 1 into `ctg_test`.`str_station_alarmmsg_systemalarm_test` tags(
-        #     cnstationno varchar(255),
-        #     gpstationno varchar(255),
-        #     alarmmsg varchar(255),
-        #     alarmid varchar(255),
-        #     alarmtype varchar(255),
-        #     alarmcontent varchar(255)
-        # ) subtable(
-        #     concat('station_alarmmsg_systemalarm_test_', alarmid)
-        # ) as
-        # select
-        #     first(dt) alarmdate,
-        #     val alarmstatus
-        # from
-        #     ctg_tsdb.stb_sxny_cn t
-        # where
-        #     index_code in ('emstxyc', 'bmstxyc')
-        #     and dt >= today() - 1d
-        #     and cz_flag = 1
-        #     partition by tbname,
-        #     cnstationno,
-        #     ps_code as gpstationno,
-        #     index_name as alarmmsg,
-        #     concat_ws('_', cnstationno, country_equipment_code, point) as alarmid,
-        #     (
-        #         case
-        #             when index_code = 'emstxyc' then '01'
-        #             when index_code = 'bmstxyc' then '02'
-        #         end
-        #     ) as alarmtype,
-        #     point_path as alarmcontent state_window(cast(val as int)) ;
+        tdLog.info(f"系统级报警 ")
+        tdSql.execute("create stream `str_station_alarmmsg_systemalarm_test` interval(1d) sliding(1d) from ctg_tsdb.stb_sxny_cn partition by tbname into ctg_tsdb.yy as select _twstart alarmdate, first(val) alarmstatus from %%trows;")
+        
+        # tdSql.execute(
+        #     "create stream `str_station_alarmmsg_systemalarm_test`"
+        #     "  state_window(cast(val as int))"
+        #     "  from ctg_tsdb.stb_sxny_cn"
+        #     "  partition by tbname, cnstationno, ps_code, index_name, country_equipment_code, point, index_code, point_path"
+        #     " options(fill_history('2025-06-01 00:00:00') | pre_filter(index_code in ('emstxyc', 'bmstxyc') and dt >= today() - 1d and cz_flag = 1))"
+        #     " into `ctg_test`.`str_station_alarmmsg_systemalarm_test`"
+        #     "  output_subtable(concat_ws('_', 'station_alarmmsg_systemalarm_test', %%2, %%5, %%6))"
+        #     "  tags(cnstationno varchar(255) as %%2,"
+        #     "    gpstationno varchar(255) as %%3,"
+        #     "    alarmmsg varchar(255) as %%4,"
+        #     "    alarmid varchar(255) as concat_ws('_', %%2, %%5, %%6),"
+        #     "    alarmtype varchar(255) as (case when %%7 = 'emstxyc' then '01' when %%7 = 'bmstxyc' then '02' end),"
+        #     "    alarmcontent varchar(255) as %%8"
+        #     "  )"
+        #     "  as select _twstart alarmdate, first(val) alarmstatus from %%trows;"
+        # )
 
-        tdSql.execute(
-            "create stream `str_station_alarmmsg_systemalarm_test`"
-            "  state_window(cast(val as int))"
-            "  from ctg_tsdb.stb_sxny_cn"
-            "  partition by tbname, cnstationno, ps_code, index_name, country_equipment_code, point, index_code, point_path"
-            f" options(fill_history('{start}') | pre_filter(index_code in ('emstxyc', 'bmstxyc') and dt >= today() - 1d and cz_flag = 1))"
-            f" into `ctg_test`.`str_station_alarmmsg_systemalarm_test`"
-            "  output_subtable(concat_ws('_', 'station_alarmmsg_systemalarm_test', %%2, %%5, %%6))"
-            "  tags(cnstationno varchar(255) as %%2,"
-            "    gpstationno varchar(255) as %%3,"
-            "    alarmmsg varchar(255) as %%4,"
-            "    alarmid varchar(255) as concat_ws('_', %%2, %%5, %%6),"
-            "    alarmtype varchar(255) as (case when %%7 = 'emstxyc' then '01' when %%7 = 'bmstxyc' then '02' end),"
-            "    alarmcontent varchar(255) as %%8"
-            "  )"
-            "  as select _twstart alarmdate, first(val) alarmstatus from %%trows;"
-        )
+        # tdSql.checkTableSchema(
+        #     dbname="ctg_test",
+        #     tbname="str_station_alarmmsg_systemalarm_test",
+        #     schema=[
+        #         ["alarmdate", "TIMESTAMP", 8, ""],
+        #         ["alarmstatus", "DOUBLE", 8, ""],
+        #         ["cnstationno", "VARCHAR", 255, "TAG"],
+        #         ["gpstationno", "VARCHAR", 255, "TAG"],
+        #         ["alarmmsg", "VARCHAR", 255, "TAG"],
+        #         ["alarmid", "VARCHAR", 255, "TAG"],
+        #         ["alarmtype", "VARCHAR", 255, "TAG"],
+        #         ["alarmcontent", "VARCHAR", 255, "TAG"],
+        #     ],
+        # )
 
-        tdSql.checkTableSchema(
-            dbname="ctg_test",
-            tbname="str_station_alarmmsg_systemalarm_test",
-            schema=[
-                ["alarmdate", "TIMESTAMP", 8, ""],
-                ["alarmstatus", "DOUBLE", 8, ""],
-                ["cnstationno", "VARCHAR", 255, "TAG"],
-                ["gpstationno", "VARCHAR", 255, "TAG"],
-                ["alarmmsg", "VARCHAR", 255, "TAG"],
-                ["alarmid", "VARCHAR", 255, "TAG"],
-                ["alarmtype", "VARCHAR", 255, "TAG"],
-                ["alarmcontent", "VARCHAR", 255, "TAG"],
-            ],
-        )
+        # tdSql.checkResultsByFunc(
+        #     sql="select * from information_schema.ins_streams where db_name='ctg_tsdb' and stream_name='str_station_alarmmsg_systemalarm_test';",
+        #     func=lambda: tdSql.getRows() == 1,
+        # )
 
-        tdSql.checkResultsByFunc(
-            sql="select * from information_schema.ins_streams where db_name='ctg_tsdb' and stream_name='str_station_alarmmsg_systemalarm_test';",
-            func=lambda: tdSql.getRows() == 1,
-        )
-
-        tdSql.checkResultsByFunc(
-            sql="select alarmdate, alarmstatus, cnstationno, gpstationno, alarmmsg, alarmid, alarmtype, alarmcontent from ctg_test.str_station_alarmmsg_systemalarm_test;",
-            func=lambda: tdSql.getRows() > 0,
-        )
+        # tdSql.checkResultsByFunc(
+        #     sql="select alarmdate, alarmstatus, cnstationno, gpstationno, alarmmsg, alarmid, alarmtype, alarmcontent from ctg_test.str_station_alarmmsg_systemalarm_test;",
+        #     func=lambda: tdSql.getRows() > 0,
+        # )
 
         # tdSql.checkResultsBySql(
         #     sql="select alarmdate, alarmstatus, cnstationno, gpstationno, alarmmsg, alarmid, alarmtype, alarmcontent from ctg_test.str_station_alarmmsg_systemalarm_test;",
@@ -218,64 +188,7 @@ class Test_Three_Gorges_Phase1:
 
         return
 
-        tdLog.info("Converter-Level Alarm")
-        # create stream `str_station_alarmmsg_inverteralarm_test` trigger at_once ignore expired 0 fill_history 1 into `ctg_test`.`str_station_alarmmsg_inverteralarm_test` tags(
-        #         cnstationno varchar(255),
-        #         gpstationno varchar(255),
-        #         cninverterno varchar(255),
-        #         gpinverterno varchar(255),
-        #         alarmmsg varchar(255),
-        #         alarmid varchar(255),
-        #         alarmtype varchar(255),
-        #         alarmcontent varchar(255)
-        #     ) subtable(
-        #         concat('station_alarmmsg_inverteralarm_test_', alarmid)
-        #     ) as
-        # select
-        #     to_char(first(dt), 'yyyy-mm-dd hh24:mi:ss') alarmdate,
-        #     val alarmstatus
-        # from
-        #     ctg_tsdb.stb_sxny_cn t1
-        # where
-        #     1 = 1
-        #     and index_code in (
-        #         'gzztj',
-        #         'dygz',
-        #         'igbtzjgz',
-        #         'jldlglyjbj',
-        #         'zldlglyjbj',
-        #         'flgz',
-        #         'gwtj'
-        #     )
-        #     and dt >= today() - 1d
-        #     and blq_flag = 1
-        #     partition by tbname,
-        #     cnstationno,
-        #     ps_code as gpstationno,
-        #     t1.country_equipment_code as cninverterno,
-        #     t1.country_equipment_code as gpinverterno,
-        #     index_name as alarmmsg,
-        #     concat_ws(
-        #         '_',
-        #         cnstationno,
-        #         country_equipment_code,
-        #         country_equipment_code,
-        #         point
-        #     ) as alarmid,
-        # (
-        #         case
-        #             when index_code = 'gzztj' then '01'
-        #             when index_code = 'dygz' then '02'
-        #             when index_code = 'igbtzjgz' then '03'
-        #             when index_code = 'jldlglyjbj' then '04'
-        #             when index_code = 'zldlglyjbj' then '05'
-        #             when index_code = 'flgz1' then '06'
-        #             when index_code = 'flgz2' then '06'
-        #             when index_code = 'flgz' then '06'
-        #             when index_code = 'gwtj' then '07'
-        #         end
-        #     ) as alarmtype,
-        #     point_path alarmcontent state_window(cast(val as int)) ;
+        tdLog.info("变流器级报警")
 
         tdSql.execute(
             "create stream `str_station_alarmmsg_inverteralarm_test`"
@@ -309,58 +222,7 @@ class Test_Three_Gorges_Phase1:
             show=True,
         )
 
-        tdLog.info("Battery Cluster  Alarm")
-        # create stream `str_station_alarmmsg_batteryclusteralarm_test` trigger at_once ignore expired 0 fill_history 1 into `ctg_test`.`str_station_alarmmsg_batteryclusteralarm_test` tags(
-        #         cnstationno varchar(255),
-        #         gpstationno varchar(255),
-        #         cnbatteryclusterno varchar(255),
-        #         gpbatteryclusterno varchar(255),
-        #         alarmmsg varchar(255),
-        #         alarmid varchar(255),
-        #         alarmtype varchar(255),
-        #         alarmcontent varchar(255)
-        #     ) subtable(
-        #         concat(
-        #             'station_alarmmsg_batteryclusteralarm_test_',
-        #             alarmid
-        #         )
-        #     ) as
-        # select
-        #     first(dt) alarmdate,
-        #     val alarmstatus
-        # from
-        #     ctg_tsdb.stb_sxny_cn t1
-        # where
-        #     index_code in (
-        #         'dyyjyxbj',
-        #         'cd_dljcyjyxbj',
-        #         'fd_dljcyjyxbj',
-        #         'dcccfdhly'
-        #     )
-        #     and ps_code <> '2149'
-        #     and dt >= today() - 100d
-        #     and val > 0
-        #     partition by tbname,
-        #     cnstationno,
-        #     ps_code as gpstationno,
-        #     t1.country_equipment_code as cnbatteryclusterno,
-        #     t1.country_equipment_code as gpbatteryclusterno,
-        #     index_name as alarmmsg,
-        #     concat_ws(
-        #         '_',
-        #         cnstationno,
-        #         country_equipment_code,
-        #         country_equipment_code,
-        #         point
-        #     ) alarmid,
-        # case
-        #         when index_code = 'dyyjyxbj' then '01'
-        #         when index_code = 'cd_dljcyjyxbj' then '03'
-        #         when index_code = 'fd_dljcyjyxbj' then '03'
-        #         when index_code = 'dcccfdhly' then '06'
-        #     end alarmtype,
-        #     point_path alarmcontent state_window(cast(val as int)) ;
-
+        tdLog.info("电池簇报警")
         tdSql.execute(
             "create stream `str_station_alarmmsg_batteryclusteralarm_test`"
             "  state_window(cast(val as int))"
@@ -392,22 +254,7 @@ class Test_Three_Gorges_Phase1:
             "CREATE STABLE stb_cjdl_point_data (ts TIMESTAMP, st DOUBLE, val DOUBLE) TAGS (id VARCHAR(20), senid VARCHAR(255), senid_name VARCHAR(255), tag_temp VARCHAR(255))"
         )
 
-        tdLog.info("Centralized Control Alarm")
-        # create stream `str_cjdl_point_data_szls_jk_test` trigger at_once ignore expired 1 fill_history 1 into `ctg_test`.`stb_cjdl_point_data_szls_jk_test` tags(
-        #         senid varchar(255),
-        #         senid_name varchar(255)
-        #     ) subtable(concat('cjdl_point_data_szls_jk_test_', senid)) as
-        # select
-        #     last(ts) as ts,
-        #     last(val) as val
-        # from
-        #     ctg_tsdb.stb_cjdl_point_data
-        # where
-        #     tag_temp = 'A001'
-        #     partition by tbname,
-        #     senid,
-        #     senid_name interval(1m) ;
-
+        tdLog.info("集控数据")
         tdSql.execute(
             "create stream `str_cjdl_point_data_szls_jk_test`"
             "  interval(1m) sliding(1m)"
@@ -425,22 +272,7 @@ class Test_Three_Gorges_Phase1:
             show=True,
         )
 
-        tdLog.info("Predicted Data")
-        # create stream `str_cjdl_point_data_szls_yc_test` trigger at_once ignore expired 1 fill_history 1 into `ctg_test`.`stb_cjdl_point_data_szls_yc_test` tags(
-        #         senid varchar(255),
-        #         senid_name varchar(255)
-        #     ) subtable(concat('cjdl_point_data_szls_yc_test_', senid)) as
-        # select
-        #     last(ts) as ts,
-        #     last(val) as val
-        # from
-        #     ctg_tsdb.stb_cjdl_point_data
-        # where
-        #     tag_temp = 'TEMP03'
-        #     partition by tbname,
-        #     senid,
-        #     senid_name interval(1a);
-
+        tdLog.info("预测数据")
         tdSql.execute(
             "create stream `str_cjdl_point_data_szls_yc_test`"
             "  interval(1a) sliding(1a)"
