@@ -740,7 +740,7 @@ class TDSql:
             colDatas.append(self.queryResult[i][col])
         return colDatas
 
-    def getResult(self, sql):
+    def getResult(self, sql, exit=True):
         """
         Executes a SQL query and fetches the results.
 
@@ -758,10 +758,13 @@ class TDSql:
             self.cursor.execute(sql)
             self.queryResult = self.cursor.fetchall()
         except Exception as e:
-            caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, sql, repr(e))
-            tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
-            raise Exception(repr(e))
+            if exit:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                args = (caller.filename, caller.lineno, sql, repr(e))
+                tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
+                raise Exception(repr(e))
+            else:
+                return []
         return self.queryResult
 
     def getVariable(self, search_attr):
@@ -2416,13 +2419,13 @@ class TDSql:
             retry = 1
 
         for loop in range(retry):
-            res_result = self.getResult(sql)
-
-            if self.compareResults(res_result, exp_result):
-                self.printResult(
-                    f"check succeed in {loop} seconds", input_result=res_result
-                )
-                return
+            res_result = self.getResult(sql, exit=False)
+            if res_result != []:
+                if self.compareResults(res_result, exp_result):
+                    self.printResult(
+                        f"check succeed in {loop} seconds", input_result=res_result
+                    )
+                    return
 
             if loop != retry - 1:
                 if show:
