@@ -1270,6 +1270,15 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_EXPLAIN_OPTIONS:  // no pointer field
       break;
+    case QUERY_NODE_STREAM_TRIGGER: {
+      SStreamTriggerNode* pTrigger = (SStreamTriggerNode*)pNode;
+      nodesDestroyNode(pTrigger->pTriggerWindow);
+      nodesDestroyNode(pTrigger->pTrigerTable);
+      nodesDestroyNode(pTrigger->pOptions);
+      nodesDestroyNode(pTrigger->pNotify);
+      nodesDestroyList(pTrigger->pPartitionList);
+      break;
+    }
     case QUERY_NODE_STREAM_TRIGGER_OPTIONS: {
       SStreamTriggerOptions* pOptions = (SStreamTriggerOptions*)pNode;
       nodesDestroyNode(pOptions->pPreFilter);
@@ -1585,7 +1594,9 @@ void nodesDestroyNode(SNode* pNode) {
       SCreateStreamStmt* pStmt = (SCreateStreamStmt*)pNode;;
       nodesDestroyNode(pStmt->pQuery);
       nodesDestroyList(pStmt->pTags);
+      nodesDestroyList(pStmt->pCols);
       nodesDestroyNode(pStmt->pSubtable);
+      nodesDestroyNode(pStmt->pTrigger);
       break;
     }
     case QUERY_NODE_DROP_STREAM_STMT:                     // no pointer field

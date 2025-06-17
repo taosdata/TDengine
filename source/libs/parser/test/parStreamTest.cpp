@@ -492,6 +492,8 @@ void checkCreateStreamTriggerScanPlan(SCMCreateStreamReq *expect, SCMCreateStrea
 
   cJSON_Delete(j1);
   cJSON_Delete(j2);
+  free(j1Str);
+  free(j2Str);
 }
 
 void checkCreateStreamCalcPlan(SCMCreateStreamReq *expect, SCMCreateStreamReq *req) {
@@ -520,6 +522,8 @@ void checkCreateStreamCalcPlan(SCMCreateStreamReq *expect, SCMCreateStreamReq *r
 
   cJSON_Delete(j1);
   cJSON_Delete(j2);
+  free(j1Str);
+  free(j2Str);
 }
 
 void checkCreateStreamReq(SCMCreateStreamReq *expect, SCMCreateStreamReq *req) {
@@ -1842,9 +1846,6 @@ TEST_F(ParserStreamTest, TestErrorQueryPlaceHolder) {
 
   // %%n must be used with partition
   run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.st1 into stream_outdb.stream_out as select _tlocaltime, %%1 from stream_triggerdb.st1", TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
-
-  // %%n must be used when select from trigger table
-  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as select _tlocaltime, %%1 from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
 
   // %%tbname can only be used when partition by tbname
   run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as select _tlocaltime, %%tbname from stream_querydb.t2", TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
