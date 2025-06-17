@@ -846,8 +846,7 @@ end:
 static void calcTimeRange(STimeRangeNode* node, void* pStRtFuncInfo, SReadHandle* handle) {
   SStreamTSRangeParas timeStartParas = {.eType = SCL_VALUE_TYPE_START, .timeValue = INT64_MIN};
   SStreamTSRangeParas timeEndParas = {.eType = SCL_VALUE_TYPE_END, .timeValue = INT64_MAX};
-  if (scalarCalculate(node->pStart, NULL, NULL, pStRtFuncInfo, &timeStartParas) == 0 &&
-      scalarCalculate(node->pEnd, NULL, NULL, pStRtFuncInfo, &timeEndParas) == 0) {
+  if (scalarCalculate(node->pStart, NULL, NULL, pStRtFuncInfo, &timeStartParas) == 0) {
     if (timeStartParas.opType == OP_TYPE_GREATER_THAN) {
       handle->winRange.skey = timeStartParas.timeValue + 1;
     } else if (timeStartParas.opType == OP_TYPE_GREATER_EQUAL) {
@@ -856,6 +855,10 @@ static void calcTimeRange(STimeRangeNode* node, void* pStRtFuncInfo, SReadHandle
       stError("start time range error, opType:%d", timeStartParas.opType);
       return;
     }
+  } else {
+    handle->winRange.skey = 0;
+  }
+  if (scalarCalculate(node->pEnd, NULL, NULL, pStRtFuncInfo, &timeEndParas) == 0) {
     if (timeEndParas.opType == OP_TYPE_LOWER_THAN) {
       handle->winRange.ekey = timeEndParas.timeValue - 1;
     } else if (timeEndParas.opType == OP_TYPE_LOWER_EQUAL) {
@@ -864,9 +867,11 @@ static void calcTimeRange(STimeRangeNode* node, void* pStRtFuncInfo, SReadHandle
       stError("end time range error, opType:%d", timeEndParas.opType);
       return;
     }
-    stDebug("%s, skey:%" PRId64 ", ekey:%" PRId64, __func__, handle->winRange.skey, handle->winRange.ekey);
-    handle->winRangeValid = true;
+  } else {
+    handle->winRange.ekey = INT64_MAX;
   }
+  stDebug("%s, skey:%" PRId64 ", ekey:%" PRId64, __func__, handle->winRange.skey, handle->winRange.ekey);
+  handle->winRangeValid = true;
 }
 
 static int32_t createExternalConditions(SStreamRuntimeFuncInfo* data, SLogicConditionNode** pCond, STargetNode* pTargetNodeTs, STimeRangeNode* node) {
