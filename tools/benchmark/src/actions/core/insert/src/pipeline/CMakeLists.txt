@@ -19,7 +19,7 @@ include_directories(/usr/include)
 
 # 添加主库
 add_library(insert_pipeline STATIC 
-    src/DataQueue.cpp
+    src/DataPipeline.cpp
 )
 
 # 包含头文件目录
@@ -36,7 +36,7 @@ target_link_libraries(insert_pipeline PUBLIC
 
 
 # 添加测试
-# test DataQueue
+# Test DataQueue
 add_executable(TestDataQueue
     test/TestDataQueue.cpp
 )
@@ -44,3 +44,12 @@ target_link_libraries(TestDataQueue PRIVATE
     insert_pipeline
 )
 add_test(NAME TestDataQueue COMMAND TestDataQueue)
+
+# Test DataPipeline
+add_executable(TestDataPipeline
+    test/TestDataPipeline.cpp
+)
+target_link_libraries(TestDataPipeline PRIVATE 
+    insert_pipeline
+)
+add_test(NAME TestDataPipeline COMMAND TestDataPipeline)
