@@ -20,6 +20,7 @@
 #include "mndVgroup.h"
 #include "taoserror.h"
 #include "tmisce.h"
+#include "mndSnode.h"
 
 bool mstWaitLock(SRWLatch* pLock, bool readLock) {
   if (readLock) {
@@ -775,7 +776,65 @@ bool mstEventHandledChkSet(int32_t event) {
   return false;
 }
 
-int32_t setStreamAttrInResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_t numOfRows) {
+int32_t mstGetStreamStatusStr(SStreamObj* pStream, char* status, int32_t statusSize, char* msg, int32_t msgSize) {
+  int8_t active = atomic_load_8(&mStreamMgmt.active), state = atomic_load_8(&mStreamMgmt.state);
+  if (0 == active || MND_STM_STATE_NORMAL != state) {
+    mstDebug("mnode streamMgmt not in active mode, active:%d, state:%d", active, state);
+    STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_UNDEPLOYED], statusSize);
+    STR_WITH_MAXSIZE_TO_VARSTR(msg, "Mnode may be unstable, try again later", msgSize);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (atomic_load_8(&pStream->userDropped)) {
+    STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_DROPPING], statusSize);
+    STR_WITH_MAXSIZE_TO_VARSTR(msg, "", msgSize);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (atomic_load_8(&pStream->userStopped)) {
+    STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_STOPPED], statusSize);
+    STR_WITH_MAXSIZE_TO_VARSTR(msg, "", msgSize);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  mstWaitLock(&mStreamMgmt.runtimeLock, true);
+  
+  SStmStatus* pStatus = (SStmStatus*)taosHashGet(mStreamMgmt.streamMap, &pStream->pCreate->streamId, sizeof(pStream->pCreate->streamId));
+  if (NULL == pStatus) {
+    STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_UNDEPLOYED], statusSize);
+    STR_WITH_MAXSIZE_TO_VARSTR(msg, "", msgSize);
+    goto _exit;
+  }
+
+  char tmpBuf[256];
+  if (1 == atomic_load_8(&pStatus->stopped)) {
+    STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_FAILED], statusSize);
+    snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s, Failed times: %d", pStatus->fatalError, pStatus->fatalRetryTimes);
+    STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
+    goto _exit;
+  }
+
+  if (pStatus->triggerTask && STREAM_STATUS_RUNNING == pStatus->triggerTask->status) {
+    STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_RUNNING], statusSize);
+    strcpy(tmpBuf, "Running start from: ");
+    formatTimestampLocal(&tmpBuf[strlen(tmpBuf)], pStatus->triggerTask->runningStartTs, TSDB_TIME_PRECISION_MILLI);
+    STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
+    goto _exit;
+  }
+
+  STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_INIT], statusSize);
+  snprintf(tmpBuf, sizeof(tmpBuf), "Current deploy times: %" PRId64, pStatus->deployTimes);
+  STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
+  goto _exit;
+
+_exit:
+  
+  taosRUnLockLatch(&mStreamMgmt.runtimeLock);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mstSetStreamAttrResBlock(SMnode *pMnode, SStreamObj* pStream, SSDataBlock* pBlock, int32_t numOfRows) {
   int32_t code = 0;
   int32_t cols = 0;
   int32_t lino = 0;
@@ -805,7 +864,7 @@ int32_t setStreamAttrInResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_
   // stream id
   char streamId2[19] = {0};
   char streamId[19 + VARSTR_HEADER_SIZE] = {0};
-  snprintf(streamId2, sizeof(streamId2), "0x%" PRIX64, pStream->pCreate->streamId);
+  snprintf(streamId2, sizeof(streamId2), "%" PRIX64, pStream->pCreate->streamId);
   STR_WITH_MAXSIZE_TO_VARSTR(streamId, streamId2, sizeof(streamId));
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
@@ -820,11 +879,12 @@ int32_t setStreamAttrInResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_
   code = colDataSetVal(pColInfo, numOfRows, (const char*)sql, false);
   TSDB_CHECK_CODE(code, lino, _end);
 
-  // todo status
+  // status
   char   status[20 + VARSTR_HEADER_SIZE] = {0};
-  char   status2[MND_STREAM_TRIGGER_NAME_SIZE] = {0};
-  //mndShowStreamStatus(status2, streamStatus);
-  STR_WITH_MAXSIZE_TO_VARSTR(status, status2, sizeof(status));
+  char msg[TSDB_RESERVE_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
+  code = mstGetStreamStatusStr(pStream, status, sizeof(status), msg, sizeof(msg));
+  TSDB_CHECK_CODE(code, lino, _end);
+
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
   code = colDataSetVal(pColInfo, numOfRows, (const char*)&status, false);
@@ -839,18 +899,15 @@ int32_t setStreamAttrInResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_
   // snodeReplica
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-  code = colDataSetVal(pColInfo, numOfRows, (const char*)&pStream->mainSnodeId, false);
+  SSnodeObj* pSnode = mndAcquireSnode(pMnode, pStream->mainSnodeId);
+  int32_t replicaSnodeId = pSnode ? pSnode->replicaId : -1;
+  mndReleaseSnode(pMnode, pSnode);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)&replicaSnodeId, false);
   TSDB_CHECK_CODE(code, lino, _end);
 
-  // todo msg
+  // msg
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-  char msg[TSDB_RESERVE_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
-  if (true) {
-    STR_TO_VARSTR(msg, " ")
-  } else {
-    STR_TO_VARSTR(msg, " ")
-  }
   code = colDataSetVal(pColInfo, numOfRows, (const char*)msg, false);
 
 _end:
@@ -859,3 +916,248 @@ _end:
   }
   return code;
 }
+
+
+int32_t mstGetTaskStatusStr(SStmTaskStatus* pTask, char* status, int32_t statusSize, char* msg, int32_t msgSize) {
+  char tmpBuf[256];
+  
+  STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[pTask->status], statusSize);
+  if (STREAM_STATUS_FAILED == pTask->status && pTask->errCode) {
+    snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s", tstrerror(pTask->errCode));
+    STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
+  } else {
+    STR_WITH_MAXSIZE_TO_VARSTR(msg, "", msgSize);
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mstGetTaskExtraStr(SStmTaskStatus* pTask, char* extraStr, int32_t extraSize) {
+  switch (pTask->type) {
+    case STREAM_READER_TASK:
+      if (STREAM_IS_TRIGGER_READER(pTask->flags)) {
+        STR_WITH_MAXSIZE_TO_VARSTR(extraStr, "trigReader", extraSize);
+      } else {
+        STR_WITH_MAXSIZE_TO_VARSTR(extraStr, "calcReader", extraSize);
+      }
+      return TSDB_CODE_SUCCESS;
+    case STREAM_RUNNER_TASK:
+      if (STREAM_IS_TOP_RUNNER(pTask->flags)) {
+        STR_WITH_MAXSIZE_TO_VARSTR(extraStr, "topRunner", extraSize);
+        return TSDB_CODE_SUCCESS;
+      }
+      break;
+    default:
+      break;
+  }
+
+  STR_WITH_MAXSIZE_TO_VARSTR(extraStr, "", extraSize);
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t mstSetStreamTaskResBlock(SStreamObj* pStream, SStmTaskStatus* pTask, SSDataBlock* pBlock, int32_t numOfRows) {
+  int32_t code = 0;
+  int32_t cols = 0;
+  int32_t lino = 0;
+
+  // stream_name
+  char streamName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  STR_WITH_MAXSIZE_TO_VARSTR(streamName, mndGetStableStr(pStream->name), sizeof(streamName));
+  SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)streamName, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  // stream id
+  char idstr[19 + VARSTR_HEADER_SIZE] = {0};
+  snprintf(&idstr[VARSTR_HEADER_SIZE], sizeof(idstr) - VARSTR_HEADER_SIZE, "%" PRIX64, pStream->pCreate->streamId);
+  varDataSetLen(idstr, strlen(&idstr[VARSTR_HEADER_SIZE]) + VARSTR_HEADER_SIZE); 
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)idstr, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  // task id
+  snprintf(&idstr[VARSTR_HEADER_SIZE], sizeof(idstr) - VARSTR_HEADER_SIZE, "%" PRIX64, pTask->id.taskId);
+  varDataSetLen(idstr, strlen(&idstr[VARSTR_HEADER_SIZE]) + VARSTR_HEADER_SIZE);
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)idstr, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  // type
+  char type[20 + VARSTR_HEADER_SIZE] = {0};
+  STR_WITH_MAXSIZE_TO_VARSTR(type, (STREAM_READER_TASK == pTask->type) ? "Reader" : ((STREAM_TRIGGER_TASK == pTask->type) ? "Trigger" : "Runner"), sizeof(type));
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)type, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  // serious id
+  snprintf(&idstr[VARSTR_HEADER_SIZE], sizeof(idstr) - VARSTR_HEADER_SIZE, "%" PRIX64, pTask->id.seriousId);
+  varDataSetLen(idstr, strlen(&idstr[VARSTR_HEADER_SIZE]) + VARSTR_HEADER_SIZE);
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)idstr, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  // deploy id
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)&pTask->id.deployId, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  // node_type
+  char nodeType[10 + VARSTR_HEADER_SIZE] = {0};
+  STR_WITH_MAXSIZE_TO_VARSTR(nodeType, (STREAM_READER_TASK == pTask->type) ? "vnode" : "snode", sizeof(nodeType));
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)nodeType, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  // node id
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)&pTask->id.nodeId, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  // task idx
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)&pTask->id.taskIdx, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  // status
+  char   status[20 + VARSTR_HEADER_SIZE] = {0};
+  char msg[TSDB_RESERVE_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
+  code = mstGetTaskStatusStr(pTask, status, sizeof(status), msg, sizeof(msg));
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)&status, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  // start time
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)&pTask->runningStartTs, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  // last update
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)&pTask->lastUpTs, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  // extra info
+  char extra[64 + VARSTR_HEADER_SIZE] = {0};
+  code = mstGetTaskExtraStr(pTask, extra, sizeof(extra));
+  TSDB_CHECK_CODE(code, lino, _end);
+  
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)extra, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  // msg
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)msg, false);
+
+_end:
+  if (code) {
+    mError("error happens when build stream attr result block, lino:%d, code:%s", lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t mstGetNumOfStreamTasks(SStmStatus* pStatus) {
+  int32_t num = taosArrayGetSize(pStatus->trigReaders) + taosArrayGetSize(pStatus->calcReaders) + (pStatus->triggerTask ? 1 : 0);
+  for (int32_t i = 0; i < MND_STREAM_RUNNER_DEPLOY_NUM; ++i) {
+    num += taosArrayGetSize(pStatus->runners[i]);
+  }
+
+  return num;
+}
+
+int32_t mstSetStreamTasksResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_t* numOfRows, int32_t rowsCapacity) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  int64_t streamId = pStream->pCreate->streamId;
+
+  mstWaitLock(&mStreamMgmt.runtimeLock, true);
+
+  SStmStatus* pStatus = (SStmStatus*)taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
+  if (NULL == pStatus) {
+    mstsDebug("stream not in streamMap, ignore it, dropped:%d, stopped:%d", atomic_load_8(&pStream->userDropped), atomic_load_8(&pStream->userStopped));
+    goto _exit;
+  }
+  
+  int32_t count = mstGetNumOfStreamTasks(pStatus);
+
+  if (*numOfRows + count > rowsCapacity) {
+    code = blockDataEnsureCapacity(pBlock, *numOfRows + count);
+    if (code) {
+      mstError("failed to prepare the result block buffer, rows:%d", *numOfRows + count);
+      TAOS_CHECK_EXIT(code);
+    }
+  }
+
+  SStmTaskStatus* pTask = NULL;
+  int32_t trigReaderNum = taosArrayGetSize(pStatus->trigReaders);
+  for (int32_t i = 0; i < trigReaderNum; ++i) {
+    pTask = taosArrayGet(pStatus->trigReaders, i);
+  
+    code = mstSetStreamTaskResBlock(pStream, pTask, pBlock, *numOfRows);
+    if (code == TSDB_CODE_SUCCESS) {
+      (*numOfRows)++;
+    }
+  }
+
+  int32_t calcReaderNum = taosArrayGetSize(pStatus->calcReaders);
+  for (int32_t i = 0; i < calcReaderNum; ++i) {
+    pTask = taosArrayGet(pStatus->calcReaders, i);
+  
+    code = mstSetStreamTaskResBlock(pStream, pTask, pBlock, *numOfRows);
+    if (code == TSDB_CODE_SUCCESS) {
+      (*numOfRows)++;
+    }
+  }
+
+  if (pStatus->triggerTask) {
+    code = mstSetStreamTaskResBlock(pStream, pStatus->triggerTask, pBlock, *numOfRows);
+    if (code == TSDB_CODE_SUCCESS) {
+      (*numOfRows)++;
+    }
+  }
+
+  int32_t runnerNum = 0;
+  for (int32_t i = 0; i < MND_STREAM_RUNNER_DEPLOY_NUM; ++i) {
+    runnerNum = taosArrayGetSize(pStatus->runners[i]);
+    for (int32_t m = 0; m < runnerNum; ++m) {
+      pTask = taosArrayGet(pStatus->runners[i], m);
+    
+      code = mstSetStreamTaskResBlock(pStream, pTask, pBlock, *numOfRows);
+      if (code == TSDB_CODE_SUCCESS) {
+        (*numOfRows)++;
+      }
+    }
+  }
+  
+  pBlock->info.rows = *numOfRows;
+
+_exit:
+  
+  taosRUnLockLatch(&mStreamMgmt.runtimeLock);
+
+  if (code) {
+    mError("error happens when build stream tasks result block, lino:%d, code:%s", lino, tstrerror(code));
+  }
+  
+  return code;
+}
+
+

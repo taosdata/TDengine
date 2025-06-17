@@ -40,6 +40,8 @@ extern "C" {
 #define STREAM_IS_TOP_RUNNER(_flags) ((_flags) & STREAM_FLAG_TOP_RUNNER)
 #define STREAM_IS_REDEPLOY_RUNNER(_flags) ((_flags) & STREAM_FLAG_REDEPLOY_RUNNER)
 
+#define STREAM_CLR_FLAG(st, f) (st) &= (~f)
+
 typedef struct SStreamReaderTask {
   SStreamTask task;
   int8_t      triggerReader;

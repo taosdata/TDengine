@@ -1133,7 +1133,7 @@ static int32_t msmBuildTriggerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStream
   TSDB_CHECK_NULL(pInfo->triggerTask, code, lino, _return, terrno);
 
   pInfo->triggerTask->id.taskId = pCtx->triggerTaskId;
-  pInfo->triggerTask->id.deployId = -1;
+  pInfo->triggerTask->id.deployId = 0;
   pInfo->triggerTask->id.seriousId = msmAssignTaskSeriousId();
   pInfo->triggerTask->id.nodeId = pCtx->triggerNodeId;
   pInfo->triggerTask->id.taskIdx = 0;
@@ -1170,13 +1170,13 @@ static int32_t msmTDAddSingleTrigReader(SStmGrpCtx* pCtx, SStmTaskStatus* pState
   int32_t lino = 0;
 
   pState->id.taskId = msmAssignTaskId();
-  pState->id.deployId = -1;
+  pState->id.deployId = 0;
   pState->id.seriousId = msmAssignTaskSeriousId();
   pState->id.nodeId = nodeId;
   pState->id.taskIdx = 0;
   pState->type = STREAM_READER_TASK;
   pState->flags = STREAM_FLAG_TRIGGER_READER;
-  pState->status = STREAM_STATUS_NA;
+  pState->status = STREAM_STATUS_UNDEPLOYED;
   pState->lastUpTs = pCtx->currTs;
   pState->pStream = pInfo;
   
@@ -1358,13 +1358,13 @@ static int32_t msmTDAddCalcReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
       pState = taosArrayReserve(pInfo->calcReaders, 1);
 
       pState->id.taskId = msmAssignTaskId();
-      pState->id.deployId = -1;
+      pState->id.deployId = 0;
       pState->id.seriousId = msmAssignTaskSeriousId();
       pState->id.nodeId = *(int32_t*)taosArrayGet(pScan->vgList, m);
       pState->id.taskIdx = i;
       pState->type = STREAM_READER_TASK;
       pState->flags = 0;
-      pState->status = STREAM_STATUS_NA;
+      pState->status = STREAM_STATUS_UNDEPLOYED;
       pState->lastUpTs = pCtx->currTs;
       pState->pStream = pInfo;
 
@@ -1679,7 +1679,7 @@ int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* 
         pState->id.taskIdx = MND_SET_RUNNER_TASKIDX(i, n);
         pState->type = STREAM_RUNNER_TASK;
         pState->flags = (0 == i) ? STREAM_FLAG_TOP_RUNNER : 0;
-        pState->status = STREAM_STATUS_NA;
+        pState->status = STREAM_STATUS_UNDEPLOYED;
         pState->lastUpTs = pCtx->currTs;
         pState->pStream = pInfo;
 
@@ -3030,12 +3030,7 @@ void msmHandleTaskAbnormalStatus(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pMsg, SStm
   }
   
   switch (pMsg->status) {
-    case STREAM_STATUS_INIT:
-      if (STREAM_RUNNER_TASK == pMsg->type && STREAM_IS_REDEPLOY_RUNNER(pTaskStatus->flags)) {
-        TAOS_CHECK_EXIT(msmGrpAddActionUpdateTrigger(pCtx->actionStm, streamId));
-        return;
-      }
-      
+    case STREAM_STATUS_INIT:      
       if (STREAM_TRIGGER_TASK != pMsg->type) {
         msttTrace("task status is INIT and not trigger task, ignore it, currTs:%" PRId64 ", lastTs:%" PRId64, pCtx->currTs, pStatus->lastActionTs);
         return;
@@ -3129,10 +3124,16 @@ int32_t msmNormalHandleStatusUpdate(SStmGrpCtx* pCtx) {
       continue;
     }
 
-    if ((*ppStatus)->status != pTask->status && STREAM_STATUS_RUNNING == pTask->status) {
-      (*ppStatus)->runningStartTs = pCtx->currTs;
+    if ((*ppStatus)->status != pTask->status) {
+      if (STREAM_STATUS_RUNNING == pTask->status) {
+        (*ppStatus)->runningStartTs = pCtx->currTs;
+      } else if (STREAM_STATUS_INIT == pTask->status && STREAM_RUNNER_TASK == pTask->type && STREAM_IS_REDEPLOY_RUNNER((*ppStatus)->flags)) {
+        msmGrpAddActionUpdateTrigger(pCtx->actionStm, pTask->streamId);
+        STREAM_CLR_FLAG((*ppStatus)->flags, STREAM_FLAG_REDEPLOY_RUNNER);
+      }
     }
     
+    (*ppStatus)->errCode = pTask->errorCode;
     (*ppStatus)->status = pTask->status;
     (*ppStatus)->lastUpTs = pCtx->currTs;
     
@@ -4392,7 +4393,7 @@ void msmHealthCheck(SMnode *pMnode) {
 
   mstDebug("start health check, soltIdx:%d, checkStartTs:%" PRId64, mStreamMgmt.hCtx.slotIdx, mStreamMgmt.hCtx.currentTs);
 
-  taosWLockLatch(&mStreamMgmt.runtimeLock);
+  mstWaitLock(&mStreamMgmt.runtimeLock, false);
   
   msmCheckStreamsStatus(pMnode);
   msmCheckTasksStatus(pMnode);

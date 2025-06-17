@@ -327,14 +327,15 @@ int32_t tDecodeSStreamUndeployTaskMsg(SDecoder* pDecoder, SStreamUndeployTaskMsg
 
 
 typedef enum {
-  STREAM_STATUS_NA = 0,
+  STREAM_STATUS_UNDEPLOYED = 0,
   STREAM_STATUS_INIT = 1,
   STREAM_STATUS_RUNNING,
   STREAM_STATUS_STOPPED,
   STREAM_STATUS_FAILED,
+  STREAM_STATUS_DROPPING,
 } EStreamStatus;
 
-static const char* gStreamStatusStr[] = {"Not Ready", "Ready", "Running", "Stopped", "Failed"};
+static const char* gStreamStatusStr[] = {"Undeployed", "Deploying", "Running", "Stopped", "Failed", "Dropping"};
 
 typedef enum EStreamTaskType {
   STREAM_READER_TASK = 0,
@@ -379,13 +380,15 @@ typedef struct SStreamTask {
   int32_t       deployId;   // runner task's deploy id
   int32_t       nodeId;     // ID of the vgroup/snode
   int64_t       sessionId;  // ID of the current session (real-time, historical, or recalculation)
-  int16_t       taskIdx;
+  int32_t       taskIdx;
 
   EStreamStatus status;
   int32_t       errorCode;
 
   SStreamMgmtReq* pMgmtReq;  // request that should be handled by stream mgmt thread
 
+  int64_t         runningStartTs;
+  
   int8_t          deployed;      // concurrent undeloy
 } SStreamTask;
 
