@@ -135,7 +135,8 @@ if $rows != 10 then
   return -1
 endi
 
-if $data03 != 28 then
+if $data03 != @28.784811943@ then
+  print  expect 28.784811943   get  $data03
   return -1
 endi
 

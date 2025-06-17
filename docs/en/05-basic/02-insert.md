@@ -22,13 +22,13 @@ insert into d1001 (ts, current, voltage, phase) values ( "2018-10-03 14:38:05", 
 
 The above SQL writes `2018-10-03 14:38:05`, `10.3`, `219`, `0.31` into the columns `ts`, `current`, `voltage`, `phase` of the subtable `d1001`.
 
-2. When the `VALUES` part of the `INSERT` statement includes all columns of the table, the list of fields before `VALUES` can be omitted, as shown in the following SQL statement, which has the same effect as the previous INSERT statement specifying columns.
+1. When the `VALUES` part of the `INSERT` statement includes all columns of the table, the list of fields before `VALUES` can be omitted, as shown in the following SQL statement, which has the same effect as the previous INSERT statement specifying columns.
 
 ```sql
 insert into d1001 values("2018-10-03 14:38:05", 10.3, 219, 0.31)
 ```
 
-3. For the table's timestamp column (the first column), you can also directly use the timestamp of the database precision.
+1. For the table's timestamp column (the first column), you can also directly use the timestamp of the database precision.
 
 ```sql
 INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31);
