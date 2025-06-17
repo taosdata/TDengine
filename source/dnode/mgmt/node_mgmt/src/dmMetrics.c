@@ -14,10 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "audit.h"
 #include "dmMgmt.h"
 #include "dmNodes.h"
-#include "metrics.h"
 #include "tglobal.h"
 
 static void collectDnodeMetricsInfo(SDnode *pDnode);
