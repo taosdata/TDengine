@@ -1,7 +1,7 @@
 import time
 import math
-from new_test_framework.utils import tdLog, tdSql, tdStream, StreamTableType, StreamTable
-
+from new_test_framework.utils import tdLog, tdSql, tdStream, StreamTableType, StreamTable, StreamItem
+from datetime import datetime
 
 class TestStreamDevBasic:
 
@@ -66,6 +66,25 @@ class TestStreamDevBasic:
         ntb2.append_data(0, 10)
         ntb2.append_data(20, 30)
         ntb2.update_data(3, 6)
+        
+    def checkBaic2Results(self):
+        tdSql.query("select * from test.st7;", queryTimes=1)
+
+        ts = tdSql.getColData(0)
+        avg_cint = tdSql.getColData(1)
+        count_cint = tdSql.getColData(2)
+        
+        for i in range(0, 40):
+            sql = f"select '{ts[i]}', avg(cint), count(cint) from test.st where cts <= '{ts[i]}'"
+            tdSql.query(sql, queryTimes=1)
+            
+            expected_ts = datetime.strptime(tdSql.getData(0, 0), "%Y-%m-%d %H:%M:%S") 
+            expected_avg_cint = tdSql.getData(0, 1)
+            expected_count_cint = tdSql.getData(0, 2)
+            
+            assert ts[i] == expected_ts, f"Row {i} ts mismatch: expected {expected_ts}, got {ts[i]}"
+            assert math.isclose(avg_cint[i], expected_avg_cint, rel_tol=1e-9), f"Row {i} avg_cint mismatch: expected {expected_avg_cint}, got {avg_cint[i]}"
+            assert count_cint[i] == expected_count_cint, f"Row {i} count_cint mismatch: expected {expected_count_cint}, got {count_cint[i]}"
 
     def basic2(self):
         tdLog.info(f"basic test 1")
@@ -85,12 +104,15 @@ class TestStreamDevBasic:
         st1.append_data(0, 40)
                  
         sql = f"create stream s7 state_window (cint) from test.trigger options(fill_history_first(1)) into st7  as select _twstart, avg(cint), count(cint) from test.st where cts <= _twstart;"
-        
-        tdSql.execute(sql)
-        
-        tdSql.query("select * from st7;", queryTimes=10)
-        tdSql.printResult()
-        
-        #time.sleep(1000)
+    
+        stream1 = StreamItem(
+            id=0,
+            stream=sql,
+            res_query="select * from test.st7;",
+            check_func=self.checkBaic2Results,
+        )
+        stream1.createStream()
+        stream1.awaitRowStability(39)
+        stream1.checkResults()
 
         tdLog.info("======over")

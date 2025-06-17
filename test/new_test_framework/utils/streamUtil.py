@@ -942,3 +942,21 @@ class StreamItem:
             tdSql.checkResultsByArray(self.res_query, exp_result, self.exp_query)
 
         tdLog.info(f"check stream:s{self.id} result successfully")
+        
+    def awaitRowStability(self, stable_rows, waitSeconds=60):
+        """
+        确保流处理结果的行数与预期的稳定行数一致
+        :param stable_rows: int, 预期的稳定行数
+        """
+        tdLog.info(f"ensure stream:s{self.id} has {stable_rows} stable rows")
+      
+        for loop in range(waitSeconds):
+            tdSql.query(self.res_query)
+            actual_rows = tdSql.getRows()
+            
+            if actual_rows == stable_rows:
+                tdLog.info(f"Stream:s{self.id} has {actual_rows} stable rows")
+                return
+            time.sleep(1)
+            
+        tdLog.exit(f"Stream:s{self.id} did not stabilize to {stable_rows} rows in {waitSeconds} seconds")
