@@ -954,7 +954,7 @@ _error:
   return len;
 }
 
-bool transUtilCheckIpDual(SIpRange* range, SIpRange* ip) {
+bool transUtilCheckDualIp(SIpRange* range, SIpRange* ip) {
   SIpV6Range* p6 = &range->ipV6;
   SIpV6Range* pIp = &ip->ipV6;
 
