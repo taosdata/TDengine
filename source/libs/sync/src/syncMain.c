@@ -690,8 +690,10 @@ SSyncMetrics syncGetMetrics(int64_t rid) {
 
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode != NULL) {
-    metrics.wal_write_bytes = pSyncNode->wal_write_bytes;
-    metrics.wal_write_time = pSyncNode->wal_write_time;
+    sDebug("vgId:%d, sync get metrics, wal_write_bytes:%" PRId64 ", wal_write_time:%" PRId64, pSyncNode->vgId,
+           pSyncNode->wal_write_bytes, pSyncNode->wal_write_time);
+    metrics.wal_write_bytes = atomic_load_64(&pSyncNode->wal_write_bytes);
+    metrics.wal_write_time = atomic_load_64(&pSyncNode->wal_write_time);
     syncNodeRelease(pSyncNode);
   }
   return metrics;

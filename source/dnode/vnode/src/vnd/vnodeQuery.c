@@ -1450,23 +1450,23 @@ int32_t vnodeGetRawWriteMetrics(void *pVnode, SRawWriteMetrics *pRawMetrics) {
   SSyncMetrics syncMetrics = syncGetMetrics(pVnode1->sync);
 
   // Copy values following SRawWriteMetrics structure order
-  pRawMetrics->total_requests = pVnode1->writeMetrics.total_requests;
-  pRawMetrics->total_rows = pVnode1->writeMetrics.total_rows;
-  pRawMetrics->total_bytes = pVnode1->writeMetrics.total_bytes;
-  pRawMetrics->fetch_batch_meta_time = pVnode1->writeMetrics.fetch_batch_meta_time;
-  pRawMetrics->fetch_batch_meta_count = pVnode1->writeMetrics.fetch_batch_meta_count;
-  pRawMetrics->preprocess_time = pVnode1->writeMetrics.preprocess_time;
-  pRawMetrics->wal_write_bytes = syncMetrics.wal_write_bytes;
-  pRawMetrics->wal_write_time = syncMetrics.wal_write_time;
-  pRawMetrics->apply_bytes = pVnode1->writeMetrics.apply_bytes;
-  pRawMetrics->apply_time = pVnode1->writeMetrics.apply_time;
-  pRawMetrics->commit_count = pVnode1->writeMetrics.commit_count;
-  pRawMetrics->commit_time = pVnode1->writeMetrics.commit_time;
-  pRawMetrics->memtable_wait_time = pVnode1->writeMetrics.memtable_wait_time;
-  pRawMetrics->block_commit_count = pVnode1->writeMetrics.block_commit_count;
-  pRawMetrics->blocked_commit_time = pVnode1->writeMetrics.block_commit_time;
-  pRawMetrics->merge_count = pVnode1->writeMetrics.merge_count;
-  pRawMetrics->merge_time = pVnode1->writeMetrics.merge_time;
+  pRawMetrics->total_requests = atomic_load_64(&pVnode1->writeMetrics.total_requests);
+  pRawMetrics->total_rows = atomic_load_64(&pVnode1->writeMetrics.total_rows);
+  pRawMetrics->total_bytes = atomic_load_64(&pVnode1->writeMetrics.total_bytes);
+  pRawMetrics->fetch_batch_meta_time = atomic_load_64(&pVnode1->writeMetrics.fetch_batch_meta_time);
+  pRawMetrics->fetch_batch_meta_count = atomic_load_64(&pVnode1->writeMetrics.fetch_batch_meta_count);
+  pRawMetrics->preprocess_time = atomic_load_64(&pVnode1->writeMetrics.preprocess_time);
+  pRawMetrics->wal_write_bytes = atomic_load_64(&syncMetrics.wal_write_bytes);
+  pRawMetrics->wal_write_time = atomic_load_64(&syncMetrics.wal_write_time);
+  pRawMetrics->apply_bytes = atomic_load_64(&pVnode1->writeMetrics.apply_bytes);
+  pRawMetrics->apply_time = atomic_load_64(&pVnode1->writeMetrics.apply_time);
+  pRawMetrics->commit_count = atomic_load_64(&pVnode1->writeMetrics.commit_count);
+  pRawMetrics->commit_time = atomic_load_64(&pVnode1->writeMetrics.commit_time);
+  pRawMetrics->memtable_wait_time = atomic_load_64(&pVnode1->writeMetrics.memtable_wait_time);
+  pRawMetrics->block_commit_count = atomic_load_64(&pVnode1->writeMetrics.block_commit_count);
+  pRawMetrics->blocked_commit_time = atomic_load_64(&pVnode1->writeMetrics.block_commit_time);
+  pRawMetrics->merge_count = atomic_load_64(&pVnode1->writeMetrics.merge_count);
+  pRawMetrics->merge_time = atomic_load_64(&pVnode1->writeMetrics.merge_time);
 
   return 0;
 }
