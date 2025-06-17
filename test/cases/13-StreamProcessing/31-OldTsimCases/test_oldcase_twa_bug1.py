@@ -46,7 +46,7 @@ class TestStreamOldCaseTwa:
         tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.execute(
-            f"create stream streams2 period(2s) from st partition by tbname options(expired_time(0s)|ignore_disorder) into streamt as select _tlocaltime, twa(a), twa(b), elapsed(ts), now, timezone() from %%trows;"
+            f"create stream streams2 period(2s) from st partition by tbname options(expired_time(0s)|ignore_disorder) into streamt as select _tlocaltime, twa(a), twa(b), elapsed(ts), now, timezone() from st where ts >= _tlocaltime and ts < _tnext_localtime;"
         )
 
         tdStream.checkStreamStatus()
