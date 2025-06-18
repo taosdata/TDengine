@@ -65,7 +65,7 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
 
   if (lc_size > 0) {
     SVnodeCfg *pCfg = &pFD->pTsdb->pVnode->config;
-    int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
+    int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->ssChunkSize;
 
     pFD->szFile = lc_size + chunksize * (pFD->lcn - 1);
   }
@@ -149,7 +149,7 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *e
     int64_t offset = PAGE_OFFSET(pFD->pgno, pFD->szPage);
     if (pFD->s3File && pFD->lcn > 1) {
       SVnodeCfg *pCfg = &pFD->pTsdb->pVnode->config;
-      int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
+      int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->ssChunkSize;
       int64_t    chunkoffset = chunksize * (pFD->lcn - 1);
 
       offset -= chunkoffset;
@@ -214,7 +214,7 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgor
   int64_t offset = PAGE_OFFSET(pgno, pFD->szPage);
   if (pFD->lcn > 1) {
     SVnodeCfg *pCfg = &pFD->pTsdb->pVnode->config;
-    int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
+    int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->ssChunkSize;
     int64_t    chunkoffset = chunksize * (pFD->lcn - 1);
 
     offset -= chunkoffset;
@@ -354,7 +354,7 @@ static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, uin
   }
 
   SVnodeCfg *pCfg = &pFD->pTsdb->pVnode->config;
-  int64_t szChunk = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
+  int64_t szChunk = (int64_t)pCfg->tsdbPageSize * pCfg->ssChunkSize;
 
   for (int64_t n = 0, nRead = 0; n < size; n += nRead, offset += nRead) {
     int chunk = offset / szChunk + 1;
