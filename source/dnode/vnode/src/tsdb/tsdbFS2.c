@@ -1442,7 +1442,7 @@ static FORCE_INLINE void getLevelSize(const STFileObj *fObj, int64_t szArr[TFS_M
 static FORCE_INLINE int32_t tsdbGetFsSizeImpl(STsdb *tsdb, SDbSizeStatisInfo *pInfo) {
   int32_t code = 0;
   int64_t levelSize[TFS_MAX_TIERS] = {0};
-  int64_t s3Size = 0;
+  int64_t ssSize = 0;
 
   const STFileSet *fset;
   const SSttLvl   *stt = NULL;
@@ -1464,7 +1464,7 @@ static FORCE_INLINE int32_t tsdbGetFsSizeImpl(STsdb *tsdb, SDbSizeStatisInfo *pI
     if (fObj) {
       int32_t lcn = fObj->f->lcn;
       if (lcn > 1) {
-        s3Size += ((lcn - 1) * chunksize);
+        ssSize += ((lcn - 1) * chunksize);
       }
     }
   }
@@ -1472,7 +1472,7 @@ static FORCE_INLINE int32_t tsdbGetFsSizeImpl(STsdb *tsdb, SDbSizeStatisInfo *pI
   pInfo->l1Size = levelSize[0];
   pInfo->l2Size = levelSize[1];
   pInfo->l3Size = levelSize[2];
-  pInfo->s3Size = s3Size;
+  pInfo->ssSize = ssSize;
   return code;
 }
 int32_t tsdbGetFsSize(STsdb *tsdb, SDbSizeStatisInfo *pInfo) {

@@ -485,7 +485,7 @@ typedef struct {
   SRWLatch lock;
   int64_t  stateTs;
   int64_t  compactStartTime;
-  int64_t  s3MigrateStartTime;
+  int64_t  ssMigrateStartTime;
   int32_t  tsmaVersion;
 } SDbObj;
 

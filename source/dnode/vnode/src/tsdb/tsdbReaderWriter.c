@@ -55,7 +55,7 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
       tsdbInfo("no file: %s", path);
       TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
-    pFD->s3File = 1;
+    pFD->ssFile = 1;
   }
 
   pFD->pBuf = taosMemoryCalloc(1, szPage);
@@ -147,7 +147,7 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *e
 
   if (pFD->pgno > 0) {
     int64_t offset = PAGE_OFFSET(pFD->pgno, pFD->szPage);
-    if (pFD->s3File && pFD->lcn > 1) {
+    if (pFD->ssFile && pFD->lcn > 1) {
       SVnodeCfg *pCfg = &pFD->pTsdb->pVnode->config;
       int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->ssChunkSize;
       int64_t    chunkoffset = chunksize * (pFD->lcn - 1);
@@ -518,7 +518,7 @@ int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, 
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  if (pFD->s3File && pFD->lcn > 1 /* && tsSsBlockSize < 0*/) {
+  if (pFD->ssFile && pFD->lcn > 1 /* && tsSsBlockSize < 0*/) {
     code = tsdbReadFileSs(pFD, offset, pBuf, size, szHint);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {

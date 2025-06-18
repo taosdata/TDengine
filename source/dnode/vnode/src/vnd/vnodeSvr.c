@@ -1165,7 +1165,7 @@ static int32_t vnodeProcessSsMigrateReq(SVnode *pVnode, int64_t ver, void *pReq,
 
   code = vnodeAsyncSsMigrate(pVnode, &req);
   if (code != TSDB_CODE_SUCCESS) {
-    vError("vgId:%d, failed to async s3migrate since %s", TD_VID(pVnode), tstrerror(code));
+    vError("vgId:%d, failed to async ssmigrate since %s", TD_VID(pVnode), tstrerror(code));
     pRsp->code = code;
     goto _exit;
   }
@@ -1178,7 +1178,7 @@ static int32_t vnodeProcessSsMigrateReq(SVnode *pVnode, int64_t ver, void *pReq,
   pRsp->contLen = tSerializeSSsMigrateVgroupRsp(NULL, 0, &rsp);
   pRsp->pCont = rpcMallocCont(pRsp->contLen);
   if (pRsp->pCont == NULL) {
-    vError("vgId:%d, failed to allocate memory for s3migrate response", TD_VID(pVnode));
+    vError("vgId:%d, failed to allocate memory for ssmigrate response", TD_VID(pVnode));
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }

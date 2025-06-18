@@ -282,7 +282,7 @@ int32_t mndSsMigrateGetDbName(SMnode *pMnode, int32_t ssMigrateId, char *dbname,
   TAOS_RETURN(code);
 }
 
-// s3migrate db
+// ssmigrate db
 int32_t mndAddSsMigrateToTran(SMnode *pMnode, STrans *pTrans, SSsMigrateObj *pSsMigrate, SDbObj *pDb) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
@@ -331,11 +331,11 @@ int32_t mndAddSsMigrateToTran(SMnode *pMnode, STrans *pTrans, SSsMigrateObj *pSs
     TAOS_RETURN(code);
   }
 
-  mInfo("trans:%d, s3migrate:%d, db:%s, has been added", pTrans->id, pSsMigrate->id, pSsMigrate->dbname);
+  mInfo("trans:%d, ssmigrate:%d, db:%s, has been added", pTrans->id, pSsMigrate->id, pSsMigrate->dbname);
   return 0;
 }
 
-// retrieve s3migrate
+// retrieve ssmigrate
 int32_t mndRetrieveSsMigrate(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode      *pMnode = pReq->info.node;
   SSdb        *pSdb = pMnode->pSdb;
@@ -448,9 +448,9 @@ static void mndSendFollowerSsMigrateReq(SMnode* pMnode, SFollowerSsMigrateReq *p
   SRpcMsg rpcMsg = {.msgType = TDMT_VND_FOLLOWER_SSMIGRATE, .pCont = pHead, .contLen = contLen};
   int32_t code = tmsgSendReq(&epSet, &rpcMsg);
   if (code != 0) {
-    mError("vgId:%d, failed to send follower-s3migrate request to vnode since 0x%x", pReq->vgId, code);
+    mError("vgId:%d, failed to send follower-ssmigrate request to vnode since 0x%x", pReq->vgId, code);
   } else {
-    mInfo("vgId:%d, send follower-s3migrate request to vnode, time:%ld", pReq->vgId, pReq->startTimeSec);
+    mInfo("vgId:%d, send follower-ssmigrate request to vnode, time:%ld", pReq->vgId, pReq->startTimeSec);
   }
 }
 
@@ -654,7 +654,7 @@ static int32_t mndProcessSsMigrateDbTimer(SRpcMsg *pReq) {
     if (code == TSDB_CODE_SUCCESS) {
       mInfo("ssmigrate db:%s, has been triggered by timer", pDb->name);
     } else {
-      mError("failed to trigger s3migrate db:%s, code:%d, %s", pDb->name, code, tstrerror(code));
+      mError("failed to trigger ssmigrate db:%s, code:%d, %s", pDb->name, code, tstrerror(code));
     }
   }
 

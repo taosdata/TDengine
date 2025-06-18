@@ -663,7 +663,7 @@ typedef struct {
   int64_t     szFile;
   STsdb      *pTsdb;
   const char *objName;
-  uint8_t     s3File;
+  uint8_t     ssFile;
   int32_t     lcn;
   int32_t     fid;
   int64_t     cid;
