@@ -162,10 +162,10 @@ typedef struct STrimDatabaseStmt {
   int32_t   maxSpeed;
 } STrimDatabaseStmt;
 
-typedef struct SS3MigrateDatabaseStmt {
+typedef struct SSsMigrateDatabaseStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
-} SS3MigrateDatabaseStmt;
+} SSsMigrateDatabaseStmt;
 
 typedef struct SCompactDatabaseStmt {
   ENodeType type;

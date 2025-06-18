@@ -512,7 +512,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(STrimDatabaseStmt), &pNode);
       break;
     case QUERY_NODE_S3MIGRATE_DATABASE_STMT:
-      code = makeNode(type, sizeof(SS3MigrateDatabaseStmt), &pNode);
+      code = makeNode(type, sizeof(SSsMigrateDatabaseStmt), &pNode);
       break;
     case QUERY_NODE_CREATE_TABLE_STMT:
       code = makeNode(type, sizeof(SCreateTableStmt), &pNode);

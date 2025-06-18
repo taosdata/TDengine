@@ -19,8 +19,8 @@
 
 extern int32_t tsdbOpenCompMonitor(STsdb *tsdb);
 extern void    tsdbCloseCompMonitor(STsdb *tsdb);
-extern int32_t tsdbOpenS3MigrateMonitor(STsdb *tsdb);
-extern void    tsdbCloseS3MigrateMonitor(STsdb *tsdb);
+extern int32_t tsdbOpenSsMigrateMonitor(STsdb *tsdb);
+extern void    tsdbCloseSsMigrateMonitor(STsdb *tsdb);
 
 void tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
   STsdbKeepCfg *pKeepCfg = &pTsdb->keepCfg;
@@ -90,7 +90,7 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
   TAOS_CHECK_GOTO(tsdbOpenCompMonitor(pTsdb), &lino, _exit);
 #endif
 
-  TAOS_CHECK_GOTO(tsdbOpenS3MigrateMonitor(pTsdb), &lino, _exit);
+  TAOS_CHECK_GOTO(tsdbOpenSsMigrateMonitor(pTsdb), &lino, _exit);
 
 _exit:
   if (code) {
@@ -123,7 +123,7 @@ void tsdbClose(STsdb **pTsdb) {
 #ifdef TD_ENTERPRISE
     tsdbCloseCompMonitor(*pTsdb);
 #endif
-    tsdbCloseS3MigrateMonitor(*pTsdb);
+    tsdbCloseSsMigrateMonitor(*pTsdb);
     (void)taosThreadMutexDestroy(&(*pTsdb)->mutex);
     taosMemoryFreeClear(*pTsdb);
   }
