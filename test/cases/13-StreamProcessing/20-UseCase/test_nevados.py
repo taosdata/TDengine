@@ -32,6 +32,7 @@ class Test_Nevados:
         tdStream.createSnode()
         self.prepare()
         self.windspeeds_hourly()
+        self.windspeeds_daily()
         # self.kpi_db_test()
 
     def prepare(self):
@@ -39,7 +40,7 @@ class Test_Nevados:
         stb = "windspeeds"
         precision = "ms"
         start = "2025-06-01 00:00:00"
-        interval = 30
+        interval = 150
         tbBatch = 1
         tbPerBatch = 10
         rowBatch = 1
@@ -109,6 +110,7 @@ class Test_Nevados:
                 tdSql.execute(sql)
 
     def windspeeds_hourly(self):
+        tdLog.info("windspeeds_hourly")
         # create stream windspeeds_hourly fill_history 1 into windspeeds_hourly as select _wend as window_hourly, site, id, max(speed) as windspeed_hourly_maximum from windspeeds where _ts >= '2025-05-07' partition by site, id interval(1h);
         tdSql.execute(
             "create stream `windspeeds_hourly`"
@@ -117,10 +119,7 @@ class Test_Nevados:
             "  partition by site, id"
             "  options(fill_history('2025-06-01 00:00:00') | pre_filter(_ts >= '2025-05-07'))"
             "  into `windspeeds_hourly`"
-            "  tags("
-            "    group_id bigint as _tgrpid"
-            "  )"
-            "  as select _twstart tw, _twend as window_hourly, %%1 as site, %%2 as id, max(speed) as windspeed_hourly_maximum from %%trows"
+            "  as select _twstart window_start, _twend as window_hourly, max(speed) as windspeed_hourly_maximum from %%trows"
         )
 
         tdSql.checkResultsByFunc(
@@ -128,9 +127,40 @@ class Test_Nevados:
             lambda: tdSql.compareData(0, 0, 10),
         )
 
-        sql = "select tw, window_hourly, site, id, windspeed_hourly_maximum from dev.windspeeds_hourly where id='id_1';"
-        exp_sql = "select _wstart, _wend, site, id, max(speed) from t1 interval(1h);;"
+        sql = "select window_start, window_hourly, site, id, windspeed_hourly_maximum from dev.windspeeds_hourly where id='id_1';"
+        exp_sql = "select _wstart, _wend, site, id, max(speed) from t1 interval(1h);"
         tdSql.checkResultsBySql(sql=sql, exp_sql=exp_sql)
+
+        sql = "select count(*) from dev.windspeeds_hourly;"
+        exp_sql = "select count(*) from (select _wstart, _wend, site, id, max(speed) from windspeeds partition by tbname interval(1h));"
+        tdSql.checkResultsBySql(sql=sql, exp_sql=exp_sql)
+
+    def windspeeds_daily(self):
+        tdLog.info("windspeeds_daily")
+        # create stream windspeeds_daily fill_history 1 into windspeeds_daily as select _wend as window_daily, site, id, max(windspeed_hourly_maximum) as windspeed_daily_maximum from windspeeds_hourly partition by site, id interval(1d, 5h);
+        tdSql.execute(
+            "create stream `windspeeds_daily`"
+            "  interval(1d, 5h) sliding(1d)"
+            "  from windspeeds_hourly"
+            "  partition by site, id"
+            "  options(fill_history('2025-06-01 00:00:00'))"
+            "  into `windspeeds_daily`"
+            "  tags("
+            "    group_id bigint as _tgrpid"
+            "  )"
+            "  as select _twstart window_start, _twend as window_hourly, max(windspeed_hourly_maximum) as windspeed_daily_maximum, %%1 as site, %%2 as id from %%trows"
+        )
+
+        tdSql.checkResultsByFunc(
+            "select count(*) from information_schema.ins_tables where db_name='dev' and stable_name='windspeeds_daily';",
+            lambda: tdSql.compareData(0, 0, 10),
+        )
+
+        sql = "select window_start, window_hourly, windspeed_daily_maximum from dev.windspeeds_daily where id='id_1';"
+        exp_sql = "select _wstart, _wend, count(windspeed_hourly_maximum) from windspeeds_hourly where id='id_1' interval(1d, 5h);"
+        tdSql.checkResultsBySql(sql=sql, exp_sql=exp_sql)
+
+        # exp_sql = "select site, id, _wstart, count(*) from windspeeds_hourly partition by site, id interval(1d, 5h);"
 
     def kpi_db_test(self):
         # create stream if not exists kpi_db_test trigger window_close watermark 10m fill_history 1 ignore update 1 into kpi_db_test as select _wend as window_end, case when last(_ts) is not null then 1 else 0 end as db_online from trackers where _ts >= '2024-10-04T00:00:00.000Z' interval(1h) sliding(1h);
@@ -146,21 +176,6 @@ class Test_Nevados:
         sql = "select * from dev.kpi_db_test;"
         exp_sql = "select tw, te, case when tl is not null then 1 else 0 end as db_online, case when tc is not null then 1 else 0 end as cnt from (select _wstart tw, _wend te, last(_ts) tl, count(*) tc from windspeeds where _ts >= '2025-06-01 00:00:00.000' and _ts < '2025-06-01 09:00:00.000' interval(1h) fill(null));"
         tdSql.checkResultsBySql(sql=sql, exp_sql=exp_sql)
-
-    def windspeeds_daily(self):
-        # create stream windspeeds_daily fill_history 1 into windspeeds_daily as select _wend as window_daily, site, id, max(windspeed_hourly_maximum) as windspeed_daily_maximum from windspeeds_hourly partition by site, id interval(1d, 5h);
-        tdSql.execute(
-            "create stream `windspeeds_daily`"
-            "  interval(1d) sliding(5h)"
-            "  from windspeeds_hourly"
-            "  partition by site, id"
-            "  options(fill_history('2025-06-01 00:00:00'))"
-            "  into `windspeeds_hourly`"
-            "  tags("
-            "    group_id bigint as _tgrpid"
-            "  )"
-            "  as select _twstart, _twend as window_hourly, %%1 as site, %%2 as id, max(windspeed_hourly_maximum) as windspeed_daily_maximum as windspeed_hourly_maximum from %%trows"
-        )
 
     def kpi_trackers_test(self):
         # create stream if not exists kpi_trackers_test trigger window_close watermark 10m fill_history 1 ignore update 1 into kpi_trackers_test as select _wend as window_end, site, zone, tracker, case when ((min(abs(reg_pitch - reg_move_pitch)) <= 2) or (min(reg_temp_therm2) < -10) or (max(reg_temp_therm2) > 60) or (last(reg_system_status14) = true)) then 1 else 0 end as tracker_on_target, case when last(reg_pitch) is not null then 1 else 0 end as tracker_online from trackers where _ts >= '2024-10-04T00:00:00.000Z' partition by tbname interval(1h) sliding(1h);
