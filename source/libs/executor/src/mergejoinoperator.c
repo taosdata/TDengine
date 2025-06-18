@@ -1916,8 +1916,13 @@ int32_t mJoinSetImplFp(SMJoinOperatorInfo* pJoin) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void resetMergeJoinOperState(SOperatorInfo* pOper) {
-  //TODO 
+static int32_t resetMergeJoinOperState(SOperatorInfo* pOper) {
+  mJoinResetOperator(pOper);
+  SMJoinOperatorInfo* pHjOper = pOper->info;
+  pOper->status = OP_NOT_OPENED;
+
+  pHjOper->execInfo = (SMJoinExecInfo){0};
+  return 0;
 }
 
 int32_t createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
@@ -1957,6 +1962,7 @@ int32_t createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDo
 
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, mJoinMainProcess, NULL, destroyMergeJoinOperator, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
+  setOperatorResetStateFn(pOperator, resetMergeJoinOperState);
   MJ_ERR_JRET(appendDownstream(pOperator, pDownstream, numOfDownstream));
 
   if (newDownstreams) {

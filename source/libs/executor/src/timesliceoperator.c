@@ -1245,6 +1245,9 @@ static int32_t resetTimeSliceOperState(SOperatorInfo* pOper) {
   STimeSliceOperatorInfo* pInfo = pOper->info;
   SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
   SInterpFuncPhysiNode* pPhynode = (SInterpFuncPhysiNode*)pOper->pPhyNode;
+  pOper->status = OP_NOT_OPENED;
+
+  setTaskStatus(pOper->pTaskInfo, TASK_NOT_COMPLETED);
 
   int32_t  code = resetExprSupp(&pOper->exprSupp, pTaskInfo, pPhynode->pFuncs, NULL,
                          &pTaskInfo->storageAPI.functionStore);

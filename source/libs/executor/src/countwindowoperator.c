@@ -300,6 +300,8 @@ static int32_t resetCountWindowOperatorState(SOperatorInfo* pOper) {
   SCountWindowOperatorInfo* pCount = pOper->info;
   SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
   SCountWinodwPhysiNode* pPhynode = (SCountWinodwPhysiNode*)pOper->pPhyNode;
+  pOper->status = OP_NOT_OPENED;
+  
   resetBasicOperatorState(&pCount->binfo);
   pCount->groupId = 0;
   pCount->countSup.stateIndex = 0;

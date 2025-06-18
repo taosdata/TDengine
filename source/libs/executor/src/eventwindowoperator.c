@@ -33,6 +33,7 @@ static int32_t resetEventWindowOperState(SOperatorInfo* pOper) {
   SEventWindowOperatorInfo* pEvent = pOper->info;
   SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
   SEventWinodwPhysiNode* pPhynode = (SEventWinodwPhysiNode*)pOper->pPhyNode;
+  pOper->status = OP_NOT_OPENED;
 
   resetBasicOperatorState(&pEvent->binfo);
   taosMemoryFree(pEvent->pRow);

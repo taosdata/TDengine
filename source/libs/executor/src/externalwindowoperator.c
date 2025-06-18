@@ -156,6 +156,8 @@ int32_t resetMergeAlignedExternalWindowOperator(SOperatorInfo* pOperator) {
   SExternalWindowOperator*             pExtW = pMlExtInfo->pExtW;
   SExecTaskInfo*                       pTaskInfo = pOperator->pTaskInfo;
   SMergeAlignedIntervalPhysiNode * pPhynode = (SMergeAlignedIntervalPhysiNode*)pOperator->pPhyNode;
+  pOperator->status = OP_NOT_OPENED;
+
   resetBasicOperatorState(&pExtW->binfo);
   pMlExtInfo->curTs = INT64_MIN;
   if (pMlExtInfo->pPrefetchedBlock) blockDataCleanup(pMlExtInfo->pPrefetchedBlock);
@@ -244,6 +246,8 @@ static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
   SExternalWindowOperator* pExtW = pOperator->info;
   SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
   SExternalWindowPhysiNode* pPhynode = (SExternalWindowPhysiNode*)pOperator->pPhyNode;
+  pOperator->status = OP_NOT_OPENED;
+
   resetBasicOperatorState(&pExtW->binfo);
   pExtW->outputWinId = 0;
   taosArrayDestroyEx(pExtW->pOutputBlocks, blockListDestroy);

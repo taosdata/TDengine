@@ -1346,6 +1346,7 @@ _end:
 static int32_t resetInterval(SOperatorInfo* pOper, SIntervalAggOperatorInfo* pIntervalInfo){
   SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
   SMergeIntervalPhysiNode* pPhynode = (SMergeIntervalPhysiNode*)pOper->pPhyNode;
+  pOper->status = OP_NOT_OPENED;
 
   resetBasicOperatorState(&pIntervalInfo->binfo);
   cleanupResultInfo(pIntervalInfo->pOperator->pTaskInfo, &pIntervalInfo->pOperator->exprSupp, &pIntervalInfo->groupResInfo, &pIntervalInfo->aggSup,
@@ -1703,6 +1704,7 @@ static int32_t resetStatewindowOperState(SOperatorInfo* pOper) {
   SStateWindowOperatorInfo* pInfo = pOper->info;
   SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
   SStateWinodwPhysiNode* pPhynode = (SStateWinodwPhysiNode*)pOper->pPhyNode;
+  pOper->status = OP_NOT_OPENED;
 
   resetBasicOperatorState(&pInfo->binfo);
   cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
@@ -1854,6 +1856,7 @@ static int32_t resetSessionAggOperState(SOperatorInfo* pOper) {
   SSessionAggOperatorInfo* pInfo = pOper->info;
   SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
   SSessionWinodwPhysiNode* pPhynode = (SSessionWinodwPhysiNode*)pOper->pPhyNode;
+  pOper->status = OP_NOT_OPENED;
 
   resetBasicOperatorState(&pInfo->binfo);
   cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,

@@ -514,10 +514,30 @@ _end:
   return code;
 }
 
-static void resetGroupOperState(SOperatorInfo* pOper) {
-  SGroupbyOperatorInfo* pGroupby = pOper->info;
-  resetBasicOperatorState(&pGroupby->binfo);
-  pGroupby->isInit = false;
+static int32_t resetGroupOperState(SOperatorInfo* pOper) {
+  SGroupbyOperatorInfo* pInfo = pOper->info;
+  SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
+  SAggPhysiNode* pPhynode = (SAggPhysiNode*)pOper->pPhyNode;
+  resetBasicOperatorState(&pInfo->binfo);
+  pOper->status = OP_NOT_OPENED;
+
+  cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
+    false);
+
+  cleanupGroupResInfo(&pInfo->groupResInfo);
+
+  int32_t code = resetAggSup(&pOper->exprSupp, &pInfo->aggSup, pTaskInfo, pPhynode->pAggFuncs, pPhynode->pGroupKeys,
+    sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
+    &pTaskInfo->storageAPI.functionStore);
+
+  if (code == 0){
+    code = resetExprSupp(&pInfo->scalarSup, pTaskInfo, pPhynode->pExprs, NULL,
+      &pTaskInfo->storageAPI.functionStore);
+  }
+
+  pInfo->isInit = false;
+
+  return code;
 }
 
 int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNode, SExecTaskInfo* pTaskInfo,
@@ -533,6 +553,7 @@ int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNo
     goto _error;
   }
 
+  pOperator->pPhyNode = (SNode*)pAggNode;
   pOperator->exprSupp.hasWindowOrGroup = true;
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pAggNode->node.pOutputDataBlockDesc);
@@ -588,6 +609,7 @@ int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNo
 
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, hashGroupbyAggregateNext, NULL, destroyGroupOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  setOperatorResetStateFn(pOperator, resetGroupOperState);
   code = appendDownstream(pOperator, &downstream, 1);
   QUERY_CHECK_CODE(code, lino, _error);
 
@@ -1117,6 +1139,31 @@ static void destroyPartitionOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
+static int32_t resetPartitionOperState(SOperatorInfo* pOper) {
+  SPartitionOperatorInfo* pInfo = pOper->info;
+  SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
+  SPartitionPhysiNode* pPhynode = (SPartitionPhysiNode*)pOper->pPhyNode;
+  resetBasicOperatorState(&pInfo->binfo);
+
+  int32_t code = resetExprSupp(&pInfo->scalarSup, pTaskInfo, pPhynode->pExprs, NULL,
+    &pTaskInfo->storageAPI.functionStore);
+
+  clearPartitionOperator(pInfo);
+
+  void* pGroupIter = taosHashIterate(pInfo->pGroupSet, NULL);
+  while (pGroupIter != NULL) {
+    SDataGroupInfo* pGroupInfo = pGroupIter;
+    taosArrayDestroy(pGroupInfo->pPageList);
+    pGroupIter = taosHashIterate(pInfo->pGroupSet, pGroupIter);
+  }
+  taosHashClear(pInfo->pGroupSet);
+  pInfo->groupIndex = 0;
+  pInfo->pageIndex = 0;
+  pInfo->remainRows = 0;
+  pInfo->orderedRows = 0;
+  return 0;
+}
+
 int32_t createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNode* pPartNode,
                                            SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
@@ -1130,6 +1177,7 @@ int32_t createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNo
     goto _error;
   }
 
+  pOperator->pPhyNode = pPartNode;
   int32_t    numOfCols = 0;
   SExprInfo* pExprInfo = NULL;
   code = createExprInfo(pPartNode->pTargets, NULL, &pExprInfo, &numOfCols);
@@ -1210,6 +1258,7 @@ int32_t createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNo
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, hashPartitionNext, NULL, destroyPartitionOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
+  setOperatorResetStateFn(pOperator, resetPartitionOperState);
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;

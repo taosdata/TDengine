@@ -555,13 +555,22 @@ static int32_t createPrimaryTsExprIfNeeded(SFillOperatorInfo* pInfo, SFillPhysiN
   return TSDB_CODE_SUCCESS;
 }
 
-static void resetFillOperState(SOperatorInfo* pOper) {
+static int32_t resetFillOperState(SOperatorInfo* pOper) {
   SFillOperatorInfo* pFill = pOper->info;
+  SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
+  pOper->status = OP_NOT_OPENED;
+  SFillPhysiNode* pPhyNode = (SFillPhysiNode*)pOper->pPhyNode;
+
   pFill->curGroupId = 0;
   pFill->totalInputRows = 0;
   blockDataCleanup(pFill->pRes);
   blockDataCleanup(pFill->pFinalRes);
-  pFill->pFillInfo->currentKey = pFill->pFillInfo->start;
+
+  int64_t startKey = (pFill->pFillInfo->order == TSDB_ORDER_ASC) ? pPhyNode->timeRange.skey : pPhyNode->timeRange.ekey;
+  pFill->pFillInfo->start = startKey;
+  pFill->pFillInfo->currentKey = startKey;
+  pFill->pFillInfo->end = startKey;
+
   pFill->pFillInfo->numOfRows = 0;
   pFill->pFillInfo->index = -1;
   pFill->pFillInfo->numOfTotal = 0;
@@ -579,6 +588,31 @@ static void resetFillOperState(SOperatorInfo* pOper) {
     SGroupKeys* pKey = taosArrayGet(pFill->pFillInfo->next.pRowVal, i);
     pKey->isNull = true;
   }
+
+  taosMemoryFreeClear(pFill->pFillInfo->pTags);
+  taosArrayDestroy(pFill->pFillInfo->pColFillProgress);
+  pFill->pFillInfo->pColFillProgress = NULL;
+
+  tdListFreeP(pFill->pFillInfo->pFillSavedBlockList, destroyFillBlock);
+  pFill->pFillInfo->pFillSavedBlockList = NULL;
+
+  int32_t code = resetExprSupp(&pFill->noFillExprSupp, pTaskInfo, pPhyNode->pNotFillExprs, NULL,
+    &pTaskInfo->storageAPI.functionStore);
+  if (code == 0) {
+    code = resetExprSupp(&pFill->fillNullExprSupp, pTaskInfo, pPhyNode->pFillNullExprs, NULL,
+      &pTaskInfo->storageAPI.functionStore);
+  }
+
+  int32_t order = (pPhyNode->node.inputTsOrder == ORDER_ASC) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
+  if (order == TSDB_ORDER_ASC) {
+    pFill->win.skey = pPhyNode->timeRange.skey;
+    pFill->win.ekey = pPhyNode->timeRange.ekey;
+  } else {
+    pFill->win.skey = pPhyNode->timeRange.ekey;
+    pFill->win.ekey = pPhyNode->timeRange.skey;
+  }
+
+  return code;
 }
 
 int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFillNode,
@@ -594,6 +628,7 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
     goto _error;
   }
 
+  pOperator->pPhyNode = pPhyFillNode;
   pInfo->pRes = createDataBlockFromDescNode(pPhyFillNode->node.pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
   SExprInfo* pExprInfo = NULL;
@@ -679,6 +714,7 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
   setOperatorInfo(pOperator, "FillOperator", QUERY_NODE_PHYSICAL_PLAN_FILL, false, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doFillNext, NULL, destroyFillOperatorInfo, optrDefaultBufFn, NULL,
                                          optrDefaultGetNextExtFn, NULL);
+  setOperatorResetStateFn(pOperator, resetFillOperState);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {

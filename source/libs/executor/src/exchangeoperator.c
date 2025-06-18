@@ -406,6 +406,7 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
 
 int32_t resetExchangeOperState(SOperatorInfo* pOper) {
   SExchangeInfo* pInfo = pOper->info;
+  pOper->status = OP_NOT_OPENED;
   pInfo->current = 0;
   pInfo->loadInfo.totalElapsed = 0;
   pInfo->loadInfo.totalRows = 0;

@@ -865,6 +865,7 @@ static int32_t resetAggregateOperatorState(SOperatorInfo* pOper) {
   SAggOperatorInfo* pAgg = pOper->info;
   SAggPhysiNode*   pAggNode = (SAggPhysiNode*)pOper->pPhyNode;
   
+  pOper->status = OP_NOT_OPENED;
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
   SExecTaskInfo*  pTaskInfo = pOper->pTaskInfo;
   cleanupResultInfo(pTaskInfo, &pOper->exprSupp, &pAgg->groupResInfo, &pAgg->aggSup,
@@ -880,14 +881,8 @@ static int32_t resetAggregateOperatorState(SOperatorInfo* pOper) {
                           &pTaskInfo->storageAPI.functionStore);
   }
 
-  pAgg->binfo.mergeResultBlock = pAggNode->mergeDataBlock;
-  pAgg->groupKeyOptimized = pAggNode->groupKeyOptimized;
   pAgg->groupId = UINT64_MAX;
-  pAgg->binfo.inputTsOrder = pAggNode->node.inputTsOrder;
-  pAgg->binfo.outputTsOrder = pAggNode->node.outputTsOrder;
-  pAgg->hasCountFunc = pAggNode->hasCountLikeFunc;
   pAgg->cleanGroupResInfo = false;
-
   pAgg->hasValidBlock = false;
   return 0;
 }

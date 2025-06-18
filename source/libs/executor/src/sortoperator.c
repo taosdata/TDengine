@@ -56,6 +56,7 @@ static void destroySortOpGroupIdCalc(SSortOpGroupIdCalc* pCalc);
 static int32_t resetSortOperState(SOperatorInfo* pOper) {
   SSortOperatorInfo* pInfo = pOper->info;
   SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
+  pOper->status = OP_NOT_OPENED;
 
   resetBasicOperatorState(&pInfo->binfo);
   destroySqlFunctionCtx(pOper->exprSupp.pCtx, pOper->exprSupp.pExprInfo, pOper->exprSupp.numOfExprs);
@@ -833,6 +834,7 @@ void destroyGroupSortOperatorInfo(void* param) {
 static int32_t resetGroupSortOperState(SOperatorInfo* pOper) {
   SGroupSortOperatorInfo* pInfo = pOper->info;
   SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
+  pOper->status = OP_NOT_OPENED;
 
   pInfo->currGroupId = 0;
   pInfo->hasGroupId = false;
