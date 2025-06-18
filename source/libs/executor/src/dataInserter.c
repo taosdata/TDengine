@@ -132,6 +132,7 @@ static int32_t checkResAndGetTableId(const SSubmitRes* pSubmitRes, int8_t tbType
   res->uid = pCreateTbRsp->pMeta->tuid;
   res->version = pCreateTbRsp->pMeta->sversion;
   res->vgid = pCreateTbRsp->pMeta->vgId;
+  stDebug("inserter callback, uid:%" PRId64 "  vgid: %" PRId64 ", version: %d", res->uid, res->vgid, res->version);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1500,7 +1501,7 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
     *vgId = tbInfo.vgid;
     if (pInsertParam->tbType == TSDB_SUPER_TABLE) {
       tbData.suid = pInsertParam->suid;
-      tbData.sver = pInsertParam->sver; // todo: reponse has not subtable sver, need to get when version change
+      tbData.sver = pInsertParam->sver;
     }
   }
 
