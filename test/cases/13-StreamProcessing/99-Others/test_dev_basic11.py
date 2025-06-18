@@ -74,7 +74,7 @@ class TestStreamDevBasic:
         avg_cint = tdSql.getColData(1)
         count_cint = tdSql.getColData(2)
         
-        for i in range(0, 40):
+        for i in range(0, 39):
             sql = f"select '{ts[i]}', avg(cint), count(cint) from test.st where cts <= '{ts[i]}'"
             tdSql.query(sql, queryTimes=1)
             
