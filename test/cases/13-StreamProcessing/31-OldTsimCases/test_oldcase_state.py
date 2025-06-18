@@ -58,8 +58,8 @@ class TestStreamOldCaseState:
             lambda: tdSql.getRows() == 1
             and tdSql.compareData(0, 0, "2022-04-01 13:33:33.000")
             and tdSql.compareData(0, 1, "2022-04-01 13:33:33.002")
-            and tdSql.compareData(0, 2, 2),  # 1
-            # and tdSql.compareData(0, 3, 1)
+            and tdSql.compareData(0, 2, 2) # rownum
+            and tdSql.compareData(0, 3, 2) # count
             # and tdSql.compareData(0, 4, 1)
             # and tdSql.compareData(0, 5, 1)
             # and tdSql.compareData(0, 6, 1)
@@ -73,13 +73,13 @@ class TestStreamOldCaseState:
             lambda: tdSql.getRows() == 1
             and tdSql.compareData(0, 0, "2022-04-01 13:33:33.000")
             and tdSql.compareData(0, 1, "2022-04-01 13:33:34.000")
-            and tdSql.compareData(0, 2, 3),  # 1
-            #     and tdSql.compareData(0, 3, 1)
-            #     and tdSql.compareData(0, 4, 1)
-            #     and tdSql.compareData(0, 5, 1)
-            #     and tdSql.compareData(0, 6, 1)
-            #     and tdSql.compareData(0, 7, 3)
-            #     and tdSql.compareData(0, 7, 5),
+            and tdSql.compareData(0, 2, 3)
+            and tdSql.compareData(0, 3, 3)
+            # and tdSql.compareData(0, 4, 1)
+            # and tdSql.compareData(0, 5, 1)
+            # and tdSql.compareData(0, 6, 1)
+            # and tdSql.compareData(0, 7, 3)
+            # and tdSql.compareData(0, 7, 5),
         )
 
         return
