@@ -46,7 +46,7 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessSplitVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessVgroupBalanceLeaderMsg(SRpcMsg *pReq);
-int32_t mndTransProcessS3MigrateVgroupRsp(SRpcMsg *pRsp);
+int32_t mndTransProcessSsMigrateVgroupRsp(SRpcMsg *pRsp);
 
 int32_t mndInitVgroup(SMnode *pMnode) {
   SSdbTable table = {
@@ -67,7 +67,7 @@ int32_t mndInitVgroup(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_VND_ALTER_HASHRANGE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_DND_DROP_VNODE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_COMPACT_RSP, mndTransProcessRsp);
-  mndSetMsgHandle(pMnode, TDMT_VND_S3MIGRATE_RSP, mndTransProcessS3MigrateVgroupRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_S3MIGRATE_RSP, mndTransProcessSsMigrateVgroupRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DISABLE_WRITE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_SYNC_FORCE_FOLLOWER_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_DND_ALTER_VNODE_TYPE_RSP, mndTransProcessRsp);
@@ -3857,11 +3857,11 @@ int32_t mndBuildCompactVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
   return 0;
 }
 
-static void *mndBuildS3MigrateVgroupReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen, SS3MigrateObj* pMigrateObj) {
-  SS3MigrateVgroupReq req = {.s3MigrateId = pMigrateObj->id, .nodeId = 0, .timestamp = pMigrateObj->startTime };
+static void *mndBuildSsMigrateVgroupReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen, SSsMigrateObj* pMigrateObj) {
+  SSsMigrateVgroupReq req = {.ssMigrateId = pMigrateObj->id, .nodeId = 0, .timestamp = pMigrateObj->startTime };
 
-  mInfo("vgId:%d, build s3migrate vnode config req", pVgroup->vgId);
-  int32_t contLen = tSerializeSS3MigrateVgroupReq(NULL, 0, &req);
+  mInfo("vgId:%d, build ssmigrate vnode config req", pVgroup->vgId);
+  int32_t contLen = tSerializeSSsMigrateVgroupReq(NULL, 0, &req);
   if (contLen < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -3878,7 +3878,7 @@ static void *mndBuildS3MigrateVgroupReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVg
   pHead->contLen = htonl(contLen);
   pHead->vgId = htonl(pVgroup->vgId);
 
-  if (tSerializeSS3MigrateVgroupReq((char *)pReq + sizeof(SMsgHead), contLen - sizeof(SMsgHead), &req) < 0) {
+  if (tSerializeSSsMigrateVgroupReq((char *)pReq + sizeof(SMsgHead), contLen - sizeof(SMsgHead), &req) < 0) {
     taosMemoryFree(pReq);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -3887,13 +3887,13 @@ static void *mndBuildS3MigrateVgroupReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVg
   return pReq;
 }
 
-static int32_t mndAddS3MigrateVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, SS3MigrateObj* pMigrateObj) {
+static int32_t mndAddSsMigrateVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, SSsMigrateObj* pMigrateObj) {
   int32_t      code = 0;
   STransAction action = {0};
   action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
 
   int32_t contLen = 0;
-  void   *pReq = mndBuildS3MigrateVgroupReq(pMnode, pDb, pVgroup, &contLen, pMigrateObj);
+  void   *pReq = mndBuildSsMigrateVgroupReq(pMnode, pDb, pVgroup, &contLen, pMigrateObj);
   if (pReq == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -3912,7 +3912,7 @@ static int32_t mndAddS3MigrateVgroupAction(SMnode *pMnode, STrans *pTrans, SDbOb
   TAOS_RETURN(code);
 }
 
-int32_t mndBuildS3MigrateVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, SS3MigrateObj* pMigrateObj) {
-  TAOS_CHECK_RETURN(mndAddS3MigrateVgroupAction(pMnode, pTrans, pDb, pVgroup, pMigrateObj));
+int32_t mndBuildSsMigrateVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, SSsMigrateObj* pMigrateObj) {
+  TAOS_CHECK_RETURN(mndAddSsMigrateVgroupAction(pMnode, pTrans, pDb, pVgroup, pMigrateObj));
   return 0;
 }

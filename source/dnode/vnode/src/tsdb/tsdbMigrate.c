@@ -21,28 +21,28 @@
 #include "tsdbInt.h"
 
 
-extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool s3Migrate);
+extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool ssMigrate);
 
 
 // migrate monitor related functions
-typedef struct SS3MigrateMonitor {
+typedef struct SSsMigrateMonitor {
   TdThreadCond  stateChanged;
-  SVnodeS3MigrateState state;
-} SS3MigrateMonitor;
+  SVnodeSsMigrateState state;
+} SSsMigrateMonitor;
 
 
-static int32_t getS3MigrateId(STsdb* tsdb) {
-  return tsdb->pS3MigrateMonitor->state.vnodeMigrateId;
+static int32_t getSsMigrateId(STsdb* tsdb) {
+  return tsdb->pSsMigrateMonitor->state.vnodeMigrateId;
 }
 
 
-int32_t tsdbOpenS3MigrateMonitor(STsdb *tsdb) {
-  SS3MigrateMonitor* pmm = (SS3MigrateMonitor*)taosMemCalloc(1, sizeof(SS3MigrateMonitor));
+int32_t tsdbOpenSsMigrateMonitor(STsdb *tsdb) {
+  SSsMigrateMonitor* pmm = (SSsMigrateMonitor*)taosMemCalloc(1, sizeof(SSsMigrateMonitor));
   if (pmm == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pmm->state.pFileSetStates = taosArrayInit(16, sizeof(SFileSetS3MigrateState));
+  pmm->state.pFileSetStates = taosArrayInit(16, sizeof(SFileSetSsMigrateState));
   if (pmm->state.pFileSetStates == NULL) {
     taosMemoryFree(pmm);
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -53,46 +53,46 @@ int32_t tsdbOpenS3MigrateMonitor(STsdb *tsdb) {
   pmm->state.dnodeId = vnodeNodeId(tsdb->pVnode);
   pmm->state.vgId = TD_VID(tsdb->pVnode);
 
-  tsdb->pS3MigrateMonitor = pmm;
+  tsdb->pSsMigrateMonitor = pmm;
   return 0;
 }
 
 
-void tsdbCloseS3MigrateMonitor(STsdb *tsdb) {
-  SS3MigrateMonitor* pmm = tsdb->pS3MigrateMonitor;
+void tsdbCloseSsMigrateMonitor(STsdb *tsdb) {
+  SSsMigrateMonitor* pmm = tsdb->pSsMigrateMonitor;
   if (pmm == NULL) {
     return;
   }
 
   TAOS_UNUSED(taosThreadCondDestroy(&pmm->stateChanged));
-  tFreeSVnodeS3MigrateState(&pmm->state);
-  taosMemoryFree(tsdb->pS3MigrateMonitor);
-  tsdb->pS3MigrateMonitor = NULL;
+  tFreeSVnodeSsMigrateState(&pmm->state);
+  taosMemoryFree(tsdb->pSsMigrateMonitor);
+  tsdb->pSsMigrateMonitor = NULL;
 }
 
-void tsdbStartS3MigrateMonitor(STsdb *tsdb, int32_t s3MigrateId) {
-  SS3MigrateMonitor* pmm = tsdb->pS3MigrateMonitor;
+void tsdbStartS3MigrateMonitor(STsdb *tsdb, int32_t ssMigrateId) {
+  SSsMigrateMonitor* pmm = tsdb->pSsMigrateMonitor;
   pmm->state.mnodeMigrateId = 0;
-  pmm->state.vnodeMigrateId = s3MigrateId;
+  pmm->state.vnodeMigrateId = ssMigrateId;
   pmm->state.startTimeSec = taosGetTimestampSec();
   taosArrayClear(pmm->state.pFileSetStates);
 }
 
-void tsdbS3MigrateMonitorAddFileSet(STsdb *tsdb, int32_t fid) {
+void tsdbSsMigrateMonitorAddFileSet(STsdb *tsdb, int32_t fid) {
   // no need to lock mutex here, since the caller should have already locked it
   // TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
-  SFileSetS3MigrateState state = { .fid = fid, .state = FILE_SET_MIGRATE_STATE_IN_PROGRESS };
-  taosArrayPush(tsdb->pS3MigrateMonitor->state.pFileSetStates, &state);
+  SFileSetSsMigrateState state = { .fid = fid, .state = FILE_SET_MIGRATE_STATE_IN_PROGRESS };
+  taosArrayPush(tsdb->pSsMigrateMonitor->state.pFileSetStates, &state);
   // TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
 }
 
-void tsdbS3MigrateMonitorSetFileSetState(STsdb *tsdb, int32_t fid, int32_t state) {
-  SS3MigrateMonitor* pmm = tsdb->pS3MigrateMonitor;
+void tsdbSsMigrateMonitorSetFileSetState(STsdb *tsdb, int32_t fid, int32_t state) {
+  SSsMigrateMonitor* pmm = tsdb->pSsMigrateMonitor;
 
   TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
 
   for(int32_t i = 0; i < taosArrayGetSize(pmm->state.pFileSetStates); i++) {
-    SFileSetS3MigrateState *pState = taosArrayGet(pmm->state.pFileSetStates, i);
+    SFileSetSsMigrateState *pState = taosArrayGet(pmm->state.pFileSetStates, i);
     if (pState->fid == fid) {
       pState->state = state;
       break;
@@ -102,13 +102,13 @@ void tsdbS3MigrateMonitorSetFileSetState(STsdb *tsdb, int32_t fid, int32_t state
   TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
 }
 
-int32_t tsdbQueryS3MigrateProgress(STsdb *tsdb, int32_t s3MigrateId, int32_t *rspSize, void** ppRsp) {
-  SS3MigrateMonitor* pmm = tsdb->pS3MigrateMonitor;
-  SVnodeS3MigrateState *pState = &pmm->state;
+int32_t tsdbQuerySsMigrateProgress(STsdb *tsdb, int32_t ssMigrateId, int32_t *rspSize, void** ppRsp) {
+  SSsMigrateMonitor* pmm = tsdb->pSsMigrateMonitor;
+  SVnodeSsMigrateState *pState = &pmm->state;
 
   TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
-  pState->mnodeMigrateId = s3MigrateId;
-  *rspSize = tSerializeSQueryS3MigrateProgressRsp(NULL, 0, pState);
+  pState->mnodeMigrateId = ssMigrateId;
+  *rspSize = tSerializeSQuerySsMigrateProgressRsp(NULL, 0, pState);
   if (*rspSize < 0) {
     TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
     return TSDB_CODE_INVALID_MSG;
@@ -120,13 +120,13 @@ int32_t tsdbQueryS3MigrateProgress(STsdb *tsdb, int32_t s3MigrateId, int32_t *rs
     vError("rpcMallocCont %d failed", *rspSize);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  tSerializeSQueryS3MigrateProgressRsp(*ppRsp, *rspSize, pState);
+  tSerializeSQuerySsMigrateProgressRsp(*ppRsp, *rspSize, pState);
   TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
 
   return 0;
 }
 
-int32_t tsdbUpdateS3MigrateState(STsdb* tsdb, SVnodeS3MigrateState* pState) {
+int32_t tsdbUpdateSsMigrateState(STsdb* tsdb, SVnodeSsMigrateState* pState) {
   int32_t vid = TD_VID(tsdb->pVnode);
 
   // the state was generated by this vnode, so no need to process it
@@ -136,8 +136,8 @@ int32_t tsdbUpdateS3MigrateState(STsdb* tsdb, SVnodeS3MigrateState* pState) {
       return 0;
   }
 
-  SS3MigrateMonitor* pmm = tsdb->pS3MigrateMonitor;
-  SVnodeS3MigrateState *pLocalState = &pmm->state;
+  SSsMigrateMonitor* pmm = tsdb->pSsMigrateMonitor;
+  SVnodeSsMigrateState *pLocalState = &pmm->state;
   if (pLocalState == NULL) {
     tsdbDebug("vgId:%d, skip migration state update since local state not found", vid);
     return 0;
@@ -148,7 +148,7 @@ int32_t tsdbUpdateS3MigrateState(STsdb* tsdb, SVnodeS3MigrateState* pState) {
   bool updated = false;
 
   for( int32_t i = 0; i < taosArrayGetSize(pLocalState->pFileSetStates); i++) {
-    SFileSetS3MigrateState *pLocalFileSet = taosArrayGet(pLocalState->pFileSetStates, i);
+    SFileSetSsMigrateState *pLocalFileSet = taosArrayGet(pLocalState->pFileSetStates, i);
     if (pLocalFileSet->state != FILE_SET_MIGRATE_STATE_IN_PROGRESS) {
       continue; // only update the in-progress file sets
     }
@@ -171,7 +171,7 @@ int32_t tsdbUpdateS3MigrateState(STsdb* tsdb, SVnodeS3MigrateState* pState) {
 
     bool found = false;
     for( int32_t j = 0; j < taosArrayGetSize(pState->pFileSetStates); j++) {
-      SFileSetS3MigrateState *pRemoteFileSet = taosArrayGet(pState->pFileSetStates, j);
+      SFileSetSsMigrateState *pRemoteFileSet = taosArrayGet(pState->pFileSetStates, j);
       if (pLocalFileSet->fid == pRemoteFileSet->fid) {
         found = true;
         if (pRemoteFileSet->state != FILE_SET_MIGRATE_STATE_IN_PROGRESS) {
@@ -345,7 +345,7 @@ static int32_t uploadFile(SRTNer* rtner, STFileObj* fobj) {
   }
 
   const char* ext = strrchr(fobj->fname, '.');
-  int32_t vid = TD_VID(rtner->tsdb->pVnode), mid = getS3MigrateId(rtner->tsdb);
+  int32_t vid = TD_VID(rtner->tsdb->pVnode), mid = getSsMigrateId(rtner->tsdb);
   STFile* f = fobj->f;
   
   char path[TSDB_FILENAME_LEN];
@@ -416,7 +416,7 @@ static int32_t downloadDataFileLastChunk(SRTNer* rtner, STFileObj* fobj) {
 //    data chunks won't cause any problem.
 static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
   int32_t code = 0;
-  int32_t vid = TD_VID(rtner->tsdb->pVnode), mid = getS3MigrateId(rtner->tsdb);
+  int32_t vid = TD_VID(rtner->tsdb->pVnode), mid = getSsMigrateId(rtner->tsdb);
   SVnodeCfg *pCfg = &rtner->tsdb->pVnode->config;
   int64_t szFile = 0, szChunk = (int64_t)pCfg->tsdbPageSize * pCfg->ssChunkSize;
   STFile *f = fobj->f;
@@ -479,13 +479,13 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
   tsdbInfo("vgId:%d, fid:%d, data file migrated, begin generate & upload manifest file", vid, f->fid);
 
   // manifest, this also commit the migration
-  code = uploadManifest(vnodeNodeId(rtner->tsdb->pVnode), vid, rtner->fset, getS3MigrateId(rtner->tsdb));
+  code = uploadManifest(vnodeNodeId(rtner->tsdb->pVnode), vid, rtner->fset, getSsMigrateId(rtner->tsdb));
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbS3MigrateMonitorSetFileSetState(rtner->tsdb, f->fid, FILE_SET_MIGRATE_STATE_FAILED);
+    tsdbSsMigrateMonitorSetFileSetState(rtner->tsdb, f->fid, FILE_SET_MIGRATE_STATE_FAILED);
     return code;
   }
 
-  tsdbS3MigrateMonitorSetFileSetState(rtner->tsdb, f->fid, FILE_SET_MIGRATE_STATE_SUCCEEDED);
+  tsdbSsMigrateMonitorSetFileSetState(rtner->tsdb, f->fid, FILE_SET_MIGRATE_STATE_SUCCEEDED);
   tsdbInfo("vgId:%d, fid:%d, manifest file uploaded, leader migration succeeded", vid, f->fid);
 
   // no new chunks generated, no need to copy the last chunk
@@ -640,8 +640,8 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
 static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
   int32_t code = 0, vid = TD_VID(rtner->tsdb->pVnode);
   STFileSet *fset = rtner->fset;
-  SS3MigrateMonitor* pmm = rtner->tsdb->pS3MigrateMonitor;
-  SFileSetS3MigrateState *pState = NULL;
+  SSsMigrateMonitor* pmm = rtner->tsdb->pSsMigrateMonitor;
+  SFileSetSsMigrateState *pState = NULL;
   int32_t fsIdx = 0;
 
   tsdbInfo("vgId:%d, fid:%d, vnode is follower, waiting leader migration to be finished", vid, fset->fid);
@@ -763,7 +763,7 @@ static int32_t tsdbLeaderDoSsMigrate(SRTNer *rtner) {
 
   if (!shouldMigrate(rtner, &code)) {
     int32_t state = (code == TSDB_CODE_SUCCESS) ? FILE_SET_MIGRATE_STATE_SKIPPED : FILE_SET_MIGRATE_STATE_FAILED;
-    tsdbS3MigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, state);
+    tsdbSsMigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, state);
     return code;
   }
 
@@ -771,7 +771,7 @@ static int32_t tsdbLeaderDoSsMigrate(SRTNer *rtner) {
   tsdbInfo("vgId:%d, fid:%d, begin migrate head file", vid, fset->fid);
   code = uploadFile(rtner, fset->farr[TSDB_FTYPE_HEAD]);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbS3MigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_FAILED);
+    tsdbSsMigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_FAILED);
     return code;
   }
 
@@ -780,7 +780,7 @@ static int32_t tsdbLeaderDoSsMigrate(SRTNer *rtner) {
   // sma file
   code = uploadFile(rtner, fset->farr[TSDB_FTYPE_SMA]);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbS3MigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_FAILED);
+    tsdbSsMigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_FAILED);
     return code;
   }
 
@@ -789,7 +789,7 @@ static int32_t tsdbLeaderDoSsMigrate(SRTNer *rtner) {
   // tomb file
   code = uploadFile(rtner, fset->farr[TSDB_FTYPE_TOMB]);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbS3MigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_FAILED);
+    tsdbSsMigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_FAILED);
     return code;
   }
 
@@ -802,7 +802,7 @@ static int32_t tsdbLeaderDoSsMigrate(SRTNer *rtner) {
     TARRAY2_FOREACH(lvl->fobjArr, fobj) {
       code = uploadFile(rtner, fobj);
       if (code != TSDB_CODE_SUCCESS) {
-        tsdbS3MigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_FAILED);
+        tsdbSsMigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_FAILED);
         return code;
       }
     }
@@ -813,7 +813,7 @@ static int32_t tsdbLeaderDoSsMigrate(SRTNer *rtner) {
   // data file
   code = uploadDataFile(rtner, fset->farr[TSDB_FTYPE_DATA]);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbS3MigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_FAILED);
+    tsdbSsMigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_FAILED);
     return code;
   }
 

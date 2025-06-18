@@ -1705,44 +1705,44 @@ int32_t tDeserializeSVTrimDbReq(void* buf, int32_t bufLen, SVTrimDbReq* pReq);
 
 typedef struct {
   char db[TSDB_DB_FNAME_LEN];
-} SS3MigrateDbReq;
+} SSsMigrateDbReq;
 
-int32_t tSerializeSS3MigrateDbReq(void* buf, int32_t bufLen, SS3MigrateDbReq* pReq);
-int32_t tDeserializeSS3MigrateDbReq(void* buf, int32_t bufLen, SS3MigrateDbReq* pReq);
+int32_t tSerializeSSsMigrateDbReq(void* buf, int32_t bufLen, SSsMigrateDbReq* pReq);
+int32_t tDeserializeSSsMigrateDbReq(void* buf, int32_t bufLen, SSsMigrateDbReq* pReq);
 
 typedef struct {
-  int32_t s3MigrateId;
+  int32_t ssMigrateId;
   bool    bAccepted;
-} SS3MigrateDbRsp;
+} SSsMigrateDbRsp;
 
-int32_t tSerializeSS3MigrateDbRsp(void* buf, int32_t bufLen, SS3MigrateDbRsp* pRsp);
-int32_t tDeserializeSS3MigrateDbRsp(void* buf, int32_t bufLen, SS3MigrateDbRsp* pRsp);
+int32_t tSerializeSSsMigrateDbRsp(void* buf, int32_t bufLen, SSsMigrateDbRsp* pRsp);
+int32_t tDeserializeSSsMigrateDbRsp(void* buf, int32_t bufLen, SSsMigrateDbRsp* pRsp);
 
 typedef struct {
-  int32_t s3MigrateId;
+  int32_t ssMigrateId;
   int32_t nodeId; // node id of the leader vnode
   int64_t timestamp;
-} SS3MigrateVgroupReq;
+} SSsMigrateVgroupReq;
 
-int32_t tSerializeSS3MigrateVgroupReq(void* buf, int32_t bufLen, SS3MigrateVgroupReq* pReq);
-int32_t tDeserializeSS3MigrateVgroupReq(void* buf, int32_t bufLen, SS3MigrateVgroupReq* pReq);
+int32_t tSerializeSSsMigrateVgroupReq(void* buf, int32_t bufLen, SSsMigrateVgroupReq* pReq);
+int32_t tDeserializeSSsMigrateVgroupReq(void* buf, int32_t bufLen, SSsMigrateVgroupReq* pReq);
 
 typedef struct {
-  int32_t s3MigrateId;
+  int32_t ssMigrateId;
   int32_t vgId;   // vgroup id
   int32_t nodeId; // node id of the leader vnode
-} SS3MigrateVgroupRsp;
+} SSsMigrateVgroupRsp;
 
-int32_t tSerializeSS3MigrateVgroupRsp(void* buf, int32_t bufLen, SS3MigrateVgroupRsp* pRsp);
-int32_t tDeserializeSS3MigrateVgroupRsp(void* buf, int32_t bufLen, SS3MigrateVgroupRsp* pRsp);
+int32_t tSerializeSSsMigrateVgroupRsp(void* buf, int32_t bufLen, SSsMigrateVgroupRsp* pRsp);
+int32_t tDeserializeSSsMigrateVgroupRsp(void* buf, int32_t bufLen, SSsMigrateVgroupRsp* pRsp);
 
 typedef struct {
-  int32_t s3MigrateId;
+  int32_t ssMigrateId;
   int32_t vgId;
-} SQueryS3MigrateProgressReq;
+} SQuerySsMigrateProgressReq;
 
-int32_t tSerializeSQueryS3MigrateProgressReq(void* buf, int32_t bufLen, SQueryS3MigrateProgressReq* pReq);
-int32_t tDeserializeSQueryS3MigrateProgressReq(void* buf, int32_t bufLen, SQueryS3MigrateProgressReq* pReq);
+int32_t tSerializeSQuerySsMigrateProgressReq(void* buf, int32_t bufLen, SQuerySsMigrateProgressReq* pReq);
+int32_t tDeserializeSQuerySsMigrateProgressReq(void* buf, int32_t bufLen, SQuerySsMigrateProgressReq* pReq);
 
 #define FILE_SET_MIGRATE_STATE_IN_PROGRESS  0
 #define FILE_SET_MIGRATE_STATE_SUCCEEDED    1
@@ -1752,7 +1752,7 @@ int32_t tDeserializeSQueryS3MigrateProgressReq(void* buf, int32_t bufLen, SQuery
 typedef struct {
   int32_t fid;  // file set id
   int32_t state;
-} SFileSetS3MigrateState;
+} SFileSetSsMigrateState;
 
 typedef struct {
   // if all taosd were restarted during the migration, then vnode migrate id will be 0,
@@ -1764,27 +1764,27 @@ typedef struct {
   int32_t vgId;
   int64_t startTimeSec;
   SArray* pFileSetStates;
-} SVnodeS3MigrateState;
+} SVnodeSsMigrateState;
 
-int32_t tSerializeSVnodeS3MigrateState(void* buf, int32_t bufLen, SVnodeS3MigrateState* pState);
-int32_t tDeserializeSVnodeS3MigrateState(void* buf, int32_t bufLen, SVnodeS3MigrateState* pState);
-void tFreeSVnodeS3MigrateState(SVnodeS3MigrateState* pState);
+int32_t tSerializeSVnodeSsMigrateState(void* buf, int32_t bufLen, SVnodeSsMigrateState* pState);
+int32_t tDeserializeSVnodeSsMigrateState(void* buf, int32_t bufLen, SVnodeSsMigrateState* pState);
+void tFreeSVnodeSsMigrateState(SVnodeSsMigrateState* pState);
 
-typedef SVnodeS3MigrateState SQueryS3MigrateProgressRsp;
-#define tSerializeSQueryS3MigrateProgressRsp(buf, bufLen, pRsp) \
-  tSerializeSVnodeS3MigrateState(buf, bufLen, pRsp)
-#define tDeserializeSQueryS3MigrateProgressRsp(buf, bufLen, pRsp) \
-  tDeserializeSVnodeS3MigrateState(buf, bufLen, pRsp)
-#define tFreeSQueryS3MigrateProgressRsp(pRsp) \
-  tFreeSVnodeS3MigrateState(pRsp)
+typedef SVnodeSsMigrateState SQuerySsMigrateProgressRsp;
+#define tSerializeSQuerySsMigrateProgressRsp(buf, bufLen, pRsp) \
+  tSerializeSVnodeSsMigrateState(buf, bufLen, pRsp)
+#define tDeserializeSQuerySsMigrateProgressRsp(buf, bufLen, pRsp) \
+  tDeserializeSVnodeSsMigrateState(buf, bufLen, pRsp)
+#define tFreeSQuerySsMigrateProgressRsp(pRsp) \
+  tFreeSVnodeSsMigrateState(pRsp)
 
-typedef SVnodeS3MigrateState SFollowerS3MigrateReq;
-#define tSerializeSFollowerS3MigrateReq(buf, bufLen, pReq) \
-  tSerializeSVnodeS3MigrateState(buf, bufLen, pReq)
-#define tDeserializeSFollowerS3MigrateReq(buf, bufLen, pReq) \
-  tDeserializeSVnodeS3MigrateState(buf, bufLen, pReq)
-#define tFreeSFollowerS3MigrateReq(pReq) \
-  tFreeSVnodeS3MigrateState(pReq)
+typedef SVnodeSsMigrateState SFollowerSsMigrateReq;
+#define tSerializeSFollowerSsMigrateReq(buf, bufLen, pReq) \
+  tSerializeSVnodeSsMigrateState(buf, bufLen, pReq)
+#define tDeserializeSFollowerSsMigrateReq(buf, bufLen, pReq) \
+  tDeserializeSVnodeSsMigrateState(buf, bufLen, pReq)
+#define tFreeSFollowerSsMigrateReq(pReq) \
+  tFreeSVnodeSsMigrateState(pReq)
 
 typedef struct {
   int32_t timestampSec;
