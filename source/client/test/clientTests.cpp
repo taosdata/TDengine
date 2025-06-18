@@ -814,57 +814,7 @@ TEST(clientCase, projection_query_tables) {
 
   pRes = taos_query(pConn, "select imputation(a) from t1 where ts<='2024-11-15 1:7:44'");
   if (taos_errno(pRes) != 0) {
-    (void)printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
-  return ;
-
-  pRes = taos_query(pConn, "create table t1 (ts timestamp, v1 varchar(20) primary key, v2 int)");
-  if (taos_errno(pRes) != 0) {
-    (void)printf("failed to create table st1, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
-
-  int64_t start = 1685959190000;
-  const char* pstr =
-      "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefgh"
-      "ijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnop"
-      "qrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx"
-      "yzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdef"
-      "ghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz!@#$%^&&*&^^%$#@!qQWERTYUIOPASDFGHJKL:"
-      "QWERTYUIOP{}";
-
-  bool up = true;
-  int32_t a = 0;
-  for(int32_t i = 0; i < 9000; ++i, ++a) {
-    char str[1024] = {0};
-    (void)sprintf(str, "insert into t1 values(%" PRId64 ", 'abcdefghijklmn', %d)", start + i, a);
-
-    TAOS_RES* px = taos_query(pConn, str);
-    if (taos_errno(px) != 0) {
-      (void)printf("failed to create table tu, reason:%s\n", taos_errstr(px));
-    }
-    taos_free_result(px);
-
-    if (i == 8191 && up) {
-      i -= 1;
-      up = false;
-      taos_query(pConn, "flush database abc1");
-    }
-  }
-
-  for(int32_t j = 0; j < 1; ++j) {
-    start += 20;
-    for (int32_t i = 0; i < 1; ++i) {
-      createNewTable(pConn, i, 10000, 0, pstr);
-    }
-  }
-
-  pRes = taos_query(pConn, "select * from abc1.st2");
-  if (taos_errno(pRes) != 0) {
-    (void)printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
-    taos_free_result(pRes);
-    ASSERT_TRUE(false);
+    (void)printf("failed to do forecast query, reason:%s\n", taos_errstr(pRes));
   }
 
   TAOS_ROW    pRow = NULL;
