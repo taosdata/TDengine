@@ -36,7 +36,7 @@
 #include "systable.h"
 #include "thttp.h"
 #include "tjson.h"
-#include "mndS3Migrate.h"
+#include "mndSsMigrate.h"
 
 #define DB_VER_NUMBER   1
 #define DB_RESERVE_SIZE 14
@@ -52,7 +52,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq);
 static int32_t mndProcessDropDbReq(SRpcMsg *pReq);
 static int32_t mndProcessUseDbReq(SRpcMsg *pReq);
 static int32_t mndProcessTrimDbReq(SRpcMsg *pReq);
-static int32_t mndProcessS3MigrateDbReq(SRpcMsg *pReq);
+static int32_t mndProcessSsMigrateDbReq(SRpcMsg *pReq);
 static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity);
 static void    mndCancelGetNextDb(SMnode *pMnode, void *pIter);
 static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq);
@@ -80,7 +80,7 @@ int32_t mndInitDb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_COMPACT_DB, mndProcessCompactDbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_TRIM_DB, mndProcessTrimDbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_DB_CFG, mndProcessGetDbCfgReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_S3MIGRATE_DB, mndProcessS3MigrateDbReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_S3MIGRATE_DB, mndProcessSsMigrateDbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_DB_INFO, mndProcessUseDbReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_DB, mndRetrieveDbs);
@@ -2226,7 +2226,7 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetS3MigrateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t s3MigrateTs) {
+static int32_t mndSetSsMigrateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t s3MigrateTs) {
   int32_t code = 0;
   SDbObj  dbObj = {0};
   memcpy(&dbObj, pDb, sizeof(SDbObj));
@@ -2247,17 +2247,17 @@ static int32_t mndSetS3MigrateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbOb
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetS3MigrateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t s3MigrateTs, SS3MigrateDbRsp *pS3MigrateRsp) {
+static int32_t mndSetSsMigrateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t ssMigrateTs, SSsMigrateDbRsp *pSsMigrateRsp) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
 
   // startTime is in seconds, so convert milliseconds to seconds
-  SS3MigrateObj s3Migrate = { .startTime = s3MigrateTs/1000 };
-  if ((code = mndAddS3MigrateToTran(pMnode, pTrans, &s3Migrate, pDb)) != 0) {
+  SSsMigrateObj ssMigrate = { .startTime = ssMigrateTs/1000 };
+  if ((code = mndAddSsMigrateToTran(pMnode, pTrans, &ssMigrate, pDb)) != 0) {
     TAOS_RETURN(code);
   }
-  pS3MigrateRsp->s3MigrateId = s3Migrate.id;
+  pSsMigrateRsp->ssMigrateId = ssMigrate.id;
 
   int32_t j = 0;
   while (1) {
@@ -2270,7 +2270,7 @@ static int32_t mndSetS3MigrateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbO
       continue;
     }
 
-    if ((code = mndBuildS3MigrateVgroupAction(pMnode, pTrans, pDb, pVgroup, &s3Migrate)) != 0) {
+    if ((code = mndBuildSsMigrateVgroupAction(pMnode, pTrans, pDb, pVgroup, &ssMigrate)) != 0) {
       sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);
       TAOS_RETURN(code);
@@ -2282,9 +2282,9 @@ static int32_t mndSetS3MigrateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbO
   TAOS_RETURN(code);
 }
 
-static int32_t mndBuildS3MigrateDbRsp(SS3MigrateDbRsp *pS3MigrateRsp, int32_t *pRspLen, void **ppRsp, bool useRpcMalloc) {
+static int32_t mndBuildSsMigrateDbRsp(SSsMigrateDbRsp *pS3MigrateRsp, int32_t *pRspLen, void **ppRsp, bool useRpcMalloc) {
   int32_t code = 0;
-  int32_t rspLen = tSerializeSS3MigrateDbRsp(NULL, 0, pS3MigrateRsp);
+  int32_t rspLen = tSerializeSSsMigrateDbRsp(NULL, 0, pS3MigrateRsp);
   void   *pRsp = NULL;
   if (useRpcMalloc) {
     pRsp = rpcMallocCont(rspLen);
@@ -2297,37 +2297,37 @@ static int32_t mndBuildS3MigrateDbRsp(SS3MigrateDbRsp *pS3MigrateRsp, int32_t *p
     TAOS_RETURN(code);
   }
 
-  (void)tSerializeSS3MigrateDbRsp(pRsp, rspLen, pS3MigrateRsp);
+  (void)tSerializeSSsMigrateDbRsp(pRsp, rspLen, pS3MigrateRsp);
   *pRspLen = rspLen;
   *ppRsp = pRsp;
   TAOS_RETURN(code);
 }
 
-int32_t mndS3MigrateDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
+int32_t mndSsMigrateDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   int32_t       code = 0;
-  SS3MigrateDbRsp s3MigrateRsp = {0};
+  SSsMigrateDbRsp ssMigrateRsp = {0};
 
   bool  isExist = false;
   void *pIter = NULL;
   while (1) {
-    SS3MigrateObj *pS3Migrate = NULL;
-    pIter = sdbFetch(pMnode->pSdb, SDB_S3MIGRATE, pIter, (void **)&pS3Migrate);
+    SSsMigrateObj *pSsMigrate = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_SSMIGRATE, pIter, (void **)&pSsMigrate);
     if (pIter == NULL) break;
 
-    if (strcmp(pS3Migrate->dbname, pDb->name) == 0) {
+    if (strcmp(pSsMigrate->dbname, pDb->name) == 0) {
       isExist = true;
     }
-    sdbRelease(pMnode->pSdb, pS3Migrate);
+    sdbRelease(pMnode->pSdb, pSsMigrate);
   }
   if (isExist) {
-    mInfo("s3Migrate db:%s already exist", pDb->name);
+    mInfo("ssmigrate db:%s already exist", pDb->name);
 
     if (pReq) {
       int32_t rspLen = 0;
       void   *pRsp = NULL;
-      s3MigrateRsp.s3MigrateId = 0;
-      s3MigrateRsp.bAccepted = false;
-      TAOS_CHECK_RETURN(mndBuildS3MigrateDbRsp(&s3MigrateRsp, &rspLen, &pRsp, true));
+      ssMigrateRsp.ssMigrateId = 0;
+      ssMigrateRsp.bAccepted = false;
+      TAOS_CHECK_RETURN(mndBuildSsMigrateDbRsp(&ssMigrateRsp, &rspLen, &pRsp, true));
 
       pReq->info.rsp = pRsp;
       pReq->info.rspLen = rspLen;
@@ -2337,24 +2337,24 @@ int32_t mndS3MigrateDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   }
 
   int64_t s3MigrateTs = taosGetTimestampMs();
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "s3migrate-db");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "ssmigrate-db");
   if (pTrans == NULL) {
-    mError("failed to create s3migrate-db trans since %s", terrstr());
+    mError("failed to create ssmigrate-db trans since %s", terrstr());
     goto _OVER;
   }
 
-  mInfo("trans:%d, used to s3migrate db:%s", pTrans->id, pDb->name);
+  mInfo("trans:%d, used to ssmigrate db:%s", pTrans->id, pDb->name);
   mndTransSetDbName(pTrans, pDb->name, NULL);
   TAOS_CHECK_GOTO(mndTrancCheckConflict(pMnode, pTrans), NULL, _OVER);
 
-  TAOS_CHECK_GOTO(mndSetS3MigrateDbCommitLogs(pMnode, pTrans, pDb, s3MigrateTs), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetS3MigrateDbRedoActions(pMnode, pTrans, pDb, s3MigrateTs, &s3MigrateRsp), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetSsMigrateDbCommitLogs(pMnode, pTrans, pDb, s3MigrateTs), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetSsMigrateDbRedoActions(pMnode, pTrans, pDb, s3MigrateTs, &ssMigrateRsp), NULL, _OVER);
 
   if (pReq) {
     int32_t rspLen = 0;
     void   *pRsp = NULL;
-    s3MigrateRsp.bAccepted = true;
-    TAOS_CHECK_GOTO(mndBuildS3MigrateDbRsp(&s3MigrateRsp, &rspLen, &pRsp, false), NULL, _OVER);
+    ssMigrateRsp.bAccepted = true;
+    TAOS_CHECK_GOTO(mndBuildSsMigrateDbRsp(&ssMigrateRsp, &rspLen, &pRsp, false), NULL, _OVER);
     mndTransSetRpcRsp(pTrans, pRsp, rspLen);
   }
 
@@ -2366,62 +2366,18 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-#if 0
-static int32_t mndS3MigrateDb(SMnode *pMnode, SDbObj *pDb) {
-  SSdb            *pSdb = pMnode->pSdb;
-  SVgObj          *pVgroup = NULL;
-  void            *pIter = NULL;
-  SVS3MigrateDbReq s3migrateReq = {.timestamp = taosGetTimestampSec()};
-  int32_t          reqLen = tSerializeSVS3MigrateDbReq(NULL, 0, &s3migrateReq);
-  int32_t          contLen = reqLen + sizeof(SMsgHead);
-  int32_t          code = 0;
 
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-    if (pIter == NULL) break;
-
-    if (pVgroup->dbUid != pDb->uid) continue;
-
-    SMsgHead *pHead = rpcMallocCont(contLen);
-    if (pHead == NULL) {
-      sdbCancelFetch(pSdb, pVgroup);
-      sdbRelease(pSdb, pVgroup);
-      continue;
-    }
-    pHead->contLen = htonl(contLen);
-    pHead->vgId = htonl(pVgroup->vgId);
-    int32_t ret = 0;
-    if ((ret = tSerializeSVS3MigrateDbReq((char *)pHead + sizeof(SMsgHead), contLen, &s3migrateReq)) < 0) {
-      sdbRelease(pSdb, pVgroup);
-      return ret;
-    }
-
-    SRpcMsg rpcMsg = {.msgType = TDMT_VND_S3MIGRATE, .pCont = pHead, .contLen = contLen};
-    SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
-    int32_t code = tmsgSendReq(&epSet, &rpcMsg);
-    if (code != 0) {
-      mError("vgId:%d, failed to send vnode-s3migrate request to vnode since 0x%x", pVgroup->vgId, code);
-    } else {
-      mInfo("vgId:%d, send vnode-s3migrate request to vnode, time:%d", pVgroup->vgId, s3migrateReq.timestamp);
-    }
-    sdbRelease(pSdb, pVgroup);
-  }
-
-  return 0;
-}
-#endif
-
-static int32_t mndProcessS3MigrateDbReq(SRpcMsg *pReq) {
+static int32_t mndProcessSsMigrateDbReq(SRpcMsg *pReq) {
   SMnode         *pMnode = pReq->info.node;
   int32_t         code = -1;
   SDbObj         *pDb = NULL;
-  SS3MigrateDbReq s3migrateReq = {0};
+  SSsMigrateDbReq ssMigrateReq = {0};
 
-  TAOS_CHECK_GOTO(tDeserializeSS3MigrateDbReq(pReq->pCont, pReq->contLen, &s3migrateReq), NULL, _OVER);
+  TAOS_CHECK_GOTO(tDeserializeSSsMigrateDbReq(pReq->pCont, pReq->contLen, &ssMigrateReq), NULL, _OVER);
 
-  mInfo("db:%s, start to s3migrate", s3migrateReq.db);
+  mInfo("db:%s, start to ssmigrate", ssMigrateReq.db);
 
-  pDb = mndAcquireDb(pMnode, s3migrateReq.db);
+  pDb = mndAcquireDb(pMnode, ssMigrateReq.db);
   if (pDb == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -2430,11 +2386,11 @@ static int32_t mndProcessS3MigrateDbReq(SRpcMsg *pReq) {
 
   // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB, pDb), NULL, _OVER);
 
-  code = mndS3MigrateDb(pMnode, pReq, pDb);
+  code = mndSsMigrateDb(pMnode, pReq, pDb);
 
 _OVER:
   if (code != 0) {
-    mError("db:%s, failed to process s3migrate db req since %s", s3migrateReq.db, terrstr());
+    mError("db:%s, failed to process ssmigrate db req since %s", ssMigrateReq.db, terrstr());
   }
 
   mndReleaseDb(pMnode, pDb);

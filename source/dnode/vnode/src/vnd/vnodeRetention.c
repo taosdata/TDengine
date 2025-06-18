@@ -16,9 +16,9 @@
 #include "vnd.h"
 
 extern int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now);
-extern int32_t tsdbAsyncS3Migrate(STsdb *tsdb, SS3MigrateVgroupReq *pReq);
-extern int32_t tsdbQueryS3MigrateProgress(STsdb *tsdb, int32_t s3MigrateId, int32_t *rspSize, void** ppRsp);
-extern int32_t tsdbUpdateS3MigrateState(STsdb* tsdb, SVnodeS3MigrateState* pState);
+extern int32_t tsdbAsyncSsMigrate(STsdb *tsdb, SSsMigrateVgroupReq *pReq);
+extern int32_t tsdbQuerySsMigrateProgress(STsdb *tsdb, int32_t ssMigrateId, int32_t *rspSize, void** ppRsp);
+extern int32_t tsdbUpdateSsMigrateState(STsdb* tsdb, SVnodeSsMigrateState* pState);
 
 
 int32_t vnodeAsyncRetention(SVnode *pVnode, int64_t now) {
@@ -26,33 +26,33 @@ int32_t vnodeAsyncRetention(SVnode *pVnode, int64_t now) {
   return tsdbAsyncRetention(pVnode->pTsdb, now);
 }
 
-int32_t vnodeAsyncS3Migrate(SVnode *pVnode, SS3MigrateVgroupReq *pReq) {
+int32_t vnodeAsyncSsMigrate(SVnode *pVnode, SSsMigrateVgroupReq *pReq) {
   // async migration
 #ifdef USE_S3
-  return tsdbAsyncS3Migrate(pVnode->pTsdb, pReq);
+  return tsdbAsyncSsMigrate(pVnode->pTsdb, pReq);
 #else
   return TSDB_CODE_INTERNAL_ERROR;
 #endif
 }
 
-int32_t vnodeQueryS3MigrateProgress(SVnode *pVnode, SRpcMsg *pMsg) {
+int32_t vnodeQuerySsMigrateProgress(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = 0;
 
-  SQueryS3MigrateProgressReq req = {0};
+  SQuerySsMigrateProgressReq req = {0};
 
   int32_t                  rspSize = 0;
   SRpcMsg                  rspMsg = {0};
   void                    *pRsp = NULL;
-  SQueryS3MigrateProgressRsp rsp = {0};
+  SQuerySsMigrateProgressRsp rsp = {0};
 
   // deserialize request
-  code = tDeserializeSQueryS3MigrateProgressReq(pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead), &req);
+  code = tDeserializeSQuerySsMigrateProgressReq(pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead), &req);
   if (code) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
 
-  code = tsdbQueryS3MigrateProgress(pVnode->pTsdb, req.s3MigrateId, &rspSize, &pRsp);
+  code = tsdbQuerySsMigrateProgress(pVnode->pTsdb, req.ssMigrateId, &rspSize, &pRsp);
 
 _exit:
   rspMsg.info = pMsg->info;
@@ -65,6 +65,6 @@ _exit:
   return 0;
 }
 
-int32_t vnodeFollowerS3Migrate(SVnode *pVnode, SVnodeS3MigrateState *pState) {
-  return tsdbUpdateS3MigrateState(pVnode->pTsdb, pState);
+int32_t vnodeFollowerSsMigrate(SVnode *pVnode, SVnodeSsMigrateState *pState) {
+  return tsdbUpdateSsMigrateState(pVnode->pTsdb, pState);
 }

@@ -6968,16 +6968,16 @@ static int32_t jsonToTrimDatabaseStmt(const SJson* pJson, void* pObj) {
 
 static const char* jkS3MigrateDatabaseStmtDbName = "DbName";
 
-static int32_t s3migrateDatabaseStmtToJson(const void* pObj, SJson* pJson) {
-  const SS3MigrateDatabaseStmt* pNode = (const SS3MigrateDatabaseStmt*)pObj;
+static int32_t ssMigrateDatabaseStmtToJson(const void* pObj, SJson* pJson) {
+  const SSsMigrateDatabaseStmt* pNode = (const SSsMigrateDatabaseStmt*)pObj;
 
   int32_t code = tjsonAddStringToObject(pJson, jkS3MigrateDatabaseStmtDbName, pNode->dbName);
 
   return code;
 }
 
-static int32_t jsonToS3MigrateDatabaseStmt(const SJson* pJson, void* pObj) {
-  SS3MigrateDatabaseStmt* pNode = (SS3MigrateDatabaseStmt*)pObj;
+static int32_t jsonToSsMigrateDatabaseStmt(const SJson* pJson, void* pObj) {
+  SSsMigrateDatabaseStmt* pNode = (SSsMigrateDatabaseStmt*)pObj;
 
   int32_t code = tjsonGetStringValue(pJson, jkS3MigrateDatabaseStmtDbName, pNode->dbName);
 
@@ -8953,7 +8953,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_TRIM_DATABASE_STMT:
       return trimDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_S3MIGRATE_DATABASE_STMT:
-      return s3migrateDatabaseStmtToJson(pObj, pJson);
+      return ssMigrateDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_TABLE_STMT:
       return createTableStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
@@ -9359,7 +9359,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_TRIM_DATABASE_STMT:
       return jsonToTrimDatabaseStmt(pJson, pObj);
     case QUERY_NODE_S3MIGRATE_DATABASE_STMT:
-      return jsonToS3MigrateDatabaseStmt(pJson, pObj);
+      return jsonToSsMigrateDatabaseStmt(pJson, pObj);
     case QUERY_NODE_CREATE_TABLE_STMT:
       return jsonToCreateTableStmt(pJson, pObj);
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
