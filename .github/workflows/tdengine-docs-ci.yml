@@ -31,19 +31,19 @@ jobs:
       - name: Use custom zh config file
         uses: crate-ci/typos@v1.31.1
         with:
-          files: 'docs/zh/**/*.md'
+          files: 'docs/zh/'
           config: docs/typos.toml
 
       - name: Use custom en config file
         uses: crate-ci/typos@v1.31.1
         with:
-          files: 'docs/en/**/*.md'
+          files: 'docs/en/'
           config: docs/typos.toml
 
       - name: Use custom en config file
         uses: crate-ci/typos@v1.31.1
         with:
-          files: '**/*.md'
+          files: './*.md'
           config: docs/typos.toml
 
   check-with-autocorrect:
@@ -76,7 +76,9 @@ jobs:
         uses: tj-actions/changed-files@v46
         id: changed-files
         with:
-          files: '**/*.md'
+          files: |
+            **/*.md
+            **/*.mdx
           separator: ","
       - name: Check with Markdownlint
         uses: DavidAnson/markdownlint-cli2-action@v20
