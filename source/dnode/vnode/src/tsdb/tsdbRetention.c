@@ -211,7 +211,7 @@ static int32_t tsdbDoRetentionEnd(SRTNer *rtner, bool ssMigrate) {
   int32_t lino = 0;
 
   if (TARRAY2_SIZE(&rtner->fopArr) > 0) {
-    EFEditT etype = ssMigrate ? TSDB_FEDIT_S3MIGRATE : TSDB_FEDIT_RETENTION;
+    EFEditT etype = ssMigrate ? TSDB_FEDIT_SSMIGRATE : TSDB_FEDIT_RETENTION;
     TAOS_CHECK_GOTO(tsdbFSEditBegin(rtner->tsdb->pFS, &rtner->fopArr, etype), &lino, _exit);
 
     (void)taosThreadMutexLock(&rtner->tsdb->mutex);

@@ -32,13 +32,13 @@ static int32_t mndProcessQuerySsMigrateProgressRsp(SRpcMsg *pReq);
 static int32_t mndProcessFollowerSsMigrateRsp(SRpcMsg *pReq);
 
 int32_t mndInitSsMigrate(SMnode *pMnode) {
-  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_S3MIGRATE, mndRetrieveSsMigrate);
-  mndSetMsgHandle(pMnode, TDMT_MND_KILL_S3MIGRATE, mndProcessKillSsMigrateReq);
-  mndSetMsgHandle(pMnode, TDMT_VND_QUERY_S3MIGRATE_PROGRESS_RSP, mndProcessQuerySsMigrateProgressRsp);
-  mndSetMsgHandle(pMnode, TDMT_MND_S3MIGRATE_DB_TIMER, mndProcessSsMigrateDbTimer);
-  mndSetMsgHandle(pMnode, TDMT_MND_QUERY_S3MIGRATE_PROGRESS_TIMER, mndProcessQuerySsMigrateProgressTimer);
-  mndSetMsgHandle(pMnode, TDMT_VND_FOLLOWER_S3MIGRATE_RSP, mndProcessFollowerSsMigrateRsp);
-  mndSetMsgHandle(pMnode, TDMT_VND_KILL_S3MIGRATE_RSP, mndTransProcessRsp);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_SSMIGRATE, mndRetrieveSsMigrate);
+  mndSetMsgHandle(pMnode, TDMT_MND_KILL_SSMIGRATE, mndProcessKillSsMigrateReq);
+  mndSetMsgHandle(pMnode, TDMT_VND_QUERY_SSMIGRATE_PROGRESS_RSP, mndProcessQuerySsMigrateProgressRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_SSMIGRATE_DB_TIMER, mndProcessSsMigrateDbTimer);
+  mndSetMsgHandle(pMnode, TDMT_MND_QUERY_SSMIGRATE_PROGRESS_TIMER, mndProcessQuerySsMigrateProgressTimer);
+  mndSetMsgHandle(pMnode, TDMT_VND_FOLLOWER_SSMIGRATE_RSP, mndProcessFollowerSsMigrateRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_KILL_SSMIGRATE_RSP, mndTransProcessRsp);
 
   SSdbTable table = {
       .sdbType = SDB_SSMIGRATE,
@@ -445,7 +445,7 @@ static void mndSendFollowerSsMigrateReq(SMnode* pMnode, SFollowerSsMigrateReq *p
     return;
   }
 
-  SRpcMsg rpcMsg = {.msgType = TDMT_VND_FOLLOWER_S3MIGRATE, .pCont = pHead, .contLen = contLen};
+  SRpcMsg rpcMsg = {.msgType = TDMT_VND_FOLLOWER_SSMIGRATE, .pCont = pHead, .contLen = contLen};
   int32_t code = tmsgSendReq(&epSet, &rpcMsg);
   if (code != 0) {
     mError("vgId:%d, failed to send follower-s3migrate request to vnode since 0x%x", pReq->vgId, code);
@@ -614,7 +614,7 @@ void mndSendQuerySsMigrateProgressReq(SMnode *pMnode, SSsMigrateObj *pSsMigrate)
       pHead->vgId = htonl(pDetail->vgId);
       tSerializeSQuerySsMigrateProgressReq((char *)pHead + sizeof(SMsgHead), reqLen, &req);
 
-      SRpcMsg rpcMsg = {.msgType = TDMT_VND_QUERY_S3MIGRATE_PROGRESS, .pCont = pHead, .contLen = contLen};
+      SRpcMsg rpcMsg = {.msgType = TDMT_VND_QUERY_SSMIGRATE_PROGRESS, .pCont = pHead, .contLen = contLen};
 
       // we need to send the msg to dnode instead of vgroup, because migration may take a long time,
       // and leader may change during the migration process, while only the initial leader vnode
