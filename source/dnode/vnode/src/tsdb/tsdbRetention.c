@@ -314,8 +314,6 @@ _exit:
 
 static void tsdbRetentionCancel(void *arg) { taosMemoryFree(arg); }
 
-static int32_t tsdbDoS3Migrate(SRTNer *rtner);
-
 static int32_t tsdbRetention(void *arg) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -460,10 +458,10 @@ int32_t tsdbAsyncSsMigrate(STsdb *tsdb, SSsMigrateVgroupReq *pReq) {
   }
     #endif
 
-  void tsdbStartS3MigrateMonitor(STsdb *tsdb, int32_t ssMigrateId);
+  void tsdbStartSsMigrateMonitor(STsdb *tsdb, int32_t ssMigrateId);
 
   (void)taosThreadMutexLock(&tsdb->mutex);
-  tsdbStartS3MigrateMonitor(tsdb, pReq->ssMigrateId);
+  tsdbStartSsMigrateMonitor(tsdb, pReq->ssMigrateId);
   code = tsdbAsyncRetentionImpl(tsdb, pReq->timestamp, true, pReq->nodeId);
   (void)taosThreadMutexUnlock(&tsdb->mutex);
 

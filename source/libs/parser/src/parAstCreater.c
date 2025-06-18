@@ -2134,10 +2134,10 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       nodesDestroyNode((SNode*)pNode);
       break;
     }
-    case DB_OPTION_S3_CHUNKPAGES:
+    case DB_OPTION_SS_CHUNKPAGES:
       pDbOptions->ssChunkSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
-    case DB_OPTION_S3_KEEPLOCAL: {
+    case DB_OPTION_SS_KEEPLOCAL: {
       SToken* pToken = pVal;
       if (TK_NK_INTEGER == pToken->type) {
         pDbOptions->ssKeepLocal = taosStr2Int32(pToken->z, NULL, 10) * 1440;
@@ -2146,7 +2146,7 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       }
       break;
     }
-    case DB_OPTION_S3_COMPACT:
+    case DB_OPTION_SS_COMPACT:
       pDbOptions->ssCompact = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_KEEP_TIME_OFFSET:
@@ -2283,7 +2283,7 @@ _err:
   return NULL;
 }
 
-SNode* createS3MigrateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
+SNode* createSsMigrateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkDbName(pCxt, pDbName, false));
   SSsMigrateDatabaseStmt* pStmt = NULL;

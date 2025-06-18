@@ -122,7 +122,7 @@ const char* nodesNodeName(ENodeType type) {
     case QUERY_NODE_TRIM_DATABASE_STMT:
       return "TrimDatabaseStmt";
     case QUERY_NODE_SSMIGRATE_DATABASE_STMT:
-      return "S3MigrateDatabaseStmt";
+      return "SsMigrateDatabaseStmt";
     case QUERY_NODE_CREATE_TABLE_STMT:
       return "CreateTableStmt";
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:

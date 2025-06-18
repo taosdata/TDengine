@@ -8843,7 +8843,7 @@ static int32_t checkTableRangeOption(STranslateContext* pCxt, const char* pName,
   return checkRangeOption(pCxt, TSDB_CODE_PAR_INVALID_TABLE_OPTION, pName, val, minVal, maxVal, true);
 }
 
-static int32_t checkDbS3KeepLocalOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
+static int32_t checkDbSsKeepLocalOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
   if (NULL != pOptions->ssKeepLocalStr) {
     if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->ssKeepLocalStr)) {
       return pCxt->errCode;
@@ -9430,7 +9430,7 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkDbTbPrefixSuffixOptions(pCxt, pOptions->tablePrefix, pOptions->tableSuffix);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbS3KeepLocalOption(pCxt, pOptions);
+    code = checkDbSsKeepLocalOption(pCxt, pOptions);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkOptionsDependency(pCxt, pDbName, pOptions);
