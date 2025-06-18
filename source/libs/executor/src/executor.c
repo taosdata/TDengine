@@ -1909,6 +1909,7 @@ int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamR
     }
     SArray* pBlockList = taosArrayInit(2, POINTER_BYTES);
     SSDataBlock block = {0};
+    block.info.rows = 1;
     SSDataBlock* pBlock = &block;
     taosArrayPush(pBlockList, &pBlock);
     if (code == 0) code = scalarCalculate(pSclNode, pBlockList, pDst, pExtraParams, NULL);
