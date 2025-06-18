@@ -8856,7 +8856,7 @@ static int32_t checkDbS3KeepLocalOption(STranslateContext* pCxt, SDatabaseOption
     }
     pOptions->ssKeepLocal = getBigintFromValueNode(pOptions->ssKeepLocalStr);
   }
-  return checkDbRangeOption(pCxt, "ssKeepLocal", pOptions->ssKeepLocal, TSDB_MIN_S3_KEEP_LOCAL, TSDB_MAX_S3_KEEP_LOCAL);
+  return checkDbRangeOption(pCxt, "ssKeepLocal", pOptions->ssKeepLocal, TSDB_MIN_SS_KEEP_LOCAL, TSDB_MAX_SS_KEEP_LOCAL);
 }
 
 static int32_t checkDbDaysOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
@@ -9436,11 +9436,11 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkOptionsDependency(pCxt, pDbName, pOptions);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbRangeOption(pCxt, "ss_chunkpages", pOptions->ssChunkSize, TSDB_MIN_S3_CHUNK_SIZE,
-                              TSDB_MAX_S3_CHUNK_SIZE);
+    code = checkDbRangeOption(pCxt, "ss_chunkpages", pOptions->ssChunkSize, TSDB_MIN_SS_CHUNK_SIZE,
+                              TSDB_MAX_SS_CHUNK_SIZE);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbRangeOption(pCxt, "ss_compact", pOptions->ssCompact, TSDB_MIN_S3_COMPACT, TSDB_MAX_S3_COMPACT);
+    code = checkDbRangeOption(pCxt, "ss_compact", pOptions->ssCompact, TSDB_MIN_SS_COMPACT, TSDB_MAX_SS_COMPACT);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbCompactIntervalOption(pCxt, pDbName, pOptions);
@@ -9822,7 +9822,7 @@ static int32_t translateSsMigrateDatabase(STranslateContext* pCxt, SSsMigrateDat
   int32_t         code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   if (TSDB_CODE_SUCCESS != code) return code;
   (void)tNameGetFullDbName(&name, req.db);
-  return buildCmdMsg(pCxt, TDMT_MND_S3MIGRATE_DB, (FSerializeFunc)tSerializeSSsMigrateDbReq, &req);
+  return buildCmdMsg(pCxt, TDMT_MND_SSMIGRATE_DB, (FSerializeFunc)tSerializeSSsMigrateDbReq, &req);
 }
 
 static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray, bool calBytes, bool virtualTable) {
@@ -14938,7 +14938,7 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_TRIM_DATABASE_STMT:
       code = translateTrimDatabase(pCxt, (STrimDatabaseStmt*)pNode);
       break;
-    case QUERY_NODE_S3MIGRATE_DATABASE_STMT:
+    case QUERY_NODE_SSMIGRATE_DATABASE_STMT:
       code = translateSsMigrateDatabase(pCxt, (SSsMigrateDatabaseStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_TABLE_STMT:

@@ -149,7 +149,7 @@ static void mndPullupS3MigrateDb(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   // TODO check return value
-  SRpcMsg rpcMsg = {.msgType = TDMT_MND_S3MIGRATE_DB_TIMER, .pCont = pReq, .contLen = contLen};
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_SSMIGRATE_DB_TIMER, .pCont = pReq, .contLen = contLen};
   if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
     mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
   }
@@ -160,7 +160,7 @@ static void mndPullupQueryS3MigrateProgress(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   // TODO check return value
-  SRpcMsg rpcMsg = {.msgType = TDMT_MND_QUERY_S3MIGRATE_PROGRESS_TIMER, .pCont = pReq, .contLen = contLen};
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_QUERY_SSMIGRATE_PROGRESS_TIMER, .pCont = pReq, .contLen = contLen};
   if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
     mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
   }
@@ -939,9 +939,9 @@ _OVER:
       pMsg->msgType == TDMT_MND_TRIM_DB_TIMER || pMsg->msgType == TDMT_MND_UPTIME_TIMER ||
       pMsg->msgType == TDMT_MND_COMPACT_TIMER || pMsg->msgType == TDMT_MND_NODECHECK_TIMER ||
       pMsg->msgType == TDMT_MND_GRANT_HB_TIMER || pMsg->msgType == TDMT_MND_STREAM_REQ_CHKPT ||
-      pMsg->msgType == TDMT_MND_S3MIGRATE_DB_TIMER || pMsg->msgType == TDMT_MND_ARB_HEARTBEAT_TIMER ||
+      pMsg->msgType == TDMT_MND_SSMIGRATE_DB_TIMER || pMsg->msgType == TDMT_MND_ARB_HEARTBEAT_TIMER ||
       pMsg->msgType == TDMT_MND_ARB_CHECK_SYNC_TIMER || pMsg->msgType == TDMT_MND_CHECK_STREAM_TIMER ||
-      pMsg->msgType == TDMT_MND_QUERY_S3MIGRATE_PROGRESS_TIMER) {
+      pMsg->msgType == TDMT_MND_QUERY_SSMIGRATE_PROGRESS_TIMER) {
     mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
            pMnode->stopped, state.restored, syncStr(state.state));
     TAOS_RETURN(code);

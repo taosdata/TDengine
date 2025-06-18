@@ -621,7 +621,7 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     case TDMT_VND_DROP_TABLE: {
       code = vnodePreProcessDropTbMsg(pVnode, pMsg);
     } break;
-    case TDMT_VND_S3MIGRATE: {
+    case TDMT_VND_SSMIGRATE: {
       code = vnodePreProcessSsMigrateReq(pVnode, pMsg);
     } break;
     default:
@@ -712,10 +712,10 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_VND_TRIM:
       if (vnodeProcessTrimReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
-    case TDMT_VND_S3MIGRATE:
+    case TDMT_VND_SSMIGRATE:
       if (vnodeProcessSsMigrateReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
-    case TDMT_VND_FOLLOWER_S3MIGRATE:
+    case TDMT_VND_FOLLOWER_SSMIGRATE:
       if (vnodeProcessFollowerSsMigrateReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
     case TDMT_VND_CREATE_SMA:
@@ -985,7 +985,7 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
     case TDMT_VND_QUERY_COMPACT_PROGRESS:
       return vnodeQueryCompactProgress(pVnode, pMsg);
 #endif
-    case TDMT_VND_QUERY_S3MIGRATE_PROGRESS:
+    case TDMT_VND_QUERY_SSMIGRATE_PROGRESS:
       return vnodeQuerySsMigrateProgress(pVnode, pMsg);
       //    case TDMT_VND_TMQ_CONSUME:
       //      return tqProcessPollReq(pVnode->pTq, pMsg);
@@ -1151,7 +1151,7 @@ static int32_t vnodeProcessSsMigrateReq(SVnode *pVnode, int64_t ver, void *pReq,
   int32_t          code = 0;
   SSsMigrateVgroupReq req = {0};
   SSsMigrateVgroupRsp rsp = {0};
-  pRsp->msgType = TDMT_VND_S3MIGRATE_RSP;
+  pRsp->msgType = TDMT_VND_SSMIGRATE_RSP;
   pRsp->code = 0;
   pRsp->pCont = NULL;
   pRsp->contLen = 0;
@@ -1161,7 +1161,7 @@ static int32_t vnodeProcessSsMigrateReq(SVnode *pVnode, int64_t ver, void *pReq,
     goto _exit;
   }
 
-  vInfo("vgId:%d, process s3migrate vnode request, time:%ld", pVnode->config.vgId, req.timestamp);
+  vInfo("vgId:%d, process ssmigrate vnode request, time:%ld", pVnode->config.vgId, req.timestamp);
 
   code = vnodeAsyncSsMigrate(pVnode, &req);
   if (code != TSDB_CODE_SUCCESS) {

@@ -511,7 +511,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_TRIM_DATABASE_STMT:
       code = makeNode(type, sizeof(STrimDatabaseStmt), &pNode);
       break;
-    case QUERY_NODE_S3MIGRATE_DATABASE_STMT:
+    case QUERY_NODE_SSMIGRATE_DATABASE_STMT:
       code = makeNode(type, sizeof(SSsMigrateDatabaseStmt), &pNode);
       break;
     case QUERY_NODE_CREATE_TABLE_STMT:
@@ -1435,7 +1435,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_FLUSH_DATABASE_STMT:  // no pointer field
     case QUERY_NODE_TRIM_DATABASE_STMT:   // no pointer field
       break;
-    case QUERY_NODE_S3MIGRATE_DATABASE_STMT:  // no pointer field
+    case QUERY_NODE_SSMIGRATE_DATABASE_STMT:  // no pointer field
       break;
     case QUERY_NODE_CREATE_TABLE_STMT: {
       SCreateTableStmt* pStmt = (SCreateTableStmt*)pNode;

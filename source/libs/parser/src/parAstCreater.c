@@ -1959,9 +1959,9 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->sstTrigger = TSDB_DEFAULT_SST_TRIGGER;
   pOptions->tablePrefix = TSDB_DEFAULT_HASH_PREFIX;
   pOptions->tableSuffix = TSDB_DEFAULT_HASH_SUFFIX;
-  pOptions->ssChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
-  pOptions->ssKeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
-  pOptions->ssCompact = TSDB_DEFAULT_S3_COMPACT;
+  pOptions->ssChunkSize = TSDB_DEFAULT_SS_CHUNK_SIZE;
+  pOptions->ssKeepLocal = TSDB_DEFAULT_SS_KEEP_LOCAL;
+  pOptions->ssCompact = TSDB_DEFAULT_SS_COMPACT;
   pOptions->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
   pOptions->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
   pOptions->dnodeListStr[0] = 0;
@@ -2287,7 +2287,7 @@ SNode* createS3MigrateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkDbName(pCxt, pDbName, false));
   SSsMigrateDatabaseStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_S3MIGRATE_DATABASE_STMT, (SNode**)&pStmt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SSMIGRATE_DATABASE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
   return (SNode*)pStmt;

@@ -80,7 +80,7 @@ int32_t mndInitDb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_COMPACT_DB, mndProcessCompactDbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_TRIM_DB, mndProcessTrimDbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_DB_CFG, mndProcessGetDbCfgReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_S3MIGRATE_DB, mndProcessSsMigrateDbReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_SSMIGRATE_DB, mndProcessSsMigrateDbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_DB_INFO, mndProcessUseDbReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_DB, mndRetrieveDbs);
@@ -266,15 +266,15 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   taosInitRWLatch(&pDb->lock);
 
   if (pDb->cfg.ssChunkSize == 0) {
-    pDb->cfg.ssChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
+    pDb->cfg.ssChunkSize = TSDB_DEFAULT_SS_CHUNK_SIZE;
 
-    mInfo("db:%s, ssChunkSize set from %d to default %d", pDb->name, pDb->cfg.ssChunkSize, TSDB_DEFAULT_S3_CHUNK_SIZE);
+    mInfo("db:%s, ssChunkSize set from %d to default %d", pDb->name, pDb->cfg.ssChunkSize, TSDB_DEFAULT_SS_CHUNK_SIZE);
   }
 
   if (pDb->cfg.ssKeepLocal == 0) {
-    pDb->cfg.ssKeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
+    pDb->cfg.ssKeepLocal = TSDB_DEFAULT_SS_KEEP_LOCAL;
 
-    mInfo("db:%s, ssKeepLocal set from %d to default %d", pDb->name, pDb->cfg.ssKeepLocal, TSDB_DEFAULT_S3_KEEP_LOCAL);
+    mInfo("db:%s, ssKeepLocal set from %d to default %d", pDb->name, pDb->cfg.ssKeepLocal, TSDB_DEFAULT_SS_KEEP_LOCAL);
   }
 
   if (pDb->cfg.tsdbPageSize != TSDB_MIN_TSDB_PAGESIZE) {
@@ -497,9 +497,9 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->tsdbPageSize < TSDB_MIN_TSDB_PAGESIZE || pCfg->tsdbPageSize > TSDB_MAX_TSDB_PAGESIZE) return code;
   if (taosArrayGetSize(pCfg->pRetensions) != pCfg->numOfRetensions) return code;
 
-  if (pCfg->ssChunkSize < TSDB_MIN_S3_CHUNK_SIZE || pCfg->ssChunkSize > TSDB_MAX_S3_CHUNK_SIZE) return code;
-  if (pCfg->ssKeepLocal < TSDB_MIN_S3_KEEP_LOCAL || pCfg->ssKeepLocal > TSDB_MAX_S3_KEEP_LOCAL) return code;
-  if (pCfg->ssCompact < TSDB_MIN_S3_COMPACT || pCfg->ssCompact > TSDB_MAX_S3_COMPACT) return code;
+  if (pCfg->ssChunkSize < TSDB_MIN_SS_CHUNK_SIZE || pCfg->ssChunkSize > TSDB_MAX_SS_CHUNK_SIZE) return code;
+  if (pCfg->ssKeepLocal < TSDB_MIN_SS_KEEP_LOCAL || pCfg->ssKeepLocal > TSDB_MAX_SS_KEEP_LOCAL) return code;
+  if (pCfg->ssCompact < TSDB_MIN_SS_COMPACT || pCfg->ssCompact > TSDB_MAX_SS_COMPACT) return code;
 
   if (pCfg->compactInterval != 0 &&
       (pCfg->compactInterval < TSDB_MIN_COMPACT_INTERVAL || pCfg->compactInterval > pCfg->daysToKeep2))
@@ -576,9 +576,9 @@ static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pOldCfg, SDbCfg *pN
     terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
     return code;
   }
-  if (pNewCfg->ssChunkSize < TSDB_MIN_S3_CHUNK_SIZE || pNewCfg->ssChunkSize > TSDB_MAX_S3_CHUNK_SIZE) return code;
-  if (pNewCfg->ssKeepLocal < TSDB_MIN_S3_KEEP_LOCAL || pNewCfg->ssKeepLocal > TSDB_MAX_S3_KEEP_LOCAL) return code;
-  if (pNewCfg->ssCompact < TSDB_MIN_S3_COMPACT || pNewCfg->ssCompact > TSDB_MAX_S3_COMPACT) return code;
+  if (pNewCfg->ssChunkSize < TSDB_MIN_SS_CHUNK_SIZE || pNewCfg->ssChunkSize > TSDB_MAX_SS_CHUNK_SIZE) return code;
+  if (pNewCfg->ssKeepLocal < TSDB_MIN_SS_KEEP_LOCAL || pNewCfg->ssKeepLocal > TSDB_MAX_SS_KEEP_LOCAL) return code;
+  if (pNewCfg->ssCompact < TSDB_MIN_SS_COMPACT || pNewCfg->ssCompact > TSDB_MAX_SS_COMPACT) return code;
 
   if (pNewCfg->compactInterval != 0 &&
       (pNewCfg->compactInterval < TSDB_MIN_COMPACT_INTERVAL || pNewCfg->compactInterval > pNewCfg->daysToKeep2))
@@ -631,9 +631,9 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->walSegmentSize < 0) pCfg->walSegmentSize = TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE;
   if (pCfg->sstTrigger <= 0) pCfg->sstTrigger = TSDB_DEFAULT_SST_TRIGGER;
   if (pCfg->tsdbPageSize <= 0) pCfg->tsdbPageSize = TSDB_DEFAULT_TSDB_PAGESIZE;
-  if (pCfg->ssChunkSize <= 0) pCfg->ssChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
-  if (pCfg->ssKeepLocal <= 0) pCfg->ssKeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
-  if (pCfg->ssCompact < 0) pCfg->ssCompact = TSDB_DEFAULT_S3_COMPACT;
+  if (pCfg->ssChunkSize <= 0) pCfg->ssChunkSize = TSDB_DEFAULT_SS_CHUNK_SIZE;
+  if (pCfg->ssKeepLocal <= 0) pCfg->ssKeepLocal = TSDB_DEFAULT_SS_KEEP_LOCAL;
+  if (pCfg->ssCompact < 0) pCfg->ssCompact = TSDB_DEFAULT_SS_COMPACT;
   if (pCfg->withArbitrator < 0) pCfg->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
   if (pCfg->encryptAlgorithm < 0) pCfg->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
 }
@@ -1158,13 +1158,13 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     code = 0;
   }
 
-  if (pAlter->ssKeepLocal > TSDB_MIN_S3_KEEP_LOCAL && pAlter->ssKeepLocal != pDb->cfg.ssKeepLocal) {
+  if (pAlter->ssKeepLocal > TSDB_MIN_SS_KEEP_LOCAL && pAlter->ssKeepLocal != pDb->cfg.ssKeepLocal) {
     pDb->cfg.ssKeepLocal = pAlter->ssKeepLocal;
     pDb->vgVersion++;
     code = 0;
   }
 
-  if (pAlter->ssCompact >= TSDB_MIN_S3_COMPACT && pAlter->ssCompact != pDb->cfg.ssCompact) {
+  if (pAlter->ssCompact >= TSDB_MIN_SS_COMPACT && pAlter->ssCompact != pDb->cfg.ssCompact) {
     pDb->cfg.ssCompact = pAlter->ssCompact;
     pDb->vgVersion++;
     code = 0;
@@ -2333,7 +2333,7 @@ int32_t mndSsMigrateDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
       pReq->info.rspLen = rspLen;
     }
 
-    return TSDB_CODE_MND_S3MIGRATE_ALREADY_EXIST;
+    return TSDB_CODE_MND_SSMIGRATE_ALREADY_EXIST;
   }
 
   int64_t s3MigrateTs = taosGetTimestampMs();
