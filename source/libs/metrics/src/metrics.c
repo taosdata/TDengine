@@ -33,8 +33,6 @@
 #include "ttimer.h"
 #include "tutil.h"
 
-extern int32_t vnodeGetWriteMetricsEx(void *pVnode, SWriteMetricsEx *pMetrics);
-
 // --- Global Manager ---
 
 static SMetricsManager gMetricsManager = {0};
@@ -178,6 +176,10 @@ void initWriteMetricsEx(SWriteMetricsEx *pMetrics) {
   initMetric(&pMetrics->blocked_commit_time, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
   initMetric(&pMetrics->merge_count, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
   initMetric(&pMetrics->merge_time, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&pMetrics->last_cache_update_time, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&pMetrics->last_cache_update_count, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&pMetrics->last_cache_commit_time, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&pMetrics->last_cache_commit_count, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
 }
 
 void initDnodeMetricsEx(SDnodeMetricsEx *pMetrics) {
@@ -192,23 +194,10 @@ void cleanupMetrics() { destroyMetricsManager(); }
 
 static void updateFormattedFromRaw(SWriteMetricsEx *fmt, const SRawWriteMetrics *raw, int32_t vgId, int32_t dnodeId,
                                    int64_t clusterId, const char *dbname) {
-  if (fmt == NULL || raw == NULL) return;
-
   fmt->vgId = vgId;
   fmt->dnodeId = dnodeId;
   fmt->clusterId = clusterId;
-
-  // Copy database name
-  if (dbname && dbname[0] != '\0') {
-    tstrncpy(fmt->dbname, dbname, sizeof(fmt->dbname));
-  } else {
-    fmt->dbname[0] = '\0';
-  }
-
-  // Copy database name from raw metrics if not provided via parameter
-  if (fmt->dbname[0] == '\0' && raw->dbname[0] != '\0') {
-    tstrncpy(fmt->dbname, raw->dbname, sizeof(fmt->dbname));
-  }
+  tstrncpy(fmt->dbname, dbname, TSDB_DB_NAME_LEN);
 
   setMetricInt64(&fmt->total_requests, raw->total_requests);
   setMetricInt64(&fmt->total_rows, raw->total_rows);
@@ -227,6 +216,10 @@ static void updateFormattedFromRaw(SWriteMetricsEx *fmt, const SRawWriteMetrics 
   setMetricInt64(&fmt->blocked_commit_time, raw->blocked_commit_time);
   setMetricInt64(&fmt->merge_count, raw->merge_count);
   setMetricInt64(&fmt->merge_time, raw->merge_time);
+  setMetricInt64(&fmt->last_cache_update_time, raw->last_cache_update_time);
+  setMetricInt64(&fmt->last_cache_update_count, raw->last_cache_update_count);
+  setMetricInt64(&fmt->last_cache_commit_time, raw->last_cache_commit_time);
+  setMetricInt64(&fmt->last_cache_commit_count, raw->last_cache_commit_count);
 }
 
 static void updateDnodeFormattedFromRaw(SDnodeMetricsEx *fmt, const SRawDnodeMetrics *raw) {
@@ -335,6 +328,10 @@ static SJson *writeMetricsToJson(SWriteMetricsEx *pMetrics) {
   tjsonAddDoubleToObject(pJson, "blocked_commit_time", getMetricInt64(&pMetrics->blocked_commit_time));
   tjsonAddDoubleToObject(pJson, "merge_count", getMetricInt64(&pMetrics->merge_count));
   tjsonAddDoubleToObject(pJson, "merge_time", getMetricInt64(&pMetrics->merge_time));
+  tjsonAddDoubleToObject(pJson, "last_cache_update_time", getMetricInt64(&pMetrics->last_cache_update_time));
+  tjsonAddDoubleToObject(pJson, "last_cache_update_count", getMetricInt64(&pMetrics->last_cache_update_count));
+  tjsonAddDoubleToObject(pJson, "last_cache_commit_time", getMetricInt64(&pMetrics->last_cache_commit_time));
+  tjsonAddDoubleToObject(pJson, "last_cache_commit_count", getMetricInt64(&pMetrics->last_cache_commit_count));
 
   return pJson;
 }
@@ -426,7 +423,9 @@ void reportWriteMetrics() {
             " "
             "Commits:%" PRId64 " CommitTime:%" PRId64 " MemWait:%" PRId64 " BlockCount:%" PRId64 " BlockTime:%" PRId64
             " "
-            "Merges:%" PRId64 " MergeTime:%" PRId64,
+            "Merges:%" PRId64 " MergeTime:%" PRId64 " CacheUpdateTime:%" PRId64 " CacheUpdateCount:%" PRId64
+            " "
+            "CacheCommitTime:%" PRId64 " CacheCommitCount:%" PRId64,
             pMetrics->dbname, pMetrics->vgId, getMetricInt64(&pMetrics->total_requests),
             getMetricInt64(&pMetrics->total_rows), getMetricInt64(&pMetrics->total_bytes),
             getMetricInt64(&pMetrics->fetch_batch_meta_time), getMetricInt64(&pMetrics->fetch_batch_meta_count),
@@ -435,7 +434,9 @@ void reportWriteMetrics() {
             getMetricInt64(&pMetrics->apply_time), getMetricInt64(&pMetrics->commit_count),
             getMetricInt64(&pMetrics->commit_time), getMetricInt64(&pMetrics->memtable_wait_time),
             getMetricInt64(&pMetrics->block_commit_count), getMetricInt64(&pMetrics->blocked_commit_time),
-            getMetricInt64(&pMetrics->merge_count), getMetricInt64(&pMetrics->merge_time));
+            getMetricInt64(&pMetrics->merge_count), getMetricInt64(&pMetrics->merge_time),
+            getMetricInt64(&pMetrics->last_cache_update_time), getMetricInt64(&pMetrics->last_cache_update_count),
+            getMetricInt64(&pMetrics->last_cache_commit_time), getMetricInt64(&pMetrics->last_cache_commit_count));
     }
     SJson *pJson = writeMetricsToJson(pMetrics);
     if (pJson != NULL) {

@@ -483,13 +483,15 @@ func (r *Reporter) metricsBatchHandlerFunc() gin.HandlerFunc {
 }
 
 func (r *Reporter) insertWriteMetricsSql(metrics WriteMetricsInfo) string {
-	return fmt.Sprintf("insert into write_metrics_%d_%d_%s using write_metrics tags (%d, %d, '%s', '%s') values (now, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)",
+	return fmt.Sprintf("insert into write_metrics_%d_%d_%s using write_metrics tags (%d, %d, '%s', '%s') values (now, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)",
 		metrics.DnodeId, metrics.VgId, metrics.ClusterId, metrics.VgId, metrics.DnodeId, metrics.ClusterId, metrics.DbName,
 		metrics.TotalRequests, metrics.TotalRows, metrics.TotalBytes,
 		metrics.FetchBatchMetaTime, metrics.FetchBatchMetaCount, metrics.PreprocessTime,
 		metrics.WalWriteBytes, metrics.WalWriteTime, metrics.ApplyBytes, metrics.ApplyTime,
 		metrics.CommitCount, metrics.CommitTime, metrics.MemtableWaitTime, 
-		metrics.BlockCommitCount, metrics.BlockedCommitTime, metrics.MergeCount, metrics.MergeTime)
+		metrics.BlockCommitCount, metrics.BlockedCommitTime, metrics.MergeCount, metrics.MergeTime,
+		metrics.LastCacheUpdateTime, metrics.LastCacheUpdateCount, 
+		metrics.LastCacheCommitTime, metrics.LastCacheCommitCount)
 }
 
 func (r *Reporter) executeQueryAndRespond(c *gin.Context, sql string) {

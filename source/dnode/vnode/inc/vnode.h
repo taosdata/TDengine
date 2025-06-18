@@ -410,15 +410,6 @@ int32_t vnodeGetRawWriteMetrics(void *pVnode, SRawWriteMetrics *pRawMetrics);
  */
 int32_t vnodeResetRawWriteMetrics(void *pVnode, const SRawWriteMetrics *pOldMetrics);
 
-/**
- * @brief Get write metrics for a vnode in the new extended format
- *
- * @param pVnode Pointer to the vnode object
- * @param pMetrics Pointer to the SWriteMetricsEx struct to fill with metrics
- * @return 0 on success, non-zero on error
- */
-int32_t vnodeGetWriteMetricsEx(void *pVnode, SWriteMetricsEx *pMetrics);
-
 #ifdef __cplusplus
 }
 #endif

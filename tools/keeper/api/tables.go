@@ -286,27 +286,31 @@ var CreateKeeperSql = "create table if not exists keeper_monitor (" +
 	") tags (identify nchar(50))"
 
 type WriteMetricsInfo struct {
-	VgId                  int    `json:"vgId"`
-	DnodeId               int    `json:"dnodeId"`
-	ClusterId             string `json:"clusterId"`
-	DbName                string `json:"dbname"`  // Add database name field
-	TotalRequests         int64  `json:"total_requests"`
-	TotalRows             int64  `json:"total_rows"`
-	TotalBytes            int64  `json:"total_bytes"`
-	FetchBatchMetaTime    int64  `json:"fetch_batch_meta_time"`
-	FetchBatchMetaCount   int64  `json:"fetch_batch_meta_count"`
-	PreprocessTime        int64  `json:"preprocess_time"`
-	WalWriteBytes         int64  `json:"wal_write_bytes"`
-	WalWriteTime          int64  `json:"wal_write_time"`
-	ApplyBytes            int64  `json:"apply_bytes"`
-	ApplyTime             int64  `json:"apply_time"`
-	CommitCount           int64  `json:"commit_count"`
-	CommitTime            int64  `json:"commit_time"`
-	MemtableWaitTime      int64  `json:"memtable_wait_time"`
-	BlockCommitCount      int64  `json:"block_commit_count"`
-	BlockedCommitTime     int64  `json:"blocked_commit_time"`
-	MergeCount            int64  `json:"merge_count"`
-	MergeTime             int64  `json:"merge_time"`
+	VgId                   int    `json:"vgId"`
+	DnodeId                int    `json:"dnodeId"`
+	ClusterId              string `json:"clusterId"`
+	DbName                 string `json:"dbname"`  // Add database name field
+	TotalRequests          int64  `json:"total_requests"`
+	TotalRows              int64  `json:"total_rows"`
+	TotalBytes             int64  `json:"total_bytes"`
+	FetchBatchMetaTime     int64  `json:"fetch_batch_meta_time"`
+	FetchBatchMetaCount    int64  `json:"fetch_batch_meta_count"`
+	PreprocessTime         int64  `json:"preprocess_time"`
+	WalWriteBytes          int64  `json:"wal_write_bytes"`
+	WalWriteTime           int64  `json:"wal_write_time"`
+	ApplyBytes             int64  `json:"apply_bytes"`
+	ApplyTime              int64  `json:"apply_time"`
+	CommitCount            int64  `json:"commit_count"`
+	CommitTime             int64  `json:"commit_time"`
+	MemtableWaitTime       int64  `json:"memtable_wait_time"`
+	BlockCommitCount       int64  `json:"block_commit_count"`
+	BlockedCommitTime      int64  `json:"blocked_commit_time"`
+	MergeCount             int64  `json:"merge_count"`
+	MergeTime              int64  `json:"merge_time"`
+	LastCacheUpdateTime    int64  `json:"last_cache_update_time"`
+	LastCacheUpdateCount   int64  `json:"last_cache_update_count"`
+	LastCacheCommitTime    int64  `json:"last_cache_commit_time"`
+	LastCacheCommitCount   int64  `json:"last_cache_commit_count"`
 }
 
 var CreateWriteMetricsSql = "create table if not exists write_metrics (" +
@@ -327,7 +331,11 @@ var CreateWriteMetricsSql = "create table if not exists write_metrics (" +
 	"block_commit_count bigint, " +
 	"blocked_commit_time bigint, " +
 	"merge_count bigint, " +
-	"merge_time bigint " +
+	"merge_time bigint, " +
+	"last_cache_update_time bigint, " +
+	"last_cache_update_count bigint, " +
+	"last_cache_commit_time bigint, " +
+	"last_cache_commit_count bigint " +
 	") tags (vgroup_id int, dnode_id int, cluster_id nchar(32), dbname nchar(64))"
 
 type WriteMetricsReport struct {

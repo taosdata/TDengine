@@ -1467,6 +1467,10 @@ int32_t vnodeGetRawWriteMetrics(void *pVnode, SRawWriteMetrics *pRawMetrics) {
   pRawMetrics->blocked_commit_time = atomic_load_64(&pVnode1->writeMetrics.block_commit_time);
   pRawMetrics->merge_count = atomic_load_64(&pVnode1->writeMetrics.merge_count);
   pRawMetrics->merge_time = atomic_load_64(&pVnode1->writeMetrics.merge_time);
+  pRawMetrics->last_cache_update_time = atomic_load_64(&pVnode1->writeMetrics.last_cache_update_time);
+  pRawMetrics->last_cache_update_count = atomic_load_64(&pVnode1->writeMetrics.last_cache_update_count);
+  pRawMetrics->last_cache_commit_time = atomic_load_64(&pVnode1->writeMetrics.last_cache_commit_time);
+  pRawMetrics->last_cache_commit_count = atomic_load_64(&pVnode1->writeMetrics.last_cache_commit_count);
 
   return 0;
 }
@@ -1500,6 +1504,12 @@ int32_t vnodeResetRawWriteMetrics(void *pVnode, const SRawWriteMetrics *pOldMetr
   (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.block_commit_count, pOldMetrics->block_commit_count);
   (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.block_commit_time, pOldMetrics->blocked_commit_time);
   (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.merge_count, pOldMetrics->merge_count);
+
+  // Reset new cache metrics
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.last_cache_update_time, pOldMetrics->last_cache_update_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.last_cache_update_count, pOldMetrics->last_cache_update_count);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.last_cache_commit_time, pOldMetrics->last_cache_commit_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.last_cache_commit_count, pOldMetrics->last_cache_commit_count);
 
   // Reset sync metrics
   SSyncMetrics syncMetrics = {

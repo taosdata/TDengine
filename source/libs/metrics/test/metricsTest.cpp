@@ -347,7 +347,7 @@ TEST_F(MetricsTest, EmptyDatabaseName) {
   
   SWriteMetricsEx *pMetrics = getWriteMetricsByVgId(1002);
   ASSERT_NE(pMetrics, nullptr);
-  ASSERT_STREQ(pMetrics->dbname, "test_db_1");
+  ASSERT_STREQ(pMetrics->dbname, "");
 }
 
 TEST_F(MetricsTest, VeryLongDatabaseName) {

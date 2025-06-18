@@ -86,6 +86,10 @@ typedef struct {
   int64_t blocked_commit_time;
   int64_t merge_count;
   int64_t merge_time;
+  int64_t last_cache_update_time;
+  int64_t last_cache_update_count;
+  int64_t last_cache_commit_time;
+  int64_t last_cache_commit_count;
 } SRawWriteMetrics;
 
 // Write Metrics Extended Structure (Formatted)
@@ -111,6 +115,10 @@ typedef struct {
   SMetric blocked_commit_time;
   SMetric merge_count;
   SMetric merge_time;
+  SMetric last_cache_update_time;
+  SMetric last_cache_update_count;
+  SMetric last_cache_commit_time;
+  SMetric last_cache_commit_count;
 } SWriteMetricsEx;
 
 // // Query Metrics Extended Structure

@@ -490,6 +490,10 @@ struct SVnodeWriteMetrics {
   int64_t block_commit_time;
   int64_t block_commit_count;
   int64_t memtable_wait_time;
+  int64_t last_cache_update_time;
+  int64_t last_cache_update_count;
+  int64_t last_cache_commit_time;
+  int64_t last_cache_commit_count;
 };
 
 struct SVnode {

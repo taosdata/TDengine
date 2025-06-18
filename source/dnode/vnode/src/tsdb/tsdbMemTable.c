@@ -681,10 +681,14 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   }
 
   if (!TSDB_CACHE_NO(pMemTable->pTsdb->pVnode->config) && !tsUpdateCacheBatch) {
-    if (tsdbCacheColFormatUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, pBlockData) != 0) {
-      tsdbError("vgId:%d, failed to update cache data from table suid:%" PRId64 " uid:%" PRId64 " at version %" PRId64,
-                TD_VID(pMemTable->pTsdb->pVnode), pTbData->suid, pTbData->uid, version);
-    }
+    METRICS_TIMING_BLOCK(pMemTable->pTsdb->pVnode->writeMetrics.last_cache_update_time, METRIC_LEVEL_HIGH, {
+      if (tsdbCacheColFormatUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, pBlockData) != 0) {
+        tsdbError("vgId:%d, failed to update cache data from table suid:%" PRId64 " uid:%" PRId64
+                  " at version %" PRId64,
+                  TD_VID(pMemTable->pTsdb->pVnode), pTbData->suid, pTbData->uid, version);
+      }
+    });
+    METRICS_UPDATE(pMemTable->pTsdb->pVnode->writeMetrics.last_cache_update_count, METRIC_LEVEL_HIGH, 1);
   }
 
   // SMemTable
@@ -743,7 +747,10 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
     pTbData->maxKey = key.key.ts;
   }
   if (!TSDB_CACHE_NO(pMemTable->pTsdb->pVnode->config) && !tsUpdateCacheBatch) {
-    TAOS_UNUSED(tsdbCacheRowFormatUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, version, nRow, aRow));
+    METRICS_TIMING_BLOCK(pMemTable->pTsdb->pVnode->writeMetrics.last_cache_update_time, METRIC_LEVEL_HIGH, {
+      TAOS_UNUSED(tsdbCacheRowFormatUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, version, nRow, aRow));
+    });
+    METRICS_UPDATE(pMemTable->pTsdb->pVnode->writeMetrics.last_cache_update_count, METRIC_LEVEL_HIGH, 1);
   }
 
   // SMemTable
