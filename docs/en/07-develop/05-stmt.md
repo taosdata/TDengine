@@ -76,11 +76,11 @@ The example code for stmt to bind parameters is as follows:
 ```
 </TabItem>
 <TabItem label="Rust" value="rust">
+The following example are applicable to versions v0.12.4 and above.
 
 ```rust
-{{#include docs/examples/rust/restexample/examples/stmt.rs}}
+{{#include docs/examples/rust/restexample/examples/stmt2.rs}}
 ```
-
 </TabItem>
 <TabItem label="Node.js" value="node">
 
@@ -101,6 +101,17 @@ The example code for stmt to bind parameters is as follows:
 </TabItem>
 <TabItem label="REST API" value="rest">
 Not supported
+</TabItem>
+</Tabs>
+
+<Tabs defaultValue="rust" groupId="lang">
+<TabItem label="Rust" value="rust">
+<details>
+<summary>The following example are applicable to versions v0.12.3 and below</summary> 
+```rust
+{{#include docs/examples/rust/restexample/examples/stmt.rs}}
+```
+</details>
 </TabItem>
 </Tabs>
 

@@ -2,20 +2,18 @@
 
 set -e
 
-
 check_transactions() {
-    for i in {1..30}
-    do
-        output=$(taos -s "show transactions;")
-        if [[ $output == *"Query OK, 0 row(s)"* ]]; then
-            echo "Success: No transactions are in progress."
-            return 0
-        fi
-        sleep 1
-    done
+  for i in {1..30}; do
+    output=$(taos -s "show transactions;")
+    if [[ $output == *"Query OK, 0 row(s)"* ]]; then
+      echo "Success: No transactions are in progress."
+      return 0
+    fi
+    sleep 1
+  done
 
-    echo "Error: Transactions are still in progress after 30 attempts."
-    return 1
+  echo "Error: Transactions are still in progress after 30 attempts."
+  return 1
 }
 
 reset_cache() {
@@ -54,12 +52,9 @@ taos -s "drop database if exists power"
 check_transactions || exit 1
 reset_cache || exit 1
 
-
 cargo run --example stmt
 
 cargo run --example tmq
-
-
 
 cd ../restexample
 
@@ -81,7 +76,8 @@ taos -s "drop database if exists power"
 check_transactions || exit 1
 reset_cache || exit 1
 
-
 cargo run --example stmt
+
+cargo run --example stmt2
 
 cargo run --example tmq
