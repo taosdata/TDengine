@@ -457,6 +457,53 @@ static int     compareVnodeInfo(const void *p1, const void *p2) {
   return v1->config.dbId > v1->config.dbId ? 1 : -1;
 }
 
+static int32_t vmRetrieveMountDnode(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pReq, SMountInfo *pMountInfo) {
+  int32_t   code = 0, lino = 0;
+  TdFilePtr pFile = NULL;
+  char     *content = NULL;
+  SJson    *pJson = NULL;
+  int64_t   size = 0;
+  int64_t   clusterId = 0, dropped = 0;
+  char      file[TSDB_MOUNT_PATH_LEN + 64] = {0};
+  snprintf(file, sizeof(file), "%s%s%s%sdnode.json", pReq->mountPath, TD_DIRSEP, dmNodeName(DNODE), TD_DIRSEP);
+  TAOS_CHECK_EXIT(taosStatFile(file, NULL, NULL, NULL) < 0);
+  TSDB_CHECK_NULL((pFile = taosOpenFile(file, TD_FILE_READ)), code, lino, _exit, terrno);
+  TAOS_CHECK_EXIT(taosFStatFile(pFile, &size, NULL));
+  TSDB_CHECK_NULL((content = taosMemoryMalloc(size + 1)), code, lino, _exit, terrno);
+  if (taosReadFile(pFile, content, size) != size) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+  content[size] = '\0';
+  pJson = tjsonParse(content);
+  if (pJson == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
+  }
+  tjsonGetNumberValue(pJson, "dropped", dropped, code);
+  TAOS_CHECK_EXIT(code);
+  if (dropped == 1) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_MOUNT_DNODE_DROPPED);
+  }
+  tjsonGetNumberValue(pJson, "clusterId", clusterId, code);
+  TAOS_CHECK_EXIT(code);
+  if (clusterId == 0) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_CLUSTER_ID);
+  }
+  pMountInfo->clusterId = clusterId;
+_exit:
+  if (content != NULL) taosMemoryFree(content);
+  if (pJson != NULL) cJSON_Delete(pJson);
+  if (pFile != NULL) taosCloseFile(&pFile);
+
+  if (code != 0) {
+    dError("mount:%s, failed to retrieve mount dnode at line %d on dnode:%d since %s, path:%s", pReq->mountName, lino,
+           pReq->dnodeId, tstrerror(code), pReq->mountPath);
+  } else {
+    dInfo("mount:%s, success to retrieve mount dnode on dnode:%d, clusterId:%" PRId64 " path:%s", pReq->mountName,
+          pReq->dnodeId, pMountInfo->clusterId, pReq->mountPath);
+  }
+  TAOS_RETURN(code);
+}
+
 static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pReq, SMountInfo *pMountInfo) {
   int32_t       code = 0, lino = 0;
   SWrapperCfg  *pCfgs = NULL;
@@ -495,13 +542,11 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
   int32_t nVgCfg = taosArrayGetSize(pVgCfgs);
   if (nVgCfg > 1) taosArraySort(pVgCfgs, compareVnodeInfo);
 
-  int64_t clusterId = 0;
+  int64_t clusterId = pMountInfo->clusterId;
   int64_t dbId = 0, vgId = 0, nDb = 0;
   for (int32_t i = 0; i < nVgCfg; ++i) {
     SVnodeInfo *pInfo = TARRAY_GET_ELEM(pVgCfgs, i);
-    if (clusterId == 0) {
-      clusterId = pInfo->config.syncCfg.nodeInfo->clusterId;
-    } else if (clusterId != pInfo->config.syncCfg.nodeInfo->clusterId) {
+    if (clusterId != pInfo->config.syncCfg.nodeInfo->clusterId) {
       dError("mount:%s, clusterId:%" PRId64 " not match:%" PRId64, pReq->mountName, clusterId,
              pInfo->config.syncCfg.nodeInfo->clusterId);
       TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_CLUSTER_ID);
@@ -585,6 +630,11 @@ _exit:
   TAOS_RETURN(code);
 }
 
+#if 0
+/**
+ *  Retrieve the stables of from mnode SDB file.
+ *  Obsolete, since the stables maybe not written to SDB file yet and still in mnode wal.
+ */
 static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pReq, SMountInfo *pMountInfo) {
   int32_t code = 0, lino = 0;
   char    path[TSDB_MOUNT_PATH_LEN + 128] = {0};
@@ -597,6 +647,24 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
 _exit:
   TAOS_RETURN(code);
 }
+#else
+/**
+ *   Retrieve the stables of from vnode meta.
+ */
+static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pReq, SMountInfo *pMountInfo) {
+  int32_t code = 0, lino = 0;
+  char    path[TSDB_MOUNT_PATH_LEN + 128] = {0};
+
+  int32_t nDb = taosArrayGetSize(pMountInfo->pDbs);
+  if (nDb > 0) {
+    snprintf(path, sizeof(path), "%s%s%s", pReq->mountPath, TD_DIRSEP, dmNodeName(MNODE));
+    mndFetchSdbStables(pReq->mountName, path,
+                       &pMountInfo->pStbs);  // the stables maybe not written to SDB yet, still in mnode wal
+  }
+_exit:
+  TAOS_RETURN(code);
+}
+#endif
 
 static int32_t vmRetrieveMountPreCheck(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pReq, SMountInfo *pMountInfo) {
   int32_t code = 0, lino = 0;
@@ -631,6 +699,7 @@ static int32_t vmRetrieveMountPathImpl(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, SRetrie
   pMountInfo->valLen = pReq->valLen;
   pMountInfo->pVal = pReq->pVal;
   TAOS_CHECK_EXIT(vmRetrieveMountPreCheck(pMgmt, pReq, pMountInfo));
+  TAOS_CHECK_EXIT(vmRetrieveMountDnode(pMgmt, pReq, pMountInfo));
   TAOS_CHECK_EXIT(vmRetrieveMountVnodes(pMgmt, pReq, pMountInfo));
   TAOS_CHECK_EXIT(vmRetrieveMountStbs(pMgmt, pReq, pMountInfo));
 _exit:
@@ -644,15 +713,17 @@ _exit:
 int32_t vmProcessRetrieveMountPathReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t               code = 0, lino = 0;
   int32_t               rspCode = 0;
+  SVnodeMgmt            vndMgmt = {0};
+  SMountInfo            mountInfo = {0};
+  void                 *pBuf = NULL;
+  int32_t               bufLen = 0;
   SRetrieveMountPathReq req = {0};
 
-  SMountInfo mountInfo = {0};
-  void      *pBuf = NULL;
-  int32_t    bufLen = 0;
-
+  vndMgmt = *pMgmt;
+  vndMgmt.path = NULL;
   TAOS_CHECK_GOTO(tDeserializeSRetrieveMountPathReq(pMsg->pCont, pMsg->contLen, &req), &lino, _end);
   dInfo("mount:%s, start to retrieve path:%s", req.mountName, req.mountPath);
-  TAOS_CHECK_GOTO(vmRetrieveMountPathImpl(pMgmt, pMsg, &req, &mountInfo), &lino, _end);
+  TAOS_CHECK_GOTO(vmRetrieveMountPathImpl(&vndMgmt, pMsg, &req, &mountInfo), &lino, _end);
 _end:
   TSDB_CHECK_CONDITION((bufLen = tSerializeSMountInfo(NULL, 0, &mountInfo)) >= 0, rspCode, lino, _exit, bufLen);
   TSDB_CHECK_CONDITION((pBuf = rpcMallocCont(bufLen)), rspCode, lino, _exit, terrno);
@@ -670,7 +741,16 @@ _exit:
     // the client would receive the response with error msg
     dError("mount:%s, failed to retrieve mount at line %d on dnode:%d since %s, path:%s", req.mountName, lino,
            req.dnodeId, tstrerror(code), req.mountPath);
+  } else {
+    int32_t nVgs = 0;
+    int32_t nDbs = taosArrayGetSize(mountInfo.pDbs);
+    for (int32_t i = 0; i < nDbs; ++i) {
+      SMountDbInfo *pDb = TARRAY_GET_ELEM(mountInfo.pDbs, i);
+      nVgs += taosArrayGetSize(pDb->pVgs);
+    }
+    dInfo("mount:%s, success to retrieve mount, nDbs:%d, nVgs:%d, path:%s", req.mountName, nDbs, nVgs, req.mountPath);
   }
+  taosMemFreeClear(vndMgmt.path);
   tFreeMountInfo(&mountInfo);
   TAOS_RETURN(code);
 }

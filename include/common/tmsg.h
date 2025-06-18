@@ -1828,6 +1828,9 @@ int32_t tSerializeSRetrieveMountPathReq(void* buf, int32_t bufLen, SRetrieveMoun
 int32_t tDeserializeSRetrieveMountPathReq(void* buf, int32_t bufLen, SRetrieveMountPathReq* pReq);
 
 typedef struct {
+  // path
+  char vgPath[TSDB_MOUNT_PATH_LEN + 64];
+
   // vgInfo
   int32_t  vgId;
   int32_t  cacheLastSize;
@@ -1875,7 +1878,7 @@ typedef struct {
 typedef struct {
   char     dbName[TSDB_DB_FNAME_LEN];
   uint64_t dbId;
-  SArray*  pVgs;
+  SArray*  pVgs;   // SMountVgInfo
   SArray*  pStbs;  // SStbObj: memory structure, no serialization
 } SMountDbInfo;
 
@@ -1888,7 +1891,7 @@ typedef struct {
   int32_t  dnodeId;
   uint32_t valLen;
   void*    pVal;
-  SArray*  pDbs;
+  SArray*  pDbs;   // SMountDbInfo
   SArray*  pStbs;  // SSdbRaw: serialization, filled when mnode/data/sdb.data exists
 } SMountInfo;
 
