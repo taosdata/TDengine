@@ -78,10 +78,9 @@ In the configuration file `/etc/taos/taos.cfg`, add parameters for S3 access:
 | s3EndPoint | The COS service domain name in the user's region, supports http and https, the bucket's region must match the endpoint's, otherwise access is not possible. |
 | s3AccessKey | Colon-separated user SecretId:SecretKey. For example: AKIDsQmwsfKxTo2A6nGVXZN0UlofKn6JRRSJ:lIdoy99ygEacU7iHfogaN2Xq0yumSm1E |
 | s3BucketName | Bucket name, the hyphen is followed by the AppId registered for the COS service. AppId is unique to COS, AWS and Alibaba Cloud do not have it, it needs to be part of the bucket name, separated by a hyphen. Parameter values are all string types, but do not need quotes. For example: test0711-1309024725 |
-| s3UploadDelaySec | How long a data file remains unchanged before being uploaded to S3, in seconds. Minimum: 1; Maximum: 2592000 (30 days), default value 60 seconds |
-| s3PageCacheSize | Number of s3 page cache pages, in pages. Minimum: 4; Maximum: 1024*1024*1024, default value 4096 |
-| s3MigrateIntervalSec | The trigger cycle for automatic upload of local data files to S3, in seconds. Minimum: 600; Maximum: 100000. Default value 3600 |
-| s3MigrateEnabled | Whether to automatically perform S3 migration, default value is 0, which means auto S3 migration is off, can be set to 1. |
+| ssUploadDelaySec | How long a data file remains unchanged before being uploaded to S3, in seconds. Minimum: 1; Maximum: 2592000 (30 days), default value 60 seconds |
+| ssPageCacheSize | Number of s3 page cache pages, in pages. Minimum: 4; Maximum: 1024*1024*1024, default value 4096 |
+| ssAutoMigrateIntervalSec | The trigger cycle for automatic upload of local data files to S3, in seconds. Minimum: 600; Maximum: 100000. Default value 3600 |
 
 ### Check Configuration Parameter Availability
 
@@ -143,7 +142,7 @@ Adjacent multiple data pages are downloaded as a single data block from object s
 Download Count = Number of Data Blocks Needed for Query - Number of Cached Data Blocks
 ```
 
-The page cache is a memory cache, and data needs to be re-downloaded after a node restart. The cache uses an LRU (Least Recently Used) strategy, and when there is not enough cache space, the least recently used data will be evicted. The size of the cache can be adjusted through the `s3PageCacheSize` parameter; generally, the larger the cache, the fewer the downloads.
+The page cache is a memory cache, and data needs to be re-downloaded after a node restart. The cache uses an LRU (Least Recently Used) strategy, and when there is not enough cache space, the least recently used data will be evicted. The size of the cache can be adjusted through the `ssPageCacheSize` parameter; generally, the larger the cache, the fewer the downloads.
 
 ## Azure Blob Storage
 

@@ -301,7 +301,7 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
   int32_t keep = pVnode->config.tsdbCfg.keep2;
   /*
   int32_t nlevel = tfsGetLevel(pVnode->pTfs);
-  if (nlevel > 1 && tsS3Enabled) {
+  if (nlevel > 1 && tsSsEnabled) {
     if (nlevel == 3) {
       keep = pVnode->config.tsdbCfg.keep1;
     } else if (nlevel == 2) {
