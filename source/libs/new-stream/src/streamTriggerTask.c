@@ -32,7 +32,7 @@ static volatile bool    gStreamTriggerToStop = false;
 // The number of calculation requests that can be sent by stream triggers on the entire dnode is limited
 static TdThreadMutex    gStreamTriggerCalcMutex;
 static TdThreadCond     gStreamTriggerCalcCond;
-static volatile int32_t gStreamTriggerCalcLimit = 10;  // todo(kjq): adjust dynamically
+static volatile int32_t gStreamTriggerCalcLimit = 10000;  // todo(kjq): adjust dynamically
 // When the trigger task's real-time calculation catches up with the latest WAL
 // progress, it will wait and be awakened later by a timer.
 static SRWLatch gStreamTriggerWaitLatch;
@@ -2211,7 +2211,8 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
       // build session window merger
       SSTriggerWalMeta *pMetas = taosArrayGet(pGroup->pMetas, 0);
       int32_t           nMetas = taosArrayGetSize(pGroup->pMetas);
-      code = stwmSetWalMetas(pMerger, pMetas, nMetas, pTask->needCacheData ? pTask->calcTsIndex : pTask->primaryTsIndex);
+      code =
+          stwmSetWalMetas(pMerger, pMetas, nMetas, pTask->needCacheData ? pTask->calcTsIndex : pTask->primaryTsIndex);
       QUERY_CHECK_CODE(code, lino, _end);
       code = stwmBuildDataMerger(pMerger, pFirstWin->wstart,
                                  pLastWin->wend - (pTask->triggerType == STREAM_TRIGGER_SLIDING));
@@ -3069,9 +3070,14 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, const SStreamTriggerDeplo
   pTask->fillHistoryFirst = pMsg->fillHistoryFirst;
   pTask->lowLatencyCalc = pMsg->lowLatencyCalc;
 
-  pTask->calcEventType = pMsg->eventTypes;
+  pTask->calcEventType = taosArrayGetSize(pMsg->runnerList) > 0 ? pMsg->eventTypes : STRIGGER_EVENT_WINDOW_NONE;
   pTask->notifyEventType = pMsg->notifyEventTypes;
   pTask->pNotifyAddrUrls = pMsg->pNotifyAddrUrls;
+  if (pTask->notifyEventType == STRIGGER_EVENT_WINDOW_NONE && taosArrayGetSize(pTask->pNotifyAddrUrls) > 0) {
+    QUERY_CHECK_CONDITION(pTask->triggerType == STREAM_TRIGGER_PERIOD || pTask->triggerType == STREAM_TRIGGER_SLIDING,
+                          code, lino, _end, TSDB_CODE_INVALID_PARA);
+    pTask->notifyEventType = STRIGGER_EVENT_WINDOW_CLOSE;
+  }
   pTask->notifyErrorHandle = pMsg->notifyErrorHandle;
   pTask->notifyHistory = pMsg->notifyHistory;
   pTask->readerList = pMsg->readerList;

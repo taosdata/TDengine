@@ -120,23 +120,16 @@ class Test_Nevados:
             "  tags("
             "    group_id bigint as _tgrpid"
             "  )"
-            "  as select _twstart, _twend as window_hourly, %%1 as site, %%2 as id, max(speed) as windspeed_hourly_maximum from %%trows"
-        )
-        
-        tdSql.checkTableSchema(
-            dbname="test",
-            tbname="streamt5;",
-            schema=[
-                ["_twstart", "TIMESTAMP", 8, ""],
-                ["window_hourly", "BIGINT", 8, ""],
-                ["site", "INT", 4, ""],
-                ["tag_tbname", "VARCHAR", 272, "TAG"],
-            ],
+            "  as select _twstart tw, _twend as window_hourly, %%1 as site, %%2 as id, max(speed) as windspeed_hourly_maximum from %%trows"
         )
 
-        
-        sql = "select * from dev.kpi_db_test;"
-        exp_sql = "select tw, te, case when tl is not null then 1 else 0 end as db_online, tc from(select _wstart tw, _wend te, last(_ts) tl, count(*) tc  from windspeeds where _ts >= '2025-06-01 00:00:00.000' and _ts < '2025-06-01 09:00:00.000' interval(1h) fill(null));"
+        tdSql.checkResultsByFunc(
+            "select count(*) from information_schema.ins_tables where db_name='dev' and stable_name='windspeeds_hourly';",
+            lambda: tdSql.compareData(0, 0, 10),
+        )
+
+        sql = "select tw, window_hourly, site, id, windspeed_hourly_maximum from dev.windspeeds_hourly where id='id_1';"
+        exp_sql = "select _wstart, _wend, site, id, max(speed) from t1 interval(1h);;"
         tdSql.checkResultsBySql(sql=sql, exp_sql=exp_sql)
 
     def kpi_db_test(self):
@@ -147,11 +140,11 @@ class Test_Nevados:
             "  from windspeeds"
             "  options(fill_history('2025-06-01 00:00:00') | watermark(10m) | ignore_disorder | pre_filter(_ts >= '2024-10-04T00:00:00.000Z'))"
             "  into `kpi_db_test`"
-            "  as select _twstart, _twend as window_end, case when last(_ts) is not null then 1 else 0 end as db_online, count(*) from windspeeds where _ts >= _twstart and _ts <_twend"
+            "  as select _twstart window_start, _twend as window_end, case when last(_ts) is not null then 1 else 0 end as db_online, count(*) from windspeeds where _ts >= _twstart and _ts <_twend"
         )
 
         sql = "select * from dev.kpi_db_test;"
-        exp_sql = "select tw, te, case when tl is not null then 1 else 0 end as db_online, tc from(select _wstart tw, _wend te, last(_ts) tl, count(*) tc  from windspeeds where _ts >= '2025-06-01 00:00:00.000' and _ts < '2025-06-01 09:00:00.000' interval(1h) fill(null));"
+        exp_sql = "select tw, te, case when tl is not null then 1 else 0 end as db_online, case when tc is not null then 1 else 0 end as cnt from (select _wstart tw, _wend te, last(_ts) tl, count(*) tc from windspeeds where _ts >= '2025-06-01 00:00:00.000' and _ts < '2025-06-01 09:00:00.000' interval(1h) fill(null));"
         tdSql.checkResultsBySql(sql=sql, exp_sql=exp_sql)
 
     def windspeeds_daily(self):

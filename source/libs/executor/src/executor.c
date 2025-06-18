@@ -2004,6 +2004,8 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, const SStreamRuntimeF
         qError("failed to allocate col info data at: %s, %d", __func__, __LINE__);
         break;
       }
+      colInfoDataEnsureCapacity(pCol, 1, true);
+
       pCol->hasNull = true;
       pCol->info.type = ((SExprNode*)pExpr)->resType.type;
       pCol->info.colId = 0;
@@ -2032,6 +2034,7 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, const SStreamRuntimeF
     memcpy(tbname, pVal, len);
   }
   // TODO free dst
+  sclFreeParam(&dst);
   return code;
 }
 

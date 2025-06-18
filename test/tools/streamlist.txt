@@ -7,7 +7,5 @@ pytest --clean cases/13-StreamProcessing/99-Others/test_dev_basic3.py
 ../tests/script/sh/stop_dnodes.sh 
 pytest --clean cases/13-StreamProcessing/01-Snode/snode_mgmt.py -N 8
 
-#pytest --clean cases/13-StreamProcessing/99-Others/test_dev_basic4.py 
-#pytest --clean cases/13-StreamProcessing/99-Others/test_dev_basic5.py 
-#pytest --clean cases/13-StreamProcessing/99-Others/test_dev_basic6.py 
-
+../tests/script/sh/stop_dnodes.sh 
+pytest --clean cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_checkpoint.py

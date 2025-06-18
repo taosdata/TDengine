@@ -258,6 +258,8 @@ static int32_t stRunnerCalcSubTbTagVal(SStreamRunnerTask* pTask, SStreamRunnerTa
     pCol->info.bytes = pType.bytes;
     pCol->info.precision = pType.precision;
     pCol->info.scale = pType.scale;
+    colInfoDataEnsureCapacity(pCol, 1, true);
+
     dst.colAlloced = true;
     dst.numOfRows = 1;
     dst.columnData = pCol;
@@ -304,6 +306,8 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
       if (createTb) code = stRunnerInitTbTagVal(pTask, pExec, &pTagVals);
       if (code == 0) {
         SStreamDataInserterInfo d = {.tbName = pExec->tbname,
+                                     .streamId = pTask->task.streamId,
+                                     .groupId = pExec->runtimeInfo.funcInfo.groupId,
                                      .isAutoCreateTable = createTb, .pTagVals = pTagVals};
         SInputData              input = {.pData = pBlock, .pStreamDataInserterInfo = &d};
         bool                    cont = false;

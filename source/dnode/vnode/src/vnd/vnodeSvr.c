@@ -1795,7 +1795,8 @@ static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbDat
   if (NULL == *ppRsp) {
     return terrno;
   }
-  (*ppRsp)->tuid = pEntry->uid;
+  (*ppRsp)->suid = pSubmitTbData->suid;
+  (*ppRsp)->tuid = pSubmitTbData->uid;
   (*ppRsp)->sversion = pEntry->stbEntry.schemaRow.version;
   (*ppRsp)->vgId = pVnode->config.vgId;
   (*ppRsp)->numOfColumns = pEntry->stbEntry.schemaRow.nCols;
@@ -1804,6 +1805,7 @@ static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbDat
       taosMemoryCalloc(pEntry->stbEntry.schemaRow.nCols + pEntry->stbEntry.schemaTag.nCols, sizeof(SSchema));
   if (NULL == (*ppRsp)->pSchemas) {
     taosMemoryFree(*ppRsp);
+    *ppRsp = NULL;
     return terrno;
   }
   memcpy((*ppRsp)->pSchemas, pEntry->stbEntry.schemaRow.pSchema, pEntry->stbEntry.schemaRow.nCols * sizeof(SSchema));
@@ -1814,6 +1816,7 @@ static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbDat
     if (NULL == (*ppRsp)->pSchemaExt) {
       taosMemoryFree((*ppRsp)->pSchemas);
       taosMemoryFree(*ppRsp);
+      *ppRsp = NULL;
       return terrno;
     }
     memcpy((*ppRsp)->pSchemaExt, pEntry->pExtSchemas, pEntry->stbEntry.schemaRow.nCols * sizeof(SSchemaExt));

@@ -110,7 +110,7 @@ class TestStreamOldCaseConcat:
                 ["a", "TIMESTAMP", 8, ""],
                 ["b", "BIGINT", 8, ""],
                 ["c", "INT", 4, ""],
-                ["tag_tbname", "VARCHAR", 272, "TAG"],
+                ["tag_tbname", "VARCHAR", 270, "TAG"],
             ],
         )
 
@@ -179,7 +179,7 @@ class TestStreamOldCaseConcat:
                 ["a", "TIMESTAMP", 8, ""],
                 ["b", "BIGINT", 8, ""],
                 ["c", "INT", 4, ""],
-                ["tag_tbname", "VARCHAR", 272, "TAG"],
+                ["tag_tbname", "VARCHAR", 270, "TAG"],
             ],
         )
 
@@ -473,7 +473,7 @@ class TestStreamOldCaseConcat:
         tdLog.info("===== table name")
 
         tdSql.execute("create database result vgroups 1;")
-        tdSql.execute("create database test vgroups 4;")
+        tdSql.execute("create database test vgroups 1;")
         tdSql.execute("use test;")
 
         tdSql.execute(

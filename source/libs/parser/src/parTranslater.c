@@ -13404,10 +13404,14 @@ static int32_t createStreamCheckOutCols(STranslateContext* pCxt, SNodeList* pCol
     if (pColDef->dataType.type != pMeta->schema[colIndex].type ||
         pColDef->dataType.bytes != pMeta->schema[colIndex].bytes ||
         pColDef->dataType.scale != scale ||
-        pColDef->dataType.precision != precision ||
-        strncmp(pColDef->colName, pMeta->schema[colIndex].name, strlen(pColDef->colName)) != 0) {
+        pColDef->dataType.precision != precision) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE,
                                      "Out table cols type mismatch");
+    }
+
+    if (strncmp(pColDef->colName, pMeta->schema[colIndex].name, strlen(pColDef->colName)) != 0) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE,
+                                     "Out table cols name mismatch");
     }
     colIndex++;
   }
@@ -13490,13 +13494,13 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
 
   PAR_ERR_JRET(checkTableSchemaImpl(pCxt, pStmt->pTags, pStmt->pCols, NULL));
   if (pReq->outTblType == TSDB_SUPER_TABLE) {
-    PAR_ERR_JRET(streamTagDefNodeToField(pStmt->pTags, &pReq->outTags, true));
+    PAR_ERR_JRET(streamTagDefNodeToField(pStmt->pTags, &pReq->outTags, false)); // tag bytes has been calculated in createStreamReqSetDefaultTag
     PAR_ERR_JRET(createStreamReqBuildStreamTagExprStr(pCxt, pStmt->pTags, ((SStreamTriggerNode*)pStmt->pTrigger)->pPartitionList, pTriggerSlotHash, (char**)&pReq->tagValueExpr));
   } else {
     PAR_ERR_JRET(getTableVgId(pCxt, pStmt->targetDbName, pStmt->targetTabName, &pReq->outTblVgId));
   }
 
-  PAR_ERR_JRET(columnDefNodeToField(pStmt->pCols, &pReq->outCols, true, false));
+  PAR_ERR_JRET(columnDefNodeToField(pStmt->pCols, &pReq->outCols, false, false));
   PAR_ERR_JRET(createStreamReqBuildOutSubtable(pCxt, pStmt->streamDbName, pStmt->streamName, pStmt->pSubtable, pTriggerSlotHash, ((SStreamTriggerNode*)pStmt->pTrigger)->pPartitionList, (char**)&pReq->subTblNameExpr));
 
   return code;
@@ -13699,7 +13703,15 @@ static int32_t createStreamReqSetDefaultTag(STranslateContext* pCxt, SCreateStre
   SNode*             pNode = NULL;
   SStreamTagDefNode* pTagDef = NULL;
 
-  if (pStmt->pTags || !pTriggerPartition) {
+  if (!pTriggerPartition) {
+    return code;
+  }
+
+  if (pStmt->pTags) {
+    FOREACH(pNode, pStmt->pTags) {
+      SStreamTagDefNode *pDef = (SStreamTagDefNode*)pNode;
+      pDef->dataType.bytes = calcTypeBytes(pDef->dataType);
+    }
     return code;
   }
 
