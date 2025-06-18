@@ -132,5 +132,5 @@ class Test_Nevados:
         )
 
         sql = "select * from dev.kpi_db_test;"
-        exp_sql = "select tw, te, case when tl is not null then 1 else 0 end as db_online, tc from(select _wstart tw, _wend te, last(_ts) tl, count(*) tc  from windspeeds where _ts >= '2025-06-01 00:00:00.000' and _ts < '2025-06-01 09:00:00.000' interval(1h) fill(null));"
+        exp_sql = "select tw, te, case when tl is not null then 1 else 0 end as db_online, case when tc is not null then 1 else 0 end as cnt from(select _wstart tw, _wend te, last(_ts) tl, count(*) tc  from windspeeds where _ts >= '2025-06-01 00:00:00.000' and _ts < '2025-06-01 09:00:00.000' interval(1h) fill(null));"
         tdSql.checkResultsBySql(sql=sql, exp_sql=exp_sql)
