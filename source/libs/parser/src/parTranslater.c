@@ -13404,10 +13404,14 @@ static int32_t createStreamCheckOutCols(STranslateContext* pCxt, SNodeList* pCol
     if (pColDef->dataType.type != pMeta->schema[colIndex].type ||
         pColDef->dataType.bytes != pMeta->schema[colIndex].bytes ||
         pColDef->dataType.scale != scale ||
-        pColDef->dataType.precision != precision ||
-        strncmp(pColDef->colName, pMeta->schema[colIndex].name, strlen(pColDef->colName)) != 0) {
+        pColDef->dataType.precision != precision) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE,
                                      "Out table cols type mismatch");
+    }
+
+    if (strncmp(pColDef->colName, pMeta->schema[colIndex].name, strlen(pColDef->colName)) != 0) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE,
+                                     "Out table cols name mismatch");
     }
     colIndex++;
   }
