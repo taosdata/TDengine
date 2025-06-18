@@ -1845,6 +1845,7 @@ static int32_t buildExistNormalTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTb
   }
 
   (*ppRsp)->tuid = pEntry->uid;
+  (*ppRsp)->vgId = pVnode->config.vgId;
   (*ppRsp)->sversion = pEntry->ntbEntry.schemaRow.version;
   (*ppRsp)->numOfColumns = pEntry->ntbEntry.schemaRow.nCols;
   (*ppRsp)->pSchemas = taosMemoryCalloc(pEntry->ntbEntry.schemaRow.nCols, sizeof(SSchema));
