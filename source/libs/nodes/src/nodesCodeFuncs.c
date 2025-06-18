@@ -121,7 +121,7 @@ const char* nodesNodeName(ENodeType type) {
       return "FlushDatabaseStmt";
     case QUERY_NODE_TRIM_DATABASE_STMT:
       return "TrimDatabaseStmt";
-    case QUERY_NODE_S3MIGRATE_DATABASE_STMT:
+    case QUERY_NODE_SSMIGRATE_DATABASE_STMT:
       return "S3MigrateDatabaseStmt";
     case QUERY_NODE_CREATE_TABLE_STMT:
       return "CreateTableStmt";
@@ -8952,7 +8952,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return alterDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_TRIM_DATABASE_STMT:
       return trimDatabaseStmtToJson(pObj, pJson);
-    case QUERY_NODE_S3MIGRATE_DATABASE_STMT:
+    case QUERY_NODE_SSMIGRATE_DATABASE_STMT:
       return ssMigrateDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_TABLE_STMT:
       return createTableStmtToJson(pObj, pJson);
@@ -9358,7 +9358,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToAlterDatabaseStmt(pJson, pObj);
     case QUERY_NODE_TRIM_DATABASE_STMT:
       return jsonToTrimDatabaseStmt(pJson, pObj);
-    case QUERY_NODE_S3MIGRATE_DATABASE_STMT:
+    case QUERY_NODE_SSMIGRATE_DATABASE_STMT:
       return jsonToSsMigrateDatabaseStmt(pJson, pObj);
     case QUERY_NODE_CREATE_TABLE_STMT:
       return jsonToCreateTableStmt(pJson, pObj);

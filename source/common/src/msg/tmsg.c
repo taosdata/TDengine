@@ -4788,9 +4788,9 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
   } else {
     pReq->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
     pReq->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
-    pReq->ssChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
-    pReq->ssKeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
-    pReq->ssCompact = TSDB_DEFAULT_S3_COMPACT;
+    pReq->ssChunkSize = TSDB_DEFAULT_SS_CHUNK_SIZE;
+    pReq->ssKeepLocal = TSDB_DEFAULT_SS_KEEP_LOCAL;
+    pReq->ssCompact = TSDB_DEFAULT_SS_COMPACT;
   }
 
   if (!tDecodeIsEnd(&decoder)) {
@@ -4919,8 +4919,8 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->keepTimeOffset));
   }
 
-  pReq->ssKeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
-  pReq->ssCompact = TSDB_DEFAULT_S3_COMPACT;
+  pReq->ssKeepLocal = TSDB_DEFAULT_SS_KEEP_LOCAL;
+  pReq->ssCompact = TSDB_DEFAULT_SS_COMPACT;
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->ssKeepLocal));
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->ssCompact));
@@ -6678,9 +6678,9 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder *decoder, SDbCfgRsp *pRsp) {
   } else {
     pRsp->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
     pRsp->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
-    pRsp->ssChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
-    pRsp->ssKeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
-    pRsp->ssCompact = TSDB_DEFAULT_S3_COMPACT;
+    pRsp->ssChunkSize = TSDB_DEFAULT_SS_CHUNK_SIZE;
+    pRsp->ssKeepLocal = TSDB_DEFAULT_SS_KEEP_LOCAL;
+    pRsp->ssCompact = TSDB_DEFAULT_SS_COMPACT;
   }
   if (!tDecodeIsEnd(decoder)) {
     TAOS_CHECK_RETURN(tDecodeI8(decoder, &pRsp->hashMethod));
@@ -8158,9 +8158,9 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->keepTimeOffset));
   }
   pReq->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
-  pReq->ssChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
-  pReq->ssKeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
-  pReq->ssCompact = TSDB_DEFAULT_S3_COMPACT;
+  pReq->ssChunkSize = TSDB_DEFAULT_SS_CHUNK_SIZE;
+  pReq->ssKeepLocal = TSDB_DEFAULT_SS_KEEP_LOCAL;
+  pReq->ssCompact = TSDB_DEFAULT_SS_COMPACT;
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->encryptAlgorithm));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->ssChunkSize));
@@ -8578,8 +8578,8 @@ int32_t tDeserializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeC
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->keepTimeOffset));
   }
 
-  pReq->ssKeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
-  pReq->ssCompact = TSDB_DEFAULT_S3_COMPACT;
+  pReq->ssKeepLocal = TSDB_DEFAULT_SS_KEEP_LOCAL;
+  pReq->ssCompact = TSDB_DEFAULT_SS_COMPACT;
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->ssKeepLocal) < 0);
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->ssCompact) < 0);

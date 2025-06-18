@@ -139,8 +139,8 @@
   TD_DEF_MSG_TYPE(TDMT_MND_DROP_BNODE, "drop-bnode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_DND_CREATE_BNODE, "dnode-create-bnode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_DND_DROP_BNODE, "dnode-drop-bnode", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MND_KILL_S3MIGRATE, "kill-s3migrate", NULL, NULL) // placeholder for future use
-  TD_DEF_MSG_TYPE(TDMT_MND_QUERY_S3MIGRATE_PROGRESS_TIMER, "query-s3migrate-progress-tmr", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_KILL_SSMIGRATE, "kill-ssmigrate", NULL, NULL) // placeholder for future use
+  TD_DEF_MSG_TYPE(TDMT_MND_QUERY_SSMIGRATE_PROGRESS_TIMER, "query-ssmigrate-progress-tmr", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_DND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_MND_MSG)  // 1<<8
@@ -255,8 +255,8 @@
   TD_DEF_MSG_TYPE(TDMT_MND_STREAM_REQ_CHKPT, "stream-req-checkpoint", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_CONFIG_CLUSTER, "config-cluster", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_CREATE_ENCRYPT_KEY, "create-encrypt-key", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MND_S3MIGRATE_DB, "s3migrate-db", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MND_S3MIGRATE_DB_TIMER, "s3migrate-db-tmr", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_SSMIGRATE_DB, "ssmigrate-db", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_SSMIGRATE_DB_TIMER, "ssmigrate-db-tmr", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_UNUSED2, "mnd-unused2", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_CREATE_TSMA, "create-tsma", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_DROP_TSMA, "drop-tsma", NULL, NULL)
@@ -326,16 +326,16 @@
   TD_DEF_MSG_TYPE(TDMT_VND_DISABLE_WRITE, "vnode-disable-write", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_QUERY_COMPACT_PROGRESS, "vnode-query-compact-progress", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_KILL_COMPACT, "kill-compact", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_VND_S3MIGRATE, "vnode-s3migrate", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_SSMIGRATE, "vnode-ssmigrate", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_ARB_HEARTBEAT, "vnode-arb-hb", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_ARB_CHECK_SYNC, "vnode-arb-check-sync", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_FETCH_TTL_EXPIRED_TBS, "vnode-fetch-ttl-expired-tbs", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_TABLE_NAME, "vnode-table-name", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_VSUBTABLES_META, "vnode-virtual_stables-meta", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_VSTB_REF_DBS, "vnode-virtual-stables-ref-dbs", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_VND_QUERY_S3MIGRATE_PROGRESS, "vnode-query-s3migrate-progress", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_VND_FOLLOWER_S3MIGRATE, "vnode-follower-s3migrate", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_VND_KILL_S3MIGRATE, "vnode-kill-s3migrate", NULL, NULL) // placeholder for future use
+  TD_DEF_MSG_TYPE(TDMT_VND_QUERY_SSMIGRATE_PROGRESS, "vnode-query-ssmigrate-progress", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_FOLLOWER_SSMIGRATE, "vnode-follower-ssmigrate", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_KILL_SSMIGRATE, "vnode-kill-ssmigrate", NULL, NULL) // placeholder for future use
   TD_CLOSE_MSG_SEG(TDMT_VND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_SCH_MSG)  // 3<<8

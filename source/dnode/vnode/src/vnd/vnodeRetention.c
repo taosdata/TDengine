@@ -59,7 +59,7 @@ _exit:
   rspMsg.pCont = pRsp;
   rspMsg.contLen = rspSize;
   rspMsg.code = code;
-  rspMsg.msgType = TDMT_VND_QUERY_S3MIGRATE_PROGRESS_RSP;
+  rspMsg.msgType = TDMT_VND_QUERY_SSMIGRATE_PROGRESS_RSP;
 
   tmsgSendRsp(&rspMsg);
   return 0;
