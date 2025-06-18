@@ -4152,7 +4152,7 @@ static void getBCacheKey(int32_t fid, int64_t commitID, int64_t blkno, char *key
   memcpy(key, &bKey, *len);
 }
 
-static int32_t tsdbCacheLoadBlockS3(STsdbFD *pFD, uint8_t **ppBlock) {
+static int32_t tsdbCacheLoadBlockSs(STsdbFD *pFD, uint8_t **ppBlock) {
   int32_t code = 0;
 
   int64_t block_size = tsSsBlockSize * pFD->szPage;
@@ -4183,7 +4183,7 @@ static void deleteBCache(const void *key, size_t keyLen, void *value, void *ud) 
   taosMemoryFree(pBlock);
 }
 
-int32_t tsdbCacheGetBlockS3(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle) {
+int32_t tsdbCacheGetBlockSs(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle) {
   int32_t code = 0;
   char    key[128] = {0};
   int     keyLen = 0;
@@ -4197,7 +4197,7 @@ int32_t tsdbCacheGetBlockS3(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle)
     h = taosLRUCacheLookup(pCache, key, keyLen);
     if (!h) {
       uint8_t *pBlock = NULL;
-      code = tsdbCacheLoadBlockS3(pFD, &pBlock);
+      code = tsdbCacheLoadBlockSs(pFD, &pBlock);
       //  if table's empty or error, return code of -1
       if (code != TSDB_CODE_SUCCESS || pBlock == NULL) {
         (void)taosThreadMutexUnlock(&pTsdb->bMutex);
@@ -4253,7 +4253,7 @@ void tsdbCacheSetPageSs(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_t *
     if (!pPg) {
       (void)taosThreadMutexUnlock(&pFD->pTsdb->pgMutex);
 
-      return;  // ignore error with s3 cache and leave error untouched
+      return;  // ignore error with ss cache and leave error untouched
     }
     memcpy(pPg, pPage, charge);
 

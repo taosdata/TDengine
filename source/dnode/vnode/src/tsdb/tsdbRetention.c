@@ -201,7 +201,7 @@ _exit:
 typedef struct {
   STsdb  *tsdb;
   int64_t now;
-  int32_t nodeId; // node id of leader vnode in s3 migration
+  int32_t nodeId; // node id of leader vnode in ss migration
   int32_t fid;
   bool    ssMigrate;
 } SRtnArg;
@@ -388,7 +388,7 @@ static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now, bool ssMigrate, 
   // check if background task is disabled
   if (tsdb->bgTaskDisabled) {
     if (ssMigrate) {
-      tsdbInfo("vgId:%d, background task is disabled, skip s3 migration", TD_VID(tsdb->pVnode));
+      tsdbInfo("vgId:%d, background task is disabled, skip ss migration", TD_VID(tsdb->pVnode));
     } else {
       tsdbInfo("vgId:%d, background task is disabled, skip retention", TD_VID(tsdb->pVnode));
     }

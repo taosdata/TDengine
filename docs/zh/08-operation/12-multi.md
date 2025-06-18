@@ -107,7 +107,7 @@ create database demo_db duration 1d ss_keeplocal 3d;
 默认情况下，mnode 每小时会下发 S3 数据迁移检查的指令，如果有时序数据需要上传，则自动分块存放到 S3 存储中，也可以使用 SQL 命令手动触发，由用户触发这一操作，语法如下：
 
 ```sql
-s3migrate database <db_name>;
+ssmigrate database <db_name>;
 ```
 
 详细的 DB 参数见下表：
