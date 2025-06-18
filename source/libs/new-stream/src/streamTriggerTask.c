@@ -1871,7 +1871,7 @@ static int32_t strtgDoCheck(SSTriggerRealtimeGroup *pGroup) {
   }
 
   // if data caching is needed, metas will be held until send calculation request
-  if (!pTask->needCacheData) {
+  if (!pTask->needCacheData && !(pTask->needRowNumber && pTask->triggerType == STREAM_TRIGGER_SLIDING)) {
     taosArrayPopFrontBatch(pGroup->pMetas, pGroup->metaIdx);
     pGroup->metaIdx = 0;
   }
@@ -2211,7 +2211,7 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
       // build session window merger
       SSTriggerWalMeta *pMetas = taosArrayGet(pGroup->pMetas, 0);
       int32_t           nMetas = taosArrayGetSize(pGroup->pMetas);
-      code = stwmSetWalMetas(pMerger, pMetas, nMetas, pTask->calcTsIndex);
+      code = stwmSetWalMetas(pMerger, pMetas, nMetas, pTask->needCacheData ? pTask->calcTsIndex : pTask->primaryTsIndex);
       QUERY_CHECK_CODE(code, lino, _end);
       code = stwmBuildDataMerger(pMerger, pFirstWin->wstart,
                                  pLastWin->wend - (pTask->triggerType == STREAM_TRIGGER_SLIDING));
@@ -2242,7 +2242,9 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
         code = stwmMetaListNextData(pMerger, pDataWinner, &pDataBlock, &startIdx, &endIdx, &needFetch, &needFree);
         QUERY_CHECK_CODE(code, lino, _end);
         if (needFetch) {
-          code = strtcSendPullReq(pContext, STRIGGER_PULL_WAL_CALC_DATA, pDataWinner->head->pMeta);
+          code =
+              strtcSendPullReq(pContext, pTask->needCacheData ? STRIGGER_PULL_WAL_CALC_DATA : STRIGGER_PULL_WAL_TS_DATA,
+                               pDataWinner->head->pMeta);
           QUERY_CHECK_CODE(code, lino, _end);
           goto _end;
         }
@@ -2635,12 +2637,14 @@ static int32_t strtcProcessPullRsp(SSTriggerRealtimeContext *pContext, SSDataBlo
     }
     case STRIGGER_PULL_WAL_TS_DATA:
     case STRIGGER_PULL_WAL_TRIGGER_DATA: {
-      QUERY_CHECK_CONDITION(!TRINGBUF_IS_EMPTY(&pContext->groupsToCheck), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-      code = stwmBindDataBlock(pContext->pMerger, pResDataBlock);
-      QUERY_CHECK_CODE(code, lino, _end);
-      code = strtcResumeCheck(pContext);
-      QUERY_CHECK_CODE(code, lino, _end);
-      break;
+      if (pTask->triggerType != STREAM_TRIGGER_SLIDING) {
+        QUERY_CHECK_CONDITION(!TRINGBUF_IS_EMPTY(&pContext->groupsToCheck), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        code = stwmBindDataBlock(pContext->pMerger, pResDataBlock);
+        QUERY_CHECK_CODE(code, lino, _end);
+        code = strtcResumeCheck(pContext);
+        QUERY_CHECK_CODE(code, lino, _end);
+        break;
+      }
     }
     case STRIGGER_PULL_WAL_CALC_DATA: {
       code = stwmBindDataBlock(pContext->pMerger, pResDataBlock);
