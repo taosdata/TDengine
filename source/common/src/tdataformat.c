@@ -4036,7 +4036,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
   if (infos == NULL || numOfInfos <= 0 || numOfInfos > pTSchema->numOfCols || pTSchema == NULL || rowArray == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-
+  int8_t hasBlob = schemaHasBlob(pTSchema);
   if (!infoSorted) {
     taosqsort_r(infos, numOfInfos, sizeof(SBindInfo2), NULL, tBindInfoCompare);
   }
@@ -4081,14 +4081,27 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
             .type = infos[iInfo].type,
         };
         if (IS_VAR_DATA_TYPE(infos[iInfo].type)) {
-          int32_t   length = infos[iInfo].bind->length[iRow];
-          uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo];
-          value.nData = length;
-          if (value.nData > pTSchema->columns[infos[iInfo].columnId - 1].bytes - VARSTR_HEADER_SIZE) {
-            code = TSDB_CODE_PAR_VALUE_TOO_LONG;
-            uError("stmt bind param[%d] length:%d  greater than type maximum lenght: %d", iInfo, value.nData,
-                   pTSchema->columns[infos[iInfo].columnId - 1].bytes);
-            goto _exit;
+          if (IS_STR_DATA_BLOB(infos[iInfo].type)) {
+            int32_t   length = infos[iInfo].bind->length[iRow];
+            uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo];
+            value.nData = length;
+            if (value.nData > (BLOB_MAX_LEN - BLOBSTR_HEADER_SIZE)) {
+              code = TSDB_CODE_PAR_VALUE_TOO_LONG;
+              uError("stmt bind param[%d] length:%d  greater than type maximum lenght: %d", iInfo, value.nData,
+                     pTSchema->columns[infos[iInfo].columnId - 1].bytes);
+              goto _exit;
+            }
+
+          } else {
+            int32_t   length = infos[iInfo].bind->length[iRow];
+            uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo];
+            value.nData = length;
+            if (value.nData > pTSchema->columns[infos[iInfo].columnId - 1].bytes - VARSTR_HEADER_SIZE) {
+              code = TSDB_CODE_PAR_VALUE_TOO_LONG;
+              uError("stmt bind param[%d] length:%d  greater than type maximum lenght: %d", iInfo, value.nData,
+                     pTSchema->columns[infos[iInfo].columnId - 1].bytes);
+              goto _exit;
+            }
           }
           // value.pData = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow;
         } else {
@@ -4106,10 +4119,18 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
       }
     }
 
-    SRow             *row;
-    SRowBuildScanInfo sinfo = {0};
-    if ((code = tRowBuild(colValArray, pTSchema, &row, &sinfo))) {
-      goto _exit;
+    SRow *row;
+
+    if (hasBlob == 0) {
+      SRowBuildScanInfo sinfo = {0};
+      if ((code = tRowBuild(colValArray, pTSchema, &row, &sinfo))) {
+        goto _exit;
+      }
+    } else {
+      SRowBuildScanInfo sinfo = {.hasBlob = 1, .scanType = ROW_BUILD_UPDATE};
+      if ((code = tRowBuildWithBlob(colValArray, pTSchema, &row, NULL, &sinfo))) {
+        goto _exit;
+      }
     }
 
     if ((taosArrayPush(rowArray, &row)) == NULL) {
@@ -5682,4 +5703,16 @@ void valueClearDatum(SValue *pVal, int8_t type) {
   } else {
     pVal->val = 0;
   }
+}
+
+int8_t schemaHasBlob(const STSchema *pSchema) {
+  if (pSchema == NULL) {
+    return 0;
+  }
+  for (int i = 0; i < pSchema->numOfCols; ++i) {
+    if (IS_STR_DATA_BLOB(pSchema->columns[i].type)) {
+      return 1;
+    }
+  }
+  return 0;
 }

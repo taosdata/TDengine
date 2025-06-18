@@ -467,6 +467,7 @@ typedef struct {
   int32_t          type;
   int32_t          bytes;
   TAOS_STMT2_BIND *bind;
+
 } SBindInfo2;
 
 int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
@@ -500,6 +501,8 @@ struct SRowBuildScanInfo {
   int8_t hasBlob;
   int8_t scanType;
 };
+
+int8_t schemaHasBlob(const STSchema *pSchema);
 #endif
 
 #ifdef __cplusplus

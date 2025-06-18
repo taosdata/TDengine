@@ -1172,14 +1172,3 @@ int rawBlockBindRawData(SHashObj* pVgroupHash, SArray* pVgroupList, STableMeta* 
   return 0;
 }
 
-int8_t schemaHasBlob(STSchema* pSchema) {
-  if (pSchema == NULL) {
-    return 0;
-  }
-  for (int i = 0; i < pSchema->numOfCols; ++i) {
-    if (IS_STR_DATA_BLOB(pSchema->columns[i].type)) {
-      return 1;
-    }
-  }
-  return 0;
-}
