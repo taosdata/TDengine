@@ -258,6 +258,8 @@ static int32_t stRunnerCalcSubTbTagVal(SStreamRunnerTask* pTask, SStreamRunnerTa
     pCol->info.bytes = pType.bytes;
     pCol->info.precision = pType.precision;
     pCol->info.scale = pType.scale;
+    colInfoDataEnsureCapacity(pCol, 1, true);
+
     dst.colAlloced = true;
     dst.numOfRows = 1;
     dst.columnData = pCol;
