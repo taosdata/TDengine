@@ -82,12 +82,14 @@ impl ConnectionConfig {
             username = Option::from(
                 dsn.params
                     .get("username")
+                    .or(dsn.username.as_ref())
                     .ok_or(anyhow::anyhow!("username is required"))?
                     .to_string(),
             );
             password = Option::from(
                 dsn.params
                     .get("password")
+                    .or(dsn.password.as_ref())
                     .ok_or(anyhow::anyhow!("password is required"))?
                     .to_string(),
             );
@@ -327,5 +329,32 @@ mod tests {
         let config = ConnectionConfig::from_dsn(&dsn);
         assert!(config.is_err());
         assert_eq!("invalid version: 3.0", config.unwrap_err().to_string());
+    }
+
+    /// Test for parsing DSN with username and password
+    ///
+    /// Jira: [TS-6687](https://taosdata.atlassian.net/browse/TS-6687)
+    /// Version: 3.3.6.11
+    ///
+    /// This test checks if the DSN can be parsed correctly with the given parameters.
+    #[test]
+    fn test_dsn_parse_ts6687() {
+        // Test with username and password in URL
+        let dsn = Dsn::from_str("influxdb+http://user:pass@172.20.51.228:8886?addDbrp=false&batch_size=5000&batch_timeout=1000&busy_threshold=100%&delay=10&health_check_window_in_second=0s&log_level=info&max_errors_in_window=10&mux_queue_length=1000&only-choose-one5=1-x&readWindow=60&read_concurrency=50&version=1.7&write_concurrency=50").unwrap();
+        let config = ConnectionConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(config.username.as_deref(), Some("user"));
+        assert_eq!(config.password.as_deref(), Some("pass"));
+
+        // Test with username and password in params
+        let dsn = Dsn::from_str("influxdb+http://172.20.51.228:8886?username=user&password=pass&addDbrp=false&batch_size=5000&batch_timeout=1000&busy_threshold=100%&delay=10&health_check_window_in_second=0s&log_level=info&max_errors_in_window=10&mux_queue_length=1000&only-choose-one5=1-x&readWindow=60&read_concurrency=50&version=1.7&write_concurrency=50").unwrap();
+        let config = ConnectionConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(config.username.as_deref(), Some("user"));
+        assert_eq!(config.password.as_deref(), Some("pass"));
+
+        // Priority test: params >  username/password
+        let dsn = Dsn::from_str("influxdb+http://user1:pass1@172.20.51.228:8886?username=user&password=pass&addDbrp=false&batch_size=5000&batch_timeout=1000&busy_threshold=100%&delay=10&health_check_window_in_second=0s&log_level=info&max_errors_in_window=10&mux_queue_length=1000&only-choose-one5=1-x&readWindow=60&read_concurrency=50&version=1.7&write_concurrency=50").unwrap();
+        let config = ConnectionConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(config.username.as_deref(), Some("user"));
+        assert_eq!(config.password.as_deref(), Some("pass"));
     }
 }
