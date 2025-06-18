@@ -304,6 +304,8 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
       if (createTb) code = stRunnerInitTbTagVal(pTask, pExec, &pTagVals);
       if (code == 0) {
         SStreamDataInserterInfo d = {.tbName = pExec->tbname,
+                                     .streamId = pTask->task.streamId,
+                                     .groupId = pExec->runtimeInfo.funcInfo.groupId,
                                      .isAutoCreateTable = createTb, .pTagVals = pTagVals};
         SInputData              input = {.pData = pBlock, .pStreamDataInserterInfo = &d};
         bool                    cont = false;
