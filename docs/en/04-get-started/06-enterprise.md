@@ -92,10 +92,9 @@ Before starting TDengine, open the `/etc/taos/taos.cfg` file and configure the f
     s3EndPoint <your-endpoint>
     s3AccessKey <secret-id>:<secret-key>
     s3BucketName <your-s3-bucket>
-    s3UploadDelaySec 10
-    s3MigrateIntervalSec 600
-    s3MigrateEnabled 1
-    s3PageCacheSize 1
+    ssUploadDelaySec 10
+    ssAutoMigrateIntervalSec 600
+    ssPageCacheSize 1
     ```
 
 3. (Optional) Modify the `/etc/taos/taosadapter.toml` file as follows to enable SSL on taosAdapter:

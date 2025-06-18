@@ -29,7 +29,7 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
 
   pFD->pFD = taosOpenFile(path, flag);
   if (pFD->pFD == NULL) {
-    if (tsS3Enabled && pFD->lcn > 1 && !strncmp(path + strlen(path) - 5, ".data", 5)) {
+    if (tsSsEnabled && pFD->lcn > 1 && !strncmp(path + strlen(path) - 5, ".data", 5)) {
       char lc_path[TSDB_FILENAME_LEN];
       tstrncpy(lc_path, path, TSDB_FQDN_LEN);
 
@@ -518,7 +518,7 @@ int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, 
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  if (pFD->s3File && pFD->lcn > 1 /* && tsS3BlockSize < 0*/) {
+  if (pFD->s3File && pFD->lcn > 1 /* && tsSsBlockSize < 0*/) {
     code = tsdbReadFileS3(pFD, offset, pBuf, size, szHint);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {

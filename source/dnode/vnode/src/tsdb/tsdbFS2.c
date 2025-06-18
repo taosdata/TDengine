@@ -368,7 +368,7 @@ static int32_t tsdbFSDoScanAndFixFile(STFileSystem *fs, const STFileObj *fobj) {
   if (!taosCheckExistFile(fobj->fname)) {
     bool found = false;
 
-    if (tsS3Enabled && fobj->f->lcn > 1) {
+    if (tsSsEnabled && fobj->f->lcn > 1) {
       char fname1[TSDB_FILENAME_LEN];
       tsdbTFileLastChunkName(fs->tsdb, fobj->f, fname1);
       if (!taosCheckExistFile(fname1)) {

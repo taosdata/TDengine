@@ -26,7 +26,7 @@
 using namespace Azure::Storage;
 using namespace Azure::Storage::Blobs;
 
-extern int8_t tsS3Enabled;
+extern int8_t tsSsEnabled;
 extern char   tsS3BucketName[TSDB_FQDN_LEN];
 
 static int32_t azInitEnv() {
@@ -80,7 +80,7 @@ static int32_t azInitEnv() {
 
   tstrncpy(tsTempDir, "/tmp/", PATH_MAX);
 
-  tsS3Enabled = true;
+  tsSsEnabled = true;
 
   return code;
 }
@@ -98,7 +98,7 @@ TEST(AzETest, InterfaceTest) {
   }
 
   GTEST_ASSERT_EQ(code, 0);
-  GTEST_ASSERT_EQ(tsS3Enabled, 1);
+  GTEST_ASSERT_EQ(tsSsEnabled, 1);
 
   code = azBegin();
   GTEST_ASSERT_EQ(code, 0);

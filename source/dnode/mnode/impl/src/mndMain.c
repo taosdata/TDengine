@@ -382,7 +382,7 @@ static int32_t minCronTime() {
   int32_t min = INT32_MAX;
   min = TMIN(min, tsTtlPushIntervalSec);
   min = TMIN(min, tsTrimVDbIntervalSec);
-  min = TMIN(min, tsS3MigrateIntervalSec);
+  min = TMIN(min, tsSsAutoMigrateIntervalSec);
   min = TMIN(min, tsTransPullupInterval);
   min = TMIN(min, tsCompactPullupInterval);
   min = TMIN(min, tsMqRebalanceInterval);
@@ -410,13 +410,12 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   }
 #endif
 #ifdef USE_S3
-  if (tsS3MigrateEnabled) {
-    if (sec % tsS3MigrateIntervalSec == 0) {
-      mndPullupS3MigrateDb(pMnode);
-    }
-    // TODO: change 10 to configurable
-    if (sec % 10 == 0) {
+  if (tsSsEnabled) {
+    if (sec % 10 == 0) { // TODO: make 10 to be configurable
       mndPullupQueryS3MigrateProgress(pMnode);
+    }
+    if (tsSsEnabled == 2 && sec % tsSsAutoMigrateIntervalSec == 0) {
+      mndPullupS3MigrateDb(pMnode);
     }
   }
 #endif

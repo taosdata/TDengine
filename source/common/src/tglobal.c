@@ -352,8 +352,6 @@ int32_t tsMaxConcurrentCheckpoint = 1;
 int32_t tsTtlUnit = 86400;
 int32_t tsTtlPushIntervalSec = 10;
 int32_t tsTrimVDbIntervalSec = 60 * 60;    // interval of trimming db in all vgroups
-int32_t tsS3MigrateIntervalSec = 60 * 60;  // interval of s3migrate db in all vgroups
-bool    tsS3MigrateEnabled = 0;
 int32_t tsGrantHBInterval = 60;
 int32_t tsUptimeInterval = 300;    // seconds
 char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udfd exits
@@ -375,28 +373,14 @@ char     tsAdapterToken[512] = "cm9vdDp0YW9zZGF0YQ==";
 
 bool tsUpdateCacheBatch = true;
 
-char tsSsAccessString[1024] = ""; // shared storage access string
-                                  // TODO: remove/rename the s3 options below
-int8_t tsS3EpNum = 0;
-char   tsS3Endpoint[TSDB_MAX_EP_NUM][TSDB_FQDN_LEN] = {"<endpoint>"};
-char   tsS3AccessKey[TSDB_MAX_EP_NUM][TSDB_FQDN_LEN] = {"<accesskey>"};
-char   tsS3AccessKeyId[TSDB_MAX_EP_NUM][TSDB_FQDN_LEN] = {"<accesskeyid>"};
-char   tsS3AccessKeySecret[TSDB_MAX_EP_NUM][TSDB_FQDN_LEN] = {"<accesskeysecrect>"};
-char   tsS3BucketName[TSDB_FQDN_LEN] = "<bucketname>";
-char   tsS3AppId[TSDB_MAX_EP_NUM][TSDB_FQDN_LEN] = {"<appid>"};
-int8_t tsS3Enabled = false;
-int8_t tsS3EnabledCfg = false;
-int8_t tsS3Oss[TSDB_MAX_EP_NUM] = {false};
-int8_t tsS3Ablob = false;
-int8_t tsS3StreamEnabled = false;
-
-int8_t tsS3Https[TSDB_MAX_EP_NUM] = {true};
-char   tsS3Hostname[TSDB_MAX_EP_NUM][TSDB_FQDN_LEN] = {"<hostname>"};
-
-int32_t tsS3BlockSize = -1;        // number of tsdb pages (4096)
-int32_t tsS3BlockCacheSize = 16;   // number of blocks
-int32_t tsS3PageCacheSize = 4096;  // number of pages
-int32_t tsS3UploadDelaySec = 60;
+int32_t tsSsEnabled = 0;  // enable shared storage, 0: disabled, 1: enabled, 2: enabled with auto migration
+char    tsSsAccessString[1024] = "";
+int32_t tsSsAutoMigrateIntervalSec = 60 * 60;  // auto migrate interval of shared storage migration
+int32_t tsSsBlockSize = -1;  // number of tsdb pages (4096). note: some related (but unused) code hasn't check the
+                             // negative value, which is a bug.
+int32_t tsSsBlockCacheSize = 16;   // number of blocks
+int32_t tsSsPageCacheSize = 4096;  // number of pages
+int32_t tsSsUploadDelaySec = 60;
 
 bool tsExperimental = true;
 
@@ -485,6 +469,7 @@ _exit:
 }
 
 int32_t taosSetS3Cfg(SConfig *pCfg) {
+  #if 0
   int8_t num = 0;
 
   TAOS_CHECK_RETURN(taosSplitS3Cfg(pCfg, "s3Accesskey", tsS3AccessKey, &num));
@@ -543,13 +528,13 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
   if (tsS3BucketName[0] != '<') {
 #if defined(USE_COS) || defined(USE_S3)
 #ifdef TD_ENTERPRISE
-    /*if (tsDiskCfgNum > 1) */ tsS3Enabled = true;
+    /*if (tsDiskCfgNum > 1) */ tsSsEnabled = true;
     tsS3EnabledCfg = true;
 #endif
     tsS3StreamEnabled = true;
 #endif
   }
-
+#endif
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -998,8 +983,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "ttlChangeOnWrite", tsTtlChangeOnWrite, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "ttlFlushThreshold", tsTtlFlushThreshold, -1, 1000000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "trimVDbIntervalSec", tsTrimVDbIntervalSec, 1, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "s3MigrateIntervalSec", tsS3MigrateIntervalSec, 600, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
-  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "s3MigrateEnabled", tsS3MigrateEnabled, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "uptimeInterval", tsUptimeInterval, 1, 100000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryRsmaTolerance", tsQueryRsmaTolerance, 0, 900000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "timeseriesThreshold", tsTimeSeriesThreshold, 0, 2000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
@@ -1034,13 +1017,11 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxStreamBackendCache", tsMaxStreamBackendCache, 16, 1024, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "pqSortMemThreshold", tsPQSortMemThreshold, 1, 10240, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
 
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "ssEnabled", tsSsEnabled, 0, 2, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "ssAccessString", tsSsAccessString, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "s3Accesskey", tsS3AccessKey[0], CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "s3Endpoint", tsS3Endpoint[0], CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "s3BucketName", tsS3BucketName, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_LOCAL));
-
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "s3PageCacheSize", tsS3PageCacheSize, 4, 1024 * 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "s3UploadDelaySec", tsS3UploadDelaySec, 1, 60 * 60 * 24 * 30, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "ssAutoMigrateIntervalSec", tsSsAutoMigrateIntervalSec, 600, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "ssPageCacheSize", tsSsPageCacheSize, 4, 1024 * 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "ssUploadDelaySec", tsSsUploadDelaySec, 1, 60 * 60 * 24 * 30, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "minDiskFreeSize", tsMinDiskFreeSize, TFS_MIN_DISK_FREE_SIZE, TFS_MIN_DISK_FREE_SIZE_MAX, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableWhiteList", tsEnableWhiteList, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
@@ -1988,19 +1969,25 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minDiskFreeSize");
   tsMinDiskFreeSize = pItem->i64;
+
 #ifdef USE_S3
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "s3MigrateIntervalSec");
-  tsS3MigrateIntervalSec = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ssEnabled");
+  tsSsEnabled = pItem->bval;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "s3MigrateEnabled");
-  tsS3MigrateEnabled = (bool)pItem->bval;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ssAccessString");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, sizeof(tsSsAccessString)));
+  tstrncpy(tsSsAccessString, pItem->str, sizeof(tsSsAccessString));
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "s3PageCacheSize");
-  tsS3PageCacheSize = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ssAutoMigrateIntervalSec");
+  tsSsAutoMigrateIntervalSec = pItem->i32;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "s3UploadDelaySec");
-  tsS3UploadDelaySec = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ssPageCacheSize");
+  tsSsPageCacheSize = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ssUploadDelaySec");
+  tsSsUploadDelaySec = pItem->i32;
 #endif
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "experimental");
   tsExperimental = pItem->bval;
 
@@ -2802,12 +2789,10 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"ttlFlushThreshold", &tsTtlFlushThreshold},
                                          {"ttlPushInterval", &tsTtlPushIntervalSec},
                                          {"ttlUnit", &tsTtlUnit},
-                                         {"s3MigrateIntervalSec", &tsS3MigrateIntervalSec},
-                                         {"s3MigrateEnabled", &tsS3MigrateEnabled},
-                                         //{"s3BlockSize", &tsS3BlockSize},
-                                         {"s3BlockCacheSize", &tsS3BlockCacheSize},
-                                         {"s3PageCacheSize", &tsS3PageCacheSize},
-                                         {"s3UploadDelaySec", &tsS3UploadDelaySec},
+                                         {"ssAutoMigrateIntervalSec", &tsSsAutoMigrateIntervalSec},
+                                         {"ssBlockCacheSize", &tsSsBlockCacheSize},
+                                         {"ssPageCacheSize", &tsSsPageCacheSize},
+                                         {"ssUploadDelaySec", &tsSsUploadDelaySec},
                                          {"mndLogRetention", &tsMndLogRetention},
                                          {"supportVnodes", &tsNumOfSupportVnodes},
                                          {"experimental", &tsExperimental},

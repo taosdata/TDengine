@@ -80,10 +80,9 @@ dataDir /mnt/data6 2 0
 | s3EndPoint           | 用户所在地域的 COS 服务域名，支持 http 和 https，bucket 的区域需要与 endpoint 的保持一致，否则无法访问 |
 | s3AccessKey          | 冒号分隔的用户 SecretId:SecretKey。例如：AKIDsQmwsfKxTo2A6nGVXZN0UlofKn6JRRSJ:lIdoy99ygEacU7iHfogaN2Xq0yumSm1E |
 | s3BucketName         | 存储桶名称，减号后面是用户注册 COS 服务的 AppId。其中 AppId 是 COS 特有，AWS 和阿里云都没有，配置时需要作为 bucket name 的一部分，使用减号分隔。参数值均为字符串类型，但不需要引号。例如：test0711-1309024725 |
-| s3UploadDelaySec     | data 文件持续多长时间不再变动后上传至 s3，单位：秒。最小值：1；最大值：2592000（30 天），默认值 60 秒 |
-| s3PageCacheSize      | S3 page cache 缓存页数目，单位：页。最小值：4；最大值：1024*1024*1024。 ，默认值 4096|
-| s3MigrateIntervalSec | 本地数据文件自动上传 S3 的触发周期，单位为秒。最小值：600；最大值：100000。默认值 3600 |
-| s3MigrateEnabled     | 是否自动进行 S3 迁移，默认值为 0，表示关闭自动 S3 迁移，可配置为 1 |
+| ssUploadDelaySec     | data 文件持续多长时间不再变动后上传至 s3，单位：秒。最小值：1；最大值：2592000（30 天），默认值 60 秒 |
+| ssPageCacheSize      | S3 page cache 缓存页数目，单位：页。最小值：4；最大值：1024*1024*1024。 ，默认值 4096|
+| ssAutoMigrateIntervalSec | 本地数据文件自动上传 S3 的触发周期，单位为秒。最小值：600；最大值：100000。默认值 3600 |
 
 #### 检查配置参数可用性
 
@@ -145,7 +144,7 @@ s3migrate database <db_name>;
 下载次数 = 查询需要的数据块数量 - 已缓存的数据块数量
 ```
 
-页缓存是内存缓存，节点重启后，再次查询需要重新下载数据。缓存采用 LRU (Least Recently Used) 策略，当缓存空间不足时，最近最少使用的数据将被淘汰。缓存的大小可以通过 `s3PageCacheSize` 参数进行调整，通常来说，缓存越大，下载次数越少。
+页缓存是内存缓存，节点重启后，再次查询需要重新下载数据。缓存采用 LRU (Least Recently Used) 策略，当缓存空间不足时，最近最少使用的数据将被淘汰。缓存的大小可以通过 `ssPageCacheSize` 参数进行调整，通常来说，缓存越大，下载次数越少。
 
 ### Azure Blob 存储
 本节介绍在 TDengine Enterprise 版本中如何使用微软 Azure Blob 存储。本功能可以通过两个方式使用：利用 Flexify 服务提供的 S3 网关功能和不依赖 Flexify 服务。通过配置参数，可以把大部分较冷的时序数据存储到 Azure Blob 服务中。
