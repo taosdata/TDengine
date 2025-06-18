@@ -70,7 +70,7 @@ void tsdbCloseSsMigrateMonitor(STsdb *tsdb) {
   tsdb->pSsMigrateMonitor = NULL;
 }
 
-void tsdbStartS3MigrateMonitor(STsdb *tsdb, int32_t ssMigrateId) {
+void tsdbStartSsMigrateMonitor(STsdb *tsdb, int32_t ssMigrateId) {
   SSsMigrateMonitor* pmm = tsdb->pSsMigrateMonitor;
   pmm->state.mnodeMigrateId = 0;
   pmm->state.vnodeMigrateId = ssMigrateId;

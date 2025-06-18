@@ -399,7 +399,7 @@ _exit:
 
 
 
-static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, int64_t szHint) {
+static int32_t tsdbReadFileSs(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, int64_t szHint) {
 #ifdef USE_S3
   int32_t code = 0;
   int32_t lino;
@@ -519,7 +519,7 @@ int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, 
   }
 
   if (pFD->s3File && pFD->lcn > 1 /* && tsSsBlockSize < 0*/) {
-    code = tsdbReadFileS3(pFD, offset, pBuf, size, szHint);
+    code = tsdbReadFileSs(pFD, offset, pBuf, size, szHint);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
     code = tsdbReadFileImp(pFD, offset, pBuf, size, encryptAlgorithm, encryptKey);
