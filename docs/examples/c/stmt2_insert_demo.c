@@ -96,23 +96,24 @@ void prepareBindData(char ***table_name, TAOS_STMT2_BIND ***tags, TAOS_STMT2_BIN
     int64_t *ts = (int64_t *)malloc(NUM_OF_ROWS * sizeof(int64_t));
     float   *current = (float *)malloc(NUM_OF_ROWS * sizeof(float));
     int     *voltage = (int *)malloc(NUM_OF_ROWS * sizeof(int));
-    float   *phase = (float *)malloc(NUM_OF_ROWS * sizeof(float));
-    char    *blob = (char *)malloc(NUM_OF_ROWS * sizeof(char) * len);
-    for (int32_t i = 0; i < NUM_OF_ROWS * sizeof(char) * len; i++) {
-      blob[i] = '1';
-    }
-
+    char   **phase = (char **)malloc(NUM_OF_ROWS * sizeof(char *));
     int32_t *ts_len = (int32_t *)malloc(NUM_OF_ROWS * sizeof(int32_t));
     int32_t *current_len = (int32_t *)malloc(NUM_OF_ROWS * sizeof(int32_t));
+    for (int j = 0; j < NUM_OF_ROWS; j++) {
+      phase[j] = (char *)malloc(sizeof(char) * 20);  // Allocate memory for phase
+      sprintf(phase[j], "phase_%d", j);              // Assign a value to phase
+    }
+
     int32_t *voltage_len = (int32_t *)malloc(NUM_OF_ROWS * sizeof(int32_t));
     int32_t *phase_len = (int32_t *)malloc(NUM_OF_ROWS * sizeof(int32_t));
-    int32_t *blob_len = (int32_t *)malloc(NUM_OF_ROWS * sizeof(int32_t));
+    for (int j = 0; j < NUM_OF_ROWS; j++) {
+      phase_len[j] = strlen(phase[j]);  // Set length for phase
+    }
 
     (*params)[i][0] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_TIMESTAMP, ts, ts_len, NULL, NUM_OF_ROWS};
     (*params)[i][1] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_FLOAT, current, current_len, NULL, NUM_OF_ROWS};
     (*params)[i][2] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_INT, voltage, voltage_len, NULL, NUM_OF_ROWS};
-    (*params)[i][3] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_FLOAT, phase, phase_len, NULL, NUM_OF_ROWS};
-    (*params)[i][4] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_BLOB, blob, blob_len, NULL, NUM_OF_ROWS};
+    (*params)[i][3] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_BLOB, phase, phase_len, NULL, NUM_OF_ROWS};
 
     for (int j = 0; j < NUM_OF_ROWS; j++) {
       struct timeval tv;
@@ -120,13 +121,12 @@ void prepareBindData(char ***table_name, TAOS_STMT2_BIND ***tags, TAOS_STMT2_BIN
       ts[j] = tv.tv_sec * 1000LL + tv.tv_usec / 1000 + j;
       current[j] = (float)rand() / RAND_MAX * 30;
       voltage[j] = rand() % 300;
-      phase[j] = (float)rand() / RAND_MAX;
+      // phase[j] = (char *)malloc(20 * sizeof(char));
 
       ts_len[j] = sizeof(int64_t);
       current_len[j] = sizeof(float);
       voltage_len[j] = sizeof(int);
-      phase_len[j] = sizeof(float);
-      blob_len[j] = len;
+      // phase_len[j] = sizeof(float);
     }
   }
 }
@@ -204,10 +204,9 @@ int main() {
   // create database and table
   executeSQL(taos, "CREATE DATABASE IF NOT EXISTS power");
   executeSQL(taos, "USE power");
-  executeSQL(
-      taos,
-      "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT, b blob) TAGS "
-      "(groupId INT, location BINARY(24))");
+  executeSQL(taos,
+             "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase BLOB) TAGS "
+             "(groupId INT, location BINARY(24))");
   insertData(taos);
   taos_close(taos);
   taos_cleanup();
