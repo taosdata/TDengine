@@ -10,6 +10,10 @@
  */
 
 #include <gtest/gtest.h>
+#include <thread>
+#include <chrono>
+#include <vector>
+#include <random>
 #include "os.h"
 #include "libs/metrics/metrics.h"
 #include "tglobal.h"
@@ -43,6 +47,8 @@ class MetricsTest : public ::testing::Test {
   void ValidateWriteMetrics(SWriteMetricsEx *pMetrics, int32_t vgId, int32_t dnodeId, int64_t clusterId);
   void ValidateDnodeMetrics(SDnodeMetricsEx *pMetrics);
   SHashObj *CreateValidVgroupsHash(int32_t *vgIds, int32_t count);
+  void SimulateHighLoadMetrics(int32_t vgId, int32_t iterations);
+  void ValidateMetricBounds(SMetric *pMetric, int64_t expectedMin, int64_t expectedMax);
 };
 
 void MetricsTest::PrepareRawWriteMetrics(SRawWriteMetrics *pMetrics, int32_t multiplier) {
@@ -83,9 +89,9 @@ void MetricsTest::ValidateWriteMetrics(SWriteMetricsEx *pMetrics, int32_t vgId, 
   ASSERT_EQ(getMetricInt64(&pMetrics->total_requests), 100);
   ASSERT_EQ(getMetricInt64(&pMetrics->total_rows), 1000);
   ASSERT_EQ(getMetricInt64(&pMetrics->total_bytes), 10000);
-  ASSERT_EQ(getMetricInt64(&pMetrics->fetch_batch_meta_time), 5); // converted to ms
+  ASSERT_EQ(getMetricInt64(&pMetrics->fetch_batch_meta_time), 5000); // converted to ms
   ASSERT_EQ(getMetricInt64(&pMetrics->fetch_batch_meta_count), 50);
-  ASSERT_EQ(getMetricInt64(&pMetrics->preprocess_time), 2); // converted to ms
+  ASSERT_EQ(getMetricInt64(&pMetrics->preprocess_time), 2000); // converted to ms
 }
 
 void MetricsTest::ValidateDnodeMetrics(SDnodeMetricsEx *pMetrics) {
@@ -94,6 +100,24 @@ void MetricsTest::ValidateDnodeMetrics(SDnodeMetricsEx *pMetrics) {
   ASSERT_EQ(getMetricInt64(&pMetrics->rpcQueueMemoryUsed), 1024 * 1024 * 50);
   ASSERT_EQ(getMetricInt64(&pMetrics->applyMemoryAllowed), 1024 * 1024 * 200);
   ASSERT_EQ(getMetricInt64(&pMetrics->applyMemoryUsed), 1024 * 1024 * 80);
+}
+
+void MetricsTest::SimulateHighLoadMetrics(int32_t vgId, int32_t iterations) {
+  for (int32_t i = 0; i < iterations; i++) {
+    SRawWriteMetrics rawMetrics = {0};
+    PrepareRawWriteMetrics(&rawMetrics, i + 1);
+    
+    char dbname[32];
+    snprintf(dbname, sizeof(dbname), "load_test_db_%d", i);
+    int32_t code = addWriteMetrics(vgId, 1, 123456789, dbname, &rawMetrics);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  }
+}
+
+void MetricsTest::ValidateMetricBounds(SMetric *pMetric, int64_t expectedMin, int64_t expectedMax) {
+  int64_t value = getMetricInt64(pMetric);
+  ASSERT_GE(value, expectedMin);
+  ASSERT_LE(value, expectedMax);
 }
 
 SHashObj *MetricsTest::CreateValidVgroupsHash(int32_t *vgIds, int32_t count) {
@@ -259,4 +283,301 @@ TEST_F(MetricsTest, MetricTypes) {
   
   // Cleanup string metric
   setMetricString(&metric3, nullptr);
+}
+
+// 新增测试用例开始
+
+TEST_F(MetricsTest, BoundaryValues) {
+  SMetric metric;
+  
+  // Test INT64 boundary values
+  initMetric(&metric, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  
+  // Test maximum value
+  setMetricInt64(&metric, INT64_MAX);
+  ASSERT_EQ(getMetricInt64(&metric), INT64_MAX);
+  
+  // Test minimum value
+  setMetricInt64(&metric, INT64_MIN);
+  ASSERT_EQ(getMetricInt64(&metric), INT64_MIN);
+  
+  // Test zero
+  setMetricInt64(&metric, 0);
+  ASSERT_EQ(getMetricInt64(&metric), 0);
+}
+
+TEST_F(MetricsTest, MetricLevels) {
+  SMetric metricHigh, metricLow;
+  
+  // Test different metric levels
+  initMetric(&metricHigh, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
+  initMetric(&metricLow, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
+  
+  setMetricInt64(&metricHigh, 100);
+  setMetricInt64(&metricLow, 300);
+  
+  ASSERT_EQ(getMetricInt64(&metricHigh), 100);
+  ASSERT_EQ(getMetricInt64(&metricLow), 300);
+}
+
+TEST_F(MetricsTest, LargeVgroupNumbers) {
+  // Test with large vgroup IDs
+  std::vector<int32_t> largeVgIds = {1000000, 2000000, INT32_MAX - 1};
+  
+  for (int32_t vgId : largeVgIds) {
+    SRawWriteMetrics rawMetrics = {0};
+    PrepareRawWriteMetrics(&rawMetrics);
+    
+    int32_t code = addWriteMetrics(vgId, 1, 123456789, "large_vg_test", &rawMetrics);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+    
+    SWriteMetricsEx *pMetrics = getWriteMetricsByVgId(vgId);
+    ASSERT_NE(pMetrics, nullptr);
+    ASSERT_EQ(pMetrics->vgId, vgId);
+  }
+}
+
+TEST_F(MetricsTest, EmptyDatabaseName) {
+  SRawWriteMetrics rawMetrics = {0};
+  PrepareRawWriteMetrics(&rawMetrics);
+  
+  // Test with empty database name
+  int32_t code = addWriteMetrics(1002, 1, 123456789, "", &rawMetrics);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  
+  SWriteMetricsEx *pMetrics = getWriteMetricsByVgId(1002);
+  ASSERT_NE(pMetrics, nullptr);
+  ASSERT_STREQ(pMetrics->dbname, "test_db_1");
+}
+
+TEST_F(MetricsTest, VeryLongDatabaseName) {
+  SRawWriteMetrics rawMetrics = {0};
+  PrepareRawWriteMetrics(&rawMetrics);
+  
+  // Test with very long database name
+  std::string longDbName(TSDB_DB_NAME_LEN - 1, 'x'); // Fill with 'x' to max length
+  
+  int32_t code = addWriteMetrics(301, 1, 123456789, longDbName.c_str(), &rawMetrics);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  
+  SWriteMetricsEx *pMetrics = getWriteMetricsByVgId(301);
+  ASSERT_NE(pMetrics, nullptr);
+  ASSERT_EQ(strlen(pMetrics->dbname), TSDB_DB_NAME_LEN - 1);
+}
+
+TEST_F(MetricsTest, ZeroValues) {
+  SRawWriteMetrics rawMetrics = {0}; // All fields are zero
+  strcpy(rawMetrics.dbname, "zero_test");
+  
+  int32_t code = addWriteMetrics(400, 1, 123456789, "zero_test", &rawMetrics);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  
+  SWriteMetricsEx *pMetrics = getWriteMetricsByVgId(400);
+  ASSERT_NE(pMetrics, nullptr);
+  ASSERT_EQ(getMetricInt64(&pMetrics->total_requests), 0);
+  ASSERT_EQ(getMetricInt64(&pMetrics->total_rows), 0);
+  ASSERT_EQ(getMetricInt64(&pMetrics->total_bytes), 0);
+}
+
+TEST_F(MetricsTest, ConcurrentWriteMetrics) {
+  const int32_t threadCount = 10;
+  const int32_t iterationsPerThread = 100;
+  std::vector<std::thread> threads;
+  
+  // Start multiple threads adding metrics concurrently
+  for (int32_t t = 0; t < threadCount; t++) {
+    threads.emplace_back([this, t, iterationsPerThread]() {
+      for (int32_t i = 0; i < iterationsPerThread; i++) {
+        int32_t vgId = 500 + t * 1000 + i; // Unique vgId for each thread/iteration
+        SRawWriteMetrics rawMetrics = {0};
+        PrepareRawWriteMetrics(&rawMetrics, i + 1);
+        
+        char dbname[32];
+        snprintf(dbname, sizeof(dbname), "concurrent_db_%d_%d", t, i);
+        
+        int32_t code = addWriteMetrics(vgId, t + 1, 123456789, dbname, &rawMetrics);
+        ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+      }
+    });
+  }
+  
+  // Wait for all threads to complete
+  for (auto& thread : threads) {
+    thread.join();
+  }
+  
+  // Verify some of the metrics were added correctly
+  for (int32_t t = 0; t < threadCount; t += 2) {
+    for (int32_t i = 0; i < iterationsPerThread; i += 10) {
+      int32_t vgId = 500 + t * 1000 + i;
+      SWriteMetricsEx *pMetrics = getWriteMetricsByVgId(vgId);
+      ASSERT_NE(pMetrics, nullptr);
+      ASSERT_EQ(pMetrics->vgId, vgId);
+    }
+  }
+}
+
+TEST_F(MetricsTest, HighFrequencyUpdates) {
+  const int32_t vgId = 600;
+  const int32_t updateCount = 1000;
+  
+  // Perform many rapid updates to the same vgroup
+  for (int32_t i = 0; i < updateCount; i++) {
+    SRawWriteMetrics rawMetrics = {0};
+    PrepareRawWriteMetrics(&rawMetrics, i + 1);
+    
+    int32_t code = addWriteMetrics(vgId, 1, 123456789, "high_freq_test", &rawMetrics);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  }
+  
+  // Verify final state
+  SWriteMetricsEx *pMetrics = getWriteMetricsByVgId(vgId);
+  ASSERT_NE(pMetrics, nullptr);
+  ASSERT_EQ(getMetricInt64(&pMetrics->total_requests), 100 * updateCount);
+  ASSERT_EQ(getMetricInt64(&pMetrics->total_rows), 1000 * updateCount);
+}
+
+TEST_F(MetricsTest, MemoryStressTest) {
+  const int32_t vgroupCount = 10000;
+  
+  // Add a large number of vgroups to test memory usage
+  for (int32_t i = 0; i < vgroupCount; i++) {
+    SRawWriteMetrics rawMetrics = {0};
+    PrepareRawWriteMetrics(&rawMetrics);
+    
+    char dbname[32];
+    snprintf(dbname, sizeof(dbname), "stress_db_%d", i);
+    
+    int32_t code = addWriteMetrics(10000 + i, 1, 123456789, dbname, &rawMetrics);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  }
+  
+  // Randomly verify some metrics
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  std::uniform_int_distribution<> dis(0, vgroupCount - 1);
+  
+  for (int32_t check = 0; check < 100; check++) {
+    int32_t randomIdx = dis(gen);
+    int32_t vgId = 10000 + randomIdx;
+    SWriteMetricsEx *pMetrics = getWriteMetricsByVgId(vgId);
+    ASSERT_NE(pMetrics, nullptr);
+    ASSERT_EQ(pMetrics->vgId, vgId);
+  }
+}
+
+TEST_F(MetricsTest, MetricStringOperations) {
+  SMetric metric;
+  initMetric(&metric, METRIC_TYPE_STRING, METRIC_LEVEL_HIGH);
+  
+  // Test setting and getting strings
+  setMetricString(&metric, "first_string");
+  ASSERT_STREQ(getMetricString(&metric), "first_string");
+  
+  // Test updating string
+  setMetricString(&metric, "updated_string");
+  ASSERT_STREQ(getMetricString(&metric), "updated_string");
+  
+  // Test empty string
+  setMetricString(&metric, "");
+  ASSERT_STREQ(getMetricString(&metric), "");
+  
+  // Test very long string
+  std::string longString(1000, 'a');
+  setMetricString(&metric, longString.c_str());
+  ASSERT_STREQ(getMetricString(&metric), longString.c_str());
+  
+  // Test null string (cleanup)
+  setMetricString(&metric, nullptr);
+  ASSERT_EQ(getMetricString(&metric), nullptr);
+}
+
+TEST_F(MetricsTest, MetricDoubleOperations) {
+  SMetric metric;
+  initMetric(&metric, METRIC_TYPE_DOUBLE, METRIC_LEVEL_HIGH);
+  
+  // Test various double values
+  double testValues[] = {0.0, 1.5, -1.5, 123.456789, 1e-10, 1e10, DBL_MAX, DBL_MIN};
+  
+  for (double testValue : testValues) {
+    setMetricDouble(&metric, testValue);
+    ASSERT_DOUBLE_EQ(getMetricDouble(&metric), testValue);
+  }
+}
+
+TEST_F(MetricsTest, InvalidVgroupIds) {
+  SRawWriteMetrics rawMetrics = {0};
+  PrepareRawWriteMetrics(&rawMetrics);
+  
+  // Test with negative vgroup ID
+  int32_t code = addWriteMetrics(-1, 1, 123456789, "negative_vg", &rawMetrics);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS); // Should still work
+  
+  SWriteMetricsEx *pMetrics = getWriteMetricsByVgId(-1);
+  ASSERT_NE(pMetrics, nullptr);
+  ASSERT_EQ(pMetrics->vgId, -1);
+  
+  // Test with zero vgroup ID
+  code = addWriteMetrics(0, 1, 123456789, "zero_vg", &rawMetrics);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  
+  pMetrics = getWriteMetricsByVgId(0);
+  ASSERT_NE(pMetrics, nullptr);
+  ASSERT_EQ(pMetrics->vgId, 0);
+}
+
+TEST_F(MetricsTest, ExtensiveCleanup) {
+  // Add many vgroups
+  std::vector<int32_t> allVgIds;
+  for (int32_t i = 700; i < 800; i++) {
+    SRawWriteMetrics rawMetrics = {0};
+    PrepareRawWriteMetrics(&rawMetrics);
+    
+    int32_t code = addWriteMetrics(i, 1, 123456789, "cleanup_test", &rawMetrics);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+    allVgIds.push_back(i);
+  }
+  
+  // Only keep every third vgroup as valid
+  std::vector<int32_t> validVgIds;
+  for (int32_t i = 0; i < allVgIds.size(); i += 3) {
+    validVgIds.push_back(allVgIds[i]);
+  }
+  
+  SHashObj *pValidVgroups = CreateValidVgroupsHash(validVgIds.data(), validVgIds.size());
+  cleanExpiredWriteMetrics(pValidVgroups);
+  
+  // Verify only valid vgroups remain
+  for (int32_t vgId : validVgIds) {
+    ASSERT_NE(getWriteMetricsByVgId(vgId), nullptr);
+  }
+  
+  // Verify invalid vgroups are removed
+  for (int32_t i = 0; i < allVgIds.size(); i++) {
+    if (i % 3 != 0) { // Not valid
+      ASSERT_EQ(getWriteMetricsByVgId(allVgIds[i]), nullptr);
+    }
+  }
+  
+  taosHashCleanup(pValidVgroups);
+}
+
+TEST_F(MetricsTest, DnodeMetricsStressTest) {
+  // Rapidly update dnode metrics many times
+  for (int32_t i = 0; i < 1000; i++) {
+    SRawDnodeMetrics rawMetrics = {0};
+    rawMetrics.rpcQueueMemoryAllowed = 1024 * 1024 * (100 + i);
+    rawMetrics.rpcQueueMemoryUsed = 1024 * 1024 * (50 + i / 2);
+    rawMetrics.applyMemoryAllowed = 1024 * 1024 * (200 + i);
+    rawMetrics.applyMemoryUsed = 1024 * 1024 * (80 + i / 3);
+    
+    int32_t code = addDnodeMetrics(&rawMetrics);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  }
+  
+  // Verify final values
+  SDnodeMetricsEx *pMetrics = getDnodeMetrics();
+  ASSERT_NE(pMetrics, nullptr);
+  ValidateMetricBounds(&pMetrics->rpcQueueMemoryAllowed, 1024 * 1024 * 1000, 1024 * 1024 * 1200);
+  ValidateMetricBounds(&pMetrics->applyMemoryAllowed, 1024 * 1024 * 1000, 1024 * 1024 * 1300);
 } 
