@@ -844,7 +844,7 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "gitinfo", td_gitinfo, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "buildinfo", td_buildinfo, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
 
-  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableIpv6", tsEnableIpv6, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableIpv6", tsEnableIpv6, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
