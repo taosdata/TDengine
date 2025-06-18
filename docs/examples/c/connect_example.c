@@ -12,7 +12,6 @@ int main() {
   const char *db = NULL;      // if don't want to connect to a default db, set it to NULL or ""
   uint16_t    port = 6030;    // 0 means use the default port
   TAOS       *taos = taos_connect(host, user, passwd, db, port);
-
   taos_options_connection(taos, TSDB_OPTION_CONNECTION_USER_IP, "localhost");
   sleep(5);
   {
