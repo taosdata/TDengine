@@ -711,6 +711,11 @@ taosAdapter 和 TDengine server 需要使用相同版本。请通过升级 TDeng
 
 使用命令 rmtaos 可以移除包括 taosAdapter 在内的 TDengine server 软件。
 
+## IPv6 支持
+
+taosAdapter 自 **3.3.7.0** 版本起支持 IPv6，用户无需进行任何额外配置。
+taosAdapter 将自动检测系统的 IPv6 支持情况，并在系统支持时自动启用 IPv6，且同时监听 IPv4 和 IPv6 地址。
+
 ## taosAdapter 监控指标
 
 taosAdapter 目前仅采集 RESTful/WebSocket 相关请求的监控指标，其他接口暂无监控指标。

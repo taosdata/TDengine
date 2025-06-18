@@ -73,8 +73,8 @@ class TDTestCase(TBase):
         else:
             tdLog.info("taosdump found: %s" % binPath)
 
-        os.system("%s --databases db -o ./taosdumptest/tmp1" % binPath)
-        os.system("%s --databases db1 -o ./taosdumptest/tmp2" % binPath)
+        os.system("%s --password < cmdline/data/pwd.txt --databases db -o ./taosdumptest/tmp1 -c /etc/taos" % binPath)
+        os.system("%s -p < cmdline/data/pwd.txt --databases db1 -o ./taosdumptest/tmp2" % binPath)
 
         tdSql.execute("drop database db")
         tdSql.execute("drop database db1")
