@@ -6966,12 +6966,12 @@ static int32_t jsonToTrimDatabaseStmt(const SJson* pJson, void* pObj) {
   return code;
 }
 
-static const char* jkS3MigrateDatabaseStmtDbName = "DbName";
+static const char* jkSsMigrateDatabaseStmtDbName = "DbName";
 
 static int32_t ssMigrateDatabaseStmtToJson(const void* pObj, SJson* pJson) {
   const SSsMigrateDatabaseStmt* pNode = (const SSsMigrateDatabaseStmt*)pObj;
 
-  int32_t code = tjsonAddStringToObject(pJson, jkS3MigrateDatabaseStmtDbName, pNode->dbName);
+  int32_t code = tjsonAddStringToObject(pJson, jkSsMigrateDatabaseStmtDbName, pNode->dbName);
 
   return code;
 }
@@ -6979,7 +6979,7 @@ static int32_t ssMigrateDatabaseStmtToJson(const void* pObj, SJson* pJson) {
 static int32_t jsonToSsMigrateDatabaseStmt(const SJson* pJson, void* pObj) {
   SSsMigrateDatabaseStmt* pNode = (SSsMigrateDatabaseStmt*)pObj;
 
-  int32_t code = tjsonGetStringValue(pJson, jkS3MigrateDatabaseStmtDbName, pNode->dbName);
+  int32_t code = tjsonGetStringValue(pJson, jkSsMigrateDatabaseStmtDbName, pNode->dbName);
 
   return code;
 }

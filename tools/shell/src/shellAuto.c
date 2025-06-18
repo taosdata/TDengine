@@ -220,7 +220,7 @@ SWords shellCommands[] = {
     {"show views;", 0, 0, NULL},
     {"show arbgroups;", 0, 0, NULL},
     {"split vgroup <vgroup_id>;", 0, 0, NULL},
-    {"s3migrate database <db_name>;", 0, 0, NULL},
+    {"ssmigrate database <db_name>;", 0, 0, NULL},
 #endif
     {"insert into <tb_name> values(", 0, 0, NULL},
     {"insert into <tb_name> using <stb_name> tags(", 0, 0, NULL},
@@ -646,7 +646,7 @@ void showHelp() {
     create view <view_name> as select ...\n\
     redistribute vgroup <vgroup_id> dnode <dnode_id> ;\n\
     split vgroup <vgroup_id>;\n\
-    s3migrate database <db_name>;\n\
+    ssmigrate database <db_name>;\n\
     show compacts;\n\
     show compact \n\
     show arbgroups;\n\

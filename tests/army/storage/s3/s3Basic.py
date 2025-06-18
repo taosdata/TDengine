@@ -82,8 +82,8 @@ class TDTestCase(TBase):
         sql = f"create stream {sname} fill_history 1 into stm1 as select count(*) from {self.db}.{self.stb} interval(10s);"
         tdSql.execute(sql)
 
-    def migrateDbS3(self):
-        sql = f"s3migrate database {self.db}"
+    def migrateDbSs(self):
+        sql = f"ssmigrate database {self.db}"
         tdSql.execute(sql, show=True)
 
     def checkDataFile(self, lines, maxFileSize):
@@ -133,7 +133,7 @@ class TDTestCase(TBase):
                 sc.dnodeStart(1)
             loop += 1
             # migrate
-            self.migrateDbS3()
+            self.migrateDbSs()
                 
         # check can pass
         if overCnt > 0:
@@ -147,7 +147,7 @@ class TDTestCase(TBase):
         #self.compactDb(show=True)
 
         # sleep 70s
-        self.migrateDbS3()
+        self.migrateDbSs()
 
         # check upload to s3
         self.checkUploadToS3()

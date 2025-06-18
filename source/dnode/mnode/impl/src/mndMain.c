@@ -144,8 +144,8 @@ static void mndPullupTrimDb(SMnode *pMnode) {
   }
 }
 
-static void mndPullupS3MigrateDb(SMnode *pMnode) {
-  mTrace("pullup s3migrate db");
+static void mndPullupSsMigrateDb(SMnode *pMnode) {
+  mTrace("pullup ssmigrate db");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   // TODO check return value
@@ -155,8 +155,8 @@ static void mndPullupS3MigrateDb(SMnode *pMnode) {
   }
 }
 
-static void mndPullupQueryS3MigrateProgress(SMnode *pMnode) {
-  mTrace("pullup query s3migrate progress");
+static void mndPullupQuerySsMigrateProgress(SMnode *pMnode) {
+  mTrace("pullup query ssmigrate progress");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   // TODO check return value
@@ -412,10 +412,10 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
 #ifdef USE_S3
   if (tsSsEnabled) {
     if (sec % 10 == 0) { // TODO: make 10 to be configurable
-      mndPullupQueryS3MigrateProgress(pMnode);
+      mndPullupQuerySsMigrateProgress(pMnode);
     }
     if (tsSsEnabled == 2 && sec % tsSsAutoMigrateIntervalSec == 0) {
-      mndPullupS3MigrateDb(pMnode);
+      mndPullupSsMigrateDb(pMnode);
     }
   }
 #endif
