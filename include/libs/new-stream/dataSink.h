@@ -309,7 +309,8 @@ void    releaseDataResult(void** ppResult);
 
 void slidingGrpMgrUsedMemAdd(SSlidingGrpMgr* pSlidingGrpCacheMgr, int64_t size);
 
-void destroyInserterGrpInfo();
+int32_t initInserterGrpInfo();
+void    destroyInserterGrpInfo();
 
 void destroyAlignBlockInMem(void* pData);
 void destroyAlignBlockInMemPP(void* ppData);

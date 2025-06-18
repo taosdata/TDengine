@@ -46,6 +46,7 @@ void streamCleanup(void) {
   streamTriggerEnvCleanup();
   destroyDataSinkMgr();
   streamMgmtCleanup();
+  destroyInserterGrpInfo();
 }
 
 int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode, getSynEpset_f getSynEpset) {
@@ -74,6 +75,8 @@ int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode
   TAOS_CHECK_EXIT(streamHbInit(&gStreamMgmt.hb));
 
   TAOS_CHECK_EXIT(streamTriggerEnvInit());
+
+  TAOS_CHECK_EXIT(initInserterGrpInfo());
 
 _exit:
 

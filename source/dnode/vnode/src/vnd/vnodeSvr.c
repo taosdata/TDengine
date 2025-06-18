@@ -1797,6 +1797,7 @@ static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbDat
   }
   (*ppRsp)->tuid = pEntry->uid;
   (*ppRsp)->sversion = pEntry->stbEntry.schemaRow.version;
+  (*ppRsp)->vgId = pVnode->config.vgId;
   (*ppRsp)->numOfColumns = pEntry->stbEntry.schemaRow.nCols;
   (*ppRsp)->numOfTags = pEntry->stbEntry.schemaTag.nCols;
   (*ppRsp)->pSchemas =
