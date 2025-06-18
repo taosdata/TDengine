@@ -783,6 +783,7 @@ static int32_t logicDynQueryCtrlCopy(const SDynQueryCtrlLogicNode* pSrc, SDynQue
   COPY_SCALAR_FIELD(vtbScan.scanAllCols);
   COPY_SCALAR_FIELD(vtbScan.suid);
   COPY_CHAR_ARRAY_FIELD(vtbScan.dbName);
+  COPY_CHAR_ARRAY_FIELD(vtbScan.stbName);
   CLONE_OBJECT_FIELD(vtbScan.pVgroupList, vgroupsInfoClone);
   return TSDB_CODE_SUCCESS;
 }

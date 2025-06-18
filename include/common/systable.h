@@ -40,6 +40,7 @@ extern "C" {
 #define TSDB_INS_TABLE_TABLES            "ins_tables"
 #define TSDB_INS_TABLE_TAGS              "ins_tags"
 #define TSDB_INS_TABLE_COLS              "ins_columns"
+#define TSDB_INS_TABLE_VC_COLS           "ins_virtual_child_columns"
 #define TSDB_INS_TABLE_TABLE_DISTRIBUTED "ins_table_distributed"
 #define TSDB_INS_TABLE_USERS             "ins_users"
 #define TSDB_INS_TABLE_USERS_FULL        "ins_users_full"

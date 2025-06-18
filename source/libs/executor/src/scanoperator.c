@@ -2711,9 +2711,62 @@ _end:
   return code;
 }
 
+static int32_t createTagScanTableListInfoFromParam(SOperatorInfo* pOperator) {
+  STagScanInfo*            pInfo = pOperator->info;
+  SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
+  int32_t                  code = 0;
+  STableListInfo*          pListInfo = pInfo->pTableListInfo;
+  STagScanOperatorParam*   pParam = (STagScanOperatorParam*)pOperator->pOperatorGetParam->value;
+  tb_uid_t                 pUid = pParam->vcUid;
+
+
+  //qDebug("vgId:%d add total %d dynamic tables to scan, tableSeq:%d, exist num:%" PRId64 ", operator status:%d",
+  //       pTaskInfo->id.vgId, num, pParam->tableSeq, (int64_t)taosArrayGetSize(pListInfo->pTableList),
+  //       pOperator->status);
+
+  STableKeyInfo info = {.groupId = 0};
+
+  int32_t tableIdx = 0;
+  taosHashClear(pListInfo->map);
+  taosArrayClear(pListInfo->pTableList);
+
+  if (taosHashPut(pListInfo->map, &pUid, sizeof(uint64_t), &tableIdx, sizeof(int32_t))) {
+    if (TSDB_CODE_DUP_KEY == terrno) {
+    } else {
+      return terrno;
+    }
+  }
+
+  info.uid = pUid;
+  void* p = taosArrayPush(pListInfo->pTableList, &info);
+  if (p == NULL) {
+    return terrno;
+  }
+
+  qDebug("add dynamic table scan uid:%" PRIu64 ", %s", info.uid, GET_TASKID(pTaskInfo));
+
+  return code;
+}
+
+
 static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
+  int32_t       code = TSDB_CODE_SUCCESS;
+  int32_t       lino = 0;
+  STagScanInfo* pInfo = pOperator->info;
+  if (pOperator->pOperatorGetParam) {
+    pOperator->resultInfo.totalRows = 0;
+    pOperator->dynamicTask = true;
+    pInfo->curPos = 0;
+    code = createTagScanTableListInfoFromParam(pOperator);
+    freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
+    pOperator->pOperatorGetParam = NULL;
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    if (pOperator->status == OP_EXEC_DONE) {
+      pOperator->status = OP_OPENED;
+    }
+  }
+
   if (pOperator->status == OP_EXEC_DONE) {
     (*ppRes) = NULL;
     return code;
@@ -2722,7 +2775,6 @@ static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock*
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
 
-  STagScanInfo* pInfo = pOperator->info;
   SExprInfo*    pExprInfo = &pOperator->exprSupp.pExprInfo[0];
   SSDataBlock*  pRes = pInfo->pRes;
   blockDataCleanup(pRes);
@@ -2768,7 +2820,6 @@ static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock*
   pOperator->resultInfo.totalRows += pRes->info.rows;
 
   (*ppRes) = (pRes->info.rows == 0) ? NULL : pInfo->pRes;
-
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));

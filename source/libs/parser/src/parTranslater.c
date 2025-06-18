@@ -4533,8 +4533,8 @@ static int32_t dnodeToVgroupsInfo(SArray* pDnodes, SVgroupsInfo** pVgsInfo) {
 
 static bool sysTableFromVnode(const char* pTable) {
   return ((0 == strcmp(pTable, TSDB_INS_TABLE_TABLES)) || (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS)) ||
-          (0 == strcmp(pTable, TSDB_INS_TABLE_COLS)) || 0 == strcmp(pTable, TSDB_INS_DISK_USAGE) ||
-          (0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS)));
+          (0 == strcmp(pTable, TSDB_INS_TABLE_COLS)) || 0 == strcmp(pTable, TSDB_INS_TABLE_VC_COLS) ||
+          0 == strcmp(pTable, TSDB_INS_DISK_USAGE) || (0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS)));
 }
 
 static bool sysTableFromDnode(const char* pTable) { return 0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES); }
@@ -4799,7 +4799,8 @@ static bool isSingleTable(SRealTableNode* pRealTable) {
            0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TAGS) &&
            0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS) &&
            0 != strcmp(pRealTable->table.tableName, TSDB_INS_DISK_USAGE) &&
-           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_FILESETS);
+           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_FILESETS) &&
+           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_VC_COLS);
   }
   return (TSDB_CHILD_TABLE == tableType || TSDB_NORMAL_TABLE == tableType ||
           TSDB_VIRTUAL_CHILD_TABLE == tableType || TSDB_VIRTUAL_NORMAL_TABLE == tableType);
@@ -5334,10 +5335,11 @@ int32_t validateJoinConds(STranslateContext* pCxt, SJoinTableNode* pJoinTable) {
 }
 
 static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTable, SName* pName,
-                                          SVirtualTableNode* pVTable, SRealTableNode* pRTNode) {
+                                          SVirtualTableNode* pVTable) {
   SRealTableNode*    pRealTable = (SRealTableNode*)*pTable;
   STableMeta*        pMeta = pRealTable->pMeta;
   int32_t            code = TSDB_CODE_SUCCESS;
+  SRealTableNode*    pInsCols = NULL;
 
   if (!pMeta->virtualStb) {
     PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_TABLE_TYPE);
@@ -5347,22 +5349,38 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
   PAR_ERR_JRET(setVSuperTableVgroupList(pCxt, pName, pVTable));
   PAR_ERR_JRET(setVSuperTableRefScanVgroupList(pCxt, pName, pRealTable));
   PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRealTable));
+
+  bool tmpAsync = pCxt->pParseCxt->async;
+  pCxt->pParseCxt->async = false;
+  pCxt->refTable = true;
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pInsCols));
+  tstrncpy(pInsCols->table.dbName, TSDB_INFORMATION_SCHEMA_DB, sizeof(pInsCols->table.dbName));
+  tstrncpy(pInsCols->table.tableName, TSDB_INS_TABLE_VC_COLS, sizeof(pInsCols->table.tableName));
+  tstrncpy(pInsCols->table.tableAlias, TSDB_INS_TABLE_VC_COLS, sizeof(pInsCols->table.tableAlias));
+  PAR_ERR_JRET(translateTable(pCxt, (SNode**)&pInsCols, false));
+  PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pInsCols));
+  pCxt->refTable = false;
+  pCxt->pParseCxt->async = tmpAsync;
+
   *pTable = (SNode*)pVTable;
 
+  return code;
 _return:
   if (code != TSDB_CODE_SUCCESS) {
     qError("translateVirtualSuperTable failed, code:%d, errmsg:%s", code, tstrerror(code));
   }
+  nodesDestroyNode((SNode*)pInsCols);
   return code;
 }
 
 static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode** pTable, SName* pName,
-                                                SVirtualTableNode* pVTable, SRealTableNode* pRTNode) {
+                                                SVirtualTableNode* pVTable) {
   int32_t            code = TSDB_CODE_SUCCESS;
   SHashObj*          pTableNameHash = NULL;
   SRealTableNode*    pRealTable = (SRealTableNode*)*pTable;
   STableMeta*        pMeta = pRealTable->pMeta;
   int32_t            lino = 0;
+  SRealTableNode*    pRTNode = NULL;
 
   TSWAP(pVTable->pMeta, pRealTable->pMeta);
   TSWAP(pVTable->pVgroupList, pRealTable->pVgroupList);
@@ -5401,6 +5419,7 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
 _return:
   qError("translateVirtualNormalChildTable failed, lino:%d, code:%d, errmsg:%s", lino, code, tstrerror(code));
   taosHashCleanup(pTableNameHash);
+  nodesDestroyNode((SNode*)pRTNode);
   return code;
 }
 
@@ -5409,7 +5428,6 @@ static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SN
   int32_t            code = TSDB_CODE_SUCCESS;
   STableMeta*        pMeta = pRealTable->pMeta;
   SVirtualTableNode* pVTable = NULL;
-  SRealTableNode*    pRTNode = NULL;
 
   if (!isSelectStmt(pCxt->pCurrStmt)) {
     // virtual table only support select operation
@@ -5432,11 +5450,11 @@ static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SN
 
   switch(pMeta->tableType) {
     case TSDB_SUPER_TABLE:
-      PAR_ERR_JRET(translateVirtualSuperTable(pCxt, pTable, pName, pVTable, pRTNode));
+      PAR_ERR_JRET(translateVirtualSuperTable(pCxt, pTable, pName, pVTable));
       break;
     case TSDB_VIRTUAL_CHILD_TABLE:
     case TSDB_VIRTUAL_NORMAL_TABLE:
-      PAR_ERR_JRET(translateVirtualNormalChildTable(pCxt, pTable, pName, pVTable, pRTNode));
+      PAR_ERR_JRET(translateVirtualNormalChildTable(pCxt, pTable, pName, pVTable));
       break;
     default:
       PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_TABLE_TYPE);
@@ -5449,7 +5467,6 @@ static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SN
 _return:
   qError("translateVirtualTable failed, code:%d, errmsg:%s", code, tstrerror(code));
   nodesDestroyNode((SNode*)pVTable);
-  nodesDestroyNode((SNode*)pRTNode);
   return code;
 }
 
@@ -7362,7 +7379,9 @@ static int32_t translateCountWindow(STranslateContext* pCxt, SSelectStmt* pSelec
   SNode* pLogicCond = NULL;
   PAR_ERR_JRET(extractCondFromCountWindow(pCxt, (SCountWindowNode*)pSelect->pWindow, &pLogicCond));
 
-  PAR_ERR_JRET(insertCondIntoSelectStmt(pSelect, &pLogicCond));
+  if (pLogicCond) {
+    PAR_ERR_JRET(insertCondIntoSelectStmt(pSelect, &pLogicCond));
+  }
 
   PAR_ERR_JRET(translateExpr(pCxt, &pSelect->pWhere));
 

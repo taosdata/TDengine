@@ -166,6 +166,7 @@ typedef struct SExchangeOperatorBasicParam {
   bool           tableSeq;
   SArray*        uidList;
   bool           isVtbRefScan;
+  bool           isVtbTagScan;
   SOrgTbInfo*    colMap;
   STimeWindow    window;
 } SExchangeOperatorBasicParam;
