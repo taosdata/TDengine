@@ -341,7 +341,7 @@ void vnodeDestroy(int32_t vgId, const char *path, STfs *pTfs, int32_t nodeId) {
   }
 
 #ifdef USE_S3
-  if (nodeId > 0 && vgId > 0 && tsS3Enabled) {
+  if (nodeId > 0 && vgId > 0 && tsSsEnabled) {
     // we should only do this on the leader node, but it is ok to do this on all nodes
     char prefix[TSDB_FILENAME_LEN];
     snprintf(prefix, TSDB_FILENAME_LEN, "vnode%d/", vgId);

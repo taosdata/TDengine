@@ -572,7 +572,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
     return false; // file too small, no need to migrate
   }
 
-  if (mtime >= rtner->now - tsS3UploadDelaySec) {
+  if (mtime >= rtner->now - tsSsUploadDelaySec) {
     tsdbInfo("vgId:%d, fid:%d, migration skipped, data file is active writting, modified at %" PRId64, vid, pLocalFset->fid, mtime);
     return false; // still active writing, postpone migration
   }

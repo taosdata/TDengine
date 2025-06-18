@@ -3,7 +3,6 @@ add_library(stream STATIC ${STREAM_SRC})
 target_include_directories(
   stream
   PUBLIC "${TD_SOURCE_DIR}/include/libs/stream"
-  PUBLIC "${TD_SOURCE_DIR}/include/libs/tcs"
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
@@ -16,7 +15,7 @@ if(${BUILD_WITH_ROCKSDB})
   if(${BUILD_CONTRIB})
     target_link_libraries(
       stream
-      PUBLIC tdb tcs
+      PUBLIC tdb
       PRIVATE os util transport qcom executor wal index
     )
   else()
@@ -31,13 +30,13 @@ if(${BUILD_WITH_ROCKSDB})
       )
       target_link_libraries(
         stream
-        PUBLIC tdb tcs
+        PUBLIC tdb
         PRIVATE os util transport qcom executor wal index
       )
     else()
       target_link_libraries(
         stream
-        PUBLIC tdb tcs
+        PUBLIC tdb
         PRIVATE os util transport qcom executor wal index
       )
     endif()
