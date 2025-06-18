@@ -871,6 +871,7 @@ typedef struct SStreamRuntimeFuncInfo {
   bool    withExternalWindow;
   int32_t curOutIdx; // to indicate the window index for current block
   bool    extWinProjMode; // true if proj mode for external window, else agg mode
+  int32_t triggerType;
 } SStreamRuntimeFuncInfo;
 
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo);

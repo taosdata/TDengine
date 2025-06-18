@@ -487,3 +487,12 @@ end:
   terrno = code;
   return NULL;
 }
+
+void qStreamSetTaskRunning(int64_t streamId, int64_t taskId) {
+  int32_t      code = 0;
+  int32_t      lino = 0;
+  SStreamTask* pTask = NULL;
+  if (streamGetTask(streamId, taskId, &pTask) == TSDB_CODE_SUCCESS) {
+    ((SStreamReaderTask*)pTask)->task.status = STREAM_STATUS_RUNNING;
+  }
+}

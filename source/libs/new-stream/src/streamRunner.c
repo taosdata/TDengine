@@ -485,13 +485,14 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
     ST_TASK_ELOG("failed to get task exec for stream code:%s", tstrerror(code));
     return code;
   }
-
+  pTask->task.status = STREAM_STATUS_RUNNING;
   pTask->task.sessionId = pReq->sessionId;
   TSWAP(pExec->runtimeInfo.funcInfo.pStreamPartColVals, pReq->groupColVals);
   TSWAP(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, pReq->params);
   pExec->runtimeInfo.funcInfo.groupId = pReq->gid;
   pExec->runtimeInfo.pForceOutputCols = pTask->forceOutCols;
   pExec->runtimeInfo.funcInfo.sessionId = pReq->sessionId;
+  pExec->runtimeInfo.funcInfo.triggerType = pReq->triggerType;
 
   int32_t winNum = taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals);
   STREAM_CHECK_CONDITION_GOTO(winNum > STREAM_TRIGGER_MAX_WIN_NUM_PER_REQUEST, TSDB_CODE_STREAM_TASK_IVLD_STATUS);

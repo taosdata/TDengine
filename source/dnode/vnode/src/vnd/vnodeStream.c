@@ -2160,6 +2160,7 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
     void*   pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
     int32_t len = pMsg->contLen - sizeof(SMsgHead);
     STREAM_CHECK_RET_GOTO(tDserializeSTriggerPullRequest(pReq, len, &req));
+    qStreamSetTaskRunning(req.base.streamId, req.base.readerTaskId);
     switch (req.base.type) {
       case STRIGGER_PULL_SET_TABLE:
         code = vnodeProcessStreamSetTableReq(pVnode, pMsg, &req);
