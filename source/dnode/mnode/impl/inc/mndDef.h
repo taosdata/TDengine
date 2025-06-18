@@ -908,7 +908,7 @@ typedef struct {
   int32_t vgId;
   int32_t nodeId; // dnode id of the leader vnode
   bool done;
-} SVgroupS3MigrateDetail;
+} SVgroupSsMigrateDetail;
 
 typedef struct {
   int32_t id;
@@ -916,7 +916,7 @@ typedef struct {
   char    dbname[TSDB_TABLE_FNAME_LEN];
   int64_t startTime; // migration start time in seconds
   SArray* vgroups;   // SArray<SVgroupS3MigrateDetail>
-} SS3MigrateObj;
+} SSsMigrateObj;
 
 // SGrantLogObj
 typedef enum {
