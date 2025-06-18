@@ -1083,9 +1083,15 @@ static void  *taosLogRotateFunc(void *param) {
   // get prefix of logfile name
   char *filePrefix = NULL;
   char *filePos = strrchr(tsLogObj.logName, TD_DIRSEP_CHAR);
-  if (!filePos || !(++filePos)) return NULL;
+  if (!filePos || !(++filePos)) {
+    atomic_store_8(&tsLogRotateRunning, 0);
+    return NULL;
+  }
   int32_t filePrefixLen = strlen(filePos);
-  if (!(filePrefix = taosMemoryMalloc(filePrefixLen + 1))) return NULL;
+  if (!(filePrefix = taosMemoryMalloc(filePrefixLen + 1))) {
+    atomic_store_8(&tsLogRotateRunning, 0);
+    return NULL;
+  }
   tstrncpy(filePrefix, filePos, filePrefixLen + 1);
   int32_t i = filePrefixLen - 1;
   while (i > 0 && isdigit(filePrefix[i])) filePrefix[i--] = '\0';
