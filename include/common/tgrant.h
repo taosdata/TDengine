@@ -66,12 +66,14 @@ typedef enum {
   TSDB_GRANT_DUAL_REPLICA_HA,
   TSDB_GRANT_DB_ENCRYPTION,
   TSDB_GRANT_TD_GPT,
+  TSDB_GRANT_VNODE,
 } EGrantType;
 
 int32_t checkAndGetCryptKey(const char *encryptCode, const char *machineId, char **key);
 int32_t generateEncryptCode(const char *key, const char *machineId, char **encryptCode);
 int64_t grantRemain(EGrantType grant);
 int32_t grantCheck(EGrantType grant);
+int32_t grantCheckEx(EGrantType grant, void *param);
 int32_t grantCheckExpire(EGrantType grant);
 int32_t tGetMachineId(char **result);
 bool    grantCheckDualReplicaDnodes(void *pMnode);
