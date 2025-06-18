@@ -1871,7 +1871,7 @@ static int32_t strtgDoCheck(SSTriggerRealtimeGroup *pGroup) {
   }
 
   // if data caching is needed, metas will be held until send calculation request
-  if (!pTask->needCacheData) {
+  if (!pTask->needCacheData && !(pTask->needRowNumber && pTask->triggerType == STREAM_TRIGGER_SLIDING)) {
     taosArrayPopFrontBatch(pGroup->pMetas, pGroup->metaIdx);
     pGroup->metaIdx = 0;
   }
@@ -1988,6 +1988,7 @@ static int32_t strtcInit(SSTriggerRealtimeContext *pContext, SStreamTriggerTask 
   QUERY_CHECK_NULL(pContext->pGroups, code, lino, _end, terrno);
   tSimpleHashSetFreeFp(pContext->pGroups, strtgDestroy);
   TRINGBUF_INIT(&pContext->groupsToCheck);
+  TRINGBUF_INIT(&pContext->groupsMaxDelay);
 
   pContext->pMerger = taosMemoryCalloc(1, sizeof(SSTriggerWalMetaMerger));
   QUERY_CHECK_NULL(pContext->pMerger, code, lino, _end, terrno);
@@ -2037,6 +2038,7 @@ static void strtcDestroy(void *ptr) {
     pContext->pGroups = NULL;
   }
   TRINGBUF_DESTROY(&pContext->groupsToCheck);
+  TRINGBUF_DESTROY(&pContext->groupsMaxDelay);
   stwmDestroy(&pContext->pMerger);
 
   if (pContext->pStartCond) {
@@ -2200,7 +2202,7 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
     goto _end;
   }
 
-  if (pTask->needCacheData) {
+  if (pTask->needCacheData || (pTask->needRowNumber && pTask->triggerType == STREAM_TRIGGER_SLIDING)) {
     SSTriggerWalMetaMerger *pMerger = pContext->pMerger;
     SSTriggerRealtimeGroup *pGroup = pContext->pCalcGroup;
     SSTriggerCalcParam     *pFirstWin = taosArrayGet(pReq->params, 0);
@@ -2209,7 +2211,7 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
       // build session window merger
       SSTriggerWalMeta *pMetas = taosArrayGet(pGroup->pMetas, 0);
       int32_t           nMetas = taosArrayGetSize(pGroup->pMetas);
-      code = stwmSetWalMetas(pMerger, pMetas, nMetas, pTask->calcTsIndex);
+      code = stwmSetWalMetas(pMerger, pMetas, nMetas, pTask->needCacheData ? pTask->calcTsIndex : pTask->primaryTsIndex);
       QUERY_CHECK_CODE(code, lino, _end);
       code = stwmBuildDataMerger(pMerger, pFirstWin->wstart,
                                  pLastWin->wend - (pTask->triggerType == STREAM_TRIGGER_SLIDING));
@@ -2240,7 +2242,9 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
         code = stwmMetaListNextData(pMerger, pDataWinner, &pDataBlock, &startIdx, &endIdx, &needFetch, &needFree);
         QUERY_CHECK_CODE(code, lino, _end);
         if (needFetch) {
-          code = strtcSendPullReq(pContext, STRIGGER_PULL_WAL_CALC_DATA, pDataWinner->head->pMeta);
+          code =
+              strtcSendPullReq(pContext, pTask->needCacheData ? STRIGGER_PULL_WAL_CALC_DATA : STRIGGER_PULL_WAL_TS_DATA,
+                               pDataWinner->head->pMeta);
           QUERY_CHECK_CODE(code, lino, _end);
           goto _end;
         }
@@ -2268,6 +2272,7 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
             }
             nextIdx++;
           }
+          pParam->wrownum += nextIdx - idx;
           code = putStreamDataCache(pContext->pCalcDataCache, pGroup->groupId, pParam->wstart,
                                     pParam->wend - (pTask->triggerType == STREAM_TRIGGER_SLIDING), pDataBlock, idx,
                                     nextIdx - 1);
@@ -2280,8 +2285,10 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
         }
       }
     }
-    taosArrayPopFrontBatch(pGroup->pMetas, pGroup->metaIdx);
-    pGroup->metaIdx = 0;
+    if (TRINGBUF_IS_EMPTY(&pContext->groupsMaxDelay)) {
+      taosArrayPopFrontBatch(pGroup->pMetas, pGroup->metaIdx);
+      pGroup->metaIdx = 0;
+    }
     stwmClear(pMerger);
   }
 
@@ -2446,6 +2453,68 @@ static int32_t strtcResumeCheck(SSTriggerRealtimeContext *pContext) {
       TRINGBUF_DEQUEUE(&pContext->groupsToCheck);
     }
 
+    if ((pContext->curReaderIdx == taosArrayGetSize(pTask->readerList) - 1) && pTask->maxDelay > 0 &&
+        TRINGBUF_IS_EMPTY(&pContext->groupsMaxDelay)) {
+      int32_t iter = 0;
+      void   *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
+      while (px != NULL) {
+        SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
+        if (pGroup->winStatus == STRIGGER_WINDOW_OPENED && pGroup->status == STRIGGER_GROUP_WAITING_META &&
+            pGroup->curWindow.skey + pTask->maxDelay * 1000 < taosGetTimestampUs()) {
+          code = TRINGBUF_APPEND(&pContext->groupsMaxDelay, pGroup);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        px = tSimpleHashIterate(pContext->pGroups, px, &iter);
+      }
+    }
+
+    while (!TRINGBUF_IS_EMPTY(&pContext->groupsMaxDelay)) {
+      SSTriggerRealtimeGroup *pCurGroup = TRINGBUF_FIRST(&pContext->groupsMaxDelay);
+
+      if (pContext->calcStatus != STRIGGER_REQUEST_IDLE) {
+        // calc is running, wait for it to finish
+        pCurGroup->status = STRIGGER_GROUP_WAITING_CALC;
+        goto _end;
+      }
+      SSTriggerCalcRequest *pReq = &pContext->calcReq;
+      pReq->gid = pCurGroup->groupId;
+      QUERY_CHECK_CONDITION(taosArrayGetSize(pReq->params) == 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+
+      // wait until the thread can send calc request
+      code = streamTriggerAcquireCalcReq();
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      STimeWindow       *pWindow = &pCurGroup->curWindow;
+      SSTriggerCalcParam param = {
+          .currentTs = pWindow->ekey + 1,
+          .wstart = pWindow->skey,
+          .wend = pWindow->ekey,
+          .wduration = pWindow->ekey - pWindow->skey,
+          .wrownum = (pTask->triggerType == STREAM_TRIGGER_COUNT) ? pTask->windowCount : pCurGroup->nrowsInWindow,
+          .triggerTime = taosGetTimestampNs(),
+          .notifyType = STRIGGER_EVENT_WINDOW_CLOSE,
+          .extraNotifyContent = NULL,
+      };
+      if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
+        param.wend++;
+        param.wduration++;
+      }
+      pContext->calcStatus = STRIGGER_REQUEST_TO_RUN;
+      pContext->pCalcGroup = pCurGroup;
+      void *px = taosArrayPush(pReq->params, &param);
+      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+
+      if (pContext->calcStatus == STRIGGER_REQUEST_TO_RUN) {
+        code = strtcSendCalcReq(pContext);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      if (pContext->calcStatus == STRIGGER_REQUEST_TO_RUN || pCurGroup->status != STRIGGER_GROUP_WAITING_META) {
+        // waiting for trigger data, calc data or calc rsp
+        goto _end;
+      }
+      TRINGBUF_DEQUEUE(&pContext->groupsMaxDelay);
+    }
+
     if ((pContext->curReaderIdx == taosArrayGetSize(pTask->readerList) - 1) && !pContext->getWalMeta) {
       // add the task to wait list since it catches up all readers
       int64_t resumeTime = taosGetTimestampMs() + (pTask->lowLatencyCalc ? STREAM_TRIGGER_WAIT_SHORT_TIME_MS
@@ -2568,12 +2637,14 @@ static int32_t strtcProcessPullRsp(SSTriggerRealtimeContext *pContext, SSDataBlo
     }
     case STRIGGER_PULL_WAL_TS_DATA:
     case STRIGGER_PULL_WAL_TRIGGER_DATA: {
-      QUERY_CHECK_CONDITION(!TRINGBUF_IS_EMPTY(&pContext->groupsToCheck), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-      code = stwmBindDataBlock(pContext->pMerger, pResDataBlock);
-      QUERY_CHECK_CODE(code, lino, _end);
-      code = strtcResumeCheck(pContext);
-      QUERY_CHECK_CODE(code, lino, _end);
-      break;
+      if (pTask->triggerType != STREAM_TRIGGER_SLIDING) {
+        QUERY_CHECK_CONDITION(!TRINGBUF_IS_EMPTY(&pContext->groupsToCheck), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        code = stwmBindDataBlock(pContext->pMerger, pResDataBlock);
+        QUERY_CHECK_CODE(code, lino, _end);
+        code = strtcResumeCheck(pContext);
+        QUERY_CHECK_CODE(code, lino, _end);
+        break;
+      }
     }
     case STRIGGER_PULL_WAL_CALC_DATA: {
       code = stwmBindDataBlock(pContext->pMerger, pResDataBlock);
@@ -2616,6 +2687,14 @@ static int32_t strtcProcessCalcRsp(SSTriggerRealtimeContext *pContext, int32_t r
   }
 
   if (!TRINGBUF_IS_EMPTY(&pContext->groupsToCheck)) {
+    SSTriggerRealtimeGroup *pCurGroup = TRINGBUF_FIRST(&pContext->groupsToCheck);
+    if (pCurGroup->status == STRIGGER_GROUP_WAITING_CALC) {
+      code = strtcResumeCheck(pContext);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+  }
+
+  if (!TRINGBUF_IS_EMPTY(&pContext->groupsMaxDelay)) {
     SSTriggerRealtimeGroup *pCurGroup = TRINGBUF_FIRST(&pContext->groupsToCheck);
     if (pCurGroup->status == STRIGGER_GROUP_WAITING_CALC) {
       code = strtcResumeCheck(pContext);

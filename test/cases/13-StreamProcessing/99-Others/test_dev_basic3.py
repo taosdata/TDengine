@@ -116,6 +116,15 @@ class TestStreamDevBasic:
         self.streams.append(stream)
 
         stream = StreamItem(
+            id=1,
+            stream="create stream rdb.s1 interval(5m) sliding(5m) from tdb.triggers into rdb.r1 as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, cast(_tlocaltime as bigint) tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null;",
+            res_query="select ts, te, td, tg, c1, c2 from rdb.r1;",
+            exp_query="select _wstart ts, _wend te, _wduration td, 0 tg, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
+            check_func=self.check1,
+        )
+        self.streams.append(stream)
+
+        stream = StreamItem(
             id=2,
             stream="create stream rdb.s2 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r2 as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, tbname tb, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null partition by tbname",
             res_query="select ts, te, td, c1, tag_tbname from rdb.r2 where tag_tbname='t1';",
@@ -149,6 +158,30 @@ class TestStreamDevBasic:
                 ["c1", "BIGINT", 8, ""],
                 ["c2", "DOUBLE", 8, ""],
             ],
+        )
+
+    def check1(self):
+        tdSql.checkTableType(
+            dbname="rdb", tbname="r1", typename="NORMAL_TABLE", columns=8
+        )
+        tdSql.checkTableSchema(
+            dbname="rdb",
+            tbname="r1",
+            schema=[
+                ["ts", "TIMESTAMP", 8, ""],
+                ["te", "TIMESTAMP", 8, ""],
+                ["td", "BIGINT", 8, ""],
+                ["tw", "BIGINT", 8, ""],
+                ["tg", "BIGINT", 8, ""],
+                ["tl", "BIGINT", 8, ""],
+                ["c1", "BIGINT", 8, ""],
+                ["c2", "DOUBLE", 8, ""],
+            ],
+        )
+
+        tdSql.checkResultsBySql(
+            sql="select ts, tw from rdb.r1;",
+            exp_sql="select _wstart, count(*) from tdb.triggers where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:35:00' interval(5m) fill(value, 0);",
         )
 
     def check2(self):

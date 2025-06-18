@@ -109,8 +109,8 @@ class TestStreamDevBasic:
         stream = StreamItem(
             id=1,
             stream="create stream rdb.s1 interval(5m) sliding(5m) from tdb.triggers into rdb.r1 as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, cast(_tlocaltime as bigint) tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null;",
-            res_query="select ts, te, td, tw, tg, c1, c2 from rdb.r1;",
-            # exp_query="select _wstart ts, _wend te, _wduration td, count(cint) tw, 0 tg, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
+            res_query="select ts, te, td, tg, c1, c2 from rdb.r1;",
+            exp_query="select _wstart ts, _wend te, _wduration td, 0 tg, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
             check_func=self.check1,
         )
         self.streams.append(stream)
@@ -137,14 +137,8 @@ class TestStreamDevBasic:
                 ["c2", "DOUBLE", 8, ""],
             ],
         )
-        tdSql.checkResultsByFunc(
-            sql="select ts, te, td, tw, tg, c1, c2 from rdb.r1;",
-            func=lambda: tdSql.getRows() == 7
-            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")  # ts
-            and tdSql.compareData(0, 1, "2025-01-01 00:05:00.000")  # te
-            and tdSql.compareData(0, 2, 300000)  # td
-            and tdSql.getData(0, 3) != 0  # tw
-            and tdSql.compareData(0, 4, 0)  # tg
-            and tdSql.compareData(0, 5, 1000)  # c1
-            and tdSql.compareData(0, 6, 4.5),  # c2
+        
+        tdSql.checkResultsBySql(
+            sql="select ts, tw from rdb.r1;",
+            exp_sql="select _wstart, count(*) from tdb.triggers where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:35:00' interval(5m) fill(value, 0);"
         )

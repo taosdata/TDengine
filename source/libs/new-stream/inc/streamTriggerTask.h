@@ -156,6 +156,7 @@ typedef struct SSTriggerRealtimeContext {
 
   SSHashObj                 *pGroups;
   TSSTriggerRealtimeGroupBuf groupsToCheck;
+  TSSTriggerRealtimeGroupBuf groupsMaxDelay;
   SSTriggerWalMetaMerger    *pMerger;
   SFilterInfo               *pStartCond;
   SFilterInfo               *pEndCond;
