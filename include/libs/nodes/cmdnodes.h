@@ -110,10 +110,10 @@ typedef struct SDatabaseOptions {
   int32_t     sstTrigger;
   int32_t     tablePrefix;
   int32_t     tableSuffix;
-  int32_t     s3ChunkSize;
-  int32_t     s3KeepLocal;
-  SValueNode* s3KeepLocalStr;
-  int8_t      s3Compact;
+  int32_t     ssChunkSize;
+  int32_t     ssKeepLocal;
+  SValueNode* ssKeepLocalStr;
+  int8_t      ssCompact;
   int8_t      withArbitrator;
   // for auto-compact
   int32_t     compactTimeOffset;  // hours

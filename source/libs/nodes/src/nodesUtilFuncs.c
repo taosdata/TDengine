@@ -1226,7 +1226,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_DATABASE_OPTIONS: {
       SDatabaseOptions* pOptions = (SDatabaseOptions*)pNode;
       nodesDestroyNode((SNode*)pOptions->pDaysPerFile);
-      nodesDestroyNode((SNode*)pOptions->s3KeepLocalStr);
+      nodesDestroyNode((SNode*)pOptions->ssKeepLocalStr);
       nodesDestroyList(pOptions->pKeep);
       nodesDestroyList(pOptions->pRetentions);
       nodesDestroyNode((SNode*)pOptions->pCompactIntervalNode);

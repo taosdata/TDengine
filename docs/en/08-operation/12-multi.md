@@ -97,7 +97,7 @@ If the configured S3 service is inaccessible, this command will output the corre
 After configuration, you can start the TDengine cluster and create a database using S3, for example:
 
 ```sql
-create database demo_db duration 1d s3_keeplocal 3d;
+create database demo_db duration 1d ss_keeplocal 3d;
 ```
 
 After writing time-series data into the database `demo_db`, time-series data older than 3 days will automatically be segmented and stored in S3 storage.
@@ -112,9 +112,9 @@ Detailed DB parameters are shown in the table below:
 
 | #    | Parameter         | Default | Min | Max  | Description                                                         |
 | :--- | :----------- | :----- | :----- | :------ | :----------------------------------------------------------- |
-| 1    | s3_keeplocal | 365    | 1      | 365000  | The number of days data is kept locally, i.e., how long data files are retained on local disks before they can be uploaded to S3. Default unit: days, supports m (minutes), h (hours), and d (days) |
-| 2    | s3_chunkpages | 131072 | 131072 | 1048576 | The size threshold for uploading objects, same as the tsdb_pagesize parameter, unmodifiable, in TSDB pages |
-| 3    | s3_compact   | 1      | 0      | 1       | Whether to automatically perform compact operation when TSDB files are first uploaded to S3.       |
+| 1    | ss_keeplocal | 365    | 1      | 365000  | The number of days data is kept locally, i.e., how long data files are retained on local disks before they can be uploaded to S3. Default unit: days, supports m (minutes), h (hours), and d (days) |
+| 2    | ss_chunkpages | 131072 | 131072 | 1048576 | The size threshold for uploading objects, same as the tsdb_pagesize parameter, unmodifiable, in TSDB pages |
+| 3    | ss_compact   | 1      | 0      | 1       | Whether to automatically perform compact operation when TSDB files are first uploaded to S3.       |
 
 ### Estimation of Read and Write Operations for Object Storage
 
@@ -122,7 +122,7 @@ The cost of using object storage services is related to the amount of data store
 
 #### Data Upload
 
-When the TSDB time-series data exceeds the time specified by the `s3_keeplocal` parameter, the related data files will be split into multiple file blocks, each with a default size of 512 MB (`s3_chunkpages * tsdb_pagesize`). Except for the last file block, which is retained on the local file system, the rest of the file blocks are uploaded to the object storage service.
+When the TSDB time-series data exceeds the time specified by the `ss_keeplocal` parameter, the related data files will be split into multiple file blocks, each with a default size of 512 MB (`s3_chunkpages * tsdb_pagesize`). Except for the last file block, which is retained on the local file system, the rest of the file blocks are uploaded to the object storage service.
 
 ```text
 Upload Count = Data File Size / (s3_chunkpages * tsdb_pagesize) - 1

@@ -99,7 +99,7 @@ taosd --checks3
 完成配置后，即可启动 TDengine 集群，创建使用 S3 的数据库，比如：
 
 ```sql
-create database demo_db duration 1d s3_keeplocal 3d;
+create database demo_db duration 1d ss_keeplocal 3d;
 ```
 
 数据库 demo_db 中写入时序数据后，3 天之前的时序数据会自动分块存放到 S3 存储中。
@@ -114,9 +114,9 @@ s3migrate database <db_name>;
 
 | # | 参数 | 默认值 | 最小值 | 最大值 | 描述 |
 |:--|:--------------|:-------|:------ |:------- | :----------------------------------------------------------- |
-| 1 | s3_keeplocal  | 365    | 1      | 365000  | 数据在本地保留的天数，即 data 文件在本地磁盘保留多长时间后可以上传到 S3。默认单位：天，支持 m（分钟）、h（小时）和 d（天）三个单位 |
-| 2 | s3_chunkpages | 131072 | 131072 | 1048576 | 上传对象的大小阈值，与 tsdb_pagesize 参数一样，不可修改，单位为 TSDB 页 |
-| 3 | s3_compact    | 1      | 0      | 1       | TSDB 文件组首次上传 S3 时，是否自动进行 compact 操作 |
+| 1 | ss_keeplocal  | 365    | 1      | 365000  | 数据在本地保留的天数，即 data 文件在本地磁盘保留多长时间后可以上传到 S3。默认单位：天，支持 m（分钟）、h（小时）和 d（天）三个单位 |
+| 2 | ss_chunkpages | 131072 | 131072 | 1048576 | 上传对象的大小阈值，与 tsdb_pagesize 参数一样，不可修改，单位为 TSDB 页 |
+| 3 | ss_compact    | 1      | 0      | 1       | TSDB 文件组首次上传 S3 时，是否自动进行 compact 操作 |
 
 #### 对象存储读写次数估算
 
@@ -124,13 +124,13 @@ s3migrate database <db_name>;
 
 ##### 数据上传
 
-当 TSDB 时序数据超过 `s3_keeplocal` 参数指定的时间，相关的数据文件会被切分成多个文件块，每个文件块的默认大小是 512M 字节 (`s3_chunkpages * tsdb_pagesize`)。除了最后一个文件块保留在本地文件系统外，其余的文件块会被上传到对象存储服务。
+当 TSDB 时序数据超过 `ss_keeplocal` 参数指定的时间，相关的数据文件会被切分成多个文件块，每个文件块的默认大小是 512M 字节 (`ss_chunkpages * tsdb_pagesize`)。除了最后一个文件块保留在本地文件系统外，其余的文件块会被上传到对象存储服务。
 
 ```text
-上传次数 = 数据文件大小 / (s3_chunkpages * tsdb_pagesize) - 1
+上传次数 = 数据文件大小 / (ss_chunkpages * tsdb_pagesize) - 1
 ```
 
-在创建数据库时，可以通过 `s3_chunkpages` 参数调整每个文件块的大小，从而控制每个数据文件的上传次数。
+在创建数据库时，可以通过 `ss_chunkpages` 参数调整每个文件块的大小，从而控制每个数据文件的上传次数。
 
 其它类型的文件如 head, stt, sma 等，保留在本地文件系统，以加速预计算相关查询。
 

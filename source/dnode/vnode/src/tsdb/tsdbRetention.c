@@ -81,7 +81,7 @@ static int32_t tsdbDoCopyFileLC(SRTNer *rtner, const STFileObj *from, const STFi
   }
 
   SVnodeCfg *pCfg = &rtner->tsdb->pVnode->config;
-  int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
+  int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->ssChunkSize;
   int64_t    lc_size = tsdbLogicToFileSize(to->size, rtner->szPage) - chunksize * (to->lcn - 1);
 
   if (taosFSendFile(fdTo, fdFrom, 0, lc_size) < 0) {

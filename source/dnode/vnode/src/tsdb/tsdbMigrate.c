@@ -200,7 +200,7 @@ int32_t tsdbUpdateS3MigrateState(STsdb* tsdb, SVnodeS3MigrateState* pState) {
 }
 
 // migrate file related functions
-int32_t tsdbSsFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int32_t s3KeepLocal, int64_t nowSec) {
+int32_t tsdbSsFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int32_t ssKeepLocal, int64_t nowSec) {
   int32_t localFid;
   TSKEY   key;
 
@@ -214,7 +214,7 @@ int32_t tsdbSsFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int32_t s3KeepLocal,
 
   nowSec = nowSec - pKeepCfg->keepTimeOffset * tsTickPerHour[pKeepCfg->precision];
 
-  key = nowSec - s3KeepLocal * tsTickPerMin[pKeepCfg->precision];
+  key = nowSec - ssKeepLocal * tsTickPerMin[pKeepCfg->precision];
   localFid = tsdbKeyFid(key, pKeepCfg->days, pKeepCfg->precision);
 
   return fid >= localFid ? 0 : 1;
@@ -418,7 +418,7 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
   int32_t code = 0;
   int32_t vid = TD_VID(rtner->tsdb->pVnode), mid = getS3MigrateId(rtner->tsdb);
   SVnodeCfg *pCfg = &rtner->tsdb->pVnode->config;
-  int64_t szFile = 0, szChunk = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
+  int64_t szFile = 0, szChunk = (int64_t)pCfg->tsdbPageSize * pCfg->ssChunkSize;
   STFile *f = fobj->f;
   STFileOp op = {.optype = TSDB_FOP_MODIFY, .fid = f->fid, .of = *f};
 
@@ -544,7 +544,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
     return false;
   }
 
-  if (pCfg->s3Compact && flocal->f->lcn < 0) {
+  if (pCfg->ssCompact && flocal->f->lcn < 0) {
     int32_t lcn = flocal->f->lcn;
     STimeWindow win = {0};
     tsdbFidKeyRange(pLocalFset->fid, rtner->tsdb->keepCfg.days, rtner->tsdb->keepCfg.precision, &win.skey, &win.ekey);
@@ -567,7 +567,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
     return false;
   }
 
-  if (size <= (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize) {
+  if (size <= (int64_t)pCfg->tsdbPageSize * pCfg->ssChunkSize) {
     tsdbInfo("vgId:%d, fid:%d, migration skipped, data file is too small, size: %" PRId64 " bytes", vid, pLocalFset->fid, size);
     return false; // file too small, no need to migrate
   }
@@ -582,7 +582,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
     return false; // file set expired
   }
 
-  if (tsdbSsFidLevel(pLocalFset->fid, &rtner->tsdb->keepCfg, pCfg->s3KeepLocal, rtner->now) < 1) {
+  if (tsdbSsFidLevel(pLocalFset->fid, &rtner->tsdb->keepCfg, pCfg->ssKeepLocal, rtner->now) < 1) {
     tsdbInfo("vgId:%d, fid:%d, migration skipped, keep local file set", vid, pLocalFset->fid);
     return false; // keep on local storage
   }
