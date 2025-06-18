@@ -16,27 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 #include "dmNodes.h"
-#include "tglobal.h"
-
-static void collectDnodeMetricsInfo(SDnode *pDnode);
-static void collectWriteMetricsInfo(SDnode *pDnode);
-
-
-void dmSendMetricsReport() {
-  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0 || !tsEnableMetrics) {
-    return;
-  }
-  SDnode *pDnode = dmInstance();
-  if (pDnode == NULL) {
-    return;
-  }
-
-  collectDnodeMetricsInfo(pDnode);
-  collectWriteMetricsInfo(pDnode);
-
-  reportDnodeMetrics();
-  reportWriteMetrics();
-}
 
 static void collectDnodeMetricsInfo(SDnode *pDnode) {
   SRawDnodeMetrics rawMetrics = {0};
@@ -62,7 +41,22 @@ static void collectWriteMetricsInfo(SDnode *pDnode) {
     }
     dmReleaseWrapper(pWrapper);
   }
-  return;
+}
+
+void dmSendMetricsReport() {
+  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0 || !tsEnableMetrics) {
+    return;
+  }
+  SDnode *pDnode = dmInstance();
+  if (pDnode == NULL) {
+    return;
+  }
+
+  collectDnodeMetricsInfo(pDnode);
+  collectWriteMetricsInfo(pDnode);
+
+  reportDnodeMetrics();
+  reportWriteMetrics();
 }
 
 void dmCleanExpiredMetrics(SDnode *pDnode) {
@@ -73,7 +67,6 @@ void dmCleanExpiredMetrics(SDnode *pDnode) {
     }
   }
   dmReleaseWrapper(pWrapper);
-  return;
 }
 
 void dmMetricsCleanExpiredSamples() {
@@ -83,5 +76,5 @@ void dmMetricsCleanExpiredSamples() {
   dTrace("clean metrics expired samples");
 
   SDnode *pDnode = dmInstance();
-  (void)dmCleanExpiredMetrics(pDnode);
+  dmCleanExpiredMetrics(pDnode);
 }
