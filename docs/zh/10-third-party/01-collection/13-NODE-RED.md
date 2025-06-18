@@ -6,7 +6,7 @@ toc_max_heading_level: 5
 
 [Node-RED](https://nodered.org/) 是由 IBM 开发的基于 Node.js 的开源可视化编程工具，通过图形化界面组装连接各种节点，实现物联网设备、API 及在线服务的连接，同时支持多协议、跨平台，社区活跃，适用于智能家居、工业自动化等场景的事件驱动应用开发，其主要特点是低代码、可视化。
 
-TDengine 与 Node-RED 深度融合为工业 IoT 场景提供了全栈式解决方案，通过 Node-RED 的 MQTT/OPC UA/Modbus 等协议节点，实现 PLC、传感器等设备的毫秒级数据采集，同时 Node-RED 中基于 TDengine 毫秒级实时查询结果，触发继电器动作、阀门开合等物理控制，联动控制执行更及时。
+TDengine 与 Node-RED 深度融合为工业 IoT 场景提供了全栈式解决方案，通过 Node-RED 的 MQTT/OPC UA/Modbus 等协议节点，实现 PLC、传感器等设备的毫秒级数据采集，同时 Node-RED 中基于 TDengine 毫秒级实时查询结果，触发继电器动作、阀门开合等物理控制，联动控制执行更实时。
 
 node-red-node-tdengine 是涛思数据为 Node-RED 开发的官方插件，插件由两个节点组合，tdengine-operator 节点提供 SQL 语句执行能力，可实现数据写入/查询及元数据管理等功能。tdengine-consumer 节点提供数据订阅消费能力，可实现从指定订阅服务器消费指定 TOPIC 的功能。
 
@@ -46,20 +46,21 @@ node-red-node-tdengine 是涛思数据为 Node-RED 开发的官方插件，插�
 ###  tdengine-operator
 
 参考下一节“使用示例->采集数据” 章节：
-1. 配置好 tdengine-operator 节点属性。
-2. 在前增加 inject 节点，配置 msg.topic 为预期写入 SQL。
-3. 点击 inject 节点 "注入" 按钮触发执行 SQL。
-4. 使用 taos-CLI 查询预期写入数据是否存在。
+1. 配置好 tdengine-operator 数据库连接属性。
+2. 节点前增加 inject 节点，配置 msg.topic 为预期写入 SQL。
+3. 点击 inject 节点 "注入" 按钮触发 SQL 执行。
+4. 使用 taos-CLI 查询预期写入数据是否存在, 验证写入成功。
 
 ### tdengine-consumer
 
 参考下一节“使用示例->数据订阅” 章节：
-1. 配置好 tdengine-consumer 节点属性。
+1. 配置好 tdengine-consumer 节点订阅各属性。
 2. 其后增加 debug 节点。
 3. 节点属性勾选“节点状态”，下拉列表中选择“消息数量”。
 4. 使用 taos-CLI 向 TOPIC 所在表写入一条数据。
 5. 观察 debug 节点计数预期会加 1。
 6. 验证输出 payload 数据预期与写入数据一致。
+7. 全部符合预期为验证成功。
 
 ## 使用示例
 
@@ -86,7 +87,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 ```
 
 ### 数据采集
-示例使用程序产生随机数方式模拟了真实设备生产数据，通过 tdengine-operator 节点配置了连接 TDengine 数据源，把数据写入 TDengine，同时使用了 debug 节点监控了写入数据的数量及实时显示在节点界面上。
+示例使用程序生成随机数方式模拟真实设备生产数据，tdengine-operator 节点配置 TDengine 数据源连接信息，并把数据写入 TDengine，同时使用 debug 节点监控写入成功数据量并展示于界面。
 
 操作步骤如下：
 - <b>增加写入节点</b> 
