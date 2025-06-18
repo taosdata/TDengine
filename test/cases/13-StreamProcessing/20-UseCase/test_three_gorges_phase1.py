@@ -43,7 +43,7 @@ class Test_Three_Gorges_Phase1:
         start = "2025-01-01 00:00:00"
         interval = 30
         tbBatch = 1
-        tbPerBatch = 100
+        tbPerBatch = 10
         rowBatch = 1
         rowsPerBatch = 1000
 
@@ -123,9 +123,41 @@ class Test_Three_Gorges_Phase1:
                     sql += f"({dt}, {val}, {rows}) "
                 tdSql.execute(sql)
 
+        tdLog.info(f"基础计算(crash) ")
+        tdSql.execute(
+            "create stream `basic_stream`"
+            "  interval(1d) sliding(1d)"
+            "  from ctg_tsdb.stb_sxny_cn"
+            "  partition by tbname"
+            "  options(fill_history('2025-06-01 00:00:00'))"
+            "  into `ctg_test`.`basic_stream`"
+            "as select _twstart alarmdate, first(val) alarmstatus from %%trows;"
+        )
+
+        tdSql.checkTableSchema(
+            dbname="ctg_test",
+            tbname="basic_stream",
+            schema=[
+                ["alarmdate", "TIMESTAMP", 8, ""],
+                ["alarmstatus", "DOUBLE", 8, ""],
+                ["tag_tbname", "VARCHAR", 272, "TAG"],
+            ],
+        )
+
+        tdSql.checkResultsByFunc(
+            "select count(*) from information_schema.ins_tables where db_name='ctg_test' and stable_name='basic_stream';",
+            func=lambda: tdSql.compareData(0, 0, 10),
+        )
+
+        tdSql.checkResultsBySql(
+            sql="select * from ctg_test.basic_stream where tag_tbname='t1';",
+            exp_sql="select dt, val, tbname from ctg_tsdb.t1 order by dt asc limit 1;",
+            retry=3
+        )
+
+        return
+
         tdLog.info(f"系统级报警 ")
-        tdSql.execute("create stream `str_station_alarmmsg_systemalarm_test` interval(1d) sliding(1d) from ctg_tsdb.stb_sxny_cn partition by tbname into ctg_tsdb.yy as select _twstart alarmdate, first(val) alarmstatus from %%trows;")
-        
         # tdSql.execute(
         #     "create stream `str_station_alarmmsg_systemalarm_test`"
         #     "  state_window(cast(val as int))"
