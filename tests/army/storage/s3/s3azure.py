@@ -39,7 +39,7 @@ from azure import Azure
 s3EndPoint     http://192.168.1.52:9000
 s3AccessKey    'zOgllR6bSnw2Ah3mCNel:cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX'
 s3BucketName   ci-bucket
-s3UploadDelaySec 60
+ssUploadDelaySec 60
 
 for test:
 "s3AccessKey" : "fGPPyYjzytw05nw44ViA:vK1VcwxgSOykicx6hk8fL1x15uEtyDSFU3w4hTaZ"
@@ -66,10 +66,9 @@ class TDTestCase(TBase):
         's3EndPoint': 'http://192.168.1.49,http://192.168.1.49:81',
         's3AccessKey': 'FlIOwdr5HAnsMyEZ6FBwSPE5:87x1tZJll1SaK4hoiglC8zPRhDgbMeW6ufQqEt8,FlIOvHz0MePAf4KttYqfZM:Hve86EvB6KdvRPa5d1DG38jP6BSSSJC7IxYvSgEP',
         's3BucketName': f'{bucketName}',
-        's3PageCacheSize': '10240',
-        "s3UploadDelaySec": "10",
-        's3MigrateIntervalSec': '600',
-        's3MigrateEnabled': '1'
+        'ssPageCacheSize': '10240',
+        "ssUploadDelaySec": "10",
+        'ssAutoMigrateIntervalSec': '600',
     }
 
     tdLog.info(f"assign bucketName is {bucketName}\n")

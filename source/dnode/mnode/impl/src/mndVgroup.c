@@ -3398,8 +3398,7 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
   }
 
 #if defined(USE_S3)
-  extern int8_t tsS3Enabled;
-  if (tsS3Enabled) {
+  if (tsSsEnabled) {
     code = TSDB_CODE_OPS_NOT_SUPPORT;
     mError("vgId:%d, db:%s, s3 exists, split vgroup not allowed", pVgroup->vgId, pVgroup->dbName);
     goto _OVER;

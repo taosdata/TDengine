@@ -36,10 +36,9 @@ class TDTestCase(TBase):
         's3EndPoint': 'https://<account-id>.blob.core.windows.net',
         's3AccessKey': '<account-name>:<account-key>',
         's3BucketName': '<test-bucket>',
-        's3PageCacheSize': '10240',
-        "s3UploadDelaySec": "10",
-        's3MigrateIntervalSec': '600',
-        's3MigrateEnabled': '1'
+        'ssPageCacheSize': '10240',
+        "ssUploadDelaySec": "10",
+        'ssAutoMigrateIntervalSec': '600',
     }
 
     maxFileSize = (128 + 10) * 1014 * 1024 # add 10M buffer
