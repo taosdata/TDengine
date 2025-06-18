@@ -157,7 +157,8 @@ _exit:
   return code;
 }
 
-int32_t executeGeomFromTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData) {
+int32_t executeGeomFromStringFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData,
+                                  _geomFromStringFunc_t geomFromStringFn) {
   int32_t code = TSDB_CODE_FAILED;
 
   if (!IS_VAR_DATA_TYPE((pInputData)->info.type)) {
@@ -167,7 +168,7 @@ int32_t executeGeomFromTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnI
   char          *input = colDataGetData(pInputData, i);
   unsigned char *output = NULL;
 
-  TAOS_CHECK_GOTO(doGeomFromStringFunc(input, &output, doGeomFromText), NULL, _exit);
+  TAOS_CHECK_GOTO(doGeomFromStringFunc(input, &output, geomFromStringFn), NULL, _exit);
   TAOS_CHECK_GOTO(colDataSetVal(pOutputData, i, output, (output == NULL)), NULL, _exit);
 
 _exit:
@@ -176,61 +177,41 @@ _exit:
   }
 
   return code;
+}
+
+
+int32_t executeAsStringFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData,
+                            _geomAsStringFunc_t asStringFn) {
+  int32_t code = TSDB_CODE_FAILED;
+
+  unsigned char *input = colDataGetData(pInputData, i);
+  char          *output = NULL;
+
+  TAOS_CHECK_GOTO(doAsStringFunc(input, &output, asStringFn), NULL, _exit);
+  TAOS_CHECK_GOTO(colDataSetVal(pOutputData, i, output, (output == NULL)), NULL, _exit);
+
+_exit:
+  if (output) {
+    taosMemoryFree(output);
+  }
+
+  return code;
+}
+
+int32_t executeGeomFromTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData) {
+  return executeGeomFromStringFunc(pInputData, i, pOutputData, doGeomFromText);
 }
 
 int32_t executeAsTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData) {
-  int32_t code = TSDB_CODE_FAILED;
-
-  unsigned char *input = colDataGetData(pInputData, i);
-  char          *output = NULL;
-
-  TAOS_CHECK_GOTO(doAsStringFunc(input, &output, doAsText), NULL, _exit);
-  TAOS_CHECK_GOTO(colDataSetVal(pOutputData, i, output, (output == NULL)), NULL, _exit);
-
-_exit:
-  if (output) {
-    taosMemoryFree(output);
-  }
-
-  return code;
+  return executeAsStringFunc(pInputData, i, pOutputData, doAsText);
 }
 
-static int32_t executeGeomFromGeoJSONFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData) {
-  int32_t code = TSDB_CODE_FAILED;
-
-  if (!IS_VAR_DATA_TYPE((pInputData)->info.type)) {
-    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
-  }
-
-  char          *input = colDataGetData(pInputData, i);
-  unsigned char *output = NULL;
-
-  TAOS_CHECK_GOTO(doGeomFromStringFunc(input, &output, doGeomFromGeoJSON), NULL, _exit);
-  TAOS_CHECK_GOTO(colDataSetVal(pOutputData, i, output, (output == NULL)), NULL, _exit);
-
-_exit:
-  if (output) {
-    taosMemoryFree(output);
-  }
-
-  return code;
+int32_t executeGeomFromGeoJSONFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData) {
+  return executeGeomFromStringFunc(pInputData, i, pOutputData, doGeomFromGeoJSON);
 }
 
 int32_t executeAsGeoJSONFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData) {
-  int32_t code = TSDB_CODE_FAILED;
-
-  unsigned char *input = colDataGetData(pInputData, i);
-  char          *output = NULL;
-
-  TAOS_CHECK_GOTO(doAsStringFunc(input, &output, doAsGeoJSON), NULL, _exit);
-  TAOS_CHECK_GOTO(colDataSetVal(pOutputData, i, output, (output == NULL)), NULL, _exit);
-
-_exit:
-  if (output) {
-    taosMemoryFree(output);
-  }
-
-  return code;
+  return executeAsStringFunc(pInputData, i, pOutputData, doAsGeoJSON);
 }
 
 int32_t executeRelationFunc(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1,
