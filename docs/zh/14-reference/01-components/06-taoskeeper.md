@@ -26,14 +26,15 @@ taosKeeper 需要在操作系统终端执行，该工具支持三种配置方式
 命令行参数 和 环境变量说明可以参考命令 `taoskeeper --help` 的输出。下面是一个例子：
 
 ```shell
-Usage of taoskeeper v3.3.3.0:
+Usage of taoskeeper:
   -R, --RotationInterval string                      interval for refresh metrics, such as "300ms", Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h". Env "TAOS_KEEPER_ROTATION_INTERVAL" (default "15s")
   -c, --config string                                config path default /etc/taos/taoskeeper.toml
-      --drop string                                  run taoskeeper in command mode, only support old_taosd_metric_stables.
+      --drop string                                  run taoskeeper in command mode, only support old_taosd_metric_stables. 
       --environment.incgroup                         whether running in cgroup. Env "TAOS_KEEPER_ENVIRONMENT_INCGROUP"
       --fromTime string                              parameter of transfer, example: 2020-01-01T00:00:00+08:00 (default "2020-01-01T00:00:00+08:00")
       --gopoolsize int                               coroutine size. Env "TAOS_KEEPER_POOL_SIZE" (default 50000)
   -h, --help                                         Print this help message and exit
+  -H, --host string                                  http host. Env "TAOS_KEEPER_HOST"
       --instanceId int                               instance ID. Env "TAOS_KEEPER_INSTANCE_ID" (default 64)
       --log.compress                                 whether to compress old log. Env "TAOS_KEEPER_LOG_COMPRESS"
       --log.keepDays uint                            log retention days, must be a positive integer. Env "TAOS_KEEPER_LOG_KEEP_DAYS" (default 30)
@@ -58,7 +59,7 @@ Usage of taoskeeper v3.3.3.0:
       --tdengine.username string                     TDengine server's username. Env "TAOS_KEEPER_TDENGINE_USERNAME" (default "root")
       --tdengine.usessl                              TDengine server use ssl or not. Env "TAOS_KEEPER_TDENGINE_USESSL"
       --transfer string                              run taoskeeper in command mode, only support old_taosd_metric. transfer old metrics data to new tables and exit
-  -V, --version                                      Print the version and exit
+  -V, --version                                      Print the version and exit                                   Print the version and exit
 ```
 
 ### 配置文件
@@ -73,6 +74,8 @@ taosKeeper 支持用 `taoskeeper -c <keeper config file>` 命令来指定配置�
 # The ID of the currently running taoskeeper instance, default is 64.
 instanceId = 64
 
+# Listening host, supports IPv4/Ipv6, default is ""
+host = ""
 # Listening port, default is 6043.
 port = 6043
 
@@ -352,30 +355,30 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 
 ##### 相关指标及其含义
 
-| 指标名称                       | 类型    | 含义                                                                                     |
-| ------------------------------ | ------- | ---------------------------------------------------------------------------------------- |
+| 指标名称                       | 类型    | 含义                                                                                  |
+| ------------------------------ | ------- | ------------------------------------------------------------------------------------- |
 | taos_d_info_status             | gauge   | dnode 状态，标签 value 表示状态、ready 表示正常、offline 表示下线、unknown 表示未知。 |
-| taos_dnodes_info_cpu_cores     | gauge   | CPU 核心数                                                                               |
-| taos_dnodes_info_cpu_engine    | gauge   | 该 dnode 的进程所使用的 CPU 百分比（取值范围 0~100）                                     |
-| taos_dnodes_info_cpu_system    | gauge   | 该 dnode 所在节点的系统使用的 CPU 百分比（取值范围 0~100）                               |
-| taos_dnodes_info_disk_engine   | counter | 该 dnode 的进程使用的磁盘容量（单位 Byte）                                                |
-| taos_dnodes_info_disk_total    | counter | 该 dnode 所在节点的磁盘总容量（单位 Byte）                                                |
-| taos_dnodes_info_disk_used     | counter | 该 dnode 所在节点的磁盘已使用的容量（单位 Byte）                                         |
-| taos_dnodes_info_has_mnode     | counter | 是否有 mnode                                                                             |
-| taos_dnodes_info_has_qnode     | counter | 是否有 qnode                                                                             |
-| taos_dnodes_info_has_snode     | counter | 是否有 snode                                                                             |
-| taos_dnodes_info_io_read       | gauge   | 该 dnode 所在节点的 io 读取速率（单位 Byte/s）                                            |
-| taos_dnodes_info_io_read_disk  | gauge   | 该 dnode 所在节点的磁盘 io 写入速率（单位 Byte/s）                                        |
-| taos_dnodes_info_io_write      | gauge   | 该 dnode 所在节点的 io 写入速率（单位 Byte/s）                                            |
-| taos_dnodes_info_io_write_disk | gauge   | 该 dnode 所在节点的磁盘 io 写入速率（单位 Byte/s）                                        |
-| taos_dnodes_info_masters       | counter | 主节点数量                                                                               |
-| taos_dnodes_info_mem_engine    | counter | 该 dnode 的进程所使用的内存（单位 KB）                                                    |
-| taos_dnodes_info_mem_system    | counter | 该 dnode 所在节点的系统所使用的内存（单位 KB）                                           |
-| taos_dnodes_info_mem_total     | counter | 该 dnode 所在节点的总内存（单位 KB）                                                      |
-| taos_dnodes_info_net_in        | gauge   | 该 dnode 所在节点的网络传入速率（单位 Byte/s）                                            |
-| taos_dnodes_info_net_out       | gauge   | 该 dnode 所在节点的网络传出速率（单位 Byte/s）                                            |
-| taos_dnodes_info_uptime        | gauge   | 该 dnode 的启动时间 (单位 秒)                                                             |
-| taos_dnodes_info_vnodes_num    | counter | 该 dnode 所在节点的 vnode 数量                                                           |
+| taos_dnodes_info_cpu_cores     | gauge   | CPU 核心数                                                                            |
+| taos_dnodes_info_cpu_engine    | gauge   | 该 dnode 的进程所使用的 CPU 百分比（取值范围 0~100）                                  |
+| taos_dnodes_info_cpu_system    | gauge   | 该 dnode 所在节点的系统使用的 CPU 百分比（取值范围 0~100）                            |
+| taos_dnodes_info_disk_engine   | counter | 该 dnode 的进程使用的磁盘容量（单位 Byte）                                            |
+| taos_dnodes_info_disk_total    | counter | 该 dnode 所在节点的磁盘总容量（单位 Byte）                                            |
+| taos_dnodes_info_disk_used     | counter | 该 dnode 所在节点的磁盘已使用的容量（单位 Byte）                                      |
+| taos_dnodes_info_has_mnode     | counter | 是否有 mnode                                                                          |
+| taos_dnodes_info_has_qnode     | counter | 是否有 qnode                                                                          |
+| taos_dnodes_info_has_snode     | counter | 是否有 snode                                                                          |
+| taos_dnodes_info_io_read       | gauge   | 该 dnode 所在节点的 io 读取速率（单位 Byte/s）                                        |
+| taos_dnodes_info_io_read_disk  | gauge   | 该 dnode 所在节点的磁盘 io 写入速率（单位 Byte/s）                                    |
+| taos_dnodes_info_io_write      | gauge   | 该 dnode 所在节点的 io 写入速率（单位 Byte/s）                                        |
+| taos_dnodes_info_io_write_disk | gauge   | 该 dnode 所在节点的磁盘 io 写入速率（单位 Byte/s）                                    |
+| taos_dnodes_info_masters       | counter | 主节点数量                                                                            |
+| taos_dnodes_info_mem_engine    | counter | 该 dnode 的进程所使用的内存（单位 KB）                                                |
+| taos_dnodes_info_mem_system    | counter | 该 dnode 所在节点的系统所使用的内存（单位 KB）                                        |
+| taos_dnodes_info_mem_total     | counter | 该 dnode 所在节点的总内存（单位 KB）                                                  |
+| taos_dnodes_info_net_in        | gauge   | 该 dnode 所在节点的网络传入速率（单位 Byte/s）                                        |
+| taos_dnodes_info_net_out       | gauge   | 该 dnode 所在节点的网络传出速率（单位 Byte/s）                                        |
+| taos_dnodes_info_uptime        | gauge   | 该 dnode 的启动时间 (单位 秒)                                                         |
+| taos_dnodes_info_vnodes_num    | counter | 该 dnode 所在节点的 vnode 数量                                                        |
 
 #### 数据目录
 
@@ -389,11 +392,11 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 
 ##### 相关指标及其含义
 
-| 指标名称                          | 类型  | 含义                 |
-| --------------------------------- | ----- | -------------------- |
-| taos_taosd_dnodes_data_dirs_avail | gauge | 可用空间（单位 Byte）|
-| taos_taosd_dnodes_data_dirs_total | gauge | 总空间（单位 Byte）  |
-| taos_taosd_dnodes_data_dirs_used  | gauge | 已用空间（单位 Byte）|
+| 指标名称                          | 类型  | 含义                  |
+| --------------------------------- | ----- | --------------------- |
+| taos_taosd_dnodes_data_dirs_avail | gauge | 可用空间（单位 Byte） |
+| taos_taosd_dnodes_data_dirs_total | gauge | 总空间（单位 Byte）   |
+| taos_taosd_dnodes_data_dirs_used  | gauge | 已用空间（单位 Byte） |
 
 #### 日志目录
 
@@ -406,8 +409,8 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 
 ##### 相关指标及其含义
 
-| 指标名称                         | 类型  | 含义                 |
-| -------------------------------- | ----- | -------------------- |
+| 指标名称                         | 类型  | 含义                  |
+| -------------------------------- | ----- | --------------------- |
 | taos_taosd_dnodes_log_dirs_avail | gauge | 可用空间（单位 Byte） |
 | taos_taosd_dnodes_log_dirs_total | gauge | 总空间（单位 Byte）   |
 | taos_taosd_dnodes_log_dirs_used  | gauge | 已用空间（单位 Byte） |

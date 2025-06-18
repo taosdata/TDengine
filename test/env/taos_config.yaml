@@ -22,3 +22,5 @@ statusInterval: 1
 enableQueryHb: 1
 supportVnodes: "1024"
 telemetryReporting: 0
+port: 6030
+mqttPort: 6083
