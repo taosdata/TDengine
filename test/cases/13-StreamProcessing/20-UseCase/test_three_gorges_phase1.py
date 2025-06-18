@@ -141,7 +141,7 @@ class Test_Three_Gorges_Phase1:
                 ["tw", "TIMESTAMP", 8, ""],
                 ["alarmdate", "TIMESTAMP", 8, ""],
                 ["alarmstatus", "DOUBLE", 8, ""],
-                ["tag_tbname", "VARCHAR", 272, "TAG"],
+                ["tag_tbname", "VARCHAR", 270, "TAG"],
             ],
         )
 

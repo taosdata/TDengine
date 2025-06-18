@@ -44,7 +44,7 @@ class TestStreamOldCaseCheck:
         tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.execute(
-            "create stream streams0 interval(10s) sliding(10s) from st partition by tbname, ta, tb, tc options(MAX_DELAY(1s)) into result.streamt0 tags(tag_tbname varchar(272) as %%1, ta int as %%2, tb int as %%3, tc int as %%4) as select _twstart, count(*) c1, max(a) c2 from %%tbname;"
+            "create stream streams0 interval(10s) sliding(10s) from st partition by tbname, ta, tb, tc options(MAX_DELAY(1s)) into result.streamt0 tags(tag_tbname varchar(270) as %%1, ta int as %%2, tb int as %%3, tc int as %%4) as select _twstart, count(*) c1, max(a) c2 from %%tbname;"
         )
         tdStream.checkStreamStatus()
 
