@@ -2226,11 +2226,11 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetSsMigrateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t s3MigrateTs) {
+static int32_t mndSetSsMigrateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t ssMigrateTs) {
   int32_t code = 0;
   SDbObj  dbObj = {0};
   memcpy(&dbObj, pDb, sizeof(SDbObj));
-  dbObj.s3MigrateStartTime = s3MigrateTs;
+  dbObj.ssMigrateStartTime = ssMigrateTs;
 
   SSdbRaw *pCommitRaw = mndDbActionEncode(&dbObj);
   if (pCommitRaw == NULL) {
@@ -2282,9 +2282,9 @@ static int32_t mndSetSsMigrateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbO
   TAOS_RETURN(code);
 }
 
-static int32_t mndBuildSsMigrateDbRsp(SSsMigrateDbRsp *pS3MigrateRsp, int32_t *pRspLen, void **ppRsp, bool useRpcMalloc) {
+static int32_t mndBuildSsMigrateDbRsp(SSsMigrateDbRsp *pSsMigrateRsp, int32_t *pRspLen, void **ppRsp, bool useRpcMalloc) {
   int32_t code = 0;
-  int32_t rspLen = tSerializeSSsMigrateDbRsp(NULL, 0, pS3MigrateRsp);
+  int32_t rspLen = tSerializeSSsMigrateDbRsp(NULL, 0, pSsMigrateRsp);
   void   *pRsp = NULL;
   if (useRpcMalloc) {
     pRsp = rpcMallocCont(rspLen);
@@ -2297,7 +2297,7 @@ static int32_t mndBuildSsMigrateDbRsp(SSsMigrateDbRsp *pS3MigrateRsp, int32_t *p
     TAOS_RETURN(code);
   }
 
-  (void)tSerializeSSsMigrateDbRsp(pRsp, rspLen, pS3MigrateRsp);
+  (void)tSerializeSSsMigrateDbRsp(pRsp, rspLen, pSsMigrateRsp);
   *pRspLen = rspLen;
   *ppRsp = pRsp;
   TAOS_RETURN(code);
@@ -2336,7 +2336,7 @@ int32_t mndSsMigrateDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
     return TSDB_CODE_MND_SSMIGRATE_ALREADY_EXIST;
   }
 
-  int64_t s3MigrateTs = taosGetTimestampMs();
+  int64_t ssMigrateTs = taosGetTimestampMs();
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "ssmigrate-db");
   if (pTrans == NULL) {
     mError("failed to create ssmigrate-db trans since %s", terrstr());
@@ -2347,8 +2347,8 @@ int32_t mndSsMigrateDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   mndTransSetDbName(pTrans, pDb->name, NULL);
   TAOS_CHECK_GOTO(mndTrancCheckConflict(pMnode, pTrans), NULL, _OVER);
 
-  TAOS_CHECK_GOTO(mndSetSsMigrateDbCommitLogs(pMnode, pTrans, pDb, s3MigrateTs), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetSsMigrateDbRedoActions(pMnode, pTrans, pDb, s3MigrateTs, &ssMigrateRsp), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetSsMigrateDbCommitLogs(pMnode, pTrans, pDb, ssMigrateTs), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetSsMigrateDbRedoActions(pMnode, pTrans, pDb, ssMigrateTs, &ssMigrateRsp), NULL, _OVER);
 
   if (pReq) {
     int32_t rspLen = 0;

@@ -105,7 +105,7 @@ After writing time-series data into the database `demo_db`, time-series data old
 By default, mnode issues S3 data migration check commands every hour. If there is time-series data that needs to be uploaded, it will automatically be segmented and stored in S3 storage. You can also manually trigger this operation using SQL commands, initiated by the user, with the following syntax:
 
 ```sql
-s3migrate database <db_name>;
+ssmigrate database <db_name>;
 ```
 
 Detailed DB parameters are shown in the table below:
