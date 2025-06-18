@@ -131,13 +131,14 @@ class Test_Three_Gorges_Phase1:
             "  partition by tbname"
             "  options(fill_history('2025-06-01 00:00:00'))"
             "  into `ctg_test`.`basic_stream`"
-            "as select _twstart alarmdate, first(val) alarmstatus from %%trows;"
+            "as select _twstart tw, first(dt) alarmdate, first(val) alarmstatus from %%trows;"
         )
 
         tdSql.checkTableSchema(
             dbname="ctg_test",
             tbname="basic_stream",
             schema=[
+                ["tw", "TIMESTAMP", 8, ""],
                 ["alarmdate", "TIMESTAMP", 8, ""],
                 ["alarmstatus", "DOUBLE", 8, ""],
                 ["tag_tbname", "VARCHAR", 272, "TAG"],
@@ -151,7 +152,7 @@ class Test_Three_Gorges_Phase1:
 
         tdSql.checkResultsBySql(
             sql="select * from ctg_test.basic_stream where tag_tbname='t1';",
-            exp_sql="select dt, val, tbname from ctg_tsdb.t1 order by dt asc limit 1;",
+            exp_sql="select dt, dt, val, tbname from ctg_tsdb.t1 order by dt asc limit 1;",
             retry=3
         )
 
