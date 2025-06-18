@@ -717,7 +717,7 @@ static int32_t edit_fs(STFileSystem *fs, const TFileOpArray *opArray, EFEditT et
         fset->lastCommit = now;
       } else if (etype == TSDB_FEDIT_COMPACT) {
         fset->lastCompact = now;
-      } else if (etype == TSDB_FEDIT_S3MIGRATE) {
+      } else if (etype == TSDB_FEDIT_SSMIGRATE) {
         fset->lastMigrate = now;
       }
     }
