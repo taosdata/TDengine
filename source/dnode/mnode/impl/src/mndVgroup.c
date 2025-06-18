@@ -294,9 +294,9 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.daysToKeep1 = pDb->cfg.daysToKeep1;
   createReq.daysToKeep2 = pDb->cfg.daysToKeep2;
   createReq.keepTimeOffset = pDb->cfg.keepTimeOffset;
-  createReq.s3ChunkSize = pDb->cfg.s3ChunkSize;
-  createReq.s3KeepLocal = pDb->cfg.s3KeepLocal;
-  createReq.s3Compact = pDb->cfg.s3Compact;
+  createReq.ssChunkSize = pDb->cfg.ssChunkSize;
+  createReq.ssKeepLocal = pDb->cfg.ssKeepLocal;
+  createReq.ssCompact = pDb->cfg.ssCompact;
   createReq.minRows = pDb->cfg.minRows;
   createReq.maxRows = pDb->cfg.maxRows;
   createReq.walFsyncPeriod = pDb->cfg.walFsyncPeriod;
@@ -428,8 +428,8 @@ static void *mndBuildAlterVnodeConfigReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pV
   alterReq.minRows = pDb->cfg.minRows;
   alterReq.walRetentionPeriod = pDb->cfg.walRetentionPeriod;
   alterReq.walRetentionSize = pDb->cfg.walRetentionSize;
-  alterReq.s3KeepLocal = pDb->cfg.s3KeepLocal;
-  alterReq.s3Compact = pDb->cfg.s3Compact;
+  alterReq.ssKeepLocal = pDb->cfg.ssKeepLocal;
+  alterReq.ssCompact = pDb->cfg.ssCompact;
 
   mInfo("vgId:%d, build alter vnode config req", pVgroup->vgId);
   int32_t contLen = tSerializeSAlterVnodeConfigReq(NULL, 0, &alterReq);

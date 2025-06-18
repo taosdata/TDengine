@@ -1449,7 +1449,7 @@ static FORCE_INLINE int32_t tsdbGetFsSizeImpl(STsdb *tsdb, SDbSizeStatisInfo *pI
   const STFileObj *fObj = NULL;
 
   SVnodeCfg *pCfg = &tsdb->pVnode->config;
-  int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
+  int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->ssChunkSize;
 
   TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
     for (int32_t t = TSDB_FTYPE_MIN; t < TSDB_FTYPE_MAX; ++t) {

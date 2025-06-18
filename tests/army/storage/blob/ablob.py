@@ -146,15 +146,15 @@ class TDTestCase(TBase):
         # keyword
         kw1 = kw2 = kw3 = "" 
         if keepLocal is not None:
-            kw1 = f"s3_keeplocal {keepLocal}"
+            kw1 = f"ss_keeplocal {keepLocal}"
         if chunkSize is not None:
-            kw2 = f"s3_chunkpages {chunkSize}"
+            kw2 = f"ss_chunkpages {chunkSize}"
         if compact is not None:
-            kw3 = f"s3_compact {compact}"    
+            kw3 = f"ss_compact {compact}"    
 
         sql = f" create database db1 vgroups 1 duration 1h {kw1} {kw2} {kw3}"
         tdSql.execute(sql, show=True)
-        #sql = f"select name,s3_keeplocal,s3_chunkpages,s3_compact from information_schema.ins_databases where name='db1';"
+        #sql = f"select name,ss_keeplocal,ss_chunkpages,ss_compact from information_schema.ins_databases where name='db1';"
         sql = f"select * from information_schema.ins_databases where name='db1';"
         tdSql.query(sql)
         # 29 30 31 -> chunksize keeplocal compact
@@ -171,7 +171,7 @@ class TDTestCase(TBase):
     def checkDefault(self, keepLocal, chunkSize, compact):
         sql = f" create database db1 vgroups 1"
         tdSql.execute(sql, show=True)
-        #sql = f"select name,s3_keeplocal,s3_chunkpages,s3_compact from information_schema.ins_databases where name='db1';"
+        #sql = f"select name,ss_keeplocal,ss_chunkpages,ss_compact from information_schema.ins_databases where name='db1';"
         sql = f"select * from information_schema.ins_databases where name='db1';"
         tdSql.query(sql)
         # 29 30 31 -> chunksize keeplocal compact
@@ -188,15 +188,15 @@ class TDTestCase(TBase):
     def checkExcept(self):
         # errors
         sqls = [
-            f"create database db2 s3_keeplocal -1",
-            f"create database db2 s3_keeplocal 0",
-            f"create database db2 s3_keeplocal 365001",
-            f"create database db2 s3_chunkpages -1",
-            f"create database db2 s3_chunkpages 0",
-            f"create database db2 s3_chunkpages 900000000",
-            f"create database db2 s3_compact -1",
-            f"create database db2 s3_compact 100",
-            f"create database db2 duration 1d s3_keeplocal 1d"
+            f"create database db2 ss_keeplocal -1",
+            f"create database db2 ss_keeplocal 0",
+            f"create database db2 ss_keeplocal 365001",
+            f"create database db2 ss_chunkpages -1",
+            f"create database db2 ss_chunkpages 0",
+            f"create database db2 ss_chunkpages 900000000",
+            f"create database db2 ss_compact -1",
+            f"create database db2 ss_compact 100",
+            f"create database db2 duration 1d ss_keeplocal 1d"
         ]
         tdSql.errors(sqls)
 

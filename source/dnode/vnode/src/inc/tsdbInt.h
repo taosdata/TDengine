@@ -29,7 +29,7 @@ typedef struct {
 
 
 int32_t tsdbDoSsMigrate(SRTNer *rtner);
-int32_t tsdbSsFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int32_t s3KeepLocal, int64_t nowSec);
+int32_t tsdbSsFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int32_t ssKeepLocal, int64_t nowSec);
 
 
 #ifdef __cplusplus

@@ -129,23 +129,23 @@ class TDTestCase(TBase):
         tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkData(2, 23, '1000')
 
-    def check_alter_s3_keeplocal(self):
-        tdLog.info(f"check alter s3_keeplocal")
-        tdSql.execute("ALTER DATABASE test s3_keeplocal 2880m")
+    def check_alter_ss_keeplocal(self):
+        tdLog.info(f"check alter ss_keeplocal")
+        tdSql.execute("ALTER DATABASE test ss_keeplocal 2880m")
         tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkData(2, 30, '2880m')
 
-    def check_alter_s3_compact(self):
-        tdLog.info(f"check alter s3_compact")
-        tdSql.execute("ALTER DATABASE test s3_compact 1")
+    def check_alter_ss_compact(self):
+        tdLog.info(f"check alter ss_compact")
+        tdSql.execute("ALTER DATABASE test ss_compact 1")
         tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkData(2, 31, '1')
         
-        tdSql.execute("ALTER DATABASE test s3_compact 0")
+        tdSql.execute("ALTER DATABASE test ss_compact 0")
         tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkData(2, 31, '0')
         
-        tdSql.error("ALTER DATABASE test s3_compact 2",expectErrInfo="Invalid option")
+        tdSql.error("ALTER DATABASE test ss_compact 2",expectErrInfo="Invalid option")
 
     def check_alter_keep_time_offset(self):
         tdLog.info(f"check alter keep_time_offset")
@@ -228,11 +228,11 @@ class TDTestCase(TBase):
         # check alter wal_retention_size
         self.check_alter_wal_retention_size()
         
-        # check alter s3_keeplocal
-        self.check_alter_s3_keeplocal()
+        # check alter ss_keeplocal
+        self.check_alter_ss_keeplocal()
         
-        # check alter s3_compact
-        self.check_alter_s3_compact()
+        # check alter ss_compact
+        self.check_alter_ss_compact()
         
         # check alter keep_time_offset
         self.check_alter_keep_time_offset()
