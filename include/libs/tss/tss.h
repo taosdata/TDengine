@@ -23,15 +23,6 @@
 extern "C" {
 #endif
 
-// TODO: rename these variables?
-extern int8_t tsS3Enabled;
-extern int8_t tsS3EnabledCfg;
-extern int32_t tsS3UploadDelaySec;
-extern int32_t tsS3BlockSize;
-extern int32_t tsS3BlockCacheSize;
-extern int32_t tsS3PageCacheSize;
-extern int8_t tsS3StreamEnabled;
-
 
 // forward declaration of SSharedStorage & SSharedStorageType
 struct SSharedStorage;

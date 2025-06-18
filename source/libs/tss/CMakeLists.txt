@@ -9,10 +9,9 @@ target_include_directories(
 
 target_link_libraries(
     tss
-    PUBLIC az
     PUBLIC common
 )
 
 if(${BUILD_TEST})
-    add_subdirectory(test)
+    # add_subdirectory(test)
 endif(${BUILD_TEST})

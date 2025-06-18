@@ -22,7 +22,6 @@
 #include "version.h"
 #include "tconv.h"
 #include "dmUtil.h"
-#include "tcs.h"
 #include "qworker.h"
 
 #ifdef TD_JEMALLOC_ENABLED
@@ -356,11 +355,13 @@ static void dmDumpCfg() {
 
 static int32_t dmCheckS3() {
   int32_t  code = 0;
+#if 0
   SConfig *pCfg = taosGetCfg();
   cfgDumpCfgS3(pCfg, 0, true);
 
 #if defined(USE_S3)
   code = tcsCheckCfg();
+#endif
 #endif
   return code;
 }

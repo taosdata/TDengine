@@ -26,13 +26,13 @@
 extern "C" {
 #endif
 
-extern int8_t tsS3Enabled;
+extern int8_t tsSsEnabled;
 extern int8_t tsS3EnabledCfg;
 
-extern int32_t tsS3UploadDelaySec;
-extern int32_t tsS3BlockSize;
-extern int32_t tsS3BlockCacheSize;
-extern int32_t tsS3PageCacheSize;
+extern int32_t tsSsUploadDelaySec;
+extern int32_t tsSsBlockSize;
+extern int32_t tsSsBlockCacheSize;
+extern int32_t tsSsPageCacheSize;
 
 extern int8_t tsS3StreamEnabled;
 

@@ -32,8 +32,8 @@ static int32_t tsdbOpenBCache(STsdb *pTsdb) {
   int32_t code = 0, lino = 0;
 #ifdef USE_S3
   int32_t    szPage = pTsdb->pVnode->config.tsdbPageSize;
-  int64_t    szBlock = tsS3BlockSize <= 1024 ? 1024 : tsS3BlockSize;
-  SLRUCache *pCache = taosLRUCacheInit((int64_t)tsS3BlockCacheSize * szBlock * szPage, 0, .5);
+  int64_t    szBlock = tsSsBlockSize <= 1024 ? 1024 : tsSsBlockSize;
+  SLRUCache *pCache = taosLRUCacheInit((int64_t)tsSsBlockCacheSize * szBlock * szPage, 0, .5);
   if (pCache == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err);
   }
@@ -75,7 +75,7 @@ static int32_t tsdbOpenPgCache(STsdb *pTsdb) {
 #ifdef USE_S3
   int32_t szPage = pTsdb->pVnode->config.tsdbPageSize;
 
-  SLRUCache *pCache = taosLRUCacheInit((int64_t)tsS3PageCacheSize * szPage, 0, .5);
+  SLRUCache *pCache = taosLRUCacheInit((int64_t)tsSsPageCacheSize * szPage, 0, .5);
   if (pCache == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err);
   }
@@ -4155,7 +4155,7 @@ static void getBCacheKey(int32_t fid, int64_t commitID, int64_t blkno, char *key
 static int32_t tsdbCacheLoadBlockS3(STsdbFD *pFD, uint8_t **ppBlock) {
   int32_t code = 0;
 
-  int64_t block_size = tsS3BlockSize * pFD->szPage;
+  int64_t block_size = tsSsBlockSize * pFD->szPage;
   int64_t block_offset = (pFD->blkno - 1) * block_size;
   
   char* buf = taosMemoryMalloc(block_size);
@@ -4210,7 +4210,7 @@ int32_t tsdbCacheGetBlockS3(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle)
         TAOS_RETURN(code);
       }
 
-      size_t              charge = tsS3BlockSize * pFD->szPage;
+      size_t              charge = tsSsBlockSize * pFD->szPage;
       _taos_lru_deleter_t deleter = deleteBCache;
       LRUStatus           status =
           taosLRUCacheInsert(pCache, key, keyLen, pBlock, charge, deleter, NULL, &h, TAOS_LRU_PRIORITY_LOW, NULL);

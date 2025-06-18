@@ -73,7 +73,7 @@ int32_t cosInitEnv() {
 
   tstrncpy(tsTempDir, "/tmp/", PATH_MAX);
 
-  tsS3Enabled = true;
+  tsSsEnabled = true;
 
   return code;
 }
