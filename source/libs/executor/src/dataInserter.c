@@ -144,8 +144,8 @@ static int32_t saveCreateGrpTableInfo(SStreamDataInserterInfo* pInserterInfo, co
   if (code) {
     return code;
   }
-  code = taosHashPut(gStreamGrpTableHash, pInserterInfo->tbName, strlen(pInserterInfo->tbName), &res,
-                     sizeof(SInsertTableRes));
+  int64_t key[2] = {pInserterInfo->streamId, pInserterInfo->groupId};
+  code = taosHashPut(gStreamGrpTableHash, key, sizeof(key), &res, sizeof(SInsertTableRes));
   if (code) {
     return code;
   }
@@ -259,9 +259,8 @@ static int32_t checkAndSaveCreateGrpTableInfo(SDataInserterHandle* pInserthandle
     stError("checkAndSaveCreateGrpTableInfo failed, tbType:%d is not supported", tbType);
     return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
   }
-
-  code = taosHashPut(gStreamGrpTableHash, pInserterInfo->tbName, strlen(pInserterInfo->tbName), &res,
-                     sizeof(SInsertTableRes));
+  int64_t key[2] = {pInserterInfo->streamId, pInserterInfo->groupId};
+  code = taosHashPut(gStreamGrpTableHash, key, sizeof(key), &res, sizeof(SInsertTableRes));
   if (code) {
     return code;
   }
@@ -1043,7 +1042,8 @@ int32_t dataBlocksToSubmitReq(SDataInserterHandle* pInserter, void** pMsg, int32
 }
 
 static int32_t getStreamTableId(SStreamDataInserterInfo* pInserterInfo, SInsertTableRes* pTbInfo) {
-  SInsertTableRes* pTbRes = taosHashGet(gStreamGrpTableHash, pInserterInfo->tbName, strlen(pInserterInfo->tbName));
+  int64_t          key[2] = {pInserterInfo->streamId, pInserterInfo->groupId};
+  SInsertTableRes* pTbRes = taosHashGet(gStreamGrpTableHash, key, sizeof(key));
   if (NULL == pTbRes) {
     return TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND;
   }
@@ -1538,10 +1538,10 @@ int32_t streamDataBlocksToSubmitReq(SDataInserterHandle* pInserter, SStreamDataI
     if (NULL == pDataBlock) {
       return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
-    stDebug("streamDataBlocksToSubmitReq, insertHandle:%p, groupID:%" PRId64
-            " tbname:%s autoCreateTable:%d pDataBlock->info.rows:%" PRId64,
-            pInserter, pInserterInfo->groupId, pInserterInfo->tbName, pInserterInfo->isAutoCreateTable,
-            pDataBlock->info.rows);
+    stDebug("[data inserter], Handle:%p, STREAM:0x%" PRIxMAX " GROUP:%" PRId64
+            " tbname:%s autoCreate:%d block: %d/%d rows:%" PRId64,
+            pInserter, pInserterInfo->streamId, pInserterInfo->groupId, pInserterInfo->tbName,
+            pInserterInfo->isAutoCreateTable, i + 1, sz, pDataBlock->info.rows);
     code = buildStreamSubmitReqFromBlock(pInserter, pInserterInfo, &pReq, pDataBlock, &vgId);
     if (code) {
       if (pReq) {

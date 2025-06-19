@@ -39,9 +39,8 @@ static SRWLatch gStreamTriggerWaitLatch;
 static SList    gStreamTriggerWaitList;
 static tmr_h    gStreamTriggerTimerId = NULL;
 
-#define STREAM_TRIGGER_CHECK_INTERVAL_MS  1000   // 1s
-#define STREAM_TRIGGER_WAIT_SHORT_TIME_MS 1000   // 1s
-#define STREAM_TRIGGER_WAIT_LONG_TIME_MS  10000  // 10s
+#define STREAM_TRIGGER_CHECK_INTERVAL_MS 1000  // 1s
+#define STREAM_TRIGGER_WAIT_TIME_MS      1000  // 1s
 
 typedef struct StreamTriggerWaitInfo {
   SStreamTriggerTask *pTask;
@@ -1102,7 +1101,7 @@ static int32_t strtgAddNewMeta(SSTriggerRealtimeGroup *pGroup) {
           } else {
             pMeta->nrows = *(int64_t *)colDataGetNumData(pNrowsCol, i);
           }
-          pStat->threshold = TMAX(pStat->threshold, ekey - pTask->watermark);
+          pStat->threshold = TMAX(pStat->threshold, ekey);
           pStat->numHoldMetas++;
         }
       }
@@ -1468,6 +1467,13 @@ static int32_t strtgDoCheck(SSTriggerRealtimeGroup *pGroup) {
           }
           ts = pGroup->curWindow.ekey;
         }
+      }
+      void *px = tSimpleHashGet(pTask->pHistoryCutoffTime, &pGroup->groupId, sizeof(int64_t));
+      if (px != NULL && pGroup->newThreshold == *(int64_t *)px && pGroup->winStatus == STRIGGER_WINDOW_OPENED) {
+        pGroup->newThreshold = ts;
+        code = strtgCloseCurrentWindow(pGroup, NULL);
+        QUERY_CHECK_CODE(code, lino, _end);
+        ts = pGroup->curWindow.ekey + 1;
       }
       endtime = TMIN(pGroup->newThreshold, ts);
       break;
@@ -1914,10 +1920,7 @@ static int32_t strtgResumeCheck(SSTriggerRealtimeGroup *pGroup) {
       // don't break, continue to the next case
     }
     case STRIGGER_GROUP_WAITING_CALC: {
-      int32_t numToCheck = taosArraySearchIdx(pGroup->pMetas, &pGroup->newThreshold, strtgSearchMeta, TD_GT);
-      if (numToCheck < 0) {
-        numToCheck = taosArrayGetSize(pGroup->pMetas);
-      }
+      int32_t numToCheck = taosArrayGetSize(pGroup->pMetas);
       numToCheck -= pGroup->metaIdx;
       // todo(kjq):  check if the timeout expired
       if (numToCheck < pGroup->minMetaThreshold) {
@@ -2519,8 +2522,7 @@ static int32_t strtcResumeCheck(SSTriggerRealtimeContext *pContext) {
 
     if ((pContext->curReaderIdx == taosArrayGetSize(pTask->readerList) - 1) && !pContext->getWalMeta) {
       // add the task to wait list since it catches up all readers
-      int64_t resumeTime = taosGetTimestampMs() + (pTask->lowLatencyCalc ? STREAM_TRIGGER_WAIT_SHORT_TIME_MS
-                                                                         : STREAM_TRIGGER_WAIT_LONG_TIME_MS);
+      int64_t resumeTime = taosGetTimestampMs() + STREAM_TRIGGER_WAIT_TIME_MS;
       code = streamTriggerAddWaitTask(pTask, resumeTime);
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
@@ -2697,7 +2699,7 @@ static int32_t strtcProcessCalcRsp(SSTriggerRealtimeContext *pContext, int32_t r
   }
 
   if (!TRINGBUF_IS_EMPTY(&pContext->groupsMaxDelay)) {
-    SSTriggerRealtimeGroup *pCurGroup = TRINGBUF_FIRST(&pContext->groupsToCheck);
+    SSTriggerRealtimeGroup *pCurGroup = TRINGBUF_FIRST(&pContext->groupsMaxDelay);
     if (pCurGroup->status == STRIGGER_GROUP_WAITING_CALC) {
       code = strtcResumeCheck(pContext);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -2705,6 +2707,53 @@ static int32_t strtcProcessCalcRsp(SSTriggerRealtimeContext *pContext, int32_t r
   }
 
 _end:
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t strtcGenCheckpoint(SSTriggerRealtimeContext *pContext, uint8_t *buf, int64_t *pLen) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask *pTask = pContext->pTask;
+  SEncoder            encoder = {0};
+  int32_t             iter = 0;
+  tEncoderInit(&encoder, buf, *pLen);
+
+  code = tEncodeI32(&encoder, tSimpleHashGetSize(pContext->pReaderWalProgress));
+  QUERY_CHECK_CODE(code, lino, _end);
+  iter = 0;
+  SSTriggerWalProgress *pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, NULL, &iter);
+  while (pProgress != NULL) {
+    code = tEncodeI32(&encoder, pProgress->pTaskAddr->nodeId);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = tEncodeI64(&encoder, pProgress->latestVer);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = tEncodeI64(&encoder, pProgress->lastScanVer);
+    QUERY_CHECK_CODE(code, lino, _end);
+    pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, pProgress, &iter);
+  }
+
+  code = tEncodeI32(&encoder, tSimpleHashGetSize(pContext->pGroups));
+  QUERY_CHECK_CODE(code, lino, _end);
+  iter = 0;
+  SSTriggerRealtimeGroup *pGroup = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
+  while (pGroup != NULL) {
+    code = tEncodeI64(&encoder, pGroup->groupId);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = tEncodeI64(&encoder, pGroup->curWindow.skey);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = tEncodeI64(&encoder, pGroup->curWindow.ekey);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  tEndEncode(&encoder);
+
+  *pLen = encoder.pos;
+
+_end:
+  tEncoderClear(&encoder);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -3122,7 +3171,33 @@ int32_t stTriggerTaskUndeploy(SStreamTriggerTask **ppTask, const SStreamUndeploy
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = *ppTask;
 
-  // todo(kjq): do checkpoint/cleanup according to pMsg
+  // if (pMsg->doCheckpoint && pTask->pRealtimeCtx) {
+  //   uint8_t *buf = NULL;
+  //   int64_t  len = 0;
+  //   code = strtcGenCheckpoint(pTask->pRealtimeCtx, buf, &len);
+  //   QUERY_CHECK_CODE(code, lino, _end);
+  //   buf = taosMemoryMalloc(len);
+  //   code = strtcGenCheckpoint(pTask->pRealtimeCtx, buf, &len);
+  //   QUERY_CHECK_CODE(code, lino, _end);
+  //   code = streamWriteCheckPoint(pTask->task.streamId, buf, len);
+  //   QUERY_CHECK_CODE(code, lino, _end);
+  //   int32_t leaderSid = (*ppTask)->leaderSnodeId;
+  //   SEpSet *epSet = gStreamMgmt.getSynEpset(leaderSid);
+  //   if (epSet != NULL) {
+  //     code = streamSyncWriteCheckpoint((*ppTask)->task.streamId, epSet, buf, len);
+  //     QUERY_CHECK_CODE(code, lino, _end);
+  //   }
+  //   taosMemoryFree(buf);
+  // }
+  // if (pMsg->doCleanup) {
+  //   streamDeleteCheckPoint((*ppTask)->task.streamId);
+  //   int32_t leaderSid = (*ppTask)->leaderSnodeId;
+  //   SEpSet *epSet = gStreamMgmt.getSynEpset(leaderSid);
+  //   if (epSet != NULL) {
+  //     code = streamSyncDeleteCheckpoint((*ppTask)->task.streamId, epSet);
+  //     QUERY_CHECK_CODE(code, lino, _end);
+  //   }
+  // }
 
   taosWLockLatch(&gStreamTriggerWaitLatch);
   SListNode *pNode = TD_DLIST_HEAD(&gStreamTriggerWaitList);
@@ -3177,29 +3252,6 @@ int32_t stTriggerTaskUndeploy(SStreamTriggerTask **ppTask, const SStreamUndeploy
   if ((*ppTask)->pCalcExecCount != NULL) {
     taosMemFreeClear((*ppTask)->pCalcExecCount);
   }
-
-  // todo
-  // remove checkpoint if drop stream
-  // if (delete checkpoint){
-  // streamDeleteCheckPoint((*ppTask)->task.streamId);
-  // int32_t leaderSid = (*ppTask)->leaderSnodeId;
-  //   SEpSet* epSet = gStreamMgmt.getSynEpset(leaderSid);
-  //   if (epSet != NULL){
-  //     code = streamSyncDeleteCheckpoint((*ppTask)->task.streamId, epSet);
-  //   }
-  // } else {    // write checkpoint
-  // checkpoint format: ver(int32)+streamId(int64)+data
-  // void *data = NULL;
-  // int64_t dataLen = 0;
-  // code = streamWriteCheckPoint((*ppTask)->task.streamId, data, dataLen);
-  // if (code == 0){
-  //   int32_t leaderSid = (*ppTask)->leaderSnodeId;
-  //   SEpSet* epSet = gStreamMgmt.getSynEpset(leaderSid);
-  //   if (epSet != NULL){
-  //     code = streamSyncWriteCheckpoint((*ppTask)->task.streamId, epSet, data, dataLen);
-  //   }
-  // }
-  // }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {

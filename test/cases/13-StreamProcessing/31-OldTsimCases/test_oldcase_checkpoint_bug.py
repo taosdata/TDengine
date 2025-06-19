@@ -32,27 +32,26 @@ class TestStreamOldCaseCheckPoint:
 
         tdStream.createSnode()
 
-        tdLog.info(f"checkpointInterval0")
+        tdLog.info(f"checkpointInterval1")
         tdStream.dropAllStreamsAndDbs()
 
         tdLog.info(f"step 1")
-
-        tdLog.info(f"=============== create database")
-        tdSql.execute(f"create database test vgroups 1;")
+        tdSql.execute(f"create database test vgroups 4;")
         tdSql.execute(f"use test;")
 
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams0 interval(10s) sliding(10s) from t1 options(max_delay(1s)) into streamt as select _twstart, count(*) c1, sum(a) from t1 where ts >= _twstart and ts < _twend;"
+            f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
         )
+        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
         tdSql.execute(
-            f"create stream streams1 interval(10s) sliding(10s) from t1 into streamt1 as select _twstart, count(*) c1, sum(a) from t1 where ts >= _twstart and ts < _twend;"
+            f"create stream streams0 interval(10s) sliding(10s) from st options(max_delay(1s)) into streamt as select _twstart, count(*) c1, sum(a) from st where ts >= _twstart and ts < _twend;"
         )
-
         tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213000, 1, 2, 3, 1.0);")
-        tdSql.execute(f"insert into t1 values(1648791213001, 2, 2, 3, 1.1);")
+        tdSql.execute(f"insert into t2 values(1648791213001, 2, 2, 3, 1.1);")
+
         tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 1
@@ -61,13 +60,22 @@ class TestStreamOldCaseCheckPoint:
             and tdSql.compareData(0, 2, 3),
         )
 
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
+        tdStream.checkStreamStatus()
 
         tdSql.execute(f"insert into t1 values(1648791213002, 3, 2, 3, 1.1);")
+        tdSql.execute(f"insert into t2 values(1648791223003, 4, 2, 3, 1.1);")
+
         tdSql.checkResultsByFunc(
             f"select * from streamt;",
-            lambda: tdSql.getRows() == 1
+            lambda: tdSql.getRows() == 2
             and tdSql.compareData(0, 0, "2022-04-01 13:33:30.000")
             and tdSql.compareData(0, 1, 3)
-            and tdSql.compareData(0, 2, 6),
+            and tdSql.compareData(0, 2, 6)
+            and tdSql.compareData(1, 0, "2022-04-01 13:33:40.000")
+            and tdSql.compareData(1, 1, 1)
+            and tdSql.compareData(1, 2, 4),
+            retry=60,
         )
-        

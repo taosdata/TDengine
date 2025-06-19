@@ -107,11 +107,11 @@ class TestStreamDevBasic:
         self.streams = []
 
         stream = StreamItem(
-            id=1,
-            stream="create stream rdb.s1 interval(5m) sliding(5m) from tdb.triggers into rdb.r1 as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, cast(_tlocaltime as bigint) tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null;",
-            res_query="select ts, te, td, tg, c1, c2 from rdb.r1;",
-            exp_query="select _wstart ts, _wend te, _wduration td, 0 tg, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
-            check_func=self.check1,
+            id=3,
+            stream="create stream rdb.s3 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r3 as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null;",
+            res_query="select ts, c1, c2 from rdb.r1",
+            exp_query="select _wstart ts, count(cint) c1, avg(cint) c2 from qdb.meters interval(5m)",
+            check_func=self.check3,
         )
         self.streams.append(stream)
 
@@ -119,26 +119,39 @@ class TestStreamDevBasic:
         for stream in self.streams:
             stream.createStream()
 
-    def check1(self):
+    def check3(self):
         tdSql.checkTableType(
-            dbname="rdb", tbname="r1", typename="NORMAL_TABLE", columns=8
+            dbname="rdb",
+            stbname="r2",
+            columns=9,
+            tags=1,
         )
         tdSql.checkTableSchema(
             dbname="rdb",
-            tbname="r1",
+            tbname="r2",
             schema=[
                 ["ts", "TIMESTAMP", 8, ""],
                 ["te", "TIMESTAMP", 8, ""],
                 ["td", "BIGINT", 8, ""],
                 ["tw", "BIGINT", 8, ""],
                 ["tg", "BIGINT", 8, ""],
-                ["tl", "BIGINT", 8, ""],
+                ["tl", "TIMESTAMP", 8, ""],
+                ["tb", "VARCHAR", 270, ""],
                 ["c1", "BIGINT", 8, ""],
                 ["c2", "DOUBLE", 8, ""],
+                ["tag_tbname", "VARCHAR", 270, "TAG"],
             ],
         )
-        
-        tdSql.checkResultsBySql(
-            sql="select ts, tw from rdb.r1;",
-            exp_sql="select _wstart, count(*) from tdb.triggers where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:35:00' interval(5m) fill(value, 0);"
+        tdSql.checkResultsByFunc(
+            sql="select * from information_schema.ins_tags where db_name='rdb' and stable_name='r2' and tag_name='tag_tbname' and (tag_value='t1' or tag_value='t2');",
+            func=lambda: tdSql.getRows() == 2,
+        )
+        tdSql.checkResultsByFunc(
+            sql="select ts, te, td, c1, tag_tbname from rdb.r2 where tag_tbname='t2'",
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "2025-01-01 00:10:00.000")
+            and tdSql.compareData(0, 1, "2025-01-01 00:15:00.000")
+            and tdSql.compareData(0, 2, 300000)
+            and tdSql.compareData(0, 3, 10)
+            and tdSql.compareData(0, 4, "t2"),
         )

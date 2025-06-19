@@ -856,6 +856,21 @@ class TDSql:
             None
         """
         return self.queryRows
+    
+    def getCols(self):
+        """
+        Retrieves the number of cols fetched by the last query.
+
+        Args:
+            None
+
+        Returns:
+            int: The number of cols fetched by the last query.
+
+        Raises:
+            None
+        """
+        return self.queryCols
 
     # get first value
     def getFirstValue(self, sql):
@@ -2021,6 +2036,20 @@ class TDSql:
     def __check_equal(self, elm, expect_elm):
         if elm == expect_elm:
             return True
+
+        if isinstance(elm, datetime.datetime) and isinstance(expect_elm, str):
+            try:
+                parsed = datetime.datetime.fromisoformat(expect_elm)
+                return elm == parsed
+            except ValueError:
+                return False
+        if isinstance(expect_elm, datetime.datetime) and isinstance(elm, str):
+            try:
+                parsed = datetime.datetime.fromisoformat(elm)
+                return expect_elm == parsed
+            except ValueError:
+                return False
+        
         if type(elm) in (list, tuple) and type(expect_elm) in (list, tuple):
             if len(elm) != len(expect_elm):
                 return False

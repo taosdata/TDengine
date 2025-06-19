@@ -89,6 +89,7 @@ class StreamTable:
         self.tags = self.default_tags
         
         self.custom_generators = {}  # name -> function(row, ts) -> str
+        self.created = False
         
     def setInterval(self, interval):
         """
@@ -132,6 +133,7 @@ class StreamTable:
         elif self.tableType == StreamTableType.TYPE_NORMAL_TABLE:
             tdLog.info(f"create normal table {self.db}.{self.tbName}")
             self.__createNormalTable()
+        self.created = True
     
     def appendSubTables(self, startTbIndex, endTbIndex):
         """
@@ -161,6 +163,9 @@ class StreamTable:
         :param start_row: int, 起始行索引
         :param end_row: int, 结束行索引
         """
+        if(self.created != True):
+            self.createTable()
+            
         full_table_name = f"{self.db}.{tbName}"
         
         if self.tableType == StreamTableType.TYPE_SUP_TABLE or self.tableType == StreamTableType.TYPE_SUB_TABLE:
@@ -173,6 +178,10 @@ class StreamTable:
         :param start_row: int, 起始行索引
         :param end_row: int, 结束行索引
         """
+        
+        if(self.created != True):
+            self.createTable()
+        
         full_table_name = f"{self.db}.{self.tbName}"
         
         if self.tableType == StreamTableType.TYPE_SUP_TABLE or self.tableType == StreamTableType.TYPE_SUB_TABLE:
@@ -265,7 +274,7 @@ class StreamTable:
         # 解析时间
         dt = datetime.strptime(self.start, "%Y-%m-%d %H.%M.%S")
         ts_start = int(dt.timestamp() * prec)
-        ts_interval = self.interval * prec
+        ts_interval = (int)(self.interval * prec)
 
         # 解析列名和类型
         columns = self._parse_columns(self.columns)
@@ -912,6 +921,8 @@ class StreamItem:
         exp_query="",
         exp_rows=[],
         check_func=None,
+        expect_query_by_row = "",
+        result_param_mapping  = {}
     ):
         self.id = id
         self.stream = stream
@@ -919,6 +930,9 @@ class StreamItem:
         self.exp_query = exp_query
         self.exp_rows = exp_rows
         self.check_func = check_func
+        
+        self.expect_query_by_row = expect_query_by_row
+        self.result_param_mapping = result_param_mapping
 
     def createStream(self):
         tdLog.info(self.stream)
@@ -994,3 +1008,34 @@ class StreamItem:
                 return
 
         tdLog.exit(f"Stream:s{self.id} status not become Running in {waitSeconds} seconds")
+        
+    def set_result_param_mapping(self, mapping: dict):
+        """
+        设置参数名与列索引的映射，例如 {"_wstart": 0, "_wend": 1}
+        """
+        if not isinstance(mapping, dict):
+            raise ValueError("参数映射必须是字典类型")
+        self.result_param_mapping = mapping
+
+    def checkResultsByRow(self):
+        if self.expect_query_by_row == "":
+            return
+        tdSql.query(self.res_query)
+
+        rowNum = tdSql.getRows()
+        colNum = tdSql.getCols()
+        cols = [tdSql.getColData(i) for i in range(colNum)]
+        
+        for i in range(0, rowNum):
+            params = {
+                param_name: cols[col_index][i]
+                for param_name, col_index in self.result_param_mapping.items()
+                if col_index < colNum
+            }
+            sql = self.expect_query_by_row.format(**params)
+            tdLog.info(f"after fomat, sql: {sql}")
+            
+            tdSql.query(sql)
+            for colIndex in range (0, colNum):
+                print(f"type(elm): {type(cols[colIndex][i])}, type(expect_elm): {type(tdSql.getData(0, colIndex))}")
+                tdSql.checkEqual(cols[colIndex][i], tdSql.getData(0, colIndex))
