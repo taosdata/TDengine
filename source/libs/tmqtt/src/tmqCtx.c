@@ -20,10 +20,10 @@
 #include "cJSON.h"
 #include "decimal.h"
 #include "geometry/geosWrapper.h"
-#include "ttqMemory.h"
 #include "tmqttBrokerInt.h"
 #include "tmqttProto.h"
 #include "ttlist.h"
+#include "ttqMemory.h"
 
 bool tmq_ctx_auth(struct tmq_ctx* context, const char* username, const char* password) {
   const char* host = "localhost";
@@ -246,8 +246,6 @@ bool tmq_ctx_topic_exists(struct tmq_ctx* context, const char* topic_name, const
   char        port_str[16] = {0};
   tmq_list_t* topic_list = NULL;
 
-  
-
   snprintf(consumer_client_id, sizeof(consumer_client_id), "_cid-%s-%d", cid, global.dnode_id);
   // snprintf(group_id, sizeof(group_id), "_xnd-gid-%d", global.dnode_id);
   snprintf(group_id, sizeof(group_id), "_xnd-gid-%s", sn ? sn : consumer_client_id);
@@ -308,8 +306,6 @@ bool tmq_ctx_unsub_topic(struct tmq_ctx* context, const char* topic_name, const 
   char        consumer_client_id[64] = {0};
   char        port_str[16] = {0};
   tmq_list_t* topic_list = NULL;
-
-  
 
   snprintf(consumer_client_id, sizeof(consumer_client_id), "_cid-%s-%d", cid, global.dnode_id);
   // snprintf(group_id, sizeof(group_id), "_xnd-gid-%d", global.dnode_id);
@@ -443,8 +439,12 @@ static int ttq_broker_publish(const char* clientid, const char* topic, int paylo
   return TTQ_ERR_SUCCESS;
 }
 
-static cJSON* tmq_ctx_do_topic(const char* topic_name, cJSON** ajson) {
+static cJSON* tmq_ctx_do_topic(const char* topic_name, const char* db_name, const char* tbl_name, int32_t vid,
+                               cJSON** ajson) {
   const char* json_topic_name_key = "topic";
+  const char* json_db_name_key = "db";
+  const char* json_tbl_name_key = "tbl";
+  const char* json_vid_name_key = "vid";
   const char* json_rows_key = "rows";
 
   cJSON* json = cJSON_CreateObject();
@@ -454,6 +454,28 @@ static cJSON* tmq_ctx_do_topic(const char* topic_name, cJSON** ajson) {
   }
 
   if (NULL == cJSON_AddStringToObject(json, json_topic_name_key, topic_name)) {
+    xndError("json msg: out of memory.");
+    cJSON_Delete(json);
+    return NULL;
+  }
+
+  if (db_name) {
+    if (NULL == cJSON_AddStringToObject(json, json_db_name_key, db_name)) {
+      xndError("json msg: out of memory.");
+      cJSON_Delete(json);
+      return NULL;
+    }
+  }
+
+  if (tbl_name) {
+    if (NULL == cJSON_AddStringToObject(json, json_tbl_name_key, tbl_name)) {
+      xndError("json msg: out of memory.");
+      cJSON_Delete(json);
+      return NULL;
+    }
+  }
+
+  if (NULL == cJSON_AddNumberToObject(json, json_vid_name_key, vid)) {
     xndError("json msg: out of memory.");
     cJSON_Delete(json);
     return NULL;
@@ -662,10 +684,11 @@ static void tmq_ctx_do_msg(struct tmqtt* ctxt, TAOS_RES* msg) {
   const char*     topic_name = tmq_get_topic_name(msg);
   struct tmq_ctx* context = &ctxt->tmq_context;
   cJSON*          ajson = NULL;
-  // const char*  dbName = tmq_get_db_name(msg);
-  // int32_t      vgroupId = tmq_get_vgroup_id(msg);
+  const char*     db_name = tmq_get_db_name(msg);
+  const char*     tb_name = tmq_get_table_name(msg);
+  int32_t         vgroup_id = tmq_get_vgroup_id(msg);
 
-  cJSON* json = tmq_ctx_do_topic(topic_name, &ajson);
+  cJSON* json = tmq_ctx_do_topic(topic_name, db_name, tb_name, vgroup_id, &ajson);
   if (!json) {
     xndError("json msg: out of memory.");
     return;
@@ -737,6 +760,37 @@ static void tmq_ctx_do_msg(struct tmqtt* ctxt, TAOS_RES* msg) {
   }
 }
 
+static void tmq_ctx_do_msg_meta(struct tmqtt* ctxt, TAOS_RES* msg) {
+  int             rc;
+  const char*     topic_name = tmq_get_topic_name(msg);
+  struct tmq_ctx* context = &ctxt->tmq_context;
+
+  char* data = tmq_get_json_meta(msg);
+  if (!data) {
+    xndError("json msg: out of memory.");
+    return;
+  }
+
+  tmqtt_property* props = NULL;
+
+  rc = tmq_ctx_do_props(&props);
+  if (rc != TTQ_ERR_SUCCESS) {
+    xndError("json msg/add properties: out of memory.");
+    tmq_free_json_meta(data);
+    return;
+  }
+
+  const bool retain = false;
+  const int  qos = 1;
+  int        data_len = strlen(data);
+
+  rc = ttq_broker_publish(context->cid, topic_name, data_len, data, qos, retain, props);
+  if (rc != TTQ_ERR_SUCCESS) {
+    xndError("json msg/add property: out of memory.");
+    tmq_free_json_meta(data);
+  }
+}
+
 static void tmq_ctx_poll_single(struct tmqtt* ctxt) {
   int32_t         timeout = 1000;  // poll timeout
   struct tmq_ctx* context = &ctxt->tmq_context;
@@ -745,7 +799,14 @@ static void tmq_ctx_poll_single(struct tmqtt* ctxt) {
   TAOS_RES* tmqmsg = tmq_consumer_poll(context->tmq, timeout);
   if (tmqmsg) {
     // data processing this msg
-    tmq_ctx_do_msg(ctxt, tmqmsg);
+    tmq_res_t msg_type = tmq_get_res_type(tmqmsg);
+    if (TMQ_RES_DATA == msg_type) {
+      tmq_ctx_do_msg(ctxt, tmqmsg);
+    } else if (TMQ_RES_TABLE_META == msg_type || TMQ_RES_METADATA == msg_type) {
+      tmq_ctx_do_msg_meta(ctxt, tmqmsg);
+    } else {
+      // ignore rawdata
+    }
 
     // free the message
     taos_free_result(tmqmsg);
