@@ -371,7 +371,7 @@ static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, uin
       } else if (nRead < toRead) {
         TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
       }
-    } else {
+    } else if (tsSsEnabled) {
       int64_t toRead = TMIN(szChunk - offset % szChunk, size - n);
       nRead = toRead;
 
@@ -383,6 +383,8 @@ static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, uin
       if (nRead < toRead) {
         TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
       }
+    } else {
+      TSDB_CHECK_CODE(code = TSDB_CODE_OPS_NOT_SUPPORT, lino, _exit);
     }
   }
 
