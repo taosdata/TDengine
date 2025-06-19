@@ -391,7 +391,7 @@ static void uvPerfLog_receive(SSvrConn* pConn, STransMsgHead* pHead, STransMsg* 
   STraceId* trace = &pHead->traceId;
 
   int64_t        cost = taosGetTimestampUs() - taosNtoh64(pHead->timestamp);
-  static int64_t EXCEPTION_LIMIT_US = 100 * 1000;
+  static int64_t EXCEPTION_LIMIT_US = 1000 * 1000;
 
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
     if (cost >= EXCEPTION_LIMIT_US) {

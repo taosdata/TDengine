@@ -2793,7 +2793,7 @@ bool cliMayRetry(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
     noDelay = cliResetEpset(pCtx, pResp, true);
     transFreeMsg(pResp->pCont);
   } else if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY) {
-    noDelay = 1;
+    noDelay = 0;
     transFreeMsg(pResp->pCont);
   } else {
     tTrace("code str %s, contlen:%d 0", tstrerror(code), pResp->contLen);
