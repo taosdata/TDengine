@@ -1006,7 +1006,10 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
       return terrno;
     }
     if (pInserter->isStbInserter) {
-      SArray* pMsgs = taosArrayInit(4, sizeof(SSubmitTbDataMsg));
+      SArray* pMsgs = taosArrayInit(4, sizeof(POINTER_BYTES));
+      if (NULL == pMsgs) {
+        return terrno;
+      }
       int32_t code = dataBlocksToSubmitReqArray(pInserter, pMsgs);
       if (code) {
         taosArrayDestroyP(pMsgs, destroySSubmitTbDataMsg);
