@@ -2315,8 +2315,8 @@ static int32_t strtcSendCalcReq(SSTriggerRealtimeContext *pContext) {
   pMsgHead->vgId = htonl(SNODE_HANDLE);
   for (int32_t i = 0; i < TARRAY_SIZE(pReq->params); ++i) {
     SSTriggerCalcParam *pParam = taosArrayGet(pReq->params, i);
-    ST_TASK_ILOG("[calc param %d]: wstart=%" PRId64 ", wend=%" PRId64 ", nrows=%" PRId64, i, pParam->wstart,
-                 pParam->wend, pParam->wrownum);
+    ST_TASK_ILOG("[calc param %d]: gid=%" PRId64 ", wstart=%" PRId64 ", wend=%" PRId64 ", nrows=%" PRId64, i, pReq->gid,
+                 pParam->wstart, pParam->wend, pParam->wrownum);
   }
   int32_t tlen = tSerializeSTriggerCalcRequest(msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pReq);
   QUERY_CHECK_CONDITION(tlen == msg.contLen - sizeof(SMsgHead), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
