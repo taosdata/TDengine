@@ -605,6 +605,9 @@ function install_adapter_config() {
     # 替换 log path
     ${csudo}sed -i -r "s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" ${file_name}
     
+    # 替换 cfg path 把 taosConfigDir = "" 替换成taosConfigDir = ""
+    sed -i -r "s|#*\s*(taosConfigDir\s*=\s*).*|\1\"${configDir}\"|" ${file_name}
+
     if [ -f "${configDir}/${adapterName}.toml" ]; then
       ${csudo}cp ${file_name} ${configDir}/${adapterName}.toml.new
     else
