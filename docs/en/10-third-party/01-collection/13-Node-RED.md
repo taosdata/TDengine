@@ -4,7 +4,7 @@ title: Integration with Node-RED
 toc_max_heading_level: 5
 ---
 
-[Node-RED](https://nodered.org/) is an open-source visual programming tool developed by IBM based on Node.js. It enables users to assemble and connect various nodes via a graphical interface to create IoT device, API, and online service connections. Supporting multi-protocol and cross-platform capabilities, it has an active community and is ideal for event-driven application development in smart home, industrial automation and other scenarios, with its main strengths being low-code and visual programming.
+[Node-RED](https://nodered.org/) is an open-source visual programming tool developed by IBM based on Node.js. It enables users to assemble and connect various nodes via a graphical interface to create connections for IoT devices, APIs, and online services. Supporting multi-protocol and cross-platform capabilities, it has an active community and is ideal for event-driven application development in smart home, industrial automation and other scenarios, with its main strengths being low-code and visual programming.
 
 The deep integration between TDengine and Node-RED provides a comprehensive solution for industrial IoT scenarios. Through Node-RED's MQTT/OPC UA/Modbus protocol nodes, data from PLCs, sensors and other devices can be collected at millisecond-level speed. Real-time queries of TDengine can trigger physical control actions like relay operations and valve switching for immediate command execution.
 
@@ -94,8 +94,8 @@ Steps:
   1. Select the tdengine-operator node in the node palette and drag it to the canvas.
   2. Double-click the node to open property settings, fill in the name as 'td-writer', and click the "+" icon to the right of the database field.
   3. In the pop-up window:
-     - Name: 'td124'
-     - Connection type: "Connection string"
+     - Name: 'td124'.
+     - Connection type: "Connection string".
      - Input: 
      ```sql
      ws://root:taosdata@www.example.com:6041 
@@ -105,7 +105,7 @@ Steps:
 - **Simulate Device Data**
   1. Select the ‘function’ node from the palette and drag it before 'td-writer' on the canvas.
   2. Double-click the node:
-     - Name: 'write d0'
+     - Name: 'write d0'.
      - Select “Function” tab and enter:
      ```javascript
       // Generate random values
@@ -118,23 +118,23 @@ Steps:
       
       return msg;
      ```
-  3. Drag an "inject" node before 'write d0'
+  3. Drag an "inject" node before 'write d0'.
   4. Configure the inject node:
-     - Name: “inject1”
-     - Trigger: "Repeat"
-     - Interval: 1 second
-  5. Repeat steps 1-4 for other devices (d1, d2)
+     - Name: “inject1”.
+     - Trigger: "Repeat".
+     - Interval: 1 second.
+  5. Repeat steps 1-4 for other devices (d1, d2).
 
 - **Add Output Monitor**
-  1. Drag a ‘debug’ node after 'td-writer'
+  1. Drag a ‘debug’ node after 'td-writer'.
   2. Configure it:
-     - Name: 'debug1'
-     - Node status: checked
+     - Name: 'debug1'.
+     - Node status: checked.
      - Selected "Message count" in drop-down list.
 
 After adding all nodes, connect them in sequence to form a pipeline. Click "Deploy" to publish changes. When running successfully:
-- 'td-writer' turns green
-- 'debug1' shows data count
+- 'td-writer' turns green.
+- 'debug1' shows data count.
 
 ![td-writer](img/td-writer.webp)
 
@@ -157,7 +157,7 @@ The inject node triggers the query request every minute, and the results are sen
 
 Steps:  
 1. Drag an inject node to the canvas: 
-   - Name: 'query'  
+   - Name: 'query'.
    - Set msg.topic to:  
    
    ``` sql
@@ -167,20 +167,20 @@ Steps:
    group by tbname;
    ``` 
 2. Drag tdengine-operator node to canvas:
-   - Database: Select existing 'td124' connection
-   - Save and return
+   - Database: Select existing 'td124' connection.
+   - Save and return.
 
 3. Drag debug node to canvas and configure it:
-     - Name: 'debug2'
-     - Node status: checked
+     - Name: 'debug2'.
+     - Node status: checked.
      - Selected "Message count" in drop-down list.
 
 
-4. Connect nodes sequentially → Click "Deploy"  
+4. Connect nodes sequentially → Click "Deploy".  
 
 When the flow is successfully started:
-- 'td-reader' node turns green
-- Debug node shows result count  
+- 'td-reader' node turns green.
+- Debug node shows result count.  
 ![td-reader](img/td-reader.webp)  
 
 Output from 'td-reader' (exceptions thrown on failure):  
@@ -227,24 +227,24 @@ Steps:
    ``` 
 
 2. Drag tdengine-consumer node to canvas:
-   - Name: td-consumer
-   - Subscription Server: `ws://www.example.com:6041`
-   - Username: root
-   - Password: taosdata
-   - Topics: topic_overload
-   - Initial Offset: latest
-   - Other settings: default
+   - Name: td-consumer.
+   - Subscription Server: `ws://www.example.com:6041`.
+   - Username: root.
+   - Password: taosdata.
+   - Topics: topic_overload.
+   - Initial Offset: latest.
+   - Other settings: default.
    
 3. Drag debug node to canvas and configure it:
-     - Name: 'debug3'
-     - Node status: checked
+     - Name: 'debug3'.
+     - Node status: checked.
      - Selected "Message count" in drop-down list.
    
-4. Connect nodes sequentially → Click "Deploy"
+4. Connect nodes sequentially → Click "Deploy".
 
 When operational:
-- 'td-consumer' node turns green
-- Debug node shows consumption count
+- 'td-consumer' node turns green.
+- Debug node shows consumption count.
 ![td-consumer](img/td-consumer.webp)
 
 Alert output from 'td-consumer':
@@ -271,19 +271,19 @@ Alert output from 'td-consumer':
 
 ### Error Handling
 Errors in data collection, querying, and subscription workflows are handled through exception throwing mechanisms. Implement error monitoring:
-1. Drag "catch" node to canvas  
+1. Drag "catch" node to canvas.  
 2. Configure node:  
-   - Name: 'catch all except'  
-   - Scope: "All nodes"  
+   - Name: 'catch all except'.
+   - Scope: "All nodes".
 3. Drag debug node to canvas and configure it:
-     - Name: 'debug4'
-     - Node status: checked
+     - Name: 'debug4'.
+     - Node status: checked.
      - Selected "Message count" in drop-down list.  
-4. Connect nodes and deploy  
+4. Connect nodes and deploy. 
 
 When errors occur:  
-- Debug node shows error count  
-- View details in Node-RED logs  
+- Debug node shows error count.
+- View details in Node-RED logs.  
 ![td-catch](img/td-catch.webp)  
 
 ### Runtime View
