@@ -39,9 +39,8 @@ static SRWLatch gStreamTriggerWaitLatch;
 static SList    gStreamTriggerWaitList;
 static tmr_h    gStreamTriggerTimerId = NULL;
 
-#define STREAM_TRIGGER_CHECK_INTERVAL_MS  1000   // 1s
-#define STREAM_TRIGGER_WAIT_SHORT_TIME_MS 1000   // 1s
-#define STREAM_TRIGGER_WAIT_LONG_TIME_MS  10000  // 10s
+#define STREAM_TRIGGER_CHECK_INTERVAL_MS 1000  // 1s
+#define STREAM_TRIGGER_WAIT_TIME_MS      1000  // 1s
 
 typedef struct StreamTriggerWaitInfo {
   SStreamTriggerTask *pTask;
@@ -1469,6 +1468,13 @@ static int32_t strtgDoCheck(SSTriggerRealtimeGroup *pGroup) {
           ts = pGroup->curWindow.ekey;
         }
       }
+      void *px = tSimpleHashGet(pTask->pHistoryCutoffTime, &pGroup->groupId, sizeof(int64_t));
+      if (px != NULL && pGroup->newThreshold == *(int64_t *)px && pGroup->winStatus == STRIGGER_WINDOW_OPENED) {
+        pGroup->newThreshold = ts;
+        code = strtgCloseCurrentWindow(pGroup, NULL);
+        QUERY_CHECK_CODE(code, lino, _end);
+        ts = pGroup->curWindow.ekey + 1;
+      }
       endtime = TMIN(pGroup->newThreshold, ts);
       break;
     }
@@ -2516,8 +2522,7 @@ static int32_t strtcResumeCheck(SSTriggerRealtimeContext *pContext) {
 
     if ((pContext->curReaderIdx == taosArrayGetSize(pTask->readerList) - 1) && !pContext->getWalMeta) {
       // add the task to wait list since it catches up all readers
-      int64_t resumeTime = taosGetTimestampMs() + (pTask->lowLatencyCalc ? STREAM_TRIGGER_WAIT_SHORT_TIME_MS
-                                                                         : STREAM_TRIGGER_WAIT_LONG_TIME_MS);
+      int64_t resumeTime = taosGetTimestampMs() + STREAM_TRIGGER_WAIT_TIME_MS;
       code = streamTriggerAddWaitTask(pTask, resumeTime);
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
@@ -2694,7 +2699,7 @@ static int32_t strtcProcessCalcRsp(SSTriggerRealtimeContext *pContext, int32_t r
   }
 
   if (!TRINGBUF_IS_EMPTY(&pContext->groupsMaxDelay)) {
-    SSTriggerRealtimeGroup *pCurGroup = TRINGBUF_FIRST(&pContext->groupsToCheck);
+    SSTriggerRealtimeGroup *pCurGroup = TRINGBUF_FIRST(&pContext->groupsMaxDelay);
     if (pCurGroup->status == STRIGGER_GROUP_WAITING_CALC) {
       code = strtcResumeCheck(pContext);
       QUERY_CHECK_CODE(code, lino, _end);
