@@ -79,9 +79,9 @@ node-red-node-tdengine 是涛思数据为 Node-RED 开发的官方插件，由�
 - 过载报警使用 tdengine-consumer 订阅功能。
 
 假设:
-- TDengine 服务器： 192.168.2.124
-- WEBSOCKET 端口：  6041
-- 用户名/密码：      默认
+- TDengine 服务器： 192.168.2.124。
+- WEBSOCKET 端口：  6041。
+- 用户名/密码：      默认。
 - 模拟设备：         三台（d0，d1，d2）。
 
 ### 数据建模
