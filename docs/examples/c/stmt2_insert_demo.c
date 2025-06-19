@@ -113,7 +113,7 @@ void prepareBindData(char ***table_name, TAOS_STMT2_BIND ***tags, TAOS_STMT2_BIN
     (*params)[i][0] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_TIMESTAMP, ts, ts_len, NULL, NUM_OF_ROWS};
     (*params)[i][1] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_FLOAT, current, current_len, NULL, NUM_OF_ROWS};
     (*params)[i][2] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_INT, voltage, voltage_len, NULL, NUM_OF_ROWS};
-    (*params)[i][3] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_BLOB, phase, phase_len, NULL, NUM_OF_ROWS};
+    (*params)[i][3] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_BINARY, phase, phase_len, NULL, NUM_OF_ROWS};
 
     for (int j = 0; j < NUM_OF_ROWS; j++) {
       struct timeval tv;
@@ -204,9 +204,10 @@ int main() {
   // create database and table
   executeSQL(taos, "CREATE DATABASE IF NOT EXISTS power");
   executeSQL(taos, "USE power");
-  executeSQL(taos,
-             "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase BLOB) TAGS "
-             "(groupId INT, location BINARY(24))");
+  executeSQL(
+      taos,
+      "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase binary(12)) TAGS "
+      "(groupId INT, location BINARY(24))");
   insertData(taos);
   taos_close(taos);
   taos_cleanup();
