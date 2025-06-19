@@ -344,7 +344,7 @@ _exit:
 }
 
 
-#ifdef USE_S3
+#ifdef USE_SHARED_STORAGE
 static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, uint8_t **ppBlock) {
   int32_t code = 0, lino, vid = TD_VID(pFD->pTsdb->pVnode);
 
@@ -402,7 +402,7 @@ _exit:
 
 
 static int32_t tsdbReadFileSs(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, int64_t szHint) {
-#ifdef USE_S3
+#ifdef USE_SHARED_STORAGE
   int32_t code = 0;
   int32_t lino;
   int64_t n = 0;

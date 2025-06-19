@@ -340,7 +340,7 @@ void vnodeDestroy(int32_t vgId, const char *path, STfs *pTfs, int32_t nodeId) {
     vError("failed to remove path:%s since %s", path, tstrerror(terrno));
   }
 
-#ifdef USE_S3
+#ifdef USE_SHARED_STORAGE
   if (nodeId > 0 && vgId > 0 && tsSsEnabled) {
     // we should only do this on the leader node, but it is ok to do this on all nodes
     char prefix[TSDB_FILENAME_LEN];
