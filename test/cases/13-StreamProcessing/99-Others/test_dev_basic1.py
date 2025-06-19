@@ -262,6 +262,8 @@ class TestStreamDevBasic:
         tdSql.execute(
             "create stream streams16 interval(10s) sliding(10s) from st partition by tbname, tc into streamt16 tags(tx int as tc, tb varchar(32) as %%tbname) as select _twstart, count(*) c1, max(a) from st where tbname=%%1 and tc=%%2 and ts >= _twstart and ts < _twend;"
         )
+        
+        tdStream.checkStreamStatus()
 
         tdSql.checkTableSchema(
             dbname="test",
