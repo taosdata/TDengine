@@ -167,6 +167,8 @@ class TestStreamDevBasic:
             select _twstart ts, _twend, avg(cint) avg_cint, count(cint) count_cint from test.st where cts <= _twstart;"
         sql2 = f"create stream s2 state_window (cint) from test.trigger partition by tbname options(fill_history_first(1)) into out2  as \
             select _twstart ts, _twend, avg(cint) avg_cint, count(cint) count_cint from test.st where cts <= _twstart;"
+        sql3 = f"create stream s3 state_window (cint) from test.trigger partition by tbname options(fill_history_first(1)) into out3  as \
+            select _twstart ts, _twend, avg(cint) avg_cint, count(cint) count_cint %%trows;"
         stream1 = StreamItem(
             id=0,
             stream=sql1,
@@ -181,8 +183,16 @@ class TestStreamDevBasic:
                         expect_query_by_row = "select '{_wstart}','{_twend}', avg(cint), count(cint) from test.st where cts <= '{_wstart}';",
             result_param_mapping = { "_wstart": 0,  "_twend":1}
         )
+        stream3 = StreamItem(
+            id=0,
+            stream=sql3,
+            res_query="select * from test.out3 where tag_tbname='trigger_0';",
+                        expect_query_by_row = "select '{_wstart}','{_twend}', avg(cint), count(cint) from test.trigger_0 where cts <= '{_wstart}' and cts <= '{_twend}';",
+            result_param_mapping = { "_wstart": 0,  "_twend":1}
+        )
         stream1.createStream()
         stream2.createStream()
+        stream3.createStream()
         
         expectRows1 = 5
         stream1.awaitRowStability(expectRows1)
@@ -191,4 +201,8 @@ class TestStreamDevBasic:
         expectRows2 = 50
         stream2.awaitRowStability(expectRows2)
         stream2.checkResultsByRow()
+        
+        expectRows3 = 50
+        stream3.awaitRowStability(expectRows3)
+        stream3.checkResultsByRow()
         
