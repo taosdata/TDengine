@@ -129,7 +129,8 @@ Steps:
   1. Drag a "debug" node after 'td-writer'
   2. Configure it:
      - Name: 'debug1'
-     - Output: "Node status" → "Message count"
+     - Node stauts: checked
+     - Selected "Message count" in drop-down list.
 
 After adding all nodes, connect them in sequence to form a pipeline. Click "Deploy" to publish changes. When running successfully:
 - 'td-writer' turns green
@@ -169,9 +170,11 @@ Steps:
    - Database: Select existing 'td124' connection
    - Save and return
 
-3. Drag debug node to canvas:
-   - Output: "Node status" → "Message count"
-   - Save and return
+3. Drag debug node to canvas and configure it:
+     - Name: 'debug2'
+     - Node stauts: checked
+     - Selected "Message count" in drop-down list.
+
 
 4. Connect nodes sequentially → Click "Deploy"  
 
@@ -232,8 +235,10 @@ Steps:
    - Initial Offset: latest
    - Other settings: default
    
-3. Drag debug node to canvas:
-   - Output: "Node status" → "Message count"
+3. Drag debug node to canvas and configure it:
+     - Name: 'debug3'
+     - Node stauts: checked
+     - Selected "Message count" in drop-down list.
    
 4. Connect nodes sequentially → Click "Deploy"
 
@@ -270,10 +275,11 @@ Errors in data collection, querying, and subscription workflows are handled thro
 2. Configure node:  
    - Name: 'catch all except'  
    - Scope: "All nodes"  
-3. Drag "debug" node after catch node  
-4. Configure debug node:  
-   - Output: "Node status" → "Message count"  
-5. Connect nodes and deploy  
+3. Drag debug node to canvas and configure it:
+     - Name: 'debug4'
+     - Node stauts: checked
+     - Selected "Message count" in drop-down list.  
+4. Connect nodes and deploy  
 
 When errors occur:  
 - Debug node shows error count  
