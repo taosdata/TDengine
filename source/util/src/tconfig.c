@@ -996,7 +996,7 @@ int32_t cfgDumpItemCategory(SConfigItem *pItem, char *buf, int32_t bufSize, int3
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-void cfgDumpCfgArrayS3(SArray *array, bool tsc, bool dump) {
+void cfgDumpCfgArraySs(SArray *array, bool tsc, bool dump) {
   char    src[CFG_SRC_PRINT_LEN + 1] = {0};
   char    name[CFG_NAME_PRINT_LEN + 1] = {0};
   int32_t size = taosArrayGetSize(array);
@@ -1004,7 +1004,7 @@ void cfgDumpCfgArrayS3(SArray *array, bool tsc, bool dump) {
     SConfigItem *pItem = taosArrayGet(array, i);
     if (tsc && pItem->scope == CFG_SCOPE_SERVER) continue;
     if (dump && strcmp(pItem->name, "scriptDir") == 0) continue;
-    if (dump && strncmp(pItem->name, "s3", 2) != 0) continue;
+    if (dump && strncmp(pItem->name, "ss", 2) != 0) continue;
     tstrncpy(src, cfgStypeStr(pItem->stype), CFG_SRC_PRINT_LEN);
     for (int32_t j = 0; j < CFG_SRC_PRINT_LEN; ++j) {
       if (src[j] == 0) src[j] = ' ';
@@ -1062,18 +1062,18 @@ void cfgDumpCfgArrayS3(SArray *array, bool tsc, bool dump) {
   }
 }
 
-void cfgDumpCfgS3(SConfig *pCfg, bool tsc, bool dump) {
+void cfgDumpCfgSs(SConfig *pCfg, bool tsc, bool dump) {
   if (dump) {
-    (void)printf("                     s3 config");
+    (void)printf("          shared storage config");
     (void)printf("\n");
     (void)printf("=================================================================");
     (void)printf("\n");
   } else {
-    uInfo("                     s3 config");
+    uInfo("                 shared storage config");
     uInfo("=================================================================");
   }
-  cfgDumpCfgArrayS3(pCfg->localArray, tsc, dump);
-  cfgDumpCfgArrayS3(pCfg->globalArray, tsc, dump);
+  cfgDumpCfgArraySs(pCfg->localArray, tsc, dump);
+  cfgDumpCfgArraySs(pCfg->globalArray, tsc, dump);
   if (dump) {
     (void)printf("=================================================================\n");
   } else {
