@@ -20,7 +20,9 @@
 #include "parUtil.h"
 #include "querynodes.h"
 #include "tRealloc.h"
+#include "taoserror.h"
 #include "tdatablock.h"
+#include "tdataformat.h"
 #include "tmisce.h"
 
 void qDestroyBoundColInfo(void* pInfo) {
@@ -293,10 +295,10 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
         if (NULL == pTableCxt->pData->aRowP) {
           code = terrno;
         }
+      }
+
+      if (code == TSDB_CODE_SUCCESS) {
         code = tBlobRowCreate(4096 * 4, &pTableCxt->pData->pBlobRow);
-        if (NULL == pTableCxt->pData->pBlobRow) {
-          code = terrno;
-        }
       }
     }
   }
