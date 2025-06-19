@@ -67,7 +67,7 @@ Implementation uses Node-RED + TDengine:
 - Overload alerts via tdengine-consumer subscription.
 
 Assumptions:  
-- TDengine server: www.example.com.  
+- TDengine server: \www.example.com.  
 - WEBSOCKET port: 6041.  
 - Default credentials.  
 - Simulated devices: d0, d1, d2.  
@@ -228,7 +228,7 @@ Steps:
 
 2. Drag tdengine-consumer node to canvas:
    - Name: td-consumer
-   - Subscription Server: ws://www.example.com:6041
+   - Subscription Server: ws://\www.example.com:6041
    - Username: root
    - Password: taosdata
    - Topics: topic_overload
