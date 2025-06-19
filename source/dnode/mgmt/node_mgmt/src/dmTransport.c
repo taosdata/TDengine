@@ -542,7 +542,7 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.connLimitLock = 1;
   rpcInit.supportBatch = 1;
-  rpcInit.shareConnLimit = tsShareConnLimit * 8;
+  rpcInit.shareConnLimit = tsShareConnLimit * 4;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.startReadTimer = 1;
   rpcInit.readTimeout = tsReadTimeout;
@@ -593,7 +593,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   tstrncpy(rpcInit.localFqdn, tsLocalFqdn, TSDB_FQDN_LEN);
   rpcInit.localPort = tsServerPort;
   rpcInit.label = "DND-S";
-  rpcInit.numOfThreads = tsNumOfRpcThreads;
+  rpcInit.numOfThreads = tsNumOfRpcThreads * 2;
   rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
   rpcInit.sessions = tsMaxShellConns;
   rpcInit.connType = TAOS_CONN_SERVER;
