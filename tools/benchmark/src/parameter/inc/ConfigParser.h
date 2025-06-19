@@ -597,6 +597,9 @@ namespace YAML {
             if (node["interval_strategy"]) {
                 rhs.interval_strategy = node["interval_strategy"].as<std::string>("fixed");
             }
+            if (node["wait_strategy"]) {
+                rhs.wait_strategy = node["wait_strategy"].as<std::string>("sleep");
+            }
             if (rhs.interval_strategy == "fixed" && node["fixed_interval"]) {
                 const auto& fixed = node["fixed_interval"];
                 rhs.fixed_interval.base_interval = fixed["base_interval"].as<int>(1000);

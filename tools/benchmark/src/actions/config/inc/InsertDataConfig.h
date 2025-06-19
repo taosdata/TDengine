@@ -98,6 +98,7 @@ struct InsertDataConfig {
         struct TimeInterval {
             bool enabled = false;                    // 是否启用间隔控制
             std::string interval_strategy = "fixed"; // 时间间隔策略类型
+            std::string wait_strategy = "sleep";     // 时间间隔等待策略类型，sleep or busy_wait
 
             struct FixedInterval {
                 int base_interval = 1000; // 固定间隔数值，单位毫秒

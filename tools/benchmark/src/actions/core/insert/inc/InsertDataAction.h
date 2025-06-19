@@ -8,6 +8,7 @@
 #include "ColumnConfigInstance.h"
 #include "TableDataManager.h"
 #include "DataPipeline.h"
+#include "FormatResult.h"
 
 
 class InsertDataAction : public ActionBase {
@@ -26,10 +27,13 @@ private:
         size_t producer_id,
         const std::vector<std::string>& assigned_tables,
         const ColumnConfigInstanceVector& col_instances,
-        DataPipeline<std::string>& pipeline,
+        DataPipeline<FormatResult>& pipeline,
         std::shared_ptr<TableDataManager> data_manager);
 
-    void consumer_thread_function(size_t consumer_id, DataPipeline<std::string>& pipeline, std::atomic<bool>& running);
+    void consumer_thread_function(
+        size_t consumer_id,
+        DataPipeline<FormatResult>& pipeline,
+        std::atomic<bool>& running);
 
     // 注册 InsertDataAction 到 ActionFactory
     inline static bool registered_ = []() {

@@ -24,8 +24,8 @@ void test_format_insert_data_single_table() {
     SqlInsertDataFormatter formatter(format);
     FormatResult result = formatter.format(config, col_instances, batch);
 
-    assert(std::holds_alternative<std::string>(result));
-    assert(std::get<std::string>(result) == 
+    assert(std::holds_alternative<SqlInsertData>(result));
+    assert(std::get<SqlInsertData>(result).data == 
            "INSERT INTO `test_db`.`table1` VALUES "
            "(1500000000000,3.14,42,'value1')"
            "(1500000000001,2.71,43,'value2');");
@@ -59,8 +59,8 @@ void test_format_insert_data_multiple_tables() {
     auto formatter = FormatterFactory::instance().create_formatter<InsertDataConfig>(format);
     FormatResult result = formatter->format(config, col_instances, batch);
 
-    assert(std::holds_alternative<std::string>(result));
-    assert(std::get<std::string>(result) == 
+    assert(std::holds_alternative<SqlInsertData>(result));
+    assert(std::get<SqlInsertData>(result).data == 
            "INSERT INTO `test_db`.`table1` VALUES "
            "(1500000000000,3.14,42)"
            "(1500000000001,2.71,43) "
@@ -112,8 +112,8 @@ void test_format_insert_data_different_types() {
     SqlInsertDataFormatter formatter(format);
     FormatResult result = formatter.format(config, col_instances, batch);
 
-    assert(std::holds_alternative<std::string>(result));
-    assert(std::get<std::string>(result) == 
+    assert(std::holds_alternative<SqlInsertData>(result));
+    assert(std::get<SqlInsertData>(result).data == 
            "INSERT INTO `test_db`.`table1` VALUES "
            "(1500000000000,3.14,true,'测试','{\"key\":\"value\"}');");
     std::cout << "test_format_insert_data_different_types passed!" << std::endl;

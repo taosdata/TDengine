@@ -2,10 +2,12 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <variant>
+#include <type_traits>
 #include "FormatterRegistrar.h"
+#include "FormatterFactory.h"
 #include "TableNameManager.h"
 #include "TableDataManager.h"
-#include "FormatterFactory.h"
 
 
 void InsertDataAction::execute() {
@@ -56,7 +58,7 @@ void InsertDataAction::execute() {
         const size_t queue_capacity = config_.control.data_generation.queue_capacity;
         
         // 创建数据管道
-        DataPipeline<std::string> pipeline(producer_thread_count, consumer_thread_count, queue_capacity);
+        DataPipeline<FormatResult> pipeline(producer_thread_count, consumer_thread_count, queue_capacity);
 
         // 4. 启动消费者线程
         std::vector<std::thread> consumer_threads;
@@ -169,7 +171,7 @@ void InsertDataAction::producer_thread_function(
     size_t producer_id,
     const std::vector<std::string>& assigned_tables,
     const ColumnConfigInstanceVector& col_instances,
-    DataPipeline<std::string>& pipeline,
+    DataPipeline<FormatResult>& pipeline,
     std::shared_ptr<TableDataManager> data_manager)
 {
     // 初始化数据管理器
@@ -185,18 +187,40 @@ void InsertDataAction::producer_thread_function(
         // 格式化数据
         FormatResult formatted_result = formatter->format(config_, col_instances, batch.value());
 
-        // 目前只支持string类型
-        std::string formatted_string = std::get<std::string>(formatted_result);
-        
-        // Debug: Show formatted string content (first 100 chars)
-        std::cout << "Producer " << producer_id << ": Formatted data (truncated): " 
-                  << formatted_string
-                //   << formatted_string.substr(0, 100) 
-                //   << (formatted_string.length() > 100 ? "..." : "") 
-                  << ", Data length: " << formatted_string.length() << " bytes" << std::endl;
+        // Debug: 打印格式化结果信息
+        std::visit([producer_id](const auto& result) {
+            using T = std::decay_t<decltype(result)>;
+            
+            if constexpr (std::is_same_v<T, SqlInsertData>) {
+                std::cout << "Producer " << producer_id 
+                          << ": sql data, rows: " << result.total_rows
+                          << ", time range: [" << result.start_time 
+                          << ", " << result.end_time << "]"
+                          << ", length: " << result.data.length() 
+                          << " bytes" << std::endl;
+            } else if constexpr (std::is_same_v<T, StmtV2InsertData>) {
+                std::cout << "Producer " << producer_id 
+                          << ": stmt v2 data, rows: " << result.total_rows
+                          << ", time range: [" << result.start_time 
+                          << ", " << result.end_time << "]"
+                          << ", length: " << result.data.length() 
+                          << " bytes" << std::endl;
+            } else if constexpr (std::is_same_v<T, std::string>) {
+                std::cout << "Producer " << producer_id 
+                          << ": unknown format result type: " 
+                          << typeid(result).name() << ", content: " 
+                          << result.substr(0, 100) 
+                          << (result.length() > 100 ? "..." : "") 
+                          << ", length: " << result.length() 
+                          << " bytes" << std::endl;
+
+                throw std::runtime_error("Unknown format result type: " + std::string(typeid(result).name()));
+            }
+        }, formatted_result);
         
         // 将数据推送到管道
-        pipeline.push_data(producer_id, std::move(formatted_string));
+        pipeline.push_data(producer_id, std::move(formatted_result));
+
         std::cout << "Producer " << producer_id << ": Pushed batch for table(s): "
                 << batch->table_batches.size() << ", total rows: " << batch->total_rows 
                 << ", queue size: " << pipeline.total_queued() << std::endl;
@@ -205,7 +229,7 @@ void InsertDataAction::producer_thread_function(
 
 void InsertDataAction::consumer_thread_function(
     size_t consumer_id,
-    DataPipeline<std::string>& pipeline,
+    DataPipeline<FormatResult>& pipeline,
     std::atomic<bool>& running) 
 {
     // 创建数据库连接器
@@ -226,23 +250,27 @@ void InsertDataAction::consumer_thread_function(
     // 数据处理循环
     while (running) {
         auto result = pipeline.fetch_data(consumer_id);
-        
+
         switch (result.status) {
-        case DataPipeline<std::string>::Status::Success:
+        case DataPipeline<FormatResult>::Status::Success:
             try {
-                // Debug: Show received data before execution
-                std::cout << "Consumer " << consumer_id << ": Executing SQL (truncated): "
-                          << result.data.value()
-                        //   << result.data->substr(0, 100)
-                        //   << (result.data->length() > 100 ? "..." : "")
-                          << "\nData length: " << result.data->length() << " bytes" << std::endl;
-
-                // 写入数据库
-                connector->execute(*result.data);
-
-                // Debug: Show execution success
-                std::cout << "Consumer " << consumer_id << ": Successfully executed SQL statement" 
-                          << std::endl;
+                std::visit([&](const auto& formatted_result) {
+                    using T = std::decay_t<decltype(formatted_result)>;
+                    
+                    if constexpr (std::is_same_v<T, SqlInsertData>) {
+                        std::cout << "Consumer " << consumer_id 
+                                 << ": Executed SQL with " << formatted_result.total_rows 
+                                 << " rows" << std::endl;
+                        connector->execute(formatted_result.data);
+                    } else if constexpr (std::is_same_v<T, StmtV2InsertData>) {
+                        std::cout << "Consumer " << consumer_id 
+                                 << ": Executed STMT with " << formatted_result.total_rows 
+                                 << " rows" << std::endl;
+                        connector->execute(formatted_result.data);
+                    } else {
+                        throw std::runtime_error("Unknown format result type: " + std::string(typeid(formatted_result).name()));
+                    }
+                }, *result.data);
 
                 retry_count = 0;
             } catch (const std::exception& e) {
@@ -260,14 +288,14 @@ void InsertDataAction::consumer_thread_function(
             }
             break;
             
-        case DataPipeline<std::string>::Status::Terminated:
+        case DataPipeline<FormatResult>::Status::Terminated:
             // 管道已终止，退出线程
             std::cout << "Consumer " << consumer_id << " received termination signal" << std::endl;
             connector->close();
             return;
             
-        case DataPipeline<std::string>::Status::Timeout:
-            // 短暂休眠避免CPU空转
+        case DataPipeline<FormatResult>::Status::Timeout:
+            // 短暂休眠
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             break;
         }

@@ -3,10 +3,8 @@
 #include "ActionConfigVariant.h"
 #include "ColumnConfigInstance.h"
 #include "TableData.h"
+#include "FormatResult.h"
 
-
-// 通用格式化结果类型
-using FormatResult = std::variant<std::string, int>;
 
 class IFormatter {
 public:

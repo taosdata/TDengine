@@ -1,5 +1,6 @@
 #pragma once
 #include <sstream>
+#include <limits> 
 #include "taos.h"
 #include "IFormatter.h"
 #include "FormatterFactory.h"
@@ -9,18 +10,32 @@ class SqlInsertDataFormatter final : public IInsertDataFormatter {
 public:
     explicit SqlInsertDataFormatter(const DataFormat& format) : format_(format) {}
 
-    FormatResult format(const InsertDataConfig& config, const ColumnConfigInstanceVector& col_instances, const MultiBatch& batch) const {
+    FormatResult format(const InsertDataConfig& config, 
+                        const ColumnConfigInstanceVector& col_instances, 
+                        const MultiBatch& batch) const {
         std::ostringstream result;
         bool empty_batch = true;
-    
+        
+        // Initialize timing information
+        int64_t start_time = std::numeric_limits<int64_t>::max();
+        int64_t end_time = std::numeric_limits<int64_t>::min();
+        size_t total_rows = 0;
+
         result << "INSERT INTO";
-    
+
         // Iterate through each table's data batch
         for (const auto& [table_name, rows] : batch.table_batches) {
             if (rows.empty()) continue;
 
             empty_batch = false;
-    
+
+            // Update timing information
+            for (const auto& row : rows) {
+                start_time = std::min(start_time, row.timestamp);
+                end_time = std::max(end_time, row.timestamp);
+            }
+            total_rows += rows.size();
+
             // Write table name
             result << " `" << config.target.tdengine.database_info.name 
                    << "`.`" << table_name << "` VALUES ";
@@ -63,10 +78,17 @@ public:
         
         result << ";";
 
-        if (empty_batch)
+        if (empty_batch) {
             return FormatResult("");
-        else
-            return result.str();
+        } else {
+            SqlInsertData sql_data{
+                .start_time = start_time,
+                .end_time = end_time,
+                .total_rows = total_rows,
+                .data = result.str()
+            };
+            return sql_data;
+        }
     }
 
 private:
