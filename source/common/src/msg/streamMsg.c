@@ -1298,7 +1298,11 @@ _exit:
   return code;
 }
 
-
+void destroySStreamOutCols(void* p){
+  if (p == NULL) return;
+  SStreamOutCol* col = (SStreamOutCol*)p;
+  taosMemoryFreeClear(col->expr);
+}
 
 int32_t tDecodeSStreamRunnerDeployMsg(SDecoder* pDecoder, SStreamRunnerDeployMsg* pMsg) {
   int32_t code = 0;
@@ -3047,7 +3051,7 @@ static int32_t tSerializeSTriggerCalcParam(SEncoder* pEncoder, SArray* pParams, 
     TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->nextLocalTime));
 
     TAOS_CHECK_EXIT(tEncodeI64(pEncoder, param->triggerTime));
-    if (ignoreNotificationInfo) {
+    if (!ignoreNotificationInfo) {
       TAOS_CHECK_EXIT(tEncodeI32(pEncoder, param->notifyType));
       uint32_t len = (param->extraNotifyContent != NULL) ? strlen(param->extraNotifyContent) : 0;
       TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, (uint8_t*)param->extraNotifyContent, len));
@@ -3100,7 +3104,7 @@ static int32_t tDeserializeSTriggerCalcParam(SDecoder* pDecoder, SArray**ppParam
     TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->nextLocalTime));
 
     TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param->triggerTime));
-    if (ignoreNotificationInfo) {
+    if (!ignoreNotificationInfo) {
       TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &param->notifyType));
       uint64_t len = 0;
       TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&param->extraNotifyContent, &len));
