@@ -171,7 +171,7 @@ void insertData(TAOS *taos) {
     exit(EXIT_FAILURE);
   }
   // stmt2 prepare sql
-  checkErrorCode(stmt2, taos_stmt2_prepare(stmt2, "INSERT INTO ? USING meters TAGS(?,?) VALUES (?,?,?,?,?)", 0),
+  checkErrorCode(stmt2, taos_stmt2_prepare(stmt2, "INSERT INTO ? USING meters TAGS(?,?) VALUES (?,?,?,?)", 0),
                  "Statement preparation failed");
 
   char            **table_name;
