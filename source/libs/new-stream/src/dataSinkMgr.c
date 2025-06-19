@@ -369,6 +369,8 @@ int32_t putDataToSlidingTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t group
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   SSlidingGrpMgr* pSlidingGrpMgr = NULL;
+  stDebug("[put data cache] slding, groupId: %" PRId64 " block rows: %" PRId64 " startIndex: %d endIndex: %d",
+          groupId, pBlock->info.rows, startIndex, endIndex);
   code = getOrCreateSSlidingGrpMgr(pStreamTaskMgr, groupId, &pSlidingGrpMgr);
   if (code != 0) {
     stError("failed to get or create group data sink manager, err: %s", terrMsg);
@@ -412,6 +414,9 @@ int32_t putDataToAlignTaskMgr(SAlignTaskDSMgr* pStreamTaskMgr, int64_t groupId, 
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       lino = 0;
   SAlignGrpMgr* pAlignGrpMgr = NULL;
+  stDebug("[put data cache] align, groupId: %" PRId64 " wstart: %" PRId64 " wend: %" PRId64
+          " block rows: %" PRId64 " startIndex: %d endIndex: %d", groupId, wstart, wend, pBlock->info.rows, startIndex,
+          endIndex);
   code = getOrCreateAlignGrpMgr(pStreamTaskMgr, groupId, &pAlignGrpMgr);
   if (code != 0) {
     stError("failed to get or create group data sink manager, err: %s", terrMsg);
@@ -738,12 +743,15 @@ int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock) {
     stError("getNextStreamDataCache param invalid, ppBlock is NULL");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
+  *ppBlock = NULL;
   int32_t      code = 0;
   int32_t      lino = 0;
   SResultIter* pResult = (SResultIter*)*pIter;
   if (pResult == NULL) {
     return TSDB_CODE_SUCCESS;
   }
+  stDebug("[get data cache] start groupID:%" PRId64 ", start:%" PRId64 " end:%" PRId64 " dataPos: %d, winIndex: %d",
+          pResult->groupId, pResult->reqStartTime, pResult->reqEndTime, pResult->dataPos, pResult->winIndex);
   code = checkAndMoveMemCache(true);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -764,7 +772,7 @@ int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock) {
           *ppBlock = *ppBlk;
           *ppBlk = NULL;  // clear the block to avoid double free
 
-          return TSDB_CODE_SUCCESS;
+          goto _end;
         } else {
           code = TSDB_CODE_STREAM_INTERNAL_ERROR;
           QUERY_CHECK_CODE(code, lino, _end);
@@ -776,7 +784,7 @@ int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock) {
   if (finished) {
     releaseDataResult(pIter);
     *pIter = NULL;
-    return TSDB_CODE_SUCCESS;
+    goto _end;
   }
   moveToNextIterator(pIter);
 
@@ -786,6 +794,10 @@ int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock) {
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     stError("failed to get next data from cache, err: %s, lineno:%d", terrMsg, lino);
+  }
+  if (ppBlock != NULL && *ppBlock != NULL) {
+    stDebug("[get data cache] end, groupID:%" PRId64 ", start:%" PRId64 " end:%" PRId64 " block rows: %" PRId64 " next:%p",
+            pResult->groupId, pResult->reqStartTime, pResult->reqEndTime, (*ppBlock)->info.rows, *pIter);
   }
   return code;
 }
