@@ -1538,9 +1538,9 @@ int32_t streamDataBlocksToSubmitReq(SDataInserterHandle* pInserter, SStreamDataI
     if (NULL == pDataBlock) {
       return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
-    stDebug("streamDataBlocksToSubmitReq, insertHandle:%p, groupID:%" PRId64
-            " tbname:%s autoCreateTable:%d pDataBlock->info.rows:%" PRId64,
-            pInserter, pInserterInfo->groupId, pInserterInfo->tbName, pInserterInfo->isAutoCreateTable,
+    stDebug("[data inserter], insertHandle:%p, groupID:%" PRId64
+            " tbname:%s autoCreateTable:%d block: %d/%d rows:%" PRId64,
+            pInserter, pInserterInfo->groupId, pInserterInfo->tbName, pInserterInfo->isAutoCreateTable, i, sz,
             pDataBlock->info.rows);
     code = buildStreamSubmitReqFromBlock(pInserter, pInserterInfo, &pReq, pDataBlock, &vgId);
     if (code) {
