@@ -79,15 +79,18 @@ class TestStreamDevBasic:
         st1 = StreamTable("test", "trigger", StreamTableType.TYPE_SUP_TABLE)
         st1.createTable(3)
         st1.append_data(0, 10)
+        
+        tdSql.error(f"create stream s0 state_window (cint) from test.trigger options(fill_history_first(1)) into test.out0  \
+            as select _twstart ts, _twend, avg(cint) avg_cint, count(cint) count_cint from %%trows;")
   
-        sql = f"create stream s0 state_window (cint) from test.trigger options(fill_history_first(1)) into test.out0  \
+        sql = f"create stream s0 state_window (cint) from test.trigger_0 options(fill_history_first(1)) into test.out0  \
             as select _twstart ts, _twend, avg(cint) avg_cint, count(cint) count_cint from %%trows;"
-            
+                 
         stream = StreamItem(
             id=0,
             stream=sql,
             res_query="select * from test.out0;",
-            expect_query_by_row = "select '{_wstart}','{_twend}', avg(cint), count(cint) from test.trigger where cts >= '{_wstart}' and cts <= '{_twend}';",
+            expect_query_by_row = "select '{_wstart}','{_twend}', avg(cint), count(cint) from test.trigger_0 where cts >= '{_wstart}' and cts <= '{_twend}';",
             result_param_mapping = { "_wstart": 0,  "_twend":1}
         )
         stream.createStream()
