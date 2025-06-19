@@ -58,10 +58,7 @@ class TDTestCase(TBase):
             tdLog.exit("partition by tbname should return 10 rows of table data which is " + str(rowCnt))
             return
 
-
-    def run(self):
-        binPath = etool.benchMarkFile()
-        cmd = "%s -f ./tools/benchmark/basic//json/insertMix.json" % binPath
+    def insert(self, cmd):
         tdLog.info("%s" % cmd)
         errcode = os.system("%s" % cmd)
         if errcode != 0:
@@ -69,8 +66,16 @@ class TDTestCase(TBase):
             return 
 
         tdSql.execute("use mixdb")
-        self.checkDataCorrect()
+        self.checkDataCorrect()   
 
+    def run(self):
+        binPath = etool.benchMarkFile()
+        cmd = "%s -f ./tools/benchmark/basic/json/insertMix.json" % binPath
+        self.insert(cmd)
+        cmd = "%s -f ./tools/benchmark/basic/json/insertMixOldRule.json" % binPath
+        self.insert(cmd)
+        cmd = "%s -f ./tools/benchmark/basic/json/insertMixAutoCreateTable.json" % binPath
+        self.insert(cmd)
 
     def stop(self):
         tdSql.close()

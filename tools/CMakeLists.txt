@@ -18,8 +18,8 @@ ELSEIF(TD_BUILD_TAOSA_INTERNAL)
     ExternalProject_Add(ext_taosadapter
         GIT_REPOSITORY ${_git_url}
         PREFIX ${_base}
-        GIT_TAG main
-        GIT_SHALLOW TRUE
+        GIT_TAG ${TAOSADAPTER_GIT_TAG_NAME}
+        GIT_SHALLOW ${TAOSADAPTER_GIT_TAG_SHALLOW}
         BUILD_IN_SOURCE TRUE
         DEPENDS ${TAOS_NATIVE_LIB}
         CONFIGURE_COMMAND ""
