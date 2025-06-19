@@ -145,13 +145,17 @@ static void stSetRunnerOutputInfo(SStreamRunnerTask* pTask, const SStreamRunnerD
   if (pMsg->outTblType == TSDB_SUPER_TABLE) strncpy(pTask->output.outSTbName, pMsg->outTblName, TSDB_TABLE_NAME_LEN);
 }
 
-int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
+int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMsg) {
   ST_TASK_DLOGL("deploy runner task for %s.%s, runner plan:%s", pMsg->outDBFName, pMsg->outTblName, (char*)(pMsg->pPlan));
-  pTask->pPlan = pMsg->pPlan;
-  pTask->forceOutCols = pMsg->forceOutCols;
+  TSWAP(pTask->pPlan, pMsg->pPlan);
+  TSWAP(pTask->notification.pNotifyAddrUrls, pMsg->pNotifyAddrUrls);
+  TSWAP(pTask->forceOutCols, pMsg->forceOutCols);
   pTask->parallelExecutionNun = pMsg->execReplica;
   pTask->output.outStbVersion = pMsg->outStbSversion;
   pTask->topTask = pMsg->topPlan;
+  pTask->notification.calcNotifyOnly = pMsg->calcNotifyOnly;
+  pTask->notification.notifyErrorHandle = pMsg->notifyErrorHandle;
+
   int32_t code = nodesStringToList(pMsg->tagValueExpr, &pTask->output.pTagValExprs);
   ST_TASK_DLOG("pTagValExprs: %s", (char*)pMsg->tagValueExpr);
   if (code != 0) {
@@ -179,7 +183,11 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMs
 
 int32_t stRunnerTaskUndeploy(SStreamRunnerTask** ppTask, const SStreamUndeployTaskMsg* pMsg, taskUndeplyCallback cb) {
   if ((*ppTask)->execMgr.exit) return 0;
-  nodesDestroyNode((*ppTask)->pSubTableExpr);
+  NODES_DESTORY_NODE((*ppTask)->pSubTableExpr);
+  NODES_DESTORY_LIST((*ppTask)->output.pTagValExprs);
+  taosMemoryFreeClear((*ppTask)->pPlan);
+  taosArrayDestroyEx((*ppTask)->forceOutCols, destroySStreamOutCols);
+  taosArrayDestroyP((*ppTask)->notification.pNotifyAddrUrls, taosMemFree);
   (*ppTask)->pSubTableExpr = NULL;
   (*ppTask)->undeployCb = cb;
   (*ppTask)->undeployParam = ppTask;
@@ -327,9 +335,13 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
   int32_t lino = 0;
   if (!pBlock || pBlock->info.rows <= 0) return code;
   char* pContent = NULL;
-  int32_t filterColId = taosArrayGetSize(pBlock->pDataBlock) - 1;
-  //code = streamBuildBlockResultNotifyContent(pBlock, &pContent, filterColId, pTask->output.outCols);
-  //code = streamSendNotifyContent(pTask, 0, pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls, pTask->notification.notifyErrorHandle, const SSTriggerCalcParam *pParams, int32_t nParam);
+  code = streamBuildBlockResultNotifyContent(pBlock, &pContent, pTask->output.outCols);
+  if (code == 0){
+    ST_TASK_DLOG("start to send notify:%s", pContent);
+    code = streamSendNotifyContent(&pTask->task, pExec->runtimeInfo.funcInfo.triggerType, pExec->runtimeInfo.funcInfo.groupId, 
+      pTask->notification.pNotifyAddrUrls, pTask->notification.notifyErrorHandle, TARRAY_DATA(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals),
+      taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals));
+  }
   return code;
 }
 

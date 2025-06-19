@@ -417,25 +417,36 @@ _end:
   return code;
 }
 
-int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** ppContent, int32_t filterColIdx, const SArray* pFields) {
+int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** ppContent, const SArray* pFields) {
   int32_t code = 0, lino = 0;
   cJSON*  pResult = NULL;
+  cJSON*  pRow = NULL;
   pResult = cJSON_CreateObject();
   QUERY_CHECK_NULL(pResult, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
-  cJSON* pArr = cJSON_AddArrayToObject(pResult, "result");
+  cJSON* pArr = cJSON_AddArrayToObject(pResult, "data");
   QUERY_CHECK_NULL(pArr, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
-  cJSON* pRow = NULL;
-  for (int32_t rowIdx = 0; rowIdx < pBlock->info.rows; ++rowIdx) {
-    const SColumnInfoData* pFilterCol = taosArrayGet(pBlock->pDataBlock, filterColIdx);
-    if (pFilterCol->info.type != TSDB_DATA_TYPE_BOOL) {
-      stError("failed to do notification filtering, col type not bool: %d", pFilterCol->info.type);
-      QUERY_CHECK_CODE(TSDB_CODE_INTERNAL_ERROR, lino, _end);
-    }
-    bool v = *(const bool*)colDataGetNumData(pFilterCol, rowIdx);
-    if (!v) continue;
+  cJSON* size = cJSON_CreateNumber(pBlock->info.rows);
+  QUERY_CHECK_NULL(size, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  if (!cJSON_AddItemToObjectCS(pResult, "curSize", size)){
+    cJSON_Delete(size);
+    goto _end;
+  }
+  cJSON* offset = cJSON_CreateNumber(0);
+  QUERY_CHECK_NULL(offset, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  if (!cJSON_AddItemToObjectCS(pResult, "curOffset", offset)){
+    cJSON_Delete(offset);
+    goto _end;
+  }
+  cJSON* finish = cJSON_CreateTrue();
+  QUERY_CHECK_NULL(finish, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  if (!cJSON_AddItemToObjectCS(pResult, "finish", finish)){
+    cJSON_Delete(finish);
+    goto _end;
+  }
 
+  for (int32_t rowIdx = 0; rowIdx < pBlock->info.rows; ++rowIdx) {
     pRow = cJSON_CreateObject();
     QUERY_CHECK_NULL(pRow, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
@@ -446,6 +457,7 @@ int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** pp
       if (!pField) {
         stError("failed to get field name for notification, colIdx: %d, fields arr size: %" PRId64, colIdx,
                 (int64_t)taosArrayGetSize(pFields));
+                continue;
       }
       colName = pField->name;
       code = jsonAddColumnField(colName, pCol->info.type, colDataIsNull_s(pCol, rowIdx), colDataGetData(pCol, rowIdx),
@@ -461,7 +473,7 @@ int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** pp
 
 _end:
   if (pRow) cJSON_Delete(pRow);
-  if (pArr) cJSON_Delete(pArr);
+  if (pResult) cJSON_Delete(pResult);
   if (code) {
     stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }

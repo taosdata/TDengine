@@ -164,6 +164,7 @@ typedef struct SStreamOutCol {
   SDataType type;
 } SStreamOutCol;
 
+void destroySStreamOutCols(void* p);
 typedef struct SSessionTrigger {
   int16_t slotId;
   int64_t sessionVal;
