@@ -103,10 +103,10 @@ Steps:
   4. Click "Add" and return.
 
 - **Simulate Device Data**
-  1. Select the "function" node from the palette and drag it before 'td-writer' on the canvas.
+  1. Select the ‘function’ node from the palette and drag it before 'td-writer' on the canvas.
   2. Double-click the node:
      - Name: 'write d0'
-     - Select "Function" tab and enter:
+     - Select “Function” tab and enter:
      ```javascript
       // Generate random values
       const current = Math.floor(Math.random() * (30 - 5 + 1)) + 5; // 5-30A
@@ -120,13 +120,13 @@ Steps:
      ```
   3. Drag an "inject" node before 'write d0'
   4. Configure the inject node:
-     - Name: 'inject1'
+     - Name: “inject1”
      - Trigger: "Repeat"
      - Interval: 1 second
   5. Repeat steps 1-4 for other devices (d1, d2)
 
 - **Add Output Monitor**
-  1. Drag a "debug" node after 'td-writer'
+  1. Drag a ‘debug’ node after 'td-writer'
   2. Configure it:
      - Name: 'debug1'
      - Node stauts: checked
