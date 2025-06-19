@@ -49,23 +49,17 @@ typedef struct {
 static void printConfig(SSharedStorage* pss) {
     SSharedStorageS3* ss = (SSharedStorageS3*)pss;
 
-    printf("type: %s\n", ss->type->name);
-
-    if (ss->bucketContext.hostName != NULL) {
-        printf("endpoint: %s\n", ss->bucketContext.hostName);
-    }
-
-    printf("bucket: %s\n", ss->bucketContext.bucketName);
-
-    if (ss->bucketContext.authRegion != NULL) {
-        printf("region: %s\n", ss->bucketContext.authRegion);
-    }
-
-    printf("uriStyle: %s\n", ss->bucketContext.uriStyle == S3UriStylePath ? "path" : "virtualHost");
-    printf("protocol: %s\n", ss->bucketContext.protocol == S3ProtocolHTTP ? "http" : "https");
-    printf("chunkSize: %uMB\n", ss->defaultChunkSizeInMB);
-    printf("maxChunks: %u\n", ss->maxChunks);
-    printf("maxRetry: %d\n", ss->maxRetry);
+    printf("type           : %s\n", ss->type->name);
+    printf("endpoint       : %s\n", ss->bucketContext.hostName ? ss->bucketContext.hostName : "<default>");
+    printf("bucket         : %s\n", ss->bucketContext.bucketName);
+    printf("region         : %s\n", ss->bucketContext.authRegion ? ss->bucketContext.authRegion : "<default>");
+    printf("protocol       : %s\n", ss->bucketContext.protocol == S3ProtocolHTTP ? "http" : "https");
+    printf("uriStyle       : %s\n", ss->bucketContext.uriStyle == S3UriStylePath ? "path" : "virtualHost");
+    printf("accessKeyId    : %s\n", ss->bucketContext.accessKeyId);
+    printf("secretAccessKey: [omitted, sensitive information]\n");
+    printf("chunkSize      : %uMB\n", ss->defaultChunkSizeInMB);
+    printf("maxChunks      : %u\n", ss->maxChunks);
+    printf("maxRetry       : %d\n", ss->maxRetry);
 }
 
 

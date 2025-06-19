@@ -80,7 +80,7 @@ static int32_t azInitEnv() {
 
   tstrncpy(tsTempDir, "/tmp/", PATH_MAX);
 
-  tsSsEnabled = true;
+  tsSsEnabled = 1;
 
   return code;
 }
