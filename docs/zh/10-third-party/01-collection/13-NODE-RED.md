@@ -79,7 +79,7 @@ node-red-node-tdengine 是涛思数据为 Node-RED 开发的官方插件，由�
 - 过载报警使用 tdengine-consumer 订阅功能。
 
 假设：
-- TDengine 服务器：\www.example.com。
+- TDengine 服务器：`www.example.com`。
 - WEBSOCKET 端口：6041。
 - 用户名/密码：默认。
 - 模拟设备：三台（d0，d1，d2）。
@@ -225,7 +225,7 @@ debug 节点展示向下游节点推送数据次数，生产中可把 debug 节�
    ``` 
   2. tdengine-consumer 节点拖动至画布中，双击节点设置属性，填写如下内容后保存并返回画布。
      - 名称：td-consumer
-     - 订阅服务器：ws://\www.example.com:6041
+     - 订阅服务器：`ws://www.example.com:6041`
      - 用户名：root
      - 密码：taosdata
      - 订阅主题：topic_overload
