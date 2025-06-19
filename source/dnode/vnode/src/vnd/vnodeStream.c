@@ -2069,6 +2069,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   SResFetchReq req = {0};
   STREAM_CHECK_CONDITION_GOTO(tDeserializeSResFetchReq(pMsg->pCont, pMsg->contLen, &req) < 0,
                               TSDB_CODE_QRY_INVALID_INPUT);
+  qStreamSetTaskRunning(req.queryId, req.taskId);
   SArray* calcInfoList = (SArray*)qStreamGetReaderInfo(req.queryId, req.taskId);
   STREAM_CHECK_NULL_GOTO(calcInfoList, terrno);
 
