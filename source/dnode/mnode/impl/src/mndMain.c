@@ -145,10 +145,13 @@ static void mndPullupTrimDb(SMnode *pMnode) {
 }
 
 static void mndPullupSsMigrateDb(SMnode *pMnode) {
+  if (grantCheck(TSDB_GRANT_SHARED_STORAGE) != TSDB_CODE_SUCCESS) {
+    return;
+  }
+
   mTrace("pullup ssmigrate db");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
-  // TODO check return value
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_SSMIGRATE_DB_TIMER, .pCont = pReq, .contLen = contLen};
   if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
     mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
@@ -159,7 +162,6 @@ static void mndPullupQuerySsMigrateProgress(SMnode *pMnode) {
   mTrace("pullup query ssmigrate progress");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
-  // TODO check return value
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_QUERY_SSMIGRATE_PROGRESS_TIMER, .pCont = pReq, .contLen = contLen};
   if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
     mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);

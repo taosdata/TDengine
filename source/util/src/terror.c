@@ -584,7 +584,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_VIEW_EXPIRED,           "License expired for v
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_AUDIT_EXPIRED,          "License expired for audit function")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_CSV_EXPIRED,            "License expired for CSV function")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_MULTI_STORAGE_EXPIRED,  "License expired for multi-tier storage function")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_OBJECT_STROAGE_EXPIRED, "License expired for object storage function")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_SHARED_STROAGE_EXPIRED, "License expired for shared storage function")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DUAL_REPLICA_HA_EXPIRED,"License expired for dual-replica HA function")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DB_ENCRYPTION_EXPIRED,  "License expired for database encryption function")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_TD_GPT_EXPIRED,         "License expired for TDgpt function")

@@ -2373,6 +2373,12 @@ static int32_t mndProcessSsMigrateDbReq(SRpcMsg *pReq) {
   SDbObj         *pDb = NULL;
   SSsMigrateDbReq ssMigrateReq = {0};
 
+  if (!tsSsEnabled) {
+    code = TSDB_CODE_OPS_NOT_SUPPORT;
+    goto _OVER;
+  }
+
+  TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_SHARED_STORAGE), NULL, _OVER);
   TAOS_CHECK_GOTO(tDeserializeSSsMigrateDbReq(pReq->pCont, pReq->contLen, &ssMigrateReq), NULL, _OVER);
 
   mInfo("db:%s, start to ssmigrate", ssMigrateReq.db);

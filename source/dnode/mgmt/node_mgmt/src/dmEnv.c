@@ -176,6 +176,14 @@ static int32_t dmCheckDataDirVersionWrapper() {
 int32_t dmInit() {
   dInfo("start to init dnode env");
   int32_t code = 0;
+
+#ifdef USE_S3
+  if (tsSsEnabled) {
+    if ((code = tssInit()) != 0) return code;
+    if ((code = tssCreateDefaultInstance()) != 0) return code;
+  }
+#endif
+
   if ((code = dmDiskInit()) != 0) return code;
   if (!dmCheckDataDirVersion()) {
     code = TSDB_CODE_INVALID_DATA_FMT;
@@ -189,10 +197,6 @@ int32_t dmInit() {
   if ((code = dmInitAudit()) != 0) return code;
   if ((code = dmInitDnode(dmInstance())) != 0) return code;
   if ((code = InitRegexCache() != 0)) return code;
-#if defined(USE_S3)
-  if ((code = tssInit()) != 0) return code;
-  if ((code = tssCreateDefaultInstance()) != 0) return code;
-#endif
 
   dInfo("dnode env is initialized");
   return 0;
@@ -225,9 +229,11 @@ void dmCleanup() {
   (void)dmDiskClose();
   DestroyRegexCache();
 
-#if defined(USE_S3)
-  tssCloseDefaultInstance();
-  tssUninit();
+#ifdef USE_S3
+  if (tsSsEnabled) {
+    tssCloseDefaultInstance();
+    tssUninit();
+  }
 #endif
 
   dInfo("dnode env is cleaned up");

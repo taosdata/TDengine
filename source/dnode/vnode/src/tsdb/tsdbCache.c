@@ -28,11 +28,13 @@ void tsdbLRUCacheRelease(SLRUCache *cache, LRUHandle *handle, bool eraseIfLastRe
   }
 }
 
+#ifdef USE_S3
+
 static int32_t tsdbOpenBCache(STsdb *pTsdb) {
   int32_t code = 0, lino = 0;
-#ifdef USE_S3
   int32_t    szPage = pTsdb->pVnode->config.tsdbPageSize;
   int64_t    szBlock = tsSsBlockSize <= 1024 ? 1024 : tsSsBlockSize;
+
   SLRUCache *pCache = taosLRUCacheInit((int64_t)tsSsBlockCacheSize * szBlock * szPage, 0, .5);
   if (pCache == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err);
@@ -49,12 +51,11 @@ _err:
     tsdbError("tsdb/bcache: vgId:%d, %s failed at line %d since %s.", TD_VID(pTsdb->pVnode), __func__, lino,
               tstrerror(code));
   }
-#endif
+  
   TAOS_RETURN(code);
 }
 
 static void tsdbCloseBCache(STsdb *pTsdb) {
-#ifdef USE_S3
   SLRUCache *pCache = pTsdb->bCache;
   if (pCache) {
     int32_t elems = taosLRUCacheGetElems(pCache);
@@ -67,12 +68,10 @@ static void tsdbCloseBCache(STsdb *pTsdb) {
 
     (void)taosThreadMutexDestroy(&pTsdb->bMutex);
   }
-#endif
 }
 
 static int32_t tsdbOpenPgCache(STsdb *pTsdb) {
   int32_t code = 0, lino = 0;
-#ifdef USE_S3
   int32_t szPage = pTsdb->pVnode->config.tsdbPageSize;
 
   SLRUCache *pCache = taosLRUCacheInit((int64_t)tsSsPageCacheSize * szPage, 0, .5);
@@ -90,12 +89,11 @@ _err:
   if (code) {
     tsdbError("tsdb/pgcache: vgId:%d, open failed at line %d since %s.", TD_VID(pTsdb->pVnode), lino, tstrerror(code));
   }
-#endif
+  
   TAOS_RETURN(code);
 }
 
 static void tsdbClosePgCache(STsdb *pTsdb) {
-#ifdef USE_S3
   SLRUCache *pCache = pTsdb->pgCache;
   if (pCache) {
     int32_t elems = taosLRUCacheGetElems(pCache);
@@ -108,8 +106,9 @@ static void tsdbClosePgCache(STsdb *pTsdb) {
 
     (void)taosThreadMutexDestroy(&pTsdb->bMutex);
   }
-#endif
 }
+
+#endif // USE_S3
 
 #define ROCKS_KEY_LEN (sizeof(tb_uid_t) + sizeof(int16_t) + sizeof(int8_t))
 
@@ -2826,9 +2825,12 @@ int32_t tsdbOpenCache(STsdb *pTsdb) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err);
   }
 
-  TAOS_CHECK_GOTO(tsdbOpenBCache(pTsdb), &lino, _err);
-
-  TAOS_CHECK_GOTO(tsdbOpenPgCache(pTsdb), &lino, _err);
+#ifdef USE_S3
+  if (tsSsEnabled) {
+    TAOS_CHECK_GOTO(tsdbOpenBCache(pTsdb), &lino, _err);
+    TAOS_CHECK_GOTO(tsdbOpenPgCache(pTsdb), &lino, _err);
+  }
+#endif
 
   TAOS_CHECK_GOTO(tsdbOpenRocksCache(pTsdb), &lino, _err);
 
@@ -2856,8 +2858,13 @@ void tsdbCloseCache(STsdb *pTsdb) {
     (void)taosThreadMutexDestroy(&pTsdb->lruMutex);
   }
 
-  tsdbCloseBCache(pTsdb);
-  tsdbClosePgCache(pTsdb);
+#ifdef USE_S3
+  if (tsSsEnabled) {
+    tsdbCloseBCache(pTsdb);
+    tsdbClosePgCache(pTsdb);
+  }
+#endif
+
   tsdbCloseRocksCache(pTsdb);
 }
 
@@ -4228,6 +4235,10 @@ int32_t tsdbCacheGetBlockSs(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle)
 }
 
 int32_t tsdbCacheGetPageSs(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, LRUHandle **handle) {
+  if (!tsSsEnabled) {
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
+
   int32_t code = 0;
   char    key[128] = {0};
   int     keyLen = 0;
@@ -4239,6 +4250,10 @@ int32_t tsdbCacheGetPageSs(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, LRUHan
 }
 
 void tsdbCacheSetPageSs(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_t *pPage) {
+  if (!tsSsEnabled) {
+    return;
+  }
+
   char       key[128] = {0};
   int        keyLen = 0;
   LRUHandle *handle = NULL;
