@@ -1934,7 +1934,7 @@ void freeRecordSchema(RecordSchema *recordSchema) {
 //
 
 // read fields
-static int32_t readJsonFields( json_t *value, RecordSchema *recordSchema) {
+int32_t readJsonFields( json_t *value, RecordSchema *recordSchema) {
     if (JSON_ARRAY == json_typeof(value)) {
         size_t i;
         size_t size = json_array_size(value);
@@ -3465,7 +3465,7 @@ static void freeBindArray(char *bindArray, int elements) {
     }
 }
 
-static int32_t dumpInAvroTagTinyInt(FieldStruct *field, avro_value_t *value,
+int32_t dumpInAvroTagTinyInt(FieldStruct *field, avro_value_t *value,
                               char *sqlstr, int32_t curr_sqlstr_len) {
     if (field->nullable) {
         avro_value_t tinyint_branch;
@@ -3504,7 +3504,7 @@ static int32_t dumpInAvroTagTinyInt(FieldStruct *field, avro_value_t *value,
     return curr_sqlstr_len;
 }
 
-static int32_t dumpInAvroTagSmallInt(FieldStruct *field, avro_value_t *value,
+int32_t dumpInAvroTagSmallInt(FieldStruct *field, avro_value_t *value,
                               char *sqlstr, int32_t curr_sqlstr_len) {
     if (field->nullable) {
         avro_value_t smallint_branch;
@@ -3540,7 +3540,7 @@ static int32_t dumpInAvroTagSmallInt(FieldStruct *field, avro_value_t *value,
     return curr_sqlstr_len;
 }
 
-static int32_t dumpInAvroTagInt(FieldStruct *field, avro_value_t *value,
+int32_t dumpInAvroTagInt(FieldStruct *field, avro_value_t *value,
                               char *sqlstr, int32_t curr_sqlstr_len) {
     if (field->nullable) {
         avro_value_t int_branch;
@@ -3579,7 +3579,7 @@ static int32_t dumpInAvroTagInt(FieldStruct *field, avro_value_t *value,
     return curr_sqlstr_len;
 }
 
-static int32_t dumpInAvroTagBigInt(FieldStruct *field, avro_value_t *value,
+int32_t dumpInAvroTagBigInt(FieldStruct *field, avro_value_t *value,
                               char *sqlstr, int32_t curr_sqlstr_len) {
     if (field->nullable) {
         avro_value_t bigint_branch;
@@ -3616,7 +3616,7 @@ static int32_t dumpInAvroTagBigInt(FieldStruct *field, avro_value_t *value,
     return curr_sqlstr_len;
 }
 
-static int32_t dumpInAvroTagFloat(FieldStruct *field, avro_value_t *value,
+int32_t dumpInAvroTagFloat(FieldStruct *field, avro_value_t *value,
                               char *sqlstr, int32_t curr_sqlstr_len) {
     if (field->nullable) {
         avro_value_t float_branch;
@@ -3646,7 +3646,7 @@ static int32_t dumpInAvroTagFloat(FieldStruct *field, avro_value_t *value,
     return curr_sqlstr_len;
 }
 
-static int32_t dumpInAvroTagDouble(FieldStruct *field, avro_value_t *value,
+int32_t dumpInAvroTagDouble(FieldStruct *field, avro_value_t *value,
                               char *sqlstr, int32_t curr_sqlstr_len) {
     if (field->nullable) {
         avro_value_t dbl_branch;
@@ -3675,7 +3675,7 @@ static int32_t dumpInAvroTagDouble(FieldStruct *field, avro_value_t *value,
     return curr_sqlstr_len;
 }
 
-static int32_t appendValues(char *buf, char* val) {
+int32_t appendValues(char *buf, char* val) {
     int32_t val_len = (int32_t)strlen(val);
     int32_t n1      = 0; // '
     int32_t n2      = 0; // ""

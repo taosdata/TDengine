@@ -17,6 +17,7 @@
 #include <iostream>
 #include "pub.h" 
 #include <bench.h>
+#include <assert.h>
 #include "toolsdef.h"
 #include "toolsdef.h"
 #include "toolscJson.h"
@@ -35,11 +36,26 @@ extern char    g_configDir[MAX_PATH_LEN];
 SQueryMetaInfo g_queryInfo;
 STmqMetaInfo   g_tmqInfo;
 tools_cJSON*   root;
-
+extern struct arguments g_args;
+uint64_t        g_argFlag = 0;
 
 char *typeToStr(int type);
 bool replaceCopy(char *des, char *src);
-uint64_t        g_argFlag = 0;
+int inDatabasesSeq(const char *dbName);
+int processFieldsValueV2(int index, TableDes *tableDes, const void *value, int32_t len);
+int readJsonFields(json_t *value, RecordSchema *recordSchema);
+int32_t appendValues(char *buf, char* val);
+int32_t dumpInAvroTagTinyInt(FieldStruct *field, avro_value_t *value, char *sqlstr, int32_t curr_sqlstr_len);
+int32_t dumpInAvroTagSmallInt(FieldStruct *field, avro_value_t *value, char *sqlstr, int32_t curr_sqlstr_len);
+int32_t dumpInAvroTagInt(FieldStruct *field, avro_value_t *value, char *sqlstr, int32_t curr_sqlstr_len);
+int32_t dumpInAvroTagBigInt(FieldStruct *field, avro_value_t *value, char *sqlstr, int32_t curr_sqlstr_len);
+int32_t dumpInAvroTagFloat(FieldStruct *field, avro_value_t *value, char *sqlstr, int32_t curr_sqlstr_len);
+int32_t dumpInAvroTagDouble(FieldStruct *field, avro_value_t *value, char *sqlstr, int32_t curr_sqlstr_len);
+// int32_t dumpInAvroTagBinary(FieldStruct *field, avro_value_t *value, char *sqlstr, int32_t curr_sqlstr_len);
+// int32_t dumpInAvroTagTimestamp(FieldStruct *field, avro_value_t *value, char *sqlstr, int32_t curr_sqlstr_len);
+// int32_t dumpInAvroTagNChar(FieldStruct *field, avro_value_t *value, char *sqlstr, int32_t curr_sqlstr_len);
+// int32_t dumpInAvroTagUTinyInt(FieldStruct *field, avro_value_t *value, char *sqlstr, int32_t curr_sqlstr_len);
+// int32_t dumpInAvroTagUSmallInt(FieldStruct *field, avro_value_t *value, char *sqlstr, int32_t curr_sqlstr_len);
 #ifdef __cplusplus
 }
 #endif
@@ -192,6 +208,199 @@ TEST(taosdump, processResultValue) {
     assert(strcmp(buf, "NULL") == 0);
 
 }
+
+TEST(taosdump, inDatabasesSeq) {
+  // Test with a database that exists
+  g_args.databasesSeq = NULL;
+  assert(inDatabasesSeq("db1") == -1);
+
+  // Test with a database that does not exist
+  g_args.databasesSeq = "db1";
+  assert(inDatabasesSeq("db1") == 0);
+  assert(inDatabasesSeq("db2") == -1);
+
+  g_args.databasesSeq = "db1,db2,db3";
+  assert(inDatabasesSeq("db1") == 0);
+  assert(inDatabasesSeq("db2") == 0);
+  assert(inDatabasesSeq("db3") == 0);
+  assert(inDatabasesSeq("db4") == -1);
+
+  g_args.databasesSeq = "db1,,db3";
+  assert(inDatabasesSeq("db1") == 0);
+  assert(inDatabasesSeq("db3") == 0);
+  assert(inDatabasesSeq("") == 0);
+
+  g_args.databasesSeq = ",db1,db2,";
+  assert(inDatabasesSeq("db1") == 0);
+  assert(inDatabasesSeq("db2") == 0);
+  assert(inDatabasesSeq("") == 0);
+}
+
+TEST(taosdump, processFieldsValueV2) {
+    TableDes tableDes = {0};
+
+    // int
+    tableDes.cols[0].type = 4; // TSDB_DATA_TYPE_INT
+    int32_t vi = 123;
+    processFieldsValueV2(0, &tableDes, &vi, sizeof(vi));
+    assert(strcmp(tableDes.cols[0].value, "123") == 0);
+
+    // bigint
+    tableDes.cols[0].type = 5; // TSDB_DATA_TYPE_BIGINT
+    int64_t vbig = 1234567890123LL;
+    processFieldsValueV2(0, &tableDes, &vbig, sizeof(vbig));
+    assert(strcmp(tableDes.cols[0].value, "1234567890123") == 0);
+
+    // float
+    tableDes.cols[0].type = 6; // TSDB_DATA_TYPE_FLOAT
+    float vf = 3.14f;
+    processFieldsValueV2(0, &tableDes, &vf, sizeof(vf));
+    assert(strstr(tableDes.cols[0].value, "3.14") != NULL);
+
+    // double
+    tableDes.cols[0].type = 7; // TSDB_DATA_TYPE_DOUBLE
+    double vd = 2.71828;
+    processFieldsValueV2(0, &tableDes, &vd, sizeof(vd));
+    assert(strstr(tableDes.cols[0].value, "2.718") != NULL);
+
+    // binary
+    tableDes.cols[0].type = 8; // TSDB_DATA_TYPE_BINARY
+    char vb[] = "hello";
+    processFieldsValueV2(0, &tableDes, vb, strlen(vb));
+    assert(strstr(tableDes.cols[0].value, "hello") != NULL);
+
+    // nchar
+    tableDes.cols[0].type = 10; // TSDB_DATA_TYPE_NCHAR
+    char vn[] = "世界";
+    processFieldsValueV2(0, &tableDes, vn, strlen(vn));
+    assert(strlen(tableDes.cols[0].value) > 0);
+
+    // timestamp
+    tableDes.cols[0].type = 9; // TSDB_DATA_TYPE_TIMESTAMP
+    int64_t ts = 1710000000000LL;
+    processFieldsValueV2(0, &tableDes, &ts, sizeof(ts));
+    assert(strcmp(tableDes.cols[0].value, "1710000000000") == 0);
+
+    // bool
+    tableDes.cols[0].type = 1; // TSDB_DATA_TYPE_BOOL
+    char vb1 = 1, vb0 = 0;
+    processFieldsValueV2(0, &tableDes, &vb1, 1);
+    assert(strcmp(tableDes.cols[0].value, "1") == 0);
+    processFieldsValueV2(0, &tableDes, &vb0, 1);
+    assert(strcmp(tableDes.cols[0].value, "0") == 0);
+
+    // unsigned int
+    tableDes.cols[0].type = 13; // TSDB_DATA_TYPE_UINT
+    uint32_t vu = 123456;
+    processFieldsValueV2(0, &tableDes, &vu, sizeof(vu));
+    assert(strcmp(tableDes.cols[0].value, "123456") == 0);
+
+    printf("All processFieldsValueV2 tests passed!\n");
+}
+
+TEST(taosdump, readJsonFields) {
+  const char *json_text = "[{\"name\": \"id\", \"type\": \"int\"}]";
+  json_error_t error;
+  json_t *root = json_loads(json_text, 0, &error);
+  assert(root);
+
+  RecordSchema schema = {0};
+  int ret = readJsonFields(root, &schema);
+  assert(ret == 0);
+  assert(schema.num_fields == 1);
+  assert(strcmp(schema.fields, "id") == 0);
+  // assert(strcmp(schema.fields[0], "col1") == 0);
+  // 释放资源
+  free(schema.fields);
+  json_decref(root);
+
+  const char *json_array = "[{\"name\": \"temp\", \"type\": [\"float\", \"null\"]}]";
+  json_t *root_array = json_loads(json_array, 0, &error);
+  assert(root_array); 
+  RecordSchema schema_array = {0};
+  ret = readJsonFields(root_array, &schema_array);
+  assert(ret == 0);
+  assert(schema_array.num_fields == 1);
+  assert(strcmp(schema_array.fields, "temp") == 0);
+  free(schema_array.fields);
+  json_decref(root_array);
+
+  const char *json_object = "[{\"name\": \"sensors\", \"type\": {\"type\": \"array\", \"items\": \"double\"}}]";
+  json_t *root_object = json_loads(json_object, 0, &error);
+  assert(root_object);
+  RecordSchema schema_object = {0};
+  ret = readJsonFields(root_object, &schema_object);
+  assert(ret == 0);
+  assert(schema_object.num_fields == 1);
+  assert(strcmp(schema_object.fields, "sensors") == 0);
+  free(schema_object.fields);
+  json_decref(root_object);
+
+}
+
+TEST(taosdump, dumpInAvroTagTypes) {
+  char buf[128] = {0};
+  FieldStruct field = {0};
+  avro_value_t field_value;
+
+  avro_schema_t int_schema = avro_schema_int();
+  avro_value_iface_t *int_iface = avro_generic_class_from_schema(int_schema);
+  avro_generic_value_new(int_iface, &field_value);
+  avro_value_set_int(&field_value, 123);    
+
+  // not nullable, normal value
+  field.nullable = 0;
+  dumpInAvroTagTinyInt(&field, &field_value, buf, 0);
+  assert(strstr(buf, "123,") != NULL);
+  
+  // // not nullable, null value
+  avro_value_set_int(&field_value, TSDB_DATA_TINYINT_NULL);
+  dumpInAvroTagTinyInt(&field, &field_value, buf, 0);
+  assert(strstr(buf, "NULL,") != NULL);
+
+  avro_value_set_int(&field_value, 567);
+  dumpInAvroTagSmallInt(&field, &field_value, buf, 0);
+  assert(strstr(buf, "567,") != NULL);
+
+  avro_value_set_int(&field_value, TSDB_DATA_SMALLINT_NULL);
+  dumpInAvroTagSmallInt(&field, &field_value, buf, 0);
+  assert(strstr(buf, "NULL,") != NULL);
+
+  avro_value_set_int(&field_value, 789);
+  dumpInAvroTagInt(&field, &field_value, buf, 0);
+  assert(strstr(buf, "789,") != NULL);
+
+  avro_value_set_int(&field_value, TSDB_DATA_INT_NULL);
+  dumpInAvroTagInt(&field, &field_value, buf, 0);
+  assert(strstr(buf, "NULL,") != NULL);
+
+  avro_value_set_long(&field_value, 9099999);
+  dumpInAvroTagBigInt(&field, &field_value, buf, 0);
+  assert(strstr(buf, "9099999,") != NULL);
+
+  avro_value_set_long(&field_value, TSDB_DATA_BIGINT_NULL);
+  dumpInAvroTagBigInt(&field, &field_value, buf, 0);
+  assert(strstr(buf, "NULL,") != NULL);
+
+  avro_value_set_float(&field_value, 9099.999);
+  dumpInAvroTagFloat(&field, &field_value, buf, 0);
+  assert(strstr(buf, "9099.999,") != NULL);
+
+  avro_value_set_float(&field_value, TSDB_DATA_FLOAT_NULL);
+  dumpInAvroTagFloat(&field, &field_value, buf, 0);
+  assert(strstr(buf, "NULL,") != NULL);
+
+  avro_value_set_double(&field_value, 123456.789);
+  dumpInAvroTagDouble(&field, &field_value, buf, 0);
+  assert(strstr(buf, "123456.789,") != NULL);
+
+  avro_value_set_double(&field_value, TSDB_DATA_DOUBLE_NULL);
+  dumpInAvroTagDouble(&field, &field_value, buf, 0);
+  assert(strstr(buf, "NULL,") != NULL);
+
+
+}
+
 
 int main(int argc, char **argv) {
   printf("hello world taosdump unit test for C\n");

@@ -164,7 +164,6 @@ uint8_t parseFuns(char* expr, float* multiple, float* addend, float* base, int32
             key3 += 9;
         }
     }
-
     // base
     if(key3) {
         char* key5 = strstr(key3, "+");
@@ -544,6 +543,7 @@ static int getColumnAndTagTypeFromInsertJsonFile(
         BDecimal decMax = {0};
         BDecimal decMin = {0};
         int32_t length = 4;
+        uint8_t tagGen = GEN_RANDOM;
         tools_cJSON *tagObj = tools_cJSON_GetArrayItem(tags, k);
         if (!tools_cJSON_IsObject(tagObj)) {
             errorPrint("%s", "Invalid tag format in json\n");
@@ -718,6 +718,13 @@ static int getColumnAndTagTypeFromInsertJsonFile(
             }
         }
 
+        tools_cJSON *tagDataGen = tools_cJSON_GetObjectItem(tagObj, "gen");
+        if (tools_cJSON_IsString(tagDataGen)) {
+            if (strcasecmp(tagDataGen->valuestring, "order") == 0) {
+                tagGen = GEN_ORDER;
+            }
+        }
+
         for (int n = 0; n < count; ++n) {
             Field * tag = benchCalloc(1, sizeof(Field), true);
             benchArrayPush(stbInfo->tags, tag);
@@ -737,6 +744,7 @@ static int getColumnAndTagTypeFromInsertJsonFile(
             tag->decMax = decMax;
             tag->decMin = decMin;
             tag->values = dataValues;
+            tag->gen = tagGen;
             if (customName) {
                 if (n >= 1) {
                     snprintf(tag->name, TSDB_COL_NAME_LEN,
