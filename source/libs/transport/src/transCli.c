@@ -2792,7 +2792,7 @@ bool cliMayRetry(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
     tTrace("code str %s, contlen:%d 0", tstrerror(code), pResp->contLen);
     noDelay = cliResetEpset(pCtx, pResp, true);
     transFreeMsg(pResp->pCont);
-  } else if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY) {
+  } else if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY || code == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE) {
     noDelay = 0;
     transFreeMsg(pResp->pCont);
   } else {

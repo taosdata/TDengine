@@ -335,7 +335,7 @@ static bool clientRpcRfp(int32_t code, tmsg_t msgType) {
       return false;
     }
     return true;
-  } else if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY) {
+  } else if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY || code == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE) {
     return true;
   } else {
     return false;
