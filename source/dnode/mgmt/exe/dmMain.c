@@ -360,7 +360,7 @@ static int32_t dmCheckSs() {
   SConfig *pCfg = taosGetCfg();
   cfgDumpCfgSs(pCfg, 0, true);
 
-#ifdef USE_S3
+#ifdef USE_SHARED_STORAGE
   printf("\nbegin check shared storage configuration.\n\n");
   code = tssInit();
   if (code != 0) {

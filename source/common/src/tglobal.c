@@ -1970,7 +1970,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minDiskFreeSize");
   tsMinDiskFreeSize = pItem->i64;
 
-#ifdef USE_S3
+#ifdef USE_SHARED_STORAGE
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ssEnabled");
   tsSsEnabled = pItem->i32;
 

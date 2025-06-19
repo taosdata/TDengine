@@ -437,7 +437,7 @@ int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now) {
   return code;
 }
 
-#ifdef USE_S3
+#ifdef USE_SHARED_STORAGE
 
 int32_t tsdbAsyncSsMigrate(STsdb *tsdb, SSsMigrateVgroupReq *pReq) {
   int32_t code = 0;

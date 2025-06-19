@@ -28,7 +28,7 @@ void tsdbLRUCacheRelease(SLRUCache *cache, LRUHandle *handle, bool eraseIfLastRe
   }
 }
 
-#ifdef USE_S3
+#ifdef USE_SHARED_STORAGE
 
 static int32_t tsdbOpenBCache(STsdb *pTsdb) {
   int32_t code = 0, lino = 0;
@@ -108,7 +108,7 @@ static void tsdbClosePgCache(STsdb *pTsdb) {
   }
 }
 
-#endif // USE_S3
+#endif // USE_SHARED_STORAGE
 
 #define ROCKS_KEY_LEN (sizeof(tb_uid_t) + sizeof(int16_t) + sizeof(int8_t))
 
@@ -2825,7 +2825,7 @@ int32_t tsdbOpenCache(STsdb *pTsdb) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err);
   }
 
-#ifdef USE_S3
+#ifdef USE_SHARED_STORAGE
   if (tsSsEnabled) {
     TAOS_CHECK_GOTO(tsdbOpenBCache(pTsdb), &lino, _err);
     TAOS_CHECK_GOTO(tsdbOpenPgCache(pTsdb), &lino, _err);
@@ -2858,7 +2858,7 @@ void tsdbCloseCache(STsdb *pTsdb) {
     (void)taosThreadMutexDestroy(&pTsdb->lruMutex);
   }
 
-#ifdef USE_S3
+#ifdef USE_SHARED_STORAGE
   if (tsSsEnabled) {
     tsdbCloseBCache(pTsdb);
     tsdbClosePgCache(pTsdb);
@@ -4142,7 +4142,7 @@ int32_t tsdbCacheGetElems(SVnode *pVnode) {
   return elems;
 }
 
-#ifdef USE_S3
+#ifdef USE_SHARED_STORAGE
 // block cache
 static void getBCacheKey(int32_t fid, int64_t commitID, int64_t blkno, char *key, int *len) {
   struct {

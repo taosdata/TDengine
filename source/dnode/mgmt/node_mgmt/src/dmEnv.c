@@ -177,7 +177,7 @@ int32_t dmInit() {
   dInfo("start to init dnode env");
   int32_t code = 0;
 
-#ifdef USE_S3
+#ifdef USE_SHARED_STORAGE
   if (tsSsEnabled) {
     if ((code = tssInit()) != 0) return code;
     if ((code = tssCreateDefaultInstance()) != 0) return code;
@@ -229,7 +229,7 @@ void dmCleanup() {
   (void)dmDiskClose();
   DestroyRegexCache();
 
-#ifdef USE_S3
+#ifdef USE_SHARED_STORAGE
   if (tsSsEnabled) {
     tssCloseDefaultInstance();
     tssUninit();
