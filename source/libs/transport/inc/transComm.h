@@ -569,7 +569,7 @@ int32_t subnetDebugInfoToBuf(SubnetUtils* pUtils, char* buf);
 int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf);
 int32_t transUtilSWhiteListToStr(SIpWhiteListDual* pWhiteList, char** ppBuf);
 
-bool transUtilCheckIpDual(SIpRange* range, SIpRange* ip);
+bool transUtilCheckDualIp(SIpRange* range, SIpRange* ip);
 
 #ifdef TD_ASTRA_RPC
 
